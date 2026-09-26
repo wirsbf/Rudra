@@ -1,0 +1,103 @@
+{
+ "schema_version": 1,
+ "fixture_id": "PARSEADJ-PARSEFACE-PCODE-0001",
+ "title": "pcode-snippet parser whole face (generator-absorbed equivalence unit): PcodeSnippet::parseStream parse trees and error texts over p-code semantic strings",
+ "overall_status": "MATCH",
+ "status_note": "Lane PCODEFACE (wt/pcodeface, base 6a458387). The locked Ghidra 12.0.4 snippet compiler (oracle commit e40ed130) was driven on a bare SLEIGH engine over the production x86-64.sla — the same const SleighBase* handle PcodeInjectLibrarySleigh::parseInject hands to PcodeSnippet (inject_sleigh.cc:387-416) — and the lane-tree Rugra recursive-descent driver (src/pcodeparse.rs) with the FaceLanguage symbol-lookup host. Both sides produced 110 records / identical bytes (SHA-256 1b30d20db49365a77c83b3dd6d0767c01bd717603e3a5515684887a61c149377). First bilateral run pinned 12 driver gaps (g1-g12); all fixed in src/pcodeparse.rs (commit 04a83ee9) and re-run to identity. Runner: tools/run_pcode_snippet_face_oracle.sh (lane iteration form — root re-pins to the frozen-commit form at integration).",
+ "input_sha256": "case matrix embedded in both fixture sources (SYM 20 probes + SNIP 77 + LF 10); see fixture headers",
+ "oracle_output_sha256": "1b30d20db49365a77c83b3dd6d0767c01bd717603e3a5515684887a61c149377",
+ "rugra_output_sha256": "1b30d20db49365a77c83b3dd6d0767c01bd717603e3a5515684887a61c149377",
+ "covered_projection": {
+  "status": "MATCH",
+  "name": "generator_absorbed pcodeparse face: PcodeLexer + PcodeSnippet + yyparse skeleton equivalence unit (12 ledger members)",
+  "oracle_capture": {
+   "status": "ORACLE_CAPTURED",
+   "note": "The unmodified PcodeSnippet/PcodeLexer members run inside the locked oracle through the public parseStream/setUniqueBase/getUniqueBase/clear/addOperand/releaseResult surface on a real Sleigh engine (x86-64.sla, 5 spaces, register varnodes RAX..RIP/SF/ZF/AL, userop cpuid=44). The lexer table bug ('||' misses the binary search — KUNAUB-IDENTS-PIN-0001) and the unreachable OP_NEW rule (no 'new' entry in the 46-entry idents table) are pinned as shared dead behavior: both sides emit the same error records."
+  },
+  "rugra_source_observation": {
+   "status": "MATCH",
+   "note": "src/pcodeparse.rs recursive-descent driver after the 12 pinned fixes: ctor space seeding {const,OTHER,unique,ram,register} (pcodeparse.cc:3184-3190 filter), matchSize own-op scan + force_size cross-op localtemp propagation (pcodecompile.cc:108-168), swapped-operand comparison actions (y:134-163), INTEGER[SPACESYM] jumpdest with space addrsize (y:198), label jumpdest size sizeof(uintm)=4 (y:199, types.h:27), LABELBUILD counting into num_labels (semantics.cc:748), label placed-state authority (pcodecompile.cc:314-329), LOCAL specificsymbol redefinition (y:111), varnode-vs-lhsvarnode error text (y:204 dead-rule analysis), bison 'syntax error' texts, SleighError escape channel (pcodecompile.cc:580 throw — hard_error), statement-boundary lookahead refresh (bison lazy yylex)."
+  },
+  "rugra_execution": {
+   "status": "EXECUTED",
+   "note": "The lane tree's rugra rlib built the fixture binary (rustc --extern rugra); deterministic stdout, exit 0, twice reproduced."
+  },
+  "bilateral_comparison": {
+   "status": "MATCH",
+   "note": "diff exit 0 over 110 records; byte SHA-256 identical on both sides. Probes: SYM findSymbol universe (13 register varnodes with offsets/sizes, cpuid userop index, 3 predefined JUMPSYM, ram/OTHER/stack ABSENT from the language table); ctor seeding (sp01-sp08: ram/register/unique/const/OTHER parse, stack/iop syntax error; default-space forms sp09/sp10); statement forms st01-st40 (assignment/local declaration with and without size/flow symbols/userop statements/bitrange assignments incl. truncated-varnode and AND/ZEXT/SHIFT/OR forms/goto if call return/labels/jumpdest INTEGER and INTEGER[SPACESYM]/error texts: Illegal truncation, Illegal subpiece, Must specify an indirect parameter for return, Redefinition of symbol, Unknown jump destination, Unknown varnode parameter (incl. the dead lhsvarnode rule analysis via st28), Duplicate symbol name via addOperand, Label placed more than once, overflow BADINTEGER in jumpdest and integervarnode, Could not resolve at least 1 variable size, bitrange error family, bison 'syntax error' via sp06/st26/st30/lx06, SleighError escape EXC channel via st38); expression face ex01-ex20 (precedence/associativity/parentheses, the six swapped comparisons, float family, unary minus/negate/bool-negate/float-neg, bool family, shifts, zext/sext/carry/scarry/sborrow, abs/sqrt/ceil/floor/round, nan/trunc/int2float/float2float, subpiece EAX(1), bitrange forms EAX:2/RAX[0,16]/EAX[4,4], userop expr, addressOf &RAX/&:8 RBX/&inst_start, sized constants, load chains, new() dead-rule record); lexer face lx01-lx06 (comments incl. tail comment without newline, s/f special2/special3 operators s<= s>= s>> f== f!=, identifiers with dot/underscore and s/f-prefixed non-keywords, hex/dec, 2^64-1 boundary, illegal character '$'); lifecycle LF (setUniqueBase/getUniqueBase + allocateTemp offsets in XML, clear drops non-space symbols, clear keeps tempbase (offset 0x10 after clear), clear resets label counter (labels=1, const_relative 0x0), clear resets error state, addSymbol duplicate via addOperand('ram'), addOperand handles in0/in1 incl. handle-based INT_ADD and SUBPIECE, releaseResult second-call null)."
+  }
+ },
+ "known_deltas": [
+  {
+   "kind": "recovery-divergence",
+   "note": "After an action error the recursive-descent driver skips to the next ';' and continues parsing where Bison aborts at the first error (YYERROR). Invisible to the fixture projection (both sides print the same first error text; the recovered tail is never emitted because hasErrors forces the ERR channel), registered as the standing PARSER-0001 lifecycle note — the case matrix keeps every post-error statement inert."
+  },
+  {
+   "kind": "projection-normalisation",
+   "note": "Opcode names inside <op_tpl code=...> follow Ghidra's get_opname table (opcodes.cc:29-48 + opcode_indices), which spells 7 members differently from Rugra's OpCode::name(): CPUI_PTRADD prints 'LABEL' (the LABELBUILD alias), CPUI_FLOAT_INT2FLOAT 'INT2FLOAT', CPUI_FLOAT_FLOAT2FLOAT 'FLOAT2FLOAT', CPUI_FLOAT_TRUNC/CEIL/FLOOR/ROUND 'TRUNC'/'CEIL'/'FLOOR'/'ROUND'. The twin mirrors the table locally (ghidra_op_name); the src-side rename is registered as PCODE-OPNAME-TABLE-0001 (shared table outside this lane's write-set)."
+  },
+  {
+   "kind": "dead-rules",
+   "note": "OP_NEW snippets (ex20) parse-fail on BOTH sides with 'Unknown varnode parameter: new' — the 46-entry idents table has no 'new' entry, so the lexer can never produce OP_NEW through the snippet face (pcodeparse.y:228-276). '||' similarly misses the binary search (table sort inversion, pinned byte-exact by KUNAUB-IDENTS-PIN-0001 and exercised by ex09). Both records pin the shared dead behavior rather than a divergence."
+  },
+  {
+   "kind": "not-covered",
+   "note": "Driver sub-faces not exercised by the matrix: 'Multiple delayslot declarations' (DELAY_SLOT ops unreachable through the snippet grammar), SleighError 'Could not construct requested bit range' (needs real offset + non-real size, unreachable), 'Localtemp size mismatch' escape (implemented on the hard-error channel, unreachable through the grammar), illegal-char handling beyond '$' (lx06 pattern covers the endstream/EOF-abort path), 256-byte token truncation, and nonassoc chained comparisons (a > b > c is a bison syntax error; the precedence climber parses it — grammar-face difference recorded, no production snippet uses chained comparisons)."
+  }
+ ],
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "entrypoints": [
+   "PcodeSnippet::PcodeSnippet (pcodeparse.cc:3174, y:676)",
+   "PcodeSnippet::parseStream (pcodeparse.cc:3268, y:770)",
+   "PcodeSnippet::clear (pcodeparse.cc:3150, y:652)",
+   "PcodeSnippet::addOperand (pcodeparse.cc:3285, y:787)",
+   "PcodeSnippet::addSymbol (pcodeparse.cc:3138, y:640)",
+   "PcodeSnippet::allocateTemp (pcodeparse.cc:3130, y:632)",
+   "PcodeSnippet::reportError (pcodeparse.cc:3207, y:709)",
+   "PcodeSnippet::~PcodeSnippet (pcodeparse.cc:3195)",
+   "PcodeLexer::moveState (pcodeparse.cc:2795, y:297)",
+   "PcodeLexer::getNextToken (pcodeparse.cc:3058, y:560)",
+   "PcodeLexer::initialize (pcodeparse.cc:3106, y:608)",
+   "pcodelex/pcodeerror shims (pcodeparse.cc:3292/3296)",
+   "yyparse skeleton (pcodeparse.cc:1791, generator-absorbed)"
+  ]
+ },
+ "rugra": {
+  "worktree": "wt/pcodeface",
+  "base_commit": "6a458387",
+  "fix_commit": "04a83ee9",
+  "modules": [
+   "src/pcodeparse.rs (parse_stream, parse_statement, parse_goto, parse_if, parse_assign_or_declare, parse_lhs_varnode, parse_jumpdest, parse_label, parse_sizedstar, parse_varnode, parse_integer_varnode, parse_expr, parse_expr_atom, parse_specific_symbol_expr, parse_local_statement, parse_userop_no_out_statement, parse_store_statement, binary_op_for, swaps_operands, force_size, fillin_zero_indexed, match_size, apply_match_size, propagate_size, PcodeSnippet::new, add_op_list, place_label, clear, build_truncated_varnode, create_bit_range, assign_bit_range, create_load, create_store, refresh_lookahead_symbol)"
+  ]
+ },
+ "comparand": {
+  "cpp_fixture_sha256": "6165b4faa31e488b3e8917d041e5ae5d3288a4e4082ba355d1e9c0dd03ed1c88",
+  "rust_fixture_sha256": "effdcc68f2d11adb9123a37bdcb3c67568fc0f02958e5c47daaeb2f44e9105e6",
+  "runner_sha256": "ebc99ef65f3267239b94cc5e11f74012fc5ed9d1c9613ee148603a9821dcba54"
+ },
+ "coverage": {
+  "record_counts": {
+   "SCHEMA": 1,
+   "SYM": 20,
+   "SNIP": 76,
+   "LF": 12,
+   "DONE": 1
+  }
+ },
+ "locked_capture": {
+  "bytes": 46882,
+  "records": 110,
+  "stdout_sha256": "1b30d20db49365a77c83b3dd6d0767c01bd717603e3a5515684887a61c149377"
+ },
+ "verification": {
+  "runner": "tools/run_pcode_snippet_face_oracle.sh",
+  "verdict": "BILATERAL MATCH (110 records)",
+  "canon_ab": "curl 96429 B / httpd 64778 B byte-identical vs parent 6a458387 (cmp exit 0 both)",
+  "cargo_test": "1838 passed / 0 failed / 5 ignored (base 1829 + 9 new face regression tests)",
+  "bank": "verify_projection_bank.sh 391/391",
+  "gates": "annotations --all 96 files OK; refs --all --strict OK; alignment-evidence 4/4 on both lane commits",
+  "date": "2026-09-27"
+ }
+}
