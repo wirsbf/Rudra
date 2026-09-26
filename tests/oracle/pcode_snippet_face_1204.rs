@@ -339,7 +339,15 @@ fn run_snippet(id: &str, snippet: &str, out: &mut String) {
     // parseInject lifecycle (inject_sleigh.cc:387-416): fresh compiler per
     // snippet, language lookup installed, default tempbase.
     let mut compiler = fresh_compiler();
-    if compiler.parse_stream(snippet) && !compiler.has_errors() {
+    let ok = compiler.parse_stream(snippet);
+    // SleighError escape (pcodecompile.cc:580 throw out of parseStream):
+    // observe the hard-error channel first, exactly like the C++ fixture's
+    // catch clause.
+    if let Some(exc) = compiler.get_hard_error() {
+        out.push_str(&format!("SNIP|{}|EXC|{}\n", id, escape_newlines(exc)));
+        return;
+    }
+    if ok && !compiler.has_errors() {
         encode_result(&mut compiler, id, out);
         return;
     }
@@ -609,7 +617,12 @@ fn run() -> Result<(), String> {
 /// Parse one snippet on the given compiler and emit the `LF|id|...` record
 /// (same encoding channel as the SNIP records).
 fn encode_lf(compiler: &mut PcodeSnippet, id: &str, snippet: &str, out: &mut String) {
-    if compiler.parse_stream(snippet) && !compiler.has_errors() {
+    let ok = compiler.parse_stream(snippet);
+    if let Some(exc) = compiler.get_hard_error() {
+        out.push_str(&format!("LF|{}|EXC|{}\n", id, escape_newlines(exc)));
+        return;
+    }
+    if ok && !compiler.has_errors() {
         match compiler.release_result() {
             Some(tpl) => out.push_str(&format!(
                 "LF|{}|OK|{}\n",

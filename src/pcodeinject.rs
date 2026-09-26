@@ -1612,9 +1612,12 @@ mod tests {
             .find(|op| op.get_opcode() == OpCode::CPUI_CBRANCH as i32)
             .expect("snippet contains CBRANCH");
         let target = &branch.inputs()[0];
+        // The label jumpdest size is sizeof(uintm) = 4 (pcodeparse.y:199;
+        // uintm is uint32_t, types.h:27) — pinned byte-exact by the
+        // pcode_snippet_face_1204 fixture's st20/LF|clrlbl records.
         assert_eq!(
             (target.space, target.offset, target.size),
-            (crate::space::AddressSpace::Const, 2, 8)
+            (crate::space::AddressSpace::Const, 2, 4)
         );
         // Two COPYs into the output operand, the second from the post-label
         // constant 0x2.
