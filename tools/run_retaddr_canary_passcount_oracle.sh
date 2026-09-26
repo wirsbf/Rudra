@@ -34,9 +34,9 @@ mkdir -p "$work"
 
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 expected_oracle_drill_sha=4e0aac505419f280bb48e82c45492d1260ba028b0eabc2db729bc0d6ebba32f1
-expected_rugra_drill_sha=a5054aa2c29248241ec9fc2b5394e33e782ae5f20ed24aabe0c9ab2d49073e62
-expected_rugra_canon_sha=bccb085125f2b31a1657fa0690249740901f645296ee577b1b7ac708bbe75561
-expected_rugra_bare_sha=a4d5a5a5957374dbcf3da1d68952d52cb05e6616b780cb6c2a309ebc27e30afb
+expected_rugra_drill_sha=407271bc74b774eb266ac5d975705a89dfdeb5e916562a5988947f299f920448
+expected_rugra_canon_sha=2cec1f6c9f21918505c8037eff6e2e7883ae7af99fce9f7829688ad5ccdf9f80
+expected_rugra_bare_sha=699da462e337d8f66ed0d072a79e1d340c5bcde90eeb1c61fb44a209f809f5ab
 
 fail=0
 note() { echo "[RETADDR-GATE] $*"; }
@@ -132,8 +132,11 @@ if o_h != 7 or o_h_empty != 5 or o_dc != 7 or o_r != 0:
     problems.append(f"oracle pass counts drifted from pin: heritage={o_h}/{o_h_empty} deadcode={o_dc} restarts={o_r}")
 
 # invariant 2: canary STORE->COPY conversion on both sides (stack slot s0x...c0)
+# (TYPESEEDARB repin: post-arbitration the canon drill carries the
+#  oracle-identical id form :35 / u0x23e00(:31); the pre-arbitration ids
+#  :32 / u0x1068 recorded the DEAD-web state)
 o_conv = count(oracle_d, r's0xffffffffffffffc0\(0x0002b85a:35\) = u0x00023e00')
-r_conv = count(rugra_d, r's0xffffffffffffffc0\(0x0012b85a:32\) = u0x00001068')
+r_conv = count(rugra_d, r's0xffffffffffffffc0\(0x0012b85a:35\) = u0x00023e00')
 print(f"storevarnode conversion: oracle={o_conv} rugra={r_conv}")
 if not (o_conv >= 1 and r_conv >= 1):
     problems.append("RuleStoreVarnode canary conversion missing on a side "
@@ -141,7 +144,7 @@ if not (o_conv >= 1 and r_conv >= 1):
 
 # invariant 3: canary COPY destroyed by earlyremoval on both sides
 o_copy_death = count(oracle_d, r'0x0002b85a:35: s0xffffffffffffffc0\(0x0002b85a:35\) = u0x00023e00[^\n]*\n\s+0x0002b85a:35: \*\*')
-r_copy_death = count(rugra_d, r'0x0012b85a:32: s0xffffffffffffffc0\(0x0012b85a:32\) = u0x00001068[^\n]*\n\s+0x0012b85a:32: \*\*')
+r_copy_death = count(rugra_d, r'0x0012b85a:35: s0xffffffffffffffc0\(0x0012b85a:35\) = u0x00023e00[^\n]*\n\s+0x0012b85a:35: \*\*')
 print(f"canary COPY earlyremoval death: oracle={o_copy_death} rugra={r_copy_death}")
 if not (o_copy_death >= 1 and r_copy_death >= 1):
     problems.append("canary COPY earlyremoval death missing on a side "
@@ -153,15 +156,17 @@ print(f"oracle canary LOAD destruction records: {o_load_death}")
 if o_load_death != 0:
     problems.append(f"oracle canary LOAD destroyed ({o_load_death}) - oracle boundary moved; re-read heritage/ruleaction chain")
 
-# invariant 4b: rugra canon LOAD destroyed (registered MISMATCH arm)
-r_load_death = count(rugra_d, r'0x0012b851:2f: u0x00001068[^\n]*\n\s+0x0012b851:2f: \*\*')
-print(f"rugra canon canary LOAD destruction records: {r_load_death} (registered MISMATCH while TYPESEED-LOCK-ARBITRATION is open)")
-if r_load_death == 0:
-    print("NOTE: rugra canon canary now SURVIVES - the registered divergence healed;")
-    print("NOTE: re-pin metadata.web_survival to MATCH and close HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001.")
-    problems.append("registered canon-face MISMATCH healed (canary LOAD no longer destroyed) - re-pin required")
+# invariant 4b: rugra canon LOAD survives too (repinned MATCH arm:
+# HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001 landed 2026-09-27 - the canon
+# face keeps the web ALIVE; a NEW destruction record means the arbitration
+# regressed, a missing one is the expected state)
+r_load_death = count(rugra_d, r'0x0012b851:31: u0x00023e00[^\n]*\n\s+0x0012b851:31: \*\*')
+print(f"rugra canon canary LOAD destruction records: {r_load_death} (expected 0 - MATCH arm)")
+if r_load_death != 0:
+    problems.append("rugra canon canary LOAD destroyed again - TYPESEED-LOCK-ARBITRATION regressed (web must stay ALIVE)")
 
-# invariant 4c: rugra bare face keeps the statement (library chain faithful)
+# invariant 4c: both faces keep the statement (golden parity on canon,
+# library-chain faithfulness on bare)
 bare_decl, bare_stmt = extract_main_decl_and_stmt(rugra_bare)
 canon_decl, canon_stmt = extract_main_decl_and_stmt(rugra_canon)
 golden = open(f"{repo}/tests/golden/ghidra_httpd_1204.c", errors='replace').read()
@@ -172,8 +177,8 @@ if not g_stmt:
     problems.append("canon golden no longer carries the canary statement - golden drift")
 if bare_stmt is not True:
     problems.append(f"rugra bare face lost the canary statement ({bare_stmt}) - library-side chain regressed (this is the oracle-faithful arm)")
-if canon_stmt is not False:
-    problems.append("rugra canon face now prints the canary statement - registered MISMATCH healed; re-pin required")
+if canon_stmt is not True:
+    problems.append("rugra canon face lost the canary statement - web-death regression (TYPESEED-LOCK-ARBITRATION must keep it ALIVE)")
 
 sys.exit(1 if problems else 0)
 PYEOF
@@ -184,4 +189,4 @@ if [[ $fail -ne 0 ]]; then
   echo "[RETADDR-GATE] FAIL — unexpected state (see above)" >&2
   exit 1
 fi
-note "PASS — pass-count parity 7/7+0/0, conversion/death parity hold, oracle web ALIVE, canon-face MISMATCH registered (TYPESEED-LOCK-ARBITRATION), bare-face ALIVE"
+note "PASS — pass-count parity 7/7+0/0, conversion/death parity hold, oracle web ALIVE, canon-face web ALIVE (TYPESEED-LOCK-ARBITRATION landed, repinned MATCH), bare-face ALIVE"

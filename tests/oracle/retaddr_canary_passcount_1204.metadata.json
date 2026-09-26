@@ -5,7 +5,7 @@
   },
   "architecture": "x86:LE:64:default",
   "compiler_spec": "gcc",
-  "lane": "RETADDR (2026-09-26, wt/retaddr, base f3499354)",
+  "lane": "RETADDR (2026-09-26, wt/retaddr, base f3499354) -> TYPESEEDARB repin (2026-09-27, wt/typeseedarb, base 6a458387, HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001 landed)",
   "family": "HTTPDMAIN-RETADDR-FLOOR-0001 (dead-store survival boundary / canary chain)",
   "provenance": {
     "oracle_side": "tools/run_stage_drill_oracle.sh httpd 0x2b820 main (OPACTION_DEBUG stage drill, pinned comparand sha256 4e0aac505419f280bb48e82c45492d1260ba028b0eabc2db729bc0d6ebba32f1; harness tests/oracle/stage_drill_1204.cc; capture reused verbatim, no re-pin)",
@@ -35,44 +35,45 @@
     },
     "canary_storevarnode_conversion": {
       "oracle": "YES (bracket 4060 oppool2:storevarnode: 0x2b85a:35 *(ram,..) = v -> s0x...c0(:35) = u0x23e00(:31))",
-      "rugra": "YES (bracket 4491 oppool2:storevarnode: 0x12b85a:32 *(ram,..) = v -> s0x...c0(:32) = u0x1068(:2f))",
+      "rugra": "YES (post-TYPESEEDARB repin the canon drill carries the oracle-identical id form: s0xffffffffffffffc0(0x0012b85a:35) = u0x00023e00(0x0012b851:31); the pre-arbitration run printed divergent ids :32/u0x1068)",
       "verdict": "MATCH"
     },
     "canary_copy_destruction": {
       "oracle": "YES - RuleEarlyRemoval kills the converted stack COPY late in the run (bracket 6302/6817)",
-      "rugra": "YES - same rule, same relative position (bracket 12367/12973)",
+      "rugra": "YES - same rule, same relative position; post-TYPESEEDARB the destruction record is 0x0012b85a:35 (oracle-identical id form)",
       "verdict": "MATCH - both sides destroy the named-local COPY; the printed statement comes from the surviving INDIRECT/MULTIEQUAL web, not from the COPY"
     },
     "canary_ssa_web_survival": {
       "oracle": "ALIVE - the call-site INDIRECT chain over s0x...c0 (e.g. :27cd = u0x23e00(:31) [] i<call>) plus the loop-carried phi cycle (:2945 at 0x2ba58 reads INDIRECT outputs :27e3/:27e4 which read :2945) survives to pipeline end; hasNoDescend() is never true for cycle members; the LOAD 0x2b851:31 is never destroyed",
-      "rugra_canon_with_typeseed": "DEAD - INDIRECTs over s0x...c0 collapsed by RuleIndirectCollapse (brackets 4562/5297/5298) because their output vns carry nolocalalias=true; phi inputs then canonicalize; RuleMultiCollapse destroys the loop phi cluster in one application (bracket 12400); RuleEarlyRemoval peels the rest including the LOAD (bracket 12453)",
-      "rugra_bare_face": "ALIVE (RUGRA_SEEDS=0 output keeps 'uStack_40 = *(undefined8 *)(in_FS_OFFSET + 0x28);' - 11 fs:0x28 statements across the corpus, same as golden direction)",
-      "verdict": "MISMATCH on the canon face, root-caused to the seed data model (see root_cause); the library-side chain (funcdata.rs sync / ruleaction.rs indirectcollapse / varmap.rs markUnaliased) is oracle-faithful - proven by the bare-face control arm"
+      "rugra_canon_with_typeseed": "ALIVE (repinned 2026-09-27, HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001 landed): aggregate manifest entries (main local_70 long[6]/local_80 undefined8[2]/local_c8 long[4] + all 115 corpus-wide array declarators) ride the name-only transport (typelock=false -> collectNameRecs downgrade varmap.cc:357-381 -> unlocked recovery), markUnaliased's alias_block branch never fires, the canary slot keeps its alias, and the INDIRECT web survives with the LOAD intact (0 destruction records, oracle-identical vn ids)",
+      "rugra_bare_face": "ALIVE (RUGRA_SEEDS=0 output keeps 'uStack_40 = *(undefined8 *)(in_FS_OFFSET + 0x28);' - 11 fs:0x28 statements across the corpus, same as golden direction; byte-identical across the arbitration)",
+      "verdict": "MATCH - canon-face divergence healed with the seed data model arbitrated; locked-oracle same-seed cross-check (stage_seed_diag e40ed130): the nameonly-agg payload keeps the web alive, any typelocked ARRAY kills it, the drop payload loses the names"
     },
     "final_c_output": {
       "canon_golden": "keeps 'long in_FS_OFFSET;' + 'undefined8 local_40;' + 'local_40 = *(undefined8 *)(in_FS_OFFSET + 0x28);' (dead statement printed from the surviving web)",
       "mirror_golden": "keeps 'xStack_40 = *(xunknown8 *)(in_FS_OFFSET + 0x28);' (analyzer-less oracle keeps it too - survival does not depend on analyzer data)",
-      "rugra_canon": "statement absent; dangling 'undefined8 local_40;' declaration remains (the RETADDR x2 residual: golden-only in_FS_OFFSET decl + canary read)",
+      "rugra_canon": "keeps 'long in_FS_OFFSET;' + 'local_40 = *(undefined8 *)(in_FS_OFFSET + 0x28);' plus canon-shaped array decls ('long local_c8 [4];' 'undefined8 local_80 [2];' 'long local_70 [6];' - names reattached via the name-recommendation path, types recovered unlocked); main diff 15->13 vs golden = exactly the canary 2 lines converged, zero regression on every other function (ap_fini_vhost_config 45->40 is the same alias-family convergence, bonus)",
       "rugra_bare": "statement present (uStack_40 form)"
     }
   },
   "root_cause": {
     "chain": "typeseed manifest tests/golden/manifests/local_seed_httpd_1204.json commits 'local_70 long[6]' (and local_80/local_c8 arrays) as name+type-LOCKED stack symbols -> ScopeLocal::markUnaliased (varmap.cc:1376-1385) alias_block branch fires on the locked ARRAY at -0x70 (alias_block_level=2 blocks arrays) turning aliason off -> the NEXT entry (canary local_40 at -0x40) inherits aliason=false (sticky flag, no new alias to consume at its curoff) and is marked unaliased -> Funcdata::syncVarnodesWithSymbols mapped branch (funcdata_varnode.cc:954 getAllFlags carries the symbol nolocalalias attribute) sets Varnode::nolocalalias on every canary-slot vn -> RuleIndirectCollapse first guard (ruleaction.cc:3199 hasNoLocalAlias()==true, not indirect_creation) collapses the call-site INDIRECT web -> propagatecopy canonicalizes phi inputs -> RuleMultiCollapse folds the loop-carried cycle -> RuleEarlyRemoval peels the remainder incl. the fs:0x28 LOAD -> dead canary statement lost",
     "oracle_why_immune": "the canon oracle's 'long local_70 [6]' is a decompiler-RECOVERED array (createEntry varmap.cc:622-627, unlocked - httpd has no DWARF, params print as param_1/param_2) so isTypeLocked() is false and alias_block never fires for it; the analyzer-less oracle has no array at -0x70 at all. Neither oracle face ever locks a local at a position that would un-alias the canary slot.",
-    "funcdata_rs_verdict": "MATCH-shaped under equal inputs: startProcessing/clear/restart bookkeeping (funcdata.cc:150/84), syncVarnodesWithSymbols flag rules (funcdata_varnode.cc:938/1048 incl. the set-only nolocalalias mask), and the heritage deadcode-delay plumbing (funcdata.cc:167 applyDeadCodeDelay) all follow the oracle lines; the flag that diverges enters through driver-side seed data, not through a funcdata.rs port defect. Registered as evidence, not as a fixture-MATCH: the canon-face web survival remains MISMATCH until the seed model is arbitrated.",
-    "fix_owner": "HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001 (new ticket): decide whether recovered-array locals (local_70[6]/local_80[2]/local_c8[4]) may be seeded with typelock, or must be seeded name-only / left unseeded so the decompiler recovers them unlocked, as both oracle faces do. When that lands, this fixture's web_survival invariant must flip to MATCH (canon face web ALIVE) and be re-pinned.",
+    "funcdata_rs_verdict": "MATCH-shaped under equal inputs: startProcessing/clear/restart bookkeeping (funcdata.cc:150/84), syncVarnodesWithSymbols flag rules (funcdata_varnode.cc:938/1048 incl. the set-only nolocalalias mask), and the heritage deadcode-delay plumbing (funcdata.cc:167 applyDeadCodeDelay) all follow the oracle lines; the flag that diverged entered through driver-side seed data, not through a funcdata.rs port defect. Post-arbitration the canon face matches every oracle invariant with oracle-identical varnode id forms.",
+    "arbitration_verdict": "HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001 (2026-09-27, lane TYPESEEDARB, wt/typeseedarb): option (1) name-only scoped to the alias_block class + option (3) harvester reclassification - C1 golden-decl ARRAY declarators ride the name-only transport (typelock=false, 115 entries corpus-wide: 3 in main + 112 elsewhere incl. ap_fini_vhost_config local_858 long[256]/local_58 undefined1[16]); scalars keep the C1 locked bridge (they cannot fire alias_block and pin the analyzer-assisted typing layer the hermetic library cannot recover - C1 HEAD residual, HEADLESS_BRIDGE_V1_DESIGN.md 9.1). Locked-oracle same-seed cross-check (stage_seed_diag e40ed130 RAM-disk rebuild, canon-core vocabulary install): nameonly-agg payload = canary web ALIVE + all local_ names reattached + locked-scalar canon types; locked payload = canary DEAD (B29-verified reproduction); drop payload = names lost (Rugra A/B +50 skeleton lines). Carrier: CommittedLocal::typelock (src/funcdata.rs) honored by the ActionRestructureVarnode materialization (src/coreaction.rs) - the per-entry bit the C1 manifest format always carried but the materializer never read; drivers decode the manifest bit defaulting to true (curl channels byte-behaviorally preserved: all 36 curl entries are typelock=true analyzer-real DWARF/struct commits).",
+    "fix_status": "LANDED: web_survival repinned MATCH per the bidirectional ratchet; RUGRA_SEEDS=0 control arm byte-identical; canon httpd skeleton 311->304 (main 15->13 = canary x2 exactly; ap_fini_vhost_config 45->40 same-family bonus), all other functions byte-identical (zero regression); cargo test --lib 1829P/0F.",
     "f8_note": "HTTPDMAIN-F8-FORLOOP-0001 is NOT same-root: F8 is the missing findLoopVariable/iterateOp port (block.cc:3155/3373) affecting for-loop rendering everywhere; the canary web lives in main's server loop which both sides structure identically post-F1. No F8 coupling."
   },
   "pinned_artifacts": {
     "oracle_drill_sha256": "4e0aac505419f280bb48e82c45492d1260ba028b0eabc2db729bc0d6ebba32f1",
-    "rugra_canon_drill_sha256": "a5054aa2c29248241ec9fc2b5394e33e782ae5f20ed24aabe0c9ab2d49073e62",
-    "rugra_canon_output_sha256": "bccb085125f2b31a1657fa0690249740901f645296ee577b1b7ac708bbe75561",
-    "rugra_bare_output_sha256": "a4d5a5a5957374dbcf3da1d68952d52cb05e6616b780cb6c2a309ebc27e30afb",
-    "pin_note": "rugra shas measured at wt/retaddr f3499354+fixtures (no src change vs base); they pin the runner's drift alarm, not an oracle contract"
+    "rugra_canon_drill_sha256": "407271bc74b774eb266ac5d975705a89dfdeb5e916562a5988947f299f920448",
+    "rugra_canon_output_sha256": "2cec1f6c9f21918505c8037eff6e2e7883ae7af99fce9f7829688ad5ccdf9f80",
+    "rugra_bare_output_sha256": "699da462e337d8f66ed0d072a79e1d340c5bcde90eeb1c61fb44a209f809f5ab",
+    "pin_note": "repinned 2026-09-27 at wt/typeseedarb (HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001): the canon drill/output shas move with the arbitrated seed model (web ALIVE, oracle-identical canary ids); the bare-face sha is byte-identical to the pre-arbitration run measured at master 6a458387 (library untouched for the no-seed face); the pre-arbitration canon shas (drill a5054aa2... / output bccb0851... / bare a4d5a5a5... measured at wt/retaddr f3499354) recorded the DEAD-web state this fixture registered as MISMATCH. rugra shas pin the runner's drift alarm, not an oracle contract"
   },
   "observation": {
     "kind": "bilateral_invariant_pin_over_real_function_drills",
-    "overall_status": "MISMATCH",
-    "mismatch_binding": "HTTPDMAIN-RETADDR-FLOOR-0001 root re-attributed to HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001 (data model), not a funcdata.rs pass-count defect; every other invariant is MATCH"
+    "overall_status": "MATCH",
+    "mismatch_binding": "HEALED 2026-09-27 (HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001, lane TYPESEEDARB): the former MISMATCH (canon-face web DEAD) was the locked-aggregate seed data model, not a library port defect; every invariant is now MATCH on both faces"
   }
 }
