@@ -23,7 +23,7 @@
  },
  "analysis_options": "none: direct RuleStructOffset0::applyOp harness on a real BfdArchitecture Funcdata with startTypeRecovery() set; no decompilation pipeline options",
  "rugra_source": {
-  "base_commit": "RELGATE_FIX_COMMIT",
+  "base_commit": "418ac8f3",
   "note": "isFormalPointerRel arm implementation commit (RULEACTION-RS0-RELGATE-0001, Lane RULEADJ2); bilateral normal-mode byte equality proven on this tree"
  },
  "comparand": {

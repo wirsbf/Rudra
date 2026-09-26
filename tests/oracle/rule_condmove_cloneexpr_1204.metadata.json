@@ -23,7 +23,7 @@
  },
  "analysis_options": "none: direct RuleConditionalMove::applyOp harness on a real BfdArchitecture Funcdata; no decompilation pipeline options",
  "rugra_source": {
-  "base_commit": "CLONEEXPR_FIX_COMMIT",
+  "base_commit": "4244c248",
   "note": "compareOp + cloneExpression wiring commit (RULEACTION-CLONEBLOCKOPS-0001, Lane RULEADJ2); bilateral normal-mode byte equality proven on this tree"
  },
  "comparand": {
