@@ -405,6 +405,27 @@ pub struct CommittedLocal {
     pub name: String,
     /// C type spelling as printed by the canon golden (`long[4]`).
     pub type_expr: String,
+    /// HEADLESS-BRIDGE-V1-TYPESEED (HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001):
+    /// the `<localdb>` transport's per-symbol ATTRIB_TYPELOCK bit
+    /// (database.cc:432-434 Symbol::decodeHeader). `true` = the C1 locked
+    /// bridge (materializes name+type-locked, survives
+    /// clearUnlockedCategory(-1), feeds RangeHint::fixed). `false` =
+    /// name-only transport — the symbol materializes namelock-only and the
+    /// scope-construction `collect_name_recs` call (varmap.cc:357-381
+    /// ScopeLocal::collectNameRecs, reached in the oracle at the
+    /// ScopeLocal::decode boundary varmap.cc:472-477) downgrades it to a
+    /// name recommendation the free restructure reattaches unlocked
+    /// (recoverNameRecommendationsForSymbols varmap.cc:1507). This is the
+    /// transport shape both locked-oracle faces use for
+    /// decompiler-RECOVERED locals: the stage_seed_diag e40ed130
+    /// nameonly-agg payload (namelock-only aggregates, locked scalars)
+    /// keeps the main canary INDIRECT web alive while any typelocked
+    /// ARRAY/STRUCT kills it (markUnaliased varmap.cc:1376-1385,
+    /// alias_block_level=2). The seed's type still rides `type_expr` —
+    /// after the downgrade only (addr,usepoint,size,name) survive in the
+    /// NameRecommend (varmap.cc:1600-1613), so the spelling only fixes the
+    /// entry byte-size.
+    pub typelock: bool,
 }
 
 /// Main container for a function being decompiled

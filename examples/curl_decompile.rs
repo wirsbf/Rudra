@@ -176,10 +176,21 @@ fn load_committed_local_manifest(
                                 continue;
                             };
                             let Some(offset) = offset.as_i64() else { continue };
+                            // The <localdb> ATTRIB_TYPELOCK transport bit
+                            // (CommittedLocal::typelock,
+                            // HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001);
+                            // every curl channel manifest carries
+                            // typelock=true (DWARF/STRUCT commits are
+                            // analyzer-real locks), absent defaults true.
+                            let typelock = match local.get("typelock") {
+                                Some(serde_json::Value::Bool(value)) => *value,
+                                _ => true,
+                            };
                             seeds.push(CommittedLocal {
                                 offset,
                                 name: name.clone(),
                                 type_expr: type_expr.clone(),
+                                typelock,
                             });
                         }
                         count += seeds.len();

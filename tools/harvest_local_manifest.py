@@ -158,8 +158,26 @@ def harvest_function(lines):
             # blocks the local-alias chain (varmap.cc:1383) and kills the
             # whole varargs register-save family (see SAVE_ANCHOR comment).
             continue
+        # TYPESEEDARB (HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001) lock-model
+        # classification, pinned by the locked-oracle stage_seed_diag
+        # experiment (e40ed130, 2026-09-27): a golden-decl ARRAY declarator
+        # is the decompiler's own RECOVERED aggregate (canon `long local_70
+        # [6]` = createEntry varmap.cc:622-627, unlocked; neither oracle
+        # face locks it). Seeding it typelocked fires markUnaliased's
+        # alias_block branch (varmap.cc:1376-1385, TYPE_ARRAY at
+        # alias_block_level=2) — the same-seed locked oracle reproduced the
+        # dead canary web on httpd main, the namelock-only payload keeps it
+        # alive. Array entries therefore ride the NAME-ONLY transport
+        # (typelock=false -> collectNameRecs downgrade varmap.cc:357-381 ->
+        # reattach unlocked). Scalars keep the C1 locked bridge: they
+        # cannot fire alias_block and pin the analyzer-assisted typing
+        # layer the hermetic library cannot recover (C1 HEAD residual,
+        # HEADLESS_BRIDGE_V1_DESIGN.md §9.1). DWARF/STRUCT channels stay
+        # typelocked — those locks are analyzer-REAL (curl debug info).
+        typelock = not bool(dm.group("arr"))
         locals_.append(
-            {"offset": -int(name[6:], 16), "name": name, "type": type_expr, "typelock": True}
+            {"offset": -int(name[6:], 16), "name": name, "type": type_expr,
+             "typelock": typelock}
         )
     return locals_
 
@@ -1887,7 +1905,12 @@ def main():
         "golden_sha256": hashlib.sha256(open(golden, "rb").read()).hexdigest(),
         "harvest_rule": (
             "decl-block lines matching '(type)([*]*)local_[0-9a-f]+([N])*;' before "
-            "first statement; offset = -int(name[6:],16)"
+            "first statement; offset = -int(name[6:],16); "
+            "TYPESEEDARB lock classification (stage_seed_diag e40ed130 "
+            "nameonly-agg experiment): array declarators ride the name-only "
+            "transport (typelock=false, recovered aggregates are never "
+            "typelocked in either oracle face), scalars keep the C1 locked "
+            "bridge"
         ),
         "functions": funcs,
     }

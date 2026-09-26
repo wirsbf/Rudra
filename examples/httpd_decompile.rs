@@ -3955,10 +3955,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     continue;
                                 };
                                 let Some(offset) = offset.as_i64() else { continue };
+                                // HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001:
+                                // the per-entry ATTRIB_TYPELOCK transport bit
+                                // (see CommittedLocal::typelock). Absent or
+                                // non-bool defaults to the C1 locked bridge
+                                // so older manifests keep byte-behavior.
+                                let typelock = match local.get("typelock") {
+                                    Some(serde_json::Value::Bool(value)) => *value,
+                                    _ => true,
+                                };
                                 seeds.push(rugra::funcdata::CommittedLocal {
                                     offset,
                                     name: name.clone(),
                                     type_expr: type_expr.clone(),
+                                    typelock,
                                 });
                             }
                             count += seeds.len();

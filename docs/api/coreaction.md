@@ -3319,7 +3319,7 @@ markExplicitUnsigned firstvn 卫（cast.cc:53-58）读另一侧 metatype=Int 而
 Uint，未按 oracle 提前返回，多计一次 count（file2string.part.0 投影
 ord337 的 29vs30 根因之三）。
 
-## ActionRestructureVarnode：committed-local 种子物化（HEADLESS-BRIDGE-V1-TYPESEED，2026-09-25）
+## ActionRestructureVarnode：committed-local 种子物化（HEADLESS-BRIDGE-V1-TYPESEED，2026-09-25；TYPESEEDARB 锁位透传 2026-09-27）
 
 scope 首次构造臂（fd.scope 为 None 的分支）在平台参数符号安装之后新增
 `fd.committed_locals` 物化循环：每条种子经 `parse_c_type`（debugproto，
@@ -3332,6 +3332,26 @@ Funcdata 构造 → `<localdb>` decode → action（种子在 decode 期入库�
 边界喂给 restructure——这正是 canon 声明层分区（92B auStack_9c 被种子切成
 28B+16B+48B）与下标形（8B 元素 → scale-8 PTRADD）的机制。默认
 committed_locals 为空 = 零行为差异（E2E cmp 字节恒等亲父）。
+
+**TYPESEEDARB 增量（HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001，2026-09-27）**：
+物化循环的 `typelock=true` 硬编码改为 **透传 `seed.typelock`**
+（`scope.symbols[idx].typelock = seed.typelock; namelock 恒 true`）=
+`<localdb>` 逐符号 ATTRIB_TYPELOCK 位（database.cc:432-434）的物化镜像。
+typelock=false 的种子（反编译器自恢复聚合体，收割器按③重分类的 115 条
+数组声明符）物化为 namelock-only，随后紧邻的 `scope.collect_name_recs()`
+调用——正是 oracle ScopeLocal::decode 边界（varmap.cc:472-477）的同一下降
+（varmap.cc:357-381）——把该符号类降级为名字推荐：自由 restructure 布局
+栈槽、恢复未锁定数组，ActionNameVars 经
+recoverNameRecommendationsForSymbols（varmap.cc:1507）按 overlap+精确地址
+把 local_ 名重挂到恢复符号上。若该符号以 typelocked ARRAY/STRUCT 形态存活，
+markUnaliased 的 alias_block 臂（varmap.cc:1376-1385，alias_block_level=2）
+会灭 aliason 并把 sticky unaliased 传给后续 entry——httpd main 的 canary 槽
+(-0x40) 即此路径：nolocalalias → RuleIndirectCollapse 放行 → INDIRECT 网折叠
+→ 死 canary 语句被消。锁定库 same-seed 实验（stage_seed_diag e40ed130）
+双向钉死：nameonly-agg 载荷网活、locked 载荷网死、drop 载荷丢名。落地面：
+canon httpd skeleton 311→304（main 15→13 = canary ×2 精确收敛；
+ap_fini_vhost_config 45→40 同族），其余函数字节恒等；RUGRA_SEEDS=0 控制臂
+字节恒等；retaddr_canary_passcount_1204 fixture web_survival 翻 MATCH 重钉。
 
 ## 2026-09-25：BRIDGE1-TYPESEED-PARSEFAIL 降级声明（Lane TYPEFIX，注释级）
 

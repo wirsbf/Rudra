@@ -2,7 +2,7 @@
  "oracle_commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
  "corpus": "httpd",
  "golden_sha256": "6b4c4f315c545a96ac323509fccc61fc3eb3767c39a48d8c596e77976a237d08",
- "harvest_rule": "decl-block lines matching '(type)([*]*)local_[0-9a-f]+([N])*;' before first statement; offset = -int(name[6:],16)",
+ "harvest_rule": "decl-block lines matching '(type)([*]*)local_[0-9a-f]+([N])*;' before first statement; offset = -int(name[6:],16); TYPESEEDARB lock classification (stage_seed_diag e40ed130 nameonly-agg experiment): array declarators ride the name-only transport (typelock=false, recovered aggregates are never typelocked in either oracle face), scalars keep the C1 locked bridge",
  "functions": {
   "0x12b820": {
    "name": "main",
@@ -23,7 +23,7 @@
      "offset": -200,
      "name": "local_c8",
      "type": "long[4]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -168,
@@ -35,13 +35,13 @@
      "offset": -128,
      "name": "local_80",
      "type": "undefined8[2]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -112,
      "name": "local_70",
      "type": "long[6]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -145,13 +145,13 @@
      "offset": -2136,
      "name": "local_858",
      "type": "long[256]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -88,
      "name": "local_58",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -214,7 +214,7 @@
      "offset": -16416,
      "name": "local_4020",
      "type": "undefined1[16384]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -248,7 +248,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "char *[15]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -271,7 +271,7 @@
      "offset": -168,
      "name": "local_a8",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -152,
@@ -357,7 +357,7 @@
      "offset": -312,
      "name": "local_138",
      "type": "char[256]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -56,
@@ -409,7 +409,7 @@
      "offset": -24,
      "name": "local_18",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -16,
@@ -426,7 +426,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "undefined1[120]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -542,7 +542,7 @@
      "offset": -88,
      "name": "local_58",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -80,
@@ -577,7 +577,7 @@
      "offset": -56,
      "name": "local_38",
      "type": "int[2]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -48,
@@ -664,7 +664,7 @@
      "offset": -72,
      "name": "local_48",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -722,13 +722,13 @@
      "offset": -8248,
      "name": "local_2038",
      "type": "undefined1[8192]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -56,
      "name": "local_38",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -48,
@@ -775,7 +775,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -168,
@@ -870,7 +870,7 @@
      "offset": -88,
      "name": "local_58",
      "type": "long[4]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -56,
@@ -946,7 +946,7 @@
      "offset": -69,
      "name": "local_45",
      "type": "char[5]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -980,7 +980,7 @@
      "offset": -64,
      "name": "local_40",
      "type": "char *[2]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -1025,7 +1025,7 @@
      "offset": -64,
      "name": "local_40",
      "type": "char *[2]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -1201,7 +1201,7 @@
      "offset": -72,
      "name": "local_48",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -1258,7 +1258,7 @@
      "offset": -64,
      "name": "local_40",
      "type": "char *[2]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -1521,7 +1521,7 @@
      "offset": -72,
      "name": "local_48",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -1579,7 +1579,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "undefined1[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -1691,25 +1691,25 @@
      "offset": -616,
      "name": "local_268",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -600,
      "name": "local_258",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -584,
      "name": "local_248",
      "type": "ulong[32]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -328,
      "name": "local_148",
      "type": "ulong[33]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -1732,7 +1732,7 @@
      "offset": -584,
      "name": "local_248",
      "type": "undefined8[65]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -1872,7 +1872,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "undefined1[120]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -2006,7 +2006,7 @@
      "offset": -8248,
      "name": "local_2038",
      "type": "undefined1[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -48,
@@ -2029,7 +2029,7 @@
      "offset": -312,
      "name": "local_138",
      "type": "undefined1[104]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -208,
@@ -2041,7 +2041,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "undefined1[120]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -2206,7 +2206,7 @@
      "offset": -16432,
      "name": "local_4030",
      "type": "undefined1[16384]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -2327,7 +2327,7 @@
      "offset": -152,
      "name": "local_98",
      "type": "undefined1[120]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -32,
@@ -2350,7 +2350,7 @@
      "offset": -136,
      "name": "local_88",
      "type": "undefined1[120]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -16,
@@ -2397,7 +2397,7 @@
      "offset": -216,
      "name": "local_d8",
      "type": "undefined1[48]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -168,
@@ -2462,7 +2462,7 @@
      "offset": -152,
      "name": "local_98",
      "type": "undefined1[120]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -32,
@@ -2559,13 +2559,13 @@
      "offset": -8344,
      "name": "local_2098",
      "type": "char[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -8328,
      "name": "local_2088",
      "type": "char[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -8312,
@@ -2583,7 +2583,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "char[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -2642,7 +2642,7 @@
      "offset": -200,
      "name": "local_c8",
      "type": "undefined1[32]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -168,
@@ -2713,13 +2713,13 @@
      "offset": -104,
      "name": "local_68",
      "type": "byte[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -88,
      "name": "local_58",
      "type": "char[40]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -48,
@@ -2736,7 +2736,7 @@
      "offset": -56,
      "name": "local_38",
      "type": "byte[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -40,
@@ -2771,13 +2771,13 @@
      "offset": -4248,
      "name": "local_1098",
      "type": "undefined1[96]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -4152,
      "name": "local_1038",
      "type": "undefined1[4104]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -48,
@@ -2917,7 +2917,7 @@
      "offset": -584,
      "name": "local_248",
      "type": "undefined1[520]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -2986,7 +2986,7 @@
      "offset": -72,
      "name": "local_48",
      "type": "int[10]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -32,
@@ -3055,7 +3055,7 @@
      "offset": -172,
      "name": "local_ac",
      "type": "int[3]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -152,
@@ -3230,7 +3230,7 @@
      "offset": -66,
      "name": "local_42",
      "type": "char[2]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -3270,7 +3270,7 @@
      "offset": -264,
      "name": "local_108",
      "type": "undefined1[200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -3287,13 +3287,13 @@
      "offset": -80,
      "name": "local_50",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -72,
      "name": "local_48",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -3340,7 +3340,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -168,
@@ -3453,7 +3453,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "undefined1[24]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -160,
@@ -3542,7 +3542,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "char[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -3571,7 +3571,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "char[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -3657,7 +3657,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "char[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -3829,7 +3829,7 @@
      "offset": -88,
      "name": "local_58",
      "type": "uint[2]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -80,
@@ -3864,7 +3864,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "undefined1[80]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -104,
@@ -3910,7 +3910,7 @@
      "offset": -192,
      "name": "local_c0",
      "type": "long[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -128,
@@ -4053,7 +4053,7 @@
      "offset": -64,
      "name": "local_40",
      "type": "undefined8[2]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -4104,7 +4104,7 @@
      "offset": -48,
      "name": "local_30",
      "type": "char *[2]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -4132,13 +4132,13 @@
      "offset": -64,
      "name": "local_40",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -56,
      "name": "local_38",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -48,
@@ -4251,13 +4251,13 @@
      "offset": -8240,
      "name": "local_2030",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -8232,
      "name": "local_2028",
      "type": "undefined1[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -32,
@@ -4362,7 +4362,7 @@
      "offset": -152,
      "name": "local_98",
      "type": "undefined1[88]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -4414,7 +4414,7 @@
      "offset": -32,
      "name": "local_20",
      "type": "undefined8[2]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -4563,7 +4563,7 @@
      "offset": -56,
      "name": "local_38",
      "type": "long[4]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -24,
@@ -4586,7 +4586,7 @@
      "offset": -56,
      "name": "local_38",
      "type": "int[4]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -40,
@@ -4896,13 +4896,13 @@
      "offset": -107,
      "name": "local_6b",
      "type": "char[3]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -104,
      "name": "local_68",
      "type": "uint[2]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -88,
@@ -4937,13 +4937,13 @@
      "offset": -80,
      "name": "local_50",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -72,
      "name": "local_48",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -5011,7 +5011,7 @@
      "offset": -104,
      "name": "local_68",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -96,
@@ -5023,7 +5023,7 @@
      "offset": -88,
      "name": "local_58",
      "type": "undefined1[24]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -5117,7 +5117,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "char[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -5257,7 +5257,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "byte[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -5286,7 +5286,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "byte[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -5426,7 +5426,7 @@
      "offset": -8952,
      "name": "local_22f8",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -8944,
@@ -5438,7 +5438,7 @@
      "offset": -8936,
      "name": "local_22e8",
      "type": "undefined1[280]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -8656,
@@ -5462,7 +5462,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "undefined1[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -5615,13 +5615,13 @@
      "offset": -64,
      "name": "local_40",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -56,
      "name": "local_38",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -48,
@@ -5667,7 +5667,7 @@
      "offset": -232,
      "name": "local_e8",
      "type": "undefined1[200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -32,
@@ -5837,7 +5837,7 @@
      "offset": -8264,
      "name": "local_2048",
      "type": "undefined1[8200]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -5860,7 +5860,7 @@
      "offset": -216,
      "name": "local_d8",
      "type": "undefined1[56]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -160,
@@ -5872,7 +5872,7 @@
      "offset": -88,
      "name": "local_58",
      "type": "undefined1[40]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -48,
@@ -5889,7 +5889,7 @@
      "offset": -16432,
      "name": "local_4030",
      "type": "undefined1[16384]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -5900,7 +5900,7 @@
      "offset": -64,
      "name": "local_40",
      "type": "char *[2]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -6070,7 +6070,7 @@
      "offset": -8424,
      "name": "local_20e8",
      "type": "char *[4]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -8392,
@@ -6142,7 +6142,7 @@
      "offset": -74,
      "name": "local_4a",
      "type": "byte[10]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -6194,13 +6194,13 @@
      "offset": -344,
      "name": "local_158",
      "type": "undefined1[32]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -312,
      "name": "local_138",
      "type": "undefined1[9]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -303,
@@ -6417,7 +6417,7 @@
      "offset": -248,
      "name": "local_f8",
      "type": "undefined1[56]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -192,
@@ -6435,7 +6435,7 @@
      "offset": -152,
      "name": "local_98",
      "type": "undefined1[88]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -6509,7 +6509,7 @@
      "offset": -296,
      "name": "local_128",
      "type": "undefined1[264]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -32,
@@ -6538,7 +6538,7 @@
      "offset": -328,
      "name": "local_148",
      "type": "undefined1[264]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -6555,7 +6555,7 @@
      "offset": -136,
      "name": "local_88",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -120,
@@ -6585,7 +6585,7 @@
      "offset": -88,
      "name": "local_58",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -72,
@@ -6626,13 +6626,13 @@
      "offset": -232,
      "name": "local_e8",
      "type": "int[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -200,
      "name": "local_c8",
      "type": "undefined1[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -6678,7 +6678,7 @@
      "offset": -48,
      "name": "local_30",
      "type": "undefined8[2]",
-     "typelock": true
+     "typelock": false
     }
    ]
   },
@@ -6700,13 +6700,13 @@
      "offset": -168,
      "name": "local_a8",
      "type": "int[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -136,
      "name": "local_88",
      "type": "undefined1[4]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -132,
@@ -6865,7 +6865,7 @@
      "offset": -184,
      "name": "local_b8",
      "type": "undefined1[120]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -7014,19 +7014,19 @@
      "offset": -104,
      "name": "local_68",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -88,
      "name": "local_58",
      "type": "undefined1[16]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -72,
      "name": "local_48",
      "type": "byte[8]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
@@ -7054,7 +7054,7 @@
      "offset": -56,
      "name": "local_38",
      "type": "uint[10]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -16,
@@ -7244,7 +7244,7 @@
      "offset": -312,
      "name": "local_138",
      "type": "undefined1[48]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -264,
@@ -7400,7 +7400,7 @@
      "offset": -104,
      "name": "local_68",
      "type": "undefined1[40]",
-     "typelock": true
+     "typelock": false
     },
     {
      "offset": -64,
