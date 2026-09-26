@@ -2174,3 +2174,31 @@ AddrSpace::byteToAddress（跨文件 space.hh 定义、引 ruleaction.cc:6294 �
   multiequal 首跑暴露 npow 前缀缺陷。
 - fixture_registry.json 追加 3 条（227→230）；cargo test --lib 1829P/0F；
   canon curl 157/0/0、httpd 311/0/0 不回退。
+
+## 2026-09-27：RS0 formal 相对指针臂落地 + ConditionalMove 跨臂克隆接线（Lane RULEADJ2，RULEACTION-RS0-RELGATE-0001 臂实现残项 + RULEACTION-CLONEBLOCKOPS-0001）
+
+**① RuleStructOffset0 formal rel 臂**（ruleaction.cc:6695-6725，src/ruleaction.rs
+`RuleStructOffset0::apply_op`）：`isFormalPointerRel() && evaluateThruParent(0)`
+门（复用 `AddTreeState::ptr_rel_state` 的 formal=IS_PTRREL 无 HAS_STRIPPED 判定
++ `pointer_rel_evaluate_thru_parent(ptrto, parent, ws, byteOff, ctSize, 0)`）→
+baseType 重赋值为 rel parent（cc:6696-6697，臂内拒绝直接 return 0 不落
+plain 路径）→ STRUCT 门 → `getByteOffset() >= parent size` 拒 → parent <
+movesize 拒 → `getSubType(offset,&newoff)` null/小于 movesize 拒 →
+`newoff = AddrSpace::byteToAddress(newoff, wordsize)`（space.hh:523 无符号除，
+**byte→address 单位换算**）→ `PTRSUB(ptr, #(-newoff & calc_mask(ptrSize)))`
+（newOpBefore 形：newOp(numInput=2, follow addr) + 尺寸取自 in1=ptr）→
+`inheritResolution`（needsResolution 门）→ `setStopTypePropagation` →
+newoff≠0 时 `INT_ADD(ptrsubOut, #newoff)` 回补且 LOAD/STORE in(1) 指向
+INT_ADD 输出（cc:6716-6720），否则直连 PTRSUB 输出（cc:6721-6722）。
+
+**B2 双侧 fixture**（GEN5 archive 形态，registry 230→232）：
+- `rule_structoffset0_relptr_1204`（7 例）：field-start 直连重接（newoff=0）/
+  interior INT_ADD 回补（#-2 & mask + #2）/ ws=2 换算（#-1 & mask + #1）/
+  STORE 形（movesize 取 in(2)）/ evaluateThruParent 门拒（ptrto=struct →
+  plain 路径对照）/ subtype 过小拒 / offset 折叠出 parent 拒。
+两族均与锁定 oracle（e40ed130 现场直跑归档）**字节恒等**，双跑确定性亲证。
+
+残差如实登记：cloneExpression 的 MULTIEQUAL→COPY 边改写与 INDIRECT/CALL
+throw 臂对本消费者不可达（gatherExpression 不收集）；annotation 输入
+newCodeRef 复制在 Rust 克隆器为共享 varnode（nodeSplit 域既有决定，布尔
+表达式输入不可达）——均记入 metadata coverage UNTESTED 臂，不冒充覆盖。

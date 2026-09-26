@@ -8669,6 +8669,30 @@
           "oracle_record": "tests/oracle/rule_subcommute_cancelext_1204.oracle.out"
         }
       }
+    },
+    {
+      "id": "rule_structoffset0_relptr",
+      "description": "RULEACTION-RS0-RELGATE-0001 (Lane RULEADJ2): RuleStructOffset0 formal rel-pointer arm ruleaction.cc:6695-6725, 7 cases",
+      "runner": [
+        "tools/run_rule_structoffset0_relptr_oracle.sh"
+      ],
+      "timeout_seconds": 900,
+      "always_tiers": [
+        "wave",
+        "nightly"
+      ],
+      "evidence_status": "MATCH",
+      "cache": {
+        "metadata": "tests/oracle/rule_structoffset0_relptr_1204.metadata.json",
+        "tools": {
+          "runner": "tools/run_rule_structoffset0_relptr_oracle.sh"
+        },
+        "inputs": {
+          "fixture_source_1": "tests/oracle/rule_structoffset0_relptr_1204.cc",
+          "fixture_source_2": "tests/oracle/rule_structoffset0_relptr_1204.rs",
+          "oracle_record": "tests/oracle/rule_structoffset0_relptr_1204.oracle.out"
+        }
+      }
     }
   ]
 }
