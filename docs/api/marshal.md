@@ -105,10 +105,29 @@ Read structured data (marshal.hh:99). Methods:
   特殊码 `Cannot marshal special address space`、非空间属性
   `Expecting space attribute`，marshal.cc:997-1031。Ghidra 的 decoder 在构造时
   持有 `const AddrSpaceManager*`，Rust 按调用传参——同一对象）。
-- `read_bool()`, `read_bool_attr(attrib_id)`, `read_signed_integer()`,
+- `read_bool() -> bool`（marshal.hh:176；XML 侧值域 = `xml_readbool` 首字符
+  大小写敏感解析（'t'/'1'/'y' 为真，xml.hh:391-400，XmlDecode::readBool
+  marshal.cc:279-284）；packed 侧取类型字节 length-code 位
+  （marshal.cc:831-842））。
+- `read_bool_attr(attrib_id) -> bool`（marshal.hh:186；**MARSHAL-READBOOL-0001
+  （2026-09-27）值域已 1:1 对齐**：= `xml_readbool` 首字符大小写敏感解析
+  （legacy "yes" 为真、"True" 为假，xml.hh:391-400）；ATTRIB_CONTENT 伪属性读
+  元素文本（marshal.cc:290-291）；packed 侧按 id 扫描 + 读取后扫描位回卷到
+  元素起点（marshal.cc:844-851）。**登记残差**：缺失属性仍返回 false 而 oracle
+  抛 `DecoderError`（XML `Attribute missing: <name>` marshal.cc:276 / packed
+  `Attribute <name> is not present` marshal.cc:636）——bool 签名无错误通道，
+  该抛错语义在生产摄入口 `ScopeLocal::decode_wrapping_attributes`
+  （varmap.rs 按名扫描 + 逐字消息）建模，函数级通道归 PERSIST-0012 marshal
+  票系后续。生产 encode 面恒写 "true"/"false"（writeBool，marshal.cc:508-510），
+  分歧仅在 legacy/畸形流可达——双侧 fixture `tools/run_varmap_decodewrap_oracle.sh`
+  三臂（"yes"/"True"/缺失 lock）钉）。
+- `read_signed_integer()`,
   `read_signed_integer_attr(attrib_id)`, `read_unsigned_integer()`,
   `read_unsigned_integer_attr(attrib_id)`, `read_string()`,
   `read_string_attr(attrib_id)`.
+- 自由函数 `xml_readbool(attr) -> bool`（xml.hh:391，pub）：空串假；首字符
+  't'/'1'/'y' 真（xml.hh:398 "For backward compatibility" 的 legacy 'y'），
+  其余（含 'T'/'Y'/'0'/'f'）假——大小写敏感。
 
 ## Implementations
 
