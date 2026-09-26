@@ -4748,6 +4748,39 @@
       }
     },
     {
+      "id": "printc_checkaddr_impliedfield_1204",
+      "description": "PRINTC-SINGLETON-IRFIX-0001: checkAddressOfCast (printc.cc:376-418) / pushImpliedField (printc.cc:2085-2116) full-IR bilateral fixture over hand-built CAST/RETURN graphs driven through the real emitExpression",
+      "runner": [
+        "tools/run_printc_checkaddr_impliedfield_oracle.sh"
+      ],
+      "timeout_seconds": 1800,
+      "always_tiers": [
+        "wave",
+        "nightly"
+      ],
+      "evidence_status": "MATCH",
+      "cache": {
+        "metadata": "tests/oracle/printc_checkaddr_impliedfield_1204.metadata.json",
+        "inputs": {
+          "cpp_fixture": "tests/oracle/printc_checkaddr_impliedfield_1204.cc",
+          "rust_fixture": "tests/oracle/printc_checkaddr_impliedfield_1204.rs"
+        },
+        "tools": {
+          "runner": "tools/run_printc_checkaddr_impliedfield_oracle.sh"
+        }
+      },
+      "impact": {
+        "paths": [
+          "src/printc.rs",
+          "src/funcdata.rs",
+          "tests/oracle/printc_checkaddr_impliedfield_1204.*",
+          "tools/run_printc_checkaddr_impliedfield_oracle.sh"
+        ],
+        "rust_function_ids": [],
+        "ghidra_function_ids": []
+      }
+    },
+    {
       "id": "printc_display_1204",
       "description": "Integer display-format wire and resolved scalar output matrix",
       "runner": [

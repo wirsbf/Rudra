@@ -1,0 +1,22 @@
+{
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b"
+ },
+ "architecture": "x86-64 SLEIGH (sleigh_specs) via BfdArchitecture over the curl binary; the GetStr Funcdata carries the hand-built IR graphs",
+ "compiler_spec": "gcc (x86-64-gcc.cspec, archid x86:LE:64:default:gcc); the fixture arms do not consult the callspec beyond the architecture boot",
+ "analysis_options": "PrintC default options (resetDefaultsPrintC implied by construction); no Java analyzers (direct BfdArchitecture harness); IR is hand-built through the public Funcdata kit (newOp/opSetOpcode/opSetInput/opSetOutput/opInsertEnd/setHighLevel/setUnionField) — no action pipeline runs",
+ "observation_scope": "MATCH for the 10 case lines driven through the REAL PrintC::emitExpression (printc.cc:2465-2494; Rugra emit_expression_rpn twin): cast.ptrsub_positive (checkAddressOfCast PTRSUB-def arm cc:400-412 -> '&'), cast.dtnonptr_reject (cc:382-383), cast.nonarray_base0_reject (cc:386-387), cast.elem_mismatch_reject (cc:394-395), cast.size_mismatch_reject (cc:415-417), cast.symbolentry_positive (whole-map SymbolEntry arm cc:397-399, symbolOffset -1 via variable.cc:1727-1729, read type overridden by updateType(ct,0,1)), implied.union_proceed (pushImpliedField union arm cc:2100-2115 -> 'return 5.b'), implied.struct_proceed (fieldNum==0 beginField arm cc:2096-2099 -> 'return 5.x'), implied.union_nores (!proceed plain arm cc:2108-2111), implied.plain_parent (needsResolution gate closed cc:2091)",
+ "input_model_difference": "The oracle side hand-builds the IR on a real GetStr Funcdata (type-locked ScopeLocal symbols auto-attach via newVarnode queryProperties; ResolvedUnion installed through Funcdata::setUnionField, consumed via fd->getUnionField at cc:2094); the Rust side mirrors the same graph with directly-attached high.symbol/symbol_entry fields and fd.set_union_field + snapshot_union_resolutions (the doc_function transport). Same emitter class (EmitNoMarkup), same emitExpression entry, byte-identical stdout",
+ "marshal_round_trip": "UNTESTED: no Encoder/Decoder persistence in this fixture",
+ "input": "fixture types int4/uint4/int8/int4[4]/int4[2]/fixture_box{x:int4[4]@0;tail:int8@16}/fixture_alt{a:int4;b:uint4}/fixture_inner{x:int8} (spec coretype names int4/uint4/int8 — the anonymous pointer declarator spellings depend on them); type-locked register symbols sp/ib/ic/id/ie/iw/ca/cb/cc/cd/ce/cf at register 0x100-0x170; implied PTRSUB(S*,0) chains typed int4*/uint4*; CAST outs int4(*)[4]/int4*/int4(*)[2]; RETURN values implied+has_implied_field typed fixture_alt(4B)/fixture_inner(8B)/int4, def COPY(const 5); union resolutions (fixture_alt,op,slot1)->field1 and (fixture_inner,op,slot1)->field0",
+ "input_fingerprint": "sha256:0d7088ff032ce0af83bbf5198ee7d3a19f83ee357f2aac4e9362a5020a63841c",
+ "host_compiler": "g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+ "host_rustc": "rustc 1.96.0-nightly (03749d625 2026-03-14)",
+ "cpp_fixture_sha256": "25a96690cbdef191fdc7b4e44da374d79cc661c8d6c2660bf0d2c15450359a49",
+ "rust_fixture_sha256": "488ba799aeeb2140ed3028b32b6ed6f9a129c7d161d18f914eb278e6cecdbd04",
+ "expected_stdout_sha256": "35a8efba2cdb71d0cf1b795e41116aa02c3f1239b06de250d25347f98f126ad7",
+ "overall_status": "MATCH: 10/10 case lines byte-identical bilaterally (runner tools/run_printc_checkaddr_impliedfield_oracle.sh)",
+ "fixture_id": "PRINTC-CHECKADDR-IMPLIEDFIELD-1204",
+ "coverage_gaps": "checkAddressOfCast's typedef-strip loops (cc:390-393) are identity on Rugra's model (no typedefImm chain — PRINTC0004 handover); pushImpliedField's TYPE_PTR-parent gate (needsResolution pointer-to-union) is not emission-observable through this consumer shape; the implied-field PRODUCER (coreaction.cc:2519 setImpliedField) remains the in-flight-lease handover (UNIONRESOLVE-PKG-H-0001)"
+}
