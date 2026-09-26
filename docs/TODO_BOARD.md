@@ -96,6 +96,40 @@
 | `CRATESPLIT-R7-CAPABILITY-0019` | OPEN | P3 | capability.rs 孤儿裁决（零生产入/出边；capability.hh 对应物在账本，禁删）：接线进 arch 构建期或保留登记 | src/capability.rs（若接线）+ docs/api/capability.md | 账本状态更新；若接线需 oracle fixture |
 
 
+## CRATESPLIT-WP 执行票池（2026-09-27 登记，Lane CRATEPREP docs-only；执行手册=权威编排件）
+
+> 执行手册 = `docs/alignment_docs/CRATESPLIT_EXECUTION_RUNBOOK_2026-09-27.md`（基=master 6a458387；
+> 权威链=HHMIRROR 报告 > 迁移蓝图（含 §7 A2 修订） > cycle_ratchet 工具/账本 > 手册）。
+> **窗口=MB20 合并后开启**（判据①②③ root 终验 + WP-01 拍板单窗/双窗形态；B3 前置=TFSINGLE
+> step-2 落地）。每票验收=G0 门禁全套（canon curl/httpd A/B 字节恒等+`tools/verify_cycle_ratchet.sh`
+> PASS+annotations/refs/doc_sync/corpus/gate_health 绿）+ 手册该 WP 行专项门禁；**canon 非恒等即停线**。
+> 上方旧票池 -0002..-0019 的收敛映射见手册 §9（旧行不动，root 窗口开启时批量收敛指针）。
+> 串行主干=凡编辑 src/lib.rs 的票（WP02→03→04→05→06→07→08→10→12→13→14→15）单 writer 串行；
+> WP09 并行口袋；WP11 级联期 4-5 并行。环棘轮红线：新环边禁直改 FROZEN_*，先定性登记
+> CYCLE_RATCHET 账本再 --emit-freeze --accept-new。
+
+| 稳定 ID | 状态 | 优先级 | 内容（依赖） | write-set | 验收命令（G0 之外专项） |
+|---|---|---|---|---|---|
+| `CRATESPLIT-WP01-PREFLIGHT-0020` | OPEN（窗口票） | P2 | 预检冻结：**棘轮 `#[path]` 模块映射升级**（硬前置——路径启发式会被带归位打碎，升级后现树输出恒等证明+变异 M2/M4 复跑）+ 五冻结清单（runner 36+28 名单/96 文件带归属表/pub(crate) 重测/卫星可见性放宽表/canon 基线 A 档）+ 看板清扫 + root 拍板单窗/双窗。前置=窗口开启 | `tools/cycle_ratchet.py`（仅 module_of 映射）、`docs/alignment_docs/CYCLE_RATCHET_2026-09-26.md`、TODO_BOARD、/dev/shm 计划档 | 升级前后 `tools/verify_cycle_ratchet.sh` 双跑 PASS 且输出逐字节相同；M2/M4 变异仍 FAIL |
+| `CRATESPLIT-WP02-FOUNDATION-0021` | OPEN | P2 | foundation 带 9 文件归位 `src/foundation/`（opcodes/crc32/error/rangemap/types/space/marshal/compression/sleigh_ffi；types 保持私有 mod）。前置=WP01 | src/foundation/、src/lib.rs（#[path]×9）、docs/api/foundation/、`tools/generate_api_docs.py`（1 行）、corpus 清单项 | G0；棘轮零变化 |
+| `CRATESPLIT-WP03-SATSPLIT-0022` | OPEN | P2 | 卫星 types/impl 五拆（heritage/merge/dynamic/unionresolve/override_rs：算法 impl+无人持有分析器浮顶 `src/impls/<name>_impl.rs` 顶层平铺模块；ScoreUnionFields+Trial 整体浮顶）+可见性放宽（Merge5/DynamicHash8 等按 WP01 表）。前置=WP02；并行度=1（lib.rs +5 行） | src/{heritage,merge,dynamic,unionresolve,override_rs}.rs、src/impls/*.rs×5、src/lib.rs、docs/api 镜像、CYCLE_RATCHET 账本 vanished 边登记 | G0+卫星域 pinned-commit runner 抽查×3；棘轮 INFO（unionresolve→funcdata 消失） |
+| `CRATESPLIT-WP04-PCODE-0023` | OPEN | P2 | pcode 带 17 文件归位 `src/pcode/`（address/pcoderaw/varnode◆/op◆/variable◆/block◆/jumptable◆/cover◆/dynamic/transform◆/prefersplit◆/unify/opbehavior/float_emulate/constseq/rangeutil/translate；E7 互持组整体下沉）。前置=WP03 | src/pcode/、src/lib.rs（#[path]×17）、docs/api/pcode/ 合并、corpus 清单项 | G0；棘轮零变化 |
+| `CRATESPLIT-WP05-TYPESDB-0024` | OPEN | P2 | types-db 带 10 文件归位 `src/types-db/`（type_system/ 整目录 5 文件◆/database◆/cpool◆/comment/stringmanage/userop◆）。前置=WP04 | src/types-db/、src/lib.rs、docs/api 镜像、corpus 清单项 | G0；棘轮零变化 |
+| `CRATESPLIT-WP06-ARCHHUB-0025` | OPEN | P2 | arch-hub 带 11 文件归位 `src/arch-hub/`（arch◆/action◆/varmap◆/fspec◆/options◆/pcodeinject◆/pcodeparse◆/context/loadimage/capability/modelrules）+ **E12 GLUE 修复**（action.rs:341 activate() 移出 Action trait 默认体——主管线 Action 域，**机制 C 强制独立复核**）。前置=WP05 | src/arch-hub/、src/lib.rs、docs/api 镜像、corpus 清单项 | G0+Action 域 runner 抽查+Cross-Review 附块；棘轮 INFO（action→drillobserve 消失，SCC 24→23） |
+| `CRATESPLIT-WP07-FUNCDATAHUB-0026` | OPEN | P2 | funcdata-hub 带 5 文件归位 `src/funcdata-hub/`（funcdata◆/heritage◆/merge◆/override_rs/unionresolve◆——后四者为 WP03 拆分后 types 半边）。前置=WP06 | src/funcdata-hub/、src/lib.rs、docs/api 镜像 | G0；棘轮零变化 |
+| `CRATESPLIT-WP08-SOLOBANDS-0027` | OPEN | P2 | 其余 solo 带 28 文件归位：structure/6（blockaction/condexe/subflow/flow/graph/tracedag）+print/5（printc/prettyprint/printlanguage/grammar/expression）+emulate/2+frontend/6（binary/、disasm/、debugproto、ffi、frontend）+impls/ 补齐 9（typeop/coreaction/ruleaction/double_precis/paramid/signature/drillfmt/drillobserve◆/callgraph；typeop 整体浮顶=C2 自动完成）。前置=WP07 | src/{structure,print,emulate,frontend,impls}/、src/lib.rs、docs/api 镜像、corpus 清单项（printc 等） | G0；棘轮零变化；printc 机制 B 差分=canon 门禁本体 |
+| `CRATESPLIT-WP09-C1DUP-0028` | OPEN | P2 | C1 错置副本清理（E5）：删 address.rs:2010 `functional_equality` level-0 副本，ruleaction 10 调用点改 `crate::expression::functional_equality` 正主。**并行口袋**：前置=WP04、与 WP05/06/07 零文件交集、汇于 WP10 前 | src/pcode/address.rs、src/{impls/,}ruleaction.rs、docs/api 对应、本行 | G0+expression 域既有 B2 fixture 回归+机制 B 差分（ruleaction 白名单，新差异须 Differential 块逐处归因） |
+| `CRATESPLIT-WP10-RATCHETCI-0029` | OPEN | P2 | 棘轮终态重冻结（全窗口 INFO 汇总→账本登记→`--emit-freeze` 新基线：预期 SCC-23+solo+drillobserve）+ `tools/verify_cycle_ratchet.sh` 接入版本化 CI 强制门禁（A2.5 收口）。前置=WP02..09 全落 | tools/cycle_ratchet.py（FROZEN_* 基线字面量）、CYCLE_RATCHET 账本、.github/workflows/alignment-gates.yml | 新基线棘轮 PASS+变异测试复跑；CI 绿 |
+| `CRATESPLIT-WP11-RUNNERREPIN-0030` | OPEN | P2 | runner 级联批（**位置铁则=本窗口最后一次 src/ 树移动之后**）：36 个 `rugra_base_src_tree` pin 重钉（双形态：rev-parse blob id+sha256 文件哈希）+28 个 overlay **重建非改名**（卫星拆分后 overlay 集合+comparand 按新文件清单整组重写）+逐个重跑绿（4-5 并行）。前置=单窗:WP15/双窗:WP14 | tools/run_*.sh（36-40）+tests/oracle/*.metadata.json | 每 runner exit 0 且 stdout sha256 与语义基线一致；GLOBREPIN 族预存红面红→红记录不修 |
+| `CRATESPLIT-WP12-B0AUDIT-0031` | OPEN | P2 | B0：pub(crate) item 级审计+**rugra-core 精确成员清单冻结**（SCC-23+Funcdata/Architecture 字段闭包重算+impls/print/structure/emulate/frontend 带中归 core 者+upper 带居民，蓝图 §5.2 reach-in 51 对逐一归属）+crate manifest 骨架+cargo tree 偏序断言工具进 CI+基础设施多根扩展（annotations/refs 多根、align_gate 谓词扩 crates/*/src/ 防静默失效、evidence/select_fixtures 路径形态）。前置=WP10 | 审计档、crates/*/Cargo.toml 骨架、tools/（断言工具+①②③⑪⑬ 多根改造）、.zcode/align_gate.py | G0+断言工具对现树零违例自测+hook 谓词命中 crates/ 文件的回归用例 |
+| `CRATESPLIT-WP13-B1FOUNDATION-0032` | OPEN | P2 | B1 抽 `crates/rugra-foundation`（8 文件：foundation 带减 sleigh_ffi；error/types 私有 mod 升 pub+根包 pub use shim 保 crate::error 等路径；marshal 1 处 pub(crate) 按 WP12 名单裁决）+**棘轮多根支持**（跨 crate 引用视为外部；core 视图 SCC-23 不变）+账本口径变更登记。前置=WP12 | crates/rugra-foundation/、Cargo.toml、src/lib.rs、tools/cycle_ratchet.py（多根）、CYCLE_RATCHET 账本 | G0+examples 零改动编译+annotations/refs/evidence 多根形态全绿 |
+| `CRATESPLIT-WP14-B2SLEIGH-0033` | OPEN | P2 | B2 抽 `crates/rugra-sleigh`（1 文件 sleigh_ffi.rs DTO+kuna-sleigh path 依赖声明；无 C++ 构图可迁=蓝图 R2 修正）。前置=WP13 | crates/rugra-sleigh/、Cargo.toml、src/lib.rs | G0+examples 零改动编译 |
+| `CRATESPLIT-WP15-B3CORE-0034` | OPEN | P2 | B3 抽 `crates/rugra-core`（WP12 冻结清单 ≈60-70 文件整体 git mv 带内结构保留；根包变门面 pub use 族+upper 带居民+bin/+examples/；upper 引用 pub(crate) 项升 pub）。**硬前置=TFSINGLE step-2（PAREVAL-TF-PERARCH-WIRING-0002）落地，未落地禁启动→双窗形态**。前置=WP14+判据④ | crates/rugra-core/、Cargo.toml、src/lib.rs、docs/api | G1 全量（双 profile+镜面五面+bank+棘轮）+examples 深层引用零改动+cargo tree 偏序零违例 |
+| `CRATESPLIT-WP16-CLOSEOUT-0035` | OPEN | P2 | 收尾：fixture_registry path_epoch 裁决执行（250 处历史 src 引用默认不改写，root 拍板）+ROADMAP/STATUS 状态行+G1 终验双 profile+result/ 回流+/dev/shm 车道资源回收。前置=WP11 | 文档、CURRENT_STATUS.md、ALIGNMENT_ROADMAP.md | G1 全量 |
+
+（旧票池收敛映射：A0→WP01；A1..A8→WP02/04/05/06/07/08；A9→WP11；A10→WP16；B0..B3→WP12..15；B4 维持默认不排期；C1→WP09；C0/C2/C3/C4/C5 作废=HHMIRROR §7.4 裁定在案；R7 维持 OPEN。E13-E16 永久豁免裁决建议与解阻路径=手册 §7，root 终裁。）
+
+
 ## 活跃 wave：`W-2026-09-01-FLEET5`（2026-09-01 起；goal=所有函数文本级对齐；并发上限 5=用户指令）
 
 > ### 派发：FRONTEND-MINIMAL-0001 基础阶段（2026-09-26 root 批准；纯增量前端件）
