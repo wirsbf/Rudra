@@ -1,5 +1,21 @@
 # `type_system/datatype.rs` API Reference
 
+**2026-09-27（TYPEDEFIMM 车道 / wt/typedefimm）**: `TypeBase` 新增 per-type
+`typedef_imm: Option<Arc<Datatype>>` 通道——`Datatype::typedefImm`
+（type.hh:196）的 1:1 镜像，仅由 `TypeFactory::get_typedef`（type.cc:3834
+`res->typedefImm = ct;`）置位。配套：
+
+- `Datatype::get_typedef()`（type.hh:244 accessor）——cast.cc:325-328、
+  printc.cc:390-393、coreaction.cc:2476-2479、typeop.cc:2337-2340 四处剥离环
+  的行走通道。
+- 派生 `Clone` 镜像 oracle 拷贝构造（type.hh:212 `typedefImm=op.typedefImm`），
+  故 typedef 的克隆携带同一通道；`TypeBase::new` 镜像 `Datatype(sz,align,m)`
+  基构造的置空（type.hh:215），partial 类从新 base 构造不带通道（其 C++ ctor
+  同样不复制容器通道）。
+- `Datatype::encode_full` 的 typedef `<def>` 序列化守卫（type.cc:825/872/902/
+  972/1272/1450/1812/2112/2891/3076 各 encode 的 `if (typedefImm != null)`）
+  改为读 per-type 通道，删除外部线程的 `typedef_target` 参数。
+
 **2026-09-26（DATATYPE-PRINTRAW-0001 / lane DATATYPEPR，发现方 lane MIGW-DATABASE）**:
 `Datatype::print_raw`（`// Ghidra: type.cc:139`）六臂修正为锁定 oracle 的完整虚分派
 printRaw 族——票面六臂 + 亲读追加三项裁决（见下）：

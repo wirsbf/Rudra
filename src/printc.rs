@@ -4407,10 +4407,9 @@ impl PrintC {
     ///   `arraySize` is the ARRAY's size, then base0 becomes the array's
     ///   element type (388-389).
     /// - the typedef strips (390-393) — `while(base->getTypedef() != 0)`
-    ///   — are the identity on Rugra's type model: `Datatype::typedefImm`
-    ///   (type.hh:196) has no Rugra counterpart (the type_system keeps no
-    ///   typedef parent chain), so the loop body never runs, exactly the
-    ///   oracle's behavior for types with no typedef layer.
+    ///   — walk the per-type `typedef_imm` channel (type.hh:196/244,
+    ///   type.cc:3834), the 1:1 mirror of the oracle's `Datatype::typedefImm`
+    ///   back-pointer; non-typedef bases stop immediately.
     /// - the stripped bases must be the same type (394-395) — Ghidra
     ///   compares interned-type pointers; the non-interned Rust equivalent
     ///   is `Datatype::compare(...) == 0` (type.cc:1091, the same
@@ -4428,7 +4427,7 @@ impl PrintC {
     ///   getSubType and re-tested (`off != 0` rejects a partial-field
     ///   hit, 408-409).
     /// - Loop bounds: the typedef strips run while a parent exists
-    ///   (identity here); no other iteration.
+    ///   (the typedef_imm channel walk); no other iteration.
     /// - Counters: none.
     /// - Comparison keys: metatype equality first, then type identity
     ///   (compare==0), then size equality (`arraySize` from the CAST
@@ -4471,12 +4470,23 @@ impl PrintC {
         // printc.cc:388: int4 arraySize = base0->getSize();
         let array_size = base0.get_size();
         // printc.cc:389: base0 = ((const TypeArray *)base0)->getBase();
-        let base0_elem = match base0.as_ref() {
+        let mut base0_elem = match base0.as_ref() {
             Datatype::Array(a) => a.array_of.clone(),
             _ => return false,
         };
-        // printc.cc:390-393: the typedef strips — identity on Rugra's
-        // model (no typedefImm chain; see the doc comment).
+        // printc.cc:390-393: the typedef strips —
+        // `while(base->getTypedef() != 0) base = base->getTypedef();` on
+        // both sides — walk the per-type `typedef_imm` channel
+        // (type.hh:196/244), set only by factory get_typedef (type.cc:3834);
+        // non-typedef bases stop immediately, matching the oracle's null
+        // typedefImm.
+        while let Some(target) = base0_elem.get_typedef() {
+            base0_elem = target.clone();
+        }
+        let mut base1 = base1;
+        while let Some(target) = base1.get_typedef() {
+            base1 = target.clone();
+        }
         // printc.cc:394-395: if (base0 != base1) return false;
         if base0_elem.compare(&base1) != 0 {
             return false;
@@ -21223,6 +21233,74 @@ mod tests {
             assert!(
                 printer.check_address_of_cast(&cast_op),
                 "PTRSUB-def arm: int(*)[4] cast of S*->x[4] renders as &"
+            );
+        }
+
+        // (f) Positive typedef-strip arm (printc.cc:390-393): base0's element
+        //     is a typedef of int, base1 is the plain int — both strip to
+        //     int via the per-type typedef_imm channel (type.hh:196/244) and
+        //     the cast renders as &. Without the strip the element mismatch
+        //     (td_int vs int) would reject at printc.cc:394-395.
+        {
+            let mk_td = |name: &str, target: &Arc<Datatype>| {
+                let mut b = TypeBase::new(
+                    name.to_string(),
+                    target.get_size(),
+                    target.get_metatype(),
+                );
+                b.typedef_imm = Some(target.clone());
+                Arc::new(Datatype::Base(b))
+            };
+            let td_int = mk_td("td_int", &int_t);
+            let td_uint = mk_td("td_uint", &uint_t);
+            let td_int_arr = Arc::new(Datatype::Array(TypeArray {
+                base: TypeBase::new("td_int[4]".to_string(), 16, TypeMetatype::Array),
+                array_of: td_int.clone(),
+                num_elements: 4,
+            }));
+            let td_int_arr_ptr = mk_ptr("td_int (*)[4]", td_int_arr.clone());
+            let mut cast_op = PcodeOp::new(
+                crate::address::SeqNum::new(Address::new(0x2000), 5),
+                OpCode::CPUI_CAST,
+            );
+            let out_vn = mk_high_vn(8, td_int_arr_ptr.clone());
+            let mut in0_vn = mk_high_vn(8, int_elem_ptr.clone());
+            in0_vn.flags |= crate::varnode::varnode_flags::WRITTEN;
+            let mut ptrsub_op = PcodeOp::new(
+                crate::address::SeqNum::new(Address::new(0x2000), 0),
+                OpCode::CPUI_PTRSUB,
+            );
+            let root_vn = mk_high_vn(8, struct_ptr.clone());
+            let off_vn = Varnode::new_constant(0, 8);
+            ptrsub_op.inrefs = vec![
+                Arc::new(std::sync::RwLock::new(root_vn)),
+                Arc::new(std::sync::RwLock::new(off_vn)),
+            ];
+            let ptrsub_arc = Arc::new(std::sync::RwLock::new(ptrsub_op));
+            let in0_arc = Arc::new(std::sync::RwLock::new(in0_vn));
+            in0_arc.write().unwrap().def =
+                Some(std::sync::Arc::downgrade(&ptrsub_arc));
+            cast_op.output = Some(Arc::new(std::sync::RwLock::new(out_vn)));
+            cast_op.inrefs = vec![in0_arc.clone()];
+            assert!(
+                printer.check_address_of_cast(&cast_op),
+                "printc.cc:390-393: typedef element strips to the plain element"
+            );
+
+            // (g) Negative: different typedef roots stay distinct after the
+            //     strip (td_int vs td_uint walk to int vs uint).
+            let td_uint_elem_ptr = mk_ptr("td_uint *", td_uint.clone());
+            let mut cast_op2 = PcodeOp::new(
+                crate::address::SeqNum::new(Address::new(0x2000), 6),
+                OpCode::CPUI_CAST,
+            );
+            let out_vn2 = mk_high_vn(8, td_int_arr_ptr.clone());
+            let in0_vn2 = mk_high_vn(8, td_uint_elem_ptr.clone());
+            cast_op2.output = Some(Arc::new(std::sync::RwLock::new(out_vn2)));
+            cast_op2.inrefs = vec![Arc::new(std::sync::RwLock::new(in0_vn2))];
+            assert!(
+                !printer.check_address_of_cast(&cast_op2),
+                "printc.cc:394-395: different typedef roots reject after the strip"
             );
         }
 

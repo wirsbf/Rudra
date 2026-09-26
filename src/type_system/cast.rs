@@ -550,10 +550,11 @@ impl CastStrategyC {
     /// whitelist that admits TYPE_UNKNOWN (cast.cc:348-349/356 uint arms,
     /// cast.cc:366-367/374 int arms).
     ///
-    /// Rugra's Datatype lacks typedef chains, variable-length arrays, and
-    /// per-pointer AddrSpace; those branches are faithfully no-ops (a cast
-    /// decision is never wrong in their absence — at worst slightly more
-    /// conservative).
+    /// Typedef chains strip through the per-type `typedef_imm` channel
+    /// (cast.cc:325-328, type.hh:196/244). Rugra's Datatype still lacks
+    /// variable-length arrays and per-pointer AddrSpace; those branches are
+    /// faithfully no-ops (a cast decision is never wrong in their absence —
+    /// at worst slightly more conservative).
     pub fn cast_standard_full(
         &self,
         reqtype: &Arc<Datatype>,
@@ -608,15 +609,29 @@ impl CastStrategyC {
             care_uint_int = true;
             isptr = true;
         }
-        // No typedef chains in Rugra (getTypedef loop is a no-op); the
-        // peeled bases are compared with the same findAdd-equal key that
+        // cast.cc:325-328: strip the typedef chains on both bases —
+        // `while(reqbase->getTypedef() != 0) reqbase = reqbase->getTypedef();`
+        // (and the curbase twin) — "Different typedefs could point to the
+        // same type" (cast.cc:329). Rugra walks the per-type `typedef_imm`
+        // channel (type.hh:196/244), set only by factory get_typedef
+        // (type.cc:3834), so non-typedef bases stop immediately exactly as
+        // the oracle's null typedefImm does.
+        let mut reqbase = reqbase.clone();
+        while let Some(target) = reqbase.get_typedef() {
+            reqbase = target.clone();
+        }
+        let mut curbase = curbase.clone();
+        while let Some(target) = curbase.get_typedef() {
+            curbase = target.clone();
+        }
+        // The peeled bases are compared with the same findAdd-equal key that
         // backs the oracle's interned `curbase == reqbase` (cast.cc:329):
         // (name, size, sub-metatype) for Base variants, Arc identity
         // otherwise. This is the arm that resolves pointer-layer splits —
         // e.g. ptr(factory-bool) vs ptr(mint-bool) peels to equal bases —
         // keeping the locked golden's bare `V = buffer;` COPY form free
         // of a spurious `(bool *)` cast.
-        if findadd_equal(reqbase, curbase) {
+        if findadd_equal(&reqbase, &curbase) {
             return None;
         }
         // Ghidra's TypeEnum stores TYPE_INT/TYPE_UINT as its metatype —
@@ -992,6 +1007,63 @@ mod tests {
             TypeMetatype::Int,
         )));
         assert!(!findadd_equal(&int4, &int8));
+    }
+
+    // Ghidra: cast.cc:325-328 — the typedef strip loops in castStandard.
+    // "Different typedefs could point to the same type" (cast.cc:329): a
+    // typedef alias and its base are the same type for cast purposes, so no
+    // cast may be emitted between them — including chained typedefs. The
+    // channel is per-instance (type.hh:196/244), so a hand-minted look-alike
+    // sharing the typedef's name does NOT strip and keeps its cast.
+    #[test]
+    fn test_cast_standard_full_typedef_strip() {
+        use crate::type_system::datatype::TypeMetatype;
+        use crate::type_system::typefactory::{SizeArchInputs, TypeFactory};
+        let mut factory = TypeFactory::raw();
+        factory.setup_sizes(&SizeArchInputs {
+            stack_spacebase_size: Some(8),
+            default_data_space_addr_size: 8,
+            default_size: 8,
+            far_pointer: None,
+        });
+        let strategy = CastStrategyC::new(8);
+        let f4 = factory.get_base(4, TypeMetatype::Float).expect("float4");
+        let f8 = factory.get_base(8, TypeMetatype::Float).expect("float8");
+        let td_f4 = factory.get_typedef("td_float", f4.clone());
+        let td_td_f4 = factory.get_typedef("td_td_float", td_f4.clone());
+        // The channel is set on the factory clone (type.cc:3834) and walks
+        // home: alias vs base and chained alias vs base take no cast
+        // (without the strip the FLOAT default arm at cast.cc:387-391
+        // would emit one).
+        assert!(td_f4.get_typedef().is_some());
+        assert!(f4.get_typedef().is_none());
+        assert!(strategy
+            .cast_standard_full(&td_f4, &f4, false, true)
+            .is_none());
+        assert!(strategy
+            .cast_standard_full(&f4, &td_f4, false, true)
+            .is_none());
+        assert!(strategy
+            .cast_standard_full(&td_td_f4, &f4, false, true)
+            .is_none());
+        // Size gate still precedes everything after the strip (cc:333-337).
+        assert!(strategy
+            .cast_standard_full(&td_f4, &f8, false, true)
+            .is_some());
+        // Identity-keyed channel: a look-alike sharing the typedef's name
+        // has a null channel (type.hh:215 base ctor) and keeps its cast —
+        // the oracle's instance field never strips a distinct object.
+        let mut lookalike_base =
+            crate::type_system::datatype::TypeBase::new(
+                "td_float".to_string(),
+                4,
+                TypeMetatype::Float,
+            );
+        lookalike_base.typedef_imm = None;
+        let lookalike = Arc::new(Datatype::Base(lookalike_base));
+        assert!(strategy
+            .cast_standard_full(&lookalike, &f4, false, true)
+            .is_some());
     }
 
     #[test]

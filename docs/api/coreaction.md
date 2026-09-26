@@ -1,5 +1,18 @@
 # `coreaction.rs` API Reference
 
+## 2026-09-27：isOpIdentical / ptr_input_reqtype typedef 通道切换（Lane TYPEDEFIMM，wt/typedefimm）
+
+- `ActionSetCasts::is_op_identical`（coreaction.cc:2469-2481）的 typedef 剥离
+  （cc:2476-2479）从工厂名字侧表（`get_typedef_target(name)`，需要线程化
+  `Option<&TypeFactory>` 参数）切换到 per-type `typedef_imm` 通道
+  （type.hh:196/244）——与 oracle 一致地不需要工厂句柄，且消除名字键的
+  假剥离面（外部铸造的同名类型不再被错误剥到 typedef 根）。签名去参，
+  调用点 cc:2566 `force = !isOpIdentical(...)` 同步收缩；测试改通道语义
+  并新增同名 look-alike 负控。
+- `ptr_input_reqtype` 的 PTRSUB 臂（typeop.cc:2320-2347）补齐 cc:2337-2340
+  两条剥离环：单层数组剥离后、`same_type` 比较前，reqbase/curbase 各自沿
+  通道走到根（此前登记为结构性 no-op）。
+
 ## 2026-09-26：ActionPreferComplement BFS 补 BlockGoto/BlockMultiGoto 下降臂（HTTPDMAIN-F5-IFELSE-RETEST-0001 / lane F5IF）
 
 **根因（锁定 oracle e40ed130 git-archive + F5T 仪器化 trace 双侧对照亲证）**：httpd main

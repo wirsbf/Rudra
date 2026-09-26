@@ -3009,9 +3009,11 @@ impl TypeFactory {
     /// `typedefs` table so that `get_typedef_target` can walk it.
     pub fn get_typedef(&mut self, name: &str, ct: Arc<Datatype>) -> Arc<Datatype> {
         if let Some(existing) = self.find_by_name(name) {
-            let same_target = self
-                .typedefs
-                .get(name)
+            // type.cc:3825-3826: `if (ct != res->getTypedef()) throw ...` —
+            // the dedup compares against the existing type's per-Datatype
+            // typedefImm channel (type.hh:244), not a factory-side table.
+            let same_target = existing
+                .get_typedef()
                 .is_some_and(|target| Arc::ptr_eq(target, &ct));
             if !same_target {
                 panic!("LowlevelError: Trying to create typedef of existing type: {name}");
@@ -3026,6 +3028,13 @@ impl TypeFactory {
         base.display_name = name.to_string();
         base.id = Datatype::hash_name(name);
         base.flags &= !type_flags::CORETYPE;
+        // type.cc:3834: res->typedefImm = ct; — the per-type channel that
+        // the cast.cc:325 / printc.cc:390 / coreaction.cc:2476 /
+        // typeop.cc:2337 strip loops walk. The cloned record may already
+        // carry ct's own channel (typedef-of-typedef, type.hh:212 copy
+        // ctor); the assignment overwrites it with the immediate base,
+        // exactly as the unconditional oracle store does.
+        base.typedef_imm = Some(ct.clone());
         let aliased = ct.clone();
         let dt = match ct.as_ref() {
             Datatype::Void(_) => Datatype::Void(base),
@@ -3098,9 +3107,14 @@ impl TypeFactory {
         dt
     }
 
-    // Ghidra: type.cc:3850 TypeFactory::getTypedefTarget
-    /// Look up the typedef target (the stripped form) for a typedef name.
-    /// Returns the aliased data-type, or `None` if `name` is not a typedef.
+    // RUGRA-GLUE: get_typedef_target (Rugra-side name index)
+    /// Look up the typedef target (the stripped form) for a typedef name in
+    /// the factory's `typedefs` index. Ghidra has no name-keyed accessor —
+    /// type.cc:3850 is `getTypePointerStripArray`, and the only oracle
+    /// channel is the per-Datatype `typedefImm` (type.hh:244), now mirrored
+    /// by `Datatype::get_typedef` and populated at get_typedef time
+    /// (type.cc:3834). This index remains as a debug/test reachability
+    /// helper; production consumers walk the per-type channel.
     pub fn get_typedef_target(&self, name: &str) -> Option<&Arc<Datatype>> {
         self.typedefs.get(name)
     }

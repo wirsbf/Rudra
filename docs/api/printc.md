@@ -1,5 +1,16 @@
 # `printc.rs` API Reference
 
+## 2026-09-27：checkAddressOfCast typedef 剥离环（Lane TYPEDEFIMM，wt/typedefimm）
+
+`check_address_of_cast`（printc.cc:376-418）补齐 cc:390-393 的两条剥离环：
+array 元素基（base0）与 dt1 pointee（base1）各自沿 per-type `typedef_imm`
+通道（type.hh:196/244，工厂 `get_typedef` type.cc:3834 置位）走到根后再比
+（cc:394-395）。此前该环被登记为"Rugra 无 typedef 链、恒等形态"（PRINTC0004
+handover）；通道落地后为 1:1 行为。非 typedef 基型立即停步，与 oracle null
+`typedefImm` 恒等。测试矩阵 `test_check_address_of_cast_matrix` 新增
+(f) typedef 元素剥离正例（td(int) 元素 vs int pointee 仍渲染 `&`）与
+(g) 不同 typedef 根负例（td_int vs td_uint 剥离后仍拒绝）。
+
 ## 2026-09-26：印前指针盖章加法输入臂整撤（CASTFUSE-C ZEXT 子族 / Lane VZEXT）
 
 WIDTHOP（2026-09-24，见下条）收缩后的盖章域仍保留了"尺寸 8 且 def 不属
