@@ -34,7 +34,7 @@ FI 判决(sb-spillpair)已把口径钉死:**Rugra 库级输出 vs direct-runner 
 |---|---|---|---|---|---|
 | C1 | **TYPE-SEED-LOCAL**(committed `local_*` 符号+类型层) | `local_` 引用 117,typed 声明 140 vs D undefined 326 | **`local_` 引用 5824(D=0),typed 声明 3173 vs D 4468**;TYPE-SEED hunk 316 | **Java 分析器提交环**:Decompiler Parameter ID(含 locals 提交)先跑库恢复→提交 DB→Data Type Propagation 等再升级类型→最终反编译读回。证据:①httpd stripped 无 DWARF 仍有 typed locals ⇒ 非 DWARF;②SPALIAS drill:hermetic oracle 收敛 unknown ⇒ 库外种子;③`local_` 名 C++ 全树零生成点(grep 无)⇒ 名字来自 Java DB;④C++ 消费机制在锁定源:`<localdb>`(funcdata.cc:804-810)→ `MapState::gatherSymbols`(varmap.cc:1044-1059)→ `RangeHint::fixed+typelock` | ❌ 未建模(SPALIAS/GC/FI/DP 四判例残差的上游总根) |
 | C2 | **THUNK-GOT**(GOT 槽 `PTR_x` 符号化 + thunk 标记 + 导入函数签名) | PTR_ 50 vs pcRam 313;THUNK-PAIR hunk 73;locked-storage 警告 51(D=0);D jumptable 警告 46(H=0) | PTR_ 372 vs pcRam 1659;THUNK-PAIR hunk 495;locked 警告 124;D jumptable 警告 431 | headless ELF loader+分析器:建 GOT 引用符号(`PTR_<extname>_<addr>`、`code*` 型)、把 PLT/plt.sec 标记为 thunk(免 jumptable 恢复)、对导入函数套用库签名(锁定参数存储)。httpd stripped ⇒ 签名来自 FID/外部签名库,非 DWARF | 部分:GOT PTR_ 标签+函数符号已桥(driver :557-563);**导入签名/thunk 标记/警告抑制 ❌** |
-| C3 | **SIG-LOCK 实函数**(原型锁定+参数名) | SIG hunk 22 + PARAM-NAME 26;`__x` 参数名 263 vs 72 | SIG hunk 418 + PARAM-NAME 146;`__x` 1562 vs 332 | curl=DWARF 函数原型(argc/argv/__stream/urls);httpd=analyzer 签名(FID/Parameter ID 提交)。与 C1 同机制不同载体(`<prototype>` 锁,fspec) | 部分:DWARF 自身+callsite 锁、24 libc 已桥(CALLSPEC-ENV-SCOPE-0001/GL);**导入面与 golden-harvest 面 ❌** |
+| C3 | **SIG-LOCK 实函数**(原型锁定+参数名) | SIG hunk 22 + PARAM-NAME 26;`__x` 参数名 263 vs 72 | SIG hunk 418 + PARAM-NAME 146;`__x` 1562 vs 332 | curl=DWARF 函数原型(argc/argv/__stream/urls);httpd=【§19 消融改判+§16.1.1 注记】导入面="Apply Data Archives"(generic_clib_64)套签名——原"analyzer 签名(FID/Parameter ID 提交)"双证伪:FID 关=0 函数变化且 dist 无 .fid 库,Parameter ID 对 ELF 默认关、canon 从未运行(强开 461 函数偏离 canon);内部实函数面=canon 反编译期恢复、无 DB 提交原型(live 协议:内部被调 `<prototype model="unknown">`+void+空 localdb)。载体=导入面仍 `<prototype>` 锁(fspec);内部面无锁(V3SIG 锁注入=输出等价运输层,非 DB 状态镜像) | 部分:DWARF 自身+callsite 锁、24 libc 已桥(CALLSPEC-ENV-SCOPE-0001/GL);**导入面与 golden-harvest 面 ❌** |
 | C4 | **STRUCT-FIELD**(DWARF 组合类型下的字段步进) | STRUCT-FIELD hunk 33 + GLOBAL-SYM hunk 119(`::config`/`outs.stream`/`stdin` 等 typed 全局) | STRUCT-FIELD hunk 26(归因开放:stripped 下疑 FID 套型) | curl=DWARF composite(Configurable/URLGlob/FILE);全局符号带类型 | 部分:TYPEDEF_PREAMBLE 文本级 hack(:4845);真组合类型 ❌ |
 | C5 | STRSYM(字符串字面量实参) | H 43 vs D 0 | H 1681 vs D 10 | Java string/reference 分析器在 .rodata 建字符串数据 | ✅ 已桥(driver 字符串通道) |
 | C6 | BOOL-LIT 残余(Data Type Propagation 族) | true/false 34 vs 18 | 499 vs 289 | GC 判例:Java Data Type Propagation 把 bool 语义播种到库级 char | 部分:DWARF typedef-bool 已修(boollit);**DTP 族 ❌** |
@@ -192,8 +192,11 @@ namelock) + decodeType + SymbolEntry::decode(`<addr>`+`<rangelist>）→ addMap�
   hermetic 库为 0——`*(xunknown8*)((int8)p + -8)` 形）。
 - **证伪边界**：canon 的 15 处 `local_d0 = <retaddr>;` 直接赋值拼写连
   seeded-oracle 也不产生（打印为 `plVar11[-1] = <retaddr>`，同一存储的
-  别名指针形）⇒ 该族需要种子之外的 headless 状态（Parameter ID 早轮
-  IR/别名挂接差异），**超出 C1 v1 范围**，归 HEAD 残差（W0 消融可再钉）。
+  别名指针形）⇒ 该族需要种子之外的 headless 状态，**超出 C1 v1 范围**，归
+  HEAD 残差（W0 消融已跑：原归因候选"Parameter ID 早轮 IR/别名挂接差异"
+  被排除——Parameter ID 对 ELF 默认关、canon 从未运行，强开反而 461 函数
+  偏离 canon[HEADLESSDIST 终报 §2 r1/r1b]；真源未钉死，候选域=Stack 符号+
+  归档锁输入下的恢复环境差，见 §16.1.1）。
 
 ### 9.2 as-built 与 §5.2/5.3 的偏差（按实测修正）
 
@@ -860,18 +863,25 @@ emit_line_comment **链路活着**——my_get_line 注入后位置/块形正确
 
 ### 16.1 通道（SHAPEFIX 判决的运输层）
 
-canon golden 的 `long *` 下标/8 字节 load/canary 槽下标族来自 analyzeHeadless
-**Decompiler Parameter ID** 分析器提交到 Program DB 的被调函数锁定原型（双向实验：
-单条 ap_setup_prelinked_modules (long*)→long 即把锁定 oracle 的 main 翻成 canon 形，
-env-flip 154/156——/dev/shm/rugra-reports/LANE_SHAPEFIX_2026-09-25.md）。Rugra 的
+canon golden 的 `long *` 下标/8 字节 load/canary 槽下标族——**机制归因改判
+（2026-09-27,Lane BRIDGEDOC）**：原主张"来自 analyzeHeadless **Decompiler
+Parameter ID** 分析器提交到 Program DB 的被调函数锁定原型"**作废**（消融
+负证据：Parameter ID 对 ELF 默认关、canon 从未运行，强开 461 函数偏离 canon；
+live 协议亲证 canon DB 无内部被调提交签名——HEADLESSDIST 终报 §3/设计文档
+§19，详注 16.1.1）。双向实验证明的是**输入→输出等价**：单条
+ap_setup_prelinked_modules (long*)→long 锁定原型即把锁定 oracle 的 main 翻成
+canon 形（env-flip 154/156——/dev/shm/rugra-reports/LANE_SHAPEFIX_2026-09-25.md）
+——canon 以另一种输入状态（无被调提交原型的恢复环境）到达同一输出，锁定
+原型注入因此是**输出等价运输层，非 canon DB 状态镜像**。Rugra 的
 httpd 语料此前没有该通道：调用点全走 active recovery。本 lane 落地：
 
 1. **harvest**（`tools/harvest_local_manifest.py --callee GOLDEN.c CORPUS
    ORACLE_COMMIT OUT.json`）：从 canon golden 的 main/ap_fini_vhost_config/
    ap_vhost_iterate_given_conn 调用点形态反推被调原型。**以调用点实参形态为准，
-   不用被调自身 header**（Parameter ID 迭代漂移：canon 的
+   不用被调自身 header**（canon 的
    ap_setup_prelinked_modules 自印 `char * f(undefined8 *)` 而调用点显形
-   `(long*)→long`）。证据规则（全部 canon 文本可观察）：元数=各调用点实参计数
+   `(long*)→long`——原标签"Parameter ID 迭代漂移"废弃：Parameter ID 未运行，
+   分歧=被调无提交原型时 header/调用点两侧独立恢复的自然结果，16.1.1）。证据规则（全部 canon 文本可观察）：元数=各调用点实参计数
    （不一致=varargs 弃收）；参数槽类型证据=裸局部（decl 类型，数组衰减指针）/
    `x[k]`（元素型）/`x+k`/`*x`/`&x`/字符串字面量（char *）/cast 目标
    （ActionSetCasts 恰把实参 cast 到调用点参数的 local type——`(char *)x` 即
@@ -902,6 +912,51 @@ httpd 语料此前没有该通道：调用点全走 active recovery。本 lane �
    （canon 0x154470 `strcasecmp(unaff_R12,...)` 双参形）。
    门禁语义：mirror 恒拒（投影纯度，显式日志）；RUGRA_SEEDS=0 全局逃生；opt-in
    极性待 V3 验证轮后再评估转正。
+
+#### 16.1.1 消融重归属注记（Lane BRIDGEDOC，2026-09-27，docs-only）
+
+> 依据：HEADLESSDIST 车道 11 轮受控消融的负证据（终报
+> /dev/shm/rugra-reports/LANE_HEADLESSDIST_2026-09-27.md；本文 §19 为其仓内
+> 落账）。性质=机制叙述勘误——零 src、零行为改动、不删历史（原主张以行内
+> 注记与本节保留）。
+
+**被负证据推翻的前提（叙述层，本文已逐处修正）**：
+
+1. **"Parameter ID 提交被调原型"**（§16.1 原首句；§17/§17.1 环语义；§17.7
+   六内部包装"Parameter ID 提交域"；§2 C3 行 httpd 旧归因）：canon 配方下
+   Decompiler Parameter ID 对 ELF 恒关（源码级 `getDefaultEnablement()=
+   (<2MB)&&PE`），强开反而 461 函数偏离 canon（r1/r1b）；live 协议亲证内部
+   被调（ap_setup_prelinked_modules）mapsym=`<prototype model="unknown">`
+   +void 返回+空 localdb——**canon DB 没有内部函数提交签名**。
+2. **"Parameter ID 迭代漂移"标签**（§16.1 harvest 规则、§17.1 项 2）：canon
+   被调 header 自印（`char* f(undefined8*)`）与调用点形（`(long*)→long`）的
+   分歧是真实文本事实，但成因不是 Parameter ID 多轮提交漂移——被调无提交
+   原型时两侧各自独立恢复，分歧是自然结果。"以调用点实参形态为准"的 harvest
+   规则作为数据实践不受影响（且更成立：canon 侧本就无提交原型可采）。
+3. **§9.1 证伪边界的归因候选**（"Parameter ID 早轮 IR/别名挂接差异"）：同上
+   排除；retaddr 直接赋值族真源未钉死（候选域=Stack 符号+归档锁输入下的恢复
+   环境差），维持 HEAD 残差登记。
+
+**不受影响的验收面（独立事实，全部维持）**：
+
+- **V3SIG 交付本体**：manifest=canon 文本收割（数据层，与机制归因无关）；
+  oracle env-flip 154/156 与 Rugra 脸 1141→951/0/0、零回退、双跑恒等——
+  证明的是锁定原型注入的**输出等价性**，不依赖 canon DB 是否真有提交原型。
+- **PARAMID/PARAMID2 自产环**：1038/1009/0/0、对拍精确率表、迭代不动点——
+  工程语义=V3SIG 运输层的自宿主化（运行时自产锁表），交付行为与门禁数字
+  均不预设 canon 存在 Parameter ID 提交层。
+- **IMPORTSIG 交付（PARAMID 脸 999→753/0/0）**：独立事实；其归因"canon 导入锁
+  来自签名通道而非 Parameter ID"被消融**正面证实**（r5：archive 关→
+  locked-warn 124→0）——generic_clib_64 归档即签名通道本体。
+- **CURLPARAM 三脸字节恒等、STRUCTB 判例**：与 Parameter ID 叙述无涉。
+
+**修正后的定性与残余开放**：V3SIG/PARAMID 通道="canon 输出形的运输层"
+（输入有效性由 env-flip 单独成立），而非"canon 输入状态（DB 提交层）的
+复刻"。canon 侧 (long*) 族的**真实生成机制**（无提交原型条件下调用方恢复
+如何到达该形）与 §17.7 六内部包装锁的子机制（归档按名套用 vs 传递
+typeprop）均未逐项钉死——对桥接面无影响（输出等价已证、窗口内零可观测），
+不派生实现票；若后续车道需要机制级解释（如 direct-runner 全量追平论证），
+以本节为起点。
 
 ### 16.2 验收（opt-in 态 vs 基线 1141/0/0）
 
@@ -1075,7 +1130,7 @@ CALL 臂。**接线车道若只挂 manifest 不补该臂，curl cast 族近零�
    原为 inert 或修复向），需亲测。
 5. **PLT 全真值上限决策**：canon 的 PLT 桩头（golden 自印
    `char * fgets(char *__s,int __n,FILE *__stream)`）与调用点形一致
-   （generic_clib 稳定源，无 Parameter ID 漂移）——harvest 可选扩展：PLT
+   （generic_clib 稳定源——原"无 Parameter ID 漂移"表述废弃：Parameter ID 未运行，一致性源于归档套用的稳定签名，见 16.1.1）——harvest 可选扩展：PLT
    被调接受桩头全参型（C 实验判决：`(FILE *)`/`(char *)` 槽 cast 族上限）。
    方法论注意：仅限 dynsym 导入桩（内部被调仍守调用点形规矩）。
 
@@ -1258,7 +1313,9 @@ oracle_getparameter_A0.c 字节恒等）
 harvest_local_manifest.py 仅改 CALLEE_ARG_CAST 证据区与规则文本句
 （CMTSEED 的 --cmt 模式函数未触，合并冲突由 root 并集解）。
 ## §17 PARAMID 交付记录（Lane PARAMID，2026-09-25，基=亲父 363c9cfd=master CVRHOIST 后）
-> HEADLESS-BRIDGE-PARAMID-0001：Decompiler Parameter ID 自宿主迭代环——把
+> HEADLESS-BRIDGE-PARAMID-0001：Decompiler Parameter ID 自宿主迭代环（通道
+> 命名沿用历史；机制叙述已改判[16.1.1]——canon 无 Parameter ID 提交层，环的
+> 工程语义=V3SIG 运输层的自宿主化，验收面不受影响）——把
 > V3SIG 通道的输入从 harvested manifest 换成运行时自产数据
 > （`RUGRA_PARAMID=1` opt-in）。写域=`examples/httpd_decompile.rs`+docs；
 > src/ 零触碰（判定标准=manifest 输出行为等价，编排层车道）。证据
@@ -1272,11 +1329,14 @@ harvest_local_manifest.py 仅改 CALLEE_ARG_CAST 证据区与规则文本句
 1. **迭代宇宙** = 打印窗口（29 函数，同 ledger 同 skip filter）∪ 前端
    analyzer-discovered 调用目标（46 个 = call_targets∪code_ref，PLT 桩除外；
    extent=下一已知入口邻界，8192 封顶——前端邻居启发式镜像）。
-   Parameter ID 只对反编译过的函数提交签名；驱动不反编译的函数无从自产。
+   （宇宙边界原以"Parameter ID 只对反编译过的函数提交签名"类比论证——类比
+   已废弃[16.1.1]，现语义=自产环固有的证据可得域：只对反编译过的函数能采
+   调用点证据，与 canon 机制无关。）
 2. **提交负载=调用点证据**（callee 侧 fd.funcp 方案被实验否决）：canon 自身
-   的被调 header 与调用点形漂移（"Parameter ID 迭代漂移"，16.1 记录的
+   的被调 header 与调用点形漂移（16.1 记录的
    ap_setup_prelinked_modules 自印 `char* f(undefined8*)` vs 调用点
-   `(long*)→long`）；直接锁 callee 侧恢复原型把脸打坏（1189 > 裸 1097，
+   `(long*)→long`；原标签"Parameter ID 迭代漂移"废弃——成因=被调无提交
+   原型下两侧独立恢复[16.1.1]）；直接锁 callee 侧恢复原型把脸打坏（1189 > 裸 1097，
    74 条全锁、精确率 5%/召回 11% 的实测）。调用点证据读的是与
    harvest 同义的信息：untyped varnode（undefined 族标量）=「无证据」形，
    指针型 varnode =「x[k]/&x/(T*)」形，活 CALL 输出=已消费返回形。
@@ -1491,8 +1551,9 @@ input/output/model 三锁、"unknown" 约定名）。结构基类型
   caseD −4（4→0——strcasecmp 锁使退化站点印出 canon 形）。
 - PARAMID 自产表 49→51（导入锁的参数类型经 typeprop 改善内部 callee
   证据）；对拍 overlap 19→20/exact 13→14/precision 68.4%→70.0%/
-  slots equal 21→23/different 0。PLT 槽仍从自产表弃收（归因不变：
-  canon 的导入锁来自签名通道而非 Parameter ID）。
+  slots equal 21→23/different 0。PLT 槽仍从自产表弃收（归因不变且被消融
+  正面证实[r5]：canon 的导入锁来自签名通道=Apply Data Archives/generic_clib_64
+  而非 Parameter ID[ELF 下从未运行]，16.1.1）。
 - bank 391/391 exit 0；cargo test --lib 1725P/1F（nonzeromask 预存，
   lib 未触碰）。
 
@@ -1503,7 +1564,9 @@ ap_fini 剩 70=typeprop/pRam 域（V3SIG-UND224-TYPEORDER-0001 同族）。
 惰性（freopen/qsort/sigaction/sigaddset/sigemptyset/times/getgrnam/
 getpwnam/getpwuid/getrlimit——canon 锁、Rugra 工厂无名、窗口外零可观测）。
 另：canon 对 ap_strchr/ap_strrchr/ap_strstr(±_c) 六个内部包装函数也带
-锁+横幅（Parameter ID 提交域，非导入通道——PARAMID 自产表覆盖范围，
+锁+横幅（原归因"Parameter ID 提交域"已证伪——Parameter ID 未运行；该
+横幅层经 r5 消融整体归 archive 域[locked-warn 124→0 含之，按名套用 vs
+传递 typeprop 的子机制未逐项分解，16.1.1]——PARAMID 自产表覆盖范围，
 非本车道缺口）。
 
 证据=/dev/shm/rugra-tests/importsig/（含改前后 A/B 双二进制与全部门禁
