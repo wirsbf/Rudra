@@ -12862,9 +12862,14 @@ impl Funcdata {
     ///   else if (entry->getSize() == vn->getSize())
     ///     if (vn->setSymbolProperties(entry)) return true;
     ///   return false;
+    /// The size-match arm surfaces Varnode::setSymbolProperties' boolean
+    /// verbatim (varnode.cc:410-424): an unlocked dynamic symbol returns
+    /// false even though the mapped flag was applied.
     /// RUGRA-GAP: Rugra has no SymbolEntry/Symbol objects on Funcdata; the
     /// caller supplies (first_use_addr, hash, size, category) directly. On a
-    /// successful find, MAPPED is set and the name is recorded.
+    /// successful find, MAPPED is set and the name is recorded; the typelock
+    /// arm is reconstructed from the scope's dynamic LocalSymbol (typelock
+    /// bit + dtype) looked up by hash.
     pub fn attempt_dynamic_mapping(
         &mut self,
         first_use_addr: crate::address::Address,
@@ -12897,14 +12902,52 @@ impl Funcdata {
                 .insert(hash | 0x8000_0000_0000_0000, sym_name.to_string());
             return true;
         }
-        // cc:1332-1335: matching size → setSymbolProperties.
+        // cc:1332-1335: matching size → setSymbolProperties, whose boolean
+        // return is surfaced verbatim.
         if vn.read().unwrap().size == size {
+            // Varnode::setSymbolProperties (varnode.cc:410-424):
+            //   bool res = entry->updateType(this);
+            //   if (entry->getSymbol()->isTypeLocked()) {
+            //     if (mapentry != entry) { mapentry = entry; ...; res = true; }
+            //   }
+            //   setFlags(entry->getAllFlags() & ~typelock);
+            //   return res;
+            // The :1327 guard above proved vn's mapentry is NULL, so the
+            // typelock arm's attach always fires when it runs. For an
+            // UNLOCKED dynamic symbol — the production mint shape
+            // (database.cc:1690-1702 builds `new Symbol(owner,nm,ct)` with
+            // flags=0) — res stays false even though the mapped flag was
+            // applied: the attach is observable but the boolean is not.
+            let mut res = false;
+            let sym_info = self.scope.as_ref().and_then(|scope| {
+                scope
+                    .symbols
+                    .iter()
+                    .find(|sym| sym.is_dynamic && sym.hash == hash)
+                    .map(|sym| (sym.typelock, sym.dtype.clone()))
+            });
+            if let Some((true, dtype)) = sym_info {
+                // SymbolEntry::updateType (database.cc:135-144): the locked
+                // type is forced through vn->updateType(dt,true,true) with
+                // getSizedType's whole-size piece (database.cc:151-163,
+                // dynamic offset 0). The type WRITE is observable even
+                // though the mapentry arm overwrites the boolean below.
+                if let Some(dt) = dtype {
+                    let _type_changed = vn.write().unwrap().update_type_lock(dt, true, true);
+                }
+                // varnode.cc:414-421: mapentry NULL→entry attach forces
+                // res = true for typelocked symbols.
+                res = true;
+            }
+            // setFlags(getAllFlags() & ~typelock) — database.hh:271:
+            // extraflags | symbol flags = Varnode::mapped for the dynamic
+            // mint (database.cc:1700), applied unconditionally.
             vn.write()
                 .unwrap()
                 .set_flags(crate::varnode::varnode_flags::MAPPED);
             self.symbol_table
                 .insert(hash | 0x8000_0000_0000_0000, sym_name.to_string());
-            return true;
+            return res;
         }
         false
     }

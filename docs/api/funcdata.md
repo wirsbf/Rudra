@@ -1,5 +1,36 @@
 # `funcdata.rs` API Reference
 
+## 2026-09-27：attempt_dynamic_mapping 尾部镜像 setSymbolProperties 返回语义（DYNMAP-SETPROPS-RET-0001）
+
+`Funcdata::attempt_dynamic_mapping`（funcdata_varnode.cc:1314-1337 对应物）的
+尺寸匹配臂此前无条件 `return true`；oracle 在该臂返回的是
+`Varnode::setSymbolProperties(entry)` 的布尔（funcdata_varnode.cc:1333-1334）。
+修法为逐行镜像该返回链：
+
+- `Varnode::setSymbolProperties`（varnode.cc:410-424）：`res` 初值 =
+  `SymbolEntry::updateType(vn)`（database.cc:135-144——仅 symbol typelock
+  时经 `getSizedType`（database.cc:151-163，动态条目 offset=0 整尺寸件）
+  强制 `vn->updateType(dt,true,true)`）；typelock 臂里 mapentry NULL→entry
+  附着强制 `res=true`（:1327 守卫已证 mapentry 为 NULL，附着必发生）；
+  `setFlags(getAllFlags() & ~typelock)`（database.hh:271 =
+  extraflags|symbol flags——动态铸造 database.cc:1690-1702 即
+  `Varnode::mapped`）无条件执行。
+- 生产铸造形态（`addDynamicSymbol` 的 `new Symbol(owner,nm,ct)` flags=0）
+  下动态符号永不 typelock（`retypeSymbol`/`checkSizeTypeLock` 不写
+  `Varnode::typelock`），故 **unlocked 动态符号附着发生（mapped=1）但返回
+  false**——这正是 ActionDynamicMapping count 保持 0 的机制
+  （coreaction.cc:4864 只在返回 true 时递增）。
+- Rugra 侧 typelock 臂从 `scope` 动态 `LocalSymbol`（按 hash 查找）重建：
+  typelock 位 + `dtype`（`update_type_lock(dt,true,true)` 的类型写保留
+  可观测语义，即便 mapentry 臂随后覆写布尔）；MAPPED 旗标与
+  symbol_table 名记录不变（getAllFlags 侧），仅返回值改为镜像。
+- 双侧证据：copytrim_remat_1204 `refind_attach_fn` 案例块双侧逐字节一致
+  （`call|…|attemptDynamicMapping|res=0`、`after1 t.mapped=1`、二次调用
+  `res=0`）；fixture 分歧 11→5 行对，余 5 行全属未并线车道
+  （DYNMAP-LATE-CAST-RETARGET / COREACT 双桩）。本支线上
+  `attempt_dynamic_mapping` 无生产调用方（ActionDynamicMapping::apply 在
+  wt/coreact2 未并线），canon/镜面按构造恒等。
+
 ## 2026-09-25：get_internal_string 走 registerInternalStringData（Lane STRNCPY）
 
 `get_internal_string`（funcdata_varnode.cc:1413 的对应物）的手搓校验/插入/
