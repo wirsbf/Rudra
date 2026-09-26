@@ -15044,27 +15044,116 @@ impl Action for ActionConditionalConst {
 }
 
 /// Dynamic mapping. Faithful to `ActionDynamicMapping`
-/// (coreaction.cc).
-pub struct ActionDynamicMapping;
+/// (coreaction.hh:1023, coreaction.cc:4852): every mainloop pass (before
+/// restructurevarnode/infertypes, coreaction.cc:5504), walk the local
+/// scope's dynamic-entry list and re-attach each hashed symbol to the
+/// Varnode that currently recomputes its position hash.
+pub struct ActionDynamicMapping {
+    /// Ghidra protected Action::count (coreaction.hh:298): number of
+    /// successful attaches this perform cycle; consumed by
+    /// Action::perform's lcount<count applied transition (action.cc:346).
+    pub count: i32,
+}
 impl ActionDynamicMapping {
     // Ghidra: coreaction.hh:1023 ActionDynamicMapping (constructor mirror)
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self { count: 0 }
+    }
 }
 impl Action for ActionDynamicMapping {
     // Ghidra: coreaction.cc:4852 ActionDynamicMapping::apply
-    fn apply(&mut self, _fd: &mut Funcdata) -> Result<i32> {
-        Ok(action_status::NO_CHANGE)
+    /// Faithful to `ActionDynamicMapping::apply` (coreaction.cc:4852-4867):
+    /// ```text
+    /// localmap = data.getScopeLocal();
+    /// iter = localmap->beginDynamic(); enditer = localmap->endDynamic();
+    /// while(iter != enditer) {
+    ///   entry = &(*iter); ++iter;              // advance BEFORE the call
+    ///   if (data.attemptDynamicMapping(entry,dhash)) count += 1;
+    /// }
+    /// return 0;
+    /// ```
+    /// Decisive semantics:
+    /// - iteration = ScopeInternal::beginDynamic/endDynamic (database.cc:1921)
+    ///   over the `dynamicentry` std::list in insertion order; the iterator
+    ///   advances before the callee runs because attemptDynamicMapping can
+    ///   mutate the entry; here a pre-call snapshot visits the identical
+    ///   entry set — the ported delegate arms (find/attach, equate, size
+    ///   gate, and the union-facet arm, whose oracle body applyUnionFacet
+    ///   (funcdata_varnode.cc:1637) only resolves a union field and never
+    ///   mints dynamic entries) cannot grow the list mid-walk.
+    /// - count increments once per successful attach (shared Action field,
+    ///   NOT reset by apply — Action::perform resets it at status_start).
+    /// - the return is the literal 0; `count` is the only output.
+    fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
+        // cc:4855-4858: localmap = data.getScopeLocal(); iter/enditer over
+        // the dynamic list. The varmap::ScopeLocal arena keeps dynamic
+        // entries as `is_dynamic` symbols in slot-id (= insertion) order.
+        let dynamic_entries: Vec<_> = fd
+            .scope
+            .as_ref()
+            .map(|scope| {
+                scope
+                    .symbols
+                    .iter()
+                    .filter(|sym| sym.is_dynamic)
+                    .map(|sym| {
+                        (
+                            // SymbolEntry::getFirstUseAddress (database.cc:122):
+                            // first range of the uselimit — modeled by the
+                            // single mint-time usepoint.
+                            crate::address::Address::new(sym.usepoint.unwrap_or(0)),
+                            sym.hash,
+                            sym.size as usize,
+                            sym.category == crate::varmap::symbol_category::EQUATE,
+                            sym.category == crate::varmap::symbol_category::UNION_FACET,
+                            sym.name.clone(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        // cc:4860-4865: walk and attach; the single DynamicHash object the
+        // oracle reuses across iterations is stateless between calls
+        // (attemptDynamicMapping clears it at entry), so a fresh instance
+        // per call inside the delegate is equivalent.
+        for (first_use_addr, hash, size, is_equate, is_union_facet, sym_name) in dynamic_entries {
+            if fd.attempt_dynamic_mapping(
+                first_use_addr,
+                hash,
+                size,
+                is_equate,
+                is_union_facet,
+                &sym_name,
+            ) {
+                self.count += 1; // cc:4864
+            }
+        }
+        Ok(action_status::NO_CHANGE) // cc:4866: return 0
+    }
+    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // (coreaction.cc:4864) into the Rust ActionState accumulator.
+    fn take_count_delta(&mut self) -> i32 {
+        std::mem::take(&mut self.count)
     }
     // RUGRA-GLUE: Rust Action trait get_name; "dynamicmapping" mirrors ctor at coreaction.hh:1023
     fn get_name(&self) -> &str { "dynamicmapping" }
 }
 
 /// Dynamic symbols. Faithful to `ActionDynamicSymbols`
-/// (coreaction.cc).
-pub struct ActionDynamicSymbols;
+/// (coreaction.hh:1034, coreaction.cc:4869): two late passes (merge phase
+/// after DominantCopy, coreaction.cc:5724; and after MapGlobals before
+/// NameVars, coreaction.cc:5733) that attach the dynamic Symbol's NAME to
+/// the hashed Varnode without forcing type/properties.
+pub struct ActionDynamicSymbols {
+    /// Ghidra protected Action::count (coreaction.hh:298): number of
+    /// successful late attaches this perform cycle.
+    pub count: i32,
+}
 impl ActionDynamicSymbols {
     // Ghidra: coreaction.hh:1034 ActionDynamicSymbols (constructor mirror)
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self { count: 0 }
+    }
 }
 impl Action for ActionDynamicSymbols {
     // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1036
@@ -15073,8 +15162,53 @@ impl Action for ActionDynamicSymbols {
     }
 
     // Ghidra: coreaction.cc:4869 ActionDynamicSymbols::apply
-    fn apply(&mut self, _fd: &mut Funcdata) -> Result<i32> {
-        Ok(action_status::NO_CHANGE)
+    /// Faithful to `ActionDynamicSymbols::apply` (coreaction.cc:4869-4884):
+    /// same beginDynamic()/endDynamic() walk as ActionDynamicMapping, but
+    /// delegating to `Funcdata::attemptDynamicMappingLate`
+    /// (funcdata_varnode.cc:1347), which attaches the Symbol's name (and
+    /// mapped flag) rather than its type properties. The ++iter-before-call
+    /// snapshot equivalence argument is identical to
+    /// ActionDynamicMapping::apply above.
+    fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
+        let dynamic_entries: Vec<_> = fd
+            .scope
+            .as_ref()
+            .map(|scope| {
+                scope
+                    .symbols
+                    .iter()
+                    .filter(|sym| sym.is_dynamic)
+                    .map(|sym| {
+                        (
+                            crate::address::Address::new(sym.usepoint.unwrap_or(0)),
+                            sym.hash,
+                            sym.size as usize,
+                            sym.category == crate::varmap::symbol_category::EQUATE,
+                            sym.category == crate::varmap::symbol_category::UNION_FACET,
+                            sym.name.clone(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        for (first_use_addr, hash, size, is_equate, is_union_facet, sym_name) in dynamic_entries {
+            if fd.attempt_dynamic_mapping_late(
+                first_use_addr,
+                hash,
+                size,
+                is_equate,
+                is_union_facet,
+                &sym_name,
+            ) {
+                self.count += 1; // cc:4881
+            }
+        }
+        Ok(action_status::NO_CHANGE) // cc:4883: return 0
+    }
+    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // (coreaction.cc:4881) into the Rust ActionState accumulator.
+    fn take_count_delta(&mut self) -> i32 {
+        std::mem::take(&mut self.count)
     }
     // RUGRA-GLUE: Rust Action trait get_name; "dynamicsymbols" mirrors ctor at coreaction.hh:1034
     fn get_name(&self) -> &str { "dynamicsymbols" }
@@ -18145,11 +18279,14 @@ impl Action for ActionNodeJoin {
 // the oracle has the node (the stubs are observably inert): e.g. LaneDivide
 // inside stackstall (:5652), Constbase/ExtraPopSetup/Stop at head/tail,
 // MappedLocalSync (:5691), StartCleanUp (:5692), MarkIndirectOnly (:5725),
-// MapGlobals (:5732), both DynamicSymbols instances (:5724/:5733), NameVars
-// (:5734). Remaining unregistered oracle nodes — all documented deviations:
-//   - ActionForceGoto (:5496) and ActionDynamicMapping (:5504): ported as
-//     no-op stubs, not registered (registration is observably inert either
-//     way; kept out to minimize tree churn until real implementations land).
+// MapGlobals (:5732), NameVars (:5734). ActionDynamicMapping (:5504) and
+// both DynamicSymbols instances (:5724/:5733) were in this stub family until
+// COREACT-DYNMAP-STUB-0001 / COREACT-DYNSYM-STUB-0001 landed real
+// beginDynamic()/endDynamic() walks (see the two apply impls above).
+// Remaining unregistered oracle nodes — all documented deviations:
+//   - ActionForceGoto (:5496): ported as a no-op stub, not registered
+//     (registration is observably inert either way; kept out to minimize
+//     tree churn until the real implementation lands).
 //   - ActionUnreachable base instance (:5490): Rugra registers a single
 //     Unreachable at the :5673 slot (after BlockStructure) — running the
 //     :5490 instance before bblocks are complete caused false-positive

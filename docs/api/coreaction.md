@@ -3819,6 +3819,45 @@ commit1 / commit2）: canon curl+httpd 字节恒等（md5 c33052a3/6923d6c1）,
 镜面 curl 74/58/0/0、vsh 71/15/0/0、sq 810/4530/0/0、httpd 29/156/0/0
 全同 commit1;1778P/0F;bank 391/391。CR-STACKSPILL 时代"单独落地打破
 httpd canon(460367b2)"不再复现。
+## 2026-09-27：ActionDynamicMapping / ActionDynamicSymbols 双 apply 实装（COREACT-DYNMAP-STUB-0001 + COREACT-DYNSYM-STUB-0001，Lane COREACT2）
+
+以锁定 oracle 亲读 `coreaction.cc:4852-4884` 两 apply 全函数体 + `funcdata_varnode.cc:1314-1399`
+两委托全貌 + `database.cc:1921` beginDynamic/endDynamic + `varnode.cc:410-439`
+setSymbolProperties/setSymbolEntry + `action.cc:100-145` perform 状态机后，把两个注册空桩
+升级为 1:1 移植：
+
+- **`ActionDynamicMapping::apply`**（cc:4852-4867，mainloop 槽 :5504，
+  restructurevarnode/infertypes 之前每 pass 跑）：遍历 `ScopeLocal` 动态条目表
+  （varmap 侧=`symbols` arena 中 `is_dynamic=true` 条目，槽序=插入序=oracle
+  `dynamicentry` std::list 序），逐条调 `Funcdata::attemptDynamic_mapping`
+  （first_use_addr=usepoint（database.cc:122 getFirstUseAddress 的单址 uselimit 投影）/
+  hash/size/category 投影），成功一次 `count += 1`（cc:4864），**返回字面 0**
+  （cc:4866——count 是 Action 基类字段，只被 perform 的 lcount<count 消费）。
+- **`ActionDynamicSymbols::apply`**（cc:4869-4884，双槽 :5724 merge 相 DominantCopy 后
+  / :5733 MapGlobals 后 NameVars 前，rule_onceperfunc）：同一 walk，委托
+  `attempt_dynamic_mapping_late`（名字级附着），成功 `count += 1`（cc:4881），返回 0。
+- **`++iter` 先于调用的快照等价性**：oracle 在调 attemptDynamicMapping 前先递增迭代器
+  （std::list 中途变更安全）；Rust 侧改为行前快照（借用安全），等价性论证=被移植的
+  委托臂（find/attach、equate、size 门、union-facet 臂——oracle applyUnionFacet
+  (funcdata_varnode.cc:1637) 只解析 union 字段不铸动态条目）都不能在 walk 中途增长
+  动态表，故快照集合 ≡ 原地 walk 集合。注释里逐条登记。
+- 两结构体新增 `pub count: i32` 字段 + `take_count_delta` 实现（外部化 oracle
+  protected `Action::count`，perform 的 applied 判定 action.cc:346 `lcount<count` 由
+  ActionState 累计器接住）；`new()` 构造与 action.rs 三处注册点（:5504/:5724/:5733，
+  前序车道已注册）无需改动。
+- **翻绿证据**（copytrim_remat_1204 fixture 双侧直跑，oracle stdout sha256
+  = `4910bcdf…` ≡ metadata 钉定 canonical，未改 fixture/metadata——重钉留 MB20）：
+  - `action_walk_level`（C4）**全 18 行 MATCH**（含 after-census `mapped=1` 翻绿、
+    act `count=0|status=0` 天然对齐——oracle count=0 因 setSymbolProperties 假返回）。
+  - `action_late_walk`（C5）17/18 MATCH：after-census `mapped=1` 翻绿；残差仅 act 行
+    `count=1|status=1` vs `count=0|status=0`——fixture 硬编码 count 打印 + 直调 apply
+    绕过 perform 状态机，属 fixture 侧重钉（MB20 集成），非实现缺口。
+  - 全局分歧预算 11 行 → 4 行对（残差全部在 funcdata.rs/dynamic.rs 域：
+    DYNMAP-SETPROPS-RET-0001、DYNHASH-UNIQUE-ANCHOR-0001 +
+    DYNMAP-LATE-CAST-RETARGET-0001、C5 act 重钉行）。
+  主管线影响面：哈希命中用点从"永不得命名"变为 mainloop 每 pass 重附着 + merge 相
+  /终相两次 late 命名附着（CASTFUSE-A 链 action 级半收口）。
+
 ## 2026-09-26：ActionDeindirect 三臂全量重写（FSPEC-DEINDIRECT-TRIGGER-0001，Lane FSPECDEIN）
 
 以锁定 oracle 亲读 `coreaction.cc:1219-1280` 全函数体后，把部分重实现升级为
