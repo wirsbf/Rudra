@@ -3861,3 +3861,22 @@ httpd canon(460367b2)"不再复现。
   callspec（锁定单 model gcc 语料为空,登记于本票）。
 - 循环内调用 `deindirect` 后**同一 op 的 opcode 已改 CALL**，后续迭代经
   cc:1229 的 CALLIND 门自然跳过（与 oracle 相同的幂等闭包）。
+## 2026-09-27（Lane TRUNCSPACE）— ActionPrototypeTypes::apply 截断空间 ZEXT 块（cc:4653-4674）
+
+COREACT2 残差②（投影 false 注释块）被真管道取代：`apply` 第 5 步（第 4 步
+initActiveOutput 之后、锁定输入物化之前）落地 oracle 的截断代码空间栈指针
+ZEXT 物化——`spc = getArch()->getDefaultCodeSpace(); if (spc->isTruncated())`
+→ `stackspc = getStackSpace()`（恒在）→ `topbl = getBasicBlocks().getBlock(0)`
+（块表空则 None）→ `for i in 0..numSpacebase()`：`fullReg = getSpacebaseFull(i)`
++ `truncReg = getSpacebase(i)` → `invn = newVarnode(truncReg)` +
+`setInputVarnode` → `newOp(1, topbl->getStart())` +
+`newVarnodeOut(fullReg)` + `opSetOpcode(INT_ZEXT)` + `opSetInput` +
+`opInsertBegin`。守卫/查询走 `arch.space_is_truncated(arch.
+get_default_code_space())` 与 `arch.stack_space_get_spacebase(_full)`
+（translate.cc:104-124 的 arch 投影，装配面见 docs/api/arch.md 同日条目）。
+x86-64:LE:64 语言无 `<truncate_space>` 记录 → 生产语料双侧休眠（oracle 同死）；
+单测 `test_prototypetypes_truncated_stack_zext` /
+`test_prototypetypes_untruncated_no_zext` 钉两端形态。注：cc:4684 的
+`ptr_size = isTruncated() ? getAddrSize() : 0` 属锁定输入物化段
+（WORKPKG-UNMAP-COREACT-0002，wt/coreact2 交付），合并时该段应以本车道的
+`arch.space_addr_size(arch.get_default_code_space())` 接线。

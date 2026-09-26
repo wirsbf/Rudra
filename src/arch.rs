@@ -611,6 +611,33 @@ pub struct Architecture {
     /// [`Architecture::get_contain`].
     pub stack_base_space: crate::space::AddressSpace,
 
+    /// The formal stack pointer's ORIGINAL (untruncated) base register —
+    /// `SpacebaseSpace::baseOrig` (translate.hh:178), the value behind
+    /// `getSpacebaseFull(0)` (translate.cc:118-124). Identical to the
+    /// [`Self::stack_pointer_*`] triple whenever the base space is not
+    /// truncated (`setBaseRegister` with `truncSize == size` leaves
+    /// `baseloc == baseOrig`, translate.cc:95-101).
+    pub stack_pointer_full_space: crate::space::AddressSpace,
+    pub stack_pointer_full_offset: u64,
+    pub stack_pointer_full_size: usize,
+    /// Default space where code lives (`defaultcodespace`, translate.hh:226,
+    /// read through `getDefaultCodeSpace`, translate.hh:505-507). Enum-model
+    /// stand-in: the locked x86-64 production code space `ram` (the driver
+    /// cspecs resolve `space="ram"` to
+    /// [`crate::space::AddressSpace::Ram`]).
+    pub default_code_space: crate::space::AddressSpace,
+    /// Applied `<truncate_space>` commands in application order, stored as
+    /// (enum space name, truncated size). Enum-model projection of the
+    /// per-`AddrSpace` state that `AddrSpace::truncateSpace` mutates
+    /// (space.cc:105-112): the TRUNCATED flag, `addressSize = newsize`,
+    /// `minimumPointerSize = newsize`, `calcScaleMask`. Applied through the
+    /// manager's by-name lookup (`AddrSpaceManager::truncateSpace`,
+    /// translate.cc:776-783) during language initialization
+    /// (`SleighArchitecture::modifySpaces`, sleigh_arch.cc:423-430, fed by
+    /// the `.ldefs` `<language>` `<truncate_space>` records,
+    /// sleigh_arch.cc:86-89).
+    pub space_truncations: Vec<(String, u32)>,
+
     /// The SLEIGH register cross-reference, keyed exactly like
     /// `SleighBase::varnode_xref` (sleighbase.cc:91's insert key):
     /// `(space index, offset, size)` with BIG sizes first
@@ -736,6 +763,12 @@ impl Architecture {
             stack_grows_negative: true,
             stack_reverse_justify: false,
             stack_base_space: crate::space::AddressSpace::Ram,
+            // baseOrig == baseloc on the untruncated default (translate.cc:95).
+            stack_pointer_full_space: crate::space::AddressSpace::Register,
+            stack_pointer_full_offset: 0x20, // x86-64 RSP (baseOrig)
+            stack_pointer_full_size: 8,
+            default_code_space: crate::space::AddressSpace::Ram,
+            space_truncations: Vec::new(),
             register_xref: std::collections::BTreeMap::new(),
         };
         arch.reset_defaults_internal();
@@ -1844,7 +1877,10 @@ impl Architecture {
     /// (architecture.cc:979-1014): `reversejustify`/`growth`/`space`/
     /// `register` attributes in source order, the base space attribute is
     /// mandatory, the register is resolved via the language, and a
-    /// truncated base space truncates the pointer size.  Rugra has no
+    /// truncated base space truncates the pointer size (cc:1007-1011) —
+    /// the [`Self::stack_pointer_*`] triple is `SpacebaseSpace::baseloc`
+    /// (possibly truncated) and [`Self::stack_pointer_full_*`] is
+    /// `baseOrig` (translate.cc:95-101).  Rugra has no
     /// dynamic space creation: the decoded values land on the
     /// `stack_*` fields of the Architecture (the SpacebaseSpace insertion
     /// is carried by the `stack_space` enum stand-in).
@@ -1894,23 +1930,168 @@ impl Architecture {
             .ok_or_else(|| format!("Unknown register name: {}", register_name))?;
         decoder.close_element(elem_id);
 
-        // If creating a stackpointer to a truncated space, make sure to
-        // truncate the stackpointer.  Rugra's fixed-width spaces are never
-        // truncated, so truncSize stays the register size.
-        let trunc_size = point.size as usize;
+        // cc:1007-1011: If creating a stackpointer to a truncated space,
+        // make sure to truncate the stackpointer.
+        //   int4 truncSize = point.size;
+        //   if (basespace->isTruncated() && (point.size > basespace->getAddrSize()))
+        //     truncSize = basespace->getAddrSize();
+        let base_addr_size = self.space_addr_size(base);
+        let trunc_size = if self.space_is_truncated(base) && (point.size as u32) > base_addr_size
+        {
+            base_addr_size as usize
+        } else {
+            point.size as usize
+        };
 
         // addSpacebase(basespace,"stack",point,truncSize,
         //              isreversejustify,stackGrowth,true)
-        // (architecture.cc:1013) — SpacebaseSpace(basespace,...) installs
-        // basespace as the stack space's contain link.
+        // (architecture.cc:1013 → 559-570) — SpacebaseSpace(basespace,...)
+        // installs basespace as the stack space's contain link, then
+        // addSpacebasePointer → SpacebaseSpace::setBaseRegister
+        // (translate.cc:86-102): `baseOrig` keeps the ORIGINAL register;
+        // `baseloc` takes `truncSize` and, when the register's space is
+        // big-endian, shifts its offset up by the truncated-away bytes
+        // (translate.cc:97-100). The enum register space is little-endian,
+        // so the shift arm is dormant on every representable enum-model
+        // corpus (the formula stays for alignment).
         self.stack_space = crate::space::AddressSpace::Stack;
+        self.stack_pointer_full_space = point.space;
+        self.stack_pointer_full_offset = point.offset;
+        self.stack_pointer_full_size = point.size as usize;
+        let mut baseloc_offset = point.offset;
+        if trunc_size != point.size as usize && point.space.is_big_endian() {
+            // baseloc.offset += (baseloc.size - truncSize);
+            baseloc_offset += (point.size as usize - trunc_size) as u64;
+        }
         self.stack_pointer_space = point.space;
-        self.stack_pointer_offset = point.offset;
+        self.stack_pointer_offset = baseloc_offset;
         self.stack_pointer_size = trunc_size;
         self.stack_base_space = base;
         self.stack_grows_negative = stack_growth;
         self.stack_reverse_justify = is_reverse_justify;
         Ok(())
+    }
+
+    // Ghidra: translate.cc:776 AddrSpaceManager::truncateSpace
+    /// Mark the named space as truncated from its original size. Faithful
+    /// to the manager wrapper `AddrSpaceManager::truncateSpace`
+    /// (translate.cc:776-783): the name must resolve to a known space
+    /// (`getSpaceByName`, translate.cc:590-597 — the enum model resolves
+    /// the locked spec names through
+    /// [`crate::space::AddressSpace::from_spec_name`]), otherwise the
+    /// oracle `LowlevelError` text is returned; a resolved name records
+    /// the truncation that `AddrSpace::truncateSpace` (space.cc:105-112)
+    /// would apply to the space record (TRUNCATED flag, addressSize and
+    /// minimumPointerSize = newsize, calcScaleMask). In the oracle this
+    /// runs from `SleighArchitecture::modifySpaces`
+    /// (sleigh_arch.cc:423-430) over the `.ldefs` `<truncate_space>`
+    /// records (sleigh_arch.cc:86-89); the x86-64:LE:64 production
+    /// language defines none, so the locked corpus stays untruncated.
+    /// Re-truncating the same space overwrites the effective size (the
+    /// oracle re-runs `AddrSpace::truncateSpace` on the same record).
+    pub fn truncate_space(&mut self, space_name: &str, newsize: u32) -> Result<(), String> {
+        let spc = crate::space::AddressSpace::from_spec_name(space_name);
+        if spc.is_none() {
+            return Err(format!(
+                "Unknown space in <truncate_space> command: {}",
+                space_name
+            ));
+        }
+        // Store under the enum's canonical name so the is_truncated /
+        // addr_size queries round-trip (the "OTHER" spec name canonicalizes
+        // to the enum's lowercase debug form).
+        let canonical = spc.map(|s| s.name().to_string()).unwrap();
+        self.space_truncations.retain(|(n, _)| *n != canonical);
+        self.space_truncations.push((canonical, newsize));
+        Ok(())
+    }
+
+    // Ghidra: space.hh:462 AddrSpace::isTruncated
+    /// Return true if this space is truncated from its original size.
+    /// Enum-model projection of the TRUNCATED flag set by
+    /// `AddrSpace::truncateSpace` (space.cc:105-112): a space is truncated
+    /// exactly when a `<truncate_space>` command naming it was applied
+    /// through [`Self::truncate_space`].
+    pub fn space_is_truncated(&self, spc: crate::space::AddressSpace) -> bool {
+        self.space_truncations
+            .iter()
+            .any(|(name, _)| *name == spc.name())
+    }
+
+    // Ghidra: space.hh:348 AddrSpace::getAddrSize
+    /// Get the address size of this space in bytes, honoring truncation.
+    /// Faithful to a post-`truncateSpace` read of `getAddrSize`: the
+    /// truncated size when a `<truncate_space>` command named this space,
+    /// otherwise the enum model's inherent size ([`Self::addr_size`] over
+    /// the locked constructors).
+    pub fn space_addr_size(&self, spc: crate::space::AddressSpace) -> u32 {
+        match self
+            .space_truncations
+            .iter()
+            .rev()
+            .find(|(name, _)| *name == spc.name())
+        {
+            Some((_, truncated_size)) => *truncated_size,
+            None => spc.addr_size() as u32,
+        }
+    }
+
+    // Ghidra: translate.hh:505 AddrSpaceManager::getDefaultCodeSpace
+    /// Get the default address space of this processor. Enum-model
+    /// projection of the `defaultcodespace` quick reference
+    /// (translate.hh:226): the driver's locked x86-64 production code
+    /// space `ram`.
+    pub fn get_default_code_space(&self) -> crate::space::AddressSpace {
+        self.default_code_space
+    }
+
+    // Ghidra: translate.cc:104 SpacebaseSpace::numSpacebase
+    /// Number of base registers associated with the formal stack space.
+    /// The stack spacebase is always assigned: the constructor defaults
+    /// project the x86-64 RSP that the cspec `<stackpointer>` decode
+    /// (`decodeStackPointer` → `addSpacebase` → `setBaseRegister`,
+    /// architecture.cc:1013 → translate.cc:86-102) installs, so — like the
+    /// oracle after `decodeStackPointer` — `hasbaseregister` is set and
+    /// the count is 1.
+    pub fn stack_space_num_spacebase(&self) -> i32 {
+        1
+    }
+
+    // Ghidra: translate.cc:110 SpacebaseSpace::getSpacebase
+    /// Get the (possibly truncated) stack-pointer base register —
+    /// `baseloc`. Faithful to `getSpacebase(int4 i)`
+    /// (translate.cc:110-116): `None` stands in for the
+    /// "No base register specified" `LowlevelError` on `i != 0`.
+    pub fn stack_space_get_spacebase(
+        &self,
+        i: i32,
+    ) -> Option<(crate::space::AddressSpace, u64, usize)> {
+        if i != 0 {
+            return None;
+        }
+        Some((
+            self.stack_pointer_space,
+            self.stack_pointer_offset,
+            self.stack_pointer_size,
+        ))
+    }
+
+    // Ghidra: translate.cc:118 SpacebaseSpace::getSpacebaseFull
+    /// Get the original (pre-truncation) stack-pointer base register —
+    /// `baseOrig` (translate.hh:178). Faithful to `getSpacebaseFull(int4
+    /// i)` (translate.cc:118-124); `None` on `i != 0` as above.
+    pub fn stack_space_get_spacebase_full(
+        &self,
+        i: i32,
+    ) -> Option<(crate::space::AddressSpace, u64, usize)> {
+        if i != 0 {
+            return None;
+        }
+        Some((
+            self.stack_pointer_full_space,
+            self.stack_pointer_full_offset,
+            self.stack_pointer_full_size,
+        ))
     }
 
     // Ghidra: architecture.cc:769 Architecture::decodeProtoEval
@@ -2956,6 +3137,115 @@ mod tests {
     fn test_version() {
         assert_eq!(CapabilityRegistry::major_version(), 6);
         assert_eq!(CapabilityRegistry::minor_version(), 1);
+    }
+
+    #[test]
+    fn test_truncate_space_projection() {
+        // AddrSpaceManager::truncateSpace (translate.cc:776-783) +
+        // AddrSpace::truncateSpace state (space.cc:105-112), projected on
+        // the architecture for the enum space model.
+        let mut arch = Architecture::new();
+        assert!(!arch.space_is_truncated(crate::space::AddressSpace::Ram));
+        assert_eq!(
+            arch.space_addr_size(crate::space::AddressSpace::Ram),
+            8,
+            "inherent ram addr size while untruncated"
+        );
+        // cc:780-781: unknown name → LowlevelError("Unknown space in
+        // <truncate_space> command: ...").
+        assert_eq!(
+            arch.truncate_space("nosuch", 4),
+            Err("Unknown space in <truncate_space> command: nosuch".to_string())
+        );
+        arch.truncate_space("ram", 4).unwrap();
+        assert!(arch.space_is_truncated(crate::space::AddressSpace::Ram));
+        assert_eq!(arch.space_addr_size(crate::space::AddressSpace::Ram), 4);
+        assert!(
+            !arch.space_is_truncated(crate::space::AddressSpace::Stack),
+            "truncation is per-space"
+        );
+        assert_eq!(
+            arch.space_addr_size(crate::space::AddressSpace::Stack),
+            8,
+            "untruncated spaces keep their inherent size"
+        );
+        // Re-truncation overwrites the effective size (the oracle re-runs
+        // AddrSpace::truncateSpace on the same space record).
+        arch.truncate_space("ram", 6).unwrap();
+        assert_eq!(arch.space_addr_size(crate::space::AddressSpace::Ram), 6);
+        // getDefaultCodeSpace (translate.hh:505-507): enum-model ram.
+        assert_eq!(
+            arch.get_default_code_space(),
+            crate::space::AddressSpace::Ram
+        );
+    }
+
+    #[test]
+    fn test_decode_stack_pointer_truncated() {
+        // decodeStackPointer cc:1007-1011 + setBaseRegister
+        // translate.cc:95-101: a truncated base space splits the stack
+        // pointer into baseloc (truncated) and baseOrig (full).
+        let mut store = parse_store(
+            "<stackpointer register=\"RSP\" space=\"ram\" growth=\"negative\"/>",
+        );
+        let root = store
+            .get_tag("stackpointer")
+            .expect("stackpointer root registered")
+            .clone();
+
+        // Untruncated: truncSize == point.size, baseloc == baseOrig.
+        {
+            let registry = Arc::new(std::sync::RwLock::new(
+                crate::marshal::IdRegistry::new(),
+            ));
+            let mut decoder = crate::marshal::TreeDecoder::new(root.clone(), registry);
+            let mut arch = Architecture::new();
+            arch.decode_stack_pointer(&mut decoder, &TestHost)
+                .expect("decode");
+            assert_eq!(arch.stack_pointer_size, 8);
+            assert_eq!(arch.stack_pointer_offset, 0x20);
+            assert_eq!(arch.stack_pointer_full_size, 8);
+            assert_eq!(arch.stack_pointer_full_offset, 0x20);
+            assert_eq!(
+                arch.stack_space_get_spacebase(0).unwrap(),
+                (crate::space::AddressSpace::Register, 0x20, 8)
+            );
+            assert_eq!(
+                arch.stack_space_get_spacebase_full(0).unwrap(),
+                (crate::space::AddressSpace::Register, 0x20, 8)
+            );
+            assert!(arch.stack_space_get_spacebase(1).is_none());
+            assert!(arch.stack_space_get_spacebase_full(1).is_none());
+            assert_eq!(arch.stack_space_num_spacebase(), 1);
+        }
+
+        // Truncated ram → 4: truncReg size 4, fullReg stays the full 8-byte
+        // RSP; the register space is little-endian so the offset is NOT
+        // shifted (translate.cc:97-100 big-endian-only arm).
+        {
+            let registry = Arc::new(std::sync::RwLock::new(
+                crate::marshal::IdRegistry::new(),
+            ));
+            let mut decoder = crate::marshal::TreeDecoder::new(root, registry);
+            let mut arch = Architecture::new();
+            arch.truncate_space("ram", 4).unwrap();
+            arch.decode_stack_pointer(&mut decoder, &TestHost)
+                .expect("decode");
+            assert_eq!(arch.stack_pointer_size, 4, "baseloc truncated to 4");
+            assert_eq!(
+                arch.stack_pointer_offset, 0x20,
+                "LE register space: no big-endian offset shift"
+            );
+            assert_eq!(arch.stack_pointer_full_size, 8, "baseOrig keeps 8");
+            assert_eq!(
+                arch.stack_space_get_spacebase(0).unwrap(),
+                (crate::space::AddressSpace::Register, 0x20, 4)
+            );
+            assert_eq!(
+                arch.stack_space_get_spacebase_full(0).unwrap(),
+                (crate::space::AddressSpace::Register, 0x20, 8)
+            );
+        }
     }
 
     /// A tiny language host for the compiler-spec parse tests: one register
