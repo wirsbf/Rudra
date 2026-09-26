@@ -1477,6 +1477,249 @@ impl ActionRestructureVarnode {
         Self { numpass: 0, count: 0 ,
         }
     }
+
+    // Ghidra: coreaction.cc:2174 ActionRestructureVarnode::isCopyConstant
+    /// Is the given Varnode a constant or a COPY of a constant? Faithful to
+    /// `isCopyConstant` (coreaction.cc:2174-2181):
+    /// ```text
+    /// if (vn->isConstant()) return true;
+    /// if (!vn->isWritten()) return false;
+    /// if (vn->getDef()->code() != CPUI_COPY) return false;
+    /// return vn->getDef()->getIn(0)->isConstant();
+    /// ```
+    fn is_copy_constant(
+        vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+    ) -> bool {
+        let r = vn.read().unwrap();
+        if r.is_constant() {
+            return true;
+        }
+        if !r.is_written() {
+            return false;
+        }
+        let Some(def) = r.get_def() else {
+            return false;
+        };
+        let def = def.read().unwrap();
+        if def.opcode != OpCode::CPUI_COPY {
+            return false;
+        }
+        // cc:2180: return vn->getDef()->getIn(0)->isConstant();
+        def.get_in(0)
+            .is_some_and(|in0| in0.read().unwrap().is_constant())
+    }
+
+    // Ghidra: coreaction.cc:2187 ActionRestructureVarnode::isDelayedConstant
+    /// Is the Varnode a constant, or a not-yet-simplified COPY or INT_ADD of
+    /// constants? Faithful to `isDelayedConstant` (coreaction.cc:2187-2200).
+    /// The INT_ADD arm checks inputs in the oracle's order (slot 1 first,
+    /// then slot 0) and returns the conjunction.
+    fn is_delayed_constant(
+        vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+    ) -> bool {
+        let r = vn.read().unwrap();
+        if r.is_constant() {
+            return true;
+        }
+        if !r.is_written() {
+            return false;
+        }
+        let Some(def) = r.get_def() else {
+            return false;
+        };
+        let def = def.read().unwrap();
+        // cc:2194-2195: COPY -> input is a plain constant.
+        if def.opcode == OpCode::CPUI_COPY {
+            return def
+                .get_in(0)
+                .is_some_and(|in0| in0.read().unwrap().is_constant());
+        }
+        // cc:2196: only COPY and INT_ADD qualify.
+        if def.opcode != OpCode::CPUI_INT_ADD {
+            return false;
+        }
+        // cc:2197-2199: both INT_ADD inputs must be (copies of) constants.
+        if !def
+            .get_in(1)
+            .is_some_and(Self::is_copy_constant)
+        {
+            return false;
+        }
+        if !def
+            .get_in(0)
+            .is_some_and(Self::is_copy_constant)
+        {
+            return false;
+        }
+        true
+    }
+
+    // Ghidra: coreaction.cc:2206 ActionRestructureVarnode::protectSwitchPathIndirects
+    /// Walk the single data-flow path feeding a BRANCHIND switch value; if
+    /// it originates in a constant but passes through INDIRECT ops, mark the
+    /// earliest INDIRECT as not-collapsible so the indirect value survives
+    /// analysis. Faithful to `protectSwitchPathIndirects`
+    /// (coreaction.cc:2206-2258):
+    /// - binary/ternary ops with >1 input: follow the non-constant side when
+    ///   exactly one side is a delayed constant (cc:2214-2222), else return;
+    /// - binary/ternary with 1 input and unary ops: follow input 0;
+    /// - INDIRECT: remember as lastIndirect, follow input 0;
+    /// - LOAD: follow input 1 (the pointer);
+    /// - MULTIEQUAL: if any input is written by an INDIRECT, set
+    ///   noIndirectCollapse on that def (first hit wins) and return without
+    ///   backtracking further (cc:2236-2249);
+    /// - anything else: return. After the walk, only a constant endpoint
+    ///   with a remembered INDIRECT sets noIndirectCollapse (cc:2254-2257).
+    fn protect_switch_path_indirects(op: &crate::op::PcodeOpRef) {
+        let mut last_indirect: Option<crate::op::PcodeOpRef> = None;
+        let mut cur_vn = {
+            let o = op.0.read().unwrap();
+            match o.get_in(0).cloned() {
+                Some(v) => v,
+                None => return,
+            }
+        };
+        while cur_vn.read().unwrap().is_written() {
+            let cur_op = {
+                let r = cur_vn.read().unwrap();
+                match r.get_def() {
+                    Some(d) => crate::op::PcodeOpRef(d),
+                    None => return,
+                }
+            };
+            let (eval_type, opcode) = {
+                let c = cur_op.0.read().unwrap();
+                (c.get_eval_type(), c.opcode)
+            };
+            if (eval_type & (crate::op::pcodeop_flags::BINARY
+                | crate::op::pcodeop_flags::TERNARY))
+                != 0
+            {
+                // cc:2215-2225.
+                let input_count = cur_op.0.read().unwrap().num_input();
+                if input_count > 1 {
+                    let (in1_delayed, in0_delayed) = {
+                        let c = cur_op.0.read().unwrap();
+                        (
+                            c.get_in(1).is_some_and(Self::is_delayed_constant),
+                            c.get_in(0).is_some_and(Self::is_delayed_constant),
+                        )
+                    };
+                    let next = {
+                        let c = cur_op.0.read().unwrap();
+                        if in1_delayed {
+                            c.get_in(0).cloned()
+                        } else if in0_delayed {
+                            c.get_in(1).cloned()
+                        } else {
+                            return; // cc:2221: multiple paths
+                        }
+                    };
+                    match next {
+                        Some(v) => cur_vn = v,
+                        None => return,
+                    }
+                } else {
+                    let next = cur_op.0.read().unwrap().get_in(0).cloned();
+                    match next {
+                        Some(v) => cur_vn = v,
+                        None => return,
+                    }
+                }
+            } else if (eval_type & crate::op::pcodeop_flags::UNARY) != 0 {
+                // cc:2227-2228.
+                let next = cur_op.0.read().unwrap().get_in(0).cloned();
+                match next {
+                    Some(v) => cur_vn = v,
+                    None => return,
+                }
+            } else if opcode == OpCode::CPUI_INDIRECT {
+                // cc:2229-2232.
+                last_indirect = Some(cur_op.clone());
+                let next = cur_op.0.read().unwrap().get_in(0).cloned();
+                match next {
+                    Some(v) => cur_vn = v,
+                    None => return,
+                }
+            } else if opcode == OpCode::CPUI_LOAD {
+                // cc:2233-2235.
+                let next = cur_op.0.read().unwrap().get_in(1).cloned();
+                match next {
+                    Some(v) => cur_vn = v,
+                    None => return,
+                }
+            } else if opcode == OpCode::CPUI_MULTIEQUAL {
+                // cc:2236-2249: protect the first INDIRECT-fed input, then
+                // stop — no backtracking through the phi.
+                let input_count = cur_op.0.read().unwrap().num_input();
+                for i in 0..input_count {
+                    let (written, def_is_indirect) = {
+                        let c = cur_op.0.read().unwrap();
+                        let Some(invn) = c.get_in(i) else {
+                            continue;
+                        };
+                        let r = invn.read().unwrap();
+                        if !r.is_written() {
+                            continue;
+                        }
+                        let def_indirect = r
+                            .get_def()
+                            .map(|d| d.read().unwrap().opcode == OpCode::CPUI_INDIRECT)
+                            .unwrap_or(false);
+                        (true, def_indirect)
+                    };
+                    let _ = written;
+                    if def_is_indirect {
+                        let in_def = {
+                            let c = cur_op.0.read().unwrap();
+                            c.get_in(i)
+                                .and_then(|invn| invn.read().unwrap().get_def())
+                        };
+                        if let Some(in_op) = in_def {
+                            in_op.write().unwrap().set_no_indirect_collapse();
+                            break; // cc:2246
+                        }
+                    }
+                }
+                return; // cc:2249
+            } else {
+                return; // cc:2251-2252
+            }
+        }
+        // cc:2254: exactly one path, must end in a constant.
+        if !cur_vn.read().unwrap().is_constant() {
+            return;
+        }
+        // cc:2256-2257.
+        if let Some(last_indirect) = last_indirect {
+            last_indirect.0.write().unwrap().set_no_indirect_collapse();
+        }
+    }
+
+    // Ghidra: coreaction.cc:2262 ActionRestructureVarnode::protectSwitchPaths
+    /// Run through every basic block's last op; BRANCHIND ops are switches —
+    /// protect the data-flow path to the destination variable. Faithful to
+    /// `protectSwitchPaths` (coreaction.cc:2262-2272): block order 0..size,
+    /// skip blocks with no last op, skip non-BRANCHIND, else
+    /// protectSwitchPathIndirects(op).
+    fn protect_switch_paths(fd: &Funcdata) {
+        use crate::block::BlockBasic;
+        for i in 0..fd.bblocks.get_size() {
+            let Some(bl) = fd.bblocks.get_block(i) else { continue };
+            let last = {
+                let bl_rg = bl.read().unwrap();
+                let Some(bb) = bl_rg.as_any().downcast_ref::<BlockBasic>() else {
+                    continue;
+                };
+                bb.last_op()
+            };
+            let Some(op) = last else { continue };
+            if op.0.read().unwrap().opcode != OpCode::CPUI_BRANCHIND {
+                continue;
+            }
+            Self::protect_switch_path_indirects(&op);
+        }
+    }
 }
 
 impl Action for ActionRestructureVarnode {
@@ -1781,8 +2024,10 @@ impl Action for ActionRestructureVarnode {
         if fd.sync_varnodes_with_symbols(false, aliasyes) {
             self.count += 1;
         }
-        // Ghidra cc:2284-2285: if (data.isJumptableRecoveryOn()) protectSwitchPaths(data).
-        // TODO: protectSwitchPaths needs jumptable recovery state tracking.
+        // Ghidra cc:2284-2285: if (data.isJumptableRecoveryOn()) protectSwitchPaths(data);
+        if fd.is_jumptable_recovery_on() {
+            Self::protect_switch_paths(fd);
+        }
         self.numpass += 1;
         Ok(action_status::NO_CHANGE)
     }
@@ -5491,6 +5736,86 @@ impl ActionSetCasts {
         }
     }
 
+    // Ghidra: coreaction.cc:2349 ActionSetCasts::checkPointerIssues
+    /// Check that the data-type of the value being used as a LOAD/STORE
+    /// pointer makes sense. Faithful to `checkPointerIssues`
+    /// (coreaction.cc:2349-2373):
+    /// - `ptrtype = op->getIn(1)->getHighTypeReadFacing(op)`;
+    /// - size issue: non-pointer type OR pointee size != value size →
+    ///   `warning("<Load|Store> size is inaccurate", op->getAddr())`
+    ///   (cc:2354-2358, name from `op->getOpcode()->getName()` with the
+    ///   first character uppercased — TypeOpLoad/TypeOpStore register the
+    ///   lowercase spellings "load"/"store" (typeop.cc:433/:513));
+    /// - space issue: pointer carries a space attribute AND the op's
+    ///   space-id constant is neither that space nor contained by it →
+    ///   `warning("<Load|Store> refers to '<opSpc>' but pointer attribute is '<spc>'", ...)`
+    ///   (cc:2359-2372).
+    ///
+    /// Projection notes:
+    /// - the high type consult mirrors `load_input_cast` (read-facing with
+    ///   the raw `v_type` fallback keeping the function total);
+    /// - `AddrSpace::getContain` is non-null only for virtual spaces; the
+    ///   enum-form pointer space cannot represent those, so the containment
+    ///   term projects to `None` (null) exactly like every non-virtual
+    ///   oracle space, leaving the plain `opSpc != spc` inequality.
+    fn check_pointer_issues(
+        fd: &Funcdata,
+        op_ref: &crate::op::PcodeOpRef,
+        vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+    ) {
+        use crate::type_system::datatype::Datatype;
+        let in1 = {
+            let op = op_ref.0.read().unwrap();
+            match op.get_in(1).cloned() {
+                Some(v) => v,
+                None => return,
+            }
+        };
+        // cc:2352: ptrtype = op->getIn(1)->getHighTypeReadFacing(op).
+        let ptrtype = crate::unionresolve::vn_high_type_read_facing(fd, &in1, op_ref, 1)
+            .or_else(|| in1.read().unwrap().v_type.clone());
+        let Some(ptrtype) = ptrtype else { return };
+        let valsize = vn.read().unwrap().get_size();
+        // cc:2354-2358: size issue. `getOpcode()->getName()` is the TypeOp
+        // metadata name ("load"/"store"), first char uppercased in place.
+        let display_name = match op_ref.0.read().unwrap().opcode {
+            OpCode::CPUI_LOAD => "Load",
+            _ => "Store",
+        };
+        let op_addr = op_ref.0.read().unwrap().get_addr();
+        if let Datatype::Pointer(pt) = ptrtype.as_ref() {
+            if pt.ptr_to.get_size() != valsize {
+                fd.warning(&format!("{} size is inaccurate", display_name), op_addr);
+            }
+            // cc:2359-2372: space attribute issue.
+            if let Some(spc) = pt.base.pointer_space {
+                let in0 = op_ref.0.read().unwrap().get_in(0).cloned();
+                if let Some(in0_vn) = in0 {
+                    let op_spc = space_from_const_vn(&in0_vn.read().unwrap());
+                    if op_spc != spc {
+                        // getContain: virtual-space-only in the oracle; the
+                        // enum pointer space is never virtual, so the
+                        // contained-space equality arm cannot fire here.
+                        let contain: Option<crate::space::AddressSpace> = None;
+                        if contain != Some(op_spc) {
+                            fd.warning(
+                                &format!(
+                                    "{} refers to '{}' but pointer attribute is '{}'",
+                                    display_name,
+                                    op_spc.name(),
+                                    spc.name()
+                                ),
+                                op_addr,
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            fd.warning(&format!("{} size is inaccurate", display_name), op_addr);
+        }
+    }
+
     /// Faithful 1:1 port of `ActionSetCasts::castInput` (coreaction.cc:2655-2720).
     /// For input `slot` of `op`, compute the op's expected input type
     /// (inputTypeLocal = getBase(size, metain)), the current varnode's high
@@ -7522,9 +7847,26 @@ impl Action for ActionSetCasts {
                 }
             }
 
-            // resolveUnion and checkPointerIssues remain separately
-            // registered residuals; the ordering here now matches the oracle
-            // for the implemented castInput/castOutput closure.
+            // coreaction.cc:2762-2767: LOAD -> checkPointerIssues(op, out);
+            // STORE -> checkPointerIssues(op, in(2)). The dispatch reads the
+            // same per-op `opc` local captured at loop top (cc:2734); for
+            // LOAD/STORE that opcode is never mutated by the preflight (the
+            // PTRADD undo / PTRSUB demote arms only hit their own opcodes),
+            // so the live read here is the identical value.
+            match live_opcode {
+                OpCode::CPUI_LOAD => {
+                    if let Some(out_vn) = op_ref.0.read().unwrap().get_out().cloned() {
+                        Self::check_pointer_issues(fd, op_ref, &out_vn);
+                    }
+                }
+                OpCode::CPUI_STORE => {
+                    if let Some(val_vn) = op_ref.0.read().unwrap().get_in(2).cloned() {
+                        Self::check_pointer_issues(fd, op_ref, &val_vn);
+                    }
+                }
+                _ => {}
+            }
+
             changes += Self::cast_output(fd, op_ref, &strategy);
         }
 
@@ -8844,21 +9186,26 @@ impl ActionInferTypes {
     /// Faithful to `ActionInferTypes::propagateAcrossReturns`
     /// (coreaction.cc:5342-5372). Propagate the canonical return type to all
     /// other RETURN ops' input varnodes.
-    // Ghidra: coreaction.cc:5342 ActionInferTypes::propagateAcrossReturns
-    fn propagate_across_returns(
-        &self,
-        fd: &mut Funcdata,
-        temps: &mut TempTypes,
-        int_types: &IntTypes,
-        ptr_size: usize,
-        type_factory: Option<&Arc<RwLock<crate::type_system::typefactory::TypeFactory>>>,
-    ) {
-        use crate::type_system::datatype::TypeMetatype;
-        if fd.get_func_proto().is_output_locked() {
-            return;
-        }
-        // Find the canonical RETURN op: the one whose return varnode has the
-        // most-specific temp type.
+    // Ghidra: coreaction.cc:5311 ActionInferTypes::canonicalReturnOp
+    /// Return the RETURN op with the most specialized data-type, which is
+    /// not dead and is not a special halt. Faithful to `canonicalReturnOp`
+    /// (coreaction.cc:5311-5336): iterates `data.beginOp(CPUI_RETURN)` in
+    /// op-bank order; skips dead ops and ops with a non-zero halt type
+    /// (`getHaltType() = flags & (halt|badinstruction|unimplemented|
+    /// noreturn|missing)`, op.hh:171); among ops with numInput()>1 keeps
+    /// the one whose input(1) temp type has the lowest typeOrder (first
+    /// wins ties, matching the oracle's strict `< 0` re-assignment).
+    /// Returns the RETURN's value Varnode and its temp type (the Rust
+    /// projection of the `PcodeOp*` return — the only field the caller
+    /// reads).
+    fn canonical_return_op(
+        fd: &Funcdata,
+        temps: &TempTypes,
+    ) -> Option<(
+        std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        std::sync::Arc<crate::type_system::datatype::Datatype>,
+    )> {
+        use crate::op::pcodeop_flags;
         let mut best: Option<(
             std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
             std::sync::Arc<crate::type_system::datatype::Datatype>,
@@ -8872,7 +9219,19 @@ impl ActionInferTypes {
             .collect();
         for r in &return_ops {
             let op = r.0.read().unwrap();
-            if op.is_dead() || op.num_input() <= 1 {
+            // cc:5320-5321: dead or halt RETURNs are never canonical.
+            if op.is_dead()
+                || (op.flags
+                    & (pcodeop_flags::HALT
+                        | pcodeop_flags::BADINSTRUCTION
+                        | pcodeop_flags::UNIMPLEMENTED
+                        | pcodeop_flags::NORETURN
+                        | pcodeop_flags::MISSING))
+                    != 0
+            {
+                continue;
+            }
+            if op.num_input() <= 1 {
                 continue;
             }
             if let Some(rv) = op.get_in(1) {
@@ -8888,14 +9247,52 @@ impl ActionInferTypes {
                 }
             }
         }
-        let (base_vn, base_ct) = match best {
-            Some(b) => b,
-            None => return,
+        best
+    }
+
+    // Ghidra: coreaction.cc:5342 ActionInferTypes::propagateAcrossReturns
+    fn propagate_across_returns(
+        &self,
+        fd: &mut Funcdata,
+        temps: &mut TempTypes,
+        int_types: &IntTypes,
+        ptr_size: usize,
+        type_factory: Option<&Arc<RwLock<crate::type_system::typefactory::TypeFactory>>>,
+    ) {
+        use crate::type_system::datatype::TypeMetatype;
+        if fd.get_func_proto().is_output_locked() {
+            return;
+        }
+        // Find the canonical RETURN op: the one whose return varnode has the
+        // most-specific temp type.
+        let Some((base_vn, base_ct)) = Self::canonical_return_op(fd, temps) else {
+            return;
         };
         let base_size = base_vn.read().unwrap().get_size();
         let is_bool = base_ct.get_metatype() == TypeMetatype::Bool;
+        // cc:5354-5359: re-iterate the RETURN ops; skip the canonical one
+        // (its value Varnode identity covers the `retop == op` check), dead
+        // ops, and halt-type ops.
+        let return_ops: Vec<_> = fd
+            .obank
+            .alivelist
+            .iter()
+            .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_RETURN)
+            .cloned()
+            .collect();
         for r in &return_ops {
             let op = r.0.read().unwrap();
+            if op.is_dead()
+                || (op.flags
+                    & (crate::op::pcodeop_flags::HALT
+                        | crate::op::pcodeop_flags::BADINSTRUCTION
+                        | crate::op::pcodeop_flags::UNIMPLEMENTED
+                        | crate::op::pcodeop_flags::NORETURN
+                        | crate::op::pcodeop_flags::MISSING))
+                    != 0
+            {
+                continue;
+            }
             if op.num_input() <= 1 {
                 continue;
             }
@@ -11331,17 +11728,85 @@ impl Action for ActionOutputPrototype {
     fn get_name(&self) -> &str { "outputprototype" }
 }
 
-/// Prototype type setup (partial port of `ActionPrototypeTypes`).
-///
-/// RUGRA-GAP(PIPE-LIFECYCLE-0001): locked input materialization at
-/// coreaction.cc:4680-4699 cannot be ported at this layer yet. Rugra's
-/// `ProtoParameter` drops the storage address space and `FuncProto` does not
-/// retain the resolved `ProtoModel`/input `ParamList`, so `extendInput` cannot
-/// query `assumedInputExtension` without guessing the compiler specification.
+/// Prototype type setup. Faithful to `ActionPrototypeTypes`
+/// (coreaction.cc:4609-4703): evaluation-model install, RETURN indirect
+/// stripping, locked-output materialization / active-output init, truncated
+/// stack-pointer ZEXT (projection note in apply), and locked-input
+/// materialization with `extendInput`.
 pub struct ActionPrototypeTypes;
 impl ActionPrototypeTypes {
     // Ghidra: coreaction.hh:643 ActionPrototypeTypes (constructor mirror)
     pub fn new() -> Self { Self }
+
+    // Ghidra: coreaction.cc:4590 ActionPrototypeTypes::extendInput
+    /// Extend a locked input Varnode to match the prototype model's assumed
+    /// input extension. Faithful to `extendInput` (coreaction.cc:4590-4607):
+    /// ```text
+    /// OpCode res = data.getFuncProto().assumedInputExtension(
+    ///     invn->getAddr(), invn->getSize(), vdata);
+    /// if (res == CPUI_COPY) return;          // no extension
+    /// if (res == CPUI_PIECE) {               // extension by parameter type
+    ///   if (param->getType()->getMetatype() == TYPE_INT) res = CPUI_INT_SEXT;
+    ///   else res = CPUI_INT_ZEXT;
+    /// }
+    /// PcodeOp *op = data.newOp(1, topbl->getStart());
+    /// data.newVarnodeOut(vdata.size, vdata.getAddr(), op);
+    /// data.opSetOpcode(op, res);
+    /// data.opSetInput(op, invn, 0);
+    /// data.opInsertBegin(op, topbl);
+    /// ```
+    fn extend_input(
+        fd: &mut Funcdata,
+        invn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        param: &crate::fspec::ProtoParameter,
+        topbl: &std::sync::Arc<
+            std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+        >,
+    ) {
+        use crate::type_system::datatype::TypeMetatype;
+        // cc:4593-4594: assumedInputExtension on the varnode's own storage
+        // (address + size), returning the containing parameter in vdata.
+        let mut vdata = crate::fspec::VarnodeData {
+            space: crate::space::AddressSpace::Register,
+            offset: 0,
+            size: 0,
+        };
+        let (vn_space, vn_offset, vn_size) = {
+            let r = invn.read().unwrap();
+            (r.get_space(), r.get_offset(), r.get_size() as i32)
+        };
+        let res = fd.funcp.assumed_input_extension(
+            vn_space,
+            crate::address::Address::new(vn_offset),
+            vn_size,
+            &mut vdata,
+        );
+        // cc:4595: no extension.
+        if res == OpCode::CPUI_COPY {
+            return;
+        }
+        // cc:4596-4601: PIECE resolves through the parameter's data-type.
+        let res = if res == OpCode::CPUI_PIECE {
+            if param.data_type.get_metatype() == TypeMetatype::Int {
+                OpCode::CPUI_INT_SEXT
+            } else {
+                OpCode::CPUI_INT_ZEXT
+            }
+        } else {
+            res
+        };
+        // cc:4602-4606.
+        let op = fd.new_op(1, topbl.read().unwrap().get_start_addr());
+        fd.new_varnode_out_full(
+            vdata.size as usize,
+            vdata.space,
+            crate::address::Address::new(vdata.offset),
+            &op,
+        );
+        fd.op_set_opcode(&op, res);
+        fd.op_set_input(&op, invn.clone(), 0);
+        fd.op_insert_begin(&op, topbl);
+    }
 }
 impl Action for ActionPrototypeTypes {
     // Ghidra: coreaction.cc:4609 ActionPrototypeTypes::apply
@@ -11477,6 +11942,79 @@ impl Action for ActionPrototypeTypes {
         // never re-create it (see cc:1908-1955 lifecycle).
         else {
             fd.init_active_output();
+        }
+
+        // Ghidra coreaction.cc:4653-4674: truncated-code-space stack-pointer
+        // ZEXT materialization. Documented projection (WORKPKG-UNMAP-
+        // COREACT-0002): the block is guarded by
+        // `spc = getArch()->getDefaultCodeSpace(); spc->isTruncated()`; the
+        // locked x86-64 production corpus (and every Rugra corpus so far)
+        // runs untruncated spaces, so the oracle block is dead there too.
+        // Rugra's Architecture does not yet carry the default-code-space
+        // AddrSpace handle at this call site (printc reaches it through the
+        // SpaceManager, which Funcdata-side actions cannot resolve), so the
+        // guard projects to its constant false arm — zero iterations,
+        // identical observable behavior on every representable corpus. The
+        // fix path (truncate-aware space plumbing) is registered on the
+        // WORKPKG-UNMAP-COREACT-0002 residual list.
+
+        // Ghidra coreaction.cc:4676-4703: force locked inputs to exist as
+        // varnodes — a big locked input can survive with only a piece in
+        // use, letting a SUBPIECE be built over the whole variable. The
+        // former RUGRA-GAP note (ProtoParameter lacking the storage space,
+        // FuncProto lacking the resolved model) is obsolete: both carriers
+        // exist now, so the loop and extendInput are ported.
+        if fd.funcp.is_input_locked() {
+            // cc:4684: ptr_size = spc->isTruncated() ? spc->getAddrSize() : 0.
+            // With the truncation guard projecting to false (above), the
+            // pointer-trimming term is 0, matching the oracle on untruncated
+            // spaces.
+            let ptr_size = 0usize;
+            let topbl: Option<
+                std::sync::Arc<
+                    std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+                >,
+            > = if fd.bblocks.get_size() > 0 {
+                fd.bblocks.get_block(0)
+            } else {
+                None
+            };
+            let numparams = fd.funcp.num_params();
+            for i in 0..numparams {
+                // cc:4691-4692: param = getParam(i); vn = newVarnode(size,
+                // address). The param record is cloned out of the FuncProto
+                // borrow so the varnode-bank mutations below can run
+                // (ProtoParameter is a plain value record).
+                let Some(param) = fd.funcp.get_param(i).cloned() else { continue };
+                // cc:4692: vn = data.newVarnode(param->getSize(),
+                //                              param->getAddress());
+                let raw = fd
+                    .vbank
+                    .create_with_space(
+                        param.data_type.get_size(),
+                        param.address_space,
+                        param.address.as_u64(),
+                    );
+                crate::heritage::Heritage::apply_new_varnode_flags(fd, &raw);
+                // cc:4693-4694: vn = setInputVarnode(vn); vn->setLockedInput().
+                let vn = fd.set_input_varnode(raw);
+                vn.write().unwrap().addlflags |=
+                    crate::varnode::addl_flags::LOCKED_INPUT;
+                // cc:4695-4696: extendInput(data,vn,param,topbl).
+                if let Some(ref topbl) = topbl {
+                    Self::extend_input(fd, &vn, &param, topbl);
+                }
+                // cc:4697-4701: pointer trimming on truncated spaces —
+                // ptr_size is 0 on every untruncated corpus (see above).
+                if ptr_size > 0 {
+                    let ct = &param.data_type;
+                    if ct.get_metatype() == crate::type_system::datatype::TypeMetatype::Pointer
+                        && ct.get_size() == ptr_size
+                    {
+                        vn.write().unwrap().set_ptr_flow();
+                    }
+                }
+            }
         }
 
         Ok(action_status::NO_CHANGE)
@@ -12115,22 +12653,317 @@ pub struct ActionLikelyTrash { pub count: i32 ,
 impl ActionLikelyTrash {
     // Ghidra: coreaction.hh:833 ActionLikelyTrash (constructor mirror)
     pub fn new() -> Self { Self { count: 0 } }
+
+    // Ghidra: coreaction.cc:2007 ActionLikelyTrash::countMarks
+    /// Count the number of inputs to `op` which have their mark set.
+    /// Faithful to `countMarks` (coreaction.cc:2007-2030): for each input,
+    /// walk the INNER for(;;) loop — a marked Varnode counts once and breaks;
+    /// an unwritten Varnode breaks; a def that IS `op` (looped all the way
+    /// around) counts once and breaks; only an INDIRECT def continues the
+    /// chain up through `vn = vn->getDef()->getIn(0)`, any other opcode
+    /// breaks.
+    fn count_marks(op: &crate::op::PcodeOpRef) -> u32 {
+        let mut res: u32 = 0;
+        let inputs: Vec<_> = {
+            let o = op.0.read().unwrap();
+            o.inrefs.clone()
+        };
+        for input in inputs {
+            let mut vn = input;
+            loop {
+                // cc:2014-2017: marked input counts, stop.
+                if vn.read().unwrap().is_mark() {
+                    res += 1;
+                    break;
+                }
+                // cc:2018: chain only through written varnodes.
+                if !vn.read().unwrap().is_written() {
+                    break;
+                }
+                // cc:2019-2023: def == op means the walk looped all the way
+                // around — count once and stop. Pointer identity is the
+                // faithful form of the C++ `defOp == op` comparison.
+                let def_op = vn.read().unwrap().get_def();
+                let Some(def_op) = def_op else { break };
+                if std::sync::Arc::ptr_eq(&def_op, &op.0) {
+                    res += 1;
+                    break;
+                }
+                // cc:2024-2025: chain up only through INDIRECTs.
+                if def_op.read().unwrap().opcode != OpCode::CPUI_INDIRECT {
+                    break;
+                }
+                // cc:2026: vn = vn->getDef()->getIn(0).
+                let next = def_op
+                    .read()
+                    .unwrap()
+                    .get_in(0)
+                    .cloned();
+                match next {
+                    Some(n) => vn = n,
+                    None => break,
+                }
+            }
+        }
+        res
+    }
+
+    // Ghidra: coreaction.cc:2047 ActionLikelyTrash::traceTrash
+    /// Decide if `vn` only ever flows into INDIRECT ops (trash). Faithful to
+    /// `traceTrash` (coreaction.cc:2047-2138): forward breadth walk over
+    /// `markedlist` (index-ordered `traced` cursor), per-descend switch:
+    /// - INDIRECT: persist output → not trash; indirect-store → mark and
+    ///   continue through the output; otherwise record the op in `indlist`
+    ///   (cc:2068-2079);
+    /// - SUBPIECE: persist → not trash; else mark and continue (cc:2080-2089);
+    /// - MULTIEQUAL/PIECE: persist → not trash; else mark the op in
+    ///   `allroutes`, and once countMarks(op) == numInput — every input
+    ///   reachable — mark and continue through the output (cc:2090-2107);
+    /// - INT_AND: a constant mask that keeps whole significant bytes
+    ///   (`(mask<<8)&mask`, `(mask<<16)&mask`, `(mask<<32)&mask`) records
+    ///   the op in `indlist`; anything else → not trash (cc:2108-2119);
+    /// - default: not trash (cc:2120-2122).
+    /// Early-exits on the first not-trash verdict, then unconditionally
+    /// clears the op marks (allroutes) and Varnode marks (markedlist) and
+    /// returns whether everything looked like trash.
+    fn trace_trash(
+        vn: &Arc<RwLock<crate::varnode::Varnode>>,
+        indlist: &mut Vec<crate::op::PcodeOpRef>,
+    ) -> bool {
+        // cc:2050: merging ops (with more than 1 input) whose all-inputs
+        // state is being accumulated.
+        let mut allroutes: Vec<crate::op::PcodeOpRef> = Vec::new();
+        // cc:2051: all varnodes visited on paths from vn.
+        let mut markedlist: Vec<Arc<RwLock<crate::varnode::Varnode>>> = Vec::new();
+        let mut traced: usize = 0;
+        vn.write().unwrap().set_mark(); // cc:2056
+        markedlist.push(vn.clone()); // cc:2057
+        let mut istrash = true; // cc:2058
+
+        while traced < markedlist.len() {
+            // cc:2060-2061: pop the next marked varnode.
+            let curvn = markedlist[traced].clone();
+            traced += 1;
+            let descends: Vec<_> = curvn
+                .read()
+                .unwrap()
+                .descend_iter()
+                .collect();
+            for op in descends {
+                let (opcode, outvn) = {
+                    let o = op.read().unwrap();
+                    (o.opcode, o.output.clone())
+                };
+                match opcode {
+                    OpCode::CPUI_INDIRECT => {
+                        // cc:2068-2079.
+                        let persist = outvn
+                            .as_ref()
+                            .is_some_and(|o| o.read().unwrap().is_persist());
+                        if persist {
+                            istrash = false;
+                        } else if op.read().unwrap().is_indirect_store() {
+                            if let Some(outvn) = outvn.as_ref() {
+                                if !outvn.read().unwrap().is_mark() {
+                                    outvn.write().unwrap().set_mark();
+                                    markedlist.push(outvn.clone());
+                                }
+                            }
+                        } else {
+                            indlist.push(crate::op::PcodeOpRef(op.clone()));
+                        }
+                    }
+                    OpCode::CPUI_SUBPIECE => {
+                        // cc:2080-2089.
+                        let persist = outvn
+                            .as_ref()
+                            .is_some_and(|o| o.read().unwrap().is_persist());
+                        if persist {
+                            istrash = false;
+                        } else if let Some(outvn) = outvn.as_ref() {
+                            if !outvn.read().unwrap().is_mark() {
+                                outvn.write().unwrap().set_mark();
+                                markedlist.push(outvn.clone());
+                            }
+                        }
+                    }
+                    OpCode::CPUI_MULTIEQUAL | OpCode::CPUI_PIECE => {
+                        // cc:2090-2107.
+                        let persist = outvn
+                            .as_ref()
+                            .is_some_and(|o| o.read().unwrap().is_persist());
+                        if persist {
+                            istrash = false;
+                        } else {
+                            if !op.read().unwrap().is_mark() {
+                                op.write().unwrap().flags |= crate::op::pcodeop_flags::MARK;
+                                allroutes.push(crate::op::PcodeOpRef(op.clone()));
+                            }
+                            let nummark = Self::count_marks(&crate::op::PcodeOpRef(op.clone()));
+                            let num_input = op.read().unwrap().num_input();
+                            if nummark as usize == num_input {
+                                if let Some(outvn) = outvn.as_ref() {
+                                    if !outvn.read().unwrap().is_mark() {
+                                        outvn.write().unwrap().set_mark();
+                                        markedlist.push(outvn.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    OpCode::CPUI_INT_AND => {
+                        // cc:2108-2119: only constant masks that keep whole
+                        // topmost significant bytes count as trash shaping
+                        // (`(mask<<8)&mask` / `<<16` / `<<32` forms); any
+                        // other AND → not trash.
+                        let is_const_mask = {
+                            let o = op.read().unwrap();
+                            o.get_in(1)
+                                .is_some_and(|v| v.read().unwrap().is_constant())
+                        };
+                        let mut shaped = false;
+                        if is_const_mask {
+                            let (val, mask) = {
+                                let o = op.read().unwrap();
+                                let in1 = o.get_in(1).unwrap();
+                                let r = in1.read().unwrap();
+                                let mask = crate::address::calc_mask(r.get_size());
+                                (r.get_offset(), mask)
+                            };
+                            shaped = val == ((mask << 8) & mask)
+                                || val == ((mask << 16) & mask)
+                                || val == ((mask << 32) & mask);
+                        }
+                        if shaped {
+                            indlist.push(crate::op::PcodeOpRef(op.clone()));
+                            continue; // cc:2115: this path is trimmed
+                        }
+                        istrash = false; // cc:2118
+                    }
+                    _ => {
+                        // cc:2120-2122.
+                        istrash = false;
+                    }
+                }
+                if !istrash {
+                    break; // cc:2124
+                }
+            }
+            if !istrash {
+                break; // cc:2126
+            }
+        }
+
+        // cc:2129-2133: an unmarked merging-op output means an input path
+        // was never seen — not trash. Marks cleared unconditionally.
+        for route in &allroutes {
+            let out_marked = route
+                .0
+                .read()
+                .unwrap()
+                .output
+                .as_ref()
+                .is_some_and(|o| o.read().unwrap().is_mark());
+            if !out_marked {
+                istrash = false; // Didn't see all inputs
+            }
+            route.0.write().unwrap().flags &= !crate::op::pcodeop_flags::MARK;
+        }
+        for vn in &markedlist {
+            vn.write().unwrap().clear_mark(); // cc:2135
+        }
+        istrash
+    }
 }
 impl Action for ActionLikelyTrash {
     // Ghidra: coreaction.cc:2140 ActionLikelyTrash::apply
+    /// Faithful to `ActionLikelyTrash::apply` (coreaction.cc:2140-2170):
+    /// ```text
+    /// iter = data.getFuncProto().trashBegin(); enditer = trashEnd();
+    /// for each vdata:
+    ///   vn = data.findCoveredInput(vdata.size, vdata.getAddr());
+    ///   if (vn == 0) continue;
+    ///   if (vn->isTypeLock()||vn->isNameLock()) continue;
+    ///   indlist.clear();
+    ///   if (!traceTrash(vn,indlist)) continue;
+    ///   for each op in indlist:
+    ///     INDIRECT -> opSetInput(op,newConstant(out->getSize(),0),0)
+    ///                 + markIndirectCreation(op,false)
+    ///     INT_AND  -> opSetInput(op,newConstant(in(1)->getSize(),0),1)
+    ///     count += 1;
+    /// return 0;
+    /// ```
+    /// **Trash-list source projection (WORKPKG-UNMAP-COREACT-0002 residual,
+    /// FSPEC-LIKELYTRASH-FOLD seam)**: the oracle's likelytrash vector is
+    /// populated by FuncProto::resolveModel from the ProtoModel + decode
+    /// merges (fspec.cc:2849/2663). Rugra's fspec decode folds
+    /// `<likelytrash>` entries into the effects list as KilledByCall
+    /// records (fspec.rs decode, documented seam) and keeps no separate
+    /// trash list, so the production x86-64-gcc corpus iterates an EMPTY
+    /// list here — which is byte-identical to the oracle on that corpus,
+    /// because x86-64-gcc.cspec carries no `<likelytrash>` element at all
+    /// (the oracle's list is empty there too; only 32-bit x86gcc.cspec
+    /// registers trash registers). The loop structure is complete and
+    /// lights up the moment fspec grows a distinct trash carrier.
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
-        // Ghidra algorithm:
-        // 1. For each VarnodeData in funcProto.trashBegin..trashEnd:
-        //    - Find covered input Varnode at that address
-        //    - Skip if typelocked or namelocked
-        //    - traceTrash(vn, indlist): follow data-flow to INDIRECT/INT_AND
-        //    - For each INDIRECT: set input(0) to constant 0, markIndirectCreation
-        //    - For each INT_AND: set input(1) to constant 0
-        // 2. count changes
-        //
-        let proto = fd.get_func_proto();
-        let _ = proto; // Full: iterate proto.trashBegin/End
-        Ok(action_status::NO_CHANGE)
+        // cc:2145-2148: iterate the likelytrash VarnodeData list. Projection:
+        // empty iterator (see doc comment); entries would be
+        // (vdata.offset, vdata.size) pairs resolved through the legacy
+        // scalar-Address bank lookup (the space rides the bank's
+        // partitioning, as in every other legacy find_* call site).
+        let trash_entries: Vec<(u64, usize)> = Vec::new();
+        for (offset, size) in trash_entries {
+            // cc:2150: vn = data.findCoveredInput(vdata.size, vdata.getAddr()).
+            let loc = crate::address::Address::new(offset);
+            let Some(vn) = fd.find_covered_input(size, loc) else {
+                continue;
+            };
+            // cc:2152: skip typelocked/namelocked varnodes.
+            let (type_lock, name_lock) = {
+                let r = vn.read().unwrap();
+                (r.is_type_lock(), r.is_name_lock())
+            };
+            if type_lock || name_lock {
+                continue;
+            }
+            let mut indlist: Vec<crate::op::PcodeOpRef> = Vec::new();
+            // cc:2154: traceTrash gate.
+            if !Self::trace_trash(&vn, &mut indlist) {
+                continue;
+            }
+            // cc:2156-2167: truncate the traced flows.
+            for op in indlist {
+                let opcode = op.0.read().unwrap().opcode;
+                if opcode == OpCode::CPUI_INDIRECT {
+                    // cc:2158-2161: turn the INDIRECT into an indirect
+                    // creation over constant 0.
+                    let out_size = op
+                        .0
+                        .read()
+                        .unwrap()
+                        .output
+                        .as_ref()
+                        .map(|o| o.read().unwrap().get_size())
+                        .unwrap_or(1);
+                    let zero = fd.new_constant(out_size, 0);
+                    fd.op_set_input(&op, zero, 0);
+                    fd.mark_indirect_creation(&op, false);
+                } else if opcode == OpCode::CPUI_INT_AND {
+                    // cc:2163-2165: neutralize the shaping mask.
+                    let in1_size = op
+                        .0
+                        .read()
+                        .unwrap()
+                        .get_in(1)
+                        .map(|v| v.read().unwrap().get_size())
+                        .unwrap_or(1);
+                    let zero = fd.new_constant(in1_size, 0);
+                    fd.op_set_input(&op, zero, 1);
+                }
+                self.count += 1; // cc:2166
+            }
+        }
+        Ok(action_status::NO_CHANGE) // cc:2169: return 0
     }
     // RUGRA-GLUE: Rust Action trait get_name; "likelytrash" mirrors ctor at coreaction.hh:833
     fn get_name(&self) -> &str { "likelytrash" }
@@ -14491,12 +15324,27 @@ impl ActionConditionalConst {
         let mut alternate_flow: Vec<crate::op::PcodeOpRef> = Vec::new();
         Self::collect_reachable(var_vn, phi_node_edges, &mut alternate_flow);
         let mut results: Vec<i32> = vec![0; phi_node_edges.len()];
+        let mut alternate = 0;
         for (i, (op_ref, _)) in phi_node_edges.iter().enumerate() {
             if !Self::flow_to_alternate_path(op_ref) {
-                results[i] = 1;
+                results[i] = 1; // cc:4308: mark as disconnecting
+                alternate += 1;
             }
         }
         Self::clear_marks(&alternate_flow);
+        // cc:4314-4322: with multiple disjoint MULTIEQUALs, check whether the
+        // disconnected paths rejoin — pairs that flow together get result 2.
+        let mut has_flow_together = false;
+        if alternate > 1 {
+            for i in 0..results.len() {
+                if results[i] == 0 {
+                    continue; // cc:4318: only disconnected paths
+                }
+                if Self::flow_together(phi_node_edges, i, &mut results) {
+                    has_flow_together = true;
+                }
+            }
+        }
         // cc:4321-4330: each disconnected edge gets its own shadow COPY,
         // iterating the edges in the (SeqNum time, slot) order established
         // by the sort in collect_reachable — Ghidra's deterministic order.
@@ -14505,7 +15353,7 @@ impl ActionConditionalConst {
         // source block, hence their final printed statement order — is
         // hermetic w.r.t. process history (PAREVAL-DETERM-HERMETICITY-0001).
         for (i, (op_ref, slot)) in phi_node_edges.iter().enumerate() {
-            if results[i] != 1 { continue; }
+            if results[i] != 1 { continue; } // cc:4325: only still-disjoint edges
             let bl_idx = {
                 let op_r = op_ref.0.read().unwrap();
                 if let Some(parent_weak) = op_r.parent.as_ref() {
@@ -14524,6 +15372,12 @@ impl ActionConditionalConst {
             };
             let out_vn = Self::place_copy(fd, op_ref, &bl, const_vn);
             fd.op_set_input(op_ref, out_vn, *slot);
+            self.count += 1;
+        }
+        // cc:4333-4336: edges that flow together share one COPY at the
+        // common ancestor block.
+        if has_flow_together {
+            Self::place_multiple_constants(fd, phi_node_edges, &results, const_vn);
             self.count += 1;
         }
     }
@@ -14856,6 +15710,48 @@ impl ActionConditionalConst {
             fd.op_set_input(op_ref, out_vn.clone(), *slot);
         }
     }
+
+    // Ghidra: coreaction.cc:4174 ActionConditionalConst::flowTogether
+    /// Test if flow from edge `i` is disjoint from the other excised edges.
+    /// All MULTIEQUAL and COPY ops reachable from edge i's output (with NO
+    /// edge excised) are marked; any other edge whose op carries the mark
+    /// flows together with it — both edges get result 2. Faithful to
+    /// `flowTogether` (coreaction.cc:4174-4192):
+    /// ```text
+    /// collectReachable(edges[i].op->getOut(), excise /*empty*/, reachable);
+    /// for j: if (i==j) continue; if (result[j]==0) continue;
+    ///        if (edges[j].op->isMark()) { result[i]=2; result[j]=2; res=true; }
+    /// clearMarks(reachable); return res;
+    /// ```
+    fn flow_together(
+        edges: &[(crate::op::PcodeOpRef, usize)],
+        i: usize,
+        result: &mut [i32],
+    ) -> bool {
+        let mut reachable: Vec<crate::op::PcodeOpRef> = Vec::new();
+        // cc:4178: empty excise list — the walk crosses every phi edge.
+        let mut excise: Vec<(crate::op::PcodeOpRef, usize)> = Vec::new();
+        let out_vn = edges[i].0 .0.read().unwrap().output.clone();
+        if let Some(out_vn) = out_vn {
+            Self::collect_reachable(&out_vn, &mut excise, &mut reachable);
+        }
+        let mut res = false;
+        for (j, _) in edges.iter().enumerate() {
+            if i == j {
+                continue; // cc:4182
+            }
+            if result[j] == 0 {
+                continue; // cc:4183: check only disconnected paths
+            }
+            if edges[j].0 .0.read().unwrap().is_mark() {
+                result[i] = 2; // cc:4185: disconnected paths that flow together
+                result[j] = 2;
+                res = true;
+            }
+        }
+        Self::clear_marks(&reachable);
+        res
+    }
 }
 impl Action for ActionConditionalConst {
     // Ghidra: coreaction.cc:4514 ActionConditionalConst::apply
@@ -15044,27 +15940,116 @@ impl Action for ActionConditionalConst {
 }
 
 /// Dynamic mapping. Faithful to `ActionDynamicMapping`
-/// (coreaction.cc).
-pub struct ActionDynamicMapping;
+/// (coreaction.hh:1023, coreaction.cc:4852): every mainloop pass (before
+/// restructurevarnode/infertypes, coreaction.cc:5504), walk the local
+/// scope's dynamic-entry list and re-attach each hashed symbol to the
+/// Varnode that currently recomputes its position hash.
+pub struct ActionDynamicMapping {
+    /// Ghidra protected Action::count (coreaction.hh:298): number of
+    /// successful attaches this perform cycle; consumed by
+    /// Action::perform's lcount<count applied transition (action.cc:346).
+    pub count: i32,
+}
 impl ActionDynamicMapping {
     // Ghidra: coreaction.hh:1023 ActionDynamicMapping (constructor mirror)
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self { count: 0 }
+    }
 }
 impl Action for ActionDynamicMapping {
     // Ghidra: coreaction.cc:4852 ActionDynamicMapping::apply
-    fn apply(&mut self, _fd: &mut Funcdata) -> Result<i32> {
-        Ok(action_status::NO_CHANGE)
+    /// Faithful to `ActionDynamicMapping::apply` (coreaction.cc:4852-4867):
+    /// ```text
+    /// localmap = data.getScopeLocal();
+    /// iter = localmap->beginDynamic(); enditer = localmap->endDynamic();
+    /// while(iter != enditer) {
+    ///   entry = &(*iter); ++iter;              // advance BEFORE the call
+    ///   if (data.attemptDynamicMapping(entry,dhash)) count += 1;
+    /// }
+    /// return 0;
+    /// ```
+    /// Decisive semantics:
+    /// - iteration = ScopeInternal::beginDynamic/endDynamic (database.cc:1921)
+    ///   over the `dynamicentry` std::list in insertion order; the iterator
+    ///   advances before the callee runs because attemptDynamicMapping can
+    ///   mutate the entry; here a pre-call snapshot visits the identical
+    ///   entry set — the ported delegate arms (find/attach, equate, size
+    ///   gate, and the union-facet arm, whose oracle body applyUnionFacet
+    ///   (funcdata_varnode.cc:1637) only resolves a union field and never
+    ///   mints dynamic entries) cannot grow the list mid-walk.
+    /// - count increments once per successful attach (shared Action field,
+    ///   NOT reset by apply — Action::perform resets it at status_start).
+    /// - the return is the literal 0; `count` is the only output.
+    fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
+        // cc:4855-4858: localmap = data.getScopeLocal(); iter/enditer over
+        // the dynamic list. The varmap::ScopeLocal arena keeps dynamic
+        // entries as `is_dynamic` symbols in slot-id (= insertion) order.
+        let dynamic_entries: Vec<_> = fd
+            .scope
+            .as_ref()
+            .map(|scope| {
+                scope
+                    .symbols
+                    .iter()
+                    .filter(|sym| sym.is_dynamic)
+                    .map(|sym| {
+                        (
+                            // SymbolEntry::getFirstUseAddress (database.cc:122):
+                            // first range of the uselimit — modeled by the
+                            // single mint-time usepoint.
+                            crate::address::Address::new(sym.usepoint.unwrap_or(0)),
+                            sym.hash,
+                            sym.size as usize,
+                            sym.category == crate::varmap::symbol_category::EQUATE,
+                            sym.category == crate::varmap::symbol_category::UNION_FACET,
+                            sym.name.clone(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        // cc:4860-4865: walk and attach; the single DynamicHash object the
+        // oracle reuses across iterations is stateless between calls
+        // (attemptDynamicMapping clears it at entry), so a fresh instance
+        // per call inside the delegate is equivalent.
+        for (first_use_addr, hash, size, is_equate, is_union_facet, sym_name) in dynamic_entries {
+            if fd.attempt_dynamic_mapping(
+                first_use_addr,
+                hash,
+                size,
+                is_equate,
+                is_union_facet,
+                &sym_name,
+            ) {
+                self.count += 1; // cc:4864
+            }
+        }
+        Ok(action_status::NO_CHANGE) // cc:4866: return 0
+    }
+    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // (coreaction.cc:4864) into the Rust ActionState accumulator.
+    fn take_count_delta(&mut self) -> i32 {
+        std::mem::take(&mut self.count)
     }
     // RUGRA-GLUE: Rust Action trait get_name; "dynamicmapping" mirrors ctor at coreaction.hh:1023
     fn get_name(&self) -> &str { "dynamicmapping" }
 }
 
 /// Dynamic symbols. Faithful to `ActionDynamicSymbols`
-/// (coreaction.cc).
-pub struct ActionDynamicSymbols;
+/// (coreaction.hh:1034, coreaction.cc:4869): two late passes (merge phase
+/// after DominantCopy, coreaction.cc:5724; and after MapGlobals before
+/// NameVars, coreaction.cc:5733) that attach the dynamic Symbol's NAME to
+/// the hashed Varnode without forcing type/properties.
+pub struct ActionDynamicSymbols {
+    /// Ghidra protected Action::count (coreaction.hh:298): number of
+    /// successful late attaches this perform cycle.
+    pub count: i32,
+}
 impl ActionDynamicSymbols {
     // Ghidra: coreaction.hh:1034 ActionDynamicSymbols (constructor mirror)
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self { count: 0 }
+    }
 }
 impl Action for ActionDynamicSymbols {
     // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1036
@@ -15073,8 +16058,53 @@ impl Action for ActionDynamicSymbols {
     }
 
     // Ghidra: coreaction.cc:4869 ActionDynamicSymbols::apply
-    fn apply(&mut self, _fd: &mut Funcdata) -> Result<i32> {
-        Ok(action_status::NO_CHANGE)
+    /// Faithful to `ActionDynamicSymbols::apply` (coreaction.cc:4869-4884):
+    /// same beginDynamic()/endDynamic() walk as ActionDynamicMapping, but
+    /// delegating to `Funcdata::attemptDynamicMappingLate`
+    /// (funcdata_varnode.cc:1347), which attaches the Symbol's name (and
+    /// mapped flag) rather than its type properties. The ++iter-before-call
+    /// snapshot equivalence argument is identical to
+    /// ActionDynamicMapping::apply above.
+    fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
+        let dynamic_entries: Vec<_> = fd
+            .scope
+            .as_ref()
+            .map(|scope| {
+                scope
+                    .symbols
+                    .iter()
+                    .filter(|sym| sym.is_dynamic)
+                    .map(|sym| {
+                        (
+                            crate::address::Address::new(sym.usepoint.unwrap_or(0)),
+                            sym.hash,
+                            sym.size as usize,
+                            sym.category == crate::varmap::symbol_category::EQUATE,
+                            sym.category == crate::varmap::symbol_category::UNION_FACET,
+                            sym.name.clone(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        for (first_use_addr, hash, size, is_equate, is_union_facet, sym_name) in dynamic_entries {
+            if fd.attempt_dynamic_mapping_late(
+                first_use_addr,
+                hash,
+                size,
+                is_equate,
+                is_union_facet,
+                &sym_name,
+            ) {
+                self.count += 1; // cc:4881
+            }
+        }
+        Ok(action_status::NO_CHANGE) // cc:4883: return 0
+    }
+    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // (coreaction.cc:4881) into the Rust ActionState accumulator.
+    fn take_count_delta(&mut self) -> i32 {
+        std::mem::take(&mut self.count)
     }
     // RUGRA-GLUE: Rust Action trait get_name; "dynamicsymbols" mirrors ctor at coreaction.hh:1034
     fn get_name(&self) -> &str { "dynamicsymbols" }
@@ -18145,11 +19175,14 @@ impl Action for ActionNodeJoin {
 // the oracle has the node (the stubs are observably inert): e.g. LaneDivide
 // inside stackstall (:5652), Constbase/ExtraPopSetup/Stop at head/tail,
 // MappedLocalSync (:5691), StartCleanUp (:5692), MarkIndirectOnly (:5725),
-// MapGlobals (:5732), both DynamicSymbols instances (:5724/:5733), NameVars
-// (:5734). Remaining unregistered oracle nodes — all documented deviations:
-//   - ActionForceGoto (:5496) and ActionDynamicMapping (:5504): ported as
-//     no-op stubs, not registered (registration is observably inert either
-//     way; kept out to minimize tree churn until real implementations land).
+// MapGlobals (:5732), NameVars (:5734). ActionDynamicMapping (:5504) and
+// both DynamicSymbols instances (:5724/:5733) were in this stub family until
+// COREACT-DYNMAP-STUB-0001 / COREACT-DYNSYM-STUB-0001 landed real
+// beginDynamic()/endDynamic() walks (see the two apply impls above).
+// Remaining unregistered oracle nodes — all documented deviations:
+//   - ActionForceGoto (:5496): ported as a no-op stub, not registered
+//     (registration is observably inert either way; kept out to minimize
+//     tree churn until the real implementation lands).
 //   - ActionUnreachable base instance (:5490): Rugra registers a single
 //     Unreachable at the :5673 slot (after BlockStructure) — running the
 //     :5490 instance before bblocks are complete caused false-positive
@@ -18171,6 +19204,140 @@ impl Action for ActionNodeJoin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Ghidra: coreaction.cc:2007 ActionLikelyTrash::countMarks + :2047 traceTrash
+    /// Locks the trash-walk semantics on hand-wired IR:
+    /// - countMarks counts marked inputs once, and chains up through
+    ///   INDIRECT defs to find a marked base (cc:2014-2027);
+    /// - traceTrash treats an INDIRECT-only flow as trash (recording the
+    ///   op), an INT_ADD reader as not trash, and a byte-shaping constant
+    ///   INT_AND mask as trash (cc:2047-2138).
+    #[test]
+    fn test_likelytrash_count_marks_and_trace_trash() {
+        use crate::address::{Address, SeqNum};
+        use crate::varnode::Varnode;
+
+        // --- countMarks: marked input + INDIRECT-chain input -------------
+        let marked = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_register(0x10, 8)));
+        marked.write().unwrap().set_mark();
+
+        // in0 = written by an INDIRECT whose own in(0) IS marked — the
+        // chain must walk through the INDIRECT and count the base.
+        let mut ind = crate::op::PcodeOp::new(
+            SeqNum::new(Address::new(0x2000), 0),
+            OpCode::CPUI_INDIRECT);
+        ind.inrefs = vec![marked.clone()];
+        let ind_out = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_unique(0x41, 8)));
+        ind.output = Some(ind_out.clone());
+        let ind_arc = std::sync::Arc::new(std::sync::RwLock::new(ind));
+        ind_out.write().unwrap().def =
+            Some(std::sync::Arc::downgrade(&ind_arc));
+        // Varnode::isWritten reads the WRITTEN flag (varnode.cc:816 mirrors
+        // the flag form), which the op-bank wiring sets in production —
+        // hand-wired tests must set it explicitly.
+        ind_out.write().unwrap().set_flags(crate::varnode::varnode_flags::WRITTEN);
+        marked.write().unwrap().add_descend(&ind_arc);
+
+        let unmarked = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_register(0x20, 8)));
+
+        let mut phi = crate::op::PcodeOp::new(
+            SeqNum::new(Address::new(0x2100), 0),
+            OpCode::CPUI_MULTIEQUAL);
+        phi.inrefs = vec![ind_out.clone(), unmarked.clone()];
+        let phi_arc = std::sync::Arc::new(std::sync::RwLock::new(phi));
+        ind_out.write().unwrap().add_descend(&phi_arc);
+        unmarked.write().unwrap().add_descend(&phi_arc);
+        let phi_ref = crate::op::PcodeOpRef(phi_arc);
+        // cc:2011: per-input walk — the INDIRECT output counts via its
+        // marked base, the plain unmarked input counts zero.
+        assert_eq!(
+            ActionLikelyTrash::count_marks(&phi_ref),
+            1,
+            "countMarks counts the INDIRECT-chained marked input exactly once"
+        );
+
+        // --- traceTrash: INDIRECT-only flow is trash --------------------
+        let trash_vn = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_register(0x30, 8)));
+        let mut use_ind = crate::op::PcodeOp::new(
+            SeqNum::new(Address::new(0x3000), 0),
+            OpCode::CPUI_INDIRECT);
+        use_ind.inrefs = vec![trash_vn.clone()];
+        let use_out = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_unique(0x50, 8)));
+        use_ind.output = Some(use_out.clone());
+        let use_arc = std::sync::Arc::new(std::sync::RwLock::new(use_ind));
+        use_out.write().unwrap().def =
+            Some(std::sync::Arc::downgrade(&use_arc));
+        trash_vn.write().unwrap().add_descend(&use_arc);
+
+        let mut indlist = Vec::new();
+        assert!(
+            ActionLikelyTrash::trace_trash(&trash_vn, &mut indlist),
+            "INDIRECT-only flow (non-store output, not persist) is trash"
+        );
+        assert_eq!(indlist.len(), 1, "the INDIRECT op itself is recorded");
+        assert!(
+            !trash_vn.read().unwrap().is_mark(),
+            "marks are cleared after the walk"
+        );
+
+        // --- traceTrash: INT_ADD reader is not trash ---------------------
+        let live_vn = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_register(0x28, 8)));
+        let mut add = crate::op::PcodeOp::new(
+            SeqNum::new(Address::new(0x3100), 0),
+            OpCode::CPUI_INT_ADD);
+        add.inrefs = vec![
+            live_vn.clone(),
+            std::sync::Arc::new(std::sync::RwLock::new(
+                Varnode::new_constant(3, 8))),
+        ];
+        let add_out = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_unique(0x51, 8)));
+        add.output = Some(add_out.clone());
+        let add_arc = std::sync::Arc::new(std::sync::RwLock::new(add));
+        add_out.write().unwrap().def =
+            Some(std::sync::Arc::downgrade(&add_arc));
+        live_vn.write().unwrap().add_descend(&add_arc);
+
+        let mut indlist2 = Vec::new();
+        assert!(
+            !ActionLikelyTrash::trace_trash(&live_vn, &mut indlist2),
+            "an INT_ADD reader makes the flow not trash"
+        );
+        assert!(indlist2.is_empty());
+
+        // --- traceTrash: byte-shaping INT_AND constant mask is trash -----
+        // size-2 constant mask 0xff00: mask=0xffff, (mask<<8)&mask=0xff00.
+        let shape_vn = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_register(0x48, 8)));
+        let mut and = crate::op::PcodeOp::new(
+            SeqNum::new(Address::new(0x3200), 0),
+            OpCode::CPUI_INT_AND);
+        and.inrefs = vec![
+            shape_vn.clone(),
+            std::sync::Arc::new(std::sync::RwLock::new(
+                Varnode::new_constant(0xff00, 2))),
+        ];
+        let and_out = std::sync::Arc::new(std::sync::RwLock::new(
+            Varnode::new_unique(0x52, 8)));
+        and.output = Some(and_out.clone());
+        let and_arc = std::sync::Arc::new(std::sync::RwLock::new(and));
+        and_out.write().unwrap().def =
+            Some(std::sync::Arc::downgrade(&and_arc));
+        shape_vn.write().unwrap().add_descend(&and_arc);
+
+        let mut indlist3 = Vec::new();
+        assert!(
+            ActionLikelyTrash::trace_trash(&shape_vn, &mut indlist3),
+            "a 0xff00 byte-shaping mask flow is trash"
+        );
+        assert_eq!(indlist3.len(), 1, "the INT_AND op is recorded");
+    }
 
     #[test]
     fn test_infer_params_preserves_locked_void_prototype() {

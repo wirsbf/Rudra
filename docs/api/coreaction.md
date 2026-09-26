@@ -3819,6 +3819,161 @@ commit1 / commit2）: canon curl+httpd 字节恒等（md5 c33052a3/6923d6c1）,
 镜面 curl 74/58/0/0、vsh 71/15/0/0、sq 810/4530/0/0、httpd 29/156/0/0
 全同 commit1;1778P/0F;bank 391/391。CR-STACKSPILL 时代"单独落地打破
 httpd canon(460367b2)"不再复现。
+## 2026-09-27：62-clone 类级裁决登记表（WORKPKG-UNMAP-COREACT-0002 ③，Lane COREACT2）
+
+`coreaction.hh` 中 62 个 Action 类各带一个 `virtual Action *clone(const ActionGroupList &)`
+（coreaction.hh 全文件 65 处 clone 声明，类粒度去重=62）。全部为同一模板：
+
+```cc
+virtual Action *clone(const ActionGroupList &grouplist) const {
+  if (!grouplist.contains(getGroup())) return (Action *)0;
+  return new ActionX(getGroup());
+}
+```
+
+**裁决（类级 RUGRA-GLUE，一条家族映射，不冒充 62 个独立移植）**：C++ 逐类 clone 样板
+只做两件事——组员资格门 + 带组名的重建。Rust 侧等价形态已结构性存在：
+
+- 注册即工厂：`add!(parent, "group", Box::new(ActionX::new()))` →
+  `add_action_factory_in_group`（action.rs:711）把构造闭包存入 `child_factories`；
+- 组门 + 重建：`ActionGroup::clone_group`（action.rs:734，镜像 action.cc:391
+  ActionGroup::clone）对每个 child 先问虚 `clone_for_groups` 覆写（容器/fixture 动作用），
+  缺省臂=`grouplist.contains(child_groups[i])` 门 + `factory()` 重建——恰是 62 个 C++
+  样板的公共语义；叶子 Action 因组名与构造被工厂闭包一次捕获，无需逐类虚方法。
+
+62 类全表（awk 类粒度提取自 coreaction.hh，升序；映射全部=「add! 工厂缺省臂」）：
+ActionActiveParam · ActionActiveReturn · ActionAssignHigh · ActionConditionalConst ·
+ActionConstantPtr · ActionConstbase · ActionCopyMarker · ActionDeadCode ·
+ActionDefaultParams · ActionDeindirect · ActionDeterminedBranch · ActionDirectWrite ·
+ActionDominantCopy · ActionDoNothing · ActionDynamicMapping · ActionDynamicSymbols ·
+ActionExtraPopSetup · ActionForceGoto · ActionFuncLink · ActionFuncLinkOutOnly ·
+ActionHeritage · ActionHideShadow · ActionInferTypes · ActionInputPrototype ·
+ActionInternalStorage · ActionLaneDivide · ActionLikelyTrash · ActionMapGlobals ·
+ActionMappedLocalSync · ActionMarkExplicit · ActionMarkImplied · ActionMarkIndirectOnly ·
+ActionMergeAdjacent · ActionMergeCopy · ActionMergeMultiEntry · ActionMergeRequired ·
+ActionMergeType · ActionMultiCse · ActionNameVars · ActionNonzeroMask ·
+ActionNormalizeSetup · ActionOutputPrototype · ActionParamDouble · ActionPrototypeTypes ·
+ActionPrototypeWarnings · ActionRedundBranch · ActionRestrictLocal ·
+ActionRestructureVarnode · ActionReturnRecovery · ActionSegmentize · ActionSetCasts ·
+ActionShadowVar · ActionSpacebase · ActionStackPtrFlow · ActionStart ·
+ActionStartCleanUp · ActionStartTypes · ActionStop · ActionSwitchNorm ·
+ActionUnjustifiedParams · ActionUnreachable · ActionVarnodeProps
+
+（同族同裁决：ruleaction.hh 各 Rule::clone 同构映射到 RulePool 的工厂注册——不在本表
+写域，REGEN/TYPEOP 车道域。）
+
+**39 项清单内其余两裁决**（详见上节）：propagationDebug=TYPEPROP_DEBUG 调试脚手架，
+oracle release 构建同样缺席 → 缺席即对齐，不移植；PropagationState ctor/step=
+propagate_one_type 的 edges_for 内联投影（coreaction.rs:8722 锚），无独立结构体。
+
+## 2026-09-27：WORKPKG-UNMAP-COREACT-0002 十函数落地（Lane COREACT2）
+
+以锁定 oracle 亲读各函数全貌后 1:1 移植（排除 lookForFuncParamNames/makeRec——已移植，
+REGEN 边）：
+
+- **isCopyConstant**（cc:2174-2181）+ **isDelayedConstant**（cc:2187-2200）：
+  ActionRestructureVarnode 关联函数；INT_ADD 臂保持 oracle 槽序（slot 1 先查）。
+- **protectSwitchPathIndirects**（cc:2206-2258，53 行）：BRANCHIND 开关值单路径回溯——
+  binary/ternary 双输入沿非 delayed-constant 侧（双侧均非→多路径 return）；unary/INDIRECT
+  沿 in(0)（INDIRECT 记为 lastIndirect）；LOAD 沿 in(1)；MULTIEQUAL 特判=首个 INDIRECT 定义
+  输入 set_no_indirect_collapse 后 return 不再回溯；终点常量且存在 lastIndirect →
+  set_no_indirect_collapse。锁守卫逐臂 Option 化（缺失即 return，良构 IR 行为不变）。
+- **protectSwitchPaths**（cc:2262-2272）：块序 0..size 扫 lastOp，BRANCHIND → 逐 op 保护；
+  接入 ActionRestructureVarnode::apply cc:2284-2285 槽（`is_jumptable_recovery_on` 门，
+  替换原 TODO 注释）。
+- **checkPointerIssues**（cc:2349-2373）：ActionSetCasts 关联函数；LOAD→out / STORE→in(2)
+  调用点插在 per-op 输入 cast 循环后、castOutput 前（cc:2762-2767，oracle 的 `opc` 局部
+  于循环顶捕获——LOAD/STORE opcode 不被 preflight 变异，live 读恒等）；size 语义=非
+  PTR 或 pointee size≠值宽 → "Load/Store size is inaccurate" warning；空间语义=指针带
+  space 属性且 op 空间常量既非该空间也非其 contain → refers/attribute warning。
+  TypeOp 元数据名小写首字母大写化（"load"→"Load"，typeop.cc:433/:513）；contain 项投影
+  =enum 指针空间无虚拟空间 → getContain 恒 null（每个可表达空间的 oracle 同形）。
+  双 if 结构（size 与 space 两独立判定）保持。
+- **canonicalReturnOp**（cc:5311-5336）：从 propagate_across_returns 内联提取为独立函数；
+  **补上缺失的 getHaltType()!=0 跳过**（HALT|BADINSTRUCTION|UNIMPLEMENTED|NORETURN|
+  MISSING 五旗标，op.hh:171）——此前内联版漏此守卫；second loop（cc:5354-5371）同样补
+  halt 跳过。typeOrder 严格 `< 0` 换绑（先到者平局保持）。
+- **extendInput**（cc:4590-4607）：ActionPrototypeTypes 关联函数 + locked-input 物化循环
+  （cc:4682-4703）整段补齐。原 RUGRA-GAP 注释（ProtoParameter 无空间/FuncProto 无
+  model）已过时——两载体现已存在，删除 stale 注释。PIECE 臂经 param 类型 INT→SEXT /
+  其他→ZEXT；newOp(1, topbl.getStart) + newVarnodeOut(vdata) + opInsertBegin 全链。
+  cc:4653-4674 truncated 空间栈指针 ZEXT 块：生产语料恒 untruncated（oracle 同死），
+  Funcdata 侧无 default-code-space 句柄，守卫投影为常 false（登记残差，修复路径=
+  truncate-aware 空间管道）。
+- **flowTogether**（cc:4174-4192）：ActionConditionalConst 关联函数——空 excise 的
+  collectReachable 从 edge i 输出标记可达集；其余 result≠0 边命中标记 → 双双记 result=2；
+  clearMarks 后返回。接入 handle_phi_nodes cc:4314-4336（alternate>1 门 + hasFlowTogether
+  → placeMultipleConstants + count+=1，此前两段全缺）。
+- **countMarks**（cc:2007-2030）+ **traceTrash**（cc:2047-2138，92 行）：
+  ActionLikelyTrash 关联函数全量移植。countMarks=逐输入 inner for(;;)：标记即计并断、
+  未写断、def==op 指针同一即计并断（绕环）、仅 INDIRECT def 沿 in(0) 上链。traceTrash=
+  markedlist 索引序 BFS + per-descend 五臂开关（INDIRECT persist/indirect-store/记录；
+  SUBPIECE；MULTIEQUAL/PIECE 的 countMarks==numInput 门；INT_AND 整形字节常量掩码
+  `(mask<<8|16|32)&mask` 三形；default 非垃圾）；allroutes 输出未标记=未见全输入→
+  非垃圾；收尾无条件双清（op 标记+vn 标记）。
+- **ActionLikelyTrash::apply**（cc:2140-2170）：循环结构全量（find_covered_input/
+  双锁跳过/traceTrash 门/INDIRECT→constant-0+mark_indirect_creation、INT_AND→constant-0/
+  count+=1/return 0）。**trash 列表源投影**：fspec.rs decode 把 `<likelytrash>` 折叠进
+  effects（既有 seam），FuncProto 无独立 trash 载体 → 迭代空表——生产 x86-64-gcc 语料
+  逐字节恒等（该 cspec 无 `<likelytrash>` 元素，oracle 列表同为空；仅 32 位 x86gcc.cspec
+  有）；fspec 长出独立载体后循环即活。登记 WORKPKG-UNMAP-COREACT-0002 残差项。
+- **propagationDebug**（cc:4980-5002）：`#ifdef TYPEPROP_DEBUG` 调试脚手架——oracle
+  release 构建同样不含该函数；按"debug-scaffolding 缺席=release 对齐"裁决不移植，
+  入 62-clone 裁决表。
+- **PropagationState ctor/step**（cc:5115/:5139）：已在 propagate_one_type 的 edges_for
+  投影内联实装（coreaction.rs:8722 注释锚），无独立结构体——入 62-clone 裁决表（inline
+  projection 形态）。
+
+**新测试**：`test_likelytrash_count_marks_and_trace_trash`（手接 IR 锁 countMarks 的
+INDIRECT 链计数 + traceTrash 三臂：INDIRECT-only 垃圾/INT_ADD 非垃圾/0xff00 掩码垃圾 +
+标记清理）。
+
+**验收**：亲父 6a458387 A/B 双语料（curl 3184 行/httpd 2293 行）**字节恒等**（diff=0）；
+canon 门禁 curl **157/0/0**、httpd **311/0/0**（=任务基线，零回退零漂移）；生产中性归因=
+protectSwitchPaths 恒 is_jumptable_recovery_on 门内（canon 关）、checkPointerIssues 仅
+warning 通道、extendInput 恒 gcc-model COPY 早退（无 assumed extension）、flowTogether
+需 alternate>1 的多 phi 边形态、canonicalReturnOp halt 剔除在 canon 语料无 halt RETURN、
+trash 迭代空表（双侧同空）。
+
+## 2026-09-27：ActionDynamicMapping / ActionDynamicSymbols 双 apply 实装（COREACT-DYNMAP-STUB-0001 + COREACT-DYNSYM-STUB-0001，Lane COREACT2）
+
+以锁定 oracle 亲读 `coreaction.cc:4852-4884` 两 apply 全函数体 + `funcdata_varnode.cc:1314-1399`
+两委托全貌 + `database.cc:1921` beginDynamic/endDynamic + `varnode.cc:410-439`
+setSymbolProperties/setSymbolEntry + `action.cc:100-145` perform 状态机后，把两个注册空桩
+升级为 1:1 移植：
+
+- **`ActionDynamicMapping::apply`**（cc:4852-4867，mainloop 槽 :5504，
+  restructurevarnode/infertypes 之前每 pass 跑）：遍历 `ScopeLocal` 动态条目表
+  （varmap 侧=`symbols` arena 中 `is_dynamic=true` 条目，槽序=插入序=oracle
+  `dynamicentry` std::list 序），逐条调 `Funcdata::attemptDynamic_mapping`
+  （first_use_addr=usepoint（database.cc:122 getFirstUseAddress 的单址 uselimit 投影）/
+  hash/size/category 投影），成功一次 `count += 1`（cc:4864），**返回字面 0**
+  （cc:4866——count 是 Action 基类字段，只被 perform 的 lcount<count 消费）。
+- **`ActionDynamicSymbols::apply`**（cc:4869-4884，双槽 :5724 merge 相 DominantCopy 后
+  / :5733 MapGlobals 后 NameVars 前，rule_onceperfunc）：同一 walk，委托
+  `attempt_dynamic_mapping_late`（名字级附着），成功 `count += 1`（cc:4881），返回 0。
+- **`++iter` 先于调用的快照等价性**：oracle 在调 attemptDynamicMapping 前先递增迭代器
+  （std::list 中途变更安全）；Rust 侧改为行前快照（借用安全），等价性论证=被移植的
+  委托臂（find/attach、equate、size 门、union-facet 臂——oracle applyUnionFacet
+  (funcdata_varnode.cc:1637) 只解析 union 字段不铸动态条目）都不能在 walk 中途增长
+  动态表，故快照集合 ≡ 原地 walk 集合。注释里逐条登记。
+- 两结构体新增 `pub count: i32` 字段 + `take_count_delta` 实现（外部化 oracle
+  protected `Action::count`，perform 的 applied 判定 action.cc:346 `lcount<count` 由
+  ActionState 累计器接住）；`new()` 构造与 action.rs 三处注册点（:5504/:5724/:5733，
+  前序车道已注册）无需改动。
+- **翻绿证据**（copytrim_remat_1204 fixture 双侧直跑，oracle stdout sha256
+  = `4910bcdf…` ≡ metadata 钉定 canonical，未改 fixture/metadata——重钉留 MB20）：
+  - `action_walk_level`（C4）**全 18 行 MATCH**（含 after-census `mapped=1` 翻绿、
+    act `count=0|status=0` 天然对齐——oracle count=0 因 setSymbolProperties 假返回）。
+  - `action_late_walk`（C5）17/18 MATCH：after-census `mapped=1` 翻绿；残差仅 act 行
+    `count=1|status=1` vs `count=0|status=0`——fixture 硬编码 count 打印 + 直调 apply
+    绕过 perform 状态机，属 fixture 侧重钉（MB20 集成），非实现缺口。
+  - 全局分歧预算 11 行 → 4 行对（残差全部在 funcdata.rs/dynamic.rs 域：
+    DYNMAP-SETPROPS-RET-0001、DYNHASH-UNIQUE-ANCHOR-0001 +
+    DYNMAP-LATE-CAST-RETARGET-0001、C5 act 重钉行）。
+  主管线影响面：哈希命中用点从"永不得命名"变为 mainloop 每 pass 重附着 + merge 相
+  /终相两次 late 命名附着（CASTFUSE-A 链 action 级半收口）。
+
 ## 2026-09-26：ActionDeindirect 三臂全量重写（FSPEC-DEINDIRECT-TRIGGER-0001，Lane FSPECDEIN）
 
 以锁定 oracle 亲读 `coreaction.cc:1219-1280` 全函数体后，把部分重实现升级为
