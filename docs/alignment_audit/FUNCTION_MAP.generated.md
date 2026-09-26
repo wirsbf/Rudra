@@ -9,10 +9,10 @@
 - Declaration references: 6317
 - Raw Ctags function records: 15811
 - Ghidra IDs carrying a guard disambiguator: 12
-- Rugra functions: 11007
-  (9089 production + 1918 test)
-- Exact definition-start mappings: 4529
-- Body-line references requiring audit: 111
+- Rugra functions: 11575
+  (9566 production + 2009 test)
+- Exact definition-start mappings: 4913
+- Body-line references requiring audit: 113
 
 The old hand-maintained `~2055` denominator is not a completion metric. The generated
 9494-definition denominator remains entirely `UNTESTED` unless a locked behavior fixture
@@ -32,7 +32,7 @@ records complete same-input/same-output evidence.
 | `architecture.hh` | 9 | 0 | 0 | 9 |
 | `bfd_arch.cc` | 11 | 0 | 0 | 11 |
 | `bfd_arch.hh` | 1 | 0 | 0 | 1 |
-| `block.cc` | 204 | 138 | 0 | 66 |
+| `block.cc` | 204 | 143 | 0 | 61 |
 | `block.hh` | 171 | 92 | 0 | 79 |
 | `blockaction.cc` | 83 | 58 | 0 | 25 |
 | `blockaction.hh` | 29 | 3 | 0 | 26 |
@@ -53,7 +53,7 @@ records complete same-input/same-output evidence.
 | `condexe.cc` | 27 | 27 | 0 | 0 |
 | `condexe.hh` | 4 | 0 | 0 | 4 |
 | `consolemain.cc` | 5 | 0 | 0 | 5 |
-| `constseq.cc` | 31 | 24 | 0 | 7 |
+| `constseq.cc` | 31 | 31 | 0 | 0 |
 | `constseq.hh` | 10 | 3 | 0 | 7 |
 | `context.cc` | 11 | 0 | 0 | 11 |
 | `context.hh` | 57 | 0 | 0 | 57 |
@@ -66,8 +66,8 @@ records complete same-input/same-output evidence.
 | `cpool_ghidra.cc` | 5 | 0 | 0 | 5 |
 | `cpool_ghidra.hh` | 2 | 0 | 0 | 2 |
 | `crc32.hh` | 1 | 1 | 0 | 0 |
-| `database.cc` | 170 | 117 | 0 | 53 |
-| `database.hh` | 97 | 9 | 0 | 88 |
+| `database.cc` | 170 | 148 | 0 | 22 |
+| `database.hh` | 97 | 21 | 0 | 76 |
 | `database_ghidra.cc` | 18 | 0 | 0 | 18 |
 | `database_ghidra.hh` | 37 | 0 | 0 | 37 |
 | `double.cc` | 109 | 109 | 0 | 0 |
@@ -83,16 +83,16 @@ records complete same-input/same-output evidence.
 | `expression.hh` | 20 | 0 | 0 | 20 |
 | `filemanage.cc` | 19 | 0 | 0 | 19 |
 | `filemanage.hh` | 1 | 0 | 0 | 1 |
-| `float.cc` | 36 | 34 | 0 | 2 |
+| `float.cc` | 36 | 36 | 0 | 0 |
 | `float.hh` | 1 | 1 | 0 | 0 |
 | `flow.cc` | 46 | 46 | 0 | 0 |
 | `flow.hh` | 16 | 15 | 0 | 1 |
-| `fspec.cc` | 243 | 155 | 0 | 88 |
-| `fspec.hh` | 271 | 85 | 0 | 186 |
-| `funcdata.cc` | 43 | 27 | 0 | 16 |
-| `funcdata.hh` | 136 | 30 | 0 | 106 |
+| `fspec.cc` | 243 | 211 | 0 | 32 |
+| `fspec.hh` | 271 | 143 | 0 | 128 |
+| `funcdata.cc` | 43 | 35 | 0 | 8 |
+| `funcdata.hh` | 136 | 75 | 0 | 61 |
 | `funcdata_block.cc` | 34 | 26 | 0 | 8 |
-| `funcdata_op.cc` | 49 | 38 | 0 | 11 |
+| `funcdata_op.cc` | 49 | 39 | 0 | 10 |
 | `funcdata_varnode.cc` | 60 | 58 | 0 | 2 |
 | `ghidra_arch.cc` | 43 | 2 | 0 | 41 |
 | `ghidra_arch.hh` | 10 | 0 | 0 | 10 |
@@ -162,18 +162,18 @@ records complete same-input/same-output evidence.
 | `prefersplit.hh` | 1 | 0 | 0 | 1 |
 | `prettyprint.cc` | 85 | 48 | 0 | 37 |
 | `prettyprint.hh` | 124 | 61 | 1 | 62 |
-| `printc.cc` | 106 | 91 | 0 | 15 |
-| `printc.hh` | 66 | 0 | 0 | 66 |
+| `printc.cc` | 106 | 103 | 0 | 3 |
+| `printc.hh` | 66 | 50 | 0 | 16 |
 | `printjava.cc` | 16 | 0 | 0 | 16 |
 | `printjava.hh` | 1 | 0 | 0 | 1 |
-| `printlanguage.cc` | 31 | 24 | 0 | 7 |
+| `printlanguage.cc` | 31 | 25 | 0 | 6 |
 | `printlanguage.hh` | 31 | 13 | 0 | 18 |
 | `rangemap.hh` | 33 | 17 | 0 | 16 |
 | `rangeutil.cc` | 64 | 59 | 1 | 4 |
 | `rangeutil.hh` | 39 | 27 | 0 | 12 |
 | `raw_arch.cc` | 11 | 0 | 0 | 11 |
 | `raw_arch.hh` | 1 | 0 | 0 | 1 |
-| `ruleaction.cc` | 340 | 336 | 1 | 3 |
+| `ruleaction.cc` | 340 | 337 | 1 | 2 |
 | `ruleaction.hh` | 272 | 14 | 0 | 258 |
 | `rulecompile.cc` | 58 | 0 | 0 | 58 |
 | `rulecompile.hh` | 22 | 0 | 0 | 22 |
@@ -186,7 +186,7 @@ records complete same-input/same-output evidence.
 | `slaformat.cc` | 7 | 0 | 0 | 7 |
 | `sleigh.cc` | 37 | 4 | 0 | 33 |
 | `sleigh.hh` | 3 | 0 | 0 | 3 |
-| `sleigh_arch.cc` | 30 | 1 | 0 | 29 |
+| `sleigh_arch.cc` | 30 | 2 | 1 | 27 |
 | `sleigh_arch.hh` | 22 | 1 | 0 | 21 |
 | `sleighbase.cc` | 18 | 3 | 0 | 15 |
 | `sleighbase.hh` | 7 | 0 | 0 | 7 |
@@ -214,14 +214,14 @@ records complete same-input/same-output evidence.
 | `testfunction.hh` | 6 | 0 | 0 | 6 |
 | `transform.cc` | 37 | 30 | 0 | 7 |
 | `transform.hh` | 29 | 4 | 0 | 25 |
-| `translate.cc` | 42 | 20 | 0 | 22 |
+| `translate.cc` | 42 | 22 | 0 | 20 |
 | `translate.hh` | 36 | 17 | 0 | 19 |
-| `type.cc` | 235 | 175 | 0 | 60 |
+| `type.cc` | 235 | 185 | 0 | 50 |
 | `type.hh` | 132 | 30 | 0 | 102 |
 | `typegrp_ghidra.cc` | 1 | 0 | 0 | 1 |
 | `typegrp_ghidra.hh` | 2 | 0 | 0 | 2 |
-| `typeop.cc` | 210 | 90 | 0 | 120 |
-| `typeop.hh` | 102 | 27 | 0 | 75 |
+| `typeop.cc` | 210 | 118 | 0 | 92 |
+| `typeop.hh` | 102 | 77 | 0 | 25 |
 | `unify.cc` | 142 | 133 | 0 | 9 |
 | `unify.hh` | 163 | 148 | 0 | 15 |
 | `unionresolve.cc` | 21 | 21 | 0 | 0 |
@@ -230,14 +230,31 @@ records complete same-input/same-output evidence.
 | `userop.hh` | 32 | 2 | 0 | 30 |
 | `variable.cc` | 51 | 45 | 0 | 6 |
 | `variable.hh` | 55 | 49 | 0 | 6 |
-| `varmap.cc` | 49 | 43 | 0 | 6 |
+| `varmap.cc` | 49 | 44 | 0 | 5 |
 | `varmap.hh` | 33 | 1 | 0 | 32 |
-| `varnode.cc` | 90 | 75 | 0 | 15 |
-| `varnode.hh` | 125 | 34 | 0 | 91 |
+| `varnode.cc` | 90 | 76 | 0 | 14 |
+| `varnode.hh` | 125 | 36 | 0 | 89 |
 | `xml.cc` | 48 | 32 | 1 | 15 |
 | `xml.hh` | 46 | 2 | 0 | 44 |
 | `xml_arch.cc` | 10 | 0 | 0 | 10 |
 | `xml_arch.hh` | 1 | 0 | 0 | 1 |
+
+## Unmapped dispositions — bison translation units
+
+Every unmapped definition in `grammar.cc`, `grammar.hh`, `pcodeparse.cc`, and
+`pcodeparse.hh` carries a pinned `unmapped_disposition` (63 definitions / 2997 LOC; `GENERATOR_ABSORBED_2026-09-27.md`, ticket `WORKPKG-UNMAP-PARSEADJ-0015`). The bison generator family absorbs 24 definitions (yy skeleton 20 / 2234 LOC + lex-error shim 4 / 19 LOC); the remaining pool is 39 definitions / 744 LOC. Disposition is an accounting caliber, never a behavior claim: statuses stay
+`UNTESTED`, the grammar face cites the `grammar_parse_face_1204` fixture, and
+the p-code face carries `PARSEADJ-PARSEFACE-PCODE-0001`.
+
+| Disposition class | Definitions | LOC |
+|---|---:|---:|
+| `drop_absorbed` | 2 | 11 |
+| `generator_absorbed` | 20 | 2234 |
+| `generator_shim` | 4 | 19 |
+| `glue_absorbed` | 19 | 19 |
+| `inline_absorbed` | 3 | 246 |
+| `residual_relink` | 3 | 28 |
+| `unlinked_relink` | 12 | 440 |
 
 Machine-readable records, stable IDs, signatures, spans, mapping kinds, and statuses
 are in `FUNCTION_LEDGER.json`. Protocol constants and dependency edges are emitted
