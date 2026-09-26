@@ -288,6 +288,21 @@ pub trait Emit {
     /// printlanguage.cc:98-110 setCommentDelimeter.
     fn set_comment_fill(&mut self, _fill: &str) {}
 
+    // Ghidra: prettyprint.hh:424 Emit::resetDefaults
+    /// (Re)set the default emitting options. The base `Emit::resetDefaults`
+    /// (prettyprint.hh:424) runs `resetDefaultsInternal`
+    /// (`indentincrement = 2`, prettyprint.hh:103); Rust's plain-text
+    /// emitters carry no cross-document print options (their indent state
+    /// is per-document runtime state, reset by `clear`), so the default
+    /// impl is a structural no-op. `EmitPrettyPrint` overrides it with the
+    /// full reset (prettyprint.cc:1237-1242).
+    fn reset_defaults(&mut self) {}
+
+    // Ghidra: prettyprint.hh:409 Emit::getMaxLineSize
+    /// Get the maximum number of characters allowed per line, or -1 if
+    /// this emitter does not enforce a line maximum.
+    fn get_max_line_size(&self) -> i32 { -1 }
+
     // RUGRA-GLUE: emits_markup (no Ghidra counterpart found)
     /// Check if this emitter supports markup
     fn emits_markup(&self) -> bool { false }
@@ -4285,6 +4300,14 @@ impl EmitPrettyPrint {
         self.needbreak = false;
     }
 
+    // RUGRA-GLUE: debug_lowlevel_output_ref (test observation channel,
+    // same family as EmitNoMarkup::debug_get_output_ref)
+    /// Read the bytes committed to the low-level stream so far without
+    /// consuming the emitter — fixture observation of a live printer.
+    pub fn debug_lowlevel_output_ref(&self) -> &str {
+        self.lowlevel.debug_get_output_ref()
+    }
+
     // Ghidra: prettyprint.cc:1225 EmitPrettyPrint::setMaxLineSize
     pub fn set_max_line_size(&mut self, val: i32) {
         if !(20..=10000).contains(&val) {
@@ -4774,6 +4797,33 @@ impl Emit for EmitPrettyPrint {
     // Ghidra: prettyprint.hh:1112 EmitPrettyPrint::emitsMarkup
     fn emits_markup(&self) -> bool { false }
 
+    // Ghidra: prettyprint.hh:1109 EmitPrettyPrint::getMaxLineSize
+    fn get_max_line_size(&self) -> i32 {
+        self.maxlinesize
+    }
+
+    // Ghidra: prettyprint.cc:1237 EmitPrettyPrint::resetDefaults
+    /// Reset the pretty printer's cross-document print options to their
+    /// defaults. Faithful to `EmitPrettyPrint::resetDefaults`
+    /// (prettyprint.cc:1237-1242), which composes three steps:
+    /// `lowlevel->resetDefaults()` — the low-level emitter inherits the
+    /// base `Emit::resetDefaults` (prettyprint.hh:424), whose only effect
+    /// is `resetDefaultsInternal` (`indentincrement = 2`,
+    /// prettyprint.hh:103); Rust's `EmitNoMarkup` carries no
+    /// `indentincrement` field (its `indent` is per-document state reset
+    /// by `clear`), so the low-level half is structurally absorbed; then
+    /// this printer's own `resetDefaultsInternal` (`indentincrement = 2`);
+    /// then `resetDefaultsPrettyPrint` (= `setMaxLineSize(100)`,
+    /// prettyprint.hh:1066 — which also re-arms the scan/token queues and
+    /// clears the stream, prettyprint.cc:1225-1234).
+    fn reset_defaults(&mut self) {
+        // resetDefaultsInternal (prettyprint.hh:103): indentincrement = 2;
+        self.indentincrement = 2;
+        // resetDefaultsPrettyPrint (prettyprint.hh:1066):
+        //   setMaxLineSize(100);
+        self.set_max_line_size(100);
+    }
+
     // RUGRA-GLUE: into_any (downcast support for the driver)
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
         self
@@ -4788,6 +4838,38 @@ impl Emit for EmitPrettyPrint {
 #[cfg(test)]
 mod tests {
     use super::EmitNoMarkup;
+
+    // PRINTC-PRINTLIST-WIRING-0001 regression: EmitPrettyPrint::resetDefaults
+    // (prettyprint.cc:1237-1242) restores both cross-document print options —
+    // indentincrement (resetDefaultsInternal, prettyprint.hh:103) and the
+    // 100-character max line size (resetDefaultsPrettyPrint ->
+    // setMaxLineSize(100), prettyprint.hh:1066), the latter observable via
+    // getMaxLineSize. The low-level half (lowlevel->resetDefaults()) resets
+    // the low emitter's indentincrement, which Rust's EmitNoMarkup does not
+    // carry (structurally absorbed).
+    #[test]
+    fn emit_pretty_print_reset_defaults() {
+        use super::{Emit, EmitPrettyPrint};
+        let mut emit = EmitPrettyPrint::new();
+        emit.set_max_line_size(60);
+        assert_eq!(emit.get_max_line_size(), 60);
+        emit.reset_defaults();
+        assert_eq!(emit.get_max_line_size(), 100);
+        assert_eq!(emit.indentincrement, 2);
+    }
+
+    // PRINTC-PRINTLIST-WIRING-0001: the plain-text emitters inherit the base
+    // Emit::resetDefaults (prettyprint.hh:424) as a structural no-op — they
+    // carry no cross-document print options, so the trait default must not
+    // disturb their output state.
+    #[test]
+    fn emit_no_markup_reset_defaults_noop() {
+        use super::{Emit, EmitNoMarkup};
+        let mut emit = EmitNoMarkup::new();
+        emit.print("held");
+        emit.reset_defaults();
+        assert_eq!(emit.get_output(), "held");
+    }
 
     // MAIN-RC3-STRUCTURED-EMIT-0001 regression: the overflow whiledo header
     // is the compact `while( true )` (printc.cc:3023-3028 — tagOp +

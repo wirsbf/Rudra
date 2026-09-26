@@ -566,6 +566,13 @@ pub struct Architecture {
     pub context_set_children_skipped: usize,
     /// Options database. Faithful to `options`.
     pub options_db: Option<std::sync::Arc<std::sync::RwLock<crate::options::OptionDatabase>>>,
+    /// Identity key of this Architecture's printer registry entry (the
+    /// storage channel for `printlist`/`print`, architecture.hh:206/205 —
+    /// see `printlanguage`'s thread-local registry for why the list cannot
+    /// live in this struct: printers are !Send while the canonical-Factory
+    /// static in funcdata.rs pins this struct Send+Sync). Minted at
+    /// construction; never printed or hashed into outputs.
+    pub print_registry_key: u64,
     /// Root Action database. Faithful to `allacts` (architecture.hh:212).
     /// Ghidra embeds the `ActionDatabase` by value inside `Architecture`;
     /// Rugra defers instantiation to [`Architecture::build_action`] (like the
@@ -660,7 +667,19 @@ impl Drop for Architecture {
         if let Some(factory) = &self.types {
             crate::type_system::typefactory::TypeFactory::unpublish_current_arch(factory);
         }
+        // architecture.cc:200-201 printlist teardown half — the registry
+        // entry for this architecture goes away with it (the printers stay
+        // alive through their Arc handles).
+        crate::printlanguage::unpublish_printlist(self.print_registry_key);
     }
+}
+
+// RUGRA-GLUE: print_registry_key minting (identity channel for the
+// architecture.hh:206 printlist storage mirror — allocator-independent,
+// never part of any output).
+fn next_print_registry_key() -> u64 {
+    static NEXT_KEY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT_KEY.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 impl Architecture {
@@ -726,6 +745,7 @@ impl Architecture {
             tracked_set_map: TrackedSetMap::new(),
             context_set_children_skipped: 0,
             options_db: None,
+            print_registry_key: next_print_registry_key(),
             allacts: None,
             split_records: Vec::new(),
             lane_records: Vec::new(),
@@ -773,11 +793,51 @@ impl Architecture {
         // as Ghidra: a database that never registered its universal root
         // aborts when the "decompile" root is rederived. A `None` database
         // (pre-`build_action` state, which the embedded Ghidra value cannot
-        // represent) has no defaults to reset. The printlist loop
-        // (architecture.cc:1443) stays deferred until PrintLanguage lands.
+        // represent) has no defaults to reset.
         if let Some(db) = &self.allacts {
             db.write().expect("allacts write lock").reset_defaults();
         }
+        // architecture.cc:1443-1444:
+        //   for(int4 i=0;i<printlist.size();++i)
+        //     printlist[i]->resetDefaults();
+        // — every printer registered with THIS architecture (identity-keyed
+        // registry, so a second live architecture's printers are untouched,
+        // exactly as the oracle's per-object vector).
+        crate::printlanguage::printlist_reset_defaults(self.print_registry_key);
+    }
+
+    // Ghidra: architecture.cc:171-172 Architecture::Architecture (print =
+    // buildLanguage(...); printlist.push_back(print);) +
+    // architecture.cc:431 setPrintLanguage (printlist.push_back(print))
+    /// Register a printer with this architecture and make it the current
+    /// printer. Both oracle push sites — the constructor's default build
+    /// and `setPrintLanguage`'s newly built language — push and
+    /// immediately make current. Returns the shared handle: the caller
+    /// keeps it for concrete printer work while option appliers reach the
+    /// same object through [`Self::print_language_current`] exactly as
+    /// `glb->print` does (options.cc:526).
+    pub fn register_print_language(
+        &mut self,
+        printer: Box<dyn crate::printlanguage::PrintLanguage>,
+    ) -> std::sync::Arc<
+        std::sync::RwLock<Box<dyn crate::printlanguage::PrintLanguage>>,
+    > {
+        crate::printlanguage::register_print_language(self.print_registry_key, printer)
+    }
+
+    // Ghidra: architecture.hh:205 print — the current-printer accessor
+    /// The architecture's current printer (`glb->print`). `None` before
+    /// the first registration — a state the oracle's constructor-time
+    /// build (architecture.cc:171-172) cannot occupy; option appliers that
+    /// need a printer report it (see `OptionCommentStyle::apply`).
+    pub fn print_language_current(
+        &self,
+    ) -> Option<
+        std::sync::Arc<
+            std::sync::RwLock<Box<dyn crate::printlanguage::PrintLanguage>>,
+        >
+    > {
+        crate::printlanguage::printlist_current(self.print_registry_key)
     }
 
     // Ghidra: architecture.cc:585 Architecture::buildAction
@@ -2862,6 +2922,72 @@ impl Architecture {
 mod tests {
     use super::*;
     use crate::address::Address;
+
+    // PRINTC-PRINTLIST-WIRING-0001: architecture.cc:1443-1444 —
+    // Architecture::resetDefaults resets exactly THIS architecture's
+    // printers (per-object vector semantics; two live architectures on one
+    // thread must not cross-reset).
+    #[test]
+    fn printlist_reset_is_per_architecture() {
+        use crate::prettyprint::{Emit, EmitNoMarkup};
+        use crate::printlanguage::PrintLanguage as _;
+
+        fn rendered_comment(
+            handle: &std::sync::Arc<
+                std::sync::RwLock<Box<dyn crate::printlanguage::PrintLanguage>>,
+            >,
+        ) -> String {
+            let mut printer = handle
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            // Slice the delta: the emitter buffer accumulates across calls.
+            let before = printer
+                .get_emit()
+                .as_any_mut()
+                .and_then(|any| any.downcast_ref::<EmitNoMarkup>())
+                .map(|emit| emit.debug_get_output_ref().len())
+                .unwrap_or(0);
+            printer.emit_line_comment(0, "routed body");
+            printer
+                .get_emit()
+                .as_any_mut()
+                .and_then(|any| any.downcast_ref::<EmitNoMarkup>())
+                .map(|emit| emit.debug_get_output_ref()[before..].to_string())
+                .unwrap_or_default()
+                .trim_start_matches(['\n', ' '])
+                .to_string()
+        }
+
+        let mut arch_a = Architecture::new();
+        let mut arch_b = Architecture::new();
+        let handle_a = arch_a.register_print_language(Box::new(crate::printc::PrintC::new(
+            Box::new(EmitNoMarkup::new()),
+        )));
+        let handle_b = arch_b.register_print_language(Box::new(crate::printc::PrintC::new(
+            Box::new(EmitNoMarkup::new()),
+        )));
+        // Registration order: current = the newly pushed printer
+        // (architecture.cc:171-172/431 push-then-point).
+        assert_eq!(
+            arch_a.print_language_current().unwrap().read().unwrap().get_name(),
+            "c-language"
+        );
+        // Flip both to the C++ style, then reset ONLY arch_a.
+        for handle in [&handle_a, &handle_b] {
+            handle
+                .write()
+                .unwrap()
+                .set_comment_style("cplusplus")
+                .expect("valid style");
+        }
+        assert!(rendered_comment(&handle_a).starts_with("// "));
+        arch_a.reset_defaults();
+        // arch_a's printer is back to the C default (printc.cc:1594 via
+        // resetDefaultsPrintC); arch_b's printer is untouched — exactly the
+        // oracle's per-object printlist loop.
+        assert!(rendered_comment(&handle_a).starts_with("/* "));
+        assert!(rendered_comment(&handle_b).starts_with("// "));
+    }
 
     #[test]
     fn test_defaults() {

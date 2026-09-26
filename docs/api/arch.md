@@ -1,5 +1,31 @@
 # arch.rs — Architecture manager API
 
+## 2026-09-27：PRINTC-PRINTLIST-WIRING-0001 — printlist 结构 + reset 循环（Lane PCHOVER2）
+
+architecture.hh:205-206 `print`/`printlist` 的 Rust 承接（PRINTC0004 登记的
+options 接线 handover 收口）：
+
+- **`print_registry_key: u64`**（RUGRA-GLUE identity 通道）：本 Architecture
+  printer 注册表条目的键；构造时铸造、不进任何输出。存储本体在
+  `printlanguage`（线程局部 identity-keyed 注册表——成因见 printlanguage.md
+  同日节：funcdata.rs canonical static 钉死 `Send+Sync` 而 printer 天生
+  !Send；TFSINGLE 先例）。
+- **`register_print_language(Box<dyn PrintLanguage>) -> Arc<RwLock<...>>`**
+  （architecture.cc:171-172 ctor push + :431 setPrintLanguage push 双位点：
+  push 即置 current）：返回共享句柄，注册方留用做具体 PrintC 工作，option
+  施加方经 current 通道达之（= `glb->print`）。
+- **`print_language_current()`**（architecture.hh:205 读通道）：当前 printer
+  句柄；`None`=未注册态（oracle ctor 时刻必建有 printer，此态 Ghidra 不可表，
+  option 侧以消息上报）。
+- **`reset_defaults` 补 architecture.cc:1443-1444 循环**：
+  `printlist_reset_defaults(key)` 对本 arch 注册的全部 printer 调
+  `reset_defaults()`（identity-keyed → 同线程第二 arch 不受波及，oracle
+  per-object vector 语义）。旧"deferred until PrintLanguage lands"注释更正。
+- **`Drop` 补 `unpublish_printlist`**（architecture.cc:200-201 teardown 半的
+  镜像；printer 本体经 Arc 存活）。
+
+B2：`printc_printlist_wiring_1204`（8 case 字节恒等，见 printc.md 同日节）。
+
 Architecture manager corresponding to Ghidra's `architecture.hh` /
 `architecture.cc`.
 

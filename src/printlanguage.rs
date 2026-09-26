@@ -17,6 +17,7 @@
 
 use crate::prettyprint::Emit;
 use std::any::Any;
+use std::sync::{Arc, RwLock};
 
 // ===========================================================================
 // PrintLanguage::modifiers (printlanguage.hh:144-161)
@@ -1528,6 +1529,133 @@ pub trait PrintLanguage: Any {
     fn pop_scope(&mut self) {}
     // Ghidra: printlanguage.cc:589 PrintLanguage::emitLineComment
     fn emit_line_comment(&mut self, _indent: i32, _text: &str) {}
+
+    // Ghidra: printlanguage.hh:448 PrintLanguage::getName
+    /// Get the language name (base-class inline getter over the `name`
+    /// field, set by the `PrintLanguage(g,nm)` constructor,
+    /// printlanguage.cc:67).
+    fn get_name(&self) -> &str;
+
+    // Ghidra: printlanguage.hh:478 PrintLanguage::setCommentStyle
+    /// Set the way comments are displayed in decompiler output. Pure
+    /// virtual in Ghidra (every language must provide a scheme); the
+    /// oracle's `LowlevelError` for an unknown style is carried as `Err`
+    /// with the same message text.
+    fn set_comment_style(&mut self, nm: &str) -> Result<(), String>;
+}
+
+// ===========================================================================
+// Per-Architecture printer registry (architecture.hh:205-206 print/printlist
+// storage mirror)
+// ===========================================================================
+
+/// One architecture's printer list plus the index of its current printer.
+/// Storage mirror of `Architecture::printlist` /
+/// `Architecture::print` (architecture.hh:206/205): the oracle holds a
+/// `vector<PrintLanguage*>` where `print` points at one element (the ctor
+/// pushes the default printer and points `print` at it, architecture.cc:
+/// 171-172; `setPrintLanguage` pushes new languages and re-points,
+/// architecture.cc:414-432).
+struct PrintlistState {
+    /// The registered printers, in registration order.
+    printers: Vec<Arc<RwLock<Box<dyn PrintLanguage>>>>,
+    /// Index into `printers` of the current printer (oracle `print`).
+    current: Option<usize>,
+}
+
+thread_local! {
+    // RUGRA-GLUE: thread-local registry keyed by architecture identity.
+    // The oracle stores the printer pointers INSIDE the Architecture
+    // object (architecture.hh:206); Rugra cannot: the canonical-Factory
+    // static in funcdata.rs pins `Architecture: Send + Sync`, while every
+    // printer is !Send (Rc-heavy shared types + `dyn Emit` — probe-tested
+    // 2026-09-27). The same constraint led the TypeFactory per-Architecture
+    // work to a thread-local registry (typefactory.rs CURRENT_ARCH_TYPES);
+    // this follows that precedent, keyed by an explicit per-Architecture
+    // id (not last-publisher-wins) so two sequentially registered
+    // architectures on one thread reset exactly their own printers, as the
+    // oracle's per-object vector does (architecture.cc:1443-1444).
+    static ARCH_PRINTLISTS: std::cell::RefCell<std::collections::HashMap<u64, PrintlistState>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+// Ghidra: architecture.cc:171-172 Architecture::Architecture (printlist.push_back(print))
+// + architecture.cc:431 setPrintLanguage (printlist.push_back(print))
+/// Register `printer` with the architecture identified by `arch_key` and
+/// make it the current printer (both oracle push sites — the ctor's
+/// default build and `setPrintLanguage`'s newly built language — push and
+/// immediately make current). Returns the shared handle: registration
+/// keeps a clone for the registry, the caller keeps this one for concrete
+/// `PrintC` work, and option appliers reach the same printer through
+/// [`printlist_current`] exactly as `glb->print` does (options.cc:526).
+pub fn register_print_language(
+    arch_key: u64,
+    printer: Box<dyn PrintLanguage>,
+) -> Arc<RwLock<Box<dyn PrintLanguage>>> {
+    let handle = Arc::new(RwLock::new(printer));
+    ARCH_PRINTLISTS.with(|slot| {
+        let mut lists = slot.borrow_mut();
+        let state = lists.entry(arch_key).or_insert(PrintlistState {
+            printers: Vec::new(),
+            current: None,
+        });
+        state.printers.push(Arc::clone(&handle));
+        state.current = Some(state.printers.len() - 1);
+    });
+    handle
+}
+
+// Ghidra: architecture.hh:205 print — current-printer accessor
+/// The architecture's current printer (`glb->print`), if one is
+/// registered. `None` is the pre-registration state the oracle's
+/// constructor-time build (architecture.cc:171-172) cannot occupy.
+pub fn printlist_current(arch_key: u64) -> Option<Arc<RwLock<Box<dyn PrintLanguage>>>> {
+    ARCH_PRINTLISTS.with(|slot| {
+        let lists = slot.borrow();
+        lists
+            .get(&arch_key)
+            .and_then(|state| state.current.map(|idx| Arc::clone(&state.printers[idx])))
+    })
+}
+
+// Ghidra: architecture.hh:206 printlist — list-size observation
+/// Number of printers registered with the architecture
+/// (`printlist.size()`).
+pub fn printlist_len(arch_key: u64) -> usize {
+    ARCH_PRINTLISTS.with(|slot| {
+        let lists = slot.borrow();
+        lists.get(&arch_key).map(|s| s.printers.len()).unwrap_or(0)
+    })
+}
+
+// Ghidra: architecture.cc:1443-1444 Architecture::resetDefaults loop
+/// Reset every printer registered with the architecture — the
+/// `for(int4 i=0;i<printlist.size();++i) printlist[i]->resetDefaults();`
+/// loop, invoked from [`crate::arch::Architecture::reset_defaults`].
+pub fn printlist_reset_defaults(arch_key: u64) {
+    ARCH_PRINTLISTS.with(|slot| {
+        let lists = slot.borrow();
+        let Some(state) = lists.get(&arch_key) else {
+            return;
+        };
+        for printer in &state.printers {
+            printer
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .reset_defaults();
+        }
+    });
+}
+
+// Ghidra: architecture.cc:200-201 ~Architecture (printlist teardown half)
+/// Remove the architecture's registry entry (the printers themselves stay
+/// alive through their `Arc` handles — the oracle's `delete` loop is
+/// replaced by shared ownership, since the registering driver outlives
+/// or coexists with the architecture).
+pub(crate) fn unpublish_printlist(arch_key: u64) {
+    ARCH_PRINTLISTS.with(|slot| {
+        slot.borrow_mut().remove(&arch_key);
+    });
 }
 
 // ===========================================================================

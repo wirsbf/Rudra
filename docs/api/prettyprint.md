@@ -1,5 +1,24 @@
 # `prettyprint.rs` API Reference
 
+## 2026-09-27：PRINTC-PRINTLIST-WIRING-0001 — Emit::resetDefaults/getMaxLineSize 虚面（Lane PCHOVER2）
+
+`Emit` trait 新增两方法（PRINTC0004 emitter-reset handover 的承接面）：
+
+- `reset_defaults`（prettyprint.hh:424 基虚）：基语义=`resetDefaultsInternal`
+  （`indentincrement=2`，hh:103）；Rust 纯文本 emitter 无跨文档打印选项（indent
+  态为 per-document、由 `clear` 复位），默认实现=结构性 no-op。`EmitPrettyPrint`
+  覆写（prettyprint.cc:1237-1242）：lowlevel 半吸收（Rust `EmitNoMarkup` 无
+  `indentincrement` 字段）+ 自身 `indentincrement=2` +
+  `resetDefaultsPrettyPrint`=`setMaxLineSize(100)`（hh:1066；连带重整
+  scan/tok 队列与 `clear`，cc:1225-1234）。消费点=`PrintC::reset_defaults`
+  首行（printlanguage.cc:674 `emit->resetDefaults();`）。
+- `get_max_line_size`（hh:409 基虚返回 -1；`EmitPrettyPrint` 覆写 hh:1109 返回
+  `maxlinesize`）。
+
+另增 `EmitPrettyPrint::debug_lowlevel_output_ref`（RUGRA-GLUE 观测通道，
+`EmitNoMarkup::debug_get_output_ref` 同族）：不消费 emitter 读 lowlevel 已提交
+字节——活体 printer 的 fixture 观测面（printc_printlist_wiring_1204 render 通道）。
+
 ## 2026-09-26：GEN4-SQ-DUPDECL-NUMBERING-0001 — mirror 面整体跳过声明注入臂
 
 `post_process_output_legacy` 的两个声明注入臂（`backfill_missing_locals` 的前缀猜型

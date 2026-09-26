@@ -398,10 +398,30 @@ impl ArchOption for OptionCommentStyle {
         "commentstyle"
     }
     // Ghidra: options.cc:523 OptionCommentStyle::apply
-    fn apply(&self, _arch: &mut Architecture, p1: &str, _p2: &str, _p3: &str) -> String {
+    fn apply(&self, arch: &mut Architecture, p1: &str, _p2: &str, _p3: &str) -> String {
         // Ghidra accepts "/* */" (C), "// " (C++/shell), "/* **/" (header),
         // "/** */" (JavaDoc) - validated by printlanguage.
-        format!("Comment style set to {p1}")
+        // options.cc:526: glb->print->setCommentStyle(p1); — the current
+        // printer, reached through the architecture's printer registry
+        // (architecture.hh:205/206 print/printlist).
+        let Some(handle) = arch.print_language_current() else {
+            // Pre-registration state: the oracle's constructor-time build
+            // (architecture.cc:171-172) always has a printer, so Ghidra
+            // cannot occupy this state; report it as the exception the
+            // oracle-shaped route would surface instead of silently
+            // succeeding.
+            return "LowlevelError: no print language registered with the architecture".to_string();
+        };
+        let mut printer = handle
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match printer.set_comment_style(p1) {
+            // options.cc:527: return "Comment style set to "+p1;
+            Ok(()) => format!("Comment style set to {p1}"),
+            // setCommentStyle's throw LowlevelError (printc.cc:2359-2360)
+            // propagates out of apply through OptionDatabase::set.
+            Err(msg) => format!("LowlevelError: {msg}"),
+        }
     }
 }
 
@@ -1395,6 +1415,87 @@ mod tests {
 
     fn make_arch() -> Architecture {
         Architecture::new()
+    }
+
+    // PRINTC-PRINTLIST-WIRING-0001: options.cc:526
+    // `glb->print->setCommentStyle(p1)` — the option routes to the
+    // architecture's current printer through the printlist registry.
+    #[test]
+    fn test_comment_style_routes_to_registered_printer() {
+        use crate::prettyprint::{Emit, EmitNoMarkup};
+        use crate::printlanguage::PrintLanguage as _;
+
+        fn rendered_comment(
+            handle: &std::sync::Arc<
+                std::sync::RwLock<Box<dyn crate::printlanguage::PrintLanguage>>,
+            >,
+        ) -> String {
+            let mut printer = handle
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            // Slice the delta: the emitter buffer accumulates across calls.
+            let before = printer
+                .get_emit()
+                .as_any_mut()
+                .and_then(|any| any.downcast_ref::<EmitNoMarkup>())
+                .map(|emit| emit.debug_get_output_ref().len())
+                .unwrap_or(0);
+            printer.emit_line_comment(0, "routed body");
+            printer
+                .get_emit()
+                .as_any_mut()
+                .and_then(|any| any.downcast_ref::<EmitNoMarkup>())
+                .map(|emit| emit.debug_get_output_ref()[before..].to_string())
+                .unwrap_or_default()
+                .trim_start_matches(['\n', ' '])
+                .to_string()
+        }
+
+        let mut arch = make_arch();
+        // Pre-registration: oracle cannot occupy this state (ctor builds a
+        // printer, architecture.cc:171-172); the message reports it.
+        let mut db = OptionDatabase::new();
+        let msg = db
+            .set(&mut arch, "commentstyle", "cplusplus", "", "")
+            .expect("commentstyle registered");
+        assert!(msg.starts_with("LowlevelError: no print language registered"));
+
+        // Register the printer (the architecture.cc:171-172 mirror).
+        let handle = arch.register_print_language(Box::new(crate::printc::PrintC::new(Box::new(
+            EmitNoMarkup::new(),
+        ))));
+        // Default style is C (printc.cc:1594 setCStyleComments).
+        assert!(rendered_comment(&handle).starts_with("/* "));
+        let msg = db
+            .set(&mut arch, "commentstyle", "cplusplus", "", "")
+            .expect("commentstyle registered");
+        // options.cc:527: "Comment style set to "+p1
+        assert_eq!(msg, "Comment style set to cplusplus");
+        // The routed state is observable on the SAME printer object the
+        // registrant holds (printc.cc:2357 setCPlusPlusStyleComments ->
+        // setCommentDelimeter("// ","",true)): the next rendered comment
+        // opens with "// ".
+        assert!(
+            rendered_comment(&handle).starts_with("// "),
+            "route did not reach printer"
+        );
+        // An unknown style surfaces the oracle's LowlevelError text
+        // (printc.cc:2359-2360) and leaves the printer untouched.
+        let msg = db
+            .set(&mut arch, "commentstyle", "badstyle", "", "")
+            .expect("commentstyle registered");
+        assert_eq!(
+            msg,
+            "LowlevelError: Unknown comment style. Use \"c\" or \"cplusplus\""
+        );
+        assert!(rendered_comment(&handle).starts_with("// "));
+        // Architecture::resetDefaults (architecture.cc:1443-1444) resets
+        // every registered printer: the style returns to C.
+        arch.reset_defaults();
+        assert!(
+            rendered_comment(&handle).starts_with("/* "),
+            "printlist reset loop did not reach printer"
+        );
     }
 
     #[test]

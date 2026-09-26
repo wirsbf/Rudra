@@ -1,5 +1,33 @@
 ﻿# `printlanguage.rs` API Reference
 
+## 2026-09-27：PRINTC-PRINTLIST-WIRING-0001 — trait 虚面补齐 + per-Architecture printlist 注册表（Lane PCHOVER2）
+
+**trait 虚面**（PRINTC0004 handover 收口）：`PrintLanguage` trait 新增两个
+REQUIRED 方法——`get_name`（printlanguage.hh:448 基类 inline getter，`name`
+字段 printlanguage.hh:261/构造 printlanguage.cc:69）与 `set_comment_style`
+（printlanguage.hh:478 纯虚；oracle LowlevelError 以 `Err(String)` 同文承载）。
+唯一实现者 `PrintC` 补齐三转发（get_name/set_comment_style/reset_defaults），
+修复 `reset_defaults` 此前吃 trait 默认空体的虚分派缺口。
+
+**per-Architecture printlist 注册表**（architecture.hh:205-206 print/printlist
+的存储镜像；`Architecture` 侧 API 见 arch.md 同日节）：线程局部
+identity-keyed（`ARCH_PRINTLISTS: HashMap<u64, PrintlistState>`，字段键
+`Architecture::print_registry_key`），提供
+`register_print_language`（architecture.cc:171-172/431 push-并-置-current）、
+`printlist_current`（`glb->print` 读通道，options.cc:526 消费）、
+`printlist_len`、`printlist_reset_defaults`（architecture.cc:1443-1444 循环体）、
+`unpublish_printlist`（Drop 镜像，architecture.cc:200-201 teardown 半）。
+
+**为何线程局部而非 struct 字段**（TFSINGLE 先例，typefactory.rs
+CURRENT_ARCH_TYPES 同款约束）：funcdata.rs 的 canonical-Factory static
+（`OnceLock<Arc<Architecture>>`）钉死 `Architecture: Send+Sync`，而一切 printer
+天生 !Send（Rc 型共享 `AddrSpaceInner`/`JoinRecordTables`/`FspecEntryTable` +
+`dyn Emit`，2026-09-27 probe 实证）；oracle 的裸指针 vector 字段进 struct 必须引
+入 unsafe 或破坏 static。identity-keyed（非 last-publisher-wins）保证同线程两个
+Architecture 各自 reset 恰好自己的 printer（oracle per-object vector 语义）。
+共享句柄为 `Arc<RwLock<Box<dyn PrintLanguage>>>`：注册方留用同一对象做具体
+PrintC 工作，option 施加方经 current 通道达之——与 `glb->print` 可观察等价。
+
 ## 2026-08-28：Atom 元数据直达 emitter
 
 `rpn_emit_atom` 的 `VarToken` 分支现在把 `Atom` 中的 highlight、Varnode id 与 op id
