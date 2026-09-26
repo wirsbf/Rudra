@@ -1,0 +1,63 @@
+{
+ "schema_version": 2,
+ "fixture_id": "RULEACTION-RS0-RELGATE-0001",
+ "overall_status": "MATCH: (ticket-domain projection: RuleStructOffset0::applyOp formal relative-pointer branch ruleaction.cc:6695-6725, 7 cases)",
+ "status_note": "RULEADJ2 lane B2 fixture for the RuleStructOffset0 isFormalPointerRel arm (RULEACTION-RS0-RELGATE-0001 residual: the LOAD/STORE relative-pointer rewrite was previously omitted entirely; the plain STRUCT/ARRAY path cc:6726-6755 was already faithful). Cases: field-start rewrite (rel byte offset 4 = field b start, getSubType newoff 0 → PTRSUB(ptr,#0) rewires the LOAD directly, cc:6721-6722), interior-offset back-fill (offset 6 inside field b, newoff 2 → PTRSUB(ptr,#-2 & calc_mask(8)) + INT_ADD(ptrsub,#2) chained before the LOAD, cc:6716-6720), wordsize scaling (ws=2: byteToAddress(2,2)=1 → PTRSUB(#-1 & mask)+INT_ADD(#1), cc:6709/space.hh:523), the STORE form (movesize from in(2), cc:6684-6686), the evaluateThruParent(0) gate rejection (pointed-to type is the nonempty parent struct → type.cc:2591-2592 returns false → the plain path fires PTRSUB(#0) on ptrto), subtype-too-small (field a 4 bytes < 8-byte move, cc:6708), and past-parent (offset 8 folds to 8 NOT< 8 → gate false → plain path on int ptrto → 0).",
+ "decisive_semantics": {
+  "reference_output_parameters": "applyOp(op,data) mutates the Funcdata by reference: newOpBefore inserts PTRSUB (and INT_ADD when newoff!=0) before the LOAD/STORE and opSetInput rewrites slot 1; offset/newoff are locals; baseType is REASSIGNED from ptr_to to ptRel->getParent() inside the arm (cc:6696-6697) — the plain path then never sees the rel parent because every reject inside the arm returns 0 outright.",
+  "loop_bounds_traversal_order": "no loops in the arm; gate order is isFormalPointerRel() && evaluateThruParent(0) FIRST (cc:6695), then parent-metatype STRUCT (cc:6698), then getByteOffset() >= parent size (cc:6701), then parent size < movesize (cc:6703), then getSubType null (cc:6707), then subtype size < movesize (cc:6708).",
+  "counter_accumulator_lifecycle": "offset is reused as the negated-address-unit constant (-newoff & calc_mask(ptrVn->getSize()), cc:6710); newoff carries BYTE units out of getSubType and is rescaled to ADDRESS units by byteToAddress(newoff, wordsize) — mixing the two scales would flip the INT_ADD constant between 2 and 1 (ws=2 case pins this).",
+  "sorting_comparison_keys": "all comparisons are strict size/offset inequalities in BYTE units except the folded evaluateThruParent check (uintb & calc_mask(size) vs parent size); calc_mask uses ptrVn->getSize() (8) both for the fold and the negation."
+ },
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "decompiler_cpp_tree": "b02e230a539c65de14e50f357d0ba834d8184f4f",
+  "x86_language_tree": "84265e1e6fe7ac9725367b57fb861253e4915984",
+  "decompiler_makefile_blob": "ca0719fa5f17aabd14c52f40ed8b030f54d2aac6"
+ },
+ "architecture": "x86:LE:64:default",
+ "compiler_spec": {
+  "id": "gcc",
+  "path": "sleigh_specs/x86-64-gcc.cspec"
+ },
+ "analysis_options": "none: direct RuleStructOffset0::applyOp harness on a real BfdArchitecture Funcdata with startTypeRecovery() set; no decompilation pipeline options",
+ "rugra_source": {
+  "base_commit": "418ac8f3",
+  "note": "isFormalPointerRel arm implementation commit (RULEACTION-RS0-RELGATE-0001, Lane RULEADJ2); bilateral normal-mode byte equality proven on this tree"
+ },
+ "comparand": {
+  "cpp_fixture_sha256": "6a8506f4c1706f4958f0ad384f3171bd9b534c88854ebe98e9b5f0a08e37ddf7",
+  "rust_fixture_sha256": "c42e6b16c21b6f312a896e0d50a50aef370d5fa70d01490b0d9d14fa589a44fe",
+  "oracle_record_sha256": "c66826141be0a8e312d7a8be7c1c8206e8140d7d3f7bb9bb1707d93e0e7cbc41",
+  "runner_sha256": "0d60e585231e3b6996f34a2d5b5148eba88b55f03c6554d3151edf6524114760"
+ },
+ "expected_results": {
+  "normal_stdout_sha256": "c66826141be0a8e312d7a8be7c1c8206e8140d7d3f7bb9bb1707d93e0e7cbc41",
+  "normal_stderr": "empty both sides",
+  "ghidra_exit_code": 0,
+  "rugra_exit_code": 0,
+  "case_order": [
+   "rel_field_start",
+   "rel_interior_int_add",
+   "rel_wordsize2",
+   "rel_store_interior",
+   "rel_thru_parent_gate",
+   "rel_subtype_too_small",
+   "rel_offset_past_parent"
+  ]
+ },
+ "coverage": {
+  "rel_arm_fire": {
+   "status": "MATCH",
+   "covers": "field-start direct PTRSUB(#0) rewire; interior PTRSUB(#-newoff&mask)+INT_ADD(newoff) back-fill; wordsize-2 scaling; STORE form with movesize from in(2)",
+   "residual_todo_ids": []
+  },
+  "rel_arm_gates": {
+   "status": "MATCH",
+   "covers": "evaluateThruParent(0) false with struct ptrto (plain path contrast); offset folding past parent; subtype too small",
+   "residual_todo_ids": []
+  }
+ },
+ "residual_todo_ids": []
+}

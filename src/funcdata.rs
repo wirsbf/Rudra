@@ -3750,6 +3750,25 @@ impl Funcdata {
         self.structure_reset();
     }
 
+    // RUGRA-GLUE: public exposure of `CloneBlockOps::cloneExpression`
+    // (funcdata.hh:646; impl funcdata_block.cc:1024-1040). Ghidra declares the
+    // whole CloneBlockOps class public in funcdata.hh and RuleConditionalMove
+    // instantiates it directly (ruleaction.cc:9334-9335
+    // `CloneBlockOps cloner(data); resvn = cloner.cloneExpression(ops, insertop);`);
+    // the Rust struct is module-private to funcdata.rs, so this thin
+    // instantiation wrapper is the module-boundary mirror of that public class
+    // surface (RULEACTION-CLONEBLOCKOPS-0001). No behavior beyond delegating.
+    pub fn clone_block_expression(
+        &mut self,
+        ops: &[crate::op::PcodeOpRef],
+        follow_op: &crate::op::PcodeOpRef,
+    ) -> crate::error::Result<
+        Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>>,
+    > {
+        let mut cloner = CloneBlockOps::new();
+        cloner.clone_expression(self, ops, follow_op)
+    }
+
     // Ghidra: funcdata_varnode.cc:938 Funcdata::syncVarnodesWithSymbols
     /// Update Varnode properties based on (new) Symbol information. Faithful
     /// to `Funcdata::syncVarnodesWithSymbols`

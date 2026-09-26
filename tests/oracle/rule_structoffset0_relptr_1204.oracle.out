@@ -1,0 +1,36 @@
+case=rel_field_start|apply=1
+  op=1@0x820010|nin=1|in0=c|8|0x100|in1=_|0|0x0|in2=_|0|0x0|out=8
+  op=2@0x820040|nin=2|in0=c|8|0x1|in1=w|8|0x1000000c|in2=_|0|0x0|out=4
+  op=66@0x820040|nin=2|in0=w|8|0x10000000|in1=c|8|0x0|in2=_|0|0x0|out=8
+endcase
+case=rel_interior_int_add|apply=1
+  op=1@0x820110|nin=1|in0=c|8|0x100|in1=_|0|0x0|in2=_|0|0x0|out=8
+  op=2@0x820140|nin=2|in0=c|8|0x1|in1=w|8|0x10000028|in2=_|0|0x0|out=4
+  op=66@0x820140|nin=2|in0=w|8|0x10000014|in1=c|8|0xfffffffffffffffe|in2=_|0|0x0|out=8
+  op=19@0x820140|nin=2|in0=w|8|0x10000020|in1=c|8|0x2|in2=_|0|0x0|out=8
+endcase
+case=rel_wordsize2|apply=1
+  op=1@0x820210|nin=1|in0=c|8|0x100|in1=_|0|0x0|in2=_|0|0x0|out=8
+  op=2@0x820240|nin=2|in0=c|8|0x1|in1=w|8|0x10000044|in2=_|0|0x0|out=4
+  op=66@0x820240|nin=2|in0=w|8|0x10000030|in1=c|8|0xffffffffffffffff|in2=_|0|0x0|out=8
+  op=19@0x820240|nin=2|in0=w|8|0x1000003c|in1=c|8|0x1|in2=_|0|0x0|out=8
+endcase
+case=rel_store_interior|apply=1
+  op=1@0x820310|nin=1|in0=c|8|0x100|in1=_|0|0x0|in2=_|0|0x0|out=8
+  op=3@0x820340|nin=3|in0=c|8|0x1|in1=w|8|0x1000005c|in2=c|4|0x5a|out=-1
+  op=66@0x820340|nin=2|in0=w|8|0x1000004c|in1=c|8|0xfffffffffffffffe|in2=_|0|0x0|out=8
+  op=19@0x820340|nin=2|in0=w|8|0x10000054|in1=c|8|0x2|in2=_|0|0x0|out=8
+endcase
+case=rel_thru_parent_gate|apply=1
+  op=1@0x820410|nin=1|in0=c|8|0x100|in1=_|0|0x0|in2=_|0|0x0|out=8
+  op=2@0x820440|nin=2|in0=c|8|0x1|in1=w|8|0x10000070|in2=_|0|0x0|out=4
+  op=66@0x820440|nin=2|in0=w|8|0x10000064|in1=c|8|0x0|in2=_|0|0x0|out=8
+endcase
+case=rel_subtype_too_small|apply=0
+  op=1@0x820510|nin=1|in0=c|8|0x100|in1=_|0|0x0|in2=_|0|0x0|out=8
+  op=2@0x820540|nin=2|in0=c|8|0x1|in1=w|8|0x10000078|in2=_|0|0x0|out=8
+endcase
+case=rel_offset_past_parent|apply=0
+  op=1@0x820610|nin=1|in0=c|8|0x100|in1=_|0|0x0|in2=_|0|0x0|out=8
+  op=2@0x820640|nin=2|in0=c|8|0x1|in1=w|8|0x10000088|in2=_|0|0x0|out=4
+endcase

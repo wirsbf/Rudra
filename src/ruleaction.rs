@@ -16997,7 +16997,7 @@ impl Rule for RulePiecePathology {
 ///
 /// Faithful to `RuleConditionalMove` (ruleaction.cc:9390-9558) plus helpers
 /// `checkBoolean` (9259-9276), `gatherExpression` (9287-9316),
-/// `constructBool` (9328-9341).
+/// `constructBool` (9328-9341) and `compareOp` (ruleaction.hh:1433).
 ///
 /// NOTE: This rule is fundamentally block/control-flow driven. The block
 /// in-edge analysis (find the common root block ending in a CBRANCH), the
@@ -17005,11 +17005,11 @@ impl Rule for RulePiecePathology {
 /// paths, the mixed const/non-const paths, and the non-const BOOL_OR/BOOL_AND
 /// paths are all implemented against the available block + op-edit
 /// infrastructure. The non-constant `gatherExpression` collects the op set
-/// faithfully; `constructBool` reproduces the expression only when no cross-
-/// branch op duplication is required (empty op set) — the full
-/// `CloneBlockOps::cloneExpression` (cross-block op cloning) is not yet ported,
-/// so the rare case where the boolean is formed *inside* the branch block still
-/// conservatively no-ops.
+/// faithfully; `constructBool` sorts it with `compareOp` and clones it before
+/// the insertion point via `CloneBlockOps::cloneExpression`
+/// (funcdata_block.cc:1024-1040, exposed as `Funcdata::clone_block_expression`)
+/// — the cross-branch op duplication is fully wired
+/// (RULEACTION-CLONEBLOCKOPS-0001).
 pub struct RuleConditionalMove;
 
 impl RuleConditionalMove {
@@ -17048,10 +17048,11 @@ impl RuleConditionalMove {
     /// empty when nothing needs duplication (constant/free/input/pre-branch
     /// values, or `root==branch`).
     ///
-    /// Rugra does not implement `CloneBlockOps::cloneExpression` (the cross-block
-    /// op duplicator). Callers that get a non-empty `ops` therefore cannot build
-    /// the cloned expression and must bail. The empty-list case — which covers
-    /// values formed before the branch — works without cloning.
+    /// A non-empty op list is consumed by `constructBool`, which clones the
+    /// ops before the insertion point via
+    /// `CloneBlockOps::cloneExpression` (`Funcdata::clone_block_expression`)
+    /// — the cross-branch op duplication path (RULEACTION-CLONEBLOCKOPS-0001).
+    // Ghidra: ruleaction.cc:9287 RuleConditionalMove::gatherExpression
     // Ghidra: ruleaction.cc:9287 RuleConditionalMove::gatherExpression
     fn gather_expression(
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
@@ -17125,22 +17126,54 @@ impl RuleConditionalMove {
     /// Faithful to `constructBool` (ruleaction.cc:9328-9341). Returns the
     /// Varnode representing the (possibly reproduced) boolean expression.
     ///
-    /// Ghidra uses `CloneBlockOps::cloneExpression` to duplicate the `ops` set
-    /// before `insertop`. Rugra has no such cross-block cloner, so:
-    ///   - `ops` empty   → return `vn` itself (faithful, no cloning needed).
-    ///   - `ops` non-empty → return None (cannot clone); caller bails.
+    /// `ops` is sorted in place by [`Self::compare_op`] (cc:9333), then the
+    /// expression is cloned before `insertop` via
+    /// `CloneBlockOps::cloneExpression` (cc:9334-9335, exposed as
+    /// `Funcdata::clone_block_expression`). An empty `ops` returns `vn`
+    /// itself (cc:9337-9339). `cloneExpression`'s
+    /// `LowlevelError("No expression to clone")` (funcdata_block.cc:1035-1036)
+    /// propagates as `Err`, mirroring the oracle throw path through
+    /// `RuleConditionalMove::applyOp` up to the Action loop.
     // Ghidra: ruleaction.cc:9328 RuleConditionalMove::constructBool
     fn construct_bool(
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
-        ops: &[std::sync::Arc<std::sync::RwLock<PcodeOp>>],
-        _insertop: &crate::op::PcodeOpRef,
-        _data: &mut Funcdata,
-    ) -> Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> {
-        if ops.is_empty() {
-            return Some(vn.clone());
+        ops: &mut [std::sync::Arc<std::sync::RwLock<PcodeOp>>],
+        insertop: &crate::op::PcodeOpRef,
+        data: &mut Funcdata,
+    ) -> Result<Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>>> {
+        if !ops.is_empty() {
+            // cc:9333: sort(ops.begin(),ops.end(),compareOp) — within-block
+            // order so the clones are rebuilt in original evaluation order.
+            ops.sort_by(|a, b| {
+                if Self::compare_op(a, b) {
+                    std::cmp::Ordering::Less
+                } else if Self::compare_op(b, a) {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            });
+            // cc:9334-9335: CloneBlockOps cloner(data);
+            //          resvn = cloner.cloneExpression(ops, insertop);
+            let refs: Vec<crate::op::PcodeOpRef> =
+                ops.iter().map(|a| crate::op::PcodeOpRef(a.clone())).collect();
+            return data.clone_block_expression(&refs, insertop);
         }
-        // CloneBlockOps not ported: cannot reproduce the cross-branch expression.
-        None
+        // cc:9337-9339: resvn = vn.
+        Ok(Some(vn.clone()))
+    }
+
+    /// Faithful to `RuleConditionalMove::compareOp`
+    /// (ruleaction.hh:1433): `op0->getSeqNum().getOrder() <
+    /// op1->getSeqNum().getOrder()` — strict-weak order on the within-block
+    /// execution order only (SeqNum.order, address.hh:142), NOT the immutable
+    /// creation time. Sole consumer: `constructBool`'s
+    /// `sort(ops,compareOp)` (ruleaction.cc:9333).
+    // Ghidra: ruleaction.hh:1433 RuleConditionalMove::compareOp
+    fn compare_op(
+        op0: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, op1: &std::sync::Arc<std::sync::RwLock<PcodeOp>>,
+    ) -> bool {
+        op0.read().unwrap().get_seq_num().get_order() < op1.read().unwrap().get_seq_num().get_order()
     }
 }
 
@@ -17262,8 +17295,8 @@ impl Rule for RuleConditionalMove {
 
         // Non-const branch (ruleaction.cc:9447-9491): both bool0 and bool1 are
         // non-constant. Produces a BOOL_OR / BOOL_AND of the CBRANCH's boolean
-        // against the reconstructed operands. Requires constructBool, which (in
-        // Rugra) only succeeds when no cross-branch op duplication is needed.
+        // against the reconstructed operands (constructBool clones any
+        // cross-branch op set via CloneBlockOps::cloneExpression).
         if !is_bool0_const && !is_bool1_const {
             if std::sync::Arc::ptr_eq(&rootblock, &inblock0) {
                 // inblock0 == rootblock0 path (ruleaction.cc:9448-9467).
@@ -17286,9 +17319,13 @@ impl Rule for RuleConditionalMove {
                 fd.op_uninsert(&op_ref);
                 fd.op_set_opcode(&op_ref, opc);
                 fd.op_insert_begin(&op_ref, &bb);
-                let firstvn = match Self::construct_bool(&bool0, &op_list0, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                let firstvn = match Self::construct_bool(&bool0, &mut op_list0, &op_ref, fd)? {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
                 };
-                let secondvn = match Self::construct_bool(&bool1, &op_list1, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                let secondvn = match Self::construct_bool(&bool1, &mut op_list1, &op_ref, fd)? {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
                 };
                 fd.op_set_input(&op_ref, firstvn, 0);
                 fd.op_set_input(&op_ref, secondvn, 1);
@@ -17314,9 +17351,13 @@ impl Rule for RuleConditionalMove {
                 fd.op_uninsert(&op_ref);
                 fd.op_set_opcode(&op_ref, opc);
                 fd.op_insert_begin(&op_ref, &bb);
-                let firstvn = match Self::construct_bool(&bool1, &op_list1, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                let firstvn = match Self::construct_bool(&bool1, &mut op_list1, &op_ref, fd)? {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
                 };
-                let secondvn = match Self::construct_bool(&bool0, &op_list0, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                let secondvn = match Self::construct_bool(&bool0, &mut op_list0, &op_ref, fd)? {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
                 };
                 fd.op_set_input(&op_ref, firstvn, 0);
                 fd.op_set_input(&op_ref, secondvn, 1);
@@ -17369,7 +17410,9 @@ impl Rule for RuleConditionalMove {
                 None => return Ok(action_status::NO_CHANGE),
             };
             let boolvn = if needcomplement { fd.op_bool_negate(boolvn, &op_ref, false) } else { boolvn };
-            let body1 = match Self::construct_bool(&bool1, &op_list1, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+            let body1 = match Self::construct_bool(&bool1, &mut op_list1, &op_ref, fd)? {
+                Some(v) => v,
+                None => return Ok(action_status::NO_CHANGE),
             };
             fd.op_set_input(&op_ref, boolvn, 0);
             fd.op_set_input(&op_ref, body1, 1);
@@ -17384,7 +17427,9 @@ impl Rule for RuleConditionalMove {
                 None => return Ok(action_status::NO_CHANGE),
             };
             let boolvn = if needcomplement { fd.op_bool_negate(boolvn, &op_ref, false) } else { boolvn };
-            let body0 = match Self::construct_bool(&bool0, &op_list0, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+            let body0 = match Self::construct_bool(&bool0, &mut op_list0, &op_ref, fd)? {
+                Some(v) => v,
+                None => return Ok(action_status::NO_CHANGE),
             };
             fd.op_set_input(&op_ref, boolvn, 0);
             fd.op_set_input(&op_ref, body0, 1);
@@ -19935,10 +19980,10 @@ impl<'a> AddTreeState<'a> {
 /// inserts a `PTRSUB(ptr, 0)` to drill down to that component. The formal
 /// relative-pointer branch (ruleaction.cc:6695-6725: `isFormalPointerRel() &&
 /// evaluateThruParent(0)` → parent PTRSUB walk via `getByteOffset` +
-/// `getSubType` + `byteToAddress(newoff, wordsize)`) is NOT yet wired — the
-/// rel infrastructure has landed (`AddTreeState::ptr_rel_state`,
-/// `pointer_rel_evaluate_thru_parent`), the branch itself is pending under
-/// TODO RULEACTION-RS0-RELGATE-0001; the plain STRUCT/ARRAY path
+/// `getSubType` + `byteToAddress(newoff, wordsize)`, with the INT_ADD
+/// back-offset, `inheritResolution` and `setStopTypePropagation`) is wired via
+/// `AddTreeState::ptr_rel_state` + `pointer_rel_evaluate_thru_parent`
+/// (RULEACTION-RS0-RELGATE-0001); the plain STRUCT/ARRAY path
 /// (ruleaction.cc:6726-6755) is faithful.
 pub struct RuleStructOffset0;
 
@@ -19991,15 +20036,105 @@ impl Rule for RuleStructOffset0 {
         };
         let base_type = tp.ptr_to.clone();
 
-        // The formal relative-pointer branch (ruleaction.cc:6695-6725) is
-        // pending under TODO RULEACTION-RS0-RELGATE-0001: Rugra's rel
-        // infrastructure has landed (`AddTreeState::ptr_rel_state`,
-        // `pointer_rel_evaluate_thru_parent`), but this LOAD/STORE arm —
-        // parent PTRSUB via getByteOffset + getSubType +
-        // byteToAddress(newoff, wordsize), with an INT_ADD back-offset,
-        // inheritResolution and setStopTypePropagation — is not yet wired.
-        // Fall straight to the plain STRUCT/ARRAY path
-        // (ruleaction.cc:6726-6755).
+        // Formal relative-pointer branch (ruleaction.cc:6695-6725,
+        // RULEACTION-RS0-RELGATE-0001): gate on
+        // `ct->isFormalPointerRel() && ((TypePointerRel *)ct)->evaluateThruParent(0)`.
+        // `AddTreeState::ptr_rel_state` mirrors isFormalPointerRel()
+        // (formal = IS_PTRREL without HAS_STRIPPED; ephemeral rel pointers from
+        // propagateAddIn2Out are excluded) and exposes
+        // (getAddressOffset, getByteOffset, parent, ptrto, wordsize).
+        if let Some((_rel_addr_off, rel_byte_off, rel_parent, rel_ptrto, rel_wordsize)) =
+            AddTreeState::ptr_rel_state(&ct)
+        {
+            // cc:6695: evaluateThruParent(0) — 0 in ADDRESS units folded
+            // against the stored BYTE offset (type.cc:2587-2595).
+            if crate::type_system::datatype::pointer_rel_evaluate_thru_parent(
+                rel_ptrto.as_ref(),
+                rel_parent.as_ref(),
+                rel_wordsize as usize,
+                rel_byte_off,
+                ct.get_size(),
+                0,
+            ) {
+                // cc:6696-6699: baseType = ptRel->getParent(); must be a STRUCT.
+                let rel_base = rel_parent.clone();
+                if rel_base.get_metatype() != TypeMetatype::Struct {
+                    return Ok(action_status::NO_CHANGE);
+                }
+                // cc:6700-6702: offset = ptRel->getByteOffset() (BYTE units);
+                // reject when at/past the parent's end.
+                let rel_offset = rel_byte_off;
+                if rel_offset >= rel_base.get_size() as i64 {
+                    return Ok(action_status::NO_CHANGE);
+                }
+                // cc:6703-6704: parent smaller than the move → reject.
+                if (rel_base.get_size() as i64) < movesize {
+                    return Ok(action_status::NO_CHANGE); // Moving > entire structure.
+                }
+                // cc:6706-6708: subType = baseType->getSubType(offset,&newoff).
+                let (sub_type, newoff) = rel_base.get_sub_type(rel_offset);
+                let sub = match sub_type { Some(s) => s, None => return Ok(action_status::NO_CHANGE) ,
+                };
+                if (sub.get_size() as i64) < movesize {
+                    return Ok(action_status::NO_CHANGE); // Subtype too small.
+                }
+                // cc:6709: newoff = AddrSpace::byteToAddress(newoff, wordsize)
+                // (space.hh:523 unsigned divide, ADDRESS units).
+                let newoff = crate::space::AddrSpace::byte_to_address(
+                    newoff as u64,
+                    rel_wordsize as u32,
+                ) as i64;
+                let ptr_size = ptr_vn.read().unwrap().get_size();
+                // cc:6710: offset = -newoff & calc_mask(ptrVn->getSize()).
+                let neg_off = (newoff as u64).wrapping_neg() & crate::address::calc_mask(ptr_size);
+                let op_ref = crate::op::PcodeOpRef(op_arc.clone());
+                // cc:6712: newop = data.newOpBefore(op, PTRSUB, ptrVn,
+                // newConstant(ptrSize, offset)) — newOpBefore sizes the output
+                // from in1 = ptrVn (funcdata_op.cc:665).
+                let base_addr = op_arc.read().unwrap().get_addr();
+                let neg_const = fd.new_constant(ptr_size, neg_off);
+                let newop = fd.new_op(2, base_addr);
+                fd.op_set_opcode(&newop, OpCode::CPUI_PTRSUB);
+                fd.new_unique_out(ptr_size, &newop);
+                fd.op_set_input(&newop, ptr_vn.clone(), 0);
+                fd.op_set_input(&newop, neg_const, 1);
+                fd.op_insert_before(&newop, &op_ref);
+                // cc:6713-6714: if (ptrVn->getType()->needsResolution())
+                //   data.inheritResolution(ptrVn->getType(),newop, 0, op, 1);
+                if let Some(pt) = ptr_vn.read().unwrap().get_type() {
+                    if pt.needs_resolution() {
+                        fd.inherit_resolution(pt.as_ref(), &newop, 0, &op_ref, 1);
+                    }
+                }
+                // cc:6715: newop->setStopTypePropagation().
+                newop.0.write().unwrap().addlflags |=
+                    crate::op::op_addl_flags::STOP_TYPE_PROPAGATION;
+                let new_out = newop.0.read().unwrap().output.clone().unwrap();
+                if newoff != 0 {
+                    // cc:6716-6720: addop = data.newOpBefore(op, INT_ADD,
+                    // newop->getOut(), newConstant(ptrSize, newoff)); then
+                    // opSetInput(op, addop->getOut(), 1). The follow op is the
+                    // LOAD/STORE itself, so the INT_ADD lands between the
+                    // PTRSUB and the load/store.
+                    let add_const = fd.new_constant(ptr_size, newoff as u64);
+                    let addop = fd.new_op(2, base_addr);
+                    fd.op_set_opcode(&addop, OpCode::CPUI_INT_ADD);
+                    fd.new_unique_out(ptr_size, &addop);
+                    fd.op_set_input(&addop, new_out, 0);
+                    fd.op_set_input(&addop, add_const, 1);
+                    fd.op_insert_before(&addop, &op_ref);
+                    let add_out = addop.0.read().unwrap().output.clone().unwrap();
+                    fd.op_set_input(&op_ref, add_out, 1);
+                } else {
+                    // cc:6721-6722: opSetInput(op, newop->getOut(), 1).
+                    fd.op_set_input(&op_ref, new_out, 1);
+                }
+                // cc:6724: return 1.
+                return Ok(action_status::CHANGE);
+            }
+        }
+
+        // Plain STRUCT/ARRAY path (ruleaction.cc:6726-6755).
         let mut offset: i64 = 0;
         match base_type.get_metatype() {
             TypeMetatype::Struct => {
@@ -24597,7 +24732,7 @@ mod tests {
     #[test]
     fn test_conditional_move_construct_bool_no_clone() {
         // constructBool with an empty op list returns the boolean Varnode itself
-        // (ruleaction.cc:9350-9358: resvn = vn when ops is empty). This is the
+        // (ruleaction.cc:9337-9339: resvn = vn when ops is empty). This is the
         // path that fires for values formed before the branch — no cloning.
         let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
         let boolvn = fd
@@ -24608,16 +24743,18 @@ mod tests {
             OpCode::CPUI_BOOL_OR,
         ))));
         // Empty op list → returns the varnode directly.
-        let res = RuleConditionalMove::construct_bool(&boolvn, &[], &op_ref, &mut fd);
+        let res = RuleConditionalMove::construct_bool(&boolvn, &mut [], &op_ref, &mut fd).unwrap();
         assert!(res.is_some());
         assert!(Arc::ptr_eq(&res.unwrap(), &boolvn));
     }
 
     #[test]
-    fn test_conditional_move_construct_bool_needs_clone() {
-        // constructBool with a non-empty op list cannot reproduce the
-        // expression without CloneBlockOps (not yet ported) → returns None.
-        // The caller (applyOp) then bails with NO_CHANGE.
+    fn test_conditional_move_construct_bool_clones_expression() {
+        // constructBool with a non-empty op list sorts it by compareOp
+        // (SeqNum.order, ruleaction.cc:9333) and rebuilds the expression via
+        // CloneBlockOps::cloneExpression (ruleaction.cc:9334-9335): every op
+        // is duplicated before insertop and the output of the LAST cloned op
+        // (highest execution order) is returned (funcdata_block.cc:1038-1039).
         let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
         let boolvn = fd
             .vbank
@@ -24626,13 +24763,91 @@ mod tests {
             SeqNum::new(Address::new(0x1000), 0),
             OpCode::CPUI_BOOL_OR,
         ))));
-        // A dummy op in the list signals cross-branch duplication is required.
-        let dummy_op = Arc::new(RwLock::new(PcodeOp::new(
+        // Expression formed inside the branch: INT_AND(order 0) feeding
+        // INT_OR(order 1). The output varnodes come from the vbank so
+        // buildVarnodeOutput can clone them onto the cloned ops.
+        let and_out = fd
+            .vbank
+            .create_with_space(1, crate::space::AddressSpace::Unique, 0x100);
+        let or_out = fd
+            .vbank
+            .create_with_space(1, crate::space::AddressSpace::Unique, 0x108);
+        let and_op = Arc::new(RwLock::new(PcodeOp::new(
             SeqNum::new(Address::new(0x1000), 1),
             OpCode::CPUI_INT_AND,
         )));
-        let res = RuleConditionalMove::construct_bool(&boolvn, &[dummy_op], &op_ref, &mut fd);
-        assert!(res.is_none());
+        {
+            let mut o = and_op.write().unwrap();
+            o.start.order = 0;
+            o.inrefs = vec![
+                fd.vbank.create_constant(1, 1),
+                fd.vbank.create_constant(1, 0),
+            ];
+            o.output = Some(and_out.clone());
+        }
+        let or_op = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 2),
+            OpCode::CPUI_INT_OR,
+        )));
+        {
+            let mut o = or_op.write().unwrap();
+            o.start.order = 1;
+            o.inrefs = vec![and_out.clone(), fd.vbank.create_constant(1, 1)];
+            o.output = Some(or_out.clone());
+        }
+        // Hand the ops over in REVERSE execution order: the compareOp sort
+        // inside constructBool must put the INT_AND (order 0) first.
+        let mut ops = vec![or_op.clone(), and_op.clone()];
+        let res = RuleConditionalMove::construct_bool(&boolvn, &mut ops, &op_ref, &mut fd)
+            .unwrap()
+            .expect("cloneExpression returns the last clone's output");
+        // The result is a fresh Varnode (clone), not the original output.
+        assert!(!Arc::ptr_eq(&res, &or_out));
+        // Its defining op is the cloned INT_OR (highest order cloned last).
+        let def_opcode = res
+            .read()
+            .unwrap()
+            .get_def()
+            .map(|d| d.read().unwrap().opcode);
+        assert_eq!(def_opcode, Some(OpCode::CPUI_INT_OR));
+        // The input ops were sorted in place: INT_AND now first.
+        assert!(Arc::ptr_eq(&ops[0], &and_op));
+        assert!(Arc::ptr_eq(&ops[1], &or_op));
+        // The clone bank grew by two alive ops with patched constant inputs.
+        let alive_and = fd
+            .obank
+            .alivelist
+            .iter()
+            .filter(|c| c.0.read().unwrap().opcode == OpCode::CPUI_INT_AND)
+            .count();
+        assert_eq!(alive_and, 1);
+    }
+
+    #[test]
+    fn test_conditional_move_compare_op_orders_by_seqnum_order() {
+        // compareOp (ruleaction.hh:1433) orders strictly by SeqNum.getOrder()
+        // — the within-block execution order — and NOT by creation time.
+        let a = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 5),
+            OpCode::CPUI_INT_AND,
+        )));
+        a.write().unwrap().start.order = 2;
+        let b = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 9),
+            OpCode::CPUI_INT_OR,
+        )));
+        b.write().unwrap().start.order = 1;
+        // b has smaller within-block order despite larger creation time.
+        assert!(!RuleConditionalMove::compare_op(&a, &b));
+        assert!(RuleConditionalMove::compare_op(&b, &a));
+        // Equal orders compare false both ways (strict weak ordering).
+        let c = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 7),
+            OpCode::CPUI_INT_OR,
+        )));
+        c.write().unwrap().start.order = 2;
+        assert!(!RuleConditionalMove::compare_op(&a, &c));
+        assert!(!RuleConditionalMove::compare_op(&c, &a));
     }
 
     #[test]
@@ -27949,6 +28164,307 @@ mod tests {
         let def = new_ptr.read().unwrap().get_def();
         let def_op = def.expect("new pointer should be defined by PTRSUB");
         assert_eq!(def_op.read().unwrap().opcode, OpCode::CPUI_PTRSUB);
+    }
+
+    /// Helper: build a FORMAL relative pointer type (IS_PTRREL without
+    /// HAS_STRIPPED) pointing `byte_off` into `parent` with the given
+    /// wordsize (ruleaction.cc:6695 isFormalPointerRel gate, type.hh:663).
+    fn make_formal_rel_ptr(
+        ptr_to: std::sync::Arc<crate::type_system::datatype::Datatype>,
+        parent: &std::sync::Arc<crate::type_system::datatype::Datatype>,
+        byte_off: i64,
+        wordsize: usize,
+    ) -> std::sync::Arc<crate::type_system::datatype::Datatype> {
+        use crate::type_system::datatype::{
+            type_flags, Datatype, PointerRelState, TypeBase, TypeMetatype, TypePointer,
+        };
+        let mut tp = TypePointer {
+            base: TypeBase::new("relptr *+".into(), 8, TypeMetatype::Pointer),
+            ptr_to,
+            wordsize,
+        };
+        tp.base.flags |= type_flags::IS_PTRREL;
+        tp.base.pointer_rel = Some(PointerRelState {
+            parent: parent.clone(),
+            offset: byte_off,
+            stripped: None,
+        });
+        Arc::new(Datatype::Pointer(tp))
+    }
+
+    /// RuleStructOffset0 formal rel arm (ruleaction.cc:6695-6725,
+    /// RULEACTION-RS0-RELGATE-0001): rel pointer at field start (offset 4,
+    /// field newoff 0, wordsize 1) → PTRSUB(ptr, #-newoff & mask = #0)
+    /// rewires the LOAD directly; no INT_ADD back-fill (cc:6721-6722).
+    #[test]
+    fn test_rule_struct_offset0_rel_ptr_field_start() {
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        fd.set_type_recovery_started();
+        let struct_dt = make_struct2_type(); // {a@0 int, b@4 int} size 8
+        let int_dt = Arc::new(crate::type_system::datatype::Datatype::Base(crate::type_system::datatype::TypeBase::new(
+            "int".into(),
+            4,
+            crate::type_system::datatype::TypeMetatype::Int,
+        )));
+        // ptrto = int (NOT a struct) so evaluateThruParent(0) folds through
+        // the parent: (0 + 4) & calc_mask(8) = 4 < 8 → true (type.cc:2593).
+        let rel_dt = make_formal_rel_ptr(int_dt, &struct_dt, 4, 1);
+        let spaceid = fd
+            .vbank
+            .create_constant(8, crate::space::SPACEID_RAM as u64);
+        let ptr = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        ptr.write().unwrap().update_type(rel_dt);
+        // LOAD of one int (4 bytes) — the move size.
+        let out = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x100);
+        let seq = SeqNum::new(Address::new(0x1000), 0);
+        let mut op = PcodeOp::new(seq, OpCode::CPUI_LOAD);
+        op.inrefs = vec![spaceid, ptr.clone()];
+        op.output = Some(out);
+        let op_arc = Arc::new(RwLock::new(op));
+        fd.obank
+            .alivelist
+            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        let rule = RuleStructOffset0::new();
+        assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
+        // LOAD in(1) is the PTRSUB output directly (newoff == 0 arm).
+        let new_ptr = op_arc.read().unwrap().inrefs[1].clone();
+        let def_op = new_ptr
+            .read()
+            .unwrap()
+            .get_def()
+            .expect("defined by PTRSUB");
+        assert_eq!(def_op.read().unwrap().opcode, OpCode::CPUI_PTRSUB);
+        // PTRSUB keeps the original pointer varnode as in(0) (cc:6712).
+        assert!(Arc::ptr_eq(&def_op.read().unwrap().inrefs[0], &ptr));
+        // PTRSUB(ptr, #0) — negated address-unit offset is 0.
+        let const_in = def_op.read().unwrap().inrefs[1].clone();
+        assert!(const_in.read().unwrap().is_constant());
+        assert_eq!(const_in.read().unwrap().get_offset(), 0);
+        // setStopTypePropagation landed on the PTRSUB (cc:6715).
+        assert_ne!(
+            def_op.read().unwrap().addlflags
+                & crate::op::op_addl_flags::STOP_TYPE_PROPAGATION,
+            0
+        );
+    }
+
+    /// RuleStructOffset0 formal rel arm: rel offset INSIDE field b (offset 6
+    /// in {a@0,b@4}, field newoff = 6-4 = 2, wordsize 1) →
+    /// PTRSUB(ptr, #-2 & mask) + INT_ADD(ptrsub_out, #2) back-fill, and the
+    /// LOAD rewires to the INT_ADD output (ruleaction.cc:6716-6720).
+    #[test]
+    fn test_rule_struct_offset0_rel_ptr_interior_offset_int_add() {
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        fd.set_type_recovery_started();
+        let struct_dt = make_struct2_type(); // {a@0 int, b@4 int} size 8
+        let int_dt = Arc::new(crate::type_system::datatype::Datatype::Base(crate::type_system::datatype::TypeBase::new(
+            "int".into(),
+            4,
+            crate::type_system::datatype::TypeMetatype::Int,
+        )));
+        let rel_dt = make_formal_rel_ptr(int_dt, &struct_dt, 6, 1);
+        let spaceid = fd
+            .vbank
+            .create_constant(8, crate::space::SPACEID_RAM as u64);
+        let ptr = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        ptr.write().unwrap().update_type(rel_dt);
+        let out = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x100);
+        let seq = SeqNum::new(Address::new(0x1000), 0);
+        let mut op = PcodeOp::new(seq, OpCode::CPUI_LOAD);
+        op.inrefs = vec![spaceid, ptr];
+        op.output = Some(out);
+        let op_arc = Arc::new(RwLock::new(op));
+        fd.obank
+            .alivelist
+            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        let rule = RuleStructOffset0::new();
+        assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
+        // LOAD in(1) must now be defined by the INT_ADD.
+        let new_ptr = op_arc.read().unwrap().inrefs[1].clone();
+        let add_def = new_ptr
+            .read()
+            .unwrap()
+            .get_def()
+            .expect("defined by INT_ADD");
+        assert_eq!(add_def.read().unwrap().opcode, OpCode::CPUI_INT_ADD);
+        // INT_ADD(ptrsub_out, #2) — the address-unit back-offset.
+        let add_const = add_def.read().unwrap().inrefs[1].clone();
+        assert_eq!(add_const.read().unwrap().get_offset(), 2);
+        // PTRSUB(ptr, #-2 & calc_mask(8)) beneath it.
+        let add_in0 = add_def.read().unwrap().inrefs[0].clone();
+        let sub_def = add_in0
+            .read()
+            .unwrap()
+            .get_def()
+            .expect("defined by PTRSUB");
+        assert_eq!(sub_def.read().unwrap().opcode, OpCode::CPUI_PTRSUB);
+        let sub_const = sub_def.read().unwrap().inrefs[1].clone();
+        assert_eq!(
+            sub_const.read().unwrap().get_offset(),
+            (-2i64) as u64 & crate::address::calc_mask(8)
+        );
+    }
+
+    /// RuleStructOffset0 formal rel arm with wordsize 2 (ruleaction.cc:6709
+    /// byteToAddress): field newoff 2 (bytes) scales to 1 address unit, so
+    /// the INT_ADD constant is #1 and the PTRSUB constant #-1 & mask.
+    #[test]
+    fn test_rule_struct_offset0_rel_ptr_wordsize_scaling() {
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        fd.set_type_recovery_started();
+        let struct_dt = make_struct2_type();
+        let int_dt = Arc::new(crate::type_system::datatype::Datatype::Base(crate::type_system::datatype::TypeBase::new(
+            "int".into(),
+            4,
+            crate::type_system::datatype::TypeMetatype::Int,
+        )));
+        let rel_dt = make_formal_rel_ptr(int_dt, &struct_dt, 6, 2);
+        let spaceid = fd
+            .vbank
+            .create_constant(8, crate::space::SPACEID_RAM as u64);
+        let ptr = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        ptr.write().unwrap().update_type(rel_dt);
+        let out = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x100);
+        let seq = SeqNum::new(Address::new(0x1000), 0);
+        let mut op = PcodeOp::new(seq, OpCode::CPUI_LOAD);
+        op.inrefs = vec![spaceid, ptr];
+        op.output = Some(out);
+        let op_arc = Arc::new(RwLock::new(op));
+        fd.obank
+            .alivelist
+            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        let rule = RuleStructOffset0::new();
+        assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
+        let new_ptr = op_arc.read().unwrap().inrefs[1].clone();
+        let add_def = new_ptr
+            .read()
+            .unwrap()
+            .get_def()
+            .expect("defined by INT_ADD");
+        let add_const = add_def.read().unwrap().inrefs[1].clone();
+        // byteToAddress(2, 2) = 1 address unit (space.hh:523 divide).
+        assert_eq!(add_const.read().unwrap().get_offset(), 1);
+        let add_in0 = add_def.read().unwrap().inrefs[0].clone();
+        let sub_def = add_in0
+            .read()
+            .unwrap()
+            .get_def()
+            .expect("defined by PTRSUB");
+        let sub_const = sub_def.read().unwrap().inrefs[1].clone();
+        assert_eq!(
+            sub_const.read().unwrap().get_offset(),
+            (-1i64) as u64 & crate::address::calc_mask(8)
+        );
+    }
+
+    /// RuleStructOffset0 formal rel arm rejection via the
+    /// evaluateThruParent(0) gate (ruleaction.cc:6695, type.cc:2591-2592):
+    /// when the pointed-to type is a nonempty STRUCT, offset 0 lands inside
+    /// it, the gate is false, and the PLAIN path (cc:6726+) runs on ptr_to —
+    /// a CHANGE with PTRSUB(#0) and no INT_ADD proves the arm was skipped.
+    #[test]
+    fn test_rule_struct_offset0_rel_ptr_thru_parent_gate() {
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        fd.set_type_recovery_started();
+        let struct_dt = make_struct2_type();
+        // ptrto = the SAME struct: evaluateThruParent(0) → byteOff 0 < 8 → false.
+        let arr_parent = Arc::new(crate::type_system::datatype::Datatype::Array(
+            crate::type_system::datatype::TypeArray {
+                base: crate::type_system::datatype::TypeBase::new(
+                    "arr".into(),
+                    16,
+                    crate::type_system::datatype::TypeMetatype::Array,
+                ),
+                array_of: struct_dt.clone(),
+                num_elements: 2,
+            },
+        ));
+        let rel_dt = make_formal_rel_ptr(struct_dt.clone(), &arr_parent, 6, 1);
+        let spaceid = fd
+            .vbank
+            .create_constant(8, crate::space::SPACEID_RAM as u64);
+        let ptr = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        ptr.write().unwrap().update_type(rel_dt);
+        let out = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x100);
+        let seq = SeqNum::new(Address::new(0x1000), 0);
+        let mut op = PcodeOp::new(seq, OpCode::CPUI_LOAD);
+        op.inrefs = vec![spaceid, ptr];
+        op.output = Some(out);
+        let op_arc = Arc::new(RwLock::new(op));
+        fd.obank
+            .alivelist
+            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        let rule = RuleStructOffset0::new();
+        assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
+        // Plain path fired on ptr_to (the struct): PTRSUB(#0), no INT_ADD.
+        let new_ptr = op_arc.read().unwrap().inrefs[1].clone();
+        let def_op = new_ptr
+            .read()
+            .unwrap()
+            .get_def()
+            .expect("defined by PTRSUB");
+        assert_eq!(def_op.read().unwrap().opcode, OpCode::CPUI_PTRSUB);
+        assert_eq!(def_op.read().unwrap().inrefs[1].read().unwrap().get_offset(), 0);
+    }
+
+    /// RuleStructOffset0 formal rel arm guard (ruleaction.cc:6701-6702):
+    /// rel byte offset at/past the parent's end returns 0 — with a non-
+    /// struct ptr_to the plain path cannot fire either, so NO_CHANGE.
+    #[test]
+    fn test_rule_struct_offset0_rel_ptr_offset_past_parent() {
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        fd.set_type_recovery_started();
+        let struct_dt = make_struct2_type(); // size 8
+        let int_dt = Arc::new(crate::type_system::datatype::Datatype::Base(crate::type_system::datatype::TypeBase::new(
+            "int".into(),
+            4,
+            crate::type_system::datatype::TypeMetatype::Int,
+        )));
+        // offset 8 == parent size → evaluateThruParent: (0+8)&mask = 8, NOT <
+        // 8 → gate FALSE → plain path on int ptr_to → NO_CHANGE. (Offset 7
+        // would pass the gate but die at the >= guard... offset 7 < 8 passes
+        // gate, and 7 < 8 passes guard too — use offset 9 for the guard:
+        // gate (0+9)&mask = 9 < 8 false → same NO_CHANGE via gate.)
+        let rel_dt = make_formal_rel_ptr(int_dt, &struct_dt, 8, 1);
+        let spaceid = fd
+            .vbank
+            .create_constant(8, crate::space::SPACEID_RAM as u64);
+        let ptr = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        ptr.write().unwrap().update_type(rel_dt);
+        let out = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x100);
+        let seq = SeqNum::new(Address::new(0x1000), 0);
+        let mut op = PcodeOp::new(seq, OpCode::CPUI_LOAD);
+        op.inrefs = vec![spaceid, ptr];
+        op.output = Some(out);
+        let op_arc = Arc::new(RwLock::new(op));
+        fd.obank
+            .alivelist
+            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        let rule = RuleStructOffset0::new();
+        assert_eq!(
+            rule.apply_op(&op_arc, &mut fd).unwrap(),
+            action_status::NO_CHANGE
+        );
     }
 
     /// RuleStructOffset0: pointer to an int (base type, not struct/array) →
