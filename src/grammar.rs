@@ -1117,13 +1117,86 @@ impl TypeDeclarator {
 }
 
 // Ghidra: grammar.cc:2403 PointerModifier::modType
+/// Wrap `base` in the canonical pointer type for the default data space.
+/// Faithful to `PointerModifier::modType(Datatype *, const TypeDeclarator *,
+/// Architecture *)`: reads `glb->getDefaultDataSpace()->getAddrSize()` and
+/// `getWordSize()` and calls `glb->types->getTypePointer(addrsize, base,
+/// wordsize)`. Rugra's twin `get_type_pointer_default` reads the default
+/// data-space address size captured on the `TypeFactory` and models the
+/// production default word size as one (RUGRA-GLUE documented on the twin).
+///
+/// Decisive semantics: no reference/out parameters; no loops; no counters;
+/// identity/dedup key = the TypeFactory canonical-pointer lookup.
+pub fn pointer_mod_type(
+    base: Arc<Datatype>,
+    types: &mut crate::type_system::typefactory::TypeFactory,
+) -> Option<Arc<Datatype>> {
+    Some(types.get_type_pointer_default(base))
+}
+
 // Ghidra: grammar.cc:2412 ArrayModifier::modType
+/// Wrap `base` in an array type of `array_size` elements. Faithful to
+/// `ArrayModifier::modType`: `glb->types->getTypeArray(arraysize, base)` with
+/// the constructor-stored `arraysize` (`int4`). The `.max(0)` clamp only
+/// guards the Rust `as usize` cast; a negative `int4` is unreachable from
+/// the lexer-produced `uintb` sizes (`CParse::newArray` casts a non-wrapping
+/// decimal literal).
+///
+/// Decisive semantics: no reference/out parameters; no loops; no counters;
+/// identity key = the TypeFactory array lookup over (element, count).
+pub fn array_mod_type(
+    base: Arc<Datatype>,
+    array_size: i32,
+    types: &mut crate::type_system::typefactory::TypeFactory,
+) -> Option<Arc<Datatype>> {
+    Some(types.get_array(base, array_size.max(0) as usize))
+}
+
 // Ghidra: grammar.cc:2465 FunctionModifier::modType
-/// Apply a single type modifier to `base`, returning the resulting type.
-/// Faithful to the `TypeModifier::modType` virtuals (grammar.hh:130). This is
-/// the common dispatch used by `TypeDeclarator::build_type` and
-/// `get_prototype`; the per-variant methods below (`pointer_mod_type` etc.)
-/// carry the exact C++ per-class behaviour and are the public entry points.
+/// Build the code (function) type for a function modifier. Faithful to
+/// `FunctionModifier::modType`: fills a `PrototypePieces` (outtype = base,
+/// void when the base is absent; firstVarArgSlot from the trailing null
+/// slot; intypes from `getInTypes`; model from `decl->getModel`) and returns
+/// `glb->types->getTypeCode(proto)`. In Rugra the varargs trailer has already
+/// been folded into the `dotdotdot` bool by `CParse::new_func` (the oracle's
+/// `paramlist.back() == 0` probe is dead on the live path because `newFunc`
+/// grammar.cc:2769-2772 pops the null before the constructor runs), so the
+/// slot is derived from `dotdotdot` over the surviving params.
+///
+/// Decisive semantics: no reference/out parameters beyond the borrowed
+/// pieces; one forward loop over `params` (order preserved, `None` trailer
+/// skipped); no counters; identity key = the synthetic prototype name.
+pub fn function_mod_type(
+    base: Arc<Datatype>,
+    decl: &TypeDeclarator,
+    params: &[Option<TypeDeclarator>],
+    dotdotdot: bool,
+    types: &mut crate::type_system::typefactory::TypeFactory,
+) -> Option<Arc<Datatype>> {
+    let first_var_arg_slot: i32 = if dotdotdot {
+        params.len() as i32
+    } else {
+        -1
+    };
+    let mut in_types: Vec<Arc<Datatype>> = Vec::new();
+    collect_param_types(&mut in_types, params, types);
+    let _model_name = decl.get_model(); // proto.model = getModel(glb)
+    let fspec_proto = crate::fspec::PrototypePieces {
+        out_type: Some(&base),
+        in_types: &in_types,
+        first_var_arg_slot,
+    };
+    Some(types.get_type_code_pieces(&fspec_proto))
+}
+
+// RUGRA-GLUE: enum dispatch replacing the C++ virtual
+// `TypeModifier::modType` call sites (grammar.cc:2501 in
+// `TypeDeclarator::buildType` and grammar.cc:2542 in
+// `TypeDeclarator::getPrototype`); the per-class behaviour lives in the
+// three per-variant ports above, each annotated to its own oracle
+// definition. This is the common entry used by `build_type` and
+// `get_prototype`; the per-variant methods (`pointer_mod_type` etc.)
+// carry the exact C++ per-class behaviour and are the public entry points.
 pub fn mod_type(
     modifier: &TypeModifier,
     base: Arc<Datatype>,
@@ -1131,33 +1204,56 @@ pub fn mod_type(
     types: &mut crate::type_system::typefactory::TypeFactory,
 ) -> Option<Arc<Datatype>> {
     match modifier {
-        TypeModifier::Pointer { .. } => Some(types.get_type_pointer_default(base)),
-        TypeModifier::Array { array_size, .. } => {
-            Some(types.get_array(base, (*array_size).max(0) as usize))
-        }
+        TypeModifier::Pointer { .. } => pointer_mod_type(base, types),
+        TypeModifier::Array { array_size, .. } => array_mod_type(base, *array_size, types),
         TypeModifier::Function { params, dotdotdot } => {
-            // Ghidra: grammar.cc:2465 FunctionModifier::modType — build a
-            // PrototypePieces (outtype=base; firstVarArgSlot from the trailing
-            // None slot; intypes from getInTypes; model from decl->getModel)
-            // and return glb->types->getTypeCode(proto). The base here is
-            // never None (the caller only enters modType with a present
-            // base), so out_type = Some(base) directly.
-            let first_var_arg_slot: i32 = if *dotdotdot {
-                params.len() as i32
-            } else {
-                -1
-            };
-            let mut in_types: Vec<Arc<Datatype>> = Vec::new();
-            collect_param_types(&mut in_types, params, types);
-            let _model_name = decl.get_model(); // proto.model = getModel(glb)
-            let fspec_proto = crate::fspec::PrototypePieces {
-                out_type: Some(&base),
-                in_types: &in_types,
-                first_var_arg_slot,
-            };
-            Some(types.get_type_code_pieces(&fspec_proto))
+            function_mod_type(base, decl, params, *dotdotdot, types)
         }
     }
+}
+
+// Ghidra: grammar.cc:2419 FunctionModifier::FunctionModifier
+/// Construct the `FunctionModifier` state from a (post-varargs) parameter
+/// list. Faithful to the constructor: copy the paramlist, then — if it holds
+/// exactly one declarator with no modifiers whose base type is non-null and
+/// `TYPE_VOID` — clear the list (encoding `f(void)` as a zero-arity
+/// function), and record the varargs flag. The `dotdotdot` bool is the Rust
+/// form of the C++ member; the params vec keeps the `Option` slot shape used
+/// by `collect_param_types` / `collect_param_names`.
+///
+/// Decisive semantics: no reference/out parameters (the list is consumed);
+/// a single exact-size check (`paramlist.size()==1`), no loop; no counters;
+/// no ordering keys.
+pub fn function_modifier_ctor(declist: Vec<TypeDeclarator>, dotdotdot: bool) -> TypeModifier {
+    let mut paramlist = declist;
+    if paramlist.len() == 1 {
+        // Ghidra: grammar.cc:2423-2430 — drop a lone `(void)` parameter.
+        let drop_void = {
+            let only = &paramlist[0];
+            only.mods.is_empty()
+                && only
+                    .basetype
+                    .as_ref()
+                    .map(|ct| ct.get_metatype() == crate::type_system::datatype::TypeMetatype::Void)
+                    .unwrap_or(false)
+        };
+        if drop_void {
+            paramlist.clear();
+        }
+    }
+    let params: Vec<Option<TypeDeclarator>> = paramlist.into_iter().map(Some).collect();
+    TypeModifier::Function { params, dotdotdot }
+}
+
+// RUGRA-GLUE: Rugra encoding of the null `TypeDeclarator *` slot that
+// grammar.y:180 pushes for the `parameter_list ',' DOTDOTDOT` production
+// (the varargs trailer `newFunc` detects and pops at grammar.cc:2769-2772).
+// Rust cannot store a null in `Vec<TypeDeclarator>`, so the trailer is a
+// sentinel declarator with `flags == u32::MAX` and nothing else set.
+pub fn null_declarator_slot() -> TypeDeclarator {
+    let mut slot = TypeDeclarator::new();
+    slot.flags = u32::MAX;
+    slot
 }
 
 // Ghidra: grammar.cc:2434 FunctionModifier::getInTypes
@@ -1548,34 +1644,21 @@ impl CParse {
     }
 
     // Ghidra: grammar.cc:2764 CParse::newFunc
-    // Ghidra: grammar.cc:2764 CParse::newFunc + grammar.cc:2419 FunctionModifier ctor
-    /// Append a function modifier to `dec`, normalising the varargs trailer and
-    /// the single-`(void)` parameter. Faithful to `newFunc` followed by the
-    /// `FunctionModifier` constructor (grammar.cc:2419): if the (post-varargs)
-    /// paramlist is exactly one declarator with no modifiers and a `void` base
-    /// type, the list is cleared (encoding `f(void)` as a zero-arity function).
+    /// Append a function modifier to `dec`. Faithful to `newFunc`: detect the
+    /// trailing varargs trailer, pop it, then construct the function modifier
+    /// via the `FunctionModifier` constructor twin (`function_modifier_ctor`,
+    /// grammar.cc:2419) and append it to `dec->mods`.
     pub fn new_func(&mut self, dec: &mut TypeDeclarator, mut declist: Vec<TypeDeclarator>) {
         let mut dotdotdot = false;
         if let Some(true) = declist.last().map(|d| d.ident.is_empty() && d.mods.is_empty() && d.basetype.is_none() && d.flags == u32::MAX) {
             // RUGRA-GLUE: Ghidra signals varargs via a `null` slot in the
-            // paramlist (FunctionModifier ctor at grammar.cc:2419); Rugra
-            // encodes that trailer as a sentinel declarator with `flags=u32::MAX`.
+            // paramlist (grammar.y:180 pushes it; FunctionModifier ctor at
+            // grammar.cc:2419 receives it popped); Rugra encodes that trailer
+            // as a sentinel declarator with `flags=u32::MAX`.
             dotdotdot = true;
             declist.pop();
         }
-        // Ghidra: grammar.cc:2423-2430 — drop a lone `(void)` parameter.
-        if declist.len() == 1 {
-            let only = &declist[0];
-            if only.mods.is_empty() {
-                if let Some(ref ct) = only.basetype {
-                    if ct.get_metatype() == crate::type_system::datatype::TypeMetatype::Void {
-                        declist.clear();
-                    }
-                }
-            }
-        }
-        let params: Vec<Option<TypeDeclarator>> = declist.into_iter().map(Some).collect();
-        dec.mods.push(TypeModifier::Function { params, dotdotdot });
+        dec.mods.push(function_modifier_ctor(declist, dotdotdot));
     }
 
     // Ghidra: grammar.cc:2779 CParse::newStruct
@@ -2013,6 +2096,23 @@ impl CParse {
         self.run_parse(doctype)
     }
 
+    // RUGRA-GLUE: typed twin of `parseStream`. The C++ `CParse` reaches its
+    // `TypeFactory` through the `Architecture *glb` captured at
+    /// construction; the arch-less Rust construction cannot, so the factory
+    /// is threaded per call. Only the `TYPE_NAME` specifier resolution
+    /// differs from `parse_stream` (it mirrors `lookupIdentifier`'s
+    /// `glb->types->findByName` probe, grammar.cc:2972-2975).
+    pub fn parse_stream_with_types(
+        &mut self,
+        text: &str,
+        doctype: DocType,
+        types: &mut crate::type_system::typefactory::TypeFactory,
+    ) -> bool {
+        self.clear();
+        self.lexer.set_input(text);
+        self.run_parse_with_types(doctype, types)
+    }
+
     // Ghidra: grammar.cc:3053 CParse::runParse
     /// Drive the parser. Faithful to `runParse`. Ghidra dispatches to
     /// `yyparse`; Rugra uses a hand-written recursive-descent driver because
@@ -2022,7 +2122,30 @@ impl CParse {
             DocType::Declaration => DECLARATION_RESULT,
             DocType::ParameterDeclaration => PARAM_RESULT,
         };
-        let res = self.yyparse(doctype);
+        let res = self.yyparse(doctype, None);
+        if res.is_none() {
+            if self.last_error.is_empty() {
+                self.set_error("Syntax error");
+            }
+            return false;
+        }
+        true
+    }
+
+    // RUGRA-GLUE: typed twin of `runParse` used by the arch-less entry
+    // points (`parse_type_full` / `parse_protopieces` / `parse_c`). The
+    // C++ parser reaches its `TypeFactory` through the `Architecture *glb`
+    // captured at construction; Rust threads a mutable factory reference
+    // through the driver so `TYPE_NAME` specifiers resolve exactly as
+    // `lookupIdentifier` (grammar.cc:2972) resolves them at lex time, and
+    // struct/union/enum definitions commit through the `newStruct` /
+    // `newUnion` / `newEnum` family as the bison actions do.
+    fn run_parse_with_types(&mut self, doctype: DocType, types: &mut crate::type_system::typefactory::TypeFactory) -> bool {
+        self.first_token = match doctype {
+            DocType::Declaration => DECLARATION_RESULT,
+            DocType::ParameterDeclaration => PARAM_RESULT,
+        };
+        let res = self.yyparse(doctype, Some(types));
         if res.is_none() {
             if self.last_error.is_empty() {
                 self.set_error("Syntax error");
@@ -2036,11 +2159,23 @@ impl CParse {
     /// Hand-written recursive-descent replacement for the bison `yyparse`.
     /// Recognises the subset produced by Ghidra's grammar for the two
     /// document types:
-    ///   * parameter_declaration: declaration_specifiers? declarator/abstract_declarator
-    ///   * declaration: declaration_specifiers init_declarator_list? ';'
+    ///   * parameter_declaration: declaration_specifiers declarator (grammar.y)
+    ///   * declaration: declaration_specifiers init_declarator_list ';'
     /// Each successfully parsed declarator is stored via
     /// `set_result_declarations`.
-    fn yyparse(&mut self, doctype: DocType) -> Option<()> {
+    ///
+    /// `types` carries the optional `TypeFactory` used to resolve `TYPE_NAME`
+    /// specifiers (`type_specifier: TYPE_NAME { $$ = $1; }`, grammar.y) and
+    /// to commit struct/union/enum definitions, mirroring `lookupIdentifier`'s
+    /// `glb->types->findByName` probe and the bison actions' `newStruct` /
+    /// `newUnion` / `newEnum` calls. `None` keeps the legacy
+    /// unresolved-basetype path (the C++ object always has `glb`; the
+    /// untyped Rust twin documents that gap instead of guessing).
+    fn yyparse(
+        &mut self,
+        doctype: DocType,
+        mut types: Option<&mut crate::type_system::typefactory::TypeFactory>,
+    ) -> Option<()> {
         // Specifiers
         let mut spec = TypeSpecifiers::new();
         // Storage-class / qualifier / function-specifier keywords first.
@@ -2074,17 +2209,33 @@ impl CParse {
             }
         }
 
-        // Then a type-name identifier (basetype) if present.
+        // Then a type-name identifier (basetype) if present. grammar.y
+        // `type_specifier: TYPE_NAME` resolves the name against the
+        // architecture's type tree at lex time (`lookupIdentifier` ->
+        // `glb->types->findByName`, grammar.cc:2972-2975); the typed driver
+        // path resolves it here via the threaded factory.
         if let Some(tok) = self.peek_token() {
             if tok.get_type() == token_type::IDENTIFIER {
                 let s = tok.get_string().to_string();
-                // struct / union / enum not handled by the simple driver; treat
-                // as basetype name. We do not have direct access to the
-                // Architecture's TypeFactory here, so the basetype name is
-                // consumed and resolution happens upstream.
-                self.advance();
-                if spec.function_specifier.is_empty() {
-                    let _ = s;
+                match self.keywords.get(&s).copied() {
+                    Some(cparse_flags::F_STRUCT) | Some(cparse_flags::F_UNION) | Some(cparse_flags::F_ENUM) => {
+                        // struct_or_union_specifier / enum_specifier
+                        // (grammar.y:98-116 / 137-143).
+                        match self.parse_tag_specifier(&s, types.as_deref_mut()) {
+                            Some(tp) => {
+                                self.add_type_specifier(&mut spec, tp);
+                            }
+                            None => return None,
+                        }
+                    }
+                    _ => {
+                        if let Some(factory) = types.as_deref() {
+                            if let Some(tp) = factory.find_by_name(&s) {
+                                self.add_type_specifier(&mut spec, tp);
+                            }
+                        }
+                        self.advance();
+                    }
                 }
             }
         }
@@ -2092,7 +2243,7 @@ impl CParse {
         // Build a single declarator and parse its modifiers/identifier.
         let mut dec = TypeDeclarator::new();
         self.merge_spec_dec_into(&spec, &mut dec);
-        self.parse_declarator(&mut dec)?;
+        self.parse_declarator(&mut dec, types.as_deref_mut())?;
 
         // Optional trailing declarators separated by commas (declaration
         // document only).
@@ -2107,7 +2258,7 @@ impl CParse {
                     self.advance();
                     let mut next = TypeDeclarator::new();
                     self.merge_spec_dec_into(&spec, &mut next);
-                    self.parse_declarator(&mut next)?;
+                    self.parse_declarator(&mut next, types.as_deref_mut())?;
                     decls.push(next);
                 } else {
                     break;
@@ -2127,9 +2278,25 @@ impl CParse {
 
     // RUGRA-GLUE: hand-written helper, no direct Ghidra counterpart. The
     // bison grammar's `declarator` / `abstract_declarator` productions
-    // (grammar.y) are reduced here.
-    fn parse_declarator(&mut self, dec: &mut TypeDeclarator) -> Option<()> {
-        // Leading pointer stars.
+    // (grammar.y:151-153 / 190-194) are reduced here. Modifier push order
+    // mirrors bison reduction order exactly: the `direct_declarator`
+    // suffixes (`[N]` via `newArray`, `(...)` via `newFunc`) reduce first
+    // and land in `dec->mods` first; `pointer direct_declarator` reduces
+    // last, so `mergePointer` appends the `PointerModifier`s AFTER the
+    // suffix modifiers (grammar.y:153 -> grammar.cc:2706). `buildType`
+    // walks `mods` in reverse, so this order reproduces the C binding
+    // `int4 *x[3]` = array-of-pointers and `char *f(int4)` =
+    // function-returning-pointer.
+    fn parse_declarator(
+        &mut self,
+        dec: &mut TypeDeclarator,
+        mut types: Option<&mut crate::type_system::typefactory::TypeFactory>,
+    ) -> Option<()> {
+        // `declarator: pointer direct_declarator` — count the leading stars
+        // first (`newPointer` flags; type_qualifier_list in pointer position
+        // is not carried — registered subset limitation), then parse the
+        // direct part, then append the pointer modifiers.
+        let mut star_count: usize = 0;
         loop {
             let tok = match self.peek_token() {
                 Some(t) => t,
@@ -2137,19 +2304,61 @@ impl CParse {
             };
             if tok.get_type() == token_type::STAR {
                 self.advance();
-                dec.mods.push(TypeModifier::Pointer { flags: 0 });
+                star_count += 1;
             } else {
                 break;
             }
         }
-        // Optional identifier.
+        self.parse_direct_declarator(dec, types)?;
+        // mergePointer: stars appended after the direct_declarator mods.
+        for _ in 0..star_count {
+            dec.mods.push(TypeModifier::Pointer { flags: 0 });
+        }
+        Some(())
+    }
+
+    // RUGRA-GLUE: hand-written helper reducing `direct_declarator` /
+    // `direct_abstract_declarator` (grammar.y:156-163 / 195-199). The
+    // productions are:
+    //   `IDENTIFIER` (named core; absent for abstract declarators)
+    //   `'(' declarator ')'` (grouping — the inner declarator reduces into
+    //   the SAME TypeDeclarator: `$$ = $2`)
+    //   `direct_declarator '[' assignment_expression ']'` (array suffix)
+    //   `direct_declarator '(' parameter_type_list ')'` (function suffix)
+    // Because a function suffix production always requires a leading
+    // direct core, a `'('` at core position is unambiguously a group.
+    fn parse_direct_declarator(
+        &mut self,
+        dec: &mut TypeDeclarator,
+        mut types: Option<&mut crate::type_system::typefactory::TypeFactory>,
+    ) -> Option<()> {
+        // Grouping: '(' declarator ')' — recurse; inner mods merge first.
+        if let Some(tok) = self.peek_token() {
+            if tok.get_type() == token_type::OPEN_PAREN {
+                self.advance();
+                self.parse_declarator(dec, types.as_deref_mut())?;
+                let close = match self.peek_token() {
+                    Some(t) => t,
+                    None => {
+                        self.set_error("Missing ')' in declarator");
+                        return None;
+                    }
+                };
+                if close.get_type() != token_type::CLOSE_PAREN {
+                    self.set_error("Missing ')' in declarator");
+                    return None;
+                }
+                self.advance();
+            }
+        }
+        // Optional identifier (named core).
         if let Some(tok) = self.peek_token() {
             if tok.get_type() == token_type::IDENTIFIER {
                 dec.ident = tok.get_string().to_string();
                 self.advance();
             }
         }
-        // Suffixes: array `[N]`, function `(...)`, including nested groups.
+        // Suffixes: array `[N]`, function `(...)`.
         loop {
             let tok = match self.peek_token() {
                 Some(t) => t,
@@ -2185,7 +2394,6 @@ impl CParse {
                 token_type::OPEN_PAREN => {
                     self.advance();
                     let mut params: Vec<TypeDeclarator> = Vec::new();
-                    let mut dotdotdot = false;
                     loop {
                         let pt = match self.peek_token() {
                             Some(t) => t,
@@ -2195,17 +2403,19 @@ impl CParse {
                             break;
                         }
                         if pt.get_type() == token_type::DOTDOTDOT {
-                            dotdotdot = true;
+                            // grammar.y:180 `parameter_list ',' DOTDOTDOT` —
+                            // the varargs trailer is a null declarator slot;
+                            // Rugra encodes it as the flags=u32::MAX sentinel
+                            // that `new_func` detects and pops.
                             self.advance();
+                            params.push(null_declarator_slot());
                             break;
                         }
                         // Parameter declarator. A parameter has the same shape
-                        // as a top-level declaration: optional spec-type-name
-                        // followed by an (abstract) declarator. We treat the
-                        // first identifier as the type and the second as the
-                        // parameter name; this matches the bison grammar's
-                        // `parameter_declaration` production.
-                        let pdec = match self.parse_parameter_declaration() {
+                        // as a top-level declaration: declaration_specifiers
+                        // followed by an (abstract) declarator
+                        // (grammar.y:186-190).
+                        let pdec = match self.parse_parameter_declaration(types.as_deref_mut()) {
                             Some(d) => d,
                             None => {
                                 self.set_error("Bad parameter declarator");
@@ -2235,12 +2445,10 @@ impl CParse {
                         return None;
                     }
                     self.advance();
-                    let params_opt: Vec<Option<TypeDeclarator>> =
-                        params.into_iter().map(Some).collect();
-                    dec.mods.push(TypeModifier::Function {
-                        params: params_opt,
-                        dotdotdot,
-                    });
+                    // grammar.y:162 — the suffix reduces through newFunc
+                    // (which pops the varargs trailer and runs the
+                    // FunctionModifier constructor's `(void)` clearing).
+                    self.new_func(dec, params);
                 }
                 _ => break,
             }
@@ -2249,21 +2457,336 @@ impl CParse {
     }
 
     // RUGRA-GLUE: hand-written helper for the bison grammar's
-    // `parameter_declaration` production (grammar.y). Recognises the simple
-    // shape `<basetype> <name>` (or `<basetype> * <name>`) used by
-    // `CParse::newFunc` parameter lists.
-    fn parse_parameter_declaration(&mut self) -> Option<TypeDeclarator> {
-        let mut dec = TypeDeclarator::new();
-        // The first identifier is the type name (e.g. "int"); we do not have
-        // the TypeFactory here so the basetype is left unset, matching the
-        // upstream resolution path of `parse_type`/`parse_C`.
+    // `parameter_declaration` production (grammar.y:186-190):
+    //   parameter_declaration:
+    //     declaration_specifiers declarator
+    //     declaration_specifiers
+    //     declaration_specifiers abstract_declarator
+    // The qualifier loop reduces `declaration_specifiers` (qualifier flags
+    // accumulate; the type specifier resolves against the threaded factory
+    // exactly as the bison `TYPE_NAME` token path does at lex time), then
+    // `mergeSpecDec` folds the specifiers into the (possibly abstract)
+    // declarator reduced by `parse_declarator`.
+    fn parse_parameter_declaration(
+        &mut self,
+        mut types: Option<&mut crate::type_system::typefactory::TypeFactory>,
+    ) -> Option<TypeDeclarator> {
+        let mut spec = TypeSpecifiers::new();
+        loop {
+            let tok = match self.peek_token() {
+                Some(t) => t,
+                None => break,
+            };
+            if tok.get_type() != token_type::IDENTIFIER {
+                break;
+            }
+            let s = tok.get_string().to_string();
+            if let Some(&flag) = self.keywords.get(&s) {
+                match flag {
+                    cparse_flags::F_TYPEDEF
+                    | cparse_flags::F_EXTERN
+                    | cparse_flags::F_STATIC
+                    | cparse_flags::F_AUTO
+                    | cparse_flags::F_REGISTER
+                    | cparse_flags::F_CONST
+                    | cparse_flags::F_RESTRICT
+                    | cparse_flags::F_VOLATILE
+                    | cparse_flags::F_INLINE => {
+                        self.add_specifier(&mut spec, &s);
+                        self.advance();
+                    }
+                    _ => break,
+                }
+            } else {
+                break;
+            }
+        }
+        // The type specifier (grammar.y `type_specifier: TYPE_NAME`).
         if let Some(tok) = self.peek_token() {
             if tok.get_type() == token_type::IDENTIFIER {
+                let s = tok.get_string().to_string();
+                match self.keywords.get(&s).copied() {
+                    Some(cparse_flags::F_STRUCT) | Some(cparse_flags::F_UNION) | Some(cparse_flags::F_ENUM) => {
+                        match self.parse_tag_specifier(&s, types.as_deref_mut()) {
+                            Some(tp) => {
+                                self.add_type_specifier(&mut spec, tp);
+                            }
+                            None => return None,
+                        }
+                    }
+                    _ => {
+                        if let Some(factory) = types.as_deref() {
+                            if let Some(tp) = factory.find_by_name(&s) {
+                                self.add_type_specifier(&mut spec, tp);
+                            }
+                        }
+                        self.advance();
+                    }
+                }
+            }
+        }
+        let mut dec = TypeDeclarator::new();
+        self.merge_spec_dec_into(&spec, &mut dec);
+        self.parse_declarator(&mut dec, types)?;
+        Some(dec)
+    }
+
+    // RUGRA-GLUE: hand-written helper reducing `struct_or_union_specifier`
+    // and `enum_specifier` (grammar.y:97-116 / 137-143). Consumes the tag
+    // keyword; parses the optional identifier and the brace body (or falls
+    // back to the `oldStruct`/`oldUnion`/`oldEnum` reference forms), then
+    /// commits the composite type through the same `newStruct` / `newUnion`
+    /// / `newEnum` twins the bison actions call. Returns `None` after
+    /// setting the parse error on the failure paths.
+    fn parse_tag_specifier(
+        &mut self,
+        tag: &str,
+        mut types: Option<&mut crate::type_system::typefactory::TypeFactory>,
+    ) -> Option<Arc<Datatype>> {
+        let flag = *self.keywords.get(tag)?;
+        self.advance(); // consume the tag keyword
+        let mut ident = String::new();
+        if let Some(tok) = self.peek_token() {
+            if tok.get_type() == token_type::IDENTIFIER {
+                ident = tok.get_string().to_string();
                 self.advance();
             }
         }
-        self.parse_declarator(&mut dec)?;
-        Some(dec)
+        let has_body = match self.peek_token() {
+            Some(t) => t.get_type() == token_type::OPEN_BRACE,
+            None => false,
+        };
+        match flag {
+            cparse_flags::F_STRUCT | cparse_flags::F_UNION => {
+                if !has_body {
+                    if ident.is_empty() {
+                        self.set_error("Syntax error");
+                        return None;
+                    }
+                    let types = types?;
+                    // STRUCT IDENTIFIER -> oldStruct / oldUnion
+                    // (grammar.y:101/106). The twins set the parse error on
+                    // a miss themselves.
+                    return if flag == cparse_flags::F_STRUCT {
+                        self.old_struct(&ident, types)
+                    } else {
+                        self.old_union(&ident, types)
+                    };
+                }
+                self.advance(); // '{'
+                let declist = self.parse_struct_declaration_list(types.as_deref_mut())?;
+                let close = match self.peek_token() {
+                    Some(t) => t,
+                    None => {
+                        self.set_error("Missing '}' in struct/union body");
+                        return None;
+                    }
+                };
+                if close.get_type() != token_type::CLOSE_BRACE {
+                    self.set_error("Missing '}' in struct/union body");
+                    return None;
+                }
+                self.advance();
+                let types = types?;
+                if flag == cparse_flags::F_STRUCT {
+                    self.new_struct(&ident, &declist, types)
+                } else {
+                    self.new_union(&ident, &declist, types)
+                }
+            }
+            cparse_flags::F_ENUM => {
+                if !has_body {
+                    if ident.is_empty() {
+                        self.set_error("Syntax error");
+                        return None;
+                    }
+                    let types = types?;
+                    // ENUM IDENTIFIER -> oldEnum (grammar.y:142).
+                    return self.old_enum(&ident, types);
+                }
+                self.advance(); // '{'
+                let enumerators = self.parse_enumerator_list()?;
+                // grammar.y:139-140 allow a trailing ',' before '}'.
+                if let Some(t) = self.peek_token() {
+                    if t.get_type() == token_type::COMMA {
+                        self.advance();
+                    }
+                }
+                let close = match self.peek_token() {
+                    Some(t) => t,
+                    None => {
+                        self.set_error("Missing '}' in enum body");
+                        return None;
+                    }
+                };
+                if close.get_type() != token_type::CLOSE_BRACE {
+                    self.set_error("Missing '}' in enum body");
+                    return None;
+                }
+                self.advance();
+                let types = types?;
+                self.new_enum(&ident, &enumerators, types)
+            }
+            _ => {
+                self.set_error("Syntax error");
+                None
+            }
+        }
+    }
+
+    // RUGRA-GLUE: hand-written helper reducing `struct_declaration_list`
+    // (grammar.y:108-112): a non-empty sequence of `struct_declaration`s,
+    /// each `specifier_qualifier_list struct_declarator_list ';'`
+    /// (grammar.y:114-122), with the specifier list merged into every
+    /// declarator exactly as `mergeSpecDecVec` does.
+    fn parse_struct_declaration_list(
+        &mut self,
+        mut types: Option<&mut crate::type_system::typefactory::TypeFactory>,
+    ) -> Option<Vec<TypeDeclarator>> {
+        let mut all: Vec<TypeDeclarator> = Vec::new();
+        loop {
+            match self.peek_token() {
+                Some(t) if t.get_type() == token_type::CLOSE_BRACE => break,
+                None => break,
+                _ => {}
+            }
+            // specifier_qualifier_list: (TYPE_QUALIFIER | type_specifier)+
+            let mut spec = TypeSpecifiers::new();
+            loop {
+                let tok = match self.peek_token() {
+                    Some(t) => t,
+                    None => break,
+                };
+                if tok.get_type() != token_type::IDENTIFIER {
+                    break;
+                }
+                let s = tok.get_string().to_string();
+                match self.keywords.get(&s).copied() {
+                    Some(cparse_flags::F_CONST)
+                    | Some(cparse_flags::F_RESTRICT)
+                    | Some(cparse_flags::F_VOLATILE) => {
+                        self.add_specifier(&mut spec, &s);
+                        self.advance();
+                    }
+                    Some(cparse_flags::F_STRUCT)
+                    | Some(cparse_flags::F_UNION)
+                    | Some(cparse_flags::F_ENUM) => {
+                        match self.parse_tag_specifier(&s, types.as_deref_mut()) {
+                            Some(tp) => {
+                                self.add_type_specifier(&mut spec, tp);
+                            }
+                            None => return None,
+                        }
+                    }
+                    _ => {
+                        if let Some(factory) = types.as_deref() {
+                            if let Some(tp) = factory.find_by_name(&s) {
+                                self.add_type_specifier(&mut spec, tp);
+                            }
+                        }
+                        self.advance();
+                        // grammar.y's specifier_qualifier_list is one-or-more
+                        // entries; the loop continues for further entries.
+                        continue;
+                    }
+                }
+            }
+            // struct_declarator_list: declarator (',' declarator)*
+            let mut decls: Vec<TypeDeclarator> = Vec::new();
+            loop {
+                let mut dec = TypeDeclarator::new();
+                self.merge_spec_dec_into(&spec, &mut dec);
+                self.parse_declarator(&mut dec, types.as_deref_mut())?;
+                decls.push(dec);
+                match self.peek_token() {
+                    Some(t) if t.get_type() == token_type::COMMA => {
+                        self.advance();
+                    }
+                    _ => break,
+                }
+            }
+            let semi = match self.peek_token() {
+                Some(t) => t,
+                None => {
+                    self.set_error("Missing ';' in struct declaration");
+                    return None;
+                }
+            };
+            if semi.get_type() != token_type::SEMICOLON {
+                self.set_error("Missing ';' in struct declaration");
+                return None;
+            }
+            self.advance();
+            all.extend(decls);
+        }
+        if all.is_empty() {
+            // struct_declaration_list requires at least one
+            // struct_declaration (grammar.y:108).
+            self.set_error("Syntax error");
+            return None;
+        }
+        Some(all)
+    }
+
+    // RUGRA-GLUE: hand-written helper reducing `enumerator_list`
+    // (grammar.y:144-147): `enumerator (',' enumerator)*` where each
+    /// `enumerator` is `IDENTIFIER` or `IDENTIFIER '=' NUMBER`
+    /// (grammar.y:149-151) built via `newEnumerator`.
+    fn parse_enumerator_list(&mut self) -> Option<Vec<Enumerator>> {
+        let mut list = Vec::new();
+        loop {
+            let tok = match self.peek_token() {
+                Some(t) => t,
+                None => {
+                    self.set_error("Syntax error");
+                    return None;
+                }
+            };
+            if tok.get_type() != token_type::IDENTIFIER {
+                self.set_error("Syntax error");
+                return None;
+            }
+            let name = tok.get_string().to_string();
+            self.advance();
+            let enumerator = if let Some(t) = self.peek_token() {
+                if t.get_type() == 0x3d {
+                    // '='
+                    self.advance();
+                    let num = match self.peek_token() {
+                        Some(t) if t.get_type() == token_type::INTEGER => t,
+                        _ => {
+                            self.set_error("Syntax error");
+                            return None;
+                        }
+                    };
+                    let value = num.get_integer();
+                    self.advance();
+                    Enumerator::with_value(&name, value)
+                } else {
+                    Enumerator::new(&name)
+                }
+            } else {
+                Enumerator::new(&name)
+            };
+            // newEnumerator allocates into the arena; the driver keeps the
+            // built Enumerator values directly for the newEnum twin.
+            let _ = self.new_enumerator_name(&name);
+            list.push(enumerator);
+            match self.peek_token() {
+                Some(t) if t.get_type() == token_type::COMMA => {
+                    self.advance();
+                    // A ',' directly before '}' terminates the list
+                    // (grammar.y:139-140 trailing-comma forms).
+                    if let Some(t2) = self.peek_token() {
+                        if t2.get_type() == token_type::CLOSE_BRACE {
+                            break;
+                        }
+                    }
+                }
+                _ => break,
+            }
+        }
+        Some(list)
     }
 
     // RUGRA-GLUE: single-token lookahead cache to mirror the bison lexer.
@@ -2371,7 +2894,7 @@ pub fn parse_type_full(
     types: &mut crate::type_system::typefactory::TypeFactory,
 ) -> Result<(Arc<Datatype>, String), String> {
     let mut parser = CParse::new(4096);
-    if !parser.parse_stream(text, DocType::ParameterDeclaration) {
+    if !parser.parse_stream_with_types(text, DocType::ParameterDeclaration, types) {
         return Err(parser.get_error().to_string());
     }
     let mut decls = match parser.take_result_declarations() {
@@ -2410,7 +2933,7 @@ pub fn parse_protopieces(
     types: &mut crate::type_system::typefactory::TypeFactory,
 ) -> Result<PrototypePieces, String> {
     let mut parser = CParse::new(4096);
-    if !parser.parse_stream(text, DocType::Declaration) {
+    if !parser.parse_stream_with_types(text, DocType::Declaration, types) {
         return Err(parser.get_error().to_string());
     }
     let decls = match parser.take_result_declarations() {
@@ -2453,7 +2976,7 @@ pub fn parse_c(
     types: &mut crate::type_system::typefactory::TypeFactory,
 ) -> Result<TypeDeclarator, String> {
     let mut parser = CParse::new(4096);
-    if !parser.parse_stream(text, DocType::Declaration) {
+    if !parser.parse_stream_with_types(text, DocType::Declaration, types) {
         return Err(parser.get_error().to_string());
     }
     let decls = match parser.take_result_declarations() {
@@ -3415,5 +3938,135 @@ mod tests {
         let lineno_before = lex.cur_lineno();
         lex.bump_line();
         assert_eq!(lex.cur_lineno(), lineno_before + 1);
+    }
+
+    /// Standalone-flavor factory mirroring SleighArchitecture::buildCoreTypes
+    /// (the name universe the typed driver resolves TYPE_NAME against) plus
+    /// the x86-64-gcc size/alignment map the struct field-offset assignment
+    /// consults (same construction the oracle fixture twin pins).
+    fn standalone_factory() -> crate::type_system::typefactory::TypeFactory {
+        use crate::type_system::typefactory::CoreTypeFlavor;
+        let mut tf = crate::type_system::typefactory::TypeFactory::new_flavor(
+            8,
+            CoreTypeFlavor::Standalone,
+        );
+        let alignment_map = {
+            let map = Arc::new(std::sync::RwLock::new({
+                let mut m = crate::marshal::Element::new();
+                m.set_name("size_alignment_map");
+                m
+            }));
+            for (size, alignment) in [("1", "1"), ("2", "2"), ("4", "4"), ("8", "8"), ("16", "16")] {
+                let entry = Arc::new(std::sync::RwLock::new({
+                    let mut e = crate::marshal::Element::new();
+                    e.set_name("entry");
+                    e.add_attribute("size", size);
+                    e.add_attribute("alignment", alignment);
+                    e
+                }));
+                map.write().unwrap().add_child(entry);
+            }
+            map
+        };
+        let organization = Arc::new(std::sync::RwLock::new({
+            let mut org = crate::marshal::Element::new();
+            org.set_name("data_organization");
+            org
+        }));
+        organization.write().unwrap().add_child(alignment_map);
+        let registry = Arc::new(std::sync::RwLock::new(crate::marshal::IdRegistry::new()));
+        let mut decoder = crate::marshal::TreeDecoder::new(organization, registry);
+        tf.decode_data_organization(&mut decoder);
+        tf.setup_sizes(&crate::type_system::typefactory::SizeArchInputs {
+            stack_spacebase_size: Some(8),
+            default_data_space_addr_size: 8,
+            default_size: 8,
+            far_pointer: None,
+        });
+        tf
+    }
+
+    /// grammar.y:151-153 reduction order: `pointer direct_declarator` pushes
+    /// the PointerModifiers AFTER the direct suffixes, so `int4 *x[3]` builds
+    /// an array-of-pointers (`mods == [Array, Pointer]`).
+    #[test]
+    fn test_driver_pointer_pushes_after_suffixes() {
+        let mut p = CParse::new(4096);
+        let ok = p.parse_stream("x * arr [3]", DocType::ParameterDeclaration);
+        assert!(ok);
+        let decls = p.take_result_declarations().expect("decls");
+        assert_eq!(decls[0].get_identifier(), "arr");
+        assert_eq!(decls[0].num_modifiers(), 2);
+        assert_eq!(decls[0].mods[0].kind(), ModifierKind::Array);
+        assert_eq!(decls[0].mods[1].kind(), ModifierKind::Pointer);
+    }
+
+    /// grammar.y:158 grouping `'(' declarator ')'` shares the inner
+    /// TypeDeclarator, so `int4 (*x)[3]` builds a pointer-to-array
+    /// (`mods == [Pointer, Array]` — the group's star lands before the
+    /// outer suffix).
+    #[test]
+    fn test_driver_grouping_binds_before_suffixes() {
+        let mut p = CParse::new(4096);
+        let ok = p.parse_stream("x ( * grp ) [3]", DocType::ParameterDeclaration);
+        assert!(ok);
+        let decls = p.take_result_declarations().expect("decls");
+        assert_eq!(decls[0].get_identifier(), "grp");
+        assert_eq!(decls[0].num_modifiers(), 2);
+        assert_eq!(decls[0].mods[0].kind(), ModifierKind::Pointer);
+        assert_eq!(decls[0].mods[1].kind(), ModifierKind::Array);
+    }
+
+    /// The typed driver resolves TYPE_NAME specifiers through the threaded
+    /// factory (lookupIdentifier's findByName probe, grammar.cc:2972) and
+    /// routes function suffixes through `new_func` — the lone `(void)`
+    /// clearing and the varargs slot land in the FunctionModifier state.
+    #[test]
+    fn test_typed_parse_resolves_basetype_and_varargs() {
+        let mut tf = standalone_factory();
+        let mut p = CParse::new(4096);
+        assert!(p.parse_stream_with_types("int4 f ( int4 , ... ) ;", DocType::Declaration, &mut tf));
+        let decls = p.take_result_declarations().expect("decls");
+        assert_eq!(decls[0].get_identifier(), "f");
+        assert_eq!(decls[0].basetype.as_ref().expect("basetype").get_name(), "int4");
+        match &decls[0].mods[0] {
+            TypeModifier::Function { params, dotdotdot } => {
+                assert!(*dotdotdot, "varargs trailer folded into dotdotdot");
+                assert_eq!(params.len(), 1, "trailer popped from paramlist");
+            }
+            other => panic!("expected function modifier, got {other:?}"),
+        }
+        // Lone (void) is cleared by the FunctionModifier ctor twin.
+        let mut p2 = CParse::new(4096);
+        assert!(p2.parse_stream_with_types("int4 g ( void ) ;", DocType::Declaration, &mut tf));
+        let decls2 = p2.take_result_declarations().expect("decls");
+        match &decls2[0].mods[0] {
+            TypeModifier::Function { params, dotdotdot } => {
+                assert!(!*dotdotdot);
+                assert!(params.is_empty(), "f(void) cleared to zero arity");
+            }
+            other => panic!("expected function modifier, got {other:?}"),
+        }
+    }
+
+    /// The typed driver commits struct definitions through `new_struct`
+    /// (grammar.y:100/103), producing the named composite in the factory.
+    #[test]
+    fn test_typed_parse_struct_definition() {
+        let mut tf = standalone_factory();
+        let mut p = CParse::new(4096);
+        assert!(p.parse_stream_with_types(
+            "struct pair { int4 lo ; int4 hi ; }",
+            DocType::ParameterDeclaration,
+            &mut tf
+        ));
+        let decls = p.take_result_declarations().expect("decls");
+        let base = decls[0].basetype.as_ref().expect("basetype");
+        assert_eq!(base.get_name(), "pair");
+        assert_eq!(base.get_size(), 8);
+        assert_eq!(
+            base.get_metatype(),
+            crate::type_system::datatype::TypeMetatype::Struct
+        );
     }
 }

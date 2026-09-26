@@ -112,13 +112,32 @@ Document type requested from the parser (grammar.hh:217): `Declaration`,
 - The bison grammar table (`grammar.y` → `grammar.cc`'s `yyparse`) is not
   ported verbatim; Rust has no in-tree bison toolchain. `CParse::run_parse`
   drives a hand-written recursive-descent replacement (`yyparse` /
-  `parse_declarator` / `parse_parameter_declaration`) that recognises the same
-  shape of declarations used by Ghidra's two document types. Every helper that
-  the bison actions call (`mergeSpecDec`, `addSpecifier`, `mergePointer`,
-  `newArray`, `newFunc`, …) is ported 1:1.
+  `parse_declarator` / `parse_direct_declarator` /
+  `parse_parameter_declaration` / `parse_tag_specifier` /
+  `parse_struct_declaration_list` / `parse_enumerator_list`) that reduces
+  the grammar.y productions in bison order: `direct_declarator` suffixes
+  (`[N]` / `(...)`) land in `dec.mods` first and the `pointer
+  direct_declarator` stars append after them (`mergePointer`,
+  grammar.y:151-153), the `'(' declarator ')'` grouping shares the inner
+  `TypeDeclarator` (`$$ = $2`, grammar.y:158), and struct/union/enum
+  specifiers commit through the `newStruct`/`newUnion`/`newEnum`/`old*`
+  twins exactly as the bison actions do. `parse_stream_with_types`
+  threads a `TypeFactory` through the driver (the Rust form of the C++
+  `glb` handle) so `TYPE_NAME` specifiers resolve via `find_by_name` —
+  the `lookupIdentifier` probe (grammar.cc:2972). The equivalence unit is
+  the parser whole-face fixture `tests/oracle/grammar_parse_face_1204`
+  (runner `tools/run_grammar_parse_face_oracle.sh`): 17 C-type-string /
+  DWARF-declaration-string cases over `parse_type` / `parse_protopieces`,
+  bilateral byte-identical against the locked bison oracle.
+  The untyped legacy `parse_stream` keeps the unresolved-basetype path
+  (documented subset limitation).
 - Pointer/Array/Function modifier `modType` virtuals (grammar.cc:2403/2412/2465)
-  are folded into the free function `mod_type`, which consults Rugra's
-  `TypeFactory` (`get_type_pointer_default` / `get_array` /
+  are ported per-variant as the free functions `pointer_mod_type`,
+  `array_mod_type`, and `function_mod_type` (each annotated to its own
+  oracle definition), with the free `mod_type` acting as the enum-dispatch
+  twin of the C++ virtual call sites (`TypeDeclarator::buildType`
+  grammar.cc:2501 / `getPrototype` grammar.cc:2542). The dispatch consults
+  Rugra's `TypeFactory` (`get_type_pointer_default` / `get_array` /
   `get_type_code`). PointerModifier no longer uses the legacy pointee-name
   cache: distinct anonymous array bases retain distinct pointer identities,
   and repeat construction aliases the direct canonical pointer. The wrapper
@@ -126,6 +145,10 @@ Document type requested from the parser (grammar.hh:217): `Declaration`,
   default wordsize 1; until Architecture wires `setupSizes`, only its layout
   calculation uses TypeFactory's registered compatibility fallback.
   Arbitrary architecture wordsize remains `TYPE-0001`.
+- The `FunctionModifier` constructor (grammar.cc:2419) is ported as
+  `function_modifier_ctor`: the lone-`(void)` parameter clearing and the
+  varargs flag live there; `CParse::new_func` (grammar.cc:2764) only detects
+  and pops the varargs trailer before calling it.
 - 2026-08-23 (TYPEFACTORY-LEGACY-CALLER-MIGRATION-0001): the in-file tests
   that build base types for `mod_type` now use the faithful
   `get_base_result` twin; on the `TypeFactory::new` bootstrap the cached
@@ -137,13 +160,16 @@ Document type requested from the parser (grammar.hh:217): `Declaration`,
   store a `null` slot in `Vec<TypeDeclarator>`.
 
 ## L3 gaps
-- Full bison grammar table from `grammar.y` (only the recursive-descent subset
-  used by the entry points is ported).
+- Full bison grammar table from `grammar.y`: the recursive-descent driver
+  covers the production set the parser-face fixture pins (declarator
+  ordering/grouping, parameter declarations, struct/union/enum
+  definitions, varargs); remaining registered subset limitations are in
+  the fixture metadata (`tests/oracle/grammar_parse_face_1204.metadata.json`).
 - PointerModifier's exact default-data-space wordsize is unavailable without
   threading the Architecture handle into the Rust grammar/type-factory edge.
-- `TypeFactory` integration for struct/union/enum construction (`newStruct` /
-  `newUnion` / `newEnum` from grammar.cc:2779/2818/2881) — these need a live
-  `Architecture` reference and are deferred.
+- `TypeFactory` integration for struct/union/enum construction is wired
+  through `parse_tag_specifier` (typed driver path); the untyped legacy
+  `parse_stream` path leaves composite specifiers unresolved.
 
 ## Annotation provenance
 

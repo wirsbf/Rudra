@@ -1,0 +1,66 @@
+{
+ "schema_version": 1,
+ "fixture_id": "WORKPKG-UNMAP-PARSEADJ-0015",
+ "title": "C-declaration parser whole face (generator-absorbed equivalence unit): parse_type / parse_protopieces parse trees over C type strings and DWARF-style declaration strings",
+ "overall_status": "MATCH",
+ "status_note": "Lane PARSEADJ (wt/parseadj, base 6a458387). The locked Ghidra 12.0.4 bison-backed CParse (oracle commit e40ed130) and the lane-tree Rugra recursive-descent driver (src/grammar.rs) were each executed once with deterministic stdout. Both sides produced 83 records / identical bytes (SHA-256 d63130daf9c6ce1087dfe156208337e6ecd488d010043f0761f4dcbfa1d65c49). Runner: tools/run_grammar_parse_face_oracle.sh (lane iteration form — root re-pins to the frozen-commit form at integration).",
+ "input_sha256": "grammar_parse_face case matrix embedded in both fixture sources (pt01-pt10, pp01-pp07); see fixture headers",
+ "oracle_output_sha256": "d63130daf9c6ce1087dfe156208337e6ecd488d010043f0761f4dcbfa1d65c49",
+ "rugra_output_sha256": "d63130daf9c6ce1087dfe156208337e6ecd488d010043f0761f4dcbfa1d65c49",
+ "covered_projection": {
+  "status": "MATCH",
+  "name": "grammar.cc yyparse + yy* skeleton equivalence unit: the C-declaration parse face (17 cases)",
+  "oracle_capture": {
+   "status": "ORACLE_CAPTURED",
+   "note": "The unmodified bison yyparse is reached through the public parse_type (grammar.cc:3112, doc_parameter_declaration) and parse_protopieces (grammar.cc:3131, doc_declaration) entry points on a real BfdArchitecture (x86:LE:64:default:gcc)."
+  },
+  "rugra_source_observation": {
+   "status": "MATCH",
+   "note": "src/grammar.rs recursive-descent driver: yyparse (bison reduction order — mergePointer stars append after direct_declarator suffixes, grammar.y:151-153), parse_direct_declarator (grouping grammar.y:158 + array/function suffixes grammar.y:159-163), parse_parameter_declaration (grammar.y:186-190), parse_tag_specifier (struct_or_union_specifier grammar.y:97-106 + enum_specifier grammar.y:137-143), parse_struct_declaration_list (grammar.y:108-122), parse_enumerator_list (grammar.y:144-151), TYPE_NAME resolution via the threaded factory (lookupIdentifier findByName probe, grammar.cc:2972), function suffixes routed through new_func/newArray (grammar.cc:2756/2764), FunctionModifier ctor twin (grammar.cc:2419)."
+  },
+  "rugra_execution": {
+   "status": "EXECUTED",
+   "note": "The lane tree's rugra rlib built the fixture binary (rustc --extern rugra); deterministic stdout, exit 0."
+  },
+  "bilateral_comparison": {
+   "status": "MATCH",
+   "note": "diff exit 0 over 83 records; byte SHA-256 identical on both sides. Probes: pointer-after-suffix order (pt06 int4 *x[3] = array-of-pointer), grouping (pt07 int4 (*x)[3] = pointer-to-array), group+suffix (pt08 int4 (*)(int4,int8) = pointer-to-code), struct definition commit (pt09 struct pair{int4;int4;} = named 8-byte struct), lone-(void) arity clearing (pp02), varargs slot (pp03 firstVarArgSlot=1), qualified abstract params (pp04), non-prototype error text (pp06), extra-void rejection (pp07)."
+  }
+ },
+ "known_deltas": [
+  {
+   "kind": "carrier-normalisation",
+   "note": "Rugra's get_type_code_pieces mints a synthetic dedup name (funcptr(int4)(int4,int8)) where the oracle's getTypeCode creates anonymous code types deduped structurally; the fixture normalises code-type names starting with 'funcptr' to the oracle anonymous printRaw form funcptr(). Registry-key difference, RUGRA-GLUE documented on the twin; parse-tree face unaffected."
+  },
+  {
+   "kind": "carrier-gap",
+   "note": "Prototype model names: the oracle's getModel resolves through glb->defaultfp (x86-64-gcc names it __stdcall); Rugra's grammar edge has no ProtoModel registry reachable, so pieces.model stays None and the comparand prints the compiler spec's default-model name directly."
+  },
+  {
+   "kind": "driver-subset",
+   "note": "Registered limitations of the recursive-descent driver that the 17-case face does not exercise: pointer-position type_qualifier_list flags (grammar.y:166-170 always flags=0), FUNCTION_SPECIFIER model tokens (lookupIdentifier's hasModel probe), init_declarator initializers, direct_declarator '[' ']' unsized arrays (grammar.y:161 commented out in oracle too), and the legacy untyped parse_stream path leaving basetypes unresolved. pcodeparse.cc's PcodeSnippet p-code-string face is a separate, not-yet-built fixture (follow-up ticket PARSEADJ-PARSEFACE-PCODE-0001)."
+  }
+ ],
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "entrypoints": [
+   "parse_type (grammar.cc:3112-3129)",
+   "parse_protopieces (grammar.cc:3131-3149)",
+   "CParse::parseStream (grammar.cc:3091)",
+   "yyparse (grammar.cc:1205, bison-generated driver + grammar.y productions)"
+  ]
+ },
+ "rugra": {
+  "worktree": "wt/parseadj",
+  "base_commit": "6a458387",
+  "modules": [
+   "src/grammar.rs (yyparse, parse_direct_declarator, parse_declarator, parse_parameter_declaration, parse_tag_specifier, parse_struct_declaration_list, parse_enumerator_list, parse_stream_with_types, run_parse_with_types, null_declarator_slot, function_modifier_ctor, pointer_mod_type, array_mod_type, function_mod_type)"
+  ]
+ },
+ "verification": {
+  "runner": "tools/run_grammar_parse_face_oracle.sh",
+  "verdict": "BILATERAL MATCH (83 records)",
+  "date": "2026-09-27"
+ }
+}
