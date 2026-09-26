@@ -98,6 +98,35 @@
 
 ## 活跃 wave：`W-2026-09-01-FLEET5`（2026-09-01 起；goal=所有函数文本级对齐；并发上限 5=用户指令）
 
+> ### 派发：FUNCINJECT — `REGAP-FUNCINJECT-CODEREF-0001`（2026-09-27 root 立票自 REGAP 车道；本波最高价值票：canon httpd 回归根因的修复落地）
+> **票 `REGAP-FUNCINJECT-CODEREF-0001`（P1）**：`src/funcdata.rs::inject_raw_ops` 缺
+> `PcodeEmitFd::dump` 的 coderef 臂（oracle funcdata.cc:892-897→newCodeRef=1 字节+
+> Varnode::annotation；姊妹路径 inject_raw_ops_single 有该臂、此路径漏）。车道
+> wt/funcinject（owner=fixer，基=master 6a458387）。**write-set**：src/funcdata.rs
+> （inject_raw_ops 输入循环一处）+ docs/api/funcdata.md + 本行。
+> **DONE（2026-09-27，数字==REGAP A/B 预演逐项）**：①修复=输入循环首输入位补
+> coderef 臂——BRANCH/CBRANCH/CALL（仅此三 opcode 的 TypeOp 构造器置
+> PcodeOp::coderef，typeop.cc:586/605/663；BRANCHIND/CALLIND 刻意不带，op.hh:194）
+> 的 in(0) 以 `create_with_space(1,…)+ANNOTATION+code 类型(code_ref_datatype())`
+> 物化（newCodeRef=funcdata_varnode.cc:222-233 的 1:1 镜像，与姊妹路径逐字同形），
+> 后续输入走原 const/普通臂（对应 oracle `i+=1` 后 cc:904-907 walk）。
+> ②**验收（fast-release 亲测，基=6a458387；pristine 对照=REGAP 同基亲测 311/md5
+> f5a05fd5，本车道无中途 revert）**：canon httpd **311→148/0/0 零回退**（输出 md5
+> 5b04633b==REGAP A/B 预演逐字节；ap_pregsub 122→13[结构=golden 同构，残 13=变量
+> 重编号族]/ap_no2slash 22→8/ap_make_dirstr_prefix 12→0/ap_fini_vhost_config 45→32/
+> ap_getparents 24→19/ap_update_vhost_from_headers 7→5/ap_matches_request_vhost 等
+> 4×2 行函数→0/其余 24 函数 0→0 恒等——逐函数==REGAP §6 归因表）；canon curl
+> **157/0/0 md5 51cc85d2 逐字节恒等**（修复对 curl 零行为面）；镜面五面
+> curl 56/56·74/74 · httpd 94/94·29/29 · vsh 15/16·71/71 · sq 4321/7500·810/810 ·
+> sqlite 26665/26665·1385/1385 全 PASS==基线；bank **391/391**；cargo test --lib
+> **1829P/0F/5I**==基线；annotations/refs--strict/corpus-markers/gate-health/
+> doc-sync 门禁绿。③机制 A Evidence 块（四类语义逐条）+ ## Differential 块随
+> commit（funcdata 非机制 B 白名单，按票面高可见修复附差分）；机制 C：funcdata.rs
+> 非核心算法白名单→root 快速复核面（终报标注）。④B2 retaddr pin 过期=REGAP 已
+> 登记的预存项（MB20 收口，非本票面；本车道零 B2 fixture 变动）。证据=
+> /dev/shm/rugra-tests/funcinject/；终报=/dev/shm/rugra-reports/
+> LANE_FUNCINJECT_2026-09-27.md | 2026-09-27 |
+
 > ### 派发：FRONTEND-MINIMAL-0001 基础阶段（2026-09-26 root 批准；纯增量前端件）
 > **票 FRONTEND-MINIMAL-0001-BASIC（P1）**：ELF 符号导入 + 函数发现（非
 > stripped）+ PT_LOAD 自动推导 + demangle 四件，新模块 `src/frontend.rs`，
