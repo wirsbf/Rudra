@@ -1,0 +1,78 @@
+{
+ "schema_version": 2,
+ "fixture_id": "RULE-BOOLEANDEDUP-ISMATCH-0001",
+ "overall_status": "MATCH: (ticket-domain projection: RuleBooleanDedup::isMatch + applyOp pairing/flipped-form block, 12 cases)",
+ "status_note": "WORKPKG-UNMAP-RULEADJ-0013 B2 fixture for RuleBooleanDedup::isMatch (ruleaction.cc:2817-2831 -> BooleanMatch::evaluate expression.cc:111-216) and the applyOp match block (cc:2856-2922). Rugra previously paired the four inputs by raw Arc identity only (no complements) and computed rightO as 4-bi which is never op1's other input for bi in {2,3}; both defects are witnessed by pair_03 (would have built AND(A,AND(B,B))) and pair_12 (AND(B,AND(A,B))). Cases: same-match dedup AND/OR central, distribute AND-under-OR, complement folds to COPY(#0)/COPY(#1) with the exact opSetOpcode->opRemoveInput(1)->opSetInput(newConstant,0) statement order, mixed flipped OR in both operand orders (finalA picks the un-negated side: opc0==OR ? leftA : rightA), De Morgan complementary pairing through evaluate's AND-vs-OR depth branch ((A&&B) vs (!A||!B)), pair-(0,3)/pair-(1,2) slot selection, uncorrelated reject, flipped AND-central reject.",
+ "decisive_semantics": {
+  "reference_output_parameters": "isMatch(leftVn,rightVn,bool &isFlip) writes isFlip only when returning true; applyOp mutates Funcdata by reference (newOp/newUniqueOut/opSetInput/opSetOpcode/opRemoveInput/opInsertBefore/newConstant) and rewrites the central op plus inserts the bcOp before it at the central op's address.",
+  "loop_bounds_traversal_order": "four pairings tried strictly in oracle order (ins0,ins2)(ins0,ins3)(ins1,ins2)(ins1,ins3), first match wins; leftO = op0's other input (1-ai), rightO = op1's other input (5-bi); the bcOp inherits the central op's address and is inserted immediately before it.",
+  "counter_accumulator_lifecycle": "isflipped is a per-applyOp local reset to false before the pairing loop and written by the successful isMatch call; no cross-call state.",
+  "sorting_comparison_keys": "BooleanMatch::evaluate at depth 1: SAME->(true,flip=false), COMPLEMENTARY->(true,flip=true), UNCORRELATED->no match; opcode triples: central==opc0==opc1 (bc=central), opc0==opc1!=central (final=opc0, bc=central); flipped forms: AND/AND/AND->COPY(#0), OR/OR/OR->COPY(#1), central OR && opc0!=opc1 -> finalA=(opc0==OR)?leftA:rightA with OR/OR, else reject."
+ },
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "decompiler_cpp_tree": "b02e230a539c65de14e50f357d0ba834d8184f4f",
+  "x86_language_tree": "84265e1e6fe7ac9725367b57fb861253e4915984",
+  "decompiler_makefile_blob": "ca0719fa5f17aabd14c52f40ed8b030f54d2aac6"
+ },
+ "architecture": "x86:LE:64:default",
+ "compiler_spec": {
+  "id": "gcc",
+  "path": "sleigh_specs/x86-64-gcc.cspec"
+ },
+ "analysis_options": "none: direct RuleBooleanDedup::applyOp harness on a real BfdArchitecture Funcdata; no decompilation pipeline options",
+ "rugra_source": {
+  "base_commit": "456d3fed",
+  "note": "is_match port + applyOp oracle-form rewrite commit (WORKPKG-UNMAP-RULEADJ-0013); bilateral normal-mode byte equality proven on this tree"
+ },
+ "comparand": {
+  "cpp_fixture_sha256": "18d08e45150a241ae68589c0d251284bce71072ece46013788addbca2dec840b",
+  "rust_fixture_sha256": "69fe30acbf10c6ec75b668777e26f6ca56f3c90892d6c9d35ea0918666599bcb",
+  "oracle_record_sha256": "bd3bd289a046ca3eff37937db1147eb649bf7459169dcef19fc530250572fd2a",
+  "runner_sha256": "f4dd56feacb02880e1182b819ee1e59d4a6fde288215ebcf4b6b2192f9a9413b"
+ },
+ "expected_results": {
+  "normal_stdout_sha256": "bd3bd289a046ca3eff37937db1147eb649bf7459169dcef19fc530250572fd2a",
+  "normal_stderr": "empty both sides",
+  "ghidra_exit_code": 0,
+  "rugra_exit_code": 0,
+  "case_order": [
+   "dedup_and",
+   "dedup_or",
+   "cross_and_or",
+   "flip_and0",
+   "flip_or1",
+   "flip_or_mixed",
+   "flip_or_mixed_swap",
+   "demorgan",
+   "pair_03",
+   "pair_12",
+   "uncorr",
+   "flip_and_mixed_rej"
+  ]
+ },
+ "coverage": {
+  "same_match_forms": {
+   "status": "MATCH",
+   "covers": "(A&&B)&&(A&&C)->A&&(B&&C); (A||B)||(A||C)->A||(B||C); (A&&B)||(A&&C)->A&&(B||C)",
+   "residual_todo_ids": []
+  },
+  "flipped_forms": {
+   "status": "MATCH",
+   "covers": "(A&&B)&&(!A&&C)->COPY(#0) and (A||B)||(!A||C)->COPY(#1) const folds with oracle statement order; (A||B)||(!A&&C) and (!A&&C)||(A||B) mixed forms with finalA side selection",
+   "residual_todo_ids": []
+  },
+  "complement_pairing": {
+   "status": "MATCH",
+   "covers": "BOOL_NEGATE direct complements and De Morgan ((A&&B) vs (!A||!B)) through evaluate depth-1 AND/OR branch; pair-(0,3)/pair-(1,2) leftO/rightO other-input slot selection (old 4-bi defect witness)",
+   "residual_todo_ids": []
+  },
+  "rejects": {
+   "status": "MATCH",
+   "covers": "all-four-pairs uncorrelated; flipped AND-central mixed reject",
+   "residual_todo_ids": []
+  }
+ },
+ "residual_todo_ids": []
+}

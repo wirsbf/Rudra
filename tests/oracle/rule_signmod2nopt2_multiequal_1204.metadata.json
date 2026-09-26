@@ -1,0 +1,78 @@
+{
+ "schema_version": 2,
+ "fixture_id": "RULE-SIGNMOD2NOPT2-ME-0001",
+ "overall_status": "MATCH: (ticket-domain projection: RuleSignMod2nOpt2::checkMultiequalForm + applyOp MULTIEQUAL arm + the npow two's-complement line cc:8883, 12 cases)",
+ "status_note": "WORKPKG-UNMAP-RULEADJ-0013 B2 fixture for the last .cc-side straggler RuleSignMod2nOpt2::checkMultiequalForm (ruleaction.cc:8941-8985, previously deferred for lack of block-structure access). Drives RuleSignMod2nOpt2::applyOp on the MULTIEQUAL path V=(V s<0)?V+2^n-1:V over the oracle's compiled diamond (decision D -> inner N -> merge M plus D -> M direct edge; M's other in-edge must BE the decision block, cc:8960-8972). Edge order (add_edge call order) is the semantics under test: M.in=[N,D] vs [D,N] picks innerSlot, D.out=[M,N] vs [N,M] with boolean_flip picks negSlot via getTrueOut()/getFalseOut() (block.hh:299-300 positional). Positive cases: slot0/slot1, no-flip/flip, and the oracle LAXITY that cc:8975-8982 never compares lessOp in(0) against base (me_lax_sless_in0 accepts INT_SLESS on an unrelated varnode). Rejects: wrong add constant, other MULTIEQUAL base, inner with extra out-edge (no 1-in/1-out M in-edge), no diamond (E->M instead of D->M), non-CBRANCH last op, sless constant != 0, negative-branch slot mismatch under flip, 3-input MULTIEQUAL. The fixture exposed and closed a pre-existing operator-precedence defect: ruleaction.rs computed npow as !(x+1) instead of (!x)+1 (oracle cc:8883 ~constVn->getOffset()+1), which had silently disabled BOTH RuleSignMod2nOpt2 paths on every input (npow never came out a correct power of two except x=mask).",
+ "decisive_semantics": {
+  "reference_output_parameters": "applyOp(op,data) mutates the IR by reference; checkMultiequalForm(adjOp,npow) takes npow BY VALUE and decrements it in place (cc:8945 npow-=1); the returned Varnode* (null on mismatch) is consumed by applyOp's descendant rewrite which replaces the root INT_ADD's inputs and opcode.",
+  "loop_bounds_traversal_order": "slot scan for(slot=0;slot<numInput();++slot) with continue-increment and break on otherBase==base, post-loop slot>1 full-scan reject (Rust found_slot Option); inner block tries M in-edge 0 then 1 requiring sizeIn==1&&sizeOut==1; MULTIEQUAL input slot i corresponds to M in-edge i; decision must equal M.getIn(1-innerSlot) by pointer identity.",
+  "counter_accumulator_lifecycle": "slot/innerSlot/negSlot are per-call locals with no cross-call state; npow is a per-call value parameter mutated once at entry.",
+  "sorting_comparison_keys": "Varnode pointer equality (otherBase==base, bl->getIn(1-innerSlot)==decision, negBlock==inner); offset equality constVn->getOffset()==npow-1 and lessOp in(1)==0; npow = (~andConst+1)&mask two's-complement negation with popcount==1 and !=1 gates; negSlot=(negBlock==inner)?innerSlot:1-innerSlot must equal the INT_ADD slot."
+ },
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "decompiler_cpp_tree": "b02e230a539c65de14e50f357d0ba834d8184f4f",
+  "x86_language_tree": "84265e1e6fe7ac9725367b57fb861253e4915984",
+  "decompiler_makefile_blob": "ca0719fa5f17aabd14c52f40ed8b030f54d2aac6"
+ },
+ "architecture": "x86:LE:64:default",
+ "compiler_spec": {
+  "id": "gcc",
+  "path": "sleigh_specs/x86-64-gcc.cspec"
+ },
+ "analysis_options": "none: direct RuleSignMod2nOpt2::applyOp harness on a real BfdArchitecture Funcdata; no decompilation pipeline options",
+ "rugra_source": {
+  "base_commit": "456d3fed",
+  "note": "check_multiequal_form port + MULTIEQUAL arm wiring + npow precedence fix commit lineage (WORKPKG-UNMAP-RULEADJ-0013); bilateral normal-mode byte equality proven on this tree"
+ },
+ "comparand": {
+  "cpp_fixture_sha256": "06c99fed34e38b29e515de2e34e512eb2e61d6089fe36947b639a17c9a2b659b",
+  "rust_fixture_sha256": "16780a9b536e3a034d52404d957afb00ac14ab71c7126e28cfbfbfc85ee91892",
+  "oracle_record_sha256": "5ce9bfd93d61f316ab0fb86959bebfc222d0203927b95e45d4fab3e22186818f",
+  "runner_sha256": "ac052aa6a59a91ee620074b891dcb53cdb5e5be4d6db1761009160225ff9e1ee"
+ },
+ "expected_results": {
+  "normal_stdout_sha256": "5ce9bfd93d61f316ab0fb86959bebfc222d0203927b95e45d4fab3e22186818f",
+  "normal_stderr": "empty both sides",
+  "ghidra_exit_code": 0,
+  "rugra_exit_code": 0,
+  "case_order": [
+   "me_pos_slot0_noflip",
+   "me_pos_slot1_noflip",
+   "me_pos_flip",
+   "me_lax_sless_in0",
+   "me_rej_addconst",
+   "me_rej_otherbase",
+   "me_rej_inner_extra",
+   "me_rej_no_diamond",
+   "me_rej_not_cbranch",
+   "me_rej_sless_const",
+   "me_rej_negslot",
+   "me_rej_3inputs"
+  ]
+ },
+ "coverage": {
+  "me_positive_forms": {
+   "status": "MATCH",
+   "covers": "slot0/slot1 x no-flip/flip: INT_ADD output in MULTIEQUAL slot matching the negative branch edge slot; root INT_ADD rewritten to INT_SREM(base,#npow) with opSetInput order slot==0 first",
+   "residual_todo_ids": []
+  },
+  "oracle_laxity": {
+   "status": "MATCH",
+   "covers": "cc:8975-8982 never check lessOp in(0) against base: INT_SLESS on an unrelated varnode still accepts and rewrites",
+   "residual_todo_ids": []
+  },
+  "me_rejects": {
+   "status": "MATCH",
+   "covers": "add constant != npow-1; other MULTIEQUAL input not base; no 1-in/1-out M in-edge (inner extra out); non-diamond other in-edge; last op not CBRANCH; sless constant != 0; negSlot mismatch under flip; numInput != 2",
+   "residual_todo_ids": []
+  },
+  "npow_computation": {
+   "status": "MATCH",
+   "covers": "cc:8883 npow=(~andConst+1)&mask two's complement: positive cases fired only after the !(x+1) -> (!x)+1 precedence fix; mask 0xfffffffffffffffc yields npow 4, SREM constant 4",
+   "residual_todo_ids": []
+  }
+ },
+ "residual_todo_ids": []
+}

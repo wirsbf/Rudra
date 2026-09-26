@@ -8630,6 +8630,78 @@
         "rust_function_ids": [],
         "ghidra_function_ids": []
       }
+    },
+    {
+      "id": "rule_signmod2nopt2_multiequal",
+      "description": "RULE-SIGNMOD2NOPT2-ME-0001 (WORKPKG-UNMAP-RULEADJ-0013): checkMultiequalForm diamond-CFG recognition, 12 cases",
+      "runner": [
+        "tools/run_rule_signmod2nopt2_multiequal_oracle.sh"
+      ],
+      "timeout_seconds": 900,
+      "always_tiers": [
+        "wave",
+        "nightly"
+      ],
+      "evidence_status": "MATCH",
+      "cache": {
+        "metadata": "tests/oracle/rule_signmod2nopt2_multiequal_1204.metadata.json",
+        "tools": {
+          "runner": "tools/run_rule_signmod2nopt2_multiequal_oracle.sh"
+        },
+        "inputs": {
+          "fixture_source_1": "tests/oracle/rule_signmod2nopt2_multiequal_1204.cc",
+          "fixture_source_2": "tests/oracle/rule_signmod2nopt2_multiequal_1204.rs",
+          "oracle_record": "tests/oracle/rule_signmod2nopt2_multiequal_1204.oracle.out"
+        }
+      }
+    },
+    {
+      "id": "rule_booleandedup_ismatch",
+      "description": "RULE-BOOLEANDEDUP-ISMATCH-0001 (WORKPKG-UNMAP-RULEADJ-0013): isMatch pairing/flipped-form semantics, 12 cases",
+      "runner": [
+        "tools/run_rule_booleandedup_ismatch_oracle.sh"
+      ],
+      "timeout_seconds": 900,
+      "always_tiers": [
+        "wave",
+        "nightly"
+      ],
+      "evidence_status": "MATCH",
+      "cache": {
+        "metadata": "tests/oracle/rule_booleandedup_ismatch_1204.metadata.json",
+        "tools": {
+          "runner": "tools/run_rule_booleandedup_ismatch_oracle.sh"
+        },
+        "inputs": {
+          "fixture_source_1": "tests/oracle/rule_booleandedup_ismatch_1204.cc",
+          "fixture_source_2": "tests/oracle/rule_booleandedup_ismatch_1204.rs",
+          "oracle_record": "tests/oracle/rule_booleandedup_ismatch_1204.oracle.out"
+        }
+      }
+    },
+    {
+      "id": "rule_subcommute_cancelext",
+      "description": "RULE-SUBCOMMUTE-CANCELEXT-0001 (WORKPKG-UNMAP-RULEADJ-0013): cancelExtensions via DIV/REM ZEXT + SDIV/SREM SEXT arms, 9 cases",
+      "runner": [
+        "tools/run_rule_subcommute_cancelext_oracle.sh"
+      ],
+      "timeout_seconds": 900,
+      "always_tiers": [
+        "wave",
+        "nightly"
+      ],
+      "evidence_status": "MATCH",
+      "cache": {
+        "metadata": "tests/oracle/rule_subcommute_cancelext_1204.metadata.json",
+        "tools": {
+          "runner": "tools/run_rule_subcommute_cancelext_oracle.sh"
+        },
+        "inputs": {
+          "fixture_source_1": "tests/oracle/rule_subcommute_cancelext_1204.cc",
+          "fixture_source_2": "tests/oracle/rule_subcommute_cancelext_1204.rs",
+          "oracle_record": "tests/oracle/rule_subcommute_cancelext_1204.oracle.out"
+        }
+      }
     }
   ]
 }

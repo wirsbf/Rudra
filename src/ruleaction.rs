@@ -5449,13 +5449,37 @@ impl Rule for RuleBitUndistribute {
 ///
 /// Faithful to Ghidra's `RuleBooleanDedup` (ruleaction.cc:2840-2955). When
 /// two BOOL_AND/BOOL_OR ops share a common boolean sub-expression, factor it
-/// out. Uses functional_equality for matching (simplified from Ghidra's
-/// BooleanMatch::evaluate).
+/// out; complementary matches (via BOOL_NEGATE / De Morgan pairs, matched by
+/// `isMatch` -> `BooleanMatch::evaluate`, expression.cc:111-216) additionally
+/// fold `(A&&B)&&(!A&&C)` to `false`, `(A||B)||(!A||C)` to `true`, and
+/// `(A||B)||(!A&&C)` to `A || (B || C)` with the un-negated side as `A`.
 pub struct RuleBooleanDedup;
 
 impl RuleBooleanDedup {
     // Ghidra: ruleaction.cc:2812 RuleBooleanDedup
     pub fn new() -> Self { Self }
+
+    /// Determine if the two given boolean Varnodes always contain matching
+    /// values. Faithful to `RuleBooleanDedup::isMatch`
+    /// (ruleaction.cc:2817-2831): the values can always be equal (returns
+    /// `Some(false)`) or always be complements (returns `Some(true)`);
+    /// `None` if uncorrelated. Delegates to `BooleanMatch::evaluate`
+    /// (expression.cc:111-216) with depth 1.
+    // Ghidra: ruleaction.cc:2817 RuleBooleanDedup::isMatch
+    fn is_match(
+        left_vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        right_vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+    ) -> Option<bool> {
+        use crate::expression::boolean_match;
+        let val = crate::expression::boolean_match_evaluate(left_vn, right_vn, 1);
+        if val == boolean_match::SAME {
+            Some(false)
+        } else if val == boolean_match::COMPLEMENTARY {
+            Some(true)
+        } else {
+            None
+        }
+    }
 }
 
 impl Rule for RuleBooleanDedup {
@@ -5496,44 +5520,94 @@ impl Rule for RuleBooleanDedup {
             if ins.iter().any(|v| v.read().unwrap().is_free()) { return Ok(action_status::NO_CHANGE); }
             (op.opcode, ins, opc0, opc1)
         };
-        // Find a matching pair among the 4 inputs (simplified: use functional_equality).
-        // Ghidra uses BooleanMatch which also handles complement via BOOL_NEGATE.
-        // We handle only the direct match case (not complement/flipped).
+        // cc:2856-2874: try the four pairings in oracle order via isMatch
+        // (BooleanMatch::evaluate at depth 1, complements included); isFlip
+        // passes back whether the matched pair is complementary.
         let pairs = [(0, 2), (0, 3), (1, 2), (1, 3)];
-        let mut found: Option<(usize, usize, usize, usize)> = None;
+        let mut isflipped = false;
+        let mut found: Option<(usize, usize, usize, usize)> = None; // leftA, rightA, leftO, rightO
         for (ai, bi) in &pairs {
-            if functional_equality_eq(&ins[*ai], &ins[*bi]) {
-                found = Some((*ai, *bi, 1 - *ai, 4 - *bi)); // leftA, rightA, leftO, rightO
+            if let Some(flip) = Self::is_match(&ins[*ai], &ins[*bi]) {
+                isflipped = flip;
+                // leftO is op0's other input (1-ai); rightO is op1's other
+                // input (5-bi: {2,3} -> {3,2}).
+                found = Some((*ai, *bi, 1 - *ai, 5 - *bi));
                 break;
             }
         }
-        let (leftA_idx, rightA_idx, leftO_idx, rightO_idx) = match found {
+        let (left_a_idx, right_a_idx, left_o_idx, right_o_idx) = match found {
             Some(f) => f,
             None => return Ok(action_status::NO_CHANGE),
         };
-        let leftA = ins[leftA_idx].clone();
-        let leftO = ins[leftO_idx].clone();
-        let rightO = ins[rightO_idx].clone();
-        // Determine the opcodes.
-        let (final_opc, bc_opc) = if central_opc == opc0 && central_opc == opc1 {
-            (central_opc, central_opc)
+        let left_a = ins[left_a_idx].clone();
+        let right_a = ins[right_a_idx].clone();
+        let left_o = ins[left_o_idx].clone();
+        let right_o = ins[right_o_idx].clone();
+        // cc:2875-2901: opcode selection, honoring the flipped forms.
+        let follow = crate::op::PcodeOpRef(op_arc.clone());
+        let final_a;
+        let final_opc;
+        let bc_opc;
+        if isflipped {
+            if central_opc == OpCode::CPUI_BOOL_AND
+                && opc0 == OpCode::CPUI_BOOL_AND
+                && opc1 == OpCode::CPUI_BOOL_AND
+            {
+                // (A && B) && (!A && C): whole expression is false.
+                fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
+                fd.op_remove_input(&follow, 1);
+                let zero = fd.new_constant(1, 0);
+                fd.op_set_input(&follow, zero, 0);
+                return Ok(action_status::CHANGE);
+            }
+            if central_opc == OpCode::CPUI_BOOL_OR
+                && opc0 == OpCode::CPUI_BOOL_OR
+                && opc1 == OpCode::CPUI_BOOL_OR
+            {
+                // (A || B) || (!A || C): whole expression is true.
+                fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
+                fd.op_remove_input(&follow, 1);
+                let one = fd.new_constant(1, 1);
+                fd.op_set_input(&follow, one, 0);
+                return Ok(action_status::CHANGE);
+            }
+            if central_opc == OpCode::CPUI_BOOL_OR && opc0 != opc1 {
+                // (A || B) || (!A && C)
+                final_a = if opc0 == OpCode::CPUI_BOOL_OR {
+                    left_a
+                } else {
+                    right_a
+                };
+                final_opc = OpCode::CPUI_BOOL_OR;
+                bc_opc = OpCode::CPUI_BOOL_OR;
+            } else {
+                return Ok(action_status::NO_CHANGE);
+            }
+        } else if central_opc == opc0 && central_opc == opc1 {
+            // (A && B) && (A && C)    or    (A || B) || (A || C)
+            final_a = left_a;
+            final_opc = central_opc;
+            bc_opc = central_opc;
         } else if opc0 == opc1 && central_opc != opc0 {
-            (opc0, central_opc)
+            // (A && B) || (A && C)    or    (A || B) && (A || C)
+            final_a = left_a;
+            final_opc = opc0;
+            bc_opc = central_opc;
         } else {
             return Ok(action_status::NO_CHANGE);
-        };
-        // Build inner op: leftO bc_opc rightO
+        }
+        // cc:2902-2910: build inner op leftO bc_opc rightO before the
+        // rewritten op, then rewrite op to final_opc(finalA, tmp).
         let pc = op_arc.read().unwrap().start.get_addr();
         let bc_op = fd.new_op(2, pc);
         let tmp = fd.new_unique_out(1, &bc_op);
         fd.op_set_opcode(&bc_op, bc_opc);
-        fd.op_set_input(&bc_op, leftO, 0);
-        fd.op_set_input(&bc_op, rightO, 1);
+        fd.op_set_input(&bc_op, left_o, 0);
+        fd.op_set_input(&bc_op, right_o, 1);
         fd.op_insert_before(&bc_op, &crate::op::PcodeOpRef(op_arc.clone()));
-        // Rewrite op: final_opc(leftA, tmp)
-        let follow = crate::op::PcodeOpRef(op_arc.clone());
+        // Rewrite op: final_opc(finalA, tmp)
         fd.op_set_opcode(&follow, final_opc);
-        fd.op_set_input(&follow, leftA, 0);
+        fd.op_set_input(&follow, final_a, 0);
         fd.op_set_input(&follow, tmp, 1);
         Ok(action_status::CHANGE)
     }
@@ -8615,9 +8689,9 @@ impl Rule for RuleSubCommute {
                 }
             }
             OpCode::CPUI_INT_DIV | OpCode::CPUI_INT_REM => {
+                // Only commutes if inputs are zero extended (cc:4542-4568).
                 j = -1;
                 if offset != 0 { return Ok(action_status::NO_CHANGE); }
-                // longform->getIn(0) must be INT_ZEXT.
                 let in0 = longform_arc.read().unwrap().inrefs.get(0).cloned();
                 let in0 = match in0 { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
                 };
@@ -8631,34 +8705,53 @@ impl Rule for RuleSubCommute {
                 let zext0_in = in0_def.read().unwrap().inrefs.get(0).cloned();
                 let zext0_in = match zext0_in { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
                 };
-                if zext0_in.read().unwrap().get_size() > outvn_size {
-                    // Partial commute (cancelExtensions) — deferred for simplicity.
-                    return Ok(action_status::NO_CHANGE);
-                }
-                // Check input[1] similarly if written.
+                // cc:4550-4562: check in(1) FIRST — cancelExtensions only
+                // fires when in(1) is a written ZEXT and either extension
+                // input is bigger than outvn (ZEXT partial commute,
+                // RULEACTION-SUBCOMMUTE-ZEXT-PARTIAL-0001).
                 let in1 = longform_arc.read().unwrap().inrefs.get(1).cloned();
-                if let Some(in1v) = in1 {
-                    if in1v.read().unwrap().is_written() {
-                        let in1_def = match in1v.read().unwrap().def.as_ref().and_then(|w| w.upgrade()) {
-                            Some(a) => a, None => return Ok(action_status::NO_CHANGE),
-                        };
-                        if in1_def.read().unwrap().opcode != OpCode::CPUI_INT_ZEXT {
-                            return Ok(action_status::NO_CHANGE);
-                        }
-                        let zext1_in = in1_def.read().unwrap().inrefs.get(0).cloned();
-                        if let Some(z1) = zext1_in {
-                            if z1.read().unwrap().get_size() > outvn_size {
-                                return Ok(action_status::NO_CHANGE); // partial commute
-                            }
-                        }
-                    } else if in1v.read().unwrap().is_constant() {
-                        // Must fit in outvn_size mask.
-                        let val = in1v.read().unwrap().get_offset();
-                        let smallval = val & crate::address::calc_mask(outvn_size);
-                        if val != smallval { return Ok(action_status::NO_CHANGE); }
-                    } else {
+                let in1v = match in1 { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                };
+                if in1v.read().unwrap().is_written() {
+                    let in1_def = match in1v.read().unwrap().def.as_ref().and_then(|w| w.upgrade()) {
+                        Some(a) => a, None => return Ok(action_status::NO_CHANGE),
+                    };
+                    if in1_def.read().unwrap().opcode != OpCode::CPUI_INT_ZEXT {
                         return Ok(action_status::NO_CHANGE);
                     }
+                    let zext1_in = match in1_def.read().unwrap().inrefs.get(0).cloned() {
+                        Some(v) => v,
+                        None => return Ok(action_status::NO_CHANGE),
+                    };
+                    if zext1_in.read().unwrap().get_size() > outvn_size
+                        || zext0_in.read().unwrap().get_size() > outvn_size
+                    {
+                        // Special case where we need a PARTIAL commute of
+                        // the SUBPIECE: SUBPIECE cancels the ZEXTs, but
+                        // there is still some SUBPIECE left (cc:4558-4561).
+                        if Self::cancel_extensions(
+                            &crate::op::PcodeOpRef(longform_arc.clone()),
+                            &crate::op::PcodeOpRef(op_arc.clone()),
+                            &zext0_in,
+                            &zext1_in,
+                            fd,
+                        ) {
+                            // Leave SUBPIECE intact.
+                            return Ok(action_status::CHANGE);
+                        }
+                        return Ok(action_status::NO_CHANGE);
+                    }
+                    // If ZEXT sizes are both not bigger, go ahead and
+                    // commute SUBPIECE (fallthru, cc:4562).
+                } else if in1v.read().unwrap().is_constant()
+                    && zext0_in.read().unwrap().get_size() <= outvn_size
+                {
+                    // Must fit in outvn_size mask (cc:4563-4568).
+                    let val = in1v.read().unwrap().get_offset();
+                    let smallval = val & crate::address::calc_mask(outvn_size);
+                    if val != smallval { return Ok(action_status::NO_CHANGE); }
+                } else {
+                    return Ok(action_status::NO_CHANGE);
                 }
             }
             OpCode::CPUI_INT_SREM | OpCode::CPUI_INT_SDIV => {
@@ -11381,9 +11474,9 @@ impl Rule for RuleModOpt {
 }
 
 /// Convert INT_SREM form: `V - (Vadj & ~(2^n-1)) => V s% 2^n`.
-/// Faithful to `RuleSignMod2nOpt2` (ruleaction.cc:8867-8922). Only the
-/// `checkSignExtForm` path (INT_ADD) is implemented; the MULTIEQUAL path
-/// (`checkMultiequalForm`) requires block-structure access and is deferred.
+/// Faithful to `RuleSignMod2nOpt2` (ruleaction.cc:8867-8922). Both paths of
+/// applyOp are implemented: the INT_ADD path (`checkSignExtForm`) and the
+/// MULTIEQUAL path (`checkMultiequalForm`).
 pub struct RuleSignMod2nOpt2;
 
 impl RuleSignMod2nOpt2 {
@@ -11446,6 +11539,137 @@ impl RuleSignMod2nOpt2 {
         }
         None
     }
+
+    /// Verify an \e if block like `V = (V s< 0) ? V + 2^n-1 : V`.
+    /// Faithful to `checkMultiequalForm` (ruleaction.cc:8941-8985). Returns
+    /// the Varnode V in the form, or None if the form doesn't match:
+    ///   - one MULTIEQUAL input must be `INT_ADD(base, 2^n-1)` with the
+    ///     other input being `base` itself (cc:8945-8957, the post-loop
+    ///     `slot > 1` test rejects a full scan without a break);
+    ///   - the merge block's first in-edge with exactly one in/out edge is
+    ///     the "inner" block; the other in-edge must land on the same
+    ///     `decision` block as inner's sole in-edge (diamond join,
+    ///     cc:8958-8972);
+    ///   - decision's last op is a CBRANCH on `base s< 0` (INT_SLESS with
+    ///     constant 0, cc:8973-8982);
+    ///   - the CBRANCH edge out of the decision whose taken-branch means
+    ///     `V s< 0` is TRUE (respecting isBooleanFlip) must be the
+    ///     INT_ADD slot (cc:8983-8985).
+    // Ghidra: ruleaction.cc:8941 RuleSignMod2nOpt2::checkMultiequalForm
+    fn check_multiequal_form(
+        op: &std::sync::Arc<std::sync::RwLock<PcodeOp>>,
+        mut npow: u64,
+    ) -> Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> {
+        type BlockRef = std::sync::Arc<
+            std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+        >;
+        // cc:8943-8944
+        let num_input = op.read().unwrap().num_input();
+        if num_input != 2 { return None; }
+        npow -= 1; // 2^n - 1
+        // cc:8945-8957: find the slot whose input is INT_ADD(base, npow-1)
+        // and whose sibling input is base itself.
+        let mut base: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = None;
+        let mut found_slot: Option<usize> = None;
+        for slot_iter in 0..num_input {
+            let add_out = match op.read().unwrap().inrefs.get(slot_iter) {
+                Some(v) => v.clone(),
+                None => continue,
+            };
+            if !add_out.read().unwrap().is_written() { continue; }
+            let add_op = match add_out
+                .read()
+                .unwrap()
+                .def
+                .as_ref()
+                .and_then(|w| w.upgrade())
+            {
+                Some(a) => a,
+                None => continue,
+            };
+            if add_op.read().unwrap().opcode != OpCode::CPUI_INT_ADD { continue; }
+            let const_vn = match add_op.read().unwrap().inrefs.get(1) {
+                Some(v) => v.clone(),
+                None => continue,
+            };
+            if !const_vn.read().unwrap().is_constant() { continue; }
+            if const_vn.read().unwrap().get_offset() != npow { continue; }
+            base = add_op.read().unwrap().inrefs.get(0).cloned();
+            let other_base = match op.read().unwrap().inrefs.get(1 - slot_iter) {
+                Some(v) => v.clone(),
+                None => continue,
+            };
+            if let Some(b) = base.as_ref() {
+                if std::sync::Arc::ptr_eq(&other_base, b) {
+                    found_slot = Some(slot_iter);
+                    break;
+                }
+            }
+        }
+        // cc:8958: a full scan without a break is the C++ `slot > 1` reject.
+        let slot = found_slot?;
+        let base = base?;
+        // cc:8960-8970: bl = op->getParent(); pick the first in-edge with
+        // exactly one in and one out edge as the inner block.
+        let bl: BlockRef = op
+            .read()
+            .unwrap()
+            .parent
+            .as_ref()
+            .and_then(|w| w.upgrade())?;
+        let mut inner_slot = 0usize;
+        let mut inner: BlockRef = bl.read().unwrap().get_in(inner_slot)?.point;
+        {
+            let ig = inner.read().unwrap();
+            if ig.size_out() != 1 || ig.size_in() != 1 {
+                drop(ig);
+                inner_slot = 1;
+                inner = bl.read().unwrap().get_in(inner_slot)?.point;
+                let ig = inner.read().unwrap();
+                if ig.size_out() != 1 || ig.size_in() != 1 {
+                    return None;
+                }
+            }
+        }
+        // cc:8971-8972: diamond join — inner's sole in-edge and the merge's
+        // other in-edge must be the same decision block.
+        let decision: BlockRef = inner.read().unwrap().get_in(0)?.point;
+        let bl_other_in: BlockRef = bl.read().unwrap().get_in(1 - inner_slot)?.point;
+        if !std::sync::Arc::ptr_eq(&bl_other_in, &decision) { return None; }
+        // cc:8973-8974: decision ends in a CBRANCH.
+        let cbranch = decision.read().unwrap().last_op()?;
+        if cbranch.0.read().unwrap().opcode != OpCode::CPUI_CBRANCH { return None; }
+        // cc:8975-8982: the CBRANCH boolean is `base s< 0`... in oracle text:
+        // INT_SLESS whose in(1) is constant 0 (the lessOp's inputs are not
+        // checked against base here — the SLOT consistency check below is
+        // the guard).
+        let bool_vn = cbranch.0.read().unwrap().get_in(1).cloned()?;
+        if !bool_vn.read().unwrap().is_written() { return None; }
+        let less_op = bool_vn
+            .read()
+            .unwrap()
+            .def
+            .as_ref()
+            .and_then(|w| w.upgrade())?;
+        if less_op.read().unwrap().opcode != OpCode::CPUI_INT_SLESS { return None; }
+        let less_in1 = less_op.read().unwrap().get_in(1).cloned()?;
+        if !less_in1.read().unwrap().is_constant() { return None; }
+        if less_in1.read().unwrap().get_offset() != 0 { return None; }
+        // cc:8983-8985: the "negative" branch (taken when base s< 0 holds,
+        // honoring isBooleanFlip) must be the INT_ADD slot.
+        let neg_block: BlockRef = if cbranch.0.read().unwrap().is_boolean_flip() {
+            decision.read().unwrap().get_false_out(&cbranch)?
+        } else {
+            decision.read().unwrap().get_true_out(&cbranch)?
+        };
+        let neg_slot = if std::sync::Arc::ptr_eq(&neg_block, &inner) {
+            inner_slot
+        } else {
+            1 - inner_slot
+        };
+        if neg_slot != slot { return None; }
+        Some(base)
+    }
 }
 
 impl Rule for RuleSignMod2nOpt2 {
@@ -11479,7 +11703,11 @@ impl Rule for RuleSignMod2nOpt2 {
         };
         if !and_const.read().unwrap().is_constant() { return Ok(action_status::NO_CHANGE); }
         let mask = crate::address::calc_mask(and_const.read().unwrap().get_size());
-        let npow = (!and_const.read().unwrap().get_offset().wrapping_add(1)) & mask;
+        // cc:8883: uintb npow = (~constVn->getOffset() + 1) & mask — two's
+        // complement negation of the AND constant. The unary ~ must bind
+        // BEFORE the +1 (Rust method call on the offset would invert the
+        // incremented value instead).
+        let npow = ((!and_const.read().unwrap().get_offset()).wrapping_add(1)) & mask;
         if npow.count_ones() != 1 { return Ok(action_status::NO_CHANGE); } // must be power of 2
         if npow == 1 { return Ok(action_status::NO_CHANGE); }
 
@@ -11503,9 +11731,13 @@ impl Rule for RuleSignMod2nOpt2 {
                 Some(b) => b,
                 None => return Ok(action_status::NO_CHANGE),
             }
+        } else if adj_opc == OpCode::CPUI_MULTIEQUAL {
+            // cc:8892-8893: MULTIEQUAL path via checkMultiequalForm.
+            match Self::check_multiequal_form(&adj_op, npow) {
+                Some(b) => b,
+                None => return Ok(action_status::NO_CHANGE),
+            }
         } else {
-            // MULTIEQUAL path (checkMultiequalForm) requires block-structure
-            // access (getParent/getIn/getTrueOut). Deferred.
             return Ok(action_status::NO_CHANGE);
         };
 

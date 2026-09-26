@@ -2102,3 +2102,75 @@ AddrSpace::byteToAddress（跨文件 space.hh 定义、引 ruleaction.cc:6294 �
 - 本模块 1 处 `// Ghidra:` 头注解的 file:line 已重锚到锁定 oracle (e40ed130)
   的函数定义起始行；本文件中同名单点引用同步更新（正文内点引用/区间端点不在
   机制 D checker 范围，遗留见 RULEACTION-ANNO-PROSE-RANGE-0001）。注释-only，零行为变化。
+
+### 2026-09-27 — WORKPKG-UNMAP-RULEADJ-0013 实移植半：RuleBooleanDedup::isMatch + RuleSignMod2nOpt2::checkMultiequalForm
+
+- **`RuleBooleanDedup::is_match`**（`ruleaction.cc:2817-2831` 1:1 移植）：
+  私有 helper，包装 `BooleanMatch::evaluate`（expression.cc:111-216，Rust 侧
+  `crate::expression::boolean_match_evaluate`，depth=1），返回
+  `Some(false)`=same / `Some(true)`=complementary / `None`=uncorrelated。
+- **`RuleBooleanDedup::apply_op` 匹配块重写为 oracle 形态**（cc:2856-2922）：
+  ①四对配对 `(0,2)(0,3)(1,2)(1,3)` 依序经 isMatch（含互补匹配——修复旧版
+  仅 Arc::ptr_eq 直接匹配且 **rightO 槽位索引错误**（`4-bi` 对 bi∈{2,3} 恒错，
+  应为 `5-bi`）两个缺陷）；②isflipped 臂新增三形态：
+  `(A&&B)&&(!A&&C)`→`COPY(#0)`（opSetOpcode COPY→opRemoveInput(1)→
+  opSetInput(newConstant(1,0),0) 顺序逐字）、`(A||B)||(!A||C)`→`COPY(#1)`、
+  `(A||B)||(!A&&C)`→`finalA=(opc0==OR)?leftA:rightA` + OR/OR；③非 flipped
+  双形态保持（central==both→(central,central)；opc0==opc1≠central→
+  (opc0,central)）；④finalA 区分（旧版恒 leftA，仅非 flip 等价）。
+- **`RuleSignMod2nOpt2::check_multiequal_form`**（`ruleaction.cc:8941-8985`
+  45 行 1:1 移植）：MULTIEQUAL 路径 `V = (V s< 0) ? V + 2^n-1 : V` 识别——
+  ①`npow -= 1` 后槽位扫描：输入为 `INT_ADD(base, 2^n-1)` 且对侧输入==base
+  （C++ `for` + break + 事后 `slot > 1` 全扫描拒绝，Rust 以 `found_slot:
+  Option<usize>` 等价表达，continue 增量语义由 for-range 保证）；②块结构：
+  `op.parent`（merge 块）首条 in 边 sizeIn==1&&sizeOut==1 者为 inner 块
+  （否则试 slot 1，再失败拒绝）；③diamond join：inner 唯一 in 边与 merge
+  另一条 in 边必须同为 decision 块（Arc::ptr_eq）；④decision 尾 op 必须
+  CBRANCH，布尔输入 written 且 def 为 `INT_SLESS(x, #0)`；⑤负分支槽位：
+  `isBooleanFlip() ? getFalseOut() : getTrueOut()`（block.hh:299-300 位置
+  约定 out[0]=false/out[1]=true，Rust trait 同构）指向 inner 时 negSlot=
+  innerSlot 否则 1-innerSlot，须等于 INT_ADD 槽位。返回 base。
+- **`RuleSignMod2nOpt2::apply_op`** 补 cc:8892-8893 MULTIEQUAL 分支接线
+  （`adj_opc == CPUI_MULTIEQUAL` → `check_multiequal_form(adj_op, npow)`），
+  SREM 重写尾（INT_ADD 后代搜索 + `slot==0 时先 opSetInput(base,0)` +
+  `newConstant(size, npow)` 至槽 1 + INT_SREM）不变。
+- **`RuleSubCommute::cancel_extensions`**（cc:4483-4512）：SUBCOMMUTE 车道已
+  移植（ruleaction.rs `fn cancel_extensions`），本票核验通过——loneDescend
+  守卫/等尺寸双侧 isFree/短侧 shortenExtension+长形 loneDescend 守卫/
+  opUnsetOutput→newUniqueOut(maxSize)→三 opSetInput 全对齐，无重写。本票
+  B2 fixture 补双侧行为证据（见 tests/oracle/rule_subcommute_cancelext_1204*）。
+- 单元测试基线保持 1829P/0F。
+
+### 2026-09-27（续）— WORKPKG-UNMAP-RULEADJ-0013 B2 双侧 fixture 半 + npow 前缀缺陷 + ZEXT 臂补接线
+
+- **`RuleSignMod2nOpt2::apply_op` npow 计算前缀缺陷修复**（cc:8883）：
+  oracle `uintb npow = (~constVn->getOffset() + 1) & mask` 是二补数取负
+  （先按位取反再 +1）；Rust 旧代码 `!x.wrapping_add(1)` 因方法调用结合律
+  实为 `!(x+1)`，对 AND 常量 0xfc 错算出 2 而非 4——该缺陷使
+  RuleSignMod2nOpt2 两条路径（checkSignExtForm/checkMultiequalForm）在
+  Rust 侧对所有输入静默失效。B2 multiequal fixture 首跑即暴露
+  （oracle apply=1 vs Rust apply=0），修正为
+  `((!x).wrapping_add(1)) & mask` 后 12/12 字节恒等。
+- **`RuleSubCommute::apply_op` DIV/REM（ZEXT 无符号）臂 oracle 结构重写**
+  （cc:4542-4568，闭单 `RULEACTION-SUBCOMMUTE-ZEXT-PARTIAL-0001`）：
+  ①先查 in(1)——written ZEXT 且任一 zext 输入 > outvn 时走
+  `cancel_extensions` 部分抵销（返回 CHANGE 保留 SUBPIECE，绝不到达
+  cc:4621/4623 通用路径检查）；②written 非 ZEXT 在任何尺寸问题前拒绝；
+  ③常量 in(1) 要求 `zext0In <= outvn` 且值适配 outvn 掩码；④旧 Rust 在
+  zext0In>outvn 时无条件 NO_CHANGE（部分抵销形态从不触发）。
+- **B2 三族 fixture**（GEN5 archive 形态，tests/oracle/ + tools/run_*）：
+  - `rule_signmod2nopt2_multiequal_1204`（12 例）：diamond CFG 全语义
+    （M.in 边序 [N,D]/[D,N] 决定 innerSlot；D.out 边序 × boolean_flip 决定
+    negSlot；正例 slot0/slot1 × noflip/flip；oracle 宽松性例——cc:8975-8982
+    从不校验 lessOp in(0)==base；拒绝例 8 种含 3 输入 MULTIEQUAL）。
+  - `rule_booleandedup_ismatch_1204`（12 例）：同值/分布/互补折叠/
+    混合 flip 双向/De Morgan 配对/pair-(0,3) 与 pair-(1,2) 槽位选择
+    （旧 `4-bi` 缺陷见证例）/双拒绝。
+  - `rule_subcommute_cancelext_1204`（9 例）：等尺寸/不等尺寸双侧
+    shortenExtension/DIV+SDIV+SREM 各臂/helper 三拒绝（cc:4488 输出第二
+    读者、cc:4489-4493 等臂自由输入、cc:4499 缩短侧 loneDescend）/
+    全 commute 对照例。
+  三族均与锁定 oracle（e40ed130 现场直跑归档）**字节恒等**；判别力亲证=
+  multiequal 首跑暴露 npow 前缀缺陷。
+- fixture_registry.json 追加 3 条（227→230）；cargo test --lib 1829P/0F；
+  canon curl 157/0/0、httpd 311/0/0 不回退。

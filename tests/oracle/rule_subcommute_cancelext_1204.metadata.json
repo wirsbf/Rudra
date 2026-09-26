@@ -1,0 +1,70 @@
+{
+ "schema_version": 2,
+ "fixture_id": "RULE-SUBCOMMUTE-CANCELEXT-0001",
+ "overall_status": "MATCH: (ticket-domain projection: RuleSubCommute::cancelExtensions + the DIV/REM ZEXT-arm partial-commute wiring cc:4551-4562, 9 cases)",
+ "status_note": "WORKPKG-UNMAP-RULEADJ-0013 B2 fixture for RuleSubCommute::cancelExtensions (ruleaction.cc:4483-4512) driven through BOTH caller arms: the INT_SDIV/INT_SREM SEXT arm (cc:4583-4589, ported by the SUBCOMMUTE lane) and the INT_DIV/INT_REM ZEXT arm (cc:4551-4562, whose partial-commute call was previously 'deferred for simplicity' in Rugra — RULEACTION-SUBCOMMUTE-ZEXT-PARTIAL-0001, closed by this ticket's arm rewrite). Cases: equal-extension cancel (both ext inputs 8 > SUBPIECE output 4: longform rebound to raw a8/b8, fresh 8-byte unique output, SUBPIECE survives reading it), unequal both orders (shortenExtension on the 4-byte side regrows that ZEXT/SEXT output to 8 bytes, cc:4494-4505 loneDescend guard), SEXT-arm mirrors, the three in-helper rejects (longform output second reader cc:4488; equal-arm freed extension input cc:4489-4493; shortened side's extension output second reader cc:4499), plus the full-commute fall-through (both ext inputs 4 <= 4: generic tail creates per-input SUBPIECEs, destroys the original SUBPIECE, longform takes its output).",
+ "decisive_semantics": {
+  "reference_output_parameters": "cancelExtensions(longform,subOp,ext0In,ext1In,data) mutates Funcdata by reference and REBINDS its ext0In/ext1In value parameters locally when a side is shortened (cc:4498/4504); applyOp returns 1 from inside the switch leaving the SUBPIECE intact, never reaching the cc:4621 loneDescend / cc:4623 RuleSubZext overlap checks on the generic path.",
+  "loop_bounds_traversal_order": "arm gating order per oracle: in(1) is examined FIRST — cancelExtensions fires only when in(1) is written ZEXT/SEXT and (ext1In > outvn || ext0In > outvn); a written non-extension in(1) rejects before any size question; constant in(1) requires ext0In <= outvn and mask fit; the old Rugra ZEXT arm rejected on ext0In > outvn even for constant in(1), a different route with the same observable but no partial-commute firing.",
+  "counter_accumulator_lifecycle": "maxSize is a per-call local derived once from the ext input sizes; no cross-call state.",
+  "sorting_comparison_keys": "loneDescend pointer-identity guards: longform output's sole descendant must be subOp (cc:4488) and the shortened side's extension output's sole descendant must be longform (cc:4499-4500); isFree gates on both extension inputs in the equal arm; size comparisons: equal inputs take that size, unequal take the larger and shorten the smaller side."
+ },
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "decompiler_cpp_tree": "b02e230a539c65de14e50f357d0ba834d8184f4f",
+  "x86_language_tree": "84265e1e6fe7ac9725367b57fb861253e4915984",
+  "decompiler_makefile_blob": "ca0719fa5f17aabd14c52f40ed8b030f54d2aac6"
+ },
+ "architecture": "x86:LE:64:default",
+ "compiler_spec": {
+  "id": "gcc",
+  "path": "sleigh_specs/x86-64-gcc.cspec"
+ },
+ "analysis_options": "none: direct RuleSubCommute::applyOp harness on a real BfdArchitecture Funcdata; no decompilation pipeline options",
+ "rugra_source": {
+  "base_commit": "456d3fed",
+  "note": "DIV/REM ZEXT-arm oracle-structure rewrite (cancelExtensions wiring) commit (WORKPKG-UNMAP-RULEADJ-0013); bilateral normal-mode byte equality proven on this tree"
+ },
+ "comparand": {
+  "cpp_fixture_sha256": "52cdaef1d29f0703de2b49595122182192f75fd4b113e099e82c287026797583",
+  "rust_fixture_sha256": "05b07aaf80be3c9f6ad7f5663ec79fd71930861655e6695e0a1269698d60c3c3",
+  "oracle_record_sha256": "894a00dc98d37930450c543b5332e6e6f9bcdbe8b5bf2b811c9a080ce8a506f7",
+  "runner_sha256": "36349bce5eb033eb7190ee271285c1fe1ff4db4b8e469c55194eabf5dbbbdc04"
+ },
+ "expected_results": {
+  "normal_stdout_sha256": "894a00dc98d37930450c543b5332e6e6f9bcdbe8b5bf2b811c9a080ce8a506f7",
+  "normal_stderr": "empty both sides",
+  "ghidra_exit_code": 0,
+  "rugra_exit_code": 0,
+  "case_order": [
+   "div_partial_eq",
+   "div_partial_shorten0",
+   "rem_partial_shorten1",
+   "sdiv_partial_eq",
+   "srem_partial_shorten0",
+   "div_partial_two_readers",
+   "div_partial_free_in",
+   "div_partial_shorten_reader",
+   "div_fallthrough_full"
+  ]
+ },
+ "coverage": {
+  "equal_arm": {
+   "status": "MATCH",
+   "covers": "DIV/SDIV both-ext-inputs-8>4: rebind to raw inputs, fresh maxSize output, SUBPIECE survives; free-input reject",
+   "residual_todo_ids": []
+  },
+  "shorten_arm": {
+   "status": "MATCH",
+   "covers": "shortenExtension on slot-0 and slot-1 smaller sides across REM/SREM; shortened-side loneDescend reject",
+   "residual_todo_ids": []
+  },
+  "caller_gating": {
+   "status": "MATCH",
+   "covers": "longform-output second-reader reject (cc:4488 inside the helper); full-commute fall-through contrast when both ext inputs fit",
+   "residual_todo_ids": []
+  }
+ },
+ "residual_todo_ids": []
+}
