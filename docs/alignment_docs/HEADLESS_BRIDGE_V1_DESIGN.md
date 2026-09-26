@@ -33,7 +33,7 @@ FI 判决(sb-spillpair)已把口径钉死:**Rugra 库级输出 vs direct-runner 
 | # | 通道 | curl 量化 | httpd 量化 | 归因(golden 知道什么/从哪知道) | 驱动桥现状 |
 |---|---|---|---|---|---|
 | C1 | **TYPE-SEED-LOCAL**(committed `local_*` 符号+类型层) | `local_` 引用 117,typed 声明 140 vs D undefined 326 | **`local_` 引用 5824(D=0),typed 声明 3173 vs D 4468**;TYPE-SEED hunk 316 | **Java 分析器提交环**:Decompiler Parameter ID(含 locals 提交)先跑库恢复→提交 DB→Data Type Propagation 等再升级类型→最终反编译读回。证据:①httpd stripped 无 DWARF 仍有 typed locals ⇒ 非 DWARF;②SPALIAS drill:hermetic oracle 收敛 unknown ⇒ 库外种子;③`local_` 名 C++ 全树零生成点(grep 无)⇒ 名字来自 Java DB;④C++ 消费机制在锁定源:`<localdb>`(funcdata.cc:804-810)→ `MapState::gatherSymbols`(varmap.cc:1044-1059)→ `RangeHint::fixed+typelock` | ❌ 未建模(SPALIAS/GC/FI/DP 四判例残差的上游总根) |
-| C2 | **THUNK-GOT**(GOT 槽 `PTR_x` 符号化 + thunk 标记 + 导入函数签名) | PTR_ 50 vs pcRam 313;THUNK-PAIR hunk 73;locked-storage 警告 51(D=0);D jumptable 警告 46(H=0) | PTR_ 372 vs pcRam 1659;THUNK-PAIR hunk 495;locked 警告 124;D jumptable 警告 431 | headless ELF loader+分析器:建 GOT 引用符号(`PTR_<extname>_<addr>`、`code*` 型)、把 PLT/plt.sec 标记为 thunk(免 jumptable 恢复)、对导入函数套用库签名(锁定参数存储)。httpd stripped ⇒ 签名来自 FID/外部签名库,非 DWARF | 部分:GOT PTR_ 标签+函数符号已桥(driver :557-563);**导入签名/thunk 标记/警告抑制 ❌** |
+| C2 | **THUNK-GOT**(GOT 槽 `PTR_x` 符号化 + thunk 标记 + 导入函数签名) | PTR_ 50 vs pcRam 313;THUNK-PAIR hunk 73;locked-storage 警告 51(D=0);D jumptable 警告 46(H=0) | PTR_ 372 vs pcRam 1659;THUNK-PAIR hunk 495;locked 警告 124;D jumptable 警告 431 | headless ELF loader+分析器:建 GOT 引用符号(`PTR_<extname>_<addr>`、`code*` 型)、把 PLT/plt.sec 标记为 thunk(免 jumptable 恢复)、对导入函数套用库签名(锁定参数存储)。httpd stripped ⇒ 签名来自 FID/外部签名库,非 DWARF | **✅(curl=CURB/MAINDIFF/CALLSPEC + httpd=THUNKGOT §17.9):GOT PTR_(GLOB_DAT+JUMP_SLOT)+thunk 通道(FlowOverride.CALL_RETURN 传输/只读救援)+thunk 自身签名锁** |
 | C3 | **SIG-LOCK 实函数**(原型锁定+参数名) | SIG hunk 22 + PARAM-NAME 26;`__x` 参数名 263 vs 72 | SIG hunk 418 + PARAM-NAME 146;`__x` 1562 vs 332 | curl=DWARF 函数原型(argc/argv/__stream/urls);httpd=analyzer 签名(FID/Parameter ID 提交)。与 C1 同机制不同载体(`<prototype>` 锁,fspec) | 部分:DWARF 自身+callsite 锁、24 libc 已桥(CALLSPEC-ENV-SCOPE-0001/GL);**导入面与 golden-harvest 面 ❌** |
 | C4 | **STRUCT-FIELD**(DWARF 组合类型下的字段步进) | STRUCT-FIELD hunk 33 + GLOBAL-SYM hunk 119(`::config`/`outs.stream`/`stdin` 等 typed 全局) | STRUCT-FIELD hunk 26(归因开放:stripped 下疑 FID 套型) | curl=DWARF composite(Configurable/URLGlob/FILE);全局符号带类型 | 部分:TYPEDEF_PREAMBLE 文本级 hack(:4845);真组合类型 ❌ |
 | C5 | STRSYM(字符串字面量实参) | H 43 vs D 0 | H 1681 vs D 10 | Java string/reference 分析器在 .rodata 建字符串数据 | ✅ 已桥(driver 字符串通道) |
@@ -1675,3 +1675,91 @@ PARAMID 双跑 cmp 恒等；默认双跑 cmp 恒等；bank 391/391 exit 0；gcc 
 
 证据=/dev/shm/rugra-tests/cparam/（三脸+双跑+全门禁输出+sites dump）；
 终报=本节。target /dev/shm/rugra-targets/sb-cparam 留 root 集成后回收。
+
+## §17.9 THUNKGOT 交付记录（Lane THUNKGOT，2026-09-27，基=master 6a458387）
+
+**票**：`HEADLESS-BRIDGE-V2-THUNKGOT-0002`（W2 = §6 的 C2 THUNK-GOT 波次；
+① 导入签名 manifest ①=httpd 侧在 IMPORTSIG（§17.7）59 条台账上补 **thunk
+自身签名锁**通道；② thunk 标记抑制 jumptable 恢复；③ GOT 槽 `PTR_x` 补全
+（H 372 vs pcRam 1659 量化的 JUMP_SLOT 半边））。
+
+**oracle 机制钉死（stage_thunk_diag harness，锁定库直测，证据=
+/dev/shm/rugra-tests/thunkgot/）**：对 .plt.sec thunk 的
+`endbr64; bnd jmp *[rip+GOT]`（lift = `tmp=LOAD ram(slot); BRANCHIND tmp`）：
+
+- **裸库（direct-runner 形态）恒 fail_normal**——raw/zero/far 三种 GOT 槽
+  字节值输出逐字节恒等（"Could not recover jumptable … Too many branches"
+  + "Treating indirect jump as call" 两警告 + `(*pcRam…)()`；只读属性范围
+  加持同样不变——httpd 的懒绑定槽值是近地址，sanityCheck 的 0xffff 距离
+  规则不判 thunk，jumptable.cc:2302-2320 的 1-entry 通道到不了）。
+  ⇒ **canon 的抑制不在内存，在传输**。
+- **FlowOverride.CALL_RETURN 传输 = canon 通道**：Java 侧
+  OperandReferenceAnalyzer.checkForExternalJump（引用解析进 EXTERNAL block
+  的 jmp 一律 setFlowOverride(CALL_RETURN)），DecompInterface 的 getPcode
+  经 InstructionPcodeOverride → PcodeEmit.dumpCallOverride BRANCHIND 臂
+  （BRANCHIND→CALLIND + dumpNullReturn）在发射期改写；库内等价 =
+  `Override::insertFlowOverride` → flow.cc:415-418/474-475 →
+  Funcdata::overrideFlow（funcdata_op.cc:969-1020，BRANCHIND→CALLIND +
+  死 RETURN 追加）。probe 亲证：该 override 下锁定库输出
+  `(*PTR_…)(); return;` 零警告——canon 体逐字（`(code *)` cast 由
+  ActionSetCasts castInput 的 CALLIND slot0 reqtype=code*（typeop.cc:745
+  arm）对上 PTR 符号的 undefined* 锁型产生，canon main 的
+  `PTR___gmon_start___ != (undefined *)0x0` 见证锁型）。
+- **thunk 自身签名**：canon 对台账内 59 导入锁 thunk 头（`void * memset
+  (void *__s,int __c,size_t __n)` + "Unknown calling convention" 横幅 =
+  三锁+model_name "unknown" 组合，locked_proto 同构）；7 个 canon 不锁导
+  入保持默认 void(void) 头。
+
+**通道形态（examples/httpd_decompile.rs，三件）**：
+
+1. **③ GOT JUMP_SLOT PTR_ 台账**：`build_action_data_symbol_db` 新增
+   .rela.plt JUMP_SLOT 臂——`PTR_<extname>_<slotaddr>`、**typelocked
+   pointer-to-undefined**（canon 面向型；锁型是 `(code *)` cast 的必要条
+   件：无锁则 typeprop 把调用点输入推成 code* 而 cast 消失——A/B 实测）。
+   GLOB_DAT 臂零改动（已对窗口 canon 恒等）。
+2. **② RUGRA_THUNKS=1 thunk 反编译脸**（opt-in 量具，mirror/stage 脸恒
+   拒；`RUGRA_THUNKS_RAW=1` = A/B 断路臂）：plt_imports 317 项，extent =
+   终结分支停走（canon 头 (10 bytes) 逐项），lift 后把终结 jmp 地址经
+   `FunctionTask.thunk_override_addrs` 带入 `decompile_one_function`，
+   在 `inject_raw_ops` 前注册 `fd.localoverride.insert_flow_override(
+   CallReturn)`——Rugra 的 `apply_flow_overrides_raw`（funcdata.rs，
+   funcdata_op.cc:991-1020 镜像）在注入层做 BRANCHIND→CALLIND+RETURN 改
+   写，**库零改动**（jumptable/flow 未触碰——机制 C 白名单无 CR 需求）。
+3. **① thunk 自身签名**：`build_locked_import_proto`（install_import_
+   signatures 的 proto 构建提取共享）+ `FunctionTask.thunk_import` 臂在
+   importsig 同位（inject 后/action 前）把台账锁型装上 fd.funcp 自身。
+
+**curl 侧判决：零改动**。curl 的同族通道已在 CURB（got_span 只读 +
+fail_thunk 路线）+ MAINDIFF-GLOBAL（PTR_ 标签）+ CALLSPEC（thunk 签名）车
+道落地——本票核验：canon 脸 124 块 0 jumptable 警告，47 个 PTR 体函数块
+45/47 与 canon 逐字节恒等（2 差 = _init 返回传播/_start 参数名，非 thunk
+域预存残差），真 thunk 45/45 全等（含 `int puts(char *__s)` 锁头+横幅）。
+§2 的 curl THUNK-PAIR 73 hunk 自 CURB 已收敛，本票同向确认。
+
+**验收数字（fast-release 亲测）**：
+- **thunk 警告 318→0**：RAW 臂 318×"Could not recover jumptable"+
+  318×"Treating indirect jump as call"（= direct-runner golden 431 中全部
+  318 个 size≤16 携带者的完整家族复现；余 113 个 D 警告在窗口外真 switch
+  函数上，驱动窗口内 1 个=canon 同位同文）→ canon 臂 0（唯一剩警告=
+  main 窗 0x12daeb，canon golden 同位逐字）。
+- **thunk 体 314/317 与 canon 逐字节恒等**（typedef 前导归一后；memset/
+  __stack_chk_fail 两形态——锁头+横幅+`(void *)` 返回 cast 全对）；3 差
+  =①apr_brigade_pflatten：canon 该槽名 `_DAT_0019c660`（canon DB 内
+  '_'-global 重叠吞掉 PTR 名+overlap 横幅，1 例 DB 状态差）②getrlimit：
+  canon 有 enum 值重名横幅（STRUCTBASES census 的 enum 命名警告通道）
+  ③末块 comparator 伪差（summary 行）。登记残差不阻塞。
+- **默认脸构造性恒等**：新 JUMP_SLOT 台账下 httpd 默认脸与基线 cmp 字节
+  恒等（窗口零引用该槽集）；canon 基线 **httpd 311/0/0（Matched 34）/
+  curl 157/0/0（Matched 124）** == 任务书基线,零回退平凡成立。
+- 双跑确定性/镜面五面/bank 391/cargo test/三门禁：见终报
+  LANE_THUNKGOT_2026-09-27.md 逐项。
+
+**B2 证据等级**：通道四决定性观察（警告对/体形/锁头/横幅）在锁定库
+probe（oracle 直测）+ canon golden（317 块对拍）双侧闭合；Rugra 侧输出
+= oracle 输出（同输入=thunk 字节+headless 传输输入；同输出=C 文本块）。
+库（jumptable.rs/flow.rs/funcdata.rs）零触碰，全部经公开面
+（localoverride/DB/task 传输）。
+
+证据=/dev/shm/rugra-tests/thunkgot/（probe 源+构建脚本+矩阵输出+
+compare_thunks.py+三脸工件）；终报=/dev/shm/rugra-reports/
+LANE_THUNKGOT_2026-09-27.md。
