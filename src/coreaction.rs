@@ -1961,12 +1961,11 @@ impl Action for ActionRestructureVarnode {
                 // to a name recommendation (varmap.cc:357-381) and removed,
                 // so the restructure below lays out the stack freely and
                 // ActionNameVars (coreaction.cc:2984) reattaches the names
-                // to the final symbols. The committed-local seeds above are
-                // name+type-locked (the manifest's typelock bit), so the
-                // store stays empty for them — the call is the faithful
-                // boundary wiring for any future name-lock-only transport
-                // (the oracle's ATTRIB_NAMELOCK-without-ATTRIB_TYPELOCK
-                // localdb form).
+                // to the final symbols. For the committed-local seeds above
+                // the store is empty exactly when every entry is
+                // name+type-locked; name-lock-only entries (the oracle's
+                // ATTRIB_NAMELOCK-without-ATTRIB_TYPELOCK localdb form) are
+                // precisely the symbol class this call downgrades.
                 scope.collect_name_recs();
                 // Install the register-name lookup standing in for
                 // `glb->translate->getRegisterName` (translate.hh:380):
@@ -9195,18 +9194,20 @@ impl ActionInferTypes {
     /// noreturn|missing)`, op.hh:171); among ops with numInput()>1 keeps
     /// the one whose input(1) temp type has the lowest typeOrder (first
     /// wins ties, matching the oracle's strict `< 0` re-assignment).
-    /// Returns the RETURN's value Varnode and its temp type (the Rust
-    /// projection of the `PcodeOp*` return — the only field the caller
-    /// reads).
+    /// Returns the canonical RETURN's op ref (the Rust projection of the
+    /// oracle's `PcodeOp*` return, carried for the cc:5357 `retop == op`
+    /// skip), its value Varnode, and its temp type.
     fn canonical_return_op(
         fd: &Funcdata,
         temps: &TempTypes,
     ) -> Option<(
+        crate::op::PcodeOpRef,
         std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
         std::sync::Arc<crate::type_system::datatype::Datatype>,
     )> {
         use crate::op::pcodeop_flags;
         let mut best: Option<(
+            crate::op::PcodeOpRef,
             std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
             std::sync::Arc<crate::type_system::datatype::Datatype>,
         )> = None;
@@ -9237,12 +9238,14 @@ impl ActionInferTypes {
             if let Some(rv) = op.get_in(1) {
                 let id = vn_id(&rv.read().unwrap());
                 if let Some(ct) = temps.get(&id) {
+                    // cc:5325-5332: first eligible op wins; afterwards only a
+                    // strictly lower typeOrder replaces the incumbent.
                     let better = match &best {
                         None => true,
-                        Some((_, bct)) => ct.type_order(bct) < 0,
+                        Some((_, _, bct)) => ct.type_order(bct) < 0,
                     };
                     if better {
-                        best = Some((rv.clone(), ct.clone()));
+                        best = Some((r.clone(), rv.clone(), ct.clone()));
                     }
                 }
             }
@@ -9264,15 +9267,16 @@ impl ActionInferTypes {
             return;
         }
         // Find the canonical RETURN op: the one whose return varnode has the
-        // most-specific temp type.
-        let Some((base_vn, base_ct)) = Self::canonical_return_op(fd, temps) else {
+        // most-specific temp type. The op ref is carried for the cc:5357
+        // `retop == op` pointer skip (coreaction.cc:5346-5349).
+        let Some((canonical_op, base_vn, base_ct)) = Self::canonical_return_op(fd, temps) else {
             return;
         };
         let base_size = base_vn.read().unwrap().get_size();
         let is_bool = base_ct.get_metatype() == TypeMetatype::Bool;
-        // cc:5354-5359: re-iterate the RETURN ops; skip the canonical one
-        // (its value Varnode identity covers the `retop == op` check), dead
-        // ops, and halt-type ops.
+        // cc:5354-5360: re-iterate the RETURN ops; skip the canonical one
+        // (explicit `retop == op` pointer skip), dead ops, halt-type ops,
+        // and valueless RETURNs.
         let return_ops: Vec<_> = fd
             .obank
             .alivelist
@@ -9281,45 +9285,64 @@ impl ActionInferTypes {
             .cloned()
             .collect();
         for r in &return_ops {
-            let op = r.0.read().unwrap();
-            if op.is_dead()
-                || (op.flags
+            // Guards read under a short-lived lock; the guard is dropped
+            // before propagate_one_type so the op is never read-locked
+            // across data-flow mutation (cc:5356-5363).
+            let rv = {
+                let op = r.0.read().unwrap();
+                if Arc::ptr_eq(&r.0, &canonical_op.0) {
+                    continue; // cc:5357: retop == op (canonical itself)
+                }
+                if op.is_dead() {
+                    continue; // cc:5358
+                }
+                // cc:5359: getHaltType() != 0 — the five-flag family
+                // (halt|badinstruction|unimplemented|noreturn|missing),
+                // op.hh:171; HALT-only and five-flag differ only on
+                // constructibly-empty flag sets (CR-TEMPOVER), the
+                // five-flag form is the oracle-exact superset.
+                if (op.flags
                     & (crate::op::pcodeop_flags::HALT
                         | crate::op::pcodeop_flags::BADINSTRUCTION
                         | crate::op::pcodeop_flags::UNIMPLEMENTED
                         | crate::op::pcodeop_flags::NORETURN
                         | crate::op::pcodeop_flags::MISSING))
                     != 0
-            {
-                continue;
-            }
-            if op.num_input() <= 1 {
-                continue;
-            }
-            let rv = match op.get_in(1) {
-                Some(v) => v.clone(),
-                None => continue,
+                {
+                    continue;
+                }
+                if op.num_input() <= 1 {
+                    continue; // cc:5360
+                }
+                match op.get_in(1) {
+                    Some(v) => v.clone(),
+                    None => continue,
+                }
             };
-            if std::sync::Arc::ptr_eq(&rv, &base_vn) {
-                continue;
-            }
             let rvsz = rv.read().unwrap().get_size();
             if rvsz != base_size {
-                continue;
+                continue; // cc:5362
             }
             if is_bool && rv.read().unwrap().get_nz_mask() > 1 {
-                continue;
+                continue; // cc:5363: don't propagate bool onto 0/1-uncertain values
             }
             let id = vn_id(&rv.read().unwrap());
-            let improved = match temps.get(&id) {
-                None => true,
-                Some(c) => base_ct.type_order(c) < 0,
-            };
-            if improved {
-                temps.insert(id, base_ct.clone());
-                let rv2 = rv.clone();
-                self.propagate_one_type(&rv2, fd, temps, int_types, ptr_size, type_factory);
+            // cc:5364: `vn->getTempType() == ct` — raw Datatype* pointer
+            // identity ("Already propagated"). Rust's TypeFactory interns
+            // base/structural types (findAdd + base_cache), so Arc pointer
+            // identity mirrors Ghidra's Datatype* identity; a missing entry
+            // (Ghidra NULL temp) never equals non-NULL ct and falls through.
+            if let Some(existing) = temps.get(&id) {
+                if Arc::ptr_eq(existing, &base_ct) {
+                    continue;
+                }
             }
+            // cc:5365: vn->setTempType(ct) — UNCONDITIONAL overwrite of any
+            // non-identical temp type, including higher-order/equal-order
+            // incumbents. The former `type_order < 0` gate was stricter than
+            // the oracle (COREACT-TEMPOVERWRITE-0001).
+            temps.insert(id, base_ct.clone());
+            self.propagate_one_type(&rv, fd, temps, int_types, ptr_size, type_factory);
         }
     }
 
