@@ -3861,3 +3861,37 @@ httpd canon(460367b2)"不再复现。
   callspec（锁定单 model gcc 语料为空,登记于本票）。
 - 循环内调用 `deindirect` 后**同一 op 的 opcode 已改 CALL**，后续迭代经
   cc:1229 的 CALLIND 门自然跳过（与 oracle 相同的幂等闭包）。
+## 2026-09-27：propagate_across_returns 温度覆写无条件化 + halt/op 恒等守卫（COREACT-TEMPOVERWRITE-0001，Lane TEMPOVER）
+
+`ActionInferTypes::propagate_across_returns`（coreaction.cc:5342-5372）第二循环的
+覆写条件由「空或严格更次序才覆写」（`None→set` / `type_order<0→set`）对齐为
+oracle 的**指针恒等判定**：
+
+- **cc:5364** `vn->getTempType() == ct` 是裸 `Datatype*` 指针恒等（varnode.hh:198
+  `temp.dataType`，未置即 NULL）。Rust 侧映射为 `Arc::ptr_eq(existing, &base_ct)`
+  ——TypeFactory 的 findAdd/base_cache 结构化驻留使 Arc 指针恒等与 Ghidra
+  Datatype* 恒等同构；无条目（Ghidra NULL）永不等于非空 ct，直落覆写。
+- **cc:5365** `vn->setTempType(ct)` 为**无条件覆写**：现存类型与 canonical 类型
+  指针不等即覆写（含「不同但非严格更次序」与「现存更优」两种旧代码跳过的
+  情形），随后 `propagate_one_type` 重推数据流。
+
+同函数两循环补齐 oracle 守卫（任务票面称 COREACT2 已补，实测该函数内缺席，
+属票面事实性偏差，本车道一并 1:1 对齐）：
+
+- **cc:5321/:5359** halt 守卫：`(flags & pcodeop_flags::HALT) != 0 → skip`
+  （Rugra HALT 旗标为 Ghidra `getHaltType()!=0` 的既定代体，同
+  ActionPrototypeTypes/ActionActiveReturn 既有形态）。
+- **cc:5357** canonical 跳过由 varnode 恒等改判 **op 恒等**（`best` 携带
+  `PcodeOpRef`，`Arc::ptr_eq(&r.0, &canonical_op.0)`）：rv==base_vn 出现在他
+  op 时由 :5364 指针恒等兜底跳过，两端可观测行为等价，取字面形。
+- 循环内 op 读锁改为短作用域（守卫提取后即释放），避免
+  `propagate_one_type` 跨读锁遍历。
+
+**验证（canon A/B，基=6a458387 双构建亲测）**：curl 输出 A/B **字节恒等**
+（md5 51cc85d2，157/0/0）；httpd **字节恒等**（md5 f5a05fd5，311/0/0）。
+构造性休眠见证（临时探针，未提交）：覆写判定位 curl 触达 **0** 次、httpd
+触达 **339** 次全部 `type_order<0`（新旧语义重合的严格改进覆写），
+`diverges=true`（现存非恒等且 `type_order>=0`）双语料 **0** 次——残差触发
+面=「canonical 类型对现存类型非严格更优且指针不同」，canon 语料不存在该
+形态。触发条件（票面登记）：多 RETURN 函数中某 RETURN 输入已有与 canonical
+返回类型不同源（非同一 interning 实例）且 typeOrder 相等或更优的温度类型。
