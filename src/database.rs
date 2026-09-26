@@ -4961,12 +4961,39 @@ pub struct PartMap {
 }
 
 impl PartMap {
+    // RUGRA-GLUE: debug-only key-form guard (FLAGBASE-CR-F2; no Ghidra
+    // counterpart — the oracle's flagbase is `partmap<Address,uint4>`
+    // over space-qualified keys by construction, database.hh:921).
+    /// Rugra's flagbase runs on the legacy SPACELESS `Address` form on
+    /// BOTH sides (producers: the loader readonly / SYMDB `<hole>`
+    /// installs; consumers: the Ram consults in funcdata/heritage), and
+    /// `Address::cmp` orders `None` before every `Some(_)` tag (the
+    /// address.hh:377 null-base rule), so a single `with_space` key or
+    /// query would silently sort every spaceless key first and reorder
+    /// the partitions instead of failing. This guard turns that silent
+    /// misordering into a debug-build panic; `debug_assert!` compiles it
+    /// out of release builds entirely (zero release behavior). The
+    /// ADDRESS-0001 phase-3 merge that migrates the flagbase to
+    /// uniformly space-tagged keys must flip this guard's polarity on
+    /// BOTH sides in the same change.
+    fn debug_assert_spaceless_key_form(&self, pnt: Address) {
+        debug_assert!(
+            pnt.get_space().is_none(),
+            "FLAGBASE-CR-F2: flagbase split/query point must use the spaceless legacy Address form, got a with_space address"
+        );
+        debug_assert!(
+            self.database.keys().all(|k| k.get_space().is_none()),
+            "FLAGBASE-CR-F2: flagbase keys must stay uniformly spaceless; a with_space key silently sorts after every spaceless key (Address::cmp None-first)"
+        );
+    }
+
     // Ghidra: partmap.hh:83 partmap::getValue
     /// Look up the first split point at-or-before `pnt` and return its
     /// value; the default if none. Faithful to `getValue` (partmap.hh:83-93:
     /// `upper_bound` then step back; `database.begin()` guard returns the
     /// default).
     pub fn get_value(&self, pnt: Address) -> u32 {
+        self.debug_assert_spaceless_key_form(pnt);
         match self.database.range(..=pnt).next_back() {
             Some((_, v)) => *v,
             None => self.defaultvalue,
@@ -4981,6 +5008,7 @@ impl PartMap {
     /// old ref; the new entry copies the previous value). Returns the new
     /// partition's value for assignment.
     pub fn split(&mut self, pnt: Address) -> &mut u32 {
+        self.debug_assert_spaceless_key_form(pnt);
         if let Some((_, v)) = self.database.range(..pnt).next_back() {
             let prev = *v;
             self.database.entry(pnt).or_insert(prev)
@@ -5039,6 +5067,19 @@ pub struct Database {
     /// partition map, NOT a list of independent ranges — overlapping
     /// `setPropertyRange` calls OR into the shared partitions and
     /// `clearPropertyRange` ANDs bits away within sub-ranges.
+    ///
+    /// Key-form convention (FLAGBASE-CR-F2): keys and queries stay
+    /// uniformly SPACELESS legacy `Address`es — the oracle's
+    /// space-qualified `Address::operator<` ordering
+    /// (address.hh:375-393) is projected to the RAM partition only (see
+    /// heritage.rs HERITAGE-FLAGBASE-SPACELESS-0001). The form is
+    /// enforced by `PartMap::debug_assert_spaceless_key_form` at the
+    /// get_value/split boundary (debug builds only): switching either
+    /// the producer side (loader readonly / SYMDB `<hole>` installs) or
+    /// the consumer side (Ram consults) to `with_space` addresses alone
+    /// would silently reorder the map (`Address::cmp` puts `None`
+    /// before every `Some(_)` tag), so both sides must move to
+    /// space-tagged keys together at the ADDRESS-0001 phase-3 merge.
     pub flagbase: PartMap,
     /// Next scope id to assign.
     pub next_scope_id: u64,

@@ -198,6 +198,19 @@ A manager for symbol scopes for a whole executable. Faithful to `Database`
   `BTreeMap<Address, u32>` split points + a default value (0,
   database.cc:2929); `get_value` (partmap.hh:83), `split` (partmap.hh:119),
   `set_property_range`/`clear_property_range` (the database.cc walks).
+  Key-form convention (FLAGBASE-CR-F2, 2026-09-27): keys and queries stay
+  uniformly SPACELESS legacy `Address`es (the oracle's space-qualified
+  ordering is projected to the RAM partition only — heritage.rs
+  HERITAGE-FLAGBASE-SPACELESS-0001); enforced by
+  `PartMap::debug_assert_spaceless_key_form` at the get_value/split
+  boundary, which is `debug_assert!`-gated (zero release behavior —
+  proven by byte-identical curl/httpd canon A/B and by the guard firing
+  in a debug `should_panic` probe while a release probe does not panic).
+  Switching either the producer side (loader readonly / SYMDB `<hole>`
+  installs) or the consumer side (Ram consults) to `with_space`
+  addresses alone would silently reorder the map (`Address::cmp` sorts
+  `None` before every `Some(_)` tag); both sides must migrate to
+  space-tagged keys together at the ADDRESS-0001 phase-3 merge.
 - `AddMapContext` — RUGRA-GLUE carrier for the two `glb->symboltab` lookups
   `Scope::addMap` needs: the flagbase property at an address
   (`getProperty`, database.cc:1153) and the global-scope discovery-range
