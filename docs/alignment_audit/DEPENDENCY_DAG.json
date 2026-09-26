@@ -1834,6 +1834,10 @@
     },
     {
       "from": "action",
+      "to": "comment"
+    },
+    {
+      "from": "action",
       "to": "condexe"
     },
     {
@@ -2085,12 +2089,24 @@
       "to": "userop"
     },
     {
-      "from": "binary",
-      "to": "disasm"
+      "from": "arch",
+      "to": "varnode"
     },
     {
       "from": "block",
       "to": "address"
+    },
+    {
+      "from": "block",
+      "to": "arch"
+    },
+    {
+      "from": "block",
+      "to": "blockaction"
+    },
+    {
+      "from": "block",
+      "to": "funcdata"
     },
     {
       "from": "block",
@@ -2258,6 +2274,10 @@
     },
     {
       "from": "constseq",
+      "to": "rangemap"
+    },
+    {
+      "from": "constseq",
       "to": "space"
     },
     {
@@ -2275,6 +2295,10 @@
     {
       "from": "constseq",
       "to": "userop"
+    },
+    {
+      "from": "constseq",
+      "to": "varmap"
     },
     {
       "from": "constseq",
@@ -2462,6 +2486,10 @@
     },
     {
       "from": "database",
+      "to": "crc32"
+    },
+    {
+      "from": "database",
       "to": "marshal"
     },
     {
@@ -2558,26 +2586,6 @@
     },
     {
       "from": "disasm::sleigh_lift",
-      "to": "space"
-    },
-    {
-      "from": "disasm::x86_lift",
-      "to": "address"
-    },
-    {
-      "from": "disasm::x86_lift",
-      "to": "disasm"
-    },
-    {
-      "from": "disasm::x86_lift",
-      "to": "opcodes"
-    },
-    {
-      "from": "disasm::x86_lift",
-      "to": "pcoderaw"
-    },
-    {
-      "from": "disasm::x86_lift",
       "to": "space"
     },
     {
@@ -2814,6 +2822,10 @@
     },
     {
       "from": "fspec",
+      "to": "database"
+    },
+    {
+      "from": "fspec",
       "to": "funcdata"
     },
     {
@@ -2839,6 +2851,10 @@
     {
       "from": "fspec",
       "to": "space"
+    },
+    {
+      "from": "fspec",
+      "to": "translate"
     },
     {
       "from": "fspec",
@@ -2902,7 +2918,11 @@
     },
     {
       "from": "funcdata",
-      "to": "disasm"
+      "to": "disasm::sleigh_lift"
+    },
+    {
+      "from": "funcdata",
+      "to": "drillfmt"
     },
     {
       "from": "funcdata",
@@ -2955,6 +2975,10 @@
     {
       "from": "funcdata",
       "to": "override_rs"
+    },
+    {
+      "from": "funcdata",
+      "to": "pcodeinject"
     },
     {
       "from": "funcdata",
@@ -3449,6 +3473,10 @@
       "to": "printlanguage"
     },
     {
+      "from": "prettyprint",
+      "to": "type_system::typefactory"
+    },
+    {
       "from": "printc",
       "to": "action"
     },
@@ -3475,6 +3503,10 @@
     {
       "from": "printc",
       "to": "database"
+    },
+    {
+      "from": "printc",
+      "to": "float_emulate"
     },
     {
       "from": "printc",
@@ -3527,6 +3559,10 @@
     {
       "from": "printc",
       "to": "type_system::typefactory"
+    },
+    {
+      "from": "printc",
+      "to": "typeop"
     },
     {
       "from": "printc",
@@ -3942,6 +3978,10 @@
     },
     {
       "from": "type_system::typefactory",
+      "to": "arch"
+    },
+    {
+      "from": "type_system::typefactory",
       "to": "database"
     },
     {
@@ -4182,6 +4222,10 @@
     },
     {
       "from": "varmap",
+      "to": "marshal"
+    },
+    {
+      "from": "varmap",
       "to": "op"
     },
     {
@@ -4309,8 +4353,6 @@
     "debugproto",
     "disasm",
     "disasm::sleigh_lift",
-    "disasm::x86_64",
-    "disasm::x86_lift",
     "double_precis",
     "drillfmt",
     "drillobserve",
@@ -4321,6 +4363,7 @@
     "ffi",
     "float_emulate",
     "flow",
+    "frontend",
     "fspec",
     "funcdata",
     "grammar",
@@ -4859,10 +4902,6 @@
       "to": "OP-INSERT-0001"
     },
     {
-      "from": "PIPE-RESTART-0001",
-      "to": "PIPE-0000"
-    },
-    {
       "from": "PIPE-STACKSTALL-COUNT-0001",
       "to": "PIPE-DERIVED-TREE-0001"
     },
@@ -5116,6 +5155,17 @@
     "COVER-REBUILD-SELFLOCK-0001",
     "COVER-TWOPIECE-RESIDUAL-0001",
     "CPOOL-TYPED-RECORD-0001",
+    "CRATESPLIT-A0-PREFLIGHT-0002",
+    "CRATESPLIT-A1-FOUNDATION-0003",
+    "CRATESPLIT-A10-CLOSEOUT-0012",
+    "CRATESPLIT-A9-RUNNER-REPIN-0011",
+    "CRATESPLIT-B0-PUBAUDIT-0013",
+    "CRATESPLIT-B1-FOUNDATION-CRATE-0014",
+    "CRATESPLIT-B2-SLEIGHFFI-CRATE-0015",
+    "CRATESPLIT-B3-CORE-CRATE-0016",
+    "CRATESPLIT-B4-OPTIONAL-UPPERS-0017",
+    "CRATESPLIT-MIGRATION-0001",
+    "CRATESPLIT-R7-CAPABILITY-0019",
     "CSPEC-DEFAULT-RETURN-0001",
     "CSPEC-GLOBAL-APPLY-0001",
     "CSPEC-JUMPDEST-INSTSYM-0001",
@@ -5308,6 +5358,11 @@
     "MERGE-PROTOPARTIAL-GROUP-0001",
     "MERGE-PROTOPARTIAL-UNIQUE-0001",
     "MERGED-RESIDMAP-0001",
+    "MIGW1-BLOCK-0003",
+    "MIGW1-DATABASE-0005",
+    "MIGW1-FSPEC-0001",
+    "MIGW1-FUNCDATA-0004",
+    "MIGW1-TYPEOP-0002",
     "MULTI-0001",
     "MYFWRITE-TEMPVAR-0001",
     "MYPROGRESS-ANDCOMMUTE-GATE-0001",
@@ -5598,6 +5653,7 @@
     "VARIABLE-0001",
     "VARIABLE-GETTYPE-LAZY-UPDATETYPE-0001",
     "VARMAP-CROSSPASS-PERSISTENCE-0001",
+    "VARMAP-DECODEWRAP-0001",
     "VARMAP-FAKEINPUT-0001",
     "VARMAP-GATHEROFFSET-0001",
     "VARMAP-GATHEROPEN-GUARD-0001",
@@ -5617,6 +5673,22 @@
     "VARNODE-INPLACE-MUTATION-SITES-0001",
     "VARNODE-LOCALTYPE-RESOLUTION-0001",
     "VARNODE-SETSYMBOLENTRY-HIGHLEG-0001",
-    "VARNODE-UPDATETYPE-HIGHDIRTY-0001"
+    "VARNODE-UPDATETYPE-HIGHDIRTY-0001",
+    "WORKPKG-UNMAP-ACTIONDBG-0010",
+    "WORKPKG-UNMAP-ARCHSPEC-0014",
+    "WORKPKG-UNMAP-BLOCK-0007",
+    "WORKPKG-UNMAP-COREACT-0002",
+    "WORKPKG-UNMAP-DATABASE-0009",
+    "WORKPKG-UNMAP-FLOWUTIL-0011",
+    "WORKPKG-UNMAP-MODELRULES-0008",
+    "WORKPKG-UNMAP-PARSEADJ-0015",
+    "WORKPKG-UNMAP-PERIPH-0016",
+    "WORKPKG-UNMAP-PERSIST-0012",
+    "WORKPKG-UNMAP-REBASE-0000",
+    "WORKPKG-UNMAP-RULEADJ-0013",
+    "WORKPKG-UNMAP-STRFOLD-0006",
+    "WORKPKG-UNMAP-TYPEOP-0001",
+    "WORKPKG-UNMAP-TYPEUNION-0003",
+    "WORKPKG-UNMAP-UICONSOLE-0017"
   ]
 }
