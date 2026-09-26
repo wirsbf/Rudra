@@ -404,6 +404,341 @@ def parser_cross_check(cpp: Path, ghidra: list[dict[str, object]]) -> dict[str, 
     return actual
 
 
+# --- Unmapped dispositions: bison translation units -----------------------
+#
+# GENERATOR_ABSORBED_2026-09-27.md (lane PARSEADJ ticket
+# WORKPKG-UNMAP-PARSEADJ-0015; integrated into this classifier by lane
+# REGENABSORB, see also REBASE-0000 item 3): grammar.cc / pcodeparse.cc are
+# bison-generated translation units.  Their yy* definitions are the LALR(1)
+# table driver plus its debug/error print skeleton expanded from the
+# grammar.y / pcodeparse.y templates, with no hand-written action semantics;
+# Rugra replaces the whole face with hand-written recursive-descent drivers,
+# so the equivalence unit is a whole-parser fixture, never a per-function
+# claim.  The pinned (file, line) whitelist below dispositions every unmapped
+# definition in the four bison files; no name matching is performed.  When a
+# whitelisted entry later gains a real Rust mapping (for example the parseadj
+# per-variant twins for grammar.cc:2403/2412/2419, or the pcodeparse.y
+# re-anchoring owned by the PCODEFACE lane), generation fails closed and the
+# entry must be trimmed from the whitelist together with the expected counts
+# -- that is the documented pool-exit gate, not an error to paper over.
+GENERATOR_ABSORBED_DOC = "docs/alignment_audit/GENERATOR_ABSORBED_2026-09-27.md"
+UNMAPPED_DISPOSITION_FILES = ("grammar.cc", "grammar.hh", "pcodeparse.cc", "pcodeparse.hh")
+UNMAPPED_DISPOSITION_TICKET = "WORKPKG-UNMAP-PARSEADJ-0015"
+GRAMMAR_FACE_EVIDENCE = {
+    "fixture": "tests/oracle/grammar_parse_face_1204",
+    "face_result": "BILATERAL_MATCH",
+    "records": 83,
+    "records_sha256": "d63130daf9c6ce1087dfe156208337e6ecd488d010043f0761f4dcbfa1d65c49",
+    "oracle_commit": ORACLE_COMMIT,
+    "note": (
+        "whole-face equivalence unit (GENERATOR_ABSORBED section 3); the fixture "
+        "files land with the parseadj branch merge, and behavior_status stays "
+        "UNTESTED until then -- generator provenance alone never promotes a match"
+    ),
+}
+PCODE_FACE_PENDING = {
+    "ticket": "PARSEADJ-PARSEFACE-PCODE-0001",
+    "note": (
+        "p-code parse-face fixture not built yet; members stay UNTESTED and must "
+        "not cite the grammar face (GENERATOR_ABSORBED section 3)"
+    ),
+}
+UNMAPPED_DISPOSITION_CLASS_NOTES = {
+    "generator_absorbed": (
+        "bison LALR driver + debug/error print skeleton (GENERATOR_ABSORBED "
+        "sections 1-2); replaced whole-face by the recursive-descent driver"
+    ),
+    "generator_shim": (
+        "yylex/yyerror bridge of the bison driver; absorbed with the same "
+        "replacement unit (GENERATOR_ABSORBED section 2)"
+    ),
+    "glue_absorbed": (
+        "DECOMP section 4 glue absorption: .hh inline <=2 lines, accessor "
+        "shape, owning class with >=3 mapped members (GENERATOR_ABSORBED section 4)"
+    ),
+    "inline_absorbed": (
+        "hand-written lexer core absorbed into GrammarLexer::get_next_token's "
+        "state machine (GENERATOR_ABSORBED section 4; grammar_audit.md design note 4)"
+    ),
+    "drop_absorbed": (
+        "destructor absorbed by Rust ownership (Arc + Vec drop); no separate "
+        "Rugra function is expected (GENERATOR_ABSORBED section 4)"
+    ),
+    "unlinked_relink": (
+        "implemented in Rust but not linked by a // Ghidra annotation yet "
+        "(GENERATOR_ABSORBED section 4)"
+    ),
+    "residual_relink": (
+        "per-variant twin verified equivalent in place by PARSEADJ; twin "
+        "annotations take over the mapping at the parseadj merge and this "
+        "entry then exits the pool (GENERATOR_ABSORBED section 4)"
+    ),
+}
+UNMAPPED_DISPOSITIONS: dict[tuple[str, int], dict[str, object]] = {
+    # generator_absorbed -- yy* skeleton (grammar.cc, 10 defs / 1003 LOC)
+    ("grammar.cc", 827): {"class": "generator_absorbed"},
+    ("grammar.cc", 848): {"class": "generator_absorbed"},
+    ("grammar.cc", 863): {"class": "generator_absorbed"},
+    ("grammar.cc", 886): {"class": "generator_absorbed"},
+    ("grammar.cc", 947): {"class": "generator_absorbed"},
+    ("grammar.cc", 964): {"class": "generator_absorbed"},
+    ("grammar.cc", 986): {"class": "generator_absorbed"},
+    ("grammar.cc", 1037): {"class": "generator_absorbed"},
+    ("grammar.cc", 1176): {"class": "generator_absorbed"},
+    ("grammar.cc", 1205): {"class": "generator_absorbed"},
+    # generator_absorbed -- yy* skeleton (pcodeparse.cc, 10 defs / 1231 LOC)
+    ("pcodeparse.cc", 1365): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1386): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1401): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1424): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1485): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1502): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1524): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1575): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1714): {"class": "generator_absorbed"},
+    ("pcodeparse.cc", 1791): {"class": "generator_absorbed"},
+    # generator_shim -- lex/error bridges of the bison driver
+    ("grammar.cc", 3100): {"class": "generator_shim"},
+    ("grammar.cc", 3106): {"class": "generator_shim"},
+    ("pcodeparse.cc", 3292): {"class": "generator_shim"},
+    ("pcodeparse.cc", 3296): {"class": "generator_shim"},
+    # glue_absorbed -- grammar.hh one-line inline accessors/setters (19 defs)
+    ("grammar.hh", 58): {"class": "glue_absorbed"},
+    ("grammar.hh", 61): {"class": "glue_absorbed"},
+    ("grammar.hh", 62): {"class": "glue_absorbed"},
+    ("grammar.hh", 63): {"class": "glue_absorbed"},
+    ("grammar.hh", 64): {"class": "glue_absorbed"},
+    ("grammar.hh", 65): {"class": "glue_absorbed"},
+    ("grammar.hh", 66): {"class": "glue_absorbed"},
+    ("grammar.hh", 102): {"class": "glue_absorbed"},
+    ("grammar.hh", 113): {"class": "glue_absorbed"},
+    ("grammar.hh", 127): {"class": "glue_absorbed"},
+    ("grammar.hh", 137): {"class": "glue_absorbed"},
+    ("grammar.hh", 138): {"class": "glue_absorbed"},
+    ("grammar.hh", 147): {"class": "glue_absorbed"},
+    ("grammar.hh", 148): {"class": "glue_absorbed"},
+    ("grammar.hh", 159): {"class": "glue_absorbed"},
+    ("grammar.hh", 160): {"class": "glue_absorbed"},
+    ("grammar.hh", 277): {"class": "glue_absorbed"},
+    ("grammar.hh", 278): {"class": "glue_absorbed"},
+    ("grammar.hh", 279): {"class": "glue_absorbed"},
+    # inline_absorbed -- GrammarLexer core folded into get_next_token
+    ("grammar.cc", 2048): {"class": "inline_absorbed"},
+    ("grammar.cc", 2062): {"class": "inline_absorbed"},
+    ("grammar.cc", 2294): {"class": "inline_absorbed"},
+    # drop_absorbed -- destructors absorbed by Rust ownership
+    ("grammar.cc", 2486): {"class": "drop_absorbed"},
+    ("grammar.cc", 2608): {"class": "drop_absorbed"},
+    # unlinked_relink -- mergeSpecDec(TypeSpecifiers*) single-parameter overload,
+    # behavior covered by merge_spec_dec; registered in the REBASE-0000 batch-2
+    # candidate list (GENERATOR_ABSORBED section 4)
+    ("grammar.cc", 2633): {
+        "class": "unlinked_relink",
+        "target": ("src/grammar.rs", "merge_spec_dec", "impl:CParse"),
+        "ticket": "WORKPKG-UNMAP-REBASE-0000",
+    },
+    # unlinked_relink -- pcodeparse members implemented in Rust but annotated
+    # at their true pcodeparse.y source lines, which the ledger does not accept;
+    # re-anchoring to these .cc definition starts (option a) is owned by the
+    # PCODEFACE lane (src/pcodeparse.rs write domain)
+    ("pcodeparse.cc", 2795): {"class": "unlinked_relink", "y_anchor": 297},
+    ("pcodeparse.cc", 3058): {"class": "unlinked_relink", "y_anchor": 560},
+    ("pcodeparse.cc", 3106): {"class": "unlinked_relink", "y_anchor": 608},
+    ("pcodeparse.cc", 3130): {"class": "unlinked_relink", "y_anchor": 632},
+    ("pcodeparse.cc", 3138): {"class": "unlinked_relink", "y_anchor": 640},
+    ("pcodeparse.cc", 3150): {"class": "unlinked_relink", "y_anchor": 652},
+    ("pcodeparse.cc", 3174): {"class": "unlinked_relink", "y_anchor": 676},
+    ("pcodeparse.cc", 3195): {"class": "unlinked_relink"},
+    ("pcodeparse.cc", 3207): {"class": "unlinked_relink", "y_anchor": 709},
+    ("pcodeparse.cc", 3268): {"class": "unlinked_relink", "y_anchor": 770},
+    ("pcodeparse.cc", 3285): {"class": "unlinked_relink", "y_anchor": 787},
+    # residual_relink -- true residuals; PARSEADJ extracted per-variant twins
+    # (parseadj commit 5b4a6b26) that carry the exact behavior; in this tree
+    # the behavior lives inside the mod_type / new_func monoliths until the
+    # parseadj branch merges
+    ("grammar.cc", 2403): {
+        "class": "residual_relink",
+        "twin": ("src/grammar.rs", "pointer_mod_type"),
+        "holder": ("src/grammar.rs", "mod_type", "free"),
+    },
+    ("grammar.cc", 2412): {
+        "class": "residual_relink",
+        "twin": ("src/grammar.rs", "array_mod_type"),
+        "holder": ("src/grammar.rs", "mod_type", "free"),
+    },
+    ("grammar.cc", 2419): {
+        "class": "residual_relink",
+        "twin": ("src/grammar.rs", "function_modifier_ctor"),
+        "holder": ("src/grammar.rs", "new_func", "impl:CParse"),
+    },
+}
+# Pinned class totals (definitions, LOC) on the locked oracle; GENERATOR
+# ABSORBED_2026-09-27 TL;DR / section 4: pool 63 defs / 2997 LOC = family 24
+# (yy 20/2234 + shim 4/19) + remaining 39 (residual 3/28 + other 36/716 =
+# glue 19/19 + grammar.cc rest 6/264 + pcodeparse rest 11/433).
+UNMAPPED_DISPOSITION_EXPECTED_CLASSES = {
+    "generator_absorbed": (20, 2234),
+    "generator_shim": (4, 19),
+    "glue_absorbed": (19, 19),
+    "inline_absorbed": (3, 246),
+    "drop_absorbed": (2, 11),
+    "unlinked_relink": (12, 440),
+    "residual_relink": (3, 28),
+}
+UNMAPPED_DISPOSITION_EXPECTED_POOL = (63, 2997)
+
+
+def _resolve_unique_rust_record(
+    rust: list[dict[str, object]], path: str, name: str, owner: str
+) -> dict[str, object]:
+    """Resolve exactly one production Rust record by identity pins."""
+
+    matches = [
+        entry
+        for entry in rust
+        if entry["path"] == path
+        and entry["name"] == name
+        and entry["owner"] == owner
+        and not entry["is_test"]
+    ]
+    if len(matches) != 1:
+        found = [
+            f"{entry['path']}:{entry['line']} owner={entry['owner']}"
+            for entry in matches
+        ]
+        raise RuntimeError(
+            "unmapped-disposition target resolution failed: expected exactly one "
+            f"production record for {path}::{name} owner={owner}, got "
+            f"{len(matches)} ({'; '.join(found) or 'none'}); the pinned "
+            "disposition table must be updated alongside the src change"
+        )
+    return {
+        "path": path,
+        "name": name,
+        "owner": owner,
+        "rust_id": matches[0]["id"],
+    }
+
+
+def classify_unmapped_dispositions(
+    ghidra: list[dict[str, object]], rust: list[dict[str, object]]
+) -> dict[str, object]:
+    """Disposition every unmapped definition in the bison translation units.
+
+    Fails closed on any drift between the pinned whitelist and the observed
+    pool: a new unmapped entry needs a disposition ruling, and a whitelisted
+    entry that gained a real Rust mapping (the parseadj twins, the PCODEFACE
+    re-anchoring) must be trimmed from the whitelist with its expected counts
+    -- the documented pool-exit gate of GENERATOR_ABSORBED section 5.
+    """
+
+    pool: dict[tuple[str, int], dict[str, object]] = {}
+    for entry in ghidra:
+        if str(entry["file"]) not in UNMAPPED_DISPOSITION_FILES:
+            continue
+        if entry["entry_kind"] != "definition" or entry["rust_mappings"]:
+            continue
+        key = (str(entry["file"]), int(entry["line"]))
+        if key in pool:
+            raise RuntimeError(f"duplicate unmapped record at {key[0]}:{key[1]}")
+        pool[key] = entry
+    undispositioned = sorted(set(pool) - set(UNMAPPED_DISPOSITIONS))
+    if undispositioned:
+        raise RuntimeError(
+            "unmapped definitions in the bison translation units without a "
+            "pinned disposition (GENERATOR_ABSORBED drift; rule on them before "
+            "regenerating): "
+            + ", ".join(f"{file}:{line}" for file, line in undispositioned)
+        )
+    exited = sorted(set(UNMAPPED_DISPOSITIONS) - set(pool))
+    if exited:
+        raise RuntimeError(
+            "whitelisted dispositions whose entries left the unmapped pool "
+            "(a real Rust mapping now covers them; trim the whitelist entry "
+            "and the expected counts -- GENERATOR_ABSORBED section 5 exit "
+            "gate): "
+            + ", ".join(f"{file}:{line}" for file, line in exited)
+        )
+
+    counters: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    for key in sorted(pool):
+        entry = pool[key]
+        record = dict(UNMAPPED_DISPOSITIONS[key])
+        disposition = str(record["class"])
+        record["evidence"] = UNMAPPED_DISPOSITION_CLASS_NOTES[disposition]
+        if disposition in ("generator_absorbed", "generator_shim"):
+            record["face"] = (
+                GRAMMAR_FACE_EVIDENCE if key[0] == "grammar.cc" else PCODE_FACE_PENDING
+            )
+        elif disposition == "inline_absorbed":
+            record["absorber"] = _resolve_unique_rust_record(
+                rust, "src/grammar.rs", "get_next_token", "impl:GrammarLexer"
+            )
+        elif disposition == "residual_relink":
+            path, name = record["twin"]  # type: ignore[misc]
+            record["twin"] = {
+                "path": path,
+                "name": name,
+                "status": "extracted_on_parseadj_5b4a6b26_pending_merge",
+            }
+            holder_path, holder_name, holder_owner = record["holder"]  # type: ignore[misc]
+            record["holder"] = _resolve_unique_rust_record(
+                rust, holder_path, holder_name, holder_owner
+            )
+        elif disposition == "unlinked_relink" and "target" in record:
+            target_path, target_name, target_owner = record["target"]  # type: ignore[misc]
+            record["target"] = _resolve_unique_rust_record(
+                rust, target_path, target_name, target_owner
+            )
+        entry["unmapped_disposition"] = record
+        counters[disposition][0] += 1
+        counters[disposition][1] += int(entry["end_line"]) - int(entry["line"]) + 1
+
+    observed = {name: (values[0], values[1]) for name, values in counters.items()}
+    if observed != UNMAPPED_DISPOSITION_EXPECTED_CLASSES:
+        raise RuntimeError(
+            "unmapped-disposition class drift (GENERATOR_ABSORBED pinned "
+            f"{UNMAPPED_DISPOSITION_EXPECTED_CLASSES}, got {observed}); "
+            "re-adjudicate before regenerating the ledger"
+        )
+    pool_defs = len(pool)
+    pool_loc = sum(values[1] for values in counters.values())
+    if (pool_defs, pool_loc) != UNMAPPED_DISPOSITION_EXPECTED_POOL:
+        raise RuntimeError(
+            "unmapped-disposition pool drift (GENERATOR_ABSORBED pinned "
+            f"{UNMAPPED_DISPOSITION_EXPECTED_POOL}, got "
+            f"({pool_defs}, {pool_loc}))"
+        )
+    family = {
+        "definitions": counters["generator_absorbed"][0] + counters["generator_shim"][0],
+        "loc": counters["generator_absorbed"][1] + counters["generator_shim"][1],
+        "yy_skeleton": {
+            "definitions": counters["generator_absorbed"][0],
+            "loc": counters["generator_absorbed"][1],
+        },
+        "lex_error_shim": {
+            "definitions": counters["generator_shim"][0],
+            "loc": counters["generator_shim"][1],
+        },
+    }
+    return {
+        "source": "GENERATOR_ABSORBED_2026-09-27",
+        "document": GENERATOR_ABSORBED_DOC,
+        "ticket": UNMAPPED_DISPOSITION_TICKET,
+        "files": list(UNMAPPED_DISPOSITION_FILES),
+        "pool": {"definitions": pool_defs, "loc": pool_loc},
+        "generator_absorbed_family": family,
+        "remaining_pool": {
+            "definitions": pool_defs - family["definitions"],
+            "loc": pool_loc - family["loc"],
+        },
+        "classes": {
+            name: {"definitions": values[0], "loc": values[1]}
+            for name, values in sorted(counters.items())
+        },
+    }
+
+
 def marker_above(lines: list[str], start_line: int) -> tuple[str, dict[str, object]]:
     """Find the provenance marker above a function starting at ``start_line``.
 
@@ -1089,6 +1424,7 @@ def ledger_document(
     rust: list[dict[str, object]],
     ctags_version: str,
     counts: dict[str, int],
+    dispositions: dict[str, object] | None = None,
 ) -> dict[str, object]:
     exact = sum(
         1
@@ -1136,6 +1472,7 @@ def ledger_document(
                 entry["behavior_status"] == "NO_ORACLE" for entry in production
             ),
         },
+        "unmapped_dispositions": dispositions,
         "inputs": {
             "generator_sha256": sha256_file(Path(__file__).resolve()),
             "rust_scanner_sha256": sha256_file(root / "tools/rust_fn_scanner.py"),
@@ -1191,6 +1528,41 @@ def markdown_summary(ledger: dict[str, object]) -> str:
             f"| `{file_name}` | {counter['definitions']} | {counter['exact']} | "
             f"{counter['body-ref']} | {counter['unmapped']} |"
         )
+    dispositions = ledger.get("unmapped_dispositions")
+    if dispositions:
+        family = dispositions["generator_absorbed_family"]
+        remaining = dispositions["remaining_pool"]
+        classes = dispositions["classes"]
+        lines.extend(
+            [
+                "",
+                "## Unmapped dispositions — bison translation units",
+                "",
+                "Every unmapped definition in `grammar.cc`, `grammar.hh`, `pcodeparse.cc`, and",
+                f"`pcodeparse.hh` carries a pinned `unmapped_disposition` "
+                f"({dispositions['pool']['definitions']} definitions / "
+                f"{dispositions['pool']['loc']} LOC; "
+                f"`{Path(str(dispositions['document'])).name}`, ticket "
+                f"`{dispositions['ticket']}`). The bison generator family absorbs "
+                f"{family['definitions']} definitions "
+                f"(yy skeleton {family['yy_skeleton']['definitions']} / "
+                f"{family['yy_skeleton']['loc']} LOC + lex-error shim "
+                f"{family['lex_error_shim']['definitions']} / "
+                f"{family['lex_error_shim']['loc']} LOC); the remaining pool is "
+                f"{remaining['definitions']} definitions / {remaining['loc']} LOC. "
+                "Disposition is an accounting caliber, never a behavior claim: statuses stay",
+                "`UNTESTED`, the grammar face cites the `grammar_parse_face_1204` fixture, and",
+                "the p-code face carries `PARSEADJ-PARSEFACE-PCODE-0001`.",
+                "",
+                "| Disposition class | Definitions | LOC |",
+                "|---|---:|---:|",
+            ]
+        )
+        for class_name in sorted(classes):
+            entry = classes[class_name]
+            lines.append(
+                f"| `{class_name}` | {entry['definitions']} | {entry['loc']} |"
+            )
     lines.extend(
         [
             "",
@@ -11789,6 +12161,122 @@ fn after_macros() {}
         lambda: _validate_rekey_source_tables({}, {}, {}),
     )
 
+    # --- unmapped-disposition classification (GENERATOR_ABSORBED) ----------
+    def disposition_entry(
+        file: str, line: int, end_line: int, *, mapped: bool = False
+    ) -> dict[str, object]:
+        return {
+            "file": file,
+            "line": line,
+            "end_line": end_line,
+            "name": "synthetic",
+            "qualified_name": "synthetic",
+            "entry_kind": "definition",
+            "rust_mappings": (
+                [{"rust_id": "RG-F-syn", "kind": "exact_definition_start"}]
+                if mapped
+                else []
+            ),
+        }
+
+    disposition_ghidra = [
+        disposition_entry("grammar.cc", 50, 52, mapped=True),
+        {"file": "grammar.cc", "line": 60, "end_line": 61, "name": "p",
+         "qualified_name": "p", "entry_kind": "prototype", "rust_mappings": []},
+        disposition_entry("grammar.cc", 100, 110),
+        disposition_entry("grammar.cc", 200, 204),
+        disposition_entry("grammar.cc", 300, 307),
+        disposition_entry("unrelated.cc", 10, 20),
+    ]
+    disposition_rust = [
+        {"path": "src/grammar.rs", "name": "mod_type", "owner": "free",
+         "is_test": False, "id": "RG-F-holder1", "line": 900},
+        {"path": "src/grammar.rs", "name": "mod_type", "owner": "impl:TypeModifier",
+         "is_test": False, "id": "RG-F-holder2", "line": 800},
+    ]
+    disposition_whitelist = {
+        ("grammar.cc", 100): {"class": "generator_absorbed"},
+        ("grammar.cc", 200): {"class": "generator_shim"},
+        ("grammar.cc", 300): {
+            "class": "residual_relink",
+            "twin": ("src/grammar.rs", "pointer_mod_type"),
+            "holder": ("src/grammar.rs", "mod_type", "free"),
+        },
+    }
+    disposition_constants = {
+        "UNMAPPED_DISPOSITION_FILES": ("grammar.cc",),
+        "UNMAPPED_DISPOSITIONS": disposition_whitelist,
+        "UNMAPPED_DISPOSITION_EXPECTED_CLASSES": {
+            "generator_absorbed": (1, 11),
+            "generator_shim": (1, 5),
+            "residual_relink": (1, 8),
+        },
+        "UNMAPPED_DISPOSITION_EXPECTED_POOL": (3, 24),
+    }
+    saved_dispositions = {
+        name: globals()[name] for name in disposition_constants
+    }
+    try:
+        globals().update(disposition_constants)
+        stats = classify_unmapped_dispositions(disposition_ghidra, disposition_rust)
+        assert stats["pool"] == {"definitions": 3, "loc": 24}
+        assert stats["generator_absorbed_family"]["definitions"] == 2
+        assert stats["remaining_pool"] == {"definitions": 1, "loc": 8}
+        by_line = {
+            entry["line"]: entry["unmapped_disposition"]
+            for entry in disposition_ghidra
+            if "unmapped_disposition" in entry
+        }
+        assert by_line[100]["face"] == GRAMMAR_FACE_EVIDENCE
+        assert by_line[300]["holder"]["rust_id"] == "RG-F-holder1", (
+            "holder resolution must pin owner=free, not the TypeModifier method"
+        )
+        assert by_line[300]["twin"]["status"] == (
+            "extracted_on_parseadj_5b4a6b26_pending_merge"
+        )
+
+        def expect_disposition_failure(label: str, thunk) -> None:
+            try:
+                thunk()
+            except RuntimeError as error:
+                assert label in str(error), error
+            else:
+                raise AssertionError(f"{label} must fail closed")
+
+        expect_disposition_failure(
+            "without a pinned disposition",
+            lambda: classify_unmapped_dispositions(
+                [dict(entry) for entry in disposition_ghidra]
+                + [disposition_entry("grammar.cc", 400, 410)],
+                disposition_rust,
+            ),
+        )
+        left_pool = [dict(entry) for entry in disposition_ghidra]
+        left_pool[3] = disposition_entry("grammar.cc", 200, 204, mapped=True)
+        expect_disposition_failure(
+            "left the unmapped pool",
+            lambda: classify_unmapped_dispositions(left_pool, disposition_rust),
+        )
+        globals()["UNMAPPED_DISPOSITION_EXPECTED_CLASSES"] = {
+            "generator_absorbed": (1, 11),
+            "generator_shim": (1, 4),
+            "residual_relink": (1, 8),
+        }
+        expect_disposition_failure(
+            "class drift",
+            lambda: classify_unmapped_dispositions(
+                [dict(entry) for entry in disposition_ghidra], disposition_rust
+            ),
+        )
+        expect_disposition_failure(
+            "target resolution failed",
+            lambda: classify_unmapped_dispositions(
+                [dict(entry) for entry in disposition_ghidra], []
+            ),
+        )
+    finally:
+        globals().update(saved_dispositions)
+
     lines = ["// Ghidra: x.cc:7 A::f", "fn f() {}"]
     record = scan_rust_functions("\n".join(lines))[0]
     kind, marker = marker_above(lines, record.start_line)
@@ -11942,7 +12430,8 @@ def main(argv: list[str]) -> int:
         ghidra, ctags_version = ctags_entries(root, cpp)
         counts = validate_ctags_counts(ghidra)
         rust = rust_entries(root, ghidra)
-        ledger = ledger_document(root, ghidra, rust, ctags_version, counts)
+        dispositions = classify_unmapped_dispositions(ghidra, rust)
+        ledger = ledger_document(root, ghidra, rust, ctags_version, counts, dispositions)
         protocols = protocol_document(protocol_entries(root, cpp))
         dag = dependency_dag(root, cpp)
         outputs = {
