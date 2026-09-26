@@ -14,29 +14,35 @@
 //                             attach succeeds (mapped=1), the second call
 //                             is rejected by the already-mapped guard.
 //   late_cast_retarget (C2)  attempt_dynamic_mapping_late on an implied
-//                             CAST-adjacent temp: the oracle re-targets to
-//                             the explicit varnode across the CAST
-//                             (funcdata_varnode.cc:1373-1386); Rugra's port
-//                             omits the retarget (documented RUGRA-GAP at
-//                             funcdata.rs attempt_dynamic_mapping_late) —
-//                             the censuses pin the divergence.
+//                             CAST-adjacent temp: both runtimes re-target
+//                             the attach to the explicit varnode across
+//                             the CAST (funcdata_varnode.cc:1373-1386,
+//                             DYNMAP-LATE-CAST-RETARGET-0001 landed) —
+//                             the censuses pin the bilateral agreement.
 //   trim_dynamic_high  (C3)  CMOV diamond with a dynamic entry on X:
 //                             mergeAddrTied + mergeMarker trims are
 //                             cover-driven only; merge never consults the
 //                             dynamic entry; the late action creates no
 //                             ops.
 //   action_walk_level  (C4)  ActionDynamicMapping at the ACTION level:
-//                             Ghidra walks beginDynamic()/endDynamic() and
-//                             attaches; Rugra's registered apply() is a
-//                             no-op stub (coreaction.rs:14841-14849) — the
-//                             censuses pin the stub divergence.
+//                             both runtimes walk beginDynamic()/endDynamic()
+//                             from Action::perform (action.cc:298) and
+//                             attach from the action level; count stays 0
+//                             on both sides because attemptDynamicMapping
+//                             surfaces Varnode::setSymbolProperties' false
+//                             (DYNMAP-SETPROPS-RET-0001 landed).
+//   action_late_walk   (C5)  ActionDynamicSymbols at the ACTION level on
+//                             the clean C1b shape: both runtimes perform
+//                             the late attach from the action level and
+//                             report count=1/status=1 (the Action base
+//                             bookkeeping returns the accumulated count).
 //
 // Projections use stable fixture identities (varnode names, hex addresses,
 // opcode names) — never Arc pointers or SeqNums.
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{action_status, Action};
+use rugra::action::{action_status, Action, ActionState};
 use rugra::address::Address;
 use rugra::block::{BlockBasic, FlowBlock};
 use rugra::coreaction::{ActionDynamicMapping, ActionDynamicSymbols};
@@ -581,12 +587,19 @@ fn run_action_walk_level(fd: &mut Funcdata) {
     f.vncensus("action_walk_level", "pre");
     f.opcensus(fd, "action_walk_level", "pre");
 
-    // Action level: Ghidra's perform walks beginDynamic()/endDynamic() and
-    // attaches; Rugra's registered stub is inert (no walk, no attach, no
-    // counting state — count reported as 0).
-    let ret = ActionDynamicMapping::new().apply(fd);
-    let status = ret.unwrap_or(action_status::NO_CHANGE);
-    println!("act|case=action_walk_level|fn=ActionDynamicMapping|count=0|status={status}");
+    // Action level, mirroring the oracle driver (Action::perform,
+    // action.cc:298): count reset → apply walk → count harvested from the
+    // action's accumulator (take_count_delta) → perform returns the
+    // accumulated count.  attemptDynamicMapping returns
+    // Varnode::setSymbolProperties' false on this shape, so count stays 0
+    // on both runtimes (the attach itself shows in the vncensus below).
+    let mut action = ActionDynamicMapping::new();
+    let flags = action.get_flags();
+    let mut state = ActionState::new(flags);
+    let status = action
+        .perform(fd, &mut state)
+        .unwrap_or(action_status::NO_CHANGE);
+    println!("act|case=action_walk_level|fn=ActionDynamicMapping|count={}|status={status}", state.count);
 
     f.vncensus("action_walk_level", "after");
     f.opcensus(fd, "action_walk_level", "after");
@@ -642,12 +655,18 @@ fn run_action_late_walk(fd: &mut Funcdata) {
     f.vncensus("action_late_walk", "pre");
     f.opcensus(fd, "action_late_walk", "pre");
 
-    // Action level: Ghidra's perform walks beginDynamic()/endDynamic() and
-    // attaches; Rugra's registered stub is inert (no walk, no attach, no
-    // counting state — count reported as 0).
-    let ret = ActionDynamicSymbols::new().apply(fd);
-    let status = ret.unwrap_or(action_status::NO_CHANGE);
-    println!("act|case=action_late_walk|fn=ActionDynamicSymbols|count=0|status={status}");
+    // Action level, mirroring the oracle driver (Action::perform,
+    // action.cc:298): the walk is the production ActionDynamicSymbols::apply
+    // (coreaction.cc:4869) and the count/status pair is the Action base
+    // bookkeeping — attemptDynamicMappingLate returns true here, so
+    // count=1 and perform returns 1 on both runtimes.
+    let mut action = ActionDynamicSymbols::new();
+    let flags = action.get_flags();
+    let mut state = ActionState::new(flags);
+    let status = action
+        .perform(fd, &mut state)
+        .unwrap_or(action_status::NO_CHANGE);
+    println!("act|case=action_late_walk|fn=ActionDynamicSymbols|count={}|status={status}", state.count);
 
     f.vncensus("action_late_walk", "after");
     f.opcensus(fd, "action_late_walk", "after");

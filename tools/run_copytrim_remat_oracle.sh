@@ -15,34 +15,42 @@
 #                      oracle has no re-materialization mechanism for
 #                      dynamic-hash temps anywhere (candidate ③ literal
 #                      falsification).
-#   refind_attach_fn   MISMATCH(res only) — the attach itself matches
-#                      (mapped=1, guard, zero ops) but Ghidra surfaces
-#                      Varnode::setSymbolProperties' return value as
-#                      attemptDynamicMapping's result (false here) while
-#                      Rugra returns true unconditionally
-#                      (DYNMAP-SETPROPS-RET-0001).
-#   late_cast_retarget MISMATCH — Ghidra's uniqueHash anchors tmp
-#                      NOT-ATTACHED at the reading op (CAST is a skipped
-#                      hash op) and the late attach lands on the explicit
-#                      c0 across the CAST; Rugra anchors differently
-#                      (DYNHASH-UNIQUE-ANCHOR-0001) and attaches the
-#                      implied tmp itself
-#                      (DYNMAP-LATE-CAST-RETARGET-0001, the documented
-#                      funcdata.rs omission).
-#   trim_dynamic_high  MISMATCH(mint-hash line only) — the merge trims
-#                      themselves MATCH exactly (copy@b1(X)/copy@b2(fX)
-#                      lane rewires, 4-COPY census, dynamic entry count
-#                      untouched by merge): trims are cover-driven only.
-#   action_walk_level  MISMATCH — Ghidra's ActionDynamicMapping walks
-#                      beginDynamic()/endDynamic() and attaches from the
-#                      action level; Rugra's registered stub is inert
-#                      (COREACT-DYNMAP-STUB-0001).
-#   action_late_walk   MISMATCH — same for ActionDynamicSymbols (late
-#                      attach, count=1/status=1) vs Rugra's stub
-#                      (COREACT-DYNSYM-STUB-0001).
+#   refind_attach_fn   MATCH — the attach itself matches (mapped=1,
+#                      guard, zero ops) and the boolean return matches
+#                      since DYNMAP-SETPROPS-RET-0001 landed (Rugra
+#                      surfaces Varnode::setSymbolProperties' result,
+#                      false here, keeping ActionDynamicMapping's count
+#                      at 0 while the attach happened).
+#   late_cast_retarget MATCH — since DYNMAP-LATE-CAST-RETARGET-0001 and
+#                      DYNHASH-UNIQUE-ANCHOR-0001 landed, both runtimes
+#                      anchor tmp NOT-ATTACHED at the reading op and
+#                      attach the explicit c0 across the CAST (same mint
+#                      hash, same after-census rows).
+#   trim_dynamic_high  MATCH — the merge trims match exactly
+#                      (copy@b1(X)/copy@b2(fX) lane rewires, 4-COPY
+#                      census, dynamic entry count untouched by merge):
+#                      trims are cover-driven only; the minted hash line
+#                      matches since DYNHASH-UNIQUE-ANCHOR-0001.
+#   action_walk_level  MATCH — since COREACT-DYNMAP-STUB-0001's real
+#                      body landed, both runtimes walk
+#                      beginDynamic()/endDynamic() from
+#                      Action::perform and attach from the action level
+#                      (count stays 0 bilaterally: setSymbolProperties
+#                      returns false on this shape).
+#   action_late_walk   MATCH — since COREACT-DYNSYM-STUB-0001's real
+#                      body landed, both runtimes perform the late
+#                      attach from the action level and report
+#                      count=1/status=1 (Action::perform returns the
+#                      accumulated count; the fixture drives the trait
+#                      perform on the Rust side, mirroring the oracle
+#                      driver).
 #
-# Expected diff budget: exactly the 10 pinned divergence lines (20 diff
-# rows).  Anything else is drift and fails the gate.
+# Expected diff budget: zero divergence lines (MB20 repin at the
+# 19-branch merged tree 291c8321: the DYNMAPLATE + SETPROPSRET + COREACT2
+# chain pieces landed and the action-level Rust drivers now go through
+# Action::perform with real counts — rugra.stdout is byte-identical to
+# ghidra.stdout, 63/63 records).  Anything else is drift and fails
+# the gate.
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -51,7 +59,7 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_source_commit=f3499354f1faa6b7a2e5ea29cb7a01530d7fdc33
+rugra_source_commit=291c83211de6aba4dcacb158051d3bc69c9facb9
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/copytrim_remat_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/copytrim_remat_1204.cc"
@@ -310,7 +318,7 @@ for key, record in coverage.items():
 require("coverage.fold_relocate_fn.status", coverage["fold_relocate_fn"]["status"], "MATCH")
 
 expected = metadata["expected_results"]
-require("diff exit code", expected["diff_exit_code"], 1)
+require("diff exit code", expected["diff_exit_code"], 0)
 print("snapshot verified", flush=True)
 PY
 
@@ -452,7 +460,8 @@ for case in metadata["input_manifest"]["cases"]:
 print("copytrim_remat_1204: candidate3_literal=EXCLUDED "
       "(fold_relocate_fn MATCH — oracle creates zero ops for dynamic-hash temps; "
       "trims are cover-driven only per trim_dynamic_high) "
-      "projection=11 pinned divergence lines across 5 MISMATCH cases, residuals "
-      "(DYNMAP-SETPROPS-RET-0001, DYNHASH-UNIQUE-ANCHOR-0001, "
-      "DYNMAP-LATE-CAST-RETARGET-0001, COREACT-DYNMAP-STUB-0001, COREACT-DYNSYM-STUB-0001)")
+      "projection=BILATERAL MATCH — 63/63 records byte-identical, 0 divergence "
+      "lines [MB20 repin at the 19-branch merged tree: DYNMAPLATE + SETPROPSRET + "
+      "COREACT2 chain pieces landed; action-level drivers run Action::perform on "
+      "both sides with real counts]")
 PY
