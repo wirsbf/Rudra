@@ -3096,3 +3096,30 @@ pair (2 ops vs the iced direct-register STORE), and the seq_cmp_je fixture is 27
 The test module's leftover `use crate::disasm::{Disassembler, X86Lifter,
 X86_64Disassembler}` import line (dead after the site migration) is removed with the
 module retirement commit — the disasm module no longer exports those types.
+
+## 2026-09-27：attempt_dynamic_mapping_late 补 cc:1373-1386 implied→CAST 对侧重定向（DYNMAP-LATE-CAST-RETARGET-0001，Lane DYNMAPLATE）
+
+`Funcdata::attempt_dynamic_mapping_late`（funcdata.rs，Ghidra funcdata_varnode.cc:1347
+`Funcdata::attemptDynamicMappingLate`）此前自注 RUGRA-GAP 跳过 cc:1373-1386 的
+implied-Varnode CAST 对侧重定向。本批 1:1 移植该块：哈希命中的 vn 为 implied 且
+CAST 邻接时，取"另一侧"（`vn->isWritten() && getDef()->code()==CPUI_CAST` →
+`getIn(0)`；否则 `loneDescend()` 为 CAST → `getOut()`），仅当对侧 `isExplicit()`
+时把符号附到对侧。oracle 语义中该重定向保住的命名中间变量（显式语句）在旧实现下
+被附到 implied 侧 → 内联消失——与 CASTFUSE-A 的 −154 过度内联族症状同构。
+
+关键语义（四类）：
+- 引用/输出参数：oracle 通过 `vn = newvn` 局部重绑定后统一走 `setSymbolEntry(entry)`；
+  Rust 以 `Arc<RwLock<Varnode>>` 重绑定后同一 `MAPPED` 置位 + `symbol_table` 插入。
+- 遍历顺序：先 def 侧（CAST 输入臂），def 非 CAST/无 def 才走 loneDescend 输出臂
+  （oracle 的 `else` 覆盖"未写"与"写但非 CAST"两种情况）。
+- 计数器：无计数器；`count += 1` 在 Action 级（coreaction）不在本函数。
+- 比较/守卫键：`loneDescend()` 严格要求恰好 1 个后代（0 或 >1 均返回 null）；
+  retarget 终判 = `newvn != 0 && newvn->isExplicit()`。
+
+验证：`tests/oracle/copytrim_remat_1204` C2 late_cast_retarget——oracle 侧
+`after` census `c0.mapped=1/tmp.mapped=0`（附着跨 CAST 落到 explicit c0），修复前
+Rugra 反接 tmp；修复后（基 master 6a458387 + 本批）双侧该 case 全行 MATCH（含 mint
+哈希行，前置 DYNHASH-UNIQUE-ANCHOR-0001 已并）。metadata 不动（重钉留 MB20）；官方
+runner 按钉死 crate 快照（f3499354）复跑全绿，pin 完整性保持。残余分歧仅剩
+DYNMAP-SETPROPS-RET-0001 / COREACT-DYNMAP-STUB-0001 / COREACT-DYNSYM-STUB-0001
+（非本票写域）。`retypeSymbol`（cc:1389-1397）维持既有 RUGRA-GAP 注记不动。

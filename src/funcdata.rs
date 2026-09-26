@@ -12968,7 +12968,61 @@ impl Funcdata {
             ));
             return false;
         }
-        // cc:1373-1386: implied varnode → follow across a CAST (omitted; rare).
+        // cc:1373-1386: implied varnode → look at the "other side" of an
+        // adjacent CAST; if that side is explicit, the Symbol attaches there
+        // (DYNMAP-LATE-CAST-RETARGET-0001, 1:1 port of the previously
+        // documented omission):
+        //   if (vn->isImplied()) {	// This should be finding an explicit, but a cast may have been inserted
+        //     Varnode *newvn = (Varnode *)0;
+        //     // Look at the "other side" of the cast
+        //     if (vn->isWritten() && (vn->getDef()->code() == CPUI_CAST))
+        //	newvn = vn->getDef()->getIn(0);
+        //     else {
+        //	PcodeOp *castop = vn->loneDescend();
+        //	if ((castop != (PcodeOp *)0)&&(castop->code() == CPUI_CAST))
+        //	  newvn = castop->getOut();
+        //     }
+        //     // See if the varnode on the other side is explicit
+        //     if ((newvn != (Varnode *)0)&&(newvn->isExplicit()))
+        //	vn = newvn;		// in which case we use it
+        //   }
+        let vn: std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>> = {
+            let mut newvn: Option<
+                std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+            > = None;
+            // cc:1373: only when the hash-located Varnode is implied.
+            if vn.read().unwrap().is_implied() {
+                // cc:1376-1377: vn written by a CAST → other side is its
+                // input 0 (isWritten() == def != null in the oracle, so
+                // get_def() Some + CAST opcode is the exact gate).
+                let def_side = vn.read().unwrap().get_def().and_then(|def| {
+                    let defr = def.read().unwrap();
+                    if defr.opcode == OpCode::CPUI_CAST {
+                        defr.get_in(0).cloned()
+                    } else {
+                        None
+                    }
+                });
+                if let Some(v) = def_side {
+                    newvn = Some(v);
+                } else {
+                    // cc:1379-1381: lone descendant is a CAST → other side
+                    // is its output (else branch covers both "not written"
+                    // and "written by a non-CAST op").
+                    newvn = vn.read().unwrap().lone_descend().and_then(|castop| {
+                        let castopr = castop.read().unwrap();
+                        if castopr.opcode == OpCode::CPUI_CAST {
+                            castopr.get_out().cloned()
+                        } else {
+                            None
+                        }
+                    });
+                }
+                // cc:1384-1385: retarget only if the other side is explicit.
+                newvn = newvn.filter(|v| v.read().unwrap().is_explicit());
+            }
+            newvn.unwrap_or(vn)
+        };
         // cc:1388: vn->setSymbolEntry(entry).
         vn.write()
             .unwrap()
