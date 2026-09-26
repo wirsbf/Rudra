@@ -32,12 +32,12 @@ FI 判决(sb-spillpair)已把口径钉死:**Rugra 库级输出 vs direct-runner 
 
 | # | 通道 | curl 量化 | httpd 量化 | 归因(golden 知道什么/从哪知道) | 驱动桥现状 |
 |---|---|---|---|---|---|
-| C1 | **TYPE-SEED-LOCAL**(committed `local_*` 符号+类型层) | `local_` 引用 117,typed 声明 140 vs D undefined 326 | **`local_` 引用 5824(D=0),typed 声明 3173 vs D 4468**;TYPE-SEED hunk 316 | **Java 分析器提交环**:Decompiler Parameter ID(含 locals 提交)先跑库恢复→提交 DB→Data Type Propagation 等再升级类型→最终反编译读回。证据:①httpd stripped 无 DWARF 仍有 typed locals ⇒ 非 DWARF;②SPALIAS drill:hermetic oracle 收敛 unknown ⇒ 库外种子;③`local_` 名 C++ 全树零生成点(grep 无)⇒ 名字来自 Java DB;④C++ 消费机制在锁定源:`<localdb>`(funcdata.cc:804-810)→ `MapState::gatherSymbols`(varmap.cc:1044-1059)→ `RangeHint::fixed+typelock` | ❌ 未建模(SPALIAS/GC/FI/DP 四判例残差的上游总根) |
-| C2 | **THUNK-GOT**(GOT 槽 `PTR_x` 符号化 + thunk 标记 + 导入函数签名) | PTR_ 50 vs pcRam 313;THUNK-PAIR hunk 73;locked-storage 警告 51(D=0);D jumptable 警告 46(H=0) | PTR_ 372 vs pcRam 1659;THUNK-PAIR hunk 495;locked 警告 124;D jumptable 警告 431 | headless ELF loader+分析器:建 GOT 引用符号(`PTR_<extname>_<addr>`、`code*` 型)、把 PLT/plt.sec 标记为 thunk(免 jumptable 恢复)、对导入函数套用库签名(锁定参数存储)。httpd stripped ⇒ 签名来自 FID/外部签名库,非 DWARF | 部分:GOT PTR_ 标签+函数符号已桥(driver :557-563);**导入签名/thunk 标记/警告抑制 ❌** |
+| C1 | **TYPE-SEED-LOCAL**(committed `local_*` 符号+类型层) | `local_` 引用 117,typed 声明 140 vs D undefined 326 | **`local_` 引用 5824(D=0),typed 声明 3173 vs D 4468**;TYPE-SEED hunk 316 | **【§19 消融改判】Java 分析器提交环 = "Stack" 分析器(StackVariableAnalyzer,建栈符号+local_ 偏移名,namelock=true/typelock=false/undefined 型)**,非 Decompiler Parameter ID(ELF 默认关)。证据:①httpd stripped 无 DWARF 仍有 typed locals ⇒ 非 DWARF;②SPALIAS drill:hermetic oracle 收敛 unknown ⇒ 库外种子;③`local_` 名 C++ 全树零生成点 ⇒ 名字来自 Java DB(SymbolUtilities.getDefaultLocalName);④消融:Stack 关→local_ 5824→0/117→0,Parameter ID 强开→偏离 canon(461 函数);⑤live `<localdb>`:local_* 全部 typelock=false(§19.4) | ❌ 未建模(SPALIAS/GC/FI/DP 四判例残差的上游总根) |
+| C2 | **THUNK-GOT**(GOT 槽 `PTR_x` 符号化 + thunk 标记 + 导入函数签名) | PTR_ 50 vs pcRam 313;THUNK-PAIR hunk 73;locked-storage 警告 51(D=0);D jumptable 警告 46(H=0) | PTR_ 372 vs pcRam 1659;THUNK-PAIR hunk 495;locked 警告 124;D jumptable 警告 431 | headless ELF loader+分析器:建 GOT 引用符号(`PTR_<extname>_<addr>`、`code*` 型)、把 PLT/plt.sec 标记为 thunk(免 jumptable 恢复)、对导入函数套用库签名(锁定参数存储)。**【§19 消融改判】签名源="Apply Data Archives" 分析器(generic_clib_64 归档,ApplyFunctionDataTypesCmd)而非 FID**(FID 关=0 函数变化;archive 关=locked-warn 51→3/124→0,fopen 等导入失锁;live XML:sigaction 导入带 typelock 参数符号) | 部分:GOT PTR_ 标签+函数符号已桥(driver :557-563);**导入签名/thunk 标记/警告抑制 ❌** |
 | C3 | **SIG-LOCK 实函数**(原型锁定+参数名) | SIG hunk 22 + PARAM-NAME 26;`__x` 参数名 263 vs 72 | SIG hunk 418 + PARAM-NAME 146;`__x` 1562 vs 332 | curl=DWARF 函数原型(argc/argv/__stream/urls);httpd=analyzer 签名(FID/Parameter ID 提交)。与 C1 同机制不同载体(`<prototype>` 锁,fspec) | 部分:DWARF 自身+callsite 锁、24 libc 已桥(CALLSPEC-ENV-SCOPE-0001/GL);**导入面与 golden-harvest 面 ❌** |
 | C4 | **STRUCT-FIELD**(DWARF 组合类型下的字段步进) | STRUCT-FIELD hunk 33 + GLOBAL-SYM hunk 119(`::config`/`outs.stream`/`stdin` 等 typed 全局) | STRUCT-FIELD hunk 26(归因开放:stripped 下疑 FID 套型) | curl=DWARF composite(Configurable/URLGlob/FILE);全局符号带类型 | 部分:TYPEDEF_PREAMBLE 文本级 hack(:4845);真组合类型 ❌ |
 | C5 | STRSYM(字符串字面量实参) | H 43 vs D 0 | H 1681 vs D 10 | Java string/reference 分析器在 .rodata 建字符串数据 | ✅ 已桥(driver 字符串通道) |
-| C6 | BOOL-LIT 残余(Data Type Propagation 族) | true/false 34 vs 18 | 499 vs 289 | GC 判例:Java Data Type Propagation 把 bool 语义播种到库级 char | 部分:DWARF typedef-bool 已修(boollit);**DTP 族 ❌** |
+| C6 | BOOL-LIT 残余(Data Type Propagation 族) | true/false 34 vs 18 | 499 vs 289 | GC 判例:Java Data Type Propagation 把 bool 语义播种到库级 char。**【§19 消融改判】"Data Type Propagation" 分析器在 12.0.4 不存在**(全树 NAME 盘点);curl 侧 bool 源=DWARF 导入器 char→bool 重映射(DWARF 关:34→7;capture 日志"DWARF data type remappings /char -> /bool";live:errorbuffer=typelocked bool[256]);httpd 侧 bool 对 Stack/FID/archive 消融全不敏感(499 恒定)=反编译器自身恢复,H499-vs-D289 差额属环境差(被调原型可得性),非 analyzer 播种通道 | 部分:DWARF typedef-bool 已修(boollit);**残余=库级恢复域 ❌** |
 | C7 | NAME-NORM(GCC 后缀剥离) | H 后缀引用 0 vs D 10(`.constprop.0` 等) | 0/0 | headless demangler/分析器剥离 `.constprop/.isra/.cold` | ❌(小) |
 | C8 | FUNC-DISC(函数发现) | H-only 50(1×FUN_ + 49×plt.sec) | H-only 1220(464 FUN_ + 756 named) | analyzer 发现无符号代码 + plt.sec 注册 | 部分:124-fn ledger 钉住门禁面;无需库侧桥 |
 | C9 | PUSH-ABSORB | D 固定槽 push 29 行 | D 309 行 | DP 判例:headless 桥接层输入吸收;**预计随 C1/C3 落地自然收敛** | ❌(不单独建,跟踪 C1 效果) |
@@ -55,7 +55,7 @@ FI 判决(sb-spillpair)已把口径钉死:**Rugra 库级输出 vs direct-runner 
    - `Funcdata::decode`(funcdata.cc:775-837):`<function>` 子元素 `<localdb>`(预填符号的 ScopeLocal)/`<override>`/`<prototype>`(锁定原型)/`<jumptablelist>`(预计算跳转表)—— **这就是 Java DecompInterface 与 C++ 库的全部接口**,驱动侧桥等价于在 Rust 侧重建同一协议的注入端。
    - `MapState::gatherSymbols`(varmap.cc:1044-1059):DB 符号以 `RangeHint::fixed` + typelock 进 restructure;Rugra 侧 varmap.rs:1950-1964 已逐行对应(本 lane 复核)。**播种 API 已在库内,缺的只是驱动侧喂数据。**
 2. **差分级(双 golden)** —— §2 量化全部来自同源双 golden 对比;`local_` 0 vs 5824(direct vs headless)是 C1 存在性的直接观测。
-3. **消融级(analyzer 开关)** —— **尚缺**:headless dist 当前不可用(重启丢失,HEADLESS_DIST_DEAD)。待重建后跑"关 Parameter ID / 关 Data Type Propagation"受控重导入,观测 `local_` 计数与 typed 声明变化,把 C1/C6 的 analyzer 级归因钉死(登记为 §5 W0 前置)。当前 analyzer 名称为最可能假设(证据:provenance risk 列表 + SPALIAS/GC 判例 + httpd stripped 反证 DWARF),非终局。
+3. **消融级(analyzer 开关)** —— **已完成（Lane HEADLESSDIST，2026-09-27，§19）**：headless dist 重建（官方发行版 zip，revision 逐字=锁定 commit，双 golden 字节复现）后跑受控重导入消融，C1/C6/C2 的 analyzer 级归因已由消融证据**改判**（原"最可能假设"三条全部被部分或全部证伪，修正结论见 §2 表内标注与 §19.3）：C1 的 `local_` 层来源=**"Stack" 分析器**（非 Decompiler Parameter ID——后者对 ELF 默认关闭）；C2 锁定警告/导入签名来源=**"Apply Data Archives"（generic_clib_64）**（非 FID——dist 无 FID 库且开关不敏感）；C6 的 curl 侧 bool 来源=**DWARF 导入器的 char→bool 重映射**（"Data Type Propagation" 分析器在 12.0.4 不存在）。
 
 ## §4 驱动侧通道设计(GD2/GJ 模式:数据从哪来/怎么注入/何时注入/怎么验证)
 
@@ -133,14 +133,14 @@ fd 构建完成(含现有 DWARF/模型锁)之后、`db.perform_action("decompile
 ### 5.6 风险与开放项
 - **风险 R1**: committed locals 与 DWARF 自原型锁(param 溢出槽)的窗口重叠 → 验收 3 的 per-fn 门禁捕捉;必要时 manifest 收割时排除 param 槽区间(funcp local window 已有范围)。
 - **风险 R2**: undefined-typed 种子引发 curl 回归 → §5.1 决策门(typed-only 降级)。
-- **风险 R3**: analyzer 级归因未终局(W0 消融缺 headless dist)→ manifest 是"捕获侧真值",机制归因开放不影响 v1 可实施性;W0 补消融后再定 C6 是否独立通道。
-- **开放 O1**: httpd STRUCT-FIELD(26 hunk)在 stripped 下的类型来源(FID 套型?)—— W2/W4 时用 headless dist 消融钉死。
+- **风险 R3**: analyzer 级归因 ~~未终局(W0 消融缺 headless dist)~~ **已由 W0 消融终局(§19.3:C1=Stack 分析器,manifest 语义仍是捕获侧真值)**;C6 已改判为非独立 analyzer 通道(§2 表 C6 标注)。
+- **开放 O1**: httpd STRUCT-FIELD(26 hunk)在 stripped 下的类型来源(~~疑 FID 套型?~~ **已钉死:generic_clib_64 数据归档经 "Apply Data Archives" 分析器套型,非 FID——§19.3 O1 行**)。
 
 ## §6 分波排期
 
 | 波 | 内容 | 前置 | 预期主收益 |
 |---|---|---|---|
-| **W0**(可并行) | HEADLESS-BRIDGE-ATTRIB-0004:重建 headless dist;analyzer 开关消融(Parameter ID commit-locals / Data Type Propagation / FID)重导入 curl+httpd,钉 C1/C6 analyzer 归因;抓 `<localdb>` XML 真值交叉验证 manifest | 无(纯捕获侧) | 归因 NO_ORACLE→MATCH;manifest 交叉验证 |
+| **W0**(✅ 已交付 2026-09-27,§19) | HEADLESS-BRIDGE-ATTRIB-0004:重建 headless dist;analyzer 开关消融重导入 curl+httpd,钉 C1/C6/C2 analyzer 归因;抓 `<localdb>` XML 真值交叉验证 manifest | 无(纯捕获侧) | 归因 NO_ORACLE→消融证据(三条假设改判:Stack/Apply Data Archives/DWARF);manifest 交叉验证完成 |
 | **W1(v1 核心)** | HEADLESS-BRIDGE-V1-TYPESEED-0001:harvester + manifest + 协议字段 + worker 播种 + §5.5 全门禁;httpd 先行(最大行质量+SPALIAS 既有判决) | 无(不依赖 W0) | httpd `local_` 层 5824 引用建模;SPALIAS 定点;C9/C10 观察 |
 | W1b | curl roll-in(117 引用 + DWARF 名局部 `urls/urlnum` 同机制;含 NAME-NORM 顺带 3 hunk) | W1 | curl C1+C7 |
 | W2 | C2 THUNK-GOT(导入签名 manifest + thunk 标记/警告抑制) | W1(复用 manifest 框架) | httpd 431 jumptable 警告→0;THUNK-PAIR 495 hunk |
@@ -1675,3 +1675,155 @@ PARAMID 双跑 cmp 恒等；默认双跑 cmp 恒等；bank 391/391 exit 0；gcc 
 
 证据=/dev/shm/rugra-tests/cparam/（三脸+双跑+全门禁输出+sites dump）；
 终报=本节。target /dev/shm/rugra-targets/sb-cparam 留 root 集成后回收。
+
+## §19 W0 交付记录（Lane HEADLESSDIST，2026-09-27，基=master 6a458387，零 src 改动归因车道）
+
+> HEADLESS-BRIDGE-ATTRIB-HEADLESSDIST-0004：headless dist 重建 + curl/httpd 受控
+> 消融重导入 + live `<localdb>` 协议抓取与 manifest 交叉验证 + O1 钉死。
+> 写域=本文件 §2/§3/§5.6/§6 回写 + 本节 + TODO_BOARD 本票行；src/ 零触碰。
+> 证据=/dev/shm/rugra-tests/headlessdist/（scripts/rounds/xml/metrics/dl）。
+
+### 19.1 dist 重建与验证（任务①）
+
+- **来源**：官方发行版 zip `ghidra_12.0.4_PUBLIC_20260303.zip`（GitHub releases
+  tag Ghidra_12.0.4_build；直连 https，apt 代理不可用；sha256
+  `c3b458661d69e26e203d739c0c82d143cc8a4a29d9e571f099c2cf4bda62a120`）。
+- **锁定证明**：zip 内 `Ghidra/application.properties`
+  `application.revision.ghidra=e40ed13014025f82488b1f8f7bca566894ac376b`
+  ——与锁定 oracle commit **逐字相等**。JDK=Temurin 21.0.12.1（Adoptium API
+  直连）。运行时必须 `unset LD_PRELOAD`（proxychains 劫持 Java↔native 反编译
+  器回环 IPC）。
+- **行为验证**：canon 配方复刻（analyzeHeadless 默认分析 + postScript
+  `ghidra_decompile_all.py` 逐字副本含 Jython coding 行）重导入双语料：
+  - curl 124/124 函数,输出 sha256 `aca37988…` == canon golden 逐字节；
+  - httpd 2010/2010 函数,sha256 `6b4c4f31…` == canon golden 逐字节；
+  - 重复跑 byte-identical（确定性 1/1 复验）。
+  ⇒ 官方 zip 与 canon 生成时所用的自建 dist 在本语料行为全等;**dist 档
+  NO_ORACLE 已消除**（provenance `equivalence_notes` 所述自建路径与官方
+  发行版在本语料等价）。配方留档 §19.6 + scripts/run_round.sh。
+
+### 19.2 消融矩阵（任务②）
+
+11 轮受控重导入（每轮=完整 canon 配方 + 单一 analyzer 开关,preScript
+`setAnalysisOption`）。核心指标（口径=§2 grep 全文件口径;locked-warn=
+"WARNING: Unknown calling convention";typed_decls=函数体首语句前声明行）:
+
+| 轮 | 开关 | curl local_/typed/locked | httpd local_/typed/locked | 判定 |
+|---|---|---|---|---|
+| r0 基线 | 默认(=canon) | 117/242/51 | 5824/5245/124 | 双双 byte==canon |
+| r1 | **Decompiler Parameter ID=true** | 117/242/51(0 函数变) | 5879/5698/124(**461 函数变**) | canon 无 Parameter ID:强开后偏离 canon |
+| r1b | Parameter ID=true + Commit Data Types=false | 117/242/51(0 变) | — | 同上(锁名不锁型) |
+| r2 | **Stack=false** | **117→0**/242/51 | **5824→0**/5245/124 | **C1 整层=Stack 分析器**;变化函数=httpd 226 个=manifest 收割域逐一对应 |
+| r3 | **Function ID=false** | 117/242/51(**0 函数变**) | 5824/5245/124(**0 函数变**) | **FID 惰性**:dist 无 .fid 库(0.07s 空转) |
+| r4 | DWARF=false(仅 curl) | 117→**245**/229/48;bool 34→**7** | n/a | DWARF 名遮蔽 local_ 命名(+128);**curl bool 源=DWARF** |
+| r5 | **Apply Data Archives=false** | 114/222/**51→3** | 5842/5150/**124→0**;sigaction/sigset_t decl 2→0,字段形 3→0 | **C2 签名/locked-warn + O1 类型=generic_clib_64 归档** |
+
+配套源码级事实（锁定 commit 亲读）:
+- `DecompilerFunctionAnalyzer.getDefaultEnablement()` = `(numAddr < 2MB) &&
+  PE_NAME.equals(format)` —— **对 ELF 恒 false**,canon 双语料均未跑过
+  Parameter ID(r1 强开 461 函数偏离 canon 是直接证伪)。
+- 全树 analyzer NAME 盘点（15138 .java）: **不存在 "Data Type Propagation"
+  分析器**;票面假设三连(Parameter ID/Data Type Propagation/FID)中两条
+  对 ELF 结构性不成立。C1 真源 `StackVariableAnalyzer`(NAME="Stack",
+  "Creates stack variables for a function",默认开,0.2-0.6s)。
+- live analyzer 面(r0 日志计时块):Stack/Function ID/DWARF/
+  Apply Data Archives(generic_clib_64)/Call Convention ID/Demangler GNU/
+  ASCII Strings/x86 Constant Reference 等在场;Parameter ID 不在场。
+
+### 19.3 逐通道结论（每通道一行,analyzer 名+开/关计数对照）
+
+| 通道 | 票面假设 | 消融判决 | 计数对照(开→关) |
+|---|---|---|---|
+| **C1 TYPE-SEED-LOCAL** | Decompiler Parameter ID(commit-locals) | **证伪 → "Stack" 分析器**(StackVariableAnalyzer 建栈符号;名=SymbolUtilities.getDefaultLocalName `local_`+hex;canon 打印的类型是 restructure 在锚定分区上恢复的,非 DB 提交型) | httpd local_ 5824→0 / curl 117→0(Stack 关);Parameter ID 强开反增 5879(≠canon 5824) |
+| **C6 BOOL-LIT** | Data Type Propagation 分析器 | **归因不成立**(该分析器不存在)。curl=bool 源=DWARF 导入器 char→bool 重映射(capture 日志 "DWARF data type remappings: /char -> /bool" 直证);httpd=bool 499 对 Stack/FID/archive 消融恒定=反编译器自身恢复,H499-vs-D289 差额属环境差非播种通道 | curl bool 34→7(DWARF 关);httpd bool 499→500/499/495(Stack/FID/archive 关) |
+| **C2 导入签名/locked-warn** | FID/外部签名库 | **FID 证伪 → "Apply Data Archives"**(generic_clib_64 归档,ApplyFunctionDataTypesCmd 套签名;FID 关=0 函数变化+dist 无 .fid 库) | curl locked-warn 51→3 / httpd 124→0(archive 关);PTR_ 50/372 不动(=ELF loader 域,与归档无关) |
+| **O1 httpd STRUCT-FIELD** | 疑 FID 套型 | **证伪 → generic_clib_64 归档**:sigaction 导入签名(typelock 参数含 struct sigaction*)→typeprop 落在 Stack 层 local_b8/local_c0 槽上;live XML 亲见 sigaction mapsym 带 typelocked `__sig` 等参数符号 | httpd struct decl 2→0、字段形 3→0(archive 关或 Stack 关);FID 关 2/3 不变 |
+
+**对 §16.1/V3SIG 假设的连带负证据**(登记,不属本车道收口):live 协议里
+内部被调 ap_setup_prelinked_modules 的函数符号 mapsym 为
+`<prototype model="unknown">` + 空 localdb + void 返回——**canon 的 DB 没有
+该函数的提交签名**;"Parameter ID 提交被调原型"假设在 canon 配方下结构性
+不成立(Parameter ID 未运行)。canon main 的 (long*) 调用形差异来源移交
+V3SIG/PARAMID 车道重归属。
+
+### 19.4 live `<localdb>` 协议抓取与 manifest 交叉验证(任务③)
+
+仪器:`capture_localdb.py` postScript——`DecompInterface.enableDebug(File)`
+逐函数武装,DecompileDebug.getMapped 记录**真实协议字节**(函数符号 mapsym
+内嵌 `<function><localdb>`,即 funcdata.cc:804 消费的同一文档)。注意
+enableDebug 的 shutdown 路径要求显式 `setOptions(DecompileOptions())`(朴素
+openProgram 下 this.options=null 必 NPE——canon postScript 不走该路径故无恙)。
+
+| manifest | 条目 | (offset,name) 精确命中 | 类型串 MATCH | 判定 |
+|---|---|---|---|---|
+| local_seed_httpd_1204(C1) | 1046 | **1046/1046** | —(见下) | 锚点层 100% 命中 |
+| local_seed_curl_1204(C1) | 15 | 15/15 | — | 同上 |
+| local_seed_curl_1204_dwarf(C2) | 11 | 10/10 | **10/10 逐串相等**(bool[256]/char[40]/time_t/int/bool…) | 全 MATCH;余 1=uStack_150 canon-emergent 合成槽(§11.1 已档,非 DB 符号,预期缺席) |
+| local_seed_curl_1204_struct(C4) | 10 | 10/10 | 8/8(DWARP/struct 域:OutStruct/stat/URLGlob */va_list/LongShort[50]) | 2 条 canon-decl 采纳条目(local_5b8/local_5a8)属 Stack 层(见下) |
+
+**锁态真值(manifest 协议状态修正,输出语义不变)**:
+- **Stack 层(local_ 偏移名,含 httpd 全部 1046 条+curl 15 条+canon-decl 2 条)
+  = namelock=true, typelock=false, 型=`<typeref name="undefined4/8">`**——
+  manifest 的 `typelock:true`+恢复型是"输出等价但协议状态过强"的建模
+  (oracle 播种实验证明能复现 canon 文本;live 真值是无型锁,canon 打印型
+  来自 restructure 恢复)。
+- **DWARF/struct 层(urlnum/urls/outs/…) = typelock=true + 真型**——与
+  manifest 完全一致(含 char→bool 重映射后的 bool[256])。
+- 参数符号 = cat="0"+index,typelock=true(DWARF/归档签名域);栈局部
+  cat="-1"。
+- 附:curl main localdb 含 35 个 scope(内联函数作用域,myprogress/
+  getparameter 子树的 format/line/outline/now/aliases 等以独立 scope 出现)
+  ——manifest 的函数域模型只覆盖函数自身 scope,交叉验证按
+  (offset,name) 全域匹配故不受影响。
+
+### 19.5 对 Rugra 侧的含义(移交,不在本车道实施)
+
+1. C1 桥的类型锁极性:W1/W1b/HSEED 的 committed_locals 载体装
+   typelock=true 在文本输出上已被 oracle 播种实验验证;live 真值(型不锁
+   +undefined 基型)是更保守的等价形态。若未来出现"锁型 vs 恢复型"分叉
+   的残差(如合并/分区差异),优先按 live 真值降级锁极性重验,而非新增
+   通道。不构成当前 767/951 脸的回退证据。
+2. C2/W2 导入签名 manifest:源=generic_clib_64(与 24 libc 手工桥同源
+   语义),FID 路径可以放弃;O1 的 httpd 结构体类型在 W4 时走"归档类型
+   表"而非 FID 表。
+3. PARAMID 车道注意:canon 本身不含 Parameter ID 提交(r1 强开=461 函数
+   偏离 canon)。自产签名环的目标语义应重新对表"Stack+归档+DWARF 后的
+   DB 状态",而不是 Parameter ID 的输出。
+4. §3 归因三级现在全部在位:机制级(funcdata.cc:804/varmap.cc:1044)+
+   差分级(双 golden)+ **消融级(本节)**——C1/C2/C6/O1 四通道的
+   analyzer 级归因从假设升为消融证据。
+
+### 19.6 重建配方(可复现,直连 https)
+
+```bash
+# 0) 前置: unset LD_PRELOAD(否则 proxychains 劫持回环 IPC);磁盘>3GB
+# 1) Ghidra 12.0.4 官方发行版(锁定 commit 的正式构建)
+curl -fL -o ghidra_12.0.4_PUBLIC_20260303.zip \
+  "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.0.4_build/ghidra_12.0.4_PUBLIC_20260303.zip"
+# 校验: unzip -t 通过;sha256=c3b458661d69e26e203d739c0c82d143cc8a4a29d9e571f099c2cf4bda62a120;
+#       Ghidra/application.properties: application.revision.ghidra == e40ed13014025f82488b1f8f7bca566894ac376b
+unzip -q ghidra_12.0.4_PUBLIC_20260303.zip -d dist
+# 2) JDK 21(Adoptium)
+curl -fL -o jdk21.tar.gz \
+  "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse"
+mkdir jdk21x && tar xzf jdk21.tar.gz -C jdk21x && mv jdk21x/jdk-21* jdk21
+# 3) 基线验证(必须 byte==canon 才可做消融)
+export JAVA_HOME=$PWD/jdk21
+scripts/run_round.sh curl  r0_base            # → rounds/curl/r0_base.c
+scripts/run_round.sh httpd r0_base            # → rounds/httpd/r0_base.c
+cmp rounds/curl/r0_base.c  tests/golden/ghidra_curl_1204.c   # 恒等
+cmp rounds/httpd/r0_base.c tests/golden/ghidra_httpd_1204.c  # 恒等
+# 4) 消融轮(preScript set_analyzer.py 逐轮单开关)
+scripts/run_round.sh httpd r2_stack_off   "Stack=false"
+scripts/run_round.sh httpd r3_fid_off     "Function ID=false"
+scripts/run_round.sh httpd r5_archive_off "Apply Data Archives=false"
+scripts/run_round.sh httpd r1_paramid_on  "Decompiler Parameter ID=true"
+scripts/run_round.sh curl  r4_dwarf_off   "DWARF=false"      # 仅 curl
+# 5) live <localdb> 抓取 + 交叉验证
+scripts/run_capture.sh curl;  scripts/run_capture.sh httpd
+python3 scripts/xcheck_manifest.py tests/golden/manifests/local_seed_httpd_1204.json xml/httpd httpd
+# 6) 汇总: python3 scripts/summarize.py(全轮指标表)
+```
+
+（脚本全部在 /dev/shm/rugra-tests/headlessdist/scripts/,随证据盘存活;
+root 集成后按回收纪律处理,结论与配方已固化本节。）
