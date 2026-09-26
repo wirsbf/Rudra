@@ -2140,3 +2140,37 @@ AddrSpace::byteToAddress（跨文件 space.hh 定义、引 ruleaction.cc:6294 �
   opUnsetOutput→newUniqueOut(maxSize)→三 opSetInput 全对齐，无重写。本票
   B2 fixture 补双侧行为证据（见 tests/oracle/rule_subcommute_cancelext_1204*）。
 - 单元测试基线保持 1829P/0F。
+
+### 2026-09-27（续）— WORKPKG-UNMAP-RULEADJ-0013 B2 双侧 fixture 半 + npow 前缀缺陷 + ZEXT 臂补接线
+
+- **`RuleSignMod2nOpt2::apply_op` npow 计算前缀缺陷修复**（cc:8883）：
+  oracle `uintb npow = (~constVn->getOffset() + 1) & mask` 是二补数取负
+  （先按位取反再 +1）；Rust 旧代码 `!x.wrapping_add(1)` 因方法调用结合律
+  实为 `!(x+1)`，对 AND 常量 0xfc 错算出 2 而非 4——该缺陷使
+  RuleSignMod2nOpt2 两条路径（checkSignExtForm/checkMultiequalForm）在
+  Rust 侧对所有输入静默失效。B2 multiequal fixture 首跑即暴露
+  （oracle apply=1 vs Rust apply=0），修正为
+  `((!x).wrapping_add(1)) & mask` 后 12/12 字节恒等。
+- **`RuleSubCommute::apply_op` DIV/REM（ZEXT 无符号）臂 oracle 结构重写**
+  （cc:4542-4568，闭单 `RULEACTION-SUBCOMMUTE-ZEXT-PARTIAL-0001`）：
+  ①先查 in(1)——written ZEXT 且任一 zext 输入 > outvn 时走
+  `cancel_extensions` 部分抵销（返回 CHANGE 保留 SUBPIECE，绝不到达
+  cc:4621/4623 通用路径检查）；②written 非 ZEXT 在任何尺寸问题前拒绝；
+  ③常量 in(1) 要求 `zext0In <= outvn` 且值适配 outvn 掩码；④旧 Rust 在
+  zext0In>outvn 时无条件 NO_CHANGE（部分抵销形态从不触发）。
+- **B2 三族 fixture**（GEN5 archive 形态，tests/oracle/ + tools/run_*）：
+  - `rule_signmod2nopt2_multiequal_1204`（12 例）：diamond CFG 全语义
+    （M.in 边序 [N,D]/[D,N] 决定 innerSlot；D.out 边序 × boolean_flip 决定
+    negSlot；正例 slot0/slot1 × noflip/flip；oracle 宽松性例——cc:8975-8982
+    从不校验 lessOp in(0)==base；拒绝例 8 种含 3 输入 MULTIEQUAL）。
+  - `rule_booleandedup_ismatch_1204`（12 例）：同值/分布/互补折叠/
+    混合 flip 双向/De Morgan 配对/pair-(0,3) 与 pair-(1,2) 槽位选择
+    （旧 `4-bi` 缺陷见证例）/双拒绝。
+  - `rule_subcommute_cancelext_1204`（9 例）：等尺寸/不等尺寸双侧
+    shortenExtension/DIV+SDIV+SREM 各臂/helper 三拒绝（cc:4488 输出第二
+    读者、cc:4489-4493 等臂自由输入、cc:4499 缩短侧 loneDescend）/
+    全 commute 对照例。
+  三族均与锁定 oracle（e40ed130 现场直跑归档）**字节恒等**；判别力亲证=
+  multiequal 首跑暴露 npow 前缀缺陷。
+- fixture_registry.json 追加 3 条（227→230）；cargo test --lib 1829P/0F；
+  canon curl 157/0/0、httpd 311/0/0 不回退。

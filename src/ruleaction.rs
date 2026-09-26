@@ -8689,9 +8689,9 @@ impl Rule for RuleSubCommute {
                 }
             }
             OpCode::CPUI_INT_DIV | OpCode::CPUI_INT_REM => {
+                // Only commutes if inputs are zero extended (cc:4542-4568).
                 j = -1;
                 if offset != 0 { return Ok(action_status::NO_CHANGE); }
-                // longform->getIn(0) must be INT_ZEXT.
                 let in0 = longform_arc.read().unwrap().inrefs.get(0).cloned();
                 let in0 = match in0 { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
                 };
@@ -8705,34 +8705,53 @@ impl Rule for RuleSubCommute {
                 let zext0_in = in0_def.read().unwrap().inrefs.get(0).cloned();
                 let zext0_in = match zext0_in { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
                 };
-                if zext0_in.read().unwrap().get_size() > outvn_size {
-                    // Partial commute (cancelExtensions) — deferred for simplicity.
-                    return Ok(action_status::NO_CHANGE);
-                }
-                // Check input[1] similarly if written.
+                // cc:4550-4562: check in(1) FIRST — cancelExtensions only
+                // fires when in(1) is a written ZEXT and either extension
+                // input is bigger than outvn (ZEXT partial commute,
+                // RULEACTION-SUBCOMMUTE-ZEXT-PARTIAL-0001).
                 let in1 = longform_arc.read().unwrap().inrefs.get(1).cloned();
-                if let Some(in1v) = in1 {
-                    if in1v.read().unwrap().is_written() {
-                        let in1_def = match in1v.read().unwrap().def.as_ref().and_then(|w| w.upgrade()) {
-                            Some(a) => a, None => return Ok(action_status::NO_CHANGE),
-                        };
-                        if in1_def.read().unwrap().opcode != OpCode::CPUI_INT_ZEXT {
-                            return Ok(action_status::NO_CHANGE);
-                        }
-                        let zext1_in = in1_def.read().unwrap().inrefs.get(0).cloned();
-                        if let Some(z1) = zext1_in {
-                            if z1.read().unwrap().get_size() > outvn_size {
-                                return Ok(action_status::NO_CHANGE); // partial commute
-                            }
-                        }
-                    } else if in1v.read().unwrap().is_constant() {
-                        // Must fit in outvn_size mask.
-                        let val = in1v.read().unwrap().get_offset();
-                        let smallval = val & crate::address::calc_mask(outvn_size);
-                        if val != smallval { return Ok(action_status::NO_CHANGE); }
-                    } else {
+                let in1v = match in1 { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                };
+                if in1v.read().unwrap().is_written() {
+                    let in1_def = match in1v.read().unwrap().def.as_ref().and_then(|w| w.upgrade()) {
+                        Some(a) => a, None => return Ok(action_status::NO_CHANGE),
+                    };
+                    if in1_def.read().unwrap().opcode != OpCode::CPUI_INT_ZEXT {
                         return Ok(action_status::NO_CHANGE);
                     }
+                    let zext1_in = match in1_def.read().unwrap().inrefs.get(0).cloned() {
+                        Some(v) => v,
+                        None => return Ok(action_status::NO_CHANGE),
+                    };
+                    if zext1_in.read().unwrap().get_size() > outvn_size
+                        || zext0_in.read().unwrap().get_size() > outvn_size
+                    {
+                        // Special case where we need a PARTIAL commute of
+                        // the SUBPIECE: SUBPIECE cancels the ZEXTs, but
+                        // there is still some SUBPIECE left (cc:4558-4561).
+                        if Self::cancel_extensions(
+                            &crate::op::PcodeOpRef(longform_arc.clone()),
+                            &crate::op::PcodeOpRef(op_arc.clone()),
+                            &zext0_in,
+                            &zext1_in,
+                            fd,
+                        ) {
+                            // Leave SUBPIECE intact.
+                            return Ok(action_status::CHANGE);
+                        }
+                        return Ok(action_status::NO_CHANGE);
+                    }
+                    // If ZEXT sizes are both not bigger, go ahead and
+                    // commute SUBPIECE (fallthru, cc:4562).
+                } else if in1v.read().unwrap().is_constant()
+                    && zext0_in.read().unwrap().get_size() <= outvn_size
+                {
+                    // Must fit in outvn_size mask (cc:4563-4568).
+                    let val = in1v.read().unwrap().get_offset();
+                    let smallval = val & crate::address::calc_mask(outvn_size);
+                    if val != smallval { return Ok(action_status::NO_CHANGE); }
+                } else {
+                    return Ok(action_status::NO_CHANGE);
                 }
             }
             OpCode::CPUI_INT_SREM | OpCode::CPUI_INT_SDIV => {
@@ -11684,7 +11703,11 @@ impl Rule for RuleSignMod2nOpt2 {
         };
         if !and_const.read().unwrap().is_constant() { return Ok(action_status::NO_CHANGE); }
         let mask = crate::address::calc_mask(and_const.read().unwrap().get_size());
-        let npow = (!and_const.read().unwrap().get_offset().wrapping_add(1)) & mask;
+        // cc:8883: uintb npow = (~constVn->getOffset() + 1) & mask — two's
+        // complement negation of the AND constant. The unary ~ must bind
+        // BEFORE the +1 (Rust method call on the offset would invert the
+        // incremented value instead).
+        let npow = ((!and_const.read().unwrap().get_offset()).wrapping_add(1)) & mask;
         if npow.count_ones() != 1 { return Ok(action_status::NO_CHANGE); } // must be power of 2
         if npow == 1 { return Ok(action_status::NO_CHANGE); }
 
