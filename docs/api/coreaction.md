@@ -4070,3 +4070,28 @@ oracle 的**指针恒等判定**：
 面=「canonical 类型对现存类型非严格更优且指针不同」，canon 语料不存在该
 形态。触发条件（票面登记）：多 RETURN 函数中某 RETURN 输入已有与 canonical
 返回类型不同源（非同一 interning 实例）且 typeOrder 相等或更优的温度类型。
+
+## 2026-09-27：castOutput CALLOTHER token 臂（PRINTC-STRDATA-TYPELOCK-0001）
+
+`cast_output`（`// Ghidra: coreaction.cc:2532 ActionSetCasts::castOutput`）的
+tokenct 分发补 **CPUI_CALLOTHER** 臂（此前落入 `output_metatype` 的
+`_ => Int` 泛型臂，产出工厂 `int8`）：
+
+- oracle 链（亲读）：`TypeOp::getOutputToken`（typeop.cc:282-285）默认即
+  `op->outputTypeLocal()` → `TypeOpCallother::getOutputLocal`
+  （typeop.cc:865-872）——按 in(0) 常量选 `UserPcodeOp` 描述符：
+  `InternalStringOp::getOutputLocal`（userop.cc:361-364）返回
+  **out varnode 自身（typelocked）类型**；`DatatypeUserOp`（userop.cc:70-73）
+  返回注册 outType；元数据缺失时基类默认 `getBase(out.size, TYPE_UNKNOWN)`
+  （typeop.cc:261-265）——**永非有符号 Int 基**。
+- Rugra 实现直接复用 `crate::varnode::op_output_type_local`（该函数本批同步
+  补齐 InternalStringOp 覆写，见 docs/api/varnode.md 同日节）；无工厂的
+  detached fixture 回退 `base_type_for(size, Unknown)`。
+- 症状链（探针实证，RUGRA_DBG_STRDATA per-action 快照）：泛型臂给 STRINGDATA
+  CALLOTHER 的 token=int8 → `tokenct != outHighType` 短路失效 →
+  implied+typelock force 臂（cc:2559-2562）触发 cc:2595-2609 替换序列
+  （`newUnique` + `updateType(tokenct)` + `opSetOutput(op,vn)`）→ STRINGDATA
+  出口 vn 被换成未锁 int8 新 unique → printc display_string（printc.cc:701-714）
+  非指针臂 `"badstring"` + setcasts 因 int8-vs-char* 补 `(char *)` cast
+  （双症状同根）。修复后 token=char*（出口 vn 自身类型）→ cc:2544-2548
+  `tokenct == outHighType` 短路命中，零 cast 零替换，typelock 存续至 `stop`。

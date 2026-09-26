@@ -177,10 +177,12 @@ fn local_meta_pair(opcode: crate::opcodes::OpCode) -> Option<(TypeMetatype, Type
 ///   residuals;
 /// - TypeOpCallother (typeop.cc:865-873): the CALLOTHER index constant in
 ///   input slot 0 selects a `UserPcodeOp` descriptor through
-///   `tlst->getArch()->userops.getOp(in(0).offset)`; a descriptor with
-///   fixed output metadata supplies it, anything else falls back to the
-///   TypeOp base default. Rugra reaches the manager through the `userops`
-///   thread — the explicit `Option<&Arc<RwLock<UserOpManage>>>` stands in
+///   `tlst->getArch()->userops.getOp(in(0).offset)`; the stringdata
+///   descriptor's `InternalStringOp::getOutputLocal` override
+///   (userop.cc:361-364) returns the OUT VARNODE's own (typelocked) type,
+///   a descriptor with fixed output metadata supplies it, anything else
+///   falls back to the TypeOp base default. Rugra reaches the manager
+///   through the `userops` thread — the explicit `Option<&Arc<RwLock<UserOpManage>>>` stands in
 ///   for Ghidra's `tlst->getArch()->userops` edge (see the
 ///   TYPEOP-LOCALTYPE-DISPATCH-0001 CALLOTHER slice note on
 ///   `get_local_type`); `None` (no owning Architecture) behaves like the
@@ -246,9 +248,36 @@ pub fn op_output_type_local(
             // u64 offset truncates to the low 32 bits exactly as Ghidra's
             // `UserOpManage::getOp(uint4)` (userop.cc:408) does.
             let index = op.get_in(0)?.read().unwrap().get_offset() as i32;
-            let descriptor_type = userops
-                .and_then(|manager| manager.read().unwrap().get_output_local(index).cloned()
-            );
+            // userop.cc:361-364 InternalStringOp::getOutputLocal override:
+            // the stringdata descriptor carries NO fixed metadata — its
+            // output local type IS the out varnode's own (typelocked) type,
+            // `op->getOut()->getType()`. This is the value that keeps
+            // ActionSetCasts::castOutput's token==outHighType short-circuit
+            // (coreaction.cc:2544-2548) firing for STRINGDATA CALLOTHERs,
+            // preserving the char* typelock set by
+            // Funcdata::getInternalString (funcdata_varnode.cc:1430-1431)
+            // through the whole cast phase (PRINTC-STRDATA-TYPELOCK-0001).
+            // A v_type of None cannot occur for a bank-created out varnode
+            // (allocate seeds the unknown base), and would fall through to
+            // the descriptor/base chain below — the same value the oracle's
+            // never-null `getType()` cannot express.
+            let stringdata_out = userops.and_then(|manager| {
+                let mgr = manager.read().unwrap();
+                let descriptor = mgr.get_op(index)?;
+                if descriptor.is_string_data() {
+                    op.get_out()
+                        .and_then(|o| o.read().unwrap().v_type.clone())
+                } else {
+                    None
+                }
+            });
+            let descriptor_type = match stringdata_out {
+                Some(res) => Some(res),
+                None => userops
+                    .and_then(|manager| {
+                        manager.read().unwrap().get_output_local(index).cloned()
+                    }),
+            };
             match descriptor_type {
                 // cc:869-871: non-null descriptor metadata wins.
                 Some(res) => Some(res),
@@ -4410,6 +4439,81 @@ impl crate::database::EquateSymbol {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Ghidra: userop.cc:361 InternalStringOp::getOutputLocal (PRINTC-STRDATA-TYPELOCK-0001 regression lock)
+    /// userop.cc:361-364: `InternalStringOp::getOutputLocal` returns
+    /// `op->getOut()->getType()` — the typelocked char* that
+    /// `Funcdata::getInternalString` (funcdata_varnode.cc:1430-1431)
+    /// installs — never the metadata-less base default. This is the
+    /// primitive `ActionSetCasts::castOutput`'s CALLOTHER token consumes
+    /// (typeop.cc:282-285 virtual dispatch); a metadata-less fallback here
+    /// re-opens the int8-token pierce of the STRINGDATA typelock chain.
+    #[test]
+    fn test_output_type_local_stringdata_echoes_out_varnode_type() {
+        use crate::address::{Address, SeqNum};
+        use crate::op::PcodeOp;
+        use crate::opcodes::OpCode;
+        use crate::type_system::typefactory::TypeFactory;
+        use crate::type_system::TypeMetatype;
+        use crate::userop::{UserOpManage, BUILTIN_STRINGDATA};
+
+        let factory = std::sync::Arc::new(std::sync::RwLock::new(TypeFactory::new(8)));
+        factory
+            .write()
+            .unwrap()
+            .set_default_alignment_map();
+        let char_type = factory
+            .write()
+            .unwrap()
+            .get_base(1, TypeMetatype::Int)
+            .expect("char base");
+        let char_ptr = factory
+            .write()
+            .unwrap()
+            .get_type_pointer(8, char_type, 1);
+
+        // The STRINGDATA CALLOTHER: in(0) = builtin id constant, out = the
+        // typelocked char* unique (get_internal_string's cc:1430-1431 form).
+        let mut mgr = UserOpManage::new();
+        mgr.register_builtin_by_id(BUILTIN_STRINGDATA);
+        let mgr = std::sync::Arc::new(std::sync::RwLock::new(mgr));
+
+        let mut id_vn = Varnode::new(4, Address::new(BUILTIN_STRINGDATA as u64));
+        id_vn.v_type = factory
+            .write()
+            .unwrap()
+            .get_base(4, TypeMetatype::Uint);
+        let id_vn = std::sync::Arc::new(std::sync::RwLock::new(id_vn));
+
+        let mut out_vn = Varnode::new(8, Address::new(0x7f000000));
+        assert!(out_vn.update_type_lock(char_ptr.clone(), true, false));
+        let out_vn = std::sync::Arc::new(std::sync::RwLock::new(out_vn));
+
+        let mut op = PcodeOp::new(SeqNum::new(Address::new(0x1000), 0), OpCode::CPUI_CALLOTHER);
+        op.inrefs.push(id_vn);
+        op.output = Some(out_vn);
+
+        // The oracle echo: the stringdata descriptor's output local type IS
+        // the out varnode's own (typelocked) type — same interned instance.
+        let got = op_output_type_local(&op, &factory, Some(&mgr))
+            .expect("stringdata output local type");
+        assert!(
+            std::sync::Arc::ptr_eq(&got, &char_ptr),
+            "expected the out varnode's own char* (typelock echo), got {}",
+            got.get_name()
+        );
+
+        // Negative control (the pre-fix pierce shape): a metadata-less
+        // descriptor with NO InternalStringOp override falls to the TypeOp
+        // base default getBase(8, TYPE_UNKNOWN) (typeop.cc:261-265) — never
+        // a signed Int base.
+        let bare = UserOpManage::new();
+        let bare = std::sync::Arc::new(std::sync::RwLock::new(bare));
+        let fallback = op_output_type_local(&op, &factory, Some(&bare))
+            .expect("unregistered index folds to base default");
+        assert_eq!(fallback.get_metatype(), TypeMetatype::Unknown);
+        assert_eq!(fallback.get_size(), 8);
+    }
 
     #[test]
     fn test_equate_is_value_close_table() {
