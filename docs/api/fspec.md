@@ -1465,3 +1465,41 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   落空=oracle newfd==0 形态,语料 0 触达）。metadata
   `deindirect_arms_1204.metadata.json` 逐案 coverage 状态 + 残差
   TODO ID（-R2/-R3）；fixture_registry 登记留 root 串行。
+
+### 2026-09-27 — FSPEC-LIKELYTRASH-FOLD（likelytrash 独立载体 1:1 移植，Lane FSPECTRASH）
+
+- **`FuncProto::likelytrash` 独立载体字段**（fspec.hh:1365
+  `vector<VarnodeData> likelytrash`——"Locations that may contain trash
+  values"）：函数级 `<likelytrash>` 覆盖列表。此前 `FuncProto::decode` 把
+  `<likelytrash>` 折叠进 effects 当 KilledByCall（自创形态，oracle 无对应
+  消费路径）——COREACT2 残差①的根因：`ActionLikelyTrash::apply`
+  （coreaction.cc:2146-2147 经 `FuncProto::trashBegin..trashEnd`）的 trash
+  源结构性不存在。本轮改为 1:1 独立载体，trash 源落地。
+- **`FuncProto::decode` 的 `<likelytrash>` 臂**（fspec.cc:4806-4813）：
+  子 `<addr>` 按 VarnodeData 属性读入 `likelytrash` 字段；同函数
+  `<unaffected>`/`<killedbycall>` 进 effectlist 的路径与 oracle 分流一致
+  （likelytrash 从不是 effect）。
+- **decode 尾接通 `decodeLikelyTrash` 合并**（fspec.cc:4827 调用点，
+  体=fspec.cc:3684-3699）：局部覆盖表 + 模型 trash 表合成完整表
+  （模型表逐条 push → 局部项对模型表 binary_search 去重后 append → 整表
+  重排序）；本 decode 通道未绑定模型时以空模型表合并，= oracle
+  `createUnknownModel` 空载体的同一可观察形态。
+- **`FuncProto::trash_iter`**（fspec.cc:4260-4275 `trashBegin`/`trashEnd`
+  对的切片等价物）：自身 `likelytrash` 非空用自身，空则回落底层
+  `ProtoModelFull::trash_iter`（动态回落，非拷贝时点——与 oracle 迭代器
+  对同形）。
+- **`is_compatible` 补 likelytrash 比较**（fspec.cc:4573-4575）：先长度、
+  后逐元素 `operator==`（space/offset/size 三全等，pcoderaw.hh:77-81）。
+- **`VarnodeData::compare`**（pcoderaw.hh:67-70 `operator<` 1:1）：space
+  （指数序投影）→ offset 升序 → **size 降序（大者先）**。fspec 内四处
+  trash 排序/查找统一改用该比较键：`ProtoModelFull::decode` 的
+  likelytrash/internalstorage 表排序（fspec.cc:2694-2695）、
+  `decode_likely_trash` 的合并排序与 binary_search、
+  `encode_likely_trash` 的 binary_search、`intersect_registers` 的
+  merge-join——消除旧 (space,offset) 升序无 size 破坏键与 join 比较键
+  两处偏差（oracle 键下 join 同 (space,offset) 异 size 才有序不strike等价）。
+- **语义中性**：Ghidra_12.0.4 x86-64-gcc.cspec 无 `<likelytrash>` 元素
+  （CR-COREACT2 经 GitHub raw 亲取）→ 生产语料构造性休眠，canon A/B
+  字节恒等；触发面=32 位 x86gcc.cspec 形（EAX cdecl/thiscall/regparm），
+  单测以带 `<likelytrash>` 的 `<prototype>` 文档驱动解码/合并/回落/比较
+  四路径 + 比较键 size 降序钉死。

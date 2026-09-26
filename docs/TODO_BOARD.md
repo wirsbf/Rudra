@@ -2,6 +2,12 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## 车道 FSPECTRASH（2026-09-27 派发；小车道=COREACT2 残差①收口；root 认领调度）
+
+| 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
+|---|---|---|---|---|
+| `FSPEC-LIKELYTRASH-FOLD` | fspec likelytrash 独立载体（残差①根因：`FuncProto::decode` 把 `<likelytrash>` 折叠为 KilledByCall effects → `ActionLikelyTrash::apply` 的 trashBegin..trashEnd 无源） | P1 | `src/fspec.rs`+`docs/api/fspec.md`+本行 | **DONE（2026-09-27,wt/fspectrash,基=master 6a458387）**:①亲读 oracle fspec.cc:4806-4813/3684-3699/4260-4275/4573-4575+pcoderaw.hh:67-70 全貌后 1:1 移植——`FuncProto::likelytrash` 独立载体字段（fspec.hh:1365,替代 KilledByCall 折叠）;decode `<likelytrash>` 臂读入载体;decode 尾接通 `decodeLikelyTrash` 合并（cc:4827,模型表全量+局部去重+oracle 键重排序）;`trash_iter`=trashBegin/trashEnd 对（空表动态回落模型表）;`is_compatible` 补 trash 比较（operator== 三全等）;`VarnodeData::compare`=operator< 1:1（space/offset 升/**size 降**）统一四处比较键（ProtoModelFull::decode 两表排序 cc:2694-2695、decode_likely_trash 排序+binary_search、encode_likely_trash binary_search、intersect_registers merge-join——消旧升序缺 size 破坏键与 join 键错向两偏差）。②验收（fast-release 亲测）:canon A/B（改动前后）curl/httpd **cmp 字节恒等**;canon vs golden curl **157/0/0**、httpd **311/0/0**=车道钉值零漂移;bank **391/391**;cargo test --lib **1834P/0F**（基线 1829+5 新测:decode 独立载体非 KilledByCall/模型合并去重/空表回落模型/比较键 size 降序/is_compatible trash 比较）;annotations 96/refs --strict 96 双绿+evidence --inline 过。③**构造性休眠证明**:Ghidra_12.0.4 x86-64-gcc.cspec 无 `<likelytrash>`（CR-COREACT2 GitHub raw 亲取）→双 canon 语料零触发面,触发形态=32 位 x86gcc.cspec（EAX cdecl/thiscall/regparm）;单测以带 `<likelytrash>` 的 `<prototype>` 文档驱动四路径全绿=低成本触发验证。④**本票收口解除残差③（traceTrash↔UNAFF-EXTRAOUT 555 行因果深挖）的前置**:COREACT2 coreaction.rs 消费端 `trash_entries` 投影（wt/coreact2 @12909-12915 空表循环+seam 注释）待其分支集成后由后续票接线 `proto.trash_iter()`——残差①"无源"已消,剩"消费端接线"半（coreaction.rs 写域,非本票 write-set）。owner=sb-fspectrash@wt/fspectrash(fixer);evidence=本 lane commit+/dev/shm/rugra-tests/fspectrash/（A/B 双侧产物）;last_updated=2026-09-27 |
+
 ## 移植 wave 票池：`W-2026-09-26-MIGW1`（未派发；root 认领调度；来源=车道 DECOMP 未映射分解）
 
 > 数据源: `docs/alignment_audit/UNMAPPED_DECOMPOSITION_2026-09-26.md`（未映射 4956 四类分解:

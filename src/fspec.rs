@@ -439,6 +439,16 @@ pub struct FuncProto {
     /// Faithful to `FuncProto::effectlist` (fspec.hh). Used by ActionRestrictLocal
     /// to identify saved registers (unaffected) that are copied to stack.
     pub effects: Vec<EffectRecord>,
+    /// Likely-trash storage locations (function-level overrides). Faithful to
+    /// `FuncProto::likelytrash` (fspec.hh:1365 — "Locations that may contain
+    /// trash values"): VarnodeData decoded from a `<likelytrash>` child of
+    /// `<prototype>`, merged into a complete list with the underlying model's
+    /// trash registers by `decode` (the `decodeLikelyTrash` call,
+    /// fspec.cc:4827). When non-empty it *overrides* the model's list for
+    /// `trash_iter` (fspec.cc:4260-4275) — the source pair
+    /// (`trashBegin..trashEnd`) iterated by `ActionLikelyTrash::apply`
+    /// (coreaction.cc:2146-2147). Sorted by `VarnodeData::compare`.
+    pub likelytrash: Vec<VarnodeData>,
     /// Resolved prototype model. Ghidra stores a non-owning `ProtoModel *`;
     /// `Arc` preserves the same shared model identity across prototype copies.
     model: Option<Arc<ProtoModelFull>>,
@@ -537,6 +547,7 @@ impl FuncProto {
             calling_convention: "unknown".to_string(),
             is_dotdotdot: false,
             effects: Vec::new(),
+            likelytrash: Vec::new(),
             model: None,
             extra_pop: EXTRAPOP_UNKNOWN_FULL,
             auto_killed_by_call: false,
@@ -2269,9 +2280,15 @@ impl FuncProto {
                         let child_id = decoder.open_element();
                         let (space, offset, size) = read_varnode_data_attrs(decoder);
                         decoder.close_element(child_id);
-                        // FuncProto stores likelytrash internally; Rugra folds
-                        // into effects as killedbycall to preserve coverage.
-                        self.effects.push(EffectRecord::new(space, offset, size, EffectType::KilledByCall));
+                        // Ghidra: fspec.cc:4806-4813 — likelytrash.emplace_back();
+                        // likelytrash.back().decode(decoder). The entries land in
+                        // the independent FuncProto carrier (fspec.hh:1365),
+                        // NOT the effectlist: unlike <unaffected>/
+                        // <killedbycall>/<returnaddress>, likelytrash is never
+                        // an EffectRecord. The previous fold into
+                        // KilledByCall effects was a substitution with no
+                        // oracle counterpart (COREACT2 residual ① root cause).
+                        self.likelytrash.push(VarnodeData { space, offset, size });
                     }
                     decoder.close_element(sub_id);
                 }
@@ -2297,8 +2314,24 @@ impl FuncProto {
             }
         }
         decoder.close_element(elem_id);
-        // Ghidra: decodeEffect(); decodeLikelyTrash(); reconcile modellock;
-        // resolveExtraPop; validate returnsym address; updateThisPointer().
+        // Ghidra: fspec.cc:4826-4827 — decodeEffect(); decodeLikelyTrash();
+        // Only the likelytrash merge is wired here. The local `<likelytrash>`
+        // overrides become a complete list by folding in the underlying
+        // model's trash registers (body = fspec.cc:3684-3699). When no model
+        // is bound through this decode channel, an empty model list merges —
+        // the same observable as Ghidra's createUnknownModel placeholder,
+        // whose trash carrier is empty (effectively a sort-only pass).
+        // decodeEffect() remains unwired on this path (pre-existing seam,
+        // effect overrides keep their decoded-only form); resolveExtraPop /
+        // modellock reconciliation are covered by the notes above;
+        // updateThisPointer() below mirrors fspec.cc:4835+.
+        let model_trash: Vec<VarnodeData> = match &self.model {
+            Some(m) => m.trash_iter().to_vec(),
+            None => Vec::new(),
+        };
+        Self::decode_likely_trash(&mut self.likelytrash, &model_trash);
+        // Ghidra: reconcile modellock; resolveExtraPop; validate returnsym
+        // address; updateThisPointer().
         self.update_this_pointer();
         Ok(())
     }
@@ -2446,9 +2479,19 @@ impl FuncProto {
                 return false;
             }
         }
-        // Ghidra: if (likelytrash.size() != op2.likelytrash.size()) return false;
-        // Rugra's FuncProto does not yet carry a separate likelytrash list
-        // (decode folds likelytrash into effects); this check is a no-op.
+        // Ghidra: fspec.cc:4573-4575 — if (likelytrash.size() !=
+        // op2.likelytrash.size()) return false; for(...) if
+        // (likelytrash[i] != op2.likelytrash[i]) return false;
+        // Element comparison is VarnodeData::operator== (pcoderaw.hh:77-81):
+        // space, offset, and size must all be exactly equal.
+        if self.likelytrash.len() != op2.likelytrash.len() {
+            return false;
+        }
+        for (a, b) in self.likelytrash.iter().zip(op2.likelytrash.iter()) {
+            if a.space != b.space || a.offset != b.offset || a.size != b.size {
+                return false;
+            }
+        }
         true
     }
 
@@ -2569,11 +2612,10 @@ impl FuncProto {
         encoder.open_element(likelytrash_elem);
         for cur in local_trash {
             // Ghidra: if (binary_search(iter1, iter2, cur)) continue;
+            // iter1..iter2 is the model's sorted trash list; the key is
+            // VarnodeData::operator< (pcoderaw.hh:67).
             let already = model_trash
-                .binary_search_by(|probe| {
-                    (probe.space, probe.offset, probe.size)
-                        .cmp(&(cur.space, cur.offset, cur.size))
-                })
+                .binary_search_by(|probe| VarnodeData::compare(probe, cur))
                 .is_ok();
             if already { continue; }
             encoder.open_element(addr_elem);
@@ -2655,19 +2697,37 @@ impl FuncProto {
         likelytrash.extend_from_slice(model_trash);
         for cur in &tmp_list {
             // Ghidra: if (!binary_search(iter1, iter2, *cur)) push_back.
+            // The binary search runs over the model's (sorted) list with the
+            // VarnodeData::operator< key (pcoderaw.hh:67).
             let present = model_trash
-                .binary_search_by(|probe| {
-                    (probe.space, probe.offset, probe.size)
-                        .cmp(&(cur.space, cur.offset, cur.size))
-                })
+                .binary_search_by(|probe| VarnodeData::compare(probe, cur))
                 .is_ok();
             if !present {
                 likelytrash.push(cur.clone());
             }
         }
-        likelytrash.sort_by(|a, b| {
-            (a.space, a.offset, a.size).cmp(&(b.space, b.offset, b.size))
-        });
+        // Ghidra: sort(likelytrash.begin(), likelytrash.end()) — the oracle
+        // operator< key: space, offset ascending, size descending.
+        likelytrash.sort_by(VarnodeData::compare);
+    }
+
+    // Ghidra: fspec.cc:4260 FuncProto::trashBegin / fspec.cc:4269 FuncProto::trashEnd
+    /// The effective likely-trash list (sorted). Faithful slice equivalent of
+    /// the `trashBegin`/`trashEnd` iterator pair (fspec.cc:4260-4275):
+    /// this prototype's `likelytrash` overrides when non-empty, otherwise the
+    /// underlying ProtoModel's list — resolved dynamically at each call, not
+    /// copied at model-set time, exactly like the oracle iterator pair. This
+    /// is the source iterated by `ActionLikelyTrash::apply`
+    /// (coreaction.cc:2146-2147).
+    pub fn trash_iter(&self) -> &[VarnodeData] {
+        // Ghidra: if (likelytrash.empty()) return model->trashBegin();
+        if self.likelytrash.is_empty() {
+            if let Some(m) = &self.model {
+                return m.trash_iter();
+            }
+        }
+        // Ghidra: return likelytrash.begin(); / likelytrash.end();
+        &self.likelytrash
     }
 
     // Ghidra: fspec.cc:4625 FuncProto::encode
@@ -6063,6 +6123,21 @@ pub struct VarnodeData {
 }
 
 impl VarnodeData {
+    // Ghidra: pcoderaw.hh:67 VarnodeData::operator<
+    /// Total order for VarnodeData lists, 1:1 with the oracle `operator<`
+    /// (pcoderaw.hh:67-70): the address space (Ghidra compares the space's
+    /// *index*; Rugra's `AddressSpace` enum order is the fixed space-index
+    /// projection used throughout fspec), then the offset ascending, then the
+    /// size **descending** — "BIG sizes come first". This is the sort/binar
+    /// y_search key for `likelytrash`/`internalstorage` (fspec.cc:2694-2695,
+    /// 3641, 3696-3699) and the merge-join key of `intersectRegisters`.
+    pub fn compare(a: &VarnodeData, b: &VarnodeData) -> std::cmp::Ordering {
+        a.space
+            .cmp(&b.space)
+            .then(a.offset.cmp(&b.offset))
+            .then(b.size.cmp(&a.size))
+    }
+
     // RUGRA-GLUE: get_addr (Ghidra's VarnodeData has an `addr` field that
     // is a constructed Address; Rugra builds it on demand).
     pub fn get_addr(&self) -> Address { Address::new(self.offset) }
@@ -10374,7 +10449,10 @@ impl ProtoModelFull {
     /// Intersect two sorted VarnodeData register lists, writing the result
     /// into the first. Faithful 1:1 port of `intersectRegisters`
     /// (fspec.cc:2809-2832). A merge-join keeps only varnodes present in both
-    /// lists, comparing by (space, offset, size).
+    /// lists, comparing with the oracle `VarnodeData::operator<` key
+    /// (pcoderaw.hh:67: space, offset ascending, size descending);
+    /// equivalence (`!(a<b) && !(b<a)`) is exact (space, offset, size)
+    /// triple equality, matching `operator==` (pcoderaw.hh:77).
     pub fn intersect_registers(
         reg_list1: &mut Vec<VarnodeData>,
         reg_list2: &[VarnodeData],
@@ -10385,8 +10463,8 @@ impl ProtoModelFull {
         while i < reg_list1.len() && j < reg_list2.len() {
             let a = &reg_list1[i];
             let b = &reg_list2[j];
-            let ord_a = (a.space, a.offset, a.size).cmp(&(b.space, b.offset, b.size));
-            match ord_a {
+            // Ghidra: if (trs1 < trs2) i += 1; else if (trs2 < trs1) j += 1;
+            match VarnodeData::compare(a, b) {
                 std::cmp::Ordering::Less => i += 1,
                 std::cmp::Ordering::Greater => j += 1,
                 std::cmp::Ordering::Equal => {
@@ -10702,13 +10780,12 @@ impl ProtoModelFull {
         self.effectlist.sort_by(|a, b| {
             (a.space.space_id(), a.offset).cmp(&(b.space.space_id(), b.offset))
         });
-        // Sort likelytrash / internalstorage (VarnodeData default order).
-        self.likelytrash.sort_by(|a, b| {
-            (a.space, a.offset).cmp(&(b.space, b.offset))
-        });
-        self.internalstorage.sort_by(|a, b| {
-            (a.space, a.offset).cmp(&(b.space, b.offset))
-        });
+        // Sort likelytrash / internalstorage with the VarnodeData::operator<
+        // key (pcoderaw.hh:67-70): space, offset ascending, size DESCENDING.
+        // Faithful to sort(likelytrash...)/sort(internalstorage...)
+        // (fspec.cc:2694-2695).
+        self.likelytrash.sort_by(VarnodeData::compare);
+        self.internalstorage.sort_by(VarnodeData::compare);
 
         // Ghidra: fspec.cc:2696-2699 — apply defaults for unseen ranges.
         if !saw_localrange {
@@ -13338,5 +13415,186 @@ mod tests {
         assert!(!p.is_indirect_storage());
         // get_symbol always refuses on the basic form (hh:1190).
         assert!(p.get_symbol().is_err());
+    }
+
+    // ---- FSPEC-LIKELYTRASH-FOLD: the independent likelytrash carrier ----
+
+    /// Build a TreeDecoder over one `<prototype>` document, pre-binding an
+    /// optional model on the FuncProto (the decode channel resolves models by
+    /// name only; the model must be attached via set_model like the callers
+    /// that host the resolver do).
+    fn trash_proto_decode(
+        xml: &str,
+        model: Option<std::sync::Arc<ProtoModelFull>>,
+    ) -> FuncProto {
+        use crate::marshal::{DocumentStorage, IdRegistry, TreeDecoder};
+        let void_type = Arc::new(Datatype::Void(TypeBase::new(
+            "void".to_string(), 0, TypeMetatype::Void,
+        )));
+        let mut proto = FuncProto::new(String::new(), void_type);
+        proto.set_model(model);
+        // Capture the return type up front so the storage closure does not
+        // borrow `proto` while `decode` holds it mutably.
+        let ret_ty = proto.return_type.clone();
+        let mut store = DocumentStorage::new();
+        let doc = store.parse_document(xml.as_bytes()).expect("parse");
+        let root = doc.root.clone().expect("root");
+        let registry = Arc::new(std::sync::RwLock::new(IdRegistry::new()));
+        let mut decoder = TreeDecoder::new(root, registry);
+        // decode_output_storage: consume the <returnsym> element — attributes
+        // plus one level of children (addr/type refs carry only attributes).
+        let output_storage = |dec: &mut dyn crate::marshal::Decoder| -> (Address, Arc<Datatype>, bool) {
+            let id = dec.open_element();
+            let mut lock = false;
+            loop {
+                let aid = dec.next_attribute_id();
+                if aid == 0 { break; }
+                if dec.attribute_name(aid).as_deref() == Some("typelock") {
+                    lock = dec.read_string() == "true";
+                } else {
+                    let _ = dec.read_string();
+                }
+            }
+            while dec.peek_element() != 0 {
+                let cid = dec.open_element();
+                while dec.next_attribute_id() != 0 {
+                    let _ = dec.read_string();
+                }
+                dec.close_element(cid);
+            }
+            dec.close_element(id);
+            (Address::new(0), ret_ty.clone(), lock)
+        };
+        proto
+            .decode(&mut decoder, &|_name| true, &output_storage)
+            .expect("decode");
+        proto
+    }
+
+    // Ghidra: fspec.cc:4806-4813 FuncProto::decode (<likelytrash> arm)
+    /// `<likelytrash>` children land in the independent carrier — NOT as
+    /// KilledByCall effects. The decoded list is merged (decodeLikelyTrash,
+    /// cc:4827) and sorted with the oracle key.
+    #[test]
+    fn test_likelytrash_decode_independent_carrier_not_killedbycall() {
+        let proto = trash_proto_decode(
+            "<prototype model=\"__stdcall\">\
+             <returnsym><addr space=\"register\" offset=\"0\" size=\"8\"/></returnsym>\
+             <likelytrash>\
+             <addr space=\"register\" offset=\"0\" size=\"4\"/>\
+             <addr space=\"register\" offset=\"16\" size=\"8\"/>\
+             </likelytrash>\
+             </prototype>",
+            None,
+        );
+        // The carrier holds both entries (model unbound ⇒ empty merge).
+        assert_eq!(proto.likelytrash.len(), 2);
+        // Oracle sort key: offset ascending, size DESCENDING on ties
+        // (pcoderaw.hh:67-70).
+        assert_eq!(proto.likelytrash[0].offset, 0);
+        assert_eq!(proto.likelytrash[0].size, 4);
+        assert_eq!(proto.likelytrash[1].offset, 16);
+        // No KilledByCall effect was fabricated from the trash arm.
+        assert!(proto
+            .effects
+            .iter()
+            .all(|e| e.effect_type != EffectType::KilledByCall));
+        // trash_iter serves the override list (cc:4260-4275: non-empty own
+        // list wins even with no model bound).
+        assert_eq!(proto.trash_iter().len(), 2);
+    }
+
+    // Ghidra: fspec.cc:3684-3699 FuncProto::decodeLikelyTrash
+    /// Local overrides merge with the model's trash registers into a complete
+    /// list: model entries all present, local entries deduped against the
+    /// model list, result re-sorted.
+    #[test]
+    fn test_likelytrash_merge_with_model_list() {
+        let mut model = ProtoModelFull::new(None, 8);
+        model.likelytrash = vec![
+            VarnodeData { space: AddressSpace::Register, offset: 0, size: 4 },
+            VarnodeData { space: AddressSpace::Register, offset: 32, size: 4 },
+        ];
+        let proto = trash_proto_decode(
+            "<prototype model=\"__stdcall\">\
+             <returnsym><addr space=\"register\" offset=\"0\" size=\"8\"/></returnsym>\
+             <likelytrash>\
+             <addr space=\"register\" offset=\"0\" size=\"4\"/>\
+             <addr space=\"register\" offset=\"16\" size=\"8\"/>\
+             </likelytrash>\
+             </prototype>",
+            Some(Arc::new(model)),
+        );
+        // offset 0 size 4 (model, dup with local) + 16 size 8 (local only) +
+        // 32 size 4 (model only).
+        assert_eq!(proto.likelytrash.len(), 3);
+        let offsets: Vec<u64> = proto.likelytrash.iter().map(|v| v.offset).collect();
+        assert_eq!(offsets, vec![0, 16, 32]);
+    }
+
+    // Ghidra: fspec.cc:4260-4275 FuncProto::trashBegin/trashEnd
+    /// Empty own carrier falls back to the model's list — resolved
+    /// dynamically, exactly like the oracle iterator pair.
+    #[test]
+    fn test_likelytrash_trash_iter_falls_back_to_model() {
+        let mut model = ProtoModelFull::new(None, 8);
+        model.likelytrash = vec![
+            VarnodeData { space: AddressSpace::Register, offset: 8, size: 2 },
+        ];
+        let proto = trash_proto_decode(
+            "<prototype model=\"__stdcall\">\
+             <returnsym><addr space=\"register\" offset=\"0\" size=\"8\"/></returnsym>\
+             </prototype>",
+            Some(Arc::new(model)),
+        );
+        assert!(proto.likelytrash.is_empty());
+        let trash = proto.trash_iter();
+        assert_eq!(trash.len(), 1);
+        assert_eq!(trash[0].offset, 8);
+        assert_eq!(trash[0].size, 2);
+    }
+
+    // Ghidra: pcoderaw.hh:67 VarnodeData::operator<
+    /// The oracle ordering key: space, then offset ascending, then size
+    /// DESCENDING (big sizes first) — pinned via decode_likely_trash's sort.
+    #[test]
+    fn test_varnodedata_compare_size_descends() {
+        let small = VarnodeData { space: AddressSpace::Register, offset: 0, size: 4 };
+        let big = VarnodeData { space: AddressSpace::Register, offset: 0, size: 8 };
+        assert_eq!(VarnodeData::compare(&big, &small), std::cmp::Ordering::Less);
+        assert_eq!(VarnodeData::compare(&small, &big), std::cmp::Ordering::Greater);
+        assert_eq!(VarnodeData::compare(&small, &small), std::cmp::Ordering::Equal);
+        let far = VarnodeData { space: AddressSpace::Register, offset: 1, size: 1 };
+        assert_eq!(VarnodeData::compare(&far, &big), std::cmp::Ordering::Greater);
+        // Sort a mixed list: same (space,offset) sizes 4/8 → 8 first.
+        let mut list = vec![small, big];
+        list.sort_by(VarnodeData::compare);
+        assert_eq!(list[0].size, 8);
+        assert_eq!(list[1].size, 4);
+    }
+
+    // Ghidra: fspec.cc:4573-4575 FuncProto::operator== (likelytrash tail)
+    /// Two otherwise-identical prototypes disagree when their likelytrash
+    /// override lists differ; equal lists stay compatible.
+    #[test]
+    fn test_is_compatible_likelytrash_comparison() {
+        let mk = |offset: u64| {
+            trash_proto_decode(
+                &format!(
+                    "<prototype model=\"__stdcall\">\
+                     <returnsym><addr space=\"register\" offset=\"0\" size=\"8\"/></returnsym>\
+                     <likelytrash>\
+                     <addr space=\"register\" offset=\"{offset}\" size=\"4\"/>\
+                     </likelytrash>\
+                     </prototype>"
+                ),
+                None,
+            )
+        };
+        let a = mk(0);
+        let b_same = mk(0);
+        let b_diff = mk(16);
+        assert!(a.is_compatible(&b_same));
+        assert!(!a.is_compatible(&b_diff));
     }
 }
