@@ -117,8 +117,12 @@ Document type requested from the parser (grammar.hh:217): `Declaration`,
   the bison actions call (`mergeSpecDec`, `addSpecifier`, `mergePointer`,
   `newArray`, `newFunc`, …) is ported 1:1.
 - Pointer/Array/Function modifier `modType` virtuals (grammar.cc:2403/2412/2465)
-  are folded into the free function `mod_type`, which consults Rugra's
-  `TypeFactory` (`get_type_pointer_default` / `get_array` /
+  are ported per-variant as the free functions `pointer_mod_type`,
+  `array_mod_type`, and `function_mod_type` (each annotated to its own
+  oracle definition), with the free `mod_type` acting as the enum-dispatch
+  twin of the C++ virtual call sites (`TypeDeclarator::buildType`
+  grammar.cc:2501 / `getPrototype` grammar.cc:2542). The dispatch consults
+  Rugra's `TypeFactory` (`get_type_pointer_default` / `get_array` /
   `get_type_code`). PointerModifier no longer uses the legacy pointee-name
   cache: distinct anonymous array bases retain distinct pointer identities,
   and repeat construction aliases the direct canonical pointer. The wrapper
@@ -126,6 +130,10 @@ Document type requested from the parser (grammar.hh:217): `Declaration`,
   default wordsize 1; until Architecture wires `setupSizes`, only its layout
   calculation uses TypeFactory's registered compatibility fallback.
   Arbitrary architecture wordsize remains `TYPE-0001`.
+- The `FunctionModifier` constructor (grammar.cc:2419) is ported as
+  `function_modifier_ctor`: the lone-`(void)` parameter clearing and the
+  varargs flag live there; `CParse::new_func` (grammar.cc:2764) only detects
+  and pops the varargs trailer before calling it.
 - 2026-08-23 (TYPEFACTORY-LEGACY-CALLER-MIGRATION-0001): the in-file tests
   that build base types for `mod_type` now use the faithful
   `get_base_result` twin; on the `TypeFactory::new` bootstrap the cached

@@ -1117,13 +1117,86 @@ impl TypeDeclarator {
 }
 
 // Ghidra: grammar.cc:2403 PointerModifier::modType
+/// Wrap `base` in the canonical pointer type for the default data space.
+/// Faithful to `PointerModifier::modType(Datatype *, const TypeDeclarator *,
+/// Architecture *)`: reads `glb->getDefaultDataSpace()->getAddrSize()` and
+/// `getWordSize()` and calls `glb->types->getTypePointer(addrsize, base,
+/// wordsize)`. Rugra's twin `get_type_pointer_default` reads the default
+/// data-space address size captured on the `TypeFactory` and models the
+/// production default word size as one (RUGRA-GLUE documented on the twin).
+///
+/// Decisive semantics: no reference/out parameters; no loops; no counters;
+/// identity/dedup key = the TypeFactory canonical-pointer lookup.
+pub fn pointer_mod_type(
+    base: Arc<Datatype>,
+    types: &mut crate::type_system::typefactory::TypeFactory,
+) -> Option<Arc<Datatype>> {
+    Some(types.get_type_pointer_default(base))
+}
+
 // Ghidra: grammar.cc:2412 ArrayModifier::modType
+/// Wrap `base` in an array type of `array_size` elements. Faithful to
+/// `ArrayModifier::modType`: `glb->types->getTypeArray(arraysize, base)` with
+/// the constructor-stored `arraysize` (`int4`). The `.max(0)` clamp only
+/// guards the Rust `as usize` cast; a negative `int4` is unreachable from
+/// the lexer-produced `uintb` sizes (`CParse::newArray` casts a non-wrapping
+/// decimal literal).
+///
+/// Decisive semantics: no reference/out parameters; no loops; no counters;
+/// identity key = the TypeFactory array lookup over (element, count).
+pub fn array_mod_type(
+    base: Arc<Datatype>,
+    array_size: i32,
+    types: &mut crate::type_system::typefactory::TypeFactory,
+) -> Option<Arc<Datatype>> {
+    Some(types.get_array(base, array_size.max(0) as usize))
+}
+
 // Ghidra: grammar.cc:2465 FunctionModifier::modType
-/// Apply a single type modifier to `base`, returning the resulting type.
-/// Faithful to the `TypeModifier::modType` virtuals (grammar.hh:130). This is
-/// the common dispatch used by `TypeDeclarator::build_type` and
-/// `get_prototype`; the per-variant methods below (`pointer_mod_type` etc.)
-/// carry the exact C++ per-class behaviour and are the public entry points.
+/// Build the code (function) type for a function modifier. Faithful to
+/// `FunctionModifier::modType`: fills a `PrototypePieces` (outtype = base,
+/// void when the base is absent; firstVarArgSlot from the trailing null
+/// slot; intypes from `getInTypes`; model from `decl->getModel`) and returns
+/// `glb->types->getTypeCode(proto)`. In Rugra the varargs trailer has already
+/// been folded into the `dotdotdot` bool by `CParse::new_func` (the oracle's
+/// `paramlist.back() == 0` probe is dead on the live path because `newFunc`
+/// grammar.cc:2769-2772 pops the null before the constructor runs), so the
+/// slot is derived from `dotdotdot` over the surviving params.
+///
+/// Decisive semantics: no reference/out parameters beyond the borrowed
+/// pieces; one forward loop over `params` (order preserved, `None` trailer
+/// skipped); no counters; identity key = the synthetic prototype name.
+pub fn function_mod_type(
+    base: Arc<Datatype>,
+    decl: &TypeDeclarator,
+    params: &[Option<TypeDeclarator>],
+    dotdotdot: bool,
+    types: &mut crate::type_system::typefactory::TypeFactory,
+) -> Option<Arc<Datatype>> {
+    let first_var_arg_slot: i32 = if dotdotdot {
+        params.len() as i32
+    } else {
+        -1
+    };
+    let mut in_types: Vec<Arc<Datatype>> = Vec::new();
+    collect_param_types(&mut in_types, params, types);
+    let _model_name = decl.get_model(); // proto.model = getModel(glb)
+    let fspec_proto = crate::fspec::PrototypePieces {
+        out_type: Some(&base),
+        in_types: &in_types,
+        first_var_arg_slot,
+    };
+    Some(types.get_type_code_pieces(&fspec_proto))
+}
+
+// RUGRA-GLUE: enum dispatch replacing the C++ virtual
+// `TypeModifier::modType` call sites (grammar.cc:2501 in
+// `TypeDeclarator::buildType` and grammar.cc:2542 in
+// `TypeDeclarator::getPrototype`); the per-class behaviour lives in the
+// three per-variant ports above, each annotated to its own oracle
+// definition. This is the common entry used by `build_type` and
+// `get_prototype`; the per-variant methods (`pointer_mod_type` etc.)
+// carry the exact C++ per-class behaviour and are the public entry points.
 pub fn mod_type(
     modifier: &TypeModifier,
     base: Arc<Datatype>,
@@ -1131,33 +1204,45 @@ pub fn mod_type(
     types: &mut crate::type_system::typefactory::TypeFactory,
 ) -> Option<Arc<Datatype>> {
     match modifier {
-        TypeModifier::Pointer { .. } => Some(types.get_type_pointer_default(base)),
-        TypeModifier::Array { array_size, .. } => {
-            Some(types.get_array(base, (*array_size).max(0) as usize))
-        }
+        TypeModifier::Pointer { .. } => pointer_mod_type(base, types),
+        TypeModifier::Array { array_size, .. } => array_mod_type(base, *array_size, types),
         TypeModifier::Function { params, dotdotdot } => {
-            // Ghidra: grammar.cc:2465 FunctionModifier::modType — build a
-            // PrototypePieces (outtype=base; firstVarArgSlot from the trailing
-            // None slot; intypes from getInTypes; model from decl->getModel)
-            // and return glb->types->getTypeCode(proto). The base here is
-            // never None (the caller only enters modType with a present
-            // base), so out_type = Some(base) directly.
-            let first_var_arg_slot: i32 = if *dotdotdot {
-                params.len() as i32
-            } else {
-                -1
-            };
-            let mut in_types: Vec<Arc<Datatype>> = Vec::new();
-            collect_param_types(&mut in_types, params, types);
-            let _model_name = decl.get_model(); // proto.model = getModel(glb)
-            let fspec_proto = crate::fspec::PrototypePieces {
-                out_type: Some(&base),
-                in_types: &in_types,
-                first_var_arg_slot,
-            };
-            Some(types.get_type_code_pieces(&fspec_proto))
+            function_mod_type(base, decl, params, *dotdotdot, types)
         }
     }
+}
+
+// Ghidra: grammar.cc:2419 FunctionModifier::FunctionModifier
+/// Construct the `FunctionModifier` state from a (post-varargs) parameter
+/// list. Faithful to the constructor: copy the paramlist, then — if it holds
+/// exactly one declarator with no modifiers whose base type is non-null and
+/// `TYPE_VOID` — clear the list (encoding `f(void)` as a zero-arity
+/// function), and record the varargs flag. The `dotdotdot` bool is the Rust
+/// form of the C++ member; the params vec keeps the `Option` slot shape used
+/// by `collect_param_types` / `collect_param_names`.
+///
+/// Decisive semantics: no reference/out parameters (the list is consumed);
+/// a single exact-size check (`paramlist.size()==1`), no loop; no counters;
+/// no ordering keys.
+pub fn function_modifier_ctor(declist: Vec<TypeDeclarator>, dotdotdot: bool) -> TypeModifier {
+    let mut paramlist = declist;
+    if paramlist.len() == 1 {
+        // Ghidra: grammar.cc:2423-2430 — drop a lone `(void)` parameter.
+        let drop_void = {
+            let only = &paramlist[0];
+            only.mods.is_empty()
+                && only
+                    .basetype
+                    .as_ref()
+                    .map(|ct| ct.get_metatype() == crate::type_system::datatype::TypeMetatype::Void)
+                    .unwrap_or(false)
+        };
+        if drop_void {
+            paramlist.clear();
+        }
+    }
+    let params: Vec<Option<TypeDeclarator>> = paramlist.into_iter().map(Some).collect();
+    TypeModifier::Function { params, dotdotdot }
 }
 
 // Ghidra: grammar.cc:2434 FunctionModifier::getInTypes
@@ -1548,34 +1633,21 @@ impl CParse {
     }
 
     // Ghidra: grammar.cc:2764 CParse::newFunc
-    // Ghidra: grammar.cc:2764 CParse::newFunc + grammar.cc:2419 FunctionModifier ctor
-    /// Append a function modifier to `dec`, normalising the varargs trailer and
-    /// the single-`(void)` parameter. Faithful to `newFunc` followed by the
-    /// `FunctionModifier` constructor (grammar.cc:2419): if the (post-varargs)
-    /// paramlist is exactly one declarator with no modifiers and a `void` base
-    /// type, the list is cleared (encoding `f(void)` as a zero-arity function).
+    /// Append a function modifier to `dec`. Faithful to `newFunc`: detect the
+    /// trailing varargs trailer, pop it, then construct the function modifier
+    /// via the `FunctionModifier` constructor twin (`function_modifier_ctor`,
+    /// grammar.cc:2419) and append it to `dec->mods`.
     pub fn new_func(&mut self, dec: &mut TypeDeclarator, mut declist: Vec<TypeDeclarator>) {
         let mut dotdotdot = false;
         if let Some(true) = declist.last().map(|d| d.ident.is_empty() && d.mods.is_empty() && d.basetype.is_none() && d.flags == u32::MAX) {
             // RUGRA-GLUE: Ghidra signals varargs via a `null` slot in the
-            // paramlist (FunctionModifier ctor at grammar.cc:2419); Rugra
-            // encodes that trailer as a sentinel declarator with `flags=u32::MAX`.
+            // paramlist (grammar.y:180 pushes it; FunctionModifier ctor at
+            // grammar.cc:2419 receives it popped); Rugra encodes that trailer
+            // as a sentinel declarator with `flags=u32::MAX`.
             dotdotdot = true;
             declist.pop();
         }
-        // Ghidra: grammar.cc:2423-2430 — drop a lone `(void)` parameter.
-        if declist.len() == 1 {
-            let only = &declist[0];
-            if only.mods.is_empty() {
-                if let Some(ref ct) = only.basetype {
-                    if ct.get_metatype() == crate::type_system::datatype::TypeMetatype::Void {
-                        declist.clear();
-                    }
-                }
-            }
-        }
-        let params: Vec<Option<TypeDeclarator>> = declist.into_iter().map(Some).collect();
-        dec.mods.push(TypeModifier::Function { params, dotdotdot });
+        dec.mods.push(function_modifier_ctor(declist, dotdotdot));
     }
 
     // Ghidra: grammar.cc:2779 CParse::newStruct
