@@ -2828,7 +2828,7 @@ funcdata.rs 映射面仅余 double_precis.rs 调用方（另行核对的邻接�
 ActionDoNothing 链语料未构造出零输入 phi）——位点语料休眠，恒等由
 RAM 臂构造严格等价（`Varnode::new` ≡ `new_with_space(Ram,…)`，varnode.rs:550）
 + 零触发共同保证；寄存器空间 out 一旦触发即走正确空间（correct-by-construction）。
-## CommittedLocal（HEADLESS-BRIDGE-V1-TYPESEED，2026-09-25）
+## CommittedLocal（HEADLESS-BRIDGE-V1-TYPESEED，2026-09-25；TYPESEEDARB 锁位透传 2026-09-27）
 新增 `pub struct CommittedLocal { offset: i64, name: String, type_expr: String }`
 与 `Funcdata::committed_locals: Vec<CommittedLocal>`（默认空）。这是 headless
 正典 golden 的 `<localdb>` 传输通道载体（funcdata.cc:804-810 → Database::
@@ -2843,6 +2843,27 @@ local_seed_httpd_1204.json），ActionRestructureVarnode 在 scope 构造点物�
 rugra-tests/bridge1/oracle_main_seeded.c）复现 canon main 声明层
 `long local_d8; long local_d0; long local_c8[4]; local_80[2]; local_70[6]`
 与下标形族。
+
+**TYPESEEDARB 增量（HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001，2026-09-27，
+wt/typeseedarb）**：结构体新增 `pub typelock: bool` = `<localdb>` 逐符号
+ATTRIB_TYPELOCK 位（database.cc:432-434 Symbol::decodeHeader）的 Rust 载体。
+`true` = C1 锁定桥（name+type-locked 物化，clearUnlockedCategory 存活，
+RangeHint::fixed 边界）；`false` = **name-only 传输**——物化为 namelock-only，
+由 scope 构造尾部的 `collect_name_recs`（varmap.cc:357-381，oracle 在
+ScopeLocal::decode 边界 varmap.cc:472-477 到达同一下降）降级为名字推荐，
+自由 restructure 后由 ActionNameVars 把名字重挂到未锁定恢复符号
+（recoverNameRecommendationsForSymbols varmap.cc:1507）。这是两个 oracle 面对
+**反编译器自恢复聚合体**的传输形态：锁定库 same-seed 实验（stage_seed_diag
+e40ed130 RAM 盘重建，canon-core 词表安装）证明 nameonly-agg 载荷保 canary
+INDIRECT 网存活且全部 local_ 名重挂，任一 typelocked ARRAY/STRUCT 灭网
+（markUnaliased varmap.cc:1376-1385 alias_block 臂），drop 载荷丢名（Rugra
+A/B +50 行）。种子的 type 仍走 `type_expr`——下降后仅 (addr,usepoint,size,
+name) 存活（varmap.cc:1600-1613），拼写只定 entry 字节尺寸。收割器
+（tools/harvest_local_manifest.py C1 模式）按③重分类：数组声明符
+typelock=false（httpd 115 条全量），标量保持锁定桥（不可触发 alias_block，
+钉住封闭库无法恢复的分析器辅助 typing 层 = C1 HEAD 残差域）；curl 的
+DWARF/STRUCT 通道条目全为分析器真提交，保持 typelock=true（36/36），
+驱动解码缺省 true = 字节行为保持。
 
 ## 2026-09-25：push_multiequals cc:118 存储地址比较空间限定（FAMILY-AUDIT-SPACELESS-SITES-0001）
 

@@ -1951,7 +1951,21 @@ impl Action for ActionRestructureVarnode {
                         start,
                         None,
                     );
-                    scope.symbols[idx].typelock = true;
+                    // HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001: the seed's
+                    // typelock bit is the <localdb> ATTRIB_TYPELOCK bit
+                    // verbatim. Locked entries (C1 bridge, scalars) keep the
+                    // name+type-locked form; name-only entries
+                    // (decompiler-recovered aggregates) materialize
+                    // namelock-only, and the collect_name_recs call below —
+                    // the varmap.cc:472-477 ScopeLocal::decode boundary in
+                    // the oracle — downgrades exactly this symbol class to a
+                    // name recommendation (varmap.cc:357-381), so the
+                    // restructure lays the slot out freely and
+                    // ActionNameVars reattaches the name to the unlocked
+                    // recovered symbol. A typelocked ARRAY/STRUCT would
+                    // instead fire markUnaliased's alias_block branch
+                    // (varmap.cc:1376-1385) and un-alias every later entry.
+                    scope.symbols[idx].typelock = seed.typelock;
                     scope.symbols[idx].namelock = true;
                 }
                 // Ghidra: varmap.cc:472 ScopeLocal::decode → collectNameRecs (call at :476)
