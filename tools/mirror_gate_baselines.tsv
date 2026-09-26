@@ -58,7 +58,7 @@ curl	56	74	MERGEBATCH5-RATCHET-REPIN-0001	1a41d6ad	2026-09-26
 httpd	94	29	CSPEC-GLOBAL-APPLY-HTTPD-RATCHET-0001	1a41d6ad	2026-09-26
 vsh	16	71	MERGEBATCH5-RATCHET-REPIN-0001	6178d1ea	2026-09-26
 sq	7500	810	MERGEBATCH5-RATCHET-REPIN-0001	6178d1ea	2026-09-26
-sqlite	26665	1385	GENWIRE-SQLITE-RATCHET-REPIN-0001	1a41d6ad	2026-09-26
+sqlite	26411	1385	GENWIRE-SQLITE-RATCHET-REPIN-0001	26674f7d	2026-09-27
 # 2026-09-26 MERGEBATCH18 波次增益锁定（MB18-RATCHET-REPIN-0001, root 授权重钉,
 # @ba6e670e = MB18 23 支合并+repin 态 fresh 实测）:
 # ① httpd ceiling 156→98（TYPINGPX-MIRROR-FRESH-DB-0001 落地——镜面臂逐函数 fresh
@@ -84,3 +84,17 @@ sqlite	26665	1385	GENWIRE-SQLITE-RATCHET-REPIN-0001	1a41d6ad	2026-09-26
 # ④ sq 现态记账 4321（ceiling 7500 不动,floor 810 保持;−2=checkAddressOfCast 命中）。
 # ⑤ vsh 15/71 恒等未动。canon 双语料字节恒等 MB18 基线（curl 157/httpd 311,md5 双对
 #    相符——本批 4 支对 canon 全中性,15 项休眠或恒等 + typeunion 三修复语料中性亲证）。
+# 2026-09-27 MERGEBATCH20 波次增益锁定（MB20-RATCHET-REPIN-0001, root 授权重钉）:
+# ① sqlite ceiling 26665→26411（MB20 typing/dataflow 批[tempover 无条件温度覆写+coreact2
+#    十函数+marshalbool]的 sqlite 面收益 −254;门禁实测 PASS 1385/1385 health ok defects=
+#    numbering=0;全量基线 A/B 两次被共机负载终止[223/1385 处],归因为批级+sq 面全量 A/B
+#    零回退为代理证据——sq 同批改善 −94[xz_options −2=ruleadj 预测精确命中+NLZMA
+#    GetOptimum 族 −92=typing 批]逐函数零回退亲证;floor 1385 不动）。
+# ② sq 现态记账 4321→4227（ceiling 7500/floor 810 不动;xz_options −2[ruleadj 预测精确
+#    命中]+NLZMA CEncoder::GetOptimum 双形态 −92[148→97/120→79,typing 批];逐函数
+#    A/B 零回退亲证;孤立复跑 810/810 ok——首轮 10 函数 "unable to initialize SLEIGH
+#    register catalog"=/dev/shm 99% 资源性失败,重试全绿,非代码回归[worker-failure
+#    先重试再归因纪律兑现]）。
+# ③ curl 56/56·httpd 94/94 精确命中 MB19 钉值零漂移;vsh 15/71 恒等。
+# ④ canon: curl 157/0/0 md5 51cc85d2==MB19 基线字节恒等;httpd **304/0/0 md5 04b3b014**
+#    =typeseedarb −7 新基线精确命中（canary 链族）。
