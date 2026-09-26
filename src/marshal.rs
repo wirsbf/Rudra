@@ -2222,12 +2222,27 @@ pub trait Decoder {
         spc_manager: &crate::space::SpaceRegistry,
     ) -> Result<crate::space::AddrSpace, String>;
 
-    // RUGRA-GLUE: read_bool (no Ghidra counterpart found)
-    /// Read the current attribute as a boolean.
+    // Ghidra: marshal.hh:176 Decoder::readBool(void) (pure virtual)
+    /// Read the current attribute as a boolean. Each `Decoder` resolves
+    /// the value its own way: the XML/tree form parses the attribute
+    /// string with `xml_readbool` — first character, case-sensitive
+    /// (`XmlDecode::readBool`, marshal.cc:279-284 + xml.hh:391-400) —
+    /// while the packed form reads the type byte's length-code bit
+    /// (`PackedDecode::readBool`, marshal.cc:831-842).
     fn read_bool(&mut self) -> bool;
 
-    // RUGRA-GLUE: read_bool_attr (no Ghidra counterpart found)
-    /// Read a specific attribute as a boolean.
+    // Ghidra: marshal.hh:186 Decoder::readBool(const AttributeId &) (pure virtual)
+    /// Read a specific attribute as a boolean. The VALUE domain is the
+    /// oracle's `xml_readbool` — first character, case-sensitive
+    /// ('t'/'1'/'y' true; xml.hh:391-400). Divergence note
+    /// (MARSHAL-READBOOL-0001 residual, registered in TODO_BOARD): the
+    /// oracle's `readBool(attribId)` THROWS
+    /// `DecoderError("Attribute missing: <name>")` on a missing
+    /// attribute (marshal.cc:276 XmlDecode / marshal.cc:636 PackedDecode
+    /// — different messages), while this bool-typed convenience returns
+    /// `false`; the exact throw channel is modeled at the production
+    /// decode port (`ScopeLocal::decode_wrapping_attributes`, which
+    /// scans by name exactly as the C++ does before reading).
     fn read_bool_attr(&mut self, attrib_id: &AttributeId) -> bool;
 
     // RUGRA-GLUE: read_signed_integer (no Ghidra counterpart found)
@@ -2438,6 +2453,20 @@ fn cpp_stream_signed(value: &str) -> i64 {
         (magnitude as i64).wrapping_neg()
     } else {
         magnitude as i64
+    }
+}
+
+// Ghidra: xml.hh:391 xml_readbool
+/// Read an XML attribute value as a boolean. Faithful to the inline
+/// `xml_readbool` (xml.hh:385-400): the empty string is false; otherwise
+/// the FIRST character decides, case-sensitively — `'t'`, `'1'`, or
+/// `'y'` (the legacy "yes" spelling kept "For backward compatibility",
+/// xml.hh:398) are true, and anything else — including `'T'`, `'Y'`,
+/// `'0'`, `'f'` — is false.
+pub fn xml_readbool(attr: &str) -> bool {
+    match attr.as_bytes().first() {
+        Some(b't') | Some(b'1') | Some(b'y') => true,
+        _ => false,
     }
 }
 
@@ -2657,27 +2686,51 @@ impl Decoder for TreeDecoder {
             .map(|s| s.to_string())
     }
 
-    // RUGRA-GLUE: read_bool (no Ghidra counterpart found)
+    // Ghidra: marshal.cc:279 XmlDecode::readBool(void)
+    /// Read the current attribute as a boolean. Faithful to
+    /// `XmlDecode::readBool()` (marshal.cc:279-284): the value string is
+    /// parsed by `xml_readbool` — first character, case-sensitive
+    /// (xml.hh:391-400). An unpositioned/out-of-range cursor has no
+    /// oracle observation (C++ would read `getAttributeValue` out of
+    /// bounds); `false` keeps the historical default.
     fn read_bool(&mut self) -> bool {
         let Some((elem, _, attr_idx)) = self.stack.last().cloned() else {
             return false;
         };
         let rg = elem.read().unwrap();
         if attr_idx > 0 && attr_idx - 1 < rg.get_num_attributes() {
-            let val = rg.get_attribute_value_at(attr_idx - 1);
-            return val == "1" || val.eq_ignore_ascii_case("true");
+            return xml_readbool(rg.get_attribute_value_at(attr_idx - 1));
         }
         false
     }
 
-    // RUGRA-GLUE: read_bool_attr (no Ghidra counterpart found)
+    // Ghidra: marshal.cc:286 XmlDecode::readBool(const AttributeId &)
+    /// Read a specific attribute as a boolean. Faithful to
+    /// `XmlDecode::readBool(attribId)` (marshal.cc:286-294) for the
+    /// VALUE domain: the content pseudo-attribute (`ATTRIB_CONTENT`)
+    /// parses the element's text, any other name resolves by name and
+    /// the found value is parsed by `xml_readbool` (first character,
+    /// case-sensitive, xml.hh:391-400). Divergence note
+    /// (MARSHAL-READBOOL-0001 residual): a MISSING name returns `false`
+    /// where the oracle's `findMatchingAttribute` throws
+    /// `DecoderError("Attribute missing: <name>")` (marshal.cc:276) —
+    /// the throw channel is modeled at the production decode port
+    /// (`ScopeLocal::decode_wrapping_attributes`). An empty decode stack
+    /// has no oracle observation (`elStack.back()` on an empty stack is
+    /// UB in C++); `false` keeps the historical default.
     fn read_bool_attr(&mut self, attrib_id: &AttributeId) -> bool {
-        let Some((elem, _, _)) = self.stack.last() else {
+        let Some((elem, _, _)) = self.stack.last().cloned() else {
             return false;
         };
         let rg = elem.read().unwrap();
+        // if (attribId == ATTRIB_CONTENT) return xml_readbool(el->getContent());
+        // (marshal.cc:290-291)
+        if attrib_id.id == ATTRIB_CONTENT {
+            return xml_readbool(rg.get_content());
+        }
+        // int4 index = findMatchingAttribute(el, attribId.getName()); (marshal.cc:292)
         rg.get_attribute_value(&attrib_id.name)
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .map(|value| xml_readbool(value))
             .unwrap_or(false)
     }
 
@@ -3362,14 +3415,26 @@ impl Decoder for PackedDecode {
         }
     }
 
-    // Ghidra: marshal.hh:512 PackedDecode::readBoolAttr
+    // Ghidra: marshal.cc:844 PackedDecode::readBool(const AttributeId &)
+    /// Read a specific attribute as a boolean. Faithful to
+    /// `PackedDecode::readBool(attribId)` (marshal.cc:844-851): the
+    /// attribute list is rescanned from the element start, a match reads
+    /// the type byte's length-code bit (`readBool`, marshal.cc:831-842),
+    /// and the scan position is restored to the element start
+    /// (marshal.cc:849). Divergence note (MARSHAL-READBOOL-0001
+    /// residual): exhausting the list without a match returns `false`
+    /// where the oracle's `findMatchingAttribute` throws
+    /// `DecoderError("Attribute <name> is not present")` (marshal.cc:636).
     fn read_bool_attr(&mut self, attrib_id: &AttributeId) -> bool {
-        // Rewind and find the attribute.
+        // Rewind and find the attribute (curPos = startPos; marshal.cc:623).
         self.rewind_attributes();
         loop {
             let aid = self.next_attribute_id();
             if aid == 0 || aid == attrib_id.id {
-                return self.read_bool();
+                let res = self.read_bool();
+                // curPos = startPos; (marshal.cc:849)
+                self.rewind_attributes();
+                return res;
             }
             // Skip the current value.
             let _ = self.read_string();

@@ -167,6 +167,22 @@ fn main() {
             run_decode_case(&registry, &[("main", "stack"), ("lock", "1")], &fd);
         println!("case=decode_lock_one|{}", body);
     }
+    // decode_lock_yes: xml_readbool's legacy first-char 'y' arm
+    // (xml.hh:398, "For backward compatibility"); MARSHAL-READBOOL-0001.
+    {
+        let fd = fixture_fd("decode_lock_yes", 0x9120);
+        let (body, _scope) =
+            run_decode_case(&registry, &[("main", "stack"), ("lock", "yes")], &fd);
+        println!("case=decode_lock_yes|{}", body);
+    }
+    // decode_lock_truecap: the first-char parse is case-sensitive — 'T'
+    // is not 't' (xml.hh:396), so the lock stays off.
+    {
+        let fd = fixture_fd("decode_lock_truecap", 0x9140);
+        let (body, _scope) =
+            run_decode_case(&registry, &[("main", "stack"), ("lock", "True")], &fd);
+        println!("case=decode_lock_truecap|{}", body);
+    }
     // decode_main_ram: the space is REASSIGNED from the ctor stack.
     {
         let fd = fixture_fd("decode_main_ram", 0x9060);
@@ -199,6 +215,15 @@ fn main() {
         let fd = fixture_fd("decode_main_missing", 0x90a0);
         let (body, _scope) = run_decode_case(&registry, &[("lock", "true")], &fd);
         println!("case=decode_main_missing|{}", body);
+    }
+    // decode_lock_missing: readBool(ATTRIB_LOCK) runs BEFORE the main
+    // read (varmap.cc:483), so findMatchingAttribute throws on the lock
+    // first (marshal.cc:275-276) — even though main is present;
+    // MARSHAL-READBOOL-0001.
+    {
+        let fd = fixture_fd("decode_lock_missing", 0x9160);
+        let (body, _scope) = run_decode_case(&registry, &[("main", "stack")], &fd);
+        println!("case=decode_lock_missing|{}", body);
     }
     // reset_locked: cc:435-437 refresh runs, cc:439 guard skips the
     // window install (the empty window survives).

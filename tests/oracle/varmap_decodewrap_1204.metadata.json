@@ -53,10 +53,13 @@
       258,
       259,
       260,
+      267,
+      268,
       261,
       266,
       262,
       263,
+      269,
       264,
       265
     ],
@@ -64,10 +67,13 @@
       36864,
       36896,
       36928,
+      37184,
+      37216,
       36960,
       37152,
       36992,
       37024,
+      37248,
       37056,
       37088
     ],
@@ -76,10 +82,13 @@
       "main=stack lock=true",
       "main=stack lock=false",
       "main=stack lock=1",
+      "main=stack lock=yes",
+      "main=stack lock=True",
       "main=ram lock=true",
       "main=other lock=true",
       "main=nosuch lock=true",
       "lock=true (main absent)",
+      "main=stack (lock absent)",
       "main=stack lock=true + reset sentinels",
       "main=stack lock=false + reset sentinels"
     ],
@@ -88,12 +97,15 @@
       "max_param_offset": 32,
       "stack_grows_negative": false
     },
-    "cases": 9
+    "cases": 12
   },
   "observation": {
     "functions": [
       "ScopeLocal::decodeWrappingAttributes unconditional rangeLocked reset (varmap.cc:482)",
-      "ScopeLocal::decodeWrappingAttributes ATTRIB_LOCK ingestion incl. xml_readbool first-char parse (varmap.cc:483-484, xml.hh:391-396)",
+      "ScopeLocal::decodeWrappingAttributes ATTRIB_LOCK ingestion incl. xml_readbool first-char parse (varmap.cc:483-484, xml.hh:391-400)",
+      "xml_readbool legacy 'y' first-char arm: lock=\"yes\" true (xml.hh:398)",
+      "xml_readbool case-sensitive first char: lock=\"True\" false (xml.hh:396)",
+      "DecoderError text for missing lock attribute, thrown before the main read (marshal.cc:275-276 via varmap.cc:483 readBool(ATTRIB_LOCK))",
       "ScopeLocal::decodeWrappingAttributes ATTRIB_MAIN space reassignment (varmap.cc:485)",
       "ScopeLocal::decodeWrappingAttributes non-canonical space name resolution (varmap.cc:485; Rust value-model Other(index) fallback arm, oracle observation getName()==\"other\")",
       "DecoderError text for unknown space name (marshal.cc:421 via Database::decodeScope database.cc:3385)",
@@ -103,22 +115,23 @@
     ],
     "overall_status": "MATCH"
   },
-  "expected_stdout_sha256": "cf1ff3b405d8f0c6a0e1863326167ae0c92cb66e262afc5d240adc3080bff346",
+  "expected_stdout_sha256": "be80dfd63eaaaf5a8ccefdce31d6740166e63c4d599ccc17d333fd292e02f0cd",
   "comparand": {
-    "rugra_base_commit": "8ac3f7f0283beed06e7c33c0ff36b7a161232d06",
-    "rugra_base_tree": "17f39e20d55cad9d52f242507f1dc60b0932f6ee",
-    "cpp_fixture_sha256": "079a9b2e3a003a48c4ec421be8c3002ed3b438c33143c6055b16a33b23d25e7b",
-    "rust_fixture_sha256": "084c88f1647f6688c9bf21392f234000e1ed49d7f7a8fc6660c86695d7792e02",
-    "runner_sha256": "32d8e65ab6e253866c1a7bfb436ee77dc5dac53434bb94dc6b8216a7ca2976ab",
-    "varmap_rs_sha256": "d3b829810f8f1aa6d86246efc74769583f2401d7d7fe0a2f8945e219f66f97ad",
-    "varmap_doc_sha256": "118a5dd1d417ac5fb748026c8d7b10412cf88bf981858f3b4f521d4f9cac6588",
+    "rugra_base_commit": "6a4583876f857f9488aa0b11004cedd67bc0035b",
+    "rugra_base_tree": "623ef61ad2e18b337da538d455239134a6c02193",
+    "cpp_fixture_sha256": "a88bf9bb7a3e8dce6ac2ade4026d3db380d85a10b4dc1da176bda58210148e9c",
+    "rust_fixture_sha256": "4ddc3580a0329c2b41aaa491eae264f6c42cb990d3db626caf3ba4bb8ec3a38f",
+    "runner_sha256": "820cbde3bd8e63b29a644a10601be646ec951b63ff914f68101c67027fb47fd9",
+    "varmap_rs_sha256": "39a90d803d9d585457aad3deb2efcd7313b56739cccad1e7404e552954b2005d",
+    "varmap_doc_sha256": "1bfe6405ee38106832d0e4c33536f6485ed58b16da0d569de4b33b932660a68a",
     "cargo_toml_sha256": "0c1c7daf8b509f453d8419c21188535017557d22b49ea09721b9af2571c70d3a",
     "cargo_lock_sha256": "af4cf4f41c01e3e857ceef557fafd0a025e009f390594b43015bc907e2545842",
     "ghidra_varmap_cc_blob": "27330a23c0221d459136a8312846bff614a7f433",
     "ghidra_varmap_hh_blob": "5143b24b18bfabcd4d26e5ce9e593ad48441e3dc",
     "ghidra_database_cc_blob": "c6529baea5667369341b52113283ae9ae9eea8c0",
     "ghidra_database_hh_blob": "ab13b02522e6e3e99ecb5a8e17a12138553ef060",
-    "ghidra_marshal_cc_blob": "1c138774acbd321fdec6bb97d5e74e2a21fe7ded"
+    "ghidra_marshal_cc_blob": "1c138774acbd321fdec6bb97d5e74e2a21fe7ded",
+    "marshal_rs_sha256": "7a8ad8b04dbc11e740c32221578b4af0493ee0d5fd3e8c62506db2799fe2fbce"
   },
-  "input_fingerprint": "sha256:58d8cfecb958ac54b8dd6ed243cc5100bf5129aa93ddf701e95443c9212fdee4"
+  "input_fingerprint": "sha256:f72886dbc891d939a27c882f9d783981752afe61146c4ffb39e56dbe8d9ae48d"
 }

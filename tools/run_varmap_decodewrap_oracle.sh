@@ -18,9 +18,10 @@ rust_fixture="$repo_root/tests/oracle/varmap_decodewrap_1204.rs"
 runner="$repo_root/tools/run_varmap_decodewrap_oracle.sh"
 varmap_rs="$repo_root/src/varmap.rs"
 varmap_doc="$repo_root/docs/api/varmap.md"
+marshal_rs="$repo_root/src/marshal.rs"
 
 for required in "$metadata" "$cpp_fixture" "$rust_fixture" "$runner" \
-  "$varmap_rs" "$varmap_doc"; do
+  "$varmap_rs" "$varmap_doc" "$marshal_rs"; do
   if [[ ! -f "$required" || -L "$required" ]]; then
     echo "required input is not a regular non-symlink file: $required" >&2
     exit 1
@@ -42,7 +43,7 @@ if [[ -n "$(git -C "$ghidra_root" status --porcelain -- \
 fi
 
 python3 -I -S - "$metadata" "$cpp_fixture" "$rust_fixture" "$runner" \
-  "$varmap_rs" "$varmap_doc" "$repo_root" "$ghidra_root" \
+  "$varmap_rs" "$varmap_doc" "$marshal_rs" "$repo_root" "$ghidra_root" \
   "$oracle_commit" "$oracle_tag" <<'PY'
 import hashlib
 import json
@@ -52,7 +53,8 @@ import sys
 
 (
     metadata_raw, cpp_raw, rust_raw, runner_raw, varmap_raw,
-    doc_raw, repo_raw, ghidra_raw, oracle_commit, oracle_tag,
+    doc_raw, marshal_raw, repo_raw, ghidra_raw,
+    oracle_commit, oracle_tag,
 ) = sys.argv[1:]
 
 metadata = json.loads(pathlib.Path(metadata_raw).read_text(encoding="utf-8"))
@@ -81,6 +83,7 @@ expected_files = {
     "runner_sha256": runner_raw,
     "varmap_rs_sha256": varmap_raw,
     "varmap_doc_sha256": doc_raw,
+    "marshal_rs_sha256": marshal_raw,
     "cargo_toml_sha256": repo / "Cargo.toml",
     "cargo_lock_sha256": repo / "Cargo.lock",
 }
@@ -159,6 +162,7 @@ git -C "$repo_root" archive "$(python3 -I -S -c \
   "import json,sys;print(json.load(open('$metadata'))['comparand']['rugra_base_commit'])")" \
   | tar -x -C "$rugra_snapshot"
 cp "$varmap_rs" "$rugra_snapshot/src/varmap.rs"
+cp "$marshal_rs" "$rugra_snapshot/src/marshal.rs"
 mkdir -p "$rugra_snapshot/src/bin"
 cp "$rust_fixture" "$rugra_snapshot/src/bin/varmap_decodewrap_1204.rs"
 mkdir -p "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
@@ -198,8 +202,8 @@ for label, path in (
         raise SystemExit(f"{label} mismatch for {path}: {actual}")
 
 lines = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8").splitlines()
-if len(lines) != 10:
-    raise SystemExit(f"expected ten fixture lines, found {len(lines)}")
+if len(lines) != 13:
+    raise SystemExit(f"expected thirteen fixture lines, found {len(lines)}")
 if lines[0] != (
     "schema=1|fixture=VARMAP-DECODEWRAP-0001|"
     "oracle=e40ed13014025f82488b1f8f7bca566894ac376b"
@@ -207,8 +211,10 @@ if lines[0] != (
     raise SystemExit("fixture envelope mismatch")
 expected_cases = [
     "decode_lock_true", "decode_lock_false", "decode_lock_one",
+    "decode_lock_yes", "decode_lock_truecap",
     "decode_main_ram", "decode_main_other", "decode_main_unknown",
-    "decode_main_missing", "reset_locked", "reset_unlocked",
+    "decode_main_missing", "decode_lock_missing", "reset_locked",
+    "reset_unlocked",
 ]
 actual_cases = [line.split("|", 1)[0].removeprefix("case=") for line in lines[1:]]
 if actual_cases != expected_cases:

@@ -3494,21 +3494,26 @@ impl ScopeLocal {
     /// `DecoderError("Attribute missing: main")` (marshal.cc:275) and an
     /// unresolvable space name its
     /// `DecoderError("Unknown address space name: <nm>")` (marshal.cc:421);
-    /// both surface as `Err` carrying the exact message. Two marshal-glue
-    /// divergences, both confined to legacy/malformed streams — production
-    /// `ScopeLocal::encode` always writes both attributes with
-    /// `writeBool`'s exact "true"/"false" spellings (varmap.cc:466-467 +
-    /// marshal.cc:508-510) — and both belong to the marshal lease:
-    /// (1) Rust `TreeDecoder::read_bool_attr` returns false for a MISSING
-    /// `lock` where the oracle throws
-    /// `DecoderError("Attribute missing: lock")`;
-    /// (2) the accepted VALUE domains differ — the oracle's
-    /// `xml_readbool` takes the first character case-sensitively
-    /// ('t'/'1'/'y' true, xml.hh:391-396) while `read_bool_attr` accepts
-    /// exactly "1" or a case-insensitive "true": the legacy "yes"/"y"
-    /// family under-parses (oracle true, Rust false) and "True"/"TRUE"
-    /// over-parses (oracle false, Rust true). The bilateral fixture
-    /// covers the agreeing production domain ("true"/"false"/"1").
+    /// both surface as `Err` carrying the exact message. The lock read
+    /// runs FIRST (varmap.cc:483) as a by-name scan: a missing `lock`
+    /// attribute is the oracle's `DecoderError("Attribute missing: lock")`
+    /// (marshal.cc:275-276 via findMatchingAttribute) and aborts before
+    /// the main read; the lock VALUE parse is `xml_readbool`'s first-char,
+    /// case-sensitive form ('t'/'1'/'y' true, xml.hh:391-396). The two
+    /// marshal-glue divergences formerly registered here (missing-lock
+    /// returning false; "1" or case-insensitive "true"-only value domain)
+    /// were closed 2026-09-26 by MARSHAL-READBOOL-0001: the value domain
+    /// is aligned inside `TreeDecoder::read_bool`/`read_bool_attr` via a
+    /// 1:1 `xml_readbool` port, and the missing-attribute throw channel
+    /// is modeled by this port's scan (the C++ `readBool(attribId)`
+    /// resolves the name through `findMatchingAttribute` before reading,
+    /// marshal.cc:286-293). Production `ScopeLocal::encode` always writes
+    /// both attributes with `writeBool`'s exact "true"/"false" spellings
+    /// (varmap.cc:466-467 + marshal.cc:508-510), so the difference is
+    /// only reachable through legacy/malformed streams. The bilateral
+    /// fixture covers the agreeing production domain
+    /// ("true"/"false"/"1") plus the three legacy/malformed arms
+    /// ("yes" true / "True" false / missing-lock error).
     pub fn decode_wrapping_attributes(
         &mut self,
         decoder: &mut dyn crate::marshal::Decoder,
@@ -3517,15 +3522,44 @@ impl ScopeLocal {
         // rangeLocked = false; (varmap.cc:482)
         self.range_locked = false;
         // if (decoder.readBool(ATTRIB_LOCK)) rangeLocked = true;
-        // (varmap.cc:483-484) — ATTRIB_LOCK is attribute id 133.
-        if decoder.read_bool_attr(&crate::marshal::AttributeId::new("lock", 133)) {
-            self.range_locked = true;
+        // (varmap.cc:483-484) — ATTRIB_LOCK is attribute id 133. The C++
+        // XmlDecode::readBool(attribId) resolves the name through
+        // findMatchingAttribute (marshal.cc:286-293): a missing name
+        // throws DecoderError("Attribute missing: lock") (marshal.cc:276)
+        // — aborting the decode BEFORE the main read (varmap.cc:485) —
+        // and the found value parses as xml_readbool's first character,
+        // case-sensitively ('t'/'1'/'y' true, xml.hh:391-400). The scan
+        // below is the port's by-name resolution (the same shape as the
+        // main read); read_bool() at the positioned cursor is the value
+        // read. rewind_attributes() makes the scan independent of the
+        // entry cursor, exactly as the C++ by-name lookup is.
+        decoder.rewind_attributes();
+        let mut lock_result: Option<bool> = None;
+        loop {
+            let aid = decoder.next_attribute_id();
+            if aid == 0 {
+                break;
+            }
+            if decoder.attribute_name(aid).as_deref() == Some("lock") {
+                lock_result = Some(decoder.read_bool());
+                break;
+            }
+            let _ = decoder.read_string();
+        }
+        match lock_result {
+            Some(true) => self.range_locked = true,
+            Some(false) => {}
+            // findMatchingAttribute's throw, exact oracle message
+            // (marshal.cc:275-276).
+            None => return Err("Attribute missing: lock".to_string()),
         }
         // space = decoder.readSpace(ATTRIB_MAIN); (varmap.cc:485) —
         // ATTRIB_MAIN is attribute id 134. The TreeDecoder reads the
         // attribute at its cursor, so position the cursor on the "main"
         // attribute first; the C++ XmlDecode form looks the name up
-        // directly (marshal.cc:412-417).
+        // directly (marshal.cc:412-417) — an independent scan, hence the
+        // rewind.
+        decoder.rewind_attributes();
         let mut main_result: Option<Result<crate::space::AddrSpace, String>> = None;
         loop {
             let aid = decoder.next_attribute_id();
@@ -7017,11 +7051,20 @@ mod tests {
         assert!(!scope.range_locked);
         assert_eq!(scope.space, crate::space::AddressSpace::Stack);
         // lock="1" — the value both parsers agree on (the oracle's
-        // xml_readbool first-char parse, xml.hh:391-396; the Rust
-        // read_bool_attr exact-"1" arm).
+        // xml_readbool first-char parse, xml.hh:391-396).
         let mut decoder = wrap_decoder(&[("main", "stack"), ("lock", "1")]);
         scope.decode_wrapping_attributes(&mut decoder, &reg).unwrap();
         assert!(scope.range_locked);
+        // lock="yes" — xml_readbool's legacy first-char 'y' arm
+        // (xml.hh:398, "For backward compatibility"); the lock engages.
+        let mut decoder = wrap_decoder(&[("main", "stack"), ("lock", "yes")]);
+        scope.decode_wrapping_attributes(&mut decoder, &reg).unwrap();
+        assert!(scope.range_locked);
+        // lock="True" — the first-char parse is case-sensitive: 'T' is
+        // not 't' (xml.hh:396), so the lock stays off.
+        let mut decoder = wrap_decoder(&[("main", "stack"), ("lock", "True")]);
+        scope.decode_wrapping_attributes(&mut decoder, &reg).unwrap();
+        assert!(!scope.range_locked);
         // main="ram" — the space is REASSIGNED from the stack default.
         let mut decoder = wrap_decoder(&[("main", "ram"), ("lock", "true")]);
         scope.decode_wrapping_attributes(&mut decoder, &reg).unwrap();
@@ -7040,8 +7083,9 @@ mod tests {
     #[test]
     fn test_decode_wrapping_attributes_error_channels() {
         // The exact oracle DecoderError messages: an unresolvable space
-        // name (marshal.cc:421) and a missing main attribute
-        // (marshal.cc:275).
+        // name (marshal.cc:421), a missing main attribute
+        // (marshal.cc:275), and a missing lock attribute (marshal.cc:275
+        // — readBool(ATTRIB_LOCK) runs FIRST, varmap.cc:483).
         let reg = wrap_registry();
         let mut scope = ScopeLocal::new();
         let mut decoder = wrap_decoder(&[("main", "nosuch"), ("lock", "true")]);
@@ -7058,6 +7102,18 @@ mod tests {
         // main read (varmap.cc:482-484 precede varmap.cc:485) — the
         // partial-mutation state at the throw matches the oracle.
         assert!(scope.range_locked);
+        // Missing lock: the lock read (varmap.cc:483) throws before the
+        // main read (varmap.cc:485) even though main is present and
+        // resolvable — the space stays at the constructor default.
+        let mut decoder = wrap_decoder(&[("main", "stack")]);
+        assert_eq!(
+            scope.decode_wrapping_attributes(&mut decoder, &reg),
+            Err("Attribute missing: lock".to_string())
+        );
+        // The unconditional reset (varmap.cc:482) ran before the throw,
+        // clearing the stale lock set by the previous case.
+        assert!(!scope.range_locked);
+        assert_eq!(scope.space, crate::space::AddressSpace::Stack);
     }
 
     #[test]

@@ -28,6 +28,14 @@
  *                       lock; locked=0, space=stack.
  *   decode_lock_one     main="stack" lock="1": xml_readbool's first-char
  *                       parse (xml.hh:391-396) → locked=1.
+ *   decode_lock_yes     main="stack" lock="yes": xml_readbool's legacy
+ *                       first-char 'y' arm (xml.hh:398, "For backward
+ *                       compatibility") → locked=1 — MARSHAL-READBOOL-0001
+ *                       arm 1 (oracle true).
+ *   decode_lock_truecap main="stack" lock="True": the first-char parse is
+ *                       case-sensitive — 'T' is not 't' (xml.hh:396) →
+ *                       locked=0 — MARSHAL-READBOOL-0001 arm 2 (oracle
+ *                       false).
  *   decode_main_ram     main="ram" lock="true": the space is REASSIGNED
  *                       from the constructor's stack to ram.
  *   decode_main_other   main="other" lock="true": a non-canonical space
@@ -39,6 +47,13 @@
  *   decode_main_missing no main attribute: DecoderError
  *                       "Attribute missing: main" (marshal.cc:275 via
  *                       findMatchingAttribute).
+ *   decode_lock_missing no lock attribute: readBool(ATTRIB_LOCK) runs
+ *                       BEFORE the main read (varmap.cc:483), so
+ *                       findMatchingAttribute throws on the lock first —
+ *                       DecoderError "Attribute missing: lock"
+ *                       (marshal.cc:275-276) — MARSHAL-READBOOL-0001
+ *                       arm 3, aborted before the (present, resolvable)
+ *                       main read.
  *   reset_locked        lock="true" decode, sentinel min/max param offsets
  *                       + flipped stackGrowsNegative, then resetLocalWindow:
  *                       the cc:435-437 refresh still runs (min=~0, max=0,
@@ -280,6 +295,24 @@ int main(void)
           0x104, 0x9040);
       std::cout << "case=decode_lock_one|" << r.body << '\n';
     }
+    // decode_lock_yes: xml_readbool's legacy first-char 'y' arm
+    // (xml.hh:398 — "For backward compatibility"); MARSHAL-READBOOL-0001.
+    {
+      DecodeCaseResult r = run_decode_case(
+          arch, "decode_lock_yes",
+          "<localdb main=\"stack\" lock=\"yes\">" + scope_child + "</localdb>",
+          0x10b, 0x9120);
+      std::cout << "case=decode_lock_yes|" << r.body << '\n';
+    }
+    // decode_lock_truecap: the first-char parse is case-sensitive — 'T'
+    // is not 't' (xml.hh:396), so the lock stays off.
+    {
+      DecodeCaseResult r = run_decode_case(
+          arch, "decode_lock_truecap",
+          "<localdb main=\"stack\" lock=\"True\">" + scope_child + "</localdb>",
+          0x10c, 0x9140);
+      std::cout << "case=decode_lock_truecap|" << r.body << '\n';
+    }
     // decode_main_ram: the space is reassigned away from the ctor stack.
     {
       DecodeCaseResult r = run_decode_case(
@@ -313,6 +346,17 @@ int main(void)
           "<localdb lock=\"true\">" + scope_child + "</localdb>",
           0x107, 0x90a0);
       std::cout << "case=decode_main_missing|" << r.body << '\n';
+    }
+    // decode_lock_missing: readBool(ATTRIB_LOCK) runs BEFORE the main
+    // read (varmap.cc:483), so findMatchingAttribute throws on the lock
+    // first (marshal.cc:275-276) — even though main is present and
+    // resolvable; MARSHAL-READBOOL-0001.
+    {
+      DecodeCaseResult r = run_decode_case(
+          arch, "decode_lock_missing",
+          "<localdb main=\"stack\">" + scope_child + "</localdb>",
+          0x10d, 0x9160);
+      std::cout << "case=decode_lock_missing|" << r.body << '\n';
     }
     // reset_locked: cc:435-437 refresh runs, cc:439 guard skips the
     // window install.
