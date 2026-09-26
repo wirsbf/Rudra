@@ -623,3 +623,10 @@ coreaction.rs 现有 58 个 Action structs（覆盖全部 Ghidra coreaction ::ap
   `derive_memory_map`（PT_LOAD → add_range 集）、`demangle`（cpp_demangle
   接线，喂符号导入路径）。数据级差分验收与范围边界见
   `docs/api/frontend.md`。
+
+## 2026-09-27：新增 sailr 模块（ENHANCEMENT 域）
+
+- `pub mod sailr;` — **无 Ghidra 对照物**（SAILR 增强层，未接入默认管线）。
+  编译器感知结构化算法族移植：RegionIdentifier 区域切分 + 模式化循环恢复 +
+  `&&`/`||` 短路菱形恢复 + switch 模式识别；输出 `StructuredNode` IR 预留
+  Phase 2 双脸映射。详见 `docs/api/sailr.md`。
