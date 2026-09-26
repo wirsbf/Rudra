@@ -1244,6 +1244,24 @@ normalizeWriteSize/callOpIndirectEffect 的 1:1 移植：
   （Ram global tail）的 flagbase 查询保留（.rodata readonly → printc 字符串
   字面量通道）。残差：pspec 若将来装非 RAM flagbase 分区，需先落地空间键
   flagbase。
+- **2026-09-27 补（FLAGBASE-CR-F1/F2，comment+debug_assert 级，零行为变化）**：
+  臂 (4) 残差补第二条——**开放尾 Ram 属性 range**（pspec/SYMDB range 只带
+  `first` 不带 `last`）同样破坏折 0 前提：oracle 解析补
+  `last = spc->getHighest()`（address.cc:347-349），`Range::getLastAddrOpen`
+  （address.cc:265-275）跨界到顺序下一空间 offset 0（translate.cc:647-665；
+  末空间之后返回 `~0` 哨兵基址+offset 0，`isInvalid()` 只查 null 基址
+  （address.hh:285-287）不命中，故 database.cc:3229-3234 走 split 分支、
+  walk-to-`end()` 无闭合 `else` 保持防御性死分支）——留下非零 Ram 尾分区
+  `[X, ram-top]`，唯一闭合 changepoint 落在 Ram 空间之外；Rugra 无空间镜像
+  完全丢弃开放形（`decode_hole` 缺 `last` 补 0 退化成 [0,0]；legacy
+  `get_last_addr_open = last.next()` 无跨空间/哨兵机制，无空间顶会回卷 0 什么
+  也不装），于是臂 (3) 在 Ram 尾上答 0 而 oracle 答属性（非 ram 查询 oracle
+  侧仍 0——尾分区在下一空间基址处闭合）。触发条件=pspec 出现开放属性 range。
+  另补键形态约定（CR-F2）：无空间键形态是跨文件承重约定，由 database.rs
+  `PartMap::debug_assert_spaceless_key_form`（get_value/split 边界，
+  debug_assert 级）强制——任一侧单独改 `with_space` 会因 `Address::cmp`
+  None 恒排 Some 前而静默错序；ADDRESS-0001 phase-3 合并时两侧必须同迁带
+  tag 键。
 - **`guard_range`**：fl 改为真实查询（原硬编码 0）；调用顺序
   guardCalls → **guardReturns**（新接入）→ `high_ptr_possible` 门控
   guardStores/guardLoads（cc:1194，原无条件调用）；write 表项由

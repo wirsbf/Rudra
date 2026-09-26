@@ -2769,7 +2769,14 @@ impl Heritage {
     /// `query_properties_parent_scope` / ruleaction.rs consumer guard
     /// pattern); every other space folds 0. Residual: a pspec that ever
     /// installs non-Ram flagbase partitions needs the space-keyed flagbase
-    /// first.
+    /// first. The spaceless key form is a LOAD-BEARING cross-file
+    /// convention (FLAGBASE-CR-F2): `Database::flagbase` keys and every
+    /// query stay uniformly spaceless, enforced by debug_asserts at the
+    /// PartMap get_value/split boundary (database.rs) — flipping either
+    /// side to `with_space` addresses alone would silently reorder the
+    /// map (`Address::cmp` sorts `None` before every `Some(_)` tag);
+    /// both sides must migrate to space-tagged keys together at the
+    /// ADDRESS-0001 phase-3 merge.
     // RUGRA-GLUE: static scope-local projection of the oracle's
     // fd->getScopeLocal()->queryProperties call; Funcdata owns ScopeLocal
     // by value (varmap.rs), not through the Database scope graph.
@@ -2896,9 +2903,31 @@ impl Heritage {
         // removal, jumptable ispoint (jumptable.cc:441) rejecting the switch
         // variable, and the single-branch readonly rescue (jumptable.cc:1224)
         // feeding loader bytes as the table). Fold to the oracle's 0 (the
-        // funcdata/ruleaction consumers' Ram-only guard pattern). Residual:
-        // a pspec installing non-Ram flagbase partitions needs the
-        // space-keyed flagbase first.
+        // funcdata/ruleaction consumers' Ram-only guard pattern).
+        // Residuals: a pspec installing non-Ram flagbase partitions needs
+        // the space-keyed flagbase first; and an OPEN-TAILED Ram property
+        // range (FLAGBASE-CR-F1 — a pspec/SYMDB range carrying `first`
+        // with no `last`) breaks the fold's premise the other way: the
+        // oracle parse fills `last = spc->getHighest()`
+        // (address.cc:347-349), then `Range::getLastAddrOpen`
+        // (address.cc:265-275) crosses to the NEXT space in order at
+        // offset 0 (translate.cc:647-665) — or, past the final space,
+        // returns the `~0`-sentinel base with offset 0, which
+        // `isInvalid()` (null-base only, address.hh:285-287) does NOT
+        // catch, so `Database::setPropertyRange` (database.cc:3229-3234)
+        // takes the split branch and its walk-to-`flagbase.end()`
+        // no-closing-split `else` stays defensive — leaving a non-zero
+        // Ram tail partition [X, ram-top] whose only closing changepoint
+        // lies OUTSIDE the Ram space. Rugra's spaceless mirror drops the
+        // open form entirely (`Scope::decode_hole` defaults a missing
+        // `last` to 0 and degrades the range to [0,0]; the legacy
+        // `Range::get_last_addr_open` = `last.next()` has no
+        // cross-space/sentinel machinery — a spaceless top would wrap to
+        // 0 and install nothing), so branch (3)'s consult answers 0
+        // where the oracle answers the property over the Ram tail
+        // (non-Ram queries still see 0 in the oracle: the tail closes at
+        // the next space's base). Trigger: a pspec carrying an
+        // open-attribute property range.
         0
     }
 
