@@ -98,6 +98,7 @@ pub mod pcodeparse; // ← pcodeparse.hh + pcodecompile.hh
 pub mod rangeutil; // ← rangeutil.hh
 pub mod rangemap; // ← rangemap.hh + partmap.hh
 pub mod ruleaction; // ← ruleaction.hh
+pub mod sailr; // ← ENHANCEMENT domain: SAILR structuring layer (no Ghidra counterpart)
 pub mod signature; // ← signature.hh
 pub mod space; // ← space.hh
 pub mod stringmanage; // ← stringmanage.hh

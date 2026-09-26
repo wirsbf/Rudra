@@ -2,6 +2,13 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## ENHANCEMENT 车道票池（2026-09-26 登记；域=ENHANCEMENT 无 Ghidra 对照物，逐函数 oracle 纪律不适用；门禁=默认脸中性+算法正确性单测）
+
+| 稳定 ID | 域声明 | 范围 | write-set | 状态 | 验收要点 |
+|---|---|---|---|---|---|
+| `SAILR-PORT-0001` | ENHANCEMENT（SAILR 增强层，语义源=angr structuring+region_identifier，Rust 参考=kuna p7_regions/p8_structure） | **Phase 1（已完成 2026-09-26/27, lane SAILRPORT, wt/sailrport）**: SAILR 族结构化算法移植为新模块 `src/sailr/`（graph 基底 1971 行/RegionIdentifier 2434 行/结构器 2696 行 = ~7,100 行）+ lib.rs 一行 mod；①RegionIdentifier（区域切分，含 angr master `_natural_loop_subgraph` 可约分发——kuna slice 形态在串联双锁存下误判出口，已按语义源裁决并单测钉死）②模式化循环恢复（while/do-while/inf-loop 按编译器旋转 + 二级出口→break/二级锁存→continue 精化，RI 接地）③短路恢复（`&&`/`||` 菱形，ruleBlockOr 结构形态+De Morgan negate 语义）④switch 模式识别（ruleBlockSwitch 形态+terminal continue-case+skip 虚拟化+`clearFlag(f_switch_out)` 防再匹配）。输出 `StructuredNode` IR 与 block.rs 块类别一一对应预留 Phase 2 映射。零管线接入。**Phase 2（排程注记→WP-2.1..2.5，设计已冻结）**: 见 `docs/alignment_docs/SAILR_INTEGRATION_DESIGN_2026-09-26.md`——双脸缝=方案 B（ActionBlockStructure 入口 option 分流，失败回退默认脸字节恒等；kuna regionstructure 默认 OFF 先例）；StructuredNode→BlockGraph 构件重建器；条件经 pending_flips 奇偶落回 boolean_flip（不发明条件求值）；for 升级=WhileDo.init/iterate 钩子；OFF-ON 双跑差分+GED 度量（依赖 DECBENCH WP1/WP3） | `src/sailr/*` + `src/lib.rs`(+1 行) + `docs/api/sailr/*` + `docs/alignment_docs/SAILR_INTEGRATION_DESIGN_2026-09-26.md` + 本板 | Phase 1 DONE | 单测 40（graph 16/region_id 7/structurer 17）；`cargo test --lib` 1867P/0F；三门禁（annotations 含新模块 ✅ / refs ✅ / doc_sync ✅）；canon curl 字节恒等（构造性：模块无管线调用点，E2E 复跑零扰动）；全部函数 `// RUGRA-GLUE: SAILR enhancement layer` 注解形态 |
+| `SAILR-PORT-0002` | ENHANCEMENT（Phase 2） | 接入缝实现（未开票，root 裁决排期） | 见设计文档 §6 | 未开 | 依赖 SAILR-PORT-0001 ✅ + DECBENCH WP1/WP3（差分度量面） |
+
 ## 移植 wave 票池：`W-2026-09-26-MIGW1`（未派发；root 认领调度；来源=车道 DECOMP 未映射分解）
 
 > 数据源: `docs/alignment_audit/UNMAPPED_DECOMPOSITION_2026-09-26.md`（未映射 4956 四类分解:
