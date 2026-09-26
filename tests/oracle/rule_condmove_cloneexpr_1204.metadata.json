@@ -1,0 +1,66 @@
+{
+ "schema_version": 2,
+ "fixture_id": "RULEACTION-CLONEBLOCKOPS-0001",
+ "overall_status": "MATCH: (ticket-domain projection: RuleConditionalMove::compareOp sort + CloneBlockOps::cloneExpression via constructBool ruleaction.cc:9328-9341, 5 cases)",
+ "status_note": "RULEADJ2 lane B2 fixture for the compareOp straggler (RULEACTION-CLONEBLOCKOPS-0001): Rust construct_bool previously returned None for any non-empty op set — the whole cross-branch expression-clone path was dormant. Now construct_bool sorts ops by compareOp (ruleaction.hh:1433, SeqNum.getOrder strict-weak order) and clones them before the insertion op via CloneBlockOps::cloneExpression (funcdata_block.cc:1024-1040, exposed as Funcdata::clone_block_expression). Cases: clone_or_root_in0 (root==inblock0 diamond arm cc:9448-9467: BOOL_OR(bool0, clone(bool1)), the INT_EQUAL clone reusing the original op address and output storage), clone_and_negate (CBRANCH cond = BOOL_NEGATE(bool0) in root → andorselect flips → BOOL_AND with the same clone), clone_via_root_in1 (mirror arm cc:9469-9489: firstvn=bool1 formed in root, secondvn=clone of the INT_SLESS formed in the b0 side block), no_clone_pre_branch (both booleans formed in a pre-branch block p0 → gather lists empty → plain BOOL_OR of the originals, zero clones), reject_no_cbranch (root ends in INT_ADD → apply=0, MULTIEQUAL intact).",
+ "decisive_semantics": {
+  "reference_output_parameters": "constructBool(vn,insertop,ops,data) takes ops by NON-CONST reference and sorts it in place (cc:9333 std::sort with compareOp); cloneExpression(ops,followOp) mutates the Funcdata: buildOpClone registers each clone (newOp(numInput, origAddr)), buildVarnodeOutput creates the clone's output at the ORIGINAL output storage address (newVarnodeOut(size, origAddr, cloneOp), funcdata_block.cc:988), opInsertBefore(cloneOp, followOp) places clones immediately before the rewritten MULTIEQUAL.",
+  "loop_bounds_traversal_order": "cloneExpression iterates ops in the SORTED (SeqNum.getOrder) order so the expression is rebuilt bottom-up; the last clone's output is returned (funcdata_block.cc:1038-1039); patchInputs(0) walks cloneList in registration order; the MULTIEQUAL→COPY and INDIRECT/CALL throw arms are unreachable for gatherExpression-collected boolean expression ops.",
+  "counter_accumulator_lifecycle": "cloneList/origToClone are per-CloneBlockOps-instance; no cross-call state; gatherExpression caps ops at 4 entries (cc:9310).",
+  "sorting_comparison_keys": "compareOp = op0->getSeqNum().getOrder() < op1->getSeqNum().getOrder() (ruleaction.hh:1433) — within-block execution order ONLY, not creation time; std::sort and Rust sort_by are both unstable with identical strict-weak semantics; both sides print clone windows in beginOpAll (SeqNum addr,time) order so clone-vs-original row order is pinned by creation time."
+ },
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "decompiler_cpp_tree": "b02e230a539c65de14e50f357d0ba834d8184f4f",
+  "x86_language_tree": "84265e1e6fe7ac9725367b57fb861253e4915984",
+  "decompiler_makefile_blob": "ca0719fa5f17aabd14c52f40ed8b030f54d2aac6"
+ },
+ "architecture": "x86:LE:64:default",
+ "compiler_spec": {
+  "id": "gcc",
+  "path": "sleigh_specs/x86-64-gcc.cspec"
+ },
+ "analysis_options": "none: direct RuleConditionalMove::applyOp harness on a real BfdArchitecture Funcdata; no decompilation pipeline options",
+ "rugra_source": {
+  "base_commit": "CLONEEXPR_FIX_COMMIT",
+  "note": "compareOp + cloneExpression wiring commit (RULEACTION-CLONEBLOCKOPS-0001, Lane RULEADJ2); bilateral normal-mode byte equality proven on this tree"
+ },
+ "comparand": {
+  "cpp_fixture_sha256": "5ab3ec578fbba5f510f0569cc71ff02314df9fbbabf7de539a3557c40d4741b5",
+  "rust_fixture_sha256": "2136f8a3ef8a485c2b2e40db9bad6270bea6dd82e03be62cc69c3d7cd60797a3",
+  "oracle_record_sha256": "2be9ba36ff7edaa01ffee7d9f97bd1c2074f99d01ba594388f7400bb07f3c64a",
+  "runner_sha256": "504c6445c11360a7d0e6d3db89dd21b1f2080667999313dc69eff81e883ebe40"
+ },
+ "expected_results": {
+  "normal_stdout_sha256": "2be9ba36ff7edaa01ffee7d9f97bd1c2074f99d01ba594388f7400bb07f3c64a",
+  "normal_stderr": "empty both sides",
+  "ghidra_exit_code": 0,
+  "rugra_exit_code": 0,
+  "case_order": [
+   "clone_or_root_in0",
+   "clone_and_negate",
+   "clone_via_root_in1",
+   "no_clone_pre_branch",
+   "reject_no_cbranch"
+  ]
+ },
+ "coverage": {
+  "clone_paths": {
+   "status": "MATCH",
+   "covers": "both diamond arms (root==inblock0 cc:9448-9467, root==inblock1 cc:9469-9489), the BOOL_NEGATE complement flip, clone op/address+storage reuse, constants shared between clone and original",
+   "residual_todo_ids": []
+  },
+  "no_clone_and_reject": {
+   "status": "MATCH",
+   "covers": "pre-branch formation (empty gather lists → originals used directly); root without CBRANCH terminator rejects",
+   "residual_todo_ids": []
+  },
+  "uncovered_oracle_arms": {
+   "status": "UNTESTED",
+   "covers": "cloneExpression patchInputs MULTIEQUAL→COPY edge rewrite (funcdata_block.cc:1053-1060; gatherExpression never collects a MULTIEQUAL for this consumer) and the INDIRECT/CALL LowlevelError throws (cc:1061-1066); annotation-input newCodeRef duplication (cc:1073-1074) is dormant: the Rust cloner shares annotation varnodes — pre-existing nodeSplit-domain decision, unreachable for boolean expression ops",
+   "residual_todo_ids": []
+  }
+ },
+ "residual_todo_ids": []
+}

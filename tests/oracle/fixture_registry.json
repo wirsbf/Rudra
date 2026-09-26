@@ -8693,6 +8693,30 @@
           "oracle_record": "tests/oracle/rule_structoffset0_relptr_1204.oracle.out"
         }
       }
+    },
+    {
+      "id": "rule_condmove_cloneexpr",
+      "description": "RULEACTION-CLONEBLOCKOPS-0001 (Lane RULEADJ2): RuleConditionalMove compareOp sort + CloneBlockOps::cloneExpression via constructBool, 5 cases",
+      "runner": [
+        "tools/run_rule_condmove_cloneexpr_oracle.sh"
+      ],
+      "timeout_seconds": 900,
+      "always_tiers": [
+        "wave",
+        "nightly"
+      ],
+      "evidence_status": "MATCH",
+      "cache": {
+        "metadata": "tests/oracle/rule_condmove_cloneexpr_1204.metadata.json",
+        "tools": {
+          "runner": "tools/run_rule_condmove_cloneexpr_oracle.sh"
+        },
+        "inputs": {
+          "fixture_source_1": "tests/oracle/rule_condmove_cloneexpr_1204.cc",
+          "fixture_source_2": "tests/oracle/rule_condmove_cloneexpr_1204.rs",
+          "oracle_record": "tests/oracle/rule_condmove_cloneexpr_1204.oracle.out"
+        }
+      }
     }
   ]
 }

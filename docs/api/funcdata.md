@@ -3096,3 +3096,13 @@ pair (2 ops vs the iced direct-register STORE), and the seq_cmp_je fixture is 27
 The test module's leftover `use crate::disasm::{Disassembler, X86Lifter,
 X86_64Disassembler}` import line (dead after the site migration) is removed with the
 module retirement commit — the disasm module no longer exports those types.
+
+## 2026-09-27：`Funcdata::clone_block_expression` pub 桥（RULEACTION-CLONEBLOCKOPS-0001，Lane RULEADJ2）
+
+新增 6 行公共方法 `Funcdata::clone_block_expression(ops, follow_op)`：纯委托
+到模块私有 `CloneBlockOps::clone_expression`（funcdata.rs:18906+，nodeSplit
+车道按 funcdata_block.cc:1024-1040 落地的既有实现）。Ghidra 侧
+`CloneBlockOps` 在 funcdata.hh:630 是 public 类，ruleaction.cc:9334 直接
+实例化消费；Rust 结构体私有时该 pub 桥即模块边界上的同面暴露，零行为
+变化。唯一消费者=`RuleConditionalMove::construct_bool`（排序后跨块布尔
+表达式克隆，ruleaction.rs）。

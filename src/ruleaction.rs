@@ -16997,7 +16997,7 @@ impl Rule for RulePiecePathology {
 ///
 /// Faithful to `RuleConditionalMove` (ruleaction.cc:9390-9558) plus helpers
 /// `checkBoolean` (9259-9276), `gatherExpression` (9287-9316),
-/// `constructBool` (9328-9341).
+/// `constructBool` (9328-9341) and `compareOp` (ruleaction.hh:1433).
 ///
 /// NOTE: This rule is fundamentally block/control-flow driven. The block
 /// in-edge analysis (find the common root block ending in a CBRANCH), the
@@ -17005,11 +17005,11 @@ impl Rule for RulePiecePathology {
 /// paths, the mixed const/non-const paths, and the non-const BOOL_OR/BOOL_AND
 /// paths are all implemented against the available block + op-edit
 /// infrastructure. The non-constant `gatherExpression` collects the op set
-/// faithfully; `constructBool` reproduces the expression only when no cross-
-/// branch op duplication is required (empty op set) — the full
-/// `CloneBlockOps::cloneExpression` (cross-block op cloning) is not yet ported,
-/// so the rare case where the boolean is formed *inside* the branch block still
-/// conservatively no-ops.
+/// faithfully; `constructBool` sorts it with `compareOp` and clones it before
+/// the insertion point via `CloneBlockOps::cloneExpression`
+/// (funcdata_block.cc:1024-1040, exposed as `Funcdata::clone_block_expression`)
+/// — the cross-branch op duplication is fully wired
+/// (RULEACTION-CLONEBLOCKOPS-0001).
 pub struct RuleConditionalMove;
 
 impl RuleConditionalMove {
@@ -17048,10 +17048,11 @@ impl RuleConditionalMove {
     /// empty when nothing needs duplication (constant/free/input/pre-branch
     /// values, or `root==branch`).
     ///
-    /// Rugra does not implement `CloneBlockOps::cloneExpression` (the cross-block
-    /// op duplicator). Callers that get a non-empty `ops` therefore cannot build
-    /// the cloned expression and must bail. The empty-list case — which covers
-    /// values formed before the branch — works without cloning.
+    /// A non-empty op list is consumed by `constructBool`, which clones the
+    /// ops before the insertion point via
+    /// `CloneBlockOps::cloneExpression` (`Funcdata::clone_block_expression`)
+    /// — the cross-branch op duplication path (RULEACTION-CLONEBLOCKOPS-0001).
+    // Ghidra: ruleaction.cc:9287 RuleConditionalMove::gatherExpression
     // Ghidra: ruleaction.cc:9287 RuleConditionalMove::gatherExpression
     fn gather_expression(
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
@@ -17125,22 +17126,54 @@ impl RuleConditionalMove {
     /// Faithful to `constructBool` (ruleaction.cc:9328-9341). Returns the
     /// Varnode representing the (possibly reproduced) boolean expression.
     ///
-    /// Ghidra uses `CloneBlockOps::cloneExpression` to duplicate the `ops` set
-    /// before `insertop`. Rugra has no such cross-block cloner, so:
-    ///   - `ops` empty   → return `vn` itself (faithful, no cloning needed).
-    ///   - `ops` non-empty → return None (cannot clone); caller bails.
+    /// `ops` is sorted in place by [`Self::compare_op`] (cc:9333), then the
+    /// expression is cloned before `insertop` via
+    /// `CloneBlockOps::cloneExpression` (cc:9334-9335, exposed as
+    /// `Funcdata::clone_block_expression`). An empty `ops` returns `vn`
+    /// itself (cc:9337-9339). `cloneExpression`'s
+    /// `LowlevelError("No expression to clone")` (funcdata_block.cc:1035-1036)
+    /// propagates as `Err`, mirroring the oracle throw path through
+    /// `RuleConditionalMove::applyOp` up to the Action loop.
     // Ghidra: ruleaction.cc:9328 RuleConditionalMove::constructBool
     fn construct_bool(
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
-        ops: &[std::sync::Arc<std::sync::RwLock<PcodeOp>>],
-        _insertop: &crate::op::PcodeOpRef,
-        _data: &mut Funcdata,
-    ) -> Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> {
-        if ops.is_empty() {
-            return Some(vn.clone());
+        ops: &mut [std::sync::Arc<std::sync::RwLock<PcodeOp>>],
+        insertop: &crate::op::PcodeOpRef,
+        data: &mut Funcdata,
+    ) -> Result<Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>>> {
+        if !ops.is_empty() {
+            // cc:9333: sort(ops.begin(),ops.end(),compareOp) — within-block
+            // order so the clones are rebuilt in original evaluation order.
+            ops.sort_by(|a, b| {
+                if Self::compare_op(a, b) {
+                    std::cmp::Ordering::Less
+                } else if Self::compare_op(b, a) {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            });
+            // cc:9334-9335: CloneBlockOps cloner(data);
+            //          resvn = cloner.cloneExpression(ops, insertop);
+            let refs: Vec<crate::op::PcodeOpRef> =
+                ops.iter().map(|a| crate::op::PcodeOpRef(a.clone())).collect();
+            return data.clone_block_expression(&refs, insertop);
         }
-        // CloneBlockOps not ported: cannot reproduce the cross-branch expression.
-        None
+        // cc:9337-9339: resvn = vn.
+        Ok(Some(vn.clone()))
+    }
+
+    /// Faithful to `RuleConditionalMove::compareOp`
+    /// (ruleaction.hh:1433): `op0->getSeqNum().getOrder() <
+    /// op1->getSeqNum().getOrder()` — strict-weak order on the within-block
+    /// execution order only (SeqNum.order, address.hh:142), NOT the immutable
+    /// creation time. Sole consumer: `constructBool`'s
+    /// `sort(ops,compareOp)` (ruleaction.cc:9333).
+    // Ghidra: ruleaction.hh:1433 RuleConditionalMove::compareOp
+    fn compare_op(
+        op0: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, op1: &std::sync::Arc<std::sync::RwLock<PcodeOp>>,
+    ) -> bool {
+        op0.read().unwrap().get_seq_num().get_order() < op1.read().unwrap().get_seq_num().get_order()
     }
 }
 
@@ -17262,8 +17295,8 @@ impl Rule for RuleConditionalMove {
 
         // Non-const branch (ruleaction.cc:9447-9491): both bool0 and bool1 are
         // non-constant. Produces a BOOL_OR / BOOL_AND of the CBRANCH's boolean
-        // against the reconstructed operands. Requires constructBool, which (in
-        // Rugra) only succeeds when no cross-branch op duplication is needed.
+        // against the reconstructed operands (constructBool clones any
+        // cross-branch op set via CloneBlockOps::cloneExpression).
         if !is_bool0_const && !is_bool1_const {
             if std::sync::Arc::ptr_eq(&rootblock, &inblock0) {
                 // inblock0 == rootblock0 path (ruleaction.cc:9448-9467).
@@ -17286,9 +17319,13 @@ impl Rule for RuleConditionalMove {
                 fd.op_uninsert(&op_ref);
                 fd.op_set_opcode(&op_ref, opc);
                 fd.op_insert_begin(&op_ref, &bb);
-                let firstvn = match Self::construct_bool(&bool0, &op_list0, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                let firstvn = match Self::construct_bool(&bool0, &mut op_list0, &op_ref, fd)? {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
                 };
-                let secondvn = match Self::construct_bool(&bool1, &op_list1, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                let secondvn = match Self::construct_bool(&bool1, &mut op_list1, &op_ref, fd)? {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
                 };
                 fd.op_set_input(&op_ref, firstvn, 0);
                 fd.op_set_input(&op_ref, secondvn, 1);
@@ -17314,9 +17351,13 @@ impl Rule for RuleConditionalMove {
                 fd.op_uninsert(&op_ref);
                 fd.op_set_opcode(&op_ref, opc);
                 fd.op_insert_begin(&op_ref, &bb);
-                let firstvn = match Self::construct_bool(&bool1, &op_list1, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                let firstvn = match Self::construct_bool(&bool1, &mut op_list1, &op_ref, fd)? {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
                 };
-                let secondvn = match Self::construct_bool(&bool0, &op_list0, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+                let secondvn = match Self::construct_bool(&bool0, &mut op_list0, &op_ref, fd)? {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
                 };
                 fd.op_set_input(&op_ref, firstvn, 0);
                 fd.op_set_input(&op_ref, secondvn, 1);
@@ -17369,7 +17410,9 @@ impl Rule for RuleConditionalMove {
                 None => return Ok(action_status::NO_CHANGE),
             };
             let boolvn = if needcomplement { fd.op_bool_negate(boolvn, &op_ref, false) } else { boolvn };
-            let body1 = match Self::construct_bool(&bool1, &op_list1, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+            let body1 = match Self::construct_bool(&bool1, &mut op_list1, &op_ref, fd)? {
+                Some(v) => v,
+                None => return Ok(action_status::NO_CHANGE),
             };
             fd.op_set_input(&op_ref, boolvn, 0);
             fd.op_set_input(&op_ref, body1, 1);
@@ -17384,7 +17427,9 @@ impl Rule for RuleConditionalMove {
                 None => return Ok(action_status::NO_CHANGE),
             };
             let boolvn = if needcomplement { fd.op_bool_negate(boolvn, &op_ref, false) } else { boolvn };
-            let body0 = match Self::construct_bool(&bool0, &op_list0, &op_ref, fd) { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
+            let body0 = match Self::construct_bool(&bool0, &mut op_list0, &op_ref, fd)? {
+                Some(v) => v,
+                None => return Ok(action_status::NO_CHANGE),
             };
             fd.op_set_input(&op_ref, boolvn, 0);
             fd.op_set_input(&op_ref, body0, 1);
@@ -24698,16 +24743,18 @@ mod tests {
             OpCode::CPUI_BOOL_OR,
         ))));
         // Empty op list → returns the varnode directly.
-        let res = RuleConditionalMove::construct_bool(&boolvn, &[], &op_ref, &mut fd);
+        let res = RuleConditionalMove::construct_bool(&boolvn, &mut [], &op_ref, &mut fd).unwrap();
         assert!(res.is_some());
         assert!(Arc::ptr_eq(&res.unwrap(), &boolvn));
     }
 
     #[test]
-    fn test_conditional_move_construct_bool_needs_clone() {
-        // constructBool with a non-empty op list cannot reproduce the
-        // expression without CloneBlockOps (not yet ported) → returns None.
-        // The caller (applyOp) then bails with NO_CHANGE.
+    fn test_conditional_move_construct_bool_clones_expression() {
+        // constructBool with a non-empty op list sorts it by compareOp
+        // (SeqNum.order, ruleaction.cc:9333) and rebuilds the expression via
+        // CloneBlockOps::cloneExpression (ruleaction.cc:9334-9335): every op
+        // is duplicated before insertop and the output of the LAST cloned op
+        // (highest execution order) is returned (funcdata_block.cc:1038-1039).
         let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
         let boolvn = fd
             .vbank
@@ -24716,13 +24763,91 @@ mod tests {
             SeqNum::new(Address::new(0x1000), 0),
             OpCode::CPUI_BOOL_OR,
         ))));
-        // A dummy op in the list signals cross-branch duplication is required.
-        let dummy_op = Arc::new(RwLock::new(PcodeOp::new(
+        // Expression formed inside the branch: INT_AND(order 0) feeding
+        // INT_OR(order 1). The output varnodes come from the vbank so
+        // buildVarnodeOutput can clone them onto the cloned ops.
+        let and_out = fd
+            .vbank
+            .create_with_space(1, crate::space::AddressSpace::Unique, 0x100);
+        let or_out = fd
+            .vbank
+            .create_with_space(1, crate::space::AddressSpace::Unique, 0x108);
+        let and_op = Arc::new(RwLock::new(PcodeOp::new(
             SeqNum::new(Address::new(0x1000), 1),
             OpCode::CPUI_INT_AND,
         )));
-        let res = RuleConditionalMove::construct_bool(&boolvn, &[dummy_op], &op_ref, &mut fd);
-        assert!(res.is_none());
+        {
+            let mut o = and_op.write().unwrap();
+            o.start.order = 0;
+            o.inrefs = vec![
+                fd.vbank.create_constant(1, 1),
+                fd.vbank.create_constant(1, 0),
+            ];
+            o.output = Some(and_out.clone());
+        }
+        let or_op = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 2),
+            OpCode::CPUI_INT_OR,
+        )));
+        {
+            let mut o = or_op.write().unwrap();
+            o.start.order = 1;
+            o.inrefs = vec![and_out.clone(), fd.vbank.create_constant(1, 1)];
+            o.output = Some(or_out.clone());
+        }
+        // Hand the ops over in REVERSE execution order: the compareOp sort
+        // inside constructBool must put the INT_AND (order 0) first.
+        let mut ops = vec![or_op.clone(), and_op.clone()];
+        let res = RuleConditionalMove::construct_bool(&boolvn, &mut ops, &op_ref, &mut fd)
+            .unwrap()
+            .expect("cloneExpression returns the last clone's output");
+        // The result is a fresh Varnode (clone), not the original output.
+        assert!(!Arc::ptr_eq(&res, &or_out));
+        // Its defining op is the cloned INT_OR (highest order cloned last).
+        let def_opcode = res
+            .read()
+            .unwrap()
+            .get_def()
+            .map(|d| d.read().unwrap().opcode);
+        assert_eq!(def_opcode, Some(OpCode::CPUI_INT_OR));
+        // The input ops were sorted in place: INT_AND now first.
+        assert!(Arc::ptr_eq(&ops[0], &and_op));
+        assert!(Arc::ptr_eq(&ops[1], &or_op));
+        // The clone bank grew by two alive ops with patched constant inputs.
+        let alive_and = fd
+            .obank
+            .alivelist
+            .iter()
+            .filter(|c| c.0.read().unwrap().opcode == OpCode::CPUI_INT_AND)
+            .count();
+        assert_eq!(alive_and, 1);
+    }
+
+    #[test]
+    fn test_conditional_move_compare_op_orders_by_seqnum_order() {
+        // compareOp (ruleaction.hh:1433) orders strictly by SeqNum.getOrder()
+        // — the within-block execution order — and NOT by creation time.
+        let a = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 5),
+            OpCode::CPUI_INT_AND,
+        )));
+        a.write().unwrap().start.order = 2;
+        let b = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 9),
+            OpCode::CPUI_INT_OR,
+        )));
+        b.write().unwrap().start.order = 1;
+        // b has smaller within-block order despite larger creation time.
+        assert!(!RuleConditionalMove::compare_op(&a, &b));
+        assert!(RuleConditionalMove::compare_op(&b, &a));
+        // Equal orders compare false both ways (strict weak ordering).
+        let c = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 7),
+            OpCode::CPUI_INT_OR,
+        )));
+        c.write().unwrap().start.order = 2;
+        assert!(!RuleConditionalMove::compare_op(&a, &c));
+        assert!(!RuleConditionalMove::compare_op(&c, &a));
     }
 
     #[test]

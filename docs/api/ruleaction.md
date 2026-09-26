@@ -2202,3 +2202,23 @@ INT_ADD 输出（cc:6716-6720），否则直连 PTRSUB 输出（cc:6721-6722）�
 throw 臂对本消费者不可达（gatherExpression 不收集）；annotation 输入
 newCodeRef 复制在 Rust 克隆器为共享 varnode（nodeSplit 域既有决定，布尔
 表达式输入不可达）——均记入 metadata coverage UNTESTED 臂，不冒充覆盖。
+
+**② RuleConditionalMove::compareOp + cloneExpression 接线**
+（ruleaction.hh:1433 / ruleaction.cc:9328-9341 / funcdata_block.cc:1024-1040）：
+`compare_op` 1:1 移植（`SeqNum::get_order` 严格弱序，仅块内执行序而非创建
+time）；`construct_bool` 从"ops 非空返回 None"改写为 oracle 形态——原位
+sort（`&mut [..]`，镜像 C++ 非 const vector&）→ `CloneBlockOps::cloneExpression`
+（**该克隆器已由 nodeSplit 车道落在 src/funcdata.rs:18906（私有）**，票面
+"未移植"陈述被推翻；经 6 行 pub 桥 `Funcdata::clone_block_expression`
+暴露——Ghidra 侧 funcdata.hh:630 类本就是 public，ruleaction.cc:9334 直接
+实例化，pub 桥是 Rust 模块边界的同面镜像）→ 返回末位克隆输出；
+`LowlevelError("No expression to clone")` 以 `Err` 经 `?` 上抛 = oracle throw
+路径。六处调用点同步 `&mut` + `?`。B2 fixture
+`rule_condmove_cloneexpr_1204`（5 例：root==inblock0 克隆臂/BOOL_NEGATE
+翻转臂/root==inblock1 镜像臂/分支前形成无克隆对照/无 CBRANCH 拒）与锁定
+oracle 字节恒等，双跑确定性亲证；registry 231→232。
+
+残差如实登记：cloneExpression 的 MULTIEQUAL→COPY 边改写与 INDIRECT/CALL
+throw 臂对本消费者不可达（gatherExpression 不收集）；annotation 输入
+newCodeRef 复制在 Rust 克隆器为共享 varnode（nodeSplit 域既有决定，布尔
+表达式输入不可达）——均记入 metadata coverage UNTESTED 臂，不冒充覆盖。

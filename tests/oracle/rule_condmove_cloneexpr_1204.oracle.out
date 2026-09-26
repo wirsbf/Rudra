@@ -1,0 +1,34 @@
+case=clone_or_root_in0|apply=1
+  op=15@0x830010|nin=2|in0=c|1|0x1|in1=c|1|0x0|out=1
+  op=5@0x830030|nin=2|in0=c|8|0x830070|in1=w|1|0x10000000|out=-1
+  op=11@0x830050|nin=2|in0=c|1|0x0|in1=c|1|0x1|out=1
+  op=11@0x830050|nin=2|in0=c|1|0x0|in1=c|1|0x1|out=1
+  op=40@0x830070|nin=2|in0=w|1|0x10000000|in1=w|1|0x10000001|out=1
+endcase
+case=clone_and_negate|apply=1
+  op=15@0x830110|nin=2|in0=c|1|0x1|in1=c|1|0x0|out=1
+  op=37@0x830118|nin=1|in0=w|1|0x10000003|in1=_|0|0x0|out=1
+  op=5@0x830130|nin=2|in0=c|8|0x830170|in1=w|1|0x10000004|out=-1
+  op=11@0x830150|nin=2|in0=c|1|0x0|in1=c|1|0x1|out=1
+  op=11@0x830150|nin=2|in0=c|1|0x0|in1=c|1|0x1|out=1
+  op=39@0x830170|nin=2|in0=w|1|0x10000003|in1=w|1|0x10000005|out=1
+endcase
+case=clone_via_root_in1|apply=1
+  op=11@0x830210|nin=2|in0=c|1|0x1|in1=c|1|0x0|out=1
+  op=5@0x830230|nin=2|in0=c|8|0x830270|in1=w|1|0x10000007|out=-1
+  op=13@0x830250|nin=2|in0=c|1|0x0|in1=c|1|0x1|out=1
+  op=13@0x830250|nin=2|in0=c|1|0x0|in1=c|1|0x1|out=1
+  op=40@0x830270|nin=2|in0=w|1|0x10000007|in1=w|1|0x10000008|out=1
+endcase
+case=no_clone_pre_branch|apply=1
+  op=15@0x830308|nin=2|in0=c|1|0x1|in1=c|1|0x0|out=1
+  op=11@0x83030c|nin=2|in0=c|1|0x0|in1=c|1|0x1|out=1
+  op=5@0x830330|nin=2|in0=c|8|0x830370|in1=w|1|0x1000000a|out=-1
+  op=40@0x830370|nin=2|in0=w|1|0x1000000a|in1=w|1|0x1000000b|out=1
+endcase
+case=reject_no_cbranch|apply=0
+  op=15@0x830410|nin=2|in0=c|1|0x1|in1=c|1|0x0|out=1
+  op=19@0x830430|nin=2|in0=w|1|0x1000000d|in1=c|1|0x1|out=1
+  op=11@0x830450|nin=2|in0=c|1|0x0|in1=c|1|0x1|out=1
+  op=60@0x830470|nin=2|in0=w|1|0x1000000d|in1=w|1|0x1000000e|out=1
+endcase
