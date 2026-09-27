@@ -3512,6 +3512,11 @@ CALLSPEC 移交件三消费者之一的 (c) 落地：`lookForBadJumpTables`
   构造 CALLIND+spec+in(0) 高变量 ScopeLocal 符号链——旗标 false 时名字
   不动（生产休眠态），置 true（flow.cc:754 等价）后
   rename→`UNRECOVERED_JUMPTABLE` 且 high_symbols 通道完好。
+  2026-09-27 CANON-REGJUNK-INRAX-LIVEVAR-0001 适配：inject_raw_ops 的
+  Phase 3 输入预提升整体退役（寄存器 INPUT 仅由 Heritage renameRecurse
+  晋升，heritage.cc:2499-2503），本单测在 `set_high_level` 前显式
+  `set_input_varnode` 提升 CALLIND in(0)——模拟真实管线 heritage 后态
+  （ActionNameVars::linkSymbols 命名的是 input 高变量），断言面不变。
 
 **activereturn 接线核验（移交件 (d) 判词：已活跳，无需代码）**：
 `ActionActiveReturn`（coreaction.cc:1773-1792 镜像）在

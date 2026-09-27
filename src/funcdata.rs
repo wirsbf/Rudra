@@ -8771,115 +8771,49 @@ impl Funcdata {
             "[INJECT] {} phase2 done bblocks={}", self.name, self.bblocks.get_size()
         );
 
-        // Phase 3: Mark unwritten Register-space input varnodes as INPUT
-        // In Ghidra's model, Heritage marks register reads with no prior definition
-        // within the function as INPUT varnodes (function parameters / callee-saved regs).
+        // Phase 3 (register-input pre-promotion) REMOVED
+        // (CANON-REGJUNK-XMM-EXTRAOUT-0001 + CANON-REGJUNK-INRAX-LIVEVAR-0001).
         //
-        // Correct semantics (read-before-write): a register read at op N is an INPUT
-        // if no earlier op (in instruction order) wrote to that register offset.
-        // Using a global "ever-defined" set is WRONG because parameter registers
-        // are routinely re-assigned mid-function (e.g. RDX is read as param_3 at
-        // 0x34a2 then overwritten by `mov rdx,[rsp+8]` at 0x34ac). A global set
-        // would see the later write and miss the earlier read.
+        // This phase was a June-era linear-order scan that promoted the first
+        // free Register-space read of each offset to an INPUT varnode at inject
+        // time, predating the faithful Heritage port. It diverges from Ghidra's
+        // model, where register INPUT varnodes are created EXCLUSIVELY by
+        // Heritage's dominance-aware renaming (heritage.cc:2499-2503
+        // renameRecurse: empty varstack -> newVarnode + setInputVarnode), long
+        // after ActionFuncLink has attached locked call outputs
+        // (coreaction.cc:1551 funcLinkOutput `data.newVarnodeOut(sz,addr,callop)`)
+        // and Heritage::guardCalls has created the call-effect INDIRECTs
+        // (heritage.cc:1443-1527).
         //
-        // We process ops in order; for each op we first inspect its inputs (reads)
-        // and then record its output (write). This gives correct read-before-write
-        // ordering within the linear instruction stream.
+        // The linear scan answers "is this read preceded by a write in linear
+        // instruction order", but the correct reaching-def question is a
+        // dominance question, and the call case is systematically wrong: at
+        // inject time CALL ops have no outputs yet (they are attached at
+        // funclink), so a read shadowed by a call — e.g. `mov %rax,%rbx` after
+        // `call strchr` — was promoted to `in_RAX`, which Heritage can then
+        // never rebind (Heritage::collect classifies input varnodes as INPUT,
+        // not as free reads, heritage.cc:342-343). Drill-verified divergences:
+        //   - ap_field_noparam: loop phi `RBX = RAX(i) ? RBX-sub` instead of
+        //     `RAX(callout) ? RBX-sub` -> `in_RAX` leaks as an independent
+        //     live loop variable (oracle drill line: `RBX(0x2dd79:da) =
+        //     RAX(0x2dd4b:ce) ? RBX(0x2dd70:66)` after RulePropagateCopy
+        //     pushed the copy input, ruleaction.cc:3924-3956).
+        //   - ap_fini_vhost_config: the first `pxor %xmm0,%xmm0` had slot 0
+        //     pre-promoted to `XMM0(i)` while slot 1 stayed free and bound to
+        //     the loop phi, so RuleTrivialArith's identical-input collapse
+        //     (ruleaction.cc:2362-2380 `in0 != in1` requires the SAME
+        //     varnode) never fired -> two XMM0 copies + extraout_XMM0
+        //     materialization + XMM0 mis-promoted to a 3rd parameter. The
+        //     second pxor (whose offset was already deduped by this phase)
+        //     bound BOTH slots to the phi and collapsed to
+        //     `(undefined1[16])0` exactly like the golden.
         //
-        // CALL ops are skipped: the lifter attaches 6 ABI arg registers as inputs
-        // to every CALL, which represent arguments PASSED TO the callee, not
-        // registers READ by this function. Counting them would inflate the INPUT
-        // set with RDI/RSI/RDX/RCX/R8/R9 on every function containing a call.
-        let mut defined_reg_offsets: std::collections::HashSet<u64> = std::collections::HashSet::new();
-
-        // Track which offsets we've already marked as INPUT to avoid duplicates
-        let mut marked_input = std::collections::HashSet::new();
-        for op_ref in &op_refs {
-            // Snapshot first. setInput can canonicalize through xref and
-            // rewrite this op's slots, so no read guard on the op may survive
-            // across the bank transition.
-            let (opcode, inputs, output) = {
-                let op = op_ref.0.read().unwrap();
-                (op.opcode, op.inrefs.clone(), op.output.clone())
-            };
-
-            // Skip CALL: its register inputs are callee args, not this function's reads.
-            if opcode == OpCode::CPUI_CALL {
-                // Still record any output (call return value in RAX) as defined,
-                // so a later read of RAX is not mistaken for a parameter.
-                if let Some(ref out_arc) = output {
-                    let out_vn = out_arc.read().unwrap();
-                    if out_vn.get_space() == AddressSpace::Register {
-                        defined_reg_offsets.insert(out_vn.get_offset());
-                    }
-                }
-                continue;
-            }
-
-            // First: process reads (inputs) against the *current* defined set.
-            for (slot, in_arc) in inputs.into_iter().enumerate() {
-                let vn = in_arc.read().unwrap();
-                if vn.get_space() == AddressSpace::Register
-                    && vn.is_free()
-                    && !vn.is_input()
-                    && !defined_reg_offsets.contains(&vn.get_offset())
-                    && marked_input.insert(vn.get_offset())
-                {
-                    drop(vn); // Release read lock before write
-                    let canonical = self.vbank.set_input_prevalidated(in_arc);
-                    // PRINTC-BADSPACEBASE-RENDER-0001: Funcdata::
-                    // setInputVarnode's effect tail (funcdata_varnode.cc:
-                    // 365-370) must also run for iced-prelude promotions —
-                    // Ghidra marks every input through setInputVarnode, so
-                    // the ProtoModel unaffected/return_address records
-                    // (x86-64 cspec <unaffected> RSP/RBP/RBX) reach every
-                    // input varnode. Without the tail the RSP input misses
-                    // Varnode::unaffected, HighVariable::hasName
-                    // (variable.cc:737-744) then names the spacebase high,
-                    // and printc leaks a `BADSPACEBASE *in_register_…`
-                    // declaration (ActionNameVars::linkSymbols coreaction.cc:
-                    // 2961-2962 hasName gate).
-                    {
-                        let (space, offset, size) = {
-                            let guard = canonical.read().unwrap();
-                            (guard.get_space(), guard.get_offset(), guard.get_size())
-                        };
-                        if let Some(effecttype) =
-                            self.funcp.try_has_effect(space, offset, size as i32)
-                        {
-                            let mut guard = canonical.write().unwrap();
-                            if effecttype == crate::fspec::EffectType::Unaffected {
-                                guard.set_unaffected();
-                            }
-                            if effecttype == crate::fspec::EffectType::ReturnAddress {
-                                // Should be unaffected over the course of
-                                // the function (funcdata_varnode.cc:369).
-                                guard.set_unaffected();
-                                guard.set_return_address();
-                            }
-                        }
-                    }
-                    debug_assert!(op_ref
-                        .0
-                        .read()
-                        .unwrap()
-                        .inrefs
-                        .get(slot)
-                        .is_some_and(|current| Arc::ptr_eq(current, &canonical)));
-                }
-            }
-
-            // Then: record this op's output as defined for subsequent ops.
-            if let Some(ref out_arc) = output {
-                let out_vn = out_arc.read().unwrap();
-                if out_vn.get_space() == AddressSpace::Register {
-                    defined_reg_offsets.insert(out_vn.get_offset());
-                }
-            }
-        }
-        eprintln!(
-            "[INJECT] {} phase3 done marked_input={}", self.name, marked_input.len()
-        );
+        // The unaffected/return_address effect tail that phase 3 carried for
+        // its promotions (PRINTC-BADSPACEBASE-RENDER-0001) is likewise owned
+        // by the heritage path: Funcdata::setInputVarnode's own tail
+        // (funcdata_varnode.cc:365-370) runs on every heritage promotion
+        // (funcdata.rs set_input_varnode, the cc:340-373 port).
+        //
         // NOTE: Phase 4 global use-def linking is disabled — it correctly
         // resolves stack symbols (verified) but perturbs typeop inference
         // (struct-pointer types leak into switch/arith contexts). varmap's
@@ -17419,6 +17353,34 @@ mod tests {
 
         let mut fd = Funcdata::new("test_spacebase", Address::new(0x1000), 0x100);
         fd.inject_raw_ops(&[read_rsp, read_rax]);
+
+        // CANON-REGJUNK-INRAX-LIVEVAR-0001: inject_raw_ops no longer
+        // pre-promotes register reads to INPUT (the removed linear-scan
+        // phase 3); in Ghidra's model input promotion is Heritage's job
+        // (heritage.cc:2499-2503 renameRecurse). Model the post-heritage
+        // state the way the real pipeline reaches it: promote the free
+        // reads through Funcdata::setInputVarnode (funcdata_varnode.cc:
+        // 340-373), which spacebase() then visits (oracle order:
+        // fullloop:mainloop heritage precedes spacebase, coreaction.cc
+        // :5506).
+        {
+            let reads: Vec<_> = fd
+                .vbank
+                .loc_tree
+                .iter()
+                .map(|v| v.0.clone())
+                .collect();
+            for vn in reads {
+                let is_free_reg = {
+                    let g = vn.read().unwrap();
+                    g.get_space() == AddressSpace::Register && g.is_free()
+                };
+                if is_free_reg {
+                    let promoted = fd.set_input_varnode(vn.clone());
+                    debug_assert!(Arc::ptr_eq(&promoted, &vn));
+                }
+            }
+        }
 
         // Before spacebase(): no varnode has SPACEBASE flag.
         let sb_before = fd

@@ -7859,6 +7859,78 @@ mod tests {
         assert_eq!(maxdepth, 4);
     }
 
+    // CANON-REGJUNK-INRAX-LIVEVAR-0001 + CANON-REGJUNK-XMM-EXTRAOUT-0001:
+    // a register read shadowed by a CALL (whose output was attached the way
+    // ActionFuncLink::funcLinkOutput attaches locked-proto returns,
+    // coreaction.cc:1551) must bind to the CALL's output varnode under the
+    // production single-pass heritage — never to a pre-promoted INPUT
+    // varnode. The removed inject_raw_ops phase 3 promoted such reads to
+    // inputs at inject time (before funclink attaches call outputs), which
+    // Heritage::collect then classifies as INPUT (heritage.cc:342-343) and
+    // can never rebind — producing `in_RAX` live-variable leaks (ap_field_
+    // noparam) and non-collapsible `x^x` forms (ap_fini_vhost_config's
+    // `pxor %xmm0,%xmm0`, whose RuleTrivialArith collapse,
+    // ruleaction.cc:2362-2380, requires both input slots to be the SAME
+    // varnode).
+    #[test]
+    fn test_call_shadowed_read_binds_to_call_output_under_heritage() {
+        let mut g = OwnershipGraph::new("regjunk_callshadow", 0x7000);
+        // Production heritage requires the per-space HeritageInfo list,
+        // built exactly once by Funcdata::startProcessing
+        // (funcdata.cc:166 -> Heritage::buildInfoList) before the first
+        // ActionHeritage pass.
+        g.fd.start_processing();
+        let b0 = g.block(0);
+        // CALL with an attached RAX output (the funclink locked-proto form).
+        let call = g.op(OpCode::CPUI_CALL, 1);
+        let target = g.constant(8, 0x1234);
+        g.set_input(&call, &target, 0);
+        let call_out = g.written_register(0x0, 8, &call); // RAX
+        // The read directly after the call: RBX = COPY RAX
+        // (the `mov %rax,%rbx` shape of ap_field_noparam@0x12dd50).
+        let copy = g.op(OpCode::CPUI_COPY, 1);
+        let free_rax = g.free_register(0x0, 8);
+        g.set_input(&copy, &free_rax, 0);
+        let _rbx = g.written_register(0x38, 8, &copy);
+        g.insert_end(&call, &b0);
+        g.insert_end(&copy, &b0);
+
+        // Inject-time invariant: the read stays free — no linear-order
+        // input pre-promotion.
+        assert!(
+            free_rax.read().unwrap().is_free(),
+            "call-shadowed read must stay free at inject time"
+        );
+        assert!(!free_rax.read().unwrap().is_input());
+
+        g.fd.op_heritage();
+
+        // Heritage invariant: the read binds to the CALL's output varnode.
+        let bound = copy
+            .0
+            .read()
+            .unwrap()
+            .get_in(0)
+            .cloned()
+            .expect("copy input present");
+        assert!(
+            Arc::ptr_eq(&bound, &call_out),
+            "read after the call must bind to the call output, not an input varnode"
+        );
+        // And no INPUT varnode was fabricated at RAX by the promotion path
+        // (only the entry-block-empty-stack shape may create inputs).
+        let rax_input = g.fd.vbank.loc_tree.iter().any(|v| {
+            let vn = v.0.read().unwrap();
+            vn.is_input()
+                && vn.get_space() == AddressSpace::Register
+                && vn.get_offset() == 0x0
+        });
+        assert!(
+            !rax_input,
+            "heritage must not fabricate an in_RAX input when the call output reaches"
+        );
+    }
+
     // HERITAGE-OWNERSHIP-0001: explicit record of the behavioral difference
     // between the old production recipe (two direct place/rename passes with
     // an embedded ActionDeadCode sandwich and stack-store discovery between
