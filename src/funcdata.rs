@@ -19442,3 +19442,189 @@ fn test_scope_local_in_scope_wraps_at_space_top() {
     ));
 }
 }
+
+/// GETPARAM-FORLOOP-OPMOVE-0001 regression suite: the finalTransform
+/// op-move primitive pair (`Funcdata::opUninsert` + `Funcdata::opInsertAfter`,
+/// funcdata_op.cc:164-173 / 373-404) that block.cc:3381-3396 uses to migrate
+/// the iterate/initialize statements to their basic block's terminal
+/// statement position. Rust-side regression only (mechanism B2: corpus-level
+/// oracle equivalence is witnessed by the F8FOR canon/mirror A/B evidence);
+/// these tests pin the bank-level mechanics the ticket doubted existed —
+/// detach (dead list, parentless) / reattach (alive, ordered) with Varnode
+/// links intact, within one block and across block boundaries.
+#[cfg(test)]
+mod final_transform_op_move_tests {
+    use super::*;
+    use crate::block::BlockBasic;
+
+    type BlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
+
+    fn block_of(index: i32, addr: u64) -> BlockArc {
+        Arc::new(RwLock::new(BlockBasic::new(index, Address::new(addr))))
+    }
+
+    fn ops_of(b: &BlockArc) -> Vec<PcodeOpRef> {
+        b.read().unwrap().get_ops()
+    }
+
+    fn same_op(a: &PcodeOpRef, b: &PcodeOpRef) -> bool {
+        Arc::ptr_eq(&a.0, &b.0)
+    }
+
+    fn op_parent_is(op: &PcodeOpRef, b: &BlockArc) -> bool {
+        op.0
+            .read()
+            .unwrap()
+            .parent
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .map(|p| Arc::ptr_eq(&p, b))
+            .unwrap_or(false)
+    }
+
+    fn in_alive_exactly_once(fd: &Funcdata, op: &PcodeOpRef) -> bool {
+        fd.obank
+            .alivelist
+            .iter()
+            .filter(|r| Arc::ptr_eq(&r.0, &op.0))
+            .count()
+            == 1
+    }
+
+    fn in_dead(fd: &Funcdata, op: &PcodeOpRef) -> bool {
+        fd.obank.deadlist.iter().any(|r| Arc::ptr_eq(&r.0, &op.0))
+    }
+
+    /// cc:3381-3384 shape: `iterateOp` sits mid-block in the tail block;
+    /// opUninsert + opInsertAfter(lastOp) must land it as the block's
+    /// terminal statement, preserving input/output Varnode links and the
+    /// alive-list membership (funcdata_op.cc:164-173 puts the op on the dead
+    /// list; opInsert -> opInsert -> markAlive restores it — op.cc:1022).
+    #[test]
+    fn op_move_pair_migrates_mid_block_op_to_terminal_statement() {
+        let mut fd = Funcdata::new("opmove_tail", Address::new(0x1000), 1);
+        let tail = block_of(0, 0x1000);
+        fd.bblocks.add_block(tail.clone());
+
+        // Block layout: [me(MULTIEQUAL), iterate(INT_ADD), victim(INT_SUB),
+        // last(INT_OR)] — iterate is a non-terminal iterate-statement
+        // candidate exactly like the oracle's mid-tail iterateOp.
+        let me = fd.new_op(2, Address::new(0x1000));
+        fd.op_set_opcode(&me, OpCode::CPUI_MULTIEQUAL);
+        fd.op_insert_end(&me, &tail);
+        let iterate = fd.new_op(2, Address::new(0x1004));
+        fd.op_set_opcode(&iterate, OpCode::CPUI_INT_ADD);
+        fd.op_insert_end(&iterate, &tail);
+        let victim = fd.new_op(2, Address::new(0x1008));
+        fd.op_set_opcode(&victim, OpCode::CPUI_INT_SUB);
+        fd.op_insert_end(&victim, &tail);
+        let last = fd.new_op(2, Address::new(0x100c));
+        fd.op_set_opcode(&last, OpCode::CPUI_INT_OR);
+        fd.op_insert_end(&last, &tail);
+
+        // Data-flow links that must survive the move (opUninsert's contract:
+        // "input and output Varnodes should [only] be unset if the removal
+        // is permanent").
+        let out_vn = fd.new_unique_out(4, &iterate);
+        let const_in = fd.new_constant(4, 7);
+        fd.op_set_input(&iterate, const_in.clone(), 0);
+
+        assert_eq!(ops_of(&tail).len(), 4);
+        assert!(in_alive_exactly_once(&fd, &iterate));
+        assert!(!in_dead(&fd, &iterate));
+
+        // cc:3382: data.opUninsert(iterateOp) — dead list + parent detach.
+        fd.op_uninsert(&iterate);
+        assert!(in_dead(&fd, &iterate));
+        assert!(!in_alive_exactly_once(&fd, &iterate));
+        assert!(!op_parent_is(&iterate, &tail));
+        assert_eq!(ops_of(&tail).len(), 3);
+
+        // cc:3383: data.opInsertAfter(iterateOp, lastOp) — terminal slot.
+        fd.op_insert_after(&iterate, &last);
+        let ops = ops_of(&tail);
+        assert_eq!(ops.len(), 4);
+        assert!(same_op(&ops[3], &iterate), "iterate must be terminal");
+        assert!(same_op(&ops[0], &me));
+        assert!(same_op(&ops[1], &victim));
+        assert!(same_op(&ops[2], &last));
+        assert!(op_parent_is(&iterate, &tail));
+        assert!(in_alive_exactly_once(&fd, &iterate));
+        assert!(!in_dead(&fd, &iterate));
+
+        // Varnode links intact: def/descend and the input slot.
+        assert!(iterate
+            .0
+            .read()
+            .unwrap()
+            .get_out()
+            .map(|v| Arc::ptr_eq(v, &out_vn))
+            .unwrap_or(false));
+        assert!(out_vn
+            .read()
+            .unwrap()
+            .get_def()
+            .map(|d| Arc::ptr_eq(&d, &iterate.0))
+            .unwrap_or(false));
+        assert!(iterate
+            .0
+            .read()
+            .unwrap()
+            .get_in(0)
+            .map(|v| Arc::ptr_eq(v, &const_in))
+            .unwrap_or(false));
+    }
+
+    /// General primitive semantics the ticket called missing ("Rugra op bank
+    /// 无跨块搬移表达"): opUninsert detaches from one block's list and
+    /// opInsertAfter reattaches into ANOTHER block's list (funcdata_op.cc:164
+    /// only reads op->getParent(); opInsertAfter inserts into
+    /// prev->getParent()). Also exercises the post-MULTIEQUAL skip
+    /// (funcdata_op.cc:391-402): a non-MULTIEQUAL op inserted after an op
+    /// preceding a MULTIEQUAL lands AFTER the MULTIEQUAL run. The
+    /// [h1, h_me, h_last] layout is synthetic (oracle keeps MULTIEQUALs
+    /// block-initial); it pins the defensive branch of the port.
+    #[test]
+    fn op_move_pair_expresses_cross_block_move_and_multiequal_skip() {
+        let mut fd = Funcdata::new("opmove_cross", Address::new(0x2000), 1);
+        let block_a = block_of(0, 0x2000);
+        let block_h = block_of(1, 0x2100);
+        fd.bblocks.add_block(block_a.clone());
+        fd.bblocks.add_block(block_h.clone());
+
+        let a1 = fd.new_op(2, Address::new(0x2000));
+        fd.op_set_opcode(&a1, OpCode::CPUI_INT_ADD);
+        fd.op_insert_end(&a1, &block_a);
+
+        let h1 = fd.new_op(1, Address::new(0x2100));
+        fd.op_set_opcode(&h1, OpCode::CPUI_COPY);
+        fd.op_insert_end(&h1, &block_h);
+        let h_me = fd.new_op(2, Address::new(0x2104));
+        fd.op_set_opcode(&h_me, OpCode::CPUI_MULTIEQUAL);
+        fd.op_insert_end(&h_me, &block_h);
+        let h_last = fd.new_op(2, Address::new(0x2108));
+        fd.op_set_opcode(&h_last, OpCode::CPUI_INT_OR);
+        fd.op_insert_end(&h_last, &block_h);
+
+        assert!(op_parent_is(&a1, &block_a));
+
+        // Cross-block migration: a1 out of block_a, into block_h after h1 —
+        // skipping past the h_me MULTIEQUAL.
+        fd.op_uninsert(&a1);
+        assert!(ops_of(&block_a).is_empty());
+        fd.op_insert_after(&a1, &h1);
+
+        assert!(op_parent_is(&a1, &block_h));
+        assert!(!op_parent_is(&a1, &block_a));
+        let h_ops = ops_of(&block_h);
+        assert_eq!(h_ops.len(), 4);
+        assert!(same_op(&h_ops[0], &h1));
+        assert!(same_op(&h_ops[1], &h_me));
+        // funcdata_op.cc:394-401: iterator advanced past the MULTIEQUAL run
+        // before the insert, so a1 sits after h_me, before h_last.
+        assert!(same_op(&h_ops[2], &a1));
+        assert!(same_op(&h_ops[3], &h_last));
+        assert!(in_alive_exactly_once(&fd, &a1));
+        assert!(!in_dead(&fd, &a1));
+    }
+}
