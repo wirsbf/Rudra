@@ -21,14 +21,13 @@
 //!
 //! ## Projection normalisations (fixture-writer channel, not parse facts)
 //!
-//! - Opcode names in `<op_tpl code=...>` follow Ghidra's
-//!   `get_opname` table (opcodes.cc:29-48), which is NOT the enum spelling
-//!   for a few members: `CPUI_PTRADD` prints `LABEL` (the LABELBUILD
-//!   alias, semantics.hh:30), `CPUI_FLOAT_INT2FLOAT` prints `INT2FLOAT`,
-//!   `CPUI_FLOAT_FLOAT2FLOAT` prints `FLOAT2FLOAT`, and
-//!   `CPUI_FLOAT_TRUNC/CEIL/FLOOR/ROUND` print `TRUNC/CEIL/FLOOR/ROUND`.
-//!   `ghidra_op_name` below mirrors that table (Rugra's `OpCode::name`
-//!   keeps the enum spellings; the divergence is registered as a ticket).
+//! - Opcode names in `<op_tpl code=...>` are rendered by the production
+//!   `OpCode::name()` (the `get_opname` port, opcodes.cc:29-48) — since
+//!   PCODE-OPNAME-TABLE-0001 aligned the src table 1:1 with the locked
+//!   oracle, the twin's former local `ghidra_op_name` mirror was retired;
+//!   the `<op_tpl code=...>` bytes are produced by the very src function
+//!   under alignment (PTRADD→LABEL, INT2FLOAT/FLOAT2FLOAT, TRUNC/CEIL/
+//!   FLOOR/ROUND verified against the oracle encode channel).
 //! - `construct_tpl` carries the `labels="N"` attribute when the template
 //!   placed labels (ConstructTpl::addOp counting LABELBUILD ops,
 //!   semantics.cc:748-749, encoded at semantics.cc:875-876).
@@ -114,19 +113,10 @@ fn symbol_type_ordinal(sym: &SleighSymbol) -> Option<i32> {
 // XML projection: byte-identical mirror of XmlEncode + ConstructTpl::encode
 // ---------------------------------------------------------------------------
 
-/// Ghidra's `get_opname` table (opcodes.cc) — see module docs.
-fn ghidra_op_name(opc: OpCode) -> &'static str {
-    match opc {
-        OpCode::CPUI_PTRADD => "LABEL",
-        OpCode::CPUI_FLOAT_INT2FLOAT => "INT2FLOAT",
-        OpCode::CPUI_FLOAT_FLOAT2FLOAT => "FLOAT2FLOAT",
-        OpCode::CPUI_FLOAT_TRUNC => "TRUNC",
-        OpCode::CPUI_FLOAT_CEIL => "CEIL",
-        OpCode::CPUI_FLOAT_FLOOR => "FLOOR",
-        OpCode::CPUI_FLOAT_ROUND => "ROUND",
-        other => other.name(),
-    }
-}
+// NOTE(PCODE-OPNAME-TABLE-0001): the former local `ghidra_op_name` mirror of
+// the get_opname table was retired — `OpCode::name()` itself is now the 1:1
+// port of opcodes.cc:29-48, and every `<op_tpl code=...>` attribute below is
+// rendered straight from the production src function.
 
 fn space_name(spc: &AddressSpace) -> &'static str {
     match spc {
@@ -293,7 +283,7 @@ fn write_template(tpl: &ConstructTpl) -> String {
     writer.begin("null", &[]);
     writer.end("null");
     for op in tpl.get_opvec() {
-        writer.begin("op_tpl", &[("code", ghidra_op_name(op.opc).to_string())]);
+        writer.begin("op_tpl", &[("code", op.opc.name().to_string())]);
         match &op.out {
             Some(out) => write_varnode_tpl(&mut writer, out),
             None => {

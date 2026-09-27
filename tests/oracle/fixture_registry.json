@@ -8753,7 +8753,7 @@
     },
     {
       "id": "pcode_snippet_face_1204",
-      "description": "PARSEADJ-PARSEFACE-PCODE-0001: pcode-snippet parser whole face (generator_absorbed 12 members: PcodeLexer/PcodeSnippet/yyparse skeleton) — bare SLEIGH engine on x86-64.sla vs recursive-descent driver; SYM 20 + SNIP 76 + LF 12 records byte-identical (sha 1b30d20d) after 12 pinned driver fixes (g1-g12, commit 04a83ee9)",
+      "description": "PARSEADJ-PARSEFACE-PCODE-0001: pcode-snippet parser whole face (generator_absorbed 12 members: PcodeLexer/PcodeSnippet/yyparse skeleton) — bare SLEIGH engine on x86-64.sla vs recursive-descent driver; SYM 20 + SNIP 76 + LF 12 records byte-identical (sha 1b30d20d) after 12 pinned driver fixes (g1-g12, commit 04a83ee9). Lane OPNAMETBL (PCODE-OPNAME-TABLE-0001, commit 7925ada8) retired the twin opname mirror: <op_tpl code=...> now renders via src OpCode::name() (get_opname 1:1), bilateral MATCH re-pinned on the stacked tree (known_deltas 4->3).",
       "runner": [
         "tools/run_pcode_snippet_face_oracle.sh"
       ],
@@ -8776,9 +8776,10 @@
       "impact": {
         "paths": [
           "src/pcodeparse.rs",
-          "src/pcodeinject.rs"
+          "src/pcodeinject.rs",
+          "src/opcodes.rs"
         ],
-        "notes": "Whole-parse-face equivalence gate for the generator_absorbed pcodeparse ledger members; pins ctor space seeding, matchSize/force_size scope+propagation, swapped-operand comparisons, label size/counting, error-text family, SleighError escape channel, lookahead refresh."
+        "notes": "Whole-parse-face equivalence gate for the generator_absorbed pcodeparse ledger members; pins ctor space seeding, matchSize/force_size scope+propagation, swapped-operand comparisons, label size/counting, error-text family, SleighError escape channel, lookahead refresh. Since PCODE-OPNAME-TABLE-0001 also gates the OpCode::name()/get_opname spelling table through the <op_tpl code=...> channel (twin mirror retired)."
       }
     }
   ]
