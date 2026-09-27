@@ -9916,3 +9916,243 @@ mod findirreducible_lock_tests {
         assert!(Arc::ptr_eq(&body_copy.unwrap(), &b1));
     }
 }
+
+/// F8FOR-REJECT-RESIDUAL-0001 gate-chain regression pins. The two-gate
+/// rejection family (findLoopVariable's isMoveable gate + testIterateForm)
+/// was probed end-to-end on the sq/sqlite mirror corpora: the gates are
+/// oracle-faithful, and the mass rejection root (alivelist walk order in
+/// is_moveable) landed on master via OP-ISMOVEABLE-WALKORDER-0001. These
+/// tests pin the while_do decision chain on top of that fix, including the
+/// late-created-terminal-op shape that made the old walk cross the tail
+/// BRANCH (block order [SUB, ZEXT, COPY, BRANCH] vs alivelist order
+/// [SUB, ZEXT, BRANCH, COPY]).
+#[cfg(test)]
+mod while_do_gate_tests {
+    use super::{BlockBasic, BlockEdge, BlockWhileDo, FlowBlock};
+    use crate::address::Address;
+    use crate::arch::Architecture;
+    use crate::funcdata::Funcdata;
+    use crate::op::pcodeop_flags::NONPRINTING;
+    use crate::op::PcodeOpRef;
+    use crate::opcodes::OpCode;
+    use std::sync::{Arc, RwLock};
+
+    type BlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
+
+    fn block_of(index: i32, addr: u64) -> BlockArc {
+        Arc::new(RwLock::new(BlockBasic::new(index, Address::new(addr))))
+    }
+
+    fn same_op(a: &PcodeOpRef, b: &PcodeOpRef) -> bool {
+        Arc::ptr_eq(&a.0, &b.0)
+    }
+
+    struct GateFixture {
+        fd: Funcdata,
+        head: BlockArc,
+        tail: BlockArc,
+        wd: BlockWhileDo,
+        iterate: PcodeOpRef,
+        multiequal: PcodeOpRef,
+    }
+
+    /// Minimal while-do IR mirroring the LzmaEnc_Construct / BitvecSet
+    /// corpus shape (block.cc:3164-3424 walk inputs):
+    ///
+    /// head:  [ MULTIEQUAL(V; in0=const init, in1=V'), INT_NOTEQUAL, CBRANCH ]
+    /// tail:  [ INT_SUB(V'=V-1)  <- iterate, INT_ZEXT, COPY, BRANCH ]
+    ///
+    /// The COPY terminal op is created AFTER the BRANCH (late retyping
+    /// product) but inserted before it in block order — the exact
+    /// block-order/alivelist divergence that made the pre-ISMOVEABLE walk
+    /// spuriously cross the BRANCH and reject the iterate move.
+    fn build_fixture() -> GateFixture {
+        let mut fd = Funcdata::new("whiledo_gate_pin", Address::new(0x1000), 1);
+        fd.arch = Some(Arc::new(Architecture::new())); // analyze_for_loops = true
+        // finalizePrinting runs after the varmap phase has enabled high-level
+        // merging (funcdata flags HIGHLEVEL_ON, set by ActionHighAnalysis) —
+        // testIterateForm reads the merged HighVariable identity.
+        fd.flags |= crate::funcdata::funcdata_flags::HIGHLEVEL_ON;
+
+        let entry = block_of(0, 0x1000);
+        let head = block_of(1, 0x1100);
+        let tail = block_of(2, 0x1200);
+        fd.bblocks.add_block(entry.clone());
+        fd.bblocks.add_block(head.clone());
+        fd.bblocks.add_block(tail.clone());
+
+        // ---- head block ops: MULTIEQUAL -> INT_NOTEQUAL -> CBRANCH ----
+        let multiequal = fd.new_op(2, Address::new(0x1100));
+        fd.op_set_opcode(&multiequal, OpCode::CPUI_MULTIEQUAL);
+        fd.op_insert_end(&multiequal, &head);
+        let v_loop = fd.new_unique_out(4, &multiequal);
+        v_loop.write().unwrap().set_explicit();
+
+        let notequal = fd.new_op(2, Address::new(0x1104));
+        fd.op_set_opcode(&notequal, OpCode::CPUI_INT_NOTEQUAL);
+        fd.op_insert_end(&notequal, &head);
+        let cond_vn = fd.new_unique_out(4, &notequal);
+        cond_vn.write().unwrap().set_explicit();
+
+        let cbranch = fd.new_op(2, Address::new(0x1108));
+        fd.op_set_opcode(&cbranch, OpCode::CPUI_CBRANCH);
+        fd.op_insert_end(&cbranch, &head);
+
+        // ---- tail block ops (creation order): INT_SUB, INT_ZEXT, BRANCH ----
+        let iterate = fd.new_op(2, Address::new(0x1200));
+        fd.op_set_opcode(&iterate, OpCode::CPUI_INT_SUB);
+        fd.op_insert_end(&iterate, &tail);
+        let v_next = fd.new_unique_out(4, &iterate);
+        v_next.write().unwrap().set_explicit();
+
+        let zext = fd.new_op(1, Address::new(0x1204));
+        fd.op_set_opcode(&zext, OpCode::CPUI_INT_ZEXT);
+        fd.op_insert_end(&zext, &tail);
+        let _zext_out = fd.new_unique_out(4, &zext);
+
+        let branch = fd.new_op(1, Address::new(0x120c));
+        fd.op_set_opcode(&branch, OpCode::CPUI_BRANCH);
+        fd.op_insert_end(&branch, &tail);
+
+        // ---- data-flow wiring ----
+        let init_const = fd.new_constant(4, 0x10);
+        let step_const = fd.new_constant(4, 1);
+        let cmp_const = fd.new_constant(4, 0);
+        let cmp_const2 = fd.new_constant(4, 0);
+        let branch_const = fd.new_constant(4, 0);
+        let bool_const = fd.new_constant(1, 1);
+        fd.op_set_input(&multiequal, init_const, 0);
+        fd.op_set_input(&multiequal, v_next.clone(), 1);
+        fd.op_set_input(&notequal, v_loop.clone(), 0);
+        fd.op_set_input(&notequal, cmp_const, 1);
+        fd.op_set_input(&cbranch, bool_const, 0);
+        fd.op_set_input(&cbranch, cond_vn, 1);
+        fd.op_set_input(&iterate, v_loop.clone(), 0);
+        fd.op_set_input(&iterate, step_const, 1);
+        fd.op_set_input(&zext, cmp_const2, 0);
+        fd.op_set_input(&branch, branch_const, 0);
+
+        // ---- late-created terminal COPY: alivelist tail, mid-block slot ----
+        // Creation happens AFTER the BRANCH was inserted (alivelist order
+        // [SUB, ZEXT, BRANCH, COPY]) but the block slot is before the
+        // BRANCH (block order [SUB, ZEXT, COPY, BRANCH]) — the corpus
+        // divergence shape from the F8FOR-REJECT-RESIDUAL-0001 probe.
+        let copy = fd.new_op(1, Address::new(0x1208));
+        fd.op_set_opcode(&copy, OpCode::CPUI_COPY);
+        fd.op_insert_after(&copy, &zext);
+        let _copy_out = fd.new_unique_out(4, &copy);
+
+        // ---- CFG edges: entry->head (slot 0), tail->head (slot 1) ----
+        head.write().unwrap().add_in_edge(BlockEdge::new(entry.clone(), 0));
+        head.write().unwrap().add_in_edge(BlockEdge::new(tail.clone(), 0));
+        tail.write().unwrap().add_out_edge(BlockEdge::new(head.clone(), 1));
+
+        let wd = BlockWhileDo {
+            index: 3,
+            condition: head.clone(),
+            body: tail.clone(),
+            incoming: Vec::new(),
+            outgoing: Vec::new(),
+            parent: None,
+            flags: 0,
+            for_init: None,
+            for_iter: None,
+            initialize_op: None,
+            iterate_op: None,
+            loop_def: None,
+            overflow_syntax: false,
+        };
+        GateFixture { fd, head, tail, wd, iterate, multiequal }
+    }
+
+    /// cc:3356-3397 + cc:3403-3424 happy path: findLoopVariable must accept
+    /// the iterate INT_SUB through the isMoveable gate (block-order walk
+    /// crossing only ZEXT/COPY — never the BRANCH), migrate it to the
+    /// terminal statement, reject the constant initializer (empty-init
+    /// `for(; cond; iter)` form), and finalizePrinting must re-derive the
+    /// iterate via testTerminal + testIterateForm and mark it NONPRINTING.
+    #[test]
+    fn gate_chain_extracts_iterate_and_marks_non_printing() {
+        let GateFixture { mut fd, head, tail, mut wd, iterate, multiequal } =
+            build_fixture();
+        super::while_do_final_transform(&mut wd, &mut fd, &head);
+        assert!(
+            same_op(wd.loop_def.as_ref().unwrap(), &multiequal),
+            "findLoopVariable must pin the head MULTIEQUAL as loopDef"
+        );
+        assert!(
+            same_op(wd.iterate_op.as_ref().unwrap(), &iterate),
+            "isMoveable gate must accept the iterate (block-order walk)"
+        );
+        // cc:3381-3384: iterate migrated to after the branch-stripped last
+        // op — block order [ZEXT, COPY, SUB, BRANCH].
+        let ops = tail.read().unwrap().get_ops();
+        assert_eq!(ops.len(), 4);
+        assert!(same_op(&ops[2], &iterate), "iterate is the terminal statement");
+        assert_eq!(ops[3].0.read().unwrap().opcode, OpCode::CPUI_BRANCH);
+        // cc:3387-3388: constant entry input -> findInitializer misses ->
+        // early return with iterateOp still set (empty-init form).
+        assert!(wd.initialize_op.is_none());
+
+        super::while_do_finalize_printing(&mut wd, &mut fd);
+        // cc:3410-3415: testTerminal + testIterateForm re-derive the iterate.
+        assert!(same_op(wd.iterate_op.as_ref().unwrap(), &iterate));
+        // cc:3416-3417: last-chance initializer still misses (const input).
+        assert!(wd.initialize_op.is_none());
+        // cc:3421: opMarkNonPrinting(iterateOp) — printc's for-header channel.
+        assert!(
+            (iterate.0.read().unwrap().flags & NONPRINTING) != 0,
+            "iterate statement must be marked non-printing"
+        );
+    }
+
+    /// cc:3412-3414 oracle-consistent reject pin: when the iterate op's
+    /// inputs never reach the loopDef output's HighVariable (the
+    /// LzmaEnc_CodeOneBlock / sqlite-giant shape, where golden prints
+    /// `while` too), testIterateForm nulls iterateOp and the statement is
+    /// NOT marked non-printing — but the testTerminal move stays committed
+    /// (cc:3410 moves before cc:3413 rejects), the oracle-faithful
+    /// "committed move" side effect.
+    #[test]
+    fn iterate_form_mismatch_rejects_without_marking_but_keeps_move() {
+        let GateFixture { mut fd, head, tail, mut wd, iterate, .. } = build_fixture();
+        // Rewire the iterate to read a foreign varnode (different
+        // HighVariable): W = INT_ADD(const, const) in the tail.
+        let foreign = fd.new_op(2, Address::new(0x1202));
+        fd.op_set_opcode(&foreign, OpCode::CPUI_INT_ADD);
+        fd.op_insert_end(&foreign, &tail);
+        let w = fd.new_unique_out(4, &foreign);
+        w.write().unwrap().set_explicit();
+        let c1 = fd.new_constant(4, 2);
+        let c2 = fd.new_constant(4, 3);
+        fd.op_set_input(&foreign, c1, 0);
+        fd.op_set_input(&foreign, c2, 1);
+        fd.op_set_input(&iterate, w, 0);
+
+        super::while_do_final_transform(&mut wd, &mut fd, &head);
+        assert!(
+            wd.iterate_op.is_some(),
+            "findLoopVariable path is independent of the iterate input high"
+        );
+        super::while_do_finalize_printing(&mut wd, &mut fd);
+        assert!(
+            wd.iterate_op.is_none(),
+            "testIterateForm must null iterateOp on high mismatch"
+        );
+        assert_eq!(
+            iterate.0.read().unwrap().flags & NONPRINTING,
+            0,
+            "rejected iterate must stay printable (while-form body)"
+        );
+        // cc:3410 committed move survives the cc:3413 reject.
+        let ops = tail.read().unwrap().get_ops();
+        assert!(
+            same_op(
+                &ops[ops.len() - 2],
+                &iterate
+            ),
+            "testTerminal's move stays committed after the reject"
+        );
+        assert_eq!(ops[ops.len() - 1].0.read().unwrap().opcode, OpCode::CPUI_BRANCH);
+    }
+}
