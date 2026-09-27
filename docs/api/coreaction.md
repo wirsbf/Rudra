@@ -4070,3 +4070,16 @@ oracle 的**指针恒等判定**：
 面=「canonical 类型对现存类型非严格更优且指针不同」，canon 语料不存在该
 形态。触发条件（票面登记）：多 RETURN 函数中某 RETURN 输入已有与 canonical
 返回类型不同源（非同一 interning 实例）且 typeOrder 相等或更优的温度类型。
+
+## 2026-09-27：RETURN 遍历接 begin_op(CPUI_RETURN)（Lane NORMGUARD2，COREACT-RETTABLE-TRAVERSAL-0001）
+
+canonical_return_op（cc:5317-5318）与 propagate_across_returns 第二循环
+（cc:5354-5355）两处 `obank.alivelist.iter().filter(opcode ==
+CPUI_RETURN)` 投影改接 `obank.begin_op(CPUI_RETURN)`（op.rs:1937-1945，
+op.cc:1158-1174 忠实镜像返回 returnlist 切片）。returnlist 序=
+addToCodeList push_back（op.cc:881）的转换/插入时序；markDead 不摘表
+（同 Ghidra，摘除在 destroy），故 isDead()/getHaltType() 跳过保持在
+循环内（cc:5320-5321/cc:5358-5359，先 dead 后 halt 顺序不变），与
+oracle 完全同构。零行为（CR-TEMPOVER 判据）：语料上 RETURN 同一插入
+事件进两表序恒等，filter 隐含 dead 排除被循环内 isDead() 跳过包含——
+canon 双语料 A/B cmp 字节恒等亲证（md5 51cc85d2 / 04b3b014）。

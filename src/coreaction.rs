@@ -9225,11 +9225,15 @@ impl ActionInferTypes {
             std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
             std::sync::Arc<crate::type_system::datatype::Datatype>,
         )> = None;
+        // cc:5317-5318: data.beginOp(CPUI_RETURN)..data.endOp(CPUI_RETURN) —
+        // the op-bank returnlist in conversion/insertion order (op.cc:1158
+        // begin(OpCode); push_back at addToCodeList op.cc:881). Dead RETURNs
+        // stay in the list until destroy, so the isDead()/getHaltType()
+        // skips stay in-loop (cc:5320-5321), matching the oracle exactly.
+        // (COREACT-RETTABLE-TRAVERSAL-0001)
         let return_ops: Vec<_> = fd
             .obank
-            .alivelist
-            .iter()
-            .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_RETURN)
+            .begin_op(OpCode::CPUI_RETURN)
             .cloned()
             .collect();
         for r in &return_ops {
@@ -9288,14 +9292,16 @@ impl ActionInferTypes {
         };
         let base_size = base_vn.read().unwrap().get_size();
         let is_bool = base_ct.get_metatype() == TypeMetatype::Bool;
-        // cc:5354-5360: re-iterate the RETURN ops; skip the canonical one
-        // (explicit `retop == op` pointer skip), dead ops, halt-type ops,
-        // and valueless RETURNs.
+        // cc:5354-5355: re-iterate data.beginOp(CPUI_RETURN)..data.endOp
+        // — the op-bank returnlist in conversion/insertion order
+        // (op.cc:1158; the prior alivelist.filter projection matched it
+        // on-corpus because RETURNs enter both lists at the same insert
+        // event — COREACT-RETTABLE-TRAVERSAL-0001 wires the faithful
+        // form). Skip the canonical one (explicit `retop == op` pointer
+        // skip), dead ops, halt-type ops, and valueless RETURNs.
         let return_ops: Vec<_> = fd
             .obank
-            .alivelist
-            .iter()
-            .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_RETURN)
+            .begin_op(OpCode::CPUI_RETURN)
             .cloned()
             .collect();
         for r in &return_ops {
