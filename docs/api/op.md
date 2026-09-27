@@ -568,10 +568,10 @@ ADDRESS-0001（`src/address.rs` 现由 CSPEC-RANGEPROPS-0001 租约中）。落�
 Ghidra: `op.cc:178 PcodeOp::isMoveable`。判断该操作是否可在所属基本块内移动越过 `point` 操作（同一父块内），不改变语义。
 
 #### 决定性语义
-- **引用/输出参数**: `&self` + `&point` + `&PcodeOpBank` 全程只读；`tied_list: Vec<Arc<RwLock<Varnode>>>` 共享所有权（等价 Ghidra `vector<const Varnode*>`）。
-- **遍历顺序**: 过滤 `bank.alivelist` 收集 same-parent 的块内 ops（保持 alive 顺序），从 `self` 之后步进到 `point`（含）。等价 Ghidra 的 `do { ++biter; } while(biter != point->basiciter)` block-local 遍历。
+- **引用/输出参数**: `&self` + `&point` + `&PcodeOpBank`（bank 仅为调用点兼容保留，Ghidra 方法只读 `basiciter`/`parent`）全程只读；`crossed_ops: Vec<PcodeOpRef>` 共享所有权（等价 Ghidra `basiciter` 游走的 op 指针）；`tied_list: Vec<Arc<RwLock<Varnode>>>`（等价 Ghidra `vector<const Varnode*>`）。
+- **遍历顺序**: 解析 parent `BlockBasic::ops`（块序）中 self 与 point 的索引，遍历 `ops[self_idx+1..=point_idx]`——严格后于 self 到 **含 point** 的闭区间，块序。等价 Ghidra 的 `biter = basiciter; do { ++biter; ... } while (biter != point->basiciter)` block-local 遍历。**不是** alivelist（markAlive 追加序，op.cc:1022）：块中段重插/move 后与块序发散（OP-ISMOVEABLE-WALKORDER-0001）。point 先于 self 时 Ghidra 越界 UB，Rugra fail-closed 返回 false；索引缺失（Rust 侧异常态）同样 fail-closed。
 - **计数器**: `cross_calls`（普通 op，输出+所有输入均非 addr-tied/persist 时 true）、`moving_load`（LOAD special op）、`tied_list`（addr-tied 输入集合）。
-- **排序/比较键**: `Arc::ptr_eq` 比对 parent 身份（替代 Ghidra 裸指针 `!=`）；`readOp->start.getOrder() <= point->start.getOrder()` 判输出被过早读；`op->getEvalType()==special` 后按 `op->code()` switch（LOAD/STORE/INDIRECT/SEGMENTOP/CPOOLREF/CALL/CALLIND/NEW）；`vn->overlap(*op_output)>=0 && op_output->overlap(*vn)>=0` 判 addr-tied 重叠。
+- **排序/比较键**: `Arc::ptr_eq` 比对 parent 身份（替代 Ghidra 裸指针 `!=`）；`basic_block_index` 按 `PcodeOp` 对象地址在块 ops 中定位（替代 Ghidra `basiciter` O(1) 迭代器，O(块长) 代价、可观测语义恒等）；`readOp->start.getOrder() <= point->start.getOrder()` 判输出被过早读；`op->getEvalType()==special` 后按 `op->code()` switch（LOAD/STORE/INDIRECT/SEGMENTOP/CPOOLREF/CALL/CALLIND/NEW）；`vn->overlap(*op_output)>=0 && op_output->overlap(*vn)>=0` 判 addr-tied 重叠。
 
 #### 跨越规则（switch 各 case）
 | 被 cross 的 op | 返回 false 的条件 |
@@ -587,6 +587,7 @@ Ghidra: `op.cc:178 PcodeOp::isMoveable`。判断该操作是否可在所属基�
 
 #### 用途
 用于：
+- `BlockWhileDo::finalTransform` 的 iterate/initialize 终端搬移门（block.cc:3389-3396 两个调用点，point 均为所在块 lastOp；Rugra 消费方 `block.rs` `while_do_final_transform`）
 - SSA 优化中操作重排
 - 跨操作 dead-code/merge 分析
 - INDIRECT 围绕操作的合法性判断
