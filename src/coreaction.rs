@@ -11747,10 +11747,21 @@ impl Action for ActionOutputPrototype {
                 .iter()
                 .find(|op_ref| {
                     let op = op_ref.0.read().unwrap();
-                    // Funcdata::getFirstReturnOp: skip isDead() and
-                    // getHaltType()!=0 (the Rugra HALT flag stands in for
-                    // Ghidra's halt marker).
-                    !op.is_dead() && (op.flags & crate::op::pcodeop_flags::HALT) == 0
+                    // Funcdata::getFirstReturnOp (funcdata_op.cc:639-640):
+                    // skip isDead() and getHaltType()!=0 — the five-flag
+                    // union (halt|badinstruction|unimplemented|noreturn|
+                    // missing), op.hh:171. The former HALT-only form was a
+                    // CR-TEMPOVER stand-in; normalized to the oracle-exact
+                    // literal union (divergence set constructively empty —
+                    // COREACT-HALTGUARD-NORM-0001).
+                    !op.is_dead()
+                        && (op.flags
+                            & (crate::op::pcodeop_flags::HALT
+                                | crate::op::pcodeop_flags::BADINSTRUCTION
+                                | crate::op::pcodeop_flags::UNIMPLEMENTED
+                                | crate::op::pcodeop_flags::NORETURN
+                                | crate::op::pcodeop_flags::MISSING))
+                            == 0
                 })
                 .map(|op_ref| {
                     let op = op_ref.0.read().unwrap();
@@ -16745,7 +16756,22 @@ impl Action for ActionReturnRecovery {
                 .returnlist
                 .iter()
                 .filter(|r| !r.0.read().unwrap().is_dead())
-                .filter(|r| (r.0.read().unwrap().flags & crate::op::pcodeop_flags::HALT) == 0)
+                .filter(|r| {
+                    // cc:1924/cc:1947: op->getHaltType() != 0 — the
+                    // five-flag union (halt|badinstruction|unimplemented|
+                    // noreturn|missing), op.hh:171; the former HALT-only
+                    // form normalized to the oracle-exact literal union
+                    // (divergence set constructively empty —
+                    // COREACT-HALTGUARD-NORM-0001). One snapshot feeds both
+                    // the ancestor pass and the buildReturnOutput pass.
+                    (r.0.read().unwrap().flags
+                        & (crate::op::pcodeop_flags::HALT
+                            | crate::op::pcodeop_flags::BADINSTRUCTION
+                            | crate::op::pcodeop_flags::UNIMPLEMENTED
+                            | crate::op::pcodeop_flags::NORETURN
+                            | crate::op::pcodeop_flags::MISSING))
+                        == 0
+                })
                 .cloned()
                 .collect();
             // Take the container out of fd so trial mutation and the fd
