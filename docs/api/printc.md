@@ -3861,3 +3861,52 @@ sqlite3VdbeSorterRewind）的激活依赖 BLOCKACT-CONDNEGATE-PARITY-0001（P3�
 vsh 15/16·71/71、sq 4227/7500·810/810、sqlite 26411/26411·1385/1385 全
 PASS；bank 391/391 MATCH；cargo test --lib **1909P/0F**（=亲父 1905+本票
 4 新测）；annotations/refs 三门禁绿。
+
+## 2026-09-27：partial-symbol finalcast pushType 拼写 + LHS allowCast 门（TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 ①②）
+
+**根因（双侧对照钉死，sq 镜面 read_inode 族）**：golden
+`uRam…._0_3_ = CONCAT12(…,(unkbyte3)uRam…)` vs Rugra
+`()uRam… = CONCAT12(…,()uRam…)`——两处偏差：
+
+1. **空 cast 拼写**（读侧 `(unkbyte3)` 位点）：oracle
+   `PrintC::pushPartialSymbol`（printc.cc:1947-2065）的 allowCast 臂在
+   cc:2025 存 `finalcast = outtype`（Datatype\*），**渲染**在 cc:2044-2046
+   经 `pushOp(&typecast) + pushType(finalcast)` → `pushTypeStart`
+   （cc:280-285）——匿名基型拼 `genericTypeName`（`unkbyte3`/`unkuint7`），
+   非原始空名。Rugra `partial_symbol_walk`（printc.rs）在臂内直接
+   `finalcast = Some(outtype.get_name())`——匿名类型名恒空 → 印 `()`。
+   同型偏差在 RPN 孪生 `rpn_push_partial_symbol` 的 finalcast atom
+   （`finalcast.get_name()` 原始名）。**修复**：两处均改走
+   `cast_type_string`（printc.cc:1472-1476 pushType 的结构折叠拼写，
+   含 buildTypeStack 指针/数组层与匿名 genericTypeName 回退）。
+2. **LHS 整槽+cast vs 子槽条目**（赋值目标 `uRam…_0_4_` 位点）：oracle
+   赋值 LHS 走 `emitExpression`（printc.cc:2468-2495）→
+   `pushSymbolDetail(outvn,op,false)`（cc:2475，isRead=**false**）→
+   `pushPartialSymbol(…, allowCast=false)`——cast 臂被门死，走合成条目
+   `unnamedField(off,sz)`=`._off_sz_`（cc:2030-2041）。Rugra RPN 叶路径
+   `make_atom_for_vn`→`get_varnode_display_name`→inner 的
+   `push_symbol_detail_leaf(vn, true, …)` **硬编码 true**（读路径语义），
+   emit_expression_rpn 虽在 LHS 原子构造窗外设了 `is_lhs=true`
+   （consult slot=-1 半已对齐），allowCast 半漏接 → LHS 走 cast 臂印
+   `(T)sym`/`()sym`。legacy 通道（push_varnode 行）本就 `!self.is_lhs` ✓。
+   **修复**：inner 调用点改 `!self.is_lhs`（printlanguage.cc:256-257
+   isRead 语义）。
+
+**非本票残差（如实登记）**：③掩码/位移规范序（`(V & LIT) >> LIT` 折叠
+形态）= ruleaction 域（RULEACTION-NEGCONST-FOLD-0001 邻接）；Rugra 镜面
+`axStack_70[0]._0_4_` vs golden `axStack_70._0_4_` 的多余 `[N]` 元素下钻
+= walk 所见符号类型为 ≥4 字节元素数组（`xunknown8 [1]` 形）而 golden 符号
+类型为 1 字节元素（`xunknown1 [8]`）——varmap 域栈数组符号类型构造残差
+（VARMAP-UNAFF-TYPEMAT-0001 租约）。
+
+**验收（fast-release 亲测，基=master 48146429）**：镜面 sq
+4197→**4141**（−56，defects 0/numbering 0，census 族归因 OPNAME-LEAK
+183→143、CONDNEGATE 块内 −10、余为块内行替换；逐函数：read_inode_2
+176→126/read_inode_1 80→76/LzmaEnc_CodeOneBlock.part.0 115→113，
+read_inode_3 160 行数持平=行替换零净变（`()V`→`._0_N_` 形翻转））；
+canon curl **157/0/0==MB23 钉值 + 与基线 result/curl_cur.c 字节恒等**、
+httpd **139/0/0==钉值**（2 行形翻转在既有差异块内，已归因）；bank
+391/391 MATCH；cargo test --lib **1919P/0F**（基线 1917+2 新测：
+test_partial_symbol_finalcast_spells_pushType_form /
+test_display_name_lhs_gates_partial_cast_arm）；annotations/refs/evidence
+三门禁绿。

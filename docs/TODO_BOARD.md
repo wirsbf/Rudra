@@ -2,6 +2,12 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## 车道 TYPEFACTORY（2026-09-27 派发；中车道=MIRRORTRIAGE 新票 OPNAME-LEAK 族收口。票池原文在 wt/mirrortriage TODO_BOARD（commit 待并 MB24），本节为执行车道的工作侧登记，root 合并时并轨）
+
+| 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
+|---|---|---|---|---|
+| `TYPEFACTORY-UNKBYTE-EMPTYCAST-0001` | OPNAME-LEAK 族（sq 183 行/9 函数 4.4%；golden `uRam…._0_3_ = CONCAT12(…,(unkbyte3)uRam…)` vs Rugra `()uRam… = CONCAT12(…,()uRam…)` 整槽+空 cast+位移/掩码交换） | P2 | 实际写域=`src/printc.rs`（partial_symbol_walk finalcast 拼写 + rpn_push_partial_symbol 孪生 + display-name LHS allowCast 门）+`docs/api/printc.md`+本行（分诊预设的 typefactory/varmap 域经取证**均未触及**：unkbyteN 拼写件与子槽合成条目机制本就在位，断链全在 print 消费侧） | **DONE①②（2026-09-27,wt/tfactory-unkbyte Lane TYPEFACTORY,基=master 48146429）**：根因双侧钉死=**①空 cast**（oracle printc.cc:2025 finalcast=Datatype\* 于 cc:2044-2046 经 pushType→pushTypeStart cc:280-285 匿名拼 genericTypeName `unkbyte3`；Rugra 臂内直接取原始 get_name() 恒空印 `()`）+**②LHS 整槽**（oracle emitExpression cc:2475 pushSymbolDetail(outvn,op,false)→allowCast=false→合成条目 `._off_sz_`；Rugra RPN 叶 inner 硬编码 true，is_lhs 只接了 consult slot=-1 半）——修复=两处 finalcast 改 cast_type_string（pushType 折叠）+inner 改 `!is_lhs`；③掩码/位移规范序=ruleaction 域（RULEACTION-NEGCONST-FOLD-0001 邻接，未触及）；**残差登记**：`axStack_70[0]._0_4_` vs golden `axStack_70._0_4_` 多余 `[N]` 下钻=walk 所见符号类型 ≥4 字节元素（xunknown8[1] 形）vs golden 1 字节元素（xunknown1[8]）——varmap 栈数组符号类型构造残差，移交 VARMAP-UNAFF-TYPEMAT-0001 租约。**验收（fast-release 亲测）**：镜面 sq 4197→**4141**（−56，0/0；census：OPNAME-LEAK 183→143+CONDNEGATE 块内 −10+行替换；read_inode_2 176→126/read_inode_1 80→76/LzmaEnc 115→113，read_inode_3 160 持平=形翻转零净变）；镜面 sqlite 见终报（A/B 逐函数归因）；canon curl **157/0/0==MB23 钉值+基线字节恒等**、httpd **139/0/0==钉值**（2 行既有差异块内形翻转已归因）；bank 391/391；cargo test --lib **1919P/0F**（1917+2 新测）；三门禁绿；机制 B Differential 已附 commit（printc 白名单）。owner=sb-tfactory@wt/tfactory-unkbyte(fixer);last_updated=2026-09-27 |
+
 ## ENHANCEMENT 车道票池（2026-09-26 登记；域=ENHANCEMENT 无 Ghidra 对照物，逐函数 oracle 纪律不适用；门禁=默认脸中性+算法正确性单测）
 
 | 稳定 ID | 域声明 | 范围 | write-set | 状态 | 验收要点 |

@@ -5271,8 +5271,13 @@ impl PrintC {
         if let Some(ref finalcast) = finalcast {
             if !self.option_nocasts {
                 self.rpn_push_op(self.rpn_tok_typecast);
+                // pushType(finalcast) (cc:2046) -> pushTypeStart(cc:280-285):
+                // an anonymous base spells genericTypeName (`unkbyte3`),
+                // never the raw empty name — raw get_name() printed `()`
+                // on anonymous unkbyteN/unkuintN cast targets
+                // (TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 ①).
                 let type_atom = Atom::with_type(
-                    finalcast.get_name(),
+                    &Self::cast_type_string(finalcast),
                     TagType::TypeToken,
                     SyntaxHighlight::TypeColor,
                     0,
@@ -9158,7 +9163,12 @@ impl PrintC {
         // hold at that address. The Ram|Const proxy below is demoted to
         // the symbol-miss fallback (Rugra's stand-in for the oracle's
         // global-scope Data symbols reaching symbol-less varnodes).
-        if let Some(text) = self.push_symbol_detail_leaf(vn, true, consult) {
+        // allow_cast = isRead (printlanguage.cc:256-257): the RPN leaf is
+        // reached with is_lhs=true only from emit_expression_rpn's LHS atom
+        // (printc.cc:2475 pushSymbolDetail(outvn,op,false)) — that site must
+        // gate the walk's SUBPIECE-cast arm OFF (assignment targets render
+        // the synthetic `._off_sz_` subslot entry, not `(T)sym`).
+        if let Some(text) = self.push_symbol_detail_leaf(vn, !self.is_lhs, consult) {
             return text;
         }
 
@@ -19223,7 +19233,16 @@ impl PrintC {
                     )
                     {
                         // Treat truncation as SUBPIECE style cast (2024-2027).
-                        finalcast = Some(outtype.get_name().to_string());
+                        // finalcast is a Datatype* in the oracle and is
+                        // RENDERED at cc:2044-2046 via pushType(finalcast)
+                        // -> pushTypeStart(cc:280-285): an ANONYMOUS base
+                        // spells genericTypeName (`unkbyte3`), never the raw
+                        // empty name — the raw get_name() here printed `()`
+                        // on anonymous unkbyteN/unkuintN cast targets
+                        // (TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 ①). The
+                        // pushType fold is cast_type_string (printc.cc:
+                        // 1472-1476).
+                        finalcast = Some(Self::cast_type_string(outtype));
                         current = None;
                         succeeded = true;
                     }
@@ -20586,6 +20605,142 @@ mod tests {
         let name_orphan = printer.get_varnode_display_name(&orphan.read().unwrap(), None);
         assert_ne!(name_orphan, name_a);
         assert!(name_orphan.starts_with("unique0x"));
+    }
+
+    /// TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 regression: the partial-symbol
+    /// walk's SUBPIECE-cast arm (printc.cc:2018-2029) must render its
+    /// finalcast through the pushType spelling (printc.cc:2044-2046
+    /// pushType(finalcast) -> pushTypeStart cc:280-285), so an ANONYMOUS
+    /// cast target spells genericTypeName (`unkbyte3`/`unkuint7`) instead
+    /// of the raw empty name (`()` on every read_inode-family site), while
+    /// a NAMED target keeps its displayName (`uint4`).
+    #[test]
+    fn test_partial_symbol_finalcast_spells_pushType_form() {
+        use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+
+        let emit = Box::new(EmitNoMarkup::new());
+        let printer = PrintC::new(emit);
+
+        // Symbol type: anonymous 8-byte TYPE_UNKNOWN (the uRam global shape).
+        let sym_type = Arc::new(Datatype::Base(TypeBase::new(
+            String::new(),
+            8,
+            TypeMetatype::Unknown,
+        )));
+        // Read-side high type: anonymous 3-byte TYPE_UNKNOWN — the walk's
+        // cast arm target (vn->getHigh()->getType(), printc.cc:2019).
+        let outtype_anon = Datatype::Base(TypeBase::new(
+            String::new(),
+            3,
+            TypeMetatype::Unknown,
+        ));
+        // Named target control: a named uint4 base keeps `(uint4)`.
+        let outtype_named = Datatype::Base(TypeBase::new(
+            "uint4".to_string(),
+            4,
+            TypeMetatype::Uint,
+        ));
+
+        // allowCast=true (read leaf, printlanguage.cc:256-257): the cast arm
+        // fires (isSubpieceCastEndian: offset 0, UNKNOWN->UNKNOWN) and the
+        // finalcast prefix must spell unkbyte3 — never the empty `()`.
+        let text = printer.partial_symbol_text(
+            "uRam0000000000156a20",
+            0,
+            3,
+            Some(&sym_type),
+            Some(&outtype_anon),
+            false,
+            true,
+            None,
+        );
+        assert_eq!(text, "(unkbyte3)uRam0000000000156a20");
+
+        let text = printer.partial_symbol_text(
+            "uRam0000000000156a20",
+            0,
+            4,
+            Some(&sym_type),
+            Some(&outtype_named),
+            false,
+            true,
+            None,
+        );
+        assert_eq!(text, "(uint4)uRam0000000000156a20");
+
+        // allowCast=false (assignment LHS, printc.cc:2475
+        // pushSymbolDetail(outvn,op,false)): the cast arm is gated OFF and
+        // the synthetic subslot entry renders (printc.cc:2030-2041,
+        // unnamedField `_<off>_<sz>_`).
+        let text = printer.partial_symbol_text(
+            "uRam0000000000156a20",
+            0,
+            3,
+            Some(&sym_type),
+            Some(&outtype_anon),
+            false,
+            false,
+            None,
+        );
+        assert_eq!(text, "uRam0000000000156a20._0_3_");
+    }
+
+    /// TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 regression (LHS gate): the RPN
+    /// leaf's display-name resolution must pass allow_cast = !is_lhs
+    /// (printlanguage.cc:256-257 isRead; printc.cc:2475-2476 passes false
+    /// for the assignment LHS), so an assignment target on a partial
+    /// symbol renders the synthetic subslot form while the same varnode
+    /// read renders the SUBPIECE-style cast form.
+    #[test]
+    fn test_display_name_lhs_gates_partial_cast_arm() {
+        use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+        use crate::variable::high_internal_flags;
+
+        let emit = Box::new(EmitNoMarkup::new());
+        let mut printer = PrintC::new(emit);
+
+        let sym_type = Arc::new(Datatype::Base(TypeBase::new(
+            String::new(),
+            8,
+            TypeMetatype::Unknown,
+        )));
+        let outtype = Arc::new(Datatype::Base(TypeBase::new(
+            String::new(),
+            3,
+            TypeMetatype::Unknown,
+        )));
+        let mut sym = crate::database::Symbol::new(0, "uRam0000000000156a20", "");
+        sym.dtype = Some(sym_type.clone());
+        let sym_arc = Arc::new(std::sync::RwLock::new(sym));
+
+        let mut fd = Funcdata::new("lhs_gate", Address::new(0x1000), 0x10);
+        let op = fd.new_op(1, Address::new(0x1004));
+        fd.op_set_opcode(&op, OpCode::CPUI_COPY);
+        let input = fd.new_constant(8, 0);
+        fd.op_set_input(&op, input, 0);
+        let out_vn = fd.new_unique_out(3, &op);
+        fd.set_high_level();
+        let high_arc = out_vn.read().unwrap().high.clone().expect("high assigned");
+        {
+            let mut high = high_arc.write().unwrap();
+            high.symbol = Some(sym_arc);
+            high.symbol_offset = 0;
+            high.v_type = crate::variable::TypeCell::new(outtype.clone());
+            // Freeze the type cell so get_type returns the wired cast
+            // target directly (no representative re-derivation).
+            high.highflags &= !high_internal_flags::TYPEDIRTY;
+        }
+
+        // Read leaf (is_lhs=false -> allowCast=true): SUBPIECE-style cast.
+        let name = printer.get_varnode_display_name(&out_vn.read().unwrap(), None);
+        assert_eq!(name, "(unkbyte3)uRam0000000000156a20");
+
+        // Assignment LHS (emit_expression_rpn's is_lhs=true window,
+        // printc.cc:2475 isRead=false): synthetic subslot entry, no cast.
+        printer.is_lhs = true;
+        let name = printer.get_varnode_display_name(&out_vn.read().unwrap(), None);
+        assert_eq!(name, "uRam0000000000156a20._0_3_");
+        printer.is_lhs = false;
     }
 
     #[test]
