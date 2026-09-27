@@ -2566,6 +2566,27 @@ pub struct ScopeLocal {
     /// survivors' relative order), verified by
     /// tests/oracle/scopelocal_query_1204 removal cases.
     pub mapentry_log: Vec<LocalMapEntry>,
+    /// Live `Arc<RwLock<database::Symbol>>` handles keyed by stable slot id —
+    /// the Rust identity form of Ghidra's heap-`Symbol *` owned by the scope
+    /// (database.hh:809): `Scope::queryProperties` hands out the SAME Symbol
+    /// object across calls, and `Varnode::setSymbolProperties`
+    /// (varnode.cc:410-424) plus `SymbolEntry::updateType`
+    /// (database.cc:135-144) compare/reuse it by pointer. Memoizing per slot
+    /// preserves that identity (same_storage_identity's Arc::ptr_eq) so
+    /// repeated attaches are already-linked no-ops like the oracle's
+    /// `mapentry != entry` test.
+    /// (DB-LOCALSCOPE-MAP-0001 local-leg completion, OUTSTREAM 2026-09-28.)
+    /// `Arc` so the `Clone` scope copy (printc.rs) shares the cache — the
+    /// symbol handles keep one identity across the copy exactly like
+    /// Ghidra's heap `Symbol*` surviving the scope's copy-on-read.
+    pub live_symbols: std::sync::Arc<
+        std::sync::RwLock<
+            std::collections::BTreeMap<
+                usize,
+                std::sync::Arc<std::sync::RwLock<crate::database::Symbol>>,
+            >,
+        >,
+    >,
     /// Ghidra Scope::isGlobal (database.hh:34): a ScopeLocal is never
     /// global, but the parent-scope mirror threaded through
     /// `query_properties_ex` models the global scope (persist flag on its
@@ -2616,6 +2637,9 @@ impl ScopeLocal {
             pending_warnings: Vec::new(),
             pending_lowlevel_error: None,
             mapentry_log: Vec::new(),
+            live_symbols: std::sync::Arc::new(std::sync::RwLock::new(
+                std::collections::BTreeMap::new(),
+            )),
             is_global_scope: false,
             name_recommend: Vec::new(),
             dyn_recommend: Vec::new(),
@@ -3270,6 +3294,80 @@ impl ScopeLocal {
         // flags (database.hh:271 getAllFlags = extraflags | symbol->flags).
         flags |= sym.property_flags;
         flags
+    }
+
+    // Ghidra: database.cc:1259-1266 Scope::queryContainer (live-entry form)
+    /// Build the live `database::SymbolEntry` for a `LocalMapEntry` hit from
+    /// [`Self::query_properties_ex`], so callers can run the full
+    /// `Varnode::setSymbolProperties` port (varnode.rs
+    /// `set_symbol_property_arc`) — the cc:163-164
+    /// `vn->setSymbolProperties(entry)` tail of `Funcdata::setVarnodeProperties`
+    /// / `newVarnode(Out)` (funcdata_varnode.cc:33/117/164), whose
+    /// `SymbolEntry::updateType` (database.cc:135-144) → `getSizedType`
+    /// → `getExactPiece` → `vn->updateType(dt,true,true)` chain is the
+    /// struct downChain lock. The Symbol handle is memoized in
+    /// [`Self::live_symbols`] by slot id: Ghidra's scope owns ONE heap
+    /// `Symbol` per mapping (database.hh:809) and hands out the same object
+    /// on every query, so `same_storage_identity`'s `Arc::ptr_eq` must see
+    /// the same handle on repeated attaches.
+    /// (DB-LOCALSCOPE-MAP-0001 local-leg completion.)
+    pub fn live_symbol_entry(
+        &self,
+        entry: &LocalMapEntry,
+    ) -> Option<std::sync::Arc<std::sync::RwLock<crate::database::SymbolEntry>>> {
+        use crate::database::{symbol_flags, Symbol, SymbolEntry};
+        let ls = self.symbols.get(entry.sym)?;
+        // One shared Symbol handle per slot (Ghidra's heap-Symbol identity).
+        let sym_arc = {
+            let mut cache = self
+                .live_symbols
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(hit) = cache.get(&entry.sym) {
+                hit.clone()
+            } else {
+                let mut ds = Symbol::new(0, &ls.name, "");
+                ds.display_name = ls.display_name.clone();
+                ds.dtype = ls.dtype.clone();
+                // database.hh:271 getAllFlags = extraflags | symbol->flags —
+                // the symbol-side bits mirror `entry_all_flags` exactly.
+                if ls.typelock {
+                    ds.flags |= symbol_flags::TYPELOCK;
+                }
+                if ls.namelock {
+                    ds.flags |= symbol_flags::NAMELOCK;
+                }
+                if ls.addrtied {
+                    ds.flags |= symbol_flags::ADDRTIED;
+                }
+                if ls.persist {
+                    ds.flags |= symbol_flags::PERSIST;
+                }
+                ds.flags |= ls.property_flags;
+                let arc = std::sync::Arc::new(std::sync::RwLock::new(ds));
+                cache.insert(entry.sym, arc.clone());
+                arc
+            }
+        };
+        let mut uselimit = crate::address::RangeList::new();
+        for (_spc, first, last) in &entry.uselimit {
+            if let Some(range) = crate::address::Range::new(
+                crate::address::Address::new(*first),
+                crate::address::Address::new(*last),
+            ) {
+                uselimit.insert_range(range);
+            }
+        }
+        Some(std::sync::Arc::new(std::sync::RwLock::new(
+            SymbolEntry::new_static(
+                sym_arc,
+                entry.extraflags,
+                crate::address::Address::new(entry.start),
+                entry.offset,
+                entry.size,
+                uselimit,
+            ),
+        )))
     }
 
     // Ghidra: database.hh:597 Scope::inScope
