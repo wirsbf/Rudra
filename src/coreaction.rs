@@ -3698,20 +3698,18 @@ fn call_entry_address(fc: &crate::fspec::FuncCallSpecs) -> crate::address::Addre
 /// resolver skips pushSymbolDetail's scope-qualified partial-symbol forms.
 /// CAST-wrapped constants and init-less loops fail closed (no conversion).
 ///
-/// PLACEMENT NOTE: Ghidra runs this from ActionFinalStructure::apply
-/// (blockaction.cc:2192 `graph.finalizePrinting(data)`, pipeline position
-/// :5736 — BEFORE scopeBreak/markUnstructured/markLabelBumpUp at
-/// :2193-2195), by which point variable names (ActionNameVars :5734) and
-/// casts (ActionSetCasts :5735) are final. The oracle home is therefore
-/// the ActionFinalStructure slot, NOT Funcdata::print. Rugra's
-/// ActionFinalStructure lives in blockaction.rs (lane-frozen write-set
-/// this round), so the nearest stable hook is the tail of the last
-/// coreaction action before it (ActionPrototypeWarnings :5737) — one
-/// action later than the oracle position (ActionPrototypeWarnings runs
-/// after, at :5737 vs :5736 — same post-NameVars/SetCasts world, no
-/// intervening IR mutation). Relocate to the corresponding point inside
-/// ActionFinalStructure (the blockaction.rs port of blockaction.cc:2192)
-/// when that file's write-set reopens.
+/// RETIRED SHIM (INITEXTRACT-PIPE-SLOT-0001): this transitional renderer
+/// was the pre-2026-09-28 stand-in for BlockWhileDo::finalizePrinting
+/// (block.cc:3399-3423), hooked at ActionPrototypeWarnings :5737. It is no
+/// longer called by the pipeline: the faithful sweep now runs at the two
+/// oracle slots — decision+relocation at ActionStructureTransform :5715
+/// (coreaction.rs, `for_loop_final_transform`) and header extraction at
+/// ActionFinalStructure :5736 (blockaction.rs,
+/// `BlockGraph::finalize_printing_graph`). Its narrowed INT_ADD/COPY-const
+/// render gates reject loops the faithful chain accepts and vice versa; it
+/// survives ONLY as a test-visible renderer for its direct unit tests (the
+/// `for_init`/`for_iter` legacy string slots on BlockWhileDo). Do not call
+/// it from pipeline code.
 pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
     use crate::block::BlockType;
     use crate::op::pcodeop_flags::NONPRINTING;
@@ -4230,17 +4228,21 @@ impl Action for ActionPrototypeWarnings {
         }
         // coreaction.cc:4935: return 0; (no IR mutation).
         //
-        // RUGRA ADDITION — for-loop header extraction
-        // (BlockWhileDo::finalizePrinting, block.cc:3399-3423): the oracle
-        // trigger is ActionFinalStructure::apply →
-        // graph.finalizePrinting(data) (blockaction.cc:2192, pipeline
-        // :5736, before scopeBreak). Rugra's ActionFinalStructure port
-        // lives in blockaction.rs (lane-frozen write-set this round), so
-        // this last coreaction action (:5737, one action later, no
-        // intervening IR mutation) is the nearest stable hook. See
-        // `for_loop_finalize_printing` for the full placement note and the
-        // relocation plan.
-        for_loop_finalize_printing(fd);
+        // RETIRED (INITEXTRACT-PIPE-SLOT-0001): the for-loop header
+        // extraction (BlockWhileDo::finalizePrinting, block.cc:3399-3423)
+        // no longer runs here. Its oracle trigger is
+        // ActionFinalStructure::apply → graph.finalizePrinting
+        // (blockaction.cc:2192, pipeline :5736), which Rugra now dispatches
+        // faithfully in blockaction.rs via
+        // BlockGraph::finalize_printing_graph (which runs
+        // while_do_finalize_printing per WhileDo). This :5737 hook was the
+        // transitional stand-in from a lane write-set freeze; as an IR
+        // mutation AFTER the faithful sweep it was an off-oracle divergence
+        // source (its narrowed INT_ADD-only iterate gate could mark loops
+        // the faithful chain — running at the oracle slots since
+        // INITEXTRACT-PIPE-SLOT-0001 — rejects). The narrowed renderer
+        // `for_loop_finalize_printing` stays as a dead compat shim for its
+        // direct unit tests; nothing in the pipeline calls it.
         Ok(action_status::NO_CHANGE)
     }
     // RUGRA-GLUE: Rust Action trait get_name; "prototypewarnings" mirrors ctor at coreaction.hh:1047
@@ -18357,43 +18359,31 @@ impl Action for ActionStructureTransform {
         // pattern and, when found, relocates the iterate/initialize ops and
         // marks them non-printing.
         //
-        // Rugra port: walk the structured hierarchy in child-first order; for each WhileDo loop,
-        // detect the induction-variable pattern (findLoopVariable,
-        // block.cc:3164) and mark the iterate op non-printing
-        // (opMarkNonPrinting, block.cc:3421). We cannot relocate ops between
-        // blocks (no opInsertAfter across blocks / no for-loop syntax
-        // marker), but the detection + non-printing mark — the substantive
-        // part of the transform — is performed.
-        use crate::block::BlockType;
-        use crate::op::pcodeop_flags::NONPRINTING;
-        // Empty structure → nothing to do.
-        if fd.sblocks.blocks.is_empty() {
-            return Ok(action_status::NO_CHANGE);
-        }
-        // Ghidra bails unless the architecture has analyze_for_loops set
-        // (block.cc:3360). If the Funcdata has no arch, treat it as
-        // analyze_for_loops = false (no for-loop conversion) — matching
-        // Ghidra's conservative default for an unconfigured arch.
-        let analyze_for_loops = fd
-            .arch
-            .as_ref()
-            .map(|a| a.analyze_for_loops)
-            .unwrap_or(false);
-        if !analyze_for_loops {
-            return Ok(action_status::NO_CHANGE);
-        }
-        // The WhileDo for-header extraction (findLoopVariable /
-        // findInitializer / finalizePrinting, block.cc:3158-3423) does NOT
-        // run here. Ghidra's finalTransform at this position RELOCATES the
-        // iterate/initialize ops to be terminal statements of their blocks
-        // via opUninsert/opInsertAfter (block.cc:3381-3396) — a move
-        // Rugra's op bank cannot express and which stays UNDONE
-        // (registered: GETPARAM-FORLOOP-OPMOVE-0001). The header statements
-        // themselves are extracted later, at the oracle's
-        // ActionFinalStructure::apply → graph.finalizePrinting slot
-        // (blockaction.cc:2192, pipeline :5736 — see the placement note on
-        // `for_loop_finalize_printing` for Rugra's ActionPrototypeWarnings
-        // :5737 stand-in and the relocation plan).
+        // Ghidra (blockaction.cc:2110-2115) verbatim:
+        //   data.getStructure().finalTransform(data); return 0;
+        // BlockGraph::finalTransform (block.cc:1355-1362) recurses the
+        // structured tree child-first; BlockWhileDo::finalTransform
+        // (block.cc:3356-3396) runs the for-loop decision chain
+        // (findLoopVariable/isMoveable → iterate op relocation →
+        // findInitializer → initialize op relocation) on each WhileDo.
+        //
+        // SLOT CONTRACT (INITEXTRACT-PIPE-SLOT-0001): this sweep MUST run
+        // at :5715 — BEFORE the merge group (:5717-:5729) and, decisively,
+        // BEFORE ActionSetCasts (:5735). The for/while decision gate
+        // `possibleIterate->isMoveable(lastOp)` (block.cc:3197) reads the
+        // RAW iterate op: with a memory-reading iterate (LOAD) followed by
+        // a later STORE in the tail block, the oracle rejects the for
+        // conversion (LOAD not moveable past the STORE) and prints while.
+        // setcasts later wraps the same LOAD in a CPUI_CAST (register-only,
+        // trivially moveable); a sweep running AFTER setcasts sees the CAST
+        // as the φ input, the gate flips to moveable, and the loop wrongly
+        // converts to for (ap_fini_vhost_config DAT_001a0828 loop, oracle
+        // drill 2026-09-28: oracle iterate=LOAD@0x2d0c3 isMoveable=0 →
+        // while vs Rugra-at-:5736 iterate=CAST isMoveable → for). The
+        // relocation to ActionFinalStructure (:5736, HTTPDMAIN-F8-FORLOOP
+        // lane write-set freeze) claimed behavioral unobservability —
+        // disproven by that fixture; restored to the oracle slot here.
+        crate::block::for_loop_final_transform(fd);
         // Ghidra always returns 0.
         Ok(action_status::NO_CHANGE)
     }

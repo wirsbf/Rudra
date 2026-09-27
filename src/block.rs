@@ -7645,12 +7645,12 @@ pub fn final_transform_block(
 
 // Ghidra: blockaction.cc:2110 ActionStructureTransform::apply (graph entry)
 /// `data.getStructure().finalTransform(data)` — top-level graph entry sweep
-/// of the for-loop formation transform (blockaction.cc:2110-2115). PLACEMENT
-/// NOTE: the oracle runs this at pipeline :5715 (ActionStructureTransform,
-/// pre-merge); Rugra's ActionStructureTransform::apply lives in coreaction.rs
-/// (lane-frozen write-set, currently a no-op) so the sweep is dispatched from
-/// ActionFinalStructure::apply in blockaction.rs (:5736 slot) — see the
-/// F8FOR placement registration on the TODO ticket.
+/// of the for-loop formation transform (blockaction.cc:2110-2115). Runs at
+/// the oracle pipeline slot :5715 (ActionStructureTransform, BEFORE the
+/// merge group :5717-:5729 and ActionSetCasts :5735) — dispatched from
+/// `ActionStructureTransform::apply` in coreaction.rs (SLOT CONTRACT,
+/// INITEXTRACT-PIPE-SLOT-0001). The for/while `isMoveable` gate
+/// (block.cc:3197) must read the RAW iterate op before setcasts wraps it.
 pub fn for_loop_final_transform(fd: &mut crate::funcdata::Funcdata) {
     if !fd.arch.as_ref().map(|a| a.analyze_for_loops).unwrap_or(false) {
         return; // block.cc:3360 gate (per-loop, hoisted for the sweep entry)

@@ -8692,26 +8692,18 @@ impl Action for ActionFinalStructure {
         // moving to the tail.
         fd.sblocks.order_blocks();
 
-        // Ghidra blockaction.cc:2113 (ActionStructureTransform::apply):
-        // data.getStructure().finalTransform(data); — BlockWhileDo for-loop
-        // formation: findLoopVariable (block.cc:3164) + the iterateOp/
-        // initializeOp migration via opUninsert/opInsertAfter under the
-        // isMoveable gates (block.cc:3381-3396).
-        //
-        // PLACEMENT NOTE (HTTPDMAIN-F8-FORLOOP-0001): the oracle runs this
-        // sweep at pipeline :5715 (ActionStructureTransform, BEFORE the
-        // merge group :5717-:5729). Rugra's ActionStructureTransform::apply
-        // lives in coreaction.rs (lane-frozen write-set this round, a no-op
-        // deferring to this site — see its `for_loop_finalize_printing`
-        // placement note which prescribed exactly this relocation into the
-        // blockaction.rs ActionFinalStructure port). The sweep therefore
-        // runs here at the :5736 slot, immediately before finalizePrinting;
-        // the intervening merge/cast actions observe the iterate op at its
-        // pre-migration position (oracle: post-migration). The op moves are
-        // within-block relocations gated by isMoveable/moveRespectingCover,
-        // and the corpus gates (canon byte-equality + mirror ratchet) verify
-        // the placement is behaviorally unobservable on the locked corpora.
-        crate::block::for_loop_final_transform(fd);
+        // Ghidra blockaction.cc:2113's finalTransform sweep (BlockWhileDo
+        // for-loop formation, block.cc:3356-3396) does NOT run here: its
+        // oracle slot is ActionStructureTransform at pipeline :5715, before
+        // the merge group (:5717-:5729) and ActionSetCasts (:5735) — see
+        // the SLOT CONTRACT on ActionStructureTransform::apply in
+        // coreaction.rs (INITEXTRACT-PIPE-SLOT-0001). The former
+        // :5736 relocation (HTTPDMAIN-F8-FORLOOP-0001 lane write-set
+        // freeze, claimed behaviorally unobservable) ran the sweep AFTER
+        // setcasts had wrapped raw LOAD iterates in CPUI_CASTs, flipping
+        // the isMoveable gate (block.cc:3197) and converting while loops
+        // the oracle keeps as while (ap_fini_vhost_config DAT_001a0828,
+        // oracle drill fixture 2026-09-28). Restored to :5715.
         crate::block::BlockGraph::finalize_printing_graph(fd);
 
         // Ghidra blockaction.cc:2192: graph.finalizePrinting(data); —
