@@ -301,6 +301,253 @@ fn structseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLoca
         .as_ref()
 }
 
+// HEADLESS-BRIDGE-V1 RETYPE (CURLCANON-HEADLESS-RETYPE-0001, per-field
+// retype ledger): the canon golden's `== false` / `(bool)(x ^ 1)` forms for
+// ::config.remotefile are a Java-headless-stack COMMIT-LAYER field retype —
+// the DWARF input is direct char (base DIE <0x17f>, readelf-witnessed), and
+// the locked C++ library provably prints the char forms for a char-typed
+// field (PrintC::pushConstant dispatch printc.cc:1744-1815: TYPE_BOOL ->
+// pushBoolConstant :1488-1495 `true`/`false`, TYPE_INT + isCharPrint ->
+// pushCharConstant `'\0'`; the constant's facing type comes from the
+// varnode's high type via printlanguage.cc pushVnExplicit -> varnode.cc
+// getHighTypeReadFacing, and ActionSetCasts::castInput's constant arm
+// coreaction.cc:2687-2691 absorbs the comparison's expected type — so
+// `false` requires the FIELD itself to be bool; the CANON-BOOLCHAR-FIELDTYPE
+// -0001 mechanism chain read). The retype is not derivable as a general
+// rule on this corpus: remotefile and URLPattern's min_c/max_c/ptr_c share
+// the IDENTICAL char base DIE <0x17f> in the same CU yet only remotefile
+// commits bool (locked-dist DB ground truth: Configurable is CU1-only and
+// resolves after the typedef DIE <0x938> in the importer's file-order walk,
+// while CharRange is defined in BOTH main.c and urlglob.c and the cross-CU
+// merge lands as a .conflict composite that keeps char — the split is the
+// Java importer's file-order/merge state machine, NOT usage), while
+// string-buffer char arrays (line/outline/buffer/...)
+// commit bool[N] with zero boolean usage (array-type DIEs after the typedef
+// in file order; format's <0x428> sits before it and stays char[40];
+// glob_buffer uses CU3's own never-remapped char DIE) — no (DWARF x usage)
+// decision function reproduces the full commit surface (manifest
+// `adjudication` field carries the mechanism + falsification record; the
+// same-printer argument covers
+// the bool side: the typedef-bool fields progressmode/use_resume render
+// `(bool)(x ^ 1)` / `!= false` byte-identical to golden today, so landing
+// remotefile on the SAME core bool identity takes the five golden witness
+// lines through already-witnessed rendering paths). Channel form follows
+// the DWARFSEED "canon-committed typing" precedent — a per-field ledger
+// keyed (struct, field) -> core type — INSTALLED AS THE SHARED FACTORY'S
+// NAME-SLOT OWNER at process start (main() top, before any DWARF pass
+// registers its own candidate): the install parses the corpus DWARF once,
+// swaps the ledger fields to the core bool, vacates the freshly interned
+// import slot (set_name, the define_replace seam) and re-owns the name
+// under a completed struct (create_struct + set_fields_flags with the
+// DWARF byte_size/alignment). intern_named's same-(variant,size,metatype)
+// dedup then hands EVERY later resolution — the worker's DebugGlobalDatabase
+// and DebugPrototypeDatabase parses, parse_type_names, parse_c_type seed
+// spellings, callee-siglock resolutions — the ONE retyped identity, which
+// is exactly the single-datatype state Ghidra's Java type manager is in
+// after the analyzer retype (pointer-identity comparisons, cast.cc:299
+// castStandard's `curtype == reqtype`, see no cast). Per-site tree
+// rewriting is deliberately NOT used: a second identity would split the
+// cast engine's pointer-identity checks (getparameter's local_5b8 seeded
+// from the name tree vs a retyped global tree — spurious casts, measured).
+// Gate polarity follows the TYPEDEFSEED/V3SIG PFLIP precedent: the channel
+// is canon-visible when live, so RUGRA_FIELDRETYPE=1 opts in, any mirror
+// component keeps the gate closed (five-projection purity), RUGRA_SEEDS=0
+// is the global bare-face escape, RUGRA_FIELDRETYPE_MANIFEST=<path>
+// overrides the manifest location, and a missing/corrupt manifest is a
+// loud no-op. The DEFAULT face is constructively identical: gate unset ->
+// no manifest IO, no corpus read, no factory mutation, byte-identical
+// output.
+static FIELDRETYPE_LEDGER: std::sync::OnceLock<Option<FieldRetypeLedger>> =
+    std::sync::OnceLock::new();
+
+// RUGRA-GLUE: decoded ledger — (struct name, field name) -> target core
+// type spec. Only the core bool ({"spelling":"bool","size":1}) is
+// resolvable today; any other target spelling is a loud skip (the ledger
+// is honest about its single canon-witnessed entry; extension spellings
+// join with their own locked-oracle witnesses).
+struct FieldRetypeLedger {
+    entries: Vec<((String, String), FieldRetypeTarget)>,
+}
+
+struct FieldRetypeTarget {
+    spelling: String,
+    size: usize,
+}
+
+// RUGRA-GLUE: gate + manifest decode (PFLIP polarity, mirror purity first
+// — same decision order as the TYPEDEFSEED install). Sorted key order
+// keeps multi-entry installs deterministic.
+fn load_field_retype_ledger() -> Option<FieldRetypeLedger> {
+    if mirror_flow_enabled() || mirror_bare_load_enabled() || mirror_fixture_data_enabled() {
+        eprintln!(
+            "[FIELDRETYPE] retype gate RUGRA_FIELDRETYPE ignored under the mirror gate (projection purity)"
+        );
+        return None;
+    }
+    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+        return None;
+    }
+    if std::env::var("RUGRA_FIELDRETYPE").ok().as_deref() != Some("1") {
+        // PFLIP polarity: opt-in only. The retype channel is canon-visible
+        // when live (the field form changes downstream); revisit with an
+        // in-tree locked-oracle witness family for the Java commit layer
+        // before flipping default-on (HEADLESS_BRIDGE_V1_DESIGN 21).
+        return None;
+    }
+    let path = std::env::var("RUGRA_FIELDRETYPE_MANIFEST")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "tests/golden/manifests/field_retype_curl_1204.json".to_string());
+    let raw = match fs::read_to_string(&path) {
+        Ok(text) => match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(raw) => raw,
+            Err(err) => {
+                eprintln!("[FIELDRETYPE] manifest {} is not valid JSON: {} (seeding disabled)", path, err);
+                return None;
+            }
+        },
+        Err(err) => {
+            eprintln!("[FIELDRETYPE] cannot read manifest {}: {} (seeding disabled)", path, err);
+            return None;
+        }
+    };
+    let Some(serde_json::Value::Array(entries)) = raw.get("entries") else {
+        eprintln!("[FIELDRETYPE] manifest {} carries no entries array (seeding disabled)", path);
+        return None;
+    };
+    let mut table: Vec<((String, String), FieldRetypeTarget)> = Vec::new();
+    for entry in entries {
+        let (Some(serde_json::Value::String(sname)), Some(serde_json::Value::String(fname)), Some(target)) =
+            (entry.get("struct"), entry.get("field"), entry.get("retype"))
+        else {
+            continue;
+        };
+        let spelling = target
+            .get("spelling")
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .to_string();
+        let size = target.get("size").and_then(|value| value.as_u64()).unwrap_or(0) as usize;
+        if spelling.is_empty() || size == 0 {
+            continue;
+        }
+        eprintln!("[FIELDRETYPE] ledger entry: {}.{} -> {}", sname, fname, spelling);
+        table.push(((sname.clone(), fname.clone()), FieldRetypeTarget { spelling, size }));
+    }
+    if table.is_empty() {
+        eprintln!("[FIELDRETYPE] manifest {} decoded zero entries (seeding disabled)", path);
+        return None;
+    }
+    table.sort_by(|a, b| (&a.0 .0, &a.0 .1).cmp(&(&b.0 .0, &b.0 .1)));
+    Some(FieldRetypeLedger { entries: table })
+}
+
+// RUGRA-GLUE: per-process ledger handle (mirrors the seed-table accessors).
+fn field_retype_ledger() -> Option<&'static FieldRetypeLedger> {
+    FIELDRETYPE_LEDGER.get_or_init(load_field_retype_ledger).as_ref()
+}
+
+// RUGRA-GLUE: channel install — re-own the shared factory's name slot for
+// every ledger struct. Runs ONCE at process start (main() top, before any
+// consumer DWARF pass). The install's own DebugGlobalDatabase parse both
+// materializes the field graph and registers the import candidate the
+// vacate step moves aside; struct shapes come from the factory name tree
+// (find_add already canonicalized alignment/align_size there), keyed by
+// the ledger's struct names. Only TOP-LEVEL fields of named structs are
+// retypeable (the corpus ledger's shape; nested targets join with their
+// own witnesses).
+fn install_field_retype_channel() {
+    use rugra::type_system::datatype::{Datatype, TypeMetatype};
+    let Some(ledger) = field_retype_ledger() else {
+        return; // gate off: zero corpus IO, zero factory mutation
+    };
+    let image = match fs::read("examples/curl") {
+        Ok(image) => image,
+        Err(err) => {
+            eprintln!("[FIELDRETYPE] cannot read examples/curl for the retype install: {err} (seeding disabled)");
+            return;
+        }
+    };
+    // The parse's resolve_type walk registers every named type reachable
+    // from a located global (config -> Configurable) in the shared factory —
+    // the SAME generation every later parse in this process resolves
+    // through intern_named's (variant,size,metatype) dedup, so the field
+    // Arcs the rebuilt struct keeps sharing stay the process identities.
+    if let Err(err) = DebugGlobalDatabase::parse_elf(&image) {
+        eprintln!("[FIELDRETYPE] DWARF parse for the retype install failed: {err} (seeding disabled)");
+        return;
+    }
+    let factory = rugra::type_system::typefactory::TypeFactory::shared_default();
+    let mut guard = factory
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let Some(core_bool) = guard.get_base(1, TypeMetatype::Bool) else {
+        eprintln!("[FIELDRETYPE] core bool unavailable (seeding disabled)");
+        return;
+    };
+    let mut installed = 0usize;
+    let struct_names: std::collections::BTreeSet<String> =
+        ledger.entries.iter().map(|((s, _), _)| s.clone()).collect();
+    for name in struct_names {
+        let Some(registered) = guard.find_by_name(&name) else {
+            eprintln!("[FIELDRETYPE] ledger struct {name} absent from the DWARF name tree (skipped)");
+            continue;
+        };
+        if !matches!(registered.as_ref(), Datatype::Struct(_)) {
+            eprintln!("[FIELDRETYPE] ledger struct {name} is not a structure (skipped)");
+            continue;
+        }
+        // Rebuild candidate: the registered DWARF shape with the ledger
+        // fields swapped to the core bool. The base record (size,
+        // factory-canonicalized alignment/align_size, flags) passes through
+        // untouched — the layout MUST equal the import's, only the field
+        // type identity changes.
+        let mut rebuilt = (*registered).clone();
+        let mut swapped = 0usize;
+        if let Datatype::Struct(shape) = &mut rebuilt {
+            for ((ledger_struct, ledger_field), target) in &ledger.entries {
+                if ledger_struct != &name || target.spelling != "bool" {
+                    continue;
+                }
+                for field in shape.fields.iter_mut() {
+                    if &field.name == ledger_field && field.type_ptr.get_size() == target.size {
+                        field.type_ptr = core_bool.clone();
+                        swapped += 1;
+                    }
+                }
+            }
+        }
+        if swapped == 0 {
+            eprintln!("[FIELDRETYPE] ledger struct {name}: no size-matching field retyped (skipped)");
+            continue;
+        }
+        let rebuilt = std::sync::Arc::new(rebuilt);
+        // Re-own the name: destroy the import candidate from BOTH factory
+        // channels (destroy_type, the type.cc:4122 mirror — frees the
+        // (Struct, size, id) tree slot AND the name slot), then register
+        // the rebuilt shape under the same name through get_typedef's
+        // clone-and-findAdd funnel (type.cc:3818: base record cloned —
+        // exact layout kept, so findAdd's alignment pass is skipped and no
+        // size-0 stub ever reaches the default alignment map; name/id
+        // re-derived; typedefImm back-link set — a channel whose strip
+        // loops are dormant on master, the TYPEDEFSEED gate-on witness:
+        // installed typedefs, full-corpus output diff=0).
+        if let Err(err) = guard.destroy_type(&registered) {
+            eprintln!("[FIELDRETYPE] destroy {name} failed: {err} (skipped)");
+            continue;
+        }
+        let reowned = guard.get_typedef(&name, rebuilt);
+        eprintln!(
+            "[FIELDRETYPE] {name}: {swapped} field(s) -> bool; name slot re-owned (canon-committed; size {})",
+            reowned.get_size()
+        );
+        installed += 1;
+    }
+    if installed == 0 {
+        eprintln!("[FIELDRETYPE] no ledger struct installed (channel inert this process)");
+    }
+}
+
 // HEADLESS-BRIDGE-V4 COMPOSITE (typedef-def channel,
 // HEADLESS-BRIDGE-V4-COMPOSITE-0005): the TYPEDEFIMM channel's production
 // trigger surface. The four typedef stripping loops (cast.cc:325-328
@@ -3354,6 +3601,14 @@ fn main() {
             run_descendant_probe(expected_parent);
         }
     }
+    // HEADLESS-BRIDGE-V1 RETYPE channel install (CURLCANON-HEADLESS-RETYPE-
+    // 0001): process-start name-slot ownership — must precede every DWARF
+    // pass in this process (the worker branch below and the controller
+    // mode dispatch both parse through the shared factory afterwards).
+    // Gate off (default) is a constructive no-op: no manifest IO, no
+    // corpus read, no factory mutation.
+    install_field_retype_channel();
+
     if args.get(1).map(String::as_str) == Some(WORKER_MODE_ARG) {
         let valid_args = match args.as_slice() {
             [_, mode] if mode == WORKER_MODE_ARG => true,

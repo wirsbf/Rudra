@@ -1,0 +1,28 @@
+{
+  "oracle_commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "corpus": "curl",
+  "channel": "field-retype",
+  "binary_sha256": "8af50bca2f812580933fbbf125b66ce8ba4acfe88ef4435c89ac72356f122d41",
+  "golden_sha256": "aca3798881fddc2ce541c3e731b88f9fcf4736451db98fdd9247366f78b6097f",
+  "adjudication": "CURLCANON-HEADLESS-RETYPE-0001 (2026-09-27, lane RETYPE; adjudication strengthened in-session with bytecode-proven mechanism + locked-dist DB ground truth): the committed field typings below are Java-headless DWARF-importer commit-layer products, NOT derivable as a general rule from (DWARF type graph x decompiler-visible usage). MECHANISM (locked-dist 12.0.4 bytecode, DWARFDataTypeImporter.makeDataTypeForTypedef -> makeNamedBaseType): a typedef whose target is a DW_TAG_base_type is imported NOT as a typedef but through the base-type path keyed by the TYPEDEF's name — getBaseType('bool', size=1, encoding=6) hits the pre-seeded built-in bool (DWARFDataTypeManager.initBaseDataTypes) with isEncodingCompatible(6, bool) taking the default-true arm (only encodings 5/7 check signedness), and the resulting mapping registers under the TARGET base-type DIE's offset, flipping CU1(main.c)'s char DIE <0x17f> from /char to /bool (the capture log's 'DWARF data type remappings: /char -> /bool'). The per-field commit is then a function of the importer's INTERNAL STATE MACHINE, not type identity and not usage. Machine-checked falsifications: (1) remotefile and min_c/max_c/ptr_c share the identical char base-type DIE <0x17f> in the same CU, yet DB ground truth (dump_field_types.py postScript on the locked dist, canon recipe) commits Configurable.remotefile=/bool (CU1-only struct, resolved after the typedef DIE <0x938> in the file-order walk) while URLPattern's CharRange.min_c/max_c/ptr_c=/char (the struct is defined in BOTH main.c CU1 and urlglob.c CU3; the cross-CU merge lands as anon_struct_3_3_..._for_CharRange.conflict and keeps char) — the earlier usage-shaped hypothesis (boolean tests vs char-range arithmetic) is REFUTED by this .conflict row; (2) the same state machine splits the char arrays: main.errorbuffer=/bool[256], myprogress.line/outline=/bool[256], buf=/bool[4096] (array-type DIEs <0x1148>/<0x214f>/... positioned AFTER the typedef DIE in file order) while main's format=/char[40] (array DIE <0x428> BEFORE the typedef) and the file-static glob_buffer=/char[4096] (CU3's own char DIE <0x4413>, never remapped) — zero boolean usage in any buffer, so usage cannot be the split key; (3) no (DWARF x usage) decision function reproduces this surface: the split keys are the importer's file-order iteration position, per-offset cache, DIEAggregate cross-CU merging and .conflict resolution — Java-internal state, invisible in the DWARF graph and in decompiler-visible usage. The locked C++ library itself provably prints the char forms for char fields (PrintC::pushConstant dispatch, printc.cc:1744-1815; BOOLCHAR mechanism chain), so the retype is strictly a bridge-layer datum. Channel ships as a per-field ledger (DWARFSEED canon-committed precedent form); the generalization path — emulating the makeNamedBaseType name-keyed remap + file-order resolution + cross-CU merge/conflict state machine in the bridge layer — is registered in docs/alignment_docs/HEADLESS_BRIDGE_V1_DESIGN.md section 21.",
+  "entries": [
+    {
+      "struct": "Configurable",
+      "field": "remotefile",
+      "from": "char",
+      "retype": {
+        "spelling": "bool",
+        "size": 1,
+        "metatype": "bool"
+      },
+      "witnesses": [
+        "ghidra_curl_1204.c:695 (::config.remotefile == false)",
+        "ghidra_curl_1204.c:712 (::config.remotefile != false)",
+        "ghidra_curl_1204.c:738 (::config.remotefile != false)",
+        "ghidra_curl_1204.c:1021 (::config.remotefile == false)",
+        "ghidra_curl_1204.c:1871 (::config.remotefile = (bool)(::config.remotefile ^ 1))"
+      ],
+      "source": "canon-committed"
+    }
+  ]
+}
