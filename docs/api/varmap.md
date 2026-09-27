@@ -135,7 +135,11 @@ Ghidra `varmap.cc` (1620行) 的 Rust 移植。负责局部变量的栈帧重构
 - `is_const_absorbable(&self, b)` — `RangeHint::isConstAbsorbable` (varmap.cc:30)
 - `reconcile(&self, b)` — `RangeHint::reconcile` (varmap.cc:62)，含 `get_sub_type` 对齐遍历
   （2026-09-22 起 chain 持 canonical component Arc，与 Ghidra factory-owned
-  `Datatype*` 镜像一致；见 `docs/api/type_system/datatype.md`）
+  `Datatype*` 镜像一致；见 `docs/api/type_system/datatype.md`）。
+  **2026-09-27 POINTTEE 数组臂收紧（GA2-SWITCHVN-POINTEE-TYPE-0001）**：STRUCT/UNION
+  之外的数组放行条件从"任意数组"改为 oracle 逐字（varmap.cc:92-94
+  `meta != TYPE_ARRAY || arrayBase->getMetatype() != TYPE_UNKNOWN → return false`）——
+  仅 array-of-unknown 落到 b 元类型 UNKNOWN/INT/UINT 接受臂（cc:96-99）
 - `contain(&self, b)` — `RangeHint::contain` (varmap.cc:109)
 - `preferred(&self, b, reconcile)` — `RangeHint::preferred` (varmap.cc:126)
 - `absorb(&mut self, b)` — `RangeHint::absorb` (varmap.cc:217)
@@ -192,7 +196,7 @@ Ghidra `varmap.cc` (1620行) 的 Rust 移植。负责局部变量的栈帧重构
 - `add_guard(guard, opc, types)` — **2026-08-25 VARMAP-GATHEROPEN-GUARD-0001** `MapState::addGuard` (varmap.cc:1003-1039)：`isValid`（op 活且 opcode 匹配，heritage.hh:169）→ step==0 拒 → 地址输入类型指针下钻数组层 → outSize 匹配/整除 step（整除时假装 outSize 数组）→ 对齐不匹配且 step<=8 时工厂 `getBase(step,TYPE_UNKNOWN)` 重型 → range-locked（`analysis_state==2`）`minItems=(max-min+1)/step-1` 否则 3 → open hint。**R23 followup 5.1 已闭合（2026-08-25 VARMAP-UNIONFACING-READFACING-0001）**：地址输入类型改取 op 版 `get_type_read_facing_op(&op, 1)`（= `getTypeReadFacing(op)`，varnode.cc:639-645，getIn(1) 恒 slot 1），union 指针经 `TypePointer::findResolve`（type.cc:1192-1202，needs_resolution 由 calcSubmeta type.cc:1051-1052 传播）；Rugra 侧 findResolve 目前 identity（varnode.rs `get_type_read_facing_op`），两版同值休眠——双侧 fixture 复跑 sha `3b5e1b65…` 三方同一（编辑后 Rust == R23 pin == oracle 重跑）。**2026-09-25 RANGEHINT 补齐（VARMAP-RANGEHINT-ARRAYELEM-0001）**：oracle 的 Varnode 恒带类型（`newVarnodeOut`/`newUniqueOut`/`newVarnode` 一律装 `getBase(s,TYPE_UNKNOWN)`，funcdata_varnode.cc:107/132/153-154；`getTypeReadFacing` 非联合直接返回 `type`，varnode.cc:639-645），故 varmap.cc:1009-1038 的 `ct` 永不为 null、无 null 早退；Rugra 以 `v_type=None` 建模未定型 varnode，此前 None 直接 `return` 丢 guard hint——现 None 臂代以工厂 `undefined<addr_vn_size>`（正是 oracle 侧 `getIn(1)->getTypeReadFacing` 的返回值），非指针 ct 继续走 outSize/step/对齐检查（与 Ghidra 单流一致）。curl/httpd E2E 逐字节恒等（None 路径在双语料不触发，行为中性）
 - `gather_symbols(scope)` — **2026-08-25** `MapState::gatherSymbols` (varmap.cc:1044-1059)：按 space 的 maptable 列表序回灌每个映射符号（entry 起始偏移、符号类型、typelock→hint 旗标）为 fixed hint——restructureVarnode varmap.cc:1269 的 typelocked 符号回灌
 - `sort_alias()` / `get_alias()` — varmap.cc:1279/1281-1284 的 `state.sortAlias()`/`state.getAlias()`
-- `is_read_active(vn)` — `MapState::isReadActive` (varmap.cc:1088)，过滤纯 same-storage INDIRECT/MULTIEQUAL
+- `is_read_active(vn)` — `MapState::isReadActive` (varmap.cc:1088)。**2026-09-27 POINTTEE 全臂补齐（GA2-SWITCHVN-POINTTEE-TYPE-0001）**：此前为两臂简化版（marker 同址检查 + 其余一律 active），缺 oracle 的 PIECE 对齐臂（cc:1102-1109：`slot = out.isBigEndian() ? 0 : 1`，非低位输入的期望地址 = 输出地址 + 低位尺寸，地址不齐才 active）与 SUBPIECE 忽略臂（cc:1112-1113："Any data-type information comes from the output Varnode, so we ignore input"——SUBPIECE 读取不构成 active）。简化版的危害链（sqlite3Pragma 双侧 TYPEPROP drill 亲证）：8 字节槽 -0x90 的 4 字节上半 SUBPIECE 读（same-storage + read_active 误判 true）在 gatherVarnodes 注入 `undefined4`@-0x8c fixed hint → RangeHint::merge 的 resType=2 confuse 臂（varmap.cc:298-312）把整槽符号打成 `undefined8` → `TypeSpacebase::getSubType`（type.cc:2947）经 PTRSUB(RSP,-0x90) downChain 返回 xunknown8* 而非 uint8* → 8 字节 LOAD 证据（INT_LESS 子代 seed uint8，typeop.cc:1093 TypeOpIntLessEqual 构造 TYPE_UINT）进不了指针环 → 参数面 `uint1*×4`、switch 头缺 `(uint1)` cast/`puVar[1]` 元素形。修复后参数面 `uint8*×3`、6 位点 `switch((uint1)puVarNN[1])` 形与 golden 同构（残差=param_4 int8 折叠，另票）。单测 `test_is_read_active_piece_subpiece_arms` 钉四臂
 - `initialize()` — `MapState::initialize` (varmap.cc:1063-1082)：先取分析窗口的
   ** getLastSignedRange**（`get_last_signed_range`，address.cc:562-583——正半区
   `first <= midway` 末位，否则负半区末位），端点在 `wrapOffset(last+1)`
