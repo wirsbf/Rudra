@@ -1691,3 +1691,31 @@ MATCH 366 stages/141943 ops 免重钉）；cargo test --lib 1733P/1F（nonzeroma
 - 残余登记：ap_getparents +2（canon）/curl 镜 +2/vsh 镜 +2 = 同族
   `moveRespectingCover` 已提交移动 + 后续门拒绝（oracle 同序提交移动；拒绝
   侧差异归 F8FOR-REJECT 残差票）。
+
+## 2026-09-27 追加（BLOCKACT-CONDNEGATE-PARITY-0001 — set_exit_marks/clear_exit_marks 边 label 镜像）
+
+**根因（双侧事件级对拍，work4 仪器化 oracle vs Rugra 等价 trace）**：
+`LoopBody::set_exit_marks`（cc:416-426 `setLoopExit` → `FlowBlock::setOutEdgeFlag`）
+在 oracle 中**总是把 label 镜像到目标的 in-edge 半边**（block.cc:240-247：
+`bbout->intothis[reverse_index].label |= lab`），而 in-edge 半边正是
+`isLoopDAGIn`（block.hh:345）读取的对象。Rugra 旧实现走 trait 级
+`set_out_edge_flag`（只写 out 半边），导致 TraceDAG::checkOpen（cc:828）把
+loop-exit 边当成可开 DAG 边计数。事件级后果链（ap_ht_time 镜面）：
+checkOpen(0x2df89→0x2df8e, depth2) oracle open / Rugra miss → 坏边挑选序分叉
+（Rugra 多挑 0x2df89→0x2df8e / 0x2df73→0x2df8e）→ selectGoto 目标错位 →
+LIT 守卫块 0x2df67 的 3 次结构化 negate（IfNoExit×2+Goto×1，奇偶→INT_NOTEQUAL）
+在 Rugra 侧为 0 次 → golden `if (*V != '\0') {A} return R;` 守卫形 vs Rugra
+提升态 `if (*V == '\0') {return R;} A`。
+
+**修复**：`set_exit_marks`/`clear_exit_marks` 改走既有的
+`crate::block::set_out_edge_flag_mirrored`/`clear_out_edge_flag_mirrored`
+（block.rs，镜像语义 = block.cc:240-256），set/clear 括号对称。
+
+**验证**：修复后双侧结构化事件流（13826 条 rule-entry/NEGATE/flip 事件）逐条恒等；
+0x2df67 翻转 3 次（IfNoExit@2df4b-front / Goto@2df50-front / IfNoExit@2df50-front）
+与 oracle 恒等；httpd 镜面 `--func ap_ht_time` skeleton 8→2（余 2 =
+PRINTC-STRDATA-TYPELOCK-0001 badstring 族，ec9154a5 已修待并；并入后 =0）。
+邻接证据：sqlite3VdbeSorterRewind 同形守卫翻转站点随修复收敛核对；
+sqlite3BtreeOpen 复合极性（德摩根族）核对无回退。已知同族未修点（非本票写域）：
+funcdata.rs:3170 `Funcdata::setGotoBranch`（funcdata_block.cc:305-313）对结构块
+同样走非镜像 `set_out_edge_flag` —— 登记 TODO 邻接注记。

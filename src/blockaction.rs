@@ -1304,9 +1304,23 @@ impl LoopBody {
         for fe in &self.exit_edges {
             if let Some((top_idx, slot)) = fe.get_current_edge(graph) {
                 if let Some(blk) = graph.get_block(top_idx as usize) {
-                    blk.write()
-                        .unwrap()
-                        .set_out_edge_flag(slot, crate::block::edge_flags::F_LOOP_EXIT_EDGE);
+                    // cc:424: setLoopExit(outedge) → setOutEdgeFlag — and
+                    // Ghidra's FlowBlock::setOutEdgeFlag (block.cc:240-247)
+                    // ALWAYS mirrors the label onto the target's in-edge
+                    // half (`bbout->intothis[reverse_index].label |= lab`).
+                    // The in-edge half is what isLoopDAGIn reads
+                    // (block.hh:345, TraceDAG::checkOpen cc:828), so a
+                    // non-mirroring set lets TraceDAG count loop-exit edges
+                    // as openable DAG edges (BLOCKACT-CONDNEGATE-PARITY-0001:
+                    // the 0x2df4b->0x2df8e loop-exit edge stayed "DAG",
+                    // checkOpen(open) became miss, the bad-edge pick order
+                    // diverged, and the LIT guard block 0x2df67 lost its
+                    // oracle negate parity).
+                    crate::block::set_out_edge_flag_mirrored(
+                        &blk,
+                        slot,
+                        crate::block::edge_flags::F_LOOP_EXIT_EDGE,
+                    );
                 }
             }
         }
@@ -1318,9 +1332,14 @@ impl LoopBody {
         for fe in &self.exit_edges {
             if let Some((top_idx, slot)) = fe.get_current_edge(graph) {
                 if let Some(blk) = graph.get_block(top_idx as usize) {
-                    blk.write()
-                        .unwrap()
-                        .clear_out_edge_flag(slot, crate::block::edge_flags::F_LOOP_EXIT_EDGE);
+                    // cc:432: clearLoopExit → clearOutEdgeFlag, which
+                    // clears BOTH halves (block.cc:250-256) — mirror here
+                    // so the set/clear brackets stay symmetric.
+                    crate::block::clear_out_edge_flag_mirrored(
+                        &blk,
+                        slot,
+                        crate::block::edge_flags::F_LOOP_EXIT_EDGE,
+                    );
                 }
             }
         }
