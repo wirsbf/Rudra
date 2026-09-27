@@ -3861,3 +3861,54 @@ sqlite3VdbeSorterRewind）的激活依赖 BLOCKACT-CONDNEGATE-PARITY-0001（P3�
 vsh 15/16·71/71、sq 4227/7500·810/810、sqlite 26411/26411·1385/1385 全
 PASS；bank 391/391 MATCH；cargo test --lib **1909P/0F**（=亲父 1905+本票
 4 新测）；annotations/refs 三门禁绿。
+
+### 2026-09-27：GA-2 SWITCHHEADUNIQUE — emit_switch_head_expr 走 opBranchind RPN 通道（8 位点 unique 泄漏收口）
+
+**症状（GIANTS-DRILL 钉面）**：sqlite 镜面全语料 `unique0x` 恰 8 位点、全部是
+switch 头——Pragma 簇 6 处 `switch(*((uint1 *)unique0x00008f00))` +
+ExprCodeTarget 2 处 `switch(*(uint8 *)unique0x00008f00 & 0xffffffff)`；golden
+0 处（印 `(uint1)puVar30[1]` / `*(uint8 *)(in_R11 + 2) & 0xffffffff`）。
+
+**根因核验（前会话探针 + 本车道 oracle drill 双证，修正 GIANTS-DRILL 的推断）**：
+- **jumptable fold-in 无辜**：`foldInNormalization`（jumptable.cc:1546-1553，只
+  `opSetInput(indop,switchvn,0)`）Rugra 侧已 1:1——print 时 BRANCHIND 输入链
+  **完整存活且 implied**（探针 FLAGS 亲证：`branchind@ad66a → LOAD@ad657 →
+  PTRADD@ad657 → SUBPIECE@ad612` 全活全 implied）。GIANTS-DRILL "IR 里地址输入
+  已无活定义" 是从输出文本反推的错误推断（报告内以 ⇒ 标注）。
+- **真根因 = print 传输层**：`emit_switch_head_expr` 主路径走 legacy
+  `push_varnode`/`emit_inline_expr` 通道，该通道**无 PTRADD/PTRSUB 臂**——
+  implied PTRADD 输出落入 `_ =>` unnamed-location 回退（printc.rs
+  `pushUnnamedLocation` 形），裸印 `unique0x00008f00`。
+- **oracle 侧终态 IR 亲证**（stage_drill_1204 on sqlite3Pragma，OPACTION_DEBUG
+  逐 Action 帧）：`switchnorm` 后 BRANCHIND 输入=1 字节 LOAD 输出
+  （`u0x00023b00:1@ad657:447`）；`ptrarith` 把地址 INT_ADD(RAX,8) 转成
+  PTRADD(RAX,#0x1(*#0x8))；`cleanup:expandload`（RuleExpandLoad，
+  ruleaction.cc:10919——pointee uint8>1 字节走自然截断臂）把 LOAD:1 扩成
+  LOAD:8 + SUBPIECE:1——**golden 的 `(uint1)` 前缀就是该 SUBPIECE 经
+  opSubpiece→opTypeCast 印出的 cast**（printc.cc:869-885 isSubpieceCast 臂），
+  `puVar30[1]` 是 opLoad checkArrayDeref 数组形 + opPtradd 下标形
+  （printc.cc:487-497/880-893）。setcasts 全程未触及该链（无独立 CAST op）。
+
+**修复（1:1）**：`emit_switch_head_expr` 主路径（活 BRANCHIND 输入）改走
+`rpn_push_vn(vn, branchind, mods)` + `rpn_recurse()`——即 opBranchind
+（printc.cc:582-591）的 `pushVn(op->getIn(0),op,mods); recurse();` 逐字通道，
+switchvn 定义链经 per-op PrintC virtuals（opLoad/opPtradd/opTypeCast/
+opSubpiece）渲染，与普通表达式完全同构。`rpn_enabled=false` 时保留 legacy
+路径作回退（与 emit_block_condition 同一约定）。快照回退臂
+（index_varnode/末位 BRANCHIND/CBRANCH 比较）原样保留——控制块无活
+BRANCHIND 时 oracle 根本不会印 switch 头，属 Rugra 胶水面。
+
+**结果（sqlite 镜面 A/B，基 e5fb3e54 双构建）**：
+- 8/8 位点 unique 泄漏全消；ExprCodeTarget 2 位点与 golden **逐字恒等**
+  （`switch(*(uint8 *)(in_R11 + 2) & 0xffffffff)`，含变量名）。
+- Pragma 簇 6 位点印 `switch(puVar25[8])`——泄漏消除但距 golden
+  `(uint1)puVar30[1]` 残三差：下标 `8` vs `1`（PTRADD 元素尺寸 1 vs 8）、
+  缺 `(uint1)` cast（RuleExpandLoad 不触发）、变量编号（GA-1 级联域）。
+  **三差同根 = 指针 pointee 类型分歧**：Rugra 把该链指针定型 `uint1 *`
+  （golden `uint8 *`，sqlite3Pragma 参数面 uint1*×4 vs uint8*×3+int8），
+  系 switchvn 字节 load 的反向类型传播（TypeOpLoad::propagateType out→ptr）
+  在 Rugra 侧胜出、oracle 侧被正向证据压制——infertypes 域，已登记
+  `GA2-SWITCHVN-POINTTEE-TYPE-0001` 移交，非本票写域。
+- 新单测 `test_switch_head_expr_rpn_channel_ptradd_inline`：手搭
+  BRANCHIND←LOAD←PTRADD(implied) 链，断言数组形 `[1]` 印出且
+  `unique0x` 永不出现（钉死通道选择，防 legacy 回退回归）。
