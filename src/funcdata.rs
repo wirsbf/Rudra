@@ -8591,8 +8591,42 @@ impl Funcdata {
             // which refineRead/loneDescend and normalizeReadSize's
             // opSetOutput("not free") cannot process (HELPF-NONFREE-
             // NORMALIZE-0001). Read-to-write linking is Heritage's job.
+            // PcodeEmitFd::dump (funcdata.cc:892-897): `if (op->isCodeRef())`
+            // — input 0 of BRANCH/CBRANCH/CALL (the only opcodes whose
+            // TypeOp constructors set PcodeOp::coderef — typeop.cc:586/605/
+            // 663; BRANCHIND/CALLIND deliberately lack it, op.hh:194) enters
+            // the IR as newCodeRef(addrcode) (funcdata_varnode.cc:222-233):
+            // a 1-byte `code`-typed Varnode::annotation at the raw target
+            // address that "will hold no value in the data-flow", then
+            // `i += 1` skips it in the cc:904-907 walk. Materializing in(0)
+            // at its raw SLEIGH size instead (8-byte ram on x86-64 SLEIGH)
+            // lets branch targets 5 bytes apart overlap as ranges, feeding
+            // heritage's global piece/alias machinery a non-marker PIECE
+            // that defeats ActionDoNothing's hasOnlyMarkers deletion
+            // (REGAP-FUNCINJECT-CODEREF-0001). The single-op adapter
+            // inject_raw_ops_single carries the same arm.
+            let mut first_input = true;
             for input_raw in raw.inputs() {
-                let in_vn = if input_raw.space == AddressSpace::Const {
+                let in_vn = if first_input
+                    && matches!(
+                        opcode,
+                        OpCode::CPUI_BRANCH | OpCode::CPUI_CBRANCH | OpCode::CPUI_CALL
+                    )
+                {
+                    // newCodeRef(Address(vars[0].space, vars[0].offset)):
+                    // 1-byte annotation Varnode in the raw target's space,
+                    // carrying the core "code" type (sleigh_arch.cc:233) the
+                    // same way inject_raw_ops_single does.
+                    let vn = self
+                        .vbank
+                        .create_with_space(1, input_raw.space, input_raw.offset);
+                    {
+                        let mut value = vn.write().unwrap();
+                        value.set_flags(crate::varnode::varnode_flags::ANNOTATION);
+                        value.v_type = Some(code_ref_datatype());
+                    }
+                    vn
+                } else if input_raw.space == AddressSpace::Const {
                     self.vbank.create_constant(input_raw.size, input_raw.offset)
                 } else {
                     self.vbank
@@ -8608,6 +8642,7 @@ impl Funcdata {
                     .descend
                     .push(Arc::downgrade(&op_ref.0));
                 op_ref.0.write().unwrap().inrefs.push(in_vn);
+                first_input = false;
             }
 
             op_refs.push(op_ref);

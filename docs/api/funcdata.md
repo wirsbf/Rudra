@@ -842,6 +842,30 @@ inflate_test 现聚合 + check_implied_cover 惰性 cover 修复落在 b708e1cf 
 (b)(c)（flow setter + coreaction lookForBadJumpTables 消费者，coreaction 车道域）；
 LAB_0012bff3 零实参 `strcasecmp()` 为 base 同在的预存残差（非本臂引入）。
 
+2026-09-27 REGAP-FUNCINJECT-CODEREF-0001（coderef 臂落地）：Phase 1 输入循环补
+`PcodeEmitFd::dump` 的 coderef 臂（funcdata.cc:892-897）——`if (op->isCodeRef())` 对
+**首输入**（i=0，`i += 1` 后跳过 cc:904-907 的 newVarnode walk）调用
+`newCodeRef(Address(vars[0].space, vars[0].offset))`（funcdata_varnode.cc:222-233）：
+**1 字节** + `Varnode::annotation`（"will hold no value in the data-flow"）+ 核心
+`code` 类型（`TypeFactory::getTypeCode`，sleigh_arch.cc:233 建 "code" 核型；Rugra 经
+`code_ref_datatype()` 直构等值对象）。coderef 旗标仅 BRANCH/CBRANCH/CALL 三个 TypeOp
+构造器置位（typeop.cc:586/605/663；BRANCHIND/CALLIND 刻意不带——op.hh:194
+isCodeRef），Rugra 以 `matches!(opcode, BRANCH|CBRANCH|CALL)` 镜像；同一臂
+`inject_raw_ops_single`（本文件）早已有，本路径 SLEIGH 换装（sleighp3）后漏——
+此前 iced 期目标 1 字节无范围重叠故不可见。**根因链（REGAP 车道双侧钉死）**：
+SLEIGH 换装后 BRANCH/CBRANCH 目标以 8 字节 ram varnode 入 Funcdata，ap_pregsub 内
+相距 5 字节的两个分支目标（0x12e4c0/0x12e4c5）范围重叠 → heritage 全局
+piece/别名机制在纯跳转块 @12e43c 造非 marker `PIECE` → `BlockBasic::isDoNothing`
+（block.cc:2596/2618，hasOnlyMarkers cc:2578）恒 false → ActionDoNothing 连锁删除
+（oracle @2e43c→@2e43a）失效 → 结构化 fixpoint 振荡（oracle 6 轮收敛 vs Rugra
+3 轮环）→ 终态 while 取向翻转+早退合并 = ap_pregsub +103。**验收（基=master
+6a458387 亲测，数字==REGAP A/B 预演逐项）**：canon httpd **311→148/0/0** 零回退
+（输出 md5 5b04633b==REGAP 预演逐字节；ap_pregsub 122→13[结构=golden 同构，残 13=
+变量重编号族]/ap_no2slash 22→8/ap_make_dirstr_prefix 12→0/ap_fini_vhost_config
+45→32/ap_getparents 24→19/ap_update_vhost_from_headers 7→5/ap_matches_request_vhost
+等 4×2 行函数→0，其余 24 函数 0→0 恒等）；canon curl **157/0/0 md5 51cc85d2
+逐字节恒等**（修复对 curl 零行为面）。
+
 #### 它在主链路中的位置
 
 ```text
