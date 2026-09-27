@@ -1,5 +1,34 @@
 # `funcdata.rs` API Reference
 
+## 2026-09-27：set_varnode_properties 旧名代理 RAM 空间守卫（RULEACTION-NEGCONST-FOLD-0001）
+
+`Funcdata::set_varnode_properties`（funcdata_varnode.cc:25-42 对应物）的
+旧名 `symbol_table` 代理腿（driver 平铺 addr→name 代理，无通道/未命中时的
+最后回退）此前对**任意空间**的 varnode 做纯 offset 平查。oracle 的
+`Scope::queryProperties`（database.cc:1263-1281）全程空间限定：
+`stackContainer`（database.cc:943-962）按 space+range 走容器/rangetree
+（unique 空间无 scope 拥有，const 在 :950 早退），`SymbolTable::getProperty`
+的 flagbase 以完整 space+offset Address 为键（database.hh:946），因此
+unique 空间 varnode 的查询恒得 flags==0。修法 = 代理腿加
+`space == AddressSpace::Ram` 守卫：unique 空间 varnode 的 offset 与 RAM
+函数地址碰撞时不再继承虚假 MAPPED。
+
+- 活案例（sq 面）：RulePtrArith 的 PTRADD 输出（unique offset 0xaa00）与
+  `enable_progress_bar@0xaa00` 碰撞，虚假 MAPPED 强制 baseExplicit →
+  explicit → merged，产出物化地址临时 `V = (int8 *)(addr); V = (int4 *)*V;`
+  而非 golden 的 implied 内联 `V = *(int4 **)(addr)`（ARITH-FOLD 地址物化
+  子族主成分）。
+- A/B（同机，base=48146429）：sq 镜面 skeleton 4197→4017（−180），
+  ARITH-FOLD 93→41（queue_init/cache_init/sigwinch_handler/progressbar_error
+  四函数逐函数 skeleton→0）；curl 镜面 56=基线、canon curl 157=基线、
+  defects/numbering 全 0；sqlite 镜面 24091=基线（碰撞机制依赖二进制
+  函数地址布局，sqlite 无同型碰撞案例）。
+- 单测 `test_set_varnode_properties_unique_space_proxy_collision` 钉双分支
+  （unique 碰撞不继承 MAPPED / RAM 正控仍置 MAPPED）；测试内
+  `fd.arch = None` 隔离旧名代理腿——canonical Architecture 的常驻
+  symboltab（architecture.cc:597-602）会先以自身（空 ranges）flags 折叠
+  应答 RAM 腿，代理腿需在无通道 fixture 下单独验证。
+
 ## 2026-09-27：attempt_dynamic_mapping 尾部镜像 setSymbolProperties 返回语义（DYNMAP-SETPROPS-RET-0001）
 
 `Funcdata::attempt_dynamic_mapping`（funcdata_varnode.cc:1314-1337 对应物）的
