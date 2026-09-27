@@ -1,5 +1,23 @@
 # options.rs — Architecture configuration options API
 
+## 2026-09-27：PRINTC-PRINTLIST-WIRING-0001 — OptionCommentStyle 接通真路由（Lane PCHOVER2）
+
+`OptionCommentStyle::apply`（options.cc:523-527）此前只返回确认消息不触
+printer（PRINTC0004 登记 handover：Architecture 无 printlist）。现忠实路由
+options.cc:526 `glb->print->setCommentStyle(p1)`：经
+`Architecture::print_language_current()`（architecture.hh:205/206 存储镜像，
+见 arch.md/printlanguage.md 同日节）取当前 printer 施加。
+
+- 成功：`"Comment style set to {p1}"`（options.cc:527 逐字）。
+- 未知风格：`"LowlevelError: Unknown comment style. Use \"c\" or \"cplusplus\""`
+  （printc.cc:2359-2360 的 throw 以本文件既定前缀约定承载）。
+- 未注册 printer（oracle ctor 建有 printer、此态 Ghidra 不可表）：
+  `"LowlevelError: no print language registered with the architecture"`——
+  如实上报结构性状态，不静默成功。
+
+B2：`printc_printlist_wiring_1204`（8 case 字节恒等，oracle/Rust 同 production
+apply 体；msg/threw/render 三投影）。
+
 Partial port of Ghidra's `options.hh` / `options.cc` (1063 lines).
 
 **Status:** L2 / `MISMATCH` and `NO_ORACLE`. The `ArchOption` trait and an

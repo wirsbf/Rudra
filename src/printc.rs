@@ -932,6 +932,14 @@ pub struct PrintC {
     /// `emitLineComment` (printlanguage.cc:595-596) when `indent < 0` — the
     /// `emitCommentGroup` path (printc.cc:3239 emitLineComment(-1, comm)).
     line_commentindent: i32,
+    /// The language's unique name (printlanguage.hh:261 `name`, stored by
+    /// the base ctor `name = nm`, printlanguage.cc:69). The capability path
+    /// passes "c-language" (PrintCCapability ctor printc.cc:111 ->
+    /// buildLanguage printc.cc:118 -> PrintC ctor printc.cc:123); Rugra's
+    /// drivers construct PrintC directly, so the value is pinned here —
+    /// read by `PrintLanguage::get_name` (printlanguage.hh:448) and the
+    /// architecture-side printlist bookkeeping.
+    name: String,
     /// Per-function comment sorter. Faithful to `PrintC::commsorter`
     /// (printc.hh:158). Populated by `doc_function` via
     /// `commsorter.setupFunctionList` (printc.cc:2650) and drained by
@@ -1165,6 +1173,7 @@ impl PrintC {
                 | crate::comment::comment_type::WARNINGHEADER,
             // printlanguage.cc:580: line_commentindent = 20.
             line_commentindent: 20,
+            name: "c-language".to_string(), // printc.cc:111/118 via printlanguage.cc:69
             comment_sorter: crate::comment::CommentSorter::new(),
             cpool: None,
             userops: None,
@@ -14074,6 +14083,30 @@ impl PrintLanguage for PrintC {
             self.emit.tag_variable(&name, 0);
         }
     }
+
+    // Ghidra: printlanguage.hh:448 PrintLanguage::getName
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    // Ghidra: printlanguage.hh:478 PrintLanguage::setCommentStyle (PrintC
+    //   override at printc.cc:2350)
+    fn set_comment_style(&mut self, nm: &str) -> Result<(), String> {
+        // Inherent-method resolution: PrintC's inherent set_comment_style
+        // (printc.cc:2350) takes precedence over this trait method.
+        self.set_comment_style(nm)
+    }
+
+    // Ghidra: printlanguage.hh:469 PrintLanguage::resetDefaults (virtual;
+    //   PrintC override at printc.cc:2325)
+    fn reset_defaults(&mut self) {
+        // Inherent-method resolution: PrintC's inherent reset_defaults
+        // (printc.cc:2325-2330, the emit half + resetDefaultsInternal +
+        // resetDefaultsPrintC chain) takes precedence over this trait
+        // method — the virtual-dispatch body the architecture-side
+        // printlist loop reaches (architecture.cc:1443-1444).
+        self.reset_defaults()
+    }
 }
 
 // Ghidra: printc.cc:108 PrintCCapability
@@ -19612,22 +19645,25 @@ impl PrintC {
     /// `emit->resetDefaults(); resetDefaultsInternal();`) followed by
     /// `resetDefaultsPrintC()` (printc.cc:2329).
     ///
-    /// The emitter half of `PrintLanguage::resetDefaults`
-    /// (`EmitPrettyPrint::resetDefaults`, prettyprint.cc:1237-1241 ->
-    /// `EmitNoMarkup::resetDefaults` + the pretty-print internals) has no
-    /// Rust `Emit`-trait counterpart: Rugra's emitters carry no
-    /// cross-document print options (indent state is per-document), so
-    /// the call is a structural no-op here — registered as the
-    /// emitter-domain handover. The `PrintLanguage::resetDefaultsInternal`
-    /// half (printlanguage.cc:575-583) is applied field-for-field below.
+    /// The emitter half (`emit->resetDefaults()`, printlanguage.cc:674)
+    /// dispatches to `EmitPrettyPrint::resetDefaults` (prettyprint.cc:
+    /// 1237-1242): the low-level half is structurally absorbed (Rust's
+    /// `EmitNoMarkup` carries no `indentincrement`), then the pretty
+    /// printer's `indentincrement` returns to 2 and its maximum line size
+    /// to 100 (`setMaxLineSize(100)` re-arms the queues and clears the
+    /// stream). The `PrintLanguage::resetDefaultsInternal` half
+    /// (printlanguage.cc:575-583) is applied field-for-field below.
     ///
     /// Caller note: the oracle invokes this from
-    /// `Architecture::resetDefaults` (architecture.cc:1444,
-    /// `printlist[i]->resetDefaults()`); Rugra's `Architecture` owns no
-    /// PrintLanguage list (the same structural gap documented at
-    /// `Architecture::resetDefaults`), so the driver calls this directly
-    /// when it needs an options reset.
+    /// `Architecture::resetDefaults` (architecture.cc:1443-1444,
+    /// `printlist[i]->resetDefaults()`); Rugra's `Architecture` reaches it
+    /// through the per-architecture printer registry
+    /// (`printlanguage::printlist_reset_defaults`, the architecture.hh:206
+    /// `printlist` storage mirror) — drivers that never register a printer
+    /// call this directly when they need an options reset.
     pub fn reset_defaults(&mut self) {
+        // printlanguage.cc:674: emit->resetDefaults();
+        self.emit.reset_defaults();
         // PrintLanguage::resetDefaultsInternal (printlanguage.cc:578-582):
         // printlanguage.cc:578: mods = 0;
         self.mods = 0;
@@ -19695,12 +19731,13 @@ impl PrintC {
     /// \"cplusplus\"")` — returned as `Err` here (the print path never
     /// panics).
     ///
-    /// The option-database wiring (options.cc:526
+    /// The option-database route (options.cc:526
     /// `OptionCommentStyle::apply` -> `glb->print->setCommentStyle(p1)`)
-    /// remains a handover: Rugra's `Architecture` owns no PrintLanguage
-    /// field, so `OptionCommentStyle::apply` cannot reach this method
-    /// until the printlist hookup lands (the same structural gap noted at
-    /// `Architecture::resetDefaults`'s printlist loop).
+    /// is wired: `OptionCommentStyle::apply` reaches the current printer
+    /// through the architecture's printer registry
+    /// (`printlanguage::printlist_current`, the architecture.hh:205/206
+    /// print/printlist storage mirror) — see the fixture
+    /// `printc_printlist_wiring_1204` for the bilateral lock.
     pub fn set_comment_style(&mut self, nm: &str) -> Result<(), String> {
         // printc.cc:2353-2355: if ((nm=="c")||((nm.size()>=2)&&
         //   (nm[0]=='/')&&(nm[1]=='*'))) setCStyleComments();
@@ -19959,6 +19996,61 @@ mod tests {
     use crate::address::Address;
     use crate::opcodes::OpCode;
     use crate::prettyprint::EmitNoMarkup;
+
+    // PRINTC-PRINTLIST-WIRING-0001: the PrintLanguage virtual surface the
+    // architecture-side printlist reaches (architecture.cc:1443-1444 /
+    // options.cc:526) dispatches to PrintC's full chain through a trait
+    // object — get_name (printlanguage.hh:448), set_comment_style
+    // (printc.cc:2350), reset_defaults (printc.cc:2325 including the
+    // emit->resetDefaults() half, printlanguage.cc:674).
+    #[test]
+    fn print_language_trait_object_dispatch() {
+        use crate::prettyprint::{Emit, EmitPrettyPrint};
+        use crate::printlanguage::PrintLanguage as _;
+
+        let mut printer: Box<dyn PrintLanguage> =
+            Box::new(PrintC::new(Box::new(EmitPrettyPrint::new())));
+        // printlanguage.hh:448 getName — the capability-passed name
+        // (printc.cc:111/118).
+        assert_eq!(printer.get_name(), "c-language");
+        // printc.cc:2356-2358: cplusplus arm.
+        printer.set_comment_style("cplusplus").expect("valid style");
+        // printc.cc:2359-2360: the LowlevelError arm as Err.
+        assert_eq!(
+            printer.set_comment_style("badstyle").unwrap_err(),
+            "Unknown comment style. Use \"c\" or \"cplusplus\""
+        );
+        // printc.cc:2325-2330 through the virtual: the emit half runs
+        // (printlanguage.cc:674 -> prettyprint.cc:1237) — the pretty
+        // printer's max line size returns to 100 after a mutation, and
+        // resetDefaultsPrintC (printc.cc:1594) returns the C comment
+        // style.
+        {
+            let emit_ref = printer.get_emit();
+            let pretty = emit_ref
+                .as_any_mut()
+                .and_then(|any| any.downcast_mut::<EmitPrettyPrint>())
+                .expect("pretty printer emitter");
+            pretty.set_max_line_size(60);
+        }
+        printer.reset_defaults();
+        {
+            let emit_ref = printer.get_emit();
+            let pretty = emit_ref
+                .as_any_mut()
+                .and_then(|any| any.downcast_mut::<EmitPrettyPrint>())
+                .expect("pretty printer emitter");
+            assert_eq!(pretty.get_max_line_size(), 100);
+        }
+        // resetDefaultsPrintC -> setCStyleComments (printc.cc:1594):
+        // back to the C delimiters after the cplusplus flip.
+        {
+            let any: &dyn std::any::Any = &*printer;
+            let printc = any.downcast_ref::<PrintC>().expect("PrintC");
+            assert_eq!(printc.commentstart, "/* ");
+            assert_eq!(printc.commentend, " */");
+        }
+    }
 
     #[test]
     fn test_scope_rangemap_list_order_vhost_register_block() {

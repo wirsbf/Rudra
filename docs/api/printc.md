@@ -1,5 +1,39 @@
 # `printc.rs` API Reference
 
+## 2026-09-27：PRINTC-PRINTLIST-WIRING-0001 — resetDefaults emitter 半 + PrintLanguage 虚面收口（Lane PCHOVER2）
+
+PRINTC0004 登记的两项 handover 本车道收口（写域延伸 `prettyprint.rs`/
+`printlanguage.rs`/`arch.rs`/`options.rs`，均在 TODO 行与 commit 声明）：
+
+**① resetDefaults 的 emitter 半**（printlanguage.cc:674 `emit->resetDefaults()`
+→ `EmitPrettyPrint::resetDefaults` prettyprint.cc:1237-1242）：`PrintC::reset_defaults`
+（printc.cc:2325 链）现以 `self.emit.reset_defaults()` 开头，经 `Emit` trait 虚分派
+落到 `EmitPrettyPrint`（lowlevel 半结构性吸收——Rust `EmitNoMarkup` 无
+`indentincrement` 字段；`indentincrement=2` + `setMaxLineSize(100)` 全量执行）。
+旧"emitter 域 handover"注释已更正。
+
+**② options→printer 接线 + printlist 结构**（architecture.hh:205-206
+print/printlist）：`OptionCommentStyle::apply`（options.cc:523-527）现真正路由
+`glb->print->setCommentStyle(p1)`——经 Architecture 的 printer 注册表
+（`printlanguage` 模块线程局部 identity-keyed 存储，TFSINGLE 先例；成因=funcdata.rs
+canonical-Factory static 钉死 `Architecture: Send+Sync` 而 PrintC 天生 !Send，
+probe 实证）。`Architecture::reset_defaults` 补 architecture.cc:1443-1444
+printlist 循环。配套：`PrintLanguage` trait 补 `get_name`（printlanguage.hh:448）
+与 `set_comment_style`（:478 纯虚）两个 REQUIRED 方法；`PrintC` 落
+`name` 字段（printlanguage.hh:261 基类态，"c-language"，printc.cc:111/118）并在
+`impl PrintLanguage for PrintC` 补 `get_name`/`set_comment_style`/`reset_defaults`
+三转发（此前 `reset_defaults` 吃 trait 默认空体=虚分派缺口）。
+
+**B2 双侧 fixture**：`printc_printlist_wiring_1204`（8 case **字节恒等**，
+runner `tools/run_printc_printlist_wiring_oracle.sh` + metadata 三件套）——
+structure（printlist count/current name）、route 五例（cplusplus/c/"/*custom"/
+"//custom"/badstyle 的 msg+threw+render 文本）、emit.before（width 60 突变）、
+reset（`Architecture::resetDefaults` 后 width=100 + C 风格恢复=emitter 半 +
+printlist 循环双锁）。oracle 侧 production `OptionCommentStyle::apply` +
+`Architecture::resetDefaults` 直驱；Rust 侧同 production 体。
+新增单测 ×4（prettyprint emitter 重置对、printc trait 虚分派、arch per-arch
+隔离、options 路由全程）。
+
 ## 2026-09-26：印前指针盖章加法输入臂整撤（CASTFUSE-C ZEXT 子族 / Lane VZEXT）
 
 WIDTHOP（2026-09-24，见下条）收缩后的盖章域仍保留了"尺寸 8 且 def 不属
