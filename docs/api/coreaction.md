@@ -302,7 +302,9 @@ structuretransform 恒 0=oracle，当前语料纯潜伏）；coreaction 单测 5
    咨询 → `field_num >= 0` 分三臂：TYPE_PTR 且 `cast_standard(req,res,true,true)`
    仍需 cast 时不解析，否则 `insert_ptrsub_zero` + 把 resUnion 挂到新 PTRSUB 的
    def 边（-1）；implied 非 PTR 臂在 write/read resolution 同 field 时返回 0，
-   其余 `setImpliedField()`（varnode.rs 写域占线，已按 RUGRA-GLUE 注释移交）。
+   其余 `setImpliedField()`（cc:2519 生产半，Lane SETIMPLFIELD 接线——flag 由
+   PRINTC0004 交付的 `varnode.rs::set_implied_field` 落位，消费端
+   `printlanguage.cc:527` → `PrintC::pushImpliedField` printc.rs 已在）。
 2. **`tryResolutionAdjustment`（cc:2424-2459）**：`castInput` else-if 链第 4 臂
    （cc:2699）——in/out high type 任一 needsResolution 时
    `find_compatible_resolve` 互配（in 先，out 以 `get_depend(in,inResolve)` 或

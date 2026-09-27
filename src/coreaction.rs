@@ -6755,7 +6755,9 @@ impl ActionSetCasts {
     /// placeholder PTRSUB in and the resolution is attached to it
     /// (consumed by printc's PTRSUB-into-union read, printc.cc:983).
     /// Non-pointer (bare union) implied varnodes take the implied-field
-    /// marking arm. Returns 1 if a resolution took effect.
+    /// marking arm (cc:2519 `vn->setImpliedField()`, the production half
+    /// of the printlanguage.cc:527 channel). Returns 1 if a resolution
+    /// took effect.
     fn resolve_union(
         fd: &mut Funcdata,
         op: &crate::op::PcodeOpRef,
@@ -6822,12 +6824,14 @@ impl ActionSetCasts {
                     }
                 }
             }
-            // cc:2519: vn->setImpliedField() — Rugra's Varnode has no
-            // has_implied_field addlflag (varnode.rs is under a separate
-            // write-domain lease); the flag's only consumer is
-            // PrintLanguage::recurse → PrintC::pushImpliedField
-            // (printlanguage.cc:527). Registered handover in the wiring
-            // commit; no current Rugra print path reads it.
+            // cc:2519: vn->setImpliedField() — the production half of the
+            // implied-field channel (varnode.hh:335 addlflag bit, delivered
+            // by Lane PRINTC0004). The flag's only consumer is
+            // PrintLanguage::recurse -> PrintC::pushImpliedField
+            // (printlanguage.cc:527, printc.cc:2085): recurse prints the
+            // implied varnode as parent.field instead of re-printing the
+            // bare defining-op expression.
+            vn.write().unwrap().set_implied_field();
         }
         1
     }
@@ -23064,4 +23068,143 @@ mod tests {
         assert_eq!(ci.get_offset(), 0x30);
         assert_eq!(ci.get_size(), 8);
         assert!(!ci.is_written(), "the copy is a fresh unwritten constant");
+    }
+
+    /// SETIMPLFIELD: the production half of the implied-field channel.
+    /// `ActionSetCasts::resolveUnion` cc:2511-2519 must mark a bare-union
+    /// implied input varnode with `setImpliedField` when a read-facing
+    /// union resolution with a concrete fieldNum exists (consumed by
+    /// PrintLanguage::recurse -> PrintC::pushImpliedField,
+    /// printlanguage.cc:527). Three arms pinned against coreaction.cc:
+    ///   - cc:2511+2519 positive: implied vn -> returns 1 + flag set
+    ///   - cc:2515-2517 guard: write-facing resolution at (dt, def, -1)
+    ///     with the SAME fieldNum -> returns 0, no flag
+    ///   - fall-through: resolution present but vn not implied ->
+    ///     returns 1, no flag (oracle marks only in the isImplied arm)
+    #[test]
+    fn test_resolve_union_sets_implied_field() {
+        use crate::type_system::datatype::{
+            TypeBase, TypeField, TypeMetatype, TypeStruct, TypeUnion, type_flags,
+        };
+        use crate::unionresolve::ResolvedUnion;
+        use crate::variable::HighVariable;
+        use crate::varnode::varnode_flags;
+
+        // fixture_alt { int4 a @0; uint4 b @0 } — NEEDS_RESOLUTION union,
+        // exactly the IRFIX fixture's parent type.
+        let int4_t = std::sync::Arc::new(crate::type_system::Datatype::Base(
+            TypeBase::new("int4".into(), 4, TypeMetatype::Int),
+        ));
+        let uint4_t = std::sync::Arc::new(crate::type_system::Datatype::Base(
+            TypeBase::new("uint4".into(), 4, TypeMetatype::Uint),
+        ));
+        let mut ubase = TypeBase::new("fixture_alt".into(), 4, TypeMetatype::Union);
+        ubase.flags |= type_flags::NEEDS_RESOLUTION;
+        let union_t = std::sync::Arc::new(crate::type_system::Datatype::Union(TypeUnion {
+            base: ubase,
+            fields: vec![
+                TypeField { name: "a".into(), offset: 0, type_ptr: int4_t },
+                TypeField { name: "b".into(), offset: 0, type_ptr: uint4_t.clone() },
+            ],
+        }));
+
+        // COPY(#5) -> value_vn (implied, written, union-typed); reader
+        // RETURN reads it at slot 1 — the `return 5.b` shape.
+        // RUGRA-GLUE: mod-tests fixture builder (COPY→implied vn→RETURN graph);
+        // no Ghidra counterpart — mirrors the C++ fixture construction pattern
+        // of tests/oracle/printc_checkaddr_impliedfield_1204.cc
+        fn build(
+            fd: &mut Funcdata,
+            union_t: &std::sync::Arc<crate::type_system::Datatype>,
+            implied: bool,
+        ) -> crate::op::PcodeOpRef {
+            let pc = crate::address::Address::new(0x1000);
+            let copy = fd.new_op(1, pc);
+            fd.op_set_opcode(&copy, OpCode::CPUI_COPY);
+            let five = fd.new_constant(4, 5);
+            fd.op_set_input(&copy, five, 0);
+            let value_vn = fd.new_unique_out(4, &copy);
+            {
+                let mut v = value_vn.write().unwrap();
+                v.v_type = Some(union_t.clone());
+                v.high = Some(std::sync::Arc::new(std::sync::RwLock::new(
+                    HighVariable::new(union_t.clone()),
+                )));
+                v.flags |= varnode_flags::WRITTEN;
+                if implied {
+                    v.flags |= varnode_flags::IMPLIED;
+                }
+            }
+            let reader = fd.new_op(2, crate::address::Address::new(0x1004));
+            fd.op_set_opcode(&reader, OpCode::CPUI_RETURN);
+            let indeterminate = fd.new_constant(1, 0);
+            fd.op_set_input(&reader, indeterminate, 0);
+            fd.op_set_input(&reader, value_vn.clone(), 1);
+            reader
+        }
+        let strategy = crate::type_system::cast::CastStrategyC::new(4);
+        let resolution = |field_num: i32| ResolvedUnion {
+            resolve: uint4_t.clone(),
+            base_type: union_t.clone(),
+            field_num,
+            lock: false,
+        };
+
+        // Positive arm: read-facing resolution field b (fieldNum 1) ->
+        // returns 1 and marks the implied varnode.
+        {
+            let mut fd = Funcdata::new("t_setimpl_pos", crate::address::Address::new(0), 8);
+            let reader = build(&mut fd, &union_t, true);
+            assert!(fd.set_union_field(union_t.as_ref(), &reader, 1, resolution(1)));
+            assert_eq!(
+                ActionSetCasts::resolve_union(&mut fd, &reader, 1, &strategy),
+                1,
+                "cc:2521 return 1 for a live resolution"
+            );
+            let value_vn = reader.0.read().unwrap().get_in(1).cloned().unwrap();
+            assert!(
+                value_vn.read().unwrap().has_implied_field(),
+                "cc:2519 vn->setImpliedField() must have run"
+            );
+        }
+
+        // Guard arm: the write-facing resolution at (dt, def, -1) matches
+        // the read-facing fieldNum -> return 0, no mark.
+        {
+            let mut fd = Funcdata::new("t_setimpl_guard", crate::address::Address::new(0), 8);
+            let reader = build(&mut fd, &union_t, true);
+            assert!(fd.set_union_field(union_t.as_ref(), &reader, 1, resolution(1)));
+            let value_vn = reader.0.read().unwrap().get_in(1).cloned().unwrap();
+            let def = value_vn
+                .read()
+                .unwrap()
+                .get_def()
+                .map(crate::op::PcodeOpRef)
+                .expect("COPY def wired by op_set_output");
+            assert!(fd.set_union_field(union_t.as_ref(), &def, -1, resolution(1)));
+            assert_eq!(
+                ActionSetCasts::resolve_union(&mut fd, &reader, 1, &strategy),
+                0,
+                "cc:2517 don't print implied fields when writeRes matches"
+            );
+            assert!(
+                !value_vn.read().unwrap().has_implied_field(),
+                "guard arm must not mark"
+            );
+        }
+
+        // Fall-through: resolution present but the vn is not implied ->
+        // still returns 1, but no mark (oracle marks only in the
+        // isImplied arm, cc:2511).
+        {
+            let mut fd = Funcdata::new("t_setimpl_plain", crate::address::Address::new(0), 8);
+            let reader = build(&mut fd, &union_t, false);
+            assert!(fd.set_union_field(union_t.as_ref(), &reader, 1, resolution(1)));
+            assert_eq!(ActionSetCasts::resolve_union(&mut fd, &reader, 1, &strategy), 1);
+            let value_vn = reader.0.read().unwrap().get_in(1).cloned().unwrap();
+            assert!(
+                !value_vn.read().unwrap().has_implied_field(),
+                "non-implied vn must not be marked"
+            );
+        }
     }
