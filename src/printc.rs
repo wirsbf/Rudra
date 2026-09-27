@@ -17487,7 +17487,16 @@ impl PrintC {
         // emitPrototypeOutput(proto,fd);
         self.emit_prototype_output(fd, proto);
         // emit->spaces(1);
-        self.emit.print(" ");
+        // printc.cc:2582: the tokenbreak between the return type and the
+        // function name — 1 mandatory space, bump 0. Under EmitPrettyPrint
+        // this is a tokenbreak (prettyprint.hh:914), NOT a plain string:
+        // feeding `print(" ")` instead puts a content token + an extra
+        // checkstring break into the queue and the signature overflow
+        // cascade breaks after the return type (`xunknown8 \n<name>`) with
+        // a 10-space paren continuation, where the oracle keeps the return
+        // type glued to the name and breaks at the funcname->'(' break
+        // (bump 10, continuation indent 20) — PRETTYPRINT-SIGWRAP-0001.
+        self.emit.spaces(1, 0);
         // Ghidra: printc.cc:2583-2589 — calling-convention emission.
         // `option_convention` defaults to true (printc.cc:1584). The model
         // name is printed only when `printModelInDecl()` is true (i.e. the
@@ -17498,7 +17507,11 @@ impl PrintC {
         if self.option_convention {
             if proto.print_model_in_decl() {
                 self.emit.print(proto.get_model_name());
-                self.emit.print(" ");
+                // emit->spaces(1);  (printc.cc:2587) — same tokenbreak form
+                // as the cc:2582 separator above (PRETTYPRINT-SIGWRAP-0001;
+                // dead arm on the mirror/canon faces where the model is
+                // unknown, aligned for completeness).
+                self.emit.spaces(1, 0);
             }
         }
         // int4 id1 = emit->openGroup();

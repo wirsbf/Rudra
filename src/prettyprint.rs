@@ -5166,4 +5166,137 @@ mod linewrap_probe_tests {
         let close_line = lines.iter().find(|l| l.starts_with("      )")).unwrap();
         assert_eq!(close_line.trim_end(), "      );");
     }
+
+    // PRETTYPRINT-SIGWRAP-0001 regression: the function-signature wrap form.
+    // The declaration separator between the return type and the function
+    // name is printc.cc:2582 `emit->spaces(1)` — a TOKENBREAK (1 mandatory
+    // space, bump 0), not a content string. Feeding `print(" ")` instead
+    // inserts an extra content token + checkstring break and the overflow
+    // cascade breaks after the return type (`xunknown8 \n<name>` with a
+    // 10-space paren continuation) — the sq mirror SIG-WRAP family
+    // (~150 lines / 40+ thunks). With the tokenbreak the cascade skips it
+    // ("doesn't save that much" exemption, prettyprint.cc:680-685) and
+    // breaks at the funcname->'(' break (function_call bump 10), giving the
+    // oracle form: name glued to the return type, parameter list on the
+    // next line indented 20 (indentstack.back()=80 → maxlinesize-80).
+    // Expected bytes are the 12.0.4 oracle golden verbatim
+    // (ghidra_sq_1204.direct-runner.c _ZThn16_..SetCoderProperties thunk).
+    #[test]
+    fn signature_wrap_breaks_after_funcname_not_return_type() {
+        let mut e = EmitPrettyPrint::new();
+        e.begin_function();
+        e.tag_line(0);
+        e.begin_func_proto();
+        e.begin_return_type();
+        e.tag_type("xunknown8", 0);
+        e.end_return_type();
+        // printc.cc:2582 — the tokenbreak under test (bump 0).
+        e.spaces(1, 0);
+        let id1 = e.open_group();
+        e.tag_func_name(
+            "_ZThn16_N9NCompress5NLZMA8CEncoder18SetCoderPropertiesEPKjPK14tagPROPVARIANTj",
+            0,
+        );
+        // printc.cc:2594 function_call { spacing=0, bump=10 }.
+        e.spaces(0, 10);
+        let id2 = e.open_paren("(");
+        e.spaces(0, 10);
+        let params: [(&str, &str); 4] = [
+            ("int8", "param_1"),
+            ("uint4 *", "param_2"),
+            ("int2 *", "param_3"),
+            ("int4", "param_4"),
+        ];
+        for (i, (ty, nm)) in params.iter().enumerate() {
+            if i > 0 {
+                e.print(",");
+            }
+            e.tag_type(ty, 0);
+            if !ty.ends_with('*') {
+                // type_expr_space { spacing=1, bump=0 } (printc.cc:73).
+                e.spaces(1, 0);
+            }
+            e.tag_variable(nm, 0);
+        }
+        e.close_paren(")", id2);
+        e.close_group(id1);
+        e.end_func_proto();
+        e.print("\n");
+        e.tag_line(0);
+        e.print("{");
+        e.tag_line(0);
+        e.print("}");
+        e.tag_line(0);
+        e.end_function();
+        e.flush();
+        let out = e.get_output();
+        let expected = "\
+xunknown8 _ZThn16_N9NCompress5NLZMA8CEncoder18SetCoderPropertiesEPKjPK14tagPROPVARIANTj
+                    (int8 param_1,uint4 *param_2,int2 *param_3,int4 param_4)
+";
+        assert!(
+            out.trim_start_matches('\n').starts_with(expected),
+            "signature wrap must keep the return type glued to the name and \
+             break at the funcname->'(' tokenbreak (20-space continuation), \
+             got:\n{}",
+            out
+        );
+    }
+
+    // PRETTYPRINT-SIGWRAP-0001, comma-continuation sub-shape: overflowing
+    // parameter lists break at the checkstring-inserted zero-width break
+    // BEFORE the comma token (EmitPrettyPrint::print checkstring,
+    // prettyprint.cc:819-828) — the comma opens the continuation line —
+    // with the continuation aligned inside the parameter group. Expected
+    // bytes are the 12.0.4 oracle golden verbatim
+    // (ghidra_sq_1204.direct-runner.c initialise_threads, 14 params).
+    #[test]
+    fn signature_wrap_comma_opens_continuation_line() {
+        let mut e = EmitPrettyPrint::new();
+        e.begin_function();
+        e.tag_line(0);
+        e.begin_func_proto();
+        e.begin_return_type();
+        e.tag_type("xunknown4", 0);
+        e.end_return_type();
+        e.spaces(1, 0);
+        let id1 = e.open_group();
+        e.tag_func_name("initialise_threads", 0);
+        e.spaces(0, 10);
+        let id2 = e.open_paren("(");
+        e.spaces(0, 10);
+        for i in 1..=14 {
+            if i > 1 {
+                e.print(",");
+            }
+            let ty = if i == 9 || i == 10 { "uint4" } else { "xunknown8" };
+            e.tag_type(ty, 0);
+            e.spaces(1, 0);
+            e.tag_variable(&format!("param_{}", i), 0);
+        }
+        e.close_paren(")", id2);
+        e.close_group(id1);
+        e.end_func_proto();
+        e.print("\n");
+        e.tag_line(0);
+        e.print("{");
+        e.tag_line(0);
+        e.print("}");
+        e.tag_line(0);
+        e.end_function();
+        e.flush();
+        let out = e.get_output();
+        let expected = "\
+xunknown4 initialise_threads(xunknown8 param_1,xunknown8 param_2,xunknown8 param_3,xunknown8 param_4
+                            ,xunknown8 param_5,xunknown8 param_6,xunknown8 param_7,xunknown8 param_8
+                            ,uint4 param_9,uint4 param_10,xunknown8 param_11,xunknown8 param_12,
+                            xunknown8 param_13,xunknown8 param_14)
+";
+        assert!(
+            out.trim_start_matches('\n').starts_with(expected),
+            "parameter overflow must break BEFORE the comma (comma opens the \
+             continuation line, group-aligned indent), got:\n{}",
+            out
+        );
+    }
 }
