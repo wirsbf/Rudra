@@ -361,6 +361,16 @@ pub struct TypeBase {
     pub pointer_space: Option<AddressSpace>,
     /// TypePointerRel parent/offset/stripped state, if this is relative.
     pub pointer_rel: Option<PointerRelState>,
+    /// The immediate data-type being typedefed by \e this, or `None`.
+    /// 1:1 channel for Ghidra's per-Datatype `typedefImm` field
+    /// (type.hh:196) set only by `TypeFactory::getTypedef`
+    /// (type.cc:3834 `res->typedefImm = ct;`). The derived `Clone` mirrors
+    /// the oracle's Datatype copy constructor (type.hh:212
+    /// `typedefImm=op.typedefImm`), so any clone of a typedef carries the
+    /// same channel — partial types built from a fresh base ctor do not
+    /// (their C++ ctors use `Datatype(sz,1,TYPE_...)`, which nulls it,
+    /// type.hh:215).
+    pub typedef_imm: Option<Arc<Datatype>>,
 }
 
 impl TypeBase {
@@ -379,6 +389,7 @@ impl TypeBase {
             submeta_override: None,
             pointer_space: None,
             pointer_rel: None,
+            typedef_imm: None,
         }
     }
 
@@ -600,6 +611,14 @@ impl Datatype {
             }
             _ => Arc::ptr_eq(self, other),
         }
+    }
+
+    // Ghidra: type.hh:244 Datatype::getTypedef
+    /// Get the data-type immediately typedefed by \e this (or `None`).
+    /// Walked by the typedef strip loops at cast.cc:325-328, printc.cc:390-393,
+    /// coreaction.cc:2476-2479, and typeop.cc:2337-2340.
+    pub fn get_typedef(&self) -> Option<&Arc<Datatype>> {
+        self.base_record().typedef_imm.as_ref()
     }
 
     // Ghidra: type.hh:165 Datatype::getName
@@ -1411,11 +1430,13 @@ impl Datatype {
     /// - `Pointer`/`Array`/`Struct`/`Enum`/`Union`/`Code`/`Spacebase`/
     ///   `PartialEnum`/`PartialUnion` → the corresponding subclass encoder.
     ///
-    /// `typedef_target` is `Some(&Datatype)` when this type is a typedef alias
-    /// of `target`; in that case a `<def>` element is emitted via
-    /// `encode_typedef` (Ghidra's `if (typedefImm != null)` guard).
-    pub fn encode_full(&self, encoder: &mut dyn Encoder, typedef_target: Option<&Datatype>) {
-        if let Some(target) = typedef_target {
+    /// A type whose `typedef_imm` channel is set emits a `<def>` element via
+    /// `encode_typedef` first — the per-subclass `if (typedefImm != null)`
+    /// guard of Ghidra's virtual `encode` dispatch (type.cc:825/872/902/972/
+    /// 1272/1450/1812/2112/2891/3076), now read from the per-type channel
+    /// (type.hh:196) instead of an externally threaded argument.
+    pub fn encode_full(&self, encoder: &mut dyn Encoder) {
+        if let Some(target) = self.base_record().typedef_imm.as_deref() {
             self.encode_typedef(encoder, target);
             return;
         }
@@ -2137,7 +2158,7 @@ pub fn encode_pointer_rel(
     if wordsize != 1 {
         encoder.write_unsigned_integer(&attrib("wordsize"), wordsize as u64);
     }
-    ptrto.encode_full(encoder, None);
+    ptrto.encode_full(encoder);
     parent.encode_ref(encoder);
     encoder.open_element(&elem::off());
     encoder.write_signed_integer(&attrib("content"), offset);

@@ -1,5 +1,16 @@
 ﻿# `type_system/cast.rs` API Reference
 
+## 2026-09-27：castStandard typedef 剥离环（Lane TYPEDEFIMM，wt/typedefimm）
+
+`cast_standard_full`（cast.cc:300-392）补齐 cc:325-328 的两条剥离环：
+指针层同步下潜后、`findadd_equal` 基型比较前，`reqbase`/`curbase` 各自沿
+per-type `typedef_imm` 通道（type.hh:196/244，工厂 `get_typedef` type.cc:3834
+置位）走到根——"Different typedefs could point to the same type"（cast.cc:329）。
+非 typedef 基型通道为空、立即停步，与 oracle 的 null `typedefImm` 恒等；外部
+铸造的同名 look-alike（通道为空）不剥离，保持其 cast（实例键语义）。新增单测
+`test_cast_standard_full_typedef_strip`（alias/base、链式 alias、size 门、
+look-alike 负控）。
+
 ## 2026-08-30：arithmetic_output_standard（PTRSUB-SWITCH-CAST-RESIDUAL-0001 step 5）
 
 新增 `pub fn arithmetic_output_standard(op, tlst)`（cast.cc:394

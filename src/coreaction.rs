@@ -6594,14 +6594,14 @@ impl ActionSetCasts {
     /// side independently walks its own typedef chain (cc:2476-2479:
     /// `while(ct->getTypedef() != 0) ct = ct->getTypedef();`) before the
     /// identity comparison (cc:2480). Ghidra's `typedefImm` is a per-instance
-    /// field; Rugra resolves the same chain through the TypeFactory typedef
-    /// table (name -> stripped target, populated by `get_typedef`,
-    /// typefactory.rs), which is identity-equivalent for factory-interned
-    /// types. A detached Funcdata without an architecture factory keeps the
-    /// bare pointer comparison (Ghidra always has a factory).
+    /// field (type.hh:196/244) set by `TypeFactory::getTypedef`
+    /// (type.cc:3834); Rugra now mirrors it as the per-type `typedef_imm`
+    /// channel on `Datatype`, so the walk needs no factory (the former
+    /// name-table lookup was keyed by name and could false-strip an
+    /// out-of-factory type that merely shared a typedef's name).
     fn is_op_identical(
-        ct1: &Arc<crate::type_system::datatype::Datatype>, ct2: &Arc<crate::type_system::datatype::Datatype>,
-        factory: Option<&crate::type_system::typefactory::TypeFactory>,
+        ct1: &Arc<crate::type_system::datatype::Datatype>,
+        ct2: &Arc<crate::type_system::datatype::Datatype>,
     ) -> bool {
         use crate::type_system::datatype::Datatype;
         let mut t1 = ct1.clone();
@@ -6615,13 +6615,11 @@ impl ActionSetCasts {
         // cc:2476-2479: strip typedef aliases independently on each side
         // after the pointer descent (a typedef-of-pointer loses its alias
         // when descended; a typedef pointee keeps it until stripped here).
-        if let Some(factory) = factory {
-            while let Some(target) = factory.get_typedef_target(t1.get_name()) {
-                t1 = target.clone();
-            }
-            while let Some(target) = factory.get_typedef_target(t2.get_name()) {
-                t2 = target.clone();
-            }
+        while let Some(target) = t1.get_typedef() {
+            t1 = target.clone();
+        }
+        while let Some(target) = t2.get_typedef() {
+            t2 = target.clone();
         }
         Arc::ptr_eq(&t1, &t2)
     }
@@ -7265,18 +7263,11 @@ impl ActionSetCasts {
                     if !lone_is_return {
                         // cc:2566: force = !isOpIdentical(outHighResolve,
                         // tokenct) — the typedef-chain stripping inside
-                        // isOpIdentical (cc:2476-2479) runs through the
-                        // architecture's TypeFactory typedef table.
-                        let factory_arc = fd
-                            .get_arch()
-                            .and_then(|architecture| architecture.types.clone());
-                        let factory_guard =
-                            factory_arc.as_ref().map(|types| types.read().unwrap());
-                        force = !Self::is_op_identical(
-                            &out_high_resolve,
-                            &tokenct,
-                            factory_guard.as_deref(),
-                        );
+                        // isOpIdentical (cc:2476-2479) walks the per-type
+                        // typedef_imm channel (type.hh:196/244), so no
+                        // factory handle is threaded here (Ghidra passes
+                        // none either).
+                        force = !Self::is_op_identical(&out_high_resolve, &tokenct);
                     }
                 } else if out_high_resolve.get_metatype() != TypeMetatype::Pointer {
                     // cc:2569-2571: implied atomic (non-pointer) out — ignore
@@ -7525,8 +7516,8 @@ impl ActionSetCasts {
     /// closed the former bare-v_type residual ACTION-INFERTYPES-DISPATCH
     /// -0001 for this site): a union-ptr base resolved to a field pointer
     /// now drives the same_type/one-level-down decisions with the field
-    /// type. Rugra has no typedef layer, so the `getTypedef()` unwrap loop
-    /// is a structural no-op.
+    /// type. The `getTypedef()` unwrap loop strips through the per-type
+    /// typedef_imm channel (type.hh:196/244).
     // Ghidra: typeop.cc:2320 TypeOpPtrsub::getInputCast / typeop.cc:2250 TypeOpPtradd::getInputCast
     fn ptr_input_reqtype(
         fd: &Funcdata,
@@ -7580,8 +7571,18 @@ impl ActionSetCasts {
                     }
                     _ => (reqbase, curbase),
                 };
-                // typeop.cc:2337-2340 typedef unwrap is a no-op (no typedef
-                // layer in Rugra).
+                // typeop.cc:2337-2340: strip the typedef chains on both
+                // bases — `while(reqbase->getTypedef() != 0) reqbase =
+                // reqbase->getTypedef();` — via the per-type typedef_imm
+                // channel (type.hh:196/244), then compare.
+                let mut reqbase = reqbase;
+                while let Some(target) = reqbase.get_typedef() {
+                    reqbase = target.clone();
+                }
+                let mut curbase = curbase;
+                while let Some(target) = curbase.get_typedef() {
+                    curbase = target.clone();
+                }
                 // typeop.cc:2342-2344
                 if same_type(&curbase, &reqbase) {
                     return None;
@@ -22693,23 +22694,31 @@ mod tests {
         let p_td = factory.get_type_pointer(8, td_int8.clone(), 1);
         let td_p = factory.get_typedef("td_p_int8", p_int8.clone());
         let p_int4 = factory.get_type_pointer(8, int4.clone(), 1);
-        let f = &factory;
         // cc:2476-2479: alias vs base strips to the same interned target.
-        assert!(ActionSetCasts::is_op_identical(&td_int8, &int8, Some(f)));
-        assert!(ActionSetCasts::is_op_identical(&int8, &td_int8, Some(f)));
+        assert!(ActionSetCasts::is_op_identical(&td_int8, &int8));
+        assert!(ActionSetCasts::is_op_identical(&int8, &td_int8));
         // A chained typedef walks the whole getTypedef() chain.
-        assert!(ActionSetCasts::is_op_identical(&td_td_int8, &int8, Some(f)));
-        assert!(ActionSetCasts::is_op_identical(&td_int8, &td_td_int8, Some(f)));
+        assert!(ActionSetCasts::is_op_identical(&td_td_int8, &int8));
+        assert!(ActionSetCasts::is_op_identical(&td_int8, &td_td_int8));
         // Distinct bases are still not op-identical.
-        assert!(!ActionSetCasts::is_op_identical(&td_td_int8, &int4, Some(f)));
+        assert!(!ActionSetCasts::is_op_identical(&td_td_int8, &int4));
         // Pointer descent runs first (cc:2472-2474).
-        assert!(ActionSetCasts::is_op_identical(&td_p, &p_int8, Some(f)));
-        assert!(ActionSetCasts::is_op_identical(&p_td, &p_int8, Some(f)));
-        assert!(!ActionSetCasts::is_op_identical(&p_int8, &p_int4, Some(f)));
-        // Without a factory (detached Funcdata) the bare pointer comparison
-        // remains — the pre-fix observable that this test pins as negative
-        // control for the typedef arms above.
-        assert!(!ActionSetCasts::is_op_identical(&td_int8, &int8, None));
+        assert!(ActionSetCasts::is_op_identical(&td_p, &p_int8));
+        assert!(ActionSetCasts::is_op_identical(&p_td, &p_int8));
+        assert!(!ActionSetCasts::is_op_identical(&p_int8, &p_int4));
+        // Negative control for the channel design: an out-of-factory clone
+        // that merely SHARES the typedef's name must NOT strip. The oracle's
+        // typedefImm lives on the instance (type.hh:196/244), so a minted
+        // look-alike keeps a null channel while the real typedef strips to
+        // int8 — the two cannot meet (a factory-keyed name walk would have
+        // wrongly collapsed them).
+        let mut lookalike = (*int8).clone();
+        if let crate::type_system::datatype::Datatype::Base(b) = &mut lookalike {
+            b.name = "td_int8".to_string();
+        }
+        let lookalike = std::sync::Arc::new(lookalike);
+        assert!(!ActionSetCasts::is_op_identical(&lookalike, &td_int8));
+        assert!(!ActionSetCasts::is_op_identical(&lookalike, &int8));
     }
 
     // Ghidra: coreaction.cc:2655 ActionSetCasts::castInput arm order

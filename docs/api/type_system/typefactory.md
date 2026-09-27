@@ -1,5 +1,22 @@
 ﻿# `type_system/typefactory.rs` API Reference
 
+## 2026-09-27：get_typedef per-type 通道（Lane TYPEDEFIMM，wt/typedefimm）
+
+`get_typedef`（type.cc:3818-3840）补齐 oracle 的 per-Datatype 通道语义：
+
+- 克隆 base 记录后显式置 `base.typedef_imm = Some(ct)`（type.cc:3834
+  `res->typedefImm = ct;`——无条件覆写，typedef-of-typedef 的克隆携带链被
+  换成立即基）。通道随 `find_add` 插入的 Arc 进入工厂树。
+- 同名去重检查从 `typedefs` 名字侧表改为现有类型的 per-type 通道
+  （type.cc:3825 `if (ct != res->getTypedef()) throw`）——指针同一性。
+- `typedefs` 名字索引与 `get_typedef_target(name)` 保留为 debug/test 可达性
+  helper（Ghidra 无名字键访问器——type.cc:3850 是 `getTypePointerStripArray`；
+  生产消费点一律走 `Datatype::get_typedef` 通道），注解从失实的
+  `Ghidra: type.cc:3850` 更正为 RUGRA-GLUE。
+- 消费点接线（cast.cc:325-328 / printc.cc:390-393 / typeop.cc:2337-2340
+  剥离环）见 `docs/api/type_system/cast.md`、`docs/api/printc.md`、
+  `docs/api/coreaction.md` 同日条目。
+
 ## 2026-09-26：DataOrg flavor 补 `code` 核心注册（Lane TYPINGPX，TYPINGPX-PXNAME-0001）
 
 `init_data_org_core_types` 在 `undefined1..8` 之后显式注册
