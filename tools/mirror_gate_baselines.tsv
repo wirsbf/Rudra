@@ -54,11 +54,11 @@
 # pinned_commit=c4508bba=集成态测量锚[wave-ledger commit 为 docs-only 不改二进制];
 # 分片协议 27178 仍为 SQLITE3_SCOREBOARD 记分板口径, 两协议各按各的账本记账）。
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
-curl	56	74	MERGEBATCH5-RATCHET-REPIN-0001	1a41d6ad	2026-09-26
+curl	52	74	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
 httpd	84	29	MB23-RATCHET-REPIN-0001	d9a2ef5d	2026-09-27
-vsh	12	71	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
-sq	4197	810	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
-sqlite	24091	1385	MB23-RATCHET-REPIN-0001	d9a2ef5d	2026-09-27
+vsh	8	71	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
+sq	4205	810	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
+sqlite	23840	1385	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
@@ -162,3 +162,11 @@ sqlite	24091	1385	MB23-RATCHET-REPIN-0001	d9a2ef5d	2026-09-27
 #    显形: ap_ht_time badstring 对→"+0000" golden:5183 逐字,车道树 canon 恒等系其基
 #    无 funcinject 通道,堆叠交互在集成面首次显形——集成门禁价值实证];matched 34;
 #    result/ 已回流新档。
+# 2026-09-27 MB24 重钉（MB24-RATCHET-REPIN-0001, @e5fb3e54 = 7 支合并态 fresh 实测,
+# root 集成门禁复跑逐面精确命中）: 改善向收紧 curl 56→52 / vsh 12→8 / sqlite 24091→23840
+# （三面足迹全 = ISMOVEABLE 游走序修复激活的合法 iterate/initialize 搬移, 车道 A/B
+# 亲证 LANE_ISMOVEABLE §镜面五面）; sq 4197→4205 为回归向抬升——+8 残差族已登记
+# GIANTS-GA1-SQ-FORINIT-RESIDUAL-0001（master 侧注记: 该 +8 在 GA-1 改帽之前已存在于
+# e5fb3e54 基线, 根因 = ISMOVEABLE 合并的 layout-divergence ± 行工件[parseconfig 型],
+# 非 GA-1 cap removal 所致——GA-1 终报 §3.5 归因勘误; 逐函数拆解归 GAPSET 家族道）。
+# httpd 84 恒等不重钉（MB23 行保持）。
