@@ -3279,7 +3279,7 @@ ActionReturnSplit 的 `self.count +=` 同样无收割覆盖（ActionDoNothing �
 ——违反铁律 1.4 的简表（oracle 反例：httpd `switchD_0017766d::default`
 `mov eax,0xfffffffd; ret` 打印 `undefined8 ...(void) { return 0xfffffffd; }`
 而旧表打 `long`）。重写为 coreaction.cc:4765-4782 逐行端口：
-`getFirstReturnOp`（returnlist 插入序，跳 dead/HALT）取输入 1..n 构造
+`getFirstReturnOp`（returnlist 插入序，跳 dead/五旗标 halt 族）取输入 1..n 构造
 triallist，交 `FuncProto::update_output_types`（fspec.cc:4136-4159）；
 未锁输出 + 空表 → clearOutput（void），与 Ghidra 同。
 
@@ -4175,3 +4175,36 @@ tokenct 分发补 **CPUI_CALLOTHER** 臂（此前落入 `output_metatype` 的
 纯线程改动：无 volatile CALLOTHER 在飞时（五语料 cspec 无 `<volatile>`，
 链首即断）行为零变化；canon A/B 字节恒等见车道终报。callother 域的
 setcasts token 面不动（本票非 STRDATA 域）。
+## 2026-09-27：RETURN 遍历接 begin_op(CPUI_RETURN)（Lane NORMGUARD2，COREACT-RETTABLE-TRAVERSAL-0001）
+
+canonical_return_op（cc:5317-5318）与 propagate_across_returns 第二循环
+（cc:5354-5355）两处 `obank.alivelist.iter().filter(opcode ==
+CPUI_RETURN)` 投影改接 `obank.begin_op(CPUI_RETURN)`（op.rs:1937-1945，
+op.cc:1158-1174 忠实镜像返回 returnlist 切片）。returnlist 序=
+addToCodeList push_back（op.cc:881）的转换/插入时序；markDead 不摘表
+（同 Ghidra，摘除在 destroy），故 isDead()/getHaltType() 跳过保持在
+循环内（cc:5320-5321/cc:5358-5359，先 dead 后 halt 顺序不变），与
+oracle 完全同构。零行为（CR-TEMPOVER 判据）：语料上 RETURN 同一插入
+事件进两表序恒等，filter 隐含 dead 排除被循环内 isDead() 跳过包含——
+canon 双语料 A/B cmp 字节恒等亲证（md5 51cc85d2 / 04b3b014）。
+
+## 2026-09-27：HALT-only 守卫归五并集字面形（Lane NORMGUARD2，COREACT-HALTGUARD-NORM-0001）
+
+全库 HALT-only 单旗标守卫清点（grep `pcodeop_flags::HALT`）后，剩余两处
+归一为 op.hh:171 `getHaltType()` 逐字五旗标并集字面形：
+
+### 守卫位清点表（grep `pcodeop_flags::HALT` 全库 5 个使用点）
+
+| # | src/coreaction.rs | 所在函数 | oracle 锚点 | 归一前形态 | 归一后 |
+|---|---|---|---|---|---|
+| 1 | :9244 | `canonical_return_op` | cc:5321 | 五并集（CR-TEMPOVER 已归一） | 保持 |
+| 2 | :9325 | `propagate_across_returns` 第二循环 | cc:5359 | 五并集（CR-TEMPOVER 已归一） | 保持 |
+| 3 | :11759 | `ActionOutputPrototype::apply`（getFirstReturnOp 投影） | funcdata_op.cc:640 | **HALT-only** | **本票归一五并集** |
+| 4 | :11957 | `ActionPrototypeTypes::apply` Step3 | cc:4637-4649 | 五并集（前期已归一） | 保持 |
+| 5 | :16768 | `ActionReturnRecovery::apply`（单快照喂 cc:1921/cc:1943 两循环） | cc:1924/cc:1947 | **HALT-only** | **本票归一五并集** |
+
+归一判据：op.hh:171 `getHaltType()` 逐字五旗标并集（halt|badinstruction|
+unimplemented|noreturn|missing）；分歧集构造性空集（CR-TEMPOVER 证明——
+语料无可达 RETURN 携四卫星旗标而不携 halt），故本票=纯防未来旗标启用的
+语义漂移面收敛，零行为变化（canon 双语料 A/B cmp 字节恒等亲证，
+md5 51cc85d2 / 04b3b014）。:3269 行的 getFirstReturnOp 陈述同步更新。
