@@ -1,5 +1,37 @@
 # `funcdata.rs` API Reference
 
+## 2026-09-28：set_varnode_properties/new_varnode_symbol_tail 本地域入口完整 setSymbolProperties 端口（FUNCDATA-SETVARNODE-SCOPELOCAL-0001 completion，wt/outstream）
+
+`Funcdata::set_varnode_properties`（funcdata_varnode.cc:25-42 对应物）与
+`Funcdata::new_varnode_symbol_tail`（cc:104-122/148-169 共享尾对应物）的
+ScopeLocal 腿入口命中此前退化为纯 flags 折叠（`setFlags(vflags & ~typelock)`）；
+oracle 在该臂走**完整** `vn->setSymbolProperties(entry)` 端口
+（cc:32-33/116-117/163-164）。修法 = 两处入口命中经
+`ScopeLocal::live_symbol_entry`（见 docs/api/varmap.md 同日条目）物化活
+SymbolEntry 后运行 varnode.rs `set_symbol_properties_arc` 全链：
+
+- `SymbolEntry::updateType`（database.cc:135-144）→ `getSizedType`
+  （database.cc:151-162）→ `getExactPiece`（type.cc:4090-4117 完美尺寸
+  匹配返字段 Arc）→ `vn->updateType(dt, lock=true, override=true)`
+  ——**struct downChain 锁**：TYPELOCKED 结构符号的精确覆盖栈格在
+  属性时刻被锁到字段声明类型，阻断后续 ActionInferTypes 传播竞赛
+  （coreaction.cc:5092 `isTypeLock()` 早退）。
+- 尾随 `setFlags(entry->getAllFlags() & ~typelock)`（varnode.cc:422）
+  与旧折叠同效；scope 应答无入口（database.cc:1271-1277 discovery 臂）
+  保持 cc:34-35 折叠。
+- 活案例（curl main）：`outs`/`heads` 符号 TYPELOCKED `OutStruct(16)`
+  （oracle 仪器化 symlock=1 亲证），`.stream` 字段格 0x148/0x158 早期锁
+  `ptr->FILE(216)` 字段片 → bare read 不再带 `(FILE *)outs.stream`/
+  `(FILE *)heads.stream` 左 cast（golden 形，3 位点）；file2string 同族
+  收敛（缺 `bool *` 声明补齐，编号级联对齐 golden）。
+- A/B：canon curl 95→85/0/0（main 20→13 = 恰 3 票面位点 + 上下文；
+  file2string 19→16；其余 122 函数零漂移）；canon httpd 47/0/0 **字节
+  恒等**（md5 e42ec94e 双侧）；镜面五面 PASS。
+- 单测 `test_set_varnode_properties_struct_downchain_lock`：downChain
+  锁（typelock + `Arc::ptr_eq` 字段片类型身份 + mapentry 绑定）、
+  重复属性 pass 恒等（varnode.cc:415 `mapentry != entry` 恒等臂）、
+  live Symbol 句柄 memo（`Arc::ptr_eq`）与入口字段（first/offset/size）。
+
 ## 2026-09-27：set_varnode_properties 旧名代理 RAM 空间守卫（RULEACTION-NEGCONST-FOLD-0001）
 
 `Funcdata::set_varnode_properties`（funcdata_varnode.cc:25-42 对应物）的

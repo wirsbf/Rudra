@@ -993,12 +993,12 @@ impl Funcdata {
     /// in), and — when the local leg does not terminate the walk — the
     /// parent/global leg is the Database channel
     /// (`query_properties_parent_scope`/`query_container_entry_parent_scope`,
-    /// database.cc:1263-1281). Where the global leg finds a live
-    /// SymbolEntry, the FULL `setSymbolProperties` port runs
-    /// (varnode.cc:410-424, including the HighVariable symbol link);
-    /// the ScopeLocal leg's entry hit degrades to its flags fold
-    /// (Rugra's ScopeLocal carries no SymbolEntry objects — the
-    /// DB-LOCALSCOPE-MAP-0001 split).
+    /// database.cc:1263-1281). Both legs now run the FULL
+    /// `setSymbolProperties` port on an entry hit (varnode.cc:410-424,
+    /// including the HighVariable symbol link): the global leg uses the
+    /// Database's live SymbolEntry, the ScopeLocal leg materializes one via
+    /// `ScopeLocal::live_symbol_entry` (DB-LOCALSCOPE-MAP-0001 local-leg
+    /// completion, OUTSTREAM 2026-09-28).
     /// (FUNCDATA-NEWVARNODE-SYMBOLTAIL-0001)
     fn new_varnode_symbol_tail(
         &mut self,
@@ -1036,12 +1036,32 @@ impl Funcdata {
         if local_answered {
             // The ScopeLocal leg terminated the walk (containing entry or
             // in-scope discovery). Ghidra hands the live entry to
-            // setSymbolProperties when cc:163 hits; Rugra's ScopeLocal has
-            // no live SymbolEntry, so this is the observable flags fold of
-            // varnode.cc:422 — cc:166 setFlags(vflags & ~typelock).
-            if let Some(outcome) = local {
-                let fl = outcome.flags & !crate::varnode::varnode_flags::TYPELOCK;
-                vn.write().unwrap().set_flags(fl);
+            // setSymbolProperties when cc:163 hits (funcdata_varnode.cc:33/
+            // 117/164); with the ScopeLocal live-entry form
+            // (live_symbol_entry) the entry hit now runs the FULL port —
+            // set_symbol_property_arc's SymbolEntry::updateType
+            // (database.cc:135-144) exact-piece chain plus its own
+            // cc:422 setFlags fold — and the scope-answered-no-entry form
+            // keeps cc:166's fold. (FUNCDATA-NEWVARNODE-SYMBOLTAIL-0001
+            // completion, DB-LOCALSCOPE-MAP-0001 local leg.)
+            let mut attached = false;
+            if let Some(outcome) = &local {
+                if outcome.entry.is_some() {
+                    if let Some(scope) = self.scope.as_ref() {
+                        if let Some(live_entry) =
+                            scope.live_symbol_entry(outcome.entry.as_ref().unwrap())
+                        {
+                            crate::varnode::Varnode::set_symbol_properties_arc(vn, &live_entry);
+                            attached = true;
+                        }
+                    }
+                }
+            }
+            if !attached {
+                if let Some(outcome) = local {
+                    let fl = outcome.flags & !crate::varnode::varnode_flags::TYPELOCK;
+                    vn.write().unwrap().set_flags(fl);
+                }
             }
             return;
         }
@@ -6309,10 +6329,10 @@ impl Funcdata {
             // findContainer (database.cc:952, entry hit → getAllFlags) then
             // the in-scope "discovery of new variable" stop (database.cc:
             // 957-958 → 1271-1277 mapped|addrtied(|persist)+property).
-            // Rugra's ScopeLocal carries no live SymbolEntry
-            // (DB-LOCALSCOPE-MAP-0001 split), so the entry hit degrades to
-            // the observable flags fold — the same treatment as the local
-            // leg of `new_varnode_symbol_tail` (varnode.cc:422).
+            // An entry hit runs the FULL setSymbolProperties port via
+            // `ScopeLocal::live_symbol_entry` (DB-LOCALSCOPE-MAP-0001
+            // local-leg completion, OUTSTREAM 2026-09-28) — the same
+            // treatment as the local leg of `new_varnode_symbol_tail`.
             // (FUNCDATA-SETVARNODE-SCOPELOCAL-0001)
             let property = |spc: crate::space::AddressSpace, off: u64| -> u32 {
                 if spc != crate::space::AddressSpace::Ram {
@@ -6339,12 +6359,35 @@ impl Funcdata {
                 Some(outcome) if !matches!(outcome.final_scope, crate::varmap::QueryFinalScope::None)
             );
             if answered {
-                // cc:34-35: setFlags(vflags & ~typelock) — the local leg
-                // answered, so the walk never reaches the parent
-                // (database.cc:1269/1271 return the answering scope).
-                if let Some(outcome) = local {
-                    let fl = outcome.flags & !crate::varnode::varnode_flags::TYPELOCK;
-                    vn.write().unwrap().set_flags(fl);
+                // cc:32-33: entry != NULL → vn->setSymbolProperties(entry).
+                // The local leg's entry hit now runs the FULL port
+                // (varnode.rs set_symbol_property_arc): its
+                // SymbolEntry::updateType (database.cc:135-144) →
+                // getSizedType → getExactPiece → vn->updateType(dt,true,true)
+                // chain is the struct downChain lock, and its trailing
+                // setFlags(entry->getAllFlags() & ~typelock) is the same
+                // fold the flags-only form performed. Scope-answered
+                // without an entry keeps cc:34-35's fold.
+                // (FUNCDATA-SETVARNODE-SCOPELOCAL-0001 completion,
+                // DB-LOCALSCOPE-MAP-0001 local leg.)
+                let mut attached = false;
+                if let Some(outcome) = &local {
+                    if outcome.entry.is_some() {
+                        if let Some(scope) = self.scope.as_ref() {
+                            if let Some(live_entry) =
+                                scope.live_symbol_entry(outcome.entry.as_ref().unwrap())
+                            {
+                                crate::varnode::Varnode::set_symbol_properties_arc(vn, &live_entry);
+                                attached = true;
+                            }
+                        }
+                    }
+                }
+                if !attached {
+                    if let Some(outcome) = local {
+                        let fl = outcome.flags & !crate::varnode::varnode_flags::TYPELOCK;
+                        vn.write().unwrap().set_flags(fl);
+                    }
                 }
             }
             if !answered && space == crate::space::AddressSpace::Ram {
@@ -19717,6 +19760,100 @@ fn test_scope_local_find_overlap_negative_size_modular() {
         fd.set_varnode_properties(&vn_out);
         assert!(vn_out.read().unwrap().flags & crate::varnode::varnode_flags::ADDRTIED == 0);
         assert!(!vn_out.read().unwrap().is_mapped());
+    }
+
+    // OUTSTREAM 2026-09-28 (FUNCDATA-SETVARNODE-SCOPELOCAL-0001 completion,
+    // DB-LOCALSCOPE-MAP-0001 local leg): the local-leg entry hit runs the
+    // FULL Varnode::setSymbolProperties port (funcdata_varnode.cc:32-33 →
+    // varnode.cc:410-424), whose SymbolEntry::updateType (database.cc:135-144)
+    // runs the struct downChain: getSizedType → getExactPiece(symbol type,
+    // off, size) → vn->updateType(dt, lock=true, override=true). A
+    // TYPELOCKED struct-typed local symbol must therefore LOCK the exact
+    // field piece type onto an exactly covering stack varnode at property
+    // time (the `(FILE *)outs.stream` golden-form mechanism), and the
+    // live-entry memo (ScopeLocal::live_symbols) must hand out the SAME
+    // Symbol handle across queries so repeated attaches are already-linked
+    // no-ops (varnode.cc:415 `mapentry != entry`).
+    #[test]
+    fn test_set_varnode_properties_struct_downchain_lock() {
+        use crate::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypePointer, TypeStruct};
+        use crate::varmap::ScopeLocal;
+
+        let mut fd = Funcdata::new("downchain", Address::new(0x401000), 0x10);
+        // struct OutStruct { long flags @0; FILE *stream @8; } — the DWARF
+        // type-locked shape of curl main's `outs` local (oracle O3: sym=heads
+        // symlock=1 symtype=OutStruct(16)).
+        let file_t = Arc::new(Datatype::Struct(TypeStruct {
+            base: TypeBase::new("FILE".into(), 216, TypeMetatype::Struct),
+            fields: vec![],
+        }));
+        let stream_t = Arc::new(Datatype::Pointer(TypePointer::new(8, file_t, 1)));
+        let out_t = Arc::new(Datatype::Struct(TypeStruct {
+            base: TypeBase::new("OutStruct".into(), 16, TypeMetatype::Struct),
+            fields: vec![
+                TypeField { name: "flags".into(), offset: 0, type_ptr: Arc::new(Datatype::Base(TypeBase::new("long".into(), 8, TypeMetatype::Int))) },
+                TypeField { name: "stream".into(), offset: 8, type_ptr: stream_t.clone() },
+            ],
+        }));
+        let mut scope = ScopeLocal::new();
+        scope.local_range.push((0x100, 0x200));
+        let outs = scope.add_symbol(AddressSpace::Stack, "outs", Some(out_t), 0x140, None);
+        scope.symbols[outs].typelock = true; // TYPELOCKED like the DWARF symbol
+        fd.scope = Some(scope);
+
+        // The `.stream` field cell: 8-byte stack varnode at outs+8.
+        // database.cc:139 getSizedType → getExactPiece(OutStruct, 8, 8) →
+        // the exact `FILE *` piece (type.cc:4100-4101 perfect size match
+        // after one getSubType descent), then vn->updateType(dt,true,true):
+        // typelock set, v_type == the piece, at property time.
+        let vn = fd.vbank.create_with_space(8, AddressSpace::Stack, 0x148);
+        fd.set_varnode_properties(&vn);
+        {
+            let r = vn.read().unwrap();
+            assert!(r.is_type_lock(), "struct downChain must type-lock the field cell");
+            let vt = r.v_type.as_ref().expect("field piece type installed");
+            // type.cc:4100-4101: the perfect-size-match branch returns the
+            // FIELD's own type Arc — identity, not an equal copy.
+            assert!(
+                Arc::ptr_eq(vt, &stream_t),
+                "locked piece is the exact field type Arc"
+            );
+            // varnode.cc:414-421: the typelocked entry binds mapentry.
+            assert!(r.mapentry.is_some(), "typelocked entry binds mapentry");
+        }
+
+        // varnode.cc:415 `mapentry != entry` identity: a second property pass
+        // on the same cell sees the SAME live Symbol handle (memoized per
+        // slot), so the attach is an already-linked no-op that must not
+        // disturb the locked type.
+        fd.set_varnode_properties(&vn);
+        {
+            let r = vn.read().unwrap();
+            assert!(r.is_type_lock());
+            assert!(Arc::ptr_eq(r.v_type.as_ref().unwrap(), &stream_t));
+        }
+
+        // The memo itself: two live_symbol_entry queries on the same hit
+        // share one Symbol Arc (Ghidra's heap-Symbol identity,
+        // database.hh:809) — what makes same_storage_identity's ptr_eq see
+        // an already-linked entry.
+        let scope = fd.scope.as_ref().unwrap();
+        let hit1 = {
+            let outcome = scope.query_properties_ex(
+                AddressSpace::Stack, 0x148, 8, None, None, &|_, _| 0);
+            outcome.entry.expect("entry hit")
+        };
+        let (e1, e2) = (
+            scope.live_symbol_entry(&hit1).expect("live entry"),
+            scope.live_symbol_entry(&hit1).expect("live entry"),
+        );
+        let (s1, s2) = (e1.read().unwrap().get_symbol(), e2.read().unwrap().get_symbol());
+        assert!(std::sync::Arc::ptr_eq(&s1, &s2), "live Symbol handle is memoized");
+        assert_eq!(e1.read().unwrap().get_first(), 0x140);
+        assert_eq!(e1.read().unwrap().get_offset(), 0);
+        assert_eq!(e1.read().unwrap().get_size(), 16);
+        assert!(s1.read().unwrap().is_type_locked());
+        assert_eq!(s1.read().unwrap().get_name(), "outs");
     }
 
     // RULEACTION-NEGCONST-FOLD-0001: the legacy symbol_table proxy in

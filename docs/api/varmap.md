@@ -1,5 +1,34 @@
 # `varmap.rs` API Reference
 
+## 2026-09-28：ScopeLocal::live_symbol_entry 活符号入口物化（DB-LOCALSCOPE-MAP-0001 local-leg completion，wt/outstream）
+
+`ScopeLocal` 此前无活 SymbolEntry 对象（DB-LOCALSCOPE-MAP-0001 split 的
+已知残留）：`query_properties_ex`（database.cc:1263-1281 对应物）的入口
+命中只回 `LocalMapEntry` 值快照 + flags 折叠，上层无法运行完整
+`Varnode::setSymbolProperties` 端口。本次补齐两件：
+
+1. `live_symbols: Arc<RwLock<BTreeMap<usize, Arc<RwLock<database::Symbol>>>>>`
+   ——按槽位 id memo 的活 Symbol 句柄缓存。Ghidra 的 scope 拥有每映射
+   **一个**堆 `Symbol`（database.hh:809），跨查询交出同一对象，
+   `Varnode::setSymbolProperties` 的 `mapentry != entry`（varnode.cc:415）
+   以指针身份判重复链接；Rust 形态 = `same_storage_identity` 的
+   `Arc::ptr_eq(symbol)` 需要 memo 化句柄才能观测到"已链接"。
+   `Arc` 包裹使 `Clone` scope 拷贝（printc.rs）共享缓存——句柄身份跨
+   拷贝恒等，对应 Ghidra 堆指针在 scope 只读拷贝下存活。
+2. `live_symbol_entry(&LocalMapEntry) -> Option<Arc<RwLock<SymbolEntry>>>`
+   ——从 map 命中物化活入口：Symbol 的 name/display_name/dtype/flags
+   （typelock/namelock/addrtied/persist/property_flags，database.hh:271
+   getAllFlags 镜像）+ `SymbolEntry::new_static(extraflags, addr=start,
+   offset, size, uselimit)`。消费方 = funcdata.rs 两处属性尾（见
+   docs/api/funcdata.md 同日条目）。
+
+A/B 与证据链见 funcdata.md 条目（canon curl 95→85/0/0，httpd 字节恒等，
+镜面五面 PASS）；单测
+`test_set_varnode_properties_struct_downchain_lock`（funcdata.rs）覆盖
+memo 恒等与入口字段。**机制 C 注记**：本条目触及 varmap 核心算法层
+（ScopeLocal），commit 附完整 Alignment Evidence 块，CR 需求已在车道
+终报标注。
+
 ## 2026-09-26：ScopeLocal::decodeWrappingAttributes 覆写移植（VARMAP-DECODEWRAP-0001，wt/varmapdecode）
 
 DATABASE7 车道移交票（MIGW1-DATABASE-0005 phase 3 裁决 R5：数据库层基类体逐字
