@@ -1056,6 +1056,43 @@ boolean_flip/fallthru_true"配对维持极性不变。Rugra 此前按 [target, f
 Rugra 侧回归锁:`test_build_blocks_synthetic_target_creates_block_no_zombie`
 (更新为断言 edge0=fallthru@0x1007, edge1=synthetic target)。
 
+#### 入边顺序 = Ghidra 走序（2026-09-27 合并块入边序修复,CANON-COPYJUNK-NOOP-ORDER-0001）
+
+出边极性（上节）之外，`collectEdges` 的**入边顺序**同样是决定性语义：Ghidra 的
+`PcodeOpBank::create` 把每个 op 追加到 dead list 尾部（op.cc:941-948
+`deadlist.insert(deadlist.end(), op)`），dead list 的迭代序 = **op 创建序**；而 op 创建序
+= FlowInfo 地址流走序 —— LIFO `addrlist` 栈（flow.cc:545-580）：指令的 fall-through 在
+`processInstruction` 尾部 push（cc:479-480），分支目标在 `xrefControlFlow`/`newAddress`
+（cc:219-234，已 visited 的目标不 push）**先于** fall-through push，因此 pop 序永远是
+"先走直落、路径终结后再走队列目标"。`FlowInfo::collectEdges`（flow.cc:906-977）按该
+创建序扫 op 并逐终结符收边 —— CBRANCH 先收 fall-thru 边再收 branch 边（cc:960-966）、
+BRANCH 只收 branch 边（cc:927-932）、非终结符块尾收直落边（cc:968-973）；
+`connectBasic`（cc:1021-1037）按收集序 `addEdge`。**合并块的入边序因此是"源块被走序
+发现序"，不是地址序。**
+
+入边序的下游链条（ap_getword 0x12e9f0 双侧 projection 钉死）：heritage 的 MULTIEQUAL
+槽序一比一映射入边序（rename 后继环 walk，heritage.cc:2531-2552）→ `mergeOp` /
+`trimOpInput`（merge.cc:692-712）把无法与输出 high 合并的 φ 输入在**该槽入块的块尾**
+（`bb->getStop()`）插 COPY trim → 同源 trims 成组后 `ActionDominantCopy` →
+`processCopyTrims` → `buildDominantCopy`（merge.cc:1151-1238）在公共支配块尾造单条
+dominant COPY 并 `totalReplace` 掉旧 trims。走序正确时，join-φ 的 then 侧（base）与
+loop-head φ 的 entry 侧都 trim base → 两组同源 COPY 塌缩成**一条支配 COPY**
+（golden `pcVar6 = pcVar3;` 提升形，两 φ 同吃）；地址序时 join-φ 的 else 侧（iter）被
+trim → 两组 COPY 不同源 → dominant 不可组 → 逗号内联 `(pcVar5 = pcVar6, ...)` + 尾部
+多余 COPY 残骸（V=V 族）。
+
+修复：`build_blocks_from_ops` 的加边循环改为先模拟 Ghidra 走序（块粒度等价：栈起于
+entry 块，per 块 push 未访问目标再 push 直落，LIFO pop 即直落先行；已访问目标不重
+push），再按**访问序**加边（每 CBRANCH 仍 fall-thru 先、branch 后，保持出边极性契
+约）。走序不可达的块（Rugra 线性注入独有的从未流入区域）按原地址序追加，行为与修复
+前完全一致。
+
+修复后（canon，基=master cc744670）：httpd **70→62/0/0** —— ap_getword 6→0（函数体
+逐字 golden：`pcVar3 = (char *)*param_2; pcVar6 = pcVar3; if((*pcVar3 == param_3) ||
+(*pcVar3 == '\0'))` 提升形+无逗号/尾 COPY）+ ap_pregsub 6→4（两处 COPY/LOAD 语句序
+对齐；余 4=声明序族）；curl **110/0/0 字节恒等**。Rugra 侧回归锁见
+`build_blocks_walk_order_edge_sequence` 等 tests（funcdata.rs tests）。
+
 #### 为什么这个方法重要
 如果没有这一步：
 

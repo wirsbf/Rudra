@@ -6636,23 +6636,12 @@ const STAGE_OPCODE_NAME: [&str; 74] = [
 ];
 
 // Rugra OpCode::name() spellings that deliberately differ from the locked
-// table above — the exact set the full-table parity check pins:
-// - 60/61/65/66: the generated-table quirk slots (MULTIEQUAL/INDIRECT/
-//   PTRADD/PTRSUB render BUILD/DELAY_SLOT/LABEL/CROSSBUILD);
-// - 54-59: Rugra's enum variants carry the FLOAT_ prefix that the table
-//   entries INT2FLOAT/FLOAT2FLOAT/TRUNC/CEIL/FLOOR/ROUND omit.
-const STAGE_OPCODE_TABLE_DIVERGENCE: [(&str, &str); 10] = [
-    ("FLOAT_INT2FLOAT", "INT2FLOAT"),
-    ("FLOAT_FLOAT2FLOAT", "FLOAT2FLOAT"),
-    ("FLOAT_TRUNC", "TRUNC"),
-    ("FLOAT_CEIL", "CEIL"),
-    ("FLOAT_FLOOR", "FLOOR"),
-    ("FLOAT_ROUND", "ROUND"),
-    ("MULTIEQUAL", "BUILD"),
-    ("INDIRECT", "DELAY_SLOT"),
-    ("PTRADD", "LABEL"),
-    ("PTRSUB", "CROSSBUILD"),
-];
+// table above — the exact set the full-table parity check pins. Since
+// PCODE-OPNAME-TABLE-0001 (OpCode::name() 1:1 with get_opname) every variant
+// spells exactly its locked-table slot, including the generated-table quirk
+// slots (MULTIEQUAL/INDIRECT/PTRADD/PTRSUB render BUILD/DELAY_SLOT/LABEL/
+// CROSSBUILD) and the FLOAT_-prefix family, so the divergence set is EMPTY.
+const STAGE_OPCODE_TABLE_DIVERGENCE: [(&str, &str); 0] = [];
 
 // RUGRA-GLUE: stage-projection op-name lookup — table spelling by numeric
 // slot, mirroring get_opname(opcodes.cc:60-64). Real ops are always inside

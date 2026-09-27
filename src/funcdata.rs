@@ -9043,85 +9043,179 @@ impl Funcdata {
         // target, or between two adjacent synthetic boundaries) falls
         // through to the next block: it stands in for real instructions the
         // lifter emitted no p-code for, which fall through the same way.
-        for i in 0..blocks.len() {
-            let block_empty = {
-                let b = blocks[i].read().unwrap();
-                b.get_ops().is_empty()
-            };
-            if block_empty {
-                // No guard may be held across add_edge: it write-locks both
-                // endpoints, and read→write on the same RwLock self-deadlocks.
-                if i + 1 < blocks.len() {
-                    self.bblocks.add_edge(blocks[i].clone(), blocks[i + 1].clone());
-                }
+        //
+        // EDGE ORDER = Ghidra's FlowInfo walk order, not address order:
+        //   PcodeOpBank::create appends every op to the dead list in CREATION
+        //   order (op.cc:941-948 `deadlist.insert(deadlist.end(), op)`), and
+        //   creation order is the FlowInfo address-stream walk order: a LIFO
+        //   addrlist stack (flow.cc:545-580) that follows an instruction's
+        //   fall-through first (`addrlist.push_back(curaddr+step)` at the END
+        //   of processInstruction, cc:479-480, AFTER xrefControlFlow pushed
+        //   the branch target via newAddress cc:219-234 — pushed targets are
+        //   only re-walked when the fall-through path ends, and newAddress
+        //   skips already-visited targets, cc:228-232).
+        //   FlowInfo::collectEdges (flow.cc:906-977) then walks that
+        //   creation-ordered dead list and emits, per terminator,
+        //   CBRANCH → fallthru edge FIRST then branch edge (cc:960-966),
+        //   BRANCH → branch edge (cc:927-932), non-terminator block end →
+        //   fallthru edge (cc:968-973); FlowInfo::connectBasic (cc:1021-1037)
+        //   adds the edges to the block graph in exactly that order. The
+        //   resulting merge-block in-edge order is therefore SOURCE-WALK
+        //   order, which fixes the MULTIEQUAL slot order heritage later
+        //   fills (one input per in-edge, heritage.cc rename successor
+        //   walk) and downstream the merge-trim + dominant-copy shapes.
+        //   Walking at block granularity reproduces it exactly: every block
+        //   is entered once by the contiguous fall-through-first walk, and
+        //   each block's edge contribution order is independent of when its
+        //   ops were created within the block.
+        // Blocks the walk never reaches (Rugra-only: linear injection also
+        // materializes never-flowed regions Ghidra would not generate) keep
+        // the historical address-order edge addition appended at the end, so
+        // those degenerate CFGs behave exactly as before this reordering.
+
+        // Per-block edge endpoints, resolved once (target via start address,
+        // fall-through via the next block in address order).
+        let mut start_to_block: std::collections::HashMap<u64, usize> =
+            std::collections::HashMap::with_capacity(blocks.len());
+        for (i, block) in blocks.iter().enumerate() {
+            let start = block.read().unwrap().get_start_addr().as_u64();
+            start_to_block.entry(start).or_insert(i);
+        }
+        #[derive(Clone, Copy, PartialEq)]
+        enum BlockTerm {
+            Empty,
+            Return,
+            BranchInd,
+            Branch,
+            Cbranch,
+            Fallthru,
+        }
+        let mut term_kind: Vec<BlockTerm> = Vec::with_capacity(blocks.len());
+        let mut branch_target: Vec<Option<usize>> = Vec::with_capacity(blocks.len());
+        for (i, block) in blocks.iter().enumerate() {
+            let b = block.read().unwrap();
+            if b.get_ops().is_empty() {
+                term_kind.push(BlockTerm::Empty);
+                branch_target.push(None);
                 continue;
             }
-            let (last_opcode, branch_target_offset) = {
-                let b = blocks[i].read().unwrap();
-                let ops = b.get_ops();
-                let last_op = ops.last().unwrap().0.read().unwrap();
-                let target = match last_op.opcode {
-                    OpCode::CPUI_CBRANCH | OpCode::CPUI_BRANCH => {
-                        // Input 0 is the branch target address
-                        last_op.get_in(0).map(|vn| vn.read().unwrap().get_offset())
+            let last_op_arc = b.get_ops().last().unwrap().0.clone();
+            drop(b);
+            let last_op = last_op_arc.read().unwrap();
+            let (kind, target) = match last_op.opcode {
+                OpCode::CPUI_RETURN => (BlockTerm::Return, None),
+                OpCode::CPUI_BRANCHIND => (BlockTerm::BranchInd, None),
+                OpCode::CPUI_BRANCH | OpCode::CPUI_CBRANCH => {
+                    // Input 0 is the branch target address
+                    let target = last_op
+                        .get_in(0)
+                        .and_then(|vn| start_to_block.get(&vn.read().unwrap().get_offset()).copied());
+                    if last_op.opcode == OpCode::CPUI_BRANCH {
+                        (BlockTerm::Branch, target)
+                    } else {
+                        (BlockTerm::Cbranch, target)
                     }
-                    _ => None,
-                };
-                (last_op.opcode, target)
+                }
+                _ => (BlockTerm::Fallthru, None),
             };
+            term_kind.push(kind);
+            branch_target.push(target);
+        }
+        let fallthru_of = |i: usize| -> Option<usize> {
+            if i + 1 < blocks.len() {
+                Some(i + 1)
+            } else {
+                None
+            }
+        };
 
-            match last_opcode {
-                OpCode::CPUI_RETURN | OpCode::CPUI_BRANCHIND => {
+        // Ghidra walk: stack starts with the entry block (flow.cc:791
+        // `addrlist.push_back(data.getAddress())`); pop = walk that block
+        // next; per block push unvisited targets BEFORE the fall-through so
+        // the LIFO pop walks the fall-through first; already-visited targets
+        // are never re-pushed (newAddress cc:228-232).
+        let mut walk_stack: Vec<usize> = vec![0];
+        let mut visited: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        let mut visit_order: Vec<usize> = Vec::with_capacity(blocks.len());
+        while let Some(i) = walk_stack.pop() {
+            if !visited.insert(i) {
+                continue;
+            }
+            visit_order.push(i);
+            match term_kind[i] {
+                BlockTerm::Return | BlockTerm::BranchInd => {}
+                BlockTerm::Branch => {
+                    if let Some(t) = branch_target[i] {
+                        if !visited.contains(&t) {
+                            walk_stack.push(t);
+                        }
+                    }
+                }
+                BlockTerm::Cbranch => {
+                    // newAddress (target) runs during xrefControlFlow,
+                    // before the fall-through push at cc:479-480.
+                    if let Some(t) = branch_target[i] {
+                        if !visited.contains(&t) {
+                            walk_stack.push(t);
+                        }
+                    }
+                    if let Some(f) = fallthru_of(i) {
+                        if !visited.contains(&f) {
+                            walk_stack.push(f);
+                        }
+                    }
+                }
+                BlockTerm::Empty | BlockTerm::Fallthru => {
+                    if let Some(f) = fallthru_of(i) {
+                        if !visited.contains(&f) {
+                            walk_stack.push(f);
+                        }
+                    }
+                }
+            }
+        }
+
+        // collectEdges/connectBasic order: blocks in walk-visit order; per
+        // CBRANCH the fallthru edge precedes the branch edge (flow.cc:960-
+        // 966); unresolved targets are skipped exactly as before.
+        // No guard may be held across add_edge: it write-locks both
+        // endpoints, and read→write on the same RwLock self-deadlocks.
+        let mut add_block_edges = |i: usize| {
+            match term_kind[i] {
+                BlockTerm::Empty | BlockTerm::Fallthru => {
+                    if let Some(f) = fallthru_of(i) {
+                        self.bblocks.add_edge(blocks[i].clone(), blocks[f].clone());
+                    }
+                }
+                BlockTerm::Return | BlockTerm::BranchInd => {
                     // Terminators that don't transition to a known, raw intra-function block
                 }
-                OpCode::CPUI_BRANCH => {
-                    // Unconditional branch: 1 edge to the target ONLY
-                    if let Some(target_addr) = branch_target_offset {
-                        for j in 0..blocks.len() {
-                            let target_start = blocks[j].read().unwrap().get_start_addr().as_u64();
-                            if target_start == target_addr {
-                                self.bblocks.add_edge(blocks[i].clone(), blocks[j].clone());
-                                break;
-                            }
-                        }
+                BlockTerm::Branch => {
+                    if let Some(t) = branch_target[i] {
+                        self.bblocks.add_edge(blocks[i].clone(), blocks[t].clone());
                     }
                 }
-                OpCode::CPUI_CBRANCH => {
-                    // CBRANCH gets BOTH edges. Edge ORDER follows Ghidra's
-                    // FlowInfo::generateBlockEdges (flow.cc:960-967): the
-                    // FALL-THRU edge is pushed FIRST (out edge 0), the branch
-                    // target SECOND (out edge 1). All Ghidra consumers index
-                    // out edges as [falseOut=0, trueOut=1] (block.hh:294-301),
-                    // e.g. ActionConditionalConst::findConstCompare
-                    // (coreaction.cc:4496 constEdge=1 for INT_EQUAL) and
-                    // JumpTable analysis true-slot indexing; the previous
-                    // [target, fallthru] order inverted the true/false
-                    // meaning of getOut(0)/getOut(1) and made condconst
-                    // substitute the branch constant into the wrong path.
-                    // Edge 0: fallthrough (false branch) to next sequential block
-                    if i + 1 < blocks.len() {
-                        self.bblocks
-                            .add_edge(blocks[i].clone(), blocks[i + 1].clone());
+                BlockTerm::Cbranch => {
+                    // Edge 0: fallthrough (false branch) to next sequential
+                    // block; edge 1: branch target (true branch) — the
+                    // out-edge polarity contract documented above.
+                    if let Some(f) = fallthru_of(i) {
+                        self.bblocks.add_edge(blocks[i].clone(), blocks[f].clone());
                     }
-
-                    // Edge 1: branch target (true branch)
-                    if let Some(target_addr) = branch_target_offset {
-                        for j in 0..blocks.len() {
-                            let target_start = blocks[j].read().unwrap().get_start_addr().as_u64();
-                            if target_start == target_addr {
-                                self.bblocks.add_edge(blocks[i].clone(), blocks[j].clone());
-                                break;
-                            }
-                        }
+                    if let Some(t) = branch_target[i] {
+                        self.bblocks.add_edge(blocks[i].clone(), blocks[t].clone());
                     }
                 }
-                _ => {
-                    // Add fallthrough edge to next block
-                    if i + 1 < blocks.len() {
-                        self.bblocks
-                            .add_edge(blocks[i].clone(), blocks[i + 1].clone());
-                    }
-                }
+            }
+        };
+        for &i in &visit_order {
+            add_block_edges(i);
+        }
+        // Rugra-only never-walked regions: preserve the historical
+        // address-order edge addition for blocks the walk never reached.
+        for i in 0..blocks.len() {
+            if !visited.contains(&i) {
+                add_block_edges(i);
             }
         }
     }
@@ -14144,6 +14238,198 @@ mod tests {
             })
             .expect("CBRANCH block must exist");
         assert_eq!(cb_block.read().unwrap().size_out(), 1);
+    }
+
+    // CANON-COPYJUNK-NOOP-ORDER-0001 (Rugra side lock).
+    //
+    // Oracle contract (all lines read personally, locked e40ed130):
+    //   - op.cc:941-948   PcodeOpBank::create appends ops to the dead list
+    //                      in CREATION order, and creation order is the
+    //                      FlowInfo walk order.
+    //   - flow.cc:545-580  the addrlist walk is LIFO; an instruction's
+    //                      fall-through is pushed at the END of
+    //                      processInstruction (cc:479-480), AFTER
+    //                      xrefControlFlow/newAddress (cc:219-234) pushed
+    //                      the branch target — so the fall-through is
+    //                      walked first and queued branch targets are
+    //                      walked when a path ends.
+    //   - flow.cc:906-977  collectEdges scans the creation-ordered dead
+    //                      list; CBRANCH contributes fallthru edge then
+    //                      branch edge (cc:960-966).
+    //   - flow.cc:1021-1037 connectBasic addEdge's in exactly that order,
+    //                      so a merge block's IN-edge order is the source
+    //                      blocks' walk-discovery order, NOT address order.
+    //
+    // Witness (httpd ap_getword @0x2e9f0, both-sided stage projections):
+    // the join block 0x2ea41 takes the then-chain edge (uncond BRANCH from
+    // 0x2ea98, queued and walked EARLY) before the else fall-through edge
+    // (0x2ea3e region, walked late behind the loop region), even though the
+    // else block has the SMALLER address. That in-edge order fixes the
+    // MULTIEQUAL slot order heritage fills, which downstream fixes the
+    // merge trim + dominant-copy shapes (golden hoisted `pcVar6 = pcVar3;`
+    // instead of the comma-inline + trailing-copy junk).
+    //
+    // Case 4 (walk-order discriminating shape): entry A --cbranch--> THEN
+    // (high address) / fall B; B --cbranch--> ELSE (mid address) / fall C;
+    // C --branch--> THEN (path ends, queue takes over); THEN --branch-->
+    // JOIN; ELSE falls through to JOIN. The walk discovers THEN (and its
+    // edge into JOIN) BEFORE ELSE, so JOIN's in-list must be
+    // [THEN-edge, ELSE-edge] although ELSE has the smaller address — the
+    // address-order builder produced the reverse.
+    #[test]
+    fn test_build_blocks_walk_order_join_in_edges() {
+        let mut fd = Funcdata::new("walk_order_join", Address::new(0x1000), 0x60);
+
+        // A @0x1000: INT_EQUAL + CBRANCH -> 0x1040 (THEN), fall -> B
+        let mut eq = PcodeOpRaw::new(OpCode::CPUI_INT_EQUAL as i32);
+        eq.set_output(VarnodeRaw::new(AddressSpace::Unique, 0x100, 1));
+        eq.add_input(VarnodeRaw::new(AddressSpace::Register, 0x38, 8));
+        eq.add_input(VarnodeRaw::new(AddressSpace::Const, 0, 8));
+        eq.set_seq_num(crate::address::SeqNum::new(Address::new(0x1000), 0));
+
+        let mut cb_a = PcodeOpRaw::new(OpCode::CPUI_CBRANCH as i32);
+        cb_a.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x1040, 8));
+        cb_a.add_input(VarnodeRaw::new(AddressSpace::Unique, 0x100, 1));
+        cb_a.set_seq_num(crate::address::SeqNum::new(Address::new(0x1002), 0));
+
+        // B @0x1005: CBRANCH -> 0x1010 (ELSE), fall -> C
+        let mut cb_b = PcodeOpRaw::new(OpCode::CPUI_CBRANCH as i32);
+        cb_b.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x1010, 8));
+        cb_b.add_input(VarnodeRaw::new(AddressSpace::Unique, 0x100, 1));
+        cb_b.set_seq_num(crate::address::SeqNum::new(Address::new(0x1005), 0));
+
+        // C @0x1008: BRANCH -> 0x1040 (THEN) — the ||-shape unconditional
+        // that ends the fall-through path and hands control to the queue.
+        let mut br_c = PcodeOpRaw::new(OpCode::CPUI_BRANCH as i32);
+        br_c.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x1040, 8));
+        br_c.set_seq_num(crate::address::SeqNum::new(Address::new(0x1008), 0));
+
+        // ELSE @0x1010: falls through into the next address block (JOIN).
+        let mut else_copy = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+        else_copy.set_output(VarnodeRaw::new(AddressSpace::Register, 0x00, 8));
+        else_copy.add_input(VarnodeRaw::new(AddressSpace::Const, 1, 8));
+        else_copy.set_seq_num(crate::address::SeqNum::new(Address::new(0x1010), 0));
+
+        // JOIN @0x1015: COPY + RETURN.
+        let mut join_copy = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+        join_copy.set_output(VarnodeRaw::new(AddressSpace::Register, 0x00, 8));
+        join_copy.add_input(VarnodeRaw::new(AddressSpace::Const, 2, 8));
+        join_copy.set_seq_num(crate::address::SeqNum::new(Address::new(0x1015), 0));
+
+        let mut join_ret = PcodeOpRaw::new(OpCode::CPUI_RETURN as i32);
+        join_ret.add_input(VarnodeRaw::new(AddressSpace::Register, 0x00, 8));
+        join_ret.set_seq_num(crate::address::SeqNum::new(Address::new(0x1017), 0));
+
+        // THEN @0x1040: COPY + BRANCH -> 0x1015 (JOIN).
+        let mut then_copy = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+        then_copy.set_output(VarnodeRaw::new(AddressSpace::Register, 0x00, 8));
+        then_copy.add_input(VarnodeRaw::new(AddressSpace::Const, 3, 8));
+        then_copy.set_seq_num(crate::address::SeqNum::new(Address::new(0x1040), 0));
+
+        let mut br_then = PcodeOpRaw::new(OpCode::CPUI_BRANCH as i32);
+        br_then.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x1015, 8));
+        br_then.set_seq_num(crate::address::SeqNum::new(Address::new(0x1042), 0));
+
+        fd.inject_raw_ops(&[eq, cb_a, cb_b, br_c, else_copy, join_copy, join_ret, then_copy, br_then]);
+
+        let block_by_start = |want: u64| {
+            (0..fd.bblocks.get_size())
+                .filter_map(|i| fd.bblocks.get_block(i))
+                .find(|b| b.read().unwrap().get_start_addr().as_u64() == want)
+                .unwrap_or_else(|| panic!("block @{want:#x} must exist"))
+        };
+        let join = block_by_start(0x1015);
+        assert_eq!(join.read().unwrap().size_in(), 2, "JOIN takes both edges");
+        // Walk order: THEN-edge (0x1040) BEFORE ELSE-edge (0x1010), although
+        // ELSE has the smaller address — flow.cc walk discovery order.
+        let in0 = join.read().unwrap().get_in(0).map(|e| e.point).expect("in-edge 0");
+        let in1 = join.read().unwrap().get_in(1).map(|e| e.point).expect("in-edge 1");
+        assert_eq!(
+            in0.read().unwrap().get_start_addr().as_u64(),
+            0x1040,
+            "in-edge 0 must be the THEN chain (walk order, not address order)"
+        );
+        assert_eq!(
+            in1.read().unwrap().get_start_addr().as_u64(),
+            0x1010,
+            "in-edge 1 must be the ELSE fall-through"
+        );
+
+        // Out-edge polarity contract is unchanged by the reordering: for
+        // every CBRANCH, out[0]=fall-through, out[1]=branch target
+        // (flow.cc:960-966).
+        let a = block_by_start(0x1000);
+        let out0 = a.read().unwrap().get_out(0).map(|e| e.point).expect("A out 0");
+        let out1 = a.read().unwrap().get_out(1).map(|e| e.point).expect("A out 1");
+        assert_eq!(out0.read().unwrap().get_start_addr().as_u64(), 0x1005);
+        assert_eq!(out1.read().unwrap().get_start_addr().as_u64(), 0x1040);
+        let b = block_by_start(0x1005);
+        let b_out0 = b.read().unwrap().get_out(0).map(|e| e.point).expect("B out 0");
+        let b_out1 = b.read().unwrap().get_out(1).map(|e| e.point).expect("B out 1");
+        assert_eq!(b_out0.read().unwrap().get_start_addr().as_u64(), 0x1008);
+        assert_eq!(b_out1.read().unwrap().get_start_addr().as_u64(), 0x1010);
+    }
+
+    // Case 5: blocks the walk never reaches (Rugra-only never-flowed
+    // regions from linear injection) keep the historical address-order
+    // edge addition — an entry RETURN plus an unreachable CBRANCH region
+    // still gets its out-edges (fall-through + target).
+    #[test]
+    fn test_build_blocks_walk_order_unreachable_keeps_address_edges() {
+        let mut fd = Funcdata::new("walk_order_dead", Address::new(0x1000), 0x60);
+
+        // Entry block returns immediately.
+        let mut ret = PcodeOpRaw::new(OpCode::CPUI_RETURN as i32);
+        ret.add_input(VarnodeRaw::new(AddressSpace::Register, 0x00, 8));
+        ret.set_seq_num(crate::address::SeqNum::new(Address::new(0x1000), 0));
+
+        // Unreachable region at a higher address: INT_EQUAL + CBRANCH ->
+        // 0x1040 with fall-through into the COPY block.
+        let mut eq = PcodeOpRaw::new(OpCode::CPUI_INT_EQUAL as i32);
+        eq.set_output(VarnodeRaw::new(AddressSpace::Unique, 0x100, 1));
+        eq.add_input(VarnodeRaw::new(AddressSpace::Register, 0x38, 8));
+        eq.add_input(VarnodeRaw::new(AddressSpace::Const, 0, 8));
+        eq.set_seq_num(crate::address::SeqNum::new(Address::new(0x1020), 0));
+
+        let mut cb = PcodeOpRaw::new(OpCode::CPUI_CBRANCH as i32);
+        cb.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x1040, 8));
+        cb.add_input(VarnodeRaw::new(AddressSpace::Unique, 0x100, 1));
+        cb.set_seq_num(crate::address::SeqNum::new(Address::new(0x1022), 0));
+
+        let mut copy = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+        copy.set_output(VarnodeRaw::new(AddressSpace::Register, 0x00, 8));
+        copy.add_input(VarnodeRaw::new(AddressSpace::Const, 1, 8));
+        copy.set_seq_num(crate::address::SeqNum::new(Address::new(0x1025), 0));
+
+        let mut ret2 = PcodeOpRaw::new(OpCode::CPUI_RETURN as i32);
+        ret2.add_input(VarnodeRaw::new(AddressSpace::Register, 0x00, 8));
+        ret2.set_seq_num(crate::address::SeqNum::new(Address::new(0x1027), 0));
+
+        let mut ret3 = PcodeOpRaw::new(OpCode::CPUI_RETURN as i32);
+        ret3.add_input(VarnodeRaw::new(AddressSpace::Register, 0x00, 8));
+        ret3.set_seq_num(crate::address::SeqNum::new(Address::new(0x1040), 0));
+
+        fd.inject_raw_ops(&[ret, eq, cb, copy, ret2, ret3]);
+
+        let cb_block = (0..fd.bblocks.get_size())
+            .filter_map(|i| fd.bblocks.get_block(i))
+            .find(|b| {
+                b.read()
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<BlockBasic>()
+                    .and_then(|bb| bb.last_op())
+                    .map(|o| o.0.read().unwrap().opcode == OpCode::CPUI_CBRANCH)
+                    .unwrap_or(false)
+            })
+            .expect("unreachable CBRANCH block must exist");
+        // Fallback arm: both out-edges (fall-through 0 + target 1) exist
+        // exactly as the historical address-order builder produced.
+        assert_eq!(cb_block.read().unwrap().size_out(), 2);
+        let out0 = cb_block.read().unwrap().get_out(0).map(|e| e.point).expect("out 0");
+        let out1 = cb_block.read().unwrap().get_out(1).map(|e| e.point).expect("out 1");
+        assert_eq!(out0.read().unwrap().get_start_addr().as_u64(), 0x1025);
+        assert_eq!(out1.read().unwrap().get_start_addr().as_u64(), 0x1040);
     }
 
     // Case 3: branchRemoveInternal invariant lock — severing one edge of a
