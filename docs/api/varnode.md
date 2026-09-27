@@ -1308,3 +1308,25 @@ compute_varnode_covers 的显式传播简化为字面 setFlags 调用（merge.cc
   coreaction.rs 域，落地后 3 行接线即可激活）。单测
   `printc::tests::test_push_implied_field_union_arm` 以手工置旗+union 解析
   快照锁定消费侧行为。
+
+## 2026-09-27：op_output_type_local CALLOTHER 臂补 InternalStringOp 覆写（PRINTC-STRDATA-TYPELOCK-0001）
+
+`op_output_type_local`（`op.hh:251 PcodeOp::outputTypeLocal` 转发器）的
+CPUI_CALLOTHER 臂在「描述符固定元数据 → 基类默认」两段之间补
+`InternalStringOp::getOutputLocal`（userop.cc:361-364，亲读）覆写：描述符
+`is_string_data()` 时返回 **op 出口 varnode 自身的 v_type**
+（`op->getOut()->getType()` 的 1:1）。stringdata 描述符本就无固定元数据
+（`registerBuiltin` 只置 `display_string` 旗标），oracle 的输出局部类型即出口
+vn 类型——这一身份回声正是 typelock 尊重链的锚点：
+
+- `Funcdata::getInternalString`（funcdata_varnode.cc:1430-1431）在创建时对
+  出口 `updateType(ptrType, true, false)` 上 char* typelock；
+- `Varnode::getLocalType`（varnode.cc:911 `def->outputTypeLocal()`）与
+  `ActionSetCasts::castOutput` 的 token（typeop.cc:282 虚分派）双双读到该
+  char* → token==outHighType 短路（coreaction.cc:2544-2548），cast 阶段对
+  STRINGDATA 出口零改写。
+
+消费闭包：`Varnode::get_local_type`（ActionInferTypes buildLocaltypes 种子）、
+coreaction `cast_output` 新 CALLOTHER token 臂（docs/api/coreaction.md 同日节）。
+出口 vn 的 `v_type` 为 `None` 的状态（bank 创建即种子 unknown 基，理论不可达）
+保守落入描述符/基类默认链，与 oracle 永非空 `getType()` 语义对齐。

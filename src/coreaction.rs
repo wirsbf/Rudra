@@ -7186,6 +7186,48 @@ impl ActionSetCasts {
                         })
                         .unwrap_or_else(|| base_type_for(out_size, TypeMetatype::Uint)),
                 }
+            } else if opcode == OpCode::CPUI_CALLOTHER {
+                // typeop.cc:282-285 TypeOp::getOutputToken's default
+                // `op->outputTypeLocal()` dispatches virtually to
+                // TypeOpCallother::getOutputLocal (typeop.cc:865-872): the
+                // userop descriptor chain — InternalStringOp::getOutputLocal
+                // (userop.cc:361-364) returns the OUT VARNODE's own
+                // (typelocked) type, DatatypeUserOp returns its fixed
+                // outtype, and the metadata-less default is
+                // `getBase(out.size, TYPE_UNKNOWN)` (typeop.cc:261-265) —
+                // never a signed Int base. The former generic-arm routing
+                // (`_ => Int` in output_metatype) handed STRINGDATA
+                // CALLOTHERs a factory `int8` token, which broke
+                // castOutput's token==outHighType short-circuit
+                // (coreaction.cc:2544-2548): the implied+typelock force arm
+                // (cc:2559-2562) then replaced the STRINGDATA output with a
+                // new int8-typed unique (cc:2595-2609), piercing the char*
+                // typelock Funcdata::getInternalString sets
+                // (funcdata_varnode.cc:1430-1431) and flipping printc's
+                // display_string to its non-pointer "badstring" arm
+                // (printc.cc:701-714) plus the setcasts `(char *)` cast
+                // (PRINTC-STRDATA-TYPELOCK-0001 double symptom).
+                match type_factory
+                    .as_ref()
+                    .map(|factory| {
+                        let userops = fd.arch.as_ref().and_then(|a| a.userops.clone());
+                        let op_guard = op.0.read().unwrap();
+                        crate::varnode::op_output_type_local(
+                            &op_guard,
+                            factory,
+                            userops.as_ref(),
+                        )
+                    })
+                    .flatten()
+                {
+                    Some(token) => token,
+                    // Detached fixtures without a factory keep the raw base
+                    // fallback, sized like the oracle's getBase(size,
+                    // TYPE_UNKNOWN) — not the old Int mistyping.
+                    None => {
+                        base_type_for(out_size, TypeMetatype::Unknown)
+                    }
+                }
             } else {
                 // typeop.cc:261-265: TypeOp::getOutputToken's default is
                 // tlst->getBase(size, metatype) — the factory-interned core
