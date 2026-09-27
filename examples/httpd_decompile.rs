@@ -87,6 +87,141 @@ fn mirror_flow_enabled() -> bool {
     std::env::var("RUGRA_MIRROR").is_ok() || std::env::var("RUGRA_FLOW_MIRROR").is_ok()
 }
 
+// HEADLESS-BRIDGE-V4 COMPOSITE typedef-def channel state (per process; the
+// shared TypeFactory is process-global). See the main() install call for the
+// channel contract; same-family shape as the curl driver's TypedefSeedState.
+struct TypedefSeedState {
+    installed: Vec<(String, std::sync::Arc<rugra::type_system::datatype::Datatype>)>,
+    deferred: usize,
+    dropped: usize,
+}
+
+static TYPEDEFSEED_STATE: std::sync::OnceLock<Option<TypedefSeedState>> =
+    std::sync::OnceLock::new();
+
+// RUGRA-GLUE: gate + manifest decode + TypeFactory::get_typedef install
+// (the curl driver's install_typedef_seed_channel, httpd mirror form: the
+// purity gate is mirror_flow_enabled alone, matching this driver's TYPESEED
+// gate; the httpd corpus ships no typedef manifest — HSEED stripped-binary
+// verdict — so the active face is the loud no-op).
+fn install_typedef_seed_channel() -> Option<TypedefSeedState> {
+    if mirror_flow_enabled() {
+        eprintln!("[TYPEDEFSEED] typedef gate RUGRA_TYPEDEFSEED ignored under the mirror gate (projection purity)");
+        return None;
+    }
+    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+        return None;
+    }
+    if std::env::var("RUGRA_TYPEDEFSEED").ok().as_deref() != Some("1") {
+        return None;
+    }
+    let path = std::env::var("RUGRA_TYPEDEFSEED_MANIFEST")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "tests/golden/manifests/typedef_seed_httpd_1204.json".to_string());
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(text) => match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(raw) => raw,
+            Err(err) => {
+                eprintln!("[TYPEDEFSEED] manifest {} is not valid JSON: {} (seeding disabled)", path, err);
+                return None;
+            }
+        },
+        Err(err) => {
+            eprintln!("[TYPEDEFSEED] cannot read manifest {}: {} (seeding disabled)", path, err);
+            return None;
+        }
+    };
+    let Some(serde_json::Value::Array(entries)) = raw.get("typedefs") else {
+        eprintln!("[TYPEDEFSEED] manifest {} carries no typedefs array (seeding disabled)", path);
+        return None;
+    };
+    let deferred = raw
+        .get("deferred_typedefs")
+        .and_then(|value| value.as_array())
+        .map(|array| array.len())
+        .unwrap_or(0);
+    let dropped = raw
+        .get("harvest_drops")
+        .and_then(|value| value.as_array())
+        .map(|array| array.len())
+        .unwrap_or(0);
+    let factory = rugra::type_system::typefactory::TypeFactory::shared_default();
+    let mut guard = factory
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut installed: Vec<(String, std::sync::Arc<rugra::type_system::datatype::Datatype>)> =
+        Vec::new();
+    let mut skipped = 0usize;
+    for entry in entries {
+        let (Some(serde_json::Value::String(name)), Some(target)) =
+            (entry.get("name"), entry.get("target"))
+        else {
+            skipped += 1;
+            continue;
+        };
+        let kind = target.get("kind").and_then(|value| value.as_str()).unwrap_or("");
+        let spelling = target
+            .get("spelling")
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        let target_arc = if kind == "base" {
+            let size = target.get("size").and_then(|value| value.as_u64()).unwrap_or(0) as usize;
+            let metatype = match target.get("metatype").and_then(|value| value.as_str()) {
+                Some("int") => rugra::type_system::datatype::TypeMetatype::Int,
+                Some("uint") => rugra::type_system::datatype::TypeMetatype::Uint,
+                _ => {
+                    eprintln!("[TYPEDEFSEED] entry {name}: unservable metatype, skipped");
+                    skipped += 1;
+                    continue;
+                }
+            };
+            match guard.get_base_named(size, metatype, spelling) {
+                Ok(arc) => arc,
+                Err(err) => {
+                    eprintln!("[TYPEDEFSEED] entry {name}: base target `{spelling}` rejected: {err}");
+                    skipped += 1;
+                    continue;
+                }
+            }
+        } else if kind == "typedef" {
+            match installed.iter().find(|(seen, _)| seen == spelling) {
+                Some((_, arc)) => arc.clone(),
+                None => {
+                    eprintln!("[TYPEDEFSEED] entry {name}: typedef target `{spelling}` not installed yet (manifest order defect), skipped");
+                    skipped += 1;
+                    continue;
+                }
+            }
+        } else {
+            eprintln!("[TYPEDEFSEED] entry {name}: unknown target kind `{kind}`, skipped");
+            skipped += 1;
+            continue;
+        };
+        let alias = guard.get_typedef(name, target_arc);
+        installed.push((name.clone(), alias));
+    }
+    let state = TypedefSeedState {
+        installed,
+        deferred,
+        dropped: dropped + skipped,
+    };
+    eprintln!(
+        "[TYPEDEFSEED] installed {} typedefs ({} deferred to the MB22 joint-debug install, {} dropped/skipped)",
+        state.installed.len(),
+        state.deferred,
+        state.dropped
+    );
+    Some(state)
+}
+
+// RUGRA-GLUE: cached accessor for the typedef channel state.
+fn typedefseed_state() -> Option<&'static TypedefSeedState> {
+    TYPEDEFSEED_STATE
+        .get_or_init(install_typedef_seed_channel)
+        .as_ref()
+}
+
 // ============================================================================
 // HTTPDMAIN-F1-NORETURN-0001: "Non-Returning Functions - Known" data source
 // (the FLOW-NORETURN-DATA-0001 precedent, curl_decompile.rs:1853-1998, ported
@@ -3486,6 +3621,48 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
             }
         }
 
+        // TYPEDEFSEED strip-surface observation (HEADLESS-BRIDGE-V4-
+        // COMPOSITE-0005 task ③, curl driver's twin): count the
+        // HighVariables whose type name is an installed typedef — the
+        // operand surface the four stripping loops can act on in this
+        // function. Observation only; gate-off leaves nothing to walk
+        // (the httpd corpus ships no manifest, so the live face is the
+        // loud no-op — the counter exists for manifest-carrying corpora
+        // and gate experiments).
+        if let Some(state) = typedefseed_state() {
+            if !state.installed.is_empty() {
+                if let Ok(fd_read) = fd_arc.read() {
+                    let mut hits = 0usize;
+                    let mut seen_highs = std::collections::HashSet::new();
+                    let mut names: Vec<&str> = Vec::new();
+                    for loc in fd_read.vbank.begin_loc() {
+                        let vn = loc.0.read().unwrap();
+                        let Some(high) = vn.high.clone() else { continue };
+                        if !seen_highs.insert(std::sync::Arc::as_ptr(&high)) {
+                            continue;
+                        }
+                        let high = high.read().unwrap();
+                        let dt = high.v_type.get();
+                        let name = dt.get_name();
+                        if let Some((seen, _)) =
+                            state.installed.iter().find(|(seen, _)| *seen == name)
+                        {
+                            hits += 1;
+                            if !names.contains(&seen.as_str()) {
+                                names.push(seen);
+                            }
+                        }
+                    }
+                    eprintln!(
+                        "[TYPEDEFSEED] {} strip surface: {} high variables on typedef-layer types ({})",
+                        func_name,
+                        hits,
+                        names.join(", ")
+                    );
+                }
+            }
+        }
+
         // HTTPD-CODEREF-SYMBOLIZE-0001 (print-only install): swap the
         // action-phase Architecture for a clone carrying the global
         // function-symbol Database, so PrintC::doc_function's snapshot
@@ -3996,6 +4173,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // mirror-suppressed above: the exact historical bare load.
         None
     };
+
+    // HEADLESS-BRIDGE-V4 COMPOSITE typedef-def channel
+    // (HEADLESS-BRIDGE-V4-COMPOSITE-0005; the TYPEDEFIMM hand-over's
+    // production trigger surface — LANE_TYPEDEFIMM_2026-09-27.md item 2):
+    // installs the manifest's <def>-mirror typedef entries through
+    // TypeFactory::get_typedef, the channel API whose per-instance
+    // typedef_imm back-link (type.hh:196, the pending MB22 branch) feeds
+    // the four stripping loops (cast.cc:325-328 / printc.cc:390-393 /
+    // coreaction.cc:2476-2479 / typeop.cc:2337-2340). Gate polarity:
+    // mirror components keep the gate closed (five-projection purity),
+    // RUGRA_SEEDS=0 is the global bare-face escape, the channel is
+    // OPT-IN (RUGRA_TYPEDEFSEED=1 — the channel is canon-visible when
+    // live, V3SIG/PFLIP precedent), RUGRA_TYPEDEFSEED_MANIFEST=<path>
+    // overrides the manifest location, and a missing manifest is a loud
+    // no-op. The httpd corpus is DWARF-less (HSEED verdict: no
+    // .debug_info), so no typedef manifest ships for it and the gate is
+    // corpus-inapplicable — the golden's size_t/__pid_t spellings stay
+    // with parse_c_type's core-table arms (the C1 glibc typedef mirror).
+    // Gate-off (the default face) reads nothing and mutates nothing.
+    typedefseed_state();
 
     // HEADLESS-BRIDGE-V3-SIGLOCK-0003 (DEFAULT-ON since the V3FLIP
     // promotion, 2026-09-25; opt-out RUGRA_V3SIG=0): the callee

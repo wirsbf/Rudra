@@ -301,6 +301,189 @@ fn structseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLoca
         .as_ref()
 }
 
+// HEADLESS-BRIDGE-V4 COMPOSITE (typedef-def channel,
+// HEADLESS-BRIDGE-V4-COMPOSITE-0005): the TYPEDEFIMM channel's production
+// trigger surface. The four typedef stripping loops (cast.cc:325-328
+// castStandard / printc.cc:390-393 checkAddressOfCast / coreaction.cc:2476-
+// 2479 isOpIdentical / typeop.cc:2337-2340 Ptrsub::getInputCast — the
+// LANE_TYPEDEFIMM_2026-09-27 hand-over's item 2 assigns this wiring to the
+// V4COMPOSITE domain) are dormant while the factory's typedef table stays
+// empty; the production source that populates it in the canonical run is
+// the <def> element stream (TypeFactory::decodeTypedef, type.cc:4263-4313:
+// read name, decode the immediate target, delegate to getTypedef
+// type.cc:3818-3840 — the clone whose typedefImm back-link type.hh:196 the
+// loops walk). This gate mirrors that ingestion as a manifest channel:
+// tools/harvest_local_manifest.py --typedef harvests the DWARF typedef
+// graph restricted to the golden declaration layer's referenced names
+// (chain-closed; base targets spelled through the importer's own
+// initBaseDataTypes alias table, the standard_base_alias mirror) into
+// tests/golden/manifests/typedef_seed_curl_1204.json, and the driver
+// installs each entry through TypeFactory::get_typedef — the TYPEDEFIMM
+// channel API (identical pub signature on master and the pending MB22
+// branch: post-merge the same call sets the per-instance typedef_imm
+// back-link and all four loops go live; on master it registers the
+// name-table alias the isOpIdentical twin coreaction.rs:6602 already
+// strips through). Composite/enum/array targets are deferred to the MB22
+// joint-debug install (the manifest records them; building the DWARF name
+// index first interns the typedef names as channel-less aliases, and
+// get_typedef faithfully throws on a same-named non-typedef, type.cc:3825).
+// Gate polarity follows the V3SIG/PFLIP opt-in precedent: the channel is
+// canon-visible when live (typedef-form cast/& rendering can change), so
+// RUGRA_TYPEDEFSEED=1 opts in, any mirror component keeps the gate closed
+// (five-projection purity), RUGRA_SEEDS=0 is the global bare-face escape,
+// RUGRA_TYPEDEFSEED_MANIFEST=<path> overrides the manifest location, and a
+// missing/corrupt manifest is a loud no-op. The DEFAULT face is therefore
+// constructively identical: gate unset -> no manifest IO, no factory
+// mutation, zero get_typedef calls.
+static TYPEDEFSEED_STATE: std::sync::OnceLock<Option<TypedefSeedState>> =
+    std::sync::OnceLock::new();
+
+// RUGRA-GLUE: one installed channel state — the interned typedef clones
+// (for the seeded-state occupation observations) plus the install ledger
+// counts. Same-family shape as the seed tables above; per-process because
+// the shared TypeFactory is.
+struct TypedefSeedState {
+    installed: Vec<(String, std::sync::Arc<rugra::type_system::datatype::Datatype>)>,
+    deferred: usize,
+    dropped: usize,
+}
+
+// RUGRA-GLUE: gate + manifest decode + channel install (the decodeTypedef
+// mirror: manifest order IS dependency order — base/typedef-ref targets
+// precede their referencers; kind=base mints the canonical core node via
+// get_base_named, the same node parse_c_type's core arm returns, so the
+// strip lands on the exact identity the pipeline's unaliased spellings
+// hold; kind=typedef resolves the referencer's target from the
+// already-installed clone set).
+fn install_typedef_seed_channel() -> Option<TypedefSeedState> {
+    if mirror_flow_enabled() || mirror_bare_load_enabled() || mirror_fixture_data_enabled() {
+        eprintln!("[TYPEDEFSEED] typedef gate RUGRA_TYPEDEFSEED ignored under the mirror gate (projection purity)");
+        return None;
+    }
+    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+        return None;
+    }
+    if std::env::var("RUGRA_TYPEDEFSEED").ok().as_deref() != Some("1") {
+        // PFLIP polarity: opt-in only. The typedef channel is canon-visible
+        // when live (no in-tree locked-oracle witness for its convergence
+        // yet); the MB22 joint-debug run re-evaluates default-on.
+        return None;
+    }
+    let path = std::env::var("RUGRA_TYPEDEFSEED_MANIFEST")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "tests/golden/manifests/typedef_seed_curl_1204.json".to_string());
+    let raw = match fs::read_to_string(&path) {
+        Ok(text) => match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(raw) => raw,
+            Err(err) => {
+                eprintln!("[TYPEDEFSEED] manifest {} is not valid JSON: {} (seeding disabled)", path, err);
+                return None;
+            }
+        },
+        Err(err) => {
+            eprintln!("[TYPEDEFSEED] cannot read manifest {}: {} (seeding disabled)", path, err);
+            return None;
+        }
+    };
+    let Some(serde_json::Value::Array(entries)) = raw.get("typedefs") else {
+        eprintln!("[TYPEDEFSEED] manifest {} carries no typedefs array (seeding disabled)", path);
+        return None;
+    };
+    let deferred = raw
+        .get("deferred_typedefs")
+        .and_then(|value| value.as_array())
+        .map(|array| array.len())
+        .unwrap_or(0);
+    let dropped = raw
+        .get("harvest_drops")
+        .and_then(|value| value.as_array())
+        .map(|array| array.len())
+        .unwrap_or(0);
+    let factory = rugra::type_system::typefactory::TypeFactory::shared_default();
+    let mut guard = factory
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut installed: Vec<(String, std::sync::Arc<rugra::type_system::datatype::Datatype>)> =
+        Vec::new();
+    let mut skipped = 0usize;
+    for entry in entries {
+        let (Some(serde_json::Value::String(name)), Some(target)) =
+            (entry.get("name"), entry.get("target"))
+        else {
+            skipped += 1;
+            continue;
+        };
+        let kind = target.get("kind").and_then(|value| value.as_str()).unwrap_or("");
+        let spelling = target
+            .get("spelling")
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        let target_arc = if kind == "base" {
+            let size = target.get("size").and_then(|value| value.as_u64()).unwrap_or(0) as usize;
+            let metatype = match target.get("metatype").and_then(|value| value.as_str()) {
+                Some("int") => rugra::type_system::datatype::TypeMetatype::Int,
+                Some("uint") => rugra::type_system::datatype::TypeMetatype::Uint,
+                _ => {
+                    eprintln!("[TYPEDEFSEED] entry {name}: unservable metatype, skipped");
+                    skipped += 1;
+                    continue;
+                }
+            };
+            // The canonical core node parse_c_type's spelling arm returns
+            // (get_base_named through factory_named_base): minting it here
+            // makes the later parse resolve THIS node, unifying the
+            // typedef target identity with the pipeline's plain spellings.
+            match guard.get_base_named(size, metatype, spelling) {
+                Ok(arc) => arc,
+                Err(err) => {
+                    eprintln!("[TYPEDEFSEED] entry {name}: base target `{spelling}` rejected: {err}");
+                    skipped += 1;
+                    continue;
+                }
+            }
+        } else if kind == "typedef" {
+            match installed.iter().find(|(seen, _)| seen == spelling) {
+                Some((_, arc)) => arc.clone(),
+                None => {
+                    eprintln!("[TYPEDEFSEED] entry {name}: typedef target `{spelling}` not installed yet (manifest order defect), skipped");
+                    skipped += 1;
+                    continue;
+                }
+            }
+        } else {
+            eprintln!("[TYPEDEFSEED] entry {name}: unknown target kind `{kind}`, skipped");
+            skipped += 1;
+            continue;
+        };
+        // The TYPEDEFIMM channel API (contract-stable across MB22):
+        // master registers the name-table alias; the merged branch sets
+        // the per-instance typedef_imm back-link in the same call.
+        let alias = guard.get_typedef(name, target_arc);
+        installed.push((name.clone(), alias));
+    }
+    let state = TypedefSeedState {
+        installed,
+        deferred,
+        dropped: dropped + skipped,
+    };
+    eprintln!(
+        "[TYPEDEFSEED] installed {} typedefs ({} deferred to the MB22 joint-debug install, {} dropped/skipped)",
+        state.installed.len(),
+        state.deferred,
+        state.dropped
+    );
+    Some(state)
+}
+
+// RUGRA-GLUE: cached accessor for the typedef channel state (see
+// install_typedef_seed_channel above).
+fn typedefseed_state() -> Option<&'static TypedefSeedState> {
+    TYPEDEFSEED_STATE
+        .get_or_init(install_typedef_seed_channel)
+        .as_ref()
+}
+
 // HEADLESS-BRIDGE-V1 CMT (warning-comment channel, CMTFILL harvest
 // promotion / CMTSEED lane): the canon `/* Unresolved local var: ... */`
 // blocks are analyzeHeadless front-end warnings the canonical run stores
@@ -5236,6 +5419,19 @@ fn decompile_request(
         .get(section_start..section_end)
         .ok_or_else(|| "ELF section range is outside the input image".to_string())?;
 
+    // HEADLESS-BRIDGE-V4 COMPOSITE typedef-def channel install (per
+    // process; the shared TypeFactory is process-global): BEFORE the
+    // first DWARF database parse below. DebugGlobalDatabase /
+    // DebugPrototypeDatabase resolve DWARF types through resolve_type,
+    // whose typedef branch materializes channel-less name aliases
+    // (alias_type -> intern_named) — TypeFactory::get_typedef faithfully
+    // throws on a same-named non-typedef (type.cc:3825-3826), so the
+    // channel must claim its names first; later alias walks then dedupe
+    // onto the installed clones (intern_named's same-shape existing
+    // return). Gate-off (the default face) reads nothing and mutates
+    // nothing — constructive byte-identity.
+    typedefseed_state();
+
     // B3-COREACTION-CONSTANTPTR-0001 (b): the Program-DB symbol graph
     // ActionConstantPtr queries (coreaction.cc:1151 via the Funcdata
     // query-channel). Ghidra's platform analyzers populate the global scope
@@ -6219,6 +6415,37 @@ fn decompile_request(
     // against inferred `char *` (parse_type_names, debugproto).
     let dwarf_type_names = rugra::debugproto::parse_type_names(&request.binary_image)
         .unwrap_or_default();
+    // TYPEDEFSEED seeded-state occupation observation (the trigger-surface
+    // count, HEADLESS-BRIDGE-V4-COMPOSITE-0005 task ③): how many entries of
+    // the freshly built DWARF name index carry an installed typedef clone
+    // (Arc identity) or at least an installed typedef NAME (the index's own
+    // alias materialization). Every type here is a candidate operand of the
+    // four stripping loops; the count is the driver-visible measure of the
+    // channel's liveness in the seeded state (the loop-level counters live
+    // with the MB22 channel branch, which owns those lines).
+    if let Some(state) = typedefseed_state() {
+        if !state.installed.is_empty() {
+            let mut identity_hits = 0usize;
+            let mut name_hits = 0usize;
+            for dt in dwarf_type_names.values() {
+                let name_hit = state.installed.iter().any(|(seen, _)| *seen == dt.get_name());
+                let identity_hit = state.installed.iter().any(|(_, arc)| std::sync::Arc::ptr_eq(arc, dt));
+                if identity_hit {
+                    identity_hits += 1;
+                }
+                if name_hit {
+                    name_hits += 1;
+                }
+            }
+            eprintln!(
+                "[TYPEDEFSEED] {} index occupation: {} identity hits / {} name hits over {} entries",
+                target.name,
+                identity_hits,
+                name_hits,
+                dwarf_type_names.len()
+            );
+        }
+    }
     let callspec_link_enabled = std::env::var("RUGRA_DISABLE_CALLSPEC_LINK").is_err();
     let mut dwarf_applied = false;
     // MIRROR-ENVS-CANONICAL-0001 target-DWARF suppression
@@ -6601,6 +6828,48 @@ fn decompile_request(
 
     }
     eprintln!("[STEP] {} action done {:?}", target.name, t0.elapsed());
+
+    // TYPEDEFSEED strip-surface observation (task ③, the seeded-state
+    // activation count): walk the pipeline's HighVariables and count the
+    // ones whose type name is an installed typedef — each such high is an
+    // operand the four stripping loops (cast.cc:325-328 / printc.cc:390-
+    // 393 / coreaction.cc:2476-2479 / typeop.cc:2337-2340; master's
+    // name-table twin is coreaction.rs:6602) can strip, so the count is
+    // the observable trigger surface of the channel in this function.
+    // Observation only — no mutation, gate-off leaves nothing to walk.
+    if let Some(state) = typedefseed_state() {
+        if !state.installed.is_empty() {
+            if let Ok(fd_read) = fd_arc.read() {
+                let mut hits = 0usize;
+                let mut seen_highs = std::collections::HashSet::new();
+                let mut names: Vec<&str> = Vec::new();
+                for loc in fd_read.vbank.begin_loc() {
+                    let vn = loc.0.read().unwrap();
+                    let Some(high) = vn.high.clone() else { continue };
+                    if !seen_highs.insert(std::sync::Arc::as_ptr(&high)) {
+                        continue;
+                    }
+                    let high = high.read().unwrap();
+                    let dt = high.v_type.get();
+                    let name = dt.get_name();
+                    if let Some((seen, _)) =
+                        state.installed.iter().find(|(seen, _)| *seen == name)
+                    {
+                        hits += 1;
+                        if !names.contains(&seen.as_str()) {
+                            names.push(seen);
+                        }
+                    }
+                }
+                eprintln!(
+                    "[TYPEDEFSEED] {} strip surface: {} high variables on typedef-layer types ({})",
+                    target.name,
+                    hits,
+                    names.join(", ")
+                );
+            }
+        }
+    }
 
     // CURL-CODEREF-SYMBOLIZE-0001 (print-only install): swap the
     // action-phase Architecture for a clone whose symboltab Database

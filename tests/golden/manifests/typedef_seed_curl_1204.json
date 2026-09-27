@@ -1,0 +1,90 @@
+{
+ "oracle_commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+ "corpus": "curl",
+ "source": "typedef-def",
+ "binary_sha256": "8af50bca2f812580933fbbf125b66ce8ba4acfe88ef4435c89ac72356f122d41",
+ "golden_sha256": "aca3798881fddc2ce541c3e731b88f9fcf4736451db98fdd9247366f78b6097f",
+ "harvest_rule": "DWARF DW_TAG_typedef graph restricted to the golden declaration layer's referenced names (identifiers in signature lines and decl-block declarators, intersected with the typedef name set), chain-closed over typedef-of-typedef targets; base targets mapped through the DWARFDataTypeManager initBaseDataTypes alias table (Rugra standard_base_alias mirror) to the factory's canonical core spellings with (size, metatype); dependency-ordered emission; composite/enum/array targets deferred to the MB22 joint-debug install (index-aware; get_typedef's same-name throw type.cc:3825 makes the master-side order impossible); conventional bool spellings excluded (core bool literal channel)",
+ "typedefs": [
+  {
+   "name": "__time_t",
+   "target": {
+    "kind": "base",
+    "spelling": "long",
+    "size": 8,
+    "metatype": "int"
+   },
+   "source": "dwarf-typedef"
+  },
+  {
+   "name": "size_t",
+   "target": {
+    "kind": "base",
+    "spelling": "ulong",
+    "size": 8,
+    "metatype": "uint"
+   },
+   "source": "dwarf-typedef"
+  },
+  {
+   "name": "time_t",
+   "target": {
+    "kind": "typedef",
+    "spelling": "__time_t"
+   },
+   "source": "dwarf-typedef"
+  }
+ ],
+ "deferred_typedefs": [
+  {
+   "name": "CURLcode",
+   "target_kind": "enum",
+   "target_name": null,
+   "reason": "index-resolved install (anon enums carry no name; named enums resolve through the DWARF index) is the MB22 joint-debug domain"
+  },
+  {
+   "name": "FILE",
+   "target_kind": "composite",
+   "target_name": "_IO_FILE",
+   "reason": "index-resolved install (parse_type_names alias boundary) is the MB22 joint-debug domain"
+  },
+  {
+   "name": "HttpReq",
+   "target_kind": "enum",
+   "target_name": null,
+   "reason": "index-resolved install (anon enums carry no name; named enums resolve through the DWARF index) is the MB22 joint-debug domain"
+  },
+  {
+   "name": "URLGlob",
+   "target_kind": "composite",
+   "target_name": null,
+   "reason": "index-resolved install (parse_type_names alias boundary) is the MB22 joint-debug domain"
+  },
+  {
+   "name": "URLPatternType",
+   "target_kind": "enum",
+   "target_name": null,
+   "reason": "index-resolved install (anon enums carry no name; named enums resolve through the DWARF index) is the MB22 joint-debug domain"
+  },
+  {
+   "name": "__builtin_va_list",
+   "target_kind": "array",
+   "target_name": "__va_list_tag",
+   "reason": "array target needs the element type from the DWARF index \u2014 MB22 joint-debug domain"
+  }
+ ],
+ "harvest_drops": [
+  {
+   "name": "bool",
+   "reason": "conventional boolean spelling resolves to the core bool (PRINTC-BOOLLITERAL-0001, dwarf_conventional_bool typefactory.rs:730); a factory typedef clone would break the true/false literal channel"
+  },
+  {
+   "name": "__gnuc_va_list",
+   "reason": "typedef chain blocked at `__builtin_va_list` (deferred to the MB22 joint-debug install)"
+  },
+  {
+   "name": "va_list",
+   "reason": "typedef chain blocked at `__gnuc_va_list` (dependency not installable)"
+  }
+ ]
+}

@@ -27,6 +27,8 @@ Usage (V3 callee-siglock mode):
                                                [--dwarf-types BINARY]
 Usage (CMT warning-comment mode):
   harvest_local_manifest.py --cmt BINARY GOLDEN.c CORPUS ORACLE_COMMIT OUT.json
+Usage (V4 typedef-def mode):
+  harvest_local_manifest.py --typedef BINARY GOLDEN.c CORPUS ORACLE_COMMIT OUT.json
 """
 import hashlib
 import json
@@ -1633,6 +1635,324 @@ def collect_cmt_anchor_groups(binary):
     return groups
 
 
+# ---------------------------------------------------------------------------
+# V4 typedef-def mode (HEADLESS-BRIDGE-V4-COMPOSITE-0005; the TYPEDEFIMM
+# channel's production trigger surface, LANE_TYPEDEFIMM_2026-09-27.md
+# hand-over item 2: "生产 typedef 触发面（DWARFSEED/TYPESEED manifest →
+# <typedef> decode → 剥离环活跃）归 HEADLESS-BRIDGE-V4-COMPOSITE-0005 域").
+#
+# The oracle's production typedef source is the <def> element stream
+# (TypeFactory::decodeTypedef, type.cc:4263-4313: read name/id/format,
+# decode the immediate target inline, delegate to getTypedef
+# type.cc:3818-3840 — the clone that carries typedefImm type.hh:196,
+# consumed by the four stripping loops cast.cc:325-328 / printc.cc:390-393
+# / coreaction.cc:2476-2479 / typeop.cc:2337-2340). The analyzeHeadless
+# DWARF analyzer is what populates that stream for the canon corpora, so
+# the manifest harvests the DWARF typedef graph restricted to the golden
+# declaration layer's referenced names (signature lines + decl-block
+# declarators), chain-closed over typedef-of-typedef targets.
+#
+# Servability split (staged channel, each rule pinned to the driver's
+# public install surface — no src/ dependency on this lane):
+#   - BASE targets install through the factory's canonical core spellings
+#     (the DWARFDataTypeManager initBaseDataTypes alias table, mirrored
+#     in Rugra's standard_base_alias debugproto.rs:1776 — "long unsigned
+#     int"->"ulong" etc.). Core-spelling identity is what makes the
+#     master-side name-table twin of isOpIdentical (coreaction.rs:6602,
+#     the one live strip loop pre-MB22) strip size_t-family clones onto
+#     the same interned node parse_c_type("ulong") returns.
+#   - TYPEDEF-ref targets resolve from earlier manifest entries
+#     (dependency-ordered emission; time_t -> __time_t -> long).
+#   - COMPOSITE/ENUM/ARRAY targets (FILE/_IO_FILE, va_list over
+#     __va_list_tag[1], CURLcode over an anon enum) need the DWARF name
+#     index at install time — but building parse_type_names interns the
+#     typedef names as channel-less aliases first (resolve_type's typedef
+#     branch -> alias_type -> intern_named), and TypeFactory::get_typedef
+#     faithfully throws on a same-named non-typedef (type.cc:3825-3826).
+#     The index-aware install is therefore the MB22 joint-debug domain
+#     (the import boundary itself calls get_typedef there); the manifest
+#     records those entries as `deferred_typedefs`, not errors.
+#   - Conventional bool spellings (bool/_Bool) are excluded exactly like
+#     parse_type_names' resolve_type exception (PRINTC-BOOLLITERAL-0001,
+#     dwarf_conventional_bool typefactory.rs:730): the core bool drives
+#     true/false literal printing; a factory typedef clone would break it.
+# ---------------------------------------------------------------------------
+
+TYPEDEF_HARVEST_RULE = (
+    "DWARF DW_TAG_typedef graph restricted to the golden declaration "
+    "layer's referenced names (identifiers in signature lines and "
+    "decl-block declarators, intersected with the typedef name set), "
+    "chain-closed over typedef-of-typedef targets; base targets mapped "
+    "through the DWARFDataTypeManager initBaseDataTypes alias table "
+    "(Rugra standard_base_alias mirror) to the factory's canonical core "
+    "spellings with (size, metatype); dependency-ordered emission; "
+    "composite/enum/array targets deferred to the MB22 joint-debug "
+    "install (index-aware; get_typedef's same-name throw type.cc:3825 "
+    "makes the master-side order impossible); conventional bool "
+    "spellings excluded (core bool literal channel)"
+)
+
+# DWARF base-type spelling -> (core spelling, metatype). The importer's
+# own alias table (initBaseDataTypes :499-548 / standard_base_alias); the
+# driver mints these via TypeFactory::get_base_named(size, metatype,
+# spelling), the same node parse_c_type's core arm returns.
+TYPEDEF_BASE_ALIAS = {
+    "char": ("char", "int"),  # chartype identity — see TYPEDEF_CHARLESS
+    "signed char": ("char", "int"),
+    "unsigned char": ("uchar", "uint"),
+    "short": ("short", "int"),
+    "short int": ("short", "int"),
+    "signed short int": ("short", "int"),
+    "unsigned short int": ("ushort", "uint"),
+    "short unsigned int": ("ushort", "uint"),
+    "int": ("int", "int"),
+    "signed int": ("int", "int"),
+    "unsigned int": ("uint", "uint"),
+    "long": ("long", "int"),
+    "long int": ("long", "int"),
+    "signed long int": ("long", "int"),
+    "unsigned long int": ("ulong", "uint"),
+    "long unsigned int": ("ulong", "uint"),
+    "long long": ("longlong", "int"),
+    "long long int": ("longlong", "int"),
+    "long long unsigned int": ("ulonglong", "uint"),
+    "unsigned long long int": ("ulonglong", "uint"),
+}
+# parse_c_type's core arms that plain get_base_named cannot reproduce
+# (the char arm resolves the factory's TypeChar identity through
+# find_by_name/get_type_char_named, not a plain named base).
+TYPEDEF_CHARLESS = {"char", "signed char", "unsigned char"}
+# conventional boolean spellings: the core bool literal channel owns them
+TYPEDEF_CONVENTIONAL_BOOL = {"bool", "_Bool"}
+# metatype string -> driver TypeMetatype spelling (manifest contract)
+TYPEDEF_METATYPES = {"int", "uint"}
+
+
+def _golden_decl_layer_names(golden_text):
+    """Identifiers in the golden's declaration layer: every signature
+    line (column-0 `ret name(params)` before the body brace) plus every
+    decl-block declarator's type part. Body statements are excluded."""
+    names = set()
+    for _addr, _name, lines in split_functions(golden_text):
+        started = False
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if not started:
+                if stripped == "{":
+                    started = True
+                    continue
+                # signature region: column-0 lines before the brace
+                if line[0].isspace():
+                    continue
+                names.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", stripped))
+                continue
+            dm = DECL.match(line)
+            if dm is None:
+                dm = DECL_PAREN.match(line)
+                if dm is not None:
+                    continue
+                break  # first statement ends the declaration block
+            names.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", dm.group("type")))
+    return names
+
+
+def _typedef_target_dies(binary):
+    """DWARF walk -> ordered [(name, unit, target_attr)] for every
+    DW_TAG_typedef with a name (first DIE per name wins, DIE order)."""
+    from elftools.elf.elffile import ELFFile
+
+    entries = []
+    seen = set()
+    with open(binary, "rb") as fh:
+        elf = ELFFile(fh)
+        _warn_if_no_dwarf(binary, elf)
+        dw = elf.get_dwarf_info()
+        for unit in dw.iter_CUs():
+            for die in unit.iter_DIEs():
+                if die.tag != "DW_TAG_typedef":
+                    continue
+                name = _attr_str(_die_attr(die, "DW_AT_name"))
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                entries.append((name, unit, _die_attr(die, "DW_AT_type")))
+    return entries
+
+
+def _die_of(unit, attr):
+    if attr is None:
+        return None
+    return unit.get_DIE_from_refaddr(_ref_abs(unit, attr))
+
+
+def _describe_target(unit, attr):
+    """(kind, spelling, size, metatype, reason) for a typedef's immediate
+    DW_AT_type: kind in {base, typedef, composite, enum, array, pointer,
+    qualifier, none}; base spellings are the canonical core table's."""
+    die = _die_of(unit, attr)
+    if die is None:
+        return ("none", None, None, None, "no DW_AT_type")
+    if die.tag == "DW_TAG_base_type":
+        name = _attr_str(_die_attr(die, "DW_AT_name")) or ""
+        size = _die_attr(die, "DW_AT_byte_size")
+        size = size.value if size is not None else None
+        if name in TYPEDEF_CONVENTIONAL_BOOL:
+            return ("conventional-bool", name, size, None,
+                    "core bool literal channel (PRINTC-BOOLLITERAL-0001)")
+        if name in TYPEDEF_CHARLESS:
+            return ("chartype", name, size, None,
+                    "char arm resolves the factory TypeChar identity, not a "
+                    "plain named base (parse_c_type special path)")
+        alias = TYPEDEF_BASE_ALIAS.get(name)
+        if alias is None:
+            return ("base-unmapped", name, size, None,
+                    "no initBaseDataTypes alias for `%s`" % name)
+        return ("base", alias[0], size, alias[1], None)
+    if die.tag == "DW_TAG_typedef":
+        name = _attr_str(_die_attr(die, "DW_AT_name")) or ""
+        return ("typedef", name, None, None, None)
+    if die.tag in ("DW_TAG_structure_type", "DW_TAG_union_type",
+                   "DW_TAG_class_type"):
+        name = _attr_str(_die_attr(die, "DW_AT_name"))
+        return ("composite", name, None, None,
+                "index-resolved install (parse_type_names alias boundary) "
+                "is the MB22 joint-debug domain")
+    if die.tag == "DW_TAG_enumeration_type":
+        name = _attr_str(_die_attr(die, "DW_AT_name"))
+        return ("enum", name, None, None,
+                "index-resolved install (anon enums carry no name; named "
+                "enums resolve through the DWARF index) is the MB22 "
+                "joint-debug domain")
+    if die.tag == "DW_TAG_array_type":
+        elem = _die_of(unit, _die_attr(die, "DW_AT_type"))
+        elem_name = _attr_str(_die_attr(elem, "DW_AT_name")) if elem else None
+        return ("array", elem_name, None, None,
+                "array target needs the element type from the DWARF index — "
+                "MB22 joint-debug domain")
+    if die.tag == "DW_TAG_pointer_type":
+        return ("pointer", None, None, None,
+                "pointer target needs the pointee from the DWARF index — "
+                "MB22 joint-debug domain")
+    if die.tag in ("DW_TAG_const_type", "DW_TAG_volatile_type",
+                   "DW_TAG_restrict_type"):
+        inner = _describe_target(unit, _die_attr(die, "DW_AT_type"))
+        if inner[0] in ("base", "typedef"):
+            return inner
+        return ("qualifier-" + inner[0], inner[1], inner[2], inner[3],
+                inner[4] or "qualified unservable target")
+    return (die.tag, None, None, None, "unservable target tag")
+
+
+def harvest_typedef(binary, golden_path):
+    """V4 typedef-def table: golden-decl-referenced DWARF typedef chains,
+    split into installable entries (base/typedef-ref targets) and
+    deferred entries (composite/enum/array/pointer targets — the MB22
+    joint-debug install domain). Returns (typedefs, deferred, drops);
+    `typedefs` is dependency-ordered (a typedef-ref target precedes its
+    referencing entry)."""
+    golden_text = open(golden_path, "r", encoding="utf-8").read()
+    referenced = _golden_decl_layer_names(golden_text)
+    typedef_dies = _typedef_target_dies(binary)
+    by_name = dict((name, (unit, attr)) for name, unit, attr in typedef_dies)
+
+    wanted = set(name for name in by_name if name in referenced)
+    # chain closure: a servable typedef-ref target must be installed
+    # before its referencer, so pulled-in dependencies join `wanted`
+    frontier = list(wanted)
+    while frontier:
+        name = frontier.pop()
+        unit, attr = by_name[name]
+        kind, spelling, _sz, _mt, _why = _describe_target(unit, attr)
+        if kind == "typedef" and spelling not in wanted:
+            wanted.add(spelling)
+            frontier.append(spelling)
+
+    typedefs = []
+    deferred = []
+    drops = []
+    installed_names = set()
+    deferred_names = set()
+    # two passes: dependencies (by name) first, then referencers — a
+    # stable topological order for the chain depth this graph has
+    remaining = sorted(wanted)
+    for _pass in range(len(remaining) + 1):
+        if not remaining:
+            break
+        progressed = False
+        still = []
+        for name in remaining:
+            if name in TYPEDEF_CONVENTIONAL_BOOL:
+                # the exception is keyed on the TYPEDEF name (parse_type_names
+                # resolve_type: dwarf_conventional_bool(&name) with a 1-byte
+                # inner), not the target spelling
+                drops.append({"name": name, "reason":
+                              "conventional boolean spelling resolves to the "
+                              "core bool (PRINTC-BOOLLITERAL-0001, "
+                              "dwarf_conventional_bool typefactory.rs:730); "
+                              "a factory typedef clone would break the "
+                              "true/false literal channel"})
+                progressed = True
+                continue
+            unit, attr = by_name[name]
+            kind, spelling, size, metatype, why = _describe_target(unit, attr)
+            if kind == "base":
+                if size is None or metatype not in TYPEDEF_METATYPES:
+                    drops.append({"name": name, "reason":
+                                  "base target `%s` without (size, metatype)"
+                                  % spelling})
+                    progressed = True
+                    continue
+                typedefs.append({
+                    "name": name,
+                    "target": {"kind": "base", "spelling": spelling,
+                               "size": size, "metatype": metatype},
+                    "source": "dwarf-typedef",
+                })
+                installed_names.add(name)
+                progressed = True
+            elif kind == "typedef":
+                if spelling in installed_names:
+                    typedefs.append({
+                        "name": name,
+                        "target": {"kind": "typedef", "spelling": spelling},
+                        "source": "dwarf-typedef",
+                    })
+                    installed_names.add(name)
+                    progressed = True
+                else:
+                    still.append(name)
+                continue
+            elif kind in ("conventional-bool", "chartype", "base-unmapped",
+                          "none"):
+                drops.append({"name": name, "reason": why})
+                progressed = True
+            else:
+                deferred.append({
+                    "name": name,
+                    "target_kind": kind,
+                    "target_name": spelling,
+                    "reason": why,
+                })
+                deferred_names.add(name)
+                progressed = True
+        remaining = still
+        if not progressed:
+            for name in remaining:  # blocked chain: the dependency is
+                # neither installable now nor scheduled for install
+                unit, attr = by_name[name]
+                _kind, spelling, _sz, _mt, _why = _describe_target(unit, attr)
+                blocked = spelling in deferred_names
+                drops.append({"name": name, "reason":
+                              "typedef chain blocked at `%s` (%s)"
+                              % (spelling, "deferred to the MB22 joint-debug "
+                                 "install" if blocked else
+                                 "dependency not installable")})
+            break
+    return typedefs, deferred, drops
+
+
 def harvest_cmt(binary, golden_path, corpus):
     """CMT warning-comment table: canon-text-gated records with DWARF
     scope anchors plus the corpus calibration table. Returns (functions,
@@ -1717,6 +2037,31 @@ def harvest_cmt(binary, golden_path, corpus):
 
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "--typedef":
+        if len(sys.argv) < 6:
+            print(__doc__)
+            return 2
+        binary, golden, corpus, oracle_commit, out = sys.argv[2:7]
+        typedefs, deferred, drops = harvest_typedef(binary, golden)
+        manifest = {
+            "oracle_commit": oracle_commit,
+            "corpus": corpus,
+            "source": "typedef-def",
+            "binary_sha256": hashlib.sha256(open(binary, "rb").read()).hexdigest(),
+            "golden_sha256": hashlib.sha256(open(golden, "rb").read()).hexdigest(),
+            "harvest_rule": TYPEDEF_HARVEST_RULE,
+            "typedefs": typedefs,
+            "deferred_typedefs": deferred,
+            "harvest_drops": drops,
+        }
+        with open(out, "w", encoding="utf-8") as fh:
+            json.dump(manifest, fh, indent=1)
+        print(
+            "harvested %d typedef defs (%d deferred to the MB22 joint-debug "
+            "install, %d drops) -> %s"
+            % (len(typedefs), len(deferred), len(drops), out)
+        )
+        return 0
     if len(sys.argv) >= 2 and sys.argv[1] == "--cmt":
         if len(sys.argv) < 6:
             print(__doc__)
