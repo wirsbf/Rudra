@@ -3805,3 +3805,59 @@ __do_global_dtors_aux diff=0）。
 （双基线字节恒等）；镜面 curl 50·74 matched、httpd 152·29、vsh 15/16·71、
 sq 4479/7500·810（sq 较基线 4481 又改善 2 行）、sqlite 见终报；bank
 391/391；cargo test --lib **1808P/0F**（+3 新测）；三门禁绿。
+
+### 2026-09-27 — PRINTC-NEGTOKEN-PATH-0001: legacy opCbranch 补 checkPrintNegation 快路径（Lane NEGTOKEN）
+
+**缺口（APHTTRIAGE 分诊钉出）**：oracle `PrintC::opCbranch`（printc.cc:536-580）
+在 cc:558-563 有一条 negatetoken 快路径——flip 存活时先问
+`checkPrintNegation(op->getIn(1))`（printc.cc:2388-2398：implied+written+
+`get_booleanflip` 可翻转集，opcodes.cc:94-135），可翻则 `m |= negatetoken;
+booleanflip = false`，跳过 `pushOp(&boolean_not)`（cc:564-565），由
+`pushVn(in(1), m)` 把修饰符送进 def op 虚 push：比较 op 走
+`PrintLanguage::opBinary` 的 `tok = tok->negate` 前奏
+（printlanguage.cc:549-554，六个 negate-set token printc.cc:129-134，
+FLOAT 比较共用 printc.hh:313-316）；BOOL_NEGATE def 走 `opBoolNegate` 的
+negatetoken 臂（printc.cc:817-819）双重否定抵消直印内层。Rugra 侧 RPN 生产
+孪生 `op_cbranch_rpn` 已有该臂（14236-14248），**legacy direct-emit 孪生
+`op_cbranch` 只有 `!(...)` 回退形**——潜在差预防票（七面零现行实例：Rugra
+`if (!(` 计 0，golden 3 处均为不可翻 `!(bool)` 回退形）。
+
+**修复（1:1 补齐）**：
+- `op_cbranch`：cc:558-563 决策结构逐行移植——`booleanflip && in(1) 存在`
+  时调 `check_print_negation`（既有忠实移植，printc.rs:19878），成功则
+  `negate_token=true; booleanflip=false`；渲染三分支：fold 成功走
+  `emit_cbranch_condition_negated`，存活 flip 走原 `!(...)` 形，否则原样。
+  cc:554/570 的条件括号对三分支统一保留（oracle fold 不影响外层括号）。
+- `emit_cbranch_condition_negated`（新，legacy 传输的 negatetoken 消费者）：
+  ①BOOL_NEGATE def（≥1 输入）→ 双重否定抵消，标 inlined 后
+  `emit_condition(inner)`；②可翻比较 def（EQUAL/NOTEQUAL/SLESS/SLESSEQUAL/
+  LESS/LESSEQUAL/FLOAT_EQUAL/NOTEQUAL/LESS/LESSEQUAL，≥2 输入）→ 标 inlined
+  后 `push_input_parenthesized(def,0) + 翻转 sym +
+  push_input_parenthesized(def,1)`（flip token 与源 token 同优先级类
+  equal↔not_equal 38 / less_than↔greater_equal 42，paren 决策等价——与
+  emit_condition BOOL_NEGATE Case-1 同一论证）；③防御臂回退字节恒等的
+  cc:564-565 形。翻转表=printc.cc:129-134 逐字：`==`↔`!=`、`<`→`>=`、
+  `<=`→`>`（SLESS 族 `<`/`<=` 渲染、FLOAT 共用 token）。捕获文本过共享
+  R50 谓词 `cbranch_condition_text_valid`（自 `emit_cbranch_condition`
+  行为保持式提取），失败回退旧形，永不出裸残缺条件。
+- 附带：`emit_cbranch_condition` 的 R50 判据提取为
+  `cbranch_condition_text_valid`（纯重构，行为零变化）。
+
+**影响面（诚实归因）**：改动仅 legacy 传输（`rpn_enabled=false` 通道）——
+生产默认与全部 E2E 驱动（curl/httpd/gen 等）显式 `set_rpn_enabled(true)` 走
+RPN 孪生（其 fold 臂已在位，MIGW1-TYPEOP-0002 交付）。canon A/B（亲父
+2cce7b99 独立 worktree 双构建）curl/httpd **字节恒等**（96429B/63226B）；
+镜面五面全 PASS 零回退。B2 状态：legacy 传输本征 NO_ORACLE（oracle 无第二
+opCbranch 可隔离运行），决策结构以 4 个 Rust 单测钉死（fold 翻转/ftT 诱导
+flip 折叠/BOOL_NEGATE 双重抵消/不可翻回退）；生产 RPN fold 臂的 oracle 行为
+由 `tests/oracle/typeop_push_dispatch_1204` 的 BOOL_NEGATE 三分支链 fixture
+（`!(a==b)`→`a!=b` 翻转 case）覆盖。negate 奇偶族站点（ap_ht_time/
+sqlite3VdbeSorterRewind）的激活依赖 BLOCKACT-CONDNEGATE-PARITY-0001（P3）
+先落地——彼票修复后 oracle 翻转奇偶对齐，若届时 Rugra 侧 flip 携可翻比较
+存活到 legacy 打印则本路径接住。
+
+**验收（fast-release 亲测）**：canon curl 124/157/0/0、canon httpd
+34/141/0/0（=亲父，字节恒等）；镜面 curl 56/56·74/74、httpd 92/94·29/29、
+vsh 15/16·71/71、sq 4227/7500·810/810、sqlite 26411/26411·1385/1385 全
+PASS；bank 391/391 MATCH；cargo test --lib **1909P/0F**（=亲父 1905+本票
+4 新测）；annotations/refs 三门禁绿。
