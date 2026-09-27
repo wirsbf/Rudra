@@ -190,11 +190,16 @@ impl RangeHint {
         }
         let meta = a_dt.get_metatype();
         if meta != TypeMetatype::Struct && meta != TypeMetatype::Union {
-            if meta != TypeMetatype::Array {
+            // varmap.cc:92-94: outside STRUCT/UNION, only an ARRAY whose
+            // base metatype is TYPE_UNKNOWN survives this branch — any other
+            // array (or non-array) does not reconcile here.
+            let base_unknown = match a_dt.as_ref() {
+                Datatype::Array(arr) => arr.array_of.get_metatype() == TypeMetatype::Unknown,
+                _ => false,
+            };
+            if meta != TypeMetatype::Array || !base_unknown {
                 return false;
             }
-            // Array of unknown base is allowed.
-            return true;
         }
         // For structures/unions/arrays-of-unknown, accept int/uint/unknown b.
         let b_meta = b_dt.get_metatype();
@@ -1404,8 +1409,41 @@ impl MapState {
                         return true;
                     }
                 }
+            } else if op.opcode == OpCode::CPUI_PIECE {
+                // varmap.cc:1102-1109: a PIECE read is only "active" when
+                // this varnode's storage does not line up with the piece
+                // position it occupies in the PIECE output. The low-order
+                // input on little-endian is slot 1 (`slot =
+                // addr.isBigEndian() ? 0 : 1`); any other input's address
+                // is the output address advanced by the low piece's size.
+                let Some(out) = op.output.as_ref() else { continue };
+                let (out_space, out_off, big_endian) = {
+                    let o = out.read().unwrap();
+                    (o.get_space(), o.get_offset(), o.get_space().is_big_endian())
+                };
+                let slot = if big_endian { 0 } else { 1 };
+                let low_is_vn = op
+                    .inrefs
+                    .get(slot)
+                    .map(|v| Arc::ptr_eq(v, vn))
+                    .unwrap_or(false);
+                let mut addr = (out_space, out_off);
+                if !low_is_vn {
+                    if let Some(low) = op.inrefs.get(slot) {
+                        let sz = low.read().unwrap().get_size() as u64;
+                        addr.1 = addr.1.wrapping_add(sz);
+                    }
+                }
+                if vn_addr != addr {
+                    return true;
+                }
+            } else if op.opcode == OpCode::CPUI_SUBPIECE {
+                // varmap.cc:1112-1113: "Any data-type information comes
+                // from the output Varnode, so we ignore input." A SUBPIECE
+                // reading a piece of this varnode does NOT make it active.
+                continue;
             } else {
-                // Non-marker op reading vn → active by definition.
+                // varmap.cc:1114-1116: every other reading op is active.
                 return true;
             }
         }
@@ -7171,4 +7209,83 @@ mod tests {
         );
     }
 
+
+    /// MapState::isReadActive (varmap.cc:1088-1118) — PIECE/SUBPIECE arms.
+    /// A varnode whose only reader is a SUBPIECE extracting a piece of it is
+    /// NOT read-active (cc:1112-1113), a PIECE read is active only when the
+    /// varnode's storage does not line up with its piece position in the
+    /// output (cc:1102-1109), and any other reading op is active
+    /// (cc:1114-1116). The former simplified port (any non-marker reader ⇒
+    /// active) fed spurious 4-byte upper-half hints into gatherVarnodes,
+    /// confusing whole-slot symbols to undefinedN (POINTTEE root).
+    #[test]
+    fn test_is_read_active_piece_subpiece_arms() {
+        use crate::opcodes::OpCode;
+        use crate::space::AddressSpace;
+        use crate::varnode::varnode_flags;
+
+        let stack_vn = |fd: &mut crate::funcdata::Funcdata, off: u64, size: usize| {
+            let vn = fd.vbank.create_with_space(size, AddressSpace::Stack, off);
+            vn.write().unwrap().set_flags(varnode_flags::ADDRTIED | varnode_flags::INSERT);
+            vn
+        };
+        let wire = |fd: &mut crate::funcdata::Funcdata,
+                    opc: OpCode,
+                    inputs: &[Arc<RwLock<crate::varnode::Varnode>>],
+                    out: &Arc<RwLock<crate::varnode::Varnode>>| {
+            let op = fd.new_op(inputs.len(), crate::address::Address::new(0x1000));
+            fd.op_set_opcode(&op, opc);
+            for (slot, vn) in inputs.iter().enumerate() {
+                fd.op_set_input(&op, vn.clone(), slot);
+            }
+            fd.op_set_output(&op, out.clone());
+            op
+        };
+
+        // SUBPIECE extracting the upper half of an 8-byte stack slot: the
+        // slot varnode is NOT read-active (cc:1112-1113).
+        let mut fd = crate::funcdata::Funcdata::new(
+            "t", crate::address::Address::new(0x1000), 0x100);
+        let slot8 = stack_vn(&mut fd, 0x40, 8);
+        let piece4 = stack_vn(&mut fd, 0x44, 4);
+        let cnst = fd.vbank.create_constant(4, 4);
+        wire(&mut fd, OpCode::CPUI_SUBPIECE, &[slot8.clone(), cnst.clone()], &piece4);
+        assert!(!MapState::is_read_active(&slot8));
+
+        // PIECE: vn is the low input (little-endian slot 1) whose storage
+        // matches the output start — aligned, not active (cc:1102-1109).
+        let mut fd = crate::funcdata::Funcdata::new(
+            "t", crate::address::Address::new(0x1000), 0x100);
+        let lo = stack_vn(&mut fd, 0x40, 4);
+        let hi = stack_vn(&mut fd, 0x60, 4);
+        let joined = stack_vn(&mut fd, 0x40, 8);
+        wire(&mut fd, OpCode::CPUI_PIECE, &[hi.clone(), lo.clone()], &joined);
+        assert!(!MapState::is_read_active(&lo));
+        // The HIGH input (slot 0) lines up at out+lowsize = 0x84 — a varnode
+        // at 0x84 is aligned (not active)...
+        let mut fd = crate::funcdata::Funcdata::new(
+            "t", crate::address::Address::new(0x1000), 0x100);
+        let lo = stack_vn(&mut fd, 0x40, 4);
+        let hi = stack_vn(&mut fd, 0x44, 4);
+        let joined = stack_vn(&mut fd, 0x40, 8);
+        wire(&mut fd, OpCode::CPUI_PIECE, &[hi.clone(), lo.clone()], &joined);
+        assert!(!MapState::is_read_active(&hi));
+        // ...but one at 0x90 does not — active.
+        let mut fd = crate::funcdata::Funcdata::new(
+            "t", crate::address::Address::new(0x1000), 0x100);
+        let lo = stack_vn(&mut fd, 0x40, 4);
+        let hi = stack_vn(&mut fd, 0x48, 4);
+        let joined = stack_vn(&mut fd, 0x40, 8);
+        wire(&mut fd, OpCode::CPUI_PIECE, &[hi.clone(), lo.clone()], &joined);
+        assert!(MapState::is_read_active(&hi));
+
+        // Any other reading op (INT_ADD) is active (cc:1114-1116).
+        let mut fd = crate::funcdata::Funcdata::new(
+            "t", crate::address::Address::new(0x1000), 0x100);
+        let slot8 = stack_vn(&mut fd, 0x40, 8);
+        let cnst = fd.vbank.create_constant(8, 4);
+        let sum = stack_vn(&mut fd, 0x50, 8);
+        wire(&mut fd, OpCode::CPUI_INT_ADD, &[slot8.clone(), cnst.clone()], &sum);
+        assert!(MapState::is_read_active(&slot8));
+    }
 }
