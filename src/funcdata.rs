@@ -8807,14 +8807,50 @@ impl Funcdata {
             if opcode == OpCode::CPUI_CALL {
                 // Still record any output (call return value in RAX) as defined,
                 // so a later read of RAX is not mistaken for a parameter.
+                // HERITAGE-CALLOUT-LOADSPLIT-0001: at inject time a raw
+                // SLEIGH/iced CALL carries NO output varnode (the `call`
+                // directive emits no result in the semantics;
+                // PcodeEmitFd::dump funcdata.cc:884-890 creates an output
+                // only when the template has one) — the return varnode is
+                // attached later by ActionFuncLink::funcLinkOutput (stage
+                // funclink, after this pass). The oracle NEVER promotes a
+                // post-call read of the return register to an input: with
+                // the locked output present the call's own out-varnode is
+                // the def, and otherwise Heritage::guardCalls
+                // (heritage.cc:1511-1525) materializes an INDIRECT
+                // (unknown_effect/return_address) or indirect-creation
+                // (killedbycall) write for the range, so renaming always
+                // finds a def on the stack (renameRecurse cc:2499-2505).
+                // Shield the model return register (RAX = register offset
+                // 0x0, the same convention as funcLinkOutput's no-storage
+                // fallback) even before the output varnode exists, so the
+                // first post-call RAX read (the LOAD-through-RAX form
+                // `mov rcx,[rax]` -> `RCX = LOAD ram,RAX`) stays free and
+                // heritage links it to the call exit def.
+                let mut shielded = false;
                 if let Some(ref out_arc) = output {
                     let out_vn = out_arc.read().unwrap();
                     if out_vn.get_space() == AddressSpace::Register {
                         defined_reg_offsets.insert(out_vn.get_offset());
+                        shielded = true;
                     }
+                }
+                if !shielded {
+                    // No output yet: the ABI return register is still
+                    // defined by the call (funclink re-decides the actual
+                    // varnode; this set only decides input promotion).
+                    defined_reg_offsets.insert(0x0); // RAX
                 }
                 continue;
             }
+
+            // CALLIND returns in RAX as well: same oracle guardCalls
+            // treatment via the callspec (heritage.cc:1451 iterates every
+            // FuncCallSpecs, CALL and CALLIND alike). The target-register
+            // READ below is a genuine this-function read and is still
+            // processed FIRST (the call reads its target before defining
+            // the new return value); the return shield is applied in the
+            // output-recording tail, after this op's inputs.
 
             // First: process reads (inputs) against the *current* defined set.
             for (slot, in_arc) in inputs.into_iter().enumerate() {
@@ -8875,6 +8911,14 @@ impl Funcdata {
                 if out_vn.get_space() == AddressSpace::Register {
                     defined_reg_offsets.insert(out_vn.get_offset());
                 }
+            } else if opcode == OpCode::CPUI_CALLIND {
+                // HERITAGE-CALLOUT-LOADSPLIT-0001: CALLIND with no output
+                // (the inject-time norm — the return varnode is attached
+                // by funcLinkOutput) still defines the ABI return register
+                // for the linear read-before-write scan. Applied AFTER the
+                // target-register read above was processed, so the read at
+                // the call itself keeps its pre-call meaning.
+                defined_reg_offsets.insert(0x0); // RAX
             }
         }
         eprintln!(
@@ -14052,6 +14096,120 @@ mod tests {
         // becomes, with the self-loop target splitting at op1:
         //   [op0] | [op1(CBRANCH, self-loop)] | [op2, op3]
         assert_eq!(fd.bblocks.get_size(), 3);
+    }
+
+    // HERITAGE-CALLOUT-LOADSPLIT-0001 fixture: phase 3's linear
+    // read-before-write input promotion must shield the ABI return
+    // register (RAX = register offset 0x0) at CALL/CALLIND ops even
+    // though the raw lifter produces calls with NO output varnode at
+    // inject time (the return varnode is attached later by
+    // ActionFuncLink::funcLinkOutput). The oracle never promotes a
+    // post-call read of the return register to an input: with the locked
+    // output present the call's out-varnode is the def, and otherwise
+    // Heritage::guardCalls (heritage.cc:1511-1525) materializes an
+    // INDIRECT/indirect-creation write for the range, so renaming always
+    // finds a def on the stack (renameRecurse heritage.cc:2499-2505).
+    // Before the shield, the FIRST post-call RAX read — the
+    // LOAD-through-RAX form `mov rcx,[rax]` -> `u = LOAD ram,RAX` — was
+    // permanently promoted to in_RAX and heritage's faithful
+    // isHeritageKnown skip (heritage.cc:2495) left it there, deleting the
+    // whole return-value chain (httpd ap_strcasestr 9-line residual
+    // family: bare call + `*in_RAX` + arithmetic index form).
+    #[test]
+    fn test_inject_phase3_call_shields_return_register() {
+        // Shape mirrors httpd ap_strcasestr @0x12e29c: CALL (no output,
+        // inject-time norm) then a LOAD whose address reads RAX.
+        let mut fd = Funcdata::new("callout_loadsplit", Address::new(0x1000), 0x20);
+
+        let mut call = PcodeOpRaw::new(OpCode::CPUI_CALL as i32);
+        call.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x2000, 8)); // target coderef
+
+        let mut load = PcodeOpRaw::new(OpCode::CPUI_LOAD as i32);
+        load.set_output(VarnodeRaw::new(AddressSpace::Unique, 0x100, 8));
+        load.add_input(VarnodeRaw::new(AddressSpace::Const, 0x3, 8)); // ram space-id
+        load.add_input(VarnodeRaw::new(AddressSpace::Register, 0x00, 8)); // RAX
+
+        let mut copy = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+        copy.set_output(VarnodeRaw::new(AddressSpace::Register, 0x08, 8)); // RCX
+        copy.add_input(VarnodeRaw::new(AddressSpace::Unique, 0x100, 8));
+
+        let mut ret = PcodeOpRaw::new(OpCode::CPUI_RETURN as i32);
+        ret.add_input(VarnodeRaw::new(AddressSpace::Const, 0x0, 8));
+
+        fd.inject_raw_ops(&[call, load, copy, ret]);
+
+        // The LOAD's RAX address read must NOT be promoted to an input:
+        // the preceding CALL shields the return register so heritage can
+        // later link the address to the funclink-attached call exit def.
+        let load_op = fd
+            .obank
+            .optree
+            .iter()
+            .find(|o| o.0.read().unwrap().opcode == OpCode::CPUI_LOAD)
+            .expect("LOAD op present");
+        let addr_vn = load_op.0.read().unwrap().inrefs[1].clone();
+        assert!(
+            !addr_vn.read().unwrap().is_input(),
+            "post-call RAX read must stay free (not promoted to in_RAX)"
+        );
+    }
+
+    // Same shield for CALLIND (guardCalls iterates every FuncCallSpecs,
+    // CALL and CALLIND alike, heritage.cc:1451), with the target-register
+    // read AT the call still processed first (it is a genuine pre-call
+    // this-function read and keeps the promotion semantics).
+    #[test]
+    fn test_inject_phase3_callind_shields_return_register() {
+        let mut fd = Funcdata::new("callindout_loadsplit", Address::new(0x1000), 0x20);
+
+        // First RAX read happens AT the CALLIND (the call target): the
+        // oracle reads the target through the (possibly INDIRECT) value
+        // at the call, so promotion at phase 3 keeps its pre-fix meaning.
+        let mut callind = PcodeOpRaw::new(OpCode::CPUI_CALLIND as i32);
+        callind.add_input(VarnodeRaw::new(AddressSpace::Register, 0x00, 8)); // target RAX
+
+        let mut load = PcodeOpRaw::new(OpCode::CPUI_LOAD as i32);
+        load.set_output(VarnodeRaw::new(AddressSpace::Unique, 0x200, 8));
+        load.add_input(VarnodeRaw::new(AddressSpace::Const, 0x3, 8));
+        load.add_input(VarnodeRaw::new(AddressSpace::Register, 0x00, 8)); // RAX (return)
+
+        let mut ret = PcodeOpRaw::new(OpCode::CPUI_RETURN as i32);
+        ret.add_input(VarnodeRaw::new(AddressSpace::Const, 0x0, 8));
+
+        fd.inject_raw_ops(&[callind, load, ret]);
+
+        let ops: Vec<_> = fd
+            .obank
+            .optree
+            .iter()
+            .filter(|o| {
+                let code = o.0.read().unwrap().opcode;
+                code == OpCode::CPUI_CALLIND || code == OpCode::CPUI_LOAD
+            })
+            .collect();
+        let callind_op = ops
+            .iter()
+            .find(|o| o.0.read().unwrap().opcode == OpCode::CPUI_CALLIND)
+            .expect("CALLIND op present");
+        let load_op = ops
+            .iter()
+            .find(|o| o.0.read().unwrap().opcode == OpCode::CPUI_LOAD)
+            .expect("LOAD op present");
+
+        // (a) The CALLIND's own target read is the FIRST RAX read: it is
+        // still promoted (pre-call read-before-write semantics).
+        let target_vn = callind_op.0.read().unwrap().inrefs[0].clone();
+        assert!(
+            target_vn.read().unwrap().is_input(),
+            "call-target RAX read at the CALLIND keeps its promotion"
+        );
+
+        // (b) The post-CALLIND RAX read (the return value) is shielded.
+        let ret_vn = load_op.0.read().unwrap().inrefs[1].clone();
+        assert!(
+            !ret_vn.read().unwrap().is_input(),
+            "post-CALLIND RAX return read must stay free"
+        );
     }
 
     // FUNCDATA-ZOMBIE-DECISION-ORIGIN-0001 fixture (Rugra side).
