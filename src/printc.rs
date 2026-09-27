@@ -2308,31 +2308,29 @@ impl PrintC {
                 .and_then(|vn_arc| read_op.slot_of_input(&vn_arc))?;
             self.vn_high_type_read_facing_snap(vn, read_op, slot as i32)
         });
-        // HTTPD-CODEREF-SYMBOLIZE-0001 transport: Ghidra's constants always
-        // carry a HighVariable whose type ActionInferTypes seeded
-        // (coreaction.cc:5016-5036); Rugra's leaf chase can bypass the high
-        // (no HighVariable on the const), so the driver's param-lock
-        // annotation lands in v_type — consult it when the high answered
-        // nothing.
+        // Ghidra's constants always carry a HighVariable whose type
+        // ActionInferTypes seeded (coreaction.cc:5016-5036); the high's type
+        // is itself the member Varnode's type (HighVariable::updateType,
+        // variable.cc:400-416). Rugra's leaf chase can bypass the high (no
+        // HighVariable on the const), so the varnode's own v_type — where
+        // the driver's param-lock annotation lands — is the oracle-shaped
+        // substitute when the high answered nothing
+        // (HTTPD-CODEREF-SYMBOLIZE-0001 fallback).
         let ct = read_facing.or_else(|| vn.v_type.clone());
         let Some(ct) = ct else {
-            // HTTPD-CODEREF-SYMBOLIZE-0001: untyped constant that resolves
-            // to a function entry in the global scope prints as the
-            // function's display name — the oracle form produced when the
-            // Parameter ID analyzer's locked function-pointer param type
-            // reaches pushConstant's TYPE_PTR->TYPE_CODE arm
-            // (printc.cc:1786-1788 -> pushPtrCodeConstant, cc:1730). The
-            // oracle's type transport is ActionInferTypes through the
-            // HighVariable (coreaction.cc:5016-5036); Rugra's print-side
-            // leaf chase bypasses the annotated SSA varnode (legacy
-            // value_def_map side tables), so the resolution happens here
-            // on the untyped leaf. Only function-ENTRY addresses resolve,
-            // so integer constants keep their hex/decimal form.
-            if let Some(name) = self.code_entry_constant_text(val) {
-                return name;
-            }
-            // printc.cc:1766-1768 TYPE_UNKNOWN: push_integer(val, sz,
-            // false, tag, vn, op) — the vn flags still reach the suffix.
+            // PRINTC-UNTYPEDCONST-CODEQUERY-0001: an untyped leaf is the
+            // oracle's TYPE_UNKNOWN constant — Funcdata::newConstant
+            // creates every constant with glb->types->getBase(s,
+            // TYPE_UNKNOWN) (funcdata_varnode.cc:66-76), so pushConstant
+            // dispatches it to the TYPE_UNKNOWN arm (printc.cc:1766-1768):
+            // pure push_integer(val,sz,false,tag,vn,op), NO symbol query.
+            // The queryFunction gate is TYPE_PTR->TYPE_CODE only
+            // (printc.cc:1786-1788 -> pushPtrCodeConstant cc:1730-1742);
+            // the former untyped-leaf compensation query
+            // (HTTPD-CODEREF-SYMBOLIZE-0001 transport) mis-symbolized
+            // integer constants whose value collides with a registered
+            // function entry (sq write_file: mknod mode 0x6000 ==
+            // _init@0x6000, golden prints 0x6000).
             return self.integer_text_flagged(
                 val, vn.get_size(), false, display_format::DEFAULT,
                 force_unsigned, force_sized,
@@ -2384,12 +2382,10 @@ impl PrintC {
             // 1801 -> 1806-1815).
             TypeMetatype::Enum => self.enum_constant_text(val, &ct),
             TypeMetatype::Unknown => {
-                // HTTPD-CODEREF-SYMBOLIZE-0001: same function-entry
-                // resolution as the untyped arm (see the None arm comment).
-                if let Some(name) = self.code_entry_constant_text(val) {
-                    return name;
-                }
-                // printc.cc:1766-1768: push_integer carries the vn flags.
+                // printc.cc:1766-1768: push_integer(val,ct->getSize(),
+                // false,tag,vn,op) — pure integer, NO symbol query
+                // (PRINTC-UNTYPEDCONST-CODEQUERY-0001: the queryFunction
+                // gate is TYPE_PTR->TYPE_CODE only, cc:1786-1788).
                 self.integer_text_flagged(
                     val, sz, false, display_format::DEFAULT,
                     force_unsigned, force_sized,
@@ -2481,28 +2477,6 @@ impl PrintC {
                 let _ = ct;
                 name
             })
-    }
-
-    // RUGRA-GLUE: code_entry_constant_text (driver-transport wrapper of
-    // PrintC::pushPtrCodeConstant, printc.cc:1730). The oracle reaches that
-    // method with the Parameter-ID-locked pointer-to-code type on the
-    // constant (via TypeOpCall::getInputLocal, typeop.cc:703-708, and
-    // ActionInferTypes, coreaction.cc:5016-5036). Rugra's print-side leaf
-    // can arrive untyped (the legacy side-table chase bypasses the SSA
-    // varnode carrying the annotation), so the untyped/Unknown constant
-    // arms call this wrapper: same resolution chain (default code space →
-    // global-scope queryFunction → display name), no cast prefix.
-    fn code_entry_constant_text(&self, val: u64) -> Option<String> {
-        let sentinel = std::sync::Arc::new(crate::type_system::datatype::Datatype::Pointer(
-            crate::type_system::datatype::TypePointer::new(
-                8,
-                std::sync::Arc::new(crate::type_system::datatype::Datatype::Code(
-                    crate::type_system::datatype::TypeCode::new(),
-                )),
-                1,
-            ),
-        ));
-        self.ptr_code_constant_text(val, &sentinel)
     }
 
     // RUGRA-GLUE: make_atom_for_vn (RPN leaf atom construction; mirrors the
@@ -21795,6 +21769,71 @@ mod tests {
         assert_eq!(
             text, "ADJ(base)0",
             "the ADJ token pair matches the bilateral fixture form"
+        );
+    }
+
+    // PRINTC-UNTYPEDCONST-CODEQUERY-0001: pushConstant's queryFunction gate
+    // is TYPE_PTR->TYPE_CODE only (printc.cc:1786-1788); the untyped and
+    // TYPE_UNKNOWN arms are pure push_integer (cc:1766-1768 — the oracle's
+    // Funcdata::newConstant gives every untyped constant the TYPE_UNKNOWN
+    // base, funcdata_varnode.cc:66-76). A registered function entry whose
+    // address collides with an integer constant value must NOT be printed
+    // as the function's name from those arms (sq write_file: mknod mode
+    // 0x6000 == _init@0x6000, golden prints 0x6000).
+    #[test]
+    fn untyped_unknown_constant_leaf_never_queries_symboltab() {
+        use crate::type_system::datatype::{Datatype, TypeCode, TypePointer};
+        use crate::type_system::TypeMetatype;
+
+        let mut printer = PrintC::new(Box::new(crate::prettyprint::EmitNoMarkup::new()));
+        // The print-DB shape the gen driver installs: _init registered at
+        // 0x6000 in the global scope + the display-name snapshot.
+        let mut db = crate::database::Database::new(false);
+        db.get_global_scope_mut()
+            .expect("global scope")
+            .add_function(Address::new(0x6000), "_init", 1);
+        printer.symboltab = Some(std::sync::Arc::new(std::sync::RwLock::new(db)));
+        printer.symbol_table.insert(0x6000, "_init".to_string());
+
+        // Fresh constant leaf: Varnode::new_with_space draws the canonical
+        // factory unknown (the stand-in for the oracle's
+        // glb->types->getBase(s,TYPE_UNKNOWN), funcdata_varnode.cc:154) —
+        // the production form of an untyped constant. cc:1766-1768 pure
+        // push_integer, no query.
+        let mut vn = Varnode::new_constant(0x6000, 4);
+        assert!(
+            vn.v_type
+                .as_ref()
+                .is_some_and(|ct| ct.get_metatype() == TypeMetatype::Unknown),
+            "fixture sanity: fresh constant carries the TYPE_UNKNOWN default"
+        );
+        assert_eq!(
+            printer.constant_leaf_text(&vn, None),
+            "0x6000",
+            "TYPE_UNKNOWN constant leaf must not resolve the colliding entry"
+        );
+
+        // Fully untyped leaf (both the high read-facing type and v_type
+        // absent — the legacy side-table chase shape): the None arm renders
+        // the pure integer even though the DB resolves 0x6000.
+        vn.v_type = None;
+        assert_eq!(
+            printer.constant_leaf_text(&vn, None),
+            "0x6000",
+            "untyped constant leaf must not resolve the colliding entry"
+        );
+
+        // Legitimate gate stays open: a TYPE_PTR->TYPE_CODE leaf resolves
+        // the display name through pushPtrCodeConstant (cc:1730-1742).
+        vn.v_type = Some(std::sync::Arc::new(Datatype::Pointer(TypePointer::new(
+            8,
+            std::sync::Arc::new(Datatype::Code(TypeCode::new())),
+            1,
+        ))));
+        assert_eq!(
+            printer.constant_leaf_text(&vn, None),
+            "_init",
+            "pointer-to-code leaf must keep the cc:1786-1788 resolution"
         );
     }
 
