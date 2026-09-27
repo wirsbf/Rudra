@@ -175,6 +175,30 @@ address varnode `RuleLoadVarnode` materializes (ruleaction.cc:4293). Without
 it the global's value degrades to raw offsets in the C output
 (`*(int *)(glob_expand + 0x128)` instead of `glob_expand->size`).
 
+### Copy-reloc externs seed `undefined8` (`R3MERGE-STDMERGE-TYPESTATE-0001`)
+
+The committed-type semantic applies only to LOCATED DWARF variables. The
+extern-declaration + `R_X86_64_COPY` pass (stdin/stdout/stderr) marks its
+entries with `DebugGlobalVariable::extern_reloc`, and the driver's two
+seeding sites (worker `dwarf_display_names` layer and the controller-side
+fallback) pass the 8-byte undefined base to `seed_global_locked` for those
+entries instead of the declared DWARF type. Instrumented-oracle witness
+(canon analyzeHeadless, 12.0.4 e40ed130, R3B probe on
+`Varnode::setSymbolProperties`/`updateType`): the std-stream symbols reach
+the decompiler as TYPELOCKED `undefined8`, so `SymbolEntry::updateType`
+(database.cc:135-144) runs `vn->updateType(undefined8,true,true)`, which
+`varnode.cc:476-477` demotes to UNLOCKED (TYPE_UNKNOWN is never locked) —
+the varnode's data-type stays free for the `ActionInferTypes` propagation
+contest (locked libc prototypes push archive-`FILE *` through CALL edges,
+DWARF field/parameter edges push DWARF-`FILE *`/`Configurable *`;
+`propagateTypeEdge`'s adoption rule coreaction.cc:5104 keeps the most
+specific per `typeOrder`). Seeding the declared type locked froze the
+contest at the archive domain — the canon residual behind golden main's
+`::config.errors = (FILE *)stderr` / getparameter's
+`pCVar9 = (Configurable *)stdin` cast family (~27 canon-curl skeleton lines
+at the fdfea39e base). The declared DWARF type stays on `data_type` as the
+parse product (the DWARF-import tests assert it unchanged).
+
 ## Locked libc ABI signatures (`CALLSPEC-DRIVER-0001`)
 
 `LibcSignatureTable` is Rugra's native front-end adapter for the platform-side

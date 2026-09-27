@@ -4444,12 +4444,39 @@ fn build_worker_architecture(
                     }
                     // GLOBWORD-C5: typelocked seeding via the front-end
                     // semantic (see DebugGlobalDatabase::seed_global_locked).
+                    // R3MERGE-STDMERGE-TYPESTATE-0001: copy-reloc externs
+                    // (stdin/stdout/stderr) seed `undefined8`, not the
+                    // declared DWARF type — the instrumented oracle shows
+                    // those symbols typelocked at undefined8, whose
+                    // TYPE_UNKNOWN→unlocked demotion (varnode.cc:476-477)
+                    // leaves the varnode type free for the infer-types
+                    // propagation contest (see the worker-side twin + the
+                    // `extern_reloc` field doc in debugproto.rs).
+                    let seeded_dtype = if global.extern_reloc {
+                        rugra::type_system::typefactory::TypeFactory::shared_default()
+                            .write()
+                            .unwrap()
+                            .get_base(8, rugra::type_system::datatype::TypeMetatype::Unknown)
+                            .unwrap_or_else(|| {
+                                std::sync::Arc::new(
+                                    rugra::type_system::datatype::Datatype::Base(
+                                        rugra::type_system::datatype::TypeBase::new(
+                                            "undefined8".to_string(),
+                                            8,
+                                            rugra::type_system::datatype::TypeMetatype::Unknown,
+                                        ),
+                                    ),
+                                )
+                            })
+                    } else {
+                        global.data_type.clone()
+                    };
                     DebugGlobalDatabase::seed_global_locked(
                         &mut db,
                         scope,
                         address,
                         &global.name,
-                        global.data_type.clone(),
+                        seeded_dtype,
                         size,
                     );
                     seen.insert(address);
@@ -5870,7 +5897,7 @@ fn decompile_request(
             // the ELF importer layer at the same address.
             let dwarf_display_names: HashMap<
                 u64, (
-                    String, std::sync::Arc<rugra::type_system::datatype::Datatype>, i32,
+                    String, std::sync::Arc<rugra::type_system::datatype::Datatype>, i32, bool,
                 ),
             > = debug_globals
                 .iter()
@@ -5885,6 +5912,7 @@ fn decompile_request(
                         // every mirror gate).
                         address + img_base, (
                             name, global.data_type.clone(), global.data_type.get_size() as i32,
+                            global.extern_reloc,
                         ),
                     )
                 })
@@ -6223,18 +6251,42 @@ fn decompile_request(
                 // The DWARF layer: real names + real Datatypes (config ->
                 // Configurable 304B with member offsets, glob_buffer ->
                 // char[4096], ...).
-                for (&address, (name, dtype, size)) in &dwarf_display_names {
+                for (&address, (name, dtype, size, extern_reloc)) in &dwarf_display_names {
                     // GLOBWORD-C5: the DWARF front-end's committed data
                     // types reach the decompiler as typelocked symbols
                     // (ATTRIB_TYPELOCK, database.cc:439-442) —
                     // SymbolEntry::updateType and buildLocaltypes'
                     // exact-piece branch are both typelock-gated.
+                    //
+                    // R3MERGE-STDMERGE-TYPESTATE-0001: that commit applies
+                    // only to LOCATED variables. The instrumented oracle
+                    // (canon analyzeHeadless, 12.0.4 e40ed130, R3B probe)
+                    // shows the copy-reloc externs (stdin/stdout/stderr)
+                    // reaching the decompiler as TYPELOCKED `undefined8`
+                    // symbols — `SymbolEntry::updateType` then runs
+                    // `vn->updateType(undefined8,true,true)`, and
+                    // varnode.cc:476-477 demotes TYPE_UNKNOWN writes to
+                    // UNLOCKED, so the varnode's data-type stays free for
+                    // the ActionInferTypes propagation contest (archive
+                    // FILE* from locked libc prototypes vs DWARF
+                    // FILE*/Configurable* from field/param edges,
+                    // most-specific-wins per typeOrder). Seeding the
+                    // declared DWARF type locked here froze the contest
+                    // (canon residual: main/getparameter stdin/stdout/
+                    // stderr cast family).
+                    let seeded_dtype = if *extern_reloc {
+                        undefined8
+                            .clone()
+                            .unwrap_or_else(|| dtype.clone())
+                    } else {
+                        dtype.clone()
+                    };
                     DebugGlobalDatabase::seed_global_locked(
                         &mut db,
                         global,
                         address,
                         name,
-                        dtype.clone(),
+                        seeded_dtype,
                         *size,
                     );
                     if std::env::var("RUGRA_DBG_TYPEFLOW").is_ok() && address == 0x17660 {
