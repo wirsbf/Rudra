@@ -2080,3 +2080,98 @@ LANE_THUNKGOT_2026-09-27.md。
 2. **环级激活计数器**：四剥离环逐次计数（观测通道联调的量化面）。
 3. **门极性复审**：联调产出锁定 oracle 见证后，评估 PFLIP→SEEDFLIP 翻转
    （默认脸装种）。
+
+## §21 RETYPE 交付记录（Lane RETYPE，2026-09-27，基=master 48146429，复活续跑车道）
+
+**票**: `CURLCANON-HEADLESS-RETYPE-0001`（BOOLCHAR 终报移交项：canon curl −10 行
+的 per-field retype 桥接；前会话撞额度墙死亡，本会话续用其 worktree 半成品——
+FIELDRETYPE 通道代码+manifest 已在位且编译通过，续用评估=代码全量保留、裁决重做）。
+写域=examples 驱动桥接域 + manifests + 本节 + TODO_BOARD；src/ 零改动。
+
+### 21.1 设计裁决（任务①核心：为何 remotefile char→bool，可推导否）
+
+**机制（锁定 dist 12.0.4 字节码亲读 + DB ground truth 亲跑，非推断）**:
+
+- `DWARFDataTypeImporter.makeDataTypeForTypedef`：typedef 的目标是
+  `DW_TAG_base_type` 时**不建 typedef**，改走 `makeNamedBaseType(typedef 名,
+  目标 base DIE)`。
+- `makeNamedBaseType` → `DWARFDataTypeManager.getBaseType("bool", size=1,
+  encoding=6)`：`baseDataTypes`（`initBaseDataTypes` 预置的标准 C 原语名表，
+  含 "bool"→内建 bool）按名命中；`isEncodingCompatible(6, bool)` 走
+  **default-true 臂**（只有 encoding 5/7 检查 signedness；char/boolean 编码
+  与任意整型"兼容"）→ 返回**内建 bool**。
+- 结果 DWARFDataType 挂**目标 base DIE 的 offset**（0x17f）→ `addDataType`
+  把 offsetToDTP[0x17f] 从 /char 翻成 /bool（capture 日志
+  "DWARF data type remappings: /char -> /bool" 即此行）。
+- 之后**每个在文件序走查中晚于 typedef DIE <0x938> 才解析 <0x17f> 的类型**
+  提交 bool；早于它的、走别 CU char DIE（<0x4049>/<0x4413>）的、或经跨 CU
+  merge/.conflict 复合的，保持 char。
+
+**DB ground truth**（`dump_field_types.py` postScript，canon 配方，锁定 dist）:
+
+| 位点 | DB 提交 | 机制归因 |
+|---|---|---|
+| `Configurable.remotefile` | **/bool** | CU1 独有 struct（DIE 0xbc1>0x938），remap 后解析 |
+| `Configurable.use_resume/showerror/configread/crlf/progressmode/nobuffer` | /bool | typedef-bool <0x938> 字段（187d9cd5 已桥接） |
+| `URLPattern…CharRange.min_c/max_c/ptr_c` | **/char** | struct 在 main.c **和** urlglob.c 双定义，跨 CU merge 落 `…_for_CharRange.conflict` 保 char |
+| `main.errorbuffer` / `myprogress.line/outline` | **/bool[256]** | 数组 DIE <0x214f>/<0x1148>… 晚于 typedef |
+| `main.format` | **/char[40]** | 数组 DIE <0x428> **早于** typedef（§19.4 manifest 交叉验证 10/10 同证） |
+| `glob_buffer` | **/char[4096]** | CU3 自有 char DIE <0x4413>，从未 remap |
+
+**证伪记录（对"可推导通用规则"）**:
+
+1. **同 DIE 异果**：remotefile 与 min_c/max_c/ptr_c 共享同一 char DIE
+   <0x17f> 同 CU，DB 提交一 bool 一 char——分键是 importer 文件序位置 +
+   跨 CU merge/.conflict，**非**类型身份、**非**用法（前会话 manifest 的
+   "usage-shaped"假设被 .conflict 行**当场证伪**并已改写）。
+2. **零布尔用法的 bool[N]**：errorbuffer/line/outline/buf 全是 sprintf/fgets
+   字符串缓冲，零布尔用法却提交 bool[N]——用法不可能是分键。
+3. 分键全部是 **Java importer 内部状态机**（文件序迭代位置、per-offset 缓存、
+   DIEAggregate 跨 CU 合并、.conflict 解析），DWARF 图与反编译可见用法里均
+   不可见。⇒ **无 (DWARF × usage) 决策函数可复现该面**；台账兜底成立
+   （DWARFSEED canon-committed 先例形态），兜底性质如实登记。
+
+**泛化路径（登记，非本车道实施）**: 在桥接层仿真 importer 状态机——
+makeNamedBaseType 名键 remap + 文件序解析 + 跨 CU merge/.conflict——即
+"Java DWARF importer 仿真器"，属独立车道；在其落地前，per-field 台账是唯一
+诚实桥接形态。规则候选必须击败的判据即上表六行 ground truth。
+
+### 21.2 通道形态（DWARFSEED/TYPEDEFSEED 先例）
+
+- **manifest**: `tests/golden/manifests/field_retype_curl_1204.json`——
+  oracle_commit + binary/golden sha256 溯源 + `adjudication` 裁决全文（21.1
+  机制+证伪）+ entries[(struct, field)→retype target]（现役一条
+  Configurable.remotefile→bool，5 行 golden witness 逐条列出）。
+- **驱动装种**（curl_decompile.rs，httpd 无此通道——httpd stripped 无 DWARF，
+  BOOLCHAR 家族 0 行亲证）：`install_field_retype_channel()` 于 main() 顶、
+  任何 DWARF pass 之前——解析语料 DWARF 一次，把台账字段换成核心 bool，
+  destroy_type + get_typedef 重占共享工厂名槽（TYPEDEFIMM 通道 API，
+  type.cc:3818 clone-and-findAdd 漏斗；布局逐字节保留，仅字段类型身份变），
+  intern_named 的 (variant,size,metatype) 去重让后续所有解析共享同一身份
+  （= Java type manager remap 后的单身份状态，cast.cc:299 指针同一性比较
+  无 cast）。**刻意不用 per-site 树改写**：第二身份会分裂 cast 引擎的指针
+  同一性检查（getparameter local_5b8 实测出伪 cast）。
+- **门控**（PFLIP opt-in 判例）：`RUGRA_FIELDRETYPE=1` opt-in；mirror 组件恒拒
+  （五投影纯净，实测 101 条 ignored/0 installs）；`RUGRA_SEEDS=0` 全局裸脸
+  逃生；`RUGRA_FIELDRETYPE_MANIFEST=<path>` 覆盖；manifest 缺失/损坏=响亮
+  no-op。**默认脸构造性恒等**（门关=零 manifest IO、零语料读、零工厂突变）。
+
+### 21.3 验收矩阵（亲测，基=master 48146429 vs 本车道，fast-release）
+
+| 门禁 | 结果 |
+|---|---|
+| canon curl 门开态 | **skeleton 157→147（−10 兑现）**，defects=0，numbering=0，matched 124 不变；5 行 witness（main:695/712/738/1021+gp:1871）逐字节==golden，diff 恰 5 行无其他 |
+| canon curl 默认脸 | 96429B **cmp 逐字节恒等亲父 48146429**（独立构建 A/B） |
+| canon httpd | 63214B，34/139/0/0 ==亲父基线；`RUGRA_FIELDRETYPE=1` 下 stderr 零 FIELDRETYPE 行（通道 curl 驱动域限定） |
+| mirror 纯净 | `RUGRA_MIRROR=1`+门开：101 ignored/0 installs；镜面五面 `verify_mirror_gate --corpus all` 全 PASS（curl 56/56·74/74、httpd 84/84·29/29、vsh 12/12·71/71、sq 4197/4197·810/810、sqlite 24091/24091·1385/1385） |
+| projection bank | 391/391 OK |
+| cargo test --lib | 全绿（=亲父，src/ 零改动） |
+| 三门禁 | annotations --all ✓ / refs --all --strict ✓ / evidence（commit-msg 实跑）✓ |
+
+### 21.4 移交（登记，非本车道写域）
+
+1. **importer 仿真器车道**（21.1 泛化路径）：makeNamedBaseType 名键 remap +
+   文件序解析 + 跨 CU merge/.conflict 状态机仿真，落地后可把 per-field 台账
+   升级为机制推导面（任意二进制通用对齐的用户终极目标方向）。
+2. **门极性复审**：若仿真器车道产出树内锁定 oracle 见证族，评估
+   PFLIP→SEEDFLIP 翻转（默认脸装种）。
