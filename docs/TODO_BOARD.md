@@ -2,6 +2,12 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## 车道 GENSTALL（2026-09-27 派发；小中车道=P2 基础设施票,gen 驱动 all-mode 协调器间歇性挂死——MIRRORTRIAGE 立票移交,威胁所有镜面门禁跑）
+
+| 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
+|---|---|---|---|---|
+| `GEN-DRIVER-STALL-0001` | gen 驱动 all-mode 协调器子进程管理（examples/gen_decompile.rs:722-775 旧 `Command::output()` 无帽管道读） | P2（间歇但威胁 MB23+ 集成门禁 mirror 跑;两起同型） | `examples/gen_decompile.rs`+本行 | **DONE（2026-09-27,wt/genstall Lane GENSTALL,基=master d9a2ef5d）**。**根因（drill 定谳,锁定工具链 std 源码亲读）**:std 1.96.0-nightly `sys/process/mod.rs:50 output()`=spawn→`read_output()`→wait,而 `sys/process/unix/common.rs:632 read_output()`=**`poll(fds,2,-1)` 无限阻塞**至双管 EOF;EOF 需所有写端持有者消亡。进程树 `协调器→timeout→--one` 下,任何"直子已死但写端被存活后代持有"的死亡形态（timeout 被 OOM SIGKILL 而被监控子存活/后代 reparent 到 init/无 --kill-after 时 TERM 免疫子）→ 协调器 0 CPU 永眠 poll——与两起事件签名吻合（0CPU+无存活子进程+输出冻结）。**活体复现**:合成注入器（假 timeout 转发真 timeout+泄漏 sleep 持管后代）驱动 prefix 二进制 → 协调器 `do_poll` 0CPU 60s+、直子 timeout=**僵尸(Z,未 reap——wait 不可达)**、持管者 reparent 不可见、输出 0 块——事件 B 拓扑 1:1。**修复**（examples 域,捕获语义不动）:①`timeout --kill-after=30s`（TERM 免疫子 deadline+30 强杀;exit 124 语义不变）②`run_capped_output` 替代 `Command::output()`:同 fd 面（stdin null+双管 piped+读至 EOF+wait4）+ 墙帽 TIMEOUT+150s 树杀（/proc ppid 深度优先遍历 SIGKILL）+ 子退出后 10s 宽限→**/proc fd→pipe-inode 扫描 SIGKILL 持管者**（唯一能触及 reparent 持管者的手段;inode 精确匹配无误伤并发车道）+ 持管者扛过 SIGKILL（D 态）时 fail-loud STALL 标记继续跑+读线程流式共享缓冲保部分输出。**验证**:复现→修复→不可复现三段（prefix 挂死[do_poll/0块/60s+]→postfix 5/5 全过[rc=0+块产出+GEN-STALL 杀持管者行+零泄漏]）;canon A/B `/usr/bin/grep` 117 函数 **stdout+stderr 逐字节恒等**（驱动改动零输出扰动,15.8s vs 18.3s=调度噪声,user CPU 同）;sqlite 全量×3 压力电池 **3/3 clean 零挂死**（rc=0×3,ok=1385/1385×3,5248582B×3,各一次 VdbeExec 单采样 60s 零窗看门狗正确未误报）+**三跑 sha256 逐字节恒等**（f81f6fac…）+golden 汇总 skeleton 24091/defects 0/numbering 0（本基 MB23 库演进,vs 旧基钉值 26217;驱动中立性由三跑恒等+grep A/B 钉死）=终报 §3;bank cargo test --lib **1917P/0F**（=基线,examples 零 src 扰动;亲父记录 391=旧基 commit 值）;三门禁绿（annotations 100 文件/refs --strict/evidence 消息无红词）。owner=sb-genstall@wt/genstall(fixer);evidence=commit+`/dev/shm/rugra-reports/LANE_GENSTALL_2026-09-27.md`+`/dev/shm/rugra-tests/genstall/`;last_updated=2026-09-27 |
+
 ## ENHANCEMENT 车道票池（2026-09-26 登记；域=ENHANCEMENT 无 Ghidra 对照物，逐函数 oracle 纪律不适用；门禁=默认脸中性+算法正确性单测）
 
 | 稳定 ID | 域声明 | 范围 | write-set | 状态 | 验收要点 |

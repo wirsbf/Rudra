@@ -34,7 +34,19 @@
 //!                             toggled the driver-bounded [entry, MAX) form
 //!                             (BINSWEEP-JTDEST-UNLINKED-0001 root cause).
 //!   RUGRA_GEN_TIMEOUT_SECS   per-function child timeout in all-mode
-//!                             (default 60; 0 = unlimited)
+//!                             (default 60; 0 = unlimited). The `timeout`
+//!                             wrapper also carries --kill-after=30s so a
+//!                             SIGTERM-immune child is force-killed at the
+//!                             deadline instead of wedging `timeout` in
+//!                             waitpid. The coordinator itself watches each
+//!                             child with a wall cap of TIMEOUT+150s and,
+//!                             after a child exit, a short pipe-close grace
+//!                             followed by a /proc fd scan that SIGKILLs any
+//!                             process still holding the child's stdout or
+//!                             stderr pipe (GEN-DRIVER-STALL-0001: std's
+//!                             Command::output() polls with timeout=-1 and
+//!                             blocks forever when a surviving descendant of
+//!                             a dead child keeps a write end open).
 //!   RUGRA_GEN_ONLY=<name>    all-mode: decompile only the named function
 //!
 //! All-mode decompiles each function in an isolated child process
@@ -47,6 +59,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 use std::sync::Arc;
+use std::time::Duration;
+
+use std::os::fd::AsRawFd as _;
 
 use rugra::action::ActionDatabase;
 use rugra::address::Address;
@@ -640,6 +655,328 @@ fn load_functions(binary_path: &str) -> Result<Vec<GenFunction>, String> {
     Ok(discover_functions(elf))
 }
 
+// ---------------------------------------------------------------------------
+// GEN-DRIVER-STALL-0001: all-mode child supervision.
+//
+// RUGRA-GLUE: pure driver infrastructure — the oracle golden generator is a
+// C++ harness with its own OS plumbing; there is no decompiler counterpart
+// to match here. The mechanism being guarded against (verified in the
+// locked toolchain's std source, 1.96.0-nightly):
+//
+//   sys/process/mod.rs output()      -> spawn -> read_output() -> wait()
+//   sys/process/unix/common.rs:632   -> poll(fds, 2, /*timeout=*/ -1)
+//
+// read_output blocks in poll(2) indefinitely until BOTH stdout and stderr
+// hit EOF, and EOF only arrives when every write-end holder is gone. The
+// all-mode tree is coordinator -> `timeout` -> `--one`, so any death pattern
+// that strands a write-end holder — `timeout` SIGKILLed by the OOM killer
+// while its monitored child lives on, a descendant reparented to init when
+// the direct child dies first — parks the coordinator in poll forever at
+// 0 CPU with no visible children (the exact intermittent-stall signature
+// observed twice on the sqlite corpus runs). run_capped_output below keeps
+// Command::output()'s capture face (stdin null, both pipes read to EOF,
+// status via wait4) and adds the missing caps: a wall-clock ceiling with
+// process-tree SIGKILL, and a post-exit grace followed by a /proc fd scan
+// that SIGKILLs whoever still holds the pipes. On the normal path nothing
+// observable changes: same fds, same bytes, same status.
+// ---------------------------------------------------------------------------
+
+// SIGKILL from <signal.h>, declared locally to avoid adding a libc crate
+// dependency to the example (std already links libc).
+extern "C" {
+    fn kill(pid: i32, sig: i32) -> i32;
+}
+
+fn sigkill(pid: u32) {
+    let _ = unsafe { kill(pid as i32, 9) };
+}
+
+// `timeout --kill-after` margin and the coordinator wall cap on top of the
+// per-function deadline (deadline + kill-after + slack).
+const TIMEOUT_KILL_AFTER_SECS: u64 = 30;
+const WALL_CAP_SLACK_SECS: u64 = 120;
+
+// After the direct child exits, the pipes must EOF within this grace in the
+// normal path (EOF lands at exit; the grace only absorbs pipe-buffer
+// draining). Missing that deadline means a holder outlived the child.
+const STALL_GRACE: Duration = Duration::from_secs(10);
+// Re-check window after the holders have been SIGKILLed.
+const STALL_KILL_RECHECK: Duration = Duration::from_secs(5);
+// Idle between try_wait polls; wakes are event-driven in the normal path
+// (pipe EOF arrives on the channel at child death), so this only bounds
+// the post-EOF reap latency and the wall-cap check resolution.
+const CHILD_POLL_INTERVAL: Duration = Duration::from_millis(20);
+
+fn pipe_inode(fd: std::os::fd::RawFd) -> Option<u64> {
+    std::fs::metadata(format!("/proc/self/fd/{fd}"))
+        .ok()
+        .map(|meta| {
+            use std::os::unix::fs::MetadataExt;
+            meta.ino()
+        })
+}
+
+// RUGRA-GLUE: one /proc snapshot of (ppid, pid) edges under `root`,
+// deepest-first. Killing deepest-first means no not-yet-killed descendant
+// can be reparented out of the walk while we are killing its ancestors.
+fn descendant_pids(root: u32) -> Vec<u32> {
+    let mut table: Vec<(u32, u32)> = Vec::new();
+    let Ok(entries) = fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+    for entry in entries.flatten() {
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        let Ok(pid) = name.parse::<u32>() else {
+            continue;
+        };
+        let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
+            continue;
+        };
+        // "pid (comm) state ppid ..." — comm may contain spaces and
+        // parentheses, so anchor on the LAST ')' of field 2.
+        let Some(rest) = stat.rsplit_once(')') else {
+            continue;
+        };
+        let mut fields = rest.1.split_whitespace();
+        let _state = fields.next();
+        let Some(ppid) = fields.next().and_then(|field| field.parse::<u32>().ok()) else {
+            continue;
+        };
+        table.push((ppid, pid));
+    }
+    let mut frontier = vec![root];
+    let mut found: Vec<u32> = Vec::new();
+    while let Some(current) = frontier.pop() {
+        for &(ppid, pid) in table.iter() {
+            if ppid == current && pid != root {
+                found.push(pid);
+                frontier.push(pid);
+            }
+        }
+    }
+    found.reverse();
+    found
+}
+
+fn kill_tree(pid: u32) {
+    for victim in descendant_pids(pid) {
+        sigkill(victim);
+    }
+    // Root last: while it lives its descendants remain reachable by ppid.
+    sigkill(pid);
+}
+
+fn process_comm(pid: u32) -> String {
+    fs::read_to_string(format!("/proc/{pid}/comm"))
+        .map(|comm| comm.trim().to_string())
+        .unwrap_or_else(|_| "?".to_string())
+}
+
+// RUGRA-GLUE: SIGKILL every foreign process still holding an end of one of
+// our pipes, found by matching "pipe:[inode]" fd symlinks in /proc. This is
+// the only reach a coordinator has into holders that were reparented away
+// when the direct child died before them — the observed stall topology.
+// Only processes that inherited the write end from our own child can match
+// the inode, so concurrent lanes' drivers are never collateral.
+fn kill_pipe_holders(inodes: &[u64]) -> Vec<(u32, String)> {
+    let me = std::process::id();
+    let mut killed = Vec::new();
+    let Ok(entries) = fs::read_dir("/proc") else {
+        return killed;
+    };
+    for entry in entries.flatten() {
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        let Ok(pid) = name.parse::<u32>() else {
+            continue;
+        };
+        if pid == me {
+            continue;
+        }
+        let Ok(fds) = fs::read_dir(format!("/proc/{pid}/fd")) else {
+            continue;
+        };
+        for fd in fds.flatten() {
+            let Ok(target) = fs::read_link(fd.path()) else {
+                continue;
+            };
+            let target = target.to_string_lossy();
+            let Some(rest) = target.strip_prefix("pipe:[") else {
+                continue;
+            };
+            let Some(ino) = rest.strip_suffix(']') else {
+                continue;
+            };
+            let Ok(ino) = ino.parse::<u64>() else {
+                continue;
+            };
+            if inodes.contains(&ino) {
+                sigkill(pid);
+                killed.push((pid, process_comm(pid)));
+                break;
+            }
+        }
+    }
+    killed
+}
+
+// RUGRA-GLUE: Command::output() with the same capture face (stdin null,
+// stdout/stderr piped and read to EOF, exit status via wait4) plus a
+// wall-clock cap with tree-kill escalation. Normal-path bytes and status
+// are identical to std's output(); the escalation arms only fire when the
+// direct child is dead (or cap-blown) and something still holds a pipe.
+fn run_capped_output(
+    mut command: Command,
+    wall_cap: Option<Duration>,
+) -> std::io::Result<std::process::Output> {
+    use std::io::ErrorKind;
+    use std::io::Read;
+    use std::sync::mpsc::{self, RecvTimeoutError};
+    use std::time::Instant;
+
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn()?;
+    let pid = child.id();
+    let stdout_pipe = child.stdout.take().expect("stdout was piped");
+    let stderr_pipe = child.stderr.take().expect("stderr was piped");
+    let pipe_inodes: Vec<u64> = [stdout_pipe.as_raw_fd(), stderr_pipe.as_raw_fd()]
+        .into_iter()
+        .filter_map(pipe_inode)
+        .collect();
+    // Readers stream into shared buffers so partial output survives even
+    // if a holder wedges a reader past every escalation (D state).
+    let stdout_buffer = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let stderr_buffer = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (done_tx, done_rx) = mpsc::channel::<bool>();
+    fn spawn_reader<R: Read + Send + 'static>(
+        mut pipe: R,
+        buffer: Arc<std::sync::Mutex<Vec<u8>>>,
+        done_tx: mpsc::Sender<bool>,
+    ) {
+        std::thread::spawn(move || {
+            let mut chunk = [0u8; 16384];
+            loop {
+                match pipe.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(read) => {
+                        buffer
+                            .lock()
+                            .expect("child output buffer lock")
+                            .extend_from_slice(&chunk[..read]);
+                    }
+                    Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+                    Err(_) => break,
+                }
+            }
+            let _ = done_tx.send(true);
+        });
+    }
+    spawn_reader(stdout_pipe, Arc::clone(&stdout_buffer), done_tx.clone());
+    spawn_reader(stderr_pipe, Arc::clone(&stderr_buffer), done_tx.clone());
+    drop(done_tx);
+
+    let started = Instant::now();
+    let mut readers_done = 0usize;
+    let mut tree_killed = false;
+    let status;
+    'supervise: loop {
+        if readers_done < 2 {
+            match done_rx.recv_timeout(CHILD_POLL_INTERVAL) {
+                Ok(_) => readers_done += 1,
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => {
+                    readers_done = 2;
+                }
+            }
+        } else {
+            std::thread::sleep(CHILD_POLL_INTERVAL);
+        }
+        if let Some(exit_status) = child.try_wait()? {
+            status = exit_status;
+            break 'supervise;
+        }
+        if let Some(cap) = wall_cap {
+            let elapsed = started.elapsed();
+            if !tree_killed && elapsed > cap {
+                eprintln!(
+                    "[GEN-STALL] wall cap {cap:?} exceeded for pid {pid} ({}); killing its process tree",
+                    process_comm(pid)
+                );
+                kill_tree(pid);
+                tree_killed = true;
+            } else if tree_killed && elapsed > cap + STALL_KILL_RECHECK {
+                // SIGKILL delivered but the child will not die (D state).
+                // Fail loud instead of polling forever; a zombie may linger
+                // until the coordinator exits.
+                return Err(std::io::Error::new(
+                    ErrorKind::TimedOut,
+                    format!("child pid {pid} survived SIGKILL past the wall cap"),
+                ));
+            }
+        }
+    }
+
+    // Post-exit drain: EOF must follow the last write-end holder. Normal
+    // path already delivered both readers above; this grace catches pipe
+    // contents still buffered, and a miss means a holder outlived the child.
+    let mut received = readers_done.min(2);
+    if received < 2 {
+        let deadline = Instant::now() + STALL_GRACE;
+        while received < 2 {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            match done_rx.recv_timeout(remaining) {
+                Ok(_) => received += 1,
+                Err(_) => break,
+            }
+        }
+    }
+    if received < 2 {
+        let holders = kill_pipe_holders(&pipe_inodes);
+        if !holders.is_empty() {
+            let victims = holders
+                .iter()
+                .map(|(pid, comm)| format!("{pid}({comm})"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            eprintln!(
+                "[GEN-STALL] pid {pid} exited with {} pipe(s) still open; SIGKILLed holder(s): {victims}",
+                2 - received
+            );
+        }
+        let deadline = Instant::now() + STALL_KILL_RECHECK;
+        while received < 2 {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            match done_rx.recv_timeout(remaining) {
+                Ok(_) => received += 1,
+                Err(_) => break,
+            }
+        }
+        if received < 2 {
+            eprintln!(
+                "[GEN-STALL] pid {pid} pipe holders survived SIGKILL; continuing with partial capture"
+            );
+        }
+    }
+    let stdout_bytes = std::mem::take(
+        &mut *stdout_buffer.lock().expect("stdout buffer lock"),
+    );
+    let stderr_bytes = std::mem::take(
+        &mut *stderr_buffer.lock().expect("stderr buffer lock"),
+    );
+    Ok(std::process::Output {
+        status,
+        stdout: stdout_bytes,
+        stderr: stderr_bytes,
+    })
+}
+
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
@@ -700,11 +1037,21 @@ fn main() {
     }
 
     // all-mode: isolated child per function (hermetic "one" mirror),
-    // `timeout`-wrapped when RUGRA_GEN_TIMEOUT_SECS > 0.
+    // `timeout`-wrapped when RUGRA_GEN_TIMEOUT_SECS > 0. The wrapper also
+    // carries --kill-after so a SIGTERM-immune child is SIGKILLed at the
+    // deadline instead of wedging `timeout` in waitpid, and the coordinator
+    // supervises each child through run_capped_output (GEN-DRIVER-STALL-0001:
+    // wall cap + post-exit pipe-holder kill; normal path byte-identical to
+    // Command::output()).
     let timeout_secs: u64 = std::env::var("RUGRA_GEN_TIMEOUT_SECS")
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(60);
+    let wall_cap = (timeout_secs > 0).then(|| {
+        Duration::from_secs(
+            timeout_secs + TIMEOUT_KILL_AFTER_SECS + WALL_CAP_SLACK_SECS,
+        )
+    });
     let only = std::env::var("RUGRA_GEN_ONLY").ok();
     let only_addr = only
         .as_deref()
@@ -721,7 +1068,9 @@ fn main() {
         }
         let mut command = if timeout_secs > 0 {
             let mut wrapped = Command::new("timeout");
-            wrapped.arg(format!("{}s", timeout_secs));
+            wrapped
+                .arg(format!("--kill-after={TIMEOUT_KILL_AFTER_SECS}s"))
+                .arg(format!("{}s", timeout_secs));
             wrapped.arg(&exe).arg(&binary_path).arg("--one").arg(index.to_string());
             wrapped
         } else {
@@ -732,9 +1081,19 @@ fn main() {
         if let Some(mirror) = mirror_env.as_ref() {
             command.env("RUGRA_GEN_MIRROR", mirror);
         }
-        let output = command
-            .output()
-            .unwrap_or_else(|error| panic!("spawn failed for {}: {error}", function.name));
+        let output = match run_capped_output(command, wall_cap) {
+            Ok(output) => output,
+            Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+                println!(
+                    "/* ---- 0x{:x}: {} STALL: child unkillable past wall cap ({error}) ---- */",
+                    function.vaddr, function.name
+                );
+                continue;
+            }
+            Err(error) => {
+                panic!("spawn failed for {}: {error}", function.name);
+            }
+        };
         let status = output.status;
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
