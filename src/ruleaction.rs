@@ -12834,13 +12834,58 @@ impl RulePullsubMulti {
         out_size: u32,
         shift: u64,
     ) -> Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> {
+        // cc:855-861: classify the base up front — input bases may only match
+        // ops in block 0 (cc:859), a base that is neither written nor input
+        // can never match (cc:860), and a written base requires the previous
+        // SUBPIECE to live in the SAME block as the base's defining op
+        // (cc:861 `basevn->getDef()->getParent() != prevop->getParent()`).
+        // CANON-LOOPFORM-GETPARENTS-INVERT-0001: this same-block constraint
+        // was previously skipped ("Rugra lacks easy block access here") —
+        // pullsub then reused a SUBPIECE from a DIFFERENT block (the outer
+        // latch's EAX truncation) instead of building a fresh one after the
+        // head phi, so the loop-head block never gained the extra statement
+        // that BlockBasic::isComplex (block.cc:2388) counts, flipping
+        // ruleBlockWhileDo's overflow-syntax decision (blockaction.cc:1538)
+        // from `while(true){...if break;}` to `while(cond){...}`.
+        let (is_input, is_written, def_parent) = {
+            let r = base_vn.read().unwrap();
+            let def_parent = r
+                .get_def()
+                .and_then(|d| d.read().unwrap().parent.clone())
+                .and_then(|w| w.upgrade());
+            (r.is_input(), r.is_written(), def_parent)
+        };
         let descends: Vec<_> = base_vn.read().unwrap().descend_iter().collect();
         for prev_arc in descends {
             let prev = prev_arc.read().unwrap();
             if prev.opcode != OpCode::CPUI_SUBPIECE { continue; }
-            // Check same-block constraint (Ghidra checks getParent equality).
-            // Rugra lacks easy block access here; we skip this check
-            // conservatively (may find a SUBPIECE from a different block).
+            // cc:859: input base — previous SUBPIECE must sit in block index 0.
+            if is_input {
+                let in_block0 = prev
+                    .parent
+                    .as_ref()
+                    .and_then(|w| w.upgrade())
+                    .map(|b| b.read().unwrap().get_index() == 0)
+                    .unwrap_or(false);
+                if !in_block0 {
+                    continue;
+                }
+            }
+            // cc:860: not written (and not input) → never matches.
+            if !is_written {
+                continue;
+            }
+            // cc:861: same-block constraint — the previous SUBPIECE's block
+            // must be the base's definer's block (pointer identity, as the
+            // oracle compares FlowBlock pointers).
+            let prev_parent = prev.parent.as_ref().and_then(|w| w.upgrade());
+            let same_block = match (&def_parent, &prev_parent) {
+                (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
+                _ => false,
+            };
+            if !same_block {
+                continue;
+            }
             let in0_match = prev
                 .get_in(0)
                 .map(|v| std::sync::Arc::ptr_eq(v, base_vn))
@@ -20553,6 +20598,85 @@ mod tests {
     use super::*;
     use crate::address::{Address, SeqNum};
     use std::sync::{Arc, RwLock};
+
+    /// CANON-LOOPFORM-GETPARENTS-INVERT-0001 regression lock:
+    /// `RulePullsubMulti::findSubpiece` (ruleaction.cc:849-870) only accepts
+    /// a previous SUBPIECE that lives in the SAME block as the base's
+    /// defining op (cc:861). Rugra previously skipped this check and reused
+    /// a same-form SUBPIECE from a DIFFERENT block — on the canon httpd
+    /// ap_getparents loop head this stole the buildSubpiece placement that
+    /// gives the head its third isComplex statement (block.cc:2388),
+    /// flipping ruleBlockWhileDo's overflow-syntax decision
+    /// (blockaction.cc:1538) from `while(true){...if break;}` to
+    /// `while(cond){...}`.
+    #[test]
+    fn pullsub_find_subpiece_requires_same_block() {
+        use crate::block::{BlockBasic, BlockGraph};
+        let mut fd = Funcdata::new("findsub_sameblock", Address::new(0x1000), 0x10);
+        // Two-block CFG: block0 (definer's block) and block1 (foreign).
+        let b0: Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>> = Arc::new(
+            RwLock::new(BlockBasic::new(0, Address::new(0x1000))),
+        );
+        let b1: Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>> = Arc::new(
+            RwLock::new(BlockBasic::new(1, Address::new(0x2000))),
+        );
+        fd.bblocks.add_block(b0.clone());
+        fd.bblocks.add_block(b1.clone());
+
+        // Base varnode (8-byte register) defined by a MULTIEQUAL in block0.
+        let base = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x0);
+        let multi = fd.new_op(1, Address::new(0x1000));
+        fd.op_set_opcode(&multi, OpCode::CPUI_MULTIEQUAL);
+        {
+            let in0 = fd
+                .vbank
+                .create_with_space(8, crate::space::AddressSpace::Register, 0x0);
+            fd.op_set_input(&multi, in0, 0);
+        }
+        fd.op_set_output(&multi, base.clone());
+        fd.op_insert_begin(&multi, &b0);
+
+        // A same-form SUBPIECE(base, 0)→4b living in the FOREIGN block1.
+        let sub_foreign = fd.new_op(2, Address::new(0x2000));
+        fd.op_set_opcode(&sub_foreign, OpCode::CPUI_SUBPIECE);
+        fd.op_set_input(&sub_foreign, base.clone(), 0);
+        let c4 = fd.new_constant(4, 0);
+        fd.op_set_input(&sub_foreign, c4, 1);
+        let out_foreign = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x0);
+        fd.op_set_output(&sub_foreign, out_foreign.clone());
+        fd.op_insert_end(&sub_foreign, &b1);
+
+        // cc:861: different block → NOT reusable (None), even though the
+        // form (in0/size/shift) matches exactly.
+        assert!(
+            RulePullsubMulti::find_subpiece(&base, 4, 0).is_none(),
+            "findSubpiece must not reuse a SUBPIECE from a different block"
+        );
+
+        // Same-form SUBPIECE in the SAME block as the definer → found.
+        let sub_local = fd.new_op(2, Address::new(0x1000));
+        fd.op_set_opcode(&sub_local, OpCode::CPUI_SUBPIECE);
+        fd.op_set_input(&sub_local, base.clone(), 0);
+        let c4b = fd.new_constant(4, 0);
+        fd.op_set_input(&sub_local, c4b, 1);
+        let out_local = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x0);
+        fd.op_set_output(&sub_local, out_local);
+        fd.op_insert_end(&sub_local, &b0);
+        let found = RulePullsubMulti::find_subpiece(&base, 4, 0);
+        assert!(
+            found.is_some(),
+            "findSubpiece must reuse a same-block same-form SUBPIECE"
+        );
+        // Wrong shift/size forms still never match.
+        assert!(RulePullsubMulti::find_subpiece(&base, 4, 4).is_none());
+        assert!(RulePullsubMulti::find_subpiece(&base, 2, 0).is_none());
+    }
 
     /// Helper: create a PcodeOp with a given opcode, two inputs, and an output
     fn make_binary_op(
