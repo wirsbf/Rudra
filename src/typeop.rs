@@ -2506,7 +2506,7 @@ functional_unary_op!(
 functional_unary_op!(
     TypeOpFloatFloat2Float,
     CPUI_FLOAT_FLOAT2FLOAT,
-    "FLOAT_FLOAT2FLOAT",
+    "FLOAT2FLOAT",
     typeop_flags::FLOATINGPOINT_OP,
     "f2f",
     Float,
@@ -2516,7 +2516,7 @@ functional_unary_op!(
 functional_unary_op_ext!(
     TypeOpFloatInt2Float,
     CPUI_FLOAT_INT2FLOAT,
-    "FLOAT_INT2FLOAT",
+    "INT2FLOAT",
     typeop_flags::FLOATINGPOINT_OP,
     "i2f",
     Float,
@@ -2560,7 +2560,7 @@ impl TypeOpFloatInt2Float {
 functional_unary_op!(
     TypeOpFloatTrunc,
     CPUI_FLOAT_TRUNC,
-    "FLOAT_TRUNC",
+    "TRUNC",
     typeop_flags::FLOATINGPOINT_OP,
     "ftrunc",
     Int,
@@ -2570,7 +2570,7 @@ functional_unary_op!(
 functional_unary_op!(
     TypeOpFloatCeil,
     CPUI_FLOAT_CEIL,
-    "FLOAT_CEIL",
+    "CEIL",
     typeop_flags::FLOATINGPOINT_OP,
     "fceil",
     Float,
@@ -2580,7 +2580,7 @@ functional_unary_op!(
 functional_unary_op!(
     TypeOpFloatFloor,
     CPUI_FLOAT_FLOOR,
-    "FLOAT_FLOOR",
+    "FLOOR",
     typeop_flags::FLOATINGPOINT_OP,
     "ffloor",
     Float,
@@ -2590,7 +2590,7 @@ functional_unary_op!(
 functional_unary_op!(
     TypeOpFloatRound,
     CPUI_FLOAT_ROUND,
-    "FLOAT_ROUND",
+    "ROUND",
     typeop_flags::FLOATINGPOINT_OP,
     "fround",
     Float,
