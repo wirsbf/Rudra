@@ -262,8 +262,9 @@ Rugra models the split with:
   walk holds that lock across its unit loop).
 - `libc_type_resolution_index(type_names)` — the base-spelling map
   `locked_proto` parses every ledger spelling through: the DWARF
-  named-type index with `FILE` overridden to the archive struct (every
-  other spelling — `stat`, `size_t`, ... — keeps the DWARF resolution).
+  named-type index with `FILE` overridden to the archive struct (`size_t`
+  and every other spelling keeps the DWARF resolution; `stat` joins the
+  override list below).
 - `remap_external_clib_file_pointer` (inside `DebugGlobalDatabase::parse_elf`)
   — extern FILE\* declarations (stdin/stdout/stderr) enter the archive
   domain; subprogram parameters and struct fields keep the DWARF FILE.
@@ -273,6 +274,49 @@ httpd is unaffected: its driver resolves its own import ledger through
 stripped, no DWARF competitor), and the httpd canon face is byte-stable
 across this change. The mirror faces are bare-load (no libc ledger, no
 DWARF seeds) and equally unaffected.
+
+### The archive stat domain (`CURLCANON-CASTA-STAT-0001`, 2026-09-28)
+
+The locked golden's `__xstat` call sites prove the same two-domain split
+for `stat` (PROTOCAST43 §③ root R1): golden prints
+`__xstat(1,x,(stat *)&fileinfo)` (main:797/:878, getparameter:2105) — the
+signature's `stat *` and the local's DWARF `stat *` are distinct objects,
+so `castStandard`'s pointer-identity early-exits (cast.cc:304/:329) do not
+fire and the struct default arm (:387) casts. Rugra resolved the ledger's
+`stat` spelling through the DWARF name index, collapsing signature param
+and local to one interned object (`&fileinfo`, no cast). The fix follows
+the FILE precedent verbatim:
+
+- `clib_stat_types()` — a process-wide OnceLock holding the archive stat
+  struct (glibc x86-64 bits/stat.h, 144 bytes / 15 fields:
+  st_dev@0 .. __glibc_reserved[3]@120, the ABI form curl's own DWARF
+  `<444>` struct stat carries) plus its factory-interned pointer. Built
+  standalone (never name-interned), so the DWARF `stat` (interned by
+  `struct_type`) and the archive `stat` stay distinct objects;
+  `TypeStruct::compare` (type.cc:1742-1780) orders the equal-shape pair
+  by object id — the tie the locked oracle's own two same-header-derived
+  stat objects also hold.
+- `libc_type_resolution_index` now overrides `stat` alongside `FILE`;
+  every other spelling keeps the DWARF resolution.
+
+canon curl moved 110→95 (−15) with the three `(stat *)` sites converged
+plus main's line reflow back to the golden wrap; httpd byte-stable.
+
+### DWARF cv-qualifier strip (`CURLCANON-CASTA-CONST-0001`, 2026-09-28)
+
+The locked goldens carry ZERO `const`/`volatile`/`restrict` tokens across
+all six corpora (curl 11.3.2/1204, httpd, sq, sqlite, vsh): the oracle's
+DWARF front end drops qualifier wrappers at import. my_get_token's DWARF
+`const char *` param chain (0x3ca ptr → 0x186 const → char,
+readelf-verified) prints as `char * my_get_token(char *line)` with
+`(char *)0x0` constant casts (golden :1213/:1226/:1603). Rugra's
+`resolve_type` used to mint an `alias_type("const char", char)` — an
+independent qualifier object as the prototype's req, printing
+`const char *` signatures and `(const char *)0x0` casts. The qualifier
+arm now strips to the underlying type (a qualifier DIE with no
+`DW_AT_type` is cv-qualified void → the canonical `void_type()`); corpus
+witnesses: the dead glibc `memcpy` decl chain (restrict→ptr→const-void)
+and curl's 10 const / 7 restrict DIEs, none of which reach output.
 
 Supporting parsers: `split_parameter_list` / `split_declaration` split the
 comma-separated `TYPE NAME` declarations (the trailing identifier run is the
