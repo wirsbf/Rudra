@@ -619,3 +619,30 @@ self）保留不变。PartialUnion 的流内解析一律走 unionresolve.rs 自�
   变体无关字段写 seam（Ghidra 从 TypeFactory 方法直接赋公开成员）。
 - `Datatype::find_resolve` 文档修正：删除"override 已加在各 variant 上"
   的不实声明，明确 override 在 unionresolve.rs 自由函数。
+
+## 2026-09-27 — `pointer_is_ptrsub_matching` STRUCT 臂 1:1 重写（CANON-ARRIDX-MEMBERFORM-0001 子根 b，wt/arridx）
+
+`TypePointer::isPtrsubMatching` TYPE_STRUCT 臂（type.cc:1145-1166）按 oracle 语句序
+重写，消除两处移植偏差（curl canon 亲证：splitstore 忠实产出
+`PTRSUB(bar,0x1c)` 后，`ActionSetCasts` 的 demote 检查
+（coreaction.cc:2747-2755，coreaction.rs:7846-7877 移植）误杀该 PTRSUB，
+`setcasts` 把它改写回 `CAST/INT_ADD/CAST`——canon 残差
+`*(undefined4 *)((long)bar + 0x1c)` 与 `((long)(config + -1) + 0x12f))`
+（含多右括号语法缺陷）即此）：
+
+- **命中分支补 `newoff != 0` 拒绝**（type.cc:1153-1155）：getSubType 命中包含
+  偏移的组件时，PTRSUB 必须恰好落在组件起始；旧移植丢弃 `sub_newoff`。
+- **未命中分支改折叠判定**（type.cc:1161-1165）：无组件包含偏移（无名空洞/
+  尾 padding）时，oracle 把 `extra += newoff` 折叠后仅当
+  `(extra < 0 || extra >= typesize) && typesize != 0` 才拒绝；旧移植误走
+  `test_for_array_slack(ptrto, extra_b)`（那是 oracle 命中分支 extra 越界的
+  兜底路径，不是未命中路径）。ProgressData{total@0,prev@8,point@16,width@24}
+  size 32 的尾 padding [28,32) 现按 oracle 接受 → `&bar->field_0x1c`。
+- multiplier 边界检查改 signed 比较（`mult >= align_size as i64`，type.cc:1147
+  的 int8 vs 提升 int4 语义；负 multiplier 通过，旧 `as usize` 包装会误拒）。
+
+消费门禁（`RulePtrsubUndo` ruleaction.cc:7138、`ActionSetCasts`
+coreaction.cc:2748）经同一函数读到与 oracle 一致的判定。新增单测
+`test_pointer_is_ptrsub_matching_struct_hole_and_tail`（ProgressData fixture：
+尾 padding 接受/字段起始接受/字段中间拒绝/越界拒绝/extra 越界无 array slack
+拒绝/multiplier 边界 signed 语义）。
