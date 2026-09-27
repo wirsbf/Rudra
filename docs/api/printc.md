@@ -621,7 +621,9 @@ StringManager。本次替换为 `constant_leaf_text`（`&mut self`，持 vn/op�
   （pushCharConstant cc:1606-1654），`isEnumType()` → `enum_constant_text`
   （pushEnumConstant cc:1666-1687 的 exact-member 切片），否则
   `integer_text`（cc:1288-1368，signed 求补、hex/dec 自然底判定）。
-- `TYPE_UNKNOWN` → `integer_text`；`TYPE_BOOL` → `true/false`
+- `TYPE_UNKNOWN` → `integer_text`（cc:1766-1768 纯整型，**无符号查询**——
+  queryFunction 门是 TYPE_PTR→TYPE_CODE 专属 cc:1786-1788，
+  PRINTC-UNTYPEDCONST-CODEQUERY-0001）；`TYPE_BOOL` → `true/false`
   （pushBoolConstant cc:1488-1495）。
 - `TYPE_PTR`/`TYPE_PTRREL`（cc:1775-1790）：`option_NULL && val==0` →
   `NULL` token；ptr-to charPrint → `ptr_char_constant_text`
@@ -2924,11 +2926,26 @@ httpd L1 破零车道（wt/l1zero）。canon golden（analyzeHeadless 产物）�
 `queryFunction` → displayName 原子）。Rugra 打印侧叶片追查绕过携带注解的
 SSA varnode（legacy value_def_map 侧表），常量叶片可能无类型到达。三处落地：
 
-- **`constant_leaf_text` 的 None/Unknown 臂**接 `code_entry_constant_text`
-  （RUGRA-GLUE，driver-transport 包装：sentinel `code*` 指针类型走既有
-  `ptr_code_constant_text` 的 cc:1730 解析链，无 cast 前缀）；同时在
-  read-facing high 缺答时回退咨询 `vn.v_type`（驱动参数锁注解的落点）。
-  仅函数入口地址解析成功，整数常量保持 hex/dec 形态。
+- **`constant_leaf_text` 的 None/Unknown 臂**（PRINTC-UNTYPEDCONST-CODEQUERY-0001
+  修订）：oracle 该两臂是**纯 `push_integer`**（printc.cc:1766-1768 TYPE_UNKNOWN /
+  cc:1744-1816 无 None 形——`Funcdata::newConstant` 给每个常量
+  TYPE_UNKNOWN 基型），**不做任何符号查询**；`queryFunction` 门是
+  TYPE_PTR→TYPE_CODE 专属（cc:1786-1788 → `pushPtrCodeConstant`
+  cc:1730-1742）。曾在此两臂接 `code_entry_constant_text`
+  （HTTPD-CODEREF-SYMBOLIZE-0001 transport，RUGRA-GLUE 包装 sentinel
+  `code*` 走 cc:1730 解析链）——GEN-CODEPTR-SYMBOLIZE-0001 装上 print-DB
+  后揭出其为预存偏差：值与注册函数入口碰撞的整型常量被误印函数名（sq
+  `write_file`: `mknod(V,0x6000,…)` mode 位 0x6000==`_init`@0x6000，golden
+  印 `0x6000`）。已删除；read-facing high 缺答时回退咨询 `vn.v_type`
+  （驱动参数锁注解的落点）保留。oracle 真值（locked-oracle 探针亲证，
+  sqlite3FixInit）：LEA 派生的函数地址常量经 **ActionConstantPtr**
+  （coreaction.cc:1070-1217 `isPointer`→`queryContainer`）→
+  `Funcdata::spacebaseConstant`（funcdata.cc:360-462）改写为
+  `PTRSUB(#0x0[spacebase* typelock], off)` 且 offset 常量的 high 携带
+  FunctionSymbol → `op_ptrsub` TYPE_SPACEBASE 臂（printc.cc:1057-1097）
+  `pushSymbol` 印裸名——**函数名从不经 pushConstant 无类型臂**；该链要求
+  符号 DB 在 action 管线**之前**可用（gen 驱动 print-only 后装 DB 使
+  ActionConstantPtr 恒 miss，见 GEN-CONSTPTR-ANALYSISDB-0001）。
 - **`op_ptrsub` 的 TYPE_SPACEBASE 臂补 cc:1068-1069**
   （`PRINTC-SPACEBASE-TYPECODE-0001` 解锁）：容器命中符号的 metatype 为
   CODE 时 `valueon = true`——函数符号不打 `&`（canon
