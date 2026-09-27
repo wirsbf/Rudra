@@ -174,6 +174,9 @@ Manager for all the major decompiler subsystems. Faithful to `Architecture`
 | `tracked_set_map` | `TrackedSetMap` | pspec `<context_data>` tracked partitions — stand-in for `ContextInternal::trackbase` (globalcontext.hh:284) behind `Architecture::context`, fed by `decode_context_data` (ARCH-CONTEXT-TRACKED-0001). |
 | `context_set_children_skipped` | `usize` | `<context_set>` children consumed but not decoded (low-level SLEIGH context blob, SLEIGH-0002C residual). |
 | `allacts` | `Option<Arc<RwLock<ActionDatabase>>>` | `allacts` (architecture.hh:212) — root Action database. Ghidra embeds by value; Rugra defers to `build_action()` behind a shared lock so option appliers can mutate the current root through `&mut Architecture` (options.cc:1008-1015), OPTIONS-SPLITDATATYPE-WIRING-0002. |
+| `stack_pointer_full_space` / `stack_pointer_full_offset` / `stack_pointer_full_size` | `AddressSpace` / `u64` / `usize` | `SpacebaseSpace::baseOrig` (translate.hh:178) — the ORIGINAL (untruncated) stack-pointer register behind `getSpacebaseFull(0)` (translate.cc:118-124). Identical to the `stack_pointer_*` triple while the base space is untruncated (TRUNCSPACE-COREACT2-R2-0001). |
+| `default_code_space` | `AddressSpace` | `defaultcodespace` (translate.hh:226, `getDefaultCodeSpace` translate.hh:505-507) — enum-model stand-in: the locked x86-64 production code space `ram`. |
+| `space_truncations` | `Vec<(String, u32)>` | Applied `<truncate_space>` commands in application order (enum-model projection of the per-`AddrSpace` state `AddrSpace::truncateSpace` mutates, space.cc:105-112; applied via `AddrSpaceManager::truncateSpace` translate.cc:776-783 from `SleighArchitecture::modifySpaces` sleigh_arch.cc:423-430 over the `.ldefs` records sleigh_arch.cc:86-89). |
 | `stack_reverse_justify` | `bool` | `<stackpointer reversejustify>` (`setReverseJustified`, architecture.cc:566). |
 
 **Methods:** `new()`, `reset_defaults_internal()` (architecture.cc:1416),
@@ -192,7 +195,23 @@ registered residual ARCH-PARSEEXTRARULES-0001), `get_model(name)`, `has_model(na
 (architecture.cc:812), `add_to_global_scope(props, host)`
 (architecture.cc:826), `add_other_space(host)` (architecture.cc:847),
 `decode_return_address(decoder, host)` (architecture.cc:898),
-`decode_stack_pointer(decoder, host)` (architecture.cc:979),
+`decode_stack_pointer(decoder, host)` (architecture.cc:979 — with the
+cc:1007-1011 truncated-base-space guard live: `truncSize` collapses to the
+base space's truncated address size, splitting `baseloc` from `baseOrig`
+per `SpacebaseSpace::setBaseRegister` translate.cc:86-102, LE register
+spaces keep the unshifted offset),
+`truncate_space(space_name, newsize) -> Result<(), String>`
+(AddrSpaceManager::truncateSpace, translate.cc:776-783),
+`space_is_truncated(spc)` (AddrSpace::isTruncated, space.hh:462 —
+enum-model projection of the TRUNCATED flag),
+`space_addr_size(spc)` (AddrSpace::getAddrSize post-truncation read,
+space.hh:348), `get_default_code_space()`
+(AddrSpaceManager::getDefaultCodeSpace, translate.hh:505-507),
+`stack_space_num_spacebase()` (SpacebaseSpace::numSpacebase,
+translate.cc:104-108), `stack_space_get_spacebase(i)`
+(SpacebaseSpace::getSpacebase, translate.cc:110-116 — `baseloc`),
+`stack_space_get_spacebase_full(i)` (SpacebaseSpace::getSpacebaseFull,
+translate.cc:118-124 — `baseOrig`),
 `decode_proto_eval(decoder)` (architecture.cc:769),
 `decode_no_high_ptr(decoder, host)` (architecture.cc:1086),
 `decode_prefer_split(decoder, host)` (architecture.cc:1101),
@@ -576,3 +595,34 @@ sz4 flag-web 同址保持裸常量 + sz8 无容器 miss 四例 MATCH）。
 write-through——范围无条件落全局 scope 的 space-keyed ScopeRangeTree，含
 register 窗口；仅 `infer_ptr_spaces` 列表排除寄存器空间）。两通道均为
 oracle 语义，互不冲突。
+
+## 2026-09-27（Lane TRUNCSPACE）— 截断地址空间管道（COREACT2 残差②收口）
+
+COREACT2 残差②（`/dev/shm/rugra-reports/LANE_COREACT2_2026-09-27.md`）声明的
+"truncated 空间管道缺失"收口：oracle 链路 `.ldefs` `<truncate_space>` 记录
+（`LanguageDescription::decode` sleigh_arch.cc:86-89）→
+`SleighArchitecture::modifySpaces`（sleigh_arch.cc:423-430）→
+`AddrSpaceManager::truncateSpace`（translate.cc:776-783，按名查找 + 未知名
+LowlevelError）→ `AddrSpace::truncateSpace`（space.cc:105-112：TRUNCATED 旗标
++ addressSize/minimumPointerSize = newsize + calcScaleMask）现在以
+枚举空间模型投影落地在 Architecture 上：
+
+- `truncate_space(name, newsize)`：管理器按名应用入口（名字经
+  `AddressSpace::from_spec_name` 解析，"OTHER" 规范化为枚举名存储；重截断
+  覆盖生效尺寸——oracle 对同一空间记录重跑 `AddrSpace::truncateSpace`）。
+- `space_is_truncated`/`space_addr_size`：`isTruncated()`/`getAddrSize()`
+  的截断后读数投影。
+- `decode_stack_pointer` 的 cc:1007-1011 守卫转真：截断基空间 +
+  `point.size > getAddrSize()` 时 truncSize 收缩为截断尺寸，`baseloc`
+  （`stack_pointer_*`）与 `baseOrig`（`stack_pointer_full_*`）分离
+  （translate.cc:95-101；大端寄存器空间的 offset 上移臂保留公式，枚举
+  register 空间恒 LE 故在可表达语料内休眠）。
+- `stack_space_num_spacebase`/`stack_space_get_spacebase(_full)`：
+  `getStackSpace()` 的 spacebase 访问面（translate.cc:104-124）。
+
+运行期消费端在 coreaction.rs `ActionPrototypeTypes::apply` 的
+cc:4653-4674 ZEXT 物化块（见 docs/api/coreaction.md 同日条目）。x86-64:LE:64
+语言无 `<truncate_space>` 记录 → 语料双侧休眠（oracle 同死）。
+space.rs 侧 `AddrSpace::truncate_space`/`SpaceRegistry::truncate_space`/
+spacebase full-truncated 对在本车道前已 1:1，本车道补的仅为枚举模型侧
+反查 `AddressSpace::from_spec_name`（translate.cc:590-597 反表）。

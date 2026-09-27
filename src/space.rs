@@ -261,6 +261,27 @@ impl AddressSpace {
         }
     }
 
+    // Ghidra: translate.cc:590 AddrSpaceManager::getSpaceByName
+    /// Reverse of [`Self::spec_space_name`] for the enum space model: resolve
+    /// a spec space name (the names `AddrSpaceManager::getSpaceByName`
+    /// (translate.cc:590-597) finds in the live translator's space table)
+    /// to its enum variant. "fspec" has no enum variant (the fspec space is
+    /// reached through `SPACEID_*` handles), and dynamic/overlay names are
+    /// unknown to the model, so both return `None` (Ghidra: null).
+    pub fn from_spec_name(name: &str) -> Option<AddressSpace> {
+        match name {
+            "const" => Some(AddressSpace::Const),
+            "OTHER" => Some(AddressSpace::Other(SPACEID_OTHER)),
+            "unique" => Some(AddressSpace::Unique),
+            "ram" => Some(AddressSpace::Ram),
+            "register" => Some(AddressSpace::Register),
+            "iop" => Some(AddressSpace::Iop),
+            "join" => Some(AddressSpace::Join),
+            "stack" => Some(AddressSpace::Stack),
+            _ => None,
+        }
+    }
+
     // Ghidra: space.hh AddrSpace::isHeritaged
     /// Is this space heritaged (subject to SSA phi-placement)? Faithful to
     /// `AddrSpace::isHeritaged()` (space.hh). Ghidra's IPTR_CONSTANT,
@@ -3437,6 +3458,49 @@ mod tests {
         assert_eq!(AddressSpace::Register.space_id(), SPACEID_REGISTER);
         assert_eq!(AddressSpace::Unique.space_id(), SPACEID_UNIQUE);
         assert_eq!(AddressSpace::Const.space_id(), SPACEID_CONST);
+    }
+
+    #[test]
+    fn test_address_space_from_spec_name() {
+        // AddrSpaceManager::getSpaceByName (translate.cc:590-597) reverse
+        // table for the enum model: every locked spec name resolves, other
+        // names (including dynamic/overlay names and the variant-less
+        // "fspec") return None.
+        assert_eq!(
+            AddressSpace::from_spec_name("ram"),
+            Some(AddressSpace::Ram)
+        );
+        assert_eq!(
+            AddressSpace::from_spec_name("register"),
+            Some(AddressSpace::Register)
+        );
+        assert_eq!(
+            AddressSpace::from_spec_name("stack"),
+            Some(AddressSpace::Stack)
+        );
+        assert_eq!(
+            AddressSpace::from_spec_name("unique"),
+            Some(AddressSpace::Unique)
+        );
+        assert_eq!(
+            AddressSpace::from_spec_name("const"),
+            Some(AddressSpace::Const)
+        );
+        assert_eq!(
+            AddressSpace::from_spec_name("join"),
+            Some(AddressSpace::Join)
+        );
+        assert_eq!(
+            AddressSpace::from_spec_name("iop"),
+            Some(AddressSpace::Iop)
+        );
+        assert_eq!(
+            AddressSpace::from_spec_name("OTHER"),
+            Some(AddressSpace::Other(SPACEID_OTHER))
+        );
+        assert_eq!(AddressSpace::from_spec_name("fspec"), None);
+        assert_eq!(AddressSpace::from_spec_name("overlay"), None);
+        assert_eq!(AddressSpace::from_spec_name("nosuch"), None);
     }
 
     #[test]

@@ -598,3 +598,15 @@ UB-邻接行为（Rust 在查名点拒绝）。
 - `pub fn spec_space_name`（RUGRA-GLUE）：按索引给空间名
   （override.cc:51-56 消息路径用 `getSpace(i)->getName()`；SLEIGH `.sla`
   名为大写 "OTHER"，与 `AddressSpace::name` 的小写 debug 形态不同）。
+
+## `from_spec_name`（TRUNCSPACE-COREACT2-R2-0001，2026-09-27）
+
+- `pub fn from_spec_name(name: &str) -> Option<AddressSpace>`（RUGRA-GLUE）：
+  `AddrSpaceManager::getSpaceByName`（translate.cc:590-597）的枚举模型反表——
+  活跃 translator 空间表中的锁定 spec 名（`spec_space_name` 的逆）解析为枚举
+  变体。"fspec" 无枚举变体（fspec 空间经 `SPACEID_*` 句柄到达）、动态/overlay
+  名模型未知 → `None`（Ghidra: null）。消费端：`Architecture::truncate_space`
+  （translate.cc:776-783 按名截断命令的未知名 LowlevelError 判定）。截断空间
+  管道其余件（`AddrSpace::truncate_space` space.cc:105-112、
+  `SpaceRegistry::truncate_space`、`get_spacebase`/`get_spacebase_full`
+  translate.cc:110-124）在本车道前已 1:1。

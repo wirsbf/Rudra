@@ -11849,11 +11849,13 @@ impl ActionPrototypeTypes {
 impl Action for ActionPrototypeTypes {
     // Ghidra: coreaction.cc:4609 ActionPrototypeTypes::apply
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
-        // Partial ActionPrototypeTypes::apply (coreaction.cc:4609-4699).
+        // Partial ActionPrototypeTypes::apply (coreaction.cc:4609-4705).
         // 1. Set evaluation prototype if not locked
         // 2. Strip indirect register from RETURN ops (replace input(0) with constant 0)
         // 3. If output locked: insert return varnodes for each RETURN
         // 4. Else: init active output gathering
+        // 5. Truncated default-code-space: zext the truncated stack pointer
+        //    into the full stack pointer at the entry block (cc:4653-4674)
 
         // Step 1 (coreaction.cc:4615-4619, PLTSTUB-WARNLOSS-0001 adjudication):
         //   ProtoModel *evalfp = data.getArch()->evalfp_current;
@@ -11982,19 +11984,80 @@ impl Action for ActionPrototypeTypes {
             fd.init_active_output();
         }
 
-        // Ghidra coreaction.cc:4653-4674: truncated-code-space stack-pointer
-        // ZEXT materialization. Documented projection (WORKPKG-UNMAP-
-        // COREACT-0002): the block is guarded by
-        // `spc = getArch()->getDefaultCodeSpace(); spc->isTruncated()`; the
-        // locked x86-64 production corpus (and every Rugra corpus so far)
-        // runs untruncated spaces, so the oracle block is dead there too.
-        // Rugra's Architecture does not yet carry the default-code-space
-        // AddrSpace handle at this call site (printc reaches it through the
-        // SpaceManager, which Funcdata-side actions cannot resolve), so the
-        // guard projects to its constant false arm — zero iterations,
-        // identical observable behavior on every representable corpus. The
-        // fix path (truncate-aware space plumbing) is registered on the
-        // WORKPKG-UNMAP-COREACT-0002 residual list.
+        // Step 5 (coreaction.cc:4653-4674): truncated default-code-space —
+        // for truncated spaces we need a zext op, from the truncated stack
+        // pointer into the full stack pointer, at the entry block, for
+        // every spacebase register of the stack space.
+        // cc:4653-4654: spc = data.getArch()->getDefaultCodeSpace();
+        // if (spc->isTruncated()) — enum-model projection of the TRUNCATED
+        // flag applied by AddrSpaceManager::truncateSpace
+        // (translate.cc:776-783, fed from the .ldefs `<truncate_space>`
+        // records via SleighArchitecture::modifySpaces, sleigh_arch.cc:
+        // 423-430); the locked x86-64:LE:64 language defines none, so the
+        // block stays dormant on the production corpus exactly like the
+        // oracle.
+        let arch_arc = fd.get_arch().map(|a| a.clone());
+        if let Some(arch) = arch_arc {
+            if arch.space_is_truncated(arch.get_default_code_space()) {
+                // cc:4657: stackspc = data.getArch()->getStackSpace() —
+                // always present (the formal stack space is synthesized by
+                // decodeStackPointer/addSpacebase, architecture.cc:1013).
+                // cc:4658-4660: topbl = (BlockBasic *)0;
+                // if (data.getBasicBlocks().getSize() > 0)
+                //   topbl = data.getBasicBlocks().getBlock(0);
+                let topbl: Option<
+                    std::sync::Arc<
+                        std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+                    >,
+                > = if fd.bblocks.get_size() > 0 {
+                    fd.bblocks.get_block(0)
+                } else {
+                    None
+                };
+                // cc:4661: if ((stackspc != 0)&&(topbl != 0)) — the stack
+                // space is never null here (see above).
+                if let Some(ref topbl) = topbl {
+                    // cc:4662: for(int4 i=0;i<stackspc->numSpacebase();++i)
+                    for i in 0..arch.stack_space_num_spacebase() {
+                        // cc:4663-4664: fullReg = getSpacebaseFull(i);
+                        // truncReg = getSpacebase(i);
+                        let (Some((full_space, full_off, full_size)),
+                             Some((trunc_space, trunc_off, trunc_size))) = (
+                            arch.stack_space_get_spacebase_full(i),
+                            arch.stack_space_get_spacebase(i),
+                        )
+                        else {
+                            continue;
+                        };
+                        // cc:4665-4666: Varnode *invn =
+                        // data.newVarnode(truncReg.size, truncReg.getAddr());
+                        // invn = data.setInputVarnode(invn);
+                        let raw =
+                            fd.vbank
+                                .create_with_space(trunc_size, trunc_space, trunc_off);
+                        crate::heritage::Heritage::apply_new_varnode_flags(fd, &raw);
+                        let invn = fd.set_input_varnode(raw);
+                        // cc:4667-4671: extop = data.newOp(1,topbl->getStart());
+                        // data.newVarnodeOut(fullReg.size,fullReg.getAddr(),extop);
+                        // data.opSetOpcode(extop,CPUI_INT_ZEXT);
+                        // data.opSetInput(extop,invn,0);
+                        // data.opInsertBegin(extop,topbl);
+                        let start_addr =
+                            topbl.read().unwrap().get_start_addr();
+                        let extop = fd.new_op(1, start_addr);
+                        fd.new_varnode_out_full(
+                            full_size,
+                            full_space,
+                            crate::address::Address::new(full_off),
+                            &extop,
+                        );
+                        fd.op_set_opcode(&extop, crate::opcodes::OpCode::CPUI_INT_ZEXT);
+                        fd.op_set_input(&extop, invn, 0);
+                        fd.op_insert_begin(&extop, topbl);
+                    }
+                }
+            }
+        }
 
         // Ghidra coreaction.cc:4676-4703: force locked inputs to exist as
         // varnodes — a big locked input can survive with only a piece in
@@ -12003,11 +12066,22 @@ impl Action for ActionPrototypeTypes {
         // FuncProto lacking the resolved model) is obsolete: both carriers
         // exist now, so the loop and extendInput are ported.
         if fd.funcp.is_input_locked() {
-            // cc:4684: ptr_size = spc->isTruncated() ? spc->getAddrSize() : 0.
-            // With the truncation guard projecting to false (above), the
-            // pointer-trimming term is 0, matching the oracle on untruncated
-            // spaces.
-            let ptr_size = 0usize;
+            // cc:4684: ptr_size = spc->isTruncated() ? spc->getAddrSize() : 0
+            // — pointer-trimming term; spc is the same default code space
+            // resolved once at cc:4653 above (TRUNCSPACE lane rewire: the
+            // coreact2-era constant-0 projection now reads the real
+            // truncation state through the arch accessors).
+            let ptr_size = fd
+                .get_arch()
+                .map(|arch| {
+                    let spc = arch.get_default_code_space();
+                    if arch.space_is_truncated(spc) {
+                        arch.space_addr_size(spc) as usize
+                    } else {
+                        0
+                    }
+                })
+                .unwrap_or(0);
             let topbl: Option<
                 std::sync::Arc<
                     std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
@@ -12043,7 +12117,7 @@ impl Action for ActionPrototypeTypes {
                     Self::extend_input(fd, &vn, &param, topbl);
                 }
                 // cc:4697-4701: pointer trimming on truncated spaces —
-                // ptr_size is 0 on every untruncated corpus (see above).
+                // ptr_size is 0 on every untruncated corpus (guard above).
                 if ptr_size > 0 {
                     let ct = &param.data_type;
                     if ct.get_metatype() == crate::type_system::datatype::TypeMetatype::Pointer
@@ -22663,6 +22737,88 @@ mod tests {
         assert_eq!(in0.size, 1);
         // Idempotence shape: a second apply inserts a second COPY (Ghidra
         // has no guard either), so only the single-run form is pinned here.
+    }
+
+    // Ghidra: coreaction.cc:4653-4674 ActionPrototypeTypes::apply
+    /// Truncated default-code-space stack-pointer ZEXT materialization:
+    /// with the ram space truncated (a `<truncate_space>` language
+    /// command applied through the manager chain,
+    /// AddrSpaceManager::truncateSpace translate.cc:776-783), the entry
+    /// block gets one INT_ZEXT per stack spacebase, reading the truncated
+    /// stack pointer (getSpacebase(0), size 4) as an input varnode and
+    /// defining the full register (getSpacebaseFull(0), size 8), inserted
+    /// at the block head (opInsertBegin).
+    #[test]
+    fn test_prototypetypes_truncated_stack_zext() {
+        let mut arch = crate::arch::Architecture::new();
+        // Language-side truncation (modifySpaces → truncateSpace).
+        arch.truncate_space("ram", 4).unwrap();
+        // decodeStackPointer state for the truncated ram (cc:1007-1011):
+        // baseloc = RSP@0x20 size 4 (LE: no offset shift), baseOrig size 8.
+        arch.stack_pointer_size = 4;
+        arch.stack_pointer_full_size = 8;
+
+        let mut fd = Funcdata::new("t", crate::address::Address::new(0x403000), 0x40);
+        fd.set_arch(std::sync::Arc::new(arch));
+        let b0 = std::sync::Arc::new(std::sync::RwLock::new(crate::block::BlockBasic::new(
+            0, crate::address::Address::new(0x403000),
+        )));
+        fd.bblocks.add_block(b0.clone());
+        // One pre-existing op: the ZEXT must land at the HEAD
+        // (opInsertBegin, cc:4671).
+        let pre = fd.new_op(1, crate::address::Address::new(0x403000));
+        fd.op_set_opcode(&pre, OpCode::CPUI_STORE);
+        fd.op_insert_end(&pre, &fd.bblocks.get_block(0).unwrap());
+        assert_eq!(b0.read().unwrap().ops.len(), 1);
+
+        let mut action = ActionPrototypeTypes::new();
+        action.apply(&mut fd).unwrap();
+
+        let ops = b0.read().unwrap().ops.clone();
+        assert_eq!(ops.len(), 2, "exactly one ZEXT per stack spacebase");
+        let zext = ops[0].0.read().unwrap();
+        assert_eq!(zext.opcode, OpCode::CPUI_INT_ZEXT, "ZEXT at block head");
+        let out_arc = zext.output.clone().expect("ZEXT output");
+        let in0_arc = zext.inrefs[0].clone();
+        drop(zext);
+        // cc:4663: fullReg = getSpacebaseFull(0) — the 8-byte RSP.
+        let out = out_arc.read().unwrap();
+        assert_eq!(out.get_space(), crate::space::AddressSpace::Register);
+        assert_eq!(out.get_offset(), 0x20);
+        assert_eq!(out.get_size(), 8);
+        // cc:4664-4666: truncReg = getSpacebase(0) — the 4-byte truncated
+        // stack pointer, materialized as an INPUT varnode.
+        let in0 = in0_arc.read().unwrap();
+        assert_eq!(in0.get_space(), crate::space::AddressSpace::Register);
+        assert_eq!(in0.get_offset(), 0x20);
+        assert_eq!(in0.get_size(), 4);
+        assert!(in0.is_input(), "truncated stack pointer is an input");
+    }
+
+    // Ghidra: coreaction.cc:4653-4674 ActionPrototypeTypes::apply
+    /// The dormant arm: without a truncation command the block must not
+    /// touch the function (zero new ops), matching the locked x86-64
+    /// production corpus where no `<truncate_space>` record exists.
+    #[test]
+    fn test_prototypetypes_untruncated_no_zext() {
+        let arch = crate::arch::Architecture::new();
+        let mut fd = Funcdata::new("t", crate::address::Address::new(0x403000), 0x40);
+        fd.set_arch(std::sync::Arc::new(arch));
+        let b0 = std::sync::Arc::new(std::sync::RwLock::new(crate::block::BlockBasic::new(
+            0, crate::address::Address::new(0x403000),
+        )));
+        fd.bblocks.add_block(b0.clone());
+        let pre = fd.new_op(1, crate::address::Address::new(0x403000));
+        fd.op_set_opcode(&pre, OpCode::CPUI_STORE);
+        fd.op_insert_end(&pre, &fd.bblocks.get_block(0).unwrap());
+
+        let mut action = ActionPrototypeTypes::new();
+        action.apply(&mut fd).unwrap();
+        assert_eq!(
+            b0.read().unwrap().ops.len(),
+            1,
+            "untruncated code space: no ZEXT materialized"
+        );
     }
 
 
