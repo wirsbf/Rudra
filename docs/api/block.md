@@ -2035,3 +2035,17 @@ sqlite 209/211（残 2=上游 CAST 链）、canon 双语料与 master 字节恒�
 （cfg(test) 零生产行为）、bank 391/391、cargo test --lib 1935P/0F（亲父
 1933+2 新）。逐函数归因与门探针全表见 TODO_BOARD F8FOR-REJECT-RESIDUAL-0001
 行与 LANE_F8FOR_2026-09-27.md 终报。
+
+## 2026-09-28：for_loop_final_transform 槽位注记更正（INITEXTRACT-PIPE-SLOT-0001，Lane INITEXTRACT）
+
+`for_loop_final_transform`（本文件，blockaction.cc:2110 图入口）的调度点
+自 2026-09-26 起错挂在 blockaction.rs ActionFinalStructure（:5736），其
+头注「lane-frozen write-set, currently a no-op」已过时——本日恢复 oracle
+槽位：**coreaction.rs `ActionStructureTransform::apply`（:5715）**，在
+merge 组（:5717-:5729）与 ActionSetCasts（:5735）之前。判决门
+`isMoveable`（block.cc:3197，经 `while_do_find_loop_variable`）必须读
+原始 iterate op：setcasts 会把 LOAD 型 iterate 包装成 CAST 使门翻转
+（ap_fini_vhost_config fixture，oracle drill 2026-09-28）。2026-09-26 的
+「放置无行为差」登记（上方放置偏差段）被该 fixture 证伪并作废。本文件
+零行为改动（仅头注更正）；`while_do_final_transform` /
+`while_do_find_loop_variable` / `while_do_finalize_printing` 函数体未动。

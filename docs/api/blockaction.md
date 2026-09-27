@@ -1717,3 +1717,28 @@ PRINTC-STRDATA-TYPELOCK-0001 badstring 族，ec9154a5 已修待并；并入后 =
 sqlite3BtreeOpen 复合极性（德摩根族）核对无回退。已知同族未修点（非本票写域）：
 funcdata.rs:3170 `Funcdata::setGotoBranch`（funcdata_block.cc:305-313）对结构块
 同样走非镜像 `set_out_edge_flag` —— 登记 TODO 邻接注记。
+
+## 2026-09-28：finalTransform 扫描撤出 ActionFinalStructure（INITEXTRACT-PIPE-SLOT-0001，Lane INITEXTRACT）
+
+**根因（双侧钉死）**：2026-09-26 HTTPDMAIN-F8-FORLOOP-0001 把 for 循环
+finalTransform 扫描（`for_loop_final_transform`）挂进
+`ActionFinalStructure::apply`（:5736 槽）——比 oracle 位点
+（:5715 ActionStructureTransform，blockaction.cc:2110-2115）晚 21 个
+Action，晚于 **ActionSetCasts（:5735）**。for/while 判决门
+`possibleIterate->isMoveable(lastOp)`（block.cc:3197）在 oracle 时点读
+**原始 iterate op**（如 LOAD——内存读不可跨后续 STORE 移动 → 拒 → while）；
+setcasts 之后同一 φ 输入已被包装成 CPUI_CAST（寄存器直传、平凡可移），
+判决门翻转 → 错误转 for。oracle 运行时 trace（OPACTION_DEBUG,
+ap_fini_vhost_config，锁定 e40ed130）确认动作序 structuretransform(#4222,
+empty=1) → merge 组(#4223-4238) → setcasts(#4239) → finalstructure(#4240)，
+且 oracle 对 ap_fini 的 structuretransform **零变更**（判决拒绝、留 while）。
+
+**修复**：`ActionFinalStructure::apply` 撤除 `for_loop_final_transform`
+调用（恢复 oracle 五图调用序：orderBlocks → finalizePrinting →
+scopeBreak → markUnstructured → markLabelBumpUp，blockaction.cc:2186-2197），
+扫描归还 :5715 槽（见 coreaction.md 同日节与 block.md 同日节）。原放置
+声称「canon 双语料字节级无行为差」被 ap_fini fixture 证伪。
+
+**验收**：canon httpd 47→36（ap_fini 10→6 / ap_getparents 4→2 /
+ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
+（my_get_token 2→0 / parseconfig 2→0）、双跑与前置会话产物 md5 恒等。

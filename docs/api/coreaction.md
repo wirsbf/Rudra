@@ -4312,3 +4312,30 @@ master side) and `test_cast_input_return_arm_casts_to_function_output_type`
 (PROTOCAST, branch side). diff3 had aligned both parents' final `}` as common
 suffix, so the junction needed one explicit fn-close restoration — behavior
 of both tests unchanged.
+
+## 2026-09-28：ActionStructureTransform 恢复 oracle 1:1 体 + :5737 过渡钩退役（INITEXTRACT-PIPE-SLOT-0001，Lane INITEXTRACT）
+
+**根因**：for 循环 finalTransform 扫描的管线槽位错放（详见
+blockaction.md 同日节）——判决门 `isMoveable`（block.cc:3197）必须在
+setcasts（:5735）**之前**读原始 iterate op；旧挂点 :5736/:5737 都在
+setcasts 之后，LOAD 型 iterate 被 CAST 包装后平凡可移 → while 被错误
+转 for（ap_fini_vhost_config DAT_001a0828 循环）。
+
+**修复**：
+- `ActionStructureTransform::apply`（coreaction.cc:5475/:5715 位）恢复
+  Ghidra 逐字形状：`crate::block::for_loop_final_transform(fd)` =
+  blockaction.cc:2110-2115 `data.getStructure().finalTransform(data);
+  return 0;`（SLOT CONTRACT 注释在位：必须在 merge 组 :5717-:5729 与
+  setcasts :5735 之前）。
+- `ActionPrototypeWarnings::apply`（:5737）尾部过渡钩
+  `for_loop_finalize_printing(fd)` 退役（不再被管线调用）；该收窄渲染器
+  作为其实测的 test-visible shim 保留（头注 RETIRED SHIM 标记，供
+  `for_init`/`for_iter` 字符串槽单测，管线代码禁调）。其收窄
+  INT_ADD/COPY-const 门与忠实链判决不一致（收窄版拒/忠实链收，反之亦然），
+  作为 setcasts 后的 IR 突变曾是 off-oracle 分歧源。
+
+**验收**：canon httpd 47→36（ap_fini 10→6=for/while 形修复，残 6=
+声明序 2+换行位 4；ap_getparents 4→2；ap_no2slash 5→0）；canon curl
+95→91（my_get_token/parseconfig 各 −2，语句序归 golden）；双跑 md5 与
+前置会话产物恒等；oracle 亲读链：coreaction.cc:5475-5741 动作注册序 +
+blockaction.cc:2110-2115/2186-2197 + block.cc:3148-3297/3350-3436。
