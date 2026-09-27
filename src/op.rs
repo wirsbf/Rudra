@@ -776,9 +776,11 @@ impl PcodeOp {
 
     // Ghidra: op.cc:178 PcodeOp::isMoveable
     /// Can this op be moved past `point`? Faithful to `isMoveable`
-    /// (op.cc:178-274). Checks: same block, output not read before point,
+    /// (op.cc:178-271). Checks: same block, output not read before point,
     /// address-tied crossing rules, CALL crossing restrictions.
-    pub fn is_moveable(&self, point: &PcodeOp, bank: &PcodeOpBank) -> bool {
+    /// The `bank` parameter is retained for call-site compatibility; Ghidra's
+    /// method reads only `basiciter`/`parent` and no bank.
+    pub fn is_moveable(&self, point: &PcodeOp, _bank: &PcodeOpBank) -> bool {
         if std::ptr::eq(self, point) { return true; }
         let eval_type = self.get_eval_type();
         // cc:183-187: special ops
@@ -841,35 +843,50 @@ impl PcodeOp {
             let vn = inref.read().unwrap();
             if vn.is_addr_tied() { tied_list.push(inref.clone()); }
         }
-        // cc:223-269: walk ops between self and point in the same block.
-        // Ghidra uses basiciter (block-local list position); Rugra filters
-        // alivelist by parent identity and walks from self+1 to point inclusive.
-        let self_seq = &self.start;
-        let point_seq = &point.start;
-        // Collect ops in the same parent block, in alive order.
-        let mut block_ops: Vec<PcodeOpRef> = Vec::new();
-        let mut found_self = false;
-        let mut found_point = false;
-        for op_ref in &bank.alivelist {
-            let op_r = op_ref.0.read().unwrap();
-            // Same parent?
-            let op_parent = op_r.parent.as_ref().and_then(|w| w.upgrade());
-            let same_parent = match (&op_parent, &self_parent) {
-                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
-                _ => false,
+        // cc:223-269: walk the ops between self and point in the same block,
+        // in BlockBasic::ops (block) order:
+        //   biter = basiciter; do { ++biter; op = *biter; <crossing checks> }
+        //   while (biter != point->basiciter);
+        // The walk examines every op strictly after self, up to and INCLUDING
+        // point itself. The order source is the parent block's op list
+        // (`basiciter`), NOT the bank alivelist: alivelist is markAlive
+        // push_back order (op.cc:1022), which diverges from block order after
+        // mid-block insertions (markers, replacement pairs) or
+        // opUninsert/opInsert moves — walking it could skip a STORE/CALL that
+        // sits between self and point in the block, or examine an op outside
+        // the span (OP-ISMOVEABLE-WALKORDER-0001).
+        // Oracle contract: point is strictly after self (both real call sites
+        // pass the block's lastOp). Ghidra runs off the list end (undefined
+        // behavior) when point precedes self; Rugra fails closed.
+        let crossed_ops: Vec<PcodeOpRef> = {
+            // Same-parent gate above guarantees Some; mirror Ghidra's
+            // unconditional parent dereference via basiciter.
+            let parent_arc = match &self_parent {
+                Some(a) => a,
+                None => return false,
             };
-            if !same_parent { continue; }
-            if &op_r.start == self_seq { found_self = true; }
-            if &op_r.start == point_seq { found_point = true; }
-            if found_self {
-                block_ops.push(op_ref.clone());
-                if found_point { break; }
+            let guard = parent_arc.read().unwrap();
+            let bb = match guard.as_any().downcast_ref::<crate::block::BlockBasic>() {
+                Some(bb) => bb,
+                None => return false,
+            };
+            let self_idx = match self.basic_block_index(bb) {
+                Some(i) => i,
+                None => return false,
+            };
+            let point_idx = match point.basic_block_index(bb) {
+                Some(i) => i,
+                None => return false,
+            };
+            if point_idx <= self_idx {
+                return false;
             }
-        }
+            bb.ops[self_idx + 1..=point_idx].to_vec()
+        };
         // cc:224: do { ++biter; op = *biter; ... } while(biter != point->basiciter);
-        // First element is self itself (biter starts at self, then ++biter).
-        // Walk from index 1 (first op after self) until point.
-        for op_ref in block_ops.iter().skip(1) {
+        // First examined op is the op immediately after self (biter starts at
+        // self, then ++biter); the last examined op is point (inclusive).
+        for op_ref in &crossed_ops {
             let op = op_ref.0.read().unwrap();
             // cc:227-256: special op crossing rules
             if op.get_eval_type() == pcodeop_flags::SPECIAL {
@@ -918,7 +935,8 @@ impl PcodeOp {
                     if op_out.overlap(&vn) >= 0 { return false; }
                 }
             }
-            if &op.start == point_seq { break; }
+            // The inclusive range ends at point; no SeqNum-based stop needed
+            // (Ghidra's loop condition `biter != point->basiciter`).
         }
         true
     }
@@ -1986,3 +2004,134 @@ impl Default for PcodeOpBank {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Regression pins for OP-ISMOVEABLE-WALKORDER-0001.
+    //!
+    //! Ghidra `PcodeOp::isMoveable` (op.cc:223-269) walks the parent block's
+    //! op list (`basiciter`): every op strictly after self up to and including
+    //! point, in BlockBasic::ops (block) order. The bank alivelist is markAlive
+    //! push_back order (op.cc:1022) and diverges from block order after
+    //! mid-block insertions or opUninsert/opInsert moves. The fixtures below
+    //! build exactly such divergent synthetic layouts and pin the block-order
+    //! walk in both directions (missed violation / spurious violation).
+    use super::*;
+    use crate::block::BlockBasic;
+    use crate::varnode::varnode_flags;
+
+    struct WalkOrderFixture {
+        block: Arc<RwLock<BlockBasic>>,
+        bank: PcodeOpBank,
+    }
+
+    impl WalkOrderFixture {
+        /// BlockBasic with self_ref set so `insert_op` assigns op.parent
+        /// (block.cc:2266 setParent analogue) + a bank whose alivelist
+        /// records creation order (Ghidra markAlive push_back).
+        fn new() -> Self {
+            let block = Arc::new(RwLock::new(BlockBasic::new(0, Address::new(0x1000))));
+            let dyn_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> = block.clone();
+            block.write().unwrap().self_ref = Some(Arc::downgrade(&dyn_block));
+            Self { block, bank: PcodeOpBank::new() }
+        }
+
+        fn create(&mut self, opcode: OpCode, num_inputs: usize) -> PcodeOpRef {
+            self.bank.create(opcode, num_inputs, Address::new(0x1000))
+        }
+
+        fn insert_at(&self, index: usize, op: &PcodeOpRef) {
+            self.block.write().unwrap().insert_op(index, op.clone());
+        }
+    }
+
+    #[test]
+    fn is_moveable_walks_block_order_missed_store() {
+        // Block order [A(LOAD), C(STORE), B(point)]; alivelist (creation)
+        // order [A, B, C]. The STORE sits between self and point in the
+        // block but AFTER point in the alivelist. Oracle walks the block
+        // list, hits STORE with movingLoad => not moveable (op.cc:234-236).
+        // The pre-fix alivelist walk stopped at B and never examined C.
+        let mut fx = WalkOrderFixture::new();
+        let a = fx.create(OpCode::CPUI_LOAD, 2); // self: special, movingLoad
+        let b = fx.create(OpCode::CPUI_INT_ADD, 2); // point
+        let c = fx.create(OpCode::CPUI_STORE, 3); // violator
+        fx.insert_at(0, &a);
+        fx.insert_at(1, &c);
+        fx.insert_at(2, &b);
+        let a_g = a.0.read().unwrap();
+        let b_g = b.0.read().unwrap();
+        assert!(!a_g.is_moveable(&b_g, &fx.bank));
+    }
+
+    #[test]
+    fn is_moveable_walks_block_order_no_spurious_crossing() {
+        // Block order [F(STORE), D(self), E(point)]; alivelist order
+        // [D, F, E]. The STORE sits BEFORE self in the block but between
+        // self and point in the alivelist. Oracle walks the block list and
+        // never examines F => moveable. The pre-fix alivelist walk examined
+        // F (STORE with non-empty tiedList) and spuriously returned false.
+        let mut fx = WalkOrderFixture::new();
+        let d = fx.create(OpCode::CPUI_INT_ADD, 2); // self
+        let f = fx.create(OpCode::CPUI_STORE, 3);
+        let e = fx.create(OpCode::CPUI_INT_ADD, 2); // point
+        fx.insert_at(0, &f);
+        fx.insert_at(1, &d);
+        fx.insert_at(2, &e);
+        // addr-tied input on self => tiedList non-empty (op.cc:218-222)
+        let mut vn = Varnode::new(4, Address::new(0));
+        vn.set_flags(varnode_flags::ADDRTIED | varnode_flags::INSERT);
+        d.0.write().unwrap().inrefs.push(Arc::new(RwLock::new(vn)));
+        let d_g = d.0.read().unwrap();
+        let e_g = e.0.read().unwrap();
+        assert!(d_g.is_moveable(&e_g, &fx.bank));
+    }
+
+    #[test]
+    fn is_moveable_examines_point_inclusive() {
+        // Oracle do-while runs the body for biter == point->basiciter: the
+        // point op itself IS examined (op.cc:224-269). Self is LOAD
+        // (movingLoad), point IS the STORE directly after it in the block
+        // (orders agree here) => false. Guards against an off-by-one that
+        // would exclude point from the walked range.
+        let mut fx = WalkOrderFixture::new();
+        let a = fx.create(OpCode::CPUI_LOAD, 2);
+        let b = fx.create(OpCode::CPUI_STORE, 3);
+        fx.insert_at(0, &a);
+        fx.insert_at(1, &b);
+        let a_g = a.0.read().unwrap();
+        let b_g = b.0.read().unwrap();
+        assert!(!a_g.is_moveable(&b_g, &fx.bank));
+    }
+
+    #[test]
+    fn is_moveable_adjacent_normal_ops_passes() {
+        // No violating op between self and point => moveable. Both orders
+        // agree; pins the baseline pass-through path of the walk.
+        let mut fx = WalkOrderFixture::new();
+        let a = fx.create(OpCode::CPUI_INT_ADD, 2);
+        let b = fx.create(OpCode::CPUI_INT_ADD, 2);
+        fx.insert_at(0, &a);
+        fx.insert_at(1, &b);
+        let a_g = a.0.read().unwrap();
+        let b_g = b.0.read().unwrap();
+        assert!(a_g.is_moveable(&b_g, &fx.bank));
+    }
+
+    #[test]
+    fn is_moveable_point_before_self_fails_closed() {
+        // Oracle contract: point is strictly after self (both real call
+        // sites pass the block's lastOp). Ghidra would walk off the list end
+        // (undefined behavior) when point precedes self; Rugra fails closed
+        // with false instead of reproducing UB.
+        let mut fx = WalkOrderFixture::new();
+        let a = fx.create(OpCode::CPUI_INT_ADD, 2);
+        let b = fx.create(OpCode::CPUI_INT_ADD, 2);
+        fx.insert_at(0, &b);
+        fx.insert_at(1, &a);
+        let a_g = a.0.read().unwrap();
+        let b_g = b.0.read().unwrap();
+        assert!(!a_g.is_moveable(&b_g, &fx.bank));
+    }
+}
+
