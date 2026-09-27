@@ -5696,27 +5696,170 @@ impl PrintC {
                 // condition varnode lost its SSA def (x86-flags recovery failure).
                 // All fall back to `1` (always-true) per the malformed-condition
                 // policy (R50).
-                let cast_count = t.matches("(long)").count() + t.matches("(int)").count()
-                    + t.matches("(char)").count() + t.matches("(bool)").count()
-                    + t.matches("(short)").count();
-                let has_bool_op = t.contains(" || ") || t.contains(" && ") || t.contains(" == ")
-                    || t.contains(" != ") || t.contains(" < ") || t.contains(" > ")
-                    || t.contains(" <= ") || t.contains(" >= ");
-                let has_concat_cast = cast_count >= 2 && !has_bool_op;
-                let has_concat_varname = Self::regex_concat_varname(t);
-                let has_self_comparison = Self::is_self_comparison(t);
-                let looks_valid = !t.is_empty()
-                    && t.chars().any(|c| c.is_alphanumeric() || c == '_')
-                    && !has_concat_cast
-                    && !has_concat_varname
-                    && !has_self_comparison;
-                if looks_valid {
+                if Self::cbranch_condition_text_valid(t) {
                     self.emit.print(&text);
                 } else {
                     self.emit.print("1");
                 }
             }
             None => self.emit.print("1"),
+        }
+    }
+
+    // RUGRA-GLUE: R50 malformed-condition predicate — the oracle's opCbranch
+    //   never sees a lost/garbage condition (printc.cc:566 pushes getIn(1)
+    //   unconditionally), so Ghidra has no counterpart defense. Shared by
+    //   emit_cbranch_condition and the negatetoken fold renderer below so
+    ///  both arms of the legacy condition channel apply the same policy.
+    fn cbranch_condition_text_valid(t: &str) -> bool {
+        let cast_count = t.matches("(long)").count() + t.matches("(int)").count()
+            + t.matches("(char)").count() + t.matches("(bool)").count()
+            + t.matches("(short)").count();
+        let has_bool_op = t.contains(" || ") || t.contains(" && ") || t.contains(" == ")
+            || t.contains(" != ") || t.contains(" < ") || t.contains(" > ")
+            || t.contains(" <= ") || t.contains(" >= ");
+        let has_concat_cast = cast_count >= 2 && !has_bool_op;
+        let has_concat_varname = Self::regex_concat_varname(t);
+        let has_self_comparison = Self::is_self_comparison(t);
+        !t.is_empty()
+            && t.chars().any(|c| c.is_alphanumeric() || c == '_')
+            && !has_concat_cast
+            && !has_concat_varname
+            && !has_self_comparison
+    }
+
+    // Ghidra: printc.cc:536 PrintC::opCbranch
+    /// negatetoken consumer for the legacy direct-emit transport
+    /// (PRINTC-NEGTOKEN-PATH-0001): render the CBRANCH condition with its
+    /// comparison token flipped, skipping the boolean_not re-render — the
+    /// textual equivalent of the oracle's `m |= negatetoken; booleanflip =
+    /// false;` fold (printc.cc:558-563) whose modifier rides
+    /// `pushVn(op->getIn(1),op,m)` (cc:566) into the def op's virtual push:
+    ///
+    /// ```text
+    /// if (booleanflip) {                                        // cc:558
+    ///   if (checkPrintNegation(op->getIn(1))) {                 // cc:559
+    ///     m |= PrintLanguage::negatetoken; booleanflip = false; // cc:560-561
+    ///   } }
+    /// if (booleanflip) pushOp(&boolean_not,op);                 // cc:564-565
+    /// pushVn(op->getIn(1),op,m);                                // cc:566
+    /// ```
+    ///
+    /// Def-op dispatch mirrors the oracle's two consumption sites:
+    /// - flippable comparison def → `PrintLanguage::opBinary` negatetoken
+    ///   prelude `tok = tok->negate` (printlanguage.cc:549-554). The negate
+    ///   targets are the six tokens wired in PrintC's constructor
+    ///   (printc.cc:129-134): equal↔not_equal (`==`↔`!=`), less_than→
+    ///   greater_equal (`<`→`>=`), less_equal→greater_than (`<=`→`>`).
+    ///   FLOAT_EQUAL/NOTEQUAL/LESS/LESSEQUAL push the same tokens
+    ///   (printc.hh:313-316 opFloatEqual→`opBinary(&equal,op)` etc.), so the
+    ///   flip table is uniform across int/float comparisons. SLESS/
+    ///   SLESSEQUAL render as `<`/`<=` (signed compare is the C default).
+    /// - BOOL_NEGATE def → `PrintC::opBoolNegate` negatetoken arm
+    ///   (printc.cc:817-819): the double negation cancels and the input is
+    ///   printed unmodified.
+    ///
+    /// Operands ride `push_input_parenthesized` on the pre-flip opcode —
+    /// flip tokens share the precedence class of their source (equal↔
+    /// not_equal 38, less_than↔greater_equal 42), so the parenthesization
+    /// decision equals the oracle's on the flipped token (same argument as
+    /// emit_condition's BOOL_NEGATE Case-1 arm).
+    ///
+    /// The captured text is validated with the shared R50 predicate; any
+    /// failure falls back to the byte-identical cc:564-565 `!(<cond>)`
+    /// form (the pre-fold behavior), never to a bare malformed condition.
+    fn emit_cbranch_condition_negated(&mut self, op: &PcodeOp) {
+        let Some(in1) = op.get_in(1) else {
+            // R50 parity with emit_cbranch_condition: no condition varnode
+            // → always-true constant (no negation form exists to fold).
+            self.emit.print("1");
+            return;
+        };
+        // printc.cc:559's checkPrintNegation succeeded upstream, so in(1) is
+        // implied + written with a flippable def; re-derive that def here.
+        let Some(def_arc) = in1.read().unwrap().get_def() else {
+            self.emit.print("!(");
+            self.emit_cbranch_condition(op);
+            self.emit.print(")");
+            return;
+        };
+        let def_op = def_arc.read().unwrap();
+
+        // printc.cc:814-828 opBoolNegate, negatetoken arm (cc:817-819): the
+        // fold's negation and this BOOL_NEGATE cancel — print the input
+        // unmodified (`!( !(x) )` → `x`).
+        if def_op.opcode == OpCode::CPUI_BOOL_NEGATE && !def_op.inrefs.is_empty() {
+            let inner = def_op.inrefs[0].clone();
+            self.inlined_ops.insert(*def_op.get_seq_num());
+            drop(def_op);
+            let orig_emit = std::mem::replace(
+                &mut self.emit,
+                Box::new(crate::prettyprint::EmitNoMarkup::new()),
+            );
+            self.emit_condition(&inner);
+            let text = {
+                let buf = std::mem::replace(&mut self.emit, orig_emit);
+                buf.into_any()
+                    .downcast::<crate::prettyprint::EmitNoMarkup>()
+                    .map(|b| b.get_output())
+                    .unwrap_or_default()
+            };
+            if Self::cbranch_condition_text_valid(text.trim()) {
+                self.emit.print(&text);
+            } else {
+                self.emit.print("!(");
+                self.emit_cbranch_condition(op);
+                self.emit.print(")");
+            }
+            return;
+        }
+
+        // printlanguage.cc:546-560 opBinary negatetoken prelude: tok =
+        // tok->negate (printc.cc:129-134 negate wiring).
+        let flipped_sym = match def_op.opcode {
+            OpCode::CPUI_INT_EQUAL | OpCode::CPUI_FLOAT_EQUAL => Some(" != "),
+            OpCode::CPUI_INT_NOTEQUAL | OpCode::CPUI_FLOAT_NOTEQUAL => Some(" == "),
+            OpCode::CPUI_INT_LESS | OpCode::CPUI_INT_SLESS | OpCode::CPUI_FLOAT_LESS => {
+                Some(" >= ")
+            }
+            OpCode::CPUI_INT_LESSEQUAL | OpCode::CPUI_INT_SLESSEQUAL
+            | OpCode::CPUI_FLOAT_LESSEQUAL => Some(" > "),
+            _ => None,
+        };
+        match flipped_sym {
+            Some(sym) if def_op.inrefs.len() >= 2 => {
+                self.inlined_ops.insert(*def_op.get_seq_num());
+                let orig_emit = std::mem::replace(
+                    &mut self.emit,
+                    Box::new(crate::prettyprint::EmitNoMarkup::new()),
+                );
+                self.push_input_parenthesized(&def_op, def_op.opcode, 0);
+                self.emit.print(sym);
+                self.push_input_parenthesized(&def_op, def_op.opcode, 1);
+                let text = {
+                    let buf = std::mem::replace(&mut self.emit, orig_emit);
+                    buf.into_any()
+                        .downcast::<crate::prettyprint::EmitNoMarkup>()
+                        .map(|b| b.get_output())
+                        .unwrap_or_default()
+                };
+                if Self::cbranch_condition_text_valid(text.trim()) {
+                    self.emit.print(&text);
+                } else {
+                    self.emit.print("!(");
+                    self.emit_cbranch_condition(op);
+                    self.emit.print(")");
+                }
+            }
+            _ => {
+                // Unreachable per checkPrintNegation's flippable set (a
+                // successful fold implies one of the shapes above); keep the
+                // byte-identical cc:564-565 fallback as the defensive floor.
+                drop(def_op);
+                self.emit.print("!(");
+                self.emit_cbranch_condition(op);
+                self.emit.print(")");
+            }
         }
     }
 
@@ -13388,14 +13531,13 @@ impl PrintLanguage for PrintC {
     /// decision structure on the legacy text transport, reached via
     /// doc_statement → PcodeOp::push → typeop dispatch when rpn_enabled is
     /// false. The condition rides `emit_cbranch_condition` (which owns the
-    /// R50 malformed-condition policy); the surviving booleanflip renders as
-    /// explicit `!(<cond>)` — the textual equivalent of the oracle's
-    /// boolean_not RPN token, which parenthesizes its operand because unary
-    /// prec 62 dominates comparison prec 42. The checkPrintNegation fold
-    /// (cc:559-561) is RPN-only here: the legacy text transport has no
-    /// negatetoken consumer (only the RPN token table flips comparison
-    /// tokens, rpn_tok_binary), so this twin always takes the cc:564-565
-    /// fallback when a flip survives.
+    /// R50 malformed-condition policy). The checkPrintNegation fold
+    /// (cc:558-563, PRINTC-NEGTOKEN-PATH-0001) flips the comparison token
+    /// via `emit_cbranch_condition_negated` (`!(a == b)` → `a != b`); a
+    /// booleanflip that survives the fold renders as explicit `!(<cond>)` —
+    /// the textual equivalent of the oracle's boolean_not RPN token, which
+    /// parenthesizes its operand because unary prec 62 dominates comparison
+    /// prec 42.
     fn op_cbranch(&mut self, op: &PcodeOp) {
         use crate::op::branch_type;
         // printc.cc:540
@@ -13412,9 +13554,29 @@ impl PrintLanguage for PrintC {
                 booleanflip = !booleanflip;
             }
         }
+        // printc.cc:558-563: checkPrintNegation fold — when a flip survives
+        // and in(1)'s defining op has a flippable token, print the flipped
+        // comparison directly instead of `!(<cond>)`. Ghidra dereferences
+        // getIn(1) unconditionally (cc:559); Rugra's R50 data-loss cases can
+        // lose in(1), in which case the fold is skipped and the `1`
+        // always-true policy applies downstream.
+        let mut negate_token = false;
+        if booleanflip {
+            if let Some(in1) = op.get_in(1) {
+                if self.check_print_negation(&in1.read().unwrap()) {
+                    // printc.cc:560-561
+                    negate_token = true;
+                    booleanflip = false;
+                }
+            }
+        }
         // printc.cc:554-557 (the legacy path never sets comma_separate).
         self.emit.open_paren("(");
-        if booleanflip {
+        if negate_token {
+            // printc.cc:560/566: `m |= negatetoken` rides pushVn(in(1));
+            // on this transport the consumer is the folded renderer.
+            self.emit_cbranch_condition_negated(op);
+        } else if booleanflip {
             // printc.cc:564-565 boolean_not fallback, explicit-paren form.
             self.emit.print("!(");
             self.emit_cbranch_condition(op);
@@ -21634,5 +21796,165 @@ mod tests {
             text, "ADJ(base)0",
             "the ADJ token pair matches the bilateral fixture form"
         );
+    }
+
+    // PRINTC-NEGTOKEN-PATH-0001: opCbranch's checkPrintNegation fold
+    // (printc.cc:558-563) on the legacy direct-emit twin — flip the
+    // comparison token (`!(a == b)` → `a != b`) instead of re-rendering the
+    // boolean_not wrapper. Rust-side regression pinning of the decision
+    // structure only; the B2 status of the legacy transport itself is
+    // NO_ORACLE (no oracle run isolates it — the oracle has a single
+    // opCbranch, whose production Rugra route is the RPN twin).
+    mod negtoken {
+        use super::*;
+
+        fn named_vn(name: &str, addr: u64) -> Arc<std::sync::RwLock<Varnode>> {
+            let mut vn = Varnode::new(4, Address::new(addr));
+            let mut high = crate::variable::HighVariable::new(Arc::new(Datatype::Base(
+                crate::type_system::TypeBase::new(
+                    "int".to_string(),
+                    4,
+                    crate::type_system::TypeMetatype::Int,
+                ),
+            )));
+            high.set_name(name.to_string());
+            vn.high = Some(Arc::new(std::sync::RwLock::new(high)));
+            Arc::new(std::sync::RwLock::new(vn))
+        }
+
+        /// Build a CBRANCH whose in(1) is implied+written with the given
+        /// defining op. Returns (cbranch, def_arc) — the caller must keep
+        /// def_arc alive (in(1).def is a weak reference).
+        fn cbranch_over(
+            def_op: PcodeOp,
+            booleanflip: bool,
+        ) -> (
+            PcodeOp,
+            Arc<std::sync::RwLock<PcodeOp>>,
+        ) {
+            let def_arc: Arc<std::sync::RwLock<PcodeOp>> =
+                Arc::new(std::sync::RwLock::new(def_op));
+            let mut cond = Varnode::new(1, Address::new(0x9000));
+            cond.flags |=
+                crate::varnode::varnode_flags::IMPLIED | crate::varnode::varnode_flags::WRITTEN;
+            cond.def = Some(std::sync::Arc::downgrade(&def_arc));
+            let cond_arc = Arc::new(std::sync::RwLock::new(cond));
+
+            let mut op = PcodeOp::new(
+                crate::address::SeqNum::new(Address::new(0x8000), 1),
+                OpCode::CPUI_CBRANCH,
+            );
+            if booleanflip {
+                op.flags |= crate::op::pcodeop_flags::BOOLEAN_FLIP;
+            }
+            let target = Varnode::new_constant(0x7000, 8);
+            op.inrefs = vec![
+                Arc::new(std::sync::RwLock::new(target)),
+                cond_arc,
+            ];
+            (op, def_arc)
+        }
+
+        fn int_equal_def() -> PcodeOp {
+            let mut def = PcodeOp::new(
+                crate::address::SeqNum::new(Address::new(0x8000), 0),
+                OpCode::CPUI_INT_EQUAL,
+            );
+            def.inrefs = vec![named_vn("a", 0x100), named_vn("b", 0x200)];
+            def
+        }
+
+        fn render_legacy_op(printer: &mut PrintC, op: &PcodeOp) -> String {
+            // op_cbranch is the legacy-twin emitter reached via PcodeOp::push
+            // (typeop dispatch) when rpn_enabled is false; call it directly to
+            // pin the twin's decision structure.
+            printer.op_cbranch(op);
+            std::mem::replace(
+                &mut printer.emit,
+                Box::new(crate::prettyprint::EmitNoMarkup::new()),
+            )
+            .into_any()
+            .downcast::<crate::prettyprint::EmitNoMarkup>()
+            .expect("fixture emitter")
+            .get_output()
+        }
+
+        #[test]
+        fn fold_int_equal_flips_token() {
+            let mut printer = PrintC::new(Box::new(crate::prettyprint::EmitNoMarkup::new()));
+            let (op, _def_alive) = cbranch_over(int_equal_def(), true);
+            let text = render_legacy_op(&mut printer, &op);
+            // printc.cc:560-561: negatetoken flips equal → not_equal; the
+            // paren pair from cc:554/570 wraps the folded comparison.
+            assert_eq!(text, "(a != b)", "fold renders the flipped token, got {text:?}");
+        }
+
+        #[test]
+        fn fallthru_true_adjusts_before_fold() {
+            let mut printer = PrintC::new(Box::new(crate::prettyprint::EmitNoMarkup::new()));
+            let (mut op, def_alive) = cbranch_over(int_equal_def(), false);
+            // printc.cc:548-551: yesif && fallthruTrue → booleanflip = true
+            // (print the negation). FLAT is set so yesif fires; the twin then
+            // folds the induced flip through checkPrintNegation.
+            printer.set_mod(print_mods::FLAT);
+            op.flags |= crate::op::pcodeop_flags::FALLTHRU_TRUE;
+            let text = render_legacy_op(&mut printer, &op);
+            assert!(
+                text.contains("if (a != b)"),
+                "fallthru-induced flip folds to the flipped token, got {text:?}"
+            );
+            drop(def_alive);
+        }
+
+        #[test]
+        fn bool_negate_def_double_cancels() {
+            let mut printer = PrintC::new(Box::new(crate::prettyprint::EmitNoMarkup::new()));
+            // in(1) = BOOL_NEGATE(x) where x is implied+written with an
+            // INT_EQUAL def: the fold (cc:560) meets opBoolNegate's
+            // negatetoken arm (cc:817-819) — double negation cancels and the
+            // input prints unmodified.
+            let mut inner_def = PcodeOp::new(
+                crate::address::SeqNum::new(Address::new(0x8000), 0),
+                OpCode::CPUI_INT_EQUAL,
+            );
+            inner_def.inrefs = vec![named_vn("a", 0x100), named_vn("b", 0x200)];
+            let inner_def_arc: Arc<std::sync::RwLock<PcodeOp>> =
+                Arc::new(std::sync::RwLock::new(inner_def));
+            let mut inner = Varnode::new(1, Address::new(0x9100));
+            inner.flags |=
+                crate::varnode::varnode_flags::IMPLIED | crate::varnode::varnode_flags::WRITTEN;
+            inner.def = Some(std::sync::Arc::downgrade(&inner_def_arc));
+            let inner_arc = Arc::new(std::sync::RwLock::new(inner));
+
+            let mut not_def = PcodeOp::new(
+                crate::address::SeqNum::new(Address::new(0x8000), 1),
+                OpCode::CPUI_BOOL_NEGATE,
+            );
+            not_def.inrefs = vec![inner_arc];
+            let (op, _def_alive) = cbranch_over(not_def, true);
+            // inner_def_arc stays alive here: emit_condition chases the
+            // implied varnode's weak def link (get_defining_op, Strategy 0).
+            let text = render_legacy_op(&mut printer, &op);
+            assert_eq!(text, "(a == b)", "double negation cancels, got {text:?}");
+            drop(inner_def_arc);
+        }
+
+        #[test]
+        fn surviving_flip_keeps_boolean_not_form() {
+            let mut printer = PrintC::new(Box::new(crate::prettyprint::EmitNoMarkup::new()));
+            // Non-flippable def (INT_ADD): checkPrintNegation (printc.cc:2388)
+            // returns false → cc:564-565 boolean_not fallback `!(<cond>)`.
+            let mut def = PcodeOp::new(
+                crate::address::SeqNum::new(Address::new(0x8000), 0),
+                OpCode::CPUI_INT_ADD,
+            );
+            def.inrefs = vec![named_vn("a", 0x100), named_vn("b", 0x200)];
+            let (op, _def_alive) = cbranch_over(def, true);
+            let text = render_legacy_op(&mut printer, &op);
+            assert!(
+                text.starts_with("(!(a + b"),
+                "non-flippable def keeps the !(...) fallback, got {text:?}"
+            );
+        }
     }
 }
