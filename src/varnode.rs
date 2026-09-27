@@ -177,11 +177,18 @@ fn local_meta_pair(opcode: crate::opcodes::OpCode) -> Option<(TypeMetatype, Type
 ///   residuals;
 /// - TypeOpCallother (typeop.cc:865-873): the CALLOTHER index constant in
 ///   input slot 0 selects a `UserPcodeOp` descriptor through
-///   `tlst->getArch()->userops.getOp(in(0).offset)`; a descriptor with
+///   `tlst->getArch()->userops.getOp(in(0).offset)`; the volatile-read
+///   descriptor's `VolatileReadOp::getOutputLocal` override
+///   (userop.cc:128-141) gates on `op->doesSpecialPropagation()` and
+///   resolves the output type from the global scope's symbol-table query
+///   (`entry->getSizedType(addr,size)`); a descriptor with
 ///   fixed output metadata supplies it, anything else falls back to the
 ///   TypeOp base default. Rugra reaches the manager through the `userops`
-///   thread — the explicit `Option<&Arc<RwLock<UserOpManage>>>` stands in
-///   for Ghidra's `tlst->getArch()->userops` edge (see the
+///   thread and the symbol table through the `symboltab` thread — the
+///   explicit `Option<&Arc<RwLock<UserOpManage>>>` /
+///   `Option<&Arc<RwLock<Database>>>` stand in
+///   for Ghidra's `tlst->getArch()->userops` / descriptor `glb->symboltab`
+///   edges (see the
 ///   TYPEOP-LOCALTYPE-DISPATCH-0001 CALLOTHER slice note on
 ///   `get_local_type`); `None` (no owning Architecture) behaves like the
 ///   metadata-less descriptor and takes the base default;
@@ -193,6 +200,7 @@ pub fn op_output_type_local(
     op: &PcodeOp,
     type_factory: &Arc<RwLock<crate::type_system::typefactory::TypeFactory>>,
     userops: Option<&Arc<RwLock<crate::userop::UserOpManage>>>,
+    symboltab: Option<&Arc<RwLock<crate::database::Database>>>,
 ) -> Option<Arc<Datatype>> {
     use crate::opcodes::OpCode;
     match op.opcode {
@@ -246,9 +254,53 @@ pub fn op_output_type_local(
             // u64 offset truncates to the low 32 bits exactly as Ghidra's
             // `UserOpManage::getOp(uint4)` (userop.cc:408) does.
             let index = op.get_in(0)?.read().unwrap().get_offset() as i32;
-            let descriptor_type = userops
-                .and_then(|manager| manager.read().unwrap().get_output_local(index).cloned()
-            );
+            // userop.cc:128-141 VolatileReadOp::getOutputLocal override:
+            // the volatile read descriptor carries NO fixed metadata — its
+            // output local type is resolved per-op, through the special
+            // propagation gate and a global symbol-table query:
+            //   cc:131 `if (!op->doesSpecialPropagation()) return 0` — the
+            //   flag is set by Funcdata::replaceVolatile only when the
+            //   original volatile varnode was type-locked
+            //   (funcdata_varnode.cc:761-762), so an unlocked volatile read
+            //   falls through to the fixed-metadata/base chain;
+            //   cc:133-136 `addr = op->getIn(1)->getAddr()` (the volatile
+            //   memory annotation built by newCodeRef), `size =
+            //   op->getOut()->getSize()`, `usepoint = op->getAddr()`; the
+            //   `uint4 vflags = 0` out-parameter is discarded unread;
+            //   cc:137-139 `entry->getSizedType(addr,size)` — may itself be
+            //   null (no exact piece), which also falls through.
+            // The `symboltab` thread stands in for the oracle's
+            // `glb->symboltab` edge on the descriptor (userop.hh:38
+            // `Architecture *glb`); `None` (no owning Architecture) behaves
+            // like a metadata-less descriptor and takes the same fall-through
+            // (VARNODE-CALLOTHER-VOLATILEOUT-0001).
+            let volatile_read_out = userops.and_then(|manager| {
+                let mgr = manager.read().unwrap();
+                let descriptor = mgr.get_op(index)?;
+                if !(descriptor.is_volatile_read() && op.does_special_propagation()) {
+                    return None;
+                }
+                let symboltab = symboltab?;
+                let addr = *op.get_in(1)?.read().unwrap().get_addr();
+                let size = op.get_out()?.read().unwrap().get_size() as i32;
+                let usepoint = op.get_addr();
+                let entry = {
+                    let db = symboltab.read().unwrap();
+                    db.query_properties_entry(db.global_scope_id, addr, size, usepoint)?
+                };
+                // The Database read guard is dropped before taking the
+                // factory write lock (get_sized_type mutates the factory
+                // caches).
+                let mut factory = type_factory
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                entry.get_sized_type(&mut factory, addr, size)
+            });
+            let descriptor_type = match volatile_read_out {
+                Some(res) => Some(res),
+                None => userops
+                    .and_then(|manager| manager.read().unwrap().get_output_local(index).cloned()),
+            };
             match descriptor_type {
                 // cc:869-871: non-null descriptor metadata wins.
                 Some(res) => Some(res),
@@ -2137,7 +2189,13 @@ impl Varnode {
     /// TypeFactory cannot carry today (the canonical factory may be shared
     /// across Architectures via `TypeFactory::shared_default`, and
     /// `Architecture::set_types` runs before the Architecture is wrapped in
-    /// an Arc, so a `Weak` backlink cannot be formed there). `None` (no
+    /// an Arc, so a `Weak` backlink cannot be formed there). The `symboltab`
+    /// parameter threads the Architecture Database the same way: Ghidra's
+    /// `VolatileReadOp::getOutputLocal` reaches the global scope via the
+    /// descriptor's `glb->symboltab` edge (userop.cc:136), a link Rugra's
+    /// `UserOpManage` does not carry; `None` disables the volatile-read
+    /// symbol query (same fall-through as a metadata-less descriptor).
+    /// `None` (no
     /// owning Architecture) routes CALLOTHER defs/readers to the same base
     /// default Ghidra produces for a metadata-less descriptor.
     ///
@@ -2151,6 +2209,7 @@ impl Varnode {
         block_up: &mut bool,
         type_factory: &Arc<RwLock<crate::type_system::typefactory::TypeFactory>>,
         userops: Option<&Arc<RwLock<crate::userop::UserOpManage>>>,
+        symboltab: Option<&Arc<RwLock<crate::database::Database>>>,
         fd_output_type: Option<&Arc<Datatype>>,
     ) -> Result<Option<Arc<Datatype>>> {
         // cc:906-907: Our type is locked, don't change. Not a partial lock,
@@ -2168,7 +2227,7 @@ impl Varnode {
             let (out_local, stops) = {
                 let def_op = def.read().unwrap();
                 (
-                    op_output_type_local(&def_op, type_factory, userops),
+                    op_output_type_local(&def_op, type_factory, userops, symboltab),
                     def_op.stops_type_propagation(),
                 )
             };
@@ -4410,6 +4469,116 @@ impl crate::database::EquateSymbol {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Ghidra: userop.cc:128 VolatileReadOp::getOutputLocal (VARNODE-CALLOTHER-VOLATILEOUT-0001 regression lock)
+    /// userop.cc:128-141: a volatile-read CALLOTHER that does special
+    /// propagation (the `special_prop` addlflag, set by
+    /// `Funcdata::replaceVolatile` funcdata_varnode.cc:761-762 only when the
+    /// replaced varnode was type-locked) resolves its output local type from
+    /// the global scope: `queryProperties(in(1)->getAddr(), out->getSize(),
+    /// op->getAddr(), vflags)` then `entry->getSizedType(addr,size)`. Every
+    /// other shape — no special_prop flag, no symbol at the address, no
+    /// symboltab thread — falls to the metadata-less descriptor path and the
+    /// TypeOp base default `getBase(out.size, TYPE_UNKNOWN)` (typeop.cc:261-265,
+    /// via typeop.cc:865-873), never a signed Int base.
+    #[test]
+    fn test_output_type_local_volatile_read_symbol_arm() {
+        use crate::address::{Address, SeqNum};
+        use crate::database::{symbol_flags, Database};
+        use crate::op::op_addl_flags;
+        use crate::op::PcodeOp;
+        use crate::opcodes::OpCode;
+        use crate::type_system::datatype::{Datatype, TypeBase};
+        use crate::type_system::typefactory::TypeFactory;
+        use crate::type_system::TypeMetatype;
+        use crate::userop::{UserOpManage, BUILTIN_VOLATILE_READ};
+
+        let factory = std::sync::Arc::new(std::sync::RwLock::new(TypeFactory::new(8)));
+        factory
+            .write()
+            .unwrap()
+            .set_default_alignment_map();
+
+        // The read_volatile descriptor (UserOpManage::registerBuiltin,
+        // userop.cc:432-484) — a VolatileReadOp with NO fixed metadata.
+        let mut mgr = UserOpManage::new();
+        let volatile_index = mgr.register_builtin_by_id(BUILTIN_VOLATILE_READ);
+        let mgr = std::sync::Arc::new(std::sync::RwLock::new(mgr));
+
+        // Global symbol "vol_reg" (int, 4 bytes) mapped at 0x1000; addr-tied
+        // so the entry is in use at every usepoint (database.cc:115-120).
+        let mut db = Database::new(false);
+        let sym_dt = std::sync::Arc::new(Datatype::Base(TypeBase::new(
+            "int".into(),
+            4,
+            TypeMetatype::Int,
+        )));
+        let sym_id = db
+            .add_symbol_mapped(0, "vol_reg", Some(sym_dt), Address::new(0x1000), 4)
+            .expect("global symbol mapped");
+        db.set_symbol_flag(0, sym_id, symbol_flags::ADDRTIED, true);
+        let db = std::sync::Arc::new(std::sync::RwLock::new(db));
+
+        // The volatile read CALLOTHER (Funcdata::replaceVolatile read form,
+        // funcdata_varnode.cc:740-759): in(0) = descriptor id constant,
+        // in(1) = volatil annotation at the memory address, out = 4-byte
+        // temp; special_prop set per cc:761-762 (type-locked source).
+        let mut id_vn = Varnode::new(4, Address::new(volatile_index as u64));
+        id_vn.set_flags(crate::varnode::varnode_flags::CONSTANT);
+        let id_vn = std::sync::Arc::new(std::sync::RwLock::new(id_vn));
+
+        let mut ann_vn = Varnode::new(4, Address::new(0x1000));
+        ann_vn.set_flags(
+            crate::varnode::varnode_flags::ANNOTATION | crate::varnode::varnode_flags::VOLATIL,
+        );
+        let ann_vn = std::sync::Arc::new(std::sync::RwLock::new(ann_vn));
+
+        let out_vn =
+            std::sync::Arc::new(std::sync::RwLock::new(Varnode::new(4, Address::new(0x7f000000))));
+
+        let mut op = PcodeOp::new(SeqNum::new(Address::new(0x2000), 0), OpCode::CPUI_CALLOTHER);
+        op.inrefs.push(id_vn.clone());
+        op.inrefs.push(ann_vn);
+        op.output = Some(out_vn.clone());
+        op.addlflags |= op_addl_flags::SPECIAL_PROP;
+
+        // Positive: the global symbol arm — the entry's sized type at the
+        // volatile address (userop.cc:137-139).
+        let got = op_output_type_local(&op, &factory, Some(&mgr), Some(&db))
+            .expect("volatile read resolves the global symbol's sized type");
+        assert_eq!(got.get_name(), "int");
+        assert_eq!(got.get_metatype(), TypeMetatype::Int);
+        assert_eq!(got.get_size(), 4);
+
+        // Negative 1 (userop.cc:131): no special propagation — the flag is
+        // set only for a type-locked source; without it the descriptor is
+        // metadata-less and the base default (UNKNOWN, out size) wins.
+        op.addlflags &= !op_addl_flags::SPECIAL_PROP;
+        let fallback = op_output_type_local(&op, &factory, Some(&mgr), Some(&db))
+            .expect("base default is still a type");
+        assert_eq!(fallback.get_metatype(), TypeMetatype::Unknown);
+        assert_eq!(fallback.get_size(), 4);
+        op.addlflags |= op_addl_flags::SPECIAL_PROP;
+
+        // Negative 2 (userop.cc:136-140): no entry at the queried address —
+        // queryProperties returns null and the base default wins.
+        let mut miss_vn = Varnode::new(4, Address::new(0x9000));
+        miss_vn.set_flags(
+            crate::varnode::varnode_flags::ANNOTATION | crate::varnode::varnode_flags::VOLATIL,
+        );
+        op.inrefs[1] = std::sync::Arc::new(std::sync::RwLock::new(miss_vn));
+        let miss = op_output_type_local(&op, &factory, Some(&mgr), Some(&db))
+            .expect("base default is still a type");
+        assert_eq!(miss.get_metatype(), TypeMetatype::Unknown);
+        assert_eq!(miss.get_size(), 4);
+
+        // Negative 3: no symboltab thread (no owning Architecture) — the
+        // volatile arm cannot run; base default again.
+        let unthreaded = op_output_type_local(&op, &factory, Some(&mgr), None)
+            .expect("base default is still a type");
+        assert_eq!(unthreaded.get_metatype(), TypeMetatype::Unknown);
+        assert_eq!(unthreaded.get_size(), 4);
+    }
 
     #[test]
     fn test_equate_is_value_close_table() {

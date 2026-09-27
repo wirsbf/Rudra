@@ -748,3 +748,14 @@ Standalone 风味。空间=显式 index 3（ram）/4（rom）自定义 AddrSpace
   无同空间嵌套区间静态 entry）。
 - **R5 decodeWrappingAttributes 基类免修**：见上表 #5。ScopeLocal 覆写归
   varmap.rs 租约（VARMAP-DECODEWRAP-0001 登记）。
+
+## 2026-09-27：Database::query_properties_entry（VARNODE-CALLOTHER-VOLATILEOUT-0001）
+
+新增 `Database::query_properties_entry(qpoint_scope_id, addr, size, usepoint)
+-> Option<SymbolEntry>`——database.cc:1263-1281 `Scope::queryProperties` 的
+`SymbolEntry*` 返回形态（cc:1280），供 `VolatileReadOp::getOutputLocal`
+（userop.cc:136-138）的 `entry->getSizedType(addr,size)` 消费；与既有投影
+形态 `Database::query_properties` 同走 mapScope（cc:1267）+
+stackContainer（cc:1268）栈，仅返回句柄而非 `QueryContainerHit` 投影。
+`uint4 &flags` 出参丢弃：唯一生产消费者初始化为 0 且永不读回
+（userop.cc:135-136）；flags 三臂（cc:1270/1273-1279）经投影形态仍可达。

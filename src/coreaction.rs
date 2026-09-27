@@ -8167,6 +8167,14 @@ impl ActionInferTypes {
             .arch
             .as_ref()
             .and_then(|architecture| architecture.userops.clone());
+        // The `symboltab` thread feeds `VolatileReadOp::getOutputLocal`'s
+        // global-scope query (userop.cc:136) through the CALLOTHER arm of
+        // `op_output_type_local` — the Rugra stand-in for the descriptor's
+        // `glb->symboltab` edge (VARNODE-CALLOTHER-VOLATILEOUT-0001).
+        let symboltab = fd
+            .arch
+            .as_ref()
+            .and_then(|architecture| architecture.symboltab.clone());
 
         // coreaction.cc:5016: beginLoc()/endLoc() is VarnodeLocSet order.
         for vn_arc in fd.vbank.loc_tree.iter().map(|entry| entry.0.clone()) {
@@ -8244,6 +8252,7 @@ impl ActionInferTypes {
                         &mut needs_block,
                         &type_factory,
                         userops.as_ref(),
+                        symboltab.as_ref(),
                         fd_output_type.as_ref(),
                     )
                     .map_err(|error| crate::error::Error::Lowlevel(error.to_string()))?

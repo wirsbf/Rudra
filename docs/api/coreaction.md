@@ -4070,3 +4070,16 @@ oracle 的**指针恒等判定**：
 面=「canonical 类型对现存类型非严格更优且指针不同」，canon 语料不存在该
 形态。触发条件（票面登记）：多 RETURN 函数中某 RETURN 输入已有与 canonical
 返回类型不同源（非同一 interning 实例）且 typeOrder 相等或更优的温度类型。
+
+## 2026-09-27：build_localtypes 接通 symboltab 线程（VARNODE-CALLOTHER-VOLATILEOUT-0001）
+
+`build_localtypes` 新增从 `fd.arch.symboltab` 提取
+`Option<Arc<RwLock<Database>>>` 并透传给 `Varnode::get_local_type`（签名
++1 参数，插在 userops 之后）——oracle 的
+`VolatileReadOp::getOutputLocal`（userop.cc:128-141）经描述符
+`glb->symboltab` 边查全局 scope（cc:136
+`getGlobalScope()->queryProperties` → cc:138 `getSizedType`），Rust 侧
+`UserOpManage` 无 glb 反链，故沿 userops Option-thread 同型先例显式传参。
+纯线程改动：无 volatile CALLOTHER 在飞时（五语料 cspec 无 `<volatile>`，
+链首即断）行为零变化；canon A/B 字节恒等见车道终报。callother 域的
+setcasts token 面不动（本票非 STRDATA 域）。

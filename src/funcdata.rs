@@ -12477,11 +12477,17 @@ impl Funcdata {
         };
         // cc:761-762: if (vn->isTypeLock()) newop->setAdditionalFlag(special_prop).
         if is_type_lock {
-            // RUGRA-GAP: Ghidra's PcodeOp::special_prop (0x10000) is not
-            // modeled as a dedicated addl-flag; we approximate with the
-            // closest semantic — STOP_TYPE_PROPAGATION (0x40) — so type
-            // recovery knows the volatile user-op needs special handling.
-            newop.0.write().unwrap().addlflags |= crate::op::op_addl_flags::STOP_TYPE_PROPAGATION;
+            // op.hh:109 special_prop = addlflags 0x1. The former
+            // STOP_TYPE_PROPAGATION (0x40) substitution was a mis-mapping of
+            // two distinct Ghidra flags: stop_type_propagation (op.hh:115)
+            // makes Varnode::getLocalType (varnode.cc:912) block descendant
+            // consultation, while special_prop gates the volatile user-op
+            // local-type overrides (userop.cc:131/162). A type-locked
+            // volatile read does NOT stop propagation in Ghidra; its output
+            // type flows from the symbol table query in
+            // VolatileReadOp::getOutputLocal (userop.cc:128-141), now ported
+            // (VARNODE-CALLOTHER-VOLATILEOUT-0001).
+            newop.0.write().unwrap().addlflags |= crate::op::op_addl_flags::SPECIAL_PROP;
         }
         true
     }
