@@ -955,6 +955,46 @@ impl SubvariableFlow {
     // traceForward (subflow.cc:369-659)
     // -----------------------------------------------------------------
 
+    // Ghidra: op.cc:93 PcodeOp::getRepeatSlot
+    /// Given a Varnode that appears in multiple input slots of an op, find
+    /// the specific slot corresponding to the descendant occurrence
+    /// currently being visited. Faithful to the iterator overload
+    /// `getRepeatSlot(const Varnode *vn,int4 firstSlot,list<PcodeOp *>::const_iterator iter)`
+    /// (op.cc:93-111): `count` is 1 plus the number of entries holding this
+    /// op in the varnode's descendant list strictly before the current
+    /// position (op.cc:97-100 walks `vn->beginDescend()` up to `iter`,
+    /// exclusive); count==1 returns `firstSlot` unchanged (op.cc:101),
+    /// otherwise the input slot of the count-th occurrence is returned, -1
+    /// if absent (op.cc:110). The descendant iteration itself is NEVER
+    /// advanced — the C++ iterator is passed by value and only read, so
+    /// every descendant entry is processed exactly once by the caller's
+    /// loop. Inlined here (like `subfloat_get_repeat_slot` below, same
+    /// oracle function) because op.rs is outside this lane's write-set;
+    /// the op.rs `count`-parameter variant lacks the op.cc:101 count==1
+    /// early return (OPS-GETREPEATSLOT-COUNT1-0001).
+    fn subvar_get_repeat_slot(
+        op: &Arc<RwLock<PcodeOp>>,
+        vn: &Arc<RwLock<Varnode>>,
+        first_slot: usize,
+        prior_occurrences: usize,
+    ) -> i32 {
+        let count = 1 + prior_occurrences;
+        if count == 1 {
+            return first_slot as i32;
+        }
+        let inrefs = op.read().unwrap().inrefs.clone();
+        let mut recount = 1;
+        for i in (first_slot + 1)..inrefs.len() {
+            if Arc::ptr_eq(&inrefs[i], vn) {
+                recount += 1;
+                if recount == count {
+                    return i as i32;
+                }
+            }
+        }
+        -1
+    }
+
     // Ghidra: subflow.cc:373 SubvariableFlow::traceForward
     /// Try to trace the logical variable through descendant Varnodes, creating
     /// new nodes in the logical subgraph and updating the worklist. Faithful to
@@ -985,10 +1025,13 @@ impl SubvariableFlow {
             out
         };
 
-        // Ghidra uses a list iterator that may be advanced by getRepeatSlot
-        // (CALL case). We materialise the descendant list once (above) and
-        // iterate by index so we can skip ahead, matching the ++iter inside
-        // getRepeatSlot semantics.
+        // Ghidra iterates the live descendant list with a C++ iterator that
+        // is only read by getRepeatSlot (CALL case) — never advanced by it.
+        // We materialise the descendant list once (one entry per read, like
+        // Ghidra's per-slot addDescend bookkeeping) and iterate by index so
+        // the CALL case can count prior occurrences of the same op for the
+        // repeat-slot recomputation (op.cc:97-100) without mutating the
+        // iteration.
         let mut i = 0;
         while i < descendants.len() {
             let (op_arc, mut slot) = descendants[i].clone();
@@ -1445,25 +1488,28 @@ impl SubvariableFlow {
                 OpCode::CPUI_CALL | OpCode::CPUI_CALLIND => {
                     callcount += 1;
                     if callcount > 1 {
-                        // op->getRepeatSlot(rvn->vn, slot, iter) — advance the
-                        // Ghidra list iterator past repeated occurrences of the
-                        // same varnode in additional call param slots. In Rugra
-                        // we scan the remaining descendants for another slot
-                        // reading the same vn and skip to it.
-                        let vn_ptr = Arc::as_ptr(self.newvarlist[rvn].vn.as_ref().unwrap()) as usize;
-                        while i < descendants.len() {
-                            let (next_op, next_slot) = &descendants[i];
-                            if Arc::as_ptr(next_op) == Arc::as_ptr(&op_arc)
-                                && next_op.read().unwrap().get_in(*next_slot)
-                                    .map(|v| Arc::as_ptr(v) as usize == vn_ptr)
-                                    .unwrap_or(false)
-                            {
-                                slot = *next_slot;
-                                i += 1;
-                                break;
+                        // Ghidra: subflow.cc:619-620
+                        // `slot = op->getRepeatSlot(rvn->vn, slot, iter)` —
+                        // recompute the slot for the k-th occurrence of an
+                        // op that reads the varnode in multiple input slots
+                        // (op.cc:93-111). The descendant iteration is NOT
+                        // advanced: the C++ iterator is passed by value and
+                        // every descendant entry is processed exactly once.
+                        // `prior_occurrences` counts entries strictly before
+                        // the current one holding this same op (op.cc:97-100
+                        // walks vn->beginDescend() up to iter, exclusive).
+                        let mut prior_occurrences = 0usize;
+                        for j in 0..(i - 1) {
+                            if Arc::as_ptr(&descendants[j].0) == Arc::as_ptr(&op_arc) {
+                                prior_occurrences += 1;
                             }
-                            i += 1;
                         }
+                        slot = Self::subvar_get_repeat_slot(
+                            &op_arc,
+                            &rvn_vn,
+                            slot,
+                            prior_occurrences,
+                        ) as usize;
                     }
                     if !self.try_call_pull(fd, &op_arc, rvn, slot as i32) {
                         return false;
@@ -1974,20 +2020,25 @@ impl SubvariableFlow {
                 OpCode::CPUI_CALL | OpCode::CPUI_CALLIND => {
                     callcount += 1;
                     if callcount > 1 {
-                        let vn_ptr = Arc::as_ptr(self.newvarlist[rvn].vn.as_ref().unwrap()) as usize;
-                        while i < descendants.len() {
-                            let (next_op, next_slot) = &descendants[i];
-                            if Arc::as_ptr(next_op) == Arc::as_ptr(&op_arc)
-                                && next_op.read().unwrap().get_in(*next_slot)
-                                    .map(|v| Arc::as_ptr(v) as usize == vn_ptr)
-                                    .unwrap_or(false)
-                            {
-                                slot = *next_slot;
-                                i += 1;
-                                break;
+                        // Ghidra: subflow.cc:932-933
+                        // `slot = op->getRepeatSlot(rvn->vn, slot, iter)` —
+                        // same semantics as the non-sext CALL case
+                        // (subflow.cc:619-620, op.cc:93-111): recompute the
+                        // slot for the k-th occurrence of an op reading the
+                        // varnode in multiple input slots; the descendant
+                        // iteration is never advanced.
+                        let mut prior_occurrences = 0usize;
+                        for j in 0..(i - 1) {
+                            if Arc::as_ptr(&descendants[j].0) == Arc::as_ptr(&op_arc) {
+                                prior_occurrences += 1;
                             }
-                            i += 1;
                         }
+                        slot = Self::subvar_get_repeat_slot(
+                            &op_arc,
+                            &rvn_vn,
+                            slot,
+                            prior_occurrences,
+                        ) as usize;
                     }
                     if !self.try_call_pull(fd, &op_arc, rvn, slot as i32) {
                         return false;
@@ -7653,6 +7704,45 @@ mod tests {
         // With no descendants, doTrace should process the worklist and find
         // pullcount==0 -> returns false.
         assert!(!sf.do_trace(&fd));
+    }
+
+    #[test]
+    fn test_subvar_get_repeat_slot_first_occurrence() {
+        // op.cc:101: count==1 (first occurrence of this op in the descendant
+        // iteration) returns firstSlot unchanged.
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let vn = fd.vbank.create_with_space(4, AddressSpace::Register, 0x10);
+        let other = fd.vbank.create_with_space(4, AddressSpace::Register, 0x20);
+        let out = fd.vbank.create_with_space(4, AddressSpace::Register, 0x30);
+        let call = make_op(0, OpCode::CPUI_CALL, vec![other, vn.clone()], None);
+        assert_eq!(SubvariableFlow::subvar_get_repeat_slot(&call, &vn, 1, 0), 1);
+    }
+
+    #[test]
+    fn test_subvar_get_repeat_slot_repeat_occurrence() {
+        // op.cc:97-108: count = 1 + prior occurrences; the count-th inrefs
+        // slot holding vn is returned.
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let vn = fd.vbank.create_with_space(4, AddressSpace::Register, 0x10);
+        let other = fd.vbank.create_with_space(4, AddressSpace::Register, 0x20);
+        let out = fd.vbank.create_with_space(4, AddressSpace::Register, 0x30);
+        // CALL reading vn in slots 1 and 3 (getSlot -> first = 1).
+        let call = make_op(0, OpCode::CPUI_CALL, vec![other.clone(), vn.clone(), other, vn.clone()], None);
+        // Second occurrence (one prior entry of the same op): slot 3.
+        assert_eq!(SubvariableFlow::subvar_get_repeat_slot(&call, &vn, 1, 1), 3);
+        // First occurrence: firstSlot unchanged.
+        assert_eq!(SubvariableFlow::subvar_get_repeat_slot(&call, &vn, 1, 0), 1);
+    }
+
+    #[test]
+    fn test_subvar_get_repeat_slot_absent_tail() {
+        // op.cc:110: count > 1 but vn does not recur past firstSlot -> -1.
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let vn = fd.vbank.create_with_space(4, AddressSpace::Register, 0x10);
+        let other = fd.vbank.create_with_space(4, AddressSpace::Register, 0x20);
+        let out = fd.vbank.create_with_space(4, AddressSpace::Register, 0x30);
+        let call = make_op(0, OpCode::CPUI_CALL, vec![vn.clone(), other], None);
+        assert_eq!(SubvariableFlow::subvar_get_repeat_slot(&call, &vn, 0, 1), -1);
     }
 
     #[test]

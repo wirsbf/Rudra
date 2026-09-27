@@ -164,6 +164,14 @@ COPY-follow（cc:2761-2769）、oracle buildPointers 的 PTRSUB/PTRADD op
 - `set_replacement(vn, mask)` / `has_replacement` / `get_replacement_index` — 子变量注册表 (66-151)
 - `create_op` / `create_op_down` — 子图 op 创建 (159-197)
 - `try_call_pull` / `try_return_pull` / `try_call_return_push` / `try_switch_pull` / `try_int2float_pull` — CALL/RETURN/SWITCH/INT2FLOAT 穿透 (208-367)
+- `subvar_get_repeat_slot` — `PcodeOp::getRepeatSlot` (op.cc:93-111) 的
+  本文件内联移植（与 `subfloat_get_repeat_slot` 同一 oracle 函数）:
+  CALL case `callcount > 1` 时按"当前 descendant 位置之前同 op 出现次数"
+  重算重复输入槽位;count==1 早退返回 `first_slot` (op.cc:101),-1 兜底
+  (op.cc:110)。**descendant 迭代本身永不前进**（C++ iterator 按值传递只读,
+  subflow.cc:619-620/932-933）——SUBFLOWFIX 修复点:旧实现前向扫描吞掉
+  后续 CALL descendant（多 CALL 参数流第 3+ 个 call 的 parameter_patch
+  丢失→temp 输入残留→伪 unaff_ 声明,SF-1 unaff_100000f8 族根因）
 - `trace_forward` / `trace_backward` — 双向数据流追踪 (373-861)
 - `trace_forward_sext` / `trace_backward_sext` — 符号扩展路径 (867-1009)
 - `create_link` / `create_compare_bridge` — 跨 op 连接 (1022-1071)
