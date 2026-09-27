@@ -58,6 +58,13 @@ pub mod pcodeop_flags {
 /// PcodeOp additional flags (Ghidra `op.hh:108-120`). Stored in the
 /// `addlflags: u32` field. These mirror Ghidra's bit values exactly.
 pub mod op_addl_flags {
+    /// special_prop (op.hh:109): "Does some special form of datatype
+    /// propagation". Set by `Funcdata::replaceVolatile`
+    /// (funcdata_varnode.cc:762) on a volatile read/write CALLOTHER whose
+    /// original varnode was type-locked; read by
+    /// `VolatileReadOp::getOutputLocal` (userop.cc:131) and
+    /// `VolatileWriteOp::getInputLocal` (userop.cc:162).
+    pub const SPECIAL_PROP: u32 = 0x1;
     pub const SPECIAL_PRINT: u32 = 0x2;
     pub const MODIFIED: u32 = 0x4;
     pub const WARNING: u32 = 0x8;
@@ -611,6 +618,17 @@ impl PcodeOp {
     // Ghidra: op.hh:208 PcodeOp::doesSpecialPrinting
     pub fn does_special_printing(&self) -> bool {
         (self.addlflags & op_addl_flags::SPECIAL_PRINT) != 0
+    }
+
+    /// Does this op do a special form of datatype propagation? (op.hh:207,
+    /// addlflags 0x1) — read by the volatile user-op local-type overrides
+    /// (`VolatileReadOp::getOutputLocal` userop.cc:131,
+    /// `VolatileWriteOp::getInputLocal` userop.cc:162); set only by
+    /// `Funcdata::replaceVolatile` (funcdata_varnode.cc:762) when the
+    /// replaced varnode was type-locked.
+    // Ghidra: op.hh:207 PcodeOp::doesSpecialPropagation
+    pub fn does_special_propagation(&self) -> bool {
+        (self.addlflags & op_addl_flags::SPECIAL_PROP) != 0
     }
 
     /// Clear the stop-type-propagation flag. (op.hh:217, addlflags 0x40)

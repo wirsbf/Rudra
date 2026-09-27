@@ -6247,6 +6247,39 @@ impl Database {
         }
     }
 
+    // Ghidra: database.cc:1263-1281 Scope::queryProperties
+    /// The `SymbolEntry`-returning form of [`Database::query_properties`] —
+    /// exactly the handle `Scope::queryProperties` returns in the C++
+    /// (`SymbolEntry*`, database.cc:1280), for consumers that need
+    /// `entry->getSizedType(addr,size)` rather than the observable
+    /// projection. The `uint4 &flags` out-parameter is dropped: the only
+    /// production consumer initializes it to zero and never reads it back
+    /// (`VolatileReadOp::getOutputLocal` userop.cc:135-136); the flag legs
+    /// (database.cc:1270/1273-1279) remain reachable through the sibling
+    /// projection form. Same walk: `mapScope(this=global receiver, addr)`
+    /// then `stackContainer` with the entry pass-back.
+    pub fn query_properties_entry(
+        &self,
+        qpoint_scope_id: u64,
+        addr: Address,
+        size: i32,
+        usepoint: Address,
+    ) -> Option<SymbolEntry> {
+        // database.cc:1267 — mapScope(this, addr, usepoint).
+        let base = self.map_scope(qpoint_scope_id, addr);
+        let stack = self.ancestor_stack(base);
+        let (hit, _flags) =
+            Scope::query_properties(&stack, addr, size, usepoint, |a| self.get_property(a));
+        match hit {
+            // database.cc:1268/1280 — the stackContainer entry pass-back.
+            Some((scope_idx, entry_idx)) => stack
+                .get(scope_idx)
+                .and_then(|scope| scope.entries.get(entry_idx))
+                .cloned(),
+            None => None,
+        }
+    }
+
     // Ghidra: database.cc:1796-1805 Scope::isReadOnly
     /// Is the given memory range marked as read-only, relative to
     /// `qpoint_scope_id`? Faithful to `Scope::isReadOnly` (database.cc:1796):

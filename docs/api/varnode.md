@@ -1330,3 +1330,41 @@ vn 类型——这一身份回声正是 typelock 尊重链的锚点：
 coreaction `cast_output` 新 CALLOTHER token 臂（docs/api/coreaction.md 同日节）。
 出口 vn 的 `v_type` 为 `None` 的状态（bank 创建即种子 unknown 基，理论不可达）
 保守落入描述符/基类默认链，与 oracle 永非空 `getType()` 语义对齐。
+
+## 2026-09-27：op_output_type_local CALLOTHER 臂补 VolatileReadOp::getOutputLocal（VARNODE-CALLOTHER-VOLATILEOUT-0001）
+
+- **`op_output_type_local` CALLOTHER 臂**（typeop.cc:865-873 虚分派链）补
+  volatile-read 描述符覆写（userop.cc:128-141 逐字）：
+  - cc:131 `if (!op->doesSpecialPropagation()) return 0` — special_prop
+    （op.hh:109 addlflags 0x1，`Funcdata::replaceVolatile`
+    funcdata_varnode.cc:761-762 仅在源 varnode typelock 时置位）为第一道门；
+  - cc:133-136 `addr = op->getIn(1)->getAddr()`（volatile 内存 annotation，
+    newCodeRef 形态）、`size = op->getOut()->getSize()`、
+    `usepoint = op->getAddr()`；`uint4 vflags=0` 出参被唯一消费者丢弃；
+  - cc:136 `glb->symboltab->getGlobalScope()->queryProperties(...)` →
+    cc:137-139 `entry->getSizedType(addr,size)`（可空→回落）。
+  上述任一门未过 → 描述符固定 metadata → 基类默认
+  `getBase(out.size,TYPE_UNKNOWN)`（typeop.cc:261-265）。
+- **`symboltab` 线程**：`op_output_type_local` /
+  `Varnode::get_local_type` 签名各加
+  `symboltab: Option<&Arc<RwLock<Database>>>`——oracle 经描述符
+  `glb->symboltab` 边（userop.hh:38）到达全局 scope，Rugra `UserOpManage`
+  无该反链，沿既有 `userops` Option-thread 先例（TYPEOP-LOCALTYPE-DISPATCH-0001）
+  显式传参；`None`（无宿主 Architecture）= 描述符 metadata-less 同回落。
+  生产接线=`coreaction.rs build_localtypes` 从 `fd.arch.symboltab` 提取。
+- **query_properties_entry**：消费侧新增
+  `Database::query_properties_entry`（database.cc:1263-1281 的
+  `SymbolEntry*` 返回形态）供 `entry->getSizedType`；flags 出参按
+  userop.cc:135-136（初始化 0 后永不读）丢弃。
+- **单测** `test_output_type_local_volatile_read_symbol_arm`：正例=global
+  符号 int@0x1000 addr-tied + special_prop 置位 → 返回符号 sized type；
+  三负例=special_prop 清除 / 地址无符号 / symboltab=None 线程 → 全部
+  UNKNOWN 基（size 保持），永非有符号 Int 基。
+- **休眠证明（五语料零差）**：触发链全序=①cspec `<volatile>` 注册
+  read_volatile/write_volatile builtins（architecture decodeVolatile）→
+  ②varnode 获 `volatil` 属性（flagbase/property 通道）→ ③ActionVolatile 调
+  `replace_volatile` 发射 CALLOTHER → ④源 varnode typelock 才置
+  special_prop → ⑤本臂查全局符号。锁定 x86-64-gcc.cspec 无 `<volatile>`
+  元素（Ghidra_12.0.4 源树 grep 干净）→ 链首即断，②-⑤ 全不可达；
+  curl/httpd/vsh/sq/sqlite canon A/B 字节恒等（构造性：CALLOTHER 臂内
+  新路径仅 volatile_read+special_prop 双门同时通过才激活）。

@@ -1140,3 +1140,13 @@ af6c5ee2/GG2：其 RETURN-类型播种使 ap_content_length_filter 首次以
 1447/0/0 与 master 逐数一致且门禁 stdout 修复前后**逐字节相同**；
 五投影 next_url/match_url/myprogress/getparameter/parseconfig 全 MATCH 保持；
 cargo test --lib 串行 1688P/18F == master 预存集。
+
+## 2026-09-27：op_addl_flags 补 SPECIAL_PROP + does_special_propagation（VARNODE-CALLOTHER-VOLATILEOUT-0001）
+
+`op_addl_flags` mod 补 `SPECIAL_PROP: u32 = 0x1`（op.hh:109
+`special_prop = 1`，此前缺失）与访问器 `does_special_propagation()`
+（op.hh:207）。读取者=`VolatileReadOp::getOutputLocal`（userop.cc:131）与
+`VolatileWriteOp::getInputLocal`（userop.cc:162）；置位者仅
+`Funcdata::replaceVolatile`（funcdata_varnode.cc:761-762，源 varnode
+typelock 时）。setAdditionalFlag 泛形（op.hh:140）即写入通道，无需专属
+setter。

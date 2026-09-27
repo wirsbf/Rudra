@@ -3207,7 +3207,9 @@ DYNMAP-SETPROPS-RET-0001 / COREACT-DYNMAP-STUB-0001 / COREACT-DYNSYM-STUB-0001
 `CloneBlockOps` 在 funcdata.hh:630 是 public 类，ruleaction.cc:9334 直接
 实例化消费；Rust 结构体私有时该 pub 桥即模块边界上的同面暴露，零行为
 变化。唯一消费者=`RuleConditionalMove::construct_bool`（排序后跨块布尔
-表达式克隆，ruleaction.rs）。## 2026-09-27：`op_uninsert`+`op_insert_after` 搬移对回归钉（GETPARAM-FORLOOP-OPMOVE-0001，Lane OPMOVE）
+表达式克隆，ruleaction.rs）。
+
+## 2026-09-27：`op_uninsert`+`op_insert_after` 搬移对回归钉（GETPARAM-FORLOOP-OPMOVE-0001，Lane OPMOVE）
 
 新增 `final_transform_op_move_tests` 测试模块（funcdata.rs 尾部，2 测）：把
 block.cc:3381-3396 finalTransform 的 iterate/initialize 语句迁移动作（`opUninsert`
@@ -3218,3 +3220,17 @@ funcdata_op.cc:164-173 + `opInsertAfter` funcdata_op.cc:373-404）钉进 Rust �
 布局钉防御分支，oracle 不变量下 MULTIEQUAL 恒块首）。纯 `#[cfg(test)]` 代码，零
 生产行为变化；语料级 oracle 等价由 F8FOR canon/镜面 A/B 证据承载（见 TODO_BOARD
 GETPARAM-FORLOOP-OPMOVE-0001 关账行）。
+
+## 2026-09-27：replace_volatile 尾部 special_prop 误映射修正（VARNODE-CALLOTHER-VOLATILEOUT-0001）
+
+`replace_volatile` 的 cc:761-762 尾部（源 varnode typelock → 置
+special addlflag）此前以 STOP_TYPE_PROPAGATION(0x40) 近似 special_prop——
+两旗标在 oracle 是不同语义：stop_type_propagation（op.hh:215）使
+`Varnode::getLocalType`（varnode.cc:912-914）阻断后代咨询；
+special_prop（op.hh:207/109，0x1）门控 volatile user-op 的 local-type
+覆写（userop.cc:131/162）。Ghidra 中 typelocked volatile read **不**阻断
+传播，其出口类型经 `VolatileReadOp::getOutputLocal`（userop.cc:128-141，
+本批 1:1 移植）从全局符号表解析。修正为置位真 SPECIAL_PROP(0x1)。
+休眠面：`replace_volatile` 的调用链需 cspec `<volatile>` → varnode
+`volatil` 属性（ActionVolatile 域），五语料 cspec 无该元素，链首即断，
+canon A/B 字节恒等。

@@ -7211,11 +7211,16 @@ impl ActionSetCasts {
                     .as_ref()
                     .map(|factory| {
                         let userops = fd.arch.as_ref().and_then(|a| a.userops.clone());
+                        // The `symboltab` thread feeds the volatile-read arm
+                        // of the same dispatcher (userop.cc:136); the
+                        // stringdata echo arm never consults it.
+                        let symboltab = fd.arch.as_ref().and_then(|a| a.symboltab.clone());
                         let op_guard = op.0.read().unwrap();
                         crate::varnode::op_output_type_local(
                             &op_guard,
                             factory,
                             userops.as_ref(),
+                            symboltab.as_ref(),
                         )
                     })
                     .flatten()
@@ -8210,6 +8215,14 @@ impl ActionInferTypes {
             .arch
             .as_ref()
             .and_then(|architecture| architecture.userops.clone());
+        // The `symboltab` thread feeds `VolatileReadOp::getOutputLocal`'s
+        // global-scope query (userop.cc:136) through the CALLOTHER arm of
+        // `op_output_type_local` — the Rugra stand-in for the descriptor's
+        // `glb->symboltab` edge (VARNODE-CALLOTHER-VOLATILEOUT-0001).
+        let symboltab = fd
+            .arch
+            .as_ref()
+            .and_then(|architecture| architecture.symboltab.clone());
 
         // coreaction.cc:5016: beginLoc()/endLoc() is VarnodeLocSet order.
         for vn_arc in fd.vbank.loc_tree.iter().map(|entry| entry.0.clone()) {
@@ -8287,6 +8300,7 @@ impl ActionInferTypes {
                         &mut needs_block,
                         &type_factory,
                         userops.as_ref(),
+                        symboltab.as_ref(),
                         fd_output_type.as_ref(),
                     )
                     .map_err(|error| crate::error::Error::Lowlevel(error.to_string()))?
