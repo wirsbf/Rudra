@@ -6398,8 +6398,27 @@ impl Funcdata {
             }
             if !answered {
                 // Legacy fallback (no channel / non-RAM space): the
-                // `symbol_table` name proxy, mapping addr→name.
-                if self.symbol_table.get(&addr).is_some() {
+                // `symbol_table` name proxy, mapping addr→name. The proxy
+                // keys are RAM-space function addresses only, and the
+                // oracle's lookups are space-qualified end to end —
+                // stackContainer walks per-space containers/rangetrees
+                // (database.cc:943-966: no scope owns the unique space;
+                // const is guarded at :953) and SymbolTable::getProperty's
+                // flagbase is keyed by the full space+offset Address
+                // (database.hh:946), so queryProperties yields flags==0
+                // for a unique-space varnode. The flat offset-only lookup
+                // must therefore be RAM-guarded: without the guard a
+                // unique-space varnode whose offset collides with a RAM
+                // function address inherits a spurious MAPPED
+                // (RULEACTION-NEGCONST-FOLD-0001: RulePtrArith's PTRADD
+                // output at unique offset 0xaa00 collided with
+                // enable_progress_bar@0xaa00, forcing baseExplicit →
+                // explicit → merged → the materialized address temp
+                // `V = (int8 *)(addr); V = (int4 *)*V;` instead of
+                // golden's implied inline `V = *(int4 **)(addr)`).
+                if space == crate::space::AddressSpace::Ram
+                    && self.symbol_table.get(&addr).is_some()
+                {
                     // cc:32-33 side-effect approximation: set MAPPED so we
                     // don't re-query.
                     vn.write()
@@ -19412,6 +19431,59 @@ fn test_scope_local_find_overlap_negative_size_modular() {
         fd.set_varnode_properties(&vn_out);
         assert!(vn_out.read().unwrap().flags & crate::varnode::varnode_flags::ADDRTIED == 0);
         assert!(!vn_out.read().unwrap().is_mapped());
+    }
+
+    // RULEACTION-NEGCONST-FOLD-0001: the legacy symbol_table proxy in
+    // set_varnode_properties is keyed by RAM-space function addresses
+    // only, and the oracle's queryProperties is space-qualified end to
+    // end — stackContainer finds no owning scope for a unique-space
+    // address (database.cc:943-966; const is guarded at :953) and
+    // SymbolTable::getProperty's flagbase is keyed by the full
+    // space+offset Address (database.hh:946), so flags==0 come back for
+    // the unique space. A unique-space varnode whose offset collides
+    // with a RAM function address must NOT inherit the proxy's MAPPED
+    // (live case: RulePtrArith's PTRADD output at unique offset 0xaa00
+    // vs enable_progress_bar@0xaa00 forced baseExplicit → explicit →
+    // the materialized `V = (int8 *)(addr); V = (int4 *)*V;` address
+    // temp instead of golden's implied inline `V = *(int4 **)(addr)`).
+    #[test]
+    fn test_set_varnode_properties_unique_space_proxy_collision() {
+        let mut fd = Funcdata::new("negconst_proxy", Address::new(0x401000), 0x10);
+        // The driver's flat proxy: one function symbol at RAM 0xaa00.
+        fd.add_symbol(0xaa00, "enable_progress_bar".to_string());
+        // Isolate the legacy fallback channel: Funcdata::new attaches the
+        // canonical Architecture, whose always-on symboltab
+        // (architecture.cc:597-602 `symboltab = new Database(this,true)`)
+        // would answer the RAM leg first with its own (empty-ranges)
+        // flags fold before the proxy fallback runs. Detaching it here
+        // mirrors the no-channel fixture the fallback exists for; in the
+        // real gen driver the populated db answers the same queries
+        // before the fallback (same precedence order).
+        fd.arch = None;
+        assert!(fd.scope.is_none());
+
+        // (1) Unique-space varnode at colliding offset 0xaa00: the oracle
+        // answers flags==0 (no scope owns the unique space), so no
+        // MAPPED may be set by the space-blind flat lookup.
+        let vn_uniq = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Unique, 0xaa00);
+        fd.set_varnode_properties(&vn_uniq);
+        assert!(
+            !vn_uniq.read().unwrap().is_mapped(),
+            "unique-space offset collision must not inherit the RAM proxy's MAPPED"
+        );
+
+        // (2) RAM-space positive control at the same offset: the proxy
+        // hit still sets MAPPED (the fallback's intended channel).
+        let vn_ram = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Ram, 0xaa00);
+        fd.set_varnode_properties(&vn_ram);
+        assert!(
+            vn_ram.read().unwrap().is_mapped(),
+            "RAM-space proxy hit keeps setting MAPPED"
+        );
     }
 
 // address.cc:484 (RangeList::inRange via database.hh:597 Scope::inScope)
