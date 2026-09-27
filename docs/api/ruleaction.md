@@ -939,7 +939,19 @@ opUnsetOutput 断开 op 输出；newVarnodeOut 创建新输出 varnode 并关联
   - `min_max_use(vn)` — 计算 vn 的实际使用字节范围（遍历后代 SUBPIECE，非 SUBPIECE 后代→全范围）
   - `acceptable_size(size)` — 检查截断大小是否合法（1/2/4/8 或 >=8）
   - `replace_descendants(orig_vn, new_vn, max_byte, min_byte)` — 用更窄的 new_vn 替换 orig_vn 的所有后代 SUBPIECE（转换为 COPY 或调整截断偏移）
-  - `find_subpiece(base_vn, out_size, shift)` — 搜索预存的 SUBPIECE
+  - `find_subpiece(base_vn, out_size, shift)` — 搜索预存的 SUBPIECE。
+    **2026-09-28 修正（CANON-LOOPFORM-GETPARENTS-INVERT-0001 根因）**：此前跳过了 oracle 的
+    同块约束（注释自认 "may find a SUBPIECE from a different block"）——findSubpiece
+    (ruleaction.cc:849-870) 逐后代按序检查：cc:859 input 基底只匹配 block 0 内的 SUBPIECE、
+    cc:860 非写非 input 基底永不匹配、**cc:861 要求 prevop 与基底 definer 同块**
+    （`basevn->getDef()->getParent() != prevop->getParent()` 指针比较）、cc:863-865 形式匹配
+    （in0 指针同 + outsize + shift）。缺省同块门时，canon httpd `ap_getparents` 的
+    pullsub 复用了外层 latch 块的 EAX 截断而非在循环头 φ 之后新建 SUBPIECE
+    （buildSubpiece cc:837 `opInsertAfter(new_op, basevn->getDef())`），循环头块因此少了
+    一条 isComplex 语句（block.cc:2388 计数），ruleBlockWhileDo 的 overflow 形判定
+    （blockaction.cc:1538 `bool overflow = bl->isComplex()`）被翻转为 `while(cond)`
+    形——golden 为 `while( true ) { …; if(…) break; }`。补齐后 canon httpd
+    ap_getparents 19→4（剩余 4 行=声明序+单语句位，异根另票）。
   - `build_subpiece(fd, base_vn, out_size, shift) -> Result<Varnode>` — 创建新 SUBPIECE op（ruleaction.cc:776-839）。
     **2026-08-27 修正（VARMAP-ORPHAN-DECL-0001 根因）**：此前仅在 `is_written` 时 `op_insert_after`，
     input 基底的新 SUBPIECE 从未插入任何 block，滞留 dead 列表；opDeadAndGone（funcdata.hh:476
