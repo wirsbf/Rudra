@@ -4175,3 +4175,38 @@ tokenct 分发补 **CPUI_CALLOTHER** 臂（此前落入 `output_metatype` 的
 纯线程改动：无 volatile CALLOTHER 在飞时（五语料 cspec 无 `<volatile>`，
 链首即断）行为零变化；canon A/B 字节恒等见车道终报。callother 域的
 setcasts token 面不动（本票非 STRDATA 域）。
+
+## 2026-09-27 — CALLSPEC-COPY-0001（ActionDefaultParams copy 臂生产化，Lane CALLSPEC）
+
+**机制**：`ActionDefaultParams::apply`（cc:2311-2337）此前登记为
+FUNCPROTO-MODEL-BIND-0001 残差——"copy-from-callee 分支不可达"。本次把
+cc:2321-2330 的三分支臂 1:1 落地：
+
+- **COPY 臂**（`fc.callee_proto()` 为 Some，即 queryCall 边界已存被调恢复
+  原型——`FuncCallSpecs::set_callee_proto`，fspec 侧的
+  `getFuncdata()/getFuncProto()` 可观察切片）：`fc.copy_proto_from(&callee)`
+  （fspec.cc:3789 `FuncProto::copy` 全量转移）+ cc:2325
+  `(!isModelLocked() && !hasMatchingModel(evalfp)) → setModel(evalfp)`；
+- **NOFUNC 臂**：无被调 → 既有 `setInternal(evalfp, void)` 路径（含
+  UNKNOWN-PROTOMODEL-0001 locked-guard 补偿）原样保留；
+- 驱动 `link_call_specs` 在 libc/DWARF 两半安装调点原型的同时 `set_callee_proto`
+  存档被调原型（canon 现行面仍由预管线安装定义——copy 臂被 `!hasModel()` 门
+  控为惰性，canon A/B 字节恒等亲证）。
+
+**验收**：双侧 fixture `tests/oracle/callspec_copy_1204.{cc,rs}`（锁定 oracle
+e40ed130 手动构建 + Rust 侧经真实 `ActionDefaultParams::apply`）24 记录
+**字节恒等 MATCH**（COPY/COPY_LOCKEDMISMATCH/NOFUNC 三臂：参数
+typelock+namelock、寄存器存储 0x38/0x30、锁字、模型保留/绑定、调点名存活）；
+canon curl 157/0/0 md5 51cc85d2 恒等 + httpd 恒等；单测
+`callspec_copy_tests` 3 例。
+
+**CAST-A 残差再归因（车道关键结论，非本机制可收敛）**：canon 探针实证
+fgets/fclose 调点的 libc 表参数**已 typelocked**（`TypeOpCall::getInputLocal`
+req=*FILE 解析成功），缺 cast 的直接原因是**参数位 facing 类型强度差**——
+Rugra 把 DWARF 类型强定型到实参 varnode（req 与 cur 同对象 →
+`castStandard` 早退），oracle 在这些位点的实参类型更弱。类型身份分裂实验
+（libc 宇宙 vs DWARF 宇盟两 FILE 对象）被 golden 三组对照证伪
+（`__stream = stdin`/`__stream = fopen` 双 nocast 与
+`my_get_line((FILE*)__stream)` cast 不能同时成立）——A/B净 −18/回归 +6，
+已回退。收敛责任移交 CURLCANON-PROTOCAST-INPUTS-0001（stage drill 钉
+my_get_line/fgets 位点的首个类型状态分歧）。

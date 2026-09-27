@@ -12606,11 +12606,37 @@ impl Action for ActionDefaultParams {
                 // field maps to the FuncProto full model that hasEffect/
                 // effect_iter consult.
                 if !fc.prototype.has_model() {
+                    // cc:2321-2330: Funcdata *otherfunc = fc->getFuncdata();
+                    // if (otherfunc != (Funcdata *)0) {
+                    //   fc->copy(otherfunc->getFuncProto());
+                    //   if ((!fc->isModelLocked()) && !fc->hasMatchingModel(evalfp))
+                    //     fc->setModel(evalfp);
+                    // }
+                    // else
+                    //   fc->setInternal(evalfp, types->getTypeVoid());
+                    //
+                    // The callee link is the queryCall boundary's stored
+                    // recovered prototype (fspec.rs FuncCallSpecs::
+                    // callee_proto — the getFuncdata()/getFuncProto()
+                    // observable slice; flow.cc:646-666 defers the full
+                    // copy to exactly this point so "last second" platform
+                    // signature changes still land).
+                    match fc.callee_proto().cloned() {
+                        Some(callee) => {
+                            fc.copy_proto_from(&callee);
+                            if !fc.prototype.is_model_locked()
+                                && !evalfp
+                                    .as_ref()
+                                    .is_some_and(|m| fc.prototype.has_matching_model(m))
+                            {
+                                fc.prototype.set_model(evalfp.clone());
+                            }
+                        }
+                        None => {
                     // Rugra cannot resolve fc->getFuncdata() to a per-callee
-                    // Funcdata registry yet, so the cc:2321-2326
-                    // copy-from-callee branch is unreachable and the
-                    // cc:2327-2328 else branch runs for every modelless
-                    // callspec: fc->setInternal(evalfp, void).
+                    // Funcdata registry yet, so for callees without a
+                    // queryCall-boundary prototype the cc:2327-2328 else
+                    // branch runs: fc->setInternal(evalfp, void).
                     //
                     // Locked-guard (rework of the first WIP): Ghidra's
                     // modelless callspecs never carry locked storage — a
@@ -12631,6 +12657,8 @@ impl Action for ActionDefaultParams {
                         fc.prototype.set_model(evalfp.clone());
                     } else {
                         fc.prototype.set_internal(evalfp.clone(), type_void.clone());
+                    }
+                        }
                     }
                     // RUGRA-GLUE: dual-model seam — keep the simplified
                     // type_system model seeded for possible_input_param

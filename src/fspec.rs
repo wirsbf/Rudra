@@ -1235,8 +1235,28 @@ impl FuncProto {
             return;
         }
         for p in &mut self.parameters {
-            if val { p.flags |= protoparam_flags::TYPE_LOCKED; }
-            else { p.flags &= !protoparam_flags::TYPE_LOCKED; }
+            if val {
+                p.flags |= protoparam_flags::TYPE_LOCKED;
+                // Ghidra: fspec.cc:3047-3057 ParameterSymbol::setTypeLock —
+                // on the scope-backed store the platform-locked prototypes
+                // use (Funcdata::setScope installs ProtoStoreSymbol before
+                // any platform signature lands), locking a NAMED parameter's
+                // type locks its name too:
+                //   `uint4 attrs = Varnode::typelock;
+                //    if (!sym->isNameUndefined()) attrs |= Varnode::namelock;
+                //    scope->setAttribute(sym,attrs);`
+                // Rugra's flat parameter vector is the projection of that
+                // symbol-backed store, so the named-parameter namelock
+                // side-effect mirrors here. (The oracle's
+                // ParameterBasic::setTypeLock, fspec.cc:2925, has no such
+                // side-effect — that class backs only scopeless internal
+                // stores, never the locked platform boundary.)
+                if !p.name.is_empty() {
+                    p.flags |= protoparam_flags::NAME_LOCKED;
+                }
+            } else {
+                p.flags &= !protoparam_flags::TYPE_LOCKED;
+            }
         }
     }
 
@@ -2843,6 +2863,17 @@ pub struct FuncCallSpecs {
     pub op_addr: Address,
     /// The destination address of the call (if known)
     pub entry_addr: Option<Address>,
+    /// The callee's own recovered prototype — Rugra's observable slice of
+    /// Ghidra's `FuncCallSpecs::fd` (fspec.hh:1649, the `Funcdata *` set by
+    /// `FuncCallSpecs::setFuncdata` at flow time, fspec.cc:4949) as consumed
+    /// by `ActionDefaultParams::apply` (coreaction.cc:2321-2324
+    /// `Funcdata *otherfunc = fc->getFuncdata(); ... fc->copy
+    /// (otherfunc->getFuncProto())`). Rugra has no per-callee Funcdata
+    /// objects in the library; the driver's queryCall boundary (the
+    /// `FlowInfo::queryCall` flow.cc:646-666 slice) stores the callee's own
+    /// locked FuncProto Arc here, and the copy channel below carries it
+    /// onto the call site.
+    pub callee_proto: Option<Arc<FuncProto>>,
     /// The prototype used at this call site
     pub prototype: FuncProto,
     /// Flags and other metadata
@@ -2988,6 +3019,9 @@ impl FuncCallSpecs {
             is_stack_output_locked: false,
             // fspec.cc:4927 `effective_extrapop = ProtoModel::extrapop_unknown`
             effective_extrapop: EXTRAPOP_UNKNOWN_FULL,
+            // fspec.hh:1649 `fd = (Funcdata *)0` — the callee link starts
+            // empty (no queryFunction hit).
+            callee_proto: None,
         }
     }
 
@@ -3923,6 +3957,51 @@ impl FuncCallSpecs {
         }
     }
 
+    // Ghidra: fspec.cc:4949 FuncCallSpecs::setFuncdata
+    /// Store the callee's own prototype — the getFuncdata/getFuncProto half
+    /// of `ActionDefaultParams`' callee resolution (coreaction.cc:2321-2324
+    /// `Funcdata *otherfunc = fc->getFuncdata()` +
+    /// `otherfunc->getFuncProto()`). Ghidra keeps the whole callee Funcdata
+    /// pointer and reads its live FuncProto at copy time; Rugra stores the
+    /// prototype Arc itself (the driver's queryCall boundary materializes
+    /// the callee's locked signature — DWARF/debug-info local or the
+    /// generic_clib platform signature — exactly once, before the pipeline).
+    /// Some mirrors the non-null `otherfunc` of the oracle arm; None keeps
+    /// the `setInternal(evalfp, void)` else arm (coreaction.cc:2327-2328).
+    pub fn set_callee_proto(&mut self, proto: Arc<FuncProto>) {
+        self.callee_proto = Some(proto);
+    }
+
+    // Ghidra: fspec.hh:1682 FuncCallSpecs::getFuncdata
+    /// The callee's recovered prototype, when the queryCall boundary
+    /// resolved one (the `fc->getFuncdata() != 0` observable of
+    /// coreaction.cc:2321).
+    pub fn callee_proto(&self) -> Option<&Arc<FuncProto>> {
+        self.callee_proto.as_ref()
+    }
+
+    // Ghidra: coreaction.cc:2323 fc->copy(otherfunc->getFuncProto())
+    /// The ActionDefaultParams prototype-copy channel: replace this call
+    /// site's FuncProto state wholesale with the callee's recovered
+    /// prototype. `FuncProto::copy` (fspec.cc:3789-3805) assigns model,
+    /// extrapop, the whole flag word (input/output/model locks, dotdotdot,
+    /// override bits), a clone of the parameter store (output + every input
+    /// parameter with name/type/lock markup), the effect list, and the
+    /// call-fixup inject id. FuncCallSpecs-level state (op, name, entry
+    /// address, effective extrapop, trial containers) is deliberately NOT
+    /// part of the copy — Ghidra's `FuncCallSpecs` does not override the
+    /// base-class `copy`, so `fc->copy` runs the FuncProto member only.
+    /// Ghidra's FuncProto base has no name member (the call-site name is
+    /// FuncCallSpecs state set by queryCall's setFuncdata), so the callsite
+    /// spelling survives the copy; Rugra's FuncProto carries a name field
+    /// as glue, and this wrapper restores the callsite's spelling over the
+    /// copy to keep that observable faithful.
+    pub fn copy_proto_from(&mut self, other: &FuncProto) {
+        let callsite_name = std::mem::take(&mut self.prototype.name);
+        self.prototype.copy_from(other);
+        self.prototype.name = callsite_name;
+    }
+
     // Ghidra: fspec.cc:5150 FuncCallSpecs::commitNewInputs
     /// Update the CALL's input Varnodes to reflect the (now locked) formal
     /// input parameters. Faithful port of `commitNewInputs`
@@ -4669,6 +4748,10 @@ impl FuncCallSpecs {
         res.stackoffset = self.stackoffset;
         // fspec.cc:4974 `res->isbadjumptable = isbadjumptable`.
         res.is_bad_jump_table = self.is_bad_jump_table;
+        // fspec.cc:4968 `res->setFuncdata(fd)` — the clone carries the
+        // callee link so the cloned call site's ActionDefaultParams arm
+        // still resolves the same recovered prototype.
+        res.callee_proto = self.callee_proto.clone();
         // res.copy(*this) — prototype already cloned via new().
         res
     }
@@ -13596,5 +13679,114 @@ mod tests {
         let b_diff = mk(16);
         assert!(a.is_compatible(&b_same));
         assert!(!a.is_compatible(&b_diff));
+    }
+}
+
+#[cfg(test)]
+mod callspec_copy_tests {
+    use super::*;
+
+    fn void_type() -> Arc<Datatype> {
+        crate::type_system::TypeFactory::shared_default()
+            .read()
+            .unwrap()
+            .get_type_void()
+    }
+
+    fn ptr_to_char() -> Arc<Datatype> {
+        let chartype = crate::type_system::TypeFactory::shared_default()
+            .read()
+            .unwrap()
+            .get_type_char(1)
+            .expect("char core");
+        crate::type_system::TypeFactory::shared_default()
+            .write()
+            .unwrap()
+            .get_type_pointer_default(chartype)
+    }
+
+    // Ghidra: fspec.cc:3789 FuncProto::copy via FuncCallSpecs::copy_proto_from
+    // (coreaction.cc:2323)
+    /// The ActionDefaultParams copy channel transfers the callee's whole
+    /// FuncProto state (model, locks, parameters with lock markup, output
+    /// type) while the CALLSITE's own name survives (the name is
+    /// FuncCallSpecs state in the oracle — Ghidra's FuncProto base has no
+    /// name member).
+    #[test]
+    fn test_copy_proto_from_transfers_state_and_keeps_callsite_name() {
+        // Unit scope: the copy semantics, not the storage-assignment
+        // channel (that is the bilateral fixture's job with the real cspec
+        // model). The callee state mirrors a post-setPieces prototype.
+        let mut callee = FuncProto::new("fixture_callee".to_string(), ptr_to_char());
+        let mut model = ProtoModelFull::new(Some(AddressSpace::Stack), 8);
+        model.name = "__stdcall".to_string();
+        callee.set_model(Some(Arc::new(model)));
+        let mut param = ProtoParameter::new("fixture_buf".to_string(), ptr_to_char(), Address::new(0x38));
+        param.address_space = AddressSpace::Register;
+        param.flags |= protoparam_flags::TYPE_LOCKED | protoparam_flags::NAME_LOCKED;
+        callee.parameters = vec![param];
+        callee.set_input_lock(true);
+        callee.set_output_lock(true);
+        assert!(callee.is_input_locked() && callee.is_output_locked());
+
+        let mut fc = FuncCallSpecs::new(
+            crate::address::Address::new(0x1000),
+            FuncProto::new(String::new(), void_type()),
+        );
+        fc.set_funcdata("fixture_callee", crate::address::Address::new(0x600000));
+        fc.copy_proto_from(&callee);
+
+        assert_eq!(fc.prototype.num_params(), 1);
+        let param = &fc.prototype.parameters[0];
+        assert_eq!(param.name, "fixture_buf");
+        assert!(param.is_type_locked());
+        assert!(param.is_name_locked());
+        assert!(fc.prototype.is_input_locked());
+        assert!(fc.prototype.is_output_locked());
+        assert!(fc.prototype.is_model_locked());
+        assert_eq!(fc.prototype.get_model_name(), "__stdcall");
+        // The callsite's resolved name survives the FuncProto copy.
+        assert_eq!(fc.prototype.name, "fixture_callee");
+    }
+
+    // Ghidra: fspec.cc:4949 FuncCallSpecs::setFuncdata / fspec.hh:1682
+    // getFuncdata (the coreaction.cc:2321 observable slice)
+    /// The callee-proto observable: Some after the queryCall boundary
+    /// stores the recovered prototype, None keeps the setInternal arm.
+    #[test]
+    fn test_callee_proto_observable_slice() {
+        let mut fc = FuncCallSpecs::new(
+            crate::address::Address::new(0x1000),
+            FuncProto::new(String::new(), void_type()),
+        );
+        assert!(fc.callee_proto().is_none());
+        let proto = FuncProto::new("c".to_string(), void_type());
+        fc.set_callee_proto(Arc::new(proto));
+        assert!(fc.callee_proto().is_some());
+        // fspec.cc:4968 clone carries the callee link.
+        let seq = crate::address::SeqNum::new(crate::address::Address::new(0x1000), 0);
+        let op = Arc::new(RwLock::new(crate::op::PcodeOp::new(
+            seq,
+            crate::opcodes::OpCode::CPUI_CALLIND,
+        )));
+        let cloned = fc.clone_for_op(&crate::op::PcodeOpRef(op));
+        assert!(cloned.callee_proto().is_some());
+    }
+
+    // Ghidra: fspec.cc:3047-3057 ParameterSymbol::setTypeLock
+    /// Locking a NAMED parameter's type locks its name too (the
+    /// scope-backed store's side-effect, mirrored on the flat projection);
+    /// an unnamed param (the param_N stand-in shape) gains no namelock.
+    #[test]
+    fn test_set_input_lock_namelock_side_effect() {
+        let mut proto = FuncProto::new("f".to_string(), void_type());
+        let named = ProtoParameter::new("named".to_string(), ptr_to_char(), Address::new(0x38));
+        let unnamed = ProtoParameter::new(String::new(), ptr_to_char(), Address::new(0x30));
+        proto.parameters = vec![named, unnamed];
+        proto.set_input_lock(true);
+        assert!(proto.parameters[0].is_type_locked());
+        assert!(proto.parameters[0].is_name_locked());
+        assert!(proto.parameters[1].is_type_locked());
+        assert!(!proto.parameters[1].is_name_locked());
     }
 }

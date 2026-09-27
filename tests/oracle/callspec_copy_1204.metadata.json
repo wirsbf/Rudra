@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "fixture_id": "CALLSPEC-COPY-0001",
+  "title": "ActionDefaultParams prototype-copy channel parity (fc->copy from a queryCall-resolved recovered callee / model-locked mismatch keep / setInternal else arm)",
+  "oracle": {
+    "tag": "Ghidra_12.0.4_build",
+    "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+    "decompiler_cpp_tree": "b02e230a539c65de14e50f357d0ba834d8184f4f",
+    "decompiler_makefile_blob": "ca0719fa5f17aabd14c52f40ed8b030f54d2aac6",
+    "entry": "BfdArchitecture::init -> Scope::addFunction -> FunctionSymbol::getFunction -> FuncCallSpecs ctor + setFuncdata + fc->copy(otherfunc->getFuncProto()) (real spec-dir scan of x86-64-gcc.cspec)"
+  },
+  "architecture": "x86:LE:64:default (SLEIGH x86-64)",
+  "compiler_spec": "x86-64-gcc.cspec (production bytes)",
+  "analysis_options": "default BfdArchitecture target=default; no option overrides; evalfp_current/evalfp_called unset (option database defaults)",
+  "input_fingerprints": {
+    "x86-64-gcc.cspec": "5eaa848f3eba7ebd4023541f9f37645dae077e8426fb562592f398d599530a9e",
+    "x86-64.sla": "406bfa48bca420786dd61e2b739913c30f85822fff5af1b1a10578e3b83cf52a",
+    "curl": "pinned from locked base examples/curl (BfdArchitecture scan target)",
+    "bfd.h": "c8c9c20823ebd8d427d9f91dd642b82b263fca2245a8ef4eb34f0de0cde25702",
+    "libbfd-2.38-system.so": "f9ca64d035c483bbfac32ca550074c20398ae2f0bb84dd989059dadb9cea8a1e"
+  },
+  "comparand": {
+    "capture": "lane-local manual bilateral run (2026-09-27, wt/callspec, base master 4803e6e3): the oracle side compiled from the locked tree at e40ed130 via git archive + make libdecomp.a + g++ (same recipe as tools/run_funcproto_model_bind_oracle.sh), the Rust side via cargo example callspec_copy_1204_oracle at the lane commit",
+    "note": "hermetic pinned runner + fixture_registry.json entry are the root serial follow-up (registry convention)"
+  },
+  "host_tools": {
+    "cxx": "g++ (GCC) 16.2.1 20260810",
+    "make": "GNU Make 4.4.1"
+  },
+  "build": {},
+  "coverage": {
+    "callspec_copy_status": "MATCH",
+    "record_counts": {
+      "SCHEMA": 1,
+      "ARCH_DEFAULTFP": 1,
+      "CALLEE_LOCKED": 1,
+      "COPY": 10,
+      "COPY_LOCKEDMISMATCH": 7,
+      "NOFUNC": 5,
+      "DONE": 1
+    },
+    "observations": [
+      "COPY: the queryCall-resolved callee's recovered prototype transfers wholesale through fc->copy (fspec.cc:3789): 2 typelocked+namelocked parameters with the model-assigned register storage (0x38/0x30), input+output+model locks, the default-matching model kept (no evalfp override), extrapop 8, and the CALLSITE's own name preserved (the name is FuncCallSpecs state, outside the FuncProto copy)",
+      "COPY_LOCKEDMISMATCH: a callee model-locked on MSABI keeps it (coreaction.cc:2325 !isModelLocked gate blocks the evalfp override); matching_default=0",
+      "NOFUNC: no callee -> setInternal(evalfp, void) (coreaction.cc:2327-2328): 0 parameters, void output, no locks, evaluation model bound with extrapop 8",
+      "CALLEE_LOCKED: setPieces (fspec.cc:3843-3852) locks input+output+model on the callee before any caller sees it; the per-parameter namelock rides ParameterSymbol::setTypeLock's named-parameter side-effect (fspec.cc:3047-3057), mirrored in Rugra by FuncProto::set_input_lock"
+    ]
+  },
+  "residuals": [
+    {
+      "id": "CALLSPEC-COPY-0001",
+      "status": "UNTESTED",
+      "note": "corpus-level CAST-A convergence (curl ~52 lines) is NOT delivered by this mechanism alone: the canon probe proved the libc-table parameters already arrive typelocked at the cast decision point, and the missing casts trace to the argument varnodes' facing-type strength (Rugra DWARF-types them; the oracle leaves them weaker at the cast sites). Root-cause re-attribution + the falsified type-identity-split experiment are recorded on the ticket row and in the lane report"
+    },
+    {
+      "id": "CURLCANON-PROTOCAST-INPUTS-0001",
+      "status": "UNTESTED",
+      "note": "the cast-family symptom ticket remains the owner of the argument-facing-type drill (stage-bisect the first type-state divergence at my_get_line's fgets site)"
+    }
+  ],
+  "locked_capture": {
+    "records": 24,
+    "bytes": 677,
+    "stdout_sha256": "557d48ad3f425ff886169cfddfdf43407446deab9a1d26a6bd08b7061ee7ace6",
+    "note": "oracle and Rust captures byte-identical (diff clean) at the lane commit; the sha covers the 24-record projection"
+  },
+  "overall_status": "MATCH (bilateral observation complete: locked-oracle capture vs Rust capture byte-identical; hermetic runner/registry pinning = root follow-up)",
+  "input_sha256": "5a7eed7a0d2fc7b3aad2d5b21beb0d2a4a41fecd2e25b2628acca9437b0dbaff"
+}
