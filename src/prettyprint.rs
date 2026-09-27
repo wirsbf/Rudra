@@ -2066,7 +2066,20 @@ impl EmitNoMarkup {
         let mut ptr_names: HashSet<String> = HashSet::new();
         for line in text.lines() {
             let t = line.trim();
-            if t.ends_with(';') && t.contains('*') && !t.contains('(') && !t.contains("return") {
+            // CASTFUSEB (GEN4-SQ-CASTFUSE-DEPTH-0001 subfamily B, 2026-09-28):
+            // the scan must see DECLARATION lines only. Statements through a
+            // dereferenced pointer (`*piVar19 = iVar31 - uVar35;`) also end
+            // with ';' and contain '*' with no '(', and their last token
+            // (`uVar35`) was mis-collected as a pointer name — P25 then
+            // rewrote the legitimate `puVar13 + uVar35` (oracle opPtradd
+            // prints the PTRADD index bare, printc.cc:891; Rugra's raw emit
+            // is already bare-identical) into `puVar13 + (long)uVar35` —
+            // the sq CAST-SHAPE `+ (long)` addend-widening family. No
+            // declaration line ever contains '='; every mis-scanned store
+            // line does. Gate on that discriminator.
+            if t.ends_with(';') && t.contains('*') && !t.contains('(') && !t.contains("return")
+                && !t.contains('=')
+            {
                 // Declaration like "int * piVar_0;" or "long * uVar_b0;"
                 // Extract the variable name (last token before ';', after '*')
                 let name: String = t
@@ -4838,6 +4851,34 @@ impl Emit for EmitPrettyPrint {
 #[cfg(test)]
 mod tests {
     use super::EmitNoMarkup;
+
+    // CASTFUSEB (GEN4-SQ-CASTFUSE-DEPTH-0001 subfamily B, 2026-09-28):
+    // fix_pointer_arithmetic's pointer-name scan must see DECLARATION lines
+    // only. A store through a dereferenced pointer (`*piVar19 = iVar31 -
+    // uVar35;`) also ends with ';', contains '*' and no '(' — its last
+    // token (uVar35) was mis-collected as a pointer name, and the pass then
+    // rewrote the legitimate pointer+integer add (oracle opPtradd prints
+    // the PTRADD index bare, printc.cc:891; the raw RPN emit is already
+    // bare) into `+ (long)uVar35` — the sq CAST-SHAPE addend-widening
+    // family and 67/68 of the sqlite `+ (long)` R-only census.
+    #[test]
+    fn fix_pointer_arithmetic_ignores_store_lines_in_name_scan() {
+        let text = "  uint1 *puVar13;\n  uint4 uVar35;\n  int4 *piVar19;\n\
+                    \x20\x20*piVar19 = iVar31 - uVar35;\n\
+                    \x20\x20puVar26 = puVar13 + uVar35;\n";
+        let out = super::EmitNoMarkup::fix_pointer_arithmetic(text);
+        assert_eq!(out, text, "ptr + int add must stay bare");
+    }
+
+    // The legitimate compensation target is unchanged: two REAL
+    // pointer-declared names in `a + b` still get the (long) cast on the
+    // right operand (the pass exists for C's ptr+ptr invalid-operands).
+    #[test]
+    fn fix_pointer_arithmetic_still_casts_real_ptr_plus_ptr() {
+        let text = "  int4 *piVar1;\n  int4 *piVar2;\n  x = piVar1 + piVar2;\n";
+        let out = super::EmitNoMarkup::fix_pointer_arithmetic(text);
+        assert_eq!(out, "  int4 *piVar1;\n  int4 *piVar2;\n  x = piVar1 + (long)piVar2;\n");
+    }
 
     // PRINTC-PRINTLIST-WIRING-0001 regression: EmitPrettyPrint::resetDefaults
     // (prettyprint.cc:1237-1242) restores both cross-document print options —

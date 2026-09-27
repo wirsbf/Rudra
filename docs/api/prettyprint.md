@@ -1275,3 +1275,33 @@ operator）。诱因：for 头超行宽折行后，续行形如
   该族分叉点——bump-0 的 1 空格断点在行尾必命中豁免（100-91=9<10）不换
   行，bump-10 的函数名断点（80-9=71≥10）必换行；`overflow()` 的 half-line
   抬升（cc:587-593）与本族无交互（无 >spaceremain 的单体 token）。
+
+### 2026-09-28 — CASTFUSEB（GEN4-SQ-CASTFUSE-DEPTH-0001 子族 B：P25 指针名扫描误收 store 行）
+
+- **结论先行**：子族 B（sq CAST-SHAPE `ptr + (long)idx` addend 加宽形）的
+  主根因不在票面候选（ActionSetCasts/castStandard/RulePtrArith），而在本文件
+  的 P25 文本补偿 pass `fix_pointer_arithmetic` —— 指针名收集扫描把
+  **store-through-deref 语句行**误当声明行。修复 = 声明行判定追加
+  `!t.contains('=')` 判别子（声明行永不含 `=`；被误扫的 store 行必含）。
+- **机制链**（代表函数 `_ZN5NPat29CPatricia15GetLongestMatchEPj`
+  `--one 611`，A/B 亲证 /dev/shm/rugra-tests/castfuseb/one611_{base,fix}.c）：
+  `*piVar19 = iVar31 - uVar35;` 同样满足旧行判定（`;` 结尾 + 含 `*`（解引用
+  前缀）+ 无 `(` + 无 `return`），其末 token `uVar35` 被误收进 ptr_names →
+  P25 把合法的 `puVar26 = puVar13 + uVar35;`（Rugra 原始 emit 本就裸 idx，
+  与 oracle opPtradd 非值上下文印法一致——printc.cc:880-893，:891
+  `pushVn(op->getIn(1),op,m)` 裸推 index 操作数，机制 E 亲读）重写成
+  `puVar13 + (long)uVar35` —— 即 sq CAST-SHAPE addend-widening 族与
+  sqlite `+ (long)` R-only census（SQLCENSUS4 §S4 89 处）的主量。
+- **oracle 侧亲证**：golden 同函数 0 处 `+ (long)`；裸形
+  `puVar28 = puVar16 + uVar34;`（golden:41059 附近）与修复后 Rugra 输出
+  同形；golden 内 28 条 `*piVarNN = …;` store-through-deref 行 = 误扫源
+  全景（每条以标识符结尾者都是潜在假名）。
+- **修复形态**：单判别子（declarations never contain `=`）+ 两测锁定
+  （`fix_pointer_arithmetic_ignores_store_lines_in_name_scan`：store 行
+  末 token 不入 ptr_names、`ptr + int` 保持裸；
+  `fix_pointer_arithmetic_still_casts_real_ptr_plus_ptr`：真 ptr+ptr
+  （C 非法操作数补偿目标）仍获 `(long)` 右操作数 cast）。
+- **验收**：canon curl 68/0/0 + httpd 47/0/0（双红线的精确命中，零回退）；
+  镜面 sq 3021→2935（−86）；bank 391/391；cargo test 1957P/0F（亲父
+  1955P + 新 2）。prettyprint 属机制 B 门禁（差分已过：defects=0/
+  numbering=0），非机制 C 白名单。
