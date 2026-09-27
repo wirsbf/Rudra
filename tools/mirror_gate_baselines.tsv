@@ -54,11 +54,11 @@
 # pinned_commit=c4508bba=集成态测量锚[wave-ledger commit 为 docs-only 不改二进制];
 # 分片协议 27178 仍为 SQLITE3_SCOREBOARD 记分板口径, 两协议各按各的账本记账）。
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
-curl	65	74	PRINTC-UNTYPEDCONST-CURLMIRROR-RESIDUAL-0001	23b40133	2026-09-27
+curl	35	74	MB26-RATCHET-REPIN-0001	fdfea39e	2026-09-28
 httpd	84	29	MB23-RATCHET-REPIN-0001	d9a2ef5d	2026-09-27
 vsh	8	71	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
-sq	3377	810	MB25-RATCHET-REPIN-0001	23b40133	2026-09-27
-sqlite	16590	1385	MB25-RATCHET-REPIN-0001	23b40133	2026-09-27
+sq	3262	810	MB26-RATCHET-REPIN-0001	fdfea39e	2026-09-28
+sqlite	10013	1385	MB26-RATCHET-REPIN-0001	fdfea39e	2026-09-28
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
@@ -191,3 +191,22 @@ sqlite	16590	1385	MB25-RATCHET-REPIN-0001	23b40133	2026-09-27
 # ⑤ canon: curl 151→110/0/0 md5 d792afad（VARNAM −39+PROTOCAST −2 精确兑现,
 #    matched 124）;httpd 70/0/0 md5 fd06e27f==MB24 钉值字节恒等;RETYPE −10 门开态
 #    不计默认脸。tests 1947P/0F/5I==1933+14 逐道闭合。result/ 已回流新档。
+# 2026-09-28 MB26 重钉（MB26-RATCHET-REPIN-0001, @fdfea39e = 3 支合并态 fresh 实测,
+# root 集成门禁串行复跑五面全 PASS defects=numbering=0 后收紧）:
+# ① curl ceiling 65→35 收紧（−30）——足迹全部集中 main 38→8（逐函数亲证: 其余 7 函数
+#    零漂移）;POINTTEE 指针定型/参数面重构 main(−32 车道值在本树的净显形 −30);
+#    PRINTC-UNTYPEDCONST-CURLMIRROR-RESIDUAL-0001 残差站点仍在（my_fwrite/myprogress/
+#    __libc_csu_init/__libc_csu_fini 调用点 LIT 形 8 行内含于 main=8;票保持 OPEN 绑定,
+#    修复路径不变=GEN-CONSTPTR-ANALYSISDB-0001 typed 通道）。
+# ② sq ceiling 3377→3262 收紧（−115）——车道算术 castfusedepth −24+unaff −22+pointtee −64
+#    =−110 ±5 组合残差;matched 810/810,defects=numbering=0。
+# ③ sqlite ceiling 16590→10013 收紧（−6577）——超车道算术预期（pointtee −4403+unaff −37=
+#    −4440）,复合增益 −2137 系 POINTTEE 指针定型解锁与 GA-1 已并面（−7227 巨物分派形）
+#    交互放大;逐函数（pointtee 树→合并树）76 改善 −9405/1 回归 +1（sqlite3Fts3ExprParse
+#    45→46,defects=0）;matched 1385/1385 health ok,VdbeExec 门内预算完成。
+# ④ httpd 84/84·vsh 8/8 恒等零漂移（不重钉——MB23/MB24 行保持）。
+# ⑤ canon: curl 110/0/0 md5 d792afad==MB25 钉值字节恒等;httpd 70/0/0 md5 fd06e27f 字节
+#    恒等——三支 canon 零回退红线兑现（车道亲证+合并树实测双侧）。tests 1950P/0F/5I
+#    ==1947+3 逐道闭合。B2 抽查 3/3: Pragma 簇恰 6 位点 switch((uint1)puVarNN[1])
+#    （puVar19/26/27,编号残差=ZDB-RING 票）/WindowCompare 整函数 0/0/0/CodeSpec
+#    CONCAT31 语句链 `iVar9 = CONCAT31(Var4,xVar7);` 在场+全局 2==golden。result/ 已回流。
