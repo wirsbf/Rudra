@@ -92,7 +92,15 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    // RUGRA-GLUE: name (no Ghidra counterpart found)
+    /// Ghidra: opcodes.cc:60 get_opname — `opcode_name[opc]` direct enum-value
+    /// index into the locked table at opcodes.cc:29-48. 1:1 spelling port
+    /// (PCODE-OPNAME-TABLE-0001): the table's placeholder-alias slots for the
+    /// SLEIGH compiler/interpreter (header comment opcodes.cc:23-28) print
+    /// MULTIEQUAL→"BUILD", INDIRECT→"DELAY_SLOT", PTRADD→"LABEL",
+    /// PTRSUB→"CROSSBUILD", and the float family drops the FLOAT_ prefix
+    /// (INT2FLOAT/FLOAT2FLOAT/TRUNC/CEIL/FLOOR/ROUND). `opcode_indices` serves
+    /// only get_opcode's name→enum binary search (opcodes.cc:75-84), not this
+    /// lookup.
     pub fn name(&self) -> &'static str {
         match self {
             OpCode::CPUI_COPY => "COPY",
@@ -138,12 +146,12 @@ impl OpCode {
             OpCode::CPUI_FLOAT_LESS => "FLOAT_LESS",
             OpCode::CPUI_FLOAT_LESSEQUAL => "FLOAT_LESSEQUAL",
             OpCode::CPUI_FLOAT_NAN => "FLOAT_NAN",
-            OpCode::CPUI_FLOAT_FLOAT2FLOAT => "FLOAT_FLOAT2FLOAT",
-            OpCode::CPUI_FLOAT_INT2FLOAT => "FLOAT_INT2FLOAT",
-            OpCode::CPUI_FLOAT_TRUNC => "FLOAT_TRUNC",
-            OpCode::CPUI_FLOAT_CEIL => "FLOAT_CEIL",
-            OpCode::CPUI_FLOAT_FLOOR => "FLOAT_FLOOR",
-            OpCode::CPUI_FLOAT_ROUND => "FLOAT_ROUND",
+            OpCode::CPUI_FLOAT_FLOAT2FLOAT => "FLOAT2FLOAT",
+            OpCode::CPUI_FLOAT_INT2FLOAT => "INT2FLOAT",
+            OpCode::CPUI_FLOAT_TRUNC => "TRUNC",
+            OpCode::CPUI_FLOAT_CEIL => "CEIL",
+            OpCode::CPUI_FLOAT_FLOOR => "FLOOR",
+            OpCode::CPUI_FLOAT_ROUND => "ROUND",
             OpCode::CPUI_BRANCH => "BRANCH",
             OpCode::CPUI_CBRANCH => "CBRANCH",
             OpCode::CPUI_BRANCHIND => "BRANCHIND",
@@ -159,13 +167,13 @@ impl OpCode {
             OpCode::CPUI_POPCOUNT => "POPCOUNT",
             OpCode::CPUI_LZCOUNT => "LZCOUNT",
             OpCode::CPUI_CALLOTHER => "CALLOTHER",
-            OpCode::CPUI_MULTIEQUAL => "MULTIEQUAL",
-            OpCode::CPUI_INDIRECT => "INDIRECT",
+            OpCode::CPUI_MULTIEQUAL => "BUILD",
+            OpCode::CPUI_INDIRECT => "DELAY_SLOT",
             OpCode::CPUI_CPOOLREF => "CPOOLREF",
             OpCode::CPUI_NEW => "NEW",
             OpCode::CPUI_SEGMENTOP => "SEGMENTOP",
-            OpCode::CPUI_PTRADD => "PTRADD",
-            OpCode::CPUI_PTRSUB => "PTRSUB",
+            OpCode::CPUI_PTRADD => "LABEL",
+            OpCode::CPUI_PTRSUB => "CROSSBUILD",
             OpCode::CPUI_EXTRACT => "EXTRACT",
             OpCode::CPUI_INSERT => "INSERT",
             OpCode::CPUI_CAST => "CAST",
