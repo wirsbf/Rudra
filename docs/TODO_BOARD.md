@@ -3439,3 +3439,61 @@ cargo test --lib 基线 1805P/0F/5I==任务书口径 → 改后 1808P/0F/5I（+3
 - **BLOCKACT-CONDNEGATE-PARITY-0001** | **P3 OPEN（镜面控制流极性奇偶差；STRDATA §6 移交残差的正式立案——原"ap_ht_time 残 6 行 LIT 控制流族"）** | 症状: golden `if (*V != '<ch>') { <体A> } return R;`（守卫块+尾 return）vs Rugra `if (*V == '<ch>') { return R; } <体A>`（条件取反+体交换）——**非 char 字面量渲染差**（两侧 `'*'`/`'\0'` 渲染恒等），纯控制流结构域 | owner: 待认领 | **根因链（双侧事件级证据，APHTTRIAGE 亲测）**: ①站点唯一存在于镜面契约——ap_ht_time 尾段 0x2df20+（=ap_strcmp_match 函数体）经未标记 noreturn 的 `__stack_chk_fail` fallthrough 被吸收为死代码尾，canon 面（322B，函数终于 canary 检查）无此站点；②提升态 cbranch@0x2df6e=INT_EQUAL(`je 0x2dfc5`)/fallthruTrue=0/边序[A,R0]；③oracle 轨迹（work4 仪器化树+golden_dump_apht 探针，输出与锁定 golden 逐字恒等自证有效）: 该条件块跨轮经历**奇数次（3 次）结构化 negate**——ruleBlockIfNoExit×2（blockaction.cc:1504-1507"clause must be true"）+ruleBlockGoto×1（cc:1461-1464"true branch must be goto"），每次 negate 置 boolean_flip 后由 RuleCondNegate（ruleaction.cc:5478-5510，插 BOOL_NEGATE+opFlipCondition）+RuleBoolNegate（cc:5512-5555，`!(V==W)=>V!=W`）物化为 **opcode 级翻转**；奇偶→终态 INT_NOTEQUAL/fallthruTrue=1/边序[R0,A]/BlockIf 臂序[A,R0]→printc 渲染 `!=` 守卫+尾 return；④Rugra 终态=原始提升态 INT_EQUAL/fallthruTrue=0/boolflip=0/臂序[R0,A]——**该站点零 negate 事件**（21 个 cbranch 全对照，0x2df6e 为唯一分歧点）；机制件全部存在（try_rule_if_no_exit blockaction.rs:4910/:5005、try_rule_if_goto :5138/:5193、RuleCondNegate ruleaction.rs:8115、RuleBoolNegate :1614）但触发条件从未对齐——首个分歧在进入结构化轮次的块图/goto 标记状态，修复须以 work4 oracle 轨迹（/dev/shm/rugra-tests/aphttriage/oracle/{apht_trace3.txt,work4}）对拍 Rugra 侧等价 trace 钉首分歧事件 | **族 census（七面实测 @01e9132d）**: httpd-mirror **1 函数**（ap_ht_time，单站点，skeleton 6 行——另 2 行=badstring 族 PRINTC-STRDATA-TYPELOCK-0001 已修待并）；sqlite-mirror **1 混合函数**（sqlite3VdbeSorterRewind，同形守卫翻转 1 站点混于 FORSPLIT/算术折叠既有族 9 hunk 中）；curl/vsh/sq 镜面 0；canon curl/httpd 0（站点缺席） | 写域=`src/blockaction.rs`（CollapseStructure negate 触发条件/轮次状态，先钉首分歧再定精确位点）+`docs/api/blockaction.md`——**printc/setcasts/prettyprint/charPrint 域全部排除**（双侧渲染恒等亲证） | **验收**: `python3 tools/compare_ghidra.py <httpd镜面输出> tests/golden/ghidra_httpd_1204.direct-runner.c --func ap_ht_time` skeleton 6→0 且 defects=0/numbering=0（在 STRDATA ec9154a5 合并后基线上测，或 fix 分支 rebase 其上）；sqlite3VdbeSorterRewind 同形站点随修复核对；五面棘轮零回退；机制 C 强制（blockaction 白名单——CR REQUIRED，复核点=首分歧事件归因+negate 触发条件逐条四类语义） | 依赖: PRINTC-STRDATA-TYPELOCK-0001 合并（验收基线）；证据=/dev/shm/rugra-tests/aphttriage/（oracle 探针+work4 树+census 七面输出+双侧 cbranch 对照） | 2026-09-27
 - **PRINTC-NEGTOKEN-PATH-0001** | **P4 OPEN（潜在渲染差，本车道顺带钉出；当前七面零可观测实例）** | oracle printc.cc:559-565 opCbranch 的 negatetoken 快路径（booleanflip 且条件可 token 翻转→直接印 `!=` 形）在 Rugra printc.rs:13398-13405 仅有 `!(...)` 回退形——若未来某 cbranch 携 booleanflip=1 存活到打印且条件为可翻转比较，oracle 印 `a != b` 而 Rugra 印 `!(a == b)`；现七面 Rugra 输出 `if (!(` 计 0（golden 3 处均为 `!(bool)xVar` 不可翻转回退形且该函数 ap_signal_server 不在镜面覆盖内），零现行差异 | owner: 待认领 | 写域=`src/printc.rs` op_cbranch 补 negatetoken 通道+`docs/api/printc.md` | **验收**: 构造 booleanflip+可翻转条件的单侧 fixture（oracle 同输入对拍）+七面字节恒等 | 依赖: 无 | 2026-09-27
 - **APHTTRIAGE 归并注记（分诊排除项，不开新票）** | 记录 | — | census 分类器的非本族命中逐个亲核排除: ①httpd-canon ap_no2slash STRONG 命中=while 守卫 vs do-while+LAB goto 的循环结构/goto 桥族（MSTRUCT 域既有族形态，非守卫翻转）；②httpd 双面 ap_getparents weak 命中=已知 MSTRUCT 勘误 typeprop 派生（is_complex 语句计数差，TODO 既有登记）；③httpd-canon ap_strcmp_match weak 命中=纯变量编号换名族（`== '\0'` 早 return 形两侧一致）；④sqlite3ExprCodeTarget/sqlite3ExprImpliesNonNullRow STRONG 命中=SWITCH-GOTO 既有族（sqlite3Select 同族）；⑤sqlite3VdbeMakeReady STRONG 命中=改名+栈槽 churn 既有族；⑥sqlite3BtreeOpen STRONG 命中=复合条件极性+德摩根（`==0x0||!=` vs `!=0x0&&==`）——条件极性邻族但机制为布尔复合非守卫翻转，归 BLOCKACT-CONDNEGATE-PARITY-0001 邻接证据，修复车道验证时顺带核对（不单独立票） | 2026-09-27
+
+## 2026-09-27 Lane CANONTRIAGE 交付登记（wt/canontriage @ master 94ac2db1；canon 双语料全残差分诊裁决——回应"canon 很久没降"：钉下一波收敛靶子；零 src，docs-only）
+
+**输入指纹**: canon curl `result/curl_cur.c` md5 51cc85d2（**157/0/0**·124 fn·14 残差函数）+ canon httpd `result/httpd_cur.c` md5 87f5a240（**139/0/0**·34 fn·14 残差函数，MB22 回流档）；golden=`tests/golden/ghidra_{curl,httpd}_1204.c`（12.0.4 锁定 oracle e40ed130 同版）；compare 口径=skeleton（stderr `[SYM]/[STEP]` 噪音未混入）。产物=/dev/shm/rugra-tests/canontriage/（dump_diffs.py/census.py/hunk_census.py/full_diffs.json/all_hunks.txt/curl_diffs.txt/httpd_diffs.txt）+终报 /dev/shm/rugra-reports/LANE_CANONTRIAGE_2026-09-27.md。
+
+**① 残差函数清单（函数级精确）**: curl=_init 8/main 39/_start 5/myprogress 3/my_get_token 7/my_get_line 4/helpf 4/file2string 25/parseconfig 18/getparameter 31/progressbarinit 2/glob_set 3/glob_range 1/__libc_csu_init 7（Σ157✓）; httpd=main 13/ap_init_vhost_config 7/ap_fini_vhost_config 27/ap_update_vhost_from_headers 5/ap_field_noparam 9/ap_ht_time 2/ap_pregcomp 4/ap_strcasestr 19/ap_pregsub 13/ap_getparents 19/ap_no2slash 8/ap_make_dirstr_parent 3/ap_getword 6/ap_getword_nc 4（Σ139✓）。
+
+**② family census（hunk 主导形归因;混合 hunk ±2;XMM 声明行并入 XMM 票后 DECL≈curl11/httpd21）**:
+
+| family | curl | httpd | 覆盖 |
+|---|---|---|---|
+| CAST-A 锁定原型参/值侧 cast（FILE*/stat*/char*） | ~52 | 0 | **既有票**：CURLCANON-PROTOCAST-INPUTS-0001+CALLSPEC-COPY-0001 |
+| DECL 声明集/型/序 | 11 | 21 | 新票④域+XMM/INRAX 票收编 |
+| SIG/THUNK/ENTRY 签名与实参转发 | 19 | 14 | 半：UNAFFPARAM-0004/SUBFLOW-CSU-MASK-0001；新票⑦ |
+| ARRIDX/PTRARITH 下标/成员重组形 | 8 | 18 | **新票**⑤ |
+| VARNAM 推荐名分叉（__stream vs fp/local_b8） | 18 | 0 | **新票**⑥ |
+| BOOLCHAR bool→'\0' 渲染 | 10 | 0 | **新票**⑦ |
+| INRAX 寄存器残留活变量 | 0 | 14 | **新票**② |
+| XMM extraout/in_ 物化+XOR 存储 | 0 | 15 | **新票**① |
+| NOOP/ORDER/CONV V=V/语句序/冗余转换 | 2 | 20 | **新票**③ |
+| LOOPFORM for↔while/条件反转 | 4 | 12 | 半：F8FOR-REJECT-RESIDUAL-0001；新票⑧收 getparents |
+| STRDAT 串/&DAT_ 混向 | 0 | 6 | **既有票**：STRLIT-ENVDAT-0001 |
+| RETADDR+CAST-B &UNK_/(undefined*)LIT | 12 | 2 | **既有票**：PRINTC-CONST-DISPLAYREBASE-0001（票面应扩 ap_ht_time 2 行） |
+| LINEWRAP 折行/花括号位 | 4 | 6 | 半：MIRATTR-F-WRAP-0001（镜面族,canon 站点并档=新票⑨） |
+| GLOBALSYM _DAT 重叠下划线 | 3 | 0 | **新票**⑩ |
+| LABEL code_r 标签位 | 0 | 2 | BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001 域注记 |
+| DF in_DF 方向标志 | 0 | 3 | **既有票**：X86LIFT-REPSTR-0001 |
+| csu `& 0xffffffff` 掩码 | 1 | 0 | **既有票**：SUBFLOW-CSU-MASK-0001 |
+
+**③ 归并注记（既有票已覆盖,不开新票）**: (a) CAST-A 旧票行分布过期——实测 main 26/getparameter 14/parseconfig 4/my_get_line 4/file2string 2/my_get_token(const) 2,机制面不变（fc->copy 经 MB18 释放后仍是第一杠杆）;(b) **ZF-LOOP-OSCILL-0001 症状陈旧**——canon 面 ap_strcasestr 现收敛（19 行残差=ARRIDX/SIG 形,非震荡）,动工前先复验;(c) `_init` IR 层 bank 投影 MATCH（HARVEST 15 条在案）——SIG 残差是 C 面签名层,非 IR 层;(d) 镜面 APHTTRIAGE census 方法的 canon 复用:BLOCKACT-CONDNEGATE-PARITY-0001 的 census 称 canon 0 站点系**其族定义口径**（守卫翻转 if/return 形）;canon ap_getparents 19 行里的 while(true)+break vs while(cond) 反转（6 行）是同机制异形态,入新票⑧并注明。
+
+**④ 新票（10 张:①XMM ②INRAX ③COPYJUNK ⑤ARRIDX ⑥VARNAM ⑦BOOLCHAR ⑦'SIG-ENTRY ⑧LOOPFORM-GETPARENTS ⑨LINEWRAP ⑩GLOBALSYM——编号即 census 表覆盖列引用;零 src 分诊产物;全部 fixture-first——先 IR drill 钉首分歧再动 src,FUNCINJECT 方法论）**:
+
+- **CANON-REGJUNK-XMM-EXTRAOUT-0001** | P2 | ap_fini_vhost_config 15 行（6 声明+9 体）+XMM0 升 param_1 签名 2 行+ap_update_vhost_from_headers 升参 2 行 | 根因方向:调用点 XMM0 clobber varnode 存活为命名局部——golden 识 `pxor`+16B 清零为 `x^x=0` 折 `(undefined1[16])0` 单存储,Rugra 两份 XMM0 拷贝（param_1/uVar12 vs in_XMM0_Qb/uVar15）未在 MULTIEQUAL 两侧归一→XOR 恒等不点火+extraout_XMM0_Qa/Qb 物化+XMM0 进参数试探（golden 二参,Rugra 三参）;oracle 锚:RulePropagateCopy（ruleaction.cc:3924-3956,Rugra 忠实在位）→疑 phi 拓扑/copy 时机分叉 | owner: 待认领 | 写域=src/merge.rs±src/heritage.rs（机制 C 白名单）+docs/api 同 commit | 验收=ap_fini_vhost_config stage drill 双侧首分歧钉死+canon httpd −15~19+双语料零回退 | 2026-09-27
+- **CANON-REGJUNK-INRAX-LIVEVAR-0001** | P2 | ap_field_noparam 8/ap_strcasestr 2/ap_no2slash 2/ap_make_dirstr_parent 2=14 行 | 根因方向:RAX 输入/中转未并入数据流（golden 单变量环 vs Rugra in_RAX 独立活变量）;`strrchr` 返回测试 `(in_RAX & (ulong)V) != LIT`=TEST(AND,RAX,ptr) 未塌缩为 `V != (char*)0` 形 | owner: 待认领 | 写域=src/ruleaction.rs±src/merge.rs（机制 C） | 验收=4 函数 in_RAX 声明与 AND 测试形消失+canon httpd −14 | 2026-09-27
+- **CANON-COPYJUNK-NOOP-ORDER-0001** | P3 | ap_pregsub 7/ap_getword 4/ap_getparents 9/my_get_token 2=22 行（V=V 自赋值/语句序互换/逗号内联 vs 提升/(int)/(uint) 冗余转换位） | 根因方向:COPY 消除与 op 定序层（RulePropagateCopy 守卫面 or phi-copy 折叠时机=RULE-PROPCOPY-ADDRTIED-0001 的 canon 面）;FUNCINJECT 后 ap_pregsub 已结构同构,是天然 fixture 载体 | owner: 待认领 | 写域=src/ruleaction.rs±src/coreaction.rs | 验收=canon httpd −16~20+curl my_get_token −2+IR fixture | 2026-09-27
+- **CANON-ARRIDX-MEMBERFORM-0001** | P2 | ap_strcasestr 9/ap_update 2/ap_no2slash 3/httpd main 2/curl main 2/progressbarinit 2/file2string 4≈24 行 | 三子根:(a) libc 原型返回型驱动数组形（`__ctype_tolower_loc`→`__int32_t**`→`V[V]` vs `*(int*)(V+V*4)`）=驱动 libc 签名表数据层;(b) PTRSUB 成员形渲染（`&config[-1].field_0x12f`/`&bar->field_LIT` vs `((long)(config+-1)+0x12f)`）=printc+元素型;(c) `V[LIT]` vs `V=V+LIT;V=*V` 折叠;**附带 printc 括号平衡缺陷**:result/curl_cur.c:532 `+ 0x12f))` 多右括号（真实语法缺陷,compare defects 检测器不覆盖,gcc 审计面） | owner: 待认领 | 写域=src/printc.rs（成员形+括号）+examples 驱动 libc 原型表+varmap 数组定型 | 验收=双语料 −20~24+括号缺陷归零 | 2026-09-27
+- **CANON-VARNAM-NAMEREC-TIEBREAK-0001** | P3 | parseconfig `__stream` vs `fp` 14 行+helpf `local_b8` vs `auStack_b8` 4 行=18 行 | 根因方向:lookForFuncParamNames（coreaction.cc:2858-2897）推荐名优先序分叉——Rugra main 已产 `__stream`（通道在位）但 parseconfig 选了 my_get_line 参数名 `fp` 而 oracle 选 fclose 的 `__stream`（扫描序/锁定时机）;helpf=curl local seed manifest 36 条覆盖缺口;与 COREACTION-FUNCPARAMNAMES-RECOMMEND-0001（REVIEW 未集成）联动核对;coreaction.rs:9125 nameRec 通道 RENUM 已注 RUGRA-GAP | owner: 待认领 | 写域=src/coreaction.rs+manifest±docs | 验收=parseconfig −14+helpf −4+canon curl −16~18 | 2026-09-27
+- **CANON-BOOLCHAR-FIELDTYPE-0001** | P3 | curl main `remotefile ==/!= false` vs `'\0'` 8 行+getparameter `(bool)(^)` 2 行=10 行 | 根因方向:DWARF Configurable.remotefile 的 bool 型未达比较点（bool 型 0 在 pushConstant 印 `false`,byte 型印 `'\0'`）——struct 字段型在 varmap/debugproto 侧被降或 LOAD 型传播丢 metatype | owner: 待认领 | 写域=src/debugproto.rs±src/varmap.rs | 验收=canon curl −10 | 2026-09-27
+- **CANON-SIG-ENTRY-PROCESSENTRY-0001** | P3 | _start 5（`processEntry _start(2参)` 前缀+签名 vs 3 参+unaff_retaddr 当实参）+csu 4（`_init(V)` 实参转发+EVP_PKEY_CTX* 参）+_init 8（`int _init(EVP_PKEY_CTX *ctx)`+返回值 vs void/void;IR bank MATCH 亲证=C 面签名层）=17 行 | 根因方向:x86-64-gcc.cspec `processEntry` 命名原型未装（ELF 入口符号签名通道）+启动链函数签名恢复（golden 自分析器签名 DB 得 int _init(EVP_PKEY_CTX*)——headless 桥接层形态）;csu 掩码 1 行已在 SUBFLOW-CSU-MASK-0001 | owner: 待认领 | 写域=src/fspec.rs（processEntry 原型）+examples 驱动签名种子 | 验收=三函数 −15~17 | 2026-09-27
+- **CANON-LOOPFORM-GETPARENTS-INVERT-0001** | P3 | ap_getparents 6 行（golden `while(true){…if(cond)break;…}` vs Rugra `while(cond){…}` 循环出口条件结构化取向）+ap_fini for/while 4 行（golden while+尾增 vs Rugra for——F8 机制过度转换边缘例） | 与 BLOCKACT-CONDNEGATE-PARITY-0001 同机制异形（其 census 口径未含此 canon 站点）;与 F8FOR-REJECT-RESIDUAL-0001（file2string 拒例 4 行,block.rs）相邻不同向 | owner: 待认领 | 写域=src/blockaction.rs±src/block.rs（机制 C） | 验收=canon httpd −10~12 | 2026-09-27
+- **CANON-LINEWRAP-CANONSITES-0001** | P4 | httpd main for 头 `;` 折行 2+ap_fini 长表达式折点 4+curl main `)\n{` 花括号 2/my_get_token 1/csu 1=10 行（token 序恒等,纯折行/花括号位差） | MIRATTR-F-WRAP-0001（镜面族 P3 待认领）的 canon 站点并档——两票可并道 | owner: 待认领 | 写域=src/printc.rs+src/prettyprint.rs | 验收=双语料 −10 | 2026-09-27
+- **CANON-GLOBALSYM-UNDERSCORE-0001** | P4 | myprogress `_DAT_00107178` vs `DAT_00107178`+WARNING 头注释 3 行 | 根因方向:curl 驱动符号库在 0x107178 建了 golden 无的同址小符号（Ghidra `_` 前缀规则=同址重叠小符号存在时触发+WARNING 注释随生）——符号摄取重叠过滤 | owner: 待认领 | 写域=examples/curl_decompile.rs | 验收=canon curl −3 | 2026-09-27
+
+**⑤ 下一波优先级排序（行数×修复难度×写域冲突;分诊裁决）**:
+
+| 序 | 动作 | 票 | 预期 canon | 写域（冲突） |
+|---|---|---|---|---|
+| 1 | MB18/fspecdein 释放后 CALLSPEC-COPY 落地→CAST-A 崩塌 | CALLSPEC-COPY-0001+PROTOCAST-INPUTS | curl −50 | fspec+coreaction（串行） |
+| 2 | REGJUNK 双票 fixture 钻（ap_fini+ap_field_noparam 双侧 stage drill 钉首分歧）后修复 | CANON-REGJUNK-XMM/INRAX | httpd −29 | merge/heritage/ruleaction（机制 C,空闲） |
+| 3 | ARRIDX:libc 原型表数据层先行+printc 成员形/括号随后 | CANON-ARRIDX | 双 −22 | printc（空闲）+驱动+varmap |
+| 4 | VARNAM tie-break+manifest 补条 | CANON-VARNAM | curl −18 | coreaction（与序 1 同域,后串） |
+| 5 | BOOLCHAR 字段型 | CANON-BOOLCHAR | curl −10 | debugproto/varmap（空闲） |
+| 6 | COPYJUNK fixture 后修 | CANON-COPYJUNK | httpd −18 | ruleaction/coreaction（与 2/4 分域） |
+| 7 | S2FIX coreaction 释放后 STRDAT 拾起 | STRLIT-ENVDAT | httpd −6 | coreaction |
+| 8 | 小票扫尾（LINEWRAP/GLOBALSYM/SIG-ENTRY/LOOPFORM/RETADDR 扩验） | 新票⑦⑧⑨⑩+DISPLAYREBASE | 双 −30 | 分散 |
+
+**裁决要点**:canon 停滞主因=剩余 296 行中 ~52 行 CAST-A 的机制票被 fspec 域 MB18 阻塞+~90 行 httpd 侧寄存器残留/COPY 残骸族从未被 census 过（本轮首登）;两组都不在当前任何在跑车道写域内。全部新票 fixture-first,禁无 IR 证据动 src。
