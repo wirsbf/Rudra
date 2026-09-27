@@ -36,17 +36,17 @@
     "EmitMarkup low-level reset arm (Rugra has no EmitMarkup emitter)"
   ],
   "comparand": {
-    "rugra_base_commit": "6a458387",
-    "rugra_base_tree": "623ef61ad2e18b337da538d455239134a6c02193",
+    "rugra_base_commit": "2cce7b99",
+    "rugra_base_tree": "131f3ba68d08a410c94f4ffc5c32d841b48d5057",
     "prettyprint_rs_sha256": "a59704aa78487b8155c6b6729c06a56bbc012cbe74291881588365ef88cce530",
     "printlanguage_rs_sha256": "beee9a43a7f0007086489e73cc68ef43a5845f9b05e0228e30b5e45d10f74d64",
-    "printc_rs_sha256": "37a2ede47bde00ff78f52a0783e4f9e1728ac753e3769a9e504d53db6460b86a",
-    "arch_rs_sha256": "01fdc5887fe024f401e6a6fd34fe5d835df9dc64f3dc5c913ca037ea24b4a1c8",
+    "printc_rs_sha256": "a46f37b14b19b4945fb5cfe79a3e744cb01330d0f4e35ffda831bf3b72aa23f7",
+    "arch_rs_sha256": "6c51d3ceedac4cc4d5ad73b657c314e11a92513b14d978f3f53e556a1fc860b4",
     "options_rs_sha256": "e650735668bd597e18166123c3371efe12acf5fb4fa06afea226783e800a7a59",
     "prettyprint_doc_sha256": "7fdd203b8b326c6b99c0f011d472cc8d0e88705773d2659714e4c5ce9f34391c",
     "printlanguage_doc_sha256": "f8665074e472ad27ac40505efdea60fc8a760293d7e4a48981572dc706f5cb9f",
-    "printc_doc_sha256": "e3340ab60c75619f577cfead94f5f53b3810fd0a15cded4421babb2bf3730f16",
-    "arch_doc_sha256": "b2c4cd220e743fa1c63322dd9a35bdc774842fea9bb90206b8dd3dceb8aa1b79",
+    "printc_doc_sha256": "b3764dd55230768bb2bc7efc06406346d5cf5e975dd1a5a5f4151b05cec75d4b",
+    "arch_doc_sha256": "1e95593b3b9d2b927750245d24c714b2c293936ba670eb2aaff950edf5911e4a",
     "options_doc_sha256": "dfa204cbf9ecaf8da6d9a11ce85ef4c70653be3e4d223e036789f7dbf2df3352",
     "host": {
       "cxx": "x86_64-linux-gnu-g++-11 (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
@@ -55,7 +55,7 @@
       "rust_toolchain": "system",
       "platform": "Linux 6.8.0-138-generic x86_64"
     },
-    "runner_sha256": "92539c5aa09f49bbdb0a8f91c87d74313921b7bba1ba609987c97be4aefa425d"
+    "runner_sha256": "81a54d9efe0d07c916ad6f5f0f78435b07a323564cbb9e713eb5dfc46959a7c1"
   },
   "input_fingerprint": "sha256:5ff4a4f1ca6fd41682ed6d178948315b8e74813b55ec6f672314ac1611a33465"
 }

@@ -55,7 +55,7 @@
 # 分片协议 27178 仍为 SQLITE3_SCOREBOARD 记分板口径, 两协议各按各的账本记账）。
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 curl	56	74	MERGEBATCH5-RATCHET-REPIN-0001	1a41d6ad	2026-09-26
-httpd	94	29	CSPEC-GLOBAL-APPLY-HTTPD-RATCHET-0001	1a41d6ad	2026-09-26
+httpd	92	29	CSPEC-GLOBAL-APPLY-HTTPD-RATCHET-0001	2cce7b99	2026-09-27
 vsh	16	71	MERGEBATCH5-RATCHET-REPIN-0001	6178d1ea	2026-09-26
 sq	7500	810	MERGEBATCH5-RATCHET-REPIN-0001	6178d1ea	2026-09-26
 sqlite	26411	1385	GENWIRE-SQLITE-RATCHET-REPIN-0001	26674f7d	2026-09-27
@@ -98,3 +98,21 @@ sqlite	26411	1385	GENWIRE-SQLITE-RATCHET-REPIN-0001	26674f7d	2026-09-27
 # ③ curl 56/56·httpd 94/94 精确命中 MB19 钉值零漂移;vsh 15/71 恒等。
 # ④ canon: curl 157/0/0 md5 51cc85d2==MB19 基线字节恒等;httpd **304/0/0 md5 04b3b014**
 #    =typeseedarb −7 新基线精确命中（canary 链族）。
+
+# 2026-09-27 MERGEBATCH21 波次增益锁定（MB21-RATCHET-REPIN-0001, root 授权重钉,
+# @2cce7b99 = MB21 10 支合并态 fresh 实测）:
+# ① httpd ceiling 94→92（FSTRFOLDUP 落地——MIRATTR-F-STRFOLD-0001 上游收口半:
+#    readonly 装表去 SHF_ALLOC 过滤[BFD elf.c !SHF_WRITE→SEC_READONLY 无 ALLOC 前提,
+#    真 BFD 2.38 探针 21 段含 .comment vma0 size 0x2b]+overlay_bfd_nonalloc_sections
+#    段链字节服务[loadFill findSection 通道];ap_parse_vhost_addrs 2→0——char* 常量
+#    0x20 折叠 .comment 尾串 "4.2) 9.4.0" golden:1877 逐字;skeleton identical;
+#    其余 28 函数逐函数零变化;floor 29 不动;canon 面零触及[analyzeHeadless 只映射
+#    LOAD 段,canon md5 恒等亲证]）。门禁实测 92/92 精确命中。
+# ② curl 56/56·vsh 15/16·sq 4227/7500（810/810 ok）三面恒等 MB20 钉值零漂移
+#    ——sq 预期不动兑现[subflowfix 不在本批,GENSMOKE-S4 重定向 subflow 域]。
+# ③ sqlite 26411/1385（本批 10 支对 sqlite 面全中性——pchover2/typedefimm/truncspace
+#    canon 构造性休眠,pcodeface/funcinject httpd/curl 域——见 MB21 终报）。
+# ④ canon: curl 157/0/0 md5 51cc85d2==MB20 基线字节恒等;httpd **141/0/0 md5 fcb6bf1a**
+#    =304−163[FUNCINJECT 311→148 改善在 MB20 基上全量叠加]+TYPESEEDARB −7 复合
+#    （ap_pregsub 122→13·ap_fini_vhost_config 45→27[TYPESEEDARB −5∘FUNCINJECT −13
+#    双改叠加]·main 15→13·逐函数归因见 MB21 终报）;result/ 已回流新档。
