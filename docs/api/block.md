@@ -1975,3 +1975,63 @@ y'!=x 臂保持原双守卫快照。零行为变化机器证明：canon curl/htt
 最小可归约环 b0→b1→b2→b1 亲证 y'==x 点：A 侧探针证递归路径真实命中且首守卫
 持有中二次取锁、B 侧证单锁臂；坍缩/copymap/边分类 oracle 语义断言 +
 structure_loops 驱动端到端）。
+
+## 2026-09-27 — F8FOR-REJECT-RESIDUAL-0001 两门拒例钉因 + 门链回归锁（Lane F8FOR 续）
+
+F8FOR 残量票（oracle 转 for 而 Rugra 拒的两门）逐函数探针钉因结论（探针
+eprintln 逐门打点，`--one`/`RUGRA_GEN_ONLY` 逐函数跑 sq 21 + sqlite 44 个
+census 两族函数，探针代码提交前全数移除）：
+
+- **门 1（findLoopVariable 的 isMoveable 分量）——根因不在 block.rs**：
+  探针实测拒例（LzmaEnc_Construct / BitvecSet / BitvecClear / EndTable /
+  NestedParse / file2string 等）全部命中 `pit_nomoveable`——迭代 op（如
+  `V = V - LIT` INT_SUB）到分支剥离后 lastOp（后期创建、块内位置在 BRANCH
+  之前的 COPY）之间，`is_moveable` 旧实现按 alivelist（markAlive 追加序）
+  游走，把块末 BRANCH 虚增为交叉（alivelist 序 [SUB,ZEXT,BRANCH,COPY] vs
+  块序 [SUB,ZEXT,COPY,BRANCH]），special-op default 臂误拒。oracle 走
+  basiciter 块序（op.cc:223-269）只跨 ZEXT/STORE/COPY → 收。该根因即已登记
+  潜在票 OP-ISMOVEABLE-WALKORDER-0001，**已由 MB24 车道在 master 落地**
+  （61051133/9c6ca5dc，与本道独立探针结论一致）；本道基线随之推进到
+  e5fb3e54，重复实现已弃（铁律 5：不重复落地已验证工作）。
+- **门 2（testIterateForm）——判决 oracle 一致，非缺陷**：残存 tif 拒例
+  （LzmaEnc_CodeOneBlock、sqlite 巨物族 VdbeExec/Select/mprintf 等）经
+  golden 对照全部为 oracle 同拒（golden 同为 while 形）；探针 high Arc
+  不匹配是这些循环迭代语句输入确实不达 loopDef 输出 high（oracle 同判）。
+- **flv_dfs 深度耗尽分量——上游 IR 表示分歧，超出 block.rs 写域**：
+  sqlite 仅剩 2 函数缺 for（sqlite3ExprAffinity / sqlite3_str_vappendf，
+  211→209）：条件链里 Rugra IR 多一枚 CAST（EQUAL→AND→SEXT→**CAST**→LOAD，
+  吃掉 path[4] 一级深度）或指针算术用 INT_ADD+CAST 而非 PTRADD（链深 5>4），
+  oracle IR 无此 CAST 故深度 4 内可达 MULTIEQUAL。根因在 cast 插入/op 选择
+  上游域（CAST-SHAPE 族邻域，GEN4-SQ-CASTFUSE-DEPTH-0001 域），已归因登记。
+- **init 提取分歧类（sq 面 +10 行/4 函数）**：LzmaEnc_Construct /
+  LzmaEncProps_GetDictSize / LzmaEnc_FastPosInit / _GLOBAL__sub_I——Rugra
+  提取 initializer 而 golden 留空 `for(;`（探针 `init_accepted
+  init=INT_ZEXT span_to=COPY`）。判决链（findInitializer→isMoveable→
+  testTerminal(1-slot)）对该 IR 是 oracle 忠实的；分歧根因是 init 块内
+  op 顺序/块结构与 oracle 不同（mask 语句与 ZEXT 根的相对位置），上游
+  IR 布局域。与 MB24 ISMOVEABLE 车道 parseconfig +2 同类（其 Differential
+  块已归因 upstream IR-layout divergence）。
+- **canon ap_getparents 残差**：现差 19 行归 CANON-LOOPFORM-GETPARENTS-
+  INVERT-0001 机制域（overflow 形 vs 条件反转，非 for 门）。
+
+**门链回归锁**（block.rs `while_do_gate_tests`，2 测，cfg(test) 零生产行为）：
+
+- `gate_chain_extracts_iterate_and_marks_non_printing`——最小 whiledo IR
+  （head=[MULTIEQUAL,INT_NOTEQUAL,CBRANCH]，tail=[INT_SUB 迭代,ZEXT,
+  COPY,BRANCH]，COPY 为后期创建插 BRANCH 前=块序/alivelist 分歧形状；
+  head 双入边 entry/tail，tail 单出边 reverse_index=1）端到端钉
+  finalTransform→finalizePrinting 全链：findLoopVariable 过 isMoveable
+  门收迭代 op、cc:3381-3384 迁移至终端语句位、常量 entry 输入使
+  findInitializer 落空（空 init `for(;` 形）、testTerminal/testIterateForm
+  重推导、cc:3421 opMarkNonPrinting。fixture 置 `HIGHLEVEL_ON`（镜像
+  finalizePrinting 时点的管线状态——testIterateForm 读合并后 high 同一性）。
+- `iterate_form_mismatch_rejects_without_marking_but_keeps_move`——
+  迭代 op 输入接外部 high 的 W 时 testIterateForm 拒（cc:3413 置空）且
+  语句**不**标 NONPRINTING（while 形回退），但 cc:3410 testTerminal 的
+  已提交移动保留（oracle "committed move" 副作用的忠实钉）。
+
+行为证据：镜面 sq for 循环 21/21 与 golden 逐函数一致（FORWHILE 族清零）、
+sqlite 209/211（残 2=上游 CAST 链）、canon 双语料与 master 字节恒等
+（cfg(test) 零生产行为）、bank 391/391、cargo test --lib 1935P/0F（亲父
+1933+2 新）。逐函数归因与门探针全表见 TODO_BOARD F8FOR-REJECT-RESIDUAL-0001
+行与 LANE_F8FOR_2026-09-27.md 终报。
