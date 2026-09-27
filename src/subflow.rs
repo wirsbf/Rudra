@@ -2639,6 +2639,20 @@ impl SubvariableFlow {
         // Non-push patches (everything after the push_front_count entries).
         for p in push_count..self.patchlist.len() {
             let patch = self.patchlist[p].clone();
+            // Debug-only invariant guard (CR-SUBFLOWFIX observation 1; oracle
+            // consumes slot unguarded at subflow.cc:1496/1502). Every
+            // PatchRecord constructor leaves slot >= 0; the only -1-capable
+            // path is add_extension_patch's leastsigbit_set(mask) fallback,
+            // which returns -1 only when mask == 0 — unreachable while the
+            // newvarlist invariant holds. If that invariant ever breaks, a
+            // leaked -1 would be `as usize`-widened into op_set_input's
+            // slot-padding loop (silent near-hang) or a huge INT_LEFT
+            // constant. debug_assert compiles out in release: zero
+            // behavior change.
+            debug_assert!(
+                patch.slot >= 0,
+                "PatchRecord slot=-1 reached do_replacement: -1 sentinel leaked from a patch constructor"
+            );
             let pullop_ref = PcodeOpRef(patch.patch_op.clone());
             match patch.patch_type {
                 PatchType::CopyPatch => {

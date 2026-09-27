@@ -300,6 +300,17 @@ oracle fixture `tests/oracle/subflow_outvn_1204.*`（runner
 NO_ORACLE 如实登记；Rust 侧断言 trace abort + IR 不变）+ 3 plain Some。
 <!-- annotation-pass: 2026-07-04 -->
 
+## do_replacement 的 slot 不变量 debug_assert（2026-09-27，HYGIENE 微件车道）
+
+`do_replacement` 非 push patch 循环头部新增 `debug_assert!(patch.slot >= 0)`
+（CR-SUBFLOWFIX 观察项 1 的防御加固）。oracle 在 subflow.cc:1496/1502 无守卫
+直接消费 `(*piter).slot`；Rugra 侧若 -1 哨兵泄漏（唯一可能路径：
+`add_extension_patch` 的 `leastsigbit_set(mask)` 兜底在 mask==0 时返回 -1，
+一致态不可达），`patch.slot as usize` 会扩展为 usize::MAX 进入
+`op_set_input` 的槽位填充循环（静默近挂死）或产生巨大 INT_LEFT 常量。
+`debug_assert` 在 release 构建下编译移除：零行为变化（release 二进制
+`strings` 亲证哨兵消息不存在、双语料 canon 字节恒等）。
+
 ## get_replace_varnode / replace_input：setInputVarnode 移植（HELPF-NONFREE-NORMALIZE-0001，2026-08-17）
 
 `SubvariableFlow::getReplaceVarnode`（Ghidra subflow.cc:1316）在
