@@ -54,11 +54,14 @@
 # pinned_commit=c4508bba=集成态测量锚[wave-ledger commit 为 docs-only 不改二进制];
 # 分片协议 27178 仍为 SQLITE3_SCOREBOARD 记分板口径, 两协议各按各的账本记账）。
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
+# MB27-RATCHET-REPIN-0001 @ 06e491c0 (2026-09-28): httpd 84->65 (GETPARENTS find_subpiece 同块约束, -19);
+# sq 3262->3021 (三支复合 -241: getparents 同块约束镜面效应为主); sqlite 10013->9951 (-62);
+# curl 35/vsh 8 恒等不重钉。canon: curl 110->95 (R1R2 -15) / httpd 70->47 (copyjunk -8 + getparents -15)。
 curl	35	74	MB26-RATCHET-REPIN-0001	fdfea39e	2026-09-28
-httpd	84	29	MB23-RATCHET-REPIN-0001	d9a2ef5d	2026-09-27
+httpd	65	29	MB27-RATCHET-REPIN-0001	06e491c0	2026-09-28
 vsh	8	71	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
-sq	3262	810	MB26-RATCHET-REPIN-0001	fdfea39e	2026-09-28
-sqlite	10013	1385	MB26-RATCHET-REPIN-0001	fdfea39e	2026-09-28
+sq	3021	810	MB27-RATCHET-REPIN-0001	06e491c0	2026-09-28
+sqlite	9951	1385	MB27-RATCHET-REPIN-0001	06e491c0	2026-09-28
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
