@@ -3899,3 +3899,61 @@ defects/numbering 双零）；`_ZThn16_..SetCoderProperties` thunk、
 `initialise_threads`/`SkipMatchesSpec`/`LzmaEnc_MemPrepare` 逗号续行形
 与 golden 逐字节一致；canon curl/httpd A/B 字节恒等（96429B/63214B）；
 行级行为以 prettyprint.rs `linewrap_probe_tests` 两新测钉死。
+
+## 2026-09-27：partial-symbol finalcast pushType 拼写 + LHS allowCast 门（TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 ①②）
+
+**根因（双侧对照钉死，sq 镜面 read_inode 族）**：golden
+`uRam…._0_3_ = CONCAT12(…,(unkbyte3)uRam…)` vs Rugra
+`()uRam… = CONCAT12(…,()uRam…)`——两处偏差：
+
+1. **空 cast 拼写**（读侧 `(unkbyte3)` 位点）：oracle
+   `PrintC::pushPartialSymbol`（printc.cc:1947-2065）的 allowCast 臂在
+   cc:2025 存 `finalcast = outtype`（Datatype\*），**渲染**在 cc:2044-2046
+   经 `pushOp(&typecast) + pushType(finalcast)` → `pushTypeStart`
+   （cc:280-285）——匿名基型拼 `genericTypeName`（`unkbyte3`/`unkuint7`），
+   非原始空名。Rugra `partial_symbol_walk`（printc.rs）在臂内直接
+   `finalcast = Some(outtype.get_name())`——匿名类型名恒空 → 印 `()`。
+   同型偏差在 RPN 孪生 `rpn_push_partial_symbol` 的 finalcast atom
+   （`finalcast.get_name()` 原始名）。**修复**：两处均改走
+   `cast_type_string`（printc.cc:1472-1476 pushType 的结构折叠拼写，
+   含 buildTypeStack 指针/数组层与匿名 genericTypeName 回退）。
+2. **LHS 整槽+cast vs 子槽条目**（赋值目标 `uRam…_0_4_` 位点）：oracle
+   赋值 LHS 走 `emitExpression`（printc.cc:2468-2495）→
+   `pushSymbolDetail(outvn,op,false)`（cc:2475，isRead=**false**）→
+   `pushPartialSymbol(…, allowCast=false)`——cast 臂被门死，走合成条目
+   `unnamedField(off,sz)`=`._off_sz_`（cc:2030-2041）。Rugra RPN 叶路径
+   `make_atom_for_vn`→`get_varnode_display_name`→inner 的
+   `push_symbol_detail_leaf(vn, true, …)` **硬编码 true**（读路径语义），
+   emit_expression_rpn 虽在 LHS 原子构造窗外设了 `is_lhs=true`
+   （consult slot=-1 半已对齐），allowCast 半漏接 → LHS 走 cast 臂印
+   `(T)sym`/`()sym`。legacy 通道（push_varnode 行）本就 `!self.is_lhs` ✓。
+   **修复**：inner 调用点改 `!self.is_lhs`（printlanguage.cc:256-257
+   isRead 语义）。
+
+**非本票残差（如实登记）**：③掩码/位移规范序（`(V & LIT) >> LIT` 折叠
+形态）= ruleaction 域（RULEACTION-NEGCONST-FOLD-0001 邻接）；Rugra 镜面
+`axStack_70[0]._0_4_` vs golden `axStack_70._0_4_` 的多余 `[N]` 元素下钻
+= walk 所见符号类型为 ≥4 字节元素数组（`xunknown8 [1]` 形）而 golden 符号
+类型为 1 字节元素（`xunknown1 [8]`）——varmap 域栈数组符号类型构造残差
+（VARMAP-UNAFF-TYPEMAT-0001 租约）。
+
+**验收（fast-release 亲测，基=master 48146429）**：镜面 sq
+4197→**4141**（−56，defects 0/numbering 0，census 族归因 OPNAME-LEAK
+183→143、CONDNEGATE 块内 −10、余为块内行替换；逐函数：read_inode_2
+176→126/read_inode_1 80→76/LzmaEnc_CodeOneBlock.part.0 115→113，
+read_inode_3 160 行数持平=行替换零净变（`()V`→`._0_N_` 形翻转））；
+canon curl **157/0/0==MB23 钉值 + 与基线 result/curl_cur.c 字节恒等**、
+httpd **139/0/0==钉值**（2 行形翻转在既有差异块内，已归因）；bank
+391/391 MATCH；cargo test --lib **1919P/0F**（基线 1917+2 新测：
+test_partial_symbol_finalcast_spells_pushType_form /
+test_display_name_lhs_gates_partial_cast_arm）；annotations/refs/evidence
+三门禁绿。
+
+### 补遗（同日第二 commit）：legacy 传输三臂同根因收口
+
+`emit_inline_expr` INT_ZEXT/INT_SEXT 臂、`op_unary` INT_ZEXT/INT_SEXT 臂、
+SUBPIECE `isSubpieceCast` 臂的 cast 前缀由原始 `get_name()` 统一改
+`cast_type_string`（printc.cc:786/799/872-875 → opTypeCast → pushType
+cc:1472-1478 的同一折叠）——消除 legacy 通道匿名类型印 `()` 的同型位点。
+构造性输出中性：生产驱动全走 RPN（`set_rpn_enabled(true)`），read_inode_2
+单函数+canon curl 复跑与主修复态字节恒等；cargo test 1919P/0F。
