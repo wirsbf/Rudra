@@ -4070,3 +4070,37 @@ oracle 的**指针恒等判定**：
 面=「canonical 类型对现存类型非严格更优且指针不同」，canon 语料不存在该
 形态。触发条件（票面登记）：多 RETURN 函数中某 RETURN 输入已有与 canonical
 返回类型不同源（非同一 interning 实例）且 typeOrder 相等或更优的温度类型。
+
+
+## 2026-09-27（CVAR1HOIST）：GETPARAM-CVAR1-HOIST-0001 MB20 中间态复核判决（零 src 改动）
+
+本车道（基=master 836ae2bc，MB20 合并进行中中间态）对该票重跑双侧对照：
+**票面分歧（oracle 判 `*flag` 入口 LOAD explicit 而 Rugra implied）在当前
+基线不复现——已被 CVRHOIST `ActionMarkImplied::apply` 后代先行 DFS
+（commit 363c9cfd，已入基）连同 gparam 084cdd1c 双修（check_implied_cover
+读前 `update_cover_locked` 惰性重建 + `inflate_test` 无条件现聚合）与
+ALIASGATE cb759c42（isPossibleAlias 端口）共同关闭**，四件全部在基内亲证。
+
+- **canon 双脸实测（836ae2bc 本树 release 构建）**：`cVar1 = *flag;`
+  （canon :1677 对应位，Rugra :1570）与 canary
+  `lVar2 = *(long *)(in_FS_OFFSET + 0x28);`、消费者 `if (cVar1 == '-')`
+  三件全数显式物化==canon 逐形；bare 脸（RUGRA_SEEDS=0）同样物化（:1549）。
+  canon 门禁 curl **157/0/0**、httpd **311/0/0**（==亲父基线，零漂移）；
+  `--func getparameter` = 31 skeleton 行/0 defects/0 numbering，残差全为
+  decl 类型槽族（Configurable*/FILE* 声明序）与 cast 渲染族（`(FILE *)fopen`
+  形）——均在他域既有登记（typeprop/setcasts/C3 系），非 explicit/implied 域。
+- **决策链亲读复核（本轮亲读 oracle，铁律 1.2）**：
+  `ActionMarkExplicit::apply` cc:3237-3272（baseExplicit 负 desccount 才
+  预标 explicit——`*flag` LOAD 输出不在此列，显式性完全由 MarkImplied 判定）
+  / `checkImpliedCover` cc:3376-3414（检 (1) interior contain+isPossibleAlias、
+  检 (2) CALL 交叉 interior、检 (3) inflateTest） / `apply` cc:3416-3455
+  （DescTreeElement 后代先行）/ `Merge::markImplied` cc:1595-1605（置 implied
+  + 弄脏 def 输入 hasCover 者 cover）/ `Merge::inflateTest` cc:1616-1647
+  （whole-interval==2 才拒、copyShadow/partialCopyShadow 豁免、piece 交叉）。
+  Rugra 对应物（coreaction.rs:4882-5050/5058-5164、merge.rs:1338 族）逐段
+  在位且与本判决输出一致。oracle 侧决策态由 CVRHOIST 断点 harness 钉死
+  （/dev/shm/rugra-tests/cvrhoist/oracle_gp.err：LOAD#452984834@0x3f49
+  markimplied 后 EXPLICIT、inflateTest 不参与）。
+- **域外无移交**：merge.rs 无新缺口；本票无残差留在 explicit/implied 判定域。
+  机制 C：零 src 改动，N/A。门禁全记录见
+  /dev/shm/rugra-reports/LANE_CVAR1HOIST_2026-09-27.md。
