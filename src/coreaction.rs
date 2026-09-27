@@ -5569,7 +5569,7 @@ impl ActionSetCasts {
     /// the `(char *)__s` form for a FILE* stored through a char** field
     /// pointer.
     // Ghidra: typeop.cc:520 TypeOpStore::getInputCast
-    fn store_input_cast(
+    pub fn store_input_cast(
         op_ref: &crate::op::PcodeOpRef,
         slot: usize,
         strategy: &crate::type_system::cast::CastStrategyC,
@@ -5691,7 +5691,7 @@ impl ActionSetCasts {
     /// locked-parameter argument casts (`(char *)0x0`,
     /// `(char **)0x17520`, `(char *)pCStack_5b8` at GetStr/fopen sites).
     // Ghidra: typeop.cc:295 TypeOp::getInputCast
-    fn call_input_cast(
+    pub fn call_input_cast(
         op_ref: &crate::op::PcodeOpRef,
         slot: usize,
         strategy: &crate::type_system::cast::CastStrategyC,
@@ -5737,13 +5737,71 @@ impl ActionSetCasts {
             });
         // cc:302 castStandard(reqtype,curtype,false,true); the returned Arc
         // preserves reqtype identity, mirroring Ghidra's `return reqtype`.
-        match (reqtype, curtype) {
+        match (&reqtype, &curtype) {
             (Some(req), Some(cur))
                 if strategy
-                    .cast_standard_full(&req, &cur, false, true)
+                    .cast_standard_full(req, cur, false, true)
                     .is_some() =>
             {
-                Some(req)
+                Some(req.clone())
+            }
+            _ => None,
+        }
+    }
+
+    /// `TypeOpReturn::getInputLocal` (typeop.cc:901-922) feeding the base
+    /// `TypeOp::getInputCast` (typeop.cc:295-303) — RETURN has no
+    /// getInputCast override of its own, so the required type is the
+    /// virtual inputTypeLocal: slot 0 (the indeterminate marker, the value
+    /// is slot 1 per printc.cc:764) keeps the size-matched unknown base,
+    /// while slot >= 1 reads the enclosing function's CURRENT output type
+    /// (the isOutputLocked gate at cc:917 is commented out in 12.0.4),
+    /// kept when it is neither void nor size-mismatched. This is the seed
+    /// that renders canon's `return (char *)__dest;` (my_get_line: the
+    /// char* return type against the uint* local high casts —
+    /// char* vs uint* survives castStandard's pointer strip because
+    /// care_uint_int turns true inside the PTR walk, cast.cc:322).
+    // Ghidra: typeop.cc:901 TypeOpReturn::getInputLocal
+    pub fn return_input_cast(
+        op_ref: &crate::op::PcodeOpRef,
+        slot: usize,
+        strategy: &crate::type_system::cast::CastStrategyC,
+        fd: &Funcdata,
+        in_vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        in_size: usize,
+        type_factory: &Arc<RwLock<crate::type_system::typefactory::TypeFactory>>,
+    ) -> Option<Arc<crate::type_system::datatype::Datatype>> {
+        use crate::typeop::TypeOp as _;
+        // cc:300 reqtype = op->inputTypeLocal(slot): the TypeOpReturn
+        // override resolves through the enclosing Funcdata's FuncProto.
+        let reqtype = crate::typeop::TypeOpReturn
+            .get_input_local_in_fd(op_ref, slot, fd)
+            .or_else(|| {
+                type_factory.read().unwrap().get_base(
+                    in_size,
+                    crate::type_system::datatype::TypeMetatype::Unknown,
+                )
+            });
+        // cc:301 curtype = vn->getHighTypeReadFacing(op); a varnode with no
+        // resolved type yet reads as the size-matched unknown base (the
+        // oracle's getHighTypeReadFacing never returns null).
+        let curtype = crate::unionresolve::vn_high_type_read_facing(fd, in_vn, op_ref, slot as i32)
+            .or_else(|| in_vn.read().unwrap().v_type.clone())
+            .or_else(|| {
+                type_factory.read().unwrap().get_base(
+                    in_size,
+                    crate::type_system::datatype::TypeMetatype::Unknown,
+                )
+            });
+        // cc:302 castStandard(reqtype,curtype,false,true); the returned Arc
+        // preserves reqtype identity, mirroring Ghidra's `return reqtype`.
+        match (&reqtype, &curtype) {
+            (Some(req), Some(cur))
+                if strategy
+                    .cast_standard_full(req, cur, false, true)
+                    .is_some() =>
+            {
+                Some(req.clone())
             }
             _ => None,
         }
@@ -5964,6 +6022,18 @@ impl ActionSetCasts {
                 }
                 OpCode::CPUI_INT_SDIV | OpCode::CPUI_INT_SREM => {
                     Self::divrem_input_cast(op_ref, slot, strategy, 2, &type_factory, fd)
+                }
+                // typeop.cc:295-303 base TypeOp::getInputCast with
+                // inputTypeLocal = TypeOpReturn::getInputLocal
+                // (typeop.cc:901-922): the return VALUE (slot 1, the
+                // marker is slot 0) takes the enclosing function's current
+                // output type as its required type — the arm that renders
+                // my_get_line's `return (char *)__dest;`. Before this arm
+                // RETURN fell to the metain fallback (None), so a locked
+                // return type never produced the value-side cast
+                // (PROTOCAST-FACING-1204 fixture, ret_distinct).
+                OpCode::CPUI_RETURN => {
+                    Self::return_input_cast(op_ref, slot, strategy, fd, &in_arc, in_size, &type_factory)
                 }
                 // typeop.cc:295-303 TypeOp::getInputCast base arm — the
                 // call family does NOT override getInputCast, so a
@@ -23060,4 +23130,165 @@ mod tests {
         assert_eq!(ci.get_offset(), 0x30);
         assert_eq!(ci.get_size(), 8);
         assert!(!ci.is_written(), "the copy is a fresh unwritten constant");
+    }
+
+    // Ghidra: typeop.cc:901 TypeOpReturn::getInputLocal (via base
+    // TypeOp::getInputCast typeop.cc:295-303, castInput coreaction.cc:2655)
+    /// The RETURN value (slot 1; slot 0 is the indeterminate marker) takes
+    /// the enclosing function's CURRENT output type as its required type —
+    /// the canon `return (char *)__dest;` shape (my_get_line: char* output
+    /// vs a uint* local high casts; char* vs uint* survives the pointer
+    /// strip because care_uint_int turns true inside the PTR walk,
+    /// cast.cc:322). Drives the real cast_input dispatch end-to-end: the
+    /// inserted CAST's output type is the required char*.
+    #[test]
+    fn test_cast_input_return_arm_casts_to_function_output_type() {
+        use crate::type_system::cast::CastStrategyC;
+        use crate::type_system::datatype::TypeMetatype;
+        use crate::type_system::typefactory::{SizeArchInputs, TypeFactory};
+        let mut factory = TypeFactory::raw();
+        factory.setup_sizes(&SizeArchInputs {
+            stack_spacebase_size: Some(8),
+            default_data_space_addr_size: 8,
+            default_size: 8,
+            far_pointer: None,
+        });
+        let uint8 = factory.get_base(8, TypeMetatype::Uint).expect("uint8");
+        factory
+            .set_core_type_result("char", 1, TypeMetatype::Int, true)
+            .expect("char core registration");
+        factory.cache_core_types();
+        let char_t = factory.get_type_char(1).expect("char");
+        let char_ptr = factory.get_type_pointer(8, char_t.clone(), 1);
+        let uint8_ptr = factory.get_type_pointer(8, uint8, 1);
+        let factory = std::sync::Arc::new(std::sync::RwLock::new(factory));
+
+        let mut fd = Funcdata::new("ret_arm", crate::address::Address::new(0x6000), 0x10);
+        fd.vbank.set_type_factory(factory.clone());
+        // The enclosing function's current output type (setPieces
+        // projection; TypeOpReturn::getInputLocal reads it unconditionally —
+        // the isOutputLocked gate at typeop.cc:917 is commented out).
+        fd.funcp.return_type = char_ptr.clone();
+        let block = fd.create_new_block();
+
+        // ret: RETURN(#0, val) with val's high typed uint8*. val is written
+        // by a COPY (a free varnode cannot take the CAST's second edge —
+        // the same Varnode::addDescend invariant the oracle enforces,
+        // varnode.cc:334-337).
+        let src_const = fd.new_constant(8, 0);
+        let copy = fd.new_op(1, crate::address::Address::new(0x6001));
+        fd.op_set_opcode(&copy, OpCode::CPUI_COPY);
+        fd.op_set_input(&copy, src_const, 0);
+        let val = fd.new_unique_out(8, &copy);
+        val.write().unwrap().update_type(uint8_ptr.clone());
+        {
+            let high = std::sync::Arc::new(std::sync::RwLock::new(
+                crate::variable::HighVariable::new(uint8_ptr.clone()),
+            ));
+            val.write().unwrap().high = Some(high);
+        }
+        fd.op_insert_end(&copy, &block);
+        let ret = fd.new_op(2, crate::address::Address::new(0x6000));
+        fd.op_set_opcode(&ret, OpCode::CPUI_RETURN);
+        let mark = fd.new_constant(1, 0);
+        fd.op_set_input(&ret, mark, 0);
+        fd.op_set_input(&ret, val.clone(), 1);
+        fd.op_insert_end(&ret, &block);
+        fd.set_high_level();
+
+        let strategy = CastStrategyC::new(4);
+        let mut action = ActionSetCasts::new();
+        // Slot 1: char* req vs uint8* cur -> CAST inserted.
+        assert!(action.cast_input(&mut fd, &ret, 1, &strategy));
+        let in1 = ret.0.read().unwrap().get_in(1).cloned().expect("ret in1");
+        assert!(
+            !std::sync::Arc::ptr_eq(&in1, &val),
+            "return slot 1 rewired to the inserted CAST output"
+        );
+        let in1_type = in1.read().unwrap().get_type().expect("cast output typed");
+        assert!(
+            std::sync::Arc::ptr_eq(&in1_type, &char_ptr),
+            "the CAST target is the function's char* output type"
+        );
+        let in1_def = in1
+            .read()
+            .unwrap()
+            .def
+            .as_ref()
+            .and_then(|d| d.upgrade())
+            .map(crate::op::PcodeOpRef)
+            .expect("new input is op-written");
+        assert_eq!(in1_def.0.read().unwrap().opcode, OpCode::CPUI_CAST);
+        // Slot 0: the indeterminate marker keeps the base default — no cast.
+        assert!(!action.cast_input(&mut fd, &ret, 0, &strategy));
+    }
+
+    // Ghidra: typeop.cc:918-920 TypeOpReturn::getInputLocal void/size guards
+    /// A void output, a size-mismatched output, and a same-object value
+    /// high all keep the base-default required type, so no cast is
+    /// inserted (the PROTOCAST-FACING-1204 ret_same/ret_size_mismatch/
+    /// ret_slot0 records).
+    #[test]
+    fn test_cast_input_return_arm_guards() {
+        use crate::type_system::cast::CastStrategyC;
+        use crate::type_system::datatype::TypeMetatype;
+        use crate::type_system::typefactory::{SizeArchInputs, TypeFactory};
+        let mut factory = TypeFactory::raw();
+        factory.setup_sizes(&SizeArchInputs {
+            stack_spacebase_size: Some(8),
+            default_data_space_addr_size: 8,
+            default_size: 8,
+            far_pointer: None,
+        });
+        let int4 = factory.get_base(4, TypeMetatype::Int).expect("int4");
+        let void_t = factory.get_base(1, TypeMetatype::Void).expect("void");
+        factory
+            .set_core_type_result("char", 1, TypeMetatype::Int, true)
+            .expect("char core registration");
+        factory.cache_core_types();
+        let char_t = factory.get_type_char(1).expect("char");
+        let char_ptr = factory.get_type_pointer(8, char_t.clone(), 1);
+        let factory = std::sync::Arc::new(std::sync::RwLock::new(factory));
+
+        let mut fd = Funcdata::new("ret_guard", crate::address::Address::new(0x6000), 0x10);
+        fd.vbank.set_type_factory(factory.clone());
+        let block = fd.create_new_block();
+        let build_ret = |fd: &mut Funcdata,
+                         block: &std::sync::Arc<
+            std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+        >,
+                         val_type: std::sync::Arc<crate::type_system::datatype::Datatype>| {
+            let val = fd.new_varnode(8, crate::address::Address::new(0x2000));
+            val.write().unwrap().update_type(val_type.clone());
+            let high = std::sync::Arc::new(std::sync::RwLock::new(
+                crate::variable::HighVariable::new(val_type),
+            ));
+            val.write().unwrap().high = Some(high);
+            let ret = fd.new_op(2, crate::address::Address::new(0x6000));
+            fd.op_set_opcode(&ret, OpCode::CPUI_RETURN);
+            let mark = fd.new_constant(1, 0);
+            fd.op_set_input(&ret, mark, 0);
+            fd.op_set_input(&ret, val, 1);
+            fd.op_insert_end(&ret, block);
+            ret
+        };
+
+        // ret_same: char* output vs char* high — same object, no cast.
+        fd.funcp.return_type = char_ptr.clone();
+        let ret = build_ret(&mut fd, &block, char_ptr.clone());
+        fd.set_high_level();
+        let strategy = CastStrategyC::new(4);
+        let mut action = ActionSetCasts::new();
+        assert!(!action.cast_input(&mut fd, &ret, 1, &strategy));
+
+        // ret_size_mismatch: int4 output (size 4 != 8) — base default, no
+        // cast even against a char* high.
+        fd.funcp.return_type = int4;
+        let ret = build_ret(&mut fd, &block, char_ptr.clone());
+        assert!(!action.cast_input(&mut fd, &ret, 1, &strategy));
+
+        // ret_void: void output — base default, no cast.
+        fd.funcp.return_type = void_t;
+        let ret = build_ret(&mut fd, &block, char_ptr.clone());
+        assert!(!action.cast_input(&mut fd, &ret, 1, &strategy));
     }

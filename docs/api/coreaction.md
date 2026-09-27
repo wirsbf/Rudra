@@ -4210,3 +4210,57 @@ Rugra 把 DWARF 类型强定型到实参 varnode（req 与 cur 同对象 →
 `my_get_line((FILE*)__stream)` cast 不能同时成立）——A/B净 −18/回归 +6，
 已回退。收敛责任移交 CURLCANON-PROTOCAST-INPUTS-0001（stage drill 钉
 my_get_line/fgets 位点的首个类型状态分歧）。
+
+## 2026-09-27：castInput 的 RETURN 分派臂——TypeOpReturn::getInputLocal 通道（Lane PROTOCAST，wt/protocast 基 wt/callspec bab71bc6）
+
+- **缺口**：`cast_input` 的 opcode 分发没有 CPUI_RETURN 臂——RETURN 落入通用
+  metain 回退（`input_metatype(CPUI_RETURN)=None` → ct 恒 null → 只有
+  markExplicit 路径），锁定/恢复的函数输出类型永不驱动返回值侧 cast。oracle
+  链：coreaction.cc:2662 `op->getOpcode()->getInputCast(op,slot,strategy)` 虚
+  分派——`TypeOpReturn`（typeop.cc:898）**不覆写** `getInputCast`，落基臂
+  typeop.cc:295-303：reqtype=`op->inputTypeLocal(slot)`（虚分派到
+  `TypeOpReturn::getInputLocal` typeop.cc:901-922——slot 0 不定标记走基默认
+  `getBase(size,TYPE_UNKNOWN)`；slot≥1 取**所在函数当前输出类型**
+  `fp->getOutputType()`，cc:917 的 isOutputLocked 门在 12.0.4 **被注释**，仅
+  VOID/尺寸不匹配回退基默认）、curtype=`vn->getHighTypeReadFacing(op)`、
+  `castStandard(req,cur,false,true)`。
+- **新增 `return_input_cast`**（`// Ghidra: typeop.cc:901
+  TypeOpReturn::getInputLocal`，pub 供双侧 fixture 驱动）：reqtype 经既有
+  `TypeOpReturn::get_input_local_in_fd`（typeop.rs:3292，ActionInferTypes
+  buildLocaltypes 已用的同一实现）；curtype 链
+  `vn_high_type_read_facing → v_type → get_base(in_size,Unknown)`；
+  `cast_standard_full(&req,&cur,false,true)`。分发臂在 metain 回退前
+  （RETURN → return_input_cast）——canon 效果：my_get_line
+  `return (char *)__dest;`（golden:1344 形）收敛，canon curl
+  157→**155**（−2，defects/numbering 双零，其余 124 函数字节恒等）；
+  httpd 字节恒等。
+- **`store_input_cast`/`call_input_cast` 转 pub**：双侧 fixture
+  （`tests/oracle/protocast_facing_1204.rs`）直接驱动生产臂，与
+  CALLSPEC-COPY 先例同形态（私有静态的 fixture 可达性）。
+- **双侧 fixture `tests/oracle/protocast_facing_1204.{cc,rs}`**（锁定 oracle
+  e40ed130 手动构建，真实 BfdArchitecture + followFlow'd my_fwrite
+  Funcdata 上的真实 getInputCast 虚分派）：**17 记录字节恒等 MATCH**
+  （sha bf5ee514…）。钉死的三面决策语义：
+  1. **对象身份臂**（cast.cc:304 `curtype==reqtype` / cc:329
+     `curbase==reqbase` 剥层后）：oracle 对**同形不同对象**的 struct 指针
+     （DWARF 宇宙 FILE vs clib 宇宙 _IO_FILE）cast，对同对象 nocast
+     （call_locked_distinct/call_conf_vs_file/store_distinct vs
+     call_locked_same/store_same）——castStandard 从不比较名字；
+  2. **RETURN 值臂**（本修）：ret_distinct → `char *`（canon my_get_line
+     `return (char *)__dest;` 的种子）；
+  3. **castOutput 翻转角色**（coreaction.cc:2585-2592
+     `castStandard(outHighResolve,tokenct)`，cast 目标=OUTPUT HIGH）：
+     call_out_distinct → `Configurable *`（canon getparameter
+     `V = (Configurable *)fopen(...)` 的决策投影；castOutput 为私有静态，
+     Part B 逐字转录 3 行翻转，CALLSPEC-COPY 先例同口径）。
+- **CAST-A 家族残差再归因（车道核心结论）**：决策臂语义经双侧 fixture
+  钉死为 1:1（给定类型对象态，Rugra 与 oracle 逐记录恒等）；canon 站点
+  （`fgets(buf,LIT,(FILE *)fp)` 族 main 31/getparameter 9/parseconfig 2/
+  file2string 1 + my_get_line fgets 2）的分歧在**决策上游的类型对象态**——
+  canon 探针实证 Rugra 的 DWARF 通道与 libc 表把 FILE 铸成**同一工厂对象**
+  （req==cur → castStandard 早退），oracle 持两宇宙（DWARF FILE vs
+  clib _IO_FILE，golden 三组对照互斥约束下的唯一自洽模型：stderr/stdin 与
+  libc 原型同宇宙 nocast，`::config.errors`/DWARF 局部跨宇宙 cast）。
+  该宇宙分配是**驱动数据层**（examples/curl_decompile.rs 的 DWARF/GLIBCPROTO
+  种子通道）职责，不在本车道写域（src/fspec.rs+src/coreaction.rs）——
+  收敛责任登记驱动侧票（见 TODO_BOARD PROTOCAST 行再归因注记）。

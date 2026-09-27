@@ -1,0 +1,37 @@
+{
+  "fixture": "protocast_facing_1204",
+  "ticket": "CURLCANON-PROTOCAST-INPUTS-0001",
+  "lane": "PROTOCAST",
+  "stacked_base": "wt/callspec @ bab71bc6",
+  "oracle": {
+    "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+    "tag": "Ghidra_12.0.4_build",
+    "source_files": [
+      "cast.cc:300-392 CastStrategyC::castStandard",
+      "typeop.cc:295-303 TypeOp::getInputCast",
+      "typeop.cc:687-718 TypeOpCall::getInputLocal",
+      "typeop.cc:901-922 TypeOpReturn::getInputLocal",
+      "typeop.cc:520-555 TypeOpStore::getInputCast",
+      "variable.cc:377-416 HighVariable::getTypeRepresentative/updateType",
+      "coreaction.cc:2532-2616 ActionSetCasts::castOutput",
+      "coreaction.cc:2655-2720 ActionSetCasts::castInput"
+    ],
+    "build": "g++ -std=c++11 -O1 against locked-tree libdecomp.a + bfd_arch objects (bfd 2.38 headers)",
+    "binary": "examples/curl (canon corpus input)",
+    "spec": "sleigh_specs/x86-64.sla + x86-64-gcc.cspec"
+  },
+  "records": 17,
+  "record_stream_sha256": "bf5ee514ce3a2632b906f270661c164323da8f63fecb576d30397f707c91d67c",
+  "projection_notes": {
+    "part_a": "real getInputCast virtual dispatch on a real followFlow'd my_fwrite Funcdata (coreaction_callin0_clobber_1204 bootstrap + setHighLevel); RETURN/CALL/STORE arms over controlled two-universe type-object states",
+    "part_b": "castOutput flipped-role decision projection (coreaction.cc:2585-2592): real getOutputToken virtual + HighVariable::getType + castStandard; the insertion tail is exercised by the in-crate cast_input tests and the canon gate",
+    "transcription_scope": "no oracle arm transcription; Part B projects the 3-line flip verbatim because castInput/castOutput are private statics (CALLSPEC-COPY precedent transcribed the ActionDefaultParams arm for the same reason)"
+  },
+  "pinned_findings": [
+    "oracle casts on DISTINCT same-shape struct objects (call_locked_distinct/store_distinct/call_conf_vs_file) and never casts on the same object (call_locked_same/store_same) - cast.cc:304/329 object-identity arms",
+    "TypeOpReturn::getInputLocal feeds the base getInputCast: the RETURN value (slot 1) takes the enclosing function's current output type (ret_distinct -> char *) - the canon my_get_line 'return (char *)__dest;' line",
+    "castOutput's flipped roles make the OUTPUT HIGH type the cast target (call_out_distinct -> Configurable *) - the canon getparameter 'V = (Configurable *)fopen(...)' line"
+  ],
+  "runner": "tools/run_protocast_facing_oracle.sh",
+  "hermetic_runner_and_registry": "root serial follow-up (convention, same as callspec_copy_1204)"
+}
