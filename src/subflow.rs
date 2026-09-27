@@ -7445,32 +7445,39 @@ impl Rule for RuleDumptyHumpLate {
             .unwrap_or(0);
 
         let mut vn = vn_initial.clone();
-        // Backtrack loop (subflow.cc:3025-3040).
+        // Backtrack loop (subflow.cc:3022-3041).
         loop {
-            // trialVn = pieceOp->getIn(1); // least significant component
-            let trial_vn = match piece_op.read().unwrap().get_in(1) {
+            // cc:3024-3025: trialVn = pieceOp->getIn(1) (least significant
+            // component), trialTrunc = trunc.
+            let least = match piece_op.read().unwrap().get_in(1) {
                 Some(v) => v.clone(),
                 None => break,
             };
             let mut trial_trunc = trunc;
-            if trunc >= trial_vn.read().unwrap().get_size() as i64 {
-                // Truncation from the most significant part.
-                trial_trunc -= trial_vn.read().unwrap().get_size() as i64;
-                // trialVn = pieceOp->getIn(0);
+            // cc:3026-3029: trunc >= least size → truncation from the most
+            // significant part: trialTrunc -= least size; trialVn = in(0).
+            let trial_vn = if trunc >= least.read().unwrap().get_size() as i64 {
+                trial_trunc -= least.read().unwrap().get_size() as i64;
                 match piece_op.read().unwrap().get_in(0) {
-                    Some(v) => {
-                        vn = v.clone();
-                    }
+                    Some(v) => v.clone(),
                     None => break,
                 }
             } else {
-                vn = trial_vn;
-            }
-            let trial_vn_size = vn.read().unwrap().get_size() as i64;
+                least
+            };
+            let trial_vn_size = trial_vn.read().unwrap().get_size() as i64;
+            // cc:3030-3031: crossing test against the TRIAL component. On
+            // break, vn keeps its previously committed value — the pre-fix
+            // code assigned vn before this test, so a SUBPIECE whose output
+            // crosses both PIECE components escaped with the uncommitted
+            // component (the SUB<in><out> illegal-shape / lost extraout_
+            // materialization divergence, VARMAP-UNAFF-TYPEMAT-0001).
             if out_size + trial_trunc > trial_vn_size {
                 break; // vn crosses both components
             }
-            // Commit to this component.
+            // cc:3032-3033: commit to this component — only AFTER the
+            // crossing test passes.
+            vn = trial_vn;
             trunc = trial_trunc;
             if vn.read().unwrap().get_size() as i64 == out_size {
                 break; // Found matching component
@@ -8490,6 +8497,38 @@ mod tests {
         let sub_op = make_op(1, OpCode::CPUI_SUBPIECE, vec![mid, offset], Some(out));
         let rule = RuleDumptyHumpLate::new();
         assert_eq!(rule.apply_op(&sub_op, &mut fd).unwrap(), action_status::NO_CHANGE);
+    }
+
+    /// Crossing guard (subflow.cc:3030-3031 + 3042-3043): SUBPIECE(PIECE(hi,lo),0)
+    /// whose output (4 bytes) draws from BOTH components (lo = 1 byte) must be
+    /// refused — `vn` stays uncommitted (== op->getIn(0)) and the rule returns
+    /// NO_CHANGE without touching the SUBPIECE. The pre-fix port committed the
+    /// trial component to `vn` BEFORE the crossing test, so this shape escaped
+    /// with the 1-byte component and rewired SUBPIECE(lo:1B,0) -> out:4B — the
+    /// illegal SUB<in><out> shape that collapsed golden's
+    /// CONCAT71(extraout_RDX>>8, setcc-byte) chains
+    /// (VARMAP-UNAFF-TYPEMAT-0001, sqlite3WindowCompare @0xff2f0 site 0x4a7c7).
+    #[test]
+    fn test_rule_dumpty_hump_late_crossing_refused() {
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        // PIECE(hi:7B, lo:1B) -> piece_out:8B — the heritage-normalized
+        // sub-register reconstruction (setne %dl + full-register read).
+        let hi = fd.vbank.create_with_space(7, AddressSpace::Register, 0x11);
+        let lo = fd.vbank.create_with_space(1, AddressSpace::Register, 0x10);
+        let lo = fd.vbank.set_input(lo).unwrap();
+        let piece_out = fd.vbank.create_with_space(8, AddressSpace::Register, 0x10);
+        let _piece_op = make_op(0, OpCode::CPUI_PIECE, vec![hi, lo.clone()], Some(piece_out.clone()));
+        // SUBPIECE(piece_out, 0) -> out:4B — reads `and %edx,%eax`'s EDX.
+        let offset = fd.vbank.create_constant(8, 0);
+        let out = fd.vbank.create_with_space(4, AddressSpace::Register, 0x40);
+        let sub_op = make_op(1, OpCode::CPUI_SUBPIECE, vec![piece_out.clone(), offset], Some(out));
+        let rule = RuleDumptyHumpLate::new();
+        assert_eq!(rule.apply_op(&sub_op, &mut fd).unwrap(), action_status::NO_CHANGE);
+        // Operand 0 must STILL be the PIECE output — no rewiring to a component.
+        let in0 = sub_op.read().unwrap().get_in(0).cloned();
+        assert!(in0.is_some());
+        assert!(Arc::ptr_eq(&in0.unwrap(), &piece_out));
+        assert_eq!(sub_op.read().unwrap().opcode, OpCode::CPUI_SUBPIECE);
     }
 
     // ==================================================================
