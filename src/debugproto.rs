@@ -88,6 +88,12 @@ pub struct DebugGlobalDatabase {
 impl DebugGlobalDatabase {
     // RUGRA-GLUE: reads the same DW_TAG_variable + DW_OP_addr records Ghidra's Java DWARF analyzer turns into Program symbols; native front-end adapter for that boundary
     pub fn parse_elf(bytes: &[u8]) -> Result<Self> {
+        // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: warm the archive-FILE type cache
+        // before the DWARF walk — its init interns bases and a pointer
+        // through the shared TypeFactory write lock, while the unit loop
+        // below holds that lock across resolve_type/intern_named, and the
+        // extern-declaration remap inside the loop must stay lock-free.
+        let _ = clib_file_types();
         let dwarf = load_dwarf(bytes).context("parsing object for DWARF globals")?;
         let mut globals = BTreeMap::new();
         let mut address_size = 8usize;
@@ -157,6 +163,19 @@ impl DebugGlobalDatabase {
                             {
                                 let data_type =
                                     resolve_type(&dwarf, &unit, offset, 0, &mut Vec::new())?;
+                                // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: extern
+                                // FILE* declarations (stdin/stdout/stderr)
+                                // enter the ARCHIVE FILE domain — the
+                                // golden's bare `__stream = stdin;`/
+                                // `fwrite(...,stderr)` sites (no cast,
+                                // ghidra_curl_1204.c:609/1406) are the
+                                // same domain as the libc prototypes'
+                                // FILE, while the DWARF FILE survives in
+                                // subprogram parameters and struct fields
+                                // (`outs.stream = (FILE *)stdout;` at :612
+                                // is the domain crossing).
+                                let data_type =
+                                    remap_external_clib_file_pointer(data_type);
                                 external_decls.insert(name.to_string(), data_type);
                             }
                         }
@@ -821,6 +840,187 @@ pub struct LibcSignatureTable {
     entries: HashMap<&'static str, LibcSignature>,
 }
 
+// GLIBC-CLIB-FILE-TYPEDOMAIN-0001 (CANON-VARNAM-NAMEREC-TIEBREAK-0001):
+// the generic_clib_64 archive's own FILE, distinct from the DWARF FILE.
+//
+// The locked curl canon golden proves the oracle's type graph carried TWO
+// FILE structures that never unified:
+//   - the generic_clib_64 archive FILE behind every locked libc prototype
+//     (fclose/fgets/fwrite/fputc/fileno param, fopen return) AND behind
+//     the extern std-stream globals (stdin/stdout/stderr — the golden's
+//     bare `__stream = stdin;` and `fwrite(...,stderr)` sites): its
+//     struct layout is the glibc compat form whose slots at offsets
+//     152..176 are named `__pad1..__pad4` — extracted from the locked
+//     oracle tree's own
+//     `Ghidra/Features/Base/data/typeinfo/generic/generic_clib_64.gdt`
+//     (field-name table, 29 fields, 216 bytes);
+//   - curl's DWARF FILE (typedef FILE -> struct _IO_FILE, the same 29
+//     field slots but offsets 152..176 named `_codecvt/_wide_data/
+//     _freeres_list/_freeres_buf` per the binary's .debug_info), behind
+//     the DWARF subprogram prototypes and struct fields.
+// Both print `FILE *`, but they are different Datatype objects, and two
+// observable oracle behaviors depend on that split:
+//   1. ActionNameVars::lookForFuncParamNames' repeat recommendation
+//      tie-break (coreaction.cc:2833-2845): parseconfig's FILE* local gets
+//      `fp` (my_get_line's DWARF FILE*) recommended first (callspec order),
+//      then `__stream` (fclose's archive FILE*) — TypeStruct::compare walks
+//      offset/name/metatype per field and returns +1 at the FIRST name
+//      difference (offset 152: `_codecvt` > `__pad1` string-wise), so the
+//      archive recommendation overrides and the golden names the local
+//      `__stream` (the pre-fix single-FILE model ties at typeOrder 0 and
+//      keeps `fp`).
+//   2. ActionSetCasts' call-argument casts: castStandard strips typedefs
+//      and compares the pointee structs BY IDENTITY (cast.cc:325), so the
+//      split produces exactly the golden's `(FILE *)` casts at the
+//      domain-crossing call sites (ghidra_curl_1204.c:1300
+//      `my_get_line((FILE *)__stream)`) and bare args where both sides
+//      are in one domain (`fclose(__stream)`).
+// The struct is deliberately NOT registered in the factory name tree: the
+// name slot "FILE" belongs to the DWARF materialized alias, and
+// intern_named's (name, shape, size, metatype) dedupe would collapse the
+// two domains back into one type. It lives in this process-wide OnceLock
+// together with its factory-interned pointer (ONE TypePointer object, so
+// ActionMergeType's same-type grouping sees a single stable identity per
+// domain). The cache MUST be warmed outside any factory lock scope —
+// init takes the factory write lock briefly (base/pointer interning), and
+// the DWARF walk holds that lock across its unit loop
+// (DebugGlobalDatabase::parse_elf warms it first thing for this reason).
+// RUGRA-GLUE: native front-end adapter for the platform-side type state —
+// Ghidra's generic_clib_64.gdt owns this FILE structure on the Java side
+// and hands it to the decompiler already materialized per locked
+// signature; Rugra builds the same type graph once per process.
+pub(crate) fn clib_file_types(
+) -> &'static (Arc<Datatype>, Arc<Datatype>) {
+    static CLIB_FILE: std::sync::OnceLock<(Arc<Datatype>, Arc<Datatype>)> =
+        std::sync::OnceLock::new();
+    CLIB_FILE.get_or_init(|| {
+        let types = crate::type_system::typefactory::TypeFactory::shared_default();
+        let int4 = factory_named_base(&types, 4, TypeMetatype::Int, "int");
+        let long8 = factory_named_base(&types, 8, TypeMetatype::Int, "long");
+        let uint2 = factory_named_base(&types, 2, TypeMetatype::Uint, "ushort");
+        let size8 = factory_named_base(&types, 8, TypeMetatype::Uint, "size_t");
+        let char1 = {
+            let factory = types
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            factory
+                .find_by_name("char")
+                .or_else(|| factory.get_type_char(1).ok())
+                .expect("TypeFactory cannot build the char type")
+        };
+        let (char_ptr, shortbuf, unused2) = {
+            let mut factory = types
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let char_ptr = factory.get_type_pointer_default(char1.clone());
+            let shortbuf = factory.get_array(char1.clone(), 1);
+            let unused2 = factory.get_array(char1.clone(), 20);
+            (char_ptr, shortbuf, unused2)
+        };
+        let field = |offset: usize, name: &str, type_ptr: Arc<Datatype>| TypeField {
+            name: name.to_string(),
+            offset,
+            type_ptr,
+        };
+        let fields = vec![
+            field(0, "_flags", int4.clone()),
+            field(8, "_IO_read_ptr", char_ptr.clone()),
+            field(16, "_IO_read_end", char_ptr.clone()),
+            field(24, "_IO_read_base", char_ptr.clone()),
+            field(32, "_IO_write_base", char_ptr.clone()),
+            field(40, "_IO_write_ptr", char_ptr.clone()),
+            field(48, "_IO_write_end", char_ptr.clone()),
+            field(56, "_IO_buf_base", char_ptr.clone()),
+            field(64, "_IO_buf_end", char_ptr.clone()),
+            field(72, "_IO_save_base", char_ptr.clone()),
+            field(80, "_IO_backup_base", char_ptr.clone()),
+            field(88, "_IO_save_end", char_ptr.clone()),
+            field(96, "_markers", char_ptr.clone()),
+            field(104, "_chain", char_ptr.clone()),
+            field(112, "_fileno", int4.clone()),
+            field(116, "_flags2", int4.clone()),
+            field(120, "_old_offset", long8.clone()),
+            field(128, "_cur_column", uint2),
+            field(130, "_vtable_offset", char1),
+            field(131, "_shortbuf", shortbuf),
+            field(136, "_lock", char_ptr.clone()),
+            field(144, "_offset", long8),
+            field(152, "__pad1", char_ptr.clone()),
+            field(160, "__pad2", char_ptr.clone()),
+            field(168, "__pad3", char_ptr.clone()),
+            field(176, "__pad4", char_ptr),
+            field(184, "__pad5", size8),
+            field(192, "_mode", int4),
+            field(196, "_unused2", unused2),
+        ];
+        let mut base = TypeBase::new("FILE".to_string(), 216, TypeMetatype::Struct);
+        base.alignment = 8;
+        base.align_size = 216;
+        let structure = Arc::new(Datatype::Struct(TypeStruct { base, fields }));
+        let pointer = {
+            let mut factory = types
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            factory.get_type_pointer_default(structure.clone())
+        };
+        (structure, pointer)
+    })
+}
+
+/// The archive FILE struct (pass to a base-spelling override map).
+// RUGRA-GLUE: accessor over the clib_file_types OnceLock (see above).
+pub(crate) fn clib_file_struct() -> Arc<Datatype> {
+    clib_file_types().0.clone()
+}
+
+// GLIBC-CLIB-FILE-TYPEDOMAIN-0001: the generic_clib signature boundary's
+// base-spelling index — the DWARF named-type index with the FILE spelling
+// overridden to the archive domain (locked_proto parses every ledger
+// spelling through exactly this map).
+// RUGRA-GLUE: the platform signature loader resolves spellings against the
+// Program type manager where the archive FILE already lives (the Java side
+// never consults the DWARF name index for a generic_clib signature); this
+// map is Rugra's form of that resolution boundary.
+fn libc_type_resolution_index(
+    type_names: Option<&HashMap<String, Arc<Datatype>>>,
+) -> HashMap<String, Arc<Datatype>> {
+    let mut index = match type_names {
+        Some(names) => names.clone(),
+        None => HashMap::new(),
+    };
+    index.insert("FILE".to_string(), clib_file_struct());
+    index
+}
+
+/// The factory-interned pointer to the archive FILE (the std-stream
+/// globals' domain).
+// RUGRA-GLUE: accessor over the clib_file_types OnceLock (see above).
+pub(crate) fn clib_file_pointer() -> Arc<Datatype> {
+    clib_file_types().1.clone()
+}
+
+// GLIBC-CLIB-FILE-TYPEDOMAIN-0001 helper: replace a pointer-to-FILE
+// (either the DWARF materialized alias spelling `FILE` or the raw struct
+// spelling `_IO_FILE`) with the factory-interned pointer to the archive
+// FILE. Anything else passes through unchanged. Lock-free: the pointer
+// comes from the warmed OnceLock cache, never the factory.
+// RUGRA-GLUE: mirrors the platform DWARF analyzer's symbol-typing seam —
+// extern FILE* declarations resolve their spelling against the Program
+// type manager's archive FILE, while DIE-graph references (parameters,
+// struct fields) keep the CU-local DWARF type.
+fn remap_external_clib_file_pointer(dt: Arc<Datatype>) -> Arc<Datatype> {
+    if let Datatype::Pointer(tp) = dt.as_ref() {
+        let ptr_to = &tp.ptr_to;
+        if ptr_to.get_metatype() == TypeMetatype::Struct
+            && (ptr_to.get_name() == "FILE" || ptr_to.get_name() == "_IO_FILE")
+        {
+            return clib_file_pointer();
+        }
+    }
+    dt
+}
+
+// GLIBC-CLIB-FILE-TYPEDOMAIN-0001 helper: replace a pointer-to-FILE
 impl Default for LibcSignatureTable {
     // RUGRA-GLUE: Ghidra draws these from its shipped generic_clib signature
     // data on the platform side; Rugra encodes the same public glibc ABI
@@ -931,6 +1131,14 @@ impl LibcSignatureTable {
         // pointee — ActionMergeType's same-type grouping and the
         // lookForFuncParamNames merge-class gate key on that identity
         // (GLIBC-PROTO-PARAMNAME-0001).
+        //
+        // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: the generic_clib boundary
+        // resolves the FILE spelling through the ARCHIVE's own FILE, not
+        // the DWARF name index — the two type domains never unified in the
+        // locked oracle (see clib_file_struct). Everything else keeps the
+        // DWARF name resolution.
+        let type_index = libc_type_resolution_index(type_names);
+        let type_names = Some(&type_index);
         let return_type = parse_c_type(signature.return_type, address_size, type_names)?;
         let mut parameters = Vec::new();
         for declaration in split_parameter_list(signature.parameters) {
@@ -2748,6 +2956,121 @@ fn unknown_type(size: usize) -> Arc<Datatype> {
 mod tests {
     use super::*;
     use crate::address::Address;
+
+    // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: the archive FILE struct is the
+    // generic_clib_64 layout extracted from the locked oracle tree's own
+    // .gdt field-name table (29 fields, 216 bytes, `__pad1..__pad4` at
+    // offsets 152..176 — the glibc compat spelling of the slots curl's
+    // DWARF names `_codecvt/_wide_data/_freeres_list/_freeres_buf`).
+    #[test]
+    fn clib_file_struct_matches_generic_clib64_layout() {
+        let file = clib_file_struct();
+        assert_eq!(file.get_name(), "FILE");
+        assert_eq!(file.get_size(), 216);
+        assert_eq!(file.get_metatype(), TypeMetatype::Struct);
+        let Datatype::Struct(st) = file.as_ref() else {
+            panic!("clib FILE must be a struct");
+        };
+        assert_eq!(st.fields.len(), 29);
+        let names: Vec<(usize, &str)> =
+            st.fields.iter().map(|f| (f.offset, f.name.as_str())).collect();
+        assert_eq!(names[0], (0, "_flags"));
+        assert_eq!(names[21], (144, "_offset"));
+        let pads: Vec<&str> = st.fields[22..26].iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(pads, vec!["__pad1", "__pad2", "__pad3", "__pad4"]);
+        let offsets: Vec<usize> = st.fields[22..26].iter().map(|f| f.offset).collect();
+        assert_eq!(offsets, vec![152, 160, 168, 176]);
+        assert_eq!(names[28], (196, "_unused2"));
+    }
+
+    // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: two FILE domains never unify —
+    // the archive FILE and a DWARF-shaped FILE (identical slots, DWARF
+    // field spellings at 152..176) are distinct objects, and the
+    // makeRec repeat tie-break direction (coreaction.cc:2833-2845) is
+    // decided by the FIRST field-name difference: `_codecvt` >
+    // `__pad1` string-wise, so a DWARF-FILE* recommendation held first
+    // is overridden by the archive FILE* — the exact ordering that names
+    // parseconfig's local `__stream` instead of `fp` in the locked
+    // golden (TypeStruct::compare, type.cc:1742-1780).
+    #[test]
+    fn clib_file_domain_dominates_dwarf_file_in_type_order() {
+        let types = crate::type_system::typefactory::TypeFactory::shared_default();
+        let clib_file = clib_file_struct();
+        let Datatype::Struct(clib_st) = clib_file.as_ref() else {
+            panic!("clib FILE must be a struct");
+        };
+        let dwarf_fields: Vec<TypeField> = clib_st
+            .fields
+            .iter()
+            .map(|f| {
+                let mut field = f.clone();
+                match field.offset {
+                    152 => field.name = "_codecvt".to_string(),
+                    160 => field.name = "_wide_data".to_string(),
+                    168 => field.name = "_freeres_list".to_string(),
+                    176 => field.name = "_freeres_buf".to_string(),
+                    _ => {}
+                }
+                field
+            })
+            .collect();
+        let dwarf_file = Arc::new(Datatype::Struct(TypeStruct {
+            base: TypeBase::new("FILE".to_string(), 216, TypeMetatype::Struct),
+            fields: dwarf_fields,
+        }));
+        assert!(!Arc::ptr_eq(&clib_file, &dwarf_file));
+        let (clib_ptr, dwarf_ptr) = {
+            let mut factory = types
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            (
+                factory.get_type_pointer_default(clib_file.clone()),
+                factory.get_type_pointer_default(dwarf_file.clone()),
+            )
+        };
+        assert!(!Arc::ptr_eq(&clib_ptr, &dwarf_ptr));
+        // DWARF FILE* held first, archive FILE* arrives second: the
+        // override fires (positive typeOrder at the field-name delta).
+        assert!(dwarf_ptr.type_order(&clib_ptr) > 0);
+        // Symmetric: the archive FILE* held first is NOT demoted.
+        assert!(clib_ptr.type_order(&dwarf_ptr) < 0);
+    }
+
+    // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: locked_proto resolves the FILE
+    // spelling of the libc ledger through the archive domain even when a
+    // DWARF name index offers its own FILE — the two channels stay
+    // distinct exactly like the oracle's generic_clib boundary.
+    // (The full locked_proto call needs the architecture's bound
+    // defaultfp carrier for parameter-storage assignment; the resolution
+    // seam it threads every spelling through is
+    // libc_type_resolution_index, covered by the test above.)
+
+    // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: the libc ledger's resolution index
+    // routes the FILE spelling through the archive domain even when a
+    // DWARF name index offers its own FILE, and leaves every other
+    // spelling on the DWARF resolution — the two channels stay distinct
+    // exactly like the oracle's generic_clib boundary (locked_proto
+    // parses through exactly this map).
+    #[test]
+    fn libc_type_resolution_index_splits_file_domains() {
+        let mut dwarf_index: HashMap<String, Arc<Datatype>> = HashMap::new();
+        let dwarf_file = clib_file_struct();
+        dwarf_index.insert("FILE".to_string(), dwarf_file.clone());
+        let stat_type = dwarf_file.clone();
+        dwarf_index.insert("stat".to_string(), stat_type.clone());
+        let index = libc_type_resolution_index(Some(&dwarf_index));
+        let resolved = parse_c_type("FILE *", 8, Some(&index))
+            .expect("FILE * resolves through the split index");
+        let Datatype::Pointer(tp) = resolved.as_ref() else {
+            panic!("FILE * must resolve to a pointer");
+        };
+        // The pointee is the archive FILE object (the OnceLock identity),
+        // and the interned pointer matches the clib domain's pointer.
+        assert!(Arc::ptr_eq(&tp.ptr_to, &clib_file_types().0));
+        assert!(Arc::ptr_eq(&resolved, &clib_file_types().1));
+        // A non-FILE spelling keeps its DWARF resolution untouched.
+        assert!(Arc::ptr_eq(index.get("stat").unwrap(), &stat_type));
+    }
 
     // Test-only drill: the spelling of the base type a (possibly nested)
     // anonymous pointer chain points at — the identity the composed name
