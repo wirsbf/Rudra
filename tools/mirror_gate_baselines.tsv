@@ -55,10 +55,33 @@
 # 分片协议 27178 仍为 SQLITE3_SCOREBOARD 记分板口径, 两协议各按各的账本记账）。
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 curl	56	74	MERGEBATCH5-RATCHET-REPIN-0001	1a41d6ad	2026-09-26
-httpd	90	29	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
+httpd	84	29	MB23-RATCHET-REPIN-0001	d9a2ef5d	2026-09-27
 vsh	12	71	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
 sq	4197	810	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
-sqlite	26217	1385	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
+sqlite	24091	1385	MB23-RATCHET-REPIN-0001	d9a2ef5d	2026-09-27
+
+# 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
+# @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
+# ① httpd ceiling 90→84（CONDNEGATE 落地——BLOCKACT-CONDNEGATE-PARITY-0001 边 label
+#    双半镜像: ap_ht_time 镜面 skeleton 8→2,恰 −6=车道终报 §6 预测精确兑现
+#    [车道基 92→86 亲证,MB22 基上同函数同量,httpd 面 29 函数逐函数零附带];
+#    floor 29 不动;defects=numbering=0;合并树 --func ap_ht_time 复验 [Skeleton]
+#    identical——condnegate+strdata 叠加终验差=0,B2 票面验收兑现）。门禁实测
+#    84/84 精确命中新钉值。
+# ② sqlite ceiling 26217→24091（CONDNEGATE 同机制全局面——任务书"预期不动"系
+#    低估: 车道终报 §6 镜面五行已实测 24335/26411[车道树 2cce7b99+c719f918];
+#    集成净 −2126 归因链精确闭合: (a)condnegate 车道效应 −2076[MB21 钉基 26411→
+#    24335,车道亲测]; (b)车道树→MB23 树 −244[双树逐函数 census 亲跑: 14 函数全
+#    改善零回退,主量 sqlite3ExprCodeTarget 251→105/sqlite3ExprIfTrue 42→9/
+#    sqlite3GenerateRowDelete 11→0=subflowfix param 族在 condnegate 收敛态上的
+#    重叠再收敛]; −2076−244=−2320==26411−24091 算术闭合;残余大头 sqlite3VdbeExec
+#    5889/_vmprintf 2758/Pragma 2674/Select 2247 均预登记既有族;matched 1385/1385
+#    health ok defects=numbering=0;floor 1385 不动;双跑恒等[全量 gate+keep-dir 复跑]）。
+# ③ curl 56/56·vsh 12/12·sq 4197/4197 三面恒等零漂移（negtoken 休眠 legacy 通道/
+#    normguard2 构造性零行为/volatiledev 休眠[五语料 cspec 无 volatile]——三支
+#    车道侧均已亲证,集成面兑现）。
+# ④ canon: curl 157/0/0 md5 51cc85d2==MB22 基线字节恒等;httpd 139/0/0 md5
+#    87f5a240==MB22 基线字节恒等（四支全 canon 中性亲证）;result/ 回流核对无漂移。
 # 2026-09-26 MERGEBATCH18 波次增益锁定（MB18-RATCHET-REPIN-0001, root 授权重钉,
 # @ba6e670e = MB18 23 支合并+repin 态 fresh 实测）:
 # ① httpd ceiling 156→98（TYPINGPX-MIRROR-FRESH-DB-0001 落地——镜面臂逐函数 fresh
