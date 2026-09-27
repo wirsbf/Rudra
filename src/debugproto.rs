@@ -76,6 +76,22 @@ pub struct DebugGlobalVariable {
     /// `my_get_token::save` at 0x17510, `next_url::beenhere` at 0x17518);
     /// CU-level variables keep `None` and stay in the global scope.
     pub parent_function: Option<String>,
+    /// True when this entry came from the external-declaration +
+    /// R_X86_64_COPY relocation pass (stdin/stdout/stderr) rather than a
+    /// located DW_AT_variable DIE. Instrumented-oracle witness (lane
+    /// R3MERGE, canon analyzeHeadless 12.0.4 e40ed130): those symbols reach
+    /// the decompiler as TYPELOCKED `undefined8` — the DWARF analyzer's
+    /// committed types land only on located variables, never on the
+    /// copy-reloc externs — so `SymbolEntry::updateType` writes
+    /// `updateType(undefined8,true,true)` which `varnode.cc:476-477`
+    /// demotes to UNLOCKED (TYPE_UNKNOWN is never locked), leaving the
+    /// varnode's data-type free for the ActionInferTypes propagation
+    /// contest (locked libc prototypes push archive-FILE\*, DWARF field
+    /// edges push DWARF-FILE\*/Configurable\*; most-specific wins per
+    /// `typeOrder`). The driver consults this flag to seed the oracle's
+    /// `undefined8` symbol type instead of the declared DWARF type; the
+    /// declared type stays on `data_type` as the parse product.
+    pub extern_reloc: bool,
 }
 
 /// Static-address global variables keyed by storage address.
@@ -200,6 +216,7 @@ impl DebugGlobalDatabase {
                         name,
                         data_type,
                         parent_function,
+                        extern_reloc: false,
                     },
                 );
                 scope_stack.push((depth, entry_name, false));
@@ -221,6 +238,10 @@ impl DebugGlobalDatabase {
                         name,
                         data_type: data_type.clone(),
                         parent_function: None,
+                        // R3MERGE-STDMERGE-TYPESTATE-0001: copy-reloc
+                        // externs seed `undefined8` symbols (see the
+                        // field doc + instrumented-oracle witness).
+                        extern_reloc: true,
                     },
                 );
             }
@@ -3417,10 +3438,19 @@ mod tests {
             assert_eq!(stdin.name, "stdin");
             let stderr = db.get(0x17500).expect("stderr copy-reloc global");
             assert_eq!(stderr.name, "stderr");
+            // R3MERGE-STDMERGE-TYPESTATE-0001: the three copy-reloc
+            // externs carry the extern_reloc mark — the driver seeds the
+            // oracle's TYPELOCKED undefined8 symbol form for them (the
+            // instrumented-oracle witness in the field doc), while the
+            // declared DWARF type stays on data_type as the parse
+            // product.
+            assert!(stdout.extern_reloc && stdin.extern_reloc && stderr.extern_reloc);
         }
 
         let glob_expand = db.get(0x17660).expect("glob_expand global");
         assert_eq!(glob_expand.name, "glob_expand");
+        // Located DWARF variables never take the extern_reloc mark.
+        assert!(!glob_expand.extern_reloc);
         // Anonymous pointer (see parse_c_type's Ghidra note); the pointee
         // structure check below carries the identity.
         assert_eq!(glob_expand.data_type.get_name(), "");
