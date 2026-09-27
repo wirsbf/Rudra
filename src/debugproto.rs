@@ -973,14 +973,127 @@ pub(crate) fn clib_file_struct() -> Arc<Datatype> {
     clib_file_types().0.clone()
 }
 
+// CURLCANON-CASTA-STAT-0001: the archive stat struct — the second archive
+// type the generic_clib signature boundary owns (R1 of PROTOCAST43's A-族
+// residual roots). The locked oracle's golden prints
+// `__xstat(1,x,(stat *)&fileinfo)` (main:797/:878, getparameter:2105): the
+// signature's `stat *` and the local's DWARF `stat *` are TWO type objects
+// (CastStrategyC::castStandard's `curbase == reqbase` pointer-identity
+// early-exit, cast.cc:304/:329, does NOT fire through the struct default
+// arm :387 — distinct objects of equal 144-byte size cast). Rugra resolved
+// the libc ledger's `stat` spelling through the DWARF name index, so the
+// signature param and fileinfo's local shared ONE interned DWARF struct
+// and the cast was suppressed (`&fileinfo`). The archive domain below is
+// the same two-universe split the archive FILE holds
+// (GLIBC-CLIB-FILE-TYPEDOMAIN-0001): a standalone glibc x86-64
+// bits/stat.h layout (the 144-byte 15-field form curl's own DWARF
+// <444> struct stat carries: st_dev..__glibc_reserved), built directly —
+// never name-interned into the factory tree — so the DWARF `stat`
+// (interned by struct_type) and this archive `stat` stay distinct
+// objects; TypeStruct::compare (type.cc:1742-1780) then orders them by
+// object id at equal field/size shape (both derive from the same glibc
+// header, the tie the locked oracle's two stat objects also hold).
+// RUGRA-GLUE: the platform signature loader materializes generic_clib's
+// own stat from the archive data before the decompiler runs (same Java
+// seam as the archive FILE); this OnceLock is Rugra's form of that graph.
+pub(crate) fn clib_stat_types(
+) -> &'static (Arc<Datatype>, Arc<Datatype>) {
+    static CLIB_STAT: std::sync::OnceLock<(Arc<Datatype>, Arc<Datatype>)> =
+        std::sync::OnceLock::new();
+    CLIB_STAT.get_or_init(|| {
+        let types = crate::type_system::typefactory::TypeFactory::shared_default();
+        let long8 = factory_named_base(&types, 8, TypeMetatype::Int, "long");
+        let ulong8 = factory_named_base(&types, 8, TypeMetatype::Uint, "ulong");
+        let uint4 = factory_named_base(&types, 4, TypeMetatype::Uint, "uint");
+        let int4 = factory_named_base(&types, 4, TypeMetatype::Int, "int");
+        // struct timespec { __time_t tv_sec; long tv_nsec; } — 16 bytes,
+        // built standalone like the surrounding archive structs (never
+        // name-interned; the DWARF-side timespec keeps its own object).
+        let timespec = {
+            let mut base = TypeBase::new("timespec".to_string(), 16, TypeMetatype::Struct);
+            base.alignment = 8;
+            base.align_size = 16;
+            Arc::new(Datatype::Struct(TypeStruct {
+                base,
+                fields: vec![
+                    TypeField {
+                        name: "tv_sec".to_string(),
+                        offset: 0,
+                        type_ptr: long8.clone(),
+                    },
+                    TypeField {
+                        name: "tv_nsec".to_string(),
+                        offset: 8,
+                        type_ptr: long8.clone(),
+                    },
+                ],
+            }))
+        };
+        let glibc_reserved = {
+            let mut factory = types
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            factory.get_array(long8.clone(), 3)
+        };
+        let field = |offset: usize, name: &str, type_ptr: Arc<Datatype>| TypeField {
+            name: name.to_string(),
+            offset,
+            type_ptr,
+        };
+        // glibc x86-64 bits/stat.h field order (offsets are the ABI's):
+        // st_dev@0 st_ino@8 st_nlink@16 st_mode@24 st_uid@28 st_gid@32
+        // __pad0@36 st_rdev@40 st_size@48 st_blksize@56 st_blocks@64
+        // st_atim@72 st_mtim@88 st_ctim@104 __glibc_reserved[3]@120.
+        let fields = vec![
+            field(0, "st_dev", ulong8.clone()),
+            field(8, "st_ino", ulong8.clone()),
+            field(16, "st_nlink", ulong8.clone()),
+            field(24, "st_mode", uint4.clone()),
+            field(28, "st_uid", uint4.clone()),
+            field(32, "st_gid", uint4),
+            field(36, "__pad0", int4),
+            field(40, "st_rdev", ulong8),
+            field(48, "st_size", long8.clone()),
+            field(56, "st_blksize", long8.clone()),
+            field(64, "st_blocks", long8.clone()),
+            field(72, "st_atim", timespec.clone()),
+            field(88, "st_mtim", timespec.clone()),
+            field(104, "st_ctim", timespec),
+            field(120, "__glibc_reserved", glibc_reserved),
+        ];
+        let mut base = TypeBase::new("stat".to_string(), 144, TypeMetatype::Struct);
+        base.alignment = 8;
+        base.align_size = 144;
+        let structure = Arc::new(Datatype::Struct(TypeStruct { base, fields }));
+        let pointer = {
+            let mut factory = types
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            factory.get_type_pointer_default(structure.clone())
+        };
+        (structure, pointer)
+    })
+}
+
+/// The archive stat struct (pass to a base-spelling override map).
+// RUGRA-GLUE: accessor over the clib_stat_types OnceLock (see above).
+pub(crate) fn clib_stat_struct() -> Arc<Datatype> {
+    clib_stat_types().0.clone()
+}
+
 // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: the generic_clib signature boundary's
 // base-spelling index — the DWARF named-type index with the FILE spelling
 // overridden to the archive domain (locked_proto parses every ledger
 // spelling through exactly this map).
+// CURLCANON-CASTA-STAT-0001: the same override now carries the archive
+// stat — the locked oracle's __xstat signature `stat *` is the archive's
+// own struct, never the CU-local DWARF stat (golden :797/:878/:2105 keep
+// the `(stat *)` cast between the two domains; a name-index resolution
+// collapses them to one object and castStandard cc:304 suppresses it).
 // RUGRA-GLUE: the platform signature loader resolves spellings against the
-// Program type manager where the archive FILE already lives (the Java side
-// never consults the DWARF name index for a generic_clib signature); this
-// map is Rugra's form of that resolution boundary.
+// Program type manager where the archive FILE/stat already live (the Java
+// side never consults the DWARF name index for a generic_clib signature);
+// this map is Rugra's form of that resolution boundary.
 fn libc_type_resolution_index(
     type_names: Option<&HashMap<String, Arc<Datatype>>>,
 ) -> HashMap<String, Arc<Datatype>> {
@@ -989,6 +1102,7 @@ fn libc_type_resolution_index(
         None => HashMap::new(),
     };
     index.insert("FILE".to_string(), clib_file_struct());
+    index.insert("stat".to_string(), clib_stat_struct());
     index
 }
 
@@ -3045,19 +3159,21 @@ mod tests {
     // seam it threads every spelling through is
     // libc_type_resolution_index, covered by the test above.)
 
-    // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: the libc ledger's resolution index
-    // routes the FILE spelling through the archive domain even when a
-    // DWARF name index offers its own FILE, and leaves every other
-    // spelling on the DWARF resolution — the two channels stay distinct
-    // exactly like the oracle's generic_clib boundary (locked_proto
-    // parses through exactly this map).
+    // GLIBC-CLIB-FILE-TYPEDOMAIN-0001 + CURLCANON-CASTA-STAT-0001: the
+    // libc ledger's resolution index routes the FILE and stat spellings
+    // through the archive domain even when a DWARF name index offers its
+    // own FILE/stat, and leaves every other spelling on the DWARF
+    // resolution — the channels stay distinct exactly like the oracle's
+    // generic_clib boundary (locked_proto parses through exactly this map).
     #[test]
     fn libc_type_resolution_index_splits_file_domains() {
         let mut dwarf_index: HashMap<String, Arc<Datatype>> = HashMap::new();
         let dwarf_file = clib_file_struct();
         dwarf_index.insert("FILE".to_string(), dwarf_file.clone());
-        let stat_type = dwarf_file.clone();
-        dwarf_index.insert("stat".to_string(), stat_type.clone());
+        let dwarf_stat = clib_stat_struct();
+        dwarf_index.insert("stat".to_string(), dwarf_stat.clone());
+        let urlglob = dwarf_file.clone();
+        dwarf_index.insert("URLGlob".to_string(), urlglob.clone());
         let index = libc_type_resolution_index(Some(&dwarf_index));
         let resolved = parse_c_type("FILE *", 8, Some(&index))
             .expect("FILE * resolves through the split index");
@@ -3069,7 +3185,97 @@ mod tests {
         assert!(Arc::ptr_eq(&tp.ptr_to, &clib_file_types().0));
         assert!(Arc::ptr_eq(&resolved, &clib_file_types().1));
         // A non-FILE spelling keeps its DWARF resolution untouched.
-        assert!(Arc::ptr_eq(index.get("stat").unwrap(), &stat_type));
+        assert!(Arc::ptr_eq(index.get("URLGlob").unwrap(), &urlglob));
+
+        // CURLCANON-CASTA-STAT-0001: `stat *` resolves through the archive
+        // stat domain, never the DWARF name-index entry — the signature
+        // param and a DWARF-typed local hold distinct objects so the
+        // golden's `(stat *)&fileinfo` cast survives castStandard's
+        // cc:304/:329 pointer-identity early-exits (cast.cc:300-392).
+        let stat_resolved = parse_c_type("stat *", 8, Some(&index))
+            .expect("stat * resolves through the split index");
+        let Datatype::Pointer(stat_tp) = stat_resolved.as_ref() else {
+            panic!("stat * must resolve to a pointer");
+        };
+        assert!(Arc::ptr_eq(&stat_tp.ptr_to, &clib_stat_types().0));
+        assert!(Arc::ptr_eq(&stat_resolved, &clib_stat_types().1));
+        // The override does not touch the DWARF index itself: the
+        // caller's entry keeps its own object.
+        assert!(Arc::ptr_eq(dwarf_index.get("stat").unwrap(), &dwarf_stat));
+    }
+
+    // CURLCANON-CASTA-STAT-0001: the archive stat is the generic_clib
+    // glibc x86-64 bits/stat.h layout — 144 bytes, 15 fields, the ABI
+    // field order/offsets curl's own DWARF struct stat carries
+    // (readelf <444>: st_dev@0 .. __glibc_reserved@120).
+    #[test]
+    fn clib_stat_struct_matches_generic_clib64_layout() {
+        let stat = clib_stat_struct();
+        assert_eq!(stat.get_name(), "stat");
+        assert_eq!(stat.get_size(), 144);
+        assert_eq!(stat.get_metatype(), TypeMetatype::Struct);
+        let Datatype::Struct(st) = stat.as_ref() else {
+            panic!("clib stat must be a struct");
+        };
+        assert_eq!(st.fields.len(), 15);
+        let layout: Vec<(usize, &str)> =
+            st.fields.iter().map(|f| (f.offset, f.name.as_str())).collect();
+        assert_eq!(
+            layout,
+            vec![
+                (0, "st_dev"),
+                (8, "st_ino"),
+                (16, "st_nlink"),
+                (24, "st_mode"),
+                (28, "st_uid"),
+                (32, "st_gid"),
+                (36, "__pad0"),
+                (40, "st_rdev"),
+                (48, "st_size"),
+                (56, "st_blksize"),
+                (64, "st_blocks"),
+                (72, "st_atim"),
+                (88, "st_mtim"),
+                (104, "st_ctim"),
+                (120, "__glibc_reserved"),
+            ]
+        );
+        // Field metatypes follow the ABI (__dev_t/__mode_t/__off_t
+        // chains): uint64/uint32/int32/int64 tiers and the trailing
+        // long[3] array.
+        assert_eq!(st.fields[0].type_ptr.get_metatype(), TypeMetatype::Uint);
+        assert_eq!(st.fields[0].type_ptr.get_size(), 8);
+        assert_eq!(st.fields[3].type_ptr.get_size(), 4);
+        assert_eq!(st.fields[6].type_ptr.get_metatype(), TypeMetatype::Int);
+        assert_eq!(st.fields[8].type_ptr.get_metatype(), TypeMetatype::Int);
+        assert_eq!(st.fields[8].type_ptr.get_size(), 8);
+        let Datatype::Struct(timespec) = st.fields[11].type_ptr.as_ref() else {
+            panic!("st_atim must be a timespec struct");
+        };
+        assert_eq!(st.fields[11].type_ptr.get_size(), 16);
+        assert_eq!(timespec.fields.len(), 2);
+        assert_eq!(st.fields[14].type_ptr.get_metatype(), TypeMetatype::Array);
+        assert_eq!(st.fields[14].type_ptr.get_size(), 24);
+        // Two-universe witness: an equal-shape DWARF-side stat (same
+        // name/size/fields) is still a DISTINCT object, and the
+        // struct-vs-struct default arm of castStandard (cast.cc:387)
+        // casts between their pointers — the golden `(stat *)` form.
+        let dwarf_stat = Arc::new(Datatype::Struct(TypeStruct {
+            base: TypeBase::new("stat".to_string(), 144, TypeMetatype::Struct),
+            fields: st.fields.clone(),
+        }));
+        assert!(!Arc::ptr_eq(&stat, &dwarf_stat));
+        let types = crate::type_system::typefactory::TypeFactory::shared_default();
+        let (archive_ptr, dwarf_ptr) = {
+            let mut factory = types
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            (
+                factory.get_type_pointer_default(stat.clone()),
+                factory.get_type_pointer_default(dwarf_stat.clone()),
+            )
+        };
+        assert!(!Arc::ptr_eq(&archive_ptr, &dwarf_ptr));
     }
 
     // Test-only drill: the spelling of the base type a (possibly nested)
