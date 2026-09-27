@@ -1251,3 +1251,27 @@ operator）。诱因：for 头超行宽折行后，续行形如
   保留。canon curl/httpd 与 master 逐字节恒等（语料无可达命中面）。本 lane
   写域越界 1 文件声明：B2 验收门硬依赖（BOOL_OR case），与 F8FOR 判据加固
   先例同款，请 root 裁量。
+
+### 2026-09-27 — PRETTYPRINT-SIGWRAP-0001（签名断行族：emitter 契约钉死）
+
+- **结论先行**：`EmitPrettyPrint` 核心（scan/print/advanceleft/overflow/
+  checkstart/checkstring/checkend/checkbreak，cc:641-856）与 oracle 逐语义
+  等价（外部 harness 喂 oracle token 流直接产出 golden 字节，MIRROR3 复核
+  结论维持）；SIG-WRAP 族（sq ~244 行/75 hunk/40+ thunks）根因在**喂入的
+  token 流**——printc.rs `emit_function_declaration` 把 cc:2582 的
+  `emit->spaces(1)` tokenbreak 实现成 `print(" ")` 内容 token（修复见
+  docs/api/printc.md 同日条目）。本文件零行为改动，新增
+  `linewrap_probe_tests` 两测把断行契约钉死：
+  - `signature_wrap_breaks_after_funcname_not_return_type`：thunk 形
+    （返回类型+函数名同行，断点=函数名→`(` 的 bump-10 tokenbreak，参数表
+    次行 20 空格缩进=indentstack.back()=80 处 `maxlinesize-80`），
+    期望字节=ghidra_sq_1204.direct-runner.c `_ZThn16_..SetCoderProperties`
+    逐字；
+  - `signature_wrap_comma_opens_continuation_line`：参数表溢出子形——
+    checkstring 零宽断点（cc:819-828）在逗号 token **之前**，续行由逗号
+    开头、组内对齐缩进，期望字节=`initialise_threads` 14 参形逐字。
+- **关键语义复核**（亲读 prettyprint.cc:584-709 print 的 tokenbreak 臂）：
+  断行豁免 `(numSpaces <= spaceremain) && (val - spaceremain < 10)` 是
+  该族分叉点——bump-0 的 1 空格断点在行尾必命中豁免（100-91=9<10）不换
+  行，bump-10 的函数名断点（80-9=71≥10）必换行；`overflow()` 的 half-line
+  抬升（cc:587-593）与本族无交互（无 >spaceremain 的单体 token）。

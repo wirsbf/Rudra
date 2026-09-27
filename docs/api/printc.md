@@ -3861,3 +3861,24 @@ sqlite3VdbeSorterRewind）的激活依赖 BLOCKACT-CONDNEGATE-PARITY-0001（P3�
 vsh 15/16·71/71、sq 4227/7500·810/810、sqlite 26411/26411·1385/1385 全
 PASS；bank 391/391 MATCH；cargo test --lib **1909P/0F**（=亲父 1905+本票
 4 新测）；annotations/refs 三门禁绿。
+
+**2026-09-27（PRETTYPRINT-SIGWRAP-0001）**：`emit_function_declaration`
+的签名分隔 token 修正为 oracle 的 tokenbreak 形态。亲读
+printc.cc:2577-2603 全函数体 + prettyprint.cc:541-1245 EmitPrettyPrint
+全算法后钉根因：返回类型与函数名之间的 `emit->spaces(1)`（printc.cc:2582）
+此前实现为 `emit.print(" ")`（内容 token），而 oracle 是 **tokenbreak**
+（1 强制空格、bump 0，prettyprint.hh:914 `TokenSplit::spaces`）。在
+EmitPrettyPrint 的 Oppen 级联（scan/advanceleft/print，prettyprint.cc:741-833）
+里，内容空格会多压一个 checkstring 断点 + 一个 string token 进
+tokqueue/scanqueue，使溢出级联在**返回类型之后**断行（镜面 SIG-WRAP 族：
+`xunknown8 ⏎<name>⏎          (params)`，10 空格续行）；tokenbreak 形态下
+该断点命中"省不了多少就不换行"豁免（cc:680-685 `val-spaceremain<10`），
+级联落到函数名→`(` 的 `function_call` 断点（bump 10），产出 oracle 形
+（返回类型与函数名同行、参数表次行 20 空格缩进）。同函数 calling-convention
+臂的 `emit->spaces(1)`（cc:2587，镜面/canon 脸 `printModelInDecl`=false
+死臂）同步对齐。EmitNoMarkup 脸构造性中性（spaces(1,0) 折叠=1 空格=原
+字节）。验收：sq 镜面 skeleton 4197→**3953**（−244 行=75 hunk 全族收敛，
+defects/numbering 双零）；`_ZThn16_..SetCoderProperties` thunk、
+`initialise_threads`/`SkipMatchesSpec`/`LzmaEnc_MemPrepare` 逗号续行形
+与 golden 逐字节一致；canon curl/httpd A/B 字节恒等（96429B/63214B）；
+行级行为以 prettyprint.rs `linewrap_probe_tests` 两新测钉死。
