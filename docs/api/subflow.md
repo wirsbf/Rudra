@@ -254,6 +254,19 @@ def 复用、INT2FLOAT/FLOAT2FLOAT 源替换、常量 precision 重编码）、`
 ### 2026-07-01（续 2）：RuleDumptyHumpLate（subflow.cc:3006-3064）
 SUBPIECE(PIECE) 回溯：尝试低/高半分量，三路重写（size 不匹配/isAutoLive/完全替换）。
 
+### 2026-09-27：RuleDumptyHumpLate 回溯提交次序（VARMAP-UNAFF-TYPEMAT-0001）
+回溯循环的分量提交恢复 oracle 次序（subflow.cc:3030-3033）：`vn = trialVn`
+只在跨分量测试（`outSize + trialTrunc > trialVn->getSize()`）通过**之后**执行。
+旧移植在测试前就把 `vn` 覆写成试验分量，导致 SUBPIECE 输出横跨 PIECE 两分量
+（如 `setne %dl` 1 字节写 + `and %edx,%eax` 4 字节读的 heritage 归一链
+`SUBPIECE(PIECE(SUBPIECE(RDX8,1)[7B], DL), 0)→4B`）时以未提交的 1 字节分量
+逃逸——重接为非法 `SUB<in><out>` 形（1B 输入→4B 输出），golden 侧
+`CONCAT71(extraout_RDX>>8, setcc)` 的 extraout 物化链随之丢失（sqlite
+sqlite3WindowCompare/sqlite3ExprCompare @0x4a7c7 双侧钉点）。oracle 在同输入
+下经 cc:3030-3031 break + cc:3042-3043 `vn == op->getIn(0)` 拒绝，保留
+CONCAT71。新增 `test_rule_dumpty_hump_late_crossing_refused` 钉守卫（对旧
+代码可复现 FAILED）。
+
 ### 2026-07-01（续 3）：SplitFlow TransformManager 子类 + SplitCopy/Load/Store 真正变换
 - SplitFlow（subflow.cc:1754-2037）：TransformManager 子类，set_replacement/add_op/trace_forward/trace_backward/do_trace。委托 TransformManager::apply。
 - RuleSplitFlow::apply_op：从 eprintln+return 改为 SplitFlow::new→do_trace→apply→CHANGE。
