@@ -702,44 +702,16 @@ impl<'a> TraceDAG<'a> {
     pub fn push_branches(&mut self) {
         let mut missed: usize = 0;
         let mut current: Option<usize> = self.begin_slot();
-        // DIAGNOSTIC: hard ceiling to surface any non-termination cleanly.
-        // Ghidra's trace is structurally terminating (back/loop-exit edges
-        // are excluded by isLoopDAGOut/In, plus the missed>=activecount
-        // bad-edge fallback removes one trace per pass). If this ceiling
-        // ever fires it indicates a flag-computation bug, not a missing
-        // guard.
-        let mut iter_guard = 0u64;
-        let iter_cap = 5000u64;
-
+        // Ghidra: blockaction.cc:983-1015 TraceDAG::pushBranches — the loop
+        // has NO iteration cap; termination is structural (back/loop-exit
+        // edges are excluded by isLoopDAGOut/In, and the missed>=activecount
+        // fallback removes one non-terminal trace per pass, strictly
+        // shrinking the candidate set). The former 5000-iter diagnostic
+        // ceiling fired on sqlite3Pragma's final-trace round (~11.2k oracle
+        // events, GIANTS-GA1-PRAGMADISPATCH-0001), truncating the likelygoto
+        // list mid-walk and splitting the shared 40-case dispatch 19/21
+        // instead of the oracle's 40/0; removed as unfaithful glue.
         while self.active_count > 0 {
-            iter_guard += 1;
-            if iter_guard > iter_cap {
-                eprintln!(
-                    "[TRACEDAG] iter cap {} hit for graph size {} — investigate flag calc",
-                    iter_cap,
-                    self.graph.get_size()
-                );
-                for &s in &self.active_slots {
-                    if let Some(ai) = s {
-                        let t = &self.traces[ai];
-                        let dest = t.dest_block_idx;
-                        let sin = if dest >= 0 { self.size_in(dest) } else { 0 };
-                        let vc = self.visit_count.get(&dest).copied().unwrap_or(0);
-                        let mut loopdag_in = 0;
-                        for s2 in 0..sin {
-                            if self.is_loop_dag_in(dest, s2) {
-                                loopdag_in += 1;
-                            }
-                        }
-                        let bp = &self.branch_points[t.top_bp];
-                        eprintln!(
-                            "[TRACEDAG]   trace#{} dest={} active={} terminal={} edgelump={} vc={} loopDAG_in={} total_in={} bp_depth={}",
-                            ai, dest, t.active, t.terminal, t.edgelump, vc, loopdag_in, sin, bp.depth
-                        );
-                    }
-                }
-                break;
-            }
             // cc:991-992: wrap to begin when the iterator reached end().
             if current.is_none() {
                 current = self.begin_slot();
