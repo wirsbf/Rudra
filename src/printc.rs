@@ -7452,13 +7452,34 @@ impl PrintC {
             ctrl.get_ops().iter().find_map(|op_ref| {
                 let op = op_ref.0.read().unwrap();
                 if op.opcode == OpCode::CPUI_BRANCHIND {
-                    op.get_in(0).cloned()
+                    op.get_in(0)
+                        .cloned()
+                        .map(|vn_arc| (op_ref.0.clone(), vn_arc))
                 } else {
                     None
                 }
             })
         };
-        if let Some(vn_arc) = live_input {
+        if let Some((branchind_arc, vn_arc)) = live_input {
+            // printc.cc:582-591 opBranchind: pushVn(op->getIn(0),op,mods);
+            // recurse() — the head expression flows through the standard
+            // implied-inlining channel (rpn_push_vn + rpn_recurse =
+            // printlanguage.cc:197/514-540), so the implied switchvn def
+            // chain renders via the per-op PrintC virtuals exactly like
+            // any other expression: opLoad (printc.cc:487-497)
+            // checkArrayDeref array form, opPtradd (cc:880-893)
+            // subscript/binary_plus, opTypeCast. The legacy
+            // push_varnode/emit_inline_expr transport has no PTRADD/PTRSUB
+            // arm, so an implied PTRADD address output fell to the
+            // unnamed-location fallback and printed the raw unique offset
+            // (`switch(*(uint1 *)unique0x00008f00)`, GA-2
+            // SWITCHHEADUNIQUE 8-site leak) where the oracle prints
+            // `(uint1)puVar30[1]` / `*(uint8 *)(in_R11 + 2) & 0xffffffff`.
+            if self.rpn_enabled {
+                self.rpn_push_vn(vn_arc, branchind_arc, self.mods);
+                self.rpn_recurse();
+                return;
+            }
             let vn = vn_arc.read().unwrap();
             self.push_varnode(&vn, None);
             return;
@@ -21759,6 +21780,126 @@ mod tests {
         assert!(
             text.contains(".b"),
             "union resolution arm prints the member suffix, got: {text:?}"
+        );
+    }
+
+    // GA-2 SWITCHHEADUNIQUE-0001: opBranchind (printc.cc:582-591) pushes the
+    // BRANCHIND input through the standard pushVn+recurse channel
+    // (printlanguage.cc:197/514-540), so an implied switchvn chain
+    // (LOAD <- PTRADD address) renders through the per-op virtuals —
+    // opLoad's checkArrayDeref array form + opPtradd's subscript
+    // (printc.cc:487-497/880-893). The legacy emit_inline_expr transport has
+    // no PTRADD/PTRSUB arm, so the implied PTRADD output fell to the
+    // unnamed-location fallback and printed the raw unique offset
+    // (`switch(*(uint1 *)unique0x00008f00)` — the 8-site sqlite mirror
+    // switch-head leak) where the oracle prints `(uint1)puVar30[1]` /
+    // `*(uint8 *)(in_R11 + 2) & 0xffffffff`.
+    #[test]
+    fn test_switch_head_expr_rpn_channel_ptradd_inline() {
+        use crate::address::{Address, SeqNum};
+        use crate::block::{BlockBasic, BlockSwitch};
+        use crate::op::PcodeOp;
+        use crate::opcodes::OpCode;
+        use crate::space::AddressSpace;
+        use crate::varnode::{varnode_flags, Varnode};
+
+        let emit: Box<dyn crate::prettyprint::Emit> =
+            Box::new(crate::prettyprint::EmitNoMarkup::new());
+        let mut printer = PrintC::new(emit);
+        assert!(printer.rpn_enabled, "production drivers run the RPN channel");
+
+        // base: an explicit register varnode (the pointer variable).
+        let base_arc = Arc::new(std::sync::RwLock::new(Varnode::new_with_space(
+            8, AddressSpace::Register, 0x30,
+        )));
+
+        // PTRADD(base, #1, #8) -> addr (implied unique temp at 0x8f00 — the
+        // SLEIGH constructor-fixed temp the leak printed raw).
+        let mut addr_vn = Varnode::new_with_space(8, AddressSpace::Unique, 0x8f00);
+        addr_vn.flags |= varnode_flags::IMPLIED | varnode_flags::WRITTEN;
+        let addr_arc = Arc::new(std::sync::RwLock::new(addr_vn));
+        let mut ptradd = PcodeOp::new(
+            crate::address::SeqNum::new(Address::new(0x1000), 0),
+            OpCode::CPUI_PTRADD,
+        );
+        ptradd.inrefs = vec![
+            base_arc.clone(),
+            Arc::new(std::sync::RwLock::new(Varnode::new_constant(1, 8))),
+            Arc::new(std::sync::RwLock::new(Varnode::new_constant(8, 8))),
+        ];
+        ptradd.output = Some(addr_arc.clone());
+        let ptradd_arc: Arc<std::sync::RwLock<PcodeOp>> =
+            Arc::new(std::sync::RwLock::new(ptradd));
+        addr_arc.write().unwrap().def = Some(std::sync::Arc::downgrade(&ptradd_arc));
+
+        // LOAD(ram, addr) -> switchvn (implied unique temp, 1 byte).
+        let mut switchvn = Varnode::new_with_space(1, AddressSpace::Unique, 0x23b00);
+        switchvn.flags |= varnode_flags::IMPLIED | varnode_flags::WRITTEN;
+        let switchvn_arc = Arc::new(std::sync::RwLock::new(switchvn));
+        let mut load = PcodeOp::new(
+            crate::address::SeqNum::new(Address::new(0x1000), 1),
+            OpCode::CPUI_LOAD,
+        );
+        load.inrefs = vec![
+            Arc::new(std::sync::RwLock::new(Varnode::new_constant(0, 8))),
+            addr_arc.clone(),
+        ];
+        load.output = Some(switchvn_arc.clone());
+        let load_arc: Arc<std::sync::RwLock<PcodeOp>> =
+            Arc::new(std::sync::RwLock::new(load));
+        switchvn_arc.write().unwrap().def = Some(std::sync::Arc::downgrade(&load_arc));
+
+        // BRANCHIND(switchvn) — the switch control block's terminal op.
+        let mut branchind = PcodeOp::new(
+            crate::address::SeqNum::new(Address::new(0x1000), 2),
+            OpCode::CPUI_BRANCHIND,
+        );
+        branchind.inrefs = vec![switchvn_arc.clone()];
+        let branchind_ref =
+            crate::op::PcodeOpRef(Arc::new(std::sync::RwLock::new(branchind)));
+        let mut ctrl = BlockBasic::new(0, Address::new(0x1000));
+        ctrl.ops = vec![branchind_ref];
+        let ctrl_arc: Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>> =
+            Arc::new(std::sync::RwLock::new(ctrl));
+
+        let switch_data = BlockSwitch {
+            index: 0,
+            control: ctrl_arc,
+            cases: Vec::new(),
+            default_case: None,
+            case_gototypes: Vec::new(),
+            default_gototype: 0,
+            case_isexit: Vec::new(),
+            default_isexit: false,
+            jump: None,
+            case_order: Vec::new(),
+            default_label: None,
+            default_order: None,
+            case_values: Vec::new(),
+            index_varnode: None,
+            incoming: Vec::new(),
+            outgoing: Vec::new(),
+            parent: None,
+            flags: 0,
+        };
+
+        printer.emit_switch_head_expr(&switch_data);
+        let text = printer
+            .take_emit()
+            .into_any()
+            .downcast::<crate::prettyprint::EmitNoMarkup>()
+            .expect("fixture emitter")
+            .get_output();
+        // opLoad checkArrayDeref(addr)=true (implied+written+PTRADD) →
+        // print_load_value, no `*` token; opPtradd printval → subscript.
+        assert!(
+            text.contains("[1]"),
+            "array-use form renders the PTRADD subscript, got: {text:?}"
+        );
+        assert!(
+            !text.contains("unique0x"),
+            "the implied PTRADD output must inline, never leak the raw \
+             unnamed-location token, got: {text:?}"
         );
     }
 
