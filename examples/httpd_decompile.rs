@@ -840,6 +840,64 @@ fn build_action_data_symbol_db(
         }
     }
 
+    // (3b) HEADLESS-BRIDGE-V2-THUNKGOT-0002 (③ GOT 槽 PTR_ 补全): the
+    // .rela.plt JUMP_SLOT slots — the same relocation-driven labeling the
+    // GLOB_DAT arm models, for the PLT import path. The headless ELF
+    // loader creates one `PTR_<extname>_<slotaddr>` data label per import
+    // relocation regardless of which relocation section carries it (canon
+    // golden witness: `(*(code *)PTR_apr_file_open_stdout_0019c5d8)();` —
+    // 0x19c5d8 is a .rela.plt slot). Symbol shape: typelocked
+    // pointer-to-undefined — the `(undefined *)0x0` comparison facing of
+    // canon's PTR_ symbols (golden main); the typelock keeps the loader's
+    // declared pointer type on the varnode so the call site prints the
+    // canon `(code *)` cast (cast_input's reqtype code* vs curtype
+    // undefined*, coreaction.rs call_input_cast = typeop.cc:295/745 arm)
+    // instead of letting typeprop infer code* and drop the cast. The
+    // default print window references zero of these slots (window
+    // functions call thunks directly), so the canon face is constructively
+    // unchanged; the labels are load-bearing for the RUGRA_THUNKS
+    // decompile face.
+    let undefined1_ptr = {
+        let undefined1 = Arc::new(Datatype::Base(TypeBase::new(
+            "undefined".to_string(),
+            1,
+            TypeMetatype::Unknown,
+        )));
+        TypeFactory::shared_default()
+            .write()
+            .unwrap()
+            .get_type_pointer_default(undefined1)
+    };
+    for rel in elf.pltrelocs.iter() {
+        if rel.r_type != goblin::elf::reloc::R_X86_64_JUMP_SLOT {
+            continue;
+        }
+        let Some(sym) = elf.dynsyms.get(rel.r_sym) else { continue };
+        if sym.st_value != 0 {
+            continue; // defined symbol: its own dynsym entry labels it
+        }
+        let Some(base) = elf.dynstrtab.get_at(sym.st_name) else { continue };
+        if base.is_empty() {
+            continue;
+        }
+        let slot = rel.r_offset + image_base;
+        let name = format!("PTR_{}_{:08x}", base, slot);
+        if covered.iter().any(|&(lo, hi)| slot >= lo && slot < hi) {
+            continue; // a GLOB_DAT entry already labeled this slot
+        }
+        if let Some(sym_id) = db.add_symbol_mapped(
+            global_scope_id,
+            &name,
+            Some(undefined1_ptr.clone()),
+            Address::new(slot),
+            8,
+        ) {
+            db.set_symbol_flag(global_scope_id, sym_id, symbol_flags::TYPELOCK, true);
+            mark_readonly(&mut db, sym_id, slot);
+            covered.push((slot, slot + 8));
+        }
+    }
+
     // (4) .rodata ASCII strings: typelocked char[] symbols (the Strings
     // analyzer's data is type-locked, so spacebaseCenter's
     // ptr-to-stripped-element typing locks onto char* — canon golden's
@@ -1996,6 +2054,95 @@ fn intern_canon_glibc_struct_bases(
 }
 
 /// Install the locked generic_clib signatures on this Funcdata's import
+/// Build the locked `FuncProto` for one ledger-known import — the shared
+/// builder for both consumers of the import-signature channel: the
+/// call-site installs (`install_import_signatures`) and the thunk face's
+/// own-function installs (HEADLESS-BRIDGE-V2-THUNKGOT-0002 ①: canon locks
+/// the thunk's own header through the same ledger). Returns None (with
+/// the skip log) when a parameter/return type fails to resolve.
+fn build_locked_import_proto(
+    name: &str,
+    ledger: &ImportSignatureLedger,
+    types: &std::sync::Arc<std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>>,
+    model_carrier: &rugra::fspec::FuncProto,
+    log_prefix: &str,
+) -> Option<rugra::fspec::FuncProto> {
+    use rugra::fspec::protoparam_flags;
+    let Some(&(return_spelling, parameter_spelling)) = ledger.entries.get(name) else {
+        return None; // canon-unlocked import (the _chk family): active recovery
+    };
+    // Parameter declarations; a trailing "..." marks the locked varargs
+    // form (first_var_arg_slot after the last named slot).
+    let mut in_types = Vec::new();
+    let mut in_names = Vec::new();
+    let mut first_var_arg_slot = -1i32;
+    for declaration in parameter_spelling.split(',').map(str::trim) {
+        if declaration.is_empty() {
+            continue;
+        }
+        if declaration == "..." {
+            first_var_arg_slot = in_types.len() as i32;
+            continue;
+        }
+        let Some((type_text, parameter_name)) = split_import_declaration(declaration) else {
+            return None;
+        };
+        match resolve_import_type(type_text, &types) {
+            Some(resolved) => {
+                in_types.push(resolved);
+                in_names.push(parameter_name.to_string());
+            }
+            None => {
+                eprintln!(
+                    "[IMPORTSIG] {} import {}: parameter type `{}` unresolved (entry skipped)",
+                    log_prefix, name, type_text
+                );
+                return None;
+            }
+        }
+    }
+    let Some(return_type) = resolve_import_type(return_spelling, &types) else {
+        eprintln!(
+            "[IMPORTSIG] {} import {}: return type `{}` unresolved (entry skipped)",
+            log_prefix, name, return_spelling
+        );
+        return None;
+    };
+    let mut proto = rugra::fspec::FuncProto::from_model_carrier(
+        model_carrier,
+        name.to_string(),
+        return_type.clone(),
+    );
+    proto.name = name.to_string();
+    let pieces = rugra::grammar::PrototypePieces {
+        model: None,
+        name: name.to_string(),
+        out_type: Some(return_type),
+        in_types,
+        in_names,
+        first_var_arg_slot,
+    };
+    proto.update_all_types_from_pieces(&pieces);
+    if proto.has_input_errors() {
+        eprintln!(
+            "[IMPORTSIG] {} import {}: compiler model cannot assign parameter storage (entry skipped)",
+            log_prefix, name
+        );
+        return None;
+    }
+    for parameter in &mut proto.parameters {
+        // fspec.cc:3503-3506/:3564: every parameter of a locked
+        // generic_clib signature carries a real glibc reserved name
+        // and is name-locked with it.
+        parameter.flags |= protoparam_flags::NAME_LOCKED;
+    }
+    proto.set_input_lock(true);
+    proto.set_output_lock(true);
+    proto.set_model_lock(true);
+    proto.set_model_name("unknown");
+    Some(proto)
+}
+
 /// call sites: every callspec whose entry address is a PLT thunk of a
 /// ledger-known import receives the locked `FuncProto` — the observable
 /// equivalent of queryCall's queryFunction hit on the Program database's
@@ -2014,7 +2161,6 @@ fn install_import_signatures(
     fd: &mut Funcdata,
     imports: &ImportSignatureContext,
 ) -> (usize, usize) {
-    use rugra::fspec::protoparam_flags;
     let Some(types) = fd.arch.as_ref().and_then(|arch| arch.types.clone()) else {
         return (0, 0);
     };
@@ -2039,90 +2185,12 @@ fn install_import_signatures(
         let Some(name) = imports.plt.get(&entry) else {
             continue;
         };
-        let Some(&(return_spelling, parameter_spelling)) =
-            imports.ledger.entries.get(name)
+        let Some(proto) =
+            build_locked_import_proto(name, &imports.ledger, &types, &model_carrier, &fd.name)
         else {
-            continue; // canon-unlocked import (the _chk family): active recovery
-        };
-        // Parameter declarations; a trailing "..." marks the locked varargs
-        // form (first_var_arg_slot after the last named slot).
-        let mut in_types = Vec::new();
-        let mut in_names = Vec::new();
-        let mut first_var_arg_slot = -1i32;
-        let mut failed = false;
-        for declaration in parameter_spelling.split(',').map(str::trim) {
-            if declaration.is_empty() {
-                continue;
-            }
-            if declaration == "..." {
-                first_var_arg_slot = in_types.len() as i32;
-                continue;
-            }
-            let Some((type_text, parameter_name)) = split_import_declaration(declaration)
-            else {
-                failed = true;
-                break;
-            };
-            match resolve_import_type(type_text, &types) {
-                Some(resolved) => {
-                    in_types.push(resolved);
-                    in_names.push(parameter_name.to_string());
-                }
-                None => {
-                    eprintln!(
-                        "[IMPORTSIG] {} import {}: parameter type `{}` unresolved (entry skipped)",
-                        fd.name, name, type_text
-                    );
-                    failed = true;
-                    break;
-                }
-            }
-        }
-        if failed {
-            skipped += 1;
-            continue;
-        }
-        let Some(return_type) = resolve_import_type(return_spelling, &types) else {
-            eprintln!(
-                "[IMPORTSIG] {} import {}: return type `{}` unresolved (entry skipped)",
-                fd.name, name, return_spelling
-            );
             skipped += 1;
             continue;
         };
-        let mut proto = rugra::fspec::FuncProto::from_model_carrier(
-            &model_carrier,
-            name.to_string(),
-            return_type.clone(),
-        );
-        proto.name = name.to_string();
-        let pieces = rugra::grammar::PrototypePieces {
-            model: None,
-            name: name.to_string(),
-            out_type: Some(return_type),
-            in_types,
-            in_names,
-            first_var_arg_slot,
-        };
-        proto.update_all_types_from_pieces(&pieces);
-        if proto.has_input_errors() {
-            eprintln!(
-                "[IMPORTSIG] {} import {}: compiler model cannot assign parameter storage (entry skipped)",
-                fd.name, name
-            );
-            skipped += 1;
-            continue;
-        }
-        for parameter in &mut proto.parameters {
-            // fspec.cc:3503-3506/:3564: every parameter of a locked
-            // generic_clib signature carries a real glibc reserved name
-            // and is name-locked with it.
-            parameter.flags |= protoparam_flags::NAME_LOCKED;
-        }
-        proto.set_input_lock(true);
-        proto.set_output_lock(true);
-        proto.set_model_lock(true);
-        proto.set_model_name("unknown");
         owner.write().unwrap().prototype = proto;
         installed += 1;
     }
@@ -2276,6 +2344,19 @@ struct FunctionTask {
     stage_proj: bool,
     stage_drill: bool,
     harvest_proto: bool,
+    /// HEADLESS-BRIDGE-V2-THUNKGOT-0002 ①: this task is a PLT thunk —
+    /// install the import ledger's locked prototype on the function's OWN
+    /// funcp (the canon thunk header: analyzeHeadless locks every
+    /// ledger-known import's thunk signature; the 7 canon-unlocked imports
+    /// keep the default void(void) form).
+    thunk_import: bool,
+    /// HEADLESS-BRIDGE-V2-THUNKGOT-0002 ②: the terminal indirect-jmp
+    /// instruction addresses carrying the headless FlowOverride.
+    /// CALL_RETURN transport (registered on fd.localoverride before
+    /// inject_raw_ops; apply_flow_overrides_raw performs the
+    /// BRANCHIND→CALLIND + RETURN rewrite). Empty = no override (the
+    /// RUGRA_THUNKS_RAW A/B arm and every non-thunk task).
+    thunk_override_addrs: Vec<u64>,
 }
 
 // One decompile's products: the printed C text (None = the function
@@ -2762,6 +2843,8 @@ fn run_paramid_iteration(
             stage_proj: false,
             stage_drill: false,
             harvest_proto: true,
+            thunk_import: false,
+            thunk_override_addrs: Vec::new(),
         });
     }
     let window_count = tasks.len();
@@ -2836,6 +2919,8 @@ fn run_paramid_iteration(
             stage_proj: false,
             stage_drill: false,
             harvest_proto: true,
+            thunk_import: false,
+            thunk_override_addrs: Vec::new(),
         });
         discovered_count += 1;
     }
@@ -3099,6 +3184,8 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         stage_proj: stage_proj_fn,
         stage_drill: stage_drill_fn,
         harvest_proto,
+        thunk_import,
+        thunk_override_addrs,
     } = task;
     let mirror_fn = shared.mirror_fn;
     let mirror_img = shared.mirror_img.as_ref().map(|bytes| bytes.as_ref().clone());
@@ -3409,6 +3496,20 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
             }
         }
 
+        // HEADLESS-BRIDGE-V2-THUNKGOT-0002 ②: the thunk face's terminal-jmp
+        // FlowOverride.CALL_RETURN registrations (the OperandReference
+        // Analyzer transport — see the RUGRA_THUNKS emission block for the
+        // full oracle chain). Registered before inject_raw_ops so the
+        // raw-layer application arm (apply_flow_overrides_raw, the
+        // funcdata_op.cc:991-1020 image) performs the BRANCHIND→CALLIND +
+        // RETURN rewrite at the same phase-1/phase-2 boundary the oracle's
+        // overrideFlow occupies (flow.cc:474-475).
+        for jmp_addr in &thunk_override_addrs {
+            fd.localoverride.insert_flow_override(
+                rugra::address::Address::new(*jmp_addr),
+                rugra::override_rs::FlowOverride::CallReturn,
+            );
+        }
         fd.inject_raw_ops(&raw_ops);
         eprintln!("[THREAD] {} inject done ops={} blocks={}", func_name, fd.obank.alivelist.len(), fd.bblocks.get_size());
         // HTTPDMAIN-F1-NORETURN-0001: complete the canon transport right
@@ -3475,8 +3576,8 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         // decompilation sees at its call sites in the oracle, independent
         // of the PARAMID iteration table (which covers internal callees
         // only — PLT slots are dropped from that loop's commits).
-        if let Some(imports) = import_signatures {
-            let (installed, skipped) = install_import_signatures(&mut fd, &imports);
+        if let Some(imports) = import_signatures.as_ref() {
+            let (installed, skipped) = install_import_signatures(&mut fd, imports);
             if installed > 0 || skipped > 0 {
                 eprintln!(
                     "[THREAD] {} importsig: {} import protos locked{}",
@@ -3488,6 +3589,43 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                         String::new()
                     }
                 );
+            }
+        }
+        // HEADLESS-BRIDGE-V2-THUNKGOT-0002 ①: the thunk's OWN signature —
+        // the canon thunk header channel. analyzeHeadless's import path
+        // locks the thunk function's prototype from the same generic_clib
+        // ledger the call sites consume (canon golden witnesses: `void *
+        // memset(void *__s,int __c,size_t __n)` + the ActionPrototypeWarnings
+        // "Unknown calling convention -- yet parameter storage is locked"
+        // banner — the three-lock + model_name "unknown" combination the
+        // locked_proto builder establishes; the 7 canon-unlocked imports
+        // keep the default void(void) header). Install position = the
+        // importsig arm's (post-inject, pre-action): ActionPrototypeTypes'
+        // locked arms and the warning pass read funcp inside perform_action.
+        if thunk_import {
+            if let Some(imports) = import_signatures.as_ref() {
+                if let Some(types) = fd.arch.as_ref().and_then(|arch| arch.types.clone()) {
+                    // The model carrier: the thunk's own funcp still carries
+                    // the bound defaultfp here (set_arch tail) — the same
+                    // carrier the callsite installs use.
+                    let model_carrier = fd.funcp.clone();
+                    match build_locked_import_proto(
+                        &func_name,
+                        &imports.ledger,
+                        &types,
+                        &model_carrier,
+                        &format!("{}@thunk", fd.name),
+                    ) {
+                        Some(proto) => {
+                            fd.funcp = proto;
+                        }
+                        None => {
+                            // canon-unlocked or unresolvable: keep the
+                            // default void(void) header (canon `void
+                            // __stack_chk_fail(void)`).
+                        }
+                    }
+                }
             }
         }
         }
@@ -5015,6 +5153,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             stage_proj,
             stage_drill,
             harvest_proto: false,
+            thunk_import: false,
+            thunk_override_addrs: Vec::new(),
         };
         let shared = shared_ctx.clone();
 
@@ -5290,6 +5430,190 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Err(_) => {
                     println!("/* ---- 0x{:x}: {} TIMEOUT (>15s) ---- */", thunk_addr, tag);
+                    total_fail += 1;
+                }
+            }
+        }
+    }
+
+    // HEADLESS-BRIDGE-V2-THUNKGOT-0002 (② thunk 标记抑制 jumptable 恢复 +
+    // ① thunk 自身签名 + ③ GOT 槽 PTR_ 补全): the dedicated PLT-thunk
+    // decompile face (RUGRA_THUNKS=1, canon-mode instrument — the mirror
+    // gate and every env-unset run never enter: canon-face only, opt-in
+    // like the stage emitters). The headless channels this face models,
+    // each pinned to the locked oracle (e40ed130) with the
+    // stage_thunk_diag harness (/dev/shm/rugra-tests/thunkgot/):
+    //
+    //   * the terminal `jmp *[GOT]` transport — the Java side's
+    //     FlowOverride.CALL_RETURN (OperandReferenceAnalyzer.
+    //     checkForExternalJump sets it on every jump whose reference
+    //     resolves into the EXTERNAL block, OperandReferenceAnalyzer.java:
+    //     ~575-600), applied at pcode-emission time
+    //     (PcodeEmit.dumpCallOverride BRANCHIND arm: BRANCHIND→CALLIND,
+    //     RETURN appended). At the library boundary the equivalent is
+    //     Override::insertFlowOverride → FlowInfo::processInstruction
+    //     (flow.cc:415-418/474-475) → Funcdata::overrideFlow
+    //     (funcdata_op.cc:969-1020, BRANCHIND→CALLIND + dead RETURN).
+    //     Oracle witness: with the override the C++ library prints the
+    //     canon thunk body (`(*PTR_...)(); return;`) with ZERO jumptable
+    //     warnings; without it the same library run emits "Could not
+    //     recover jumptable ... Too many branches" + "Treating indirect
+    //     jump as call" (the direct-runner golden's 318-thunk warning
+    //     family). The GOT slot's byte VALUE is irrelevant to the oracle
+    //     outcome (probe matrix raw/zero/far identical) — the
+    //     RUGRA_THUNKS_RAW=1 A/B arm reproduces the unchanneled face by
+    //     skipping the override registration.
+    //   * the thunk's OWN signature from the import ledger (① above —
+    //     install inside decompile_one_function, keyed on the task flag).
+    //   * the GOT slot PTR_<extname>_<slot> labels (③ — the canon action
+    //     DB's JUMP_SLOT arm, installed for the whole canon face).
+    //
+    // Face outputs print after the symbol window in .plt.sec address
+    // order, one golden-format block per thunk (canon golden: 317 blocks
+    // at 0x12a420..0x12b7f0, every header "(10 bytes)" — the extent the
+    // terminal-branch walk derives).
+    if std::env::var("RUGRA_THUNKS").is_ok()
+        && stage_selector.is_none()
+        && !mirror
+    {
+        let raw_arm = std::env::var("RUGRA_THUNKS_RAW").is_ok();
+        let mut thunk_targets: Vec<(u64, String)> = plt_imports
+            .iter()
+            .map(|(&addr, name)| (addr + img_base, name.clone()))
+            .collect();
+        thunk_targets.sort_by_key(|(addr, _)| *addr);
+        eprintln!(
+            "[THUNKS] PLT thunk face: {} entries (transport {})",
+            thunk_targets.len(),
+            if raw_arm { "RAW (override off — A/B arm)" } else { "CALL_RETURN (canon)" }
+        );
+        for (thunk_addr, thunk_name) in &thunk_targets {
+            // Body extent: decode the slot's instructions and stop at the
+            // first terminal branch (the thunk's indirect jmp) — the same
+            // extent walk the curl driver's PLT corpus records (canon
+            // headers keep the analyzer body size, 10 bytes on .plt.sec).
+            let mut extent = 0usize;
+            {
+                let mut addr = *thunk_addr;
+                let limit = *thunk_addr + 16;
+                while addr < limit {
+                    match canon_sleigh
+                        .as_mut()
+                        .expect("canon SLEIGH lifter built for the canon face")
+                        .lift_instruction(addr)
+                    {
+                        Ok((step, ops)) => {
+                            let terminal = ops.iter().any(|op| {
+                                matches!(
+                                    rugra::opcodes::OpCode::from_i32(op.get_opcode()),
+                                    Some(rugra::opcodes::OpCode::CPUI_BRANCH)
+                                        | Some(rugra::opcodes::OpCode::CPUI_BRANCHIND)
+                                )
+                            });
+                            extent += step as usize;
+                            if terminal {
+                                break;
+                            }
+                            addr += step as u64;
+                        }
+                        Err(_) => break,
+                    }
+                }
+            }
+            if extent < 2 {
+                total_fail += 1;
+                continue;
+            }
+            // File offset of the extent (section-resolved, FILE-relative
+            // exactly like the ledger entries).
+            let mut file_off = 0usize;
+            if let Object::Elf(elf) = &obj {
+                for header in elf.section_headers.iter() {
+                    let lo = header.sh_addr + img_base;
+                    let hi = lo + header.sh_size;
+                    if *thunk_addr >= lo && *thunk_addr < hi {
+                        file_off = (header.sh_offset + (thunk_addr - lo)) as usize;
+                        break;
+                    }
+                }
+            }
+            if file_off == 0 || file_off + extent > buffer.len() {
+                total_fail += 1;
+                continue;
+            }
+            let range_len = extent;
+            let Some((mut raw_ops, branch_ref_addrs)) = lift_function_ops(
+                canon_sleigh
+                    .as_mut()
+                    .expect("canon SLEIGH lifter built for the canon face"),
+                *thunk_addr,
+                range_len,
+                thunk_name,
+            ) else {
+                total_fail += 1;
+                continue;
+            };
+            // The transport: register FlowOverride.CALL_RETURN at the
+            // terminal jmp's instruction address BEFORE inject_raw_ops —
+            // the driver's raw-layer application arm (apply_flow_overrides_
+            // raw, funcdata.rs: the funcdata_op.cc:991-1020 image) rewrites
+            // BRANCHIND→CALLIND and appends the RETURN, exactly as the
+            // oracle's overrideFlow does at flow time. The addresses ride
+            // the task; decompile_one_function registers them on its fd.
+            let thunk_override_addrs: Vec<u64> = if raw_arm {
+                Vec::new()
+            } else {
+                raw_ops
+                    .iter()
+                    .filter(|raw| {
+                        rugra::opcodes::OpCode::from_i32(raw.get_opcode())
+                            == Some(rugra::opcodes::OpCode::CPUI_BRANCHIND)
+                    })
+                    .filter_map(|raw| raw.seq_num().map(|seq| seq.get_addr().as_u64()))
+                    .collect()
+            };
+            let override_count = thunk_override_addrs.len();
+            let task = FunctionTask {
+                name: thunk_name.clone(),
+                vaddr: *thunk_addr,
+                size: extent,
+                raw_ops,
+                branch_ref_addrs,
+                stage_binary: None,
+                stage_proj: false,
+                stage_drill: false,
+                harvest_proto: false,
+                thunk_import: true,
+                thunk_override_addrs,
+            };
+            let shared = shared_ctx.clone();
+            let handle = std::thread::spawn(move || decompile_one_function(task, shared));
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let result = handle.join();
+                let _ = tx.send(result);
+            });
+            let received = rx.recv_timeout(std::time::Duration::from_secs(15));
+            eprintln!(
+                "[THUNKS] 0x{:x} {} extent={} overrides={}",
+                thunk_addr, thunk_name, extent, override_count
+            );
+            match received.map(|inner| inner.map(|outcome| outcome.and_then(|outcome| outcome.text))) {
+                Ok(Ok(Some(output))) => {
+                    println!(
+                        "/* ---- 0x{:x}: {} ({} bytes) ---- */",
+                        thunk_addr, thunk_name, extent
+                    );
+                    println!("{}", output);
+                    println!();
+                    println!();
+                    total_success += 1;
+                }
+                Ok(Ok(None)) | Ok(Err(_)) => {
+                    total_fail += 1;
+                }
+                Err(_) => {
+                    println!("/* ---- 0x{:x}: {} TIMEOUT (>15s) ---- */", thunk_addr, thunk_name);
                     total_fail += 1;
                 }
             }
