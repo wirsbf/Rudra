@@ -302,6 +302,22 @@ the FILE precedent verbatim:
 canon curl moved 110→95 (−15) with the three `(stat *)` sites converged
 plus main's line reflow back to the golden wrap; httpd byte-stable.
 
+### DWARF cv-qualifier strip (`CURLCANON-CASTA-CONST-0001`, 2026-09-28)
+
+The locked goldens carry ZERO `const`/`volatile`/`restrict` tokens across
+all six corpora (curl 11.3.2/1204, httpd, sq, sqlite, vsh): the oracle's
+DWARF front end drops qualifier wrappers at import. my_get_token's DWARF
+`const char *` param chain (0x3ca ptr → 0x186 const → char,
+readelf-verified) prints as `char * my_get_token(char *line)` with
+`(char *)0x0` constant casts (golden :1213/:1226/:1603). Rugra's
+`resolve_type` used to mint an `alias_type("const char", char)` — an
+independent qualifier object as the prototype's req, printing
+`const char *` signatures and `(const char *)0x0` casts. The qualifier
+arm now strips to the underlying type (a qualifier DIE with no
+`DW_AT_type` is cv-qualified void → the canonical `void_type()`); corpus
+witnesses: the dead glibc `memcpy` decl chain (restrict→ptr→const-void)
+and curl's 10 const / 7 restrict DIEs, none of which reach output.
+
 Supporting parsers: `split_parameter_list` / `split_declaration` split the
 comma-separated `TYPE NAME` declarations (the trailing identifier run is the
 name, pointer stars belong to the type: `void *__ptr`), and `parse_c_type`

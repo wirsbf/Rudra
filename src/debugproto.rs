@@ -1834,21 +1834,26 @@ fn resolve_type_inner(
             }
         }
         gimli::DW_TAG_const_type | gimli::DW_TAG_volatile_type | gimli::DW_TAG_restrict_type => {
-            let inner = match referenced {
-                Some(inner) => resolve_type(dwarf, unit, inner, depth + 1, visiting)?,
-                None => unknown_type(size.unwrap_or(1)),
-            };
-            let qualifier = if entry.tag() == gimli::DW_TAG_const_type {
-                "const"
-            } else if entry.tag() == gimli::DW_TAG_volatile_type {
-                "volatile"
-            } else {
-                "restrict"
-            };
-            Ok(alias_type(
-                format!("{qualifier} {}", inner.get_name()),
-                inner.as_ref(),
-            ))
+            // CURLCANON-CASTA-CONST-0001 (R2 of PROTOCAST43's A-族 residual
+            // roots): the oracle's DWARF front end drops cv-qualifier
+            // wrappers at import — the locked goldens carry ZERO
+            // `const`/`volatile`/`restrict` tokens across all six corpora
+            // (curl 11.3.2/1204, httpd, sq, sqlite, vsh), and
+            // my_get_token's DWARF `const char *` param chain (0x3ca ptr
+            // -> 0x186 const -> char, readelf-verified) prints as
+            // `char * my_get_token(char *line)` with `(char *)0x0`
+            // constant casts (golden :1213/:1226/:1603). Rugra's former
+            // `alias_type("const char", char)` minted an independent
+            // qualifier object as the prototype's req — printing
+            // `const char *` signatures and `(const char *)0x0` casts.
+            // Strip to the underlying type; a qualifier DIE with no
+            // DW_AT_type is cv-qualified void (DW_TAG_const_type with an
+            // absent type attribute denotes `const void`), which strips
+            // to the canonical void.
+            match referenced {
+                Some(inner) => resolve_type(dwarf, unit, inner, depth + 1, visiting),
+                None => Ok(void_type()),
+            }
         }
         gimli::DW_TAG_structure_type => {
             let fields = read_composite_fields(dwarf, unit, offset, depth, visiting)?;
@@ -3816,6 +3821,37 @@ mod tests {
             }
             other => panic!("pointer typedef lost its concrete shape: {other:?}"),
         }
+    }
+
+    // CURLCANON-CASTA-CONST-0001: DWARF cv-qualifiers strip at import —
+    // my_get_token @0x3720's DWARF param chain (0x3ca ptr -> 0x186 const
+    // -> char, readelf-verified) resolves into the plain char-pointer
+    // domain: no `const char` alias object is minted, so the prototype
+    // prints `char * my_get_token(char *line)` and the 0x0 literals cast
+    // `(char *)` — the locked golden :1213/:1226/:1603, never `const`.
+    #[test]
+    fn dwarf_const_qualifier_strips_to_underlying_type() {
+        let bytes = std::fs::read("examples/curl").expect("curl fixture");
+        let db = DebugPrototypeDatabase::parse_elf(&bytes).expect("DWARF prototypes");
+        let proto = db.get(0x3720).expect("my_get_token prototype");
+        assert_eq!(proto.name, "my_get_token");
+        assert_eq!(proto.parameters.len(), 1);
+        assert_eq!(proto.parameters[0].name, "line");
+        let qualified_name = proto.parameters[0].data_type.get_name();
+        assert_eq!(
+            qualified_name, "",
+            "the stripped param is the anonymous char pointer (pointer_type builds unnamed DWARF pointers)"
+        );
+        match proto.parameters[0].data_type.as_ref() {
+            Datatype::Pointer(pointer) => {
+                assert_eq!(pointer.ptr_to.get_name(), "char");
+                assert!(pointer.ptr_to.is_char_print());
+                assert!(!pointer.ptr_to.get_name().starts_with("const"));
+            }
+            other => panic!("my_get_token line parameter is not a pointer: {other:?}"),
+        }
+        // The static local `save` (DWARF <ed6>, same const-chain pointee)
+        // strips with it — golden compares `my_get_token::save == (char *)0x0`.
     }
 
     // CALLSPEC-ENV-SCOPE-0001: the call-site half of the DWARF boundary —
