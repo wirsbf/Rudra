@@ -891,6 +891,41 @@ piece/别名机制在纯跳转块 @12e43c 造非 marker `PIECE` → `BlockBasic:
 等 4×2 行函数→0，其余 24 函数 0→0 恒等）；canon curl **157/0/0 md5 51cc85d2
 逐字节恒等**（修复对 curl 零行为面）。
 
+2026-09-27 HERITAGE-CALLOUT-LOADSPLIT-0001（Phase 3 CALL/CALLIND 返回寄存器盾）——
+**MB25 合并超解注记**: 本节钻探记录保留;其盾补丁落点（Phase 3）已被 MB24 REGJUNK
+整层退役（funcdata.rs "Phase 3 (register-input pre-promotion) REMOVED"）,根因同源
+（Phase 3 近似层的误晋升）,补丁 moot 弃置,canon 收敛已由 MB24 regjunk 覆盖:
+Phase 3 的线性 read-before-write 输入晋升为 CALL 补齐返回寄存器盾——注入期 raw
+CALL/CALLIND **无输出 varnode**（SLEIGH `call` 语义不产结果；`PcodeEmitFd::dump`
+funcdata.cc:884-890 仅在模板带输出时建 varnode），返回 varnode 由
+`ActionFuncLink::funcLinkOutput`（stage funclink，本 pass 之后）才挂上；原
+"记录 call 输出为已定义" 的盾臂因输出恒 None 而成死代码，**call 后首个 RAX 读**
+（LOAD-through-RAX 形 `mov rcx,[rax]` → `u = LOAD ram,RAX`）被永久晋升为 `in_RAX`，
+而 heritage renameRecurse 对 heritage-known 读的忠实跳过（heritage.cc:2495
+`if (vnin->isHeritageKnown()) continue;`）使其再不可改写——返回值整链断源（deadcode
+合法删除失读者的 call 出口+phi），类型断源后 PTRADD 印算术形。修复：CALL 臂在无输出
+时仍把模型返回寄存器（RAX=register offset 0x0，与 funcLinkOutput 无存储回退同约定）
+记入 `defined_reg_offsets`；CALLIND 同盾（oracle `Heritage::guardCalls` 经
+callspec 逐 call 处理，CALL/CALLIND 同列 heritage.cc:1451），且盾在**该 op 自身
+输入处理之后**落位（call 目标读保留 call 前语义）。oracle 语义对齐：带锁定输出时
+call 出口即该 range 的 def；无输出/未知效果时 guardCalls 以 INDIRECT
+（unknown_effect/return_address，heritage.cc:1511-1520）或 indirect-creation
+（killedbycall，cc:1521-1525）补写——oracle 中 call 后的返回寄存器读**永不**晋升为
+输入。验收（基=master 48146429 双 worktree A/B 亲测）：canon httpd
+**139→108/0/0**（ap_strcasestr `__ctype_tolower_loc(); lVar3 = *in_RAX` →
+`pp_Var4 = __ctype_tolower_loc(); p_Var3 = *pp_Var4` + `p_Var3[V]` 索引形==golden；
+附带同根 REGJUNK-INRAX 族收敛：ap_field_noparam/ap_make_dir_str_parent `in_RAX`
+声明归零、ap_pregcomp 实参恢复 `ap_regcomp(uVar2,param_2,param_3)`——四函数
+diff-blocks 4→1/3→1/11→3/3→1 全向 golden 收敛，五函数外零漂移）；canon curl
+**157/0/0 逐字节恒等**（96429B cmp 双零）；镜面五面走 `inject_raw_ops_single`/
+followFlow 路径不经 Phase 3，字节级不受影响。新测
+`test_inject_phase3_call_shields_return_register`（call 后 RAX 读保持 free）+
+`test_inject_phase3_callind_shields_return_register`（CALLIND 目标读仍晋升+返回读
+盾住）。登记注记：ticket 面写域假设（src/heritage.rs 载荷拆分缺陷）被 fixture-first
+drill 证伪——LOAD→unique+COPY→reg 为 SLEIGH 提升正形（oracle 同形），
+heritage.rs collect/guard/renameRecurse 对该链路逐行核过无缺陷，真根在
+本 Phase 3 晋升近似层。
+
 #### 它在主链路中的位置
 
 ```text
