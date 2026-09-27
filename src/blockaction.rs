@@ -152,8 +152,8 @@ fn bs_trace_cfg_sig(graph: &BlockGraph) -> String {
     sig
 }
 
-// RUGRA-GLUE: short type tag for the env-gated RUGRA_BS_DUMP graph dumper
-// (downcast-based; the derived Debug impls recurse into children and can
+// RUGRA-GLUE: short type tag for the env-gated RUGRA_BS_TRACE CFG signature
+// dumper (downcast-based; the derived Debug impls recurse into children and can
 // overflow the worker stack). Debug-only helper, no Ghidra counterpart.
 fn debug_type_name(b: &dyn FlowBlock) -> String {
     let any = b.as_any();
@@ -1661,12 +1661,6 @@ impl<'a> CollapseStructure<'a> {
     /// parseconfig.constprop.0 cascade (41 blocks / 21 likely-goto edges /
     /// 10 cascade rounds / 8 DEAD).
     pub fn collapse_all_5step(&mut self) {
-        if std::env::var("RUGRA_BS_DUMP")
-            .map(|v| v == "2")
-            .unwrap_or(false)
-        {
-            self.debug_dump_graph("initial");
-        }
         // cc:1879-1884: finaltrace = false; graph.clearVisitCount();
         // orderLoopBodies(). The clear occurs at the start of
         // order_loop_bodies immediately before it consumes copied labels.
@@ -1683,13 +1677,6 @@ impl<'a> CollapseStructure<'a> {
         self.collapse_conditions();
         // cc:1888: collapseInternal(NULL).
         let mut isolated = self.collapse_internal(None);
-        if std::env::var("RUGRA_BS_DUMP")
-            .map(|v| v == "3")
-            .unwrap_or(false)
-            && isolated < self.graph.get_size() as i32
-        {
-            self.debug_dump_graph("stuck1");
-        }
         // cc:1889-1892: the selectGoto loop. Ghidra has no deadline, round
         // cap, progress guard, or batch cascade — selectGoto marks ONE edge
         // and collapseInternal(targetbl) re-structures before the next mark.
@@ -1707,12 +1694,6 @@ impl<'a> CollapseStructure<'a> {
                     "[BLOCKSTRUCT] {}: selectGoto exhausted (LowlevelError site, blockaction.cc:1275)",
                     self.name
                 );
-                if std::env::var("RUGRA_BS_DUMP")
-                    .map(|v| v == "1")
-                    .unwrap_or(false)
-                {
-                    self.debug_dump_graph("exhausted");
-                }
                 break;
             }
         }
@@ -1720,70 +1701,6 @@ impl<'a> CollapseStructure<'a> {
         // identifyInternal's list compaction, block.cc:953-960), required
         // for downstream emit (printc emitBlockGraph).
         self.finalize_structure();
-    }
-
-    // RUGRA-GLUE: env-gated (RUGRA_BS_DUMP=1) graph-state dumper for
-    // blockstructure divergence triage; no Ghidra counterpart (debug-only).
-    fn debug_dump_graph(&self, when: &str) {
-        let size = self.graph.get_size();
-        let mut nonisolated = 0;
-        for i in 0..size {
-            let b = match self.graph.get_block(i) {
-                Some(b) => b,
-                None => continue,
-            };
-            let r = b.read().unwrap();
-            let dead = self.is_consumed(r.get_index());
-            let addr = crate::block::dbg_front_leaf_start_addr(&b);
-            let iso = dead || (r.size_in() == 0 && r.size_out() == 0);
-            if !iso {
-                nonisolated += 1;
-            }
-            eprintln!(
-                "[DBG] {} {} blk#{} addr={:#x} ty={} dead={} in={}{} out={}{} flags={:#x}",
-                when,
-                self.name,
-                i,
-                addr,
-                debug_type_name(&*r),
-                self.is_consumed(r.get_index()),
-                r.size_in(),
-                {
-                    let mut s = String::new();
-                    for sl in 0..r.size_in() {
-                        if let Some(e) = r.get_in(sl) {
-                            s.push_str(&format!(" [{}:{}]", sl, e.point.read().unwrap().get_index()));
-                        }
-                    }
-                    s
-                },
-                r.size_out(),
-                {
-                    let mut s = String::new();
-                    for sl in 0..r.size_out() {
-                        if let Some(e) = r.get_out(sl) {
-                            let (dst_idx, ty) = match e.point.try_read() {
-                                Ok(g) => (g.get_index(), debug_type_name(&*g)),
-                                Err(_) => (-1, "?".to_string()),
-                            };
-                            s.push_str(&format!(
-                                " [{}:{}:{}{}]",
-                                sl,
-                                dst_idx,
-                                ty,
-                                if r.is_goto_out(sl) { ",GOTO" } else { "" }
-                            ));
-                        }
-                    }
-                    s
-                },
-                r.get_flags()
-            );
-        }
-        eprintln!(
-            "[DBG] {} {} size={} nonisolated={}",
-            when, self.name, size, nonisolated
-        );
     }
 
     // Ghidra: blockaction.cc:1877 CollapseStructure::collapseAll selectGoto loop
@@ -2196,21 +2113,9 @@ impl<'a> CollapseStructure<'a> {
         // Running goto first ensures continue/break edges are consumed (wrapped
         // as BlockIfGoto/BlockGoto) BEFORE while_do tries to match the body,
         // which reduces clause size_in so WhileDo can form.
-        let bs_trace = std::env::var("RUGRA_BS_TRACE")
-            .map(|v| v == "1")
-            .unwrap_or(false);
-        let bs_dump2 = std::env::var("RUGRA_BS_DUMP")
-            .map(|v| v == "2")
-            .unwrap_or(false);
         macro_rules! bs_try {
             ($f:ident) => {
                 if self.$f(i) {
-                    if bs_trace {
-                        eprintln!("[DBG] rule {} fired on blk#{}", stringify!($f), i);
-                    }
-                    if bs_dump2 {
-                        self.debug_dump_graph(concat!("after_", stringify!($f)));
-                    }
                     return;
                 }
             };

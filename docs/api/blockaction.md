@@ -1158,25 +1158,23 @@ interior-goto 标记。
   checkEdges 不变量（一致状态下 no-op），并把 new_block 纳入安装后 dedup。
 
 ### selectGoto exhausted 调试注桩（2026-08-26，TRI2-STRUCT-SELECTGOTO-SELFLOOP-0001）
-- `debug_type_name` / `CollapseStructure::debug_dump_graph`（RUGRA-GLUE，
 - `bs_trace_cfg_sig` + `ActionBlockStructure::apply` pre/post witness（RUGRA-GLUE，
   无 Ghidra 对应物，debug-only）：`RUGRA_BS_TRACE=1` 时在每次 blockstructure 施加
   前后打印 bblocks 完整签名（槽位/索引/起始地址/类型/入出边及 GOTO 标记/末位
   CBRANCH 及其 const/val/BOOLEAN_FLIP/块 flags），用于 mainloop 不收敛/CFG 往复
   症状的逐轮夹逼（HTTPD-STRCASECMP-NONCONVERGE-0001 定位中引入：识别出
   DeterminedBranch→remove_branch 空转 reset + if_no_exit 每轮 negate 的乒乓）。
-  无 Ghidra 对应物）：`RUGRA_BS_DUMP=1` 时在 selectGoto exhausted 位点
-  （blockaction.cc:1275 LowlevelError 站点）dump 全图 in/out/flags 状态，
-  用于结构化分叉 triage。
-- `debug_dump_graph` 地址列（2026-09-24，PRINTC-GOTOSTRUCT-RESID-0001）：
-  每行增加 `addr=` 首叶起始地址（`dbg_front_leaf_start_addr`，含 BlockCopy
-  下钻），供块索引↔地址映射；`RUGRA_BS_DUMP=3` 时在 collapseAll 首轮
-  collapseInternal 之后（cc:1888/1889 之间）输出 `stuck1` 全图 dump——
-  oracle 同位点的 collapseInternal 残留态对照（插桩 oracle 侧证据见
-  /dev/shm/rugra-reports/LANE_FK_GOTOSTRUCT_2026-09-24.md）。默认关闭，
-  零行为变化。
-- `collapse_internal_rules` 内 `bs_try!` 宏：`RUGRA_BS_TRACE=1` 时打印
-  每条规则命中（规则名 + 块索引）。默认关闭，零行为变化。
+- `debug_type_name`（RUGRA-GLUE，debug-only）：`bs_trace_cfg_sig` 行内的短类型
+  标签（downcast 实现；派生 Debug 会递归子块并可能溢出 worker 栈）。
+- 2026-09-27 卫生清理（HYGIENE 微件车道，CR-STRDATA 遗留债）：删除
+  `CollapseStructure::debug_dump_graph`（`RUGRA_BS_DUMP=1/2/3` 全图 dump 探针，
+  initial/stuck1/exhausted/after_&lt;rule&gt; 四调用点随门一起清除）及
+  `apply_rules_to_block` 内 `bs_try!` 宏的 `RUGRA_BS_TRACE` 规则命中打印——两者
+  使用临时 `[DBG]` TAG，违反"临时 TAG 提交前必须删除"纪律；`bs_try!` 还原为
+  cc:1797-1828 的裸 `if (ruleX) continue` 派发形态。均为 stderr/env-gated 输出，
+  默认关闭，stdout 零变化（双语料 canon 字节恒等亲证）。历史定位叙述（TRI2
+  结构分叉 triage、PRINTC-GOTOSTRUCT-RESID 的 stuck1/oracle collapseInternal
+  残留态对照）以各 TODO/车道报告为准。
 
 ### identify_internal 成对去重 + 规则守卫回 oracle（2026-08-26，TRI2-STRUCT-SELECTGOTO-SELFLOOP-0001）
 - **成对去重协议**：删除安装前对 `new_in`/`new_out` 的单侧 `retain` 去重。
