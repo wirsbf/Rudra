@@ -977,6 +977,65 @@ fn worker_memory_image_bytes(elf: &goblin::elf::Elf, buffer: &[u8]) -> Vec<u8> {
     image
 }
 
+// FSTRFOLDUP-STRFOLD-COMMENTRO-0001: LoadImageBfd::loadFill
+// (loadimage_bfd.cc:124-179) is SECTION-based, not PT_LOAD-based: for any
+// queried address it walks bfd's section chain (findSection, :99-122) and
+// serves `bfd_get_section_contents(p, ..., curaddr - p->vma, ...)` from the
+// FIRST section whose [vma, vma+size) contains the address — non-ALLOC
+// sections included. The stripped httpd carries .comment (SHT_PROGBITS,
+// vma 0, size 0x2b, file 0xa07e0, flags MS) which BFD exposes in the chain
+// with SEC_READONLY (bfd/elf.c maps !SHF_WRITE -> SEC_READONLY with NO
+// SHF_ALLOC requirement — probe-verified against the real BFD 2.38 with
+// /dev/shm/rugra-tests/fstrfoldup/bfd_ro_probe.c: 22 SEC_READONLY sections,
+// .comment included, and loadFill(0x20) serves "4.2) 9.4.0"). The PT_LOAD
+// memory image alone leaves [0,0x2b) as ELF-header bytes, so the oracle's
+// `pcVar19 = "4.2) 9.4.0"` folding of the char* constant 0x20
+// (mov $0x20,%esi @0x2cae8 in ap_parse_vhost_addrs — pushPtrCharConstant
+// printc.cc:1698-1719 -> StringManagerUnicode::getStringData
+// stringmanage.cc:459 loadFill) could never reproduce. This overlay copies
+// every exposed non-ALLOC section's file bytes to its VMA in the mirror
+// image (MIRROR-ONLY: the oracle's BfdArchitecture contract; the canon
+// analyzeHeadless maps LOAD segments only and its golden prints the bare
+// constant). BFD-absorbed sections (SHT_SYMTAB / the .strtab /
+// e_shstrndx) never enter bfd's chain and are skipped here the same way;
+// NOBITS sections have no file bytes to copy.
+fn overlay_bfd_nonalloc_sections(
+    elf: &goblin::elf::Elf,
+    buffer: &[u8],
+    image: &mut [u8],
+) {
+    use goblin::elf::section_header::{SHT_NOBITS, SHT_STRTAB, SHT_SYMTAB, SHF_ALLOC};
+    let shstrndx = elf.header.e_shstrndx as usize;
+    for (index, header) in elf.section_headers.iter().enumerate() {
+        if header.sh_size == 0
+            || header.sh_type == SHT_NOBITS
+            || (header.sh_flags & SHF_ALLOC as u64) != 0
+            || index == shstrndx
+        {
+            continue;
+        }
+        if header.sh_type == SHT_SYMTAB {
+            continue; // bfd-internal (symtab), never in the section chain
+        }
+        if header.sh_type == SHT_STRTAB
+            && elf.shdr_strtab.get_at(header.sh_name) == Some(".strtab")
+        {
+            continue; // bfd-internal (the symtab's strtab), not in the chain
+        }
+        let src = buffer.get(
+            header.sh_offset as usize..(header.sh_offset as usize).saturating_add(header.sh_size as usize),
+        );
+        let (src, vaddr) = match (src, header.sh_addr as usize) {
+            (Some(src), vaddr) if vaddr < image.len() => (src, vaddr),
+            _ => continue,
+        };
+        let dst_end = (vaddr + src.len()).min(image.len());
+        if vaddr < dst_end {
+            image[vaddr..dst_end].copy_from_slice(&src[..dst_end - vaddr]);
+        }
+    }
+}
+
 // SB-CONSTBASE-0001: language host for the httpd-side pspec ingest — same
 // shape as the curl worker's WorkerSpecHost (curl_decompile.rs): registers
 // enumerated from the real locked .sla through SleighCtx, spaces from the
@@ -4412,7 +4471,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // selection); this binding re-reads nothing.
     let mirror_image: Option<Vec<u8>> = if mirror {
         match &obj {
-            Object::Elf(elf) => Some(worker_memory_image_bytes(elf, &buffer)),
+            Object::Elf(elf) => {
+                let mut image = worker_memory_image_bytes(elf, &buffer);
+                overlay_bfd_nonalloc_sections(elf, &buffer, &mut image);
+                Some(image)
+            }
             _ => None,
         }
     } else {
@@ -4626,33 +4689,56 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // property ranges the oracle's BfdArchitecture installs at
         // Architecture init — LoadImageBfd::getReadonly
         // (loadimage_bfd.cc:286-303) lists every BFD section with
-        // SEC_READONLY (ELF: SHF_ALLOC && !SHF_WRITE, size>0) and
-        // Architecture::fillinReadOnlyFromLoader (architecture.cc:1371-
-        // 1381) ORs Varnode::readonly over each range into the symboltab
-        // flagbase. PrintC::pushPtrCharConstant's isReadOnly gate
-        // (printc.cc:1709, via Scope::isReadOnly database.cc:1796 ->
-        // queryProperties -> flagbase) reads exactly this channel, so
-        // without the ranges the mirror can never fold a string literal
-        // (probe-verified: the char*-typed rodata constants 0x7a4a9/
-        // 0x7a4bb reach the gate and reject not-readonly). The direct-
-        // runner oracle harness (BfdArchitecture) HAS these ranges —
+        // SEC_READONLY and Architecture::fillinReadOnlyFromLoader
+        // (architecture.cc:1371-1381) ORs Varnode::readonly over each range
+        // into the symboltab flagbase. PrintC::pushPtrCharConstant's
+        // isReadOnly gate (printc.cc:1709, via Scope::isReadOnly
+        // database.cc:1796 -> queryProperties -> flagbase) reads exactly
+        // this channel, so without the ranges the mirror can never fold a
+        // string literal (probe-verified: the char*-typed rodata constants
+        // 0x7a4a9/0x7a4bb reach the gate and reject not-readonly). The
+        // direct-runner oracle harness (BfdArchitecture) HAS these ranges —
         // this is bare-library truth, not analyzer state. Print-DB only:
         // the mirror action pipeline runs channel-absent (the swap below
         // happens after perform_action), so the HERITAGE-FLAGBASE-
         // SPACELESS poisoning class (spaceless flagbase consults during
         // heritage) cannot fire on this install.
+        //
+        // FSTRFOLDUP-STRFOLD-COMMENTRO-0001: BFD's ELF backend maps
+        // !SHF_WRITE -> SEC_READONLY with NO SHF_ALLOC requirement
+        // (bfd/elf.c _bfd_elf_make_section_from_shdr), so getReadonly's
+        // range list includes NON-ALLOC sections at their section VMAs —
+        // for the stripped httpd: .comment (vma 0, size 0x2b), verified
+        // against the real BFD 2.38 (22 SEC_READONLY sections — the
+        // ALLOC !WRITE set plus .comment). That is what lets the oracle
+        // fold the char* constant 0x20 (mov $0x20,%esi @0x2cae8,
+        // ap_parse_vhost_addrs) into the .comment-tail literal
+        // `pcVar19 = "4.2) 9.4.0"` (golden line 1877): isReadOnly(0x20)
+        // passes and the string read loadFill(0x20) serves .comment bytes
+        // (see overlay_bfd_nonalloc_sections). BFD-absorbed sections
+        // (SHT_SYMTAB, the .strtab, e_shstrndx) are not in bfd's chain and
+        // are excluded identically.
         {
             let ro_base = if mirror { 0 } else { img_base };
             if let Object::Elf(elf) = &obj {
+                use goblin::elf::section_header::{SHT_STRTAB, SHT_SYMTAB, SHF_WRITE};
                 const SHF_ALLOC: u64 = 0x2;
-                const SHF_WRITE: u64 = 0x1;
+                let shstrndx = elf.header.e_shstrndx as usize;
                 let mut ro_ranges = 0usize;
-                for header in elf.section_headers.iter() {
+                for (index, header) in elf.section_headers.iter().enumerate() {
                     if header.sh_size == 0
-                        || (header.sh_flags & SHF_ALLOC) == 0
-                        || (header.sh_flags & SHF_WRITE) != 0
+                        || (header.sh_flags & SHF_WRITE as u64) != 0
+                        || index == shstrndx
                     {
                         continue;
+                    }
+                    if header.sh_type == SHT_SYMTAB {
+                        continue; // bfd-internal (symtab): not in the chain
+                    }
+                    if header.sh_type == SHT_STRTAB
+                        && elf.shdr_strtab.get_at(header.sh_name) == Some(".strtab")
+                    {
+                        continue; // bfd-internal (the symtab's strtab)
                     }
                     let first = Address::new(header.sh_addr + ro_base);
                     let last = Address::new(header.sh_addr + ro_base + header.sh_size - 1);
