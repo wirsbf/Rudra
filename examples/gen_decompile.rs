@@ -594,6 +594,55 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             .map_err(|error| format!("action pipeline failed for {}: {error}", target.name))?;
     }
 
+    // GEN-CODEPTR-SYMBOLIZE-0001: the print-side function-symbol channel.
+    // The oracle's golden harness registers every BFD function symbol into
+    // the Architecture's symboltab before printing
+    // (regen_ghidra_golden.py:219-231 registerFunctionSymbol →
+    // scope->addFunction(address, basename)), so PrintC::pushPtrCodeConstant
+    // (printc.cc:1730-1742) resolves pointer-to-code constants through
+    // glb->symboltab->getGlobalScope()->queryFunction and prints the
+    // function display name instead of the default `(code *)0xVAL` arm
+    // (printc.cc:1806-1814). Rugra's mechanism pieces are all present
+    // (push_ptr_code_constant → query_global_function →
+    // Scope::query_function_addr) but the gen driver never installed a
+    // symboltab, so the PrintC snapshot taken in doc_function
+    // (fd.arch.symboltab) was always None and every code-pointer constant
+    // missed the query. Install a print-only Database carrying the full
+    // function registry on a cloned Architecture — the
+    // CURL-CODEREF-SYMBOLIZE-0001 precedent (curl_decompile.rs:6894-6924):
+    // the action phase above already ran on the original arch (this swap is
+    // print-only, zero action-phase drift), and the Funcdata name proxy
+    // (fd.symbol_table, fed by add_symbol above) supplies the display
+    // names for the entry addresses the query returns. Consume size 1 =
+    // glb->min_funcsymbol_size default (database.cc:1626). discover_functions
+    // is address-unique (static → dynamic → PLT first-wins or_insert_with),
+    // matching the golden's queryFunction dedup (first registration wins).
+    let mut print_symbol_db = rugra::database::Database::new(false);
+    {
+        let db_scope = print_symbol_db
+            .get_global_scope_mut()
+            .ok_or_else(|| "print symbol DB has no global scope".to_string())?;
+        for function in functions {
+            db_scope.add_function(Address::new(function.vaddr), &function.name, 1);
+        }
+    }
+    eprintln!(
+        "[PREPASS] GEN-CODEPTR-SYMBOLIZE-0001 print DB: {} function symbols",
+        functions.len()
+    );
+    {
+        let mut fd_write = fd_arc
+            .write()
+            .map_err(|_| "Funcdata write lock poisoned during print DB install".to_string())?;
+        if let Some(a) = fd_write.arch.clone() {
+            let mut print_arch = (*a).clone();
+            print_arch.set_symboltab(std::sync::Arc::new(std::sync::RwLock::new(
+                print_symbol_db,
+            )));
+            fd_write.arch = Some(std::sync::Arc::new(print_arch));
+        }
+    }
+
     let mut printer = PrintC::new(Box::new(EmitPrettyPrint::new()));
     printer.set_rpn_enabled(true);
     {
