@@ -210,13 +210,18 @@ link (fspec.cc:4968 `res->setFuncdata(fd)`).
 (`CALLSPEC-COPY-0001`, 2026-09-27) The `fc->copy(otherfunc->getFuncProto())`
 channel (coreaction.cc:2323): `FuncProto::copy_from` (fspec.cc:3789-3805)
 assigns model, extrapop, the whole flag word, a clone of the parameter store
-(names/types/lock markup/storage addresses), the effect list and inject id —
+(names/types/lock markup/storage addresses) and the effect list —
 FuncCallSpecs-level state (op, entry address, trial containers) stays out,
 exactly as in the oracle where `FuncCallSpecs` does not override the
 base-class `copy`. The callsite's own name survives (Ghidra's FuncProto base
 has no name member; the wrapper restores the callsite spelling over Rugra's
 glue name field). Bilateral fixture: `tests/oracle/callspec_copy_1204.*`
-(MATCH, 24 records byte-identical).
+(MATCH, 25 records byte-identical; the lane row/commit said 24 — MB24
+erratum: true counts COPY=8/COPY_LOCKEDMISMATCH=7/NOFUNC=6 plus 4 singles).
+Latent gaps annotated in the source doc (CR-CALLSPEC O3): the oracle also
+copies `likelytrash` (fspec.cc:3802) and `injectid` (fspec.cc:3803); Rugra
+has no inject-id field (INJECT-0001 stub) and `copy_from` does not yet carry
+the `likelytrash` field — dormant while the COPY arm is canon-unreachable.
 
 ### `FuncProto::set_input_lock` — named-parameter namelock side-effect
 

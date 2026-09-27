@@ -3980,22 +3980,36 @@ impl FuncCallSpecs {
         self.callee_proto.as_ref()
     }
 
-    // Ghidra: coreaction.cc:2323 fc->copy(otherfunc->getFuncProto())
+    // Ghidra: fspec.cc:3789 FuncProto::copy (called from coreaction.cc:2323
+    // fc->copy(otherfunc->getFuncProto()))
     /// The ActionDefaultParams prototype-copy channel: replace this call
     /// site's FuncProto state wholesale with the callee's recovered
     /// prototype. `FuncProto::copy` (fspec.cc:3789-3805) assigns model,
     /// extrapop, the whole flag word (input/output/model locks, dotdotdot,
     /// override bits), a clone of the parameter store (output + every input
-    /// parameter with name/type/lock markup), the effect list, and the
-    /// call-fixup inject id. FuncCallSpecs-level state (op, name, entry
-    /// address, effective extrapop, trial containers) is deliberately NOT
-    /// part of the copy — Ghidra's `FuncCallSpecs` does not override the
-    /// base-class `copy`, so `fc->copy` runs the FuncProto member only.
+    /// parameter with name/type/lock markup) and the effect list.
+    /// FuncCallSpecs-level state (op, name, entry address, effective
+    /// extrapop, trial containers) is deliberately NOT part of the copy —
+    /// Ghidra's `FuncCallSpecs` does not override the base-class `copy`, so
+    /// `fc->copy` runs the FuncProto member only.
     /// Ghidra's FuncProto base has no name member (the call-site name is
     /// FuncCallSpecs state set by queryCall's setFuncdata), so the callsite
     /// spelling survives the copy; Rugra's FuncProto carries a name field
     /// as glue, and this wrapper restores the callsite's spelling over the
     /// copy to keep that observable faithful.
+    ///
+    /// Erratum (MB24, CR-CALLSPEC O3/O4 — lane doc overstated the copy):
+    /// the oracle's `FuncProto::copy` also assigns `likelytrash`
+    /// (fspec.cc:3802) and `injectid` (fspec.cc:3803). Rugra's
+    /// `copy_from` has **no call-fixup inject id field to copy** — the
+    /// injection id storage is the INJECT-0001 no-op stub (see
+    /// `copy_flow_effects` below for the same latent gap) — and the
+    /// `likelytrash` field (delivered by FSPEC-LIKELYTRASH-FOLD) is a
+    /// latent gap in `copy_from`'s field set. Both gaps are dormant while
+    /// the COPY arm is canon-unreachable (lazy structure proven in
+    /// CR-CALLSPEC); closing them belongs to the copy-channel activation
+    /// ticket family (PROTOCAST / INJECT-0001), not this channel's
+    /// observable slice.
     pub fn copy_proto_from(&mut self, other: &FuncProto) {
         let callsite_name = std::mem::take(&mut self.prototype.name);
         self.prototype.copy_from(other);

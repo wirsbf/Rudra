@@ -34,9 +34,9 @@
       "SCHEMA": 1,
       "ARCH_DEFAULTFP": 1,
       "CALLEE_LOCKED": 1,
-      "COPY": 10,
+      "COPY": 8,
       "COPY_LOCKEDMISMATCH": 7,
-      "NOFUNC": 5,
+      "NOFUNC": 6,
       "DONE": 1
     },
     "observations": [
@@ -59,10 +59,10 @@
     }
   ],
   "locked_capture": {
-    "records": 24,
+    "records": 25,
     "bytes": 677,
     "stdout_sha256": "557d48ad3f425ff886169cfddfdf43407446deab9a1d26a6bd08b7061ee7ace6",
-    "note": "oracle and Rust captures byte-identical (diff clean) at the lane commit; the sha covers the 24-record projection"
+    "note": "oracle and Rust captures byte-identical (diff clean) at the lane commit; the sha covers the 25-record projection. Erratum (MB24, CR-CALLSPEC O1): lane commit and TODO row said '24 records' and per-tag COPY=10/NOFUNC=5; MB24 batch re-run counted COPY=8 (NAME/OUT/NUMPARAMS/MODELLOCK/MODEL/INLOCK/PARAMx2), NOFUNC=6, COPY_LOCKEDMISMATCH=7, SCHEMA/ARCH_DEFAULTFP/CALLEE_LOCKED/DONE=1 each, total 25; bytes=677 and stdout_sha256 unchanged-correct"
   },
   "overall_status": "MATCH (bilateral observation complete: locked-oracle capture vs Rust capture byte-identical; hermetic runner/registry pinning = root follow-up)",
   "input_sha256": "5a7eed7a0d2fc7b3aad2d5b21beb0d2a4a41fecd2e25b2628acca9437b0dbaff"
