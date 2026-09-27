@@ -705,3 +705,25 @@ docs/api/block.md / blockaction.md。
 - 根因修复在驱动层：examples/gen_decompile.rs 默认臂改 follow_flow_range(0,
   u64::MAX)（funcdata.cc:163 startProcessing 恒全空间界），见该文件注释与
   TODO_BOARD BINSWEEP-JTDEST-UNLINKED-0001 行。
+
+### 2026-09-27：GA-2 SWITCHHEADUNIQUE 核验注记 — fold_in_normalization 无辜（零代码改动）
+
+GIANTS-GA2-SWITCHHEADUNIQUE-0001 票面曾假设 8 处
+`switch(*(uint1 *)unique0x00008f00)` 泄漏源于 fold-in 后死码清理杀掉
+switchvn 定义链（写域预测=src/jumptable.rs）。**本车道核验证伪该假设**：
+
+- 探针（前会话遗留 examples/ga2_probe.rs，FLAGS 链走）亲证 print 时
+  BRANCHIND 输入链完整存活且 implied：`branchind@ad66a → LOAD@ad657 →
+  PTRADD@ad657 → SUBPIECE@ad612`（ExprCodeTarget 位点同形：
+  `branchind@4c317 → INT_AND → LOAD@4c2f3 → CAST@4c2f3 → PTRADD@4c2f3`）。
+- oracle 侧 stage_drill_1204（sqlite3Pragma）终态帧同构：
+  `switch u0x00023b00:1(ad657:447)` ← `*(ram,u0x00008f00(f244))` ←
+  `RAX + #0x1(*#0x8)`——`foldInNormalization`（cc:1546-1553）只置
+  BRANCHIND 输入，switchvn 自身 load+地址链两侧同活。Rugra 的
+  `fold_in_normalization`（cc:1546-1553 移植，见上节）行为已对齐，**本票
+  jumptable.rs 零改动**。
+- 真根因=printc.rs `emit_switch_head_expr` legacy 传输缺 PTRADD 臂（详见
+  docs/api/printc.md 2026-09-27 节）；修复后 8/8 位点泄漏全消，ExprCodeTarget
+  2 位点 golden 逐字。Pragma 簇 6 位点残差（下标 8 vs 1、缺 (uint1) cast）=
+  指针 pointee 类型分歧（uint1* vs uint8*，RuleExpandLoad 触发条件被断），
+  已登记 `GA2-SWITCHVN-POINTTEE-TYPE-0001`（infertypes 域），与本文件无关。
