@@ -245,6 +245,64 @@ impl VolatileWriteOp {
     pub fn extract_annotation_size(vn: &crate::varnode::Varnode) -> i32 {
         vn.get_size() as i32
     }
+
+    // Ghidra: userop.cc:159 VolatileWriteOp::getInputLocal
+    /// Input data-type of the volatile-write CALLOTHER, faithful to
+    /// `VolatileWriteOp::getInputLocal` (userop.cc:159-172) — the write arm
+    /// mirror of the VOLATILEOUT read arm (`VolatileReadOp::getOutputLocal`,
+    /// userop.cc:128-141, wired in varnode.rs `op_output_type_local`):
+    /// - cc:162-163: only input slot 2 (the value being written) of a
+    ///   special-propagating op qualifies — the `special_prop` addlflag is
+    ///   set by `Funcdata::replaceVolatile` only when the source varnode
+    ///   was type-locked (funcdata_varnode.cc:761-762);
+    /// - cc:164: `addr = op->getIn(1)->getAddr()` — the address of the
+    ///   volatile memory (the annotation varnode built by newCodeRef);
+    /// - cc:165: `size = op->getIn(2)->getSize()` — the size of the memory
+    ///   being written (the written value's size);
+    /// - cc:166-169: `queryProperties(addr,size,op->getAddr(),vflags)` on
+    ///   the global scope (`uint4 vflags = 0` out-parameter discarded
+    ///   unread) → `entry->getSizedType(addr,size)`; a null entry returns
+    ///   null (cc:170-171).
+    /// The `symboltab` thread stands in for the descriptor's
+    /// `glb->symboltab` edge (the `Architecture *glb` field, userop.hh:74) —
+    /// same Option-thread shape as the read arm (VARNODE-CALLOTHER-
+    /// VOLATILEOUT-0001). The descriptor selection itself (C++ virtual
+    /// dispatch on the VolatileWriteOp record selected by the CALLOTHER
+    /// index constant, typeop.cc:855-863) is the dispatch site's duty —
+    /// see the varnode.rs `op_input_type_local` CALLOTHER wiring row
+    /// (USEROP-VOLATILEWRITE-INPUTLOCAL-0001) on the TODO board.
+    pub fn get_input_local(
+        op: &PcodeOp,
+        slot: i32,
+        type_factory: &Arc<std::sync::RwLock<crate::type_system::typefactory::TypeFactory>>,
+        symboltab: Option<&Arc<std::sync::RwLock<crate::database::Database>>>,
+    ) -> Option<Arc<Datatype>> {
+        // cc:162-163: `if (!op->doesSpecialPropagation() || slot != 2)
+        // return 0`.
+        if !op.does_special_propagation() || slot != 2 {
+            return None;
+        }
+        let symboltab = symboltab?;
+        // cc:164: address of the volatile memory (annotation input, slot 1).
+        let addr = *op.get_in(1)?.read().unwrap().get_addr();
+        // cc:165: size of the memory being written (the value, slot 2).
+        let size = op.get_in(2)?.read().unwrap().get_size() as i32;
+        // cc:167: usepoint = the op's own address; vflags discarded.
+        let usepoint = op.get_addr();
+        let entry = {
+            let db = symboltab
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            db.query_properties_entry(db.global_scope_id, addr, size, usepoint)?
+        };
+        // The Database read guard is dropped before taking the factory write
+        // lock (get_sized_type mutates the factory caches) — same lock order
+        // as the read arm.
+        let mut factory = type_factory
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        entry.get_sized_type(&mut factory, addr, size)
+    }
 }
 
 /// A segment op. Faithful to `SegmentOp` (userop.hh:264; `TermPatternOp`
@@ -483,12 +541,31 @@ impl UserOpManage {
     }
 
     // Ghidra: userop.cc:432 UserOpManage::registerBuiltin
-    /// Fallible form of `register_builtin_by_id`, preserving Ghidra's exact
-    /// bad-id exception and its no-mutation-on-error ordering.  Datatype
-    /// builtins created through this compatibility path intentionally carry
-    /// no local metadata; callers with the Architecture TypeFactory must use
-    /// `register_builtin_with_local_types` on first registration.
-    pub fn try_register_builtin_by_id(&mut self, builtin_id: u32) -> Result<u32, String> {
+    /// Ensure an active record exists for the given built-in op id — the 1:1
+    /// port of `UserOpManage::registerBuiltin(uint4)` (userop.cc:432-484).
+    /// First registration wins exactly like `builtinmap` (cc:435-437); the
+    /// bad-id arm throws without mutating any state (cc:479-480).
+    ///
+    /// The `type_factory` thread stands in for the oracle's `glb->types`
+    /// reach (the `Architecture *glb` field, userop.hh:74/327): with it, the
+    /// three DatatypeUserOp builtins (MEMCPY/STRNCPY/WCSNCPY) construct
+    /// their ptr/char pointer metadata on demand exactly as cc:449-477
+    /// builds it (see `datatype_builtin_local_types`); without it they fall
+    /// to the metadata-less compat record. Rugra deliberately threads the
+    /// factory instead of a back-pointer — the documented 2026-08-25 方案论证
+    /// (docs/api/varnode.md, TYPEOP-LOCALTYPE-CALLOTHER-0001): a back-pointer
+    /// on the process-wide shared factory would be cross-Architecture
+    /// last-writer-wins pollution, and the reliable set point precedes the
+    /// Arc wrap. `default_space_word_size` stands in for
+    /// `glb->getDefaultDataSpace()->getWordSize()` (cc:452/462/472) — 1 for
+    /// the locked x86-64 gcc corpus (ram space; same pin as the constseq
+    /// typed entry).
+    pub fn register_builtin(
+        &mut self,
+        builtin_id: u32,
+        type_factory: Option<&Arc<std::sync::RwLock<crate::type_system::typefactory::TypeFactory>>>,
+        default_space_word_size: usize,
+    ) -> Result<u32, String> {
         if self.builtin_map.contains_key(&builtin_id) {
             return Ok(builtin_id);
         }
@@ -501,7 +578,25 @@ impl UserOpManage {
             BUILTIN_WCSNCPY => ("builtin_wcsncpy", UserOpType::Datatype),
             _ => return Err("Bad built-in userop id".to_string()),
         };
-        let mut op = UserPcodeOp::new(name.to_string(), op_type, builtin_id as i32);
+        // userop.cc:439-481: per-id construction. The Datatype arms build a
+        // full DatatypeUserOp with on-demand local metadata when the
+        // TypeFactory thread is present (cc:449-477); without the thread the
+        // metadata-less compat record is kept for callers that have no
+        // owning Architecture.
+        let mut op = if op_type == UserOpType::Datatype {
+            match Self::datatype_builtin_local_types(
+                builtin_id,
+                type_factory,
+                default_space_word_size,
+            ) {
+                Some((out_type, input_types)) => {
+                    DatatypeUserOp::new(name.to_string(), builtin_id as i32, Some(out_type), input_types).base
+                }
+                None => UserPcodeOp::new(name.to_string(), op_type, builtin_id as i32),
+            }
+        } else {
+            UserPcodeOp::new(name.to_string(), op_type, builtin_id as i32)
+        };
         // userop.cc:355-359 InternalStringOp: the stringdata record carries
         // the display_string flag, steering PrintC::opCallother to the
         // character-constant emit instead of functional syntax.
@@ -512,11 +607,89 @@ impl UserOpManage {
         Ok(builtin_id)
     }
 
+    // Ghidra: userop.cc:432 UserOpManage::registerBuiltin (DatatypeUserOp arms)
+    /// On-demand local-type construction for the three DatatypeUserOp
+    /// builtins — the cc:449-477 slice of `registerBuiltin`, exactly as it
+    /// builds them:
+    /// - MEMCPY (cc:449-457): element `getTypeVoid()`;
+    /// - STRNCPY (cc:459-467): element `getTypeChar(getSizeOfChar())`;
+    /// - WCSNCPY (cc:469-477): element `getTypeChar(getSizeOfWChar())`;
+    /// - every case: `ptrSize = getSizeOfPointer()` (cc:451/461/471),
+    ///   `ptrType = getTypePointer(ptrSize, element, defaultDataSpace
+    ///   .wordSize)` (cc:454/464/474), `intType = getBase(4, TYPE_INT)`
+    ///   (cc:455/465/475), and the constructor layout
+    ///   `out = in0 = in1 = ptrType, in2 = intType`
+    ///   (cc:456/466/476 — DatatypeUserOp ctor userop.cc:55-68 compacts the
+    ///   four leading non-null type arguments).
+    /// Returns `None` when no TypeFactory thread is available — the
+    /// metadata-less compat form. Live-pipeline equivalence holds either
+    /// way: the only in-flight Datatype registrations (constseq
+    /// `StringSequence/HeapSequence::buildStringCopy`, constseq.cc:360/751)
+    /// go through the typed entry first, so first-wins yields the identical
+    /// record.
+    fn datatype_builtin_local_types(
+        builtin_id: u32,
+        type_factory: Option<&Arc<std::sync::RwLock<crate::type_system::typefactory::TypeFactory>>>,
+        default_space_word_size: usize,
+    ) -> Option<(
+        Arc<Datatype>,
+        Vec<Option<Arc<Datatype>>>,
+    )> {
+        let factory_arc = type_factory?;
+        let mut factory = factory_arc
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        // cc:451/461/471: int4 ptrSize = glb->types->getSizeOfPointer().
+        let ptr_size = factory.get_size_of_pointer().max(0) as usize;
+        // cc:453/463/473: the element type the pointer points at.
+        let element = match builtin_id {
+            BUILTIN_MEMCPY => factory.get_type_void(),
+            BUILTIN_STRNCPY => factory
+                .get_type_char(factory.get_size_of_char().max(0) as usize)
+                .ok()?,
+            BUILTIN_WCSNCPY => factory
+                .get_type_char(factory.get_size_of_wchar().max(0) as usize)
+                .ok()?,
+            _ => return None,
+        };
+        // cc:454/464/474: ptrType = getTypePointer(ptrSize, element, ws).
+        let ptr_type = factory.get_type_pointer(ptr_size, element, default_space_word_size);
+        // cc:455/465/475: intType = getBase(4, TYPE_INT).
+        let int_type = factory.get_base(4, crate::type_system::TypeMetatype::Int)?;
+        Some((
+            ptr_type.clone(),
+            // cc:456/466/476: constructor layout out=in0=in1=ptrType,
+            // in2=intType — three inputs after the separate output.
+            vec![Some(ptr_type.clone()), Some(ptr_type), Some(int_type)],
+        ))
+    }
+
+    // Ghidra: userop.cc:432 UserOpManage::registerBuiltin
+    /// Fallible compat form of `register_builtin_by_id` with no TypeFactory
+    /// thread (no owning Architecture), preserving Ghidra's exact bad-id
+    /// exception and its no-mutation-on-error ordering. The Datatype
+    /// builtins created through this path intentionally carry no local
+    /// metadata; callers holding the Architecture TypeFactory must use
+    /// `register_builtin` (canonical on-demand defaults) or
+    /// `register_builtin_with_local_types` (explicit types) on first
+    /// registration.
+    pub fn try_register_builtin_by_id(&mut self, builtin_id: u32) -> Result<u32, String> {
+        self.register_builtin(builtin_id, None, 1)
+    }
+
     // Ghidra: userop.cc:432 UserOpManage::registerBuiltin
     /// Register one of Ghidra's three DatatypeUserOp builtins using the
     /// canonical `Arc<Datatype>` handles produced by the owning TypeFactory.
     /// The first registration wins exactly like `builtinmap`; later calls
-    /// return the existing descriptor without replacing its metadata.
+    /// return the existing descriptor without replacing its metadata. This
+    /// is the explicit-types entry used by the constseq typed path
+    /// (`StringSequence/HeapSequence::register_builtin_typed`, the
+    /// constseq.cc:360/751 mirrors); the canonical on-demand-defaults form
+    /// of the same oracle switch arm is `register_builtin` (construction
+    /// identity: `datatype_builtin_local_types` vs the constseq helper —
+    /// same ptrSize/element/ptrType/intType derivation). The two entries
+    /// produce identical records; consolidation into a single constseq call
+    /// through `register_builtin` is a constseq-domain follow-up.
     pub fn register_builtin_with_local_types(
         &mut self,
         builtin_id: u32,
@@ -550,7 +723,10 @@ impl UserOpManage {
     /// `StringSequence::buildStringCopy` (constseq.cc:360).
     ///
     /// `char_size` selects the function: 1 → strncpy (BUILTIN_STRNCPY),
-    /// 2 → wcsncpy (BUILTIN_WCSNCPY).
+    /// 2 → wcsncpy (BUILTIN_WCSNCPY). No live callers (grep-verified
+    /// 2026-09-27); callers holding the Architecture TypeFactory should
+    /// prefer `register_builtin` so the DatatypeUserOp defaults carry
+    /// their on-demand local metadata.
     pub fn register_string_copy_op(&mut self, char_size: i32) -> u32 {
         let builtin_id = if char_size == 2 { BUILTIN_WCSNCPY } else { BUILTIN_STRNCPY };
         self.register_builtin_by_id(builtin_id)
@@ -560,7 +736,9 @@ impl UserOpManage {
     /// Register the string-store (`memcpy`) CALLOTHER and return its CALLOTHER
     /// constant index. Used by RuleStringStore. Faithful to the
     /// `registerBuiltin(BUILTIN_MEMCPY)` call embedded in
-    /// `HeapSequence::buildStringCopy` (constseq.cc:751).
+    /// `HeapSequence::buildStringCopy` (constseq.cc:751). No live callers
+    /// (grep-verified 2026-09-27); callers holding the Architecture
+    /// TypeFactory should prefer `register_builtin` (on-demand metadata).
     pub fn register_string_store_op(&mut self) -> u32 {
         self.register_builtin_by_id(BUILTIN_MEMCPY)
     }
@@ -581,9 +759,16 @@ impl UserOpManage {
         self.get_op(index as i32).map(|op| op.name.as_str())
     }
 
-    // Ghidra: userop.cc:432 UserOpManage::registerBuiltin
-    /// Register a built-in op if not already present.
-    pub fn register_builtin(&mut self, name: &str, builtin_id: u32) {
+    // RUGRA-GLUE: name-list convenience for `initialize_builtins` (the
+    //   oracle `UserOpManage::initialize`, userop.cc:392-403, registers every
+    //   user defined p-code op presented by the Architecture as
+    //   UnspecializedPcodeOp; this pre-registers the six well-known names in
+    //   the same unspecialized form and mirrors the by-id record). The 1:1
+    //   port of `UserOpManage::registerBuiltin(uint4)` is the three-argument
+    //   `register_builtin` above.
+    /// Register a built-in op by name (unspecialized) and keep the faithful
+    /// by-id record in sync.
+    pub fn register_builtin_named(&mut self, name: &str, builtin_id: u32) {
         if self.get_index_by_name(name).is_none() {
             self.register_op(name.to_string(), UserOpType::Unspecialized);
         }
@@ -594,12 +779,12 @@ impl UserOpManage {
     // Ghidra: userop.cc:367 UserOpManage::initializeBuiltins
     /// Initialize all built-in CALLOTHER ids.
     pub fn initialize_builtins(&mut self) {
-        self.register_builtin("string_data", BUILTIN_STRINGDATA);
-        self.register_builtin("volatile_read", BUILTIN_VOLATILE_READ);
-        self.register_builtin("volatile_write", BUILTIN_VOLATILE_WRITE);
-        self.register_builtin("memcpy", BUILTIN_MEMCPY);
-        self.register_builtin("strcpy", BUILTIN_STRNCPY);
-        self.register_builtin("wcsncpy", BUILTIN_WCSNCPY);
+        self.register_builtin_named("string_data", BUILTIN_STRINGDATA);
+        self.register_builtin_named("volatile_read", BUILTIN_VOLATILE_READ);
+        self.register_builtin_named("volatile_write", BUILTIN_VOLATILE_WRITE);
+        self.register_builtin_named("memcpy", BUILTIN_MEMCPY);
+        self.register_builtin_named("strcpy", BUILTIN_STRNCPY);
+        self.register_builtin_named("wcsncpy", BUILTIN_WCSNCPY);
     }
 
     // Ghidra: userop.cc:367 UserOpManage::getOpMut
@@ -1414,5 +1599,309 @@ mod tests {
         assert!(!seg.has_far_pointer_support());
         seg.supports_far_pointer = true; // set by farpointer="yes" attribute
         assert!(seg.has_far_pointer_support());
+    }
+
+    /// Shared fixture for the DatatypeUserOp default-construction tests:
+    /// a TypeFactory with setup_sizes run (type.cc:3137-3170 defaults:
+    /// char=1, wchar=2, pointer=default data space addr size 8) — the same
+    /// shape the owning Architecture installs before any registerBuiltin
+    /// Datatype arm can run. The `standalone` flag mirrors Ghidra's own
+    /// `SleighArchitecture::buildCoreTypes` (which registers the full
+    /// char/wchar2/wchar4 family) instead of the DataOrg driver flavor
+    /// (char + wchar_t(4) only, no size-2 wide char).
+    fn datatype_default_factory(
+        standalone: bool,
+    ) -> Arc<std::sync::RwLock<crate::type_system::typefactory::TypeFactory>> {
+        use crate::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+        let factory = if standalone {
+            TypeFactory::new_flavor(8, CoreTypeFlavor::Standalone)
+        } else {
+            TypeFactory::new(8)
+        };
+        let factory = Arc::new(std::sync::RwLock::new(factory));
+        factory
+            .write()
+            .unwrap()
+            .setup_sizes(&crate::type_system::typefactory::SizeArchInputs {
+                stack_spacebase_size: Some(8),
+                default_data_space_addr_size: 8,
+                default_size: 8,
+                far_pointer: None,
+            });
+        factory
+    }
+
+    #[test]
+    fn test_register_builtin_datatype_defaults() {
+        // userop.cc:449-477: registerBuiltin's DatatypeUserOp arms construct
+        // the ptr/char pointer metadata on demand from the architecture
+        // TypeFactory — MEMCPY -> void*, STRNCPY -> char*, WCSNCPY ->
+        // wchar* — out = in0 = in1 = ptrType, in2 = int4. WCSNCPY uses the
+        // standalone-flavor factory (Ghidra buildCoreTypes registers
+        // wchar2, typefactory core-type table); the DataOrg driver flavor
+        // has no size-2 wide char and its degrade case is pinned separately
+        // below.
+        for (builtin_id, element_name, factory) in [
+            (BUILTIN_MEMCPY, "void", datatype_default_factory(false)),
+            (BUILTIN_STRNCPY, "char", datatype_default_factory(false)),
+            (BUILTIN_WCSNCPY, "wchar2", datatype_default_factory(true)),
+        ] {
+            let mut mgr = UserOpManage::new();
+            mgr.register_builtin(builtin_id, Some(&factory), 1)
+                .expect("factory-backed on-demand default");
+            let descriptor = mgr.get_op(builtin_id as i32).expect("registered record");
+            assert_eq!(descriptor.get_type(), UserOpType::Datatype);
+            assert_eq!(
+                mgr.get_call_other_name(builtin_id),
+                Some(match builtin_id {
+                    BUILTIN_MEMCPY => "builtin_memcpy",
+                    BUILTIN_STRNCPY => "builtin_strncpy",
+                    _ => "builtin_wcsncpy",
+                })
+            );
+            // cc:451/454: ptrType = getTypePointer(getSizeOfPointer()=8,
+            // element, ws=1) — a size-8 pointer at the element.
+            let out = mgr
+                .get_output_local(builtin_id as i32)
+                .expect("on-demand output metadata");
+            assert_eq!(out.get_metatype(), crate::type_system::TypeMetatype::Pointer);
+            assert_eq!(out.get_size(), 8);
+            // cc:456/466/476: out = in0 = in1 = ptrType (same Arc).
+            let in1 = mgr
+                .get_input_local(builtin_id as i32, 1)
+                .expect("slot-1 pointer metadata");
+            let in2 = mgr
+                .get_input_local(builtin_id as i32, 2)
+                .expect("slot-2 pointer metadata");
+            assert!(Arc::ptr_eq(&out, &in1));
+            assert!(Arc::ptr_eq(&out, &in2));
+            // The element type selects STRNCPY vs WCSNCPY vs MEMCPY
+            // (cc:453/463/473): char (1), wchar (2), void (0); the
+            // pointer's wordsize is the default-space word size (1 here).
+            // Rugra char types are Int-metatype bases carrying the
+            // CHARTYPE flag, so the element is identified by name/size.
+            let crate::type_system::datatype::Datatype::Pointer(ptr) = &**in1 else {
+                panic!("slot-1 metadata must be the constructed pointer");
+            };
+            let expected = match builtin_id {
+                BUILTIN_MEMCPY => (0, "void", crate::type_system::TypeMetatype::Void),
+                BUILTIN_STRNCPY => (1, "char", crate::type_system::TypeMetatype::Int),
+                _ => (2, "wchar2", crate::type_system::TypeMetatype::Int),
+            };
+            assert_eq!(ptr.ptr_to.get_size(), expected.0, "element {element_name}");
+            assert_eq!(ptr.ptr_to.get_name(), expected.1);
+            assert_eq!(ptr.ptr_to.get_metatype(), expected.2);
+            assert_eq!(ptr.wordsize, 1);
+            // cc:455/465/475: in2' = getBase(4, TYPE_INT) — slot 3.
+            let len = mgr
+                .get_input_local(builtin_id as i32, 3)
+                .expect("slot-3 int4 length metadata");
+            assert_eq!(len.get_size(), 4);
+            assert_eq!(len.get_metatype(), crate::type_system::TypeMetatype::Int);
+            // Slot 0 is the CALLOTHER index constant; slot 4 is past the
+            // compacted inputs (userop.cc:79-82).
+            assert!(mgr.get_input_local(builtin_id as i32, 0).is_none());
+            assert!(mgr.get_input_local(builtin_id as i32, 4).is_none());
+            // cc:482: builtinmap[i] = res — idempotent, first record stable.
+            let first = mgr.get_op(builtin_id as i32).unwrap() as *const UserPcodeOp;
+            mgr.register_builtin(builtin_id, Some(&factory), 1)
+                .expect("idempotent re-registration");
+            assert!(std::ptr::eq(
+                first,
+                mgr.get_op(builtin_id as i32).unwrap() as *const UserPcodeOp
+            ));
+        }
+    }
+
+    #[test]
+    fn test_register_builtin_datatype_first_wins_orders() {
+        // First registration wins in both directions between the on-demand
+        // defaults entry and the explicit-types entry — the live pipeline
+        // shape (constseq typed path first, any later registerBuiltin a
+        // no-op) and its reverse both keep the first record.
+        let factory = datatype_default_factory(false);
+        let void = factory.read().unwrap().get_type_void();
+        let void_ptr = factory.write().unwrap().get_type_pointer(8, void, 1);
+        let int4 = factory
+            .read()
+            .unwrap()
+            .get_base(4, crate::type_system::TypeMetatype::Int)
+            .expect("canonical int4");
+
+        // Typed first (live-pipeline shape, constseq.cc:360/751 -> typed
+        // entry) then the on-demand default entry: record preserved.
+        let mut mgr = UserOpManage::new();
+        mgr.register_builtin_with_local_types(
+            BUILTIN_MEMCPY,
+            Some(void_ptr.clone()),
+            vec![Some(void_ptr.clone()), Some(int4.clone())],
+        )
+        .expect("typed registration");
+        mgr.register_builtin(BUILTIN_MEMCPY, Some(&factory), 1)
+        .expect("on-demand after typed");
+        assert!(Arc::ptr_eq(
+            &mgr.get_output_local(BUILTIN_MEMCPY as i32).unwrap(),
+            &void_ptr
+        ));
+
+        // On-demand first then the typed entry: record preserved too
+        // (cc:435-437 builtinmap lookup short-circuits both ways).
+        let mut mgr = UserOpManage::new();
+        mgr.register_builtin(BUILTIN_MEMCPY, Some(&factory), 1)
+            .expect("on-demand registration");
+        mgr.register_builtin_with_local_types(
+            BUILTIN_MEMCPY,
+            Some(void_ptr),
+            vec![Some(int4)],
+        )
+        .expect("typed after on-demand");
+        let out = mgr
+            .get_output_local(BUILTIN_MEMCPY as i32)
+            .expect("first record survives");
+        assert_eq!(out.get_size(), 8);
+        // The on-demand record's slot-2 int4 is still intact (first-wins).
+        assert!(mgr.get_input_local(BUILTIN_MEMCPY as i32, 3).is_some());
+    }
+
+    #[test]
+    fn test_register_builtin_wcsncpy_dataorg_degrade() {
+        // Documented degrade on the DataOrg driver flavor: setup_sizes
+        // defaults sizeOfWChar to 2 (type.cc:3151-3152) but the DataOrg
+        // core-type table registers no size-2 wide char (only char(1) and
+        // wchar_t(4)), so `getTypeChar(2)` raises "Request for unsupported
+        // character data-type" (type.cc:3686). Ghidra's registerBuiltin
+        // would propagate that LowlevelError; Rugra's thread keeps the
+        // metadata-less compat record (the same `.ok()?` degrade the
+        // constseq typed entry takes on this factory state). Unreachable
+        // on live architectures — the same cspec data_organization that
+        // builds the core types also sets sizeOfWChar to a size the char
+        // cache holds (4 for x86-64 gcc).
+        let factory = datatype_default_factory(false);
+        assert!(
+            factory.read().unwrap().get_type_char(2).is_err(),
+            "DataOrg flavor must lack the size-2 wide char for this degrade case"
+        );
+        let mut mgr = UserOpManage::new();
+        mgr.register_builtin(BUILTIN_WCSNCPY, Some(&factory), 1)
+            .expect("degraded on-demand registration still returns the id");
+        assert_eq!(mgr.get_call_other_name(BUILTIN_WCSNCPY), Some("builtin_wcsncpy"));
+        assert!(mgr.get_output_local(BUILTIN_WCSNCPY as i32).is_none());
+        assert!(mgr.get_input_local(BUILTIN_WCSNCPY as i32, 3).is_none());
+    }
+
+    #[test]
+    fn test_register_builtin_bad_id() {
+        // userop.cc:479-480: `default: throw LowlevelError("Bad built-in
+        // userop id")` — no mutation on error.
+        let factory = datatype_default_factory(false);
+        let mut mgr = UserOpManage::new();
+        assert_eq!(
+            mgr.register_builtin(0x1000_00ff, Some(&factory), 1)
+                .unwrap_err(),
+            "Bad built-in userop id"
+        );
+        assert_eq!(
+            mgr.try_register_builtin_by_id(0x1000_00ff).unwrap_err(),
+            "Bad built-in userop id"
+        );
+        assert!(mgr.builtin_map.is_empty());
+    }
+
+    #[test]
+    fn test_volatile_write_input_local_symbol_arm() {
+        // userop.cc:159-172 VolatileWriteOp::getInputLocal — the write arm
+        // mirror of test_output_type_local_volatile_read_symbol_arm
+        // (varnode.rs, VARNODE-CALLOTHER-VOLATILEOUT-0001). A volatile
+        // write CALLOTHER (write form, funcdata_varnode.cc:721-739:
+        // in(0) = descriptor id constant, in(1) = volatile annotation at
+        // the memory address, in(2) = value being written, no output) with
+        // the special_prop addlflag (cc:761-762, type-locked source)
+        // resolves slot 2's local type from the global scope symbol.
+        use crate::address::{Address, SeqNum};
+        use crate::database::{symbol_flags, Database};
+        use crate::op::op_addl_flags;
+        use crate::op::PcodeOp;
+        use crate::opcodes::OpCode;
+        use crate::type_system::datatype::{Datatype, TypeBase};
+        use crate::type_system::typefactory::TypeFactory;
+        use crate::type_system::TypeMetatype;
+
+        let factory = Arc::new(std::sync::RwLock::new(TypeFactory::new(8)));
+        factory.write().unwrap().set_default_alignment_map();
+
+        // The write_volatile descriptor (UserOpManage::registerBuiltin,
+        // userop.cc:446-447 — a VolatileWriteOp with no fixed metadata).
+        let mut mgr = UserOpManage::new();
+        let volatile_index = mgr.register_builtin_by_id(BUILTIN_VOLATILE_WRITE);
+        let mgr = Arc::new(std::sync::RwLock::new(mgr));
+        assert!(mgr
+            .read()
+            .unwrap()
+            .get_op(volatile_index as i32)
+            .unwrap()
+            .is_volatile_write());
+
+        // Global symbol "vol_reg" (int, 4 bytes) mapped at 0x1000; addr-tied
+        // so the entry is in use at every usepoint (database.cc:115-120).
+        let mut db = Database::new(false);
+        let sym_dt = Arc::new(Datatype::Base(TypeBase::new(
+            "int".into(),
+            4,
+            TypeMetatype::Int,
+        )));
+        let sym_id = db
+            .add_symbol_mapped(0, "vol_reg", Some(sym_dt), Address::new(0x1000), 4)
+            .expect("global symbol mapped");
+        db.set_symbol_flag(0, sym_id, symbol_flags::ADDRTIED, true);
+        let db = Arc::new(std::sync::RwLock::new(db));
+
+        // The volatile write CALLOTHER.
+        let mut id_vn = crate::varnode::Varnode::new(4, Address::new(volatile_index as u64));
+        id_vn.set_flags(crate::varnode::varnode_flags::CONSTANT);
+        let id_vn = Arc::new(std::sync::RwLock::new(id_vn));
+
+        let mut ann_vn = crate::varnode::Varnode::new(4, Address::new(0x1000));
+        ann_vn.set_flags(
+            crate::varnode::varnode_flags::ANNOTATION | crate::varnode::varnode_flags::VOLATIL,
+        );
+        let ann_vn = Arc::new(std::sync::RwLock::new(ann_vn));
+
+        let mut val_vn = crate::varnode::Varnode::new(4, Address::new(0x7f000000));
+        let val_vn = Arc::new(std::sync::RwLock::new(val_vn));
+
+        let mut op = PcodeOp::new(SeqNum::new(Address::new(0x2000), 0), OpCode::CPUI_CALLOTHER);
+        op.inrefs.push(id_vn.clone());
+        op.inrefs.push(ann_vn);
+        op.inrefs.push(val_vn);
+        op.addlflags |= op_addl_flags::SPECIAL_PROP;
+
+        // Positive (cc:164-169): slot 2 resolves the global symbol's sized
+        // type at the volatile address.
+        let got = VolatileWriteOp::get_input_local(&op, 2, &factory, Some(&db))
+            .expect("volatile write resolves the global symbol's sized type");
+        assert_eq!(got.get_name(), "int");
+        assert_eq!(got.get_metatype(), TypeMetatype::Int);
+        assert_eq!(got.get_size(), 4);
+
+        // Negative 1 (cc:162-163): any slot other than 2 is not annotated.
+        assert!(VolatileWriteOp::get_input_local(&op, 1, &factory, Some(&db)).is_none());
+        assert!(VolatileWriteOp::get_input_local(&op, 3, &factory, Some(&db)).is_none());
+
+        // Negative 2 (cc:162): no special propagation — the flag is set only
+        // for a type-locked source.
+        op.addlflags &= !op_addl_flags::SPECIAL_PROP;
+        assert!(VolatileWriteOp::get_input_local(&op, 2, &factory, Some(&db)).is_none());
+        op.addlflags |= op_addl_flags::SPECIAL_PROP;
+
+        // Negative 3 (cc:168-171): no entry at the queried address.
+        let mut miss_vn = crate::varnode::Varnode::new(4, Address::new(0x9000));
+        miss_vn.set_flags(
+            crate::varnode::varnode_flags::ANNOTATION | crate::varnode::varnode_flags::VOLATIL,
+        );
+        op.inrefs[1] = Arc::new(std::sync::RwLock::new(miss_vn));
+        assert!(VolatileWriteOp::get_input_local(&op, 2, &factory, Some(&db)).is_none());
+
+        // Negative 4: no symboltab thread (no owning Architecture).
+        assert!(VolatileWriteOp::get_input_local(&op, 2, &factory, None).is_none());
     }
 }
