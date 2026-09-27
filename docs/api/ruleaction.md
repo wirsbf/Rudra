@@ -610,11 +610,23 @@ Rust ActionPool 尚未提供 Ghidra `getSubRule` 的生产 API，因此整体状
 ### 2026-06-26（续）：RuleConcatShift
 
 #### `pub struct RuleConcatShift`（ruleaction.cc:1969-2014）
-移位连接的变换：当右/左移位把 PIECE 的最低有效片段整体移走时，
-`(concat(main, least) >> sa) => zext(main) >> (sa - leastbits)`。
+移位连接的变换：当右移位（有符号/无符号）把 PIECE 的最低有效片段整体移走时，
+`(concat(main, least) >> sa) => zext/sext(main) >> (sa - leastbits)`。
 精确抵消时退化为 zext/sext(main)。
 
-测试：ruleaction::tests +2（精确抵消→ZEXT；部分不移完→NO_CHANGE）。
+**2026-09-27 修正（GEN4-SQ-CASTFUSE-DEPTH-0001，Lane CASTFUSE-DEPTH）**：
+对齐 oracle `getOpList`（ruleaction.cc:1952-1957）——**只注册
+`CPUI_INT_RIGHT`/`CPUI_INT_SRIGHT`，不注册 `CPUI_INT_LEFT`**。左移永远无法把
+最低有效片段移走（`INT_LEFT(PIECE(hi,lo),sa≥8|lo|)` 的 lo 字节仍留在低位），
+旧实现对 INT_LEFT 的重写是**改值**的（canonical 站点 CodeSpec@0x23478：
+golden `iVar9 << 8` vs Rugra `(int)(int3)uVar4`，丢 xVar7 且 hi 位移错）。
+移除后 INT_LEFT 保持读 4B CONCAT 输出 → PIECE 保住第二读者 → explicit
+命名 temp（fusion-depth 分歧根因，sq CAST-SHAPE 1176 pair 族主体）。
+同函数次要对齐：`sa2 != 0` 分支的新移位常量尺寸取原移位常量尺寸
+（`op->getIn(1)->getSize()`，ruleaction.cc:1990），不再硬编码 4。
+
+测试：ruleaction::tests +3（精确抵消→ZEXT；部分不移完→NO_CHANGE；
+左移不注册 dispatch 列表恒等 `[INT_RIGHT, INT_SRIGHT]`）。
 
 ### 2026-06-26（续）：RuleShiftCompare
 

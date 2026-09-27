@@ -3010,8 +3010,11 @@ impl Rule for RuleSubZext {
 /// Transform shift of concatenation: `(concat(main, least) >> sa) => zext(main) >> (sa - leastbits)`.
 ///
 /// Faithful to Ghidra's `RuleConcatShift` (ruleaction.cc:1969-2014). When a
-/// right/left-shift of a PIECE throws away the entire least-significant piece,
-/// the shift applies to the main piece (extended) with a reduced shift amount.
+/// right shift (signed or unsigned) of a PIECE throws away the entire
+/// least-significant piece, the result is a (sign or zero) extension of the
+/// most significant part, possibly still shifted. A LEFT shift can never
+/// throw away the least-significant piece, so Ghidra's getOpList registers
+/// only INT_RIGHT/INT_SRIGHT.
 pub struct RuleConcatShift;
 
 impl RuleConcatShift {
@@ -3026,12 +3029,13 @@ impl Rule for RuleConcatShift {
     fn apply_op(
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
-        let (sa, shiftin, concat_arc, opc, pc) = {
+        let (sa, sa_sz, shiftin, concat_arc, opc, pc) = {
             let op = op_arc.read().unwrap();
             let sa_vn = match op.inrefs.get(1) {
                 Some(v) if v.read().unwrap().is_constant() => v.clone(),
                 _ => return Ok(action_status::NO_CHANGE),
             };
+            let sa_sz = sa_vn.read().unwrap().get_size();
             let sa = sa_vn.read().unwrap().get_offset() as i32;
             let shiftin = match op.inrefs.get(0) {
                 Some(v) => v.clone(),
@@ -3048,7 +3052,7 @@ impl Rule for RuleConcatShift {
             if concat_arc.read().unwrap().opcode != OpCode::CPUI_PIECE {
                 return Ok(action_status::NO_CHANGE);
             }
-            (sa, shiftin, concat_arc, op.opcode, op.start.get_addr())
+            (sa, sa_sz, shiftin, concat_arc, op.opcode, op.start.get_addr())
         };
         let (leastsz, mainin) = {
             let c = concat_arc.read().unwrap();
@@ -3087,7 +3091,7 @@ impl Rule for RuleConcatShift {
             let newvn = fd.new_unique_out(shiftin_size, &extop);
             fd.op_set_input(&extop, mainin, 0);
             fd.op_insert_before(&extop, &follow);
-            let new_sa = fd.new_constant(4, sa2 as u64);
+            let new_sa = fd.new_constant(sa_sz, sa2 as u64);
             fd.op_set_input(&follow, newvn, 0);
             fd.op_set_input(&follow, new_sa, 1);
         }
@@ -3102,7 +3106,7 @@ impl Rule for RuleConcatShift {
     // Ghidra: ruleaction.cc:1952 RuleConcatShift::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> {
         vec![
-            OpCode::CPUI_INT_LEFT, OpCode::CPUI_INT_RIGHT, OpCode::CPUI_INT_SRIGHT,
+            OpCode::CPUI_INT_RIGHT, OpCode::CPUI_INT_SRIGHT,
         ]
     }
 }
@@ -23572,6 +23576,22 @@ mod tests {
         let rule = RuleConcatShift::new();
         let result = rule.apply_op(&shift_op, &mut fd).unwrap();
         assert_eq!(result, action_status::NO_CHANGE);
+    }
+
+    #[test]
+    fn test_concat_shift_left_shift_not_registered() {
+        // INT_LEFT(CONCAT31(main[3], least[1]), 8) — Ghidra getOpList
+        // (ruleaction.cc:1952-1957) registers only INT_RIGHT/INT_SRIGHT: a
+        // left shift can never throw away the least-significant piece, and
+        // rewriting it to ext(main) would change the value (the least bytes
+        // survive in the low bits of a <<). Locking the canonical
+        // CodeSpec@0x23478 site (GEN4-SQ-CASTFUSE-DEPTH-0001): oracle keeps
+        // INT_LEFT reading the 4B CONCAT output, so the PIECE keeps 2
+        // readers -> explicit named temp (golden `iVar9`). applyOp stays
+        // opcode-agnostic exactly like Ghidra's (it trusts getOpList), so
+        // the 1:1 invariant to lock is the dispatch list itself.
+        let opcodes = RuleConcatShift::new().get_opcodes();
+        assert_eq!(opcodes, vec![OpCode::CPUI_INT_RIGHT, OpCode::CPUI_INT_SRIGHT]);
     }
 
     // --- RuleShiftCompare (ruleaction.cc:2064) ---
