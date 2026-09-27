@@ -2390,8 +2390,12 @@ pub fn pointer_rel_is_ptrsub_matching(
 /// (type.cc:1129) is a virtual dispatch that reaches
 /// `TypeSpacebase::getSubType` (type.cc:2947): the generic
 /// [`Datatype::get_sub_type`] routes there, querying the indexed scope.
-/// The `TYPE_STRUCT` branch recurses into `testForArraySlack` when the
-/// sub-type lookup misses or `extra` is out of bounds (type.cc:1152-1165).
+/// The `TYPE_STRUCT` branch requires the PTRSUB offset to land exactly at
+/// a component start (`newoff != 0` -> no match, type.cc:1153-1155), and
+/// with no component at the offset it folds `extra += newoff` and only
+/// rejects when the sum leaves the whole struct (type.cc:1161-1165);
+/// `testForArraySlack` recurses only for an `extra` overflowing a found
+/// component (type.cc:1156-1159).
 pub fn pointer_is_ptrsub_matching(
     ptrto: &Datatype,
     wordsize: usize,
@@ -2429,28 +2433,44 @@ pub fn pointer_is_ptrsub_matching(
         }
         true
     } else if meta == TypeMetatype::Struct {
-        let _typesize = ptrto.get_size();
+        // type.cc:1146: int4 typesize = ptrto->getSize(); (the whole-struct
+        // bound the no-component fallback tests against).
+        let typesize = ptrto.get_size();
+        // type.cc:1147-1149: multiplier in bytes must stay below the
+        // struct's aligned size (signed compare: a negative multiplier
+        // passes, exactly like the oracle's int8-vs-promoted-int4 compare).
         let mult = address_to_byte_int(multiplier, wordsize);
-        if (mult as usize) >= ptrto.get_align_size() {
+        if mult >= ptrto.get_align_size() as i64 {
             return false;
         }
+        // type.cc:1150-1151: off/extra converted to bytes.
         let newoff = address_to_byte_int(off, wordsize);
-        let extra_b = address_to_byte_int(extra, wordsize);
+        let mut extra_b = address_to_byte_int(extra, wordsize);
         let (sub_type, sub_newoff) = ptrto.get_sub_type(newoff);
-        let sub_type = match sub_type {
-            Some(t) => t,
-            None => {
-                // No exact sub-type at the offset; allow if there is array
-                // slack at `extra` (type.cc:1163-1167).
-                return test_for_array_slack(ptrto, extra_b);
+        if let Some(sub_type) = sub_type {
+            // type.cc:1153-1155: a component CONTAINS the offset — the
+            // PTRSUB must land exactly at the component's start
+            // (`newoff != 0` -> no match).
+            if sub_newoff != 0 {
+                return false;
             }
-        };
-        if extra_b < 0 || (extra_b as usize) >= sub_type.get_size() {
-            if !test_for_array_slack(sub_type.as_ref(), extra_b) {
+            // type.cc:1156-1159: extra must fit inside the component, or
+            // the component must provide array slack.
+            if extra_b < 0 || extra_b as usize >= sub_type.get_size() {
+                if !test_for_array_slack(sub_type.as_ref(), extra_b) {
+                    return false;
+                }
+            }
+        } else {
+            // type.cc:1161-1165: NO component at the offset (unnamed hole
+            // or tail padding): fold the offset into extra and only reject
+            // when the sum leaves the whole struct (typesize == 0 keeps
+            // the historical accept).
+            extra_b += newoff;
+            if (extra_b < 0 || extra_b as usize >= typesize) && typesize != 0 {
                 return false;
             }
         }
-        let _ = sub_newoff;
         true
     } else {
         false
@@ -6130,6 +6150,52 @@ mod tests {
         assert!(pointer_is_ptrsub_matching(&ptr.ptr_to, 1, 0x5000, 0, 0));
         assert!(!pointer_is_ptrsub_matching(&ptr.ptr_to, 1, 0x5000, 8, 0));
         assert!(!pointer_is_ptrsub_matching(&ptr.ptr_to, 1, 0x1000, 16, 0));
+    }
+
+    #[test]
+    fn test_pointer_is_ptrsub_matching_struct_hole_and_tail() {
+        // CANON-ARRIDX-MEMBERFORM-0001 fixture: ProgressData exactly as the
+        // curl DWARF ships it — total@0 (8), prev@8 (8), point@16 (8),
+        // width@24 (4), size 32 with the tail bytes [28,32) unnamed.
+        // TypePointer::isPtrsubMatching TYPE_STRUCT arm (type.cc:1145-1166).
+        let double_t = Arc::new(Datatype::Base(TypeBase::new(
+            "double".into(),
+            8,
+            TypeMetatype::Float,
+        )));
+        let int_t = Arc::new(Datatype::Base(TypeBase::new("int".into(), 4, TypeMetatype::Int)));
+        let progress = Datatype::Struct(TypeStruct {
+            base: TypeBase::new("ProgressData".into(), 32, TypeMetatype::Struct),
+            fields: vec![
+                TypeField { name: "total".into(), offset: 0, type_ptr: double_t.clone() },
+                TypeField { name: "prev".into(), offset: 8, type_ptr: double_t.clone() },
+                TypeField { name: "point".into(), offset: 16, type_ptr: double_t },
+                TypeField { name: "width".into(), offset: 24, type_ptr: int_t },
+            ],
+        });
+        // A PTRSUB at 0x1c lands in the unnamed tail: no component
+        // contains it, so the oracle folds extra += newoff and accepts
+        // because 0x1c < the whole-struct size 32 (type.cc:1161-1165) —
+        // the `&bar->field_0x1c` canon form of progressbarinit.
+        assert!(pointer_is_ptrsub_matching(&progress, 1, 0x1c, 0, 0));
+        // A PTRSUB at a field start matches (type.cc:1153-1159, newoff==0,
+        // extra inside the int).
+        assert!(pointer_is_ptrsub_matching(&progress, 1, 0x18, 0, 0));
+        // MID-field (0x19 is inside width@24): getSubType returns the int
+        // with newoff 1 -> no match (type.cc:1154-1155).
+        assert!(!pointer_is_ptrsub_matching(&progress, 1, 0x19, 0, 0));
+        // Past the whole struct (0x20): no component, extra(0)+0x20 >= 32
+        // -> no match (type.cc:1162-1164).
+        assert!(!pointer_is_ptrsub_matching(&progress, 1, 0x20, 0, 0));
+        // Field start but extra beyond the component size with no array
+        // slack -> no match (type.cc:1156-1159).
+        assert!(!pointer_is_ptrsub_matching(&progress, 1, 0x18, 8, 0));
+        // An unsigned-multiplier equal to the struct's aligned size is a
+        // PTRADD-scale mismatch (type.cc:1147-1149).
+        assert!(!pointer_is_ptrsub_matching(&progress, 1, 0x18, 0, 32));
+        // A NEGATIVE multiplier passes the signed compare exactly like
+        // the oracle's int8-vs-promoted-int4 form (type.cc:1147-1149).
+        assert!(pointer_is_ptrsub_matching(&progress, 1, 0x18, 0, -4));
     }
 
     #[test]
