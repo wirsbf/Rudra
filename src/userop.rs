@@ -508,6 +508,16 @@ impl UserOpManage {
         if builtin_id == BUILTIN_STRINGDATA {
             op.flags |= userop_flags::DISPLAY_STRING;
         }
+        // userop.cc:443-447: the on-demand defaults construct the volatile
+        // pair with functional=false — VolatileReadOp carries no_operator
+        // (userop.hh:190-191), VolatileWriteOp carries annotation_assignment
+        // (userop.hh:205-206). Only a cspec `format="functional"` element
+        // (decodeVolatile, userop.cc:566-570) produces the zero-flag form.
+        if builtin_id == BUILTIN_VOLATILE_READ {
+            op.flags |= userop_flags::NO_OPERATOR;
+        } else if builtin_id == BUILTIN_VOLATILE_WRITE {
+            op.flags |= userop_flags::ANNOTATION_ASSIGNMENT;
+        }
         self.builtin_map.insert(builtin_id, Box::new(op));
         Ok(builtin_id)
     }
@@ -1212,6 +1222,26 @@ mod tests {
         // Name lookup.
         assert_eq!(mgr.get_call_other_name(BUILTIN_STRNCPY), Some("builtin_strncpy"));
         assert_eq!(mgr.get_call_other_name(BUILTIN_MEMCPY), None);
+    }
+
+    #[test]
+    fn test_register_builtin_volatile_display_defaults() {
+        // Faithful to Ghidra registerBuiltin's volatile defaults
+        // (userop.cc:443-447): functional=false, so the read op carries
+        // no_operator (userop.hh:190-191) and the write op carries
+        // annotation_assignment (userop.hh:205-206). getDisplay()
+        // (userop.hh:84-85) is then non-zero for both, which is what
+        // Funcdata::replaceVolatile's hold decision reads (cc:758-759).
+        let mut mgr = UserOpManage::new();
+        mgr.register_builtin_by_id(BUILTIN_VOLATILE_READ);
+        mgr.register_builtin_by_id(BUILTIN_VOLATILE_WRITE);
+        let vr = mgr.get_op(BUILTIN_VOLATILE_READ as i32).unwrap();
+        assert_eq!(vr.get_display(), userop_flags::NO_OPERATOR);
+        let vw = mgr.get_op(BUILTIN_VOLATILE_WRITE as i32).unwrap();
+        assert_eq!(vw.get_display(), userop_flags::ANNOTATION_ASSIGNMENT);
+        // The zero-flag functional form only arises from a cspec
+        // format="functional" element (decodeVolatile path,
+        // userop.cc:566-570), not from this on-demand default.
     }
 
     #[test]

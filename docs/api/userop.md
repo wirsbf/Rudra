@@ -1,5 +1,17 @@
 # `userop.rs` API Reference
 
+## 2026-09-27：兼容路径 volatile builtin 缺省 display 旗标（FUNCDEV-VOLATILE-DEVIATIONS-0001）
+
+`try_register_builtin_by_id` 对 `BUILTIN_VOLATILE_READ`/`BUILTIN_VOLATILE_WRITE`
+建立的缺省记录现在带上 `NO_OPERATOR`/`ANNOTATION_ASSIGNMENT`——对齐 oracle
+`UserOpManage::registerBuiltin` 的按需缺省 `VolatileReadOp("read_volatile",glb,
+false)`/`VolatileWriteOp("write_volatile",glb,false)`（userop.cc:443-447，
+functional=false → userop.hh:190-191/205-206 的构造器置位）。此前缺省 flags=0
+（functional 形），使 `Funcdata::replace_volatile` 的 cc:758-759 hold 决策
+（`getDisplay()!=0` 才 hold）在兼容路径上取反。cspec 侧 `format="functional"`
+（decodeVolatile，userop.cc:566-570）仍是唯一零旗标来源。新回归测试
+`test_register_builtin_volatile_display_defaults` 钉死两缺省。
+
 ## 2026-09-25：STRINGDATA builtin 的 display_string 旗标（Lane STRNCPY）
 
 `try_register_builtin_by_id` 对 `BUILTIN_STRINGDATA` 建立的记录现在带上
@@ -40,7 +52,7 @@ STRNCPY-PRINT-CALLOTHER-0001（printc 车道）。
 ### Built-in IDs
 `BUILTIN_STRINGDATA/VOLATILE_READ/VOLATILE_WRITE/MEMCPY/STRNCPY/WCSNCPY`
 
-测试：`userop::tests` 现有 15 个。
+测试：`userop::tests` 现有 16 个。
 
 ## 2026-06-26（续）：userop.rs 完善实现
 
