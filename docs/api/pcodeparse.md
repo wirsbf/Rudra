@@ -222,12 +222,19 @@ Rugra `PCODE_IDENTS` **逐字节镜像表序**（含该违规对），`find_iden
 lexer 从不查表"——与 pcodeparse.y:582 矛盾，真因是排序逆序导致的 miss）。
 
 ## L3 gaps
-- Mandatory punctuation and parser failure state are not yet equivalent to
-  the Bison grammar; see `PARSER-0001` and the syntax audit.
 - SLEIGH integration (`SleighBase`/`SymbolTree`) for global symbol lookup
-  beyond the local scope.
+  beyond the local scope (host hook covers the snippet face).
 - Register name resolution in `decode_varnode_from_attributes` (needs a
   `Translate`).
+- 2026-09-27 update (PARSEADJ-PARSEFACE-PCODE-0001): the whole-parse face
+  (lexer + statements + expressions + errors + size propagation + snippet
+  lifecycle) is now pinned byte-identical against the locked oracle by the
+  `pcode_snippet_face_1204` bilateral fixture (110 records, see below);
+  `PARSER-0001`'s punctuation/failure-state parity concern is discharged
+  for the face's case matrix. Known residual: the recursive-descent driver
+  recovers to the next `;` after an action error where Bison aborts at the
+  first error — invisible to the fixture's first-error projection, noted
+  in the fixture metadata known-deltas.
 
 ## Annotation provenance
 
@@ -295,3 +302,63 @@ owned by `MARSHAL-ID-0001`, `MARSHAL-PACKED-0001`, `SPACE-0001`, and
   epsilon 在语言表 ABSENT——前二者 snippet 本地注入、EpsilonSymbol 被
   purge 删除）+ 全部 jumpdest/varnode 形态模板 XML + 两条 lexer 回落错误
   消息。
+
+# 2026-09-27：整面双侧 fixture `pcode_snippet_face_1204`（PARSEADJ-PARSEFACE-PCODE-0001）
+
+等价证明单位 = 解析器整面（generator_absorbed 12 成员：PcodeLexer
+moveState/getNextToken/initialize + PcodeSnippet ctor/dtor/allocateTemp/
+addSymbol/clear/reportError/parseStream/addOperand + pcodelex/pcodeerror shim，
+GENERATOR_ABSORBED_2026-09-27.md §3/§4 口径）。fixture：SYM 20（x86-64.sla
+findSymbol 宇宙：13 寄存器 varnode + cpuid(userop 44) + 3 预定义 JUMPSYM +
+ram/OTHER/stack ABSENT）+ SNIP 77（空间种子/语句/表达式/词法/错误文本矩阵）
++ LF 10（生命周期探针）= 110 records，双侧 sha256
+`1b30d20d…` 恒等。runner：`tools/run_pcode_snippet_face_oracle.sh`。
+
+首轮差分钉出并修复的 12 缺口（g1-g12，全部 pcodeparse.rs 驱动层小件）：
+
+- g1 ctor 空间种子改为 {const, OTHER, unique, ram, register}（y:686-692 的
+  CONSTANT/PROCESSOR/SPACEBASE/INTERNAL 过滤器 + x86-64.sla 实测 5 空间；
+  stack/iop 移除，OTHER 加入，`space_symbol_name(Other) = "OTHER"`）。
+- g2 `add_op_list` 按 `CPUI_PTRADD`（=LABELBUILD，semantics.hh:30）计数
+  `num_labels` → `<construct_tpl labels="N">` 属性（semantics.cc:748/875）。
+- g3 `place_label` 的 placed-twice 状态以 `self.labels` 存储副本为权威并
+  回写（C++ LabelSymbol 是符号树共享对象，clone 模型需显式同步）。
+- g4 `parse_jumpdest` 补 `INTEGER '[' SPACESYM ']'` 形（y:198；size 取空间
+  addrsize，如 register=4/ram=8）。
+- g5 六个换向比较算子（`>`/`>=`/`s>`/`s>=`/`f>`/`f>=` → LESS 族）在
+  precedence climbing 应用点交换操作数（y:134/136/138/140/161/163 的
+  `createOp(opc,$3,$1)`）。
+- g6 label jumpdest size 从 `size_of::<usize>()`(8) 改 `Real(4)`
+  （y:199 `sizeof(uintm)`；types.h:27 `uintm = uint32_t`）。
+- g7 `force_size` 实现跨 op 局部温度传播（cc:115-142：同 unique offset 的
+  out/in 同步尺寸——ExprTree outvn 是 createOp 的快照拷贝，仅此机制回填）；
+  `matchSize` hint 改为只扫当前 op 自身 out+inputs（cc:150-165，原实现误扫
+  全 opvec）；`fillinZero` 各族（同尺寸/布尔输出/移位/SUBPIECE/CPOOLREF）
+  逐臂对齐 cc:170-263（SUBPIECE 仅填 in1=4 的 oracle 行为由 ex14 钉死）。
+- g8 `LOCAL specificsymbol '='` 重定义规则（y:111）：LOCAL 后跟符号 token 且
+  下一个是 `=` → `Redefinition of symbol: X`；其余 → syntax error。
+- g9 裸 STRING 语句错误文本改 `Unknown varnode parameter: X`（y:204
+  varnode:STRING 规则胜出；y:213 lhsvarnode:STRING 是死规则——'=',
+  lookahead 总先 shift 到声明形）。
+- g10 纯语法错误统一为 bison 默认 `syntax error`（`YY_("syntax error")` 经
+  pcodeerror；约 20 处自定义 Expected/Unexpected 文本改为该常量）。
+- g11 新增 `hard_error` 通道镜像 `SleighError` 逃逸：buildTruncatedVarnode
+  越界（cc:580 throw）与 force_size 局部温度尺寸冲突（cc:129/137）在 C++
+  中异常直接穿透 parseStream（errorcount 不动、result 不设）；Rugra 以
+  `get_hard_error()` 观察（fixture EXC 记录）。
+- g12 语句边界 `refresh_lookahead_symbol()`：递归下降预取的 lookahead 在
+  上一语句符号表突变（newOutput/newLocalDefinition/defineLabel）后重新解析
+  ——bison 的 yylex 惰性调用保证动作后 lex（`local q; q = 1;` 的第二个 q
+  必须解析为符号而非 STRING）。
+
+配套更新：`test_snippet_new_seeds_spaces`（g1）与
+`test_inject_execute_label_branch_snippet`（g6，8→4）两条旧断言改钉 oracle
+真值；新增 9 条 face 回归测试（换向/force_size 传播/重定义/lookahead 刷新/
+jumpdest 空间形/label size+labels 计数/EXC 通道/错误文本）。
+`OpCode::name()` 与 Ghidra `get_opname` 表（opcodes.cc:29-48）在 7 个成员上
+不同（PTRADD→LABEL、FLOAT_INT2FLOAT→INT2FLOAT、FLOAT_FLOAT2FLOAT→
+FLOAT2FLOAT、FLOAT_TRUNC/CEIL/FLOOR/ROUND→TRUNC/CEIL/FLOOR/ROUND）——
+fixture twin 以局部 canonical 表镜像编码通道，src 侧 `opcodes.rs` 更名属
+共享表（print/opbehavior 面），超出本票写域，登记
+PCODE-OPNAME-TABLE-0001 待裁决。opcodes 名义上 LABELBUILD=PTRADD 是语义别名
+而非错误。

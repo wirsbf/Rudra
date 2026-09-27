@@ -8750,6 +8750,36 @@
           "oracle_record": "tests/oracle/rule_condmove_cloneexpr_1204.oracle.out"
         }
       }
+    },
+    {
+      "id": "pcode_snippet_face_1204",
+      "description": "PARSEADJ-PARSEFACE-PCODE-0001: pcode-snippet parser whole face (generator_absorbed 12 members: PcodeLexer/PcodeSnippet/yyparse skeleton) — bare SLEIGH engine on x86-64.sla vs recursive-descent driver; SYM 20 + SNIP 76 + LF 12 records byte-identical (sha 1b30d20d) after 12 pinned driver fixes (g1-g12, commit 04a83ee9)",
+      "runner": [
+        "tools/run_pcode_snippet_face_oracle.sh"
+      ],
+      "timeout_seconds": 1800,
+      "always_tiers": [
+        "wave",
+        "nightly"
+      ],
+      "evidence_status": "MATCH",
+      "cache": {
+        "metadata": "tests/oracle/pcode_snippet_face_1204.metadata.json",
+        "inputs": {
+          "cpp_fixture": "tests/oracle/pcode_snippet_face_1204.cc",
+          "rust_fixture": "tests/oracle/pcode_snippet_face_1204.rs"
+        },
+        "tools": {
+          "runner": "tools/run_pcode_snippet_face_oracle.sh"
+        }
+      },
+      "impact": {
+        "paths": [
+          "src/pcodeparse.rs",
+          "src/pcodeinject.rs"
+        ],
+        "notes": "Whole-parse-face equivalence gate for the generator_absorbed pcodeparse ledger members; pins ctor space seeding, matchSize/force_size scope+propagation, swapped-operand comparisons, label size/counting, error-text family, SleighError escape channel, lookahead refresh."
+      }
     }
   ]
 }

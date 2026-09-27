@@ -119,3 +119,12 @@ CALLOTHER 路径）、add（const 掩码/操作数替换）、label（label 相�
 - 本模块 2 处 `// Ghidra:` 头注解的 file:line 已重锚到锁定 oracle (e40ed130)
   的函数定义起始行；本文件中同名单点引用同步更新（正文内点引用/区间端点不在
   机制 D checker 范围，遗留见 RULEACTION-ANNO-PROSE-RANGE-0001）。注释-only，零行为变化。
+
+### 2026-09-27 — PARSEADJ-PARSEFACE-PCODE-0001 label-size re-pin（测试侧）
+
+`test_inject_execute_label_branch_snippet` 的 label 分支目标断言由 size 8
+改为 4：oracle 真值是 `sizeof(uintm)`（pcodeparse.y:199 jumpdest label 形；
+types.h:27 `typedef uint32_t uintm` = 4），已由整面 fixture
+`pcode_snippet_face_1204` 的 st20/LF|clrlbl 记录（`const_real val="0x4"`）
+逐字节钉死。仅测试断言重钉，生产代码零改动（g6 修复在
+`docs/api/pcodeparse.md` 2026-09-27 节）。

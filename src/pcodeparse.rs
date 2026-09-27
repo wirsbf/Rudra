@@ -1681,6 +1681,16 @@ pub struct PcodeSnippet {
     /// (it is in `Location`), but Rugra threads it through for richer
     /// error messages.
     line_number: u32,
+    /// Hard-error channel standing in for the `SleighError` that Ghidra's
+    /// `buildTruncatedVarnode` (pcodecompile.cc:580/600) and `force_size`
+    /// (pcodecompile.cc:129/137) THROW — the exception escapes
+    /// `PcodeSnippet::parseStream` entirely (no catch between yyparse and
+    /// the payload compiler), so neither `errorcount` nor `firsterror` is
+    /// touched and `result` stays unset. Rugra has no unwinding channel,
+    /// so the parse aborts with this message recorded instead; fixture
+    /// twins observe it through `get_hard_error` the way the C++ fixture
+    /// observes the caught `SleighError::explain`.
+    hard_error: Option<String>,
 }
 
 impl PcodeSnippet {
@@ -1707,17 +1717,23 @@ impl PcodeSnippet {
             constant_space: AddressSpace::Const,
             unique_space: AddressSpace::Unique,
             line_number: 1,
+            hard_error: None,
         };
         // pcodeparse.y:686-692: insert a SpaceSymbol for each space of type
-        // CONSTANT / PROCESSOR / SPACEBASE / INTERNAL. Rugra seeds the
-        // built-in spaces directly.
+        // CONSTANT / PROCESSOR / SPACEBASE / INTERNAL, in the language's
+        // space order. Rugra seeds the built-in equivalents of the x86-64
+        // .sla space set: const (CONSTANT), ram/register/OTHER
+        // (PROCESSOR), stack would be SPACEBASE but no SLEIGH language
+        // defines it in the .sla (the stack space is architecture-side),
+        // unique (INTERNAL). iop/join are IPTR_IOP/IPTR_JOIN and are NOT
+        // seeded (matching the y:690 filter). The OTHER space mirrors the
+        // x86-64.sla processor space named "OTHER".
         for sp in [
+            AddressSpace::Const,
+            AddressSpace::Other(1),
+            AddressSpace::Unique,
             AddressSpace::Ram,
             AddressSpace::Register,
-            AddressSpace::Unique,
-            AddressSpace::Const,
-            AddressSpace::Stack,
-            AddressSpace::Iop,
         ] {
             s.spaces.push(sp);
             s.add_symbol(SleighSymbol {
@@ -1790,6 +1806,12 @@ impl PcodeSnippet {
         });
         self.errorcount = 0;
         self.firsterror = None;
+        self.hard_error = None;
+        // pcodeparse.y:673 `resetLabelCount()` — the label index counter
+        // restarts from 0 for the next parse (label symbols themselves are
+        // non-space locals dropped by the retain above).
+        self.labels.clear();
+        self.label_count = 0;
     }
 
     // Ghidra: pcodeparse.y:632 PcodeSnippet::allocateTemp
@@ -1899,6 +1921,15 @@ impl PcodeSnippet {
     pub fn num_errors(&self) -> i32 {
         self.errorcount
     }
+
+    // RUGRA-GLUE: get_hard_error
+    /// The hard-error (SleighError-escape) message, if the last parse
+    /// aborted through the exception channel instead of `reportError`.
+    /// No direct Ghidra counterpart — the C++ exception escapes
+    /// `parseStream` and is observed by the caller's catch clause.
+    pub fn get_hard_error(&self) -> Option<&str> {
+        self.hard_error.as_deref()
+    }
 }
 
 impl Default for PcodeSnippet {
@@ -1923,7 +1954,10 @@ fn space_symbol_name(sp: &AddressSpace) -> String {
         AddressSpace::Join => "join".to_string(),
         AddressSpace::Iop => "iop".to_string(),
         AddressSpace::Overlay => "overlay".to_string(),
-        AddressSpace::Other(_) => "other".to_string(),
+        // The OTHER processor space's canonical AddrSpace name (space.cc
+        // OTHER_SPACE / the x86-64.sla serialized name observed via the
+        // locked oracle's space table).
+        AddressSpace::Other(_) => "OTHER".to_string(),
     }
 }
 
@@ -2363,16 +2397,23 @@ impl ConstructTpl {
         }
     }
 
-    // Ghidra: template.hh ConstructTpl::addOpList
+    // Ghidra: template.hh ConstructTpl::addOpList / semantics.cc:739 addOp
     /// Append a list of ops. Returns false (and reports nothing here — the
     /// caller reports the error) if a second delayslot declaration appears.
-    /// Mirrors the `if (!$$->addOpList(*$2))` check at pcodeparse.y:102.
+    /// Mirrors the `if (!$$->addOpList(*$2))` check at pcodeparse.y:102 and
+    /// ConstructTpl::addOp (semantics.cc:739-752): a DELAY_SLOT
+    /// (`#define DELAY_SLOT CPUI_INDIRECT`, semantics.hh:27) op sets the
+    /// delayslot field (a second one returns false), and a LABELBUILD
+    /// (`#define LABELBUILD CPUI_PTRADD`, semantics.hh:30) op increments
+    /// `numlabels` — the count encoded as the `labels` attribute of
+    /// `<construct_tpl>` (semantics.cc:875-876). The snippet grammar can
+    /// produce neither DELAY_SLOT nor a real PTRADD, so every PTRADD in a
+    /// snippet template is a placed label marker.
     pub fn add_op_list(&mut self, ops: Vec<OpTpl>) -> bool {
         for op in ops {
-            // LABELBUILD (CPUI_PTRADD with a single const input) is the
-            // delayslot/label marker; a second one is the conflict Ghidra
-            // flags. Rugra approximates by treating any LABELBUILD-looking
-            // op as setting the label count.
+            if op.opc == OpCode::CPUI_PTRADD {
+                self.num_labels += 1;
+            }
             self.opvec.push(op);
         }
         true
@@ -2477,11 +2518,23 @@ impl PcodeSnippet {
     /// the label is placed twice. Faithful to pcodecompile.cc:314-329.
     /// LABELBUILD is `#define LABELBUILD CPUI_PTRADD` (semantics.hh:30).
     pub fn place_label(&mut self, labsym: &mut LabelSymbol) -> Vec<OpTpl> {
-        if labsym.is_placed() {
+        // Ghidra's LabelSymbol lives in the shared symbol tree, so the
+        // `label` rule and placeLabel mutate ONE object. Rugra hands out
+        // clones, so the placed state is kept authoritative in the stored
+        // copy (self.labels) and mirrored back to the caller's clone.
+        let already_placed = self
+            .labels
+            .iter()
+            .any(|l| l.name == labsym.name && l.placed)
+            || labsym.is_placed();
+        if already_placed {
             self.report_error(&format!(
                 "Label '{}' is placed more than once",
                 labsym.name
             ));
+        }
+        if let Some(stored) = self.labels.iter_mut().find(|l| l.name == labsym.name) {
+            stored.set_placed();
         }
         labsym.set_placed();
         let mut op = OpTpl::new(OpCode::CPUI_PTRADD);
@@ -2705,7 +2758,9 @@ impl PcodeSnippet {
         if qual.size > 0 {
             // force_size(outvn, Real(qual.size), *ptr.ops) — mutate outvn in
             // place, then assign a copy to ptr.outvn (pcodecompile.cc:484-485).
-            force_size(&mut outvn, ConstTpl::Real(qual.size), &ptr.ops);
+            if force_size(&mut outvn, ConstTpl::Real(qual.size), &mut ptr.ops).is_err() {
+                self.hard_error = Some("Localtemp size mismatch".to_string());
+            }
         }
         ptr.outvn = Some(outvn);
         ptr
@@ -2735,7 +2790,9 @@ impl PcodeSnippet {
         if let Some(mut o) = val.outvn.take() {
             // force_size(val->outvn, Real(qual.size), *res) — applied before
             // the varnode is handed to the op, matching pcodecompile.cc:509.
-            force_size(&mut o, ConstTpl::Real(qual.size), &res);
+            if force_size(&mut o, ConstTpl::Real(qual.size), &mut res).is_err() {
+                self.hard_error = Some("Localtemp size mismatch".to_string());
+            }
             op.add_input(o);
         }
         res.push(op);
@@ -2882,14 +2939,23 @@ impl PcodeSnippet {
             return rhs.into_ops();
         }
 
-        // force_size(rhs->outvn, Real(smallsize), *rhs.ops)
+        // force_size(rhs->outvn, Real(smallsize), *rhs.ops) — pcodecompile.cc:647.
+        // Take the outvn out first to avoid the aliasing (size then ops walk).
         let mut rhs = rhs;
-        if let Some(o) = rhs.outvn.as_mut() {
-            force_size(o, ConstTpl::Real(smallsize as u64), &rhs.ops);
+        if let Some(mut o) = rhs.outvn.take() {
+            if force_size(&mut o, ConstTpl::Real(smallsize as u64), &mut rhs.ops).is_err() {
+                self.hard_error = Some("Localtemp size mismatch".to_string());
+            }
+            rhs.outvn = Some(o);
         }
 
         // finalout = buildTruncatedVarnode(vn, bitoffset, numbits)
         let finalout_opt = self.build_truncated_varnode(&vn, bitoffset, numbits);
+        if self.hard_error.is_some() {
+            // pcodecompile.cc:580 throw path: the SleighError escapes the
+            // parser; emit nothing further.
+            return rhs.into_ops();
+        }
         let res = if let Some(finalout) = finalout_opt {
             // res = createOpOutUnary(finalout, CPUI_COPY, rhs)
             self.create_op_out_unary(finalout, OpCode::CPUI_COPY, rhs)
@@ -2936,8 +3002,11 @@ impl PcodeSnippet {
                 return None;
             }
             if byteoffset + numbytes > fullsz as u32 {
-                // Ghidra throws SleighError; Rugra reports and returns None.
-                self.report_error("Requested bit range out of bounds");
+                // pcodecompile.cc:580: `throw SleighError("Requested bit
+                // range out of bounds")` — the exception escapes
+                // parseStream untouched (no reportError), so mirror it on
+                // the hard-error channel, not the error counter.
+                self.hard_error = Some("Requested bit range out of bounds".to_string());
                 return None;
             }
         }
@@ -2950,7 +3019,9 @@ impl PcodeSnippet {
         let specialoff = match basevn.offset {
             ConstTpl::Real(off) => {
                 if !matches!(basevn.size, ConstTpl::Real(_)) {
-                    self.report_error("Could not construct requested bit range");
+                    // pcodecompile.cc:600: SleighError escape (same channel
+                    // as the out-of-bounds case).
+                    self.hard_error = Some("Could not construct requested bit range".to_string());
                     return None;
                 }
                 // Big-endian adjustment would need defaultspace; Rugra assumes
@@ -3012,6 +3083,12 @@ impl PcodeSnippet {
             if let Some(truncvn) = self.build_truncated_varnode(&sym_varnode, bitoffset, numbits) {
                 return ExprTree::from_varnode(truncvn);
             }
+            // buildTruncatedVarnode THROWS on out-of-bounds bit ranges
+            // (pcodecompile.cc:580) — the exception unwinds out of
+            // parseStream, so stop building the expression here.
+            if self.hard_error.is_some() {
+                return ExprTree::from_varnode(sym_varnode);
+            }
         }
 
         let mut insize: u32 = 0;
@@ -3060,8 +3137,12 @@ impl PcodeSnippet {
         if maskneeded {
             res = self.append_op(OpCode::CPUI_INT_AND, res, mask, finalsize as u64);
         }
-        if let Some(o) = res.outvn.as_mut() {
-            force_size(o, ConstTpl::Real(finalsize as u64), &res.ops);
+        // force_size(res->outvn, Real(finalsize), *res->ops) — cc:753.
+        if let Some(mut o) = res.outvn.take() {
+            if force_size(&mut o, ConstTpl::Real(finalsize as u64), &mut res.ops).is_err() {
+                self.hard_error = Some("Localtemp size mismatch".to_string());
+            }
+            res.outvn = Some(o);
         }
         res
     }
@@ -3073,18 +3154,49 @@ impl PcodeSnippet {
 
 // Ghidra: pcodecompile.cc:108 PcodeCompile::force_size
 /// Force a varnode's size to `size` if it is currently `Real(0)`. Faithful
-/// to pcodecompile.cc:108-143. Ghidra additionally propagates the new size
-/// to other varnodes sharing the same local-temp offset; Rugra's varnodes
-/// are owned values (not offset-aliased), so only the target is updated.
-/// The `ops` parameter is retained for signature parity and future SLEIGH
-/// work but is not mutated here.
-fn force_size(vt: &mut VarnodeTpl, size: ConstTpl, _ops: &[OpTpl]) {
+/// to pcodecompile.cc:108-143: after setting the target, if the varnode is
+/// a local temp (unique space), the new size is propagated to every
+/// out/in varnode in `ops` that shares the same offset — this is what
+/// re-syncs the ExprTree `outvn` snapshot copies (each `createOp` clones
+/// the op's output temp, pcodecompile.cc:370/389, so the copies start as
+/// size-0 snapshots of the same unique offset). A conflicting non-zero
+/// real size on a shared offset is the `SleighError("Localtemp size
+/// mismatch")` condition (pcodecompile.cc:129/137), surfaced here through
+/// the hard-error channel (`hard_error`), which aborts the parse exactly
+/// like the C++ exception escapes parseStream.
+fn force_size(vt: &mut VarnodeTpl, size: ConstTpl, ops: &mut [OpTpl]) -> Result<(), String> {
     if !vt.is_zero_size() {
-        return;
+        return Ok(());
     }
     vt.set_size(size);
-    // Ghidra propagates to matching local temps here (pcodecompile.cc:122-142).
-    // Rugra's owned-varnode model means there is nothing to propagate to.
+    if !vt.is_local_temp() {
+        return Ok(());
+    }
+    let vt_offset = vt.offset;
+    for op in ops.iter_mut() {
+        if let Some(vn) = op.out.as_mut() {
+            if vn.is_local_temp() && vn.offset == vt_offset {
+                if let (ConstTpl::Real(new_size), ConstTpl::Real(cur)) = (size, vn.size) {
+                    if cur != 0 && cur != new_size {
+                        // pcodecompile.cc:127-129 / 136-138.
+                        return Err("Localtemp size mismatch".to_string());
+                    }
+                }
+                vn.set_size(size);
+            }
+        }
+        for vn in op.inputs.iter_mut() {
+            if vn.is_local_temp() && vn.offset == vt_offset {
+                if let (ConstTpl::Real(new_size), ConstTpl::Real(cur)) = (size, vn.size) {
+                    if cur != 0 && cur != new_size {
+                        return Err("Localtemp size mismatch".to_string());
+                    }
+                }
+                vn.set_size(size);
+            }
+        }
+    }
+    Ok(())
 }
 
 // Ghidra: pcodecompile.cc:265 PcodeCompile::propagateSize
@@ -3123,7 +3235,12 @@ pub fn propagate_size(ct: &mut ConstructTpl) -> bool {
 fn fillin_zero_indexed(ops: &mut [OpTpl], i: usize) {
     let opc = ops[i].opc;
     match opc {
-        // Same-size family: output and all inputs share a size.
+        // Same-size family (pcodecompile.cc:179-208): output and inputs
+        // share a size; each zero-size slot is filled from the first
+        // non-zero varnode of THIS op (matchSize scans only the current
+        // op's own out/inputs, cc:150-165 — never the whole opvec), with
+        // force_size's cross-op localtemp propagation re-syncing ExprTree
+        // snapshot copies sharing the unique offset.
         OpCode::CPUI_COPY
         | OpCode::CPUI_INT_ADD
         | OpCode::CPUI_INT_SUB
@@ -3147,26 +3264,21 @@ fn fillin_zero_indexed(ops: &mut [OpTpl], i: usize) {
         | OpCode::CPUI_FLOAT_CEIL
         | OpCode::CPUI_FLOAT_FLOOR
         | OpCode::CPUI_FLOAT_ROUND => {
-            // Gather a size hint (immutable read across the slice).
-            let hint = first_nonzero_size(ops, i);
-            // Apply it to the zero-size output and inputs.
-            if let Some(size) = hint {
-                if ops[i].out.as_ref().map_or(false, |o| o.is_zero_size()) {
-                    if let Some(o) = ops[i].out.as_mut() {
-                        if o.is_zero_size() {
-                            o.set_size(size);
-                        }
-                    }
+            if ops[i].out.as_ref().map_or(false, |o| o.is_zero_size()) {
+                if let Some(size) = match_size(ops, i, -1, false) {
+                    apply_match_size(ops, i, -1, size);
                 }
-                for j in 0..ops[i].inputs.len() {
-                    let zs = ops[i].inputs[j].is_zero_size();
-                    if zs {
-                        ops[i].inputs[j].set_size(size);
+            }
+            for j in 0..ops[i].inputs.len() {
+                if ops[i].inputs[j].is_zero_size() {
+                    if let Some(size) = match_size(ops, i, j as i32, false) {
+                        apply_match_size(ops, i, j as i32, size);
                     }
                 }
             }
         }
-        // Bool-output family: output is size 1, inputs share size.
+        // Bool-output family (pcodecompile.cc:209-233): output forced to 1,
+        // inputs share a size via inputonly matchSize.
         OpCode::CPUI_INT_EQUAL
         | OpCode::CPUI_INT_NOTEQUAL
         | OpCode::CPUI_INT_SLESS
@@ -3185,86 +3297,108 @@ fn fillin_zero_indexed(ops: &mut [OpTpl], i: usize) {
         | OpCode::CPUI_BOOL_XOR
         | OpCode::CPUI_BOOL_AND
         | OpCode::CPUI_BOOL_OR => {
-            // Output is always size 1.
-            if let Some(o) = ops[i].out.as_mut() {
-                if o.is_zero_size() {
-                    o.set_size(ConstTpl::Real(1));
-                }
+            if ops[i].out.as_ref().map_or(false, |o| o.is_zero_size()) {
+                apply_match_size(ops, i, -1, ConstTpl::Real(1));
             }
-            // Inputs share a size: gather a hint from the other inputs.
-            let hint = first_nonzero_input_size(ops, i);
-            if let Some(size) = hint {
-                for j in 0..ops[i].inputs.len() {
-                    if ops[i].inputs[j].is_zero_size() {
-                        ops[i].inputs[j].set_size(size);
+            for j in 0..ops[i].inputs.len() {
+                if ops[i].inputs[j].is_zero_size() {
+                    if let Some(size) = match_size(ops, i, j as i32, true) {
+                        apply_match_size(ops, i, j as i32, size);
                     }
                 }
             }
         }
-        // Shift family: output matches input[0]; shift amount defaults to 4.
+        // Shift family (pcodecompile.cc:236-249): out ↔ in0 pairing, then
+        // the fallthrough subpiece-constant check fills in1 with 4.
         OpCode::CPUI_INT_LEFT | OpCode::CPUI_INT_RIGHT | OpCode::CPUI_INT_SRIGHT => {
-            let out_zs = ops[i].out.as_ref().map_or(false, |o| o.is_zero_size());
-            let in0_size = ops[i].inputs.first().map(|v| (v.is_zero_size(), v.size));
-            if let Some((in0_zs, in0_s)) = in0_size {
-                if out_zs && !in0_zs {
-                    if let Some(o) = ops[i].out.as_mut() {
-                        o.set_size(in0_s);
-                    }
-                } else if !out_zs && in0_zs {
-                    let out_s = ops[i].out.as_ref().map(|o| o.size).unwrap_or(ConstTpl::Real(0));
-                    if let Some(v) = ops[i].inputs.first_mut() {
-                        if v.is_zero_size() {
-                            v.set_size(out_s);
-                        }
-                    }
-                }
+            let out_zs = ops[i].out.as_ref().map_or(true, |o| o.is_zero_size());
+            let in0_zs = ops[i].inputs.first().map_or(true, |v| v.is_zero_size());
+            if out_zs && !in0_zs {
+                let size = ops[i].inputs[0].size;
+                apply_match_size(ops, i, -1, size);
+            } else if !out_zs && in0_zs {
+                let size = ops[i].out.as_ref().map(|o| o.size).unwrap();
+                apply_match_size(ops, i, 0, size);
             }
             if ops[i].inputs.len() > 1 && ops[i].inputs[1].is_zero_size() {
-                ops[i].inputs[1].set_size(ConstTpl::Real(4));
+                apply_match_size(ops, i, 1, ConstTpl::Real(4));
             }
         }
+        // SUBPIECE (pcodecompile.cc:246-248): only the constant shift input
+        // is filled (output/in0 are NOT — the oracle fixture pins this via
+        // ex14 failing size resolution).
         OpCode::CPUI_SUBPIECE => {
             if ops[i].inputs.len() > 1 && ops[i].inputs[1].is_zero_size() {
-                ops[i].inputs[1].set_size(ConstTpl::Real(4));
+                apply_match_size(ops, i, 1, ConstTpl::Real(4));
+            }
+        }
+        // CPOOLREF (pcodecompile.cc:250-258): out ↔ in0, remaining inputs
+        // sizeof(uintb) = 8.
+        OpCode::CPUI_CPOOLREF => {
+            let out_zs = ops[i].out.as_ref().map_or(true, |o| o.is_zero_size());
+            let in0_zs = ops[i].inputs.first().map_or(true, |v| v.is_zero_size());
+            if out_zs && !in0_zs {
+                let size = ops[i].inputs[0].size;
+                apply_match_size(ops, i, -1, size);
+            } else if !out_zs && in0_zs {
+                let size = ops[i].out.as_ref().map(|o| o.size).unwrap();
+                apply_match_size(ops, i, 0, size);
+            }
+            for j in 1..ops[i].inputs.len() {
+                if ops[i].inputs[j].is_zero_size() {
+                    apply_match_size(ops, i, j as i32, ConstTpl::Real(8));
+                }
             }
         }
         _ => {}
     }
 }
 
-// RUGRA-GLUE: first_nonzero_size
-/// Scan `ops` (except `skip`) for the first non-zero-size varnode and return
-/// its size. Used by `fillin_zero_indexed` to find a size template without
-/// holding a mutable borrow. Mirrors the scan inside `matchSize`
-/// (pcodecompile.cc:145-168).
-fn first_nonzero_size(ops: &[OpTpl], skip: usize) -> Option<ConstTpl> {
-    for (k, op) in ops.iter().enumerate() {
-        if let Some(o) = &op.out {
+// RUGRA-GLUE: match_size
+/// The read half of PcodeCompile::matchSize (pcodecompile.cc:145-168):
+/// find the first non-zero-size varnode of op `i` to use as a size source —
+/// the output first (unless `inputonly`), then the inputs in order. Only
+/// the CURRENT op's own varnodes participate; cross-op sync happens inside
+/// force_size, not here.
+fn match_size(ops: &[OpTpl], i: usize, j: i32, inputonly: bool) -> Option<ConstTpl> {
+    if !inputonly {
+        if let Some(o) = &ops[i].out {
             if !o.is_zero_size() {
                 return Some(o.size);
             }
         }
-        for vn in &op.inputs {
-            if !vn.is_zero_size() {
-                return Some(vn.size);
-            }
-        }
-        let _ = skip;
-        let _ = k;
     }
-    None
-}
-
-// RUGRA-GLUE: first_nonzero_input_size
-/// Scan `ops[skip]`'s inputs for the first non-zero size. Used by the
-/// bool-output family where only inputs share a size (output is size 1).
-fn first_nonzero_input_size(ops: &[OpTpl], i: usize) -> Option<ConstTpl> {
-    for vn in &ops[i].inputs {
+    for (k, vn) in ops[i].inputs.iter().enumerate() {
+        if (k as i32) == j {
+            continue;
+        }
         if !vn.is_zero_size() {
             return Some(vn.size);
         }
     }
     None
+}
+
+// RUGRA-GLUE: apply_match_size
+/// The write half of matchSize: force_size the zero-size slot `j` (-1 =
+/// output) of op `i` to `size`, with localtemp propagation over `ops`.
+/// The slot varnode is swapped out first so `force_size` can walk the
+/// whole op slice mutably (Rust aliasing rules; semantics unchanged).
+fn apply_match_size(ops: &mut [OpTpl], i: usize, j: i32, size: ConstTpl) {
+    if j < 0 {
+        if let Some(mut o) = ops[i].out.take() {
+            let _ = force_size(&mut o, size, ops);
+            ops[i].out = Some(o);
+        }
+    } else if (j as usize) < ops[i].inputs.len() {
+        // Swap the slot varnode out (default-constructed C++ VarnodeTpl
+        // equivalent), force its size while walking the whole slice, then
+        // swap it back.
+        let mut swapped = VarnodeTpl::new(ConstTpl::Real(0), ConstTpl::Real(0), ConstTpl::Real(0));
+        std::mem::swap(&mut ops[i].inputs[j as usize], &mut swapped);
+        let _ = force_size(&mut swapped, size, ops);
+        std::mem::swap(&mut ops[i].inputs[j as usize], &mut swapped);
+    }
 }
 
 // ===========================================================================
@@ -3281,6 +3415,14 @@ fn first_nonzero_input_size(ops: &[OpTpl], i: usize) -> Option<ConstTpl> {
 /// Parse outcome for a single statement. Bison's `statement` rule returns
 /// `vector<OpTpl *> *`; we return the same vec (empty on the error forms).
 type StatementResult = Result<Vec<OpTpl>, String>;
+
+// Ghidra: pcodeparse.cc yyerror via bison skeleton ("syntax error")
+/// The message Bison's error reporting passes to `pcodeerror` for any
+/// parse-table failure (yyparse's default `YY_("syntax error")` string).
+/// Custom yyerror texts only come from grammar ACTIONS; every structural
+/// mismatch (missing ';', unexpected token, bad jumpdest shape, ...) is
+/// this exact lowercase text and aborts the parse (YYERROR).
+const SYNTAX_ERROR: &str = "syntax error";
 
 /// Token slot held across lookahead in the recursive-descent parser. Holds
 /// the resolved `PcodeTokenKind` plus, for INTEGER/STRING, the payload.
@@ -3343,6 +3485,19 @@ impl PcodeSnippet {
         // rtl: rtlmid ENDOFSTREAM  { pcode->setResult($1); }
         let mut ct = ConstructTpl::new();
         loop {
+            // Bison lexes lazily: a grammar action runs before the next
+            // yylex call, so symbol-table mutations performed by the
+            // previous statement (newOutput/newLocalDefinition/defineLabel)
+            // ARE visible to the next token's resolution. The recursive-
+            // descent driver pre-fetches one lookahead token, so re-resolve
+            // the pending lookahead at each statement boundary to recover
+            // the same visibility (`local q; q = 1;` — the second q must
+            // resolve to the symbol, not stay STRING).
+            self.refresh_lookahead_symbol();
+            if self.hard_error.is_some() {
+                self.result = None;
+                return false;
+            }
             // Peek the current token.
             let cur_kind = self
                 .current
@@ -3357,7 +3512,7 @@ impl PcodeSnippet {
                 }
                 PcodeTokenKind::Illegal => {
                     // Unterminated stream — Bison reports "Syntax error".
-                    self.report_error("Syntax error");
+                    self.report_error(SYNTAX_ERROR);
                     self.result = Some(ct);
                     return false;
                 }
@@ -3369,13 +3524,43 @@ impl PcodeSnippet {
                     //   LOCAL STRING ';'           -> rtlmid (newLocalDefinition)
                     //   LOCAL STRING ':' INT ';'   -> rtlmid (newLocalDefinition)
                     //   LOCAL STRING '=' ...       -> statement (newOutput)
+                    //   LOCAL specificsymbol '='   -> rule y:111 redefinition
+                    //                                 error ("Redefinition of
+                    //                                 symbol: X")
                     // We peek two tokens ahead by consuming LOCAL and STRING,
                     // then dispatching on the third.
                     self.advance(); // consume LOCAL
+                    // pcodeparse.y:111: `LOCAL_KEY specificsymbol '='` — a
+                    // resolved symbol (not a raw STRING) after LOCAL is the
+                    // redefinition form when '=' follows; anything else is a
+                    // parse-table failure.
+                    if matches!(
+                        self.current.as_ref().map(|t| t.kind),
+                        Some(
+                            PcodeTokenKind::VarSym
+                                | PcodeTokenKind::OperandSym
+                                | PcodeTokenKind::JumpSym
+                        )
+                    ) {
+                        let name = self
+                            .current
+                            .as_ref()
+                            .map(|t| t.ident.clone())
+                            .unwrap_or_default();
+                        self.advance(); // consume the symbol
+                        if self.peek_punct('=') {
+                            self.report_error(&format!("Redefinition of symbol: {}", name));
+                            self.skip_to_statement_boundary();
+                            continue;
+                        }
+                        self.report_error(SYNTAX_ERROR);
+                        self.result = Some(ct);
+                        return false;
+                    }
                     let name = match self.expect_string() {
                         Some(n) => n,
                         None => {
-                            self.report_error("Expected identifier after 'local'");
+                            self.report_error(SYNTAX_ERROR);
                             self.result = Some(ct);
                             return false;
                         }
@@ -3390,12 +3575,16 @@ impl PcodeSnippet {
                             Ok(e) => e,
                             Err(msg) => {
                                 self.report_error(&msg);
+                                if self.hard_error.is_some() {
+                                    self.result = None;
+                                    return false;
+                                }
                                 self.skip_to_statement_boundary();
                                 continue;
                             }
                         };
                         if !self.peek_punct(';') {
-                            self.report_error("Expected ';' after local assignment");
+                            self.report_error(SYNTAX_ERROR);
                             self.skip_to_statement_boundary();
                             continue;
                         }
@@ -3419,14 +3608,22 @@ impl PcodeSnippet {
                                 Ok(e) => e,
                                 Err(msg) => {
                                     self.report_error(&msg);
+                                    if self.hard_error.is_some() {
+                                        self.result = None;
+                                        return false;
+                                    }
                                     self.skip_to_statement_boundary();
                                     continue;
                                 }
                             };
-                            let _ = self.peek_punct(';') && {
-                                self.advance();
-                                true
-                            };
+                            // The ';' is mandatory (pcodeparse.y:109); a
+                            // missing terminator is a parse-table failure.
+                            if !self.peek_punct(';') {
+                                self.report_error(SYNTAX_ERROR);
+                                self.skip_to_statement_boundary();
+                                continue;
+                            }
+                            self.advance(); // ';'
                             let ops = self.new_output(true, rhs, &name, size);
                             if !ct.add_op_list(ops) {
                                 self.report_error("Multiple delayslot declarations");
@@ -3462,6 +3659,13 @@ impl PcodeSnippet {
                         }
                         Err(msg) => {
                             self.report_error(&msg);
+                            if self.hard_error.is_some() {
+                                // SleighError escape: the C++ exception
+                                // unwinds out of parseStream leaving result
+                                // unset and errorcount untouched.
+                                self.result = None;
+                                return false;
+                            }
                             // Bison would YYERROR; we try to recover by
                             // skipping to the next ';' or ENDOFSTREAM.
                             self.skip_to_statement_boundary();
@@ -3469,6 +3673,10 @@ impl PcodeSnippet {
                     }
                 }
             }
+        }
+        if self.hard_error.is_some() {
+            self.result = None;
+            return false;
         }
         // pcodeparse.y:780: propagateSize(result).
         if !propagate_size(&mut ct) {
@@ -3544,7 +3752,7 @@ impl PcodeSnippet {
             self.current.as_ref().map(|t| t.kind),
             Some(PcodeTokenKind::GotoKey)
         ) {
-            return Err("Expected 'goto' after if-condition".to_string());
+            return Err(SYNTAX_ERROR.to_string());
         }
         self.advance(); // consume GOTO
         let dest = self.parse_jumpdest()?;
@@ -3593,7 +3801,7 @@ impl PcodeSnippet {
         self.advance(); // consume LOCAL
         let name = self
             .expect_string()
-            .ok_or_else(|| "Expected identifier after 'local'".to_string())?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         if self.peek_punct(':') {
             // LOCAL STRING ':' INTEGER '=' expr ';'
             self.advance(); // ':'
@@ -3650,7 +3858,7 @@ impl PcodeSnippet {
                 SleightSymbolKind::UserOp(index) => Some(u64::from(*index)),
                 _ => None,
             })
-            .ok_or_else(|| format!("Unknown user-op symbol: {}", ident))?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         self.advance(); // consume UserOpSym
         self.expect_punct('(');
         let params = self.parse_paramlist()?;
@@ -3715,9 +3923,13 @@ impl PcodeSnippet {
                     return Ok(self.new_output(true, rhs, &ident, size as u64));
                 }
                 _ => {
-                    // lhsvarnode: STRING — unknown assignment varnode
-                    // (pcodeparse.y:107 via 213).
-                    return Err(format!("Unknown assignment varnode: {}", ident));
+                    // Bison reduces `varnode: STRING` (pcodeparse.y:204)
+                    // here — the declaration shift conflict only fires on
+                    // '=' / ':' lookahead, so the varnode rule's error
+                    // text wins. (`lhsvarnode: STRING`, y:213, is a dead
+                    // rule: a STRING lhs with '=' lookahead always shifts
+                    // to the declaration form y:108 first.)
+                    return Err(format!("Unknown varnode parameter: {}", ident));
                 }
             }
         }
@@ -3766,7 +3978,7 @@ impl PcodeSnippet {
                 self.expect_punct(')');
                 Err("Illegal subpiece on left-hand side of assignment".to_string())
             }
-            _ => Err(format!("Expected '=', '[', ':', or '(' after left-hand-side, got {:?}", next_kind)),
+            _ => Err(SYNTAX_ERROR.to_string()),
         }
     }
 
@@ -3777,7 +3989,7 @@ impl PcodeSnippet {
         let cur = self
             .current
             .clone()
-            .ok_or_else(|| "Unexpected end of input".to_string())?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         match cur.kind {
             PcodeTokenKind::VarSym | PcodeTokenKind::OperandSym | PcodeTokenKind::JumpSym => {
                 // specificsymbol -> getVarnode()
@@ -3789,7 +4001,7 @@ impl PcodeSnippet {
                 self.advance();
                 Err(format!("Unknown assignment varnode: {}", cur.ident))
             }
-            other => Err(format!("Expected left-hand-side varnode, got {:?}", other)),
+            _ => Err(SYNTAX_ERROR.to_string()),
         }
     }
 
@@ -3800,7 +4012,7 @@ impl PcodeSnippet {
         let cur = self
             .current
             .clone()
-            .ok_or_else(|| "Unexpected end of input".to_string())?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         match cur.kind {
             PcodeTokenKind::JumpSym => {
                 // pcodeparse.y:195 `jumpdest: JUMPSYM { VarnodeTpl *sym =
@@ -3816,7 +4028,7 @@ impl PcodeSnippet {
                         SleightSymbolKind::JumpTarget(kind) => Some(kind),
                         _ => None,
                     })
-                    .ok_or_else(|| format!("Unresolved jump symbol: {}", cur.ident))?;
+                    .ok_or_else(|| SYNTAX_ERROR.to_string())?;
                 self.advance();
                 let sym = kind.get_varnode(self.constant_space);
                 Ok(VarnodeTpl::new(
@@ -3827,6 +4039,32 @@ impl PcodeSnippet {
             }
             PcodeTokenKind::Integer => {
                 self.advance();
+                // pcodeparse.y:198 `INTEGER '[' SPACESYM ']'`: the explicit
+                // space form fixes both space and size (the space's
+                // address size) instead of the curspace markers.
+                if self.peek_punct('[') {
+                    self.advance(); // '['
+                    let spc = match self.current.as_ref().map(|t| t.kind) {
+                        Some(PcodeTokenKind::SpaceSym) => {
+                            let ident = self.current.as_ref().unwrap().ident.clone();
+                            self.advance();
+                            self.symbols
+                                .get(&ident)
+                                .and_then(|s| match &s.kind {
+                                    SleightSymbolKind::Space(s) => Some(*s),
+                                    _ => None,
+                                })
+                                .unwrap_or(AddressSpace::Const)
+                        }
+                        _ => return Err(SYNTAX_ERROR.to_string()),
+                    };
+                    self.expect_punct(']')?;
+                    return Ok(VarnodeTpl::new(
+                        ConstTpl::SpaceId(spc),
+                        ConstTpl::Real(cur.int_val),
+                        ConstTpl::Real(spc.addr_size() as u64),
+                    ));
+                }
                 Ok(VarnodeTpl::new(
                     ConstTpl::JCurSpace,
                     ConstTpl::Real(cur.int_val),
@@ -3843,20 +4081,22 @@ impl PcodeSnippet {
                 ))
             }
             PcodeTokenKind::Punct('<') | PcodeTokenKind::LabelSym => {
-                // label form (pcodeparse.y:199).
+                // label form (pcodeparse.y:199): the size constant is
+                // `sizeof(uintm)` — uintm is a 32-bit type in Ghidra
+                // (types.h:27 `typedef uint32_t uintm`).
                 let mut labsym = self.parse_label()?;
                 labsym.increment_ref_count();
                 Ok(VarnodeTpl::new(
                     ConstTpl::SpaceId(AddressSpace::Const),
                     ConstTpl::JRelative(labsym.index),
-                    ConstTpl::Real(std::mem::size_of::<usize>() as u64),
+                    ConstTpl::Real(4),
                 ))
             }
             PcodeTokenKind::String => {
                 self.advance();
                 Err(format!("Unknown jump destination: {}", cur.ident))
             }
-            other => Err(format!("Expected jump destination, got {:?}", other)),
+            _ => Err(SYNTAX_ERROR.to_string()),
         }
     }
 
@@ -3869,7 +4109,7 @@ impl PcodeSnippet {
             let cur = self
                 .current
                 .clone()
-                .ok_or_else(|| "Expected label after '<'".to_string())?;
+                .ok_or_else(|| SYNTAX_ERROR.to_string())?;
             let labsym = match cur.kind {
                 PcodeTokenKind::LabelSym => {
                     // Look up the existing label.
@@ -3887,7 +4127,7 @@ impl PcodeSnippet {
                     self.labels.push(ls.clone());
                     ls
                 }
-                other => return Err(format!("Expected label name, got {:?}", other)),
+                _ => return Err(SYNTAX_ERROR.to_string()),
             };
             self.expect_punct('>');
             Ok(labsym)
@@ -3905,7 +4145,7 @@ impl PcodeSnippet {
                 .cloned()
                 .unwrap_or_else(|| LabelSymbol::new(cur.ident, 0)))
         } else {
-            Err("Expected label".to_string())
+            Err(SYNTAX_ERROR.to_string())
         }
     }
 
@@ -3920,9 +4160,9 @@ impl PcodeSnippet {
             let cur = self
                 .current
                 .clone()
-                .ok_or_else(|| "Expected space symbol after '['".to_string())?;
+                .ok_or_else(|| SYNTAX_ERROR.to_string())?;
             if !matches!(cur.kind, PcodeTokenKind::SpaceSym) {
-                return Err(format!("Expected space symbol, got {:?}", cur.kind));
+                return Err(SYNTAX_ERROR.to_string());
             }
             let spc = self
                 .symbols
@@ -3954,7 +4194,7 @@ impl PcodeSnippet {
         let cur = self
             .current
             .clone()
-            .ok_or_else(|| "Unexpected end of input".to_string())?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         match cur.kind {
             PcodeTokenKind::VarSym | PcodeTokenKind::OperandSym | PcodeTokenKind::JumpSym => {
                 let vn = self.specific_symbol_varnode(&cur.ident)?;
@@ -3983,7 +4223,7 @@ impl PcodeSnippet {
                 self.advance();
                 Err(format!("Unknown varnode parameter: {}", cur.ident))
             }
-            other => Err(format!("Expected varnode, got {:?}", other)),
+            _ => Err(SYNTAX_ERROR.to_string()),
         }
     }
 
@@ -3993,7 +4233,7 @@ impl PcodeSnippet {
         let cur = self
             .current
             .clone()
-            .ok_or_else(|| "Unexpected end of input".to_string())?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         match cur.kind {
             PcodeTokenKind::Integer => {
                 self.advance();
@@ -4023,7 +4263,7 @@ impl PcodeSnippet {
                     ConstTpl::Real(0),
                 ))
             }
-            other => Err(format!("Expected integer varnode, got {:?}", other)),
+            _ => Err(SYNTAX_ERROR.to_string()),
         }
     }
 
@@ -4034,7 +4274,7 @@ impl PcodeSnippet {
         let sym = self
             .symbols
             .get(name)
-            .ok_or_else(|| format!("Unresolved symbol: {}", name))?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         match &sym.kind {
             SleightSymbolKind::Varnode(vd) => Ok(VarnodeTpl::new(
                 ConstTpl::SpaceId(vd.space),
@@ -4072,7 +4312,7 @@ impl PcodeSnippet {
             SleightSymbolKind::JumpTarget(kind) => {
                 Ok(kind.get_varnode(self.constant_space))
             }
-            other => Err(format!("Symbol {} is not a specific symbol: {:?}", name, other)),
+            _ => Err(SYNTAX_ERROR.to_string()),
         }
     }
 
@@ -4095,7 +4335,14 @@ impl PcodeSnippet {
                 self.advance();
                 let next_min = if right_assoc { prec } else { prec + 1 };
                 let right = self.parse_expr(next_min)?;
-                left = self.create_op_binary(opc, left, right);
+                // Six comparison actions build the op with the operands
+                // REVERSED (pcodeparse.y:134/136/138/140/161/163, e.g.
+                // `expr '>' expr { createOp(CPUI_INT_LESS,$3,$1) }`).
+                if swaps_operands(cur.kind) {
+                    left = self.create_op_binary(opc, right, left);
+                } else {
+                    left = self.create_op_binary(opc, left, right);
+                }
                 continue;
             }
             // Special: specificsymbol ':' INTEGER (bitrange) and
@@ -4118,7 +4365,7 @@ impl PcodeSnippet {
         let cur = self
             .current
             .clone()
-            .ok_or_else(|| "Unexpected end of input in expression".to_string())?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         match cur.kind {
             // '(' expr ')'
             PcodeTokenKind::Punct('(') => {
@@ -4192,7 +4439,7 @@ impl PcodeSnippet {
                         SleightSymbolKind::UserOp(index) => Some(u64::from(*index)),
                         _ => None,
                     })
-                    .ok_or_else(|| format!("Unknown user-op symbol: {}", ident))?;
+                    .ok_or_else(|| SYNTAX_ERROR.to_string())?;
                 self.advance();
                 self.expect_punct('(')?;
                 let params = self.parse_paramlist()?;
@@ -4211,7 +4458,7 @@ impl PcodeSnippet {
                 self.advance();
                 Err(format!("Unknown varnode parameter: {}", cur.ident))
             }
-            other => Err(format!("Unexpected token in expression: {:?}", other)),
+            _ => Err(SYNTAX_ERROR.to_string()),
         }
     }
 
@@ -4266,7 +4513,7 @@ impl PcodeSnippet {
             .current
             .as_ref()
             .map(|t| t.ident.clone())
-            .ok_or_else(|| "Expected specific symbol".to_string())?;
+            .ok_or_else(|| SYNTAX_ERROR.to_string())?;
         self.advance(); // consume the symbol token
         let next_kind = self
             .current
@@ -4336,6 +4583,32 @@ impl PcodeSnippet {
         self.current = Some(self.lex_full());
     }
 
+    // RUGRA-GLUE: lookahead re-resolution at statement boundaries
+    /// Re-resolve the pending lookahead if it is still a raw STRING: the
+    /// symbol table may have changed since the token was fetched (Bison
+    /// lexes only after finishing the previous rule's action, so a token
+    /// following a statement always sees the statement's symbol-table
+    /// mutations; the pre-fetched lookahead of the recursive-descent
+    /// driver must be upgraded to match).
+    fn refresh_lookahead_symbol(&mut self) {
+        let ident = match self.current.as_ref() {
+            Some(t) if matches!(t.kind, PcodeTokenKind::String) => t.ident.clone(),
+            _ => return,
+        };
+        if let Some(sym) = self.resolve_symbol(&ident) {
+            if let Some(t) = self.current.as_mut() {
+                t.kind = match sym.kind {
+                    SleightSymbolKind::Space(_) => PcodeTokenKind::SpaceSym,
+                    SleightSymbolKind::UserOp(_) => PcodeTokenKind::UserOpSym,
+                    SleightSymbolKind::Varnode(_) => PcodeTokenKind::VarSym,
+                    SleightSymbolKind::Operand(_, _) => PcodeTokenKind::OperandSym,
+                    SleightSymbolKind::JumpTarget(_) => PcodeTokenKind::JumpSym,
+                    SleightSymbolKind::Label(_, _) => PcodeTokenKind::LabelSym,
+                };
+            }
+        }
+    }
+
     // RUGRA-GLUE: Punctuation predicate for the hand-written parser; Ghidra compares Bison lookahead tokens, with parser parity tracked by PARSER-0001.
     fn peek_punct(&self, c: char) -> bool {
         matches!(
@@ -4350,11 +4623,7 @@ impl PcodeSnippet {
             self.advance();
             Ok(())
         } else {
-            Err(format!(
-                "Expected '{}', got {:?}",
-                c,
-                self.current.as_ref().map(|t| t.kind)
-            ))
+            Err(SYNTAX_ERROR.to_string())
         }
     }
 
@@ -4479,6 +4748,24 @@ fn binary_op_for(kind: PcodeTokenKind) -> Option<(OpCode, u8, bool)> {
         PcodeTokenKind::FDiv => Some((OpCode::CPUI_FLOAT_DIV, 10, false)),
         _ => None,
     }
+}
+
+// Ghidra: pcodeparse.y:134/136/138/140/161/163 (swapped-operand actions)
+/// Whether this binary operator's semantic action passes the operands to
+/// createOp in reversed order — the family Ghidra models by generating the
+/// mirrored comparison instead of a dedicated greater-than opcode:
+/// `>`→INT_LESS, `>=`→INT_LESSEQUAL, `s>`→INT_SLESS, `s>=`→INT_SLESSEQUAL,
+/// `f>`→FLOAT_LESS, `f>=`→FLOAT_LESSEQUAL (all with `($3,$1)`).
+fn swaps_operands(kind: PcodeTokenKind) -> bool {
+    matches!(
+        kind,
+        PcodeTokenKind::Punct('>')
+            | PcodeTokenKind::GreatEqual
+            | PcodeTokenKind::SGreat
+            | PcodeTokenKind::SGreatEqual
+            | PcodeTokenKind::FGreat
+            | PcodeTokenKind::FGreatEqual
+    )
 }
 
 // ===========================================================================
@@ -4878,13 +5165,19 @@ mod tests {
     #[test]
     fn test_snippet_new_seeds_spaces() {
         let snip = PcodeSnippet::new();
-        // Ram, Register, Unique, Const, Stack, Iop + inst_dest + inst_ref.
+        // const/OTHER/unique/ram/register + inst_dest + inst_ref — the
+        // CONSTANT/PROCESSOR/SPACEBASE/INTERNAL filter of the ctor
+        // (pcodeparse.y:686-692) over the x86-64.sla space set. stack/iop
+        // are NOT seeded (no .sla defines a stack space; iop is IPTR_IOP),
+        // pinned byte-exact by the pcode_snippet_face_1204 fixture's
+        // sp05-sp07 records.
         assert!(snip.lookup_symbol("ram").is_some());
         assert!(snip.lookup_symbol("register").is_some());
         assert!(snip.lookup_symbol("unique").is_some());
         assert!(snip.lookup_symbol("const").is_some());
-        assert!(snip.lookup_symbol("stack").is_some());
-        assert!(snip.lookup_symbol("iop").is_some());
+        assert!(snip.lookup_symbol("OTHER").is_some());
+        assert!(snip.lookup_symbol("stack").is_none());
+        assert!(snip.lookup_symbol("iop").is_none());
         assert!(snip.lookup_symbol("inst_dest").is_some());
         assert!(snip.lookup_symbol("inst_ref").is_some());
         assert!(!snip.has_errors());
@@ -5177,6 +5470,184 @@ mod tests {
         // the jumpdest rule reports the unknown destination.
         let mut snip = PcodeSnippet::new();
         assert!(!snip.parse_stream("goto inst_next;"));
+    }
+
+    /// Shared fixture-face host: the x86-64.sla register varnode facts the
+    /// locked-oracle fixture observes (RAX register:0x0:8, RBX
+    /// register:0x18:8, EAX register:0x0:4), mirroring the oracle SYM
+    /// section of tests/oracle/pcode_snippet_face_1204.cc.
+    struct FaceHost;
+
+    impl SleighSymbolLookup for FaceHost {
+        fn find_symbol(&self, name: &str) -> Option<SleighSymbol> {
+            let (offset, size) = match name {
+                "RAX" => (0x0u64, 8usize),
+                "RBX" => (0x18, 8),
+                "EAX" => (0x0, 4),
+                "AL" => (0x0, 1),
+                _ => return None,
+            };
+            Some(SleighSymbol {
+                name: name.to_string(),
+                kind: SleightSymbolKind::Varnode(VarnodeData {
+                    space: AddressSpace::Register,
+                    offset,
+                    size,
+                }),
+            })
+        }
+    }
+
+    fn face_snippet() -> PcodeSnippet {
+        let mut snip = PcodeSnippet::new();
+        snip.set_sleigh_lookup(std::sync::Arc::new(FaceHost));
+        snip
+    }
+
+    #[test]
+    fn test_face_comparison_swap_operands() {
+        // pcodeparse.y:134/136: `expr '>' expr` builds INT_LESS with the
+        // operands REVERSED (`createOp(CPUI_INT_LESS,$3,$1)`) — the fixture
+        // ex04 record pins the op order (RBX input first).
+        let mut snip = face_snippet();
+        assert!(
+            snip.parse_stream("local a:1 = RAX > RBX;"),
+            "{}",
+            snip.get_error_message()
+        );
+        let ct = snip.release_result().expect("result set");
+        let op = &ct.get_opvec()[0];
+        assert_eq!(op.opc, OpCode::CPUI_INT_LESS);
+        assert_eq!(op.inputs[0].offset, ConstTpl::Real(0x18)); // RBX first
+        assert_eq!(op.inputs[1].offset, ConstTpl::Real(0x0)); // RAX second
+
+        let mut snip = face_snippet();
+        assert!(snip.parse_stream("local b:1 = RAX >= RBX;"));
+        let ct = snip.release_result().expect("result set");
+        let op = &ct.get_opvec()[0];
+        assert_eq!(op.opc, OpCode::CPUI_INT_LESSEQUAL);
+        assert_eq!(op.inputs[0].offset, ConstTpl::Real(0x18));
+    }
+
+    #[test]
+    fn test_face_force_size_localtemp_propagation() {
+        // `local q; local r; q = r; r = RBX;` only resolves when force_size
+        // propagates the late COPY's 8 across every op holding the same
+        // unique-offset local temp (pcodecompile.cc:115-142) — the fixture
+        // st39 record pins the resolved template.
+        let mut snip = face_snippet();
+        assert!(
+            snip.parse_stream("local q; local r; q = r; r = RBX;"),
+            "{}",
+            snip.get_error_message()
+        );
+        let ct = snip.release_result().expect("result set");
+        assert_eq!(ct.get_opvec().len(), 2);
+        for op in ct.get_opvec() {
+            assert!(!op.is_zero_size(), "all sizes resolved");
+        }
+    }
+
+    #[test]
+    fn test_face_local_symbol_redefinition_error() {
+        // pcodeparse.y:111 `LOCAL specificsymbol '='` — a resolved symbol
+        // after `local` reports "Redefinition of symbol: X" (fixture st15).
+        let mut snip = face_snippet();
+        assert!(!snip.parse_stream("local RAX = 1;"));
+        assert_eq!(snip.get_error_message(), "Redefinition of symbol: RAX");
+    }
+
+    #[test]
+    fn test_face_lookahead_refresh_after_symbol_mutation() {
+        // Bison lexes lazily (after the rule action), so the second `q` in
+        // `local q; q = RBX;` resolves to the just-defined symbol instead
+        // of staying STRING (fixture LF|clr1; a stale pre-fetched lookahead
+        // used to report a spurious duplicate).
+        let mut snip = face_snippet();
+        assert!(
+            snip.parse_stream("local q; q = RBX;"),
+            "{}",
+            snip.get_error_message()
+        );
+        let ct = snip.release_result().expect("result set");
+        assert_eq!(ct.get_opvec()[0].opc, OpCode::CPUI_COPY);
+    }
+
+    #[test]
+    fn test_face_jumpdest_integer_space_form() {
+        // pcodeparse.y:198 `INTEGER '[' SPACESYM ']'` — explicit-space
+        // jumpdest; the size is the space's address size (register = 4 on
+        // the x86-64.sla), pinned by the fixture st17/st18 records.
+        let mut snip = face_snippet();
+        assert!(
+            snip.parse_stream("goto 0x20[register];"),
+            "{}",
+            snip.get_error_message()
+        );
+        let ct = snip.release_result().expect("result set");
+        let target = &ct.get_opvec()[0].inputs[0];
+        assert_eq!(target.space, ConstTpl::SpaceId(AddressSpace::Register));
+        assert_eq!(target.offset, ConstTpl::Real(0x20));
+        assert_eq!(target.size, ConstTpl::Real(4));
+    }
+
+    #[test]
+    fn test_face_label_jumpdest_size_and_count() {
+        // Label jumpdest size is sizeof(uintm) = 4 (types.h:27 uint32_t)
+        // and each placed label increments the template's numlabels
+        // (semantics.cc:748, the `labels` attribute of <construct_tpl>) —
+        // both pinned by the fixture st20 record.
+        let mut snip = face_snippet();
+        assert!(
+            snip.parse_stream("<lab> RAX = RBX; goto <lab>;"),
+            "{}",
+            snip.get_error_message()
+        );
+        let ct = snip.release_result().expect("result set");
+        assert_eq!(ct.num_labels, 1);
+        let branch = ct
+            .get_opvec()
+            .iter()
+            .find(|op| op.opc == OpCode::CPUI_BRANCH)
+            .expect("branch op");
+        assert_eq!(branch.inputs[0].size, ConstTpl::Real(4));
+    }
+
+    #[test]
+    fn test_face_sleigh_error_escape_channel() {
+        // buildTruncatedVarnode's out-of-bounds throw (pcodecompile.cc:580)
+        // escapes parseStream without touching errorcount — surfaced on the
+        // hard-error channel (fixture st38 EXC record).
+        let mut snip = face_snippet();
+        assert!(!snip.parse_stream("local t = AL[0,16];"));
+        assert_eq!(snip.get_hard_error(), Some("Requested bit range out of bounds"));
+        assert!(!snip.has_errors());
+    }
+
+    #[test]
+    fn test_face_bare_string_statement_error_text() {
+        // A bare STRING statement reduces `varnode: STRING` (y:204), not
+        // the dead `lhsvarnode: STRING` rule — the fixture st28 record
+        // pins "Unknown varnode parameter: zz".
+        let mut snip = face_snippet();
+        assert!(!snip.parse_stream("zz;"));
+        assert_eq!(snip.get_error_message(), "Unknown varnode parameter: zz");
+    }
+
+    #[test]
+    fn test_face_syntax_error_texts() {
+        // Pure parse-table failures carry bison's default message (via
+        // pcodeerror), pinned by the fixture sp06/st26/st30/lx06 records.
+        for text in ["*[stack]:8 RAX = RBX;", "RAX = = 1;", "RAX = RAX $ 1;"] {
+            let mut snip = face_snippet();
+            assert!(!snip.parse_stream(text));
+            assert_eq!(snip.get_error_message(), "syntax error", "case {text:?}");
+        }
+        // Second `local q:4` after q became a symbol: LOCAL VARSYM ':' is a
+        // parse failure (st26).
+        let mut snip = face_snippet();
+        assert!(!snip.parse_stream("local q:8 = 1; local q:4 = 2;"));
+        assert_eq!(snip.get_error_message(), "syntax error");
     }
 
     #[test]
