@@ -55,10 +55,10 @@
 # 分片协议 27178 仍为 SQLITE3_SCOREBOARD 记分板口径, 两协议各按各的账本记账）。
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 curl	56	74	MERGEBATCH5-RATCHET-REPIN-0001	1a41d6ad	2026-09-26
-httpd	92	29	CSPEC-GLOBAL-APPLY-HTTPD-RATCHET-0001	2cce7b99	2026-09-27
-vsh	16	71	MERGEBATCH5-RATCHET-REPIN-0001	6178d1ea	2026-09-26
-sq	7500	810	MERGEBATCH5-RATCHET-REPIN-0001	6178d1ea	2026-09-26
-sqlite	26411	1385	GENWIRE-SQLITE-RATCHET-REPIN-0001	26674f7d	2026-09-27
+httpd	90	29	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
+vsh	12	71	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
+sq	4197	810	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
+sqlite	26217	1385	MERGEBATCH22-RATCHET-REPIN-0001	16b71c8a	2026-09-27
 # 2026-09-26 MERGEBATCH18 波次增益锁定（MB18-RATCHET-REPIN-0001, root 授权重钉,
 # @ba6e670e = MB18 23 支合并+repin 态 fresh 实测）:
 # ① httpd ceiling 156→98（TYPINGPX-MIRROR-FRESH-DB-0001 落地——镜面臂逐函数 fresh
@@ -116,3 +116,26 @@ sqlite	26411	1385	GENWIRE-SQLITE-RATCHET-REPIN-0001	26674f7d	2026-09-27
 #    =304−163[FUNCINJECT 311→148 改善在 MB20 基上全量叠加]+TYPESEEDARB −7 复合
 #    （ap_pregsub 122→13·ap_fini_vhost_config 45→27[TYPESEEDARB −5∘FUNCINJECT −13
 #    双改叠加]·main 15→13·逐函数归因见 MB21 终报）;result/ 已回流新档。
+
+# 2026-09-27 MERGEBATCH22 波次增益锁定（MB22-RATCHET-REPIN-0001, root 授权重钉,
+# @16b71c8a = MB22 9 支合并态 fresh 实测;测量树=16b71c8a 本身[repin commit 只改本表]）:
+# ① httpd ceiling 92→90（STRDATA 落地——PRINTC-STRDATA-TYPELOCK-0001 镜面 badstring 对
+#    收口: ap_ht_time builtin_strncpy(pcVar3,"+0000",5) golden direct-runner:4948 逐字
+#    [含前导空白];BASE↔FIX 全语料 diff 恰 1 行=票面行,车道亲证;floor 29 不动）。
+#    门禁实测 90/90 路径精确命中新钉值。
+# ② vsh ceiling 16→12（SUBFLOWFIX 落地——getRepeatSlot 1:1 后 unaff_100002ef 族
+#    remoteGetUNIXSocket 站点同根自愈 −3,vsh 面 0 命中亲证;floor 71 不动）。
+#    门禁实测 12/12 精确命中。
+# ③ sq ceiling 7500→4197（SUBFLOWFIX unaff 声明 hunk 整体消失——unaff_100000f8/16c/
+#    186/18e 全族 sq 全语料 0 命中亲证;净 −30=车道基 −111 扣除 MB21 typing 批已吸收
+#    之 4321→4227[−94,xz_options/NLZMA]交集后余量;--one 609 复现 unaff 12→0;
+#    floor 810 不动,810/810 ok health ok）。任务书 ~4116 预估=车道基简单外推,
+#    集成实测 4197 为准[执法协议自洽: 门禁臂测什么钉什么]。
+# ④ sqlite ceiling 26411→26217（SUBFLOWFIX 同机制——车道基 26665→26239[−426]亲证,
+#    集成净 −194=26411 基上同族增量;matched 1385/1385 health ok;strdata/volatileout
+#    车道 sqlite BASE↔FIX 字节恒等/构造性零差亲证,非其贡献）。
+# ⑤ curl 56/56 恒等零漂移。canon: curl 157/0/0 md5 51cc85d2==MB21 基线字节恒等;
+#    httpd **139/0/0 md5 87f5a240**=141−2[STRDATA 经 MB21 FUNCINJECT 通道在 canon 面
+#    显形: ap_ht_time badstring 对→"+0000" golden:5183 逐字,车道树 canon 恒等系其基
+#    无 funcinject 通道,堆叠交互在集成面首次显形——集成门禁价值实证];matched 34;
+#    result/ 已回流新档。
