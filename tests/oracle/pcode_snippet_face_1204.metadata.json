@@ -3,7 +3,7 @@
  "fixture_id": "PARSEADJ-PARSEFACE-PCODE-0001",
  "title": "pcode-snippet parser whole face (generator-absorbed equivalence unit): PcodeSnippet::parseStream parse trees and error texts over p-code semantic strings",
  "overall_status": "MATCH",
- "status_note": "Lane PCODEFACE (wt/pcodeface, base 6a458387). The locked Ghidra 12.0.4 snippet compiler (oracle commit e40ed130) was driven on a bare SLEIGH engine over the production x86-64.sla — the same const SleighBase* handle PcodeInjectLibrarySleigh::parseInject hands to PcodeSnippet (inject_sleigh.cc:387-416) — and the lane-tree Rugra recursive-descent driver (src/pcodeparse.rs) with the FaceLanguage symbol-lookup host. Both sides produced 110 records / identical bytes (SHA-256 1b30d20db49365a77c83b3dd6d0767c01bd717603e3a5515684887a61c149377). First bilateral run pinned 12 driver gaps (g1-g12); all fixed in src/pcodeparse.rs (commit 04a83ee9) and re-run to identity. Runner: tools/run_pcode_snippet_face_oracle.sh (lane iteration form — root re-pins to the frozen-commit form at integration).",
+ "status_note": "Lane PCODEFACE (wt/pcodeface, base 6a458387). The locked Ghidra 12.0.4 snippet compiler (oracle commit e40ed130) was driven on a bare SLEIGH engine over the production x86-64.sla — the same const SleighBase* handle PcodeInjectLibrarySleigh::parseInject hands to PcodeSnippet (inject_sleigh.cc:387-416) — and the lane-tree Rugra recursive-descent driver (src/pcodeparse.rs) with the FaceLanguage symbol-lookup host. Both sides produced 110 records / identical bytes (SHA-256 1b30d20db49365a77c83b3dd6d0767c01bd717603e3a5515684887a61c149377). First bilateral run pinned 12 driver gaps (g1-g12); all fixed in src/pcodeparse.rs (commit 04a83ee9) and re-run to identity. Runner: tools/run_pcode_snippet_face_oracle.sh (lane iteration form — root re-pins to the frozen-commit form at integration). Lane OPNAMETBL (wt/opnametbl, stacked on wt/pcodeface 06b70463, ticket PCODE-OPNAME-TABLE-0001, commit 7925ada8) retired the twin's local ghidra_op_name mirror after aligning OpCode::name() 1:1 with the locked get_opname table (opcodes.cc:29-48): every <op_tpl code=...> attribute now renders through the production src function; bilateral re-run (oracle side re-executed) reproduced the locked 110-record stream byte-for-byte (same SHA-256, two reproductions), and the projection-normalisation known-delta was retired.",
  "input_sha256": "case matrix embedded in both fixture sources (SYM 20 probes + SNIP 77 + LF 10); see fixture headers",
  "oracle_output_sha256": "1b30d20db49365a77c83b3dd6d0767c01bd717603e3a5515684887a61c149377",
  "rugra_output_sha256": "1b30d20db49365a77c83b3dd6d0767c01bd717603e3a5515684887a61c149377",
@@ -31,10 +31,6 @@
   {
    "kind": "recovery-divergence",
    "note": "After an action error the recursive-descent driver skips to the next ';' and continues parsing where Bison aborts at the first error (YYERROR). Invisible to the fixture projection (both sides print the same first error text; the recovered tail is never emitted because hasErrors forces the ERR channel), registered as the standing PARSER-0001 lifecycle note — the case matrix keeps every post-error statement inert."
-  },
-  {
-   "kind": "projection-normalisation",
-   "note": "Opcode names inside <op_tpl code=...> follow Ghidra's get_opname table (opcodes.cc:29-48 + opcode_indices), which spells 7 members differently from Rugra's OpCode::name(): CPUI_PTRADD prints 'LABEL' (the LABELBUILD alias), CPUI_FLOAT_INT2FLOAT 'INT2FLOAT', CPUI_FLOAT_FLOAT2FLOAT 'FLOAT2FLOAT', CPUI_FLOAT_TRUNC/CEIL/FLOOR/ROUND 'TRUNC'/'CEIL'/'FLOOR'/'ROUND'. The twin mirrors the table locally (ghidra_op_name); the src-side rename is registered as PCODE-OPNAME-TABLE-0001 (shared table outside this lane's write-set)."
   },
   {
    "kind": "dead-rules",
@@ -70,11 +66,13 @@
   "fix_commit": "04a83ee9",
   "modules": [
    "src/pcodeparse.rs (parse_stream, parse_statement, parse_goto, parse_if, parse_assign_or_declare, parse_lhs_varnode, parse_jumpdest, parse_label, parse_sizedstar, parse_varnode, parse_integer_varnode, parse_expr, parse_expr_atom, parse_specific_symbol_expr, parse_local_statement, parse_userop_no_out_statement, parse_store_statement, binary_op_for, swaps_operands, force_size, fillin_zero_indexed, match_size, apply_match_size, propagate_size, PcodeSnippet::new, add_op_list, place_label, clear, build_truncated_varnode, create_bit_range, assign_bit_range, create_load, create_store, refresh_lookahead_symbol)"
-  ]
+  ],
+  "opname_align_commit": "7925ada8",
+  "opname_align_note": "stacked lane wt/opnametbl (base wt/pcodeface 06b70463): src/opcodes.rs name() aligned to get_opname (10 members); twin mirror retired so the fixture exercises the production table"
  },
  "comparand": {
   "cpp_fixture_sha256": "6165b4faa31e488b3e8917d041e5ae5d3288a4e4082ba355d1e9c0dd03ed1c88",
-  "rust_fixture_sha256": "effdcc68f2d11adb9123a37bdcb3c67568fc0f02958e5c47daaeb2f44e9105e6",
+  "rust_fixture_sha256": "a2c177742e753fe2dc3a5100b0342c8303546b7223ac509d78a519c5c03cd5b1",
   "runner_sha256": "ebc99ef65f3267239b94cc5e11f74012fc5ed9d1c9613ee148603a9821dcba54"
  },
  "coverage": {
@@ -98,6 +96,7 @@
   "cargo_test": "1838 passed / 0 failed / 5 ignored (base 1829 + 9 new face regression tests)",
   "bank": "verify_projection_bank.sh 391/391",
   "gates": "annotations --all 96 files OK; refs --all --strict OK; alignment-evidence 4/4 on both lane commits",
-  "date": "2026-09-27"
+  "date": "2026-09-27",
+  "restack_opnametbl": "fixture bilateral MATCH re-confirmed after the name-table fix (110 records, locked sha reproduced twice, oracle side re-run); cargo test --lib 1838P/0F/5I == stacked parent baseline; bank 391/391; annotations/refs/evidence gates green"
  }
 }
