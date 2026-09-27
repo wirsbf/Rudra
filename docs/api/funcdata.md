@@ -3183,4 +3183,14 @@ DYNMAP-SETPROPS-RET-0001 / COREACT-DYNMAP-STUB-0001 / COREACT-DYNSYM-STUB-0001
 `CloneBlockOps` 在 funcdata.hh:630 是 public 类，ruleaction.cc:9334 直接
 实例化消费；Rust 结构体私有时该 pub 桥即模块边界上的同面暴露，零行为
 变化。唯一消费者=`RuleConditionalMove::construct_bool`（排序后跨块布尔
-表达式克隆，ruleaction.rs）。
+表达式克隆，ruleaction.rs）。## 2026-09-27：`op_uninsert`+`op_insert_after` 搬移对回归钉（GETPARAM-FORLOOP-OPMOVE-0001，Lane OPMOVE）
+
+新增 `final_transform_op_move_tests` 测试模块（funcdata.rs 尾部，2 测）：把
+block.cc:3381-3396 finalTransform 的 iterate/initialize 语句迁移动作（`opUninsert`
+funcdata_op.cc:164-173 + `opInsertAfter` funcdata_op.cc:373-404）钉进 Rust 回归——
+①块内迁移：mid-tail 迭代语句经 uninsert（dead list + parent 解附）再 insertAfter
+落到块终端位，Varnode def/descend/input 链全程保持；②跨块迁移 + MULTIEQUAL 跳越
+分支（cc:391-402）：非 MULTIEQUAL op 插入前方可跳过连续 MULTIEQUAL 组落位（合成
+布局钉防御分支，oracle 不变量下 MULTIEQUAL 恒块首）。纯 `#[cfg(test)]` 代码，零
+生产行为变化；语料级 oracle 等价由 F8FOR canon/镜面 A/B 证据承载（见 TODO_BOARD
+GETPARAM-FORLOOP-OPMOVE-0001 关账行）。
