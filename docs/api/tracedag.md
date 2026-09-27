@@ -1,6 +1,15 @@
 # `tracedag.rs` API Reference
 
-**状态**: 已核对（当前有效；2026-08-27 TRI2-STRUCT-IRREDUCIBLE-TRACE-0001 加 [TD] 决策日志）
+**状态**: 已核对（当前有效；2026-09-27 GIANTS-GA1-PRAGMADISPATCH-0001 移除 push_branches 诊断迭代上限）
+**2026-09-27 追加（GIANTS-GA1-PRAGMADISPATCH-0001）**: `push_branches` 移除 5000 次迭代的
+DIAGNOSTIC 硬上限（Rugra 自创胶水，Ghidra `TraceDAG::pushBranches`（blockaction.cc:983-1015）
+无上限——终止性是结构性的：back/loop-exit 边被 isLoopDAGOut/In 排除，且
+`missed>=activecount` 回退每轮严格移除一条非 terminal 候选 trace）。该上限在
+sqlite3Pragma 的 final-trace 轮（oracle 同轮 ~11.2k 事件）中途截断 likelygoto 列表，
+把双分派共享 40 case 块切成 19/21 而非 oracle 的 40/0（事件级对拍：截断点恰为
+push 事件 #5186=`[TRACEDAG] iter cap 5000 hit`；移除后 retire/open/miss 41417 事件
+与 oracle 零 diff、selgoto 500 标记零 diff、臂形 40/0、双 switch 相邻 91 行、
+标号集 63/63 恒等）。
 **2026-08-27 追加（TRI2-STRUCT-IRREDUCIBLE-TRACE-0001）**: `push_branches` 增加 RUGRA_IRRED_DBG=1 门控的 stderr 诊断（`[TD] OPEN/RETIRE/STALL/BADEDGE` 行：trace#、bottom/dest、edgelump、visitcount、loopDAG_in/total_in、bp depth）——用于与 oracle 逐步决策对拍，无行为影响（env 未设时零开销路径不变）。
 **状态（前）**: 已重写核对（2026-08-24 BLOCKSTRUCT-GOTOCASCADE-CONDSTMT-0001，per-loop 驱动）
 **源代码路径**: `src/tracedag.rs`
