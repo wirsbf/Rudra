@@ -2307,6 +2307,18 @@ fn link_call_specs(
                 Some(type_names),
             ) {
                 Ok(Some(proto)) => {
+                    // queryCall's getFuncdata observable (flow.cc:662 +
+                    // coreaction.cc:2321-2324): the callee's own locked
+                    // signature is stored on the callspec so the library's
+                    // ActionDefaultParams copy arm (fc->copy channel,
+                    // CALLSPEC-COPY-0001) can resolve it. The direct install
+                    // below remains the pre-pipeline boundary that defines
+                    // the current canon face; the stored Arc is the same
+                    // prototype the oracle's callee Funcdata would carry.
+                    owner
+                        .write()
+                        .unwrap()
+                        .set_callee_proto(std::sync::Arc::new(proto.clone()));
                     owner.write().unwrap().prototype = proto;
                     signatures += 1;
                     installed = true;
@@ -2342,6 +2354,14 @@ fn link_call_specs(
                 &model_carrier,
             ) {
                 Ok(Some(proto)) => {
+                    // Same queryCall getFuncdata observable for the
+                    // debug-info callee half (coreaction.cc:2321-2324):
+                    // the DWARF-locked signature is the recovered prototype
+                    // ActionDefaultParams' copy channel consumes.
+                    owner
+                        .write()
+                        .unwrap()
+                        .set_callee_proto(std::sync::Arc::new(proto.clone()));
                     owner.write().unwrap().prototype = proto;
                     dwarf_signatures += 1;
                 }

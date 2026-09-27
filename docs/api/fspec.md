@@ -192,6 +192,45 @@ driven by the driver's symbol/signature tables) hands the observable
 throwing. The previous `Option<&Funcdata>` form had no callers and was
 consolidated into this signature.
 
+### `pub fn set_callee_proto(&mut self, proto: Arc<FuncProto>)` / `pub fn callee_proto(&self) -> Option<&Arc<FuncProto>>`
+
+(`CALLSPEC-COPY-0001`, 2026-09-27) The callee's own recovered prototype —
+Rugra's observable slice of Ghidra's `FuncCallSpecs::fd` (fspec.hh:1649, set
+by `setFuncdata` at flow time) as consumed by `ActionDefaultParams::apply`
+(coreaction.cc:2321-2324 `Funcdata *otherfunc = fc->getFuncdata()` +
+`otherfunc->getFuncProto()`). The driver's queryCall boundary stores the
+callee's locked signature Arc here (libc generic_clib signature or the
+DWARF-analyzer prototype — the two platform sources the oracle's callee
+Funcdata would carry); `Some` mirrors the non-null `otherfunc` arm, `None`
+keeps the `setInternal(evalfp, void)` else arm. `clone_for_op` carries the
+link (fspec.cc:4968 `res->setFuncdata(fd)`).
+
+### `pub fn copy_proto_from(&mut self, other: &FuncProto)`
+
+(`CALLSPEC-COPY-0001`, 2026-09-27) The `fc->copy(otherfunc->getFuncProto())`
+channel (coreaction.cc:2323): `FuncProto::copy_from` (fspec.cc:3789-3805)
+assigns model, extrapop, the whole flag word, a clone of the parameter store
+(names/types/lock markup/storage addresses), the effect list and inject id —
+FuncCallSpecs-level state (op, entry address, trial containers) stays out,
+exactly as in the oracle where `FuncCallSpecs` does not override the
+base-class `copy`. The callsite's own name survives (Ghidra's FuncProto base
+has no name member; the wrapper restores the callsite spelling over Rugra's
+glue name field). Bilateral fixture: `tests/oracle/callspec_copy_1204.*`
+(MATCH, 24 records byte-identical).
+
+### `FuncProto::set_input_lock` — named-parameter namelock side-effect
+
+(`CALLSPEC-COPY-0001`, 2026-09-27) Locking a NAMED parameter's type now locks
+its name too — the mirror of `ParameterSymbol::setTypeLock`
+(fspec.cc:3047-3057: `attrs = typelock; if (!sym->isNameUndefined())
+attrs |= namelock`), the behavior the scope-backed stores behind every
+platform-locked prototype exhibit. Rugra's flat parameter vector is the
+projection of that symbol-backed store, so `set_input_lock(true)` sets
+`NAME_LOCKED` on non-empty-named params (unnamed `param_N` stand-ins gain
+nothing). The oracle's `ParameterBasic::setTypeLock` (fspec.cc:2925) has no
+such side-effect, but that class backs only scopeless internal stores —
+never the locked platform boundary the copy channel serves.
+
 
 ### 2026-06-27（会话3 G5 续）：ParamTrial + ParamActive 基础设施移植
 

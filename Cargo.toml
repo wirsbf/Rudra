@@ -140,6 +140,10 @@ path = "tests/oracle/subflow_transform_subfloat_1204.rs"
 name = "debugproto_unknown_model_1204_oracle"
 path = "tests/oracle/debugproto_unknown_model_1204.rs"
 
+[[example]]
+name = "callspec_copy_1204_oracle"
+path = "tests/oracle/callspec_copy_1204.rs"
+
 [profile.release]
 opt-level = 3
 lto = "fat"
