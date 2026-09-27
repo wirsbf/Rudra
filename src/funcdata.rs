@@ -12441,9 +12441,14 @@ impl Funcdata {
                 },
                 None => return false,
             };
+            // cc:723: LowlevelError when a written volatile value has
+            // descendants (it must be replaced before any propagation).
+            // Mirrored as a panic with the oracle message, per the in-file
+            // LowlevelError precedent (begin_def_addr, varnode.cc:1913-1914):
+            // the failure aborts this decompile path, it is not a "no
+            // change" outcome.
             if !vn.read().unwrap().has_no_descend() {
-                eprintln!("[FUNCDATA] replaceVolatile: volatile memory was propagated");
-                return false;
+                panic!("Volatile memory was propagated");
             }
             let def = match vn.read().unwrap().get_def() { Some(d) => d, None => return false ,
             };
@@ -12480,13 +12485,30 @@ impl Funcdata {
                 },
                 None => return false,
             };
+            // cc:758: the hold decision consults the registered
+            // VolatileReadOp's display flags (userop.hh:84-85).
+            // register_builtin_by_id has just inserted (or found) the
+            // builtin record, so the lookup cannot miss.
+            let vr_display = match self.arch.as_ref() {
+                Some(a) => match &a.userops {
+                    Some(uo) => uo
+                        .read()
+                        .unwrap()
+                        .get_op(crate::userop::BUILTIN_VOLATILE_READ as i32)
+                        .map(|d| d.get_display())
+                        .unwrap_or(0),
+                    None => 0,
+                },
+                None => 0,
+            };
             if vn.read().unwrap().has_no_descend() { return false; }
-            let readop = match vn.read().unwrap().lone_descend() { Some(r) => r, None => {
-                eprintln!(
-                        "[FUNCDATA] replaceVolatile: volatile memory value used more than once"
-                    );
-                return false;
-            }
+            // cc:744-745: LowlevelError when the volatile value is consumed
+            // by more than one op (loneDescend() returns null). Mirrored as
+            // a panic with the oracle message (in-file LowlevelError
+            // precedent, begin_def_addr): aborts this decompile path.
+            let readop = match vn.read().unwrap().lone_descend() {
+                Some(r) => r,
+                None => panic!("Volatile memory value used more than once"),
             };
             let readop_ref = crate::op::PcodeOpRef(readop.clone());
             let read_addr = readop.read().unwrap().get_addr();
@@ -12505,9 +12527,21 @@ impl Funcdata {
             self.op_set_input(&readop_ref, tmp, slot);
             self.op_insert_before(&newop, &readop_ref);
             // cc:758-759: if (vr_op->getDisplay() != 0) newop->setHoldOutput().
-            // Rugra: VOLATILE_READ's display is functional (1), so always hold.
-            // HOLD_OUTPUT lives in addl_flags (Rugra models it as an addlflag).
-            newop.0.write().unwrap().addlflags |= crate::op::op_addl_flags::HOLD_OUTPUT;
+            // getDisplay() (userop.hh:84-85) extracts the display bits
+            // (annotation_assignment | no_operator | display_string);
+            // 0 means the volatile read displays as a FUNCTIONAL p-code
+            // op. Unless the display is functional, the read value may
+            // not be used downstream, so the output is held to keep
+            // dead-code removal from deleting the read. A functional
+            // read participates in normal data-flow and is NOT held.
+            // The flags come from the descriptor: decodeVolatile sets
+            // them from the cspec `format` attribute (userop.cc:566-570,
+            // default non-functional), and the on-demand default is
+            // functional=false as well (userop.cc:443-444).
+            if vr_display != 0 {
+                // HOLD_OUTPUT lives in addl_flags (Rugra models it as an addlflag).
+                newop.0.write().unwrap().addlflags |= crate::op::op_addl_flags::HOLD_OUTPUT;
+            }
             newop
         };
         // cc:761-762: if (vn->isTypeLock()) newop->setAdditionalFlag(special_prop).

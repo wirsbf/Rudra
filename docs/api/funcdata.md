@@ -3234,3 +3234,29 @@ special_prop（op.hh:207/109，0x1）门控 volatile user-op 的 local-type
 休眠面：`replace_volatile` 的调用链需 cspec `<volatile>` → varnode
 `volatil` 属性（ActionVolatile 域），五语料 cspec 无该元素，链首即断，
 canon A/B 字节恒等。
+
+## 2026-09-27：replace_volatile 读臂 hold 条件 + 错误路径对齐（FUNCDEV-VOLATILE-DEVIATIONS-0001）
+
+两处预存休眠偏差收口（CR-VOLATILEOUT 观察项②）：
+
+① **cc:758-759 hold 条件**：oracle `if (vr_op->getDisplay() != 0)
+newop->setHoldOutput()`——`getDisplay()`（userop.hh:84-85）取
+`annotation_assignment|no_operator|display_string` 位，**0 才是 functional**；
+即非 functional 显示（如 print 式注记）的 volatile read 输出可能无人消费，
+置 HOLD_OUTPUT 防死码消除删掉读；functional read 正常参与数据流**不** hold。
+旧代码无条件置位且注释理由反向（"display is functional (1), so always
+hold"）。修正为经描述符 `get_display()` 条件置位。配套：`try_register_builtin_by_id`
+兼容路径的 volatile 缺省此前 flags=0（functional），与 oracle userop.cc:443-447
+`VolatileReadOp(...,false)`/`VolatileWriteOp(...,false)`（→no_operator/
+annotation_assignment，userop.hh:190-191/205-206）不符——修正后兼容路径与
+cspec 无 format 属性的 decodeVolatile 缺省同态，hold 行为两侧 1:1。
+
+② **错误路径形态**：cc:723（写臂 `!hasNoDescend()`）与 cc:744-745（读臂
+`loneDescend()==null`）oracle 均 `throw LowlevelError`——失败即中止该反编译
+路径。旧代码 eprintln+return false 是静默降级。修正为 panic! 镜像（同
+funcdata.rs 既有 LowlevelError 先例 begin_def_addr，varnode.cc:1913-1914；
+worker 侧 catch_unwind 边界收束）；cc:742 dead-read `return false` 是 oracle
+自身的无变更出口，保持不变。
+
+休眠面：与 VOLATILEOUT 同一触发链（锁定 cspec/pspec 无 `<volatile>` 定义，
+五语料链首即断），canon A/B 字节恒等为构造性必然。
