@@ -54,11 +54,11 @@
 # pinned_commit=c4508bba=集成态测量锚[wave-ledger commit 为 docs-only 不改二进制];
 # 分片协议 27178 仍为 SQLITE3_SCOREBOARD 记分板口径, 两协议各按各的账本记账）。
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
-curl	52	74	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
+curl	65	74	PRINTC-UNTYPEDCONST-CURLMIRROR-RESIDUAL-0001	23b40133	2026-09-27
 httpd	84	29	MB23-RATCHET-REPIN-0001	d9a2ef5d	2026-09-27
 vsh	8	71	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
-sq	4205	810	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
-sqlite	23840	1385	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
+sq	3377	810	MB25-RATCHET-REPIN-0001	23b40133	2026-09-27
+sqlite	16590	1385	MB25-RATCHET-REPIN-0001	23b40133	2026-09-27
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
@@ -170,3 +170,24 @@ sqlite	23840	1385	MB24-RATCHET-REPIN-0001	e5fb3e54	2026-09-27
 # e5fb3e54 基线, 根因 = ISMOVEABLE 合并的 layout-divergence ± 行工件[parseconfig 型],
 # 非 GA-1 cap removal 所致——GA-1 终报 §3.5 归因勘误; 逐函数拆解归 GAPSET 家族道）。
 # httpd 84 恒等不重钉（MB23 行保持）。
+# 2026-09-27 MB25 重钉（MB25-RATCHET-REPIN-0001, @23b40133 = 14 支合并态 fresh 实测,
+# root 集成门禁低载串行复跑;curl 面为绑定残差票的回归向抬升,GA-1 sq+8 先例形态）:
+# ① curl ceiling 52→65 抬升——回归向,+13 残差已登记 PRINTC-UNTYPEDCONST-CURLMIRROR-
+#    RESIDUAL-0001（bisect first-bad=ba632c40 UNTYPEDCONST;5 站点函数名→hex:
+#    my_fwrite/myprogress/main/__libc_csu_init/__libc_csu_fini;golden 经 typed
+#    code-pointer pushPtrCodeConstant 印名,Rugra 镜面常量未定型;canon 面不受影响
+#    110/0/0;SIGWRAP 4c4d61c7=52 亲证清白）。修复路径=GEN-CONSTPTR-ANALYSISDB-0001
+#    家族 typed 通道,禁止过宽查询复活。
+# ② sq ceiling 4205→3377 收紧（−828;defects=numbering=0,matched 810/810 ok）——
+#    足迹: CODEPTR gen 驱动 print-DB 通道（−418 预期兑现）+SIGWRAP 签名 tokenbreak
+#    （−244 车道值,集成面交叠后净含）+NEGCONST −180+TYPEFACTORY −56+GA-1 +8
+#    （for-init 残差族票 GIANTS-GA1-SQ-FORINIT-RESIDUAL-0001 保持 OPEN 绑定）;
+#    任务书 ~3550 系未计入 SIGWRAP sq 面的保守预估,集成实测 3377 为准
+#    （执法协议自洽: 门禁臂测什么钉什么）。
+# ③ sqlite ceiling 23840→16590 收紧（−7250;matched 1385/1385 health ok,VdbeExec
+#    门内 ~600s 预算内完成）——GA-1 cap 移除主量（−7227 车道值）+CODEPTR −121+
+#    TYPEFACTORY −58;B2 抽查 --one 836 Pragma 双 switch 臂形 40/0+40/0 复现。
+# ④ httpd 84/84·vsh 8/8 恒等零漂移（预期不动兑现,不重钉——MB23/MB24 行保持）。
+# ⑤ canon: curl 151→110/0/0 md5 d792afad（VARNAM −39+PROTOCAST −2 精确兑现,
+#    matched 124）;httpd 70/0/0 md5 fd06e27f==MB24 钉值字节恒等;RETYPE −10 门开态
+#    不计默认脸。tests 1947P/0F/5I==1933+14 逐道闭合。result/ 已回流新档。
