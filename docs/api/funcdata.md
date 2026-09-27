@@ -436,7 +436,7 @@ binary / disasm
 
 `Funcdata::destroy_varnode` 只把 read edges 从 descendant 索引 detach、清定义输出，再走 prevalidated bank 删除。（2026-09-22 更新，SB-ORD159-NULLSLOT-0001：`op_unset_input` 现在把槽置为共享 null 哨兵而非保留 stale Arc——不再依赖"槽中残留旧 Arc"的表示。）本函数对 foreign/stale handle 的行为未闭合，不能当成 public checked `destroyVarnode`。相对地，inline `delete_varnode` 返回 `Result<()>` 并直接走 public checked `VarnodeBank::destroy_varnode`；bank API 的 integrated/foreign/stale 错误由 `Result` 表达。Ghidra delete 与外部 Rust Arc 生命周期差异继续归 `VARNODE-0001`。
 
-`set_input`/`set_def` 的 canonical 返回值已贯穿当前生产调用点：`combine_input_varnodes`、INDIRECT 构造、raw P-code 两种注入路径及 Heritage MULTIEQUAL 输出都把 canonical Arc 接到后续 op/output。`inject_raw_ops` Phase 3 在转换前先 snapshot `(opcode, inputs, output)` 并释放 op read guard，避免 xref replacement 回写同 op 时自锁；每个变换后的 slot 在 debug build 验证确实指向返回的 canonical Arc。这里仅证明这些 fresh/bank-owned 内部路径和锁生命周期，不把 raw 注入桥接整体宣称为 Ghidra `PcodeEmitFd::dump` MATCH。
+`set_input`/`set_def` 的 canonical 返回值已贯穿当前生产调用点：`combine_input_varnodes`、INDIRECT 构造、raw P-code 两种注入路径及 Heritage MULTIEQUAL 输出都把 canonical Arc 接到后续 op/output。`inject_raw_ops` Phase 3（曾在此 snapshot `(opcode, inputs, output)` 做线性序输入提升，2026-09-27 CANON-REGJUNK 双票整体退役，见下方 dated 注记）移除后本段只剩历史锁生命周期描述：fresh/bank-owned 内部路径的锁纪律由 `set_input_varnode` 路径继承。不把 raw 注入桥接整体宣称为 Ghidra `PcodeEmitFd::dump` MATCH。
 
 以下说明围绕当前可见公开接口展开，重点说明“它们在主链路中扮演什么角色”。
 
@@ -815,6 +815,31 @@ examples/httpd_decompile.rs，defaultfp 捕获后清空以维持 CALLSPEC-DRIVER
 姿态）。观测：httpd 门禁面 2225→2221（main −1、ap_fini_vhost_config −1、
 ap_ht_time −2，全部为声明行消除），3 处 BADSPACEBASE 归零，全量 470/470 保持、
 全量 L2 37677→37655/2/0。
+
+2026-09-27 CANON-REGJUNK-XMM-EXTRAOUT-0001 + CANON-REGJUNK-INRAX-LIVEVAR-0001
+（Phase 3 整体退役）：inject_raw_ops 的 Phase 3（线性指令序把每个寄存器偏移的
+首个 free 读提升为 INPUT varnode）整体移除。它是 faithful Heritage 移植落地前
+（2026-06-23 f4be0bb6）的 June-era 临时机制，与 Ghidra 模型系统分叉：Ghidra 中
+寄存器 INPUT varnode **只**由 Heritage 支配树感知的 renameRecurse 创建
+（heritage.cc:2499-2503 空栈 → newVarnode+setInputVarnode），时点在
+ActionFuncLink 为锁定原型 call 挂输出（coreaction.cc:1551）与 Heritage::guardCalls
+建 call 效果 INDIRECT（heritage.cc:1443-1527）之后；线性序问的是"前面有没有写"，
+而正确的 reaching-def 是支配性问题——call 阴影下的读（inject 时 CALL 还没有输出）
+被误提升为 `in_RAX` 后，Heritage::collect 把 input 归类为 INPUT 而非 free 读
+（heritage.cc:342-343），永不重绑。双侧 stage drill 钉定的两处事件级分叉：
+ap_field_noparam 循环 phi `RBX = RAX(i) ? RBX-sub`（oracle 在 propagatecopy 后为
+`RAX(callout) ? RBX-sub`，ruleaction.cc:3924-3956）→ `in_RAX` 独立活变量；
+ap_fini_vhost_config 首个 `pxor %xmm0,%xmm0` slot 0 被 Phase 3 的偏移去重抢占提升
+为 `XMM0(i)`、slot 1 保持 free 绑到循环 phi，RuleTrivialArith 的同输入塌缩
+（ruleaction.cc:2362-2380 要求两 slot 为同一 varnode）不点火 → 双 XMM0 拷贝 +
+extraout_XMM0 物化 + XMM0 误升第 3 参（第二个 pxor 偏移已被去重，双 slot 都绑
+phi，塌缩成 `(undefined1[16])0` 与 golden 一致——机制的自然对照）。效应尾
+（PRINTC-BADSPACEBASE-RENDER-0001）由 heritage 晋升路径等价承接
+（`Funcdata::set_input_varnode` 的 cc:340-373 尾）；oracle 动作序不变
+（fullloop:mainloop heritage 先于 spacebase，coreaction.cc:5506）。观测：
+canon httpd skeleton 139→70（defects=0 numbering=0；ap_field_noparam/
+ap_strcasestr/ap_pregcomp/ap_make_dirstr_parent 归零），canon curl 逐字节恒等
+（md5 51cc85d2），镜面五面全钉值零漂移。
 
 2026-09-25 CALLSPEC-0001 重放（CALLIND 锚定臂）：锚定环补 `CPUI_CALLIND` 臂——
 `flow.cc:340-342`（xrefControlFlow CALLIND case）→ `setupCallindSpecs`

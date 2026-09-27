@@ -1678,3 +1678,15 @@ splitJoinLevel 2068→**2067**、splitJoinRead 2119→**2118**、splitJoinWrite
 - 本模块 25 处 `// Ghidra:` 头注解的 file:line 已重锚到锁定 oracle (e40ed130)
   的函数定义起始行；本文件中同名单点引用同步更新（正文内点引用/区间端点不在
   机制 D checker 范围，遗留见 RULEACTION-ANNO-PROSE-RANGE-0001）。注释-only，零行为变化。
+
+### 2026-09-27 — CANON-REGJUNK 双票新增生产路径回归测试
+
+- 新增 `test_call_shadowed_read_binds_to_call_output_under_heritage`
+  （CANON-REGJUNK-XMM-EXTRAOUT-0001 + CANON-REGJUNK-INRAX-LIVEVAR-0001）：
+  CALL 带锁定输出（funcLinkOutput 形，coreaction.cc:1551）+ 其后 `RBX = COPY
+  RAX` 读——钉死 inject 时读保持 free（无线性序输入预提升）+ 生产单 pass
+  `op_heritage` 后读绑到 CALL 输出 varnode 且不伪造 `in_RAX` 输入。这是
+  funcdata.rs inject Phase 3 退役（寄存器 INPUT 仅由 renameRecurse 晋升，
+  heritage.cc:2499-2503）的行为门。另：`test_spacebase_marks_rsp_input`
+  （funcdata.rs 侧）以显式 `set_input_varnode` 模拟 heritage 后态后跑
+  spacebase()，oracle 动作序 heritage 先于 spacebase（coreaction.cc:5506）。

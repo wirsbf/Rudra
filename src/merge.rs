@@ -5611,6 +5611,33 @@ mod tests {
         store.add_input(VarnodeRaw::new(AddressSpace::Unique, 0x200, 8));
 
         fd.inject_raw_ops(&[phi, store]);
+        // CANON-REGJUNK-INRAX-LIVEVAR-0001: inject_raw_ops no longer
+        // pre-promotes register reads to INPUT (removed linear-scan phase
+        // 3). This raw fixture injects a synthetic one-block MULTIEQUAL
+        // (a shape SLEIGH never emits), so heritage's successor-edge pass
+        // (heritage.cc:2531-2552) never sees a block boundary to bind the
+        // phi input through; model the post-heritage state directly by
+        // promoting the free register reads via setInputVarnode
+        // (funcdata_varnode.cc:340-373), as renameRecurse would for an
+        // empty reaching-def stack.
+        {
+            let reads: Vec<_> = fd
+                .vbank
+                .loc_tree
+                .iter()
+                .map(|v| v.0.clone())
+                .collect();
+            for vn in reads {
+                let is_free_reg = {
+                    let g = vn.read().unwrap();
+                    g.get_space() == crate::space::AddressSpace::Register && g.is_free()
+                };
+                if is_free_reg {
+                    let promoted = fd.set_input_varnode(vn.clone());
+                    debug_assert!(Arc::ptr_eq(&promoted, &vn));
+                }
+            }
+        }
         fd.run_heritage_direct();
 
         let mut merge = Merge::new();

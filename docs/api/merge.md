@@ -1105,3 +1105,13 @@ B2 投影可观测维度）；单测 1687/18 == 亲父同 flaky 集。快照 `in
 - 本模块 3 处 `// Ghidra:` 头注解的 file:line 已重锚到锁定 oracle (e40ed130)
   的函数定义起始行；本文件中同名单点引用同步更新（正文内点引用/区间端点不在
   机制 D checker 范围，遗留见 RULEACTION-ANNO-PROSE-RANGE-0001）。注释-only，零行为变化。
+
+### 2026-09-27 — CANON-REGJUNK 双票 Phase 3 退役的 harness 适配
+
+- `test_merge_marker_unifies_multiequal_io` 在 `run_heritage_direct` 前显式
+  `set_input_varnode` 提升注入的 free 寄存器读——inject_raw_ops 的 Phase 3
+  线性序输入预提升已整体退役（CANON-REGJUNK-XMM-EXTRAOUT-0001 +
+  CANON-REGJUNK-INRAX-LIVEVAR-0001，见 docs/api/funcdata.md 同日注记）；本
+  fixture 注入的是合成单块 MULTIEQUAL（SLEIGH 永不产生的形态），heritage 的
+  后继边绑定通道（heritage.cc:2531-2552）在该形态下无块边界可走，直接建模
+  空栈读的 heritage 后态。断言面（merge_marker 统一 phi 入/出高变量）不变。

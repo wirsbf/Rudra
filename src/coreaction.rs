@@ -19611,6 +19611,24 @@ mod tests {
         let mut fd = Funcdata::new("badjt", crate::address::Address::new(0x2000), 0x10);
         fd.scope = Some(crate::varmap::ScopeLocal::new());
         fd.inject_raw_ops(&[raw]);
+        // CANON-REGJUNK-INRAX-LIVEVAR-0001: inject_raw_ops no longer
+        // pre-promotes register reads to INPUT (removed linear-scan phase
+        // 3). In the real pipeline Heritage's renameRecurse promotes a
+        // read with an empty reaching-def stack (heritage.cc:2499-2503),
+        // and ActionNameVars::linkSymbols then names the input high. Model
+        // that post-heritage state for the CALLIND's in(0) switch var.
+        {
+            let callind = fd
+                .obank
+                .optree
+                .iter()
+                .find(|op| op.0.read().unwrap().opcode == OpCode::CPUI_CALLIND)
+                .cloned()
+                .expect("injected CALLIND present");
+            let in0 = callind.0.read().unwrap().get_in(0).cloned().expect("in(0)");
+            let promoted = fd.set_input_varnode(in0.clone());
+            debug_assert!(std::sync::Arc::ptr_eq(&promoted, &in0));
+        }
         fd.set_high_level();
 
         // Attach the callspec the way the truncate boundary does
