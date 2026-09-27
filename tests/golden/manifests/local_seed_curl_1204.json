@@ -2,7 +2,7 @@
  "oracle_commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
  "corpus": "curl",
  "golden_sha256": "aca3798881fddc2ce541c3e731b88f9fcf4736451db98fdd9247366f78b6097f",
- "harvest_rule": "decl-block lines matching '(type)([*]*)local_[0-9a-f]+([N])*;' before first statement; offset = -int(name[6:],16); B29 guard: a body 'X[n].reg_save_area = name;' anchor is never committed as a typelocked array (array lock at the va_list save-area base blocks the local-alias chain, varmap.cc:1383, killing the in_XMM*/in_R* save family — oracle-verified e40ed130)",
+ "harvest_rule": "decl-block lines matching '(type)([*]*)local_[0-9a-f]+([N])*;' before first statement; offset = -int(name[6:],16); B29 guard: a body 'X[n].reg_save_area = name;' anchor is never committed as a typelocked array (array lock at the va_list save-area base blocks the local-alias chain, varmap.cc:1383, killing the in_XMM*/in_R* save family — oracle-verified e40ed130). CANON-VARNAM-NAMEREC-TIEBREAK-0001 exception (2026-09-27): the va_list save-area base anchor itself commits as a NAME-ONLY seed (typelock=false — helpf local_b8@-184, undefined1[8]): the name-only channel downgrades to a ScopeLocal::decode name recommendation (varmap.cc:357-381) that ActionNameVars reattaches to the freely-recovered symbol, so the alias chain is untouched and the golden's `undefined1 local_b8 [8]` naming is reproduced without typelock side effects.",
  "functions": {
   "0x1025a0": {
    "name": "main",
@@ -18,6 +18,12 @@
   "0x103980": {
    "name": "helpf",
    "locals": [
+    {
+     "offset": -184,
+     "name": "local_b8",
+     "type": "undefined1[8]",
+     "typelock": false
+    },
     {
      "offset": -176,
      "name": "local_b0",

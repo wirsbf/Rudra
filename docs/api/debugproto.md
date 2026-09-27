@@ -213,6 +213,67 @@ included) that back the external-stub rendering
   (coreaction.cc:2818 `param->isNameLocked()`), which names call-site
   variables after locked callee parameter names (`strtol` → `__nptr`).
 
+### The two FILE type domains (`GLIBC-CLIB-FILE-TYPEDOMAIN-0001`,
+### 2026-09-27, CANON-VARNAM-NAMEREC-TIEBREAK-0001)
+
+The locked curl canon golden proves the oracle's type graph carried TWO FILE
+structures that never unified:
+
+- the **generic_clib_64 archive FILE** behind every locked libc prototype
+  (fclose/fgets/fwrite/fputc/fileno params, fopen return) and the extern
+  std-stream globals (stdin/stdout/stderr) — struct layout is the glibc
+  compat form, 29 fields / 216 bytes, with the offset-152..176 slots named
+  `__pad1..__pad4` (extracted from the locked oracle tree's own
+  `Ghidra/Features/Base/data/typeinfo/generic/generic_clib_64.gdt`);
+- curl's **DWARF FILE** (typedef FILE → struct _IO_FILE — same 29 slots,
+  offsets 152..176 named `_codecvt/_wide_data/_freeres_list/_freeres_buf`
+  per the binary's .debug_info) behind DWARF subprogram prototypes and
+  struct fields.
+
+Both print `FILE *`, but they are distinct Datatype objects, and two
+observable oracle behaviors depend on the split:
+
+1. `ActionNameVars::lookForFuncParamNames`' repeat-recommendation tie-break
+   (coreaction.cc:2833-2845): parseconfig's FILE\* local gets `fp`
+   (my_get_line's DWARF FILE\*, inserted first in callspec order), then
+   `__stream` (fclose's archive FILE\*) — `TypeStruct::compare`
+   (type.cc:1742-1780) walks offset/name/metatype per field and returns +1
+   at the FIRST field-name difference (offset 152: `_codecvt` > `__pad1`
+   string-wise), so the archive recommendation OVERRIDES and the golden
+   names the local `__stream` (a single-FILE model ties at typeOrder 0 and
+   keeps `fp`).
+2. `ActionSetCasts`' call-argument casts: `castStandard` strips typedefs and
+   compares the pointee structs BY IDENTITY (cast.cc:325), so the split
+   produces exactly the golden's `(FILE *)` casts at the domain-crossing
+   call sites (ghidra_curl_1204.c:1300 `my_get_line((FILE *)__stream)`)
+   and bare args where both sides live in one domain
+   (`fclose(__stream)`, `fwrite(...,stderr)`).
+
+Rugra models the split with:
+
+- `clib_file_types()` — a process-wide OnceLock holding the archive FILE
+  struct (deliberately NOT registered in the factory name tree — the "FILE"
+  name slot belongs to the DWARF materialized alias, and `intern_named`'s
+  (name, shape, size, metatype) dedupe would collapse the domains) plus its
+  factory-interned pointer (one stable TypePointer identity per domain for
+  `ActionMergeType`'s same-type grouping). The cache must be warmed outside
+  any factory-lock scope (init interns through the factory write lock;
+  `DebugGlobalDatabase::parse_elf` warms it first thing because the DWARF
+  walk holds that lock across its unit loop).
+- `libc_type_resolution_index(type_names)` — the base-spelling map
+  `locked_proto` parses every ledger spelling through: the DWARF
+  named-type index with `FILE` overridden to the archive struct (every
+  other spelling — `stat`, `size_t`, ... — keeps the DWARF resolution).
+- `remap_external_clib_file_pointer` (inside `DebugGlobalDatabase::parse_elf`)
+  — extern FILE\* declarations (stdin/stdout/stderr) enter the archive
+  domain; subprogram parameters and struct fields keep the DWARF FILE.
+
+httpd is unaffected: its driver resolves its own import ledger through
+`resolve_import_type`/the census interner (one FILE domain — the binary is
+stripped, no DWARF competitor), and the httpd canon face is byte-stable
+across this change. The mirror faces are bare-load (no libc ledger, no
+DWARF seeds) and equally unaffected.
+
 Supporting parsers: `split_parameter_list` / `split_declaration` split the
 comma-separated `TYPE NAME` declarations (the trailing identifier run is the
 name, pointer stars belong to the type: `void *__ptr`), and `parse_c_type`
