@@ -3,6 +3,30 @@
 **状态**: 🔧 L2（仅逐函数核对，禁止据此宣称模块 L3）
 **源代码路径**: `src/typeop.rs`
 
+## 2026-09-27：float 六成员 TypeOp nametext 拼写对齐（TYPEOP-OPERATORNAME-SPELL-0001）
+
+宏表 `functional_unary_op!`/`functional_unary_op_ext!` 的 `$name` 实参（`get_name`
+面 = Ghidra `TypeOp` ctor 第三参 nametext，经 typeop.hh:70 `getName` 与 typeop.hh:183
+`getOperatorName` 默认体暴露）float 六成员改为 oracle 拼写（亲读 typeop.cc:1830-1944，
+各行 `// Ghidra:` 注释本就引用该拼写）：
+
+| 成员 | 旧实参 | 新实参（oracle 锚） |
+|---|---|---|
+| TypeOpFloatInt2Float | "FLOAT_INT2FLOAT" | "INT2FLOAT"（cc:1840） |
+| TypeOpFloatFloat2Float | "FLOAT_FLOAT2FLOAT" | "FLOAT2FLOAT"（cc:1905） |
+| TypeOpFloatTrunc | "FLOAT_TRUNC" | "TRUNC"（cc:1913） |
+| TypeOpFloatCeil | "FLOAT_CEIL" | "CEIL"（cc:1921） |
+| TypeOpFloatFloor | "FLOAT_FLOOR" | "FLOOR"（cc:1929） |
+| TypeOpFloatRound | "FLOAT_ROUND" | "ROUND"（cc:1937） |
+
+零行为面（grep 亲证 + canon A/B 字节恒等）：`get_name` 对这六个类唯一可达路径是
+`get_operator_name` 默认体（typeop.rs:712），而 `get_operator_name` 生产调用点仅
+CALLOTHER push（自带 override）；六类 `print_raw` 走宏 `$func` 实参（本票未动，
+与 getName 分离的既有形态）；printc opFunc emitter 用字面量（"CEIL"/"FLOOR"/"ROUND"
+等，printc.rs:3150-3162）；quirk 槽 MULTIEQUAL="?"/INDIRECT="[]"/PTRADD="+"/
+PTRSUB="->" 同面核对无分歧。前向就绪：若 opFunc 兜底改接 TypeOp 名或诊断面启用，
+六成员即直接正确。
+
 ## 2026-09-26：`TypeOpIntAdd::propagate_type` 休眠分歧修复（TYPEOP-INTADD-PROPTEST-0001）
 
 锁定 oracle（e40ed130）`TypeOpIntAdd::propagateType`（typeop.cc:1181-1201）的
