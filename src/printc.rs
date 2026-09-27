@@ -10131,7 +10131,7 @@ impl PrintC {
                             .unwrap()
                             .v_type
                             .as_ref()
-                            .map(|t| t.get_name().to_string())
+                            .map(|t| Self::cast_type_string(t))
                     })
                     .unwrap_or_else(|| "uint".to_string());
                 self.emit.print(&format!("({})", cast_name));
@@ -10146,7 +10146,7 @@ impl PrintC {
                             .unwrap()
                             .v_type
                             .as_ref()
-                            .map(|t| t.get_name().to_string())
+                            .map(|t| Self::cast_type_string(t))
                     })
                     .unwrap_or_else(|| "int".to_string());
                 self.emit.print(&format!("({})", cast_name));
@@ -10465,8 +10465,11 @@ impl PrintC {
                 if is_sub && !self.option_nocasts {
                     // pushOp(&typecast,op); pushType(dt); pushVn(in0) —
                     // inline-channel spelling: `(<type>)` + operand.
+                    // pushType (printc.cc:461→1472-1478) spells anonymous
+                    // bases via genericTypeName, never the raw empty name
+                    // (TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 ① legacy twin).
                     if let Some(dt) = &out_dt {
-                        self.emit.print(&format!("({})", dt.get_name()));
+                        self.emit.print(&format!("({})", Self::cast_type_string(dt)));
                     }
                     self.push_input(def_op, 0);
                 } else {
@@ -13380,14 +13383,18 @@ impl PrintLanguage for PrintC {
                 OpCode::CPUI_BOOL_NEGATE => "!",
                 OpCode::CPUI_FLOAT_NEG => "-",
                 OpCode::CPUI_INT_ZEXT => {
-                    // Use output type if available for more precise cast
+                    // Use output type if available for more precise cast.
+                    // printc.cc:786-796 opIntZext → opTypeCast →
+                    // pushType(cc:1472-1478): anonymous bases spell
+                    // genericTypeName, never the raw empty name
+                    // (TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 ① legacy twin).
                     let cast_name = op.output.as_ref()
                         .and_then(|out| {
                         out.read()
                             .unwrap()
                             .v_type
                             .as_ref()
-                            .map(|t| t.get_name().to_string())
+                            .map(|t| Self::cast_type_string(t))
                     });
                     if let Some(ref name) = cast_name {
                         self.emit.print(&format!("({})", name));
@@ -13397,13 +13404,15 @@ impl PrintLanguage for PrintC {
                     "(uint)"
                 }
                 OpCode::CPUI_INT_SEXT => {
+                    // printc.cc:799-809 opIntSext → opTypeCast → pushType
+                    // (same anonymous spelling rule as the ZEXT arm).
                     let cast_name = op.output.as_ref()
                         .and_then(|out| {
                         out.read()
                             .unwrap()
                             .v_type
                             .as_ref()
-                            .map(|t| t.get_name().to_string())
+                            .map(|t| Self::cast_type_string(t))
                     });
                     if let Some(ref name) = cast_name {
                         self.emit.print(&format!("({})", name));

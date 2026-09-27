@@ -3910,3 +3910,12 @@ httpd **139/0/0==钉值**（2 行形翻转在既有差异块内，已归因）�
 test_partial_symbol_finalcast_spells_pushType_form /
 test_display_name_lhs_gates_partial_cast_arm）；annotations/refs/evidence
 三门禁绿。
+
+### 补遗（同日第二 commit）：legacy 传输三臂同根因收口
+
+`emit_inline_expr` INT_ZEXT/INT_SEXT 臂、`op_unary` INT_ZEXT/INT_SEXT 臂、
+SUBPIECE `isSubpieceCast` 臂的 cast 前缀由原始 `get_name()` 统一改
+`cast_type_string`（printc.cc:786/799/872-875 → opTypeCast → pushType
+cc:1472-1478 的同一折叠）——消除 legacy 通道匿名类型印 `()` 的同型位点。
+构造性输出中性：生产驱动全走 RPN（`set_rpn_enabled(true)`），read_inode_2
+单函数+canon curl 复跑与主修复态字节恒等；cargo test 1919P/0F。
