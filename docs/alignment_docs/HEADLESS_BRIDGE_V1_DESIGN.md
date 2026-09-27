@@ -1977,3 +1977,106 @@ probe（oracle 直测）+ canon golden（317 块对拍）双侧闭合；Rugra �
 证据=/dev/shm/rugra-tests/thunkgot/（probe 源+构建脚本+矩阵输出+
 compare_thunks.py+三脸工件）；终报=/dev/shm/rugra-reports/
 LANE_THUNKGOT_2026-09-27.md。
+
+## §20 V4COMPOSITE 交付记录（Lane V4COMPOSITE 中车道，2026-09-27，基=master 01e9132d）
+
+**票**: `HEADLESS-BRIDGE-V4-COMPOSITE-0005`（生产 typedef 触发面接线——manifest/
+驱动/数据面；TYPEDEFIMM 终报移交节 item 2 的承接车道）。
+
+### 20.1 oracle XML 语义（铁律 1.2 亲读，manifest 协议的 ground truth）
+
+- **`<def>` 元素 = typedef 的运输形态**（`ELEM_DEF`，type.cc:50 id 43；
+  `TypeFactory::decodeTypeNoRef` type.cc:4448-4451 分派到 `decodeTypedef`）。
+- **`TypeFactory::decodeTypedef`**（type.cc:4263-4313）：读 `id`（缺省 →
+  `hashName(name)`，type.cc:4283-4285 "Its possible the typedef is a builtin"）/
+  `name`/`format` 属性 → **内联 decode 立即目标**（`decodeType(decoder)`，
+  type.cc:4286）→ 递归 struct/union incomplete 去重（:4290-4311，指针同一性
+  比较 `defedType != prev->getTypedef()` 不等即 throw）→ 尾部
+  **`getTypedef(defedType, nm, id, format)`**（:4312）。
+- **`TypeFactory::getTypedef`**（type.cc:3818-3840）：clone + 改名/改 id + 清
+  coretype（:3833）+ **`res->typedefImm = ct`**（:3834，唯一置位点）+ insert +
+  incomplete 入 `incompleteTypedef`（:3837-3838）；同名去重走通道
+  指针比较（:3825-3826，非 typedef 同名物 → `LowlevelError` throw——**这是本
+  车道安装次序约束的 oracle 依据**）。
+- encode 侧守卫（`TypeChar::encode` type.cc:822-833 等 10 处 subclass）：`typedefImm
+  != 0` → `encodeTypedef`（type.cc:519-529，`<def name id>` + 目标 `encodeRef`
+  `<typeref>`）——本车道 manifest 条目形态（name + 立即目标）就是这对
+  decode/encode 的 JSON 投影。
+
+### 20.2 通道形态（manifest 协议扩展 + 驱动装种）
+
+- **harvest**（`tools/harvest_local_manifest.py --typedef BINARY GOLDEN.c CORPUS
+  ORACLE_COMMIT OUT.json`，add-only）：golden **声明层**（签名行 + decl 块类型位）
+  引用名 ∩ DWARF `DW_TAG_typedef` 名集，typedef-of-typedef 链闭包；base 目标经
+  **importer 自己的别名表**（`initBaseDataTypes` :499-548，Rugra
+  `standard_base_alias` debugproto.rs:1776 镜像）映射到工厂核心拼写并携带
+  (size, metatype)。三类分流：`typedefs[]`（可装：base / typedef-ref 目标，
+  依赖序）／`deferred_typedefs[]`（composite/enum/array/pointer 目标——MB22
+  联调域）／`harvest_drops[]`（conventional-bool［PRINTC-BOOLLITERAL-0001 核心
+  bool 字面量通道，异常键在 typedef 名］、chartype、无名目标、被 deferred 阻
+  断的链）。httpd 语料 stripped → `_warn_if_no_dwarf` 响亮零产（HSEED 判例），
+  不船运 manifest。
+- **manifest**: `tests/golden/manifests/typedef_seed_curl_1204.json`（3 装种
+  条目 `__time_t→long`、`size_t→ulong`、`time_t→__time_t`；6 deferred；3 drops；
+  含 oracle_commit + binary/golden sha256 溯源，机制 B2 口径同其它通道）。
+- **驱动装种**（curl_decompile.rs / httpd_decompile.rs）：
+  - **接口契约对接 TYPEDEFIMM 通道**（其分支待并 MB21/MB22，本车道基
+    master 01e9132d 无 `typedef_imm`）：契约锚点 = `TypeFactory::get_typedef(
+    name, ct)`（typefactory.rs:3010，master 与 MB22 分支**同签名**——master
+    注册名字表 alias，MB22 同一调用置位 per-instance 通道并激活全部四个剥
+    离环）。驱动侧只调该 pub API → 离线可对接成立，无需登记移交；MB22 合并
+    后零驱动改动联调（见 20.5）。
+  - **安装次序**（oracle 依据 20.1 的同名 throw）：decompile_request 顶部、
+    任何 DWARF 库解析（DebugGlobalDatabase/DebugPrototypeDatabase 的
+    `resolve_type` typedef 臂先物化**无通道**同名 alias）之前；OnceLock 每
+    进程一次（shared TypeFactory 进程级）。之后 index 走查经 intern_named
+    same-shape 去重落到已装 clone 上。
+  - **目标解析**：kind=base → `get_base_named(size, metatype, spelling)`——
+    与 `parse_c_type` 核心臂同一 interned 节点（`factory_named_base` 先查
+    find_by_name），typedef 剥离落到管线无别名拼写持有的同一身份；kind=
+    typedef → 已装 clone 集。
+  - **门控**（V3SIG/PFLIP opt-in 判例——通道活跃即 canon 可见[typedef 形态
+    cast/`&` 渲染]，且尚无树内锁定 oracle 见证）：`RUGRA_TYPEDEFSEED=1`
+    opt-in；mirror 组件恒拒（五投影纯净）；`RUGRA_SEEDS=0` 全局裸脸逃生；
+    `RUGRA_TYPEDEFSEED_MANIFEST=<path>` 覆盖；manifest 缺失/损坏 = 响亮
+    no-op。**默认脸构造性恒等**：门关 = 零 manifest IO、零工厂突变、零
+    get_typedef 调用。
+
+### 20.3 触发验证（种子态剥离环激活计数观测）
+
+驱动侧两级观测（观测不突变；门关则零开销）：
+
+1. **index occupation**（curl，parse_type_names 后）：DWARF 名索引中 Arc 同一
+   / 同名命中已装 typedef 的条目数——剥离环候选操作数的名索引面。
+2. **strip surface**（双驱动，action pipeline 后）：fd 高变量类型名命中已装
+   typedef 集合计数（逐函数 `[TYPEDEFSEED] <fn> strip surface: N high
+   variables on typedef-layer types (...)`）——**四个剥离环
+   （cast.cc:325-328 / printc.cc:390-393 / coreaction.cc:2476-2479 /
+   typeop.cc:2337-2340）在本函数的可操作面**。master 上唯一活的环是
+   isOpIdentical 的名字表孪生（coreaction.rs:6602）；环级逐次计数器属 MB22
+   通道分支（其拥有那四行；master 侧加计数器必造合并冲突）——联调时随通道
+   补齐，本车道以操作数面计数为收敛方向观测（canon 声明层 typedef 形态残
+   差族沿 `size_t/ulong` 身份统一方向）。
+
+### 20.4 验收矩阵（亲测，基=master 01e9132d vs 本车道分支，fast-release 双独立构建）
+
+| 门禁 | 结果 |
+|---|---|
+| canon A/B 默认脸 | curl **96429B cmp 逐字节恒等**、httpd **64839B cmp 逐字节恒等**（==TYPEDEFIMM 车道记录值，master 侧无漂移） |
+| 驱动门实测 | `=1`：installed 3（6 deferred/3 drops）+ index occupation 3 identity/3 name hits（53 entries）+ strip surface 计数 ✓；`RUGRA_MIRROR=1`+门：`ignored under the mirror gate` ✓；缺 manifest（路径覆盖 + httpd 无船运）：`cannot read manifest ... (seeding disabled)` 响亮 no-op ✓；unset/`=0`：stderr 零 TYPEDEFSEED 行（构造性惰性）✓ |
+| 触发验证（种子态计数） | curl 全语料 gate-on：**19/76 函数非零 typedef 层占据，合计 41 个 high variables**（size_t 族 17 函数/time_t×2/__time_t×1；`main` 3 个 `(size_t, time_t)`、`getparameter` 3 个 `(time_t, size_t, __time_t)`、`myprogress` 5 个）；**gate-on 全语料输出 vs 默认脸 diff=0**——通道活跃但 master 名字表孪生环在该语料无可翻转比较对（与 TYPEDEFIMM §④ "构造性休眠"同因：canon 残差族在 composite/enum 半边与 MB22 四环） |
+| 确定性 | gate-on 双跑 cmp 逐字节恒等 |
+| projection bank | **391/391 OK** |
+| 三门禁 | annotations 100 文件全注解 ✓ / refs --strict 全解析 ✓ / evidence 四类 4/4 ✓（src/ 零改动） |
+
+### 20.5 MB22 联调移交（登记，非本车道写域）
+
+1. **composite/enum/array typedef 装种**（FILE/_IO_FILE、URLGlob、CURLcode、
+   va_list 三级链——manifest `deferred_typedefs[]` 已记账）：需要 DWARF 名
+   索引先于装种可用，而 `parse_type_names` 的 alias 物化先占名（getTypedef
+   同名 throw）→ 解法是**导入边界自身改调 get_typedef**（src/debugproto.rs
+   resolve_type typedef 臂 → materialized_alias → alias_type 一线），属
+   TYPEDEFIMM 消费域 src 改动。
+2. **环级激活计数器**：四剥离环逐次计数（观测通道联调的量化面）。
+3. **门极性复审**：联调产出锁定 oracle 见证后，评估 PFLIP→SEEDFLIP 翻转
+   （默认脸装种）。
