@@ -12,6 +12,61 @@ functional=false → userop.hh:190-191/205-206 的构造器置位）。此前缺
 （decodeVolatile，userop.cc:566-570）仍是唯一零旗标来源。新回归测试
 `test_register_builtin_volatile_display_defaults` 钉死两缺省。
 
+> MB24 union 注记：USEROPDEV 并入后 `try_register_builtin_by_id` 改为
+> `register_builtin(id, None, 1)` 委托单行，volatile 旗标缺省随之落到
+> `register_builtin` 构造体内（与 oracle cc:443-447 位于 registerBuiltin
+> 本体一致），兼容路径观察行为不变。
+
+## 2026-09-27：registerBuiltin Datatype 缺省元数据 + VolatileWriteOp 写臂（Lane USEROPDEV）
+
+两项 VOLATILEDEV/VOLATILEOUT 移交收口（USEROP-REGISTERBUILTIN-DEFAULTS-0001 /
+USEROP-VOLATILEWRITE-INPUTLOCAL-0001）：
+
+- **`register_builtin(builtin_id, type_factory, default_space_word_size)`** —
+  oracle `UserOpManage::registerBuiltin(uint4)`（userop.cc:432-484）的 1:1 入口。
+  `type_factory` 参数线程替代 oracle 的 `glb->types` 可达边（userop.hh:74/327；
+  参数线程 vs 反链的裁决见 docs/api/varnode.md 2026-08-25 节），
+  `default_space_word_size` 替代 `glb->getDefaultDataSpace()->getWordSize()`
+  （cc:452/462/472，锁定 x86-64 gcc 语料=ram 空 1）。带工厂时三个 Datatype 臂
+  按需构造 cc:449-477 的 ptr/char 指针元数据（`datatype_builtin_local_types`：
+  ptrSize=`getSizeOfPointer()`，元素=void/`getTypeChar(getSizeOfChar())`/
+  `getTypeChar(getSizeOfWChar())`，ptrType=`getTypePointer(ptrSize,元素,ws)`，
+  intType=`getBase(4,TYPE_INT)`，out=in0=in1=ptrType、in2=intType）；
+  无工厂时保持 metadata-less 兼容记录。首次注册胜出（cc:435-437），
+  未知 id 逐字 `Bad built-in userop id` 且零突变（cc:479-480）。
+- **`try_register_builtin_by_id`** 现在是无线程兼容形态
+  （`register_builtin(id, None, 1)`）—— Datatype 调用方持工厂时须用
+  `register_builtin`（按需缺省）或 `register_builtin_with_local_types`
+  （显式类型；constseq typed 路径入口，构造与按需缺省恒等，
+  constseq 域空闲时可合并）。
+- **`VolatileWriteOp::get_input_local(op, slot, type_factory, symboltab)`** —
+  userop.cc:159-172 写臂（VOLATILEOUT 读臂 getOutputLocal cc:128-141 的镜像）：
+  `!doesSpecialPropagation() || slot != 2` 双门 → `addr = in(1)->getAddr()`、
+  `size = in(2)->getSize()`、usepoint=op 地址 → 全局 scope
+  `queryProperties`（vflags 弃读）→ `entry->getSizedType(addr,size)`。
+  `symboltab` Option-thread 替代描述符 `glb->symboltab` 边（读臂同形）。
+  **消费面分派接线**（C++ 虚分派替代物——varnode.rs `op_input_type_local`
+  CALLOTHER 臂的 `is_volatile_write()` 臂插入）登记为 varnode 域后续票，
+  见 TODO_BOARD 本行。构造性休眠：锁定 x86-64-gcc.cspec / x86-64.pspec
+  `grep -c volatile` 均为 0（本道亲证复跑），触发链首环即断，五语料零差为
+  构造性必然（CR-VOLATILEOUT §3 论证复用）。
+- 旧名列表便捷器 `register_builtin(name, id)` 更名
+  `register_builtin_named`（`initialize_builtins` 专用；oracle 名位让给
+  `registerBuiltin(uint4)` 对应物；零行为变化，`initialize_builtins`
+  全库无调用方）。
+- 新测 5 个：`test_register_builtin_datatype_defaults`（三 id 按需元数据：
+  元素名/尺寸/wordsize/slot 布局/Arc 同一性/幂等指针恒等）、
+  `test_register_builtin_datatype_first_wins_orders`（typed↔按需双向首注胜出）、
+  `test_register_builtin_wcsncpy_dataorg_degrade`（DataOrg 无 size-2 宽字符的
+  降级钉死——oracle 该工厂形态会抛 LowlevelError，Rugra 线程降级为
+  metadata-less，与 constseq typed 入口同状态降级一致；活架构不可达）、
+  `test_register_builtin_bad_id`、
+  `test_volatile_write_input_local_symbol_arm`（正例+四负例：非 slot-2 /
+  无 special_prop / 地址无符号 / 无 symboltab）。
+- VOLATILEDEV 交互注记：其分支（未并入本基）给 `try_register_builtin_by_id`
+  volatile 臂补 functional=false 旗标缺省（NO_OPERATOR/ANNOTATION_ASSIGNMENT）；
+  本道保留该着陆区（同一 switch 骨架），root 合并时为文本级机械解冲突。
+
 ## 2026-09-25：STRINGDATA builtin 的 display_string 旗标（Lane STRNCPY）
 
 `try_register_builtin_by_id` 对 `BUILTIN_STRINGDATA` 建立的记录现在带上
@@ -47,7 +102,8 @@ STRNCPY-PRINT-CALLOTHER-0001（printc 车道）。
 - `register_datatype_user_op(descriptor)` — 在主 descriptor 容器中定制 typed userop
 - `get_output_local(index)` / `get_input_local(index, slot)` — 查询 canonical local type metadata
 - `register_builtin_with_local_types(id, out, inputs)` — 用 TypeFactory canonical Arc 首次注册 typed builtin
-- `try_register_builtin_by_id(id)` — 保留 missing-metadata 兼容路径并显式返回未知 id 错误
+- `register_builtin(id, type_factory, ws)` — userop.cc:432-484 的 1:1 按需缺省入口（2026-09-27；Datatype 臂带工厂构造 cc:449-477 元数据）
+- `try_register_builtin_by_id(id)` — 保留 missing-metadata 兼容路径并显式返回未知 id 错误（现= `register_builtin(id, None, 1)` 委托）
 
 ### Built-in IDs
 `BUILTIN_STRINGDATA/VOLATILE_READ/VOLATILE_WRITE/MEMCPY/STRNCPY/WCSNCPY`
@@ -58,7 +114,7 @@ STRNCPY-PRINT-CALLOTHER-0001（printc 车道）。
 
 新增完整 UserOpManage 和专用子类构造函数：
 - `initialize_builtins()` — 初始化所有内置 CALLOTHER ID
-- `register_builtin(name, id)` — 注册内置操作
+- `register_builtin_named(name, id)` — 注册内置操作（名列表便捷器，2026-09-27 更名自 `register_builtin(name,id)`，oracle 名位让给按需缺省入口）
 - `get_op_mut(index)` — 可变访问
 - `is_volatile_read/write(index)` — 检查类型
 - `create_unspecialized/injected/volatile_read/volatile_write/segment/jump_assist` — 专用子类构造函数
