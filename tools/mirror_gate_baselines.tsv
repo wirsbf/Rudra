@@ -71,11 +71,20 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 #   B2 spot: trio 707/705/681 恒[CR-S1 钉值]+sqlite3Select 2257 恒[根因二域]+stderr unlinked=0+vmprintf CONCAT71/extraout_RDX join 形在场);
 # httpd 36/vsh 2 恒等不重钉(MB31/MB30 行保持)。canon: curl 54/httpd 36 md5 4503f498/c3b4706c 双字节恒等零回退。
 # 强制重链后实测(12:02:23>全部 merge commit;内容探针 digest=b490b43a files=103)。
+# MB33-RATCHET-REPIN-0001 @ 7b6637b7 (2026-09-28): sqlite 8477->6187 (S2R2 root-cause-two
+# PIECE half-value hint landing — varmap.cc:1172/1176 output-derived addresses; the -0x78 slot
+# 7-star runaway collapses: sqlite3Select 2257->90 [-2167], 7-star Select lines 387->0,
+# (code*) 0->228 vs oracle 225 near-parity; CR-S2R2 APPROVE zero MISMATCH, three-way identity
+# lane+CR re-run+MB33 merged-tree all 6187). curl 21/httpd 36/vsh 2/sq 2742 identical, not re-pinned
+# (MB32/MB31/MB30 rows stay). canon: curl 54/httpd 36 md5 4503f498/c3b4706c byte-identical zero
+# regression. Forced relink before measurement (digest 8e107a1a files=103, binaries newer than all
+# five merge commits). B2 spot on merged tree: Select --one fresh 7-star=0/5-star=0/(code*)=228
+# vs golden 225; trio S1 domain untouched by this change.
 curl	21	74	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
 httpd	36	29	MB31-RATCHET-REPIN-0001	10ebbef6	2026-09-28
 vsh	2	71	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
 sq	2742	810	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
-sqlite	8477	1385	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
+sqlite	6187	1385	MB33-RATCHET-REPIN-0001	7b6637b7	2026-09-28
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
