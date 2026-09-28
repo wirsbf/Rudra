@@ -1,5 +1,32 @@
 # `ruleaction.rs` API Reference
 
+## 2026-09-29：PERF-OPPOOL-0001 规则池派发邻域 miss 路径锁合并（性能恒等重排）
+
+[OPPROF] 钻探（VdbeExec `--one 1055`）将 oppool1 22-28s 残差分解到规则后，
+对 miss 路径（>99% 的派发是"试了不改"的纯扫描——正是 oracle 算法形态，
+action.cc:836-846 每 op×每 rule 尝试）做**读锁合并**，判定序与判定值逐调用不变
+（合并区间内零突变，读锁合并可交换；oracle 对应字段是裸读）：
+
+- `RuleCollectTerms::get_mult_coeff`（ruleaction.cc:82-97）— `isWritten`+`def`
+  单次 Varnode 锁；系数 `is_constant`+`get_offset` 单次锁。短路序与返回值不变。
+- `RuleCollectTerms::apply_op` 相位 1（cc:122-152）— 前一项的 `(base, coef)`
+  跨迭代携带（oracle 每 step 对两成员各调一次 getMultCoeff，但 miss 间零突变，
+  携带值≡重读值）；`Arc::ptr_eq` 合并判定与 combine 分支行为不变。
+- `RuleMultiCollapse::apply_op` miss 路径（cc:3234-3300）— heritage 预检
+  （cc:3243-3244）与 matchlist 构建（cc:3247）合并为单次 op 快照单趟扫描；
+  首个非 MULTIEQUAL 分支查找、defining 分支 `nofunc` 判定（cc:3262-3269
+  `!written || multiequal` 语义逐字保留）、非匹配分支 MULTIEQUAL 扩展
+  （cc:3280-3300）均改单锁批量读。expand 推入序（cc:3290 `push` 序）不变。
+- `RuleIndirectCollapse::apply_op`（cc:3191-3192）— `isDead`+`opcode` 合并单次
+  indop 读锁。
+- `RulePiecePathology::is_pathology`（cc:10434 起）— `isInput`/`isPersist`/`def`
+  单次 Varnode 锁；worklist 内 op 的 `opcode`+MARK 标志单次锁（写标志仍独立
+  写锁）。worklist/mark 语义不变。
+
+实测：collect_terms 13.7µs/try → 0.89µs/try（−93.5%），multicollapse
+2257→1864ns/try。VdbeExec `--one 1055` stdout 字节恒等 + canon/镜面门禁见
+车道 OPPPOOL 报告。
+
 ## 2026-09-26：ruleaction 14 处 union facing 退化读换 fd-aware 孪生（UNIONRESOLVE-PKG-D-0001）
 
 审计底稿 `docs/alignment_audit/UNION_CONSUMER_AUDIT_2026-09-26.md` §一 ruleaction 表判定的

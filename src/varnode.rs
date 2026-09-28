@@ -2469,19 +2469,33 @@ impl Varnode {
     /// `Varnode::hasNoDescend`. Used by several Rules (RuleXorCollapse,
     /// RuleSubZext) to check exclusive use.
     pub fn has_no_descend(&self) -> bool {
-        self.descend.iter().all(|w| w.upgrade().is_none())
+        // PERF-OPPOOL-0001: liveness probe via strong_count (no refcount
+        // round-trip per entry); same live-descendant predicate as before.
+        self.descend.iter().all(|w| std::sync::Weak::strong_count(w) == 0)
     }
 
     // Ghidra: varnode.cc:676 Varnode::loneDescend
     /// Return the single descendant op of this varnode, or None if there are
     /// zero or more than one. Faithful to `Varnode::loneDescend`.
+    /// PERF-OPPOOL-0001: allocation-free single pass over the weak descend
+    /// entries (the previous Vec-collecting form paid one heap allocation per
+    /// call — the hot constant of TermOrder::collect / RuleEarlyRemoval
+    /// guards). Early-exits at the second live entry, like the oracle's
+    /// `iter != descend.end()` short-circuit (varnode.cc:686).
     pub fn lone_descend(&self) -> Option<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>> {
-        let live: Vec<_> = self.descend.iter().filter_map(|w| w.upgrade()).collect();
-        if live.len() == 1 {
-            Some(live.into_iter().next().unwrap())
-        } else {
-            None
+        let mut found: Option<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>> = None;
+        for weak in &self.descend {
+            if std::sync::Weak::strong_count(weak) == 0 {
+                continue;
+            }
+            let upgraded = weak.upgrade();
+            let Some(live) = upgraded else { continue };
+            if found.is_some() {
+                return None;
+            }
+            found = Some(live);
         }
+        found
     }
 
     // Ghidra: varnode.cc:155 Varnode::characterizeOverlap

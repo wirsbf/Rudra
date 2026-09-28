@@ -83,6 +83,7 @@ mod action_stats {
     }
 }
 
+
 // ---- Action rule/status/break flags (action.hh:55-87) ----
 // These mirror Ghidra's flag bit values exactly, used by the perform() state
 // machine to drive repeatapply / onceperfunc semantics.
@@ -1702,11 +1703,16 @@ impl ActionPool {
             // activate before each rule application, flush under the rule's
             // leaf name after; the enclosing pool perform's own pair becomes
             // a no-op via the active-flag reset, as in the oracle.
+            // PERF-OPPOOL-0001: the flush call site guards on the same env
+            // gate so the per-try vtable name fetch is skipped when the
+            // drill is off (flush itself no-ops then; its bool is discarded).
             crate::drillobserve::activate();
             action_stats::bump(&action_stats::STATS.rule_tries);
             self.rule_states[rule_index].count_tests += 1;
             let result = self.rules[rule_index].apply_op(&op_ref.0, fd)?;
-            crate::drillobserve::flush(self.rules[rule_index].get_name());
+            if crate::drillobserve::is_enabled() {
+                crate::drillobserve::flush(self.rules[rule_index].get_name());
+            }
             if result > 0 {
                 action_stats::bump(&action_stats::STATS.rule_hits);
                 self.rule_states[rule_index].count_apply += 1;

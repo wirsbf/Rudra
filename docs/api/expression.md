@@ -4,6 +4,31 @@
 **Ghidra 对应**: `expression.hh` / `expression.cc`
 **状态**: 🔧 **L2**——部分函数已有实现和测试，但模块级逐函数 oracle 闭包尚未完成；不得沿用旧 L3 声明。
 
+## 2026-09-29：PERF-OPPOOL-0001 TermOrder 收集/排序每边锁合并（性能恒等重排）
+
+[OPPROF] 钻探（VdbeExec `--one 1055`，RUGRA_OPPROF=1 探针，交付前撤净）显示
+`collect_terms` 是 oppool1 22-28s 残差的单一最大项：8.47s / 617,430 次尝试 /
+**13.7µs 每次尝试**（oracle 同规则密度采样仅 ~0.5s = 17× 实现级常数差）。本条
+消除该常数，算法与可观察结果不变：
+
+- `TermOrder::collect` — 每次 `opstack.pop()` 现以**单次 PcodeOp 读锁**快照
+  输入 Arc 句柄表（原实现每边重取 `curop.read()`）；每边以**单次 Varnode 读锁**
+  批量读出 oracle 逐字段读的 `isWritten`/`loneDescend`/`getDef`（expression.cc
+  :243-280 逐字对应）；`AdditiveEdge` 直接以已克隆句柄构造（原 `AdditiveEdge::new`
+  重锁读取 op 再取 `inrefs[slot]`——oracle `expression.hh:106` 构造器是裸指针
+  `vn = op->getIn(slot)`）。LIFO 栈序、逐 slot 扫描序、term 推入序逐行不变。
+- `TermOrder::sort_terms` — `additiveCompare` 投影（常量类 + 剥离 INT_MULT 常数
+  系数后的完整 storage address，varnode.cc:1153-1175 `termOrder`）改为**每 term
+  预计算键** `(class, space_id, AddressSpace, offset)`（键序=varnode.rs
+  `compare_address_spaces` 的 `space_id().cmp().then(a.cmp(&b))` 逐字复刻），
+  排序在缓存键上进行（原实现每比较 2 次 Varnode 锁 + MULT 剥离最多 3 次额外
+  锁）。`sort_by` 稳定性与等价类结果逐对不变（投影相同 → Less/Greater/Equal
+  判决逐对相同；`Arc::ptr_eq` 短路保留）。
+
+行为恒等论证：collect 全程零突变（纯走查，锁合并在无突变区间内可交换）；
+排序键是 term_order 的全序键化。VdbeExec `--one 1055` stdout 与基线逐字节恒等
+（md5 `4c557d1f…`，四连测），canon 双语素 + 镜面五面零漂移（车道 OPPPOOL 门禁）。
+
 ## 2026-08-13：TermOrder 收集边界与比较器修正
 
 `TermOrder::collect` 在 `INT_MULT(INT_ADD(...), constant)` 路径上现在检查底层
