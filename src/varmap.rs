@@ -3067,6 +3067,11 @@ impl ScopeLocal {
             self.rename_symbol(sym_idx, &unique_name);
             self.symbols[sym_idx].symbol_id = rec.symbol_id;
             self.symbols[sym_idx].namelock = true;
+            // CR-OUTSTREAM3 condition 1: namelock write invalidates the
+            // live_symbols snapshot for this slot (OUTSTREAM-MEMO-
+            // INVALIDATION-0001); production writes below the test module
+            // are exactly the two apply-recommendation arms.
+            self.invalidate_live_symbol(sym_idx);
             // cc:1546-1548: if (vn != 0) fd->remapVarnode(vn, sym,
             //   usepoint) — the oracle passes the Symbol itself
             //   (funcdata_varnode.cc:1104-1110), which now carries the
@@ -3124,6 +3129,10 @@ impl ScopeLocal {
             self.rename_symbol(sym_idx, &unique_name);
             self.symbols[sym_idx].namelock = true;
             self.symbols[sym_idx].symbol_id = rec.symbol_id;
+            // CR-OUTSTREAM3 condition 1: namelock write invalidates the
+            // live_symbols snapshot for this slot (dynamic arm; same
+            // OUTSTREAM-MEMO-INVALIDATION-0001 hook as the static arm).
+            self.invalidate_live_symbol(sym_idx);
             // cc:1568: fd->remapDynamicVarnode(vn, sym, address, hash).
             fd.remap_dynamic_varnode(
                 &vn_found,
@@ -3296,7 +3305,7 @@ impl ScopeLocal {
         flags
     }
 
-    // Ghidra: database.cc:1259-1266 Scope::queryContainer (live-entry form)
+    // Ghidra: database.cc:1246 Scope::queryContainer (live-entry form)
     /// Build the live `database::SymbolEntry` for a `LocalMapEntry` hit from
     /// [`Self::query_properties_ex`], so callers can run the full
     /// `Varnode::setSymbolProperties` port (varnode.rs
@@ -4688,6 +4697,27 @@ impl ScopeLocal {
         self.nametree.insert(key, idx);
     }
 
+    // RUGRA-GLUE: memo-invalidation hook for `live_symbols` (CR-OUTSTREAM3
+    // condition 1, 2026-09-28). Ghidra has no counterpart: its scope owns
+    // ONE heap `Symbol` per mapping (database.hh:809) and hands out the
+    // live object, so a late rename or namelock write is inherently
+    // visible through every previously handed-out `Symbol *`. Rugra's
+    // memo materializes a SNAPSHOT (name/display/dtype/typelock/namelock/
+    // addrtied); without invalidation a late mutation of the LocalSymbol
+    // would leave stale handles that claim the pre-mutation identity.
+    // Currently unreachable in-pipeline (materialization only happens at
+    // op-attach property tails; production renames/namelock writes all
+    // happen before any further attach; late rebinds go through the
+    // independent remap_varnode port, funcdata_varnode.cc:1104-1126) —
+    // this hook guards against future pipeline shifts. Registered as
+    // OUTSTREAM-MEMO-INVALIDATION-0001.
+    pub fn invalidate_live_symbol(&self, idx: usize) {
+        self.live_symbols
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(&idx);
+    }
+
     // Ghidra: database.cc:2152 ScopeInternal::renameSymbol
     /// Rename a symbol. Faithful to `ScopeInternal::renameSymbol`
     /// (database.cc:2152-2164): erase from the nametree under the old name,
@@ -4695,12 +4725,18 @@ impl ScopeLocal {
     /// `insertNameTree`. (Ghidra additionally removes/reinserts
     /// `multiEntrySet` when `wholeCount > 1`; Rugra's LocalSymbol models
     /// exactly one whole mapping, so that branch cannot trigger.)
+    /// Renames invalidate the `live_symbols` memo entry for the slot
+    /// (see [`Self::invalidate_live_symbol`]): Ghidra's rename mutates the
+    /// one heap Symbol in place (database.cc:2158-2159), so every
+    /// previously handed-out handle observes the new name — the Rust
+    /// snapshot form must be dropped to preserve that liveness.
     pub fn rename_symbol(&mut self, idx: usize, newname: &str) {
         let old_key = (self.symbols[idx].name.clone(), self.symbols[idx].name_dedup);
         self.nametree.remove(&old_key);
         self.symbols[idx].name = newname.to_string();
         self.symbols[idx].display_name = newname.to_string();
         self.insert_name_tree(idx);
+        self.invalidate_live_symbol(idx);
     }
 
     // Ghidra: database.cc:2520 ScopeInternal::buildUndefinedName
@@ -5738,6 +5774,48 @@ mod tests {
         scope.collect_name_recs();
         assert_eq!(scope.name_recommend.len(), 0);
         let _ = plain;
+    }
+
+    // OUTSTREAM-MEMO-INVALIDATION-0001 (CR-OUTSTREAM3 condition 1): a
+    // rename (or namelock write — production write points are the two
+    // apply-recommendation arms, both rename-first) drops the
+    // `live_symbols` snapshot for the slot, so a re-materialization
+    // observes the post-rename name. This is the Rust form of Ghidra
+    // mutating its ONE heap Symbol in place (database.cc:2158-2159) —
+    // every previously handed-out `Symbol *` sees the new name, so the
+    // snapshot cache must not outlive the mutation.
+    #[test]
+    fn test_rename_symbol_invalidates_live_symbols_memo() {
+        use crate::space::AddressSpace;
+        let mut scope = ScopeLocal::new();
+        scope.local_range.push((0x100, 0x200));
+        let sym = scope.add_symbol(
+            AddressSpace::Stack, "var",
+            Some(int_dt(4, TypeMetatype::Int)), 0x140, None);
+        let hit = {
+            let outcome = scope.query_properties_ex(
+                AddressSpace::Stack, 0x140, 4, None, None, &|_, _| 0);
+            outcome.entry.expect("entry hit")
+        };
+        let e1 = scope.live_symbol_entry(&hit).expect("live entry");
+        assert_eq!(e1.read().unwrap().get_symbol().read().unwrap().get_name(), "var");
+        // Memoized identity before the rename.
+        let e1b = scope.live_symbol_entry(&hit).expect("live entry");
+        let (s1, s1b) = (
+            e1.read().unwrap().get_symbol(),
+            e1b.read().unwrap().get_symbol(),
+        );
+        assert!(std::sync::Arc::ptr_eq(&s1, &s1b), "pre-rename handle is memoized");
+        // The late rename (varmap.cc:1543-1545 arm) mutates the
+        // LocalSymbol; the hook must drop the snapshot.
+        scope.rename_symbol(sym, "renamed");
+        let e2 = scope.live_symbol_entry(&hit).expect("re-materialized entry");
+        let s2 = e2.read().unwrap().get_symbol();
+        assert!(!std::sync::Arc::ptr_eq(&s1, &s2), "stale handle invalidated");
+        assert_eq!(s2.read().unwrap().get_name(), "renamed");
+        // The already-handed-out old handle keeps its snapshot semantics
+        // (Ghidra's would see the new name — documented memo limitation,
+        // unreachable in-pipeline; the guard is for future shifts).
     }
 
     #[test]

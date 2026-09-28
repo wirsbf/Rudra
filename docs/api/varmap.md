@@ -1,3 +1,15 @@
+## 2026-09-28：live_symbols memo 失效钩（OUTSTREAM-MEMO-INVALIDATION-0001，CR-OUTSTREAM3 条件 1）
+
+`ScopeLocal::invalidate_live_symbol(idx)`：rename/namelock 写点（两个
+apply-recommendation 臂 + `rename_symbol`）即刻丢弃该槽位的 memo 条目。
+Ghidra 的 scope 拥有每映射一个堆 `Symbol`（database.hh:809），晚改名/
+namelock 写对所有已交出的 `Symbol *` 天然可见；Rust 的 memo 是快照，
+必须在突变时落钩才能保持该活性语义。当前管线内不可达（物化仅发生在
+op 装接属性尾；生产写点先于后续装接；晚重绑走 `remap_varnode` 独立
+端口）——钩为未来管线位移设防。测试：rename 后 memo 条目被丢弃。
+同 commit：`live_symbol_entry` 的 `// Ghidra:` 引用修正为定义行
+database.cc:1246（CR-OUTSTREAM3 条件 2）。
+
 # `varmap.rs` API Reference
 
 ## 2026-09-28：ScopeLocal::live_symbol_entry 活符号入口物化（DB-LOCALSCOPE-MAP-0001 local-leg completion，wt/outstream）
