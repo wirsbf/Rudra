@@ -1601,12 +1601,25 @@ impl FunctionSymbol {
     /// `Scope::find_function`) alongside the resolved code `dtype`.
     pub fn build_type(&mut self) {
         // type.cc:3692 TypeFactory::getTypeCode — the generic TypeCode
-        // (empty name, size 1, marked complete). The same type channel the
-        // existing add_function path installs (2026-09-24
-        // HTTPD-CODEREF-SYMBOLIZE-0001).
-        self.symbol.dtype = Some(Arc::new(crate::type_system::datatype::Datatype::Code(
-            crate::type_system::datatype::TypeCode::new(),
-        )));
+        // (empty name, size 1, marked complete), INTERNED through the
+        // factory tree exactly like database.cc:518
+        // (`types->getTypeCode()` on the owning Architecture's factory).
+        // The former fresh `TypeCode::new()` construction left the
+        // TYPE_INCOMPLETE flag set (get_type_code clears it, type.cc:3699)
+        // and produced a non-interned instance per call, so any consumer
+        // comparing the symbol type against a propagation-built code type
+        // (same factory instance) diverged — load-bearing since the
+        // analysis-side symbol channel (S2CODESTAR-DOWNCHAIN-0001): the
+        // `pcVar4 == (code *)_ZN…D0Ev` extra-cast family traces to this
+        // identity/flag gap. shared_default is the gen driver's arch
+        // factory (gen_decompile.rs build_architecture), the only caller
+        // that installs function symbols.
+        self.symbol.dtype = Some(
+            crate::type_system::typefactory::TypeFactory::shared_default()
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get_type_code(),
+        );
         self.symbol.flags |= symbol_flags::NAMELOCK | symbol_flags::TYPELOCK;
     }
 
@@ -4201,9 +4214,15 @@ impl Scope {
         // namelock|typelock. container_hit surfaces the metatype, which
         // PrintC::opPtrsub's spacebase arm reads (printc.cc:1068-1069
         // `TYPE_CODE → valueon = true` — a function symbol drops the '&').
-        sym.dtype = Some(std::sync::Arc::new(crate::type_system::datatype::Datatype::Code(
-            crate::type_system::datatype::TypeCode::new(),
-        )));
+        // Type interned via the factory (database.cc:518
+        // `types->getTypeCode()` — NOT a fresh TypeCode::new(); see
+        // FunctionSymbol::build_type's note).
+        sym.dtype = Some(
+            crate::type_system::typefactory::TypeFactory::shared_default()
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get_type_code(),
+        );
         sym.flags |= symbol_flags::NAMELOCK | symbol_flags::TYPELOCK;
         // Scope::addMap (database.cc:1131-1133, 1147-1151) — the whole-map
         // point integration on a global scope sets `persist`, and a valid
