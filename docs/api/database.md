@@ -489,6 +489,21 @@ equate-pipeline 测试随 VARNODE-COPYSYMBOL-HIGHBRANCH-0001 的关联函数签�
   property 折叠；label entry 的 extraflags 随 addMapInternal 取
   `Varnode::mapped`）。findCodeLabel 的 `inUse(addr)` 由 addrtied 腿放行。
 
+## 2026-09-28（S2CODESTAR-DOWNCHAIN-0001）：函数符号 code 类型改工厂内驻实例
+
+`FunctionSymbol::build_type` 与 `Scope::add_function` 的符号 `dtype` 此前为裸
+`TypeCode::new()` 构造——`TYPE_INCOMPLETE` flag 残留（`get_type_code` 会清除它，
+type.cc:3699）且每次调用产生**非内驻**实例。oracle 侧
+`FunctionSymbol::buildType`（database.cc:514-520）用
+`scope->getArch()->types->getTypeCode()`——**工厂内驻**实例。此前无消费者比较
+符号类型与传播侧 code\* 型（同一工厂的 interned 实例），该偏差不载重；分析侧
+符号通道（ActionConstantPtr→spacebaseConstant 的 code\* 铸造）落地后，
+`pcVar4 == (code *)_ZN…D0Ev` 多余 cast 族（SetCasts 对两型判不等）暴露此缺口。
+修复：双位点改 `TypeFactory::shared_default().get_type_code()`
+（gen 驱动的 arch factory 即 shared_default，见 examples/gen_decompile.rs
+build_architecture）。行为等价性由 canon 双语料恒等（curl 54/httpd 36）+
+sq 镜面 −126 实测背书。
+
 ## 2026-09-24（HTTPD-CODEREF-SYMBOLIZE-0001）：add_function 补 FunctionSymbol::buildType + addMap 折叠旗标
 
 `Scope::add_function`（database.cc:1615）此前只建 `type_name=="func"` 的

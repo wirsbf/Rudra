@@ -490,6 +490,18 @@ fn build_architecture(
             }
         }
     }
+    // architecture.cc:1391: `symboltab = new Database(this,true);` — the
+    // Architecture owns its symbol table from init, BEFORE parseCompilerConfig,
+    // so the cspec <global><range space="ram"/> ingestion
+    // (Architecture::addToGlobalScope → Database::addRange) lands the ram
+    // range on the global scope. S2CODESTAR-DOWNCHAIN-0001 analysis leg: the
+    // global range is load-bearing for mapGlobals' discoverScope walk
+    // (funcdata_varnode.cc:1701-1702 — a persist varnode in ram with no
+    // containing scope range throws "Could not discover scope") and for
+    // ActionConstantPtr's container queries.
+    arch.symboltab = Some(std::sync::Arc::new(std::sync::RwLock::new(
+        rugra::database::Database::new(false),
+    )));
     // architecture.cc:1239-1351 parseCompilerConfig — establishes the
     // prototype models and defaultfp (the FUNCPROTO-MODEL-BIND-0001 chain).
     arch.parse_compiler_config(&mut store, host.as_ref(), 8)
@@ -526,6 +538,32 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         ),
     );
     let (arch, sleigh_ctx) = build_architecture(Some(loader))?;
+    // GEN-CODEPTR-SYMBOLIZE-0001 analysis-side leg (S2CODESTAR-DOWNCHAIN-0001):
+    // the oracle's golden harness registers every BFD function symbol into the
+    // ANALYSIS Architecture's global scope before decompiling
+    // (regen_ghidra_golden.py:219-231 registerFunctionSymbol ->
+    // scope->addFunction; BfdArchitecture::init readLoaderSymbols is the
+    // production channel of the same face). ActionConstantPtr::isPointer ->
+    // Funcdata::queryContainerParentScope reads THAT scope, and a hit runs
+    // Funcdata::spacebaseConstant (funcdata.cc:413-419), whose PTRSUB output
+    // is typed pointer-to-the-symbol's-type — for a function symbol that is
+    // TypeFactory::getTypeCode (database.cc FunctionSymbol::buildType), i.e.
+    // the code* mint seed of the whole downChain family. Rugra's gen driver
+    // previously installed NO analysis symboltab (query channel returned None
+    // on every isPointer consult), so the seed never existed in the mirror
+    // arm. build_architecture now owns the Database (with the cspec <global>
+    // ram range); register the function symbols on it — address-unique
+    // first-wins matching the golden's queryFunction dedup, consume size 1 =
+    // glb->min_funcsymbol_size default (same content contract as the
+    // print-side DB below).
+    if let Some(symboltab) = arch.symboltab.clone() {
+        let mut db = symboltab.write().map_err(|_| "symbol table lock poisoned".to_string())?;
+        if let Some(db_scope) = db.get_global_scope_mut() {
+            for function in functions {
+                db_scope.add_function(Address::new(function.vaddr), &function.name, 1);
+            }
+        }
+    }
 
     let func_size =
         i32::try_from(target.size).map_err(|_| format!("function {} is too large", target.name))?;
