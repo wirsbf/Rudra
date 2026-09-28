@@ -3680,3 +3680,37 @@ cargo test --lib 基线 1805P/0F/5I==任务书口径 → 改后 1808P/0F/5I（+3
 
 ### OUTSTREAM-MEMO-INVALIDATION-0001（P3，DONE @ 883aa196）
 - CR-OUTSTREAM3 条件 1 兑现：`ScopeLocal::invalidate_live_symbol` 钩挂 rename/namelock 写点（两 apply-recommendation 臂+rename_symbol）；条件 2 citation 修正（database.cc:1246）同 commit。测试：rename 后 memo 条目丢弃。
+
+## 2026-09-28 Lane CANONCENSUS2 交付登记（wt/canoncensus2 @ master 1025e966；canon 双语素现值再归因 census——curl 54/httpd 36（CANONTRIAGE 时代 [157/139] 的族表剧变后重测，钉下一波围剿靶）；零 src，docs-only）
+
+**输入指纹**: canon curl `result/curl_cur.c` md5 `4503f498b9d9e065372a592ecf8e05d6`（**54/0/0**·124 fn·9 残差函数）+ canon httpd `result/httpd_cur.c` md5 `c3b4706c299d0a6c07ae2b68dd71bc2e`（**36/0/0**·34 fn·8 残差函数）；双值=worktree fresh release 构建亲测与主仓 MB32 后回流件 md5 双恒等（可复算）；golden=`tests/golden/ghidra_{curl,httpd}_1204.c`（12.0.4 锁定 oracle e40ed130 同版）；compare 口径=skeleton。产物=`/dev/shm/rugra-tests/canoncensus2/`（dump_diffs.py/census.py/merge_rank.py/full_diffs.json/curl_census.json/httpd_census.json/merged_ranking.json/双语素逐函数 diff 存档+fresh 构建件）+终报 `/dev/shm/rugra-reports/LANE_CANONCENSUS2_2026-09-28.md`。
+
+**①② 残差函数清单（函数级精确,Σ 恒等）**: curl=_init 8/main 9/_start 5/myprogress 3/file2string 16/getparameter 2/glob_set 3/glob_range 1/__libc_csu_init 7（Σ54✓）; httpd=main 13/ap_init_vhost_config 4/ap_fini_vhost_config 6/ap_update_vhost_from_headers 1/ap_ht_time 2/ap_pregsub 4/ap_getparents 2/ap_getword_nc 4（Σ36✓）。**与移交碎片对账**: ap_no2slash 已归零（INITEXTRACT 收口确认）;httpd main 13 现形=STRDAT 6+折行复合 4+label 2+声明 1（goto/label+声明序碎片部分命中）;curl main 现形=BOOLCHAR 8+声明 1（移交注记"字符串常量渲染+goto/label+空白"**过期**——已被 ENVDAT/LINEWRAP 等车道吸收）。
+
+**族表（pair 级分类,SELF-CHECK PASS,零未分类;curl Σ54/httpd Σ36）**:
+
+| family | curl | httpd | Σ | 票覆盖（对账后） |
+|---|---|---|---|---|
+| DECL 声明序/声明集（ORDER+EXTRA） | 5 | 10 | 15 | **既有**:MIRATTR-F-DECL-0001（P2 OPEN）+GETPARENTS-DECLSTMT（2 行子集） |
+| INT_TO_PTR 常量显示（cast 保留+&UNK_） | 12 | 2 | 14 | **既有**:PRINTC-CONST-DISPLAYREBASE-0001（排队）+F2-IMAGEBASE 拍板(b)残差半 |
+| SIG-ENTRY ELF 启动链 | 17 | 0 | 17 | **既有三票重叠**:SIG-ENTRY-PROCESSENTRY+INITPROTO-FID+ENTRY-UNAFF |
+| SIG-PROTO-RECOVER（**新族**:参数恢复/返回值裁剪） | 0 | 8 | 8 | **无票→新票①** |
+| BOOLCHAR | 10 | 0 | 10 | **既有**:CANON-BOOLCHAR-FIELDTYPE-0001（票面恒等） |
+| STRDAT（+反向站） | 0 | 6 | 6 | 半既有:STRLIT-ENVDAT-0001 curl 侧 DONE;httpd 无续票→**新票②** |
+| WRAP 折行（+&sym 地址形复合） | 2 | 8 | 10 | **既有**:CANON-LINEWRAP-CANONSITES-0001（10→8 需刷新）;ADDRFORM 2 行→**新票③** |
+| ARRAYELEM 数组元素粒度 | 4 | 0 | 4 | **既有**:CURLCANON-FIELDARR-CANON-0001（3→4 需刷新） |
+| GLOBALSYM _ 前缀+WARNING | 3 | 0 | 3 | **双票重叠**:CANON-GLOBALSYM-UNDERSCORE-0001≡CURLCANON-DATSLOT-SIZE-0001 |
+| LABEL code_r 标签位 | 0 | 2 | 2 | BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001 域注记 |
+| CSU 掩码 | 1 | 0 | 1 | SUBFLOW-CSU-MASK-0001 |
+
+**③ 跨函数同根裁决（双侧形摘录对照,详见 merged_ranking.json）**: (a) DECL 族跨 8 函数同根成立——排序子根（ap_getparents/ap_pregsub/ap_fini/glob_set/glob_range 声明位次）+死槽不映射子根（main/ap_update/glob_range 多余声明）一票围剿=emitScopeVarDecls 域;(b) INT_TO_PTR 显示族 file2string（`(undefined *)0x103af8`×5 站+`&UNK_00103c47`×1 站）与 ap_ht_time（`&UNK_0012df1b`×1 站）同根,双侧形对照同为「裸常量 vs cast/&UNK_ 形」,CANONTRIAGE 时代 12+2 与现值恒等=从未被触碰;(c) SIG-ENTRY 三函数同 ELF 启动链同根（分析 DB 签名层）;（d）SIG-PROTO-RECOVER 两站同根候选（fspec 原型→CALL/RETURN 形态化链两臂,需 drill 分根）;（e）BOOLCHAR/STRDAT/WRAP/ARRAYELEM/GLOBALSYM 各自同根维持。
+
+**④ 下一波围剿排序（族质量×根因可钉度×租约）**: 1️⃣ **DECL-ALL 15 行**（varmap+printc,oracle 行号已在票面,MIRATTR-F-DECL 认领执行,预期 curl −5/httpd −10）; 2️⃣ **INTTOPTR-DISPLAY 14 行**（printc 常量 push 的 display/cast 应用面,PRINTC-CONST-DISPLAYREBASE 认领,预期 curl −12/httpd −2）; 3️⃣ **SIG-PROTO-RECOVER 8 行**（新票①,fixture-first drill,预期 httpd −8）; 4️⃣ **STRDAT httpd env 表 6 行**（新票②,零 src 补表,预期 httpd −6）; 5️⃣ **SIG-ENTRY 启动链 17 行**（三票先去重划界再驱动种子层,预期 curl −17）。次要:BOOLCHAR 10/WRAP 8/ARRAYELEM 4/GLOBALSYM 3/LABEL 2/CSU 1。
+
+**⑤ 新票（3 张,编号即 census 覆盖列引用;零 src 分诊产物;fixture-first 纪律）**:
+
+- **CANON-SIG-PROTO-RECOVER-0001** | P3 | canon httpd 8 行=ap_getword_nc 4+ap_init_vhost_config 4。**双侧形（fresh 亲测存档）**: golden `void ap_getword_nc(undefined8 param_1,undefined8 param_2,char param_3){ ap_getword(param_1,param_2,(int)param_3); return; }` vs Rugra `void ap_getword_nc(void){ ap_getword(); return; }`（thunk 12 字节@0x12eaa0,转发参数全丢+CALL 实参全失;**调用侧无差**——httpd main `ap_getword_nc(param_1[7],&local_38,0x2c)` 双侧恒等,且 Rugra 自家 ap_getword 原型完整 `void * ap_getword(undefined8,undefined8 *,char)` 亲证原型数据层在位）;golden `void ap_init_vhost_config(void){ DAT_001a0820 = &DAT_001a0828; return; }` vs Rugra `undefined8 * ap_init_vhost_config(void){ ...; return &DAT_001a0828; }`（未用返回值滞留,值=已存全局同源 `&DAT_001a0828`）。**根因方向（两子根,drill 后定精确位）**: ①ap_getword_nc=call 输入挂接/参数恢复链（tail-jmp thunk 的寄存器输入→CALL 输入→unaff 参数发现,疑 funcdata funclink/CALL 输入装配或 ActionFuncProtos 恢复）;②ap_init=model void 的 RETURN 值裁剪链（fspec model→RETURN 输出清空）。与 CURLCANON-ENTRY-UNAFF-0001（_start unaff 反向=多恢复）同域不同向。 | owner: 待认领 | 写域=先 drill（src/fspec.rs±src/funcdata.rs,fixture-first 钉首分歧后声明）+docs/api 同 commit | 验收=canon httpd ap_getword_nc/ap_init_vhost_config 4+4→0+双语料零回退+镜面五面零回退 | 2026-09-28
+- **CANON-STRDAT-HTTPD-ENVTABLE-0001** | P4 | canon httpd main 6 行,3 站:正向 2 站 golden `apr_getopt(V[LIT],&DAT_0017b831,V,V)`/`apr_pool_tag(V[LIT],&DAT_0017a41d)` vs Rugra 折叠字面量 `"C:c:D:d:..."`/`"process"`;**反向 1 站** golden 折叠 `__printf_chk(LIT,"LIT",LIT,LIT)` vs Rugra `&DAT_0131f4ab`（新观察——Rugra 驱动 DB 在 0x131f4ab 有多余 DAT 条目/缺 string Data）。 | 机制=curl ENVDAT 车道已全量落地（stringmanage client 通道+驱动三表先例,curl 侧 10 行已收）,httpd 驱动照 `examples/curl_decompile.rs` 先例补 CANON_*_DAT_LABELS/STRING_DATA 表,零 src | owner: 待认领 | 写域=examples/httpd_decompile.rs | 验收=canon httpd main 6→0（STRLIT-ENVDAT-0001 httpd 侧续票） | 2026-09-28
+- **CANON-ADDRFORM-GLOBALARRAY-0001** | P4 | canon httpd main 2 行（嵌于 for 头折行复合 hunk 内的可分离子差）:golden `for(V = &ap_prelinked_modules; V = *V,` vs Rugra `for(V = ap_prelinked_modules; ...`——golden 全局符号为 array 型（取址需 `&`）,Rugra 为 pointer 型直印。类型层全局符号定型域（与 WRAP 纯折行子根可分:token 流同,`&` 有无独立于折点）。 | owner: 待认领 | 写域=examples/httpd_decompile.rs（全局符号类型种子）±src/typeprop（drill 后定） | 验收=canon httpd main &-form 2 行归零（折行 2 行仍归 LINEWRAP 票） | 2026-09-28
+
+**既有票对账刷新（不新开票,行数/状态注记）**: (1) MIRATTR-F-DECL-0001:canon 现值 15 行=双语素最大族,建议优先级维持 P2 顶层;(2) CANON-LINEWRAP-CANONSITES-0001:10→8（curl 面清零,残 httpd ap_fini 4+main 4,其中 main 4 含 ADDRFORM 子差见新票③）;（3）CURLCANON-FIELDARR-CANON-0001:file2string 3→4 行（progressbarinit 2 已被 ARRIDX 子根(b)修复吸收）;(4) CANON-GETPARENTS-DECLSTMT-RESIDUAL-0001:4→2（`V=*V` 语句位半已被吸收,残声明序 2=MIRATTR-F-DECL 排序子根,建议并票收口）;(5) CANON-GLOBALSYM-UNDERSCORE-0001≡CURLCANON-DATSLOT-SIZE-0001 同站双票（myprogress 3 行）建议合一;(6) CANON-SIG-ENTRY-PROCESSENTRY-0001≡CURLCANON-INITPROTO-FID-0001≡CURLCANON-ENTRY-UNAFF-0001 三票覆盖同一 17 行,建议划界（INITPROTO=分析 DB 签名数据/ENTRY-UNAFF=_start 参提升/SIG-ENTRY=伞票退役或收编）;(7) CANON-BOOLCHAR-FIELDTYPE-0001 现值 10 行与票面恒等零漂移;(8) STRLIT-ENVDAT-0001 httpd 侧由新票②接续。
