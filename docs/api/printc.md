@@ -346,6 +346,17 @@ oracle 语义修复三件：
   SUBPIECE-cast 臂、synthetic `._off_sz_`）抽为纯函数，emit 入口与新
   `partial_symbol_text`（单 atom 文本形态，`(<finalcast>)name.entries`）共用，
   行为逐行不变。
+- **③b ARRAY 臂 getSubEntry 守卫（S2SELECT 2026-09-28）**：文本路径的数组臂
+  曾用发散重实现 `array_sub_entry`（无视 `sz`、以 `get_size()` 为步长），而
+  `TypeArray::getSubEntry`（type.cc:1257-1267）的 `noff+sz > alignSize` 守卫在
+  访问跨多元素时返回 null——`xunknown1[16]` 上的 4 字节访问被错误分解为
+  `[4]._0_4_`（store 形）或下钻 1 字节元素后命中 allowCast SUBPIECE 臂的
+  `(xunknown4)sym[4]`（load 形；cast.cc:411-432 UNKNOWN→UNKNOWN offset 0 恒真），
+  oracle 应落符号级 synthetic `._4_4_`（printc.cc:2030-2041）。修复=改调 1:1
+  移植 `Datatype::array_get_sub_entry`（datatype.rs，与 RPN 孪生路径
+  `rpn_push_partial_symbol` 共用），发散 helper 删除。回归钉
+  `test_partial_symbol_array_multi_element_piece_falls_to_field`（跨元素→
+  `._4_4_` 无 cast；元素内错位→`[1]._1_2_`；整元素→`[2]`）。
 
 driver 侧（examples/curl_decompile.rs）配套：`.data/.bss` 逐字节 DAT 播种改为
 **span 感知**——ELF symtab/dynsym 的 STT_OBJECT（st_value..st_value+st_size）区间内
