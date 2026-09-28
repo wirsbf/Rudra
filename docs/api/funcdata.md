@@ -1037,6 +1037,35 @@ Rugra 对 `[baseaddr, baseaddr+size)` 内无 op 的目标地址插入**合成块
 修复后：httpd 僵尸决策块 260→0；ap_strcasecmp_match 0xbaadef 消失、`'*'`(0x2a) 判定与
 do-while 循环骨架恢复（oracle 侧证据：golden ghidra_httpd_1204.c 同函数的 LAB_0012e022
 正是 Ghidra 在同类无 op 目标地址 0x2e022 处的标签）；curl 3068/0/0 字节级不变。
+
+#### inject_raw_ops_with_uniq —— op 创建时间的流序铸造（2026-09-28 CANON-DECLORDER-TRANSPORT-0001）
+
+oracle 的 op 创建时间即 FlowInfo 走序（提升在 flow.cc:421 processInstruction 内运行；
+`PcodeOpBank::create` 铸 `SeqNum(pc, uniqid++)`，op.cc:941-948），而
+`HighVariable::compareName` 的最终平局键直读它（`vn->getDef()->getTime()`，
+variable.cc:485-486）。canon 线性传输按**地址序**注入，uniq 因而是地址序——每个
+flag 全平的代表权之争（ap_getparents uVar4：oracle ECX t=598 < EAX t=747，地址序
+下反转）都选错名字代表 → linkSymbol 建错地址 → 声明槽错位（httpd DECL 族 8 行）。
+
+新入口 `inject_raw_ops_with_uniq(raw_ops, instruction_rank)`：op 列表/集合、块划分、
+所有下游传输（halt 旗标、jumptable 恢复、v3sig 安装、管线）与 `inject_raw_ops`
+逐字节相同——**只**把 SeqNum uniq 改由调用方提供的"指令地址 → 访问序位"表铸造：
+`uniq = rank[instr] * 4096 + 指令内序数`（4096 > 单条 x86-64 SLEIGH 指令可发射的
+p-code op 数；跨距保证唯一性）。op 经 `PcodeOpBank::create_with_seq` 创建——保留
+bank 的完整 create 侧状态（TypeOp 旗标、code-list 注册、历史 alivelist 插入——
+create ⇒ alive 契约），仅编号取 clone 形态的显式 SeqNum（op.cc:957-969；裸
+`create_seq` 缺 flags/lists/alivelist 三半，实测注入后 alivelist=0、RETURN 全隐
+身、Heritage 全域 panic）。
+uniqid 计数器单调尾保持（create_with_seq 抬过注入最大值），管线期新建 op 的时间
+仍恒晚于一切注入 op——与 oracle（walk op 0..N，管线 op 在后）同构。
+
+**为什么不重排列表**（本车道第一方案的教训）：`build_blocks_from_ops` 的落空边解析
+是列表序语义（fallthru = 列表后继块 i+1），把 op 列表重排为访问序会全局打碎 CFG
+（httpd 实测 34→1108）。地址序列表 + 流序 uniq 的解耦只改 `getDef()->getTime()`
+的读数，风险面最小。rank 表由 examples/httpd_decompile.rs 的 `flow_visit_uniq_map`
+在 scratch Funcdata 上重放 mirror 已验证的 `follow_flow_range` 产生（含尾部未访问
+指令的地址序补齐）；curl canon 面本就走路径加载，无需此钩子。
+
 已知残余：httpd skeleton 2214→2374（+160）、defects 5→5 —— 因 pop/movzx/movsx 指令
 仍无 p-code（disasm/x86_lift.rs 提升缺口，非本文件 write-set），正确 CFG 下这些区域
 以空 if/else 形态出现，等 lifter 补齐后消解。

@@ -539,6 +539,191 @@ fn splice_known_no_return_halts(
     spliced
 }
 
+// CANON-DECLORDER-TRANSPORT-0001: the tail-call override address scan,
+// extracted verbatim from the former inline loop in
+// decompile_one_function so the flow-order reconstruction walk below and
+// the real fd's localoverride registration see the IDENTICAL address set
+// (the CALL_RETURN rewrite changes the walk's visit order — the rewritten
+// jmp's branch target is no longer queued, flow.cc:474-475 overrideFlow
+// runs before xrefControlFlow — so the scratch walk must run under the
+// same overrides the real injection applies).
+/// Direct-BRANCH instruction addresses whose ram-space target is a KNOWN
+/// function entry OUTSIDE [vaddr, vaddr+func_size): the TailCallAnalyzer
+/// CALL_RETURN transport sites (see decompile_one_function).
+fn collect_tailcall_override_addrs(
+    raw_ops: &[rugra::pcoderaw::PcodeOpRaw],
+    entry_set: &std::collections::HashSet<u64>,
+    plt_ranges: &[(u64, u64, u64)],
+    vaddr: u64,
+    func_size: u64,
+) -> Vec<u64> {
+    let mut addrs = Vec::new();
+    for raw in raw_ops {
+        if rugra::opcodes::OpCode::from_i32(raw.get_opcode())
+            != Some(rugra::opcodes::OpCode::CPUI_BRANCH)
+        {
+            continue;
+        }
+        let Some(tgt) = raw.inputs().first() else { continue };
+        if tgt.space != rugra::space::AddressSpace::Ram { continue; }
+        let known_entry = entry_set.contains(&tgt.offset)
+            || plt_ranges.iter().any(|&(s, e, es)| {
+                tgt.offset >= s && tgt.offset < e && (tgt.offset - s) % es == 0
+            });
+        if !known_entry { continue; }
+        if vaddr <= tgt.offset && tgt.offset < vaddr + func_size { continue; }
+        if let Some(seq) = raw.seq_num() {
+            addrs.push(seq.get_addr().as_u64());
+        }
+    }
+    addrs
+}
+
+// CANON-DECLORDER-TRANSPORT-0001: canon op-creation times = oracle
+// FlowInfo visit order. The oracle's lift runs inside the FlowInfo walk
+// (flow.cc:383 processInstruction -> oneInstruction), so a PcodeOp's
+// creation time -- PcodeOpBank::create's monotonic SeqNum(pc, uniqid++)
+// counter (op.cc:941-948) -- is the WALK order, and HighVariable::
+// compareName's final tiebreak reads it directly
+// (vn->getDef()->getTime(), variable.cc:485-486). The canon linear
+// transport instead lifts [vaddr, vaddr+lift_range) in address order and
+// lets inject_raw_ops mint uniqs in that order, so every flag-tied
+// representative contest (ap_getparents uVar4 ECX t=598 vs EAX t=747 in
+// the oracle; reversed under address order) resolves to a different name
+// representative -> a different linkSymbol address -> a different
+// declaration slot (the 8-line httpd DECL residual:
+// ap_getparents/ap_pregsub/ap_fini_vhost_config). The curl canon face
+// already loads through the real walk (curl_decompile.rs
+// follow_flow_with_callee_protos); this helper replays the walk on a
+// scratch Funcdata and returns the per-instruction visit-rank map the
+// canon inject consumes (inject_raw_ops_with_uniq) so compareName's
+// tiebreak reads the same relative times the oracle read -- WITHOUT
+// touching the op list order (block formation's fallthrough resolution
+// is list-order based; reordering the list breaks the CFG, measured
+// httpd 34->1108 in this lane's first attempt) or any other transport
+// (op set, halts, overrides, callspecs, jumptable recovery, v3sig
+// install all stay byte-identical).
+//
+// The scratch walk is the mirror-verified follow_flow_range (flow.rs,
+// flow.cc:785 generateOps: phase-1 fallthru-LIFO DFS, phase-2 jump-table
+// recovery with newAddress per entry), bounded to the same body model
+// the linear lift covered ([vaddr, vaddr+lift_range) -- the st_size
+// window; the oracle harness's followFlow body bound). Inputs mirrored
+// from the real canon face: the no-return callee table (walk-native
+// artificialHalt -- flow.rs consumes callee_func_protos exactly as the
+// curl canon face passes it) and the tail-call/thunk FlowOverride
+// registrations (applied by the walk itself at the flow.cc:474-475
+// position -- the CALL_RETURN rewrite changes the visit order, so the
+// scratch must run under the same overrides the real injection
+// applies). Instructions the walk never visits (bytes the linear lift
+// covered but no in-range flow reaches) are ranked AFTER all visited
+// ones, in address order -- the oracle never creates ops for them during
+// the walk either (out-of-range/unprocessed addresses become
+// fillinBranchStubs halts only after all walking, flow.cc:889-894).
+fn flow_visit_uniq_map(
+    raw_ops: &[rugra::pcoderaw::PcodeOpRaw],
+    vaddr: u64,
+    lift_range: u64,
+    sym_table: &HashMap<u64, String>,
+    noreturn_callees: &std::collections::BTreeMap<u64, rugra::fspec::FuncProto>,
+    tailcall_addrs: &[u64],
+    thunk_override_addrs: &[u64],
+    arch: &rugra::arch::Architecture,
+    image: &[u8],
+    name: &str,
+) -> Result<std::collections::HashMap<u64, u32>, String> {
+    // Scratch Funcdata: same name/base contract; the walk reads the lifter,
+    // the loader bytes behind fd.arch.loader (jump-table recovery), the
+    // override table, and the symbol table (FlowInfo::queryCall's
+    // queryFunction gate, flow.rs:1363 — without the callee symbols the
+    // no-return halts never fire and the walk falls through noreturn calls
+    // past eaddr). The symbol seeding is the real canon fd's own canon-arm
+    // seeding (decompile_one_function line ~3587), byte-for-byte. The
+    // commentdb is REPLACED with a fresh isolated database on the arch
+    // clone: the walk's warning channel (funcdata.cc:135 warningHeader /
+    // warning) writes through the SHARED arch.commentdb Arc — a scratch
+    // OOB/noreturn warning would otherwise print with the real function's
+    // output (measured: a spurious "Function flows out of bounds" header
+    // on six functions, and the noreturn warnings would double the real
+    // transport's flag_known_no_return_halts emissions).
+    let mut sarch = arch.clone();
+    sarch.commentdb = Some(std::sync::Arc::new(std::sync::RwLock::new(
+        rugra::comment::CommentDatabaseInternal::new(),
+    )));
+    let mut sfd = Funcdata::new(name, rugra::address::Address::new(vaddr), lift_range as i32);
+    sfd.set_arch(std::sync::Arc::new(sarch));
+    for (&addr, sym_name) in sym_table {
+        sfd.add_symbol(addr, sym_name.clone());
+    }
+    for addr in tailcall_addrs.iter().chain(thunk_override_addrs.iter()) {
+        sfd.localoverride.insert_flow_override(
+            rugra::address::Address::new(*addr),
+            rugra::override_rs::FlowOverride::CallReturn,
+        );
+    }
+    let mut sleigh = SleighLifter::new();
+    sleigh
+        .configure_x86_64(image, NATIVE_IMAGE_BASE)
+        .map_err(|error| format!("scratch SLEIGH setup failed: {:?}", error))?;
+    rugra::flow::follow_flow_range(
+        &mut sfd,
+        &mut sleigh,
+        vaddr,
+        vaddr.saturating_add(lift_range),
+        noreturn_callees,
+    )
+    .map_err(|error| format!("scratch walk failed: {}", error))?;
+
+    // Visit order == creation order == SeqNum.uniq (op.cc:944; the walk
+    // is the only op creator on the scratch bank, mirroring the oracle).
+    // Collapse to the per-instruction address sequence: ops of one
+    // instruction are created contiguously (oneInstruction decodes them
+    // sequentially; the no-return halt joins its CALL's instruction group
+    // via checkForFlowModification inside processInstruction).
+    let mut timed: Vec<(u32, u64)> = sfd
+        .obank
+        .optree
+        .iter()
+        .map(|op| {
+            let seq = op.0.read().unwrap().get_seq_num().clone();
+            (seq.get_time(), seq.get_addr().as_u64())
+        })
+        .collect();
+    timed.sort_unstable();
+    let mut visit: Vec<u64> = Vec::with_capacity(timed.len());
+    for (_, addr) in timed {
+        if visit.last() != Some(&addr) {
+            visit.push(addr);
+        }
+    }
+    let mut rank: std::collections::HashMap<u64, u32> = visit
+        .iter()
+        .enumerate()
+        .map(|(i, &a)| (a, i as u32))
+        .collect();
+
+    // Complete the map over the linear lift's own instruction set: an
+    // instruction with ops in the raw list but no walk visit ranks after
+    // every visited one (address order -- the stable tail).
+    let mut tail = visit.len() as u32;
+    let mut last_instr: Option<u64> = None;
+    for raw in raw_ops {
+        let Some(a) = raw.seq_num().map(|s| s.get_addr().as_u64()) else {
+            continue;
+        };
+        if Some(a) == last_instr {
+            continue;
+        }
+        last_instr = Some(a);
+        if !rank.contains_key(&a) {
+            rank.insert(a, tail);
+            tail += 1;
+        }
+    }
+    Ok(rank)
+}
+
+
 // RUGRA-GLUE: the flag half of the canon transport — Funcdata::opMarkHalt
 // (funcdata_op.cc:37-48) + Funcdata::warning, the two mutations
 // checkForFlowModification performs on the Funcdata (flow.cc:643/646).
@@ -2721,6 +2906,11 @@ struct FunctionTask {
     /// BRANCHIND→CALLIND + RETURN rewrite). Empty = no override (the
     /// RUGRA_THUNKS_RAW A/B arm and every non-thunk task).
     thunk_override_addrs: Vec<u64>,
+    /// CANON-DECLORDER-TRANSPORT-0001: the effective byte length the canon
+    /// linear lift covered ([vaddr, vaddr+lift_range)) — the st_size body
+    /// model the flow-order reconstruction walk is bounded to (the same
+    /// window that produced this task's raw_ops).
+    lift_range: u64,
 }
 
 // One decompile's products: the printed C text (None = the function
@@ -3209,6 +3399,7 @@ fn run_paramid_iteration(
             harvest_proto: true,
             thunk_import: false,
             thunk_override_addrs: Vec::new(),
+            lift_range: range_len as u64,
         });
     }
     let window_count = tasks.len();
@@ -3285,6 +3476,7 @@ fn run_paramid_iteration(
             harvest_proto: true,
             thunk_import: false,
             thunk_override_addrs: Vec::new(),
+            lift_range: range_len as u64,
         });
         discovered_count += 1;
     }
@@ -3550,6 +3742,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         harvest_proto,
         thunk_import,
         thunk_override_addrs,
+        lift_range,
     } = task;
     let mirror_fn = shared.mirror_fn;
     let mirror_img = shared.mirror_img.as_ref().map(|bytes| bytes.as_ref().clone());
@@ -3728,6 +3921,19 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
             thread_arch
                 .set_symboltab(std::sync::Arc::new(std::sync::RwLock::new(fresh)));
         }
+        // CANON-DECLORDER-TRANSPORT-0001: the canon face's flow-order
+        // reconstruction walk needs the same Architecture state the real
+        // fd gets (loader attached at the native base — the scratch walk's
+        // jump-table recovery reads table bytes through fd.arch.loader,
+        // jumptable.rs's MemoryImage channel). Captured here, after the
+        // loader attach above and before set_arch consumes the value.
+        // None on the mirror face (its load is already the real walk)
+        // and on a loader-less run (reorder falls back to linear order).
+        let scratch_arch = if mirror_fn {
+            None
+        } else {
+            Some(thread_arch.clone())
+        };
         fd.set_arch(std::sync::Arc::new(thread_arch));
         // PRINTC-BADSPACEBASE-RENDER-0001: give funcp the default
         // model's EffectRecord surface (see tracked_context_architecture)
@@ -3838,26 +4044,20 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         // appending the CALL_RETURN's RETURN. Without it the printer
         // emits the dangling `code_rXXXX: goto code_rXXXX;` self-loop
         // (GOTO-LABEL-UNPRINTED-0001 symptom family).
-        for raw in &raw_ops {
-            if rugra::opcodes::OpCode::from_i32(raw.get_opcode())
-                != Some(rugra::opcodes::OpCode::CPUI_BRANCH)
-            {
-                continue;
-            }
-            let Some(tgt) = raw.inputs().first() else { continue };
-            if tgt.space != rugra::space::AddressSpace::Ram { continue; }
-            let known_entry = entry_set.contains(&tgt.offset)
-                || plt_ranges.iter().any(|&(s, e, es)| {
-                    tgt.offset >= s && tgt.offset < e && (tgt.offset - s) % es == 0
-                });
-            if !known_entry { continue; }
-            if vaddr <= tgt.offset && tgt.offset < vaddr + func_size as u64 { continue; }
-            if let Some(seq) = raw.seq_num() {
-                fd.localoverride.insert_flow_override(
-                    seq.get_addr(),
-                    rugra::override_rs::FlowOverride::CallReturn,
-                );
-            }
+        // CANON-DECLORDER-TRANSPORT-0001: the scan is hoisted into
+        // collect_tailcall_override_addrs (identical predicate) so the
+        // flow-order reconstruction below runs the scratch walk under
+        // the SAME override set the real injection applies — the
+        // BRANCH→CALL rewrite changes the walk's visit order (the
+        // branch target is no longer queued once the jmp became a
+        // call, flow.cc:474-475 runs before xrefControlFlow).
+        let tailcall_addrs =
+            collect_tailcall_override_addrs(&raw_ops, &entry_set, &plt_ranges, vaddr, func_size as u64);
+        for jmp_addr in &tailcall_addrs {
+            fd.localoverride.insert_flow_override(
+                rugra::address::Address::new(*jmp_addr),
+                rugra::override_rs::FlowOverride::CallReturn,
+            );
         }
 
         // HEADLESS-BRIDGE-V2-THUNKGOT-0002 ②: the thunk face's terminal-jmp
@@ -3874,7 +4074,47 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                 rugra::override_rs::FlowOverride::CallReturn,
             );
         }
-        fd.inject_raw_ops(&raw_ops);
+
+        // CANON-DECLORDER-TRANSPORT-0001: mint the SeqNum uniqs in oracle
+        // FlowInfo visit order (see flow_visit_uniq_map for the full
+        // mechanism). The op list/set and every downstream transport
+        // (halt flags, jumptable recovery, v3sig install, the pipeline)
+        // are untouched — only each op's creation time changes, so
+        // compareName's earliest-def tiebreak (variable.cc:485-486
+        // vn->getDef()->getTime()) reads the walk order the oracle read.
+        // Failure of the scratch walk keeps the historical linear
+        // creation order (loud stderr note) — the corpus falls back to
+        // the pre-fix state, never to a worse one.
+        let visit_uniq = match (scratch_arch.as_ref(), loader_img.as_deref()) {
+            (Some(arch), Some(image)) => {
+                match flow_visit_uniq_map(
+                    &raw_ops,
+                    vaddr,
+                    lift_range,
+                    &sym_table,
+                    &noreturn_callees,
+                    &tailcall_addrs,
+                    &thunk_override_addrs,
+                    arch,
+                    image,
+                    &func_name,
+                ) {
+                    Ok(map) => Some(map),
+                    Err(note) => {
+                        eprintln!(
+                            "[FLOWORDER] {}: flow-order uniq reconstruction failed ({}); falling back to linear creation order",
+                            func_name, note
+                        );
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+        match visit_uniq {
+            Some(rank_map) => fd.inject_raw_ops_with_uniq(&raw_ops, Some(&rank_map)),
+            None => fd.inject_raw_ops(&raw_ops),
+        }
         eprintln!("[THREAD] {} inject done ops={} blocks={}", func_name, fd.obank.alivelist.len(), fd.bblocks.get_size());
         // HTTPDMAIN-F1-NORETURN-0001: complete the canon transport right
         // after injection — the opMarkHalt flag + the "Subroutine does not
@@ -5581,6 +5821,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             harvest_proto: false,
             thunk_import: false,
             thunk_override_addrs: Vec::new(),
+            lift_range: range_len as u64,
         };
         let shared = shared_ctx.clone();
 
@@ -6011,6 +6252,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 harvest_proto: false,
                 thunk_import: true,
                 thunk_override_addrs,
+                lift_range: range_len as u64,
             };
             let shared = shared_ctx.clone();
             let handle = std::thread::spawn(move || decompile_one_function(task, shared));
