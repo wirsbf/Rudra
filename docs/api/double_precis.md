@@ -175,3 +175,17 @@ isEntryPoint/getStartBlock/opInsertBegin/constructJoinAddress/newVarnode/combine
   Join 空间注册地址；RETURN 侧 return_join_address 委托 Architecture；
   double_precis create_joined_whole 消费空间限定结果；process_joins /
   build_subpiece 经 RwLock 读 join_db。无独立新语义。
+
+## 2026-09-28（S1W2-PIECE16-CHAIN，SQLCENSUS-STACKSLOT-GROUP-0001 wave-2）：find_definition_point 跨块支配成功路径的成员 defblock 赋值
+
+- **`SplitVarnode::find_definition_point`**（double.cc:322-375）的 hi 写入臂
+  此前把 `cc:343 defblock = lastop->getParent()` 降格为**局部变量**——跨块
+  分支的支配成功路径（cc:349-352 `curbl == otherblock → return true`）带着
+  `defpoint=Some` 但 `self.defblock=None` 返回，`find_create_whole` 的
+  cc:541 `defblock != 0` 测试随之落入 topblock 分支，重建的 PIECE 整值被
+  `opInsertBegin` 到**函数入口块**（vmprintf 实测 89/101 个 PIECE16 根全在
+  0xad254 入口），其覆盖自此横跨全函数，后续 mergecopy 全部 required merge
+  被保守拒绝。修复=按 oracle 语义在分支前赋**成员** `self.defblock`
+  （cc:343），第二次尝试臂的 `self.defblock = otherblock`（cc:353）与
+  同块臂（cc:366）原已正确。回归锁=
+  `test_find_definition_point_dominance_success_sets_defblock_member`。

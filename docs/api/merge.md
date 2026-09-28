@@ -526,15 +526,22 @@ INDIRECT 本身（:871-877）并重合并，失败打 `[MERGE]` stderr 日志（
 
 ### `merge_highs` 的 (Some,Some) piece 臂（私有）
 
-对齐说明：oracle variable.cc:699-711 对 speculative 抛 LowlevelError（经
-`Merge::merge` 的常见 speculative 调用由 mergeTestAdjacent
-（merge.cc:208-209）拒绝双 piece 候选；buildDominantCopy 直调传新分配、
-无 piece 的 unique。非 speculative 则应走 `piece->mergeGroups` + 成对
-`mergeInternal` + `markIntersectionDirty`。`merge_addr_tied` 现在会真实生产
-piece/group，因此旧注释所称“全局不可达”已不成立：后续 required merge
-若同时收到两个 grouped High，当前 `debug_assert!`/release `false` 仍与
-oracle 不同，作为独立调用闭包缺口保持 **MISMATCH**，不在本切片窄投影的
-MATCH 范围内。
+对齐说明：oracle variable.cc:699-711。speculative 双 piece 合并抛
+LowlevelError（"Trying speculatively merge variables in separate groups"
+:701；经 `Merge::merge` 的 speculative 调用由 mergeTestAdjacent
+（merge.cc:208-209）拒绝双 piece 候选、buildDominantCopy 直调传新分配、
+无 piece 的 unique——release 构建保守跳过并告警）。**非 speculative 全量
+落地（MERGE-COPYTRIMS-CACHE-0001 / S1W2 wave-3, 2026-09-28）**：
+`VariablePiece::merge_groups`（variable.cc:193-216 完整版——matched
+(offset,size) 对收集 + op2 侧 piece 分离（`high->piece = null` :209）+
+从 op2 组移除；未 matched 的 `transferGroup` :213）→ 每对
+`move_intersect_tests` + `merge_internal`（:703-709）→
+`mark_intersection_dirty`（:710）→ 返回 true（`Merge::merge` 在 void
+`HighVariable::merge` 后恒真，:1571-1574）。事件级验证：vmprintf@sqlite
+mergecopy unique-input required merge **119/224 → 202/224**（oracle
+202/222；主导拒绝对 = MULTIEQUAL@0xad58c 双 piece 臂 11 个 PIECE16
+CONCAT 输入 slot 91-104）。回归锁 =
+`test_merge_highs_both_pieces_runs_group_cascade`。
 
 ### `wire_unique_high`（私有，RUGRA-GLUE）
 
@@ -861,9 +868,11 @@ main 的 0x30d6 梯：嵌套 4+4+16 重组 `CONCAT164/CONCAT204` 语句（43 处
 - `compare_just_loc`（variable.rs，配套 docs/api/variable.md 同步）补
   space 维：`Address::operator<` 全序（space 索引先于 offset，
   address.hh:375-393），跨空间重叠 offset 不再误序。
-- `merge_highs` (Some,Some) piece 臂：debug_assert 钉 oracle 契约
-  （variable.cc:699-711），release 保守跳过 + 如实注释（Ghidra 侧经
-  Merge::merge 调用者不可达）。
+- `merge_highs` (Some,Some) piece 臂：debug_assert 钉 speculative 契约
+  （variable.cc:700-701，调用者不可达）；**非 speculative 已全量落地
+  variable.cc:702-711**（merge_groups 成对级联 + markIntersectionDirty，
+  MERGE-COPYTRIMS-CACHE-0001 S1W2 wave-3；mergecopy unique-input
+  119/224→202/224 对 oracle 202/222）。
 - RUGRA-GLUE `wire_unique_high`：补 Ghidra newUnique 的 assignHigh 半边
   （funcdata_varnode.cc:89），修 trim unique 无 High 导致的静默 no-op 与
   mergeOp phase-2 过度剪枝（funcdata.rs latent 缺口另行登记）。

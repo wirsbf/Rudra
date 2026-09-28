@@ -738,7 +738,17 @@ impl SplitVarnode {
                     Some(o) => o,
                     None => return false,
                 };
-                let defblock = parent_block(&lastop);
+                // cc:343: defblock = lastop->getParent() — this assigns the
+                // MEMBER, so the different-block dominance-success path at
+                // cc:351 returns with defblock = hi's block set. The former
+                // local-variable form returned with self.defblock = None,
+                // sending findCreateWhole's cc:541 defblock test to the
+                // topblock branch and relocating the reconstructed PIECE
+                // whole to the function entry block (S1W2 wave-2: 89/101
+                // vmprintf PIECE16 roots at the entry, covers spanning the
+                // whole function, every later required merge rejected).
+                self.defblock = parent_block(&lastop);
+                let defblock = self.defblock.clone();
                 let lastop2 = lo_vn.read().unwrap().get_def();
                 let lastop2 = match lastop2 {
                     Some(o) => o,
@@ -760,6 +770,7 @@ impl SplitVarnode {
                         }
                     }
                     // Try lo as final defining location.
+                    // cc:353-354: defblock = otherblock; otherblock = lastop->getParent().
                     self.defblock = otherblock.clone();
                     let ob2 = defblock.clone();
                     self.defpoint = Some(lastop2.clone());
@@ -7664,4 +7675,58 @@ mod tests {
             res
         );
     }
+// S1W2 wave-2 regression lock: find_definition_point's different-block
+// dominance-success path (double.cc:340-352) must return true with BOTH the
+// member defpoint AND the member defblock set (cc:343 assigns the MEMBER
+// defblock before the branch). The former local-variable form returned with
+// defblock = None, which sent SplitVarnode::find_create_whole's cc:541
+// defblock test to the topblock branch and relocated the reconstructed
+// PIECE whole to the function entry block (89/101 vmprintf PIECE16 roots at
+// the entry — full event-level chain in LANE_S1W2_2026-09-28.md).
+#[test]
+fn test_find_definition_point_dominance_success_sets_defblock_member() {
+    use crate::block::BlockBasic;
+
+    // lo's def lives in the dominator block; hi's def in the dominated block.
+    let dom_block: BlockArc =
+        Arc::new(RwLock::new(BlockBasic::new(0, Address::new(0x1000))));
+    let hi_block: BlockArc =
+        Arc::new(RwLock::new(BlockBasic::new(1, Address::new(0x1100))));
+    hi_block
+        .write()
+        .unwrap()
+        .set_immed_dom(Some(Arc::downgrade(&dom_block) as _));
+
+    let lop = mk_op(OpCode::CPUI_INT_MULT, 10);
+    lop.write().unwrap().parent = Some(Arc::downgrade(&dom_block) as _);
+    let lo = mk_reg_written(8, 0x38, &lop);
+    lop.write().unwrap().output = Some(lo.clone());
+
+    let hiop = mk_op(OpCode::CPUI_INDIRECT, 20);
+    hiop.write().unwrap().parent = Some(Arc::downgrade(&hi_block) as _);
+    let hi = mk_reg_written(8, 0x30, &hiop);
+    hiop.write().unwrap().output = Some(hi.clone());
+
+    let mut sv = SplitVarnode::new();
+    sv.lo = Some(lo);
+    sv.hi = Some(hi);
+
+    assert!(
+        sv.find_definition_point(),
+        "hi block dominated by lo block must succeed (double.cc:349-352)"
+    );
+    assert!(
+        sv.defpoint.is_some(),
+        "defpoint = hi's def (cc:347) on the first dominance try"
+    );
+    let defblock = sv
+        .defblock
+        .clone()
+        .expect("cc:343 assigns the MEMBER defblock; dominance success must return with it set");
+    assert!(
+        same_block(&Some(defblock), &Some(hi_block)),
+        "defblock = hi's parent block (cc:343), not None"
+    );
+}
+
 }
