@@ -798,12 +798,35 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             )
         }),
     );
+    // LANE CMPORIENT diagnostic (RUGRA_STAGE_DRILL precedent from the
+    // curl/httpd drill arms): arm the OPACTION_DEBUG mirror recorder for
+    // the --one target before the pipeline runs, then after perform drain
+    // the per-application `DEBUG <n>: <leafname>` frames to <name>.dbg —
+    // the exact counterpart of the oracle probe's GLM_TRACE output, for
+    // event-level rule-chain comparison. Env-gated; no pipeline change.
+    if std::env::var("RUGRA_STAGE_DRILL").is_ok() {
+        let fd_arch = fd_arc
+            .read()
+            .map_err(|_| "Funcdata read lock poisoned during drill arm".to_string())?
+            .arch
+            .clone();
+        if let Some(arch) = fd_arch {
+            rugra::drillobserve::start(arch);
+        }
+    }
     {
         let mut fd_write = fd_arc
             .write()
             .map_err(|_| "Funcdata write lock poisoned during analysis".to_string())?;
         db.perform_action("decompile", &mut fd_write)
             .map_err(|error| format!("action pipeline failed for {}: {error}", target.name))?;
+    }
+    if std::env::var("RUGRA_STAGE_DRILL").is_ok() {
+        let drained = rugra::drillobserve::drain();
+        if !drained.is_empty() {
+            std::fs::write(format!("{}.dbg", target.name), drained.join("\n"))
+                .map_err(|e| format!("drill dump failed: {e}"))?;
+        }
     }
 
     // LANE GETLONGEST diagnostic (RUGRA_DUMP_FUNC precedent from the
