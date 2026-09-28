@@ -1,5 +1,15 @@
 # `funcdata.rs` API Reference
 
+## 2026-09-29：beginOpAll/endOpAll 迭代器类型随动（PERF-ACTIONPOOL-ITER-0001 / OPTREE 车道）
+
+`Funcdata::begin_op_all`/`end_op_all`（funcdata.hh:518/521 beginOpAll/endOpAll 前转）
+返回类型随 bank 主排序容器 SeqNum 键化由 `std::collections::btree_set::Iter<'_, PcodeOpRef>`
+改为 `std::collections::btree_map::Values<'_, SeqNum, PcodeOpRef>`——纯类型随动：
+迭代序仍为 SeqNum 全序（(addr,time)，与原 `Ord for PcodeOpRef` 投影同一全序），
+元素仍逐个 yield `&PcodeOpRef`，所有调用点行为零变。容器本体变更与恒等契约见
+`docs/api/op.md` 的 `PcodeOpTree` 节。
+
+
 ## 2026-09-28：set_varnode_properties/new_varnode_symbol_tail 本地域入口完整 setSymbolProperties 端口（FUNCDATA-SETVARNODE-SCOPELOCAL-0001 completion，wt/outstream）
 
 `Funcdata::set_varnode_properties`（funcdata_varnode.cc:25-42 对应物）与

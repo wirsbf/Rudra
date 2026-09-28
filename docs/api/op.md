@@ -715,6 +715,59 @@ Ghidra: `op.cc:323 PcodeOp::nextOp`。返回流程上紧随本 op 的下一个 o
 
 ## 7. `PcodeOpBank`
 
+### `pub struct PcodeOpTree`（2026-09-29 PERF-ACTIONPOOL-ITER-0001 / OPTREE）
+
+`PcodeOpTree` 是 bank 主排序容器（`optree` 字段）的类型——**SeqNum 键化树，
+oracle `map<SeqNum,PcodeOp*>`（op.hh:280）的原生同构形态**。
+
+**键形态**：键为 `SeqNum` **值快照**（插入时一次短读锁取得），排序即
+`SeqNum::operator<`（address.hh:154-158：先 `pc` 后 `uniq`；Rugra 对应
+`Ord for SeqNum` = `(addr, time)`，不含可变的 `order` 字段）。树下降过程
+只比较键值——**下降内部零 RwLock**。
+
+**历史与动机**（OPTREE 车道, PERF-ACTIONPOOL-ITER-0001）: 原形态为
+`BTreeSet<PcodeOpRef>`，其 `Ord for PcodeOpRef` 每次比较取两侧各一次
+RwLock 读——规则池后继重建（`ActionPool` 的 advance, action.cc:871
+`op_state++` 的 Rust 重建）每次下降付出 2 锁 × O(log n) 次比较（VdbeExec
+极点 5,648,144 次 advance × ~894ns = 5.05s, OPPPOOL §0/§7 分票）。
+
+**行为恒等契约**（vs 原 `BTreeSet<PcodeOpRef>`, OPTREE 红线 = 输出零变）:
+
+- **迭代序恒等**：BTreeMap 以 SeqNum::cmp 排键——与原 `Ord for PcodeOpRef`
+  投影（`self.start.cmp`）完全同一全序。
+- **插入去重恒等（keep-first）**：原 `BTreeSet::insert` 在 cmp==Equal 时保留
+  已存元素；`entry(key)` 键已存在时保留已存值。（oracle op.cc:945
+  `optree[seq] = op` 是**替换**语义；重复键在 bank 创建路径不可达——uniqid
+  单调且 create_with_seq 推进到给定 time 之后, op.cc:962-963——故差异
+  bank 内不可观测。）
+- **键不陈化**：键 = (addr,time) 快照，创建后不可变（仅 `set_order` 改
+  `order`，排序不含它）。ffi.rs:447 重赋 `start` 为值恒等 SeqNum（create
+  前捕获的同 addr/time），当前路径无就地键突变。
+
+**API 面**（BTreeSet<PcodeOpRef> 兼容面 + oracle 形态访问器）:
+
+- `new()` / `Default`
+- `insert(PcodeOpRef) -> bool`（keep-first; BTreeSet::insert 返回形）
+- `remove(&PcodeOpRef) -> bool`（键删除; op.cc:995 erase 对应）
+- `contains(&PcodeOpRef) -> bool`（键存在性 = 原 Ord 等价存在性）
+- `clear()` / `len()` / `is_empty()`
+- `iter()` 与 `&PcodeOpTree: IntoIterator`——`for op in &bank.optree` 逐
+  调用点零改（heritage/merge/funcdata/comment/flow/ffi/align/examples）
+- `range((Bound<&PcodeOpRef>, Bound<&PcodeOpRef>))`——界翻译为键界（每界
+  一次读锁），下降本身免锁；action.rs `next_op_after` 的
+  `range((Excluded(current), Unbounded))` 调用点逐字节不变
+- `find_op(&SeqNum) -> Option<&PcodeOpRef>`——op.cc:1102 `optree.find` 同构
+  O(log n)（原为线性扫描,结果恒等）
+- `target_lower_bound(Address)`——op.cc:1092 `lower_bound(SeqNum(addr,0))`
+  同构（原线性扫描 `start.addr >= addr` 首命中恒等）
+
+**oracle 迭代器差异（既有 ACTIONLOOP-RESTART-0001 记录,非本车道新增）**:
+oracle 的 `++op_state` 是 std::map 节点迭代器 O(1) 均摊后继且跨插入/删除
+稳定；Rust BTreeMap 迭代器不能跨 Rule 突变持有，故用严格后继 range 重建
+同一访问序列。键化后该重建的下降成本与 oracle 键比较同阶（无锁）。
+
+---
+
 ### `pub struct PcodeOpBank`
 
 `PcodeOpBank` 是当前 Rugra 中 **统一管理 P-code 操作对象的容器**。
