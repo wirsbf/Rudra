@@ -50,8 +50,8 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
 - analysis-DB 先于 flow/action 安装（oracle 的符号自 Architecture init 起即在）；
   analysis 相位的 symboltab 消费者由此可命中：`ActionConstantPtr::isPointer`、
   spacebase 容器查询、CALLIND 常量目标 deindirect 等。
-- print swap 仍是 print-only 语义（内容与 analysis-DB 同构）；DB 只含
-  FunctionSymbol（无数据符号/只读区间），其它 symboltab 消费者在代码地址外
+- print swap 仍是 print-only 语义；DB 含 FunctionSymbol + **readonly 属性范围**
+  （2026-09-28 补，见下节；无数据符号），其它 symboltab 消费者在代码地址外
   不命中，与 golden 同 DB 内容同命中语义。
 - 去重契约：`discover_functions` 地址唯一（static → dynamic → PLT 首胜），
   对齐 golden `registerFunctionSymbol`（regen_ghidra_golden.py:219-231）的
@@ -62,6 +62,45 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
   （`uint4 *******`）的深层根因 = varmap↔downChain 反馈环 runaway
   （SQLCENSUS-CODESTAR-DOWNCHAIN-0001 根因二，事件级已钉死、src 修复待续，
   见 /dev/shm/rugra-reports/LANE_S2CODESTAR_2026-09-28.md）。
+
+## 只读装表与段链字节（MIRRORCENSUS-GEN-READONLY-STRFOLD-0001，2026-09-28 车道 GENREADONLY）
+
+**动机（MIRRORCENSUS2 §3-H 新钉族）**：oracle golden 的字符串常量折叠
+（`unaff_R12 = "LIT"`，sqlite 镜面 120 行 + sq 18 行）在 Rugra 侧永不发生——
+`PrintC::pushPtrCharConstant` 的 isReadOnly 门（printc.cc:1709）恒拒。链路：
+
+- oracle：`LoadImageBfd::getReadonly`（loadimage_bfd.cc:286-303）遍历 BFD 段链
+  装每个 `SEC_READONLY` 段范围 → `Architecture::fillinReadOnlyFromLoader`
+  （architecture.cc:1371-1381）`setPropertyRange(Varnode::readonly)` OR 进
+  symboltab flagbase。**BFD 的 ELF 后端映射 `!SHF_WRITE → SEC_READONLY` 无
+  SHF_ALLOC 前提**（真 BFD 2.38 探针实证，FSTRFOLDUP 车道），故非 ALLOC 段
+  （.comment/.gnu_debuglink/.debug_\*）以裸 VMA 入表。
+- gen 驱动此前**零 readonly 代码**（curl 驱动有 .rodata 范围、httpd 已由
+  FSTRFOLDUP 装表——本票先例照抄对象）。
+
+**修复（双件，均 examples 胶水）**：
+
+1. **readonly 范围装表**（print-DB install 块）：ELF 段表过滤
+   `sh_size>0 && !(sh_flags & SHF_WRITE)`，BFD 吸收段同构排除（SHT_SYMTAB /
+   名 `.strtab` 的 SHT_STRTAB / `e_shstrndx` 段）——1:1 复现 BFD 段链
+   SEC_READONLY 段集；`Database::set_property_range(READONLY, Range)` 逐段
+   装入 print-DB。**print-DB only**：analysis-DB 保持纯函数符号面（swap 在
+   perform_action 之后），action 管线通道缺失态不变，零 action 相位漂移。
+2. **`overlay_bfd_nonalloc_sections`**：`LoadImageBfd::loadFill` 是**段链**
+   服务（loadimage_bfd.cc:124-179，`findSection` 首段命中即供
+   `bfd_get_section_contents(vma 偏移)`），非 PT_LOAD 内存像——把每个暴露的
+   非 ALLOC PROGBITS 段文件字节叠到其 VMA。**重叠 VMA（sasquatch 的
+   .comment+.debug_\* 全在 vma 0，.debug_info 尺寸 0x28a6a 与 .text
+   [0x6d40,0x42bee) 相交）按 findSection 首段命中语义消解：claim 区间
+   算术——段表序（=bfd 链序）遍历，ALLOC 段只 claim 不写（PT_LOAD 像内
+   字节已精确），非 ALLOC 段只写未被更早链段 claim 的子区间**。首版盲拷
+   覆写 .text 代码字节把 sq 面炸到 57020（镜面门禁当场拦截），claim 版
+   修复后 .text 字节不动、debug 字节只落 header 区/段间空隙——与 oracle
+   `findSection` 逐地址同供字节。NOBITS 无文件字节（仍 claim，.bss 零保持）。
+
+**验收语义**：vsh/sq/sqlite 三面共享本驱动（`verify_mirror_gate.sh` 臂）；
+sqlite/sq 镜面 strfold 族收敛（sqlite −~120 / sq −~18 方向）、vsh 零回退
+（golden 侧 0 折叠点）；canon 面（curl/httpd 驱动）构造性零触及。
 
 ## 陈旧二进制自检（INFRA-EXAMPLES-STALELINK-0001，2026-09-28 车道 INFRASTALE）
 

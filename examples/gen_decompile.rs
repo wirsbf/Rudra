@@ -269,6 +269,125 @@ fn memory_image_bytes(elf: &goblin::elf::Elf, buffer: &[u8]) -> Vec<u8> {
     image
 }
 
+// MIRRORCENSUS-GEN-READONLY-STRFOLD-0001: LoadImageBfd::loadFill
+// (loadimage_bfd.cc:124-179) is SECTION-based, not PT_LOAD-based: for any
+// queried address it walks bfd's section chain (findSection, :99-122) and
+// serves `bfd_get_section_contents(p, ..., curaddr - p->vma, ...)` from the
+// FIRST section in the chain whose [vma, vma+size) contains the address —
+// non-ALLOC sections included. The gen corpora expose such sections at
+// their (raw) VMAs: sqlite .gnu_debuglink (vma 0, 0x34), sasquatch
+// .comment (vma 0, 0x2b) + eight .debug_* PROGBITS sections (all vma 0,
+// sizes up to 0x28a6a), and BFD keeps every one of them in the chain with
+// SEC_READONLY (bfd/elf.c _bfd_elf_make_section_from_shdr maps !SHF_WRITE
+// -> SEC_READONLY with NO SHF_ALLOC requirement — probe-verified against
+// the real BFD 2.38 in the FSTRFOLDUP lane,
+// /dev/shm/rugra-tests/fstrfoldup/bfd_ro_probe.c). An oracle-side fold of
+// a char* constant pointing there (pushPtrCharConstant printc.cc:1698-1719
+// -> StringManagerUnicode::getStringData stringmanage.cc:459 loadFill)
+// reads those section bytes, which the PT_LOAD memory image alone does not
+// carry. This overlay reproduces the chain service exactly: sections are
+// visited in section-table order (= bfd chain order) and each writes its
+// file bytes ONLY to addresses no earlier chain section claims — ALLOC
+// sections merely claim (their bytes are already exact in the PT_LOAD
+// image; sasquatch's .debug_info at vma 0 size 0x28a6a OVERLAPS .text
+// [0x6d40,0x42bee), and findSection serves .text there because it precedes
+// the debug sections in the chain — a blind copy corrupted code bytes and
+// blew the sq face to 57020 in the first iteration of this lane, caught by
+// the mirror gate). Claim resolution is interval arithmetic over the
+// section list. BFD-absorbed sections (SHT_SYMTAB / the .strtab /
+// e_shstrndx) never enter bfd's chain and are skipped here the same way;
+// NOBITS sections have no file bytes to copy (they still claim their
+// interval — .bss zeros stay zeros). FSTRFOLDUP-STRFOLD-COMMENTRO-0001
+// precedent (examples/httpd_decompile.rs overlay_bfd_nonalloc_sections —
+// httpd's single non-ALLOC section had no overlap, so the blind copy was
+// equivalent there; this gen form is the general chain-faithful one).
+fn overlay_bfd_nonalloc_sections(
+    elf: &goblin::elf::Elf,
+    buffer: &[u8],
+    image: &mut [u8],
+) {
+    use goblin::elf::section_header::{SHT_NOBITS, SHT_STRTAB, SHT_SYMTAB, SHF_ALLOC};
+    let shstrndx = elf.header.e_shstrndx as usize;
+    // bfd chain membership, in chain order: every section except the
+    // BFD-internal absorbed set and zero-size entries.
+    let chain: Vec<usize> = elf
+        .section_headers
+        .iter()
+        .enumerate()
+        .filter(|&(index, header)| {
+            header.sh_size != 0
+                && index != shstrndx
+                && header.sh_type != SHT_SYMTAB
+                && !(header.sh_type == SHT_STRTAB
+                    && elf.shdr_strtab.get_at(header.sh_name) == Some(".strtab"))
+        })
+        .map(|(index, _)| index)
+        .collect();
+    // Claimed intervals, sorted by start (overlaps possible — the walk
+    // below advances a cursor so an overlapping earlier claim only ever
+    // shrinks what a later section may write).
+    let mut claimed: Vec<(usize, usize)> = Vec::new();
+    for index in chain {
+        let header = &elf.section_headers[index];
+        let alloc = (header.sh_flags & SHF_ALLOC as u64) != 0;
+        let start = header.sh_addr as usize;
+        let end = start.saturating_add(header.sh_size as usize);
+        if !alloc && header.sh_type != SHT_NOBITS {
+            // Serve this section's bytes on the sub-intervals of
+            // [start, end) that no earlier chain section claims —
+            // findSection's first-match-wins, restricted to writes.
+            let mut cursor = start;
+            for &(c_start, c_end) in &claimed {
+                if c_start >= end {
+                    break;
+                }
+                if c_end > cursor {
+                    let dst_lo = cursor;
+                    let dst_hi = c_start.min(end);
+                    if dst_lo < dst_hi {
+                        overlay_copy(header, buffer, image, start, dst_lo, dst_hi);
+                    }
+                }
+                cursor = cursor.max(c_end);
+                if cursor >= end {
+                    break;
+                }
+            }
+            if cursor < end {
+                overlay_copy(header, buffer, image, start, cursor, end);
+            }
+        }
+        // Claim the whole interval for later sections.
+        if let Some(position) = claimed.iter().position(|&(c_start, _)| c_start > start) {
+            claimed.insert(position, (start, end));
+        } else {
+            claimed.push((start, end));
+        }
+    }
+}
+
+// Copy [dst_lo, dst_hi) of section `header` (file bytes at sh_offset +
+// (dst - sh_addr)) into the image, clipped to the image bounds.
+fn overlay_copy(
+    header: &goblin::elf::section_header::SectionHeader,
+    buffer: &[u8],
+    image: &mut [u8],
+    section_start: usize,
+    dst_lo: usize,
+    dst_hi: usize,
+) {
+    let src_lo = header.sh_offset as usize + (dst_lo - section_start);
+    let src_hi = src_lo + (dst_hi - dst_lo);
+    let Some(src) = buffer.get(src_lo..src_hi) else {
+        return;
+    };
+    if dst_lo >= image.len() {
+        return;
+    }
+    let dst_end = dst_hi.min(image.len());
+    image[dst_lo..dst_end].copy_from_slice(&src[..dst_end - dst_lo]);
+}
+
 // FUNCPROTO-MODEL-BIND-0001 (gen-driver copy): locked x86-64 address-space
 // facts shared by the spec host (index-ordered like the oracle's
 // AddrSpaceManager enumeration — only name/highest are consulted by the
@@ -548,7 +667,13 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         _ => return Err("not an ELF binary".to_string()),
     };
     let target = &functions[index];
-    let image = memory_image_bytes(elf, &buffer);
+    let mut image = memory_image_bytes(elf, &buffer);
+    // MIRRORCENSUS-GEN-READONLY-STRFOLD-0001: the oracle's loadFill is a
+    // section-chain service (see overlay_bfd_nonalloc_sections) — lay the
+    // exposed non-ALLOC section bytes onto their VMAs before the image is
+    // cloned into the loader and handed to SLEIGH, so string reads see the
+    // same bytes the oracle's BfdArchitecture would serve.
+    overlay_bfd_nonalloc_sections(elf, &buffer, &mut image);
 
     let loader: Arc<dyn rugra::loadimage::LoadImage> = Arc::new(
         rugra::loadimage::RawLoadImage::from_bytes(
@@ -698,6 +823,66 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         for function in functions {
             db_scope.add_function(Address::new(function.vaddr), &function.name, 1);
         }
+    }
+    // MIRRORCENSUS-GEN-READONLY-STRFOLD-0001: the readonly property ranges
+    // the oracle's BfdArchitecture installs at Architecture init —
+    // LoadImageBfd::getReadonly (loadimage_bfd.cc:286-303) lists every BFD
+    // section with SEC_READONLY and Architecture::fillinReadOnlyFromLoader
+    // (architecture.cc:1371-1381) ORs Varnode::readonly over each range
+    // into the symboltab flagbase. PrintC::pushPtrCharConstant's isReadOnly
+    // gate (printc.cc:1709, via Scope::isReadOnly -> queryProperties ->
+    // flagbase) reads exactly this channel, so without the ranges the
+    // mirror can never fold a string literal — the gen driver installed
+    // zero readonly code (MIRRORCENSUS2 §3-H: sqlite `unaff_R12 = "LIT"`
+    // vs `(char *)LIT` 120 lines + sq 18, folding never fired). The
+    // direct-runner golden (BfdArchitecture, real BFD 2.38 — provenance
+    // json runner block) HAS these ranges: bare-library truth, not
+    // analyzer state. BFD's ELF backend maps !SHF_WRITE -> SEC_READONLY
+    // with NO SHF_ALLOC requirement, so the range list includes NON-ALLOC
+    // sections at their raw VMAs (sqlite .gnu_debuglink [0,0x33];
+    // sasquatch .comment + .debug_* stack at vma 0), whose bytes the
+    // overlay_bfd_nonalloc_sections call above laid into the image.
+    // BFD-absorbed sections (SHT_SYMTAB, the .strtab, e_shstrndx) are not
+    // in bfd's chain and are excluded identically. Print-DB only: the
+    // analysis symboltab above keeps the function-symbol face alone (the
+    // swap below happens after perform_action), so the action pipeline
+    // runs with the same channel-absent state as before — zero
+    // action-phase drift. FSTRFOLDUP precedent (examples/httpd_decompile.rs
+    // MIRATTR-F-STRFOLD-0001 print-db install; ro_base=0 — the gen driver
+    // is the single raw-vaddr arm the golden compares at --base 0).
+    {
+        let mut ro_ranges = 0usize;
+        use goblin::elf::section_header::{SHT_STRTAB, SHT_SYMTAB, SHF_WRITE};
+        let shstrndx = elf.header.e_shstrndx as usize;
+        for (index, header) in elf.section_headers.iter().enumerate() {
+            if header.sh_size == 0
+                || (header.sh_flags & SHF_WRITE as u64) != 0
+                || index == shstrndx
+            {
+                continue;
+            }
+            if header.sh_type == SHT_SYMTAB {
+                continue; // bfd-internal (symtab): not in the chain
+            }
+            if header.sh_type == SHT_STRTAB
+                && elf.shdr_strtab.get_at(header.sh_name) == Some(".strtab")
+            {
+                continue; // bfd-internal (the symtab's strtab)
+            }
+            let first = Address::new(header.sh_addr);
+            let last = Address::new(header.sh_addr + header.sh_size - 1);
+            if let Some(range) = rugra::address::Range::new(first, last) {
+                print_symbol_db.set_property_range(
+                    rugra::varnode::varnode_flags::READONLY,
+                    range,
+                );
+                ro_ranges += 1;
+            }
+        }
+        eprintln!(
+            "[PREPASS] MIRRORCENSUS-GEN-READONLY-STRFOLD-0001 print DB: {} readonly section ranges installed",
+            ro_ranges
+        );
     }
     eprintln!(
         "[PREPASS] GEN-CODEPTR-SYMBOLIZE-0001 print DB: {} function symbols",
