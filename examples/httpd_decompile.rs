@@ -870,11 +870,23 @@ fn build_action_data_symbol_db(
     // locked oracle cannot produce (both canon goldens contain zero such
     // scalars). Mirror the oracle's real input forms instead:
     //   - a symbol whose whole extent is relocated 8-byte pointer slots
-    //     serializes as undefined *[size/8] — the W6 oracle witness
-    //     (/dev/shm/rugra-tests/typeorder/o_w6_proto_arrayptr.c), whose
-    //     loop output is the canon main family (`ppuVar14 =
-    //     &ap_prelinked_modules; puVar1 = *ppuVar14 ... ppuVar14 = ppuVar14
-    //     + 1`, zero casts);
+    //     serializes as a ptr→undefined symbol mapped over ONLY THE FIRST
+    //     SLOT (canon DB witness: mapsym id 0xa23 ap_prelinked_modules
+    //     0x19d2c0 `<type metatype="ptr" size="8"><typeref undefined/>`
+    //     `<addr offset="0x19d2c0" size="8"/>` typelock/namelock — and the
+    //     same 8B ptr form for ap_preloaded_modules 0x19d020 and
+    //     ap_prelinked_module_symbols 0x19d100 in their windows). The
+    //     print-side consequence is printc.cc:1064's array test: an ARRAY
+    //     symbol drops the `&` in `ppuVar14 = &ap_prelinked_modules`
+    //     (W6 oracle witness o_w6_proto_arrayptr.c line 205 printed the
+    //     seeded array form BARE — the prior lane's comment attributing
+    //     the `&` form to W6 misread it), while the canon DB's ptr form
+    //     keeps it (cc:1071-1073) — the canon golden's exact loop head.
+    //     Slots past the first carry no symbol in main's window (later
+    //     windows hold separate PTR_* 8B symbols; the canon 34-function
+    //     face never names them), so only slot 0 is registered — while
+    //     `covered` keeps spanning the whole extent so no harvest/rodata
+    //     shadow label lands on the tail slots.
     //   - other 8-divisible sizes take undefined8[size/8] (W5 witness);
     //   - remaining >10 sizes take getBase's own undefined[size] array;
     //   - sizes <= 10 keep the named scalar (a genuine getBase product).
@@ -888,7 +900,7 @@ fn build_action_data_symbol_db(
         })
         .map(|rel| rel.r_offset + image_base)
         .collect();
-    let object_datatype = |addr: u64, size: usize| -> Arc<Datatype> {
+    let object_datatype = |addr: u64, size: usize| -> (Arc<Datatype>, usize) {
         let undefined1 = || {
             Arc::new(Datatype::Base(TypeBase::new(
                 "undefined".to_string(),
@@ -913,28 +925,31 @@ fn build_action_data_symbol_db(
                 let all_pointer_slots =
                     (0..size / 8).all(|i| slot_is_pointer(addr + (i as u64) * 8));
                 if all_pointer_slots {
-                    // Whole-extent pointer table -> undefined*[] (W6 form).
-                    (
+                    // Whole-extent pointer table -> ptr→undefined mapped
+                    // over the first slot only (canon DB 8B ptr form above).
+                    return (
                         TypeFactory::shared_default()
                             .write()
                             .unwrap()
                             .get_type_pointer_default(undefined1()),
-                        size / 8,
-                    )
-                } else {
-                    // Integer-slot table -> undefined8[] (W5 form).
-                    (undefined_t(8), size / 8)
+                        8,
+                    );
                 }
+                // Integer-slot table -> undefined8[] (W5 form).
+                (undefined_t(8), size / 8)
             } else {
                 // getBase's own >10 auto form: undefined[size] bytes.
                 (undefined1(), size)
             };
-            return TypeFactory::shared_default()
-                .write()
-                .unwrap()
-                .get_array(element, count);
+            return (
+                TypeFactory::shared_default()
+                    .write()
+                    .unwrap()
+                    .get_array(element, count),
+                size,
+            );
         }
-        undefined_t(size)
+        (undefined_t(size), size)
     };
     for sym in elf.dynsyms.iter() {
         if sym.st_value == 0 || sym.st_type() != goblin::elf::sym::STT_OBJECT {
@@ -946,12 +961,13 @@ fn build_action_data_symbol_db(
         }
         let size = if sym.st_size > 0 { sym.st_size as usize } else { 8 };
         let sym_addr = sym.st_value + image_base;
+        let (obj_dtype, map_size) = object_datatype(sym_addr, size);
         if let Some(sym_id) = db.add_symbol_mapped(
             global_scope_id,
             name,
-            Some(object_datatype(sym_addr, size)),
+            Some(obj_dtype),
             Address::new(sym_addr),
-            size as i32,
+            map_size as i32,
         ) {
             mark_readonly(&mut db, sym_id, sym_addr);
             covered.push((sym_addr, sym_addr + size as u64));
