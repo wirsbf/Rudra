@@ -2,6 +2,23 @@
 
 **源代码路径**: `src/varnode.rs`
 
+## 2026-09-29：PERF-OPPOOL-0001 lone_descend 免分配化与 has_no_descend 无计数存活探测
+
+规则池派发热路径（[OPPROF] 钻探：earlyremoval 5.02M 次尝试、TermOrder::collect
+每边、multicollapse 每输入）高频调用后代查询，本条削减每次调用的纯常数，判定
+结果逐调用不变：
+
+- `lone_descend`（varnode.cc:676-688）— 原实现先 `Vec::collect` 全部存活后代再
+  数长度（每次调用一次堆分配 + 全表 Weak upgrade）；现改为单趟免分配扫描：
+  `Weak::strong_count == 0` 跳过死引用，第二个存活项即早退（对应 oracle
+  `iter != descend.end()` 短路），唯一存活项才 `upgrade`。零/一/多后代三种
+  判定与返回的 Arc 与原实现逐调用恒等。
+- `has_no_descend`（varnode.hh:286）— 存活探测改用 `Weak::strong_count() == 0`
+  （无引用计数往返），谓词语义不变（无存活后代）。Rugra 的 `descend` 是
+  `Vec<Weak>`（oracle 是被主动维护的裸指针链表），存活过滤语义原样保留。
+
+VdbeExec `--one 1055` stdout 字节恒等 + canon/镜面门禁见车道 OPPPOOL 报告。
+
 ## 2026-08-28：WRITE_MASK 与 AUTOLIVE_HOLD 正交
 
 `set/clear/is_write_mask` 现使用 Ghidra 的 `addlflags::WRITE_MASK`，不再占用主 flags

@@ -60,56 +60,98 @@ impl TermOrder {
     // Ghidra: expression.cc:236 TermOrder::collect
     /// Collect all the terms in the additive expression rooted at `root`.
     /// Faithful to `TermOrder::collect` (expression.cc:236-283).
+    /// PERF-OPPOOL-0001: one PcodeOp read per stack pop (the input Arc list
+    /// is cloned once per op, not re-locked per edge), one Varnode read per
+    /// edge covering isWritten/loneDescend/def together, and AdditiveEdge is
+    /// constructed directly from the already-cloned handle (its constructor
+    /// re-locks the reading op, expression.hh:106 `vn = op->getIn(slot)` is a
+    /// raw read in the oracle). Same LIFO stack order, same per-slot scan
+    /// order, same term push order as the oracle loop.
     pub fn collect(&mut self) {
         let mut opstack: Vec<(Arc<RwLock<PcodeOp>>, Option<Arc<RwLock<PcodeOp>>>)> = Vec::new();
         opstack.push((self.root.clone(), None));
         while let Some((curop, multop)) = opstack.pop() {
-            let num_input = curop.read().unwrap().inrefs.len();
-            for i in 0..num_input {
-                let curvn = curop.read().unwrap().inrefs[i].clone();
-                let mult_clone = multop.clone();
-                let is_written = curvn.read().unwrap().is_written();
-                if !is_written {
-                    self.terms.push(AdditiveEdge::new(curop.clone(), i, mult_clone));
+            // One lock per popped op: snapshot the input Arc handles.
+            let inputs: Vec<Arc<RwLock<Varnode>>> = {
+                let op = curop.read().unwrap();
+                op.inrefs.clone()
+            };
+            for (i, curvn) in inputs.iter().enumerate() {
+                // One Varnode lock per edge: the three fields the oracle
+                // reads as isWritten / loneDescend / getDef.
+                let (is_written, lone, subop) = {
+                    let vn = curvn.read().unwrap();
+                    (
+                        vn.is_written(),
+                        vn.lone_descend().is_some(),
+                        vn.def.as_ref().and_then(|w| w.upgrade()),
+                    )
+                };
+                if !is_written || !lone {
+                    self.terms.push(AdditiveEdge {
+                        op: curop.clone(),
+                        slot: i,
+                        vn: curvn.clone(),
+                        mult: multop.clone(),
+                    });
                     continue;
                 }
-                let lone = curvn.read().unwrap().lone_descend().is_some();
-                if !lone {
-                    self.terms.push(AdditiveEdge::new(curop.clone(), i, mult_clone));
+                let Some(subop) = subop else {
+                    self.terms.push(AdditiveEdge {
+                        op: curop.clone(),
+                        slot: i,
+                        vn: curvn.clone(),
+                        mult: multop.clone(),
+                    });
                     continue;
-                }
-                let subop = curvn.read().unwrap().def.as_ref().and_then(|w| w.upgrade());
-                let subop = match subop { Some(a) => a, None => {
-                    self.terms.push(AdditiveEdge::new(curop.clone(), i, mult_clone));
-                    continue;
-                }};
+                };
                 let subopc = subop.read().unwrap().opcode;
                 if subopc != OpCode::CPUI_INT_ADD {
-                    if subopc == OpCode::CPUI_INT_MULT && subop.read().unwrap().inrefs.get(1).map_or(false, |v| v.read().unwrap().is_constant()) {
-                        let in0 = subop.read().unwrap().inrefs.get(0).cloned();
-                        if let Some(in0_vn) = in0 {
-                            let addop = in0_vn.read().unwrap().def.as_ref().and_then(|w| w.upgrade());
-                            if let Some(ao) = addop {
-                                if ao.read().unwrap().opcode == OpCode::CPUI_INT_ADD {
-                                    // Ghidra checks the underlying ADD output,
-                                    // not the outer MULT output. The latter was
-                                    // already proven lone-use through curvn.
-                                    let add_output = ao.read().unwrap().output.clone();
-                                    let out_lone = add_output.as_ref().map_or(false, |output| {
-                                        output.read().unwrap().lone_descend().is_some()
-                                    });
-                                    if out_lone {
-                                        opstack.push((ao, Some(subop.clone())));
-                                        continue;
+                    if subopc == OpCode::CPUI_INT_MULT {
+                        // One lock on the MULT op: constant check on in(1)
+                        // and the in(0) handle together.
+                        let (coef_constant, mult_in0) = {
+                            let so = subop.read().unwrap();
+                            (
+                                so.inrefs
+                                    .get(1)
+                                    .map_or(false, |v| v.read().unwrap().is_constant()),
+                                so.inrefs.get(0).cloned(),
+                            )
+                        };
+                        if coef_constant {
+                            if let Some(in0_vn) = mult_in0 {
+                                let addop =
+                                    in0_vn.read().unwrap().def.as_ref().and_then(|w| w.upgrade());
+                                if let Some(ao) = addop {
+                                    if ao.read().unwrap().opcode == OpCode::CPUI_INT_ADD {
+                                        // Ghidra checks the underlying ADD output,
+                                        // not the outer MULT output. The latter was
+                                        // already proven lone-use through curvn.
+                                        let add_output =
+                                            ao.read().unwrap().output.clone();
+                                        let out_lone = add_output.as_ref().map_or(
+                                            false,
+                                            |output| output.read().unwrap().lone_descend().is_some(),
+                                        );
+                                        if out_lone {
+                                            opstack.push((ao, Some(subop.clone())));
+                                            continue;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    self.terms.push(AdditiveEdge::new(curop.clone(), i, mult_clone));
+                    self.terms.push(AdditiveEdge {
+                        op: curop.clone(),
+                        slot: i,
+                        vn: curvn.clone(),
+                        mult: multop.clone(),
+                    });
                     continue;
                 }
-                opstack.push((subop, mult_clone));
+                opstack.push((subop, multop.clone()));
             }
         }
     }
@@ -118,19 +160,59 @@ impl TermOrder {
     /// Sort terms with `Varnode::term_order` (constant class, coefficient-
     /// stripped storage address), matching Ghidra's `additiveCompare` key.
     /// Faithful to `TermOrder::sortTerms` (expression.cc:285-293).
+    /// PERF-OPPOOL-0001: the additiveCompare projection (constant class,
+    /// MULT-stripped storage address — varnode.cc:1153-1175 termOrder) is
+    /// precomputed once per term instead of paying the Varnode/def-op lock
+    /// pair per comparison. Equal keys keep the stable relative order the
+    /// previous per-comparison form produced (Rust sort_by is stable; the
+    /// projection is identical, so Less/Greater/Equal verdicts per pair are
+    /// unchanged).
     pub fn sort_terms(&mut self) {
+        let term_key =
+            |edge: &AdditiveEdge| -> (u8, u8, crate::space::AddressSpace, u64) {
+                let vn = edge.vn.read().unwrap();
+                if vn.is_constant() {
+                    // Constants form one tie class that sorts after every
+                    // non-constant (varnode.cc:1157-1160).
+                    return (1, 0, crate::space::AddressSpace::Const, 0);
+                }
+                // varnode.cc:1162-1172: strip one INT_MULT(_, constant) wrapper.
+                let base = vn.get_def().and_then(|def| {
+                    let operation = def.read().unwrap();
+                    if operation.get_opcode() != OpCode::CPUI_INT_MULT {
+                        return None;
+                    }
+                    let coefficient = operation.get_in(1)?;
+                    if !coefficient.read().unwrap().is_constant() {
+                        return None;
+                    }
+                    operation.get_in(0).cloned()
+                });
+                if let Some(base) = base {
+                    let base = base.read().unwrap();
+                    (
+                        0,
+                        base.address_space.space_id(),
+                        base.address_space,
+                        base.loc.as_u64(),
+                    )
+                } else {
+                    (
+                        0,
+                        vn.address_space.space_id(),
+                        vn.address_space,
+                        vn.loc.as_u64(),
+                    )
+                }
+            };
+        let keys: Vec<(u8, u8, crate::space::AddressSpace, u64)> =
+            self.terms.iter().map(term_key).collect();
         self.sorter = (0..self.terms.len()).collect();
         self.sorter.sort_by(|&a, &b| {
-            let va = &self.terms[a].vn;
-            let vb = &self.terms[b].vn;
-            if Arc::ptr_eq(va, vb) {
+            if Arc::ptr_eq(&self.terms[a].vn, &self.terms[b].vn) {
                 return std::cmp::Ordering::Equal;
             }
-            match va.read().unwrap().term_order(&vb.read().unwrap()) {
-                value if value < 0 => std::cmp::Ordering::Less,
-                value if value > 0 => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Equal,
-            }
+            keys[a].cmp(&keys[b])
         });
     }
 

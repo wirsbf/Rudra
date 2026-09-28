@@ -2,6 +2,23 @@
 
 **源代码路径**: `src/action.rs`
 
+## 2026-09-29：PERF-OPPOOL-0001 派发循环 drillobserve flush 调用点门控
+
+`ActionPool::process_op` 每 rule 尝试后的 `drillobserve::flush(rule_name)` 调用点
+现以 `drillobserve::is_enabled()` 同门预判（action.cc:844-846 的
+`data.debugModPrint(rl->getName())` 在 oracle 是 OPACTION_DEBUG **编译期**开关，
+Rugra 外部化为运行期 env 门）。drill 关闭时跳过每次尝试的 vtable `get_name()`
+取名（flush 本体在关闭时为立即返回，返回 bool 被丢弃）——调用/不调用语义恒等
+（OnceLock 门一经初始化不可翻转）。VdbeExec 27.7M 次尝试各省一次虚调用。
+
+钻探侧记（[OPPROF]，交付前撤净）：oppool1 22-28s 残差分解 = 规则体 miss 常数
+（collect_terms 8.47s 领跑）+ BTreeSet 后继下降 5.05s（`Ord for PcodeOpRef`
+每比较 2 读锁 × O(log n)——**op.rs 写域，归并 PERF-ACTIONPOOL-ITER-0001**，
+oracle `std::map<SeqNum,PcodeOp*>` 迭代器摊还 O(1) 无锁）+ miss 重读 opcode
+1.14s（action.cc:865 裸读 vs 每尝试一次 RwLock 读——同 op.rs 键化票域）。
+oracle 侧 55 样本 gdb 采样：VdbeExec 8.8s 中 oppool ≈27/55≈50%（≈4.6s），
+其派发机制本身占池时间 ~26%。
+
 ## 2026-09-28：Actions 派发循环逐 op 常量削减（ACTIONLOOP-RESTART-0001）
 
 SPEEDPROF 车道 gdb 采样：top-10 慢函数计算线程帧 68.5% 落在 Action 派发循环

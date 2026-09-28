@@ -5280,24 +5280,33 @@ impl RuleCollectTerms {
     /// Extract the multiplicative coefficient from a term vn.
     /// If vn is INT_MULT(V, c), return (V, c); else (vn, 1).
     // Ghidra: ruleaction.cc:82 RuleCollectTerms::getMultCoeff
+    // PERF-OPPOOL-0001: one Varnode lock for isWritten+def and one lock on
+    // the coefficient (the oracle reads these as raw fields, ruleaction.cc
+    // :86-96); identical short-circuit order and results.
     fn get_mult_coeff(
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
     ) -> (
         std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>, u64,
     ) {
-        let is_written = vn.read().unwrap().is_written();
-        if !is_written {
-            return (vn.clone(), 1);
-        }
-        let def = vn.read().unwrap().def.as_ref().and_then(|w| w.upgrade());
+        let def = {
+            let v = vn.read().unwrap();
+            if !v.is_written() {
+                return (vn.clone(), 1);
+            }
+            v.def.as_ref().and_then(|w| w.upgrade())
+        };
         if let Some(op) = def {
             let o = op.read().unwrap();
-            if o.opcode == OpCode::CPUI_INT_MULT && o.inrefs
-                    .get(1)
-                    .map_or(false, |v| v.read().unwrap().is_constant()) {
-                let coeff = o.inrefs[1].read().unwrap().get_offset();
-                let base = o.inrefs[0].clone();
-                return (base, coeff);
+            if o.opcode == OpCode::CPUI_INT_MULT {
+                if let Some(coef_vn) = o.inrefs.get(1) {
+                    let cv = coef_vn.read().unwrap();
+                    if cv.is_constant() {
+                        let coeff = cv.get_offset();
+                        drop(cv);
+                        let base = o.inrefs[0].clone();
+                        return (base, coeff);
+                    }
+                }
             }
         }
         (vn.clone(), 1)
@@ -5336,15 +5345,29 @@ impl Rule for RuleCollectTerms {
             .unwrap()
             .is_constant() {
             i = 1;
+            // PERF-OPPOOL-0001: carry the previous term's (base, coefficient)
+            // across iterations — the oracle recomputes getMultCoeff for both
+            // pair members per step (ruleaction.cc:127-128) but nothing
+            // mutates between misses, so the carried values are the identical
+            // reads.
+            let mut carried: Option<(
+                std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+                u64,
+            )> = None;
             while i < order.len() {
-                let vn1 = termorder
-                    .get_term(order[i - 1])
-                    .unwrap()
-                    .get_varnode()
-                    .clone();
+                let (base1, coef1) = match carried.take() {
+                    Some(pair) => pair,
+                    None => {
+                        let vn1 = termorder
+                            .get_term(order[i - 1])
+                            .unwrap()
+                            .get_varnode()
+                            .clone();
+                        Self::get_mult_coeff(&vn1)
+                    }
+                };
                 let vn2 = termorder.get_term(order[i]).unwrap().get_varnode().clone();
                 if vn2.read().unwrap().is_constant() { break; }
-                let (base1, coef1) = Self::get_mult_coeff(&vn1);
                 let (base2, coef2) = Self::get_mult_coeff(&vn2);
                 if std::sync::Arc::ptr_eq(&base1, &base2) {
                     // Like terms → combine. Handle multiplier sub-case.
@@ -5414,6 +5437,7 @@ impl Rule for RuleCollectTerms {
                     }
                     return Ok(action_status::CHANGE);
                 }
+                carried = Some((base2, coef2));
                 i += 1;
             }
         }
@@ -9413,18 +9437,24 @@ impl Rule for RuleMultiCollapse {
         // Faithful to RuleMultiCollapse::applyOp (ruleaction.cc:3234-3343).
         use crate::expression::functional_equality_level;
 
-        let num_input = op_arc.read().unwrap().inrefs.len();
+        // PERF-OPPOOL-0001: one op read snapshots the input handles; the
+        // heritage-known precheck (cc:3243-3244) and the matchlist build
+        // (cc:3247) both iterate the same inputs — merged into a single
+        // pass over one cloned handle list (the oracle reads raw fields).
+        let matchlist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = {
+            let op = op_arc.read().unwrap();
+            op.inrefs.clone()
+        };
         // cc:3243-3244: all direct inputs must have completed Heritage.
-        for i in 0..num_input {
-            let vn = match op_arc.read().unwrap().inrefs.get(i) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
-            };
-            if !vn.read().unwrap().is_heritage_known() { return Ok(action_status::NO_CHANGE); }
+        for vn in &matchlist {
+            if !vn.read().unwrap().is_heritage_known() {
+                return Ok(action_status::NO_CHANGE);
+            }
         }
 
-        let mut matchlist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = Vec::new();
-        for i in 0..num_input {
-            matchlist.push(op_arc.read().unwrap().inrefs[i].clone());
-        }
+        // cc:3247: matchlist grows with expanded MULTIEQUAL branches.
+        let mut matchlist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
+            matchlist;
         let mut func_eq = false;
         let mut nofunc = false;
         let mut defcopyr: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = None;
@@ -9433,13 +9463,19 @@ impl Rule for RuleMultiCollapse {
         // Find base branch to match (first non-MULTIEQUAL input).
         for i in 0..matchlist.len() {
             let copyr = matchlist[i].clone();
-            let is_written = copyr.read().unwrap().is_written();
-            let is_multiequal = if is_written {
-                let def = copyr.read().unwrap().get_def();
-                match def { Some(d) => d.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL, None => false ,
+            // PERF-OPPOOL-0001: one Varnode lock covers isWritten and the
+            // def handle; the def op's opcode needs its own single lock.
+            let is_multiequal = {
+                let v = copyr.read().unwrap();
+                if !v.is_written() {
+                    false
+                } else {
+                    v.get_def()
+                        .map(|d| d.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL)
+                        .unwrap_or(false)
                 }
-            } else { false };
-            if !is_written || !is_multiequal {
+            };
+            if !is_multiequal {
                 defcopyr = Some(copyr);
                 break;
             }
@@ -9462,17 +9498,21 @@ impl Rule for RuleMultiCollapse {
             if defcopyr.is_none() {
                 // This is now the defining branch.
                 defcopyr = Some(copyr.clone());
-                let is_written = copyr.read().unwrap().is_written();
-                if is_written {
-                    let is_multiequal = {
-                        let def = copyr.read().unwrap().get_def();
-                        match def { Some(d) => d.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL, None => false ,
-                        }
-                    };
-                    if is_multiequal { nofunc = true; }
-                } else {
-                    nofunc = true;
-                }
+                // PERF-OPPOOL-0001: single Varnode lock for isWritten+def.
+                let (is_written, is_multiequal) = {
+                    let v = copyr.read().unwrap();
+                    if !v.is_written() {
+                        (false, false)
+                    } else {
+                        let me = v
+                            .get_def()
+                            .map(|d| d.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL)
+                            .unwrap_or(false);
+                        (true, me)
+                    }
+                };
+                // cc:3262-3269: nofunc = true when unwritten OR MULTIEQUAL.
+                if !is_written || is_multiequal { nofunc = true; }
             } else {
                 let dc = defcopyr.as_ref().unwrap();
                 if std::sync::Arc::ptr_eq(dc, &copyr) {
@@ -9515,21 +9555,28 @@ impl Rule for RuleMultiCollapse {
                     }
                 }
                 // Non-matching branch: if it's a MULTIEQUAL, expand its inputs.
-                let is_written = copyr.read().unwrap().is_written();
-                let is_multiequal = if is_written {
-                    let def = copyr.read().unwrap().get_def();
-                    match def { Some(d) => d.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL, None => false ,
+                // PERF-OPPOOL-0001: single Varnode lock for isWritten+def;
+                // single def-op lock snapshots the expanded input handles.
+                let expand_def = {
+                    let v = copyr.read().unwrap();
+                    if !v.is_written() {
+                        None
+                    } else {
+                        match v.get_def() {
+                            Some(d) if d.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL => {
+                                Some(d)
+                            }
+                            _ => None,
+                        }
                     }
-                } else { false };
-                if is_multiequal {
-                    let newop = copyr.read().unwrap().get_def().unwrap();
-                    let newop_num_input = newop.read().unwrap().inrefs.len();
+                };
+                if let Some(newop) = expand_def {
+                    let newop_inputs =
+                        newop.read().unwrap().inrefs.clone();
                     skiplist.push(copyr.clone());
                     copyr.write().unwrap().set_mark();
-                    for k in 0..newop_num_input {
-                        if let Some(v) = newop.read().unwrap().inrefs.get(k).cloned() {
-                            matchlist.push(v);
-                        }
+                    for v in newop_inputs {
+                        matchlist.push(v);
                     }
                 } else {
                     success = false;
@@ -15206,8 +15253,14 @@ impl Rule for RuleIndirectCollapse {
             None => return Ok(action_status::NO_CHANGE),
         };
         // Is the indirect effect gone?
-        if !indop.0.read().unwrap().is_dead() {
-            if indop.0.read().unwrap().opcode == OpCode::CPUI_COPY {
+        // PERF-OPPOOL-0001: one lock for isDead+opcode (raw reads in the
+        // oracle, ruleaction.cc:3191-3192).
+        let (indop_dead, indop_opcode) = {
+            let o = indop.0.read().unwrap();
+            (o.is_dead(), o.opcode)
+        };
+        if !indop_dead {
+            if indop_opcode == OpCode::CPUI_COPY {
                 // STORE resolved to a COPY. vn1 = indop->getOut(); vn2 = op->getOut();
                 let vn1 = match indop.0.read().unwrap().output.clone() {
                     Some(o) => o,
@@ -16838,21 +16891,26 @@ impl RulePiecePathology {
         let mut slot: usize = 0;
         loop {
             // vn->isInput() && !vn->isPersist()  →  a plain parameter/input.
-            {
+            // PERF-OPPOOL-0001: one Varnode lock covers isInput/isPersist/def
+            // (the oracle reads these as raw fields, ruleaction.cc:10434-10437).
+            let mut op_opt = {
                 let v = vn.read().unwrap();
                 if v.is_input() && !v.is_persist() {
                     res = true;
                     break;
                 }
-            }
+                v.get_def()
+            };
             // Walk the def-chain starting at vn's def.
-            let mut op_opt = vn.read().unwrap().get_def();
             while !res {
                 let op = match op_opt.clone() {
                     Some(o) => o,
                     None => break,
                 };
-                let code = op.read().unwrap().opcode;
+                let (code, already_marked) = {
+                    let o = op.read().unwrap();
+                    (o.opcode, (o.flags & pcodeop_flags::MARK) != 0)
+                };
                 match code {
                     OpCode::CPUI_COPY => {
                         // Follow through the copy.
@@ -16869,8 +16927,7 @@ impl RulePiecePathology {
                         // Mark it and enqueue; exploration continues from the
                         // worklist below (Ghidra sets mark + pushes op, then
                         // sets op = NULL to break the inner walk).
-                        let already = (op.read().unwrap().flags & pcodeop_flags::MARK) != 0;
-                        if !already {
+                        if !already_marked {
                             op.write().unwrap().flags |= pcodeop_flags::MARK;
                             marked.push(op.clone());
                             worklist.push(op.clone());
