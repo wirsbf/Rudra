@@ -4995,6 +4995,87 @@ mod tests {
         );
     }
 
+    // MAINMIXED-WRAP-0001 regression (canon httpd main for-header, golden
+    // :3664-3665): printc's comma_separate separator (printc.cc:2708-2709)
+    // and the emitForLoop clause separators (cc:2981-2982/2984-2985) are
+    // TWO emitter calls — print(punct) then spaces(1) — and the spaces(1)
+    // is the tokenbreak the Oppen scan forces on overflow. The golden's
+    // for-condition therefore breaks right AFTER the trailing comma with
+    // no trailing space. Gluing ", " (or "; ") into one print removes that
+    // break point: the forced break then lands on the synthetic zero-width
+    // separator AFTER the glued token, leaving a trailing ", " before the
+    // newline (observed pre-fix canon main :194 and curl :531/:2273). This
+    // test locks the emitter contract both punctuation forms rely on: an
+    // overflowing line whose only explicit break opportunity is a
+    // spaces(1) after punctuation breaks THERE, with the punctuation kept
+    // on the first line and no trailing space.
+    #[test]
+    fn pretty_print_overflow_breaks_at_punct_spaces_token_no_trailing_space() {
+        use crate::prettyprint::Emit;
+        // Comma form (printc.cc:2707-2709 comma_separate separator).
+        // Sizes chosen so the closing condition is what overflows the
+        // 100-column line (1 + 74 + 1 + 1 + 26 > 100), forcing the one
+        // explicit break opportunity — the comma's spaces(1).
+        let a = format!("{}{}", "puVar2 = *ppuVar15 + ", "x".repeat(53));
+        let b = "puVar2 != (undefined *)0x0";
+        assert_eq!(a.len(), 74);
+        let mut e = super::EmitPrettyPrint::new();
+        e.begin_function();
+        e.tag_line(0);
+        let id1 = e.open_paren("(");
+        e.print(&a);
+        e.print(",");
+        e.spaces(1, 0);
+        e.print(b);
+        e.close_paren(")", id1);
+        e.print(";");
+        e.end_function();
+        let out = e.get_output();
+        let line1 = out
+            .lines()
+            .find(|l| !l.is_empty())
+            .unwrap_or("");
+        assert!(
+            line1.ends_with(','),
+            "overflow break must land at the comma's spaces(1) token, keeping the comma as the last byte (no trailing space), got: {out}"
+        );
+        assert_eq!(
+            line1, format!("({a},"),
+            "first line is exactly '(' + init + ','"
+        );
+        assert!(
+            out.contains(&format!("\n{b});")),
+            "continuation carries the condition after the break, got: {out}"
+        );
+
+        // Semicolon form (printc.cc:2981-2982 emitForLoop clause separator).
+        let mut e = super::EmitPrettyPrint::new();
+        e.begin_function();
+        e.tag_line(0);
+        let id2 = e.open_paren("(");
+        e.print(&a);
+        e.print(";");
+        e.spaces(1, 0);
+        e.print(b);
+        e.close_paren(")", id2);
+        e.print(";");
+        e.end_function();
+        let out = e.get_output();
+        let line1 = out
+            .lines()
+            .find(|l| !l.is_empty())
+            .unwrap_or("");
+        assert!(
+            line1.ends_with(';'),
+            "overflow break must land at the semicolon's spaces(1) token, got: {out}"
+        );
+        assert_eq!(line1, format!("({a};"));
+        assert!(
+            out.contains(&format!("\n{b});")),
+            "continuation carries the condition, got: {out}"
+        );
+    }
+
     fn pretty_print_overflow_whiledo_header_spaces() {
         use crate::prettyprint::Emit;
         let mut e = super::EmitPrettyPrint::new();

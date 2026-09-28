@@ -1,5 +1,36 @@
 # `printc.rs` API Reference
 
+## 2026-09-28：MAINMIXED-WRAP-0001 — comma_separate 分隔符与 for 头子句分隔恢复双 token 发射（Lane MAINMIXED）
+
+**现象**：canon httpd main for 头折点错位——Rugra 在 `(undefined *)0x0` 之后、`;`
+之前断行（`...0x0\n    ; ppuVar15 = ppuVar15 + 1) {`），golden 断在逗号之后
+（`...puVar1 = *ppuVar14,\n    puVar1 != ...`）；且 Rugra 断行处遗留行尾空格
+（`", "` 整 token 后接合成 0 宽 tokenbreak）。curl 同族 2 处行尾空格
+（:531/:2273）。
+
+**根因（oracle 亲读）**：printc.cc:2707-2709 的 comma_separate 分隔符是
+`emit->print(COMMA); emit->spaces(1);` **两次调用**——spaces(1) 是
+EmitPrettyPrint 的 tokenbreak（Oppen 扫描在溢出时按 scanqueue 自底强制的
+断行机会，prettyprint.cc:792-800）；emitForLoop 的两个子句分隔同理
+（cc:2981-2982/2984-2985 `print(SEMICOLON); spaces(1)`）。Rugra 把 `", "` /
+`"; "` 胶合成单次 `print`——断点消失，强制断行落到下一 token 前的合成 0 宽
+分隔（checkstring，cc:819-828），产生行尾空格 + 错位折点。
+
+**修复**：三处恢复双 token 序列——①`emit_block_ops` RPN 臂（cc:2708-2709）、
+②legacy 镜像臂（同 cc 行）、③`emit_for_loop` 两个 `;`（cc:2981/2984）。
+文本不变（非断行处 spaces(1) 印一个空格），断行处空格被换行吸收=oracle
+字节形态。其余 `print(", ")` 位点（opCall 实参/原型/field 枚举等）对应
+oracle 不同发射机制，不在本根范围。
+
+**验收**：canon httpd 30 持平（本根为字节级修复：`&` 落位后折点已与 golden
+重合，本修复消除行尾空格并锁定 token 流）；canon curl 42 持平（2 处行尾
+空格消除=向 golden 字节收敛）；镜面五面 PASS（httpd 30≤36/sq 2720≤2724/
+sqlite 6055≤6071 只降）；新增回归测试
+`pretty_print_overflow_breaks_at_punct_spaces_token_no_trailing_space`
+（src/prettyprint.rs，断点落在标点后 spaces(1)、行尾无空格）。关联票
+CANON-LINEWRAP-CANONSITES-0001 的 main for 头站点收口（ap_fini 4 行残量
+另属长表达式折点子根，票面保持 OPEN）。
+
 ## 2026-09-27：PRINTC-PRINTLIST-WIRING-0001 — resetDefaults emitter 半 + PrintLanguage 虚面收口（Lane PCHOVER2）
 
 PRINTC0004 登记的两项 handover 本车道收口（写域延伸 `prettyprint.rs`/

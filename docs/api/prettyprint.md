@@ -1,5 +1,17 @@
 # `prettyprint.rs` API Reference
 
+## 2026-09-28：MAINMIXED-WRAP-0001 — 标点后 spaces(1) tokenbreak 的溢出断点回归测试（Lane MAINMIXED）
+
+新增测试 `pretty_print_overflow_breaks_at_punct_spaces_token_no_trailing_space`
+（tests 模块）：构造 100 列内唯一显式断点=标点（`,`/`;`）后 `spaces(1,0)` 的
+token 流，断言溢出断行落在该 tokenbreak——标点保留在首行行尾（**无行尾空格**）、
+续行接条件表达式。锁定的发射契约：printc 的 comma_separate 分隔符
+（printc.cc:2708-2709）与 emitForLoop 子句分隔（cc:2981-2982/2984-2985）必须
+保持 `print(punct)` + `spaces(1)` 双调用——胶合成单 token 会把强制断行推到
+合成 0 宽分隔上（行尾空格 + 折点错位，canon httpd main :194 / curl :531/:2273
+修复前实录）。Oppen 强制断行机制本身（scan/cc:792-800 `scanqueue.popbottom`
+自底强制 + print/cc:672-699 tokenbreak 换行）未改动。
+
 ## 2026-09-27：PRINTC-PRINTLIST-WIRING-0001 — Emit::resetDefaults/getMaxLineSize 虚面（Lane PCHOVER2）
 
 `Emit` trait 新增两方法（PRINTC0004 emitter-reset handover 的承接面）：
