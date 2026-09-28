@@ -1,5 +1,35 @@
 # `coreaction.rs` API Reference
 
+## 2026-09-29：LOAD/STORE spacebase 传播阻断 + TYPEPROP 事件通道（MCENSUS3-TYPEPROP-XUNKNOWN-INT-HTTPDMAIN-0001 / lane MAINTYPE）
+
+- `ActionInferTypes::propagate_type`（`src/coreaction.rs:8589`，镜像
+  `OpCode::propagateType` 分派）的 `CPUI_LOAD` 臂（typeop.cc:487-498）与
+  `CPUI_STORE` 臂（typeop.cc:557-570）补齐 `if (invn->isSpacebase()) return 0;`
+  guard：边源 varnode（`edge_src_varnode(op, inslot)`，inslot==-1 取 op 输出，
+  与 Ghidra invn 选取逐字对应）带 SPACEBASE 旗标时，ptr→value 与 value→ptr
+  两个方向都不传播。这是 oracle 对"TYPE_SPACEBASE … has to make sure that it
+  doesn't propagate"（coreaction.hh:942）在 LOAD/STORE 边上的机器强制；栈指针
+  寻址的类型通道是 `propagateSpacebaseRef`/`propagateRef`，不是边走查。
+  其余 spacebase 处理（COPY/MULTIEQUAL/INDIRECT/比较/XOR/AND/OR 的 rewrap、
+  INT_ADD 尾部 ptr-to-spacebase 降级、SEGMENTOP 阻断）此前已在位，本票核对
+  无缺口。
+- **根因事件级钉**（typetrace_1204 TYPEPROP_DEBUG 探针，C 输出与
+  direct-runner golden 逐字节恒等亲证）：httpd main 的 `r0xa11b8` 在 oracle
+  全程只有 `xunknown8 init`、零 from 事件（`piVar10[-2] = xRam..a11b8` 的
+  STORE ptr→value 边被 guard 阻断）；Rugra 缺 guard 时 RSP 栈基指针的 int8*
+  元素类型经 STORE 边流入被存值（717 次 slot=2 事件 vs oracle 16 次），
+  a11b8 变量链 int8 化、`map_globals` 按 high 类型建 `iRam..a11b8`，输出
+  main 28 行 xunknown-vs-int 镜面族。修复后 httpd 镜像 30→2（残 2 =
+  ap_fini_vhost_config 已知 decl-move 尾随族），curl/vsh/sq/sqlite 四面
+  零回归，canon curl/httpd 0/0/0 红线保持。
+- **MAINTYPE-TYPETRACE-0001 诊断通道**（默认关，stderr-only）：
+  `RUGRA_TYPEPROP_DBG=1` 打开 `ActionInferTypes` 的 TYPEPROP_DEBUG 对等事件流
+  ——`build_localtypes` 每条 seed 打 `<vn> : <type> init`，`propagate_type_edge`
+  每次成功传播打 `<outvn> : <type> from <op> slot=<outslot> from_sb=<bool>`
+  （oracle 的 compile-time `TypeFactory::propagatedbg_on` 变为运行期 env；
+  helper `typeprop_debug_enabled`/`typeprop_op_raw`）。供后续 typing 车道
+  复用与 oracle trace 的逐事件 diff 方法论。
+
 ## 2026-09-27：isOpIdentical / ptr_input_reqtype typedef 通道切换（Lane TYPEDEFIMM，wt/typedefimm）
 
 - `ActionSetCasts::is_op_identical`（coreaction.cc:2469-2481）的 typedef 剥离

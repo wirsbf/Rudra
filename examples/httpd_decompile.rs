@@ -4399,6 +4399,51 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                     rugra::block::print_tree_dbg(blk, 0, &mut tree_out);
                 }
                 eprintln!("{}", tree_out);
+                // MAINTYPE lane diagnostic (MCENSUS3-TYPEPROP-XUNKNOWN-INT-
+                // HTTPDMAIN-0001): per-varnode final types + high types +
+                // high symbol, mirroring the typetrace_1204 oracle probe's
+                // [TYPETRACE-VN] records for G/R varnode-level comparison.
+                // stderr-only, gated by the same RUGRA_DUMP_FUNC env.
+                eprintln!("[DUMP] === varnode types for {} ===", func_name);
+                for entry in fd_read.vbank.loc_tree.iter() {
+                    let vn = entry.0.clone();
+                    let v = vn.read().unwrap();
+                    if v.is_annotation() {
+                        continue;
+                    }
+                    let type_desc = |t: &Option<std::sync::Arc<rugra::Datatype>>| -> String {
+                        match t {
+                            Some(dt) => format!(
+                                "{:?}:{}",
+                                dt.get_metatype(),
+                                dt.get_name()
+                            ),
+                            None => "?".to_string(),
+                        }
+                    };
+                    let high_desc = v.high.as_ref().map(|h| {
+                        let hg = h.read().unwrap();
+                        format!(
+                            "{} sym={}",
+                            type_desc(&Some(hg.v_type.get())),
+                            hg.symbol
+                                .as_ref()
+                                .map(|s| s.read().unwrap().name.clone())
+                                .unwrap_or_else(|| "-".to_string())
+                        )
+                    });
+                    let def = v.get_def();
+                    eprintln!(
+                        "[DUMP-VN] {:?}:{:x}({:?}) sz={} vn_t={} high_t={} def={:?}",
+                        v.get_space(),
+                        v.get_offset(),
+                        def.as_ref().map(|d| d.read().unwrap().get_seq_num().clone()),
+                        v.get_size(),
+                        type_desc(&v.v_type.clone()),
+                        high_desc.unwrap_or_else(|| "-".to_string()),
+                        def.map(|d| d.read().unwrap().opcode)
+                    );
+                }
             }
         }
         // ACTION-SYMDB-DATASYM-0001 (render residual ②): the oracle's

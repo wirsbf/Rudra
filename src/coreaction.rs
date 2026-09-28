@@ -8065,6 +8065,34 @@ fn vn_id(vn: &crate::varnode::Varnode) -> u64 {
         ^ (vn.create_index as u64).wrapping_mul(0xD1B54A32D192ED03)
 }
 
+// Ghidra: coreaction.cc:4980 ActionInferTypes::propagationDebug (TYPEPROP_DEBUG
+// event channel; Rust form is env-gated and prints to stderr)
+/// MAINTYPE-TYPETRACE-0001: `RUGRA_TYPEPROP_DBG` gate for the type-propagation
+/// event channel (print-only diagnostics; no behavioral effect). The oracle's
+/// compile-time `TypeFactory::propagatedbg_on` switch becomes a runtime env
+/// check cached in a `OnceLock`.
+pub(crate) fn typeprop_debug_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var("RUGRA_TYPEPROP_DBG").is_ok())
+}
+
+// Ghidra: op.cc:376 PcodeOp::printDebug op raw form (diagnostic compact form)
+/// Compact op rendering for the TYPEPROP event channel: `out = OP(in,...)`
+/// (PcodeOp::printRaw shape; used only under RUGRA_TYPEPROP_DBG).
+fn typeprop_op_raw(op: &crate::op::PcodeOp) -> String {
+    let out = op
+        .get_out()
+        .map(|o| o.read().unwrap().print_raw())
+        .unwrap_or_else(|| "*".to_string());
+    let inputs: Vec<String> = op
+        .inrefs
+        .iter()
+        .map(|i| i.read().unwrap().print_raw())
+        .collect();
+    format!("{} = {}({})", out, op.opcode, inputs.join(","))
+}
+
+
 /// TypeOrder-min merge for one varnode's temp type: keep the strictly more
 /// specific candidate, ties keep the incumbent (first seeded). This is the
 /// descendant competition loop of `Varnode::getLocalType`
@@ -8392,6 +8420,13 @@ impl ActionInferTypes {
                     &local_type,
                     fd.arch.as_ref().and_then(|a| a.types.as_ref()),
                 );
+                // MAINTYPE-TYPETRACE-0001: TYPEPROP_DEBUG-parity event
+                // channel ("init" seed records; coreaction.cc:5032-5036).
+                // stderr-only, gated by RUGRA_TYPEPROP_DBG (default off).
+                if typeprop_debug_enabled() {
+                    let vn = vn_arc.read().unwrap();
+                    eprintln!("[TYPEPROP] {} : {} init", vn.print_raw(), local_type.print_raw());
+                }
                 temps.insert(id , local_type);
             }
         }
@@ -8520,6 +8555,24 @@ impl ActionInferTypes {
         // through the TypeFactory); canonicalize here so structurally equal
         // types share one Arc and writeBack's updateType settles.
         let newtype = canonicalize_temp_type(&newtype, type_factory);
+        // MAINTYPE-TYPETRACE-0001: TYPEPROP_DEBUG-parity event channel
+        // ("from <op> slot=N" edge records; coreaction.cc:5105-5109).
+        // stderr-only, gated by RUGRA_TYPEPROP_DBG (default off).
+        if typeprop_debug_enabled() {
+            let out_desc = out_vn_arc.read().unwrap().print_raw();
+            let from_sb = in_vn_arc
+                .as_ref()
+                .map(|v| v.read().unwrap().is_spacebase())
+                .unwrap_or(false);
+            eprintln!(
+                "[TYPEPROP] {} : {} from {} slot={} from_sb={}",
+                out_desc,
+                newtype.print_raw(),
+                typeprop_op_raw(&op),
+                outslot,
+                from_sb
+            );
+        }
         let out_id = vn_id(&out_vn_arc.read().unwrap());
         temps.insert(out_id, newtype);
         (!active_path.contains(&out_id)).then_some(out_vn_arc)
@@ -8927,6 +8980,22 @@ impl ActionInferTypes {
             // LOAD: the address (slot 1) is a pointer to the output's type,
             // and vice-versa.
             OpCode::CPUI_LOAD => {
+                // typeop.cc:491 `if (invn->isSpacebase()) return 0;` — a
+                // SPACEBASE edge source never propagates through a LOAD, in
+                // either direction. The oracle's channel for stack-pointer
+                // addressing is ActionInferTypes::propagateSpacebaseRef /
+                // propagateRef, never this edge walk (the
+                // "TYPE_SPACEBASE is a problem because we have to make sure
+                // that it doesn't propagate" coreaction.hh:942 note).
+                // MAINTYPE pin: without this guard an RSP-typed store/load
+                // edge lends int8 to every spilled value through the frame
+                // pointer (httpd main a11b8 family, mirror face 28 lines).
+                if Self::edge_src_varnode(op, inslot)
+                    .map(|v| v.read().unwrap().is_spacebase())
+                    .unwrap_or(false)
+                {
+                    return None;
+                }
                 if inslot == 1 && outslot == -1 {
                     // pointer → dereferenced type
                     let dereference_size = op
@@ -8962,6 +9031,16 @@ impl ActionInferTypes {
 
             // STORE: address (slot 1) ↔ stored value (slot 2).
             OpCode::CPUI_STORE => {
+                // typeop.cc:561 `if (invn->isSpacebase()) return 0;` — same
+                // SPACEBASE source block as the LOAD arm: a store edge whose
+                // FROM side is the stack pointer (either ptr→value or
+                // value→ptr direction) never propagates.
+                if Self::edge_src_varnode(op, inslot)
+                    .map(|v| v.read().unwrap().is_spacebase())
+                    .unwrap_or(false)
+                {
+                    return None;
+                }
                 if inslot == 1 && outslot == 2 {
                     let dereference_size = op
                         .get_in(2)

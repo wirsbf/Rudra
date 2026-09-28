@@ -2,6 +2,12 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## 车道 MAINTYPE（2026-09-29 交付；MIRRORCENSUS3 新票④——httpd main xunknown-vs-int typing 仲裁 28 行单函数单根钻修道。基=worktree checkout[76fbcc21 时代];镜面钉值 curl 21/httpd 30/vsh 0/sq 726/sqlite 4753;canon 0/0;tests 1972P;终报=/dev/shm/rugra-reports/LANE_MAINTYPE_2026-09-29.md;证据=/dev/shm/rugra-tests/maintype/）
+
+| 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
+|---|---|---|---|---|
+| `MCENSUS3-TYPEPROP-XUNKNOWN-INT-HTTPDMAIN-0001` | coreaction（ActionInferTypes propagate_type LOAD/STORE 臂缺 spacebase 阻断） | **P2**（MIRRORCENSUS3 §3 归零路径序 4;httpd 30 的 28 行单根;预估 httpd −26~−28） | `src/coreaction.rs`（CPUI_LOAD/CPUI_STORE 两臂各一条 invn.is_spacebase() guard,镜像 typeop.cc:491/:561;+MAINTYPE-TYPETRACE-0001 诊断通道[RUGRA_TYPEPROP_DBG env 门控 TYPEPROP 对等事件流+typeprop_debug_enabled/typeprop_op_raw helper]）+`examples/httpd_decompile.rs`（RUGRA_DUMP_FUNC 扩展 varnode 终态类型 dump,stderr-only,env 门控）+`docs/api/coreaction.md`+本行 | **DONE（2026-09-29,wt/maintype,基=76fbcc21;CR REQUIRED——coreaction 主管线 ActionInferTypes 域,root 集成前独立复核;复核面=typeop.cc:487-498/557-570 guard 语义、edge_src_varnode 与 invn 选取对应、五面 A/B）**。**根因事件级钉**:TYPEPROP_DEBUG oracle 探针 typetrace_1204（lane-private /dev/shm/rugra-tests/maintype/,锁定 e40ed130 -DOPACTION_DEBUG -DTYPEPROP_DEBUG 独立归档树构建;C 输出与 direct-runner golden main 逐字节恒等亲证=环境 parity）证明 golden 中 r0xa11b8 全程零 from 事件（`piVar10[-2]=xRam..a11b8` STORE ptr→value 边被 `invn->isSpacebase()` 阻断）;Rugra 缺该 guard→RSP 栈基指针 int8* 元素类型经 STORE 边流入被存值（镜像侧 717 次 slot=2 事件 vs oracle 16 次）→a11b8 变量链 int8 化→map_globals 按 high 类型建 iRam..a11b8→main 28 行 xunknown-vs-int 族（census 四表面 CAST-SHAPE 10+TYPE-SPELL 4+OTHER 12+DECL-CHURN 2 单根）。canon 0/0 机制澄清:canon 带 proto_db typing 使该仲裁面两侧同收敛,非"DB 数据等价物缺失"——src 算法分歧即唯一根。**验收（全亲测）**:镜面五面 curl 21/21·**httpd 30→2**（main 28 燃尽,函数体与 golden 逐字节恒等;残 2=ap_fini_vhost_config 已知 decl-move 尾随族）·vsh 0/0·sq 726/726·sqlite 4753/4753 全 PASS（defects=numbering=0,RUGRA_GATE_CACHE=0 冷轮,强制重链三驱动）;canon curl 124/0/0·httpd 34/0/0 红线保持;bank 391/391 MATCH;cargo test --lib 1972P/0F/5I==亲父;annotations/refs/evidence 三门禁绿。owner=maintype@wt/maintype(fixer);last_updated=2026-09-29 |
+
 ## 车道 VDBEXEC（2026-09-28 交付；VdbeExec 巨函数 18.9× 单极速度根因钻道——ORACLESPEED 终报最大杠杆票:三层钻定（逐阶段/逐动作/算法级）+ 有界修复 refresh_switch_cases 移位。终报=/dev/shm/rugra-reports/LANE_VDBEEXEC_2026-09-28.md；证据=/dev/shm/rugra-tests/vdbexec/）
 
 | 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
