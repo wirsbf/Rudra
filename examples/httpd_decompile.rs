@@ -54,6 +54,71 @@ const ANALYZE_HEADLESS_IMAGE_BASE: u64 = 0x100000;
 // (tests/golden/ghidra_httpd_1204.c:5198).
 const CANON_UNK_CODE_LABELS_HTTPD: [(u64, &str); 1] = [(0x12df1b, "UNK_0012df1b")];
 
+// CANON-STRDAT-HTTPD-ENVTABLE-0001 (image-based keys, same space as the
+// UNK table above): the canon analyzeHeadless DB's per-address string-Data
+// and DAT-label environment facts for the httpd main window — the httpd
+// twin of curl's CANON_DAT_LABEL_STARTS (STRLIT-ENVDAT-0001). The locked
+// transport capture (/dev/shm/rugra-tests/headlessdist/xml/httpd/
+// 0x12b820.xml — the exact protocol XML the canon golden's decompiler
+// received for main) proves two string-Data absences against the driver's
+// full ASCII scan:
+//   - 0x17b82f: the 27-char NUL-terminated run "k:C:c:D:d:E:e:f:vVlLtTSMh?X"
+//     carries NO s_ mapsym anywhere in the capture (the only symbol in
+//     [0x17b700,0x17be4c) is DAT_0017b831), and the <stringmanage> cache
+//     section holds zero entries for 0x17b831 — the run never became
+//     string Data, so the lea reference at 0x2ba63 (target 0x17b831)
+//     resolved through a default label instead of the char-array fold.
+//   - 0x17a41d: "plog" (4 chars) is below the canon analysis option
+//     "ASCII Strings.Minimum String Length = LEN_5"
+//     (headlessdist rounds/httpd/r0_base.options.tsv) — neighbors
+//     "ptemp"(5)/"pconf"(5)/"process"(7) are s_ mapsyms in the same
+//     capture, "plog" is not; the lea at 0x2bf37 (target 0x17a41d, the
+//     'p') got the default DAT label instead.
+// The curl ENVDAT lane already falsified deriving this set from the bytes
+// (length/charset/letters/pointer-target/DWARF/slot rules all fail on the
+// curl corpus: canon folds the 2-char "wb"/"rb" runs yet keeps 4-char
+// "HOME" as &DAT_001061e4), so these stay witness constants — canon
+// golden proofs: `apr_getopt(plVar12[10],&DAT_0017b831,...)` (golden
+// ghidra_httpd_1204.c:3579) and `apr_pool_tag(plVar12[7],&DAT_0017a41d)`
+// (:3586). ACTION-side only: the print-side literal proxy (fd.add_string,
+// fed by the FULL scan) keeps every run, exactly like the curl precedent.
+const CANON_ABSENT_STRING_STARTS_HTTPD: [u64; 2] = [0x17b82f, 0x17a41d];
+
+// CANON-STRDAT-HTTPD-ENVTABLE-0001: the canon DB's 1-byte DAT labels at
+// the two reference targets above — verbatim transport mapsyms:
+//   <symbol name="DAT_0017b831" typelock="true" namelock="true"
+//            readonly="true" merge="false" cat="-1">
+//     <typeref name="undefined" id="0xc000000000000000"/>
+//   <addr space="ram" offset="0x17b831" size="1"/>
+// (identical shape for DAT_0017a41d). The unsuffixed 1-byte "undefined"
+// pointee is load-bearing for the print form: ActionConstantPtr's
+// exact-hit queryContainer (coreaction.cc:1151-1163) ->
+// Funcdata::spacebaseConstant (funcdata.cc:362-462) types the PTRSUB
+// output pointer-to-undefined, and PrintC::opPtrsub's TYPE_SPACEBASE arm
+// (printc.cc:1057-1094) prints `&DAT_0017b831`; the equal-size (1B)
+// unknown pointee then suppresses the spurious `(char *)&DAT` cast at the
+// char* call parameters through castStandard's pointer-to-unknown rule
+// (cast.cc:374-376) — the CURLWIRE-SIGLOCK-WIRING-0001 lesson: an
+// undefined8 entry would size 1 vs 8 and cast.cc:337 would insert it.
+const CANON_DAT_LABELS_HTTPD: [(u64, &str); 2] =
+    [(0x17b831, "DAT_0017b831"), (0x17a41d, "DAT_0017a41d")];
+
+// CANON-STRDAT-HTTPD-ENVTABLE-0001 (reverse station): harvested data
+// references the canon front-end never labeled. 0x131f4ab is the httpd
+// Module Magic Number immediate (`mov esi,0x131f4ab` on main's -V path —
+// the integer 20051115, far outside the image), and the transport proves
+// the canon DB carries NO symbol there (grep 0x131f4ab over all 226
+// headlessdist xml/httpd windows: zero mapsyms; the golden prints the
+// bare constant, ghidra_httpd_1204.c:3808 `__printf_chk(1,"Server's
+// Module Magic Number: %u:%u\n",0x131f4ab,0x1f)` and :19471
+// `if (*param_1 != 0x131f4ab)`). The harvest's COPY-const channel
+// (mov-immediate false positives) over-admits it — the iced=SLEIGH=840
+// parity note was harvester-vs-harvester, not harvester-vs-oracle — and
+// the unguarded install let ActionConstantPtr fold the constant into
+// `&DAT_0131f4ab`. Excluded here as a canon-committed environment fact
+// (same witness doctrine as KNOWN_NO_RETURN_ELF_NAMES).
+const CANON_HARVEST_REF_EXCLUSIONS_HTTPD: [u64; 1] = [0x131f4ab];
+
 // HTTPDMAIN-F2-IMAGEBASE-DECISION-0001 (F2B, 2026-09-26): the driver now
 // loads the ET_DYN image at its NATIVE analyzeHeadless base 0x100000
 // instead of base-0-with-display-delta. The canon golden's producer
@@ -1075,7 +1140,18 @@ fn build_action_data_symbol_db(
         });
     let mut string_starts: Vec<u64> = string_table.keys().copied().collect();
     string_starts.sort_unstable();
+    // CANON-STRDAT-HTTPD-ENVTABLE-0001: skip the canon-absent string-Data
+    // starts — the ACTION-side channels (this char[] symbol + the span
+    // geometry below) must not see them, so the references they contain
+    // resolve through their canon DAT labels (arm 4b) instead of the
+    // char-array fold (ActionConstantPtr's needexacthit=false arm for
+    // char-print arrays, coreaction.cc:1145-1150). The print-side proxy
+    // (fd.add_string, full scan) is untouched — curl ENVDAT containment.
+    let canon_absent_string_starts: [u64; 2] = CANON_ABSENT_STRING_STARTS_HTTPD;
     for &saddr in &string_starts {
+        if canon_absent_string_starts.contains(&saddr) {
+            continue;
+        }
         let s = &string_table[&saddr];
         let len = s.len();
         // Ghidra's string data includes the NUL terminator when present.
@@ -1114,6 +1190,46 @@ fn build_action_data_symbol_db(
         }
     }
 
+    // (4b) CANON-STRDAT-HTTPD-ENVTABLE-0001: the canon DB's 1-byte DAT
+    // labels at the two reference targets whose containing runs the canon
+    // string-Data layer does not carry (see CANON_DAT_LABELS_HTTPD for the
+    // verbatim transport mapsyms — typelock/namelock/readonly, unsuffixed
+    // 1-byte "undefined", size 1). Installed BEFORE arm (5) and pushed to
+    // `covered` so the harvest's own DAT pass (8-byte entries) cannot
+    // shadow the canon form at the same address: queryContainer's
+    // smallest-containing-entry pick (database.cc:2250-2270) would
+    // otherwise race the two. The exact-hit entry (addr == rampoint)
+    // feeds ActionConstantPtr::isPointer's needexacthit arm
+    // (coreaction.cc:1160-1162) -> spacebaseConstant -> opPtrsub's
+    // TYPE_SPACEBASE arm prints `&DAT_0017b831` / `&DAT_0017a41d`;
+    // the 1-byte pointee keeps castStandard's pointer-to-unknown rule
+    // (cast.cc:374-376) suppressing the `(char *)&DAT` cast the char*
+    // call parameters would otherwise take (cast.cc:337 size mismatch).
+    // Mirror (direct-runner) mode never calls this builder, so the mirror
+    // face stays untouched.
+    for &(raw, ref name) in CANON_DAT_LABELS_HTTPD.iter() {
+        // The captured mapsym's type is the UNSUFFIXED 1-byte "undefined"
+        // (typeref name="undefined" — the save_state typegrp core, same
+        // form as the UNK arm's 5b witness and the curl UNK precedent).
+        let undefined_base = Arc::new(Datatype::Base(TypeBase::new(
+            "undefined".to_string(),
+            1,
+            TypeMetatype::Unknown,
+        )));
+        if let Some(sym_id) = db.add_symbol_mapped(
+            global_scope_id,
+            name,
+            Some(undefined_base),
+            Address::new(raw),
+            1,
+        ) {
+            db.set_symbol_flag(global_scope_id, sym_id, symbol_flags::TYPELOCK, true);
+            db.set_symbol_flag(global_scope_id, sym_id, symbol_flags::NAMELOCK, true);
+            mark_readonly(&mut db, sym_id, raw);
+            covered.push((raw, raw + 1));
+        }
+    }
+
     // (5) DAT_ labels for referenced data addresses without a symbol.
     let refs = harvest_data_references(sleigh, functions);
     let mut ref_list: Vec<u64> = refs.into_iter().collect();
@@ -1121,6 +1237,14 @@ fn build_action_data_symbol_db(
     let mut dat_count = 0usize;
     for raw in ref_list {
         if exec_ranges.iter().any(|&(a, b)| raw >= a && raw < b) {
+            continue;
+        }
+        // CANON-STRDAT-HTTPD-ENVTABLE-0001 (reverse station): harvested
+        // references the canon front-end never labeled (mov-immediate
+        // false positives of the COPY-const channel — 0x131f4ab is the
+        // Module Magic Number integer, not a data address; transport grep
+        // = zero mapsyms). See CANON_HARVEST_REF_EXCLUSIONS_HTTPD.
+        if CANON_HARVEST_REF_EXCLUSIONS_HTTPD.contains(&raw) {
             continue;
         }
         if covered.iter().any(|&(a, b)| raw >= a && raw < b) {
