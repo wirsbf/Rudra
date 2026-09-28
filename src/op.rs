@@ -1691,6 +1691,30 @@ impl PcodeOpBank {
         op_ref
     }
 
+    // Ghidra: op.cc:941 PcodeOpBank::create (op.cc:962-963 uniqid tail of the SeqNum form)
+    /// CANON-DECLORDER-TRANSPORT-0001 form: `create` with an explicit
+    /// SeqNum (the op.cc:957 clone-form's numbering) while keeping THIS
+    /// bank's full create-side state — the TypeOp flags, the code-list
+    /// registration, and the historical alivelist insertion (create ⇒
+    /// alive; the mark_alive/mark_dead cycle preserves the dead/alive
+    /// distinction — see `create`). The uniqid counter still advances
+    /// past the supplied time (op.cc:962-963) so every later create stays
+    /// above it, keeping pipeline-created op times later than all
+    /// injected ones, exactly as the oracle's post-walk bank does.
+    pub fn create_with_seq(&mut self, opcode: OpCode, num_inputs: usize, seq: crate::address::SeqNum) -> PcodeOpRef {
+        if seq.get_time() >= self.uniqid {
+            self.uniqid = seq.get_time() + 1;
+        }
+        let mut op = PcodeOp::new(seq, opcode);
+        op.set_opcode_flags(opcode);
+        op.inrefs.reserve(num_inputs);
+        let op_ref = PcodeOpRef(Arc::new(RwLock::new(op)));
+        self.optree.insert(op_ref.clone());
+        self.add_to_code_list(&op_ref);
+        self.alivelist.push(op_ref.clone());
+        op_ref
+    }
+
     // Ghidra: op.hh:313 PcodeOpBank::markAlive
     pub fn mark_alive(&mut self, op: PcodeOpRef) {
         let mut op_borrow = op.0.write().unwrap();

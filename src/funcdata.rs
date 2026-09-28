@@ -8607,6 +8607,38 @@ impl Funcdata {
 
     // RUGRA-GLUE: Batch raw-P-code adapter around Ghidra's PcodeEmitFd::dump conversion and Funcdata bank insertion APIs.
     pub fn inject_raw_ops(&mut self, raw_ops: &[PcodeOpRaw]) {
+        self.inject_raw_ops_with_uniq(raw_ops, None);
+    }
+
+    // RUGRA-GLUE: the linear-transport inject entry CANON-DECLORDER-
+    // TRANSPORT-0001 drives. Ghidra's op-creation times ARE the FlowInfo
+    // walk order (the lift runs inside processInstruction, flow.cc:421;
+    // PcodeOpBank::create mints `SeqNum(pc, uniqid++)`, op.cc:941-948), and
+    // HighVariable::compareName's final tiebreak reads them
+    // (`vn->getDef()->getTime()`, variable.cc:485-486). A linear transport
+    // injects in ADDRESS order, so its uniqs are address order and every
+    // flag-tied name-representative contest ties the wrong way. This hook
+    // keeps the list, the block partition, and every downstream transport
+    /// byte-identical to the plain inject (the op list stays address
+    /// ordered — block formation's fallthrough resolution is list-order
+    /// based) and mints ONLY the SeqNum uniqs from a caller-supplied
+    /// per-instruction rank map: `uniq = rank[instr] * 4096 + ordinal`,
+    /// with rank in FlowInfo visit order (4096 > max p-code ops one x86-64
+    /// SLEIGH instruction can emit; the stride keeps per-instruction
+    /// ordinal uniqueness). The ops go through PcodeOpBank::create_with_seq
+    /// — the bank's full create-side state (TypeOp flags, code-list
+    /// registration, the historical alivelist insertion) with the clone
+    /// form's explicit numbering (op.cc:957-969; the plain create_seq
+    /// lacks the flags/lists/alivelist halves). The uniqid counter's
+    /// monotonic tail is preserved (create_with_seq bumps it past the
+    /// injected max), so every pipeline-created op still gets a later
+    /// time than every injected op, exactly as in the oracle (walk ops
+    /// 0..N, pipeline ops after).
+    pub fn inject_raw_ops_with_uniq(
+        &mut self,
+        raw_ops: &[PcodeOpRaw],
+        instruction_rank: Option<&std::collections::HashMap<u64, u32>>,
+    ) {
         if raw_ops.is_empty() {
             return;
         }
@@ -8630,6 +8662,12 @@ impl Funcdata {
         // Phase 1: Convert all raw ops into PcodeOps with proper varnodes
         let mut op_refs: Vec<PcodeOpRef> = Vec::with_capacity(raw_ops.len());
 
+        // CANON-DECLORDER-TRANSPORT-0001 per-instruction ordinal tracker
+        // (the raw list is instruction-grouped; consecutive ops sharing a
+        // seq address belong to one instruction).
+        let mut cur_instr_addr: Option<u64> = None;
+        let mut cur_instr_ordinal: u32 = 0;
+
         for (raw_idx, raw) in raw_ops.iter().enumerate() {
             // NOTE: raw.get_opcode() returns a RUST enum discriminant (the
             // lifter in x86_lift.rs builds PcodeOpRaw via `OpCode::CPUI_X as
@@ -8652,7 +8690,30 @@ impl Funcdata {
                 .map(|s| s.get_addr())
                 .unwrap_or(Address::new(self.baseaddr.as_u64() + raw_idx as u64 * 0x10));
 
-            let op_ref = self.obank.create(opcode, raw.num_input(), addr);
+            // CANON-DECLORDER-TRANSPORT-0001: with a rank map, mint the
+            // SeqNum uniq in oracle FlowInfo visit order (see the method
+            // doc above); the op list order itself is untouched.
+            let op_ref = match instruction_rank {
+                Some(rank_map) => {
+                    let instr_addr = raw.seq_num().map(|s| s.get_addr().as_u64());
+                    if instr_addr != cur_instr_addr {
+                        cur_instr_addr = instr_addr;
+                        cur_instr_ordinal = 0;
+                    } else {
+                        cur_instr_ordinal += 1;
+                    }
+                    let uniq = rank_map
+                        .get(&instr_addr.unwrap_or(u64::MAX))
+                        .map(|base| base.saturating_mul(4096) + cur_instr_ordinal)
+                        .unwrap_or(cur_instr_ordinal);
+                    self.obank.create_with_seq(
+                        opcode,
+                        raw.num_input(),
+                        crate::address::SeqNum::new(addr, uniq),
+                    )
+                }
+                None => self.obank.create(opcode, raw.num_input(), addr),
+            };
 
             // Create output varnode if present
             if let Some(out_raw) = raw.output() {
@@ -20229,5 +20290,148 @@ mod final_transform_op_move_tests {
         assert!(same_op(&h_ops[3], &h_last));
         assert!(in_alive_exactly_once(&fd, &a1));
         assert!(!in_dead(&fd, &a1));
+    }
+
+    // CANON-DECLORDER-TRANSPORT-0001: `inject_raw_ops_with_uniq` mints the
+    // SeqNum creation times from a caller-supplied per-instruction visit
+    // rank (the oracle FlowInfo walk order — the times compareName's
+    // variable.cc:485-486 tiebreak reads) while keeping EVERY other piece
+    // of the injected state byte-identical to the plain inject: op set,
+    // block partition and order, alive-list membership, and the RETURN
+    // code-list registration (the create-side invariants the bare
+    // create_seq lacks).
+    //
+    // Diamond CFG where the walk order diverges from address order:
+    //   0x1000: CBRANCH -> 0x1018 (else arm)      [visited 1st]
+    //   0x1008: BRANCH  -> 0x1020 (join)          [visited 2nd — the
+    //           cbranch's fall-through is pushed AFTER its target
+    //           (flow.cc:479-480), so the LIFO addrlist pops it first]
+    //   0x1020: RETURN                            [visited 3rd — pushed by
+    //           the then-arm's BRANCH, above the older else-arm entry]
+    //   0x1018: fall-through into the join        [visited 4th]
+    #[test]
+    fn test_inject_raw_ops_with_uniq_visit_order() {
+        use crate::opcodes::OpCode;
+        use crate::pcoderaw::{PcodeOpRaw, VarnodeRaw};
+        use crate::space::AddressSpace;
+
+        let build_ops = || {
+            let mut copy = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+            copy.set_output(VarnodeRaw::new(AddressSpace::Unique, 0x10, 8));
+            copy.add_input(VarnodeRaw::new(AddressSpace::Register, 0x0, 8));
+            copy.set_seq_num(crate::address::SeqNum::new(Address::new(0x1000), 0));
+
+            let mut cbranch = PcodeOpRaw::new(OpCode::CPUI_CBRANCH as i32);
+            cbranch.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x1018, 8));
+            cbranch.add_input(VarnodeRaw::new(AddressSpace::Const, 1, 1));
+            cbranch.set_seq_num(crate::address::SeqNum::new(Address::new(0x1000), 1));
+
+            let mut branch = PcodeOpRaw::new(OpCode::CPUI_BRANCH as i32);
+            branch.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x1020, 8));
+            branch.set_seq_num(crate::address::SeqNum::new(Address::new(0x1008), 0));
+
+            let mut else_copy = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+            else_copy.set_output(VarnodeRaw::new(AddressSpace::Unique, 0x20, 8));
+            else_copy.add_input(VarnodeRaw::new(AddressSpace::Register, 0x8, 8));
+            else_copy.set_seq_num(crate::address::SeqNum::new(Address::new(0x1018), 0));
+
+            let mut ret = PcodeOpRaw::new(OpCode::CPUI_RETURN as i32);
+            ret.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x0, 8));
+            ret.set_seq_num(crate::address::SeqNum::new(Address::new(0x1020), 0));
+
+            vec![copy, cbranch, branch, else_copy, ret]
+        };
+
+        // Control: the plain inject mints times in list (address) order.
+        let mut fd_plain = Funcdata::new("uniq_plain", Address::new(0x1000), 0x30);
+        fd_plain.inject_raw_ops(&build_ops());
+        let plain_times: Vec<(u64, u32)> = fd_plain
+            .obank
+            .optree
+            .iter()
+            .map(|op| {
+                let o = op.0.read().unwrap();
+                (o.get_addr().as_u64(), o.get_time())
+            })
+            .collect();
+        assert_eq!(
+            plain_times,
+            vec![
+                (0x1000, 0),
+                (0x1000, 1),
+                (0x1008, 2),
+                (0x1018, 3),
+                (0x1020, 4),
+            ],
+            "plain inject must keep the historical address-order creation times"
+        );
+
+        // Ranked inject: 0x1020 (join) is visited BEFORE 0x1018 (else arm).
+        let rank: std::collections::HashMap<u64, u32> = [
+            (0x1000u64, 0u32),
+            (0x1008, 1),
+            (0x1020, 2),
+            (0x1018, 3),
+        ]
+        .into_iter()
+        .collect();
+        let mut fd_rank = Funcdata::new("uniq_rank", Address::new(0x1000), 0x30);
+        fd_rank.inject_raw_ops_with_uniq(&build_ops(), Some(&rank));
+        let mut ranked_times: Vec<(u64, u32)> = fd_rank
+            .obank
+            .optree
+            .iter()
+            .map(|op| {
+                let o = op.0.read().unwrap();
+                (o.get_addr().as_u64(), o.get_time())
+            })
+            .collect();
+        ranked_times.sort_by_key(|&(_, t)| t);
+        assert_eq!(
+            ranked_times,
+            vec![
+                (0x1000, 0),
+                (0x1000, 1),
+                (0x1008, 4096),
+                (0x1020, 2 * 4096),
+                (0x1018, 3 * 4096),
+            ],
+            "visit-ranked inject must order creation times by the rank map \
+             (intra-instruction ordinals preserved), not by address"
+        );
+
+        // Bank-state parity: block partition, alive list, code lists, and
+        // optree size are all identical to the plain inject.
+        let blocks_of = |fd: &Funcdata| -> Vec<(usize, u64, usize)> {
+            fd.bblocks
+                .blocks
+                .iter()
+                .map(|b| {
+                    let b = b.read().unwrap();
+                    (
+                        b.get_index() as usize,
+                        b.get_start_addr().as_u64(),
+                        b.get_ops().len(),
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(blocks_of(&fd_plain), blocks_of(&fd_rank));
+        assert_eq!(fd_plain.obank.alivelist.len(), fd_rank.obank.alivelist.len());
+        assert_eq!(fd_plain.obank.returnlist.len(), fd_rank.obank.returnlist.len());
+        assert_eq!(fd_plain.obank.optree.len(), fd_rank.obank.optree.len());
+        assert_eq!(fd_plain.bblocks.get_size(), fd_rank.bblocks.get_size());
+
+        // The uniqid counter tail stays monotonic: a post-inject create is
+        // later than every injected time (oracle parity — pipeline-created
+        // ops always out-time the walk's ops).
+        let fresh = fd_rank
+            .obank
+            .create(OpCode::CPUI_COPY, 1, Address::new(0x1030));
+        let fresh_time = fresh.0.read().unwrap().get_time();
+        assert!(
+            ranked_times.iter().all(|&(_, t)| t < fresh_time),
+            "post-inject create must mint a later time than every ranked op"
+        );
     }
 }

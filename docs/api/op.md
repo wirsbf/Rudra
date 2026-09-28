@@ -772,6 +772,22 @@ Ghidra: `op.cc:323 PcodeOp::nextOp`。返回流程上紧随本 op 的下一个 o
 
 ---
 
+### `pub fn create_with_seq(&mut self, opcode: OpCode, num_inputs: usize, seq: SeqNum) -> PcodeOpRef`（2026-09-28 CANON-DECLORDER-TRANSPORT-0001）
+
+带显式 `SeqNum` 的 `create`：编号取 clone 形态（op.cc:957-969）的显式序号，创建侧状态
+则保留本 bank `create` 的**全部**不变量——TypeOp 旗标（`set_opcode_flags`，算术类的
+eval type 源）、code-list 注册（RETURN/LOAD/STORE/CALLOTHER，op.cc:881-900）、以及
+历史 alivelist 插入契约（create ⇒ alive；Ghidra 推 deadlist，mark_alive/mark_dead 循环保
+留区分）。uniqid 计数器仍按 op.cc:962-963 抬过显式序号，后续 `create` 的时间恒晚于本 op。
+
+#### 用途
+canon 线性传输的访序铸造入口：`Funcdata::inject_raw_ops_with_uniq` 用它把 SeqNum uniq 按
+oracle FlowInfo 访问序钉入（`HighVariable::compareName` 的最早定义决胜键直读
+`getDef()->getTime()`，variable.cc:485-486）。裸 `create_seq` 缺三半（旗标/列表/
+alivelist），注入后 alivelist=0、RETURN 对 ActionReturnRecovery 隐身——不可直接使用。
+
+---
+
 ### `pub fn mark_alive(&mut self, op: PcodeOpRef)`
 
 将操作标记为活跃。
