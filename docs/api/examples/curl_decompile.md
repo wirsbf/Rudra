@@ -1,8 +1,10 @@
 # `examples/curl_decompile.rs` — curl canon/mirror 双面反编译驱动
 
 Source: `examples/curl_decompile.rs`（本档首次登记于车道 BOOLDRILL /
-`CANON-BOOLCHAR-FIELDTYPE-0001`，2026-09-28；此前该驱动的车道证据散见
-TODO_BOARD 各 DONE 行——ENVDAT / CURLWIRE / DISPLAYREBASE / R3MERGE 等）。
+`CANON-BOOLCHAR-FIELDTYPE-0001`，2026-09-28；STRDATCURL /
+`CANON-STRDAT-CURL-DATSLOT-0001` 同日增补 DAT slot 见证表节；此前该驱动的
+车道证据散见 TODO_BOARD 各 DONE 行——ENVDAT / CURLWIRE / DISPLAYREBASE /
+R3MERGE 等）。
 
 ## 定位
 
@@ -66,6 +68,57 @@ canon curl **42→32/0/0**（−10 精确=票面全额：main 9→1[BOOLCHAR 8 �
 残 1=`char *V` 声明=MIRATTR-F-DECL 域]+getparameter 2→0 除名；其余
 122 函数零漂移，7 残差函数计数恒等；5 witness 行逐字节==golden
 :695/:712/:738/:1021/:1871）。
+
+## DAT slot 见证表（canon-only，`CANON-STRDAT-CURL-DATSLOT-0001`）
+
+### 现象（canon curl 残差 myprogress 3 行）
+
+golden `fVar9 = DAT_00107178 * fVar10;`（ghidra_curl_1204.c:1163）vs
+Rugra `fVar9 = _DAT_00107178 * fVar10;` + 函数头
+`/* WARNING: Globals starting with '_' overlap smaller symbols at the
+same address */`。同站双票登记：`CURLCANON-DATSLOT-SIZE-0001`（尺寸）
+≡`CANON-GLOBALSYM-UNDERSCORE-0001`（`_` 前缀+WARNING）——同一 3 行。
+
+### 双侧钉死（事件级，零猜测）
+
+- **二进制真值**：0x107178（base-0 0x7178）= 4 字节 float 100.0
+  （`00 00 c8 42`），myprogress `movss`（0x10359f）4 字节读。
+- **canon DB 真值**（headlessdist 传输捕获 xml/curl/0x1034d0.xml，该窗口
+  唯一数据 mapsym）：`DAT_00107178`，typeref **undefined4**、entry
+  **size 4**、typelock/namelock/readonly、merge=false——oracle 的
+  reference-following data creation 按**访问宽度**定 Data 尺寸（对照：同窗
+  `lea` 站 DAT_001061d9=1 字节 undefined）。
+- **Rugra 基线 DB**（probe 亲证 `query_container(0x107178,1)→
+  DAT_00107178+3`）：通用非 string 臂 8 字节宽被 next-string-start 裁到
+  **3**（裁刀=浮点末字节 0x42='B' 构成的 1 字符 run @0x10717b——canon
+  strings analyzer 从不收录），symbol type=undefined1。
+- **双症状机制链**（oracle 亲读）：①mapGlobals 伸展测试
+  （funcdata_varnode.cc:1711）4 字节 float persist 组 > 3 字节 entry →
+  `inconsistentuse`→warningHeader（:1717-1718）；②symbol type（1）<
+  vn 尺寸（4）→`HighVariable::setSymbol` 不入完美匹配臂
+  （variable.cc:265-267 要求 type size==vn size）→symboloff=0→
+  `pushSymbolDetail`（printlanguage.cc:255-260）落 `pushMismatchSymbol`
+  （printc.cc:2072-2075）印 `_`+displayName。
+
+### 通道形态
+
+- **见证表**: `CANON_DAT_SLOT_WIDTHS_CURL=[(0x7178,4)]`（base-0 键，
+  +img_base 查询；全量溯源注释随常量）——装 canon 传输的精确
+  typeref/entry 尺寸/flags（undefined4@4+TYPELOCK/NAMELOCK，READONLY 沿
+  .rodata 通用臂），**跳过**指针槽宽度与 next-string-start 裁剪。
+- **canon-only 三重门**（=字符串 registry 的 containment）：mirror
+  bundle/flow/bare 任何组件在则查表返回 None——镜面 face 不装（bundle
+  走 bare-load 分支整个不进此循环），flow gate 保 hybrid face 字节恒等。
+- **泛化路径**（注释在案）：引用读宽扫描（iced 内存访问定靶）可从二进制
+  推导宽度——语料现役唯一 sized-read 站，第二站出现前按台账装。
+
+### 效果（基=e973d71e A/B 亲测）
+
+canon curl **27→24/0/0**（−3=票面全额：myprogress 3→0 从残差清单除名，
+`--func myprogress` **[Skeleton] identical**；base/fix 全文 diff 恰 3 行=
+WARNING 注释+尾随空行+`_DAT_`→`DAT_` 行，其余 123 函数字节恒等；DAT
+token 集 13==13 双侧全等、`_` 前缀族清零、overlap-WARNING 0==0）。
+同族扫描：canon curl 唯一 `_DAT_` 站=本站；`&PTR_DAT_` 形双侧恒等。
 
 ## 验证口径
 

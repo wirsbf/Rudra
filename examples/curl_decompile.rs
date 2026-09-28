@@ -3419,6 +3419,52 @@ const CANON_DAT_LABEL_STARTS: [u64; 5] = [0x61d9, 0x61e4, 0x61e9, 0x62f0, 0x149b
 // symbol. canon golden witness: ghidra_curl_1204.c:1452-1527.
 const CANON_UNK_CODE_LABELS: [(u64, &str); 1] = [(0x3c47, "UNK_00103c47")];
 
+// CANON-STRDAT-CURL-DATSLOT-0001: the canon Program-DB's access-width-sized
+// DAT slot at the myprogress percentage constant (base-0 key 0x7178; the
+// 4-byte float 100.0, bytes `00 00 c8 42`, read by myprogress's `movss`
+// at 0x10359f). Locked-oracle provenance: the headless transport capture
+// /dev/shm/rugra-tests/headlessdist/xml/curl/0x1034d0.xml (real
+// analyzeHeadless 12.0.4 DB) carries the myprogress window's ONLY data
+// mapsym for this address as
+//   <symbol name="DAT_00107178" typelock="true" namelock="true"
+//            readonly="true" merge="false" cat="-1">
+//     <typeref name="undefined4" .../></symbol>
+//   <addr space="ram" offset="0x107178" size="4"/>
+// — Ghidra's reference-following data creation sizes the undefined Data to
+// the access width (a 4-byte scalar read yields `undefined4` with entry
+// size 4; contrast the 1-byte `undefined` the address-only `lea` stations
+// carry, e.g. DAT_001061d9 in the same window). The generic non-string arm
+// below sizes every DAT entry to the 8-byte pointer slot and then clips to
+// the next full-scan string start; at this station the clip is the 1-char
+// "B" run at 0x10717b (the float's last byte 0x42='B' — an artifact the
+// canon strings analyzer never admits), leaving a 3-byte entry under a
+// 4-byte persist group. The two observable symptoms (canon curl 27-line
+// residual, myprogress 3):
+//   (a) Funcdata::mapGlobals' extension test (funcdata_varnode.cc:1711
+//       `(addr+ct->getSize())-1 > (entry->getAddr()...+entry->getSize())-1`)
+//       fires — 4-byte float group vs 3-byte entry — setting
+//       `inconsistentuse` and emitting the "Globals starting with '_'
+//       overlap smaller symbols" warningHeader (cc:1717-1718);
+//   (b) the 1-byte `undefined` symbol type against the 4-byte read
+//       varnode keeps HighVariable::setSymbol off the perfect-match arm
+//       (variable.cc:265-267 requires symbol type size == vn size), so
+//       symboloffset lands at 0 and PrintLanguage::pushSymbolDetail falls
+//       to PrintC::pushMismatchSymbol (printc.cc:2072-2075): `_` +
+//       displayName = `_DAT_00107178`.
+// The canon form (undefined4, entry size 4, TYPELOCK/NAMELOCK/READONLY —
+// the transport's exact flags) heals both: the equal-size entry ends the
+// extension test (no warning), and the equal-size type takes the -1
+// perfect-match symboloffset (bare `DAT_00107178`, golden
+// ghidra_curl_1204.c:1163 `fVar9 = DAT_00107178 * fVar10;`). Canon face
+// only: the mirror components never reach this loop (the bare-load branch
+// replaces the whole DB build) and the flow gate skips the lookup, the
+// same triple containment as the string registry below. Generalization
+// path: a reference-read-width scan (iced memory-access targeting per DAT
+// address) could derive the widths from the binary the way the oracle's
+// data-creation does — deferred until a second sized-read station appears
+// (this corpus's only other non-string DAT references are address-only).
+const CANON_DAT_SLOT_WIDTHS_CURL: [(u64, i32); 1] = [(0x7178, 4)];
+
 // Ghidra: stringmanage.cc:347 StringManager::getCodepoint
 /// charsize==1 (UTF-8) specialization of `StringManager::getCodepoint`
 /// (stringmanage.cc:347-410): the `(val&0x80)==0` ASCII fast path, the
@@ -6102,8 +6148,58 @@ fn decompile_request(
                         typed += 1;
                     }
                     let is_string = string_addrs.contains_key(address);
-                    let dtype =
-                        dtype.or_else(|| undefined1.clone());
+                    // CANON-STRDAT-CURL-DATSLOT-0001: the canon transport's
+                    // access-width-sized DAT slot (see the witness table's
+                    // full provenance at CANON_DAT_SLOT_WIDTHS_CURL). The
+                    // canon DB carries undefined4@4 at the myprogress
+                    // float-constant station — the transport's exact
+                    // typeref/size/flags — replacing the generic 8-byte
+                    // pointer-slot arm (whose next-string-start clip is the
+                    // 1-char "B" run at 0x10717b INSIDE the float, leaving
+                    // a 3-byte entry the 4-byte persist group extends past).
+                    // Canon face only (triple gate, the string registry's
+                    // containment): mirror components never reach this
+                    // loop, the flow gate keeps its hybrid face
+                    // byte-identical.
+                    let canon_dat_slot_width = if !mirror_bundle_enabled()
+                        && !mirror_flow_enabled()
+                        && !mirror_bare_load_enabled()
+                    {
+                        CANON_DAT_SLOT_WIDTHS_CURL
+                            .iter()
+                            .find(|&&(raw, _)| raw + img_base == *address)
+                            .map(|&(_, width)| width)
+                    } else {
+                        None
+                    };
+                    let dtype = if let Some(slot_width) = canon_dat_slot_width {
+                        // The transport's typeref for a sized read station
+                        // is `undefined<width>` — the TypeFactory-interned
+                        // base (get_base), the same identity domain the
+                        // DECLFAM char precedent keeps.
+                        Some(
+                            rugra::type_system::typefactory::TypeFactory::shared_default()
+                                .write()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                .get_base(
+                                    slot_width as usize,
+                                    rugra::type_system::datatype::TypeMetatype::Unknown,
+                                )
+                                .unwrap_or_else(|| {
+                                    std::sync::Arc::new(
+                                        rugra::type_system::datatype::Datatype::Base(
+                                            rugra::type_system::datatype::TypeBase::new(
+                                                format!("undefined{}", slot_width),
+                                                slot_width as usize,
+                                                rugra::type_system::datatype::TypeMetatype::Unknown,
+                                            ),
+                                        ),
+                                    )
+                                }),
+                        )
+                    } else {
+                        dtype.or_else(|| undefined1.clone())
+                    };
                     if !is_string && !canon_interior_dat_labels.contains(address) {
                         // STRCONST-SPANNONOVERLAP: greatest admitted string
                         // start STRICTLY BELOW address — the span test needs
@@ -6142,12 +6238,18 @@ fn decompile_request(
                     // STRCONST-SPANNONOVERLAP: clipped so the span cannot
                     // cross the next string start (an oracle Data can never
                     // overlap the string Data's first byte).
-                    let mut entry_size = if is_string {
+                    // CANON-STRDAT-CURL-DATSLOT-0001: witness stations take
+                    // the canon transport's exact entry size, skipping the
+                    // pointer-slot width and the clip (the canon DB's Data
+                    // owns the exact 4 bytes the movss reads).
+                    let mut entry_size = if let Some(width) = canon_dat_slot_width {
+                        width
+                    } else if is_string {
                         dtype.as_ref().map(|t| t.get_size() as i32).unwrap_or(1)
                     } else {
                         8
                     };
-                    if !is_string {
+                    if !is_string && canon_dat_slot_width.is_none() {
                         let pos = string_starts.partition_point(|&s| s <= *address);
                         if let Some(&next_start) = string_starts.get(pos) {
                             entry_size = entry_size.min((next_start - *address) as i32);
@@ -6172,6 +6274,26 @@ fn decompile_request(
                                 global,
                                 symbol_id,
                                 rugra::database::symbol_flags::TYPELOCK,
+                                true,
+                            );
+                        }
+                        // CANON-STRDAT-CURL-DATSLOT-0001: the witness
+                        // stations carry the transport's full flag set —
+                        // typelock/namelock ride on top of the readonly
+                        // every .rodata global takes below (the mapsym's
+                        // exact ATTRIB_TYPELOCK/ATTRIB_NAMELOCK/
+                        // ATTRIB_READONLY triple, database.cc:435-445).
+                        if canon_dat_slot_width.is_some() {
+                            db.set_symbol_flag(
+                                global,
+                                symbol_id,
+                                rugra::database::symbol_flags::TYPELOCK,
+                                true,
+                            );
+                            db.set_symbol_flag(
+                                global,
+                                symbol_id,
+                                rugra::database::symbol_flags::NAMELOCK,
                                 true,
                             );
                         }
