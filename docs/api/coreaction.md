@@ -154,6 +154,20 @@ Array/Struct/PartialUnion 的 findResolve miss 臂（element/field[0]/stripped�
   `op.read()` 再锁）——现 `drop(op_r)` 后再调（非 MULTIEQUAL 路径既有同款
   drop 位点先例）；守卫窗口内 oracle 只记录 `phiNodeEdges`（cc:4414），重接在
   handle_phi_nodes 之后，零突变窗口。
+- **`propagate_constant` 前点驻留纪律**（GEN4-SQ-CASTFUSE-DEPTH-0001 / CASTFUSE2，
+  对齐 cc:4386-4465）：oracle 以 `points.front()` 引用贯穿整个迭代,仅在
+  handlePhiNodes 之后 `points.pop_front()`（cc:4465）;`pushConstant` 读
+  `points.front()`（cc:4271）以把当前 ConstPoint 经由全常量输入的 op 传递延伸。
+  旧版 Rust 移植在循环头就 `points.remove(0)`,后代遍历期间列表恒空,
+  `push_constant` 的 `points.is_empty()` 早退拒绝一切延伸——传递链
+  （比较变量 → INT_ZEXT → COPY → MULTIEQUAL 边）永不点火。canonical 语料位点
+  sqlite3PagerSetPagesize `test %r12d,%r12d; je` @0xa1b42:R12≡#0 沿 je 边进环
+  MULTIEQUAL 失效,死 `zext(LOAD4)→R12` 网残留 IR,ActionInferTypes 的
+  param_1 指针仲裁从 int8* 翻转为 uint4*（RuleExpandLoad 不再点火）。修复 =
+  循环头改 `points[0].clone()`,循环尾（phi_node_edges 处理后）`points.remove(0)`。
+  镜面收益: sqlite 2609→1655 / sq 726→516 / PagerSetPagesize 321→0;
+  canon curl/httpd 0/0/0 红线保持。单测
+  `test_condconst_push_constant_extends_front_point_through_zext` 锁契约。
 - **顺手项**：castInput 注释 `(typeop.cc:295)` → `:299`（isAnnotation null 返回行，
   CURLWIRE-CR-F2）。
 - **域外移交**：flow.rs `FlowInfoSnapshot::snapshot`（`operation` 守卫横跨

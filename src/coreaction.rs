@@ -15787,7 +15787,21 @@ impl ActionConditionalConst {
         use crate::opcodes::OpCode;
         let mut phi_node_edges: Vec<(crate::op::PcodeOpRef, usize)> = Vec::new();
         while !points.is_empty() {
-            let point = points.remove(0);
+            // cc:4386-4387: the oracle holds points.front() by reference for
+            // the whole iteration and pops it only after handlePhiNodes
+            // (cc:4465 points.pop_front()). pushConstant reads points.front()
+            // (cc:4271) to extend the CURRENT point through an op, so the
+            // front element must still be in the list when the descendant
+            // walk runs. The former `points.remove(0)` here emptied the list
+            // before the walk, pushConstant's `points.is_empty()` early-out
+            // then rejected every extension, and the transitive ConstPoint
+            // chain (compare var -> ZEXT -> COPY -> MULTIEQUAL edges) never
+            // fired — e.g. sqlite3PagerSetPagesize `test %r12d,%r12d; je`
+            // @0xa1b42 could no longer propagate R12≡#0 down the je-edge
+            // into the loop MULTIEQUALs, leaving the dead zext(LOAD4)->R12
+            // web in the IR and flipping ActionInferTypes' param_1 pointer
+            // arbitration from int8* to uint4*.
+            let point = points[0].clone();
             let var_vn = point.vn.clone();
             let mut const_vn = point.const_vn.clone();
             let const_block_idx = point.const_block_idx;
@@ -16041,6 +16055,11 @@ impl ActionConditionalConst {
                 self.handle_phi_nodes(fd, &var_vn, &cvn, &mut edges);
                 phi_node_edges.clear();
             }
+            // cc:4465: points.pop_front() — retire the processed front only
+            // now, after the descendant walk and handlePhiNodes, so that
+            // pushConstant's points.front() reads during the walk referred
+            // to this same point (std::list reference semantics).
+            points.remove(0);
         }
     }
 
@@ -23573,4 +23592,62 @@ mod tests {
         fd.funcp.return_type = void_t;
         let ret = build_ret(&mut fd, &block, char_ptr.clone());
         assert!(!action.cast_input(&mut fd, &ret, 1, &strategy));
+    }
+
+    // ---- ActionConditionalConst::push_constant front-point contract ----
+    // GEN4-SQ-CASTFUSE-DEPTH-0001 (CASTFUSE2): propagate_constant must keep
+    // the processed ConstPoint at points[0] for the whole descendant walk
+    // (oracle coreaction.cc:4386-4465 holds points.front() by std::list
+    // reference and pops it only after handlePhiNodes). push_constant reads
+    // points[0] to extend the CURRENT point through an op with all-constant
+    // inputs; if the list is empty at that moment (the former remove(0)-at-
+    // head discipline), every extension is rejected and the transitive
+    // ConstPoint chain (compare var -> INT_ZEXT -> COPY -> MULTIEQUAL edges)
+    // never fires. The canonical corpus site is sqlite3PagerSetPagesize
+    // `test %r12d,%r12d; je` @0xa1b42: R12≡#0 down the je-edge must reach
+    // the loop MULTIEQUALs through zext(LOAD4).
+    #[test]
+    fn test_condconst_push_constant_extends_front_point_through_zext() {
+        use crate::address::{Address, SeqNum};
+        use crate::op::PcodeOp;
+        use crate::opcodes::OpCode;
+        use crate::varnode::Varnode;
+        use std::sync::Arc;
+        use std::sync::RwLock;
+
+        // The compare variable (4-byte, would-be load4 output) and the
+        // zext output (8-byte) mirroring `R12 = ZEXT48(R12D)`.
+        let load4 = Arc::new(RwLock::new(Varnode::new(4, Address::new(0x300))));
+        let r12 = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x400))));
+
+        let mut zext = PcodeOp::new(SeqNum::new(Address::new(0x2000), 0), OpCode::CPUI_INT_ZEXT);
+        zext.inrefs = vec![load4.clone()];
+        zext.output = Some(r12.clone());
+        // Real ops get their eval-class flags from op_set_opcode
+        // (obank.change_opcode); set the UNARY bit the same way so
+        // execute_simple dispatches to evaluate_unary.
+        zext.flags |= crate::op::pcodeop_flags::UNARY;
+
+        // points holds the CURRENT point (value 0 == R12D==0 down the
+        // conditional edge); the oracle list keeps it as front() while
+        // push_constant appends the extension.
+        let mut points = vec![ConstPoint::from_value(
+            load4.clone(),
+            0,
+            7, // const block idx
+            0,
+            true,
+        )];
+        ActionConditionalConst::push_constant(&mut points, &crate::op::PcodeOpRef(Arc::new(RwLock::new(zext))));
+        assert_eq!(
+            points.len(),
+            2,
+            "push_constant must append the extended ConstPoint for the zext output"
+        );
+        let ext = &points[1];
+        assert_eq!(ext.value, 0, "ZEXT48(#0) == 0");
+        assert!(
+            ext.vn.read().unwrap().get_size() == 8,
+            "extension targets the zext output (8-byte web)"
+        );
     }
