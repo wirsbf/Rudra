@@ -1,5 +1,32 @@
 # `merge.rs` API Reference
 
+## 2026-09-29：STACKSLOT2 — (Some,Some) 对内 mergeInternal 实例再指向（[LIT] 临时符号粒度聚合根因修复）
+
+**根因（双侧事件级钉死，oracle_lit834 阶段探针 vs Rugra STACKSLOT2_TRACE 同格）**：
+`merge_highs` (Some,Some) piece 级联的**对内** `merge_internal`（variable.cc:703-709
+成对吸收）原先不再指向被吸收 high 的实例。oracle 的 `HighVariable::mergeInternal`
+（variable.cc:648-654）自身对每个 tv2 实例执行 `vn->setHigh(this, vn->getMergeGroup())`；
+Rugra 的 `merge_internal` 把 `vn.high` 写权留给调用方（RUGRA-GLUE 所有权注记），
+merge_highs 尾部的 moved_instances 循环只覆盖非 SS 臂（SS 臂 early return true）。
+
+**后果链（vmprintf@sqlite 实测）**：级联 detached 的 op2 侧 high 以
+"实例仍指向、piece 已摘除" 的幽灵态存活 → copymarker 时刻 PIECE-ARM
+（markInternalCopies PIECE 同组臂）命中 **8/110**（oracle 103/103）→
+CONCAT88 join 链以裸 unique 临时符号物化（`unique0x10002806 = CONCAT88(..)`）
+而非 partial-symbol LHS 形（`axVar48._8_8_ = ..`）→ [LIT] 族
+（SQLCENSUS-STACKSLOT-GROUP-0001 wave-2 聚合域主体）。
+
+**修复**：对内循环 `merge_internal` 前快照 h2 实例、吸收后逐实例
+`vn.high = h1`（与 merge_highs 尾部 moved_instances 循环同构 = variable.cc:648-654
+setHigh 语义；非 speculative 臂 mergegroup 不动，同 cc:650-654）。
+
+**验证**：vmprintf PIECE-ARM 8/110 → 103/110（oracle 逐点一致）；trio
+vmprintf/mprintf/Pragma 696/696/643 → 58/58/55（残量=既票 CAST-SHAPE/DECL-CHURN/
+UNAFF 族，非本域）；sqlite 镜面 4516 → **2609**（−1907，−42.3%）；canon
+curl/httpd 0/0 红线保持；tests 1973P。回归锁 =
+`test_merge_highs_both_pieces_runs_group_cascade` 扩展断言（吸收实例 vn.high
+必须指向幸存 high——旧形态必炸）。
+
 ## 2026-09-26：StackAffectingOps 通道落地 + intersection 补 addrtied-vs-untied 分支（MIRATTR-F-RESIDE-0001）
 
 `MergeTypeIntersectCache` 补齐 `HighIntersectTest::intersection` 的第二判定臂
@@ -537,7 +564,21 @@ LowlevelError（"Trying speculatively merge variables in separate groups"
 从 op2 组移除；未 matched 的 `transferGroup` :213）→ 每对
 `move_intersect_tests` + `merge_internal`（:703-709）→
 `mark_intersection_dirty`（:710）→ 返回 true（`Merge::merge` 在 void
-`HighVariable::merge` 后恒真，:1571-1574）。事件级验证：vmprintf@sqlite
+`HighVariable::merge` 后恒真，:1571-1574）。**对内 mergeInternal 的
+实例再指向（STACKSLOT2, 2026-09-29）**：variable.cc:648-654 的
+mergeInternal 非 speculative 臂对每个 tv2 实例执行
+`vn->setHigh(this, vn->getMergeGroup())`——Rugra 的 `merge_internal`
+把 `vn.high` 写权留给调用方（RUGRA-GLUE 所有权注记），对内循环原先不
+再指向，吸收后的 Varnode 仍指 piece 已分离的幽灵 high →
+ActionCopyMarker 的 PIECE/SUBPIECE 同组臂永不命中 → join CONCAT88 链以
+裸 unique 临时符号打印（[LIT] 族）。修复 = 对内 `merge_internal` 前快照
+h2 实例、吸收后逐实例 `vn.high = h1`（与 merge_highs 尾部的
+moved_instances 循环同构）。事件级验证：vmprintf@sqlite copymarker 时
+PIECE-ARM 命中 **8/110 → 103/110**（oracle 103/103 逐点一致），trio
+CONCAT88 物化行全燃（vmprintf/mprintf/Pragma 696/696/643 → 58/58/55，
+残量=既票 CAST/DECL/UNAFF 族），sqlite 镜面 4516 → 2609。回归锁 =
+`test_merge_highs_both_pieces_runs_group_cascade`（扩展断言：吸收实例
+`vn.high` 必须再指向幸存 high）。事件级验证：vmprintf@sqlite
 mergecopy unique-input required merge **119/224 → 202/224**（oracle
 202/222；主导拒绝对 = MULTIEQUAL@0xad58c 双 piece 臂 11 个 PIECE16
 CONCAT 输入 slot 91-104）。回归锁 =

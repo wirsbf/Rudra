@@ -2279,9 +2279,32 @@ impl Merge {
                             continue;
                         }
                         self.type_test_cache.move_intersect_tests(&h1, &h2);
-                        let mut first = h1.write().unwrap();
-                        let mut second = h2.write().unwrap();
-                        first.merge_internal(&mut second, isspeculative);
+                        // variable.cc:648-654 (inside mergeInternal, the
+                        // non-speculative arm): every tv2 instance is
+                        // re-pointed at the survivor via
+                        // `vn->setHigh(this, vn->getMergeGroup())`. Rugra's
+                        // merge_internal delegates the vn.high write to the
+                        // caller (RUGRA-GLUE ownership note above), so the
+                        // pairs loop must snapshot h2's instances before the
+                        // absorption and re-point them after, exactly like
+                        // the moved_instances loop at the bottom of
+                        // merge_highs. Without this, the cascade-detached
+                        // op2-side highs survive as instance-owning ghosts:
+                        // their varnodes keep pointing at a piece-less high,
+                        // so ActionCopyMarker's PIECE/SUBPIECE same-group
+                        // arms never fire and the CONCAT88 join chain prints
+                        // as bare unique temps instead of partial-symbol
+                        // LHS form.
+                        let moved: Vec<Arc<RwLock<crate::varnode::Varnode>>> =
+                            h2.read().unwrap().instances.clone();
+                        {
+                            let mut first = h1.write().unwrap();
+                            let mut second = h2.write().unwrap();
+                            first.merge_internal(&mut second, isspeculative);
+                        }
+                        for instance in moved {
+                            instance.write().unwrap().high = Some(h1.clone());
+                        }
                     }
                 }
                 // variable.cc:710: piece->markIntersectionDirty()
@@ -4991,14 +5014,17 @@ impl Merge {
     /// Walks all alive ops:
     /// - COPY: if output.high==input.high → nonprinting; else accumulate
     ///   multi-copy highs + check shadowedVarnode for no-descend outputs.
-    /// - PIECE/SUBPIECE: VariablePiece CONCAT reassembly (omitted — no
-    ///   VariablePiece infrastructure).
+    /// - PIECE/SUBPIECE: same-VariableGroup reassembly/truncation with
+    ///   aligned piece offsets → nonprinting + inputs forced explicit
+    ///   (merge.cc:1478-1528; the VariablePiece cascade wiring in
+    ///   merge_highs keeps the operand highs grouped so these arms fire).
     /// Then processHighRedundantCopy for highs with ≥2 copy-ins.
     pub fn mark_internal_copies(&mut self, fd: &mut Funcdata) {
         use crate::op::pcodeop_flags;
         use crate::opcodes::OpCode;
 
         self.attach(fd);
+
 
         // Ghidra merge.cc:1455-1532: iterate alive ops.
         // Collect COPY decisions + track multi-copy highs.
@@ -5471,6 +5497,27 @@ mod tests {
         // The pair merge absorbed p2's high instance into h1 — p1 survives.
         assert!(!g1.read().unwrap().is_empty());
         let _ = (p1, p2);
+        // variable.cc:648-654 (mergeInternal, non-speculative arm): every
+        // absorbed instance is re-pointed at the survivor via
+        // `vn->setHigh(this, vn->getMergeGroup())`. Regression lock for the
+        // STACKSLOT2 fix: the cascade's pairs loop used to leave the
+        // absorbed high's instances pointing at the ghost (piece-detached)
+        // high, so ActionCopyMarker's same-group arms never fired and join
+        // CONCAT88 chains printed as bare unique temps.
+        for inst in h1.read().unwrap().instances.clone() {
+            let high_ptr = inst
+                .read()
+                .unwrap()
+                .high
+                .as_ref()
+                .map(|h| std::sync::Arc::as_ptr(h) as usize);
+            let want = std::sync::Arc::as_ptr(&h1) as usize;
+            assert_eq!(
+                high_ptr,
+                Some(want),
+                "absorbed instance must re-point vn.high at the surviving high"
+            );
+        }
     }
 
     /// Rust compare_order polarity must match C++ compareOrder: only a
