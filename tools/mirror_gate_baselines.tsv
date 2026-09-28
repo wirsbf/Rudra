@@ -92,9 +92,9 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # three merge commits). tests 1963P/0F/5I = 1963+0 (all three lanes add zero tests).
 curl	21	74	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
 httpd	30	29	MB37-RATCHET-REPIN-0001	e124f9bf	2026-09-28
-vsh	2	71	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
-sq	1609	810	MB37-RATCHET-REPIN-0001	e124f9bf	2026-09-28
-sqlite	4957	1385	MB37-RATCHET-REPIN-0001	e124f9bf	2026-09-28
+vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
+sq	726	810	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
+sqlite	4753	1385	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
@@ -128,6 +128,25 @@ sqlite	4957	1385	MB37-RATCHET-REPIN-0001	e124f9bf	2026-09-28
 # MAINMIXED −6: main ADDRFORM 2+WRAP 2+LABEL-POS 2, main body byte==golden; md5
 # 7d5b9e7c), curl 8/0/0 unchanged (three lanes zero curl drift; MAINMIXED 2 trailing
 # spaces converge toward golden at byte level without count change).
+# MB39-RATCHET-REPIN-0001 (2026-09-29, joint tree @ 128e4934 after 2-branch mirror-
+# convergence batch [actorder 9e35cb72 + datslot 128e4934], forced relink verified
+# [binaries 00:29 > merge commits 00:27:37], gate --jobs 5 + digest cache, stale-guard
+# content probe digest=316c0346 files=103):
+# ① **vsh 2→0 — SECOND PERFECT FACE** (gen face corpus-wide zero skeleton; ACTORDER
+#    spacebase scope wiring burned the last vsh (code*) station).
+# ② sq 1609→726 (−883): ACTORDER (code*) family full convergence on the current pins
+#    — corpus (code*) count rugra 131 == golden 131 EXACT (lane own-base claim was
+#    2724→1845 −879 on the pre-MB36 pins; current-pin measurement authoritative,
+#    单向改善重钉). B2: sqlite3Select fn-level skeleton 24 defects=0 numbering=0,
+#    (code*) 225==golden 225.
+# ③ sqlite 4957→4753 (−204): same (code*) family burn (lane own-base −202 on
+#    pre-MB36 pins 6071→5869; residual 560-489=71 golden-side (code*)-expression
+#    sub-family unchanged).
+# ④ curl 21 / httpd 30 unchanged (byte-pin identity held; not re-pinned).
+# Canon faces (not in tsv): **curl 0/0/0 + httpd 0/0/0 zero-state held byte-identical**
+# (md5 4ab1db2a / 7d5b9e7c == MB38 zero-state; DATSLOT census burned myprogress
+# identically to the superseded STRDATCURL witness — census [PREPASS] 1 station
+# @0x7178, myprogress body byte==golden).
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
