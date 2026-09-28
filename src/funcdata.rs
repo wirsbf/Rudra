@@ -4929,15 +4929,40 @@ impl Funcdata {
         })
     }
 
-    // Ghidra: funcdata.cc:34 Funcdata::removeJumpTable
-    /// Remove a JumpTable from this function. Faithful to
-    /// `Funcdata::removeJumpTable` (funcdata_block.cc:65).
+    // Ghidra: funcdata_block.cc:64 Funcdata::removeJumpTable
+    /// Remove a JumpTable from this function: drop it from the table list and
+    /// clear `f_switch_out` from the parent block of its BRANCHIND — the op is
+    /// no longer a switch point. Faithful to
+    /// `Funcdata::removeJumpTable` (funcdata_block.cc:64-78).
     pub fn remove_jump_table(
         &mut self, jt: &std::sync::Arc<std::sync::RwLock<crate::jumptable::JumpTable>>,
     ) {
+        // cc:73: op = jt->getIndirectOp(); — read the BRANCHIND before the
+        // table is unlinked (Ghidra reads it before `delete jt`).
+        let op = jt.read().unwrap().get_indirect_op();
+        // cc:70-72 + 77: jumpvec = remain (everything except jt).
         let jt_ptr = std::sync::Arc::as_ptr(jt);
         self.jump_tables
             .retain(|j| std::sync::Arc::as_ptr(j) != jt_ptr);
+        // cc:75-76: if (op != (PcodeOp *)0)
+        //   op->getParent()->clearFlag(FlowBlock::f_switch_out);
+        // Ghidra dereferences getParent() unchecked (the live BRANCHIND has a
+        // parent); in Rust a failed Weak upgrade means the parent block is
+        // already gone — no flag left to clear.
+        if let Some(op) = op {
+            let parent = op
+                .read()
+                .unwrap()
+                .parent
+                .as_ref()
+                .and_then(std::sync::Weak::upgrade);
+            if let Some(parent) = parent {
+                parent
+                    .write()
+                    .unwrap()
+                    .clear_flags(crate::block::block_flags::SWITCH_OUT);
+            }
+        }
     }
 
 
@@ -14142,6 +14167,87 @@ mod tests {
         // becomes, with the self-loop target splitting at op1:
         //   [op0] | [op1(CBRANCH, self-loop)] | [op2, op3]
         assert_eq!(fd.bblocks.get_size(), 3);
+    }
+
+    // SWITCHOUT-CLEAR-REMOVETABLE-0001 fixture (Rugra side).
+    // Funcdata::removeJumpTable (funcdata_block.cc:64-78) must clear
+    // f_switch_out from the parent block of the table's BRANCHIND (cc:76)
+    // when unlinking the table — the oracle-side bilateral evidence is the
+    // switchout_ruleswitchsingle_1204 RuleSwitchSingle jumptable-elimination
+    // fixture (lane-side under /dev/shm/rugra-tests/switchout/ until root
+    // curates it into tests/oracle/); this unit test pins the same semantics
+    // at the Funcdata seam.
+    #[test]
+    fn test_remove_jump_table_clears_switch_out_flag() {
+        use crate::block::block_flags;
+        use crate::block::FlowBlock;
+
+        let mut fd = Funcdata::new("switchout_test", Address::new(0x3000), 32);
+
+        // Dispatch block: BRANCHIND through a table (input = table load).
+        let mut op1 = PcodeOpRaw::new(OpCode::CPUI_BRANCHIND as i32);
+        op1.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x3004, 8));
+        // Body block so the partitioner yields two blocks.
+        let mut op2 = PcodeOpRaw::new(OpCode::CPUI_RETURN as i32);
+        op2.add_input(VarnodeRaw::new(AddressSpace::Const, 0, 8));
+        fd.inject_raw_ops(&[op1, op2]);
+        assert_eq!(fd.bblocks.get_size(), 2);
+
+        // Locate the injected BRANCHIND and its parent block.
+        let branchind = fd
+            .obank
+            .alivelist
+            .iter()
+            .find(|o| o.0.read().unwrap().opcode == OpCode::CPUI_BRANCHIND)
+            .expect("BRANCHIND survived injection")
+            .clone();
+        let parent = {
+            let guard = branchind.0.read().unwrap();
+            guard
+                .parent
+                .as_ref()
+                .and_then(std::sync::Weak::upgrade)
+                .expect("BRANCHIND has a parent block")
+        };
+
+        // Simulate the flag state as flow/recovery leaves it: the dispatch
+        // block holds f_switch_out for its BRANCHIND (block.cc:2287 insert
+        // arm; Rugra flow.rs:2514 / funcdata.rs:6199).
+        parent.write().unwrap().set_flags(block_flags::SWITCH_OUT);
+        assert_ne!(
+            parent.read().unwrap().get_flags() & block_flags::SWITCH_OUT,
+            0
+        );
+
+        // Register a jumptable whose indirect op is this BRANCHIND.
+        let jt = std::sync::Arc::new(std::sync::RwLock::new(
+            crate::jumptable::JumpTable::new(Address::new(0x3000)),
+        ));
+        jt.write().unwrap().set_indirect_op(branchind.0.clone());
+        fd.jump_tables.push(jt.clone());
+
+        // removeJumpTable: unlink + clear the parent's f_switch_out
+        // (funcdata_block.cc:70-77).
+        fd.remove_jump_table(&jt);
+        assert!(
+            fd.jump_tables.is_empty(),
+            "table removed from jumpvec (cc:70-72,77)"
+        );
+        assert_eq!(
+            parent.read().unwrap().get_flags() & block_flags::SWITCH_OUT,
+            0,
+            "f_switch_out cleared on the BRANCHIND parent (cc:75-76)"
+        );
+
+        // A table without an indirect op (op == null at cc:75) must still
+        // unlink cleanly without touching any block.
+        let orphan =
+            std::sync::Arc::new(std::sync::RwLock::new(crate::jumptable::JumpTable::new(
+                Address::new(0x4000),
+            )));
+        fd.jump_tables.push(orphan.clone());
+        fd.remove_jump_table(&orphan);
+        assert!(fd.jump_tables.is_empty());
     }
 
     // FUNCDATA-ZOMBIE-DECISION-ORIGIN-0001 fixture (Rugra side).

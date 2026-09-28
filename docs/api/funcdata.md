@@ -3418,3 +3418,18 @@ worker 侧 catch_unwind 边界收束）；cc:742 dead-read `return false` 是 or
 
 休眠面：与 VOLATILEOUT 同一触发链（锁定 cspec/pspec 无 `<volatile>` 定义，
 五语料链首即断），canon A/B 字节恒等为构造性必然。
+
+### 2026-09-28：remove_jump_table 清 SWITCH_OUT 父块旗（SWITCHOUT-CLEAR-REMOVETABLE-0001）
+- `remove_jump_table(jt)`（funcdata_block.cc:64-78）补齐 cc:73-76 语义：unlink 表（retain，
+  cc:70-72/77）之外，先读 `jt.get_indirect_op()`（cc:73，Ghidra 在 `delete jt` 前读），
+  op 存在则对其父块 `clear_flags(SWITCH_OUT)`（cc:75-76 `op->getParent()->clearFlag(
+  FlowBlock::f_switch_out)`；Rugra 侧 Weak 升级失败=父块已亡，无旗可清——Ghidra 裸解引用
+  活 BRANCHIND 的前提）。清旗使被 RuleSwitchSingle（ruleaction.rs:15418，oracle
+  ruleaction.cc:5456）折叠后的分派块重新可 cat-merge（ruleBlockCat 的 isSwitchOut 门，
+  blockaction.cc:1290/1298/1308）；此前旗残留使结构化产出退化 `switch() { case 0: … }`
+  空骨架。B2 fixture：`switchout_ruleswitchsingle_1204.cc` + 构造单目标跳表二进制
+  （车道侧 /dev/shm/rugra-tests/switchout/，root 集成时按 B2 纪律挑拣入库
+  tests/oracle/）：oracle 侧 [BLOCKFLAGS]/[JT-REMAIN]/C 渲染 + Rugra 镜像
+  --one 9 双侧 body MATCH；修复前 A/B 显示 switch 残骸骨架=可观察差异。注解行同步修正
+  为函数定义起始行 `funcdata_block.cc:64`（旧 `funcdata.cc:34` 为构造函数行，
+  cited-line drift）。
