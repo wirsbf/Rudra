@@ -57,6 +57,30 @@ impl Action for ActionBlockStructure {
         // basic graph before buildCopy snapshots its ordered edge vectors.
         fd.install_switch_defaults();
 
+        // TEMP PROBE (selectgoto lane): per-round basic-block CFG signature —
+        // the counterpart of the oracle probe's GLM_BBSIG dump at
+        // ActionBlockStructure::apply entry. Env-gated; default off.
+        if std::env::var("RUGRA_BBSIG").is_ok() {
+            static ROUND: std::sync::atomic::AtomicUsize =
+                std::sync::atomic::AtomicUsize::new(0);
+            let round = ROUND.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let mut sig = String::new();
+            for i in 0..fd.bblocks.get_size() {
+                let Some(b) = fd.bblocks.get_block(i) else { continue };
+                let rg = b.read().unwrap();
+                let start = rg.get_start_addr().as_u64();
+                let outs: Vec<String> = (0..rg.size_out())
+                    .filter_map(|j| {
+                        rg.get_out(j).map(|e| {
+                            format!("{:#x}", e.point.read().unwrap().get_start_addr().as_u64())
+                        })
+                    })
+                    .collect();
+                sig.push_str(&format!("  bb{} {:#x} o={} -> [{}]\n", i, start, outs.len(), outs.join(",")));
+            }
+            let _ = std::fs::write(format!("{}.bbsig{}", fd.name, round), &sig);
+        }
+
         // Build a copy of the basic block graph into the structure graph
         fd.sblocks.build_copy(&fd.bblocks);
 

@@ -1789,3 +1789,18 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   1963P/0F/5I；annotations/refs 门禁绿。**剩余分歧**（下一增量靶）：
   round-2 输入图 0x3560f 出度 o=2(Rugra) vs o=1(oracle)——round-1 收尾树
   的 returnsplit/nodeSplit 链差，见 TODO_BOARD 票行。
+
+### SELECTGOTO 车道诊断②（2026-09-28，同票续作——round-2→3 窗口钉靶）
+- `RUGRA_BBSIG=1`（RUGRA-GLUE，debug-only）：每次 `ActionBlockStructure::apply`
+  入口把 `fd.bblocks` 全量 CFG 签名（块地址/出度/目标列表）落到
+  `<fn>.bbsig<round>`——oracle 侧 scratch GLM_BBSIG 探针的对照面。本轮用它
+  钉死：round1/round2 入口 CFG 双侧恒等，round3 入口首分歧（oracle 多一块
+  0x3561b）。
+- **round-2→3 窗口根因（已钉，待下增量修复）**：oracle 在窗口动作
+  （constantptr→…→determinedbranch→unreachable→nodejoin→conditionalexe→
+  condconst→…→redundbranch）内对 0x3560f 做了块分裂（新尾块 0x3561b 继承
+  其两出边 [0x3562e,0x3561d]，0x3560f 留单出边→尾块），并把 0x3561d 的
+  已判定回边改指尾块（0x3561d o=2→o=1）；Rugra 侧两者皆未发生
+  （round3 入口该区 CFG 与 round2 恒等）→round-3 起级联解耦。修复靶=
+  窗口内对应动作（determinedbranch/conditionalexe 候选）的分裂/改边行为
+  对齐。
