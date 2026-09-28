@@ -2,6 +2,12 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## 车道 GENREADONLY（2026-09-28 派发/交付；MIRRORCENSUS2 终报 §3-H/§4-序4 新登记 P3 票——gen 驱动 readonly 缺装、字符串常量折叠永不触发；FSTRFOLDUP httpd 先例照抄）
+
+| 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
+|---|---|---|---|---|
+| `MIRRORCENSUS-GEN-READONLY-STRFOLD-0001` | examples 驱动装表层（gen 镜面 print_db 零 readonly 代码——`PrintC::pushPtrCharConstant` isReadOnly 门[printc.cc:1709]恒拒 → strfold 永不发生；G `unaff_R12 = "LIT"` vs R `unaff_R12 = (char *)LIT`，sqlite 120+sq 18 行） | P3（廉价单点,driver-only） | `examples/gen_decompile.rs`（①print-DB readonly 范围装表=getReadonly[loadimage_bfd.cc:286-303]→fillinReadOnlyFromLoader[architecture.cc:1371-1381]镜像,BFD !SHF_WRITE→SEC_READONLY **无 ALLOC 前提**,SHT_SYMTAB/.strtab/e_shstrndx 吸收排除;②`overlay_bfd_nonalloc_sections`=loadFill 段链字节服务[loadimage_bfd.cc:124-179,findSection 首段命中],**claim 区间算术**——sasquatch .comment+.debug_\* 全 vma 0 且 .debug_info 0x28a6a 与 .text 相交,盲拷会覆写代码字节[首版亲证 sq 57020,镜面门禁当场拦截],claim 版 ALLOC 段只 claim 不写、非 ALLOC 段只写未被更早链段 claim 的子区间）+`docs/api/examples/gen_decompile.md`+本板；**src/ 零改动** | **DONE（2026-09-28,wt/genreadonly,基=master 1025e966）**：golden 侧真值先核（direct-runner golden 折叠位点 sqlite 42/sq 9/vsh 0——BfdArchitecture 裸库装表,票向成立）。**验收（fast-release 亲测,强制重链 digest a0b10dab+stale-guard 探针绿）**：①镜面五面 curl **21**/httpd **36**/vsh **2** 恒等零漂移 + **sq 2742→2724（−18 精确=票面）** + **sqlite 8477→8361（−116≈票面 120,census 口径/骨架计量差）**,defects=numbering=0,matched 810/810+1385/1385 全 PASS;②A/B 逐函数（before=MIRRORCENSUS2 同基工件）：sq 9 函数×各 +1 折叠=18 行、sqlite 8 函数 42 新折叠 **==golden 42 `= "` 位点全对上**（VdbeExpandSql 7/session 族 4×6/Analyze+AnalysisLoad 5+5/CodeSubselect 1）,零反向函数;③canon 双语素 md5 **4503f498/c3b4706c 字节恒等**（54/0/0+36/0/0,gen 不涉 canon 面亲证）;④bank 391/391;⑤cargo test --lib **1961P/0F/5I**（=亲父基线,src 零改动）;⑥annotations 100 文件/refs --strict/evidence 三门禁绿（commit 无红词）。机制 B/B2/C:src 零改动,examples 环境装表非映射函数行为变更——无强制 CR 项（root 可视需要派核,oracle 参照=loadimage_bfd.cc:124-179/286-303+architecture.cc:1371-1381+printc.cc:1698-1719 亲读在账）。owner=genreadonly@wt/genreadonly(fixer)；evidence=/dev/shm/rugra-reports/LANE_GENREADONLY_2026-09-28.md+/dev/shm/rugra-tests/genreadonly/；last_updated=2026-09-28 |
+
 ## 车道 OUTSTREAM（2026-09-28 交付；R3MERGE4 终报 §⑥ 残差①——`(FILE*)outs.stream/heads.stream` 左 cast 3 位第二序传播竞赛差，struct downChain 锁语义域。五度续跑（前四会话死于 socket 瞬态），第三代修复（funcdata/varmap live-entry 形）续用完善收口）
 
 | 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
