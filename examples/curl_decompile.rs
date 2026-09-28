@@ -7491,6 +7491,56 @@ fn decompile_request(
             }
         }
     }
+    // CURLCANON-ENTRYCONV-0001: the ELF entry function's calling-convention
+    // transport — the ElfProgramBuilder.java:664-673 mirror. Ghidra's Java
+    // ELF loader, when e_ident_osabi is LINUX or NONE (plain vanilla ELF —
+    // the locked curl input is OSABI 0), assigns the entry-point function
+    // the named convention `entryFunc.setCallingConvention("processEntry")`
+    // (ElfProgramBuilder.PROCESS_ENTRY_CALLING_CONVENTION_NAME). The
+    // function-record serialization carries it to the decompiler as
+    // `<prototype model="processEntry" modellock="true">`
+    // (FunctionPrototype.grabFromFunction: modelname =
+    // f.getCallingConventionName(), modellock = name != UNKNOWN;
+    // encodePrototype writes both), which FuncProto::decode resolves
+    // through glb->getModel (fspec.cc:4690-4705) and locks. The
+    // x86-64-gcc.cspec:258-283 model declares input#1=RDX (the `mov
+    // %rdx,%r9` def-less read becomes param_1), input#2=stack[0] (the `pop
+    // %rsi` load folds into the declared parameter instead of the default
+    // model's retaddr slot — no unaff_retaddr), a fake return address at
+    // RBP (killed by _start's `xor %ebp,%ebp`), extrapop=0 and unaffected
+    // RSP. The modellock flag is load-bearing: ActionPrototypeTypes
+    // (coreaction.cc:4617-4619) re-binds the evaluation model on any
+    // unlocked proto, which would erase the convention mid-pipeline.
+    // Placement: AFTER the DWARF/PLT prototype overlays (they replace
+    // fd.funcp wholesale); the convention is an independent DB field, so it
+    // composes on top of a locked signature exactly as grabFromFunction
+    // reads both fields from one Function record. The bare-BFD mirror face
+    // (BfdArchitecture + readLoaderSymbols, no Java loader) has no
+    // ElfProgramBuilder — the direct-runner golden prints _start with the
+    // default-model 3-param shape — so the channel is gated off under the
+    // bare-load component.
+    if !mirror_bare_load_enabled()
+        && vaddr0 == elf.header.e_entry
+        && matches!(
+            elf.header.e_ident[goblin::elf::header::EI_OSABI],
+            goblin::elf::header::ELFOSABI_NONE | goblin::elf::header::ELFOSABI_LINUX
+        )
+    {
+        match worker_arch.get_model("processEntry") {
+            Some(model) => {
+                fd.funcp.set_model(Some(model.clone()));
+                fd.funcp.set_model_lock(true);
+                eprintln!(
+                    "[ENTRYCONV] {} entry convention bound: processEntry (modellock)",
+                    target.name
+                );
+            }
+            None => eprintln!(
+                "[ENTRYCONV] {} processEntry model missing from cspec — convention not bound",
+                target.name
+            ),
+        }
+    }
     // FLOW-339E-OVERLAP-HLT-0001 fixture-parity gate: the per-function
     // fixture oracle (golden_dump_1204) runs BfdArchitecture +
     // readLoaderSymbols WITHOUT any Java-side analyzer, so no callee carries
