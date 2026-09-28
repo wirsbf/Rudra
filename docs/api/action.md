@@ -1444,3 +1444,15 @@ rugra_decompile_func 对 examples/curl 的 next_url 输出逐字节相同。
 - 本模块 1 处 `// Ghidra:` 头注解的 file:line 已重锚到锁定 oracle (e40ed130)
   的函数定义起始行；本文件中同名单点引用同步更新（正文内点引用/区间端点不在
   机制 D checker 范围，遗留见 RULEACTION-ANNO-PROSE-RANGE-0001）。注释-only，零行为变化。
+
+### 2026-09-28：`RUGRA_ACTSIG` 逐动作 CFG 签名探针（SELECTGOTO2 车道）
+
+`ActionGroup::apply_children`（action.cc:506 ActionGroup::apply 的子分发尾）
+新增 env 门控（默认关闭，debug-only）诊断：`RUGRA_ACTSIG=1` 时每个 child
+`perform` 返回后把 `@ACT <seq> <name> res=<res>` + `fd.bblocks` 全量 CFG 签名
+（块地址/出度/目标列表，与 RUGRA_BBSIG 同格式）累积落 `<fn>.actsig`——
+oracle 侧 GLM_ACTSIG 同点插桩（scratch 树 ActionGroup::apply 子分发尾钩）
+的对照面。本轮用它证明 fn 653 的 518 步动作序与前 87 步逐动作 CFG 双侧
+恒等，把 round-2→3 窗口首分歧钉到 @ACT 87 nodejoin（oracle res=2 vs
+Rugra res=1），最终定位 RuleSubZext INT_RIGHT 臂缺失（详见
+docs/api/ruleaction.md 与 docs/api/blockaction.md 的 SELECTGOTO 修复③节）。

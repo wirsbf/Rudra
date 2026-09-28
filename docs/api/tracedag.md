@@ -124,3 +124,11 @@ check_open 使用简化近似（size_in <= edgelump），select_bad_edge 选第�
 僵尸 size_in()==0 时会伪装成 sizeIn==0 根并污染 final-DAG trace。collapse 管线的
 `update_loop_body` final-DAG 分支已改为内联收集（virtual_list 顺序, 见 blockaction.md
 2026-08-30 条目），此自由函数仅作独立 helper 保留。
+
+### SELECTGOTO 车道诊断（2026-09-28，MIRRORCENSUS-GETLONGESTMATCH-CLONE-0001 续作）
+- `RUGRA_GOTOSTEP=1`（RUGRA-GLUE，debug-only）：`push_branches` 每步倾印
+  `[RSTEP] act/miss/cur=(bottom,dest)` + BADPICK/RETIRE/OPEN 动作行——oracle
+  侧 scratch [OSTEP] 探针的对照面；`update_loop_body` 无环臂的根收集同步
+  倾印 `[RROOT]`。默认关闭，管线行为零变化。本轮用它+oracle [OROOT] 钉死
+  selectGoto 级联首分歧点（final-DAG 根集合 blk78 vs blk79 → composite
+  min-index 安装位，见 blockaction.md 同日节）。

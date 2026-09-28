@@ -989,6 +989,51 @@ impl ActionGroup {
     ) -> Result<i32> {
         while self.state < self.actions.len() {
             let res = self.actions[self.state].perform(fd, &mut self.child_states[self.state])?;
+            // TEMP PROBE (selectgoto2 lane): per-child-action bbsig dump —
+            // the counterpart of the oracle probe's GLM_ACTSIG hook at
+            // ActionGroup::apply's child dispatch (action.cc:514). Env-gated,
+            // default off; debug-only, no pipeline behavior.
+            if std::env::var("RUGRA_ACTSIG").is_ok() {
+                use std::fmt::Write as _;
+                static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+                let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                static BUF: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+                let mut guard = BUF.lock().unwrap();
+                let sig = guard.get_or_insert_with(String::new);
+                let _ = write!(
+                    sig,
+                    "@ACT {} {} res={}\n",
+                    seq,
+                    self.actions[self.state].get_name(),
+                    res
+                );
+                for i in 0..fd.bblocks.get_size() {
+                    let Some(b) = fd.bblocks.get_block(i) else {
+                        continue;
+                    };
+                    let rg = b.read().unwrap();
+                    let start = rg.get_start_addr().as_u64();
+                    let _ = write!(sig, "  bb{} {:#x} o={}", i, start, rg.size_out());
+                    if rg.size_out() > 0 {
+                        let _ = write!(sig, " -> [");
+                        for j in 0..rg.size_out() {
+                            if j > 0 {
+                                let _ = write!(sig, ",");
+                            }
+                            if let Some(e) = rg.get_out(j) {
+                                let _ = write!(
+                                    sig,
+                                    "{:#x}",
+                                    e.point.read().unwrap().get_start_addr().as_u64()
+                                );
+                            }
+                        }
+                        let _ = write!(sig, "]");
+                    }
+                    let _ = writeln!(sig);
+                }
+                let _ = std::fs::write(format!("{}.actsig", fd.name), sig.as_str());
+            }
             if res > 0 {
                 self.pending_count += res;
                 if group_state
