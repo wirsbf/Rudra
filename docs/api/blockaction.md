@@ -1758,3 +1758,34 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   （print_tree_dbg + printRaw + 逐基本块 op 原始行，后者为 gen 驱动侧 BlockBasic
   printRaw 面的等价物——funcdata.rs print_raw 的 bblocks 臂目前只打印块头）。
   默认关闭。
+
+### SELECTGOTO 车道对齐增量①+②（2026-09-28，MIRRORCENSUS-GETLONGESTMATCH-CLONE-0001 续作）
+- **① composite 安装位 = min(组件索引)**（`identify_internal` 尾部，对齐
+  `BlockGraph::addBlock` 的 min-tracking，block.cc:866-873）：Ghidra 的
+  composite index 是其全部组件索引的最小值（identifyInternal 对每个 node 调
+  `ident->addBlock(node)`，`index = min(index, bl->index)`）；oracle 探针
+  （OWD2，scratch 树）8/8 实测 WhileDo cond=79/clause=78 → composite idx=78。
+  Rugra 原先把 composite 装在 cond/head 槽——对 head 持最小索引的 wrap 等价，
+  对反转情形（clause 索引 < cond 索引，NPat2R9 的 {79-cond,78-clause} wrap 是
+  本函数唯一例）产生异位标签，污染一切 index 键消费面（FloatingEdge 解析、
+  TraceDAG BadEdgeScore 排序、LoopBody head/tail 更新）。修法：反转情形把
+  min 槽组件 park 到腾出的 install 槽、composite 落 min 槽、absorbed_into
+  全量重映射、virtual_list 末端 push new_idx。修后 --one 653 的
+  selectGoto REGEN 列表与 oracle 逐项恒等（(79,119)→(78,119) 归位）。
+- **② while_do clause 判定还原 `size_in()`**（cc:1533 逐字）：撤除发明的
+  `count_non_structural_in_edges` 折算（switch 派发/已吸收源折扣两臂）——
+  oracle 是裸 `clauseblock->sizeIn() != 1`；复合体模型对齐后 stale 组件边
+  不再泄漏进活块，裸计数既正确又对齐。
+- 新增 env 门控诊断（默认关闭）：`RUGRA_TRACE_SELECTGOTO` 升级
+  （updateLoopBody 的 REGEN/REMAINDER 倾印+select_goto 的 pick/skip 逐条）、
+  `RUGRA_RULE2`（collapse 规则 fire 流，oracle [ORULE] 对照面）、
+  `RUGRA_GOTOSTEP`（tracedag pushBranches 逐步+[RROOT] 根收集，oracle
+  [OSTEP]/[OROOT] 对照面）、`RUGRA_TREE1`（首轮 collapseAll 后 sblocks 树落
+  `<fn>.tree1`，oracle GLM_TREE1 对照面）、`RUGRA_BS_VISIT` visit 行追加
+  `@ addr`（BlockCopy.original 的起始地址）。
+- **验收（全部本 worktree 亲跑）**：canon curl/httpd A/B md5
+  4503f498/c3b4706c 双字节恒等==基线（54/36/0/0 继承）；镜面 sq
+  2742/2742 defects=0 numbering=0；bank 391/391；cargo test --lib
+  1963P/0F/5I；annotations/refs 门禁绿。**剩余分歧**（下一增量靶）：
+  round-2 输入图 0x3560f 出度 o=2(Rugra) vs o=1(oracle)——round-1 收尾树
+  的 returnsplit/nodeSplit 链差，见 TODO_BOARD 票行。

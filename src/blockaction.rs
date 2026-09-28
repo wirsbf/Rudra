@@ -66,6 +66,20 @@ impl Action for ActionBlockStructure {
         collapse.collapse_all();
         self.count += collapse.get_change_count() as i32;
 
+        // TEMP PROBE (selectgoto lane): dump the sblocks tree right after the
+        // first collapseAll — the counterpart of the oracle probe's
+        // post-collapse printTree dump (GLM_TREE1). Uncommitted-diagnostics.
+        if std::env::var("RUGRA_TREE1").is_ok() {
+            let mut out = String::new();
+            for blk in &fd.sblocks.blocks {
+                crate::block::print_tree_dbg(blk, 0, &mut out);
+            }
+            let n = std::fs::write(format!("{}.tree1", fd.name), &out);
+            if let Err(e) = n {
+                eprintln!("[TREE1] dump failed for {}: {}", fd.name, e);
+            }
+        }
+
         // RUGRA-GLUE: post-collapse witness for the RUGRA_BS_TRACE dumper.
         if std::env::var("RUGRA_BS_TRACE")
             .map(|v| v == "1")
@@ -1585,14 +1599,26 @@ impl<'a> CollapseStructure<'a> {
                     {
                         if let Some(b) = self.graph.get_block(slot) {
                             let r = b.read().unwrap();
+                            let addr = match r
+                                .as_any()
+                                .downcast_ref::<crate::block::BlockCopy>()
+                            {
+                                Some(bc) => {
+                                    bc.original.read().unwrap().get_start_addr().as_u64()
+                                }
+                                None => crate::block::front_leaf(&b)
+                                    .map(|l| l.read().unwrap().get_start_addr().as_u64())
+                                    .unwrap_or(0),
+                            };
                             eprintln!(
-                                "[BLOCKSTRUCT] {} visit pos={} idx={} ty={:?} i={} o={}",
+                                "[BLOCKSTRUCT] {} visit pos={} idx={} ty={:?} i={} o={} @ {:#x}",
                                 self.name,
                                 idx - 1,
                                 slot,
                                 r.get_type(),
                                 r.size_in(),
-                                r.size_out()
+                                r.size_out(),
+                                addr
                             );
                         }
                     }
@@ -2154,9 +2180,13 @@ impl<'a> CollapseStructure<'a> {
         // Running goto first ensures continue/break edges are consumed (wrapped
         // as BlockIfGoto/BlockGoto) BEFORE while_do tries to match the body,
         // which reduces clause size_in so WhileDo can form.
+        let rule2 = std::env::var("RUGRA_RULE2").is_ok();
         macro_rules! bs_try {
             ($f:ident) => {
                 if self.$f(i) {
+                    if rule2 {
+                        eprintln!("[RRULE2] FIRE {} blk{}", stringify!($f), i);
+                    }
                     return;
                 }
             };
@@ -2248,6 +2278,7 @@ impl<'a> CollapseStructure<'a> {
     /// live during the trace), otherwise the DAG walks the whole function and
     /// marks interior structured edges as likely gotos.
     fn update_loop_body(&mut self) -> bool {
+        let trace = std::env::var("RUGRA_TRACE_SELECTGOTO").is_ok();
         if self.finaltrace {
             return false; // cc:1196-1198
         }
@@ -2284,6 +2315,12 @@ impl<'a> CollapseStructure<'a> {
         }
         // cc:1222-1223
         if self.likelylistfull && self.likelyiter < self.likelygoto.len() {
+            if trace {
+                eprintln!(
+                    "[SELECTGOTO] {} updateLoopBody: REMAINDER iter={}/{} (cc:1222)",
+                    self.name, self.likelyiter, self.likelygoto.len()
+                );
+            }
             return true;
         }
 
@@ -2321,11 +2358,15 @@ impl<'a> CollapseStructure<'a> {
             // the mutating list) and feeds them to TraceDAG in that order;
             // the root order paces pushBranches and BadEdgeScore
             // tie-breaking. virtual_list entries are live slots only.
+            let step = std::env::var("RUGRA_GOTOSTEP").is_ok();
             let mut roots: Vec<i32> = Vec::new();
             let vlist = self.virtual_list.clone();
             for &slot in &vlist {
                 if let Some(b) = self.graph.get_block(slot as usize) {
                     if b.read().unwrap().size_in() == 0 {
+                        if step {
+                            eprintln!("[RROOT] blk{} (vslot {})", slot, slot);
+                        }
                         roots.push(slot);
                     }
                 }
@@ -2418,6 +2459,19 @@ impl<'a> CollapseStructure<'a> {
                 to_idx: fe.bottom,
             })
             .collect();
+        if trace {
+            eprintln!(
+                "[SELECTGOTO] {} updateLoopBody: REGEN loopiter={} looptop={} loopbottom={} list={:?}",
+                self.name,
+                self.loopbodyiter,
+                looptop,
+                loopbottom,
+                self.likelygoto
+                    .iter()
+                    .map(|e| (e.from_idx, e.to_idx))
+                    .collect::<Vec<_>>()
+            );
+        }
         self.likelyiter = 0;
         true
     }
@@ -2439,6 +2493,15 @@ impl<'a> CollapseStructure<'a> {
                 if let Some((startbl_idx, outedge)) = fe.get_current_edge(self.graph) {
                     // cc:1269: setGotoBranch(outedge).
                     if trace {
+                        eprintln!(
+                            "[SELECTGOTO] {} pick entry #{}: {} -> {} resolved as blk{} outedge={}",
+                            self.name,
+                            self.likelyiter - 1,
+                            fe.from_idx,
+                            fe.to_idx,
+                            startbl_idx,
+                            outedge
+                        );
                         let tgt = self
                             .graph
                             .get_block(startbl_idx as usize)
@@ -2459,6 +2522,14 @@ impl<'a> CollapseStructure<'a> {
                         self.set_goto_branch_on_block(&blk, outedge);
                     }
                     return Some(startbl_idx);
+                } else if trace {
+                    eprintln!(
+                        "[SELECTGOTO] {} skip entry #{}: {} -> {} (getCurrentEdge NULL)",
+                        self.name,
+                        self.likelyiter - 1,
+                        fe.from_idx,
+                        fe.to_idx
+                    );
                 }
             }
         }
@@ -4150,6 +4221,56 @@ impl<'a> CollapseStructure<'a> {
             }
         }
 
+        // Ghidra addBlock min-tracking (block.cc:866-873): identifyInternal
+        // calls `ident->addBlock(node)` for every absorbed node, and
+        // BlockGraph::addBlock maintains `index = min(index, bl->index)` —
+        // the composite's index is the MINIMUM over its component indices
+        // (empirically confirmed on the oracle: WhileDo cond=79/clause=78
+        // produces composite idx=78, all cond<clause wraps produce
+        // idx=cond). Rugra's slot model installs the composite at the
+        // cond/head slot, which equals the min for every wrap whose head
+        // holds the smallest index; for the reversed case (a component at
+        // a lower index than the head — e.g. the NPat2R9 WhileDo
+        // cond=79/clause=78 wrap) park the min-slot component in the
+        // vacated install slot and label the composite with the min index,
+        // so every index-keyed consumer (FloatingEdge::get_current_edge
+        // resolution, TraceDAG BadEdgeScore ordering, LoopBody head/tail
+        // updates) sees the oracle's identity.
+        let new_idx: usize = consumed_indices
+            .iter()
+            .copied()
+            .filter(|&idx| (idx as usize) < size)
+            .chain(std::iter::once(install_idx as i32))
+            .min()
+            .unwrap_or(install_idx as i32) as usize;
+        if new_idx != install_idx && new_idx < size && install_idx < size {
+            let parked = self.graph.blocks[new_idx].clone();
+            self.graph.blocks[new_idx] = new_block.clone();
+            self.graph.blocks[install_idx] = parked.clone();
+            new_block.write().unwrap().set_index(new_idx as i32);
+            parked.write().unwrap().set_index(install_idx as i32);
+            // Re-map containment to the composite's final index. Entries
+            // recorded above against install_idx now target new_idx (this
+            // also path-compresses older chains that pointed at a
+            // previously-installed composite occupying install_idx). The
+            // pre-swap min-slot key described the parked component's OLD
+            // slot; after parking it lives at install_idx.
+            let stale_keys: Vec<i32> = self.graph.absorbed_into.keys().copied().collect();
+            for k in stale_keys {
+                if let std::collections::hash_map::Entry::Occupied(mut e) =
+                    self.graph.absorbed_into.entry(k)
+                {
+                    if *e.get() == install_idx as i32 {
+                        e.insert(new_idx as i32);
+                    }
+                }
+            }
+            self.graph.absorbed_into.remove(&(new_idx as i32));
+            self.graph
+                .absorbed_into
+                .insert(install_idx as i32, new_idx as i32);
+        }
+
         // Ghidra addBlock(ret) (block.cc:862-875) appends the composite at
         // the END of the graph list, after identifyInternal removed the
         // components (block.cc:953-960, including the install slot's old
@@ -4158,8 +4279,8 @@ impl<'a> CollapseStructure<'a> {
         // push the install slot (now the composite) at the end, so every
         // position-order scan walks the oracle's exact list layout.
         self.virtual_list
-            .retain(|&s| !consumed_set.contains(&s) && s != install_idx as i32);
-        self.virtual_list.push(install_idx as i32);
+            .retain(|&s| !consumed_set.contains(&s) && s != install_idx as i32 && s != new_idx as i32);
+        self.virtual_list.push(new_idx as i32);
     }
 
     // Ghidra: block.cc:1780 BlockGraph::newBlockCondition
@@ -5559,11 +5680,15 @@ impl<'a> CollapseStructure<'a> {
                 None => continue,
             };
             let c = clause.read().unwrap();
-            // Accept both Basic and structured (BlockList) clauses. Ghidra's
-            // ruleBlockWhileDo requires sizeIn()==1, but after cat-chaining the
-            // body may be a BlockList that still has a single back-edge to cond.
-            // We use count_non_structural_in_edges to ignore DEAD/goto sources.
-            let clause_in = self.count_non_structural_in_edges(&c);
+            // cc:1533: `if (clauseblock->sizeIn() != 1) continue;` — plain
+            // sizeIn, exactly as the oracle. The former
+            // count_non_structural_in_edges (invented arm: edges from
+            // switch dispatches and absorbed components discounted) accepted
+            // clauses the oracle rejects; with the composite model now
+            // faithful (min-index install + boundary-edge strip), stale
+            // component edges no longer leak into live blocks and the plain
+            // count is both correct and aligned.
+            let clause_in = c.size_in();
             if clause_in != 1 {
                 continue;
             }

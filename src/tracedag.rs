@@ -700,6 +700,7 @@ impl<'a> TraceDAG<'a> {
     // Ghidra: blockaction.cc:983 TraceDAG::pushBranches
     /// Main algorithm: push traces forward, marking bad edges as goto.
     pub fn push_branches(&mut self) {
+        let step = std::env::var("RUGRA_GOTOSTEP").is_ok();
         let mut missed: usize = 0;
         let mut current: Option<usize> = self.begin_slot();
         // Ghidra: blockaction.cc:983-1015 TraceDAG::pushBranches — the loop
@@ -720,10 +721,24 @@ impl<'a> TraceDAG<'a> {
                 Some(t) => t,
                 None => continue, // unreachable when active_count > 0
             };
+            if step {
+                let t = &self.traces[curtrace];
+                eprintln!(
+                    "[RSTEP] act={} miss={} cur=(blk{},blk{})",
+                    self.active_count, missed, t.bottom_block_idx, t.dest_block_idx
+                );
+            }
             if missed >= self.active_count {
                 // cc:994-999: could not push any trace further — pick an
                 // edge to be unstructured and restart from the beginning.
                 let bad = self.select_bad_edge();
+                if step {
+                    let t = &self.traces[bad];
+                    eprintln!(
+                        "[RSTEP]   BADPICK blk{} -> blk{}",
+                        t.bottom_block_idx, t.dest_block_idx
+                    );
+                }
                 if std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false) {
                     let t = &self.traces[bad];
                     eprintln!("[TD] BADEDGE trace#{} ({}->{}) edgelump={}", bad, t.bottom_block_idx, t.dest_block_idx, t.edgelump);
@@ -733,6 +748,9 @@ impl<'a> TraceDAG<'a> {
                 missed = 0;
             } else if let Some(exit_block) = self.check_retirement(curtrace) {
                 // cc:1000-1003: resume at the iterator returned by retireBranch.
+                if step {
+                    eprintln!("[RSTEP]   RETIRE");
+                }
                 let bp_idx = self.traces[curtrace].top_bp;
                 if std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false) {
                     let t = &self.traces[curtrace];
@@ -743,6 +761,9 @@ impl<'a> TraceDAG<'a> {
                 missed = 0;
             } else if self.check_open(curtrace) {
                 // cc:1004-1007: resume at the iterator returned by openBranch.
+                if step {
+                    eprintln!("[RSTEP]   OPEN");
+                }
                 if std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false) {
                     let t = &self.traces[curtrace];
                     eprintln!("[TD] OPEN trace#{} t.bot={} t.dest={} t.lump={}",
