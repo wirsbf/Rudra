@@ -120,6 +120,17 @@ WARNING 注释+尾随空行+`_DAT_`→`DAT_` 行，其余 123 函数字节恒等
 token 集 13==13 双侧全等、`_` 前缀族清零、overlap-WARNING 0==0）。
 同族扫描：canon curl 唯一 `_DAT_` 站=本站；`&PTR_DAT_` 形双侧恒等。
 
+### MB36 合并后复测（merge 24e7188f→98f1dfdc 亲测）
+
+CENSUS3 对账通知口径复核成立：master 24e7188f 现残 **8**（_start 5
+[ENTRYCONV 在飞]+myprogress 3[本票]）→ 合并本修复后 **5/0/0**（myprogress
+3 全额燃掉，唯余 _start 5——**无字符串族残量，收口 absorbed**）；FIDSIG
+通道（同驱动邻域）与 s2select printc ARRAY 臂（partial walk 域）交互零冲突
+（myprogress [Skeleton] identical 维持）；canon httpd **14/0/0==master 现值**
+（26→14 系 MB36 DECLORDER 道所为，非本票——httpd 驱动零触碰）；src 与
+master 全等（`git diff 24e7188f..HEAD -- src/` 空）→ cargo test 1969P/0F/5I
+==master 现值、bank 391/391、三门禁绿（合并树亲测）。
+
 ## 验证口径
 
 ```bash
