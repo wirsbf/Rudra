@@ -20,6 +20,7 @@
 #
 # 用法：
 #   tools/verify_mirror_gate.sh [--corpus curl|httpd|vsh|sq|sqlite|all] [--bin-dir DIR] [--keep-dir DIR]
+#                               [--jobs N]   # N>1: 五面并发(SPEEDPROF-PAR-FACES-0001)，默认 1=串行原形
 #   tools/verify_mirror_gate.sh --update-baseline <TODO_ID>   # 重钉（须给 TODO ID，写入台账行）
 #   tools/verify_mirror_gate.sh --self-test                   # 无二进制自检（解析/断言逻辑）
 #
@@ -45,17 +46,25 @@ KEEP=0
 MODE="gate"
 UPDATE_TODO=""
 SELF_TEST=0
+# SPEEDPROF-PAR-FACES-0001: parallel face scheduling (default 1 = exact
+# historical serial form; >1 runs independent faces concurrently, verdict
+# lines re-emitted in canonical face order after all faces finish).
+PAR_JOBS=1
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --corpus) CORPUS_FILTER="$2"; shift 2 ;;
         --bin-dir) BIN_DIR="$2"; shift 2 ;;
         --keep-dir) KEEP=1; shift ;;
+        --jobs) PAR_JOBS="$2"; shift 2 ;;
         --update-baseline) MODE="update"; UPDATE_TODO="${2:-}"; shift 2 ;;
         --self-test) SELF_TEST=1; shift ;;
         *) echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done
+case "$PAR_JOBS" in
+    ''|*[!0-9]*|0) echo "--jobs must be a positive integer (got '$PAR_JOBS')" >&2; exit 2 ;;
+esac
 
 # compare_ghidra.py 摘要行解析：从 compare 输出取 matched/skeleton/defects/numbering。
 parse_compare() {
@@ -291,11 +300,46 @@ if [[ -x "$BIN_DIR/gen_decompile" ]]; then
     echo "MIRROR-GATE: stale-guard content probe OK — $(head -1 "$WORK_DIR/stale_guard_probe.out")"
 fi
 
-run_face curl
-run_face httpd
-run_face vsh
-run_face sq
-run_face sqlite
+# SPEEDPROF-PAR-FACES-0001: concurrent face dispatcher. The five faces are
+# independent single-child streams — disjoint artifact files under WORK_DIR,
+# per-face verdict computed in its own subshell (run_face's global writes
+# stay local). Only completion order changes; verdict output is re-emitted
+# in the canonical face order after every face finishes. Fail-closed:
+# nonzero subshell exit or any per-face FAIL line sets GLOBAL_RC=1.
+run_faces_parallel() {
+    local faces=() corpus pid i fail=0
+    for corpus in curl httpd vsh sq sqlite; do
+        [[ "$CORPUS_FILTER" != "all" && "$CORPUS_FILTER" != "$corpus" ]] && continue
+        faces+=("$corpus")
+    done
+    local pids=() names=()
+    for corpus in "${faces[@]}"; do
+        ( run_face "$corpus" ) > "$WORK_DIR/face_${corpus}.verdict" 2>&1 &
+        pids+=("$!"); names+=("$corpus")
+    done
+    for i in "${!pids[@]}"; do
+        if ! wait "${pids[$i]}"; then
+            echo "MIRROR-GATE[${names[$i]}] FAIL: face worker exited nonzero"
+            fail=1
+        fi
+    done
+    for corpus in "${faces[@]}"; do
+        cat "$WORK_DIR/face_${corpus}.verdict"
+        grep -q "MIRROR-GATE\[$corpus\] FAIL" "$WORK_DIR/face_${corpus}.verdict" && GLOBAL_RC=1
+    done
+    (( fail == 1 )) && GLOBAL_RC=1
+    return 0
+}
+
+if (( PAR_JOBS > 1 )); then
+    run_faces_parallel
+else
+    run_face curl
+    run_face httpd
+    run_face vsh
+    run_face sq
+    run_face sqlite
+fi
 
 if [[ "$KEEP" == "1" ]]; then
     echo "artifacts kept in $WORK_DIR"
