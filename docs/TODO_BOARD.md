@@ -2,6 +2,12 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## 车道 COMPAREFIX（2026-09-29 交付；MCENSUS3-COMPARE-MISPAIR-CURL-0001——MIRRORCENSUS3 新票⑥:compare 配对伪差,curl 镜面 6 行系计量伪差非真实差异,工具修复即 21→15。基=76fbcc21（MB40 后;镜面钉值 curl 21/httpd 30/vsh 0/sq 726/sqlite 4753,tests 1972P）;wt/comparefix;终报=/dev/shm/rugra-reports/LANE_COMPAREFIX_2026-09-29.md;证据=/dev/shm/rugra-tests/comparefix/）
+
+| 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
+|---|---|---|---|---|
+| `MCENSUS3-COMPARE-MISPAIR-CURL-0001` | tools/compare_ghidra.py 配对（match_functions `by_name` last-wins 双配:官方门禁 `--base 0` 下四地址探针坍缩为探针 1,curl 镜像[image-based]对 golden direct-runner[base-0] 地址全 miss→全部落入 by_name;strip 后同 key 双胞胎名 `SetHTTPrequest.part.0`+`SetHTTPrequest` 双配到 golden 文件序后出现的 `SetHTTPrequest`,golden `SetHTTPrequest.part.0`[与 rugra 同名函数逐行恒等]从未被比较,rugra `.part.0` 对 golden 裸名体产生 6 行幻影 diff——a142a065 的探针 4 只覆盖 default-base 调用面,`--base 0` 门禁面探针全坍缩故伪差存续） | **P3**（计量正确性:工具修复即 curl 21→15,零 src 触碰） | `tools/compare_ghidra.py`（match_functions:地址探针链保持四探针代数+加消费守卫;名路径重构=完整名精确配对优先→strip 后缀兜底,均取 golden 文件序首个未消费者;one-consumption 不变量=每个 golden 函数至多被配一次,禁止双配）+本行 | **DONE（2026-09-29,wt/comparefix,基=76fbcc21）**。**验收（全亲测）**:①伪差函数亲证——`--func SetHTTPrequest.part.0` 修复前 6 lines differ（签行+if 守卫 hunk）→修复后 identical;`--func SetHTTPrequest` identical;golden `SetHTTPrequest.part.0` 首次被比较（双侧真值恒等）;②A/B 同镜像字节（mcensus3 工件,旧/新工具）:curl **21→15（−6 精确）**/httpd 30/vsh 0/sq 726/sqlite 4753 恒等,matched 74/29/71/810/1385 全恒等;③五面官方门禁（新工具 sha 入 digest 键自动失效全量重跑,stale-guard 绿 digest=82245f2c）**全 PASS**:curl **15**/21·74·defects=numbering=0+httpd 30/30·29+vsh 0/0·71+sq 726/726·810+sqlite 4753/4753·1385,health 全 ok;④canon 双语素 0/0 不受影响亲证——canon 输出 md5 **4ab1db2a/7d5b9e7c**==MB40 钉值字节恒等,canon 配对 100% 地址路径（curl 124/httpd 34,name-path=0）,新旧工具 canon 四指标（skeleton 0/defects 0/numbering 0/matched 124·34）全等,**canon 无伪差**;⑤无伪差面零扰动——五面 stripped-key 碰撞审计:仅 curl 存在双胞胎名错配,sq 的 6 个 `.part.0` 族全走地址探针无双配,httpd/vsh/sqlite 两侧零碰撞;⑥三门禁绿（annotations 100 文件/refs --strict/evidence 无红词）。**钉值变化**:curl skeleton 钉值 21→15 属计量口径修正,**重钉留 root 合并时执行**（MB32-RATCHET-REPIN 台账行 ceiling=21 仍 PASS,≤ 不FAIL）;compare_ghidra.py sha 变化已使 digest 缓存键 fail-closed 失效。owner=comparefix@wt/comparefix(fixer);last_updated=2026-09-29 |
+
 ## 车道 VDBEXEC（2026-09-28 交付；VdbeExec 巨函数 18.9× 单极速度根因钻道——ORACLESPEED 终报最大杠杆票:三层钻定（逐阶段/逐动作/算法级）+ 有界修复 refresh_switch_cases 移位。终报=/dev/shm/rugra-reports/LANE_VDBEEXEC_2026-09-28.md；证据=/dev/shm/rugra-tests/vdbexec/）
 
 | 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |

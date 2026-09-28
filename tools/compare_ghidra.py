@@ -76,34 +76,70 @@ def strip_gcc_suffix(name):
 
 def match_functions(rugra_funcs, ghidra_funcs, base_offset=0x100000):
     """
-    匹配 Rugra 和 Ghidra 函数。优先用归一化地址, 备选 strip 后缀的函数名。
+    匹配 Rugra 和 Ghidra 函数。优先用归一化地址, 备选函数名 (先精确名, 再 strip 后缀)。
     返回 [(addr, rugra_name, rugra_body, ghidra_name, ghidra_body)]。
+
+    同名函数配对语义 (MCENSUS3-COMPARE-MISPAIR-CURL-0001):
+      1. 地址探测链 (最强信号, 四探针代数不变, 见下);
+      2. 完整函数名精确配对: 双侧携带同名后缀对 (如 SetHTTPrequest.part.0 +
+         SetHTTPrequest) 时, 各自配到 oracle 同名对应物; 候选取 golden 文件序
+         (即 oracle 输出序) 中首个未消费者;
+      3. strip 后缀兜底配对 (跨边改名场景), 同样取首个未消费者。
+    不变量: 每个 golden 函数至多被消费一次 (one-consumption)。旧版 by_name 是
+    last-wins 字典, 双胞胎名 (strip 后同 key) 会双配到后出现的那个 golden,
+    另一个 golden (如 golden SetHTTPrequest.part.0, 与 rugra 同名函数恒等)
+    从未被比较, 同时给先到的 rugra 函数制造幻影 diff 行 (curl 镜面 6 行伪差)。
     """
     by_addr = {}
+    by_exact = {}
     by_name = {}
     for addr, name, size, body in ghidra_funcs:
         norm_addr = addr - base_offset
         by_addr[norm_addr] = (name, body)
-        by_name[strip_gcc_suffix(name)] = (name, body)
+        by_exact.setdefault(name, []).append((norm_addr, name, body))
+        by_name.setdefault(strip_gcc_suffix(name), []).append((norm_addr, name, body))
 
     matched = []
+    used_keys = set()  # 已消费 golden 的 norm_addr 键 (one-consumption)
+
+    def take_addr(probe_key):
+        """地址探针: 命中未消费的 golden 则消费并返回, 否则 None。"""
+        if probe_key in used_keys:
+            return None
+        g = by_addr.get(probe_key)
+        if g is not None:
+            used_keys.add(probe_key)
+        return g
+
     for addr, name, size, body in rugra_funcs:
-        key = strip_gcc_suffix(name)
         # Probe algebra (base = base_offset, keys stored as golden_addr - base):
         #   G1 golden image-based / R2 rugra base-0  -> probe 1 (addr == key)
         #   G1 golden image-based / R1 rugra image  -> probe 2 (addr-base == key)
         #   G2 golden base-0     / R2 rugra base-0  -> probe 2 (both negative keys)
         #   G2 golden base-0     / R1 rugra image  -> probe 4 (addr-2*base == key),
         #     the direct-runner mirror convention pair (golden headers base-0,
-        #     Rugra mirror headers image-based): without probe 4 every lookup
-        #     falls through to by_name, whose last-wins dict mispairs duplicate
-        #     stripped names (e.g. SetHTTPrequest.part.0 vs SetHTTPrequest).
+        #     Rugra mirror headers image-based). NB: with --base 0 (the official
+        #     mirror-gate invocation) all four probes collapse to probe 1, so
+        #     the G2/R1 pair resolves via the name path below — which is why
+        #     the name path must carry the same one-consumption + exact-name
+        #     semantics as the address path (probe 4 alone cannot fix it).
         # Probe 4 is a provable no-op for the other three combos (its key is
         # either negative where G1 keys are >= 0, or off by one base), so
         # existing pairings cannot drift.
-        ghidra = (by_addr.get(addr) or by_addr.get(addr - base_offset)
-                  or by_addr.get(addr + base_offset)
-                  or by_addr.get(addr - 2 * base_offset) or by_name.get(key))
+        ghidra = (take_addr(addr) or take_addr(addr - base_offset)
+                  or take_addr(addr + base_offset)
+                  or take_addr(addr - 2 * base_offset))
+        if ghidra is None:
+            # 精确完整名 → strip 后缀, 依次取 golden 文件序首个未消费者。
+            for candidates in (by_exact.get(name, ()),
+                               by_name.get(strip_gcc_suffix(name), ())):
+                for norm, gname, gbody in candidates:
+                    if norm not in used_keys:
+                        used_keys.add(norm)
+                        ghidra = (gname, gbody)
+                        break
+                if ghidra is not None:
+                    break
         if ghidra:
             matched.append((addr, name, body, ghidra[0], ghidra[1]))
     return matched
