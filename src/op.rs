@@ -5,7 +5,7 @@
 use crate::address::{Address, SeqNum};
 use crate::opcodes::OpCode;
 use crate::varnode::Varnode;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock, Weak};
 
 use crate::block::FlowBlock;
@@ -1595,13 +1595,180 @@ impl PieceNode {
     }
 }
 
+// Ghidra: op.hh:280 PcodeOpTree (typedef map<SeqNum,PcodeOp*>)
+/// SeqNum-keyed op tree — the oracle PcodeOpBank's native container form.
+///
+/// Key order = SeqNum::operator< (address.hh:154-158: `pc` then `uniq`),
+/// mirrored by `Ord for SeqNum` (address.rs: (addr, time)). The oracle's
+/// iterator is a std::map node iterator: `++` is an O(1) amortized pointer
+/// walk and stays valid across insert/erase (action.cc:871 `op_state++`
+/// inside ActionPool::apply, :884-885 loop). Rust BTreeMap iterators cannot
+/// be held across the Rules' mutation, so Rugra reconstructs the successor
+/// by strict-key range (action.rs next_op_after, ACTIONLOOP-RESTART-0001);
+/// keying the map by the SeqNum **value** (not the PcodeOpRef) makes that
+/// descent a plain key-compare walk — zero RwLock acquisitions inside the
+/// tree walk itself.
+///
+/// PERF-ACTIONPOOL-ITER-0001 / OPTREE lane (2026-09-29): the prior form was
+/// `BTreeSet<PcodeOpRef>`, whose `Ord for PcodeOpRef` takes one RwLock read
+/// per compared side — every successor descent paid 2 locks × O(log n)
+/// comparisons (VdbeExec pole: 5,648,144 advances × ~894ns = 5.05s, OPPPOOL
+/// §0/§7). The oracle's dispatch mechanism cost over the same pool pass was
+/// ~1.2s (OPPPOOL §2, 55-sample gdb profile), so the descent was a ~4×
+/// implementation-level gap. This keyed form is the oracle-native shape.
+///
+/// Behavior-identity contract vs the previous `BTreeSet<PcodeOpRef>`
+/// (OPTREE red line: output zero-change):
+/// - **iteration order identical**: BTreeMap orders keys by SeqNum::cmp —
+///   the exact projection `Ord for PcodeOpRef` used (self.start.cmp).
+/// - **insert dedup identical (keep-first)**: BTreeSet::insert keeps the
+///   stored element when cmp == Equal; `entry(key)` keeps the stored value
+///   when the key exists. (The oracle's `optree[seq] = op`, op.cc:945,
+///   REPLACES on a duplicate key; duplicate keys are unreachable through
+///   the bank's create paths — uniqid is monotonic and create_with_seq
+///   advances it past every supplied time, op.cc:962-963 — so the
+///   difference is unobservable in-bank.)
+/// - **key staleness impossible on current paths**: the key is the SeqNum
+///   (addr,time) snapshot taken at insert; (addr,time) is immutable after
+///   creation (only `set_order` mutates the order field, which the
+///   ordering excludes). ffi.rs:447 re-assigns `start` with a
+///   value-identical SeqNum (same addr/time captured immediately before
+///   create), so no in-place key mutation exists.
+#[derive(Debug, Default)]
+pub struct PcodeOpTree {
+    inner: BTreeMap<SeqNum, PcodeOpRef>,
+}
+
+impl PcodeOpTree {
+    // RUGRA-GLUE: Rust ctor; Ghidra constructs PcodeOpTree as a plain
+    //   member (op.hh:290, default map ctor).
+    pub fn new() -> Self {
+        Self {
+            inner: BTreeMap::new(),
+        }
+    }
+
+    // RUGRA-GLUE: snapshot of the op's SeqNum key (op.hh:280 map key;
+    //   ordering address.hh:154). One short read lock per call, replacing
+    //   the per-comparison lock pairs of the former BTreeSet<PcodeOpRef>
+    //   Ord-based descent.
+    fn key_of(op: &PcodeOpRef) -> SeqNum {
+        op.0.read().unwrap().start
+    }
+
+    // Ghidra: op.cc:941 PcodeOpBank::create (optree[op->getSeqNum()] = op, cc:945)
+    /// Insert an op keyed by its SeqNum. Keep-first on a duplicate key,
+    /// identical to the former BTreeSet<PcodeOpRef>::insert. Returns true
+    /// when newly inserted (BTreeSet::insert return shape).
+    pub fn insert(&mut self, op: PcodeOpRef) -> bool {
+        match self.inner.entry(Self::key_of(&op)) {
+            std::collections::btree_map::Entry::Occupied(_) => false,
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(op);
+                true
+            }
+        }
+    }
+
+    // Ghidra: op.cc:989 PcodeOpBank::destroy (optree.erase, cc:995)
+    /// Remove the op stored under its SeqNum key. Same element the former
+    /// BTreeSet::remove found via Ord-equality.
+    pub fn remove(&mut self, op: &PcodeOpRef) -> bool {
+        self.inner.remove(&Self::key_of(op)).is_some()
+    }
+
+    // RUGRA-GLUE: BTreeSet<PcodeOpRef>::contains surface. Ord-equality
+    //   against the stored element reduces to the SeqNum key being present
+    //   (same result the keyed map reports).
+    pub fn contains(&self, op: &PcodeOpRef) -> bool {
+        self.inner.contains_key(&Self::key_of(op))
+    }
+
+    // Ghidra: op.cc:1194 PcodeOpBank::clear (op.cc:1205 optree.clear())
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    // RUGRA-GLUE: size surface shared by BTreeSet/BTreeMap (op.cc:1194
+    //   clear() observes the same cardinality).
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    // Ghidra: op.hh:318 PcodeOpBank::empty (optree.empty())
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    // Ghidra: op.hh:324 PcodeOpBank::beginAll (optree.begin()) /
+    //   op.hh:327 endAll (optree.end())
+    /// All ops in SeqNum order — the beginAll()/endAll() pair as one
+    /// iterator over the stored values.
+    pub fn iter(&self) -> std::collections::btree_map::Values<'_, SeqNum, PcodeOpRef> {
+        self.inner.values()
+    }
+
+    // RUGRA-GLUE: translates a PcodeOpRef range bound to its SeqNum key
+    //   bound (one read lock per bound), so the tree descent itself runs on
+    //   plain key compares with no locks.
+    fn translate_bound(bound: std::ops::Bound<&PcodeOpRef>) -> std::ops::Bound<SeqNum> {
+        match bound {
+            std::ops::Bound::Included(op) => std::ops::Bound::Included(Self::key_of(op)),
+            std::ops::Bound::Excluded(op) => std::ops::Bound::Excluded(Self::key_of(op)),
+            std::ops::Bound::Unbounded => std::ops::Bound::Unbounded,
+        }
+    }
+
+    // Ghidra: action.cc:822 ActionPool::processOp (op_state++ successor, cc:871)
+    /// Strict-successor range in the tuple-bound form the dispatch pool
+    /// uses (`range((Excluded(current), Unbounded))`, action.rs
+    /// next_op_after) — the reconstruction of the oracle's O(1) map
+    /// iterator `++` that stays valid across Rule mutation. The descent
+    /// compares SeqNum values directly (oracle map key compares), no locks.
+    pub fn range(
+        &self,
+        bounds: (std::ops::Bound<&PcodeOpRef>, std::ops::Bound<&PcodeOpRef>),
+    ) -> impl Iterator<Item = &PcodeOpRef> {
+        let lower = Self::translate_bound(bounds.0);
+        let upper = Self::translate_bound(bounds.1);
+        self.inner.range((lower, upper)).map(|(_, v)| v)
+    }
+
+    // Ghidra: op.cc:1099 PcodeOpBank::findOp (optree.find(num), cc:1102)
+    /// Exact-key find (O(log n)) — the oracle's map find.
+    pub fn find_op(&self, seq: &SeqNum) -> Option<&PcodeOpRef> {
+        self.inner.get(seq)
+    }
+
+    // Ghidra: op.cc:1089 PcodeOpBank::target (optree.lower_bound, cc:1092)
+    /// All ops at or after `addr` in tree order — the oracle's
+    /// lower_bound(SeqNum(addr,0)) iteration; the first entry is exactly
+    /// the former linear scan's first `start.addr >= addr` hit (tree order
+    /// is (addr,time), time >= 0 always).
+    pub fn target_lower_bound(&self, addr: Address) -> impl Iterator<Item = &PcodeOpRef> {
+        self.inner.range(SeqNum::new(addr, 0)..).map(|(_, v)| v)
+    }
+}
+
+// RUGRA-GLUE: IntoIterator on &PcodeOpTree so `for op in &bank.optree`
+//   keeps the BTreeSet<PcodeOpRef> surface at every existing call site
+//   (heritage/merge/funcdata/comment/flow/ffi/align/examples).
+impl<'a> IntoIterator for &'a PcodeOpTree {
+    type Item = &'a PcodeOpRef;
+    type IntoIter = std::collections::btree_map::Values<'a, SeqNum, PcodeOpRef>;
+    // RUGRA-GLUE: trait-impl forwarder to iter().
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.values()
+    }
+}
+
 /// Container for managing P-code operations
 ///
 /// Corresponds to Ghidra's `PcodeOpBank` class in `op.hh`
 #[derive(Debug)]
 pub struct PcodeOpBank {
     /// All operations sorted by sequence number (Ghidra optree).
-    pub optree: BTreeSet<PcodeOpRef>,
+    pub optree: PcodeOpTree,
     /// List of operations considered "alive" (Ghidra alivelist).
     pub alivelist: Vec<PcodeOpRef>,
     /// List of operations considered "dead" (Ghidra deadlist).
@@ -1635,7 +1802,7 @@ impl PcodeOpBank {
     // Ghidra: op.hh:304 PcodeOpBank::PcodeOpBank (ctor; uniqid = 0)
     pub fn new() -> Self {
         Self {
-            optree: BTreeSet::new(),
+            optree: PcodeOpTree::new(),
             alivelist: Vec::new(),
             deadlist: Vec::new(),
             deadandgone: Vec::new(),
@@ -1828,13 +1995,14 @@ impl PcodeOpBank {
     }
 
     // Ghidra: op.hh:320 PcodeOpBank::findOp
+    // Ghidra: op.cc:1099 PcodeOpBank::findOp
+    /// Find a PcodeOp by sequence number. Faithful to `findOp`
+    /// (op.cc:1099-1105): map find on the SeqNum key, O(log n). (The prior
+    /// form was a linear scan over the tree; the result is identical —
+    /// keys are unique post-dedup and key equality (addr,time) is exactly
+    /// the SeqNum PartialEq the scan used.)
     pub fn find_op(&self, seq: &SeqNum) -> Option<PcodeOpRef> {
-        for op_ref in &self.optree {
-            if &op_ref.0.read().unwrap().start == seq {
-                return Some(op_ref.clone());
-            }
-        }
-        None
+        self.optree.find_op(seq).cloned()
     }
 
     // Ghidra: op.hh:303 PcodeOpBank::clear
@@ -1946,15 +2114,13 @@ impl PcodeOpBank {
 
     // Ghidra: op.cc:1089 PcodeOpBank::target
     /// Find the first PcodeOp at or after the given Address.
-    /// Faithful to `target` (op.cc:1089-1097).
+    /// Faithful to `target` (op.cc:1089-1097): lower_bound(SeqNum(addr,0))
+    /// — the first tree entry at or after the key, in (addr,time) order.
+    /// (Rugra returns the tree entry itself; the oracle additionally
+    /// redirects through `(*iter).second->target()` — pre-existing shape,
+    /// unchanged by OPTREE.)
     pub fn target(&self, addr: crate::address::Address) -> Option<PcodeOpRef> {
-        for op_ref in &self.optree {
-            let op = op_ref.0.read().unwrap();
-            if op.start.addr >= addr {
-                return Some(op_ref.clone());
-            }
-        }
-        None
+        self.optree.target_lower_bound(addr).next().cloned()
     }
 
     // Ghidra: op.cc:1110 PcodeOpBank::fallthru

@@ -5624,13 +5624,14 @@ impl Funcdata {
     // Ghidra: funcdata.hh:521 Funcdata::endOpAll
     /// Start/end of all (alive) PcodeOp objects sorted by sequence number.
     /// Faithful to `beginOpAll`/`endOpAll` (funcdata.hh:518/521) forwarding
-    /// to the bank's optree iteration.
-    pub fn begin_op_all(&self) -> std::collections::btree_set::Iter<'_, crate::op::PcodeOpRef> {
+    /// to the bank's optree iteration (OPTREE: the SeqNum-keyed
+    /// PcodeOpTree::iter — same SeqNum order).
+    pub fn begin_op_all(&self) -> std::collections::btree_map::Values<'_, crate::address::SeqNum, crate::op::PcodeOpRef> {
         self.obank.optree.iter()
     }
 
     // Ghidra: funcdata.hh:521 Funcdata::endOpAll
-    pub fn end_op_all(&self) -> std::collections::btree_set::Iter<'_, crate::op::PcodeOpRef> {
+    pub fn end_op_all(&self) -> std::collections::btree_map::Values<'_, crate::address::SeqNum, crate::op::PcodeOpRef> {
         self.obank.optree.iter()
     }
 
