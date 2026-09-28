@@ -1,8 +1,136 @@
-**日期**: 2026-09-26（F2B image-base 原生载入 + PFLIP 自产参数锁默认转正 + W-2026-09-26 波次快照；更早为历史快照族）
+**日期**: 2026-09-29（STATUSREFRESH 大刷新——canon 双语素零残差态 + 镜面棘轮剧变 + 速度减半三大里程碑入档；更早为历史快照族）
 **版本**: 0.1.0
-**状态**: 🟡 **核心库持续开发中；锁定 oracle 逐函数差分流水线运转中；全局完成度未证明**
+**状态**: 🟡 **核心库持续开发中；canon 双语料零残差态保持 + 镜面五面棘轮全 PASS；锁定 oracle 逐函数差分流水线运转中；全局完成度未证明**
 
-## 2026-09-26 F2B 双驱动原生 0x100000 载入快照（当前事实源——评测语义分界点②）
+## 2026-09-29 STATUSREFRESH 大刷新（当前事实源；master `16851e20` = origin，MB43 收官态）
+
+> 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB27~MB43 全序列 200+ 条）+
+> 各 MB 终报（`/dev/shm/rugra-reports/LANE_MERGEBATCH3{5..9}_*` / `LANE_MERGEBATCH4{0..3}_*`）+
+> `tools/mirror_gate_baselines.tsv` 现钉值。本节为 docs-only 汇编，数字与在案证据一致，**未跑新门禁**；
+> 口径不确定处逐条标注。评测语义分界点①（PFLIP）②（F2B）见下方历史节——canon/httpd 数字
+> 沿分界后口径，与更早谱系不可比；镜面沿 `--base 0` direct-runner golden 口径。
+
+### 里程碑① canon 双语素零残差（评测最强证据态；MB38 达成后六批保持）
+
+**curl 与 httpd 双语料 canon 面 skeleton/defects/numbering = 0/0/0，124+34 函数全数零残差**
+（逐函数 ✗ 计数=0；输出 md5 双钉：curl `4ab1db2a177e854c6bddca2ecf413685`·96,616B /
+httpd `7d5b9e7c3348ee8da1865df281ec05b9`·62,715B；vs `tests/golden/ghidra_{curl,httpd}_1204.c`）。
+
+归零冲刺轨迹（每行=MB 收官态，逐函数精确归因在案）：
+
+| 批次收官态 | curl | httpd | 主燃车道（归因） |
+|---|---|---|---|
+| MB34（冲刺起点） | 42 | 34 | displayrebase −12/−2（UNK 码标签传输，INT_TO_PTR 族全额；md5 8dafa799/2fbf13b1） |
+| MB35 | 27 | 26 | booldrill −10 + declfam −5 / strdatenv −6 + declfam −2（curl main 首次清零） |
+| MB36 | 8 | 14 | initprotofid −15 + s2select −4 / declorder −12（六站 [Skeleton] identical） |
+| MB37 | 8 | **0**（首语料归零） | — / protorecover −8 + mainmixed −6（双函数+main 体字节==golden） |
+| MB38 | **0** | 0（保持） | entryconv −5（_start 输出==golden 逐字节）+ strdatcurl −3（myprogress 62 行==golden） |
+| MB39~43 | 0 | 0 | 零态红线字节恒等保持（md5 ==MB38 归零态，六连批复验） |
+
+campaign 总轨迹：**curl 157→0 / httpd 311→0**（MB19 时代基线→MB38；归零冲刺段起点 42/34）。
+残差清零机制谱系在案：PROTORECOVER / MAINMIXED / ENTRYCONV / STRDATCURL / INITPROTOFID /
+DECLORDER / BOOLDRILL / DECLFAM / STRDATENV / S2SELECT / DISPLAYREBASE 等车道逐函数兑现，
+核心算法白名单改动全部走机制 C 独立复核。canon-only 门控期间镜面恒等保持（MB38 零重钉亲证）。
+
+### 里程碑② 镜面棘轮剧变（五面大收敛；MB34 钉值 → 现钉值）
+
+| 面 | MB34 钉 | 现钉 | 变化 | 主燃根因（重钉票链） |
+|---|---|---|---|---|
+| curl | 21 | **13** | −38% | MB41 SWITCHBREAK −2（glob_word）+ COMPAREFIX 计量 −6（SetHTTPrequest 双胞胎幻差；新工具口径） |
+| httpd | 36 | **2** | −94% | MB41 MAINTYPE −28（main 体 529 行==golden；xunknown-vs-int 单根族）+ MB37 PROTORECOVER −6 |
+| vsh | 2 | **0** | 完美面 | MB39 ACTORDER（spacebase scope 装表燃掉最后一站 (code\*)；71/71 零残差） |
+| sq | 2724 | **516** | −81% | MB36 selectgoto+s2select −1095 → MB37 −20 → MB39 ACTORDER −883 → MB43 CASTFUSE2 −210 |
+| sqlite | 6071 | **1655** | −73% | MB36 −912 → MB37 −202 → MB39 −204 → MB41 SWITCHBREAK −237 → **MB42 STACKSLOT2 −1907（campaign 最大单笔）** → MB43 CASTFUSE2 −954 |
+
+重钉序列（`tools/mirror_gate_baselines.tsv` 现钉；pinned_commit=测量树，repin commit 只改本表）：
+MB36 `20819307` → MB37 `e124f9bf` → MB39 `128e4934` → MB41 `ffb7b819` → MB42 `8103c7c6` →
+MB43 `61a08bce`。每轮强制重链（二进制 mtime>全部 merge commit）+ stale-guard 内容探针 +
+五面 fresh PASS==钉值恰顶格后才收紧（单向棘轮，改善不失败）；现钉行=MB41（curl 13·74/
+httpd 2·29）、MB39（vsh 0·71）、MB43（sq 516·810 / sqlite 1655·1385）。五面
+defects=numbering=0，matched 满额 74/29/71/810/1385，health ok。
+
+### 里程碑③ 速度减半（sqlite 语料域；vs oracle 三口径）
+
+| 口径 | 优化前 | 现值 | 降幅 | vs oracle |
+|---|---|---|---|---|
+| sqlite 全语料 wall（--jobs 32，RUGRA_GEN_MIRROR 全量） | 159.9s | **79.9s**（ok 1385/1385，panic 0） | **−50%** | 9.0× → **4.5×**（oracle w=32 = 17.77s） |
+| VdbeExec 单极（--one 1055 裸跑） | 159.2s | **71.1s**（中位；70.84/71.28 双跑，la-65 尖峰 79.21s 离群在案） | **−55%** | 18.1× → **8.1×**（oracle direct-runner = 8.80s；SPEEDPROF 首测 166.5s=18.9×） |
+| per-child 固定底（每函数一子进程） | 0.12s | 0.12s | — | **oracle-par**（oracle one 模式 0.10-0.11s/38MB RSS 同构；FIXEDFLOOR 判决=对齐成本非可修常数，−10~20ms 固有差） |
+
+速度优化链（每环伴随输出字节恒等链验证，行为零漂移）：
+
+| 链环 | 落地批 | 增益 | 机制 |
+|---|---|---|---|
+| PAR-CHILDREN | MB35 | **5.76×**（harness 953.6→165.4s；落地 917.8→161.1-181.7s） | 函数级子进程池（默认 jobs=8；任意 --jobs stdout 与串行逐字节恒等，fail-closed） |
+| GATEDIGEST | MB35 | **54×**（vsh 冷 14.52s→命中 0.27s；五面全暖重放 0.39s vs 串行 1476.8s） | 门禁 digest 缓存（六分量全内容 sha256 键，任一变即失效，fail-closed） |
+| VDBEEXEC | MB40 | **−46.5%**（单极 159.2→85.2s；refresh_switch_cases 12701→11 调；collapse_internal 86.0→16.2s） | refresh 自创簿记移位 collapseAll 尾（oracle 无对应物，RUGRA-GLUE 残留清除；CR-VDBEEXEC） |
+| OPPPOOL | MB42 | **−16%**（VdbeExec bare 92.3→74.9s） | per-op 规则池派发钻修（投影键缓存+miss 路径锁合并+lone_descend 免分配；CR-OPPPOOL） |
+| OPTREE | MB43 | **−7.2%**（77.1→71.5s 车道口径；联合树中位 71.1s） | PcodeOpTree=BTreeMap<SeqNum,PcodeOpRef>＝oracle op.hh:280 原生同构（免锁下降） |
+| （累计轨迹） | — | 全语料 159.9→140.4[MB40]→130.0[MB41]→82.1[MB42]→**79.9s**；单极 159.2→101.9[MB40 合并树]→92.3→74.9→**71.1s** | — |
+
+### 现值总表（@ master `16851e20` = origin；MB43 收官亲测，全部溯源终报）
+
+| 门禁 | 数字 | 说明 |
+|---|---|---|
+| canon curl | **0/0/0**·124/124 matched | md5 `4ab1db2a…`==MB38 归零态字节恒等（MB38~43 六批复验）；result/ 已回流 |
+| canon httpd | **0/0/0**·34/34 matched | md5 `7d5b9e7c…` 同上六批恒等 |
+| 镜面五面 | curl **13**/74 · httpd **2**/29 · vsh **0**/71 · sq **516**/810 · sqlite **1655**/1385，全 PASS | defects=numbering=0 五面；health ok；钉值行=MB41/MB39/MB43（见里程碑②） |
+| 投影银行（B2 钉板） | **391/391 MATCH** | 全批次共证（冻结投影 sha256 钉 + mirror 裸径采集契约） |
+| cargo test --lib | **1974P / 0F / 5I** | 1963P（MB34）→1974P（+11 逐道对账全绿：MB36 +6 / MB37 +3 / MB41 +1 / MB43 +1） |
+| 三门禁 + gate health | annotations 100 文件 / refs --all --strict / markers 0 violation / evidence self-test 6 cases strict 4/4 | 全绿；oracle=e40ed130（锁定）；hooks=.githooks |
+| .sla 三元 + 环棘轮 | sweep 146/146；CYCLE-RATCHET SCC≤24 | 全绿 |
+| CI（alignment-gates） | 见历史节两 job 形态 | 本刷新 docs-only 未跑（纪律：不跑门禁） |
+
+### 可靠性评估（诚实计量）
+
+1. **证据强度分层**：canon 零态=函数体字节级恒等（md5 双钉，本项目最强局部证据形态）；
+   镜面=单向棘轮 + digest-cache fail-closed + 强制重链/stale-guard 协议；速度=同机配对
+   A/B + 输出字节恒等链伴随。三者均为**语料级差分证据**。
+2. **覆盖边界**：canon 零态覆盖 curl+httpd 双语料 158 函数；镜面覆盖五面（sqlite 1385/
+   sq 810/vsh 71 等）；**全局完成度仍未证明**——权威判定＝9494 分母逐函数 oracle 行为门禁
+   （FUNCTION_MAP 账本，默认 UNTESTED，仅锁定 fixture 同输入/同输出可升 MATCH）。canon/
+   镜面零态与速度增益**不构成模块或项目 L3 声明**。
+3. **已知未清项**：镜面残差 sq 516 / sqlite 1655 / curl 13 / httpd 2（归零路径在案，见下）；
+   速度域残余（PERF-GEN3839-VDBOVERHEAD-0001：MB38/39 gen 驱动新装通道每函数成本 +16.7s；
+   blockstructure 残 18s / activeparam 10-15s / heritage 9-14s / mergerequired 6.3s；
+   SPEEDPROF-SLEIGH-SNAPSHOT-0001 后续票）；httpd 语料 DWARF-less
+   （HTTPD-CORPUS-DWARF-0001 在案）。
+4. **口径纪律**：速度数字为共享机口径（MB43 实测 la 52-69 记录在案；OPTREE 车道 76.0s
+   系更静主机口径，如实并列）；canon 数字沿 F2B/PFLIP 分界后口径；镜面 curl 13 为
+   COMPAREFIX 后新工具口径（同二进制，配对修正；工具 sha 入 digest 键，era 切分 fail-closed）。
+
+### 镜面归零终盘地图（MIRRORCENSUS3 census + MB41~43 战果更新；归零路径在案）
+
+| 面 | 现值构成（在案归因） | 归票 / 路径 |
+|---|---|---|
+| curl 13 | typed code-ptr 符号化 **9**（main 6 + _start 3，8 符号位点） | PRINTC-UNTYPEDCONST-CURLMIRROR-RESIDUAL-0001（MB25 起路径明确＝分析期 DB typed 通道，GEN-CONSTPTR 家族） |
+| | 非 ALLOC strfold 2 + decl-move 尾量 2 | MCENSUS3-CURLDRIVER-NONALLOC-STRFOLD-0001 + 尾随族 |
+| httpd 2 | ap_fini decl-move 2 | 尾随族（canon 面已燃；镜面位点属 MIRATTR-F-WRAP-0001 域） |
+| vsh 0 | 完美面（71/71 零残差） | — |
+| sq 516 | CAST-SHAPE 残（census3 时代 290 − MB43 210）+ OTHER 148 + UNAFF-EXTRAOUT 96 + OPNAME-LEAK 67（read_inode 族）+ SWITCH-GOTO 40 + DECL-CHURN 37 + 尾量 48 | read_inode 族 213（29%）/ NLZMA 簇 ~362（50%）＝两大主簇；TYPEFACTORY 残差→VARMAP-UNAFF-TYPEMAT 租约 |
+| sqlite 1655 | **CAST-SHAPE 634**/161F（`(uint4*)(uint8)` 207 处＝varmap/typeprop 邻域）+ SWITCHDISPATCH goto-label 族 + UNAFF-EXTRAOUT / DECL-CHURN / LOOPSHAPE 102 / CMP-ORIENT 85（ExprIsConstant×5 克隆）/ 尾量 | GEN4-SQ-CASTFUSE-DEPTH-0001 续作 + MIRROR-GIANTS-SWITCHDISPATCH-0001（sqlite ~345 + sq 34）+ GETLONGEST 续作（selectGoto/likelygoto） |
+
+已燃核销（census 对账→现值，路径清晰度全部在案）：sq/sqlite (code\*) 族全燃（sq 131==golden
+131 精确）；S1W2 trio 2035 在飞族全燃（MB42，vmprintf/mprintf/Pragma 696/696/643→58/58/55，
+CONCAT88 287→0）；curl compare 配对伪差 6 燃（MB41 工具修正）；httpd main xunknown-vs-int
+28 燃（MB41 MAINTYPE）；switch break-vs-goto 三面大半燃（MB41 −239）；GetLongestMatch 六克隆
+656→1 燃（MB36）。叠加推演在 census zero_path 表：S1W2+CASTFUSE 落地后 sqlite 已自 ~4750
+落至 1655；余路径全量兑现预估 sqlite →~700-1000、sq →~250-350、curl →~4、httpd →0。
+
+### CR 体系与测试（本 session 机制 C 运转数据）
+
+七项核心算法独立复核全 APPROVE（APPROVE 块逐字嵌入对应 merge commit）：CR-PROTORECOVER
+（MB37 `998ac672`）/ CR-VDBEEXEC（MB40，61 行块）/ CR-MAINTYPE + CR-SWITCHBREAK（MB41，
+25/13 行）/ CR-OPPPOOL + CR-STACKSLOT2（MB42，24/26 行）/ CR-CASTFUSE2（MB43 `61a08bce`，
+判决全文+四类语义表+事件级钉形）。测试 1963P→**1974P**（+11 逐道对账，0F 全绿）。
+
+### 下一战场（MB43 终报移交清单）
+
+sqlite 1655 续燃（CAST-SHAPE 634 域 + goto-label 族）/ curl 残 13（UNTYPEDCONST 族）/
+httpd 残 2（ap_fini decl-move）/ 速度域（blockstructure 18s + activeparam 10s + heritage
+9-14s + PERF-GEN3839-VDBOVERHEAD-0001 归因 + miss 重读 ~0.5s 观察票 + SLEIGH-SNAPSHOT 票）。
+
+## 2026-09-26 F2B 双驱动原生 0x100000 载入快照（历史——评测语义分界点②）
 
 **canon 面原生 image base 载入**（Lane F2B，wt/f2b @ master 594d6982，用户拍板
 HTTPDMAIN-F2-IMAGEBASE-DECISION-0001 方案 (b)；examples 双驱动，**零 src/ 改动**）：
@@ -25,7 +153,7 @@ SEEDS=0 749，方向保持）；gcc 审计 httpd 15OK/14FAIL==基线。O5（MIRR
 ORAL-0001）随两面各同基收口。残差：curl `(undefined *)0x103af8` 常量 cast 半
 （PRINTC-CONST-DISPLAYREBASE-0001 半残差，printc 域）与 F4 主体族（独立在账）。
 
-## 2026-09-26 PFLIP 自产参数锁默认转正快照（评测语义分界点①）
+## 2026-09-26 PFLIP 自产参数锁默认转正快照（历史——评测语义分界点①）
 
 **自产 Parameter ID 模式默认转正**（Lane PFLIP，wt/pflip @ master efc28f4a，用户拍板
 PARAMID-DEFAULT-FLIP-0001；examples 驱动层极性翻转，**零 src/ 改动**）：httpd+curl 双驱动的
@@ -68,7 +196,7 @@ golden 零 typedef 行→更贴 canon）；curl 默认 267/0/0 分界前后恒�
 | mirror 分量在场 | 恒拒一切通道（projection purity，含显式 =1） |
 
 
-## 2026-09-26 W-2026-09-26 波次快照（车道谱系+质量数字事实源；在飞车道另计）
+## 2026-09-26 W-2026-09-26 波次快照（历史——车道谱系+质量数字；在飞车道另计；数字被 2026-09-29 节取代）
 
 > 本节基点 = master **efc28f4a**（CI 全绿，见 §门禁与 CI）。已并入 master 的车道给终值；
 > 尚在分支待 root 合并的车道（PRINTCS/SQNULLT/SQMERGE/GEN5/BRANAUDIT 等）单列
