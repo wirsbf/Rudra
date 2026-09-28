@@ -866,3 +866,31 @@ E2E 零变化。hasModel（truncate case 的 setInternal 分歧）与 spec name
 - 本模块 2 处 `// Ghidra:` 头注解的 file:line 已重锚到锁定 oracle (e40ed130)
   的函数定义起始行；本文件中同名单点引用同步更新（正文内点引用/区间端点不在
   机制 D checker 范围，遗留见 RULEACTION-ANNO-PROSE-RANGE-0001）。注释-only，零行为变化。
+
+### 2026-09-28 — SQLCENSUS-CHARSCAN-BREAKGUARD-0001：block_insert_at_end 补 BlockBasic::insert 的 BRANCHIND 旗标臂
+
+- **根因**：`BlockBasic::insert`（block.cc:2286-2292 尾臂）每次插入 BRANCHIND op 都
+  `setFlag(f_switch_out)`。Rugra 的两个插入路径中 `funcdata.rs insert_op` 有该臂，而
+  follow_flow_range 建块主路径的 end-append 克隆 `block_insert_at_end`（flow.rs，cc:2258
+  注解锚）**漏了**——jumptable 派发 bblock 无 f_switch_out。下游两处消费者穿透：
+  `BlockBasic::isDoNothing`（block.cc:2604-2613）的 switch-target 守卫（入边来自多出边
+  switch 块且出目标是 join → 不删）读到 isSwitchOut=false → ActionDoNothing 删掉了带真实
+  op 的 switch case 臂块（sqlite3VdbeChangeP4 的 e43c0 `mov %rdx,%rsi; jmp sqlite3DbFree`，
+  出目标 974d4 双入边 join）。拓扑损失传导：case 边直达 join → 返回分叉后重建
+  （ActionReturnSplit nodeSplit → structureReset → blockstructure）图上 switch 提前成
+  sink → 迟相 IfNoExit 吞并循环头 H 的出口子句 → 体无法 single-out → ruleBlockWhileDo
+  永不触发 → 自环收尾成 BlockInfLoop（`} while( true );` + switch 内嵌守卫）——即
+  SQLCENSUS4 §3-S5 的 602 行双孪生 break-guard 族（golden 为 `while( true ){ … break; }`
+  溢出语法 whiledo，printc.cc:3001 emitBlockWhileDo 的 hasOverflowSyntax 路径）。
+- **接线形态**（src/flow.rs `block_insert_at_end`，ops.push 后）：
+  插入 op `is_branch() && opcode==CPUI_BRANCHIND` 时置块 `f_switch_out`——与
+  funcdata.rs `insert_op` 的既有臂、以及 2026-09-25 truncate 重算同源同锚
+  （block.cc:2286-2292 建序时点读数）。
+- **验证**（本道亲测，worktree wt/s5breakguard @ 基 5eff829f）：oracle 侧
+  OPACTION_DEBUG harness（锁定 e40ed130 对象树）416 括号全树 dump 证明 oracle 在
+  returnsplit 后重建（bracket 278）仍产 Whiledo(overflow)，且 oracle 重建图保有
+  e43c0（Rugra 缺）；修复后两孪生 sqlite3VdbeChangeP4/sqlite3VdbeExplain 均呈
+  `while( true ) { … break;` golden 形（--func 骨架 401→262，残量=跨族命名/类型）；
+  canon curl **54/0/0** / httpd **36/0/0**（=MB30 钉值零回退，httpd md5 c3b4706c
+  字节恒等）；镜面五面/bank/tests 见车道终报
+  （/dev/shm/rugra-reports/LANE_S5BREAKGUARD_2026-09-28.md）。

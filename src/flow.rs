@@ -2500,6 +2500,21 @@ impl<'a> FlowInfo<'a> {
         if let Some(basic) = guard.as_any_mut().downcast_mut::<BlockBasic>() {
             basic.ops.push(op_ref.clone());
         }
+        // block.cc:2286-2292 (BlockBasic::insert tail): inserting a branch
+        // op sets f_switch_out for CPUI_BRANCHIND. The flag feeds
+        // ActionDoNothing's switch-target guard (block.cc:2604-2613) and
+        // the collapse rules' isSwitchOut tests; omitting it here let
+        // do-nothing removal delete live switch-case blocks whose successor
+        // is a join (sqlite3VdbeChangeP4's e43c0 arm), deshaping the
+        // post-ActionReturnSplit rebuild's loop structuring.
+        {
+            let o = op_ref.0.read().unwrap();
+            if o.is_branch() && o.opcode == OpCode::CPUI_BRANCHIND {
+                if let Some(basic) = guard.as_any_mut().downcast_mut::<BlockBasic>() {
+                    basic.flags |= crate::block::block_flags::SWITCH_OUT;
+                }
+            }
+        }
         // block.cc:2267-2283: midpoint order assignment.
         let ordbefore = prev_order.unwrap_or(2);
         let ordafter = if ordbefore > u32::MAX - 0x1000000 {
@@ -4044,6 +4059,61 @@ fn find_callspec_for_op(
 
 #[cfg(test)]
 mod tests {
+    /// SQLCENSUS-CHARSCAN-BREAKGUARD-0001 regression lock: the flow-build
+    /// end-append clone of `BlockBasic::insert` must set f_switch_out when
+    /// the appended op is a BRANCHIND (block.cc:2286-2292 tail — the flag
+    /// ActionDoNothing's switch-target guard at block.cc:2604-2613 reads).
+    /// The arm was previously omitted on this path, so jumptable dispatch
+    /// bblocks built by follow_flow_range carried no flag and do-nothing
+    /// removal deleted live switch-case arms whose successor is a join.
+    #[test]
+    fn test_block_insert_at_end_sets_switch_out_for_branchind() {
+        let arch = crate::arch::Architecture::new();
+        let mut fd = Funcdata::new("switchout_flag", Address::new(0x1000), 8);
+        fd.set_arch(std::sync::Arc::new(arch));
+        let block: std::sync::Arc<
+            std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+        > = fd.create_new_block();
+        // A BRANCHIND op (one 8-byte input varnode, no output — the
+        // indirect-jump form SLEIGH emits for `jmp *reg`).
+        let op = fd.new_op(1, Address::new(0x1000));
+        fd.op_set_opcode(&op, OpCode::CPUI_BRANCHIND);
+        let target_vn = fd.vbank.create_constant(8, 0x2000);
+        fd.op_set_input(&op, target_vn, 0);
+        {
+            let rg = block.read().unwrap();
+            assert_eq!(
+                rg.get_flags() & crate::block::block_flags::SWITCH_OUT,
+                0,
+                "precondition: fresh block has no f_switch_out"
+            );
+        }
+        let mut prev_order: Option<u32> = None;
+        FlowInfo::block_insert_at_end(&block, &op, &mut prev_order);
+        {
+            let rg = block.read().unwrap();
+            assert_ne!(
+                rg.get_flags() & crate::block::block_flags::SWITCH_OUT,
+                0,
+                "BRANCHIND end-append must set f_switch_out (block.cc:2286-2292)"
+            );
+            assert_eq!(rg.size_out(), 0, "op append alone wires no edges");
+        }
+        // A non-BRANCHIND append must NOT set the flag (fresh block).
+        let block2 = fd.create_new_block();
+        let copy = fd.new_op(1, Address::new(0x1004));
+        fd.op_set_opcode(&copy, OpCode::CPUI_COPY);
+        let copy_in = fd.vbank.create_constant(8, 5);
+        fd.op_set_input(&copy, copy_in, 0);
+        let mut prev_order2: Option<u32> = None;
+        FlowInfo::block_insert_at_end(&block2, &copy, &mut prev_order2);
+        let rg2 = block2.read().unwrap();
+        assert_eq!(
+            rg2.get_flags() & crate::block::block_flags::SWITCH_OUT,
+            0,
+            "COPY append must leave f_switch_out clear"
+        );
+    }
     use super::*;
     use crate::funcdata::Funcdata;
     use crate::opcodes::OpCode;
