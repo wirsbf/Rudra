@@ -175,6 +175,42 @@ canon 双语素 md5 恒等（gen 驱动无 canon 面）；镜面五面 PASS；ba
 性能（本机共享负载，如实记）：见车道终报
 /dev/shm/rugra-reports/LANE_PARCHILDREN_2026-09-28.md。
 
+## 逐相位计时通道（SPEEDPROF-FIXEDFLOOR-0001，2026-09-28 车道 FIXEDFLOOR）
+
+**动机（车道钻定，证据 /dev/shm/rugra-tests/fixedfloor/）**：镜面门禁 gen 三面的
+每个 `--one` 子进程都要从零装配一套 Architecture——SPEEDPROF 实测每子固定底
+≈0.12s（16B 函数子进程 wall），1225/1385 个 sqlite 函数 <0.5s，固定底支配了
+串行口径的 ~25% 面墙。本通道把该固定底的构成做成可复现的事件级测量，是
+gen 面的 [STEP] 等价物（curl 驱动已有 flow/action/print 通道；SPEEDPROF 终报
+将"gen 驱动无 [STEP] 通道"记为画像缺口）。
+
+**用法与形态（全部 examples 胶水，env 门控，默认完全静默）**：
+
+```bash
+# 任一模式前置 env（--one 子进程内生效）：
+RUGRA_GEN_PHASE_TIMING=1 \
+  target/fast-release/examples/gen_decompile <binary> --one <index>
+```
+
+- stderr 逐相位 `[PHASE] <label> <delta>s` 行；首行附 `(since process start)`
+  腿（进程启动→main 链路含 exec/动态链接/runtime 初始化）。相位切分：
+  `discovery`（读取+goblin 解析+符号发现）→ `reparse`/`image_overlay` →
+  `build_architecture` 内部（`asm_cspec_read` / `asm_sleigh_engine`＝x86-64.sla
+  反序列化 / `asm_register_enum` / `asm_cspec_parse` / `asm_pspec_read_parse` /
+  `asm_compiler_config` / `asm_string_manager`）→ `symbols_analysis_db` /
+  `fd_symbols` / `lifter_configure` → `flow` → `action` → `print_db_install` /
+  `print`。
+- **观察中性**：仅当 env 置位时输出，stdout 块/退出码/健康线零触及——canon/
+  镜面协议零扰动（`[GEN-PAR]` 进度行先例：stderr 非输出契约面）。
+- **钻定结论（本道实测，oracle 侧对照在案）**：每子固定底 0.12s 中
+  **SLEIGH 引擎表构建（`asm_sleigh_engine`）=0.096s≈80%**，其余装配
+  ≈0.010s，进程启动 ≈0.015s；C++ oracle（golden_dump_1204 "one" 模式，
+  同 hermetic 逐函数形态）每子 0.10–0.11s，gdb 采样同形
+  （DecisionNode/SymbolTable/PackedDecode 主导两侧）——**固定底是
+  oracle 同构的对齐成本**（golden 契约 = 逐函数 hermetic 进程，
+  provenance "mode: one, parallel_workers: 12"）。详见车道终报
+  /dev/shm/rugra-reports/LANE_FIXEDFLOOR_2026-09-28.md。
+
 ## 门禁用法
 
 ```bash
