@@ -60,11 +60,16 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # MB30-RATCHET-REPIN-0001 @ 1c51ae4d (2026-09-28): 五面全改善重钉——curl 35->23 / httpd 65->53 / vsh 8->2 (INITEXTRACT 镜面红利 -12/-12/-6);
 # sq 3021->2868 / sqlite 9951->9648 (r3merge 镜面效应 -86/-138[MB29 漏检,CR-CASTFUSEB 净基亲测] + INITEXTRACT -67/-165 叠加);
 # canon: curl 68->54 (OUTSTREAM -10[main 3 位点+file2string 3+交叠] + INITEXTRACT -4) / httpd 47->36 (INITEXTRACT -11)。强制重链后实测。
+# MB31-RATCHET-REPIN-0001 @ 10ebbef6 (2026-09-28): 两面改善重钉——httpd 53->36 (S5BREAKGUARD 旗臂跨语料红利 -17;
+# sqlite 9648->9009 (S5BREAKGUARD flow.rs block_insert_at_end BRANCHIND->f_switch_out 主效应 -639,CR-S5 A/B 因果独立闭环:
+# 父本 scratch 复现 9648,合并树 9009,Δ 精确);curl 23/vsh 2/sq 2868 恒等不重钉(MB30 行保持);
+# canon: curl 54/httpd 36 md5 4503f498/c3b4706c 双字节恒等零回退。强制重链后实测(守卫并入后首跑,
+# 内容探针 digest=db9d37ba files=103 绿;孪生 ChangeP4/Explain 双字节恒等 golden)。
 curl	23	74	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
-httpd	53	29	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
+httpd	36	29	MB31-RATCHET-REPIN-0001	10ebbef6	2026-09-28
 vsh	2	71	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
 sq	2868	810	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
-sqlite	9648	1385	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
+sqlite	9009	1385	MB31-RATCHET-REPIN-0001	10ebbef6	2026-09-28
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
