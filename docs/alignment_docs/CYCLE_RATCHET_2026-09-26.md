@@ -161,6 +161,7 @@ varnode`/`LoadGuard.op→op` 路径留环）,intra-SCC 边对 87→86,唯一差�
 | SCC-BASE | `variable→type_system` | a | 1 键(field×1) | TypeCell(pub RwLock<Arc<Datatype>>) |
 | E7 | `variable→varnode` | c | 2 键(field×2) | HighVariable.instances/name_representative |
 | E16-1 | `varmap→arch` | c | 1 键(field×1) | ScopeLocal.arch_lookup: Architecture |
+| E9 | `varmap→database` | a | 1 键(field×1) | ScopeLocal.live_symbols: Arc<RwLock<BTreeMap<usize, Arc<RwLock<Symbol>>>>>（OUTSTREAM 2ab140a6 引入;Ghidra include 面同构: varmap.hh:22 `#include "database.hh"` + :212 `class ScopeLocal : public ScopeInternal`——继承本体即 varmap→database 边;live_symbols=ScopeInternal 符号表活句柄 memo 的 Rust 物化[setSymbolProperties 链 database.cc:135-144,CR-OUTSTREAM3 APPROVE];anchor=std 的 Arc/RwLock=堆 `Symbol*` 身份存活的 Rust 生命周期胶水;与 E9 `funcdata→database`.symbol_entry_cache 同族卫星缓存形态,Phase A types-sink 可解。MB31 集成定性: MB30 并入后环棘轮首跑显形,逐边定性后入账[规程 §5 步骤 2-3]） |
 | SCC-BASE | `varmap→type_system` | a | 4 键(field×4) | RangeHint/MapState/LocalSymbol/TypeRecommend dtype |
 | SCC-BASE | `varmap→varnode` | a | 2 键(field×2) | AddBase.base/index |
 | SCC-BASE | `varnode→cover` | a | 1 键(field×1) | Varnode.cover（varnode.hh:143-150 同构） |

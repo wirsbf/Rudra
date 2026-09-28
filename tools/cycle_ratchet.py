@@ -56,10 +56,30 @@ from pathlib import Path
 # ============================================================================
 # fmt: off
 FROZEN_SCC = [
-    "action", "arch", "block", "cover", "cpool", "database", "drillobserve",
-    "fspec", "funcdata", "heritage", "jumptable", "merge", "op", "options",
-    "pcodeinject", "pcodeparse", "prefersplit", "transform", "type_system",
-    "unionresolve", "userop", "variable", "varmap", "varnode",
+    "action",
+    "arch",
+    "block",
+    "cover",
+    "cpool",
+    "database",
+    "drillobserve",
+    "fspec",
+    "funcdata",
+    "heritage",
+    "jumptable",
+    "merge",
+    "op",
+    "options",
+    "pcodeinject",
+    "pcodeparse",
+    "prefersplit",
+    "transform",
+    "type_system",
+    "unionresolve",
+    "userop",
+    "variable",
+    "varmap",
+    "varnode",
 ]
 FROZEN_SOLO = [
     "address",
@@ -107,6 +127,7 @@ FROZEN_SOLO = [
     "rangemap",
     "rangeutil",
     "ruleaction",
+    "sailr",
     "signature",
     "sleigh_ffi",
     "space",
@@ -449,6 +470,9 @@ FROZEN_EDGES = {
     "varmap->arch": [
         'field|struct ScopeLocal|arch_lookup',
     ],
+    "varmap->database": [
+        'field|struct ScopeLocal|std',
+    ],
     "varmap->type_system": [
         'field|struct LocalSymbol|dtype',
         'field|struct MapState|default_type',
@@ -578,6 +602,7 @@ PAIR_TAGS: dict[str, tuple[str, str, str]] = {
     # --- E16 (c) type_system 反转环 ×2 ---
     "type_system->varmap": ("E16-1", "c", "TypeSpacebase.fd: ScopeLocal + TypeFactory.live_local_scopes（type.hh:725 同构）"),
     "varmap->arch":     ("E16-1", "c", "ScopeLocal.arch_lookup: Architecture"),
+    "varmap->database": ("E9", "a", "ScopeLocal.live_symbols: ScopeInternal 符号表活句柄 memo（varmap.hh:22 include database.hh + :212 继承同构;E9 funcdata→database symbol_entry_cache 同族;MB31 定性入账）"),
     "arch->type_system": ("E16-1", "c", "Architecture.types: TypeFactory（3-环闭包边）"),
     "type_system->fspec": ("E16-2", "c", "TypeCode.proto: FuncProto（type.hh:696）"),
     "fspec->type_system": ("E16-2", "c", "FuncCallSpecs.proto_model: ProtoModel（2-环闭包边;另有 Datatype 字段族）"),
