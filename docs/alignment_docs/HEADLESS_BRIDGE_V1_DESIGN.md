@@ -2175,3 +2175,21 @@ makeNamedBaseType 名键 remap + 文件序解析 + 跨 CU merge/.conflict——�
    升级为机制推导面（任意二进制通用对齐的用户终极目标方向）。
 2. **门极性复审**：若仿真器车道产出树内锁定 oracle 见证族，评估
    PFLIP→SEEDFLIP 翻转（默认脸装种）。
+
+### 21.5 门极性翻转（Lane BOOLDRILL，2026-09-28，基=4df1e154）
+
+§21.4(2) 移交项兑现（早于仿真器车道，判据改用台账 witness 本身）：
+CANONCENSUS2 后 canon 成分剧变（54→42 时代），BOOLDRILL 重钻确认
+remotefile 族 10 行现形与前波双证伪时代逐字节恒等——"Java headless
+提交层改型非渲染缺陷"判决维持，CANON-BOOLCHAR-FIELDTYPE-0001 改判
+数据传输域。翻转=FIELDRETYPE 通道 PFLIP opt-in（`RUGRA_FIELDRETYPE=1`）
+→ **DFLIP canon 默认开**（SYMDB 转正先例形状）：canon 面默认装台账，
+`RUGRA_FIELDRETYPE=0` 恢复 DWARF 字面（char）脸，mirror 组件恒拒
+（五投影纯净），`RUGRA_SEEDS=0` 全局裸脸逃生，manifest 缺损响亮 no-op。
+
+验收（亲测，detached 干净 worktree 双构建 A/B）：canon curl
+**42→32/0/0**（−10 全额=main BOOLCHAR 8+getparameter 2；其余 122 函数
+零漂移）；5 witness 行逐字节==golden；默认脸==旧门开脸 ccc05886；
+`RUGRA_FIELDRETYPE=0`=8dafa799==亲父 canon；`RUGRA_SEEDS=0`=3bcc0129
+双侧恒等。翻转后 §21.4(1) importer 仿真器车道仍开放（台账→机制推导面
+的升级路径不变）。

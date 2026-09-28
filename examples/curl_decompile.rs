@@ -349,14 +349,16 @@ fn structseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLoca
 // rewriting is deliberately NOT used: a second identity would split the
 // cast engine's pointer-identity checks (getparameter's local_5b8 seeded
 // from the name tree vs a retyped global tree — spurious casts, measured).
-// Gate polarity follows the TYPEDEFSEED/V3SIG PFLIP precedent: the channel
-// is canon-visible when live, so RUGRA_FIELDRETYPE=1 opts in, any mirror
-// component keeps the gate closed (five-projection purity), RUGRA_SEEDS=0
-// is the global bare-face escape, RUGRA_FIELDRETYPE_MANIFEST=<path>
-// overrides the manifest location, and a missing/corrupt manifest is a
-// loud no-op. The DEFAULT face is constructively identical: gate unset ->
-// no manifest IO, no corpus read, no factory mutation, byte-identical
-// output.
+// Gate polarity follows the SYMDB DFLIP precedent (BOOLDRILL 2026-09-28
+// flip, resolving the §21.4(2) hand-over): the retype channel is part of
+// the CANON face by default — the canon DB truth IS the retyped field, so
+// the default install is the canon face (A/B at base 4df1e154: main
+// BOOLCHAR -8 + getparameter -2, five golden witness lines byte-converged,
+// zero drift across the other 122 functions). RUGRA_FIELDRETYPE=0
+// restores the historical DWARF-literal (char) face, any mirror component
+// keeps the gate closed (five-projection purity), RUGRA_SEEDS=0 is the
+// global bare-face escape, RUGRA_FIELDRETYPE_MANIFEST=<path> overrides the
+// manifest location, and a missing/corrupt manifest is a loud no-op.
 static FIELDRETYPE_LEDGER: std::sync::OnceLock<Option<FieldRetypeLedger>> =
     std::sync::OnceLock::new();
 
@@ -387,11 +389,14 @@ fn load_field_retype_ledger() -> Option<FieldRetypeLedger> {
     if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
         return None;
     }
-    if std::env::var("RUGRA_FIELDRETYPE").ok().as_deref() != Some("1") {
-        // PFLIP polarity: opt-in only. The retype channel is canon-visible
-        // when live (the field form changes downstream); revisit with an
-        // in-tree locked-oracle witness family for the Java commit layer
-        // before flipping default-on (HEADLESS_BRIDGE_V1_DESIGN 21).
+    if std::env::var("RUGRA_FIELDRETYPE").ok().as_deref() == Some("0") {
+        // DFLIP polarity (SYMDB precedent shape, BOOLDRILL 2026-09-28):
+        // default-on in the canon face — the in-tree locked-oracle witness
+        // family is the manifest's five golden remotefile lines (§21.4(2)
+        // revisit condition met by the witness ledger itself). The A/B at
+        // base 4df1e154 converged all ten BOOLCHAR lines byte-identical
+        // with zero drift elsewhere, which is the flip's acceptance gate.
+        // RUGRA_FIELDRETYPE=0 restores the historical DWARF-literal face.
         return None;
     }
     let path = std::env::var("RUGRA_FIELDRETYPE_MANIFEST")
