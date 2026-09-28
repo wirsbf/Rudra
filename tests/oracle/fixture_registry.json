@@ -8781,6 +8781,58 @@
         ],
         "notes": "Whole-parse-face equivalence gate for the generator_absorbed pcodeparse ledger members; pins ctor space seeding, matchSize/force_size scope+propagation, swapped-operand comparisons, label size/counting, error-text family, SleighError escape channel, lookahead refresh. Since PCODE-OPNAME-TABLE-0001 also gates the OpCode::name()/get_opname spelling table through the <op_tpl code=...> channel (twin mirror retired)."
       }
+    },
+    {
+      "id": "switchout_ruleswitchsingle_1204",
+      "description": "SWITCHOUT-CLEAR-REMOVETABLE-0001 bilateral fixture: RuleSwitchSingle single-destination jumptable elimination on a hand-written-asm dispatch (gcc folds every pure-C form); removeJumpTable clear side funcdata_block.cc:73-76 observed via [BLOCKFLAGS] switch_out=0 + [JT-REMAIN] count=0; C body byte-identical oracle-vs-rugra; pre-fix ablation record banked for discriminating power [MB33]",
+      "runner": [
+        "tools/run_switchout_ruleswitchsingle_oracle.sh"
+      ],
+      "timeout_seconds": 300,
+      "always_tiers": [
+        "wave",
+        "nightly"
+      ],
+      "evidence_status": "MATCH",
+      "cache": {
+        "metadata": "tests/oracle/switchout_ruleswitchsingle_1204.metadata.json",
+        "tools": {
+          "runner": "tools/run_switchout_ruleswitchsingle_oracle.sh"
+        },
+        "inputs": {
+          "fixture_asm": "tests/oracle/switchout_ruleswitchsingle_1204.S",
+          "fixture_target_c": "tests/oracle/switchout_ruleswitchsingle_1204_target.c",
+          "fixture_sink_c": "tests/oracle/switchout_ruleswitchsingle_1204_sink.c",
+          "cpp_fixture": "tests/oracle/switchout_ruleswitchsingle_1204.cc",
+          "binary": "tests/oracle/switchout_ruleswitchsingle_1204.elf",
+          "oracle_record_out": "tests/oracle/switchout_ruleswitchsingle_1204.oracle.out",
+          "oracle_record_err": "tests/oracle/switchout_ruleswitchsingle_1204.oracle.err",
+          "rugra_record": "tests/oracle/switchout_ruleswitchsingle_1204.rugra.c",
+          "prefix_ablation_record": "tests/oracle/switchout_ruleswitchsingle_1204.prefix.c"
+        }
+      },
+      "impact": {
+        "paths": [
+          "src/funcdata.rs",
+          "tests/oracle/switchout_ruleswitchsingle_1204.S",
+          "tests/oracle/switchout_ruleswitchsingle_1204_target.c",
+          "tests/oracle/switchout_ruleswitchsingle_1204_sink.c",
+          "tests/oracle/switchout_ruleswitchsingle_1204.cc",
+          "tests/oracle/switchout_ruleswitchsingle_1204.elf",
+          "tests/oracle/switchout_ruleswitchsingle_1204.oracle.out",
+          "tests/oracle/switchout_ruleswitchsingle_1204.oracle.err",
+          "tests/oracle/switchout_ruleswitchsingle_1204.rugra.c",
+          "tests/oracle/switchout_ruleswitchsingle_1204.prefix.c",
+          "tests/oracle/switchout_ruleswitchsingle_1204.metadata.json",
+          "tools/run_switchout_ruleswitchsingle_oracle.sh"
+        ],
+        "rust_function_ids": [
+          "SWITCHOUT-CLEAR-REMOVETABLE-0001"
+        ],
+        "ghidra_function_ids": [
+          "Funcdata::removeJumpTable"
+        ]
+      }
     }
   ]
 }

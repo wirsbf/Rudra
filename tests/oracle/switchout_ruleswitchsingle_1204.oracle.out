@@ -1,0 +1,9 @@
+META side=oracle-switchout oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b func=single_target_switch entry=0x401166 arch=x86:LE:64:default cspec=gcc seed=none observations=blockflags+jt-remain+c-render
+
+/* WARNING: Switch with 1 destination removed at 0x0040117a : 8 cases all go to same destination */
+
+int4 single_target_switch(int4 param_1)
+
+{
+  return param_1 + 1;
+}

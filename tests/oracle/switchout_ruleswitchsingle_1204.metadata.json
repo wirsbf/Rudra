@@ -1,0 +1,80 @@
+{
+ "schema_version": 2,
+ "fixture_id": "SWITCHOUT-CLEAR-REMOVETABLE-0001",
+ "overall_status": "MATCH: (bilateral: oracle C body byte-identical to the merged-tree Rugra render; oracle stderr [BLOCKFLAGS] switch_out=0 + [JT-REMAIN] count=0 are the direct observables of the funcdata_block.cc:73-76 clear side)",
+ "status_note": "RuleSwitchSingle (ruleaction.cc:5412-5471) fires on a single-destination jumptable dispatch: BRANCHIND->BRANCH, warningHeader 'Switch with 1 destination removed at 0x0040117a : 8 cases all go to same destination', then Funcdata::removeJumpTable (funcdata_block.cc:64-78) drops the table and clears FlowBlock::f_switch_out on the indirect op's parent block (cc:75-76). The Rugra seam had carried only the retain since 183d2a1b; the missing clear let ruleBlockCat's isSwitchOut gates (blockaction.cc:1290/1298/1308) refuse cat-merge, regressing the structure to a degenerate switch skeleton (pre-fix prefix.c record, banked for discriminating power). Fixture construction is hand-written asm because gcc -O1/-O2/-Os folds every pure-C single-target switch form into a compare tree (lane-proven per optimization level): the 8 statically-identical .rodata:jtab entries keep BRANCHIND alive to the universal action. Rugra side drives the real fast-release gen_decompile binary in the mirror arm; function located by name via --list (index-stable). Banked at MB33 integration from lane artifacts whose sha256 pins were re-verified before banking; bilateral body MATCH and pre-fix exclusion personally re-run on the merged tree (see MB33 lane report).",
+ "decisive_semantics": {
+  "reference_output_parameters": "removeJumpTable(JumpTable *jt) reads jt->getIndirectOp() BEFORE delete jt (cc:73->74 ordering), then op->getParent()->clearFlag(f_switch_out) mutates the shared block flags through the pointer chain — a cross-object reference write, not a copy. Rugra: get_indirect_op() read before the retain-drop; parent block Weak-upgrade + write lock clear_flags(SWITCH_OUT); upgrade failure = block already dead, no flag to clear (ownership-model equivalent of Ghidra's guaranteed-alive parent for a live BRANCHIND).",
+  "loop_bounds_traversal_order": "jumpvec begin()..end() single pass retaining every pointer != jt; jumpvec = remain assignment closes AFTER the flag clear (cc:77). Rugra retain single pass over the same vector; read-op order preserved (op read first, table dropped, flag cleared).",
+  "counter_accumulator_lifecycle": "no counters or accumulators in the function; nothing persists across calls.",
+  "sorting_comparison_keys": "sole comparison is pointer identity (*iter) != jt; Rugra uses Arc::as_ptr identity — exact correspondence, no ordering key."
+ },
+ "oracle": {
+  "tag": "Ghidra_12.0.4_build",
+  "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "probe": "tests/oracle/switchout_ruleswitchsingle_1204.cc (BfdArchitecture over the raw ELF, readLoaderSymbols, full-range followFlow, universal action to completion, PrintC::docFunction to stdout; stderr emits per-block [BLOCKFLAGS] start/flags/isSwitchOut and [JT-REMAIN] numJumpTables — same load contract as tests/oracle/namevars_badjumptable_1204.cc)",
+  "live_rerun": "RUGRA_SWITCHOUT_ORACLE_RUN=1 rebuilds the runner from the locked cpp tree (see tools/run_switchout_ruleswitchsingle_oracle.sh)"
+ },
+ "architecture": "x86:LE:64:default",
+ "compiler_spec": {
+  "id": "gcc",
+  "path": "sleigh_specs/x86-64-gcc.cspec"
+ },
+ "analysis_options": "none: full universal action pipeline to completion on the constructed ELF (gcc -O2 -no-pie, non-PIE EXEC @0x401000)",
+ "rugra_source": {
+  "base_commit": "b64bb3b0",
+  "merged_at": "98b70684 (MB33 4/5); merged-tree bilateral re-verification personally re-run at integration",
+  "note": "single-point clear in remove_jump_table + cited-line annotation fix (funcdata.cc:34 constructor -> funcdata_block.cc:64 definition start) + unit regression test_remove_jump_table_clears_switch_out_flag"
+ },
+ "comparand": {
+  "fixture_asm_sha256": "58ce246067c22d33681f83cbd8f42b38facaef60977dfdf6a078c5348a96e568",
+  "fixture_target_c_sha256": "85fc8ac458ce55d59ac319bf0b9733a5af99c82c86e7240f564f712b84294829",
+  "fixture_sink_c_sha256": "8ce850602c67d2e4bb0996f2b4563567d078529095feac3f14a0944f1e8486d4",
+  "fixture_cc_sha256": "04a4b994081a64c24419d02bf7605b400fa7d6ab8a0993fa85fc36b67f12897e",
+  "fixture_elf_sha256": "dda2b61364f689538ce5ffe7c79f1ffc493d8b232684461a39c7967aad6efafd",
+  "oracle_record_out_sha256": "2a920d4487514bcd3dad87fad5e6330f64ad65a10123004d18dbbc762ea55f87",
+  "oracle_record_err_sha256": "d770faa770bccf106df521be04e0150c6cd051b44f03db69d7ee55ef16f3a3bb",
+  "rugra_record_sha256": "4568eccb8f3739d1711dfcdcb06a0fbcf9b01e839ace083fdab2eb01a8aec1bf",
+  "prefix_ablation_record_sha256": "8c275dd8d4136f3ad1fb81c4f7f4f8d096b9682509b441b7504f8f634705910e",
+  "runner_sha256": "88a9c7e53acbb3cb2e6b2e8b27918a4f8c90a9bff11777fe95b8f36cf0d4f2d2",
+  "host_note": "lane-side oracle build: locked-tree git-archive + libdecomp.a + BFD 2.38 headers, 2026-09-28"
+ },
+ "expected_results": {
+  "oracle_stdout_sha256": "2a920d4487514bcd3dad87fad5e6330f64ad65a10123004d18dbbc762ea55f87",
+  "oracle_stderr_sha256": "d770faa770bccf106df521be04e0150c6cd051b44f03db69d7ee55ef16f3a3bb",
+  "oracle_observables": "[BLOCKFLAGS] i=0 start=0x40116a flags=0x200 switch_out=0 sizein=0 sizeout=0 ; [JT-REMAIN] count=0",
+  "warning_line_oracle": "WARNING: Switch with 1 destination removed at 0x0040117a : 8 cases all go to same destination",
+  "warning_line_rugra": "WARNING: Switch with 1 destination removed at 0x40117a: 8 cases all go to same destination",
+  "c_body": "int4 single_target_switch(int4 param_1) { return param_1 + 1; } — byte-identical both sides",
+  "rugra_driver_stdout_sha256": "4568eccb8f3739d1711dfcdcb06a0fbcf9b01e839ace083fdab2eb01a8aec1bf",
+  "ghidra_exit_code": 0,
+  "rugra_exit_code": 0
+ },
+ "coverage": {
+  "clear_side": {
+   "status": "MATCH",
+   "covers": "removeJumpTable clears f_switch_out on the BRANCHIND parent (funcdata_block.cc:75-76); oracle stderr [BLOCKFLAGS] switch_out=0 + [JT-REMAIN] count=0",
+   "residual_todo_ids": []
+  },
+  "retain_side": {
+   "status": "MATCH",
+   "covers": "jt unlinked from jumpvec (cc:70-72/77) — [JT-REMAIN] count=0",
+   "residual_todo_ids": []
+  },
+  "struct_consequence": {
+   "status": "MATCH",
+   "covers": "cat-merged chain renders as straight-line body return param_1 + 1 (no switch skeleton); pre-fix ablation record proves the fixture detects the missing clear",
+   "residual_todo_ids": []
+  },
+  "dead_parent_path": {
+   "status": "UNTESTED",
+   "covers": "Weak-upgrade failure arm (block already dead) unreachable from this fixture (RuleSwitchSingle fires on a live dispatch)",
+   "residual_todo_ids": []
+  },
+  "multi_table_removal": {
+   "status": "UNTESTED",
+   "covers": "remove_jump_table with several live tables surviving the retain (count>1) not exercised",
+   "residual_todo_ids": []
+  }
+ }
+}
