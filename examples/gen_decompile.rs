@@ -724,6 +724,42 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         }
     }
 
+    // ACTORDER-SPACEBASE-SCOPEWIRE-0001: the analysis-side TypeSpacebase
+    // scope leg — the missing twin of the GEN-CODEPTR-SYMBOLIZE-0001
+    // analysis leg above. The oracle's TypeSpacebase::getMap (type.cc:
+    // 2935-2945) resolves the global scope LIVE through the Architecture
+    // (`glb->symboltab->getGlobalScope()`), so every
+    // TypeSpacebase::getSubType (type.cc:2947-2969) queryContainer hit
+    // returns the symbol's type — for a FunctionSymbol that is
+    // TypeFactory::getTypeCode (database.cc FunctionSymbol::buildType).
+    // TypeOpPtrsub::getOutputToken (typeop.cc:2352-2365) rides this: a
+    // PTRSUB whose base is a spacebase pointer and whose offset resolves
+    // to a symbol yields token = pointer-to-symbol-type, which
+    // ActionSetCasts::castOutput (coreaction.cc:2532-2544) then finds
+    // identical to the output's high type and short-circuits with no CAST
+    // (the `(code *)sqlite3WalkNoop` mirror family — S2SELECT bucket B,
+    // ACTORDER lane: both-side drill pinned the same is_copy-arm
+    // PTRSUB直写 stack slot on op 0xccfe2:36db; the oracle's token is
+    // code* via this scope hit, Rugra's fell to the xunknown1* fallback
+    // because the factory's spacebase scope snapshot was never attached
+    // in the gen driver). Rugra's factory snapshots the scope at
+    // TypeSpacebase construction (RUGRA-GLUE, typefactory.rs
+    // get_type_spacebase) instead of resolving live, so the driver must
+    // attach the source before the first get_type_spacebase call — the
+    // exact CURL-CODEREF/PREGFREE precedent (curl_decompile.rs:4697,
+    // httpd_decompile.rs:3696). The shared TypeFactory is the one the
+    // TypeOps hold (arch.set_types at build_architecture), and the print
+    // phase reuses the same factory Arc, so both phases resolve like the
+    // oracle's single live scope.
+    if let Some(symboltab) = arch.symboltab.clone() {
+        if let Some(types) = arch.types.as_ref() {
+            types
+                .write()
+                .map_err(|_| "type factory lock poisoned".to_string())?
+                .set_spacebase_scope_source(Some(symboltab));
+        }
+    }
+
     let func_size =
         i32::try_from(target.size).map_err(|_| format!("function {} is too large", target.name))?;
     let mut fd = Funcdata::new(&target.name, Address::new(target.vaddr), func_size);
@@ -798,12 +834,31 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             )
         }),
     );
+    // STAGE-DRILL (RUGRA_STAGE_DRILL_OUT=<path>, same env pair as the
+    // curl/httpd drivers): the recorder itself lives in the library
+    // (drillobserve hooks in action.rs/funcdata.rs), so the generic driver
+    // only needs the start/drain bracket around perform_action.
+    let drill_out = std::env::var("RUGRA_STAGE_DRILL_OUT").ok();
+    if drill_out.is_some() {
+        let fd_arch = fd_arc
+            .read()
+            .map_err(|_| "Funcdata read lock poisoned during drill start".to_string())?
+            .arch
+            .clone()
+            .ok_or_else(|| "drill requires a bound Architecture".to_string())?;
+        rugra::drillobserve::start(fd_arch);
+    }
     {
         let mut fd_write = fd_arc
             .write()
             .map_err(|_| "Funcdata write lock poisoned during analysis".to_string())?;
         db.perform_action("decompile", &mut fd_write)
             .map_err(|error| format!("action pipeline failed for {}: {error}", target.name))?;
+    }
+    if let Some(path) = drill_out {
+        let drained = rugra::drillobserve::drain();
+        std::fs::write(&path, drained.join("\n"))
+            .map_err(|e| format!("stage drill write failed for {path}: {e}"))?;
     }
 
     // LANE GETLONGEST diagnostic (RUGRA_DUMP_FUNC precedent from the

@@ -50,6 +50,20 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
 - analysis-DB 先于 flow/action 安装（oracle 的符号自 Architecture init 起即在）；
   analysis 相位的 symboltab 消费者由此可命中：`ActionConstantPtr::isPointer`、
   spacebase 容器查询、CALLIND 常量目标 deindirect 等。
+- **TypeSpacebase scope 装表**（2026-09-28 补，ACTORDER-SPACEBASE-SCOPEWIRE-0001）：
+  analysis-DB 安装后、`Funcdata::new` 前，`TypeFactory::set_spacebase_scope_source
+  (arch.symboltab)` 把同一 DB 接到共享 TypeFactory 的 spacebase scope 快照源
+  （`TypeFactory::get_type_spacebase` 构造 `TypeSpacebase` 时快照该源；RUGRA-GLUE
+  ——oracle 的 `TypeSpacebase::getMap`（type.cc:2935-2945）每次经 `glb->symboltab->
+  getGlobalScope()` 动态解析）。oracle 语义链：`TypeSpacebase::getSubType`
+  （type.cc:2947-2969）queryContainer 命中 → 返回符号类型（FunctionSymbol =
+  `TypeCode`）；`TypeOpPtrsub::getOutputToken`（typeop.cc:2352-2365）对
+  spacebase 指针基的 PTRSUB 经 downChain 得 token = ptr-to-符号类型，
+  `ActionSetCasts::castOutput`（coreaction.cc:2532-2544）token == 输出 high
+  类型 → 短路免 CAST。缺此装表时快照恒 None → getSubType 恒 miss → token 兜底
+  `xunknown1*` ≠ `code*` → 多余 `(code *)sym` 镜面族（S2SELECT 桶 B 亲证形态）。
+  先例 = curl 驱动 PREGFREE 通道（curl_decompile.rs:4697）、httpd 驱动
+  （httpd_decompile.rs:3696）；print 相位复用同一 factory Arc，两相位解析一致。
 - print swap 仍是 print-only 语义；DB 含 FunctionSymbol + **readonly 属性范围**
   （2026-09-28 补，见下节；无数据符号），其它 symboltab 消费者在代码地址外
   不命中，与 golden 同 DB 内容同命中语义。
@@ -174,6 +188,17 @@ harness 并行；sqlite 5,289,364B + sq 全量 cmp）。本票把该形态收编
 canon 双语素 md5 恒等（gen 驱动无 canon 面）；镜面五面 PASS；bank/tests 零回退。
 性能（本机共享负载，如实记）：见车道终报
 /dev/shm/rugra-reports/LANE_PARCHILDREN_2026-09-28.md。
+
+## 阶段钻 drain（RUGRA_STAGE_DRILL_OUT，2026-09-28 车道 ACTORDER）
+
+curl/httpd 驱动已有的 stage-drill 落盘臂（`RUGRA_STAGE_DRILL` +
+`RUGRA_STAGE_DRILL_OUT`）在 gen 驱动的等价物：记录器本体在库内
+（`src/drillobserve.rs` 的 activate/flush/mod_check 钩子，action.rs/
+funcdata.rs 挂点），驱动只需在 `perform_action` 前后包 start/drain——
+`RUGRA_STAGE_DRILL_OUT=<path>` 时 `rugra::drillobserve::start(arch)`，
+perform 完成后 drain 块写文件。env 未设时零行为面（与 curl/httpd 同契约）。
+用途：逐函数 OPACTION_DEBUG 镜像（双侧事件级钻定的 Rugra 侧证据通道，
+ACTORDER 车道 sqlite3Select 双侧 drill 即此产物）。
 
 ## 门禁用法
 
