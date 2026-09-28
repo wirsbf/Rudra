@@ -600,12 +600,24 @@ Rust ActionPool 尚未提供 Ghidra `getSubRule` 的生产 API，因此整体状
 #### `Funcdata::op_set_output(op, vn)`（funcdata.hh）
 设置/替换 op 的输出 varnode（标记 WRITTEN、设 def 链）。
 
-#### `pub struct RuleSubZext`（ruleaction.cc:5044-5089）
+#### `pub struct RuleSubZext`（ruleaction.cc:5044-5100）
 简化 ZEXT(SUBPIECE)：
 - `zext(sub(V, 0)) => V & mask`（偏移0，绕过截断）
 - `zext(sub(V, c)) => (V >> c*8) & mask`（中间偏移，需 sub 输出为 lone descend）
+- `zext(sub(V, off) >> sa) => (V >> (off*8+sa)) & (mask_of_subsize >> sa)`
+  （INT_RIGHT 臂，ruleaction.cc:5073-5097：移位改读全宽基值、组合移位量
+  `off*8+sa`，ZEXT 变 AND 掩码 `calc_mask(subsize)>>sa`；mid（SUBPIECE 输出）
+  须为 shift 的 loneDescend、shift 输出须为 ZEXT 的 loneDescend；新移位常量
+  保持原移位常量尺寸（cc:5092）。**2026-09-28 补齐（SELECTGOTO2 车道，
+  wt/selectgoto）**：旧移植只带主 SUBPIECE 臂，本臂缺失使
+  `shr $2,%r13b` 型字节移位链无法拓宽回全宽——sq NPat2R9 GetLongestMatch
+  的 round-2→3 窗口 nodejoin join 对（0x3560f/0x3561d）在
+  functionalEqualityLevel 因 cond 尺寸 1 vs 8 恒拒，级联 6 克隆族 sq 阻塞；
+  补齐后五轮 bbsig 与 oracle 恒等、6 克隆族 656→49 行。）
 
-测试：ruleaction::tests +2（偏移0 绕过→AND；中间偏移→SUBPIECE 改 RIGHT(32)）。
+测试：ruleaction::tests +2（偏移0 绕过→AND；中间偏移→SUBPIECE 改 RIGHT(32)）；
++2（2026-09-28：INT_RIGHT 臂 off=0/sa=2 → `V>>2 & 0x3f` 与 shift 直读全宽基值；
+中间偏移 off=4/sa=2 → `V>>34 & 0x3fffffff` 组合移位量）。
 
 ### 2026-06-26（续）：RuleConcatShift
 

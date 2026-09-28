@@ -1758,3 +1758,76 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   （print_tree_dbg + printRaw + 逐基本块 op 原始行，后者为 gen 驱动侧 BlockBasic
   printRaw 面的等价物——funcdata.rs print_raw 的 bblocks 臂目前只打印块头）。
   默认关闭。
+
+### SELECTGOTO 车道对齐增量①+②（2026-09-28，MIRRORCENSUS-GETLONGESTMATCH-CLONE-0001 续作）
+- **① composite 安装位 = min(组件索引)**（`identify_internal` 尾部，对齐
+  `BlockGraph::addBlock` 的 min-tracking，block.cc:866-873）：Ghidra 的
+  composite index 是其全部组件索引的最小值（identifyInternal 对每个 node 调
+  `ident->addBlock(node)`，`index = min(index, bl->index)`）；oracle 探针
+  （OWD2，scratch 树）8/8 实测 WhileDo cond=79/clause=78 → composite idx=78。
+  Rugra 原先把 composite 装在 cond/head 槽——对 head 持最小索引的 wrap 等价，
+  对反转情形（clause 索引 < cond 索引，NPat2R9 的 {79-cond,78-clause} wrap 是
+  本函数唯一例）产生异位标签，污染一切 index 键消费面（FloatingEdge 解析、
+  TraceDAG BadEdgeScore 排序、LoopBody head/tail 更新）。修法：反转情形把
+  min 槽组件 park 到腾出的 install 槽、composite 落 min 槽、absorbed_into
+  全量重映射、virtual_list 末端 push new_idx。修后 --one 653 的
+  selectGoto REGEN 列表与 oracle 逐项恒等（(79,119)→(78,119) 归位）。
+- **② while_do clause 判定还原 `size_in()`**（cc:1533 逐字）：撤除发明的
+  `count_non_structural_in_edges` 折算（switch 派发/已吸收源折扣两臂）——
+  oracle 是裸 `clauseblock->sizeIn() != 1`；复合体模型对齐后 stale 组件边
+  不再泄漏进活块，裸计数既正确又对齐。
+- 新增 env 门控诊断（默认关闭）：`RUGRA_TRACE_SELECTGOTO` 升级
+  （updateLoopBody 的 REGEN/REMAINDER 倾印+select_goto 的 pick/skip 逐条）、
+  `RUGRA_RULE2`（collapse 规则 fire 流，oracle [ORULE] 对照面）、
+  `RUGRA_GOTOSTEP`（tracedag pushBranches 逐步+[RROOT] 根收集，oracle
+  [OSTEP]/[OROOT] 对照面）、`RUGRA_TREE1`（首轮 collapseAll 后 sblocks 树落
+  `<fn>.tree1`，oracle GLM_TREE1 对照面）、`RUGRA_BS_VISIT` visit 行追加
+  `@ addr`（BlockCopy.original 的起始地址）。
+- **验收（全部本 worktree 亲跑）**：canon curl/httpd A/B md5
+  4503f498/c3b4706c 双字节恒等==基线（54/36/0/0 继承）；镜面 sq
+  2742/2742 defects=0 numbering=0；bank 391/391；cargo test --lib
+  1963P/0F/5I；annotations/refs 门禁绿。**剩余分歧**（下一增量靶）：
+  round-2 输入图 0x3560f 出度 o=2(Rugra) vs o=1(oracle)——round-1 收尾树
+  的 returnsplit/nodeSplit 链差，见 TODO_BOARD 票行。
+
+### SELECTGOTO 车道诊断②（2026-09-28，同票续作——round-2→3 窗口钉靶）
+- `RUGRA_BBSIG=1`（RUGRA-GLUE，debug-only）：每次 `ActionBlockStructure::apply`
+  入口把 `fd.bblocks` 全量 CFG 签名（块地址/出度/目标列表）落到
+  `<fn>.bbsig<round>`——oracle 侧 scratch GLM_BBSIG 探针的对照面。本轮用它
+  钉死：round1/round2 入口 CFG 双侧恒等，round3 入口首分歧（oracle 多一块
+  0x3561b）。
+- **round-2→3 窗口根因（已钉，待下增量修复）**：oracle 在窗口动作
+  （constantptr→…→determinedbranch→unreachable→nodejoin→conditionalexe→
+  condconst→…→redundbranch）内对 0x3560f 做了块分裂（新尾块 0x3561b 继承
+  其两出边 [0x3562e,0x3561d]，0x3560f 留单出边→尾块），并把 0x3561d 的
+  已判定回边改指尾块（0x3561d o=2→o=1）；Rugra 侧两者皆未发生
+  （round3 入口该区 CFG 与 round2 恒等）→round-3 起级联解耦。修复靶=
+  窗口内对应动作（determinedbranch/conditionalexe 候选）的分裂/改边行为
+  对齐。
+
+### SELECTGOTO 车道修复③（2026-09-28，同票续作——round-2→3 窗口 0x3561b 分裂解锁）
+- **双侧逐动作 CFG 钉靶（新证据面）**：`RUGRA_ACTSIG=1`（src/action.rs
+  `ActionGroup::apply_children`，oracle 侧 GLM_ACTSIG 同点插桩于
+  ActionGroup::apply 子分发尾钩）逐 action 落 `<fn>.actsig`（动作名+res+全量
+  bblocks CFG）。fn 653 对照：**518 步动作序双侧恒等，前 87 步逐动作 CFG
+  恒等**；@ACT 87 nodejoin oracle res=2 vs Rugra res=1——Rugra 做了
+  0x34e7f/0x34e2a join 但漏 0x3560f/0x3561d join。
+- **根因链（逐门探针钉死）**：①oracle 窗口内 nodejoin join 该对需
+  findDups 的 booleanFlip 门通过——双侧 round-1 collapse 对 0x3561b 各翻
+  一次（parity 同），window-1 双侧同拒（flip=1，与 oracle 一致）；
+  ②window-1 的 oppool1 中 RuleCondNegate 双侧都消费该 flip（清零）；
+  ③window-2 首拒因不是 flip 而是 **functionalEqualityLevel res<0**：
+  oracle 双比较 cond 都已被 RuleSubZext INT_RIGHT 臂（ruleaction.cc:5073-5097，
+  DEBUG 帧 2715：`ZEXT(SUB81(R13,0)>>2)` → `R13>>2 & 0x3f`）拓宽为 8 字节
+  `(x&3)==0`，const 对相等→res=1→MergeNeeded→join→nodeJoinCreateBlock 分裂
+  出 0x3561b；Rugra 缺该臂，0x35628 链停 1 字节，cond 尺寸 1 vs 8 恒拒。
+- **修复**（src/ruleaction.rs `RuleSubZext` 补 INT_RIGHT 臂 1:1 移植，见
+  docs/api/ruleaction.md）：修后 fn 653 **五轮 bbsig 与 oracle 全恒等**
+  （121/120/122/112/117），级联解锁。
+- **验收（本 worktree 亲跑）**：canon curl/httpd md5 4503f498/c3b4706c
+  双字节恒等==栈基（零回退红线）；镜面五面 curl 21/21·httpd 36/36·vsh 2/2·
+  **sq 2742→1678（−1064，GetLongestMatch 6 克隆族 656→49，余为 (code *)
+  强转/空格 printc 既有族）**·sqlite 6187→6096（对 MB33 钉值 −91，对栈基
+  实测 6153 亦 −57 改进——subzext 通用臂的语料级收益，如实记）；bank
+  391/391；cargo test --lib 1965P/0F/5I（亲父 1963P+2 新）；annotations/
+  refs/evidence 三门禁绿。

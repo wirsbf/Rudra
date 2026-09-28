@@ -93,8 +93,24 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 curl	21	74	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
 httpd	36	29	MB31-RATCHET-REPIN-0001	10ebbef6	2026-09-28
 vsh	2	71	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
-sq	2724	810	MB34-RATCHET-REPIN-0001	34c5fde5	2026-09-28
-sqlite	6071	1385	MB34-RATCHET-REPIN-0001	34c5fde5	2026-09-28
+sq	1629	810	MB36-RATCHET-REPIN-0001	20819307	2026-09-28
+sqlite	5159	1385	MB36-RATCHET-REPIN-0001	20819307	2026-09-28
+# MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
+# forced relink verified, gate --jobs 5 + digest cache cold round):
+# ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
+#    arm generic sweep (GetLongestMatch 6-clone family 321/102/95/85/52→12/12/8/8/8 +
+#    ChangeLastMatch ×5→0, CR-SELECTGOTO §8 clone family) + s2select ARRAY arm
+#    (read_inode_2/3 −118). Own-base lane claims: s2select −31 + selectgoto −1064 = −1095
+#    exact on joint tree.
+# ② sqlite 6071→5159 (−912, 49 fns improved / 0 regressed): s2select Select 90→30 (lane
+#    claim exact), selectgoto generic arm + joint-tree interaction −181 beyond the two
+#    lanes' own-base sum (−731); zero regressions → [LIT] adjudication clause NOT
+#    triggered (CR-S1STACK §5.1 stackslot intermediate-state family absent on joint
+#    tree). Top: VdbeExec −113, Fts3Matchinfo −71, WhereBegin/ExplainOneScan −69/−69,
+#    WindowCodeStep −64, Select −60, Fts3Snippet −42.
+# ③ curl 21 / httpd 36 / vsh 2 unchanged (byte-pin identity held; not re-pinned).
+# Canon faces (not in tsv): curl 27→8/0/0 (initprotofid −15: _init 8+csu 7; s2select −4:
+# file2string), httpd 26→14/0/0 (declorder −12: ap_getparents 2+ap_pregsub 4+ap_fini 6).
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:

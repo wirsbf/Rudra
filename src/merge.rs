@@ -2247,37 +2247,50 @@ impl Merge {
                 first.merge_internal(&mut second, isspeculative);
             }
             (Some(piece1), Some(piece2)) => {
-                // Oracle (variable.cc:699-711): with BOTH HighVariables in a
-                // VariablePiece group, a speculative merge is a LowlevelError
-                // ("Trying speculatively merge variables in separate groups",
-                // :701) — unreachable through Merge::merge callers because
-                // mergeTestAdjacent (merge.cc:208-209) rejects both-piece
-                // candidates for every speculative path, and the one direct
-                // HighVariable::merge caller (buildDominantCopy, merge.cc:1236)
-                // passes the freshly allocated dominant-COPY unique, which has
-                // no piece. The non-speculative oracle path is
-                // piece->mergeGroups + pairwise mergeInternal +
-                // markIntersectionDirty (:702-711) — also unreachable in
-                // Rugra today: nothing populates HighVariable.piece
-                // (Merge::group_partials is a named no-op, no protoPartial
-                // registry, merge.cc:967 port at group_partials below), so no
-                // merge_highs caller can present two piece-owning highs.
-                // debug_assert pins both oracle contracts; release builds keep
-                // the pre-existing conservative skip (return false, no
-                // data-flow change) rather than a wrong merge. When the
-                // piece/group machinery is ported, replace this arm with the
-                // mergeGroups loop (VariablePiece::merge_groups exists).
-                debug_assert!(
-                    !isspeculative,
-                    "Trying speculatively merge variables in separate groups (variable.cc:701)"
-                );
-                debug_assert!(
-                    false,
-                    "merge_highs reached the (Some,Some) piece arm — unreachable while \
-                     group_partials is a no-op; port the variable.cc:702-711 mergeGroups path"
-                );
-                let _ = (&piece1, &piece2);
-                return false;
+                // Oracle HighVariable::merge (variable.cc:699-711): both
+                // HighVariables are part of separate VariableGroups.
+                // variable.cc:700-701: a speculative merge here is a
+                // LowlevelError ("Trying speculatively merge variables in
+                // separate groups") — unreachable through Merge::merge
+                // callers because mergeTestAdjacent (merge.cc:208-209)
+                // rejects both-piece candidates for every speculative path.
+                // Release builds keep the conservative skip (return false,
+                // no data-flow change) rather than aborting the pipeline.
+                if isspeculative {
+                    debug_assert!(
+                        false,
+                        "Trying speculatively merge variables in separate groups (variable.cc:701)"
+                    );
+                    eprintln!("[MERGE] speculative both-piece merge rejected (variable.cc:701 guard)");
+                    return false;
+                }
+                // variable.cc:702: piece->mergeGroups(tv2->piece, mergePairs)
+                // — combine the two groups, collecting the colliding
+                // (self-group high, op2-group high) pairs. The pair's second
+                // high is detached from its piece inside merge_groups
+                // (variable.cc:209) in preparation for the merge.
+                let merge_pairs =
+                    crate::variable::VariablePiece::merge_groups(&piece1, &piece2);
+                // variable.cc:703-709: for each pair — moveIntersectTests,
+                // then mergeInternal (isspeculative is false here).
+                for (h1w, h2w) in merge_pairs {
+                    if let (Some(h1), Some(h2)) = (h1w.upgrade(), h2w.upgrade()) {
+                        if Arc::ptr_eq(&h1, &h2) {
+                            continue;
+                        }
+                        self.type_test_cache.move_intersect_tests(&h1, &h2);
+                        let mut first = h1.write().unwrap();
+                        let mut second = h2.write().unwrap();
+                        first.merge_internal(&mut second, isspeculative);
+                    }
+                }
+                // variable.cc:710: piece->markIntersectionDirty()
+                crate::variable::VariablePiece::mark_intersection_dirty_read(&piece1);
+                // variable.cc:711: HighVariable::merge returns WITHOUT the
+                // plain mergeInternal absorption of tv2 into this — the
+                // group cascade above is the whole effect. Merge::merge
+                // (merge.cc:1565-1575) returns true after the void call.
+                return true;
             }
         }
         let moved_keys: std::collections::HashSet<usize> = moved_instances
@@ -2677,12 +2690,12 @@ impl Merge {
     /// marker ops. Faithful to `Merge::mergeMarker` (merge.cc:889-902).
     ///
     /// For each alive marker op (that is not an indirect-creation) we
-    /// force-merge its output HighVariable with each input HighVariable.
-    /// Rugra does not implement Ghidra's data-flow "snip" trims
-    /// (`trimOpInput`/`trimOpOutput`, which insert COPY ops to resolve
-    /// cover intersections), so a forced merge that would cross covers is
-    /// conservatively skipped rather than letting it produce two
-    /// simultaneously-live instances of one logical variable.
+    /// force-merge its output HighVariable with each input HighVariable via
+    /// `merge_op`/`merge_indirect`, which snip data-flow with
+    /// `trimOpInput`/`trimOpOutput` COPY insertions until cover restrictions
+    /// resolve (merge.cc:719-772). Both-piece merges cascade through the
+    /// VariableGroup machinery (`merge_highs` (Some,Some) arm,
+    /// variable.cc:699-711).
     pub fn merge_marker(&mut self, fd: &mut Funcdata) {
         use crate::opcodes::OpCode;
         use crate::op::pcodeop_flags;
@@ -5385,6 +5398,80 @@ mod tests {
     use crate::opcodes::OpCode;
     use crate::pcoderaw::{PcodeOpRaw, VarnodeRaw};
     use crate::space::AddressSpace;
+
+    /// Regression lock (MERGE-COPYTRIMS-CACHE-0001, S1W2 wave-3): the
+    /// merge_highs (Some,Some) both-piece arm must run the
+    /// variable.cc:699-711 group cascade (merge_groups pairs + per-pair
+    /// moveIntersectTests/mergeInternal + markIntersectionDirty) and return
+    /// true. The pre-fix arm unconditionally `return false`-ed (its
+    /// "unreachable while group_partials is a no-op" premise was stale —
+    /// group_partials is implemented and populates pieces), which silently
+    /// dropped every both-piece required merge: vmprintf@sqlite mergecopy
+    /// unique-input merges were 119/224 vs oracle 202/222, with the
+    /// PIECE16-family CONCAT inputs at the 0xad58c phi failing in slots
+    /// 91-104. After the fix the count is 202/224 (oracle 202/222).
+    #[test]
+    fn test_merge_highs_both_pieces_runs_group_cascade() {
+        use crate::variable::{HighVariable, VariableGroup, VariablePiece};
+
+        let dt = std::sync::Arc::new(crate::type_system::datatype::Datatype::Base(
+            crate::type_system::datatype::TypeBase::new(
+                "undefined8".to_string(),
+                8,
+                crate::type_system::datatype::TypeMetatype::Unknown,
+            ),
+        ));
+
+        // Two highs, one 16B varnode instance each, each owning a 16B@0
+        // VariablePiece in its own (separate) group — the vmprintf PIECE16
+        // topology at the failing phi.
+        let mk = |off: u64| {
+            let vn = std::sync::Arc::new(std::sync::RwLock::new(Varnode::new_with_space(
+                16,
+                AddressSpace::Unique,
+                off,
+            )));
+            let high = std::sync::Arc::new(std::sync::RwLock::new(HighVariable::new(dt.clone())));
+            high.write().unwrap().add_instance(vn.clone());
+            vn.write().unwrap().high = Some(high.clone());
+            let group = std::sync::Arc::new(std::sync::RwLock::new(VariableGroup::new()));
+            let piece = std::sync::Arc::new(std::sync::RwLock::new(VariablePiece::new(
+                std::sync::Arc::downgrade(&high),
+                0,
+                16,
+                None,
+            )));
+            piece.write().unwrap().group = Some(group.clone());
+            group.write().unwrap().add_piece(piece.clone());
+            high.write().unwrap().piece = Some(piece.clone());
+            (high, group, piece)
+        };
+        let (h1, g1, p1) = mk(0x2000);
+        let (h2, g2, p2) = mk(0x3000);
+
+        let mut merge = Merge::new();
+        let merged = merge.merge_highs(&h1, &h2, false);
+
+        // Merge::merge returns true after HighVariable::merge (variable.cc:712).
+        assert!(merged, "both-piece required merge must succeed via group cascade");
+        // The two 16B@0 pieces matched (variable.cc:206-211): h2's piece was
+        // detached from its high and removed from g2, and h2's instance was
+        // absorbed into h1 via the pair's mergeInternal.
+        assert!(h2.read().unwrap().piece.is_none(), "matched op2 piece must be detached");
+        assert!(g2.read().unwrap().is_empty(), "op2 group must lose the matched piece");
+        assert_eq!(h1.read().unwrap().num_instances(), 2, "instances must be absorbed");
+        assert!(h1.read().unwrap().piece.is_some(), "survivor keeps its piece");
+        // Group-merge flags dirtied (variable.cc:710 markIntersectionDirty).
+        assert_ne!(
+            h1.read().unwrap().highflags
+                & crate::variable::high_internal_flags::INTERSECTDIRTY,
+            0,
+            "markIntersectionDirty must fire"
+        );
+        // The pair merge absorbed p2's high instance into h1 — p1 survives.
+        assert!(!g1.read().unwrap().is_empty());
+        let _ = (p1, p2);
+    }
 
     /// Rust compare_order polarity must match C++ compareOrder: only a
     /// strictly earlier candidate replaces the selected PIECE root.

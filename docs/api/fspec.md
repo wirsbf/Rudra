@@ -1547,3 +1547,18 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   字节恒等；触发面=32 位 x86gcc.cspec 形（EAX cdecl/thiscall/regparm），
   单测以带 `<likelytrash>` 的 `<prototype>` 文档驱动解码/合并/回落/比较
   四路径 + 比较键 size 降序钉死。
+
+## 2026-09-28（S1W2-PIECE16-CHAIN，SQLCENSUS-STACKSLOT-GROUP-0001 wave-2）：build_output_from_trials DoublePrecis 标记接线
+
+- 2-trial join 路径的 `if (data.isDoublePrecisOn())` 臂（fspec.cc:5816-5819）
+  此前是登记在案的 TODO（FSPEC-OUTPUTJOIN-0001），本波接线
+  `lo_vn.set_precis_lo()` + `hi_vn.set_precis_hi()`。标记骑在与
+  `build_join_output` 随后 re-home 为 SUBPIECE 输出（`opSetOutput(sublo, lovn)`）
+  **相同的 Varnode 对象**上，故 RuleDoubleIn 稍后在 join SUBPIECE 上以
+  `out isPrecisLo`（double.cc:3263）命中，经 `SplitVarnode::findCreateWhole`
+  （double.cc:527 `newUniqueOut` PIECE）重建 unique 空间 16B 逻辑整值——
+  即 RulePieceStructure 随后标记为 partial root 的 PIECE16 族（vmprintf 侧
+  事件级验证：Rugra 终态 piece=110/piece16=101/partialroot=101 与 oracle
+  census 完全一致，修复前 Rugra 终态 PIECE16=0）。
+- `findPreexistingWhole` 的接线延期（MIGW-FSPEC-0004）保持不变，仍属
+  FSPEC-OUTPUTJOIN-0001 剩余域。

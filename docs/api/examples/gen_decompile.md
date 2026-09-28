@@ -102,6 +102,26 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
 sqlite/sq 镜面 strfold 族收敛（sqlite −~120 / sq −~18 方向）、vsh 零回退
 （golden 侧 0 折叠点）；canon 面（curl/httpd 驱动）构造性零触及。
 
+## 逐函数诊断落盘（RUGRA_DUMP_FUNC / RUGRA_STAGE_DRILL，2026-09-28 车道 CMPORIENT 补全）
+
+gen 驱动的逐函数诊断钩子（env 门控、默认关闭、对输出零影响）：
+
+- **`RUGRA_DUMP_FUNC=<name>`**（GETLONGEST 车道引入，curl/httpd 驱动同款先例）：
+  post-`perform_action`、pre-`docFunction` 落盘三件套——`<name>.tree`
+  （`sblocks` 结构树，oracle `getStructure().printTree` 对应物）、`<name>.ir`
+  （`print_raw` 整函数 IR）、`<name>.ops`（逐块 `seqnum:\top_raw` 行，oracle
+  `BlockBasic::printRaw` 面）。CWD 相对输出。
+- **`RUGRA_STAGE_DRILL=1`**（CMPORIENT 车道补全，curl/httpd drill 臂同款）：
+  在 `perform_action` 前调 `rugra::drillobserve::start(fd_arch)` 武装
+  OPACTION_DEBUG 镜像记录器，管线跑完后 `drain()` 落盘 `<name>.dbg`——
+  每 application 一帧 `DEBUG <n>: <leafname>` + before/after op 对，与 oracle
+  探针 `GLM_TRACE=1` 输出同构（funcdata.cc:1034-1057 debugModPrint 的
+  Rust 镜像，src/drillobserve.rs）。这是事件级规则链对照（同 op 的
+  before/after 序列逐帧 diff）的 gen 面入口；此前仅 curl/httpd 驱动可产。
+
+配套（blockaction.rs 侧，GETLONGEST 车道引入）：`RUGRA_BS_TREES=<prefix>`
+逐轮结构树、`RUGRA_BS_VISIT=1` visit 流（ty/i/o/@addr）。
+
 ## 陈旧二进制自检（INFRA-EXAMPLES-STALELINK-0001，2026-09-28 车道 INFRASTALE）
 
 **动机（两口实录）**：cargo 增量/缓存复用可让 `target/*/examples/*` 陈旧不重链——

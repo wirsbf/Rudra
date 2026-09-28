@@ -19228,10 +19228,26 @@ impl PrintC {
                     break;
                 }
             } else if metatype == TypeMetatype::Array {
-                // printc.cc:1986-2000: getSubEntry element index.
+                // printc.cc:1986-2000: TYPE_ARRAY arm. The oracle passes
+                // BOTH off and sz to TypeArray::getSubEntry (type.cc:
+                // 1257-1267), whose `noff+sz > arrayof->getAlignSize()`
+                // guard returns null when the piece spans more than one
+                // element, and whose stride is getAlignSize() (not
+                // getSize()). The former text-path helper (array_sub_entry)
+                // ignored sz entirely and used get_size() as the stride, so
+                // e.g. a 4-byte access into `xunknown1[16]` wrongly
+                // decomposed as `[4]` + in-element synthetic `._0_4_`
+                // (store form) or descended into the 1-byte element and hit
+                // the allowCast SUBPIECE arm — UNKNOWN→UNKNOWN at offset 0
+                // is always a cast (cast.cc:411-432) — printing
+                // `(xunknown4)sym[4]` (load form). Both must instead fall to
+                // the synthetic whole-symbol field `._4_4_` (printc.cc:
+                // 2030-2041). This now calls the 1:1 port shared with the
+                // RPN twin (datatype.rs array_get_sub_entry, rpn_push_
+                // partial_symbol's Array arm).
                 if let Some((element_type, el_off, el_index)) =
-                        Self::array_sub_entry(&dt, off as usize, sz as usize) {
-                    off = el_off as i64;
+                        dt.array_get_sub_entry(off, sz as usize) {
+                    off = el_off;
                     entries.push(format!("[{}]", el_index));
                     current = Some(element_type);
                     continue;
@@ -19379,17 +19395,6 @@ impl PrintC {
             }
         }
         n
-    }
-
-    // Ghidra: printc.cc:1986-2000 (TYPE_ARRAY getSubEntry)
-    fn array_sub_entry(
-        dt: &Datatype, off: usize, _sz: usize,
-    )
-        -> Option<(Arc<Datatype>, usize, usize)> {
-        let arr = match dt { Datatype::Array(a) => a, _ => return None, };
-        let el_size = arr.array_of.get_size();
-        if el_size == 0 { return None; }
-        Some((arr.array_of.clone(), off % el_size, off / el_size))
     }
 
     // RUGRA-GLUE: lowercase AddressSpace name (printc.cc:1942 space->getName)
@@ -20700,6 +20705,112 @@ mod tests {
             None,
         );
         assert_eq!(text, "uRam0000000000156a20._0_3_");
+    }
+
+    /// S2SELECT regression (sqlite3Select residual, printc.cc:1986-2000
+    /// TYPE_ARRAY arm): a multi-byte piece on an array of 1-byte elements
+    /// spans more than one element, so `TypeArray::getSubEntry` (type.cc:
+    /// 1257-1267, `noff+sz > alignSize` guard) returns null and the walk
+    /// must fall to the synthetic whole-symbol field `._off_sz_` — never an
+    /// element subscript. The former text-path helper ignored sz and used
+    /// get_size() as the stride, decomposing the 4-byte access into
+    /// `[4]._0_4_` (store) or — after descending into the 1-byte element —
+    /// the allowCast SUBPIECE arm's `(xunknown4)axStack_d0[4]` (load;
+    /// cast.cc:411-432 UNKNOWN→UNKNOWN at offset 0 is always a cast).
+    /// Whole-element accesses keep the `[N]` subscript form.
+    #[test]
+    fn test_partial_symbol_array_multi_element_piece_falls_to_field() {
+        use crate::type_system::datatype::{Datatype, TypeArray, TypeBase, TypeMetatype};
+
+        let emit = Box::new(EmitNoMarkup::new());
+        let printer = PrintC::new(emit);
+
+        // Symbol type: xunknown1 [16] — the axStack_d0/c0 shape.
+        let elem = Arc::new(Datatype::Base(TypeBase::new(
+            "xunknown1".to_string(),
+            1,
+            TypeMetatype::Unknown,
+        )));
+        let sym_type = Arc::new(Datatype::Array(TypeArray {
+            base: TypeBase::new(String::new(), 16, TypeMetatype::Array),
+            array_of: elem,
+            num_elements: 16,
+        }));
+        // Read-side high type (xunknown4): irrelevant once the array arm
+        // fails — no finalcast may appear.
+        let outtype = Datatype::Base(TypeBase::new(
+            "xunknown4".to_string(),
+            4,
+            TypeMetatype::Unknown,
+        ));
+
+        // Load form (allowCast=true, printlanguage.cc:256-257): 4-byte read
+        // at offset 4 of xunknown1[16] -> synthetic ._4_4_, NO cast.
+        let text = printer.partial_symbol_text(
+            "axStack_d0",
+            4,
+            4,
+            Some(&sym_type),
+            Some(&outtype),
+            false,
+            true,
+            None,
+        );
+        assert_eq!(text, "axStack_d0._4_4_");
+
+        // Store form (allowCast=false): same synthetic field.
+        let text = printer.partial_symbol_text(
+            "axStack_d0",
+            4,
+            4,
+            Some(&sym_type),
+            Some(&outtype),
+            false,
+            false,
+            None,
+        );
+        assert_eq!(text, "axStack_d0._4_4_");
+
+        // Unaligned sub-element piece on an int4 array (off=5, sz=2 on
+        // 4-byte elements): noff=1, 1+2<=4 — the piece FITS inside one
+        // element, so getSubEntry succeeds and the walk descends: subscript
+        // [1] plus the in-element synthetic `._1_2_` (printc.cc:1988-1999
+        // then 2030-2041).
+        let elem4 = Arc::new(Datatype::Base(TypeBase::new(
+            "int4".to_string(),
+            4,
+            TypeMetatype::Int,
+        )));
+        let sym_type4 = Arc::new(Datatype::Array(TypeArray {
+            base: TypeBase::new(String::new(), 32, TypeMetatype::Array),
+            array_of: elem4,
+            num_elements: 8,
+        }));
+        let text = printer.partial_symbol_text(
+            "aiStack_20",
+            5,
+            2,
+            Some(&sym_type4),
+            None,
+            false,
+            true,
+            None,
+        );
+        assert_eq!(text, "aiStack_20[1]._1_2_");
+
+        // Control: a whole-element access (off=8, sz=4 on int4[8]) keeps
+        // the getSubEntry subscript form `[2]` (printc.cc:1988-1999).
+        let text = printer.partial_symbol_text(
+            "aiStack_20",
+            8,
+            4,
+            Some(&sym_type4),
+            None,
+            false,
+            true,
+            None,
+        );
+        assert_eq!(text, "aiStack_20[2]");
     }
 
     /// TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 regression (LHS gate): the RPN

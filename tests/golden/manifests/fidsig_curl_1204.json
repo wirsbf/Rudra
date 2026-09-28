@@ -1,0 +1,36 @@
+{
+  "oracle_commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
+  "corpus": "curl",
+  "channel": "analysis-db-entry-sig",
+  "golden_sha256": "aca3798881fddc2ce541c3e731b88f9fcf4736451db98fdd9247366f78b6097f",
+  "adjudication": "CURLCANON-INITPROTO-FID-0001 (2026-09-28, lane INITPROTOFID; demarcation by lane SIGENTRY 2026-09-28): the two entry-region signatures below are analyzeHeadless analysis-database knowledge, NOT derivable from any Rugra-visible input. ELIMINATION (re-verified by SIGENTRY census, zero drift 1025e966->4df1e154): the token EVP_PKEY_CTX has 0 occurrences in the binary (strings examples/curl), 0 in DWARF (readelf --debug-dump=info) and 0 in every driver channel/manifest, so the golden's `int _init(EVP_PKEY_CTX *ctx)` (ghidra_curl_1204.c:3) and `void __libc_csu_init(EVP_PKEY_CTX *param_1,undefined8 param_2,undefined8 param_3)` (:2653) can only come from the platform analyzer stack -- the Function ID (FID) analyzer pairing the crt stubs `_init`/`__libc_csu_init` against a library signature database entry whose source carries an OpenSSL-flavored `EVP_PKEY_CTX *ctx` parameter (FID stub-mispair pattern: tiny init-region bodies match unrelated library entry points). The committed DB signature locks name+arity+types (FuncProto::setPieces recipe, fspec.cc:3843-3852) and the decompiler prints it verbatim; the DOWNSTREAM lines (the `int` return local + zero-init + CALL output capture + `return iVar1` in _init, the `_init(param_1)` argument forwarding in csu -- ActionDefaultParams fc->copy(otherfunc->getFuncProto()), coreaction.cc:2322-2330 -- and the `(ulong)param_1 & 0xffffffff` 32-bit subflow of the 8-byte locked param) are pipeline behavior on top of the seed, not ledger data. Param names: `_init`'s `ctx` is a real FID-library parameter name -> NAME_LOCKED (the same rule the generic_clib and DWARF name-lock paths apply); csu's params keep the decompiler's buildDefaultName forms (param_1/2/3, unlocked). Base type note: EVP_PKEY_CTX's base identity is name-only observable in this corpus (both sites only transport the 8-byte pointer layer; nothing dereferences it), so the ledger interns it as a named base (size 8, metatype unknown) through the ONE shared TypeFactory name tree -- the same findByName/getBaseNamed interning every other signature channel resolves through (grammar.cc:2989; type.cc:3412). Scope: curl driver only; the httpd corpus contains no _init/__libc_csu_init (SIGENTRY census correction), so no httpd half ships.",
+  "entries": [
+    {
+      "address": "0x102000",
+      "name": "_init",
+      "return": {"spelling": "int"},
+      "params": [
+        {"spelling": "EVP_PKEY_CTX *", "name": "ctx", "name_locked": true}
+      ],
+      "witnesses": [
+        "ghidra_curl_1204.c:3 (int _init(EVP_PKEY_CTX *ctx))",
+        "ghidra_curl_1204.c:6-12 (int iVar1; iVar1 = 0; if (PTR___gmon_start___00116fe8 != (undefined *)0x0) { iVar1 = (*(code *)PTR___gmon_start___00116fe8)(); } return iVar1;)",
+        "ghidra_curl_1204.c:2658 (__libc_csu_init call site _init(param_1): arity + forwarded param)"
+      ]
+    },
+    {
+      "address": "0x105400",
+      "name": "__libc_csu_init",
+      "return": {"spelling": "void"},
+      "params": [
+        {"spelling": "EVP_PKEY_CTX *", "name": null, "name_locked": false},
+        {"spelling": "undefined8", "name": null, "name_locked": false},
+        {"spelling": "undefined8", "name": null, "name_locked": false}
+      ],
+      "witnesses": [
+        "ghidra_curl_1204.c:2653 (void __libc_csu_init(EVP_PKEY_CTX *param_1,undefined8 param_2,undefined8 param_3))",
+        "ghidra_curl_1204.c:2660 ((ulong)param_1 & 0xffffffff: 32-bit subflow of the 8-byte locked param_1)"
+      ]
+    }
+  ]
+}
