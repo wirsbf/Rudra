@@ -1,5 +1,36 @@
 # `printc.rs` API Reference
 
+## 2026-09-28：MAINMIXED-LABELPOS-0001 — discovery 账本解包 MultiGoto 包裹叶（switch 头 code_r 标签位，Lane MAINMIXED）
+
+**现象**：canon httpd main 的 `if (iVar5 == 0) goto code_r0x0012ba77;` 标签贴
+在 goto 紧后（`goto ...; code_r0x0012ba77: if ((iVar5 == 0x1117e) ...`），golden
+贴在 switch 头（`exit(1); code_r0x0012ba77: switch(...)`）——LABEL-POS 2 行。
+
+**根因（双侧钉死）**：机器 0x2ba6f `test/jne 2bf00`——jne 走错误路径（0x1117e
+检查块 @0x12bf00），**直落 0x12ba77=switch dispatch 块**（`movzbl 0x33(%rsp)`…
+`notrack jmp *%rax`）；golden/Rugra 结构树两侧同形（Rugra `#5 IFGOTO
+target=0x12ba77(#6)`→尾部 `#6 Switch control=#6`），标签机制链完整——分歧在
+RUGRA-GLUE 防御层：`emit_block_ops` 的 discovery 账本（GOTO-LABEL-UNPRINTED-
+0001）只解包 `BlockGoto`（BLOCKACTION-SWITCH-CASE-GOTO-WRAP-0001 先例），
+switch 控制块是 **BlockMultiGoto** 包裹（block.hh:588 `BlockMultiGoto::emit =
+getBlock(0)->emit`——emit_block_multigoto 以 MultiGoto arc 调 emit_block_ops，
+arc 自身非 Basic/Copy，包裹叶 0x12ba77 不入账本）→ 真跑 pass 的
+`emit_goto_statement` never-emitted 锚（printc.rs:16829 `!discovery_block_starts
+.contains`）误 fire 于 goto 现场，吃掉 `printed_labels` 并压制 switch 控制块
+自身（printc.cc:2685 emitLabelStatement 位）的打印。
+
+**修复**：账本解包臂扩 `BlockType::MultiGoto`（与 Goto 臂同型：downcast 取
+`wrapped`，filter Basic/Copy）。锚不再误 fire；标签经 emit_any_label_statement
+的 pending 臂在 switch 控制块发射点打印（=oracle emitBlockBasic 的
+emitLabelStatement 位）。
+
+**验收**：canon httpd 30→**28**（main 9→**7**：LABEL-POS 2 行归零；标签与
+golden 逐字节同位 `exit(1); code_r0x0012ba77: switch(`）；canon curl 42 零
+漂移；镜面五面 PASS；bank 391/391。main 残 7=DECL-EXTRA 1（declfam 待并）+
+STRDAT 6（strdatenv 待并）——三车道合流后 main 归零。关联票
+BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001 的 httpd main 站点收口（curl `goto X; X:`
+4 站点残量保持 OPEN——本修复模式可复用但其验收域在 w-scopeb）。
+
 ## 2026-09-28：MAINMIXED-WRAP-0001 — comma_separate 分隔符与 for 头子句分隔恢复双 token 发射（Lane MAINMIXED）
 
 **现象**：canon httpd main for 头折点错位——Rugra 在 `(undefined *)0x0` 之后、`;`

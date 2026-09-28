@@ -5930,6 +5930,21 @@ impl PrintC {
         // label at the case head is suppressed (observed: httpd main
         // `goto switchD_0012ba94_caseD_3f;` with the
         // `switchD_0012ba94_caseD_3f:` label missing at case 0x3f's slot).
+        // MAINMIXED-LABELPOS-0001: a BlockMultiGoto arc arriving here (a
+        // switch CONTROL block, emit_block_multigoto's Basic/Copy arm —
+        // block.hh:588 BlockMultiGoto::emit delegates to getBlock(0)) is
+        // the same wrapper shape: the arc is not Basic/Copy, but the
+        // wrapped dispatch leaf IS emitted into the main output. An
+        // if-goto whose target is the switch head (the inverted
+        // `test/jne` fallthrough — machine 0x12ba71 jne error-path vs
+        // fallthrough dispatch 0x12ba77, oracle witness golden main's
+        // `if (iVar4 == 0) goto code_r0x0012ba77;` with the label on the
+        // switch) then misfires the same anchor at the goto site
+        // (observed: httpd main `code_r0x0012ba77:` printed right after
+        // the goto instead of before the switch; the switch's own label
+        // suppressed). Record the wrapped leaf's start so the label prints
+        // at the switch control block's emission point (emitBlockBasic's
+        // emitLabelStatement, printc.cc:2685 — via the pending arm below).
         if self.discovery_pass
             && (&*self.emit) as *const dyn Emit as *const () as usize == self.discovery_emit_id
         {
@@ -5942,6 +5957,13 @@ impl PrintC {
                         .as_any()
                         .downcast_ref::<crate::block::BlockGoto>()
                         .and_then(|g| g.wrapped.clone())
+                } else if bt == crate::block::BlockType::MultiGoto {
+                    block_arc
+                        .read()
+                        .unwrap()
+                        .as_any()
+                        .downcast_ref::<crate::block::BlockMultiGoto>()
+                        .and_then(|m| m.wrapped.clone())
                 } else {
                     None
                 }
