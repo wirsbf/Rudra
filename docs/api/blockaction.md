@@ -1742,3 +1742,19 @@ scopeBreak → markUnstructured → markLabelBumpUp，blockaction.cc:2186-2197�
 **验收**：canon httpd 47→36（ap_fini 10→6 / ap_getparents 4→2 /
 ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
 （my_get_token 2→0 / parseconfig 2→0）、双跑与前置会话产物 md5 恒等。
+
+### GETLONGEST 车道钻定工件注记（2026-09-28，MIRRORCENSUS-GETLONGESTMATCH-CLONE-0001）
+- `RUGRA_BS_TREES=<prefix>`（RUGRA-GLUE，debug-only）：每次
+  `ActionBlockStructure::apply` 收尾把 `fd.sblocks` 的 print_tree_dbg 树落到
+  `<prefix>.<round>` 文件——oracle 侧 bracket-ladder 逐 perform printTree 探针
+  的对照面（LANE GETLONGEST 工件 /dev/shm/rugra-tests/getlongest/：o653l.ladder
+  vs rtree.0..4）。默认关闭，stdout 零变化。
+- `RUGRA_BS_VISIT=1` 输出升级：visit 行增 `ty/i/o`（结构类型+入出度），对齐
+  oracle 侧 OVISIT 探针（块类型枚举名映射 t_ls→list 等已校准，两侧 visit 流
+  在 NPat2R9::GetLongestMatch round-0 前 647 事件逐事件恒等——首分歧即
+  selectGoto 靶向重访，见 TODO_BOARD 票行根因链）。
+- examples/gen_decompile.rs 新增 `RUGRA_DUMP_FUNC=<name>`（curl/httpd runner
+  同款先例）：post-action/pre-print 落 `<name>.tree`/`<name>.ir`/`<name>.ops`
+  （print_tree_dbg + printRaw + 逐基本块 op 原始行，后者为 gen 驱动侧 BlockBasic
+  printRaw 面的等价物——funcdata.rs print_raw 的 bblocks 臂目前只打印块头）。
+  默认关闭。

@@ -75,6 +75,22 @@ impl Action for ActionBlockStructure {
             eprintln!("[BSTRACE] {} post  {}", fd.name, sig);
         }
 
+        // RUGRA-GLUE: env-gated (RUGRA_BS_TREES=<prefix>) per-round
+        // structured-tree dump — the counterpart of the oracle ladder
+        // probe's per-perform printTree (diagnostic only, no pipeline
+        // effect). One file per blockstructure application, ordered by a
+        // process-global round counter.
+        if let Ok(prefix) = std::env::var("RUGRA_BS_TREES") {
+            static ROUND: std::sync::atomic::AtomicUsize =
+                std::sync::atomic::AtomicUsize::new(0);
+            let round = ROUND.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let mut tree_out = String::new();
+            for blk in &fd.sblocks.blocks {
+                crate::block::print_tree_dbg(blk, 0, &mut tree_out);
+            }
+            let _ = std::fs::write(format!("{}.{}", prefix, round), &tree_out);
+        }
+
         // Ghidra blockaction.cc:2184: `count += collapse.getChangeCount();
         // return 0;` — the structurer NEVER feeds the repeatapply loop
         // (returning a change count here made Rugra's mainloop re-enter
@@ -1567,12 +1583,18 @@ impl<'a> CollapseStructure<'a> {
                         .map(|v| v == "1")
                         .unwrap_or(false)
                     {
-                        eprintln!(
-                            "[BLOCKSTRUCT] {} visit pos={} idx={}",
-                            self.name,
-                            idx - 1,
-                            slot
-                        );
+                        if let Some(b) = self.graph.get_block(slot) {
+                            let r = b.read().unwrap();
+                            eprintln!(
+                                "[BLOCKSTRUCT] {} visit pos={} idx={} ty={:?} i={} o={}",
+                                self.name,
+                                idx - 1,
+                                slot,
+                                r.get_type(),
+                                r.size_in(),
+                                r.size_out()
+                            );
+                        }
                     }
                     let block = match self.graph.get_block(slot) {
                         Some(b) => b,
