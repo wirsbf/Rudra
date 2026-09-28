@@ -1,6 +1,51 @@
 # `blockaction.rs` API Reference
 
 
+### 2026-09-28 修复（VDBEXEC-REFRESH-TAIL-0001, 巨函数 collapse 超线性热点收口——refresh_switch_cases 移位至 collapseAll 尾）
+
+**根因（车道 VDBEXEC 逐阶段/逐动作/算法级三层钻定, perf 不可用下 gdb 采样 51 帧
++ env 门控探针 [VDBPROF]）**：sqlite3VdbeExec 单极 159.2s（oracle 8.80s=18.9×）中
+action 相位 157.0s（[PHASE] 通道）, 其中 blockstructure 87.7s → collapse_internal
+86.0s/3522 调（selectGoto 循环 11 次结构重建 × 每次数百轮）→ **refresh_switch_cases
+68.5s/12701 调（45% 采样帧）**。该函数是 RUGRA-GLUE 自创簿记（oracle 无
+LoopBody::refreshSwitchCases/f_case_body/dominatesIdx——blockaction.hh:88-106 enum 顶
+f_duplicate_block=0x40000）, 调用点在内层 fixpoint 每轮末（旧 2026-06-23
+"interleaved loop 开头先 refresh"时代的残留）, 每调 = compute_dominators 全图迭代
+dominator 重算 + CBRANCH 级联链走 + **dominates_idx 扩张 O(size × cases ×
+dom-depth)**（VdbeExec size=1251, cases 峰 479）+ 全图 write-lock 扫描。oracle 的
+collapseInternal（cc:1768-1851）是纯 fixpoint 规则扫描, **无任何 dominator 计算**。
+
+**修复（行为恒等可证）**：`collapse_internal` 内层每轮的 `refresh_switch_cases()`
+移除; `collapse_all_5step` 与 7-phase `collapse_all` 尾部（selectGoto 循环后、
+finalize_structure 前）各调用一次。终态恒等论证：
+1. **消费面**——CASE_BODY flag/switch_case_indices 在默认 5-step 路径的 collapse
+   过程中零消费者（try_rule_proper_if/if_no_exit/switch 的自创 pre-guard 均已随
+   TRI2-STRUCT-* 票族移除, 见各 `NOTE: no switch_case_indices` 注记;
+   structure_loops_first 仅 7-phase 且在首次 refresh 前运行=恒读零 flag;
+   count_non_structural_in_edges 无该臂）。唯一活消费者 = printc 打印时
+   case_body_indices 收集（printc.rs:12572）读**最终态**。
+2. **状态等价**——旧末次 refresh（最后一次 collapse_internal 的末轮末）与新调用点
+   之间零突变：第二趟 IfNoExit/CaseFallthru 扫描无命中才退出外层循环, selectGoto
+   while 只重读 isolated_count, ActionBlockStructure::apply 尾部只读 change_count。
+   deadline/iterations 截断路径下 refresh 同样落在截断态（截断后无进一步突变）。
+3. **printc 读取面不变**——flag 在 block 对象上持久, finalize_structure 的
+   retain/reindex 不触碰 flag（membership=absorbed_into）。
+
+**效果（VdbeExec --one 1055 亲测, 输出 stdout cmp 逐字节恒等）**：refresh 调用
+12701→11（每 rebuild 一次）, collapse_internal 86.0→16.2s, blockstructure
+87.7→18.0s, action 相位 157.0→82.9s（探针撤净后）, 单极墙钟 **159.2s→85.2s
+（−46.5%）**, 差距 18.9×→9.7×。5s deadline 全程 0 命中（修复前亦 0——超线性是
+refresh 的 O(rounds×N×C) 累积, 非单轮撞线）。
+
+**残差分票（本道只修此单点, 85.2s→oracle-par 8.8s 的剩余面）**：oppool1 22-28s
+（27.8M rule_tries 每试 ~0.8µs 常数, ACTIONLOOP/PERF-ACTIONPOOL-ITER 域）/
+activeparam 10-15s（fspec check_input_trial_use 巨调用面）/heritage 9-14s（巨函数
+超线性, 假设②）/blockstructure 残 18s（3522 selectGoto 轮 × per-rule 常数——
+轮数算法性、per-rule Arc/RwLock 常数为数据结构域）/mergerequired 6.3s
+（Merge::try_merge_addr_tied→Cover::add_ref_recurse 深递归 16 帧）。详
+LANE_VDBEEXEC_2026-09-28.md §残差。
+
+
 ### 2026-09-24 修复（BLOCKSTRUCT-SWITCH-CASEFALLTHRU-0001, glob_set 终态树差收口）
 
 **根因（双侧终轮 trace 定缝, noreturn 修正版 oracle harness 重放）**：Ghidra
