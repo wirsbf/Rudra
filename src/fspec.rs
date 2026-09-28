@@ -8694,7 +8694,7 @@ pub fn characterize_as_param(
             let entry = match self.entry.get(entry_idx) { Some(e) => e, None => continue };
             if active.get_trial(i).is_definitely_not_used() { continue; }
             if !active.get_trial(i).is_active() {
-                // Ghidra fspec.cc:1131-1135 (PROTORECOVER 2026-09-28):
+                // Ghidra fspec.cc:1121-1128 (PROTORECOVER 2026-09-28):
                 //   if (trial.isUnref()&&active->isRecoverSubcall()) {
                 //     ...
                 //     if (trial.getAddress().getSpace()->getType() == IPTR_SPACEBASE)
@@ -13310,7 +13310,7 @@ mod tests {
 
     // PROTORECOVER (CANON-SIG-PROTO-RECOVER-0001) regression:
     // `ParamListStandard::forceInactiveChain`'s unref-seenchaining stack test
-    // reads the TRIAL's own storage space — fspec.cc:1133-1135
+    // reads the TRIAL's own storage space — fspec.cc:1121-1128
     //   if (trial.isUnref()&&active->isRecoverSubcall()) {
     //     if (trial.getAddress().getSpace()->getType() == IPTR_SPACEBASE)
     //       seenchain = true;
@@ -13392,7 +13392,7 @@ mod tests {
         // (b) A STACK-space unref before the active trial: the caller's
         // stack slot is not being forwarded, so the chain really is broken —
         // seenchain fires, the active trial dies, and the hole-fill stays
-        // off (fspec.cc:1128-1131 comment: stack-relative caller/callee
+        // off (fspec.cc:1122-1125 comment: stack-relative caller/callee
         // offsets differ).
         let mut active2 = ParamActive::new(true);
         active2.register_trial_in_space(AddressSpace::Stack, Address::new(0x8), 8);

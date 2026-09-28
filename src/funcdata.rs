@@ -8725,7 +8725,7 @@ impl Funcdata {
             // stamps `mapped|addrtied|persist` onto global (RAM)-space
             // writes at injection (database.cc:1271-1276), and that
             // persist flag is the return-value-clip input: onlyOpUse's
-            // persist arm (funcdata_varnode.cc:1890-1893) marks a RETURN
+            // persist arm (funcdata_varnode.cc:1889-1892) marks a RETURN
             // trial inactive when the returned value is also stored to a
             // global, so ActionReturnRecovery drops it (the
             // `return &DAT_x;` -> `return;` clip; canon httpd
@@ -14233,7 +14233,7 @@ mod tests {
     // (funcdata_varnode.cc:104-122/148-169), which stamps
     // `mapped|addrtied|persist` onto global (RAM)-space storage
     // (database.cc:1271-1276). That persist flag is the return-clip input:
-    // Funcdata::onlyOpUse's persist arm (funcdata_varnode.cc:1890-1893)
+    // Funcdata::onlyOpUse's persist arm (funcdata_varnode.cc:1889-1892)
     // marks a RETURN trial inactive when the returned value is also stored
     // to a global (canon httpd ap_init_vhost_config's
     // `undefined8 *`+`return &DAT_001a0828;` -> `void`+`return;`).

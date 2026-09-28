@@ -822,7 +822,7 @@ createDef + setOutput + assignHigh + laned 探针 + `localmap->queryProperties` 
 usepoint=op 地址），非 coderef 输入经 `new_varnode_in_space`（`Funcdata::newVarnode`，
 cc:148-169：create + assignHigh + laned + 符号尾，usepoint=INVALID）。符号尾对全局
 （RAM）空间存储盖上 `mapped|addrtied|persist`（database.cc:1271-1276），该 persist
-即返回值裁剪的输入：`onlyOpUse` 的 persist 臂（funcdata_varnode.cc:1890-1893）在
+即返回值裁剪的输入：`onlyOpUse` 的 persist 臂（funcdata_varnode.cc:1889-1892）在
 返回值同时被存进全局时把 RETURN 试验标记 inactive，ActionReturnRecovery 随之摘除
 （canon httpd ap_init_vhost_config `undefined8 *`+`return &DAT;` → `void`+`return;`，
 4→0）。符号尾的父域腿按空间门控（仅 RAM），寄存器/栈/unique 存储保持无 flag——
