@@ -65,11 +65,17 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # 父本 scratch 复现 9648,合并树 9009,Δ 精确);curl 23/vsh 2/sq 2868 恒等不重钉(MB30 行保持);
 # canon: curl 54/httpd 36 md5 4503f498/c3b4706c 双字节恒等零回退。强制重链后实测(守卫并入后首跑,
 # 内容探针 digest=db9d37ba files=103 绿;孪生 ChangeP4/Explain 双字节恒等 golden)。
-curl	23	74	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
+# MB32-RATCHET-REPIN-0001 @ e442d433 (2026-09-28): 三面改善重钉——curl 23->21 (S1STACKSLOT join 基建 wave-1 镜面红利 -2);
+# sq 2868->2742 (S2CODESTAR 根因一工厂内驻 code type 修 (code*) 多余 cast 族 -126,15 函数改善 -290 亲证);
+# sqlite 9009->8477 (S1 -29 + S2 -503 叠加精确=算术闭合——两道作用不同函数族[varargs 巨物 join 链 vs code* cast 族]可加性兑现;
+#   B2 spot: trio 707/705/681 恒[CR-S1 钉值]+sqlite3Select 2257 恒[根因二域]+stderr unlinked=0+vmprintf CONCAT71/extraout_RDX join 形在场);
+# httpd 36/vsh 2 恒等不重钉(MB31/MB30 行保持)。canon: curl 54/httpd 36 md5 4503f498/c3b4706c 双字节恒等零回退。
+# 强制重链后实测(12:02:23>全部 merge commit;内容探针 digest=b490b43a files=103)。
+curl	21	74	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
 httpd	36	29	MB31-RATCHET-REPIN-0001	10ebbef6	2026-09-28
 vsh	2	71	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
-sq	2868	810	MB30-RATCHET-REPIN-0001	1c51ae4d	2026-09-28
-sqlite	9009	1385	MB31-RATCHET-REPIN-0001	10ebbef6	2026-09-28
+sq	2742	810	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
+sqlite	8477	1385	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
 
 # 2026-09-27 MERGEBATCH23 波次增益锁定（MB23-RATCHET-REPIN-0001, root 授权重钉,
 # @d9a2ef5d = MB23 4 支合并态 fresh 实测;测量树=d9a2ef5d 本身[repin commit 只改本表]）:
