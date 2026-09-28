@@ -975,6 +975,383 @@ fn load_callee_siglock_from_path(path: &str) -> Option<HashMap<u64, CalleeSigloc
 }
 
 // ============================================================================
+// CURLCANON-INITPROTO-FID-0001: the analysis-DB entry-signature ledger
+// (FIDSIG, default-on since the manifest ships in-repo — DFLIP booldrill
+// polarity form). The canon golden's producer (analyzeHeadless) runs the
+// Function ID analyzer, which paired the crt stubs `_init`@0x102000 and
+// `__libc_csu_init`@0x105400 against library signature-database entries
+// whose source carries an OpenSSL-flavored `EVP_PKEY_CTX *ctx` parameter
+// (the FID stub-mispair pattern; three-source elimination re-verified by
+// the SIGENTRY census: EVP_PKEY_CTX has 0 occurrences in the binary, in
+// DWARF and in every driver channel). The committed DB signature locks
+// name+arity+types through FuncProto::setPieces (fspec.cc:3843-3852) and
+// the decompiler prints it verbatim — the golden's `int
+// _init(EVP_PKEY_CTX *ctx)` / `void __libc_csu_init(EVP_PKEY_CTX
+// *param_1,undefined8 param_2,undefined8 param_3)` headers ARE the
+// observable of that DB state. Everything downstream (the `int` return
+// local + CALL output capture + `return iVar1` in _init, the
+// `_init(param_1)` argument forwarding in csu — ActionDefaultParams'
+// fc->copy(otherfunc->getFuncProto()), coreaction.cc:2322-2330 — and the
+// `(ulong)param_1 & 0xffffffff` 32-bit subflow of the 8-byte locked
+// param) is pipeline behavior on top of the seed, not ledger data. The
+// channel installs each entry on BOTH halves of the Program-database
+// boundary, mirroring the two existing transports: (a) the function's
+// own fd.funcp (the DWARF own-proto overlay position) when the target
+// being decompiled IS the ledger function, and (b) the call site's
+// FuncCallSpecs (the V3SIG install position, queryCall's setFuncdata +
+// ActionDefaultParams copy) when the target CALLS a ledger function —
+// so `_init(param_1)` forwards without waiting for the self-hosted
+// Parameter ID iteration to rediscover it. Gate polarity: any mirror
+// component keeps the gate closed (five-projection bank purity),
+// RUGRA_SEEDS=0 is the global bare-face escape, RUGRA_FIDSIG=0 is the
+// channel's own opt-out, RUGRA_FIDSIG_MANIFEST=<path> overrides the
+// manifest location, and a missing/corrupt manifest is a loud no-op so
+// a manifest-less checkout decompiles as the unchanneled face.
+// ============================================================================
+static FIDSIG_ENTRIES: std::sync::OnceLock<Option<HashMap<u64, FidsigEntry>>> =
+    std::sync::OnceLock::new();
+
+// RUGRA-GLUE: one manifest entry — function name, return spelling,
+// per-param (spelling, optional locked name). `name_locked` carries the
+// FID-library parameter name for _init's `ctx` (the same name-lock rule
+// the generic_clib and DWARF name-lock paths apply); csu's params stay
+// nameless so the decompiler's buildDefaultName owns them (param_1/2/3).
+#[derive(Clone, Debug)]
+struct FidsigParam {
+    spelling: String,
+    name: Option<String>,
+    name_locked: bool,
+}
+
+// RUGRA-GLUE: the entry-signature record itself.
+#[derive(Clone, Debug)]
+struct FidsigEntry {
+    name: String,
+    ret: String,
+    params: Vec<FidsigParam>,
+}
+
+// RUGRA-GLUE: per-process FIDSIG manifest handle (mirror of the V3SIG
+// loader's gate stack; isolated workers are one-job processes, the
+// compare-functions direct path reuses the cache).
+fn load_fidsig_manifest() -> Option<HashMap<u64, FidsigEntry>> {
+    if mirror_flow_enabled() || mirror_bare_load_enabled() || mirror_fixture_data_enabled() {
+        eprintln!("[FIDSIG] analysis-DB entry-sig gate ignored under the mirror gate (projection purity)");
+        return None;
+    }
+    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+        return None;
+    }
+    if std::env::var("RUGRA_FIDSIG").ok().as_deref() == Some("0") {
+        eprintln!("[FIDSIG] analysis-DB entry-sig ledger disabled (RUGRA_FIDSIG=0)");
+        return None;
+    }
+    let path = std::env::var("RUGRA_FIDSIG_MANIFEST")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "tests/golden/manifests/fidsig_curl_1204.json".to_string());
+    load_fidsig_from_path(&path)
+}
+
+// RUGRA-GLUE: the manifest JSON decode walk (V3SIG load_callee_siglock_
+// from_path form, loud no-op on any missing/corrupt shape).
+fn load_fidsig_from_path(path: &str) -> Option<HashMap<u64, FidsigEntry>> {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(err) => {
+            eprintln!("[FIDSIG] cannot read manifest {}: {} (gate disabled)", path, err);
+            return None;
+        }
+    };
+    let raw = match serde_json::from_str::<serde_json::Value>(&text) {
+        Ok(raw) => raw,
+        Err(err) => {
+            eprintln!("[FIDSIG] manifest {} is not valid JSON: {} (gate disabled)", path, err);
+            return None;
+        }
+    };
+    let Some(serde_json::Value::Array(entries)) = raw.get("entries") else {
+        eprintln!("[FIDSIG] manifest {} has no entries array (gate disabled)", path);
+        return None;
+    };
+    let mut table = HashMap::new();
+    for entry in entries {
+        let Some(addr) = entry.get("address").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(key) = addr
+            .strip_prefix("0x")
+            .and_then(|digits| u64::from_str_radix(digits, 16).ok())
+        else {
+            continue;
+        };
+        let Some(name) = entry
+            .get("name")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        let Some(ret) = entry
+            .get("return")
+            .and_then(|v| v.get("spelling"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        let mut params = Vec::new();
+        if let Some(serde_json::Value::Array(slots)) = entry.get("params") {
+            for slot in slots {
+                let Some(spelling) = slot
+                    .get("spelling")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+                else {
+                    params.clear();
+                    break;
+                };
+                let pname = slot
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string);
+                let name_locked = slot.get("name_locked") == Some(&serde_json::Value::Bool(true));
+                params.push(FidsigParam {
+                    spelling,
+                    name: pname,
+                    name_locked,
+                });
+            }
+        }
+        if params.is_empty() && !entry.get("params").map_or(true, |v| v.is_null()) {
+            continue; // a params array that failed to decode drops the entry
+        }
+        table.insert(key, FidsigEntry { name, ret, params });
+    }
+    eprintln!(
+        "[FIDSIG] loaded {}: {} analysis-DB entry signatures",
+        path,
+        table.len()
+    );
+    Some(table)
+}
+
+// RUGRA-GLUE: cached accessor for the analysis-DB entry-signature manifest.
+fn fidsig_table() -> Option<&'static HashMap<u64, FidsigEntry>> {
+    FIDSIG_ENTRIES.get_or_init(load_fidsig_manifest).as_ref()
+}
+
+// RUGRA-GLUE: one signature spelling -> canonical factory type. Same
+// shape as install_callee_siglock_protos' resolve closure, extended with
+// the analysis-DB named-base interning arm the FID ledger needs: the
+// V3SIG resolver SKIPS spellings the factory has never seen (its corpus
+// was restricted to DWARF-named composites), while the FID mispair
+// mints names (EVP_PKEY_CTX) no other channel carries. The interning
+// mirrors debugproto's factory_named_base (get_base_named -> findAdd,
+// type.cc:3412 — the ONE shared TypeFactory name tree every signature
+// channel resolves through, grammar.cc:2989): a find_by_name hit keeps
+// the interned identity, a miss interns a named base. The core spellings
+// (void/int/undefined8) keep the exact base arms parse_c_type uses so
+// the type identities match the other channels' constructions.
+fn resolve_fidsig_type(
+    spelling: &str,
+    types: &std::sync::Arc<
+        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+    >,
+) -> Option<std::sync::Arc<rugra::type_system::datatype::Datatype>> {
+    use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+
+    let find_or_intern = |base: &str, size: usize, metatype: TypeMetatype| {
+        let existing = {
+            let factory = types
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            factory.find_by_name(base)
+        };
+        existing.unwrap_or_else(|| {
+            let mut factory = types
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            factory
+                .get_base_named(size, metatype, base)
+                .unwrap_or_else(|_| {
+                    std::sync::Arc::new(Datatype::Base(TypeBase::new(
+                        base.to_string(),
+                        size,
+                        metatype,
+                    )))
+                })
+        })
+    };
+    let trimmed = spelling.trim();
+    let stars = trimmed.chars().filter(|ch| *ch == '*').count();
+    let base = trimmed.trim_end_matches('*').trim();
+    let mut resolved = match base {
+        "void" => {
+            let factory = types
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            factory.get_type_void()
+        }
+        // parse_c_type's core-table arms (int=4B Int, undefined8=8B
+        // Unknown) so the FID ledger and the seed channels share one
+        // type identity per spelling.
+        "int" => find_or_intern(base, 4, TypeMetatype::Int),
+        "undefined8" => find_or_intern(base, 8, TypeMetatype::Unknown),
+        // The FID-minted analysis-DB base: name-only observable in this
+        // corpus (both sites only transport the 8-byte pointer layer),
+        // interned as an address-sized unknown-metatype named base.
+        other => find_or_intern(other, 8, TypeMetatype::Unknown),
+    };
+    for _ in 0..stars {
+        let mut factory = types
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        resolved = factory.get_type_pointer_default(resolved);
+    }
+    Some(resolved)
+}
+
+// RUGRA-GLUE: own-proto half — install one analysis-DB entry signature
+// on the target function's own fd.funcp (the DWARF own-proto overlay
+// recipe: FuncProto::from_model_carrier with the caller's bound defaultfp
+// model + set_pieces' lock recipe + per-param NAME_LOCKED for entries
+// carrying a real DB parameter name). Returns false when the model
+// cannot assign storage (the caller reports and keeps the recovered
+// face).
+fn install_fidsig_own_proto(
+    fd: &mut rugra::funcdata::Funcdata,
+    entry: &FidsigEntry,
+    types: &std::sync::Arc<
+        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+    >,
+) -> bool {
+    let model_carrier = fd.funcp.clone();
+    let Some(return_type) = resolve_fidsig_type(&entry.ret, types) else {
+        return false;
+    };
+    let mut in_types = Vec::new();
+    let mut in_names = Vec::new();
+    for param in &entry.params {
+        let Some(resolved) = resolve_fidsig_type(&param.spelling, types) else {
+            return false;
+        };
+        in_types.push(resolved);
+        in_names.push(param.name.clone().unwrap_or_default());
+    }
+    let pieces = rugra::grammar::PrototypePieces {
+        model: None,
+        name: entry.name.clone(),
+        out_type: Some(return_type),
+        in_types,
+        in_names,
+        first_var_arg_slot: -1,
+    };
+    let out_type = pieces.out_type.clone().expect("FIDSIG entry always has return");
+    let mut proto =
+        rugra::fspec::FuncProto::from_model_carrier(&model_carrier, entry.name.clone(), out_type);
+    proto.name = entry.name.clone();
+    proto.set_pieces(&pieces);
+    if proto.has_input_errors() {
+        return false;
+    }
+    // NAME_LOCKED rides only on entries with a real DB parameter name
+    // (the setPieces transport carries typelock for everything).
+    for (param, spec) in proto.parameters.iter_mut().zip(entry.params.iter()) {
+        if spec.name_locked && spec.name.is_some() {
+            param.flags |= rugra::fspec::protoparam_flags::NAME_LOCKED;
+        }
+    }
+    fd.funcp = proto;
+    true
+}
+
+// RUGRA-GLUE: call-site half — install the ledger's locked FuncProtos on
+// this function's call sites whose callee entry matches (the V3SIG
+// install arm with the FIDSIG resolver; param names are call-site
+// irrelevant so the pieces carry none). Positioned BEFORE the
+// V3SIG/paramid install so the oracle DB truth wins the has_model()
+// gap-fill race (the recovery channel skips already-modelled sites).
+fn install_fidsig_callsite_protos(
+    fd: &mut rugra::funcdata::Funcdata,
+    table: &HashMap<u64, FidsigEntry>,
+    types: &std::sync::Arc<
+        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+    >,
+) -> usize {
+    let model_carrier = fd.funcp.clone();
+    let specs: Vec<_> = fd
+        .callspecs
+        .iter()
+        .filter_map(|owner| {
+            let spec = owner.read().unwrap();
+            spec.entry_addr
+                .map(|entry| (owner.clone(), entry.as_u64()))
+        })
+        .collect();
+    let mut installed = 0usize;
+    for (owner, entry_addr) in specs {
+        let Some(entry) = table.get(&entry_addr) else {
+            continue;
+        };
+        // Same gap-fill predicate as the V3SIG install: an authoritative
+        // (libc/DWARF/V3SIG) install on this site wins over the ledger.
+        if owner.read().unwrap().prototype.has_model() {
+            continue;
+        }
+        let mut in_types = Vec::new();
+        for param in &entry.params {
+            match resolve_fidsig_type(&param.spelling, types) {
+                Some(resolved) => in_types.push(resolved),
+                None => {
+                    eprintln!(
+                        "[FIDSIG] {} call site for {}: cannot resolve param type {:?} (skipping)",
+                        fd.name, entry.name, param.spelling
+                    );
+                    in_types.clear();
+                    break;
+                }
+            }
+        }
+        if in_types.len() != entry.params.len() {
+            continue;
+        }
+        let Some(return_type) = resolve_fidsig_type(&entry.ret, types) else {
+            continue;
+        };
+        let mut proto = rugra::fspec::FuncProto::from_model_carrier(
+            &model_carrier,
+            entry.name.clone(),
+            return_type.clone(),
+        );
+        proto.name = entry.name.clone();
+        let pieces = rugra::grammar::PrototypePieces {
+            model: None,
+            name: entry.name.clone(),
+            out_type: Some(return_type),
+            in_types,
+            in_names: Vec::new(),
+            first_var_arg_slot: -1,
+        };
+        proto.update_all_types_from_pieces(&pieces);
+        if proto.has_input_errors() {
+            eprintln!(
+                "[FIDSIG] {} call site for {}: model cannot assign parameter storage (skipping)",
+                fd.name, entry.name
+            );
+            continue;
+        }
+        proto.set_input_lock(true);
+        proto.set_output_lock(true);
+        proto.set_model_lock(true);
+        let mut spec = owner.write().unwrap();
+        spec.prototype = proto;
+        installed += 1;
+    }
+    installed
+}
+
+// ============================================================================
 // CURLPARAM-DRIVER-0001: the curl port of the httpd driver's self-hosted
 // Parameter ID iteration (HEADLESS-BRIDGE-PARAMID-0001 / PARAMID2).
 // ----------------------------------------------------------------------------
@@ -6962,6 +7339,36 @@ fn decompile_request(
             }
         }
     }
+    // CURLCANON-INITPROTO-FID-0001, own-proto half: the analysis-DB
+    // entry signature (FID-mispair seed, manifest fidsig_curl_1204.json)
+    // installs on the target's own fd.funcp AFTER the DWARF/PLT overlays
+    // — those replace fd.funcp wholesale, the same placement discipline
+    // as mark_known_no_return_function below — and only when the DWARF
+    // overlay did not produce an authoritative prototype (the ledger's
+    // two addresses are crt objects outside DWARF and outside the libc
+    // import table, so both overlays are no-ops for them; the guard
+    // keeps the precedence explicit anyway). The install is the DWARF
+    // own-proto recipe verbatim: model carrier + set_pieces' lock
+    // recipe + NAME_LOCKED on real DB parameter names.
+    if let Some(entry) = fidsig_table().and_then(|table| table.get(&target.vaddr)) {
+        if !dwarf_applied {
+            let types = fd.arch.as_ref().and_then(|arch| arch.types.clone());
+            match types {
+                Some(types) if install_fidsig_own_proto(&mut fd, entry, &types) => {
+                    eprintln!(
+                        "[PREPASS] {} applied locked analysis-DB entry signature: {} params",
+                        target.name,
+                        fd.funcp.num_params()
+                    );
+                }
+                Some(_) => eprintln!(
+                    "[PREPASS] {} analysis-DB entry signature rejected (model cannot assign storage)",
+                    target.name
+                ),
+                None => {}
+            }
+        }
+    }
     // FLOW-339E-OVERLAP-HLT-0001 fixture-parity gate: the per-function
     // fixture oracle (golden_dump_1204) runs BfdArchitecture +
     // readLoaderSymbols WITHOUT any Java-side analyzer, so no callee carries
@@ -7131,6 +7538,30 @@ fn decompile_request(
         relinked,
         noreturn_marked
     );
+
+    // CURLCANON-INITPROTO-FID-0001, call-site half: install the
+    // analysis-DB entry signatures on this function's call sites whose
+    // callee entry matches (the queryCall + ActionDefaultParams copy
+    // transport, csu's `_init(param_1)` forwarding) AFTER link_call_specs
+    // (the libc/DWARF installs are authoritative and the ledger's
+    // has_model gap-fill predicate defers to them) and BEFORE the
+    // V3SIG/paramid install below — the oracle DB truth must win the
+    // gap-fill race so the recovery channel's has_model skip leaves it
+    // in place. Rides the same callspec channel switch as the V3SIG
+    // install (RUGRA_DISABLE_CALLSPEC_LINK stays the full kill-switch).
+    if callspec_link_enabled {
+        if let Some(table) = fidsig_table() {
+            if let Some(types) = fd.arch.as_ref().and_then(|arch| arch.types.clone()) {
+                let locked = install_fidsig_callsite_protos(&mut fd, table, &types);
+                if locked > 0 {
+                    eprintln!(
+                        "[PREPASS] {} fidsig: {} callee protos locked",
+                        target.name, locked
+                    );
+                }
+            }
+        }
+    }
 
     // CURLWIRE-SIGLOCK-WIRING-0001: install the callee locked prototypes
     // on this function's call sites AFTER link_call_specs (callspecs
