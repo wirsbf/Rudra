@@ -44,6 +44,16 @@ use rugra::space::AddressSpace;
 // golden addresses = this driver's base-0 raw addresses + this base);
 // hoisted to file scope for the action-side Database builders.
 const ANALYZE_HEADLESS_IMAGE_BASE: u64 = 0x100000;
+// DISPLAYREBASE-UNK-0001: the canon Program-DB's offcut UNK_ code labels
+// (image-based address, image-based name) — one locked witness for the
+// httpd corpus. See the install site (ACTION-SYMDB builder arm 5b) for
+// the capture provenance (headlessdist xml/httpd/0x12ddc0.xml) and the
+// ActionConstantPtr -> spacebaseConstant -> opPtrsub SPACEBASE mechanism
+// chain; the canon golden witness is
+// `*(undefined **)(puVar4 + -0x1060) = &UNK_0012df1b;`
+// (tests/golden/ghidra_httpd_1204.c:5198).
+const CANON_UNK_CODE_LABELS_HTTPD: [(u64, &str); 1] = [(0x12df1b, "UNK_0012df1b")];
+
 // HTTPDMAIN-F2-IMAGEBASE-DECISION-0001 (F2B, 2026-09-26): the driver now
 // loads the ET_DYN image at its NATIVE analyzeHeadless base 0x100000
 // instead of base-0-with-display-delta. The canon golden's producer
@@ -1105,6 +1115,57 @@ fn build_action_data_symbol_db(
             mark_readonly(&mut db, sym_id, raw);
             covered.push((raw, raw + 8));
             dat_count += 1;
+        }
+    }
+
+    // (5b) DISPLAYREBASE-UNK-0001: the canon Program-DB's offcut UNK_ code
+    // labels — one locked witness for the httpd corpus: UNK_0012df1b.
+    // Provenance: the headless transport capture
+    // /dev/shm/rugra-tests/headlessdist/xml/httpd/0x12ddc0.xml (real
+    // analyzeHeadless 12.0.4 DB, ap_ht_time window) carries exactly one
+    // UNK_ mapsym in that window:
+    //   <symbol id="0x0" name="UNK_0012df1b" typelock="true" namelock="true"
+    //            readonly="true" ... cat="-1"><typeref name="undefined" .../>
+    //   <addr space="ram" offset="0x12df1b" size="1"/>
+    // 0x12df1b is the return-address constant ap_ht_time stores through its
+    // frame pointer slot (`*(undefined **)(puVar4 + -0x1060) = &UNK_0012df1b`,
+    // canon golden ghidra_httpd_1204.c:5198). The harvest arm (5) skips
+    // exec-range addresses, and the CALL-semantics return-address push is
+    // invisible to the front-end reference channel anyway — the label is a
+    // canon-committed environment fact, so it rides this witness constant
+    // (CANON_DAT_LABEL_STARTS / KNOWN_NO_RETURN_ELF_NAMES precedent).
+    // Mechanism (oracle replay, same chain as the curl witness):
+    // ActionConstantPtr exact-hit on the UNK entry -> spacebaseConstant
+    // PTRSUB(spacebase,#0) with the outvn typed
+    // getTypePointerStripArray(8, undefined) = `undefined *` ->
+    // `&UNK_0012df1b` via opPtrsub's TYPE_SPACEBASE arm (printc.cc:1057-
+    // 1094); the store-target facing cast `undefined **` follows from the
+    // RHS type. Mirror (direct-runner) mode never calls this builder, so
+    // the mirror face stays label-free.
+    for &(raw, ref name) in CANON_UNK_CODE_LABELS_HTTPD.iter() {
+        // The captured mapsym's type is the UNSUFFIXED 1-byte "undefined"
+        // (typeref name="undefined" — the save_state typegrp core that
+        // re-registers over the wire coretypes' "undefined1"), so the
+        // spacebaseConstant ptrentrytype prints `(undefined *)`.
+        let undefined_base = Arc::new(Datatype::Base(TypeBase::new(
+            "undefined".to_string(),
+            1,
+            TypeMetatype::Unknown,
+        )));
+        if let Some(sym_id) = db.add_symbol_mapped(
+            global_scope_id,
+            name,
+            Some(undefined_base),
+            Address::new(raw),
+            1,
+        ) {
+            db.set_symbol_flag(
+                global_scope_id,
+                sym_id,
+                rugra::database::symbol_flags::TYPELOCK,
+                true,
+            );
+            mark_readonly(&mut db, sym_id, raw);
         }
     }
 

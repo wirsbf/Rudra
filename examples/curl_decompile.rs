@@ -2073,6 +2073,14 @@ struct DecompileRequest {
     /// `queryContainer(rampoint,1,Address())` (coreaction.cc:1151) fires on
     /// hugehelp's alias constants.
     rodata_dat_entries: Vec<(u64, String)>,
+    /// DISPLAYREBASE-UNK-0001: the canon Program-DB's offcut UNK_ code
+    /// labels (image-based address, image-based name) — one locked witness
+    /// for the curl corpus (see CANON_UNK_CODE_LABELS for the capture
+    /// provenance and the full mechanism chain). Installed as 1-byte
+    /// `undefined` typelocked readonly symbols so ActionConstantPtr's
+    /// exact-hit symbolization reproduces the canon `&UNK_00103c47` /
+    /// `(undefined *)0x103af8` display family.
+    unk_label_entries: Vec<(u64, String)>,
     /// `.rodata` section extent `(base_vaddr, size)` — the readonly property
     /// range source (`Database::setPropertyRange(Varnode::readonly, ...)`,
     /// the loader registration channel of architecture.cc:1371-1383).
@@ -3376,6 +3384,35 @@ fn synthetic_dat_name(base0_addr: u64) -> String {
 // entries + the string-manager registry client); the print-side literal
 // proxy keeps the full scan.
 const CANON_DAT_LABEL_STARTS: [u64; 5] = [0x61d9, 0x61e4, 0x61e9, 0x62f0, 0x149b0];
+
+// DISPLAYREBASE-UNK-0001: the canon Program-DB's offcut UNK_ code labels
+// (base-0 key; image-based name). Locked-oracle provenance: the headless
+// transport capture /dev/shm/rugra-tests/headlessdist/xml/curl/0x103a90.xml
+// (real analyzeHeadless 12.0.4 DB, HEADLESSDIST capture_localdb.py) carries
+// exactly one UNK_ mapsym for the file2string window:
+//   <symbol id="0x0" name="UNK_00103c47" typelock="true" namelock="true"
+//            readonly="true" ... cat="-1"><typeref name="undefined" .../>
+//   <addr space="ram" offset="0x103c47" size="1"/>
+// 0x3c47 is the return address of the noreturn `call __stack_chk_fail@plt`
+// at 0x3c42 — the address the gcc stack-protector fail path hands the
+// callee. The five sibling return-address constants (0x3af8/0x3b0e/0x3b23/
+// 0x3b7d/0x3bd3) carry NO UNK_ labels in the same transport (verified in
+// the capture), so the witness set is exactly one entry. Mechanism (oracle
+// replay /dev/shm/rugra-tests/displayrebase/displayrebase_canon_replay.cc,
+// LADDER transition trace): ActionConstantPtr::isPointer's exact-hit
+// queryContainer on the UNK entry -> Funcdata::spacebaseConstant rewrites
+// the COPY to PTRSUB(spacebase,#0) AND types the shared local's outvn
+// `undefined *` (getTypePointerStripArray(8, undefined)) -> the local's
+// high type promotes -> ActionSetCasts::castInput's constant-absorption
+// arm (coreaction.cc:2687-2691) retypes the five sibling COPY constants
+// `undefined *` -> PrintC::pushConstant's TYPE_PTR default arm
+// (printc.cc:1806-1816) prints `(undefined *)0x103af8`; the PTRSUB site
+// itself prints `&UNK_00103c47` (opPtrsub TYPE_SPACEBASE arm,
+// printc.cc:1057-1094). Falsification: replaying the same XML minus the
+// UNK mapsym prints bare `0x3af8` stores AND collapses the local to
+// `bool abStack_150[8]` — the whole 12-line canon family is this one
+// symbol. canon golden witness: ghidra_curl_1204.c:1452-1527.
+const CANON_UNK_CODE_LABELS: [(u64, &str); 1] = [(0x3c47, "UNK_00103c47")];
 
 // Ghidra: stringmanage.cc:347 StringManager::getCodepoint
 /// charsize==1 (UTF-8) specialization of `StringManager::getCodepoint`
@@ -6247,6 +6284,53 @@ fn decompile_request(
                         }
                     }
                     seeded_db_symbols += 1;
+                }
+                // DISPLAYREBASE-UNK-0001: the canon transport's offcut UNK_
+                // code labels. The captured mapsym shape is 1-byte
+                // `undefined` (typeref name="undefined", the save_state
+                // typegrp core the canon transport re-registers AFTER the
+                // wire coretypes — so the oracle's typecache[1][UNKNOWN]
+                // slot holds the UNSUFFIXED "undefined", not the wire
+                // table's "undefined1"), typelocked, readonly, entry size
+                // 1 — everything ActionConstantPtr's isPointer exact-hit +
+                // spacebaseConstant typing consumes (ptrentrytype =
+                // getTypePointerStripArray(8, undefined) = `undefined *`,
+                // funcdata.cc:415; the cast spelling depends on this name).
+                // Canon-mode transport only: mirror/bare-load branches
+                // never reach this block (same containment as the
+                // db_symbol_entries loop above).
+                {
+                    let undefined_base = std::sync::Arc::new(
+                        rugra::type_system::datatype::Datatype::Base(
+                            rugra::type_system::datatype::TypeBase::new(
+                                "undefined".to_string(),
+                                1,
+                                rugra::type_system::datatype::TypeMetatype::Unknown,
+                            ),
+                        ),
+                    );
+                    for &(address, ref name) in &request.unk_label_entries {
+                        if let Some(symbol_id) = db.add_symbol_mapped(
+                            global,
+                            name,
+                            Some(undefined_base.clone()),
+                            Address::new(address),
+                            1,
+                        ) {
+                            db.set_symbol_flag(
+                                global,
+                                symbol_id,
+                                rugra::database::symbol_flags::TYPELOCK,
+                                true,
+                            );
+                            db.set_symbol_flag(
+                                global,
+                                symbol_id,
+                                rugra::database::symbol_flags::READONLY,
+                                true,
+                            );
+                        }
+                    }
                 }
                 // The DWARF layer: real names + real Datatypes (config ->
                 // Configurable 304B with member offsets, glob_buffer ->
@@ -9181,6 +9265,10 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
                 })
                 .collect(),
             rodata_dat_entries: rodata_dat_entries_canon.clone(),
+            unk_label_entries: CANON_UNK_CODE_LABELS
+                .iter()
+                .map(|&(address, name)| (address + img_base, name.to_string()))
+                .collect(),
             rodata_span: rodata_span_canon,
             got_span: got_span_canon,
             db_symbol_entries: db_symbol_entries_canon.clone(),
