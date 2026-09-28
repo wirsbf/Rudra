@@ -8694,8 +8694,25 @@ pub fn characterize_as_param(
             let entry = match self.entry.get(entry_idx) { Some(e) => e, None => continue };
             if active.get_trial(i).is_definitely_not_used() { continue; }
             if !active.get_trial(i).is_active() {
-                let on_stack = active.get_trial(i).get_address().as_u64() != 0
-                    && self.space_base == Some(AddressSpace::Stack);
+                // Ghidra fspec.cc:1131-1135 (PROTORECOVER 2026-09-28):
+                //   if (trial.isUnref()&&active->isRecoverSubcall()) {
+                //     ...
+                //     if (trial.getAddress().getSpace()->getType() == IPTR_SPACEBASE)
+                //       seenchain = true;
+                //   }
+                // The stack test is on the TRIAL's own storage space, not on
+                // the model's spacebase: a REGISTER-space unreferenced trial
+                // being reused to pass into the callee is exactly the
+                // implied-argument case the hole-filling tail below exists
+                // to keep alive (the tail-jmp thunk's RDI/RSI). The previous
+                // `self.space_base == Some(Stack)` form consulted the model's
+                // stack spacebase (Some(Stack) on every x86-64 model with
+                // stack pentries), so every unref trial — register or not —
+                // tripped seenchain, killing the active trial behind it and
+                // voiding the hole-fill (canon httpd ap_getword_nc: the one
+                // active RDX trial died with the whole trial list, leaving
+                // `ap_getword()` bare).
+                let on_stack = active.get_trial(i).get_space() == AddressSpace::Stack;
                 if active.get_trial(i).is_unref() && recover_subcall {
                     if on_stack { seen_chain = true; }
                 }
@@ -13289,6 +13306,105 @@ mod tests {
         let t = active2.get_trial(0);
         assert!(!t.is_used() && !t.is_active());
         assert_eq!(t.get_entry_index(), None);
+    }
+
+    // PROTORECOVER (CANON-SIG-PROTO-RECOVER-0001) regression:
+    // `ParamListStandard::forceInactiveChain`'s unref-seenchaining stack test
+    // reads the TRIAL's own storage space — fspec.cc:1133-1135
+    //   if (trial.isUnref()&&active->isRecoverSubcall()) {
+    //     if (trial.getAddress().getSpace()->getType() == IPTR_SPACEBASE)
+    //       seenchain = true;
+    //   }
+    // — never the model's stack spacebase. A REGISTER-space unreferenced
+    // trial before the last active trial is the implied-argument case the
+    // hole-filling tail exists to keep alive (canon httpd ap_getword_nc:
+    // the movsx-written RDX trial implies RDI/RSI forwarding into the
+    // tail-called ap_getword); the pre-fix `self.space_base == Some(Stack)`
+    // form consulted the model's spacebase (Some(Stack) on every x86-64
+    // model with stack pentries), so register unrefs tripped seenchain,
+    // killing the active trial behind them and voiding the hole-fill.
+    #[test]
+    fn test_force_inactive_chain_unref_register_vs_stack_trial_space() {
+        // SysV-like general section: group 0 stack 0x8..0x10, group 1 RDI
+        // 0x38, group 2 RSI 0x30, group 3 RDX 0x10 — all exclusion entries.
+        let mut m = ParamListStandard::new();
+        let mut e_stack = ParamEntry::new(0);
+        e_stack.set_type_class(TypeClass::General);
+        e_stack.set_space(AddressSpace::Stack);
+        e_stack.set_base(0x8);
+        e_stack.set_sizes(8, 1);
+        e_stack.set_alignment(0);
+        let e_rdi = {
+            let mut e = ParamEntry::new(1);
+            e.set_type_class(TypeClass::General);
+            e.set_space(AddressSpace::Register);
+            e.set_base(0x38);
+            e.set_sizes(8, 1);
+            e.set_alignment(0);
+            e
+        };
+        let e_rsi = {
+            let mut e = ParamEntry::new(2);
+            e.set_type_class(TypeClass::General);
+            e.set_space(AddressSpace::Register);
+            e.set_base(0x30);
+            e.set_sizes(8, 1);
+            e.set_alignment(0);
+            e
+        };
+        let e_rdx = {
+            let mut e = ParamEntry::new(3);
+            e.set_type_class(TypeClass::General);
+            e.set_space(AddressSpace::Register);
+            e.set_base(0x10);
+            e.set_sizes(8, 1);
+            e.set_alignment(0);
+            e
+        };
+        m.entry = vec![e_stack, e_rdi, e_rsi, e_rdx];
+        m.set_num_group(4);
+        // The x86-64 defaultfp carries stack pentries, so the model's
+        // spacebase IS Some(Stack) — the field the broken predicate read.
+        m.set_space_base(Some(AddressSpace::Stack));
+
+        // (a) The thunk shape: RDI/RSI unref (implied by the active RDX
+        // trial behind them) — recoverSubcall=true (call-site active input).
+        // The register trials must NOT trip seenchain; the hole-filling tail
+        // marks them active alongside RDX.
+        let mut active = ParamActive::new(true);
+        active.register_trial_in_space(AddressSpace::Register, Address::new(0x38), 8);
+        active.register_trial_in_space(AddressSpace::Register, Address::new(0x30), 8);
+        active.register_trial_in_space(AddressSpace::Register, Address::new(0x10), 8);
+        active.get_trial_mut(0).mark_unref();
+        active.get_trial_mut(1).mark_unref();
+        active.get_trial_mut(2).mark_active();
+        active.get_trial_mut(0).set_entry(1, 0);
+        active.get_trial_mut(1).set_entry(2, 0);
+        active.get_trial_mut(2).set_entry(3, 0);
+        m.force_inactive_chain(&mut active, 2, 0, 3, 1);
+        assert!(active.get_trial(0).is_active(),
+                "register unref before the active trial is hole-filled active");
+        assert!(active.get_trial(1).is_active(),
+                "register unref before the active trial is hole-filled active");
+        assert!(active.get_trial(2).is_active(),
+                "the active trial itself must survive register unrefs");
+
+        // (b) A STACK-space unref before the active trial: the caller's
+        // stack slot is not being forwarded, so the chain really is broken —
+        // seenchain fires, the active trial dies, and the hole-fill stays
+        // off (fspec.cc:1128-1131 comment: stack-relative caller/callee
+        // offsets differ).
+        let mut active2 = ParamActive::new(true);
+        active2.register_trial_in_space(AddressSpace::Stack, Address::new(0x8), 8);
+        active2.register_trial_in_space(AddressSpace::Register, Address::new(0x10), 8);
+        active2.get_trial_mut(0).mark_unref();
+        active2.get_trial_mut(1).mark_active();
+        active2.get_trial_mut(0).set_entry(0, 0);
+        active2.get_trial_mut(1).set_entry(3, 0);
+        m.force_inactive_chain(&mut active2, 2, 0, 2, 0);
+        assert!(!active2.get_trial(0).is_active());
+        assert!(!active2.get_trial(1).is_active(),
+                "stack unref before the active trial still kills it");
     }
     // ---- MIGW-FSPEC batch regression tests (Rugra-side; oracle claims
     // live in the bilateral fixtures, not here) ----

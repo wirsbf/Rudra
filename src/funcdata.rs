@@ -8715,16 +8715,32 @@ impl Funcdata {
                 None => self.obank.create(opcode, raw.num_input(), addr),
             };
 
-            // Create output varnode if present
+            // Create output varnode if present. Faithful to
+            // PcodeEmitFd::dump's outvar arm (funcdata.cc:884-886:
+            // `op = fd->newOp(...); fd->newVarnodeOut(outvar->size,
+            // oaddr, op)`): the output rides the FULL newVarnodeOut
+            // sequence — createDef + setOutput + assignHigh +
+            // checkForLanedRegister + the localmap->queryProperties
+            // symbol tail (funcdata_varnode.cc:104-122). The tail is what
+            // stamps `mapped|addrtied|persist` onto global (RAM)-space
+            // writes at injection (database.cc:1271-1276), and that
+            // persist flag is the return-value-clip input: onlyOpUse's
+            // persist arm (funcdata_varnode.cc:1890-1893) marks a RETURN
+            // trial inactive when the returned value is also stored to a
+            // global, so ActionReturnRecovery drops it (the
+            // `return &DAT_x;` -> `return;` clip; canon httpd
+            // ap_init_vhost_config, PROTORECOVER 2026-09-28). The bare
+            // bank create here left every injected global write unpersisted
+            // (verified: Ram:0x1a0820/8p0 at returnrecovery), so unused
+            // return values survived as `undefined8 *` signatures.
+            // (INJECT-NEWVARNODEOUT-SYMBOLTAIL-0001)
             if let Some(out_raw) = raw.output() {
-                let out_vn =
-                    self.vbank
-                        .create_with_space(out_raw.size, out_raw.space, out_raw.offset);
-                // Mark as written and set def
-                let out_vn = self
-                    .vbank
-                    .set_def_prevalidated(out_vn, Arc::downgrade(&op_ref.0));
-                op_ref.0.write().unwrap().output = Some(out_vn);
+                let _out_vn = self.new_varnode_out_full(
+                    out_raw.size,
+                    out_raw.space,
+                    Address::new(out_raw.offset),
+                    &op_ref,
+                );
             }
 
             // Create input varnodes. Faithful to PcodeEmitFd::dump
@@ -8777,11 +8793,23 @@ impl Funcdata {
                 } else if input_raw.space == AddressSpace::Const {
                     self.vbank.create_constant(input_raw.size, input_raw.offset)
                 } else {
-                    self.vbank
-                        .create_with_space(
+                    // PcodeEmitFd::dump cc:904-907: `vn = fd->newVarnode(
+                    // vars[i].size, vars[i].space, vars[i].offset)` — the
+                    // FULL newVarnode sequence (create + assignHigh +
+                    // checkForLanedRegister + the queryProperties symbol
+                    // tail with the INVALID usepoint,
+                    // funcdata_varnode.cc:148-169), not the bare bank
+                    // create. For global (RAM)-space reads the tail stamps
+                    // `mapped|addrtied|persist` exactly as on the output
+                    // side (INJECT-NEWVARNODEOUT-SYMBOLTAIL-0001; the
+                    // space-gated parent leg leaves register/stack/unique
+                    // reads untouched, matching the C++ walk's
+                    // out-of-scope getProperty fold).
+                    self.new_varnode_in_space(
                         input_raw.size,
                         input_raw.space,
-                        input_raw.offset)
+                        Address::new(input_raw.offset),
+                    )
                 };
                 // Add use-def link
                 in_vn
@@ -14195,6 +14223,92 @@ mod tests {
 
         // Verify basic blocks (RETURN terminates, so we get 1 block)
         assert_eq!(fd.bblocks.get_size(), 1);
+    }
+
+    // PROTORECOVER (CANON-SIG-PROTO-RECOVER-0001) regression: the bulk
+    // inject path routes every raw output through the FULL
+    // `Funcdata::newVarnodeOut` sequence and every non-coderef input
+    // through `Funcdata::newVarnode` (PcodeEmitFd::dump, funcdata.cc:884/
+    // 904-907) — including the localmap->queryProperties symbol tail
+    // (funcdata_varnode.cc:104-122/148-169), which stamps
+    // `mapped|addrtied|persist` onto global (RAM)-space storage
+    // (database.cc:1271-1276). That persist flag is the return-clip input:
+    // Funcdata::onlyOpUse's persist arm (funcdata_varnode.cc:1890-1893)
+    // marks a RETURN trial inactive when the returned value is also stored
+    // to a global (canon httpd ap_init_vhost_config's
+    // `undefined8 *`+`return &DAT_001a0828;` -> `void`+`return;`).
+    // Register-space storage must stay unpersisted (the C++ walk's
+    // out-of-scope getProperty fold, database.cc:1278-1279).
+    #[test]
+    fn test_inject_raw_ops_symbol_tail_persists_global_storage() {
+        let mut arch = crate::arch::Architecture::new();
+        // The Database channel with a global RAM range — the cspec
+        // `<global><range space="ram"/></global>` shape every driver
+        // installs (canon: the action DB; mirror: the fresh constructor
+        // DB).
+        let mut db = crate::database::Database::new(true);
+        db.add_range_spaced(
+            db.global_scope_id,
+            crate::space::AddressSpace::Ram,
+            0,
+            u64::MAX,
+        );
+        arch.set_symboltab(std::sync::Arc::new(std::sync::RwLock::new(db)));
+
+        let mut fd = Funcdata::new("global_writer", Address::new(0x1000), 7);
+        fd.set_arch(std::sync::Arc::new(arch));
+
+        // COPY ram:0x1a0820 <- ram:0x1a0828 (read) — a global write whose
+        // value is also returned (the ap_init_vhost_config tail shape) plus
+        // a register read for the contrast.
+        let mut op1 = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+        op1.set_output(VarnodeRaw::new(AddressSpace::Ram, 0x1a0820, 8));
+        op1.add_input(VarnodeRaw::new(AddressSpace::Ram, 0x1a0828, 8));
+
+        let mut op2 = PcodeOpRaw::new(OpCode::CPUI_COPY as i32);
+        op2.set_output(VarnodeRaw::new(AddressSpace::Register, 0x0, 8)); // RAX
+        op2.add_input(VarnodeRaw::new(AddressSpace::Register, 0x38, 8)); // RDI
+
+        fd.inject_raw_ops(&[op1, op2]);
+
+        // Lookup helper: the first varnode at (space, offset, size) with the
+        // given written-ness (the inject path creates fresh varnodes per
+        // reference, so at most one of each kind exists).
+        let find_by = |space: AddressSpace, off: u64, size: usize, written: bool| {
+            fd.vbank.loc_tree.iter().find(|v| {
+                let g = v.0.read().unwrap();
+                g.address_space == space
+                    && g.loc.as_u64() == off
+                    && g.size == size
+                    && g.is_written() == written
+            }).map(|v| v.0.clone())
+        };
+        // The global write's output varnode: persist (and mapped/addrtied)
+        // from the newVarnodeOut symbol tail.
+        let out_ram = find_by(AddressSpace::Ram, 0x1a0820, 8, true)
+            .expect("ram output exists");
+        {
+            let r = out_ram.read().unwrap();
+            assert!(r.is_persist(), "global write output must carry persist");
+            assert!(r.is_mapped(), "global write output must carry mapped");
+            assert!(r.flags & crate::varnode::varnode_flags::ADDRTIED != 0,
+                    "global write output must carry addrtied");
+        }
+        // The global read's input varnode: persist from the newVarnode tail.
+        let in_ram = find_by(AddressSpace::Ram, 0x1a0828, 8, false)
+            .expect("ram input exists");
+        assert!(in_ram.read().unwrap().is_persist(),
+                "global read input must carry persist");
+        // Register storage: the tail's space-gated parent leg leaves it
+        // untouched — no persist on register reads or writes.
+        let out_reg = find_by(AddressSpace::Register, 0x0, 8, true)
+            .expect("register output exists");
+        assert!(!out_reg.read().unwrap().is_persist(),
+                "register output must NOT carry persist");
+        let in_reg = find_by(AddressSpace::Register, 0x38, 8, false)
+            .expect("register input exists");
+        assert!(!in_reg.read().unwrap().is_persist(),
+                "register input must NOT carry persist");
     }
 
     #[test]

@@ -385,6 +385,12 @@ FuncCallSpecs: +input_consume Vec + get/set_input_bytes_consumed（fspec.cc:5870
 - 资源分配核心：`assign_address_fallback`(cc:735)/`assign_address`(cc:772)/`assign_map`(cc:785) —— 给定数据类型列表，映射到存储位置
 - 试验映射：`build_trial_map`(cc:849) —— 将 ParamActive 试验关联到 ParamEntry；`fillin_map`(cc:1285) —— 决定正式参数列表（buildTrialMap → forceExclusionGroup → separateSections → forceNoUse → forceInactiveChain）
 - 排除/链规则：`force_exclusion_group`(cc:1032)/`force_no_use`(cc:1069)/`force_inactive_chain`(cc:1111)/`mark_group_no_use`(cc:974)/`mark_best_inactive`(cc:997)/`select_unreference_entry`(cc:820)/`separate_sections`(cc:946)
+  - `force_inactive_chain` 的 unref-seenchaining 栈测试读**试验自身存储空间**
+    （cc:1133-1135 `trial.getAddress().getSpace()->getType() == IPTR_SPACEBASE`），
+    绝不读模型的 stack spacebase——REGISTER 空间 unref 试验在末位 active 试验之前
+    正是 hole-filling 尾部要保活的"隐含参数"形（tail-jmp thunk 的 RDI/RSI 转发；
+    PROTORECOVER 2026-09-28 修复，canon httpd ap_getword_nc 4→0）；
+    STACK 空间 unref 仍触发 seenchain（caller/callee 栈相对偏移不同，cc:1128-1131 注释）。
 - 查询：`find_entry`(cc:661)/`characterize_as_param`(cc:682)/`possible_param`(cc:1354)/`possible_param_with_slot`(cc:1360)/`get_biggest_contained_param`(cc:1375)/`unjustified_container`(cc:1411)/`assumed_extension`(cc:1426)/`check_join`(cc:1315)/`check_split`(cc:1342)
 - 解析/finalize：`parse_pentry`(cc:1226)/`parse_group`(cc:1262)/`finalize_after_decode`(cc:1451)/`calc_delay`(cc:1153)/`populate_resolver`(cc:1191)/`add_resolver_range`(cc:1174)
 - 辅助：`extract_tiles`(cc:626)/`get_stack_entry`(cc:642)/`get_range_list`(cc:1439)/`clone_model`(hh:645)

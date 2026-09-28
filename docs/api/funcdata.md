@@ -815,6 +815,21 @@ ADT/guard/refinement 阶段，只服务 example 侧 prototype 估计 helper（�
 这是当前 `Funcdata` 最关键的桥接方法之一。  
 它负责把反汇编 / 提升阶段得到的 `PcodeOpRaw` 序列，转为当前函数容器中的正式图结构。
 
+2026-09-28 INJECT-NEWVARNODEOUT-SYMBOLTAIL-0001（PROTORECOVER）：phase 1 的
+varnode 创建改走 `PcodeEmitFd::dump` 的完整序列（funcdata.cc:884/904-907）——
+输出经 `new_varnode_out_full`（`Funcdata::newVarnodeOut`，funcdata_varnode.cc:104-122：
+createDef + setOutput + assignHigh + laned 探针 + `localmap->queryProperties` 符号尾，
+usepoint=op 地址），非 coderef 输入经 `new_varnode_in_space`（`Funcdata::newVarnode`，
+cc:148-169：create + assignHigh + laned + 符号尾，usepoint=INVALID）。符号尾对全局
+（RAM）空间存储盖上 `mapped|addrtied|persist`（database.cc:1271-1276），该 persist
+即返回值裁剪的输入：`onlyOpUse` 的 persist 臂（funcdata_varnode.cc:1890-1893）在
+返回值同时被存进全局时把 RETURN 试验标记 inactive，ActionReturnRecovery 随之摘除
+（canon httpd ap_init_vhost_config `undefined8 *`+`return &DAT;` → `void`+`return;`，
+4→0）。符号尾的父域腿按空间门控（仅 RAM），寄存器/栈/unique 存储保持无 flag——
+与 C++ 侧 out-of-scope 的 getProperty 折叠（database.cc:1278-1279）一致。单 op 适配器
+`inject_raw_ops_single` 已是此形态（PLTSTUB-THUNKRELRO-0001 先例）；本改动把批量路径
+对齐到同一形态。
+
 2026-08-30 CALLSPEC-DRIVER-0001：phase 1（raw dump）与 phase 2（build_blocks）之间——与
 flow override 应用同一个 phase-1.5 边界（flow.cc:415-418/474-475 在
 `FlowInfo::processInstruction` 内的位置）——补 flow-time callspec 锚定：每个
