@@ -140,15 +140,52 @@ fail-closed；脚本 mtime 层与内容层独立红；`--self-test` 不受扰。
 ok=71/71）；canon curl/httpd 双语素 base≡head 字节恒等且对 golden 54/0/0·124 与
 36/0/0·34 精确命中 MB30 钉值。
 
+## all-mode 函数级子进程池（SPEEDPROF-PAR-CHILDREN-0001，2026-09-28 车道 PARCHILDREN）
+
+**动机（车道 SPEEDPROF 实测，证据 /dev/shm/rugra-tests/speedprof/）**：all-mode
+coordinator 原为逐函数串行子进程循环——镜面门禁循环里 vsh/sq/sqlite 三面合计
+~24 分钟串行 wall（sqlite 单面 953.6s、sq 393.7s 干净串行锚）。jobs=32 子进程池
+harness 实测 sqlite **953.6→165.4s（5.76×，wall==Amdahl 尾界=VdbeExec 166.5s 单极）**、
+sq **393.7→43.5s（9.05×）**，且三方字节恒等链在案（官方串行==harness 串行==
+harness 并行；sqlite 5,289,364B + sq 全量 cmp）。本票把该形态收编进驱动本体。
+
+**形态（全部 examples 胶水，无 src 触碰）**：
+
+- **worker 隔离 = 每函数一个 `--one <index>` 子进程**（一 Architecture + 一 DB
+  per child，CR-S1 已证的隔离形态；不做进程内并行——PAREVAL-DETERM-HERMETICITY-0001
+  前置保持）。协调器侧是 `--jobs N` 个有界 worker **线程**，每线程循环领取槽位、
+  构造同一 `timeout --kill-after=30s {T}s <exe> <bin> --one i` 子命令（同 env
+  镜像态 + `RUGRA_GEN_STALE_GUARD_INHERITED=1`）、经 `run_capped_output`
+  （GEN-DRIVER-STALL-0001 监督）收集。
+- **输出序恒 = 函数 index 序**：块文本按槽位收集（`child_block` = 历史串行
+  四分类 ok/TIMEOUT/PANICKED/ERROR 逐字抽出，含 STALL 臂），池排干后按 index
+  序一次性拼接输出——stdout 在任意 `--jobs` 下与历史串行 coordinator
+  **逐字节恒等**；完成序只进 stderr 进度行（`[GEN-PAR]`，仅 jobs>1 时发）。
+- **enqueue 序**：jobs>1 时最大函数优先（负载均衡，让 sqlite VdbeExec ~166s
+  巨物先起跑；调度序不进输出）；jobs==1 时 index 序 = 精确历史串行形态。
+- **默认 `--jobs 8`**（共享 112 核宿主保守值；实测 32 安全，8 留余量），
+  `--jobs N` / `--jobs=N` 覆盖；非法值 exit 1（fail-closed）。
+- **fail-closed**：子进程 spawn 失败（非 STALL 臂）→ 记录首错、池排空、
+  exit 1 不发拼装输出；worker 线程 panic → join 失败 → exit 1；槽位空缺
+  （理论不可达）→ exit 1。健康线 `[GEN] ok=N/M functions`（stderr）语义不变，
+  镜面门禁健康检查零改动兼容。
+
+**验收**：并行 vs 串行全量 cmp 字节恒等（sq+sqlite 双语料三方链复现）；
+canon 双语素 md5 恒等（gen 驱动无 canon 面）；镜面五面 PASS；bank/tests 零回退。
+性能（本机共享负载，如实记）：见车道终报
+/dev/shm/rugra-reports/LANE_PARCHILDREN_2026-09-28.md。
+
 ## 门禁用法
 
 ```bash
 # 单函数（stderr 出 --list 索引）
 target/fast-release/examples/gen_decompile /usr/local/bin/sasquatch --one 391
 
-# 镜面全量（cwd=worktree 根，sleigh_specs CWD 相对）
+# 镜面全量（cwd=worktree 根，sleigh_specs CWD 相对；--jobs 默认 8，
+# --jobs 1 = 精确历史串行形态；任意 jobs 输出序恒 = 函数 index 序）
 RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=600 \
   target/fast-release/examples/gen_decompile /usr/local/bin/sasquatch \
+  [--jobs 8] \
   > /dev/shm/.../sq_mirror.c 2> /dev/shm/.../sq_mirror.err
 
 python3 tools/compare_ghidra.py <mirror.c> tests/golden/ghidra_sq_1204.direct-runner.c \
