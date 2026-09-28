@@ -79,6 +79,31 @@
 # byte-identical (md5 4ab1db2a / 7d5b9e7c == MB40 pins). tests 1973P/0F/5I
 # (=1972 + switchbreak 1 new test). B2 events: httpd 0x9d00 family slot=2
 # STORE 16==oracle 16, RSP-source 0, residual 181 all from_sb=false.
+# MB42-RATCHET-REPIN-0001 (2026-09-29, joint tree @ 8103c7c6 after 2-branch
+# batch [opppool 187123ca + stackslot2 8103c7c6], forced relink verified
+# [fast-release+release binaries +108~378s > both merge commits], gate
+# --jobs 5 fresh round — binary sha change invalidates digest cache keys;
+# stale-guard probe digest=879bb35c files=103; repin commit only edits this
+# table, measurement tree=8103c7c6):
+# ① sqlite 4516→2609 (−1907/−42.3%): STACKSLOT2 merge_highs (Some,Some)
+#    in-pair absorption re-points absorbed instances (vn.high=h1 =
+#    variable.cc:648-654 setHigh in-pair semantics) — campaign LARGEST
+#    single mirror burn. [LIT] join-temp materialization family fully
+#    burned: trio vmprintf/mprintf/Pragma 696/696/643→58/58/55, mirror
+#    CONCAT88 287→0 (golden=1), partial-symbol LHS 13→688 (golden 692
+#    near-parity), vmprintf PIECE-ARM 8→103 (oracle 103 exact). Residuals
+#    belong to existing tickets (CAST-SHAPE/SWITCH-GOTO/UNAFF/DECL).
+# ② curl 13 / httpd 2 / vsh 0 / sq 726 identical, not re-pinned (MB41/MB39
+#    rows stay). OPPPOOL is output-neutral by construction (pure-read-window
+#    lock merges): joint-tree VdbeExec --one 1055 bare stdout md5
+#    4c557d1f... == lane pin byte-identical (stackslot2 leaves VdbeExec
+#    untouched).
+# Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
+# byte-identical (md5 4ab1db2a / 7d5b9e7c == MB41 pins). tests 1973P/0F/5I
+# (both lanes zero new tests; stackslot2 extends an existing regression
+# lock). Performance (B2, same machine): VdbeExec --one wall 92.3s
+# (MB41-era)→74.9s bare / 78.8s mirror (−16% lane A/B claim reproduced);
+# sqlite full corpus --jobs 32: 130.0s→82.1s wall (1385/1385 ok).
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # MB27-RATCHET-REPIN-0001 @ 06e491c0 (2026-09-28): httpd 84->65 (GETPARENTS find_subpiece 同块约束, -19);
 # sq 3262->3021 (三支复合 -241: getparents 同块约束镜面效应为主); sqlite 10013->9951 (-62);
@@ -120,7 +145,7 @@ curl	13	74	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 httpd	2	29	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 sq	726	810	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
-sqlite	4516	1385	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
+sqlite	2609	1385	MB42-RATCHET-REPIN-0001	8103c7c6	2026-09-29
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
