@@ -166,3 +166,12 @@ isEntryPoint/getStartBlock/opInsertBegin/constructJoinAddress/newVarnode/combine
  
 
 - 2026-09-25 (FAMAUDIT integration): constructor sites merged to master; this note records the integration commit touching the module.
+
+## join 基建接线（SQLCENSUS-STACKSLOT-GROUP-0001 第一波，2026-09-28）
+
+- 本文件对应源码的改动均为 join 空间基建（translate.cc:817
+  constructJoinAddress / :671 findAddJoin 的 1:1 移植，详见 docs/api/arch.md
+  与 docs/api/space.md 条目）的接线/适配面：CALL 侧 join 闭包 whole 落
+  Join 空间注册地址；RETURN 侧 return_join_address 委托 Architecture；
+  double_precis create_joined_whole 消费空间限定结果；process_joins /
+  build_subpiece 经 RwLock 读 join_db。无独立新语义。

@@ -537,7 +537,14 @@ pub struct Architecture {
     /// (architecture.hh:200).
     pub pcodeinjectlib: Option<std::sync::Arc<std::sync::RwLock<crate::pcodeinject::PcodeInjectLibrary>>>,
     /// Join record database (translate.hh AddrSpaceManager joinrecords).
-    pub join_db: crate::space::JoinDatabase,
+    /// Interior-mutable shared table (the `types`/`userops` member
+    /// pattern): `findAddJoin` mutates the allocation counter and record
+    /// list (translate.cc:671-715) while the Architecture itself is shared
+    /// behind an immutable `Arc` — Ghidra has one mutable Architecture
+    /// object, the lock is Rust's borrow-split stand-in, and the Arc share
+    /// keeps the single-table semantics Ghidra's process-global
+    /// AddrSpaceManager has.
+    pub join_db: std::sync::Arc<std::sync::RwLock<crate::space::JoinDatabase>>,
     /// Comment database. Faithful to `commentdb`.
     pub commentdb: Option<std::sync::Arc<std::sync::RwLock<crate::comment::CommentDatabaseInternal>>>,
     /// String manager. Faithful to `stringManager`.
@@ -764,7 +771,7 @@ impl Architecture {
             types: None,
             userops: None,
             pcodeinjectlib: None,
-            join_db: crate::space::JoinDatabase::new(),
+            join_db: std::sync::Arc::new(std::sync::RwLock::new(crate::space::JoinDatabase::new())),
             commentdb: None,
             string_manager: None,
             cpool: None,
@@ -3019,21 +3026,87 @@ impl Architecture {
         self.types.as_ref().and_then(|tf| tf.read().unwrap().get_base(size, m))
     }
 
-    // RUGRA-GLUE: construct_join_address (no Ghidra counterpart found)
-    /// Construct a "join" address for a multi-register value. Faithful to
-    /// `Translate::constructJoinAddress` (translate.cc:817-860). Degraded:
-    /// only the contiguous-same-space fast path is implemented (returns the
-    /// lower address); non-contiguous returns a zero placeholder.
-    pub fn construct_join_address(&self, hi_offset: u64, hi_size: usize, lo_offset: u64, lo_size: usize) -> u64 {
-        // If the two pieces are contiguous in the same space, the join is
-        // just the lowest address.
-        if lo_offset + lo_size as u64 == hi_offset {
-            return lo_offset;
+    // Ghidra: translate.cc:817 AddrSpaceManager::constructJoinAddress
+    /// Construct a "join" address for a value split across two storage
+    /// locations. Faithful to `constructJoinAddress`
+    /// (translate.cc:817-860):
+    ///   1. both pieces must live in a SPACEBASE or PROCESSOR space
+    ///      (Rugra enum: Stack = spacebase, Ram/Register/Overlay/Other =
+    ///      processor) — the oracle throws LowlevelError otherwise,
+    ///      degraded here to `None` so callers can skip the join (the
+    ///      established LowlevelError-arm degradation pattern,
+    ///      e.g. `return_join_address` coreaction.rs);
+    ///   2. `usejoinspace = false` when either piece is the spacebase or
+    ///      the default code space (Rugra's x86-64 corpus: Ram) —
+    ///      contiguous pieces then resolve to the earliest address
+    ///      directly;
+    ///   3. contiguous pieces in a register space resolve to the covering
+    ///      parent register's address when the translator names one
+    ///      (little-endian names at the lo piece);
+    ///   4. otherwise `findAddJoin([hi, lo], 0)` registers/dedups a
+    ///      JoinRecord and returns the unified join-space address.
+    pub fn construct_join_address(
+        &self,
+        hi_space: crate::space::AddressSpace,
+        hi_off: u64,
+        hi_size: usize,
+        lo_space: crate::space::AddressSpace,
+        lo_off: u64,
+        lo_size: usize,
+    ) -> Option<(crate::space::AddressSpace, u64)> {
+        use crate::space::AddressSpace;
+        // cc:820-826: spacetype membership — "Trying to join in
+        // appropriate locations" LowlevelError arm.
+        let joinable = |spc: &AddressSpace| {
+            matches!(spc, AddressSpace::Stack | AddressSpace::Ram | AddressSpace::Register
+                     | AddressSpace::Overlay | AddressSpace::Other(_))
+        };
+        if !joinable(&hi_space) || !joinable(&lo_space) {
+            return None;
         }
-        if hi_offset + hi_size as u64 == lo_offset {
-            return hi_offset;
+        // cc:827-830: usejoinspace = false for spacebase or default-code
+        // space pieces (the x86-64 default code space is ram).
+        let use_join_space = !matches!(hi_space, AddressSpace::Stack)
+            && !matches!(lo_space, AddressSpace::Stack)
+            && !matches!(hi_space, AddressSpace::Ram)
+            && !matches!(lo_space, AddressSpace::Ram);
+        // cc:831 address.cc:173-188 Address::isContiguous(hisz, loaddr,
+        // losz): same space; LE wraps lo.offset+losz onto hi.offset.
+        let contiguous = hi_space == lo_space
+            && if hi_space.is_big_endian() {
+                hi_off.wrapping_add(hi_size as u64) == lo_off
+            } else {
+                lo_off.wrapping_add(lo_size as u64) == hi_off
+            };
+        if contiguous {
+            let big_endian = hi_space.is_big_endian();
+            if !use_join_space {
+                // cc:832-835: mappable space — earliest address.
+                return Some(if big_endian { (hi_space, hi_off) } else { (lo_space, lo_off) });
+            }
+            // cc:837-845: register space — a covering parent register name
+            // wins (LE names at the lo piece, BE at the hi piece).
+            let (name_space, name_off) = if big_endian { (hi_space, hi_off) } else { (lo_space, lo_off) };
+            let covering_name =
+                self.get_register_name(name_space, name_off, (hi_size + lo_size) as i32);
+            if !covering_name.is_empty() {
+                return Some((name_space, name_off));
+            }
         }
-        0
+        // cc:848-859: findAddJoin([hi, lo], 0) → Address(joinspace,
+        // unified.offset). The unified offset is allocated/deduped
+        // faithfully (translate.cc:699-712) through the join table.
+        let mut join_db = self
+            .join_db
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        Some((
+            AddressSpace::Join,
+            join_db.find_add_join(vec![
+                crate::space::VarnodeData { space: hi_space, offset: hi_off, size: hi_size },
+                crate::space::VarnodeData { space: lo_space, offset: lo_off, size: lo_size },
+            ]),
+        ))
     }
 
     // RUGRA-GLUE: set_split_records (no Ghidra counterpart found)

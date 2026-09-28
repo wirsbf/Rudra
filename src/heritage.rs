@@ -3817,7 +3817,9 @@ impl Heritage {
         })
         {
             Some(v) => v,
-            None => return false,
+            None => {
+                return false;
+            }
         };
         let (_v_space, v_offset, v_size) = v_data;
         // cc:1301-1303: truncAddr in caller perspective.
@@ -5762,7 +5764,12 @@ impl Heritage {
             // (throws "Unlinked join address" on a miss — degraded here,
             // see the function-level note above).
             let join_rec = match fd.get_arch() {
-                Some(a) => a.join_db.find_join(vn_offset).cloned(),
+                Some(a) => a
+                    .join_db
+                    .read()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .find_join(vn_offset)
+                    .cloned(),
                 None => None,
             };
             let join_rec = match join_rec {
@@ -8119,7 +8126,10 @@ mod tests {
                 ],
                 unified: VarnodeData { space: AddressSpace::Join, offset: 0, size: 16 },
             });
-            arch.join_db = join_db;
+            *arch
+                .join_db
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = join_db;
         }
         let arch_arc = Arc::new(arch);
         let mut fd = Funcdata::new("pjoins", Address::new(0x5000), 0x20);

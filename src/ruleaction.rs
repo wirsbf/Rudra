@@ -12975,7 +12975,13 @@ impl RulePullsubMulti {
             let joinrec = fd
                 .arch
                 .as_ref()
-                .and_then(|arch| arch.join_db.find_join(base_addr.as_u64()));
+                .and_then(|arch| {
+                    arch.join_db
+                        .read()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .find_join(base_addr.as_u64())
+                        .cloned()
+                });
             if joinrec.is_none() {
                 eprintln!(
                     "[RULEACTION] build_subpiece: unlinked join address join:0x{:x} \

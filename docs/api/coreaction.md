@@ -4339,3 +4339,12 @@ setcasts 之后，LOAD 型 iterate 被 CAST 包装后平凡可移 → while 被�
 95→91（my_get_token/parseconfig 各 −2，语句序归 golden）；双跑 md5 与
 前置会话产物恒等；oracle 亲读链：coreaction.cc:5475-5741 动作注册序 +
 blockaction.cc:2110-2115/2186-2197 + block.cc:3148-3297/3350-3436。
+
+## join 基建接线（SQLCENSUS-STACKSLOT-GROUP-0001 第一波，2026-09-28）
+
+- 本文件对应源码的改动均为 join 空间基建（translate.cc:817
+  constructJoinAddress / :671 findAddJoin 的 1:1 移植，详见 docs/api/arch.md
+  与 docs/api/space.md 条目）的接线/适配面：CALL 侧 join 闭包 whole 落
+  Join 空间注册地址；RETURN 侧 return_join_address 委托 Architecture；
+  double_precis create_joined_whole 消费空间限定结果；process_joins /
+  build_subpiece 经 RwLock 读 join_db。无独立新语义。

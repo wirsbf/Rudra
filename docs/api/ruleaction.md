@@ -2246,3 +2246,12 @@ oracle 字节恒等，双跑确定性亲证；registry 231→232。
 throw 臂对本消费者不可达（gatherExpression 不收集）；annotation 输入
 newCodeRef 复制在 Rust 克隆器为共享 varnode（nodeSplit 域既有决定，布尔
 表达式输入不可达）——均记入 metadata coverage UNTESTED 臂，不冒充覆盖。
+
+## join 基建接线（SQLCENSUS-STACKSLOT-GROUP-0001 第一波，2026-09-28）
+
+- 本文件对应源码的改动均为 join 空间基建（translate.cc:817
+  constructJoinAddress / :671 findAddJoin 的 1:1 移植，详见 docs/api/arch.md
+  与 docs/api/space.md 条目）的接线/适配面：CALL 侧 join 闭包 whole 落
+  Join 空间注册地址；RETURN 侧 return_join_address 委托 Architecture；
+  double_precis create_joined_whole 消费空间限定结果；process_joins /
+  build_subpiece 经 RwLock 读 join_db。无独立新语义。

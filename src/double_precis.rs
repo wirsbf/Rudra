@@ -1130,32 +1130,21 @@ impl SplitVarnode {
                     lo.read().unwrap().get_space(),
                     hi.read().unwrap().get_space(),
                 );
-                // translate.cc:817-860 space rule for the join fallback:
-                // spacebase/stack and default-code/ram pieces keep their own
-                // space when the offsets are contiguous (translate.cc:827-836
-                // usejoinspace=false); every other join (register pieces,
-                // non-contiguous) is a formal JoinRecord in the join space
-                // (translate.cc:848-859). Rugra's construct_join_address
-                // glue keeps its degraded offset computation; this audit
-                // pins only the space.
-                let mappable = lo_spc == hi_spc
-                    && (lo_spc == AddressSpace::Stack || lo_spc == AddressSpace::Ram);
-                let contiguous =
-                    lo_addr + lo_size as u64 == hi_addr || hi_addr + hi_size as u64 == lo_addr;
-                let joined = data
-                    .get_arch()
-                    .map(|a| {
-                        a.construct_join_address(hi_addr, hi_size, lo_addr, lo_size)
-                    });
+                // translate.cc:817-860 constructJoinAddress is now ported
+                // full-signature: the space rule (usejoinspace=false →
+                // earliest address of the pieces' own space; register
+                // parent-name; formal JoinRecord otherwise) lives inside
+                // the Architecture twin, so the caller consumes the
+                // space-qualified address directly
+                // (FAMILY-AUDIT-SPACELESS-SITES-0001 follow-up).
+                let joined = data.get_arch().and_then(|a| {
+                    a.construct_join_address(
+                        hi_spc, hi_addr, hi_size,
+                        lo_spc, lo_addr, lo_size,
+                    )
+                });
                 let (off, space) = match joined {
-                    Some(off) => (
-                        off,
-                        if mappable && contiguous {
-                            lo_spc
-                        } else {
-                            AddressSpace::Join
-                        },
-                    ),
+                    Some((space, off)) => (off, space),
                     None => {
                         // No Architecture set; fall back to a zero address so the
                         // rest of the transform can proceed.

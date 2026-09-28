@@ -12588,22 +12588,31 @@ impl Action for ActionActiveReturn {
                     },
                     // fspec.cc:5823-5841: two-piece join —
                     // constructJoinAddress, newVarnode, opSetOutput, then a
-                    // SUBPIECE per half inserted after the call.
+                    // SUBPIECE per half inserted after the call. The whole
+                    // lands in the address space constructJoinAddress
+                    // returns (join space for register pairs — the
+                    // SPACEFIX-era Unique:0 collapse is gone), registered
+                    // through findAddJoin so heritage's processJoins can
+                    // split it (SQLCENSUS-STACKSLOT-GROUP-0001).
                     &|fd, op, hi_vn, lo_vn| {
-                        let (hi_off, hi_size, lo_off, lo_size) = {
+                        let (hi_space, hi_off, hi_size, lo_space, lo_off, lo_size) = {
                             let h = hi_vn.read().unwrap();
                             let l = lo_vn.read().unwrap();
-                            (h.get_offset(), h.get_size(), l.get_offset(), l.get_size())
+                            (h.get_space(), h.get_offset(), h.get_size(),
+                             l.get_space(), l.get_offset(), l.get_size())
                         };
-                        let join_off = fd
+                        let (whole_space, join_off) = fd
                             .get_arch()
-                            .map(|arch| {
-                                arch.construct_join_address(hi_off, hi_size, lo_off, lo_size)
+                            .and_then(|arch| {
+                                arch.construct_join_address(
+                                    hi_space, hi_off, hi_size,
+                                    lo_space, lo_off, lo_size,
+                                )
                             })
-                            .unwrap_or(lo_off);
+                            .unwrap_or((crate::space::AddressSpace::Join, lo_off));
                         let whole = fd.vbank.create_with_space(
                             (hi_size + lo_size) as usize,
-                            crate::space::AddressSpace::Unique,
+                            whole_space,
                             join_off,
                         );
                         fd.op_set_output(op, whole.clone());
@@ -16786,6 +16795,17 @@ fn return_join_address(
         }
     }
     // cc:848-859: findAddJoin([hi,lo],0) → Address(joinspace, unified.offset).
+    // The Architecture twin now ports findAddJoin faithfully (dedup by
+    // piece sequence + 16-byte-granular joinallocate counter,
+    // translate.cc:699-712) through the interior-mutable join table, so the
+    // join records heritage's processJoins resolves are registered — the
+    // stateless splitmix stand-in survives only for the no-Architecture
+    // fallback (COREACTION-JOINSPACE-0001 residual path).
+    if let Some(a) = arch {
+        if let Some((space, off)) = a.construct_join_address(hi_space, hi_off, hi_sz.max(0) as usize, lo_space, lo_off, lo_sz.max(0) as usize) {
+            return (space, off);
+        }
+    }
     (crate::space::AddressSpace::Join, join_unified_offset(hi, lo))
 }
 
