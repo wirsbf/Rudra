@@ -2455,6 +2455,14 @@ struct DecompileRequest {
     /// `queryContainer(rampoint,1,Address())` (coreaction.cc:1151) fires on
     /// hugehelp's alias constants.
     rodata_dat_entries: Vec<(u64, String)>,
+    /// CURLCANON-DATSLOT-SIZE-0001: the reference-read-width census
+    /// (address, access size) over the whole disassembly universe — the
+    /// worker sizes each non-string `.rodata` DAT entry by the width of
+    /// the code reference that reads it, mirroring the oracle
+    /// analyzeHeadless Program DB's `undefined{N}` Data (the Java
+    /// ConstantPropagationContextEvaluator.createData product; see
+    /// scan_rodata_reference_widths for the producer chain).
+    rodata_ref_widths: Vec<(u64, i32)>,
     /// DISPLAYREBASE-UNK-0001: the canon Program-DB's offcut UNK_ code
     /// labels (image-based address, image-based name) — one locked witness
     /// for the curl corpus (see CANON_UNK_CODE_LABELS for the capture
@@ -3796,51 +3804,19 @@ const CANON_DAT_LABEL_STARTS: [u64; 5] = [0x61d9, 0x61e4, 0x61e9, 0x62f0, 0x149b
 // symbol. canon golden witness: ghidra_curl_1204.c:1452-1527.
 const CANON_UNK_CODE_LABELS: [(u64, &str); 1] = [(0x3c47, "UNK_00103c47")];
 
-// CANON-STRDAT-CURL-DATSLOT-0001: the canon Program-DB's access-width-sized
-// DAT slot at the myprogress percentage constant (base-0 key 0x7178; the
-// 4-byte float 100.0, bytes `00 00 c8 42`, read by myprogress's `movss`
-// at 0x10359f). Locked-oracle provenance: the headless transport capture
-// /dev/shm/rugra-tests/headlessdist/xml/curl/0x1034d0.xml (real
-// analyzeHeadless 12.0.4 DB) carries the myprogress window's ONLY data
-// mapsym for this address as
-//   <symbol name="DAT_00107178" typelock="true" namelock="true"
-//            readonly="true" merge="false" cat="-1">
-//     <typeref name="undefined4" .../></symbol>
-//   <addr space="ram" offset="0x107178" size="4"/>
-// — Ghidra's reference-following data creation sizes the undefined Data to
-// the access width (a 4-byte scalar read yields `undefined4` with entry
-// size 4; contrast the 1-byte `undefined` the address-only `lea` stations
-// carry, e.g. DAT_001061d9 in the same window). The generic non-string arm
-// below sizes every DAT entry to the 8-byte pointer slot and then clips to
-// the next full-scan string start; at this station the clip is the 1-char
-// "B" run at 0x10717b (the float's last byte 0x42='B' — an artifact the
-// canon strings analyzer never admits), leaving a 3-byte entry under a
-// 4-byte persist group. The two observable symptoms (canon curl 27-line
-// residual, myprogress 3):
-//   (a) Funcdata::mapGlobals' extension test (funcdata_varnode.cc:1711
-//       `(addr+ct->getSize())-1 > (entry->getAddr()...+entry->getSize())-1`)
-//       fires — 4-byte float group vs 3-byte entry — setting
-//       `inconsistentuse` and emitting the "Globals starting with '_'
-//       overlap smaller symbols" warningHeader (cc:1717-1718);
-//   (b) the 1-byte `undefined` symbol type against the 4-byte read
-//       varnode keeps HighVariable::setSymbol off the perfect-match arm
-//       (variable.cc:265-267 requires symbol type size == vn size), so
-//       symboloffset lands at 0 and PrintLanguage::pushSymbolDetail falls
-//       to PrintC::pushMismatchSymbol (printc.cc:2072-2075): `_` +
-//       displayName = `_DAT_00107178`.
-// The canon form (undefined4, entry size 4, TYPELOCK/NAMELOCK/READONLY —
-// the transport's exact flags) heals both: the equal-size entry ends the
-// extension test (no warning), and the equal-size type takes the -1
-// perfect-match symboloffset (bare `DAT_00107178`, golden
-// ghidra_curl_1204.c:1163 `fVar9 = DAT_00107178 * fVar10;`). Canon face
-// only: the mirror components never reach this loop (the bare-load branch
-// replaces the whole DB build) and the flow gate skips the lookup, the
-// same triple containment as the string registry below. Generalization
-// path: a reference-read-width scan (iced memory-access targeting per DAT
-// address) could derive the widths from the binary the way the oracle's
-// data-creation does — deferred until a second sized-read station appears
-// (this corpus's only other non-string DAT references are address-only).
-const CANON_DAT_SLOT_WIDTHS_CURL: [(u64, i32); 1] = [(0x7178, 4)];
+// MB39 superseded-by-datslot-census (2026-09-29): the STRDATCURL witness
+// table CANON_DAT_SLOT_WIDTHS_CURL [(0x7178, 4)] + its canon-only triple-gate
+// install lived here; dropped in favor of the dynamic read-width census
+// (scan_rodata_reference_widths) which derives undefined{W} DAT entries by
+// access width for EVERY read-referenced .rodata address — the same product
+// the oracle's Java ConstantPropagationContextEvaluator.createData builds
+// (mechanism fidelity over the single-station witness shim; same canon curl
+// output, myprogress byte-identical). The locked-oracle provenance the
+// witness was built from stays true and is recorded in the census producer's
+// header comment and LANE_DATSLOT_2026-09-28.md / LANE_STRDATCURL_2026-09-28.md
+// (headless transport xml/curl/0x1034d0.xml: DAT_00107178 undefined4@4,
+// typelock/namelock/readonly; probe 0x107178=undefined4/size-4 + DEFAULT
+// dynamic label vs 0x107180=undefined1).
 
 // Ghidra: stringmanage.cc:347 StringManager::getCodepoint
 /// charsize==1 (UTF-8) specialization of `StringManager::getCodepoint`
@@ -4004,6 +3980,195 @@ fn scan_rodata_dat_entries(
         }
     }
     entries
+}
+
+// CURLCANON-DATSLOT-SIZE-0001 (= CANON-GLOBALSYM-UNDERSCORE-0001, double
+// ticket merged): the reference-read-width census over the whole
+// disassembly universe — the driver-side mirror of the Java analysis that
+// sizes the oracle Program DB's Data at code-referenced addresses. The
+// locked oracle's producer (analyzeHeadless defaults, probe
+// /dev/shm/rugra-tests/datslot/probe_out2.log @ e40ed130) materializes at
+// 0x107178 (myprogress's `movss` 4-byte READ reference) an `undefined4`
+// Data of size 4 plus the DEFAULT dynamic label DAT_00107178, while a pure
+// address reference (0x107180, DATA-type ref from puts's caller) stays
+// undefined1. The Java chain, personally read from the locked
+// distribution's sources (Ghidra_12.0.4_DEV):
+//   ConstantPropagationContextEvaluator.evaluateReference
+//   (ConstantPropagationContextEvaluator.java:186-236) — every data-type
+//   reference routes to createPointedToData -> createData;
+//   createData (ConstantPropagationContextEvaluator.java:292-364) —
+//   `Undefined.getUndefinedDataType(size)` where `size` is the access
+//   (read/write) width, `DataUtilities.createData(...,
+//   ClearDataMode.CLEAR_ALL_UNDEFINED_CONFLICT_DATA)` replaces prior
+//   undefined Data (sequential last-wins), sizes outside 1..8 create
+//   nothing, and a conflicting DEFINED Data (e.g. a string) aborts the
+//   creation entirely.
+// The decompiler-side consumers that make the entry size observable:
+//   Funcdata::mapGlobals (funcdata_varnode.cc:1701-1718) warns
+//   "Globals starting with '_' overlap smaller symbols" when a persist
+//   group's (addr+ct_size) end exceeds the recorded entry end, and
+//   PrintLanguage::printSymbol (printlanguage.cc:245-261) takes
+//   pushMismatchSymbol's '_' prefix when symboloff + vn size exceeds the
+//   symbol TYPE size. The 8-byte hard width previously assigned to every
+//   non-string entry made the 4-byte float group at 0x107178 exceed the
+//   clipped 3-byte entry (the phantom 1-char "B" string at 0x10717b — the
+//   driver's over-admitted string scan; the oracle's strings analyzer
+//   never creates it) and mismatch-printed `_DAT_00107178`.
+// Census mechanics: the production SLEIGH engine resolves every
+// rip-relative memory operand to a DIRECT ram-space varnode (witness:
+// myprogress @0x359f lifts `COPY in=[Ram:4:7178]`), so one decode pass
+// over every function body yields (address -> access size) pairs; the
+// walk covers the disassembly universe (STT_FUNC bodies + the
+// analysis-body ledger + PLT slots — the instruction set the Java
+// analyzer walks; the Shared Return Calls prepass walks the same
+// STT_FUNC+ledger bodies). Later references overwrite earlier ones in
+// address order, mirroring the sequential createData replacement. The
+// census is UNCONDITIONAL (no env gate): the DB layer it feeds installs
+// on every non-bare face, so coupling it to
+// RUGRA_DISABLE_SHARED_RETURN would change the canon face under an
+// unrelated diagnostic env.
+// RUGRA-GLUE: driver-side reference-width census; the mapped producer is
+// Java ConstantPropagationContextEvaluator.createData, not native
+// decompiler C++.
+fn scan_rodata_reference_widths(
+    binary_image: &[u8],
+    elf: &goblin::elf::Elf,
+    plt_entries: &HashMap<u64, String>,
+    analysis_bodies: &[(u64, u64)],
+    rodata_span: (u64, u64),
+) -> Result<BTreeMap<u64, i32>, Box<dyn std::error::Error>> {
+    const SHF_EXECINSTR: u64 = 0x4;
+    const SHT_PROGBITS: u32 = 1;
+    let mut widths: BTreeMap<u64, i32> = BTreeMap::new();
+    // The .rodata census filter (base_vaddr, size) in ELF link-time space.
+    let (rodata_lo, rodata_hi) = (rodata_span.0, rodata_span.0 + rodata_span.1);
+    // Body universe: STT_FUNC symbols + analysis bodies (the Shared Return
+    // Calls prepass's body_ends construction — see
+    // collect_known_entry_shared_return_overrides) + PLT slots (the entry
+    // universe; PLT stubs carry no .rodata reads but are disassembled
+    // instructions in the oracle, so the walk covers them). The locked
+    // corpus is conflict-free (the shared-return walk's conflict errors
+    // never fire), so first-wins insertion is equivalent to its erroring
+    // form.
+    let mut body_ends: BTreeMap<u64, u64> = BTreeMap::new();
+    for symbol in elf
+        .syms
+        .iter()
+        .chain(elf.dynsyms.iter())
+        .filter(|symbol| symbol.is_function())
+    {
+        if symbol.st_value == 0 || symbol.st_size == 0 {
+            continue;
+        }
+        let end = symbol
+            .st_value
+            .checked_add(symbol.st_size)
+            .unwrap_or(u64::MAX);
+        body_ends.entry(symbol.st_value).or_insert(end);
+    }
+    for &(body_vaddr, body_size) in analysis_bodies {
+        if body_size == 0 {
+            continue;
+        }
+        body_ends
+            .entry(body_vaddr)
+            .or_insert(body_vaddr + body_size);
+    }
+    for &plt_addr in plt_entries.keys() {
+        // PLT slots take the section stride (16 bytes on x86-64 .plt);
+        // the exact extent only bounds the decode walk.
+        body_ends.entry(plt_addr).or_insert(plt_addr + 16);
+    }
+    // One SLEIGH engine serves the whole walk (the shared-return prepass
+    // pattern): the contiguous PT_LOAD image at ELF-relative base 0.
+    let shared_return_image = worker_memory_image_bytes(elf, binary_image);
+    let mut sleigh = SleighLifter::new();
+    sleigh
+        .configure_x86_64(&shared_return_image, 0)
+        .map_err(|error| format!("reference-width SLEIGH setup failed: {error:?}"))?;
+    for (&owner_entry, &owner_end) in &body_ends {
+        let owner_size = owner_end.saturating_sub(owner_entry);
+        if owner_size == 0 {
+            continue;
+        }
+        // The containing executable PROGBITS section (the shared-return
+        // walk's section lookup; bodies outside any such section carry no
+        // disassembled instructions in the oracle either).
+        let section = elf.section_headers.iter().find(|candidate| {
+            (candidate.sh_flags & SHF_EXECINSTR) != 0
+                && candidate.sh_type == SHT_PROGBITS
+                && owner_entry >= candidate.sh_addr
+                && owner_end <= candidate.sh_addr.saturating_add(candidate.sh_size)
+        });
+        let Some(section) = section else {
+            continue;
+        };
+        let file_start = usize::try_from(
+            section
+                .sh_offset
+                .checked_add(owner_entry - section.sh_addr)
+                .ok_or_else(|| {
+                    format!("reference-width file offset overflows at 0x{:x}", owner_entry)
+                })?,
+        )?;
+        let file_end = file_start
+            .checked_add(owner_size as usize)
+            .ok_or_else(|| {
+                format!("reference-width file extent overflows at 0x{:x}", owner_entry)
+            })?;
+        if binary_image.get(file_start..file_end).is_none() {
+            continue;
+        }
+        let mut scan_addr = owner_entry;
+        while scan_addr < owner_end {
+            let Ok((step, ops)) = sleigh.lift_instruction(scan_addr) else {
+                // The shared-return walk's invalid-instruction skip: the
+                // body has no oracle instructions past this point.
+                break;
+            };
+            for op in &ops {
+                // The Java evaluator's refType.isData() gate
+                // (ConstantPropagationContextEvaluator.java:225-227): only
+                // data-type references (reads/writes/address constants)
+                // route to createData; flow references (direct
+                // BRANCH/CALL targets — ram-space constant varnodes in the
+                // raw pcode) take the disassembly arm and never size Data.
+                let opcode = rugra::opcodes::OpCode::from_i32(op.get_opcode());
+                let is_flow_op = matches!(
+                    opcode,
+                    Some(
+                        rugra::opcodes::OpCode::CPUI_BRANCH
+                            | rugra::opcodes::OpCode::CPUI_BRANCHIND
+                            | rugra::opcodes::OpCode::CPUI_CALL
+                            | rugra::opcodes::OpCode::CPUI_CALLIND
+                            | rugra::opcodes::OpCode::CPUI_RETURN,
+                    )
+                );
+                if is_flow_op {
+                    continue;
+                }
+                // Every ram-space operand varnode of the op is a direct
+                // memory access (read inputs / write output) at a resolved
+                // address with the access size — the SLEIGH-resolved form
+                // the Java evaluator reads off the instruction operands.
+                for vn in op.inputs().iter().chain(op.output()) {
+                    if vn.space != rugra::space::AddressSpace::Ram {
+                        continue;
+                    }
+                    if vn.offset < rodata_lo || vn.offset >= rodata_hi {
+                        continue;
+                    }
+                    // cc createData: sizes outside 1..8 create nothing.
+                    if !(1..=8).contains(&vn.size) {
+                        continue;
+                    }
+                    widths.insert(vn.offset, vn.size as i32);
+                }
+            }
+            scan_addr += step as u64;
+        }
+    }
+    Ok(widths)
 }
 
 // STRLIT-ENVDAT-0001: the environment half of the GhidraStringManager
@@ -6470,6 +6635,13 @@ fn decompile_request(
                     .iter()
                     .map(|(address, value)| (*address, value))
                     .collect();
+                // CURLCANON-DATSLOT-SIZE-0001: the read-width census lookup
+                // (canon-space keys, see the request field doc).
+                let ref_widths: HashMap<u64, i32> = request
+                    .rodata_ref_widths
+                    .iter()
+                    .copied()
+                    .collect();
                 for (address, name) in &request.rodata_dat_entries {
                     let dtype = string_addrs.get(address).map(|value| {
                         // strings analyzer product: char array over the run
@@ -6525,58 +6697,42 @@ fn decompile_request(
                         typed += 1;
                     }
                     let is_string = string_addrs.contains_key(address);
-                    // CANON-STRDAT-CURL-DATSLOT-0001: the canon transport's
-                    // access-width-sized DAT slot (see the witness table's
-                    // full provenance at CANON_DAT_SLOT_WIDTHS_CURL). The
-                    // canon DB carries undefined4@4 at the myprogress
-                    // float-constant station — the transport's exact
-                    // typeref/size/flags — replacing the generic 8-byte
-                    // pointer-slot arm (whose next-string-start clip is the
-                    // 1-char "B" run at 0x10717b INSIDE the float, leaving
-                    // a 3-byte entry the 4-byte persist group extends past).
-                    // Canon face only (triple gate, the string registry's
-                    // containment): mirror components never reach this
-                    // loop, the flow gate keeps its hybrid face
-                    // byte-identical.
-                    let canon_dat_slot_width = if !mirror_bundle_enabled()
-                        && !mirror_flow_enabled()
-                        && !mirror_bare_load_enabled()
-                    {
-                        CANON_DAT_SLOT_WIDTHS_CURL
-                            .iter()
-                            .find(|&&(raw, _)| raw + img_base == *address)
-                            .map(|&(_, width)| width)
-                    } else {
+                    // MB39 mechanism replacement (superseded-by-datslot-census):
+                    // the STRDATCURL witness-table arm (CANON_DAT_SLOT_WIDTHS_CURL
+                    // lookup + triple gate + TYPELOCK/NAMELOCK install) was dropped —
+                    // the read-width census below derives the same undefined{W}
+                    // product dynamically from the binary, mirroring the oracle's
+                    // Java ConstantPropagationContextEvaluator.createData chain
+                    // (mechanism fidelity over the single-station witness shim;
+                    // canon curl myprogress output identical under both).
+                    // CURLCANON-DATSLOT-SIZE-0001: the reference-read-width
+                    // census (the Java ConstantPropagationContextEvaluator
+                    // .createData mirror — see
+                    // scan_rodata_reference_widths). A read-referenced
+                    // address takes the oracle Program DB's real product:
+                    // an `undefined{W}` Data of size W (locked witness:
+                    // 0x107178, myprogress's 4-byte float READ, oracle
+                    // probe = undefined4/size-4 + DEFAULT label
+                    // DAT_00107178). The type rides the same width —
+                    // PrintLanguage::printSymbol's mismatch test
+                    // (printlanguage.cc:255) reads the symbol TYPE size,
+                    // so undefined4 is what keeps the plain `DAT_00107178`
+                    // spelling (a 1-byte type under a 4-byte varnode takes
+                    // pushMismatchSymbol's '_' prefix, printc.cc:2074).
+                    let ref_width = if is_string {
                         None
+                    } else {
+                        ref_widths.get(address).copied()
                     };
-                    let dtype = if let Some(slot_width) = canon_dat_slot_width {
-                        // The transport's typeref for a sized read station
-                        // is `undefined<width>` — the TypeFactory-interned
-                        // base (get_base), the same identity domain the
-                        // DECLFAM char precedent keeps.
-                        Some(
+                    let dtype = dtype.or_else(|| match ref_width {
+                        Some(width) => {
                             rugra::type_system::typefactory::TypeFactory::shared_default()
                                 .write()
                                 .unwrap_or_else(|poisoned| poisoned.into_inner())
-                                .get_base(
-                                    slot_width as usize,
-                                    rugra::type_system::datatype::TypeMetatype::Unknown,
-                                )
-                                .unwrap_or_else(|| {
-                                    std::sync::Arc::new(
-                                        rugra::type_system::datatype::Datatype::Base(
-                                            rugra::type_system::datatype::TypeBase::new(
-                                                format!("undefined{}", slot_width),
-                                                slot_width as usize,
-                                                rugra::type_system::datatype::TypeMetatype::Unknown,
-                                            ),
-                                        ),
-                                    )
-                                }),
-                        )
-                    } else {
-                        dtype.or_else(|| undefined1.clone())
-                    };
+                                .get_base(width as usize, rugra::type_system::datatype::TypeMetatype::Unknown)
+                        }
+                        None => undefined1.clone(),
+                    });
                     if !is_string && !canon_interior_dat_labels.contains(address) {
                         // STRCONST-SPANNONOVERLAP: greatest admitted string
                         // start STRICTLY BELOW address — the span test needs
@@ -6604,29 +6760,35 @@ fn decompile_request(
                             }
                         }
                     }
-                    // Non-string referenced .rodata data takes the pointer
-                    // slot width (8): every non-string reference in this
-                    // corpus is a pointer reference (golden witnesses
-                    // DAT_00107178/DAT_00107180 are adjacent 8-byte slots),
-                    // and the oracle's mapGlobals never reports the
-                    // "overlap smaller symbols" header
-                    // (funcdata_varnode.cc:1717) — which a 1-byte entry
-                    // under an 8-byte persist group would trigger.
-                    // STRCONST-SPANNONOVERLAP: clipped so the span cannot
-                    // cross the next string start (an oracle Data can never
-                    // overlap the string Data's first byte).
-                    // CANON-STRDAT-CURL-DATSLOT-0001: witness stations take
-                    // the canon transport's exact entry size, skipping the
-                    // pointer-slot width and the clip (the canon DB's Data
-                    // owns the exact 4 bytes the movss reads).
-                    let mut entry_size = if let Some(width) = canon_dat_slot_width {
-                        width
-                    } else if is_string {
+                    // Non-string .rodata data entry width.
+                    // CURLCANON-DATSLOT-SIZE-0001: a read-referenced
+                    // address takes the census width — the oracle's
+                    // undefined{W} Data size (the mapGlobals warning test,
+                    // funcdata_varnode.cc:1711, compares the persist
+                    // group's end against the ENTRY end; the old hard 8
+                    // under the 4-byte float group at 0x107178, clipped to
+                    // 3 by the phantom 1-char "B" string at 0x10717b, fired
+                    // the "Globals starting with '_'" header).
+                    // Unreferenced bytes keep the historical pointer-slot
+                    // width (8) — the queryContainer-channel over-admission
+                    // shape whose observable face the golden already
+                    // matches; the oracle has no Data there at all.
+                    // STRCONST-SPANNONOVERLAP: the clip applies to the
+                    // DEFAULT-width entries only. A census entry carries
+                    // the oracle's exact Data size and the oracle never
+                    // clips it (the oracle's own string at that start would
+                    // abort the Data creation entirely — but the driver's
+                    // over-admitted short-run strings, like the 1-char "B"
+                    // at 0x10717b, are phantom constraints the oracle never
+                    // applies; the string entry still wins any
+                    // findContainer pick at its start because the smaller
+                    // size wins, database.cc:2268).
+                    let mut entry_size = if is_string {
                         dtype.as_ref().map(|t| t.get_size() as i32).unwrap_or(1)
                     } else {
-                        8
+                        ref_width.unwrap_or(8)
                     };
-                    if !is_string && canon_dat_slot_width.is_none() {
+                    if !is_string && ref_width.is_none() {
                         let pos = string_starts.partition_point(|&s| s <= *address);
                         if let Some(&next_start) = string_starts.get(pos) {
                             entry_size = entry_size.min((next_start - *address) as i32);
@@ -6654,26 +6816,12 @@ fn decompile_request(
                                 true,
                             );
                         }
-                        // CANON-STRDAT-CURL-DATSLOT-0001: the witness
-                        // stations carry the transport's full flag set —
-                        // typelock/namelock ride on top of the readonly
-                        // every .rodata global takes below (the mapsym's
-                        // exact ATTRIB_TYPELOCK/ATTRIB_NAMELOCK/
-                        // ATTRIB_READONLY triple, database.cc:435-445).
-                        if canon_dat_slot_width.is_some() {
-                            db.set_symbol_flag(
-                                global,
-                                symbol_id,
-                                rugra::database::symbol_flags::TYPELOCK,
-                                true,
-                            );
-                            db.set_symbol_flag(
-                                global,
-                                symbol_id,
-                                rugra::database::symbol_flags::NAMELOCK,
-                                true,
-                            );
-                        }
+                        // (MB39 superseded-by-datslot-census: the STRDATCURL
+                        // witness TYPELOCK/NAMELOCK install was dropped with
+                        // the witness table — the census lane's E2E proved
+                        // the myprogress output byte-identical to golden
+                        // without them; READONLY below still rides every
+                        // .rodata global as before.)
                         // (b): every global in the read-only `.rodata`
                         // memory block carries Varnode::readonly on its
                         // symbol (ATTRIB_READONLY, database.cc:435-438) —
@@ -9467,6 +9615,28 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
         records
     };
 
+    // CURLCANON-DATSLOT-SIZE-0001: the reference-read-width census feeding
+    // the worker's .rodata DAT entry sizes (see
+    // scan_rodata_reference_widths for the full Java-producer mirror).
+    // Unconditional — the DB layer it feeds installs on every non-bare
+    // face, so the census must not ride any diagnostic env gate.
+    let rodata_ref_widths: BTreeMap<u64, i32> = match rodata_span {
+        Some(span) => scan_rodata_reference_widths(
+            &buffer,
+            elf,
+            &plt_symbols,
+            &analysis_bodies,
+            span,
+        )?,
+        None => BTreeMap::new(),
+    };
+    eprintln!(
+        "[PREPASS] .rodata reference-width census: {} addresses [0x{:x}..0x{:x}]",
+        rodata_ref_widths.len(),
+        rodata_ref_widths.keys().next().copied().unwrap_or(0),
+        rodata_ref_widths.keys().next_back().copied().unwrap_or(0)
+    );
+
     // Corpus source (FULL-CORPUS-0001): the locked golden ledger by
     // default (124 functions: ELF-named code, PLT stubs, `_init`/`_fini`,
     // zero-sized symtab functions, and the 48 EXTERNAL-space entries at
@@ -9869,6 +10039,12 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|(address, name)| (address + img_base, name.clone()))
         .collect();
+    // CURLCANON-DATSLOT-SIZE-0001: census rebased into canon space with the
+    // other data layers (the main-side table stays link-time base-0).
+    let rodata_ref_widths_canon: Vec<(u64, i32)> = rodata_ref_widths
+        .iter()
+        .map(|(address, width)| (address + img_base, *width))
+        .collect();
     let db_symbol_entries_canon: Vec<(u64, String, i32, bool)> = db_symbol_entries
         .iter()
         .map(|(address, name, size, ptr)| (address + img_base, name.clone(), *size, *ptr))
@@ -9901,6 +10077,7 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
                 })
                 .collect(),
             rodata_dat_entries: rodata_dat_entries_canon.clone(),
+            rodata_ref_widths: rodata_ref_widths_canon.clone(),
             unk_label_entries: CANON_UNK_CODE_LABELS
                 .iter()
                 .map(|&(address, name)| (address + img_base, name.to_string()))

@@ -2,7 +2,9 @@
 
 Source: `examples/curl_decompile.rs`（本档首次登记于车道 BOOLDRILL /
 `CANON-BOOLCHAR-FIELDTYPE-0001`，2026-09-28；STRDATCURL /
-`CANON-STRDAT-CURL-DATSLOT-0001` 同日增补 DAT slot 见证表节；ENTRYCONV /
+`CANON-STRDAT-CURL-DATSLOT-0001` 同日增补 DAT slot 见证表节——**2026-09-29
+MB39 被 DATSLOT 读宽 census 机制置换（superseded-by-datslot-census，见置换
+注记）**；ENTRYCONV /
 `CURLCANON-ENTRYCONV-0001` 同日增补入口约定绑定通道节（其树基 76dfa697
 早于本档 master 落地，root 合并时节级并档）；此前该驱动的
 车道证据散见 TODO_BOARD 各 DONE 行——ENVDAT / CURLWIRE / DISPLAYREBASE /
@@ -72,6 +74,15 @@ canon curl **42→32/0/0**（−10 精确=票面全额：main 9→1[BOOLCHAR 8 �
 :695/:712/:738/:1021/:1871）。
 
 ## DAT slot 见证表（canon-only，`CANON-STRDAT-CURL-DATSLOT-0001`）
+
+> **MB39 置换注记（2026-09-29，superseded-by-datslot-census）**：本节的
+> `CANON_DAT_SLOT_WIDTHS_CURL` 见证表机制已由下文「`.rodata` DAT 条目读宽
+> census」动态机制置换（同一 undefined{W} 产品从二进制按访问宽派生，覆盖
+> 全部读引用站而非单一 witness 站；canon curl 同 0/0 输出，myprogress 逐
+> 字节恒等）。机制保真 > 数据点 shim（FIELDARR 式仲裁第二例）。本节保留
+> 为 witness 形态史与 oracle 双侧钉死证据链（二进制真值/canon DB 真值/
+> 双症状机制链仍然成立且被 census 生产者注释引用）；代码侧对应 tombstone
+> 见 `examples/curl_decompile.rs` `MB39 superseded-by-datslot-census` 块。
 
 ### 现象（canon curl 残差 myprogress 3 行）
 
@@ -275,3 +286,63 @@ golden_sha256 + adjudication + witnesses 溯源）。装配方
 canon curl 42→27/0/0（`_init` 8 + `__libc_csu_init` 7 全收敛，两函数
 byte-identical；其余 122 函数逐函数零漂移）；SUBFLOW-CSU-MASK-0001 的掩码行
 与 LINEWRAP 折行作为签名数据下游一并收敛（改判：数据根，非独立机制根）。
+
+---
+
+<!-- LANE DATSLOT (CURLCANON-DATSLOT-SIZE-0001 ≡ CANON-GLOBALSYM-UNDERSCORE-0001, 基 24e7188f) 登记的读宽 census 通道，2026-09-28 -->
+
+Source: `examples/curl_decompile.rs`（DATSLOT 车道 / 双票合一
+`CURLCANON-DATSLOT-SIZE-0001 ≡ CANON-GLOBALSYM-UNDERSCORE-0001`，
+2026-09-28）。
+
+## `.rodata` DAT 条目读宽 census（CURLCANON-DATSLOT-SIZE-0001）
+
+### 现象与根因（oracle 亲证）
+
+canon golden myprogress 3 行残差（WARNING 头注释 1 + `_DAT_00107178` 拼写
+2）双症状同根：0x107178 的 4 字节 float 读（`movss`，oracle READ 引用）对上
+驱动注册的 8 字节宽 DAT 条目（再被驱动超量 string 扫描的 1 字符幻影串
+"B"@0x10717b 剪成 3 字节）——mapGlobals 组末超条目末 →
+`warningHeader("Globals starting with '_' overlap smaller symbols…")`
+（funcdata_varnode.cc:1711-1718）；符号 TYPE undefined1（1 字节）小于 4
+字节 varnode → `pushMismatchSymbol` 的 `_` 前缀（printlanguage.cc:255-260
+→ printc.cc:2074）。
+
+**oracle 侧符号尺寸判定（锁定发行版 Java 源亲读 + 真机探针）**：
+analyzeHeadless 默认分析在代码引用的地址创建
+`undefined{access_size}` Data——`ConstantPropagationContextEvaluator
+.evaluateReference`（:186-236）把 data 型引用路由到 `createPointedToData →
+createData`（:292-364），`Undefined.getUndefinedDataType(size)` 中 `size` =
+读/写宽，`DataUtilities.createData(…, CLEAR_ALL_UNDEFINED_CONFLICT_DATA)`
+顺序后写覆盖（1..8 之外不建、与已定义 Data 冲突则整体不建）。真机探针
+（/dev/shm/rugra-tests/datslot/probe_out2.log，锁定 e40ed130 发行版）：
+0x107178 = **undefined4/size-4** + DEFAULT 动态标签 DAT_00107178（4 字节
+READ 引用）；0x107180 = undefined1（纯 DATA 型地址引用不建宽 Data）。
+
+### 通道形态
+
+- **census 生产者** `scan_rodata_reference_widths`（父进程，无条件跑）：
+  生产 SLEIGH 引擎把每条 rip 相对内存操作数解成**直接 ram 空间 varnode**
+  （亲证：myprogress@0x359f 提升 `COPY in=[Ram:4:7178]`），一遍解码全函数
+  体（STT_FUNC + analysis-body 台账 + PLT 槽 = Java 分析器走过的指令全集）
+  得 (地址→访问宽)；流引用（BRANCH/CALL 目标）按 Java `refType.isData()`
+  门排除；地址序后写覆盖镜像 createData 顺序替换。**无 env 门**——所喂 DB
+  层在一切非 bare 面安装，挂 RUGRA_DISABLE_SHARED_RETURN 会在无关诊断 env
+  下改变 canon 脸。
+- **传输**：`DecompileRequest.rodata_ref_widths: Vec<(u64,i32)>`（canon
+  空间键，边界 +img_base 重定基，同其余数据层）。
+- **消费**（worker DB 装表）：非 string DAT 条目命中 census →
+  `entry_size = 读宽` 且 TYPE = `undefined{宽}`（printSymbol 失配测试读
+  TYPE 尺寸，undefined4 保住裸 `DAT_00107178` 拼写）；未命中 → 历史指针槽
+  宽 8 + SPANNONOVERLAP 剪裁原样保留（queryContainer 通道超量装表形状，
+  golden 已匹配的可观测脸；oracle 在无引用字节本无 Data）。census 条目不
+  剪裁——携带 oracle Data 精确尺寸；幻影短串（"B"@0x10717b）是 oracle 从
+  不施加的约束，且 string 条目在任何 findContainer 竞选中仍以更小尺寸胜
+  （database.cc:2268）。
+
+### 效果（基=24e7188f A/B 亲测）
+
+canon curl **8→5/0/0**（−3 精确=票面全额：myprogress 3→0，函数体与 golden
+逐字节恒等，WARNING 头清零；残 5 = `_start` ENTRYCONV 票域）；其余 123
+函数零漂移。httpd 侧同形对照 = **零连带**（httpd 驱动无逐字节 .rodata DAT
+层——其 DAT 标签是 2 条硬编码 1 字节 witness，8 字节硬宽域不存在）。
