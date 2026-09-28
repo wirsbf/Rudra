@@ -667,6 +667,97 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             .map_err(|error| format!("action pipeline failed for {}: {error}", target.name))?;
     }
 
+    // LANE GETLONGEST diagnostic (RUGRA_DUMP_FUNC precedent from the
+    // curl/httpd drivers): after the universal action and before printing,
+    // dump the final structured tree (sblocks) and the final raw p-code
+    // listing for the named function — the exact counterparts of the
+    // oracle probe's `fd->getStructure().printTree` / `fd->printRaw`
+    // (post-perform, pre-docFunction). Env-gated; CWD-relative output
+    // <name>.tree / <name>.ir.
+    if let Ok(dump_fn) = std::env::var("RUGRA_DUMP_FUNC") {
+        if dump_fn == target.name {
+            let fd_read = fd_arc
+                .read()
+                .map_err(|_| "Funcdata read lock poisoned during dump".to_string())?;
+            let mut tree_out = String::new();
+            for blk in &fd_read.sblocks.blocks {
+                rugra::block::print_tree_dbg(blk, 0, &mut tree_out);
+            }
+            std::fs::write(format!("{}.tree", target.name), &tree_out)
+                .map_err(|e| format!("tree dump failed: {e}"))?;
+            match fd_read.print_raw() {
+                Ok(ir) => std::fs::write(format!("{}.ir", target.name), &ir)
+                    .map_err(|e| format!("IR dump failed: {e}"))?,
+                Err(error) => {
+                    eprintln!("[DUMP] print_raw failed for {}: {error}", target.name)
+                }
+            }
+            // Per-op raw listing (oracle BlockBasic::printRaw face: one
+            // `seqnum:\top_raw` line per op, per basic block) — Rugra's
+            // print_raw currently prints only block headers for the bblocks
+            // state, so the op lines are emitted here directly through the
+            // drill formatter (same DrillFmt::op_raw the raw-ops arm uses).
+            {
+                let fmt = rugra::drillfmt::DrillFmt {
+                    arch: fd_read
+                        .arch
+                        .clone()
+                        .expect("analysis arch present at dump time"),
+                };
+                let mut s = String::new();
+                for i in 0..fd_read.bblocks.get_size() {
+                    let blk = match fd_read.bblocks.get_block(i) {
+                        Some(b) => b,
+                        None => continue,
+                    };
+                    let blk_rg = blk.read().unwrap();
+                    let ins: Vec<i32> = (0..blk_rg.size_in())
+                        .map(|j| {
+                            blk_rg
+                                .get_in(j)
+                                .map(|e| e.point.read().unwrap().get_index())
+                                .unwrap_or(-1)
+                        })
+                        .collect();
+                    let outs: Vec<i32> = (0..blk_rg.size_out())
+                        .map(|j| {
+                            blk_rg
+                                .get_out(j)
+                                .map(|e| e.point.read().unwrap().get_index())
+                                .unwrap_or(-1)
+                        })
+                        .collect();
+                    s.push_str(&format!(
+                        "Basic Block {} 0x{:08x} in={:?} out={:?}\n",
+                        i,
+                        blk_rg.get_start_addr().as_u64(),
+                        ins,
+                        outs
+                    ));
+                    if let Some(bb) = blk_rg.as_any().downcast_ref::<rugra::block::BlockBasic>() {
+                        for op_ref in &bb.ops {
+                            let op = op_ref.0.read().unwrap();
+                            // address.cc:32-38 `operator<<(ostream,SeqNum)`:
+                            // `pc.printRaw() ':' uniq` with the uniq counter
+                            // in decimal.
+                            let offset = op.start.addr.as_u64();
+                            s.push_str(&format!(
+                                "0x{:08x}:{}:\t{}\n",
+                                offset,
+                                op.start.time,
+                                fmt.op_raw(&op)
+                            ));
+                        }
+                    }
+                }
+                std::fs::write(format!("{}.ops", target.name), &s)
+                    .map_err(|e| format!("ops dump failed: {e}"))?;
+            }
+
+            eprintln!("[DUMP] wrote {}.tree / {}.ir", target.name, target.name);
+        }
+    }
+
     // GEN-CODEPTR-SYMBOLIZE-0001: the print-side function-symbol channel.
     // The oracle's golden harness registers every BFD function symbol into
     // the Architecture's symboltab before printing
