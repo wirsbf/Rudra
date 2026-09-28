@@ -1673,7 +1673,23 @@ impl<'a> CollapseStructure<'a> {
                     // components where the oracle produces one.
                     self.apply_rules_to_block(slot);
                 }
-                self.refresh_switch_cases();
+                // VDBEXEC-REFRESH-TAIL-0001: refresh_switch_cases removed from
+                // this per-fixpoint-round position (LANE VDBEXEC 2026-09-28):
+                // on giant functions it ran 12701× (VdbeExec drill, ~68.5s of
+                // the 159s single-pole) while its output — the CASE_BODY flag
+                // set + switch_case_indices — has NO in-collapse consumer on
+                // the default 5-step path (all rule pre-guards removed by
+                // TRI2-STRUCT-*; structure_loops_first is 7-phase-only and
+                // reads the flags before any refresh ever ran). The only live
+                // consumer is printc's case_body_indices collection at print
+                // time (printc.rs:12572), which reads the FINAL flag state, so
+                // the refresh moved to collapse_all_5step/collapse_all tail
+                // (before finalize_structure) — computed on the identical
+                // final graph state (no mutation between the old last
+                // inner-round refresh and the new call site: the second-pass
+                // scan matched nothing to exit, the selectGoto loop only
+                // re-checks isolated_count). Behavior-identical final state,
+                // O(rounds × graph recompute) → O(1) per collapseAll.
                 iterations += 1;
                 if self.structure_change_count == change_before || iterations >= max_iterations {
                     break;
@@ -1788,6 +1804,11 @@ impl<'a> CollapseStructure<'a> {
                 break;
             }
         }
+        // VDBEXEC-REFRESH-TAIL-0001: single end-of-collapseAll
+        // refresh_switch_cases (see collapse_internal note) — computes the
+        // CASE_BODY flag set on the final pre-finalize graph state, exactly
+        // what the old last per-round refresh saw.
+        self.refresh_switch_cases();
         // Finalize: DEAD-sweep + reindex (Rugra model of Ghidra
         // identifyInternal's list compaction, block.cc:953-960), required
         // for downstream emit (printc emitBlockGraph).
@@ -2101,6 +2122,11 @@ impl<'a> CollapseStructure<'a> {
         // BLOCKSTRUCT-GOTOCASCADE-CONDSTMT-0001: replaced the invented batch
         // goto cascade with the oracle's selectGoto loop (cc:1889-1892).
         self.select_goto_loop();
+        // VDBEXEC-REFRESH-TAIL-0001: single end-of-collapseAll
+        // refresh_switch_cases (see collapse_internal note) — final-state
+        // parity for the legacy path; structure_loops_first read the flags
+        // before any refresh ever ran in either shape.
+        self.refresh_switch_cases();
         // Final sweep: physically remove DEAD-flagged blocks from the top-level
         // blocks[] array, faithful to Ghidra identifyInternal's list=newlist
         // (block.cc:953-960). In Ghidra, identifyInternal removes consumed nodes
