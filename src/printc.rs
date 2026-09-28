@@ -5517,8 +5517,16 @@ impl PrintC {
             if separator {
                 if self.is_set(print_mods::COMMA_SEPARATE) {
                     // printc.cc:2707-2709: comma-separated expressions stay
-                    // in one group and are delimited by `, `.
-                    self.emit.print(", ");
+                    // in one group — the separator is print(COMMA) followed
+                    // by spaces(1): TWO emitter calls, and the spaces(1) is
+                    // a tokenbreak (a pretty-printer break opportunity —
+                    // the golden's for-condition breaks exactly there,
+                    // right after the trailing comma). Gluing ", " into one
+                    // print removes that break point and shifts forced
+                    // breaks to the synthetic zero-width separator before
+                    // the next token (trailing ", " before the newline).
+                    self.emit.print(",");
+                    self.emit.spaces(1, 0);
                 } else {
                     // printc.cc:2712-2713: comments and a new line precede
                     // every statement after the first.
@@ -5922,6 +5930,21 @@ impl PrintC {
         // label at the case head is suppressed (observed: httpd main
         // `goto switchD_0012ba94_caseD_3f;` with the
         // `switchD_0012ba94_caseD_3f:` label missing at case 0x3f's slot).
+        // MAINMIXED-LABELPOS-0001: a BlockMultiGoto arc arriving here (a
+        // switch CONTROL block, emit_block_multigoto's Basic/Copy arm —
+        // block.hh:588 BlockMultiGoto::emit delegates to getBlock(0)) is
+        // the same wrapper shape: the arc is not Basic/Copy, but the
+        // wrapped dispatch leaf IS emitted into the main output. An
+        // if-goto whose target is the switch head (the inverted
+        // `test/jne` fallthrough — machine 0x12ba71 jne error-path vs
+        // fallthrough dispatch 0x12ba77, oracle witness golden main's
+        // `if (iVar4 == 0) goto code_r0x0012ba77;` with the label on the
+        // switch) then misfires the same anchor at the goto site
+        // (observed: httpd main `code_r0x0012ba77:` printed right after
+        // the goto instead of before the switch; the switch's own label
+        // suppressed). Record the wrapped leaf's start so the label prints
+        // at the switch control block's emission point (emitBlockBasic's
+        // emitLabelStatement, printc.cc:2685 — via the pending arm below).
         if self.discovery_pass
             && (&*self.emit) as *const dyn Emit as *const () as usize == self.discovery_emit_id
         {
@@ -5934,6 +5957,13 @@ impl PrintC {
                         .as_any()
                         .downcast_ref::<crate::block::BlockGoto>()
                         .and_then(|g| g.wrapped.clone())
+                } else if bt == crate::block::BlockType::MultiGoto {
+                    block_arc
+                        .read()
+                        .unwrap()
+                        .as_any()
+                        .downcast_ref::<crate::block::BlockMultiGoto>()
+                        .and_then(|m| m.wrapped.clone())
                 } else {
                     None
                 }
@@ -6601,7 +6631,12 @@ impl PrintC {
 
             if separator {
                 if comma_separate {
-                    self.emit.print(", ");
+                    // printc.cc:2707-2709 — same two-call separator as the
+                    // RPN emitter above: print(COMMA) + spaces(1) so the
+                    // pretty printer owns a real break opportunity after
+                    // the comma.
+                    self.emit.print(",");
+                    self.emit.spaces(1, 0);
                 } else {
                     self.emit_comment_group(Some(op_ref));
                     self.emit.tag_line(0);
@@ -16511,7 +16546,11 @@ impl PrintC {
         }
         self.emit.end_statement();
         // cc:2981: emit->print(SEMICOLON); emit->spaces(1);
-        self.emit.print("; ");
+        // Two emitter calls — the spaces(1) is a tokenbreak (break
+        // opportunity), never glued into "; " (the golden's for-header
+        // wraps at these points, e.g. after an init or condition clause).
+        self.emit.print(";");
+        self.emit.spaces(1, 0);
         // cc:2983: condBlock->emit(this);  (condition slot) — the virtual
         // dispatch under comma_separate, identical to the while-path's
         // condition replay (emitBlockWhileDo cc:3055): insert-first so this
@@ -16522,8 +16561,10 @@ impl PrintC {
         emitted.insert(
             std::sync::Arc::as_ptr(&bl.condition) as *const () as usize);
         self.emit_flow_block(&bl.condition, graph, emitted);
-        // cc:2984: emit->print(SEMICOLON); emit->spaces(1);
-        self.emit.print("; ");
+        // cc:2984: emit->print(SEMICOLON); emit->spaces(1); — same
+        // two-call form as the init separator above.
+        self.emit.print(";");
+        self.emit.spaces(1, 0);
         // cc:2986-2989: iterate slot — same two-channel protocol as the
         // init slot (cc:2987-2989 beginStatement/emitExpression/endStatement,
         // via the faithful RPN expression path).

@@ -1,5 +1,67 @@
 # `printc.rs` API Reference
 
+## 2026-09-28：MAINMIXED-LABELPOS-0001 — discovery 账本解包 MultiGoto 包裹叶（switch 头 code_r 标签位，Lane MAINMIXED）
+
+**现象**：canon httpd main 的 `if (iVar5 == 0) goto code_r0x0012ba77;` 标签贴
+在 goto 紧后（`goto ...; code_r0x0012ba77: if ((iVar5 == 0x1117e) ...`），golden
+贴在 switch 头（`exit(1); code_r0x0012ba77: switch(...)`）——LABEL-POS 2 行。
+
+**根因（双侧钉死）**：机器 0x2ba6f `test/jne 2bf00`——jne 走错误路径（0x1117e
+检查块 @0x12bf00），**直落 0x12ba77=switch dispatch 块**（`movzbl 0x33(%rsp)`…
+`notrack jmp *%rax`）；golden/Rugra 结构树两侧同形（Rugra `#5 IFGOTO
+target=0x12ba77(#6)`→尾部 `#6 Switch control=#6`），标签机制链完整——分歧在
+RUGRA-GLUE 防御层：`emit_block_ops` 的 discovery 账本（GOTO-LABEL-UNPRINTED-
+0001）只解包 `BlockGoto`（BLOCKACTION-SWITCH-CASE-GOTO-WRAP-0001 先例），
+switch 控制块是 **BlockMultiGoto** 包裹（block.hh:588 `BlockMultiGoto::emit =
+getBlock(0)->emit`——emit_block_multigoto 以 MultiGoto arc 调 emit_block_ops，
+arc 自身非 Basic/Copy，包裹叶 0x12ba77 不入账本）→ 真跑 pass 的
+`emit_goto_statement` never-emitted 锚（printc.rs:16829 `!discovery_block_starts
+.contains`）误 fire 于 goto 现场，吃掉 `printed_labels` 并压制 switch 控制块
+自身（printc.cc:2685 emitLabelStatement 位）的打印。
+
+**修复**：账本解包臂扩 `BlockType::MultiGoto`（与 Goto 臂同型：downcast 取
+`wrapped`，filter Basic/Copy）。锚不再误 fire；标签经 emit_any_label_statement
+的 pending 臂在 switch 控制块发射点打印（=oracle emitBlockBasic 的
+emitLabelStatement 位）。
+
+**验收**：canon httpd 30→**28**（main 9→**7**：LABEL-POS 2 行归零；标签与
+golden 逐字节同位 `exit(1); code_r0x0012ba77: switch(`）；canon curl 42 零
+漂移；镜面五面 PASS；bank 391/391。main 残 7=DECL-EXTRA 1（declfam 待并）+
+STRDAT 6（strdatenv 待并）——三车道合流后 main 归零。关联票
+BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001 的 httpd main 站点收口（curl `goto X; X:`
+4 站点残量保持 OPEN——本修复模式可复用但其验收域在 w-scopeb）。
+
+## 2026-09-28：MAINMIXED-WRAP-0001 — comma_separate 分隔符与 for 头子句分隔恢复双 token 发射（Lane MAINMIXED）
+
+**现象**：canon httpd main for 头折点错位——Rugra 在 `(undefined *)0x0` 之后、`;`
+之前断行（`...0x0\n    ; ppuVar15 = ppuVar15 + 1) {`），golden 断在逗号之后
+（`...puVar1 = *ppuVar14,\n    puVar1 != ...`）；且 Rugra 断行处遗留行尾空格
+（`", "` 整 token 后接合成 0 宽 tokenbreak）。curl 同族 2 处行尾空格
+（:531/:2273）。
+
+**根因（oracle 亲读）**：printc.cc:2707-2709 的 comma_separate 分隔符是
+`emit->print(COMMA); emit->spaces(1);` **两次调用**——spaces(1) 是
+EmitPrettyPrint 的 tokenbreak（Oppen 扫描在溢出时按 scanqueue 自底强制的
+断行机会，prettyprint.cc:792-800）；emitForLoop 的两个子句分隔同理
+（cc:2981-2982/2984-2985 `print(SEMICOLON); spaces(1)`）。Rugra 把 `", "` /
+`"; "` 胶合成单次 `print`——断点消失，强制断行落到下一 token 前的合成 0 宽
+分隔（checkstring，cc:819-828），产生行尾空格 + 错位折点。
+
+**修复**：三处恢复双 token 序列——①`emit_block_ops` RPN 臂（cc:2708-2709）、
+②legacy 镜像臂（同 cc 行）、③`emit_for_loop` 两个 `;`（cc:2981/2984）。
+文本不变（非断行处 spaces(1) 印一个空格），断行处空格被换行吸收=oracle
+字节形态。其余 `print(", ")` 位点（opCall 实参/原型/field 枚举等）对应
+oracle 不同发射机制，不在本根范围。
+
+**验收**：canon httpd 30 持平（本根为字节级修复：`&` 落位后折点已与 golden
+重合，本修复消除行尾空格并锁定 token 流）；canon curl 42 持平（2 处行尾
+空格消除=向 golden 字节收敛）；镜面五面 PASS（httpd 30≤36/sq 2720≤2724/
+sqlite 6055≤6071 只降）；新增回归测试
+`pretty_print_overflow_breaks_at_punct_spaces_token_no_trailing_space`
+（src/prettyprint.rs，断点落在标点后 spaces(1)、行尾无空格）。关联票
+CANON-LINEWRAP-CANONSITES-0001 的 main for 头站点收口（ap_fini 4 行残量
+另属长表达式折点子根，票面保持 OPEN）。
+
 ## 2026-09-27：PRINTC-PRINTLIST-WIRING-0001 — resetDefaults emitter 半 + PrintLanguage 虚面收口（Lane PCHOVER2）
 
 PRINTC0004 登记的两项 handover 本车道收口（写域延伸 `prettyprint.rs`/
