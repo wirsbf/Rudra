@@ -1804,3 +1804,30 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   （round3 入口该区 CFG 与 round2 恒等）→round-3 起级联解耦。修复靶=
   窗口内对应动作（determinedbranch/conditionalexe 候选）的分裂/改边行为
   对齐。
+
+### SELECTGOTO 车道修复③（2026-09-28，同票续作——round-2→3 窗口 0x3561b 分裂解锁）
+- **双侧逐动作 CFG 钉靶（新证据面）**：`RUGRA_ACTSIG=1`（src/action.rs
+  `ActionGroup::apply_children`，oracle 侧 GLM_ACTSIG 同点插桩于
+  ActionGroup::apply 子分发尾钩）逐 action 落 `<fn>.actsig`（动作名+res+全量
+  bblocks CFG）。fn 653 对照：**518 步动作序双侧恒等，前 87 步逐动作 CFG
+  恒等**；@ACT 87 nodejoin oracle res=2 vs Rugra res=1——Rugra 做了
+  0x34e7f/0x34e2a join 但漏 0x3560f/0x3561d join。
+- **根因链（逐门探针钉死）**：①oracle 窗口内 nodejoin join 该对需
+  findDups 的 booleanFlip 门通过——双侧 round-1 collapse 对 0x3561b 各翻
+  一次（parity 同），window-1 双侧同拒（flip=1，与 oracle 一致）；
+  ②window-1 的 oppool1 中 RuleCondNegate 双侧都消费该 flip（清零）；
+  ③window-2 首拒因不是 flip 而是 **functionalEqualityLevel res<0**：
+  oracle 双比较 cond 都已被 RuleSubZext INT_RIGHT 臂（ruleaction.cc:5073-5097，
+  DEBUG 帧 2715：`ZEXT(SUB81(R13,0)>>2)` → `R13>>2 & 0x3f`）拓宽为 8 字节
+  `(x&3)==0`，const 对相等→res=1→MergeNeeded→join→nodeJoinCreateBlock 分裂
+  出 0x3561b；Rugra 缺该臂，0x35628 链停 1 字节，cond 尺寸 1 vs 8 恒拒。
+- **修复**（src/ruleaction.rs `RuleSubZext` 补 INT_RIGHT 臂 1:1 移植，见
+  docs/api/ruleaction.md）：修后 fn 653 **五轮 bbsig 与 oracle 全恒等**
+  （121/120/122/112/117），级联解锁。
+- **验收（本 worktree 亲跑）**：canon curl/httpd md5 4503f498/c3b4706c
+  双字节恒等==栈基（零回退红线）；镜面五面 curl 21/21·httpd 36/36·vsh 2/2·
+  **sq 2742→1678（−1064，GetLongestMatch 6 克隆族 656→49，余为 (code *)
+  强转/空格 printc 既有族）**·sqlite 6187→6096（对 MB33 钉值 −91，对栈基
+  实测 6153 亦 −57 改进——subzext 通用臂的语料级收益，如实记）；bank
+  391/391；cargo test --lib 1965P/0F/5I（亲父 1963P+2 新）；annotations/
+  refs/evidence 三门禁绿。

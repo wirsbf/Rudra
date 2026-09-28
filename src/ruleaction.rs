@@ -2893,10 +2893,13 @@ impl Rule for RuleSignShift {
 ///   `zext(sub(V, 0))  =>  V & mask`
 ///   `zext(sub(V, c))  =>  (V >> c*8) & mask`
 ///
-/// Faithful to Ghidra's `RuleSubZext` (ruleaction.cc:5044-5115). This ports
-/// the primary SUBPIECE branch (5067-5089): when a ZEXT wraps a SUBPIECE that
-/// truncates then re-extends to the same size, replace with AND-mask (for
-/// offset 0) or a right-shift of the base plus AND-mask (for middle offsets).
+/// Faithful to Ghidra's `RuleSubZext` (ruleaction.cc:5044-5100). Ports both
+/// branches: the primary SUBPIECE branch (5067-5089) — when a ZEXT wraps a
+/// SUBPIECE that truncates then re-extends to the same size, replace with
+/// AND-mask (for offset 0) or a right-shift of the base plus AND-mask (for
+/// middle offsets) — and the INT_RIGHT branch (5073-5097) — when the ZEXT
+/// wraps `SUBPIECE(x,off) >> sa`, shift the full base by `off*8+sa` and mask
+/// with `(mask_of_mid >> sa)`, widening the whole chain to the base size.
 pub struct RuleSubZext;
 
 impl RuleSubZext {
@@ -2911,6 +2914,125 @@ impl Rule for RuleSubZext {
     fn apply_op(
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
+        // cc:5073 INT_RIGHT branch: ZEXT(INT_RIGHT(SUBPIECE(x,off),sa)) =>
+        // (x >> (off*8+sa)) & (calc_mask(midsize) >> sa). Dispatched BEFORE the
+        // primary branch's tuple block because this rewrite writes op itself —
+        // no long-lived read guard on op may be held across the mutation.
+        let subvn0 = {
+            let op = op_arc.read().unwrap();
+            match op.inrefs.get(0) {
+                Some(v) => v.clone(),
+                None => return Ok(action_status::NO_CHANGE),
+            }
+        };
+        let subop0 = {
+            let sv = subvn0.read().unwrap();
+            sv.def.as_ref().and_then(|w| w.upgrade())
+        };
+        if let Some(subop_arc) = subop0 {
+            let is_right = subop_arc.read().unwrap().opcode == OpCode::CPUI_INT_RIGHT;
+            if is_right {
+                let shiftop_arc = subop_arc.clone();
+                // cc:5075: shift amount must be a constant.
+                let (shift_const_val, shift_const_sz) = {
+                    let so = subop_arc.read().unwrap();
+                    match so.inrefs.get(1) {
+                        Some(v) if v.read().unwrap().is_constant() => {
+                            let scr = v.read().unwrap();
+                            (scr.get_offset(), scr.get_size())
+                        }
+                        _ => return Ok(action_status::NO_CHANGE),
+                    }
+                };
+                // cc:5076: midvn = shiftop->getIn(0), must be written.
+                let midvn = {
+                    let so = subop_arc.read().unwrap();
+                    match so.inrefs.get(0) {
+                        Some(v) => v.clone(),
+                        None => return Ok(action_status::NO_CHANGE),
+                    }
+                };
+                // cc:5077: midvn's def must be a SUBPIECE.
+                let sub2_arc = {
+                    let m = midvn.read().unwrap();
+                    m.def.as_ref().and_then(|w| w.upgrade())
+                };
+                let sub2_arc = match sub2_arc {
+                    Some(a) => a,
+                    None => return Ok(action_status::NO_CHANGE),
+                };
+                let (basevn, trunc2_offset, mid_size) = {
+                    let s2 = sub2_arc.read().unwrap();
+                    if s2.opcode != OpCode::CPUI_SUBPIECE {
+                        return Ok(action_status::NO_CHANGE);
+                    }
+                    let basevn = match s2.inrefs.get(0) {
+                        Some(v) => v.clone(),
+                        None => return Ok(action_status::NO_CHANGE),
+                    };
+                    let off = s2
+                        .inrefs
+                        .get(1)
+                        .map(|v| v.read().unwrap().get_offset())
+                        .unwrap_or(0);
+                    (basevn, off, midvn.read().unwrap().get_size())
+                };
+                // cc:5079-5084: base not free; trunc-then-extend to the same
+                // size (== ZEXT output size); midvn and subvn consumed
+                // exclusively by shiftop and op respectively.
+                let out_size = {
+                    let op = op_arc.read().unwrap();
+                    op.output
+                        .as_ref()
+                        .map(|o| o.read().unwrap().get_size())
+                        .unwrap_or(0)
+                };
+                if basevn.read().unwrap().is_free() {
+                    return Ok(action_status::NO_CHANGE);
+                }
+                if basevn.read().unwrap().get_size() != out_size {
+                    return Ok(action_status::NO_CHANGE);
+                }
+                let mid_lone_is_shift = midvn
+                    .read()
+                    .unwrap()
+                    .lone_descend()
+                    .map(|o| std::sync::Arc::ptr_eq(&o, &shiftop_arc))
+                    .unwrap_or(false);
+                if !mid_lone_is_shift {
+                    return Ok(action_status::NO_CHANGE);
+                }
+                let subvn_lone_is_op = subvn0
+                    .read()
+                    .unwrap()
+                    .lone_descend()
+                    .map(|o| std::sync::Arc::ptr_eq(&o, op_arc))
+                    .unwrap_or(false);
+                if !subvn_lone_is_op {
+                    return Ok(action_status::NO_CHANGE);
+                }
+                // cc:5085-5088: mask shrinks by the small shift; the total
+                // shift adds the truncation offset.
+                let val = crate::address::calc_mask(mid_size) >> shift_const_val;
+                let sa = shift_const_val + trunc2_offset * 8;
+                // cc:5089-5096: rewrite. newvn takes the full-width shift;
+                // the ZEXT turns into an AND with the shrunk mask.
+                let newvn = fd.new_unique(basevn.read().unwrap().get_size());
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
+                let shift_ref = crate::op::PcodeOpRef(shiftop_arc.clone());
+                fd.op_set_input(&follow, newvn.clone(), 0);
+                fd.op_set_input(&shift_ref, basevn.clone(), 0);
+                // cc:5092: the new constant keeps the OLD shift constant's
+                // size (read before the input is replaced).
+                let sa_const = fd.new_constant(shift_const_sz, sa);
+                fd.op_set_input(&shift_ref, sa_const, 1);
+                fd.op_set_output(&shift_ref, newvn);
+                let constvn = fd.new_constant(basevn.read().unwrap().get_size(), val);
+                fd.op_set_opcode(&follow, OpCode::CPUI_INT_AND);
+                fd.op_insert_input(&follow, constvn, 1);
+                return Ok(action_status::CHANGE);
+            }
+        }
         // in0 must be defined by a SUBPIECE; base size == op output size.
         let (basevn, trunc_offset, sub_size, subop_arc) = {
             let op = op_arc.read().unwrap();
@@ -23616,6 +23738,157 @@ mod tests {
         let s = sub_op.read().unwrap();
         assert_eq!(s.opcode, OpCode::CPUI_INT_RIGHT);
         assert_eq!(s.inrefs[1].read().unwrap().get_val(), 32);
+    }
+
+    #[test]
+    fn test_sub_zext_right_shift_arm() {
+        // zext(SUBPIECE(V[8],0)[1] >> 2) [out size 8]
+        //   => (V >> (0*8+2)) & (calc_mask(1) >> 2) = V >> 2 & 0x3f
+        // cc:5073-5097 (the fn-653 0x3561d shape: `shr $2,%r13b` re-extended
+        // to the full register). mid (SUBPIECE out) must be lone-descend of
+        // the shift; shift_out lone-descend of the ZEXT.
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let v = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        v.write()
+            .unwrap()
+            .set_flags(crate::varnode::varnode_flags::INPUT);
+        let off_const = fd.vbank.create_constant(4, 0);
+        let sub_out = fd
+            .vbank
+            .create_with_space(1, crate::space::AddressSpace::Register, 0x20);
+        let sub_op = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 0),
+            OpCode::CPUI_SUBPIECE,
+        )));
+        {
+            let mut s = sub_op.write().unwrap();
+            s.inrefs = vec![v.clone(), off_const];
+            s.output = Some(sub_out.clone());
+        }
+        sub_out.write().unwrap().def = Some(Arc::downgrade(&sub_op));
+        let sa_const = fd.vbank.create_constant(4, 2);
+        let shift_out = fd
+            .vbank
+            .create_with_space(1, crate::space::AddressSpace::Register, 0x40);
+        let shift_op = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 1),
+            OpCode::CPUI_INT_RIGHT,
+        )));
+        {
+            let mut sh = shift_op.write().unwrap();
+            sh.inrefs = vec![sub_out.clone(), sa_const];
+            sh.output = Some(shift_out.clone());
+        }
+        shift_out.write().unwrap().def = Some(Arc::downgrade(&shift_op));
+        let zext_op = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 2),
+            OpCode::CPUI_INT_ZEXT,
+        )));
+        {
+            let mut z = zext_op.write().unwrap();
+            z.inrefs = vec![shift_out.clone()];
+            z.output = Some(fd.vbank.create_with_space(
+                8, crate::space::AddressSpace::Register, 0x30,
+            ));
+        }
+        // descend wiring: sub_out -> shift only; shift_out -> zext only.
+        sub_out
+            .write()
+            .unwrap()
+            .descend
+            .push(Arc::downgrade(&shift_op));
+        shift_out
+            .write()
+            .unwrap()
+            .descend
+            .push(Arc::downgrade(&zext_op));
+        let rule = RuleSubZext::new();
+        let result = rule.apply_op(&zext_op, &mut fd).unwrap();
+        assert_eq!(result, action_status::CHANGE);
+        let z = zext_op.read().unwrap();
+        assert_eq!(z.opcode, OpCode::CPUI_INT_AND);
+        // cc:5085-5087: mask = calc_mask(1) >> 2 = 0x3f.
+        assert_eq!(z.inrefs[1].read().unwrap().get_val(), 0x3f);
+        // cc:5091-5093: the shift now reads the FULL base with combined
+        // amount (0*8+2 = 2) and its output is the AND's input.
+        let sh = shift_op.read().unwrap();
+        assert_eq!(sh.opcode, OpCode::CPUI_INT_RIGHT);
+        assert!(Arc::ptr_eq(&sh.inrefs[0], &v));
+        assert_eq!(sh.inrefs[1].read().unwrap().get_val(), 2);
+        assert!(Arc::ptr_eq(&sh.output.as_ref().unwrap(), &z.inrefs[0]));
+    }
+
+    #[test]
+    fn test_sub_zext_right_shift_arm_middle_offset() {
+        // zext(SUBPIECE(V[8],4)[4] >> 2) [out size 8]
+        //   => V >> (4*8+2) & (calc_mask(4) >> 2) = V >> 34 & 0x3fffffff
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let v = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        v.write()
+            .unwrap()
+            .set_flags(crate::varnode::varnode_flags::INPUT);
+        let off_const = fd.vbank.create_constant(4, 4);
+        let sub_out = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x20);
+        let sub_op = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 0),
+            OpCode::CPUI_SUBPIECE,
+        )));
+        {
+            let mut s = sub_op.write().unwrap();
+            s.inrefs = vec![v.clone(), off_const];
+            s.output = Some(sub_out.clone());
+        }
+        sub_out.write().unwrap().def = Some(Arc::downgrade(&sub_op));
+        let sa_const = fd.vbank.create_constant(4, 2);
+        let shift_out = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x40);
+        let shift_op = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 1),
+            OpCode::CPUI_INT_RIGHT,
+        )));
+        {
+            let mut sh = shift_op.write().unwrap();
+            sh.inrefs = vec![sub_out.clone(), sa_const];
+            sh.output = Some(shift_out.clone());
+        }
+        shift_out.write().unwrap().def = Some(Arc::downgrade(&shift_op));
+        let zext_op = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 2),
+            OpCode::CPUI_INT_ZEXT,
+        )));
+        {
+            let mut z = zext_op.write().unwrap();
+            z.inrefs = vec![shift_out.clone()];
+            z.output = Some(fd.vbank.create_with_space(
+                8, crate::space::AddressSpace::Register, 0x30,
+            ));
+        }
+        sub_out
+            .write()
+            .unwrap()
+            .descend
+            .push(Arc::downgrade(&shift_op));
+        shift_out
+            .write()
+            .unwrap()
+            .descend
+            .push(Arc::downgrade(&zext_op));
+        let rule = RuleSubZext::new();
+        let result = rule.apply_op(&zext_op, &mut fd).unwrap();
+        assert_eq!(result, action_status::CHANGE);
+        let z = zext_op.read().unwrap();
+        assert_eq!(z.opcode, OpCode::CPUI_INT_AND);
+        assert_eq!(z.inrefs[1].read().unwrap().get_val(), 0x3fffffff);
+        let sh = shift_op.read().unwrap();
+        assert!(Arc::ptr_eq(&sh.inrefs[0], &v));
+        assert_eq!(sh.inrefs[1].read().unwrap().get_val(), 34);
     }
 
     // --- RuleConcatShift (ruleaction.cc:1969) ---
