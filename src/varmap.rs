@@ -1533,29 +1533,34 @@ impl MapState {
                     if let Some(in_first) = &in_first {
                         let iv = in_first.read().unwrap();
                         let iv_space = iv.get_space();
-                        let iv_off = iv.get_offset();
                         let iv_size = iv.get_size() as u64;
                         let iv_dtype = iv.v_type.clone();
-                        // cc:1171: inFirst->getAddr() != addr
+                        // cc:1171: inFirst->getAddr() != addr — the
+                        // comparison uses the input's own address, but the
+                        // hint is added at the OUTPUT address
+                        // (addFixedType(addr.getOffset(), ...), cc:1172),
+                        // never at the input's address.
                         let same_addr1 = iv_space == crate::space::AddressSpace::Stack
-                            && iv_off == offset;
+                            && iv.get_offset() == offset;
                         drop(iv);
                         if !same_addr1 {
-                            self.add_fixed_type(iv_off, iv_dtype, 0);
+                            self.add_fixed_type(offset, iv_dtype, 0);
                         }
                         // cc:1173: addr = addr + inFirst->getSize()
                         let addr2 = offset.wrapping_add(iv_size);
                         if let Some(in_second) = &in_second {
                             let iv2 = in_second.read().unwrap();
                             let iv2_space = iv2.get_space();
-                            let iv2_off = iv2.get_offset();
                             let iv2_dtype = iv2.v_type.clone();
-                            // cc:1175: inSecond->getAddr() != addr
+                            // cc:1175: inSecond->getAddr() != addr — hint
+                            // lands at the ADVANCED output address
+                            // (addr.getOffset() after `addr = addr +
+                            // inFirst->getSize()`, cc:1176).
                             let same_addr2 = iv2_space == crate::space::AddressSpace::Stack
-                                && iv2_off == addr2;
+                                && iv2.get_offset() == addr2;
                             drop(iv2);
                             if !same_addr2 {
-                                self.add_fixed_type(iv2_off, iv2_dtype, 0);
+                                self.add_fixed_type(addr2, iv2_dtype, 0);
                             }
                         }
                     }
@@ -7463,5 +7468,85 @@ mod tests {
         let sum = stack_vn(&mut fd, 0x50, 8);
         wire(&mut fd, OpCode::CPUI_INT_ADD, &[slot8.clone(), cnst.clone()], &sum);
         assert!(MapState::is_read_active(&slot8));
+    }
+
+    // SQLCENSUS-CODESTAR-DOWNCHAIN-0001 root cause 2 (S2R2, 2026-09-28):
+    // PIECE half-value fixed hints must land at the OUTPUT address (low
+    // half, varmap.cc:1172 `addFixedType(addr.getOffset(), inFirst->…)`)
+    // and the ADVANCED output address out+lowsize (high half, cc:1176 after
+    // `addr = addr + inFirst->getSize()`) — the input addresses are used
+    // ONLY for the same-storage comparison. The pre-fix bug added the hints
+    // at the input varnodes' own addresses: register/unique halves fall
+    // outside the stack analysis window and window_in_range silently
+    // dropped them, starving RangeHint::merge's resType=2 confuse
+    // stabilizer (varmap.cc:298-312) of the upper-half hint and letting
+    // the varmap↔downChain loop deepen the slot symbol by one pointer
+    // level per round (the 7-star runaway).
+    #[test]
+    fn test_gather_varnodes_piece_half_hint_addresses() {
+        use crate::opcodes::OpCode;
+        use crate::space::AddressSpace;
+        use crate::varnode::varnode_flags;
+
+        let mut fd = crate::funcdata::Funcdata::new(
+            "t", crate::address::Address::new(0x1000), 0x100);
+        let stack_vn = |fd: &mut crate::funcdata::Funcdata, off: u64, size: usize| {
+            let vn = fd.vbank.create_with_space(size, AddressSpace::Stack, off);
+            vn.write().unwrap().set_flags(varnode_flags::ADDRTIED | varnode_flags::INSERT);
+            vn
+        };
+        let wire = |fd: &mut crate::funcdata::Funcdata,
+                    opc: OpCode,
+                    inputs: &[Arc<RwLock<crate::varnode::Varnode>>],
+                    out: &Arc<RwLock<crate::varnode::Varnode>>| {
+            let op = fd.new_op(inputs.len(), crate::address::Address::new(0x1000));
+            fd.op_set_opcode(&op, opc);
+            for (slot, vn) in inputs.iter().enumerate() {
+                fd.op_set_input(&op, vn.clone(), slot);
+            }
+            fd.op_set_output(&op, out.clone());
+        };
+
+        // 8-byte stack output at 0x40 assembled from two UNIQUE halves
+        // (0x10 low / 0x18 high — both outside the stack window). Types
+        // differ so the two hints are distinguishable.
+        let joined = stack_vn(&mut fd, 0x40, 8);
+        let lo = fd.vbank.create_with_space(4, AddressSpace::Unique, 0x10);
+        lo.write().unwrap().set_flags(varnode_flags::ADDRTIED | varnode_flags::INSERT);
+        lo.write().unwrap().v_type =
+            Some(named_dt("int4", 4, TypeMetatype::Int));
+        let hi = fd.vbank.create_with_space(4, AddressSpace::Unique, 0x18);
+        hi.write().unwrap().set_flags(varnode_flags::ADDRTIED | varnode_flags::INSERT);
+        hi.write().unwrap().v_type =
+            Some(named_dt("uint4", 4, TypeMetatype::Uint));
+        // PIECE(in0=hi, in1=lo) on little-endian: slot 1 (in1) is the low half.
+        wire(&mut fd, OpCode::CPUI_PIECE, &[hi.clone(), lo.clone()], &joined);
+
+        let mut state = MapState::new_with_default(
+            vec![(0x40, 0x48)], int_dt(1, TypeMetatype::Unknown));
+        state.gather_varnodes(&fd);
+        // Output not read-active and halves not same-storage: exactly the
+        // two half-value hints, at the OUTPUT-derived addresses.
+        let got: Vec<(u64, String)> = state
+            .maplist
+            .iter()
+            .map(|h| {
+                (
+                    h.start,
+                    h.dtype.as_ref().map(|d| d.get_name().to_string()).unwrap_or_default(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (0x40, "int4".to_string()),  // low half at output address (cc:1172)
+                (0x44, "uint4".to_string()), // high half at out+lowsize (cc:1176)
+            ]
+        );
+        for h in &state.maplist {
+            assert_eq!(h.range_type, RangeType::Fixed);
+            assert_eq!(h.flags, 0);
+        }
     }
 }
