@@ -25,6 +25,7 @@
 //!   cargo run --profile fast-release --example gen_decompile -- <binary>
 //!   cargo run --profile fast-release --example gen_decompile -- <binary> --list
 //!   cargo run --profile fast-release --example gen_decompile -- <binary> --one <index>
+//!   cargo run --profile fast-release --example gen_decompile -- <binary> [--jobs N]
 //!
 //! Env:
 //!   RUGRA_GEN_MIRROR         inert (historical): flow always uses the
@@ -54,6 +55,13 @@
 //!                             source tree at launch, so per-function
 //!                             workers skip re-hashing the tree (see the
 //!                             staleness self-check below).
+//!   --jobs N (flag)          all-mode worker-pool width, default 8
+//!                             (SPEEDPROF-PAR-CHILDREN-0001). `--jobs 1`
+//!                             reproduces the historical serial coordinator
+//!                             (index-order scheduling, no per-function
+//!                             progress lines); any N still emits stdout
+//!                             blocks in function index order, byte-identical
+//!                             to the serial form.
 //!
 //! Staleness self-check (INFRA-EXAMPLES-STALELINK-0001): at startup the
 //! driver compares the build-time source digest embedded by build.rs
@@ -73,6 +81,12 @@
 //! (`--one <index>`), mirroring the oracle golden generator's hermetic
 //! per-function "one" mode: a panic or hang in one function cannot take
 //! down the corpus run, and each function sees a fresh Architecture.
+//! The all-mode coordinator runs a bounded pool of `--jobs N` worker
+//! threads (default 8; SPEEDPROF-PAR-CHILDREN-0001) that supervise those
+//! children concurrently — one Architecture + one DB per subprocess is the
+//! proven isolation form; completion order never reaches stdout, which is
+//! assembled strictly in function index order (byte-identical to the
+//! historical serial coordinator).
 
 use goblin::Object;
 use std::collections::HashMap;
@@ -1467,6 +1481,126 @@ fn stale_guard_probe() {
 }
 
 
+// ---------------------------------------------------------------------------
+// SPEEDPROF-PAR-CHILDREN-0001: all-mode per-function child pool.
+//
+// RUGRA-GLUE: pure coordinator scheduling infrastructure — the locked
+// oracle's golden generator (regen_ghidra_golden.py) is a Python harness
+// whose "all" mode serializes its per-function "one" children; there is no
+// decompiler-side function to mirror. The lane's measured evidence
+// (/dev/shm/rugra-tests/speedprof/): jobs=32 child pool on this machine ran
+// sqlite 953.6s -> 165.4s (5.76x) and sq 393.7s -> 43.5s (9.05x) with a
+// three-way byte-identity chain (official serial == harness serial ==
+// harness parallel; sqlite 5,289,364B + sq full cmp). This in-driver pool
+// adopts exactly that shape:
+//   - worker isolation = one `--one <index>` SUBPROCESS per function (one
+//     Architecture + one DB per child — the CR-S1-proven form; no
+//     in-process sharing, PAREVAL-DETERM-HERMETICITY-0001 stays intact);
+//   - output order = function index order always: blocks are collected per
+//     slot and emitted after the pool drains, so stdout is byte-identical
+//     to the historical serial coordinator at any --jobs;
+//   - enqueue order = largest-function-first at jobs > 1 (load balancing
+//     against the one giant straggler, e.g. sqlite VdbeExec ~166s; schedule
+//     order never reaches the output), index order at jobs == 1;
+//   - default 8 (conservative on the shared 112-core host), `--jobs N`
+//     override, fail-closed: a child spawn error or a panicked worker
+//     aborts the whole run with a nonzero exit and no assembled output.
+// ---------------------------------------------------------------------------
+
+// RUGRA-GLUE: conservative default pool width (shared host discipline;
+// SPEEDPROF measured up to 32 safe, 8 keeps headroom under foreign load).
+const DEFAULT_POOL_JOBS: usize = 8;
+
+// RUGRA-GLUE: parse `--jobs N` / `--jobs=N` (default DEFAULT_POOL_JOBS);
+// invalid usage (non-numeric, zero, or a trailing `--jobs` with no value)
+// exits 1 before any corpus work (fail-closed).
+fn parse_jobs(args: &[String]) -> usize {
+    let mut jobs = DEFAULT_POOL_JOBS;
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        let value = if arg == "--jobs" {
+            match iter.next() {
+                Some(value) => Some(value.as_str()),
+                None => {
+                    eprintln!("--jobs needs a positive integer argument");
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            arg.strip_prefix("--jobs=")
+        };
+        if let Some(value) = value {
+            jobs = value.parse().unwrap_or_else(|_| {
+                eprintln!("--jobs needs a positive integer (got '{value}')");
+                std::process::exit(1);
+            });
+        }
+    }
+    if jobs == 0 {
+        eprintln!("--jobs must be >= 1");
+        std::process::exit(1);
+    }
+    jobs
+}
+
+// RUGRA-GLUE: classify one supervised child's capture into its all-mode
+// output block — the historical serial coordinator's four-way selection,
+// factored out verbatim so serial and pooled emission share one code path
+// (bytes identical by construction). Returns (ok-flag, block text with its
+// trailing newline).
+fn child_block(
+    output: &std::process::Output,
+    function: &GenFunction,
+    timeout_secs: u64,
+) -> (bool, String) {
+    let status = &output.status;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if status.success() && stdout.contains("/* ----") {
+        let mut text = stdout.to_string();
+        if !text.ends_with('\n') {
+            text.push('\n');
+        }
+        (true, text)
+    } else if status.code().is_some_and(|code| code == 124) {
+        (
+            false,
+            format!(
+                "/* ---- 0x{:x}: {} TIMEOUT (>{}s) ---- */\n",
+                function.vaddr, function.name, timeout_secs
+            ),
+        )
+    } else if stderr.contains("panicked") {
+        let reason = stderr
+            .lines()
+            .rev()
+            .find(|line| line.contains("panicked") || line.starts_with("Error"))
+            .unwrap_or("panicked");
+        (
+            false,
+            format!(
+                "/* ---- 0x{:x}: {} PANICKED: {} ---- */\n",
+                function.vaddr, function.name, reason
+            ),
+        )
+    } else {
+        let reason = stderr
+            .lines()
+            .rev()
+            .find(|line| line.starts_with("[GEN] --one failed"))
+            .map(|line| line.trim_start_matches("[GEN] --one failed: "))
+            .unwrap_or("nonzero exit");
+        (
+            false,
+            format!(
+                "/* ---- 0x{:x}: {} ERROR: {} ---- */\n",
+                function.vaddr, function.name, reason
+            ),
+        )
+    }
+}
+
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     // INFRA-EXAMPLES-STALELINK-0001 standalone probe mode for gate scripts:
@@ -1481,7 +1615,7 @@ fn main() {
     enforce_stale_guard();
     if args.len() < 2 {
         eprintln!(
-            "usage: {} <binary> [--list | --one <index>]\n  env: RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=<n> RUGRA_GEN_ONLY=<name>",
+            "usage: {} <binary> [--list | --one <index> | --jobs N]\n  env: RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=<n> RUGRA_GEN_ONLY=<name>",
             args[0]
         );
         std::process::exit(1);
@@ -1542,7 +1676,12 @@ fn main() {
     // deadline instead of wedging `timeout` in waitpid, and the coordinator
     // supervises each child through run_capped_output (GEN-DRIVER-STALL-0001:
     // wall cap + post-exit pipe-holder kill; normal path byte-identical to
-    // Command::output()).
+    // Command::output()). SPEEDPROF-PAR-CHILDREN-0001: a bounded pool of
+    // `--jobs N` worker threads (default 8) supervises those children
+    // concurrently; blocks are collected per slot and emitted in function
+    // index order after the pool drains — stdout stays byte-identical to
+    // the historical serial coordinator at every pool width (see the pool
+    // section comment above parse_jobs).
     let timeout_secs: u64 = std::env::var("RUGRA_GEN_TIMEOUT_SECS")
         .ok()
         .and_then(|value| value.parse().ok())
@@ -1559,80 +1698,146 @@ fn main() {
         .and_then(|value| u64::from_str_radix(value, 16).ok());
     let exe = std::env::current_exe().expect("current_exe");
     let mirror_env = std::env::var("RUGRA_GEN_MIRROR").ok();
+    let jobs = parse_jobs(&args);
+
+    // Work list: indices passing the RUGRA_GEN_ONLY filter (same predicate
+    // as the historical serial loop — include when no filter is set, or
+    // when either the name or the 0x-address form matches).
+    let work: Vec<usize> = functions
+        .iter()
+        .enumerate()
+        .filter(|(_, function)| {
+            only.as_deref().is_none_or(|name| {
+                name == function.name || only_addr == Some(function.vaddr)
+            })
+        })
+        .map(|(index, _)| index)
+        .collect();
+
+    // Schedule over work slots: index order at jobs == 1 (exact historical
+    // serial shape), largest-function-first at jobs > 1 (load balancing so
+    // one giant straggler starts first — completion order never reaches
+    // the output, only slot assignment does).
+    let mut schedule: Vec<usize> = (0..work.len()).collect();
+    if jobs > 1 {
+        schedule.sort_by_key(|&slot| std::cmp::Reverse(functions[work[slot]].size));
+    }
+    let cursor = std::sync::atomic::AtomicUsize::new(0);
+    let done = std::sync::atomic::AtomicUsize::new(0);
+    // One filled Option per work slot; workers never touch another slot.
+    let blocks: std::sync::Mutex<Vec<Option<(bool, String)>>> =
+        std::sync::Mutex::new(vec![None; work.len()]);
+    // First child-spawn error aborts the run (fail-closed): workers stop
+    // pulling new work and the coordinator exits nonzero before emitting
+    // any assembled output.
+    let spawn_failure: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+    let worker_count = jobs.min(work.len());
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..worker_count)
+            .map(|_| {
+                scope.spawn(|| {
+                    loop {
+                        let position =
+                            cursor.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        let Some(&slot) = schedule.get(position) else {
+                            return;
+                        };
+                        // Fail-fast drain: a sibling already hit a spawn error.
+                        if spawn_failure
+                            .lock()
+                            .expect("pool failure flag lock")
+                            .is_some()
+                        {
+                            return;
+                        }
+                        let index = work[slot];
+                        let function = &functions[index];
+                        let started = std::time::Instant::now();
+                        let mut command = if timeout_secs > 0 {
+                            let mut wrapped = Command::new("timeout");
+                            wrapped
+                                .arg(format!("--kill-after={TIMEOUT_KILL_AFTER_SECS}s"))
+                                .arg(format!("{}s", timeout_secs));
+                            wrapped.arg(&exe).arg(&binary_path).arg("--one").arg(index.to_string());
+                            wrapped
+                        } else {
+                            let mut plain = Command::new(&exe);
+                            plain.arg(&binary_path).arg("--one").arg(index.to_string());
+                            plain
+                        };
+                        if let Some(mirror) = mirror_env.as_ref() {
+                            command.env("RUGRA_GEN_MIRROR", mirror);
+                        }
+                        // INFRA-EXAMPLES-STALELINK-0001: children inherit the
+                        // coordinator's verified-at-launch state instead of
+                        // re-hashing the source tree once per function worker.
+                        command.env(STALE_GUARD_INHERITED_ENV, "1");
+                        let (ok, block) = match run_capped_output(command, wall_cap) {
+                            Ok(output) => child_block(&output, function, timeout_secs),
+                            Err(error) if error.kind() == std::io::ErrorKind::TimedOut => (
+                                false,
+                                format!(
+                                    "/* ---- 0x{:x}: {} STALL: child unkillable past wall cap ({error}) ---- */\n",
+                                    function.vaddr, function.name
+                                ),
+                            ),
+                            Err(error) => {
+                                *spawn_failure
+                                    .lock()
+                                    .expect("pool failure flag lock") =
+                                    Some(format!("spawn failed for {}: {error}", function.name));
+                                return;
+                            }
+                        };
+                        blocks.lock().expect("pool block store lock")[slot] = Some((ok, block));
+                        // Pooled-mode progress on stderr only (serial keeps the
+                        // historical per-function silence); stdout is reserved
+                        // for the index-ordered C assembly.
+                        if jobs > 1 {
+                            let finished =
+                                done.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                            eprintln!(
+                                "[GEN-PAR] {}/{} idx {} {} {:.1}s {}",
+                                finished,
+                                work.len(),
+                                index,
+                                function.name,
+                                started.elapsed().as_secs_f64(),
+                                if ok { "ok" } else { "fail" }
+                            );
+                        }
+                    }
+                })
+            })
+            .collect();
+        for handle in handles {
+            if handle.join().is_err() {
+                // Fail-closed: a panicked worker poisons the pool — no
+                // partial assembled output.
+                eprintln!("[GEN] FAIL: pool worker thread panicked");
+                std::process::exit(1);
+            }
+        }
+    });
+    if let Some(message) = spawn_failure.into_inner().expect("pool failure flag lock") {
+        eprintln!("[GEN] FAIL (fail-closed): {message}");
+        std::process::exit(1);
+    }
+
+    // Ordered emission: strictly function index order, one shared code path
+    // with the classification above — byte-identical to the historical
+    // serial coordinator's per-function print!/println! sequence.
+    let blocks = blocks.into_inner().expect("pool block store lock");
     let mut ok_count = 0usize;
-    for (index, function) in functions.iter().enumerate() {
-        if let Some(name) = only.as_deref() {
-            if name != function.name && only_addr != Some(function.vaddr) {
-                continue;
-            }
-        }
-        let mut command = if timeout_secs > 0 {
-            let mut wrapped = Command::new("timeout");
-            wrapped
-                .arg(format!("--kill-after={TIMEOUT_KILL_AFTER_SECS}s"))
-                .arg(format!("{}s", timeout_secs));
-            wrapped.arg(&exe).arg(&binary_path).arg("--one").arg(index.to_string());
-            wrapped
-        } else {
-            let mut plain = Command::new(&exe);
-            plain.arg(&binary_path).arg("--one").arg(index.to_string());
-            plain
+    for slot in 0..work.len() {
+        let Some((ok, block)) = &blocks[slot] else {
+            eprintln!("[GEN] FAIL: function slot {slot} produced no block");
+            std::process::exit(1);
         };
-        if let Some(mirror) = mirror_env.as_ref() {
-            command.env("RUGRA_GEN_MIRROR", mirror);
-        }
-        // INFRA-EXAMPLES-STALELINK-0001: children inherit the coordinator's
-        // verified-at-launch state instead of re-hashing the source tree
-        // once per function worker.
-        command.env(STALE_GUARD_INHERITED_ENV, "1");
-        let output = match run_capped_output(command, wall_cap) {
-            Ok(output) => output,
-            Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-                println!(
-                    "/* ---- 0x{:x}: {} STALL: child unkillable past wall cap ({error}) ---- */",
-                    function.vaddr, function.name
-                );
-                continue;
-            }
-            Err(error) => {
-                panic!("spawn failed for {}: {error}", function.name);
-            }
-        };
-        let status = output.status;
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        if status.success() && stdout.contains("/* ----") {
-            print!("{}", stdout);
-            if !stdout.ends_with('\n') {
-                println!();
-            }
+        print!("{block}");
+        if *ok {
             ok_count += 1;
-        } else if status.code().is_some_and(|code| code == 124) {
-            println!(
-                "/* ---- 0x{:x}: {} TIMEOUT (>{}s) ---- */",
-                function.vaddr, function.name, timeout_secs
-            );
-        } else if stderr.contains("panicked") {
-            let reason = stderr
-                .lines()
-                .rev()
-                .find(|line| line.contains("panicked") || line.starts_with("Error"))
-                .unwrap_or("panicked");
-            println!(
-                "/* ---- 0x{:x}: {} PANICKED: {} ---- */",
-                function.vaddr, function.name, reason
-            );
-        } else {
-            let reason = stderr
-                .lines()
-                .rev()
-                .find(|line| line.starts_with("[GEN] --one failed"))
-                .map(|line| line.trim_start_matches("[GEN] --one failed: "))
-                .unwrap_or("nonzero exit");
-            println!(
-                "/* ---- 0x{:x}: {} ERROR: {} ---- */",
-                function.vaddr, function.name, reason
-            );
         }
     }
     eprintln!("[GEN] ok={}/{} functions", ok_count, functions.len());
