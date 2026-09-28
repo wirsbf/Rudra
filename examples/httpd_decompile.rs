@@ -1037,10 +1037,32 @@ fn build_action_data_symbol_db(
     // analyzer's data is type-locked, so spacebaseCenter's
     // ptr-to-stripped-element typing locks onto char* — canon golden's
     // `char * ap_get_server_built(void) { return "..."; }`).
-    let char_t = Arc::new(Datatype::Base(TypeBase::new_char(
-        "char".to_string(),
-        TypeMetatype::Int,
-    )));
+    // DECLFAM-DEADSLOT-0001: the element base MUST be the
+    // TypeFactory-interned char (find_by_name/get_type_char_named, the
+    // GLIBC-PROTO-PARAMNAME-0001 precedent in debugproto.rs) — Ghidra
+    // resolves every `char` through its one TypeFactory (grammar.cc:2989),
+    // so a reference to a string symbol propagates the SAME char* Arc into
+    // HighVariables and Merge::mergeByDatatype (merge.cc:392 exact
+    // Datatype* equality) can group string-slot highs with sibling char*
+    // highs; a fresh `new_char` clone here fragmented the grouping and
+    // minted extra local declarations (LANE DECLFAM 2026-09-28).
+    let char_t = rugra::type_system::typefactory::TypeFactory::shared_default()
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .find_by_name("char")
+        .or_else(|| {
+            rugra::type_system::typefactory::TypeFactory::shared_default()
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get_type_char_named("char")
+                .ok()
+        })
+        .unwrap_or_else(|| {
+            Arc::new(Datatype::Base(TypeBase::new_char(
+                "char".to_string(),
+                TypeMetatype::Int,
+            )))
+        });
     let mut string_starts: Vec<u64> = string_table.keys().copied().collect();
     string_starts.sort_unstable();
     for &saddr in &string_starts {
@@ -1470,7 +1492,23 @@ fn tracked_context_architecture(
         rugra::comment::CommentDatabaseInternal::new(),
     )));
     {
-        let mut types = rugra::type_system::typefactory::TypeFactory::new(8);
+        // DECLFAM-DEADSLOT-0001 (httpd half): decode the cspec's
+        // data_organization into the ONE shared TypeFactory — the curl
+        // worker's canonical single-factory pattern (curl_decompile.rs
+        // HTTPDMAIN-FUNCPROTO cspec block: "Rugra's canonical single
+        // factory is TypeFactory::shared_default ... makes the worker
+        // architecture, the libc signature path and the DWARF import paths
+        // share one identity domain, the way the oracle does"). The former
+        // fresh `TypeFactory::new(8)` here kept the httpd Architecture in a
+        // SEPARATE identity domain from every shared_default consumer
+        // (LibcSignatureTable resolve, DebugGlobalDatabase/DebugPrototype
+        // seeds, the rodata char[] typing): structurally identical
+        // `byte *`/`char *` spellings landed as distinct Arc instances, so
+        // Merge::mergeByDatatype (merge.cc:387 exact Datatype* equality)
+        // failed to group sibling highs and minted extra local symbol
+        // declarations the oracle never emits (ap_update_vhost_from_headers
+        // `byte *pbVar4` — LANE DECLFAM 2026-09-28).
+        let types = rugra::type_system::typefactory::TypeFactory::shared_default();
         let data_org = cspec_root
             .read()
             .map_err(|_| "compiler spec element lock poisoned".to_string())?
@@ -1488,14 +1526,20 @@ fn tracked_context_architecture(
             rugra::marshal::IdRegistry::new(),
         ));
         let mut decoder = rugra::marshal::TreeDecoder::new(data_org, registry);
-        types.decode_data_organization(&mut decoder);
-        types.setup_sizes(&rugra::type_system::typefactory::SizeArchInputs {
+        types
+            .write()
+            .map_err(|_| "compiler spec factory lock poisoned".to_string())?
+            .decode_data_organization(&mut decoder);
+        types
+            .write()
+            .map_err(|_| "compiler spec factory lock poisoned".to_string())?
+            .setup_sizes(&rugra::type_system::typefactory::SizeArchInputs {
             stack_spacebase_size: Some(8),
             default_data_space_addr_size: 8,
             default_size: 8,
             far_pointer: None,
         });
-        arch.set_types(std::sync::Arc::new(std::sync::RwLock::new(types)));
+        arch.set_types(types);
         // PRINTC-BADSPACEBASE-RENDER-0001 (ES effect table, merged with the
         // RC2 init chain): mount the cspec's prototype surface the way the
         // curl worker does (parseCompilerConfig, architecture.cc:1239-1351 —
