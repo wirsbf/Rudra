@@ -55,6 +55,11 @@
 //!                             source tree at launch, so per-function
 //!                             workers skip re-hashing the tree (see the
 //!                             staleness self-check below).
+//!   RUGRA_GEN_PHASE_TIMING    =1 emits per-phase wall-clock [PHASE] lines
+//!                             on stderr (SPEEDPROF-FIXEDFLOOR-0001; the
+//!                             gen-face counterpart of the curl driver's
+//!                             [STEP] channel). Default silent — zero
+//!                             effect on stdout blocks or exit codes.
 //!   --jobs N (flag)          all-mode worker-pool width, default 8
 //!                             (SPEEDPROF-PAR-CHILDREN-0001). `--jobs 1`
 //!                             reproduces the historical serial coordinator
@@ -115,6 +120,62 @@ struct GenFunction {
     vaddr: u64,
     name: String,
     size: usize,
+}
+
+// ---------------------------------------------------------------------------
+// SPEEDPROF-FIXEDFLOOR-0001: env-gated per-phase wall-clock channel
+// (RUGRA_GEN_PHASE_TIMING=1) — the gen-face counterpart of the curl driver's
+// [STEP] lines (curl_decompile.rs:6612). Pure observability: stderr-only,
+// default completely silent, zero effect on stdout blocks or exit codes, so
+// the canon/mirror protocols are untouched (the [GEN-PAR] progress-line
+// precedent: stderr is not an output-contract face). Each [PHASE] line
+// carries the phase label and the wall time since the previous mark; the
+// first mark also reports the time from process start, so a `--one`
+// child's full fixed-floor assembly cost (discovery, parse, SLEIGH
+// engine, cspec/pspec, symbol registration, flow/action/print) is
+// event-level quantifiable.
+// ---------------------------------------------------------------------------
+static PHASE_TIMING: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+// RUGRA-GLUE: parse RUGRA_GEN_PHASE_TIMING once (any value except "0"
+// enables, mirroring RUGRA_SLEIGH_LOAD_REPORT's convention).
+fn phase_timing_enabled() -> bool {
+    *PHASE_TIMING.get_or_init(|| {
+        std::env::var("RUGRA_GEN_PHASE_TIMING").is_ok_and(|value| value != "0")
+    })
+}
+
+// RUGRA-GLUE: last phase-mark instant, process-global so the coordinator
+// thread's discovery mark chains into the run_one worker thread's assembly
+// marks (single `--one` child, sequential phases).
+static PHASE_LAST: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+// RUGRA-GLUE: emit one [PHASE] line (if enabled). First mark reports the
+// time since process start (clock origin), which for a `--one` child
+// includes exec + dynamic link + stale-guard skip.
+fn phase_mark(label: &str) {
+    if !phase_timing_enabled() {
+        return;
+    }
+    let now = std::time::Instant::now();
+    let mut last = PHASE_LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    match *last {
+        Some(previous) => eprintln!("[PHASE] {label} {:.3}s", (now - previous).as_secs_f64()),
+        None => eprintln!(
+            "[PHASE] {label} {:.3}s (since process start)",
+            now.duration_since(process_startup()).as_secs_f64()
+        ),
+    }
+    *last = Some(now);
+}
+
+// RUGRA-GLUE: process-start anchor for the first phase mark's
+// "since process start" leg (lazily initialized on first use — Instant
+// is not const-constructible).
+static PROCESS_STARTUP: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+fn process_startup() -> std::time::Instant {
+    *PROCESS_STARTUP.get_or_init(std::time::Instant::now)
 }
 
 // RUGRA-GLUE: mirror of golden_dump_1204.cc registerFunctionSymbol +
@@ -507,8 +568,10 @@ fn build_architecture(
 ) -> Result<(Arc<rugra::arch::Architecture>, rugra::sleigh_ffi::SleighCtx), String> {
     let cspec_bytes = fs::read("sleigh_specs/x86-64-gcc.cspec")
         .map_err(|error| format!("unable to read compiler spec: {error}"))?;
+    phase_mark("asm_cspec_read");
     let sleigh = rugra::sleigh_ffi::SleighCtx::new()
         .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
+    phase_mark("asm_sleigh_engine");
     let mut registers: HashMap<String, rugra::fspec::VarnodeData> = HashMap::new();
     let mut register_xref: Vec<(i32, u64, i32, String)> = Vec::new();
     for index in 0..sleigh.num_registers() {
@@ -528,11 +591,13 @@ fn build_architecture(
             },
         );
     }
+    phase_mark("asm_register_enum");
     let host = Arc::new(GenSpecHost { registers });
     let mut store = rugra::marshal::DocumentStorage::new();
     let doc = store
         .parse_document(&cspec_bytes)
         .map_err(|error| format!("compiler spec parse failed: {error}"))?;
+    phase_mark("asm_cspec_parse");
     let root = doc
         .root
         .clone()
@@ -597,6 +662,7 @@ fn build_architecture(
     let pspec_doc = store
         .parse_document(&pspec_bytes)
         .map_err(|error| format!("processor spec parse failed: {error}"))?;
+    phase_mark("asm_pspec_read_parse");
     let pspec_root = pspec_doc
         .root
         .clone()
@@ -659,6 +725,7 @@ fn build_architecture(
     // prototype models and defaultfp (the FUNCPROTO-MODEL-BIND-0001 chain).
     arch.parse_compiler_config(&mut store, host.as_ref(), 8)
         .map_err(|error| format!("compiler spec parse failed: {error}"))?;
+    phase_mark("asm_compiler_config");
     if arch.defaultfp.is_none() {
         return Err("No default prototype specified".to_string());
     }
@@ -667,6 +734,7 @@ fn build_architecture(
         arch.loader = Some(loader);
         arch.build_string_manager();
     }
+    phase_mark("asm_string_manager");
     Ok((Arc::new(arch), sleigh))
 }
 
@@ -680,6 +748,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         Object::Elf(elf) => elf,
         _ => return Err("not an ELF binary".to_string()),
     };
+    phase_mark("reparse");
     let target = &functions[index];
     let mut image = memory_image_bytes(elf, &buffer);
     // MIRRORCENSUS-GEN-READONLY-STRFOLD-0001: the oracle's loadFill is a
@@ -688,6 +757,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     // cloned into the loader and handed to SLEIGH, so string reads see the
     // same bytes the oracle's BfdArchitecture would serve.
     overlay_bfd_nonalloc_sections(elf, &buffer, &mut image);
+    phase_mark("image_overlay");
 
     let loader: Arc<dyn rugra::loadimage::LoadImage> = Arc::new(
         rugra::loadimage::RawLoadImage::from_bytes(
@@ -697,6 +767,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         ),
     );
     let (arch, sleigh_ctx) = build_architecture(Some(loader))?;
+    phase_mark("build_architecture");
     // GEN-CODEPTR-SYMBOLIZE-0001 analysis-side leg (S2CODESTAR-DOWNCHAIN-0001):
     // the oracle's golden harness registers every BFD function symbol into the
     // ANALYSIS Architecture's global scope before decompiling
@@ -723,6 +794,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             }
         }
     }
+    phase_mark("symbols_analysis_db");
 
     let func_size =
         i32::try_from(target.size).map_err(|_| format!("function {} is too large", target.name))?;
@@ -733,6 +805,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     for function in functions {
         fd.add_symbol(function.vaddr, function.name.clone());
     }
+    phase_mark("fd_symbols");
 
     // PERF-DUAL-SLEIGH-INIT-0001: adopt the register-catalog engine as the
     // lifter instead of re-deserializing x86-64.sla — the oracle builds ONE
@@ -747,6 +820,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     sleigh
         .configure_x86_64(&image, 0)
         .map_err(|error| format!("failed to configure SLEIGH: {error}"))?;
+    phase_mark("lifter_configure");
 
     let empty_protos = std::collections::BTreeMap::new();
     // Oracle flow contract: followFlow(code:0, code:highest). Every Ghidra
@@ -761,6 +835,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     // oracle range.
     rugra::flow::follow_flow_range(&mut fd, &mut sleigh, 0, u64::MAX, &empty_protos)
         .map_err(|error| format!("flow generation failed for {}: {error}", target.name))?;
+    phase_mark("flow");
 
     let fd_arc = Arc::new(std::sync::RwLock::new(fd));
     fd_arc
@@ -821,6 +896,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         db.perform_action("decompile", &mut fd_write)
             .map_err(|error| format!("action pipeline failed for {}: {error}", target.name))?;
     }
+    phase_mark("action");
     if std::env::var("RUGRA_STAGE_DRILL").is_ok() {
         let drained = rugra::drillobserve::drain();
         if !drained.is_empty() {
@@ -1028,6 +1104,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             fd_write.arch = Some(std::sync::Arc::new(print_arch));
         }
     }
+    phase_mark("print_db_install");
 
     let mut printer = PrintC::new(Box::new(EmitPrettyPrint::new()));
     printer.set_rpn_enabled(true);
@@ -1037,6 +1114,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             .map_err(|_| "Funcdata read lock poisoned during printing".to_string())?;
         printer.doc_function(&fd_read);
     }
+    phase_mark("print");
     let output_buffer = printer
         .take_emit()
         .into_any()
@@ -1625,6 +1703,10 @@ fn child_block(
 
 
 fn main() {
+    // SPEEDPROF-FIXEDFLOOR-0001: pin the phase-clock origin at main entry
+    // (the first [PHASE] mark's "since process start" leg) before any
+    // argument handling, so the anchor excludes nothing the driver runs.
+    let _ = process_startup();
     let args: Vec<String> = std::env::args().collect();
     // INFRA-EXAMPLES-STALELINK-0001 standalone probe mode for gate scripts:
     // run only the staleness self-check (exit 0 fresh / 2 stale), no corpus
@@ -1674,6 +1756,9 @@ fn main() {
         if index >= functions.len() {
             panic!("index {index} out of range ({} functions)", functions.len());
         }
+        // SPEEDPROF-FIXEDFLOOR-0001: discovery (read + goblin parse + symbol
+        // table scan) is the child's first fixed-floor phase.
+        phase_mark("discovery");
         // Big-stack thread: ActionGroup::perform can recurse deep.
         let child = std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
