@@ -2738,9 +2738,18 @@ impl EmitNoMarkup {
                 let prev_alnum = i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_' || bytes[i - 1] == b')');
                 let next_is_paren = i + 1 < bytes.len() && bytes[i + 1] == b'(';
                 let next_is_star = i + 1 < bytes.len() && bytes[i + 1] == b'*';
+                // DECLFAM-DEADSLOT-0001: `*` followed by WHITESPACE is a
+                // spaced binary operator (`iVar5 * sVar8`), never a unary
+                // deref — printc emits derefs tight (`*pcVar9`, `(*x)`),
+                // and the golden keeps the multiplication operand's
+                // declaration untouched (`return iVar5 * sVar8;` with
+                // `short sVar8;`, ghidra_curl_1204.c glob_set). Admitting
+                // the spaced form rewrote symbol-driven scalar decls to
+                // pointer decls (glob_set `short sVar8` -> `char *sVar8`).
+                let next_is_space = i + 1 < bytes.len() && (bytes[i + 1] == b' ' || bytes[i + 1] == b'\t');
                 // Skip if it's a `type *X` declaration (preceded by whitespace after type word) — hard to detect perfectly,
                 // but we only act on IDENTs that also appear in declarations, so false positives are harmless.
-                if !prev_alnum && !next_is_paren && !next_is_star {
+                if !prev_alnum && !next_is_paren && !next_is_star && !next_is_space {
                     // Capture following identifier
                     let mut j = i + 1;
                     // skip whitespace

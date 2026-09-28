@@ -524,6 +524,12 @@ Emitter that discards all output (used for discovery pass)
 
 - 新增 `fix_unary_deref_declarations()`：扫描所有 `*IDENT` 一元解引用模式，把这些 IDENT 的声明从 scalar（long/int/byte）改成 `char *`。原因：printc 对 STORE/LOAD 发射 `*param_N = val`，若 param_N 被推断为 long/int 则非法。`char *` 既能解引用又能赋标量值。
 - 参数签名同步重写：签名行里的 `long param_N` 若属于 derefed 集合，改为 `char * param_N`。
+- 2026-09-28（LANE DECLFAM / DECLFAM-DEADSLOT-0001）：解引用收集器排除
+  `*` 后随空白的形态（`next_is_space` 守卫）。printc 发射的解引用永远是
+  紧贴形（`*pcVar9`/`(*x)`），而带空格的 `*` 是间隔二元运算符——典型如
+  golden glob_set 的 `return iVar5 * sVar8;`（乘法）。旧行为把乘法操作数
+  误收进 derefed 集合，将符号驱动的 `short sVar8;` 声明重写为
+  `char *sVar8;`（golden 同函数保持 `short`）。
 
 ### 2026-06-23（续）：栈/局部变量声明兜底
 

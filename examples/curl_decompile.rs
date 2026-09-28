@@ -6045,11 +6045,41 @@ fn decompile_request(
                 for (address, name) in &request.rodata_dat_entries {
                     let dtype = string_addrs.get(address).map(|value| {
                         // strings analyzer product: char array over the run
-                        // including its NUL terminator.
-                        let char_base = rugra::type_system::datatype::TypeBase::new_char(
-                            "char".to_string(),
-                            rugra::type_system::datatype::TypeMetatype::Int,
-                        );
+                        // including its NUL terminator. DECLFAM-DEADSLOT-0001:
+                        // the element base MUST be the TypeFactory-interned
+                        // char (find_by_name("char")/get_type_char(1), the
+                        // GLIBC-PROTO-PARAMNAME-0001 precedent in
+                        // debugproto.rs) — Ghidra resolves every `char`
+                        // through its one TypeFactory (grammar.cc:2989), so a
+                        // reference to a string DAT symbol propagates the
+                        // SAME char* Arc into HighVariables and
+                        // Merge::mergeByDatatype (merge.cc:392 exact
+                        // Datatype* equality) can group string-slot highs
+                        // with sibling char* highs; a fresh `new_char` clone
+                        // here fragmented the grouping and minted extra
+                        // local declarations (glob_range `pcVar11`,
+                        // glob_set `pcVar8` — LANE DECLFAM 2026-09-28).
+                        let char_base = rugra::type_system::typefactory::TypeFactory::shared_default()
+                            .read()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .find_by_name("char")
+                            .or_else(|| {
+                                rugra::type_system::typefactory::TypeFactory::shared_default()
+                                    .write()
+                                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                    .get_type_char_named("char")
+                                    .ok()
+                            })
+                            .unwrap_or_else(|| {
+                                std::sync::Arc::new(
+                                    rugra::type_system::datatype::Datatype::Base(
+                                        rugra::type_system::datatype::TypeBase::new_char(
+                                            "char".to_string(),
+                                            rugra::type_system::datatype::TypeMetatype::Int,
+                                        ),
+                                    ),
+                                )
+                            });
                         let len = value.len() + 1;
                         std::sync::Arc::new(rugra::type_system::datatype::Datatype::Array(
                             rugra::type_system::datatype::TypeArray {
@@ -6058,9 +6088,7 @@ fn decompile_request(
                                     len,
                                     rugra::type_system::datatype::TypeMetatype::Array,
                                 ),
-                                array_of: std::sync::Arc::new(
-                                    rugra::type_system::datatype::Datatype::Base(char_base),
-                                ),
+                                array_of: char_base,
                                 num_elements: len,
                             },
                         ))
