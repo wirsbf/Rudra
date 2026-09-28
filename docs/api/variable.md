@@ -363,6 +363,12 @@ HighVariable fits into a larger group or Symbol.
 - `pub fn update_cover(&mut self, owner: &mut HighVariable)` — variable.cc:160
 - `pub fn set_high(&mut self, new_high)` — variable.hh:94
 - `pub fn merge_groups(self_piece, op2_piece) -> Vec<(Weak, Weak)>` — variable.cc:193
+  （完整版：offset 对齐 + matched (offset,size) 对收集与 op2 侧分离/移除
+  （:206-211，含 `~VariablePiece` 的 markIntersectionDirty :111-114）+
+  未 matched 的 transferGroup（:213）；MERGE-COPYTRIMS-CACHE-0001）
+- `pub fn mark_intersection_dirty(&self)`（VariableGroup 成员函数版）—
+  variable.cc:116 的组遍历形态（`~VariablePiece`/`HighVariable::merge`
+  :710 的组级标记路径）
 
 ---
 

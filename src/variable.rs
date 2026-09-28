@@ -1692,7 +1692,23 @@ impl VariableGroup {
         self.pieces.sort_by_key(|p| {
             let r = p.read().unwrap();
             (r.group_offset, r.size)
-        });
+            });
+    }
+
+    // Ghidra: variable.cc:119 VariablePiece::markIntersectionDirty (group form)
+    /// Set `intersectdirty|extendcoverdirty` on every high of this group's
+    /// pieces. Faithful to `markIntersectionDirty` (variable.cc:116-123),
+    /// reachable from `~VariablePiece` (variable.cc:110-117) and
+    /// `HighVariable::merge` (variable.cc:710).
+    pub fn mark_intersection_dirty(&self) {
+        use high_internal_flags as hif;
+        for piece in &self.pieces {
+            if let Some(high) = piece.read().unwrap().high.clone() {
+                if let Some(h) = high.upgrade() {
+                    h.write().unwrap().highflags |= hif::INTERSECTDIRTY | hif::EXTENDCOVERDIRTY;
+                }
+            }
+        }
     }
 }
 
@@ -1992,9 +2008,12 @@ impl VariablePiece {
 
     // Ghidra: variable.cc:193 VariablePiece::mergeGroups
     /// Combine two VariableGroups. Faithful to `mergeGroups` (variable.cc:193-216).
-    /// Adjusts offsets so the two pieces align, then walks op2's pieces. Rugra
-    /// returns the colliding HighVariable pairs (as Weaks) for caller-side
-    /// merging; the actual piece transfer is caller-assisted.
+    /// Adjusts offsets so the two pieces align (cc:195-200), then walks op2's
+    /// pieces in (offset,size) order. A piece matching `this` group's
+    /// (offset,size) pushes the colliding HighVariable pair, detaches the
+    /// high from its piece and deletes the piece from op2's group
+    /// (cc:206-211); a non-matching piece transfers into `this` group
+    /// (cc:212-213 `transferGroup`).
     pub fn merge_groups(
         self_piece: &Arc<RwLock<VariablePiece>>,
         op2_piece: &Arc<RwLock<VariablePiece>>,
@@ -2005,7 +2024,7 @@ impl VariablePiece {
             let op = op2_piece.read().unwrap();
             sp.group_offset - op.group_offset
         };
-        // Faithful to variable.cc:197-200: align offsets.
+        // Faithful to variable.cc:195-200: align offsets.
         if diff > 0 {
             let og = op2_piece.read().unwrap().group.clone();
             if let Some(g) = og {
@@ -2017,37 +2036,59 @@ impl VariablePiece {
                 g.write().unwrap().adjust_offsets(-diff);
             }
         }
-        // Faithful to variable.cc:201-215: walk op2's pieces, merge or transfer.
+        // Faithful to variable.cc:201-215: walk op2's pieces (snapshot in the
+        // set's (offset,size) order — group.pieces is kept sorted by
+        // add_piece), merge matches into pairs, transfer the rest.
         let op2_group_arc = op2_piece.read().unwrap().group.clone();
         let self_group_arc = self_piece.read().unwrap().group.clone();
-        if let (Some(op2_group), Some(self_group)) = (op2_group_arc, self_group_arc) {
-            let op2_pieces = {
-                let g = op2_group.read().unwrap();
-                g.pieces.clone()
+        let (Some(op2_group), Some(self_group)) = (op2_group_arc, self_group_arc) else {
+            return merge_pairs;
+        };
+        let op2_pieces = {
+            let g = op2_group.read().unwrap();
+            g.pieces.clone()
+        };
+        for piece_arc in op2_pieces {
+            let (po, ps, phigh) = {
+                let p = piece_arc.read().unwrap();
+                (p.group_offset, p.size, p.high.clone())
             };
-            for piece_arc in op2_pieces {
-                let (po, ps, phigh) = {
-                    let p = piece_arc.read().unwrap();
-                    (p.group_offset, p.size, p.high.clone())
-                };
-                // Faithful to variable.cc:206: look for a matching piece in self group.
-                let match_idx = {
-                    let sg = self_group.read().unwrap();
-                    sg.pieces.iter().position(|p| {
+            // Faithful to variable.cc:206: find a (offset,size) match in this group.
+            let match_arc = {
+                let sg = self_group.read().unwrap();
+                sg.pieces
+                    .iter()
+                    .find(|p| {
                         let r = p.read().unwrap();
                         r.group_offset == po && r.size == ps
                     })
-                };
-                if let Some(idx) = match_idx {
-                    let self_match_arc = self_group.read().unwrap().pieces[idx].clone();
-                    let self_high = self_match_arc.read().unwrap().high.clone();
-                    // Faithful to variable.cc:208-209: push back the colliding pair.
-                    if let (Some(sh), Some(oh)) = (self_high, phigh) {
-                        merge_pairs.push((sh, oh));
+                    .cloned()
+            };
+            if let Some(match_arc) = match_arc {
+                // Faithful to variable.cc:207-211: push the colliding pair,
+                // detach the high from its piece, delete the piece (its
+                // destructor removes it from op2's group and, if op2's group
+                // is then non-empty, marks the remainder's highs dirty).
+                let self_high = match_arc.read().unwrap().high.clone();
+                if let (Some(sh), Some(oh)) = (self_high, phigh) {
+                    merge_pairs.push((sh, oh.clone()));
+                    if let Some(h) = oh.upgrade() {
+                        // variable.cc:209: piece->high->piece = null
+                        h.write().unwrap().piece = None;
                     }
                 }
-                // else: transferGroup would move piece_arc into self_group.
-                // RUGRA-GLUE: transfer is caller-assisted.
+                op2_group.write().unwrap().remove_piece(&piece_arc);
+                let op2_remaining = !op2_group.read().unwrap().is_empty();
+                if op2_remaining {
+                    // ~VariablePiece (variable.cc:113-114): markIntersectionDirty
+                    op2_group.read().unwrap().mark_intersection_dirty();
+                }
+            } else {
+                // Faithful to variable.cc:212-213: transferGroup — remove from
+                // op2's group (deleting it if now empty), then add to this group.
+                op2_group.write().unwrap().remove_piece(&piece_arc);
+                piece_arc.write().unwrap().group = Some(self_group.clone());
+                self_group.write().unwrap().add_piece(piece_arc);
             }
         }
         merge_pairs
