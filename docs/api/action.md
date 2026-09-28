@@ -2,6 +2,33 @@
 
 **源代码路径**: `src/action.rs`
 
+## 2026-09-28：Actions 派发循环逐 op 常量削减（ACTIONLOOP-RESTART-0001）
+
+SPEEDPROF 车道 gdb 采样：top-10 慢函数计算线程帧 68.5% 落在 Action 派发循环
+（perform/apply_children/apply_restart），named 叶含 Sip13::write/RawVec——票
+SPEEDPROF-ACTIONLOOP-RESTART-0001。oracle 侧亲读判定（action.cc:553-582 重启
+=clearAnalysis+全子树 reset+整树重跑，无"跳过已完成"机制——重启重跑是算法本体，
+重启次数与执行序不可动）；本票只消**每次派发的纯常数开销**，五处：
+
+1. `ActionPool::per_op` 由 `HashMap<OpCode, Vec<usize>>` 改为 `Vec<Vec<usize>>`
+   按 `#[repr(i32)]` OpCode 判别值索引（opcodes.rs:16，CPUI_MAX=74）——oracle
+   `perop[CPUI_MAX]`（action.hh:264）的原生数组形态。原实现**每条 rule 尝试**
+   都做一次 SipHash 探测（process_op 内循环重复 `per_op.get(&opcode)`）。
+2. `process_op` 入口 `op_state.take()` 持有所有权（原每次 op 克隆一个 Arc）；
+   断点续跑路径（action.cc:851-852 保留 op_state 指向当前 op）显式放回。
+3. `next_op_after` 的 range 边界改 `Bound<&PcodeOpRef>` 借用形态（原
+   `current.clone()` 再克隆一次 Arc）——严格后继重建（对应 oracle `op_state++`）
+   的树下降与 SeqNum 序（op.hh:280）不变。
+4. process_op 对 op 的 `is_dead`+`opcode` 合并单次读锁（oracle 的两次裸读取值
+   相同；两次锁获取→一次）。
+5. 派发内两个 `get_name().to_string()` 每次分配删除（drillobserve::flush 本取
+   &str；issue_warning 用 rules/rule_states 不相交字段借用）。
+
+同 commit 新增 env 门控观察计数 `RUGRA_ACTION_STATS=1`（stderr
+`[ACTIONSTATS]` 行：per 重启边界的 perform/pool_passes/ops/rule_tries/rule_hits
+累计——重启放大事件级量化通道，与 oracle Rule::count_tests 同类事件账）。
+行为恒等链：canon 双语素 md5 恒等 + 镜面五面钉值 + bank 391（见票行验收）。
+
 ## 2026-08-28：EarlyRemoval 注册语义说明
 
 `build_oppool1` 仍在 Ghidra `coreaction.cc:5512` 的原始位置注册
@@ -792,7 +819,7 @@ Funcdata ready
 
 **系统性架构补全**：Rugra 此前 ~90 个 Rule 全部实现了 `apply_op` 但**均未接入主管线**——无 Ghidra ActionPool 式的 Rule 遍历调度。本次补全：
 
-- 新增 `ActionPool` struct（对应 Ghidra `ActionPool`，action.hh:262）：持有 `Vec<Box<dyn Rule>>` + `per_op: HashMap<OpCode, Vec<usize>>` 索引。`add_rule` 注册 Rule 并按 opcode 建索引；`apply` 遍历所有 live op，按 opcode 匹配 Rule，循环至固定点（对应 Ghidra rule_repeatapply）。
+- 新增 `ActionPool` struct（对应 Ghidra `ActionPool`，action.hh:262）：持有 `Vec<Box<dyn Rule>>` + `per_op: Vec<Vec<usize>>` 按 OpCode 判别值索引的数组（2026-09-28 ACTIONLOOP-RESTART-0001 起，原为 `HashMap<OpCode, Vec<usize>>`，即 oracle `perop[CPUI_MAX]` action.hh:264 的数组形态）。`add_rule` 注册 Rule 并按 opcode 建索引；`apply` 遍历所有 live op，按 opcode 匹配 Rule，循环至固定点（对应 Ghidra rule_repeatapply）。
 - `build_simplify_pool()` 注册 **112 个简化 Rule**（2026-06-29 实测：`grep -cE 'pool\.add_rule'` = 105）。**镜像 Ghidra `oppool1` 精确顺序**（coreaction.cc:5511-5649）：每行标注 Ghidra 源码行号，未移植的 Rule 以 `skip` 注释标注。**2026-06-29 新增**：RuleSubCommute（5577）、RuleFloatSign（5619）、RuleSLess2Zero（5558）。
 - **`build_cleanup_pool()`**（对齐 Ghidra `actcleanup` coreaction.cc:5694-5710）：独立池，含 `RuleMultNegOne`/`Rule2Comp2Sub` + **`RuleStringCopy`/`RuleStringStore`（constseq，coreaction.cc:5709-5710）**。constseq 模块此前代码完整但从未接入主管线（死代码），现已接入。**在 simplify 池之后跑**（阶段分隔）。这解决了一个收敛 bug：RuleMultNegOne（`x*-1→INT_2COMP`）若与 Rule2Comp2Mult（`INT_2COMP→x*-1`，oppool1 内）同池会无限 ping-pong；Ghidra 靠阶段分隔（主池先收敛、cleanup 池再跑一次）避免循环，Rugra 现忠实移植此机制。constseq 的 transform 阶段（替换为 CALLOTHER）仍待 userop 基础设施。
 - RuleEarlyRemoval(5512) 的“只允许 CONSTANT”是历史实现，现已废止。当前锁定

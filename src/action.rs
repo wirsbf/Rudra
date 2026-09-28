@@ -20,6 +20,69 @@ macro_rules! register_rule {
     };
 }
 
+// RUGRA-GLUE: ACTIONLOOP-RESTART-0001 env-gated dispatch-loop observation
+// counters (RUGRA_ACTION_STATS=1; stderr only, default off). Event
+// accounting of the Action-dispatch/restart cycle — the per-restart
+// amplification the ticket asks to quantify: perform() invocations,
+// ActionPool passes, ops visited, Rule applyOp attempts/hits. The oracle
+// accumulates the same kind of per-attempt data in Rule::count_tests /
+// Action::count_tests (dumped via printStatistics, action.cc:91-96 /
+// 275-280); these counters add restart-boundary aggregation on top and
+// change no dispatch behavior.
+mod action_stats {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub struct ActionLoopStats {
+        pub perform_calls: AtomicU64,
+        pub pool_passes: AtomicU64,
+        pub ops_visited: AtomicU64,
+        pub rule_tries: AtomicU64,
+        pub rule_hits: AtomicU64,
+        pub restarts: AtomicU64,
+    }
+
+    pub static STATS: ActionLoopStats = ActionLoopStats {
+        perform_calls: AtomicU64::new(0),
+        pool_passes: AtomicU64::new(0),
+        ops_visited: AtomicU64::new(0),
+        rule_tries: AtomicU64::new(0),
+        rule_hits: AtomicU64::new(0),
+        restarts: AtomicU64::new(0),
+    };
+
+    // RUGRA-GLUE: ACTIONLOOP-RESTART-0001 observation gate (no Ghidra counterpart; the counted events mirror Rule::count_tests)
+    fn enabled() -> bool {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *ENABLED.get_or_init(|| std::env::var("RUGRA_ACTION_STATS").is_ok_and(|v| v == "1"))
+    }
+
+    // RUGRA-GLUE: ACTIONLOOP-RESTART-0001 relaxed counter step (no Ghidra counterpart)
+    pub fn bump(counter: &AtomicU64) {
+        if enabled() {
+            counter.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// One stderr line per restart-group boundary (restart cycle or final
+    /// completion) with the cumulative event totals — the per-restart
+    /// repeated-work profile (SPEEDPROF-ACTIONLOOP-RESTART-0001 task ①).
+    // RUGRA-GLUE: ACTIONLOOP-RESTART-0001 per-restart-boundary stderr report (no Ghidra counterpart)
+    pub fn boundary_line(fn_name: &str, curstart: i32) {
+        if !enabled() {
+            return;
+        }
+        eprintln!(
+            "[ACTIONSTATS] fn={fn_name} curstart={curstart} restarts={} perform={} pool_passes={} ops={} rule_tries={} rule_hits={}",
+            STATS.restarts.load(Ordering::Relaxed),
+            STATS.perform_calls.load(Ordering::Relaxed),
+            STATS.pool_passes.load(Ordering::Relaxed),
+            STATS.ops_visited.load(Ordering::Relaxed),
+            STATS.rule_tries.load(Ordering::Relaxed),
+            STATS.rule_hits.load(Ordering::Relaxed),
+        );
+    }
+}
+
 // ---- Action rule/status/break flags (action.hh:55-87) ----
 // These mirror Ghidra's flag bit values exactly, used by the perform() state
 // machine to drive repeatapply / onceperfunc semantics.
@@ -307,6 +370,7 @@ pub trait Action: Send + Sync {
     /// Positive Rust `apply()` results adapt Ghidra actions that increment their
     /// protected `count` field and return zero.
     fn perform(&mut self, fd: &mut Funcdata, state: &mut ActionState) -> Result<i32> {
+        action_stats::bump(&action_stats::STATS.perform_calls);
         loop {
             let apply_now = match state.status {
                 status_flags::STATUS_START => {
@@ -1153,18 +1217,23 @@ impl ActionRestartGroup {
             }
             if !fd.has_restart_pending() {
                 self.curstart = -1;
+                action_stats::boundary_line(&fd.name, -1);
                 return Ok(0); // action.cc:562-565
             }
             // Don't restart during jumptable recovery (action.cc:566-567).
             if fd.is_jumptable_recovery_on() {
+                action_stats::boundary_line(&fd.name, self.curstart);
                 return Ok(0);
             }
             self.curstart += 1;
             if self.curstart > self.maxrestarts {
                 fd.warning_header("Exceeded maximum restarts with more pending");
                 self.curstart = -1;
+                action_stats::boundary_line(&fd.name, -1);
                 return Ok(0); // action.cc:568-573
             }
+            action_stats::bump(&action_stats::STATS.restarts);
+            action_stats::boundary_line(&fd.name, self.curstart);
             // The oracle's restart cycle re-enters ActionStart →
             // Funcdata::startProcessing → followFlow (funcdata.cc:157),
             // regenerating the raw p-code through the Architecture-owned
@@ -1308,7 +1377,14 @@ pub struct ActionPool {
     /// Fresh constructors parallel to `rules` for concrete production Rules.
     rule_factories: Vec<Option<RuleFactory>>,
     /// Opcode → indices into `rules`, built on add_rule for O(1) dispatch.
-    per_op: std::collections::HashMap<crate::opcodes::OpCode, Vec<usize>>,
+    /// ACTIONLOOP-RESTART-0001: array indexed by the `#[repr(i32)]` OpCode
+    /// discriminant (opcodes.rs:16, CPUI_MAX = 74) — the exact shape of
+    /// Ghidra's `vector<Rule *> perop[CPUI_MAX]` (action.hh:264). The prior
+    /// SipHash `HashMap` lookup cost one hash per rule attempt per op
+    /// (action.cc:836 `while(rule_index < perop[opc].size())` re-reads the
+    /// bucket each iteration in the oracle; the array read is the same
+    /// O(1) with no hashing).
+    per_op: Vec<Vec<usize>>,
     /// Rule flags — RULE_REPEATAPPLY so perform() loops this pool.
     flags: u32,
     /// Current PcodeOpTree element retained across a Rule breakpoint.
@@ -1333,7 +1409,10 @@ impl ActionPool {
             rule_states: Vec::new(),
             rule_groups: Vec::new(),
             rule_factories: Vec::new(),
-            per_op: std::collections::HashMap::new(),
+            // ACTIONLOOP-RESTART-0001: perop[CPUI_MAX] array shape
+            // (action.hh:264); one spare slot so OpCode::CPUI_MAX itself
+            // indexes in bounds during defensive reads.
+            per_op: vec![Vec::new(); (crate::opcodes::OpCode::CPUI_MAX as i32 as usize) + 1],
             flags,
             op_state: None,
             rule_index: 0,
@@ -1369,7 +1448,9 @@ impl ActionPool {
         self.rule_groups.push(group.to_string());
         self.rule_factories.push(factory);
         for opc in opcodes {
-            self.per_op.entry(opc).or_default().push(idx);
+            // ACTIONLOOP-RESTART-0001: array-bucket append — the mirror of
+            // `perop[opc].push_back(rl)` (action.cc:749).
+            self.per_op[opc as i32 as usize].push(idx);
         }
     }
 
@@ -1408,10 +1489,8 @@ impl ActionPool {
 
     // RUGRA-GLUE: ordered fixture projection of ActionPool::perop[opcode], whose list entries are appended by addRule (action.cc:740-751)
     pub fn rule_names_for_opcode(&self, opcode: crate::opcodes::OpCode) -> Vec<&str> {
-        self.per_op
-            .get(&opcode)
-            .into_iter()
-            .flatten()
+        self.per_op[opcode as i32 as usize]
+            .iter()
             .map(|index| self.rules[*index].get_name())
             .collect()
     }
@@ -1507,46 +1586,64 @@ impl ActionPool {
         fd.obank.optree.iter().next().cloned()
     }
 
-    // RUGRA-GLUE: strict-successor reconstruction for Ghidra's op_state++ iterator mutation
+    // RUGRA-GLUE: strict-successor reconstruction for Ghidra's op_state++
+    // iterator mutation. ACTIONLOOP-RESTART-0001: the range bound borrows
+    // the current op (std's `Bound<&T>` tuple form) instead of cloning its
+    // Arc — one reference-count round-trip saved per visited op; the tree
+    // descent and its SeqNum ordering (op.hh:280) are unchanged.
     fn next_op_after(
         fd: &Funcdata,
         current: &crate::op::PcodeOpRef,
     ) -> Option<crate::op::PcodeOpRef> {
-        use std::ops::Bound::{Excluded, Unbounded};
+        use std::ops::Bound::{self, Excluded};
         fd.obank
             .optree
-            .range((Excluded(current.clone()), Unbounded))
+            .range((Excluded(current), Bound::Unbounded))
             .next()
             .cloned()
     }
 
-    // RUGRA-GLUE: advances the externalized PcodeOpTree iterator without holding a Rust borrow across Rule mutation
-    fn advance_op_state(&mut self, fd: &Funcdata) {
-        self.op_state = self
-            .op_state
-            .as_ref()
-            .and_then(|current| Self::next_op_after(fd, current));
+    // RUGRA-GLUE: advances the externalized PcodeOpTree iterator without
+    // holding a Rust borrow across Rule mutation. ACTIONLOOP-RESTART-0001:
+    // the current element comes in by reference from process_op's owned
+    // handle — the successor search no longer re-clones the cursor.
+    fn advance_op_state(&mut self, fd: &Funcdata, current: &crate::op::PcodeOpRef) {
+        self.op_state = Self::next_op_after(fd, current);
     }
 
     // Ghidra: action.cc:822 ActionPool::processOp
     fn process_op(&mut self, fd: &mut Funcdata) -> Result<i32> {
+        // ACTIONLOOP-RESTART-0001: take ownership of the cursor element for
+        // this step (Ghidra's op_state iterator hands the element to
+        // processOp by pointer, action.cc:885; the Rust externalization
+        // previously cloned the Arc per op). The breakpoint-resume path
+        // restores the cursor before returning.
         let op_ref = self
             .op_state
-            .clone()
+            .take()
             .expect("processOp requires a current PcodeOpTree element");
-        if op_ref.0.read().unwrap().is_dead() {
-            self.advance_op_state(fd);
+        action_stats::bump(&action_stats::STATS.ops_visited);
+        // Single merged read of the op state the oracle reads as
+        // isDead (action.cc:829) then code (:835) — identical values
+        // with one lock acquisition instead of two.
+        let (is_dead, mut opcode) = {
+            let op = op_ref.0.read().unwrap();
+            (op.is_dead(), op.opcode)
+        };
+        if is_dead {
+            self.advance_op_state(fd, &op_ref);
             fd.obank.destroy(op_ref);
             self.rule_index = 0;
             return Ok(0);
         }
 
-        let mut opcode = op_ref.0.read().unwrap().opcode;
         loop {
+            // perop[opc] array dispatch (action.cc:836-837) — the
+            // bucket read per rule iteration is an array index, not a
+            // SipHash probe.
             let Some(rule_index) = self
-                .per_op
-                .get(&opcode)
-                .and_then(|indices| indices.get(self.rule_index))
+                .per_op[opcode as i32 as usize]
+                .get(self.rule_index)
                 .copied()
             else {
                 break;
@@ -1561,22 +1658,31 @@ impl ActionPool {
             // leaf name after; the enclosing pool perform's own pair becomes
             // a no-op via the active-flag reset, as in the oracle.
             crate::drillobserve::activate();
+            action_stats::bump(&action_stats::STATS.rule_tries);
             self.rule_states[rule_index].count_tests += 1;
             let result = self.rules[rule_index].apply_op(&op_ref.0, fd)?;
-            let rule_flush_name = self.rules[rule_index].get_name().to_string();
-            crate::drillobserve::flush(&rule_flush_name);
+            crate::drillobserve::flush(self.rules[rule_index].get_name());
             if result > 0 {
+                action_stats::bump(&action_stats::STATS.rule_hits);
                 self.rule_states[rule_index].count_apply += 1;
                 self.pending_count += result;
-                let rule_name = self.rules[rule_index].get_name().to_string();
-                self.rule_states[rule_index].issue_warning(fd, &rule_name);
+                let rule_name = self.rules[rule_index].get_name();
+                self.rule_states[rule_index].issue_warning(fd, rule_name);
                 if self.rule_states[rule_index].check_action_break() {
+                    // Breakpoint resume keeps op_state parked on this op,
+                    // exactly like the oracle's retained op_state
+                    // (action.cc:851-852 returns with the iterator still
+                    // pointing here).
+                    self.op_state = Some(op_ref);
                     return Ok(-1);
                 }
-                if op_ref.0.read().unwrap().is_dead() {
+                let (now_dead, new_opcode) = {
+                    let op = op_ref.0.read().unwrap();
+                    (op.is_dead(), op.opcode)
+                };
+                if now_dead {
                     break;
                 }
-                let new_opcode = op_ref.0.read().unwrap().opcode;
                 if new_opcode != opcode {
                     opcode = new_opcode;
                     self.rule_index = 0;
@@ -1599,7 +1705,7 @@ impl ActionPool {
             }
         }
 
-        self.advance_op_state(fd);
+        self.advance_op_state(fd, &op_ref);
         self.rule_index = 0;
         Ok(0)
     }
@@ -1610,6 +1716,7 @@ impl ActionPool {
             self.op_state = Self::first_op(fd);
             self.rule_index = 0;
         }
+        action_stats::bump(&action_stats::STATS.pool_passes);
         let count_before = self.pending_count;
         while self.op_state.is_some() {
             if self.process_op(fd)? != 0 {
