@@ -104,6 +104,36 @@
 # lock). Performance (B2, same machine): VdbeExec --one wall 92.3s
 # (MB41-era)→74.9s bare / 78.8s mirror (−16% lane A/B claim reproduced);
 # sqlite full corpus --jobs 32: 130.0s→82.1s wall (1385/1385 ok).
+# MB43-RATCHET-REPIN-0001 (2026-09-29, joint tree @ 61a08bce after 2-branch
+# double-victory batch [optree 246f1490 + castfuse2 90195a94+d1f14937],
+# forced relink verified [fast-release+release binaries +385~404s > both
+# merge commits], gate --jobs 5 fresh round — binary sha change invalidates
+# digest cache keys; stale-guard content probe digest=b627f03f files=103;
+# repin commit only edits this table, measurement tree=61a08bce):
+# ① sqlite 2609→1655 (−954): CASTFUSE2 ActionConditionalConst
+#    propagate_constant front-point residency (oracle coreaction.cc:4465
+#    pop-after-handlePhiNodes discipline) — the transitive ConstPoint chain
+#    (compare var → ZEXT → COPY → MULTIEQUAL edges) fires again after the
+#    early points.remove(0) defect; 76 functions improved / 0 regressed
+#    (CR-CASTFUSE2 full recount 1385F), PagerSetPagesize 321→0 whole-function
+#    zero; CR-CASTFUSE2 APPROVE block embedded verbatim in the merge commit.
+# ② sq 726→516 (−210): same root on the sasquatch face (pure-this-root
+#    families verified sampled on joint tree: PagerWrite 6 / test_control 3 /
+#    config 3 == lane tip perfunc values).
+# ③ curl 13 / httpd 2 / vsh 0 identical, not re-pinned (MB41/MB39 rows stay).
+#    OPTREE (PcodeOpTree = BTreeMap<SeqNum,PcodeOpRef>, oracle op.hh:280
+#    native shape) is output-neutral through the merge: joint-tree VdbeExec
+#    fn-level skeleton 47 == castfuse2-branch tip value (perfunc ledger),
+#    ACTIONSTATS ops_visited=5,648,144 == OPTREE pin exact (jump child
+#    per-value identical; main rule_tries −184 = castfuse2 dead-web removal).
+# Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
+# byte-identical (md5 4ab1db2a / 7d5b9e7c == MB41/MB42 pins). tests
+# 1974P/0F/5I (1973 + castfuse2 1 new; default dev profile — 4
+# cfg[debug_assertions] finalize_visited_tests in-roster per CR note 1).
+# Perf (B2 same-host, load la 52-69 recorded): VdbeExec --one 1055 wall
+# 70.84/71.28s (median 71.1s ≈ lane 71.5s −7.2% claim; 79.21s outlier under
+# la-65 spike); sqlite corpus --jobs 32 79.9s wall ok=1385/1385 (MB42-era
+# 82.1s; OPTREE lane 76.0s on quieter host).
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # MB27-RATCHET-REPIN-0001 @ 06e491c0 (2026-09-28): httpd 84->65 (GETPARENTS find_subpiece 同块约束, -19);
 # sq 3262->3021 (三支复合 -241: getparents 同块约束镜面效应为主); sqlite 10013->9951 (-62);
@@ -144,8 +174,8 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 curl	13	74	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 httpd	2	29	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
-sq	726	810	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
-sqlite	2609	1385	MB42-RATCHET-REPIN-0001	8103c7c6	2026-09-29
+sq	516	810	MB43-RATCHET-REPIN-0001	61a08bce	2026-09-29
+sqlite	1655	1385	MB43-RATCHET-REPIN-0001	61a08bce	2026-09-29
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
