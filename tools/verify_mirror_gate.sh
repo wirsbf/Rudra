@@ -25,6 +25,13 @@
 #
 # vsh/sq 面的语料二进制（/usr/bin/virt-ssh-helper、/usr/local/bin/sasquatch）是宿主特定资产：
 # 缺失时该面显式 SKIP（exit 0，输出 SKIP 行），curl/httpd 两面仍照常门禁（CI 形态）。
+#
+# 陈旧二进制守卫（INFRA-EXAMPLES-STALELINK-0001，双层）:
+#   (a) mtime 层: curl/httpd/gen 三驱动二进制早于 HEAD commit 时间戳即 FAIL;
+#   (b) 内容层: gen_decompile --stale-guard-probe — build.rs 嵌入的源码指纹
+#       （src/**/*.rs + examples/gen_decompile.rs）运行时重算比对，不符即 FAIL。
+#       覆盖 cargo 增量/缓存复用未重链的事故形态（MB29 漏检 r3merge 镜面效应、
+#       CASTFUSEB 错归因两口实录——内容级守卫与 mtime 无关，是权威判定）。
 
 set -u
 
@@ -243,10 +250,13 @@ fi
 
 # ---------- 门禁模式 ----------
 BIN_DIR="${BIN_DIR:-$REPO_ROOT/target/fast-release/examples}"
-# staleness guard: binaries older than the HEAD commit are stale (2026-09-25 incident:
-# pre-tier binaries printed the canon face under the mirror env and silently exploded the diff)
+# staleness guard (a): binaries older than the HEAD commit are stale (2026-09-25 incident:
+# pre-tier binaries printed the canon face under the mirror env and silently exploded the diff).
+# INFRA-EXAMPLES-STALELINK-0001 (2026-09-28): loop extended to gen_decompile — the MB29
+# integration (missed r3merge mirror effect) and CASTFUSEB (mis-attributed −86/−138) bites
+# both ran stale gen_decompile binaries that this check never covered.
 HEAD_TS=$(git -C "$REPO_ROOT" log -1 --format=%ct 2>/dev/null || echo 0)
-for _b in curl_decompile httpd_decompile; do
+for _b in curl_decompile httpd_decompile gen_decompile; do
   _p="$BIN_DIR/$_b"
   if [[ -x "$_p" ]]; then
     _bt=$(stat -c %Y "$_p" 2>/dev/null || echo 0)
@@ -264,6 +274,22 @@ EOF
     exit 2
 fi
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/rugra-mirror-gate.XXXXXX")
+
+# ---- 0b. 内容级陈旧自检（INFRA-EXAMPLES-STALELINK-0001） ----
+# gen_decompile 内嵌 build 期源码指纹（build.rs: src/**/*.rs +
+# examples/gen_decompile.rs 的 FNV-1a-64 内容摘要），启动自检不符即拒跑。
+# 这是不依赖 mtime 的权威守卫：cargo 增量/缓存复用未重链的陈旧二进制
+# （MB29 漏检 r3merge 镜面效应、CASTFUSEB 错归因两口实录）在此 FAIL。
+if [[ -x "$BIN_DIR/gen_decompile" ]]; then
+    if ! (cd "$REPO_ROOT" && "$BIN_DIR/gen_decompile" --stale-guard-probe) \
+            > "$WORK_DIR/stale_guard_probe.out" 2> "$WORK_DIR/stale_guard_probe.err"; then
+        echo "MIRROR-GATE: FAIL — gen_decompile 陈旧二进制 (stale binary, content self-check failed):" >&2
+        sed 's/^/  /' "$WORK_DIR/stale_guard_probe.err" >&2
+        echo "  重链 (relink): 在目标 worktree 内执行 cargo build --profile fast-release --examples" >&2
+        exit 1
+    fi
+    echo "MIRROR-GATE: stale-guard content probe OK — $(head -1 "$WORK_DIR/stale_guard_probe.out")"
+fi
 
 run_face curl
 run_face httpd

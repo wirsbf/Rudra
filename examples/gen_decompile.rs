@@ -48,6 +48,26 @@
 //!                             blocks forever when a surviving descendant of
 //!                             a dead child keeps a write end open).
 //!   RUGRA_GEN_ONLY=<name>    all-mode: decompile only the named function
+//!   RUGRA_GEN_STALE_GUARD_INHERITED  internal, set by the all-mode
+//!                             coordinator on its `--one` children: the
+//!                             coordinator verified THIS exe against the
+//!                             source tree at launch, so per-function
+//!                             workers skip re-hashing the tree (see the
+//!                             staleness self-check below).
+//!
+//! Staleness self-check (INFRA-EXAMPLES-STALELINK-0001): at startup the
+//! driver compares the build-time source digest embedded by build.rs
+//! (RUGRA_BUILD_SOURCE_DIGEST over every src/**/*.rs file plus this file,
+//! the shared guard core, and build.rs itself) against a freshly computed
+//! digest of the current tree. A mismatch — or a missing digest, or an
+//! unreadable tree — fails fast with exit 2 BEFORE any corpus work: a
+//! cargo-reused examples binary that predates the sources under test is
+//! exactly the MB29 (r3merge mirror effect missed) and CASTFUSEB
+//! (−86/−138 mis-attributed) accident shape. `--stale-guard-
+//! probe` runs only this check (exit 0 fresh / 2 stale) for gate scripts
+//! (tools/verify_mirror_gate.sh pre-run guard). On success the guard is
+//! completely silent — zero bytes on stdout or stderr — so canon/mirror
+//! outputs stay byte-identical to the unguarded driver.
 //!
 //! All-mode decompiles each function in an isolated child process
 //! (`--one <index>`), mirroring the oracle golden generator's hermetic
@@ -1025,9 +1045,126 @@ fn run_capped_output(
     })
 }
 
+// ---------------------------------------------------------------------------
+// INFRA-EXAMPLES-STALELINK-0001: startup staleness self-check.
+//
+// RUGRA-GLUE: pure driver/gate infrastructure — the locked Ghidra oracle's
+// golden harness is a C++ build with its own artifact management; there is
+// no decompiler-side counterpart to match. The guarded failure mode (a
+// cargo-reused examples binary that predates the sources under test) caused
+// two measured incidents: MB29 integration read "all faces identical" off a
+// stale binary and missed the r3merge mirror effect (sq −86 / sqlite −138),
+// and the CASTFUSEB lane attributed those same deltas to an unrelated
+// commit (CR-CASTFUSEB net-baseline A/B disproved both). The guard embeds a
+// content digest of src/**/*.rs + this file at build time (build.rs, shared
+// core in examples/common/stale_guard_hash.rs) and recomputes it at startup:
+// content-level, deliberately mtime-independent (touching a file without a
+// content change is not staleness). Fail-closed on every non-Fresh verdict;
+// completely silent on success so canon/mirror outputs are byte-identical
+// to the unguarded driver.
+// ---------------------------------------------------------------------------
+
+// RUGRA-GLUE: digest core kept in lockstep with build.rs via one shared
+// verbatim source file (see examples/common/stale_guard_hash.rs header).
+#[path = "common/stale_guard_hash.rs"]
+mod stale_guard_hash;
+
+// RUGRA-GLUE: build-time digest + domain size emitted by build.rs; None
+// only when the build script did not run or emit (fail-closed below).
+const EMBEDDED_SOURCE_DIGEST: Option<&str> = option_env!("RUGRA_BUILD_SOURCE_DIGEST");
+const EMBEDDED_SOURCE_FILE_COUNT: Option<&str> = option_env!("RUGRA_BUILD_SOURCE_FILE_COUNT");
+
+// RUGRA-GLUE: all-mode coordinator -> child handoff marker. The coordinator
+// verified this exact exe against the tree at launch; per-function children
+// (810 on the sq face, 1385 on sqlite) skip re-hashing the source tree.
+const STALE_GUARD_INHERITED_ENV: &str = "RUGRA_GEN_STALE_GUARD_INHERITED";
+
+// RUGRA-GLUE: guard failure exit code — distinct from `timeout`'s 124 and
+// from the usage/panic codes so gate scripts can tell staleness apart.
+const STALE_GUARD_EXIT_CODE: i32 = 2;
+
+// RUGRA-GLUE: render the fail-closed [GEN-STALE] block for a non-Fresh
+// verdict (None for Fresh). The message must name 陈旧二进制 and the relink
+// command — gate operators act on it directly.
+fn stale_guard_report(verdict: stale_guard_hash::GuardVerdict) -> Option<String> {
+    use stale_guard_hash::GuardVerdict;
+    match verdict {
+        GuardVerdict::Fresh { .. } => None,
+        GuardVerdict::Stale { embedded, current } => Some(format!(
+            "[GEN-STALE] FAIL: 陈旧二进制 (stale binary) — embedded build digest != current source digest\n\
+             [GEN-STALE]   embedded={embedded:016x}  current={current:016x}\n\
+             [GEN-STALE]   本二进制不含当前工作区源码（cargo 增量/缓存复用未重链的事故形态：MB29 漏检 r3merge 镜面效应、\n\
+             [GEN-STALE]   CASTFUSEB 错归因两口实录——INFRA-EXAMPLES-STALELINK-0001）。拒绝继续，防止陈旧产物冒充测量。\n\
+             [GEN-STALE]   重链 (relink): 在目标 worktree 内执行  cargo build --profile fast-release --examples\n\
+             [GEN-STALE]   校验域: src/**/*.rs + examples/gen_decompile.rs 内容指纹（FNV-1a-64，内容级，与 mtime 无关）"
+        )),
+        GuardVerdict::NoEmbeddedDigest => Some(
+            "[GEN-STALE] FAIL: 构建期指纹缺失 (no embedded source digest) — 本二进制未经 build.rs 指纹嵌入，\n\
+             [GEN-STALE]   守卫按陈旧处理拒绝继续（fail-closed）。\n\
+             [GEN-STALE]   重链 (relink): 在目标 worktree 内执行  cargo build --profile fast-release --examples"
+                .to_string(),
+        ),
+        GuardVerdict::UnreadableSourceTree => Some(
+            "[GEN-STALE] FAIL: 源码树不可读 (cannot read src/ for the staleness digest) — CWD 必须是仓库根\n\
+             [GEN-STALE]   （与 sleigh_specs/ 的 CWD 相对要求同款）。守卫按陈旧处理拒绝继续（fail-closed）。\n\
+             [GEN-STALE]   重链/改在仓库根运行: cd <worktree-root> && cargo build --profile fast-release --examples"
+                .to_string(),
+        ),
+    }
+}
+
+// RUGRA-GLUE: startup enforcement — verify the embedded digest against the
+// current tree unless this process is an all-mode child inheriting the
+// coordinator's verified-at-launch state. Exits 2 on any non-Fresh verdict;
+// returns silently (no output at all) when fresh.
+fn enforce_stale_guard() {
+    if std::env::var_os(STALE_GUARD_INHERITED_ENV).is_some() {
+        return;
+    }
+    let verdict =
+        stale_guard_hash::guard_verdict(EMBEDDED_SOURCE_DIGEST, std::path::Path::new("."));
+    if let Some(report) = stale_guard_report(verdict) {
+        eprintln!("{report}");
+        std::process::exit(STALE_GUARD_EXIT_CODE);
+    }
+}
+
+// RUGRA-GLUE: standalone guard mode for gate scripts (--stale-guard-probe):
+// run ONLY the self-check — one stdout status line on success, the same
+// [GEN-STALE] block + exit 2 on failure. Ignores the inherited marker (a
+// probe must always actually probe) and needs no corpus binary argument.
+fn stale_guard_probe() {
+    let verdict =
+        stale_guard_hash::guard_verdict(EMBEDDED_SOURCE_DIGEST, std::path::Path::new("."));
+    match verdict {
+        stale_guard_hash::GuardVerdict::Fresh { digest } => {
+            println!(
+                "STALE-GUARD OK digest={digest:016x} files={}",
+                EMBEDDED_SOURCE_FILE_COUNT.unwrap_or("?")
+            );
+        }
+        stale => {
+            if let Some(report) = stale_guard_report(stale) {
+                eprintln!("{report}");
+            }
+            std::process::exit(STALE_GUARD_EXIT_CODE);
+        }
+    }
+}
+
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    // INFRA-EXAMPLES-STALELINK-0001 standalone probe mode for gate scripts:
+    // run only the staleness self-check (exit 0 fresh / 2 stale), no corpus
+    // binary needed.
+    if args.iter().any(|arg| arg == "--stale-guard-probe") {
+        stale_guard_probe();
+        return;
+    }
+    // INFRA-EXAMPLES-STALELINK-0001 startup staleness self-check: silent on
+    // success, exit 2 before any corpus work on a stale/unverifiable binary.
+    enforce_stale_guard();
     if args.len() < 2 {
         eprintln!(
             "usage: {} <binary> [--list | --one <index>]\n  env: RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=<n> RUGRA_GEN_ONLY=<name>",
@@ -1130,6 +1267,10 @@ fn main() {
         if let Some(mirror) = mirror_env.as_ref() {
             command.env("RUGRA_GEN_MIRROR", mirror);
         }
+        // INFRA-EXAMPLES-STALELINK-0001: children inherit the coordinator's
+        // verified-at-launch state instead of re-hashing the source tree
+        // once per function worker.
+        command.env(STALE_GUARD_INHERITED_ENV, "1");
         let output = match run_capped_output(command, wall_cap) {
             Ok(output) => output,
             Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {

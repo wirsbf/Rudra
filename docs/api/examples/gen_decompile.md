@@ -48,6 +48,44 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
   CODEPTR-DECL 形态③（`code *unaff_R12` vs `xunknown1 *`）含 typeprop code*
   元类型传播深层根因，print-DB 通道修复后残余另行分诊（票行注记）。
 
+## 陈旧二进制自检（INFRA-EXAMPLES-STALELINK-0001，2026-09-28 车道 INFRASTALE）
+
+**动机（两口实录）**：cargo 增量/缓存复用可让 `target/*/examples/*` 陈旧不重链——
+MB29 集成用陈旧 gen_decompile 测出"五面全恒等"，漏检 r3merge 的 sq −86/sqlite −138
+镜面效应；CASTFUSEB 车道把同两值错归因到无关 commit（CR-CASTFUSEB 净基 A/B 证伪
+两口）。守卫双层落地：
+
+1. **运行时内容自检（权威层）**：`build.rs` 在构建期把守卫域
+   （`src/**/*.rs` + `examples/gen_decompile.rs` +
+   `examples/common/stale_guard_hash.rs` + `build.rs`——守卫自身构建输入也是域锚点，
+   系车道红/绿自测中发现并补上的盲区）的 FNV-1a-64 内容摘要嵌入
+   `RUGRA_BUILD_SOURCE_DIGEST`；驱动启动时重算比对，**不符/缺指纹/树不可读一律
+   exit 2 fail-fast**（消息含"陈旧二进制"+ 重链命令），**新鲜时完全静默**
+   （stdout/stderr 零字节）——canon/镜面输出与无守卫驱动逐字节恒等。
+   摘要算法的单点事实源 = `examples/common/stale_guard_hash.rs`，
+   `build.rs`（`include!`）与本驱动（`#[path] mod`）逐字共享，双侧不可能漂移。
+   内容级设计：与 mtime 无关（touch 不改内容不判陈旧）；检出位置无关
+   （相对路径框架，两个内容全等的 checkout 互认 fresh）。
+2. **脚本守卫（兜底层）**：`tools/verify_mirror_gate.sh` mtime 检查自
+   curl/httpd 扩展到 gen_decompile（二进制早于 HEAD commit 即 FAIL），
+   并新增 `--stale-guard-probe` 内容探针（门禁跑前调 `gen_decompile
+   --stale-guard-probe`，exit 0/2）。
+
+**运行形态**：
+
+| 场景 | 行为 |
+|---|---|
+| `--stale-guard-probe` | 只跑自检：fresh → stdout 一行 `STALE-GUARD OK digest=… files=…` exit 0；否则 [GEN-STALE] 块 + exit 2（忽略 inherited 标记，探针必须真探） |
+| 正常启动（coordinator/probe 之外） | 静默校验，陈旧即 exit 2（先于一切语料工作，stdout 零输出） |
+| all-mode `--one` 子进程 | 继承 `RUGRA_GEN_STALE_GUARD_INHERITED=1`（coordinator 启动时已验同一 exe，子进程免重算——sq 810/sqlite 1385 个子进程不再逐一重扫源码树） |
+
+红/绿自测（19 项全绿）：新鲜 probe/list 双绿静默；内容漂移不重链 → probe 与正常
+运行双 exit 2（消息含陈旧二进制+重链命令，stdout 空）；错误 CWD → 源码树不可读
+fail-closed；脚本 mtime 层与内容层独立红；`--self-test` 不受扰。
+零扰动：vsh 镜面面 base（5eff829f 净快照二进制）≡ head 逐字节恒等（md5 8ca194a4，
+ok=71/71）；canon curl/httpd 双语素 base≡head 字节恒等且对 golden 54/0/0·124 与
+36/0/0·34 精确命中 MB30 钉值。
+
 ## 门禁用法
 
 ```bash

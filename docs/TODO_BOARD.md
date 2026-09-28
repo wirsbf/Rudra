@@ -3651,11 +3651,12 @@ cargo test --lib 基线 1805P/0F/5I==任务书口径 → 改后 1808P/0F/5I（+3
 
 ## 车道 MB30 集成登记（root，2026-09-28）
 
-### INFRA-EXAMPLES-STALELINK-0001（P1，OPEN）
+### INFRA-EXAMPLES-STALELINK-0001（P1，DONE @ wt/infrastale 2026-09-28）
 - **问题**: cargo 增量构建下 `target/*/examples/*` 陈旧不重链——MB29 集成（镜面五面"全恒等"漏检 r3merge 的 sq −86/sqlite −138 效应）与 CASTFUSEB 车道（"−86/−138"错归因）两口实测咬伤（CR-CASTFUSEB 净基 A/B 亲证）。
-- **修法**: A/B 门禁前强制重链 examples（touch src/lib.rs + cargo build --examples，核对二进制 mtime 晚于被测 commit）或 staleness 守卫扩展 gen_decompile（启动时校验嵌入 build commit/源哈希）。
-- **验收**: 守卫在陈旧二进制上 FAIL、新鲜二进制上 PASS 的单测；MB30 集成已按前法亲跑（canon 54/36 命中预期）。
-- **owner**: 待派；**依赖**: 无；**write-set**: tools/verify_mirror_gate.sh 或 examples/gen_decompile.rs。
+- **修法**: 双管落地。①运行时内容自检（权威层）: 新增 `build.rs`（包根，`include!` 共享核 `examples/common/stale_guard_hash.rs`——单点事实源，build 期/运行期算法不可能漂移）把守卫域（`src/**/*.rs` + `examples/gen_decompile.rs` + `examples/common/stale_guard_hash.rs` + `build.rs`，FNV-1a-64 内容摘要，相对路径帧=位置无关）嵌入 `RUGRA_BUILD_SOURCE_DIGEST`；`examples/gen_decompile.rs` 启动 `enforce_stale_guard()`——陈旧/缺指纹/树不可读一律 [GEN-STALE] 块 exit 2 fail-fast（消息含"陈旧二进制"+重链命令，先于一切语料工作），fresh 完全静默（stdout/stderr 零字节）；all-mode 子进程走 `RUGRA_GEN_STALE_GUARD_INHERITED=1` 免重扫；`--stale-guard-probe` 独立探针模式供脚本调。②脚本守卫（兜底层）: `tools/verify_mirror_gate.sh` mtime 检查自 curl/httpd 扩展含 gen_decompile + 新增内容探针步骤（跑面前 `--stale-guard-probe`，不符即 FAIL）。
+- **车道内自捉盲区（设计勘误）**: 首版域漏 `stale_guard_hash.rs`/`build.rs` 自身——红/绿自测 RED-5 实测暴露"只改守卫核的陈旧二进制探针假绿"（`cargo test --example` 不重链普通 example 二进制 + 域外文件组合盲区），域扩为四锚点并加单测 `guard_core_change_flips_verdict_to_stale` 钉死。
+- **验收（红/绿双态+全门禁）**: 单测 **6P/0F**（`cargo test --example gen_decompile`: 位置无关/内容漂移→Stale/守卫核漂移→Stale/域增长→Stale/缺指纹+坏指纹+树不可读 fail-closed/空文件帧）；E2E `/dev/shm/rugra-tests/infrastale/guard_redgreen.sh` **19 项全绿**（新鲜 probe+list 双绿静默；改源不重链→probe 与正常运行双 exit 2+陈旧二进制+重链命令+stdout 空；错误 CWD fail-closed；脚本 mtime 层/内容层独立红；恢复转绿；--self-test 不扰）。**零扰动**: vsh 镜面 base（5eff829f git-archive 净快照独立构建）≡ head 逐字节恒等（md5 8ca194a4，ok=71/71）；canon curl/httpd base≡head 字节恒等 + 对 golden **54/0/0·124**/**36/0/0·34** == MB30 钉值精确命中；镜面五面 **全 PASS 逐面精确命中钉值**（curl 23/74·httpd 53/29·vsh 2/71·sq 2868/810·sqlite 9648/1385，health ok，MIRROR_EXIT=0，守卫探针行在场）；bank 391/391；cargo test --lib **1955P/0F**（==亲基，零漂移；派单 1959P 系口径误记）；annotations/refs/evidence/gate-health/corpus-markers 五门禁绿。evidence=本 commit + /dev/shm/rugra-reports/LANE_INFRASTALE_2026-09-28.md。
+- **owner**: sb-infrastale2@wt/infrastale（fixer，基=master 5eff829f）；**write-set 实落**: build.rs + examples/common/stale_guard_hash.rs（新）+ examples/gen_decompile.rs + tools/verify_mirror_gate.sh + docs/api/examples/gen_decompile.md + 本行；**依赖**: 无。
 
 ### GEN4-SQ-CASTFUSE-DEPTH-0001（改票注记，CR-CASTFUSEB 判决）
 - "子族 B 已收口（−86/−138）"**失据**：净基 A/B 证伪（净 fc8c276b 已产 2935/9813/32，与 05540efb 逐字节恒等；差值属 MB27→MB29 窗口 = r3merge f9ce8ac7 镜面效应）。
