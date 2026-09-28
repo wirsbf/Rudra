@@ -282,6 +282,20 @@ model has no per-space record store).
 - `types: Option<Arc<RwLock<TypeFactory>>>` + `userops: Option<Arc<RwLock<UserOpManage>>>` 字段 + set_types/set_userops。
 - `get_base_type(size, metatype)` — 委托 TypeFactory::get_base。
 - `construct_join_address(hi,sz,lo,sz)`（translate.cc:817）— 桩：contiguous 早返回，否则 0。
+- **2026-09-28（`SQLCENSUS-STACKSLOT-GROUP-0001` 第一波）**：
+  `construct_join_address` 桩替换为 translate.cc:817-860 全签名 1:1 移植 —
+  `(hi_space,hi_off,hi_size, lo_space,lo_off,lo_size) -> Option<(space,off)>`：
+  空间类型门（SPACEBASE/PROCESSOR 之外 None，LowlevelError 臂降级）、
+  usejoinspace（stack/默认代码空间→false）、address.cc:173 isContiguous、
+  寄存器父名覆盖（LE 在 lo 片）、非连续走 findAddJoin（JoinRecord 注册 +
+  16 字节粒度 joinallocate + 按片序列 dedup）。`join_db` 字段改为
+  `Arc<RwLock<JoinDatabase>>` 共享内互斥表（types/userops 成员模式）—
+  findAddJoin 需要可变计数器与记录表而 Architecture 在不可变 Arc 后。
+  消费者：coreaction 的 CALL 侧双 trial join 闭包（whole 落 Join 空间，
+  修复 SPACEFIX 时代 Unique:0 坍缩）与 `return_join_address`（RETURN 侧，
+  splitmix 哈希降为无 Architecture 回退）、double_precis 的
+  create_joined_whole、heritage 的 process_joins 读侧、ruleaction 的
+  build_subpiece 读侧（后两者经 RwLock 读）。
 - **2026-08-16（`TYPE-WIRING-0001`）**：新增 `ensure_types()` — 无工厂时安装并返回
   process-canonical 工厂（`TypeFactory::shared_default()`，DataOrg flavor）。Ghidra 的
   Architecture 恒持有唯一 `TypeFactory`（type.cc:3106）；Rugra 的 `types` 在

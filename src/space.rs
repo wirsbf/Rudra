@@ -561,23 +561,77 @@ impl JoinRecord {
 #[derive(Clone)]
 pub struct JoinDatabase {
     pub records: Vec<JoinRecord>,
+    /// Ghidra `AddrSpaceManager::joinallocate` (translate.hh:233) — next
+    /// offset to allocate in join space; grows by `roundsize` (16-byte
+    /// multiples) per new record and never resets within one
+    /// Architecture (translate.cc:706-710).
+    join_allocate: u64,
 }
 
 impl JoinDatabase {
     // RUGRA-GLUE: Rust Default ctor (Ghidra uses AddrSpaceManager's vector)
-    pub fn new() -> Self { Self { records: Vec::new() ,
-        } }
+    pub fn new() -> Self {
+        Self {
+            records: Vec::new(),
+            join_allocate: 0,
+        }
+    }
     // Ghidra: translate.hh:232 AddrSpaceManager::findJoin
     pub fn find_join(&self, offset: u64) -> Option<&JoinRecord> {
         self.records.iter().find(|r| r.unified.offset == offset)
     }
     // Ghidra: translate.hh:234 AddrSpaceManager::addJoin
+    /// Legacy alias retained for existing callers; delegates to the
+    /// faithful [`JoinDatabase::find_add_join`].
     pub fn add_join(&mut self, pieces: Vec<VarnodeData>) -> u64 {
-        let offset = self.records.len() as u64;
-        let total_size: usize = pieces.iter().map(|p| p.size).sum();
-        let unified = VarnodeData { space: AddressSpace::Join, offset, size: total_size ,
+        self.find_add_join(pieces)
+    }
+    // Ghidra: translate.cc:671 AddrSpaceManager::findAddJoin
+    /// Find a pre-existing split record, or create a new one corresponding
+    /// to the input pieces (most significant to least significant).
+    /// Faithful to `findAddJoin` (translate.cc:671-715): `totalsize` as the
+    /// piece-size sum (the float-extension single-piece/logicalsize form is
+    /// not reachable through this enum-space twin — float extensions keep
+    /// their own path), dedup against the existing records by piece
+    /// sequence, and allocation of the unified varnode at `join_allocate`
+    /// rounded up to the next multiple of 16 (`roundsize`).
+    ///
+    /// Ordering note: Ghidra keeps `splitset` ordered by
+    /// `JoinRecord::operator<` (space index, offset, size descending) and
+    /// dedups through it; the set itself is only ever queried for identity
+    /// (no iteration), so a linear equality scan over `records` is
+    /// observably equivalent — `unified.offset` allocation order (the
+    /// splitlist order consumers see) follows creation order in both.
+    pub fn find_add_join(&mut self, pieces: Vec<VarnodeData>) -> u64 {
+        let totalsize: usize = {
+            let mut acc: usize = 0;
+            for piece in &pieces {
+                acc += piece.size;
+            }
+            acc
         };
-        self.records.push(JoinRecord { pieces, unified });
+        // set<JoinRecord*,JoinRecordCompare>::find(&testnode) — dedup on
+        // the piece sequence (testnode.unified.size == totalsize makes
+        // records whose pieces match but logical size differs still equal
+        // here only when the size matches too; the 2-piece integer joins
+        // of this path always have size == piece sum).
+        if let Some(existing) = self.records.iter().find(|r| {
+            r.pieces.len() == pieces.len()
+                && r.pieces
+                    .iter()
+                    .zip(pieces.iter())
+                    .all(|(a, b)| a.space == b.space && a.offset == b.offset && a.size == b.size)
+        }) {
+            return existing.unified.offset;
+        }
+        // uint4 roundsize = (totalsize + 15) & ~((uint4)0xf);
+        let roundsize = ((totalsize + 15) & !0xfusize) as u64;
+        let offset = self.join_allocate;
+        self.join_allocate += roundsize;
+        self.records.push(JoinRecord {
+            pieces,
+            unified: VarnodeData { space: AddressSpace::Join, offset, size: totalsize },
+        });
         offset
     }
 }
@@ -4214,5 +4268,44 @@ mod tests {
             ),
             "Cannot create a zero size join"
         );
+    }
+}
+
+// SQLCENSUS-STACKSLOT-GROUP-0001 第一波验收单测（space.rs 尾部 tests 模块后独立
+// 模块，避免与既有 tests 模块的 use 冲突）。
+/// `JoinDatabase::find_add_join` 的 findAddJoin 语义
+/// （translate.cc:671-715）：dedup 同片序列回同一 offset；新记录按
+/// roundsize（16 字节粒度）推进 join_allocate；find_join 反查命中。
+#[cfg(test)]
+mod join_db_tests {
+    use super::*;
+
+    #[test]
+    fn test_find_add_join_dedup_and_granularity() {
+        let mut db = JoinDatabase::new();
+        // RDX:RAX pair（most-significant first，findAddJoin 片序）
+        let rdx_rax = vec![
+            VarnodeData { space: AddressSpace::Register, offset: 0x10, size: 8 },
+            VarnodeData { space: AddressSpace::Register, offset: 0x0, size: 8 },
+        ];
+        let first = db.find_add_join(rdx_rax.clone());
+        // 首个分配从 joinallocate=0 起（translate.cc:709）
+        assert_eq!(first, 0);
+        // 同片序列 dedup 回同一 join 地址（splitset 身份查询）
+        let again = db.find_add_join(rdx_rax.clone());
+        assert_eq!(again, 0);
+        assert_eq!(db.records.len(), 1);
+        // 不同片序列：roundsize=16 推进到下一个 16 字节槽
+        let other = db.find_add_join(vec![
+            VarnodeData { space: AddressSpace::Register, offset: 0x18, size: 8 },
+            VarnodeData { space: AddressSpace::Register, offset: 0x8, size: 8 },
+        ]);
+        assert_eq!(other, 16);
+        // findJoin 反查（translate.hh:232，process_joins 消费）
+        let rec = db.find_join(0).expect("record at join:0");
+        assert_eq!(rec.unified.size, 16);
+        assert_eq!(rec.pieces.len(), 2);
+        assert_eq!(rec.pieces[0].offset, 0x10);
+        assert!(db.find_join(8).is_none());
     }
 }

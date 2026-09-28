@@ -610,3 +610,19 @@ UB-邻接行为（Rust 在查名点拒绝）。
   管道其余件（`AddrSpace::truncate_space` space.cc:105-112、
   `SpaceRegistry::truncate_space`、`get_spacebase`/`get_spacebase_full`
   translate.cc:110-124）在本车道前已 1:1。
+
+## `JoinDatabase::find_add_join`（SQLCENSUS-STACKSLOT-GROUP-0001 第一波，2026-09-28）
+
+- `pub fn find_add_join(&mut self, pieces: Vec<VarnodeData>) -> u64`：
+  `AddrSpaceManager::findAddJoin`（translate.cc:671-715）的忠实枚举空间孪生 —
+  按片序列（space/offset/size）dedup 命中即返回既有 `unified.offset`；
+  否则 `roundsize = (totalsize + 15) & ~0xf` 逐 16 字节槽推进
+  `join_allocate` 计数器（translate.hh:233）分配 join 空间 offset 并登记
+  记录。旧行为（`add_join` 以 records.len() 为 offset、无 dedup、无粒度）
+  保留为委托别名。Ghidra 的 splitset 有序去重在oracle 侧只用于身份查询
+  （不迭代），线性等值扫描观察等价；splitlist 的 offset 分配序
+  （消费方 find_join 所见）与创建序一致，双侧同构。
+- 双侧证据（sqlite3_vmprintf，oracle fixture oracle_probe_834 @
+  ghidra 12.0.4 e40ed130）：oracle 的 RDX:RAX 双 trial 输出 join whole
+  位于 join:0x0（首个 findAddJoin 分配），16 字节粒度推进；修复后
+  Rugra 的 11 处 CALL join 全部 dedup 到同一 join:0x0 地址。
