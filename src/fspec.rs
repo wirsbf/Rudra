@@ -4467,8 +4467,16 @@ impl FuncCallSpecs {
                 panic!("buildOutputFromTrials: used trial has no varnode");
             };
             // Ghidra: if (data.isDoublePrecisOn()) { lovn->setPrecisLo(); hivn->setPrecisHi(); }
+            // fspec.cc:5816-5819 — the marking rides on the SAME Varnode
+            // objects that build_join_output re-homes as SUBPIECE outputs
+            // (opSetOutput(sublo, lovn)), so RuleDoubleIn later fires on the
+            // join SUBPIECE with out isPrecisLo (double.cc:3263) and
+            // reconstructs the logical whole via SplitVarnode::findCreateWhole
+            // (double.cc:527 newUniqueOut PIECE) — the unique-space PIECE16
+            // family that RulePieceStructure then marks as partial roots.
             if fd.is_double_precis_on() {
-                // TODO(FSPEC-OUTPUTJOIN-0001): wire Varnode::setPrecisLo/Hi.
+                lo_vn.write().unwrap().set_precis_lo();
+                hi_vn.write().unwrap().set_precis_hi();
             }
             // Ghidra: deletedops.push_back(hivn->getDef()); deletedops.push_back(lovn->getDef());
             if let Some(def_weak) = hi_vn.read().unwrap().def.as_ref().and_then(|w| w.upgrade()) {
