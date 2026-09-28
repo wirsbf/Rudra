@@ -1,5 +1,30 @@
 # `printc.rs` API Reference
 
+## 2026-09-29：flat 尾 goto 收到函数级 flat 门（MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001 / Lane SWITCHBREAK）
+
+- **根因（switch case 尾 `goto code_rXXXX;` vs golden `break;`）**：
+  `emit_block_ops` 为 opCbranch 的 `isSet(flat)` yesif 臂
+  （printc.cc:2657-2658 + printlanguage.cc:662-669 镜像）在
+  `!skip_terminal` 时 per-block `set_mod(FLAT)`；该镜像同时错误武装了
+  cc:2723-2741 的 flat 尾 goto（`isSet(flat)&&isSet(nofallthru)` →
+  块尾直 BRANCH 印 `goto <label>;`）。oracle 的 `flat` 是**函数级** mod
+  （`PrintLanguage::setFlat`，仅未结构化函数打印设置）——结构化发射中
+  该臂永不触发；case 体尾 BRANCH 由 `emitBlockSwitch` 的 cc:3342
+  `isExit(i)&&(i!=numCaseBlocks-1)` 印 `break;`。镜像误武装使 sqlite
+  sqlite3_config/sqlite3_test_control/sqlite3VdbeExec/sqlite3ExprIfFalse/
+  sqlite3ExprIfTrue/sqlite3_complete + curl glob_word + sq
+  SetCoderProperties 每一 case 尾多印 `goto code_r…;`（golden 全为
+  `break;`）。
+- **修复**：`emit_block_ops` 在镜像 `set_mod(FLAT)` **之前**快照
+  `flat_on_entry = is_set(FLAT)`，cc:2725 尾 goto 门
+  （`emit_block_basic_rpn` 经第三参 `fn_level_flat` 传入；legacy 直发
+  臂读本地快照）改为 `last_is_branch && flat_on_entry &&
+  goto_targets.contains(target)`。opCbranch 镜像不变（其 oracle 语义
+  就是语句级 flat 上下文）；label 臂（`targets_to_label`）保持在镜像
+  FLAT 门内不变。生产驱动从不设置函数级 FLAT（唯一 set 点是单元测试），
+  故修复后该臂等价于仅在真正的 flat 函数打印中触发——与 oracle 恒等。
+
+
 ## 2026-09-28：MAINMIXED-LABELPOS-0001 — discovery 账本解包 MultiGoto 包裹叶（switch 头 code_r 标签位，Lane MAINMIXED）
 
 **现象**：canon httpd main 的 `if (iVar5 == 0) goto code_r0x0012ba77;` 标签贴

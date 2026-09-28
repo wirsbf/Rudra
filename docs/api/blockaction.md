@@ -29,7 +29,8 @@ finalize_structure 前）各调用一次。终态恒等论证：
    while 只重读 isolated_count, ActionBlockStructure::apply 尾部只读 change_count。
    deadline/iterations 截断路径下 refresh 同样落在截断态（截断后无进一步突变）。
 3. **printc 读取面不变**——flag 在 block 对象上持久, finalize_structure 的
-   retain/reindex 不触碰 flag（membership=absorbed_into）。
+   retain 不触碰 flag（membership=absorbed_into; 2026-09-29 起 finalize_structure
+   不再重排幸存者索引, 见下方 MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001 注记）。
 
 **效果（VdbeExec --one 1055 亲测, 输出 stdout cmp 逐字节恒等）**：refresh 调用
 12701→11（每 rebuild 一次）, collapse_internal 86.0→16.2s, blockstructure
@@ -259,8 +260,20 @@ E2E（curl 124 fn，fast-release）：exit 0 / 0 panic，defects=0 / numbering=0
 > 用于跟踪结构化覆盖率。均为 stderr、标准 [COLLAPSE] tag。
 >
 > **finalize_structure（2026-07-02 新增）**：collapse_all 最末调用，物理移除 DEAD-flagged
-> 块并重排 index（faithful to block.cc:960 `list = newlist`）。输出
+> 块（faithful to block.cc:960 `list = newlist`）。输出
 > `[BLOCKSTRUCT] {name} finalize_structure: {before} -> {after} (removed {N} DEAD)`。
+>
+> **2026-09-29 修正（MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001）**：finalize_structure 不再
+> 把幸存者重排为紧凑列表位置（`set_index(i)`）。oracle 的 `list = newlist` 从不触碰
+> `FlowBlock::index`——幸存者保持 collapse 期安装的 min-slot 索引（=
+> `BlockGraph::addBlock` 的 min 追踪不变量，block.cc:866-873：组合索引 = 子树最小
+> 分量索引，组合与其入口叶共享索引）。该共享值是最终树上全部索引比较语义的身份：
+> `compareFinalOrder`（block.cc:709/731，orderBlocks 排序键）与 scopeBreak 的
+> `gototarget->getIndex() == curloopexit`（block.cc:2872/3082）/
+> `bl->getIndex() == curexit`（block.cc:3621）——goto 目标恰为循环/switch 的后继
+> 兄弟（或其入口叶）时判等成立、改判 `f_break_goto` 印 `break;`。紧凑重排恰破坏
+> 该身份（后继组合拿到列表位置而其入口叶保持 collapse 期索引），sqlite 镜面 26 函数
+> 的循环出口 if-goto 全部落回 `goto code_rXXXX;` + 多余标签。
 
 ## 模块说明 (Module Doc)
 

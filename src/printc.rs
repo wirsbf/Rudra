@@ -5431,7 +5431,8 @@ impl PrintC {
     pub fn emit_block_basic_rpn(
         &mut self,
         ops: &[crate::op::PcodeOpRef],
-        suppress_branch: bool) {
+        suppress_branch: bool,
+        fn_level_flat: bool) {
         // printc.cc:2684: commsorter.setupBlockList(bb); — Ghidra runs
         // emitBlockBasic per BASIC block, opening a fresh comment window per
         // block and draining its tail (cc:2742) before the next block's
@@ -5606,10 +5607,16 @@ impl PrintC {
                 self.emit_label_statement(target);
             }
 
-            // printc.cc:2725: isSet(flat) && isSet(nofallthru) — the caller
-            // (emit_block_ops) mirrors FLAT for exactly these contexts; the
-            // NOFALLTHRU transport is a trailing straight BRANCH (one
-            // out-edge, cc:2738 emitLabel(bb->getOut(0))).
+            // printc.cc:2725: isSet(flat) && isSet(nofallthru) — the
+            // caller (emit_block_ops) mirrors FLAT for opCbranch statement
+            // contexts only. The oracle's tail goto requires the
+            // FUNCTION-level flat mod (PrintLanguage::setFlat,
+            // printlanguage.cc:662-669 — unstructured function prints),
+            // which Rugra transports as the emit_block_ops ENTRY snapshot:
+            // a structured emission (switch case body, loop body residue)
+            // must not print its trailing BRANCH as `goto` — the owning
+            // construct's break/goto machinery (cc:3342 / BlockGoto) prints
+            // the jump (MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001).
             let last_is_branch = ops
                 .last()
                 .map(|o| {
@@ -5617,7 +5624,7 @@ impl PrintC {
                     !op.is_dead() && op.opcode == OpCode::CPUI_BRANCH
                 })
                 .unwrap_or(false);
-            if last_is_branch {
+            if last_is_branch && fn_level_flat {
                 let target = ops.last().and_then(|o| {
                     let op = o.0.read().unwrap();
                     op.get_in(0).map(|in0| in0.read().unwrap().get_offset())
@@ -6036,11 +6043,15 @@ impl PrintC {
             // flat fallbacks, unstructured bodies). Mirror
             // PrintLanguage::setFlat(true) (printlanguage.cc:662-669) with a
             // save/restore so opCbranch's `isSet(flat)` reads true.
+            // MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001: the cc:2725 flat-tail
+            // goto must NOT see the mirror (function-level flat only,
+            // printlanguage.cc:662-669) — pass the entry snapshot through.
+            let flat_on_entry = self.is_set(print_mods::FLAT);
             let modsave = self.mods;
             if !skip_terminal {
                 self.set_mod(print_mods::FLAT);
             }
-            self.emit_block_basic_rpn(&ops, skip_terminal);
+            self.emit_block_basic_rpn(&ops, skip_terminal, flat_on_entry);
             self.mods = modsave;
             return;
         }
@@ -6051,6 +6062,16 @@ impl PrintC {
         // printlanguage.cc:662-669): a CBRANCH reaching doc_statement here is
         // a flat-context statement, so opCbranch's `isSet(flat)` arm must see
         // the mod set.
+        // MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001: the mirror arms the cc:2725
+        // flat-tail goto (`isSet(flat)&&isSet(nofallthru)`) for structured
+        // case bodies too, printing `goto code_rXXXX;` for a switch case
+        // body's trailing BRANCH where the oracle prints cc:3342's `break;`.
+        // The oracle's `flat` is a FUNCTION-level mod (PrintLanguage::
+        // setFlat, printlanguage.cc:662-669, set only for unstructured
+        // function prints) — the tail goto never fires in a structured
+        // emission. Capture the entry state: the cc:2725 tail gate below
+        // reads it; the opCbranch mirror stays.
+        let flat_on_entry = self.is_set(print_mods::FLAT);
         let modsave = self.mods;
         if !skip_terminal {
             self.set_mod(print_mods::FLAT);
@@ -6336,9 +6357,14 @@ impl PrintC {
             // goto": when the block's LAST op is an unconditional BRANCH
             // whose target is not the next block in flow, the oracle emits
             // `goto <label>;` as its own statement (beginStatement /
-            // KEYWORD_GOTO / emitLabel / SEMICOLON / endStatement). Rugra's
-            // emit_block_ops is the flat-context twin (FLAT mod mirrored at
-            // fn head), and the NOFALLTHRU transport is: a trailing BRANCH
+            // KEYWORD_GOTO / emitLabel / SEMICOLON / endStatement). The
+            // oracle's gate is the FUNCTION-level flat mod
+            // (PrintLanguage::setFlat, printlanguage.cc:662-669 — this arm
+            // never fires in a structured emission); Rugra transports it as
+            // the entry snapshot captured above the opCbranch mirror
+            // (MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001: a switch case body's
+            // trailing BRANCH is printed by cc:3342's `break;`, not as a
+            // `goto` here).
             // op that was skipped by the cc:2701 rule (straight branches are
             // rendered by the block classes) — emit its goto here so the
             // non-fallthru continuation is preserved. isFallthruTrue's
@@ -6351,7 +6377,7 @@ impl PrintC {
                     !op.is_dead() && op.opcode == OpCode::CPUI_BRANCH
                 })
                 .unwrap_or(false);
-            if last_is_branch {
+            if last_is_branch && flat_on_entry {
                 let target = ops.last().and_then(|o| {
                     let op = o.0.read().unwrap();
                     op.get_in(0).map(|in0| in0.read().unwrap().get_offset())
@@ -6577,8 +6603,12 @@ impl PrintC {
         }
 
         let ops = block_arc.read().unwrap().get_ops();
+        // This caller reaches the RPN walk only with FLAT clear (the flat
+        // arm above routes to emit_block_ops), so the function-level flat
+        // snapshot for the cc:2725 tail gate is the current mod state.
+        let fn_flat = self.is_set(print_mods::FLAT);
         if self.rpn_enabled {
-            self.emit_block_basic_rpn(&ops, suppress_branch);
+            self.emit_block_basic_rpn(&ops, suppress_branch, fn_flat);
         } else {
             self.emit_flow_basic_legacy(&ops, suppress_branch);
         }
@@ -20528,7 +20558,7 @@ mod tests {
         // private field directly).
         printer.void_callee_call_addrs.insert(call_addr.as_u64());
 
-        printer.emit_block_basic_rpn(&[call, ret], false);
+        printer.emit_block_basic_rpn(&[call, ret], false, false);
         let text = printer
             .take_emit()
             .into_any()
@@ -20594,7 +20624,7 @@ mod tests {
         let _out = fd.new_unique_out(4, &call);
         fd.obank.mark_alive(call.clone());
 
-        printer.emit_block_basic_rpn(&[call], false);
+        printer.emit_block_basic_rpn(&[call], false, false);
         let text = printer
             .take_emit()
             .into_any()

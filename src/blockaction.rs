@@ -2135,24 +2135,27 @@ impl<'a> CollapseStructure<'a> {
         // This final sweep collapses the array to only the surviving roots and
         // structured blocks, giving the CFT (control flow tree) single-ownership
         // property that printc's emitBlockGraph tree traversal relies on
-        // (printc.cc:2746). Survivors are re-indexed to reflect new positions.
+        // (printc.cc:2746). Survivors KEEP their collapse-era indices (the
+        // oracle's list=newlist never re-indexes; see finalize_structure).
         self.finalize_structure();
     }
 
     // Ghidra: blockaction.hh:46 LoopBody::finalizeStructure
-    /// Remove consumed (absorbed) blocks from the top-level structure graph
-    /// and re-index survivors. Faithful to Ghidra's identifyInternal list
-    /// compaction (block.cc:953-960: `list = newlist`), applied as a single
-    /// final sweep rather than incrementally. Membership is the absorbed_into
-    /// parent record — NOT block_flags::DEAD (identifyInternal never sets
-    /// f_dead; that flag is exclusively Funcdata's dead basic-block removal,
-    /// funcdata_block.cc:333/370, whose blocks must SURVIVE this sweep for
-    /// their own bookkeeping).
+    /// Remove consumed (absorbed) blocks from the top-level structure graph.
+    /// Faithful to Ghidra's identifyInternal list compaction (block.cc:953-960:
+    /// `list = newlist`), applied as a single final sweep rather than
+    /// incrementally. Membership is the absorbed_into parent record — NOT
+    /// block_flags::DEAD (identifyInternal never sets f_dead; that flag is
+    /// exclusively Funcdata's dead basic-block removal, funcdata_block.cc:333/
+    /// 370, whose blocks must SURVIVE this sweep for their own bookkeeping).
     ///
     /// After this, `graph.get_size()` returns only the count of surviving
-    /// roots + structured blocks, and each survivor's `get_index()` reflects
-    /// its position in the compacted array. Edges are unaffected (they use Arc
-    /// pointer identity, not indices).
+    /// roots + structured blocks. Survivors keep their collapse-era indices
+    /// (install-time min-slot values = min over component subtree, the
+    /// oracle's addBlock invariant, block.cc:866-873) — the identity
+    /// compareFinalOrder and scopeBreak's break-vs-goto equality tests are
+    /// defined over. Edges are unaffected (they use Arc pointer identity,
+    /// not indices).
     fn finalize_structure(&mut self) {
         let before = self.graph.get_size();
         let before_consumed = (0..before)
@@ -2172,10 +2175,28 @@ impl<'a> CollapseStructure<'a> {
             !consumed.contains_key(&idx)
         });
         self.graph.absorbed_into = consumed;
-        // Re-index survivors so get_index() reflects the new compacted position.
-        for (i, b) in self.graph.blocks.iter().enumerate() {
-            b.write().unwrap().set_index(i as i32);
-        }
+        // Ghidra's identifyInternal compaction (`list = newlist`,
+        // block.cc:953-960) NEVER touches FlowBlock::index: survivors keep
+        // the indices assigned during collapse, which by addBlock's
+        // min-tracking (block.cc:866-873: `index = min(index,
+        // bl->index)`) equal the MINIMUM basic-block index over each
+        // survivor's component subtree — a composite shares the index of
+        // its entry leaf. That shared value is the identity the final-tree
+        // index comparisons run on: FlowBlock::compareFinalOrder
+        // (block.cc:709/731, orderBlocks' sort key) and scopeBreak's
+        // `gototarget->getIndex() == curloopexit` (block.cc:2872/3082) /
+        // `bl->getIndex() == curexit` (block.cc:3621) — break-vs-goto
+        // reclassification holds exactly when the goto target IS (or is
+        // the entry of) the loop/switch sibling that follows in the same
+        // list. The former re-index-to-compacted-position loop here broke
+        // that identity (MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001: sibling
+        // composite got list position 1 while its entry leaf kept the
+        // collapse-era index 10, so every loop-exit if-goto compared
+        // unequal and printed `goto code_rXXXX;` where the oracle prints
+        // `break;`), so it is removed: survivors keep their install-time
+        // min-slot indices (blockaction.rs identify_internal's new_idx =
+        // min over consumed ∪ install), which is the same invariant
+        // addBlock maintains in the oracle.
         let after = self.graph.get_size();
         eprintln!(
             "[BLOCKSTRUCT] {} finalize_structure: {} -> {} (removed {} consumed)",
@@ -9621,5 +9642,225 @@ mod multigoto_defaultchain_tests {
         let moved = CollapseStructure::remap_default_chain_indices(&mut order, 3, 2);
         assert_eq!(moved, 0);
         assert_eq!((order[0].chain, order[1].chain, order[2].chain), (1, -1, 0));
+    }
+
+    // MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001: the composite-sibling break
+    // conversion. Production path (build_copy → structure_loops →
+    // collapse_all → the ActionFinalStructure tail scopeBreak) over a
+    // loop whose exit is a COMPOSITE (if/else) — the sqlite
+    // sqlite3FtsUnicodeFold emission shape, where the loop-body if-goto
+    // targets the composite sibling that follows the loop.
+    //
+    // Oracle semantics under test (block.cc:866-873 addBlock min-tracking
+    // + 1270-1288 BlockGraph::scopeBreak + 3075-3084 BlockIf::scopeBreak):
+    // the sibling composite shares the index of its entry leaf, so
+    // `gototarget->getIndex() == curloopexit` holds and the if-goto is
+    // reclassified f_break_goto (prints `break;`). The former
+    // finalize_structure survivor re-index to compacted positions broke
+    // the same equality whenever the following sibling was a composite
+    // whose entry index differed from its list position (the corpus's
+    // inner-target sites: sqlite 26 functions, e.g. sqlite3FtsUnicodeFold
+    // target 0x5a696 idx 10 vs sibling list position 1).
+    #[test]
+    fn test_scopebreak_composite_sibling_min_index() {
+        use crate::address::Address;
+        use crate::block::{
+            BlockBasic, BlockGraph, BlockIf, BlockType, FlowBlock, goto_type,
+        };
+        type BlockRef =
+            std::sync::Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
+        // CFG (FtsUnicodeFold binary-search tail shape): entry if with a
+        // RETURN arm, then a loop whose body if-goto targets the ENTRY
+        // LEAF of the composite sibling that follows the loop — the
+        // oracle's sqlite3FtsUnicodeFold shape [entry, loop,
+        // exit-composite], where the loop-exit sibling comparison runs
+        // over a component list (BlockGraph::scopeBreak feeds each child
+        // the following entry's index, block.cc:1277-1287).
+        // Edges: 0→{1 loop-path, 9 return}; 1→{2 body,5 loop-exit};
+        // 2→{1 backedge,5 goto-to-loop-exit}; 5→{6 then,7 else}; 6→8;
+        // 7→8. Non-contiguous leaf indices (realistic rpost-carried
+        // values).
+        let mut bblocks = BlockGraph::new();
+        let mut graph = BlockGraph::new();
+        let idxs = [0, 1, 2, 5, 6, 7, 8, 9];
+        let leaves: Vec<BlockRef> = idxs
+            .iter()
+            .map(|&idx| {
+                let leaf: BlockRef = std::sync::Arc::new(std::sync::RwLock::new(
+                    BlockBasic::new(idx, Address::new(0x1000 + idx as u64 * 0x10)),
+                ));
+                bblocks.add_block(leaf.clone());
+                leaf
+            })
+            .collect();
+        let (b0, b1, b2, b5, b6, b7, b8, b9) = (
+            &leaves[0],
+            &leaves[1],
+            &leaves[2],
+            &leaves[3],
+            &leaves[4],
+            &leaves[5],
+            &leaves[6],
+            &leaves[7],
+        );
+        for (a, b) in [
+            (b0, b1),
+            (b0, b9),
+            (b1, b2),
+            (b1, b5),
+            (b2, b1),
+            (b2, b5),
+            (b5, b6),
+            (b5, b7),
+            (b6, b8),
+            (b7, b8),
+        ] {
+            bblocks.add_edge(a.clone(), b.clone());
+        }
+        graph.build_copy(&bblocks);
+        let mut rootlist: Vec<BlockRef> = Vec::new();
+        graph.structure_loops(&mut rootlist).expect("structure_loops");
+        let mut collapse = CollapseStructure::new(&mut graph, "swbreak_test");
+        collapse.collapse_all();
+        // ActionFinalStructure head: orderBlocks (block.hh:430) then the
+        // scopeBreak tail (blockaction.cc:2191-2193).
+        graph.order_blocks();
+        graph.scope_break(-1, -1);
+
+        // (1) addBlock min invariant (block.cc:866-873): EVERY composite's
+        // index is the minimum over its component subtree — the identity
+        // compareFinalOrder (block.cc:709/731) and scopeBreak's
+        // `gototarget->getIndex() == curloopexit` (block.cc:2872/3082) /
+        // `bl->getIndex() == curexit` (block.cc:3621) equality tests run
+        // on. The former finalize_structure re-index to compacted list
+        // positions broke this (MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001).
+        fn subtree_min(bl: &BlockRef) -> i32 {
+            let r = bl.read().unwrap();
+            let own = r.get_index();
+            let mut m = own;
+            for c in BlockGraph::component_list_dyn(bl) {
+                m = m.min(subtree_min(&c));
+            }
+            m
+        }
+        fn assert_min_invariant(bl: &BlockRef, depth: usize) {
+            if depth > 12 {
+                return;
+            }
+            let idx = bl.read().unwrap().get_index();
+            assert_eq!(
+                idx,
+                subtree_min(bl),
+                "composite index must equal subtree min (addBlock min-tracking)"
+            );
+            for c in BlockGraph::component_list_dyn(bl) {
+                assert_min_invariant(&c, depth + 1);
+            }
+        }
+        let top = graph.blocks.clone();
+        assert!(!top.is_empty());
+        for t in &top {
+            assert_min_invariant(t, 0);
+        }
+
+        // (2) the composite-sibling break conversion: over every component
+        // list, for each (loop, following-sibling) adjacent pair, every
+        // goto carrier inside the loop whose target index equals the
+        // sibling's index (i.e. the target IS the sibling's entry leaf)
+        // must hold f_break_goto (block.cc:3075-3084 BlockIf::scopeBreak /
+        // 2866-2874 BlockGoto::scopeBreak) — this is the `break;` the
+        // oracle prints where the pre-fix Rugra printed `goto code_rXXXX;`
+        // + a spurious label.
+        fn collect_carriers(
+            bl: &BlockRef,
+            out: &mut Vec<BlockRef>,
+            depth: usize,
+        ) {
+            if depth > 12 {
+                return;
+            }
+            let bt = bl.read().unwrap().get_type();
+            let carrier = match bt {
+                BlockType::If => bl
+                    .read()
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<BlockIf>()
+                    .map(|i| i.goto_target.is_some())
+                    .unwrap_or(false),
+                BlockType::Goto => true,
+                _ => false,
+            };
+            if carrier {
+                out.push(bl.clone());
+            }
+            for c in BlockGraph::component_list_dyn(bl) {
+                collect_carriers(&c, out, depth + 1);
+            }
+        }
+        fn is_loop(bt: BlockType) -> bool {
+            matches!(
+                bt,
+                BlockType::WhileDo | BlockType::DoWhile | BlockType::InfLoop
+            )
+        }
+        fn check_sibling_pairs(bl: &BlockRef, saw: &mut bool, depth: usize) {
+            if depth > 12 {
+                return;
+            }
+            let children = BlockGraph::component_list_dyn(bl);
+            for pair in children.windows(2) {
+                let (a, b) = (&pair[0], &pair[1]);
+                if !is_loop(a.read().unwrap().get_type()) {
+                    continue;
+                }
+                let sibling_idx = b.read().unwrap().get_index();
+                let mut carriers = Vec::new();
+                collect_carriers(a, &mut carriers, 0);
+                for c in &carriers {
+                    let r = c.read().unwrap();
+                    let (gt, target): (u32, Option<BlockRef>) =
+                        match r.get_type() {
+                            BlockType::Goto => {
+                                let bg = r
+                                    .as_any()
+                                    .downcast_ref::<crate::block::BlockGoto>()
+                                    .unwrap();
+                                (bg.get_goto_type(), bg.target_dyn.clone())
+                            }
+                            _ => {
+                                let bi = r
+                                    .as_any()
+                                    .downcast_ref::<BlockIf>()
+                                    .unwrap();
+                                (bi.goto_type, bi.goto_target.clone())
+                            }
+                        };
+                    let Some(target) = target else { continue };
+                    let tidx = target.read().unwrap().get_index();
+                    if tidx == sibling_idx {
+                        // scopeBreak must have converted it (or it can
+                        // never print as a bare goto).
+                        assert_eq!(
+                            gt,
+                            goto_type::BREAK_GOTO,
+                            "loop-exit goto targeting the following sibling's entry must convert to f_break_goto"
+                        );
+                        *saw = true;
+                    }
+                }
+            }
+            for c in children {
+                check_sibling_pairs(&c, saw, depth + 1);
+            }
+        }
+        let mut saw_conversion = false;
+        for t in &top {
+            check_sibling_pairs(t, &mut saw_conversion, 0);
+        }
+        assert!(
+            saw_conversion,
+            "the synthetic loop-exit goto must hit the sibling-entry conversion"
+        );
     }
 }
