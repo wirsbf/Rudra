@@ -3648,3 +3648,19 @@ cargo test --lib 基线 1805P/0F/5I==任务书口径 → 改后 1808P/0F/5I（+3
 ## 2026-09-28 Lane CASTFUSEB3 交付登记（wt/castfuseb @ master fc8c276b，GEN4-SQ-CASTFUSE-DEPTH-0001 子族 B 收口；子族 B 残差新票一张）
 
 - **INPUTCAST-PTRADD-BASE-0001** | P4 | OPEN | 未认领 | 写域=`src/coreaction.rs`（cast_input 的 input_metatype 表）+`docs/api/coreaction.md`+本行 | CASTFUSEB3 fixture 钉出的潜性缺口：oracle TypeOpPtradd 无 getInputCast 覆写,slot1/2 走基 TypeOp::getInputCast（typeop.cc:295-303）→reqtype=inputTypeLocal=TypeOpPtradd::getInputLocal（typeop.cc:2232-2236）=`getBase(vn.getSize(), TYPE_INT)`;Rugra input_metatype（coreaction.rs）无 CPUI_PTRADD 臂→None→castInput 决策整体缺位。canonical 站点（GetLongestMatch PTRADD@0x2e01f slot1,cur=uint8/req=int8）双判同 null（无行为差）,但 cur 元类型为 PTR/VOID 等组合时 oracle 会插 CAST 而 Rugra 不插——潜性 cast 形态差,未见现语料命中。修法=metatype 表补 `CPUI_PTRADD => Some(Int)`（对齐 getInputLocal 的 TYPE_INT base,slot 0 的专化臂保持前置）。验收=B2 双侧 fixture（PTRADD slot1 cur=ptr 形态）+canon/镜面零回退。机制 C 白名单（coreaction）,commit 须附 Cross-Review: APPROVE。evidence=CASTFUSEB3 终报 §残差;2026-09-28
+
+## 车道 MB30 集成登记（root，2026-09-28）
+
+### INFRA-EXAMPLES-STALELINK-0001（P1，OPEN）
+- **问题**: cargo 增量构建下 `target/*/examples/*` 陈旧不重链——MB29 集成（镜面五面"全恒等"漏检 r3merge 的 sq −86/sqlite −138 效应）与 CASTFUSEB 车道（"−86/−138"错归因）两口实测咬伤（CR-CASTFUSEB 净基 A/B 亲证）。
+- **修法**: A/B 门禁前强制重链 examples（touch src/lib.rs + cargo build --examples，核对二进制 mtime 晚于被测 commit）或 staleness 守卫扩展 gen_decompile（启动时校验嵌入 build commit/源哈希）。
+- **验收**: 守卫在陈旧二进制上 FAIL、新鲜二进制上 PASS 的单测；MB30 集成已按前法亲跑（canon 54/36 命中预期）。
+- **owner**: 待派；**依赖**: 无；**write-set**: tools/verify_mirror_gate.sh 或 examples/gen_decompile.rs。
+
+### GEN4-SQ-CASTFUSE-DEPTH-0001（改票注记，CR-CASTFUSEB 判决）
+- "子族 B 已收口（−86/−138）"**失据**：净基 A/B 证伪（净 fc8c276b 已产 2935/9813/32，与 05540efb 逐字节恒等；差值属 MB27→MB29 窗口 = r3merge f9ce8ac7 镜面效应）。
+- **改票**: 残 22（sq）/32（sqlite）`+ (long)` 位归 cast 层/P25-ptr+ptr 臂域重开归因（形 `*piVar6 = *piVar6 + (long)piVar1[1] + 2;`，两态共存）；census 以 22/32 重钉；"67/68 假名同根"复算作废（污染基）。
+- 05540efb 代码保留（潜伏机制封堵，单测锁定，当前语料 0 命中）。
+
+### OUTSTREAM-MEMO-INVALIDATION-0001（P3，DONE @ 883aa196）
+- CR-OUTSTREAM3 条件 1 兑现：`ScopeLocal::invalidate_live_symbol` 钩挂 rename/namelock 写点（两 apply-recommendation 臂+rename_symbol）；条件 2 citation 修正（database.cc:1246）同 commit。测试：rename 后 memo 条目丢弃。
