@@ -53,6 +53,32 @@
 # **ceiling 按门禁臂实测重钉 27178→26833**（执法协议自洽: 门禁臂测什么钉什么;
 # pinned_commit=c4508bba=集成态测量锚[wave-ledger commit 为 docs-only 不改二进制];
 # 分片协议 27178 仍为 SQLITE3_SCOREBOARD 记分板口径, 两协议各按各的账本记账）。
+# MB41-RATCHET-REPIN-0001 (2026-09-29, joint tree @ ffb7b819 after 4-branch
+# mirror-convergence batch [mcensus3 5520d1c2 + comparefix 3fac61f1 +
+# maintype d448677f + switchbreak ffb7b819], forced relink verified
+# [binaries +135~140s > all four merge commits], gate --jobs 5 + --no-cache
+# full cold round — compare_ghidra.py sha change invalidates digest cache
+# keys, all five faces fresh-measured; stale-guard probe digest=ba059297
+# files=103; repin commit only edits this table, measurement tree=ffb7b819):
+# ① httpd 30→2 (−28): MAINTYPE spacebase LOAD/STORE propagation guard
+#    (typeop.cc:491/:561) burns the main xunknown-vs-int single-root family —
+#    main body byte==golden direct-runner (529 lines); residual 2 =
+#    ap_fini decl-move trailing family (already registered).
+# ② sqlite 4753→4516 (−237): SWITCHBREAK finalize_structure survivor
+#    re-index removal restores the addBlock min-index invariant (scopeBreak
+#    equality basis) + function-level flat gate; 30 functions changed,
+#    zero worsened (sampled 5/5 exact: FtsUnicodeFold→identical, VdbeExec
+#    79→51, complete 65→50, config 38→3, test_control 67→3).
+# ③ curl 21→13 (−8 = src −2 + metering −6): SWITCHBREAK burns glob_word 2
+#    (tool-constant 21→19); COMPAREFIX exact-name-first + one-consumption
+#    pairing removes the SetHTTPrequest twin-name 6-line phantom (both twins
+#    now identical; 13 is the new-tool era value — same binaries, corrected
+#    pairing; cache keys carry the tool sha so the era split is fail-closed).
+# ④ vsh 0 / sq 726 identical, not re-pinned (MB39 rows stay).
+# Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
+# byte-identical (md5 4ab1db2a / 7d5b9e7c == MB40 pins). tests 1973P/0F/5I
+# (=1972 + switchbreak 1 new test). B2 events: httpd 0x9d00 family slot=2
+# STORE 16==oracle 16, RSP-source 0, residual 181 all from_sb=false.
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # MB27-RATCHET-REPIN-0001 @ 06e491c0 (2026-09-28): httpd 84->65 (GETPARENTS find_subpiece 同块约束, -19);
 # sq 3262->3021 (三支复合 -241: getparents 同块约束镜面效应为主); sqlite 10013->9951 (-62);
@@ -90,11 +116,11 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # amount; md5 4503f498->8dafa799 / c3b4706c->2fbf13b1, canon not in tsv — recorded in the MB34
 # report). Forced relink before measurement (digest 19db58af files=103, binaries newer than all
 # three merge commits). tests 1963P/0F/5I = 1963+0 (all three lanes add zero tests).
-curl	21	74	MB32-RATCHET-REPIN-0001	e442d433	2026-09-28
-httpd	30	29	MB37-RATCHET-REPIN-0001	e124f9bf	2026-09-28
+curl	13	74	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
+httpd	2	29	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 sq	726	810	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
-sqlite	4753	1385	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
+sqlite	4516	1385	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
