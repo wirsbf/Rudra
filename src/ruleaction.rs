@@ -7138,7 +7138,6 @@ impl Rule for RuleZextShiftZext {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleZextShiftZext::applyOp (ruleaction.cc:4885-4919).
-        let follow = crate::op::PcodeOpRef(op_arc.clone());
         let (in_vn, shiftop_code) = {
             let op = op_arc.read().unwrap();
             if op.opcode != OpCode::CPUI_INT_ZEXT {
@@ -7170,7 +7169,7 @@ impl Rule for RuleZextShiftZext {
                 .unwrap_or(false) {
                 return Ok(action_status::NO_CHANGE);
             }
-            fd.op_set_input(&follow, vn, 0);
+            fd.op_set_input(&crate::op::PcodeOpRef(op_arc.clone()), vn, 0);
             return Ok(action_status::CHANGE);
         }
         if shiftop_code != OpCode::CPUI_INT_LEFT {
@@ -7222,6 +7221,9 @@ impl Rule for RuleZextShiftZext {
         fd.op_set_opcode(&new_op, OpCode::CPUI_INT_ZEXT);
         let out_vn = fd.new_unique_out(out_size, &new_op);
         fd.op_set_input(&new_op, root_vn, 0);
+        // PERF-ARENA-FLIP-0001 (c): mutation handle materializes on this
+        // hit path only (the former eager top-of-body clone ran per miss).
+        let follow = crate::op::PcodeOpRef(op_arc.clone());
         fd.op_set_opcode(&follow, OpCode::CPUI_INT_LEFT);
         fd.op_set_input(&follow, out_vn, 0);
         let c = fd.new_constant(4, sa);
@@ -11124,7 +11126,7 @@ impl RuleDivOpt {
     /// (ruleaction.cc:8051-8125). Returns (in_vn, n, y128, xsize, ext_opc).
     // Ghidra: ruleaction.cc:8051 RuleDivOpt::findForm
     fn find_form(
-        op: &crate::op::PcodeOpRef,
+        op: &std::sync::Arc<std::sync::RwLock<PcodeOp>>,
     ) -> Option<(
         std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
         u64,
@@ -11133,7 +11135,7 @@ impl RuleDivOpt {
         OpCode,
     )> {
         use crate::address::count_leading_zeros;
-        let mut cur_op_arc = op.0.clone();
+        let mut cur_op_arc = op.clone();
         let shift_opc = cur_op_arc.read().unwrap().opcode;
         let mut n: u64 = 0;
         let mut shift_opc_var = shift_opc;
@@ -11215,7 +11217,6 @@ impl RuleDivOpt {
             let ext_vn = ext_op.read().unwrap().get_in(0)?.clone();
             if ext_vn.read().unwrap().is_free() { return None; }
             if in_vn.read().unwrap().get_size() == op
-                    .0
                     .read()
                     .unwrap()
                     .output
@@ -11236,7 +11237,7 @@ impl RuleDivOpt {
         if (actual_ext_opc == OpCode::CPUI_INT_ZEXT && shift_opc_var == OpCode::CPUI_INT_SRIGHT)
             || (actual_ext_opc == OpCode::CPUI_INT_SEXT && shift_opc_var == OpCode::CPUI_INT_RIGHT)
         {
-            let out_size = op.0.read()
+            let out_size = op.read()
                     .unwrap()
                     .output
                     .as_ref()?
@@ -11292,9 +11293,9 @@ impl RuleDivOpt {
     /// Check if a SUBPIECE form is contained in a superseding form.
     /// Faithful to `checkFormOverlap` (ruleaction.cc:8260-8279).
     // Ghidra: ruleaction.cc:8242 RuleDivOpt::checkFormOverlap
-    fn check_form_overlap(op: &crate::op::PcodeOpRef) -> bool {
-        if op.0.read().unwrap().opcode != OpCode::CPUI_SUBPIECE { return false; }
-        let vn = match op.0.read().unwrap().output.as_ref() { Some(o) => o.clone(), None => return false ,
+    fn check_form_overlap(op: &std::sync::Arc<std::sync::RwLock<PcodeOp>>) -> bool {
+        if op.read().unwrap().opcode != OpCode::CPUI_SUBPIECE { return false; }
+        let vn = match op.read().unwrap().output.as_ref() { Some(o) => o.clone(), None => return false ,
         };
         let descends: Vec<_> = vn.read().unwrap().descend_iter().collect();
         for super_op in descends {
@@ -11303,8 +11304,7 @@ impl RuleDivOpt {
             let cvn = match super_op.read().unwrap().get_in(1) { Some(v) => v.clone(), None => continue ,
             };
             if !cvn.read().unwrap().is_constant() { return true; }
-            let super_ref = crate::op::PcodeOpRef(super_op);
-            if Self::find_form(&super_ref).is_some() { return true; }
+            if Self::find_form(&super_op).is_some() { return true; }
         }
         false
     }
@@ -11409,12 +11409,13 @@ impl Rule for RuleDivOpt {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleDivOpt::applyOp (ruleaction.cc:8295-8355).
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
-        let (mut in_vn, n, y, mut xsize, ext_opc) = match Self::find_form(&op_ref) {
+        // PERF-ARENA-FLIP-0001 (c): the form helpers take the bare Arc —
+        // no eager PcodeOpRef materialization on the miss path.
+        let (mut in_vn, n, y, mut xsize, ext_opc) = match Self::find_form(op_arc) {
             Some(r) => r,
             None => return Ok(action_status::NO_CHANGE),
         };
-        if Self::check_form_overlap(&op_ref) { return Ok(action_status::NO_CHANGE); }
+        if Self::check_form_overlap(op_arc) { return Ok(action_status::NO_CHANGE); }
         if ext_opc == OpCode::CPUI_INT_SEXT { xsize -= 1; }
         let divisor = Self::calc_divisor(n, y, xsize);
         if divisor == 0 { return Ok(action_status::NO_CHANGE); }
@@ -11426,6 +11427,9 @@ impl Rule for RuleDivOpt {
             .map(|v| v.read().unwrap().get_size())
             .unwrap_or(0);
         let addr = op_arc.read().unwrap().get_addr();
+        // All miss-guards are done (find_form/overlap/divisor/output checks);
+        // the mutation handle materializes once for the transform paths.
+        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
 
         if in_vn.read().unwrap().get_size() < out_size {
             // Need extension.
@@ -15246,7 +15250,10 @@ impl Rule for RuleIndirectCollapse {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleIndirectCollapse::applyOp (ruleaction.cc:3177-3252).
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
+        // PERF-ARENA-FLIP-0001 (c): no eager handle materialization — the
+        // rule runs 1.9M tries on the VdbeExec pole and the Arc clone pair
+        // used to run on every miss; the PcodeOpRef now materializes only
+        // on the mutating paths below (branch-scoped).
         let (in1, in0, outvn) = {
             let op = op_arc.read().unwrap();
             let in1 = match op.inrefs.get(1) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
@@ -15287,6 +15294,8 @@ impl Rule for RuleIndirectCollapse {
                     v1.characterize_overlap(&v2)
                 };
                 if res > 0 { // Copy has an effect of some sort
+                    // Materialize the mutation handle on this hit path only.
+                    let op_ref = crate::op::PcodeOpRef(op_arc.clone());
                     if res == 2 {
                         // vn1 and vn2 are the same storage → Convert INDIRECT to COPY.
                         fd.op_uninsert(&op_ref);
@@ -15383,8 +15392,9 @@ impl Rule for RuleIndirectCollapse {
         // op of outvn (op_arc is outvn's writer, not a descendant, so the guard-free
         // call is safe); op_destroy below write-locks op_arc — the named op/outvn
         // guards above are all block-scoped and released before this point.
+        // The mutation handle materializes here (hit path; see header note).
         fd.total_replace(&outvn, in0);
-        fd.op_destroy(&op_ref);
+        fd.op_destroy(&crate::op::PcodeOpRef(op_arc.clone()));
         Ok(action_status::CHANGE)
     }
 
@@ -15518,7 +15528,6 @@ impl Rule for RuleSwitchSingle {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleSwitchSingle::applyOp (ruleaction.cc:5430-5477).
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
         // BlockBasic *bb = op->getParent(); if (bb->sizeOut() != 1) return 0;
         let size_out = {
             let op = op_arc.read().unwrap();
@@ -15531,6 +15540,9 @@ impl Rule for RuleSwitchSingle {
             Some(n) if n == 1 => {}
             _ => return Ok(action_status::NO_CHANGE),
         }
+        // PERF-ARENA-FLIP-0001 (c): mutation/query handle materializes after
+        // the sizeOut guard (the former eager clone ran per miss).
+        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
         // JumpTable *jt = data.findJumpTable(op); find_jump_table borrows fd
         // immutably and returns Option<&Arc<RwLock<JumpTable>>>. We must gather
         // everything we need from the table (entries, labelled, addresses) and
@@ -20643,7 +20655,9 @@ impl Rule for RulePtrFlow {
         data: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RulePtrFlow::applyOp (ruleaction.cc:9177-9251).
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
+        // PERF-ARENA-FLIP-0001 (c): no eager handle materialization — the
+        // PcodeOpRef materializes inline at the two truncate_pointer hit
+        // sites (the former top-of-body clone ran per miss).
         let opc = op_arc.read().unwrap().opcode;
         let mut made_change = 0;
 
@@ -20667,7 +20681,13 @@ impl Rule for RulePtrFlow {
                 let vn_size = vn.read().unwrap().get_size();
                 let vn = if vn_size > spc.addr_size() {
                     made_change = 1;
-                    Self::truncate_pointer(&spc, &op_ref, &vn, 1, data)
+                    Self::truncate_pointer(
+                        &spc,
+                        &crate::op::PcodeOpRef(op_arc.clone()),
+                        &vn,
+                        1,
+                        data,
+                    )
                 } else {
                     vn
                 };
@@ -20687,7 +20707,13 @@ impl Rule for RulePtrFlow {
                 let vn_size = vn.read().unwrap().get_size();
                 let vn = if vn_size > spc.addr_size() {
                     made_change = 1;
-                    Self::truncate_pointer(&spc, &op_ref, &vn, 0, data)
+                    Self::truncate_pointer(
+                        &spc,
+                        &crate::op::PcodeOpRef(op_arc.clone()),
+                        &vn,
+                        0,
+                        data,
+                    )
                 } else {
                     vn
                 };

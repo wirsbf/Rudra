@@ -2310,3 +2310,21 @@ API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
 派生 flag 集相同（BINARY|COMMUTATIVE|BOOLOUTPUT）且互非 code-list 成员，
 可观测效果恒等；同时维护 OpCell opcode 影子不变量（ActionPool 派发复读
 依赖 change_opcode 单点更新）。行为面 canon/镜面门禁字节恒等亲证。
+
+## 2026-09-30（c 段续）：热路径规则的 miss 路径句柄克隆消除（PERF-ARENA-FLIP-0001 (c)）
+
+规则体 `PcodeOpRef(op_arc.clone())` 物化形态审计（规则池 per-try 常数的
+克隆面）：机械扫描全部物化位点并人工核对每个的守卫前置性——**五条热规则
+的 miss 路径克隆推迟到命中路径**（分支作用域/内联物化，语义零变化，仅
+克隆时机移动）：
+
+- `RuleIndirectCollapse`（1.9M tries，VdbeExec 极第 3 热规则）：顶部物化
+  → `res>0` 命中分支 + totalReplace 尾路径两处物化。
+- `RuleZextShiftZext`/`RuleDivOpt`/`RuleSwitchSingle`/`RulePtrFlow`：
+  同形推迟；DivOpt 的 `find_form/check_form_overlap` 形态助手签名
+  `&PcodeOpRef` → `&Arc<RwLock<PcodeOp>>`（仅用 `.0`，调用点直传）。
+
+**保留 eager 的位点（逐个核实为非 miss 路径）**：Bxor2NotEqual（恒命中
+规则）、IntLessEqual（单调用实参=API 边界）、FloatSign（`if let` 命中门
+内）、IgnoreNan（`nan_ignore_all` 配置门内）、ExpandLoad（elType 解析
+mid-guard 需要 op 句柄——推迟不净，保留原形）。
