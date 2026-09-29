@@ -247,7 +247,7 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # mirror caliber bf2d9b85 held through all four, bare caliber a067e05c,
 # corpus assembled 5,284,971B byte-identical).
 sq	432	810	MB48-RATCHET-REPIN-0001	87f3ac97	2026-09-29
-sqlite	845	1385	MB47-RATCHET-REPIN-0001	965d1a70	2026-09-29
+sqlite	785	1385	MB49-RATCHET-REPIN-0001	75ea326f	2026-09-30
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
