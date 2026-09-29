@@ -403,6 +403,40 @@ Rugra 旧实现三处偏差：无符号层（恒走③）、joined/dup 未追踪
   收官）；rugra-only/golden-only 标号地址（curl 5+5、httpd 5+~1120）属
   goto 目标结构差（块分裂点/未发射块），非拼写层可收敛。
 
+## 2026-09-30：label 前缀改 per-site 读取（MIRROR-GIANTS-SQLITEDUPLABEL-POSTSPLIT-0001）
+
+oracle `PrintC::emitLabel`（printc.cc:3164-3193）的前缀决策是**逐位点**的：
+`bl->getFrontLeaf()`（block.cc:340-349，沿 subBlock(0) 下行到第一个 t_copy）
+→ `subBlock(0)` 取被包裹 BlockBasic → 读**该位点那份拷贝**的
+`isJoined()/isDuplicated()`。nodeSplit 产生的重复块（`Funcdata::nodeSplitBlockEdge`
+funcdata_block.cc:824-837）只有**新拷贝**带 `f_duplicate_block`、原块干净，且
+两份拷贝共享同一入口地址——地址键控的 `dup_label_addrs`/`joined_label_addrs`
+集合把两者合并后，所有同地址位点一律印 `dup_`（SQLITEDUPLABEL 根：
+sqlite3VdbeIntValue dup 0x1091aa×3 位点，oracle 逐位点印 `code_r0x001091aa`
+[位点叶=原块 #85]，Rugra 误印 `dup_r0x001091aa`）。双侧 caseblocks 探针亲证
+switch goto 臂/标签语句位点两侧结构恒等（caseblock/gototype/包裹块一致），
+分叉只在打印层。修复：
+
+- **新 `site_label_flags(block)`**（关联 fn）：emitLabel 下行链
+  （front_leaf → Copy → sub_block(0)）读被包裹基本块的
+  `f_joined_block/f_duplicate_block`，返回 `Option<(bool, bool)>`。
+- **新 `code_label_with(addr, site)`**：`Some((joined, dup))` =
+  oracle 逐位点读（joined/dup 前缀 + cc:3173 hasSpecialLabel 门——特殊块
+  不查 queryCodeLabel）；`None` 回退地址集合（flat/op 级地址键控传输，
+  oracle 对应位点持活块——Rugra 保留该近似，注释记载）。
+  `code_label(addr)` = `code_label_with(addr, None)`。
+- **发射点接线**：`emit_label_statement(addr, site)` 增参；结构路径位点全部
+  per-site——emit_any_label_statement 两臂（isUnstructuredTarget 臂 + pending
+  臂，位点叶=leaf_arc）、switch goto 臂（cc:3336 caseblock 前叶）、switch
+  default goto 臂、BlockGoto gotoPrints（cc:2777 gototarget 前叶）、
+  emit_structured_if 单分量 goto 臂（cc:2914）、pending 回填臂（6039 一带，
+  目标块自身位点）；flat 平尾路径（op 级地址）保持 None 回退。
+- **验收**：sqlite3VdbeIntValue 函数体规范化 diff 残差仅剩既有微噪
+  （`&&` 尾随空格×3 + axVarN 声明序 1 行）；dup-label 根燃（sqlite 面
+  burn 见镜像门禁台账同批行）；canon curl/httpd md5 双钉值字节恒等；
+  新测 3（site_label_flags 逐拷贝读/code_label per-site 覆盖地址集合/
+  hasSpecialLabel 跳过符号层）。
+
 ## 2026-09-22：符号优先的叶子打印优先级 + partial-symbol 叶子形态 + `::` 遮蔽前缀（PRINTC-GLOBALSYM-LEAF-PRIORITY-0001）
 
 oracle 的叶子名解析（`PrintLanguage::pushVnExplicit`，printlanguage.cc:218-230）只有

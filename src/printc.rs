@@ -5615,7 +5615,9 @@ impl PrintC {
                 }
             }
             for target in targets_to_label {
-                self.emit_label_statement(target);
+                // Flat/op-level transport (address-only): the address-set
+                // fallback inside code_label_with applies.
+                self.emit_label_statement(target, None);
             }
 
             // printc.cc:2725: isSet(flat) && isSet(nofallthru) — the
@@ -5904,6 +5906,44 @@ impl PrintC {
         )
     }
 
+    // Ghidra: printc.cc:3164-3193 PrintC::emitLabel (per-site flag read)
+    /// Per-site special-label state for one label reference: descends the
+    /// emitLabel chain (`bl->getFrontLeaf()` → the first t_copy →
+    /// `subBlock(0)`, printc.cc:3167-3169) and reads the wrapped basic
+    /// block's `f_joined_block` / `f_duplicate_block` flags — the oracle's
+    /// per-SITE prefix decision (`joined_`/`dup_`/`code_`, cc:3184-3189).
+    /// An address-keyed set cannot express this when an original block and
+    /// its nodeSplit duplicate (`Funcdata::nodeSplitBlockEdge`
+    /// funcdata_block.cc:830-833 flags the new copy, the original stays
+    /// clean) share one entry address: the two copies sit at different tree
+    /// sites and the label prefix follows the copy the SITE's leaf wraps,
+    /// not the address (MIRROR-GIANTS-SQLITEDUPLABEL-POSTSPLIT-0001).
+    fn site_label_flags(
+        block_arc: &std::sync::Arc<
+            std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+        >,
+    ) -> Option<(bool, bool)> {
+        let direct_type = block_arc.read().unwrap().get_type();
+        let leaf = match crate::block::front_leaf(block_arc) {
+            Some(leaf) => leaf,
+            None if direct_type == crate::block::BlockType::Basic => block_arc.clone(),
+            None => return None,
+        };
+        let wrapped = {
+            let leaf_read = leaf.read().unwrap();
+            match leaf_read.get_type() {
+                crate::block::BlockType::Copy => leaf_read.sub_block(0)?,
+                crate::block::BlockType::Basic => leaf.clone(),
+                _ => return None,
+            }
+        };
+        let flags = wrapped.read().unwrap().get_flags();
+        Some((
+            flags & crate::block::block_flags::JOINED_BLOCK != 0,
+            flags & crate::block::block_flags::DUPLICATE_BLOCK != 0,
+        ))
+    }
+
     // RUGRA-GLUE: transports Ghidra's PrintLanguage::no_branch modifier as an explicit boolean through Rugra's structured-block dispatcher
     /// Emit a single block's operations, with dead code elimination.
     ///
@@ -6036,7 +6076,9 @@ impl PrintC {
         {
             if let Some(start) = Self::flow_entry_address(block_arc) {
                 if self.pending_goto_labels.remove(&start) {
-                    self.emit_label_statement(start);
+                    // Per-site flags from THIS block's leaf (the label's
+                    // own placement — emitLabel cc:3164-3193).
+                    self.emit_label_statement(start, Self::site_label_flags(block_arc));
                 }
             }
         }
@@ -6360,7 +6402,7 @@ impl PrintC {
                 }
             }
             for target in targets_to_label {
-                self.emit_label_statement(target);
+                self.emit_label_statement(target, None);
             }
 
             // printc.cc:2723-2741: flat tail goto. "If we are printing flat
@@ -6899,7 +6941,14 @@ impl PrintC {
                 _ => crate::op::branch_type::GOTO,
             };
             self.emit.print(" ");
-            self.emit_goto_statement(target_addr, branch_type);
+            // cc:2914-2916 emitGotoStatement(condBlock, gotoTarget, type):
+            // emitLabel reads the prefix from the copy under the target's
+            // front leaf — per-site flags (printc.cc:2318 + 3164-3193).
+            self.emit_goto_statement(
+                target_addr,
+                branch_type,
+                Self::site_label_flags(&target),
+            );
             // printc.cc:2914-2917 has NO cancelPendingPrint in the goto
             // arm: the slot was already resolved above (the cc:2900-2905
             // identity check either fired the brace — slot cleared by
@@ -7858,7 +7907,14 @@ impl PrintC {
                                 }
                                 _ => crate::op::branch_type::GOTO,
                             };
-                            self.emit_goto_statement(target_addr, bt);
+                            // cc:3336 emitGotoStatement(getBlock(0),
+                            // getCaseBlock(i), gototype): emitLabel descends
+                            // the CASEBLOCK's front leaf — per-site flags.
+                            self.emit_goto_statement(
+                                target_addr,
+                                bt,
+                                Self::site_label_flags(case_block),
+                            );
                             // cc:3336 discharged the case's exit flow.
                             self.case_exit_stmt_printed = true;
                         } else {
@@ -7980,7 +8036,13 @@ impl PrintC {
                 crate::block::goto_type::CONTINUE_GOTO => crate::op::branch_type::CONTINUE,
                 _ => crate::op::branch_type::GOTO,
             };
-            self.emit_goto_statement(target_addr, bt);
+            // cc:3336 (via the default's CaseOrder entry): emitLabel
+            // descends the DEFAULT caseblock's front leaf — per-site flags.
+            self.emit_goto_statement(
+                target_addr,
+                bt,
+                Self::site_label_flags(def_block),
+            );
             self.emit.drop_indent();
         } else if !emitted.contains(&def_idx) {
             self.emit.tag_line(0);
@@ -8263,6 +8325,24 @@ impl PrintC {
     ///     the loader's image-base delta so the digits match the oracle's
     ///     address space (golden witness `code_r0x0012ba77`).
     fn code_label(&self, addr: u64) -> String {
+        self.code_label_with(addr, None)
+    }
+
+    // Ghidra: printc.cc:3164 PrintC::emitLabel
+    /// `code_label` with an explicit per-site special-label state
+    /// (`site_label_flags`): `Some((joined, dup))` is the oracle's
+    /// per-site `bb->isJoined()/isDuplicated()` read under the emitted
+    /// leaf (printc.cc:3167-3189) — the joined/dup prefixes and the
+    /// cc:3173 `hasSpecialLabel` gate (special blocks never consult
+    /// `queryCodeLabel`) follow THE SITE'S wrapped copy, so an original
+    /// and its nodeSplit duplicate sharing one entry address print their
+    /// own prefixes at their own tree sites. `None` falls back to the
+    /// snapshot `joined_label_addrs`/`dup_label_addrs` entry-address sets
+    /// (any block carrying the flag marks the address) — kept for the
+    /// address-only transports (flat/op-level label references) whose
+    /// oracle counterparts hold live blocks; there the sets remain the
+    /// documented approximation.
+    fn code_label_with(&self, addr: u64, site: Option<(bool, bool)>) -> String {
         // printc.cc:3170: emitLabel formats bb->getEntryAddr() — the
         // front-end address. Rugra's Funcdata keeps ELF-relative offsets,
         // so the driver's image-base delta is added here.
@@ -8275,12 +8355,18 @@ impl PrintC {
         } else {
             8
         };
-        // printc.cc:3173 hasSpecialLabel gate: joined/duplicated blocks
-        // never consult queryCodeLabel (printc.cc:3184-3189 prefixes).
-        if self.joined_label_addrs.contains(&addr) {
+        // printc.cc:3184-3189: prefix arms read the per-site wrapped copy's
+        // flags (and cc:3173's hasSpecialLabel skips queryCodeLabel for
+        // those blocks). Per-site value when the caller holds the leaf
+        // (site_label_flags); address-set approximation otherwise.
+        let (joined, dup) = site.unwrap_or((
+            self.joined_label_addrs.contains(&addr),
+            self.dup_label_addrs.contains(&addr),
+        ));
+        if joined {
             return format!("joined_r0x{:0width$x}", display, width = 2 * sz);
         }
-        if self.dup_label_addrs.contains(&addr) {
+        if dup {
             return format!("dup_r0x{:0width$x}", display, width = 2 * sz);
         }
         // printc.cc:3176-3180: queryCodeLabel hit — the LabSymbol's display
@@ -11647,9 +11733,11 @@ impl PrintLanguage for PrintC {
         // flags for emitLabel's hasSpecialLabel gate (block.hh:291 via
         // printc.cc:3173). Oracle reads `bb->isJoined()/isDuplicated()`
         // (block.hh:292-293) on the BlockBasic under the front leaf at emit
-        // time; Rugra's label emission sites are address-keyed (some have
-        // no block handle), so the f_joined_block/f_duplicate_block state
-        // (block.hh:105-106) is projected here into entry-address sets.
+        // time; the structured label sites carry the per-site read
+        // (`site_label_flags`/`code_label_with` — printc.cc:3164-3193), and
+        // these entry-address sets remain the address-only fallback for
+        // flat/op-level transports without a block handle
+        // (`code_label_with(..., None)`).
         use crate::block::FlowBlock as _;
         self.joined_label_addrs.clear();
         self.dup_label_addrs.clear();
@@ -16346,7 +16434,7 @@ impl PrintC {
     /// goto_targets membership test, printc.rs's transport for
     /// FlowBlock::isJumpTarget). `only_branch` contexts (loop-condition
     /// bodies) never call here.
-    pub fn emit_label_statement(&mut self, addr: u64) {
+    pub fn emit_label_statement(&mut self, addr: u64, site: Option<(bool, bool)>) {
         // Same discarded-buffer gates as emit_any_label_statement: labels
         // emitted into a capture buffer (condition capture, CaseDetectEmit
         // dry-run) or the discovery NullEmit vanish, but would still commit
@@ -16373,8 +16461,11 @@ impl PrintC {
         // tagLine(0) is the ONE-ARGUMENT absolute virtual (hh:180): the
         // label lands at column 0 regardless of nesting depth — NOT the
         // relative tagLine() break at the current indent level.
+        // `site` is the emitLabel per-site flag read (site_label_flags):
+        // the prefix follows the copy this label statement's leaf wraps.
         self.emit.tag_line_indent(0);
-        self.emit.print(&format!("{}:", self.code_label(addr)));
+        self.emit
+            .print(&format!("{}:", self.code_label_with(addr, site)));
     }
 
     // Ghidra: printc.cc:3219 PrintC::emitAnyLabelStatement
@@ -16446,8 +16537,13 @@ impl PrintC {
                 if self.printed_labels.insert(addr) {
                     // printc.cc:3211 tagLine(0) — absolute column 0 (the
                     // one-argument virtual), not the relative tagLine().
+                    // code_label_with(site) — the emitLabel per-site flag
+                    // read: prefix from the copy THIS leaf wraps.
                     self.emit.tag_line_indent(0);
-                    self.emit.print(&format!("{}:", self.code_label(addr)));
+                    self.emit.print(&format!(
+                        "{}:",
+                        self.code_label_with(addr, Self::site_label_flags(&leaf_arc))
+                    ));
                 }
             } else if matches!(
                 bt, crate::block::BlockType::Basic
@@ -16479,8 +16575,14 @@ impl PrintC {
                 {
                     // printc.cc:3211 tagLine(0) — absolute column 0 (the
                     // one-argument virtual), not the relative tagLine().
+                    // code_label_with(site): pending arm carries the same
+                    // emitLabel per-site flag read — prefix from the copy
+                    // THIS leaf wraps.
                     self.emit.tag_line_indent(0);
-                    self.emit.print(&format!("{}:", self.code_label(addr)));
+                    self.emit.print(&format!(
+                        "{}:",
+                        self.code_label_with(addr, Self::site_label_flags(&leaf_arc))
+                    ));
                 }
             }
         }
@@ -16847,7 +16949,19 @@ impl PrintC {
     }
 
     // Ghidra: printc.cc:2303 PrintC::emitGotoStatement
-    pub fn emit_goto_statement(&mut self, target_addr: u64, goto_type: u8) {
+    /// `site` is the emitLabel per-site special-label state
+    /// (`site_label_flags`) for the goto's target leaf — the oracle's
+    /// `emitGotoStatement(bl, exp_bl, type)` carries the live `exp_bl`
+    /// FlowBlock and `emitLabel(exp_bl)` (cc:2318) reads the prefix flags
+    /// from the copy under THAT node's front leaf (printc.cc:3167-3189).
+    /// `None` (address-only transports) falls back to the snapshot
+    /// address sets inside `code_label_with`.
+    pub fn emit_goto_statement(
+        &mut self,
+        target_addr: u64,
+        goto_type: u8,
+        site: Option<(bool, bool)>,
+    ) {
         use crate::op::branch_type;
         // cc:2307-2322: beginStatement(bl->lastOp()) → keyword/label →
         // SEMICOLON → endStatement. No tagLine here — Ghidra's only
@@ -16899,11 +17013,11 @@ impl PrintC {
             branch_type::CONTINUE => {
                 if self.loop_depth > 0 { self.emit.print("continue;"); }
                 else { self.emit
-                        .print(&format!("goto {};", self.code_label(target_addr))); }
+                        .print(&format!("goto {};", self.code_label_with(target_addr, site))); }
             }
             _ => {
                 self.emit
-                    .print(&format!("goto {};", self.code_label(target_addr)));
+                    .print(&format!("goto {};", self.code_label_with(target_addr, site)));
             }
         }
         if prints_labelled_goto {
@@ -16923,7 +17037,7 @@ impl PrintC {
             // lives in docs/TODO_BOARD.md (GOTO-LABEL-UNPRINTED-0001).
             self.record_goto_label_pending(target_addr);
             if !self.discovery_block_starts.contains(&target_addr) {
-                self.emit_label_statement(target_addr);
+                self.emit_label_statement(target_addr, site);
             }
         }
     }
@@ -17053,7 +17167,7 @@ impl PrintC {
         // (observed: my_get_token `goto joined_r0x001037b2;` label-only).
         // `target_dyn` is Ghidra's gototarget pointer (block.hh:548) and
         // flow_entry_address is the emitLabel address chain.
-        let (prints, target_addr, gt) = {
+        let (prints, target_addr, gt, site) = {
             let bl = block_arc.read().unwrap();
             if let Some(g) = bl.as_any().downcast_ref::<crate::block::BlockGoto>() {
                 let addr = g
@@ -17061,15 +17175,20 @@ impl PrintC {
                     .as_ref()
                     .and_then(|t| Self::flow_entry_address(t))
                     .unwrap_or(0);
+                // cc:2777 emitGotoStatement(bl->getBlock(0),
+                // bl->getGotoTarget(), gototype): emitLabel reads the prefix
+                // from the copy under the GOTO TARGET's front leaf —
+                // per-site flags (printc.cc:2318 + 3164-3193).
+                let site = g.target_dyn.as_ref().and_then(Self::site_label_flags);
                 // block.cc:2884-2888 parent-present comparison vs the
                 // cc:2889 null-parent false.
                 let prints = match crate::block::FlowBlock::get_parent(g) {
                     Some(p) => g.goto_prints_in(block_arc, &p),
                     None => g.goto_prints(),
                 };
-                (prints, addr, g.get_goto_type())
+                (prints, addr, g.get_goto_type(), site)
             } else {
-                (false, 0, 0)
+                (false, 0, 0, None)
             }
         };
         if prints {
@@ -17081,7 +17200,7 @@ impl PrintC {
                 crate::block::goto_type::CONTINUE_GOTO => crate::op::branch_type::CONTINUE,
                 _ => crate::op::branch_type::GOTO,
             };
-            self.emit_goto_statement(target_addr, bt);
+            self.emit_goto_statement(target_addr, bt, site);
             // cc:2775-2778 discharged: the component expressed its own exit.
             self.case_exit_stmt_printed = true;
         }
@@ -22572,6 +22691,133 @@ mod tests {
             "AFF_A",
             "enum-typed case label prints the member name (printc.cc:1756/1763)"
         );
+    }
+
+    // MIRROR-GIANTS-SQLITEDUPLABEL-POSTSPLIT-0001: emitLabel's prefix is a
+    // PER-SITE read (printc.cc:3164-3193 — getFrontLeaf -> subBlock(0) ->
+    // bb->isJoined()/isDuplicated()), not an address property. An original
+    // block and its nodeSplit duplicate (nodeSplitBlockEdge flags only the
+    // new copy, funcdata_block.cc:831) share one entry address but must
+    // print code_/dup_ at their own tree sites.
+    fn copy_wrapping_basic(
+        index: i32,
+        addr: u64,
+        basic_flags: u32,
+    ) -> std::sync::Arc<
+        std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+    > {
+        use crate::block::{block_flags, BlockBasic, BlockCopy, FlowBlock};
+        use std::sync::{Arc, RwLock};
+        let basic = Arc::new(RwLock::new(BlockBasic::new(
+            index,
+            Address::new(addr),
+        ))) as Arc<RwLock<dyn FlowBlock + Send + Sync>>;
+        {
+            let mut b = basic.write().unwrap();
+            let merged = b.get_flags() | basic_flags;
+            b.set_flags(merged);
+        }
+        Arc::new(RwLock::new(BlockCopy {
+            index,
+            flags: 0,
+            parent: None,
+            self_ref: None,
+            original: basic,
+            incoming: Vec::new(),
+            outgoing: Vec::new(),
+            immed_dom: None,
+            copy_map: None,
+            visit_count: 0,
+            num_desc: 0,
+            dom_depth: -1,
+            dom_children: Vec::new(),
+            dom_frontier: std::collections::HashSet::new(),
+        }))
+    }
+
+    #[test]
+    fn site_label_flags_reads_wrapped_copy_not_address() {
+        use crate::block::block_flags;
+        // Leaf wrapping the ORIGINAL (clean) copy of a split address.
+        let original_leaf = copy_wrapping_basic(85, 0x1091aa, 0);
+        // Leaf wrapping the DUPLICATE copy (nodeSplitBlockEdge flags it).
+        let dup_leaf =
+            copy_wrapping_basic(106, 0x1091aa, block_flags::DUPLICATE_BLOCK);
+        assert_eq!(
+            PrintC::site_label_flags(&original_leaf),
+            Some((false, false)),
+            "site over the original copy reads clean flags (cc:3186-3189 else arm)"
+        );
+        assert_eq!(
+            PrintC::site_label_flags(&dup_leaf),
+            Some((false, true)),
+            "site over the duplicate reads f_duplicate_block (cc:3186)"
+        );
+        // A joined block under the leaf (cc:3184).
+        let joined_leaf =
+            copy_wrapping_basic(9, 0x1037b2, block_flags::JOINED_BLOCK);
+        assert_eq!(
+            PrintC::site_label_flags(&joined_leaf),
+            Some((true, false)),
+            "site over a joined copy reads f_joined_block (cc:3184)"
+        );
+    }
+
+    #[test]
+    fn code_label_per_site_overrides_address_sets() {
+        let mut printer = PrintC::new(Box::new(EmitNoMarkup::new()));
+        let addr = 0x1091aa_u64;
+        // The duplicate's flag has marked the address in the snapshot set
+        // (the pre-fix conflation): addr IS in dup_label_addrs.
+        printer.dup_label_addrs.insert(addr);
+        // Fallback (address-only transports) keeps the set behavior.
+        assert!(
+            printer.code_label(addr).starts_with("dup_r0x"),
+            "None site keeps the address-set fallback for flat/op-level refs"
+        );
+        // Per-site Some((false,false)) — the label statement/goto over the
+        // ORIGINAL copy prints code_ even though the address is marked.
+        assert_eq!(
+            printer.code_label_with(addr, Some((false, false))),
+            "code_r0x001091aa",
+            "per-site clean flags win over the address set (SQLITEDUPLABEL root)"
+        );
+        // Per-site Some((false,true)) — a site over the duplicate keeps dup_.
+        assert_eq!(
+            printer.code_label_with(addr, Some((false, true))),
+            "dup_r0x001091aa",
+            "per-site dup flags keep the dup_ prefix"
+        );
+    }
+
+    #[test]
+    fn code_label_special_site_skips_code_label_layer() {
+        // cc:3173 hasSpecialLabel gate: joined/duplicated blocks never
+        // consult queryCodeLabel — the LabSymbol lookup is skipped for
+        // special sites even when a front-end label exists at the address.
+        let mut printer = PrintC::new(Box::new(EmitNoMarkup::new()));
+        let addr = 0x109200_u64;
+        printer
+            .code_labels
+            .insert(addr, "LAB_00109200".to_string());
+        assert_eq!(
+            printer.code_label_with(addr, Some((true, false))),
+            "joined_r0x00109200",
+            "joined site skips queryCodeLabel (cc:3173 gate)"
+        );
+        assert_eq!(
+            printer.code_label_with(addr, Some((false, true))),
+            "dup_r0x00109200",
+            "dup site skips queryCodeLabel (cc:3173 gate)"
+        );
+        // A clean site at the same address still resolves the LabSymbol
+        // (cc:3176-3180) — and the fallback (None) keeps that too.
+        assert_eq!(
+            printer.code_label_with(addr, Some((false, false))),
+            "LAB_00109200",
+            "clean site resolves the mapped code label"
+        );
+        assert_eq!(printer.code_label(addr), "LAB_00109200");
     }
 
 }
