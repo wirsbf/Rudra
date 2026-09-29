@@ -2275,27 +2275,143 @@ impl PrintC {
     }
 
     // Ghidra: printc.cc:1744 PrintC::pushConstant
-    /// The RPN leaf's `pushConstant` dispatch, returning the literal text of
-    /// a constant varnode. Faithful to the metatype switch
-    /// (printc.cc:1749-1805): TYPE_UINT/TYPE_INT route char-print values to
-    /// the character-constant form and everything else to the signed or
-    /// unsigned integer; TYPE_UNKNOWN prints the unsigned integer;
-    /// TYPE_BOOL prints true/false; TYPE_PTR/TYPE_PTRREL print the null
-    /// token (option_NULL), then try the character-pointer string literal
-    /// (`pushPtrCharConstant`, 1782-1784) or the function-name constant
-    /// (1786-1788) before falling through to the default cast; TYPE_FLOAT
-    /// takes the push_float form (1791-1793), TYPE_VOID the cleared-error
-    /// marker (1772-1774, degraded to a comment in Rugra); every other
-    /// metatype falls straight to the default cast (1806-1815). Untyped
-    /// constants whose HighVariable has no read-facing type take the
-    /// TYPE_UNKNOWN arm.  As in `PrintLanguage::pushVnExplicit`
-    /// (printlanguage.cc:225-227), the consuming op and exact input slot select
-    /// the HighVariable's read-facing type; the constant's raw `v_type` is not
-    /// a substitute for this query. The default-cast prefix is spelled by `cast_type_string`
-    /// (the pushType fold above) so unnamed canonical pointers print
-    /// `(undefined *)0x0` instead of `()0x0`.
-    fn constant_leaf_text(&mut self, vn: &Varnode, op: Option<&PcodeOp>) -> String {
+    /// The metatype-switch core of `PrintC::pushConstant` (printc.cc:1749-
+    /// 1815), factored out of `constant_leaf_text` so the switch-case label
+    /// emission (`PrintC::emitSwitchCase`, printc.cc:3153
+    /// `pushConstant(val,ct,casetoken,(Varnode *)0,op)`) can route its
+    /// null-vn constant through the identical dispatch: a TYPE_PTR switch
+    /// variable prints its case labels with the default cast
+    /// (`case (int4 *)0x1:`), enums with their member names, etc. The
+    /// `force_unsigned`/`force_sized` print flags travel with the varnode
+    /// in the vn-bearing caller and are both false for the null-vn
+    /// case-label call (no vn, no flags).
+    fn constant_text_dispatch(
+        &mut self,
+        val: u64,
+        ct: &crate::type_system::Datatype,
+        op: Option<&PcodeOp>,
+        force_unsigned: bool,
+        force_sized: bool,
+    ) -> String {
         use crate::type_system::TypeMetatype;
+        let sz = ct.get_size();
+        match ct.get_metatype() {
+            TypeMetatype::Uint => {
+                if ct.is_char_print() {
+                    self.char_constant_text(val, sz, false, display_format::DEFAULT)
+                } else if ct.is_enum_type() {
+                    self.enum_constant_text(val, ct)
+                } else {
+                    self.integer_text_flagged(
+                        val, sz, false, display_format::DEFAULT,
+                        force_unsigned, force_sized,
+                    )
+                }
+            }
+            TypeMetatype::Int => {
+                if ct.is_char_print() {
+                    self.char_constant_text(val, sz, true, display_format::DEFAULT)
+                } else if ct.is_enum_type() {
+                    self.enum_constant_text(val, ct)
+                } else {
+                    self.integer_text_flagged(
+                        val, sz, true, display_format::DEFAULT,
+                        force_unsigned, force_sized,
+                    )
+                }
+            }
+            // Ghidra stores enums as TYPE_INT/TYPE_UINT + the enumtype flag
+            // (TypeEnum ctor/decode, type.hh:490-494 / type.cc:1475), so its
+            // TYPE_UINT/TYPE_INT arms reach pushEnumConstant
+            // (printc.cc:1756/1763). Rugra's Enum metatype IS that
+            // enum-int/uint collapse, so it takes the same named path: the
+            // getMatches representation (enum_match_text — `A`, `A|B`,
+            // `~(A|B)`, `... >> n`), else the unsigned integer
+            // (printc.cc:1684-1686). Locked witnesses: `return CURLE_OK;`
+            // (main_init), `*store != HTTPREQ_UNSPEC` (SetHTTPrequest).
+            // TYPE_PARTIALENUM keeps Ghidra's default-cast arm
+            // (printc.cc:1801 break).
+            // (TypeEnum ctor/decode, type.hh:487-491 + type.cc:1475), so its
+            // TYPE_UINT/TYPE_INT arms reach pushEnumConstant (printc.cc
+            // 1756/1763). Rugra's Enum metatype IS that enum-int/uint
+            // collapse, so it takes the same named path: the getMatches
+            // representation (enum_match_text), else the unsigned integer
+            // TYPE_PARTIALENUM keeps Ghidra's default-cast arm (printc.cc
+            // 1801 -> 1806-1815).
+            TypeMetatype::Enum => self.enum_constant_text(val, ct),
+            TypeMetatype::Unknown => {
+                // printc.cc:1766-1768: push_integer(val,ct->getSize(),
+                // false,tag,vn,op) — pure integer, NO symbol query
+                // (PRINTC-UNTYPEDCONST-CODEQUERY-0001: the queryFunction
+                // gate is TYPE_PTR->TYPE_CODE only, cc:1786-1788).
+                self.integer_text_flagged(
+                    val, sz, false, display_format::DEFAULT,
+                    force_unsigned, force_sized,
+                )
+            }
+            ,
+            TypeMetatype::Bool => {
+                // pushBoolConstant: printc.cc:1488-1495.
+                if val != 0 { "true".to_string() } else { "false".to_string() }
+            }
+            TypeMetatype::Void => {
+                // printc.cc:1772-1774: clear(); throw LowlevelError. Rugra:
+                // the same marker the direct-emit path prints (no panic in
+                // the emit path).
+                "/* void constant */".to_string()
+            }
+            TypeMetatype::Float => {
+                // push_float (printc.cc:1791-1793 -> 1380-1424), text form.
+                self.push_float_text(val, sz as i32)
+            }
+            TypeMetatype::Pointer => {
+                // printc.cc:1775-1790 (TYPE_PTR/TYPE_PTRREL arm).
+                if self.option_null && val == 0 {
+                    // pushAtom(Atom(nullToken,vartoken,var_color,op,vn));
+                    return "NULL".to_string();
+                }
+                if let Datatype::Pointer(p) = ct {
+                    // if (subtype->isCharPrint()) { (1782)
+                    if p.ptr_to.is_char_print() {
+                        // if (pushPtrCharConstant(val,ct,vn,op)) return; (1783-1784)
+                        if let Some(text) = self.ptr_char_constant_text(val, ct, op) {
+                            return text;
+                        }
+                    } else if p.ptr_to.get_metatype() == TypeMetatype::Code {
+                        // else if (subtype->getMetatype()==TYPE_CODE) { (1786)
+                        //   if (pushPtrCodeConstant(val,ct,vn,op)) return; (1787-1788)
+                        if let Some(name) = self.ptr_code_constant_text(val, ct) {
+                            return name;
+                        }
+                    }
+                }
+                // break; -> default cast (printc.cc:1790 + 1806-1815);
+                // cc:1814's push_integer passes vn, so the suffix flags
+                // apply on this arm too.
+                self.default_cast_constant_text_flagged(
+                    val, ct, force_unsigned, force_sized,
+                )
+            }
+            _ => {
+                // Struct/Union/Array/Code/Spacebase/Enum-meta: default cast
+                // (cc:1814 push_integer with vn — flags apply).
+                self.default_cast_constant_text_flagged(
+                    val, ct, force_unsigned, force_sized,
+                )
+            }
+        }
+    }
+
+    // Ghidra: printc.cc:1744 PrintC::pushConstant
+    /// The RPN leaf's `pushConstant` dispatch, returning the literal text of
+    /// a constant varnode: resolves the read-facing type (as in
+    /// `PrintLanguage::pushVnExplicit`, printlanguage.cc:225-227) and
+    /// delegates the metatype arms to `constant_text_dispatch`. Untyped
+    /// constants whose HighVariable has no read-facing type take the
+    /// TYPE_UNKNOWN arm. The default-cast prefix is spelled by
+    /// `cast_type_string` (the pushType fold above) so unnamed canonical
+    /// pointers print `(undefined *)0x0` instead of `()0x0`.
+    fn constant_leaf_text(&mut self, vn: &Varnode, op: Option<&PcodeOp>) -> String {
         let val = vn.get_offset();
         // printc.cc:1296-1312: the explicit-print suffix flags travel with
         // the varnode into every push_integer leaf dispatch below
@@ -2336,112 +2452,7 @@ impl PrintC {
                 force_unsigned, force_sized,
             );
         };
-        let sz = ct.get_size();
-        match ct.get_metatype() {
-            TypeMetatype::Uint => {
-                if ct.is_char_print() {
-                    self.char_constant_text(val, sz, false, display_format::DEFAULT)
-                } else if ct.is_enum_type() {
-                    self.enum_constant_text(val, &ct)
-                } else {
-                    self.integer_text_flagged(
-                        val, sz, false, display_format::DEFAULT,
-                        force_unsigned, force_sized,
-                    )
-                }
-            }
-            TypeMetatype::Int => {
-                if ct.is_char_print() {
-                    self.char_constant_text(val, sz, true, display_format::DEFAULT)
-                } else if ct.is_enum_type() {
-                    self.enum_constant_text(val, &ct)
-                } else {
-                    self.integer_text_flagged(
-                        val, sz, true, display_format::DEFAULT,
-                        force_unsigned, force_sized,
-                    )
-                }
-            }
-            // Ghidra stores enums as TYPE_INT/TYPE_UINT + the enumtype flag
-            // (TypeEnum ctor/decode, type.hh:490-494 / type.cc:1475), so its
-            // TYPE_UINT/TYPE_INT arms reach pushEnumConstant
-            // (printc.cc:1756/1763). Rugra's Enum metatype IS that
-            // enum-int/uint collapse, so it takes the same named path: the
-            // getMatches representation (enum_match_text — `A`, `A|B`,
-            // `~(A|B)`, `... >> n`), else the unsigned integer
-            // (printc.cc:1684-1686). Locked witnesses: `return CURLE_OK;`
-            // (main_init), `*store != HTTPREQ_UNSPEC` (SetHTTPrequest).
-            // TYPE_PARTIALENUM keeps Ghidra's default-cast arm
-            // (printc.cc:1801 break).
-            // (TypeEnum ctor/decode, type.hh:487-491 + type.cc:1475), so its
-            // TYPE_UINT/TYPE_INT arms reach pushEnumConstant (printc.cc
-            // 1756/1763). Rugra's Enum metatype IS that enum-int/uint
-            // collapse, so it takes the same named path: the getMatches
-            // representation (enum_match_text), else the unsigned integer
-            // TYPE_PARTIALENUM keeps Ghidra's default-cast arm (printc.cc
-            // 1801 -> 1806-1815).
-            TypeMetatype::Enum => self.enum_constant_text(val, &ct),
-            TypeMetatype::Unknown => {
-                // printc.cc:1766-1768: push_integer(val,ct->getSize(),
-                // false,tag,vn,op) — pure integer, NO symbol query
-                // (PRINTC-UNTYPEDCONST-CODEQUERY-0001: the queryFunction
-                // gate is TYPE_PTR->TYPE_CODE only, cc:1786-1788).
-                self.integer_text_flagged(
-                    val, sz, false, display_format::DEFAULT,
-                    force_unsigned, force_sized,
-                )
-            }
-            ,
-            TypeMetatype::Bool => {
-                // pushBoolConstant: printc.cc:1488-1495.
-                if val != 0 { "true".to_string() } else { "false".to_string() }
-            }
-            TypeMetatype::Void => {
-                // printc.cc:1772-1774: clear(); throw LowlevelError. Rugra:
-                // the same marker the direct-emit path prints (no panic in
-                // the emit path).
-                "/* void constant */".to_string()
-            }
-            TypeMetatype::Float => {
-                // push_float (printc.cc:1791-1793 -> 1380-1424), text form.
-                self.push_float_text(val, sz as i32)
-            }
-            TypeMetatype::Pointer => {
-                // printc.cc:1775-1790 (TYPE_PTR/TYPE_PTRREL arm).
-                if self.option_null && val == 0 {
-                    // pushAtom(Atom(nullToken,vartoken,var_color,op,vn));
-                    return "NULL".to_string();
-                }
-                if let Datatype::Pointer(p) = ct.as_ref() {
-                    // if (subtype->isCharPrint()) { (1782)
-                    if p.ptr_to.is_char_print() {
-                        // if (pushPtrCharConstant(val,ct,vn,op)) return; (1783-1784)
-                        if let Some(text) = self.ptr_char_constant_text(val, &ct, op) {
-                            return text;
-                        }
-                    } else if p.ptr_to.get_metatype() == TypeMetatype::Code {
-                        // else if (subtype->getMetatype()==TYPE_CODE) { (1786)
-                        //   if (pushPtrCodeConstant(val,ct,vn,op)) return; (1787-1788)
-                        if let Some(name) = self.ptr_code_constant_text(val, &ct) {
-                            return name;
-                        }
-                    }
-                }
-                // break; -> default cast (printc.cc:1790 + 1806-1815);
-                // cc:1814's push_integer passes vn, so the suffix flags
-                // apply on this arm too.
-                self.default_cast_constant_text_flagged(
-                    val, &ct, force_unsigned, force_sized,
-                )
-            }
-            _ => {
-                // Struct/Union/Array/Code/Spacebase/Enum-meta: default cast
-                // (cc:1814 push_integer with vn — flags apply).
-                self.default_cast_constant_text_flagged(
-                    val, &ct, force_unsigned, force_sized,
-                )
-            }
-        }
+        self.constant_text_dispatch(val, &ct, op, force_unsigned, force_sized)
     }
 
     // Ghidra: printc.cc:1666 PrintC::pushEnumConstant
@@ -7718,14 +7729,6 @@ impl PrintC {
                         } else {
                             (None, 8, false)
                         };
-                    let is_char_print = switch_ct.as_ref().map_or(false, |ct| {
-                        matches!(
-                    ct.get_metatype(),
-                            crate::type_system::TypeMetatype::Int
-                            | crate::type_system::TypeMetatype::Uint
-                )
-                            && ct.get_name() == "char"
-                    });
 
                     // cc:3331-3349: emit one label group + body per case block.
                     // cc:3140-3145 + cc:3331-3332: the default case — part of
@@ -7781,22 +7784,44 @@ impl PrintC {
                             // cc:3153: pushConstant(val,ct,casetoken,
                             //   (Varnode *)0,op) — the FULL pushConstant
                             //   dispatch with a null vn (no equate-symbol
-                            //   arm, displayFormat 0). The charprint arm is
-                            //   pushCharConstant's vn-null shape:
-                            //   char_constant_text with DEFAULT format (the
-                            //   >=0x80 one-byte labels fall back to the
+                            //   arm, displayFormat 0), routed through
+                            //   constant_text_dispatch so every metatype arm
+                            //   matches the oracle: char-print types take
+                            //   pushCharConstant's vn-null shape
+                            //   (char_constant_text with DEFAULT format —
+                            //   the >=0x80 one-byte labels fall back to the
                             //   plain integer exactly like printc.cc:1630-
-                            //   1640, not the hex-escaped CHAR forcing the
-                            //   former code applied).
-                            if is_char_print {
-                                self.emit.print(&self.char_constant_text(
-                                    *val, switch_sz, switch_signed,
-                                    display_format::DEFAULT,
-                                ));
-                            } else {
-                                self.push_integer(*val, switch_sz, switch_signed,
-                                    display_format::DEFAULT);
-                            }
+                            //   1640, not the hex-escaped CHAR forcing),
+                            //   enums print their member names, and a
+                            //   TYPE_PTR switch variable takes the default
+                            //   cast arm (printc.cc:1806-1815) —
+                            //   `case (int4 *)0x1:` (sqlite3TableAffinity /
+                            //   sqlite3_serialize / VdbeRecordCompare
+                            //   witnesses). op (cc:3138 firstOp of the case
+                            //   block) anchors only pushPtrCharConstant's
+                            //   resolveConstant point.
+                            let case_first_op: Option<crate::op::PcodeOpRef> =
+                                case_block.read().unwrap().first_op();
+                            let case_first_op_guard = case_first_op
+                                .as_ref()
+                                .map(|r| r.0.read().unwrap());
+                            let case_text = match switch_ct.as_ref() {
+                                Some(ct) => self.constant_text_dispatch(
+                                    *val, ct, case_first_op_guard.as_deref(),
+                                    false, false,
+                                ),
+                                None => {
+                                    // TYPE_UNKNOWN arm (printc.cc:1766-1768):
+                                    // pure push_integer, no symbol query.
+                                    self.integer_text_with_mods(
+                                        *val, switch_sz, switch_signed,
+                                        display_format::DEFAULT, self.mods,
+                                        false, false,
+                                    )
+                                }
+                            };
+                            drop(case_first_op_guard);
+                            self.emit.print(&case_text);
                             self.emit.print(":");
                         }
 
@@ -22496,4 +22521,57 @@ mod tests {
             );
         }
     }
+    // MIRROR-GIANTS-SWITCHDISPATCH-0001: pushConstant's metatype dispatch is
+    // shared by the case-label emission (printc.cc:3153's null-vn call), so a
+    // TYPE_PTR switch variable must print `case (int4 *)0x1:` labels. This
+    // pins the Pointer arm's default-cast text and the enum arm's member
+    // text on the shared dispatch.
+    #[test]
+    fn test_constant_text_dispatch_case_label_arms() {
+        use crate::type_system::datatype::{TypeBase, TypeEnum, TypePointer};
+        use crate::type_system::Datatype;
+
+        let emit: Box<dyn crate::prettyprint::Emit> =
+            Box::new(crate::prettyprint::EmitNoMarkup::new());
+        let mut printer = PrintC::new(emit);
+
+        // int4 * — the sqlite3TableAffinity switch variable shape.
+        let int4 = Arc::new(Datatype::Base(TypeBase::new(
+            "int4".to_string(), 4, crate::type_system::TypeMetatype::Uint,
+        )));
+        let int4_ptr = Arc::new(Datatype::Pointer(TypePointer {
+            base: TypeBase::new(String::new(), 8, crate::type_system::TypeMetatype::Pointer),
+            ptr_to: int4.clone(),
+            wordsize: 1,
+        }));
+        assert_eq!(
+            printer.constant_text_dispatch(0x1, &int4_ptr, None, false, false),
+            "(int4 *)0x1",
+            "pointer-typed case label takes the default cast (printc.cc:1806-1815)"
+        );
+
+        // NULL token: option_NULL is off in the production config, and the
+        // default mirror has it off as well — val 0 prints the cast form.
+        assert_eq!(
+            printer.constant_text_dispatch(0x0, &int4_ptr, None, false, false),
+            "(int4 *)0x0",
+            "null pointer constant prints the cast when option_NULL is unset"
+        );
+
+        // enum: exact member name via the getMatches slice.
+        let mut tenum = TypeEnum {
+            base: TypeBase::new(
+                "aff".to_string(), 4, crate::type_system::TypeMetatype::Uint,
+            ),
+            values: std::collections::BTreeMap::from([(0x5, "AFF_A".to_string())]),
+        };
+        tenum.base.flags |= crate::type_system::datatype::type_flags::ENUMTYPE;
+        let et = Arc::new(Datatype::Enum(tenum));
+        assert_eq!(
+            printer.constant_text_dispatch(0x5, &et, None, false, false),
+            "AFF_A",
+            "enum-typed case label prints the member name (printc.cc:1756/1763)"
+        );
+    }
+
 }

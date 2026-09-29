@@ -1,5 +1,28 @@
 # `printc.rs` API Reference
 
+## 2026-09-29：case 标签经完整 pushConstant 分派（CASE-CAST 子族, Lane SWITCHDISPATCH / MIRROR-GIANTS-SWITCHDISPATCH-0001）
+
+- **现象（sqlite 镜面 60 行/4 函数）**：golden `case (int4 *)0x1:` /
+  `case (int8 *)0x2:`（sqlite3TableAffinity ×6 + sqlite3_serialize ×10 +
+  sqlite3VdbeRecordCompare{,WithSkip}），Rugra 全部印 `case 0x1:`。
+- **根因**：`emitSwitchCase` 的 case 值发射（printc.cc:3153
+  `pushConstant(val,ct,casetoken,(Varnode *)0,op)`）是**完整 metatype
+  分派**——`ct = switchbl->getSwitchType()`（cc:3137，BRANCHIND 输入
+  varnode 的类型）为 TYPE_PTR 时走默认 cast 臂（cc:1806-1815
+  `pushOp(&typecast)+pushType`），enum 类型走成员名臂（cc:1756/1763）。
+  Rugra 的 case 值发射只手写了 charprint/整数两臂，缺 Pointer 默认
+  cast 与 enum 成员名——指针型 switch 变量（TableAffinity 的
+  `(int4*)` 强转链）的 case 标签丢 cast。
+- **修复**：`constant_leaf_text` 的 metatype match 抽出为
+  `constant_text_dispatch(val, ct, op, force_unsigned, force_sized)`
+  （printc.cc:1749-1815 的共享分派核；vn→ct 解析与 print flags 留在
+  vn 载体调用方），case 标签点改道经该分派（op = cc:3138 case 块
+  firstOp 锚点，flags 恒 false——null vn 无 flags）。None-ct（无类型
+  switch 变量）保持 TYPE_UNKNOWN 臂纯整数。单测
+  `test_constant_text_dispatch_case_label_arms` 钉 `(int4 *)0x1` /
+  `(int4 *)0x0` / enum 成员名三形。canon curl/httpd md5 恒等钉值
+  （4ab1db2a/7d5b9e7c）；bank 391/391；tests 1975P。
+
 ## 2026-09-29：flat 尾 goto 收到函数级 flat 门（MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001 / Lane SWITCHBREAK）
 
 - **根因（switch case 尾 `goto code_rXXXX;` vs golden `break;`）**：
