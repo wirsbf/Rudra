@@ -747,6 +747,43 @@ pub fn compare_cse_hash(
     a.0 < b.0
 }
 
+// RUGRA-GLUE: per-walk op→callspec resolution memo for
+// `Funcdata::get_call_specs_of_op` (see the comment inside that method).
+// Active only inside an `OpSpecMemoScope` opened by the parameter-recovery
+// walks; `None` = inactive.
+thread_local! {
+    static OP_SPEC_MEMO: std::cell::RefCell<
+        Option<std::collections::HashMap<usize, Option<usize>>>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+/// RAII scope activating the op→callspec resolution memo for the enclosed
+/// parameter-recovery walk (RUGRA-GLUE; no Ghidra counterpart — Ghidra
+/// resolves specs with bare pointer reads, funcdata.cc:484-497). Dropping
+/// the guard clears the memo, so no cached resolution can outlive the walk
+/// that produced it.
+pub(crate) struct OpSpecMemoScope;
+
+impl OpSpecMemoScope {
+    // RUGRA-GLUE: RAII enter (memo 域激活——纯 Rust 生命周期胶水,无 Ghidra 对应物)
+    pub(crate) fn enter() -> Self {
+        OP_SPEC_MEMO.with(|m| {
+            *m.borrow_mut() = Some(std::collections::HashMap::new());
+        });
+        OpSpecMemoScope
+    }
+}
+
+// RUGRA-GLUE: Drop 清域 (RAII 退出胶水——保证缓存解析不越出产生它的走查)
+impl Drop for OpSpecMemoScope {
+    // RUGRA-GLUE: fn drop 本体 (RAII 退出胶水,无 Ghidra 对应物)
+    fn drop(&mut self) {
+        OP_SPEC_MEMO.with(|m| {
+            *m.borrow_mut() = None;
+        });
+    }
+}
+
 impl Funcdata {
     // Ghidra: funcdata.cc:34 Funcdata::Funcdata
     /// Create a new Funcdata instance. Faithful to the constructor
@@ -2132,6 +2169,28 @@ impl Funcdata {
         &self,
         op: &crate::op::PcodeOpRef,
     ) -> Option<Arc<RwLock<crate::fspec::FuncCallSpecs>>> {
+        // Per-walk resolution memo (RUGRA-GLUE). Ghidra's fast path is a
+        // constant-space pointer read (funcdata.cc:486-487) and its fallback
+        // is a bare-pointer scan (funcdata.cc:489-490); Rugra's form pays a
+        // lock + Weak upgrade per spec per resolution. During the parameter
+        // recovery walks (FuncCallSpecs::checkInputTrialUse's trial loop and
+        // the return-recovery trial loop in ActionReturnRecovery) neither
+        // the callspecs list nor any spec's op binding can change — the
+        // walks are read-only on calls, and the opSetInput/newConstant tail
+        // runs only after checkInputTrialUse returns — so a resolution
+        // depends only on the op identity and caching the first result for
+        // the duration of one walk is observationally identical to
+        // recomputing. Outside an active memo scope the original resolution
+        // path below runs unchanged.
+        let memo_key = Arc::as_ptr(&op.0) as usize;
+        let memo_hit = OP_SPEC_MEMO.with(|m| {
+            m.borrow()
+                .as_ref()
+                .and_then(|map| map.get(&memo_key).cloned())
+        });
+        if let Some(cached) = memo_hit {
+            return cached.and_then(|idx| self.callspecs.get(idx).cloned());
+        }
         let in0 = op.0.read().unwrap().inrefs.first().cloned()?;
         let (space, is_annotation, typed) = {
             let vn = in0.read().unwrap();
@@ -2148,13 +2207,28 @@ impl Funcdata {
                     .map(|bound| Arc::ptr_eq(&bound, &op.0))
                     .unwrap_or(false);
                 if owned && same_op {
+                    // Cache the fast-path hit under the memo scope (see the
+                    // header comment): the owned check above has already
+                    // proven fc is in the list.
+                    if let Some(idx) = self
+                        .callspecs
+                        .iter()
+                        .position(|item| Arc::ptr_eq(item, &fc))
+                    {
+                        OP_SPEC_MEMO.with(|m| {
+                            if let Some(map) = m.borrow_mut().as_mut() {
+                                map.insert(memo_key, Some(idx));
+                            }
+                        });
+                    }
                     return Some(fc);
                 }
             }
         }
         // Ghidra's fallback compares `fc->getOp() == op`, never addresses or
         // the integer offset of a non-FSPEC constant.
-        self.callspecs
+        let found = self
+            .callspecs
             .iter()
             .find(|fc| {
                 fc.read()
@@ -2164,7 +2238,29 @@ impl Funcdata {
                     .map(|bound| Arc::ptr_eq(&bound, &op.0))
                     .unwrap_or(false)
             })
-            .cloned()
+            .cloned();
+        if let Some(found_arc) = &found {
+            // Cache under the memo scope (see the header comment): store the
+            // list index; on hit the early return above re-derives the Arc.
+            if let Some(idx) = self
+                .callspecs
+                .iter()
+                .position(|item| Arc::ptr_eq(item, found_arc))
+            {
+                OP_SPEC_MEMO.with(|m| {
+                    if let Some(map) = m.borrow_mut().as_mut() {
+                        map.insert(memo_key, Some(idx));
+                    }
+                });
+            }
+        } else {
+            OP_SPEC_MEMO.with(|m| {
+                if let Some(map) = m.borrow_mut().as_mut() {
+                    map.insert(memo_key, None);
+                }
+            });
+        }
+        found
     }
 
     // Ghidra: funcdata.cc:34 Funcdata::getCallSpecsMut
@@ -18690,24 +18786,28 @@ impl AncestorRealistic {
     /// Returns the command for the next traversal step.
     fn enter_node(&mut self) -> i32 {
         use crate::opcodes::OpCode as OC;
-        let (op_arc, slot, state_offset) = {
+        // Single tail snapshot (funcdata.hh:673 State ctor reads): the
+        // pull-back view and the op/slot/offset triple observe the same
+        // immutable stack top, so one read serves both (oracle reads the
+        // bare State once).
+        let (op_arc, slot, state_offset, state_snapshot) = {
             let state = self.state_stack.last().unwrap();
-            (state.op.clone(), state.slot, state.offset)
+            (
+                state.op.clone(),
+                state.slot,
+                state.offset,
+                ArState {
+                    op: state.op.clone(),
+                    slot: state.slot,
+                    flags: state.flags,
+                    offset: state.offset,
+                },
+            )
         };
         // Resolve the Varnode being traversed: vn = op.getIn(slot)
         let state_vn = {
             let op_rg = op_arc.read().unwrap();
             op_rg.get_in(slot as usize).cloned()
-        };
-        // The pull-back constructor view of the current state (funcdata.hh:685).
-        let state_snapshot = {
-            let state = self.state_stack.last().unwrap();
-            ArState {
-                op: state.op.clone(),
-                slot: state.slot,
-                flags: state.flags,
-                offset: state.offset,
-            }
         };
         let state_vn = match state_vn {
             Some(v) => v,
@@ -19219,19 +19319,34 @@ fn only_op_use(
         vn.set_mark();
     }
     varlist.push(TNode { vn: invn.clone(), flags: main_flags });
+    // Oracle reads `opmatch->code()` (a bare field load, funcdata_varnode.cc
+    // :1850) inside the loop. Rugra's read is a RwLock acquisition, and
+    // nothing in the walk mutates any op's opcode (the walk is read-only on
+    // ops; varnode/op marks and the trial are the only writes, and the
+    // opSetInput tail runs only after the walk returns), so hoisting the
+    // read out of the loop observes the same value on every iteration.
+    let opmatch_is_return = opmatch.0.read().unwrap().opcode == OC::CPUI_RETURN;
+    // Reused descendant buffer: oracle iterates `vn->descend` in place
+    // (funcdata_varnode.cc:1818); the Rugra form snapshots upgraded Arcs so
+    // no vn guard is held across the per-op body. Reusing one buffer across
+    // the visits preserves the exact per-visit snapshot semantics
+    // (same content, same order) without a fresh allocation per visit.
+    let mut descend_buf: Vec<Arc<RwLock<crate::op::PcodeOp>>> = Vec::new();
     let mut idx = 0;
     let mut res = true;
     while idx < varlist.len() {
         let base_flags = varlist[idx].flags;
         let vn_arc = varlist[idx].vn.clone();
-        let descends: Vec<Arc<RwLock<crate::op::PcodeOp>>> = vn_arc
-            .read()
-            .unwrap()
-            .descend
-            .iter()
-            .filter_map(|w| w.upgrade())
-            .collect();
-        for op_arc in descends {
+        descend_buf.clear();
+        descend_buf.extend(
+            vn_arc
+                .read()
+                .unwrap()
+                .descend
+                .iter()
+                .filter_map(|w| w.upgrade()),
+        );
+        for op_arc in descend_buf.drain(..) {
             let op_rg = op_arc.read().unwrap();
             // cc:1824-1826: op == opmatch is not a use when this vn is the
             // trial slot's varnode (otherwise fall through to the switch).
@@ -19244,7 +19359,6 @@ fn only_op_use(
                 }
             }
             let mut cur_flags = base_flags;
-            let opmatch_is_return = opmatch.0.read().unwrap().opcode == OC::CPUI_RETURN;
             match op_rg.opcode {
                 // cc:1829-1835: These ops define a USE of a variable.
                 OC::CPUI_BRANCH
@@ -19417,8 +19531,12 @@ pub fn ancestor_op_use(
         OC::CPUI_INDIRECT => {
             // cc:1933-1938: an indirectCreation is an indication of an
             // output trial, this should not count as an "only use".
-            if def_arc.read().unwrap().is_indirect_creation() { return false; }
-            let in0 = def_arc.read().unwrap().get_in(0).cloned();
+            // Single def-op guard snapshot (pure-read span).
+            let (is_indirect_creation, in0) = {
+                let d = def_arc.read().unwrap();
+                (d.is_indirect_creation(), d.get_in(0).cloned())
+            };
+            if is_indirect_creation { return false; }
             match in0 {
                 Some(v) => ancestor_op_use(
                     fd, maxlevel - 1, &v, op, trial, offset,
@@ -19447,19 +19565,21 @@ pub fn ancestor_op_use(
             result
         }
         OC::CPUI_COPY => {
-            // cc:1953-1957.
-            let out_internal = def_arc
-                .read()
-                .unwrap()
-                .get_out()
-                .map(|v| v.read().unwrap().get_space() == AddressSpace::Unique)
-                .unwrap_or(false);
-            let op_incidental = def_arc.read().unwrap().is_incidental_copy();
-            let in0 = def_arc.read().unwrap().get_in(0).cloned();
-            let in0_incidental = in0
-                .as_ref()
-                .map(|v| v.read().unwrap().is_incidental_copy())
-                .unwrap_or(false);
+            // cc:1953-1957. Single def-op guard snapshot (pure-read span;
+            // oracle reads the bare fields once each).
+            let (out_internal, op_incidental, in0, in0_incidental) = {
+                let d = def_arc.read().unwrap();
+                let out_internal = d
+                    .get_out()
+                    .map(|v| v.read().unwrap().get_space() == AddressSpace::Unique)
+                    .unwrap_or(false);
+                let in0 = d.get_in(0).cloned();
+                let in0_incidental = in0
+                    .as_ref()
+                    .map(|v| v.read().unwrap().is_incidental_copy())
+                    .unwrap_or(false);
+                (out_internal, d.is_incidental_copy(), in0, in0_incidental)
+            };
             if out_internal || op_incidental || in0_incidental {
                 match in0 {
                     Some(v) => ancestor_op_use(fd, maxlevel - 1, &v, op, trial, offset, main_flags, match_fc),
@@ -19498,19 +19618,27 @@ pub fn ancestor_op_use(
             }
         }
         OC::CPUI_SUBPIECE => {
-            // cc:1965-1985.
-            let in1_off = def_arc
-                .read()
-                .unwrap()
-                .get_in(1)
-                .map(|v| v.read().unwrap().get_offset() as i32)
-                .unwrap_or(0);
+            // cc:1965-1985. Single def-op guard snapshot for the pure-read
+            // span (oracle reads the bare fields once each); the DIV kludge
+            // keeps its own short-lived vn/remop reads.
+            let (in1_off, in0, out_internal, op_incidental) = {
+                let d = def_arc.read().unwrap();
+                let in1_off = d
+                    .get_in(1)
+                    .map(|v| v.read().unwrap().get_offset() as i32)
+                    .unwrap_or(0);
+                let in0 = d.get_in(0).cloned();
+                let out_internal = d
+                    .get_out()
+                    .map(|v| v.read().unwrap().get_space() == AddressSpace::Unique)
+                    .unwrap_or(false);
+                (in1_off, in0, out_internal, d.is_incidental_copy())
+            };
             if in1_off == 0 {
                 // Kludge around a DIV (or similar) causing the register that
                 // looks like the high precision piece of the return to be
                 // set with the remainder as a side effect.
-                let in0 = def_arc.read().unwrap().get_in(0).cloned();
-                if let Some(v) = in0 {
+                if let Some(v) = &in0 {
                     if v.read().unwrap().is_written() {
                         let remop = v.read().unwrap().get_def();
                         if let Some(remop) = remop {
@@ -19522,14 +19650,6 @@ pub fn ancestor_op_use(
                     }
                 }
             }
-            let out_internal = def_arc
-                .read()
-                .unwrap()
-                .get_out()
-                .map(|v| v.read().unwrap().get_space() == AddressSpace::Unique)
-                .unwrap_or(false);
-            let op_incidental = def_arc.read().unwrap().is_incidental_copy();
-            let in0 = def_arc.read().unwrap().get_in(0).cloned();
             let in0_incidental = in0
                 .as_ref()
                 .map(|v| v.read().unwrap().is_incidental_copy())

@@ -3644,6 +3644,14 @@ impl FuncCallSpecs {
         // &mut binding) so `&self` can be supplied to ancestorOpUse as
         // checkCallDoubleUse's match spec at the call sites below.
         let num_trials = self.active_input.get_num_trials();
+        // Activate the per-walk op→callspec resolution memo for the trial
+        // loop (RUGRA-GLUE; see Funcdata::get_call_specs_of_op). Inside one
+        // checkInputTrialUse call the call list and every spec's op binding
+        // are immutable — Ghidra's plain-pointer resolution is order-free,
+        // and Rugra's memoized resolution returns exactly the uncached
+        // value for every op identity. Cleared on exit, before the caller's
+        // opSetInput/newConstant tail can mutate anything the memo saw.
+        let _op_spec_memo = crate::funcdata::OpSpecMemoScope::enter();
         for i in 0..num_trials {
             if self.active_input.get_trial(i).is_checked() { continue; }
             let slot = self.active_input.get_trial(i).get_slot();
