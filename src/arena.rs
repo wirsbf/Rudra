@@ -139,7 +139,7 @@ arena_id_type! {
     VnId
 }
 arena_id_type! {
-    /// Handle to a `FlowBlock` slot in the block arena (block.hh:119 FlowBlock).
+    /// Handle to a `FlowBlock` slot in the block arena (block.hh:73 FlowBlock).
     BlockId
 }
 arena_id_type! {
@@ -642,16 +642,22 @@ impl<L: Linked> IdList<L> {
     /// `first` lands immediately after `pos` (same-list splice).
     ///
     /// `pos == SENTINEL` moves the range to the front. O(1). The chain
-    /// length is unchanged. The degenerate case where the range already sits
-    /// right after `pos` is a no-op, mirroring the oracle guard exactly.
+    /// length is unchanged. Two inputs are provable no-ops, mirroring the
+    /// oracle: the range already sitting right after `pos` (op.cc:1063
+    /// guard), and `pos == last` — re-homing the range immediately after
+    /// its own final element is the identity.
     ///
     /// Contract: `first..=last` contiguous members of this chain, `pos` a
-    /// member (or the sentinel) and **not inside** the moved range — the
-    /// same requirement `std::list::splice` has; debug builds walk the range
-    /// to verify.
+    /// member (or the sentinel) and **not inside the open interior
+    /// `[first, last)`** — exactly the `std::list::splice` precondition,
+    /// which is half-open: `pos == last` is a legal boundary (oracle
+    /// `prev == lastop` makes `previter = ++lastop = enditer` and
+    /// `splice(enditer, …)` a no-op), only the interior is forbidden.
+    /// Debug builds walk the range to verify.
     // Ghidra: op.cc:1056 PcodeOpBank::moveSequenceDead (splice(previter,
     // deadlist, firstop->insertiter, enditer) with the degenerate guard at
-    // op.cc:1063).
+    // op.cc:1063; prev == lastop ⇒ previter == enditer is the legal
+    // pos == last no-op guarded below).
     pub fn splice_after(
         &mut self,
         arena: &mut Arena<L::Elem, L::Id>,
@@ -661,6 +667,17 @@ impl<L: Linked> IdList<L> {
     ) {
         if cfg!(debug_assertions) {
             self.debug_assert_range(arena, first, last, pos);
+        }
+        // Second degenerate guard — op.cc:1056-1065: with prev == lastop,
+        // previter = ++lastop = enditer and std::list::splice(enditer,
+        // deadlist, firstop->insertiter, enditer) is a legal no-op (the
+        // half-open precondition only forbids pos ∈ [first, last); the
+        // sequence already sits immediately before enditer). Must return
+        // here: falling through would double-write `last`'s next link (the
+        // re-attach step writes pos.next = first while pos IS last) and
+        // leave an unreachable first..=last ring.
+        if pos == last {
+            return;
         }
         let first_prev = L::prev(arena.get(first).expect("splice_after: first not live"));
         let last_next = L::next(arena.get(last).expect("splice_after: last not live"));
@@ -747,10 +764,18 @@ impl<L: Linked> IdList<L> {
         IdListIter { arena, cur: self.head, remaining: Some(self.len) }
     }
 
-    /// Iterate starting at `start` (inclusive) to the tail. If `start` is
-    /// the sentinel, yields nothing.
-    // Ghidra: op.cc:1071 PcodeOpBank::markIncidentalCopy (iterates the
-    /// insertiter range [firstop, lastop] — partial chain walks).
+    /// Iterate starting at `start` (inclusive) **to the chain tail** —
+    /// the unbounded form. If `start` is the sentinel, yields nothing.
+    /// This is NOT equivalent to `markIncidentalCopy`'s walk: the oracle
+    /// iterates the **bounded** range `[firstop, ++lastop)`
+    /// (op.cc:1071-1083). A faithful W1 port of `markIncidentalCopy`
+    /// must build a bounded variant on top of this (e.g. a
+    /// take-until-`last` helper), never call `iter_from` as-is — doing so
+    /// would run past `lastop` and flag COPYs outside the incidental
+    /// range (CR-ARENACORE F3).
+    // Ghidra: op.cc:1071 PcodeOpBank::markIncidentalCopy (bounded
+    /// [firstop, ++lastop) range walk — cited as the oracle shape for
+    /// partial chain walks, not as this method's exact semantics).
     pub fn iter_from<'a>(
         &'a self,
         arena: &'a Arena<L::Elem, L::Id>,
@@ -783,7 +808,9 @@ impl<L: Linked> Default for IdList<L> {
 impl<L: Linked> IdList<L> {
     /// Debug-only range validation for `splice_after`: `first..=last` is a
     /// contiguous run of this chain and `pos` (when not the sentinel) is
-    /// outside it.
+    /// outside the open interior `[first, last)` — `pos == last` is the
+    /// legal boundary (the oracle splice-at-enditer no-op), not a
+    /// violation.
     // RUGRA-GLUE: debug invariant walk — the oracle relies on std::list
     // splice preconditions being respected by construction; we check them.
     fn debug_assert_range(
@@ -796,11 +823,15 @@ impl<L: Linked> IdList<L> {
         let mut cur = first;
         let mut steps = 0u32;
         while !cur.is_sentinel() {
-            if !pos.is_sentinel() {
-                debug_assert!(cur != pos, "splice_after: pos is inside the moved range");
-            }
+            // Boundary check comes first: reaching `last` ends the walk,
+            // and pos == last must NOT fire the interior panic below — it
+            // is the legal oracle no-op (std::list::splice with pos at the
+            // end of the half-open range [first, last)).
             if cur == last {
                 return; // reached `last` along the chain: contiguous
+            }
+            if !pos.is_sentinel() {
+                debug_assert!(cur != pos, "splice_after: pos is inside the moved range");
             }
             cur = L::next(
                 arena.get(cur).expect("splice_after: range node vanished"),
@@ -911,6 +942,20 @@ impl SpaceOff {
 /// (the unique time counter). The `order` field is deliberately **not**
 /// part of the key — `SeqNum::operator<` never reads it (address.hh:154-158;
 /// OPTREE lane verified the same projection).
+///
+/// **`!=` quirk (pinned, CR-ARENACORE F2)**: oracle
+/// `SeqNum::operator==`/`operator!=` compare **only `uniq`**
+/// (address.hh:148-151), while this key's `PartialEq` compares the full
+/// `(pc, uniq)`. The two agree on every input reachable inside one bank
+/// because `uniq` is never reused there: op.cc:944 allocates
+/// `SeqNum(pc, uniqid++)` monotonically, op.cc:962-963 force-raise
+/// `uniqid` past any incoming foreign SeqNum, and `setUniqId` (op.hh:306)
+/// is only exercised cross-bank (funcdata_op.cc:858, in-line cloning) —
+/// so same-`uniq`-different-`pc` pairs never coexist in a bank, and the
+/// `!=`-before-`<` gates of varnode.cc:45/:70 (transcribed in the tests
+/// below as full-key `!=`) see identical outcomes. Do NOT "fix" the
+/// equality to uniq-only, and do not introduce `uniq` reuse — either
+/// would silently diverge from the oracle comparators.
 // Ghidra: address.hh:154 SeqNum::operator< (pc then uniq; order excluded).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SeqNumKey {
@@ -1519,6 +1564,59 @@ mod tests {
             .map(|id| arena.get(id).unwrap().label)
             .collect();
         assert_eq!(from4, vec![4, 2]);
+    }
+
+    /// Pinned no-op at the `pos == last` boundary (CR-ARENACORE F1):
+    /// op.cc:1056-1065 with prev == lastop gives previter = ++lastop =
+    /// enditer, and `std::list::splice(enditer, deadlist, first, enditer)`
+    /// is a **legal no-op** — the precondition `pos ∉ [first, last)` is
+    /// half-open, so pos == last is the boundary, not a violation. Both
+    /// build flavors must agree (run this test in debug AND release):
+    /// debug — the range walk must not fire the interior panic; release —
+    /// no surgery at all (the pre-fix release path double-wrote `last`'s
+    /// next link and left an unreachable first..=last ring).
+    #[test]
+    fn splice_pos_eq_last_is_legal_noop() {
+        let mut arena = TestArena::new();
+        let mut list: IdList<InsL> = IdList::new();
+        let ids: Vec<OpId> = (0..6).map(|i| arena.insert(TestOp::new(i))).collect();
+        for id in &ids {
+            list.push_back(&mut arena, *id);
+        }
+        // [0,1,2,3,4,5]; anchor == last, mid-range: untouched.
+        list.splice_after(&mut arena, ids[3], ids[1], ids[3]);
+        assert_eq!(ins_labels(&list, &arena), vec![0, 1, 2, 3, 4, 5]);
+        // suffix range (the flow.cc:1203 / funcdata_op.cc:882 shape: a
+        // freshly created [first..=last] suffix anchored on a pre-existing
+        // op — prev == lastop is unreachable there, but the boundary
+        // itself must still be the identity).
+        list.splice_after(&mut arena, ids[5], ids[2], ids[5]);
+        assert_eq!(ins_labels(&list, &arena), vec![0, 1, 2, 3, 4, 5]);
+        // degenerate single-element range anchored on itself.
+        list.splice_after(&mut arena, ids[2], ids[2], ids[2]);
+        assert_eq!(ins_labels(&list, &arena), vec![0, 1, 2, 3, 4, 5]);
+        assert_eq!(list.len(), 6);
+        assert_eq!(list.head(), Some(ids[0]));
+        assert_eq!(list.tail(), Some(ids[5]));
+        // Chain fully intact: exactly `len` nodes reachable from the head
+        // in identity order, every link bidirectionally consistent,
+        // endpoints sentinel-terminated. (The pre-fix release corruption —
+        // head-reachable [0,4,5] plus an orphaned 1→2→3→1 ring — fails
+        // the very first of these assertions.)
+        let chain: Vec<OpId> = list.iter(&arena).collect();
+        assert_eq!(chain, ids);
+        for w in chain.windows(2) {
+            assert_eq!(InsL::next(arena.get(w[0]).unwrap()), w[1]);
+            assert_eq!(InsL::prev(arena.get(w[1]).unwrap()), w[0]);
+        }
+        assert_eq!(InsL::prev(arena.get(chain[0]).unwrap()), OpId::SENTINEL);
+        assert_eq!(
+            InsL::next(arena.get(chain[chain.len() - 1]).unwrap()),
+            OpId::SENTINEL
+        );
+        // and the chain remains fully functional afterwards.
+        list.splice_after(&mut arena, ids[1], ids[4], ids[5]);
+        assert_eq!(ins_labels(&list, &arena), vec![0, 1, 4, 5, 2, 3]);
     }
 
     #[test]

@@ -152,8 +152,14 @@ impl FusedIterator for IdListIter<'_, L>
 | `insert_after(pos, id)` | `insert(++previter, op)`（op.cc:1045-1047） | pos=SENT ⇒ 头插；pos 须为本链成员 |
 | `insert_before(pos, id)` | `insert(iter, op)` | pos=SENT ⇒ 尾插（before end()） |
 | `unlink(id)` | `list.erase(iter)`（op.cc:1020/1031/996/1044） | **保序删除**；id 须为本链成员；结果 detached |
-| `splice_after(pos, first, last)` | `splice(previter, list, first, last+1)`（op.cc:1064） | 区间 `[first..=last]` 原样移到 pos 之后（pos=SENT ⇒ 移到头）；pos 不得在区间内；已在位 ⇒ no-op（op.cc:1063 守卫逐字保留） |
+| `splice_after(pos, first, last)` | `splice(previter, list, first, last+1)`（op.cc:1064） | 区间 `[first..=last]` 原样移到 pos 之后（pos=SENT ⇒ 移到头）；pos 不得在区间**内部** `[first, last)`——即 `std::list::splice` 的**半开**前条件；`pos == last` 是**合法边界 no-op**（oracle `prev == lastop` ⇒ `previter = ++lastop = enditer`，`splice(enditer, …)` 恒等；已由第二退化守卫保留，CR-ARENACORE F1）；已在位 ⇒ no-op（op.cc:1063 守卫逐字保留） |
 | `clear` | `list.clear()`（op.cc:929-932） | 全部摘下（各自 detached） |
+
+**`iter_from` 有界形态注记（W1 冻结契约，CR-ARENACORE F3）**: `iter_from(start)`
+是**无界**迭代（start → 链尾），**不等价**于 `markIncidentalCopy` 的走查——
+oracle 遍历**有界**区间 `[firstop, ++lastop)`（op.cc:1071-1083）。W1 忠实移植
+`markIncidentalCopy` 必须在有界形式上构建（如 `iter_from(start)` + take-until-
+`last` helper），直接套 `iter_from` 会越过 `lastop` 把区间外的 COPY 一并标记。
 
 **共享链字段纪律（freeze 契约核心）**：alivelist/deadlist 共用**同一** prev/next
 字段（oracle 单一 `insertiter`，op.hh:128，指向当前所在链）。oracle 信任
@@ -195,6 +201,15 @@ pub struct VnDefKey { pub state: VnDefState, pub addr: SpaceOff, pub size: i32 }
 
 pub type KeyedTree<K, Id> = BTreeMap<K, Id>;              // op.hh:280 形态
 ```
+
+**SeqNum `!=` quirk（钉固，CR-ARENACORE F2）**: oracle
+`SeqNum::operator==`/`operator!=` **只比 `uniq`**（address.hh:148-151），
+`SeqNumKey` 的 `PartialEq` 比全键 `(pc, uniq)`。二者在单 bank 内所有可达输入上
+等价——不变式链: op.cc:944 `SeqNum(pc, uniqid++)` 单调分配 + op.cc:962-963 对
+外来 SeqNum 强制抬升计数器 + `setUniqId`（op.hh:306）仅用于跨 bank 克隆
+（funcdata_op.cc:858）⇒ bank 内 `uniq` 从不复用，same-uniq-different-pc 不可达
+⇒ varnode.cc:45/:70 的 `!=`-before-`<` 门（测试转写为全键 `!=`）结论恒同。
+**禁止**改成 uniq-only 判等或引入 `uniq` 复用——两者都会静默偏离 oracle 比较器。
 
 **槽内键副本纪律**：元素存自己当前键的副本；树删除用该副本（= 存储迭代器），
 键重算只允许在 oracle 擦除+重插的同一位点（`xref`/`setDef`/`setInput`/
@@ -246,6 +261,10 @@ debug 构建调用；漏擦在 id 形态下**可见**（get→None），这是�
 - gen 悬垂守卫/哨兵槽/clear 单调性/位打包 roundtrip 单测全绿。
 - 契约违反 debug 断言测试（双 unlink/重复入链/splice 位点在区间内/非连续
   区间）全绿（debug_assertions 门控）。
+- `splice_pos_eq_last_is_legal_noop`（CR-ARENACORE F1 修复新增）:
+  `pos == last` 边界 = oracle `splice(enditer, …)` 合法 no-op，
+  **debug/release 双形态同测**——debug 走查不触发 interior panic，
+  release 零手术 + 全链完好断言（恒等序/len/head/tail/双向链接/哨兵端点）。
 - microbench：`micro_arena_vs_box_arc_alloc_throughput`、
   `micro_unlink_vs_retain_markdead_form`（数字见车道终报，stderr 打印）。
 
