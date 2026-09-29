@@ -1622,6 +1622,19 @@ SB-ORD159-NULLSLOT-0001 残差）。）
   `TYPEOP-FSPEC-SPACE-0001` 记为 `MISMATCH`。本 API 供 ActionInferTypes CALL 输出类型种子
   （TypeOpCall::getOutputLocal typeop.cc:720-734）等消费。
 
+**2026-09-29（ACTIVEPARAM 速度道）：per-walk 解析 memo。**
+`get_call_specs_of_op` 增加线程局部的 op→spec 解析 memo（`OpSpecMemoScope` RAII 域，
+funcdata.rs）。Oracle 的快路径是常量空间指针读（funcdata.cc:486-487）、回退是裸指针
+线性扫描（funcdata.cc:489-490）；Rugra 形态每次解析每 spec 付一次锁 + Weak upgrade。
+参数恢复走查（`FuncCallSpecs::checkInputTrialUse` 的 trial 循环与
+`ActionReturnRecovery` 的 return trial 循环）期间 callspecs 列表与所有 spec 的 op
+绑定不可变（走查对 call 只读；opSetInput/newConstant 尾部只在 checkInputTrialUse
+返回后执行），解析结果只依赖 op 身份——域内首次解析结果被缓存复用，观测上与重算
+恒等；域外路径逐字节保持原解析逻辑。VdbeExec 实测（[APROF] 探针）：走查窗口内
+gcs_steps 30.2M→5.5M（−82%），walk 形态计数（visits/desc_ops/ccdu）逐值不变。
+memo 按 callspecs 索引缓存（命中时重新 clone 现列表项），防 parked-placeholder
+内容差异跨域泄漏（apply 级 memo 会跨 park 舞蹈——已评估并否决）。
+
 ### 2026-06-27（会话2）：CFG 重写原语（解锁 condexe）
 
 为支撑 condexe 核心图重写（condexe.cc:712），Funcdata 新增忠实于 Ghidra funcdata_block.cc 的方法：
@@ -1853,6 +1866,19 @@ create_new_block(): 创建新空 BlockBasic 并加入 bblocks（funcdata_block.c
   无条件 return true（保守保留），使 killed-by-call RSI trial 误判 active。
   `fl` 参数（调用方传 BFS cur_flags）自该修复起被消费
 - traverse_flags 模块：ACTIONALT/INDIRECT/INDIRECTALT/LSB_TRUNCATED/CONCAT_HIGH
+
+**2026-09-29（ACTIVEPARAM 速度道）：走查内锁合并/免分配化（行为恒等）。**
+- `only_op_use`：descendant 快照缓冲改为每次调用复用一块 `descend_buf`
+  （per-visit `clear+extend`，内容/顺序与 per-visit collect 恒等；oracle 就地迭代
+  `vn->descend`，funcdata_varnode.cc:1818）——VdbeExec 消除 ~4.9M 次访问的重复
+  malloc/free。`opmatch_is_return`（cc:1850 裸读的 Rust 锁形式）从 per-op 循环提升到
+  走查前单次读取：走查对 op 只读（不写 opcode），每次迭代观测值恒等。
+- `ancestor_op_use`：INDIRECT/COPY/SUBPIECE 臂的多段 `def_arc.read()` 合并为单守卫
+  快照（纯读区间锁合并，OPPPOOL 手法）；oracle 每字段裸读一次。
+- `AncestorRealistic::enter_node`：栈顶 State 的两次快照（op/slot/offset 三元组 +
+  pull-back 视图）合并为单次读取。
+- 走查形态计数（oou_calls/visits/desc_ops/ccdu）优化前后逐值相同（[APROF] 探针，
+  VdbeExec --one 1055），stdout md5 恒等。
 
 **initActiveOutput maxPass 修正**（funcdata_varnode.cc:585-593）：
 - `init_active_output` 现按 Ghidra 计算 `maxdelay = funcp.get_max_output_delay()`

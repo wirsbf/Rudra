@@ -17131,7 +17131,15 @@ impl Action for ActionReturnRecovery {
             // reads inside ancestorOpUse never alias.
             let mut active = fd.active_output.take().unwrap();
             let mut ancestor_real = crate::funcdata::AncestorRealistic::new();
-            for retop in &return_ops {
+            // Activate the per-walk op→callspec resolution memo for the
+            // return trial loop only (RUGRA-GLUE; see
+            // Funcdata::get_call_specs_of_op): inside this loop the call
+            // list and every spec's op binding are immutable, so memoized
+            // resolutions equal recomputed ones. The scope closes with the
+            // loop, before finishPass/deriveOutputMap/buildReturnOutput.
+            let walk_result: () = {
+                let _op_spec_memo = crate::funcdata::OpSpecMemoScope::enter();
+                for retop in &return_ops {
                 for i in 0..active.get_num_trials() {
                     // cc:1927: already checked trials are skipped.
                     if active.get_trial(i).is_checked() {
@@ -17171,7 +17179,8 @@ impl Action for ActionReturnRecovery {
                     // processed, regardless of the verdicts above.
                     self.count += 1;
                 }
-            }
+                }
+            };
 
             // cc:1937: active->finishPass().
             active.finish_pass();

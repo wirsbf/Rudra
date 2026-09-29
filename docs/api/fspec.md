@@ -338,6 +338,11 @@ FuncCallSpecs: +input_consume Vec + get/set_input_bytes_consumed（fspec.cc:5870
 - Stack 空间试验：aliascheck.hasLocalAlias → markNoUse；否则 AncestorRealistic + ancestorOpUse
 - Register 空间试验：AncestorRealistic(allowFail=true) + ancestorOpUse + condexe 标记
 - 返回 definitelyNotUsed 试验的 (slot, size) 供调用者执行 opSetInput(newConstant)
+- 2026-09-29（ACTIVEPARAM 速度道）：trial 循环入口激活 per-walk op→callspec 解析
+  memo（`OpSpecMemoScope`，见 docs/api/funcdata.md get_call_specs_of_op 条目）——
+  单次 checkInputTrialUse 域内 callspecs/op 绑定不可变，memo 解析=重算（观测恒等）；
+  域随函数退出撤销，先于调用方 opSetInput/newConstant 尾部。走查形态计数与
+  stdout 逐字节恒等（VdbeExec 实证）。
 
 **ancestorOpUse + onlyOpUse**（funcdata.rs，移植自 funcdata_varnode.cc:1805-1994）：
 - `ancestor_op_use(fd, maxlevel, vn, op, trial, offset, flags, match_fc) -> bool`

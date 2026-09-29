@@ -1829,6 +1829,11 @@ oracle 侧 ActionRestrictLocal 产生的 6 条 savedreg markNotMapped（-0x58/-0
 - 验证：oracle next_url 投影 ordinal 19 returnrecovery 四元组 result=4 count=4
   tests=0 apply=1 与 RDX(register:10) 裁剪 op 线全部命中；Phase 2 首分歧推进至
   ordinal 28 stackstall:oppool1（863 vs 826，新家族）。
+- 2026-09-29（ACTIVEPARAM 速度道）：return trial 循环（retop × trial 双层）入口激活
+  per-walk op→callspec 解析 memo（`OpSpecMemoScope`，见 funcdata.md
+  get_call_specs_of_op 条目），域随循环块结束、先于 finishPass/deriveOutputMap/
+  buildReturnOutput——循环内 callspecs/op 绑定不可变，memo 解析=重算（观测恒等）。
+  走查形态计数与 stdout 逐字节恒等（VdbeExec 实证）。
 
 ### 2026-06-29（续 9）：ActionInputPrototype 忠实移植（coreaction.cc:4707-4763）
 - 对未锁定 input prototype 的函数，扫描输入 varnodes（非 spacebase/persist），创建 ParamActive trials，标记有后代的为 active。
