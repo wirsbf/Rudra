@@ -132,3 +132,34 @@ check_open 使用简化近似（size_in <= edgelump），select_bad_edge 选第�
   倾印 `[RROOT]`。默认关闭，管线行为零变化。本轮用它+oracle [OROOT] 钉死
   selectGoto 级联首分歧点（final-DAG 根集合 blk78 vs blk79 → composite
   min-index 安装位，见 blockaction.md 同日节）。
+
+## 2026-09-29：per-event 常数收口（SPEEDPROF-TRACEDAG-CONST-0001）
+
+**钻定**（[TDP] 探针,env 门控 RUGRA_TDPROF=1,交付前撤净）: VdbeExec --one 1055
+上 tracedag 1.05s/198 DAG 构建 = **check_open 0.911s（87%）+ stall 路径 env 检查
+0.170s + select_bad_edge 0.147s** + check_retirement 0.048s + open/retire ~7ms;
+1,412,207 事件,其中 **is_loop_dag_in 调用 12,204,131 次**（每调 = get_block Arc
+克隆 + RwLock read + BlockEdge 克隆,~70ns/边）+ 每事件 1 次
+`std::env::var("RUGRA_IRRED_DBG")`（env 锁+分配）。**oracle 对照**（亲读
+blockaction.cc:810-833 + block.hh:345）: oracle checkOpen 每边 = `bl->isLoopDAGIn(i)`
+内联 `intothis[i].label & mask` 纯字段读——12.2M 边访问是 oracle 同构工作面
+（同 trace 形态/同边数）,oracle 侧 ~25ms vs Rugra ~850ms,差距全部实现级常数。
+
+**落地（行为恒等: 输出零变,全部纯读区间）**:
+
+1. `check_open` 逐边 `is_loop_dag_in(dest,i)`（每次独立 get_block+锁+BlockEdge
+   克隆）→ 单次 get_block + 单 read guard 内 `size_in()` + `get_in_ref(i)` 引用读
+   flags（同一 Vec 同一 slot 同一字段;缺块/缺边路径判定逐一保持）。
+2. `visit_count` `HashMap<i32,i32>`（check_open 每事件 SipHash 查找）→
+   `Vec<i32>`（构造时 `vec![0; graph.get_size()]` 直索引——语义更贴 oracle
+   visitcount 字段（block.hh:125, clearVisitCount cc:940 的 per-instance 隐式
+   化）;仅 dest>=0 索引被触碰,remove_trace/check_open/stall 诊断读全部守住）。
+3. `push_branches` 四个分支点每事件 `std::env::var("RUGRA_IRRED_DBG")` →
+   fn 顶 `OnceLock<bool>` 单读（env 运行期不可变;blockaction.rs IRRED_SW 同款）。
+
+**结果**: 净口径 tracedag 总时 **1.05s → 0.222s（−79%）**（[TDPM] 最小探针,
+RUGRA_TDPROF=1）;残余 ~20ms 巨型 DAG = check_open 每事件一次 get_block+锁地板
+×1.41M 事件 + select_bad_edge oracle 同构 sort/markPath 工作量 + Arc/RwLock
+结构地板（block.rs 数据结构域,与 PERF-* 残差同族）。**恒等链**: VdbeExec
+--one 1055 stdout md5 bf2d9b85 全等（base r1/r2==opt r1/r2 配对）;sqlite 全语料
+--jobs 32 assembled 4 轮 cmp 字节恒等;canon/镜面/tests 见车道终报。

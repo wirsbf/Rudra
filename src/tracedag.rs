@@ -32,7 +32,6 @@
 use crate::block::BlockGraph;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::collections::HashMap;
 
 /// A floating (likely goto) edge: (source_block_idx, dest_block_idx).
 #[derive(Clone, Debug)]
@@ -119,12 +118,14 @@ pub struct TraceDAG<'a> {
     roots: Vec<i32>,
     /// The likely goto edges discovered.
     pub likely_goto: Vec<FloatingEdge>,
-    /// Visit-count tracking: block_idx → count. Faithful to Ghidra's
-    /// FlowBlock::visitcount (block.hh:125), only incremented by
+    /// Visit-count tracking: visit_count[block_idx] = count. Faithful to
+    /// Ghidra's FlowBlock::visitcount (block.hh:125), only incremented by
     /// remove_trace (matching removeTrace blockaction.cc:661) and read by
     /// check_open (cc:824). Ghidra resets it via clearVisitCount (cc:940);
-    /// the per-instance map makes that implicit.
-    visit_count: HashMap<i32, i32>,
+    /// the per-instance Vec — zeroed over [0, graph.get_size()) at
+    /// construction, matching every block's visitcount==0 field state —
+    /// makes that reset implicit. Only dest >= 0 indices are ever touched.
+    visit_count: Vec<i32>,
     /// Finish block: only the root trace can open it (Ghidra finishblock,
     /// blockaction.cc:822-823).
     finish_block_idx: Option<i32>,
@@ -141,7 +142,9 @@ impl<'a> TraceDAG<'a> {
             active_count: 0,
             roots: Vec::new(),
             likely_goto: Vec::new(),
-            visit_count: HashMap::new(),
+            // All-zero visit counts ≡ Ghidra's freshly clearVisitCount'ed
+            // blocks (every FlowBlock starts a trace with visitcount 0).
+            visit_count: vec![0i32; graph.get_size()],
             finish_block_idx: None,
         }
     }
@@ -327,15 +330,31 @@ impl<'a> TraceDAG<'a> {
             return false;
         }
         // cc:824-832: count loop-DAG in-edges; all must be <= ignored count.
-        let vc = self.visit_count.get(&dest).copied().unwrap_or(0);
+        // One get_block + one read guard serves sizeIn and every in-edge
+        // flag read (get_in_ref): oracle reads `intothis[i].label` inline
+        // (isLoopDAGIn block.hh:345) with a single `bl` pointer — the
+        // per-edge re-lock/re-clone of the per-accessor form (12.2M edge
+        // visits on VdbeExec) is Rugra-side constant only.
+        use crate::block::edge_flags::{
+            F_BACK_EDGE, F_GOTO_EDGE, F_IRREDUCIBLE_EDGE, F_LOOP_EXIT_EDGE,
+        };
+        let vc = self.visit_count[dest as usize];
         let ignore = trace.edgelump + vc;
-        let sin = self.size_in(dest);
         let mut count = 0i32;
-        for i in 0..sin {
-            if self.is_loop_dag_in(dest, i) {
-                count += 1;
-                if count > ignore {
-                    return false;
+        if let Some(b) = self.graph.get_block(dest as usize) {
+            let r = b.read().unwrap();
+            let sin = r.size_in();
+            for i in 0..sin {
+                if let Some(e) = r.get_in_ref(i) {
+                    if (e.flags
+                        & (F_IRREDUCIBLE_EDGE | F_BACK_EDGE | F_LOOP_EXIT_EDGE | F_GOTO_EDGE))
+                        == 0
+                    {
+                        count += 1;
+                        if count > ignore {
+                            return false;
+                        }
+                    }
                 }
             }
         }
@@ -530,7 +549,7 @@ impl<'a> TraceDAG<'a> {
         self.likely_goto.push(FloatingEdge { top: bottom, bottom: dest });
         // cc:661: Ignore edge(s) when deciding whether destnode can open.
         if dest >= 0 {
-            *self.visit_count.entry(dest).or_insert(0) += edgelump;
+            self.visit_count[dest as usize] += edgelump;
         }
 
         let top_bp = self.traces[trace_idx].top_bp;
@@ -701,6 +720,14 @@ impl<'a> TraceDAG<'a> {
     /// Main algorithm: push traces forward, marking bad edges as goto.
     pub fn push_branches(&mut self) {
         let step = std::env::var("RUGRA_GOTOSTEP").is_ok();
+        // RUGRA_IRRED_DBG read once per process (SPEEDPROF-TRACEDAG-CONST-0001):
+        // the four branch sites below fire once per loop EVENT (~1.41M on
+        // VdbeExec) and std::env::var takes the global env lock + allocates;
+        // a OnceLock bool is the identical observable (env is immutable
+        // during the run). Same form as blockaction.rs IRRED_SW.
+        static IRRED_SW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let irred_dbg = *IRRED_SW
+            .get_or_init(|| std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false));
         let mut missed: usize = 0;
         let mut current: Option<usize> = self.begin_slot();
         // Ghidra: blockaction.cc:983-1015 TraceDAG::pushBranches — the loop
@@ -739,7 +766,7 @@ impl<'a> TraceDAG<'a> {
                         t.bottom_block_idx, t.dest_block_idx
                     );
                 }
-                if std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false) {
+                if irred_dbg {
                     let t = &self.traces[bad];
                     eprintln!("[TD] BADEDGE trace#{} ({}->{}) edgelump={}", bad, t.bottom_block_idx, t.dest_block_idx, t.edgelump);
                 }
@@ -752,7 +779,7 @@ impl<'a> TraceDAG<'a> {
                     eprintln!("[RSTEP]   RETIRE");
                 }
                 let bp_idx = self.traces[curtrace].top_bp;
-                if std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false) {
+                if irred_dbg {
                     let t = &self.traces[curtrace];
                     eprintln!("[TD] RETIRE trace#{} bp{} exit={} t.bot={} t.dest={} t.lump={}",
                         curtrace, bp_idx, exit_block, t.bottom_block_idx, t.dest_block_idx, t.edgelump);
@@ -764,7 +791,7 @@ impl<'a> TraceDAG<'a> {
                 if step {
                     eprintln!("[RSTEP]   OPEN");
                 }
-                if std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false) {
+                if irred_dbg {
                     let t = &self.traces[curtrace];
                     eprintln!("[TD] OPEN trace#{} t.bot={} t.dest={} t.lump={}",
                         curtrace, t.bottom_block_idx, t.dest_block_idx, t.edgelump);
@@ -773,11 +800,15 @@ impl<'a> TraceDAG<'a> {
                 missed = 0;
             } else {
                 // cc:1008-1011
-                if std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false) {
+                if irred_dbg {
                     let t = &self.traces[curtrace];
                     let dest = t.dest_block_idx;
                     let sin = if dest >= 0 { self.size_in(dest) } else { 0 };
-                    let vc = self.visit_count.get(&dest).copied().unwrap_or(0);
+                    let vc = if dest >= 0 {
+                        self.visit_count[dest as usize]
+                    } else {
+                        0
+                    };
                     let mut ldag = 0;
                     for s2 in 0..sin {
                         if self.is_loop_dag_in(dest, s2) {
