@@ -1161,7 +1161,7 @@ impl Merge {
         use std::collections::HashSet;
         let mut live: HashSet<usize> = HashSet::new();
         // Collect varnodes referenced by any alive op (inrefs + output).
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if let Some(out) = &op.output {
                 live.insert(std::sync::Arc::as_ptr(out) as usize);
@@ -2770,8 +2770,7 @@ impl Merge {
         // Collect marker ops (merge.cc:894-896).
         let marker_ops: Vec<crate::op::PcodeOpRef> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter_map(|op_ref| {
                 let op = op_ref.0.read().unwrap();
                 let is_marker_op = matches!(op.opcode, OpCode::CPUI_MULTIEQUAL | OpCode::CPUI_INDIRECT);
@@ -4318,8 +4317,7 @@ impl Merge {
         // cover-eligible output.
         let adjacent_pairs: Vec<(crate::op::PcodeOpRef, Arc<RwLock<Varnode>>, Vec<Arc<RwLock<Varnode>>>)> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter_map(|op_ref| {
                 let op = op_ref.0.read().unwrap();
                 if op.is_dead() || op.is_call() {
@@ -5072,7 +5070,7 @@ impl Merge {
         // Collect COPY decisions + track multi-copy highs.
         let mut multi_copy: Vec<Arc<RwLock<HighVariable>>> = Vec::new();
         let mut multi_copy_seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
-        let copy_ops: Vec<crate::op::PcodeOpRef> = fd.obank.alivelist.iter()
+        let copy_ops: Vec<crate::op::PcodeOpRef> = fd.obank.iter_alive()
             .map(|r| crate::op::PcodeOpRef(r.0.clone()))
             .collect();
         for op_ref in &copy_ops {
@@ -5821,8 +5819,7 @@ mod tests {
 
         let phi_op = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .find(|o| o.0.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL)
             .expect("MULTIEQUAL op should exist")
             .0
@@ -5886,8 +5883,7 @@ mod tests {
         // entries that arise from raw injection.
         let loads: Vec<_> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|o| o.0.read().unwrap().opcode == OpCode::CPUI_LOAD)
             .map(|o| o.0.clone())
             .collect();
@@ -5986,8 +5982,7 @@ mod tests {
         // Resolve the canonical live Varnode objects via the defining LOAD ops.
         let loads: Vec<_> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|o| o.0.read().unwrap().opcode == OpCode::CPUI_LOAD)
             .map(|o| o.0.clone())
             .collect();

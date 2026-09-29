@@ -741,7 +741,7 @@ fn flag_known_no_return_halts(fd: &mut Funcdata, halt_addrs: &std::collections::
         return;
     }
     let mut flagged = 0usize;
-    let ops: Vec<rugra::op::PcodeOpRef> = fd.obank.alivelist.clone();
+    let ops: Vec<rugra::op::PcodeOpRef> = fd.obank.iter_alive().cloned().collect::<Vec<_>>();
     for op_ref in ops {
         let (is_spliced, addr) = {
             let op = op_ref.0.read().unwrap();

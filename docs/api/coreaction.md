@@ -4434,3 +4434,10 @@ blockaction.cc:2110-2115/2186-2197 + block.cc:3148-3297/3350-3436。
 与优化探针**逐项精确相等**（20,008,328 边/138,984 成功）；sqlite 全语料 + canon
 双 md5 + 镜面五面 + tests 见车道终报。CR 需求：coreaction.rs 属主管线 Action 面
 （机制 C 语义邻域），复核面见 /dev/shm/rugra-reports/LANE_INFERTYPES_2026-09-29.md。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。

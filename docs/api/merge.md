@@ -1245,3 +1245,10 @@ stdout md5 a067e05c 全等,canon curl/httpd base==opt 字节恒等,sqlite 全语
 assembled cmp 恒等,镜面五面=钉值,tests 1985P。性能:VdbeExec 探针口径
 inter_nanos_uh 3.73→1.44s（扫描 2.54→0.24s）;全数字见
 /dev/shm/rugra-reports/LANE_INTERSECTCACHE_2026-09-29.md。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。

@@ -2415,7 +2415,7 @@ impl Funcdata {
     /// Faithful to `getFirstReturnOp` (funcdata_op.cc:632-644).
     pub fn get_first_return_op(&self) -> Option<crate::op::PcodeOpRef> {
         // Use returnlist (PcodeOpBank code list for RETURN ops).
-        for retop in &self.obank.returnlist {
+        for retop in self.obank.iter_return() {
             let op = retop.0.read().unwrap();
             if op.is_dead() { continue; }
             // cc:640: getHaltType()!=0 → skip artificial halts.
@@ -4614,29 +4614,27 @@ impl Funcdata {
             // flat op bank, which is outside Ghidra's opInsertBefore precondition.
             // Preserve their former flat-list behavior until those fixtures acquire
             // real BlockBasic membership; this branch is not oracle-equivalent.
+            // Chain form of the former scan+index-insert: mark alive, unlink,
+            // then walk back from `follow` past its contiguous INDIRECT group
+            // (unless op is itself INDIRECT) and insert before that boundary;
+            // an absent `follow` lands at the tail (the former len insert).
             self.obank.mark_alive(op.clone());
-            self.obank
-                .alivelist
-                .retain(|candidate| !std::sync::Arc::ptr_eq(&candidate.0, &op.0));
-            let mut insert_index = self
-                .obank
-                .alivelist
-                .iter()
-                .position(|candidate| std::sync::Arc::ptr_eq(&candidate.0, &follow.0))
-                .unwrap_or(self.obank.alivelist.len());
-            if op.0.read().unwrap().opcode != OpCode::CPUI_INDIRECT {
-                while insert_index != 0
-                    && self.obank.alivelist[insert_index - 1]
-                        .0
-                        .read()
-                        .unwrap()
-                        .opcode
-                        == OpCode::CPUI_INDIRECT
-                {
-                    insert_index -= 1;
+            self.obank.unlink_alive_if_member(op);
+            if self.obank.in_alive(follow) {
+                let mut boundary = follow.clone();
+                if op.0.read().unwrap().opcode != OpCode::CPUI_INDIRECT {
+                    while let Some(prev) = self.obank.alive_prev(&boundary) {
+                        if prev.0.read().unwrap().opcode == OpCode::CPUI_INDIRECT {
+                            boundary = prev;
+                        } else {
+                            break;
+                        }
+                    }
                 }
+                self.obank.alive_insert_before(op, &boundary);
+            } else {
+                self.obank.alive_push_back(op);
             }
-            self.obank.alivelist.insert(insert_index, op.clone());
             return;
         };
         let block_ops = parent.read().unwrap().get_ops();
@@ -5082,17 +5080,16 @@ impl Funcdata {
             // flat op bank, which is outside Ghidra's opInsertAfter precondition.
             // Preserve their former flat-list behavior until those fixtures acquire
             // real BlockBasic membership; this branch is not oracle-equivalent.
+            // Chain form of the former scan+index-insert: mark alive, unlink,
+            // then insert right after `previous`; an absent `previous` lands
+            // at the tail (the former len insert).
             self.obank.mark_alive(op.clone());
-            self.obank
-                .alivelist
-                .retain(|candidate| !std::sync::Arc::ptr_eq(&candidate.0, &op.0));
-            let insert_index = self
-                .obank
-                .alivelist
-                .iter()
-                .position(|candidate| std::sync::Arc::ptr_eq(&candidate.0, &previous.0))
-                .map_or(self.obank.alivelist.len(), |index| index + 1);
-            self.obank.alivelist.insert(insert_index, op.clone());
+            self.obank.unlink_alive_if_member(op);
+            if self.obank.in_alive(previous) {
+                self.obank.alive_insert_after(op, previous);
+            } else {
+                self.obank.alive_push_back(op);
+            }
             return;
         }
         let effective_previous = {
@@ -5156,9 +5153,7 @@ impl Funcdata {
             // RUGRA-GLUE: Preserve the former flat-bank detach behavior for
             // parentless legacy fixtures. Valid Ghidra-domain ops take the block
             // path below and transition to the dead list atomically.
-            self.obank
-                .alivelist
-                .retain(|candidate| !std::sync::Arc::ptr_eq(&candidate.0, &op.0));
+            self.obank.unlink_alive_if_member(op);
             return;
         };
         crate::drillobserve::mod_check(self.arch.as_ref(), op);
@@ -5670,22 +5665,22 @@ impl Funcdata {
     /// empty-range default locally (FUNCDATA-OPBEGIN-DEFAULT-0001).
     pub fn begin_op_code(
         &self, opc: crate::opcodes::OpCode,
-    ) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
+    ) -> crate::op::OpChainIter<'_> {
         use crate::opcodes::OpCode;
         match opc {
-            OpCode::CPUI_STORE => self.obank.storelist.iter(),
-            OpCode::CPUI_LOAD => self.obank.loadlist.iter(),
-            OpCode::CPUI_RETURN => self.obank.returnlist.iter(),
-            OpCode::CPUI_CALLOTHER => self.obank.useroplist.iter(),
-            _ => [].iter(),
+            OpCode::CPUI_STORE => self.obank.iter_store(),
+            OpCode::CPUI_LOAD => self.obank.iter_load(),
+            OpCode::CPUI_RETURN => self.obank.iter_return(),
+            OpCode::CPUI_CALLOTHER => self.obank.iter_userop(),
+            _ => crate::op::OpChainIter::empty(self.obank.optree.arena()),
         }
     }
 
     // Ghidra: funcdata.hh:503 Funcdata::endOp(OpCode)
     pub fn end_op_code(
         &self, _opc: crate::opcodes::OpCode,
-    ) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        [].iter()
+    ) -> crate::op::OpChainIter<'_> {
+        crate::op::OpChainIter::empty(self.obank.optree.arena())
     }
 
     // Ghidra: funcdata.hh:506 Funcdata::beginOpAlive
@@ -5693,13 +5688,13 @@ impl Funcdata {
     /// Start/end of PcodeOp objects in the alive list. Faithful to
     /// `beginOpAlive`/`endOpAlive` (funcdata.hh:506/509) forwarding to
     /// `obank.beginAlive()`/`obank.endAlive()`.
-    pub fn begin_op_alive(&self) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        self.obank.alivelist.iter()
+    pub fn begin_op_alive(&self) -> crate::op::OpChainIter<'_> {
+        self.obank.iter_alive()
     }
 
     // Ghidra: funcdata.hh:509 Funcdata::endOpAlive
-    pub fn end_op_alive(&self) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        self.obank.alivelist.iter()
+    pub fn end_op_alive(&self) -> crate::op::OpChainIter<'_> {
+        self.obank.iter_alive()
     }
 
     // Ghidra: funcdata.hh:512 Funcdata::beginOpDead
@@ -5707,13 +5702,13 @@ impl Funcdata {
     /// Start/end of PcodeOp objects in the dead list. Faithful to
     /// `beginOpDead`/`endOpDead` (funcdata.hh:512/515) forwarding to
     /// `obank.beginDead()`/`obank.endDead()`.
-    pub fn begin_op_dead(&self) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        self.obank.deadlist.iter()
+    pub fn begin_op_dead(&self) -> crate::op::OpChainIter<'_> {
+        self.obank.iter_dead()
     }
 
     // Ghidra: funcdata.hh:515 Funcdata::endOpDead
-    pub fn end_op_dead(&self) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        self.obank.deadlist.iter()
+    pub fn end_op_dead(&self) -> crate::op::OpChainIter<'_> {
+        self.obank.iter_dead()
     }
 
     // Ghidra: funcdata.hh:518 Funcdata::beginOpAll
@@ -6116,8 +6111,19 @@ impl Funcdata {
             .map_err(|e| crate::error::Error::Lowlevel(e))?;
         self.inject_raw_ops_single(&raw_ops, addr);
         // cc:865-875: walk from the first injected op to the dead end.
-        for index in dead_tail..self.obank.deadlist.len() {
-            let op = self.obank.deadlist[index].clone();
+        // The former form was `for index in dead_tail..len()` over the Vec:
+        // the range bound is captured ONCE, but op_insert's mark_alive
+        // removes each visited op from the dead list, so the remaining
+        // positions shift down and the positional walk reads the list as
+        // it is at each iteration. The chain port keeps that exact
+        // observable walk: index i addresses the CURRENT chain's position
+        // dead_tail + i (walked from the head), with the former Vec
+        // out-of-bounds panic when the position exceeds the live chain
+        // (dead_at_strict). (Unwired port — no callers; semantics preserved
+        // verbatim for the future wiring.)
+        let range_end = self.obank.deadlist.len();
+        for index in dead_tail..range_end {
+            let op = self.obank.dead_at_strict(index);
             let is_call_or_branch = {
                 let o = op.0.read().unwrap();
                 o.is_call() || o.is_branch()
@@ -6200,10 +6206,19 @@ impl Funcdata {
             let dead_before = self.obank.deadlist.len();
             flow.inline_ezclone(&inlineflow, callop_addr);
             // cc:877-889: if at least one op was cloned, move the cloned
-            // sequence to right after the callop.
+            // sequence to right after the callop. (inline_ezclone is a
+            // structural placeholder — no clone path yet — so this branch
+            // is currently unreachable; the positional probes keep the
+            // former index semantics verbatim.)
             if self.obank.deadlist.len() > dead_before {
-                let firstop = self.obank.deadlist[dead_before].clone();
-                let lastop = self.obank.deadlist[self.obank.deadlist.len() - 1].clone();
+                let firstop = self
+                    .obank
+                    .dead_at(dead_before)
+                    .expect("deadlist grew past the pre-clone boundary");
+                let lastop = self
+                    .obank
+                    .dead_tail()
+                    .expect("deadlist non-empty in the grew branch");
                 self.obank.move_sequence_dead(&firstop, &lastop, callop);
                 // cc:883: if (callop->isBlockStart()) — op.hh startbasic bit.
                 let callop_startbasic = {
@@ -6402,8 +6417,7 @@ impl Funcdata {
         // op is currently in the alive list, remove it (faithful op_uninsert).
         let in_alive = self
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .any(|r| std::sync::Arc::ptr_eq(&r.0, &op.0));
         if in_alive {
             self.op_uninsert(op);
@@ -8009,7 +8023,7 @@ impl Funcdata {
     pub fn calc_nz_mask(&mut self) {
         use crate::opcodes::OpCode;
         // cc:859-902: DFS with an explicit op stack in alive order.
-        let ops: Vec<crate::op::PcodeOpRef> = self.obank.alivelist.clone();
+        let ops: Vec<crate::op::PcodeOpRef> = self.obank.iter_alive().cloned().collect::<Vec<_>>();
         let mut opstack: Vec<(crate::op::PcodeOpRef, usize)> = Vec::new();
         for op_ref in ops {
             if op_ref.0.read().unwrap().is_mark() {
@@ -8075,7 +8089,7 @@ impl Funcdata {
 
         // cc:904-911: clear marks; seed the worklist with every MULTIEQUAL.
         let mut worklist: Vec<crate::op::PcodeOpRef> = Vec::new();
-        for op_ref in &self.obank.alivelist {
+        for op_ref in self.obank.iter_alive() {
             op_ref.0.write().unwrap().clear_mark();
             if op_ref.0.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL {
                 worklist.push(op_ref.clone());
@@ -8579,8 +8593,7 @@ impl Funcdata {
     pub fn build_blocks_from_alive(&mut self) {
         let op_refs: Vec<PcodeOpRef> = self
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .map(|r| PcodeOpRef(r.0.clone()))
             .collect();
         self.build_blocks_from_ops(&op_refs);
@@ -11365,22 +11378,20 @@ impl Funcdata {
         // dead-cycles the bank in lift order inside
         // `recover_jump_tables_injected` (flow.rs "Oracle recovery-time
         // lifecycle state" block). An op not found in the dead list (never
-        // possible on the oracle call path) yields start_idx 0 = the empty
-        // window, the same `iter == startiter` no-backtrack outcome Ghidra's
-        // loop entry condition gives.
-        let dead = &self.obank.deadlist;
-        let start_idx = dead
-            .iter()
-            .position(|r| Arc::ptr_eq(&r.0, &op.0))
-            .unwrap_or(0);
+        // possible on the oracle call path) yields an empty backtrack
+        // window, the same `iter == startiter` no-backtrack outcome
+        // Ghidra's loop entry condition gives. The id-space form walks the
+        // stored ins-links backward from op (the oracle's `--iter`,
+        // funcdata_block.cc:558-559).
+        let mut cur = if self.obank.in_dead(op) { self.obank.dead_prev(op) } else { None };
         let mut count_max: i32 = 8;
-        let mut i: isize = start_idx as isize - 1;
         let vn_size = vn_arc
             .as_ref()
             .map(|v| v.read().unwrap().get_size())
             .unwrap_or(0);
         let mut cur_vn_size = vn_size;
-        while i >= 0 {
+        while let Some(cur_op) = cur {
+            cur = self.obank.dead_prev(&cur_op);
             // Ghidra: if (vn->getSize() == 1) return success;
             if cur_vn_size == 1 {
                 return crate::jumptable::RecoveryMode::Success;
@@ -11389,7 +11400,6 @@ impl Funcdata {
             if count_max < 0 {
                 return crate::jumptable::RecoveryMode::Success;
             }
-            let cur_op = dead[i as usize].clone();
             let (eval_type, opcode, is_call, is_branch, out_arc, in0_arc, in1_arc) = {
                 let op_rg = cur_op.0.read().unwrap();
                 (
@@ -11487,7 +11497,6 @@ impl Funcdata {
             } else if outhit {
                 return crate::jumptable::RecoveryMode::Success;
             }
-            i -= 1;
         }
         crate::jumptable::RecoveryMode::Success
     }
@@ -13813,7 +13822,7 @@ impl Funcdata {
 
         // cc:797-799: the raw p-code container is specifically the dead list,
         // whose linked-list order is independent of SeqNum ordering.
-        for source_op in &source.obank.deadlist {
+        for source_op in source.obank.iter_dead() {
             let seq = *source_op.0.read().unwrap().get_seq_num();
             self.clone_op(source_op, &seq);
         }
@@ -14516,8 +14525,7 @@ mod tests {
         // Locate the injected BRANCHIND and its parent block.
         let branchind = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .find(|o| o.0.read().unwrap().opcode == OpCode::CPUI_BRANCHIND)
             .expect("BRANCHIND survived injection")
             .clone();
@@ -15004,7 +15012,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15108,7 +15116,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15192,7 +15200,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15275,7 +15283,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15351,7 +15359,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15403,7 +15411,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15497,7 +15505,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15574,7 +15582,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15680,7 +15688,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15761,7 +15769,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15840,7 +15848,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15927,7 +15935,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -16065,7 +16073,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -16208,7 +16216,7 @@ mod tests {
 
         // Phase 4: Verify via RuntimeVerifier
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -16284,7 +16292,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -16383,7 +16391,7 @@ mod tests {
 
         // Phase 4: Verify via RuntimeVerifier
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -17303,7 +17311,7 @@ mod tests {
         let mut _found_break = false;
         let mut found_continue = false;
 
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
                 OpCode::CPUI_BRANCH | OpCode::CPUI_CBRANCH => {
@@ -17689,7 +17697,7 @@ mod tests {
         let mut output_varnodes: Vec<(
             crate::space::AddressSpace, u64, usize, Arc<RwLock<crate::varnode::Varnode>>,
         )> = Vec::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if let Some(ref out_vn_arc) = op.output {
                 let out_vn = out_vn_arc.read().unwrap();
@@ -17699,7 +17707,7 @@ mod tests {
             }
         }
 
-        let ops_to_update: Vec<_> = fd.obank.alivelist.iter().cloned().collect();
+        let ops_to_update: Vec<_> = fd.obank.iter_alive().cloned().collect();
         for op_ref in &ops_to_update {
             let mut op = op_ref.0.write().unwrap();
             let num_inputs = op.inrefs.len();
@@ -17739,7 +17747,7 @@ mod tests {
 
         {
             let mut found = false;
-            for op_ref in &fd.obank.alivelist {
+            for op_ref in fd.obank.iter_alive() {
                 let op = op_ref.0.read().unwrap();
                 if op.opcode == OpCode::CPUI_COPY {
                     let mut in_vn = op.inrefs[0].write().unwrap();
@@ -17762,7 +17770,7 @@ mod tests {
         let mut checked_u3 = false;
         let mut checked_u4 = false;
 
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
                 OpCode::CPUI_COPY => {
@@ -18130,8 +18138,7 @@ mod tests {
         let u2_nzm = u2.read().unwrap().get_nzm();
         let div_alive = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .any(|op| op.0.read().unwrap().opcode == OpCode::CPUI_INT_DIV);
         assert_eq!(
             u2_nzm, 0x1ff,
@@ -18281,7 +18288,7 @@ mod tests {
         fd.split_uses(&tmp_out);
 
         // After: a new duplicated INT_ADD op exists whose output is NOT tmp_out.
-        let has_new_add = fd.obank.alivelist.iter().any(|r| {
+        let has_new_add = fd.obank.iter_alive().any(|r| {
             let o = r.0.read().unwrap();
             if o.opcode != OpCode::CPUI_INT_ADD { return false; }
             match o.output.as_ref() {
@@ -18320,7 +18327,7 @@ mod tests {
         );
         let mut fd = Funcdata::new("xor_eax_eax", start, code.len() as i32);
         fd.inject_raw_ops(&raw_ops);
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_INT_XOR {
                 let i0 = &op.inrefs[0]; let i1 = &op.inrefs[1];
@@ -20431,15 +20438,14 @@ mod final_transform_op_move_tests {
 
     fn in_alive_exactly_once(fd: &Funcdata, op: &PcodeOpRef) -> bool {
         fd.obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|r| Arc::ptr_eq(&r.0, &op.0))
             .count()
             == 1
     }
 
     fn in_dead(fd: &Funcdata, op: &PcodeOpRef) -> bool {
-        fd.obank.deadlist.iter().any(|r| Arc::ptr_eq(&r.0, &op.0))
+        fd.obank.iter_dead().any(|r| Arc::ptr_eq(&r.0, &op.0))
     }
 
     /// cc:3381-3384 shape: `iterateOp` sits mid-block in the tail block;

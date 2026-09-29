@@ -125,3 +125,10 @@ RUGRA-GLUE：Ghidra 通过 `ostream` 接收结果；此函数只新建 `String` 
 - `test_is_fspec_space_is_false` — 验证 FSPEC 占位始终为 false
 
 <!-- annotation-pass: 2026-07-22 -->
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。

@@ -384,7 +384,7 @@ fn main() -> anyhow::Result<()> {
     eprintln!("\n== surviving STORE/LOAD ops after full pipeline:");
     let fdg = &fd;
     let mut n = 0;
-    for op_ref in &fdg.obank.alivelist {
+    for op_ref in fdg.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         if op.opcode == OpCode::CPUI_STORE || op.opcode == OpCode::CPUI_LOAD {
             n += 1;
@@ -414,8 +414,7 @@ fn main() -> anyhow::Result<()> {
     if std::env::var("STACKFOLD_ARCH").map(|v| v != "0").unwrap_or(true) {
         let leak = fdg
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter_map(|op_ref| {
                 let op = op_ref.0.read().unwrap();
                 if op.opcode == OpCode::CPUI_STORE || op.opcode == OpCode::CPUI_LOAD {

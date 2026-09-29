@@ -1936,3 +1936,10 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   实测 6153 亦 −57 改进——subzext 通用臂的语料级收益，如实记）；bank
   391/391；cargo test --lib 1965P/0F/5I（亲父 1963P+2 新）；annotations/
   refs/evidence 三门禁绿。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。

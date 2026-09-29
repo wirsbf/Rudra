@@ -211,7 +211,7 @@ fn dump_varnode_vertex(data: &Funcdata, s: &mut dyn Write) {
     let _ = s.write_str("//START:varnodes\n");
 
     // cc:86  for(oiter=data.beginOpAlive(); oiter!=data.endOpAlive(); ++oiter)
-    for op_ref in &data.obank.alivelist {
+    for op_ref in data.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         // cc:88  print_varnode_vertex(op->getOut(),s);
         let out = op.get_out().cloned();
@@ -229,7 +229,7 @@ fn dump_varnode_vertex(data: &Funcdata, s: &mut dyn Write) {
     let _ = s.write_str("*END_COLUMNS\n");
 
     // cc:108-114  clear marks (second pass over alive ops)
-    for op_ref in &data.obank.alivelist {
+    for op_ref in data.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         // cc:110-111  if (op->getOut() != null) op->getOut()->clearMark();
         if let Some(out) = op.get_out() {
@@ -264,7 +264,7 @@ fn dump_op_vertex(data: &Funcdata, s: &mut dyn Write) {
     let _ = s.write_str("//START:opnodes\n");
 
     // cc:134-137  for each alive op: print_op_vertex
-    for op_ref in &data.obank.alivelist {
+    for op_ref in data.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         print_op_vertex(&op, s);
     }
@@ -332,7 +332,7 @@ fn dump_edges(data: &Funcdata, s: &mut dyn Write) {
     let _ = s.write_str("//START:edges\n");
 
     // cc:188-191  for each alive op: print_edges
-    for op_ref in &data.obank.alivelist {
+    for op_ref in data.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         print_edges(&op, s);
     }

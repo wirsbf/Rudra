@@ -930,3 +930,17 @@ MCENSUS4-CASTSHAPE-RESID-FIVE-0001 注记，语料内同形 13 站点）。
   canon curl **54/0/0** / httpd **36/0/0**（=MB30 钉值零回退，httpd md5 c3b4706c
   字节恒等）；镜面五面/bank/tests 见车道终报
   （/dev/shm/rugra-reports/LANE_S5BREAKGUARD_2026-09-28.md）。
+
+## 2026-09-30：dead-list 消费迁 OpId marker（PERF-ARENA-FLIP-0001 (b)）
+
+flow.rs 的 deadlist/alivelist 消费位（deadlist 22 处+alivelist 2 处）从
+Vec 形态迁 bank 链 API：`process_instruction`/`do_injection` 的
+`num_ops_before`/`first_index` 边界索引改 `Option<OpId>` marker（预注入
+dead 链尾 id——oracle 存储迭代器形态，flow.cc:407/1180-1183）；
+`xref_control_flow(_at)` 的 usize 索引循环改 OpId 游标链游走（尾臂截断 =
+`delete_remaining_ops_after(Some(id))`，flow.cc:240 `oiter`→endDead 形态）；
+`dead_list_next`/`fallthru_op` 改 O(1) 存储链前后驱（`dead_next`/
+`in_dead`）；flow 本地 `move_sequence_flow`/`mark_incidental_copy_flow`
+drain/splice 适配副本删除，委派 bank 单实现（op.cc:1056-1083，
+splice_after 退化守卫随冻结原语）。快照消费（collect_edges 等）保持
+Vec 快照形态，仅采集面换 `iter_dead()`。canon 双 md5 字节恒等亲证。

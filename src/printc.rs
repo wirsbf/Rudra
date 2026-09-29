@@ -11829,7 +11829,7 @@ impl PrintLanguage for PrintC {
 
         // Collect function call target addresses so we don't declare them as variables
         let mut call_targets: HashSet<u64> = HashSet::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_CALL {
                 if let Some(in0) = op.get_in(0) {
@@ -11864,7 +11864,7 @@ impl PrintLanguage for PrintC {
         self.pointer_varnodes.clear();
         use crate::space::AddressSpace;
         let mut addr_feeding_load: HashSet<(AddressSpace, u64)> = HashSet::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
                 OpCode::CPUI_LOAD | OpCode::CPUI_STORE if op.inrefs.len() > 1 => {
@@ -11926,7 +11926,7 @@ impl PrintLanguage for PrintC {
                 _ => {}
             }
         }
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if matches!(op.opcode, OpCode::CPUI_INT_ADD | OpCode::CPUI_INT_SUB) {
                 if let Some(ref out) = op.output {
@@ -12100,7 +12100,7 @@ impl PrintLanguage for PrintC {
         // Build defining-op map: for each op, map output varnode ptr -> op Arc
         // Include BOTH alivelist ops AND block-level ops (comparisons, booleans, etc.)
         self.def_map.clear();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if let Some(ref out_arc) = op.output {
                 let out_ptr = Arc::as_ptr(out_arc) as usize;
@@ -12354,7 +12354,7 @@ impl PrintLanguage for PrintC {
         }
         // Fallback: scan alivelist if bblocks didn't find stack frame
         if self.stack_frame_size == 0 {
-            for op_ref in &fd.obank.alivelist {
+            for op_ref in fd.obank.iter_alive() {
                 let op = op_ref.0.read().unwrap();
                 if op.opcode == OpCode::CPUI_INT_SUB && op.inrefs.len() >= 2 {
                     let in0 = op.inrefs[0].read().unwrap();
@@ -12518,7 +12518,7 @@ impl PrintLanguage for PrintC {
                 }
             }
             // Also count uses from alivelist
-            for op_ref in &fd.obank.alivelist {
+            for op_ref in fd.obank.iter_alive() {
                 let op = op_ref.0.read().unwrap();
                 for in_arc in &op.inrefs {
                     let in_vn = in_arc.read().unwrap();
@@ -12595,7 +12595,7 @@ impl PrintLanguage for PrintC {
                 }
             }
         }
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             for in_arc in &op.inrefs {
                 self.global_used_outputs

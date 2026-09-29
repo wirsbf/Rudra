@@ -145,7 +145,7 @@ fn dump_string_readback(fd: &Funcdata) {
         println!("string_hash=-");
         return;
     };
-    for op in &fd.obank.alivelist {
+    for op in fd.obank.iter_alive() {
         let o = op.0.read().unwrap();
         if o.opcode != OpCode::CPUI_CALLOTHER || o.inrefs.len() != 2 {
             continue;

@@ -460,7 +460,7 @@ impl ActionDeadCode {
             return u64::MAX;
         }
         let mut consume = 0;
-        for return_op in &fd.obank.returnlist {
+        for return_op in fd.obank.iter_return() {
             let input = {
                 let op_rg = return_op.0.read().unwrap();
                 if op_rg.is_dead() || op_rg.num_input() <= 1 { None }
@@ -494,7 +494,7 @@ impl ActionDeadCode {
         if fd.is_jumptable_recovery_on() { return false; }
         let mut res = false;
         // cc:3907-3921: iterate LOAD ops.
-        let load_ops: Vec<crate::op::PcodeOpRef> = fd.obank.loadlist.clone();
+        let load_ops: Vec<crate::op::PcodeOpRef> = fd.obank.iter_load().cloned().collect();
         for op_ref in &load_ops {
             // Capture the output Arc + in(1) eventual-const check while holding
             // the read lock, then release before mutating.
@@ -568,7 +568,7 @@ impl Action for ActionDeadCode {
         }
 
         let return_consume = Self::gather_consumed_return(fd);
-        let alive_ops = fd.obank.alivelist.clone();
+        let alive_ops = fd.obank.iter_alive().cloned().collect::<Vec<_>>();
         for op_ref in &alive_ops {
             op_ref.0.write().unwrap().flags &= !crate::op::pcodeop_flags::INDIRECT_SOURCE;
             let (is_call, is_call_without_spec, is_assignment, hold_output, opcode, inputs, output) = {
@@ -1380,7 +1380,7 @@ impl Action for ActionCse {
             HashMap::new();
         let mut to_kill: Vec<crate::op::PcodeOpRef> = Vec::new();
 
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
 
             // Only consider pure operations (no side-effects)
@@ -2340,7 +2340,7 @@ impl Action for ActionInferParams {
         // parameters READ by the current function. Counting them would
         // inflate the parameter count to 6 for every function that contains
         // a CALL. Ghidra's ActionActiveParam makes the same distinction.
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_CALL { continue; }
             for in_arc in &op.inrefs {
@@ -2459,7 +2459,7 @@ impl Action for ActionInferParams {
         // must be a pointer type, otherwise the emitted `*param_N` fails C compilation.
         // This mirrors Ghidra's ActionActiveParam pointer recovery.
         let mut ptr_param_offsets: std::collections::HashSet<u64> = std::collections::HashSet::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if matches!(op.opcode, OpCode::CPUI_LOAD | OpCode::CPUI_STORE) && op.inrefs.len() > 1 {
                 let addr_vn = op.inrefs[1].read().unwrap();
@@ -2548,7 +2548,7 @@ impl Action for ActionInferParams {
         }
 
         // --- 2. Infer return type from RETURN operations ---
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_RETURN && op.num_input() > 1 {
                 // RETURN input[1] is the return value (input[0] is the return address)
@@ -2643,7 +2643,7 @@ impl Action for ActionTypeInfer {
         loop {
             let mut iter_changed = 0;
 
-            for op_ref in &fd.obank.alivelist {
+            for op_ref in fd.obank.iter_alive() {
                 let op = op_ref.0.read().unwrap();
 
                 // Rule 1: Opcode-based strong types (only if output has no type yet)
@@ -2862,7 +2862,7 @@ impl Action for ActionTypeInfer {
         }
 
         // Post-pass fallback: assign size-based default types to any varnode still lacking a type.
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if let Some(ref out_arc) = op.output {
                 let mut out_vn = out_arc.write().unwrap();
@@ -5190,7 +5190,7 @@ impl ActionMarkImplied {
             let vn_cover = vn_arc.read().unwrap().cover.as_ref().map(|c| c.clone());
             let load_spacebase_off = def_op.get_in(0).map(|v| v.read().unwrap().get_offset());
             if let Some(cover) = vn_cover {
-                for store_op_ref in &fd.obank.alivelist {
+                for store_op_ref in fd.obank.iter_alive() {
                     let store_op = store_op_ref.0.read().unwrap();
                     if store_op.is_dead() || store_op.opcode != OpCode::CPUI_STORE {
                         continue;
@@ -5258,7 +5258,7 @@ impl ActionMarkImplied {
         ) {
             let vn_cover = vn_arc.read().unwrap().cover.as_ref().map(|c| c.clone());
             if let Some(cover) = vn_cover {
-                for call_op_ref in &fd.obank.alivelist {
+                for call_op_ref in fd.obank.iter_alive() {
                     let call_op = call_op_ref.0.read().unwrap();
                     if call_op.is_dead() { continue; }
                     if !matches!(call_op.opcode, OpCode::CPUI_CALL | OpCode::CPUI_CALLIND) {
@@ -7828,7 +7828,7 @@ impl Action for ActionSetCasts {
         // operations in each block's list order. Detached Rust fixtures that
         // have no basic-block graph retain their explicit alivelist order.
         let ops: Vec<crate::op::PcodeOpRef> = if fd.bblocks.blocks.is_empty() {
-            fd.obank.alivelist.clone()
+            fd.obank.iter_alive().cloned().collect::<Vec<_>>()
         } else {
             fd.bblocks
                 .blocks
@@ -10150,7 +10150,7 @@ fn seed_global_struct_pointers(
     // This catches Heritage-renamed varnodes where the address constant
     // was folded into a COPY input but the output (in Register space)
     // carries the global's address value.
-    for op_ref in &fd.obank.alivelist {
+    for op_ref in fd.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         if op.opcode != crate::opcodes::OpCode::CPUI_COPY {
             continue;
@@ -12038,8 +12038,7 @@ impl Action for ActionOutputPrototype {
                 std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
             > = fd
                 .obank
-                .returnlist
-                .iter()
+                .iter_return()
                 .find(|op_ref| {
                     let op = op_ref.0.read().unwrap();
                     // Funcdata::getFirstReturnOp (funcdata_op.cc:639-640):
@@ -12209,8 +12208,7 @@ impl Action for ActionPrototypeTypes {
         // in the high-level C output")
         let return_ops: Vec<crate::op::PcodeOpRef> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|r| r.0.read().unwrap().opcode == crate::opcodes::OpCode::CPUI_RETURN)
             .cloned()
             .collect();
@@ -14889,7 +14887,7 @@ impl ActionStackPtrFlow {
             None => return 0,
         };
         let mut reached_load = false;
-        for cur_ref in &fd.obank.alivelist {
+        for cur_ref in fd.obank.iter_alive() {
             // Only consider ops up to and including the load.
             if std::sync::Arc::ptr_eq(&cur_ref.0, &loadop.0) {
                 reached_load = true;
@@ -14946,7 +14944,7 @@ impl ActionStackPtrFlow {
         // (coreaction.cc:440-447).
         let mut spcbasein: Option<
             std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = None;
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let o = op_ref.0.read().unwrap();
             for in_vn in o.inrefs.iter() {
                 let g = in_vn.read().unwrap();
@@ -14971,8 +14969,7 @@ impl ActionStackPtrFlow {
         let mut clogcount = 0;
         let add_ops: Vec<crate::op::PcodeOpRef> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_INT_ADD)
             .cloned()
             .collect();
@@ -15118,7 +15115,7 @@ impl Action for ActionSegmentize {
         use crate::opcodes::OpCode;
         let mut change_count = 0;
 
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op_rg = op_ref.0.read().unwrap();
             if op_rg.opcode == OpCode::CPUI_CALLOTHER {
                 change_count += 1;
@@ -17189,8 +17186,7 @@ impl Action for ActionReturnRecovery {
             // skipped inside the loop body (cc:1923-1924).
             let return_ops: Vec<crate::op::PcodeOpRef> = fd
                 .obank
-                .returnlist
-                .iter()
+                .iter_return()
                 .filter(|r| !r.0.read().unwrap().is_dead())
                 .filter(|r| {
                     // cc:1924/cc:1947: op->getHaltType() != 0 — the
@@ -18907,7 +18903,7 @@ impl Action for ActionReturnSplit {
         let mut returns: Vec<(
             Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>, usize,
         )> = Vec::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let parent_arc = {
                 let op_rg = op_ref.0.read().unwrap();
                 if op_rg.is_dead() || op_rg.opcode != OpCode::CPUI_RETURN {
@@ -20658,7 +20654,7 @@ mod tests {
         call_op.inrefs = vec![target_vn, register_arg, stack_arg];
         let op_arc = std::sync::Arc::new(std::sync::RwLock::new(call_op));
         let op_ref = crate::op::PcodeOpRef(op_arc);
-        fd.obank.alivelist.push(op_ref.clone());
+        fd.obank.adopt_alive_op(op_ref.clone());
         let fc = FuncCallSpecs::new_for_op(&op_ref, proto);
         let owner = std::sync::Arc::new(std::sync::RwLock::new(fc));
         let annotation = fd.new_varnode_call_specs(&owner);
@@ -20714,7 +20710,7 @@ mod tests {
         let op_ref = crate::op::PcodeOpRef(std::sync::Arc::new(std::sync::RwLock::new(
             call_op,
         )));
-        fd.obank.alivelist.push(op_ref.clone());
+        fd.obank.adopt_alive_op(op_ref.clone());
         let fc = FuncCallSpecs::new_for_op(&op_ref, proto);
         fd.add_call_specs_owner(std::sync::Arc::new(std::sync::RwLock::new(fc)));
         // new_for_op deliberately drops the caller proto (CALLSPEC-0001);
@@ -20763,7 +20759,7 @@ mod tests {
             let op_ref = crate::op::PcodeOpRef(std::sync::Arc::new(
                 std::sync::RwLock::new(call_op),
             ));
-            fd.obank.alivelist.push(op_ref.clone());
+            fd.obank.adopt_alive_op(op_ref.clone());
             let fc = FuncCallSpecs::new_for_op(&op_ref, proto);
             fd.add_call_specs_owner(std::sync::Arc::new(std::sync::RwLock::new(fc)));
             {
@@ -20829,8 +20825,8 @@ mod tests {
         fd.op_set_input(&lone, outvn.clone(), 0);
         let c = fd.new_constant(4, 0);
         fd.op_set_input(&lone, c, 1);
-        fd.obank.alivelist.push(op.clone());
-        fd.obank.alivelist.push(lone);
+        fd.obank.adopt_alive_op(op.clone());
+        fd.obank.adopt_alive_op(lone);
         // UINT read-facing type on the slot-0 constant and INT on the other
         // side (cast.cc:47-50 / cc:53-58 gates). An untyped constant reports
         // UNKNOWN — which is unsigned-family — so cc:56 would reject with
@@ -21105,7 +21101,7 @@ mod tests {
         let op_arc = Arc::new(RwLock::new(op));
         out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
         let op_ref = PcodeOpRef(op_arc);
-        fd.obank.alivelist.push(op_ref.clone());
+        fd.obank.adopt_alive_op(op_ref.clone());
 
         let mut a = ActionSetCasts::new();
         let status = a.apply(&mut fd).unwrap();
@@ -21201,7 +21197,7 @@ mod tests {
         op.output = Some(out.clone());
         let op_arc = Arc::new(RwLock::new(op));
         out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
-        fd.obank.alivelist.push(PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(PcodeOpRef(op_arc.clone()));
 
         let mut a = ActionSetCasts::new();
         let status = a.apply(&mut fd).unwrap();
@@ -21272,7 +21268,7 @@ mod tests {
         let op_arc = Arc::new(RwLock::new(op));
         out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
         let op_ref = PcodeOpRef(op_arc);
-        fd.obank.alivelist.push(op_ref.clone());
+        fd.obank.adopt_alive_op(op_ref.clone());
 
         let mut a = ActionSetCasts::new();
         let status = a.apply(&mut fd).unwrap();
@@ -21356,7 +21352,7 @@ mod tests {
         // Link the output varnode's def back to this op, matching how Rugra
         // builds written varnodes in real functions.
         out.write().unwrap().def = Some(std::sync::Arc::downgrade(&op_arc));
-        fd.obank.alivelist.push(crate::op::PcodeOpRef(op_arc));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc));
         fd.vbank
             .loc_tree
             .insert(crate::varnode::VarnodeLocRef(out.clone()));
@@ -21788,7 +21784,7 @@ mod tests {
         ind_out.write().unwrap().def = Some(std::sync::Arc::downgrade(&ind_arc));
         vn_in.write().unwrap().add_descend(&ind_arc);
 
-        fd.obank.alivelist.push(crate::op::PcodeOpRef(ind_arc));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(ind_arc));
         fd.vbank
             .loc_tree
             .insert(crate::varnode::VarnodeLocRef(vn_in.clone()));
@@ -21813,7 +21809,7 @@ mod tests {
         copy.output = Some(copy_out.clone());
         let copy_arc = std::sync::Arc::new(std::sync::RwLock::new(copy));
         vn_in2.write().unwrap().add_descend(&copy_arc);
-        fd.obank.alivelist.push(crate::op::PcodeOpRef(copy_arc));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(copy_arc));
         fd.vbank
             .loc_tree
             .insert(crate::varnode::VarnodeLocRef(vn_in2.clone()));
@@ -22343,7 +22339,7 @@ mod tests {
             .parent
             .replace(std::sync::Arc::downgrade(&ret_dyn));
         ret.write().unwrap().add_op(ro_ref.clone());
-        fd.obank.alivelist.push(ro_ref.clone());
+        fd.obank.adopt_alive_op(ro_ref.clone());
         // b1 ends in BRANCH, b2 ends in BRANCH — under the faithful
         // gatherReturnGotos this alone must NOT mark them as goto preds.
         for (blk, addr) in [(&b1, 0x1100u64), (&b2, 0x1200u64)] {
@@ -22444,8 +22440,7 @@ mod tests {
         // The new RETURN lives in one of the goto predecessor blocks.
         let new_returns = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|o| o.0.read().unwrap().opcode == OpCode::CPUI_RETURN)
             .count();
         assert!(new_returns >= 2, "original RETURN + at least one new");

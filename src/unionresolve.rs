@@ -1488,7 +1488,7 @@ impl<'t> ScoreUnionFields<'t> {
     // RUGRA-GLUE: Legacy entry-point kept for the old Funcdata-scanning test
     //   path. The real Ghidra entry is the `new(...)` constructor above.
     pub fn run_on_func(&mut self, fd: &crate::funcdata::Funcdata) {
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op_rg = op_ref.0.read().unwrap();
             match op_rg.get_opcode() {
                 OpCode::CPUI_SUBPIECE => {

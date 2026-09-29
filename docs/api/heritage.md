@@ -1699,3 +1699,12 @@ splitJoinLevel 2068→**2067**、splitJoinRead 2119→**2118**、splitJoinWrite
   Join 空间注册地址；RETURN 侧 return_join_address 委托 Architecture；
   double_precis create_joined_whole 消费空间限定结果；process_joins /
   build_subpiece 经 RwLock 读 join_db。无独立新语义。
+
+## 2026-09-30：returnlist/optree 消费迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`guardReturns`/`guardReturnsOverlapping` 三处 `fd.obank.returnlist.clone()`
+快照改 `fd.obank.iter_return().cloned().collect()`（heritage.cc:1623-1691
+`beginOp(CPUI_RETURN)` 链序快照，序恒等）；storelist 两处消费同迁
+`iter_store()`。optree/loc_tree 消费已在 (a) 段经 PcodeOpTree/
+VarnodeLocSet 桥接零改动，本段无新增投影位点（SeqNum/Address→SpaceOff
+仍单点 `space_off_of_address` 携带 offset）。canon 双 md5 恒等亲证。

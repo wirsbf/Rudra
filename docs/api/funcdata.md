@@ -3580,3 +3580,14 @@ INDIRECT/CPOOLREF/NEW——均带输出，SPECIAL 精确分类）的输出与当
 `generate_ops_from_path`），并把 `iter/startiter` 行号引用修正为
 funcdata_block.cc:558-559。五面门禁 + 五受测函数 --func 零漂移
 （delta 口径，见 /dev/shm/rugra-reports/LANE_FTSFIX_2026-09-29.md）。
+
+## 2026-09-30：op 链消费迁移 + GLUE 分支链手术（PERF-ARENA-FLIP-0001 (b)）
+
+`begin_op_code/end_op_code/begin_op_alive/end_op_alive/begin_op_dead/
+end_op_dead` 桥接返回类型从 `std::slice::Iter` 换 `OpChainIter`（链序=原
+Vec 序）；`op_insert_before`/`op_insert_after`/`op_uninsert` 的 legacy
+GLUE 分支从 alivelist 位置扫描/retain/insert 改 O(1) 链手术
+（`alive_prev` 反向 INDIRECT 组跳 + `alive_insert_before/after`）；
+`early_jump_table_fail` 的 dead[i] 反向索引回溯改 `dead_prev` 存储链游走
+（funcdata_block.cc:554 `--iter` 形态）；`do_live_inject` 位点循环保持
+Vec 位置语义（`dead_at_strict` panic 对位）。canon 双 md5 字节恒等亲证。

@@ -433,15 +433,13 @@ fn main() {
     let count_ops = |fd: &Funcdata| -> i64 { fd.obank.alivelist.len() as i64 };
     let op_alive = |fd: &Funcdata, target: &OpArc| -> bool {
         fd.obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .any(|op| Arc::ptr_eq(&op.0, target))
     };
     let second_round = |fd: &mut Funcdata| -> i32 {
         let snapshot: Vec<OpArc> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .map(|op| op.0.clone())
             .collect();
         let mut changes = 0;
@@ -544,7 +542,7 @@ fn main() {
         let mut pieces = "-".to_string();
         if ok {
             let mut stores: Vec<(i64, usize)> = Vec::new();
-            for op in fd.obank.alivelist.iter() {
+            for op in fd.obank.iter_alive() {
                 let o = op.0.read().unwrap();
                 if o.opcode != OpCode::CPUI_STORE {
                     continue;
@@ -607,7 +605,7 @@ fn main() {
         let ok = splitter.split_store(&store.0, &partial_progress16).unwrap();
         let mut stores: Vec<(i64, usize)> = Vec::new();
         if ok {
-            for op in fd.obank.alivelist.iter() {
+            for op in fd.obank.iter_alive() {
                 let o = op.0.read().unwrap();
                 if o.opcode != OpCode::CPUI_STORE {
                     continue;
@@ -666,7 +664,7 @@ fn main() {
         let ok = splitter.split_store(&store.0, out_type).unwrap();
         let mut stores: Vec<(i64, usize)> = Vec::new();
         if ok {
-            for op in fd.obank.alivelist.iter() {
+            for op in fd.obank.iter_alive() {
                 let o = op.0.read().unwrap();
                 if o.opcode != OpCode::CPUI_STORE {
                     continue;
@@ -751,7 +749,7 @@ fn main() {
         let store = make_store(&mut fd, &mut unique_counter, &ptr, &value, &block);
         let ret = split_store_rule.apply_op(&store.0, &mut fd).unwrap();
         let mut stores: Vec<(i64, usize)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_STORE {
                 continue;
@@ -787,7 +785,7 @@ fn main() {
         unique_counter += 1;
         let ret = split_load_rule.apply_op(&load.0, &mut fd).unwrap();
         let mut loads: Vec<(i64, usize)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_LOAD {
                 continue;
@@ -820,7 +818,7 @@ fn main() {
         let store = make_store(&mut fd, &mut unique_counter, &field_ptr, &value, &block);
         let ret = split_store_rule.apply_op(&store.0, &mut fd).unwrap();
         let mut stores: Vec<(i64, usize)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_STORE {
                 continue;
@@ -860,7 +858,7 @@ fn main() {
         let store = make_store(&mut fd, &mut unique_counter, &ptr, &value, &block);
         let ret = split_store_rule.apply_op(&store.0, &mut fd).unwrap();
         let mut stores: Vec<(i64, usize, String)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_STORE {
                 continue;
@@ -912,7 +910,7 @@ fn main() {
         let store = make_store(&mut fd, &mut unique_counter, &field_ptr, &value, &block);
         let ret = split_store_rule.apply_op(&store.0, &mut fd).unwrap();
         let mut stores: Vec<(i64, usize)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_STORE {
                 continue;
@@ -949,7 +947,7 @@ fn main() {
         let store = make_store(&mut fd, &mut unique_counter, &g, &value, &block);
         let ret = split_store_rule.apply_op(&store.0, &mut fd).unwrap();
         let mut stores: Vec<(i64, usize)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_STORE {
                 continue;
@@ -987,7 +985,7 @@ fn main() {
         let store = make_store(&mut fd, &mut unique_counter, &sptr, &lout, &block);
         let ret = split_store_rule.apply_op(&store.0, &mut fd).unwrap();
         let mut stores: Vec<(i64, usize)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_STORE {
                 continue;
@@ -1030,7 +1028,7 @@ fn main() {
         let store = make_store(&mut fd, &mut unique_counter, &sptr, &lout, &block);
         let ret = split_store_rule.apply_op(&store.0, &mut fd).unwrap();
         let mut stores: Vec<(i64, usize)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_STORE {
                 continue;
@@ -1083,7 +1081,7 @@ fn main() {
         unique_counter += 1;
         let ret = split_load_rule.apply_op(&load.0, &mut fd).unwrap();
         let mut loads: Vec<(i64, usize)> = Vec::new();
-        for op in fd.obank.alivelist.iter() {
+        for op in fd.obank.iter_alive() {
             let o = op.0.read().unwrap();
             if o.opcode != OpCode::CPUI_LOAD {
                 continue;

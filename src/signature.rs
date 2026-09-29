@@ -2051,7 +2051,7 @@ impl Default for GraphSigManager {
 // Ghidra: funcdata.hh Funcdata::hasUnimplemented (scanned here from obank).
 pub fn has_unimplemented(fd: &Arc<RwLock<Funcdata>>) -> bool {
     let fd_rg = fd.read().unwrap();
-    fd_rg.obank.alivelist.iter().any(|op_ref| {
+    fd_rg.obank.iter_alive().any(|op_ref| {
         (op_ref.0.read().unwrap().flags & pcodeop_flags::UNIMPLEMENTED) != 0
     })
 }
@@ -2061,7 +2061,7 @@ pub fn has_unimplemented(fd: &Arc<RwLock<Funcdata>>) -> bool {
 // Ghidra: funcdata.hh Funcdata::hasBadData (scanned here from obank).
 pub fn has_bad_data(fd: &Arc<RwLock<Funcdata>>) -> bool {
     let fd_rg = fd.read().unwrap();
-    fd_rg.obank.alivelist.iter().any(|op_ref| {
+    fd_rg.obank.iter_alive().any(|op_ref| {
         (op_ref.0.read().unwrap().flags & pcodeop_flags::BADINSTRUCTION) != 0
     })
 }

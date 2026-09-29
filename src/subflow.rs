@@ -781,8 +781,7 @@ impl SubvariableFlow {
             // fd->beginOp(CPUI_RETURN)/endOp. Rugra filters the live op bank.
             let returns: Vec<Arc<RwLock<PcodeOp>>> = fd
                 .obank
-                .alivelist
-                .iter()
+                .iter_alive()
                 .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_RETURN)
                 .map(|r| r.0.clone())
                 .collect();

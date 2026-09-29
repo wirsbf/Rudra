@@ -221,7 +221,7 @@ fn run_case(fd: &mut Funcdata, name: &str, const_size: usize, addr: u64) {
     fd.new_unique_out(const_size, &copy);
     let const_vn = fd.new_constant(const_size, addr);
     fd.op_set_input(&copy, const_vn, 0);
-    fd.obank.alivelist.push(copy.clone());
+    fd.obank.adopt_alive_op(copy.clone());
 
     let cmp = fd.new_op(2, Address::new(0x1000));
     fd.op_set_opcode(&cmp, OpCode::CPUI_INT_EQUAL);
@@ -229,7 +229,7 @@ fn run_case(fd: &mut Funcdata, name: &str, const_size: usize, addr: u64) {
     let copy_out = copy.0.read().unwrap().output.clone().unwrap();
     fd.op_set_input(&cmp, copy_out, 0);
     fd.op_set_input(&cmp, other, 1);
-    fd.obank.alivelist.push(cmp.clone());
+    fd.obank.adopt_alive_op(cmp.clone());
 
     fd.set_type_recovery_started();
     let mut action = ActionConstantPtr::new();

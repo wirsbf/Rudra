@@ -5916,7 +5916,7 @@ pub fn try_recover(
 pub fn recover_jump_tables(fd: &mut crate::funcdata::Funcdata) -> usize {
     use crate::opcodes::OpCode;
     // Snapshot the alive op list so we can mutably borrow fd while iterating.
-    let alive: Vec<crate::op::PcodeOpRef> = fd.obank.alivelist.clone();
+    let alive: Vec<crate::op::PcodeOpRef> = fd.obank.iter_alive().cloned().collect::<Vec<_>>();
     let mut recovered = 0usize;
 
     for op_ref in alive {

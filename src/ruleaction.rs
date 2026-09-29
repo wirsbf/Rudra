@@ -25296,8 +25296,7 @@ mod tests {
         // The clone bank grew by two alive ops with patched constant inputs.
         let alive_and = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|c| c.0.read().unwrap().opcode == OpCode::CPUI_INT_AND)
             .count();
         assert_eq!(alive_and, 1);
@@ -26174,13 +26173,13 @@ mod tests {
         fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
         let copy_out = fd.new_unique_out(4, &copy_op);
         fd.op_set_input(&copy_op, const5, 0);
-        fd.obank.alivelist.push(copy_op);
+        fd.obank.adopt_alive_op(copy_op);
         // reader: INT_ZEXT(copy_out) — the rule fires on the READER op
         let reader = fd.new_op(1, Address::new(0x1010));
         fd.op_set_opcode(&reader, OpCode::CPUI_INT_ZEXT);
         fd.new_unique_out(8, &reader);
         fd.op_set_input(&reader, copy_out.clone(), 0);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
 
         let rule = RulePropagateCopy::new();
         assert_eq!(
@@ -26230,12 +26229,12 @@ mod tests {
         fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
         let copy_out = fd.new_unique_out(4, &copy_op);
         fd.op_set_input(&copy_op, free_reg, 0);
-        fd.obank.alivelist.push(copy_op);
+        fd.obank.adopt_alive_op(copy_op);
         let reader = fd.new_op(1, Address::new(0x1010));
         fd.op_set_opcode(&reader, OpCode::CPUI_INT_ZEXT);
         fd.new_unique_out(8, &reader);
         fd.op_set_input(&reader, copy_out, 0);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
 
         let rule = RulePropagateCopy::new();
         assert_eq!(
@@ -26253,7 +26252,7 @@ mod tests {
         fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
         let copy_out = fd.new_unique_out(4, &copy_op);
         fd.op_set_input(&copy_op, const7, 0);
-        fd.obank.alivelist.push(copy_op);
+        fd.obank.adopt_alive_op(copy_op);
         // MULTIEQUAL(copy_out, const1) — marker op
         let reader = fd.new_op(2, Address::new(0x1010));
         fd.op_set_opcode(&reader, OpCode::CPUI_MULTIEQUAL);
@@ -26262,7 +26261,7 @@ mod tests {
         fd.op_set_input(&reader, copy_out, 0);
         let const1 = fd.new_constant(4, 1);
         fd.op_set_input(&reader, const1, 1);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
 
         let rule = RulePropagateCopy::new();
         assert_eq!(
@@ -26280,12 +26279,12 @@ mod tests {
         fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
         let copy_out = fd.new_unique_out(4, &copy_op);
         fd.op_set_input(&copy_op, const5, 0);
-        fd.obank.alivelist.push(copy_op);
+        fd.obank.adopt_alive_op(copy_op);
         let reader = fd.new_op(1, Address::new(0x1010));
         fd.op_set_opcode(&reader, OpCode::CPUI_INT_ZEXT);
         fd.new_unique_out(8, &reader);
         fd.op_set_input(&reader, copy_out, 0);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
         reader.0.write().unwrap().flags |= crate::op::pcodeop_flags::RETURN_COPY;
 
         let rule = RulePropagateCopy::new();
@@ -26308,7 +26307,7 @@ mod tests {
                 fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
                 let out = fd.new_unique_out(4, &copy_op);
                 fd.op_set_input(&copy_op, c, 0);
-                fd.obank.alivelist.push(copy_op);
+                fd.obank.adopt_alive_op(copy_op);
                 outs.push(out);
             }
             (outs[0].clone(), outs[1].clone())
@@ -26318,7 +26317,7 @@ mod tests {
         fd.new_unique_out(4, &reader);
         fd.op_set_input(&reader, copy_out0.clone(), 0);
         fd.op_set_input(&reader, copy_out1.clone(), 1);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
 
         let rule = RulePropagateCopy::new();
         assert_eq!(
@@ -26364,7 +26363,7 @@ mod tests {
         let long_out = fd.new_unique_out(8, &add_op);
         fd.op_set_input(&add_op, a.clone(), 0);
         fd.op_set_input(&add_op, b.clone(), 1);
-        fd.obank.alivelist.push(add_op.clone());
+        fd.obank.adopt_alive_op(add_op.clone());
         // SUBPIECE(long_out, 0) -> sub_out (4 bytes)
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
@@ -26372,7 +26371,7 @@ mod tests {
         fd.op_set_input(&sub_op, long_out.clone(), 0);
         let off_const = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, off_const, 1); // offset 0
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
@@ -26385,8 +26384,7 @@ mod tests {
         // Verify two new SUBPIECE ops exist (for a and b).
         let new_subpieces = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_SUBPIECE
         )
             .count();
@@ -26412,7 +26410,7 @@ mod tests {
         let long_out = fd.new_unique_out(8, &add_op);
         fd.op_set_input(&add_op, a.clone(), 0);
         fd.op_set_input(&add_op, b.clone(), 1);
-        fd.obank.alivelist.push(add_op.clone());
+        fd.obank.adopt_alive_op(add_op.clone());
         // SUBPIECE(long_out, 0)
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
@@ -26420,13 +26418,13 @@ mod tests {
         fd.op_set_input(&sub_op, long_out.clone(), 0);
         let off_const = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, off_const, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
         // A SECOND reader of long_out (so loneDescend fails).
         let reader2 = fd.new_op(1, Address::new(0x1000));
         fd.op_set_opcode(&reader2, OpCode::CPUI_COPY);
         fd.op_set_input(&reader2, long_out.clone(), 0);
         let _r2out = fd.new_unique_out(8, &reader2);
-        fd.obank.alivelist.push(reader2);
+        fd.obank.adopt_alive_op(reader2);
 
         let rule = RuleSubCommute::new();
         let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
@@ -26455,7 +26453,7 @@ mod tests {
             fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
             fd.new_unique_out(long_size, &ext_op);
             fd.op_set_input(&ext_op, c, 0);
-            fd.obank.alivelist.push(ext_op.clone());
+            fd.obank.adopt_alive_op(ext_op.clone());
             ext_defs.push(ext_op);
         }
         let longform = fd.new_op(2, Address::new(0x1000));
@@ -26472,7 +26470,7 @@ mod tests {
             ext_defs[1].0.read().unwrap().output.as_ref().unwrap().clone(),
             1,
         );
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(out_size, &sub_op);
@@ -26483,7 +26481,7 @@ mod tests {
         );
         let off_const = fd.new_constant(4, offset);
         fd.op_set_input(&sub_op, off_const, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
         (longform, sub_op)
     }
 
@@ -26542,7 +26540,7 @@ mod tests {
         fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(8, &ext_op);
         fd.op_set_input(&ext_op, c4, 0);
-        fd.obank.alivelist.push(ext_op.clone());
+        fd.obank.adopt_alive_op(ext_op.clone());
         let longform = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&longform, OpCode::CPUI_INT_SDIV);
         fd.new_unique_out(8, &longform);
@@ -26553,7 +26551,7 @@ mod tests {
         );
         let neg7 = fd.new_constant(8, 0xfffffffffffffff7);
         fd.op_set_input(&longform, neg7, 1);
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(4, &sub_op);
@@ -26564,7 +26562,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         assert_eq!(rule.apply_op(&sub_op.0, &mut fd).unwrap(), action_status::CHANGE);
@@ -26583,7 +26581,7 @@ mod tests {
         fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(8, &ext_op);
         fd.op_set_input(&ext_op, c4, 0);
-        fd.obank.alivelist.push(ext_op.clone());
+        fd.obank.adopt_alive_op(ext_op.clone());
         let longform = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&longform, OpCode::CPUI_INT_SDIV);
         fd.new_unique_out(8, &longform);
@@ -26596,7 +26594,7 @@ mod tests {
         // truncation would change the signed divisor (cc:4595-4597).
         let c80 = fd.new_constant(8, 0x00000000ffffff80);
         fd.op_set_input(&longform, c80, 1);
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(4, &sub_op);
@@ -26607,7 +26605,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         // 0x00000000ffffff80: the low 4 bytes read as -128 after SEXT, but
@@ -26637,7 +26635,7 @@ mod tests {
         fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_ZEXT);
         fd.new_unique_out(16, &ext_op);
         fd.op_set_input(&ext_op, c, 0);
-        fd.obank.alivelist.push(ext_op.clone());
+        fd.obank.adopt_alive_op(ext_op.clone());
         let longform = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&longform, OpCode::CPUI_INT_SDIV);
         fd.new_unique_out(16, &longform);
@@ -26651,13 +26649,13 @@ mod tests {
         fd.op_set_opcode(&ext2, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(16, &ext2);
         fd.op_set_input(&ext2, c2, 0);
-        fd.obank.alivelist.push(ext2.clone());
+        fd.obank.adopt_alive_op(ext2.clone());
         fd.op_set_input(
             &longform,
             ext2.0.read().unwrap().output.as_ref().unwrap().clone(),
             1,
         );
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(8, &sub_op);
@@ -26668,7 +26666,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         assert_eq!(rule.apply_op(&sub_op.0, &mut fd).unwrap(), action_status::NO_CHANGE);
@@ -26693,7 +26691,7 @@ mod tests {
             fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
             fd.new_unique_out(16, &ext_op);
             fd.op_set_input(&ext_op, reg, 0);
-            fd.obank.alivelist.push(ext_op.clone());
+            fd.obank.adopt_alive_op(ext_op.clone());
             let _ = slot;
             ext_outs.push(ext_op);
         }
@@ -26710,7 +26708,7 @@ mod tests {
             ext_outs[1].0.read().unwrap().output.as_ref().unwrap().clone(),
             1,
         );
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(4, &sub_op);
@@ -26721,7 +26719,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         assert_eq!(rule.apply_op(&sub_op.0, &mut fd).unwrap(), action_status::CHANGE);
@@ -26763,7 +26761,7 @@ mod tests {
         fd.op_set_opcode(&ext0, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(16, &ext0);
         fd.op_set_input(&ext0, reg4, 0);
-        fd.obank.alivelist.push(ext0.clone());
+        fd.obank.adopt_alive_op(ext0.clone());
         // SEXT(reg8 input) -> out16 (ext1 side)
         let reg8 = fd
             .vbank
@@ -26773,7 +26771,7 @@ mod tests {
         fd.op_set_opcode(&ext1, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(16, &ext1);
         fd.op_set_input(&ext1, reg8, 0);
-        fd.obank.alivelist.push(ext1.clone());
+        fd.obank.adopt_alive_op(ext1.clone());
         let longform = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&longform, OpCode::CPUI_INT_SDIV);
         fd.new_unique_out(16, &longform);
@@ -26787,7 +26785,7 @@ mod tests {
             ext1.0.read().unwrap().output.as_ref().unwrap().clone(),
             1,
         );
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(4, &sub_op);
@@ -26798,7 +26796,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         assert_eq!(rule.apply_op(&sub_op.0, &mut fd).unwrap(), action_status::CHANGE);
@@ -26936,19 +26934,19 @@ mod tests {
         fd.op_set_opcode(&v_copy_op, OpCode::CPUI_COPY);
         let v_def = fd.new_unique_out(4, &v_copy_op);
         fd.op_set_input(&v_copy_op, v, 0);
-        fd.obank.alivelist.push(v_copy_op.clone());
+        fd.obank.adopt_alive_op(v_copy_op.clone());
         // inner negate: ~v_def
         let neg1 = fd.new_op(1, Address::new(0x1000));
         fd.op_set_opcode(&neg1, OpCode::CPUI_INT_NEGATE);
         let neg1_out = fd.new_unique_out(4, &neg1);
         fd.op_set_input(&neg1, v_def, 0);
-        fd.obank.alivelist.push(neg1.clone());
+        fd.obank.adopt_alive_op(neg1.clone());
         // outer negate: ~~v_def
         let neg2 = fd.new_op(1, Address::new(0x1000));
         fd.op_set_opcode(&neg2, OpCode::CPUI_INT_NEGATE);
         let _neg2_out = fd.new_unique_out(4, &neg2);
         fd.op_set_input(&neg2, neg1_out, 0);
-        fd.obank.alivelist.push(neg2.clone());
+        fd.obank.adopt_alive_op(neg2.clone());
 
         let rule = RuleNegateNegate::new();
         let result = rule.apply_op(&neg2.0, &mut fd).unwrap();
@@ -27096,7 +27094,7 @@ mod tests {
         fd.op_set_input(&sub_op, a, 0);
         let off2 = fd.new_constant(4, 2);
         fd.op_set_input(&sub_op, off2, 1); // offset 2 (not least sig)
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubRight::new();
         let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
@@ -27134,7 +27132,7 @@ mod tests {
         fd.op_set_input(&sub_op, a.clone(), 0);
         let c4 = fd.new_constant(4, 4);
         fd.op_set_input(&sub_op, c4, 1); // c = 4 ≠ 0
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
         // Lone descendant: INT_RIGHT(outvn, 8) — constant shift. Built at a
         // DIFFERENT address (0x2000) than the SUBPIECE (0x1000) so the test
         // discriminates which address the lumped shift op inherits:
@@ -27147,7 +27145,7 @@ mod tests {
         fd.op_set_input(&lone, outvn, 0);
         let shift8 = fd.new_constant(4, 8);
         fd.op_set_input(&lone, shift8, 1);
-        fd.obank.alivelist.push(lone.clone());
+        fd.obank.adopt_alive_op(lone.clone());
 
         let rule = RuleSubRight::new();
         let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
@@ -27157,8 +27155,7 @@ mod tests {
         // list, no output, every input slot nulled to the shared sentinel.
         assert!(
             !fd.obank
-                .alivelist
-                .iter()
+                .iter_alive()
                 .any(|r| Arc::ptr_eq(&r.0, &sub_op.0)),
             "unlinked SUBPIECE must leave the alive list"
         );
@@ -27190,8 +27187,7 @@ mod tests {
         // and the lumped constant d = c*8 + 8 = 40.
         let shift = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .find(|r| r.0.read().unwrap().opcode == OpCode::CPUI_INT_RIGHT)
             .expect("new INT_RIGHT shift op must exist")
             .clone();
@@ -27327,7 +27323,7 @@ mod tests {
         let out = fd.new_unique_out(4, &add);
         fd.op_set_input(&add, c1, 0);
         fd.op_set_input(&add, c2, 1);
-        fd.obank.alivelist.push(add.clone());
+        fd.obank.adopt_alive_op(add.clone());
         let mut mult: i64 = 0;
         let off = RulePtrsubUndo::get_const_offset_back(&out, &mut mult, RulePtrsubUndo::DEPTH_LIMIT);
         assert_eq!(off, 15);
@@ -28444,9 +28440,7 @@ mod tests {
         op.inrefs = vec![ptr_vn, idx];
         op.output = Some(out.clone());
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         // Add a non-ADD descendant so evaluatePointerExpression → 2.
         let out2 = fd
             .vbank
@@ -28706,9 +28700,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         let result = rule.apply_op(&op_arc, &mut fd).unwrap();
         assert_eq!(result, action_status::CHANGE);
@@ -28778,9 +28770,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr.clone()];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
         // LOAD in(1) is the PTRSUB output directly (newoff == 0 arm).
@@ -28835,9 +28825,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
         // LOAD in(1) must now be defined by the INT_ADD.
@@ -28895,9 +28883,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
         let new_ptr = op_arc.read().unwrap().inrefs[1].clone();
@@ -28960,9 +28946,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
         // Plain path fired on ptr_to (the struct): PTRSUB(#0), no INT_ADD.
@@ -29010,9 +28994,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(
             rule.apply_op(&op_arc, &mut fd).unwrap(),
@@ -29296,9 +29278,7 @@ mod tests {
         op.inrefs = vec![hi.clone(), lo.clone()];
         op.output = Some(out.clone());
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
 
         let rule = RulePieceStructure::new();
         let res = rule.apply_op(&op_arc, &mut fd).unwrap();

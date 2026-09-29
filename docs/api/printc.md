@@ -4163,3 +4163,10 @@ BRANCHIND 时 oracle 根本不会印 switch 头，属 Rugra 胶水面。
 - 新单测 `test_switch_head_expr_rpn_channel_ptradd_inline`：手搭
   BRANCHIND←LOAD←PTRADD(implied) 链，断言数组形 `[1]` 印出且
   `unique0x` 永不出现（钉死通道选择，防 legacy 回退回归）。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。

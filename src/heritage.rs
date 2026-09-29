@@ -1318,8 +1318,7 @@ impl Heritage {
         // cc:947-952: iterate beginOp(CPUI_STORE)..endOp, skipping dead ops.
         let store_arcs: Vec<Arc<RwLock<PcodeOp>>> = fd
             .obank
-            .storelist
-            .iter()
+            .iter_store()
             .filter(|s| (s.0.read().unwrap().flags & crate::op::pcodeop_flags::DEAD) == 0)
             .map(|s| s.0.clone())
             .collect();
@@ -2119,7 +2118,7 @@ impl Heritage {
         }
         // cc:1623-1637: every live non-halt RETURN, in op-list order
         // (fd->beginOp(CPUI_RETURN) .. endOp — creation order).
-        let return_ops: Vec<PcodeOpRef> = fd.obank.returnlist.clone();
+        let return_ops: Vec<PcodeOpRef> = fd.obank.iter_return().cloned().collect::<Vec<_>>();
         for op in return_ops {
             let (dead, halt) = {
                 let r = op.0.read().unwrap();
@@ -2222,7 +2221,7 @@ impl Heritage {
                 if let Some(active) = fd.active_output.as_mut() {
                     active.register_trial_in_space(space, addr, size);
                 }
-                let return_ops: Vec<PcodeOpRef> = fd.obank.returnlist.clone();
+                let return_ops: Vec<PcodeOpRef> = fd.obank.iter_return().cloned().collect::<Vec<_>>();
                 for op in return_ops {
                     let (dead, halt, num_input) = {
                         let r = op.0.read().unwrap();
@@ -2264,7 +2263,7 @@ impl Heritage {
         }
         // cc:1677-1691: return-copy suffix on every live RETURN (halt
         // RETURNs included — only the dead check at cc:1680 applies).
-        let return_ops: Vec<PcodeOpRef> = fd.obank.returnlist.clone();
+        let return_ops: Vec<PcodeOpRef> = fd.obank.iter_return().cloned().collect::<Vec<_>>();
         for op in return_ops {
             let (dead, op_addr) = {
                 let r = op.0.read().unwrap();
@@ -3879,8 +3878,7 @@ impl Heritage {
         // cc:1547-1548: iter=fd->beginOp(CPUI_STORE) .. endOp
         let store_arcs: Vec<_> = fd
             .obank
-            .storelist
-            .iter()
+            .iter_store()
             .filter(|s| !(s.0.read().unwrap().flags & crate::op::pcodeop_flags::DEAD != 0))
             .map(|s| s.0.clone())
             .collect();
@@ -8161,8 +8159,7 @@ mod tests {
 
         let subpieces: Vec<_> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|op| op.0.read().unwrap().opcode == OpCode::CPUI_SUBPIECE)
             .cloned()
             .collect();
@@ -8219,8 +8216,7 @@ mod tests {
         heritage.process_joins(&mut fd);
         let subpieces = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|op| op.0.read().unwrap().opcode == OpCode::CPUI_SUBPIECE)
             .count();
         assert_eq!(subpieces, 0, "pass != delay must skip the write split");
@@ -8246,8 +8242,7 @@ mod tests {
         heritage.process_joins(&mut fd);
         let subpieces = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|op| op.0.read().unwrap().opcode == OpCode::CPUI_SUBPIECE)
             .count();
         assert_eq!(subpieces, 0);

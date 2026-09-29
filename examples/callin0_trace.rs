@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
         let fd_read = fd_arc.read().unwrap();
         let mut call_desc = Vec::new();
         let mut store_count = 0usize;
-        for op_ref in fd_read.obank.alivelist.iter() {
+        for op_ref in fd_read.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
                 rugra::opcodes::OpCode::CPUI_CALL => {

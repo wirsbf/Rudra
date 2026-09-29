@@ -706,13 +706,19 @@ impl<'a> FlowInfo<'a> {
     /// (flow.cc:240-248): Ghidra walks the raw dead list from `oiter` to
     /// `endDead()` calling `opDestroyRaw`, which destroys the op's
     /// input/output Varnodes and retires the op from the bank
-    /// (funcdata_op.cc:253-261). `start_idx` is the dead-list index of the
-    /// first raw op to delete.
+    /// (funcdata_op.cc:253-261). `after` is the dead-chain marker of the
+    /// last surviving op — the id-space form of `oiter` (the stored
+    /// dead-list iterator, op.hh:128); `None` means "from the chain head".
     // Ghidra: flow.cc:240 FlowInfo::deleteRemainingOps
-    fn delete_remaining_ops_from(&mut self, start_idx: usize) {
-        // Snapshot the tail so we can drain without upsetting the borrow
-        // checker (op_destroy_raw mutates the list).
-        let to_remove: Vec<crate::op::PcodeOpRef> = self.fd.obank.deadlist[start_idx..].to_vec();
+    fn delete_remaining_ops_after(&mut self, after: Option<crate::arena::OpId>) {
+        // Snapshot the tail run so we can destroy without upsetting the
+        // borrow checker (op_destroy_raw mutates the chain).
+        let to_remove: Vec<crate::op::PcodeOpRef> = self
+            .fd
+            .obank
+            .iter_dead_from(after)
+            .cloned()
+            .collect();
         for op in &to_remove {
             self.fd.op_destroy_raw(op);
         }
@@ -723,7 +729,7 @@ impl<'a> FlowInfo<'a> {
     /// flow contains no CALL or BRANCH ops.
     // Ghidra: flow.cc:1157 FlowInfo::checkEZModel
     pub fn check_ez_model(&self) -> bool {
-        for op_ref in &self.fd.obank.deadlist {
+        for op_ref in self.fd.obank.iter_dead() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
                 OpCode::CPUI_BRANCH
@@ -1062,7 +1068,7 @@ impl<'a> FlowInfo<'a> {
     // Ghidra: flow.cc:906 FlowInfo::collectEdges
     pub fn collect_edges(&mut self) -> Vec<(crate::op::PcodeOpRef, crate::op::PcodeOpRef)> {
         let mut edges: Vec<(crate::op::PcodeOpRef, crate::op::PcodeOpRef)> = Vec::new();
-        let dead: Vec<crate::op::PcodeOpRef> = self.fd.obank.deadlist.clone();
+        let dead: Vec<crate::op::PcodeOpRef> = self.fd.obank.iter_dead().cloned().collect::<Vec<_>>();
 
         for (idx, op_ref) in dead.iter().enumerate() {
             let code = op_ref.0.read().unwrap().opcode;
@@ -1616,7 +1622,7 @@ impl<'a> FlowInfo<'a> {
         // flow.cc:1089-1090: if a cloned op is call/branch, xref it.
         // With no clone available there are no new ops to xref; the loop is
         // structural and stays a no-op until clone_op lands.
-        for op_ref in &inlineflow.fd.obank.deadlist {
+        for op_ref in inlineflow.fd.obank.iter_dead() {
             let is_call_or_branch = {
                 let o = op_ref.0.read().unwrap();
                 (o.flags & (pcodeop_flags::CALL | pcodeop_flags::BRANCH)) != 0
@@ -1776,8 +1782,11 @@ impl<'a> FlowInfo<'a> {
         inject_fc_idx: Option<usize>,
     ) {
         // flow.cc:1180-1183: remember the dead-list position before inject;
-        // this becomes the index of the first op appended by the payload.
-        let first_index = self.fd.obank.deadlist.len();
+        // this becomes the first op appended by the payload. The id-space
+        // marker is the pre-inject dead-chain tail (the oracle's stored
+        // iterator form, op.hh:128) — the first injected op is its
+        // successor.
+        let inject_marker = self.fd.obank.dead_tail_id();
         // flow.cc:1185: payload->inject(icontext, emitter) — empty
         // injections throw LowlevelError("Empty injection: " + name)
         // (flow.cc:1188-1189); Rugra reports and bails like the rest of the
@@ -1791,11 +1800,16 @@ impl<'a> FlowInfo<'a> {
         };
         self.fd
             .inject_raw_ops_single(&raw_ops, Address::new(icontext.base_addr));
-        if first_index >= self.fd.obank.deadlist.len() {
+        let Some(first_id) = self.fd.obank.dead_after(inject_marker) else {
             eprintln!("[FLOW] {}: Empty injection: {}", self.fd.name, payload.name);
             return;
-        }
-        let firstop = self.fd.obank.deadlist[first_index].clone();
+        };
+        let firstop = self
+            .fd
+            .obank
+            .op_by_id(first_id)
+            .expect("dead_after returned a live chain member")
+            .clone();
 
         // flow.cc:1186: startbasic = op->isBlockStart().
         let mut startbasic = (op.0.read().unwrap().flags & pcodeop_flags::STARTBASIC) != 0;
@@ -1803,7 +1817,7 @@ impl<'a> FlowInfo<'a> {
         // flow.cc:1192: xrefControlFlow(iter, startbasic, isfallthru, fc)
         // over the injected ops — the full op walk (basic-block starts,
         // callspecs, CALLOTHER chaining, dead-tail deletion).
-        let (lastop, _) = self.xref_control_flow_at(first_index, &mut startbasic, inject_fc_idx);
+        let (lastop, _) = self.xref_control_flow_at(Some(first_id), &mut startbasic, inject_fc_idx);
 
         // flow.cc:1194-1199: if the injected code does NOT fall thru, mark
         // the op after the call as the start of a basic block. Ghidra
@@ -2318,78 +2332,39 @@ impl<'a> FlowInfo<'a> {
 
     /// The op following `op` in the dead list (Ghidra: `++op->getInsertIter()`
     /// against `obank.endDead()`, flow.cc:1390-1392).
-    // RUGRA-GLUE: Vec index adapter for Ghidra's stored dead-list iterator.
+    // RUGRA-GLUE: the stored ins-link successor IS the stored iterator's
+    // ++ form — O(1) via PcodeOpBank::dead_next (op.hh:128).
     fn dead_list_next(&self, op: &crate::op::PcodeOpRef) -> Option<crate::op::PcodeOpRef> {
-        let position = self
-            .fd
-            .obank
-            .deadlist
-            .iter()
-            .position(|o| std::sync::Arc::ptr_eq(&o.0, &op.0))?;
-        self.fd.obank.deadlist.get(position + 1).cloned()
+        self.fd.obank.dead_next(op)
     }
 
     /// Move the injected op sequence [firstop, lastop] to immediately after
-    /// `prev`. Faithful to `PcodeOpBank::moveSequenceDead` (op.cc:1043-1070)
+    /// `prev`. Faithful to `PcodeOpBank::moveSequenceDead` (op.cc:1056-1065)
     /// over the flow-time dead-list container.
-    // RUGRA-GLUE: pointer-to-index adapter for PcodeOpBank's Vec dead list.
+    // RUGRA-GLUE: delegates to the bank's id-space splice_after — the
+    // former flow-local drain/splice adapter duplicated the bank port;
+    // the single implementation carries the op.cc:1063 degenerate guard
+    // and the pos==last enditer no-op (CR-ARENACORE F1).
     fn move_sequence_flow(
         &mut self,
         firstop: &crate::op::PcodeOpRef,
         lastop: &crate::op::PcodeOpRef,
         prev: &crate::op::PcodeOpRef,
     ) {
-        let ptr_of = |r: &crate::op::PcodeOpRef| std::sync::Arc::as_ptr(&r.0);
-        let first_ptr = ptr_of(firstop);
-        let last_ptr = ptr_of(lastop);
-        let prev_ptr = ptr_of(prev);
-        let list = &mut self.fd.obank.deadlist;
-        let (Some(first_idx), Some(last_idx), Some(prev_idx)) = (
-            list.iter().position(|r| std::sync::Arc::as_ptr(&r.0) == first_ptr),
-            list.iter().position(|r| std::sync::Arc::as_ptr(&r.0) == last_ptr),
-            list.iter().position(|r| std::sync::Arc::as_ptr(&r.0) == prev_ptr),
-        ) else {
-            return;
-        };
-        if last_idx < first_idx {
-            return; // Invalid range
-        }
-        // Extract the sequence and reinsert after prev (op.cc:1058-1069).
-        let seq: Vec<crate::op::PcodeOpRef> = list.drain(first_idx..=last_idx).collect();
-        let prev_idx = if prev_idx > last_idx {
-            prev_idx - (last_idx - first_idx + 1)
-        } else {
-            prev_idx
-        };
-        list.splice(prev_idx + 1..prev_idx + 1, seq);
+        self.fd.obank.move_sequence_dead(firstop, lastop, prev);
     }
 
     /// Mark COPY ops in the injected range as incidental. Faithful to
     /// `PcodeOpBank::markIncidentalCopy` (op.cc:1071-1083) over the raw
     /// dead-list container (see `move_sequence_flow`).
-    // RUGRA-GLUE: pointer-range adapter for PcodeOpBank's Vec dead list.
+    // RUGRA-GLUE: delegates to the bank's bounded ins-link walk (the
+    // former flow-local pointer-range adapter duplicated the bank port).
     fn mark_incidental_copy_flow(
         &mut self,
         firstop: &crate::op::PcodeOpRef,
         lastop: &crate::op::PcodeOpRef,
     ) {
-        let ptr_of = |r: &crate::op::PcodeOpRef| std::sync::Arc::as_ptr(&r.0);
-        let first_ptr = ptr_of(firstop);
-        let last_ptr = ptr_of(lastop);
-        let mut in_range = false;
-        for op_ref in &self.fd.obank.deadlist {
-            let ptr = std::sync::Arc::as_ptr(&op_ref.0);
-            if ptr == first_ptr {
-                in_range = true;
-            }
-            if in_range && op_ref.0.read().unwrap().opcode == OpCode::CPUI_COPY {
-                op_ref.0.write().unwrap().addlflags |=
-                    crate::op::op_addl_flags::INCIDENTAL_COPY;
-            }
-            if ptr == last_ptr {
-                break;
-            }
-        }
+        self.fd.obank.mark_incidental_copy(firstop, lastop);
     }
 
     // ===================== Private target helpers =====================
@@ -2403,15 +2378,18 @@ impl<'a> FlowInfo<'a> {
     ///      (`upper_bound` then one predecessor step, rejecting an
     ///      instruction that does not cover the op's address) and the
     ///      fallthru is the first op of the NEXT instruction via `target`.
-    // RUGRA-GLUE: Ghidra walks a stored list iterator; Rugra resolves the
-    // equivalent position in its Vec-backed dead list.
+    // RUGRA-GLUE: Ghidra walks a stored list iterator; the id-space stored
+    // ins-link gives the successor in O(1) (op.hh:128).
     fn fallthru_op(&self, op: &crate::op::PcodeOpRef) -> Option<crate::op::PcodeOpRef> {
-        let dead = &self.fd.obank.deadlist;
-        let pos = dead.iter().position(|r| Arc::ptr_eq(&r.0, &op.0))?;
+        // The op must be a dead-chain member (the former position scan's
+        // miss returned None from here).
+        if !self.fd.obank.in_dead(op) {
+            return None;
+        }
         // flow.cc:93-98: next in sequence within the same instruction.
-        if let Some(next) = dead.get(pos + 1) {
+        if let Some(next) = self.fd.obank.dead_next(op) {
             if (next.0.read().unwrap().flags & pcodeop_flags::STARTMARK) == 0 {
-                return Some(next.clone());
+                return Some(next);
             }
         }
         // flow.cc:99-106: find the instruction containing this op.
@@ -2438,7 +2416,7 @@ impl<'a> FlowInfo<'a> {
     /// integer-division semantics Ghidra uses ("Beware overflow").
     // Ghidra: flow.cc:983 FlowInfo::splitBasic
     pub fn split_basic(&mut self) -> crate::error::Result<()> {
-        let dead: Vec<crate::op::PcodeOpRef> = self.fd.obank.deadlist.clone();
+        let dead: Vec<crate::op::PcodeOpRef> = self.fd.obank.iter_dead().cloned().collect::<Vec<_>>();
         if dead.is_empty() {
             return Ok(());
         }
@@ -2628,7 +2606,7 @@ impl<'a> FlowInfo<'a> {
         // that post-fillin invariant without mutating addrlist, block_edges,
         // the op lifecycle, or the block graph so the LowlevelError is
         // transactional with respect to block generation.
-        if let Some(first) = self.fd.obank.deadlist.first() {
+        if let Some(first) = self.fd.obank.dead_head() {
             let starts_basic =
                 (first.0.read().unwrap().flags & pcodeop_flags::STARTBASIC) != 0;
             let pending_mark = !starts_basic
@@ -2886,8 +2864,7 @@ impl<'a> FlowInfo<'a> {
     fn collect_branchinds(&self) -> Vec<crate::op::PcodeOpRef> {
         self.fd
             .obank
-            .deadlist
-            .iter()
+            .iter_dead()
             .filter(|r| r.0.read().unwrap().opcode == crate::opcodes::OpCode::CPUI_BRANCHIND)
             .map(|r| crate::op::PcodeOpRef(r.0.clone()))
             .collect()
@@ -3055,8 +3032,11 @@ impl<'a> FlowInfo<'a> {
 
         // flow.cc:407-418: remember the dead-list boundary, then cache the
         // exact-address override before lifting. The constructor-level flag
-        // avoids a map lookup when no override metadata exists.
-        let num_ops_before = self.fd.obank.deadlist.len();
+        // avoids a map lookup when no override metadata exists. The
+        // boundary marker is the pre-lift dead-chain tail id (the oracle's
+        // stored-iterator form, op.hh:128) — the first lifted op is its
+        // successor.
+        let ops_before = self.fd.obank.dead_tail_id();
         let flowoverride = if self.flowoverride_present {
             self.fd.localoverride.get_flow_override(addr)
         } else {
@@ -3116,7 +3096,7 @@ impl<'a> FlowInfo<'a> {
                 }
             }
         }
-        self.finish_process_instruction(addr, step, num_ops_before, start_basic, flowoverride)
+        self.finish_process_instruction(addr, step, ops_before, start_basic, flowoverride)
     }
 
     /// Shared tail of `processInstruction` (flow.cc:458-481): record the
@@ -3127,7 +3107,7 @@ impl<'a> FlowInfo<'a> {
         &mut self,
         addr: Address,
         step: usize,
-        num_ops_before: usize,
+        ops_before: Option<crate::arena::OpId>,
         start_basic: &mut bool,
         flowoverride: crate::override_rs::FlowOverride,
     ) -> crate::error::Result<bool> {
@@ -3152,7 +3132,13 @@ impl<'a> FlowInfo<'a> {
         // flow.cc:466-477: point at the first new op, record its SeqNum,
         // mark it as the instruction start, and xref the new ops.
         let mut isfallthru = true;
-        if let Some(first_op) = self.fd.obank.deadlist.get(num_ops_before).cloned() {
+        if let Some(first_id) = self.fd.obank.dead_after(ops_before) {
+            let first_op = self
+                .fd
+                .obank
+                .op_by_id(first_id)
+                .expect("dead_after returned a live chain member")
+                .clone();
             let first_seq = first_op.0.read().unwrap().start;
             if let Some(stat) = self.visited.get_mut(&addr.as_u64()) {
                 stat.first_seq = Some(first_seq);
@@ -3165,7 +3151,7 @@ impl<'a> FlowInfo<'a> {
             if flowoverride != crate::override_rs::FlowOverride::None {
                 self.fd.override_flow(addr, flowoverride)?;
             }
-            isfallthru = self.xref_control_flow(num_ops_before, start_basic);
+            isfallthru = self.xref_control_flow(Some(first_id), start_basic);
         }
         // flow.cc:479-480: only a fall-through instruction queues its
         // machine successor (exactly once).
@@ -3188,7 +3174,11 @@ impl<'a> FlowInfo<'a> {
     /// enters the machine-address work list; only non-Const targets call
     /// `newAddress`.
     // Ghidra: flow.cc:264 FlowInfo::xrefControlFlow
-    fn xref_control_flow(&mut self, ops_start: usize, start_basic: &mut bool) -> bool {
+    fn xref_control_flow(
+        &mut self,
+        ops_start: Option<crate::arena::OpId>,
+        start_basic: &mut bool,
+    ) -> bool {
         self.xref_control_flow_at(ops_start, start_basic, None).1
     }
 
@@ -3201,20 +3191,27 @@ impl<'a> FlowInfo<'a> {
     // Ghidra: flow.cc:264 FlowInfo::xrefControlFlow
     fn xref_control_flow_at(
         &mut self,
-        ops_start: usize,
+        ops_start: Option<crate::arena::OpId>,
         start_basic: &mut bool,
         inject_fc: Option<usize>,
     ) -> (Option<crate::op::PcodeOpRef>, bool) {
         let mut isfallthru = false;
         // flow.cc:269: deepest internal relative branch.
         let mut maxtime: u32 = 0;
-        let mut index = ops_start;
+        // The walk is the oracle's dead-list iterator loop (flow.cc:269-352):
+        // `iter` advances past each op before its arm runs, and arms that
+        // truncate the instruction (BRANCH/BRANCHIND/RETURN at/after maxtime)
+        // erase the remaining tail. The id-space cursor advances at the loop
+        // tail by re-reading the current op's ins_next, so an arm-inserted op
+        // (the no-return artificial halt right after a CALL) is seen next,
+        // exactly as the former `index` pointed at it, and a truncated tail
+        // leaves the successor as the sentinel, ending the walk.
+        let mut cur = ops_start;
         let mut last_opcode: Option<OpCode> = None;
         let mut lastop: Option<crate::op::PcodeOpRef> = None;
 
-        while index < self.fd.obank.deadlist.len() {
-            let op_ref = self.fd.obank.deadlist[index].clone();
-            index += 1;
+        while let Some(id) = cur {
+            let Some(op_ref) = self.fd.obank.op_by_id(id).cloned() else { break };
             let opcode = op_ref.0.read().unwrap().opcode;
             last_opcode = Some(opcode);
             lastop = Some(op_ref.clone());
@@ -3223,54 +3220,54 @@ impl<'a> FlowInfo<'a> {
                 op_ref.0.write().unwrap().flags |= pcodeop_flags::STARTBASIC;
                 *start_basic = false;
             }
-            match opcode {
+            let truncate_tail = match opcode {
                 OpCode::CPUI_CBRANCH => {
                     self.xref_conditional_branch(&op_ref, &mut maxtime, &mut isfallthru);
                     // flow.cc:294: the op after a conditional branch starts a
                     // basic block.
                     *start_basic = true;
+                    false
                 }
                 OpCode::CPUI_BRANCH => {
                     self.xref_conditional_branch(&op_ref, &mut maxtime, &mut isfallthru);
                     // flow.cc:314-317: a BRANCH at/after the deepest forward
                     // relative target makes the rest of the instruction dead.
-                    if op_ref.0.read().unwrap().get_time() >= maxtime {
-                        self.delete_remaining_ops_from(index);
-                        index = self.fd.obank.deadlist.len();
-                    }
+                    let truncating = op_ref.0.read().unwrap().get_time() >= maxtime;
                     // flow.cc:318: the op after an unconditional branch starts
-                    // a basic block.
+                    // a basic block (unconditionally, also on the truncating
+                    // path).
                     *start_basic = true;
+                    truncating
                 }
                 OpCode::CPUI_BRANCHIND => {
                     // flow.cc:321-327: put off trying to recover the table;
                     // the following op starts a basic block.
                     self.tablelist.push(op_ref.clone());
-                    if op_ref.0.read().unwrap().get_time() >= maxtime {
-                        self.delete_remaining_ops_from(index);
-                        index = self.fd.obank.deadlist.len();
-                    }
+                    let truncating =
+                        op_ref.0.read().unwrap().get_time() >= maxtime;
                     *start_basic = true;
+                    truncating
                 }
                 OpCode::CPUI_RETURN => {
                     // flow.cc:329-334.
-                    if op_ref.0.read().unwrap().get_time() >= maxtime {
-                        self.delete_remaining_ops_from(index);
-                        index = self.fd.obank.deadlist.len();
-                    }
+                    let truncating =
+                        op_ref.0.read().unwrap().get_time() >= maxtime;
                     *start_basic = true;
+                    truncating
                 }
                 OpCode::CPUI_CALL => {
                     // flow.cc:336-338: if the sub-function never returns, an
                     // artificial halt was inserted directly after this call,
-                    // so it must be xref'd too. The halt lands at `index`
-                    // (immediately after the call), so the next loop
-                    // iteration processes it — Ghidra's `--oiter`.
+                    // so it must be xref'd too. The halt lands immediately
+                    // after the call in the dead chain, so the loop tail's
+                    // successor read processes it — Ghidra's `--oiter`.
                     self.setup_call_specs(&op_ref, inject_fc);
+                    false
                 }
                 OpCode::CPUI_CALLIND => {
                     // flow.cc:340-342: same contract as CALL.
                     self.setup_callind_specs(&op_ref, inject_fc);
+                    false
                 }
                 OpCode::CPUI_CALLOTHER => {
                     // flow.cc:344-348: an injected user-op goes on the
@@ -3298,8 +3295,18 @@ impl<'a> FlowInfo<'a> {
                             }
                         }
                     }
+                    false
                 }
-                _ => {}
+                _ => false,
+            };
+            if truncate_tail {
+                // The former `delete_remaining_ops_from(index); index = len`
+                // pair: erase every chain member after this op and let the
+                // successor read end the walk.
+                self.delete_remaining_ops_after(Some(id));
+                cur = None;
+            } else {
+                cur = self.fd.obank.dead_after(Some(id));
             }
         }
 
@@ -3700,7 +3707,7 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
     // .empty())` never runs, flow.cc:813/814 are observation-level no-ops
     // without callspecs/tables). Keeps BRANCHIND-less functions byte-
     // identical: no flag writes, no dead/alive churn.
-    let has_branchind = fd.obank.alivelist.iter().any(|op| {
+    let has_branchind = fd.obank.iter_alive().any(|op| {
         op.0.read().unwrap().opcode == OpCode::CPUI_BRANCHIND
     });
     if !has_branchind {
@@ -3725,7 +3732,7 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
     // splitBasic, flow.cc:1013 — i.e. only AFTER recovery). The batch
     // inject path creates ops alive, so cycle them dead in bank order
     // (= lift order = the deadlist order the follow-flow path has).
-    let alive_snapshot: Vec<crate::op::PcodeOpRef> = fd.obank.alivelist.clone();
+    let alive_snapshot: Vec<crate::op::PcodeOpRef> = fd.obank.iter_alive().cloned().collect::<Vec<_>>();
     for op in &alive_snapshot {
         fd.obank.mark_dead(op.clone());
     }
@@ -3737,7 +3744,7 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
     // instruction walk, flow.cc:129-130), which cannot occur here.
     let mut visited: std::collections::BTreeMap<u64, VisitStat> =
         std::collections::BTreeMap::new();
-    for op in &fd.obank.deadlist {
+    for op in fd.obank.iter_dead() {
         let (addr, seq) = {
             let o = op.0.read().unwrap();
             (o.get_addr().as_u64(), o.start)
@@ -3755,7 +3762,7 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
     // Seed tablelist with every live BRANCHIND in bank order — the
     // work-list xref_control_flow fills during the walk (flow.cc:321-322
     // pushes each BRANCHIND the fallthru sweep xrefs).
-    for op in &flow.fd.obank.deadlist {
+    for op in flow.fd.obank.iter_dead() {
         if op.0.read().unwrap().opcode == OpCode::CPUI_BRANCHIND {
             flow.tablelist.push(op.clone());
         }
@@ -3926,7 +3933,7 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
     // integrates ops into blocks (flow.cc:1013). Truncation halts created
     // during recovery were inserted positionally (insert_after_dead), so
     // the restored alivelist keeps SeqNum order.
-    let dead_snapshot: Vec<crate::op::PcodeOpRef> = flow.fd.obank.deadlist.clone();
+    let dead_snapshot: Vec<crate::op::PcodeOpRef> = flow.fd.obank.iter_dead().cloned().collect::<Vec<_>>();
     for op in &dead_snapshot {
         flow.fd.obank.mark_alive(op.clone());
     }
@@ -4219,7 +4226,7 @@ mod tests {
         let mut start_basic = true;
         let index = {
             // The CALLOTHER is the only op; xref from its own position.
-            flow.fd.obank.deadlist.len() - 1
+            flow.fd.obank.dead_id_at(flow.fd.obank.deadlist.len() - 1)
         };
         flow.xref_control_flow(index, &mut start_basic);
         assert_eq!(
@@ -4241,7 +4248,7 @@ mod tests {
         let mut flow2 = FlowInfo::new(&mut fd2, &mut lifter2, 0x1000, 0x2000);
         let _op2 = build_callother_op(flow2.fd, Address::new(0x1000));
         let mut sb2 = true;
-        let idx2 = flow2.fd.obank.deadlist.len() - 1;
+        let idx2 = flow2.fd.obank.dead_id_at(flow2.fd.obank.deadlist.len() - 1);
         flow2.xref_control_flow(idx2, &mut sb2);
         assert!(
             !flow2.has_inject(),
@@ -4280,8 +4287,7 @@ mod tests {
         let opcodes: Vec<(OpCode, u64, u32)> = flow
             .fd
             .obank
-            .deadlist
-            .iter()
+            .iter_dead()
             .map(|r| {
                 let o = r.0.read().expect("op read lock");
                 (o.opcode, o.get_addr().as_u64(), o.get_time())
@@ -4304,7 +4310,12 @@ mod tests {
         // preceded them, then the CALLOTHER was destroyed).
         assert_eq!(add_index, 0);
         // InjectContext substitution: INT_ADD input(1) is the 0x10 constant.
-        let add_op = flow.fd.obank.deadlist[0].clone();
+        let add_op = flow
+            .fd
+            .obank
+            .dead_head()
+            .expect("injected INT_ADD is the dead-chain head")
+            .clone();
         {
             let o = add_op.0.read().expect("op read lock");
             assert_eq!(o.inrefs.len(), 2);

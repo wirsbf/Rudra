@@ -8986,7 +8986,7 @@ impl Action for ActionFinalStructure {
         // Tag untagged BRANCH/CBRANCH as GOTO (break/continue already tagged
         // by ActionNormalizeBranches). No `count +=` here: Ghidra's goto
         // tagging lives in structure/markUnstructured, which never counts.
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let mut op = op_ref.0.write().unwrap();
             if op.branch_type != branch_type::NONE {
                 continue;
@@ -9326,7 +9326,7 @@ impl Action for ActionNormalizeBranches {
         }
 
         // Walk ALL ops and tag BRANCH/CBRANCH that target loop headers or exits
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let mut op = op_ref.0.write().unwrap();
             match op.opcode {
                 OpCode::CPUI_BRANCH | OpCode::CPUI_CBRANCH => {

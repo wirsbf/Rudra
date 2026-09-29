@@ -4286,7 +4286,7 @@ impl FuncCallSpecs {
         let self_seq = call_op.0.read().unwrap().start.clone();
         // Collect preceding ops in storage order (alive list is ordered).
         let mut prev_chain: Vec<crate::op::PcodeOpRef> = Vec::new();
-        for r in &bank.alivelist {
+        for r in bank.iter_alive() {
             if r.0.read().unwrap().start == self_seq { break; }
             prev_chain.push(r.clone());
         }

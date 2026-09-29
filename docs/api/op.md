@@ -1257,3 +1257,33 @@ cargo test --lib 串行 1688P/18F == master 预存集。
 `Funcdata::replaceVolatile`（funcdata_varnode.cc:761-762，源 varnode
 typelock 时）。setAdditionalFlag 泛形（op.hh:140）即写入通道，无需专属
 setter。
+
+## 2026-09-30：PcodeOpBank 7 链侵入式 IdList 翻转（PERF-ARENA-FLIP-0001 (b)）
+
+`PcodeOpBank` 的 7 条成员链（`deadlist`/`alivelist`/`deadandgone`/
+`storelist`/`loadlist`/`returnlist`/`useroplist`）从 `Vec<PcodeOpRef>`
+翻为 arena.rs 冻结原语 `IdList`（op.hh:291-297 的 `list<PcodeOp*>` 镜像）。
+链链接对内嵌在 op 树 arena 槽 `OpCell`（`ins_prev/ins_next` = 单一
+`insertiter` op.hh:128 的 id 形态；`code_prev/code_next` = 单一 `codeiter`
+op.hh:129）——链手术即存储迭代器手术，`mark_alive`/`mark_dead`
+（op.cc:1017-1034）成为 O(1) unlink+push_back，原 `retain` O[n] 扫描地板
+（VARMAPOPCREATE 实测 207,611 次/5.58s）删除；`move_sequence_dead` 改走
+冻结 `splice_after`（op.cc:1063 退化守卫 + pos==last no-op，CR-ARENACORE
+F1）。Vec 镜像删除。
+
+**新读 API**（链序 = oracle 列表序）：`iter_alive/iter_dead/iter_deadandgone/
+iter_store/iter_load/iter_return/iter_userop`（`OpChainIter`，产出
+`&PcodeOpRef`）；`iter_dead_from(Option<OpId>)`（marker 起步的尾段游走，
+flow.cc:240 `oiter` 形态）；`dead_next/dead_prev/alive_prev`（O(1) 存储链
+前后驱）；`dead_head/dead_tail(+_id)`；`in_dead/in_alive`；`dead_at/
+dead_id_at/dead_at_strict`（冷位点位桥）；`adopt_alive_op`（遗留 fixture
+裸 `alivelist.push` 的 bank API 替代——slot-only 入 arena 不进 SeqNum map，
+重链入 alive 尾，单链不变量保持）；`alive_insert_before/alive_insert_after/
+alive_push_back/unlink_alive_if_member`（funcdata GLUE 分支的位置插入链形
+态）。`begin_op(OpCode)`/`end_op` 返回 `OpChainIter`（原 slice 迭代器面换
+链迭代器，序同）。
+
+**行为恒等**：链序 == 原 Vec 序 == oracle 列表序（同构操作 × 同位点的归纳，
+ARENA_DESIGN §2.4）；`mark_dead` 等对未入链外源句柄（legacy fixture 裸 op）
+走成员守卫 no-op（原 retain miss 等价）。canon curl/httpd 双 md5 字节恒等
+（4ab1db2a/7d5b9e7c）+ tests 2018P 恒等亲证。

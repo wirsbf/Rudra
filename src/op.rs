@@ -3,7 +3,7 @@
 //! Corresponds to Ghidra's `op.hh`
 
 use crate::address::{Address, SeqNum};
-use crate::arena::{Arena, OpId, SeqNumKey};
+use crate::arena::{Arena, ArenaId, IdList, Linked, OpId, SeqNumKey};
 use crate::opcodes::OpCode;
 use crate::varnode::Varnode;
 use std::collections::BTreeMap;
@@ -1085,7 +1085,7 @@ impl PcodeOp {
     pub fn target_op(&self, bank: &PcodeOpBank) -> Option<PcodeOpRef> {
         let self_seq = &self.start;
         let mut found_self = false;
-        for r in &bank.alivelist {
+        for r in bank.iter_alive() {
             if &r.0.read().unwrap().start == self_seq { found_self = true; }
             if found_self && (r.0.read().unwrap().flags & pcodeop_flags::STARTMARK) != 0 {
                 return Some(r.clone());
@@ -1667,9 +1667,70 @@ pub struct PcodeOpTree {
 /// One arena slot of the op tree.
 // RUGRA-GLUE: id-space stored-iterator cell — the oracle equivalent is the
 // std::map node itself plus the op's stable pointer identity.
-struct OpCell {
+pub struct OpCell {
     op: PcodeOpRef,
     seq_key: SeqNumKey,
+    // ---- op.hh:127-129 stored list iterators → id-space intrusive links
+    // (ARENA_DESIGN §1.2). The insertiter pair (op.hh:128) threads the op
+    // through whichever of deadlist/alivelist/deadandgone holds it; the
+    // codeiter pair (op.hh:129) through whichever opcode list (if any).
+    ins_prev: OpId,
+    ins_next: OpId,
+    code_prev: OpId,
+    code_next: OpId,
+}
+
+// RUGRA-GLUE: link-field projection for the insert chain (the single
+// oracle `insertiter`, op.hh:128, id-space form: one prev/next pair shared
+// by the dead/alive/deadandgone chains — an op is in exactly one at a time,
+// ARENA_DESIGN §1.2 freeze contract in arena.rs `Linked` docs).
+/// Marker type projecting [`OpCell`]'s insertion-chain link pair.
+pub struct InsLink;
+impl Linked for InsLink {
+    type Elem = OpCell;
+    type Id = OpId;
+    // RUGRA-GLUE: link-field accessors (stored iterator read).
+    fn prev(t: &OpCell) -> OpId {
+        t.ins_prev
+    }
+    // RUGRA-GLUE: link-field accessors (stored iterator read).
+    fn next(t: &OpCell) -> OpId {
+        t.ins_next
+    }
+    // RUGRA-GLUE: link-field accessors (chain surgery write).
+    fn set_prev(t: &mut OpCell, id: OpId) {
+        t.ins_prev = id;
+    }
+    // RUGRA-GLUE: link-field accessors (chain surgery write).
+    fn set_next(t: &mut OpCell, id: OpId) {
+        t.ins_next = id;
+    }
+}
+
+// RUGRA-GLUE: link-field projection for the opcode chain (the single oracle
+// `codeiter`, op.hh:129, id-space form: shared by
+// storelist/loadlist/returnlist/useroplist — an op is in at most one).
+/// Marker type projecting [`OpCell`]'s opcode-chain link pair.
+pub struct CodeLink;
+impl Linked for CodeLink {
+    type Elem = OpCell;
+    type Id = OpId;
+    // RUGRA-GLUE: link-field accessors (stored iterator read).
+    fn prev(t: &OpCell) -> OpId {
+        t.code_prev
+    }
+    // RUGRA-GLUE: link-field accessors (stored iterator read).
+    fn next(t: &OpCell) -> OpId {
+        t.code_next
+    }
+    // RUGRA-GLUE: link-field accessors (chain surgery write).
+    fn set_prev(t: &mut OpCell, id: OpId) {
+        t.code_prev = id;
+    }
+    // RUGRA-GLUE: link-field accessors (chain surgery write).
+    fn set_next(t: &mut OpCell, id: OpId) {
+        t.code_next = id;
+    }
 }
 
 impl PcodeOpTree {
@@ -1708,7 +1769,8 @@ impl PcodeOpTree {
         // immutable so the key copy never drifts). The guard is bound to
         // its own statement and dropped before the write below — holding a
         // read guard into a same-thread write is a guaranteed RwLock
-        // deadlock.
+        // deadlock. Fresh cells enter the arena with detached chain links
+        // (op.hh:127-129 iterators are unset until the bank links the op).
         let existing_id = op.0.read().unwrap().op_id;
         let id = if existing_id.is_some_and(|id| self.arena.contains(id)) {
             let id = existing_id.expect("checked by is_some_and");
@@ -1717,7 +1779,14 @@ impl PcodeOpTree {
             }
             id
         } else {
-            let id = self.arena.insert(OpCell { op: op.clone(), seq_key });
+            let id = self.arena.insert(OpCell {
+                op: op.clone(),
+                seq_key,
+                ins_prev: OpId::SENTINEL,
+                ins_next: OpId::SENTINEL,
+                code_prev: OpId::SENTINEL,
+                code_next: OpId::SENTINEL,
+            });
             op.0.write().unwrap().op_id = Some(id);
             id
         };
@@ -1844,6 +1913,48 @@ impl PcodeOpTree {
     pub fn get_by_id(&self, id: OpId) -> Option<&PcodeOpRef> {
         self.arena.get(id).map(|cell| &cell.op)
     }
+
+    // RUGRA-GLUE: shared-borrow arena accessor — the bank chains live in
+    //   arena cells, so PcodeOpBank iteration/navigation needs this (the
+    //   oracle chains dereference the PcodeOp* directly; id-space chains
+    //   resolve through the one arena both structures share, ARENA_DESIGN
+    //   §1.2 OpArena).
+    pub(crate) fn arena(&self) -> &Arena<OpCell, OpId> {
+        &self.arena
+    }
+
+    // RUGRA-GLUE: exclusive-borrow arena accessor for chain surgery
+    //   (PcodeOpBank splits its optree/list field borrows — ARENA_DESIGN
+    //   §3.2 P3).
+    pub(crate) fn arena_mut(&mut self) -> &mut Arena<OpCell, OpId> {
+        &mut self.arena
+    }
+
+    // RUGRA-GLUE: slot a foreign op into the arena WITHOUT entering the
+    //   SeqNum map — the bank-API replacement for the legacy test
+    //   fixtures' bare `alivelist.push(PcodeOpRef(raw_arc))` bypasses.
+    //   The op becomes chain-linkable while the optree map (and every
+    //   map-derived observation: len/find/iteration) stays untouched,
+    //   exactly as the bare push left it. Idempotent: a re-slot of an
+    //   already-slotted op returns its existing handle.
+    pub(crate) fn slot_only(&mut self, op: &PcodeOpRef) -> OpId {
+        let existing = op.0.read().unwrap().op_id;
+        if let Some(id) = existing {
+            if self.arena.contains(id) {
+                return id;
+            }
+        }
+        let id = self.arena.insert(OpCell {
+            op: op.clone(),
+            seq_key: Self::key_of(op),
+            ins_prev: OpId::SENTINEL,
+            ins_next: OpId::SENTINEL,
+            code_prev: OpId::SENTINEL,
+            code_next: OpId::SENTINEL,
+        });
+        op.0.write().unwrap().op_id = Some(id);
+        id
+    }
 }
 
 // RUGRA-GLUE: named value iterators — the BTreeMap::Values / ::Range
@@ -1853,7 +1964,6 @@ pub struct PcodeOpTreeIter<'a> {
     arena: &'a Arena<OpCell, OpId>,
     ids: std::collections::btree_map::Values<'a, SeqNumKey, OpId>,
 }
-
 impl<'a> Iterator for PcodeOpTreeIter<'a> {
     type Item = &'a PcodeOpRef;
     // RUGRA-GLUE: trait plumbing (advance follows the map value then
@@ -1897,6 +2007,77 @@ impl Default for PcodeOpTree {
     }
 }
 
+// ---------------------------------------------------------------------------
+// OpChainIter — forward walk over one bank chain (PERF-ARENA-FLIP-0001 (b))
+// ---------------------------------------------------------------------------
+
+/// Which embedded link pair a chain walk follows.
+// RUGRA-GLUE: the two stored iterator pairs (op.hh:128 insertiter vs
+// op.hh:129 codeiter) select the chain family; the specific chain within
+/// a family is fixed by the start node (its members thread one pair).
+#[derive(Clone, Copy)]
+enum ChainKind {
+    Ins,
+    Code,
+}
+
+/// Forward iterator over one membership chain, yielding `&PcodeOpRef` in
+/// exact chain order — the oracle `list<PcodeOp*>::const_iterator` walk
+/// (`beginOpAlive`/`beginOpDead`/`begin(OpCode)`, funcdata.hh:506-512 /
+/// op.cc:1158). The advance follows the same stored next link the frozen
+/// [`crate::arena::IdList`] chains thread; slot order is never observable
+/// (ARENA_DESIGN §8.3).
+pub struct OpChainIter<'a> {
+    arena: &'a Arena<OpCell, OpId>,
+    kind: ChainKind,
+    cur: OpId,
+}
+
+impl<'a> OpChainIter<'a> {
+    // RUGRA-GLUE: constructor over the insert-link family.
+    fn ins(arena: &'a Arena<OpCell, OpId>, head: OpId) -> Self {
+        OpChainIter { arena, kind: ChainKind::Ins, cur: head }
+    }
+
+    // RUGRA-GLUE: constructor over the code-link family.
+    fn code(arena: &'a Arena<OpCell, OpId>, head: OpId) -> Self {
+        OpChainIter { arena, kind: ChainKind::Code, cur: head }
+    }
+
+    // RUGRA-GLUE: empty walk (the former `[].iter()` end-sentinel stub).
+    pub(crate) fn empty(arena: &'a Arena<OpCell, OpId>) -> Self {
+        OpChainIter { arena, kind: ChainKind::Ins, cur: OpId::SENTINEL }
+    }
+
+    // RUGRA-GLUE: continue the walk from a raw member id (marker form).
+    /// Iterate the insert-chain from `start` (inclusive) to the chain
+    /// tail; the sentinel yields nothing.
+    pub fn from_id(arena: &'a Arena<OpCell, OpId>, start: OpId) -> Self {
+        OpChainIter { arena, kind: ChainKind::Ins, cur: start }
+    }
+}
+
+impl<'a> Iterator for OpChainIter<'a> {
+    type Item = &'a PcodeOpRef;
+
+    // Ghidra: funcdata.hh:506 Funcdata::beginOpAlive (iterator advance =
+    // stored next link dereference; end() is the sentinel).
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur.is_sentinel() {
+            return None;
+        }
+        let id = self.cur;
+        let cell = self.arena.get(id).expect("bank chain node vanished while iterating");
+        self.cur = match self.kind {
+            ChainKind::Ins => cell.ins_next,
+            ChainKind::Code => cell.code_next,
+        };
+        Some(&cell.op)
+    }
+}
+
+impl std::iter::FusedIterator for OpChainIter<'_> {}
+
 // RUGRA-GLUE: set-shaped Debug (the former derive printed the keyed map;
 // consumers only ever see the element sequence).
 impl std::fmt::Debug for PcodeOpTree {
@@ -1921,15 +2102,22 @@ impl<'a> IntoIterator for &'a PcodeOpTree {
 /// Container for managing P-code operations
 ///
 /// Corresponds to Ghidra's `PcodeOpBank` class in `op.hh`
-#[derive(Debug)]
+///
+/// The seven membership chains are intrusive id chains (op.hh:291-297
+/// `list<PcodeOp*>` mirrors): each op's arena cell carries the link pair
+/// (the stored `insertiter`/`codeiter`, op.hh:128-129), so every move is
+/// O(1) chain surgery — `markAlive`/`markDead` are the op.cc:1017-1034
+/// erase+tail-insert pair, never an O(n) scan (PERF-ARENA-FLIP-0001 (b)).
 pub struct PcodeOpBank {
     /// All operations sorted by sequence number (Ghidra optree).
     pub optree: PcodeOpTree,
-    /// List of operations considered "alive" (Ghidra alivelist).
-    pub alivelist: Vec<PcodeOpRef>,
-    /// List of operations considered "dead" (Ghidra deadlist).
-    pub deadlist: Vec<PcodeOpRef>,
-    /// List of retired PcodeOps (Ghidra deadandgone, op.hh:297).
+    /// Chain of operations considered "alive" (Ghidra alivelist,
+    /// op.hh:292) — iteration is `iter_alive()`, chain order.
+    pub alivelist: IdList<InsLink>,
+    /// Chain of operations considered "dead" (Ghidra deadlist, op.hh:291)
+    /// — iteration is `iter_dead()`, chain order.
+    pub deadlist: IdList<InsLink>,
+    /// Chain of retired PcodeOps (Ghidra deadandgone, op.hh:297).
     /// PcodeOpBank::destroy removes the op from every index but KEEPS its
     /// allocation alive here until clear() — Ghidra's op.cc:984-999 comment:
     /// "The memory is not reclaimed until the whole container is destroyed,
@@ -1941,17 +2129,36 @@ pub struct PcodeOpBank {
     /// handle double-drops garbage (HTTPD-FULL-SEGV: ap_content_length_filter
     /// SIGSEGV inside RuleIndirectCollapse's indop drop at the dead-indop
     /// totalReplace path).
-    pub deadandgone: Vec<PcodeOpRef>,
+    pub deadandgone: IdList<InsLink>,
 
-    /// Lists of ops by specific opcode (Ghidra op.hh:293-296).
+    /// Chains of ops by specific opcode (Ghidra op.hh:293-296).
     /// Used for fast iteration over STORE/LOAD/RETURN/CALLOTHER ops.
-    pub storelist: Vec<PcodeOpRef>,
-    pub loadlist: Vec<PcodeOpRef>,
-    pub returnlist: Vec<PcodeOpRef>,
-    pub useroplist: Vec<PcodeOpRef>,
+    pub storelist: IdList<CodeLink>,
+    pub loadlist: IdList<CodeLink>,
+    pub returnlist: IdList<CodeLink>,
+    pub useroplist: IdList<CodeLink>,
 
     /// Internal unique ID counter for sequence numbers (Ghidra uniqid).
     uniqid: u32,
+}
+
+// RUGRA-GLUE: set-shaped Debug (chain lengths only — IdList has no element
+//   iteration without the arena, and debug formatting must not become an
+//   API that exposes slot order).
+impl std::fmt::Debug for PcodeOpBank {
+    // RUGRA-GLUE: trait impl (Debug formatting; no Ghidra counterpart).
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PcodeOpBank")
+            .field("optree", &self.optree)
+            .field("alivelist", &self.alivelist.len())
+            .field("deadlist", &self.deadlist.len())
+            .field("deadandgone", &self.deadandgone.len())
+            .field("storelist", &self.storelist.len())
+            .field("loadlist", &self.loadlist.len())
+            .field("returnlist", &self.returnlist.len())
+            .field("useroplist", &self.useroplist.len())
+            .finish()
+    }
 }
 
 impl PcodeOpBank {
@@ -1959,15 +2166,38 @@ impl PcodeOpBank {
     pub fn new() -> Self {
         Self {
             optree: PcodeOpTree::new(),
-            alivelist: Vec::new(),
-            deadlist: Vec::new(),
-            deadandgone: Vec::new(),
-            storelist: Vec::new(),
-            loadlist: Vec::new(),
-            returnlist: Vec::new(),
-            useroplist: Vec::new(),
+            alivelist: IdList::new(),
+            deadlist: IdList::new(),
+            deadandgone: IdList::new(),
+            storelist: IdList::new(),
+            loadlist: IdList::new(),
+            returnlist: IdList::new(),
+            useroplist: IdList::new(),
             uniqid: 0,
         }
+    }
+
+    // RUGRA-GLUE: stored-iterator resolution — the op's own id is the
+    //   oracle's stored `insertiter`/`codeiter` carrier (op.hh:127-129).
+    //   Bank-created ops are always slotted (create inserts the optree
+    //   cell first); adopt_alive_op slots foreign handles. Returns None
+    //   for an unslotted handle, which chain surgery treats as "not in
+    //   any chain" (the exact set the former ptr scans missed).
+    fn slot_of(&self, op: &PcodeOpRef) -> Option<OpId> {
+        let id = op.0.read().unwrap().op_id?;
+        self.optree.arena().get(id)?;
+        Some(id)
+    }
+
+    // RUGRA-GLUE: slot-of with adopt fallback — marks/moves on a foreign
+    //   (unslotted) handle first give it a cell, then link it, matching
+    //   the former Vec behavior where mark_alive/mark_dead pushed any
+    //   passed op into the target list.
+    fn slot_of_or_adopt(&mut self, op: &PcodeOpRef) -> OpId {
+        if let Some(id) = self.slot_of(op) {
+            return id;
+        }
+        self.optree.slot_only(op)
     }
 
     /// Create a new P-code operation and add it to the bank
@@ -2010,7 +2240,9 @@ impl PcodeOpBank {
         // Changing this to deadlist would break many callers that assume
         // create ⇒ alive; the dead/alive distinction is preserved via
         // mark_alive/mark_dead, so semantics are functionally equivalent.
-        self.alivelist.push(op_ref.clone());
+        let id = self.slot_of(&op_ref).expect("create slots the op");
+        let Self { optree, alivelist, .. } = self;
+        alivelist.push_back(&mut optree.arena_mut(), id);
         op_ref
     }
 
@@ -2034,94 +2266,119 @@ impl PcodeOpBank {
         let op_ref = PcodeOpRef(Arc::new(RwLock::new(op)));
         self.optree.insert(op_ref.clone());
         self.add_to_code_list(&op_ref);
-        self.alivelist.push(op_ref.clone());
+        let id = self.slot_of(&op_ref).expect("create slots the op");
+        let Self { optree, alivelist, .. } = self;
+        alivelist.push_back(&mut optree.arena_mut(), id);
         op_ref
     }
 
     // Ghidra: op.hh:313 PcodeOpBank::markAlive
     pub fn mark_alive(&mut self, op: PcodeOpRef) {
-        let mut op_borrow = op.0.write().unwrap();
-        if (op_borrow.flags & pcodeop_flags::DEAD) != 0 {
-            op_borrow.flags &= !pcodeop_flags::DEAD;
-            // Ghidra op.cc:1017-1022 markAlive: deadlist.erase(op->insertiter)
-            // is O(1) via the stored insertiter (op.cc:1019), then
-            // alivelist.insert(end). Rust's Vec has no stored handles; the
-            // dominant transition shape (create/markDead followed by the
-            // insert-time markAlive with no intervening transition) leaves
-            // the op at the deadlist tail, where a pop performs the exact
-            // same erase with no scan. Mid-list removals keep the
-            // order-preserving retain, matching the oracle list-erase
-            // resulting order element-for-element.
-            if self.deadlist.last().is_some_and(|x| Arc::ptr_eq(&x.0, &op.0)) {
-                self.deadlist.pop();
-            } else {
-                self.deadlist
-                    .retain(|x| Arc::as_ptr(&x.0) != Arc::as_ptr(&op.0));
-            }
-            self.alivelist.push(op.clone());
+        if (op.0.read().unwrap().flags & pcodeop_flags::DEAD) == 0 {
+            return;
         }
+        op.0.write().unwrap().flags &= !pcodeop_flags::DEAD;
+        // Ghidra op.cc:1017-1022 markAlive: deadlist.erase(op->insertiter)
+        // is O(1) via the stored insertiter (op.cc:1019), then
+        // alivelist.insert(end). The id-space link pair IS the stored
+        // iterator: unlink + push_back is the same O(1) surgery with no
+        // scan (PERF-ARENA-FLIP-0001 (b): the VARMAPOPCREATE retain floor
+        // measured 207,611 passes / 5.58s is deleted with this rewrite).
+        // The membership guard covers foreign handles (legacy fixtures
+        // pass raw, never-linked ops): the oracle's erase happens through
+        // the op's OWN stored iterator, which such an op does not have —
+        // the former retain was a no-op there, and the guard is too.
+        let id = self.slot_of_or_adopt(&op);
+        let Self { optree, deadlist, alivelist, .. } = self;
+        if deadlist.contains(optree.arena(), id) {
+            deadlist.unlink(&mut optree.arena_mut(), id);
+        }
+        alivelist.push_back(&mut optree.arena_mut(), id);
     }
 
     // Ghidra: op.hh:314 PcodeOpBank::markDead
     pub fn mark_dead(&mut self, op: PcodeOpRef) {
-        let mut op_borrow = op.0.write().unwrap();
-        if (op_borrow.flags & pcodeop_flags::DEAD) == 0 {
-            op_borrow.flags |= pcodeop_flags::DEAD;
-            // Ghidra op.cc:1028-1034 markDead: alivelist.erase(op->insertiter)
-            // is O(1) via the stored insertiter (op.cc:1030), then
-            // deadlist.insert(end). Rust's Vec has no stored handles; the
-            // dominant transition shape (obank::create's alivelist push
-            // followed immediately by Funcdata::newOp's markDead, op.cc:941
-            // -> funcdata_op.cc:322-327) leaves the op at the alivelist
-            // tail, where a pop performs the exact same erase with no scan
-            // over the ~10^4-sized VdbeExec bank. Mid-list removals (bulk
-            // opDestroy paths) keep the order-preserving retain, matching
-            // the oracle list-erase resulting order element-for-element.
-            if self.alivelist.last().is_some_and(|x| Arc::ptr_eq(&x.0, &op.0)) {
-                self.alivelist.pop();
-            } else {
-                self.alivelist
-                    .retain(|x| Arc::as_ptr(&x.0) != Arc::as_ptr(&op.0));
-            }
-            self.deadlist.push(op.clone());
+        if (op.0.read().unwrap().flags & pcodeop_flags::DEAD) != 0 {
+            return;
         }
+        op.0.write().unwrap().flags |= pcodeop_flags::DEAD;
+        // Ghidra op.cc:1028-1034 markDead: alivelist.erase(op->insertiter)
+        // is O(1) via the stored insertiter (op.cc:1030), then
+        // deadlist.insert(end). Same stored-iterator surgery as mark_alive
+        // (membership guard: see mark_alive).
+        let id = self.slot_of_or_adopt(&op);
+        let Self { optree, deadlist, alivelist, .. } = self;
+        if alivelist.contains(optree.arena(), id) {
+            alivelist.unlink(&mut optree.arena_mut(), id);
+        }
+        deadlist.push_back(&mut optree.arena_mut(), id);
     }
 
     // Ghidra: op.cc:881 PcodeOpBank::addToCodeList
     /// Add op to opcode-specific list (STORE/LOAD/RETURN/CALLOTHER).
-    /// Faithful to `addToCodeList` (op.cc:881-900).
+    /// Faithful to `addToCodeList` (op.cc:881-900): each arm is the
+    /// `codeiter = list.insert(list.end(), op)` stored-iterator tail push.
     pub fn add_to_code_list(&mut self, op: &PcodeOpRef) {
         let opc = op.0.read().unwrap().opcode;
+        if !matches!(
+            opc,
+            OpCode::CPUI_STORE
+                | OpCode::CPUI_LOAD
+                | OpCode::CPUI_RETURN
+                | OpCode::CPUI_CALLOTHER
+        ) {
+            return;
+        }
+        let id = self.slot_of_or_adopt(op);
+        let Self { optree, storelist, loadlist, returnlist, useroplist, .. } = self;
+        let arena = &mut optree.arena_mut();
         match opc {
-            OpCode::CPUI_STORE => self.storelist.push(op.clone()),
-            OpCode::CPUI_LOAD => self.loadlist.push(op.clone()),
-            OpCode::CPUI_RETURN => self.returnlist.push(op.clone()),
-            OpCode::CPUI_CALLOTHER => self.useroplist.push(op.clone()),
-            _ => {}
+            OpCode::CPUI_STORE => storelist.push_back(arena, id),
+            OpCode::CPUI_LOAD => loadlist.push_back(arena, id),
+            OpCode::CPUI_RETURN => returnlist.push_back(arena, id),
+            OpCode::CPUI_CALLOTHER => useroplist.push_back(arena, id),
+            _ => unreachable!("guarded above"),
         }
     }
 
     // Ghidra: op.cc:905 PcodeOpBank::removeFromCodeList
     /// Remove op from its opcode-specific list.
-    /// Faithful to `removeFromCodeList` (op.cc:905-924).
+    /// Faithful to `removeFromCodeList` (op.cc:905-924): each arm is the
+    /// `list.erase(op->codeiter)` stored-iterator O(1) erase. An unslotted
+    /// or unlinked op is a guarded no-op (the former retain found nothing).
     pub fn remove_from_code_list(&mut self, op: &PcodeOpRef) {
         let opc = op.0.read().unwrap().opcode;
-        let ptr = Arc::as_ptr(&op.0);
+        let Some(id) = self.slot_of(op) else { return };
+        let Self { optree, storelist, loadlist, returnlist, useroplist, .. } = self;
+        let arena = optree.arena();
+        let member = match opc {
+            OpCode::CPUI_STORE => storelist.contains(arena, id),
+            OpCode::CPUI_LOAD => loadlist.contains(arena, id),
+            OpCode::CPUI_RETURN => returnlist.contains(arena, id),
+            OpCode::CPUI_CALLOTHER => useroplist.contains(arena, id),
+            _ => return,
+        };
+        if !member {
+            return;
+        }
+        let arena = &mut optree.arena_mut();
         match opc {
-            OpCode::CPUI_STORE => self.storelist.retain(|x| Arc::as_ptr(&x.0) != ptr),
-            OpCode::CPUI_LOAD => self.loadlist.retain(|x| Arc::as_ptr(&x.0) != ptr),
-            OpCode::CPUI_RETURN => self.returnlist.retain(|x| Arc::as_ptr(&x.0) != ptr),
-            OpCode::CPUI_CALLOTHER => self.useroplist.retain(|x| Arc::as_ptr(&x.0) != ptr),
-            _ => {}
+            OpCode::CPUI_STORE => storelist.unlink(arena, id),
+            OpCode::CPUI_LOAD => loadlist.unlink(arena, id),
+            OpCode::CPUI_RETURN => returnlist.unlink(arena, id),
+            OpCode::CPUI_CALLOTHER => useroplist.unlink(arena, id),
+            _ => unreachable!("guarded above"),
         }
     }
 
     // Ghidra: op.cc:926 PcodeOpBank::clearCodeLists
     pub fn clear_code_lists(&mut self) {
-        self.storelist.clear();
-        self.loadlist.clear();
-        self.returnlist.clear();
-        self.useroplist.clear();
+        let Self { optree, storelist, loadlist, returnlist, useroplist, .. } = self;
+        let arena = &mut optree.arena_mut();
+        storelist.clear(arena);
+        loadlist.clear(arena);
+        returnlist.clear(arena);
+        useroplist.clear(arena);
     }
 
     // Ghidra: op.hh:312 PcodeOpBank::changeOpcode
@@ -2145,15 +2402,24 @@ impl PcodeOpBank {
         // cc:977-981: iterate the deadlist, destroy each op. cc:980 destroy()
         // erases it from optree/deadlist and RETIRES it into deadandgone —
         // the allocation stays valid until clear() so iop-encoded pointers
-        // remain readable. Taking the list first keeps the per-op work O(log n)
-        // (Ghidra's O(1) stored-iterator erase equivalent) instead of a
-        // retain-scan per destroyed op.
-        let dead = std::mem::take(&mut self.deadlist);
-        for op in &dead {
-            self.optree.remove(op);
-            self.remove_from_code_list(op);
+        // remain readable. The oracle walks with a live list iterator
+        // (`op = *iter++` before `destroy(op)`); the id-space walk captures
+        // each node's `ins_next` before destroying it, which is the same
+        // stored-iterator advance (erase of the current node never disturbs
+        // a successor handle).
+        loop {
+            let Some(cur) = self.deadlist.head() else { break };
+            let next = self
+                .optree
+                .arena()
+                .get(cur)
+                .map(|cell| cell.ins_next);
+            let Some(op) = self.optree.get_by_id(cur).cloned() else { break };
+            self.destroy(op);
+            if next.is_none_or(|id| id.is_sentinel()) {
+                break;
+            }
         }
-        self.deadandgone.extend(dead);
     }
 
     // Ghidra: op.hh:310 PcodeOpBank::destroy
@@ -2164,17 +2430,25 @@ impl PcodeOpBank {
         // of alivelist/deadlist (markAlive/markDead move it), so branching on
         // the dead flag reproduces the single-list erase without scanning
         // both lists per destroyed op (ActionDeadCode destroys in bulk).
-        let ptr = Arc::as_ptr(&op.0);
-        if op.0.read().unwrap().is_dead() {
-            self.deadlist
-                .retain(|x| Arc::as_ptr(&x.0) != ptr);
-        } else {
-            self.alivelist
-                .retain(|x| Arc::as_ptr(&x.0) != ptr);
+        // Unlinked/unslotted ops fall through the guarded unlink no-ops
+        // (the former retains found nothing) and still retire below.
+        if let Some(id) = self.slot_of(&op) {
+            let is_dead = op.0.read().unwrap().is_dead();
+            let Self { optree, deadlist, alivelist, .. } = self;
+            let arena = optree.arena();
+            if is_dead {
+                if deadlist.contains(arena, id) {
+                    deadlist.unlink(&mut optree.arena_mut(), id);
+                }
+            } else if alivelist.contains(arena, id) {
+                alivelist.unlink(&mut optree.arena_mut(), id);
+            }
         }
         self.remove_from_code_list(&op);
         // cc:998: deadandgone.push_back(op) — retire, never free mid-run.
-        self.deadandgone.push(op);
+        let id = self.slot_of_or_adopt(&op);
+        let Self { optree, deadandgone, .. } = self;
+        deadandgone.push_back(&mut optree.arena_mut(), id);
     }
 
     // Ghidra: op.hh:320 PcodeOpBank::findOp
@@ -2191,12 +2465,21 @@ impl PcodeOpBank {
     // Ghidra: op.hh:303 PcodeOpBank::clear
     // Ghidra: op.cc:1194 PcodeOpBank::clear
     pub fn clear(&mut self) {
+        // cc:1199-1204 walk the three membership chains, then cc:1206-1209
+        // clear the tree and every chain. The chains must be unlinked
+        // BEFORE optree.clear() reclaims the arena slots — IdList surgery
+        // needs live cells (the oracle deletes the pointed-to objects
+        // first, then clears the now-dangling lists; the observable end
+        // state is identical: every list empty, every slot freed, uniqid
+        // reset).
+        {
+            let Self { optree, alivelist, deadlist, deadandgone, .. } = self;
+            let arena = &mut optree.arena_mut();
+            alivelist.clear(arena);
+            deadlist.clear(arena);
+            deadandgone.clear(arena);
+        }
         self.optree.clear();
-        self.alivelist.clear();
-        self.deadlist.clear();
-        // cc:1203-1204/1209: delete + clear the retired ops — the end of the
-        // retention window; dropping the handles reclaims the allocations.
-        self.deadandgone.clear();
         self.clear_code_lists();
         self.uniqid = 0;
     }
@@ -2213,86 +2496,103 @@ impl PcodeOpBank {
 
     // Ghidra: op.cc:1039 PcodeOpBank::insertAfterDead
     /// Move op to right after prev in the dead list. Both must be dead.
-    /// Faithful to `insertAfterDead` (op.cc:1039-1048).
+    /// Faithful to `insertAfterDead` (op.cc:1039-1048): stored-iterator
+    /// `deadlist.erase(op->insertiter)` then `deadlist.insert(++prev->insertiter, op)`
+    /// — the id-space unlink + insert_after pair, O(1).
     pub fn insert_after_dead(&mut self, op: &PcodeOpRef, prev: &PcodeOpRef) {
         // cc:1042: verify both are dead.
         if !op.0.read().unwrap().is_dead() || !prev.0.read().unwrap().is_dead() {
             eprintln!("[OP] WARN: insertAfterDead on non-dead op");
             return;
         }
-        // Remove op from deadlist, reinsert after prev.  Ghidra keeps an
-        // iterator to `prev`, so erasing an earlier `op` does not move the
-        // insertion point.  Vec indices do move and must be adjusted.
-        let op_ptr = Arc::as_ptr(&op.0);
-        let prev_ptr = Arc::as_ptr(&prev.0);
-        let Some(op_idx) = self
-            .deadlist
-            .iter()
-            .position(|candidate| Arc::as_ptr(&candidate.0) == op_ptr)
-        else {
+        let (Some(op_id), Some(prev_id)) = (self.slot_of(op), self.slot_of(prev)) else {
             return;
         };
-        let Some(prev_idx) = self
-            .deadlist
-            .iter()
-            .position(|candidate| Arc::as_ptr(&candidate.0) == prev_ptr)
-        else {
+        let Self { optree, deadlist, .. } = self;
+        let arena = optree.arena();
+        if !deadlist.contains(arena, op_id) || !deadlist.contains(arena, prev_id) {
             return;
-        };
-        let moved = self.deadlist.remove(op_idx);
-        let prev_idx = if op_idx < prev_idx {
-            prev_idx - 1
-        } else {
-            prev_idx
-        };
-        self.deadlist.insert(prev_idx + 1, moved);
+        }
+        let arena = &mut optree.arena_mut();
+        deadlist.unlink(arena, op_id);
+        deadlist.insert_after(arena, prev_id, op_id);
     }
 
     // Ghidra: op.cc:1056 PcodeOpBank::moveSequenceDead
     /// Move a sequence of ops to right after prev in the dead list.
-    /// Faithful to `moveSequenceDead` (op.cc:1056-1065).
+    /// Faithful to `moveSequenceDead` (op.cc:1056-1065):
+    /// `enditer = ++lastop->insertiter; previter = ++prev->insertiter;
+    /// if (previter != firstop->insertiter) deadlist.splice(previter, deadlist,
+    /// firstop->insertiter, enditer)` — the id-space splice_after carries
+    /// both degenerate guards in the frozen arena primitive (the op.cc:1063
+    /// already-in-place check, and the pos==last enditer no-op,
+    /// CR-ARENACORE F1).
     pub fn move_sequence_dead(&mut self, firstop: &PcodeOpRef, lastop: &PcodeOpRef, prev: &PcodeOpRef) {
-        let first_ptr = Arc::as_ptr(&firstop.0);
-        let last_ptr = Arc::as_ptr(&lastop.0);
-        let prev_ptr = Arc::as_ptr(&prev.0);
-
-        // Find positions.
-        let first_pos = self.deadlist.iter().position(|r| Arc::as_ptr(&r.0) == first_ptr);
-        let last_pos = self.deadlist.iter().position(|r| Arc::as_ptr(&r.0) == last_ptr);
-        let prev_pos = self.deadlist.iter().position(|r| Arc::as_ptr(&r.0) == prev_ptr);
-
-        if let (Some(first_idx), Some(last_idx), Some(prev_idx)) = (first_pos, last_pos, prev_pos) {
-            if last_idx < first_idx { return; } // Invalid range
-            // Extract the sequence.
-            let mut seq: Vec<PcodeOpRef> = self.deadlist.drain(first_idx..=last_idx).collect();
-            // Adjust prev_idx if it was after the removed range.
-            let prev_idx = if prev_idx > last_idx { prev_idx - (last_idx - first_idx + 1) } else { prev_idx };
-            // Reinsert after prev.
-            self.deadlist.splice(prev_idx + 1..prev_idx + 1, seq.drain(..));
+        let (Some(first_id), Some(last_id), Some(prev_id)) =
+            (self.slot_of(firstop), self.slot_of(lastop), self.slot_of(prev))
+        else {
+            return;
+        };
+        let Self { optree, deadlist, .. } = self;
+        let arena = optree.arena();
+        if !deadlist.contains(arena, first_id)
+            || !deadlist.contains(arena, last_id)
+            || !deadlist.contains(arena, prev_id)
+        {
+            return;
         }
+        // Mirror of the former index form's `last_idx < first_idx` bail:
+        // walk forward from first and require reaching last before the
+        // chain end (the splice precondition's contiguity half is checked
+        // by the frozen IdList in debug builds).
+        let mut cur = first_id;
+        let mut ordered = false;
+        while !cur.is_sentinel() {
+            if cur == last_id {
+                ordered = true;
+                break;
+            }
+            cur = arena.get(cur).map(|cell| cell.ins_next).unwrap_or(OpId::SENTINEL);
+        }
+        if !ordered {
+            return;
+        }
+        deadlist.splice_after(&mut optree.arena_mut(), prev_id, first_id, last_id);
     }
 
     // Ghidra: op.cc:1071 PcodeOpBank::markIncidentalCopy
     /// Mark COPY ops in the dead list range [firstop, lastop] as incidental.
-    /// Faithful to `markIncidentalCopy` (op.cc:1071-1083).
+    /// Faithful to `markIncidentalCopy` (op.cc:1071-1083): the bounded walk
+    /// `[firstop->insertiter, ++lastop->insertiter)` flags every COPY —
+    /// the id-space form walks ins_next from first, stopping after last
+    /// (or at the chain end when last is never reached, the same list-end
+    /// fallthrough the former whole-list walk had). `firstop` absent from
+    /// the chain flags nothing.
     pub fn mark_incidental_copy(&mut self, firstop: &PcodeOpRef, lastop: &PcodeOpRef) {
-        let first_ptr = Arc::as_ptr(&firstop.0);
-        let last_ptr = Arc::as_ptr(&lastop.0);
-        let mut in_range = false;
-        let mut done = false;
-        for op_ref in &self.deadlist {
-            let ptr = Arc::as_ptr(&op_ref.0);
-            if ptr == first_ptr { in_range = true; }
-            if in_range {
-                let op = op_ref.0.read().unwrap();
-                if op.opcode == OpCode::CPUI_COPY {
-                    drop(op);
-                    op_ref.0.write().unwrap().addlflags |= crate::op::op_addl_flags::INCIDENTAL_COPY;
-                }
-            }
-            if ptr == last_ptr { done = true; break; }
+        let (Some(first_id), Some(last_id)) = (self.slot_of(firstop), self.slot_of(lastop))
+        else {
+            return;
+        };
+        let arena = self.optree.arena();
+        if !self.deadlist.contains(arena, first_id) {
+            return;
         }
-        let _ = done;
+        let mut cur = first_id;
+        loop {
+            let Some(cell) = self.optree.arena().get(cur) else { break };
+            let (is_copy, next) =
+                ({ cell.op.0.read().unwrap().opcode == OpCode::CPUI_COPY }, cell.ins_next);
+            if is_copy {
+                cell.op.0.write().unwrap().addlflags |= crate::op::op_addl_flags::INCIDENTAL_COPY;
+            }
+            if cur == last_id {
+                break;
+            }
+            if next.is_sentinel() {
+                break;
+            }
+            cur = next;
+        }
     }
 
     // Ghidra: op.cc:1089 PcodeOpBank::target
@@ -2308,19 +2608,22 @@ impl PcodeOpBank {
 
     // Ghidra: op.cc:1110 PcodeOpBank::fallthru
     /// Find the fall-through op (next op in alive list after the given op).
-    /// Faithful to `fallthru` (op.cc:1110-1144).
+    /// Faithful to `fallthru` (op.cc:1110-1144) in Rugra's pre-existing
+    /// shape: the alive-arm of the oracle walk (an alive op's stored
+    /// insertiter successor; the oracle's dead-arm uses block order via
+    /// nextOp — Rugra's former alivelist scan returned None for dead ops,
+    /// a divergence retained unchanged). The stored ins-link successor IS
+    /// the former scan's "entry after the ptr match", O(1).
     pub fn fallthru(&self, op: &PcodeOpRef) -> Option<PcodeOpRef> {
-        let op_ptr = Arc::as_ptr(&op.0);
-        let mut found = false;
-        for next_ref in &self.alivelist {
-            if found {
-                return Some(next_ref.clone());
-            }
-            if Arc::as_ptr(&next_ref.0) == op_ptr {
-                found = true;
-            }
+        let id = self.slot_of(op)?;
+        if !self.alivelist.contains(self.optree.arena(), id) {
+            return None; // dead/unlinked: the former scan never matched
         }
-        None
+        let next = self.optree.arena().get(id)?.ins_next;
+        if next.is_sentinel() {
+            return None;
+        }
+        self.optree.get_by_id(next).cloned()
     }
 
     // Ghidra: op.cc:1146 PcodeOpBank::begin(addr)
@@ -2342,14 +2645,18 @@ impl PcodeOpBank {
 
     // Ghidra: op.cc:1158 PcodeOpBank::begin(OpCode)
     /// Beginning of ops with the given opcode (uses code lists).
-    /// Faithful to `begin(OpCode)` (op.cc:1158-1174).
-    pub fn begin_op(&self, opc: OpCode) -> std::slice::Iter<'_, PcodeOpRef> {
+    /// Faithful to `begin(OpCode)` (op.cc:1158-1174): STORE/LOAD/RETURN/
+    /// CALLOTHER read their opcode chain; every other opcode yields the
+    /// alivelist end (Rugra's former default arm returned the full
+    /// alivelist — a divergence funcdata::begin_op_code already corrects
+    /// locally; kept here so the surface is unchanged for direct callers).
+    pub fn begin_op(&self, opc: OpCode) -> OpChainIter<'_> {
         match opc {
-            OpCode::CPUI_STORE => self.storelist.iter(),
-            OpCode::CPUI_LOAD => self.loadlist.iter(),
-            OpCode::CPUI_RETURN => self.returnlist.iter(),
-            OpCode::CPUI_CALLOTHER => self.useroplist.iter(),
-            _ => self.alivelist.iter(),
+            OpCode::CPUI_STORE => self.iter_store(),
+            OpCode::CPUI_LOAD => self.iter_load(),
+            OpCode::CPUI_RETURN => self.iter_return(),
+            OpCode::CPUI_CALLOTHER => self.iter_userop(),
+            _ => self.iter_alive(),
         }
     }
 
@@ -2357,10 +2664,10 @@ impl PcodeOpBank {
     /// End sentinel for ops with the given opcode.
     /// In Rust, begin_op returns an iterator that handles both begin+end.
     /// This method exists for API parity; use begin_op().chain(empty).
-    pub fn end_op(&self, _opc: OpCode) -> std::slice::Iter<'_, PcodeOpRef> {
+    pub fn end_op(&self, _opc: OpCode) -> OpChainIter<'_> {
         // In Rust, we use begin_op() iterator directly which covers the full list.
-        // This stub returns an empty slice for API parity.
-        [].iter()
+        // This stub returns an empty walk for API parity.
+        OpChainIter::empty(self.optree.arena())
     }
 
     // Ghidra: op.cc:1089 PcodeOpBank::setUniqId
@@ -2371,7 +2678,9 @@ impl PcodeOpBank {
 
     // Ghidra: op.cc:957 PcodeOpBank::create(int4,const SeqNum&)
     /// Create a PcodeOp with a specific SeqNum (for cloning).
-    /// Faithful to `create(int4, const SeqNum&)` (op.cc:957-969).
+    /// Faithful to `create(int4, const SeqNum&)` (op.cc:957-969): the
+    /// dead-flag + deadlist tail push (cc:966-967) is the stored-iterator
+    /// `insertiter = deadlist.insert(deadlist.end(), op)` form.
     pub fn create_seq(&mut self, num_inputs: usize, sq: crate::address::SeqNum) -> PcodeOpRef {
         if sq.get_time() >= self.uniqid {
             self.uniqid = sq.get_time() + 1;
@@ -2381,11 +2690,304 @@ impl PcodeOpBank {
         op.flags |= pcodeop_flags::DEAD;
         let op_ref = PcodeOpRef(Arc::new(RwLock::new(op)));
         self.optree.insert(op_ref.clone());
-        self.deadlist.push(op_ref.clone());
+        let id = self.slot_of(&op_ref).expect("create_seq slots the op");
+        let Self { optree, deadlist, .. } = self;
+        deadlist.push_back(&mut optree.arena_mut(), id);
         op_ref
     }
 
-    // Ghidra: op.hh:306 PcodeOpBank::setUniqId (duplicate removed — defined above)
+    // ====================================================================
+    // Chain read API (PERF-ARENA-FLIP-0001 (b) — the former Vec consumers'
+    // surface over the intrusive chains; funcdata.hh:506/512 beginOpAlive/
+    // beginOpDead are the oracle precedent for begin()-style accessors)
+    // ====================================================================
+
+    // Ghidra: funcdata.hh:506 Funcdata::beginOpAlive (alivelist walk)
+    /// Iterate the alive chain head→tail in exact chain order (the
+    /// oracle alivelist order, op.hh:292).
+    pub fn iter_alive(&self) -> OpChainIter<'_> {
+        OpChainIter::ins(self.optree.arena(), self.alivelist.head().unwrap_or(OpId::SENTINEL))
+    }
+
+    // Ghidra: funcdata.hh:512 Funcdata::beginOpDead (deadlist walk)
+    /// Iterate the dead chain head→tail in exact chain order (the
+    /// oracle deadlist order, op.hh:291).
+    pub fn iter_dead(&self) -> OpChainIter<'_> {
+        OpChainIter::ins(self.optree.arena(), self.deadlist.head().unwrap_or(OpId::SENTINEL))
+    }
+
+    // RUGRA-GLUE: marker-form dead walk — flow.cc:240 deleteRemainingOps
+    //   walks `oiter` (a stored dead-list iterator) to `endDead()`; the
+    //   id-space marker is the last surviving op's id.
+    /// Iterate the dead chain from `marker`'s successor (or the head when
+    /// the marker is `None`) to the tail.
+    pub fn iter_dead_from(&self, marker: Option<OpId>) -> OpChainIter<'_> {
+        let head = self.dead_after(marker).unwrap_or(OpId::SENTINEL);
+        OpChainIter::from_id(self.optree.arena(), head)
+    }
+
+    // Ghidra: op.hh:297 PcodeOpBank deadandgone (retired chain walk)
+    /// Iterate the retired (deadandgone) chain head→tail.
+    pub fn iter_deadandgone(&self) -> OpChainIter<'_> {
+        OpChainIter::ins(self.optree.arena(), self.deadandgone.head().unwrap_or(OpId::SENTINEL))
+    }
+
+    // Ghidra: op.cc:1158 PcodeOpBank::begin(CPUI_STORE) (storelist walk)
+    /// Iterate the STORE chain head→tail in chain (registration) order.
+    pub fn iter_store(&self) -> OpChainIter<'_> {
+        OpChainIter::code(self.optree.arena(), self.storelist.head().unwrap_or(OpId::SENTINEL))
+    }
+
+    // Ghidra: op.cc:1158 PcodeOpBank::begin(CPUI_LOAD) (loadlist walk)
+    /// Iterate the LOAD chain head→tail in chain (registration) order.
+    pub fn iter_load(&self) -> OpChainIter<'_> {
+        OpChainIter::code(self.optree.arena(), self.loadlist.head().unwrap_or(OpId::SENTINEL))
+    }
+
+    // Ghidra: op.cc:1158 PcodeOpBank::begin(CPUI_RETURN) (returnlist walk)
+    /// Iterate the RETURN chain head→tail in chain (registration) order.
+    pub fn iter_return(&self) -> OpChainIter<'_> {
+        OpChainIter::code(self.optree.arena(), self.returnlist.head().unwrap_or(OpId::SENTINEL))
+    }
+
+    // Ghidra: op.cc:1158 PcodeOpBank::begin(CPUI_CALLOTHER) (useroplist walk)
+    /// Iterate the CALLOTHER chain head→tail in chain (registration) order.
+    pub fn iter_userop(&self) -> OpChainIter<'_> {
+        OpChainIter::code(self.optree.arena(), self.useroplist.head().unwrap_or(OpId::SENTINEL))
+    }
+
+    // Ghidra: op.cc:1110 PcodeOpBank::fallthru (dead-arm iterator form)
+    /// The dead-list successor of `op` (Ghidra's `++op->getInsertIter()`
+    /// against `endDead()`, flow.cc:1390-1392) — O(1) via the stored
+    /// ins-link. `None` when `op` is not in the dead chain or is last.
+    pub fn dead_next(&self, op: &PcodeOpRef) -> Option<PcodeOpRef> {
+        let id = self.slot_of(op)?;
+        if !self.deadlist.contains(self.optree.arena(), id) {
+            return None;
+        }
+        let next = self.optree.arena().get(id)?.ins_next;
+        if next.is_sentinel() {
+            return None;
+        }
+        self.optree.get_by_id(next).cloned()
+    }
+
+    // Ghidra: funcdata_block.cc:554 Funcdata::earlyJumpTableFail (--iter walk)
+    /// The dead-list predecessor of `op` (Ghidra's `--iter` from the
+    /// stored insertiter) — O(1) via the stored ins-link. `None` when
+    /// `op` is not in the dead chain or is first.
+    pub fn dead_prev(&self, op: &PcodeOpRef) -> Option<PcodeOpRef> {
+        let id = self.slot_of(op)?;
+        if !self.deadlist.contains(self.optree.arena(), id) {
+            return None;
+        }
+        let prev = self.optree.arena().get(id)?.ins_prev;
+        if prev.is_sentinel() {
+            return None;
+        }
+        self.optree.get_by_id(prev).cloned()
+    }
+
+    // Ghidra: funcdata.hh:512 Funcdata::beginOpDead (head probe)
+    /// First op of the dead chain (the former `deadlist.first()`).
+    pub fn dead_head(&self) -> Option<PcodeOpRef> {
+        let head = self.deadlist.head()?;
+        self.optree.get_by_id(head).cloned()
+    }
+
+    // Ghidra: op.cc:1056 PcodeOpBank::moveSequenceDead (tail probe)
+    /// Last op of the dead chain (the former `deadlist.last()`).
+    pub fn dead_tail(&self) -> Option<PcodeOpRef> {
+        let tail = self.deadlist.tail()?;
+        self.optree.get_by_id(tail).cloned()
+    }
+
+    // RUGRA-GLUE: raw id forms of the head/tail probes — flow-time boundary
+    //   markers are `Option<OpId>` (the oracle's stored list iterators,
+    //   flow.cc:407 `oiter`), so the marker helpers below need ids, not
+    //   resolved handles.
+    /// Raw id of the dead chain head.
+    pub fn dead_head_id(&self) -> Option<OpId> {
+        self.deadlist.head()
+    }
+
+    /// Raw id of the dead chain tail.
+    // RUGRA-GLUE: raw-handle probe (the id form of the tail walk above).
+    pub fn dead_tail_id(&self) -> Option<OpId> {
+        self.deadlist.tail()
+    }
+
+    /// Resolve a raw id to its stored handle (guarded stale-id lookup).
+    // RUGRA-GLUE: id dereference — the oracle counterpart is the raw
+    // pointer dereference itself (P1 read form, ARENA_DESIGN §3.2).
+    pub fn op_by_id(&self, id: OpId) -> Option<&PcodeOpRef> {
+        self.optree.get_by_id(id)
+    }
+
+    // RUGRA-GLUE: boundary-marker resolution — the id-space form of
+    //   "the ops from position N to the end" (flow.cc:240 deleteRemainingOps
+    //   walks `oiter` to `endDead()`; flow.cc:407/466 record the pre-lift
+    //   tail and advance from it). `None` marker + non-empty chain = the
+    //   whole chain (the list was empty when the marker was taken).
+    /// The first dead-chain member strictly after the marker id (or the
+    /// head when the marker is `None`).
+    pub fn dead_after(&self, marker: Option<OpId>) -> Option<OpId> {
+        match marker {
+            None => self.deadlist.head(),
+            Some(m) => {
+                let cell = self.optree.arena().get(m)?;
+                let next = cell.ins_next;
+                if next.is_sentinel() { None } else { Some(next) }
+            }
+        }
+    }
+
+    // Ghidra: funcdata.hh:506 Funcdata::beginOpAlive (membership probes)
+    /// True when `op` is a member of the dead chain.
+    pub fn in_dead(&self, op: &PcodeOpRef) -> bool {
+        self.slot_of(op).is_some_and(|id| self.deadlist.contains(self.optree.arena(), id))
+    }
+
+    /// True when `op` is a member of the alive chain.
+    // RUGRA-GLUE: stored-iterator validity probe (oracle: `iter != end()`).
+    pub fn in_alive(&self, op: &PcodeOpRef) -> bool {
+        self.slot_of(op).is_some_and(|id| self.alivelist.contains(self.optree.arena(), id))
+    }
+
+    // RUGRA-GLUE: legacy flat-bank positional adapters (funcdata
+    //   op_insert_before/op_insert_after GLUE branches) — chain-surgery
+    //   forms of the former Vec::insert at a member's position. Each is a
+    //   guarded no-op when the anchor is not an alive member (the former
+    //   scans missed and the caller fell through to the tail).
+    /// Insert `op` into the alive chain immediately before the member
+    /// `follow` (the former alivelist positional insert at follow's index).
+    /// `op` must be slotted and unlinked.
+    pub fn alive_insert_before(&mut self, op: &PcodeOpRef, follow: &PcodeOpRef) {
+        let (Some(id), Some(follow_id)) = (self.slot_of(op), self.slot_of(follow)) else {
+            return;
+        };
+        let Self { optree, alivelist, .. } = self;
+        let arena = optree.arena();
+        if !alivelist.contains(arena, follow_id) || alivelist.contains(arena, id) {
+            return;
+        }
+        alivelist.insert_before(&mut optree.arena_mut(), follow_id, id);
+    }
+
+    /// Insert `op` into the alive chain immediately after the member
+    /// `previous` (the former alivelist positional insert at
+    /// previous's index + 1). `op` must be slotted and unlinked.
+    // RUGRA-GLUE: legacy flat-bank positional insert, chain form.
+    pub fn alive_insert_after(&mut self, op: &PcodeOpRef, previous: &PcodeOpRef) {
+        let (Some(id), Some(prev_id)) = (self.slot_of(op), self.slot_of(previous)) else {
+            return;
+        };
+        let Self { optree, alivelist, .. } = self;
+        let arena = optree.arena();
+        if !alivelist.contains(arena, prev_id) || alivelist.contains(arena, id) {
+            return;
+        }
+        alivelist.insert_after(&mut optree.arena_mut(), prev_id, id);
+    }
+
+    // RUGRA-GLUE: alive-chain tail push for the slotted-but-unlinked legacy
+    //   state (the former `alivelist.insert(len, op)` fallthrough).
+    /// Link the slotted, unlinked `op` at the alive chain tail.
+    pub fn alive_push_back(&mut self, op: &PcodeOpRef) {
+        let Some(id) = self.slot_of(op) else { return };
+        let Self { optree, alivelist, .. } = self;
+        alivelist.push_back(&mut optree.arena_mut(), id);
+    }
+
+    // Ghidra: funcdata.hh:506 Funcdata::beginOpAlive (--iter form)
+    /// The alive-chain predecessor of `op` — O(1) via the stored ins-link.
+    /// `None` when `op` is not an alive member or is first.
+    pub fn alive_prev(&self, op: &PcodeOpRef) -> Option<PcodeOpRef> {
+        let id = self.slot_of(op)?;
+        if !self.alivelist.contains(self.optree.arena(), id) {
+            return None;
+        }
+        let prev = self.optree.arena().get(id)?.ins_prev;
+        if prev.is_sentinel() {
+            return None;
+        }
+        self.optree.get_by_id(prev).cloned()
+    }
+
+    // RUGRA-GLUE: legacy flat-bank detach — the former
+    //   `alivelist.retain(|x| !ptr_eq(x, op))` no-op-or-remove shape on the
+    //   parentless-fixture paths (funcdata op_uninsert GLUE branch). Chain
+    //   form: unlink when an alive member, otherwise nothing (a flag-less
+    //   detach, no dead transition).
+    /// Remove `op` from the alive chain when it is a member (no flag change).
+    pub fn unlink_alive_if_member(&mut self, op: &PcodeOpRef) {
+        let Some(id) = self.slot_of(op) else { return };
+        let Self { optree, alivelist, .. } = self;
+        if !alivelist.contains(optree.arena(), id) {
+            return;
+        }
+        alivelist.unlink(&mut optree.arena_mut(), id);
+    }
+
+    // RUGRA-GLUE: cold positional bridge — the former `deadlist[index]` on
+    //   paths where an index is still the natural currency (do_live_inject's
+    //   historically index-driven walk). Walks from the head; strict form
+    //   panics past the tail exactly like the former Vec index.
+    /// The dead-chain member at `index` (0-based), or `None` past the tail.
+    pub fn dead_at(&self, index: usize) -> Option<PcodeOpRef> {
+        let id = self.dead_id_at(index)?;
+        self.optree.get_by_id(id).cloned()
+    }
+
+    /// Raw id of the dead-chain member at `index` (0-based), or `None`.
+    // RUGRA-GLUE: positional bridge (chain walk from the head).
+    pub fn dead_id_at(&self, index: usize) -> Option<OpId> {
+        let mut cur = self.deadlist.head()?;
+        for _ in 0..index {
+            let next = self.optree.arena().get(cur)?.ins_next;
+            if next.is_sentinel() {
+                return None;
+            }
+            cur = next;
+        }
+        Some(cur)
+    }
+
+    /// The dead-chain member at `index`, panicking past the tail (the
+    /// former `deadlist[index]` out-of-bounds panic).
+    // RUGRA-GLUE: positional bridge, strict form (Vec index panic parity).
+    pub fn dead_at_strict(&self, index: usize) -> PcodeOpRef {
+        self.dead_at(index).unwrap_or_else(|| {
+            panic!("deadlist index {} out of bounds: len is {}", index, self.deadlist.len())
+        })
+    }
+
+    // RUGRA-GLUE: bank-API replacement for the legacy test fixtures' bare
+    //   `alivelist.push(PcodeOpRef(raw_arc))` list bypasses
+    //   (PERF-ARENA-FLIP-0001 (b) task ③). Slots the foreign handle into
+    //   the bank arena WITHOUT entering the SeqNum map (the optree map and
+    //   every map-derived observation stay untouched, exactly as the bare
+    //   push left them) and links it at the alivelist tail. An op already
+    //   chained (e.g. newOp left it on the dead chain) is first unlinked —
+    //   the former double-push left such an op in BOTH lists, a state the
+    //   one-chain-per-op invariant (op.hh:128's single insertiter) cannot
+    //   represent; the observable the fixtures relied on — the op visible
+    //   at the alivelist tail — is exactly preserved.
+    /// Slot a foreign (never bank-created) op handle and link it at the
+    /// alive chain tail (relinking it away from any current chain).
+    pub fn adopt_alive_op(&mut self, op: PcodeOpRef) {
+        let id = self.optree.slot_only(&op);
+        let Self { optree, deadlist, alivelist, deadandgone, .. } = self;
+        let arena = optree.arena();
+        if deadlist.contains(arena, id) {
+            deadlist.unlink(&mut optree.arena_mut(), id);
+        } else if alivelist.contains(arena, id) {
+            alivelist.unlink(&mut optree.arena_mut(), id);
+        } else if deadandgone.contains(arena, id) {
+            deadandgone.unlink(&mut optree.arena_mut(), id);
+        }
+        alivelist.push_back(&mut optree.arena_mut(), id);
+    }
 }
 
 impl Default for PcodeOpBank {

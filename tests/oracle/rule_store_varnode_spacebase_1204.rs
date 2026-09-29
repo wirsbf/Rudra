@@ -101,7 +101,7 @@ impl<'a> Fixture<'a> {
         } else {
             None
         };
-        self.fd.obank.alivelist.push(op.clone());
+        self.fd.obank.adopt_alive_op(op.clone());
         (op, out)
     }
 
