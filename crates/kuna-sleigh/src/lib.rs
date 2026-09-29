@@ -16,6 +16,13 @@
 //! this crate only reads the `.sla` artifacts it produces.
 //!
 //! Lints are inherited from the workspace (`[lints] workspace = true`).
+//!
+//! (kuna) BUILD_DIGEST: the build-script-emitted content digest over the
+//! kuna-base/kuna-num/kuna-sleigh source trees (see build.rs). Snapshot
+//! cache keys include it, so any change to the table decode/encode code
+//! invalidates previously written engine snapshots automatically.
+pub const BUILD_DIGEST: &str = env!("KUNA_SLEIGH_BUILD_DIGEST");
+
 pub mod translate;
 pub mod context;
 pub mod globalcontext;
@@ -31,6 +38,7 @@ pub mod slaformat;
 pub mod loadimage;
 pub mod kuna_ctxsnapshot;
 pub mod kuna_sharedbytes;
+pub mod kuna_enginesnap;
 pub mod loadimage_xml;
 pub mod memstate;
 pub mod emulate;
