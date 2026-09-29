@@ -1887,8 +1887,21 @@ impl PcodeOpBank {
         let mut op_borrow = op.0.write().unwrap();
         if (op_borrow.flags & pcodeop_flags::DEAD) != 0 {
             op_borrow.flags &= !pcodeop_flags::DEAD;
-            self.deadlist
-                .retain(|x| Arc::as_ptr(&x.0) != Arc::as_ptr(&op.0));
+            // Ghidra op.cc:1017-1022 markAlive: deadlist.erase(op->insertiter)
+            // is O(1) via the stored insertiter (op.cc:1019), then
+            // alivelist.insert(end). Rust's Vec has no stored handles; the
+            // dominant transition shape (create/markDead followed by the
+            // insert-time markAlive with no intervening transition) leaves
+            // the op at the deadlist tail, where a pop performs the exact
+            // same erase with no scan. Mid-list removals keep the
+            // order-preserving retain, matching the oracle list-erase
+            // resulting order element-for-element.
+            if self.deadlist.last().is_some_and(|x| Arc::ptr_eq(&x.0, &op.0)) {
+                self.deadlist.pop();
+            } else {
+                self.deadlist
+                    .retain(|x| Arc::as_ptr(&x.0) != Arc::as_ptr(&op.0));
+            }
             self.alivelist.push(op.clone());
         }
     }
@@ -1898,8 +1911,22 @@ impl PcodeOpBank {
         let mut op_borrow = op.0.write().unwrap();
         if (op_borrow.flags & pcodeop_flags::DEAD) == 0 {
             op_borrow.flags |= pcodeop_flags::DEAD;
-            self.alivelist
-                .retain(|x| Arc::as_ptr(&x.0) != Arc::as_ptr(&op.0));
+            // Ghidra op.cc:1028-1034 markDead: alivelist.erase(op->insertiter)
+            // is O(1) via the stored insertiter (op.cc:1030), then
+            // deadlist.insert(end). Rust's Vec has no stored handles; the
+            // dominant transition shape (obank::create's alivelist push
+            // followed immediately by Funcdata::newOp's markDead, op.cc:941
+            // -> funcdata_op.cc:322-327) leaves the op at the alivelist
+            // tail, where a pop performs the exact same erase with no scan
+            // over the ~10^4-sized VdbeExec bank. Mid-list removals (bulk
+            // opDestroy paths) keep the order-preserving retain, matching
+            // the oracle list-erase resulting order element-for-element.
+            if self.alivelist.last().is_some_and(|x| Arc::ptr_eq(&x.0, &op.0)) {
+                self.alivelist.pop();
+            } else {
+                self.alivelist
+                    .retain(|x| Arc::as_ptr(&x.0) != Arc::as_ptr(&op.0));
+            }
             self.deadlist.push(op.clone());
         }
     }
