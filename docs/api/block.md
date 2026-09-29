@@ -2,6 +2,29 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-09-29：FlowBlock 引用形边访问器 get_out_ref/get_in_ref + absorbed_into 键型切换（Lane BLOCKSTRUCT per-rule 常数）
+
+- **引用形访问器**：FlowBlock trait 新增 `get_out_ref(&self, slot) ->
+  Option<&BlockEdge>` / `get_in_ref(&self, slot) -> Option<&BlockEdge>`
+  （RUGRA-GLUE 借用安全 helper；11 个具体类型 impl 各两行）。对应 oracle
+  `FlowBlock::getOut/getIn` 的直接 `outofthis[i]`/`intothis[i]` 引用读形态
+  （block.hh:301-306）。既有 `get_out`/`get_in` 返回拥有型 `Option<BlockEdge>`
+  （含 Arc 克隆）保持不变——collapse 规则 miss 路径（VdbeExec 4M+ 规则试
+  ×23.2M out_edge_is_goto 调）只读 `.flags`/`.point`，改走引用形后零
+  refcount 往返；fire 路径与需要拥有边的调用点继续用拥有形。读语义逐字节等价
+  （同一 Vec 的同一 slot）。
+- **absorbed_into 键型**：`HashMap<i32,i32>` →
+  `FxHashMap<i32,i32>`（rustc-hash 2.0 既有依赖，此前未用）。`is_consumed()`
+  成员测试在 collapse 扫描里每规则试/每入边运行（VdbeExec 数千万次），
+  SipHash 探测 ~40ns → pass-through ~8ns。键值语义、contains_key/get/insert/
+  remove/clear 行为不变；唯一非测试 `.keys()` 消费
+  （blockaction.rs identify_internal 停靠槽位改写）为顺序无关条件更新，
+  迭代序无消费者（blockaction.rs:4555 亲核；block.rs:9784 与
+  blockaction.rs:9784 均为测试 fixture）。
+- **行为恒等**：canon curl/httpd base==opt 字节恒等、sqlite 全语料 assembled
+  5,287,820B cmp 恒等、VdbeExec --one 1055 md5 ad90320e 恒等、镜面五面钉值
+  全 PASS（详见 docs/api/blockaction.md 2026-09-29 SPEEDPROF-BSPERULE-0001 条）。
+
 ## 2026-09-29：print_tree_dbg 补 InfLoop 臂（Lane SWITCHDISPATCH 诊断完善）
 
 - **缺口**：`print_tree_dbg`（RUGRA-GLUE 结构树调试转储器，`RUGRA_DUMP_FUNC`

@@ -832,6 +832,17 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     // Ghidra: block.hh:301 FlowBlock::getOut
     fn get_out(&self, slot: usize) -> Option<BlockEdge>;
 
+    // RUGRA-GLUE: borrow-safety helper mirroring Ghidra's direct
+    // `outofthis[i]` reference access (block.hh:301). get_out returns an
+    // owned BlockEdge (Arc clone per call); the collapse-rule miss paths call
+    // it tens of millions of times per giant function just to read
+    // `.flags`/`.point`, so this reference form removes the refcount
+    // round-trip while preserving identical reads.
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge>;
+    // RUGRA-GLUE: incoming half of the reference accessors above
+    // (Ghidra `intothis[i]`, block.hh:304).
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge>;
+
     // RUGRA-GLUE: mutable edge-vector accessors shared by every FlowBlock
     // subtype. Ghidra's FlowBlock base class owns outofthis/intothis
     // (block.hh:124-127), so edge-label writes (setOutEdgeFlag block.cc:240,
@@ -2558,6 +2569,14 @@ impl FlowBlock for BlockBasic {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
+    }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
@@ -3170,7 +3189,15 @@ pub struct BlockGraph {
     /// via `resolve_to_graph_level`, and rule sweeps use map membership
     /// (`is_consumed`) in place of Ghidra's incremental list compaction
     /// (block.cc:953-960).
-    pub absorbed_into: std::collections::HashMap<i32, i32>,
+    // RUGRA-GLUE: identity-keyed hash map (Ghidra has no map here — blocks
+    // are removed from the list on identifyInternal, block.cc:953-960; Rugra
+    // keeps stable slots and records absorption instead). FxHashMap: the
+    // is_consumed membership test runs per rule-try/per in-edge in the
+    // collapse scan (tens of millions of lookups on giant functions); the
+    // pass-through hasher keeps it a few-ns probe. Same key/value semantics,
+    // no iteration-order-dependent consumer (the only .keys() walks feed
+    // order-independent conditional rewrites / HashSet test fixtures).
+    pub absorbed_into: rustc_hash::FxHashMap<i32, i32>,
 }
 
 impl BlockGraph {
@@ -3185,7 +3212,7 @@ impl BlockGraph {
             flags: 0,
             copy_map: None,
             num_desc: -1,
-            absorbed_into: std::collections::HashMap::new(),
+            absorbed_into: rustc_hash::FxHashMap::default(),
         }
     }
 
@@ -5691,6 +5718,14 @@ impl FlowBlock for BlockCopy {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
+    }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
@@ -6012,6 +6047,14 @@ impl FlowBlock for BlockGoto {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
+    }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
@@ -6328,6 +6371,14 @@ impl FlowBlock for BlockMultiGoto {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
+    }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
@@ -6571,6 +6622,14 @@ impl FlowBlock for BlockIf {
     // Ghidra: block.hh:301 FlowBlock::getOut
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
     }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
@@ -6907,6 +6966,14 @@ impl FlowBlock for BlockWhileDo {
     // Ghidra: block.hh:301 FlowBlock::getOut
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
     }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
@@ -7736,6 +7803,14 @@ impl FlowBlock for BlockDoWhile {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
+    }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
@@ -7897,6 +7972,14 @@ impl FlowBlock for BlockInfLoop {
     // Ghidra: block.hh:301 FlowBlock::getOut
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
     }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
@@ -8160,6 +8243,14 @@ impl FlowBlock for BlockList {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
+    }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
@@ -8354,6 +8445,14 @@ impl FlowBlock for BlockCondition {
     // Ghidra: block.hh:301 FlowBlock::getOut
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
     }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
@@ -8734,6 +8833,14 @@ impl FlowBlock for BlockSwitch {
     // Ghidra: block.hh:301 FlowBlock::getOut
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.outgoing.get(slot)
+    }
+    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
+        self.incoming.get(slot)
     }
 
     // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
