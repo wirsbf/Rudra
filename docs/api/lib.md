@@ -630,3 +630,17 @@ coreaction.rs 现有 58 个 Action structs（覆盖全部 Ghidra coreaction ::ap
   编译器感知结构化算法族移植：RegionIdentifier 区域切分 + 模式化循环恢复 +
   `&&`/`||` 短路菱形恢复 + switch 模式识别；输出 `StructuredNode` IR 预留
   Phase 2 双脸映射。详见 `docs/api/sailr.md`。
+
+## 2026-09-30：新增 arena 模块（PERF-ARENA-CORE-0001，W0 spike）
+
+- `pub mod arena;` — **Rust 容器基础设施，oracle 无 1:1 文件对应物**（重建
+  oracle 的对象图形态：`new` 分配 + 裸指针交叉引用 + bank 内 `std::list`/
+  `std::map` 结构）。设计权威 = `docs/alignment_docs/ARENA_DESIGN.md`。
+  四件：类型化代际句柄 `OpId/VnId/BlockId/HighId`（8B=指针宽，gen 悬垂守卫）、
+  槽存储 `Arena<T,Id>`（Vec<slot>+free-list，**无迭代 API——槽物理序不进
+  任何 API**）、侵入式 id 双向链 `IdList`（std::list 同构 O(1) 保序
+  unlink/splice，禁 swap-remove）、POD 树键 `SpaceOff/SeqNumKey/VnLocKey/
+  VnDefKey`（varnode.cc:34-79 比较器逐字段投影）+ R4 谓词 `descend_consistent`。
+  29 个单测含序语义差分 fuzz（IdList vs std::list 模型逐位对照、树键 vs
+  varnode.cc 逐字转写全对偶、op.cc 生命周期重放）。**W1 API 冻结记录见
+  `docs/api/arena.md`**（PERF-ARENA-MIGRATION campaign）。
