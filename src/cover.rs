@@ -900,8 +900,13 @@ impl Cover {
                         )
                     {
                         let preds = Self::predecessors_of(&bl_arc);
+                        // One dedup set spans this tip loop: the caller's
+                        // CoverBlock mutations all precede the first
+                        // recursion frame, so re-entries are provable
+                        // no-ops (add_ref_recurse_expansion's note).
+                        let mut visited = std::collections::HashSet::new();
                         for pred in preds {
-                            self.add_ref_recurse(&pred);
+                            self.add_ref_recurse_expansion(&pred, &mut visited);
                         }
                     }
                     return;
@@ -919,6 +924,12 @@ impl Cover {
         //           for(j=0;j<ref->numInput();++j)
         //             if (ref->getIn(j)==vn) addRefRecurse(bl->getIn(j));
         //         } else for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j));
+        // One dedup set spans this call's whole recursion closure (both arms
+        // are the same oracle bottom loop): every CoverBlock mutation of
+        // this function precedes the first recursion frame, so a later
+        // entry into an already-entered block is a provable no-op (see
+        // add_ref_recurse_expansion's equivalence note).
+        let mut visited = std::collections::HashSet::new();
         if opcode == crate::opcodes::OpCode::CPUI_MULTIEQUAL {
             // Snapshot every exact-identity slot in ascending order while the
             // op is locked, then snapshot the corresponding predecessor Arcs
@@ -931,11 +942,11 @@ impl Cover {
                     .collect::<Vec<_>>()
             };
             for predecessor in predecessors {
-                self.add_ref_recurse(&predecessor);
+                self.add_ref_recurse_expansion(&predecessor, &mut visited);
             }
         } else {
             for edge in Self::predecessors_of(&bl_arc) {
-                self.add_ref_recurse(&edge);
+                self.add_ref_recurse_expansion(&edge, &mut visited);
             }
         }
     }
@@ -1072,55 +1083,102 @@ impl Cover {
     /// stop==0, defined by a MULTIEQUAL) — recurse through the in-edges so
     /// the other branches still get filled.
     pub fn add_ref_recurse(&mut self, bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>) {
-        // Resolve the block index from the (already locked) FlowBlock.
-        let bl_index = {
-            let bl_rg = bl.read().unwrap();
-            bl_rg.get_index()
-        };
-        // Ghidra: CoverBlock &block(cover[bl->getIndex()]);
-        let block_was_empty = self.blocks.get(&bl_index).map(|b| b.empty()).unwrap_or(true);
-        // Ensure an entry exists (operator[] default-constructs in C++).
-        let cb = self.blocks.entry(bl_index).or_insert_with(CoverBlock::new);
+        let mut visited = std::collections::HashSet::new();
+        self.add_ref_recurse_expansion(bl, &mut visited);
+    }
 
-        if block_was_empty {
-            // Ghidra: block.setAll();  // No cover encountered, fill in entire block
-            cb.set_all();
-            // Ghidra: for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j));
-            let preds = Self::predecessors_of(bl);
-            for pred in preds {
-                self.add_ref_recurse(&pred);
+    // Ghidra: cover.cc:524 Cover::addRefRecurse
+    /// Iterative expansion of `Cover::addRefRecurse` (cover.cc:524-558) on
+    /// an explicit worklist — semantically identical to the oracle's literal
+    /// per-in-edge recursion. Two equivalence pillars:
+    ///
+    /// 1. **Visit order**: predecessors are pushed in reverse and popped in
+    ///    ascending in-edge slot order, and each predecessor's whole subtree
+    ///    finishes before its siblings — the exact DFS preorder of the
+    ///    oracle's `for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j))`
+    ///    (cover.cc:535-536/551-552).
+    /// 2. **Revisit dedup** (`visited`): each frame mutates only its own
+    ///    block's CoverBlock entry, and every MUTATING visit leaves
+    ///    `end == u32::MAX` (`setAll` → stop sentinel 1, or the
+    ///    fill-to-bottom `setEnd((const PcodeOp *)1)`; both map to ~0 via
+    ///    getUIndex, cover.cc:29-49), while the remaining visits mutate
+    ///    nothing at all (two-piece wrap guard `ustop < ustart`, or ustop
+    ///    already ~0). Hence a second entry into an already-entered block
+    ///    fails both guards — `ustop != ~0` and `ustop == 0` cannot hold
+    ///    simultaneously — so it can neither mutate the map nor schedule
+    ///    further recursion: skipping it is unobservable in the final Cover.
+    ///    The set lives per addRefPoint/addRefRecurse entry (each caller's
+    ///    direct CoverBlock mutations precede its first recursion frame) and
+    ///    is never shared across callers that interleave mutations.
+    // RUGRA-GLUE: explicit-stack worklist replaces the oracle's literal
+    // recursion: giant-function CFG cones make the no-op re-entry frames
+    // (DAG edge multiplicity) the dominant cost — per frame a FlowBlock read
+    // lock plus two map lookups — and the dedup turns them into one O(1)
+    // hash skip. The 16-frame stacks are harmless; the re-entries were not.
+    fn add_ref_recurse_expansion(
+        &mut self,
+        bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
+        visited: &mut std::collections::HashSet<i32>,
+    ) {
+        let mut stack = Vec::new();
+        stack.push(bl.clone());
+        while let Some(bl) = stack.pop() {
+            // Resolve the block index from the FlowBlock.
+            let bl_index = {
+                let bl_rg = bl.read().unwrap();
+                bl_rg.get_index()
+            };
+            // Provably-inert re-entry (see doc comment above): skip before
+            // touching the map. A first entry falls through with the map
+            // entry present, exactly like the recursive original's
+            // `cover[bl->getIndex()]` operator[] access.
+            if !visited.insert(bl_index) {
+                continue;
             }
-            return;
-        }
+            // Ghidra: CoverBlock &block(cover[bl->getIndex()]);
+            // operator[] default-constructs; entry().or_insert_with mirrors.
+            // One map lookup replaces the recursive version's get+entry pair
+            // (absent key → fresh empty entry → empty()==true, identical).
+            let cb = self.blocks.entry(bl_index).or_insert_with(CoverBlock::new);
 
-        // Ghidra: const PcodeOp *op = block.getStop();   (before setEnd)
-        //         ustart = CoverBlock::getUIndex(block.getStart());
-        //         ustop  = CoverBlock::getUIndex(op);
-        let old_stop = cb.get_stop_id();
-        let ustart = cb.start;
-        let ustop = cb.end;
-        // Ghidra: if ((ustop != ~((uintm)0))&&( ustop >= ustart))
-        //           block.setEnd((const PcodeOp *)1); // Fill in to the bottom
-        // A two-piece block (ustop < ustart) is deliberately left untouched:
-        // its wrap-around range already reaches the block bottom.
-        if ustop != u32::MAX && ustop >= ustart {
-            cb.set_end_id(CoverEndpoint::EndMark);
-        }
+            if cb.empty() {
+                // Ghidra: block.setAll();  // No cover encountered, fill in entire block
+                cb.set_all();
+                // Ghidra: for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j));
+                // Reverse push keeps the pop order == ascending-slot DFS
+                // preorder of the oracle recursion.
+                let preds = Self::predecessors_of(&bl);
+                stack.extend(preds.into_iter().rev());
+                continue;
+            }
 
-        // Ghidra: if ((ustop==(uintm)0)&&(block.getStart() == (const PcodeOp *)0)) {
-        //           if ((op != (const PcodeOp *)0)&&(op->code()==CPUI_MULTIEQUAL)) {
-        //             for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j));
-        //           }
-        //         }
-        // This block contains only an infinitesimal tip of cover through one
-        // branch of a MULTIEQUAL; traverse through the other branches too.
-        // start_id is the raw-pointer begin-sentinel test; old_stop carries
-        // the MULTIEQUAL marker identity of the stored stop op.
-        if ustop == 0 && cb.get_start_id() == CoverEndpoint::Begin {
-            if matches!(old_stop, CoverEndpoint::Op { multiequal: true, .. }) {
-                let preds = Self::predecessors_of(bl);
-                for pred in preds {
-                    self.add_ref_recurse(&pred);
+            // Ghidra: const PcodeOp *op = block.getStop();   (before setEnd)
+            //         ustart = CoverBlock::getUIndex(block.getStart());
+            //         ustop  = CoverBlock::getUIndex(op);
+            let old_stop = cb.get_stop_id();
+            let ustart = cb.start;
+            let ustop = cb.end;
+            // Ghidra: if ((ustop != ~((uintm)0))&&( ustop >= ustart))
+            //           block.setEnd((const PcodeOp *)1); // Fill in to the bottom
+            // A two-piece block (ustop < ustart) is deliberately left untouched:
+            // its wrap-around range already reaches the block bottom.
+            if ustop != u32::MAX && ustop >= ustart {
+                cb.set_end_id(CoverEndpoint::EndMark);
+            }
+
+            // Ghidra: if ((ustop==(uintm)0)&&(block.getStart() == (const PcodeOp *)0)) {
+            //           if ((op != (const PcodeOp *)0)&&(op->code()==CPUI_MULTIEQUAL)) {
+            //             for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j));
+            //           }
+            //         }
+            // This block contains only an infinitesimal tip of cover through one
+            // branch of a MULTIEQUAL; traverse through the other branches too.
+            // start_id is the raw-pointer begin-sentinel test; old_stop carries
+            // the MULTIEQUAL marker identity of the stored stop op.
+            if ustop == 0 && cb.get_start_id() == CoverEndpoint::Begin {
+                if matches!(old_stop, CoverEndpoint::Op { multiequal: true, .. }) {
+                    let preds = Self::predecessors_of(&bl);
+                    stack.extend(preds.into_iter().rev());
                 }
             }
         }

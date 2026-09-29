@@ -693,6 +693,17 @@ main/glob_range/next_url 3 panic）、defects 0/numbering 0。
 `add_def_point_full`/`add_ref_point_full` 转 `pub(crate)` 供 merge 调用。
 `RUGRA_MERGE_DIAG` 诊断扩展（MERGE-PAIR：失败对实例 cover + 读者 order）。
 
+## 2026-09-29：cover.rs 递归机制行为恒等提速（VDBEEXEC 残差⑤ mergerequired, MERGEREQ 车道）
+
+merge.rs 本体零改动——mergerequired 6.3s 的热点在 cover.rs 的
+`Cover::add_ref_recurse`（gdb 采样亲证两条消费链:
+ActionMergeRequired→merge_marker→merge_op→merge_test_with_list→intersection→
+update_high→update_cover_locked→rebuild→add_ref_point_full→add_ref_recurse,
+与 ActionMarkImplied→inflate_test→update_cover_locked→…）。oracle 对照
+（cover.cc:524-558 亲读）: oracle 即递归形态,差距在帧成本×DAG 边重入频次。
+修复=cover.rs 显式栈 DFS + per-addRefPoint `visited` 去重（重入帧可证
+no-op）,语义/输出零变;细节与恒等论证见 docs/api/cover.md 同日条目。
+
 ## 2026-08-30：同域残留清理——aCover/range 两处切 _full 入口（R-LATTICE-CROSSREVIEW MINOR-4）
 
 `build_dominant_copy` 的 aCover（merge.cc:1202-1207）与 `check_copy_pair` 的

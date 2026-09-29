@@ -190,11 +190,22 @@ RUGRA-GLUE：破坏性集合交（无 Ghidra 对应）。
 
 按 def-use 链重建（cover.cc:477-496；implied 输出传递扩展）。
 
-#### `pub fn add_ref_recurse(&mut self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>)`
+#### `pub fn add_ref_recurse(&mut self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>)` 与 `add_ref_recurse_expansion`
 
 递归回填前驱（cover.cc:524-558）：空块 setAll；非空块填底
 （two-piece 保持回绕不填底）；精确 MULTIEQUAL-tip 判别
 （`start_id == Begin` + 旧 stop 的 marker 身份）。
+
+**2026-09-29 性能重写（行为恒等, VDBEEXEC 残差⑤ mergerequired）**: oracle
+本身即递归形态（cover.cc:535-536/551-552 `for(j..sizeIn) addRefRecurse(
+bl->getIn(j))`）；Rugra 侧成本来自 DAG 边重入帧——每帧 FlowBlock 读锁 +
+双 BTreeMap 查找,而重入帧全部是可证 no-op（每次可突变访问必留
+`end == u32::MAX`——setAll 或填底 setEnd((PcodeOp\*)1),其余访问零突变;
+二次进入时 `ustop != ~0` 与 `ustop == 0` 互斥,两守卫均不成立 → 既不突变
+也不展开）。改为显式栈 DFS（前驱反压=精确升槽位 DFS 先序,访问序与 oracle
+递归恒等）+ per-addRefPoint 入口的 `visited` 去重集（调用方全部直接
+CoverBlock 突变先于首个递归帧,集不跨夹突变调用者共享）。`add_ref_point_full`
+的 tip 循环与底部循环共用一个集合（同一 oracle 底循环的两臂）。
 
 ### `pub struct PcodeOpSet` / `pub trait PcodeOpSetImpl`
 
