@@ -211,3 +211,14 @@ CoverBlock 突变先于首个递归帧,集不跨夹突变调用者共享）。`a
 
 Ghidra `PcodeOpSet`（cover.hh:35-65）：懒 populate 的 PcodeOp 集合与
 secondary affects 测试；`finalize` 按 (block index, SeqNum order) 排序。
+
+**2026-09-29 帧常数收口（SPEEDPROF2 车道,行为恒等）**: `visited` 去重集
+`HashSet<i32/usize>` → `FxHashSet`（rustc-hash 既有依赖;SipHash ~40-60ns/键
+→ ~8ns;集合语义/探测结果不变——add_ref_recurse/add_ref_point_full 两处
+tip+底部循环/rebuild_from_root_snapshot 四点）;`add_ref_recurse_expansion`
+两处前驱下压（空块臂 + MULTIEQUAL-tip 臂,cover.cc:535-536/551-552 的
+`for(j..sizeIn) addRefRecurse(bl->getIn(j))` 镜像）改为 `push_predecessors_onto`
+——单读守卫内降槽位序直接压 `point` Arc（get_in_ref 免整 BlockEdge 克隆）,
+推送序列与 `predecessors_of(...).into_iter().rev()` extend 逐项相同,省每
+展开帧一个临时 Vec。重入 no-op 引理/访问序论证不变（上条）;VdbeExec
+--one 1055 stdout 字节恒等,全语料 assembled 5,284,971B cmp 恒等。

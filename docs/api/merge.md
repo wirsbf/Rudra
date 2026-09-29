@@ -1176,3 +1176,17 @@ B2 投影可观测维度）；单测 1687/18 == 亲父同 flaky 集。快照 `in
   fixture 注入的是合成单块 MULTIEQUAL（SLEIGH 永不产生的形态），heritage 的
   后继边绑定通道（heritage.cc:2531-2552）在该形态下无块边界可走，直接建模
   空栈读的 heritage 后态。断言面（merge_marker 统一 phi 入/出高变量）不变。
+
+## 2026-09-29：merge_highs 尾部实例重排 decorate-sort 化（SPEEDPROF2 车道,行为恒等）
+
+`Merge::merge_highs` 吸收相尾部（variable.cc:675-712 `HighVariable::merge`
+的 Rust 承载）把 tv2 实例并入 high1 后,按 `(space_id, loc, moved)` 稳定重排
+high1.instances——原实现把 `moved_keys.contains(...)`（SipHash HashSet 探测）
+与两侧 `read()` 锁内嵌在 `sort_by` 闭包里,每次比较重复支付 2 次哈希 + 2 次
+RwLock。改为 decorate-sort-undecorate:每个实例的完整比较键
+`(SpaceId, Address, moved)` 只计算一次（moved 集合换 FxHashSet,键序逐字
+保持）,装饰对排序后还原——同一键序列 + Rust 稳定 sort_by ⇒ 置换逐位恒等,
+零哈希/零锁进比较器。写锁仍覆盖整个重排区间（与原 `high1.write().unwrap()`
+临时守卫同 exclusivity）。VdbeExec --one 1055 stdout 与基线字节恒等
+（md5 a067e05c）;恒等论证与 A/B 数字见
+/dev/shm/rugra-reports/LANE_SPEEDPROF2_2026-09-29.md。
