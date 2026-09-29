@@ -67,13 +67,13 @@
 //!     extension_patch case that calls it is emulated with per-slot
 //!     `op_set_input` + `op_remove_input`.
 //!   - Per-op `FuncCallSpecs` identity lookup now exists through
-//!     `Funcdata::get_call_specs_of_op`, and the `try_call_pull`
+//!     `Funcdata::get_call_specs_of_op`; the `try_call_pull`
 //!     guard-and-patch consumer is wired 1:1 with subflow.cc:208-228
 //!     (consume guard, getCallSpecs, isInputActive, isInputLocked &&
-//!     !isDotdotdot, parameter_patch + pullcount). The
-//!     `try_call_return_push` consumer still retains the conservative skip
-//!     under `CALLSPEC-0001` (indirect-creation trims are not exercised by
-//!     the current corpora).
+//!     !isDotdotdot, parameter_patch + pullcount), and the
+//!     `try_call_return_push` consumer is wired 1:1 with
+//!     subflow.cc:293-317 (consume/alignment/size gates, getCallSpecs,
+//!     isOutputLocked, isOutputActive, addPush).
 //!   - `PcodeOp::get_halt_type` (`try_return_pull`) is not available; the
 //!     artificial-halt guard is conservatively skipped and logged.
 //!   - `copy_symbol_if_valid` and `Address::is_big_endian` are not threaded
@@ -835,17 +835,22 @@ impl SubvariableFlow {
     }
 
     // Ghidra: subflow.cc:293 SubvariableFlow::tryCallReturnPush
-    /// Determine if the given subgraph variable can act as a created value for
-    /// the given INDIRECT op. Corresponds to
-    /// `SubvariableFlow::tryCallReturnPush` (subflow.cc:293-310), but the
-    /// callspec consumer is incomplete under `CALLSPEC-0001`.
-    fn try_call_return_push(&mut self, op: &Arc<RwLock<PcodeOp>>, rvn: usize) -> bool {
+    /// Determine if the subgraph variable can be pushed into the CALL/CALLIND
+    /// op's output: the call's return value is truncated to the logical
+    /// sub-variable (e.g. a 4-byte EAX view of an 8-byte RAX call output).
+    /// Faithful to `SubvariableFlow::tryCallReturnPush` (subflow.cc:293-317):
+    /// consume gate (non-aggressive), least-significant alignment gate,
+    /// at-least-a-byte gate, then the per-op FuncCallSpecs lookup with
+    /// output-locked / output-active guards, and finally `addPush`.
+    fn try_call_return_push(&mut self, fd: &Funcdata, op: &Arc<RwLock<PcodeOp>>, rvn: usize) -> bool {
         if !self.aggressive {
             let (consume, mask) = {
                 let v = self.newvarlist[rvn].vn.as_ref().unwrap();
                 let vr = v.read().unwrap();
                 (vr.get_consume(), self.newvarlist[rvn].mask)
             };
+            // If there's something outside the mask being consumed, don't
+            // truncate (subflow.cc:295-298).
             if (consume & (!mask)) != 0 {
                 return false;
             }
@@ -857,15 +862,25 @@ impl SubvariableFlow {
         if self.bitsize < 8 {
             return false; // Make sure logical value is at least a byte
         }
-        // CALLSPEC-0001: exact per-op lookup is available, but the
-        // output-locked/output-active guard and addPush consumer remain
-        // outside this identity-only D0.
-        let _ = op;
-        // Preserve the legacy diagnostic bytes until this UNTESTED branch has
-        // a bilateral fixture. The wording is not the current premise: exact
-        // lookup exists, while the CALLSPEC-0001 consumer remains unwired.
-        eprintln!("[subflow] tryCallReturnPush: per-op FuncCallSpecs lookup unavailable; skipping push");
-        false
+        // FuncCallSpecs *fc = fd->getCallSpecs(op); (subflow.cc:302)
+        let fc = match fd.get_call_specs_of_op(&PcodeOpRef(op.clone())) {
+            Some(f) => f,
+            None => return false,
+        };
+        {
+            let fcg = fc.read().unwrap();
+            if fcg.is_output_locked() {
+                return false;
+            }
+            // Don't trim while in the middle of figuring out return value
+            // (subflow.cc:309).
+            if fcg.is_output_active() {
+                return false;
+            }
+        }
+        self.add_push(op, rvn);
+        // pullcount += 1; — this is a push NOT a pull (subflow.cc:314)
+        true
     }
 
     // Ghidra: subflow.cc:319 SubvariableFlow::trySwitchPull
@@ -1575,7 +1590,7 @@ impl SubvariableFlow {
     /// Trace the logical value backward through one PcodeOp adding new nodes to
     /// the logical subgraph and updating the worklist. Faithful to
     /// `SubvariableFlow::traceBackward` (subflow.cc:665-861).
-    fn trace_backward(&mut self, rvn: usize) -> bool {
+    fn trace_backward(&mut self, fd: &Funcdata, rvn: usize) -> bool {
         let def_op = {
             let v = self.newvarlist[rvn].vn.as_ref().unwrap();
             let vr = v.read().unwrap();
@@ -1837,7 +1852,7 @@ impl SubvariableFlow {
                 false // break
             }
             OpCode::CPUI_CALL | OpCode::CPUI_CALLIND => {
-                if self.try_call_return_push(&op, rvn) {
+                if self.try_call_return_push(fd, &op, rvn) {
                     true
                 } else {
                     false // break
@@ -2073,7 +2088,7 @@ impl SubvariableFlow {
     // Ghidra: subflow.cc:960 SubvariableFlow::traceBackwardSext
     /// traceBackward assuming sign-extensions. Faithful to
     /// `SubvariableFlow::traceBackwardSext` (subflow.cc:960-1009).
-    fn trace_backward_sext(&mut self, rvn: usize) -> bool {
+    fn trace_backward_sext(&mut self, fd: &Funcdata, rvn: usize) -> bool {
         let def_op = {
             let v = self.newvarlist[rvn].vn.as_ref().unwrap();
             v.read().unwrap().get_def()
@@ -2137,7 +2152,7 @@ impl SubvariableFlow {
                 true
             }
             OpCode::CPUI_CALL | OpCode::CPUI_CALLIND => {
-                if self.try_call_return_push(&op, rvn) {
+                if self.try_call_return_push(fd, &op, rvn) {
                     true
                 } else {
                     false // break
@@ -2573,12 +2588,12 @@ impl SubvariableFlow {
         let rvn = *self.worklist.last().unwrap();
         self.worklist.pop();
         if self.sext_restrictions {
-            if !self.trace_backward_sext(rvn) {
+            if !self.trace_backward_sext(fd, rvn) {
                 return false;
             }
             return self.trace_forward_sext(fd, rvn);
         }
-        if !self.trace_backward(rvn) {
+        if !self.trace_backward(fd, rvn) {
             return false;
         }
         self.trace_forward(fd, rvn)
@@ -8791,5 +8806,122 @@ mod tests {
         assert!(Arc::ptr_eq(&before_ops[0].0, &after_ops[0].0));
         assert_eq!(multiply.0.read().unwrap().opcode, OpCode::CPUI_INT_MULT);
         assert!(!multiply.0.read().unwrap().is_dead());
+    }
+
+    // CASTSUB23: tryCallReturnPush (subflow.cc:293-317) — the call-output
+    // truncation push. The pre-fix stub returned false unconditionally, so
+    // the unlocked-truncates case is RED-ON-OLD by construction.
+    fn call_push_fixture() -> (Funcdata, crate::op::PcodeOpRef, Arc<RwLock<Varnode>>) {
+        use crate::fspec::{FuncCallSpecs, FuncProto};
+        use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        // CALL with a ram-space target and a 4-byte register output (the
+        // EAX lane root), plus an unlocked/non-active callspec bound to the
+        // op so get_call_specs_of_op's linear scan can resolve it.
+        let call = fd.new_op(1, Address::new(0x2000));
+        fd.op_set_opcode(&call, OpCode::CPUI_CALL);
+        let target = fd.vbank.create_with_space(8, AddressSpace::Ram, 0x22f0);
+        fd.op_set_input(&call, target, 0);
+        let out = fd.vbank.create_with_space(4, AddressSpace::Register, 0x0);
+        fd.op_set_output(&call, out.clone());
+        let void_proto = || {
+            FuncProto::new(
+                String::new(),
+                Arc::new(Datatype::Void(TypeBase::new(
+                    "void".to_string(),
+                    0,
+                    TypeMetatype::Void,
+                ))),
+            )
+        };
+        let fc = FuncCallSpecs::new_for_op(&call, void_proto());
+        fd.add_call_specs(fc);
+        (fd, call, out)
+    }
+
+    #[test]
+    fn test_try_call_return_push_unlocked_call_output_truncates() {
+        // subflow.cc:293-317: an unlocked, non-active callspec whose output
+        // is consumed only within the logical mask gets a push patch (call
+        // return truncated to the sub-variable).
+        let (mut fd, call, out) = call_push_fixture();
+        // Consume within the 0xff mask (the shift chain propagates only the
+        // low lane back into the call output).
+        out.write().unwrap().set_consume(0xff);
+        let mut sf = SubvariableFlow::new(&mut fd, out.clone(), 0xff, false, false, false);
+        assert!(!sf.is_null());
+        assert_eq!(sf.flowsize, 1);
+        assert_eq!(sf.bitsize, 8);
+        let call_arc = call.0.clone();
+        assert!(sf.try_call_return_push(&fd, &call_arc, 0));
+        // The push patch was recorded (at the front, counted by
+        // push_front_count).
+        assert_eq!(sf.num_patches(), 1);
+        assert!(matches!(
+            sf.patchlist[0].patch_type,
+            PatchType::PushPatch
+        ));
+        // A push is NOT a pull: pullcount stays 0 (subflow.cc:314 comment).
+        assert_eq!(sf.pull_count(), 0);
+    }
+
+    #[test]
+    fn test_try_call_return_push_consume_gate_declines() {
+        // subflow.cc:295-298: something outside the mask being consumed
+        // (the full 4-byte output is read) -> no truncation. The root
+        // enters the subgraph with an in-mask consume (setReplacement
+        // subflow.cc:112-115 enforces the same gate at entry); the value
+        // is then flipped post-construction to exercise the push-local
+        // gate on its own.
+        let (mut fd, call, out) = call_push_fixture();
+        out.write().unwrap().set_consume(0xff);
+        let mut sf = SubvariableFlow::new(&mut fd, out.clone(), 0xff, false, false, false);
+        assert!(!sf.is_null());
+        out.write().unwrap().set_consume(0xffffffff);
+        let call_arc = call.0.clone();
+        assert!(!sf.try_call_return_push(&fd, &call_arc, 0));
+        assert_eq!(sf.num_patches(), 0);
+    }
+
+    #[test]
+    fn test_try_call_return_push_locked_or_active_declines() {
+        // subflow.cc:306-309: locked or active-recovery outputs are never
+        // trimmed.
+        {
+            let (mut fd, call, out) = call_push_fixture();
+            out.write().unwrap().set_consume(0xff);
+            fd.get_call_specs_mut(0).unwrap().prototype.output_type_locked = true;
+            let mut sf =
+                SubvariableFlow::new(&mut fd, out.clone(), 0xff, false, false, false);
+            let call_arc = call.0.clone();
+            assert!(!sf.try_call_return_push(&fd, &call_arc, 0));
+        }
+        {
+            let (mut fd, call, out) = call_push_fixture();
+            out.write().unwrap().set_consume(0xff);
+            fd.get_call_specs_mut(0).unwrap().init_active_output();
+            let mut sf =
+                SubvariableFlow::new(&mut fd, out.clone(), 0xff, false, false, false);
+            let call_arc = call.0.clone();
+            assert!(!sf.try_call_return_push(&fd, &call_arc, 0));
+        }
+    }
+
+    #[test]
+    fn test_try_call_return_push_alignment_and_size_gates() {
+        // subflow.cc:300-303: the logical value must be least-significant
+        // and at least a byte. mask 0xf0 (not aligned) and mask 0xf (<8
+        // bits) both decline without a patch.
+        let (mut fd, call, out) = call_push_fixture();
+        out.write().unwrap().set_consume(0xf0);
+        let mut sf = SubvariableFlow::new(&mut fd, out.clone(), 0xf0, false, false, false);
+        let call_arc = call.0.clone();
+        assert!(!sf.try_call_return_push(&fd, &call_arc, 0));
+        assert_eq!(sf.num_patches(), 0);
+        drop(sf);
+        out.write().unwrap().set_consume(0xf);
+        let mut sf2 = SubvariableFlow::new(&mut fd, out.clone(), 0xf, false, false, false);
+        assert!(!sf2.try_call_return_push(&fd, &call_arc, 0));
+        assert_eq!(sf2.num_patches(), 0);
     }
 }

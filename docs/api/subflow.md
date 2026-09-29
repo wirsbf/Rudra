@@ -409,6 +409,8 @@ input-locked/varargs guards 与 `ParameterPatch`，`try_call_return_push` 也仍
 output-locked/output-active guards 与 `addPush`。两者继续保守返回 false；源码审计
 确认它们尚未等价，但没有同输入双侧 fixture，证据状态为 `UNTESTED`，统一绑定
 已登记的 `CALLSPEC-0001`，不计入 D0 的 identity `MATCH` 投影。
+（2026-09-29 更正：`try_call_pull` 已于 2026-09-22 接线、`try_call_return_push`
+已于 2026-09-29 接线——见下两节；本节仅存历史。）
 
 ## 2026-09-22：SB-OPPOOL-R4-COUNT-0001 — `try_call_pull` 接线（D0 residual 消除之一）
 
@@ -428,6 +430,55 @@ subflow.cc:208-228 全体语义：slot==0 早退 → 非 aggressive 的
 保守 false（indirect-creation trim 未被当前语料触发，绑定 CALLSPEC-0001）。
 
 验证（镜像态）：oppool1 四窗口应用计数 oracle/rugra = [863,85,15,12] 全等
+
+## 2026-09-29：CASTSUB23 — `try_call_return_push` 接线（D0 residual 消除之二）
+
+MCENSUS4-CASTSHAPE-RESID-FIVE-0001 的 ②+③ 子域（sqlite uint1-shift 47L + 裸
+cast ~60L，census 口径亲核为 misc-cast 内 98L）双侧钉形后根因收口：代表函数
+sqlite3ErrorMsg 双侧终态 IR 对照（oracle castfuse2_probe .ir vs Rugra
+RUGRA_DUMP_FUNC .ops）证明 oracle 的 `RuleSubvarSubpiece` → `SubvariableFlow`
+trace 经 `traceBackward` INT_LEFT/INT_OR 穿透直达 CALL 后由
+`tryCallReturnPush`（subflow.cc:293-317）把 call 输出截断到逻辑子变量
+（`AL(0x000d8035:1fa) = call fsqlite3HexToInt`），而 Rugra 同位 call 输出保持
+4 字节 EAX——因为 `try_call_return_push` 是 2026-08-24 CALLSPEC-IDENTITY-D0
+遗留的恒 false stub（2026-09-22 注记的“indirect-creation trim 未被当前语料
+触发”经本道证伪：44 个函数 526 行残差由它阻塞）。③ 的主体簇（BtreeCommitPhaseOne
+的 `V = (uint8)V;`/`(int4)` 比较 cast/Fts3ReadBlock 的 `(int4)` 赋值 cast +
+`& 0xffffffff` 掩码/strglob-strlike 掩码形）与 ② 同根：call 输出 RAX 8 字节
+不被截断到 EAX 4 字节，printc 被迫在消费点印 cast/掩码，函数返回型跟随
+uint8/int4 仲裁分叉。
+
+修复 1:1 执行 subflow.cc:293-317 全体语义：非 aggressive 的
+`(consume & ~mask) != 0` 截断拒绝 → `(mask & 1) == 0` 非最低位对齐拒绝 →
+`bitsize < 8` 拒绝 → `get_call_specs_of_op`（None 拒绝）→ `is_output_locked`
+拒绝 → `is_output_active` 拒绝 → `add_push`（push_patch 前插，
+`pullcount` 不增——subflow.cc:314 “push NOT a pull”）。`fd` 以前述
+`try_call_pull` 同款方式穿引 `trace_backward`/`trace_backward_sext`。消费端
+`do_replacement` 的 PushPatch 臂（`op_set_output` + 旧输出 INT_ZEXT 占位）本
+就在位。四枚单测锁行为：unlocked 截断+push_patch 前插+pullcount 恒 0（
+RED-ON-OLD：恒 false stub 直接失败）、consume 门拒绝（root 以门内 consume
+入图后翻转 consume 值单独压 push 本地门）、locked/active 拒绝、对齐+尺寸门
+拒绝。
+
+验证（fast-release，五面官方门禁 + canon 双语料 + bank + 全量测试）：
+- 镜面 curl 13==钉值 / httpd 2==钉值 / vsh 0 完美面保持（三面恒等零漂移）；
+- 镜面 sq 514→**458**（−56；CodeOneBlock 三胞胎 27→8/23→4/18→0）；
+- 镜面 sqlite 1479→**1009**（−470；41 函数改善 0 回归；WhereCodeOneLoopStart
+  171→9 级联最大，Fts3UpdateMethod/BtreeCommitPhaseOne/CacheDeferredDoclists/
+  strlike/strglob 30/30/28/20/20→0，FkCheck/sqlite3_exec/ColumnDefault 13/13/13→0）；
+- census 口径对账：CAST-SHAPE 520→401，其中 ②uint1-shift 47→**全燃**、③ 主体
+  （misc-cast 内裸 cast 簇）−72；①index-cast 90/long-addend 84/jumptable-WARNING
+  32/ptrwidth 12 原样（他票域未触碰）；
+- canon curl 0/0/0 md5 4ab1db2a / canon httpd 0/0/0 md5 7d5b9e7c（与 MB46
+  钉值字节恒等，零回退红线保持）；
+- 投影 bank 391/391 MATCH；`cargo test --lib` 1981P/0F/5I（亲父 1977P+新测 4）。
+
+oracle 依据：subflow.cc:293-317（tryCallReturnPush）+ 1151-1158（addPush）+
+1435-1454（doReplacement push 臂）+ 1584-1619（RuleSubvarSubpiece）+ fspec.cc
+isOutputLocked/isOutputActive + funcdata.cc:484-497（getCallSpecs）——本道亲读，
+hook 回执在案。机制 C：subflow.rs 属主管线 Rule 域（RuleSubvar* 家族行为改动），
+CR 需求随车道终报登记（复核锚=上述五处 oracle 行为 + 五面/bank/测试数字 +
+sqlite3ErrorMsg 双侧 IR 钉形链）。
 （修复前 [863,**77**,15,12]，差 8 = earlyremoval −4 / propagatecopy −2 /
 subvar_zext −2）；v1 投影首分歧由 ordinal 65 后移至 ordinal 159
 （`universal:fullloop:activereturn`，dead DELAY_SLOT `2534:5a4` 输入计数
