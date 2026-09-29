@@ -219,21 +219,48 @@ all members. ActionMarkImplied (later in pipeline) consults high.cover.
 variable.cc:1148 与 `Varnode::getCover` varnode.hh:202 惰性维护;Rugra 因下游
 直读存储 cover 而物化,达到同一不变量点。）
 
-### `MergeTypeIntersectCache::update_high`（variable.cc:1148 HighIntersectTest::updateHigh,2026-09-23 EM3 终态）
+### `MergeTypeIntersectCache::update_high`（variable.cc:1148 HighIntersectTest::updateHigh,2026-09-29 INTERSECTCACHE 终态=oracle 原形）
 
-脏判定从「仅 high 自身 coverdirty 标志」扩为「自身标志 OR 任一成员 Varnode 仍带
-COVERDIRTY」——oracle 的 `Varnode::setFlags/clearFlags`（varnode.cc:352-374）在
-写成员 coverdirty 时同步 `high->coverDirty()`，Rugra 的 varnode.rs 旗标写不传播，
-此扫描在测试门补齐同一可观测状态（oracle 中两者同时置位，扫描命中的恰是 oracle
-亦判脏的状态）。命中时经 `mark_high_cover_dirty` 补传播,再走
-`update_high_cover`（成员惰性重建 + updateInternalCover 乘积）,最后
-**无条件 `purge_high`**（variable.cc:1153-1154 逐字;EM2 曾实验「重建后内部
-cover 逐位不变则跳过 purge」,但 blockIntersection 的判定是实例级 copy-shadow
-对,不同实例分解可在同一 union cover 下给出不同判定,该门放行的陈旧缓存判定
-产生错误合并(uStack_248/in_RDI 噪声),已移除）。piece 持有 high 保持仅标志判
-（其新鲜度协议在 piece 机件 INTERSECTDIRTY/EXTENDCOVERDIRTY——`is_cover_dirty`
-已含 extendcoverdirty;扫描+updateCover 路径在 EM2 实测不收敛,残余记
-`MERGE-COPYNOISE-SPILLRESTORE-0001-R2`）。
+脏判定回归 **仅 high 自身标志**（`is_cover_dirty`,含 extendcoverdirty 位,
+variable.hh:285-289 镜像）——与 oracle `updateHigh` 逐字同形。2026-09-23 EM3
+曾加入「任一成员 Varnode 仍带 COVERDIRTY」的逐实例扫描（每次调用对每成员取
+一次 RwLock 读;VdbeExec 实测 6.05M 调用/2.55s,99.65% 空手而归）,作为
+varnode.cc:371-372 clearFlags 半边传播缺口（Rugra 侧锁阻塞腿）的
+defense-in-depth。2026-09-29 attach-hole 审计证明该缺口在当前树中构造性
+不可达:①成员 COVERDIRTY 的**置位**全走 `Varnode::set_flags`,其 coverdirty
+臂同步标脏所附 high（varnode.cc:352-361 形,HIGHCOV 车道已补）;②向**新** high
+的挂接由 `HighVariable::new` 初始脏字覆盖（variable.cc:224 镜像,含
+coverdirty）;③向**既有** high 的挂接全经 `merge_internal`（两侧任脏即标
+幸存者,variable.cc:660-663 镜像）或 merge.rs merge_instance_pair 直标
+`highflags |= COVERDIRTY` 的位点;④成员旗**清位**（update_cover_locked/
+get_cover）只降不升成员脏谓词,不可能重开该洞。经验旁证:探针计数
+scan_rescue（实例脏 ∧ high 旗净）在 VdbeExec 6,048,466 次检查 + sqlite 全
+语料 1385 子进程上全为 0。移除扫描后行为恒等（VdbeExec/canon/全语料字节
+恒等,见车道终报）。修复腿保持:脏 ⇒ `update_high_cover`（成员惰性重建 +
+updateInternalCover 乘积）+ **无条件 `purge_high`**（variable.cc:1153-1154
+逐字;EM2 曾实验「重建后内部 cover 逐位不变则跳过 purge」,但
+blockIntersection 的判定是实例级 copy-shadow 对,不同实例分解可在同一
+union cover 下给出不同判定,该门放行的陈旧缓存判定产生错误合并
+(uStack_248/in_RDI 噪声),已移除）。piece 持有 high 一直就是仅标志判（其
+新鲜度协议在 piece 机件 INTERSECTDIRTY/EXTENDCOVERDIRTY;扫描+updateCover
+路径在 EM2 实测不收敛,残余记 `MERGE-COPYNOISE-SPILLRESTORE-0001-R2`）。
+
+### `fn with_high_cover(high, f)`（variable.hh:294 HighVariable::getCover 借读形,2026-09-29 INTERSECTCACHE 新增）
+
+intersection 计算路径的 cover **借读** helper:plain high 持 HighVariable 读
+守卫、piece high 持 piece 读守卫（与原 `high_cover` 深拷贝同源）,在 `f`
+闭包期间发放 `&Cover`。oracle 的 `a->getCover()`（variable.cc:1181）按 const
+引用传出;原 Rust 形按值深拷贝整个 `blocks` BTreeMap（VdbeExec 74,337 次
+compute 拷贝 35.2M 个 CoverBlock 节点,~0.37s）。快照语义恒等:计算循环内
+无人可改任一 cover（gather/test 只重建成员 Varnode cover;internalCover/
+piece-cover 的写在 update_high_cover/merge 路径,均不在本闭包域内）。锁纪律
+（每 Funcdata 单线程管线=update_cover_locked NOTE 的既有前提）:守卫跨
+block_intersection 重取 a/b/piece **读**锁（同线程读-读重入,无写者可排队）
+与 gather/test 的 Varnode **写**锁（不相交锁;update_cover_locked 不存在
+回指 high/piece 锁的路径——该缺席正是文档化的锁阻塞 clear 臂缺口本身）;
+tied 分支的写锁（update_flags/set_flags）严格在两闭包返回、守卫全部释放
+之后。`high_cover` 按值形仍服务 compare_high_by_block/test_untied 等零星
+读者。
 
 ### `fn gather_block_varnodes` / `test_block_intersection` 惰性读取 + 借用优化（2026-09-23 EM3）
 
@@ -241,20 +268,21 @@ cover 逐位不变则跳过 purge」,但 blockIntersection 的判定是实例级
 `vn->getCover()` 惰性重建读,variable.cc:951/975/984 → varnode.hh:202）——
 成员 pass 中途被标 COVERDIRTY 后不再喂陈旧 cover 给块级判定;piece-intersection
 high（`interPiece->getHigh()`）不经 updateHigh 刷新,靠此重建对齐 oracle。
-`block_intersection` 的 a/b cover 由 `intersection()` 一次物化并以引用下传
-（原来每块重取 `high_cover` 深拷贝）；`test_block_intersection` 的成对判定借用
-双方读锁（原 `cover.clone()` 每 (vn,other,block) 深拷贝 BTreeMap）。纯性能等价变换。
+`block_intersection` 的 a/b cover 由 `intersection()` 经 `with_high_cover`
+借读并以引用下传（2026-09-29 起零深拷贝;此前为每 compute 两次
+`high_cover` 深拷贝）;`test_block_intersection` 的成对判定借用双方读锁
+（原 `cover.clone()` 每 (vn,other,block) 深拷贝 BTreeMap）。纯性能等价变换。
 
-### `fn mark_high_cover_dirty(high)`（variable.hh:275 HighVariable::coverDirty,2026-09-23 EM3 新增）
+### `fn mark_high_cover_dirty(high)`（variable.hh:275 HighVariable::coverDirty;2026-09-23 EM3 新增,**2026-09-29 随扫描退役移除**）
 
 `HighVariable::cover_dirty` 方法在持外层写锁调用时,其内部
 `piece->markExtendCoverDirty` 的自腿（variable.cc:136 写回 own high）构成
 **同线程同锁写重入死锁**——EM2 记录的「post-restart mergerequired 圈零进展锁
-等待」的真因（gdb 显示线程 running 而非 blocked,与自旋/不收敛表象一致,实际是
-写锁自等待）。本 helper 将「置 COVERDIRTY 标志」与「piece 走
-mark_extend_cover_dirty_read」拆成两段独立锁窗口,可观测旗标状态与 oracle 内联
-逐位相同。merge.rs 内所有补传播点（update_high / mark_implied /
-compute_varnode_covers materialize 腿）一律走本 helper。
+等待」的真因。该 helper 曾把「置 COVERDIRTY 标志」与「piece 走
+mark_extend_cover_dirty_read」拆成两段独立锁窗口。**2026-09-29 INTERSECTCACHE
+车道**:唯一残余调用点（update_high 扫描命中腿）随实例扫描一并移除后无
+调用者,函数体删除;同一拆段纪律仍由 varnode.rs
+`propagate_flag_change_to_high`（set_flags 传播路径）承载。
 
 ### `fn update_high_cover(high)` 调用点修复（2026-08-15，`COVER-REBUILD-SELFLOCK-0001`）
 
@@ -1190,3 +1218,25 @@ RwLock。改为 decorate-sort-undecorate:每个实例的完整比较键
 临时守卫同 exclusivity）。VdbeExec --one 1055 stdout 与基线字节恒等
 （md5 a067e05c）;恒等论证与 A/B 数字见
 /dev/shm/rugra-reports/LANE_SPEEDPROF2_2026-09-29.md。
+
+## 2026-09-29：INTERSECTCACHE——update_high 回归 oracle 原形 + intersection cover 借读（SPEEDPROF2-INTERSECTCACHE-0001,行为恒等）
+
+速度车道 SPEEDPROF2 §4 杠杆 #3 的钻定与落地。钻定结论（[ISCPROF] 探针,
+VdbeExec --one 1055,探针版 stdout md5 与干净基线全等）:mergerequired 残量中
+交集缓存域 ~4.5s 的构成=update_high 逐实例扫描 2.55s（6.05M 次调用×平均
+22.6 成员×每成员一次 RwLock 读=136.6M 次锁读;99.65% 空手而归）+
+update_high_cover 1.18s（40,940 次真重建,算法本体两侧都在跑）+ high_cover
+深拷贝 0.37s（74,337 compute×2 侧,35.2M CoverBlock 节点）+ purge/move/
+gather/tbi 合计 ~0.16s。**票面候选「tests BTreeMap 键 SipHash→FxHashMap」
+被证伪**（tests 表全操作仅 ~110ms,map 均值 306 条）。oracle 侧
+HighIntersectTest 族（variable.cc:947-1199 亲读）:updateHigh=O(1) 标志判,
+getCover=const 引用——Rugra 的扫描与深拷贝均为实现级差。落地两件:
+①`update_high` 移除逐实例扫描,回归 variable.cc:1148-1156 逐字形（attach-hole
+审计:置位全走 set_flags 传播/新 high 初始脏字/merge_internal 脏检查/直标位
+点,构造性无洞;scan_rescue 计数 VdbeExec+全语料 1385 子进程全 0）;死代码
+`mark_high_cover_dirty` 一并移除。②`intersection` 计算路径经新
+`with_high_cover` 借读 cover（锁纪律论证见其条目）。行为恒等:VdbeExec
+stdout md5 a067e05c 全等,canon curl/httpd base==opt 字节恒等,sqlite 全语料
+assembled cmp 恒等,镜面五面=钉值,tests 1985P。性能:VdbeExec 探针口径
+inter_nanos_uh 3.73→1.44s（扫描 2.54→0.24s）;全数字见
+/dev/shm/rugra-reports/LANE_INTERSECTCACHE_2026-09-29.md。

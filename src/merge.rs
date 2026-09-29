@@ -81,46 +81,36 @@ impl MergeTypeIntersectCache {
     // (variable.hh:275-281, + piece->markExtendCoverDirty). Since the
     // HIGHCOV lane (2026-09-25) the Rust set_flags/add_descend/
     // erase_descend/calc_cover carry that propagation half, so the flag
-    // state at this gate matches the oracle. The instance-scan is RETAINED
-    // as defense-in-depth for the one propagation leg that stays
-    // lock-blocked in Rust: update_cover_locked/get_cover clear the member
-    // flag without re-marking the high (varnode.cc:371-372's clearFlags
-    // half — callers hold read guards on the member's high across the
-    // rebuild; see the NOTE in update_cover_locked). The scan keeps the
-    // invariant "high clean ⇒ internalCover == union of current instance
-    // covers" (which the oracle maintains synchronously) holding at every
-    // test even across that gap: a high is dirty iff its own flag is set
-    // OR any member Varnode still carries coverdirty.
+    // state at this gate matches the oracle.
+    //
+    // INTERSECTCACHE lane (2026-09-29): the former per-member COVERDIRTY
+    // rescan (one RwLock read per instance per call — 6.05M calls / 2.55s
+    // on sqlite3VdbeExec, 99.65% of calls finding nothing, and the
+    // scan-rescue counter [instance dirty while the high flag is clean]
+    // = 0 across 6,048,466 checks on VdbeExec plus all 1385 sqlite-corpus
+    // children) was defense-in-depth for a state that is unreachable by
+    // construction — the attach-hole audit (2026-09-29):
+    //   - every COVERDIRTY SET on a member goes through Varnode::set_flags,
+    //     whose coverdirty arm synchronously marks the ATTACHED high
+    //     (varnode.cc:352-361 form);
+    //   - every attach into a FRESH high is covered by HighVariable::new's
+    //     initial dirty word (variable.cc:224 mirror, includes coverdirty);
+    //   - every attach into an EXISTING high routes through
+    //     HighVariable::merge_internal (dirty-either-side marks the
+    //     survivor, variable.cc:660-663 mirror) or the merge.rs
+    //     merge_instance_pair sites that set highflags COVERDIRTY directly;
+    //   - the member-flag CLEAR arm (update_cover_locked/get_cover) can
+    //     only lower the member-dirty predicate, never raise it, so it
+    //     cannot re-open the hole.
+    // With the hole closed, the flag-only check below is exactly the
+    // oracle's updateHigh (variable.cc:1148-1156). The piece-high
+    // freshness protocol note is preserved: is_cover_dirty already
+    // consults extendcoverdirty (variable.hh:285-289 mirror), and the
+    // former scan was already skipped for piece highs (EM2
+    // non-convergence, tracked as MERGE-COPYNOISE-SPILLRESTORE-0001-R2).
     fn update_high(&mut self, high: &Arc<RwLock<HighVariable>>) -> bool {
-        let (high_dirty, instance_dirty) = {
-            let h = high.read().unwrap();
-            // The member-scan compensation applies to plain highs only: a
-            // piece-owning high's freshness protocol is the piece machinery
-            // (INTERSECTDIRTY/EXTENDCOVERDIRTY, variable.cc:140-172), which
-            // compute_varnode_covers and merge_highs already mark at
-            // guard-free points, and is_cover_dirty already consults
-            // extendcoverdirty (variable.hh:285-289). Routing a piece high
-            // through the scan+updateCover path from this gate reached a
-            // non-convergent post-restart merge lap in EM2 field runs (the
-            // piece rebuild re-marks members dirty and the lap never
-            // settles); flag-only checking is kept for piece highs, residual
-            // gap tracked as MERGE-COPYNOISE-SPILLRESTORE-0001-R2.
-            let instance_dirty = h.piece.is_none()
-                && h.instances.iter().any(|v| {
-                    (v.read().unwrap().flags & crate::varnode::varnode_flags::COVERDIRTY) != 0
-                });
-            (h.is_cover_dirty(), instance_dirty)
-        };
-        if !high_dirty && !instance_dirty {
+        if !high.read().unwrap().is_cover_dirty() {
             return true;
-        }
-        if !high_dirty {
-            // Restore the propagation that varnode.cc:358-359 performs at
-            // setFlags time: mark the high (and its piece's extended cover)
-            // dirty so updateCover's dirty-gated rebuild fires below.
-            // mark_high_cover_dirty avoids the nested same-high write of
-            // the cover_dirty method (see its doc).
-            mark_high_cover_dirty(high);
         }
         // variable.cc:1153-1154: updateCover() then purgeHigh() — the purge
         // is UNCONDITIONAL in the oracle. blockIntersection's verdicts are
@@ -366,6 +356,16 @@ impl MergeTypeIntersectCache {
         }
     }
 
+    // Ghidra: variable.hh:294 HighVariable::getCover (borrowed-read form)
+    // — see the with_high_cover doc at module scope for the borrow/lock
+    // analysis. (INTERSECTCACHE lane 2026-09-29.)
+    fn with_high_cover_borrowed<T>(
+        high: &Arc<RwLock<HighVariable>>,
+        f: impl FnOnce(&Cover) -> T,
+    ) -> T {
+        with_high_cover(high, f)
+    }
+
     // Ghidra: variable.cc:1166 HighIntersectTest::intersection
     fn intersection(
         &mut self,
@@ -386,15 +386,17 @@ impl MergeTypeIntersectCache {
             }
         }
 
-        let a_cover = high_cover(a);
-        let b_cover = high_cover(b);
         let mut result = false;
-        for block in a_cover.intersect_list(&b_cover, 2) {
-            if Self::block_intersection(a, b, block, &a_cover, &b_cover) {
-                result = true;
-                break;
-            }
-        }
+        Self::with_high_cover_borrowed(a, |a_cover| {
+            Self::with_high_cover_borrowed(b, |b_cover| {
+                for block in a_cover.intersect_list(b_cover, 2) {
+                    if Self::block_intersection(a, b, block, a_cover, b_cover) {
+                        result = true;
+                        break;
+                    }
+                }
+            })
+        });
         // variable.cc:1186-1197: with no Cover-block intersection, if one
         // variable is address tied and the other isn't, the untied variable
         // must not cross any call that might affect the tied storage —
@@ -867,19 +869,43 @@ impl MergePersistentState {
     }
 }
 
-// Ghidra: variable.hh:164+275 HighVariable::flagsDirty + coverDirty
-/// The deferred setFlags notification for a member whose mutation happened
-/// without one (the update_high instance-scan compensation): fires BOTH
-/// arms of varnode.cc:356-360 — flagsDirty unconditionally (variable.hh:164)
-/// and coverDirty with the piece walk (variable.hh:275-281) — under the
-/// sequenced-guard discipline implemented by propagate_flag_change_to_high
-/// (varnode.rs; the piece walk's final self leg variable.cc:136 writes the
-/// OWN high again, so the flag write and the walk must not share a guard).
-fn mark_high_cover_dirty(high: &Arc<RwLock<HighVariable>>) {
-    crate::varnode::propagate_flag_change_to_high(
-        high,
-        crate::varnode::varnode_flags::COVERDIRTY,
-    );
+// RUGRA-GLUE: borrowed-read of a high's cover (closure form of
+// variable.hh:294 HighVariable::getCover for the intersection compute
+// path, INTERSECTCACHE lane 2026-09-29). The oracle's `a->getCover()`
+// (variable.cc:1181) hands out a const reference; the former by-value
+// `high_cover` clone copied the whole `blocks` BTreeMap (35.2M CoverBlock
+// nodes across 74,337 computes on sqlite3VdbeExec, ~0.37s). The helper
+// holds exactly one read lock for the duration of `f` — the HighVariable's
+// for plain highs, the piece's for piece-owning highs (same source the
+// clone read) — with the same snapshot semantics: nothing inside the
+// compute loop can mutate either cover (member rebuilds under gather/test
+// touch Varnode covers only; internalCover/piece-cover writes happen in
+// update_high_cover/merge paths, none of which run under this scope).
+//
+// Lock discipline (single-threaded-per-Funcdata pipeline, the standing
+// precondition of update_cover_locked's NOTE): holding these read guards
+// across block_intersection re-acquires a/b/piece READ locks (read-read
+// reentrancy on the same thread, no writer can be queued) and Varnode
+// WRITE locks in gather/test_block_intersection — disjoint locks, and no
+// path from update_cover_locked back to any high/piece lock exists (that
+// absence is precisely the documented lock-blocked clear-arm gap). The
+// write locks of intersection's tied branch (update_flags/set_flags) run
+// strictly after both closures return and the guards drop.
+fn with_high_cover<T>(
+    high: &Arc<RwLock<HighVariable>>,
+    f: impl FnOnce(&Cover) -> T,
+) -> T {
+    let piece = high.read().unwrap().piece.clone();
+    match piece {
+        Some(piece) => {
+            let guard = piece.read().unwrap();
+            f(&guard.cover)
+        }
+        None => {
+            let guard = high.read().unwrap();
+            f(&guard.cover)
+        }
+    }
 }
 
 // Ghidra: variable.hh:294 HighVariable::getCover
