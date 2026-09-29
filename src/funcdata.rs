@@ -5722,13 +5722,45 @@ impl Funcdata {
     /// Faithful to `beginOpAll`/`endOpAll` (funcdata.hh:518/521) forwarding
     /// to the bank's optree iteration (OPTREE: the SeqNum-keyed
     /// PcodeOpTree::iter — same SeqNum order).
-    pub fn begin_op_all(&self) -> std::collections::btree_map::Values<'_, crate::address::SeqNum, crate::op::PcodeOpRef> {
+    pub fn begin_op_all(&self) -> impl Iterator<Item = &crate::op::PcodeOpRef> + '_ {
         self.obank.optree.iter()
     }
 
     // Ghidra: funcdata.hh:521 Funcdata::endOpAll
-    pub fn end_op_all(&self) -> std::collections::btree_map::Values<'_, crate::address::SeqNum, crate::op::PcodeOpRef> {
+    pub fn end_op_all(&self) -> impl Iterator<Item = &crate::op::PcodeOpRef> + '_ {
         self.obank.optree.iter()
+    }
+
+    // PERF-ARENA-FLIP-0001 (a) — god-object id-read accessors
+    // (ARENA_DESIGN §3.2 pattern P1; op.hh:63-68 friend-class form is the
+    // oracle's god-object precedent — every cross-mutation goes through
+    // Funcdata).
+    /// Resolve an op arena handle to its stored ref (P1 read form).
+    // RUGRA-GLUE: id dereference — the oracle counterpart is the raw
+    // pointer dereference itself (op.hh:63 PcodeOp*).
+    pub fn op_by_id(&self, id: crate::arena::OpId) -> Option<&crate::op::PcodeOpRef> {
+        self.obank.optree.get_by_id(id)
+    }
+
+    /// The arena handle of a bank-inserted op, if any.
+    // RUGRA-GLUE: handle extraction (raw-pointer identity counterpart).
+    pub fn op_id_of(&self, op: &crate::op::PcodeOpRef) -> Option<crate::arena::OpId> {
+        op.0.read().unwrap().op_id
+    }
+
+    /// Resolve a varnode arena handle to its stored ref (P1 read form).
+    // RUGRA-GLUE: id dereference (varnode.hh:73 Varnode*).
+    pub fn vn_by_id(
+        &self,
+        id: crate::arena::VnId,
+    ) -> Option<&Arc<RwLock<crate::varnode::Varnode>>> {
+        self.vbank.vn_by_id(id)
+    }
+
+    /// The arena handle of a bank-allocated varnode, if any.
+    // RUGRA-GLUE: handle extraction (raw-pointer identity counterpart).
+    pub fn vn_id_of(&self, vn: &Arc<RwLock<crate::varnode::Varnode>>) -> Option<crate::arena::VnId> {
+        vn.read().unwrap().vn_id
     }
 
     // Ghidra: funcdata.hh:524 Funcdata::beginOp(const Address&)

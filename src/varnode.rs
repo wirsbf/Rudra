@@ -3195,7 +3195,7 @@ fn address_space_code(space: AddressSpace) -> u32 {
 // offset last. Used for the def-op SeqNum projection inside `VnDefState`.
 pub(crate) fn space_off_of_address(addr: &Address) -> SpaceOff {
     match addr.get_space() {
-        None => SpaceOff::null(),
+        None => SpaceOff { space: 0, offset: addr.as_u64() },
         Some(spc) => {
             let index = spc.get_index();
             debug_assert!(index >= 0 && (index as u32) < u32::MAX - 1);
@@ -3810,6 +3810,14 @@ impl VarnodeBank {
         };
         cell.loc_key = loc_key;
         cell.def_key = def_key;
+    }
+
+    // RUGRA-GLUE: resolve a varnode arena handle to its stored ref (the
+    // PERF-ARENA-FLIP-0001 (a) god-object read API's underlying lookup,
+    // ARENA_DESIGN §3.2 P1; the oracle counterpart is the raw Varnode*
+    // itself).
+    pub fn vn_by_id(&self, id: VnId) -> Option<&Arc<RwLock<Varnode>>> {
+        self.vn_arena.get(id).map(|cell| &cell.vn)
     }
 
     // RUGRA-GLUE: insertion half shared by Rugra's implicit-RAM and explicit

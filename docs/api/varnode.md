@@ -2,6 +2,19 @@
 
 **源代码路径**: `src/varnode.rs`
 
+## 2026-09-30（同日第二笔）：SpaceOff 投影 offset 修复 + vn_by_id
+
+- **`space_off_of_address` 修复（红线事件, 见车道终报 §2）**: 无空间 legacy
+  Address 原投影为 `SpaceOff::null()`（offset 硬编码 0）——def-op 的 pc offset
+  被清零, written varnode 的 def-SeqNum 排序从 oracle `(pc, uniq)`
+  （SeqNum::operator<, address.hh:154-158）退化为 `uniq` 单键, inject 路径
+  （pc 序≠创建序）下两 varnode 交换树序 → canon curl 变量重编号漂移
+  （md5 c4cc29a7, 74 hunk 全重命名零结构差）。修复 = null 空间码 + 真实
+  offset（`Address::operator<` (None,None)→offset 的逐字投影）。canon 双面
+  修复后回钉值。
+- **`VarnodeBank::vn_by_id(VnId)`**: id→存储 Arc 的解析（`Funcdata::vn_by_id`
+  的底层; P1 读形态, W1(b) 交接面）。
+
 ## 2026-09-30：PERF-ARENA-FLIP-0001 (a) — VarnodeBank 双树 POD 键化 + 存储迭代器 arena 单元
 
 `VarnodeBank` 的两棵排序树从 `BTreeSet<VarnodeLocRef>` / `BTreeSet<VarnodeDefRef>`

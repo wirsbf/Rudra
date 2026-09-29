@@ -1,5 +1,22 @@
 # `funcdata.rs` API Reference
 
+## 2026-09-30：god-object id 读访问器（PERF-ARENA-FLIP-0001 (a)，(b) 交接面）
+
+新增四个 P1 读形态访问器（ARENA_DESIGN §3.2；oracle 依据 = op.hh:63-68 PcodeOp 的
+结构性 setter 全部 private + friend `Funcdata`——交叉访问本就 100% 经 Funcdata 中转）：
+
+- `Funcdata::op_by_id(OpId) -> Option<&PcodeOpRef>` — op arena 句柄解析（OpId 由
+  `PcodeOpTree` 槽存储分配，`PcodeOp::op_id` 回指；destroy 后槽保留=oracle
+  deadandgone 可读语义，op.cc:984-999）。
+- `Funcdata::op_id_of(&PcodeOpRef) -> Option<OpId>` — bank 插入过的 op 的句柄。
+- `Funcdata::vn_by_id(VnId) -> Option<&Arc<RwLock<Varnode>>>` — varnode arena 句柄
+  解析（`Varnode::vn_id` 回指，`VarnodeBank::allocate` 占槽）。
+- `Funcdata::vn_id_of(&Arc<RwLock<Varnode>>) -> Option<VnId>` — bank 分配过的
+  varnode 的句柄（None=手搓 fixture/外部 Arc）。
+
+W1(b)-(g) 消费迁移（heritage/flow→printc）以此为入口逐步把 `Arc` 句柄形态换
+id 形态；(a) 段 PcodeOpRef/Arc 形态本身不变（桥接契约）。
+
 ## 2026-09-30：begin/end Loc/Def 前转器返回类型随动（PERF-ARENA-FLIP-0001 (a)）
 
 `Funcdata` 的 begin/end Loc/Def 前转器族（`begin_loc`/`end_loc`/`end_loc_space`/

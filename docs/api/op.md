@@ -715,10 +715,27 @@ Ghidra: `op.cc:323 PcodeOp::nextOp`。返回流程上紧随本 op 的下一个 o
 
 ## 7. `PcodeOpBank`
 
-### `pub struct PcodeOpTree`（2026-09-29 PERF-ACTIONPOOL-ITER-0001 / OPTREE）
+### `pub struct PcodeOpTree`（2026-09-30 PERF-ARENA-FLIP-0001 (a) 更新；2026-09-29 PERF-ACTIONPOOL-ITER-0001 / OPTREE 原条）
 
 `PcodeOpTree` 是 bank 主排序容器（`optree` 字段）的类型——**SeqNum 键化树，
 oracle `map<SeqNum,PcodeOp*>`（op.hh:280）的原生同构形态**。
+
+**2026-09-30 arena 形态**（PERF-ARENA-FLIP-0001 (a)，ARENA_DESIGN §1.2）:
+内部容器翻转为 `BTreeMap<SeqNumKey, OpId>` + `Arena<OpCell, OpId>` 槽存储
+（`OpCell { op: PcodeOpRef, seq_key: SeqNumKey }`）——键为 W0 冻结的 POD
+`SeqNumKey { pc: SpaceOff, uniq }`（序 = `SeqNum::operator<` 投影, SpaceOff
+镜像 `Address::operator<` 的 null-first/index/offset），值为类型化
+`OpId` 句柄；`PcodeOp::op_id` 回指槽位，槽内 `seq_key` 副本 = oracle
+存储 map 迭代器的 id 形态（`remove` 主路径按存储键删除；SeqNum 创建后
+不可变故键副本永不漂移——ffi.rs:447 重赋值为等值 SeqNum）。**destroy/
+destroy_dead 后槽保持占用**（= oracle deadandgone 保留语义, op.cc:984-999
+"memory not reclaimed … in case pointer references still exist"），仅
+`clear()` 真释放（gen+1, 陈旧句柄一律 None）。公共面不变:
+`insert/remove/contains/len/is_empty/clear/iter/range/find_op/
+target_lower_bound` + `&tree` IntoIterator + 新增 `get_by_id(OpId)`——
+迭代序仍为 SeqNum 全序，元素仍逐个 yield `&PcodeOpRef`，action/heritage/
+merge/comment/coreaction 与 funcdata 前转器全部调用形态零改动（funcdata
+`begin_op_all`/`end_op_all` 返回类型随动为 `impl Iterator`）。
 
 **键形态**：键为 `SeqNum` **值快照**（插入时一次短读锁取得），排序即
 `SeqNum::operator<`（address.hh:154-158：先 `pc` 后 `uniq`；Rugra 对应

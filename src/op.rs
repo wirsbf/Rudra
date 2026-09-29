@@ -3,6 +3,7 @@
 //! Corresponds to Ghidra's `op.hh`
 
 use crate::address::{Address, SeqNum};
+use crate::arena::{Arena, OpId, SeqNumKey};
 use crate::opcodes::OpCode;
 use crate::varnode::Varnode;
 use std::collections::BTreeMap;
@@ -329,6 +330,16 @@ pub struct PcodeOp {
     pub output: Option<Arc<RwLock<Varnode>>>,
     pub inrefs: Vec<Arc<RwLock<Varnode>>>,
     pub branch_type: u8,
+    /// Arena identity handle (PERF-ARENA-FLIP-0001 (a),
+    /// ARENA_DESIGN §1.2/§2.5).
+    ///
+    /// RUGRA-GLUE: id-space stand-in for the oracle's three stored list
+    /// iterators (op.hh:127-129 basiciter/insertiter/codeiter) — here it
+    /// names the `PcodeOpTree` slot holding this op's denormalized SeqNum
+    /// key copy, and will carry the seven bank chains when the Vec lists
+    /// retire (W1(b)-(g), see docs/TODO_BOARD.md). `None` for ops never
+    /// inserted through the bank (raw test fixtures).
+    pub(crate) op_id: Option<OpId>,
 }
 
 impl PcodeOp {
@@ -345,6 +356,7 @@ impl PcodeOp {
             output: None,
             inrefs: Vec::new(),
             branch_type: branch_type::NONE,
+            op_id: None,
         }
     }
 
@@ -1599,31 +1611,41 @@ impl PieceNode {
 /// SeqNum-keyed op tree — the oracle PcodeOpBank's native container form.
 ///
 /// Key order = SeqNum::operator< (address.hh:154-158: `pc` then `uniq`),
-/// mirrored by `Ord for SeqNum` (address.rs: (addr, time)). The oracle's
-/// iterator is a std::map node iterator: `++` is an O(1) amortized pointer
-/// walk and stays valid across insert/erase (action.cc:871 `op_state++`
-/// inside ActionPool::apply, :884-885 loop). Rust BTreeMap iterators cannot
-/// be held across the Rules' mutation, so Rugra reconstructs the successor
-/// by strict-key range (action.rs next_op_after, ACTIONLOOP-RESTART-0001);
-/// keying the map by the SeqNum **value** (not the PcodeOpRef) makes that
-/// descent a plain key-compare walk — zero RwLock acquisitions inside the
-/// tree walk itself.
+/// projected POD as `SeqNumKey { pc: SpaceOff, uniq }` (src/arena.rs,
+/// W0-frozen; the `order` field is excluded exactly as `SeqNum::operator<`
+/// excludes it). The oracle's iterator is a std::map node iterator: `++`
+/// is an O(1) amortized pointer walk and stays valid across insert/erase
+/// (action.cc:871 `op_state++` inside ActionPool::apply, :884-885 loop).
+/// Rust BTreeMap iterators cannot be held across the Rules' mutation, so
+/// Rugra reconstructs the successor by strict-key range (action.rs
+/// next_op_after, ACTIONLOOP-RESTART-0001).
 ///
-/// PERF-ACTIONPOOL-ITER-0001 / OPTREE lane (2026-09-29): the prior form was
-/// `BTreeSet<PcodeOpRef>`, whose `Ord for PcodeOpRef` takes one RwLock read
-/// per compared side — every successor descent paid 2 locks × O(log n)
+/// **PERF-ARENA-FLIP-0001 (a) form** (ARENA_DESIGN §1.2): the map values
+/// are typed [`OpId`] handles into a slot arena held by this tree; each
+/// slot cell carries the op's [`PcodeOpRef`] plus a denormalized copy of
+/// its SeqNum key — the id-space form of the oracle's stored map iterator
+/// (`PcodeOp::start` is assigned exactly once at create; ffi.rs re-assigns
+/// a value-identical SeqNum, so the key copy never drifts). The public
+/// surface (insert/remove/contains/iter/range/find_op/target_lower_bound/
+/// len/is_empty/clear + `&tree` IntoIterator) is unchanged, so every
+/// consumer (action/heritage/merge/comment/coreaction + funcdata
+/// forwarders) compiles and observes the identical SeqNum order.
+///
+/// PERF-ACTIONPOOL-ITER-0001 / OPTREE lane (2026-09-29): the prior form
+/// was `BTreeSet<PcodeOpRef>`, whose `Ord for PcodeOpRef` takes one RwLock
+/// read per compared side — every successor descent paid 2 locks × O(log n)
 /// comparisons (VdbeExec pole: 5,648,144 advances × ~894ns = 5.05s, OPPPOOL
 /// §0/§7). The oracle's dispatch mechanism cost over the same pool pass was
 /// ~1.2s (OPPPOOL §2, 55-sample gdb profile), so the descent was a ~4×
 /// implementation-level gap. This keyed form is the oracle-native shape.
 ///
-/// Behavior-identity contract vs the previous `BTreeSet<PcodeOpRef>`
+/// Behavior-identity contract vs the previous `BTreeMap<SeqNum, PcodeOpRef>`
 /// (OPTREE red line: output zero-change):
-/// - **iteration order identical**: BTreeMap orders keys by SeqNum::cmp —
-///   the exact projection `Ord for PcodeOpRef` used (self.start.cmp).
-/// - **insert dedup identical (keep-first)**: BTreeSet::insert keeps the
-///   stored element when cmp == Equal; `entry(key)` keeps the stored value
-///   when the key exists. (The oracle's `optree[seq] = op`, op.cc:945,
+/// - **iteration order identical**: BTreeMap orders keys by SeqNumKey —
+///   the exact projection `Ord for SeqNum` used ((addr, time); the SpaceOff
+///   encoding mirrors Address::operator< null-first/index/offset).
+/// - **insert dedup identical (keep-first)**: `entry(key)` keeps the stored
+///   value when the key exists. (The oracle's `optree[seq] = op`, op.cc:945,
 ///   REPLACES on a duplicate key; duplicate keys are unreachable through
 ///   the bank's create paths — uniqid is monotonic and create_with_seq
 ///   advances it past every supplied time, op.cc:962-963 — so the
@@ -1634,9 +1656,20 @@ impl PieceNode {
 ///   ordering excludes). ffi.rs:447 re-assigns `start` with a
 ///   value-identical SeqNum (same addr/time captured immediately before
 ///   create), so no in-place key mutation exists.
-#[derive(Debug, Default)]
 pub struct PcodeOpTree {
-    inner: BTreeMap<SeqNum, PcodeOpRef>,
+    /// Slot storage: one cell per bank-inserted op (the stored-iterator
+    /// arena; cells survive `remove` — the deadandgone retention,
+    /// op.cc:984-999 — and are reclaimed only by `clear`).
+    arena: Arena<OpCell, OpId>,
+    inner: BTreeMap<SeqNumKey, OpId>,
+}
+
+/// One arena slot of the op tree.
+// RUGRA-GLUE: id-space stored-iterator cell — the oracle equivalent is the
+// std::map node itself plus the op's stable pointer identity.
+struct OpCell {
+    op: PcodeOpRef,
+    seq_key: SeqNumKey,
 }
 
 impl PcodeOpTree {
@@ -1644,36 +1677,80 @@ impl PcodeOpTree {
     //   member (op.hh:290, default map ctor).
     pub fn new() -> Self {
         Self {
+            arena: Arena::new(),
             inner: BTreeMap::new(),
         }
     }
 
+    // RUGRA-GLUE: POD key projection of a SeqNum — one short read lock per
+    // call. SpaceOff mirrors Address::operator< (null base first, then
+    // registry index, then offset; ARENA_DESIGN §2 single projection site).
+    fn key_from_seq(seq: &SeqNum) -> SeqNumKey {
+        SeqNumKey::new(
+            crate::varnode::space_off_of_address(&seq.get_addr()),
+            seq.get_time() as u64,
+        )
+    }
+
     // RUGRA-GLUE: snapshot of the op's SeqNum key (op.hh:280 map key;
-    //   ordering address.hh:154). One short read lock per call, replacing
-    //   the per-comparison lock pairs of the former BTreeSet<PcodeOpRef>
-    //   Ord-based descent.
-    fn key_of(op: &PcodeOpRef) -> SeqNum {
-        op.0.read().unwrap().start
+    //   ordering address.hh:154).
+    fn key_of(op: &PcodeOpRef) -> SeqNumKey {
+        Self::key_from_seq(&op.0.read().unwrap().start)
     }
 
     // Ghidra: op.cc:941 PcodeOpBank::create (optree[op->getSeqNum()] = op, cc:945)
     /// Insert an op keyed by its SeqNum. Keep-first on a duplicate key,
-    /// identical to the former BTreeSet<PcodeOpRef>::insert. Returns true
-    /// when newly inserted (BTreeSet::insert return shape).
+    /// identical to the former BTreeSet<BTreeMap> insert. Returns true
+    /// when newly inserted.
     pub fn insert(&mut self, op: PcodeOpRef) -> bool {
-        match self.inner.entry(Self::key_of(&op)) {
+        let seq_key = Self::key_of(&op);
+        // Slot the op (reuse its cell on re-insert; the SeqNum is
+        // immutable so the key copy never drifts). The guard is bound to
+        // its own statement and dropped before the write below — holding a
+        // read guard into a same-thread write is a guaranteed RwLock
+        // deadlock.
+        let existing_id = op.0.read().unwrap().op_id;
+        let id = if existing_id.is_some_and(|id| self.arena.contains(id)) {
+            let id = existing_id.expect("checked by is_some_and");
+            if let Some(cell) = self.arena.get_mut(id) {
+                cell.seq_key = seq_key;
+            }
+            id
+        } else {
+            let id = self.arena.insert(OpCell { op: op.clone(), seq_key });
+            op.0.write().unwrap().op_id = Some(id);
+            id
+        };
+        match self.inner.entry(seq_key) {
             std::collections::btree_map::Entry::Occupied(_) => false,
             std::collections::btree_map::Entry::Vacant(slot) => {
-                slot.insert(op);
+                slot.insert(id);
                 true
             }
         }
     }
 
     // Ghidra: op.cc:989 PcodeOpBank::destroy (optree.erase, cc:995)
-    /// Remove the op stored under its SeqNum key. Same element the former
-    /// BTreeSet::remove found via Ord-equality.
+    /// Remove the op stored under its SeqNum key. Stored-key fast path
+    /// (the cell's denormalized key copy — the oracle's stored-iterator
+    /// erase), then the live-key path the former BTreeMap used; both hit
+    /// the same entry on every in-bank input (keys are unique and
+    /// immutable). The cell itself is retained (deadandgone semantics).
     pub fn remove(&mut self, op: &PcodeOpRef) -> bool {
+        if let Some(id) = op.0.read().unwrap().op_id {
+            if let Some(cell) = self.arena.get(id) {
+                let stored_key = cell.seq_key;
+                if let Some(rid) = self.inner.remove(&stored_key) {
+                    if rid == id {
+                        return true;
+                    }
+                    // The stored key routed to a different op's entry:
+                    // restore before the live-key path so only `op`'s
+                    // entry can be removed.
+                    self.inner.insert(stored_key, rid);
+                }
+            }
+        }
         self.inner.remove(&Self::key_of(op)).is_some()
     }
 
@@ -1687,6 +1764,7 @@ impl PcodeOpTree {
     // Ghidra: op.cc:1194 PcodeOpBank::clear (op.cc:1205 optree.clear())
     pub fn clear(&mut self) {
         self.inner.clear();
+        self.arena.clear();
     }
 
     // RUGRA-GLUE: size surface shared by BTreeSet/BTreeMap (op.cc:1194
@@ -1704,14 +1782,14 @@ impl PcodeOpTree {
     //   op.hh:327 endAll (optree.end())
     /// All ops in SeqNum order — the beginAll()/endAll() pair as one
     /// iterator over the stored values.
-    pub fn iter(&self) -> std::collections::btree_map::Values<'_, SeqNum, PcodeOpRef> {
-        self.inner.values()
+    pub fn iter(&self) -> PcodeOpTreeIter<'_> {
+        PcodeOpTreeIter { arena: &self.arena, ids: self.inner.values() }
     }
 
-    // RUGRA-GLUE: translates a PcodeOpRef range bound to its SeqNum key
+    // RUGRA-GLUE: translates a PcodeOpRef range bound to its SeqNumKey
     //   bound (one read lock per bound), so the tree descent itself runs on
     //   plain key compares with no locks.
-    fn translate_bound(bound: std::ops::Bound<&PcodeOpRef>) -> std::ops::Bound<SeqNum> {
+    fn translate_bound(bound: std::ops::Bound<&PcodeOpRef>) -> std::ops::Bound<SeqNumKey> {
         match bound {
             std::ops::Bound::Included(op) => std::ops::Bound::Included(Self::key_of(op)),
             std::ops::Bound::Excluded(op) => std::ops::Bound::Excluded(Self::key_of(op)),
@@ -1728,16 +1806,21 @@ impl PcodeOpTree {
     pub fn range(
         &self,
         bounds: (std::ops::Bound<&PcodeOpRef>, std::ops::Bound<&PcodeOpRef>),
-    ) -> impl Iterator<Item = &PcodeOpRef> {
+    ) -> PcodeOpTreeRange<'_> {
         let lower = Self::translate_bound(bounds.0);
         let upper = Self::translate_bound(bounds.1);
-        self.inner.range((lower, upper)).map(|(_, v)| v)
+        PcodeOpTreeRange {
+            arena: &self.arena,
+            ids: self.inner.range((lower, upper)),
+        }
     }
 
     // Ghidra: op.cc:1099 PcodeOpBank::findOp (optree.find(num), cc:1102)
     /// Exact-key find (O(log n)) — the oracle's map find.
     pub fn find_op(&self, seq: &SeqNum) -> Option<&PcodeOpRef> {
-        self.inner.get(seq)
+        self.inner
+            .get(&Self::key_from_seq(seq))
+            .and_then(|id| self.arena.get(*id).map(|cell| &cell.op))
     }
 
     // Ghidra: op.cc:1089 PcodeOpBank::target (optree.lower_bound, cc:1092)
@@ -1745,20 +1828,93 @@ impl PcodeOpTree {
     /// lower_bound(SeqNum(addr,0)) iteration; the first entry is exactly
     /// the former linear scan's first `start.addr >= addr` hit (tree order
     /// is (addr,time), time >= 0 always).
-    pub fn target_lower_bound(&self, addr: Address) -> impl Iterator<Item = &PcodeOpRef> {
-        self.inner.range(SeqNum::new(addr, 0)..).map(|(_, v)| v)
+    pub fn target_lower_bound(&self, addr: Address) -> PcodeOpTreeRange<'_> {
+        let lower = std::ops::Bound::Included(SeqNumKey::new(
+            crate::varnode::space_off_of_address(&addr),
+            0,
+        ));
+        PcodeOpTreeRange {
+            arena: &self.arena,
+            ids: self.inner.range((lower, std::ops::Bound::Unbounded)),
+        }
+    }
+
+    // RUGRA-GLUE: resolve an OpId to its stored handle (the W1(b) god-object
+    //   read API's underlying lookup; P1 pattern of ARENA_DESIGN §3.2).
+    pub fn get_by_id(&self, id: OpId) -> Option<&PcodeOpRef> {
+        self.arena.get(id).map(|cell| &cell.op)
+    }
+}
+
+// RUGRA-GLUE: named value iterators — the BTreeMap::Values / ::Range
+// surface without exposing OpId or the cell type in any public signature.
+/// Forward iterator over [`PcodeOpTree`] values, in SeqNum order.
+pub struct PcodeOpTreeIter<'a> {
+    arena: &'a Arena<OpCell, OpId>,
+    ids: std::collections::btree_map::Values<'a, SeqNumKey, OpId>,
+}
+
+impl<'a> Iterator for PcodeOpTreeIter<'a> {
+    type Item = &'a PcodeOpRef;
+    // RUGRA-GLUE: trait plumbing (advance follows the map value then
+    // resolves the arena cell).
+    fn next(&mut self) -> Option<Self::Item> {
+        self.ids
+            .next()
+            .and_then(|id| self.arena.get(*id).map(|cell| &cell.op))
+    }
+    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.ids.size_hint()
+    }
+}
+
+/// Bounded range iterator over [`PcodeOpTree`] values.
+pub struct PcodeOpTreeRange<'a> {
+    arena: &'a Arena<OpCell, OpId>,
+    ids: std::collections::btree_map::Range<'a, SeqNumKey, OpId>,
+}
+
+impl<'a> Iterator for PcodeOpTreeRange<'a> {
+    type Item = &'a PcodeOpRef;
+    // RUGRA-GLUE: trait plumbing (advance follows the map value then
+    // resolves the arena cell).
+    fn next(&mut self) -> Option<Self::Item> {
+        self.ids
+            .next()
+            .and_then(|(_, id)| self.arena.get(*id).map(|cell| &cell.op))
+    }
+    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.ids.size_hint()
+    }
+}
+
+impl Default for PcodeOpTree {
+    // RUGRA-GLUE: Default = new() (clippy::new_without_default).
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// RUGRA-GLUE: set-shaped Debug (the former derive printed the keyed map;
+// consumers only ever see the element sequence).
+impl std::fmt::Debug for PcodeOpTree {
+    // RUGRA-GLUE: trait impl (Debug formatting; no Ghidra counterpart).
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_set().entries(self.iter()).finish()
     }
 }
 
 // RUGRA-GLUE: IntoIterator on &PcodeOpTree so `for op in &bank.optree`
-//   keeps the BTreeSet<PcodeOpRef> surface at every existing call site
+//   keeps the keyed-map surface at every existing call site
 //   (heritage/merge/funcdata/comment/flow/ffi/align/examples).
 impl<'a> IntoIterator for &'a PcodeOpTree {
     type Item = &'a PcodeOpRef;
-    type IntoIter = std::collections::btree_map::Values<'a, SeqNum, PcodeOpRef>;
+    type IntoIter = PcodeOpTreeIter<'a>;
     // RUGRA-GLUE: trait-impl forwarder to iter().
     fn into_iter(self) -> Self::IntoIter {
-        self.inner.values()
+        self.iter()
     }
 }
 
