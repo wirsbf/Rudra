@@ -34,6 +34,7 @@ use std::rc::Rc;
 
 use kuna_base::address::{calc_mask, Address};
 use kuna_base::error::{KunaError, KunaResult};
+use kuna_base::marshal::Decoder;
 use kuna_base::space::{spacetype, AddrSpace, AddrSpaceManager, RegisterLookup, VarnodeStorage};
 use kuna_base::xml::DocumentStorage;
 
@@ -1795,6 +1796,55 @@ impl Sleigh {
         }
         // Re-registration path (engine reused with a new program): re-register
         // the context variables with the (new) database.
+        let db = &mut **self.context_db.borrow_mut();
+        self.base.reregister_context(|nm, sb, eb| db.register_variable(nm, sb, eb))?;
+        Ok(())
+    }
+
+    /// (kuna) Encode this engine's decoded SLEIGH table as a flat snapshot
+    /// payload — the ordinary `SleighBase::encode` walk over the fixed-width
+    /// [`crate::kuna_enginesnap::FlatEncode`] transport
+    /// (SPEEDPROF-SLEIGH-SNAPSHOT-0001). The engine must be initialized.
+    /// Deterministic: the same decoded tables always produce the same payload
+    /// (all ordered containers in the walk are deterministic).
+    pub fn snapshot_payload(&self) -> KunaResult<Vec<u8>> {
+        let mut payload = Vec::new();
+        {
+            let mut encoder = crate::kuna_enginesnap::FlatEncode::new(&mut payload);
+            self.base.encode(&mut encoder)?;
+        }
+        Ok(payload)
+    }
+
+    /// (kuna) Initialize from a flat snapshot payload produced by
+    /// [`Sleigh::snapshot_payload`] — the ordinary `SleighBase::decode` walk
+    /// over the fixed-width [`crate::kuna_enginesnap::FlatDecode`] transport,
+    /// i.e. the SAME construction code as the cold `initialize_from_sla`
+    /// path above (`decodeSlaSpaces` → `SymbolTable::decode` →
+    /// `buildXrefs`); only the byte transport differs (fixed-width words vs
+    /// packed varints). On any error the caller must discard this engine and
+    /// fall back to the cold path — a partially decoded engine is never
+    /// observable.
+    pub fn initialize_from_snapshot(&mut self, payload: &[u8]) -> KunaResult<()> {
+        if !self.base.is_initialized() {
+            // SAFETY: same aliasing shape as `initialize_from_sla` above —
+            // the manager outlives the decoder (both live for this call),
+            // and `SleighBase::decode` mutates the manager only via
+            // `insert_space`/`set_default_code_space` in `decode_sla_spaces`,
+            // strictly before any `read_space` the symbol-table decode
+            // issues, so no manager read and mutation overlap in time.
+            let manager_ptr: *const AddrSpaceManager = &*self.base.manager;
+            let mut decoder = crate::kuna_enginesnap::FlatDecode::new(unsafe { &*manager_ptr });
+            decoder.ingest_borrowed(payload);
+            let db_cell = &self.context_db;
+            let register_context = |nm: &[u8], sb: i32, eb: i32| -> KunaResult<()> {
+                db_cell.borrow_mut().register_variable(nm, sb, eb)
+            };
+            self.base.decode(&mut decoder, register_context)?;
+            return Ok(());
+        }
+        // Re-registration path (engine reused with a new program): identical
+        // to `initialize_from_sla`'s already-initialized arm.
         let db = &mut **self.context_db.borrow_mut();
         self.base.reregister_context(|nm, sb, eb| db.register_variable(nm, sb, eb))?;
         Ok(())
