@@ -1,5 +1,15 @@
 # `funcdata.rs` API Reference
 
+## 2026-09-30：begin/end Loc/Def 前转器返回类型随动（PERF-ARENA-FLIP-0001 (a)）
+
+`Funcdata` 的 begin/end Loc/Def 前转器族（`begin_loc`/`end_loc`/`end_loc_space`/
+`end_loc_size`/`end_loc_size_fl`/`end_loc_pc`/`begin_def`/`end_def`/`end_def_fl`/
+`end_def_addr`，funcdata.hh:337-394 前转形态）返回类型随 VarnodeBank 双树 POD 键化
+（见 `docs/api/varnode.md` 同日条目）由 `std::collections::btree_set::Iter<'_, Varnode{Loc,Def}Ref>`
+改为 `impl Iterator<Item = &Varnode{Loc,Def}Ref>`——纯类型随动：迭代序仍为
+VarnodeCompareLocDef/DefLoc 比较器投影全序，元素仍逐个 yield `&VarnodeLocRef`/
+`&VarnodeDefRef`，所有调用点（含 filter 链式形态）零改动、行为零变。
+
 ## 2026-09-29：beginOpAll/endOpAll 迭代器类型随动（PERF-ACTIONPOOL-ITER-0001 / OPTREE 车道）
 
 `Funcdata::begin_op_all`/`end_op_all`（funcdata.hh:518/521 beginOpAll/endOpAll 前转）

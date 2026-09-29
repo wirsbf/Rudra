@@ -5321,12 +5321,12 @@ impl Funcdata {
     /// Ghidra half-open iterator endpoints collapse into one owned
     /// iterator; `end_loc` exists for API parity and returns the same
     /// full-range tail.
-    pub fn begin_loc(&self) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    pub fn begin_loc(&self) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
     // Ghidra: funcdata.hh:340 Funcdata::endLoc
-    pub fn end_loc(&self) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    pub fn end_loc(&self) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
@@ -5389,7 +5389,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:358 Funcdata::endLoc(int4,const Address&)
     pub fn end_loc_size(
         &self, _size: usize, _addr: Address,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
@@ -5421,7 +5421,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:364 Funcdata::endLoc(int4,const Address&,uint4)
     pub fn end_loc_size_fl(
         &self, _size: usize, _addr: Address, _fl: u32,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
@@ -5462,7 +5462,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:371 Funcdata::endLoc(int4,const Address&,const Address&,uintm)
     pub fn end_loc_pc(
         &self, _size: usize, _addr: Address, _pc: Address, _uniq: u32,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
@@ -5485,12 +5485,12 @@ impl Funcdata {
     // Ghidra: funcdata.hh:382 Funcdata::endDef
     /// Start/end of all Varnodes sorted by definition address. Faithful to
     /// the parameterless `beginDef`/`endDef` (funcdata.hh:379/382).
-    pub fn begin_def(&self) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeDefRef> {
+    pub fn begin_def(&self) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> + '_ {
         self.vbank.begin_def()
     }
 
     // Ghidra: funcdata.hh:382 Funcdata::endDef
-    pub fn end_def(&self) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeDefRef> {
+    pub fn end_def(&self) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> + '_ {
         self.vbank.begin_def()
     }
 
@@ -5522,7 +5522,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:388 Funcdata::endDef(uint4)
     pub fn end_def_fl(
         &self, _fl: u32,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeDefRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> + '_ {
         self.vbank.begin_def()
     }
 
@@ -5560,7 +5560,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:394 Funcdata::endDef(uint4,const Address&)
     pub fn end_def_addr(
         &self, fl: u32, _addr: Address,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeDefRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> + '_ {
         if fl == crate::varnode::varnode_flags::WRITTEN {
             panic!("Cannot get contiguous written AND addressed");
         }

@@ -17,6 +17,7 @@ pub mod stubs {
     #[derive(Debug)] pub struct ValueSet;
 }
 
+use crate::arena::{Arena, SeqNumKey, SpaceOff, VnDefKey, VnDefState, VnId, VnLocKey};
 use crate::cover::Cover;
 use crate::database::SymbolEntry;
 use crate::op::PcodeOp;
@@ -619,6 +620,16 @@ pub struct Varnode {
     // Union fields from Ghidra (represented as separate fields in Rust)
     pub consumed: u64,
     pub nzm: u64,
+    /// Arena identity handle (PERF-ARENA-FLIP-0001 (a), ARENA_DESIGN §1.3).
+    ///
+    /// RUGRA-GLUE: id-space stand-in for Ghidra's `lociter`/`defiter`
+    /// (varnode.hh:147-148) — the stored tree iterators that let the oracle
+    /// erase a Varnode from its trees by stored position, never by a
+    /// recomputed comparison key. Here the handle names the VarnodeBank slot
+    /// holding this Varnode's denormalized tree-key copies; `None` for
+    /// Varnodes never allocated through the bank (raw test fixtures), which
+    /// take the legacy live-key erase path.
+    pub(crate) vn_id: Option<VnId>,
 }
 
 // RUGRA-GLUE: borrow-safety helper materializing BOTH notification arms of
@@ -707,6 +718,7 @@ impl Varnode {
             cover: None,
             consumed: u64::MAX,
             nzm,
+            vn_id: None,
         }
     }
 
@@ -3112,14 +3124,574 @@ impl From<&Varnode> for VarnodeData {
     }
 }
 
+// ===========================================================================
+// PERF-ARENA-FLIP-0001 (a) — POD-key tree form (ARENA_DESIGN §1.3 / D7)
+// ===========================================================================
+//
+// The two VarnodeBank trees flip from `BTreeSet<Varnode{Loc,Def}Ref>` (whose
+// Ord comparators take a RwLock read per compared side — the 398,450-descent
+// / 1.47s lock tax measured by VARMAPOPCREATE) to `BTreeMap<POD key, ref>`.
+// The POD keys (`VnLocKey`/`VnDefKey`, src/arena.rs — W0-frozen, order-locked
+// against a literal transcription of varnode.cc:34-79 by unit test) are
+// computed from live Varnode state at exactly the oracle's erase+reinsert
+// sites (`xref`/`setInput`/`setDef`/`makeFree`/`destroy`, varnode.cc:1291/
+// 1358/1380/1316/1276). Stored-iterator erase (oracle `loc_tree.erase
+// (vn->lociter)`, varnode.cc:1282-1283/1319-1320/1366-1367/1396-1397) is
+// reproduced by the arena cell's denormalized key copies: removal uses the
+// key under which the Varnode was inserted, never a recomputed live key.
+//
+// Bridge surface (consumer zero-change): the public fields keep the
+// `iter/range/insert/len` + `&set` IntoIterator forms over
+// `&VarnodeLocRef`/`&VarnodeDefRef`, so every frozen consumer call site
+// (heritage/merge/varmap/coreaction/printc/flow, examples, tests) compiles
+// and observes the identical iteration order.
+
+/// Number of `AddressSpace` enum variants (declaration order = derived Ord).
+const ADDRESSSPACE_VARIANT_COUNT: u32 = 9;
+
+/// Stride separating `loc`-tag encodings inside a [`SpaceOff::space`] word.
+///
+/// `Varnode::loc` is a legacy `Address` whose own `space` field is
+/// `Option<SpaceTag>`; the oracle comparator orders by `address_space`
+/// (space id, then enum) and only then by `loc` (its space tag, then
+/// offset). All bank varnodes carry a spaceless `loc` (`Address::new`,
+/// verified at every construction site), so `loc` ordering degenerates to
+/// offset-only; the tag component keeps the projection exact should a
+/// tagged `loc` ever appear (debug-asserted bound: registry index below
+/// 2^20 - 1).
+const VN_LOC_TAG_STRIDE: u32 = 1 << 20;
+
+// RUGRA-GLUE: enum-discriminant projection — Ghidra's varnode comparators
+// compare raw `AddrSpace*` pointers (interned, unique per space); Rugra's
+// AddressSpace is a Copy enum, and `compare_address_spaces` orders by
+// `space_id()` first with the enum order as the total-order tiebreak. This
+// packs both into one u32 so `SpaceOff::space` preserves that exact order.
+fn address_space_discriminant(space: AddressSpace) -> u32 {
+    match space {
+        AddressSpace::Ram => 0,
+        AddressSpace::Register => 1,
+        AddressSpace::Unique => 2,
+        AddressSpace::Const => 3,
+        AddressSpace::Stack => 4,
+        AddressSpace::Join => 5,
+        AddressSpace::Iop => 6,
+        AddressSpace::Overlay => 7,
+        AddressSpace::Other(_) => 8,
+    }
+}
+
+// RUGRA-GLUE: (space_id, discriminant) → single u32. Bijective because the
+// discriminant is below ADDRESSSPACE_VARIANT_COUNT; the lexicographic
+// (space_id, discriminant) order equals `compare_address_spaces`
+// (varnode.rs, mirror of the oracle's interned-pointer order).
+fn address_space_code(space: AddressSpace) -> u32 {
+    space.space_id() as u32 * ADDRESSSPACE_VARIANT_COUNT
+        + address_space_discriminant(space)
+}
+
+// RUGRA-GLUE: Address → SpaceOff projection for SeqNum keys
+// (ARENA_DESIGN §2: one projection function). Mirrors `Address::operator<`
+// (address.hh:375): null base sorts first, real spaces by registry index,
+// offset last. Used for the def-op SeqNum projection inside `VnDefState`.
+pub(crate) fn space_off_of_address(addr: &Address) -> SpaceOff {
+    match addr.get_space() {
+        None => SpaceOff::null(),
+        Some(spc) => {
+            let index = spc.get_index();
+            debug_assert!(index >= 0 && (index as u32) < u32::MAX - 1);
+            SpaceOff::from_space_index(index as u32, addr.as_u64())
+        }
+    }
+}
+
+// RUGRA-GLUE: (address_space, loc) → SpaceOff for the loc/def tree keys.
+// Ordering matches the `Varnode{Loc,Def}Ref` comparators field-for-field:
+// `compare_address_spaces(vn.address_space)` then `vn.loc` (space tag then
+// offset, address.rs Address Ord).
+fn vn_space_off(vn_space: AddressSpace, loc: &Address) -> SpaceOff {
+    let loc_tag: u32 = match loc.get_space() {
+        None => 0,
+        Some(spc) => {
+            let index = spc.get_index();
+            debug_assert!(index >= 0 && (index as u32) < VN_LOC_TAG_STRIDE - 1);
+            (index as u32) + 1
+        }
+    };
+    let space = address_space_code(vn_space)
+        .checked_mul(VN_LOC_TAG_STRIDE)
+        .and_then(|v| v.checked_add(loc_tag))
+        .expect("vn space/loc tag packing overflow (space ids must stay < 2^31)");
+    SpaceOff { space, offset: loc.as_u64() }
+}
+
+// RUGRA-GLUE: definition-state projection — the varnode half of the
+// varnode.cc:34-79 comparators, de-normalized into the frozen
+// `VnDefState` POD (src/arena.rs, W0 order-locked). The `input`(0x08)/
+// `written`(0x10) masks are varnode.hh:82-83.
+pub(crate) fn vn_def_state(vn: &Varnode) -> VnDefState {
+    let def_seq = vn
+        .def
+        .as_ref()
+        .and_then(|w| w.upgrade())
+        .map(|op| {
+            let guard = op.read().unwrap();
+            SeqNumKey::new(space_off_of_address(&guard.get_addr()), guard.start.get_time() as u64)
+        })
+        .unwrap_or(SeqNumKey::new(SpaceOff::null(), 0));
+    VnDefState::from_flags(vn.flags, def_seq, vn.create_index)
+}
+
+// RUGRA-GLUE: loc-tree key projection (single construction site,
+// ARENA_DESIGN §5 R2 discipline). Field order equals
+// VarnodeCompareLocDef (varnode.cc:34-53): address (space then offset),
+// size, definition state with the (f-1) free-last ranking.
+pub(crate) fn vn_loc_key(vn: &Varnode) -> VnLocKey {
+    VnLocKey::new(
+        vn_space_off(vn.address_space, &vn.loc),
+        vn.size as i32,
+        vn_def_state(vn),
+    )
+}
+
+// RUGRA-GLUE: def-tree key projection. Field order equals
+// VarnodeCompareDefLoc (varnode.cc:60-79), transcribed by the manual
+// `Ord for VnDefKey` (src/arena.rs, W0 differential-tested).
+pub(crate) fn vn_def_key(vn: &Varnode) -> VnDefKey {
+    VnDefKey::new(
+        vn_def_state(vn),
+        vn_space_off(vn.address_space, &vn.loc),
+        vn.size as i32,
+    )
+}
+
+/// Arena cell — the denormalized key copies that play the oracle's stored
+/// `lociter`/`defiter` (varnode.hh:147-148).
+///
+/// RUGRA-GLUE: id-space stored-iterator. The oracle keeps two tree
+/// iterators inside each Varnode; Rust cannot store borrows, so the bank
+/// keeps this cell per bank-allocated Varnode (`Varnode::vn_id` points
+/// here) holding the keys the Varnode was last inserted under. Erase uses
+/// these copies (stored-key erase), recomputed only at the oracle's
+/// erase+reinsert sites.
+struct VnCell {
+    vn: Arc<RwLock<Varnode>>,
+    loc_key: VnLocKey,
+    def_key: VnDefKey,
+}
+
+/// Location-ordered varnode tree: `BTreeMap<VnLocKey, VarnodeLocRef>`.
+///
+/// Bridge form of Ghidra's `VarnodeLocSet` (varnode.hh:52,
+/// `set<Varnode*, VarnodeCompareLocDef>`): key order is the exact
+/// comparator projection (W0-locked), values keep the consumer-facing
+/// `VarnodeLocRef` so `iter`/`range`/`&set` iteration still yields
+/// `&VarnodeLocRef`. Insert keeps the stored element on a duplicate key —
+/// identical to `BTreeSet::insert` on comparator-equal input.
+// Ghidra: varnode.hh:52 VarnodeLocSet (VarnodeCompareLocDef ordering,
+// varnode.cc:34-53).
+pub struct VarnodeLocSet {
+    inner: BTreeMap<VnLocKey, VarnodeLocRef>,
+}
+
+impl VarnodeLocSet {
+    // RUGRA-GLUE: empty-set ctor (member init form).
+    pub fn new() -> Self {
+        VarnodeLocSet { inner: BTreeMap::new() }
+    }
+
+    // RUGRA-GLUE: live-state key of one element (probe construction).
+    fn key_of(v: &VarnodeLocRef) -> VnLocKey {
+        vn_loc_key(&v.0.read().unwrap())
+    }
+
+    // RUGRA-GLUE: bound translation for `range` (probe → key).
+    fn key_bound(bound: std::ops::Bound<&VarnodeLocRef>) -> std::ops::Bound<VnLocKey> {
+        match bound {
+            std::ops::Bound::Included(p) => std::ops::Bound::Included(Self::key_of(p)),
+            std::ops::Bound::Excluded(p) => std::ops::Bound::Excluded(Self::key_of(p)),
+            std::ops::Bound::Unbounded => std::ops::Bound::Unbounded,
+        }
+    }
+
+    /// Iterate in loc-tree order — the `beginLoc`/`endLoc` walk.
+    // Ghidra: varnode.cc:1560 VarnodeBank::beginLoc (loc_tree.begin() walk).
+    pub fn iter(&self) -> impl Iterator<Item = &VarnodeLocRef> + '_ {
+        self.inner.values()
+    }
+
+    /// Exact-key get (the oracle's `set::find` by comparator).
+    // Ghidra: varnode.cc:1291 VarnodeBank::xref (loc_tree.insert at cc:1297 /
+    // duplicate detection by comparator-equal key).
+    pub fn get(&self, v: &VarnodeLocRef) -> Option<&VarnodeLocRef> {
+        self.inner.get(&Self::key_of(v))
+    }
+
+    /// Keep-first insert on a duplicate key, the `BTreeSet::insert`
+    /// contract. Returns true when newly inserted.
+    // Ghidra: varnode.cc:1291 VarnodeBank::xref (loc_tree.insert at cc:1297,
+    // pair<iter,bool> second=false keeps the existing element).
+    pub fn insert(&mut self, v: VarnodeLocRef) -> bool {
+        match self.inner.entry(Self::key_of(&v)) {
+            std::collections::btree_map::Entry::Occupied(_) => false,
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(v);
+                true
+            }
+        }
+    }
+
+    /// Remove by live probe key, returning the removed element if the key
+    /// was present (`BTreeSet::take`).
+    // RUGRA-GLUE: take-by-live-key half of the legacy identity erase.
+    pub fn take(&mut self, v: &VarnodeLocRef) -> Option<VarnodeLocRef> {
+        self.inner.remove(&Self::key_of(v))
+    }
+
+    /// Remove by a stored key copy (stored-iterator erase).
+    // Ghidra: varnode.cc:1276 VarnodeBank::destroy (loc_tree.erase
+    /// (vn->lociter) at cc:1282 — erase by stored position, never a
+    /// recomputed key).
+    pub fn remove_key(&mut self, key: &VnLocKey) -> Option<VarnodeLocRef> {
+        self.inner.remove(key)
+    }
+
+    /// Restore an element taken by mistake in the legacy path.
+    // RUGRA-GLUE: re-insert half of the take-mismatch restore.
+    pub fn insert_raw(&mut self, key: VnLocKey, v: VarnodeLocRef) {
+        self.inner.insert(key, v);
+    }
+
+    /// Recompute the live key of `v` (for cell bookkeeping).
+    // RUGRA-GLUE: key copy refresh at the erase+reinsert sites.
+    pub fn live_key(&self, v: &VarnodeLocRef) -> VnLocKey {
+        Self::key_of(v)
+    }
+
+    /// Range query over probe bounds — the `beginLoc(addr)` lower-bound
+    /// family expressed as `std::ops::RangeBounds`. Double-ended, matching
+    /// `std::collections::BTreeSet::range`.
+    // Ghidra: varnode.cc:1582 VarnodeBank::beginLoc(const Address&)
+    /// (loc_tree.lower_bound(&searchvn)).
+    pub fn range<R: std::ops::RangeBounds<VarnodeLocRef>>(
+        &self,
+        bounds: R,
+    ) -> VarnodeLocRange<'_> {
+        let start = Self::key_bound(bounds.start_bound());
+        let end = Self::key_bound(bounds.end_bound());
+        VarnodeLocRange { inner: self.inner.range((start, end)) }
+    }
+
+    /// Membership by live probe key (`BTreeSet::contains`).
+    // RUGRA-GLUE: contains surface kept for the bank's own tests.
+    pub fn contains(&self, v: &VarnodeLocRef) -> bool {
+        self.inner.contains_key(&Self::key_of(v))
+    }
+
+    /// Retain elements passing the predicate (identity-scan fallback).
+    // RUGRA-GLUE: whole-tree retain (BTreeSet::retain surface).
+    pub fn retain(&mut self, mut f: impl FnMut(&VarnodeLocRef) -> bool) {
+        self.inner.retain(|_, v| f(v));
+    }
+
+    /// Element count (`set::size`).
+    // RUGRA-GLUE: size surface.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Emptiness (`set::empty`).
+    // RUGRA-GLUE: empty surface.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Drop every element (`set::clear`).
+    // Ghidra: varnode.cc:1230 VarnodeBank::clear (loc_tree.clear() at cc:1238).
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+}
+
+impl Default for VarnodeLocSet {
+    // RUGRA-GLUE: Default = new().
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> IntoIterator for &'a VarnodeLocSet {
+    type Item = &'a VarnodeLocRef;
+    type IntoIter = VarnodeLocIter<'a>;
+    // RUGRA-GLUE: `for vn in &bank.loc_tree` keeps the BTreeSet surface.
+    fn into_iter(self) -> Self::IntoIter {
+        VarnodeLocIter { inner: self.inner.values() }
+    }
+}
+
+impl std::fmt::Debug for VarnodeLocSet {
+    // RUGRA-GLUE: set-shaped Debug (BTreeSet prints a set of elements).
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_set().entries(self.inner.values()).finish()
+    }
+}
+
+/// Definition-ordered varnode tree: `BTreeMap<VnDefKey, VarnodeDefRef>`.
+///
+/// Bridge form of Ghidra's `VarnodeDefSet` (varnode.hh:55,
+/// `set<Varnode*, VarnodeCompareDefLoc>`) — see [`VarnodeLocSet`].
+// Ghidra: varnode.hh:55 VarnodeDefSet (VarnodeCompareDefLoc ordering,
+// varnode.cc:60-79).
+pub struct VarnodeDefSet {
+    inner: BTreeMap<VnDefKey, VarnodeDefRef>,
+}
+
+impl VarnodeDefSet {
+    // RUGRA-GLUE: empty-set ctor.
+    pub fn new() -> Self {
+        VarnodeDefSet { inner: BTreeMap::new() }
+    }
+
+    // RUGRA-GLUE: live-state key of one element (probe construction).
+    fn key_of(v: &VarnodeDefRef) -> VnDefKey {
+        vn_def_key(&v.0.read().unwrap())
+    }
+
+    // RUGRA-GLUE: bound translation for `range`.
+    fn key_bound(bound: std::ops::Bound<&VarnodeDefRef>) -> std::ops::Bound<VnDefKey> {
+        match bound {
+            std::ops::Bound::Included(p) => std::ops::Bound::Included(Self::key_of(p)),
+            std::ops::Bound::Excluded(p) => std::ops::Bound::Excluded(Self::key_of(p)),
+            std::ops::Bound::Unbounded => std::ops::Bound::Unbounded,
+        }
+    }
+
+    /// Iterate in def-tree order — the `beginDef`/`endDef` walk.
+    // Ghidra: varnode.cc:1831 VarnodeBank::beginDef (def_tree.begin()).
+    pub fn iter(&self) -> impl Iterator<Item = &VarnodeDefRef> + '_ {
+        self.inner.values()
+    }
+
+    /// Exact-key get.
+    // RUGRA-GLUE: set::find surface.
+    pub fn get(&self, v: &VarnodeDefRef) -> Option<&VarnodeDefRef> {
+        self.inner.get(&Self::key_of(v))
+    }
+
+    /// Keep-first insert on a duplicate key.
+    // Ghidra: varnode.cc:1291 VarnodeBank::xref (def_tree.insert at cc:1307 —
+    /// "Insertion should also be new in def_tree").
+    pub fn insert(&mut self, v: VarnodeDefRef) -> bool {
+        match self.inner.entry(Self::key_of(&v)) {
+            std::collections::btree_map::Entry::Occupied(_) => false,
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(v);
+                true
+            }
+        }
+    }
+
+    /// Remove by live probe key (`BTreeSet::take`).
+    // RUGRA-GLUE: take-by-live-key half of the legacy identity erase.
+    pub fn take(&mut self, v: &VarnodeDefRef) -> Option<VarnodeDefRef> {
+        self.inner.remove(&Self::key_of(v))
+    }
+
+    /// Remove by a stored key copy (stored-iterator erase).
+    // Ghidra: varnode.cc:1276 VarnodeBank::destroy (def_tree.erase
+    /// (vn->defiter) at cc:1283).
+    pub fn remove_key(&mut self, key: &VnDefKey) -> Option<VarnodeDefRef> {
+        self.inner.remove(key)
+    }
+
+    /// Restore an element taken by mistake in the legacy path.
+    // RUGRA-GLUE: re-insert half of the take-mismatch restore.
+    pub fn insert_raw(&mut self, key: VnDefKey, v: VarnodeDefRef) {
+        self.inner.insert(key, v);
+    }
+
+    /// Recompute the live key of `v` (for cell bookkeeping).
+    // RUGRA-GLUE: key copy refresh at the erase+reinsert sites.
+    pub fn live_key(&self, v: &VarnodeDefRef) -> VnDefKey {
+        Self::key_of(v)
+    }
+
+    /// Range query over probe bounds — the `beginDef`/`endDef` bound pair.
+    /// Double-ended, matching `std::collections::BTreeSet::range`.
+    // Ghidra: varnode.cc:1908 VarnodeBank::beginDef(uint4, const Address&)
+    /// (def_tree.lower_bound / upper_bound).
+    pub fn range<R: std::ops::RangeBounds<VarnodeDefRef>>(
+        &self,
+        bounds: R,
+    ) -> VarnodeDefRange<'_> {
+        let start = Self::key_bound(bounds.start_bound());
+        let end = Self::key_bound(bounds.end_bound());
+        VarnodeDefRange { inner: self.inner.range((start, end)) }
+    }
+
+    /// Membership by live probe key.
+    // RUGRA-GLUE: contains surface.
+    pub fn contains(&self, v: &VarnodeDefRef) -> bool {
+        self.inner.contains_key(&Self::key_of(v))
+    }
+
+    /// Retain elements passing the predicate.
+    // RUGRA-GLUE: whole-tree retain.
+    pub fn retain(&mut self, mut f: impl FnMut(&VarnodeDefRef) -> bool) {
+        self.inner.retain(|_, v| f(v));
+    }
+
+    /// Element count.
+    // RUGRA-GLUE: size surface.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Emptiness.
+    // RUGRA-GLUE: empty surface.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Drop every element.
+    // Ghidra: varnode.cc:1230 VarnodeBank::clear (def_tree.clear() at cc:1239).
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+}
+
+impl Default for VarnodeDefSet {
+    // RUGRA-GLUE: Default = new().
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> IntoIterator for &'a VarnodeDefSet {
+    type Item = &'a VarnodeDefRef;
+    type IntoIter = VarnodeDefIter<'a>;
+    // RUGRA-GLUE: `for vn in &bank.def_tree` keeps the BTreeSet surface.
+    fn into_iter(self) -> Self::IntoIter {
+        VarnodeDefIter { inner: self.inner.values() }
+    }
+}
+
+impl std::fmt::Debug for VarnodeDefSet {
+    // RUGRA-GLUE: set-shaped Debug.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_set().entries(self.inner.values()).finish()
+    }
+}
+
+// RUGRA-GLUE: named value iterators for the two bridge sets — the
+// BTreeSet surface (forward + double-ended) without exposing the POD key
+// type in any public signature.
+/// Forward iterator over [`VarnodeLocSet`] values, in loc-tree order.
+pub struct VarnodeLocIter<'a> {
+    inner: std::collections::btree_map::Values<'a, VnLocKey, VarnodeLocRef>,
+}
+
+impl<'a> Iterator for VarnodeLocIter<'a> {
+    type Item = &'a VarnodeLocRef;
+    // RUGRA-GLUE: trait plumbing (forward iterator advance).
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for VarnodeLocIter<'_> {
+    // RUGRA-GLUE: trait plumbing (reverse iterator advance).
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back()
+    }
+}
+
+/// Bounded range iterator over [`VarnodeLocSet`] values (`set::range`).
+pub struct VarnodeLocRange<'a> {
+    inner: std::collections::btree_map::Range<'a, VnLocKey, VarnodeLocRef>,
+}
+
+impl<'a> Iterator for VarnodeLocRange<'a> {
+    type Item = &'a VarnodeLocRef;
+    // RUGRA-GLUE: trait plumbing (forward iterator advance).
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|(_, v)| v)
+    }
+    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for VarnodeLocRange<'_> {
+    // RUGRA-GLUE: trait plumbing (reverse iterator advance).
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back().map(|(_, v)| v)
+    }
+}
+
+/// Forward iterator over [`VarnodeDefSet`] values, in def-tree order.
+pub struct VarnodeDefIter<'a> {
+    inner: std::collections::btree_map::Values<'a, VnDefKey, VarnodeDefRef>,
+}
+
+impl<'a> Iterator for VarnodeDefIter<'a> {
+    type Item = &'a VarnodeDefRef;
+    // RUGRA-GLUE: trait plumbing (forward iterator advance).
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for VarnodeDefIter<'_> {
+    // RUGRA-GLUE: trait plumbing (reverse iterator advance).
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back()
+    }
+}
+
+/// Bounded range iterator over [`VarnodeDefSet`] values (`set::range`).
+pub struct VarnodeDefRange<'a> {
+    inner: std::collections::btree_map::Range<'a, VnDefKey, VarnodeDefRef>,
+}
+
+impl<'a> Iterator for VarnodeDefRange<'a> {
+    type Item = &'a VarnodeDefRef;
+    // RUGRA-GLUE: trait plumbing (forward iterator advance).
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|(_, v)| v)
+    }
+    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for VarnodeDefRange<'_> {
+    // RUGRA-GLUE: trait plumbing (reverse iterator advance).
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back().map(|(_, v)| v)
+    }
+}
+
 /// Container for managing Varnodes
 ///
 /// Corresponds to Ghidra's `VarnodeBank` class in `varnode.hh`
 pub struct VarnodeBank {
     /// Sorted by location (VarnodeLocSet in Ghidra)
-    pub loc_tree: BTreeSet<VarnodeLocRef>,
+    pub loc_tree: VarnodeLocSet,
     /// Sorted by definition (VarnodeDefSet in Ghidra)
-    pub def_tree: BTreeSet<VarnodeDefRef>,
+    pub def_tree: VarnodeDefSet,
+    /// Slot storage for the bank's stored-iterator cells
+    /// (PERF-ARENA-FLIP-0001 (a); `Varnode::vn_id` resolves here).
+    vn_arena: Arena<VnCell, VnId>,
 
     /// Counter for assigning create_index
     create_index: u32,
@@ -3159,8 +3731,9 @@ impl VarnodeBank {
     // Ghidra: varnode.cc:1218 VarnodeBank::VarnodeBank
     pub fn new() -> Self {
         Self {
-            loc_tree: BTreeSet::new(),
-            def_tree: BTreeSet::new(),
+            loc_tree: VarnodeLocSet::new(),
+            def_tree: VarnodeDefSet::new(),
+            vn_arena: Arena::new(),
             create_index: 0,
             uniq_space: AddressSpace::Unique,
             uniqid: ANALYSIS_UNIQUE_START,
@@ -3191,7 +3764,10 @@ impl VarnodeBank {
     }
 
     // RUGRA-GLUE: shared Rust allocation half of VarnodeBank::create and
-    // createDef; Ghidra performs these field assignments inline.
+    // createDef; Ghidra performs these field assignments inline. Also
+    // allocates the arena cell carrying this Varnode's denormalized
+    // tree-key copies (stored-iterator form, ARENA_DESIGN §1.3,
+    // PERF-ARENA-FLIP-0001 (a)).
     fn allocate(&mut self, mut vn: Varnode) -> Arc<RwLock<Varnode>> {
         // Ghidra's create/createDef receive the caller's `Datatype *ct`
         // (varnode.cc:1250/1411) — the Funcdata caller's
@@ -3206,7 +3782,34 @@ impl VarnodeBank {
 
         let result = Arc::new(RwLock::new(vn));
         result.write().unwrap().self_ref = Arc::downgrade(&result);
+        // Slot the cell now; its key copies are populated by the insert
+        // sites (insert_free / xref / makeFree) — the same sites where the
+        // oracle stores the fresh lociter/defiter.
+        let vn_id = self.vn_arena.insert(VnCell {
+            vn: result.clone(),
+            loc_key: VnLocKey::new(SpaceOff::null(), 0, VnDefState::Free { create_index: 0 }),
+            def_key: VnDefKey::new(
+                VnDefState::Free { create_index: 0 },
+                SpaceOff::null(),
+                0,
+            ),
+        });
+        result.write().unwrap().vn_id = Some(vn_id);
         result
+    }
+
+    // RUGRA-GLUE: refresh the stored key copies of a bank-owned Varnode at
+    // an insert site — the write half of the stored-iterator discipline
+    // (keys are recomputed only at the oracle's erase+reinsert sites).
+    fn refresh_cell_keys(&mut self, vn: &Arc<RwLock<Varnode>>) {
+        let Some(vn_id) = vn.read().unwrap().vn_id else { return };
+        let Some(cell) = self.vn_arena.get_mut(vn_id) else { return };
+        let (loc_key, def_key) = {
+            let guard = vn.read().unwrap();
+            (vn_loc_key(&guard), vn_def_key(&guard))
+        };
+        cell.loc_key = loc_key;
+        cell.def_key = def_key;
     }
 
     // RUGRA-GLUE: insertion half shared by Rugra's implicit-RAM and explicit
@@ -3215,6 +3818,7 @@ impl VarnodeBank {
         let rc = self.allocate(vn);
         self.loc_tree.insert(VarnodeLocRef(rc.clone()));
         self.def_tree.insert(VarnodeDefRef(rc.clone()));
+        self.refresh_cell_keys(&rc);
         rc
     }
 
@@ -3301,13 +3905,14 @@ impl VarnodeBank {
         vn.write().unwrap().set_flags(varnode_flags::INSERT);
         let inserted = self.def_tree.insert(VarnodeDefRef(vn.clone()));
         debug_assert!(inserted, "new xref location duplicated in definition tree");
+        self.refresh_cell_keys(&vn);
         vn
     }
 
     // RUGRA-GLUE: Arc-identity ownership check corresponding to Ghidra's
     // stored lociter. Scan by identity because Funcdata::destroyVarnode clears
     // `def` before VarnodeBank::destroy, so the live Rust comparison key may
-    // no longer match the node's original BTreeSet position.
+    // no longer match the node's original tree position.
     fn owns_loc_ref(&self, vn: &Arc<RwLock<Varnode>>) -> bool {
         self.loc_tree
             .iter()
@@ -3324,16 +3929,32 @@ impl VarnodeBank {
     // RUGRA-GLUE: Rust analogue of Ghidra's `loc_tree.erase(vn->lociter)`
     // (varnode.cc:1319). Ghidra stores the tree iterator inside the Varnode,
     // so erasure removes THE OBJECT at its stored position and never
-    // recomputes the comparison key. Rust's BTreeSet has no stored handles,
-    // so we emulate: the fast path removes by the live key — valid whenever
-    // no caller mutated key-relevant fields (flags/def) in place while the
-    // Varnode was tree-resident; if the live key routes to a different
-    // object (or misses), fall back to an Arc-identity scan that removes
-    // this exact object wherever it sits — the same object Ghidra's stored
-    // iterator would have erased. This is a data-structure lookup strategy,
-    // not a semantic two-phase: the observable result is always "this exact
-    // Varnode is no longer in the tree".
+    // recomputes the comparison key. The arena cell (PERF-ARENA-FLIP-0001
+    // (a)) holds that stored position as a denormalized key copy: the
+    // primary path removes by the stored key and verifies Arc identity —
+    // O(log n), and exact even when live key-relevant fields (flags/def)
+    // drifted in place while the Varnode was tree-resident (the
+    // Funcdata::destroyVarnode pre-clear). Cell-less Varnodes (raw test
+    // fixtures inserted through the set surface) keep the legacy
+    // live-key-then-identity-scan emulation. This is a data-structure
+    // lookup strategy, not a semantic two-phase: the observable result is
+    // always "this exact Varnode is no longer in the tree".
     fn erase_loc_identity(&mut self, vn: &Arc<RwLock<Varnode>>) -> bool {
+        // Stored-iterator primary path: erase by the key copy in the cell.
+        if let Some(vn_id) = vn.read().unwrap().vn_id {
+            if let Some(cell) = self.vn_arena.get(vn_id) {
+                let stored_key = cell.loc_key;
+                if let Some(removed) = self.loc_tree.remove_key(&stored_key) {
+                    if Arc::ptr_eq(&removed.0, vn) {
+                        return true;
+                    }
+                    // The stored key routed to a different member (a raw
+                    // reinsertion moved this Varnode): restore before the
+                    // identity scan so only `vn` is removed.
+                    self.loc_tree.insert_raw(stored_key, removed);
+                }
+            }
+        }
         if let Some(removed) = self.loc_tree.take(&VarnodeLocRef(vn.clone())) {
             if Arc::ptr_eq(&removed.0, vn) {
                 return true;
@@ -3350,6 +3971,18 @@ impl VarnodeBank {
     // RUGRA-GLUE: def_tree twin of `erase_loc_identity`, emulating Ghidra's
     // `def_tree.erase(vn->defiter)` (varnode.cc:1320).
     fn erase_def_identity(&mut self, vn: &Arc<RwLock<Varnode>>) -> bool {
+        // Stored-iterator primary path (see erase_loc_identity).
+        if let Some(vn_id) = vn.read().unwrap().vn_id {
+            if let Some(cell) = self.vn_arena.get(vn_id) {
+                let stored_key = cell.def_key;
+                if let Some(removed) = self.def_tree.remove_key(&stored_key) {
+                    if Arc::ptr_eq(&removed.0, vn) {
+                        return true;
+                    }
+                    self.def_tree.insert_raw(stored_key, removed);
+                }
+            }
+        }
         if let Some(removed) = self.def_tree.take(&VarnodeDefRef(vn.clone())) {
             if Arc::ptr_eq(&removed.0, vn) {
                 return true;
@@ -3720,6 +4353,7 @@ impl VarnodeBank {
     pub fn clear(&mut self) {
         self.loc_tree.clear();
         self.def_tree.clear();
+        self.vn_arena.clear();
         self.create_index = 0;
         self.uniqid = ANALYSIS_UNIQUE_START;
     }
@@ -3776,6 +4410,7 @@ impl VarnodeBank {
             loc_inserted && def_inserted,
             "makeFree must reinsert a unique free key"
         );
+        self.refresh_cell_keys(vn);
     }
 
     // Ghidra: varnode.cc:1831 VarnodeBank::beginDef(uint4 fl)
@@ -3793,7 +4428,7 @@ impl VarnodeBank {
     }
 
     // Ghidra: varnode.cc:1869 VarnodeBank::endDef(uint4 fl)
-    pub fn end_def_fl(&self, _fl: u32) -> std::collections::btree_set::Iter<'_, VarnodeDefRef> {
+    pub fn end_def_fl(&self, _fl: u32) -> impl Iterator<Item = &VarnodeDefRef> + '_ {
         self.def_tree.iter()
     }
 
@@ -3840,12 +4475,12 @@ impl VarnodeBank {
     }
 
     // Ghidra: varnode.cc:1831 VarnodeBank::beginDef (no-flag version)
-    pub fn begin_def(&self) -> std::collections::btree_set::Iter<'_, VarnodeDefRef> {
+    pub fn begin_def(&self) -> impl Iterator<Item = &VarnodeDefRef> + '_ {
         self.def_tree.iter()
     }
 
     // Ghidra: varnode.cc:1560 VarnodeBank::beginLoc
-    pub fn begin_loc(&self) -> std::collections::btree_set::Iter<'_, VarnodeLocRef> {
+    pub fn begin_loc(&self) -> impl Iterator<Item = &VarnodeLocRef> + '_ {
         self.loc_tree.iter()
     }
 
@@ -3988,7 +4623,7 @@ impl VarnodeBank {
     /// (use begin_loc_space().chain(empty) pattern instead).
     pub fn end_loc_space(
         &self, _space: AddressSpace,
-    ) -> std::collections::btree_set::Iter<'_, VarnodeLocRef> {
+    ) -> impl Iterator<Item = &VarnodeLocRef> + '_ {
         // In Rust, we use the filter iterator from begin_loc_space directly.
         // This is a no-op stub for API parity.
         self.loc_tree.iter()
