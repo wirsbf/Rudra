@@ -229,7 +229,24 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 curl	13	74	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 httpd	2	29	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
-sq	458	810	MB47-RATCHET-REPIN-0001	965d1a70	2026-09-29
+# MB48-RATCHET-REPIN-0001 (2026-09-29, joint tree @ 87f3ac97 after 4-branch
+# mirror+speed batch [l1surgery 8e13e44d+9a5856f8 + tracedag 797af59b +
+# varmapopcreate 4e05c4f3+eb9998fc + speedprof2 2dd9b4fb], forced relink
+# verified [fast-release 2m35s + release 3m56s, driver binaries newer than
+# all four merge commits], gate --jobs 5 round, stale-guard content probe
+# digest=9ec15e39592a9292 files=154; repin commit only edits this table,
+# measurement tree=87f3ac97):
+# ① sq 458→432 (−26 = L1SURGERY gather-phase default construct-order root
+#    fix: SetCoderProperties×2 incl. _ZThn16 thunk clone + CodeRealEP×2 all
+#    burned, family-table fam rows 78→32; goto_prints_nextflowafter_1204
+#    fixture re-pinned in-merge per CR-L1SURGERY condition; canon curl/httpd
+#    dual md5 pins 4ab1db2a/7d5b9e7c byte-identical 0/0/0 held). matched
+#    810/810, defects=numbering=0.
+# sqlite 845/curl 13/httpd 2/vsh 0 rows stay (identical faces; tracedag/
+# varmapopcreate/speedprof2 are behavior-identity lanes — VdbeExec --one
+# mirror caliber bf2d9b85 held through all four, bare caliber a067e05c,
+# corpus assembled 5,284,971B byte-identical).
+sq	432	810	MB48-RATCHET-REPIN-0001	87f3ac97	2026-09-29
 sqlite	845	1385	MB47-RATCHET-REPIN-0001	965d1a70	2026-09-29
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
