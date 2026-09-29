@@ -8,7 +8,7 @@
  "comparand_sha256": {
   "cpp_fixture_sha256": "e1e2a881590841da6fb4d9a25f14aa878709ebed13c918dfd751d0e0a1a528c7",
   "rugra_block_sha256": "5ce11374879dba2afe97cbd4d095bb4c753a0d534cbf49c7890277eee6152382",
-  "rugra_coreaction_sha256": "7a1568be613e8593d1ca3932e3c514e3a9d06b5437a66c9fc0330ee44b1749c7",
+  "rugra_coreaction_sha256": "8922f7287b3d4b8ad67f9fbbd3b527ac922b55b9c87f54827d1cc400a367ce70",
   "rust_fixture_sha256": "85a42b9a34407a09ea2869beb092cd50f94b087f8e38b94f71c57de9a42ceaaa"
  },
  "compiler_spec": "not applicable: no Funcdata, no prototype model, no symbols (pure BlockGraph fixture)",
