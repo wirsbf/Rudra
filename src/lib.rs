@@ -49,6 +49,7 @@ pub mod action; // ← action.hh
 pub mod address; // ← address.hh
 pub mod analysis; // ← type propagation
 pub mod arch; // ← architecture.hh (Ghidra Architecture config container)
+pub mod arena; // ← Rust-side arena core (no Ghidra counterpart; see docs/api/arena.md — PERF-ARENA-CORE-0001)
 pub mod block; // ← block.hh
 pub mod blockaction;
 pub mod callgraph; // ← callgraph.hh
