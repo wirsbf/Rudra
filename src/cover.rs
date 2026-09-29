@@ -904,7 +904,7 @@ impl Cover {
                         // CoverBlock mutations all precede the first
                         // recursion frame, so re-entries are provable
                         // no-ops (add_ref_recurse_expansion's note).
-                        let mut visited = std::collections::HashSet::new();
+                        let mut visited = rustc_hash::FxHashSet::default();
                         for pred in preds {
                             self.add_ref_recurse_expansion(&pred, &mut visited);
                         }
@@ -929,7 +929,7 @@ impl Cover {
         // this function precedes the first recursion frame, so a later
         // entry into an already-entered block is a provable no-op (see
         // add_ref_recurse_expansion's equivalence note).
-        let mut visited = std::collections::HashSet::new();
+        let mut visited = rustc_hash::FxHashSet::default();
         if opcode == crate::opcodes::OpCode::CPUI_MULTIEQUAL {
             // Snapshot every exact-identity slot in ascending order while the
             // op is locked, then snapshot the corresponding predecessor Arcs
@@ -1038,7 +1038,7 @@ impl Cover {
         // signal, so an explicit visited set on the implied outputs is the
         // equivalent cycle bound (without it, mutually-reading implied
         // varnodes X->Y->X loop forever).
-        let mut visited: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        let mut visited: rustc_hash::FxHashSet<usize> = rustc_hash::FxHashSet::default();
         let mut descendants = root_descendants.clone();
         loop {
             for op_arc in descendants {
@@ -1083,7 +1083,7 @@ impl Cover {
     /// stop==0, defined by a MULTIEQUAL) — recurse through the in-edges so
     /// the other branches still get filled.
     pub fn add_ref_recurse(&mut self, bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>) {
-        let mut visited = std::collections::HashSet::new();
+        let mut visited = rustc_hash::FxHashSet::default();
         self.add_ref_recurse_expansion(bl, &mut visited);
     }
 
@@ -1118,7 +1118,7 @@ impl Cover {
     fn add_ref_recurse_expansion(
         &mut self,
         bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
-        visited: &mut std::collections::HashSet<i32>,
+        visited: &mut rustc_hash::FxHashSet<i32>,
     ) {
         let mut stack = Vec::new();
         stack.push(bl.clone());
@@ -1147,8 +1147,7 @@ impl Cover {
                 // Ghidra: for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j));
                 // Reverse push keeps the pop order == ascending-slot DFS
                 // preorder of the oracle recursion.
-                let preds = Self::predecessors_of(&bl);
-                stack.extend(preds.into_iter().rev());
+                push_predecessors_onto(&bl, &mut stack);
                 continue;
             }
 
@@ -1177,10 +1176,30 @@ impl Cover {
             // the MULTIEQUAL marker identity of the stored stop op.
             if ustop == 0 && cb.get_start_id() == CoverEndpoint::Begin {
                 if matches!(old_stop, CoverEndpoint::Op { multiequal: true, .. }) {
-                    let preds = Self::predecessors_of(&bl);
-                    stack.extend(preds.into_iter().rev());
+                    push_predecessors_onto(&bl, &mut stack);
                 }
             }
+        }
+    }
+}
+
+// RUGRA-GLUE: stack-push form of Cover::predecessors_of for the iterative
+// addRefRecurse expansion (Ghidra's `bl->getIn(j)` loop, cover.cc:535-536):
+// pushes each in-edge's `point` Arc onto `stack` in DESCENDING slot order
+// under one read guard — the identical Arc sequence the
+// `predecessors_of(...).into_iter().rev()` extend pushed, without the
+// intermediate Vec allocation per expansion frame. Only Arc clones of the
+// edge targets are pushed (get_in_ref avoids the full BlockEdge clone);
+// nothing recurses while the guard is held.
+fn push_predecessors_onto(
+    bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
+    stack: &mut Vec<std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>>,
+) {
+    let rg = bl.read().unwrap();
+    let n = rg.size_in();
+    for slot in (0..n).rev() {
+        if let Some(edge) = rg.get_in_ref(slot) {
+            stack.push(edge.point.clone());
         }
     }
 }

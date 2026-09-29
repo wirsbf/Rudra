@@ -2316,21 +2316,37 @@ impl Merge {
                 return true;
             }
         }
-        let moved_keys: std::collections::HashSet<usize> = moved_instances
+        let moved_keys: rustc_hash::FxHashSet<usize> = moved_instances
             .iter()
             .map(|instance| Arc::as_ptr(instance) as usize)
             .collect();
-        high1.write().unwrap().instances.sort_by(|a, b| {
-            let a_moved = moved_keys.contains(&(Arc::as_ptr(a) as usize));
-            let b_moved = moved_keys.contains(&(Arc::as_ptr(b) as usize));
-            let a = a.read().unwrap();
-            let b = b.read().unwrap();
-            (a.address_space.space_id(), a.loc, a_moved).cmp(&(
-                b.address_space.space_id(),
-                b.loc,
-                b_moved,
-            ))
-        });
+        // Decorate-sort-undecorate: compute each instance's full comparison
+        // key (space, loc, moved) exactly once, then sort the decorated
+        // pairs. The key sequence is identical to the former per-comparison
+        // closure's, and Rust's sort_by is stable in both forms, so the
+        // resulting permutation is bit-identical — without re-hashing the
+        // moved-set and re-locking both instances O(n log n) times inside
+        // the comparator.
+        let mut high1_guard = high1.write().unwrap();
+        let mut decorated: Vec<
+            (
+                (crate::space::SpaceId, crate::address::Address, bool),
+                Arc<RwLock<Varnode>>,
+            ),
+        > = std::mem::take(&mut high1_guard.instances)
+                .into_iter()
+                .map(|instance| {
+                    let moved = moved_keys.contains(&(Arc::as_ptr(&instance) as usize));
+                    let (space_id, loc) = {
+                        let vn = instance.read().unwrap();
+                        (vn.address_space.space_id(), vn.loc)
+                    };
+                    ((space_id, loc, moved), instance)
+                })
+                .collect();
+        decorated.sort_by(|a, b| a.0.cmp(&b.0));
+        high1_guard.instances = decorated.into_iter().map(|(_, instance)| instance).collect();
+        drop(high1_guard);
         for instance in moved_instances {
             instance.write().unwrap().high = Some(high1.clone());
         }
