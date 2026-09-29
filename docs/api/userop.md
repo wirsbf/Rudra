@@ -195,3 +195,25 @@ builtin factory identity、slot-1/空洞压缩、missing metadata、重复注册
 `TypeOpCallother` 的 Architecture-owned caller/fallback 闭包尚未接入对拍，
 所以 `overall_status=UNTESTED`；该证据只解锁 CALLOTHER metadata 地基，
 下游仍属于 `TYPEOP-LOCALTYPE-DISPATCH-0001`，模块总体保持 L2。
+
+## 2026-09-29：`initialize` + `register_op_at_index`（MCENSUS4-SQLITE-FTSTYPING-0001，Lane FTSINCRMERGE）
+
+- **`initialize(basicops: &[&[u8]]) -> Result<(), String>`** — `UserOpManage::
+  initialize`（userop.cc:392-403）的 1:1 移植：空名跳过，其余按 SLEIGH
+  索引注册为 UnspecializedPcodeOp（.sla `userop` 名表 = `Translate::
+  getUserOpNames` 的 CALLOTHER-index 序）。架构还原序（architecture.cc:635
+  `userops.initialize(this)`，早于 :642 parseCompilerConfig）的基座层——
+  后续 `<callotherfixup>`/`<segmentop>`/`<jumpassist>` 经同一 registerOp
+  索引纪律定制。
+- **`register_op_at_index(name, index)`** — `UserOpManage::registerOp`
+  （userop.cc:490-532）的显式索引形态：同名异 index 冲突（LowlevelError）、
+  同 index 同名=定制替换、index/name 双 crossref 重写。原 `register_op`
+  （len 追加式）保留给非 SLEIGH 索引的生产注册路径。
+
+生产接线=gen 驱动 `build_architecture`（examples/gen_decompile.rs，
+architecture.cc:635 位置对应物）：`sleigh.user_op_names()` →
+`UserOpManage::initialize`。恢复 CALLOTHER 名通道：x86 `ud2` 语义的
+`invalidInstructionException`（CALLOTHER #77）以名渲染（printc.cc:673-692
+functional 语法），不再是 `CALLOTHER[77]` fallback；earlyJumpTableFail 的
+userop-type 咨询解析真实描述符。canon curl/httpd 语料输出零 CALLOTHER 站点
+（双侧 golden 亲证），名表安装构造性 canon 中性。

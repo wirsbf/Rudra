@@ -654,6 +654,23 @@ fn build_architecture(
     arch.userops = Some(Arc::new(std::sync::RwLock::new(
         rugra::userop::UserOpManage::new(),
     )));
+    // architecture.cc:635 `userops.initialize(this)` — the base user-op
+    // table from the translator's .sla `userop` names (Translate::
+    // getUserOpNames → UnspecializedPcodeOp per index, userop.cc:392-403).
+    // Restores the CALLOTHER-name channel: unspecialized pcodeops like the
+    // x86 `ud2` semantics' invalidInstructionException (CALLOTHER #77) print
+    // by name instead of the CALLOTHER[index] fallback, and
+    // earlyJumpTableFail's userop-type consult resolves the real descriptor.
+    {
+        let userops_arc = arch.userops.as_ref().expect("just installed").clone();
+        let names = sleigh.user_op_names();
+        let name_refs: Vec<&[u8]> = names.iter().map(|v| v.as_slice()).collect();
+        userops_arc
+            .write()
+            .map_err(|_| "userops lock poisoned".to_string())?
+            .initialize(&name_refs)
+            .map_err(|e| format!("userops.initialize failed: {e}"))?;
+    }
     // ARCH-CONTEXT-TRACKED-0001 (gen-driver copy): parseProcessorConfig
     // before parseCompilerConfig (architecture.cc:639->641); the locked
     // x86-64.pspec <context_data> + <register_data> children.

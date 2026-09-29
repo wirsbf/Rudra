@@ -492,6 +492,64 @@ impl UserOpManage {
         index
     }
 
+    // Ghidra: userop.cc:490 UserOpManage::registerOp
+    /// Register a user op at an EXPLICIT index, the exact
+    /// `UserOpManage::registerOp(UserPcodeOp*)` crossref discipline
+    /// (userop.cc:490-532): a name already mapped under a different index is
+    /// a conflict (LowlevelError), an occupied slot with the same name is a
+    /// customization (the old descriptor is replaced), and the index/name
+    /// crossrefs are both (re)written. Returns the index on success.
+    pub fn register_op_at_index(&mut self, name: &str, index: i32) -> Result<i32, String> {
+        if index < 0 {
+            return Err("UserOp not assigned an index".to_string());
+        }
+        if let Some(&other) = self.name_map.get(name) {
+            if other != index {
+                return Err(format!("Conflicting indices for userop name {name}"));
+            }
+        }
+        while self.ops.len() <= index as usize {
+            self.ops.push(None);
+        }
+        if let Some(existing) = &self.ops[index as usize] {
+            if existing.get_name() != name {
+                return Err(format!(
+                    "User op {name} has same index as {}",
+                    existing.get_name()
+                ));
+            }
+            // We assume this registration customizes an existing userop
+            // (the old spec is replaced — userop.cc:520-521).
+        }
+        self.ops[index as usize] = Some(Box::new(UserPcodeOp::new(
+            name.to_string(),
+            UserOpType::Unspecialized,
+            index,
+        )));
+        self.name_map.insert(name.to_string(), index);
+        Ok(index)
+    }
+
+    // Ghidra: userop.cc:392 UserOpManage::initialize
+    /// Initialize the base user-op table from the translator's user-defined
+    /// p-code op names (`translate->getUserOpNames`, the .sla `userop` list
+    /// in CALLOTHER-index order). Faithful to `UserOpManage::initialize`
+    /// (userop.cc:392-403): empty names are skipped, everything else is
+    /// registered as an `UnspecializedPcodeOp` at its SLEIGH index — the
+    /// base layer that later `<callotherfixup>`/`<segmentop>`/`<jumpassist>`
+    /// decodes customize through the same registerOp index discipline. A
+    /// registerOp LowlevelError (index conflict) propagates as `Err`.
+    pub fn initialize(&mut self, basicops: &[&[u8]]) -> Result<(), String> {
+        for (i, raw) in basicops.iter().enumerate() {
+            if raw.is_empty() {
+                continue;
+            }
+            let name = String::from_utf8_lossy(raw).into_owned();
+            self.register_op_at_index(&name, i as i32).map(|_| ())?;
+        }
+        Ok(())
+    }
+
     // Ghidra: userop.cc:408 UserOpManage::getOp
     /// Get a user op by its CALLOTHER index.  Faithful to `getOp(uint4)`
     /// (userop.cc:408-415): indices within the registered list index it

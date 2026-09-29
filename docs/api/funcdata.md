@@ -3513,3 +3513,23 @@ worker 侧 catch_unwind 边界收束）；cc:742 dead-read `return false` 是 or
   --one 9 双侧 body MATCH；修复前 A/B 显示 switch 残骸骨架=可观察差异。注解行同步修正
   为函数定义起始行 `funcdata_block.cc:64`（旧 `funcdata.cc:34` 为构造函数行，
   cited-line drift）。
+
+## 2026-09-29：`early_jump_table_fail` 回溯窗口改 deadlist（MCENSUS4-SQLITE-FTSTYPING-0001，Lane FTSINCRMERGE）
+
+原实现以 `obank.alivelist` 定位 BRANCHIND 起点（`position().unwrap_or(0)`），
+而 oracle `iter = op->insertiter; startiter = beginOpDead()`
+（funcdata_block.cc:564-565）是 **dead 表窗口**：recoverJumpTables 时刻
+（FlowInfo::generateOps，flow.cc:792-814，早于 splitBasic 的 markAlive
+flow.cc:1013）所有 lift op 都在 deadlist（Rugra 的 flow 阶段以
+recovery-time dead-cycle 同构复现）。查错表 → 位置恒 None → 窗口空 →
+恒 Success → `ud2` 的 `uniq = CALLOTHER invalidInstructionException();
+goto [uniq]`（.sla 原生语义）BRANCHIND 永落 fail_normal 而非
+fail_callother。修复=查 deadlist；op 不在 deadlist（oracle 调用路径不可达）
+时 `unwrap_or(0)` 等价 Ghidra `iter == startiter` 的零回溯出口。
+
+`userop_type` 的缺表 fallback（2026-08-11 节登记的适配器差异）本道保持——
+gen 驱动现在经 `UserOpManage::initialize`（userop.cc:392-403）装
+.sla userop 名表后，`get_op(77)` 返回真实 Unspecialized 描述符而非 fallback，
+`userop_type` 语义与 oracle `glb->userops.getOp(id)->getType()` 全等。
+
+A/B 见 docs/api/flow.md FTSINCRMERGE 节（sqlite 1479→1315，零回退）。
