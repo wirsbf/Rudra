@@ -18,6 +18,13 @@
 // binary) and the CASTFUSEB lane (the same −86/−138 mis-attributed to an
 // unrelated commit; CR-CASTFUSEB net-baseline A/B proved both).
 //
+// Domain v2 (SPEEDPROF-SLEIGH-SNAPSHOT-0001): every `crates/**/*.rs` file
+// joins the domain. The vendored kuna crates carry the SLEIGH engine (the
+// snapshot transport and the decode/encode walks the engine loads through),
+// so a binary stale only w.r.t. crate sources must flip the verdict too —
+// the FIXEDFLOOR-0001 drill caught this blind spot (kuna instrumentation
+// changed engine behavior while the digest held steady).
+//
 // mtime is deliberately NOT part of the digest: touching a file without a
 // content change is not staleness (the binary still matches the sources).
 // mtime gating stays in tools/verify_mirror_gate.sh as the complementary
@@ -69,19 +76,19 @@ fn collect_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
 }
 
 // RUGRA-GLUE: digest of the guard domain under `root` — every
-// `root/src/**/*.rs` plus the guard's own build inputs
-// (`root/examples/gen_decompile.rs`,
+// `root/src/**/*.rs` and (domain v2) every `root/crates/**/*.rs`, plus the
+// guard's own build inputs (`root/examples/gen_decompile.rs`,
 // `root/examples/common/stale_guard_hash.rs`, `root/build.rs`), sorted by
 // path, hashed with the framing documented in the module header. Returns
 // (digest, file_count); Err only when the domain is unreadable (missing
 // `src/` tree or an unreadable covered file) — callers treat that as
 // fail-closed, never as "fresh".
 pub fn source_digest(root: &Path) -> std::io::Result<(u64, usize)> {
-    // Domain anchors are REQUIRED: an absent src/ tree (or guard build
-    // input) is a broken domain (wrong CWD / not a checkout), not an empty
-    // one — it must Err so callers fail closed with the unreadable-tree
-    // verdict instead of mistaking a foreign directory for a valid empty
-    // source tree.
+    // Domain anchors are REQUIRED: an absent src/ or crates/ tree (or guard
+    // build input) is a broken domain (wrong CWD / not a checkout), not an
+    // empty one — it must Err so callers fail closed with the
+    // unreadable-tree verdict instead of mistaking a foreign directory for a
+    // valid empty source tree.
     let src_root = root.join("src");
     if !src_root.is_dir() {
         return Err(std::io::Error::new(
@@ -89,8 +96,16 @@ pub fn source_digest(root: &Path) -> std::io::Result<(u64, usize)> {
             format!("no src/ tree under {}", root.display()),
         ));
     }
+    let crates_root = root.join("crates");
+    if !crates_root.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("no crates/ tree under {}", root.display()),
+        ));
+    }
     let mut paths: Vec<PathBuf> = Vec::new();
     collect_rs_files(&src_root, &mut paths);
+    collect_rs_files(&crates_root, &mut paths);
     for anchor in [
         root.join("examples").join("gen_decompile.rs"),
         root.join("examples").join("common").join("stale_guard_hash.rs"),
@@ -174,8 +189,14 @@ mod tests {
         ));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("src")).expect("scratch src dir");
+        fs::create_dir_all(dir.join("crates/kuna-sleigh/src")).expect("scratch crates dir");
         fs::create_dir_all(dir.join("examples/common")).expect("scratch examples dir");
         fs::write(dir.join("src/lib.rs"), b"fn alpha() {}\n").expect("scratch lib");
+        fs::write(
+            dir.join("crates/kuna-sleigh/src/lib.rs"),
+            b"pub fn engine() {}\n",
+        )
+        .expect("scratch crate lib");
         fs::write(dir.join("examples/gen_decompile.rs"), b"fn main() {}\n")
             .expect("scratch driver");
         fs::write(
@@ -196,8 +217,8 @@ mod tests {
         assert_eq!(digest_a, digest_b, "identical content must digest equally");
         assert_eq!(count_a, count_b);
         assert_eq!(
-            count_a, 4,
-            "src/lib.rs + driver + shared core + build.rs"
+            count_a, 5,
+            "src/lib.rs + crates lib + driver + shared core + build.rs"
         );
         // Round-trip through the verdict: embedded hex -> Fresh.
         let hex = format!("{digest_a:016x}");
@@ -269,8 +290,28 @@ mod tests {
     }
 
     #[test]
-    fn missing_digest_and_unreadable_tree_fail_closed() {
-        let tree = scratch_tree("failclosed");
+    fn crate_source_change_flips_verdict_to_stale() {
+        // Domain v2 (SPEEDPROF-SLEIGH-SNAPSHOT-0001): the vendored kuna
+        // crates carry the SLEIGH engine a binary loads through — a change
+        // confined to crates/ must flip the verdict exactly like a src/
+        // change (the FIXEDFLOOR-0001 blind spot).
+        let tree = scratch_tree("crates");
+        let (digest, _) = source_digest(&tree).expect("digest");
+        let hex = format!("{digest:016x}");
+        fs::write(
+            tree.join("crates/kuna-sleigh/src/lib.rs"),
+            b"pub fn engine() { 1 }\n",
+        )
+        .expect("mutate crate lib");
+        assert_ne!(
+            guard_verdict(Some(&hex), &tree),
+            GuardVerdict::Fresh { digest }
+        );
+        let _ = fs::remove_dir_all(tree);
+    }
+
+    #[test]
+    fn missing_digest_and_unreadable_tree_fail_closed() {        let tree = scratch_tree("failclosed");
         assert_eq!(guard_verdict(None, &tree), GuardVerdict::NoEmbeddedDigest);
         assert_eq!(
             guard_verdict(Some("not-hex"), &tree),

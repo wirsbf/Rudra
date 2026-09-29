@@ -25,6 +25,7 @@ include!("examples/common/stale_guard_hash.rs");
 // no extra work beyond one directory walk per actual source change.
 fn main() {
     println!("cargo:rerun-if-changed=src");
+    println!("cargo:rerun-if-changed=crates");
     println!("cargo:rerun-if-changed=examples/gen_decompile.rs");
     println!("cargo:rerun-if-changed=examples/common/stale_guard_hash.rs");
     match source_digest(std::path::Path::new(".")) {
