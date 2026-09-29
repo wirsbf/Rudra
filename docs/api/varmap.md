@@ -422,9 +422,26 @@ oracle 证据承担：
   addrtied，database.cc:1149-1150 的符号级标志由任一空 uselimit 条目置位）；
   `offset>0` 表达 partial piece（join 拆片，database.cc:1156-1177）。
   `ScopeLocal::mapentry_log` 为插入序条目日志（maptable 数据源），
-  `materialize_maptable` 每查询按序重放成 `RangeMap`（`ScopeLocal: Clone`
+  `materialize_maptable` 按序重放成 `RangeMap`（`ScopeLocal: Clone`
   无法持有非 Clone 的 RangeMap；等价键插入序与 erase 后幸存者相对序由
-  重放保真，fixture 的 removal 案例覆盖）。
+  重放保真，fixture 的 removal 案例覆盖）。重放结果由
+  `with_maptable` 按 (`maptable_gen`, space) 代际记忆化（2026-09-29
+  HERITAGE 车道，PERF-VARMAP-MAPTABLE-MEMO-0001）：oracle 的
+  `ScopeInternal::maptable`（database.hh:810）本就是常驻
+  `vector<EntryMap*>`，由 `addMapInternal`（database.cc:1848-1852）增量
+  插入、findContainer/queryProperties 链原地查询；Rugra 的逐查询全量
+  重建（每次 O(M²)——RangeMap::insert 内部 ordered_parts 物化 + records
+  线性定位）在 VdbeExec 上实测 132,173 次/2.41s（set_varnode_properties
+  每次 varnode 创建都走 find_container_entry）。记忆化视图 = 同一纯函数
+  按（代际,空间）缓存：`maptable_gen` 在全部四个生产变更点
+  （add_map_entry_with_property push / remove_symbol retain /
+  clear_symbols_wholesale clear / 重构重建 reassign）bump，条目内手术仅
+  存在于测试（须手动 `invalidate_maptable_views`）；Clone 重置 memo
+  （空视图+gen 0，首查重建）。五个消费点
+  （gather_symbols/find_overlap_entry/find_addr_entry/find_container_entry/
+  mark_unaliased）全部经 with_maptable 闭包取 `&RangeMap`，零答案差异
+  （VdbeExec --one 1055 stdout md5 全等 + sqlite 全语料 1385 函数组装
+  输出 cmp 逐字节恒等）。
 - `clear_symbols_wholesale`（RUGRA-GLUE，2026-09-26 GENWIRE）——funcdata
   startProcessing/clear 两 seam 的 wholesale-clear 配套（Ghidra
   `localmap->clearUnlocked()` 投影）：symbols + nametree +

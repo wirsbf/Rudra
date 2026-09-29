@@ -23,6 +23,40 @@ use crate::type_system::TypeMetatype;
 use crate::varnode::Varnode;
 use std::sync::{Arc, RwLock};
 
+/// Memoized per-space maptable view state for [`ScopeLocal`] — see the
+/// `maptable_memo` field. `gen` is the `maptable_gen` the `views` were
+/// built at; any mismatch discards them wholesale.
+// RUGRA-GLUE: memo payload for the oracle's persistent
+// ScopeInternal::maptable (database.hh:810) — pure cache, no oracle
+// counterpart beyond the persistent maptable it emulates.
+#[derive(Default)]
+struct MaptableMemo {
+    gen: u64,
+    views: Vec<(crate::space::AddressSpace, RangeMap<LocalMapEntry>)>,
+}
+
+/// `Mutex` wrapper so `ScopeLocal` stays `Send + Sync` (Funcdata rides in
+/// `Arc<RwLock<Funcdata>>`, signature.rs); `Clone` resets — a clone cannot
+/// carry the non-`Clone` views and rebuilds on first use.
+// RUGRA-GLUE: reset-on-clone memo cell.
+#[derive(Default)]
+struct MaptableMemoCell(std::sync::Mutex<MaptableMemo>);
+
+impl Clone for MaptableMemoCell {
+    // RUGRA-GLUE: reset-on-clone (cache cell; the oracle's maptable lives in
+    // the scope object itself and needs no clone policy).
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for MaptableMemoCell {
+    // RUGRA-GLUE: derive(Debug) requirement of ScopeLocal; opaque payload.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("MaptableMemoCell")
+    }
+}
+
 /// Range type for RangeHint (varmap.hh:RangeType)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RangeType {
@@ -1783,17 +1817,18 @@ impl MapState {
     pub fn gather_symbols(&mut self, scope: &ScopeLocal) {
         // list<SymbolEntry> iterate over rangemap = maptable[space->getIndex()]
         // in list (insertion-refined) order (varmap.cc:1047-1050).
-        let rangemap = scope.materialize_maptable(scope.space);
-        for entry in rangemap.records() {
-            // sym = (*riter).getSymbol(); if (sym == 0) continue;
-            let Some(sym) = scope.symbols.get(entry.sym) else { continue };
-            // uintb start = (*riter).getAddr().getOffset(); (varmap.cc:1054)
-            let start = entry.start;
-            let ct = sym.dtype.clone();
-            // uint4 flags = sym->isTypeLocked() ? RangeHint::typelock : 0;
-            let flags = if sym.typelock { range_flags::TYPE_LOCK } else { 0 };
-            self.add_range(start, ct, flags, RangeType::Fixed, -1);
-        }
+        scope.with_maptable(scope.space, |rangemap| {
+            for entry in rangemap.records() {
+                // sym = (*riter).getSymbol(); if (sym == 0) continue;
+                let Some(sym) = scope.symbols.get(entry.sym) else { continue };
+                // uintb start = (*riter).getAddr().getOffset(); (varmap.cc:1054)
+                let start = entry.start;
+                let ct = sym.dtype.clone();
+                // uint4 flags = sym->isTypeLocked() ? RangeHint::typelock : 0;
+                let flags = if sym.typelock { range_flags::TYPE_LOCK } else { 0 };
+                self.add_range(start, ct, flags, RangeType::Fixed, -1);
+            }
+        })
     }
 
     // Ghidra: varmap.cc MapState::sortAlias (checker.sortAlias at
@@ -2563,14 +2598,40 @@ pub struct ScopeLocal {
     pub pending_lowlevel_error: Option<String>,
     /// Ghidra ScopeInternal::maptable (database.hh:807) as an
     /// insertion-ordered log of static SymbolEntry records across all
-    /// spaces. The per-space `rangemap<SymbolEntry>` view is materialized
-    /// per query (see `materialize_maptable`) because `ScopeLocal: Clone`
-    /// (printc.rs copies the scope) cannot own the non-Clone `RangeMap`;
-    /// re-inserting the log in order reproduces the oracle's multiset
-    /// state (equal keys keep insertion order, and erase keeps the
-    /// survivors' relative order), verified by
+    /// spaces. The per-space `rangemap<SymbolEntry>` view is memoized per
+    /// generation (see `with_maptable`/`materialize_maptable`) because
+    /// `ScopeLocal: Clone` (printc.rs copies the scope) cannot own the
+    /// non-Clone `RangeMap`; re-inserting the log in order reproduces the
+    /// oracle's multiset state (equal keys keep insertion order, and erase
+    /// keeps the survivors' relative order), verified by
     /// tests/oracle/scopelocal_query_1204 removal cases.
     pub mapentry_log: Vec<LocalMapEntry>,
+    /// Generation counter for the memoized per-space maptable views below.
+    /// Every production mutation of `mapentry_log` (push in
+    /// `add_map_entry_with_property`, retain in `remove_symbol`, wholesale
+    /// clear, and the restructure rebuild reassignment) bumps it, so a view
+    /// materialized for generation G is content-identical to a fresh rebuild
+    /// at any later read that still observes generation G. In-place entry
+    /// surgery exists only in tests, which call
+    /// [`ScopeLocal::invalidate_maptable_views`] after mutating.
+    // RUGRA-GLUE: memoization bookkeeping for the per-space maptable views
+    // (the oracle keeps the views themselves persistent, database.hh:810).
+    maptable_gen: u64,
+    /// Memoized per-space `RangeMap<LocalMapEntry>` views — the Rust form of
+    /// the oracle's persistent `vector<EntryMap *> ScopeInternal::maptable`
+    /// (database.hh:810): one rangemap per address space, maintained
+    /// incrementally by `addMapInternal` (database.cc:1848-1852) and queried
+    /// in place by every findContainer/queryProperties chain. Rugra's
+    /// insertion-ordered `mapentry_log` is the same information; the views
+    /// here are rebuilt lazily from it (at most once per generation per
+    /// space) instead of per query, reproducing the oracle's query cost
+    /// without changing any observable answer: `materialize_maptable` is a
+    /// pure function of (`mapentry_log`, space), verified by the
+    /// scopelocal_query_1204 removal cases. Clone resets the memo (empty
+    /// views, generation 0), so a clone rebuilds on first use.
+    // RUGRA-GLUE: reset-on-clone memo cell (Mutex for Sync; RangeMap is not
+    // Clone, so a clone cannot carry the views).
+    maptable_memo: MaptableMemoCell,
     /// Live `Arc<RwLock<database::Symbol>>` handles keyed by stable slot id —
     /// the Rust identity form of Ghidra's heap-`Symbol *` owned by the scope
     /// (database.hh:809): `Scope::queryProperties` hands out the SAME Symbol
@@ -2642,6 +2703,8 @@ impl ScopeLocal {
             pending_warnings: Vec::new(),
             pending_lowlevel_error: None,
             mapentry_log: Vec::new(),
+            maptable_gen: 0,
+            maptable_memo: MaptableMemoCell::default(),
             live_symbols: std::sync::Arc::new(std::sync::RwLock::new(
                 std::collections::BTreeMap::new(),
             )),
@@ -2754,6 +2817,7 @@ impl ScopeLocal {
         }
         // removeSymbolMappings (database.cc:2117-2136)
         self.mapentry_log.retain(|entry| entry.sym != idx);
+        self.invalidate_maptable_views();
         // nametree.erase(symbol) (database.cc:2148)
         self.nametree.remove(&key);
         // delete symbol (database.cc:2149) — tombstone the stable slot
@@ -3212,9 +3276,7 @@ impl ScopeLocal {
         size: i32,
     ) -> Option<LocalMapEntry> {
         let end = offset.wrapping_add(size.max(0) as u64).wrapping_sub(1);
-        self.materialize_maptable(space)
-            .find_overlap(offset, end)
-            .cloned()
+        self.with_maptable(space, |rm| rm.find_overlap(offset, end).cloned())
     }
 
     // Ghidra: database.cc:97 SymbolEntry::getSubsort
@@ -3253,6 +3315,43 @@ impl ScopeLocal {
             }
         }
         rangemap
+    }
+
+    // RUGRA-GLUE: memoizing accessor for the per-space maptable view.
+    /// Run `f` with the per-space maptable view — the oracle's persistent
+    /// `maptable[spc->getIndex()]` (database.hh:810) consulted in place by
+    /// every findContainer/queryProperties query. The view is rebuilt from
+    /// `mapentry_log` at most once per (`maptable_gen`, space) and reused
+    /// across queries; the rebuild is the same
+    /// [`ScopeLocal::materialize_maptable`] pure function, so the answers
+    /// are bit-identical to the per-query rebuild it replaces.
+    fn with_maptable<R>(
+        &self,
+        space: crate::space::AddressSpace,
+        f: impl FnOnce(&RangeMap<LocalMapEntry>) -> R,
+    ) -> R {
+        let mut memo = self.maptable_memo.0.lock().unwrap();
+        if memo.gen != self.maptable_gen {
+            memo.views.clear();
+            memo.gen = self.maptable_gen;
+        }
+        let view = match memo.views.iter().position(|(s, _)| *s == space) {
+            Some(i) => i,
+            None => {
+                let built = self.materialize_maptable(space);
+                memo.views.push((space, built));
+                memo.views.len() - 1
+            }
+        };
+        f(&memo.views[view].1)
+    }
+
+    // RUGRA-GLUE: memo invalidation for the maptable views.
+    /// Invalidate the memoized per-space maptable views. Bumped by every
+    /// production mutation of `mapentry_log`; tests performing in-place
+    /// entry surgery call this directly after mutating.
+    fn invalidate_maptable_views(&mut self) {
+        self.maptable_gen = self.maptable_gen.wrapping_add(1);
     }
 
     // Ghidra: database.cc:114 SymbolEntry::inUse
@@ -3474,7 +3573,6 @@ impl ScopeLocal {
         offset: u64,
         usepoint: Option<u64>,
     ) -> Option<LocalMapEntry> {
-        let rangemap = self.materialize_maptable(space);
         let sub2 = match usepoint {
             None => EntrySubsort::maximum(), // database.cc:2232-2233
             Some(up) => EntrySubsort {
@@ -3483,12 +3581,14 @@ impl ScopeLocal {
             }, // database.cc:2237 EntrySubsort(usepoint)
         };
         let sub1 = EntrySubsort::minimum();
-        for entry in rangemap.find_with_subsort(offset, &sub1, &sub2).rev() {
-            if entry.start == offset && self.entry_in_use(entry, usepoint) {
-                return Some(entry.clone()); // database.cc:2241-2244
+        self.with_maptable(space, |rangemap| {
+            for entry in rangemap.find_with_subsort(offset, &sub1, &sub2).rev() {
+                if entry.start == offset && self.entry_in_use(entry, usepoint) {
+                    return Some(entry.clone()); // database.cc:2241-2244
+                }
             }
-        }
-        None
+            None
+        })
     }
 
     // Ghidra: database.cc:2250 ScopeInternal::findContainer
@@ -3509,7 +3609,6 @@ impl ScopeLocal {
         size: i64,
         usepoint: Option<u64>,
     ) -> Option<LocalMapEntry> {
-        let rangemap = self.materialize_maptable(space);
         let sub2 = match usepoint {
             None => EntrySubsort::maximum(),
             Some(up) => EntrySubsort {
@@ -3519,25 +3618,27 @@ impl ScopeLocal {
         };
         let sub1 = EntrySubsort::minimum();
         let end = offset.wrapping_add(size.max(0) as u64).wrapping_sub(1);
-        let mut best: Option<LocalMapEntry> = None;
-        let mut oldsize: i64 = -1;
-        for entry in rangemap.find_with_subsort(offset, &sub1, &sub2).rev() {
-            if entry.last() < end {
-                continue; // database.cc:2270 — must contain the whole range
-            }
-            let entry_size = entry.size as i64;
-            if entry_size < oldsize || oldsize == -1 {
-                // database.cc:2271
-                if self.entry_in_use(entry, usepoint) {
-                    best = Some(entry.clone());
-                    if entry_size == size {
-                        break; // database.cc:2274
+        self.with_maptable(space, |rangemap| {
+            let mut best: Option<LocalMapEntry> = None;
+            let mut oldsize: i64 = -1;
+            for entry in rangemap.find_with_subsort(offset, &sub1, &sub2).rev() {
+                if entry.last() < end {
+                    continue; // database.cc:2270 — must contain the whole range
+                }
+                let entry_size = entry.size as i64;
+                if entry_size < oldsize || oldsize == -1 {
+                    // database.cc:2271
+                    if self.entry_in_use(entry, usepoint) {
+                        best = Some(entry.clone());
+                        if entry_size == size {
+                            break; // database.cc:2274
+                        }
+                        oldsize = entry_size;
                     }
-                    oldsize = entry_size;
                 }
             }
-        }
-        best
+            best
+        })
     }
 
     // Ghidra: varmap.cc:432 ScopeLocal::resetLocalWindow
@@ -3869,6 +3970,7 @@ impl ScopeLocal {
         }
         self.symbols = new_symbols;
         self.mapentry_log = new_entries;
+        self.invalidate_maptable_views();
         self.overlap_problems = false;
         self.pending_warnings.clear();
         self.pending_lowlevel_error = None;
@@ -4008,6 +4110,7 @@ impl ScopeLocal {
         self.nametree.clear();
         self.category_lists.clear();
         self.mapentry_log.clear();
+        self.invalidate_maptable_views();
     }
 
     // Ghidra: database.cc:2071 ScopeInternal::clearUnlockedCategory (cat >= 0)
@@ -5027,10 +5130,10 @@ impl ScopeLocal {
             start,
             size,
             offset,
-            extraflags,
-            uselimit: merged,
+            extraflags,            uselimit: merged,
             subsort,
         });
+        self.invalidate_maptable_views();
     }
 
     // Ghidra: database.cc:1530 Scope::addSymbol
@@ -5419,10 +5522,9 @@ impl ScopeLocal {
         // (varmap.cc:1333-1334). Materializing from the insertion log
         // reproduces the oracle's multiset order.
         let entries: Vec<(u64, i32, usize)> = self
-            .materialize_maptable(self.space)
-            .iter()
-            .map(|e| (e.start, e.size, e.sym))
-            .collect();
+            .with_maptable(self.space, |rm| {
+                rm.iter().map(|e| (e.start, e.size, e.sym)).collect()
+            });
 
         // set<Range>::const_iterator rangeIter = getRangeTree().begin();
         // (varmap.cc:1339) — the scope's symboltab range tree (union of the
@@ -6876,6 +6978,9 @@ mod tests {
         // Replace the single-address uselimit with two disjoint ranges.
         scope.mapentry_log[0].uselimit = vec![(ram, 0x1000, 0x100f), (ram, 0x2000, 0x200f)];
         scope.mapentry_log[0].subsort = ScopeLocal::entry_subsort(false, &scope.mapentry_log[0].uselimit);
+        // In-place entry surgery bypasses the production mutation points,
+        // so invalidate the memoized maptable views by hand.
+        scope.invalidate_maptable_views();
         let _ = idx;
         // Mid-range usepoint of the FIRST range: admitted.
         assert_eq!(scope.find_addr(crate::space::AddressSpace::Stack, 0x320, Some(0x1005)), Some(idx));
