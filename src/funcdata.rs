@@ -11323,16 +11323,19 @@ impl Funcdata {
         };
         // Walk the dead op list backwards from op's position. Ghidra's
         // `iter = op->insertiter; startiter = beginOpDead()`
-        // (funcdata_block.cc:564-565) is a DEAD-list window: at
+        // (funcdata_block.cc:558-559) is a DEAD-list window: at
         // recoverJumpTables time (FlowInfo::generateOps, flow.cc:792-814,
         // before splitBasic's markAlive at flow.cc:1013) every lifted op is
         // on the dead list in bank (creation) order. Rugra's flow phase
-        // reproduces that lifecycle exactly (the recovery-time dead-cycle in
-        // generate_ops_from_path, flow.rs "Oracle recovery-time lifecycle
-        // state" block). An op not found in the dead list (never possible on
-        // the oracle call path) yields start_idx 0 = the empty window, the
-        // same `iter == startiter` no-backtrack outcome Ghidra's loop entry
-        // condition gives.
+        // reproduces that lifecycle exactly: follow-flow drivers lift via
+        // `FlowInfo::generate_ops` (flow.rs, recovery ahead of
+        // `generate_blocks`), while the httpd linear-inject driver
+        // dead-cycles the bank in lift order inside
+        // `recover_jump_tables_injected` (flow.rs "Oracle recovery-time
+        // lifecycle state" block). An op not found in the dead list (never
+        // possible on the oracle call path) yields start_idx 0 = the empty
+        // window, the same `iter == startiter` no-backtrack outcome Ghidra's
+        // loop entry condition gives.
         let dead = &self.obank.deadlist;
         let start_idx = dead
             .iter()
@@ -11403,7 +11406,12 @@ impl Funcdata {
                     if opcode == OpCode::CPUI_STORE {
                         return crate::jumptable::RecoveryMode::Success;
                     }
-                    // Some special op generates the address; don't assume failure.
+                    // Ghidra: funcdata_block.cc:596-597
+                    // Some special op (CPOOLREF, NEW, etc) generates the
+                    // address, don't assume failure.
+                    if outhit {
+                        return crate::jumptable::RecoveryMode::Success;
+                    }
                 }
             } else if eval_type == pf::UNARY {
                 if outhit {
