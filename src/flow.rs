@@ -745,17 +745,15 @@ impl<'a> FlowInfo<'a> {
     /// For `fail_return` the BRANCHIND becomes a RETURN. Otherwise it
     /// becomes a CALLIND with a callspec from `setup_callind_specs`
     /// (flow.cc:736); the `fail_callother` path marks that callspec
-    /// no-return (`fc->setNoReturn(true)`, flow.cc:747) and the default
+    /// no-return (`fc->setNoReturn(true)`, flow.cc:747) and installs the
+    /// locked void internal prototype (`fc->setInternal(glb->defaultfp,
+    /// void)` + input/output locks, flow.cc:757-763); the default
     /// path marks it a bad jump table. An artificial halt of the
-    /// mode-determined type is inserted right after the op. The
-    /// `fail_callother` no-params internal prototype
-    /// (`fc->setInternal(glb->defaultfp, void)` + input/output locks,
-    /// flow.cc:757-763) remains CALLSPEC-0001 (needs the architecture
-    /// default model plumbing); `setBadJumpTable` (flow.cc:754) is wired
-    /// since the fspec badjumptable data plane landed (CALLSPEC deb2b09b),
-    /// its output consumer `ActionNameVars::lookForBadJumpTables`
-    /// (coreaction.cc:2779-2803, UNRECOVERED_JUMPTABLE naming) rides the
-    /// CSPEC2 lane.
+    /// mode-determined type is inserted right after the op. `setBadJumpTable`
+    /// (flow.cc:754) is wired since the fspec badjumptable data plane landed
+    /// (CALLSPEC deb2b09b), its output consumer
+    /// `ActionNameVars::lookForBadJumpTables` (coreaction.cc:2779-2803,
+    /// UNRECOVERED_JUMPTABLE naming) rides the CSPEC2 lane.
     // Ghidra: flow.cc:727 FlowInfo::truncateIndirectJump
     pub fn truncate_indirect_jump(
         &mut self,
@@ -807,10 +805,40 @@ impl<'a> FlowInfo<'a> {
             }
         };
         if no_params {
-            // flow.cc:757-763: if (!fc->hasModel()) { fc->setInternal(
-            // glb->defaultfp, void); setInputLock(true); setOutputLock(true); }
-            // TODO(CALLSPEC-0001): needs the architecture default model and
-            // void-type plumbing on the callspec.
+            // flow.cc:757-763: `if (!fc->hasModel()) { fc->setInternal(
+            // glb->defaultfp, glb->types->getTypeVoid()); fc->setInputLock(
+            // true); fc->setOutputLock(true); }` — the fail_callother
+            // callspec becomes an internally-backed void prototype with both
+            // locks, so ActionFuncLink::func_link_output's locked-void gate
+            // (coreaction.cc:1540-1542, TYPE_VOID → no output varnode) keeps
+            // the truncated CALLIND outputless and ActionActiveReturn never
+            // activates (coreaction.cc:1770 isOutputActive check). The model
+            // is the Architecture default (glb->defaultfp — not evalfp), and
+            // setInternal's own `if (model == 0) setModel(m)` guard (fspec.cc
+            // 3895-3897) keeps a pre-bound model untouched.
+            if let Some(fc) = fc_owner.as_ref() {
+                let mut f = fc.write().unwrap();
+                if !f.prototype.has_model() {
+                    let default_model = self.fd.get_arch().and_then(|a| a.defaultfp.clone());
+                    let void_type = self
+                        .fd
+                        .get_arch()
+                        .and_then(|a| {
+                            a.types
+                                .as_ref()
+                                .and_then(|factory| factory.read().ok().map(|f| f.get_type_void()))
+                        })
+                        .unwrap_or_else(|| {
+                            crate::type_system::typefactory::TypeFactory::shared_default()
+                                .read()
+                                .expect("shared type factory lock poisoned")
+                                .get_type_void()
+                        });
+                    f.prototype.set_internal(default_model, void_type);
+                    f.prototype.set_input_lock(true);
+                    f.prototype.set_output_lock(true);
+                }
+            }
         }
         // flow.cc:765-767: create an artificial return right after the op
         // (data.opDeadInsertAfter — the funcdata.hh:460 dead-list wrapper,

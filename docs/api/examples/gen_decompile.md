@@ -280,3 +280,23 @@ python3 /dev/shm/rugra-tests/mirrortriage/mirror_family_census.py <mirror.c> <go
 
 关联：`docs/api/examples/parallel_decompile.md`（同 face 的线程形态驱动）；
 MIRRORTRIAGE 终报 §3.1（/dev/shm/rugra-reports/LANE_MIRRORTRIAGE_2026-09-27.md）。
+
+## 2026-09-29：userops 基座名表安装（MCENSUS4-SQLITE-FTSTYPING-0001，Lane FTSINCRMERGE）
+
+`build_architecture` 在 `arch.userops` 创建后立即执行
+`UserOpManage::initialize(sleigh.user_op_names())`——
+`Architecture::restoreFromSpec` 的 `userops.initialize(this)`
+（architecture.cc:635，restoreFromSpec 序内早于 :642 parseCompilerConfig）
+的位置对应物。.sla `userop` 名表（`Translate::getUserOpNames`，
+CALLOTHER-index 序）注册为 UnspecializedPcodeOp 基座层。
+
+**效果**：printc 的 CALLOTHER 名通道（printc.cc:673-692 functional 语法，
+`TypeOpCallother::getOperatorName` → userop 名）从 `CALLOTHER[77]`
+fallback 恢复为真名（x86 `ud2` 语义的 `invalidInstructionException`）；
+`early_jump_table_fail` 的 userop-type 咨询（funcdata_block.cc:573-581）
+解析真实描述符。**canon 中性**：curl/httpd（含 direct-runner mirror）语料
+golden 输出零 CALLOTHER 站点（双侧亲证），sq/vsh mirror 输出零 CALLOTHER
+文本——名表安装无可观测面。
+
+A/B 与同族扫描见 docs/api/flow.md FTSINCRMERGE 节：sqlite 镜面
+1479→1315（sqlite3Fts3Incrmerge 129→3 主根 −126 + 同族四函数连带），零回退。

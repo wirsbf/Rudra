@@ -3513,3 +3513,43 @@ worker 侧 catch_unwind 边界收束）；cc:742 dead-read `return false` 是 or
   --one 9 双侧 body MATCH；修复前 A/B 显示 switch 残骸骨架=可观察差异。注解行同步修正
   为函数定义起始行 `funcdata_block.cc:64`（旧 `funcdata.cc:34` 为构造函数行，
   cited-line drift）。
+
+## 2026-09-29：`early_jump_table_fail` 回溯窗口改 deadlist（MCENSUS4-SQLITE-FTSTYPING-0001，Lane FTSINCRMERGE）
+
+原实现以 `obank.alivelist` 定位 BRANCHIND 起点（`position().unwrap_or(0)`），
+而 oracle `iter = op->insertiter; startiter = beginOpDead()`
+（funcdata_block.cc:558-559）是 **dead 表窗口**：recoverJumpTables 时刻
+（FlowInfo::generateOps，flow.cc:792-814，早于 splitBasic 的 markAlive
+flow.cc:1013）所有 lift op 都在 deadlist（Rugra 的 flow 阶段以
+recovery-time dead-cycle 同构复现）。查错表 → 位置恒 None → 窗口空 →
+恒 Success → `ud2` 的 `uniq = CALLOTHER invalidInstructionException();
+goto [uniq]`（.sla 原生语义）BRANCHIND 永落 fail_normal 而非
+fail_callother。修复=查 deadlist；op 不在 deadlist（oracle 调用路径不可达）
+时 `unwrap_or(0)` 等价 Ghidra `iter == startiter` 的零回溯出口。
+
+`userop_type` 的缺表 fallback（2026-08-11 节登记的适配器差异）本道保持——
+gen 驱动现在经 `UserOpManage::initialize`（userop.cc:392-403）装
+.sla userop 名表后，`get_op(77)` 返回真实 Unspecialized 描述符而非 fallback，
+`userop_type` 语义与 oracle `glb->userops.getOp(id)->getType()` 全等。
+
+A/B 见 docs/api/flow.md FTSINCRMERGE 节（sqlite 1479→1315，零回退）。
+
+## 2026-09-29：`early_jump_table_fail` SPECIAL 臂补 outhit 早退（Lane FTSFIX，CR-FTSINCRMERGE F1/F2）
+
+上节交付（668cf6a4）遗漏了 oracle SPECIAL-else 臂的第二个早退：
+funcdata_block.cc:596-597 `if (outhit) return JumpTable::success;`——
+"Some special op (CPOOLREF, NEW, etc) generates address, don't assume
+failure"。STORE 早退（:595）之后，若被检 special op（LOAD/MULTIEQUAL/
+INDIRECT/CPOOLREF/NEW——均带输出，SPECIAL 精确分类）的输出与当前 vn
+相交，oracle 立即 Success 进入 stageJumpTable；该早退缺失时 Rugra 继续
+回溯（special 臂不更新 vn，两侧同），若窗口内更早存在未注入 CALLOTHER
+且其输出与原 vn 相交（子范围/laned 重叠形态），误判 FailCallother →
+错误 noreturn-void 截断——五语料（1385+810+74+29+71 函数）零触发的
+潜伏缺陷，CR-FTSINCRMERGE §3 F1 判 MISMATCH。修复 = STORE 检查后补
+`if outhit { return RecoveryMode::Success; }`（对位 cc:596-597）。
+同 commit 更正函数头注释的生命周期描述（F2）：follow-flow 驱动走
+`FlowInfo::generate_ops`、httpd 线性注入驱动走
+`recover_jump_tables_injected` 的批量 dead-cycle（原文引用了不存在的
+`generate_ops_from_path`），并把 `iter/startiter` 行号引用修正为
+funcdata_block.cc:558-559。五面门禁 + 五受测函数 --func 零漂移
+（delta 口径，见 /dev/shm/rugra-reports/LANE_FTSFIX_2026-09-29.md）。

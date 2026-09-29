@@ -457,6 +457,13 @@ impl SleighCtx {
         self.backend.num_spaces()
     }
 
+    // RUGRA-GLUE: Translate::getUserOpNames — the .sla's user-defined p-code
+    // op names in CALLOTHER-index order (the data `UserOpManage::initialize`,
+    // userop.cc:392-403, registers as UnspecializedPcodeOps).
+    pub fn user_op_names(&self) -> Vec<Vec<u8>> {
+        self.backend.user_op_names()
+    }
+
     // RUGRA-GLUE: copy one space catalog entry from the translator
     pub fn space_info(&self, index: usize) -> Option<(i32, String)> {
         self.backend.space_info(index)
@@ -948,6 +955,15 @@ mod rust_backend {
                 storage.offset,
                 size,
             ))
+        }
+
+        // RUGRA-GLUE: Translate::getUserOpNames pass-through. C++
+        // `SleighBase::getUserOpNames` (sleighbase.cc) copies the .sla's
+        // `userop` name list in CALLOTHER-index order; kuna's
+        // `SleighBase::get_user_op_names` returns the same `&[Vec<u8>]`
+        // view, so the borrow is cloned here for the FFI boundary.
+        pub(crate) fn user_op_names(&self) -> Vec<Vec<u8>> {
+            self.sleigh.base().get_user_op_names().to_vec()
         }
     }
 

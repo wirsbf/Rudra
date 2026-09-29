@@ -174,3 +174,12 @@ padding, so a linear walk filters NOP-classified ops to keep the oracle's effect
   该结构性下界使"子进程重装载"与 oracle 冷解码同成本量级；快照机制的全部
   可得收益 ≈ 引擎相位 0.096→0.080s。进一步收益需分配器/形态级机制
   （后续票证据在案）。
+
+## 2026-09-29：`user_op_names`（MCENSUS4-SQLITE-FTSTYPING-0001，Lane FTSINCRMERGE）
+
+- **`SleighCtx::user_op_names() -> Vec<Vec<u8>>`** / 引擎侧
+  `RustSleighEngine::user_op_names` — C++ `Translate::getUserOpNames` /
+  `SleighBase::getUserOpNames` 通道：.sla `userop` 名表按 CALLOTHER-index
+  序返回（kuna `SleighBase::get_user_op_names` 的 `&[Vec<u8>]` 视图克隆）。
+  消费者=`UserOpManage::initialize`（userop.cc:392-403，经 gen 驱动
+  architecture.cc:635 位置接线）。

@@ -641,8 +641,9 @@ curl 小范围 A/B 的生产收益是：`hugehelp` callspec/puts `5 -> 6`，
   `setup_callind_specs(op, None)`（flow.cc:736）建立 callspec，fail_callother 臂
   `fc.set_no_return(true)`（flow.cc:747）+ "Does not return" warning
   （flow.cc:748）；三条 warning 从 eprintln! 改 `fd.warning`（commentdb，与
-  Ghidra data.warning 同通道）。残差：noParams 臂 setInternal/defaultfp
-  （flow.cc:757-762）仍归 CALLSPEC-0001；setBadJumpTable（flow.cc:754）已由
+  Ghidra data.warning 同通道）。noParams 臂 setInternal/defaultfp
+  （flow.cc:757-762）已由 FTSINCRMERGE 车道接线（2026-09-29，见下节）；
+  setBadJumpTable（flow.cc:754）已由
   FLOWSET 车道接线（见 2026-09-25 节），输出消费者归 coreaction 车道。
 - **恒 false stub 清理**：扩展 trait `is_inline`/`is_no_return` 删除（fspec.rs
   继承面已提供同名 inherent 委托，原实现已被遮蔽为死代码），过时 RUGRA-GLUE
@@ -675,6 +676,41 @@ callspec noret=1 + "Does not return" + noreturn halt；copy_flow_effects 单向
 E2E 零变化。hasModel（truncate case 的 setInternal 分歧）与 spec name
 （Ghidra CALLIND spec 名按地址派生 vs Rugra 继承 caller funcp 名，既有
 `setup_call_specs` 构造 quirk）在 fixture 中显式不投影并在 metadata 登记。
+
+### truncate_indirect_jump noParams 臂补全 + early_jump_table_fail 死表窗口（2026-09-29，FTSINCRMERGE 车道）
+
+MCENSUS4-SQLITE-FTSTYPING-0001 修复的两个 src 侧改动（第三处在 userop.rs/
+gen 驱动，见对应文档）：
+
+- **`Funcdata::early_jump_table_fail`（funcdata.rs）改走 deadlist**：原实现
+  用 `obank.alivelist` 定位 BRANCHIND 的回溯起点，而 oracle 的
+  `iter = op->insertiter; startiter = beginOpDead()`
+  （funcdata_block.cc:564-565）是 **dead 表窗口**——recoverJumpTables 时刻
+  （FlowInfo::generateOps，flow.cc:792-814；splitBasic 的 markAlive 在
+  flow.cc:1013 之后）所有 lift op 都在 deadlist 里。Rugra 的 flow 阶段以
+  "recovery-time dead-cycle" 复现了同一生命周期，但本函数却查 alivelist →
+  `position()` 恒 None → `unwrap_or(0)` → 窗口为空 → 恒返回 Success。
+  后果：`ud2`（SLEIGH 语义 `uniq = CALLOTHER invalidInstructionException();
+  goto [uniq]`，.sla 原生形态）的 BRANCHIND 永远进 fail_normal
+  （"Too many branches"）而非 fail_callother，truncate 走 badjumptable 臂
+  （CALLIND 带 RAX 返回值 + UNRECOVERED_JUMPTABLE 命名），函数返回型被
+  CALLIND 的 uint8 RAX 污染（golden=int4）。修复=按 Ghidra 原形查 deadlist。
+- **`truncate_indirect_jump` noParams 臂（flow.rs）补全**：flow.cc:757-763
+  的 `fc->setInternal(glb->defaultfp, void) + setInputLock/setOutputLock`
+  从 TODO(CALLSPEC-0001) 落地为实装（`prototype.set_internal(defaultfp,
+  void)` + 双锁；`set_internal` 自带 `if model==0 setModel(m)` 守卫保持
+  预绑模型不动）。该臂使 func_link_output 的 locked-void 门
+  （coreaction.cc:1540-1542）不给 CALLIND 建输出 varnode、
+  ActionActiveReturn 的 isOutputActive 检查跳过 trial 恢复——CALLIND 无
+  返回值 + noreturn halt，函数返回型回到真实 `return` 路径（int4）。
+
+**A/B（sqlite 镜面，基 f3ae64e3）**：sqlite3Fts3Incrmerge 129→3（−126）；
+同族连带 sqlite3Insert 14→4 / sqlite3ColumnsFromExprList 12→0 /
+sqlite3GenerateColumnNames 12→0 / sqlite3MemoryBarrier 4→0；全语料
+1479→1315（−164），1385/1385 matched，零回退。残差 3 行 =
+func_0x0006a390/0x0006a150 调用输出宽度（Rugra RAX-8+SUB84 物化 vs
+golden EAX-4 直出，heritage 输出 trial 宽度仲裁域，归
+MCENSUS4-CASTSHAPE-RESID-FIVE-0001 注记，语料内同形 13 站点）。
 
 ### generateBlocks 的 removeUnreachableBlocks 参数（2026-08-25）
 - 调用改为 `remove_unreachable_blocks(false, true)`（issuewarning=false，

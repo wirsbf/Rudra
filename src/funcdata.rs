@@ -11321,12 +11321,23 @@ impl Funcdata {
             let op_rg = op.0.read().unwrap();
             op_rg.get_in(0).cloned()
         };
-        // Walk the dead op list backwards from op's position. Rugra's obank
-        // keeps a single `alivelist`; the dead list is implicit. We emulate
-        // Ghidra's `beginOpDead()..op->insertiter` window by scanning the
-        // alive list up to `op`, then continuing through earlier ops.
-        let alive = &self.obank.alivelist;
-        let start_idx = alive
+        // Walk the dead op list backwards from op's position. Ghidra's
+        // `iter = op->insertiter; startiter = beginOpDead()`
+        // (funcdata_block.cc:558-559) is a DEAD-list window: at
+        // recoverJumpTables time (FlowInfo::generateOps, flow.cc:792-814,
+        // before splitBasic's markAlive at flow.cc:1013) every lifted op is
+        // on the dead list in bank (creation) order. Rugra's flow phase
+        // reproduces that lifecycle exactly: follow-flow drivers lift via
+        // `FlowInfo::generate_ops` (flow.rs, recovery ahead of
+        // `generate_blocks`), while the httpd linear-inject driver
+        // dead-cycles the bank in lift order inside
+        // `recover_jump_tables_injected` (flow.rs "Oracle recovery-time
+        // lifecycle state" block). An op not found in the dead list (never
+        // possible on the oracle call path) yields start_idx 0 = the empty
+        // window, the same `iter == startiter` no-backtrack outcome Ghidra's
+        // loop entry condition gives.
+        let dead = &self.obank.deadlist;
+        let start_idx = dead
             .iter()
             .position(|r| Arc::ptr_eq(&r.0, &op.0))
             .unwrap_or(0);
@@ -11346,7 +11357,7 @@ impl Funcdata {
             if count_max < 0 {
                 return crate::jumptable::RecoveryMode::Success;
             }
-            let cur_op = alive[i as usize].clone();
+            let cur_op = dead[i as usize].clone();
             let (eval_type, opcode, is_call, is_branch, out_arc, in0_arc, in1_arc) = {
                 let op_rg = cur_op.0.read().unwrap();
                 (
@@ -11395,7 +11406,12 @@ impl Funcdata {
                     if opcode == OpCode::CPUI_STORE {
                         return crate::jumptable::RecoveryMode::Success;
                     }
-                    // Some special op generates the address; don't assume failure.
+                    // Ghidra: funcdata_block.cc:596-597
+                    // Some special op (CPOOLREF, NEW, etc) generates the
+                    // address, don't assume failure.
+                    if outhit {
+                        return crate::jumptable::RecoveryMode::Success;
+                    }
                 }
             } else if eval_type == pf::UNARY {
                 if outhit {
