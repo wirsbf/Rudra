@@ -852,6 +852,15 @@ alivelist），注入后 alivelist=0、RETURN 对 ActionReturnRecovery 隐身—
 - 重写后重新启用节点
 - 生命周期管理
 
+#### 尾部快速擦除（PERF-VARMAP-OPCREATE-0001，2026-09-29）
+
+oracle `markAlive`（op.cc:1017-1022）经存储 `insertiter` 的 `deadlist.erase`
+是 O(1)，随后 `alivelist.insert(end)`。Rust `Vec` 无存储句柄，原实现对整条
+deadlist 做 `retain` 线性扫描（VdbeExec 峰值 dead 3.5K 条/次）。主流迁移形态
+（create/markDead 紧接插入期 markAlive，无中间迁移）下 op 恰在 deadlist 尾部，
+此时 `pop()` 完成同一次擦除且零扫描；非尾部（中段复活）保持原保序 `retain`，
+两种路径的删除结果与其余元素相对序逐元素等价（== oracle 链表 erase 的结果序）。
+
 ---
 
 ### `pub fn mark_dead(&mut self, op: PcodeOpRef)`
@@ -864,6 +873,17 @@ alivelist），注入后 alivelist=0、RETURN 对 ActionReturnRecovery 隐身—
 - DCE
 - 重写中替换旧节点
 - 延迟清理策略
+
+#### 尾部快速擦除（PERF-VARMAP-OPCREATE-0001，2026-09-29）
+
+oracle `markDead`（op.cc:1028-1034）经存储 `insertiter` 的 `alivelist.erase`
+是 O(1)，随后 `deadlist.insert(end)`。Rugra 原实现 `alivelist.retain` 全表扫描
+——[OPCPROF] 实测 VdbeExec 单函数 207,611 次调用/5.58s/均值 32.6K 元素扫描，
+其中 56% 调用（创建形态：`obank::create` 的 alivelist push 紧接
+`Funcdata::newOp` 的 markDead，op.cc:941 → funcdata_op.cc:322-327）op 位于
+alivelist 尾部，`pop()` 以零扫描完成同一擦除（覆盖 ~50% 扫描量）；中段销毁
+（ActionDeadCode 批量 opDestroy 路径）保持保序 `retain` 兜底，结果与其余元素
+相对序逐元素等价。`new_indirect_op` 内 `new_op` 段实测 31.4µs → 1.0µs。
 
 #### 注意
 被标记 dead 不等于立刻从 bank 中物理移除。
