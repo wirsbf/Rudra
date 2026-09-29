@@ -377,8 +377,13 @@ clearFlags→coverDirty，varnode.cc:371-372——承载「attach 前已脏成�
 `aggregate_high_cover_from`）持 high 读守卫，传播需同 high 写锁=重入死锁。
 该缺口由三层防御吸收：①`HighVariable::new` 按 variable.cc:224 初始置脏
 （新 high 首门必重建）；②`update_high` 的实例扫描保留（对 clear 侧缺口
-精准检测：成员旗仍在扫描时可见）；③inflate_test/aggregate_high_cover_from
-无条件现聚合。`high_cover()` 裸读者纪律不变：仅 intersection（update_high
+精准检测：成员旗仍在扫描时可见）——**SUPERSEDED 2026-09-29/bec3474a**：
+实例扫描已随 update_high 回归 oracle 单标志位原形（variable.cc:1148-1156）
+移除,clear 侧缺口改由构造性闭合吸收（attach-hole 审计:成员脏⇒置位时刻
+high 已脏,「成员脏∧high 旗净」不可达,oracle clear 臂 varnode.cc:371-372
+在可达状态下同为 no-op——见 2026-09-29 INTERSECTCACHE 节）；③inflate_test/
+aggregate_high_cover_from 无条件现聚合。`high_cover()` 裸读者纪律不变：仅
+intersection（update_high
 后读=variable.cc:1170-1181 序）与 compare_high_by_block（merge_linear 排序前
 逐 high 刷新=merge.cc:280-282 序）两个门内位点。
 

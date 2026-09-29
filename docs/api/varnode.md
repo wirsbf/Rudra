@@ -1274,7 +1274,9 @@ replace/make_free/创建位点（set_input/set_output 置
 clearFlags→传播）与 `get_cover`（varnode.hh:202 → updateCover）不传播——
 调用方持 high 读守卫（checkImpliedCover 借用 `&HighVariable`、
 aggregate_high_cover_from），见两函数 NOTE 注释；由 HighVariable::new 初始
-脏（variable.cc:224）+ update_high 实例扫描 + inflate/aggregate 现聚合吸收。
+脏（variable.cc:224）+ 构造性闭合（attach-hole 审计——bec3474a 起
+update_high 已回归 oracle 单标志位原形 variable.cc:1148-1156,实例扫描
+已移除;「成员脏∧high 旗净」构造性不可达）+ inflate/aggregate 现聚合吸收。
 该角落承载「成员在 attach 前已脏」的首次重建置脏语义。
 
 **flagsDirty 半边（CR-HIGHCOV 发现 1 修正，2026-09-25 二轮）**:首轮提交的

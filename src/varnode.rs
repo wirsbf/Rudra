@@ -1239,11 +1239,21 @@ impl Varnode {
     /// inflate_test via coreaction check_implied_cover's borrowed
     /// &HighVariable; aggregate_high_cover_from), and the notifications need
     /// a write guard on that same high — same-lock reentrancy deadlock. The
-    /// reader-side compensations absorb both gaps. For coverDirty:
-    /// MergeTypeIntersectCache::update_high's instance scan marks the high
-    /// dirty from the member flag BEFORE any rebuild can clear it, and
-    /// inflate_test/aggregate_high_cover_from aggregate fresh from the
-    /// rebuilt members unconditionally. For flagsDirty: a cover rebuild
+    /// reader-side compensations absorb both gaps. For coverDirty: the
+    /// compensation is constructive (attach-hole audit,
+    /// CR-INTERSECTCACHE follow-up; the former update_high instance scan
+    /// was REMOVED in bec3474a when update_high returned to the oracle's
+    /// single highflags-bit form, variable.cc:1148-1156) — every path that
+    /// marks a member COVERDIRTY while a high is attached goes through
+    /// set_flags, which fires high coverDirty at mark time (varnode.cc:358-359);
+    /// fresh highs start with the full dirty word (variable.cc:224),
+    /// merge_internal marks the survivor dirty if either side was (variable.cc:660-663),
+    /// and merge_force attach sites mark COVERDIRTY directly — so "member
+    /// dirty while the high flag is clean" is unreachable and the missing
+    /// clear-arm re-fire can only hit an already-dirty bit (the oracle clear
+    /// arm varnode.cc:371-372 is likewise a no-op on reachable states);
+    /// additionally inflate_test/aggregate_high_cover_from aggregate fresh
+    /// from the rebuilt members unconditionally. For flagsDirty: a cover rebuild
     /// mutates no member flags, so the derived-flag VALUE is unaffected by
     /// the missing re-fire, and every in-tree attach path seeds FLAGSDIRTY
     /// independently (HighVariable::new mirrors variable.cc:224's initial
