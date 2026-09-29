@@ -134,6 +134,32 @@
 # 70.84/71.28s (median 71.1s ≈ lane 71.5s −7.2% claim; 79.21s outlier under
 # la-65 spike); sqlite corpus --jobs 32 79.9s wall ok=1385/1385 (MB42-era
 # 82.1s; OPTREE lane 76.0s on quieter host).
+# MB44-RATCHET-REPIN-0001 (2026-09-29, joint tree @ 956002e7 after 2-branch
+# double-mirror batch [castshape 3f087f29 + switchdispatch 956002e7],
+# forced relink verified [fast-release 1m10s + release 3m52s, three driver
+# binaries +122~357s > both merge commits], gate --jobs 5 fresh round —
+# binary sha change invalidates digest cache keys; stale-guard content
+# probe digest=f6758320 files=103; repin commit only edits this table,
+# measurement tree=956002e7):
+# ① sqlite 1655→1479 (−176 = CASTSHAPE −118 + CASE-CAST −58, joint
+#    arithmetic exact — disjoint function families: ABS/sign-AND family vs
+#    pointer-typed switch case-label family): CASTSHAPE removes the
+#    RuleFloatSignCleanup size heuristic (oracle ruleaction.cc:10774
+#    TYPE_FLOAT first-line hard gate) — 58 sign-AND stations restored
+#    (token triple mirror==golden [58,0,1] exact, base was [0,58,0]),
+#    40 functions improved / 0 regressed, sqlite3_memory_highwater
+#    whole-function zero; SWITCHDISPATCH routes case labels through the
+#    full pushConstant metatype dispatch (cast-case labels 17==golden 17;
+#    TableAffinity residual 4 lines = registered L1 dup-label family
+#    MIRROR-GIANTS-SWITCHDISPATCH-COLLAPSE-IFGOTO-0001, not case-cast).
+# ② sq 516→514 (−2 = CASTSHAPE single ABS station knock-on; CASE-CAST
+#    zero sq coupling). CR-CASTSHAPE APPROVE block embedded verbatim in
+#    merge 3f087f29.
+# ③ curl 13 / httpd 2 / vsh 0 identical, not re-pinned (MB41/MB39 rows
+#    stay).
+# Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
+# byte-identical (md5 4ab1db2a / 7d5b9e7c == MB41..43 pins). tests 1976P/0F/5I
+# (1974 + castshape 1 + switchdispatch 1, per-lane accounting exact).
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # MB27-RATCHET-REPIN-0001 @ 06e491c0 (2026-09-28): httpd 84->65 (GETPARENTS find_subpiece 同块约束, -19);
 # sq 3262->3021 (三支复合 -241: getparents 同块约束镜面效应为主); sqlite 10013->9951 (-62);
@@ -174,8 +200,8 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 curl	13	74	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 httpd	2	29	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
-sq	516	810	MB43-RATCHET-REPIN-0001	61a08bce	2026-09-29
-sqlite	1655	1385	MB43-RATCHET-REPIN-0001	61a08bce	2026-09-29
+sq	514	810	MB44-RATCHET-REPIN-0001	956002e7	2026-09-29
+sqlite	1479	1385	MB44-RATCHET-REPIN-0001	956002e7	2026-09-29
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
