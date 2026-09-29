@@ -2089,3 +2089,37 @@ merge 组（:5717-:5729）与 ActionSetCasts（:5735）之前。判决门
 「放置无行为差」登记（上方放置偏差段）被该 fixture 证伪并作废。本文件
 零行为改动（仅头注更正）；`while_do_final_transform` /
 `while_do_find_loop_variable` / `while_do_finalize_printing` 函数体未动。
+
+## 2026-09-29 追加（L1SURGERY-GATHER-DEFPOS-0001 — gather 期 default 构造序位）
+
+**问题**：`next_flow_after_successors` Switch 臂在 `default_label` 未置位阶段
+（ActionReturnSplit 的 gatherReturnGotos 链走,blockaction.cc:2210-2232 — 先于
+ActionFinalStructure 的 finalizePrinting）把 default 追加在合并序**末尾**
+（`_ => sw.cases.len()`）。oracle 在该阶段遍历的是**构造序** caseblocks
+（grabCaseBasic 的 cs 出边扫描序,block.cc:3529-3534;default 为普通成员,
+cc:3515 isdefault;label 稳定排序要到 finalizePrinting cc:3591 才发生）。
+后果:最后一个真实 case 的 nextFlowAfter 后继错位成 default 前叶;当该 case 是
+以 default 块为 goto 目标的 BlockGoto 时,gotoPrints（block.cc:2881-2890,
+gotobl != nextbl）翻 false,gatherReturnGotos 拒选该边 → nodeSplit 少拆 →
+结构树形态级联（SetCoderProperties 0x2891e:oracle 17 边拆/Rugra 16;if-goto/
+dup_ 标签/default 位/嵌套标签位全系）。
+
+**修复**（src/block.rs）:
+
+1. **`switch_default_construct_pos(sw)`（pub,模块级,新增）**:default 在 oracle
+   构造序 caseblocks 中的 rank = 基本图出边索引（`CaseOrder::outindex`,
+   cc:3509 `getInRevIndex`）先于 default 出边的 **regular（gototype==0）** case
+   数——multigoto 臂追加的 case（cc:3548-3553,GOTO_GOTO）在 oracle 中本来就
+   整体后置,不计数。坐标残缺（outindex<0 / 平行数组失配）时回退原 append-last
+   （oracle 该形态会 LowlevelError,cc:3507-3508,Rugra 保守降级不变原行为）。
+2. **`next_flow_after_successors` Switch 臂 def_pos 分派相位化**:
+   `default_label` 已置（finalizePrinting 后,compute_goto_prints/printc 消费
+   者）→ label rank（不变）;未置（gather 期）→ 构造序 rank（新）。
+
+**验证**：sasquatch SetCoderProperties（idx 470）:双侧 GATHER 探针对拍 —
+oracle（gold_gather_trace,RUGRA_GATHER_TRACE）edge 7 链 `t_goto prints=1
+parent_null=0`（后继链终于 InfLoop 头 0x288db）;Rugra 修复前
+`target=0x2890a succ=0x2890a`（后继=自身目标 → prints=false 拒选）,修复后
+`succ=0x289f0`（≠ 目标 → 选入）→ nodeSplit 17 份对齐,函数体规范化 diff 归零
+（typedef 前导为 --one harness 差,非代码生成差）。default 在输出中回到
+case 0x442 与 0x450 之间的 oracle 位。

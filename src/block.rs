@@ -451,6 +451,38 @@ pub fn graph_sibling_successors(
         .collect()
 }
 
+// Ghidra: block.cc:3524 BlockSwitch::grabCaseBasic (construction-order default rank)
+/// The default's rank in the oracle's CONSTRUCTION-order caseblocks — the
+/// position `grabCaseBasic`'s cs scan (block.cc:3529-3534, fed by
+/// ruleBlockSwitch's out-edge scan cc:1714-1720) would place it at: the
+/// number of REGULAR (gototype 0, cc:3510-3511) cases whose basic-graph
+/// out-edge index (CaseOrder::outindex, cc:3509 `getInRevIndex`) precedes
+/// the default's. Multigoto-appended cases (cc:3548-3553) come after the
+/// whole regular scan, so they never count. Falls back to append-last
+/// (cases.len(), the previous behavior) whenever the recorded coordinates
+/// are incomplete — the oracle cannot express that shape (addCase throws
+/// LowlevelError on detached coords, cc:3507-3508).
+// pub for the bilateral gather default-position fixture — the oracle side
+// walks caseblocks directly; this is the Rust reconstruction of the
+// construction-order rank from the recorded basic-graph out-edge indices.
+pub fn switch_default_construct_pos(sw: &BlockSwitch) -> usize {
+    let Some(def_order) = &sw.default_order else {
+        return sw.cases.len();
+    };
+    if def_order.outindex < 0
+        || sw.case_order.len() != sw.cases.len()
+        || sw.case_gototypes.len() != sw.cases.len()
+        || sw.case_order.iter().any(|co| co.outindex < 0)
+    {
+        return sw.cases.len();
+    }
+    sw.case_order
+        .iter()
+        .zip(sw.case_gototypes.iter())
+        .filter(|(co, &gt)| gt == 0 && co.outindex < def_order.outindex)
+        .count()
+}
+
 // Ghidra: block.cc:1335 BlockGraph::nextFlowAfter (per-type dispatch)
 /// The `getParent()->nextFlowAfter(this)` virtual dispatch (block.cc:2885),
 /// evaluated for every component of `node` at once with the successor
@@ -569,7 +601,25 @@ pub fn next_flow_after_successors(
                         Some(dl) if sw.case_order.len() == sw.cases.len() => {
                             sw.case_order.iter().filter(|co| co.label < dl).count()
                         }
-                        _ => sw.cases.len(),
+                        // Pre-finalizePrinting arm (default_label unset —
+                        // e.g. ActionReturnSplit's gatherReturnGotos walk,
+                        // blockaction.cc:2210-2232): the oracle's caseblocks
+                        // are in CONSTRUCTION order at that point — the cs
+                        // out-edge scan of grabCaseBasic (block.cc:3529-
+                        // 3534), where the default is an ordinary member at
+                        // its out-edge rank (cc:3515 isdefault). The
+                        // stable_sort by label only happens later, in
+                        // finalizePrinting (cc:3591, called from
+                        // ActionFinalStructure, blockaction.cc:2192) — after
+                        // returnsplit. Appending the default last in this
+                        // phase mis-positions the LAST real case's
+                        // nextFlowAfter successor as the default's front
+                        // leaf; when that case is a BlockGoto targeting the
+                        // default's block, gotoPrints (cc:2881-2890) flips
+                        // false and gatherReturnGotos drops the edge
+                        // (SetCoderProperties 0x2891e: oracle splits 17
+                        // return in-edges, Rugra 16).
+                        _ => switch_default_construct_pos(sw),
                     };
                     let pos = def_pos.min(m.len());
                     m.insert(pos, dc.clone());
