@@ -127,6 +127,200 @@ impl fmt::Display for SleighDecodeError {
 impl std::error::Error for SleighDecodeError {}
 
 // ---------------------------------------------------------------------------
+// Engine table snapshot cache (SPEEDPROF-SLEIGH-SNAPSHOT-0001)
+// ---------------------------------------------------------------------------
+// RUGRA-GLUE: a per-machine content-addressed cache of the decoded SLEIGH
+// table, so the per-function hermetic child processes stop re-paying the
+// ~0.09s packed `.sla` decode in every exec. The oracle has no counterpart
+// (its golden generator cold-decodes in every child too); this is a Rugra
+// engineering edge whose contract is BEHAVIORAL IDENTITY — a snapshot hit
+// builds the engine through the very same `SleighBase::decode` construction
+// code as the cold path (only the byte transport differs: fixed-width words
+// vs packed varints; see crates/kuna-sleigh/src/kuna_enginesnap.rs). The
+// identity chain: cold-vs-snapshot packed re-encode byte equality (unit
+// test `snapshot_load_is_graph_identical_to_cold_build`) + canon/mirror
+// gates.
+//
+// Cache policy — performance fail-open, behavior fail-closed:
+//   * key  = sha-level content digest of the `.sla` bytes (FNV-1a-64, the
+//     repo's digest convention) + the kuna build digest
+//     (`kuna_sleigh::BUILD_DIGEST`, emitted by kuna-sleigh's build.rs over
+//     the kuna-base/kuna-num/kuna-sleigh source trees — any decode/encode
+//     code change re-keys every snapshot) + the snapshot format version.
+//   * file = "<dir>/<sla_digest>-<build_digest>.v<n>.snap" under
+//     $RUGRA_SLEIGH_SNAPSHOT_DIR or /dev/shm/rugra-sleigh-snapshots
+//     (content-addressed: safe to share across worktrees).
+//   * ANY miss/invalid/corrupt/decode-error falls back to the cold path and
+//     (best-effort) rewrites the snapshot via tmp-file + atomic rename, so
+//     concurrent first children racing to write are idempotent.
+//   * RUGRA_SLEIGH_SNAPSHOT=0 disables the cache entirely (A/B identity
+//     runs); RUGRA_SLEIGH_SNAPSHOT_REPORT=1 emits [SNAP] stderr lines
+//     (default fully silent — stdout is an output-contract face).
+mod sleigh_snapshot {
+    use std::path::PathBuf;
+    use std::time::Instant;
+
+    // Snapshot file framing: magic + u32 version + u64 sla digest + u64
+    // build digest + u64 payload length + payload. The payload carries no
+    // separate digest: the write is published atomically (tmp + rename) and
+    // the payload IS verified by construction — `initialize_from_snapshot`
+    // fails closed on any corruption and the caller cold-builds.
+    const SNAPSHOT_MAGIC: &[u8; 8] = b"RUGRASNP";
+    // v1 = fixed 13-byte int tokens; v2 = compact tokens (u8 ids, u32-int
+    // defaults, escape ops). The version is part of the cache key.
+    const SNAPSHOT_VERSION: u32 = 2;
+    pub const HEADER_LEN: usize = 36;
+
+    // RUGRA-GLUE: FNV-1a-64 (the stale-guard's digest convention; public
+    // 64-bit variant).
+    const FNV1A_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV1A_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+    // RUGRA-GLUE: digest helper (no oracle counterpart — cache plumbing).
+    fn fnv1a64(bytes: &[u8]) -> u64 {
+        let mut state = FNV1A_OFFSET_BASIS;
+        for &byte in bytes {
+            state ^= u64::from(byte);
+            state = state.wrapping_mul(FNV1A_PRIME);
+        }
+        state
+    }
+
+    // RUGRA-GLUE: parse RUGRA_SLEIGH_SNAPSHOT once ("0" disables).
+    pub fn enabled() -> bool {
+        !matches!(std::env::var("RUGRA_SLEIGH_SNAPSHOT"), Ok(value) if value == "0")
+    }
+
+    // RUGRA-GLUE: parse RUGRA_SLEIGH_SNAPSHOT_REPORT once.
+    pub fn report_enabled() -> bool {
+        std::env::var_os("RUGRA_SLEIGH_SNAPSHOT_REPORT").is_some()
+    }
+
+    // RUGRA-GLUE: env-gated stderr observation channel (cache plumbing).
+    fn report(line: String) {
+        if report_enabled() {
+            eprintln!("[SNAP] {line}");
+        }
+    }
+
+    // RUGRA-GLUE: report-line surface for callers outside this module.
+    pub fn report_line(line: String) {
+        report(line);
+    }
+
+    // RUGRA-GLUE: resolve the cache dir (env override, else /dev/shm — the
+    // machine's designated cross-process scratch).
+    fn cache_dir() -> Option<PathBuf> {
+        if let Some(dir) = std::env::var_os("RUGRA_SLEIGH_SNAPSHOT_DIR") {
+            return Some(PathBuf::from(dir));
+        }
+        Some(PathBuf::from("/dev/shm/rugra-sleigh-snapshots"))
+    }
+
+    // RUGRA-GLUE: content-addressed cache file name (cache plumbing).
+    fn snapshot_path(sla_digest: u64, build_digest: u64) -> Option<PathBuf> {
+        let dir = cache_dir()?;
+        Some(dir.join(format!(
+            "{sla_digest:016x}-{build_digest:016x}.v{SNAPSHOT_VERSION}.snap"
+        )))
+    }
+
+    // RUGRA-GLUE: hex-parse the u64 build digest embedded by kuna-sleigh's
+    // build script (0 when absent — fail-open to a still-unique-enough key
+    // combined with the .sla digest; the build script always emits it).
+    fn build_digest() -> u64 {
+        u64::from_str_radix(kuna_sleigh::BUILD_DIGEST, 16).unwrap_or(0)
+    }
+
+    // RUGRA-GLUE: frame + write one snapshot atomically (tmp file + rename).
+    pub fn store(sla_bytes: &[u8], payload: &[u8]) {
+        let started = Instant::now();
+        let sla_digest = fnv1a64(sla_bytes);
+        let build_digest = build_digest();
+        let Some(path) = snapshot_path(sla_digest, build_digest) else {
+            return;
+        };
+        let Some(dir) = path.parent() else {
+            return;
+        };
+        let mut framed = Vec::with_capacity(HEADER_LEN + payload.len());
+        framed.extend_from_slice(SNAPSHOT_MAGIC);
+        framed.extend_from_slice(&SNAPSHOT_VERSION.to_le_bytes());
+        framed.extend_from_slice(&sla_digest.to_le_bytes());
+        framed.extend_from_slice(&build_digest.to_le_bytes());
+        framed.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+        framed.extend_from_slice(payload);
+        if std::fs::create_dir_all(dir).is_err() {
+            report(format!("write-failed: cannot create cache dir {}", dir.display()));
+            return;
+        }
+        let tmp = dir.join(format!(
+            ".tmp-{}-{}",
+            std::process::id(),
+            started.elapsed().as_nanos()
+        ));
+        let write = std::fs::write(&tmp, &framed)
+            .and_then(|()| std::fs::rename(&tmp, &path));
+        match write {
+            Ok(()) => report(format!(
+                "write store={:.1}ms bytes={} file={}",
+                started.elapsed().as_secs_f64() * 1000.0,
+                framed.len(),
+                path.display()
+            )),
+            Err(error) => {
+                let _ = std::fs::remove_file(&tmp);
+                report(format!("write-failed: {error}"));
+            }
+        }
+    }
+
+    // RUGRA-GLUE: load a cached snapshot for `sla_bytes`. Returns the framed
+    // file bytes (payload at [HEADER_LEN..]) so the caller can decode
+    // in-place with zero copies. Every failure is a miss (the caller
+    // cold-builds); the payload needs no digest of its own — the write is
+    // published atomically (tmp + rename) and `initialize_from_snapshot`
+    // fails closed on any corruption.
+    pub fn load(sla_bytes: &[u8]) -> Option<Vec<u8>> {
+        let started = Instant::now();
+        let sla_digest = fnv1a64(sla_bytes);
+        let build_digest = build_digest();
+        let path = snapshot_path(sla_digest, build_digest)?;
+        let framed = match std::fs::read(&path) {
+            Ok(framed) => framed,
+            Err(_) => {
+                report(format!("miss reason=no-file file={}", path.display()));
+                return None;
+            }
+        };
+        let miss = |why: String| -> Option<Vec<u8>> {
+            report(format!("miss reason={why} file={}", path.display()));
+            None
+        };
+        if framed.len() < HEADER_LEN || &framed[..8] != SNAPSHOT_MAGIC {
+            return miss("bad-magic".to_string());
+        }
+        let read_u32 = |at: usize| u32::from_le_bytes(framed[at..at + 4].try_into().unwrap());
+        let read_u64 = |at: usize| u64::from_le_bytes(framed[at..at + 8].try_into().unwrap());
+        if read_u32(8) != SNAPSHOT_VERSION
+            || read_u64(12) != sla_digest
+            || read_u64(20) != build_digest
+            || framed.len() != HEADER_LEN + read_u64(28) as usize
+        {
+            return miss("stale-key".to_string());
+        }
+        report(format!(
+            "hit read={:.1}ms bytes={} file={}",
+            started.elapsed().as_secs_f64() * 1000.0,
+            framed.len() - HEADER_LEN,
+            path.display()
+        ));
+        Some(framed)
+    }
+}
+
+
+// ---------------------------------------------------------------------------
 // Engine facade (post-retirement: the vendored kuna-sleigh runtime, Phase2
 // of SLEIGH-RUSTIFY — the C++ FFI chain was retired after the gates in
 // SLEIGH_PHASE2_SWAP_2026-09-26.md passed: op-for-op zero-diff over 698,605
@@ -523,23 +717,84 @@ mod rust_backend {
         // RUGRA-GLUE: mirror of rugra_sleigh_create (rugra_sleigh.cpp:325-348):
         // construct Sleigh(loader, ContextInternal), then initialize from the
         // .sla file; any failure maps to None exactly like the C++ catch-all.
+        // SPEEDPROF-SLEIGH-SNAPSHOT-0001: initialization first tries the
+        // engine table snapshot cache (same `SleighBase::decode` construction
+        // path as the cold `.sla` decode, flat transport — behavior identity
+        // proven by the re-encode equality chain); every miss falls back to
+        // the cold path and (best-effort) refreshes the cache.
         pub(crate) fn new(sla_path: &std::path::Path) -> Option<Self> {
             let bytes = std::fs::read(sla_path).ok()?;
-            let image = Rc::new(RefCell::new(SharedImageState {
-                data: Vec::new(),
-                base_addr: 0,
-            }));
-            let loader = SharedLoadImage { shared: Rc::clone(&image) };
-            let mut sleigh = Sleigh::new(Box::new(loader), Box::new(ContextInternal::new()));
-            sleigh.initialize_from_sla(&bytes).ok()?;
+            let snapshot_enabled = super::sleigh_snapshot::enabled();
+            // Snapshot hit: build through the flat transport. Any error is a
+            // miss — the engine is discarded whole and rebuilt cold, so a
+            // partially decoded engine is never observable.
+            let mut loaded = if snapshot_enabled {
+                match super::sleigh_snapshot::load(&bytes) {
+                    Some(framed) => {
+                        let (mut engine, image) = Self::fresh_sleigh();
+                        // Decode in place out of the framed buffer (zero
+                        // copies; the payload lives at [HEADER_LEN..]).
+                        let decode_started = std::time::Instant::now();
+                        let outcome = engine
+                            .initialize_from_snapshot(&framed[super::sleigh_snapshot::HEADER_LEN..]);
+                        super::sleigh_snapshot::report_line(format!(
+                            "decode={:.1}ms",
+                            decode_started.elapsed().as_secs_f64() * 1000.0
+                        ));
+                        match outcome {
+                            Ok(()) => Some((engine, image)),
+                            Err(error) => {
+                                super::sleigh_snapshot::report_line(format!(
+                                    "miss reason=decode-error:{error}"
+                                ));
+                                None
+                            }
+                        }
+                    }
+                    None => None,
+                }
+            } else {
+                None
+            };
+            if loaded.is_none() {
+                let (mut cold, image) = Self::fresh_sleigh();
+                cold.initialize_from_sla(&bytes).ok()?;
+                if snapshot_enabled {
+                    match cold.snapshot_payload() {
+                        Ok(payload) => super::sleigh_snapshot::store(&bytes, &payload),
+                        Err(error) => super::sleigh_snapshot::report_line(format!(
+                            "write-failed: snapshot encode: {error}"
+                        )),
+                    }
+                }
+                loaded = Some((cold, image));
+            }
             // PERF-DUAL-SLEIGH-INIT-0001: count the completed deserialization
             // (a failed initialize is not a load; see ENGINE_LOADS above).
             super::ENGINE_LOADS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let (sleigh, image) = loaded?;
             Some(Self {
                 sleigh,
                 image,
                 decode_started: false,
             })
+        }
+
+        // RUGRA-GLUE: one bare Sleigh construction (loader + context db) with
+        // its shared image state — the shape rugra_sleigh_create wraps. The
+        // image Rc is threaded out so `try_set_image` keeps swapping bytes in
+        // place inside the loader (the C++ shim mutates its own member the
+        // same way).
+        fn fresh_sleigh() -> (Sleigh, Rc<RefCell<SharedImageState>>) {
+            let image = Rc::new(RefCell::new(SharedImageState {
+                data: Vec::new(),
+                base_addr: 0,
+            }));
+            let loader = SharedLoadImage { shared: Rc::clone(&image) };
+            (
+                Sleigh::new(Box::new(loader), Box::new(ContextInternal::new())),
+                image,
+            )
         }
 
         // RUGRA-GLUE: mirror of rugra_sleigh_set_image (rugra_sleigh.cpp:350-372):
@@ -810,5 +1065,170 @@ mod tests {
         let decoded = engine.one_instruction(0).expect("decode MOV RAX,RDI");
         assert_eq!(decoded.step, 3);
         assert!(!decoded.ops.is_empty());
+    }
+
+    // SPEEDPROF-SLEIGH-SNAPSHOT-0001: the snapshot identity proof. A cold
+    // engine (initialize_from_sla, the packed .sla path) and a snapshot-loaded
+    // engine (initialize_from_snapshot, the flat transport) must carry the
+    // same decoded table graph: the full-graph re-encode — through BOTH the
+    // packed writer (the canonical .sla stream) and the flat writer — must be
+    // byte-identical, and a real instruction decode must agree op-for-op.
+    #[test]
+    fn snapshot_load_is_graph_identical_to_cold_build() {
+        use kuna_sleigh::globalcontext::ContextInternal;
+        use kuna_sleigh::loadimage::LoadImage;
+        use kuna_sleigh::sleigh::Sleigh;
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        use std::time::Instant;
+
+        let sla_path = std::path::Path::new("sleigh_specs/x86-64.sla");
+        if !sla_path.exists() {
+            return; // fixture tree unavailable (e.g. out-of-tree cargo test)
+        }
+        let sla_bytes = std::fs::read(sla_path).expect("read .sla");
+
+        struct NullImage;
+        impl LoadImage for NullImage {
+            fn get_file_name(&self) -> &str {
+                "null"
+            }
+            fn load_fill(
+                &mut self,
+                _ptr: &mut [u8],
+                _addr: &kuna_base::address::Address,
+            ) -> kuna_base::error::KunaResult<()> {
+                Ok(())
+            }
+            fn get_arch_type(&self) -> Vec<u8> {
+                Vec::new()
+            }
+            fn adjust_vma(&mut self, _adjust: i64) {}
+        }
+        fn fresh_engine() -> Sleigh {
+            Sleigh::new(Box::new(NullImage), Box::new(ContextInternal::new()))
+        }
+
+        let t0 = Instant::now();
+        let cold = {
+            let mut sleigh = fresh_engine();
+            sleigh.initialize_from_sla(&sla_bytes).expect("cold init");
+            sleigh
+        };
+        let cold_init = t0.elapsed();
+
+        let t1 = Instant::now();
+        let payload = cold.snapshot_payload().expect("snapshot encode");
+        let encode_time = t1.elapsed();
+
+        let t2 = Instant::now();
+        let warm = {
+            let mut sleigh = fresh_engine();
+            sleigh.initialize_from_snapshot(&payload).expect("snapshot init");
+            sleigh
+        };
+        let warm_init = t2.elapsed();
+
+        // Graph identity, direction 1: the packed .sla re-encode (the
+        // canonical full-graph walk) must be byte-identical.
+        let mut packed_cold = Vec::new();
+        {
+            let mut enc = kuna_base::marshal::PackedEncode::new(&mut packed_cold);
+            cold.base().encode(&mut enc).expect("packed re-encode cold");
+        }
+        let mut packed_warm = Vec::new();
+        {
+            let mut enc = kuna_base::marshal::PackedEncode::new(&mut packed_warm);
+            warm.base().encode(&mut enc).expect("packed re-encode warm");
+        }
+        assert_eq!(
+            packed_cold, packed_warm,
+            "cold vs snapshot-loaded engine tables differ (packed re-encode)"
+        );
+
+        // Graph identity, direction 2: the flat snapshot payload itself.
+        let payload_warm = warm.snapshot_payload().expect("snapshot re-encode");
+        assert_eq!(
+            payload, payload_warm,
+            "cold vs snapshot-loaded engine tables differ (flat re-encode)"
+        );
+
+        // Snapshot determinism: a second cold build yields the same payload.
+        let mut cold2 = fresh_engine();
+        cold2.initialize_from_sla(&sla_bytes).expect("cold init 2");
+        assert_eq!(cold2.snapshot_payload().expect("snapshot 2"), payload);
+
+        // Functional identity: decode the same instruction through both
+        // engines and compare the emitted p-code op-for-op.
+        fn decode_mov(sleigh: &mut Sleigh) -> Vec<(i32, u64, u32, u64)> {
+            use kuna_sleigh::sleigh::Sleigh;
+            use kuna_sleigh::translate::PcodeEmit;
+            struct Collector(Vec<(i32, u64, u32, u64)>);
+            impl PcodeEmit for Collector {
+                fn dump(
+                    &mut self,
+                    addr: &kuna_base::address::Address,
+                    op: kuna_num::opcodes::OpCode,
+                    _output: Option<&kuna_num::pcoderaw::VarnodeData>,
+                    vars: &[kuna_num::pcoderaw::VarnodeData],
+                ) {
+                    self.0.push((
+                        op as i32,
+                        addr.get_offset(),
+                        vars.len() as u32,
+                        vars.iter().map(|v| v.offset).sum(),
+                    ));
+                }
+            }
+            struct CodeImage(std::rc::Rc<std::cell::RefCell<Vec<u8>>>);
+            impl LoadImage for CodeImage {
+                fn get_file_name(&self) -> &str {
+                    "code"
+                }
+                fn load_fill(
+                    &mut self,
+                    ptr: &mut [u8],
+                    addr: &kuna_base::address::Address,
+                ) -> kuna_base::error::KunaResult<()> {
+                    let data = self.0.borrow();
+                    let off = addr.get_offset() as usize;
+                    if off >= data.len() {
+                        return Err(kuna_base::error::KunaError::data_unavail("past end"));
+                    }
+                    let n = ptr.len().min(data.len() - off);
+                    ptr[..n].copy_from_slice(&data[off..off + n]);
+                    for byte in &mut ptr[n..] {
+                        *byte = 0;
+                    }
+                    Ok(())
+                }
+                fn get_arch_type(&self) -> Vec<u8> {
+                    Vec::new()
+                }
+                fn adjust_vma(&mut self, _adjust: i64) {}
+            }
+            let bytes = Rc::new(RefCell::new(vec![0x48, 0x89, 0xf8, 0xc3]));
+            sleigh.set_loader(Box::new(CodeImage(bytes)));
+            sleigh
+                .with_context_db_mut(|db| {
+                    db.set_variable_default(b"addrsize", 2);
+                    db.set_variable_default(b"opsize", 1);
+                    db.set_variable_default(b"longMode", 1);
+                });
+            let code_space = sleigh.manager_rc().get_default_code_space().unwrap().clone();
+            let addr = kuna_base::address::Address::new(code_space, 0);
+            let mut collector = Collector(Vec::new());
+            sleigh.one_instruction(&mut collector, &addr).expect("decode");
+            collector.0
+        }
+        assert_eq!(decode_mov(&mut { cold }), decode_mov(&mut { warm }));
+
+        eprintln!(
+            "[SNAP-IDENTITY] cold_init={:?} encode={:?} snapshot_init={:?} payload={}",
+            cold_init,
+            encode_time,
+            warm_init,
+            payload.len()
+        );
     }
 }

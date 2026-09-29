@@ -141,3 +141,36 @@ to classify no-effect padding by the .sla's own constructor table (the `:NOP rm3
 constructors carry empty templates but their rm operands' attached address semantics make
 the engine emit operand pcode; Ghidra's flow-following pipeline never lifts unreachable
 padding, so a linear walk filters NOP-classified ops to keep the oracle's effective IR).
+
+## 2026-09-29 SPEEDPROF-SLEIGH-SNAPSHOT-0001: 引擎表快照缓存
+
+`RustSleighEngine::new` 先查 **引擎表快照缓存**，miss 才走冷 `.sla`
+解码（之后 best-effort 回写快照）。机制（SPEEDPROF-SLEIGH-SNAPSHOT-0001，oracle
+无对应物——锁定 oracle 的 golden 生成器每子同样全量冷解码；这是 Rugra 的工程
+超越点，契约是**行为恒等**）：
+
+- **负载**：`Sleigh::snapshot_payload()` = 既有 `SleighBase::encode` 全图遍历
+  （WS5 round-trip 已测的写入器）落在 `kuna_enginesnap::FlatEncode`（打包协议的
+  定宽紧凑镜像：u8 id + 定宽整数码字，读为 memcpy 而非 varint 循环）。
+- **装载**：`Sleigh::initialize_from_snapshot()` = 既有 `SleighBase::decode`
+  构建代码（decodeSlaSpaces → SymbolTable::decode → buildXrefs）走
+  `FlatDecode` 传输——**与冷路径同一构建代码路径**，恒等由构造保证；单测
+  `snapshot_load_is_graph_identical_to_cold_build` 以冷/快照引擎双侧
+  PackedEncode 再编码逐字节相等 + 实指令解码 op-for-op 相等钉死。
+- **缓存键/文件**：`/dev/shm/rugra-sleigh-snapshots/`（或
+  `$RUGRA_SLEIGH_SNAPSHOT_DIR`）下 `<sla FNV64>-<kuna 构建摘要>.v2.snap`；
+  kuna 构建摘要由 `crates/kuna-sleigh/build.rs` 对 kuna-base/kuna-num/
+  kuna-sleigh 源树内容计算并在编译期嵌入（`kuna_sleigh::BUILD_DIGEST`）——任何
+  引擎解码/编码源码变更自动失效旧快照。写入 = tmp + `rename(2)` 原子发布，
+  并发首子竞争幂等。
+- **失败策略**：性能 fail-open（任何 miss/损坏/解码错误→冷路径+重写），
+  行为 fail-closed（部分解码引擎永不泄出——解码失败的引擎整体丢弃重建）。
+- **开关**：`RUGRA_SLEIGH_SNAPSHOT=0` 全禁用（A/B 恒等证明用）；
+  `RUGRA_SLEIGH_SNAPSHOT_REPORT=1` 输出 `[SNAP] miss/hit/read/decode/write`
+  stderr 观察行（默认全静默——stdout 是输出契约面）。
+- **性能注记（本道钻定）**：快照削减的是 ingest(zlib 13ms)+传输层；剩余
+  ~74ms 为**图物化本体**（~1.5-2M 次小分配 + 首触缺页 + 首跑指令缓存），
+  任何重装载形态（含手写 arena 直载，实测分配地板 ~50ns/次）都无法绕过——
+  该结构性下界使"子进程重装载"与 oracle 冷解码同成本量级；快照机制的全部
+  可得收益 ≈ 引擎相位 0.096→0.080s。进一步收益需分配器/形态级机制
+  （后续票证据在案）。
