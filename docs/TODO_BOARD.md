@@ -2,6 +2,16 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## 车道 MERGEBATCH48 集成登记（root，2026-09-29）
+
+**镜面+速度四支 CR-clear 大批收官**（canon 0/0 归零态保持+镜面 sq 收敛重钉+速度四道叠加验证）。merge1 `cc6851c1`（l1surgery，**CR-L1SURGERY APPROVE 块逐字嵌入**+随行 fixture re-pin）/merge2 `a943d83e`（tracedag，CR-clear 非白名单+恒等链）/merge3 `3b118c21`（varmapopcreate，**CR-VARMAPOPCREATE APPROVE 块逐字嵌入**）/merge4 `87f3ac97`（speedprof2，**CR-SPEEDPROF2 APPROVE 块逐字嵌入**）/repin `1fb179b2`（sq 458→432，MB48-RATCHET-REPIN-0001，测量树=87f3ac97）/fixture 补钉 `125fc292`。终报=/dev/shm/rugra-reports/LANE_MERGEBATCH48_2026-09-29.md；工件=/dev/shm/rugra-tests/mb48-root/。
+
+- **镜面 L1 gather 序根（本批头条）**: l1surgery 交付 SWITCHDISPATCH-COLLAPSE-IFGOTO-0001 根修（gather 期 default 构造序位——`switch_default_construct_pos` outindex rank 重建+`next_flow_after_successors` def_pos 相位分派）;sq **458→432**（−26=SetCoderProperties×2 含 _ZThn16 thunk 克隆+CodeRealEP×2 全燃,族表 fam 行 78→32;--func 四面 root 复跑全 0/0/0）;sqlite 845/curl 13/httpd 2/vsh 0 恒等。**fixture re-pin 双层**: `goto_prints_nextflowafter_1204` rugra_block_sha256 16f74d49→5ce11374（CR 指定条件,随 merge1）+rugra_coreaction_sha256 7a1568be→8922f728（`125fc292`——runner fail-close 首比对掩蔽的第二漂移,MB45 activeparam ca0b14d8 时即已红非 MB48 回归;双侧 runner root 亲跑 **MATCH** 收口,强于 CR 绕 pin 口径）。
+- **速度三道常数（行为恒等,双口径钉值逐道归因）**: tracedag（check_open 单守卫引用读+visit_count Vec 直索引+OnceLock,净口径 1.05→0.222s）+varmapopcreate（mark_dead/mark_alive 尾部快速擦除=oracle op.cc:1017-1034 存储迭代器 O(1) 形,new_op 31.4→1.0µs）+speedprof2（merge_highs decorate-sort-undecorate+Cover FxHash×4+push_predecessors_onto,mergerequired 6.34→5.33s+markimplied 4.40→3.83s）。VdbeExec --one 1055 双口径恒等: mirror **bf2d9b85**（140,439B）/bare **a067e05c**（140,292B）均==MB47 锚（两契约各自确定性,非行为分歧）;sqlite 全语料 assembled 5,284,971B md5 7b444eb0 **cmp 恒等**。
+- **性能（四道叠加,release,共享机,TIMEOUT=600 口径）**: VdbeExec --one **51.30→45.92s（−5.38s/−10.5%,user 45.72s）**;sqlite 全语料 --jobs 32 **wall 53.73→46.62s（−7.11s）/user 523.81→468.59s（−55.2s）,ok=1385/1385**——超预期（预期 ~48-50s/~50-52s）;速度累计 159.9s[MB40 时代]→46.62s。
+- **集成门禁全套亲跑**: canon curl 0/0/0·124/124（md5 4ab1db2a,96,616B）/httpd 0/0/0·34/34（7d5b9e7c,62,715B）字节恒等红线保持;镜面五面 --jobs 5 三轮（首轮+repin 后+final）全 PASS GATE_RC=0（sq 432/432 恰顶格;stale-guard digest=9ec15e39592a9292 files=154）;bank 391/391;tests **1985P/0F/5I**（1981+l1surgery +4,三速度道零新测逐道对账）;三门禁+evidence self-test+gate health+.sla 四 sha==MB44..47 钉值+环棘轮 SCC PASS。
+- **回收**: 4 worktree+4 分支（merged=YES[tip==merge 第二亲]+dirty=0 双验）+/dev/shm/rugra-targets 四目录;globrepin refs 14 条保活;在飞禁触=无。
+
 ## 车道 BLOCKSTRUCT（2026-09-29 交付；VDBEEXEC 残差②——blockstructure 18s（3522 selectGoto 轮 × per-rule Arc/RwLock 常数）速度道：[BSPROF] 逐规则探针钻定+oracle 裸指针形态对照+行为恒等削减。基=master f3ae64e3（MB46 收官: canon curl 0/httpd 0;镜面 curl 13/httpd 2/vsh 0/sq 514/sqlite 1479;tests 1977P;VdbeExec 基线 ~61s,全语料 wall 61.89s）;worktree /dev/shm/rugra-worktrees/blockstruct;终报=/dev/shm/rugra-reports/LANE_BLOCKSTRUCT_2026-09-29.md；证据=/dev/shm/rugra-tests/blockstruct/）
 
 | 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
