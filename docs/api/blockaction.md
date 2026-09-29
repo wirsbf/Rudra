@@ -1,6 +1,53 @@
 # `blockaction.rs` API Reference
 
 
+### 2026-09-29 性能修复（SPEEDPROF-BSPERULE-0001, 巨函数 collapse per-rule 常数削减——行为恒等）
+
+**根因（车道 BLOCKSTRUCT 钻定, [BSPROF] env 门控探针 RUGRA_BSPROF=1（交付前撤净）
++ gdb 采样）**：VDBEEXEC 残差② blockstructure 18s（3522 selectGoto 轮）构成 =
+`try_rule_proper_if` 7.55s/4.03M 试（1834ns/试——其中 `count_non_structural_in_edges`
+3.78s/3.45M 调/53.4M 入边扫描, 每边 ~70ns = BlockEdge 克隆（Arc 往返 2 原子）+
+pred RwLock + 2 vtable + `is_consumed` SipHash）+ cat 1.67s + 其余规则 0.4-0.9s 每项
++ 扫描非规则开销 ~1.3s（每访问 2 次 `std::env::var`：RUGRA_RULE2×4.03M/RUGRA_BS_VISIT
+×3.70M/RUGRA_IRRED_DBG×4.02M——env 锁+分配, oracle 无对应物）+ IfNoExit/CaseFallthru
+第二趟 1.52s + selectGoto/TraceDAG 1.05s。oracle 对照亲读（blockaction.cc:1768-1851/
+1284-1475/1518-1593）: 每规则试 = 裸指针 + 内联字段读（`clauseblock->sizeIn()!=1` 是
+一次 vector size 读, block.hh:312）——差距全部是实现级常数（Arc/RwLock/vtable/clone）,
+规则序/尝试次数/命中行为与 oracle 同构不可动。
+
+**修复（输出零变, 全部位于纯读区间; OPPPOOL 锁合并/免分配先例手法）**：
+1. `out_edge_is_goto`/`out_edge_is_decision` 改 `get_out_ref` 引用读（23.2M 调零
+   BlockEdge 克隆; 对应 oracle 直接读 `outofthis[i]`, block.hh:301）。
+2. `count_non_structural_in_edges` 改 `get_in_ref` 引用迭代（53.4M 入边零克隆;
+   臂序保持 Switch→consumed 不变）。
+3. `try_rule_proper_if`/`try_rule_if_no_exit` 头部守卫单锁合并（单 read guard 段捕获
+   自环检查/goto 检查/true-false 目标/decision 预取; 删除死代码 `let ops = b.get_ops()`
+   ——每次试克隆底层 BlockBasic 全 op 列表后丢弃, `let _ = ops`; dir 循环 clause/merge
+   借用化, 0 Arc 克隆; `cond_idx_pre`/`cond_idx` 同值合并）。守卫求值序与判定逐条不变。
+4. `try_rule_while_do`/`do_while`/`if_else`/`cat` 自环/邻居检查改 `get_out_ref`/
+   `get_in_ref` 引用读（do_while 每 slot 每 test 的 point 克隆删除; 比较仍为 index 判等
+   ——ptr 判等与 index 判等在 `graph.blocks[i]` 替换形态下发散, 不动）。
+5. RUGRA_RULE2/RUGRA_BS_VISIT/RUGRA_IRRED_DBG 三处每访问 `std::env::var` 改
+   `OnceLock<bool>` 进程内单读（env 运行期不可变——src 无 set_var/remove_var 亲验;
+   决策值恒等）。
+6. `BlockGraph.absorbed_into` HashMap<i32,i32> → `FxHashMap<i32,i32>`（rustc-hash
+   2.0 既有依赖; `is_consumed` 每规则试/每入边成员测试, SipHash→pass-through 探测;
+   键值语义与迭代无序消费者不变——唯一 `.keys()` 消费在顺序无关条件重写与测试
+   fixture, blockaction.rs:4555 亲核）。
+
+**效果（VdbeExec --one 1055, GEN_MIRROR 口径）**：stdout md5 ad90320e 三态恒等
+（干净基线==探针版==优化版, base==opt 配对字节恒等 ×4）; 探针口径 proper_if
+1875→586ns/试（−69%）, count_ns 3.78→1.29s, 扫描 17.1→9.9s, 规则总 14.0→7.4s;
+干净单极（release 配对 A/B）base 60.5s→opt 53.5s（−11.6%）; sqlite 全语料
+--jobs 32 配对 59.09→54.55s wall/537.83→515.28s user, assembled 5,287,820B cmp
+字节恒等。canon curl/httpd base==opt 字节恒等（4ab1db2a/7d5b9e7c 钉值）, 镜面五面
+钉值全 PASS, tests 1977P/0F/5I == 基线, bank 391/391。
+
+**残差**：tracedag 1.05s/198 调（tracedag.rs 域, per-node 常数同族——独立票）;
+规则 miss 底 ~110ns/试 = get_block Arc 克隆+RwLock+vtable 结构地板（op.rs/block.rs
+键化域大手术, 不在本道）; scan 双重预检（collapse_internal 扫描 + apply_rules_to_block
+各一次 get_block+read+is_consumed, ~0.2s, 防御性保留）。
+
 ### 2026-09-28 修复（VDBEXEC-REFRESH-TAIL-0001, 巨函数 collapse 超线性热点收口——refresh_switch_cases 移位至 collapseAll 尾）
 
 **根因（车道 VDBEXEC 逐阶段/逐动作/算法级三层钻定, perf 不可用下 gdb 采样 51 帧

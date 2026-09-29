@@ -1617,10 +1617,15 @@ impl<'a> CollapseStructure<'a> {
                     idx += 1;
                     // w-rc4 probe (RUGRA_BS_VISIT=1): mirror oracle
                     // BS_ORACLE_VISIT — per-visit position/slot dump.
-                    if std::env::var("RUGRA_BS_VISIT")
-                        .map(|v| v == "1")
-                        .unwrap_or(false)
-                    {
+                    // (Read once per process — the per-visit std::env::var
+                    // (env lock + alloc) ran ~4M times on VdbeExec; env is
+                    // immutable at runtime, decision value identical.)
+                    static BS_VISIT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+                    if *BS_VISIT.get_or_init(|| {
+                        std::env::var("RUGRA_BS_VISIT")
+                            .map(|v| v == "1")
+                            .unwrap_or(false)
+                    }) {
                         if let Some(b) = self.graph.get_block(slot) {
                             let r = b.read().unwrap();
                             let addr = match r
@@ -2251,7 +2256,12 @@ impl<'a> CollapseStructure<'a> {
         // Running goto first ensures continue/break edges are consumed (wrapped
         // as BlockIfGoto/BlockGoto) BEFORE while_do tries to match the body,
         // which reduces clause size_in so WhileDo can form.
-        let rule2 = std::env::var("RUGRA_RULE2").is_ok();
+        // (RUGRA_RULE2 read once per process: env is immutable at runtime and
+        // the per-visit std::env::var (env lock + alloc) ran 4M+ times on
+        // giant functions — pure Rust bookkeeping the oracle has no
+        // counterpart for; the decision value is identical.)
+        static RULE2: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let rule2 = *RULE2.get_or_init(|| std::env::var("RUGRA_RULE2").is_ok());
         macro_rules! bs_try {
             ($f:ident) => {
                 if self.$f(i) {
@@ -2685,7 +2695,9 @@ impl<'a> CollapseStructure<'a> {
     /// gate on goto edges (ruleBlockGoto/ProperIf/WhileDo/IfElse) must see
     /// goto marks on structured blocks too.
     fn out_edge_is_goto(b: &dyn FlowBlock, slot: usize) -> bool {
-        if let Some(e) = b.get_out(slot) {
+        // Reference read of the edge label (oracle reads
+        // outofthis[i].label directly, block.hh:301) — no BlockEdge clone.
+        if let Some(e) = b.get_out_ref(slot) {
             if e.flags
                 & (crate::block::edge_flags::F_GOTO_EDGE
                     | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
@@ -2764,7 +2776,7 @@ impl<'a> CollapseStructure<'a> {
     /// nor goto. Used by ruleBlockProperIf (cc:1395) and ruleBlockIfElse
     /// (cc:1423-1424) to refuse structuring across unstructured edges.
     fn out_edge_is_decision(b: &dyn FlowBlock, slot: usize) -> bool {
-        match b.get_out(slot) {
+        match b.get_out_ref(slot) {
             Some(e) => {
                 e.flags
                     & (crate::block::edge_flags::F_IRREDUCIBLE_EDGE
@@ -4581,7 +4593,7 @@ impl<'a> CollapseStructure<'a> {
             let b = block.read().unwrap();
             let block_idx = b.get_index();
             if b.size_in() == 1 {
-                if let Some(in_edge) = b.get_in(0) {
+                if let Some(in_edge) = b.get_in_ref(0) {
                     let pred_out = in_edge.point.read().unwrap().size_out();
                     if pred_out == 1 {
                         return false;
@@ -4589,7 +4601,7 @@ impl<'a> CollapseStructure<'a> {
                 }
             }
             // bl->getOut(0) == bl → no looping
-            if let Some(out_edge) = b.get_out(0) {
+            if let Some(out_edge) = b.get_out_ref(0) {
                 if out_edge.point.read().unwrap().get_index() == block_idx {
                     return false;
                 }
@@ -4619,7 +4631,7 @@ impl<'a> CollapseStructure<'a> {
         // outblock = bl->getOut(0) — capture after the entry guards.
         let first_next = {
             let b = block.read().unwrap();
-            b.get_out(0).map(|e| e.point.clone())
+            b.get_out_ref(0).map(|e| e.point.clone())
         };
         let first_next = match first_next {
             Some(n) => n,
@@ -4858,7 +4870,9 @@ impl<'a> CollapseStructure<'a> {
         let total = block.size_in();
         let mut structural = 0;
         for slot in 0..total {
-            if let Some(in_edge) = block.get_in(slot) {
+            // Reference read of the in-edge (oracle reads intothis[i].point
+            // directly, block.hh:304) — no BlockEdge clone per edge.
+            if let Some(in_edge) = block.get_in_ref(slot) {
                 let pred = in_edge.point.read().unwrap();
                 let pred_type = pred.get_type();
                 // Edge from BlockSwitch control → structural
@@ -4912,25 +4926,21 @@ impl<'a> CollapseStructure<'a> {
             return false;
         }
 
-        // Check that this block ends with a CBRANCH
-        let ops = b.get_ops();
-        // Ghidra's rule is purely topological (no CBRANCH-op gate): the
-        // polarity of a real CBRANCH lives in the data flip, and structured
-        // condition components (BlockCondition) legitimately match here.
-        let _ = ops;
-
         // cc:1386-1389: `if (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl)
         // return false; if (bl->isGotoOut(0)) return false; if (bl->isGotoOut(1))
         // return false;` — no self loops, neither branch unstructured.
-        let cond_idx_pre = b.get_index();
-        if b.get_out(0).map_or(false, |e| {
-            e.point.read().unwrap().get_index() == cond_idx_pre
-        }) {
+        // (The old `let ops = b.get_ops()` probe here cloned the whole op
+        // list of the underlying BlockBasic per try with the result unused —
+        // deleted; Ghidra's rule is purely topological, cc:1378-1408.)
+        let cond_idx = b.get_index();
+        if b.get_out_ref(0)
+            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx)
+        {
             return false;
         }
-        if b.get_out(1).map_or(false, |e| {
-            e.point.read().unwrap().get_index() == cond_idx_pre
-        }) {
+        if b.get_out_ref(1)
+            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx)
+        {
             return false;
         }
         if Self::out_edge_is_goto(&*b, 0) {
@@ -4940,17 +4950,13 @@ impl<'a> CollapseStructure<'a> {
             return false;
         }
 
-        let cond_idx = b.get_index();
-        let true_edge = match b.get_out(0) {
-            Some(e) => e,
-            None => return false,
+        // Reference reads of out[0]/out[1] (oracle getOut, block.hh:301) —
+        // the old form cloned two BlockEdges plus two extra Arcs just to
+        // hold the targets; the guards below only need the point handles.
+        let (true_block, false_block) = match (b.get_out_ref(0), b.get_out_ref(1)) {
+            (Some(te), Some(fe)) => (te.point.clone(), fe.point.clone()),
+            _ => return false,
         };
-        let false_edge = match b.get_out(1) {
-            Some(e) => e,
-            None => return false,
-        };
-        let true_block = true_edge.point.clone();
-        let false_block = false_edge.point.clone();
         let true_idx = true_block.read().unwrap().get_index();
         let false_idx = false_block.read().unwrap().get_index();
         // cc:1395 pre-capture: isDecisionOut per out edge (the read guard on
@@ -4965,18 +4971,12 @@ impl<'a> CollapseStructure<'a> {
         // ruleBlockProperIf has no such check (the clause guard is
         // isSwitchOut, added in the dir loop below per cc:1394).
 
-        // Try both directions (i=0: true clause, i=1: false clause)
+        // Try both directions (i=0: true clause, i=1: false clause).
+        // Borrows of the captured targets — the old form cloned `clause`
+        // and `merge` Arcs per direction only to drop them again.
         for dir in 0..2 {
-            let clause = if dir == 0 {
-                true_block.clone()
-            } else {
-                false_block.clone()
-            };
-            let merge = if dir == 0 {
-                false_block.clone()
-            } else {
-                true_block.clone()
-            };
+            let clause = if dir == 0 { &true_block } else { &false_block };
+            let merge = if dir == 0 { &false_block } else { &true_block };
             let merge_idx = if dir == 0 { false_idx } else { true_idx };
 
             let c = clause.read().unwrap();
@@ -5016,11 +5016,13 @@ impl<'a> CollapseStructure<'a> {
             // and orphan case label removal handle case label integrity at emit time.
             // Removing this guard allows CBRANCH blocks inside case bodies to be
             // structured into BlockIf, which is what we need for control-flow recovery.
-            let clause_out = match c.get_out(0) {
-                Some(e) => e,
-                None => continue,
+            let target_idx = match c.get_out_ref(0) {
+                Some(e) => e.point.read().unwrap().get_index(),
+                None => {
+                    drop(c);
+                    continue;
+                }
             };
-            let target_idx = clause_out.point.read().unwrap().get_index();
             drop(c);
             if target_idx != merge_idx {
                 continue;
@@ -5034,7 +5036,7 @@ impl<'a> CollapseStructure<'a> {
             if dir == 0 && block.write().unwrap().negate_condition(true) {
                 self.dataflow_change_count += 1;
             }
-            self.new_block_if(&block, &clause, i);
+            self.new_block_if(&block, clause, i);
             return true;
         }
         false
@@ -5055,11 +5057,12 @@ impl<'a> CollapseStructure<'a> {
             return false;
         }
 
-        let ops = b.get_ops();
         // Ghidra's rule is purely topological (no CBRANCH-op gate): the
         // polarity of a real CBRANCH lives in the data flip, and structured
         // condition components (BlockCondition) legitimately match here.
-        let _ = ops;
+        // (The old `let ops = b.get_ops()` probe here cloned the whole op
+        // list of the underlying BlockBasic per try with the result unused —
+        // deleted.)
 
         // cc:1487-1490: `if (bl->isSwitchOut()) return false; if
         // (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl) return
@@ -5070,12 +5073,12 @@ impl<'a> CollapseStructure<'a> {
             return false;
         }
         let cond_idx = b.get_index();
-        if b.get_out(0)
+        if b.get_out_ref(0)
             .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx)
         {
             return false;
         }
-        if b.get_out(1)
+        if b.get_out_ref(1)
             .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx)
         {
             return false;
@@ -5094,16 +5097,10 @@ impl<'a> CollapseStructure<'a> {
         // exit clauses of CBRANCH chains, leaving the graph stuck at the
         // "selectGoto exhausted" dead-loop (TRI2-STRUCT-SELECTGOTO-SELFLOOP-0001).
 
-        let true_edge = match b.get_out(0) {
-            Some(e) => e,
-            None => return false,
+        let (true_block, false_block) = match (b.get_out_ref(0), b.get_out_ref(1)) {
+            (Some(te), Some(fe)) => (te.point.clone(), fe.point.clone()),
+            _ => return false,
         };
-        let false_edge = match b.get_out(1) {
-            Some(e) => e,
-            None => return false,
-        };
-        let true_block = true_edge.point.clone();
-        let false_block = false_edge.point.clone();
         // cc:1501: `if (!bl->isDecisionOut(i)) continue;` — pre-captured
         // before the read guard drops (edge labels live on the halves).
         let decision_out = [
@@ -5113,11 +5110,7 @@ impl<'a> CollapseStructure<'a> {
         drop(b);
 
         for dir in 0..2 {
-            let clause = if dir == 0 {
-                true_block.clone()
-            } else {
-                false_block.clone()
-            };
+            let clause = if dir == 0 { &true_block } else { &false_block };
             let c = clause.read().unwrap();
             let c_idx = c.get_index();
             if c.size_in() != 1 {
@@ -5144,7 +5137,7 @@ impl<'a> CollapseStructure<'a> {
                 self.dataflow_change_count += 1;
             }
             // Create BlockIf via factory (block.cc:1822 newBlockIf).
-            self.new_block_if(&block, &clause, i);
+            self.new_block_if(&block, clause, i);
             return true;
         }
         false
@@ -5216,7 +5209,7 @@ impl<'a> CollapseStructure<'a> {
             // cc:1433-1434: `outblock = tc->getOut(0); if (outblock == bl)
             // return false;` — no loops (the common merge must not be the
             // condition block itself).
-            let t_out0 = match t.get_out(0) {
+            let t_out0 = match t.get_out_ref(0) {
                 Some(e) => e.point.read().unwrap().get_index(),
                 None => return false,
             };
@@ -5225,7 +5218,7 @@ impl<'a> CollapseStructure<'a> {
             }
             // cc:1435: `if (outblock != fc->getOut(0)) return false;` —
             // clauses must exit to the same place.
-            let f_out0 = match f.get_out(0) {
+            let f_out0 = match f.get_out_ref(0) {
                 Some(e) => e.point.read().unwrap().get_index(),
                 None => return false,
             };
@@ -5723,14 +5716,14 @@ impl<'a> CollapseStructure<'a> {
         // cc:1526-1528: `if (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl)
         // return false; if (bl->isInteriorGotoTarget()) return false;`
         let cond_idx_pre = b.get_index();
-        if b.get_out(0).map_or(false, |e| {
-            e.point.read().unwrap().get_index() == cond_idx_pre
-        }) {
+        if b.get_out_ref(0)
+            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx_pre)
+        {
             return false;
         }
-        if b.get_out(1).map_or(false, |e| {
-            e.point.read().unwrap().get_index() == cond_idx_pre
-        }) {
+        if b.get_out_ref(1)
+            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx_pre)
+        {
             return false;
         }
         if b.is_interior_goto_target() {
@@ -5772,11 +5765,15 @@ impl<'a> CollapseStructure<'a> {
                 continue;
             }
             // Clause must loop back to the condition block
-            let clause_out = match c.get_out(0) {
-                Some(e) => e,
-                None => continue,
+            let back_idx = match c.get_out_ref(0) {
+                Some(e) => e.point.read().unwrap().get_index(),
+                None => {
+                    drop(c);
+                    continue;
+                }
             };
-            if clause_out.point.read().unwrap().get_index() != cond_idx {
+            if back_idx != cond_idx {
+                drop(c);
                 continue;
             }
             drop(c);
@@ -5859,12 +5856,13 @@ impl<'a> CollapseStructure<'a> {
 
         let cond_idx = b.get_index();
         for slot in 0..2 {
-            let target = match b.get_out(slot) {
-                Some(e) => e.point.clone(),
-                None => continue,
-            };
-            // Must loop back to itself
-            if target.read().unwrap().get_index() != cond_idx {
+            // Reference read (oracle getOut, block.hh:301); the target is
+            // only compared here — the old form cloned the point Arc per
+            // slot per try.
+            let back_self = b
+                .get_out_ref(slot)
+                .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx);
+            if !back_self {
                 continue;
             }
             drop(b);
@@ -6306,9 +6304,13 @@ impl<'a> CollapseStructure<'a> {
     /// Try to find a switch structure: find the exitblock, validate all
     /// cases converge, run checkSwitchSkips, then build the BlockSwitch.
     pub fn try_rule_switch(&mut self, i: usize) -> bool {
-        let irred_sw = std::env::var("RUGRA_IRRED_DBG")
-            .map(|v| v == "1")
-            .unwrap_or(false);
+        // (RUGRA_IRRED_DBG read once per process: this rule runs ~4M times
+        // on giant functions and the per-try std::env::var (env lock +
+        // alloc) was pure Rust bookkeeping; env is immutable at runtime,
+        // decision value identical.)
+        static IRRED_SW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let irred_sw = *IRRED_SW
+            .get_or_init(|| std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false));
         let block = match self.graph.get_block(i) {
             Some(b) => b,
             None => return false,
