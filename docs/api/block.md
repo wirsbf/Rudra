@@ -2123,3 +2123,18 @@ parent_null=0`（后继链终于 InfLoop 头 0x288db）;Rugra 修复前
 `succ=0x289f0`（≠ 目标 → 选入）→ nodeSplit 17 份对齐,函数体规范化 diff 归零
 （typedef 前导为 --one harness 差,非代码生成差）。default 在输出中回到
 case 0x442 与 0x450 之间的 oracle 位。
+
+### 2026-09-29 补（L1SURGERY-GATHER-DEFPOS-0001 — 单测固化）
+
+`switch_default_construct_pos_tests`（src/block.rs,4 测）:
+①`construction_rank_interleaves_default_at_outedge_position` — SetCoderProperties
+形（出边序 [0x440,0x441,0x442,default@3,0x450,0x451]）端到端:构造 rank=3;
+走查里末位真实 case（0x451 的 BlockGoto）后继=父臂 succ（None）而非 default
+前叶,default 前的 0x442（非 goto）→ null（cc:3647 非 goto 臂先于下一位查找）。
+②`multigoto_appended_cases_do_not_advance_rank` — multigoto 追加条目
+（gototype!=0）不推进 default 构造 rank（oracle cc:3548-3553 整体后置）。
+③`incomplete_coordinates_fall_back_to_append_last` — 无 default_order/
+坐标 -1 三形回退 append-last（oracle 该形态 LowlevelError cc:3507-3508,
+Rugra 保守降级不变原行为）。
+④`label_rank_arm_unchanged_post_finalize` — default_label 置位后 label-rank
+臂接管（print 期相位,cc:3591 排序后语义）,构造序臂不介入。

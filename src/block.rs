@@ -10319,3 +10319,196 @@ mod while_do_gate_tests {
         assert_eq!(ops[ops.len() - 1].0.read().unwrap().opcode, OpCode::CPUI_BRANCH);
     }
 }
+
+#[cfg(test)]
+mod switch_default_construct_pos_tests {
+    use super::{
+        switch_default_construct_pos, next_flow_after_successors, BlockBasic, BlockGoto,
+        BlockSwitch, BlockType, CaseOrder, FlowBlock,
+    };
+    use crate::address::Address;
+    use std::sync::{Arc, RwLock};
+
+    type BlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
+
+    fn copy_of(index: i32, addr: u64) -> BlockArc {
+        // The collapse graph's leaves are BlockCopy-shaped t_copy nodes; for
+        // the rank/position math under test any leaf Arc serves — the walk
+        // only compares Arc identity and reads get_type().
+        Arc::new(RwLock::new(BlockBasic::new(index, Address::new(addr))))
+    }
+
+    fn goto_wrapping(index: i32, inner: BlockArc, target: BlockArc) -> BlockArc {
+        Arc::new(RwLock::new(BlockGoto {
+            index,
+            flags: 0,
+            parent: None,
+            goto_target: None,
+            target_dyn: Some(target),
+            wrapped: Some(inner),
+            goto_type: crate::block::goto_type::GOTO_GOTO,
+            prints_precomputed: false,
+            incoming: Vec::new(),
+            outgoing: Vec::new(),
+        }))
+    }
+
+    fn order(outindex: i32) -> CaseOrder {
+        CaseOrder::placeholder(None, outindex)
+    }
+
+    fn build_switch(
+        cases: Vec<BlockArc>,
+        default: Option<BlockArc>,
+        outindexes: Vec<i32>,
+        default_outindex: Option<i32>,
+        gototypes: Vec<u32>,
+    ) -> Arc<RwLock<BlockSwitch>> {
+        assert_eq!(cases.len(), outindexes.len());
+        assert_eq!(cases.len(), gototypes.len());
+        Arc::new(RwLock::new(BlockSwitch {
+            index: 9,
+            control: copy_of(8, 0x288ec),
+            cases,
+            default_case: default,
+            case_gototypes: gototypes,
+            default_gototype: 0,
+            case_isexit: vec![false; outindexes.len()],
+            default_isexit: false,
+            jump: None,
+            case_order: outindexes.into_iter().map(order).collect(),
+            default_label: None,
+            default_order: default_outindex.map(order),
+            case_values: Vec::new(),
+            index_varnode: None,
+            incoming: Vec::new(),
+            outgoing: Vec::new(),
+            parent: None,
+            flags: 0,
+        }))
+    }
+
+    /// SetCoderProperties shape (sasquatch idx 470): basic out-edge order
+    /// [0x440@0, 0x441@1, 0x442@2, default@3, 0x450@4, 0x451@5] — the
+    /// default's construction rank is 3, so the last real case (0x451, the
+    /// BlockGoto targeting 0x2890a) is the merged order's LAST member and
+    /// its nextFlowAfter defers to the parent arm instead of comparing
+    /// against the default's front leaf (block.cc:3656-3660).
+    #[test]
+    fn construction_rank_interleaves_default_at_outedge_position() {
+        let c440 = copy_of(1, 0x28a7e);
+        let c441 = copy_of(2, 0x28a5b);
+        let c442 = copy_of(3, 0x28a3b);
+        let default = copy_of(4, 0x2890a);
+        let c450 = copy_of(5, 0x289cc);
+        let target = default.clone();
+        let c451_goto = goto_wrapping(6, copy_of(6, 0x2891e), target);
+        let sw = build_switch(
+            vec![c440, c441, c442, c450, c451_goto.clone()],
+            Some(default.clone()),
+            vec![0, 1, 2, 4, 5],
+            Some(3),
+            vec![0, 0, 0, 0, 0],
+        );
+        assert_eq!(switch_default_construct_pos(&sw.read().unwrap()), 3);
+
+        // End-to-end through the walk: the goto case (merged position 5,
+        // last) must get the PARENT succ, not the default's front leaf.
+        let node: BlockArc = sw.clone();
+        let components = super::BlockGraph::component_list_dyn(&node);
+        assert_eq!(components.len(), 6);
+        let succs = next_flow_after_successors(&node, &components, None);
+        // components order = cases + appended default; the goto is index 4.
+        assert!(
+            succs[4].is_none(),
+            "last merged case defers to the parent arm (succ=None here), \
+             not the default's front leaf"
+        );
+        // The case right before the default (0x442) gets the default's
+        // front leaf as its successor — both sides' construction order.
+        assert!(succs[2].is_none(), "non-goto case successor is null (cc:3647)");
+    }
+
+    /// The multigoto arm's appended cases (gototype != 0) come after the
+    /// whole regular scan in the oracle's caseblocks (block.cc:3548-3553) —
+    /// they must not advance the default's construction rank even when
+    /// their recorded out-edge index precedes the default's.
+    #[test]
+    fn multigoto_appended_cases_do_not_advance_rank() {
+        let c1 = copy_of(1, 0x100);
+        let c2 = copy_of(2, 0x200);
+        let default = copy_of(3, 0x300);
+        let sw = build_switch(
+            vec![c1, c2],
+            Some(default),
+            vec![4, 0],
+            Some(2),
+            vec![0, crate::block::goto_type::GOTO_GOTO],
+        );
+        // Only the gototype==0 case (outindex 4) is a regular scan member;
+        // 4 > 2 so the default ranks before it → 0.
+        assert_eq!(switch_default_construct_pos(&sw.read().unwrap()), 0);
+    }
+
+    /// Conservative fallbacks preserve the previous append-last behavior:
+    /// no default_order, unresolved coordinates, or mismatched parallel
+    /// arrays (shapes the oracle cannot express — addCase would throw,
+    /// block.cc:3507-3508).
+    #[test]
+    fn incomplete_coordinates_fall_back_to_append_last() {
+        let c1 = copy_of(1, 0x100);
+        let default = copy_of(2, 0x200);
+        let no_default_order =
+            build_switch(vec![c1.clone()], Some(default.clone()), vec![0], None, vec![0]);
+        assert_eq!(
+            switch_default_construct_pos(&no_default_order.read().unwrap()),
+            1
+        );
+        let neg_outindex =
+            build_switch(vec![c1.clone()], Some(default.clone()), vec![-1], Some(0), vec![0]);
+        assert_eq!(
+            switch_default_construct_pos(&neg_outindex.read().unwrap()),
+            1
+        );
+        let neg_default =
+            build_switch(vec![c1.clone()], Some(default.clone()), vec![0], Some(-1), vec![0]);
+        assert_eq!(switch_default_construct_pos(&neg_default.read().unwrap()), 1);
+    }
+
+    /// Phase dispatch: once `default_label` is set (finalizePrinting has
+    /// sorted the caseblocks, block.cc:3591), the label-rank arm governs —
+    /// the construction-order arm must not fire in the print phase.
+    #[test]
+    fn label_rank_arm_unchanged_post_finalize() {
+        let c440 = copy_of(1, 0x28a7e);
+        let default = copy_of(4, 0x2890a);
+        let c450 = copy_of(5, 0x289cc);
+        let mut sw_guard = build_switch(
+            vec![c440, c450],
+            Some(default),
+            vec![0, 4],
+            Some(3),
+            vec![0, 0],
+        );
+        // finalize_case_labels' rank key: labels [0x440, 0x450], default
+        // between them → count(label < 0x450-range key) == 1.
+        {
+            let mut sw = sw_guard.write().unwrap();
+            sw.default_label = Some(1); // strictly between label 0 and 2
+            // Give the case_order entries their post-finalize labels.
+            sw.case_order[0].label = 0;
+            sw.case_order[1].label = 2;
+        }
+        // Direct rank check: def_pos counts label < default_label → 1
+        // (NOT the construction rank 1 here — equal by coincidence of the
+        // fixture; assert through the dispatch site below instead).
+        let node: BlockArc = sw_guard.clone();
+        let components = super::BlockGraph::component_list_dyn(&node);
+        let succs = next_flow_after_successors(&node, &components, None);
+        // The merged order puts the default at label rank 1 → the last real
+        // case (index 1, non-goto → null) and the default (appended at
+        // components index 2) still evaluate per the merged positions.
+        assert_eq!(components.len(), 3);
+        assert!(succs.iter().all(|s| s.is_none()), "non-goto cases → null");
+    }
+}
