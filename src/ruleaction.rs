@@ -13773,22 +13773,22 @@ impl Rule for RuleFloatSignCleanup {
             Some(o) => o,
             None => return Ok(action_status::NO_CHANGE),
         };
-        // Ghidra: if (op->getOut()->getType()->getMetatype() != TYPE_FLOAT) return 0;
-        // (ruleaction.cc:10792). Rugra resolves the varnode's type via get_type;
-        // if the varnode is untyped (type recovery not yet run) we fall back to
-        // accepting float-sized (4 or 8 byte) outputs as a heuristic.
-        let (out_size, has_float_type) = {
+        // Ghidra: ruleaction.cc:10774 — `if (op->getOut()->getType()->getMetatype()
+        // != TYPE_FLOAT) return 0;` The output varnode's type must already be
+        // float-typed for the rewrite to fire. An untyped varnode defaults to
+        // `getBase(s, TYPE_UNKNOWN)` (funcdata_varnode.cc:107/132 newVarnodeOut/
+        // newUniqueOut) whose metatype is TYPE_UNKNOWN != TYPE_FLOAT — oracle
+        // returns 0. No size-based heuristic exists on the oracle side.
+        let is_float_type = {
             let vn = outvn.read().unwrap();
-            let is_float = vn.get_type().map(|dt| dt.get_metatype())
-                == Some(crate::type_system::datatype::TypeMetatype::Float);
-            (vn.get_size(), is_float)
+            vn.get_type().map(|dt| dt.get_metatype())
+                == Some(crate::type_system::datatype::TypeMetatype::Float)
         };
-        if has_float_type {
-            // typed as float: proceed
-        } else if out_size != 4 && out_size != 8 {
-            return Ok(action_status::NO_CHANGE); // untyped & not float-sized
+        if !is_float_type {
+            return Ok(action_status::NO_CHANGE);
         }
         let is_xor = op_arc.read().unwrap().opcode == OpCode::CPUI_INT_XOR;
+        let out_size = outvn.read().unwrap().get_size();
         let maskvn = match op_arc.read().unwrap().get_in(1).cloned() {
             Some(v) => v,
             None => return Ok(action_status::NO_CHANGE),
@@ -26957,6 +26957,10 @@ mod tests {
     }
 
     /// RuleFloatSignCleanup: XOR with sign bit → FLOAT_NEG (4-byte float).
+    /// The output varnode is explicitly float-typed first — oracle gate
+    /// (ruleaction.cc:10774) requires `getMetatype() == TYPE_FLOAT`; an
+    /// untyped varnode defaults to TYPE_UNKNOWN (funcdata_varnode.cc:107)
+    /// and never fires.
     #[test]
     fn test_rule_float_sign_cleanup_neg() {
         let (op_arc, mut fd) = make_binary_op(
@@ -26965,6 +26969,17 @@ mod tests {
             crate::space::AddressSpace::Const, 0x8000_0000, 4, // sign bit
             4,
         );
+        let outvn = op_arc.read().unwrap().output.clone().unwrap();
+        let float4 = std::sync::Arc::new(
+            crate::type_system::datatype::Datatype::Base(
+                crate::type_system::datatype::TypeBase::new(
+                    "float4".to_string(),
+                    4,
+                    crate::type_system::datatype::TypeMetatype::Float,
+                ),
+            ),
+        );
+        outvn.write().unwrap().update_type(float4);
         let rule = RuleFloatSignCleanup::new();
         let result = rule.apply_op(&op_arc, &mut fd).unwrap();
         assert_eq!(result, action_status::CHANGE);
@@ -26973,6 +26988,7 @@ mod tests {
     }
 
     /// RuleFloatSignCleanup: AND with ~sign_bit → FLOAT_ABS (8-byte float).
+    /// Output float-typed per the oracle TYPE_FLOAT gate (ruleaction.cc:10774).
     #[test]
     fn test_rule_float_sign_cleanup_abs() {
         let (op_arc, mut fd) = make_binary_op(
@@ -26981,10 +26997,67 @@ mod tests {
             crate::space::AddressSpace::Const, 0x7fff_ffff_ffff_ffff, 8, // ~sign
             8,
         );
+        let outvn = op_arc.read().unwrap().output.clone().unwrap();
+        let float8 = std::sync::Arc::new(
+            crate::type_system::datatype::Datatype::Base(
+                crate::type_system::datatype::TypeBase::new(
+                    "float8".to_string(),
+                    8,
+                    crate::type_system::datatype::TypeMetatype::Float,
+                ),
+            ),
+        );
+        outvn.write().unwrap().update_type(float8);
         let rule = RuleFloatSignCleanup::new();
         let result = rule.apply_op(&op_arc, &mut fd).unwrap();
         assert_eq!(result, action_status::CHANGE);
         assert_eq!(op_arc.read().unwrap().opcode, OpCode::CPUI_FLOAT_ABS);
+    }
+
+    /// RuleFloatSignCleanup must NOT fire on a canonical sign mask when the
+    /// output is untyped: oracle reads `op->getOut()->getType()` which
+    /// defaults to `getBase(s, TYPE_UNKNOWN)` (funcdata_varnode.cc:107
+    /// newVarnodeOut / :132 newUniqueOut) — metatype TYPE_UNKNOWN !=
+    /// TYPE_FLOAT → ruleaction.cc:10774 returns 0. No size-based fallback
+    /// exists on the oracle side. Regression lock for the mirror CAST-SHAPE
+    /// ABS family (sqlite `n = 0x7fffffff & strlen(z)` idiom, 58 sites).
+    #[test]
+    fn test_rule_float_sign_cleanup_untyped_never_fires() {
+        let (op_arc, mut fd) = make_binary_op(
+            OpCode::CPUI_INT_AND,
+            crate::space::AddressSpace::Register, 0x00, 4,
+            crate::space::AddressSpace::Const, 0x7fff_ffff, 4, // ~sign, 4-byte
+            4,
+        );
+        // output left untyped (Option::None) — oracle TYPE_UNKNOWN default
+        let rule = RuleFloatSignCleanup::new();
+        let result = rule.apply_op(&op_arc, &mut fd).unwrap();
+        assert_eq!(result, action_status::NO_CHANGE);
+        assert_eq!(op_arc.read().unwrap().opcode, OpCode::CPUI_INT_AND);
+
+        // Same for a non-float explicit type (uint4) with an 8-byte canonical
+        // mask: golden prints `^ 0x8000000000000000` for such sites
+        // (sqlite3LogEstFromDouble), never a FLOAT_NEG.
+        let (op_arc8, mut fd8) = make_binary_op(
+            OpCode::CPUI_INT_XOR,
+            crate::space::AddressSpace::Register, 0x00, 8,
+            crate::space::AddressSpace::Const, 0x8000_0000_0000_0000, 8,
+            8,
+        );
+        let outvn8 = op_arc8.read().unwrap().output.clone().unwrap();
+        let uint8 = std::sync::Arc::new(
+            crate::type_system::datatype::Datatype::Base(
+                crate::type_system::datatype::TypeBase::new(
+                    "uint8".to_string(),
+                    8,
+                    crate::type_system::datatype::TypeMetatype::Uint,
+                ),
+            ),
+        );
+        outvn8.write().unwrap().update_type(uint8);
+        let result8 = rule.apply_op(&op_arc8, &mut fd8).unwrap();
+        assert_eq!(result8, action_status::NO_CHANGE);
+        assert_eq!(op_arc8.read().unwrap().opcode, OpCode::CPUI_INT_XOR);
     }
 
     /// RuleFloatSignCleanup must NOT fire on non-canonical masks.

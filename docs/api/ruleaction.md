@@ -1384,7 +1384,7 @@ identity、mark、def-use、alive/dead bank、基本块顺序和 `Funcdata::opDe
 **cleanup 池新增（coreaction.cc:5696-5708）**：
 - `RuleAddUnsigned`(7182) — INT_ADD，`V+0xff..⇒V-0x00..`；仅锁定 fixture 覆盖的基础 UINT/UNKNOWN 路径已对拍，完整函数仍为 PARTIAL_MATCH。
 - `RuleSubRight`(7269) — INT_SUB，sub right 规范化（含 lone-shift lump）
-- `RuleFloatSignCleanup`(10789) — floatSignManipulation 1:1
+- `RuleFloatSignCleanup`(10789) — floatSignManipulation 1:1；TYPE_FLOAT 硬门精确对齐（ruleaction.cc:10774 `getMetatype() != TYPE_FLOAT → return 0`——未定型 varnode 默认 `getBase(s,TYPE_UNKNOWN)`（funcdata_varnode.cc:107/132），非 float 即不改写；2026-09-29 CASTSHAPE 车道移除 Rust 侧 size∈{4,8} 启发式放行，sqlite 镜面 CAST-SHAPE ABS 族 58 站点全量复原 `& 0x7fffffff`/`^ 0x8000000000000000` 形）
 - `RuleExpandLoad`(10937) — helpers(checkAndComparison/modifyAndComparison) 1:1；applyOp 标 TODO（需 pointer datatype）
 - `RulePtrsubCharConstant`(7372) — pushConstFurther helper 1:1；applyOp 标 TODO（需 TYPE_SPACEBASE/Scope/stringManager）
 - `RuleExtensionPush`(7435) — descendant-count guard 1:1；duplicateNeed 标 TODO
