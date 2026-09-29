@@ -1994,9 +1994,23 @@ impl RuleBxor2NotEqual {
 impl Rule for RuleBxor2NotEqual {
     // Ghidra: ruleaction.cc:269 RuleBxor2NotEqual::applyOp
     fn apply_op(
-        &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, _fd: &mut Funcdata,
+        &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
-        op_arc.write().unwrap().opcode = OpCode::CPUI_INT_NOTEQUAL;
+        // cc:272: data.opSetOpcode(op,CPUI_INT_NOTEQUAL) — routed through
+        // the Funcdata god-object (the oracle's only sanctioned opcode
+        // mutation path: code-list maintenance + TypeOp flag reset +
+        // drillobserve hook + the arena cell's opcode shadow all live in
+        // opSetOpcode/change_opcode). The former direct field write skipped
+        // that path; for this opcode pair the derived flag set is identical
+        // (BINARY|COMMUTATIVE|BOOLOUTPUT both) and neither opcode is
+        // code-list-worthy, so the observable behavior is exactly the
+        // opcode assignment — but the pool dispatch's `opc != op->code()`
+        // re-read (action.cc:853-857) now resolves through the cell shadow,
+        // which only change_opcode maintains.
+        fd.op_set_opcode(
+            &crate::op::PcodeOpRef(op_arc.clone()),
+            OpCode::CPUI_INT_NOTEQUAL,
+        );
         Ok(action_status::CHANGE)
     }
 

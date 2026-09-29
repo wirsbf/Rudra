@@ -386,8 +386,8 @@ fn tree_state(fd: &Funcdata) -> String {
         .join(",")
 }
 
-fn pool_cursor(pool: &ActionPool) -> String {
-    match pool.resume_state().0 {
+fn pool_cursor(pool: &ActionPool, fd: &Funcdata) -> String {
+    match pool.resume_state(fd).0 {
         Some(seq) => format!("{}@{}", seq.get_addr().as_u64(), seq.get_time()),
         None => "end".to_string(),
     }
@@ -408,8 +408,8 @@ fn print_pool_event(
     let audit = pool.rule_state(2).unwrap();
     println!(
         "pool|event={event}|return={result}|cursor={}|rule_index={}|trace={}|tree={}|status={}|count={}|lcount={}|tests={}|applies={}|bp={}|flags={}|rule_stats={}/{},{}/{},{}/{}|rule_bp={},{},{}|rule_flags={},{},{}",
-        pool_cursor(pool),
-        pool.resume_state().1,
+        pool_cursor(pool, fd),
+        pool.resume_state(fd).1,
         probe.trace[trace_begin..].join(">"),
         tree_state(fd),
         state.status,

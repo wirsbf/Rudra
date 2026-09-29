@@ -2301,3 +2301,12 @@ newCodeRef 复制在 Rust 克隆器为共享 varnode（nodeSplit 域既有决定
 API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
 迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
 `alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
+
+## 2026-09-30（c 段）：RuleBxor2NotEqual 走 opSetOpcode 原形（PERF-ARENA-FLIP-0001 (c)）
+
+`RuleBxor2NotEqual::applyOp`（ruleaction.cc:269-274）原 Rust 形态直写
+`op_arc.write().opcode = CPUI_INT_NOTEQUAL`——移植偏差（oracle 全部经
+`data.opSetOpcode`）。改走 `fd.op_set_opcode`：BOOL_XOR→INT_NOTEQUAL
+派生 flag 集相同（BINARY|COMMUTATIVE|BOOLOUTPUT）且互非 code-list 成员，
+可观测效果恒等；同时维护 OpCell opcode 影子不变量（ActionPool 派发复读
+依赖 change_opcode 单点更新）。行为面 canon/镜面门禁字节恒等亲证。

@@ -493,9 +493,13 @@ impl ActionDeadCode {
         // cc:3906: if (data.isJumptableRecoveryOn()) return false;
         if fd.is_jumptable_recovery_on() { return false; }
         let mut res = false;
-        // cc:3907-3921: iterate LOAD ops.
-        let load_ops: Vec<crate::op::PcodeOpRef> = fd.obank.iter_load().cloned().collect();
-        for op_ref in &load_ops {
+        // cc:3907-3921: iterate LOAD ops. PERF-ARENA-FLIP-0001 (c): the
+        // workset is the id form (chain-order ids, no handle clones); the
+        // per-op isDead gate stays a guarded read (cc:3913) — the LOAD code
+        // chain admits dead members.
+        let load_ops: Vec<crate::arena::OpId> = fd.obank.iter_load_ids().collect();
+        for op_id in &load_ops {
+            let Some(op_ref) = fd.obank.op_by_id(*op_id) else { continue };
             // Capture the output Arc + in(1) eventual-const check while holding
             // the read lock, then release before mutating.
             let out_arc = {
@@ -1378,9 +1382,13 @@ impl Action for ActionCse {
         let mut changed = 0;
         let mut seen: HashMap<(OpCode, Vec<usize>), Arc<std::sync::RwLock<crate::op::PcodeOp>>> =
             HashMap::new();
-        let mut to_kill: Vec<crate::op::PcodeOpRef> = Vec::new();
+        let mut to_kill: Vec<crate::arena::OpId> = Vec::new();
 
-        for op_ref in fd.obank.iter_alive() {
+        // PERF-ARENA-FLIP-0001 (c): the kill workset holds plain ids (the
+        // former per-hit PcodeOpRef clone); elements resolve through the
+        // bank at destruction time.
+        for op_id in fd.obank.iter_alive_ids() {
+            let Some(op_ref) = fd.obank.op_by_id(op_id) else { continue };
             let op = op_ref.0.read().unwrap();
 
             // Only consider pure operations (no side-effects)
@@ -1429,7 +1437,7 @@ impl Action for ActionCse {
                             }
                         }
                     }
-                    to_kill.push(op_ref.clone());
+                    to_kill.push(op_id);
                     changed += 1;
                 }
             } else {
@@ -1437,8 +1445,10 @@ impl Action for ActionCse {
             }
         }
 
-        for op_ref in to_kill {
-            fd.obank.mark_dead(op_ref);
+        for op_id in to_kill {
+            if let Some(op_ref) = fd.obank.op_by_id(op_id).cloned() {
+                fd.obank.mark_dead(op_ref);
+            }
         }
 
         if changed > 0 {
@@ -9503,20 +9513,21 @@ impl ActionInferTypes {
     /// noreturn|missing)`, op.hh:171); among ops with numInput()>1 keeps
     /// the one whose input(1) temp type has the lowest typeOrder (first
     /// wins ties, matching the oracle's strict `< 0` re-assignment).
-    /// Returns the canonical RETURN's op ref (the Rust projection of the
+    /// Returns the canonical RETURN's op id (the Rust projection of the
     /// oracle's `PcodeOp*` return, carried for the cc:5357 `retop == op`
-    /// skip), its value Varnode, and its temp type.
+    /// skip — id equality is the id-space form of the oracle's pointer
+    /// equality, ARENA_DESIGN §2.1), its value Varnode, and its temp type.
     fn canonical_return_op(
         fd: &Funcdata,
         temps: &TempTypes,
     ) -> Option<(
-        crate::op::PcodeOpRef,
+        crate::arena::OpId,
         std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
         std::sync::Arc<crate::type_system::datatype::Datatype>,
     )> {
         use crate::op::pcodeop_flags;
         let mut best: Option<(
-            crate::op::PcodeOpRef,
+            crate::arena::OpId,
             std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
             std::sync::Arc<crate::type_system::datatype::Datatype>,
         )> = None;
@@ -9526,12 +9537,11 @@ impl ActionInferTypes {
         // stay in the list until destroy, so the isDead()/getHaltType()
         // skips stay in-loop (cc:5320-5321), matching the oracle exactly.
         // (COREACT-RETTABLE-TRAVERSAL-0001)
-        let return_ops: Vec<_> = fd
-            .obank
-            .begin_op(OpCode::CPUI_RETURN)
-            .cloned()
-            .collect();
-        for r in &return_ops {
+        // PERF-ARENA-FLIP-0001 (c): id workset (chain-order ids, no handle
+        // clones); elements resolve through op_by_id per iteration.
+        let return_ops: Vec<crate::arena::OpId> = fd.obank.iter_return_ids().collect();
+        for r_id in &return_ops {
+            let Some(r) = fd.obank.op_by_id(*r_id) else { continue };
             let op = r.0.read().unwrap();
             // cc:5320-5321: dead or halt RETURNs are never canonical.
             if op.is_dead()
@@ -9558,7 +9568,7 @@ impl ActionInferTypes {
                         Some((_, _, bct)) => ct.type_order(bct) < 0,
                     };
                     if better {
-                        best = Some((r.clone(), rv.clone(), ct.clone()));
+                        best = Some((*r_id, rv.clone(), ct.clone()));
                     }
                 }
             }
@@ -9580,9 +9590,10 @@ impl ActionInferTypes {
             return;
         }
         // Find the canonical RETURN op: the one whose return varnode has the
-        // most-specific temp type. The op ref is carried for the cc:5357
-        // `retop == op` pointer skip (coreaction.cc:5346-5349).
-        let Some((canonical_op, base_vn, base_ct)) = Self::canonical_return_op(fd, temps) else {
+        // most-specific temp type. The op id is carried for the cc:5357
+        // `retop == op` pointer skip (coreaction.cc:5346-5349) — id equality
+        // is the id-space form of the oracle's pointer equality.
+        let Some((canonical_id, base_vn, base_ct)) = Self::canonical_return_op(fd, temps) else {
             return;
         };
         let base_size = base_vn.read().unwrap().get_size();
@@ -9594,18 +9605,16 @@ impl ActionInferTypes {
         // event — COREACT-RETTABLE-TRAVERSAL-0001 wires the faithful
         // form). Skip the canonical one (explicit `retop == op` pointer
         // skip), dead ops, halt-type ops, and valueless RETURNs.
-        let return_ops: Vec<_> = fd
-            .obank
-            .begin_op(OpCode::CPUI_RETURN)
-            .cloned()
-            .collect();
-        for r in &return_ops {
+        // PERF-ARENA-FLIP-0001 (c): id workset, canonical skip by id.
+        let return_ops: Vec<crate::arena::OpId> = fd.obank.iter_return_ids().collect();
+        for r_id in &return_ops {
+            let Some(r) = fd.obank.op_by_id(*r_id) else { continue };
             // Guards read under a short-lived lock; the guard is dropped
             // before propagate_one_type so the op is never read-locked
             // across data-flow mutation (cc:5356-5363).
             let rv = {
                 let op = r.0.read().unwrap();
-                if Arc::ptr_eq(&r.0, &canonical_op.0) {
+                if *r_id == canonical_id {
                     continue; // cc:5357: retop == op (canonical itself)
                 }
                 if op.is_dead() {
@@ -12205,15 +12214,21 @@ impl Action for ActionPrototypeTypes {
         // Step 2: Strip indirect register from RETURN ops
         // (Ghidra coreaction.cc:4628-4635: "Strip the indirect register from
         // all RETURN ops because we don't want to see this compiler mechanism
-        // in the high-level C output")
-        let return_ops: Vec<crate::op::PcodeOpRef> = fd
+        // in the high-level C output").
+        // PERF-ARENA-FLIP-0001 (c): workset in id form — the opcode filter
+        // reads the arena cell's denormalized opcode shadow (one plain load
+        // per scanned op; the former form took one RwLock per op), elements
+        // resolve through op_by_id at their use sites below.
+        let return_ops: Vec<crate::arena::OpId> = fd
             .obank
-            .iter_alive()
-            .filter(|r| r.0.read().unwrap().opcode == crate::opcodes::OpCode::CPUI_RETURN)
-            .cloned()
+            .iter_alive_ids()
+            .filter(|&id| {
+                fd.obank.opcode_of(id) == Some(crate::opcodes::OpCode::CPUI_RETURN)
+            })
             .collect();
         let mut change = 0;
-        for ret_op in &return_ops {
+        for ret_id in &return_ops {
+            let Some(ret_op) = fd.obank.op_by_id(*ret_id) else { continue };
             let (in0_is_const, in0_size) = {
                 let op = ret_op.0.read().unwrap();
                 match op.inrefs.get(0) {
@@ -12226,8 +12241,13 @@ impl Action for ActionPrototypeTypes {
             };
             if in0_is_const && in0_size > 0 {
                 let zero_vn = fd.new_constant(in0_size, 0);
-                fd.op_set_input(ret_op, zero_vn, 0);
-                change += 1;
+                // Re-resolve + clone only at the mutation site (the read
+                // borrow above ended at its last use; fd mutation APIs take
+                // an owned handle).
+                if let Some(ret_ref) = fd.obank.op_by_id(*ret_id).cloned() {
+                    fd.op_set_input(&ret_ref, zero_vn, 0);
+                    change += 1;
+                }
             }
         }
 
@@ -12243,7 +12263,8 @@ impl Action for ActionPrototypeTypes {
         if fd.funcp.output_type_locked {
             let storage = fd.funcp.locked_output_storage();
             if let Some((space, off, size)) = storage {
-                for ret_op in &return_ops {
+                for ret_id in &return_ops {
+                    let Some(ret_op) = fd.obank.op_by_id(*ret_id) else { continue };
                     let (dead, halt, num_input) = {
                         let r = ret_op.0.read().unwrap();
                         (
@@ -12270,7 +12291,10 @@ impl Action for ActionPrototypeTypes {
                         .vbank
                         .create_with_space(size as usize, space, off);
                     crate::heritage::Heritage::apply_new_varnode_flags(fd, &vn);
-                    fd.op_insert_input(ret_op, vn.clone(), num_input);
+                    // Mutation-site re-resolve (the read borrow ended above).
+                    if let Some(ret_ref) = fd.obank.op_by_id(*ret_id).cloned() {
+                        fd.op_insert_input(&ret_ref, vn.clone(), num_input);
+                    }
                     // cc:4646: vn->updateType(outparam->getType(), true, true).
                     vn.write()
                         .unwrap()
@@ -14966,14 +14990,18 @@ impl ActionStackPtrFlow {
         };
         // cc:448-480: find INT_ADD(spcbasein, y) where y is a non-constant
         // (loaded) value — a "clog" — and repair it.
+        // PERF-ARENA-FLIP-0001 (c): id workset; the INT_ADD filter reads the
+        // cell's opcode shadow (no per-op lock; the clog scan itself is a
+        // faithful-form divergence tracked separately from this lane — the
+        // oracle walks the spacebase loc-tree range, coreaction.cc:440-448).
         let mut clogcount = 0;
-        let add_ops: Vec<crate::op::PcodeOpRef> = fd
+        let add_ops: Vec<crate::arena::OpId> = fd
             .obank
-            .iter_alive()
-            .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_INT_ADD)
-            .cloned()
+            .iter_alive_ids()
+            .filter(|&id| fd.obank.opcode_of(id) == Some(OpCode::CPUI_INT_ADD))
             .collect();
-        for add_ref in add_ops {
+        for add_id in add_ops {
+            let Some(add_ref) = fd.obank.op_by_id(add_id).cloned() else { continue };
             let (in0, in1) = {
                 let a = add_ref.0.read().unwrap();
                 (a.inrefs.get(0).cloned(), a.inrefs.get(1).cloned())
@@ -17184,27 +17212,33 @@ impl Action for ActionReturnRecovery {
             // cc:1919-1921: iterate beginOp..endOp(CPUI_RETURN) — the live
             // op list in creation order; dead and special-halt RETURNs are
             // skipped inside the loop body (cc:1923-1924).
-            let return_ops: Vec<crate::op::PcodeOpRef> = fd
+            // cc:1924/cc:1947: op->getHaltType() != 0 — the five-flag union
+            // (halt|badinstruction|unimplemented|noreturn|missing), op.hh:171;
+            // the former HALT-only form normalized to the oracle-exact
+            // literal union (divergence set constructively empty —
+            // COREACT-HALTGUARD-NORM-0001). One snapshot feeds both the
+            // ancestor pass and the buildReturnOutput pass.
+            // PERF-ARENA-FLIP-0001 (c): id workset + the INFERTYPES
+            // four-predicate single-lock precedent — the former two filter
+            // closures took one read guard each per RETURN; one snapshot
+            // guard now feeds both the dead check and the halt-flags check
+            // (identical rejection set; pure field reads both sides).
+            let return_ops: Vec<crate::arena::OpId> = fd
                 .obank
-                .iter_return()
-                .filter(|r| !r.0.read().unwrap().is_dead())
-                .filter(|r| {
-                    // cc:1924/cc:1947: op->getHaltType() != 0 — the
-                    // five-flag union (halt|badinstruction|unimplemented|
-                    // noreturn|missing), op.hh:171; the former HALT-only
-                    // form normalized to the oracle-exact literal union
-                    // (divergence set constructively empty —
-                    // COREACT-HALTGUARD-NORM-0001). One snapshot feeds both
-                    // the ancestor pass and the buildReturnOutput pass.
-                    (r.0.read().unwrap().flags
-                        & (crate::op::pcodeop_flags::HALT
-                            | crate::op::pcodeop_flags::BADINSTRUCTION
-                            | crate::op::pcodeop_flags::UNIMPLEMENTED
-                            | crate::op::pcodeop_flags::NORETURN
-                            | crate::op::pcodeop_flags::MISSING))
-                        == 0
+                .iter_return_ids()
+                .filter(|&id| {
+                    fd.obank.op_by_id(id).is_some_and(|r| {
+                        let op = r.0.read().unwrap();
+                        !op.is_dead()
+                            && (op.flags
+                                & (crate::op::pcodeop_flags::HALT
+                                    | crate::op::pcodeop_flags::BADINSTRUCTION
+                                    | crate::op::pcodeop_flags::UNIMPLEMENTED
+                                    | crate::op::pcodeop_flags::NORETURN
+                                    | crate::op::pcodeop_flags::MISSING))
+                                == 0
+                    })
                 })
-                .cloned()
                 .collect();
             // Take the container out of fd so trial mutation and the fd
             // reads inside ancestorOpUse never alias.
@@ -17218,7 +17252,10 @@ impl Action for ActionReturnRecovery {
             // loop, before finishPass/deriveOutputMap/buildReturnOutput.
             let walk_result: () = {
                 let _op_spec_memo = crate::funcdata::OpSpecMemoScope::enter();
-                for retop in &return_ops {
+                for ret_id in &return_ops {
+                // One handle resolution per RETURN per apply (the former
+                // collect-time clone, moved to its single use site).
+                let Some(retop) = fd.obank.op_by_id(*ret_id).cloned() else { continue };
                 for i in 0..active.get_num_trials() {
                     // cc:1927: already checked trials are skipped.
                     if active.get_trial(i).is_checked() {
@@ -17240,12 +17277,12 @@ impl Action for ActionReturnRecovery {
                     // cc:1930-1932: markActive only when both the ancestor
                     // walk sees realistic movement AND the trial varnode is
                     // only used by this RETURN.
-                    if ancestor_real.execute(retop, slot, active.get_trial_mut(i), false) {
+                    if ancestor_real.execute(&retop, slot, active.get_trial_mut(i), false) {
                         if crate::funcdata::ancestor_op_use(
                             fd,
                             maxancestor,
                             &vn,
-                            retop,
+                            &retop,
                             active.get_trial_mut(i),
                             0,
                             0,
@@ -17277,8 +17314,10 @@ impl Action for ActionReturnRecovery {
                 }
                 // cc:1943-1949: rebuild the input list of every live
                 // non-halt RETURN from the USED trials.
-                for retop in &return_ops {
-                    Self::build_return_output(fd, &active, retop);
+                for ret_id in &return_ops {
+                    if let Some(retop) = fd.obank.op_by_id(*ret_id).cloned() {
+                        Self::build_return_output(fd, &active, &retop);
+                    }
                 }
                 // cc:1950: data.clearActiveOutput() — the container taken
                 // above is simply not put back.

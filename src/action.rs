@@ -1433,8 +1433,12 @@ pub struct ActionPool {
     per_op: Vec<Vec<usize>>,
     /// Rule flags — RULE_REPEATAPPLY so perform() loops this pool.
     flags: u32,
-    /// Current PcodeOpTree element retained across a Rule breakpoint.
-    op_state: Option<crate::op::PcodeOpRef>,
+    /// Current PcodeOpTree element retained across a Rule breakpoint, in
+    /// id form (the retained `PcodeOpTree::const_iterator` op_state of
+    /// action.hh:265 — PERF-ARENA-FLIP-0001 (c): the arena cell carries the
+    /// denormalized SeqNum key and opcode, so the cursor advances and the
+    /// dispatch's per-try `op->code()` re-reads resolve lock-free).
+    op_state: Option<crate::arena::OpId>,
     /// Next index in the current opcode's per-op Rule vector.
     rule_index: usize,
     /// Changes accumulated in Ghidra's inherited Action::count.
@@ -1553,10 +1557,10 @@ impl ActionPool {
     }
 
     // RUGRA-GLUE: read-only breakpoint-resume cursor used by the locked fixture
-    pub fn resume_state(&self) -> (Option<crate::address::SeqNum>, usize) {
+    pub fn resume_state(&self, fd: &Funcdata) -> (Option<crate::address::SeqNum>, usize) {
         (
             self.op_state
-                .as_ref()
+                .and_then(|id| fd.obank.op_by_id(id))
                 .map(|op| *op.0.read().unwrap().get_seq_num()),
             self.rule_index,
         )
@@ -1628,32 +1632,26 @@ impl ActionPool {
     }
 
     // RUGRA-GLUE: Rust cursor reconstruction for Ghidra's retained PcodeOpTree::const_iterator
-    fn first_op(fd: &Funcdata) -> Option<crate::op::PcodeOpRef> {
-        fd.obank.optree.iter().next().cloned()
+    fn first_op(fd: &Funcdata) -> Option<crate::arena::OpId> {
+        fd.obank.optree.first_id()
     }
 
     // RUGRA-GLUE: strict-successor reconstruction for Ghidra's op_state++
-    // iterator mutation. ACTIONLOOP-RESTART-0001: the range bound borrows
-    // the current op (std's `Bound<&T>` tuple form) instead of cloning its
-    // Arc — one reference-count round-trip saved per visited op; the tree
-    // descent and its SeqNum ordering (op.hh:280) are unchanged.
-    fn next_op_after(
-        fd: &Funcdata,
-        current: &crate::op::PcodeOpRef,
-    ) -> Option<crate::op::PcodeOpRef> {
-        use std::ops::Bound::{self, Excluded};
-        fd.obank
-            .optree
-            .range((Excluded(current), Bound::Unbounded))
-            .next()
-            .cloned()
+    // iterator mutation. ACTIONLOOP-RESTART-0001 established the strict-key
+    // range successor as the `++` of the oracle's live map iterator.
+    // PERF-ARENA-FLIP-0001 (c): the cursor holds the current OpId, so the
+    // range bound is the cell's denormalized seq_key — a lock-free arena
+    // read replacing the per-advance op guard (SeqNum read + SpaceOff
+    // projection) and the successor Arc clone of the handle-cursor form.
+    fn next_op_after(fd: &Funcdata, current: crate::arena::OpId) -> Option<crate::arena::OpId> {
+        fd.obank.optree.next_id_after(current)
     }
 
     // RUGRA-GLUE: advances the externalized PcodeOpTree iterator without
     // holding a Rust borrow across Rule mutation. ACTIONLOOP-RESTART-0001:
-    // the current element comes in by reference from process_op's owned
-    // handle — the successor search no longer re-clones the cursor.
-    fn advance_op_state(&mut self, fd: &Funcdata, current: &crate::op::PcodeOpRef) {
+    // the current element is an OpId (Copy) — the successor search reads
+    // only the cell's stored key.
+    fn advance_op_state(&mut self, fd: &Funcdata, current: crate::arena::OpId) {
         self.op_state = Self::next_op_after(fd, current);
     }
 
@@ -1661,27 +1659,37 @@ impl ActionPool {
     fn process_op(&mut self, fd: &mut Funcdata) -> Result<i32> {
         // ACTIONLOOP-RESTART-0001: take ownership of the cursor element for
         // this step (Ghidra's op_state iterator hands the element to
-        // processOp by pointer, action.cc:885; the Rust externalization
-        // previously cloned the Arc per op). The breakpoint-resume path
-        // restores the cursor before returning.
-        let op_ref = self
+        // processOp by pointer, action.cc:885). The id cursor resolves the
+        // handle once per visit; Rules receive it by reference and the
+        // breakpoint-resume path parks the cursor as a Copy id.
+        let op_id = self
             .op_state
-            .take()
             .expect("processOp requires a current PcodeOpTree element");
         action_stats::bump(&action_stats::STATS.ops_visited);
-        // Single merged read of the op state the oracle reads as
-        // isDead (action.cc:829) then code (:835) — identical values
-        // with one lock acquisition instead of two.
-        let (is_dead, mut opcode) = {
-            let op = op_ref.0.read().unwrap();
-            (op.is_dead(), op.opcode)
-        };
+        // The one per-visit handle resolution (Ghidra hands processOp the
+        // bare PcodeOp*; the Arc clone replaces the former cursor-held
+        // clone taken by next_op_after — one reference-count round-trip per
+        // visited op either way).
+        let op_arc = std::sync::Arc::clone(
+            &fd.obank
+                .op_by_id(op_id)
+                .expect("processOp cursor cell vanished")
+                .0,
+        );
+        // Single read of the entry state the oracle reads as isDead
+        // (action.cc:829); the initial `opc = op->code()` (:835) resolves
+        // lock-free through the cell's denormalized opcode shadow.
+        let is_dead = op_arc.read().unwrap().is_dead();
         if is_dead {
-            self.advance_op_state(fd, &op_ref);
-            fd.obank.destroy(op_ref);
+            self.advance_op_state(fd, op_id);
+            fd.obank.destroy(crate::op::PcodeOpRef(op_arc));
             self.rule_index = 0;
             return Ok(0);
         }
+        let mut opcode = fd
+            .obank
+            .opcode_of(op_id)
+            .expect("processOp cursor cell vanished");
 
         loop {
             // perop[opc] array dispatch (action.cc:836-837) — the
@@ -1709,7 +1717,7 @@ impl ActionPool {
             crate::drillobserve::activate();
             action_stats::bump(&action_stats::STATS.rule_tries);
             self.rule_states[rule_index].count_tests += 1;
-            let result = self.rules[rule_index].apply_op(&op_ref.0, fd)?;
+            let result = self.rules[rule_index].apply_op(&op_arc, fd)?;
             if crate::drillobserve::is_enabled() {
                 crate::drillobserve::flush(self.rules[rule_index].get_name());
             }
@@ -1724,22 +1732,34 @@ impl ActionPool {
                     // exactly like the oracle's retained op_state
                     // (action.cc:851-852 returns with the iterator still
                     // pointing here).
-                    self.op_state = Some(op_ref);
+                    self.op_state = Some(op_id);
                     return Ok(-1);
                 }
-                let (now_dead, new_opcode) = {
-                    let op = op_ref.0.read().unwrap();
-                    (op.is_dead(), op.opcode)
-                };
+                // cc:846 `if (op->isDead()) break;` — the flag read stays a
+                // guarded read (the DEAD bit has no cell shadow); the
+                // follow-up `opc != op->code()` (:847-849) is the lock-free
+                // shadow read.
+                let now_dead = op_arc.read().unwrap().is_dead();
                 if now_dead {
                     break;
                 }
+                let new_opcode = fd
+                    .obank
+                    .opcode_of(op_id)
+                    .expect("processOp cursor cell vanished");
                 if new_opcode != opcode {
                     opcode = new_opcode;
                     self.rule_index = 0;
                 }
             } else {
-                let new_opcode = op_ref.0.read().unwrap().opcode;
+                // cc:853-857 `else if (opc != op->code())` — the lying-rule
+                // audit re-read every miss. SPEEDPROF2 §2 measured this as
+                // 27.7M RwLock round-trips on the VdbeExec pole; the shadow
+                // read below is a plain arena cell load.
+                let new_opcode = fd
+                    .obank
+                    .opcode_of(op_id)
+                    .expect("processOp cursor cell vanished");
                 if new_opcode != opcode {
                     let message = format!(
                         "ERROR: Rule {} changed op without returning result of 1!",
@@ -1756,7 +1776,7 @@ impl ActionPool {
             }
         }
 
-        self.advance_op_state(fd, &op_ref);
+        self.advance_op_state(fd, op_id);
         self.rule_index = 0;
         Ok(0)
     }

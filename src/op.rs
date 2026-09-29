@@ -1670,6 +1670,20 @@ pub struct PcodeOpTree {
 pub struct OpCell {
     op: PcodeOpRef,
     seq_key: SeqNumKey,
+    /// Denormalized copy of `PcodeOp::opcode` — the stored-iterator read
+    /// form of `op->code()` (op.hh:233, a plain field read in the oracle).
+    /// Maintained at exactly the mutation sites of the source field:
+    /// `PcodeOpTree::insert`/`slot_only` snapshot it at slot time (the
+    /// opcode exists from construction) and `PcodeOpBank::change_opcode`
+    /// (the op.cc:1005-1012 choke point behind `Funcdata::opSetOpcode`)
+    /// updates it in the same statement that runs `set_opcode_flags`. No
+    /// other production site writes `PcodeOp::opcode` (grepped: only
+    /// RuleBxor2NotEqual wrote it directly and now routes through
+    /// `op_set_opcode`, matching ruleaction.cc:272). PERF-ARENA-FLIP-0001
+    /// (c): ActionPool::processOp's per-try `opc != op->code()` re-read
+    /// (action.cc:846/853-857, 27.7M tries on the VdbeExec pole) resolves
+    /// through this lock-free cell read instead of an RwLock round-trip.
+    opcode: OpCode,
     // ---- op.hh:127-129 stored list iterators → id-space intrusive links
     // (ARENA_DESIGN §1.2). The insertiter pair (op.hh:128) threads the op
     // through whichever of deadlist/alivelist/deadandgone holds it; the
@@ -1764,24 +1778,32 @@ impl PcodeOpTree {
     /// identical to the former BTreeSet<BTreeMap> insert. Returns true
     /// when newly inserted.
     pub fn insert(&mut self, op: PcodeOpRef) -> bool {
-        let seq_key = Self::key_of(&op);
+        // Single-guard snapshot of everything the cell denormalizes: the
+        // SeqNum key projection, the stored op_id, and the opcode shadow
+        // (one read lock where the former form took key_of + op_id reads
+        // separately). The guard is bound to its own statement and dropped
+        // before the writes below — holding a read guard into a same-thread
+        // write is a guaranteed RwLock deadlock.
+        let (seq_key, existing_id, opc) = {
+            let o = op.0.read().unwrap();
+            (Self::key_from_seq(&o.start), o.op_id, o.opcode)
+        };
         // Slot the op (reuse its cell on re-insert; the SeqNum is
-        // immutable so the key copy never drifts). The guard is bound to
-        // its own statement and dropped before the write below — holding a
-        // read guard into a same-thread write is a guaranteed RwLock
-        // deadlock. Fresh cells enter the arena with detached chain links
-        // (op.hh:127-129 iterators are unset until the bank links the op).
-        let existing_id = op.0.read().unwrap().op_id;
+        // immutable so the key copy never drifts). Fresh cells enter the
+        // arena with detached chain links (op.hh:127-129 iterators are
+        // unset until the bank links the op).
         let id = if existing_id.is_some_and(|id| self.arena.contains(id)) {
             let id = existing_id.expect("checked by is_some_and");
             if let Some(cell) = self.arena.get_mut(id) {
                 cell.seq_key = seq_key;
+                cell.opcode = opc;
             }
             id
         } else {
             let id = self.arena.insert(OpCell {
                 op: op.clone(),
                 seq_key,
+                opcode: opc,
                 ins_prev: OpId::SENTINEL,
                 ins_next: OpId::SENTINEL,
                 code_prev: OpId::SENTINEL,
@@ -1914,6 +1936,45 @@ impl PcodeOpTree {
         self.arena.get(id).map(|cell| &cell.op)
     }
 
+    // RUGRA-GLUE: id-space cursor support for ActionPool::op_state — the
+    //   oracle retains a live `PcodeOpTree::const_iterator` (action.hh:265
+    //   op_state) whose begin/`++` are O(1) pointer walks. The id-space
+    //   reconstruction reads the CURRENT cell's denormalized seq_key
+    //   (lock-free; no op guard) and asks the map for the strict successor
+    //   — identical to `++` on a std::map iterator because the successor
+    //   of key K in the live map is the first entry > K regardless of any
+    //   erasures the Rules performed in between (the same argument
+    //   ACTIONLOOP-RESTART-0001 made for the handle-keyed range).
+    //   PERF-ARENA-FLIP-0001 (c): the former form re-read the current op's
+    //   SeqNum under an RwLock guard per advance (5.6M advances on the
+    //   VdbeExec pole) and cloned the successor's Arc.
+    /// First map entry's id (beginOpAll), or `None` when the tree is empty.
+    pub fn first_id(&self) -> Option<OpId> {
+        self.inner.values().next().copied()
+    }
+
+    // RUGRA-GLUE: strict-successor reconstruction (same RUGRA-GLUE family
+    //   as first_id above — the retained iterator's ++ in id space).
+    /// Strict-successor id of `cur` in SeqNum order (the `++` of the
+    /// oracle's retained map iterator); `None` at endOpAll.
+    pub fn next_id_after(&self, cur: OpId) -> Option<OpId> {
+        use std::ops::Bound::Excluded;
+        let key = self.arena.get(cur)?.seq_key;
+        self.inner
+            .range((Excluded(key), std::ops::Bound::Unbounded))
+            .next()
+            .map(|(_, &id)| id)
+    }
+
+    // RUGRA-GLUE: stored-iterator opcode read — `op->code()` (op.hh:233)
+    //   resolved through the cell's denormalized shadow, no lock. The
+    //   shadow is maintained at the field's only mutation sites (see the
+    //   OpCell::opcode field doc).
+    /// The op's current opcode, read lock-free from the arena cell.
+    pub fn opcode_by_id(&self, id: OpId) -> Option<OpCode> {
+        self.arena.get(id).map(|cell| cell.opcode)
+    }
+
     // RUGRA-GLUE: shared-borrow arena accessor — the bank chains live in
     //   arena cells, so PcodeOpBank iteration/navigation needs this (the
     //   oracle chains dereference the PcodeOp* directly; id-space chains
@@ -1938,7 +1999,10 @@ impl PcodeOpTree {
     //   exactly as the bare push left it. Idempotent: a re-slot of an
     //   already-slotted op returns its existing handle.
     pub(crate) fn slot_only(&mut self, op: &PcodeOpRef) -> OpId {
-        let existing = op.0.read().unwrap().op_id;
+        let (existing, opc, seq_key) = {
+            let o = op.0.read().unwrap();
+            (o.op_id, o.opcode, Self::key_from_seq(&o.start))
+        };
         if let Some(id) = existing {
             if self.arena.contains(id) {
                 return id;
@@ -1946,7 +2010,8 @@ impl PcodeOpTree {
         }
         let id = self.arena.insert(OpCell {
             op: op.clone(),
-            seq_key: Self::key_of(op),
+            seq_key,
+            opcode: opc,
             ins_prev: OpId::SENTINEL,
             ins_next: OpId::SENTINEL,
             code_prev: OpId::SENTINEL,
@@ -2077,6 +2142,50 @@ impl<'a> Iterator for OpChainIter<'a> {
 }
 
 impl std::iter::FusedIterator for OpChainIter<'_> {}
+
+// RUGRA-GLUE: id-yielding companion of [`OpChainIter`] — the same stored-link
+//   walk handing out the member [`OpId`] instead of the `&PcodeOpRef`
+//   (PERF-ARENA-FLIP-0001 (c) P1 read-mode: Action/Rule worksets collect
+//   plain Copy ids with no handle clone and no lock, and resolve elements
+//   through `PcodeOpBank::op_by_id`/`opcode_of` at their use sites).
+pub struct OpChainIdIter<'a> {
+    arena: &'a Arena<OpCell, OpId>,
+    kind: ChainKind,
+    cur: OpId,
+}
+
+impl<'a> OpChainIdIter<'a> {
+    // RUGRA-GLUE: constructor over the insert-link family.
+    fn ins(arena: &'a Arena<OpCell, OpId>, head: OpId) -> Self {
+        OpChainIdIter { arena, kind: ChainKind::Ins, cur: head }
+    }
+
+    // RUGRA-GLUE: constructor over the code-link family.
+    fn code(arena: &'a Arena<OpCell, OpId>, head: OpId) -> Self {
+        OpChainIdIter { arena, kind: ChainKind::Code, cur: head }
+    }
+}
+
+impl<'a> Iterator for OpChainIdIter<'a> {
+    type Item = OpId;
+
+    // Ghidra: funcdata.hh:506 Funcdata::beginOpAlive (iterator advance =
+    // stored next link dereference; end() is the sentinel).
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur.is_sentinel() {
+            return None;
+        }
+        let id = self.cur;
+        let cell = self.arena.get(id).expect("bank chain node vanished while iterating");
+        self.cur = match self.kind {
+            ChainKind::Ins => cell.ins_next,
+            ChainKind::Code => cell.code_next,
+        };
+        Some(id)
+    }
+}
+
+impl std::iter::FusedIterator for OpChainIdIter<'_> {}
 
 // RUGRA-GLUE: set-shaped Debug (the former derive printed the keyed map;
 // consumers only ever see the element sequence).
@@ -2393,6 +2502,17 @@ impl PcodeOpBank {
         self.remove_from_code_list(&op);
         // cc:1010: op->setOpcode(newopc) — sets opcode + TypeOp-derived flags.
         op.0.write().unwrap().set_opcode_flags(new_opc);
+        // Stored-iterator shadow update in the same statement position the
+        // oracle's setOpcode writes the field (op.cc:1010): the cell's
+        // denormalized opcode copy stays equal to `PcodeOp::opcode` at its
+        // single choke point, so lock-free `opcode_by_id` reads (the pool
+        // dispatch's per-try re-read, action.cc:846/853-857) observe the
+        // same value a guarded read would.
+        if let Some(id) = self.slot_of(&op) {
+            if let Some(cell) = self.optree.arena_mut().get_mut(id) {
+                cell.opcode = new_opc;
+            }
+        }
         // cc:1011: addToCodeList(op) — uses new opcode.
         self.add_to_code_list(&op);
     }
@@ -2717,6 +2837,34 @@ impl PcodeOpBank {
         OpChainIter::ins(self.optree.arena(), self.deadlist.head().unwrap_or(OpId::SENTINEL))
     }
 
+    // RUGRA-GLUE: id-yielding alive-chain walk (PERF-ARENA-FLIP-0001 (c)
+    //   workset collect form — chain order, zero locks, zero clones).
+    /// Iterate the alive chain as plain [`OpId`]s in exact chain order.
+    pub fn iter_alive_ids(&self) -> OpChainIdIter<'_> {
+        OpChainIdIter::ins(
+            self.optree.arena(),
+            self.alivelist.head().unwrap_or(OpId::SENTINEL),
+        )
+    }
+
+    // RUGRA-GLUE: id-yielding LOAD-chain walk (workset collect form).
+    /// Iterate the LOAD chain as plain [`OpId`]s in chain order.
+    pub fn iter_load_ids(&self) -> OpChainIdIter<'_> {
+        OpChainIdIter::code(
+            self.optree.arena(),
+            self.loadlist.head().unwrap_or(OpId::SENTINEL),
+        )
+    }
+
+    // RUGRA-GLUE: id-yielding RETURN-chain walk (workset collect form).
+    /// Iterate the RETURN chain as plain [`OpId`]s in chain order.
+    pub fn iter_return_ids(&self) -> OpChainIdIter<'_> {
+        OpChainIdIter::code(
+            self.optree.arena(),
+            self.returnlist.head().unwrap_or(OpId::SENTINEL),
+        )
+    }
+
     // RUGRA-GLUE: marker-form dead walk — flow.cc:240 deleteRemainingOps
     //   walks `oiter` (a stored dead-list iterator) to `endDead()`; the
     //   id-space marker is the last surviving op's id.
@@ -2823,6 +2971,15 @@ impl PcodeOpBank {
     // pointer dereference itself (P1 read form, ARENA_DESIGN §3.2).
     pub fn op_by_id(&self, id: OpId) -> Option<&PcodeOpRef> {
         self.optree.get_by_id(id)
+    }
+
+    // RUGRA-GLUE: bank-level stored-iterator opcode read (delegates to the
+    //   PcodeOpTree cell shadow; the pool dispatch's per-try re-read form,
+    //   PERF-ARENA-FLIP-0001 (c)).
+    /// The op's current opcode, read lock-free from the arena cell — the
+    /// `op->code()` (op.hh:233) equivalent for id-holding callers.
+    pub fn opcode_of(&self, id: OpId) -> Option<OpCode> {
+        self.optree.opcode_by_id(id)
     }
 
     // RUGRA-GLUE: boundary-marker resolution — the id-space form of

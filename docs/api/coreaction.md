@@ -4441,3 +4441,22 @@ blockaction.cc:2110-2115/2186-2197 + block.cc:3148-3297/3350-3436。
 API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
 迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
 `alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
+
+## 2026-09-30（c 段）：Action 工作集 OpId 化 + 影子 filter（PERF-ARENA-FLIP-0001 (c)）
+
+七个工作集位点从 `Vec<PcodeOpRef>`（clone 采集）迁 `Vec<OpId>`
+（`iter_alive_ids/iter_load_ids/iter_return_ids` 链序 id 采集，零克隆零锁）：
+
+- `ActionDeadCode::last_chance_load`（cc:3902）：LOAD 工作集；isDead 门保持
+  守卫读（LOAD code 链含 dead 成员，cc:3913）。
+- `ActionCse::to_kill`（cc:708 注释体）：击杀工作集 id 化，销毁时解引用。
+- `ActionPrototypeTypes` 步骤 2/3（cc:4628-4649）：RETURN 工作集；opcode
+  filter 走槽影子（原每扫描 op 一次锁）；fd 变异点处解引用+单点克隆
+  （读借用结束后重取，借用纪律 P5）。
+- `ActionStackPtrFlow::check_clog`（cc:432）：INT_ADD 工作集影子 filter
+  （Rugra 遍历形态与 oracle loc-tree 形态的分歧行为另行追踪，本段仅表示层）。
+- `ActionReturnRecovery`（cc:1908-1955）：RETURN 快照单守卫 P2 合并
+  （原两个 filter 闭包各一锁→一锁同拒集）；每 RETURN 一次解引用。
+- `ActionInferTypes::canonical_return_op/propagate_across_returns`
+  （cc:5317-5365）：工作集 id 化；canonical 判等 `Arc::ptr_eq` → id 相等
+  （id 空间的指针相等形态，ARENA_DESIGN §2.1）。

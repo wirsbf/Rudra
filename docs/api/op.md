@@ -1298,3 +1298,30 @@ sqlite3_config/sqlite3_test_control/sqlite3_db_config 反编译 worker 阵亡
 带非空 code 链的 bank clear。修复序：clear_code_lists → 三条 insert 链摘链
 → optree.clear → uniqid=0（op.cc:1194-1209 先删对象后清表的等价重排）。
 修复态复验：镜面五面全 PASS 恰钉值、canon 双 md5 字节恒等、2018P/0F/5I。
+
+## 2026-09-30（c 段）：OpCell opcode 影子 + id 游标/工作集读 API（PERF-ARENA-FLIP-0001 (c)）
+
+**OpCell opcode 影子**（存储迭代器反规范化，同 `seq_key` 模式）：槽元新增
+`opcode: OpCode` 反规范化副本——`op->code()`（op.hh:233，oracle 纯字段读）
+的 id 空间读形态。维护位点 = 源字段的全部突变点：`PcodeOpTree::insert`/
+`slot_only` 入槽时单守卫快照（opcode 自构造即存在）；`change_opcode`
+（op.cc:1005-1012，`Funcdata::opSetOpcode` 背后的唯一 choke point）在
+`set_opcode_flags` 同语句位更新。生产路径无其它 `PcodeOp::opcode` 写点
+（grep 亲证：唯 RuleBxor2NotEqual 曾直写，已改走 `op_set_opcode`——
+ruleaction.cc:272 oracle 原形，该 opcode 对派生 flag 集相同且互非 code-list
+成员，可观测效果恒等）。
+
+**新读 API**：
+- `PcodeOpTree::first_id()/next_id_after(OpId)`——ActionPool 保留游标
+  （action.hh:265 `op_state`）的 id 形态支撑：后继查找读当前槽的
+  `seq_key`（锁自由），map 严格后继 = std::map `++` 语义（规则中途 erase
+  不受影响，ACTIONLOOP-RESTART-0001 同论证）；`opcode_by_id(OpId)`——
+  槽影子读。`PcodeOpBank::opcode_of` 为 bank 级转发。
+- `OpChainIdIter` + `iter_alive_ids()/iter_load_ids()/iter_return_ids()`——
+  `OpChainIter` 的 id 产出伴生（同一存储链游走，产出 Copy 的 `OpId`，
+  零句柄克隆零锁）；Action/Rule 工作集的采集形态。
+
+**读模式收益**：ActionPool 派发的 per-try `opc != op->code()` 复读
+（action.cc:846/853-857，VdbeExec 极 27.7M 次锁读）与游标推进的
+SeqNum 守卫+Arc 克隆（5.6M 次）改走槽读；Action 工作集 filter
+（RETURN/INT_ADD 扫描）走影子读。
