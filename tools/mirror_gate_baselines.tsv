@@ -160,6 +160,35 @@
 # Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
 # byte-identical (md5 4ab1db2a / 7d5b9e7c == MB41..43 pins). tests 1976P/0F/5I
 # (1974 + castshape 1 + switchdispatch 1, per-lane accounting exact).
+# MB47-RATCHET-REPIN-0001 (2026-09-29, joint tree @ 965d1a70 after 4-branch
+# mirror+speed batch [mcensus4 793b2837 docs-only + castsub23 9c53bc21 +
+# blockstruct d8c70bff + ftsincrmerge 668cf6a4+83702e35], forced relink
+# verified [fast-release 1m45s + release 3m53s, driver binaries
+# +143s(fast-release)/+372~387s(release) > all four merge commits],
+# gate --jobs 5 fresh round — binary sha change invalidates digest cache
+# keys, all five faces fresh-measured; stale-guard content probe
+# digest=2c5d3085dcdf3bdf files=154; repin commit only edits this table,
+# measurement tree=965d1a70):
+# ① sqlite 1479→845 (−634 = CASTSUB23 −470 + FTSINCRMERGE −164, joint
+#    arithmetic exact on disjoint function families): CASTSUB23 (subflow
+#    tryCallReturnPush call-output subvar truncation) burns the census ②
+#    uint1-shift bucket entirely (47→0) + main ③ bare-cast clusters
+#    (WhereCodeOneLoopStart 171→9 cascade head; 41 functions improved /
+#    0 regressed, CR-CASTSUB23 recount exact); FTSINCRMERGE (ud2 dead-list
+#    fail_callother family, lane-base intermediate 1315 per CR-FTS F4
+#    lineage) burns Fts3Incrmerge 129→3 (ud2 tail byte==golden) +
+#    same-family Insert 14→4 / ColumnsFromExprList 12→0 /
+#    GenerateColumnNames 12→0 / MemoryBarrier 4→0. matched 1385/1385,
+#    defects=numbering=0.
+# ② sq 514→458 (−56): CASTSUB23 CodeOneBlock triplet 27→8/23→4/18→0;
+#    FTSINCRMERGE zero sq coupling. matched 810/810, defects=numbering=0.
+# ③ curl 13 / httpd 2 / vsh 0 identical, not re-pinned (MB41/MB41/MB39
+#    rows stay; BLOCKSTRUCT is output-neutral by construction — reference-
+#    form accessors + OnceLock + FxHashMap, MCENSUS4 docs-only).
+# Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
+# byte-identical (md5 4ab1db2a / 7d5b9e7c == MB41..46 pins). tests
+# 1981P/0F/5I (1977 + castsub23 +4; blockstruct/ftsincrmerge/mcensus4 zero
+# new, per-lane accounting exact).
 corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # MB27-RATCHET-REPIN-0001 @ 06e491c0 (2026-09-28): httpd 84->65 (GETPARENTS find_subpiece 同块约束, -19);
 # sq 3262->3021 (三支复合 -241: getparents 同块约束镜面效应为主); sqlite 10013->9951 (-62);
@@ -200,8 +229,8 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 curl	13	74	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 httpd	2	29	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
-sq	514	810	MB44-RATCHET-REPIN-0001	956002e7	2026-09-29
-sqlite	1479	1385	MB44-RATCHET-REPIN-0001	956002e7	2026-09-29
+sq	458	810	MB47-RATCHET-REPIN-0001	965d1a70	2026-09-29
+sqlite	845	1385	MB47-RATCHET-REPIN-0001	965d1a70	2026-09-29
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
