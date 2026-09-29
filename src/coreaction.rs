@@ -8050,7 +8050,13 @@ impl ActionInferTypes {
 /// key temp types by a stable per-varnode id. Faithful to the
 /// `getTempType`/`setTempType` pair used throughout ActionInferTypes
 /// (coreaction.cc:5008-5416).
-type TempTypes = HashMap<u64, std::sync::Arc<crate::type_system::datatype::Datatype>>;
+/// `FxHashMap` swap (SPEEDPROF2-INFERTYPES-DRILL-0001): the temp-type store
+/// is keyed by the stable per-varnode id and is only ever probed
+/// (get/insert/contains_key/entry) — nothing iterates it, so the hasher is
+/// unobservable. rustc_hash::FxHash replaces SipHash on the 20M-lookup-per-
+/// run hot path (2 lookups per propagate_type_edge call).
+type TempTypes =
+    rustc_hash::FxHashMap<u64, std::sync::Arc<crate::type_system::datatype::Datatype>>;
 
 /// Stable id for a varnode inside the temp-type map. Combines the varnode's
 /// create_index with its size so that distinct overlapping varnodes don't
@@ -8200,15 +8206,15 @@ fn canonicalize_temp_type(
             ) {
                 return dt.clone();
             }
-            let mut factory = factory
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
             let name = dt.get_name();
             if !name.is_empty() {
                 // Named scalar (e.g. "size_t"): the oracle keeps every named
                 // Datatype in the factory nametree (type.cc:3404-3405), so
                 // getBase(s,m,n) (type.cc:3667-3673) returns the same interned
                 // instance on every call.
+                let mut factory = factory
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 match factory.get_base_named(size, meta, name) {
                     Ok(canonical)
                         if canonical.get_size() == size && canonical.get_metatype() == meta =>
@@ -8218,6 +8224,14 @@ fn canonicalize_temp_type(
                     _ => return dt.clone(),
                 }
             }
+            // SPEEDPROF2-INFERTYPES-DRILL-0001: the unnamed-scalar arm only
+            // calls `get_base(&self, ...)`, whose caching is internal to the
+            // factory; a read guard suffices and returns the identical
+            // interned instance (the write lock was a conservative default,
+            // paid once per successful propagation edge).
+            let factory = factory
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             match factory.get_base(size, meta) {
                 Some(canonical)
                     if canonical.get_size() == size
@@ -8438,32 +8452,33 @@ impl ActionInferTypes {
     /// `inslot` is the edge's input varnode slot (-1 = op output);
     /// `outslot` is the edge's output slot (-1 = op output).
     /// Returns the out varnode arc if the propagation changed its temp type.
+    /// `in_id` is the stable id of the edge's source varnode: for every edge
+    /// walked by [`Self::propagate_one_type`] the source is the propagation
+    /// frame's root varnode (a descendant edge reads it at `inslot`, the
+    /// defining-op edge's output *is* it), so the caller threads the id it
+    /// already holds — the oracle reaches the same `invn` through
+    /// `op->getIn(inslot)`/`op->getOut()` and reads `invn->getTempType()`
+    /// (coreaction.cc:5079-5080); the varnode identity is identical and the
+    /// re-read of the op is pure (SPEEDPROF2-INFERTYPES-DRILL-0001).
     // Ghidra: coreaction.cc:5074 ActionInferTypes::propagateTypeEdge
+    #[allow(clippy::too_many_arguments)]
     fn propagate_type_edge(
         op_arc: &Arc<RwLock<crate::op::PcodeOp>>,
+        in_id: u64,
         fd: &mut Funcdata,
         temps: &mut TempTypes,
-        active_path: &std::collections::HashSet<u64>,
+        active_path: &rustc_hash::FxHashSet<u64>,
         inslot: i32,
         outslot: i32,
         int_types: &IntTypes,
         ptr_size: usize,
         type_factory: Option<&Arc<RwLock<crate::type_system::typefactory::TypeFactory>>>,
     ) -> Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> {
-        // Resolve the incoming varnode + its temp type.
-        let in_vn_arc: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = {
-            let op = op_arc.read().unwrap();
-            if inslot == -1 {
-                op.output.clone()
-            } else {
-                op.inrefs.get(inslot as usize).cloned()
-            }
-        };
-        let alttype = {
-            let inv = in_vn_arc.as_ref()?.read().unwrap();
-            temps.get(&vn_id(&inv)).cloned()
-        };
-        let alttype = alttype?;
+        // The incoming varnode's temp type (cc:5080). The source varnode of
+        // every walked edge is the frame root, so the temp is keyed by the
+        // caller-threaded id; the original resolved `op->getIn(inslot)`/`
+        // op->getOut()` under an op guard only to recompute this same key.
+        let alttype = temps.get(&in_id).cloned()?;
 
         // cc:5081-5084: "Always give incoming data-type a chance to resolve,
         // even if it would not otherwise propagate" — resolveInFlow runs
@@ -8486,41 +8501,50 @@ impl ActionInferTypes {
         }
         let op = op_arc.read().unwrap();
 
-        // Resolve the outgoing varnode.
+        // Resolve the outgoing varnode and probe its guard flags under one
+        // lock acquisition (the individual predicates — isAnnotation,
+        // isTypeLock, stopsUpPropagation, getNZMask — are pure field reads
+        // in both implementations; the merge only removes redundant lock
+        // round-trips, the rejection set is unchanged).
         let out_vn_arc = if outslot < 0 {
             op.output.clone()
         } else {
-            let cand = op.inrefs.get(outslot as usize).cloned();
-            if let Some(ref a) = cand {
-                if a.read().unwrap().is_annotation() {
-                    return None;
-                }
-            }
-            cand
+            op.inrefs.get(outslot as usize).cloned()
         };
         let out_vn_arc = out_vn_arc?;
-        {
+        let (out_is_annot, out_is_lock, out_stops, out_nz, out_id) = {
             let ov = out_vn_arc.read().unwrap();
-            if ov.is_type_lock() {
-                return None;
-            }
-            // coreaction.cc:5093: `if (outvn->stopsUpPropagation() && outslot >= 0)
-            // return false;` — propagation is blocked into a STOP-sealed
-            // varnode when it is the edge's INPUT-slot target (outslot >= 0);
-            // an edge targeting the op's OUTPUT (outslot == -1) is not subject
-            // to this flag, which is exactly what lets the downChain
-            // field-pointer flow reach a RulePtrArith-sealed PTRSUB output.
-            if outslot >= 0 && ov.stops_up_propagation() {
-                return None;
-            }
+            (
+                ov.is_annotation(),
+                ov.is_type_lock(),
+                ov.stops_up_propagation(),
+                ov.get_nz_mask(),
+                vn_id(&ov),
+            )
+        };
+        // cc:5090: the annotation rejection applies to input-slot targets
+        // only (the original checked it while resolving the candidate).
+        if outslot >= 0 && out_is_annot {
+            return None;
+        }
+        if out_is_lock {
+            return None; // cc:5092: can't propagate through typelock
+        }
+        // coreaction.cc:5093: `if (outvn->stopsUpPropagation() && outslot >= 0)
+        // return false;` — propagation is blocked into a STOP-sealed
+        // varnode when it is the edge's INPUT-slot target (outslot >= 0);
+        // an edge targeting the op's OUTPUT (outslot == -1) is not subject
+        // to this flag, which is exactly what lets the downChain
+        // field-pointer flow reach a RulePtrArith-sealed PTRSUB output.
+        if outslot >= 0 && out_stops {
+            return None;
         }
 
         // Boolean propagation guard (coreaction.cc:5095-5098).
-        if alttype.get_metatype() == crate::type_system::datatype::TypeMetatype::Bool {
-            let nz = out_vn_arc.read().unwrap().get_nz_mask();
-            if nz > 1 {
-                return None;
-            }
+        if alttype.get_metatype() == crate::type_system::datatype::TypeMetatype::Bool
+            && out_nz > 1
+        {
+            return None;
         }
 
         // The per-opcode propagateType dispatch (op.cc propagateType). Returns
@@ -8534,10 +8558,7 @@ impl ActionInferTypes {
             ptr_size,
             type_factory,
         )?;
-        let cur = {
-            let ov = out_vn_arc.read().unwrap();
-            temps.get(&vn_id(&ov)).cloned()
-        };
+        let cur = temps.get(&out_id).cloned();
         // typeOrder: only propagate if newtype is strictly less (more specific)
         // than the current temp type.
         let better = match &cur {
@@ -8560,10 +8581,16 @@ impl ActionInferTypes {
         // stderr-only, gated by RUGRA_TYPEPROP_DBG (default off).
         if typeprop_debug_enabled() {
             let out_desc = out_vn_arc.read().unwrap().print_raw();
-            let from_sb = in_vn_arc
-                .as_ref()
-                .map(|v| v.read().unwrap().is_spacebase())
-                .unwrap_or(false);
+            let from_sb = {
+                let invn = if inslot == -1 {
+                    op.output.clone()
+                } else {
+                    op.inrefs.get(inslot as usize).cloned()
+                };
+                invn
+                    .map(|v| v.read().unwrap().is_spacebase())
+                    .unwrap_or(false)
+            };
             eprintln!(
                 "[TYPEPROP] {} : {} from {} slot={} from_sb={}",
                 out_desc,
@@ -8573,7 +8600,6 @@ impl ActionInferTypes {
                 from_sb
             );
         }
-        let out_id = vn_id(&out_vn_arc.read().unwrap());
         temps.insert(out_id, newtype);
         (!active_path.contains(&out_id)).then_some(out_vn_arc)
     }
@@ -9272,113 +9298,170 @@ impl ActionInferTypes {
         ptr_size: usize,
         type_factory: Option<&Arc<RwLock<crate::type_system::typefactory::TypeFactory>>>,
     ) {
-        use std::collections::HashSet;
-        #[derive(Clone)]
-        struct Edge {
-            op: std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>,
+        // Ghidra: coreaction.cc:5115 PropagationState (lazy edge iterator)
+        /// One DFS frame, mirroring the oracle's `PropagationState`
+        /// (coreaction.hh:1072) field-for-field: the root Varnode, the
+        /// descendant iteration position (the oracle holds a
+        /// `list<PcodeOp*>::const_iterator`; Rugra snapshots upgraded Arcs —
+        /// propagation performs no op creation/destruction, so the list is
+        /// stable for the frame's lifetime), the current op, and the
+        /// (inslot, slot) edge indices. Edges are generated lazily by
+        /// [`PropagationState::step`] exactly as the oracle's constructor +
+        /// `step()` do — never materialized as a vector
+        /// (SPEEDPROF2-INFERTYPES-DRILL-0001: the eager Vec form paid an
+        /// allocation plus one Arc clone per descendant input-slot edge on
+        /// every frame push while ~90% of edges reject inside
+        /// propagateTypeEdge; the lazy form produces the identical edge
+        /// sequence — output edge first, then input slots 0..numInput-1 per
+        /// descendant in descend-list order, then the defining op's input
+        /// slots — with O(1) state).
+        struct PropagationState {
+            vn: std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+            id: u64,
+            descendants: Vec<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
+            next_desc: usize,
+            op: Option<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
+            slot: i32,
             inslot: i32,
-            outslot: i32,
         }
-
-        struct Frame {
-            vn_id: u64,
-            edges: Vec<Edge> ,
-            next: usize,
-        }
-
-        // PropagationState constructor + step (coreaction.cc:5115-5163): for
-        // each descendant in insertion order, visit its output first (when it
-        // has one), then every input slot including the back-edge slot. Only
-        // after all descendants are exhausted do we visit the defining op's
-        // inputs. propagateTypeEdge itself rejects the back-edge.
-        let edges_for = |vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>| {
-            let (descendants, defining) = {
-                let vn_guard = vn.read().unwrap();
-                (
-                    vn_guard.descend_iter().collect::<Vec<_> >(),
-                    vn_guard.get_def(),
-                )
-            };
-            let mut edges = Vec::new();
-            for descendant in descendants {
-                let op_guard = descendant.read().unwrap();
-                let Some(inslot ) = op_guard
-                    .inrefs
-                    .iter()
-                    .position(|input| std::sync::Arc::ptr_eq(input, vn))
-                    .map(|slot| slot as i32)
-            else {
-                    continue;
+        impl PropagationState {
+            // Ghidra: coreaction.cc:5115 PropagationState::PropagationState
+            // RUGRA-GLUE: ctor + first-descendant advance fused; a descendant
+            // whose inref slot lookup misses is skipped (the eager form's
+            // `continue`), which the live IR never produces.
+            fn new(vn: std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>) -> Self {
+                let (id, descendants) = {
+                    let g = vn.read().unwrap();
+                    (vn_id(&g), g.descend_iter().collect::<Vec<_>>())
                 };
-                if op_guard.output.is_some() {
-                    edges.push(Edge { op: descendant.clone(), inslot, outslot: -1 ,
-                    });
+                let mut state = PropagationState {
+                    vn,
+                    id,
+                    descendants,
+                    next_desc: 0,
+                    op: None,
+                    slot: 0,
+                    inslot: -1,
+                };
+                if let Some((op, inslot, slot)) = state.take_next_descendant() {
+                    state.op = Some(op);
+                    state.inslot = inslot;
+                    state.slot = slot;
+                } else {
+                    // cc:5129-5132: no (usable) descendant — start at the
+                    // defining op; `vn->getDef()` may be null (input
+                    // varnode), leaving the state invalid.
+                    state.op = state.vn.read().unwrap().get_def();
+                    state.inslot = -1;
+                    state.slot = 0;
                 }
-                for outslot in 0..op_guard.num_input() {
-                    edges.push(Edge {
-                        op: descendant.clone(),
-                        inslot,
-                        outslot: outslot as i32 ,
-                    });
+                state
+            }
+
+            /// Advance to the next descendant referencing `vn` (the oracle's
+            /// `op = *iter++` plus the `getSlot` lookup, cc:5119-5127/5146-5152).
+            /// Returns (op, inslot, initial slot): slot is -1 when the op has
+            /// an output (the output edge comes first), else 0.
+            // RUGRA-GLUE: borrow-splitting helper fusing the oracle's list-iterator
+            // advance (*iter++) with getSlot and the no-output slot-0 start
+            // (cc:5119-5127/5146-5152); Rust needs it as a method to mutate
+            // self.descendants' cursor under &mut self.
+            fn take_next_descendant(
+                &mut self,
+            ) -> Option<(
+                std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>,
+                i32,
+                i32,
+            )> {
+                while self.next_desc < self.descendants.len() {
+                    let descendant = self.descendants[self.next_desc].clone();
+                    self.next_desc += 1;
+                    let (inslot, has_output) = {
+                        let op_guard = descendant.read().unwrap();
+                        let Some(inslot) = op_guard
+                            .inrefs
+                            .iter()
+                            .position(|input| std::sync::Arc::ptr_eq(input, &self.vn))
+                            .map(|slot| slot as i32)
+                        else {
+                            continue;
+                        };
+                        (inslot, op_guard.output.is_some())
+                    };
+                    let slot = if has_output { -1 } else { 0 };
+                    return Some((descendant, inslot, slot));
+                }
+                None
+            }
+
+            // Ghidra: coreaction.cc:5139 PropagationState::step
+            /// Advance to the next propagation edge (cc:5141-5160): next input
+            /// slot of the current op; on exhaustion the next descendant; on
+            /// descendant exhaustion the defining op's input pass.
+            fn step(&mut self) {
+                self.slot += 1;
+                if let Some(op) = &self.op {
+                    if self.slot < op.read().unwrap().num_input() as i32 {
+                        return;
+                    }
+                }
+                if let Some((op, inslot, slot)) = self.take_next_descendant() {
+                    self.op = Some(op);
+                    self.inslot = inslot;
+                    self.slot = slot;
+                    return;
+                }
+                // cc:5154-5159: all descendants exhausted — one pass over the
+                // defining op's inputs (inslot=-1), then the state goes
+                // invalid. When the ctor already started at the defining op
+                // (inslot==-1), there is nothing left.
+                if self.inslot == -1 {
+                    self.op = None;
+                } else {
+                    self.op = self.vn.read().unwrap().get_def();
+                    self.inslot = -1;
+                    self.slot = 0;
                 }
             }
-            if let Some(defining) = defining {
-                let input_count = defining.read().unwrap().num_input();
-                for outslot in 0..input_count {
-                    edges.push(Edge { op: defining.clone(), inslot: -1, outslot: outslot as i32 ,
-                    });
-                }
-            }
-            edges
-        };
+        }
 
-        let root_id = vn_id(&root.read().unwrap());
-        let mut active_path = HashSet::from([root_id]);
-        let mut stack = vec![Frame {
-            vn_id: root_id,
-            edges: edges_for(root),
-            next: 0,
-        }];
+        // cc:5178-5179: state.emplace_back(vn); vn->setMark();
+        let mut state = PropagationState::new(root.clone());
+        let root_id = state.id;
+        let mut active_path = rustc_hash::FxHashSet::default();
+        active_path.insert(root_id);
+        let mut stack = vec![state];
 
-        while !stack.is_empty() {
-            let edge = {
-                let frame = stack.last_mut().unwrap();
-                if frame.next == frame.edges.len() {
-                    active_path.remove(&frame.vn_id);
-                    stack.pop();
-                    continue;
-                }
-                let edge = frame.edges[frame.next].clone();
-                // coreaction.cc:5191: advance the parent frame before the
-                // child state is pushed.
-                frame.next += 1;
-                edge
+        // cc:5181-5197: while(!state.empty()) — invalid states pop and clear
+        // their mark; valid states try propagateTypeEdge(op, inslot, slot),
+        // stepping BEFORE the child push (cc:5190-5192).
+        while let Some(ptr) = stack.last_mut() {
+            let Some(op_arc) = ptr.op.clone() else {
+                // !ptr->valid(): cc:5183-5185 clearMark + pop_back.
+                let frame_id = ptr.id;
+                active_path.remove(&frame_id);
+                stack.pop();
+                continue;
             };
-
-            // The op guard is released before propagate_type_edge so the
-            // union resolveInFlow path can take its own guards (the edge fn
-            // re-acquires for its read-only sections).
-            let next_vn = {
-                Self::propagate_type_edge(
-                    &edge.op,
-                    fd,
-                    temps,
-                    &active_path,
-                    edge.inslot,
-                    edge.outslot,
-                    int_types,
-                    ptr_size,
-                    type_factory,
-                )
-            };
+            let in_id = ptr.id;
+            let (inslot, slot) = (ptr.inslot, ptr.slot);
+            let next_vn = Self::propagate_type_edge(
+                &op_arc,
+                in_id,
+                fd,
+                temps,
+                &active_path,
+                inslot,
+                slot,
+                int_types,
+                ptr_size,
+                type_factory,
+            );
+            ptr.step(); // cc:5190: step before push
             if let Some(next_vn) = next_vn {
-                let next_id = vn_id(&next_vn.read().unwrap());
-                active_path.insert(next_id);
-                stack.push(Frame {
-                    vn_id: next_id,
-                    edges: edges_for(&next_vn),
-                    next: 0,
-                    });
+                let next = PropagationState::new(next_vn);
+                active_path.insert(next.id);
+                stack.push(next);
             }
         }
     }
@@ -9949,7 +10032,7 @@ impl Action for ActionInferTypes {
             ))),
         };
         // 3. buildLocalTypes: seed temp types from op semantics.
-        let mut temps: TempTypes = HashMap::new();
+        let mut temps: TempTypes = Default::default();
         self.build_localtypes(fd, &mut temps, &int_types, ptr_size)?;
 
         // 3b. Seed struct-pointer types from DWARF-known globals. Stamp the

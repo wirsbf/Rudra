@@ -3952,8 +3952,9 @@ ActionUnjustifiedParams · ActionUnreachable · ActionVarnodeProps
 写域，REGEN/TYPEOP 车道域。）
 
 **39 项清单内其余两裁决**（详见上节）：propagationDebug=TYPEPROP_DEBUG 调试脚手架，
-oracle release 构建同样缺席 → 缺席即对齐，不移植；PropagationState ctor/step=
-propagate_one_type 的 edges_for 内联投影（coreaction.rs:8722 锚），无独立结构体。
+oracle release 构建同样缺席 → 缺席即对齐，不移植；PropagationState ctor/step=**独立
+结构体实装**（2026-09-29 SPEEDPROF2-INFERTYPES-DRILL-0001 起，见当节；此前为
+propagate_one_type 的 edges_for 内联投影）。
 
 ## 2026-09-27：WORKPKG-UNMAP-COREACT-0002 十函数落地（Lane COREACT2）
 
@@ -4009,9 +4010,10 @@ REGEN 边）：
 - **propagationDebug**（cc:4980-5002）：`#ifdef TYPEPROP_DEBUG` 调试脚手架——oracle
   release 构建同样不含该函数；按"debug-scaffolding 缺席=release 对齐"裁决不移植，
   入 62-clone 裁决表。
-- **PropagationState ctor/step**（cc:5115/:5139）：已在 propagate_one_type 的 edges_for
-  投影内联实装（coreaction.rs:8722 注释锚），无独立结构体——入 62-clone 裁决表（inline
-  projection 形态）。
+- **PropagationState ctor/step**（cc:5115/:5139）：**2026-09-29 起为独立结构体实装**
+  （SPEEDPROF2-INFERTYPES-DRILL-0001——原 edges_for 内联投影改为逐字段镜像
+  coreaction.hh:1072 的惰性状态机，见 2026-09-29 车道节；62-clone 裁决表的
+  "inline projection 形态"注记随之升级为结构体形态）。
 
 **新测试**：`test_likelytrash_count_marks_and_trace_trash`（手接 IR 锁 countMarks 的
 INDIRECT 链计数 + traceTrash 三臂：INDIRECT-only 垃圾/INT_ADD 非垃圾/0xff00 掩码垃圾 +
@@ -4397,3 +4399,38 @@ blockaction.cc:2110-2115/2186-2197 + block.cc:3148-3297/3350-3436。
   Join 空间注册地址；RETURN 侧 return_join_address 委托 Architecture；
   double_precis create_joined_whole 消费空间限定结果；process_joins /
   build_subpiece 经 RwLock 读 join_db。无独立新语义。
+
+## 2026-09-29：ActionInferTypes 速度车道（SPEEDPROF2-INFERTYPES-DRILL-0001）
+
+钻定画像（[ITPROF] 临时探针，VdbeExec --one 1055）：infertypes 在 VdbeExec 上跑
+**8 轮完整真跑**（两侧同形——oracle 自身 VdbeExec golden 亦含 1 条 "not settling"
+警告 + localcount 7 上限即停；每轮 ~0.95-1.0s 主体在主传播循环）。逐轮构成：主循环
+（per-root propagateOneType DFS）≈80%，build_localtypes（get_local_type per-varnode）
+≈5-8%，propagate_spacebase_ref ≈3-5%，write_back/roots ≈1%；20.0M 边调用/8 轮，
+拒绝剖面 propnone 89.7% / notbetter 4.7% / backtrack 3.2% / annot 1.7%。
+
+落地四件（行为恒等——walk 级计数器逐项全等 + 输出 md5 恒等亲证）：
+
+1. **`PropagationState` 独立结构体（1:1 oracle 形态）**：propagate_one_type 的
+   edges_for 急式物化（每帧 2 次 Vec 分配 + 每后代 1+num_input 次 Arc 克隆 + 每边
+   逐访克隆）改为逐字段镜像 coreaction.hh:1072 的惰性状态机——ctor（cc:5115-5133）
+   与 step（cc:5139-5160）按 oracle 语义实装：后代序列先输出边（slot=-1）后输入槽
+   0..numInput-1，后代耗尽后定义算子输入遍（inslot=-1），inslot==−1 再耗尽即失效。
+   边序列与急式形态逐项相同（oracle 从不物化边表）。
+2. **`propagate_type_edge` 源 id 线程传递**：每条 walked edge 的源 varnode 恒为传播
+   帧根（后代边在 inslot 读它、定义边的输出就是它——cc:5079-5080 invn 解析的恒等
+   投影），调用方直接传入帧缓存 id，消除每边一次 op 读锁 + invn 读锁 + vn_id 混合；
+   输出 id 同理单次计算复用（cur 查询 / insert / active_path 三处）。
+3. **守卫合并 + 单锁探测**：out varnode 的 is_annotation/is_type_lock/
+   stops_up_propagation/get_nz_mask 四个纯谓词合并到一次读锁获取（拒绝集不变，
+   谓词无副作用；bool-nz 守卫从"读锁内取 nz_mask"改为同锁内预取后判定）。
+4. **TempTypes/active_path 换 FxHash + canonicalize 读锁降级**：temp 表与 DFS 路径
+   集只做点查询（无迭代序消费者）→ rustc_hash（SPEEDPROF2 cover.rs 先例）；
+   canonicalize_temp_type 无名基类型臂只需 get_base(&self)（内部自锁缓存）→
+   工厂读锁替代写锁，返回同一 interned 实例。
+
+验证：VdbeExec --one 1055（GEN_MIRROR 口径）stdout md5 `bf2d9b85…` base==opt
+（12 轮配对交替 + 探针三连环）；walk 级计数器（edge_calls/ok/八类拒绝）基线探针
+与优化探针**逐项精确相等**（20,008,328 边/138,984 成功）；sqlite 全语料 + canon
+双 md5 + 镜面五面 + tests 见车道终报。CR 需求：coreaction.rs 属主管线 Action 面
+（机制 C 语义邻域），复核面见 /dev/shm/rugra-reports/LANE_INFERTYPES_2026-09-29.md。
