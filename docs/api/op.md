@@ -1287,3 +1287,14 @@ alive_push_back/unlink_alive_if_member`（funcdata GLUE 分支的位置插入链
 ARENA_DESIGN §2.4）；`mark_dead` 等对未入链外源句柄（legacy fixture 裸 op）
 走成员守卫 no-op（原 retain miss 等价）。canon curl/httpd 双 md5 字节恒等
 （4ab1db2a/7d5b9e7c）+ tests 2018P 恒等亲证。
+
+## 2026-09-30（续）：clear() 七链全部先摘链再回收槽（sqlite 三函数 panic 修复）
+
+翻转首版的 `clear()` 先摘三条 insert 链，随后 `optree.clear()` 释放全部
+arena 槽，最后才 `clear_code_lists()`——opcode 链仍链在已释放槽上，下一次
+code 链手术即 `clear: node vanished` panic（arena.rs）。镜面 sqlite 面捕获：
+sqlite3_config/sqlite3_test_control/sqlite3_db_config 反编译 worker 阵亡
+（matched 1382/1385 < floor、skeleton 778/785）；canon 双面与单测面不触达
+带非空 code 链的 bank clear。修复序：clear_code_lists → 三条 insert 链摘链
+→ optree.clear → uniqid=0（op.cc:1194-1209 先删对象后清表的等价重排）。
+修复态复验：镜面五面全 PASS 恰钉值、canon 双 md5 字节恒等、2018P/0F/5I。

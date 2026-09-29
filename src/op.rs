@@ -2466,12 +2466,14 @@ impl PcodeOpBank {
     // Ghidra: op.cc:1194 PcodeOpBank::clear
     pub fn clear(&mut self) {
         // cc:1199-1204 walk the three membership chains, then cc:1206-1209
-        // clear the tree and every chain. The chains must be unlinked
+        // clear the tree and every chain. ALL SEVEN chains must be unlinked
         // BEFORE optree.clear() reclaims the arena slots — IdList surgery
-        // needs live cells (the oracle deletes the pointed-to objects
+        // needs live cells, including the opcode chains cleared via
+        // clear_code_lists (the oracle deletes the pointed-to objects
         // first, then clears the now-dangling lists; the observable end
         // state is identical: every list empty, every slot freed, uniqid
         // reset).
+        self.clear_code_lists();
         {
             let Self { optree, alivelist, deadlist, deadandgone, .. } = self;
             let arena = &mut optree.arena_mut();
@@ -2480,7 +2482,6 @@ impl PcodeOpBank {
             deadandgone.clear(arena);
         }
         self.optree.clear();
-        self.clear_code_lists();
         self.uniqid = 0;
     }
 
