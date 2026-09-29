@@ -407,6 +407,12 @@ pub fn print_tree_dbg(
                 }
             }
         }
+        BlockType::InfLoop => {
+            if let Some(il) = rg.as_any().downcast_ref::<crate::block::BlockInfLoop>() {
+                out.push_str(&format!("{}#{} InfLoop @{}\n", indent, idx, addr_of(bl)));
+                print_tree_dbg(&il.body, depth + 1, out);
+            }
+        }
         other => {
             out.push_str(&format!(
                 "{}#{} {:?} @{}\n",

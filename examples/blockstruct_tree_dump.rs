@@ -352,7 +352,17 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
     // filter); lift_instruction stamps SeqNum(addr, 0) itself.
     let raw_ops = rugra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code_bytes, target_addr);
 
+    // FUNCPROTO-MODEL-BIND-0001: the pipeline's call-effect actions read
+    // FuncProto::effect_iter, which delegates to the Architecture's default
+    // prototype model — the gen mirror driver wires this via
+    // Funcdata::set_arch (fspec.cc:3884 model-binding tail). Build the
+    // minimal Architecture with the shared default model here so the
+    // decompile pipeline runs without the effect_iter panic.
+    let model = rugra::fspec::ProtoModelFull::new(None, 8);
+    let mut arch = rugra::arch::Architecture::new();
+    arch.defaultfp = Some(std::sync::Arc::new(model));
     let mut fd = Funcdata::new(&func_name, Address::new(target_addr), func_size as i32);
+    fd.set_arch(std::sync::Arc::new(arch));
     for (&addr, n) in &symbol_table {
         fd.add_symbol(addr, n.clone());
     }

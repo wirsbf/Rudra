@@ -2,6 +2,23 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-09-29：print_tree_dbg 补 InfLoop 臂（Lane SWITCHDISPATCH 诊断完善）
+
+- **缺口**：`print_tree_dbg`（RUGRA-GLUE 结构树调试转储器，`RUGRA_DUMP_FUNC`
+  /`RUGRA_TREE1` 的输出后端）此前对 `BlockType::InfLoop` 落入 `other` 兜底臂，
+  只打印 `#N InfLoop @addr` 一行而不递归 `body` —— SetCoderProperties/
+  GetOptimumFast（MIRROR-GIANTS-SWITCHDISPATCH-0001 双侧钉形）的结构树转储
+  里最外层 InfLoop 的整个循环体不可见，导致与 oracle
+  `BlockGraph::printTree`（block.cc:1290-1301，无类型遗漏）的逐节点对照
+  无法进行。
+- **修复**：补 `BlockType::InfLoop` 臂——打印 `#N InfLoop @addr` 后递归
+  `body`，与 WhileDo/DoWhile/Switch 臂同形。诊断面零行为差异（生产管线
+  不读该转储器）。
+- **配套**：`examples/blockstruct_tree_dump.rs` 同 commit 补 Architecture/
+  ProtoModelFull 接线（FUNCPROTO-MODEL-BIND-0001——call-effect 动作经
+  `FuncProto::effect_iter` 读默认原型模型，无 arch 时 panic；镜像驱动同
+  形接线见 gen_decompile），独立函数结构树转储示例恢复可用。
+
 ## 2026-08-29：absorbed_into 升级为唯一消费记录（不再依赖 f_dead）
 
 `identify_internal`/序列合并不再对被组合块吸收的子块置 `block_flags::DEAD`
