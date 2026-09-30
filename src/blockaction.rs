@@ -5148,15 +5148,21 @@ impl<'a> CollapseStructure<'a> {
             return false;
         }
         let cond_idx = b.get_index();
-        if b.get_out_ref(0)
-            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx)
+        // RUGRA-GLUE: bank-view self-loop checks (edge twins' index
+        // shadows; unresolved twins fall back to the guard read).
         {
-            return false;
-        }
-        if b.get_out_ref(1)
-            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx)
-        {
-            return false;
+            let bank = self.graph.bank.hold();
+            let self_loop = (0..2).any(|slot| {
+                b.get_out_ref(slot).map_or(false, |e| {
+                    match bank.index(e.point_id) {
+                        Some(i) => i == cond_idx,
+                        None => e.point.read().unwrap().get_index() == cond_idx,
+                    }
+                })
+            });
+            if self_loop {
+                return false;
+            }
         }
         if Self::out_edge_is_goto(&*b, 0) {
             return false;
@@ -5791,15 +5797,21 @@ impl<'a> CollapseStructure<'a> {
         // cc:1526-1528: `if (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl)
         // return false; if (bl->isInteriorGotoTarget()) return false;`
         let cond_idx_pre = b.get_index();
-        if b.get_out_ref(0)
-            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx_pre)
+        // RUGRA-GLUE: bank-view self-loop checks (edge twins' index
+        // shadows; unresolved twins fall back to the guard read).
         {
-            return false;
-        }
-        if b.get_out_ref(1)
-            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx_pre)
-        {
-            return false;
+            let bank = self.graph.bank.hold();
+            let self_loop = (0..2).any(|slot| {
+                b.get_out_ref(slot).map_or(false, |e| {
+                    match bank.index(e.point_id) {
+                        Some(i) => i == cond_idx_pre,
+                        None => e.point.read().unwrap().get_index() == cond_idx_pre,
+                    }
+                })
+            });
+            if self_loop {
+                return false;
+            }
         }
         if b.is_interior_goto_target() {
             return false;
@@ -5930,51 +5942,56 @@ impl<'a> CollapseStructure<'a> {
         }
 
         let cond_idx = b.get_index();
-        for slot in 0..2 {
-            // Reference read (oracle getOut, block.hh:301); the target is
-            // only compared here — the old form cloned the point Arc per
-            // slot per try.
-            let back_self = b
-                .get_out_ref(slot)
-                .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx);
-            if !back_self {
-                continue;
-            }
-            drop(b);
-
-            // cc:1566-1569: `if (i==0) { if (bl->negateCondition(true))
-            // dataflow_changecount += 1; }` — a do-while must loop on the
-            // TRUE condition. out[0] is the fall-through/false path
-            // (block.hh:299), so a slot==0 back-edge requires the real data
-            // flip (BOOLEAN_FLIP + swapEdges, block.cc:2351). The old port
-            // omitted this, inverting do-while guards.
-            if slot == 0 {
-                if block.write().unwrap().negate_condition(true) {
-                    self.dataflow_change_count += 1;
-                }
-            }
-
-            // Found do-while: this block loops back on itself
-            let do_while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
-                Arc::new(RwLock::new(crate::block::BlockDoWhile {
-                    index: cond_idx,
-                    condition: block.clone(),
-                    incoming: Vec::new(),
-                    outgoing: Vec::new(),
-                    parent: None,
-                    flags: 0,
-                }));
-            // Ghidra newBlockDoWhile(condcl): identifyInternal([condcl]).
-            // The condcl block is consumed so its boundary edges (entry from
-            // outside the loop, exit to the fallthrough) are captured onto the
-            // new BlockDoDoWhile. condcl sits at install_idx=i.
-            self.identify_internal(&do_while_block, &[cond_idx], i);
-            self.update_switch_case_reference(cond_idx, &do_while_block);
-            self.structure_change_count += 1;
-            return true;
-        }
+        // RUGRA-GLUE: bank-view guard — one read guard for the slot scan;
+        // the target is only compared here (oracle getOut, block.hh:301).
+        // Unresolved twins fall back to the guard read. Scoped so the view
+        // drops before the &mut self fire path.
+        let back_slot = {
+            let bank = self.graph.bank.hold();
+            (0..2).find(|&slot| {
+                b.get_out_ref(slot).map_or(false, |e| {
+                    match bank.index(e.point_id) {
+                        Some(i) => i == cond_idx,
+                        None => e.point.read().unwrap().get_index() == cond_idx,
+                    }
+                })
+            })
+        };
+        let Some(slot) = back_slot else {
+            return false;
+        };
         drop(b);
-        false
+
+        // cc:1566-1569: `if (i==0) { if (bl->negateCondition(true))
+        // dataflow_changecount += 1; }` — a do-while must loop on the
+        // TRUE condition. out[0] is the fall-through/false path
+        // (block.hh:299), so a slot==0 back-edge requires the real data
+        // flip (BOOLEAN_FLIP + swapEdges, block.cc:2351). The old port
+        // omitted this, inverting do-while guards.
+        if slot == 0 {
+            if block.write().unwrap().negate_condition(true) {
+                self.dataflow_change_count += 1;
+            }
+        }
+
+        // Found do-while: this block loops back on itself
+        let do_while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
+            Arc::new(RwLock::new(crate::block::BlockDoWhile {
+                index: cond_idx,
+                condition: block.clone(),
+                incoming: Vec::new(),
+                outgoing: Vec::new(),
+                parent: None,
+                flags: 0,
+            }));
+        // Ghidra newBlockDoWhile(condcl): identifyInternal([condcl]).
+        // The condcl block is consumed so its boundary edges (entry from
+        // outside the loop, exit to the fallthrough) are captured onto the
+        // new BlockDoDoWhile. condcl sits at install_idx=i.
+        self.identify_internal(&do_while_block, &[cond_idx], i);
+        self.update_switch_case_reference(cond_idx, &do_while_block);
+        self.structure_change_count += 1;
+        true
     }
 
     // Ghidra: blockaction.hh:46 LoopBody::dominates

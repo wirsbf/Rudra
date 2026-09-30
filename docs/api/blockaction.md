@@ -304,6 +304,10 @@ E2E（curl 124 fn，fast-release）：exit 0 / 0 panic，defects=0 / numbering=0
 
 
 ## 2026-09-30：bank-view 热读迁移（Lane ARENAFLIP-d 步骤 2，性能兑现面）
+- **do_while/if_no_exit/while_do 自环守卫**（步骤 2 续）：back-edge/自环
+  检查的 peer 索引读同走 bank view（do_while 的槽位扫描改为 find 形态，
+  视图作用域先于 &mut self fire 路径释放；语义逐位——槽序 0→1 首中即取）。
+
 
 - **count_non_structural_in_edges**（BLOCKSTRUCT 钻定的 53.4M 入边扫描
   热点）：per-edge 的 peer RwLock+vtable 读（`in_edge.point.read()` +
