@@ -1995,3 +1995,10 @@ tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence�
 （9 条 try_rule_* 签名增 `block: &Arc<...>` 参数,取代每 try 的 Vec 索引+Arc 克隆
 —— (d) 段 miss 底归因的 per-try get_block Arc 克隆面）。`collapse_all` 的
 while_do/inf_loop 循环与测试调用点同形随迁;tests 2018P 保持。
+
+## ARENAFLIP-e（2026-09-30）try_rule_cat 读相 bank-view 化
+
+`try_rule_cat` 的读相（入口守卫+链构建）改持单一 `BlockBankView`
+（`self.graph.bank.hold()` 一次,NLL+显式 drop 保证 fire 路径前释放）,
+per-try 的 peer 解析从每次 bank 锁降为扫描级单锁——(c) 段槽读先例在
+cat 规则的应用。tests 2018P 保持。

@@ -4653,6 +4653,10 @@ impl<'a> CollapseStructure<'a> {
     /// Then extend the chain while each link has 1 out, 1 in, no switch, no goto.
     fn try_rule_cat(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         let size = self.graph.get_size();
+        // One bank-view guard spans this rule's read phases (the per-try
+        // peer reads below run millions of times per giant function; NLL
+        // ends the borrow before the first &mut self fire path).
+        let bank_view = self.graph.bank.hold();
         // bl->sizeOut() != 1 — NO type gate: Ghidra's ruleBlockCat
         // (cc:1284-1314) runs on any graph member; structured components
         // (BlockIf, BlockCondition, ...) cat-merge like basic blocks.
@@ -4674,7 +4678,7 @@ impl<'a> CollapseStructure<'a> {
             let block_idx = b.get_index();
             if b.size_in() == 1 {
                 if let Some(in_edge) = b.get_in_ref(0) {
-                    let pred_out = self.graph_bank().expect_arc(in_edge.point).read().unwrap().size_out();
+                    let pred_out = bank_view.expect_arc(in_edge.point).read().unwrap().size_out();
                     if pred_out == 1 {
                         return false;
                     } // not start of chain
@@ -4682,7 +4686,7 @@ impl<'a> CollapseStructure<'a> {
             }
             // bl->getOut(0) == bl → no looping
             if let Some(out_edge) = b.get_out_ref(0) {
-                if self.graph_bank().expect_index(out_edge.point) == block_idx {
+                if bank_view.expect_index(out_edge.point) == block_idx {
                     return false;
                 }
             }
@@ -4711,7 +4715,7 @@ impl<'a> CollapseStructure<'a> {
         // outblock = bl->getOut(0) — capture after the entry guards.
         let first_next = {
             let b = block.read().unwrap();
-            b.get_out_ref(0).map(|e| self.graph_bank().expect_arc(e.point))
+            b.get_out_ref(0).map(|e| bank_view.expect_arc(e.point))
         };
         let first_next = match first_next {
             Some(n) => n,
@@ -4738,7 +4742,7 @@ impl<'a> CollapseStructure<'a> {
                 if c.size_out() != 1 {
                     break;
                 }
-                let t = c.get_out(0).map(|e| self.graph_bank().expect_arc(e.point));
+                let t = c.get_out(0).map(|e| bank_view.expect_arc(e.point));
                 (c.get_index(), t)
             };
             let next = match cur_out_target {
@@ -4816,6 +4820,9 @@ impl<'a> CollapseStructure<'a> {
             .iter()
             .map(|n| n.read().unwrap().get_index())
             .collect();
+        // Release the bank view before the &mut self fire path (the read
+        // phases above are done; NLL alone cannot prove it across the loop).
+        drop(bank_view);
         let list_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
             Arc::new(RwLock::new(BlockList::new(block_idx, nodes.clone())));
         self.identify_internal(&list_block, &consumed, i);
