@@ -3,7 +3,7 @@
 //! Corresponds to Ghidra's `block.hh`
 
 use crate::address::Address;
-use crate::arena::{Arena, ArenaId, BlockId};
+use crate::arena::{ArenaId, BlockId};
 use crate::marshal::{AttributeId, Decoder, ElementId, Encoder};
 use crate::op::PcodeOpRef;
 use crate::opcodes::OpCode;
@@ -3338,33 +3338,59 @@ pub struct BlockCell {
 
 impl BlockCell {
     // RUGRA-GLUE: helper for insert()'s post-insert claim (the cell is
-    // consumed by Arena::insert; keep a handle clone for ownership setup).
+    // consumed by the bank insert; keep a handle clone for ownership setup).
     fn clone_arc(&self) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         self.arc.clone()
     }
 }
 
-/// Per-graph block bank: `Arena<BlockCell, BlockId>` behind a RwLock.
-/// Reads (hot guards: peer index/type) take the read lock once per scan and
-/// dereference slots lock-free; insert/set/clear take the write lock (cold:
-/// add_block / orderBlocks / clear only). Slots are never freed on Vec-list
-/// removal (`retain`/`remove_block_arc` leave zombies — mirrors the oracle
-/// lifetime where removed FlowBlocks stay heap-alive until the graph dtor,
-/// and keeps edges pointing at absorbed/removed blocks resolvable);
-/// `clear()` (graph reset, funcdata_block.cc:728 sblocks.clear) is the only
-/// reclaim point and bumps generations so stale ids fail lookup.
+/// Per-graph block bank: COW-Arc slot tables behind one RwLock
+/// (ARENAFLIP-f handoff ① — the per-read resolution lock removal).
+///
+/// Storage split (the opcode-shadow precedent of (c) applied to the block
+/// domain, extended with copy-on-write publishing):
+/// - `BankState.table` — `arcs`/`btypes`/`gens`, **immutable once
+///   published**; `insert`/`clear` copy-on-write (`Arc::make_mut`: free
+/// when no snapshot is outstanding) and bump `epoch`. Id minting
+/// replicates the frozen `arena.rs::Arena` discipline exactly: slots are
+/// never freed between clears (zombies keep resolving — the oracle
+/// lifetime where removed FlowBlocks stay heap-alive until the graph
+/// dtor), `clear()` bumps the generation of every occupied slot and the
+/// next inserts reuse slot indexes ascending, so `BlockId` values are
+/// byte-for-byte what the `Arena` form minted for the same operation
+/// sequence.
+/// - `BankState.cells` — shared **in-place** shadow cells (atomic index,
+/// block.hh:124). rpost renumbering writes O(n) of them per pass
+/// (BANKSTATS: 1.19M stores on the giant function), so they must NOT
+/// republish the table (O(n) Arc traffic per store); all generations
+/// share one allocation until the next publish copies the values.
+/// - `epoch` — bumped by every publish. `BlockBankView` reads check it
+/// (one Acquire load per read) so a read through a stale snapshot PANICS
+/// instead of silently returning pre-mutation state — the guard-view form
+/// deadlocked on the same read-phase discipline violation, so the
+/// failure mode stays loud.
+///
+/// Reads: `hold()` takes ONE read lock, clones two Arcs, and returns an
+/// OWNED `BlockBankView` (no lifetime — freely mixed with `&mut self`),
+/// whose per-read resolution is plain Vec indexing + generation compare
+/// + one atomic shadow load. The per-read bank APIs (`index_of` /
+/// `expect_index` / ...) go through a fresh snapshot — same cost as the
+/// pre-fip single-lock read, kept for cold sites.
+///
 /// The handle is a cheap `Clone` over a shared inner (blocks hold weak
 /// back-pointers to their owning bank — the oracle's `BlockBasic::data`
 /// funcdata-back-pointer pattern, block.hh:464 — so edge endpoints resolve
 /// without threading a bank parameter through every edge-surgery call).
-// RUGRA-GLUE: block bank (ARENA_DESIGN §1.4 BlockArena, arena.rs frozen Arena)
+// RUGRA-GLUE: block bank (ARENA_DESIGN §1.4 BlockArena; COW-Arc snapshot
+// form replaces the arena.rs Arena as the bank's storage — arena.rs itself
+// stays frozen, W0 contract untouched)
 #[derive(Clone)]
 pub struct BlockBank {
     sh: std::sync::Arc<BlockBankShared>,
 }
 
 pub(crate) struct BlockBankShared {
-    inner: RwLock<Arena<BlockCell, BlockId>>,
+    state: RwLock<BankState>,
     /// Arc-identity → slot map (`Arc::as_ptr` keys, the established
     /// identity-key pattern). Gives `id_of(&Arc)` without touching the
     /// block's own RwLock — the only deadlock-free way to stamp
@@ -3372,13 +3398,80 @@ pub(crate) struct BlockBankShared {
     /// (self-loop edges construct an edge whose point IS the guarded
     /// block, addEdge block.rs / identify_internal loop-head edges).
     ids: RwLock<rustc_hash::FxHashMap<usize, BlockId>>,
+    /// Publish epoch — bumped (Release) by insert/clear after the new
+    /// state is visible. View reads compare it (Acquire) after each
+    /// value read; mismatch = read-phase violation (see type doc).
+    epoch: std::sync::atomic::AtomicU64,
+}
+
+/// The published half of the bank: everything immutable-per-generation
+/// lives in `table` (copy-on-write), everything mutated in place lives in
+/// the shared `cells` allocation.
+// RUGRA-GLUE: COW-Arc bank state (one lock guards the pair)
+struct BankState {
+    table: std::sync::Arc<BankTable>,
+    cells: std::sync::Arc<Vec<BankShadowCell>>,
+}
+
+/// Slot-indexed immutable table (COW-published). `arcs[i] == None` only
+/// for the reserved sentinel slot 0; live and zombie slots stay `Some`
+/// until `clear`.
+// RUGRA-GLUE: COW-Arc slot table (arena.rs Arena minting parity — see
+/// BlockBank type doc)
+#[derive(Clone)]
+struct BankTable {
+    arcs: Vec<Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>>>,
+    btypes: Vec<BlockType>,
+    /// Per-slot generation; `gens[i]` bumps on every clear that found
+    /// slot i occupied, exactly as `arena.rs::Arena::clear` does. Never
+    /// shrinks: post-clear inserts reuse the bumped generations.
+    gens: Vec<u32>,
+}
+
+impl BankTable {
+    // RUGRA-GLUE: sentinel-slot reserved table constructor (arena.rs
+    // Arena::new parity — the frozen Arena reserves slot index 0; the COW
+    // table keeps the same reserved layout)
+    fn reserved() -> Self {
+        BankTable {
+            arcs: vec![None],
+            btypes: vec![BlockType::Plain],
+            gens: vec![0],
+        }
+    }
+}
+
+/// In-place shadow cell shared by all table generations until the next
+/// publish copies the values. Atomics give interior mutability through
+/// `&self` (single-Funcdata single-thread domain; the atomic is for the
+/// Sync bound, ordering is Relaxed throughout).
+// RUGRA-GLUE: shared shadow cell (block.hh:124 index; sizes join in the
+/// size-shadow step)
+struct BankShadowCell {
+    index: std::sync::atomic::AtomicI32,
+}
+
+impl Clone for BankShadowCell {
+    // RUGRA-GLUE: publish-time value copy (Arc::make_mut requires Clone;
+    // AtomicI32 is not Clone — copy by plain Relaxed load; values exact)
+    fn clone(&self) -> Self {
+        BankShadowCell {
+            index: std::sync::atomic::AtomicI32::new(
+                self.index.load(std::sync::atomic::Ordering::Relaxed),
+            ),
+        }
+    }
 }
 
 impl std::fmt::Debug for BlockBank {
     // RUGRA-GLUE: debug form (slot count only; slot order must never be
     // observable, ARENA_DESIGN §2.4/§8.3)
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "BlockBank({} slots)", self.sh.inner.read().unwrap().len())
+        let slots = {
+            let st = self.sh.state.read().unwrap();
+            st.table.arcs.len().saturating_sub(1)
+        };
+        write!(f, "BlockBank({} slots)", slots)
     }
 }
 
@@ -3387,12 +3480,18 @@ impl std::fmt::Debug for BlockBank {
 pub type BlockBankLink = std::sync::Weak<BlockBankShared>;
 
 impl BlockBank {
-    // RUGRA-GLUE: bank constructor (fresh arena, sentinel slot 0 reserved)
+    // RUGRA-GLUE: bank constructor (fresh tables, sentinel slot 0 reserved)
     pub fn new() -> Self {
         Self {
             sh: std::sync::Arc::new(BlockBankShared {
-                inner: RwLock::new(Arena::new()),
+                state: RwLock::new(BankState {
+                    table: std::sync::Arc::new(BankTable::reserved()),
+                    cells: std::sync::Arc::new(vec![BankShadowCell {
+                        index: std::sync::atomic::AtomicI32::new(0),
+                    }]),
+                }),
                 ids: RwLock::new(rustc_hash::FxHashMap::default()),
+                epoch: std::sync::atomic::AtomicU64::new(0),
             }),
         }
     }
@@ -3424,15 +3523,33 @@ impl BlockBank {
     // RUGRA-GLUE: bank insert (add_block write path); registers the Arc
     // identity so `id_of` resolves without a block lock, and claims block
     // ownership (owner-bank back-pointer). No block guard may be held by
-    // callers (`claim` takes the block's write lock).
-    fn insert(&self, cell: BlockCell) -> BlockId {
+    // callers (`claim` takes the block's write lock). Publish side of the
+    // COW form: append under the state write lock (`Arc::make_mut` — free
+    // when no snapshot is outstanding), then bump the epoch so any view
+    // taken before the publish fails its read check.
+    pub(crate) fn insert(&self, cell: BlockCell) -> BlockId {
         bank_stats::bump(&bank_stats::STATS.publishes);
         let key = Arc::as_ptr(&cell.arc) as *const () as usize;
         let arc = cell.arc.clone();
         let id = {
-            let mut arena = self.sh.inner.write().unwrap();
-            arena.insert(cell)
+            let mut st = self.sh.state.write().unwrap();
+            let idx = st.table.arcs.len() as u32;
+            let table = std::sync::Arc::make_mut(&mut st.table);
+            if idx as usize == table.gens.len() {
+                table.gens.push(0);
+            }
+            let id = BlockId::from_parts(idx, table.gens[idx as usize]);
+            table.arcs.push(Some(cell.arc));
+            table.btypes.push(cell.btype);
+            let cells = std::sync::Arc::make_mut(&mut st.cells);
+            cells.push(BankShadowCell {
+                index: std::sync::atomic::AtomicI32::new(cell.index),
+            });
+            id
         };
+        self.sh
+            .epoch
+            .fetch_add(1, std::sync::atomic::Ordering::Release);
         self.sh.ids.write().unwrap().insert(key, id);
         self.claim(&arc);
         id
@@ -3475,25 +3592,25 @@ impl BlockBank {
 
     /// Peer `index` shadow read (block.hh:160 getIndex without the block
     /// lock/vtable). Callers must know `id` came from this bank.
-    // RUGRA-GLUE: hot shadow read
+    // RUGRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
     pub fn index_of(&self, id: BlockId) -> Option<i32> {
         bank_stats::bump(&bank_stats::STATS.read_index);
-        self.sh.inner.read().unwrap().get(id).map(|c| c.index)
+        self.hold().index(id)
     }
 
     /// Peer `block_type` shadow read (block.hh:184 getType without the
     /// block lock/vtable).
-    // RUGRA-GLUE: hot shadow read
+    // RUGRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
     pub fn btype_of(&self, id: BlockId) -> Option<BlockType> {
         bank_stats::bump(&bank_stats::STATS.read_btype);
-        self.sh.inner.read().unwrap().get(id).map(|c| c.btype)
+        self.hold().btype(id)
     }
 
     /// Resolve `id` back to the block handle (clone of the bank's Arc).
-    // RUGRA-GLUE: id→handle resolution (oracle: raw pointer already in hand)
+    // RUGRA-GLUE: id→handle resolution (fresh-snapshot form; hot callers use hold())
     pub fn arc_of(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         bank_stats::bump(&bank_stats::STATS.read_arc);
-        self.sh.inner.read().unwrap().get(id).map(|c| c.arc.clone())
+        self.hold().arc(id)
     }
 
     /// Resolve `id` to the block handle, panicking with context when the id
@@ -3502,87 +3619,164 @@ impl BlockBank {
     /// bank, so a miss is an invariant violation (stale id after `clear`,
     /// cross-bank resolution, or an unregistered fixture), not a normal
     /// control-flow case.
-    // RUGRA-GLUE: id→handle resolution, panicking form
+    // RUGRA-GLUE: id→handle resolution, panicking form (fresh-snapshot form)
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         bank_stats::bump(&bank_stats::STATS.read_arc);
-        match self.sh.inner.read().unwrap().get(id) {
-            Some(c) => c.arc.clone(),
-            None => panic!("BlockBank: stale or foreign BlockId {:?}", id),
-        }
+        self.hold().expect_arc(id)
     }
 
     /// Peer `index` shadow read, panicking form (see `expect_arc` for the
     /// invariant). Equivalent to `arc_of(id).read().unwrap().get_index()`
     /// with the lock/vtable round-trip removed ((d)-segment shadow).
-    // RUGRA-GLUE: hot shadow read, panicking form
+    // RUGRA-GLUE: hot shadow read, panicking form (fresh-snapshot form)
     pub fn expect_index(&self, id: BlockId) -> i32 {
         bank_stats::bump(&bank_stats::STATS.read_index);
-        match self.sh.inner.read().unwrap().get(id) {
-            Some(c) => c.index,
-            None => panic!("BlockBank: stale or foreign BlockId {:?}", id),
-        }
+        self.hold().expect_index(id)
     }
 
     /// Shadow write for `FlowBlock::index` mutations (single choke point:
-    /// `BlockGraph::set_block_index`).
+    /// `BlockGraph::set_block_index`). Stores in place into the shared
+    /// cells under the state read lock (publishing here would be O(n) Arc
+    /// traffic per rpost renumber store); no epoch bump — a view whose
+    /// cells predate the current allocation is already invalidated by the
+    /// publish that replaced it, and a view sharing this allocation sees
+    /// the store (atomics).
     // RUGRA-GLUE: shadow maintenance
-    fn set_index_shadow(&self, id: BlockId, index: i32) {
+    pub(crate) fn set_index_shadow(&self, id: BlockId, index: i32) {
         bank_stats::bump(&bank_stats::STATS.shadow_writes);
-        if let Some(cell) = self.sh.inner.write().unwrap().get_mut(id) {
-            cell.index = index;
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i != 0
+            && i < st.table.arcs.len()
+            && st.table.gens[i] == id.gen()
+            && i < st.cells.len()
+        {
+            st.cells[i]
+                .index
+                .store(index, std::sync::atomic::Ordering::Relaxed);
         }
     }
 
-    /// Reclaim every slot (graph reset; bumps generations).
+    /// Reclaim every slot (graph reset; bumps generations). Publish side:
+    /// the fresh table keeps the (bumped) `gens` and truncates the slot
+    /// arrays to the sentinel — post-clear inserts reuse slot indexes
+    /// ascending with the bumped generations, byte-identical to the
+    /// `arena.rs::Arena::clear` + insert sequence.
     // RUGRA-GLUE: bulk reclaim (oracle graph clear/destructor)
     pub fn clear(&self) {
         bank_stats::bump(&bank_stats::STATS.publishes);
-        self.sh.inner.write().unwrap().clear();
+        {
+            let mut st = self.sh.state.write().unwrap();
+            let table = std::sync::Arc::make_mut(&mut st.table);
+            for i in 1..table.arcs.len() {
+                table.gens[i] = table.gens[i].wrapping_add(1);
+            }
+            table.arcs.truncate(1);
+            table.btypes.truncate(1);
+            st.cells = std::sync::Arc::new(vec![BankShadowCell {
+                index: std::sync::atomic::AtomicI32::new(0),
+            }]);
+        }
+        self.sh
+            .epoch
+            .fetch_add(1, std::sync::atomic::Ordering::Release);
         self.sh.ids.write().unwrap().clear();
     }
 
-    /// Hold one read guard over the whole arena for a hot scan — per-slot
-    /// reads below are then a bounds check + generation compare, no block
-    /// RwLock, no vtable (the (c)-segment slot-read pattern applied to the
-    /// block domain).
-    // RUGRA-GLUE: hot-path view (miss-floor elimination surface)
-    pub fn hold(&self) -> BlockBankView<'_> {
+    /// One snapshot of the bank's slot tables for a hot scan: ONE read
+    /// lock + two Arc clones, then per-read resolution below is plain
+    /// Vec indexing + generation compare + one atomic shadow load — no
+    /// bank lock, no block RwLock, no vtable (the (c)-segment slot-read
+    /// pattern applied to the block domain; COW-Arc snapshot form per
+    /// the (e)-handoff-① design). OWNED (no lifetime): freely stored in
+    /// locals across `&mut self` calls — but never held across a
+    /// mutation (`insert`/`clear`/`adopt` invalidate it and the next
+    /// read panics, the read-phase discipline the guard form enforced by
+    /// deadlock).
+    // RUGRA-GLUE: hot-path snapshot view (miss-floor elimination surface)
+    pub fn hold(&self) -> BlockBankView {
         bank_stats::bump(&bank_stats::STATS.view_holds);
+        let (table, cells, epoch0) = {
+            let st = self.sh.state.read().unwrap();
+            (
+                st.table.clone(),
+                st.cells.clone(),
+                self.sh.epoch.load(std::sync::atomic::Ordering::Acquire),
+            )
+        };
         BlockBankView {
-            arena: self.sh.inner.read().unwrap(),
+            sh: self.sh.clone(),
+            table,
+            cells,
+            epoch0,
         }
     }
 }
 
-/// Shared-borrow view over the bank's arena (one RwLock acquisition per
-/// scan, not per edge). Slot lookups return `None` for SENTINEL/stale ids
-/// (bare fixtures keep SENTINEL twins) — callers fall back to the block
-/// guard path there, keeping reads byte-identical.
-// RUGRA-GLUE: hot-path view guard
-pub struct BlockBankView<'a> {
-    arena: std::sync::RwLockReadGuard<'a, Arena<BlockCell, BlockId>>,
+/// Owned snapshot over the bank's slot tables (see `BlockBank::hold`).
+/// Reads return `None` for SENTINEL/stale ids (bare fixtures keep
+/// SENTINEL twins) — callers fall back to the block guard path there,
+/// keeping reads byte-identical.
+// RUGRA-GLUE: hot-path snapshot view
+pub struct BlockBankView {
+    sh: std::sync::Arc<BlockBankShared>,
+    table: std::sync::Arc<BankTable>,
+    cells: std::sync::Arc<Vec<BankShadowCell>>,
+    epoch0: u64,
 }
 
-impl<'a> BlockBankView<'a> {
+impl BlockBankView {
+    // RUGRA-GLUE: post-read epoch validation — a publish since this
+    // snapshot's hold means the read may have raced a mutation; fail
+    // loudly instead of returning pre-mutation state (the guard-view
+    // form deadlocked on the same violation).
+    fn check_epoch(&self) {
+        if self.sh.epoch.load(std::sync::atomic::Ordering::Acquire) != self.epoch0 {
+            panic!(
+                "BlockBankView: bank published (insert/clear) while a read-phase snapshot was outstanding"
+            );
+        }
+    }
+
+    // RUGRA-GLUE: generation-checked slot index (arena.rs Arena::get
+    // parity: idx 0 reserved, bounds, gen compare)
+    fn slot_ok(&self, id: BlockId) -> Option<usize> {
+        let i = id.idx() as usize;
+        if i == 0 || i >= self.table.arcs.len() || self.table.gens[i] != id.gen() {
+            return None;
+        }
+        Some(i)
+    }
+
     /// `FlowBlock::index` shadow (block.hh:160).
     // RUGRA-GLUE: shadow read
     pub fn index(&self, id: BlockId) -> Option<i32> {
         bank_stats::bump(&bank_stats::STATS.view_index);
-        self.arena.get(id).map(|c| c.index)
+        let v = self.slot_ok(id).and_then(|i| {
+            self.cells
+                .get(i)
+                .map(|c| c.index.load(std::sync::atomic::Ordering::Relaxed))
+        });
+        self.check_epoch();
+        v
     }
 
     /// `FlowBlock::getType` shadow (block.hh:184).
     // RUGRA-GLUE: shadow read
     pub fn btype(&self, id: BlockId) -> Option<BlockType> {
         bank_stats::bump(&bank_stats::STATS.view_btype);
-        self.arena.get(id).map(|c| c.btype)
+        let v = self.slot_ok(id).map(|i| self.table.btypes[i]);
+        self.check_epoch();
+        v
     }
 
     /// Resolve to the block handle (Arc clone).
     // RUGRA-GLUE: id→handle
     pub fn arc(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         bank_stats::bump(&bank_stats::STATS.view_arc);
-        self.arena.get(id).map(|c| c.arc.clone())
+        let v = self.slot_ok(id).and_then(|i| self.table.arcs[i].clone());
+        self.check_epoch();
+        v
     }
 
     /// Resolve to the block handle, panicking on stale/foreign ids (see
@@ -3590,20 +3784,28 @@ impl<'a> BlockBankView<'a> {
     // RUGRA-GLUE: id→handle, panicking form
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         bank_stats::bump(&bank_stats::STATS.view_arc);
-        match self.arena.get(id) {
-            Some(c) => c.arc.clone(),
+        let v = match self.slot_ok(id).and_then(|i| self.table.arcs[i].clone()) {
+            Some(a) => a,
             None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
-        }
+        };
+        self.check_epoch();
+        v
     }
 
     /// `FlowBlock::index` shadow, panicking form.
     // RUGRA-GLUE: shadow read, panicking form
     pub fn expect_index(&self, id: BlockId) -> i32 {
         bank_stats::bump(&bank_stats::STATS.view_index);
-        match self.arena.get(id) {
-            Some(c) => c.index,
+        let v = match self.slot_ok(id).and_then(|i| {
+            self.cells
+                .get(i)
+                .map(|c| c.index.load(std::sync::atomic::Ordering::Relaxed))
+        }) {
+            Some(v) => v,
             None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
-        }
+        };
+        self.check_epoch();
+        v
     }
 }
 
@@ -11165,5 +11367,98 @@ mod switch_default_construct_pos_tests {
         // components index 2) still evaluate per the merged positions.
         assert_eq!(components.len(), 3);
         assert!(succs.iter().all(|s| s.is_none()), "non-goto cases → null");
+    }
+}
+
+// ===== PERF-ARENA-FLIP-0001 (f): COW-Arc bank storage mechanics tests =====
+#[cfg(test)]
+mod bank_cow_tests {
+    use super::*;
+
+    // RUGRA-GLUE: mint-parity harness — the COW bank must mint the exact
+    // BlockId sequence the frozen arena.rs Arena minted for the same
+    // insert/clear operation sequence (edge twins and id equality depend
+    // on the values).
+    fn dummy_cell(seed: u32) -> BlockCell {
+        let arc: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
+            BlockBasic::new(seed as i32, Address::new(seed as u64)),
+        ));
+        BlockCell {
+            arc,
+            btype: BlockType::Basic,
+            index: seed as i32,
+        }
+    }
+
+    #[test]
+    fn cow_bank_mints_arena_identical_ids() {
+        // Deterministic op sequence: inserts, clear, reinserts, clear,
+        // reinserts — bank ids must equal Arena ids slot-by-slot.
+        let bank = BlockBank::new();
+        let mut arena = crate::arena::Arena::<BlockCell, BlockId>::new();
+        let mut arena_ids = Vec::new();
+        let mut bank_ids = Vec::new();
+        for round in 0..3u32 {
+            let n = 5 + round as usize; // 5, 6, 7 inserts per round
+            for k in 0..n {
+                let seed = round * 100 + k as u32;
+                arena_ids.push(arena.insert(dummy_cell(seed)));
+                bank_ids.push(bank.insert(dummy_cell(seed)));
+            }
+            arena.clear();
+            bank.clear();
+        }
+        // After the final clear, one more insert pair.
+        arena_ids.push(arena.insert(dummy_cell(999)));
+        bank_ids.push(bank.insert(dummy_cell(999)));
+        assert_eq!(bank_ids.len(), arena_ids.len());
+        for (b, a) in bank_ids.iter().zip(arena_ids.iter()) {
+            assert_eq!(
+                (b.idx(), b.gen()),
+                (a.idx(), a.gen()),
+                "bank id {:?} != arena id {:?} (idx, gen mismatch)",
+                b,
+                a
+            );
+        }
+        // Stale pre-clear ids fail lookup on both sides identically.
+        assert!(bank.hold().arc(arena_ids[0]).is_none());
+    }
+
+    #[test]
+    fn cow_snapshot_invalidated_by_publish() {
+        // Read-phase discipline enforcement: a view taken before an
+        // insert/clear must panic on its next read after the publish (the
+        // guard-view form deadlocked here; the failure stays loud).
+        let bank = BlockBank::new();
+        let id0 = bank.insert(dummy_cell(1));
+        let view = bank.hold();
+        assert_eq!(view.index(id0), Some(1));
+        let id1 = bank.insert(dummy_cell(2));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = view.index(id0);
+        }));
+        assert!(
+            result.is_err(),
+            "stale view read must panic after a publish"
+        );
+        // A fresh view sees the new state; the shadow write path works.
+        bank.set_index_shadow(id1, 77);
+        assert_eq!(bank.hold().index(id1), Some(77));
+        assert_eq!(bank.hold().index(id0), Some(1));
+    }
+
+    #[test]
+    fn cow_shadow_writes_share_across_views() {
+        // A view that shares the current cells allocation observes in-place
+        // index writes (no republish on set_index_shadow — rpost renumber
+        // would otherwise be O(n) publishes).
+        let bank = BlockBank::new();
+        let id0 = bank.insert(dummy_cell(1));
+        let view = bank.hold();
+        assert_eq!(view.index(id0), Some(1));
+        bank.set_index_shadow(id0, 42);
+        // Same allocation (no publish between) → the view sees the store.
+        assert_eq!(view.index(id0), Some(42));
     }
 }

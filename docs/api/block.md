@@ -2208,3 +2208,18 @@ view_arc/id_lookups/publishes/shadow_writes），`bank_stats::report()` 在
 gen_decompile 尾部（all 模式与 --one 模式）打一行 stderr。纯观测（默认零成
 本一次分支）；(f) 段交接面①的量化底座（(e)-tip 树替代语料实测 ~393M 次锁
 获取，见车道终报）。
+
+## ARENAFLIP-f（2026-09-30）BlockBank COW-Arc 快照存储（交接面①）
+
+`BlockBankShared` 存储翻转为 COW-Arc 快照形态：`state: RwLock<BankState>`
+（`table: Arc<BankTable>` = arcs/btypes/gens 发布后不可变，insert/clear 经
+`Arc::make_mut` 写时复制并 bump `epoch`；`cells: Arc<Vec<BankShadowCell>>`
+= 原子 index 影子原地写，rpost 重编号 O(n) 次不重发布）+ `epoch: AtomicU64`。
+**minting 与冻结的 arena.rs::Arena 逐值恒等**（append-only between clears、
+clear 对占用槽 bump gen、post-clear 升序复用——`cow_bank_mints_arena_
+identical_ids` 单测钉死）。`hold()` 返回** owned** `BlockBankView`（无生命
+周期，可与 `&mut self` 混用）；view 每读后 check epoch（Acquire），发布后
+读陈旧快照即 panic（守卫形态下同违规=同线程死锁，失败面保持响亮）。
+per-read API（index_of/expect_index/arc_of/expect_arc/btype_of）保持签名
+不变（fresh-snapshot 内实现，冷位点半价同形）。行为恒等：canon curl
+`4ab1db2a` + httpd `7d5b9e7c` 首轮字节恒等 + tests 2021P（+3 机制测）。
