@@ -273,9 +273,11 @@ impl<'a> ConditionalExecution<'a> {
         let ib = self.iblock.clone().unwrap();
         // Walk up the prea path (chain of 1in/1out blocks) to the first block
         // with 2 out-edges = initblock.
+        let bank = ib.read().unwrap().bank();
         let prea_in = {
             let rg = ib.read().unwrap();
-            rg.get_in(self.prea_inslot as usize).map(|e| e.point)
+            rg.get_in(self.prea_inslot as usize)
+                .map(|e| bank.expect_arc(e.point))
         };
         let prea_in = match prea_in { Some(b) => b, None => return false };
         let mut tmp = prea_in;
@@ -284,7 +286,10 @@ impl<'a> ConditionalExecution<'a> {
             let (sout, sin) = { let r = tmp.read().unwrap(); (r.size_out(), r.size_in()) };
             if sout != 1 || sin != 1 { break; }
             last = tmp.clone();
-            let next = { let r = tmp.read().unwrap(); r.get_in(0).map(|e| e.point) };
+            let next = {
+                let r = tmp.read().unwrap();
+                r.get_in(0).map(|e| bank.expect_arc(e.point))
+            };
             tmp = match next { Some(b) => b, None => return false };
         }
         let (sout_tmp,) = { let r = tmp.read().unwrap(); (r.size_out(),) };
@@ -294,13 +299,17 @@ impl<'a> ConditionalExecution<'a> {
         // reach the same initblock.
         let other_in = {
             let rg = ib.read().unwrap();
-            rg.get_in((1 - self.prea_inslot) as usize).map(|e| e.point)
+            rg.get_in((1 - self.prea_inslot) as usize)
+                .map(|e| bank.expect_arc(e.point))
         };
         let mut tmp2 = match other_in { Some(b) => b, None => return false };
         loop {
             let (sout, sin) = { let r = tmp2.read().unwrap(); (r.size_out(), r.size_in()) };
             if sout != 1 || sin != 1 { break; }
-            let next = { let r = tmp2.read().unwrap(); r.get_in(0).map(|e| e.point) };
+            let next = {
+                let r = tmp2.read().unwrap();
+                r.get_in(0).map(|e| bank.expect_arc(e.point))
+            };
             tmp2 = match next { Some(b) => b, None => return false };
         }
         if !Arc::ptr_eq(&tmp2, &tmp) { return false; }
@@ -310,11 +319,12 @@ impl<'a> ConditionalExecution<'a> {
         // getTrueOut() is purely positional out[1] (block.hh:300, never reads
         // BOOLEAN_FLIP); the init CBRANCH's flip is consumed later, exactly
         // once, by verifySameCondition's matchflip composition below.
+        let last_id = bank.registered_id_of(&last);
         self.init2a_true = tmp
             .read()
             .unwrap()
             .get_out(1)
-            .map(|e| Arc::ptr_eq(&e.point, &last))
+            .map(|e| e.point == last_id)
             .unwrap_or(false);
         true
     }
@@ -489,8 +499,13 @@ impl<'a> ConditionalExecution<'a> {
             1 - self.prea_inslot
         };
         let rg = ib.read().unwrap();
-        self.posta_block = rg.get_out(self.posta_outslot as usize).map(|e| e.point);
-        self.postb_block = rg.get_out((1 - self.posta_outslot) as usize).map(|e| e.point);
+        let bank = rg.bank();
+        self.posta_block = rg
+            .get_out(self.posta_outslot as usize)
+            .map(|e| bank.expect_arc(e.point));
+        self.postb_block = rg
+            .get_out((1 - self.posta_outslot) as usize)
+            .map(|e| bank.expect_arc(e.point));
         drop(rg);
         // Test removability of every non-branch op in iblock.
         let ops = Self::ops(&ib);
@@ -548,7 +563,11 @@ impl<'a> ConditionalExecution<'a> {
                 //   bl = iblock->getIn(inbranch); invn = defOp->getIn(inbranch)
                 let sel = defop.read().unwrap().get_in(inbranch).cloned()
                     .ok_or_else(|| structural("pullbackOp defOp missing inbranch input (condexe.cc:172)"))?;
-                let bl = ib.read().unwrap().get_in(inbranch).map(|e| e.point)
+                let bl = {
+                    let r = ib.read().unwrap();
+                    let bank = r.bank();
+                    r.get_in(inbranch).map(|e| bank.expect_arc(e.point))
+                }
                     .ok_or_else(|| structural("pullbackOp iblock missing in-branch (condexe.cc:171)"))?;
                 (sel, bl)
             } else {
@@ -732,7 +751,11 @@ impl<'a> ConditionalExecution<'a> {
         let read_parent = readop.read().unwrap().parent.as_ref().and_then(|w| w.upgrade())
             .ok_or_else(|| structural("getMultiequalRead readop without parent (condexe.cc:273 dereferences getParent())"))?;
         let bl = read_parent;
-        let inbl = bl.read().unwrap().get_in(slot).map(|e| e.point)
+        let inbl = {
+            let r = bl.read().unwrap();
+            let bank = r.bank();
+            r.get_in(slot).map(|e| bank.expect_arc(e.point))
+        }
             .ok_or_else(|| structural("getMultiequalRead reader block missing in-edge (condexe.cc:274 dereferences getIn(slot))"))?;
         let ib = self.iblock.clone().unwrap();
         if !Arc::ptr_eq(&inbl, &ib) {
@@ -1368,8 +1391,17 @@ impl MultiPredicate {
         let base_block = match op.read().unwrap().parent.as_ref().and_then(|w| w.upgrade()) {
             Some(b) => b, None => return false,
         };
-        let zero_block = base_block.read().unwrap().get_in(self.zero_slot).map(|e| e.point);
-        let other_block = base_block.read().unwrap().get_in(1 - self.zero_slot).map(|e| e.point);
+        let bank = base_block.read().unwrap().bank();
+        let zero_block = base_block
+            .read()
+            .unwrap()
+            .get_in(self.zero_slot)
+            .map(|e| bank.expect_arc(e.point));
+        let other_block = base_block
+            .read()
+            .unwrap()
+            .get_in(1 - self.zero_slot)
+            .map(|e| bank.expect_arc(e.point));
         let (zero_block, other_block) = match (zero_block, other_block) {
             (Some(z), Some(o)) => (z, o),
             _ => return false,
@@ -1379,7 +1411,10 @@ impl MultiPredicate {
         let zout = zero_block.read().unwrap().size_out();
         if zout == 1 {
             if zero_block.read().unwrap().size_in() != 1 { return false; }
-            cond_block = zero_block.read().unwrap().get_in(0).map(|e| e.point);
+            cond_block = {
+                let r = zero_block.read().unwrap();
+                r.get_in(0).map(|e| bank.expect_arc(e.point))
+            };
         } else if zout == 2 {
             cond_block = Some(zero_block.clone());
         } else {
@@ -1391,7 +1426,10 @@ impl MultiPredicate {
         let oout = other_block.read().unwrap().size_out();
         if oout == 1 {
             if other_block.read().unwrap().size_in() != 1 { return false; }
-            let o_in0 = other_block.read().unwrap().get_in(0).map(|e| e.point);
+            let o_in0 = {
+                let r = other_block.read().unwrap();
+                r.get_in(0).map(|e| bank.expect_arc(e.point))
+            };
             if o_in0.map(|p| !Arc::ptr_eq(&p, &cond_block)).unwrap_or(true) { return false; }
         } else if oout == 2 {
             if !Arc::ptr_eq(&other_block, &cond_block) { return false; }
@@ -1419,13 +1457,14 @@ impl MultiPredicate {
         // (block.hh:299-300: out[1]=true, out[0]=false, never reads
         // BOOLEAN_FLIP). The cbranch flip is consumed separately, once, in
         // discoverConditionalZero (condexe.cc:612-613).
+        let bank = cond_block.read().unwrap().bank();
         let true_out = {
             let r = cond_block.read().unwrap();
-            r.get_out(1).map(|e| e.point)
+            r.get_out(1).map(|e| bank.expect_arc(e.point))
         };
         let false_out = {
             let r = cond_block.read().unwrap();
-            r.get_out(0).map(|e| e.point)
+            r.get_out(0).map(|e| bank.expect_arc(e.point))
         };
         if true_out.as_ref().map(|t| Arc::ptr_eq(t, &zero_block)).unwrap_or(false) {
             self.zero_path_is_true = true;

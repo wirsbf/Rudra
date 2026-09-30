@@ -1046,7 +1046,8 @@ impl PcodeOp {
                         return None;
                     }
                     // cc:335: p = (BlockBasic *) p->getOut(0)
-                    guard.get_out(0).map(|edge| edge.point)
+                    let bank = guard.bank();
+                    guard.get_out(0).map(|edge| bank.expect_arc(edge.point))
                 };
                 p = out_zero?;
                 // cc:336: iter = p->beginOp()

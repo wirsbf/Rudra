@@ -468,9 +468,10 @@ fn call_target_raw(fmt: &DrillFmt, op: &PcodeOp, inputs: &[String]) -> String {
 fn branch_dest_raw(op: &PcodeOp, inputs: &[String]) -> String {
     if let Some(parent) = op.parent.as_ref().and_then(std::sync::Weak::upgrade) {
         let block = parent.read().unwrap();
+        let bank = block.bank();
         let out_count = block.size_out();
         if out_count == 1 {
-            if let Some(edge_point) = block.get_out(0).map(|edge| edge.point.clone()) {
+            if let Some(edge_point) = block.get_out(0).map(|edge| bank.expect_arc(edge.point)) {
                 let dest_block = edge_point.read().unwrap();
                 let start = dest_block.get_start_addr();
                 return format!(

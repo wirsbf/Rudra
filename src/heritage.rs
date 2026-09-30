@@ -912,8 +912,9 @@ impl Heritage {
                     .map(|dom| dom.read().unwrap().get_index());
                 let v_sin = v_guard.size_in();
                 for k in 0..v_sin {
+                    let bank = v_guard.bank();
                     let u = match v_guard.get_in(k) {
-                        Some(e) => e.point.clone(),
+                        Some(e) => bank.expect_arc(e.point),
                         None => continue,
                     };
                     let u_idx = u.read().unwrap().get_index();
@@ -6631,11 +6632,14 @@ impl Heritage {
 
                     // cc:2531-2552: fill phi inputs in successors.
                     let size_out = block_arc.read().unwrap().size_out();
+                    let bank = block_arc.read().unwrap().bank();
                     for i in 0..size_out {
                         let (succ_arc, my_in_idx) = {
                             let blk_r = block_arc.read().unwrap();
                             match blk_r.get_out(i) {
-                                Some(edge) => (edge.point.clone(), edge.reverse_index as usize),
+                                Some(edge) => {
+                                    (bank.expect_arc(edge.point), edge.reverse_index as usize)
+                                }
                                 None => continue,
                             }
                         };
@@ -7002,9 +7006,13 @@ impl Heritage {
                     // Ghidra cc:2531-2552: for each out-edge, walk successor's
                     // leading MULTIEQUALs and replace the matching input slot.
                     let size_out = block_arc.read().unwrap().size_out();
+                    let bank = block_arc.read().unwrap().owner_bank();
+                    if size_out > 0 && bank.is_none() {
+                        panic!("phi-input fill on a block with out-edges but no bank");
+                    }
                     for i in 0..size_out {
                         if let Some(edge) = block_arc.read().unwrap().get_out(i) {
-                            let succ_arc = edge.point.clone();
+                            let succ_arc = bank.as_ref().unwrap().expect_arc(edge.point);
                             let my_in_idx = edge.reverse_index as usize;
 
                             let succ_ops = succ_arc.read().unwrap().get_ops();

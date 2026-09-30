@@ -1679,9 +1679,15 @@ impl JumpModel for JumpModelTrivial {
         if let Some(p) = &op_rg.parent {
             if let Some(bl) = p.upgrade() {
                 let bl_rg = bl.read().unwrap();
+                let bank = bl_rg.bank();
                 for i in 0..bl_rg.size_out() {
                     if let Some(edge) = bl_rg.get_out(i) {
-                        addresstable.push(edge.point.read().unwrap().get_start_addr());
+                        addresstable.push(
+                            bank.expect_arc(edge.point)
+                                .read()
+                                .unwrap()
+                                .get_start_addr(),
+                        )
                     }
                 }
             }
@@ -2036,9 +2042,13 @@ impl JumpBasic {
         bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     ) -> bool {
         let bl_r = bl.read().unwrap();
+        let bank = bl_r.bank();
         if bl_r.size_in() == 0 { return false; }
         // cc:1327-1330: first in-block must end with CBRANCH.
-        let cur_block = match bl_r.get_in(0) { Some(e) => e.point.clone(), None => return false };
+        let cur_block = match bl_r.get_in(0) {
+            Some(e) => bank.expect_arc(e.point),
+            None => return false,
+        };
         let cbranch = {
             let cb_r = cur_block.read().unwrap();
             let cur_basic = match cb_r.as_any().downcast_ref::<crate::block::BlockBasic>() {
@@ -2055,7 +2065,10 @@ impl JumpBasic {
         }));
         // cc:1334-1344: check remaining in-blocks.
         for i in 1..bl_r.size_in() {
-            let cur_block = match bl_r.get_in(i) { Some(e) => e.point.clone(), None => return false };
+            let cur_block = match bl_r.get_in(i) {
+                Some(e) => bank.expect_arc(e.point),
+                None => return false,
+            };
             let op = {
                 let cb_r = cur_block.read().unwrap();
                 let cur_basic = match cb_r.as_any().downcast_ref::<crate::block::BlockBasic>() {
@@ -2139,11 +2152,15 @@ impl JumpBasic {
         if !Self::check_common_cbranch(&mut var_array, bl) { return; }
         // cc:1343-1347: determine toswitchval + CircleRange.
         let bl_r = bl.read().unwrap();
+        let bank = bl_r.bank();
         let indpath = bl_r.get_in_rev_index(0);
         let mut toswitchval = indpath == 1;
         // cc:1345: cbranch = getIn(0)->lastOp()
         let cbranch = {
-            let in0 = match bl_r.get_in(0) { Some(e) => e.point.clone(), None => return };
+            let in0 = match bl_r.get_in(0) {
+                Some(e) => bank.expect_arc(e.point),
+                None => return,
+            };
             let in0_r = in0.read().unwrap();
             let bb = match in0_r.as_any().downcast_ref::<crate::block::BlockBasic>() {
                 Some(b) => b, None => return,
@@ -2156,7 +2173,10 @@ impl JumpBasic {
         // true→{1}, false→{0}, mask=0xff, step=1.
         let mut rng = CircleRange::boolean(toswitchval);
         // cc:1349: indpathstore = getIn(0)->getFlipPath() ? 1-indpath : indpath.
-        let in0_block = match bl_r.get_in(0) { Some(e) => e.point.clone(), None => return };
+        let in0_block = match bl_r.get_in(0) {
+            Some(e) => bank.expect_arc(e.point),
+            None => return,
+        };
         let flip_path = in0_block.read().unwrap().get_flip_path();
         let indpathstore = if flip_path { 1 - indpath } else { indpath };
         drop(bl_r);
@@ -2623,7 +2643,12 @@ impl JumpBasic {
             return false;
         };
         // cc:1384-1385: guard must go directly into switch block.
-        let out_target = cbranchblock.read().unwrap().get_out(indpath as usize).map(|e| e.point);
+        let bank = cbranchblock.read().unwrap().bank();
+        let out_target = cbranchblock
+            .read()
+            .unwrap()
+            .get_out(indpath as usize)
+            .map(|e| bank.expect_arc(e.point));
         let Some(out_target) = out_target else {
             return false;
         };
@@ -2635,7 +2660,7 @@ impl JumpBasic {
             .read()
             .unwrap()
             .get_out((1 - indpath) as usize)
-            .map(|e| e.point);
+            .map(|e| bank.expect_arc(e.point));
         let Some(guardtarget) = guardtarget else {
             return false;
         };
@@ -2646,7 +2671,11 @@ impl JumpBasic {
         let n_out = switchbl.read().unwrap().size_out() as i32;
         let mut pos = n_out;
         for p in 0..n_out {
-            let out = switchbl.read().unwrap().get_out(p as usize).map(|e| e.point);
+            let out = switchbl
+                .read()
+                .unwrap()
+                .get_out(p as usize)
+                .map(|e| bank.expect_arc(e.point));
             if let Some(out) = out {
                 if Arc::ptr_eq(&out, &guardtarget) {
                     pos = p;
@@ -3178,6 +3207,7 @@ impl JumpBasic {
         // cc:1054: selectguards.clear()
         self.selectguards.clear();
         let mut cur_bl = bl.clone();
+        let bank = bl.read().unwrap().bank();
         let mut cur_pathout = pathout;
 
         // cc:1056: for(i=0;i<maxbranch;++i)
@@ -3194,7 +3224,9 @@ impl JumpBasic {
                 prevbl = cur_bl.clone();
                 let next = {
                     let bl_rg = cur_bl.read().unwrap();
-                    bl_rg.get_out(cur_pathout as usize).map(|e| e.point)
+                    bl_rg
+                        .get_out(cur_pathout as usize)
+                        .map(|e| bank.expect_arc(e.point))
                 };
                 let Some(next) = next else { break };
                 cur_bl = next;
@@ -3222,7 +3254,7 @@ impl JumpBasic {
                     // Only 1 flow path to the switch
                     let prev_edge = cur_bl.read().unwrap().get_in(0);
                     let Some(prev_edge) = prev_edge else { return };
-                    let prev_bl_arc = prev_edge.point;
+                    let prev_bl_arc = bank.expect_arc(prev_edge.point);
                     // cc:1072: is it possible to deviate from switch path in
                     // this block
                     let prev_size_out = prev_bl_arc.read().unwrap().size_out();
@@ -3265,7 +3297,9 @@ impl JumpBasic {
             if i != 0 {
                 let otherbl = {
                     let prev_rg = prevbl.read().unwrap();
-                    prev_rg.get_out((1 - indpath) as usize).map(|e| e.point)
+                    prev_rg
+                        .get_out((1 - indpath) as usize)
+                        .map(|e| bank.expect_arc(e.point))
                 };
                 if let Some(otherbl) = otherbl {
                     let otherop: Option<Arc<RwLock<PcodeOp>>> = {
@@ -3579,9 +3613,10 @@ impl JumpModel for JumpBasic2 {
         let Some(multiop_parent) = multiop_parent else { return Ok(false); };
         let (rootbl, pathout) = {
             let p = multiop_parent.read().unwrap();
+            let bank = p.bank();
             let edge = p.get_in(one_minus_path);
             match edge {
-                Some(e) => (e.point.clone(), e.reverse_index as i32),
+                Some(e) => (bank.expect_arc(e.point), e.reverse_index as i32),
                 None => return Ok(false),
             }
         };
@@ -4419,11 +4454,13 @@ impl JumpTable {
             });
         let parent = parent?;
         let b = bl.read().unwrap();
+        let bank = b.bank();
+        let parent_id = bank.registered_id_of(&parent);
         // cc:2344-2345: for(position=0;position<bl->sizeIn();++position)
         //   if (bl->getIn(position) == parent) break;
         for position in 0..b.size_in() {
             if let Some(e) = b.get_in(position) {
-                if Arc::ptr_eq(&e.point, &parent) {
+                if e.point == parent_id {
                     // cc:2348: return bl->getInRevIndex(position);
                     return Some(e.reverse_index);
                 }
@@ -4671,7 +4708,8 @@ impl JumpTable {
                 if parent_read.size_in() != 1 {
                     return true;
                 }
-                parent_read.get_in(0).map(|edge| edge.point)
+                let bank = parent_read.bank();
+                parent_read.get_in(0).map(|edge| bank.expect_arc(edge.point))
             }) else {
                 return true;
             };
@@ -4712,11 +4750,12 @@ impl JumpTable {
             if offset == 0 {
                 true_slot = 1 - true_slot;
             }
-            let surviving_target = predecessor
-                .read()
-                .unwrap()
-                .get_out(true_slot)
-                .map(|edge| edge.point);
+            let surviving_target = {
+                let pr = predecessor.read().unwrap();
+                let bank = pr.bank();
+                pr.get_out(true_slot)
+                    .map(|edge| bank.expect_arc(edge.point))
+            };
             if surviving_target
                 .as_ref()
                 .is_some_and(|target| !Arc::ptr_eq(target, &parent))
@@ -5025,9 +5064,11 @@ impl JumpTable {
             let mut pos: Option<usize> = None;
             {
                 let p = parent.read().unwrap();
+                let bank = p.bank();
+                let tmpbl_id = bank.registered_id_of(&tmpbl);
                 for slot in 0..p.size_out() {
                     if let Some(e) = p.get_out(slot) {
-                        if Arc::ptr_eq(&e.point, &tmpbl) {
+                        if e.point == tmpbl_id {
                             pos = Some(slot);
                             break;
                         }
@@ -5625,9 +5666,11 @@ impl<'fd> EmulateFunction<'fd> {
         let mut found: Option<usize> = None;
         {
             let bl_rg = bl.read().unwrap();
+            let bank = bl_rg.bank();
+            let last_bl_id = bank.registered_id_of(&last_bl);
             for i in 0..bl_rg.size_in() {
                 if let Some(e) = bl_rg.get_in(i) {
-                    if Arc::ptr_eq(&e.point, &last_bl) {
+                    if e.point == last_bl_id {
                         found = Some(i);
                         break;
                     }
@@ -6176,10 +6219,17 @@ mod tests {
             OpCode::CPUI_BRANCHIND,
         )));
         let bl = Arc::new(RwLock::new(crate::block::BlockBasic::new(0, Address::new(0x401000))));
+        // The registration graph must outlive every edge consumer below
+        // (edges resolve through its bank; blocks hold only a weak link).
+        let bl_dyn: std::sync::Arc<
+            std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>,
+        > = bl.clone();
+        let mut g = crate::block::BlockGraph::new();
+        g.register_fixture_blocks(&[bl_dyn.clone()]);
         {
             let mut bl_w = bl.write().unwrap();
-            bl_w.outgoing.push(crate::block::BlockEdge::new(bl.clone(), 0));
-            bl_w.outgoing.push(crate::block::BlockEdge::new(bl.clone(), 1));
+            bl_w.outgoing.push(g.fixture_edge(&bl_dyn, 0));
+            bl_w.outgoing.push(g.fixture_edge(&bl_dyn, 1));
         }
         indop.write().unwrap().parent =
             Some(std::sync::Arc::downgrade(&(bl.clone() as Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>)));

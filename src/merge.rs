@@ -3497,10 +3497,15 @@ impl Merge {
             let o = op.0.read().unwrap();
             if o.opcode == OpCode::CPUI_MULTIEQUAL {
                 // pc = parent->getIn(slot)->getStop()
-                let in_block = o.parent.as_ref().and_then(|w| w.upgrade()).and_then(|parent| {
-                    let p = parent.read().unwrap();
-                    p.get_in(slot).and_then(|e| Some(e.point.clone()))
-                });
+                let in_block = o
+                    .parent
+                    .as_ref()
+                    .and_then(|w| w.upgrade())
+                    .and_then(|parent| {
+                        let p = parent.read().unwrap();
+                        let bank = p.bank();
+                        p.get_in(slot).and_then(|e| Some(bank.expect_arc(e.point)))
+                    });
                 match &in_block {
                     Some(blk) => {
                         let rg = blk.read().unwrap();

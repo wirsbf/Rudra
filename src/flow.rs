@@ -3631,15 +3631,15 @@ fn split_block_at_case_dest(
     // (flow.cc:1021-1037) produces for the oracle's edge list.
     let tail_id = fd.bblocks.bank.registered_id_of(&tail);
     for edge in &parent_outgoing {
-        let mut target_w = edge.point.write().unwrap();
+        let target_arc = fd.bblocks.bank.expect_arc(edge.point);
+        let mut target_w = target_arc.write().unwrap();
         let target_bb = target_w
             .as_any_mut()
             .downcast_mut::<crate::block::BlockBasic>()
             .expect("basic-block graph edges connect BlockBasic nodes");
         let slot = edge.reverse_index as usize;
         if let Some(in_edge) = target_bb.incoming.get_mut(slot) {
-            in_edge.point = tail.clone();
-            in_edge.point_id = tail_id;
+            in_edge.point = tail_id;
         }
     }
     {

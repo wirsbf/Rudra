@@ -950,3 +950,15 @@ dead 链尾 id——oracle 存储迭代器形态，flow.cc:407/1180-1183）；
 drain/splice 适配副本删除，委派 bank 单实现（op.cc:1056-1083，
 splice_after 退化守卫随冻结原语）。快照消费（collect_edges 等）保持
 Vec 快照形态，仅采集面换 `iter_dead()`。canon 双 md5 字节恒等亲证。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

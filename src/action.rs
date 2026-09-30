@@ -1025,7 +1025,13 @@ impl ActionGroup {
                                 let _ = write!(
                                     sig,
                                     "{:#x}",
-                                    e.point.read().unwrap().get_start_addr().as_u64()
+                                    fd.bblocks
+                                        .bank
+                                        .expect_arc(e.point)
+                                        .read()
+                                        .unwrap()
+                                        .get_start_addr()
+                                        .as_u64()
                                 );
                             }
                         }

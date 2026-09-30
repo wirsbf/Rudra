@@ -505,10 +505,11 @@ fn print_block_vertex(bl: &dyn FlowBlock, s: &mut dyn Write) {
 /// emits `<srcIndex> <thisIndex>` on its own line.
 fn print_block_edge(bl: &dyn FlowBlock, s: &mut dyn Write) {
     let this_index = bl.get_index();
+    let bank = bl.owner_bank().expect("print_block_edge on unregistered block");
     // cc:312-313  for i in 0..sizeIn(): print in(i).getIndex() this.getIndex()
     for i in 0..bl.size_in() {
         if let Some(edge) = bl.get_in(i) {
-            let src_index = edge.point.read().unwrap().get_index();
+            let src_index = bank.expect_index(edge.point);
             let _ = writeln!(s, "{} {}", src_index, this_index);
         }
     }

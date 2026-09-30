@@ -8111,6 +8111,7 @@ fn decompile_request(
         if dump_fn == target.name {
             let fd_read = fd_arc.read().unwrap();
             eprintln!("[DUMP] === basic blocks for {} ===", target.name);
+            let bank = fd_read.bblocks.bank.clone();
             for i in 0..fd_read.bblocks.get_size() {
                 let blk = match fd_read.bblocks.get_block(i) {
                     Some(b) => b,
@@ -8122,7 +8123,7 @@ fn decompile_request(
                     .map(|j| {
                         blk_rg
                             .get_in(j)
-                            .map(|e| e.point.read().unwrap().get_index())
+                            .map(|e| bank.expect_index(e.point))
                             .unwrap_or(-1)
                     })
                     .collect();
@@ -8131,7 +8132,7 @@ fn decompile_request(
                     .map(|j| {
                         blk_rg
                             .get_out(j)
-                            .map(|e| e.point.read().unwrap().get_index())
+                            .map(|e| bank.expect_index(e.point))
                             .unwrap_or(-1)
                     })
                     .collect();
@@ -8357,8 +8358,10 @@ fn decompile_request(
                             return None;
                         }
                         let edge = blk_rg.get_out(slot)?;
-                        let tgt = edge.point.read().unwrap();
-                        Some(tgt.get_start_addr().as_u64())
+                        let bank = blk_rg.bank();
+                        let tgt = bank.expect_arc(edge.point);
+                        let addr = tgt.read().unwrap().get_start_addr();
+                        Some(addr.as_u64())
                     });
                     if let Some(default_addr) = default_addr {
                         if !switchd_labels.contains_key(&default_addr) {

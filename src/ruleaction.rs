@@ -11808,14 +11808,15 @@ impl RuleSignMod2nOpt2 {
             .parent
             .as_ref()
             .and_then(|w| w.upgrade())?;
+        let bank = bl.read().unwrap().bank();
         let mut inner_slot = 0usize;
-        let mut inner: BlockRef = bl.read().unwrap().get_in(inner_slot)?.point;
+        let mut inner: BlockRef = bank.expect_arc(bl.read().unwrap().get_in(inner_slot)?.point);
         {
             let ig = inner.read().unwrap();
             if ig.size_out() != 1 || ig.size_in() != 1 {
                 drop(ig);
                 inner_slot = 1;
-                inner = bl.read().unwrap().get_in(inner_slot)?.point;
+                inner = bank.expect_arc(bl.read().unwrap().get_in(inner_slot)?.point);
                 let ig = inner.read().unwrap();
                 if ig.size_out() != 1 || ig.size_in() != 1 {
                     return None;
@@ -11824,8 +11825,8 @@ impl RuleSignMod2nOpt2 {
         }
         // cc:8971-8972: diamond join — inner's sole in-edge and the merge's
         // other in-edge must be the same decision block.
-        let decision: BlockRef = inner.read().unwrap().get_in(0)?.point;
-        let bl_other_in: BlockRef = bl.read().unwrap().get_in(1 - inner_slot)?.point;
+        let decision: BlockRef = bank.expect_arc(inner.read().unwrap().get_in(0)?.point);
+        let bl_other_in: BlockRef = bank.expect_arc(bl.read().unwrap().get_in(1 - inner_slot)?.point);
         if !std::sync::Arc::ptr_eq(&bl_other_in, &decision) { return None; }
         // cc:8973-8974: decision ends in a CBRANCH.
         let cbranch = decision.read().unwrap().last_op()?;
@@ -11849,9 +11850,9 @@ impl RuleSignMod2nOpt2 {
         // cc:8983-8985: the "negative" branch (taken when base s< 0 holds,
         // honoring isBooleanFlip) must be the INT_ADD slot.
         let neg_block: BlockRef = if cbranch.0.read().unwrap().is_boolean_flip() {
-            decision.read().unwrap().get_false_out(&cbranch)?
+            bank.expect_arc(decision.read().unwrap().get_false_out(&cbranch)?)
         } else {
-            decision.read().unwrap().get_true_out(&cbranch)?
+            bank.expect_arc(decision.read().unwrap().get_true_out(&cbranch)?)
         };
         let neg_slot = if std::sync::Arc::ptr_eq(&neg_block, &inner) {
             inner_slot
@@ -17474,19 +17475,21 @@ impl Rule for RuleConditionalMove {
         };
         let (inblock0, inblock1) = {
             let rg = bb.read().unwrap();
-            let i0 = rg.get_in(0).map(|e| e.point);
-            let i1 = rg.get_in(1).map(|e| e.point);
+            let bank = rg.bank();
+            let i0 = rg.get_in(0).map(|e| bank.expect_arc(e.point));
+            let i1 = rg.get_in(1).map(|e| bank.expect_arc(e.point));
             match (i0, i1) {
                 (Some(a), Some(b)) => (a, b),
                 _ => return Ok(action_status::NO_CHANGE),
             }
         };
         // Determine rootblock0/rootblock1 (the block feeding the inblock).
+        let bank0 = inblock0.read().unwrap().bank();
         let rootblock0 = {
             let rg = inblock0.read().unwrap();
             if rg.size_out() == 1 {
                 if rg.size_in() != 1 { return Ok(action_status::NO_CHANGE); }
-                rg.get_in(0).map(|e| e.point)
+                rg.get_in(0).map(|e| bank0.expect_arc(e.point))
             } else {
                 Some(inblock0.clone())
             }
@@ -17495,7 +17498,7 @@ impl Rule for RuleConditionalMove {
             let rg = inblock1.read().unwrap();
             if rg.size_out() == 1 {
                 if rg.size_in() != 1 { return Ok(action_status::NO_CHANGE); }
-                rg.get_in(0).map(|e| e.point)
+                rg.get_in(0).map(|e| bank0.expect_arc(e.point))
             } else {
                 Some(inblock1.clone())
             }
@@ -17533,16 +17536,15 @@ impl Rule for RuleConditionalMove {
         let cbranch_ref = cbranch.clone();
         let path0istrue = {
             let r_rg = rootblock.read().unwrap();
+            let bank = r_rg.bank();
             let true_out = r_rg.get_true_out(&cbranch_ref);
             if !std::sync::Arc::ptr_eq(&rootblock, &inblock0) {
                 true_out
-                    .as_ref()
-                    .map(|o| std::sync::Arc::ptr_eq(o, &inblock0))
+                    .map(|o| o == bank.registered_id_of(&inblock0))
                     .unwrap_or(false)
             } else {
                 true_out
-                    .as_ref()
-                    .map(|o| !std::sync::Arc::ptr_eq(o, &inblock1))
+                    .map(|o| o != bank.registered_id_of(&inblock1))
                     .unwrap_or(false)
             }
         };
@@ -17914,11 +17916,15 @@ impl RuleIgnoreNan {
         let parent = op.read().unwrap().parent.as_ref().and_then(|w| w.upgrade());
         let parent = match parent { Some(p) => p, None => return ,
         };
+        let bank = parent.read().unwrap().bank();
         let out_branch = parent.read().unwrap().get_out(out_dir);
         let (out_branch, other_branch) = match out_branch {
             Some(e) => {
                 let other = parent.read().unwrap().get_out(1 - out_dir);
-                (e.point.clone(), other.map(|o| o.point.clone()))
+                (
+                    bank.expect_arc(e.point),
+                    other.map(|o| bank.expect_arc(o.point)),
+                )
             }
             None => return,
         };
@@ -17935,12 +17941,9 @@ impl RuleIgnoreNan {
         // The protected block's other out-edge must rejoin the sibling branch.
         let rejoins = if let Some(other) = &other_branch {
             let ob = out_branch.read().unwrap();
-            let o0 = ob
-                .get_out(0)
-                .map(|e| std::sync::Arc::ptr_eq(&e.point, other));
-            let o1 = ob
-                .get_out(1)
-                .map(|e| std::sync::Arc::ptr_eq(&e.point, other));
+            let other_id = bank.registered_id_of(other);
+            let o0 = ob.get_out(0).map(|e| e.point == other_id);
+            let o1 = ob.get_out(1).map(|e| e.point == other_id);
             o0.unwrap_or(false) || o1.unwrap_or(false)
         } else {
             false

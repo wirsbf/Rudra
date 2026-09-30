@@ -1221,7 +1221,10 @@ fn collect_block_edge_starts(block: &dyn FlowBlock, incoming: bool) -> Vec<Addre
         };
 
         if let Some(BlockEdge { point, .. }) = edge {
-            addrs.push(point.read().unwrap().get_start_addr());
+            let bank = block
+                .owner_bank()
+                .expect("collect_block_edge_starts on unregistered block");
+            addrs.push(bank.expect_arc(point).read().unwrap().get_start_addr());
         }
     }
 

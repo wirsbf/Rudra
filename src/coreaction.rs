@@ -3016,13 +3016,14 @@ impl ActionDoNothing {
         // block.cc:2604-2613: switch-target guard — if any in-edge comes
         // from a multi-out switch block and the out target is a join, the
         // switch edge may still be propagating a unique value.
-        let out_target = bl_rg.get_out(0).map(|e| e.point);
+        let bank = bl_rg.bank();
+        let out_target = bl_rg.get_out(0).map(|e| bank.expect_arc(e.point));
         let Some(out_target) = out_target else {
             return false;
         };
         let out_n_in = out_target.read().unwrap().size_in();
         for s in 0..bl_rg.size_in() {
-            let switchbl = bl_rg.get_in(s).map(|e| e.point);
+            let switchbl = bl_rg.get_in(s).map(|e| bank.expect_arc(e.point));
             let Some(switchbl) = switchbl else { continue };
             let is_switch_out = {
                 let rg = switchbl.read().unwrap();
@@ -3080,10 +3081,12 @@ impl ActionDoNothing {
         use crate::opcodes::OpCode;
         use crate::block::FlowBlock as _;
         let bl_rg = bl.read().unwrap();
+        let bank = bl_rg.bank();
         let blout = match bl_rg.get_out(outslot) {
-            Some(e) => e.point,
+            Some(e) => bank.expect_arc(e.point),
             None => return true,
         };
+        let blout_id = bank.registered_id_of(&blout);
         // block.cc:2545-2553: build redundlist — in-blocks of this block
         // that also branch directly to blout.
         let mut redundlist: Vec<
@@ -3091,13 +3094,13 @@ impl ActionDoNothing {
         > = Vec::new();
         for s in 0..bl_rg.size_in() {
             let inbl = match bl_rg.get_in(s) {
-                Some(e) => e.point,
+                Some(e) => bank.expect_arc(e.point),
                 None => continue,
             };
             let in_rg = inbl.read().unwrap();
             for j in 0..in_rg.size_out() {
                 if let Some(e) = in_rg.get_out(j) {
-                    if Arc::ptr_eq(&e.point, &blout) {
+                    if e.point == blout_id {
                         redundlist.push(inbl.clone());
                     }
                 }
@@ -3131,7 +3134,7 @@ impl ActionDoNothing {
                     let idx = (0..out_rg.size_in()).find(|&k| {
                         out_rg
                             .get_in(k)
-                            .map(|e| Arc::ptr_eq(&e.point, red))
+                            .map(|e| e.point == bank.registered_id_of(red))
                             .unwrap_or(false)
                     });
                     match idx {
@@ -3147,7 +3150,7 @@ impl ActionDoNothing {
                     let idx = (0..out_rg.size_in()).find(|&k| {
                         out_rg
                             .get_in(k)
-                            .map(|e| Arc::ptr_eq(&e.point, bl))
+                            .map(|e| e.point == bank.registered_id_of(bl))
                             .unwrap_or(false)
                     });
                     match idx {
@@ -3183,7 +3186,7 @@ impl ActionDoNothing {
                                 let in_idx = (0..bl_rg2.size_in()).find(|&k| {
                                     bl_rg2
                                         .get_in(k)
-                                        .map(|e| Arc::ptr_eq(&e.point, red))
+                                        .map(|e| e.point == bank.registered_id_of(red))
                                         .unwrap_or(false)
                                 });
                                 match in_idx {
@@ -3233,7 +3236,7 @@ impl Action for ActionDoNothing {
             let is_self_loop = {
                 let bl_rg = bl.read().unwrap();
                 if let Some(edge) = bl_rg.get_out(0) {
-                    Arc::ptr_eq(&edge.point, &bl)
+                    edge.point == fd.bblocks.bank.registered_id_of(&bl)
                 } else {
                     false
                 }
@@ -3324,7 +3327,9 @@ impl Action for ActionRedundBranch {
                 if n_out == 0 {
                     continue;
                 }
-                let first = bl_rg.get_out(0).map(|e| e.point);
+                let first = bl_rg
+                    .get_out(0)
+                    .map(|e| fd.bblocks.bank.expect_arc(e.point));
                 (n_out, first)
             };
             let Some(first_target) = first_target else { continue ;
@@ -3360,7 +3365,7 @@ impl Action for ActionRedundBranch {
                 let mut same = true;
                 for j in 1..n_out {
                     if let Some(edge) = bl_rg.get_out(j) {
-                        if !Arc::ptr_eq(&edge.point, &first_target) {
+                        if edge.point != fd.bblocks.bank.registered_id_of(&first_target) {
                             same = false;
                             break;
                         }
@@ -3911,7 +3916,10 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
             let Some(edge) = tail.get_out(0) else {
                 continue;
             };
-            if !Arc::ptr_eq(&edge.point, &head_arc) || edge.reverse_index < 0 {
+            // The tail is the LIVE BlockBasic under the copy (op-parent
+            // chain) — its edges are bblocks-domain ids.
+            let edge_arc = tail.bank().expect_arc(edge.point);
+            if !Arc::ptr_eq(&edge_arc, &head_arc) || edge.reverse_index < 0 {
                 continue;
             }
             edge.reverse_index as usize
@@ -4059,7 +4067,9 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
                             let parent = idef.parent.as_ref().and_then(|w| w.upgrade());
                             let expected_block = {
                                 let head = head_arc.read().unwrap();
-                                head.get_in(entry_slot).map(|edge| edge.point)
+                                let bank = head.bank();
+                                head.get_in(entry_slot)
+                                    .map(|edge| bank.expect_arc(edge.point))
                             };
                             let parent_ok = match (&parent, &expected_block) {
                                 (Some(p), Some(e)) => Arc::ptr_eq(p, e),
@@ -15843,11 +15853,12 @@ impl ActionConditionalConst {
                 let op_r = op_ref.0.read().unwrap();
                 if let Some(parent_weak) = op_r.parent.as_ref() {
                     if let Some(parent) = parent_weak.upgrade() {
+                        let bank = parent.read().unwrap().bank();
                         parent
                             .read()
                             .unwrap()
                             .get_in(*slot)
-                            .map(|e| e.point.read().unwrap().get_index())
+                            .map(|e| bank.expect_index(e.point))
                             .unwrap_or(0)
                     } else { 0 }
                 } else { 0 }
@@ -15998,9 +16009,10 @@ impl ActionConditionalConst {
                             // constBlock must dominate bl->getIn(slot).
                             let in_bl_dominated = {
                                 let bl_r = bl.read().unwrap();
+                                let bank = bl_r.bank();
                                 match bl_r.get_in(slot) {
                                     Some(edge) => {
-                                        let src = edge.point.clone();
+                                        let src = bank.expect_arc(edge.point);
                                         match &const_block {
                                             Some(cb) => {
                                                 let cb_r = cb.read().unwrap();
@@ -16192,8 +16204,9 @@ impl ActionConditionalConst {
             if let Some(parent_weak) = op_r.parent.as_ref() {
                 if let Some(parent) = parent_weak.upgrade() {
                     let slot = phi_node_edges[i].1;
+                    let bank = parent.read().unwrap().bank();
                     if let Some(in_edge) = parent.read().unwrap().get_in(slot) {
-                        blocks.push(in_edge.point.clone());
+                        blocks.push(bank.expect_arc(in_edge.point));
                     }
                 }
             }
@@ -16345,9 +16358,10 @@ impl Action for ActionConditionalConst {
                 let mut bl_out: [Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>>; 2] =
                     [None, None];
                 let mut bl_out_rev_index: [i32; 2] = [-1, -1];
+                let bank = bl_r.bank();
                 for slot in 0..2usize {
                     if let Some(edge) = bl_r.get_out(slot) {
-                        let out_bl = edge.point.clone();
+                        let out_bl = bank.expect_arc(edge.point);
                         bl_out_rev_index[slot] = edge.reverse_index;
                         // restrictedByConditional needs the out-block + cond.
                         let restricted = out_bl
@@ -18753,12 +18767,14 @@ impl ActionReturnSplit {
         let parent_rg = parent.read().unwrap();
         for i in 0..in_count {
             let Some(edge) = parent_rg.get_in(i) else { continue };
-            let copy = edge
-                .point
-                .read()
-                .unwrap()
-                .get_copy_map()
-                .and_then(|weak| weak.upgrade());
+            let copy = {
+                let bank = parent_rg.bank();
+                bank.expect_arc(edge.point)
+                    .read()
+                    .unwrap()
+                    .get_copy_map()
+                    .and_then(|weak| weak.upgrade())
+            };
             if let Some(copy) = copy {
                 if walk
                     .selected_leaves
@@ -19465,14 +19481,17 @@ impl Action for ActionNodeJoin {
             let (leastout, inslot): (
                 Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>, usize,
             ) = {
-                let o0 = out0.point.read().unwrap();
-                let o1 = out1.point.read().unwrap();
+                let bank = fd.bblocks.bank.clone();
+                let o0_arc = bank.expect_arc(out0.point);
+                let o1_arc = bank.expect_arc(out1.point);
+                let o0 = o0_arc.read().unwrap();
+                let o1 = o1_arc.read().unwrap();
                 let in0 = o0.size_in();
                 let in1 = o1.size_in();
                 if in0 < in1 {
-                    (out0.point.clone(), out0.reverse_index.max(0) as usize)
+                    (bank.expect_arc(out0.point), out0.reverse_index.max(0) as usize)
                 } else {
-                    (out1.point.clone(), out1.reverse_index.max(0) as usize)
+                    (bank.expect_arc(out1.point), out1.reverse_index.max(0) as usize)
                 }
             };
             // leastout->sizeIn()==1 → skip (blockaction.cc:2349).
@@ -19511,8 +19530,9 @@ impl Action for ActionNodeJoin {
                     continue;
                 }
                 // leastout->getIn(j)
+                let bank = fd.bblocks.bank.clone();
                 if let Some(edge) = leastout.read().unwrap().get_in(j) {
-                    siblings.push(edge.point.clone());
+                    siblings.push(bank.expect_arc(edge.point));
                 }
             }
             let mut joined_this = false;
@@ -19531,8 +19551,9 @@ impl Action for ActionNodeJoin {
                     _ => continue,
                 };
                 // exita/exitb must match between bb and bb2 (false/true exits).
-                let exita = out0.point.clone();
-                let exitb = out1.point.clone();
+                let bank = fd.bblocks.bank.clone();
+                let exita = bank.expect_arc(out0.point);
+                let exitb = bank.expect_arc(out1.point);
                 // blockaction.cc:2076: `if (exita == exitb) return false;` —
                 // a CBRANCH whose target equals its fallthru registers BOTH
                 // out-edges to the same block (flow.cc:960-967 registers
@@ -19544,7 +19565,9 @@ impl Action for ActionNodeJoin {
                 if Arc::ptr_eq(&exita, &exitb) {
                     continue;
                 }
-                if !Arc::ptr_eq(&b2o0.point, &exita) || !Arc::ptr_eq(&b2o1.point, &exitb) {
+                if b2o0.point != fd.bblocks.bank.registered_id_of(&exita)
+                    || b2o1.point != fd.bblocks.bank.registered_id_of(&exitb)
+                {
                     continue;
                 }
                 // bb2's last op must be a CBRANCH (findDups, cc:1917-1918).
@@ -20366,7 +20389,7 @@ mod tests {
         let b0_outs = {
             let rg = b0.read().unwrap();
             (0..rg.size_out())
-                .filter_map(|s| rg.get_out(s).map(|e| e.point))
+                .filter_map(|s| rg.get_out(s).map(|e| fd.bblocks.bank.expect_arc(e.point)))
                 .collect::<Vec<_>>()
         };
         assert!(
@@ -21938,15 +21961,27 @@ mod tests {
                 BlockBasic::new(
             2, Address::new(0x1200),
         ))) as BlkArc;
+            // Register the endpoints BEFORE minting edge ids (a pre-adoption
+            // registered_id_of would hand out SENTINEL).
+            fd.sblocks.bank.adopt(&(cond_bb.clone() as BlkArc));
+            fd.sblocks.bank.adopt(&if_body);
+            fd.sblocks.bank.adopt(&else_body);
             // getSplitPoint (block.cc:2361) requires the condition block to
             // have two outgoing edges.
             cond_bb.write().unwrap().outgoing = vec![
-                crate::block::BlockEdge { point: if_body.clone(), point_id: crate::arena::ArenaId::SENTINEL, flags: 0, reverse_index: 0 ,
-            },
-                crate::block::BlockEdge { point: else_body.clone(), point_id: crate::arena::ArenaId::SENTINEL, flags: 0, reverse_index: 0 ,
-            },
+                crate::block::BlockEdge {
+                    point: fd.sblocks.bank.registered_id_of(&if_body),
+                    flags: 0,
+                    reverse_index: 0,
+                },
+                crate::block::BlockEdge {
+                    point: fd.sblocks.bank.registered_id_of(&else_body),
+                    flags: 0,
+                    reverse_index: 0,
+                },
             ];
             let bif = BlockIf {
+            owner_bank: std::sync::Weak::new(),
                 index: 3,
                 condition: cond_bb.clone(),
                 if_body: if_body.clone(),
@@ -22236,6 +22271,7 @@ mod tests {
         let head_copy = fd.sblocks.get_block(1).unwrap();
         let body_copy = fd.sblocks.get_block(2).unwrap();
         let wd = BlockWhileDo {
+        owner_bank: std::sync::Weak::new(),
             index: 0,
             condition: head_copy,
             body: body_copy,
@@ -22254,7 +22290,11 @@ mod tests {
             vec![wd_arc.clone()],
         ))) as std::sync::Arc<
             std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>;
-        fd.sblocks.clear();
+        // Fixture reset: drop the top-level block list WITHOUT the bank
+        // reclaim (the WhileDo's condition/body BlockCopies keep edges whose
+        // ids resolve through the still-live slots; production's
+        // structureReset clears the whole graph between functions).
+        fd.sblocks.blocks.clear();
         fd.sblocks.add_block(list);
         // iterate op (INT_ADD) must be printable before.
         assert_eq!(add_ref.0.read().unwrap().flags & NONPRINTING, 0);
@@ -22402,6 +22442,7 @@ mod tests {
         // original, each original's copy_map pointing at its copy.
         let mk_copy = |source: &DynBlk, idx: i32| -> DynBlk {
             std::sync::Arc::new(std::sync::RwLock::new(BlockCopy {
+                owner_bank: std::sync::Weak::new(),
                 index: idx,
                 flags: 0,
                 parent: None,
@@ -22450,6 +22491,7 @@ mod tests {
         // last → null successor → prints — block.cc:2881-2890).
         let mk_goto = |wrapped: &DynBlk, target: &DynBlk, idx: i32| -> DynBlk {
             std::sync::Arc::new(std::sync::RwLock::new(BlockGoto {
+                owner_bank: std::sync::Weak::new(),
                 index: idx,
                 flags: 0,
                 parent: None,
