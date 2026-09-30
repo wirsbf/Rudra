@@ -4539,8 +4539,10 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                             return None;
                         }
                         let edge = blk_rg.get_out(slot)?;
-                        let tgt = edge.point.read().unwrap();
-                        Some(tgt.get_start_addr().as_u64())
+                        let bank = blk_rg.bank();
+                        let tgt = bank.expect_arc(edge.point);
+                        let addr = tgt.read().unwrap().get_start_addr();
+                        Some(addr.as_u64())
                     });
                     if let Some(default_addr) = default_addr {
                         if !switchd_labels.contains_key(&default_addr) {
