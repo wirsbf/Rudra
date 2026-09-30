@@ -2193,3 +2193,9 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## ARENAFLIP-e（2026-09-30）规则派发快照化随迁
+
+`try_rule_switch` 签名增 `block: &Arc<...>` 参数（blockaction 派发快照化的
+测试调用点随迁: block.rs 的 switch 规则单测改为先取 `fd.sblocks.get_block`
+再传入,行为不变;tests 2018P 保持）。

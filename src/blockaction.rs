@@ -1947,7 +1947,9 @@ impl<'a> CollapseStructure<'a> {
                 // Use try_rule_while_do (the interleaved-phase version that
                 // accepts BlockList clauses via count_non_structural_in_edges),
                 // not rule_block_while_do (which has stricter is_goto_out checks).
-                self.try_rule_while_do(wi);
+                if let Some(wblk) = self.graph.get_block(wi) {
+                    self.try_rule_while_do(wi, &wblk);
+                }
             }
             if std::time::Instant::now() > deadline {
                 break;
@@ -1970,7 +1972,9 @@ impl<'a> CollapseStructure<'a> {
                 if std::time::Instant::now() > deadline {
                     break;
                 }
-                self.try_rule_inf_loop(ri);
+                if let Some(rblk) = self.graph.get_block(ri) {
+                    self.try_rule_inf_loop(ri, &rblk);
+                }
             }
             // Switch detection LAST (after loops/conditions/sequences), matching
             // Ghidra's collapseInternal order where ruleBlockSwitch runs after
@@ -2280,12 +2284,16 @@ impl<'a> CollapseStructure<'a> {
         // keep only their component-to-component edges, so they can't match
         // any rule — and matching them would corrupt the graph (e.g. a loop
         // head absorbed into a composite mid-structuring).
+        // Hoisted per-dispatch fetch (the 9 rules below all operate on graph
+        // member i; one clone per dispatch replaces one per rule try — the
+        // (d)-segment miss-floor attribution's per-try get_block Arc clone,
+        // ARENA_DESIGN §1.4 bank-view snapshot form).
+        let block = match self.graph.get_block(i) {
+            Some(b) => b,
+            None => return,
+        };
         {
-            let b = match self.graph.get_block(i) {
-                Some(b) => b,
-                None => return,
-            };
-            let r = b.read().unwrap();
+            let r = block.read().unwrap();
             if self.is_consumed(r.get_index()) {
                 return;
             }
@@ -2310,7 +2318,7 @@ impl<'a> CollapseStructure<'a> {
         let rule2 = *RULE2.get_or_init(|| std::env::var("RUGRA_RULE2").is_ok());
         macro_rules! bs_try {
             ($f:ident) => {
-                if self.$f(i) {
+                if self.$f(i, &block) {
                     if rule2 {
                         eprintln!("[RRULE2] FIRE {} blk{}", stringify!($f), i);
                     }
@@ -4643,12 +4651,8 @@ impl<'a> CollapseStructure<'a> {
     /// bl must have 1 out-edge to outblock, outblock has 1 in-edge, and bl must
     /// be the START of a chain (its in-edge source has >1 out OR bl has >1 in).
     /// Then extend the chain while each link has 1 out, 1 in, no switch, no goto.
-    fn try_rule_cat(&mut self, i: usize) -> bool {
+    fn try_rule_cat(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         let size = self.graph.get_size();
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
         // bl->sizeOut() != 1 — NO type gate: Ghidra's ruleBlockCat
         // (cc:1284-1314) runs on any graph member; structured components
         // (BlockIf, BlockCondition, ...) cat-merge like basic blocks.
@@ -5007,11 +5011,7 @@ impl<'a> CollapseStructure<'a> {
     /// ruleBlockProperIf: detect if-then pattern (generalized Triangle).
     /// A CBRANCH block with 2 out-edges, where one out-edge block (clause)
     /// has 1 in and 1 out, and its out-edge points to the other branch.
-    fn try_rule_proper_if(&mut self, i: usize) -> bool {
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
+    fn try_rule_proper_if(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5279,11 +5279,7 @@ impl<'a> CollapseStructure<'a> {
     /// same block which is not the condition itself (cc:1433-1435), and
     /// neither clause is a switch dispatch nor has an unstructured jump out
     /// (cc:1437-1440).
-    fn try_rule_if_else(&mut self, i: usize) -> bool {
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
+    fn try_rule_if_else(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5393,11 +5389,7 @@ impl<'a> CollapseStructure<'a> {
     /// The sizeout==1 newBlockGoto case lives in try_rule_goto; the
     /// isSwitchOut → newBlockMultiGoto case (cc:1456-1458) is routed here and
     /// in try_rule_goto ahead of the sizeout dispatch (see new_block_multigoto).
-    fn try_rule_if_goto(&mut self, i: usize) -> bool {
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
+    fn try_rule_if_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5696,11 +5688,7 @@ impl<'a> CollapseStructure<'a> {
     /// gate left such marks unconsumed, so selectGoto re-marked the same
     /// edge forever (the my_get_line/glob_word non-convergence,
     /// BLOCKSTRUCT-NORETURN-DEADREGION-0001).
-    fn try_rule_goto(&mut self, i: usize) -> bool {
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
+    fn try_rule_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         // cc:1453-1455: `sizeout` captured before the scan; the loop finds the
         // FIRST goto-marked out edge (lowest slot wins). isGotoOut works on
         // every block type (edge label or the block-level GOTO_EDGE_0/1
@@ -5828,11 +5816,7 @@ impl<'a> CollapseStructure<'a> {
     /// A CBRANCH block with 2 out-edges, where one out-edge (clause) has
     /// size_in==1, size_out==1, and its single out-edge loops back to the
     /// CBRANCH block. Mirrors Ghidra's ruleBlockWhileDo (blockaction.cc:1518).
-    fn try_rule_while_do(&mut self, i: usize) -> bool {
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
+    fn try_rule_while_do(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5965,11 +5949,7 @@ impl<'a> CollapseStructure<'a> {
     /// ruleBlockDoWhile: detect do { body } while(cond) pattern.
     /// A CBRANCH block where one out-edge loops back to itself.
     /// Mirrors Ghidra's ruleBlockDoWhile (blockaction.cc:1555).
-    fn try_rule_do_while(&mut self, i: usize) -> bool {
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
+    fn try_rule_do_while(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -6201,11 +6181,7 @@ impl<'a> CollapseStructure<'a> {
     ///   - !isGotoOut(0) (not a goto)
     ///   - getOut(0) == bl (falls into itself)
     ///   - newBlockInfLoop(bl)
-    pub fn try_rule_inf_loop(&mut self, i: usize) -> bool {
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
+    pub fn try_rule_inf_loop(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         let sizeout = block.read().unwrap().size_out();
         // cc:1582: must only be one way out
         if sizeout != 1 {
@@ -6446,7 +6422,7 @@ impl<'a> CollapseStructure<'a> {
     // Ghidra: blockaction.cc:1649 CollapseStructure::ruleBlockSwitch
     /// Try to find a switch structure: find the exitblock, validate all
     /// cases converge, run checkSwitchSkips, then build the BlockSwitch.
-    pub fn try_rule_switch(&mut self, i: usize) -> bool {
+    pub fn try_rule_switch(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         // (RUGRA_IRRED_DBG read once per process: this rule runs ~4M times
         // on giant functions and the per-try std::env::var (env lock +
         // alloc) was pure Rust bookkeeping; env is immutable at runtime,
@@ -6454,10 +6430,6 @@ impl<'a> CollapseStructure<'a> {
         static IRRED_SW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
         let irred_sw = *IRRED_SW
             .get_or_init(|| std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false));
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
         // Ghidra cc:1652: if (!bl->isSwitchOut()) return false;
         if !block.read().unwrap().is_switch_out() {
             return false;

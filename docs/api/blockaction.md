@@ -1988,3 +1988,10 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## ARENAFLIP-e（2026-09-30）规则派发快照化
+
+`CollapseStructure::apply_rules_to_block` 每次派发一次 `get_block` 提升到派发头
+（9 条 try_rule_* 签名增 `block: &Arc<...>` 参数,取代每 try 的 Vec 索引+Arc 克隆
+—— (d) 段 miss 底归因的 per-try get_block Arc 克隆面）。`collapse_all` 的
+while_do/inf_loop 循环与测试调用点同形随迁;tests 2018P 保持。

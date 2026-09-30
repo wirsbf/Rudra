@@ -10470,10 +10470,14 @@ mod finalize_visited_tests {
             collapse.identify_internal(&w, &[cond_idx, body_idx], cond_idx as usize);
         }
         {
+            let head_blk = fd
+                .sblocks
+                .get_block(head_idx)
+                .expect("switch head block exists");
             let mut collapse = CollapseStructure::new(&mut fd.sblocks, "test")
                 .with_jump_tables(fd.jump_tables.clone());
             assert!(
-                collapse.try_rule_switch(head_idx),
+                collapse.try_rule_switch(head_idx, &head_blk),
                 "production switch rule must install the switch"
             );
         }
