@@ -160,7 +160,11 @@ COPY-follow（cc:2761-2769）、oracle buildPointers 的 PTRSUB/PTRADD op
 
 ### `SubvariableFlow` (subflow.cc:1372)
 子字传播引擎。Ghidra `SubvariableFlow` 类的 1:1 移植。
-- `new(flow_size, aggressive, sext)` — 构造 (subflow.cc:1372-1404)
+- `new(flow_size, aggressive, sext)` — 构造 (subflow.cc:1372-1404)。
+  字段 `fd_present: bool`（2026-09-30 起）是 oracle `Funcdata* fd` 成员的
+  NULL-presence 建模（ctor 短路置 false=subflow.cc 的 `fd=(Funcdata*)0`，
+  `is_null()`/`do_trace` 门与之等价）；fd 本体逐调用线程化（P6），
+  `unsafe impl Send` 随 `*mut Funcdata` 一并删除
 - `set_replacement(vn, mask)` / `has_replacement` / `get_replacement_index` — 子变量注册表 (66-151)
 - `create_op` / `create_op_down` — 子图 op 创建 (159-197)
 - `try_call_pull` / `try_return_pull` / `try_call_return_push` / `try_switch_pull` / `try_int2float_pull` — CALL/RETURN/SWITCH/INT2FLOAT 穿透 (208-367)
