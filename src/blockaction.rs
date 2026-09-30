@@ -298,16 +298,19 @@ fn set_out_edge_flag_all_types(
 /// sizeIn/sizeOut tests of downstream rules (ruleBlockCat's
 /// `outblock->sizeIn() != 1`, blockaction.cc:1292).
 pub(crate) fn rewrite_out_edges_to_idx(
-    bank: &crate::block::BlockBank,
+    bank: &crate::block::BlockBankView,
     bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     old_idx: i32,
-    new_block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+    new_point_id: crate::arena::BlockId,
 ) -> bool {
     let mut changed = false;
-    let new_point_id = bank.registered_id_of(new_block);
     let mut w = bl.write().unwrap();
     for edge in w.out_edges_mut() {
-        let target_index = bank.index_of(edge.point);
+        // Snapshot-view read (zero-lock): the caller holds one
+        // BlockBankView across the sweep and no publish happens inside it
+        // (the rewrite only mutates edge fields), so the view stays fresh
+        // — identical values to the per-read form.
+        let target_index = bank.index(edge.point);
         let target_index = match target_index {
             Some(idx) => idx,
             None => continue,
@@ -325,16 +328,16 @@ pub(crate) fn rewrite_out_edges_to_idx(
 /// whose graph index is `old_idx` so it comes from `new_block` instead.
 /// Type-agnostic mirror of Ghidra's `otherbl->replaceInEdge(j,this)`.
 pub(crate) fn rewrite_in_edges_to_idx(
-    bank: &crate::block::BlockBank,
+    bank: &crate::block::BlockBankView,
     bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     old_idx: i32,
-    new_block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+    new_point_id: crate::arena::BlockId,
 ) -> bool {
     let mut changed = false;
-    let new_point_id = bank.registered_id_of(new_block);
     let mut w = bl.write().unwrap();
     for edge in w.in_edges_mut() {
-        let source_index = bank.index_of(edge.point);
+        // Snapshot-view read (zero-lock): see rewrite_out_edges_to_idx.
+        let source_index = bank.index(edge.point);
         let source_index = match source_index {
             Some(idx) => idx,
             None => continue,
@@ -406,9 +409,12 @@ fn find_dup_peers(
     // cc:507-523: mark peers on first sight (f_mark); a second sight with
     // f_mark already set is a duplicate (report once, f_mark2).
     let bank = bl.read().unwrap().bank();
+    // PERF-ARENA-FLIP-0001 (f) step 2: one snapshot view for the per-edge
+    // peer resolutions (marks/flags only below — no bank publish happens).
+    let view = bank.hold();
     let mut duplist: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = Vec::new();
     for e in &edges {
-        let peer_arc = bank.expect_arc(e.point);
+        let peer_arc = view.expect_arc(e.point);
         let mut p = match peer_arc.try_write() {
             Ok(g) => g,
             Err(_) => {
@@ -436,7 +442,7 @@ fn find_dup_peers(
     }
     // Erase marks (cc:520-522) — same lock discipline.
     for e in &edges {
-        if let Ok(mut p) = bank.expect_arc(e.point).try_write() {
+        if let Ok(mut p) = view.expect_arc(e.point).try_write() {
             p.clear_flags(
                 crate::block::block_flags::MARK | crate::block::block_flags::MARK2,
             );
@@ -868,6 +874,10 @@ impl LoopBody {
         graph: &BlockGraph,
     ) {
         let mut i: usize = 0;
+        // PERF-ARENA-FLIP-0001 (f) step 2: one snapshot view spans the walk
+        // (only block marks are written below — no bank publish can happen),
+        // so the per-in-edge peer index reads in the BFS are zero-lock.
+        let bank = graph.bank.hold();
         // cc:49-53: container head — add if unmarked; never walk back from it.
         let head_marked = graph
             .get_block(container_head as usize)
@@ -902,7 +912,7 @@ impl LoopBody {
                     let n = b.size_in();
                     (0..n)
                         .filter(|&k| !b.is_goto_in(k))
-                        .filter_map(|k| b.get_in(k).map(|e| graph.bank.expect_index(e.point)))
+                        .filter_map(|k| b.get_in(k).map(|e| bank.expect_index(e.point)))
                         .collect()
                 }
                 None => Vec::new(),
@@ -931,7 +941,7 @@ impl LoopBody {
                     let n = b.size_in();
                     (0..n)
                         .filter(|&k| !b.is_goto_in(k))
-                        .filter_map(|k| b.get_in(k).map(|e| graph.bank.expect_index(e.point)))
+                        .filter_map(|k| b.get_in(k).map(|e| bank.expect_index(e.point)))
                         .collect()
                 }
                 None => Vec::new(),
@@ -1611,9 +1621,12 @@ impl<'a> CollapseStructure<'a> {
             // current Vec member keeps their bank cells + identity-map entries
             // fresh so edge twins resolve on the shadow path (idempotent,
             // O(n) per pass, no observable effect — pure bank bookkeeping).
-            for bl in &self.graph.blocks {
-                self.graph.bank.adopt(bl);
-            }
+            // Bulk form: one identity read lock covers the whole sweep's
+            // idempotence probes (PERF-ARENA-FLIP-0001 (f) step 2b — the
+            // per-member id_of was ~25M ids-lock acquisitions on the giant
+            // function; identify_internal's entry adopt makes fresh entries
+            // rare).
+            self.graph.bank.adopt_bulk(&self.graph.blocks);
             // Outer fullchange iteration cap: prevents the IfNoExit/CaseFallthru
             // second pass from repeatedly triggering (each creates a structure,
             // bumping structure_change_count, re-entering the outer loop) without
@@ -1948,7 +1961,10 @@ impl<'a> CollapseStructure<'a> {
                 // accepts BlockList clauses via count_non_structural_in_edges),
                 // not rule_block_while_do (which has stricter is_goto_out checks).
                 if let Some(wblk) = self.graph.get_block(wi) {
-                    self.try_rule_while_do(wi, &wblk);
+                    // Fresh dispatch-level snapshot (a fire in an earlier
+                    // iteration published; this dispatch's reads must see it).
+                    let bank = self.graph.bank.hold();
+                    self.try_rule_while_do(wi, &wblk, &bank);
                 }
             }
             if std::time::Instant::now() > deadline {
@@ -1973,7 +1989,9 @@ impl<'a> CollapseStructure<'a> {
                     break;
                 }
                 if let Some(rblk) = self.graph.get_block(ri) {
-                    self.try_rule_inf_loop(ri, &rblk);
+                    // Fresh dispatch-level snapshot (see the while_do loop above).
+                    let bank = self.graph.bank.hold();
+                    self.try_rule_inf_loop(ri, &rblk, &bank);
                 }
             }
             // Switch detection LAST (after loops/conditions/sequences), matching
@@ -2292,6 +2310,14 @@ impl<'a> CollapseStructure<'a> {
             Some(b) => b,
             None => return,
         };
+        // PERF-ARENA-FLIP-0001 (f) step 2b: ONE snapshot view spans the whole
+        // dispatch. Read-phase discipline: a rule that fires (its
+        // identify_internal adopts = the only publish on this path) returns
+        // true IMMEDIATELY (bs_try!), so no view read ever follows a
+        // publish; rules that return false never published. Per-rule views
+        // (step 2) collapsed the per-read locks but minted ~10^8 views per
+        // giant function — the shared view removes that mintage too.
+        let bank = self.graph.bank.hold();
         {
             let r = block.read().unwrap();
             if self.is_consumed(r.get_index()) {
@@ -2318,7 +2344,7 @@ impl<'a> CollapseStructure<'a> {
         let rule2 = *RULE2.get_or_init(|| std::env::var("RUGRA_RULE2").is_ok());
         macro_rules! bs_try {
             ($f:ident) => {
-                if self.$f(i, &block) {
+                if self.$f(i, &block, &bank) {
                     if rule2 {
                         eprintln!("[RRULE2] FIRE {} blk{}", stringify!($f), i);
                     }
@@ -3947,6 +3973,17 @@ impl<'a> CollapseStructure<'a> {
         // scan would hand those sites SENTINEL ids (idempotent when the
         // caller already adopted).
         self.graph.bank.adopt(new_block);
+        // PERF-ARENA-FLIP-0001 (f) step 2: one snapshot view spans the whole
+        // identify — the entry adopt above is the ONLY publish on this path
+        // (the later adopts are idempotent no-ops on already-registered
+        // members, and set_block_index writes the in-place index shadow
+        // without publishing), so every read below through `bank` is
+        // zero-lock and value-identical to the per-read form. The hoisted
+        // `new_point_id` replaces the per-rewrite-call identity lookup (the
+        // (e)-handoff-① surface: these two rewrites carried ~300M lock
+        // acquisitions on the giant function).
+        let bank = self.graph.bank.hold();
+        let new_point_id = self.graph.bank.registered_id_of(new_block);
 
         // --- selfIdentify: capture boundary edges BEFORE overwriting install_idx ---
         // Ghidra's selfIdentify reads the consumed nodes' edges while they still
@@ -3977,7 +4014,7 @@ impl<'a> CollapseStructure<'a> {
                         // block's lock is held (e.g. by a prior identify_internal
                         // edge rewrite on the same thread). Skip the edge if
                         // the lock can't be acquired.
-                        let src_idx = match self.graph_bank().expect_arc(e.point).try_read() {
+                        let src_idx = match bank.expect_arc(e.point).try_read() {
                             Ok(g) => g.get_index(),
                             Err(_) => continue,
                         };
@@ -4009,7 +4046,7 @@ impl<'a> CollapseStructure<'a> {
                 let mut install_ext_out = false;
                 for slot in 0..c.size_out() {
                     if let Some(e) = c.get_out(slot) {
-                        let dst_idx = match self.graph_bank().expect_arc(e.point).try_read() {
+                        let dst_idx = match bank.expect_arc(e.point).try_read() {
                             Ok(g) => g.get_index(),
                             Err(_) => continue,
                         };
@@ -4087,7 +4124,7 @@ impl<'a> CollapseStructure<'a> {
                 let mut ob = Vec::new();
                 for slot in 0..c.size_in() {
                     if let Some(e) = c.get_in(slot) {
-                        let src_idx = match self.graph_bank().expect_arc(e.point).try_read() {
+                        let src_idx = match bank.expect_arc(e.point).try_read() {
                             Ok(g) => g.get_index(),
                             Err(_) => continue,
                         };
@@ -4096,18 +4133,18 @@ impl<'a> CollapseStructure<'a> {
                         // so edges between it and other consumed blocks are
                         // INTERNAL to the new component.
                         if !consumed_set.contains(&src_idx) && src_idx != install_idx as i32 {
-                            ib.push((self.graph_bank().expect_arc(e.point), e.flags));
+                            ib.push((bank.expect_arc(e.point), e.flags));
                         }
                     }
                 }
                 for slot in 0..c.size_out() {
                     if let Some(e) = c.get_out(slot) {
-                        let dst_idx = match self.graph_bank().expect_arc(e.point).try_read() {
+                        let dst_idx = match bank.expect_arc(e.point).try_read() {
                             Ok(g) => g.get_index(),
                             Err(_) => continue,
                         };
                         if !consumed_set.contains(&dst_idx) && dst_idx != install_idx as i32 {
-                            ob.push((self.graph_bank().expect_arc(e.point), e.flags));
+                            ob.push((bank.expect_arc(e.point), e.flags));
                         }
                     }
                 }
@@ -4161,7 +4198,7 @@ impl<'a> CollapseStructure<'a> {
                     continue;
                 }
                 touched.push(s_any.clone());
-                rewrite_out_edges_to_idx(&self.graph.bank, &s_any, c_idx, new_block);
+                rewrite_out_edges_to_idx(&bank, &s_any, c_idx, new_point_id);
             }
             for (dst, _) in &out_boundary {
                 let d_any = dst.clone();
@@ -4169,7 +4206,7 @@ impl<'a> CollapseStructure<'a> {
                     continue;
                 }
                 touched.push(d_any.clone());
-                rewrite_in_edges_to_idx(&self.graph.bank, &d_any, c_idx, new_block);
+                rewrite_in_edges_to_idx(&bank, &d_any, c_idx, new_point_id);
             }
         }
 
@@ -4293,8 +4330,8 @@ impl<'a> CollapseStructure<'a> {
                     Some(b) => b,
                     None => continue,
                 };
-                let ch1 = rewrite_out_edges_to_idx(&self.graph.bank, &gb, install_idx as i32, new_block);
-                let ch2 = rewrite_in_edges_to_idx(&self.graph.bank, &gb, install_idx as i32, new_block);
+                let ch1 = rewrite_out_edges_to_idx(&bank, &gb, install_idx as i32, new_point_id);
+                let ch2 = rewrite_in_edges_to_idx(&bank, &gb, install_idx as i32, new_point_id);
                 if ch1 || ch2 {
                     touched.push(gb);
                 }
@@ -4340,9 +4377,10 @@ impl<'a> CollapseStructure<'a> {
         // incremental list compaction (block.cc:953-960).
         {
             let is_component = |idx: i32| consumed_set.contains(&idx) || idx == install_idx as i32;
+            // Snapshot-view reads (zero-lock resolution; the try_read
+            // fallback semantics on the peer guard are unchanged).
             let strip_external = |bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>| {
                 let mut w = bl.write().unwrap();
-                let bank = w.bank();
                 w.in_edges_mut().retain(|edge| {
                     bank.expect_arc(edge.point)
                         .try_read()
@@ -4651,12 +4689,11 @@ impl<'a> CollapseStructure<'a> {
     /// bl must have 1 out-edge to outblock, outblock has 1 in-edge, and bl must
     /// be the START of a chain (its in-edge source has >1 out OR bl has >1 in).
     /// Then extend the chain while each link has 1 out, 1 in, no switch, no goto.
-    fn try_rule_cat(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    fn try_rule_cat(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank_view: &crate::block::BlockBankView) -> bool {
         let size = self.graph.get_size();
         // One bank-view guard spans this rule's read phases (the per-try
         // peer reads below run millions of times per giant function; NLL
         // ends the borrow before the first &mut self fire path).
-        let bank_view = self.graph.bank.hold();
         // bl->sizeOut() != 1 — NO type gate: Ghidra's ruleBlockCat
         // (cc:1284-1314) runs on any graph member; structured components
         // (BlockIf, BlockCondition, ...) cat-merge like basic blocks.
@@ -4805,7 +4842,7 @@ impl<'a> CollapseStructure<'a> {
             (
                 n,
                 if n == 2 {
-                    last.get_out(0).map(|e| self.graph_bank().expect_arc(e.point))
+                    last.get_out(0).map(|e| bank_view.expect_arc(e.point))
                 } else {
                     None
                 },
@@ -4954,16 +4991,16 @@ impl<'a> CollapseStructure<'a> {
     /// These structural edges should not prevent proper_if/if_else matching.
     fn count_non_structural_in_edges(
         &self,
+        bank: &crate::block::BlockBankView,
         block: &std::sync::RwLockReadGuard<'_, dyn FlowBlock + Send + Sync>,
     ) -> usize {
         let total = block.size_in();
         let mut structural = 0;
-        // Hot path: one bank view guard for the whole scan; per-edge peer
-        // reads go through the id twin's shadows (block.hh:160/184 field
-        // reads) — no peer RwLock, no vtable. Edges with unresolved twins
+        // Hot path: per-edge peer reads go through the caller's dispatch
+        // snapshot view (block.hh:160/184 field reads) — no peer RwLock, no
+        // vtable, no per-scan view mintage. Edges with unresolved twins
         // (SENTINEL: bare test fixtures) fall back to the original guard
         // read, byte-identical.
-        let bank = self.graph.bank.hold();
         for slot in 0..total {
             // Reference read of the in-edge (oracle reads intothis[i].point
             // directly, block.hh:304) — no BlockEdge clone per edge.
@@ -5018,7 +5055,9 @@ impl<'a> CollapseStructure<'a> {
     /// ruleBlockProperIf: detect if-then pattern (generalized Triangle).
     /// A CBRANCH block with 2 out-edges, where one out-edge block (clause)
     /// has 1 in and 1 out, and its out-edge points to the other branch.
-    fn try_rule_proper_if(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    fn try_rule_proper_if(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
+        // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view (the
+        // fire path at the tail takes no view reads).
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5049,13 +5088,12 @@ impl<'a> CollapseStructure<'a> {
         // byte-identical. Scoped so the view drops before &self method
         // calls below.
         let (self_loop, true_idx, false_idx, true_block, false_block) = {
-            let bank = self.graph.bank.hold();
             let read_idx = |b: &dyn FlowBlock, slot: usize| -> Option<i32> {
                 b.get_out_ref(slot).and_then(|e| match bank.index(e.point) {
                     Some(i) => Some(i),
                     // Stale/unresolved ids cannot occur while the single-bank
                     // invariant holds; resolve-or-panic mirrors the view read.
-                    None => Some(self.graph_bank().expect_index(e.point)),
+                    None => Some(bank.expect_index(e.point)),
                 })
             };
             let out0_idx = read_idx(&*b, 0);
@@ -5065,7 +5103,7 @@ impl<'a> CollapseStructure<'a> {
             // — handles held for the clause/merge walks below, with their
             // twins captured for the shadow index reads.
             let (true_block, false_block) = match (b.get_out_ref(0), b.get_out_ref(1)) {
-                (Some(te), Some(fe)) => (self.graph_bank().expect_arc(te.point), self.graph_bank().expect_arc(fe.point)),
+                (Some(te), Some(fe)) => (bank.expect_arc(te.point), bank.expect_arc(fe.point)),
                 _ => return false,
             };
             let true_idx = match bank.index(b.get_out_ref(0).unwrap().point) {
@@ -5114,7 +5152,7 @@ impl<'a> CollapseStructure<'a> {
             // cascade members. We check if any in-edge source is a BlockSwitch or
             // a block we know is a switch dispatch (marked CASE_BODY or is a cascade
             // member whose taken edge targets this clause).
-            let non_structural_in = self.count_non_structural_in_edges(&c);
+            let non_structural_in = self.count_non_structural_in_edges(bank, &c);
             if non_structural_in != 1 {
                 continue;
             }
@@ -5145,7 +5183,7 @@ impl<'a> CollapseStructure<'a> {
             // Removing this guard allows CBRANCH blocks inside case bodies to be
             // structured into BlockIf, which is what we need for control-flow recovery.
             let target_idx = match c.get_out_ref(0) {
-                Some(e) => self.graph_bank().expect_index(e.point),
+                Some(e) => bank.expect_index(e.point),
                 None => {
                     drop(c);
                     continue;
@@ -5176,6 +5214,9 @@ impl<'a> CollapseStructure<'a> {
     /// Mirrors Ghidra's ruleBlockIfNoExit (blockaction.cc:1481).
     /// Protected against switch case extraction via switch_case_indices.
     fn try_rule_if_no_exit(&mut self, i: usize) -> bool {
+        // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view (the
+        // fire path at the tail takes no view reads).
+        let bank = self.graph.bank.hold();
         let block = match self.graph.get_block(i) {
             Some(b) => b,
             None => return false,
@@ -5203,20 +5244,17 @@ impl<'a> CollapseStructure<'a> {
         let cond_idx = b.get_index();
         // RUGRA-GLUE: bank-view self-loop checks (edge twins' index
         // shadows; unresolved twins fall back to the guard read).
-        {
-            let bank = self.graph.bank.hold();
             let self_loop = (0..2).any(|slot| {
                 b.get_out_ref(slot).map_or(false, |e| {
                     match bank.index(e.point) {
                         Some(i) => i == cond_idx,
-                        None => self.graph_bank().expect_index(e.point) == cond_idx,
+                        None => bank.expect_index(e.point) == cond_idx,
                     }
                 })
             });
             if self_loop {
                 return false;
             }
-        }
         if Self::out_edge_is_goto(&*b, 0) {
             return false;
         }
@@ -5232,7 +5270,7 @@ impl<'a> CollapseStructure<'a> {
         // "selectGoto exhausted" dead-loop (TRI2-STRUCT-SELECTGOTO-SELFLOOP-0001).
 
         let (true_block, false_block) = match (b.get_out_ref(0), b.get_out_ref(1)) {
-            (Some(te), Some(fe)) => (self.graph_bank().expect_arc(te.point), self.graph_bank().expect_arc(fe.point)),
+            (Some(te), Some(fe)) => (bank.expect_arc(te.point), bank.expect_arc(fe.point)),
             _ => return false,
         };
         // cc:1501: `if (!bl->isDecisionOut(i)) continue;` — pre-captured
@@ -5286,7 +5324,7 @@ impl<'a> CollapseStructure<'a> {
     /// same block which is not the condition itself (cc:1433-1435), and
     /// neither clause is a switch dispatch nor has an unstructured jump out
     /// (cc:1437-1440).
-    fn try_rule_if_else(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    fn try_rule_if_else(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5316,11 +5354,11 @@ impl<'a> CollapseStructure<'a> {
         // oracle, which never negates here (cc:1442 newBlockIfElse(bl,tc,fc)
         // with no negateCondition).
         let tc = match b.get_out(1) {
-            Some(e) => self.graph_bank().expect_arc(e.point),
+            Some(e) => bank.expect_arc(e.point),
             None => return false,
         };
         let fc = match b.get_out(0) {
-            Some(e) => self.graph_bank().expect_arc(e.point),
+            Some(e) => bank.expect_arc(e.point),
             None => return false,
         };
         drop(b);
@@ -5340,7 +5378,7 @@ impl<'a> CollapseStructure<'a> {
             // return false;` — no loops (the common merge must not be the
             // condition block itself).
             let t_out0 = match t.get_out_ref(0) {
-                Some(e) => self.graph_bank().expect_index(e.point),
+                Some(e) => bank.expect_index(e.point),
                 None => return false,
             };
             if t_out0 == cond_idx {
@@ -5349,7 +5387,7 @@ impl<'a> CollapseStructure<'a> {
             // cc:1435: `if (outblock != fc->getOut(0)) return false;` —
             // clauses must exit to the same place.
             let f_out0 = match f.get_out_ref(0) {
-                Some(e) => self.graph_bank().expect_index(e.point),
+                Some(e) => bank.expect_index(e.point),
                 None => return false,
             };
             if t_out0 != f_out0 {
@@ -5396,7 +5434,7 @@ impl<'a> CollapseStructure<'a> {
     /// The sizeout==1 newBlockGoto case lives in try_rule_goto; the
     /// isSwitchOut → newBlockMultiGoto case (cc:1456-1458) is routed here and
     /// in try_rule_goto ahead of the sizeout dispatch (see new_block_multigoto).
-    fn try_rule_if_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    fn try_rule_if_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5695,7 +5733,7 @@ impl<'a> CollapseStructure<'a> {
     /// gate left such marks unconsumed, so selectGoto re-marked the same
     /// edge forever (the my_get_line/glob_word non-convergence,
     /// BLOCKSTRUCT-NORETURN-DEADREGION-0001).
-    fn try_rule_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    fn try_rule_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
         // cc:1453-1455: `sizeout` captured before the scan; the loop finds the
         // FIRST goto-marked out edge (lowest slot wins). isGotoOut works on
         // every block type (edge label or the block-level GOTO_EDGE_0/1
@@ -5727,7 +5765,7 @@ impl<'a> CollapseStructure<'a> {
                 .unwrap()
                 .get_out(goto_edge.unwrap())
                 .and_then(|e| {
-                    crate::block::front_leaf(&self.graph_bank().expect_arc(e.point))
+                    crate::block::front_leaf(&bank.expect_arc(e.point))
                         .map(|l| crate::block::dbg_front_leaf_start_addr(&l))
                 })
                 .unwrap_or(0);
@@ -5823,7 +5861,9 @@ impl<'a> CollapseStructure<'a> {
     /// A CBRANCH block with 2 out-edges, where one out-edge (clause) has
     /// size_in==1, size_out==1, and its single out-edge loops back to the
     /// CBRANCH block. Mirrors Ghidra's ruleBlockWhileDo (blockaction.cc:1518).
-    fn try_rule_while_do(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    fn try_rule_while_do(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
+        // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view (the
+        // fire path at the tail takes no view reads).
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5839,20 +5879,17 @@ impl<'a> CollapseStructure<'a> {
         let cond_idx_pre = b.get_index();
         // RUGRA-GLUE: bank-view self-loop checks (edge twins' index
         // shadows; unresolved twins fall back to the guard read).
-        {
-            let bank = self.graph.bank.hold();
             let self_loop = (0..2).any(|slot| {
                 b.get_out_ref(slot).map_or(false, |e| {
                     match bank.index(e.point) {
                         Some(i) => i == cond_idx_pre,
-                        None => self.graph_bank().expect_index(e.point) == cond_idx_pre,
+                        None => bank.expect_index(e.point) == cond_idx_pre,
                     }
                 })
             });
             if self_loop {
                 return false;
             }
-        }
         if b.is_interior_goto_target() {
             return false;
         }
@@ -5867,7 +5904,7 @@ impl<'a> CollapseStructure<'a> {
         let cond_idx = b.get_index();
         for slot in 0..2 {
             let clause = match b.get_out(slot) {
-                Some(e) => self.graph_bank().expect_arc(e.point),
+                Some(e) => bank.expect_arc(e.point),
                 None => continue,
             };
             let c = clause.read().unwrap();
@@ -5893,7 +5930,7 @@ impl<'a> CollapseStructure<'a> {
             }
             // Clause must loop back to the condition block
             let back_idx = match c.get_out_ref(0) {
-                Some(e) => self.graph_bank().expect_index(e.point),
+                Some(e) => bank.expect_index(e.point),
                 None => {
                     drop(c);
                     continue;
@@ -5956,7 +5993,7 @@ impl<'a> CollapseStructure<'a> {
     /// ruleBlockDoWhile: detect do { body } while(cond) pattern.
     /// A CBRANCH block where one out-edge loops back to itself.
     /// Mirrors Ghidra's ruleBlockDoWhile (blockaction.cc:1555).
-    fn try_rule_do_while(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    fn try_rule_do_while(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
         let b = block.read().unwrap();
         if b.size_out() != 2 {
             return false;
@@ -5984,12 +6021,11 @@ impl<'a> CollapseStructure<'a> {
         // Unresolved twins fall back to the guard read. Scoped so the view
         // drops before the &mut self fire path.
         let back_slot = {
-            let bank = self.graph.bank.hold();
             (0..2).find(|&slot| {
                 b.get_out_ref(slot).map_or(false, |e| {
                     match bank.index(e.point) {
                         Some(i) => i == cond_idx,
-                        None => self.graph_bank().expect_index(e.point) == cond_idx,
+                        None => bank.expect_index(e.point) == cond_idx,
                     }
                 })
             })
@@ -6065,6 +6101,8 @@ impl<'a> CollapseStructure<'a> {
     /// `ruleBlockOr` (blockaction.cc:1321-1371): detects two CBRANCH
     /// blocks sharing a clause exit, creates BlockCondition.
     pub fn try_rule_or(&mut self, i: usize) -> bool {
+        // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view — hot
+        let bank = self.graph.bank.hold();
         let block = match self.graph.get_block(i) {
             Some(b) => b,
             None => return false,
@@ -6086,7 +6124,7 @@ impl<'a> CollapseStructure<'a> {
 
         for ii in 0..2 {
             let orblock = match b.get_out(ii) {
-                Some(e) => self.graph_bank().expect_arc(e.point),
+                Some(e) => bank.expect_arc(e.point),
                 None => continue,
             };
             // cc:1336: cannot be same block
@@ -6116,7 +6154,7 @@ impl<'a> CollapseStructure<'a> {
             drop(or);
             // cc:1345: clauseblock is the other out of bl
             let clauseblock = match b.get_out(1 - ii) {
-                Some(e) => self.graph_bank().expect_arc(e.point),
+                Some(e) => bank.expect_arc(e.point),
                 None => continue,
             };
             if Arc::ptr_eq(&clauseblock, &block) {
@@ -6128,7 +6166,7 @@ impl<'a> CollapseStructure<'a> {
             // cc:1348-1352: clauseblock must match one of orblock's outs
             let mut j_found: Option<usize> = None;
             for j in 0..2 {
-                let or_out = orblock.read().unwrap().get_out(j).map(|e| self.graph_bank().expect_arc(e.point));
+                let or_out = orblock.read().unwrap().get_out(j).map(|e| bank.expect_arc(e.point));
                 if let Some(oo) = or_out {
                     if Arc::ptr_eq(&oo, &clauseblock) {
                         j_found = Some(j);
@@ -6145,7 +6183,7 @@ impl<'a> CollapseStructure<'a> {
                 .read()
                 .unwrap()
                 .get_out(1 - j)
-                .map(|e| self.graph_bank().expect_arc(e.point));
+                .map(|e| bank.expect_arc(e.point));
             if let Some(oo) = or_other {
                 if Arc::ptr_eq(&oo, &block) {
                     continue;
@@ -6188,7 +6226,7 @@ impl<'a> CollapseStructure<'a> {
     ///   - !isGotoOut(0) (not a goto)
     ///   - getOut(0) == bl (falls into itself)
     ///   - newBlockInfLoop(bl)
-    pub fn try_rule_inf_loop(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    pub fn try_rule_inf_loop(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
         let sizeout = block.read().unwrap().size_out();
         // cc:1582: must only be one way out
         if sizeout != 1 {
@@ -6203,7 +6241,7 @@ impl<'a> CollapseStructure<'a> {
             .read()
             .unwrap()
             .get_out(0)
-            .map(|e| self.graph_bank().expect_index(e.point));
+            .map(|e| bank.expect_index(e.point));
         if out_idx != Some(i as i32) {
             return false;
         }
@@ -6244,6 +6282,8 @@ impl<'a> CollapseStructure<'a> {
     /// 697 setDefaultSwitch(jt->getDefaultBlock())) — Rugra's equivalent
     /// wiring is funcdata.rs set_default_switch_mirrored.
     fn check_switch_skips(&mut self, switch_idx: usize, exitblock: Option<i32>) -> bool {
+        // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view — hot
+        let bank = self.graph.bank.hold();
         // cc:1608: if (exitblock == 0) return true;
         let Some(exit_idx) = exitblock else {
             return true;
@@ -6261,7 +6301,7 @@ impl<'a> CollapseStructure<'a> {
                 let r = block.read().unwrap();
                 match r.get_out(edgenum) {
                     Some(e) => (
-                        self.graph_bank().expect_index(e.point),
+                        bank.expect_index(e.point),
                         r.is_default_branch(edgenum),
                     ),
                     None => continue,
@@ -6310,7 +6350,7 @@ impl<'a> CollapseStructure<'a> {
                 let r = block.read().unwrap();
                 match r.get_out(edgenum) {
                     Some(e) => (
-                        self.graph_bank().expect_index(e.point),
+                        bank.expect_index(e.point),
                         r.is_default_branch(edgenum),
                     ),
                     None => continue,
@@ -6346,6 +6386,8 @@ impl<'a> CollapseStructure<'a> {
     /// switch's case edge and the tail region landed outside the loop
     /// (glob_set: `goto LAB_00104c20` + `code_r0x00104c7c` back-edge family).
     fn try_rule_case_fallthru(&mut self, i: usize) -> bool {
+        // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view — hot
+        let bank = self.graph.bank.hold();
         let block = match self.graph.get_block(i) {
             Some(b) => b,
             None => return false,
@@ -6359,7 +6401,7 @@ impl<'a> CollapseStructure<'a> {
         let mut fallthru: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = Vec::new();
         for j in 0..sizeout {
             let curbl = match block.read().unwrap().get_out(j) {
-                Some(e) => self.graph_bank().expect_arc(e.point),
+                Some(e) => bank.expect_arc(e.point),
                 None => continue,
             };
             // cc:1739: cannot exit to itself (pointer identity).
@@ -6380,7 +6422,7 @@ impl<'a> CollapseStructure<'a> {
                 let target_edge = {
                     let r = curbl.read().unwrap();
                     r.get_out(0)
-                        .map(|e| (self.graph_bank().expect_arc(e.point), e.reverse_index))
+                        .map(|e| (bank.expect_arc(e.point), e.reverse_index))
                 };
                 if let Some((target, inslot)) = target_edge {
                     let (tgt_sin, tgt_sout) = {
@@ -6396,7 +6438,7 @@ impl<'a> CollapseStructure<'a> {
                                 .read()
                                 .unwrap()
                                 .get_in((1 - inslot) as usize)
-                                .map(|e| self.graph_bank().expect_arc(e.point));
+                                .map(|e| bank.expect_arc(e.point));
                             if let Some(other) = other {
                                 if Arc::ptr_eq(&other, &block) {
                                     fallthru.push(curbl.clone());
@@ -6429,7 +6471,7 @@ impl<'a> CollapseStructure<'a> {
     // Ghidra: blockaction.cc:1649 CollapseStructure::ruleBlockSwitch
     /// Try to find a switch structure: find the exitblock, validate all
     /// cases converge, run checkSwitchSkips, then build the BlockSwitch.
-    pub fn try_rule_switch(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+    pub fn try_rule_switch(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
         // (RUGRA_IRRED_DBG read once per process: this rule runs ~4M times
         // on giant functions and the per-try std::env::var (env lock +
         // alloc) was pure Rust bookkeeping; env is immutable at runtime,

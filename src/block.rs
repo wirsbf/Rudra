@@ -80,6 +80,35 @@ pub mod bank_stats {
             STATS.shadow_writes.load(Ordering::Relaxed),
         );
     }
+
+    // RUGRA-GLUE: TEMPORARY PERF-ARENA-FLIP (f) attribution probe — sample
+    // one call site backtrace per 2^17 counted events (RUGRA_BANKTRACE=1)
+    // to attribute the per-read faces to their hot loops; removed before
+    // segment delivery.
+    fn trace_enabled() -> bool {
+        static ENABLED: OnceLock<bool> = OnceLock::new();
+        *ENABLED.get_or_init(|| std::env::var("RUGRA_BANKTRACE").is_ok_and(|v| v == "1"))
+    }
+
+    // RUGRA-GLUE: TEMPORARY attribution sampler (see trace_enabled)
+    pub fn sample_site(tag: &str, counter: &AtomicU64) {
+        use std::sync::atomic::Ordering;
+        if !trace_enabled() {
+            return;
+        }
+        let c = counter.load(Ordering::Relaxed);
+        if c & ((1 << 17) - 1) == 0 {
+            let bt = std::backtrace::Backtrace::force_capture();
+            let s = format!("{bt}");
+            // Keep the innermost crate frames only.
+            let lines: Vec<&str> = s
+                .lines()
+                .filter(|l| l.contains("rugra::"))
+                .take(6)
+                .collect();
+            eprintln!("[BANKTRACE] {} #{} | {}", tag, c, lines.join(" <- "));
+        }
+    }
 }
 
 // ===== Marshal ElementId / AttributeId helpers (block.cc:22-28, 30-31) =====
@@ -3575,11 +3604,43 @@ impl BlockBank {
             index,
         });
     }
+
+    /// Bulk form of `adopt` for the per-pass adoption sweep — one identity
+    /// read lock covers the whole batch's idempotence probes (the sweep
+    /// calls adopt on every graph member every fullchange pass; the
+    /// per-call `id_of` lock was ~25M acquisitions on the giant function).
+    /// Same semantics: only unregistered blocks get cells.
+    // RUGRA-GLUE: bulk composite adoption (sweep form of adopt)
+    pub fn adopt_bulk(&self, blocks: &[Arc<RwLock<dyn FlowBlock + Send + Sync>>]) {
+        // Collect the unregistered under one read lock.
+        let fresh: Vec<&Arc<RwLock<dyn FlowBlock + Send + Sync>>> = {
+            let ids = self.sh.ids.read().unwrap();
+            blocks
+                .iter()
+                .filter(|bl| {
+                    let key = Arc::as_ptr(bl) as *const () as usize;
+                    !ids.contains_key(&key)
+                })
+                .collect()
+        };
+        for bl in fresh {
+            let (btype, index) = {
+                let block = bl.read().unwrap();
+                (block.get_type(), block.get_index())
+            };
+            self.insert(BlockCell {
+                arc: bl.clone(),
+                btype,
+                index,
+            });
+        }
+    }
     /// The bank id of `bl`, or `None` if it is not registered here (bare
     /// fixtures / foreign-graph handles). Never locks `bl` itself.
     // RUGRA-GLUE: handle→id (oracle: the pointer IS the identity)
     pub fn id_of(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Option<BlockId> {
         bank_stats::bump(&bank_stats::STATS.id_lookups);
+        bank_stats::sample_site("id_of", &bank_stats::STATS.id_lookups);
         let key = Arc::as_ptr(bl) as *const () as usize;
         self.sh.ids.read().unwrap().get(&key).copied()
     }
@@ -3595,7 +3656,17 @@ impl BlockBank {
     // RUGRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
     pub fn index_of(&self, id: BlockId) -> Option<i32> {
         bank_stats::bump(&bank_stats::STATS.read_index);
-        self.hold().index(id)
+        bank_stats::sample_site("index_of", &bank_stats::STATS.read_index);
+        // Direct one-lock path (no snapshot construction — the per-read
+        // API serves cold sites; hot scans take `hold()`).
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+            return None;
+        }
+        st.cells
+            .get(i)
+            .map(|c| c.index.load(std::sync::atomic::Ordering::Relaxed))
     }
 
     /// Peer `block_type` shadow read (block.hh:184 getType without the
@@ -3603,14 +3674,24 @@ impl BlockBank {
     // RUGRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
     pub fn btype_of(&self, id: BlockId) -> Option<BlockType> {
         bank_stats::bump(&bank_stats::STATS.read_btype);
-        self.hold().btype(id)
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+            return None;
+        }
+        Some(st.table.btypes[i])
     }
 
     /// Resolve `id` back to the block handle (clone of the bank's Arc).
     // RUGRA-GLUE: id→handle resolution (fresh-snapshot form; hot callers use hold())
     pub fn arc_of(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         bank_stats::bump(&bank_stats::STATS.read_arc);
-        self.hold().arc(id)
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+            return None;
+        }
+        st.table.arcs[i].clone()
     }
 
     /// Resolve `id` to the block handle, panicking with context when the id
@@ -3621,8 +3702,12 @@ impl BlockBank {
     /// control-flow case.
     // RUGRA-GLUE: id→handle resolution, panicking form (fresh-snapshot form)
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
+        bank_stats::sample_site("expect_arc", &bank_stats::STATS.read_arc);
         bank_stats::bump(&bank_stats::STATS.read_arc);
-        self.hold().expect_arc(id)
+        match self.arc_of(id) {
+            Some(a) => a,
+            None => panic!("BlockBank: stale or foreign BlockId {:?}", id),
+        }
     }
 
     /// Peer `index` shadow read, panicking form (see `expect_arc` for the
@@ -3630,8 +3715,12 @@ impl BlockBank {
     /// with the lock/vtable round-trip removed ((d)-segment shadow).
     // RUGRA-GLUE: hot shadow read, panicking form (fresh-snapshot form)
     pub fn expect_index(&self, id: BlockId) -> i32 {
+        bank_stats::sample_site("expect_index", &bank_stats::STATS.read_index);
         bank_stats::bump(&bank_stats::STATS.read_index);
-        self.hold().expect_index(id)
+        match self.index_of(id) {
+            Some(v) => v,
+            None => panic!("BlockBank: stale or foreign BlockId {:?}", id),
+        }
     }
 
     /// Shadow write for `FlowBlock::index` mutations (single choke point:
@@ -10764,10 +10853,13 @@ mod finalize_visited_tests {
                 .sblocks
                 .get_block(head_idx)
                 .expect("switch head block exists");
+            // Dispatch-level snapshot view (see apply_rules_to_block);
+            // taken before the &mut sblocks borrow.
+            let bank = fd.sblocks.bank.hold();
             let mut collapse = CollapseStructure::new(&mut fd.sblocks, "test")
                 .with_jump_tables(fd.jump_tables.clone());
             assert!(
-                collapse.try_rule_switch(head_idx, &head_blk),
+                collapse.try_rule_switch(head_idx, &head_blk, &bank),
                 "production switch rule must install the switch"
             );
         }

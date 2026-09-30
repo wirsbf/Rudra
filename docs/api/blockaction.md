@@ -2002,3 +2002,17 @@ while_do/inf_loop 循环与测试调用点同形随迁;tests 2018P 保持。
 （`self.graph.bank.hold()` 一次,NLL+显式 drop 保证 fire 路径前释放）,
 per-try 的 peer 解析从每次 bank 锁降为扫描级单锁——(c) 段槽读先例在
 cat 规则的应用。tests 2018P 保持。
+
+## ARENAFLIP-f（2026-09-30）blockstructure 域快照读迁移（交接面①）
+
+`identify_internal` 持单一 dispatch 级 `BlockBankView`（入口 adopt 后取,全函数
+零发布——后续 adopt 幂等、set_block_index 走原地影子,不重发布）;`rewrite_out/
+in_edges_to_idx` 签名改 `(view, bl, old_idx, new_point_id)`（复合块 id 由
+identify 层提升一次,消除 per-call 身份查账）;`apply_rules_to_block` 持一个
+dispatch 级共享 view 传入 9 条 try_rule_*（fire 即 return 纪律:identify 的
+adopt 是该路径唯一发布点,fire 后无 view 读）;`extend_to_container` BFS、
+`find_dup_peers`、`count_non_structural_in_edges`（签名增 view 参数）同模式;
+collapse 首部的 adopt 扫描改 `adopt_bulk`（一次身份读锁覆盖整批幂等探针）。
+行为恒等: canon curl `4ab1db2a` + httpd `7d5b9e7c` 字节恒等 + tests 2021P。
+BANKSTATS（替代语料 VdbeExec 50969B）: read_index 149.1M→~3M、id_lookups
+150.0M→<0.1M、view_holds 43.3M→~33.7M（dispatch 共享后）。

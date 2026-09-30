@@ -2223,3 +2223,9 @@ identical_ids` 单测钉死）。`hold()` 返回** owned** `BlockBankView`（无
 per-read API（index_of/expect_index/arc_of/expect_arc/btype_of）保持签名
 不变（fresh-snapshot 内实现，冷位点半价同形）。行为恒等：canon curl
 `4ab1db2a` + httpd `7d5b9e7c` 首轮字节恒等 + tests 2021P（+3 机制测）。
+
+### adopt_bulk（ARENAFLIP-f 步骤 2b）
+
+`BlockBank::adopt_bulk(&[Arc<...>])` — 逐成员 `adopt` 的批量形：一次身份读锁
+覆盖整批幂等探针（collapse_internal 首部的 per-pass adoption sweep 专用；
+identify 入口 adopt 后新条目罕见）。语义与逐成员 adopt 等价——仅锁形态变化。
