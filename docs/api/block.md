@@ -2229,3 +2229,9 @@ per-read API（index_of/expect_index/arc_of/expect_arc/btype_of）保持签名
 `BlockBank::adopt_bulk(&[Arc<...>])` — 逐成员 `adopt` 的批量形：一次身份读锁
 覆盖整批幂等探针（collapse_internal 首部的 per-pass adoption sweep 专用；
 identify 入口 adopt 后新条目罕见）。语义与逐成员 adopt 等价——仅锁形态变化。
+
+### 探针收尾（ARENAFLIP-f）
+
+临时 BANKTRACE 回溯采样器按 (f) 步骤 0 承诺移除（BANKSTATS 计数器保留,
+默认关）;expect_arc/expect_index 经 arc_of/index_of 委托时的计数双记已修
+（替代语料 read_arc 真实面 ~10M 次/跑,非 20M）。

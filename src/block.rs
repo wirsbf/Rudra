@@ -81,34 +81,6 @@ pub mod bank_stats {
         );
     }
 
-    // RUGRA-GLUE: TEMPORARY PERF-ARENA-FLIP (f) attribution probe — sample
-    // one call site backtrace per 2^17 counted events (RUGRA_BANKTRACE=1)
-    // to attribute the per-read faces to their hot loops; removed before
-    // segment delivery.
-    fn trace_enabled() -> bool {
-        static ENABLED: OnceLock<bool> = OnceLock::new();
-        *ENABLED.get_or_init(|| std::env::var("RUGRA_BANKTRACE").is_ok_and(|v| v == "1"))
-    }
-
-    // RUGRA-GLUE: TEMPORARY attribution sampler (see trace_enabled)
-    pub fn sample_site(tag: &str, counter: &AtomicU64) {
-        use std::sync::atomic::Ordering;
-        if !trace_enabled() {
-            return;
-        }
-        let c = counter.load(Ordering::Relaxed);
-        if c & ((1 << 17) - 1) == 0 {
-            let bt = std::backtrace::Backtrace::force_capture();
-            let s = format!("{bt}");
-            // Keep the innermost crate frames only.
-            let lines: Vec<&str> = s
-                .lines()
-                .filter(|l| l.contains("rugra::"))
-                .take(6)
-                .collect();
-            eprintln!("[BANKTRACE] {} #{} | {}", tag, c, lines.join(" <- "));
-        }
-    }
 }
 
 // ===== Marshal ElementId / AttributeId helpers (block.cc:22-28, 30-31) =====
@@ -3640,7 +3612,6 @@ impl BlockBank {
     // RUGRA-GLUE: handle→id (oracle: the pointer IS the identity)
     pub fn id_of(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Option<BlockId> {
         bank_stats::bump(&bank_stats::STATS.id_lookups);
-        bank_stats::sample_site("id_of", &bank_stats::STATS.id_lookups);
         let key = Arc::as_ptr(bl) as *const () as usize;
         self.sh.ids.read().unwrap().get(&key).copied()
     }
@@ -3656,7 +3627,6 @@ impl BlockBank {
     // RUGRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
     pub fn index_of(&self, id: BlockId) -> Option<i32> {
         bank_stats::bump(&bank_stats::STATS.read_index);
-        bank_stats::sample_site("index_of", &bank_stats::STATS.read_index);
         // Direct one-lock path (no snapshot construction — the per-read
         // API serves cold sites; hot scans take `hold()`).
         let st = self.sh.state.read().unwrap();
@@ -3702,8 +3672,6 @@ impl BlockBank {
     /// control-flow case.
     // RUGRA-GLUE: id→handle resolution, panicking form (fresh-snapshot form)
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
-        bank_stats::sample_site("expect_arc", &bank_stats::STATS.read_arc);
-        bank_stats::bump(&bank_stats::STATS.read_arc);
         match self.arc_of(id) {
             Some(a) => a,
             None => panic!("BlockBank: stale or foreign BlockId {:?}", id),
@@ -3715,8 +3683,6 @@ impl BlockBank {
     /// with the lock/vtable round-trip removed ((d)-segment shadow).
     // RUGRA-GLUE: hot shadow read, panicking form (fresh-snapshot form)
     pub fn expect_index(&self, id: BlockId) -> i32 {
-        bank_stats::sample_site("expect_index", &bank_stats::STATS.read_index);
-        bank_stats::bump(&bank_stats::STATS.read_index);
         match self.index_of(id) {
             Some(v) => v,
             None => panic!("BlockBank: stale or foreign BlockId {:?}", id),
