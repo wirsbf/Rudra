@@ -1025,11 +1025,12 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
                         None => continue,
                     };
                     let blk_rg = blk.read().unwrap();
+                    let bank = fd_read.bblocks.bank.clone();
                     let ins: Vec<i32> = (0..blk_rg.size_in())
                         .map(|j| {
                             blk_rg
                                 .get_in(j)
-                                .map(|e| e.point.read().unwrap().get_index())
+                                .map(|e| bank.expect_index(e.point))
                                 .unwrap_or(-1)
                         })
                         .collect();
@@ -1037,7 +1038,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
                         .map(|j| {
                             blk_rg
                                 .get_out(j)
-                                .map(|e| e.point.read().unwrap().get_index())
+                                .map(|e| bank.expect_index(e.point))
                                 .unwrap_or(-1)
                         })
                         .collect();
