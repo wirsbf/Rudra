@@ -2199,3 +2199,12 @@ tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence�
 `try_rule_switch` 签名增 `block: &Arc<...>` 参数（blockaction 派发快照化的
 测试调用点随迁: block.rs 的 switch 规则单测改为先取 `fd.sblocks.get_block`
 再传入,行为不变;tests 2018P 保持）。
+
+## ARENAFLIP-f（2026-09-30）BANKSTATS 观测探针（默认关）
+
+`RUGRA_BANKSTATS=1` 时 `src/block.rs::bank_stats` 累计 per-read bank 解析面
+事件计数（read_index/read_btype/read_arc/view_holds/view_index/view_btype/
+view_arc/id_lookups/publishes/shadow_writes），`bank_stats::report()` 在
+gen_decompile 尾部（all 模式与 --one 模式）打一行 stderr。纯观测（默认零成
+本一次分支）；(f) 段交接面①的量化底座（(e)-tip 树替代语料实测 ~393M 次锁
+获取，见车道终报）。

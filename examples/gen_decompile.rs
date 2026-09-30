@@ -1852,6 +1852,9 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        // RUGRA-GLUE: PERF-ARENA-FLIP (f) observation probe (--one tail;
+        // default off).
+        rugra::block::bank_stats::report();
         return;
     }
 
@@ -2026,4 +2029,6 @@ fn main() {
         }
     }
     eprintln!("[GEN] ok={}/{} functions", ok_count, functions.len());
+    // RUGRA-GLUE: PERF-ARENA-FLIP (f) observation probe tail (default off).
+    rugra::block::bank_stats::report();
 }

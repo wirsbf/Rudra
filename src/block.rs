@@ -9,6 +9,79 @@ use crate::op::PcodeOpRef;
 use crate::opcodes::OpCode;
 use std::sync::{Arc, OnceLock, RwLock, Weak};
 
+// RUGRA-GLUE: PERF-ARENA-FLIP-0001 (f) env-gated bank-read observation
+// counters (RUGRA_BANKSTATS=1; stderr only, default off). Event accounting
+// of the per-read bank resolution surface the (e)-segment handoff ①
+// attributes ~1.1s to (~57M reads x ~20ns/lock): which API each read flows
+// through (per-read lock vs per-scan view), plus publish/shadow-write
+// counts for the COW-Arc design's write-side budget. No Ghidra
+// counterpart; changes no behavior (one branch per counted event).
+pub mod bank_stats {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::OnceLock;
+
+    pub struct BankStats {
+        pub read_index: AtomicU64,    // per-read index/expect_index API hits
+        pub read_btype: AtomicU64,    // per-read btype API hits
+        pub read_arc: AtomicU64,      // per-read arc/expect_arc API hits
+        pub view_holds: AtomicU64,    // hold() view acquisitions (per scan)
+        pub view_index: AtomicU64,    // view index/expect_index reads
+        pub view_btype: AtomicU64,    // view btype reads
+        pub view_arc: AtomicU64,      // view arc/expect_arc reads
+        pub id_lookups: AtomicU64,    // id_of/registered_id_of identity hits
+        pub publishes: AtomicU64,     // insert + clear (COW write side)
+        pub shadow_writes: AtomicU64, // set_index_shadow stores
+    }
+
+    pub static STATS: BankStats = BankStats {
+        read_index: AtomicU64::new(0),
+        read_btype: AtomicU64::new(0),
+        read_arc: AtomicU64::new(0),
+        view_holds: AtomicU64::new(0),
+        view_index: AtomicU64::new(0),
+        view_btype: AtomicU64::new(0),
+        view_arc: AtomicU64::new(0),
+        id_lookups: AtomicU64::new(0),
+        publishes: AtomicU64::new(0),
+        shadow_writes: AtomicU64::new(0),
+    };
+
+    // RUGRA-GLUE: observation gate (same pattern as action.rs ACTIONSTATS)
+    fn enabled() -> bool {
+        static ENABLED: OnceLock<bool> = OnceLock::new();
+        *ENABLED.get_or_init(|| std::env::var("RUGRA_BANKSTATS").is_ok_and(|v| v == "1"))
+    }
+
+    // RUGRA-GLUE: relaxed counter step
+    pub fn bump(counter: &AtomicU64) {
+        if enabled() {
+            counter.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// One stderr line with the cumulative totals (called at bank drop or
+    /// process end by the examples via `block::bank_stats::report()`).
+    // RUGRA-GLUE: stderr report (no Ghidra counterpart)
+    pub fn report() {
+        if !enabled() {
+            return;
+        }
+        eprintln!(
+            "[BANKSTATS] read_index={} read_btype={} read_arc={} view_holds={} view_index={} view_btype={} view_arc={} id_lookups={} publishes={} shadow_writes={}",
+            STATS.read_index.load(Ordering::Relaxed),
+            STATS.read_btype.load(Ordering::Relaxed),
+            STATS.read_arc.load(Ordering::Relaxed),
+            STATS.view_holds.load(Ordering::Relaxed),
+            STATS.view_index.load(Ordering::Relaxed),
+            STATS.view_btype.load(Ordering::Relaxed),
+            STATS.view_arc.load(Ordering::Relaxed),
+            STATS.id_lookups.load(Ordering::Relaxed),
+            STATS.publishes.load(Ordering::Relaxed),
+            STATS.shadow_writes.load(Ordering::Relaxed),
+        );
+    }
+}
+
 // ===== Marshal ElementId / AttributeId helpers (block.cc:22-28, 30-31) =====
 // Ghidra defines these as static ElementId/AttributeId instances. Rugra builds
 // them on demand via constructor functions matching the Ghidra names.
@@ -3353,6 +3426,7 @@ impl BlockBank {
     // ownership (owner-bank back-pointer). No block guard may be held by
     // callers (`claim` takes the block's write lock).
     fn insert(&self, cell: BlockCell) -> BlockId {
+        bank_stats::bump(&bank_stats::STATS.publishes);
         let key = Arc::as_ptr(&cell.arc) as *const () as usize;
         let arc = cell.arc.clone();
         let id = {
@@ -3388,6 +3462,7 @@ impl BlockBank {
     /// fixtures / foreign-graph handles). Never locks `bl` itself.
     // RUGRA-GLUE: handle→id (oracle: the pointer IS the identity)
     pub fn id_of(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Option<BlockId> {
+        bank_stats::bump(&bank_stats::STATS.id_lookups);
         let key = Arc::as_ptr(bl) as *const () as usize;
         self.sh.ids.read().unwrap().get(&key).copied()
     }
@@ -3402,6 +3477,7 @@ impl BlockBank {
     /// lock/vtable). Callers must know `id` came from this bank.
     // RUGRA-GLUE: hot shadow read
     pub fn index_of(&self, id: BlockId) -> Option<i32> {
+        bank_stats::bump(&bank_stats::STATS.read_index);
         self.sh.inner.read().unwrap().get(id).map(|c| c.index)
     }
 
@@ -3409,12 +3485,14 @@ impl BlockBank {
     /// block lock/vtable).
     // RUGRA-GLUE: hot shadow read
     pub fn btype_of(&self, id: BlockId) -> Option<BlockType> {
+        bank_stats::bump(&bank_stats::STATS.read_btype);
         self.sh.inner.read().unwrap().get(id).map(|c| c.btype)
     }
 
     /// Resolve `id` back to the block handle (clone of the bank's Arc).
     // RUGRA-GLUE: id→handle resolution (oracle: raw pointer already in hand)
     pub fn arc_of(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
+        bank_stats::bump(&bank_stats::STATS.read_arc);
         self.sh.inner.read().unwrap().get(id).map(|c| c.arc.clone())
     }
 
@@ -3426,6 +3504,7 @@ impl BlockBank {
     /// control-flow case.
     // RUGRA-GLUE: id→handle resolution, panicking form
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
+        bank_stats::bump(&bank_stats::STATS.read_arc);
         match self.sh.inner.read().unwrap().get(id) {
             Some(c) => c.arc.clone(),
             None => panic!("BlockBank: stale or foreign BlockId {:?}", id),
@@ -3437,6 +3516,7 @@ impl BlockBank {
     /// with the lock/vtable round-trip removed ((d)-segment shadow).
     // RUGRA-GLUE: hot shadow read, panicking form
     pub fn expect_index(&self, id: BlockId) -> i32 {
+        bank_stats::bump(&bank_stats::STATS.read_index);
         match self.sh.inner.read().unwrap().get(id) {
             Some(c) => c.index,
             None => panic!("BlockBank: stale or foreign BlockId {:?}", id),
@@ -3447,6 +3527,7 @@ impl BlockBank {
     /// `BlockGraph::set_block_index`).
     // RUGRA-GLUE: shadow maintenance
     fn set_index_shadow(&self, id: BlockId, index: i32) {
+        bank_stats::bump(&bank_stats::STATS.shadow_writes);
         if let Some(cell) = self.sh.inner.write().unwrap().get_mut(id) {
             cell.index = index;
         }
@@ -3455,6 +3536,7 @@ impl BlockBank {
     /// Reclaim every slot (graph reset; bumps generations).
     // RUGRA-GLUE: bulk reclaim (oracle graph clear/destructor)
     pub fn clear(&self) {
+        bank_stats::bump(&bank_stats::STATS.publishes);
         self.sh.inner.write().unwrap().clear();
         self.sh.ids.write().unwrap().clear();
     }
@@ -3465,6 +3547,7 @@ impl BlockBank {
     /// block domain).
     // RUGRA-GLUE: hot-path view (miss-floor elimination surface)
     pub fn hold(&self) -> BlockBankView<'_> {
+        bank_stats::bump(&bank_stats::STATS.view_holds);
         BlockBankView {
             arena: self.sh.inner.read().unwrap(),
         }
@@ -3484,18 +3567,21 @@ impl<'a> BlockBankView<'a> {
     /// `FlowBlock::index` shadow (block.hh:160).
     // RUGRA-GLUE: shadow read
     pub fn index(&self, id: BlockId) -> Option<i32> {
+        bank_stats::bump(&bank_stats::STATS.view_index);
         self.arena.get(id).map(|c| c.index)
     }
 
     /// `FlowBlock::getType` shadow (block.hh:184).
     // RUGRA-GLUE: shadow read
     pub fn btype(&self, id: BlockId) -> Option<BlockType> {
+        bank_stats::bump(&bank_stats::STATS.view_btype);
         self.arena.get(id).map(|c| c.btype)
     }
 
     /// Resolve to the block handle (Arc clone).
     // RUGRA-GLUE: id→handle
     pub fn arc(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
+        bank_stats::bump(&bank_stats::STATS.view_arc);
         self.arena.get(id).map(|c| c.arc.clone())
     }
 
@@ -3503,6 +3589,7 @@ impl<'a> BlockBankView<'a> {
     /// `BlockBank::expect_arc`).
     // RUGRA-GLUE: id→handle, panicking form
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
+        bank_stats::bump(&bank_stats::STATS.view_arc);
         match self.arena.get(id) {
             Some(c) => c.arc.clone(),
             None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
@@ -3512,6 +3599,7 @@ impl<'a> BlockBankView<'a> {
     /// `FlowBlock::index` shadow, panicking form.
     // RUGRA-GLUE: shadow read, panicking form
     pub fn expect_index(&self, id: BlockId) -> i32 {
+        bank_stats::bump(&bank_stats::STATS.view_index);
         match self.arena.get(id) {
             Some(c) => c.index,
             None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
