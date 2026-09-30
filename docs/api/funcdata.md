@@ -1,5 +1,9 @@
 # `funcdata.rs` API Reference
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2）
+- insert_op 的 SWITCH_OUT 直写改 `set_flags`；块构造字面量增 `bank_slot`
+  初始化。值语义不变。
+
 ## 2026-09-30：god-object id 读访问器（PERF-ARENA-FLIP-0001 (a)，(b) 交接面）
 
 新增四个 P1 读形态访问器（ARENA_DESIGN §3.2；oracle 依据 = op.hh:63-68 PcodeOp 的

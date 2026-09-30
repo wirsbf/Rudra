@@ -1,5 +1,8 @@
 # `printc.rs` API Reference
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
+- 测试块构造字面量增 `bank_slot: SENTINEL` 初始化（生产代码零变化）。
+
 ## 2026-09-29：case 标签经完整 pushConstant 分派（CASE-CAST 子族, Lane SWITCHDISPATCH / MIRROR-GIANTS-SWITCHDISPATCH-0001）
 
 - **现象（sqlite 镜面 60 行/4 函数）**：golden `case (int4 *)0x1:` /

@@ -1,5 +1,11 @@
 # `blockaction.rs` API Reference
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2）
+- identify_internal 安装链（BlockIf/BlockList/WhileDo/DoWhile/Goto/Condition/
+  InfLoop/MultiGoto/Switch downcast 整体赋值后）与 strip_external 双 retain
+  后补 `sync_bank_shadows()`（docs/api/block.md 同日条目）；复合块构造字面量
+  增 `bank_slot: SENTINEL` 初始化。行为零变化（纯影子维护）。
+
 
 ### 2026-09-29 性能修复（SPEEDPROF-BSPERULE-0001, 巨函数 collapse per-rule 常数削减——行为恒等）
 

@@ -2,6 +2,37 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-09-30：size/flags 守卫影子（Lane ARENAFLIP-g 步骤 2）
+
+- **BankShadowCell** 增 `size_in`/`size_out`/`flags` 三个原子槽（block.hh:
+  312-313/165 的守卫读全食谱）——collapse 规则对 peer 的深读（Arc 克隆+
+  peer RwLock+vtable ≈21ns/次，(f) 实测 ~10M 次/跑）由此改为视图原子读。
+- **单点维护（choke）**：
+  - `add_in_edge`/`add_out_edge` 改为 trait 默认实现（原 11 型重复体收拢），
+    尾挂 `sync_bank_shadows()`；`half_delete_in_edge`/`half_delete_out_edge`
+    （pop 后）与 `set_flags`/`clear_flags`（经新 `flags_mut(&mut self) ->
+    &mut u32` 访问器默认化）同款。
+  - `FlowBlock::sync_bank_shadows(&mut self)`：读自身 in/out 长度+flags，
+    经 `owner_bank`+新 `bank_slot`（`set_bank_slot`/`bank_slot` 由
+    `BlockBank::claim(&Arc, id)` 注册时打标；SENTINEL=未注册早退）写入
+    `BlockBank::set_block_shadows`（与 set_index_shadow 同款原地写，不
+    bump epoch）。
+  - 整体赋值/裸 Vec 位点显式补同步：block.rs `clear_edges`/`build_copy`
+    映射孪生赋值、BlockBasic::insert 的 SWITCH_OUT（改走 set_flags）；
+    blockaction.rs identify 安装链（downcast 赋值后 `nb.sync_bank_shadows()`）
+    与 strip_external 双 retain 后；flow.rs splitBasic 三处（SWITCH_OUT
+    直写改 set/clear_flags、`mem::take(&mut pbb.outgoing)` 后、
+    `tbb.outgoing = parent_outgoing` 后）；funcdata.rs insert_op 的
+    SWITCH_OUT 直写改 set_flags。（(f) §1.4 闭集勘定 + (g) 增补：identify
+    安装链与 flow.rs split 系列是 (f) 清单外的长度/flags 突变位，本次
+    全数收口。）
+- **读侧**：`BlockBankView::{size_in,size_out,flags}`（Option 形）+
+  `expect_size_in/expect_size_out/expect_flags`（panic 形）——generation
+  检查+Relaxed 原子读+读后 epoch 检查，与 index/btype 同纪律；debug 构建
+  追加 shadow==深读真值的 debug_assert（测试套件钉死突变面闭集完备性）。
+- `BlockCell` 增 `size_in/size_out/flags` 注册快照字段（add_block/adopt/
+  adopt_bulk 在同一读守卫内取样）。
+
 ## 2026-09-30：BlockBankView/hold/adopt（Lane ARENAFLIP-d 步骤 2）
 
 - `BlockBank::hold() -> BlockBankView`：扫描级单一读守卫视图；`view.index/

@@ -3459,6 +3459,7 @@ impl<'a> CollapseStructure<'a> {
                 let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                     Arc::new(RwLock::new(crate::block::BlockWhileDo {
                         owner_bank: std::sync::Weak::new(),
+                        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                         index: cond_idx,
                         condition: head_blk.clone(),
                         body: body_blk.clone(),
@@ -4275,6 +4276,10 @@ impl<'a> CollapseStructure<'a> {
                 bsw.incoming = new_in;
                 bsw.outgoing = new_out;
             }
+            // (g) guard-shadow: wholesale boundary-edge assignment (lengths
+            // 0 -> |new_in|/|new_out|; the composite was adopted at the
+            // identify entry, so its cells exist and must follow).
+            nb.sync_bank_shadows();
         }
 
         // NOW install new_block at install_idx (replaces the cond block).
@@ -4393,6 +4398,9 @@ impl<'a> CollapseStructure<'a> {
                         .map(|peer| is_component(peer.get_index()))
                         .unwrap_or(true)
                 });
+                // (g) guard-shadow: the retains change edge LENGTHS; push
+                // the post-strip sizes into the owning bank's cells.
+                w.sync_bank_shadows();
             };
             if let Some(oi) = &old_install {
                 strip_external(oi);
@@ -4537,6 +4545,7 @@ impl<'a> CollapseStructure<'a> {
         let cond_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
             Arc::new(RwLock::new(BlockCondition {
                 owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: cond_idx,
                 op_type: bool_op,
                 first: b1.clone(),
@@ -4593,6 +4602,7 @@ impl<'a> CollapseStructure<'a> {
         let cond_idx = cond.read().unwrap().get_index();
         let if_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(BlockIf {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: cond_idx,
             condition: cond.clone(),
             if_body: tc.clone(),
@@ -4626,6 +4636,7 @@ impl<'a> CollapseStructure<'a> {
         let cond_idx = cond.read().unwrap().get_index();
         let if_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(BlockIf {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: cond_idx,
             condition: cond.clone(),
             if_body: tc.clone(),
@@ -4661,6 +4672,7 @@ impl<'a> CollapseStructure<'a> {
         let inf_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
             Arc::new(RwLock::new(crate::block::BlockInfLoop {
                 owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: body_idx,
                 body: body.clone(),
                 incoming: Vec::new(),
@@ -4955,6 +4967,7 @@ impl<'a> CollapseStructure<'a> {
             let new_sw: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                 Arc::new(RwLock::new(BlockSwitch {
                     owner_bank: std::sync::Weak::new(),
+                    bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                     index: sw_fields.0,
                     control: sw_fields.1,
                     cases: new_cases,
@@ -5540,6 +5553,7 @@ impl<'a> CollapseStructure<'a> {
         //   external out[0] edge, preserved by identify_internal
         let if_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(BlockIf {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: cond_idx,
             condition: block.clone(),
             if_body: block.clone(), // placeholder; real body is external out-edge
@@ -5659,6 +5673,7 @@ impl<'a> CollapseStructure<'a> {
         let mg_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
             Arc::new(RwLock::new(BlockMultiGoto {
                 owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: idx,
                 flags: 0,
                 parent: None,
@@ -5817,6 +5832,7 @@ impl<'a> CollapseStructure<'a> {
         let goto_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
             Arc::new(RwLock::new(crate::block::BlockGoto {
                 owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: idx,
                 flags: 0,
                 parent: None,
@@ -5965,6 +5981,7 @@ impl<'a> CollapseStructure<'a> {
             let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                 Arc::new(RwLock::new(crate::block::BlockWhileDo {
                     owner_bank: std::sync::Weak::new(),
+                    bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                     index: cond_idx,
                     condition: block.clone(),
                     body: clause,
@@ -6051,6 +6068,7 @@ impl<'a> CollapseStructure<'a> {
         let do_while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
             Arc::new(RwLock::new(crate::block::BlockDoWhile {
                 owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: cond_idx,
                 condition: block.clone(),
                 incoming: Vec::new(),
@@ -6846,6 +6864,7 @@ impl<'a> CollapseStructure<'a> {
         let switch_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
             Arc::new(RwLock::new(BlockSwitch {
                 owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: ctrl_idx,
                 control: block.clone(),
                 cases,
@@ -7382,6 +7401,7 @@ impl<'a> CollapseStructure<'a> {
                         let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                             Arc::new(RwLock::new(crate::block::BlockDoWhile {
                                 owner_bank: std::sync::Weak::new(),
+                                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                                 index: cond_idx,
                                 condition: block.clone(),
                                 incoming: Vec::new(),
@@ -7400,6 +7420,7 @@ impl<'a> CollapseStructure<'a> {
                         let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                             Arc::new(RwLock::new(crate::block::BlockDoWhile {
                                 owner_bank: std::sync::Weak::new(),
+                                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                                 index: cond_idx,
                                 condition: block.clone(),
                                 incoming: Vec::new(),
@@ -7431,6 +7452,7 @@ impl<'a> CollapseStructure<'a> {
                                     let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                                         Arc::new(RwLock::new(BlockWhileDo {
                                             owner_bank: std::sync::Weak::new(),
+                                            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                                             index: cond_idx,
                                             condition: block.clone(),
                                             body: tb.clone(),
@@ -7542,6 +7564,7 @@ impl<'a> CollapseStructure<'a> {
             let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                 Arc::new(RwLock::new(BlockWhileDo {
                     owner_bank: std::sync::Weak::new(),
+                    bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                     index: header_idx,
                     condition: header.clone(),
                     body: body_entry,
@@ -7635,6 +7658,7 @@ impl<'a> CollapseStructure<'a> {
                 let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                     Arc::new(RwLock::new(crate::block::BlockDoWhile {
                         owner_bank: std::sync::Weak::new(),
+                        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                         index: latch_idx,
                         condition: block.clone(),
                         incoming: Vec::new(),
@@ -7659,6 +7683,7 @@ impl<'a> CollapseStructure<'a> {
                 let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                     Arc::new(RwLock::new(crate::block::BlockDoWhile {
                         owner_bank: std::sync::Weak::new(),
+                        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                         index: header_idx,
                         condition: block.clone(),
                         incoming: Vec::new(),
@@ -7693,6 +7718,7 @@ impl<'a> CollapseStructure<'a> {
                     let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                         Arc::new(RwLock::new(BlockWhileDo {
                             owner_bank: std::sync::Weak::new(),
+                            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                             index: header_idx,
                             condition: header.clone(),
                             body,
@@ -7816,6 +7842,7 @@ impl<'a> CollapseStructure<'a> {
             let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                 Arc::new(RwLock::new(crate::block::BlockWhileDo {
                     owner_bank: std::sync::Weak::new(),
+                    bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                     index: cond_idx,
                     condition: block.clone(),
                     body: clauseblock,
@@ -8108,6 +8135,7 @@ impl<'a> CollapseStructure<'a> {
             let switch_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                 Arc::new(RwLock::new(BlockSwitch {
                     owner_bank: std::sync::Weak::new(),
+                    bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                     index: ctrl_idx,
                     control: block.clone(),
                     cases,
@@ -8409,6 +8437,7 @@ impl<'a> CollapseStructure<'a> {
             let switch_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                 Arc::new(RwLock::new(BlockSwitch {
                     owner_bank: std::sync::Weak::new(),
+                    bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                     index: ctrl_idx,
                     control: chain[0].1.clone(),
                     cases: case_bodies.clone(),
@@ -8612,6 +8641,7 @@ impl<'a> CollapseStructure<'a> {
                 let new_sw: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                     Arc::new(RwLock::new(BlockSwitch {
                         owner_bank: std::sync::Weak::new(),
+                        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                         index: ctrl_idx,
                         control: ctrl,
                         cases: new_case_list,

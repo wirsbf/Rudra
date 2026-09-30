@@ -1,5 +1,10 @@
 # flow.rs — Reachability-based control flow tracking
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2）
+- splitBasic 系 SWITCH_OUT 直写改 `set_flags/clear_flags`（block.hh:155/156
+  形态）；`mem::take(&mut pbb.outgoing)` 后与 `tbb.outgoing = parent_outgoing`
+  后补 `sync_bank_shadows()`。值语义逐位不变（|= / &= ! 同型）。
+
 ## 2026-09-30：splitBasic tail 边重定向补孪生（Lane ARENAFLIP-d 步骤 1）
 - case-destination split（flow.cc:1021-1037 connectBasic 域）的入边半
   `.point = tail` 写点同步打 `point_id` 值孪生（`fd.bblocks.bank` 预解析，

@@ -22353,6 +22353,7 @@ mod tests {
 
         let switch_data = BlockSwitch {
         owner_bank: std::sync::Weak::new(),
+        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 0,
             control: ctrl_arc,
             cases: Vec::new(),
@@ -22732,6 +22733,7 @@ mod tests {
         }
         Arc::new(RwLock::new(BlockCopy {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 0,
             flags: 0,
             parent: None,

@@ -1,5 +1,10 @@
 # `coreaction.rs` API Reference
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
+- test_prefercomplement_flips_if_else_condition：cond 块整体 outgoing 赋值
+  后补 `sync_bank_shadows()`（该测试先 adopt 再赋值——影子需同步）；
+  块构造字面量增 `bank_slot` 初始化。
+
 ## 2026-09-29：LOAD/STORE spacebase 传播阻断 + TYPEPROP 事件通道（MCENSUS3-TYPEPROP-XUNKNOWN-INT-HTTPDMAIN-0001 / lane MAINTYPE）
 
 - `ActionInferTypes::propagate_type`（`src/coreaction.rs:8589`，镜像

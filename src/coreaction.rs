@@ -21922,6 +21922,7 @@ mod tests {
     #[test]
     fn test_prefercomplement_flips_if_else_condition() {
         use crate::address::{Address, SeqNum};
+        use crate::block::FlowBlock as _;
         use crate::block::{BlockBasic, BlockIf};
         use crate::op::pcodeop_flags::{BOOLEAN_FLIP, FALLTHRU_TRUE};
         use crate::op::{PcodeOp, PcodeOpRef};
@@ -21968,20 +21969,27 @@ mod tests {
             fd.sblocks.bank.adopt(&else_body);
             // getSplitPoint (block.cc:2361) requires the condition block to
             // have two outgoing edges.
-            cond_bb.write().unwrap().outgoing = vec![
-                crate::block::BlockEdge {
-                    point: fd.sblocks.bank.registered_id_of(&if_body),
-                    flags: 0,
-                    reverse_index: 0,
-                },
-                crate::block::BlockEdge {
-                    point: fd.sblocks.bank.registered_id_of(&else_body),
-                    flags: 0,
-                    reverse_index: 0,
-                },
-            ];
+            {
+                let mut g = cond_bb.write().unwrap();
+                g.outgoing = vec![
+                    crate::block::BlockEdge {
+                        point: fd.sblocks.bank.registered_id_of(&if_body),
+                        flags: 0,
+                        reverse_index: 0,
+                    },
+                    crate::block::BlockEdge {
+                        point: fd.sblocks.bank.registered_id_of(&else_body),
+                        flags: 0,
+                        reverse_index: 0,
+                    },
+                ];
+                // (g) guard-shadow: test adopted the block first — sync the
+                // wholesale out-edge assignment.
+                g.sync_bank_shadows();
+            }
             let bif = BlockIf {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: 3,
                 condition: cond_bb.clone(),
                 if_body: if_body.clone(),
@@ -22272,6 +22280,7 @@ mod tests {
         let body_copy = fd.sblocks.get_block(2).unwrap();
         let wd = BlockWhileDo {
         owner_bank: std::sync::Weak::new(),
+        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 0,
             condition: head_copy,
             body: body_copy,
@@ -22443,6 +22452,7 @@ mod tests {
         let mk_copy = |source: &DynBlk, idx: i32| -> DynBlk {
             std::sync::Arc::new(std::sync::RwLock::new(BlockCopy {
                 owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: idx,
                 flags: 0,
                 parent: None,
@@ -22492,6 +22502,7 @@ mod tests {
         let mk_goto = |wrapped: &DynBlk, target: &DynBlk, idx: i32| -> DynBlk {
             std::sync::Arc::new(std::sync::RwLock::new(BlockGoto {
                 owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: idx,
                 flags: 0,
                 parent: None,

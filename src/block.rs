@@ -903,13 +903,25 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     fn get_type(&self) -> BlockType;
     // Ghidra: block.hh:165 FlowBlock::getFlags
     fn get_flags(&self) -> u32;
+    // RUGRA-GLUE: mutable flags accessor backing the defaulted
+    // set/clear pair below (each concrete type stores `flags`).
+    fn flags_mut(&mut self) -> &mut u32;
     // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32);
+    /// Set a boolean property (`flags |= fl`, block.hh:155). Defaulted so
+    /// the (g) size/flags guard-shadow maintenance runs in ONE place for
+    /// every subtype.
+    fn set_flags(&mut self, f: u32) {
+        *self.flags_mut() |= f;
+        self.sync_bank_shadows();
+    }
     /// Clear a boolean property (Ghidra `clearFlag`, block.hh:156
     /// `flags &= ~fl`). Counterpart to `set_flags`; used by calcLoop's
     /// final sweep (block.cc:2125/2146) and stack pop (block.cc:2125).
     // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32);
+    fn clear_flags(&mut self, f: u32) {
+        *self.flags_mut() &= !f;
+        self.sync_bank_shadows();
+    }
 
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize;
@@ -1048,6 +1060,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
             slot += 1;
         }
         self.in_edges_mut().pop();
+        self.sync_bank_shadows();
     }
 
     // Ghidra: block.cc:115 FlowBlock::halfDeleteOutEdge
@@ -1090,6 +1103,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
             slot += 1;
         }
         self.out_edges_mut().pop();
+        self.sync_bank_shadows();
     }
 
     // Ghidra: block.cc:130 FlowBlock::removeInEdge (exclusion-list form)
@@ -1482,9 +1496,46 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     }
 
     // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge);
+    /// Append an incoming edge half (`intothis.push_back`, block.cc:73-80).
+    /// Defaulted over the per-type edge accessors so the (g) size
+    /// guard-shadow maintenance runs in ONE place for every subtype (the
+    /// former 11 identical per-impl bodies collapse here).
+    fn add_in_edge(&mut self, edge: BlockEdge) {
+        self.in_edges_mut().push(edge);
+        self.sync_bank_shadows();
+    }
     // RUGRA-GLUE: Rust edge-construction helper (Ghidra manages outofthis via friend addInEdge)
-    fn add_out_edge(&mut self, edge: BlockEdge);
+    fn add_out_edge(&mut self, edge: BlockEdge) {
+        self.out_edges_mut().push(edge);
+        self.sync_bank_shadows();
+    }
+
+    // RUGRA-GLUE: owning-bank slot stamp (set by `BlockBank::claim` at
+    // registration; SENTINEL = unregistered). Pairs with `owner_bank` to
+    // give shadow maintenance its write target without an identity lookup.
+    fn set_bank_slot(&mut self, slot: BlockId);
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered).
+    fn bank_slot(&self) -> BlockId;
+
+    /// Push the block's current `sizeIn`/`sizeOut`/`flags`
+    /// (block.hh:312-313/165) into the owning bank's guard-shadow cells.
+    /// Called at every length/flags mutation choke; no-op for unregistered
+    /// blocks (bare fixtures). The values are the same fields the trait
+    /// getters read, so a shadow read through a bank view always equals
+    /// the deep read — the debug_assert in the view readers pins this.
+    // RUGRA-GLUE: (g) guard-shadow maintenance
+    fn sync_bank_shadows(&mut self) {
+        let slot = self.bank_slot();
+        if slot == BlockId::SENTINEL {
+            return;
+        }
+        if let Some(bank) = self.owner_bank() {
+            let size_in = self.in_edges_mut().len() as u32;
+            let size_out = self.out_edges_mut().len() as u32;
+            let flags = self.get_flags();
+            bank.set_block_shadows(slot, size_in, size_out, flags);
+        }
+    }
 
     // RUGRA-GLUE: Rust helper returning Vec<PcodeOpRef> (Ghidra BlockBasic exposes begin/end iterators)
     fn get_ops(&self) -> Vec<PcodeOpRef> {
@@ -2287,6 +2338,10 @@ pub struct BlockBasic {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     /// List of operations in this block
     pub ops: Vec<PcodeOpRef>,
     /// Input edges
@@ -2341,6 +2396,7 @@ impl BlockBasic {
     pub fn new(index: i32, start_addr: Address) -> Self {
         Self {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: BlockId::SENTINEL,
             index,
             ops: Vec::new(),
             incoming: Vec::new(),
@@ -2672,6 +2728,14 @@ impl FlowBlock for BlockBasic {
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
+    }
     // RUGRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -2696,13 +2760,10 @@ impl FlowBlock for BlockBasic {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
 
     // Ghidra: block.hh:313 FlowBlock::sizeIn
@@ -2740,16 +2801,6 @@ impl FlowBlock for BlockBasic {
     // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
-    }
-
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-
-    // RUGRA-GLUE: Rust edge-construction helper (Ghidra manages outofthis via friend addInEdge)
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
     }
 
     // RUGRA-GLUE: Rust helper (Ghidra BlockBasic exposes op list via begin/end iterators)
@@ -2926,7 +2977,9 @@ impl FlowBlock for BlockBasic {
             inserted.is_branch() && inserted.opcode == OpCode::CPUI_BRANCHIND
         };
         if is_branch_indirect {
-            self.flags |= block_flags::SWITCH_OUT;
+            // (g) guard-shadow: route through the trait setter so the
+            // bank's flags shadow follows (setFlag form, block.hh:155).
+            self.set_flags(block_flags::SWITCH_OUT);
         }
     }
 
@@ -3245,6 +3298,7 @@ impl BlockBasic {
     pub fn clear_edges(&mut self) {
         self.incoming.clear();
         self.outgoing.clear();
+        self.sync_bank_shadows();
     }
 
     // RUGRA-GLUE: Rust accessor for outgoing edge slice (Ghidra exposes outofthis via getOut/sizeOut)
@@ -3335,6 +3389,13 @@ pub struct BlockCell {
     pub arc: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     btype: BlockType,
     index: i32,
+    /// Hot-POD shadow snapshot at registration ((g) guard-shadow):
+    /// `FlowBlock::sizeIn`/`sizeOut`/`flags` (block.hh:312-313/165).
+    /// Maintained in place by `FlowBlock::sync_bank_shadows` at every
+    /// length/flags mutation choke.
+    size_in: u32,
+    size_out: u32,
+    flags: u32,
 }
 
 impl BlockCell {
@@ -3445,11 +3506,19 @@ impl BankTable {
 /// In-place shadow cell shared by all table generations until the next
 /// publish copies the values. Atomics give interior mutability through
 /// `&self` (single-Funcdata single-thread domain; the atomic is for the
-/// Sync bound, ordering is Relaxed throughout).
-// RUGRA-GLUE: shared shadow cell (block.hh:124 index; sizes join in the
-/// size-shadow step)
+/// Sync bound, ordering is Relaxed throughout). The size/flags members are
+/// the (g)-segment guard-shadow: `sizeIn`/`sizeOut` (block.hh:312-313) and
+/// `getFlags` (block.hh:165) are the collapse rule guards' whole peer read
+/// diet, so serving them from the cell removes the peer RwLock deep-read
+/// from guard checks (the ~10M face the (f) report attributed to the
+/// block-storage domain).
+// RUGRA-GLUE: shared shadow cell (block.hh:124 index; block.hh:165/312-313
+/// size/flags join in the (g) guard-shadow step)
 struct BankShadowCell {
     index: std::sync::atomic::AtomicI32,
+    size_in: std::sync::atomic::AtomicU32,
+    size_out: std::sync::atomic::AtomicU32,
+    flags: std::sync::atomic::AtomicU32,
 }
 
 impl Clone for BankShadowCell {
@@ -3460,6 +3529,28 @@ impl Clone for BankShadowCell {
             index: std::sync::atomic::AtomicI32::new(
                 self.index.load(std::sync::atomic::Ordering::Relaxed),
             ),
+            size_in: std::sync::atomic::AtomicU32::new(
+                self.size_in.load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            size_out: std::sync::atomic::AtomicU32::new(
+                self.size_out.load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            flags: std::sync::atomic::AtomicU32::new(
+                self.flags.load(std::sync::atomic::Ordering::Relaxed),
+            ),
+        }
+    }
+}
+
+impl BankShadowCell {
+    // RUGRA-GLUE: reserved-slot constructor (sentinel slot 0 / post-clear
+    // reset — zeroed shadows, never read: slot_ok rejects idx 0)
+    fn sentinel() -> Self {
+        BankShadowCell {
+            index: std::sync::atomic::AtomicI32::new(0),
+            size_in: std::sync::atomic::AtomicU32::new(0),
+            size_out: std::sync::atomic::AtomicU32::new(0),
+            flags: std::sync::atomic::AtomicU32::new(0),
         }
     }
 }
@@ -3487,9 +3578,7 @@ impl BlockBank {
             sh: std::sync::Arc::new(BlockBankShared {
                 state: RwLock::new(BankState {
                     table: std::sync::Arc::new(BankTable::reserved()),
-                    cells: std::sync::Arc::new(vec![BankShadowCell {
-                        index: std::sync::atomic::AtomicI32::new(0),
-                    }]),
+                    cells: std::sync::Arc::new(vec![BankShadowCell::sentinel()]),
                 }),
                 ids: RwLock::new(rustc_hash::FxHashMap::default()),
                 epoch: std::sync::atomic::AtomicU64::new(0),
@@ -3510,14 +3599,17 @@ impl BlockBank {
     /// owner's bank, so a second registration would strand bank-A ids
     /// behind a bank-B owner).
     // RUGRA-GLUE: owner-bank assignment (guarded)
-    pub fn claim(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) {
+    pub fn claim(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, slot: BlockId) {
         let mut g = bl.write().unwrap();
         match g.owner_bank() {
             Some(prev) if !std::sync::Arc::ptr_eq(&prev.sh, &self.sh) => {
                 panic!("block registered in two live block banks")
             }
-            Some(_) => {} // already ours
-            None => g.set_owner_bank(Some(self)),
+            Some(_) => {} // already ours (first registration keeps its slot)
+            None => {
+                g.set_owner_bank(Some(self));
+                g.set_bank_slot(slot);
+            }
         }
     }
 
@@ -3545,6 +3637,9 @@ impl BlockBank {
             let cells = std::sync::Arc::make_mut(&mut st.cells);
             cells.push(BankShadowCell {
                 index: std::sync::atomic::AtomicI32::new(cell.index),
+                size_in: std::sync::atomic::AtomicU32::new(cell.size_in),
+                size_out: std::sync::atomic::AtomicU32::new(cell.size_out),
+                flags: std::sync::atomic::AtomicU32::new(cell.flags),
             });
             id
         };
@@ -3552,7 +3647,7 @@ impl BlockBank {
             .epoch
             .fetch_add(1, std::sync::atomic::Ordering::Release);
         self.sh.ids.write().unwrap().insert(key, id);
-        self.claim(&arc);
+        self.claim(&arc, id);
         id
     }
 
@@ -3566,14 +3661,23 @@ impl BlockBank {
         if self.id_of(bl).is_some() {
             return; // already registered (idempotent)
         }
-        let (btype, index) = {
+        let (btype, index, size_in, size_out, flags) = {
             let block = bl.read().unwrap();
-            (block.get_type(), block.get_index())
+            (
+                block.get_type(),
+                block.get_index(),
+                block.size_in() as u32,
+                block.size_out() as u32,
+                block.get_flags(),
+            )
         };
         self.insert(BlockCell {
             arc: bl.clone(),
             btype,
             index,
+            size_in,
+            size_out,
+            flags,
         });
     }
 
@@ -3596,14 +3700,23 @@ impl BlockBank {
                 .collect()
         };
         for bl in fresh {
-            let (btype, index) = {
+            let (btype, index, size_in, size_out, flags) = {
                 let block = bl.read().unwrap();
-                (block.get_type(), block.get_index())
+                (
+                    block.get_type(),
+                    block.get_index(),
+                    block.size_in() as u32,
+                    block.size_out() as u32,
+                    block.get_flags(),
+                )
             };
             self.insert(BlockCell {
                 arc: bl.clone(),
                 btype,
                 index,
+                size_in,
+                size_out,
+                flags,
             });
         }
     }
@@ -3712,6 +3825,33 @@ impl BlockBank {
         }
     }
 
+    /// Shadow write for the (g) size/flags guard-shadow (single choke:
+    /// `FlowBlock::sync_bank_shadows`, which every length/flags mutation
+    /// funnels through). Same in-place discipline as `set_index_shadow`:
+    /// no epoch bump (views sharing this allocation see the store via
+    /// atomics; views from an earlier allocation are already invalid).
+    // RUGRA-GLUE: shadow maintenance (block.hh:165/312-313)
+    pub fn set_block_shadows(&self, id: BlockId, size_in: u32, size_out: u32, flags: u32) {
+        bank_stats::bump(&bank_stats::STATS.shadow_writes);
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i != 0
+            && i < st.table.arcs.len()
+            && st.table.gens[i] == id.gen()
+            && i < st.cells.len()
+        {
+            st.cells[i]
+                .size_in
+                .store(size_in, std::sync::atomic::Ordering::Relaxed);
+            st.cells[i]
+                .size_out
+                .store(size_out, std::sync::atomic::Ordering::Relaxed);
+            st.cells[i]
+                .flags
+                .store(flags, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
     /// Reclaim every slot (graph reset; bumps generations). Publish side:
     /// the fresh table keeps the (bumped) `gens` and truncates the slot
     /// arrays to the sentinel — post-clear inserts reuse slot indexes
@@ -3728,9 +3868,7 @@ impl BlockBank {
             }
             table.arcs.truncate(1);
             table.btypes.truncate(1);
-            st.cells = std::sync::Arc::new(vec![BankShadowCell {
-                index: std::sync::atomic::AtomicI32::new(0),
-            }]);
+            st.cells = std::sync::Arc::new(vec![BankShadowCell::sentinel()]);
         }
         self.sh
             .epoch
@@ -3862,6 +4000,98 @@ impl BlockBankView {
         self.check_epoch();
         v
     }
+
+    // ====================================================================
+    // (g) size/flags guard-shadow readers (block.hh:165/312-313). Same
+    // discipline as index/btype: generation-checked slot + Relaxed atomic
+    // load + post-read epoch check. debug builds additionally pin the
+    // shadow to the deep truth (block guard read) so any mutation path
+    // that bypassed the sync chokes fails loudly in the test suite.
+    // ====================================================================
+
+    /// `FlowBlock::sizeIn` shadow (block.hh:313), Option form.
+    // RUGRA-GLUE: guard-shadow read
+    pub fn size_in(&self, id: BlockId) -> Option<usize> {
+        bank_stats::bump(&bank_stats::STATS.view_index);
+        let v = self.slot_ok(id).and_then(|i| {
+            self.cells
+                .get(i)
+                .map(|c| c.size_in.load(std::sync::atomic::Ordering::Relaxed) as usize)
+        });
+        self.check_epoch();
+        #[cfg(debug_assertions)]
+        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.arcs[i].as_ref()))
+        {
+            let truth = arc.read().unwrap().size_in();
+            debug_assert_eq!(shadow, truth, "size_in shadow diverged for {:?}", id);
+        }
+        v
+    }
+
+    /// `FlowBlock::sizeOut` shadow (block.hh:312), Option form.
+    // RUGRA-GLUE: guard-shadow read
+    pub fn size_out(&self, id: BlockId) -> Option<usize> {
+        bank_stats::bump(&bank_stats::STATS.view_index);
+        let v = self.slot_ok(id).and_then(|i| {
+            self.cells
+                .get(i)
+                .map(|c| c.size_out.load(std::sync::atomic::Ordering::Relaxed) as usize)
+        });
+        self.check_epoch();
+        #[cfg(debug_assertions)]
+        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.arcs[i].as_ref()))
+        {
+            let truth = arc.read().unwrap().size_out();
+            debug_assert_eq!(shadow, truth, "size_out shadow diverged for {:?}", id);
+        }
+        v
+    }
+
+    /// `FlowBlock::getFlags` shadow (block.hh:165), Option form.
+    // RUGRA-GLUE: guard-shadow read
+    pub fn flags(&self, id: BlockId) -> Option<u32> {
+        bank_stats::bump(&bank_stats::STATS.view_index);
+        let v = self.slot_ok(id).and_then(|i| {
+            self.cells
+                .get(i)
+                .map(|c| c.flags.load(std::sync::atomic::Ordering::Relaxed))
+        });
+        self.check_epoch();
+        #[cfg(debug_assertions)]
+        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.arcs[i].as_ref()))
+        {
+            let truth = arc.read().unwrap().get_flags();
+            debug_assert_eq!(shadow, truth, "flags shadow diverged for {:?}", id);
+        }
+        v
+    }
+
+    /// `FlowBlock::sizeIn` shadow, panicking form (see `expect_arc`).
+    // RUGRA-GLUE: guard-shadow read, panicking form
+    pub fn expect_size_in(&self, id: BlockId) -> usize {
+        match self.size_in(id) {
+            Some(v) => v,
+            None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
+        }
+    }
+
+    /// `FlowBlock::sizeOut` shadow, panicking form.
+    // RUGRA-GLUE: guard-shadow read, panicking form
+    pub fn expect_size_out(&self, id: BlockId) -> usize {
+        match self.size_out(id) {
+            Some(v) => v,
+            None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
+        }
+    }
+
+    /// `FlowBlock::getFlags` shadow, panicking form.
+    // RUGRA-GLUE: guard-shadow read, panicking form
+    pub fn expect_flags(&self, id: BlockId) -> u32 {
+        match self.flags(id) {
+            Some(v) => v,
+            None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
+        }
+    }
 }
 
 /// A graph of blocks, which is itself a block
@@ -3945,14 +4175,23 @@ impl BlockGraph {
         // equality have their id-space identity. Slot stays occupied even
         // after the Vec-list removal paths (zombie = oracle lifetime).
         {
-            let (btype, index) = {
+            let (btype, index, size_in, size_out, flags) = {
                 let block = bl.read().unwrap();
-                (block.get_type(), block.get_index())
+                (
+                    block.get_type(),
+                    block.get_index(),
+                    block.size_in() as u32,
+                    block.size_out() as u32,
+                    block.get_flags(),
+                )
             };
             self.bank.insert(BlockCell {
                 arc: bl.clone(),
                 btype,
                 index,
+                size_in,
+                size_out,
+                flags,
             });
         }
         let self_weak = Arc::downgrade(&bl);
@@ -4010,6 +4249,7 @@ impl BlockGraph {
         }
         let result: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(BlockCopy {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: BlockId::SENTINEL,
             index,
             flags,
             parent: None,
@@ -4101,6 +4341,10 @@ impl BlockGraph {
             *block.in_edges_mut() = mapped_incoming;
             *block.out_edges_mut() = mapped_outgoing;
             block.set_immed_dom(mapped_dom);
+            // (g) guard-shadow: mapped twin assignment rewrites the edge
+            // vectors wholesale (same lengths, re-pointed ends) — sync so
+            // the shadow equals the post-assignment truth.
+            block.sync_bank_shadows();
         }
     }
 
@@ -6405,6 +6649,10 @@ pub struct BlockCopy {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub flags: u32,
     pub parent: Option<Weak<RwLock<BlockGraph>>>,
     /// Weak self handle for virtual methods returning `this`.
@@ -6441,6 +6689,14 @@ impl FlowBlock for BlockCopy {
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
+    }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
     }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
@@ -6496,13 +6752,10 @@ impl FlowBlock for BlockCopy {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -6542,14 +6795,6 @@ impl FlowBlock for BlockCopy {
     // Ghidra: block.hh:161 FlowBlock::getParent
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
-    }
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
     }
     // Ghidra: block.hh:162 FlowBlock::getImmedDom
     fn get_immed_dom(&self) -> Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>> {
@@ -6753,6 +6998,10 @@ pub struct BlockGoto {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub flags: u32,
     pub parent: Option<Weak<RwLock<BlockGraph>>>,
     /// PRINTC-GOTOPRINTS-0001 legacy projection: the goto target's front leaf
@@ -6816,6 +7065,14 @@ impl FlowBlock for BlockGoto {
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
+    }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -6840,13 +7097,10 @@ impl FlowBlock for BlockGoto {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -6883,14 +7137,6 @@ impl FlowBlock for BlockGoto {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:161 FlowBlock::getParent
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
@@ -7117,6 +7363,10 @@ pub struct BlockMultiGoto {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub flags: u32,
     pub parent: Option<Weak<RwLock<BlockGraph>>>,
     /// Ghidra `BlockMultiGoto::gotoedges` (block.hh:574): the targets of the
@@ -7155,6 +7405,14 @@ impl FlowBlock for BlockMultiGoto {
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
+    }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -7179,13 +7437,10 @@ impl FlowBlock for BlockMultiGoto {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -7222,14 +7477,6 @@ impl FlowBlock for BlockMultiGoto {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:161 FlowBlock::getParent
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
@@ -7379,6 +7626,10 @@ pub struct BlockIf {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub condition: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub if_body: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub else_body: Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
@@ -7414,6 +7665,14 @@ impl FlowBlock for BlockIf {
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
+    }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -7446,13 +7705,10 @@ impl FlowBlock for BlockIf {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -7489,14 +7745,6 @@ impl FlowBlock for BlockIf {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:172 FlowBlock::getStart
     fn get_start_addr(&self) -> Address {
         self.condition.read().unwrap().get_start_addr()
@@ -7733,6 +7981,10 @@ pub struct BlockWhileDo {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub condition: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub body: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub incoming: Vec<BlockEdge>,
@@ -7781,6 +8033,14 @@ impl FlowBlock for BlockWhileDo {
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
+    }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -7805,13 +8065,10 @@ impl FlowBlock for BlockWhileDo {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -7848,14 +8105,6 @@ impl FlowBlock for BlockWhileDo {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:172 FlowBlock::getStart
     fn get_start_addr(&self) -> Address {
         self.condition.read().unwrap().get_start_addr()
@@ -8618,6 +8867,10 @@ pub struct BlockDoWhile {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub condition: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     // Do-While loops logically have the condition at the end which evaluates the body that it's fused with.
     pub incoming: Vec<BlockEdge>,
@@ -8638,6 +8891,14 @@ impl FlowBlock for BlockDoWhile {
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
+    }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
     }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
@@ -8663,13 +8924,10 @@ impl FlowBlock for BlockDoWhile {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -8706,14 +8964,6 @@ impl FlowBlock for BlockDoWhile {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:172 FlowBlock::getStart
     fn get_start_addr(&self) -> Address {
         self.condition.read().unwrap().get_start_addr()
@@ -8803,6 +9053,10 @@ pub struct BlockInfLoop {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     /// The loop body block (the self-looping block collapsed into this node).
     pub body: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub incoming: Vec<BlockEdge>,
@@ -8823,6 +9077,14 @@ impl FlowBlock for BlockInfLoop {
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
+    }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
     }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
@@ -8848,13 +9110,10 @@ impl FlowBlock for BlockInfLoop {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -8891,14 +9150,6 @@ impl FlowBlock for BlockInfLoop {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:172 FlowBlock::getStart
     fn get_start_addr(&self) -> Address {
         self.body.read().unwrap().get_start_addr()
@@ -8988,6 +9239,10 @@ pub struct BlockList {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub children: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
     pub incoming: Vec<BlockEdge>,
     pub outgoing: Vec<BlockEdge>,
@@ -9001,6 +9256,7 @@ impl BlockList {
     pub fn new(index: i32, children: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>>) -> Self {
         Self {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: BlockId::SENTINEL,
             index,
             children,
             incoming: Vec::new(),
@@ -9094,6 +9350,14 @@ impl FlowBlock for BlockList {
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
+    }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -9134,13 +9398,10 @@ impl FlowBlock for BlockList {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -9177,14 +9438,6 @@ impl FlowBlock for BlockList {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:172 FlowBlock::getStart
     fn get_start_addr(&self) -> Address {
         self.children
@@ -9296,6 +9549,10 @@ pub struct BlockCondition {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub op_type: BoolOp,
     /// First condition block (block A — the outer condition).
     pub first: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
@@ -9319,6 +9576,14 @@ impl FlowBlock for BlockCondition {
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
+    }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
     }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
@@ -9352,13 +9617,10 @@ impl FlowBlock for BlockCondition {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -9395,14 +9657,6 @@ impl FlowBlock for BlockCondition {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:172 FlowBlock::getStart
     fn get_start_addr(&self) -> Address {
         self.first.read().unwrap().get_start_addr()
@@ -9623,6 +9877,10 @@ pub struct BlockSwitch {
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
     // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
+    /// Owning-bank slot stamp ((g) guard-shadow write target;
+    /// SENTINEL = unregistered bare fixture).
+    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    pub(crate) bank_slot: BlockId,
     pub control: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub cases: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
     pub default_case: Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
@@ -9731,6 +9989,14 @@ impl FlowBlock for BlockSwitch {
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
+    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    fn set_bank_slot(&mut self, slot: BlockId) {
+        self.bank_slot = slot;
+    }
+    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    fn bank_slot(&self) -> BlockId {
+        self.bank_slot
+    }
     // RUGRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -9755,13 +10021,10 @@ impl FlowBlock for BlockSwitch {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // Ghidra: block.hh:155 FlowBlock::setFlag
-    fn set_flags(&mut self, f: u32) {
-        self.flags |= f;
-    }
-    // Ghidra: block.hh:156 FlowBlock::clearFlag
-    fn clear_flags(&mut self, f: u32) {
-        self.flags &= !f;
+    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // (field writer; the (g) guard-shadow sync rides the defaults)
+    fn flags_mut(&mut self) -> &mut u32 {
+        &mut self.flags
     }
     // Ghidra: block.hh:313 FlowBlock::sizeIn
     fn size_in(&self) -> usize {
@@ -9798,14 +10061,6 @@ impl FlowBlock for BlockSwitch {
         &mut self.incoming
     }
 
-    // Ghidra: block.cc:73 FlowBlock::addInEdge
-    fn add_in_edge(&mut self, edge: BlockEdge) {
-        self.incoming.push(edge);
-    }
-    // RUGRA-GLUE: Rust edge-construction helper
-    fn add_out_edge(&mut self, edge: BlockEdge) {
-        self.outgoing.push(edge);
-    }
     // Ghidra: block.hh:172 FlowBlock::getStart
     fn get_start_addr(&self) -> Address {
         self.control.read().unwrap().get_start_addr()
@@ -10535,6 +10790,7 @@ mod finalize_visited_tests {
         let goto_target = leaf(2);
         let switch: BlockArc = Arc::new(RwLock::new(BlockSwitch {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 0,
             control: control.clone(),
             cases: vec![structured_case.clone(), goto_target.clone()],
@@ -10772,6 +11028,7 @@ mod finalize_visited_tests {
         let head_copy = copy_of(&bb[0]);
         let w: BlockArc = Arc::new(RwLock::new(BlockWhileDo {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: cond_copy.read().unwrap().get_index(),
             condition: cond_copy.clone(),
             body: body_copy.clone(),
@@ -11124,6 +11381,7 @@ mod while_do_gate_tests {
 
         let wd = BlockWhileDo {
         owner_bank: std::sync::Weak::new(),
+        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 3,
             condition: head.clone(),
             body: tail.clone(),
@@ -11254,6 +11512,7 @@ mod switch_default_construct_pos_tests {
     fn goto_wrapping(index: i32, inner: BlockArc, target: BlockArc) -> BlockArc {
         Arc::new(RwLock::new(BlockGoto {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index,
             flags: 0,
             parent: None,
@@ -11282,6 +11541,7 @@ mod switch_default_construct_pos_tests {
         assert_eq!(cases.len(), gototypes.len());
         Arc::new(RwLock::new(BlockSwitch {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 9,
             control: copy_of(8, 0x288ec),
             cases,
@@ -11445,6 +11705,9 @@ mod bank_cow_tests {
             arc,
             btype: BlockType::Basic,
             index: seed as i32,
+            size_in: 0,
+            size_out: 0,
+            flags: 0,
         }
     }
 
@@ -11518,5 +11781,79 @@ mod bank_cow_tests {
         bank.set_index_shadow(id0, 42);
         // Same allocation (no publish between) → the view sees the store.
         assert_eq!(view.index(id0), Some(42));
+    }
+
+    #[test]
+    fn guard_shadow_tracks_every_mutation_choke() {
+        // (g) size/flags guard-shadow: every length/flags mutation choke
+        // (add_in/add_out_edge defaults, half_delete pair, set/clear_flags
+        // defaults, clear_edges, wholesale assignments) must leave the bank
+        // cell equal to the block's deep truth — the debug_assert in the
+        // view readers pins this per read; this test walks the chokes
+        // explicitly through the real graph paths.
+        let mut g = BlockGraph::new();
+        let a: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
+            BlockBasic::new(0, Address::new(0x100)),
+        ));
+        let b: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
+            BlockBasic::new(1, Address::new(0x200)),
+        ));
+        let c: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
+            BlockBasic::new(2, Address::new(0x300)),
+        ));
+        g.add_block(a.clone());
+        g.add_block(b.clone());
+        g.add_block(c.clone());
+        let view = g.bank.hold();
+        let id_a = g.bank.id_of(&a).unwrap();
+        let id_b = g.bank.id_of(&b).unwrap();
+        // Fresh blocks: zero edges, zero flags.
+        assert_eq!(view.size_in(id_a), Some(0));
+        assert_eq!(view.size_out(id_a), Some(0));
+        assert_eq!(view.flags(id_a), Some(0));
+        // add_edge routes through the add_in/add_out_edge defaults.
+        g.add_edge(a.clone(), b.clone());
+        g.add_edge(a.clone(), c.clone());
+        assert_eq!(view.size_out(id_a), Some(2));
+        assert_eq!(view.size_in(id_b), Some(1));
+        // set_flags/clear_flags defaults.
+        a.write().unwrap().set_flags(crate::block::block_flags::SWITCH_OUT);
+        assert_eq!(
+            view.flags(id_a),
+            Some(crate::block::block_flags::SWITCH_OUT)
+        );
+        a.write().unwrap().clear_flags(crate::block::block_flags::SWITCH_OUT);
+        assert_eq!(view.flags(id_a), Some(0));
+        // half_delete_out_edge default (drop the a→b out half).
+        let slot_b = a
+            .read()
+            .unwrap()
+            .get_out_ref(0)
+            .map(|e| g.bank.id_of(&b) == Some(e.point))
+            .map(|is_b| if is_b { 0 } else { 1 })
+            .unwrap_or(0);
+        a.write().unwrap().half_delete_out_edge(slot_b);
+        assert_eq!(view.size_out(id_a), Some(1));
+        assert_eq!(view.size_in(id_b), Some(1)); // b's in-half untouched (half delete)
+        // clear_edges helper (BlockBasic inherent method — route through
+        // the downcast like its production callers).
+        let id_c = g.bank.id_of(&c).unwrap();
+        c.write()
+            .unwrap()
+            .as_any_mut()
+            .downcast_mut::<BlockBasic>()
+            .unwrap()
+            .clear_edges();
+        assert_eq!(view.size_in(id_c), Some(0));
+        // Wholesale assignment choke (the identify install form).
+        {
+            let mut w = b.write().unwrap();
+            *w.in_edges_mut() = vec![
+                BlockEdge::new(id_a, 0),
+                BlockEdge::new(id_b, 0),
+            ];
+            w.sync_bank_shadows();
+        }
+        assert_eq!(view.size_in(id_b), Some(2));
     }
 }

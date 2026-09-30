@@ -1,5 +1,8 @@
 # jumptable.rs — Jump-table recovery API
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
+- test_jump_table_add_block：裸 outgoing.push 后补 `sync_bank_shadows()`。
+
 对应 Ghidra `jumptable.hh` / `jumptable.cc`。**当前状态：🔧 L2
 （2026-08-11 锁定 12.0.4 审计）**。Override 的 start-op/trial normalization、
 PathMeld 的 SeqNum 归并截断、EmulateFunction loader/LOAD、Basic/Basic2/Assisted

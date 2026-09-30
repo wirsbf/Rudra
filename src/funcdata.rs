@@ -6380,7 +6380,7 @@ impl Funcdata {
             op_guard.is_branch() && op_guard.opcode == OpCode::CPUI_BRANCHIND
         };
         if is_branch_indirect {
-            block.flags |= crate::block::block_flags::SWITCH_OUT;
+            block.set_flags(crate::block::block_flags::SWITCH_OUT);
         }
     }
 
@@ -17532,6 +17532,7 @@ mod tests {
 
         let cond = BlockCondition {
         owner_bank: std::sync::Weak::new(),
+        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 10,
             op_type: BoolOp::And,
             first: a.clone(),
@@ -17556,6 +17557,7 @@ mod tests {
 
         let cond_or = BlockCondition {
             owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 20,
             op_type: BoolOp::Or,
             first: a,

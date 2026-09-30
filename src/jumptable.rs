@@ -6230,6 +6230,9 @@ mod tests {
             let mut bl_w = bl.write().unwrap();
             bl_w.outgoing.push(g.fixture_edge(&bl_dyn, 0));
             bl_w.outgoing.push(g.fixture_edge(&bl_dyn, 1));
+            // (g) guard-shadow: test-registered block — sync after the raw
+            // pushes.
+            bl_w.sync_bank_shadows();
         }
         indop.write().unwrap().parent =
             Some(std::sync::Arc::downgrade(&(bl.clone() as Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>)));

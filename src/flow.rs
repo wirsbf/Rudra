@@ -2517,7 +2517,7 @@ impl<'a> FlowInfo<'a> {
             let o = op_ref.0.read().unwrap();
             if o.is_branch() && o.opcode == OpCode::CPUI_BRANCHIND {
                 if let Some(basic) = guard.as_any_mut().downcast_mut::<BlockBasic>() {
-                    basic.flags |= crate::block::block_flags::SWITCH_OUT;
+                    basic.set_flags(crate::block::block_flags::SWITCH_OUT);
                 }
             }
         }
@@ -3597,11 +3597,14 @@ fn split_block_at_case_dest(
             .ops
             .iter()
             .any(|o| o.0.read().unwrap().opcode == OpCode::CPUI_BRANCHIND);
-        pbb.flags &= !crate::block::block_flags::SWITCH_OUT;
+        pbb.clear_flags(crate::block::block_flags::SWITCH_OUT);
         if parent_has_switch {
-            pbb.flags |= crate::block::block_flags::SWITCH_OUT;
+            pbb.set_flags(crate::block::block_flags::SWITCH_OUT);
         }
         let outgoing = std::mem::take(&mut pbb.outgoing);
+        // (g) guard-shadow: mem::take empties the out-edge vector — push the
+        // post-take sizes into the owning bank's cells.
+        pbb.sync_bank_shadows();
         let mut tail_w = tail.write().unwrap();
         let tbb = tail_w
             .as_any_mut()
@@ -3614,7 +3617,7 @@ fn split_block_at_case_dest(
             .iter()
             .any(|o| o.0.read().unwrap().opcode == OpCode::CPUI_BRANCHIND)
         {
-            tbb.flags |= crate::block::block_flags::SWITCH_OUT;
+            tbb.set_flags(crate::block::block_flags::SWITCH_OUT);
         }
         (moved, outgoing)
     };
@@ -3649,6 +3652,8 @@ fn split_block_at_case_dest(
             .downcast_mut::<crate::block::BlockBasic>()
             .expect("create_new_block yields BlockBasic");
         tbb.outgoing = parent_outgoing;
+        // (g) guard-shadow: wholesale out-edge inheritance — sync sizes.
+        tbb.sync_bank_shadows();
     }
     // Insert the tail directly after its head so the block list keeps the
     // address order splitBasic's dead-list walk produces (the linear
@@ -3869,9 +3874,9 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
                                         o.0.read().unwrap().opcode == OpCode::CPUI_BRANCHIND
                                     });
                                     if still_switch_out {
-                                        bb.flags |= crate::block::block_flags::SWITCH_OUT;
+                                        bb.set_flags(crate::block::block_flags::SWITCH_OUT);
                                     } else {
-                                        bb.flags &= !crate::block::block_flags::SWITCH_OUT;
+                                        bb.clear_flags(crate::block::block_flags::SWITCH_OUT);
                                     }
                                 }
                             }
