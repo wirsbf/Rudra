@@ -301,13 +301,16 @@ fn varnode_values(fd: &Funcdata, ids: &SnapshotIds) -> Vec<Value> {
 }
 
 fn out_edge_values(block: &dyn FlowBlock) -> Vec<Value> {
+    // ARENAFLIP-(e): edge points are bank ids — resolve the peer index
+    // through the owning bank (block.bank() per the owner-bank back-pointer).
+    let bank = block.bank();
     (0..block.size_out())
         .filter_map(|slot| {
             block.get_out(slot).map(|edge| {
                 let flags = edge.flags;
                 json!({
                     "slot": slot,
-                    "target": edge.point.read().expect("edge target read lock").get_index(),
+                    "target": bank.expect_index(edge.point),
                     "reverse": edge.reverse_index,
                     "loop": flags & edge_flags::F_LOOP_EDGE != 0,
                     "default": flags & edge_flags::F_DEFAULTSWITCH_EDGE != 0,
@@ -321,13 +324,16 @@ fn out_edge_values(block: &dyn FlowBlock) -> Vec<Value> {
 }
 
 fn in_edge_values(block: &dyn FlowBlock) -> Vec<Value> {
+    // ARENAFLIP-(e): edge points are bank ids — resolve the peer index
+    // through the owning bank (block.bank() per the owner-bank back-pointer).
+    let bank = block.bank();
     (0..block.size_in())
         .filter_map(|slot| {
             block.get_in(slot).map(|edge| {
                 let flags = edge.flags;
                 json!({
                     "slot": slot,
-                    "source": edge.point.read().expect("edge source read lock").get_index(),
+                    "source": bank.expect_index(edge.point),
                     "reverse": edge.reverse_index,
                     "loop": flags & edge_flags::F_LOOP_EDGE != 0,
                     "tree": flags & edge_flags::F_TREE_EDGE != 0,

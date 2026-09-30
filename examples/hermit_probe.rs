@@ -554,10 +554,11 @@ fn dump_full_state(fd: &Funcdata, out_dir: &PathBuf, tag: &str) {
         for slot in 0..guard.size_out() {
             match guard.get_out(slot) {
                 Some(e) => {
-                    let other = e.point.read().unwrap();
+                    // ARENAFLIP-(e): edge points are bank ids — resolve the
+                    // peer index through the owning graph's bank.
                     outs.push(format!(
                         "{}:f{}/r{}",
-                        other.get_index(),
+                        fd.bblocks.bank.expect_index(e.point),
                         e.flags,
                         e.reverse_index
                     ));
