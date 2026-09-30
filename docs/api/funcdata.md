@@ -393,6 +393,15 @@ source out-half。`install_switch_defaults` 通过双半边 helper 写入
 **源代码路径**: `src/funcdata.rs`
 **2026-07-16**: `link_symbol` + `link_symbol_reference` 已加（funcdata_varnode.cc:1156/1193）。符号链接 + PTRSUB 常量解析。
 
+
+## 2026-09-30：edge 孪生打标接线（Lane ARENAFLIP-d 步骤 1）
+
+- `replaceInEdge`（funcdata.cc:160 域）/node-split 重定向的 `.point =` 写点
+  同步打 `point_id` 孪生（经 `self.bblocks.bank.registered_id_of`，无
+  point 守卫）；`replaceEdgesThru` 调用点传入 bank。测试 fixture 字面量
+  补 SENTINEL 孪生。语义逐位不变（孪生是纯表示字段）。详见
+  docs/api/block.md 2026-09-30 条。
+
 ## 文档状态
 
 **2026-08-24（BLOCKSTRUCT-GOTOCASCADE-CONDSTMT-0001 连带）**: `test_switch_case_structuring`

@@ -3171,10 +3171,12 @@ impl Funcdata {
         // cc:165-166: intothis[num].point = b; reverse_index = b->outofthis.size().
         let blnew_size_out = bbnew.read().unwrap().size_out() as i32;
         {
+            let bbnew_id = self.bblocks.bank.registered_id_of(&bbnew);
             let mut out_rg = outbl.write().unwrap();
             let ins = out_rg.in_edges_mut();
             if (i as usize) < ins.len() {
                 ins[i as usize].point = bbnew.clone();
+                ins[i as usize].point_id = bbnew_id;
                 ins[i as usize].reverse_index = blnew_size_out;
             }
         }
@@ -3780,7 +3782,9 @@ impl Funcdata {
                     .downcast_mut::<crate::block::BlockBasic>() {
                     let out_edges = bb.out_edges_mut();
                     if slot < out_edges.len() {
+                        let outafter_id = self.bblocks.bank.registered_id_of(&outafter);
                         out_edges[slot].point = outafter.clone();
+                        out_edges[slot].point_id = outafter_id;
                         out_edges[slot].reverse_index = new_in_size;
                     }
                 }
@@ -3789,6 +3793,7 @@ impl Funcdata {
                 let mut new_rg = outafter.write().unwrap();
                 new_rg.add_in_edge(crate::block::BlockEdge {
                     point: in_block.clone(),
+                    point_id: self.bblocks.bank.registered_id_of(&in_block),
                     flags: carried_flags,
                     reverse_index: slot as i32,
                 });
@@ -4170,11 +4175,11 @@ impl Funcdata {
                 .as_any_mut()
                 .downcast_mut::<crate::block::BlockBasic>() {
                 if swap {
-                    bb.replace_edges_thru(0, 1);
+                    bb.replace_edges_thru(&self.bblocks.bank, 0, 1);
                 } else {
-                    bb.replace_edges_thru(1, 1);
+                    bb.replace_edges_thru(&self.bblocks.bank, 1, 1);
                 }
-                bb.replace_edges_thru(0, 0);
+                bb.replace_edges_thru(&self.bblocks.bank, 0, 0);
             } else {
                 return Err("remove_from_flow_split: only BlockBasic supported".to_string());
             }
@@ -17505,6 +17510,7 @@ mod tests {
             incoming: Vec::new(),
             outgoing: vec![BlockEdge {
                 point: a.clone(),
+                point_id: crate::arena::ArenaId::SENTINEL,
                 flags: 0,
                 reverse_index: 0,
             }],

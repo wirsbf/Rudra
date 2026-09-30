@@ -2,6 +2,37 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-09-30：per-graph block bank + BlockEdge point_id 值孪生（Lane ARENAFLIP-d 步骤 1）
+
+- **BlockBank**：`BlockGraph` 新增 `bank: BlockBank` 字段——
+  `RwLock<Arena<BlockCell, BlockId>>`（arena.rs 冻结 Arena）+ Arc 身份映射
+  （`Arc::as_ptr` 键 → `BlockId`，既定身份键模式）。`add_block` 插入 cell
+  （`arc` + `btype` 影子[插入后不可变] + `index` 影子）并登记身份映射项；
+  槽位在 Vec 列表移除路径后**不回收**（zombie = oracle FlowBlock 堆存活
+  直到图 clear；`clear()` 是唯一回收点，bump generation 使陈旧 id 失效）。
+- **无锁身份解析**：`bank.id_of(&Arc) -> Option<BlockId>` /
+  `registered_id_of`（SENTINEL 形态）**不触碰 block 自身的 RwLock**——
+  这是给边打孪生标记的唯一无死锁方式（自环边的 point 正是持有写守卫
+  的 block 本身；point.read() 打孪生会死锁，测试挂起现场捕获后重构为
+  bank-map 形态）。
+- **BlockEdge.point_id**：`BlockEdge` 新增 `point_id: BlockId` 值孪生
+  （未标记时为 `BlockId::SENTINEL`；裸测试 fixture 保持 SENTINEL）。oracle
+  依据：block.hh:57-65 `BlockEdge` 本就是值类型。生产打标位：`add_edge`
+  （双半边守卫前预打）、`build_copy` remap、`replace_out/in_edge_target`、
+  `rewrite_in/out_edges_to_idx`、`force_output_num`（自环边）、funcdata
+  `replaceInEdge`/node-split、flow splitBasic tail 重定向——全部经 bank
+  映射，绝不在 point 守卫下解析。
+- **index 影子单点维护**：`BlockGraph::set_block_index` 镜像全部活体
+  set_index 突变位（find_spanning_tree 重置/rpost 赋值/第二趟重置/
+  build_dom_tree 重编号/identify install 换位）；`decode_header_trait`
+  保持字段-only set_index（无调用者，已注明）。
+- **影子读 API**：`bank.index_of(id)`/`btype_of(id)`/`arc_of(id)`/
+  `set_index_shadow`。block.hh:160/184 index/getType 为纯字段读，影子
+  镜像之。
+- **行为恒等**：cargo test --lib 2018P/0F/5I；canon curl md5
+  4ab1db2a177e854c6bddca2ecf413685 defects 0/0/0（124/124）；canon httpd
+  md5 7d5b9e7c3348ee8da1865df281ec05b9。
+
 ## 2026-09-29：FlowBlock 引用形边访问器 get_out_ref/get_in_ref + absorbed_into 键型切换（Lane BLOCKSTRUCT per-rule 常数）
 
 - **引用形访问器**：FlowBlock trait 新增 `get_out_ref(&self, slot) ->
@@ -482,6 +513,10 @@ cover 才是合法状态）。
 ### `pub struct BlockEdge`
 
 表示控制流图中的一条边。
+
+字段：`point`（另一端 block 句柄）、`point_id: BlockId`（point 的 bank 值
+孪生——生产构造位经 `bank.registered_id_of` 打标；SENTINEL = 未注册/裸
+fixture）、`flags`、`reverse_index`。
 
 ## 角色
 

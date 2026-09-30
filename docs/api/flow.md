@@ -1,5 +1,11 @@
 # flow.rs — Reachability-based control flow tracking
 
+## 2026-09-30：splitBasic tail 边重定向补孪生（Lane ARENAFLIP-d 步骤 1）
+- case-destination split（flow.cc:1021-1037 connectBasic 域）的入边半
+  `.point = tail` 写点同步打 `point_id` 值孪生（`fd.bblocks.bank` 预解析，
+  无 point 守卫——孪生是纯表示字段，语义逐位不变）。详见
+  docs/api/block.md 2026-09-30 条。
+
 ## 2026-08-26：GOTO-LABEL-UNPRINTED-0001 收尾验证
 - `FlowInfo::generate_ops` 的控制流恢复继续遵循 `flow.cc:785-822` 的阶段顺序；尾调用/流覆盖传输在原始 p-code 层完成后，标签发现可消费稳定的 branch/call 形态。
 - 本轮移除仅用于诊断的 `[DBG]` 原始 op/CFG 探针，避免污染 stderr；生产路径不依赖环境变量。

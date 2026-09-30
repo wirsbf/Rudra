@@ -22718,7 +22718,7 @@ mod tests {
             b.set_flags(merged);
         }
         Arc::new(RwLock::new(BlockCopy {
-            index,
+            index: 0,
             flags: 0,
             parent: None,
             self_ref: None,

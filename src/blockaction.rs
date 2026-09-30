@@ -288,11 +288,13 @@ fn set_out_edge_flag_all_types(
 /// sizeIn/sizeOut tests of downstream rules (ruleBlockCat's
 /// `outblock->sizeIn() != 1`, blockaction.cc:1292).
 pub(crate) fn rewrite_out_edges_to_idx(
+    bank: &crate::block::BlockBank,
     bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     old_idx: i32,
     new_block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
 ) -> bool {
     let mut changed = false;
+    let new_point_id = bank.registered_id_of(new_block);
     let mut w = bl.write().unwrap();
     for edge in w.out_edges_mut() {
         let target_index = match edge.point.try_read() {
@@ -301,6 +303,7 @@ pub(crate) fn rewrite_out_edges_to_idx(
         };
         if target_index == old_idx && !Arc::ptr_eq(&edge.point, new_block) {
             edge.point = new_block.clone();
+            edge.point_id = new_point_id;
             changed = true;
         }
     }
@@ -312,11 +315,13 @@ pub(crate) fn rewrite_out_edges_to_idx(
 /// whose graph index is `old_idx` so it comes from `new_block` instead.
 /// Type-agnostic mirror of Ghidra's `otherbl->replaceInEdge(j,this)`.
 pub(crate) fn rewrite_in_edges_to_idx(
+    bank: &crate::block::BlockBank,
     bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     old_idx: i32,
     new_block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
 ) -> bool {
     let mut changed = false;
+    let new_point_id = bank.registered_id_of(new_block);
     let mut w = bl.write().unwrap();
     for edge in w.in_edges_mut() {
         let source_index = match edge.point.try_read() {
@@ -325,6 +330,7 @@ pub(crate) fn rewrite_in_edges_to_idx(
         };
         if source_index == old_idx && !Arc::ptr_eq(&edge.point, new_block) {
             edge.point = new_block.clone();
+            edge.point_id = new_point_id;
             changed = true;
         }
     }
@@ -2798,7 +2804,14 @@ impl<'a> CollapseStructure<'a> {
     /// chain: the composite's external out-count is then below the tail's
     /// pre-merge count, and the restored self loop/back edge is what lets
     /// ruleBlockDoWhile (cc:1555) absorb the latch.
-    fn force_output_num(bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, target: usize) {
+    fn force_output_num(
+        bank: &crate::block::BlockBank,
+        bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+        target: usize,
+    ) {
+        // Self-edge twins resolve through the bank map: reading `bl` here
+        // would deadlock against the write guard below (self-loop edges).
+        let bl_id = bank.registered_id_of(bl);
         let mut w = bl.write().unwrap();
         while w.size_out() < target {
             // addInEdge (block.cc:73-80): each half's reverse_index is the
@@ -2810,11 +2823,13 @@ impl<'a> CollapseStructure<'a> {
                 | crate::block::edge_flags::F_BACK_EDGE;
             w.add_out_edge(crate::block::BlockEdge {
                 point: bl.clone(),
+                point_id: bl_id,
                 flags: lab,
                 reverse_index: in_slot,
             });
             w.add_in_edge(crate::block::BlockEdge {
                 point: bl.clone(),
+                point_id: bl_id,
                 flags: lab,
                 reverse_index: out_slot,
             });
@@ -3918,6 +3933,7 @@ impl<'a> CollapseStructure<'a> {
                             // inherited in-edge carries the same half's flags.
                             new_in.push(crate::block::BlockEdge {
                                 point: e.point.clone(),
+                                point_id: e.point_id,
                                 flags: e.flags,
                                 reverse_index: -1,
                             });
@@ -3948,6 +3964,7 @@ impl<'a> CollapseStructure<'a> {
                             // num) on the in-half) — flags carry over.
                             new_out.push(crate::block::BlockEdge {
                                 point: e.point.clone(),
+                                point_id: e.point_id,
                                 flags: e.flags,
                                 reverse_index: -1,
                             });
@@ -4062,15 +4079,19 @@ impl<'a> CollapseStructure<'a> {
             // them only in the final paired dedup() (block.cc:930) — see the
             // dedup note below identify_internal.
             for (src, fl) in &in_boundary {
+                let src_id = self.graph.bank.registered_id_of(src);
                 new_in.push(crate::block::BlockEdge {
                     point: src.clone(),
+                    point_id: src_id,
                     flags: *fl,
                     reverse_index: -1,
                 });
             }
             for (dst, fl) in &out_boundary {
+                let dst_id = self.graph.bank.registered_id_of(dst);
                 new_out.push(crate::block::BlockEdge {
                     point: dst.clone(),
+                    point_id: dst_id,
                     flags: *fl,
                     reverse_index: -1,
                 });
@@ -4090,7 +4111,7 @@ impl<'a> CollapseStructure<'a> {
                     continue;
                 }
                 touched.push(s_any.clone());
-                rewrite_out_edges_to_idx(&s_any, c_idx, new_block);
+                rewrite_out_edges_to_idx(&self.graph.bank, &s_any, c_idx, new_block);
             }
             for (dst, _) in &out_boundary {
                 let d_any = dst.clone();
@@ -4098,7 +4119,7 @@ impl<'a> CollapseStructure<'a> {
                     continue;
                 }
                 touched.push(d_any.clone());
-                rewrite_in_edges_to_idx(&d_any, c_idx, new_block);
+                rewrite_in_edges_to_idx(&self.graph.bank, &d_any, c_idx, new_block);
             }
         }
 
@@ -4221,8 +4242,8 @@ impl<'a> CollapseStructure<'a> {
                     Some(b) => b,
                     None => continue,
                 };
-                let ch1 = rewrite_out_edges_to_idx(&gb, install_idx as i32, new_block);
-                let ch2 = rewrite_in_edges_to_idx(&gb, install_idx as i32, new_block);
+                let ch1 = rewrite_out_edges_to_idx(&self.graph.bank, &gb, install_idx as i32, new_block);
+                let ch2 = rewrite_in_edges_to_idx(&self.graph.bank, &gb, install_idx as i32, new_block);
                 if ch1 || ch2 {
                     touched.push(gb);
                 }
@@ -4330,8 +4351,9 @@ impl<'a> CollapseStructure<'a> {
             let parked = self.graph.blocks[new_idx].clone();
             self.graph.blocks[new_idx] = new_block.clone();
             self.graph.blocks[install_idx] = parked.clone();
-            new_block.write().unwrap().set_index(new_idx as i32);
-            parked.write().unwrap().set_index(install_idx as i32);
+            // Shadow-mirrored index writes (bank single choke point).
+            self.graph.set_block_index(&new_block, new_idx as i32);
+            self.graph.set_block_index(&parked, install_idx as i32);
             // Re-map containment to the composite's final index. Entries
             // recorded above against install_idx now target new_idx (this
             // also path-compresses older chains that pointed at a
@@ -4748,7 +4770,7 @@ impl<'a> CollapseStructure<'a> {
         // absorb the latch (the do-while absorption chain:
         // goto/if_goto → cat → dowhile on the @321a/@3225/@28ec/@28f7
         // duplicated-address latch pairs).
-        Self::force_output_num(&list_block, outforce);
+        Self::force_output_num(&self.graph.bank, &list_block, outforce);
         if list_block.read().unwrap().size_out() == 2 {
             Self::force_false_edge_composite(&list_block, out0.as_ref(), &nodes);
         }
@@ -5528,7 +5550,7 @@ impl<'a> CollapseStructure<'a> {
             // NOT the goto edge.
             let cur_size_out = mg_block.read().unwrap().size_out();
             if cur_size_out != orig_size_out {
-                Self::force_output_num(&mg_block, cur_size_out + 1);
+                Self::force_output_num(&self.graph.bank, &mg_block, cur_size_out + 1);
             }
             // cc:1746: removeEdge(ret,targetbl); — remove the structured edge
             // to the goto target (bilateral, block.cc:1469-1481).

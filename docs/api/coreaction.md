@@ -454,6 +454,13 @@ infertypes 派发 40 个 INT_ADD，但当前各 ADD 输出临时类型为 Int �
 **状态**: 已核对（当前有效）  
 **源代码路径**: `src/coreaction.rs`
 
+
+## 2026-09-30：测试 fixture BlockEdge 字面量补 point_id 字段（Lane ARENAFLIP-d 步骤 1）
+
+- `BlockEdge` 新增 `point_id: BlockId` 值孪生字段（见 docs/api/block.md
+  2026-09-30 条）；coreaction 测试 fixture 的 BlockEdge 字面量补
+  `point_id: SENTINEL`（裸 fixture，未注册 bank）。生产代码零改动。
+
 ## 2026-08-30：castInput 双层 double-cast guard 臂序（CASTINPUT-ARMORDER-0001 / F3）
 
 - `cast_input` 的 double-cast guard 恢复 oracle 的**两层嵌套**（cc:2673-2686）：外层

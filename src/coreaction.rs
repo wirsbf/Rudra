@@ -21941,9 +21941,9 @@ mod tests {
             // getSplitPoint (block.cc:2361) requires the condition block to
             // have two outgoing edges.
             cond_bb.write().unwrap().outgoing = vec![
-                crate::block::BlockEdge { point: if_body.clone(), flags: 0, reverse_index: 0 ,
+                crate::block::BlockEdge { point: if_body.clone(), point_id: crate::arena::ArenaId::SENTINEL, flags: 0, reverse_index: 0 ,
             },
-                crate::block::BlockEdge { point: else_body.clone(), flags: 0, reverse_index: 0 ,
+                crate::block::BlockEdge { point: else_body.clone(), point_id: crate::arena::ArenaId::SENTINEL, flags: 0, reverse_index: 0 ,
             },
             ];
             let bif = BlockIf {

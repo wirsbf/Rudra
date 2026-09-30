@@ -302,6 +302,18 @@ E2E（curl 124 fn，fast-release）：exit 0 / 0 panic，defects=0 / numbering=0
 **2026-08-23 历史记录（2026-08-28 已部分废止）**: 当时的拓扑指纹重建已删除；当前严格采用 blockaction.cc:2173-2175 的非空结构 once-guard，CFG mutator 通过 `structureReset` 清结构。该轮其余条件极性与 guard 记录保留作历史证据。
 **2026-07-02 修复（R15）**: 禁用 `collapse_cbranch_cascades`（call site 注释化）。该函数是凭空捏造逻辑，Ghidra 无对应——Ghidra ruleBlockSwitch 只在 isSwitchOut()（由 BRANCHIND 独占设置）触发，从不把 CBRANCH if/else-if 链转 switch。Rugra 这么做产生 ~16/18 假 switch（curl 18 vs Ghidra 2）。禁用后 curl switch 18→0（真 switch 表因 jumptable 恢复坏 R19/R20 也无，需后续修），行数 1567→1281。CBRANCH 链现经 try_rule_* 结构化为嵌套 BlockIf（Ghidra collapseInternal 做法）。
 
+
+## 2026-09-30：block bank 接线（Lane ARENAFLIP-d 步骤 1，表示层地基）
+
+- `rewrite_out_edges_to_idx` / `rewrite_in_edges_to_idx` 增 `bank: &BlockBank`
+  参数（孪生打标经 bank 身份映射，不在 point 守卫下解析——自环边无死锁）；
+  `force_output_num` 同形（自环边双半边的 point_id 预打标）。identify 边界
+  push（in_boundary/out_boundary）与 install 换位 `set_block_index` 走
+  graph 级影子维护。调用点全部在 identify_internal（self.graph 上下文）。
+- 行为恒等：cargo test --lib 2018P/0F/5I；canon 双 md5 字节恒等
+  （4ab1db2a…/7d5b9e7c…），curl defects 0/0/0。详见 docs/api/block.md
+  2026-09-30 条。
+
 > 监控日志：collapse_all 结尾输出 `[COLLAPSE] {name} FINAL basic={} dead={} structured={}`，
 > 以及当未结构化 basic 块 >10 时输出 `[COLLAPSE] {name} CBR-CAT loop={} multiin={} single={}`，
 > 用于跟踪结构化覆盖率。均为 stderr、标准 [COLLAPSE] tag。

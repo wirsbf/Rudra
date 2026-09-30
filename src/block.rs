@@ -3,10 +3,11 @@
 //! Corresponds to Ghidra's `block.hh`
 
 use crate::address::Address;
+use crate::arena::{Arena, ArenaId, BlockId};
 use crate::marshal::{AttributeId, Decoder, ElementId, Encoder};
 use crate::op::PcodeOpRef;
 use crate::opcodes::OpCode;
-use std::sync::{Arc, RwLock, Weak};
+use std::sync::{Arc, OnceLock, RwLock, Weak};
 
 // ===== Marshal ElementId / AttributeId helpers (block.cc:22-28, 30-31) =====
 // Ghidra defines these as static ElementId/AttributeId instances. Rugra builds
@@ -2194,7 +2195,6 @@ pub fn set_default_switch_mirrored(
 /// Corresponds to Ghidra's `BlockBasic` class
 #[derive(Debug)]
 pub struct BlockBasic {
-    /// Index of this block within the function
     pub index: i32,
     /// List of operations in this block
     pub ops: Vec<PcodeOpRef>,
@@ -3065,9 +3065,11 @@ impl BlockBasic {
         &mut self,
         slot: usize,
         new_target: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+        new_target_id: BlockId,
     ) {
         if slot < self.outgoing.len() {
             self.outgoing[slot].point = new_target;
+            self.outgoing[slot].point_id = new_target_id;
         }
     }
 
@@ -3076,9 +3078,11 @@ impl BlockBasic {
         &mut self,
         slot: usize,
         new_source: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+        new_source_id: BlockId,
     ) {
         if slot < self.incoming.len() {
             self.incoming[slot].point = new_source;
+            self.incoming[slot].point_id = new_source_id;
         }
     }
 
@@ -3110,7 +3114,7 @@ impl BlockBasic {
     /// method performs the writes directly on `self` then on the peers via
     /// their `as_any_mut()` downcasts.
     // Ghidra: block.cc:198 FlowBlock::replaceEdgesThru
-    pub fn replace_edges_thru(&mut self, in_slot: usize, out_slot: usize) {
+    pub fn replace_edges_thru(&mut self, bank: &BlockBank, in_slot: usize, out_slot: usize) {
         // Capture the four endpoints before mutation.
         let inb = self.incoming[in_slot].point.clone();
         let inblock_outslot = self.incoming[in_slot].reverse_index as usize;
@@ -3119,17 +3123,21 @@ impl BlockBasic {
 
         // Rewire inb.outofthis[inblock_outslot] -> outb.
         {
+            let outb_id = bank.registered_id_of(&outb);
             let mut inb_rg = inb.write().unwrap();
             if let Some(bb) = inb_rg.as_any_mut().downcast_mut::<BlockBasic>() {
                 bb.outgoing[inblock_outslot].point = outb.clone();
+                bb.outgoing[inblock_outslot].point_id = outb_id;
                 bb.outgoing[inblock_outslot].reverse_index = outblock_inslot as i32;
             }
         }
         // Rewire outb.intothis[outblock_inslot] -> inb.
         {
+            let inb_id = bank.registered_id_of(&inb);
             let mut outb_rg = outb.write().unwrap();
             if let Some(bb) = outb_rg.as_any_mut().downcast_mut::<BlockBasic>() {
                 bb.incoming[outblock_inslot].point = inb;
+                bb.incoming[outblock_inslot].point_id = inb_id;
                 bb.incoming[outblock_inslot].reverse_index = inblock_outslot as i32;
             }
         }
@@ -3165,6 +3173,14 @@ impl BlockBasic {
 pub struct BlockEdge {
     /// The block at the other end of the edge
     pub point: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+    /// Value handle of `point` in the owning graph's block bank (the
+    /// ARENA_DESIGN §1.5 value-form twin of `point`; the oracle's edge is
+    /// a plain `FlowBlock*` value — this field is the first half of the
+    /// id migration, letting hot consumers read peer index/type through
+    /// the bank without an Arc clone + RwLock + vtable round-trip).
+    /// `BlockId::SENTINEL` marks an endpoint not registered in any bank
+    /// (bare test fixtures).
+    pub point_id: BlockId,
     /// Edge flags
     pub flags: u32,
     /// Reverse index (slot in the destination's input list or source's output list)
@@ -3172,10 +3188,16 @@ pub struct BlockEdge {
 }
 
 impl BlockEdge {
-    // RUGRA-GLUE: Rust constructor for BlockEdge (Ghidra BlockEdge is a struct, edges built via addInEdge)
+    // RUGRA-GLUE: Rust constructor for BlockEdge (Ghidra BlockEdge is a
+    // struct, edges built via addInEdge). The value twin starts at SENTINEL:
+    // production constructors stamp it via the owning graph's bank
+    /// (`graph.bank.registered_id_of(&point)`) — resolving it here would
+    /// read-lock `point`, deadlocking on self-loop edges built while the
+    /// point's own write guard is held (addEdge / identify_internal).
     pub fn new(point: Arc<RwLock<dyn FlowBlock + Send + Sync>>, reverse_index: i32) -> Self {
         Self {
             point,
+            point_id: BlockId::SENTINEL,
             flags: 0,
             reverse_index,
         }
@@ -3208,6 +3230,120 @@ impl PartialEq for BlockRef {
     }
 }
 
+/// One slot of the owning graph's block bank: the block handle plus hot-POD
+/// shadows (ARENA_DESIGN §1.4 BlockArena, (c)-segment opcode-shadow
+/// precedent). `btype` is immutable after insert (a FlowBlock's type never
+/// changes, block.hh:184). `index` mirrors `FlowBlock::index` (block.hh:160)
+/// and is single-choke maintained: every live mutator goes through
+/// `BlockGraph::set_block_index` (the set_index trait method itself stays
+/// the field writer; the graph helper adds the shadow write), so a bank
+/// read `bank.cell(id).index()` always equals `get_index()` on the block.
+// RUGRA-GLUE: block bank cell (storage-iterator shadow form)
+pub struct BlockCell {
+    /// The block handle (identity + deep access).
+    pub arc: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+    btype: BlockType,
+    index: i32,
+}
+
+/// Per-graph block bank: `Arena<BlockCell, BlockId>` behind a RwLock.
+/// Reads (hot guards: peer index/type) take the read lock once per scan and
+/// dereference slots lock-free; insert/set/clear take the write lock (cold:
+/// add_block / orderBlocks / clear only). Slots are never freed on Vec-list
+/// removal (`retain`/`remove_block_arc` leave zombies — mirrors the oracle
+/// lifetime where removed FlowBlocks stay heap-alive until the graph dtor,
+/// and keeps edges pointing at absorbed/removed blocks resolvable);
+/// `clear()` (graph reset, funcdata_block.cc:728 sblocks.clear) is the only
+/// reclaim point and bumps generations so stale ids fail lookup.
+// RUGRA-GLUE: block bank (ARENA_DESIGN §1.4 BlockArena, arena.rs frozen Arena)
+pub struct BlockBank {
+    inner: RwLock<Arena<BlockCell, BlockId>>,
+    /// Arc-identity → slot map (`Arc::as_ptr` keys, the established
+    /// identity-key pattern). Gives `id_of(&Arc)` without touching the
+    /// block's own RwLock — the only deadlock-free way to stamp
+    /// `BlockEdge::point_id` twins while a caller holds a block guard
+    /// (self-loop edges construct an edge whose point IS the guarded
+    /// block, addEdge block.rs / identify_internal loop-head edges).
+    ids: RwLock<rustc_hash::FxHashMap<usize, BlockId>>,
+}
+
+impl std::fmt::Debug for BlockBank {
+    // RUGRA-GLUE: debug form (slot count only; slot order must never be
+    // observable, ARENA_DESIGN §2.4/§8.3)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BlockBank({} slots)", self.inner.read().unwrap().len())
+    }
+}
+
+impl BlockBank {
+    // RUGRA-GLUE: bank constructor (fresh arena, sentinel slot 0 reserved)
+    pub fn new() -> Self {
+        Self {
+            inner: RwLock::new(Arena::new()),
+            ids: RwLock::new(rustc_hash::FxHashMap::default()),
+        }
+    }
+
+    // RUGRA-GLUE: bank insert (add_block write path); registers the Arc
+    // identity so `id_of` resolves without a block lock
+    fn insert(&self, cell: BlockCell) -> BlockId {
+        let key = Arc::as_ptr(&cell.arc) as *const () as usize;
+        let id = self.inner.write().unwrap().insert(cell);
+        self.ids.write().unwrap().insert(key, id);
+        id
+    }
+
+    /// The bank id of `bl`, or `None` if it is not registered here (bare
+    /// fixtures / foreign-graph handles). Never locks `bl` itself.
+    // RUGRA-GLUE: handle→id (oracle: the pointer IS the identity)
+    pub fn id_of(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Option<BlockId> {
+        let key = Arc::as_ptr(bl) as *const () as usize;
+        self.ids.read().unwrap().get(&key).copied()
+    }
+
+    /// The bank id of `bl`, or `BlockId::SENTINEL` when unregistered.
+    // RUGRA-GLUE: SENTINEL form for twin stamping
+    pub fn registered_id_of(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> BlockId {
+        self.id_of(bl).unwrap_or(BlockId::SENTINEL)
+    }
+
+    /// Peer `index` shadow read (block.hh:160 getIndex without the block
+    /// lock/vtable). Callers must know `id` came from this bank.
+    // RUGRA-GLUE: hot shadow read
+    pub fn index_of(&self, id: BlockId) -> Option<i32> {
+        self.inner.read().unwrap().get(id).map(|c| c.index)
+    }
+
+    /// Peer `block_type` shadow read (block.hh:184 getType without the
+    /// block lock/vtable).
+    // RUGRA-GLUE: hot shadow read
+    pub fn btype_of(&self, id: BlockId) -> Option<BlockType> {
+        self.inner.read().unwrap().get(id).map(|c| c.btype)
+    }
+
+    /// Resolve `id` back to the block handle (clone of the bank's Arc).
+    // RUGRA-GLUE: id→handle resolution (oracle: raw pointer already in hand)
+    pub fn arc_of(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
+        self.inner.read().unwrap().get(id).map(|c| c.arc.clone())
+    }
+
+    /// Shadow write for `FlowBlock::index` mutations (single choke point:
+    /// `BlockGraph::set_block_index`).
+    // RUGRA-GLUE: shadow maintenance
+    fn set_index_shadow(&self, id: BlockId, index: i32) {
+        if let Some(cell) = self.inner.write().unwrap().get_mut(id) {
+            cell.index = index;
+        }
+    }
+
+    /// Reclaim every slot (graph reset; bumps generations).
+    // RUGRA-GLUE: bulk reclaim (oracle graph clear/destructor)
+    pub fn clear(&self) {
+        self.inner.write().unwrap().clear();
+        self.ids.write().unwrap().clear();
+    }
+}
+
 /// A graph of blocks, which is itself a block
 ///
 /// Corresponds to Ghidra's `BlockGraph` class
@@ -3215,6 +3351,12 @@ impl PartialEq for BlockRef {
 pub struct BlockGraph {
     pub index: i32,
     pub blocks: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
+    /// The block bank of this graph (ARENA_DESIGN §1.4: `block_arena`
+    /// shared-by-graph storage; every `add_block` registers a cell and
+    /// stamps the block's `bank_slot` back-pointer, giving `BlockEdge::
+    /// point_id` its id-space identity).
+    // RUGRA-GLUE: block bank (per-graph; edges resolve within one graph)
+    pub bank: BlockBank,
     pub incoming: Vec<BlockEdge>,
     pub outgoing: Vec<BlockEdge>,
     pub parent: Option<Weak<RwLock<BlockGraph>>>,
@@ -3256,6 +3398,7 @@ impl BlockGraph {
         Self {
             index: -1,
             blocks: Vec::new(),
+            bank: BlockBank::new(),
             incoming: Vec::new(),
             outgoing: Vec::new(),
             parent: None,
@@ -3271,6 +3414,22 @@ impl BlockGraph {
         let block_index = bl.read().unwrap().get_index();
         if self.blocks.is_empty() || block_index < self.index {
             self.index = block_index;
+        }
+        // RUGRA-GLUE: bank registration (ARENA_DESIGN §1.4). The cell
+        // snapshots the hot shadows (btype immutable; index mirrored) and
+        // the Arc-identity map entry gives `id_of` — BlockEdge twins and id
+        // equality have their id-space identity. Slot stays occupied even
+        // after the Vec-list removal paths (zombie = oracle lifetime).
+        {
+            let (btype, index) = {
+                let block = bl.read().unwrap();
+                (block.get_type(), block.get_index())
+            };
+            self.bank.insert(BlockCell {
+                arc: bl.clone(),
+                btype,
+                index,
+            });
         }
         let self_weak = Arc::downgrade(&bl);
         {
@@ -3392,6 +3551,7 @@ impl BlockGraph {
                 .into_iter()
                 .map(|mut edge| {
                     edge.point = map_point(&edge.point);
+                    edge.point_id = self.bank.registered_id_of(&edge.point);
                     edge
                 })
                 .collect::<Vec<_>>();
@@ -3399,6 +3559,7 @@ impl BlockGraph {
                 .into_iter()
                 .map(|mut edge| {
                     edge.point = map_point(&edge.point);
+                    edge.point_id = self.bank.registered_id_of(&edge.point);
                     edge
                 })
                 .collect::<Vec<_>>();
@@ -3525,6 +3686,8 @@ impl BlockGraph {
                 g.set_visit_count(-1);
                 g.set_copy_map(Some(std::sync::Arc::downgrade(&tmpbl)));
             }
+            // Shadow-mirrored index write (bank single choke point).
+            self.set_block_index(&tmpbl, -1);
             if tmpbl.read().unwrap().size_in() == 0 {
                 rootlist.push(tmpbl);
             }
@@ -3608,7 +3771,7 @@ impl BlockGraph {
                         state.pop();
                         istate.pop();
                         rpostcount -= 1;
-                        curbl.write().unwrap().set_index(rpostcount);
+                        self.set_block_index(&curbl, rpostcount);
                         rpostorder[rpostcount as usize] = Some(curbl.clone());
                         if let Some(parent_arc) = state.last() {
                             let add = curbl.read().unwrap().get_num_desc();
@@ -3694,6 +3857,9 @@ impl BlockGraph {
                 g.set_index(-1);
                 g.set_visit_count(-1);
                 g.set_copy_map(Some(std::sync::Arc::downgrade(&tmpbl)));
+                drop(g);
+                // Shadow-mirrored index write (bank single choke point).
+                self.set_block_index(&tmpbl, -1);
             }
             preorder.clear();
             state.clear();
@@ -4583,6 +4749,7 @@ impl BlockGraph {
     // Ghidra: block.cc:1239 BlockGraph::clear
     pub fn clear(&mut self) {
         self.blocks.clear();
+        self.bank.clear();
         self.incoming.clear();
         self.outgoing.clear();
         // Absorption bookkeeping refers to the previous block population;
@@ -4590,19 +4757,44 @@ impl BlockGraph {
         self.absorbed_into.clear();
     }
 
+    /// Write `FlowBlock::index` (block.hh:160) on `bl` and mirror the bank
+    /// shadow — the single choke point for index mutations with graph
+    /// context (find_spanning_tree / order_blocks / identify_internal /
+    /// build_copy). The marshaling `decode_header_trait` form has no graph
+    /// and no callers; its set_index stays field-only (noted there).
+    // RUGRA-GLUE: shadow-maintained set_index (bank single-choke writer)
+    pub fn set_block_index(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, i: i32) {
+        bl.write().unwrap().set_index(i);
+        if let Some(id) = self.bank.id_of(bl) {
+            self.bank.set_index_shadow(id, i);
+        }
+    }
+
+
     // Ghidra: block.cc:1439 BlockGraph::addEdge
     pub fn add_edge(
         &mut self,
         from: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
         to: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     ) {
+        // Stamp both value twins through the bank identity map before any
+        // block guard is taken — a self-loop edge's point IS the guarded
+        // block, so resolving the twin under the guard would deadlock
+        // (addInEdge, block.cc:73-80, constructs both halves' identities
+        // up front in the oracle too).
+        let to_id = self.bank.registered_id_of(&to);
+        let from_id = self.bank.registered_id_of(&from);
         // Check for self-loop: same Arc → single write lock to avoid deadlock
         if Arc::ptr_eq(&from, &to) {
             let mut b = from.write().unwrap();
             let out_idx = b.size_out() as i32;
             let in_idx = b.size_in() as i32;
-            b.add_out_edge(BlockEdge::new(to.clone(), in_idx));
-            b.add_in_edge(BlockEdge::new(from.clone(), out_idx));
+            let mut out_edge = BlockEdge::new(to.clone(), in_idx);
+            out_edge.point_id = to_id;
+            let mut in_edge = BlockEdge::new(from.clone(), out_idx);
+            in_edge.point_id = from_id;
+            b.add_out_edge(out_edge);
+            b.add_in_edge(in_edge);
         } else {
             let mut f = from.write().unwrap();
             let mut t = to.write().unwrap();
@@ -4610,8 +4802,12 @@ impl BlockGraph {
             let out_idx = f.size_out() as i32;
             let in_idx = t.size_in() as i32;
 
-            f.add_out_edge(BlockEdge::new(to.clone(), in_idx));
-            t.add_in_edge(BlockEdge::new(from.clone(), out_idx));
+            let mut out_edge = BlockEdge::new(to.clone(), in_idx);
+            out_edge.point_id = to_id;
+            let mut in_edge = BlockEdge::new(from.clone(), out_idx);
+            in_edge.point_id = from_id;
+            f.add_out_edge(out_edge);
+            t.add_in_edge(in_edge);
         }
     }
 
@@ -5118,8 +5314,10 @@ impl BlockGraph {
         // Re-index all blocks to match their current vector position. This is
         // essential after dead-flow Actions (ActionUnreachable/DoNothing/etc.)
         // remove blocks — stale indices would cause out-of-bounds panics below.
-        for (i, blk) in self.blocks.iter_mut().enumerate() {
-            blk.write().unwrap().set_index(i as i32);
+        let snapshots: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = self.blocks.clone();
+        for (i, blk) in snapshots.iter().enumerate() {
+            // Shadow-mirrored index write (bank single choke point).
+            self.set_block_index(blk, i as i32);
         }
         if self.blocks.is_empty() {
             return;

@@ -3629,6 +3629,7 @@ fn split_block_at_case_dest(
     // (the move preserves outgoing order), so both lists keep every
     // surviving edge's slot and order — the same end-state connectBasic
     // (flow.cc:1021-1037) produces for the oracle's edge list.
+    let tail_id = fd.bblocks.bank.registered_id_of(&tail);
     for edge in &parent_outgoing {
         let mut target_w = edge.point.write().unwrap();
         let target_bb = target_w
@@ -3638,6 +3639,7 @@ fn split_block_at_case_dest(
         let slot = edge.reverse_index as usize;
         if let Some(in_edge) = target_bb.incoming.get_mut(slot) {
             in_edge.point = tail.clone();
+            in_edge.point_id = tail_id;
         }
     }
     {

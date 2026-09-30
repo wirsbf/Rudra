@@ -815,6 +815,12 @@ StringManager。本次替换为 `constant_leaf_text`（`&mut self`，持 vn/op�
 
 **源代码路径**: `src/printc.rs`
 
+
+## 2026-09-30：测试 fixture BlockCopy 字面量补字段（Lane ARENAFLIP-d 步骤 1）
+
+- 测试 fixture 的 `BlockCopy` 字面量补 `index` 字段（结构演化随动；生产
+  printc 代码零改动）。详见 docs/api/block.md 2026-09-30 条。
+
 ## 2026-08-25：`find_partial_field` 半开区间边界修复（type.cc:1580-1638）
 
 `find_partial_field` 的字段包含判定由闭区间 `off + sz <= f.offset + f_size`
