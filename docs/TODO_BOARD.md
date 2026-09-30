@@ -2,11 +2,14 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
-## 车道 ARENAFLIP-e（2026-09-30 认领/IN PROGRESS；W1 翻转 (e) 段——`PERF-ARENA-FLIP-0001` (e) point 类型翻转本体段，续 (d) 分支 `wt/arenaflip` 基=27170bac，worktree /dev/shm/rugra-worktrees/arenaflip）
+## 车道 ARENAFLIP-e（2026-09-30 交付；W1 翻转 (e) 段——`PERF-ARENA-FLIP-0001` (e) point 类型翻转本体段，续 (d) 分支 `wt/arenaflip` 基=27170bac，交付 tip=67c0836c，worktree /dev/shm/rugra-worktrees/arenaflip）
 
-| 稳定 ID | 模块 | 优先级 | write-set | 状态/验收 |
-|---|---|---|---|---|
-| `PERF-ARENA-FLIP-0001-e`（(e) 段: ①BlockEdge.point 类型翻转本体[Arc→BlockId,~360 读位点+35 构造位+trait 边手术方法 bank 参数化~50 调用位]②flags/size 影子+get_block 快照[剩余 blockstructure 地板]③varmap.rs 域句柄迁移[RangeHint/AliasChecker/MapState/ScopeLocal 深层读模式]④merge.rs 域句柄同迁⑤VdbeExec 单极对比 (d) 基线 ~35.0s） | block/varmap/merge 域 | P1 | `src/block.rs`+`src/blockaction.rs`+`src/varmap.rs`+`src/merge.rs`+跨域消费文件机械随行[funcdata/coreaction/printc/jumptable/condexe/ruleaction/heritage/subflow 等 ~170 位点]+`docs/api/` 对应+本行 | IN PROGRESS（owner=ARENAFLIP-e;红线=canon 双语素 0/0/0 字节恒等 md5 4ab1db2a/7d5b9e7c+镜面五面==钉值 curl 13/httpd 2/vsh 0/sq 432/sqlite 785+tests 2018P;段末全套门禁+CR REQUIRED[blockaction/varmap/merge=机制 C 白名单]）;终报=/dev/shm/rugra-reports/LANE_ARENAFLIP_E_2026-09-30.md |
+**(e) 段落地（①翻转本体+②派发快照/cat 视图；③④varmap/merge 句柄迁移未做·诚实定界）**: ①**BlockEdge.point: Arc→BlockId 翻转本体**（`BlockEdge{point:BlockId,flags,reverse_index}` Copy=oracle block.hh:57-65 12B 值形态;point_id 孪生并入;~360 读位+35 构造位跨 20 文件随迁[脚本化+逐域校正]）+**owner-bank 回指基建**（BlockBank 共享内芯化 `Arc<BlockBankShared>`;11 concrete 块型增 `owner_bank: Weak` 回链[BlockBasic::data 反指模式 block.hh:464];`claim` 在 insert/adopt 设置,双活 bank 注册 panic=单图不变量——**边手术 trait 方法签名零波及**,peer 经 `self.bank()` 解析,自环 WouldBlock 臂逐字保留;dedup() 无参化[WouldBlock 臂≡self_loop 快路径]）+**identify 入列即 adopt**（(d) 趟边界 adopt 扫在同趟留 SENTINEL——6 测挂修复）+**跨域纪律**（id 比较只在边属主 bank 内成立;三违规现场:grab_case_order cc:3542[canon md5 79e8b46f≠钉值当场捕获→glob_set default 重排]/for_loop 尾边/switch_case_basic_coords cc:3506——全部改边属主 bank 解析）;②**派发快照**（apply_rules_to_block 单次 get_block,9 规则签名增 block 参数;per-try Arc 克隆面收敛 1/9）+try_rule_cat 读相单 BlockBankView;④**性能配对实测**: (d) tip vs (e) tip 交错三轮 B=35.46/35.08/36.82 O=36.40/35.05/36.31 wall（load 37-42）,**中位 Δ≈0 诚实归因**: 翻转收的是表示层（12B Copy/孪生合一/双字段内存）,热读克隆地板 (d) 已收,新增 bank 解析锁+peer Arc 克隆与消灭项相抵——下一档需 size/flags 影子[突变面收敛前置,(d) 同结论]或 bank COW-Arc 快照锁消除[(f) 交接面已起草];③varmap/merge 未做归因: SPEEDPROF2 实测残重=算法本体[update_high_cover 两侧同跑]+COVER-REBUILD-ALLOC-0001 票[varnode.rs/cover.rs 域],varmap.rs 51 处 read() 全冷路径——不冒险落地半成品句柄翻转。
+
+- **红线证明链**: canon curl **0/0/0·124/124 md5 4ab1db2a**+httpd **0/0/0·34/34 md5 7d5b9e7c**（翻转 commit 树+终 tip 67c0836c 树两轮;result/curl_cur.c 回流）;VdbeExec --one 1055 GEN_MIRROR md5 **bf2d9b85==钉值**;tests **2018P/0F/5I**（多轮）。
+- **门禁**: 镜面五面 --jobs 5 **全 PASS GATE_RC=0 恰钉值**（curl 13/13·74+httpd 2/2·29+vsh 0/0·71+sq 432/432·810+sqlite 785/785·1385,defects=numbering=0 五面,stale-guard OK digest=e285f1b8 files=155）;bank **391/391 全 MATCH**;三门禁+gate health OK（oracle=e40ed130,cc=114）。
+- **CR**: REQUIRED/PENDING——CR-ARENAFLIP-E（blockaction=机制 C 白名单;root 已预约 reviewer;复核面=终报 §1-2[翻转四类语义/owner-bank 不变量闭集/identify adopt 时序/跨域纪律三修复/派发快照等价]）。
+- **(f) 交接面**: bank COW-Arc 快照锁消除（已起草,预期收回 per-read 锁 ~20ns×~57M）;size/flags 影子突变面收敛（out/in_edges_mut 裸访问器 ~30 写位）;varmap/merge 按 §5 归因排序（先 COVER-REBUILD-ALLOC 票）;printc 27 位 .point 已全部 bank 化无遗留。终报=/dev/shm/rugra-reports/LANE_ARENAFLIP_E_2026-09-30.md。
 
 ## 车道 ARENAFLIP-d（2026-09-30 交付；W1 翻转 (d) 段——`PERF-ARENA-FLIP-0001` (d) blockaction+BlockEdge 值化段，续 (c) 分支 `wt/arenaflip` 基=55190960，交付 tip=9f8f70fa+docs）
 
