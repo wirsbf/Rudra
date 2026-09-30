@@ -3184,6 +3184,7 @@ impl Funcdata {
         {
             let mut new_rg = bbnew.write().unwrap();
             let mut edge = crate::block::BlockEdge::new(outbl, i);
+            edge.point_id = self.bblocks.bank.registered_id_of(&edge.point);
             edge.flags = label;
             new_rg.add_out_edge(edge);
         }

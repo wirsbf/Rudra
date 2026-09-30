@@ -394,6 +394,12 @@ source out-half。`install_switch_defaults` 通过双半边 helper 写入
 **2026-07-16**: `link_symbol` + `link_symbol_reference` 已加（funcdata_varnode.cc:1156/1193）。符号链接 + PTRSUB 常量解析。
 
 
+## 2026-09-30：move_out_edge 尾边打标（Lane ARENAFLIP-d 步骤 2）
+
+- `move_out_edge` 的 cc:167 `BlockEdge` 推送（b->outofthis.push_back）补
+  `point_id` 孪生打标（经 `self.bblocks.bank`，无 point 守卫）。语义逐位
+  不变。
+
 ## 2026-09-30：edge 孪生打标接线（Lane ARENAFLIP-d 步骤 1）
 
 - `replaceInEdge`（funcdata.cc:160 域）/node-split 重定向的 `.point =` 写点

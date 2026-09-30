@@ -303,6 +303,23 @@ E2E（curl 124 fn，fast-release）：exit 0 / 0 panic，defects=0 / numbering=0
 **2026-07-02 修复（R15）**: 禁用 `collapse_cbranch_cascades`（call site 注释化）。该函数是凭空捏造逻辑，Ghidra 无对应——Ghidra ruleBlockSwitch 只在 isSwitchOut()（由 BRANCHIND 独占设置）触发，从不把 CBRANCH if/else-if 链转 switch。Rugra 这么做产生 ~16/18 假 switch（curl 18 vs Ghidra 2）。禁用后 curl switch 18→0（真 switch 表因 jumptable 恢复坏 R19/R20 也无，需后续修），行数 1567→1281。CBRANCH 链现经 try_rule_* 结构化为嵌套 BlockIf（Ghidra collapseInternal 做法）。
 
 
+## 2026-09-30：bank-view 热读迁移（Lane ARENAFLIP-d 步骤 2，性能兑现面）
+
+- **count_non_structural_in_edges**（BLOCKSTRUCT 钻定的 53.4M 入边扫描
+  热点）：per-edge 的 peer RwLock+vtable 读（`in_edge.point.read()` +
+  get_type/get_index）改走 `BlockBankView`——扫描级一次 bank 读守卫，逐边
+  影子槽读（block.hh:160/184 字段读形态，零 block 锁零 vtable）。孪生未
+  解析（SENTINEL/裸 fixture）时回退原 guard 读，逐位等价。
+- **try_rule_proper_if 头部守卫**：自环双查 + true/false 目标索引四读同
+  走 bank view（作用域块内守卫借还，不影响后续 &self 调用）。
+- **BlockBankView/hold/adopt**：bank 增加 `hold()` 视图（扫描级单守卫）与
+  `adopt()`（复合块经 Vec 槽位安装不经过 add_block 的注册路径）；
+  collapse_internal 每 fullchange 趟首 + collapse_all_5step 前置各一次
+  幂等 adopt 扫（O(n)/趟，纯 bank 记账，无可观测面）。
+- **行为恒等**：cargo test --lib 2018P/0F/5I；canon curl 4ab1db2a defects
+  0/0/0 + httpd 7d5b9e7c 双恒等；VdbeExec --one 1055 GEN_MIRROR md5
+  bf2d9b85 恒等（计时见段末配对报告）。
+
 ## 2026-09-30：block bank 接线（Lane ARENAFLIP-d 步骤 1，表示层地基）
 
 - `rewrite_out_edges_to_idx` / `rewrite_in_edges_to_idx` 增 `bank: &BlockBank`

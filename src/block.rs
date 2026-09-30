@@ -3293,6 +3293,27 @@ impl BlockBank {
         id
     }
 
+    /// Register a block WITHOUT appending to `blocks` — the collapse
+    /// composite path installs blocks by Vec slot assignment
+    /// (identify_internal's `blocks[install_idx] = new_block`), which never
+    /// passes through `add_block`. Same cell/identity bookkeeping so edge
+    /// twins pointing at the composite resolve.
+    // RUGRA-GLUE: composite adoption (block.cc:905-928 selfIdentify install)
+    pub fn adopt(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) {
+        if self.id_of(bl).is_some() {
+            return; // already registered (idempotent)
+        }
+        let (btype, index) = {
+            let block = bl.read().unwrap();
+            (block.get_type(), block.get_index())
+        };
+        self.insert(BlockCell {
+            arc: bl.clone(),
+            btype,
+            index,
+        });
+    }
+
     /// The bank id of `bl`, or `None` if it is not registered here (bare
     /// fixtures / foreign-graph handles). Never locks `bl` itself.
     // RUGRA-GLUE: handle→id (oracle: the pointer IS the identity)
@@ -3341,6 +3362,46 @@ impl BlockBank {
     pub fn clear(&self) {
         self.inner.write().unwrap().clear();
         self.ids.write().unwrap().clear();
+    }
+
+    /// Hold one read guard over the whole arena for a hot scan — per-slot
+    /// reads below are then a bounds check + generation compare, no block
+    /// RwLock, no vtable (the (c)-segment slot-read pattern applied to the
+    /// block domain).
+    // RUGRA-GLUE: hot-path view (miss-floor elimination surface)
+    pub fn hold(&self) -> BlockBankView<'_> {
+        BlockBankView {
+            arena: self.inner.read().unwrap(),
+        }
+    }
+}
+
+/// Shared-borrow view over the bank's arena (one RwLock acquisition per
+/// scan, not per edge). Slot lookups return `None` for SENTINEL/stale ids
+/// (bare fixtures keep SENTINEL twins) — callers fall back to the block
+/// guard path there, keeping reads byte-identical.
+// RUGRA-GLUE: hot-path view guard
+pub struct BlockBankView<'a> {
+    arena: std::sync::RwLockReadGuard<'a, Arena<BlockCell, BlockId>>,
+}
+
+impl<'a> BlockBankView<'a> {
+    /// `FlowBlock::index` shadow (block.hh:160).
+    // RUGRA-GLUE: shadow read
+    pub fn index(&self, id: BlockId) -> Option<i32> {
+        self.arena.get(id).map(|c| c.index)
+    }
+
+    /// `FlowBlock::getType` shadow (block.hh:184).
+    // RUGRA-GLUE: shadow read
+    pub fn btype(&self, id: BlockId) -> Option<BlockType> {
+        self.arena.get(id).map(|c| c.btype)
+    }
+
+    /// Resolve to the block handle (Arc clone).
+    // RUGRA-GLUE: id→handle
+    pub fn arc(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
+        self.arena.get(id).map(|c| c.arc.clone())
     }
 }
 

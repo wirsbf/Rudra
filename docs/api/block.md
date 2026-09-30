@@ -2,6 +2,14 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-09-30：BlockBankView/hold/adopt（Lane ARENAFLIP-d 步骤 2）
+
+- `BlockBank::hold() -> BlockBankView`：扫描级单一读守卫视图；`view.index/
+  btype/arc(id)` 为影子槽读（block.hh:160/184 字段读形态）。`BlockBank::
+  adopt(&Arc)`：复合块经 Vec 槽位安装（identify_internal 等旁路 add_block）
+  的注册路径（幂等；同 add_block 的 cell+身份映射记账）。
+- 行为恒等面见 docs/api/blockaction.md 2026-09-30 步骤 2 条。
+
 ## 2026-09-30：per-graph block bank + BlockEdge point_id 值孪生（Lane ARENAFLIP-d 步骤 1）
 
 - **BlockBank**：`BlockGraph` 新增 `bank: BlockBank` 字段——

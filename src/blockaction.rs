@@ -1580,6 +1580,15 @@ impl<'a> CollapseStructure<'a> {
             if std::time::Instant::now() > deadline {
                 break;
             }
+            // RUGRA-GLUE: per-pass bank adoption sweep. Composite installs
+            // enter the graph by Vec slot assignment (identify_internal and
+            // the factory rewrites), which bypasses add_block; adopting every
+            // current Vec member keeps their bank cells + identity-map entries
+            // fresh so edge twins resolve on the shadow path (idempotent,
+            // O(n) per pass, no observable effect — pure bank bookkeeping).
+            for bl in &self.graph.blocks {
+                self.graph.bank.adopt(bl);
+            }
             // Outer fullchange iteration cap: prevents the IfNoExit/CaseFallthru
             // second pass from repeatedly triggering (each creates a structure,
             // bumping structure_change_count, re-entering the outer loop) without
@@ -1793,6 +1802,12 @@ impl<'a> CollapseStructure<'a> {
         self.order_loop_bodies();
         // cc:1886: collapseConditions (fixpoint ruleBlockOr).
         self.collapse_conditions();
+        // RUGRA-GLUE: bank adoption sweep for composites installed by
+        // order_loop_bodies/collapse_conditions before the first pass (the
+        // per-pass sweep inside collapse_internal covers everything after).
+        for bl in &self.graph.blocks {
+            self.graph.bank.adopt(bl);
+        }
         // cc:1888: collapseInternal(NULL).
         let mut isolated = self.collapse_internal(None);
         // cc:1889-1892: the selectGoto loop. Ghidra has no deadline, round
@@ -4891,32 +4906,53 @@ impl<'a> CollapseStructure<'a> {
     ) -> usize {
         let total = block.size_in();
         let mut structural = 0;
+        // Hot path: one bank view guard for the whole scan; per-edge peer
+        // reads go through the id twin's shadows (block.hh:160/184 field
+        // reads) — no peer RwLock, no vtable. Edges with unresolved twins
+        // (SENTINEL: bare test fixtures) fall back to the original guard
+        // read, byte-identical.
+        let bank = self.graph.bank.hold();
         for slot in 0..total {
             // Reference read of the in-edge (oracle reads intothis[i].point
             // directly, block.hh:304) — no BlockEdge clone per edge.
             if let Some(in_edge) = block.get_in_ref(slot) {
-                let pred = in_edge.point.read().unwrap();
-                let pred_type = pred.get_type();
-                // Edge from BlockSwitch control → structural
-                if pred_type == crate::block::BlockType::Switch {
-                    structural += 1;
-                    continue;
+                let mut resolved_by_shadow = false;
+                if let Some(pred_btype) = bank.btype(in_edge.point_id) {
+                    // Edge from BlockSwitch control → structural
+                    if pred_btype == crate::block::BlockType::Switch {
+                        structural += 1;
+                        continue;
+                    }
+                    if let Some(pred_index) = bank.index(in_edge.point_id) {
+                        resolved_by_shadow = true;
+                        // NOTE: no switch_case_indices arm — Ghidra's guard is plain
+                        // `clauseblock->sizeIn() != 1` (cc:1391/cc:1428 etc.) with no
+                        // notion of cascade members. The invented arm counted the
+                        // refreshSwitchCases CBRANCH-chain marks (no oracle
+                        // counterpart) as "structural", so every else-if chain the
+                        // cascade walker touched was rejected by proper_if/if_else/
+                        // do_while — leaving the chain uncollapsible and selectGoto
+                        // to exhaust (TRI2-STRUCT-IRREDUCIBLE-TRACE-0001,
+                        // glob_range residual 1→2→3→9 with properif-legal shapes).
+                        // Edge from a consumed component (already absorbed by a
+                        // composite; Ghidra removed it from the list, block.cc:953-
+                        // 960) → structural
+                        if self.is_consumed(pred_index) {
+                            structural += 1;
+                        }
+                    }
                 }
-                // NOTE: no switch_case_indices arm — Ghidra's guard is plain
-                // `clauseblock->sizeIn() != 1` (cc:1391/cc:1428 etc.) with no
-                // notion of cascade members. The invented arm counted the
-                // refreshSwitchCases CBRANCH-chain marks (no oracle
-                // counterpart) as "structural", so every else-if chain the
-                // cascade walker touched was rejected by proper_if/if_else/
-                // do_while — leaving the chain uncollapsible and selectGoto
-                // to exhaust (TRI2-STRUCT-IRREDUCIBLE-TRACE-0001,
-                // glob_range residual 1→2→3→9 with properif-legal shapes).
-                // Edge from a consumed component (already absorbed by a
-                // composite; Ghidra removed it from the list, block.cc:953-
-                // 960) → structural
-                if self.is_consumed(pred.get_index()) {
-                    structural += 1;
-                    continue;
+                if !resolved_by_shadow {
+                    // Bare-fixture fallback: the pre-bank form, guard read.
+                    let pred = in_edge.point.read().unwrap();
+                    let pred_type = pred.get_type();
+                    if pred_type == crate::block::BlockType::Switch {
+                        structural += 1;
+                        continue;
+                    }
+                    if self.is_consumed(pred.get_index()) {
+                        structural += 1;
+                    }
                 }
             }
         }
@@ -4955,14 +4991,41 @@ impl<'a> CollapseStructure<'a> {
         // list of the underlying BlockBasic per try with the result unused —
         // deleted; Ghidra's rule is purely topological, cc:1378-1408.)
         let cond_idx = b.get_index();
-        if b.get_out_ref(0)
-            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx)
-        {
-            return false;
-        }
-        if b.get_out_ref(1)
-            .map_or(false, |e| e.point.read().unwrap().get_index() == cond_idx)
-        {
+        // RUGRA-GLUE: bank-view guard reads — the self-loop checks and the
+        // two target indices resolve through the edge twins' shadows (one
+        // bank read guard for all four reads; no peer RwLock, no vtable).
+        // Unresolved twins (bare fixtures) fall back to the guard read,
+        // byte-identical. Scoped so the view drops before &self method
+        // calls below.
+        let (self_loop, true_idx, false_idx, true_block, false_block) = {
+            let bank = self.graph.bank.hold();
+            let read_idx = |b: &dyn FlowBlock, slot: usize| -> Option<i32> {
+                b.get_out_ref(slot).and_then(|e| match bank.index(e.point_id) {
+                    Some(i) => Some(i),
+                    None => Some(e.point.read().unwrap().get_index()),
+                })
+            };
+            let out0_idx = read_idx(&*b, 0);
+            let out1_idx = read_idx(&*b, 1);
+            let self_loop = out0_idx == Some(cond_idx) || out1_idx == Some(cond_idx);
+            // Reference reads of out[0]/out[1] (oracle getOut, block.hh:301)
+            // — handles held for the clause/merge walks below, with their
+            // twins captured for the shadow index reads.
+            let (true_block, false_block) = match (b.get_out_ref(0), b.get_out_ref(1)) {
+                (Some(te), Some(fe)) => (te.point.clone(), fe.point.clone()),
+                _ => return false,
+            };
+            let true_idx = match bank.index(b.get_out_ref(0).unwrap().point_id) {
+                Some(i) => i,
+                None => true_block.read().unwrap().get_index(),
+            };
+            let false_idx = match bank.index(b.get_out_ref(1).unwrap().point_id) {
+                Some(i) => i,
+                None => false_block.read().unwrap().get_index(),
+            };
+            (self_loop, true_idx, false_idx, true_block, false_block)
+        };
+        if self_loop {
             return false;
         }
         if Self::out_edge_is_goto(&*b, 0) {
@@ -4971,16 +5034,6 @@ impl<'a> CollapseStructure<'a> {
         if Self::out_edge_is_goto(&*b, 1) {
             return false;
         }
-
-        // Reference reads of out[0]/out[1] (oracle getOut, block.hh:301) —
-        // the old form cloned two BlockEdges plus two extra Arcs just to
-        // hold the targets; the guards below only need the point handles.
-        let (true_block, false_block) = match (b.get_out_ref(0), b.get_out_ref(1)) {
-            (Some(te), Some(fe)) => (te.point.clone(), fe.point.clone()),
-            _ => return false,
-        };
-        let true_idx = true_block.read().unwrap().get_index();
-        let false_idx = false_block.read().unwrap().get_index();
         // cc:1395 pre-capture: isDecisionOut per out edge (the read guard on
         // `b` is dropped below but the decision flags are edge labels).
         let decision_out = [
