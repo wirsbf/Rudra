@@ -305,8 +305,42 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # Standalone-type-domain binary artifact (TYPE-WIRING-0001 era, CR §F.1
 # triple-contradiction closure) — re-measured on faithful build, see MB53
 # ledger entry for the new corpus assembled pin.
-sq	280	810	MB53-RATCHET-REPIN-0001	497f987b	2026-10-01
-sqlite	604	1385	MB53-RATCHET-REPIN-0001	497f987b	2026-10-01
+# MB54-RATCHET-REPIN-0001 (2026-10-01, joint tree @ 2c06364a after 2-branch
+# mirror+speed CR-clear batch [blockflipw1 cbbf4804+49b0a543 + readinode
+# 3b3083ad], forced relink verified [fast-release --lib --examples 1m55s,
+# driver binaries 19:22 > both merge commits 19:17/19:19], gate --jobs 5 round
+# with digest cache — binary sha change invalidates cache keys, all five faces
+# fresh-measured; stale-guard content probe digest=97f58ed3673387fc files=155;
+# repin commit only edits this table, measurement tree=2c06364a):
+# ① sq 280→142 (−138 = READINODE RuleSubNormal else-arm k reassignment
+#    restored per ruleaction.cc:7756-7757 `k = insize-c-outsize` [ported as
+#    no-op before]: read_inode cluster 211→85 [read_inode_1 55→2 /
+#    read_inode_2 37→10 / read_inode_3 100→54 / read_super 19 held] +
+#    same-root adjacent −12 [CCRC UpdateUInt64 −8 / squashfs_opendir_1 −4];
+#    CR-READINODE zero-regression reconciliation: exactly 5 functions
+#    improved, REGRESSIONS (B>A) NONE). OPNAME-LEAK sq 67→14 (read_inode_1/2
+#    fully burned; residual read_inode_3 12 + read_super 2). matched 810/810,
+#    defects=numbering=0.
+# ② sqlite 604→599 (−5 = same root on the sqlite face: str_vappendf −3
+#    [OPNAME family member] + LogEstFromDouble −2, zero regressions).
+#    matched 1385/1385, defects=numbering=0.
+# ③ curl 13 / httpd 2 / vsh 0 identical, not re-pinned (MB41/MB41/MB39 rows
+#    stay; BLOCKFLIPW1 is representation-flip behavior-identity by
+#    construction — BANKSTATS ten-counter exact identity [read_index 268987 /
+#    read_btype 0 / read_arc 3056414 / view_holds 8130289 / view_index
+#    143873888 / view_btype 53432095 / view_arc 18785366 / id_lookups 1581638
+#    / publishes 28559 / shadow_writes 3351882] + canon/mirror byte identity,
+#    CR-BLOCKFLIPW1 APPROVE).
+# Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
+# (compare verdict; all functions diff=0; byte self-pins b7773087/54f9b02c
+# exact — zero-state preserved, no re-pin needed). Corpus assembled artifact
+# moved e96d2dc8/5,279,330B → 931cca08/5,279,313B with the readinode-only
+# sqlite-face delta (LogEstFromDouble + str_vappendf double-shift collapse,
+# raw unified +3/−3, nothing else moved); MB54 ledger is the authoritative
+# corpus-artifact record. tests 2026P/0F/5I (=2023 + readinode +3, per-lane
+# accounting exact; blockflipw1 zero new tests).
+sq	142	810	MB54-RATCHET-REPIN-0001	2c06364a	2026-10-01
+sqlite	599	1385	MB54-RATCHET-REPIN-0001	2c06364a	2026-10-01
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
