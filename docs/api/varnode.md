@@ -58,6 +58,59 @@
 - 门禁: `cargo test --lib` 2018P/0F/5I 恒等 + 全 integration tests 2025P；
   canon/镜面门禁见车道终报（LANE_ARENAFLIP_A_2026-09-30.md）。
 
+## 2026-10-02：PERF-VARNODE-DESCEND-SHADOW-0001 descend 存活影子（live/len 内联计数）
+
+规则体残量移交项（RULEBODY2 终报 §6 登记、DESCENDSHADOW 车道承接）。[DESCENDPROF]
+语料级探针（73.4M `has_no_descend` 调用/16.5M `lone_descend`/14.7M `erase_descend`）
+澄清了 RULEBODY2 E2/E3 ≈115ns/try 的真实机理：**不是 tombstone 线性扫长度**（全语料
+has_dead=0/erase_miss=0/destroy 终态 census_dead=0——零死条目），而是非空表上
+首个条目的解引用链（Vec 缓冲行 + PcodeOp 控制块行，两次相依 cache miss）。oracle
+`descend.empty()`（varnode.hh:286）读的是 Varnode 内联的一个字，零额外 miss。
+
+本条为 `descend: Vec<Weak<PcodeOp>>` 增设两个私有内联影子字段并保持判定恒等：
+
+- `descend_live: AtomicUsize` — 存活（`strong_count > 0`）条目数；
+- `descend_len: AtomicUsize` — 最近一次精确观测时的 `descend.len()`。
+
+函数形态（判定逐调用恒等，四类决定性语义见车道 Evidence 块）：
+
+- `has_no_descend`（varnode.hh:286）— `all(dead)` ⇔ `live == 0`，影子命中时零解引用
+  O(1)（对位 oracle `descend.empty()`）；影子陈旧（`descend_len != len`，仅测试夹具
+  raw push 可致）时先全表 reconcile 再作答。debug 构建内联 `debug_assert` 用旧谓词
+  逐调用机检影子恒等（测试套件跑在 debug）。
+- `lone_descend`（varnode.cc:676-688）— `live == 0` → None（cc:681）；`live >= 2` →
+  None 零解引用零 upgrade（cc:687 短路；旧形态在拒绝路径先 upgrade 首后代——
+  6.77M 拒绝/语料 次白付原子对）；`live == 1` → 首可 upgrade 项（即唯一存活项，
+  与旧全扫描返回同元素）。三臂各带 debug 恒等断言。
+- `count_descends` — 全表扫描原形，顺手把影子刷新为精确值（自愈位点）。
+- `add_descend`（varnode.cc:330）— free 检查改 `!has_no_descend()`（`any(live)` ⇔
+  `!all(dead)` 逐位恒等，含影子 reconcile）；push 后 live+1/len+1（新 downgrade 的
+  调用方持有 Arc 构造即存活）。
+- `erase_descend`（varnode.cc:316）— 陈旧先 reconcile（保证 fetch_sub 落在精确值上，
+  杜绝回绕）；命中项经 upgrade 匹配 = 存活 → live−1/len−1；未命中路径（全表已扫）
+  就地精确刷新影子 + 原 WARN 原样。
+- `destroy_descend`（varnode.cc:344）— clear 后 live=0/len=0（空表的精确终态）。
+- `VarnodeBank::replace` 的两处直接 Vec 操作（逐 occurrence 摘除 + 终态 clear）按同
+  一契约维护影子。
+
+**精确性契约**（字段注释全录）：① 生产全部变更走 add/erase/destroy/bank-replace 四
+方法（代码审计；字段私有）；② 唯一直接变更 = `#[cfg(test)]` 内的 raw
+`descend.push`（grep 全量核对），raw push 改变 `len` 不改 `descend_len` → 陈旧检查
+强制下次观测前全表 reconcile——raw push 永不可能让影子失真，只付一次扫描；③ 无生产
+路径在 descend 列表仍持有 Weak 时丢弃 PcodeOp Arc（= oracle 裸指针链表依赖的同一
+不变量，逐 op 销毁路径先 erase）：运行时普查 has_dead=0（73.4M 扫描点）+ erase_miss=0
++ destroy 终态 census_dead=0（1,433,590 张被销毁 varnode 的终态表）于全 sqlite 语料
++ curl/httpd canon 面。假想的未来违例只可能让 `descend_live` 偏高——descend_iter/
+erase 匹配仍过滤死条目（可观测输出不变），仅 O(1) 守卫会从陈旧计数作答，且 debug
+断言与差分门禁会现形。
+
+同步语义：影子访问全部处于 Varnode 自身 RwLock 纪律下（读者持读锁、写者持写锁），
+Relaxed 序即可；原子类型只为 `Varnode: Sync`。
+
+行为恒等验证（车道终报全录）：VdbeExec `--one 1055` stdout md5 15b47cf7 恒等 +
+ACTIONSTATS 五值双二进制逐值恒等 + canon curl b7773087/httpd 54f9b02c + corpus
+assembled 29f54d21 + 镜面五面钉值 + `cargo test --lib` 2031P。
+
 ## 2026-09-29：PERF-OPPOOL-0001 lone_descend 免分配化与 has_no_descend 无计数存活探测
 
 规则池派发热路径（[OPPROF] 钻探：earlyremoval 5.02M 次尝试、TermOrder::collect
