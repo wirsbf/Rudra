@@ -1,5 +1,35 @@
 # `printc.rs` API Reference
 
+## 2026-10-02：CLONESURG-CLONELABEL-ANCHOR-0001 — 标签锚定叶优先：pending/backpatch 臂让位 `f_unstructured_targ` 锚定叶（Lane CLONESURG）
+**现象**：sqlite 镜面 ExprIsConstant×5 克隆族（5 函数 ×16 行）里的标号换位子形
+（2 行/函数 ×5）：Rugra 在 return-1 位点（共享尾声 0x3b232 的 nodeSplit 副本，
+`f_duplicate_block`）打印 `dup_r0x0003b232:`，而 switch-default 的
+`goto code_r0x0003b232` 引用的锚定叶（return-0 链，`f_unstructured_targ`）无标号
+——**悬空 goto**（gcc label-not-found 级缺陷）；oracle 在锚定叶位点打印
+`code_r0x0003b232:`（printc.cc:3206-3209 的 isUnstructuredTarget 打印门）。
+
+**根因（oracle 亲读 + 双侧探针）**：Ghidra 的 goto 位点与标签位点都经
+`emitLabel(bl)`→`getFrontLeaf()`→同一 BlockBasic——`markCopyBlock(gototarget)`
+（block.cc:1233-1238）把 `f_unstructured_targ` 落在 goto 目标的前叶上，标号必然
+在该叶自己的发射点打印（emitAnyLabelStatement，printc.cc:3219-3226）。Rugra 的
+`pending_goto_labels` 兜底臂/回贴臂是地址键控的"首个发射副本"语义：return-1 副本
+在程序序上先于锚定叶发射，就以副本的 per-site dup 前缀抢印并经 `printed_labels`
+单次守卫压制了锚定叶的正确打印。
+
+**修法**：新增 `anchored_label_addrs: HashSet<u64>`（构造器初始化、doc_function
+印前清空）——discovery pass 在 `emit_any_label_statement` 前叶读取处（only_branch/
+bumpup 早退之后、discovery 早退之前）记录每个 `f_unstructured_targ` 叶的
+`flow_entry_address`（get_entry_addr 多段 cover 语义，block.cc:2302——空起始块+
+尾声拼接块锚定在尾声入口，与 emitLabel 一致）；pass 2 的 pending 兜底臂与
+GOTO-LABEL-UNPRINTED-0001 回贴臂在 `anchored_label_addrs` 含该地址时让位（当前叶
+自身带 UNRESP 位的除外——它就是锚），标签留待锚定叶自己的发射点打印。无锚地址
+（结构器未包裹的 if-goto 兜底原始形态）行为不变。
+
+**验证**：五克隆逐函数 `--func` 16→14 行（标号换位子形全灭，剩余 14=P2/P3 布尔
+极性续作）；sqlite 面 428→**418**（−10=5×2）defects=0/numbering=0/1385 匹配；
+curl 13/httpd 2/vsh 0/sq 124 四面恒等保持；canon 双语素 md5 精确命中
+（b7773087/54f9b02c）；tests 2032P。
+
 ## 2026-10-01：MCENSUS5-WRAPEMIT-CROSSFACE-0001 — 运算符 glue 解胶：STORE 赋值/布尔合并/if-goto-头分隔恢复 emitOp token 协议（Lane WRAPEMIT）
 **现象**：镜面 wrap-only 族 208 行（sq 98 + sqlite 110，块去空白恒等判定）——
 sq GetOptimum 双函数整函数纯 wrap（41+24）、sqlite str_appendf/trio/Btree 簇。

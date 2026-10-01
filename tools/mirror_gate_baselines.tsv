@@ -357,7 +357,7 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
 sq	117	810	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
-sqlite	406	1385	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
+sqlite	396	1385	CLONESURG-RATCHET-REPIN-0001	clonesurg	2026-10-02
 # FLOAT8-RATCHET-REPIN-0001 (2026-10-02, wt/float8 @ fix commit, base
 # c69d9c60 [MB58], forced relink after test additions [fast-release --examples
 # 57s], gate --jobs 5 two rounds — gate1 fix-only tree digest=557b315e +
@@ -382,6 +382,22 @@ sqlite	406	1385	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
 #    faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical (md5
 #    b7773087 / 54f9b02c exact — zero-state preserved, no re-pin needed).
 #    tests 2033P/0F/5I (=2031 + float8 2 new).
+# CLONESURG-RATCHET-REPIN-0001 (2026-10-02, wt/clonesurg b94785d2 merged on the
+# MB62 joint tree, base 93dbdc54 [MB59] over float8-era master 406 row, forced
+# relink [fast-release --lib --examples 1m02s], gate --jobs 5 cold round,
+# stale-guard content probe digest=c820af90edd45ac4 files=155):
+# sqlite 406→396 (−10 = five ExprIsConstant clone functions × 2 label lines,
+#    16→14 per function: sqlite3ExprIsConstant 0x42540 / NotJoin 0x425b0 /
+#    IsTableConstant 0x42620 / OrGroupBy 0x42690 / OrFunction 0x42700 —
+#    anchored-label precedence: the dup_-prefix first-emitted clone yields to
+#    the anchored leaf (dangling goto eliminated);
+#    five-clone family ∩ float8 family = ∅ so the FLOAT8 428→406 −22 burn is
+#    preserved and deltas compose: lane own-base 428→418 [CR-CLONESURG §5
+#    ratchet-passing] + joint 406−10=396 measured exact). matched 1385/1385,
+#    defects=numbering=0. sq 117 / curl 13 / httpd 2 / vsh 0 held (no
+#    clonesurg sites on those faces — rows stay). Canon faces: curl 0/0/0 +
+#    httpd 0/0/0 held byte-identical (md5 b7773087 / 54f9b02c exact —
+#    zero-state preserved, no re-pin needed).
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
