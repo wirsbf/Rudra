@@ -190,11 +190,13 @@ RUGRA-GLUE：破坏性集合交（无 Ghidra 对应）。
 
 按 def-use 链重建（cover.cc:477-496；implied 输出传递扩展）。
 
-#### `pub fn add_ref_recurse(&mut self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>)` 与 `add_ref_recurse_expansion`
+#### `pub fn add_ref_recurse(&mut self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>)` 与 `expand_roots`
 
 递归回填前驱（cover.cc:524-558）：空块 setAll；非空块填底
 （two-piece 保持回绕不填底）；精确 MULTIEQUAL-tip 判别
-（`start_id == Begin` + 旧 stop 的 marker 身份）。
+（`start_id == Begin` + 旧 stop 的 marker 身份）。`expand_roots` 为
+BlockId 单栈迭代形（见 COVERREBUILD 节）;无 visited 集——重入帧
+可证 no-op,处理即 oracle 字面递归行为。
 
 **2026-09-29 性能重写（行为恒等, VDBEEXEC 残差⑤ mergerequired）**: oracle
 本身即递归形态（cover.cc:535-536/551-552 `for(j..sizeIn) addRefRecurse(
@@ -222,6 +224,46 @@ tip+底部循环/rebuild_from_root_snapshot 四点）;`add_ref_recurse_expansion
 推送序列与 `predecessors_of(...).into_iter().rev()` extend 逐项相同,省每
 展开帧一个临时 Vec。重入 no-op 引理/访问序论证不变（上条）;VdbeExec
 --one 1055 stdout 字节恒等,全语料 assembled 5,284,971B cmp 恒等。
+
+## COVERREBUILD（2026-10-01）重建分配域 BlockId/视图化收口
+
+**SPEEDPROF2-COVER-REBUILD-ALLOC-0001**: [COVPROF] 钻定 VdbeExec markimplied
+构成（探针口径 ucl 5.93s,29,683 次脏重建 × 1.03M addRefPoint × 26.25M 展开
+帧 @142ns/帧）: ①rc 展开 63%——每帧 FlowBlock 读锁+vtable `get_index`+Arc
+clone/drop churn+`visited` FxHash 插入+per-根 Vec 分配（MULTIEQUAL 底臂
+72 根/次=22.87M 调用）+BTreeMap entry;②rp 自身 32%——MULTIEQUAL 匹配槽
+16.8M BlockEdge 克隆+expect_arc、双 map 查找。oracle 同构跑同一帧流
+（~6ns/帧,全 L1 热指针操作,oracle markimplied 总量 0.175s=2.6% 份额）——
+差距 100% 实现级（锁/vtable/句柄 churn,非算法）。四件恒等收口:
+
+1. **`visited` 去重集整体移除**: 重入帧可证 no-op 引理（199-09-29 已证——
+   每可突变访问必留 `end==u32::MAX`,二次进入两守卫互斥不成立,既不突变
+   也不展开）⇒ 处理重入帧=oracle 字面递归自身的行为,最终 Cover 不可区分。
+   帧级实证: 移除前后帧流逐位恒等（26,254,274 帧/2,339,339 空臂/3,381,608
+   推送,skip 1.3M→0 且不新增推送）。净省 26.25M 哈希插入+318k 集分配。
+2. **`add_ref_recurse_expansion`/`push_predecessors_onto` → `expand_roots`/
+   `push_predecessor_ids`（BlockId 栈形）**: 块以 `BlockId`（Copy）行栈,
+   索引经 `BlockBankView::expect_index`（代际校验影子=guard 读同值,免锁/
+   免 vtable）;句柄仅在需读入边的展开帧物化（`view.expect_arc`+单读守卫,
+   2.66M/26.25M 帧）;前驱直接压 `edge.point` 值（零句柄克隆）。每
+   addRefPoint 闭包一个 `bank.hold()` 视图+单栈。
+3. **per-根调用合并为 per-闭包单栈**: MULTIEQUAL 底臂匹配槽根/tip 臂根/
+   else 臂根全推入同一栈（反压=升序根序,每根子树先序完成=oracle
+   for-j 逐根全 DFS 的精确栈等价）——22.87M per-根调用+Vec 分配 → 318k
+   闭包调用;`matching_slots`→`get_in_ref` 直取 id（免 16.8M BlockEdge 克隆）。
+4. **`add_ref_point_full` 单次 entry+scratch 线穿**: `blocks.get`+`entry`
+   双查找并一（entry 后判 empty 同值——两查之间无突变）;`(index,bank)`
+   单守卫并读;根/栈 scratch `Vec<BlockId>` 由 `rebuild_from_root_snapshot`
+   持有跨 addRefPoint 复用（clear 保容,内容不跨调用存活）;签名加两
+   scratch 参（merge.rs 三处冷路径调用点就地 `Vec::new()`——零容量零分配）。
+
+行为恒等证明链: VdbeExec --one 1055 stdout md5 `15b47cf7` base==opt==交付
+三态全等;sqlite 全语料 --jobs 32 assembled 5,285,218B cmp 字节恒等
+（md5 `15f545aa`）;canon curl/httpd md5 `b7773087`/`54f9b02c`==钉值+机制 B
+0/0/0·124/124+34/34;镜面五面 curl 13·74/httpd 2·29/vsh 0·71/sq 324·810/
+sqlite 706·1385 全 PASS 恰钉值;tests 2023P==基线。性能: 单极 user 中位
+37.90→31.58s（−17%）;全语料 wall 37.46→34.45s（−8.0%）;探针口径 ucl
+5.93→1.57s（rc 142→42ns/帧,块锁 28.59M→2.66M）。
 
 
 ## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
