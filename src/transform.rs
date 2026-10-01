@@ -444,10 +444,20 @@ impl TransformVar {
                             .create_with_space(self.byte_size as usize, vn_space, addr.as_u64()),
                     );
                 }
-                // transferVarnodeProperties (transform.cc:208) copies
-                // type/flags from the original to the piece. Rugra's Varnode
-                // does not yet expose a full property-transfer API; we skip
-                // this best-effort.
+                // transferVarnodeProperties (transform.cc:208): preserve the
+                // consume mask and the directwrite|addrforce flags on the
+                // address-preserving piece. Skipped pre-READINODE2 with a
+                // "no API" note, which dropped addrforce on split pieces of
+                // guarded locations (e.g. the persist return-copy of a
+                // global) — RuleEarlyRemoval/ActionDeadCode then ate the
+                // write-back lattice (READINODE2 drill, read_super
+                // xRam156858: oracle earlyremoval 6785 keeps the 6-byte
+                // return-copy via isAutoLive; Rugra killed it at 6257).
+                {
+                    let orig = self.vn.as_ref().expect("piece vn").clone();
+                    let repl = self.replacement.as_ref().expect("piece replacement").clone();
+                    fd.transfer_varnode_properties(&orig, &repl, byte_pos);
+                }
                 let _ = (vn_size, vn_offset);
             }
             TransformVarType::ConstantIop => {
@@ -1640,5 +1650,79 @@ mod tests {
             vec![3, 2, 1]
         );
         assert_eq!(insertion_times(OpCode::CPUI_COPY, true), vec![2, 3, 1]);
+    }
+}
+
+#[cfg(test)]
+mod readinode2_tests {
+    use super::*;
+
+    // READINODE2: transform.cc:202-209 — a Piece replacement of an
+    // address-preserving lane must run transferVarnodeProperties
+    // (funcdata_varnode.cc:614-629), preserving directwrite|addrforce
+    // and the shifted consume mask. Pre-fix this call was skipped, so
+    // split pieces of guarded locations (e.g. the persist return-copy
+    // of a global guarded by Heritage::guardReturns) lost addrforce and
+    // RuleEarlyRemoval destroyed the write-back lattice.
+    #[test]
+    fn test_piece_replacement_transfers_addrforce_and_consume() {
+        use crate::varnode::varnode_flags;
+        let mut fd = crate::funcdata::Funcdata::new("piece_transfer", crate::address::Address::new(0x1000), 1);
+        let op = fd.new_op(1, crate::address::Address::new(0x1004));
+        let orig = std::sync::Arc::new(std::sync::RwLock::new(Varnode::new(
+            8,
+            crate::address::Address::new(0x156858),
+        )));
+        {
+            let mut o = orig.write().unwrap();
+            o.set_addr_force();
+            o.set_direct_write();
+            o.set_consume(0xffff_ffff_ffff_ffff);
+        }
+        // Lane 0 of an 8->6+2 split: 6 bytes at bitpos 0.
+        let mut tv = TransformVar::initialize(
+            TransformVarType::Piece,
+            Some(orig.clone()),
+            48,
+            6,
+            0,
+        );
+        tv.create_replacement(&mut fd, Some(&op));
+        let repl = tv.replacement.expect("piece replacement created");
+        let r = repl.read().unwrap();
+        assert!(r.is_addr_force(), "addrforce must transfer to the piece");
+        assert!(r.is_direct_write(), "directwrite must transfer to the piece");
+        assert_eq!(r.get_consume(), crate::address::calc_mask(6));
+        // Lane 1: 2 bytes at bitpos 48 (byte 6).
+        let mut tv2 = TransformVar::initialize(
+            TransformVarType::Piece,
+            Some(orig.clone()),
+            16,
+            2,
+            48,
+        );
+        tv2.create_replacement(&mut fd, Some(&op));
+        let repl2 = tv2.replacement.expect("high piece replacement created");
+        let r2 = repl2.read().unwrap();
+        assert!(r2.is_addr_force());
+        // cc:619-622: (consume >> 48 | fill) & mask(2) — all-ones stays all-ones.
+        assert_eq!(r2.get_consume(), crate::address::calc_mask(2));
+        // Non-addrforced original keeps the piece clean of both flags.
+        let plain = std::sync::Arc::new(std::sync::RwLock::new(Varnode::new(
+            8,
+            crate::address::Address::new(0x200),
+        )));
+        plain.write().unwrap().set_consume(0);
+        let mut tv3 =
+            TransformVar::initialize(TransformVarType::Piece, Some(plain), 48, 6, 0);
+        tv3.create_replacement(&mut fd, Some(&op));
+        let repl3 = tv3.replacement.unwrap();
+        let r3 = {
+            let g = repl3.read().unwrap();
+            (g.is_addr_force(), g.is_direct_write(), g.get_consume())
+        };
+        assert!(!r3.0);
+        assert!(!r3.1);
+        assert_eq!(r3.2, 0, "zero consume must not gain fill bits at lsb 0");
     }
 }
