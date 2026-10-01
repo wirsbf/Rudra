@@ -98,7 +98,7 @@ varnode`/`LoadGuard.op→op` 路径留环）,intra-SCC 边对 87→86,唯一差�
 | E9-ARCH | `arch→transform` | a | 1 键(field×1) | Architecture.lane_records |
 | E16-1 | `arch→type_system` | c | 1 键(field×1) | Architecture.types: TypeFactory（3-环闭包边） |
 | E9-ARCH | `arch→userop` | a | 1 键(field×1) | Architecture.userops |
-| E7 | `block→block` | c | 15 键(dyn-hold×15) | 16 个 Block* struct 持 dyn FlowBlock（族内互持） |
+| E7 | `block→block` | c | 16 键(dyn-hold×16) | Block* struct 族持 dyn FlowBlock（族内互持;2026-10-01 MB51 重冻结: BlockEdge point→BlockId 值化[(e) 段]退出 1 键,BlockBank 存储位 BankTable/BlockCell 入 2 键——block.hh:365-366 `BlockGraph{vector<FlowBlock*> list}` 图属主持有的 id/arena 形态,族内同形态） |
 | SCC-BASE | `block→jumptable` | a | 1 键(field×1) | BlockSwitch.jump（block.hh:462-473 同构） |
 | E7 | `block→op` | c | 5 键(field×4, held-trait-sig×1) | BlockBasic.ops + BlockWhileDo ops 字段 + FlowBlock 签名族 |
 | SCC-BASE | `block→varnode` | a | 1 键(field×1) | BlockSwitch.index_varnode |
@@ -205,6 +205,29 @@ E 表的家族（PcodeOpSetImpl/SleighSymbolLookup/FlowBlock;类 c）· `E9-ARCH
 4. `python3 tools/cycle_ratchet.py --emit-freeze --accept-new` 重新生成冻结字面量,人工
    核对 diff（只应出现已定性的新键）后回填 `tools/cycle_ratchet.py`。
 5. 破环（改善）方向: 门禁打 `[INFO]`,复核后同法重冻结（白名单缩容是允许的棘轮回退方向）。
+
+### 5.1 重冻结记录 — 2026-10-01（MB51 W1 arena campaign 合入后）
+
+触发: wt/arenaflip（PERF-ARENA-FLIP-0001 七段）合入 master（merge 718a856f）后,
+断言 (b) 对 2 个新证据键 FAIL。逐边定性（协议步骤 2,亲核双侧行）:
+
+| 证据键 | Rust 侧 | Ghidra 侧 | 分类 | 处置 |
+|---|---|---|---|---|
+| `dyn-hold\|struct BankTable\|FlowBlock`（新增） | block.rs:3484-3485 `BankTable.arcs: Vec<Option<Arc<RwLock<dyn FlowBlock…>>>>`——(d)/(f) 段 BlockBank 的 COW 快照表,图属主块存储 | block.hh:365-366 `class BlockGraph : public FlowBlock { vector<FlowBlock *> list; }`——图属主持有块对象表的 id/arena 形态 | c（族内互持,E7 同族） | 入白名单（E7 行已更新） |
+| `dyn-hold\|struct BlockCell\|FlowBlock`（新增） | block.rs:3387-3389 `BlockCell.arc: Arc<RwLock<dyn FlowBlock…>>`——bank 槽位持有块句柄+影子 | 同上（槽=存储迭代器形态） | c（族内互持,E7 同族） | 入白名单（E7 行已更新） |
+
+同时消失的 4 个冻结键（全部为改善方向,协议步骤 5,复核后随重冻结吸收）:
+- `dyn-hold|struct BlockEdge|FlowBlock`——(e) 段 BlockEdge.point: Arc→BlockId 值化
+  （block.hh:57-65 12B Copy 值形态,环边消解）;
+- `field|struct ActionPool|op_state`——(c) 段游标 OpId 化（原持 op 句柄字段消失）;
+- `field|struct TransformManager|fd`——(g) 段 `*mut Funcdata` 消灭（fd 逐调用穿透）;
+- `field|struct PreferSplitManager|data`——(g) 段同族消灭。
+边对层面 `prefersplit→funcdata`/`transform→funcdata` 整对消失（[INFO] improvement,环破）。
+
+`--emit-freeze` 重冻结 diff 人工核对: FROZEN_SCC 24==24 恒等（arena 仍 solo 不入环,
+**W1 形态核通过**）;FROZEN_SOLO 吸收 arena（+1,58 项）;证据键 180→178（+2 已定性/−4
+改善）。重冻结后 `verify_cycle_ratchet.sh` 三断言全 PASS。
+
 
 ## 6. CI 接入（Phase A/A2 执行时启用;当前入库+文档化,不强制）
 

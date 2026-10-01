@@ -85,6 +85,7 @@ FROZEN_SOLO = [
     "address",
     "align",
     "analysis",
+    "arena",
     "bin",
     "binary",
     "blockaction",
@@ -155,7 +156,6 @@ FROZEN_EDGES = {
         'held-trait-sig|via dyn Rule sig|Rule',
     ],
     "action->op": [
-        'field|struct ActionPool|op_state',
         'held-trait-sig|via dyn Rule sig|Rule',
     ],
     "arch->action": [
@@ -196,11 +196,12 @@ FROZEN_EDGES = {
         'field|struct Architecture|userops',
     ],
     "block->block": [
+        'dyn-hold|struct BankTable|FlowBlock',
         'dyn-hold|struct BlockBasic|FlowBlock',
+        'dyn-hold|struct BlockCell|FlowBlock',
         'dyn-hold|struct BlockCondition|FlowBlock',
         'dyn-hold|struct BlockCopy|FlowBlock',
         'dyn-hold|struct BlockDoWhile|FlowBlock',
-        'dyn-hold|struct BlockEdge|FlowBlock',
         'dyn-hold|struct BlockGoto|FlowBlock',
         'dyn-hold|struct BlockGraph|FlowBlock',
         'dyn-hold|struct BlockIf|FlowBlock',
@@ -391,9 +392,6 @@ FROZEN_EDGES = {
         'field|struct PcodeData|invar',
         'field|struct PcodeData|outvar',
     ],
-    "prefersplit->funcdata": [
-        'field|struct PreferSplitManager|data',
-    ],
     "prefersplit->op": [
         'field|struct PreferSplitManager|tempsplits',
     ],
@@ -401,9 +399,6 @@ FROZEN_EDGES = {
         'field|struct SplitInstance|hi',
         'field|struct SplitInstance|lo',
         'field|struct SplitInstance|vn',
-    ],
-    "transform->funcdata": [
-        'field|struct TransformManager|fd',
     ],
     "transform->op": [
         'field|struct TransformOp|op',
