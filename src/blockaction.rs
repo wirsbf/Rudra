@@ -411,12 +411,49 @@ pub(crate) fn dedup_edges_all_types(bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>
 // Ghidra: block.cc:507 FlowBlock::findDups
 /// Discover peer blocks that are the endpoint of 2+ edges in `bl`'s in- or
 /// out-list (whichever `incoming` selects), using Ghidra's mark/mark2
-/// protocol. `bl` is read under a short guard; peers take transient write
-/// guards for the marks (no nesting: `bl` holds only a read guard).
+/// protocol. Two behaviorally equivalent forms:
+///
+/// - **Snapshot fast path** (PERF-FINDDUP-0001 write-through read form): read
+///   `bl`'s edge vector once from the bank edge shadow (`with_in/out_edges`)
+///   and each peer's flags from the (g) guard shadow, then compute the dup
+///   list purely. Valid exactly when every edge point arrives mark-clean —
+///   then every f_mark/f_mark2 the lock protocol sets is one it later erases
+///   (cc:521-522), so the protocol's net flags effect is identity and the
+///   duplist is determined by the edge sequence alone (second-occurrence
+///   order, cc:514-517). This is the oracle's own cost shape: findDups is a
+///   direct-member-read loop over `ref` with no locks, no Arc materialization
+///   and no allocation (block.cc:510-520); the shadows serve the same values
+///   (12-byte POD mirrors refreshed at every mutation choke).
+/// - **Lock protocol fallback**: any pre-set MARK/MARK2 on an edge point (a
+///   foreign mark protocol mid-flight, or an unresolvable slot) voids the
+///   no-op argument, so the exact historical lock protocol runs — peers take
+///   transient write guards for the marks (no nesting: `bl` holds only read
+///   guards), then erase them, cc:507-523 verbatim.
 fn find_dup_peers(
     bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     incoming: bool,
 ) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
+    let bank = bl.read().unwrap().bank();
+    let bl_id = bank.registered_id_of(bl);
+    let view = bank.hold();
+    // Fast path: the whole peer set of one edge list, from the write-through
+    // shadows — one edge-table lock, plain atomic flag loads, no peer
+    // materialization (the duplist is empty for ~97% of calls on the VdbeExec
+    // profile, so the expect_arc below runs only for real duplicates).
+    let fast = if incoming {
+        bank.with_in_edges(bl_id, |edges| {
+            dup_peers_from_snapshot(&view, edges)
+        })
+    } else {
+        bank.with_out_edges(bl_id, |edges| {
+            dup_peers_from_snapshot(&view, edges)
+        })
+    };
+    if let Some(dups) = fast.flatten() {
+        return dups.into_iter().map(|id| view.expect_arc(id)).collect();
+    }
+    // Slow path: a peer carries a pre-set mark (or the slot did not resolve)
+    // — run the oracle's mark protocol under the exact historical locking.
     let edges: Vec<crate::block::BlockEdge> = {
         let g = bl.read().unwrap();
         if incoming {
@@ -427,10 +464,6 @@ fn find_dup_peers(
     };
     // cc:507-523: mark peers on first sight (f_mark); a second sight with
     // f_mark already set is a duplicate (report once, f_mark2).
-    let bank = bl.read().unwrap().bank();
-    // PERF-ARENA-FLIP-0001 (f) step 2: one snapshot view for the per-edge
-    // peer resolutions (marks/flags only below — no bank publish happens).
-    let view = bank.hold();
     let mut duplist: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = Vec::new();
     for e in &edges {
         let peer_arc = view.expect_arc(e.point);
@@ -470,12 +503,53 @@ fn find_dup_peers(
     // Self loops could not be marked through the lock; a parallel self-edge
     // pair (2+ edges pointing at `bl` itself) is reported directly
     // (optimistically — the eliminate scan below is a safe no-op when false).
-    let bl_id = bank.registered_id_of(bl);
     let self_count = edges.iter().filter(|e| e.point == bl_id).count();
     if self_count > 1 && !duplist.iter().any(|a| Arc::ptr_eq(a, bl)) {
         duplist.push(bl.clone());
     }
     duplist
+}
+
+// Ghidra: block.cc:507 FlowBlock::findDups
+/// Pure duplicate computation over an edge-shadow snapshot — the fast-path
+/// form of `find_dup_peers`'s mark protocol, valid iff every edge point
+/// arrives free of f_mark/f_mark2 (see `find_dup_peers` for the no-op
+/// argument). Returns `None` when the snapshot form cannot prove equivalence
+/// (a pre-set mark, or an unresolvable slot): the caller falls back to the
+/// exact lock protocol.
+///
+/// Push order is the oracle's second-occurrence order (cc:514-517: the push
+/// happens at a point's SECOND sight — `count_before == 1` — and the
+/// f_mark2 guard suppresses third and later sights). The inner count loop is
+/// allocation-free on purpose: edge lists are a few slots long, and Ghidra's
+/// own loop body is a direct member read with no allocation (block.cc:510).
+fn dup_peers_from_snapshot(
+    view: &crate::block::BlockBankView,
+    edges: &[crate::block::BlockEdge],
+) -> Option<Vec<crate::arena::BlockId>> {
+    let marks = crate::block::block_flags::MARK | crate::block::block_flags::MARK2;
+    // Guard: any pre-set mark voids the snapshot argument -> lock protocol.
+    for e in edges {
+        match view.flags(e.point) {
+            Some(f) if f & marks == 0 => {}
+            _ => return None,
+        }
+    }
+    // Pure second-sight scan (no writes: the lock protocol's set-then-erase
+    // pass cancels on mark-clean peers, cc:512-522).
+    let mut dups: Vec<crate::arena::BlockId> = Vec::new();
+    for (i, e) in edges.iter().enumerate() {
+        let mut count_before = 0usize;
+        for j in 0..i {
+            if edges[j].point == e.point {
+                count_before += 1;
+            }
+        }
+        if count_before == 1 {
+            dups.push(e.point);
+        }
+    }
+    Some(dups)
 }
 
 // Ghidra: block.cc:446 FlowBlock::eliminateInDups / block.cc:475 FlowBlock::eliminateOutDups
@@ -10210,5 +10284,145 @@ mod multigoto_defaultchain_tests {
             saw_conversion,
             "the synthetic loop-exit goto must hit the sibling-entry conversion"
         );
+    }
+}
+
+#[cfg(test)]
+mod finddup_tests {
+    use super::*;
+    use crate::address::Address;
+    use crate::arena::{ArenaId, BlockId};
+    use crate::block::block_flags;
+    use crate::block::{BlockBasic, BlockGraph};
+    use std::sync::{Arc, RwLock};
+
+    type BlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
+
+    fn basic(idx: i32, addr: u64) -> BlockArc {
+        Arc::new(RwLock::new(BlockBasic::new(idx, Address::new(addr))))
+    }
+
+    // PERF-FINDDUP-0001: the snapshot fast path must return the lock
+    // protocol's exact duplist (second-occurrence order, third sight not
+    // re-pushed, cc:514-517) and leave every peer mark-clean afterwards
+    // (the set-then-erase pass cancels, cc:521-522).
+    #[test]
+    fn dup_peers_snapshot_matches_lock_protocol() {
+        let mut g = BlockGraph::new();
+        let a = basic(0, 0x100);
+        let b = basic(1, 0x200);
+        let c = basic(2, 0x300);
+        g.add_block(a.clone());
+        g.add_block(b.clone());
+        g.add_block(c.clone());
+        // b's in-list: [a, c, a, a, c] — a dups at slot 2, c dups at slot 4;
+        // a's third sight (slot 3) must not re-push.
+        g.add_edge(a.clone(), b.clone());
+        g.add_edge(c.clone(), b.clone());
+        g.add_edge(a.clone(), b.clone());
+        g.add_edge(a.clone(), b.clone());
+        g.add_edge(c.clone(), b.clone());
+
+        let dups = find_dup_peers(&b, true);
+        assert_eq!(dups.len(), 2, "one push per duplicated peer");
+        assert!(
+            Arc::ptr_eq(&dups[0], &a),
+            "second-occurrence order: a dups first (slot 2)"
+        );
+        assert!(
+            Arc::ptr_eq(&dups[1], &c),
+            "second-occurrence order: c dups second (slot 4)"
+        );
+        // Net-zero marks: the protocol's set-then-erase cancels.
+        assert_eq!(a.read().unwrap().get_flags() & (block_flags::MARK | block_flags::MARK2), 0);
+        assert_eq!(c.read().unwrap().get_flags() & (block_flags::MARK | block_flags::MARK2), 0);
+
+        // The snapshot helper alone agrees on the same edge list.
+        let view = g.bank.hold();
+        let id_a = g.bank.id_of(&a).unwrap();
+        let id_c = g.bank.id_of(&c).unwrap();
+        let edges: Vec<crate::block::BlockEdge> = vec![
+            crate::block::BlockEdge::new(id_a, 0),
+            crate::block::BlockEdge::new(id_c, 0),
+            crate::block::BlockEdge::new(id_a, 0),
+            crate::block::BlockEdge::new(id_a, 0),
+            crate::block::BlockEdge::new(id_c, 0),
+        ];
+        assert_eq!(
+            dup_peers_from_snapshot(&view, &edges),
+            Some(vec![id_a, id_c]),
+            "snapshot form: same order, third sight suppressed"
+        );
+
+        // Unique edges: empty duplist, fast form taken.
+        let dups_out = find_dup_peers(&b, false);
+        assert!(dups_out.is_empty(), "out-list has no dups");
+    }
+
+    // A pre-set MARK voids the snapshot argument: the helper must return
+    // None (fallback), and the fallback lock protocol must behave exactly
+    // like the oracle — the pre-marked peer is reported as a duplicate on
+    // its FIRST sight (cc:514: f_mark already set ⇒ dup) and every mark,
+    // including the pre-set one, is erased by the second pass (cc:521-522).
+    #[test]
+    fn dup_peers_falls_back_on_preset_mark() {
+        let mut g = BlockGraph::new();
+        let a = basic(0, 0x100);
+        let b = basic(1, 0x200);
+        let c = basic(2, 0x300);
+        g.add_block(a.clone());
+        g.add_block(b.clone());
+        g.add_block(c.clone());
+        g.add_edge(a.clone(), b.clone());
+        g.add_edge(c.clone(), b.clone());
+        g.add_edge(a.clone(), b.clone());
+        c.write().unwrap().set_flags(block_flags::MARK);
+
+        let view = g.bank.hold();
+        let id_a = g.bank.id_of(&a).unwrap();
+        let id_c = g.bank.id_of(&c).unwrap();
+        let edges: Vec<crate::block::BlockEdge> = vec![
+            crate::block::BlockEdge::new(id_a, 0),
+            crate::block::BlockEdge::new(id_c, 0),
+            crate::block::BlockEdge::new(id_a, 0),
+        ];
+        assert_eq!(
+            dup_peers_from_snapshot(&view, &edges),
+            None,
+            "pre-set mark forces the lock-protocol fallback"
+        );
+
+        let dups = find_dup_peers(&b, true);
+        assert_eq!(dups.len(), 2);
+        assert!(Arc::ptr_eq(&dups[0], &c), "pre-marked c reports at first sight");
+        assert!(Arc::ptr_eq(&dups[1], &a));
+        // Oracle net effect: the erase pass clears the pre-set mark too.
+        assert_eq!(c.read().unwrap().get_flags() & (block_flags::MARK | block_flags::MARK2), 0);
+        assert_eq!(a.read().unwrap().get_flags() & (block_flags::MARK | block_flags::MARK2), 0);
+    }
+
+    // Parallel self edges: the block itself is its own dup peer (the oracle
+    // marks `this` like any other point, block.cc:512-519).
+    #[test]
+    fn dup_peers_self_loop_parallel_edges() {
+        let mut g = BlockGraph::new();
+        let b = basic(0, 0x100);
+        g.add_block(b.clone());
+        g.add_edge(b.clone(), b.clone());
+        g.add_edge(b.clone(), b.clone());
+        let dups = find_dup_peers(&b, true);
+        assert_eq!(dups.len(), 1);
+        assert!(Arc::ptr_eq(&dups[0], &b));
+        assert_eq!(b.read().unwrap().get_flags() & (block_flags::MARK | block_flags::MARK2), 0);
+    }
+
+    // An unresolvable point id (sentinel/stale) also falls back rather than
+    // answering from an unreadable slot.
+    #[test]
+    fn dup_peers_snapshot_rejects_unresolvable_point() {
+        let g = BlockGraph::new();
+        let view = g.bank.hold();
+        let edges = vec![crate::block::BlockEdge::new(BlockId::SENTINEL, 0)];
+        assert_eq!(dup_peers_from_snapshot(&view, &edges), None);
     }
 }
