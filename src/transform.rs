@@ -1725,4 +1725,65 @@ mod readinode2_tests {
         assert!(!r3.1);
         assert_eq!(r3.2, 0, "zero consume must not gain fill bits at lsb 0");
     }
+
+    // CR-READINODE2 §5-2 remediation: two assertions for the branches the
+    // original test left uncovered.
+    #[test]
+    fn test_piece_transfer_lsb8_guard_false_and_no_def_path() {
+        use crate::varnode::varnode_flags;
+        let mut fd = crate::funcdata::Funcdata::new(
+            "piece_transfer_edge",
+            crate::address::Address::new(0x1000),
+            1,
+        );
+        // (1) lsbOffset >= sizeof(uintb): funcdata_varnode.cc:618 guard is
+        // false, so cc:617's initializer survives — newConsume stays ~0
+        // regardless of the source consume and is NOT masked by calc_mask
+        // (the & calc_mask(newSize) lives inside the guarded block only).
+        let wide = std::sync::Arc::new(std::sync::RwLock::new(Varnode::new(
+            16,
+            crate::address::Address::new(0x300),
+        )));
+        {
+            let mut w = wide.write().unwrap();
+            w.set_addr_force();
+            w.set_consume(0); // zero source consume must still yield ~0
+        }
+        let mut tv_wide = TransformVar::initialize(
+            TransformVarType::Piece,
+            Some(wide),
+            128, // bit_size of the 16-byte source (unused by the Piece arm)
+            2,
+            64, // val: bit 64 -> bytePos 8 -> lsbOffset 8 (== sizeof(uintb))
+        );
+        let op = fd.new_op(1, crate::address::Address::new(0x1008));
+        tv_wide.create_replacement(&mut fd, Some(&op));
+        let rw = tv_wide.replacement.expect("lsb8 piece replacement created");
+        let w = rw.read().unwrap();
+        assert!(w.is_addr_force(), "flags transfer is outside the lsb guard");
+        assert_eq!(w.get_consume(), !0u64, "lsb>=8 keeps the ~0 initializer");
+        // (2) def == None path: transform.cc:204-205 takes newVarnode (not
+        // newVarnodeOut) and cc:208 still transfers properties.
+        let orig = std::sync::Arc::new(std::sync::RwLock::new(Varnode::new(
+            8,
+            crate::address::Address::new(0x400),
+        )));
+        {
+            let mut o = orig.write().unwrap();
+            o.set_addr_force();
+            o.set_consume(0xffff_ffff_ffff_ffff);
+        }
+        let mut tv_nodef = TransformVar::initialize(
+            TransformVarType::Piece,
+            Some(orig),
+            48,
+            6,
+            0,
+        );
+        tv_nodef.create_replacement(&mut fd, None);
+        let rn = tv_nodef.replacement.expect("no-def piece replacement created");
+        let n = rn.read().unwrap();
+        assert!(n.is_addr_force(), "cc:208 transfer runs on the def==0 path");
+        assert_eq!(n.get_consume(), crate::address::calc_mask(6));
+    }
 }

@@ -168,7 +168,12 @@ replacement op/out/(非 possible-out 时) in(0) 上置标志）。
   的栈槽）经 RuleSplitFlow/SplitFlow 拆分后丢失 addrforce →
   RuleEarlyRemoval/ActionDeadCode 吞掉写回格（READINODE2 drill：
   read_super xRam156858 的 6 字节 return-copy oracle 于 earlyremoval 6785
-  存活[isAutoLive]，Rugra 旧码 6257 即亡）。
+  存活[isAutoLive]，Rugra 旧码 6257 即亡）。测试覆盖（CR-READINODE2 §5-2
+  整改补齐）：原三断言（addrforce/directwrite 转移、lsb 6 高 lane fill_bits、
+  零标志零 consume 对照）+ 2026-10-02 补 `lsb_offset>=8` 守卫假分支
+  （funcdata_varnode.cc:618 false → newConsume 保持 `~0` 初值、不落
+  calc_mask 截断）与 `def==None` 路（transform.cc:204-205 newVarnode 分支
+  同样到达 cc:208 transfer）两断言。
 - `Funcdata::mark_indirect_creation`（src/funcdata.rs）对 in(0) 非常量走
   eprintln 而非 Ghidra 的 LowlevelError throw（funcdata_op.cc:743-744）；
   fixture 只覆盖常量 in(0) 路径（FUNCDATA-MARKINDIRECT-STRICT-0001）。
