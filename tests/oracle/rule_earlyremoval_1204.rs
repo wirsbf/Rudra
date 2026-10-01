@@ -244,8 +244,7 @@ fn run_dispatch() {
     let alive = graph
         .fd
         .obank
-        .alivelist
-        .iter()
+        .iter_alive()
         .map(|op| (op.0.read().unwrap().opcode as i32).to_string())
         .collect::<Vec<_>>()
         .join(",");

@@ -235,9 +235,14 @@ pub struct SubvariableFlow {
     /// (which has no field in C++; it only gates flowsize selection). Kept so
     /// the constructor logic is 1:1.
     pub big: bool,
-    /// Containing function. `fd`. None means the constructor short-circuited
+    /// Containing function presence flag. Models the oracle `Funcdata* fd`
+    /// member's NULL state (subflow.cc:1372 `isNull`, ctor `fd=(Funcdata*)0`
+    /// short-circuits): `false` means the constructor short-circuited
     /// (mask==0 or bitsize too big), in which case `do_trace` returns false.
-    pub fd: Option<*mut Funcdata>,
+    /// The Funcdata itself is threaded per call (P6, ARENA_DESIGN §3.2) —
+    /// only the presence bit is stored, so no raw pointer crosses a thread
+    /// boundary and no `unsafe impl Send` shim is needed.
+    pub fd_present: bool,
     /// Map from original Varnode Arc ptr to the index of its ReplaceVarnode in
     /// `newvarlist`. Mirrors `map<Varnode*,ReplaceVarnode> varmap` (the key is
     /// the Varnode; the value also being present means the Varnode `isMark()`).
@@ -264,11 +269,8 @@ pub struct SubvariableFlow {
     pub pullcount: i32,
 }
 
-// SAFETY: `fd` is a raw pointer used purely as a presence flag (the actual
-// `&mut Funcdata` is threaded through method calls). We never deref it across
-// threads; it is therefore `Send`. Matches how the rest of the crate treats
-// non-thread-shared per-call analysis state.
-unsafe impl Send for SubvariableFlow {}
+// (No `unsafe impl Send`: since the raw `*mut Funcdata` presence flag became
+// the plain `fd_present: bool`, every field is automatically Send+Sync.)
 
 impl SubvariableFlow {
     // -----------------------------------------------------------------
@@ -409,7 +411,7 @@ impl SubvariableFlow {
             aggressive: aggr,
             sext_restrictions: sext,
             big,
-            fd: Some(fd as *mut Funcdata),
+            fd_present: true,
             varmap: BTreeMap::new(),
             newvarlist: Vec::new(),
             oplist: Vec::new(),
@@ -420,7 +422,7 @@ impl SubvariableFlow {
         };
         if mask == 0 {
             // Ghidra: fd = (Funcdata*)0; return;
-            s.fd = None;
+            s.fd_present = false;
             return s;
         }
         s.bitsize = (mostsigbit_set(mask) - leastsigbit_set(mask)) + 1;
@@ -434,12 +436,12 @@ impl SubvariableFlow {
             s.flowsize = 4;
         } else if s.bitsize <= 64 {
             if !big {
-                s.fd = None;
+                s.fd_present = false;
                 return s;
             }
             s.flowsize = 8;
         } else {
-            s.fd = None;
+            s.fd_present = false;
             return s;
         }
         // createLink((ReplaceOp*)0, mask, 0, root)
@@ -452,7 +454,7 @@ impl SubvariableFlow {
     /// `fd==(Funcdata*)0`)? When true, [`do_trace`](Self::do_trace) will return
     /// false without doing anything.
     pub fn is_null(&self) -> bool {
-        self.fd.is_none()
+        !self.fd_present
     }
 
     // -----------------------------------------------------------------
@@ -781,8 +783,7 @@ impl SubvariableFlow {
             // fd->beginOp(CPUI_RETURN)/endOp. Rugra filters the live op bank.
             let returns: Vec<Arc<RwLock<PcodeOp>>> = fd
                 .obank
-                .alivelist
-                .iter()
+                .iter_alive()
                 .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_RETURN)
                 .map(|r| r.0.clone())
                 .collect();
@@ -2609,7 +2610,7 @@ impl SubvariableFlow {
     pub fn do_trace(&mut self, fd: &Funcdata) -> bool {
         self.pullcount = 0;
         let mut retval = false;
-        if self.fd.is_some() {
+        if self.fd_present {
             retval = true;
             while !self.worklist.is_empty() {
                 if !self.process_next_work(fd) {

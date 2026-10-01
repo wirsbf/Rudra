@@ -63,8 +63,8 @@ fn print_membership(
         "case={case_name} record=membership phase={phase} uniq={} optree={} alive={} dead={}",
         bank.get_uniqid(),
         list_token(labels, bank.optree.iter()),
-        list_token(labels, bank.alivelist.iter()),
-        list_token(labels, bank.deadlist.iter()),
+        list_token(labels, bank.iter_alive()),
+        list_token(labels, bank.iter_dead()),
     );
 }
 

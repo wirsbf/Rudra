@@ -466,7 +466,7 @@ impl TransformVar {
                 // the annotation flag comes from the Varnode ctor
                 // (varnode.cc:599-601) and assignHigh is the annotation
                 // no-op leg (funcdata_varnode.cc:54-56).
-                match get_op_from_const_offset(self.val) {
+                match get_op_from_const_offset(fd, self.val) {
                     Some(indeffect) => {
                         self.replacement = Some(fd.new_varnode_iop(&indeffect));
                     }
@@ -487,32 +487,35 @@ impl TransformVar {
 /// Resolve an iop-space offset back to the PcodeOp it references. Faithful to
 /// the static `PcodeOp::getOpFromConst(const Address &addr)` (op.hh:249),
 /// which reinterprets the address offset as a `PcodeOp*`. This is the
-/// offset-based overload of `Funcdata::get_op_from_const` (funcdata.rs:3325,
+/// offset-based overload of `Funcdata::get_op_from_const` (funcdata.rs,
 /// varnode-parametered) mirroring transform.cc:213, where the Address is
 /// constructed directly from the placeholder value without a materialized
 /// Varnode. Rugra decodes the same `Arc::as_ptr` encoding written by
-/// `Funcdata::new_varnode_iop` (funcdata.rs:3303).
+/// `Funcdata::new_varnode_iop` (funcdata.rs).
 ///
 /// Ghidra's decode is a nullable `(PcodeOp*)(uintp)addr.getOffset()`; offset
 /// 0 decodes to NULL, which `newVarnodeIop` re-encodes without dereferencing.
-/// Rust's `Arc` is non-null, so offset 0 maps to `None` — the reconstruction
-/// below must never run on a null pointer (`NonNull::new_unchecked` UB).
-fn get_op_from_const_offset(offset: u64) -> Option<PcodeOpRef> {
+/// The safe Rugra form resolves the offset by IDENTITY SEARCH over the op
+/// bank (optree + deadandgone — destroy keeps the allocation bank-resident,
+/// op.cc:984-999, so retired targets still resolve): the producer contract
+/// (`OPBANK-0001`, cf. `Funcdata::get_op_from_const`) guarantees the encoded
+/// op is alive in the bank, so the search finds exactly the Arc the oracle's
+/// pointer reinterpretation would have produced — without reconstructing an
+/// `Arc` from a raw address. The ConstantIop placeholder path is a cold,
+/// per-transform site (lane splitting), so the linear scan is not on any
+/// measured face.
+fn get_op_from_const_offset(fd: &Funcdata, offset: u64) -> Option<PcodeOpRef> {
     if offset == 0 {
         // Ghidra: NULL PcodeOp* — carried through, never dereferenced.
         return None;
     }
-    // SAFETY: the offset was obtained from Arc::as_ptr on a PcodeOp that is
-    // still alive in the op bank (same reconstruction contract as
-    // Funcdata::get_op_from_const, funcdata.rs:3330-3343). Clone to bump the
-    // refcount, then forget the reconstructed Arc so it is not dropped twice.
-    let raw = offset as usize as *const std::sync::RwLock<crate::op::PcodeOp>;
-    unsafe {
-        let arc = std::sync::Arc::from_raw(raw);
-        let cloned = std::sync::Arc::clone(&arc);
-        std::mem::forget(arc);
-        Some(PcodeOpRef(cloned))
-    }
+    let target = offset as usize;
+    fd.obank
+        .optree
+        .iter()
+        .chain(fd.obank.iter_deadandgone())
+        .find(|op| std::sync::Arc::as_ptr(&op.0) as *const () as usize == target)
+        .cloned()
 }
 
 // ===========================================================================
@@ -639,8 +642,6 @@ impl TransformOp {
 /// concatenated (lanes), and splits Varnode and data-flow into explicit
 /// operations on the lanes.
 pub struct TransformManager {
-    /// Function being operated on.
-    fd: Option<*mut Funcdata>,
     /// Map from a big Varnode's create-index to the start index of its split
     /// array in `new_varnodes`. Mirrors Ghidra's `map<int4,TransformVar*>`.
     piece_map: BTreeMap<u32, usize>,
@@ -671,9 +672,14 @@ fn null_slot_sentinel() -> std::sync::Arc<RwLock<Varnode>> {
     crate::op::null_slot_sentinel()
 }
 
-// SAFETY: `*mut Funcdata` is only dereferenced within `&mut self` methods while
-// the transform pass holds a unique borrow. Mirrors Ghidra's `Funcdata* fd`.
-unsafe impl Send for TransformManager {}
+// P6 borrowing form (ARENA_DESIGN §3.2/§3.4, D11): Ghidra's TransformManager
+// holds `Funcdata *fd` (transform.hh:157) set at construction — the god-object
+// the oracle's friend-class architecture already is. Rust cannot store the
+// `&mut` (it would alias every later borrower), so per the campaign's P6
+// ruling the fd-using lifecycle methods take `fd: &mut Funcdata` at each call
+// (call sites already hold it — subflow.cc's SplitFlow/LaneDivide forward
+// from methods that receive fd). With the raw pointer gone, the manager is
+// automatically Send+Sync: the former `unsafe impl Send` shim is deleted.
 
 impl Default for TransformManager {
     // Ghidra: transform.hh:32 TransformManager::default
@@ -687,7 +693,6 @@ impl TransformManager {
     /// Construct an empty manager (no Funcdata binding yet).
     pub fn new() -> Self {
         Self {
-            fd: None,
             piece_map: BTreeMap::new(),
             new_varnodes: Vec::new(),
             new_ops: Vec::new(),
@@ -695,10 +700,14 @@ impl TransformManager {
         }
     }
 
-    // Ghidra: transform.hh:32 TransformManager::init
-    /// Bind to a Funcdata. Faithful to the constructor (transform.hh:169).
-    pub fn init(&mut self, fd: &mut Funcdata) {
-        self.fd = Some(fd as *mut Funcdata);
+    // Ghidra: transform.hh:169 TransformManager::TransformManager
+    /// Bind to a Funcdata. Faithful to the oracle constructor
+    /// (`TransformManager(Funcdata *f) { fd = f; }`, transform.hh:169),
+    /// which binds the function at construction; the P6 Rust form does not
+    /// store the reference (the lifecycle methods receive `fd` per call),
+    /// so this only resets the placeholder storages exactly as the oracle
+    /// ctor's fresh member state.
+    pub fn init(&mut self, _fd: &mut Funcdata) {
         self.piece_map.clear();
         self.new_varnodes.clear();
         self.new_ops.clear();
@@ -1060,8 +1069,7 @@ impl TransformManager {
     /// true)` (funcdata_op.cc:736-748 sets `PcodeOp::indirect_creation` on the
     /// replacement, `Varnode::indirect_creation` on the output and — only for
     /// the non-possible-out form — on input(0)).
-    fn special_handling(&self, rop: &TransformOp) {
-        let fd = unsafe { &*self.fd.expect("TransformManager not initialized") };
+    fn special_handling(&self, fd: &Funcdata, rop: &TransformOp) {
         if (rop.special & transform_op_special::INDIRECT_CREATION) != 0 {
             if let Some(replacement) = &rop.replacement {
                 fd.mark_indirect_creation(replacement, false);
@@ -1082,8 +1090,7 @@ impl TransformManager {
     /// (cc:241-242) and inserts immediately when no follow is pending
     /// (cc:243-248). NULL input slots are modelled by detached size-0
     /// sentinels (`null_slot_sentinel`).
-    fn create_op_replacement(&mut self, op_idx: usize) {
-        let fd = unsafe { &mut *self.fd.expect("TransformManager not initialized") };
+    fn create_op_replacement(&mut self, fd: &mut Funcdata, op_idx: usize) {
         let is_preexisting = (self.new_ops[op_idx].special & transform_op_special::OP_PREEXISTING) != 0;
         if is_preexisting {
             // cc:228: replacement = op (identity preserved; never re-inserted).
@@ -1170,11 +1177,11 @@ impl TransformManager {
     // Ghidra: transform.cc:665 TransformManager::createOps
     /// Create the actual PcodeOps from placeholders. Faithful to `createOps`
     /// (transform.cc:665-680).
-    fn create_ops(&mut self) {
+    fn create_ops(&mut self, fd: &mut Funcdata) {
         // First pass: create all op replacements.
         let n_ops = self.new_ops.len();
         for i in 0..n_ops {
-            self.create_op_replacement(i);
+            self.create_op_replacement(fd, i);
         }
         // Second pass: insert ops that follow another op, iterating until all
         // are inserted.
@@ -1188,7 +1195,6 @@ impl TransformManager {
                 }
                 // Snapshot the follow index before the call.
                 let _ = i;
-                let fd = unsafe { &mut *self.fd.expect("TransformManager not initialized") };
                 // We must borrow new_ops immutably for attempt_insertion's
                 // lookup while mutating new_ops[i]. Clone the slice view.
                 let ops_snapshot: Vec<TransformOp> = self.new_ops.clone();
@@ -1209,8 +1215,7 @@ impl TransformManager {
     /// Create the actual Varnodes from placeholders. Faithful to
     /// `createVarnodes` (transform.cc:684-711). Collects input varnodes into
     /// `input_list`.
-    fn create_varnodes(&mut self, input_list: &mut Vec<(usize, bool)>) {
-        let fd = unsafe { &mut *self.fd.expect("TransformManager not initialized") };
+    fn create_varnodes(&mut self, fd: &mut Funcdata, input_list: &mut Vec<(usize, bool)>) {
         // Iterate over all split arrays (referenced by piece_map) and create
         // replacements, collecting input pieces.
         let entries: Vec<(u32, usize)> = self.piece_map.iter().map(|(&k, &v)| (k, v)).collect();
@@ -1280,8 +1285,7 @@ impl TransformManager {
     // Ghidra: transform.cc:713 TransformManager::removeOld
     /// Remove old preexisting PcodeOps that are now obsolete. Faithful to
     /// `removeOld` (transform.cc:713-724).
-    fn remove_old(&mut self) {
-        let fd = unsafe { &mut *self.fd.expect("TransformManager not initialized") };
+    fn remove_old(&mut self, fd: &mut Funcdata) {
         let to_destroy: Vec<PcodeOpRef> = self
             .new_ops
             .iter()
@@ -1299,8 +1303,7 @@ impl TransformManager {
     // Ghidra: transform.cc:729 TransformManager::transformInputVarnodes
     /// Remove old input Varnodes and mark new ones as inputs. Faithful to
     /// `transformInputVarnodes` (transform.cc:729-738).
-    fn transform_input_varnodes(&mut self, input_list: &[(usize, bool)]) {
-        let fd = unsafe { &mut *self.fd.expect("TransformManager not initialized") };
+    fn transform_input_varnodes(&mut self, fd: &mut Funcdata, input_list: &[(usize, bool)]) {
         for &(rvn_idx, is_duplicate) in input_list {
             if !is_duplicate {
                 // cc:734-735: fd->deleteVarnode(rvn->vn) — the old input
@@ -1332,8 +1335,7 @@ impl TransformManager {
     // Ghidra: transform.cc:740 TransformManager::placeInputs
     /// Set input Varnodes for all new ops. Faithful to `placeInputs`
     /// (transform.cc:740-754).
-    fn place_inputs(&mut self) {
-        let fd = unsafe { &mut *self.fd.expect("TransformManager not initialized") };
+    fn place_inputs(&mut self, fd: &mut Funcdata) {
         // Snapshot the replacement varnodes to avoid borrow conflicts.
         let replacements: Vec<Option<Arc<RwLock<Varnode>>>> = self
             .new_varnodes
@@ -1356,22 +1358,23 @@ impl TransformManager {
                 // special_handling needs &rop; we have the index.
                 let rop = &self.new_ops[i];
                 let _ = special;
-                self.special_handling(rop);
+                self.special_handling(fd, rop);
             }
         }
     }
 
     // Ghidra: transform.cc:756 TransformManager::apply
     /// Apply the full transform to the function. Faithful to `apply`
-    /// (transform.cc:756-765).
+    /// (transform.cc:756-765). P6 form: the oracle's stored `fd` member is
+    /// threaded as the call parameter (the whole lifecycle runs under this
+    /// one borrow).
     pub fn apply(&mut self, fd: &mut Funcdata) {
-        self.fd = Some(fd as *mut Funcdata);
         let mut input_list: Vec<(usize, bool)> = Vec::new();
-        self.create_ops();
-        self.create_varnodes(&mut input_list);
-        self.remove_old();
-        self.transform_input_varnodes(&input_list);
-        self.place_inputs();
+        self.create_ops(fd);
+        self.create_varnodes(fd, &mut input_list);
+        self.remove_old(fd);
+        self.transform_input_varnodes(fd, &input_list);
+        self.place_inputs(fd);
     }
 }
 

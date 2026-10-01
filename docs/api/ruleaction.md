@@ -2294,3 +2294,49 @@ newCodeRef 复制在 Rust 克隆器为共享 varnode（nodeSplit 域既有决定
   Join 空间注册地址；RETURN 侧 return_join_address 委托 Architecture；
   double_precis create_joined_whole 消费空间限定结果；process_joins /
   build_subpiece 经 RwLock 读 join_db。无独立新语义。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
+
+## 2026-09-30（c 段）：RuleBxor2NotEqual 走 opSetOpcode 原形（PERF-ARENA-FLIP-0001 (c)）
+
+`RuleBxor2NotEqual::applyOp`（ruleaction.cc:269-274）原 Rust 形态直写
+`op_arc.write().opcode = CPUI_INT_NOTEQUAL`——移植偏差（oracle 全部经
+`data.opSetOpcode`）。改走 `fd.op_set_opcode`：BOOL_XOR→INT_NOTEQUAL
+派生 flag 集相同（BINARY|COMMUTATIVE|BOOLOUTPUT）且互非 code-list 成员，
+可观测效果恒等；同时维护 OpCell opcode 影子不变量（ActionPool 派发复读
+依赖 change_opcode 单点更新）。行为面 canon/镜面门禁字节恒等亲证。
+
+## 2026-09-30（c 段续）：热路径规则的 miss 路径句柄克隆消除（PERF-ARENA-FLIP-0001 (c)）
+
+规则体 `PcodeOpRef(op_arc.clone())` 物化形态审计（规则池 per-try 常数的
+克隆面）：机械扫描全部物化位点并人工核对每个的守卫前置性——**五条热规则
+的 miss 路径克隆推迟到命中路径**（分支作用域/内联物化，语义零变化，仅
+克隆时机移动）：
+
+- `RuleIndirectCollapse`（1.9M tries，VdbeExec 极第 3 热规则）：顶部物化
+  → `res>0` 命中分支 + totalReplace 尾路径两处物化。
+- `RuleZextShiftZext`/`RuleDivOpt`/`RuleSwitchSingle`/`RulePtrFlow`：
+  同形推迟；DivOpt 的 `find_form/check_form_overlap` 形态助手签名
+  `&PcodeOpRef` → `&Arc<RwLock<PcodeOp>>`（仅用 `.0`，调用点直传）。
+
+**保留 eager 的位点（逐个核实为非 miss 路径）**：Bxor2NotEqual（恒命中
+规则）、IntLessEqual（单调用实参=API 边界）、FloatSign（`if let` 命中门
+内）、IgnoreNan（`nan_ignore_all` 配置门内）、ExpandLoad（elType 解析
+mid-guard 需要 op 句柄——推迟不净，保留原形）。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

@@ -2,6 +2,91 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-10-01：守卫读消费迁移（Lane ARENAFLIP-g 步骤 3）
+
+- **`BlockBank::expect_size_in/expect_size_out/expect_flags`**（fresh-snapshot
+  形，block.rs:3808-3846）：冷/单发守卫位的无句柄读——state 读锁 + gen 检查 +
+  影子原子 load（与 `expect_index` 同纪律；热位继续用 `BlockBankView` 无锁形）。
+- 消费迁移（blockaction.rs）：`clip_extra_roots` in-body 扫描的 sizeIn 守卫、
+  `try_rule_cat` 入口/首链/链行走进守卫（blockaction.cc:1291/1294/1296/
+  1302-1310 全食谱）、`collapse_switches` case-isexit 的 sizeOut 守卫
+  （block.cc:3514 形态）——peer 深读（Arc 克隆+peer RwLock+vtable）全部换为
+  影子读；cat 链头 index 提升出循环（循环体纯读，index 循环不变量）。
+- BANKSTATS（VdbeExec --one 2415，vs (f) 终态）：view_arc 49.68M→45.11M，
+  链行走 per-iteration peer 锁（~2 把/迭代）→ 原子影子 load；shadow_writes
+  1.19M→7.22M 为步骤 2 维护面（原地 ns 级 store）。stdout md5 abbd0632
+  字节恒等。
+
+## 2026-09-30：size/flags 守卫影子（Lane ARENAFLIP-g 步骤 2）
+
+- **BankShadowCell** 增 `size_in`/`size_out`/`flags` 三个原子槽（block.hh:
+  312-313/165 的守卫读全食谱）——collapse 规则对 peer 的深读（Arc 克隆+
+  peer RwLock+vtable ≈21ns/次，(f) 实测 ~10M 次/跑）由此改为视图原子读。
+- **单点维护（choke）**：
+  - `add_in_edge`/`add_out_edge` 改为 trait 默认实现（原 11 型重复体收拢），
+    尾挂 `sync_bank_shadows()`；`half_delete_in_edge`/`half_delete_out_edge`
+    （pop 后）与 `set_flags`/`clear_flags`（经新 `flags_mut(&mut self) ->
+    &mut u32` 访问器默认化）同款。
+  - `FlowBlock::sync_bank_shadows(&mut self)`：读自身 in/out 长度+flags，
+    经 `owner_bank`+新 `bank_slot`（`set_bank_slot`/`bank_slot` 由
+    `BlockBank::claim(&Arc, id)` 注册时打标；SENTINEL=未注册早退）写入
+    `BlockBank::set_block_shadows`（与 set_index_shadow 同款原地写，不
+    bump epoch）。
+  - 整体赋值/裸 Vec 位点显式补同步：block.rs `clear_edges`/`build_copy`
+    映射孪生赋值、BlockBasic::insert 的 SWITCH_OUT（改走 set_flags）；
+    blockaction.rs identify 安装链（downcast 赋值后 `nb.sync_bank_shadows()`）
+    与 strip_external 双 retain 后；flow.rs splitBasic 三处（SWITCH_OUT
+    直写改 set/clear_flags、`mem::take(&mut pbb.outgoing)` 后、
+    `tbb.outgoing = parent_outgoing` 后）；funcdata.rs insert_op 的
+    SWITCH_OUT 直写改 set_flags。（(f) §1.4 闭集勘定 + (g) 增补：identify
+    安装链与 flow.rs split 系列是 (f) 清单外的长度/flags 突变位，本次
+    全数收口。）
+- **读侧**：`BlockBankView::{size_in,size_out,flags}`（Option 形）+
+  `expect_size_in/expect_size_out/expect_flags`（panic 形）——generation
+  检查+Relaxed 原子读+读后 epoch 检查，与 index/btype 同纪律；debug 构建
+  追加 shadow==深读真值的 debug_assert（测试套件钉死突变面闭集完备性）。
+- `BlockCell` 增 `size_in/size_out/flags` 注册快照字段（add_block/adopt/
+  adopt_bulk 在同一读守卫内取样）。
+
+## 2026-09-30：BlockBankView/hold/adopt（Lane ARENAFLIP-d 步骤 2）
+
+- `BlockBank::hold() -> BlockBankView`：扫描级单一读守卫视图；`view.index/
+  btype/arc(id)` 为影子槽读（block.hh:160/184 字段读形态）。`BlockBank::
+  adopt(&Arc)`：复合块经 Vec 槽位安装（identify_internal 等旁路 add_block）
+  的注册路径（幂等；同 add_block 的 cell+身份映射记账）。
+- 行为恒等面见 docs/api/blockaction.md 2026-09-30 步骤 2 条。
+
+## 2026-09-30：per-graph block bank + BlockEdge point_id 值孪生（Lane ARENAFLIP-d 步骤 1）
+
+- **BlockBank**：`BlockGraph` 新增 `bank: BlockBank` 字段——
+  `RwLock<Arena<BlockCell, BlockId>>`（arena.rs 冻结 Arena）+ Arc 身份映射
+  （`Arc::as_ptr` 键 → `BlockId`，既定身份键模式）。`add_block` 插入 cell
+  （`arc` + `btype` 影子[插入后不可变] + `index` 影子）并登记身份映射项；
+  槽位在 Vec 列表移除路径后**不回收**（zombie = oracle FlowBlock 堆存活
+  直到图 clear；`clear()` 是唯一回收点，bump generation 使陈旧 id 失效）。
+- **无锁身份解析**：`bank.id_of(&Arc) -> Option<BlockId>` /
+  `registered_id_of`（SENTINEL 形态）**不触碰 block 自身的 RwLock**——
+  这是给边打孪生标记的唯一无死锁方式（自环边的 point 正是持有写守卫
+  的 block 本身；point.read() 打孪生会死锁，测试挂起现场捕获后重构为
+  bank-map 形态）。
+- **BlockEdge.point_id**：`BlockEdge` 新增 `point_id: BlockId` 值孪生
+  （未标记时为 `BlockId::SENTINEL`；裸测试 fixture 保持 SENTINEL）。oracle
+  依据：block.hh:57-65 `BlockEdge` 本就是值类型。生产打标位：`add_edge`
+  （双半边守卫前预打）、`build_copy` remap、`replace_out/in_edge_target`、
+  `rewrite_in/out_edges_to_idx`、`force_output_num`（自环边）、funcdata
+  `replaceInEdge`/node-split、flow splitBasic tail 重定向——全部经 bank
+  映射，绝不在 point 守卫下解析。
+- **index 影子单点维护**：`BlockGraph::set_block_index` 镜像全部活体
+  set_index 突变位（find_spanning_tree 重置/rpost 赋值/第二趟重置/
+  build_dom_tree 重编号/identify install 换位）；`decode_header_trait`
+  保持字段-only set_index（无调用者，已注明）。
+- **影子读 API**：`bank.index_of(id)`/`btype_of(id)`/`arc_of(id)`/
+  `set_index_shadow`。block.hh:160/184 index/getType 为纯字段读，影子
+  镜像之。
+- **行为恒等**：cargo test --lib 2018P/0F/5I；canon curl md5
+  4ab1db2a177e854c6bddca2ecf413685 defects 0/0/0（124/124）；canon httpd
+  md5 7d5b9e7c3348ee8da1865df281ec05b9。
+
 ## 2026-09-29：FlowBlock 引用形边访问器 get_out_ref/get_in_ref + absorbed_into 键型切换（Lane BLOCKSTRUCT per-rule 常数）
 
 - **引用形访问器**：FlowBlock trait 新增 `get_out_ref(&self, slot) ->
@@ -482,6 +567,10 @@ cover 才是合法状态）。
 ### `pub struct BlockEdge`
 
 表示控制流图中的一条边。
+
+字段：`point`（另一端 block 句柄）、`point_id: BlockId`（point 的 bank 值
+孪生——生产构造位经 `bank.registered_id_of` 打标；SENTINEL = 未注册/裸
+fixture）、`flags`、`reverse_index`。
 
 ## 角色
 
@@ -2138,3 +2227,57 @@ case 0x442 与 0x450 之间的 oracle 位。
 Rugra 保守降级不变原行为）。
 ④`label_rank_arm_unchanged_post_finalize` — default_label 置位后 label-rank
 臂接管（print 期相位,cc:3591 排序后语义）,构造序臂不介入。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## ARENAFLIP-e（2026-09-30）规则派发快照化随迁
+
+`try_rule_switch` 签名增 `block: &Arc<...>` 参数（blockaction 派发快照化的
+测试调用点随迁: block.rs 的 switch 规则单测改为先取 `fd.sblocks.get_block`
+再传入,行为不变;tests 2018P 保持）。
+
+## ARENAFLIP-f（2026-09-30）BANKSTATS 观测探针（默认关）
+
+`RUGRA_BANKSTATS=1` 时 `src/block.rs::bank_stats` 累计 per-read bank 解析面
+事件计数（read_index/read_btype/read_arc/view_holds/view_index/view_btype/
+view_arc/id_lookups/publishes/shadow_writes），`bank_stats::report()` 在
+gen_decompile 尾部（all 模式与 --one 模式）打一行 stderr。纯观测（默认零成
+本一次分支）；(f) 段交接面①的量化底座（(e)-tip 树替代语料实测 ~393M 次锁
+获取，见车道终报）。
+
+## ARENAFLIP-f（2026-09-30）BlockBank COW-Arc 快照存储（交接面①）
+
+`BlockBankShared` 存储翻转为 COW-Arc 快照形态：`state: RwLock<BankState>`
+（`table: Arc<BankTable>` = arcs/btypes/gens 发布后不可变，insert/clear 经
+`Arc::make_mut` 写时复制并 bump `epoch`；`cells: Arc<Vec<BankShadowCell>>`
+= 原子 index 影子原地写，rpost 重编号 O(n) 次不重发布）+ `epoch: AtomicU64`。
+**minting 与冻结的 arena.rs::Arena 逐值恒等**（append-only between clears、
+clear 对占用槽 bump gen、post-clear 升序复用——`cow_bank_mints_arena_
+identical_ids` 单测钉死）。`hold()` 返回** owned** `BlockBankView`（无生命
+周期，可与 `&mut self` 混用）；view 每读后 check epoch（Acquire），发布后
+读陈旧快照即 panic（守卫形态下同违规=同线程死锁，失败面保持响亮）。
+per-read API（index_of/expect_index/arc_of/expect_arc/btype_of）保持签名
+不变（fresh-snapshot 内实现，冷位点半价同形）。行为恒等：canon curl
+`4ab1db2a` + httpd `7d5b9e7c` 首轮字节恒等 + tests 2021P（+3 机制测）。
+
+### adopt_bulk（ARENAFLIP-f 步骤 2b）
+
+`BlockBank::adopt_bulk(&[Arc<...>])` — 逐成员 `adopt` 的批量形：一次身份读锁
+覆盖整批幂等探针（collapse_internal 首部的 per-pass adoption sweep 专用；
+identify 入口 adopt 后新条目罕见）。语义与逐成员 adopt 等价——仅锁形态变化。
+
+### 探针收尾（ARENAFLIP-f）
+
+临时 BANKTRACE 回溯采样器按 (f) 步骤 0 承诺移除（BANKSTATS 计数器保留,
+默认关）;expect_arc/expect_index 经 arc_of/index_of 委托时的计数双记已修
+（替代语料 read_arc 真实面 ~10M 次/跑,非 20M）。

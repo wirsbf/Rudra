@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         eprintln!("\n===== {} @ 0x{:x}: {} ops, {} bblocks =====", name, vaddr, fd.obank.alivelist.len(), fd.bblocks.get_size());
         let mut count = 0;
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_LOAD || op.opcode == OpCode::CPUI_STORE {
                 count += 1;

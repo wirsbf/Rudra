@@ -15,7 +15,9 @@ fn dump_blocks(prefix: &str, graph: &BlockGraph) {
             print!(", Out={} (", b.size_out());
             for j in 0..b.size_out() {
                 if let Some(edge) = b.get_out(j) {
-                    print!("{} ", edge.point.read().unwrap().get_index());
+                    // ARENAFLIP-(e): edge points are bank ids — resolve the
+                    // peer index through the owning graph's bank.
+                    print!("{} ", graph.bank.expect_index(edge.point));
                 }
             }
             println!(")");

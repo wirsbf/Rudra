@@ -460,7 +460,7 @@ impl ActionDeadCode {
             return u64::MAX;
         }
         let mut consume = 0;
-        for return_op in &fd.obank.returnlist {
+        for return_op in fd.obank.iter_return() {
             let input = {
                 let op_rg = return_op.0.read().unwrap();
                 if op_rg.is_dead() || op_rg.num_input() <= 1 { None }
@@ -493,9 +493,13 @@ impl ActionDeadCode {
         // cc:3906: if (data.isJumptableRecoveryOn()) return false;
         if fd.is_jumptable_recovery_on() { return false; }
         let mut res = false;
-        // cc:3907-3921: iterate LOAD ops.
-        let load_ops: Vec<crate::op::PcodeOpRef> = fd.obank.loadlist.clone();
-        for op_ref in &load_ops {
+        // cc:3907-3921: iterate LOAD ops. PERF-ARENA-FLIP-0001 (c): the
+        // workset is the id form (chain-order ids, no handle clones); the
+        // per-op isDead gate stays a guarded read (cc:3913) — the LOAD code
+        // chain admits dead members.
+        let load_ops: Vec<crate::arena::OpId> = fd.obank.iter_load_ids().collect();
+        for op_id in &load_ops {
+            let Some(op_ref) = fd.obank.op_by_id(*op_id) else { continue };
             // Capture the output Arc + in(1) eventual-const check while holding
             // the read lock, then release before mutating.
             let out_arc = {
@@ -568,7 +572,7 @@ impl Action for ActionDeadCode {
         }
 
         let return_consume = Self::gather_consumed_return(fd);
-        let alive_ops = fd.obank.alivelist.clone();
+        let alive_ops = fd.obank.iter_alive().cloned().collect::<Vec<_>>();
         for op_ref in &alive_ops {
             op_ref.0.write().unwrap().flags &= !crate::op::pcodeop_flags::INDIRECT_SOURCE;
             let (is_call, is_call_without_spec, is_assignment, hold_output, opcode, inputs, output) = {
@@ -1378,9 +1382,13 @@ impl Action for ActionCse {
         let mut changed = 0;
         let mut seen: HashMap<(OpCode, Vec<usize>), Arc<std::sync::RwLock<crate::op::PcodeOp>>> =
             HashMap::new();
-        let mut to_kill: Vec<crate::op::PcodeOpRef> = Vec::new();
+        let mut to_kill: Vec<crate::arena::OpId> = Vec::new();
 
-        for op_ref in &fd.obank.alivelist {
+        // PERF-ARENA-FLIP-0001 (c): the kill workset holds plain ids (the
+        // former per-hit PcodeOpRef clone); elements resolve through the
+        // bank at destruction time.
+        for op_id in fd.obank.iter_alive_ids() {
+            let Some(op_ref) = fd.obank.op_by_id(op_id) else { continue };
             let op = op_ref.0.read().unwrap();
 
             // Only consider pure operations (no side-effects)
@@ -1429,7 +1437,7 @@ impl Action for ActionCse {
                             }
                         }
                     }
-                    to_kill.push(op_ref.clone());
+                    to_kill.push(op_id);
                     changed += 1;
                 }
             } else {
@@ -1437,8 +1445,10 @@ impl Action for ActionCse {
             }
         }
 
-        for op_ref in to_kill {
-            fd.obank.mark_dead(op_ref);
+        for op_id in to_kill {
+            if let Some(op_ref) = fd.obank.op_by_id(op_id).cloned() {
+                fd.obank.mark_dead(op_ref);
+            }
         }
 
         if changed > 0 {
@@ -2340,7 +2350,7 @@ impl Action for ActionInferParams {
         // parameters READ by the current function. Counting them would
         // inflate the parameter count to 6 for every function that contains
         // a CALL. Ghidra's ActionActiveParam makes the same distinction.
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_CALL { continue; }
             for in_arc in &op.inrefs {
@@ -2459,7 +2469,7 @@ impl Action for ActionInferParams {
         // must be a pointer type, otherwise the emitted `*param_N` fails C compilation.
         // This mirrors Ghidra's ActionActiveParam pointer recovery.
         let mut ptr_param_offsets: std::collections::HashSet<u64> = std::collections::HashSet::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if matches!(op.opcode, OpCode::CPUI_LOAD | OpCode::CPUI_STORE) && op.inrefs.len() > 1 {
                 let addr_vn = op.inrefs[1].read().unwrap();
@@ -2548,7 +2558,7 @@ impl Action for ActionInferParams {
         }
 
         // --- 2. Infer return type from RETURN operations ---
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_RETURN && op.num_input() > 1 {
                 // RETURN input[1] is the return value (input[0] is the return address)
@@ -2643,7 +2653,7 @@ impl Action for ActionTypeInfer {
         loop {
             let mut iter_changed = 0;
 
-            for op_ref in &fd.obank.alivelist {
+            for op_ref in fd.obank.iter_alive() {
                 let op = op_ref.0.read().unwrap();
 
                 // Rule 1: Opcode-based strong types (only if output has no type yet)
@@ -2862,7 +2872,7 @@ impl Action for ActionTypeInfer {
         }
 
         // Post-pass fallback: assign size-based default types to any varnode still lacking a type.
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if let Some(ref out_arc) = op.output {
                 let mut out_vn = out_arc.write().unwrap();
@@ -3006,13 +3016,14 @@ impl ActionDoNothing {
         // block.cc:2604-2613: switch-target guard — if any in-edge comes
         // from a multi-out switch block and the out target is a join, the
         // switch edge may still be propagating a unique value.
-        let out_target = bl_rg.get_out(0).map(|e| e.point);
+        let bank = bl_rg.bank();
+        let out_target = bl_rg.get_out(0).map(|e| bank.expect_arc(e.point));
         let Some(out_target) = out_target else {
             return false;
         };
         let out_n_in = out_target.read().unwrap().size_in();
         for s in 0..bl_rg.size_in() {
-            let switchbl = bl_rg.get_in(s).map(|e| e.point);
+            let switchbl = bl_rg.get_in(s).map(|e| bank.expect_arc(e.point));
             let Some(switchbl) = switchbl else { continue };
             let is_switch_out = {
                 let rg = switchbl.read().unwrap();
@@ -3070,10 +3081,12 @@ impl ActionDoNothing {
         use crate::opcodes::OpCode;
         use crate::block::FlowBlock as _;
         let bl_rg = bl.read().unwrap();
+        let bank = bl_rg.bank();
         let blout = match bl_rg.get_out(outslot) {
-            Some(e) => e.point,
+            Some(e) => bank.expect_arc(e.point),
             None => return true,
         };
+        let blout_id = bank.registered_id_of(&blout);
         // block.cc:2545-2553: build redundlist — in-blocks of this block
         // that also branch directly to blout.
         let mut redundlist: Vec<
@@ -3081,13 +3094,13 @@ impl ActionDoNothing {
         > = Vec::new();
         for s in 0..bl_rg.size_in() {
             let inbl = match bl_rg.get_in(s) {
-                Some(e) => e.point,
+                Some(e) => bank.expect_arc(e.point),
                 None => continue,
             };
             let in_rg = inbl.read().unwrap();
             for j in 0..in_rg.size_out() {
                 if let Some(e) = in_rg.get_out(j) {
-                    if Arc::ptr_eq(&e.point, &blout) {
+                    if e.point == blout_id {
                         redundlist.push(inbl.clone());
                     }
                 }
@@ -3121,7 +3134,7 @@ impl ActionDoNothing {
                     let idx = (0..out_rg.size_in()).find(|&k| {
                         out_rg
                             .get_in(k)
-                            .map(|e| Arc::ptr_eq(&e.point, red))
+                            .map(|e| e.point == bank.registered_id_of(red))
                             .unwrap_or(false)
                     });
                     match idx {
@@ -3137,7 +3150,7 @@ impl ActionDoNothing {
                     let idx = (0..out_rg.size_in()).find(|&k| {
                         out_rg
                             .get_in(k)
-                            .map(|e| Arc::ptr_eq(&e.point, bl))
+                            .map(|e| e.point == bank.registered_id_of(bl))
                             .unwrap_or(false)
                     });
                     match idx {
@@ -3173,7 +3186,7 @@ impl ActionDoNothing {
                                 let in_idx = (0..bl_rg2.size_in()).find(|&k| {
                                     bl_rg2
                                         .get_in(k)
-                                        .map(|e| Arc::ptr_eq(&e.point, red))
+                                        .map(|e| e.point == bank.registered_id_of(red))
                                         .unwrap_or(false)
                                 });
                                 match in_idx {
@@ -3223,7 +3236,7 @@ impl Action for ActionDoNothing {
             let is_self_loop = {
                 let bl_rg = bl.read().unwrap();
                 if let Some(edge) = bl_rg.get_out(0) {
-                    Arc::ptr_eq(&edge.point, &bl)
+                    edge.point == fd.bblocks.bank.registered_id_of(&bl)
                 } else {
                     false
                 }
@@ -3314,7 +3327,9 @@ impl Action for ActionRedundBranch {
                 if n_out == 0 {
                     continue;
                 }
-                let first = bl_rg.get_out(0).map(|e| e.point);
+                let first = bl_rg
+                    .get_out(0)
+                    .map(|e| fd.bblocks.bank.expect_arc(e.point));
                 (n_out, first)
             };
             let Some(first_target) = first_target else { continue ;
@@ -3350,7 +3365,7 @@ impl Action for ActionRedundBranch {
                 let mut same = true;
                 for j in 1..n_out {
                     if let Some(edge) = bl_rg.get_out(j) {
-                        if !Arc::ptr_eq(&edge.point, &first_target) {
+                        if edge.point != fd.bblocks.bank.registered_id_of(&first_target) {
                             same = false;
                             break;
                         }
@@ -3901,7 +3916,10 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
             let Some(edge) = tail.get_out(0) else {
                 continue;
             };
-            if !Arc::ptr_eq(&edge.point, &head_arc) || edge.reverse_index < 0 {
+            // The tail is the LIVE BlockBasic under the copy (op-parent
+            // chain) — its edges are bblocks-domain ids.
+            let edge_arc = tail.bank().expect_arc(edge.point);
+            if !Arc::ptr_eq(&edge_arc, &head_arc) || edge.reverse_index < 0 {
                 continue;
             }
             edge.reverse_index as usize
@@ -4049,7 +4067,9 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
                             let parent = idef.parent.as_ref().and_then(|w| w.upgrade());
                             let expected_block = {
                                 let head = head_arc.read().unwrap();
-                                head.get_in(entry_slot).map(|edge| edge.point)
+                                let bank = head.bank();
+                                head.get_in(entry_slot)
+                                    .map(|edge| bank.expect_arc(edge.point))
                             };
                             let parent_ok = match (&parent, &expected_block) {
                                 (Some(p), Some(e)) => Arc::ptr_eq(p, e),
@@ -5190,7 +5210,7 @@ impl ActionMarkImplied {
             let vn_cover = vn_arc.read().unwrap().cover.as_ref().map(|c| c.clone());
             let load_spacebase_off = def_op.get_in(0).map(|v| v.read().unwrap().get_offset());
             if let Some(cover) = vn_cover {
-                for store_op_ref in &fd.obank.alivelist {
+                for store_op_ref in fd.obank.iter_alive() {
                     let store_op = store_op_ref.0.read().unwrap();
                     if store_op.is_dead() || store_op.opcode != OpCode::CPUI_STORE {
                         continue;
@@ -5258,7 +5278,7 @@ impl ActionMarkImplied {
         ) {
             let vn_cover = vn_arc.read().unwrap().cover.as_ref().map(|c| c.clone());
             if let Some(cover) = vn_cover {
-                for call_op_ref in &fd.obank.alivelist {
+                for call_op_ref in fd.obank.iter_alive() {
                     let call_op = call_op_ref.0.read().unwrap();
                     if call_op.is_dead() { continue; }
                     if !matches!(call_op.opcode, OpCode::CPUI_CALL | OpCode::CPUI_CALLIND) {
@@ -7828,7 +7848,7 @@ impl Action for ActionSetCasts {
         // operations in each block's list order. Detached Rust fixtures that
         // have no basic-block graph retain their explicit alivelist order.
         let ops: Vec<crate::op::PcodeOpRef> = if fd.bblocks.blocks.is_empty() {
-            fd.obank.alivelist.clone()
+            fd.obank.iter_alive().cloned().collect::<Vec<_>>()
         } else {
             fd.bblocks
                 .blocks
@@ -9503,20 +9523,21 @@ impl ActionInferTypes {
     /// noreturn|missing)`, op.hh:171); among ops with numInput()>1 keeps
     /// the one whose input(1) temp type has the lowest typeOrder (first
     /// wins ties, matching the oracle's strict `< 0` re-assignment).
-    /// Returns the canonical RETURN's op ref (the Rust projection of the
+    /// Returns the canonical RETURN's op id (the Rust projection of the
     /// oracle's `PcodeOp*` return, carried for the cc:5357 `retop == op`
-    /// skip), its value Varnode, and its temp type.
+    /// skip — id equality is the id-space form of the oracle's pointer
+    /// equality, ARENA_DESIGN §2.1), its value Varnode, and its temp type.
     fn canonical_return_op(
         fd: &Funcdata,
         temps: &TempTypes,
     ) -> Option<(
-        crate::op::PcodeOpRef,
+        crate::arena::OpId,
         std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
         std::sync::Arc<crate::type_system::datatype::Datatype>,
     )> {
         use crate::op::pcodeop_flags;
         let mut best: Option<(
-            crate::op::PcodeOpRef,
+            crate::arena::OpId,
             std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
             std::sync::Arc<crate::type_system::datatype::Datatype>,
         )> = None;
@@ -9526,12 +9547,11 @@ impl ActionInferTypes {
         // stay in the list until destroy, so the isDead()/getHaltType()
         // skips stay in-loop (cc:5320-5321), matching the oracle exactly.
         // (COREACT-RETTABLE-TRAVERSAL-0001)
-        let return_ops: Vec<_> = fd
-            .obank
-            .begin_op(OpCode::CPUI_RETURN)
-            .cloned()
-            .collect();
-        for r in &return_ops {
+        // PERF-ARENA-FLIP-0001 (c): id workset (chain-order ids, no handle
+        // clones); elements resolve through op_by_id per iteration.
+        let return_ops: Vec<crate::arena::OpId> = fd.obank.iter_return_ids().collect();
+        for r_id in &return_ops {
+            let Some(r) = fd.obank.op_by_id(*r_id) else { continue };
             let op = r.0.read().unwrap();
             // cc:5320-5321: dead or halt RETURNs are never canonical.
             if op.is_dead()
@@ -9558,7 +9578,7 @@ impl ActionInferTypes {
                         Some((_, _, bct)) => ct.type_order(bct) < 0,
                     };
                     if better {
-                        best = Some((r.clone(), rv.clone(), ct.clone()));
+                        best = Some((*r_id, rv.clone(), ct.clone()));
                     }
                 }
             }
@@ -9580,9 +9600,10 @@ impl ActionInferTypes {
             return;
         }
         // Find the canonical RETURN op: the one whose return varnode has the
-        // most-specific temp type. The op ref is carried for the cc:5357
-        // `retop == op` pointer skip (coreaction.cc:5346-5349).
-        let Some((canonical_op, base_vn, base_ct)) = Self::canonical_return_op(fd, temps) else {
+        // most-specific temp type. The op id is carried for the cc:5357
+        // `retop == op` pointer skip (coreaction.cc:5346-5349) — id equality
+        // is the id-space form of the oracle's pointer equality.
+        let Some((canonical_id, base_vn, base_ct)) = Self::canonical_return_op(fd, temps) else {
             return;
         };
         let base_size = base_vn.read().unwrap().get_size();
@@ -9594,18 +9615,16 @@ impl ActionInferTypes {
         // event — COREACT-RETTABLE-TRAVERSAL-0001 wires the faithful
         // form). Skip the canonical one (explicit `retop == op` pointer
         // skip), dead ops, halt-type ops, and valueless RETURNs.
-        let return_ops: Vec<_> = fd
-            .obank
-            .begin_op(OpCode::CPUI_RETURN)
-            .cloned()
-            .collect();
-        for r in &return_ops {
+        // PERF-ARENA-FLIP-0001 (c): id workset, canonical skip by id.
+        let return_ops: Vec<crate::arena::OpId> = fd.obank.iter_return_ids().collect();
+        for r_id in &return_ops {
+            let Some(r) = fd.obank.op_by_id(*r_id) else { continue };
             // Guards read under a short-lived lock; the guard is dropped
             // before propagate_one_type so the op is never read-locked
             // across data-flow mutation (cc:5356-5363).
             let rv = {
                 let op = r.0.read().unwrap();
-                if Arc::ptr_eq(&r.0, &canonical_op.0) {
+                if *r_id == canonical_id {
                     continue; // cc:5357: retop == op (canonical itself)
                 }
                 if op.is_dead() {
@@ -10150,7 +10169,7 @@ fn seed_global_struct_pointers(
     // This catches Heritage-renamed varnodes where the address constant
     // was folded into a COPY input but the output (in Register space)
     // carries the global's address value.
-    for op_ref in &fd.obank.alivelist {
+    for op_ref in fd.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         if op.opcode != crate::opcodes::OpCode::CPUI_COPY {
             continue;
@@ -12038,8 +12057,7 @@ impl Action for ActionOutputPrototype {
                 std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
             > = fd
                 .obank
-                .returnlist
-                .iter()
+                .iter_return()
                 .find(|op_ref| {
                     let op = op_ref.0.read().unwrap();
                     // Funcdata::getFirstReturnOp (funcdata_op.cc:639-640):
@@ -12206,16 +12224,21 @@ impl Action for ActionPrototypeTypes {
         // Step 2: Strip indirect register from RETURN ops
         // (Ghidra coreaction.cc:4628-4635: "Strip the indirect register from
         // all RETURN ops because we don't want to see this compiler mechanism
-        // in the high-level C output")
-        let return_ops: Vec<crate::op::PcodeOpRef> = fd
+        // in the high-level C output").
+        // PERF-ARENA-FLIP-0001 (c): workset in id form — the opcode filter
+        // reads the arena cell's denormalized opcode shadow (one plain load
+        // per scanned op; the former form took one RwLock per op), elements
+        // resolve through op_by_id at their use sites below.
+        let return_ops: Vec<crate::arena::OpId> = fd
             .obank
-            .alivelist
-            .iter()
-            .filter(|r| r.0.read().unwrap().opcode == crate::opcodes::OpCode::CPUI_RETURN)
-            .cloned()
+            .iter_alive_ids()
+            .filter(|&id| {
+                fd.obank.opcode_of(id) == Some(crate::opcodes::OpCode::CPUI_RETURN)
+            })
             .collect();
         let mut change = 0;
-        for ret_op in &return_ops {
+        for ret_id in &return_ops {
+            let Some(ret_op) = fd.obank.op_by_id(*ret_id) else { continue };
             let (in0_is_const, in0_size) = {
                 let op = ret_op.0.read().unwrap();
                 match op.inrefs.get(0) {
@@ -12228,8 +12251,13 @@ impl Action for ActionPrototypeTypes {
             };
             if in0_is_const && in0_size > 0 {
                 let zero_vn = fd.new_constant(in0_size, 0);
-                fd.op_set_input(ret_op, zero_vn, 0);
-                change += 1;
+                // Re-resolve + clone only at the mutation site (the read
+                // borrow above ended at its last use; fd mutation APIs take
+                // an owned handle).
+                if let Some(ret_ref) = fd.obank.op_by_id(*ret_id).cloned() {
+                    fd.op_set_input(&ret_ref, zero_vn, 0);
+                    change += 1;
+                }
             }
         }
 
@@ -12245,7 +12273,8 @@ impl Action for ActionPrototypeTypes {
         if fd.funcp.output_type_locked {
             let storage = fd.funcp.locked_output_storage();
             if let Some((space, off, size)) = storage {
-                for ret_op in &return_ops {
+                for ret_id in &return_ops {
+                    let Some(ret_op) = fd.obank.op_by_id(*ret_id) else { continue };
                     let (dead, halt, num_input) = {
                         let r = ret_op.0.read().unwrap();
                         (
@@ -12272,7 +12301,10 @@ impl Action for ActionPrototypeTypes {
                         .vbank
                         .create_with_space(size as usize, space, off);
                     crate::heritage::Heritage::apply_new_varnode_flags(fd, &vn);
-                    fd.op_insert_input(ret_op, vn.clone(), num_input);
+                    // Mutation-site re-resolve (the read borrow ended above).
+                    if let Some(ret_ref) = fd.obank.op_by_id(*ret_id).cloned() {
+                        fd.op_insert_input(&ret_ref, vn.clone(), num_input);
+                    }
                     // cc:4646: vn->updateType(outparam->getType(), true, true).
                     vn.write()
                         .unwrap()
@@ -14889,7 +14921,7 @@ impl ActionStackPtrFlow {
             None => return 0,
         };
         let mut reached_load = false;
-        for cur_ref in &fd.obank.alivelist {
+        for cur_ref in fd.obank.iter_alive() {
             // Only consider ops up to and including the load.
             if std::sync::Arc::ptr_eq(&cur_ref.0, &loadop.0) {
                 reached_load = true;
@@ -14946,7 +14978,7 @@ impl ActionStackPtrFlow {
         // (coreaction.cc:440-447).
         let mut spcbasein: Option<
             std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = None;
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let o = op_ref.0.read().unwrap();
             for in_vn in o.inrefs.iter() {
                 let g = in_vn.read().unwrap();
@@ -14968,15 +15000,18 @@ impl ActionStackPtrFlow {
         };
         // cc:448-480: find INT_ADD(spcbasein, y) where y is a non-constant
         // (loaded) value — a "clog" — and repair it.
+        // PERF-ARENA-FLIP-0001 (c): id workset; the INT_ADD filter reads the
+        // cell's opcode shadow (no per-op lock; the clog scan itself is a
+        // faithful-form divergence tracked separately from this lane — the
+        // oracle walks the spacebase loc-tree range, coreaction.cc:440-448).
         let mut clogcount = 0;
-        let add_ops: Vec<crate::op::PcodeOpRef> = fd
+        let add_ops: Vec<crate::arena::OpId> = fd
             .obank
-            .alivelist
-            .iter()
-            .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_INT_ADD)
-            .cloned()
+            .iter_alive_ids()
+            .filter(|&id| fd.obank.opcode_of(id) == Some(OpCode::CPUI_INT_ADD))
             .collect();
-        for add_ref in add_ops {
+        for add_id in add_ops {
+            let Some(add_ref) = fd.obank.op_by_id(add_id).cloned() else { continue };
             let (in0, in1) = {
                 let a = add_ref.0.read().unwrap();
                 (a.inrefs.get(0).cloned(), a.inrefs.get(1).cloned())
@@ -15118,7 +15153,7 @@ impl Action for ActionSegmentize {
         use crate::opcodes::OpCode;
         let mut change_count = 0;
 
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op_rg = op_ref.0.read().unwrap();
             if op_rg.opcode == OpCode::CPUI_CALLOTHER {
                 change_count += 1;
@@ -15818,11 +15853,12 @@ impl ActionConditionalConst {
                 let op_r = op_ref.0.read().unwrap();
                 if let Some(parent_weak) = op_r.parent.as_ref() {
                     if let Some(parent) = parent_weak.upgrade() {
+                        let bank = parent.read().unwrap().bank();
                         parent
                             .read()
                             .unwrap()
                             .get_in(*slot)
-                            .map(|e| e.point.read().unwrap().get_index())
+                            .map(|e| bank.expect_index(e.point))
                             .unwrap_or(0)
                     } else { 0 }
                 } else { 0 }
@@ -15973,9 +16009,10 @@ impl ActionConditionalConst {
                             // constBlock must dominate bl->getIn(slot).
                             let in_bl_dominated = {
                                 let bl_r = bl.read().unwrap();
+                                let bank = bl_r.bank();
                                 match bl_r.get_in(slot) {
                                     Some(edge) => {
-                                        let src = edge.point.clone();
+                                        let src = bank.expect_arc(edge.point);
                                         match &const_block {
                                             Some(cb) => {
                                                 let cb_r = cb.read().unwrap();
@@ -16167,8 +16204,9 @@ impl ActionConditionalConst {
             if let Some(parent_weak) = op_r.parent.as_ref() {
                 if let Some(parent) = parent_weak.upgrade() {
                     let slot = phi_node_edges[i].1;
+                    let bank = parent.read().unwrap().bank();
                     if let Some(in_edge) = parent.read().unwrap().get_in(slot) {
-                        blocks.push(in_edge.point.clone());
+                        blocks.push(bank.expect_arc(in_edge.point));
                     }
                 }
             }
@@ -16320,9 +16358,10 @@ impl Action for ActionConditionalConst {
                 let mut bl_out: [Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>>; 2] =
                     [None, None];
                 let mut bl_out_rev_index: [i32; 2] = [-1, -1];
+                let bank = bl_r.bank();
                 for slot in 0..2usize {
                     if let Some(edge) = bl_r.get_out(slot) {
-                        let out_bl = edge.point.clone();
+                        let out_bl = bank.expect_arc(edge.point);
                         bl_out_rev_index[slot] = edge.reverse_index;
                         // restrictedByConditional needs the out-block + cond.
                         let restricted = out_bl
@@ -17187,28 +17226,33 @@ impl Action for ActionReturnRecovery {
             // cc:1919-1921: iterate beginOp..endOp(CPUI_RETURN) — the live
             // op list in creation order; dead and special-halt RETURNs are
             // skipped inside the loop body (cc:1923-1924).
-            let return_ops: Vec<crate::op::PcodeOpRef> = fd
+            // cc:1924/cc:1947: op->getHaltType() != 0 — the five-flag union
+            // (halt|badinstruction|unimplemented|noreturn|missing), op.hh:171;
+            // the former HALT-only form normalized to the oracle-exact
+            // literal union (divergence set constructively empty —
+            // COREACT-HALTGUARD-NORM-0001). One snapshot feeds both the
+            // ancestor pass and the buildReturnOutput pass.
+            // PERF-ARENA-FLIP-0001 (c): id workset + the INFERTYPES
+            // four-predicate single-lock precedent — the former two filter
+            // closures took one read guard each per RETURN; one snapshot
+            // guard now feeds both the dead check and the halt-flags check
+            // (identical rejection set; pure field reads both sides).
+            let return_ops: Vec<crate::arena::OpId> = fd
                 .obank
-                .returnlist
-                .iter()
-                .filter(|r| !r.0.read().unwrap().is_dead())
-                .filter(|r| {
-                    // cc:1924/cc:1947: op->getHaltType() != 0 — the
-                    // five-flag union (halt|badinstruction|unimplemented|
-                    // noreturn|missing), op.hh:171; the former HALT-only
-                    // form normalized to the oracle-exact literal union
-                    // (divergence set constructively empty —
-                    // COREACT-HALTGUARD-NORM-0001). One snapshot feeds both
-                    // the ancestor pass and the buildReturnOutput pass.
-                    (r.0.read().unwrap().flags
-                        & (crate::op::pcodeop_flags::HALT
-                            | crate::op::pcodeop_flags::BADINSTRUCTION
-                            | crate::op::pcodeop_flags::UNIMPLEMENTED
-                            | crate::op::pcodeop_flags::NORETURN
-                            | crate::op::pcodeop_flags::MISSING))
-                        == 0
+                .iter_return_ids()
+                .filter(|&id| {
+                    fd.obank.op_by_id(id).is_some_and(|r| {
+                        let op = r.0.read().unwrap();
+                        !op.is_dead()
+                            && (op.flags
+                                & (crate::op::pcodeop_flags::HALT
+                                    | crate::op::pcodeop_flags::BADINSTRUCTION
+                                    | crate::op::pcodeop_flags::UNIMPLEMENTED
+                                    | crate::op::pcodeop_flags::NORETURN
+                                    | crate::op::pcodeop_flags::MISSING))
+                                == 0
+                    })
                 })
-                .cloned()
                 .collect();
             // Take the container out of fd so trial mutation and the fd
             // reads inside ancestorOpUse never alias.
@@ -17222,7 +17266,10 @@ impl Action for ActionReturnRecovery {
             // loop, before finishPass/deriveOutputMap/buildReturnOutput.
             let walk_result: () = {
                 let _op_spec_memo = crate::funcdata::OpSpecMemoScope::enter();
-                for retop in &return_ops {
+                for ret_id in &return_ops {
+                // One handle resolution per RETURN per apply (the former
+                // collect-time clone, moved to its single use site).
+                let Some(retop) = fd.obank.op_by_id(*ret_id).cloned() else { continue };
                 for i in 0..active.get_num_trials() {
                     // cc:1927: already checked trials are skipped.
                     if active.get_trial(i).is_checked() {
@@ -17244,12 +17291,12 @@ impl Action for ActionReturnRecovery {
                     // cc:1930-1932: markActive only when both the ancestor
                     // walk sees realistic movement AND the trial varnode is
                     // only used by this RETURN.
-                    if ancestor_real.execute(retop, slot, active.get_trial_mut(i), false) {
+                    if ancestor_real.execute(&retop, slot, active.get_trial_mut(i), false) {
                         if crate::funcdata::ancestor_op_use(
                             fd,
                             maxancestor,
                             &vn,
-                            retop,
+                            &retop,
                             active.get_trial_mut(i),
                             0,
                             0,
@@ -17281,8 +17328,10 @@ impl Action for ActionReturnRecovery {
                 }
                 // cc:1943-1949: rebuild the input list of every live
                 // non-halt RETURN from the USED trials.
-                for retop in &return_ops {
-                    Self::build_return_output(fd, &active, retop);
+                for ret_id in &return_ops {
+                    if let Some(retop) = fd.obank.op_by_id(*ret_id).cloned() {
+                        Self::build_return_output(fd, &active, &retop);
+                    }
                 }
                 // cc:1950: data.clearActiveOutput() — the container taken
                 // above is simply not put back.
@@ -18718,12 +18767,14 @@ impl ActionReturnSplit {
         let parent_rg = parent.read().unwrap();
         for i in 0..in_count {
             let Some(edge) = parent_rg.get_in(i) else { continue };
-            let copy = edge
-                .point
-                .read()
-                .unwrap()
-                .get_copy_map()
-                .and_then(|weak| weak.upgrade());
+            let copy = {
+                let bank = parent_rg.bank();
+                bank.expect_arc(edge.point)
+                    .read()
+                    .unwrap()
+                    .get_copy_map()
+                    .and_then(|weak| weak.upgrade())
+            };
             if let Some(copy) = copy {
                 if walk
                     .selected_leaves
@@ -18907,7 +18958,7 @@ impl Action for ActionReturnSplit {
         let mut returns: Vec<(
             Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>, usize,
         )> = Vec::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let parent_arc = {
                 let op_rg = op_ref.0.read().unwrap();
                 if op_rg.is_dead() || op_rg.opcode != OpCode::CPUI_RETURN {
@@ -19430,14 +19481,17 @@ impl Action for ActionNodeJoin {
             let (leastout, inslot): (
                 Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>, usize,
             ) = {
-                let o0 = out0.point.read().unwrap();
-                let o1 = out1.point.read().unwrap();
+                let bank = fd.bblocks.bank.clone();
+                let o0_arc = bank.expect_arc(out0.point);
+                let o1_arc = bank.expect_arc(out1.point);
+                let o0 = o0_arc.read().unwrap();
+                let o1 = o1_arc.read().unwrap();
                 let in0 = o0.size_in();
                 let in1 = o1.size_in();
                 if in0 < in1 {
-                    (out0.point.clone(), out0.reverse_index.max(0) as usize)
+                    (bank.expect_arc(out0.point), out0.reverse_index.max(0) as usize)
                 } else {
-                    (out1.point.clone(), out1.reverse_index.max(0) as usize)
+                    (bank.expect_arc(out1.point), out1.reverse_index.max(0) as usize)
                 }
             };
             // leastout->sizeIn()==1 → skip (blockaction.cc:2349).
@@ -19476,8 +19530,9 @@ impl Action for ActionNodeJoin {
                     continue;
                 }
                 // leastout->getIn(j)
+                let bank = fd.bblocks.bank.clone();
                 if let Some(edge) = leastout.read().unwrap().get_in(j) {
-                    siblings.push(edge.point.clone());
+                    siblings.push(bank.expect_arc(edge.point));
                 }
             }
             let mut joined_this = false;
@@ -19496,8 +19551,9 @@ impl Action for ActionNodeJoin {
                     _ => continue,
                 };
                 // exita/exitb must match between bb and bb2 (false/true exits).
-                let exita = out0.point.clone();
-                let exitb = out1.point.clone();
+                let bank = fd.bblocks.bank.clone();
+                let exita = bank.expect_arc(out0.point);
+                let exitb = bank.expect_arc(out1.point);
                 // blockaction.cc:2076: `if (exita == exitb) return false;` —
                 // a CBRANCH whose target equals its fallthru registers BOTH
                 // out-edges to the same block (flow.cc:960-967 registers
@@ -19509,7 +19565,9 @@ impl Action for ActionNodeJoin {
                 if Arc::ptr_eq(&exita, &exitb) {
                     continue;
                 }
-                if !Arc::ptr_eq(&b2o0.point, &exita) || !Arc::ptr_eq(&b2o1.point, &exitb) {
+                if b2o0.point != fd.bblocks.bank.registered_id_of(&exita)
+                    || b2o1.point != fd.bblocks.bank.registered_id_of(&exitb)
+                {
                     continue;
                 }
                 // bb2's last op must be a CBRANCH (findDups, cc:1917-1918).
@@ -20331,7 +20389,7 @@ mod tests {
         let b0_outs = {
             let rg = b0.read().unwrap();
             (0..rg.size_out())
-                .filter_map(|s| rg.get_out(s).map(|e| e.point))
+                .filter_map(|s| rg.get_out(s).map(|e| fd.bblocks.bank.expect_arc(e.point)))
                 .collect::<Vec<_>>()
         };
         assert!(
@@ -20658,7 +20716,7 @@ mod tests {
         call_op.inrefs = vec![target_vn, register_arg, stack_arg];
         let op_arc = std::sync::Arc::new(std::sync::RwLock::new(call_op));
         let op_ref = crate::op::PcodeOpRef(op_arc);
-        fd.obank.alivelist.push(op_ref.clone());
+        fd.obank.adopt_alive_op(op_ref.clone());
         let fc = FuncCallSpecs::new_for_op(&op_ref, proto);
         let owner = std::sync::Arc::new(std::sync::RwLock::new(fc));
         let annotation = fd.new_varnode_call_specs(&owner);
@@ -20714,7 +20772,7 @@ mod tests {
         let op_ref = crate::op::PcodeOpRef(std::sync::Arc::new(std::sync::RwLock::new(
             call_op,
         )));
-        fd.obank.alivelist.push(op_ref.clone());
+        fd.obank.adopt_alive_op(op_ref.clone());
         let fc = FuncCallSpecs::new_for_op(&op_ref, proto);
         fd.add_call_specs_owner(std::sync::Arc::new(std::sync::RwLock::new(fc)));
         // new_for_op deliberately drops the caller proto (CALLSPEC-0001);
@@ -20763,7 +20821,7 @@ mod tests {
             let op_ref = crate::op::PcodeOpRef(std::sync::Arc::new(
                 std::sync::RwLock::new(call_op),
             ));
-            fd.obank.alivelist.push(op_ref.clone());
+            fd.obank.adopt_alive_op(op_ref.clone());
             let fc = FuncCallSpecs::new_for_op(&op_ref, proto);
             fd.add_call_specs_owner(std::sync::Arc::new(std::sync::RwLock::new(fc)));
             {
@@ -20829,8 +20887,8 @@ mod tests {
         fd.op_set_input(&lone, outvn.clone(), 0);
         let c = fd.new_constant(4, 0);
         fd.op_set_input(&lone, c, 1);
-        fd.obank.alivelist.push(op.clone());
-        fd.obank.alivelist.push(lone);
+        fd.obank.adopt_alive_op(op.clone());
+        fd.obank.adopt_alive_op(lone);
         // UINT read-facing type on the slot-0 constant and INT on the other
         // side (cast.cc:47-50 / cc:53-58 gates). An untyped constant reports
         // UNKNOWN — which is unsigned-family — so cc:56 would reject with
@@ -21105,7 +21163,7 @@ mod tests {
         let op_arc = Arc::new(RwLock::new(op));
         out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
         let op_ref = PcodeOpRef(op_arc);
-        fd.obank.alivelist.push(op_ref.clone());
+        fd.obank.adopt_alive_op(op_ref.clone());
 
         let mut a = ActionSetCasts::new();
         let status = a.apply(&mut fd).unwrap();
@@ -21201,7 +21259,7 @@ mod tests {
         op.output = Some(out.clone());
         let op_arc = Arc::new(RwLock::new(op));
         out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
-        fd.obank.alivelist.push(PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(PcodeOpRef(op_arc.clone()));
 
         let mut a = ActionSetCasts::new();
         let status = a.apply(&mut fd).unwrap();
@@ -21272,7 +21330,7 @@ mod tests {
         let op_arc = Arc::new(RwLock::new(op));
         out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
         let op_ref = PcodeOpRef(op_arc);
-        fd.obank.alivelist.push(op_ref.clone());
+        fd.obank.adopt_alive_op(op_ref.clone());
 
         let mut a = ActionSetCasts::new();
         let status = a.apply(&mut fd).unwrap();
@@ -21356,7 +21414,7 @@ mod tests {
         // Link the output varnode's def back to this op, matching how Rugra
         // builds written varnodes in real functions.
         out.write().unwrap().def = Some(std::sync::Arc::downgrade(&op_arc));
-        fd.obank.alivelist.push(crate::op::PcodeOpRef(op_arc));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc));
         fd.vbank
             .loc_tree
             .insert(crate::varnode::VarnodeLocRef(out.clone()));
@@ -21788,7 +21846,7 @@ mod tests {
         ind_out.write().unwrap().def = Some(std::sync::Arc::downgrade(&ind_arc));
         vn_in.write().unwrap().add_descend(&ind_arc);
 
-        fd.obank.alivelist.push(crate::op::PcodeOpRef(ind_arc));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(ind_arc));
         fd.vbank
             .loc_tree
             .insert(crate::varnode::VarnodeLocRef(vn_in.clone()));
@@ -21813,7 +21871,7 @@ mod tests {
         copy.output = Some(copy_out.clone());
         let copy_arc = std::sync::Arc::new(std::sync::RwLock::new(copy));
         vn_in2.write().unwrap().add_descend(&copy_arc);
-        fd.obank.alivelist.push(crate::op::PcodeOpRef(copy_arc));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(copy_arc));
         fd.vbank
             .loc_tree
             .insert(crate::varnode::VarnodeLocRef(vn_in2.clone()));
@@ -21864,6 +21922,7 @@ mod tests {
     #[test]
     fn test_prefercomplement_flips_if_else_condition() {
         use crate::address::{Address, SeqNum};
+        use crate::block::FlowBlock as _;
         use crate::block::{BlockBasic, BlockIf};
         use crate::op::pcodeop_flags::{BOOLEAN_FLIP, FALLTHRU_TRUE};
         use crate::op::{PcodeOp, PcodeOpRef};
@@ -21903,15 +21962,34 @@ mod tests {
                 BlockBasic::new(
             2, Address::new(0x1200),
         ))) as BlkArc;
+            // Register the endpoints BEFORE minting edge ids (a pre-adoption
+            // registered_id_of would hand out SENTINEL).
+            fd.sblocks.bank.adopt(&(cond_bb.clone() as BlkArc));
+            fd.sblocks.bank.adopt(&if_body);
+            fd.sblocks.bank.adopt(&else_body);
             // getSplitPoint (block.cc:2361) requires the condition block to
             // have two outgoing edges.
-            cond_bb.write().unwrap().outgoing = vec![
-                crate::block::BlockEdge { point: if_body.clone(), flags: 0, reverse_index: 0 ,
-            },
-                crate::block::BlockEdge { point: else_body.clone(), flags: 0, reverse_index: 0 ,
-            },
-            ];
+            {
+                let mut g = cond_bb.write().unwrap();
+                g.outgoing = vec![
+                    crate::block::BlockEdge {
+                        point: fd.sblocks.bank.registered_id_of(&if_body),
+                        flags: 0,
+                        reverse_index: 0,
+                    },
+                    crate::block::BlockEdge {
+                        point: fd.sblocks.bank.registered_id_of(&else_body),
+                        flags: 0,
+                        reverse_index: 0,
+                    },
+                ];
+                // (g) guard-shadow: test adopted the block first — sync the
+                // wholesale out-edge assignment.
+                g.sync_bank_shadows();
+            }
             let bif = BlockIf {
+            owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: 3,
                 condition: cond_bb.clone(),
                 if_body: if_body.clone(),
@@ -22201,6 +22279,8 @@ mod tests {
         let head_copy = fd.sblocks.get_block(1).unwrap();
         let body_copy = fd.sblocks.get_block(2).unwrap();
         let wd = BlockWhileDo {
+        owner_bank: std::sync::Weak::new(),
+        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 0,
             condition: head_copy,
             body: body_copy,
@@ -22219,7 +22299,11 @@ mod tests {
             vec![wd_arc.clone()],
         ))) as std::sync::Arc<
             std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>;
-        fd.sblocks.clear();
+        // Fixture reset: drop the top-level block list WITHOUT the bank
+        // reclaim (the WhileDo's condition/body BlockCopies keep edges whose
+        // ids resolve through the still-live slots; production's
+        // structureReset clears the whole graph between functions).
+        fd.sblocks.blocks.clear();
         fd.sblocks.add_block(list);
         // iterate op (INT_ADD) must be printable before.
         assert_eq!(add_ref.0.read().unwrap().flags & NONPRINTING, 0);
@@ -22343,7 +22427,7 @@ mod tests {
             .parent
             .replace(std::sync::Arc::downgrade(&ret_dyn));
         ret.write().unwrap().add_op(ro_ref.clone());
-        fd.obank.alivelist.push(ro_ref.clone());
+        fd.obank.adopt_alive_op(ro_ref.clone());
         // b1 ends in BRANCH, b2 ends in BRANCH — under the faithful
         // gatherReturnGotos this alone must NOT mark them as goto preds.
         for (blk, addr) in [(&b1, 0x1100u64), (&b2, 0x1200u64)] {
@@ -22367,6 +22451,8 @@ mod tests {
         // original, each original's copy_map pointing at its copy.
         let mk_copy = |source: &DynBlk, idx: i32| -> DynBlk {
             std::sync::Arc::new(std::sync::RwLock::new(BlockCopy {
+                owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: idx,
                 flags: 0,
                 parent: None,
@@ -22415,6 +22501,8 @@ mod tests {
         // last → null successor → prints — block.cc:2881-2890).
         let mk_goto = |wrapped: &DynBlk, target: &DynBlk, idx: i32| -> DynBlk {
             std::sync::Arc::new(std::sync::RwLock::new(BlockGoto {
+                owner_bank: std::sync::Weak::new(),
+                bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
                 index: idx,
                 flags: 0,
                 parent: None,
@@ -22444,8 +22532,7 @@ mod tests {
         // The new RETURN lives in one of the goto predecessor blocks.
         let new_returns = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|o| o.0.read().unwrap().opcode == OpCode::CPUI_RETURN)
             .count();
         assert!(new_returns >= 2, "original RETURN + at least one new");

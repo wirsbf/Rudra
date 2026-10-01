@@ -715,10 +715,27 @@ Ghidra: `op.cc:323 PcodeOp::nextOp`。返回流程上紧随本 op 的下一个 o
 
 ## 7. `PcodeOpBank`
 
-### `pub struct PcodeOpTree`（2026-09-29 PERF-ACTIONPOOL-ITER-0001 / OPTREE）
+### `pub struct PcodeOpTree`（2026-09-30 PERF-ARENA-FLIP-0001 (a) 更新；2026-09-29 PERF-ACTIONPOOL-ITER-0001 / OPTREE 原条）
 
 `PcodeOpTree` 是 bank 主排序容器（`optree` 字段）的类型——**SeqNum 键化树，
 oracle `map<SeqNum,PcodeOp*>`（op.hh:280）的原生同构形态**。
+
+**2026-09-30 arena 形态**（PERF-ARENA-FLIP-0001 (a)，ARENA_DESIGN §1.2）:
+内部容器翻转为 `BTreeMap<SeqNumKey, OpId>` + `Arena<OpCell, OpId>` 槽存储
+（`OpCell { op: PcodeOpRef, seq_key: SeqNumKey }`）——键为 W0 冻结的 POD
+`SeqNumKey { pc: SpaceOff, uniq }`（序 = `SeqNum::operator<` 投影, SpaceOff
+镜像 `Address::operator<` 的 null-first/index/offset），值为类型化
+`OpId` 句柄；`PcodeOp::op_id` 回指槽位，槽内 `seq_key` 副本 = oracle
+存储 map 迭代器的 id 形态（`remove` 主路径按存储键删除；SeqNum 创建后
+不可变故键副本永不漂移——ffi.rs:447 重赋值为等值 SeqNum）。**destroy/
+destroy_dead 后槽保持占用**（= oracle deadandgone 保留语义, op.cc:984-999
+"memory not reclaimed … in case pointer references still exist"），仅
+`clear()` 真释放（gen+1, 陈旧句柄一律 None）。公共面不变:
+`insert/remove/contains/len/is_empty/clear/iter/range/find_op/
+target_lower_bound` + `&tree` IntoIterator + 新增 `get_by_id(OpId)`——
+迭代序仍为 SeqNum 全序，元素仍逐个 yield `&PcodeOpRef`，action/heritage/
+merge/comment/coreaction 与 funcdata 前转器全部调用形态零改动（funcdata
+`begin_op_all`/`end_op_all` 返回类型随动为 `impl Iterator`）。
 
 **键形态**：键为 `SeqNum` **值快照**（插入时一次短读锁取得），排序即
 `SeqNum::operator<`（address.hh:154-158：先 `pc` 后 `uniq`；Rugra 对应
@@ -1240,3 +1257,83 @@ cargo test --lib 串行 1688P/18F == master 预存集。
 `Funcdata::replaceVolatile`（funcdata_varnode.cc:761-762，源 varnode
 typelock 时）。setAdditionalFlag 泛形（op.hh:140）即写入通道，无需专属
 setter。
+
+## 2026-09-30：PcodeOpBank 7 链侵入式 IdList 翻转（PERF-ARENA-FLIP-0001 (b)）
+
+`PcodeOpBank` 的 7 条成员链（`deadlist`/`alivelist`/`deadandgone`/
+`storelist`/`loadlist`/`returnlist`/`useroplist`）从 `Vec<PcodeOpRef>`
+翻为 arena.rs 冻结原语 `IdList`（op.hh:291-297 的 `list<PcodeOp*>` 镜像）。
+链链接对内嵌在 op 树 arena 槽 `OpCell`（`ins_prev/ins_next` = 单一
+`insertiter` op.hh:128 的 id 形态；`code_prev/code_next` = 单一 `codeiter`
+op.hh:129）——链手术即存储迭代器手术，`mark_alive`/`mark_dead`
+（op.cc:1017-1034）成为 O(1) unlink+push_back，原 `retain` O[n] 扫描地板
+（VARMAPOPCREATE 实测 207,611 次/5.58s）删除；`move_sequence_dead` 改走
+冻结 `splice_after`（op.cc:1063 退化守卫 + pos==last no-op，CR-ARENACORE
+F1）。Vec 镜像删除。
+
+**新读 API**（链序 = oracle 列表序）：`iter_alive/iter_dead/iter_deadandgone/
+iter_store/iter_load/iter_return/iter_userop`（`OpChainIter`，产出
+`&PcodeOpRef`）；`iter_dead_from(Option<OpId>)`（marker 起步的尾段游走，
+flow.cc:240 `oiter` 形态）；`dead_next/dead_prev/alive_prev`（O(1) 存储链
+前后驱）；`dead_head/dead_tail(+_id)`；`in_dead/in_alive`；`dead_at/
+dead_id_at/dead_at_strict`（冷位点位桥）；`adopt_alive_op`（遗留 fixture
+裸 `alivelist.push` 的 bank API 替代——slot-only 入 arena 不进 SeqNum map，
+重链入 alive 尾，单链不变量保持）；`alive_insert_before/alive_insert_after/
+alive_push_back/unlink_alive_if_member`（funcdata GLUE 分支的位置插入链形
+态）。`begin_op(OpCode)`/`end_op` 返回 `OpChainIter`（原 slice 迭代器面换
+链迭代器，序同）。
+
+**行为恒等**：链序 == 原 Vec 序 == oracle 列表序（同构操作 × 同位点的归纳，
+ARENA_DESIGN §2.4）；`mark_dead` 等对未入链外源句柄（legacy fixture 裸 op）
+走成员守卫 no-op（原 retain miss 等价）。canon curl/httpd 双 md5 字节恒等
+（4ab1db2a/7d5b9e7c）+ tests 2018P 恒等亲证。
+
+## 2026-09-30（续）：clear() 七链全部先摘链再回收槽（sqlite 三函数 panic 修复）
+
+翻转首版的 `clear()` 先摘三条 insert 链，随后 `optree.clear()` 释放全部
+arena 槽，最后才 `clear_code_lists()`——opcode 链仍链在已释放槽上，下一次
+code 链手术即 `clear: node vanished` panic（arena.rs）。镜面 sqlite 面捕获：
+sqlite3_config/sqlite3_test_control/sqlite3_db_config 反编译 worker 阵亡
+（matched 1382/1385 < floor、skeleton 778/785）；canon 双面与单测面不触达
+带非空 code 链的 bank clear。修复序：clear_code_lists → 三条 insert 链摘链
+→ optree.clear → uniqid=0（op.cc:1194-1209 先删对象后清表的等价重排）。
+修复态复验：镜面五面全 PASS 恰钉值、canon 双 md5 字节恒等、2018P/0F/5I。
+
+## 2026-09-30（c 段）：OpCell opcode 影子 + id 游标/工作集读 API（PERF-ARENA-FLIP-0001 (c)）
+
+**OpCell opcode 影子**（存储迭代器反规范化，同 `seq_key` 模式）：槽元新增
+`opcode: OpCode` 反规范化副本——`op->code()`（op.hh:233，oracle 纯字段读）
+的 id 空间读形态。维护位点 = 源字段的全部突变点：`PcodeOpTree::insert`/
+`slot_only` 入槽时单守卫快照（opcode 自构造即存在）；`change_opcode`
+（op.cc:1005-1012，`Funcdata::opSetOpcode` 背后的唯一 choke point）在
+`set_opcode_flags` 同语句位更新。生产路径无其它 `PcodeOp::opcode` 写点
+（grep 亲证：唯 RuleBxor2NotEqual 曾直写，已改走 `op_set_opcode`——
+ruleaction.cc:272 oracle 原形，该 opcode 对派生 flag 集相同且互非 code-list
+成员，可观测效果恒等）。
+
+**新读 API**：
+- `PcodeOpTree::first_id()/next_id_after(OpId)`——ActionPool 保留游标
+  （action.hh:265 `op_state`）的 id 形态支撑：后继查找读当前槽的
+  `seq_key`（锁自由），map 严格后继 = std::map `++` 语义（规则中途 erase
+  不受影响，ACTIONLOOP-RESTART-0001 同论证）；`opcode_by_id(OpId)`——
+  槽影子读。`PcodeOpBank::opcode_of` 为 bank 级转发。
+- `OpChainIdIter` + `iter_alive_ids()/iter_load_ids()/iter_return_ids()`——
+  `OpChainIter` 的 id 产出伴生（同一存储链游走，产出 Copy 的 `OpId`，
+  零句柄克隆零锁）；Action/Rule 工作集的采集形态。
+
+**读模式收益**：ActionPool 派发的 per-try `opc != op->code()` 复读
+（action.cc:846/853-857，VdbeExec 极 27.7M 次锁读）与游标推进的
+SeqNum 守卫+Arc 克隆（5.6M 次）改走槽读；Action 工作集 filter
+（RETURN/INT_ADD 扫描）走影子读。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

@@ -1,5 +1,8 @@
 # `printc.rs` API Reference
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
+- 测试块构造字面量增 `bank_slot: SENTINEL` 初始化（生产代码零变化）。
+
 ## 2026-09-29：case 标签经完整 pushConstant 分派（CASE-CAST 子族, Lane SWITCHDISPATCH / MIRROR-GIANTS-SWITCHDISPATCH-0001）
 
 - **现象（sqlite 镜面 60 行/4 函数）**：golden `case (int4 *)0x1:` /
@@ -814,6 +817,12 @@ StringManager。本次替换为 `constant_leaf_text`（`&mut self`，持 vn/op�
 `/* dec */` 清零，defects=0 / numbering=0。
 
 **源代码路径**: `src/printc.rs`
+
+
+## 2026-09-30：测试 fixture BlockCopy 字面量补字段（Lane ARENAFLIP-d 步骤 1）
+
+- 测试 fixture 的 `BlockCopy` 字面量补 `index` 字段（结构演化随动；生产
+  printc 代码零改动）。详见 docs/api/block.md 2026-09-30 条。
 
 ## 2026-08-25：`find_partial_field` 半开区间边界修复（type.cc:1580-1638）
 
@@ -4163,3 +4172,22 @@ BRANCHIND 时 oracle 根本不会印 switch 头，属 Rugra 胶水面。
 - 新单测 `test_switch_head_expr_rpn_channel_ptradd_inline`：手搭
   BRANCHIND←LOAD←PTRADD(implied) 链，断言数组形 `[1]` 印出且
   `unique0x` 永不出现（钉死通道选择，防 legacy 回退回归）。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

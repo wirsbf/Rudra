@@ -270,7 +270,13 @@ fn run_case(case_id: &str, inedge: usize, full: bool, baseaddr: u64) {
             .collect();
         Snapshot { ops, ins }
     };
-    let a = b.read().unwrap().get_in(inedge).map(|e| e.point.clone());
+    // ARENAFLIP-(e): edge points are bank ids — resolve the source block
+    // through the owning graph's bank.
+    let a = b
+        .read()
+        .unwrap()
+        .get_in(inedge)
+        .map(|e| fd.bblocks.bank.expect_arc(e.point));
     let Some(a) = a else { panic!("split edge source missing") };
 
     fd.node_split(&b, inedge);
@@ -280,7 +286,7 @@ fn run_case(case_id: &str, inedge: usize, full: bool, baseaddr: u64) {
     let bprime = {
         let rg = a.read().unwrap();
         rg.get_out(0)
-            .map(|e| e.point.clone())
+            .map(|e| fd.bblocks.bank.expect_arc(e.point))
             .expect("split edge source lost its out edge")
     };
 

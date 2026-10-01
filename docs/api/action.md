@@ -1473,3 +1473,31 @@ oracle 侧 GLM_ACTSIG 同点插桩（scratch 树 ActionGroup::apply 子分发尾
 恒等，把 round-2→3 窗口首分歧钉到 @ACT 87 nodejoin（oracle res=2 vs
 Rugra res=1），最终定位 RuleSubZext INT_RIGHT 臂缺失（详见
 docs/api/ruleaction.md 与 docs/api/blockaction.md 的 SELECTGOTO 修复③节）。
+
+## 2026-09-30（c 段）：ActionPool 游标 OpId 化 + 派发复读槽影化（PERF-ARENA-FLIP-0001 (c)）
+
+`op_state: Option<PcodeOpRef>` → `Option<OpId>`（oracle 保留的
+`PcodeOpTree::const_iterator`，action.hh:265）。`first_op` = `optree.first_id`；
+`next_op_after` = 槽 `seq_key` + map 严格后继（锁自由；原形态每推进一次
+SeqNum 读守卫 + SpaceOff 投影 + 后继 Arc 克隆）；`process_op` 每访问一次
+经 `op_by_id` 解引用句柄（与原游标持有克隆同数量级的引用计数往返）。
+`resume_state(&self)` → `resume_state(&self, fd)`（游标不再持有句柄，
+SeqNum 经 bank 解引用读取；fixture 调用点同 commit 机械改写）。
+
+派发复读（`processOp` cc:846/853-857）：命中/未命中路径的
+`opc != op->code()` 复读改走 `PcodeOpBank::opcode_of`（OpCell opcode
+影子，锁自由）；入口 isDead 判定与命中路径 isDead 复核保持守卫读
+（DEAD 位无影子）。RULE-POOL 派发残差三件（advance 键下降、miss 复读
+27.7M 锁、per-visit 常数）中前两件由此收口。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

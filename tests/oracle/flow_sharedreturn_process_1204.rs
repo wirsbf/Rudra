@@ -95,8 +95,7 @@ fn find_site_op(fd: &Funcdata, site: u64, opcode: OpCode) -> Option<PcodeOpRef> 
 
 fn dead_index(fd: &Funcdata, needle: &PcodeOpRef) -> Option<usize> {
     fd.obank
-        .deadlist
-        .iter()
+        .iter_dead()
         .position(|op| Arc::ptr_eq(&op.0, &needle.0))
 }
 

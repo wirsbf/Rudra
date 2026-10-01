@@ -211,7 +211,7 @@ fn dump_varnode_vertex(data: &Funcdata, s: &mut dyn Write) {
     let _ = s.write_str("//START:varnodes\n");
 
     // cc:86  for(oiter=data.beginOpAlive(); oiter!=data.endOpAlive(); ++oiter)
-    for op_ref in &data.obank.alivelist {
+    for op_ref in data.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         // cc:88  print_varnode_vertex(op->getOut(),s);
         let out = op.get_out().cloned();
@@ -229,7 +229,7 @@ fn dump_varnode_vertex(data: &Funcdata, s: &mut dyn Write) {
     let _ = s.write_str("*END_COLUMNS\n");
 
     // cc:108-114  clear marks (second pass over alive ops)
-    for op_ref in &data.obank.alivelist {
+    for op_ref in data.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         // cc:110-111  if (op->getOut() != null) op->getOut()->clearMark();
         if let Some(out) = op.get_out() {
@@ -264,7 +264,7 @@ fn dump_op_vertex(data: &Funcdata, s: &mut dyn Write) {
     let _ = s.write_str("//START:opnodes\n");
 
     // cc:134-137  for each alive op: print_op_vertex
-    for op_ref in &data.obank.alivelist {
+    for op_ref in data.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         print_op_vertex(&op, s);
     }
@@ -332,7 +332,7 @@ fn dump_edges(data: &Funcdata, s: &mut dyn Write) {
     let _ = s.write_str("//START:edges\n");
 
     // cc:188-191  for each alive op: print_edges
-    for op_ref in &data.obank.alivelist {
+    for op_ref in data.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         print_edges(&op, s);
     }
@@ -505,10 +505,11 @@ fn print_block_vertex(bl: &dyn FlowBlock, s: &mut dyn Write) {
 /// emits `<srcIndex> <thisIndex>` on its own line.
 fn print_block_edge(bl: &dyn FlowBlock, s: &mut dyn Write) {
     let this_index = bl.get_index();
+    let bank = bl.owner_bank().expect("print_block_edge on unregistered block");
     // cc:312-313  for i in 0..sizeIn(): print in(i).getIndex() this.getIndex()
     for i in 0..bl.size_in() {
         if let Some(edge) = bl.get_in(i) {
-            let src_index = edge.point.read().unwrap().get_index();
+            let src_index = bank.expect_index(edge.point);
             let _ = writeln!(s, "{} {}", src_index, this_index);
         }
     }

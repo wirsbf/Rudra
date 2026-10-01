@@ -132,9 +132,15 @@ orchestrates 变换生命周期。
 - `apply(fd)` — 完整应用变换（createOps→createVarnodes→removeOld→
   transformInputVarnodes→placeInputs）；`createVarnodes` 中 piece 未对齐会
   panic 并保留异常前部分状态
-- 私有：`create_op_replacement(op_idx)` / `create_ops()` / `create_varnodes(input_list)`
-  / `remove_old()` / `transform_input_varnodes(input_list)` / `place_inputs()` /
-  `special_handling(rop)`
+- 私有（P6 形态，2026-09-30 起）：`create_op_replacement(fd, op_idx)` /
+  `create_ops(fd)` / `create_varnodes(fd, input_list)` / `remove_old(fd)` /
+  `transform_input_varnodes(fd, input_list)` / `place_inputs(fd)` /
+  `special_handling(fd, rop)` — oracle `Funcdata *fd` 成员
+  （transform.hh:157）不再以 `*mut Funcdata` 存储，fd 逐调用线程化
+  （ARENA_DESIGN §3.2 P6；`unsafe impl Send` 随之删除，自动 Send+Sync）。
+  `init(fd)` 保留 oracle 构造绑定签名（transform.hh:169），仅重置占位符
+  存储。`get_op_from_const_offset(fd, offset)`（iop 解码，op.hh:249 形态）
+  改为 bank 身份搜索（optree+deadandgone），不再 `Arc::from_raw` 重建。
 
 **`create_op_replacement` 分支**（transform.cc:225-250）：
 - `op_preexisting` 臂：原 op 原地改 opcode；`while input.len() < numInput()`

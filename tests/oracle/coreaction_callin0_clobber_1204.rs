@@ -109,7 +109,7 @@ fn main() {
     // BRANCH/CBRANCH in(0) is the jump target address.
     let fd_read = fd_arc.read().unwrap();
     let mut lines: Vec<Line> = Vec::new();
-    for op_ref in fd_read.obank.alivelist.iter() {
+    for op_ref in fd_read.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         let kind = match op.opcode {
             OpCode::CPUI_CALL | OpCode::CPUI_CALLIND => "call",

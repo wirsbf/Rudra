@@ -2,6 +2,62 @@
 
 **源代码路径**: `src/varnode.rs`
 
+## 2026-09-30（同日第二笔）：SpaceOff 投影 offset 修复 + vn_by_id
+
+- **`space_off_of_address` 修复（红线事件, 见车道终报 §2）**: 无空间 legacy
+  Address 原投影为 `SpaceOff::null()`（offset 硬编码 0）——def-op 的 pc offset
+  被清零, written varnode 的 def-SeqNum 排序从 oracle `(pc, uniq)`
+  （SeqNum::operator<, address.hh:154-158）退化为 `uniq` 单键, inject 路径
+  （pc 序≠创建序）下两 varnode 交换树序 → canon curl 变量重编号漂移
+  （md5 c4cc29a7, 74 hunk 全重命名零结构差）。修复 = null 空间码 + 真实
+  offset（`Address::operator<` (None,None)→offset 的逐字投影）。canon 双面
+  修复后回钉值。
+- **`VarnodeBank::vn_by_id(VnId)`**: id→存储 Arc 的解析（`Funcdata::vn_by_id`
+  的底层; P1 读形态, W1(b) 交接面）。
+
+## 2026-09-30：PERF-ARENA-FLIP-0001 (a) — VarnodeBank 双树 POD 键化 + 存储迭代器 arena 单元
+
+`VarnodeBank` 的两棵排序树从 `BTreeSet<VarnodeLocRef>` / `BTreeSet<VarnodeDefRef>`
+（比较器 `Ord` 每侧一次 RwLock 读——VARMAPOPCREATE 实测 398,450 次下降 / 1.47s 锁税）
+翻转为 **POD 键映射** `VarnodeLocSet { BTreeMap<VnLocKey, VarnodeLocRef> }` /
+`VarnodeDefSet { BTreeMap<VnDefKey, VarnodeDefRef> }`（键类型 = W0 冻结的
+`src/arena.rs`，序由单测对 varnode.cc:34-79 逐字转写差分锁定）：
+
+- **键投影单点**（ARENA_DESIGN §5 R2）: `vn_loc_key` / `vn_def_key` /
+  `vn_def_state` / `vn_space_off` / `space_off_of_address`。字段序逐字段复刻
+  `VarnodeCompareLocDef`（varnode.cc:34-53: address_space→loc→size→(f-1) 旗标
+  排名→written:defSeqNum / free:createIndex）与 `VarnodeCompareDefLoc`
+  （varnode.cc:60-79: 旗标→written:defSeqNum 相等落到 addr→addr→size→
+  free:createIndex）。`AddressSpace` 投影打包 `(space_id, 枚举判别)` 为单个
+  u32（`compare_address_spaces` 的全序），`Varnode::loc` 的 `Option<SpaceTag>`
+  以 stride 打包（所有 bank varnode 的 loc 均为无空间 legacy Address，
+  debug 断言边界）。
+- **桥接面（消费层零改动）**: `loc_tree`/`def_tree` 公共字段类型换为包装集合，
+  保留 `iter()` / `&set` IntoIterator（产出 `&VarnodeLocRef` / `&VarnodeDefRef`）/
+  `range(bounds)`（DoubleEnded，probe 键翻译）/ `insert(v) -> bool`（重复键
+  keep-first，= `BTreeSet::insert`）/ `len` / `is_empty` / `contains` / `clear` /
+  Debug set 形态。heritage/merge/varmap/coreaction/printc/flow 与 examples/tests
+  的全部既有调用形态不变。
+- **存储迭代器（stored-iterator）擦除**: 新增 `vn_arena: Arena<VnCell, VnId>` +
+  `Varnode::vn_id` 回指。每个 bank 分配的 Varnode 在 `allocate` 时占一槽，cell
+  持反规范化 `loc_key`/`def_key` 副本，仅在 oracle 的擦除+重插位点
+  （`insert_free`/`xref`/`make_free_prevalidated`）刷新。
+  `erase_loc_identity`/`erase_def_identity` 主路径按 **cell 内存储键** 删除并校验
+  Arc 身份（= oracle `loc_tree.erase(vn->lociter)`，varnode.cc:1282-1283/1319-1320/
+  1366-1367/1396-1397，O(log n)，对 `Funcdata::destroyVarnode` 先清 def 造成的
+  live-key 漂移免疫）；cell-less（手搓 fixture 直插集合面）走原 live-key take +
+  身份 retain 兜底。gen 守卫：`clear()` 后历史句柄 `vn_id` 查询得 None → 兜底路径。
+- **迭代序恒等论证**: 键序 = 比较器投影全序（W0 单测锁），键仅在 oracle 同位点
+  重算 ⇒ 与原 BTreeSet 序归纳同构；`xref` 去重 `get`、`find_free` 精确键 `get`、
+  `set_input_varnode` 的 `def_tree.range(..search).next_back()` 前驱查询
+  （funcdata_varnode.cc:346-361 形态）全部按 POD 键执行，结果与 live 比较器在
+  树一致态（重键纪律成立）下逐调用恒等。
+- 返回类型纯化: `begin_loc`/`end_loc`/`begin_def`/`end_def`/`end_loc_space`/
+  `end_def_fl`/`end_def_addr` 与 funcdata.rs 的同名转发器从
+  `btree_set::Iter` 具体类型改为 `impl Iterator<Item = &…Ref>`（调用点零改动）。
+- 门禁: `cargo test --lib` 2018P/0F/5I 恒等 + 全 integration tests 2025P；
+  canon/镜面门禁见车道终报（LANE_ARENAFLIP_A_2026-09-30.md）。
+
 ## 2026-09-29：PERF-OPPOOL-0001 lone_descend 免分配化与 has_no_descend 无计数存活探测
 
 规则池派发热路径（[OPPROF] 钻探：earlyremoval 5.02M 次尝试、TermOrder::collect

@@ -449,7 +449,7 @@ impl ParamIdAnalysis {
         }
 
         // Analyze output (return value) from RETURN ops.
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op_rg = op_ref.0.read().unwrap();
             if op_rg.opcode != OpCode::CPUI_RETURN {
                 continue;

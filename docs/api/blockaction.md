@@ -1,5 +1,19 @@
 # `blockaction.rs` API Reference
 
+## 2026-10-01：守卫读消费迁移（Lane ARENAFLIP-g 步骤 3）
+- `clip_extra_roots`（in-body 扫描 sizeIn 守卫）、`try_rule_cat`（入口
+  pred sizeOut / 首链 sizeIn+SWITCH_OUT / 链行走 next index+sizeIn+flags，
+  blockaction.cc:1291-1310 逐位对应）、`collapse_switches`（case-isexit
+  sizeOut，block.cc:3514 形态）——peer `expect_arc().read()` 深读全部换
+  bank 影子读（docs/api/block.md 同日条目）；cat 链头 index 提升出循环
+  （循环体纯读=无发布点，index 循环不变量）。判定次序与边界逐字未动。
+
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2）
+- identify_internal 安装链（BlockIf/BlockList/WhileDo/DoWhile/Goto/Condition/
+  InfLoop/MultiGoto/Switch downcast 整体赋值后）与 strip_external 双 retain
+  后补 `sync_bank_shadows()`（docs/api/block.md 同日条目）；复合块构造字面量
+  增 `bank_slot: SENTINEL` 初始化。行为零变化（纯影子维护）。
+
 
 ### 2026-09-29 性能修复（SPEEDPROF-BSPERULE-0001, 巨函数 collapse per-rule 常数削减——行为恒等）
 
@@ -301,6 +315,39 @@ E2E（curl 124 fn，fast-release）：exit 0 / 0 panic，defects=0 / numbering=0
 **2026-07-16 修复（B1）**: `try_rule_or` 现在实际调用 `negate_condition`（对齐 Ghidra `ruleBlockOr` blockaction.cc:1358-1365）。此前函数体含描述 negateCondition 逻辑的注释但从未调用——BlockCondition 节点以错误的 true/false 边极性创建，是 5 步 collapseAll 重写被回退时 18 处回归的根本原因。现按 Ghidra：`ii==1` 时 `block.negate_condition(true)`（让 orblock 成为 bl 的 true-out → OR 模式），`j==0` 时 `orblock.negate_condition(true)`（让 clauseblock 成为 orblock 的 true-out）。BlockBasic::negate_condition（block.rs:781）翻转 CBRANCH 的 BOOLEAN_FLIP 并 swap_edges，等价 Ghidra block.cc:2351-2358。bool_op 判定移到 negate 之后。
 **2026-08-23 历史记录（2026-08-28 已部分废止）**: 当时的拓扑指纹重建已删除；当前严格采用 blockaction.cc:2173-2175 的非空结构 once-guard，CFG mutator 通过 `structureReset` 清结构。该轮其余条件极性与 guard 记录保留作历史证据。
 **2026-07-02 修复（R15）**: 禁用 `collapse_cbranch_cascades`（call site 注释化）。该函数是凭空捏造逻辑，Ghidra 无对应——Ghidra ruleBlockSwitch 只在 isSwitchOut()（由 BRANCHIND 独占设置）触发，从不把 CBRANCH if/else-if 链转 switch。Rugra 这么做产生 ~16/18 假 switch（curl 18 vs Ghidra 2）。禁用后 curl switch 18→0（真 switch 表因 jumptable 恢复坏 R19/R20 也无，需后续修），行数 1567→1281。CBRANCH 链现经 try_rule_* 结构化为嵌套 BlockIf（Ghidra collapseInternal 做法）。
+
+
+## 2026-09-30：bank-view 热读迁移（Lane ARENAFLIP-d 步骤 2，性能兑现面）
+- **do_while/if_no_exit/while_do 自环守卫**（步骤 2 续）：back-edge/自环
+  检查的 peer 索引读同走 bank view（do_while 的槽位扫描改为 find 形态，
+  视图作用域先于 &mut self fire 路径释放；语义逐位——槽序 0→1 首中即取）。
+
+
+- **count_non_structural_in_edges**（BLOCKSTRUCT 钻定的 53.4M 入边扫描
+  热点）：per-edge 的 peer RwLock+vtable 读（`in_edge.point.read()` +
+  get_type/get_index）改走 `BlockBankView`——扫描级一次 bank 读守卫，逐边
+  影子槽读（block.hh:160/184 字段读形态，零 block 锁零 vtable）。孪生未
+  解析（SENTINEL/裸 fixture）时回退原 guard 读，逐位等价。
+- **try_rule_proper_if 头部守卫**：自环双查 + true/false 目标索引四读同
+  走 bank view（作用域块内守卫借还，不影响后续 &self 调用）。
+- **BlockBankView/hold/adopt**：bank 增加 `hold()` 视图（扫描级单守卫）与
+  `adopt()`（复合块经 Vec 槽位安装不经过 add_block 的注册路径）；
+  collapse_internal 每 fullchange 趟首 + collapse_all_5step 前置各一次
+  幂等 adopt 扫（O(n)/趟，纯 bank 记账，无可观测面）。
+- **行为恒等**：cargo test --lib 2018P/0F/5I；canon curl 4ab1db2a defects
+  0/0/0 + httpd 7d5b9e7c 双恒等；VdbeExec --one 1055 GEN_MIRROR md5
+  bf2d9b85 恒等（计时见段末配对报告）。
+
+## 2026-09-30：block bank 接线（Lane ARENAFLIP-d 步骤 1，表示层地基）
+
+- `rewrite_out_edges_to_idx` / `rewrite_in_edges_to_idx` 增 `bank: &BlockBank`
+  参数（孪生打标经 bank 身份映射，不在 point 守卫下解析——自环边无死锁）；
+  `force_output_num` 同形（自环边双半边的 point_id 预打标）。identify 边界
+  push（in_boundary/out_boundary）与 install 换位 `set_block_index` 走
+  graph 级影子维护。调用点全部在 identify_internal（self.graph 上下文）。
+- 行为恒等：cargo test --lib 2018P/0F/5I；canon 双 md5 字节恒等
+  （4ab1db2a…/7d5b9e7c…），curl defects 0/0/0。详见 docs/api/block.md
+  2026-09-30 条。
 
 > 监控日志：collapse_all 结尾输出 `[COLLAPSE] {name} FINAL basic={} dead={} structured={}`，
 > 以及当未结构化 basic 块 >10 时输出 `[COLLAPSE] {name} CBR-CAT loop={} multiin={} single={}`，
@@ -1936,3 +1983,53 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   实测 6153 亦 −57 改进——subzext 通用臂的语料级收益，如实记）；bank
   391/391；cargo test --lib 1965P/0F/5I（亲父 1963P+2 新）；annotations/
   refs/evidence 三门禁绿。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## ARENAFLIP-e（2026-09-30）规则派发快照化
+
+`CollapseStructure::apply_rules_to_block` 每次派发一次 `get_block` 提升到派发头
+（9 条 try_rule_* 签名增 `block: &Arc<...>` 参数,取代每 try 的 Vec 索引+Arc 克隆
+—— (d) 段 miss 底归因的 per-try get_block Arc 克隆面）。`collapse_all` 的
+while_do/inf_loop 循环与测试调用点同形随迁;tests 2018P 保持。
+
+## ARENAFLIP-e（2026-09-30）try_rule_cat 读相 bank-view 化
+
+`try_rule_cat` 的读相（入口守卫+链构建）改持单一 `BlockBankView`
+（`self.graph.bank.hold()` 一次,NLL+显式 drop 保证 fire 路径前释放）,
+per-try 的 peer 解析从每次 bank 锁降为扫描级单锁——(c) 段槽读先例在
+cat 规则的应用。tests 2018P 保持。
+
+## ARENAFLIP-f（2026-09-30）blockstructure 域快照读迁移（交接面①）
+
+`identify_internal` 持单一 dispatch 级 `BlockBankView`（入口 adopt 后取,全函数
+零发布——后续 adopt 幂等、set_block_index 走原地影子,不重发布）;`rewrite_out/
+in_edges_to_idx` 签名改 `(view, bl, old_idx, new_point_id)`（复合块 id 由
+identify 层提升一次,消除 per-call 身份查账）;`apply_rules_to_block` 持一个
+dispatch 级共享 view 传入 9 条 try_rule_*（fire 即 return 纪律:identify 的
+adopt 是该路径唯一发布点,fire 后无 view 读）;`extend_to_container` BFS、
+`find_dup_peers`、`count_non_structural_in_edges`（签名增 view 参数）同模式;
+collapse 首部的 adopt 扫描改 `adopt_bulk`（一次身份读锁覆盖整批幂等探针）。
+行为恒等: canon curl `4ab1db2a` + httpd `7d5b9e7c` 字节恒等 + tests 2021P。
+BANKSTATS（替代语料 VdbeExec 50969B, (f) 终态实测——CR-ARENAFLIP-F nit-2
+校正: 早前草稿值系开发中问快照,以车道终报 §3.1 为准）: read_index
+149.1M→1.49M（−99.0%）、read_arc 50.8M→9.96M（−80.4%）、id_lookups
+150.0M→4.33M（−97.1%）、view_holds 43.3M→22.1M、per-read 锁面合计
+392.8M→37.9M（−90.3%）。

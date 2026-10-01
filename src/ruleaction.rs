@@ -1994,9 +1994,23 @@ impl RuleBxor2NotEqual {
 impl Rule for RuleBxor2NotEqual {
     // Ghidra: ruleaction.cc:269 RuleBxor2NotEqual::applyOp
     fn apply_op(
-        &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, _fd: &mut Funcdata,
+        &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
-        op_arc.write().unwrap().opcode = OpCode::CPUI_INT_NOTEQUAL;
+        // cc:272: data.opSetOpcode(op,CPUI_INT_NOTEQUAL) — routed through
+        // the Funcdata god-object (the oracle's only sanctioned opcode
+        // mutation path: code-list maintenance + TypeOp flag reset +
+        // drillobserve hook + the arena cell's opcode shadow all live in
+        // opSetOpcode/change_opcode). The former direct field write skipped
+        // that path; for this opcode pair the derived flag set is identical
+        // (BINARY|COMMUTATIVE|BOOLOUTPUT both) and neither opcode is
+        // code-list-worthy, so the observable behavior is exactly the
+        // opcode assignment — but the pool dispatch's `opc != op->code()`
+        // re-read (action.cc:853-857) now resolves through the cell shadow,
+        // which only change_opcode maintains.
+        fd.op_set_opcode(
+            &crate::op::PcodeOpRef(op_arc.clone()),
+            OpCode::CPUI_INT_NOTEQUAL,
+        );
         Ok(action_status::CHANGE)
     }
 
@@ -7124,7 +7138,6 @@ impl Rule for RuleZextShiftZext {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleZextShiftZext::applyOp (ruleaction.cc:4885-4919).
-        let follow = crate::op::PcodeOpRef(op_arc.clone());
         let (in_vn, shiftop_code) = {
             let op = op_arc.read().unwrap();
             if op.opcode != OpCode::CPUI_INT_ZEXT {
@@ -7156,7 +7169,7 @@ impl Rule for RuleZextShiftZext {
                 .unwrap_or(false) {
                 return Ok(action_status::NO_CHANGE);
             }
-            fd.op_set_input(&follow, vn, 0);
+            fd.op_set_input(&crate::op::PcodeOpRef(op_arc.clone()), vn, 0);
             return Ok(action_status::CHANGE);
         }
         if shiftop_code != OpCode::CPUI_INT_LEFT {
@@ -7208,6 +7221,9 @@ impl Rule for RuleZextShiftZext {
         fd.op_set_opcode(&new_op, OpCode::CPUI_INT_ZEXT);
         let out_vn = fd.new_unique_out(out_size, &new_op);
         fd.op_set_input(&new_op, root_vn, 0);
+        // PERF-ARENA-FLIP-0001 (c): mutation handle materializes on this
+        // hit path only (the former eager top-of-body clone ran per miss).
+        let follow = crate::op::PcodeOpRef(op_arc.clone());
         fd.op_set_opcode(&follow, OpCode::CPUI_INT_LEFT);
         fd.op_set_input(&follow, out_vn, 0);
         let c = fd.new_constant(4, sa);
@@ -11110,7 +11126,7 @@ impl RuleDivOpt {
     /// (ruleaction.cc:8051-8125). Returns (in_vn, n, y128, xsize, ext_opc).
     // Ghidra: ruleaction.cc:8051 RuleDivOpt::findForm
     fn find_form(
-        op: &crate::op::PcodeOpRef,
+        op: &std::sync::Arc<std::sync::RwLock<PcodeOp>>,
     ) -> Option<(
         std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
         u64,
@@ -11119,7 +11135,7 @@ impl RuleDivOpt {
         OpCode,
     )> {
         use crate::address::count_leading_zeros;
-        let mut cur_op_arc = op.0.clone();
+        let mut cur_op_arc = op.clone();
         let shift_opc = cur_op_arc.read().unwrap().opcode;
         let mut n: u64 = 0;
         let mut shift_opc_var = shift_opc;
@@ -11201,7 +11217,6 @@ impl RuleDivOpt {
             let ext_vn = ext_op.read().unwrap().get_in(0)?.clone();
             if ext_vn.read().unwrap().is_free() { return None; }
             if in_vn.read().unwrap().get_size() == op
-                    .0
                     .read()
                     .unwrap()
                     .output
@@ -11222,7 +11237,7 @@ impl RuleDivOpt {
         if (actual_ext_opc == OpCode::CPUI_INT_ZEXT && shift_opc_var == OpCode::CPUI_INT_SRIGHT)
             || (actual_ext_opc == OpCode::CPUI_INT_SEXT && shift_opc_var == OpCode::CPUI_INT_RIGHT)
         {
-            let out_size = op.0.read()
+            let out_size = op.read()
                     .unwrap()
                     .output
                     .as_ref()?
@@ -11278,9 +11293,9 @@ impl RuleDivOpt {
     /// Check if a SUBPIECE form is contained in a superseding form.
     /// Faithful to `checkFormOverlap` (ruleaction.cc:8260-8279).
     // Ghidra: ruleaction.cc:8242 RuleDivOpt::checkFormOverlap
-    fn check_form_overlap(op: &crate::op::PcodeOpRef) -> bool {
-        if op.0.read().unwrap().opcode != OpCode::CPUI_SUBPIECE { return false; }
-        let vn = match op.0.read().unwrap().output.as_ref() { Some(o) => o.clone(), None => return false ,
+    fn check_form_overlap(op: &std::sync::Arc<std::sync::RwLock<PcodeOp>>) -> bool {
+        if op.read().unwrap().opcode != OpCode::CPUI_SUBPIECE { return false; }
+        let vn = match op.read().unwrap().output.as_ref() { Some(o) => o.clone(), None => return false ,
         };
         let descends: Vec<_> = vn.read().unwrap().descend_iter().collect();
         for super_op in descends {
@@ -11289,8 +11304,7 @@ impl RuleDivOpt {
             let cvn = match super_op.read().unwrap().get_in(1) { Some(v) => v.clone(), None => continue ,
             };
             if !cvn.read().unwrap().is_constant() { return true; }
-            let super_ref = crate::op::PcodeOpRef(super_op);
-            if Self::find_form(&super_ref).is_some() { return true; }
+            if Self::find_form(&super_op).is_some() { return true; }
         }
         false
     }
@@ -11395,12 +11409,13 @@ impl Rule for RuleDivOpt {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleDivOpt::applyOp (ruleaction.cc:8295-8355).
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
-        let (mut in_vn, n, y, mut xsize, ext_opc) = match Self::find_form(&op_ref) {
+        // PERF-ARENA-FLIP-0001 (c): the form helpers take the bare Arc —
+        // no eager PcodeOpRef materialization on the miss path.
+        let (mut in_vn, n, y, mut xsize, ext_opc) = match Self::find_form(op_arc) {
             Some(r) => r,
             None => return Ok(action_status::NO_CHANGE),
         };
-        if Self::check_form_overlap(&op_ref) { return Ok(action_status::NO_CHANGE); }
+        if Self::check_form_overlap(op_arc) { return Ok(action_status::NO_CHANGE); }
         if ext_opc == OpCode::CPUI_INT_SEXT { xsize -= 1; }
         let divisor = Self::calc_divisor(n, y, xsize);
         if divisor == 0 { return Ok(action_status::NO_CHANGE); }
@@ -11412,6 +11427,9 @@ impl Rule for RuleDivOpt {
             .map(|v| v.read().unwrap().get_size())
             .unwrap_or(0);
         let addr = op_arc.read().unwrap().get_addr();
+        // All miss-guards are done (find_form/overlap/divisor/output checks);
+        // the mutation handle materializes once for the transform paths.
+        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
 
         if in_vn.read().unwrap().get_size() < out_size {
             // Need extension.
@@ -11790,14 +11808,15 @@ impl RuleSignMod2nOpt2 {
             .parent
             .as_ref()
             .and_then(|w| w.upgrade())?;
+        let bank = bl.read().unwrap().bank();
         let mut inner_slot = 0usize;
-        let mut inner: BlockRef = bl.read().unwrap().get_in(inner_slot)?.point;
+        let mut inner: BlockRef = bank.expect_arc(bl.read().unwrap().get_in(inner_slot)?.point);
         {
             let ig = inner.read().unwrap();
             if ig.size_out() != 1 || ig.size_in() != 1 {
                 drop(ig);
                 inner_slot = 1;
-                inner = bl.read().unwrap().get_in(inner_slot)?.point;
+                inner = bank.expect_arc(bl.read().unwrap().get_in(inner_slot)?.point);
                 let ig = inner.read().unwrap();
                 if ig.size_out() != 1 || ig.size_in() != 1 {
                     return None;
@@ -11806,8 +11825,8 @@ impl RuleSignMod2nOpt2 {
         }
         // cc:8971-8972: diamond join — inner's sole in-edge and the merge's
         // other in-edge must be the same decision block.
-        let decision: BlockRef = inner.read().unwrap().get_in(0)?.point;
-        let bl_other_in: BlockRef = bl.read().unwrap().get_in(1 - inner_slot)?.point;
+        let decision: BlockRef = bank.expect_arc(inner.read().unwrap().get_in(0)?.point);
+        let bl_other_in: BlockRef = bank.expect_arc(bl.read().unwrap().get_in(1 - inner_slot)?.point);
         if !std::sync::Arc::ptr_eq(&bl_other_in, &decision) { return None; }
         // cc:8973-8974: decision ends in a CBRANCH.
         let cbranch = decision.read().unwrap().last_op()?;
@@ -11831,9 +11850,9 @@ impl RuleSignMod2nOpt2 {
         // cc:8983-8985: the "negative" branch (taken when base s< 0 holds,
         // honoring isBooleanFlip) must be the INT_ADD slot.
         let neg_block: BlockRef = if cbranch.0.read().unwrap().is_boolean_flip() {
-            decision.read().unwrap().get_false_out(&cbranch)?
+            bank.expect_arc(decision.read().unwrap().get_false_out(&cbranch)?)
         } else {
-            decision.read().unwrap().get_true_out(&cbranch)?
+            bank.expect_arc(decision.read().unwrap().get_true_out(&cbranch)?)
         };
         let neg_slot = if std::sync::Arc::ptr_eq(&neg_block, &inner) {
             inner_slot
@@ -15232,7 +15251,10 @@ impl Rule for RuleIndirectCollapse {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleIndirectCollapse::applyOp (ruleaction.cc:3177-3252).
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
+        // PERF-ARENA-FLIP-0001 (c): no eager handle materialization — the
+        // rule runs 1.9M tries on the VdbeExec pole and the Arc clone pair
+        // used to run on every miss; the PcodeOpRef now materializes only
+        // on the mutating paths below (branch-scoped).
         let (in1, in0, outvn) = {
             let op = op_arc.read().unwrap();
             let in1 = match op.inrefs.get(1) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
@@ -15273,6 +15295,8 @@ impl Rule for RuleIndirectCollapse {
                     v1.characterize_overlap(&v2)
                 };
                 if res > 0 { // Copy has an effect of some sort
+                    // Materialize the mutation handle on this hit path only.
+                    let op_ref = crate::op::PcodeOpRef(op_arc.clone());
                     if res == 2 {
                         // vn1 and vn2 are the same storage → Convert INDIRECT to COPY.
                         fd.op_uninsert(&op_ref);
@@ -15369,8 +15393,9 @@ impl Rule for RuleIndirectCollapse {
         // op of outvn (op_arc is outvn's writer, not a descendant, so the guard-free
         // call is safe); op_destroy below write-locks op_arc — the named op/outvn
         // guards above are all block-scoped and released before this point.
+        // The mutation handle materializes here (hit path; see header note).
         fd.total_replace(&outvn, in0);
-        fd.op_destroy(&op_ref);
+        fd.op_destroy(&crate::op::PcodeOpRef(op_arc.clone()));
         Ok(action_status::CHANGE)
     }
 
@@ -15504,7 +15529,6 @@ impl Rule for RuleSwitchSingle {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleSwitchSingle::applyOp (ruleaction.cc:5430-5477).
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
         // BlockBasic *bb = op->getParent(); if (bb->sizeOut() != 1) return 0;
         let size_out = {
             let op = op_arc.read().unwrap();
@@ -15517,6 +15541,9 @@ impl Rule for RuleSwitchSingle {
             Some(n) if n == 1 => {}
             _ => return Ok(action_status::NO_CHANGE),
         }
+        // PERF-ARENA-FLIP-0001 (c): mutation/query handle materializes after
+        // the sizeOut guard (the former eager clone ran per miss).
+        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
         // JumpTable *jt = data.findJumpTable(op); find_jump_table borrows fd
         // immutably and returns Option<&Arc<RwLock<JumpTable>>>. We must gather
         // everything we need from the table (entries, labelled, addresses) and
@@ -17448,19 +17475,21 @@ impl Rule for RuleConditionalMove {
         };
         let (inblock0, inblock1) = {
             let rg = bb.read().unwrap();
-            let i0 = rg.get_in(0).map(|e| e.point);
-            let i1 = rg.get_in(1).map(|e| e.point);
+            let bank = rg.bank();
+            let i0 = rg.get_in(0).map(|e| bank.expect_arc(e.point));
+            let i1 = rg.get_in(1).map(|e| bank.expect_arc(e.point));
             match (i0, i1) {
                 (Some(a), Some(b)) => (a, b),
                 _ => return Ok(action_status::NO_CHANGE),
             }
         };
         // Determine rootblock0/rootblock1 (the block feeding the inblock).
+        let bank0 = inblock0.read().unwrap().bank();
         let rootblock0 = {
             let rg = inblock0.read().unwrap();
             if rg.size_out() == 1 {
                 if rg.size_in() != 1 { return Ok(action_status::NO_CHANGE); }
-                rg.get_in(0).map(|e| e.point)
+                rg.get_in(0).map(|e| bank0.expect_arc(e.point))
             } else {
                 Some(inblock0.clone())
             }
@@ -17469,7 +17498,7 @@ impl Rule for RuleConditionalMove {
             let rg = inblock1.read().unwrap();
             if rg.size_out() == 1 {
                 if rg.size_in() != 1 { return Ok(action_status::NO_CHANGE); }
-                rg.get_in(0).map(|e| e.point)
+                rg.get_in(0).map(|e| bank0.expect_arc(e.point))
             } else {
                 Some(inblock1.clone())
             }
@@ -17507,16 +17536,15 @@ impl Rule for RuleConditionalMove {
         let cbranch_ref = cbranch.clone();
         let path0istrue = {
             let r_rg = rootblock.read().unwrap();
+            let bank = r_rg.bank();
             let true_out = r_rg.get_true_out(&cbranch_ref);
             if !std::sync::Arc::ptr_eq(&rootblock, &inblock0) {
                 true_out
-                    .as_ref()
-                    .map(|o| std::sync::Arc::ptr_eq(o, &inblock0))
+                    .map(|o| o == bank.registered_id_of(&inblock0))
                     .unwrap_or(false)
             } else {
                 true_out
-                    .as_ref()
-                    .map(|o| !std::sync::Arc::ptr_eq(o, &inblock1))
+                    .map(|o| o != bank.registered_id_of(&inblock1))
                     .unwrap_or(false)
             }
         };
@@ -17888,11 +17916,15 @@ impl RuleIgnoreNan {
         let parent = op.read().unwrap().parent.as_ref().and_then(|w| w.upgrade());
         let parent = match parent { Some(p) => p, None => return ,
         };
+        let bank = parent.read().unwrap().bank();
         let out_branch = parent.read().unwrap().get_out(out_dir);
         let (out_branch, other_branch) = match out_branch {
             Some(e) => {
                 let other = parent.read().unwrap().get_out(1 - out_dir);
-                (e.point.clone(), other.map(|o| o.point.clone()))
+                (
+                    bank.expect_arc(e.point),
+                    other.map(|o| bank.expect_arc(o.point)),
+                )
             }
             None => return,
         };
@@ -17909,12 +17941,9 @@ impl RuleIgnoreNan {
         // The protected block's other out-edge must rejoin the sibling branch.
         let rejoins = if let Some(other) = &other_branch {
             let ob = out_branch.read().unwrap();
-            let o0 = ob
-                .get_out(0)
-                .map(|e| std::sync::Arc::ptr_eq(&e.point, other));
-            let o1 = ob
-                .get_out(1)
-                .map(|e| std::sync::Arc::ptr_eq(&e.point, other));
+            let other_id = bank.registered_id_of(other);
+            let o0 = ob.get_out(0).map(|e| e.point == other_id);
+            let o1 = ob.get_out(1).map(|e| e.point == other_id);
             o0.unwrap_or(false) || o1.unwrap_or(false)
         } else {
             false
@@ -20629,7 +20658,9 @@ impl Rule for RulePtrFlow {
         data: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RulePtrFlow::applyOp (ruleaction.cc:9177-9251).
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
+        // PERF-ARENA-FLIP-0001 (c): no eager handle materialization — the
+        // PcodeOpRef materializes inline at the two truncate_pointer hit
+        // sites (the former top-of-body clone ran per miss).
         let opc = op_arc.read().unwrap().opcode;
         let mut made_change = 0;
 
@@ -20653,7 +20684,13 @@ impl Rule for RulePtrFlow {
                 let vn_size = vn.read().unwrap().get_size();
                 let vn = if vn_size > spc.addr_size() {
                     made_change = 1;
-                    Self::truncate_pointer(&spc, &op_ref, &vn, 1, data)
+                    Self::truncate_pointer(
+                        &spc,
+                        &crate::op::PcodeOpRef(op_arc.clone()),
+                        &vn,
+                        1,
+                        data,
+                    )
                 } else {
                     vn
                 };
@@ -20673,7 +20710,13 @@ impl Rule for RulePtrFlow {
                 let vn_size = vn.read().unwrap().get_size();
                 let vn = if vn_size > spc.addr_size() {
                     made_change = 1;
-                    Self::truncate_pointer(&spc, &op_ref, &vn, 0, data)
+                    Self::truncate_pointer(
+                        &spc,
+                        &crate::op::PcodeOpRef(op_arc.clone()),
+                        &vn,
+                        0,
+                        data,
+                    )
                 } else {
                     vn
                 };
@@ -25296,8 +25339,7 @@ mod tests {
         // The clone bank grew by two alive ops with patched constant inputs.
         let alive_and = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|c| c.0.read().unwrap().opcode == OpCode::CPUI_INT_AND)
             .count();
         assert_eq!(alive_and, 1);
@@ -26174,13 +26216,13 @@ mod tests {
         fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
         let copy_out = fd.new_unique_out(4, &copy_op);
         fd.op_set_input(&copy_op, const5, 0);
-        fd.obank.alivelist.push(copy_op);
+        fd.obank.adopt_alive_op(copy_op);
         // reader: INT_ZEXT(copy_out) — the rule fires on the READER op
         let reader = fd.new_op(1, Address::new(0x1010));
         fd.op_set_opcode(&reader, OpCode::CPUI_INT_ZEXT);
         fd.new_unique_out(8, &reader);
         fd.op_set_input(&reader, copy_out.clone(), 0);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
 
         let rule = RulePropagateCopy::new();
         assert_eq!(
@@ -26230,12 +26272,12 @@ mod tests {
         fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
         let copy_out = fd.new_unique_out(4, &copy_op);
         fd.op_set_input(&copy_op, free_reg, 0);
-        fd.obank.alivelist.push(copy_op);
+        fd.obank.adopt_alive_op(copy_op);
         let reader = fd.new_op(1, Address::new(0x1010));
         fd.op_set_opcode(&reader, OpCode::CPUI_INT_ZEXT);
         fd.new_unique_out(8, &reader);
         fd.op_set_input(&reader, copy_out, 0);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
 
         let rule = RulePropagateCopy::new();
         assert_eq!(
@@ -26253,7 +26295,7 @@ mod tests {
         fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
         let copy_out = fd.new_unique_out(4, &copy_op);
         fd.op_set_input(&copy_op, const7, 0);
-        fd.obank.alivelist.push(copy_op);
+        fd.obank.adopt_alive_op(copy_op);
         // MULTIEQUAL(copy_out, const1) — marker op
         let reader = fd.new_op(2, Address::new(0x1010));
         fd.op_set_opcode(&reader, OpCode::CPUI_MULTIEQUAL);
@@ -26262,7 +26304,7 @@ mod tests {
         fd.op_set_input(&reader, copy_out, 0);
         let const1 = fd.new_constant(4, 1);
         fd.op_set_input(&reader, const1, 1);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
 
         let rule = RulePropagateCopy::new();
         assert_eq!(
@@ -26280,12 +26322,12 @@ mod tests {
         fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
         let copy_out = fd.new_unique_out(4, &copy_op);
         fd.op_set_input(&copy_op, const5, 0);
-        fd.obank.alivelist.push(copy_op);
+        fd.obank.adopt_alive_op(copy_op);
         let reader = fd.new_op(1, Address::new(0x1010));
         fd.op_set_opcode(&reader, OpCode::CPUI_INT_ZEXT);
         fd.new_unique_out(8, &reader);
         fd.op_set_input(&reader, copy_out, 0);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
         reader.0.write().unwrap().flags |= crate::op::pcodeop_flags::RETURN_COPY;
 
         let rule = RulePropagateCopy::new();
@@ -26308,7 +26350,7 @@ mod tests {
                 fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
                 let out = fd.new_unique_out(4, &copy_op);
                 fd.op_set_input(&copy_op, c, 0);
-                fd.obank.alivelist.push(copy_op);
+                fd.obank.adopt_alive_op(copy_op);
                 outs.push(out);
             }
             (outs[0].clone(), outs[1].clone())
@@ -26318,7 +26360,7 @@ mod tests {
         fd.new_unique_out(4, &reader);
         fd.op_set_input(&reader, copy_out0.clone(), 0);
         fd.op_set_input(&reader, copy_out1.clone(), 1);
-        fd.obank.alivelist.push(reader.clone());
+        fd.obank.adopt_alive_op(reader.clone());
 
         let rule = RulePropagateCopy::new();
         assert_eq!(
@@ -26364,7 +26406,7 @@ mod tests {
         let long_out = fd.new_unique_out(8, &add_op);
         fd.op_set_input(&add_op, a.clone(), 0);
         fd.op_set_input(&add_op, b.clone(), 1);
-        fd.obank.alivelist.push(add_op.clone());
+        fd.obank.adopt_alive_op(add_op.clone());
         // SUBPIECE(long_out, 0) -> sub_out (4 bytes)
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
@@ -26372,7 +26414,7 @@ mod tests {
         fd.op_set_input(&sub_op, long_out.clone(), 0);
         let off_const = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, off_const, 1); // offset 0
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
@@ -26385,8 +26427,7 @@ mod tests {
         // Verify two new SUBPIECE ops exist (for a and b).
         let new_subpieces = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|r| r.0.read().unwrap().opcode == OpCode::CPUI_SUBPIECE
         )
             .count();
@@ -26412,7 +26453,7 @@ mod tests {
         let long_out = fd.new_unique_out(8, &add_op);
         fd.op_set_input(&add_op, a.clone(), 0);
         fd.op_set_input(&add_op, b.clone(), 1);
-        fd.obank.alivelist.push(add_op.clone());
+        fd.obank.adopt_alive_op(add_op.clone());
         // SUBPIECE(long_out, 0)
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
@@ -26420,13 +26461,13 @@ mod tests {
         fd.op_set_input(&sub_op, long_out.clone(), 0);
         let off_const = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, off_const, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
         // A SECOND reader of long_out (so loneDescend fails).
         let reader2 = fd.new_op(1, Address::new(0x1000));
         fd.op_set_opcode(&reader2, OpCode::CPUI_COPY);
         fd.op_set_input(&reader2, long_out.clone(), 0);
         let _r2out = fd.new_unique_out(8, &reader2);
-        fd.obank.alivelist.push(reader2);
+        fd.obank.adopt_alive_op(reader2);
 
         let rule = RuleSubCommute::new();
         let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
@@ -26455,7 +26496,7 @@ mod tests {
             fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
             fd.new_unique_out(long_size, &ext_op);
             fd.op_set_input(&ext_op, c, 0);
-            fd.obank.alivelist.push(ext_op.clone());
+            fd.obank.adopt_alive_op(ext_op.clone());
             ext_defs.push(ext_op);
         }
         let longform = fd.new_op(2, Address::new(0x1000));
@@ -26472,7 +26513,7 @@ mod tests {
             ext_defs[1].0.read().unwrap().output.as_ref().unwrap().clone(),
             1,
         );
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(out_size, &sub_op);
@@ -26483,7 +26524,7 @@ mod tests {
         );
         let off_const = fd.new_constant(4, offset);
         fd.op_set_input(&sub_op, off_const, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
         (longform, sub_op)
     }
 
@@ -26542,7 +26583,7 @@ mod tests {
         fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(8, &ext_op);
         fd.op_set_input(&ext_op, c4, 0);
-        fd.obank.alivelist.push(ext_op.clone());
+        fd.obank.adopt_alive_op(ext_op.clone());
         let longform = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&longform, OpCode::CPUI_INT_SDIV);
         fd.new_unique_out(8, &longform);
@@ -26553,7 +26594,7 @@ mod tests {
         );
         let neg7 = fd.new_constant(8, 0xfffffffffffffff7);
         fd.op_set_input(&longform, neg7, 1);
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(4, &sub_op);
@@ -26564,7 +26605,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         assert_eq!(rule.apply_op(&sub_op.0, &mut fd).unwrap(), action_status::CHANGE);
@@ -26583,7 +26624,7 @@ mod tests {
         fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(8, &ext_op);
         fd.op_set_input(&ext_op, c4, 0);
-        fd.obank.alivelist.push(ext_op.clone());
+        fd.obank.adopt_alive_op(ext_op.clone());
         let longform = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&longform, OpCode::CPUI_INT_SDIV);
         fd.new_unique_out(8, &longform);
@@ -26596,7 +26637,7 @@ mod tests {
         // truncation would change the signed divisor (cc:4595-4597).
         let c80 = fd.new_constant(8, 0x00000000ffffff80);
         fd.op_set_input(&longform, c80, 1);
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(4, &sub_op);
@@ -26607,7 +26648,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         // 0x00000000ffffff80: the low 4 bytes read as -128 after SEXT, but
@@ -26637,7 +26678,7 @@ mod tests {
         fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_ZEXT);
         fd.new_unique_out(16, &ext_op);
         fd.op_set_input(&ext_op, c, 0);
-        fd.obank.alivelist.push(ext_op.clone());
+        fd.obank.adopt_alive_op(ext_op.clone());
         let longform = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&longform, OpCode::CPUI_INT_SDIV);
         fd.new_unique_out(16, &longform);
@@ -26651,13 +26692,13 @@ mod tests {
         fd.op_set_opcode(&ext2, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(16, &ext2);
         fd.op_set_input(&ext2, c2, 0);
-        fd.obank.alivelist.push(ext2.clone());
+        fd.obank.adopt_alive_op(ext2.clone());
         fd.op_set_input(
             &longform,
             ext2.0.read().unwrap().output.as_ref().unwrap().clone(),
             1,
         );
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(8, &sub_op);
@@ -26668,7 +26709,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         assert_eq!(rule.apply_op(&sub_op.0, &mut fd).unwrap(), action_status::NO_CHANGE);
@@ -26693,7 +26734,7 @@ mod tests {
             fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
             fd.new_unique_out(16, &ext_op);
             fd.op_set_input(&ext_op, reg, 0);
-            fd.obank.alivelist.push(ext_op.clone());
+            fd.obank.adopt_alive_op(ext_op.clone());
             let _ = slot;
             ext_outs.push(ext_op);
         }
@@ -26710,7 +26751,7 @@ mod tests {
             ext_outs[1].0.read().unwrap().output.as_ref().unwrap().clone(),
             1,
         );
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(4, &sub_op);
@@ -26721,7 +26762,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         assert_eq!(rule.apply_op(&sub_op.0, &mut fd).unwrap(), action_status::CHANGE);
@@ -26763,7 +26804,7 @@ mod tests {
         fd.op_set_opcode(&ext0, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(16, &ext0);
         fd.op_set_input(&ext0, reg4, 0);
-        fd.obank.alivelist.push(ext0.clone());
+        fd.obank.adopt_alive_op(ext0.clone());
         // SEXT(reg8 input) -> out16 (ext1 side)
         let reg8 = fd
             .vbank
@@ -26773,7 +26814,7 @@ mod tests {
         fd.op_set_opcode(&ext1, OpCode::CPUI_INT_SEXT);
         fd.new_unique_out(16, &ext1);
         fd.op_set_input(&ext1, reg8, 0);
-        fd.obank.alivelist.push(ext1.clone());
+        fd.obank.adopt_alive_op(ext1.clone());
         let longform = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&longform, OpCode::CPUI_INT_SDIV);
         fd.new_unique_out(16, &longform);
@@ -26787,7 +26828,7 @@ mod tests {
             ext1.0.read().unwrap().output.as_ref().unwrap().clone(),
             1,
         );
-        fd.obank.alivelist.push(longform.clone());
+        fd.obank.adopt_alive_op(longform.clone());
         let sub_op = fd.new_op(2, Address::new(0x1000));
         fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
         fd.new_unique_out(4, &sub_op);
@@ -26798,7 +26839,7 @@ mod tests {
         );
         let zero_off = fd.new_constant(4, 0);
         fd.op_set_input(&sub_op, zero_off, 1);
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubCommute::new();
         assert_eq!(rule.apply_op(&sub_op.0, &mut fd).unwrap(), action_status::CHANGE);
@@ -26936,19 +26977,19 @@ mod tests {
         fd.op_set_opcode(&v_copy_op, OpCode::CPUI_COPY);
         let v_def = fd.new_unique_out(4, &v_copy_op);
         fd.op_set_input(&v_copy_op, v, 0);
-        fd.obank.alivelist.push(v_copy_op.clone());
+        fd.obank.adopt_alive_op(v_copy_op.clone());
         // inner negate: ~v_def
         let neg1 = fd.new_op(1, Address::new(0x1000));
         fd.op_set_opcode(&neg1, OpCode::CPUI_INT_NEGATE);
         let neg1_out = fd.new_unique_out(4, &neg1);
         fd.op_set_input(&neg1, v_def, 0);
-        fd.obank.alivelist.push(neg1.clone());
+        fd.obank.adopt_alive_op(neg1.clone());
         // outer negate: ~~v_def
         let neg2 = fd.new_op(1, Address::new(0x1000));
         fd.op_set_opcode(&neg2, OpCode::CPUI_INT_NEGATE);
         let _neg2_out = fd.new_unique_out(4, &neg2);
         fd.op_set_input(&neg2, neg1_out, 0);
-        fd.obank.alivelist.push(neg2.clone());
+        fd.obank.adopt_alive_op(neg2.clone());
 
         let rule = RuleNegateNegate::new();
         let result = rule.apply_op(&neg2.0, &mut fd).unwrap();
@@ -27096,7 +27137,7 @@ mod tests {
         fd.op_set_input(&sub_op, a, 0);
         let off2 = fd.new_constant(4, 2);
         fd.op_set_input(&sub_op, off2, 1); // offset 2 (not least sig)
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
 
         let rule = RuleSubRight::new();
         let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
@@ -27134,7 +27175,7 @@ mod tests {
         fd.op_set_input(&sub_op, a.clone(), 0);
         let c4 = fd.new_constant(4, 4);
         fd.op_set_input(&sub_op, c4, 1); // c = 4 ≠ 0
-        fd.obank.alivelist.push(sub_op.clone());
+        fd.obank.adopt_alive_op(sub_op.clone());
         // Lone descendant: INT_RIGHT(outvn, 8) — constant shift. Built at a
         // DIFFERENT address (0x2000) than the SUBPIECE (0x1000) so the test
         // discriminates which address the lumped shift op inherits:
@@ -27147,7 +27188,7 @@ mod tests {
         fd.op_set_input(&lone, outvn, 0);
         let shift8 = fd.new_constant(4, 8);
         fd.op_set_input(&lone, shift8, 1);
-        fd.obank.alivelist.push(lone.clone());
+        fd.obank.adopt_alive_op(lone.clone());
 
         let rule = RuleSubRight::new();
         let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
@@ -27157,8 +27198,7 @@ mod tests {
         // list, no output, every input slot nulled to the shared sentinel.
         assert!(
             !fd.obank
-                .alivelist
-                .iter()
+                .iter_alive()
                 .any(|r| Arc::ptr_eq(&r.0, &sub_op.0)),
             "unlinked SUBPIECE must leave the alive list"
         );
@@ -27190,8 +27230,7 @@ mod tests {
         // and the lumped constant d = c*8 + 8 = 40.
         let shift = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .find(|r| r.0.read().unwrap().opcode == OpCode::CPUI_INT_RIGHT)
             .expect("new INT_RIGHT shift op must exist")
             .clone();
@@ -27327,7 +27366,7 @@ mod tests {
         let out = fd.new_unique_out(4, &add);
         fd.op_set_input(&add, c1, 0);
         fd.op_set_input(&add, c2, 1);
-        fd.obank.alivelist.push(add.clone());
+        fd.obank.adopt_alive_op(add.clone());
         let mut mult: i64 = 0;
         let off = RulePtrsubUndo::get_const_offset_back(&out, &mut mult, RulePtrsubUndo::DEPTH_LIMIT);
         assert_eq!(off, 15);
@@ -28444,9 +28483,7 @@ mod tests {
         op.inrefs = vec![ptr_vn, idx];
         op.output = Some(out.clone());
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         // Add a non-ADD descendant so evaluatePointerExpression → 2.
         let out2 = fd
             .vbank
@@ -28706,9 +28743,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         let result = rule.apply_op(&op_arc, &mut fd).unwrap();
         assert_eq!(result, action_status::CHANGE);
@@ -28778,9 +28813,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr.clone()];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
         // LOAD in(1) is the PTRSUB output directly (newoff == 0 arm).
@@ -28835,9 +28868,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
         // LOAD in(1) must now be defined by the INT_ADD.
@@ -28895,9 +28926,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
         let new_ptr = op_arc.read().unwrap().inrefs[1].clone();
@@ -28960,9 +28989,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(rule.apply_op(&op_arc, &mut fd).unwrap(), action_status::CHANGE);
         // Plain path fired on ptr_to (the struct): PTRSUB(#0), no INT_ADD.
@@ -29010,9 +29037,7 @@ mod tests {
         op.inrefs = vec![spaceid, ptr];
         op.output = Some(out);
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
         let rule = RuleStructOffset0::new();
         assert_eq!(
             rule.apply_op(&op_arc, &mut fd).unwrap(),
@@ -29296,9 +29321,7 @@ mod tests {
         op.inrefs = vec![hi.clone(), lo.clone()];
         op.output = Some(out.clone());
         let op_arc = Arc::new(RwLock::new(op));
-        fd.obank
-            .alivelist
-            .push(crate::op::PcodeOpRef(op_arc.clone()));
+        fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc.clone()));
 
         let rule = RulePieceStructure::new();
         let res = rule.apply_op(&op_arc, &mut fd).unwrap();

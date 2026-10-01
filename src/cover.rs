@@ -936,9 +936,10 @@ impl Cover {
             // without carrying the block guard into recursive calls.
             let predecessors = {
                 let block = bl_arc.read().unwrap();
+                let bank = block.bank();
                 matching_slots
                     .into_iter()
-                    .filter_map(|slot| block.get_in(slot).map(|edge| edge.point))
+                    .filter_map(|slot| block.get_in(slot).map(|edge| bank.expect_arc(edge.point)))
                     .collect::<Vec<_>>()
             };
             for predecessor in predecessors {
@@ -962,11 +963,12 @@ impl Cover {
         bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
     ) -> Vec<std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>> {
         let rg = bl.read().unwrap();
+        let bank = rg.bank();
         let n = rg.size_in();
         let mut out = Vec::with_capacity(n);
         for slot in 0..n {
             if let Some(edge) = rg.get_in(slot) {
-                out.push(edge.point);
+                out.push(bank.expect_arc(edge.point));
             }
         }
         out
@@ -1196,10 +1198,11 @@ fn push_predecessors_onto(
     stack: &mut Vec<std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>>,
 ) {
     let rg = bl.read().unwrap();
+    let bank = rg.bank();
     let n = rg.size_in();
     for slot in (0..n).rev() {
         if let Some(edge) = rg.get_in_ref(slot) {
-            stack.push(edge.point.clone());
+            stack.push(bank.expect_arc(edge.point));
         }
     }
 }

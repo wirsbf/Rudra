@@ -3552,11 +3552,18 @@ impl ValueSetSolver {
         let (true_block, false_block) = {
             let flip = cbranch.read().unwrap().is_boolean_flip();
             let sp = split_point.read().unwrap();
+            let bank = sp.bank();
             let cbranch_ref = crate::op::PcodeOpRef(cbranch.clone());
             if flip {
-                (sp.get_false_out(&cbranch_ref), sp.get_true_out(&cbranch_ref))
+                (
+                    sp.get_false_out(&cbranch_ref).map(|id| bank.expect_arc(id)),
+                    sp.get_true_out(&cbranch_ref).map(|id| bank.expect_arc(id)),
+                )
             } else {
-                (sp.get_true_out(&cbranch_ref), sp.get_false_out(&cbranch_ref))
+                (
+                    sp.get_true_out(&cbranch_ref).map(|id| bank.expect_arc(id)),
+                    sp.get_false_out(&cbranch_ref).map(|id| bank.expect_arc(id)),
+                )
             }
         };
         let (true_block, false_block) = match (true_block, false_block) {
@@ -3606,32 +3613,39 @@ impl ValueSetSolver {
                     // If it's possible that both the true and false edges can
                     // reach trueBlock, the only input we can restrict is a
                     // MULTIEQUAL input along the exact true edge.
-                    let along_true_edge = true_block
-                        .read()
-                        .unwrap()
-                        .get_in(slot)
-                        .map(|e| Arc::ptr_eq(&e.point, &split_point))
-                        .unwrap_or(false);
+                    let along_true_edge = {
+                        let tb = true_block.read().unwrap();
+                        let bank = tb.bank();
+                        let sp_id = bank.registered_id_of(&split_point);
+                        tb.get_in(slot)
+                            .map(|e| e.point == sp_id)
+                            .unwrap_or(false)
+                    };
                     if true_is_restricted || along_true_edge {
                         self.generate_true_equation(out_vn.as_ref(), &op, slot_i, type_code, range.clone());
                     }
                     continue;
                 } else if in_false {
                     // ... along the exact false edge.
-                    let along_false_edge = false_block
-                        .read()
-                        .unwrap()
-                        .get_in(slot)
-                        .map(|e| Arc::ptr_eq(&e.point, &split_point))
-                        .unwrap_or(false);
+                    let along_false_edge = {
+                        let fb = false_block.read().unwrap();
+                        let bank = fb.bank();
+                        let sp_id = bank.registered_id_of(&split_point);
+                        fb.get_in(slot)
+                            .map(|e| e.point == sp_id)
+                            .unwrap_or(false)
+                    };
                     if false_is_restricted || along_false_edge {
                         self.generate_false_equation(out_vn.as_ref(), &op, slot_i, type_code, range.clone());
                     }
                     continue;
                 } else {
                     // MULTIEQUAL input is really only from one in-block.
-                    cur_block = cur_block
-                        .and_then(|cb| cb.read().unwrap().get_in(slot).map(|e| e.point));
+                    cur_block = cur_block.and_then(|cb| {
+                        let r = cb.read().unwrap();
+                        let bank = r.bank();
+                        r.get_in(slot).map(|e| bank.expect_arc(e.point))
+                    });
                     if cur_block.is_none() {
                         continue; // Ghidra-unreachable: slot < sizeIn.
                     }
@@ -3837,9 +3851,14 @@ impl ValueSetSolver {
             };
             let is_multiequal = op.read().unwrap().get_opcode() == OpCode::CPUI_MULTIEQUAL;
             if is_multiequal {
+                let bank = bl.read().unwrap().bank();
                 let n_in = bl.read().unwrap().size_in();
                 for j in 0..n_in {
-                    let mut cur = bl.read().unwrap().get_in(j).map(|e| e.point);
+                    let mut cur = bl
+                        .read()
+                        .unwrap()
+                        .get_in(j)
+                        .map(|e| bank.expect_arc(e.point));
                     while let Some(c) = cur {
                         if c.read().unwrap().is_mark() {
                             break;
@@ -3885,12 +3904,13 @@ impl ValueSetSolver {
         // blocks, looking for 2-out CBRANCH split points.
         let mut final_list: Vec<Blk> = Vec::new();
         for bl in &block_list {
+            let bank = bl.read().unwrap().bank();
             let n_in = bl.read().unwrap().size_in();
             for j in 0..n_in {
                 let Some(edge) = bl.read().unwrap().get_in(j) else {
                     continue;
                 };
-                let split_point = edge.point.clone();
+                let split_point = bank.expect_arc(edge.point);
                 if split_point.read().unwrap().is_mark() {
                     continue;
                 }

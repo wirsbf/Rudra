@@ -1,5 +1,36 @@
 # `funcdata.rs` API Reference
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2）
+- insert_op 的 SWITCH_OUT 直写改 `set_flags`；块构造字面量增 `bank_slot`
+  初始化。值语义不变。
+
+## 2026-09-30：god-object id 读访问器（PERF-ARENA-FLIP-0001 (a)，(b) 交接面）
+
+新增四个 P1 读形态访问器（ARENA_DESIGN §3.2；oracle 依据 = op.hh:63-68 PcodeOp 的
+结构性 setter 全部 private + friend `Funcdata`——交叉访问本就 100% 经 Funcdata 中转）：
+
+- `Funcdata::op_by_id(OpId) -> Option<&PcodeOpRef>` — op arena 句柄解析（OpId 由
+  `PcodeOpTree` 槽存储分配，`PcodeOp::op_id` 回指；destroy 后槽保留=oracle
+  deadandgone 可读语义，op.cc:984-999）。
+- `Funcdata::op_id_of(&PcodeOpRef) -> Option<OpId>` — bank 插入过的 op 的句柄。
+- `Funcdata::vn_by_id(VnId) -> Option<&Arc<RwLock<Varnode>>>` — varnode arena 句柄
+  解析（`Varnode::vn_id` 回指，`VarnodeBank::allocate` 占槽）。
+- `Funcdata::vn_id_of(&Arc<RwLock<Varnode>>) -> Option<VnId>` — bank 分配过的
+  varnode 的句柄（None=手搓 fixture/外部 Arc）。
+
+W1(b)-(g) 消费迁移（heritage/flow→printc）以此为入口逐步把 `Arc` 句柄形态换
+id 形态；(a) 段 PcodeOpRef/Arc 形态本身不变（桥接契约）。
+
+## 2026-09-30：begin/end Loc/Def 前转器返回类型随动（PERF-ARENA-FLIP-0001 (a)）
+
+`Funcdata` 的 begin/end Loc/Def 前转器族（`begin_loc`/`end_loc`/`end_loc_space`/
+`end_loc_size`/`end_loc_size_fl`/`end_loc_pc`/`begin_def`/`end_def`/`end_def_fl`/
+`end_def_addr`，funcdata.hh:337-394 前转形态）返回类型随 VarnodeBank 双树 POD 键化
+（见 `docs/api/varnode.md` 同日条目）由 `std::collections::btree_set::Iter<'_, Varnode{Loc,Def}Ref>`
+改为 `impl Iterator<Item = &Varnode{Loc,Def}Ref>`——纯类型随动：迭代序仍为
+VarnodeCompareLocDef/DefLoc 比较器投影全序，元素仍逐个 yield `&VarnodeLocRef`/
+`&VarnodeDefRef`，所有调用点（含 filter 链式形态）零改动、行为零变。
+
 ## 2026-09-29：beginOpAll/endOpAll 迭代器类型随动（PERF-ACTIONPOOL-ITER-0001 / OPTREE 车道）
 
 `Funcdata::begin_op_all`/`end_op_all`（funcdata.hh:518/521 beginOpAll/endOpAll 前转）
@@ -365,6 +396,21 @@ source out-half。`install_switch_defaults` 通过双半边 helper 写入
 
 **源代码路径**: `src/funcdata.rs`
 **2026-07-16**: `link_symbol` + `link_symbol_reference` 已加（funcdata_varnode.cc:1156/1193）。符号链接 + PTRSUB 常量解析。
+
+
+## 2026-09-30：move_out_edge 尾边打标（Lane ARENAFLIP-d 步骤 2）
+
+- `move_out_edge` 的 cc:167 `BlockEdge` 推送（b->outofthis.push_back）补
+  `point_id` 孪生打标（经 `self.bblocks.bank`，无 point 守卫）。语义逐位
+  不变。
+
+## 2026-09-30：edge 孪生打标接线（Lane ARENAFLIP-d 步骤 1）
+
+- `replaceInEdge`（funcdata.cc:160 域）/node-split 重定向的 `.point =` 写点
+  同步打 `point_id` 孪生（经 `self.bblocks.bank.registered_id_of`，无
+  point 守卫）；`replaceEdgesThru` 调用点传入 bank。测试 fixture 字面量
+  补 SENTINEL 孪生。语义逐位不变（孪生是纯表示字段）。详见
+  docs/api/block.md 2026-09-30 条。
 
 ## 文档状态
 
@@ -3553,3 +3599,26 @@ INDIRECT/CPOOLREF/NEW——均带输出，SPECIAL 精确分类）的输出与当
 `generate_ops_from_path`），并把 `iter/startiter` 行号引用修正为
 funcdata_block.cc:558-559。五面门禁 + 五受测函数 --func 零漂移
 （delta 口径，见 /dev/shm/rugra-reports/LANE_FTSFIX_2026-09-29.md）。
+
+## 2026-09-30：op 链消费迁移 + GLUE 分支链手术（PERF-ARENA-FLIP-0001 (b)）
+
+`begin_op_code/end_op_code/begin_op_alive/end_op_alive/begin_op_dead/
+end_op_dead` 桥接返回类型从 `std::slice::Iter` 换 `OpChainIter`（链序=原
+Vec 序）；`op_insert_before`/`op_insert_after`/`op_uninsert` 的 legacy
+GLUE 分支从 alivelist 位置扫描/retain/insert 改 O(1) 链手术
+（`alive_prev` 反向 INDIRECT 组跳 + `alive_insert_before/after`）；
+`early_jump_table_fail` 的 dead[i] 反向索引回溯改 `dead_prev` 存储链游走
+（funcdata_block.cc:554 `--iter` 形态）；`do_live_inject` 位点循环保持
+Vec 位置语义（`dead_at_strict` panic 对位）。canon 双 md5 字节恒等亲证。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

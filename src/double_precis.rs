@@ -1601,8 +1601,13 @@ impl SplitVarnode {
             None => return (None, None),
         };
         let pg = parent.read().unwrap();
-        let trueblock = pg.get_true_out(&PcodeOpRef(boolop.clone()));
-        let falseblock = pg.get_false_out(&PcodeOpRef(boolop.clone()));
+        let bank = pg.bank();
+        let trueblock = pg
+            .get_true_out(&PcodeOpRef(boolop.clone()))
+            .map(|id| bank.expect_arc(id));
+        let falseblock = pg
+            .get_false_out(&PcodeOpRef(boolop.clone()))
+            .map(|id| bank.expect_arc(id));
         if boolop_flip != flip {
             (falseblock, trueblock)
         } else {
@@ -1870,7 +1875,11 @@ impl SplitVarnode {
         let bl = parent_block(&existop);
         for (i, in_sv) in inlist.iter_mut().enumerate() {
             // bl->getIn(i)
-            let in_block = bl.as_ref().and_then(|b| b.read().unwrap().get_in(i).map(|e| e.point.clone()));
+            let in_block = bl.as_ref().and_then(|b| {
+                let r = b.read().unwrap();
+                let bank = r.bank();
+                r.get_in(i).map(|e| bank.expect_arc(e.point))
+            });
             if !in_sv.is_whole_phi_feasible(in_block.as_ref()) {
                 return None;
             }
@@ -5455,8 +5464,9 @@ impl LessThreeWay {
             if g.size_out() != 2 {
                 return false;
             }
+            let bank = g.bank();
             let hieqbl = match g.get_in(0) {
-                Some(e) => e.point.clone(),
+                Some(e) => bank.expect_arc(e.point),
                 None => return false,
             };
             self.hieqbl = Some(hieqbl.clone());
@@ -5468,7 +5478,7 @@ impl LessThreeWay {
                 return false;
             }
             let hilessbl = match hg.get_in(0) {
-                Some(e) => e.point.clone(),
+                Some(e) => bank.expect_arc(e.point),
                 None => return false,
             };
             self.hilessbl = Some(hilessbl.clone());

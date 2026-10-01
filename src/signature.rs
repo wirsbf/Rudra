@@ -1755,11 +1755,13 @@ impl GraphSigManager {
             let mut neigh_indices = Vec::with_capacity(size_in);
             let mut incoming_size_out = Vec::with_capacity(size_in);
             let mut rev_indices = Vec::with_capacity(size_in);
+            let bank = blk_rg.bank();
             for j in 0..size_in {
                 if let Some(edge) = blk_rg.get_in(j) {
-                    let in_index = edge.point.read().unwrap().get_index();
+                    let in_index = bank.expect_index(edge.point);
                     neigh_indices.push(in_index);
-                    incoming_size_out.push(edge.point.read().unwrap().size_out() as i32);
+                    incoming_size_out
+                        .push(bank.expect_arc(edge.point).read().unwrap().size_out() as i32);
                     rev_indices.push(blk_rg.get_in_rev_index(j));
                 }
             }
@@ -2051,7 +2053,7 @@ impl Default for GraphSigManager {
 // Ghidra: funcdata.hh Funcdata::hasUnimplemented (scanned here from obank).
 pub fn has_unimplemented(fd: &Arc<RwLock<Funcdata>>) -> bool {
     let fd_rg = fd.read().unwrap();
-    fd_rg.obank.alivelist.iter().any(|op_ref| {
+    fd_rg.obank.iter_alive().any(|op_ref| {
         (op_ref.0.read().unwrap().flags & pcodeop_flags::UNIMPLEMENTED) != 0
     })
 }
@@ -2061,7 +2063,7 @@ pub fn has_unimplemented(fd: &Arc<RwLock<Funcdata>>) -> bool {
 // Ghidra: funcdata.hh Funcdata::hasBadData (scanned here from obank).
 pub fn has_bad_data(fd: &Arc<RwLock<Funcdata>>) -> bool {
     let fd_rg = fd.read().unwrap();
-    fd_rg.obank.alivelist.iter().any(|op_ref| {
+    fd_rg.obank.iter_alive().any(|op_ref| {
         (op_ref.0.read().unwrap().flags & pcodeop_flags::BADINSTRUCTION) != 0
     })
 }

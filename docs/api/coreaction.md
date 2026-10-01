@@ -1,5 +1,10 @@
 # `coreaction.rs` API Reference
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
+- test_prefercomplement_flips_if_else_condition：cond 块整体 outgoing 赋值
+  后补 `sync_bank_shadows()`（该测试先 adopt 再赋值——影子需同步）；
+  块构造字面量增 `bank_slot` 初始化。
+
 ## 2026-09-29：LOAD/STORE spacebase 传播阻断 + TYPEPROP 事件通道（MCENSUS3-TYPEPROP-XUNKNOWN-INT-HTTPDMAIN-0001 / lane MAINTYPE）
 
 - `ActionInferTypes::propagate_type`（`src/coreaction.rs:8589`，镜像
@@ -453,6 +458,13 @@ infertypes 派发 40 个 INT_ADD，但当前各 ADD 输出临时类型为 Int �
 
 **状态**: 已核对（当前有效）  
 **源代码路径**: `src/coreaction.rs`
+
+
+## 2026-09-30：测试 fixture BlockEdge 字面量补 point_id 字段（Lane ARENAFLIP-d 步骤 1）
+
+- `BlockEdge` 新增 `point_id: BlockId` 值孪生字段（见 docs/api/block.md
+  2026-09-30 条）；coreaction 测试 fixture 的 BlockEdge 字面量补
+  `point_id: SENTINEL`（裸 fixture，未注册 bank）。生产代码零改动。
 
 ## 2026-08-30：castInput 双层 double-cast guard 臂序（CASTINPUT-ARMORDER-0001 / F3）
 
@@ -4434,3 +4446,41 @@ blockaction.cc:2110-2115/2186-2197 + block.cc:3148-3297/3350-3436。
 与优化探针**逐项精确相等**（20,008,328 边/138,984 成功）；sqlite 全语料 + canon
 双 md5 + 镜面五面 + tests 见车道终报。CR 需求：coreaction.rs 属主管线 Action 面
 （机制 C 语义邻域），复核面见 /dev/shm/rugra-reports/LANE_INFERTYPES_2026-09-29.md。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
+
+## 2026-09-30（c 段）：Action 工作集 OpId 化 + 影子 filter（PERF-ARENA-FLIP-0001 (c)）
+
+七个工作集位点从 `Vec<PcodeOpRef>`（clone 采集）迁 `Vec<OpId>`
+（`iter_alive_ids/iter_load_ids/iter_return_ids` 链序 id 采集，零克隆零锁）：
+
+- `ActionDeadCode::last_chance_load`（cc:3902）：LOAD 工作集；isDead 门保持
+  守卫读（LOAD code 链含 dead 成员，cc:3913）。
+- `ActionCse::to_kill`（cc:708 注释体）：击杀工作集 id 化，销毁时解引用。
+- `ActionPrototypeTypes` 步骤 2/3（cc:4628-4649）：RETURN 工作集；opcode
+  filter 走槽影子（原每扫描 op 一次锁）；fd 变异点处解引用+单点克隆
+  （读借用结束后重取，借用纪律 P5）。
+- `ActionStackPtrFlow::check_clog`（cc:432）：INT_ADD 工作集影子 filter
+  （Rugra 遍历形态与 oracle loc-tree 形态的分歧行为另行追踪，本段仅表示层）。
+- `ActionReturnRecovery`（cc:1908-1955）：RETURN 快照单守卫 P2 合并
+  （原两个 filter 闭包各一锁→一锁同拒集）；每 RETURN 一次解引用。
+- `ActionInferTypes::canonical_return_op/propagate_across_returns`
+  （cc:5317-5365）：工作集 id 化；canonical 判等 `Arc::ptr_eq` → id 相等
+  （id 空间的指针相等形态，ARENA_DESIGN §2.1）。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

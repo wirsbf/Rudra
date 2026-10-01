@@ -1,5 +1,16 @@
 # flow.rs — Reachability-based control flow tracking
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2）
+- splitBasic 系 SWITCH_OUT 直写改 `set_flags/clear_flags`（block.hh:155/156
+  形态）；`mem::take(&mut pbb.outgoing)` 后与 `tbb.outgoing = parent_outgoing`
+  后补 `sync_bank_shadows()`。值语义逐位不变（|= / &= ! 同型）。
+
+## 2026-09-30：splitBasic tail 边重定向补孪生（Lane ARENAFLIP-d 步骤 1）
+- case-destination split（flow.cc:1021-1037 connectBasic 域）的入边半
+  `.point = tail` 写点同步打 `point_id` 值孪生（`fd.bblocks.bank` 预解析，
+  无 point 守卫——孪生是纯表示字段，语义逐位不变）。详见
+  docs/api/block.md 2026-09-30 条。
+
 ## 2026-08-26：GOTO-LABEL-UNPRINTED-0001 收尾验证
 - `FlowInfo::generate_ops` 的控制流恢复继续遵循 `flow.cc:785-822` 的阶段顺序；尾调用/流覆盖传输在原始 p-code 层完成后，标签发现可消费稳定的 branch/call 形态。
 - 本轮移除仅用于诊断的 `[DBG]` 原始 op/CFG 探针，避免污染 stderr；生产路径不依赖环境变量。
@@ -930,3 +941,29 @@ MCENSUS4-CASTSHAPE-RESID-FIVE-0001 注记，语料内同形 13 站点）。
   canon curl **54/0/0** / httpd **36/0/0**（=MB30 钉值零回退，httpd md5 c3b4706c
   字节恒等）；镜面五面/bank/tests 见车道终报
   （/dev/shm/rugra-reports/LANE_S5BREAKGUARD_2026-09-28.md）。
+
+## 2026-09-30：dead-list 消费迁 OpId marker（PERF-ARENA-FLIP-0001 (b)）
+
+flow.rs 的 deadlist/alivelist 消费位（deadlist 22 处+alivelist 2 处）从
+Vec 形态迁 bank 链 API：`process_instruction`/`do_injection` 的
+`num_ops_before`/`first_index` 边界索引改 `Option<OpId>` marker（预注入
+dead 链尾 id——oracle 存储迭代器形态，flow.cc:407/1180-1183）；
+`xref_control_flow(_at)` 的 usize 索引循环改 OpId 游标链游走（尾臂截断 =
+`delete_remaining_ops_after(Some(id))`，flow.cc:240 `oiter`→endDead 形态）；
+`dead_list_next`/`fallthru_op` 改 O(1) 存储链前后驱（`dead_next`/
+`in_dead`）；flow 本地 `move_sequence_flow`/`mark_incidental_copy_flow`
+drain/splice 适配副本删除，委派 bank 单实现（op.cc:1056-1083，
+splice_after 退化守卫随冻结原语）。快照消费（collect_edges 等）保持
+Vec 快照形态，仅采集面换 `iter_dead()`。canon 双 md5 字节恒等亲证。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

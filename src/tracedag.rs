@@ -167,7 +167,8 @@ impl<'a> TraceDAG<'a> {
     fn get_out(&self, idx: i32, slot: usize) -> Option<i32> {
         if let Some(b) = self.graph.get_block(idx as usize) {
             let r = b.read().unwrap();
-            r.get_out(slot).map(|e| e.point.read().unwrap().get_index())
+            r.get_out(slot)
+                .map(|e| self.graph.bank.expect_index(e.point))
         } else {
             None
         }

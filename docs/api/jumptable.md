@@ -1,5 +1,8 @@
 # jumptable.rs — Jump-table recovery API
 
+## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
+- test_jump_table_add_block：裸 outgoing.push 后补 `sync_bank_shadows()`。
+
 对应 Ghidra `jumptable.hh` / `jumptable.cc`。**当前状态：🔧 L2
 （2026-08-11 锁定 12.0.4 审计）**。Override 的 start-op/trial normalization、
 PathMeld 的 SeqNum 归并截断、EmulateFunction loader/LOAD、Basic/Basic2/Assisted
@@ -727,3 +730,22 @@ switchvn 定义链（写域预测=src/jumptable.rs）。**本车道核验证伪�
   2 位点 golden 逐字。Pragma 簇 6 位点残差（下标 8 vs 1、缺 (uint1) cast）=
   指针 pointee 类型分歧（uint1* vs uint8*，RuleExpandLoad 触发条件被断），
   已登记 `GA2-SWITCHVN-POINTTEE-TYPE-0001`（infertypes 域），与本文件无关。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
+
+
+## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
+
+**PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`
+翻转为 `BlockId`（oracle block.hh:57-65 的 12B 值形态,Copy struct;`point_id`
+孪生字段并入 `point`）。本模块的消费位点已随迁:对端解析经**属主 bank**
+（每块 `Weak` owner-bank 回指,`BlockBank::{expect_arc,expect_index,arc_of,
+index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改为
+id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
+行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
+tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。

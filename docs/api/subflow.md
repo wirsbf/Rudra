@@ -160,7 +160,11 @@ COPY-follow（cc:2761-2769）、oracle buildPointers 的 PTRSUB/PTRADD op
 
 ### `SubvariableFlow` (subflow.cc:1372)
 子字传播引擎。Ghidra `SubvariableFlow` 类的 1:1 移植。
-- `new(flow_size, aggressive, sext)` — 构造 (subflow.cc:1372-1404)
+- `new(flow_size, aggressive, sext)` — 构造 (subflow.cc:1372-1404)。
+  字段 `fd_present: bool`（2026-09-30 起）是 oracle `Funcdata* fd` 成员的
+  NULL-presence 建模（ctor 短路置 false=subflow.cc 的 `fd=(Funcdata*)0`，
+  `is_null()`/`do_trace` 门与之等价）；fd 本体逐调用线程化（P6），
+  `unsafe impl Send` 随 `*mut Funcdata` 一并删除
 - `set_replacement(vn, mask)` / `has_replacement` / `get_replacement_index` — 子变量注册表 (66-151)
 - `create_op` / `create_op_down` — 子图 op 创建 (159-197)
 - `try_call_pull` / `try_return_pull` / `try_call_return_push` / `try_switch_pull` / `try_int2float_pull` — CALL/RETURN/SWITCH/INT2FLOAT 穿透 (208-367)
@@ -564,3 +568,10 @@ fixture 引出 `src/op.rs PcodeOp::get_repeat_slot` 缺 op.cc:101 的
 - 本模块 6 处 `// Ghidra:` 头注解的 file:line 已重锚到锁定 oracle (e40ed130)
   的函数定义起始行；本文件中同名单点引用同步更新（正文内点引用/区间端点不在
   机制 D checker 范围，遗留见 RULEACTION-ANNO-PROSE-RANGE-0001）。注释-only，零行为变化。
+## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）
+
+`fd.obank.{alivelist,deadlist,storelist,loadlist,returnlist,useroplist}`
+的 Vec 迭代/克隆消费位随 PcodeOpBank 7 链 IdList 翻转机械改写为 bank 链
+API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
+迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
+`alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。

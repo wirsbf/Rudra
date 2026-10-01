@@ -6798,12 +6798,13 @@ impl PrintC {
     ) -> Option<
         std::sync::Arc<
             std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>> {
+        let bank = block_arc.read().unwrap().bank();
         let (size_out, out0, out1) = {
             let block = block_arc.read().unwrap();
             (
                 block.size_out(),
-                block.get_out(0).map(|edge| edge.point),
-                block.get_out(1).map(|edge| edge.point),
+                block.get_out(0).map(|edge| bank.expect_arc(edge.point)),
+                block.get_out(1).map(|edge| bank.expect_arc(edge.point)),
             )
         };
         if size_out == 1 {
@@ -8124,6 +8125,11 @@ impl PrintC {
         graph: &crate::block::BlockGraph,
         emitted: &mut std::collections::HashSet<usize>,
     ) {
+        // Edge endpoints resolve in the owning graph's bank (ARENA_DESIGN
+        // §1.5 flip; the emitted ledger stays keyed by Arc identity, so
+        // resolved endpoints land on the same keys the block_arc inserts
+        // use).
+        let bank = graph.bank.clone();
         use crate::block::{
             BlockCondition, BlockDoWhile, BlockIf, BlockList, BlockSwitch, BlockType, BlockWhileDo, };
                 // BlockBasic or other — flat statement emission
@@ -8146,34 +8152,37 @@ impl PrintC {
                     
                     let true_empty = true_edge
                 .as_ref()
-                        .map_or(true, |e| self.is_block_body_empty(&e.point));
+                        .map_or(true, |e| self.is_block_body_empty(&bank.expect_arc(e.point)));
                     let false_empty = false_edge
                 .as_ref()
-                        .map_or(true, |e| self.is_block_body_empty(&e.point));
+                        .map_or(true, |e| self.is_block_body_empty(&bank.expect_arc(e.point)));
                     
                     if true_empty && false_empty {
                         // Both branches empty — emit the condition block ops but skip the if/else
                         self.emit_block_ops(block_arc, true);
                         if let Some(ref te) = true_edge {
-                            let t = te.point.read().unwrap().get_type();
+                            let te_arc = bank.expect_arc(te.point);
+                            let t = te_arc.read().unwrap().get_type();
                             // Don't suppress structured blocks (WhileDo/DoWhile) — they must emit.
                             if t == crate::block::BlockType::Basic || t == crate::block::BlockType::Copy {
-                                emitted.insert(std::sync::Arc::as_ptr(&te.point) as *const () as usize);
+                                emitted.insert(std::sync::Arc::as_ptr(&te_arc) as *const () as usize);
                             }
                         }
                         if let Some(ref fe) = false_edge {
-                            let f = fe.point.read().unwrap().get_type();
+                            let fe_arc = bank.expect_arc(fe.point);
+                            let f = fe_arc.read().unwrap().get_type();
                             if f == crate::block::BlockType::Basic || f == crate::block::BlockType::Copy {
-                                emitted.insert(std::sync::Arc::as_ptr(&fe.point) as *const () as usize);
+                                emitted.insert(std::sync::Arc::as_ptr(&fe_arc) as *const () as usize);
                             }
                         }
                     } else if true_empty && !false_empty {
                         // True branch empty, false has code → negate: if (!cond) { false_code }
                         self.emit_block_ops(block_arc, true);
                         if let Some(ref te) = true_edge {
-                            let t = te.point.read().unwrap().get_type();
+                            let te_arc = bank.expect_arc(te.point);
+                            let t = te_arc.read().unwrap().get_type();
                             if t == crate::block::BlockType::Basic || t == crate::block::BlockType::Copy {
-                                emitted.insert(std::sync::Arc::as_ptr(&te.point) as *const () as usize);
+                                emitted.insert(std::sync::Arc::as_ptr(&te_arc) as *const () as usize);
                             }
                         }
 
@@ -8196,13 +8205,14 @@ impl PrintC {
                             .unwrap_or_else(|| format!("!({})", trimmed));
                         self.emit.print(&format!("if ({})", negated_cond2));
                         if let Some(false_block_edge) = false_edge {
-                            let false_idx = std::sync::Arc::as_ptr(&false_block_edge.point) as *const () as usize;
-                            let ft = false_block_edge.point.read().unwrap().get_type();
+                            let fb_arc = bank.expect_arc(false_block_edge.point);
+                            let false_idx = std::sync::Arc::as_ptr(&fb_arc) as *const () as usize;
+                            let ft = fb_arc.read().unwrap().get_type();
                             self.emit.begin_block();
                             if ft == crate::block::BlockType::Basic || ft == crate::block::BlockType::Copy {
                                 emitted.insert(false_idx);
                             }
-                            self.emit_block_ops(&false_block_edge.point, false);
+                            self.emit_block_ops(&fb_arc, false);
                             self.emit.end_block();
                         }
                     } else {
@@ -8216,19 +8226,21 @@ impl PrintC {
                         self.emit.print(")");
 
                         if let Some(true_block_edge) = true_edge {
-                            let true_idx = std::sync::Arc::as_ptr(&true_block_edge.point) as *const () as usize;
-                            let tt = true_block_edge.point.read().unwrap().get_type();
+                            let tb_arc = bank.expect_arc(true_block_edge.point);
+                            let true_idx = std::sync::Arc::as_ptr(&tb_arc) as *const () as usize;
+                            let tt = tb_arc.read().unwrap().get_type();
                             self.emit.begin_block();
                             if tt == crate::block::BlockType::Basic || tt == crate::block::BlockType::Copy {
                                 emitted.insert(true_idx);
                             }
-                            self.emit_block_ops(&true_block_edge.point, false);
+                            self.emit_block_ops(&tb_arc, false);
                             self.emit.end_block();
                         }
 
                         if let Some(false_block_edge) = false_edge {
-                            let false_idx = std::sync::Arc::as_ptr(&false_block_edge.point) as *const () as usize;
-                            let ft = false_block_edge.point.read().unwrap().get_type();
+                            let fb_arc = bank.expect_arc(false_block_edge.point);
+                            let false_idx = std::sync::Arc::as_ptr(&fb_arc) as *const () as usize;
+                            let ft = fb_arc.read().unwrap().get_type();
                             // The else block is part of the conditional, not sequential code.
                             // seen_return from the then-branch should NOT suppress it.
                             if !emitted.contains(&false_idx) && !false_empty {
@@ -8240,7 +8252,7 @@ impl PrintC {
                                 // Temporarily clear seen_return so the else block emits.
                                 let saved_seen_return = self.seen_return;
                                 self.seen_return = false;
-                                self.emit_block_ops(&false_block_edge.point, false);
+                                self.emit_block_ops(&fb_arc, false);
                                 self.seen_return = saved_seen_return;
                                 self.emit.end_block();
                             } else {
@@ -8270,7 +8282,7 @@ impl PrintC {
             > = {
                         let b = block_arc.read().unwrap();
                         (0..b.size_out())
-                    .filter_map(|s| b.get_out(s).map(|e| e.point.clone()))
+                    .filter_map(|s| b.get_out(s).map(|e| bank.expect_arc(e.point)))
                     .collect()
                     };
                     for succ in &outs {
@@ -11829,7 +11841,7 @@ impl PrintLanguage for PrintC {
 
         // Collect function call target addresses so we don't declare them as variables
         let mut call_targets: HashSet<u64> = HashSet::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_CALL {
                 if let Some(in0) = op.get_in(0) {
@@ -11864,7 +11876,7 @@ impl PrintLanguage for PrintC {
         self.pointer_varnodes.clear();
         use crate::space::AddressSpace;
         let mut addr_feeding_load: HashSet<(AddressSpace, u64)> = HashSet::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
                 OpCode::CPUI_LOAD | OpCode::CPUI_STORE if op.inrefs.len() > 1 => {
@@ -11926,7 +11938,7 @@ impl PrintLanguage for PrintC {
                 _ => {}
             }
         }
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if matches!(op.opcode, OpCode::CPUI_INT_ADD | OpCode::CPUI_INT_SUB) {
                 if let Some(ref out) = op.output {
@@ -12100,7 +12112,7 @@ impl PrintLanguage for PrintC {
         // Build defining-op map: for each op, map output varnode ptr -> op Arc
         // Include BOTH alivelist ops AND block-level ops (comparisons, booleans, etc.)
         self.def_map.clear();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if let Some(ref out_arc) = op.output {
                 let out_ptr = Arc::as_ptr(out_arc) as usize;
@@ -12354,7 +12366,7 @@ impl PrintLanguage for PrintC {
         }
         // Fallback: scan alivelist if bblocks didn't find stack frame
         if self.stack_frame_size == 0 {
-            for op_ref in &fd.obank.alivelist {
+            for op_ref in fd.obank.iter_alive() {
                 let op = op_ref.0.read().unwrap();
                 if op.opcode == OpCode::CPUI_INT_SUB && op.inrefs.len() >= 2 {
                     let in0 = op.inrefs[0].read().unwrap();
@@ -12518,7 +12530,7 @@ impl PrintLanguage for PrintC {
                 }
             }
             // Also count uses from alivelist
-            for op_ref in &fd.obank.alivelist {
+            for op_ref in fd.obank.iter_alive() {
                 let op = op_ref.0.read().unwrap();
                 for in_arc in &op.inrefs {
                     let in_vn = in_arc.read().unwrap();
@@ -12595,7 +12607,7 @@ impl PrintLanguage for PrintC {
                 }
             }
         }
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             for in_arc in &op.inrefs {
                 self.global_used_outputs
@@ -22340,6 +22352,8 @@ mod tests {
             Arc::new(std::sync::RwLock::new(ctrl));
 
         let switch_data = BlockSwitch {
+        owner_bank: std::sync::Weak::new(),
+        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 0,
             control: ctrl_arc,
             cases: Vec::new(),
@@ -22718,7 +22732,9 @@ mod tests {
             b.set_flags(merged);
         }
         Arc::new(RwLock::new(BlockCopy {
-            index,
+            owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
+            index: 0,
             flags: 0,
             parent: None,
             self_ref: None,

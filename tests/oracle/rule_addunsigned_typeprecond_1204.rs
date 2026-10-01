@@ -79,8 +79,7 @@ fn emit_state(
         .is_some_and(|parent| Arc::ptr_eq(&parent, block));
     let alive_has_op = fd
         .obank
-        .alivelist
-        .iter()
+        .iter_alive()
         .any(|candidate| Arc::ptr_eq(&candidate.0, &op.0));
 
     println!(

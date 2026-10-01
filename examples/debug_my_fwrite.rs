@@ -203,7 +203,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fd.run_heritage_direct();
 
     eprintln!("\n=== P-code after heritage (alive ops: {}) ===", fd.obank.alivelist.len());
-    for op_ref in &fd.obank.alivelist {
+    for op_ref in fd.obank.iter_alive() {
         let op = op_ref.0.read().unwrap();
         let out_str = if let Some(o) = &op.output {
             let v = o.read().unwrap();

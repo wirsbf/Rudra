@@ -121,20 +121,16 @@ impl SplitInstance {
 /// Manages the splitting of varnodes based on a list of PreferSplitRecords.
 /// Faithful to `PreferSplitManager` (prefersplit.hh:33-72).
 pub struct PreferSplitManager {
-    /// The Funcdata being operated on (set via `split`/`split_additional`).
-    data: Option<*mut Funcdata>,
-    /// The records describing which storage locations to split.
+    /// The split records describing which storage locations to split.
+    /// (The oracle's `Funcdata *data` member is not stored: P6 — every
+    /// fd-using method takes `fd: &mut Funcdata` per call, mirroring how
+    /// the single owning `Heritage::heritage` pass holds fd across both
+    /// split passes. Auto Send+Sync as a result.)
     records: Vec<PreferSplitRecord>,
     /// COPY ops of temporaries that need additional splitting
     /// (prefersplit.hh:45). Stored as `PcodeOpRef` to keep the Arc alive.
     tempsplits: Vec<PcodeOpRef>,
 }
-
-// SAFETY: The raw `*mut Funcdata` pointer is only dereferenced within `&mut`
-// methods of `PreferSplitManager`, which is held uniquely while the split pass
-// runs. The pointer mirrors Ghidra's `Funcdata* data` field and is never
-// shared across threads concurrently.
-unsafe impl Send for PreferSplitManager {}
 
 impl Default for PreferSplitManager {
     // Ghidra: prefersplit.hh:33 PreferSplitManager::default
@@ -148,18 +144,18 @@ impl PreferSplitManager {
     /// Construct an empty manager.
     pub fn new() -> Self {
         Self {
-            data: None,
             records: Vec::new(),
             tempsplits: Vec::new(),
         }
     }
 
     // Ghidra: prefersplit.cc:529 PreferSplitManager::init
-    /// Bind this manager to a `Funcdata` and a records list. Faithful to
-    /// `PreferSplitManager::init` (prefersplit.cc:529-534). The records are
-    /// sorted via `initialize`.
-    pub fn init(&mut self, fd: &mut Funcdata, rec: Vec<PreferSplitRecord>) {
-        self.data = Some(fd as *mut Funcdata);
+    /// Bind this manager's records list. Faithful to
+    /// `PreferSplitManager::init` (prefersplit.cc:529-534: `data = fd;
+    /// records = rec;`); the fd member is not stored (P6 — fd flows per
+    /// call through `split`/`split_additional`), so only the records
+    /// assignment remains. The records are sorted via `initialize`.
+    pub fn init(&mut self, _fd: &mut Funcdata, rec: Vec<PreferSplitRecord>) {
         let mut rec = rec;
         initialize(&mut rec);
         self.records = rec;
@@ -240,12 +236,12 @@ impl PreferSplitManager {
     /// for constants, splits the constant value.
     fn fillin_instance(
         &mut self,
+        fd: &mut Funcdata,
         inst: &mut SplitInstance,
         bigendian: bool,
         sethi: bool,
         setlo: bool,
     ) {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
         let (losize, hisize, vn_offset, is_const, const_val) = {
             let vn_rg = inst.vn.read().unwrap();
             let vn_size = vn_rg.get_size() as i32;
@@ -315,12 +311,12 @@ impl PreferSplitManager {
     /// new COPY ops onto `tempsplits`.
     fn create_copy_ops(
         &mut self,
+        fd: &mut Funcdata,
         ininst: &SplitInstance,
         outinst: &SplitInstance,
         op: &PcodeOpRef,
         _istemp: bool,
     ) {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
         let addr = op.0.read().unwrap().get_addr();
 
         let hiop = fd.new_op(1, addr);
@@ -383,16 +379,22 @@ impl PreferSplitManager {
     // Ghidra: prefersplit.cc:107 PreferSplitManager::splitDefiningCopy
     /// Do split of a prefered split varnode that is defined by a COPY.
     /// Faithful to `splitDefiningCopy` (prefersplit.cc:107-116).
-    fn split_defining_copy(&mut self, inst: &mut SplitInstance, def: &PcodeOpRef, istemp: bool) {
+    fn split_defining_copy(
+        &mut self,
+        fd: &mut Funcdata,
+        inst: &mut SplitInstance,
+        def: &PcodeOpRef,
+        istemp: bool,
+    ) {
         let invn = match def.0.read().unwrap().get_in(0).cloned() {
             Some(v) => v,
             None => return,
         };
         let bigendian = inst.vn.read().unwrap().space().is_big_endian();
         let mut ininst = SplitInstance::new(invn, inst.splitoffset);
-        self.fillin_instance(inst, bigendian, true, true);
-        self.fillin_instance(&mut ininst, bigendian, true, true);
-        self.create_copy_ops(&ininst, inst, def, istemp);
+        self.fillin_instance(fd, inst, bigendian, true, true);
+        self.fillin_instance(fd, &mut ininst, bigendian, true, true);
+        self.create_copy_ops(fd, &ininst, inst, def, istemp);
     }
 
     // Ghidra: prefersplit.cc:118 PreferSplitManager::testReadingCopy
@@ -416,16 +418,22 @@ impl PreferSplitManager {
     // Ghidra: prefersplit.cc:133 PreferSplitManager::splitReadingCopy
     /// Do split of varnode that is read by a COPY. Faithful to
     /// `splitReadingCopy` (prefersplit.cc:133-142).
-    fn split_reading_copy(&mut self, inst: &mut SplitInstance, readop: &PcodeOpRef, istemp: bool) {
+    fn split_reading_copy(
+        &mut self,
+        fd: &mut Funcdata,
+        inst: &mut SplitInstance,
+        readop: &PcodeOpRef,
+        istemp: bool,
+    ) {
         let outvn = match readop.0.read().unwrap().get_out().cloned() {
             Some(v) => v,
             None => return,
         };
         let bigendian = inst.vn.read().unwrap().space().is_big_endian();
         let mut outinst = SplitInstance::new(outvn, inst.splitoffset);
-        self.fillin_instance(inst, bigendian, true, true);
-        self.fillin_instance(&mut outinst, bigendian, true, true);
-        self.create_copy_ops(inst, &outinst, readop, istemp);
+        self.fillin_instance(fd, inst, bigendian, true, true);
+        self.fillin_instance(fd, &mut outinst, bigendian, true, true);
+        self.create_copy_ops(fd, inst, &outinst, readop, istemp);
     }
 
     // Ghidra: prefersplit.cc:144 PreferSplitManager::testZext
@@ -455,8 +463,7 @@ impl PreferSplitManager {
     /// (prefersplit.cc:160-188). The low piece is the ZEXT input (or the
     /// constant split); the high piece is a constant 0 (or the high bits of
     /// the constant).
-    fn split_zext(&mut self, inst: &mut SplitInstance, op: &PcodeOpRef) {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
+    fn split_zext(&mut self, fd: &mut Funcdata, inst: &mut SplitInstance, op: &PcodeOpRef) {
         let invn = match op.0.read().unwrap().get_in(0).cloned() {
             Some(v) => v,
             None => return,
@@ -485,8 +492,8 @@ impl PreferSplitManager {
             ininst.hi = Some(fd.new_constant(hisize as usize, 0));
         }
 
-        self.fillin_instance(inst, bigendian, true, true);
-        self.create_copy_ops(&ininst, inst, op, false);
+        self.fillin_instance(fd, inst, bigendian, true, true);
+        self.create_copy_ops(fd, &ininst, inst, op, false);
     }
 
     // Ghidra: prefersplit.cc:190 PreferSplitManager::testPiece
@@ -517,8 +524,7 @@ impl PreferSplitManager {
     /// Split a PIECE-defined varnode. Faithful to `splitPiece`
     /// (prefersplit.cc:202-227). The PIECE's two inputs already are the hi/lo
     /// pieces; we create COPY ops to forward them to the split outputs.
-    fn split_piece(&mut self, inst: &mut SplitInstance, op: &PcodeOpRef) {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
+    fn split_piece(&mut self, fd: &mut Funcdata, inst: &mut SplitInstance, op: &PcodeOpRef) {
         let bigendian = inst.vn.read().unwrap().space().is_big_endian();
         let loin = match op.0.read().unwrap().get_in(1).cloned() {
             Some(v) => v,
@@ -529,7 +535,7 @@ impl PreferSplitManager {
             None => return,
         };
 
-        self.fillin_instance(inst, bigendian, true, true);
+        self.fillin_instance(fd, inst, bigendian, true, true);
         let addr = op.0.read().unwrap().get_addr();
         let hiop = fd.new_op(1, addr);
         let loop_ = fd.new_op(1, addr);
@@ -599,8 +605,7 @@ impl PreferSplitManager {
     // Ghidra: prefersplit.cc:248 PreferSplitManager::splitSubpiece
     /// Rewrite a SUBPIECE that extracts a logical piece into a COPY. Faithful
     /// to `splitSubpiece` (prefersplit.cc:248-263).
-    fn split_subpiece(&mut self, inst: &mut SplitInstance, op: &PcodeOpRef) {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
+    fn split_subpiece(&mut self, fd: &mut Funcdata, inst: &mut SplitInstance, op: &PcodeOpRef) {
         let suboff = op
             .0
             .read()
@@ -610,7 +615,7 @@ impl PreferSplitManager {
             .unwrap_or(0);
         let grabbinglo = suboff == 0;
         let bigendian = inst.vn.read().unwrap().space().is_big_endian();
-        self.fillin_instance(inst, bigendian, !grabbinglo, grabbinglo);
+        self.fillin_instance(fd, inst, bigendian, !grabbinglo, grabbinglo);
         fd.op_set_opcode(op, OpCode::CPUI_COPY);
         fd.op_remove_input(op, 1);
         let invn = if grabbinglo {
@@ -633,10 +638,9 @@ impl PreferSplitManager {
     // Ghidra: prefersplit.cc:271 PreferSplitManager::splitLoad
     /// Split a LOAD that defines the varnode into two LOADs. Faithful to
     /// `splitLoad` (prefersplit.cc:271-314).
-    fn split_load(&mut self, inst: &mut SplitInstance, op: &PcodeOpRef) {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
+    fn split_load(&mut self, fd: &mut Funcdata, inst: &mut SplitInstance, op: &PcodeOpRef) {
         let bigendian = inst.vn.read().unwrap().space().is_big_endian();
-        self.fillin_instance(inst, bigendian, true, true);
+        self.fillin_instance(fd, inst, bigendian, true, true);
 
         let addr = op.0.read().unwrap().get_addr();
         let ptrvn = match op.0.read().unwrap().get_in(1).cloned() {
@@ -705,10 +709,9 @@ impl PreferSplitManager {
     // Ghidra: prefersplit.cc:322 PreferSplitManager::splitStore
     /// Split a STORE into two STOREs, one for each piece. Faithful to
     /// `splitStore` (prefersplit.cc:322-365).
-    fn split_store(&mut self, inst: &mut SplitInstance, op: &PcodeOpRef) {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
+    fn split_store(&mut self, fd: &mut Funcdata, inst: &mut SplitInstance, op: &PcodeOpRef) {
         let bigendian = inst.vn.read().unwrap().space().is_big_endian();
-        self.fillin_instance(inst, bigendian, true, true);
+        self.fillin_instance(fd, inst, bigendian, true, true);
 
         let addr = op.0.read().unwrap().get_addr();
         let ptrvn = match op.0.read().unwrap().get_in(1).cloned() {
@@ -768,8 +771,7 @@ impl PreferSplitManager {
     // Ghidra: prefersplit.cc:367 PreferSplitManager::splitVarnode
     /// Test if `inst` can be readily split, and if so, do the split. Faithful
     /// to `splitVarnode` (prefersplit.cc:367-428). Returns true if split.
-    fn split_varnode(&mut self, inst: &mut SplitInstance) -> bool {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
+    fn split_varnode(&mut self, fd: &mut Funcdata, inst: &mut SplitInstance) -> bool {
         let (is_written, has_no_descend) = {
             let vn_rg = inst.vn.read().unwrap();
             (vn_rg.is_written(), vn_rg.has_no_descend())
@@ -790,28 +792,28 @@ impl PreferSplitManager {
                         Some(t) => t,
                         None => return false,
                     };
-                    self.split_defining_copy(inst, &def, istemp);
+                    self.split_defining_copy(fd, inst, &def, istemp);
                     true
                 }
                 OpCode::CPUI_PIECE => {
                     if !self.test_piece(inst, &def) {
                         return false;
                     }
-                    self.split_piece(inst, &def);
+                    self.split_piece(fd, inst, &def);
                     true
                 }
                 OpCode::CPUI_LOAD => {
                     if !self.test_load(inst, &def) {
                         return false;
                     }
-                    self.split_load(inst, &def);
+                    self.split_load(fd, inst, &def);
                     true
                 }
                 OpCode::CPUI_INT_ZEXT => {
                     if !self.test_zext(inst, &def) {
                         return false;
                     }
-                    self.split_zext(inst, &def);
+                    self.split_zext(fd, inst, &def);
                     true
                 }
                 _ => return false,
@@ -836,21 +838,21 @@ impl PreferSplitManager {
                         Some(t) => t,
                         None => return false,
                     };
-                    self.split_reading_copy(inst, &op, istemp);
+                    self.split_reading_copy(fd, inst, &op, istemp);
                     true
                 }
                 OpCode::CPUI_SUBPIECE => {
                     if !self.test_subpiece(inst, &op) {
                         return false;
                     }
-                    self.split_subpiece(inst, &op);
+                    self.split_subpiece(fd, inst, &op);
                     return true; // Do not destroy op; it has been transformed.
                 }
                 OpCode::CPUI_STORE => {
                     if !self.test_store(inst, &op) {
                         return false;
                     }
-                    self.split_store(inst, &op);
+                    self.split_store(fd, inst, &op);
                     true
                 }
                 _ => return false,
@@ -867,13 +869,12 @@ impl PreferSplitManager {
     /// (prefersplit.cc:430-449). Iterates over all varnodes at the record's
     /// storage location, splitting each one. Ghidra re-iterates after each
     /// successful split; Rugra loops until no matches remain.
-    fn split_record(&mut self, rec: &PreferSplitRecord) {
+    fn split_record(&mut self, fd: &mut Funcdata, rec: &PreferSplitRecord) {
         let addr = Address::new(rec.storage_offset);
         let size = rec.storage_size as usize;
 
         loop {
             let matches: Vec<Arc<RwLock<Varnode>>> = {
-                let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
                 fd.vbank
                     .loc_tree
                     .iter()
@@ -890,7 +891,7 @@ impl PreferSplitManager {
             let mut any_split = false;
             for vn in matches {
                 let mut inst = SplitInstance::new(vn, rec.splitoffset);
-                if self.split_varnode(&mut inst) {
+                if self.split_varnode(fd, &mut inst) {
                     any_split = true;
                 }
             }
@@ -958,17 +959,16 @@ impl PreferSplitManager {
     // Ghidra: prefersplit.cc:493 PreferSplitManager::splitTemporary
     /// Split a temporary varnode. Faithful to `splitTemporary`
     /// (prefersplit.cc:493-527). Splits the defining op, then each reader.
-    fn split_temporary(&mut self, inst: &mut SplitInstance) {
-        let fd = unsafe { &mut *self.data.expect("PreferSplitManager not initialized") };
+    fn split_temporary(&mut self, fd: &mut Funcdata, inst: &mut SplitInstance) {
         let def = match inst.vn.read().unwrap().get_def() {
             Some(d) => PcodeOpRef(d),
             None => return,
         };
         let code = def.0.read().unwrap().opcode;
         match code {
-            OpCode::CPUI_PIECE => self.split_piece(inst, &def),
-            OpCode::CPUI_LOAD => self.split_load(inst, &def),
-            OpCode::CPUI_INT_ZEXT => self.split_zext(inst, &def),
+            OpCode::CPUI_PIECE => self.split_piece(fd, inst, &def),
+            OpCode::CPUI_LOAD => self.split_load(fd, inst, &def),
+            OpCode::CPUI_INT_ZEXT => self.split_zext(fd, inst, &def),
             _ => {}
         }
 
@@ -981,9 +981,9 @@ impl PreferSplitManager {
             };
             let rc = readop.0.read().unwrap().opcode;
             match rc {
-                OpCode::CPUI_SUBPIECE => self.split_subpiece(inst, &readop),
+                OpCode::CPUI_SUBPIECE => self.split_subpiece(fd, inst, &readop),
                 OpCode::CPUI_STORE => {
-                    self.split_store(inst, &readop);
+                    self.split_store(fd, inst, &readop);
                     fd.op_destroy(&readop);
                 }
                 _ => break,
@@ -996,11 +996,10 @@ impl PreferSplitManager {
     /// The main split entry point. Faithful to `split`
     /// (prefersplit.cc:558-563). Applies every split record in turn.
     pub fn split(&mut self, fd: &mut Funcdata) {
-        self.data = Some(fd as *mut Funcdata);
         self.tempsplits.clear();
         let records: Vec<PreferSplitRecord> = self.records.clone();
         for rec in &records {
-            self.split_record(rec);
+            self.split_record(fd, rec);
         }
     }
 
@@ -1008,7 +1007,6 @@ impl PreferSplitManager {
     /// Split additional temporaries connected to the COPYs created by `split`.
     /// Faithful to `splitAdditional` (prefersplit.cc:565-629).
     pub fn split_additional(&mut self, fd: &mut Funcdata) {
-        self.data = Some(fd as *mut Funcdata);
 
         // Gather candidate ops: SUBPIECEs feeding into the tempsplit COPYs, and
         // PIECEs fed by the tempsplit COPY outputs.
@@ -1093,7 +1091,7 @@ impl PreferSplitManager {
                 };
                 let mut inst = SplitInstance::new(vn, splitoff);
                 if self.test_temporary(&inst) {
-                    self.split_temporary(&mut inst);
+                    self.split_temporary(fd, &mut inst);
                 }
             } else if code == OpCode::CPUI_SUBPIECE {
                 let (vn, splitoff) = {
@@ -1127,7 +1125,7 @@ impl PreferSplitManager {
                 };
                 let mut inst = SplitInstance::new(vn, splitoff);
                 if self.test_temporary(&inst) {
-                    self.split_temporary(&mut inst);
+                    self.split_temporary(fd, &mut inst);
                 }
             }
         }

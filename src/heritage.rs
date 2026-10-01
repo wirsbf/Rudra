@@ -912,8 +912,9 @@ impl Heritage {
                     .map(|dom| dom.read().unwrap().get_index());
                 let v_sin = v_guard.size_in();
                 for k in 0..v_sin {
+                    let bank = v_guard.bank();
                     let u = match v_guard.get_in(k) {
-                        Some(e) => e.point.clone(),
+                        Some(e) => bank.expect_arc(e.point),
                         None => continue,
                     };
                     let u_idx = u.read().unwrap().get_index();
@@ -1318,8 +1319,7 @@ impl Heritage {
         // cc:947-952: iterate beginOp(CPUI_STORE)..endOp, skipping dead ops.
         let store_arcs: Vec<Arc<RwLock<PcodeOp>>> = fd
             .obank
-            .storelist
-            .iter()
+            .iter_store()
             .filter(|s| (s.0.read().unwrap().flags & crate::op::pcodeop_flags::DEAD) == 0)
             .map(|s| s.0.clone())
             .collect();
@@ -2119,7 +2119,7 @@ impl Heritage {
         }
         // cc:1623-1637: every live non-halt RETURN, in op-list order
         // (fd->beginOp(CPUI_RETURN) .. endOp — creation order).
-        let return_ops: Vec<PcodeOpRef> = fd.obank.returnlist.clone();
+        let return_ops: Vec<PcodeOpRef> = fd.obank.iter_return().cloned().collect::<Vec<_>>();
         for op in return_ops {
             let (dead, halt) = {
                 let r = op.0.read().unwrap();
@@ -2222,7 +2222,7 @@ impl Heritage {
                 if let Some(active) = fd.active_output.as_mut() {
                     active.register_trial_in_space(space, addr, size);
                 }
-                let return_ops: Vec<PcodeOpRef> = fd.obank.returnlist.clone();
+                let return_ops: Vec<PcodeOpRef> = fd.obank.iter_return().cloned().collect::<Vec<_>>();
                 for op in return_ops {
                     let (dead, halt, num_input) = {
                         let r = op.0.read().unwrap();
@@ -2264,7 +2264,7 @@ impl Heritage {
         }
         // cc:1677-1691: return-copy suffix on every live RETURN (halt
         // RETURNs included — only the dead check at cc:1680 applies).
-        let return_ops: Vec<PcodeOpRef> = fd.obank.returnlist.clone();
+        let return_ops: Vec<PcodeOpRef> = fd.obank.iter_return().cloned().collect::<Vec<_>>();
         for op in return_ops {
             let (dead, op_addr) = {
                 let r = op.0.read().unwrap();
@@ -3879,8 +3879,7 @@ impl Heritage {
         // cc:1547-1548: iter=fd->beginOp(CPUI_STORE) .. endOp
         let store_arcs: Vec<_> = fd
             .obank
-            .storelist
-            .iter()
+            .iter_store()
             .filter(|s| !(s.0.read().unwrap().flags & crate::op::pcodeop_flags::DEAD != 0))
             .map(|s| s.0.clone())
             .collect();
@@ -6633,11 +6632,14 @@ impl Heritage {
 
                     // cc:2531-2552: fill phi inputs in successors.
                     let size_out = block_arc.read().unwrap().size_out();
+                    let bank = block_arc.read().unwrap().bank();
                     for i in 0..size_out {
                         let (succ_arc, my_in_idx) = {
                             let blk_r = block_arc.read().unwrap();
                             match blk_r.get_out(i) {
-                                Some(edge) => (edge.point.clone(), edge.reverse_index as usize),
+                                Some(edge) => {
+                                    (bank.expect_arc(edge.point), edge.reverse_index as usize)
+                                }
                                 None => continue,
                             }
                         };
@@ -7004,9 +7006,13 @@ impl Heritage {
                     // Ghidra cc:2531-2552: for each out-edge, walk successor's
                     // leading MULTIEQUALs and replace the matching input slot.
                     let size_out = block_arc.read().unwrap().size_out();
+                    let bank = block_arc.read().unwrap().owner_bank();
+                    if size_out > 0 && bank.is_none() {
+                        panic!("phi-input fill on a block with out-edges but no bank");
+                    }
                     for i in 0..size_out {
                         if let Some(edge) = block_arc.read().unwrap().get_out(i) {
-                            let succ_arc = edge.point.clone();
+                            let succ_arc = bank.as_ref().unwrap().expect_arc(edge.point);
                             let my_in_idx = edge.reverse_index as usize;
 
                             let succ_ops = succ_arc.read().unwrap().get_ops();
@@ -8161,8 +8167,7 @@ mod tests {
 
         let subpieces: Vec<_> = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|op| op.0.read().unwrap().opcode == OpCode::CPUI_SUBPIECE)
             .cloned()
             .collect();
@@ -8219,8 +8224,7 @@ mod tests {
         heritage.process_joins(&mut fd);
         let subpieces = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|op| op.0.read().unwrap().opcode == OpCode::CPUI_SUBPIECE)
             .count();
         assert_eq!(subpieces, 0, "pass != delay must skip the write split");
@@ -8246,8 +8250,7 @@ mod tests {
         heritage.process_joins(&mut fd);
         let subpieces = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|op| op.0.read().unwrap().opcode == OpCode::CPUI_SUBPIECE)
             .count();
         assert_eq!(subpieces, 0);

@@ -2415,7 +2415,7 @@ impl Funcdata {
     /// Faithful to `getFirstReturnOp` (funcdata_op.cc:632-644).
     pub fn get_first_return_op(&self) -> Option<crate::op::PcodeOpRef> {
         // Use returnlist (PcodeOpBank code list for RETURN ops).
-        for retop in &self.obank.returnlist {
+        for retop in self.obank.iter_return() {
             let op = retop.0.read().unwrap();
             if op.is_dead() { continue; }
             // cc:640: getHaltType()!=0 → skip artificial halts.
@@ -3148,7 +3148,7 @@ impl Funcdata {
         let (outbl, i) = {
             let bb_rg = bb.read().unwrap();
             match bb_rg.get_out(slot) {
-                Some(e) => (e.point.clone(), e.reverse_index),
+                Some(e) => (self.bblocks.bank.expect_arc(e.point), e.reverse_index),
                 None => return,
             }
         };
@@ -3171,17 +3171,19 @@ impl Funcdata {
         // cc:165-166: intothis[num].point = b; reverse_index = b->outofthis.size().
         let blnew_size_out = bbnew.read().unwrap().size_out() as i32;
         {
+            let bbnew_id = self.bblocks.bank.registered_id_of(bbnew);
             let mut out_rg = outbl.write().unwrap();
             let ins = out_rg.in_edges_mut();
             if (i as usize) < ins.len() {
-                ins[i as usize].point = bbnew.clone();
+                ins[i as usize].point = bbnew_id;
                 ins[i as usize].reverse_index = blnew_size_out;
             }
         }
         // cc:167: b->outofthis.push_back(BlockEdge(this, intothis[num].label, num)).
         {
             let mut new_rg = bbnew.write().unwrap();
-            let mut edge = crate::block::BlockEdge::new(outbl, i);
+            let outbl_id = self.bblocks.bank.registered_id_of(&outbl);
+            let mut edge = crate::block::BlockEdge::new(outbl_id, i);
             edge.flags = label;
             new_rg.add_out_edge(edge);
         }
@@ -3220,7 +3222,11 @@ impl Funcdata {
             // Find the out-edge whose destination's last op has addr == pcdest.
             let n_out = bl.read().unwrap().size_out();
             for j in 0..n_out {
-                let bl2 = bl.read().unwrap().get_out(j).map(|e| e.point);
+                let bl2 = bl
+                    .read()
+                    .unwrap()
+                    .get_out(j)
+                    .map(|e| self.bblocks.bank.expect_arc(e.point));
                 let Some(bl2) = bl2 else { continue };
                 let op2 = {
                     let bl2_rg = bl2.read().unwrap();
@@ -3261,7 +3267,7 @@ impl Funcdata {
         let target_opt: Option<Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>> = {
             let bl_rg = bl.read().unwrap();
             if j < bl_rg.size_out() {
-                bl_rg.get_out(j).map(|e| e.point.clone())
+                bl_rg.get_out(j).map(|e| self.bblocks.bank.expect_arc(e.point))
             } else {
                 None
             }
@@ -3493,7 +3499,7 @@ impl Funcdata {
             let out_blocks: Vec<Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>> = {
                 let rg = bb.read().unwrap();
                 (0..rg.size_out())
-                    .filter_map(|s| rg.get_out(s).map(|e| e.point.clone()))
+                    .filter_map(|s| rg.get_out(s).map(|e| self.bblocks.bank.expect_arc(e.point)))
                     .collect()
             };
             let bb_in_count = bb.read().unwrap().size_in();
@@ -3509,7 +3515,7 @@ impl Funcdata {
                 let blocknum = {
                     let rg = bbout.read().unwrap();
                     (0..rg.size_in()).find(|&i| {
-                        rg.get_in(i).map(|e| Arc::ptr_eq(&e.point, bb)).unwrap_or(false)
+                        rg.get_in(i).map(|e| self.bblocks.bank.registered_id_of(bb) == e.point).unwrap_or(false)
                     })
                 };
                 let Some(blocknum) = blocknum else { continue };
@@ -3582,7 +3588,11 @@ impl Funcdata {
                 if n == 0 {
                     (None, false)
                 } else {
-                    (rg.get_out(n - 1).map(|e| e.point), true)
+                    (
+                        rg.get_out(n - 1)
+                            .map(|e| self.bblocks.bank.expect_arc(e.point)),
+                        true,
+                    )
                 }
             };
             if !has_out {
@@ -3596,7 +3606,7 @@ impl Funcdata {
                     if rg.size_in() == 0 {
                         None
                     } else {
-                        rg.get_in(0).map(|e| e.point)
+                        rg.get_in(0).map(|e| self.bblocks.bank.expect_arc(e.point))
                     }
                 };
                 let Some(bbin) = bbin else { break };
@@ -3780,7 +3790,7 @@ impl Funcdata {
                     .downcast_mut::<crate::block::BlockBasic>() {
                     let out_edges = bb.out_edges_mut();
                     if slot < out_edges.len() {
-                        out_edges[slot].point = outafter.clone();
+                        out_edges[slot].point = self.bblocks.bank.registered_id_of(&outafter);
                         out_edges[slot].reverse_index = new_in_size;
                     }
                 }
@@ -3788,7 +3798,7 @@ impl Funcdata {
             {
                 let mut new_rg = outafter.write().unwrap();
                 new_rg.add_in_edge(crate::block::BlockEdge {
-                    point: in_block.clone(),
+                    point: self.bblocks.bank.registered_id_of(&in_block),
                     flags: carried_flags,
                     reverse_index: slot as i32,
                 });
@@ -3805,7 +3815,7 @@ impl Funcdata {
         b: &Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
         inedge: usize,
     ) -> Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>> {
-        let a = b.read().unwrap().get_in(inedge).map(|e| e.point.clone());
+        let a = b.read().unwrap().get_in(inedge).map(|e| self.bblocks.bank.expect_arc(e.point));
         let Some(a) = a else {
             return self.create_new_block();
         };
@@ -3832,7 +3842,7 @@ impl Funcdata {
         let outs: Vec<Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>> = {
             let br = b.read().unwrap();
             (0..br.size_out())
-                .filter_map(|i| br.get_out(i).map(|e| e.point.clone()))
+                .filter_map(|i| br.get_out(i).map(|e| self.bblocks.bank.expect_arc(e.point)))
                 .collect()
         };
         for out in &outs {
@@ -4170,11 +4180,11 @@ impl Funcdata {
                 .as_any_mut()
                 .downcast_mut::<crate::block::BlockBasic>() {
                 if swap {
-                    bb.replace_edges_thru(0, 1);
+                    bb.replace_edges_thru(&self.bblocks.bank, 0, 1);
                 } else {
-                    bb.replace_edges_thru(1, 1);
+                    bb.replace_edges_thru(&self.bblocks.bank, 1, 1);
                 }
-                bb.replace_edges_thru(0, 0);
+                bb.replace_edges_thru(&self.bblocks.bank, 0, 0);
             } else {
                 return Err("remove_from_flow_split: only BlockBasic supported".to_string());
             }
@@ -4330,7 +4340,7 @@ impl Funcdata {
             if rg.size_out() != 1 {
                 return false;
             }
-            let ob = rg.get_out(0).map(|e| e.point);
+            let ob = rg.get_out(0).map(|e| self.bblocks.bank.expect_arc(e.point));
             let ob = match ob { Some(o) => o, None => return false ,
             };
             let single_in = ob.read().unwrap().size_in() == 1;
@@ -4614,29 +4624,27 @@ impl Funcdata {
             // flat op bank, which is outside Ghidra's opInsertBefore precondition.
             // Preserve their former flat-list behavior until those fixtures acquire
             // real BlockBasic membership; this branch is not oracle-equivalent.
+            // Chain form of the former scan+index-insert: mark alive, unlink,
+            // then walk back from `follow` past its contiguous INDIRECT group
+            // (unless op is itself INDIRECT) and insert before that boundary;
+            // an absent `follow` lands at the tail (the former len insert).
             self.obank.mark_alive(op.clone());
-            self.obank
-                .alivelist
-                .retain(|candidate| !std::sync::Arc::ptr_eq(&candidate.0, &op.0));
-            let mut insert_index = self
-                .obank
-                .alivelist
-                .iter()
-                .position(|candidate| std::sync::Arc::ptr_eq(&candidate.0, &follow.0))
-                .unwrap_or(self.obank.alivelist.len());
-            if op.0.read().unwrap().opcode != OpCode::CPUI_INDIRECT {
-                while insert_index != 0
-                    && self.obank.alivelist[insert_index - 1]
-                        .0
-                        .read()
-                        .unwrap()
-                        .opcode
-                        == OpCode::CPUI_INDIRECT
-                {
-                    insert_index -= 1;
+            self.obank.unlink_alive_if_member(op);
+            if self.obank.in_alive(follow) {
+                let mut boundary = follow.clone();
+                if op.0.read().unwrap().opcode != OpCode::CPUI_INDIRECT {
+                    while let Some(prev) = self.obank.alive_prev(&boundary) {
+                        if prev.0.read().unwrap().opcode == OpCode::CPUI_INDIRECT {
+                            boundary = prev;
+                        } else {
+                            break;
+                        }
+                    }
                 }
+                self.obank.alive_insert_before(op, &boundary);
+            } else {
+                self.obank.alive_push_back(op);
             }
-            self.obank.alivelist.insert(insert_index, op.clone());
             return;
         };
         let block_ops = parent.read().unwrap().get_ops();
@@ -5082,17 +5090,16 @@ impl Funcdata {
             // flat op bank, which is outside Ghidra's opInsertAfter precondition.
             // Preserve their former flat-list behavior until those fixtures acquire
             // real BlockBasic membership; this branch is not oracle-equivalent.
+            // Chain form of the former scan+index-insert: mark alive, unlink,
+            // then insert right after `previous`; an absent `previous` lands
+            // at the tail (the former len insert).
             self.obank.mark_alive(op.clone());
-            self.obank
-                .alivelist
-                .retain(|candidate| !std::sync::Arc::ptr_eq(&candidate.0, &op.0));
-            let insert_index = self
-                .obank
-                .alivelist
-                .iter()
-                .position(|candidate| std::sync::Arc::ptr_eq(&candidate.0, &previous.0))
-                .map_or(self.obank.alivelist.len(), |index| index + 1);
-            self.obank.alivelist.insert(insert_index, op.clone());
+            self.obank.unlink_alive_if_member(op);
+            if self.obank.in_alive(previous) {
+                self.obank.alive_insert_after(op, previous);
+            } else {
+                self.obank.alive_push_back(op);
+            }
             return;
         }
         let effective_previous = {
@@ -5156,9 +5163,7 @@ impl Funcdata {
             // RUGRA-GLUE: Preserve the former flat-bank detach behavior for
             // parentless legacy fixtures. Valid Ghidra-domain ops take the block
             // path below and transition to the dead list atomically.
-            self.obank
-                .alivelist
-                .retain(|candidate| !std::sync::Arc::ptr_eq(&candidate.0, &op.0));
+            self.obank.unlink_alive_if_member(op);
             return;
         };
         crate::drillobserve::mod_check(self.arch.as_ref(), op);
@@ -5321,12 +5326,12 @@ impl Funcdata {
     /// Ghidra half-open iterator endpoints collapse into one owned
     /// iterator; `end_loc` exists for API parity and returns the same
     /// full-range tail.
-    pub fn begin_loc(&self) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    pub fn begin_loc(&self) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
     // Ghidra: funcdata.hh:340 Funcdata::endLoc
-    pub fn end_loc(&self) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    pub fn end_loc(&self) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
@@ -5389,7 +5394,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:358 Funcdata::endLoc(int4,const Address&)
     pub fn end_loc_size(
         &self, _size: usize, _addr: Address,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
@@ -5421,7 +5426,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:364 Funcdata::endLoc(int4,const Address&,uint4)
     pub fn end_loc_size_fl(
         &self, _size: usize, _addr: Address, _fl: u32,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
@@ -5462,7 +5467,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:371 Funcdata::endLoc(int4,const Address&,const Address&,uintm)
     pub fn end_loc_pc(
         &self, _size: usize, _addr: Address, _pc: Address, _uniq: u32,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeLocRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeLocRef> + '_ {
         self.vbank.begin_loc()
     }
 
@@ -5485,12 +5490,12 @@ impl Funcdata {
     // Ghidra: funcdata.hh:382 Funcdata::endDef
     /// Start/end of all Varnodes sorted by definition address. Faithful to
     /// the parameterless `beginDef`/`endDef` (funcdata.hh:379/382).
-    pub fn begin_def(&self) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeDefRef> {
+    pub fn begin_def(&self) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> + '_ {
         self.vbank.begin_def()
     }
 
     // Ghidra: funcdata.hh:382 Funcdata::endDef
-    pub fn end_def(&self) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeDefRef> {
+    pub fn end_def(&self) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> + '_ {
         self.vbank.begin_def()
     }
 
@@ -5522,7 +5527,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:388 Funcdata::endDef(uint4)
     pub fn end_def_fl(
         &self, _fl: u32,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeDefRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> + '_ {
         self.vbank.begin_def()
     }
 
@@ -5560,7 +5565,7 @@ impl Funcdata {
     // Ghidra: funcdata.hh:394 Funcdata::endDef(uint4,const Address&)
     pub fn end_def_addr(
         &self, fl: u32, _addr: Address,
-    ) -> std::collections::btree_set::Iter<'_, crate::varnode::VarnodeDefRef> {
+    ) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> + '_ {
         if fl == crate::varnode::varnode_flags::WRITTEN {
             panic!("Cannot get contiguous written AND addressed");
         }
@@ -5670,22 +5675,22 @@ impl Funcdata {
     /// empty-range default locally (FUNCDATA-OPBEGIN-DEFAULT-0001).
     pub fn begin_op_code(
         &self, opc: crate::opcodes::OpCode,
-    ) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
+    ) -> crate::op::OpChainIter<'_> {
         use crate::opcodes::OpCode;
         match opc {
-            OpCode::CPUI_STORE => self.obank.storelist.iter(),
-            OpCode::CPUI_LOAD => self.obank.loadlist.iter(),
-            OpCode::CPUI_RETURN => self.obank.returnlist.iter(),
-            OpCode::CPUI_CALLOTHER => self.obank.useroplist.iter(),
-            _ => [].iter(),
+            OpCode::CPUI_STORE => self.obank.iter_store(),
+            OpCode::CPUI_LOAD => self.obank.iter_load(),
+            OpCode::CPUI_RETURN => self.obank.iter_return(),
+            OpCode::CPUI_CALLOTHER => self.obank.iter_userop(),
+            _ => crate::op::OpChainIter::empty(self.obank.optree.arena()),
         }
     }
 
     // Ghidra: funcdata.hh:503 Funcdata::endOp(OpCode)
     pub fn end_op_code(
         &self, _opc: crate::opcodes::OpCode,
-    ) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        [].iter()
+    ) -> crate::op::OpChainIter<'_> {
+        crate::op::OpChainIter::empty(self.obank.optree.arena())
     }
 
     // Ghidra: funcdata.hh:506 Funcdata::beginOpAlive
@@ -5693,13 +5698,13 @@ impl Funcdata {
     /// Start/end of PcodeOp objects in the alive list. Faithful to
     /// `beginOpAlive`/`endOpAlive` (funcdata.hh:506/509) forwarding to
     /// `obank.beginAlive()`/`obank.endAlive()`.
-    pub fn begin_op_alive(&self) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        self.obank.alivelist.iter()
+    pub fn begin_op_alive(&self) -> crate::op::OpChainIter<'_> {
+        self.obank.iter_alive()
     }
 
     // Ghidra: funcdata.hh:509 Funcdata::endOpAlive
-    pub fn end_op_alive(&self) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        self.obank.alivelist.iter()
+    pub fn end_op_alive(&self) -> crate::op::OpChainIter<'_> {
+        self.obank.iter_alive()
     }
 
     // Ghidra: funcdata.hh:512 Funcdata::beginOpDead
@@ -5707,13 +5712,13 @@ impl Funcdata {
     /// Start/end of PcodeOp objects in the dead list. Faithful to
     /// `beginOpDead`/`endOpDead` (funcdata.hh:512/515) forwarding to
     /// `obank.beginDead()`/`obank.endDead()`.
-    pub fn begin_op_dead(&self) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        self.obank.deadlist.iter()
+    pub fn begin_op_dead(&self) -> crate::op::OpChainIter<'_> {
+        self.obank.iter_dead()
     }
 
     // Ghidra: funcdata.hh:515 Funcdata::endOpDead
-    pub fn end_op_dead(&self) -> std::slice::Iter<'_, crate::op::PcodeOpRef> {
-        self.obank.deadlist.iter()
+    pub fn end_op_dead(&self) -> crate::op::OpChainIter<'_> {
+        self.obank.iter_dead()
     }
 
     // Ghidra: funcdata.hh:518 Funcdata::beginOpAll
@@ -5722,13 +5727,45 @@ impl Funcdata {
     /// Faithful to `beginOpAll`/`endOpAll` (funcdata.hh:518/521) forwarding
     /// to the bank's optree iteration (OPTREE: the SeqNum-keyed
     /// PcodeOpTree::iter — same SeqNum order).
-    pub fn begin_op_all(&self) -> std::collections::btree_map::Values<'_, crate::address::SeqNum, crate::op::PcodeOpRef> {
+    pub fn begin_op_all(&self) -> impl Iterator<Item = &crate::op::PcodeOpRef> + '_ {
         self.obank.optree.iter()
     }
 
     // Ghidra: funcdata.hh:521 Funcdata::endOpAll
-    pub fn end_op_all(&self) -> std::collections::btree_map::Values<'_, crate::address::SeqNum, crate::op::PcodeOpRef> {
+    pub fn end_op_all(&self) -> impl Iterator<Item = &crate::op::PcodeOpRef> + '_ {
         self.obank.optree.iter()
+    }
+
+    // PERF-ARENA-FLIP-0001 (a) — god-object id-read accessors
+    // (ARENA_DESIGN §3.2 pattern P1; op.hh:63-68 friend-class form is the
+    // oracle's god-object precedent — every cross-mutation goes through
+    // Funcdata).
+    /// Resolve an op arena handle to its stored ref (P1 read form).
+    // RUGRA-GLUE: id dereference — the oracle counterpart is the raw
+    // pointer dereference itself (op.hh:63 PcodeOp*).
+    pub fn op_by_id(&self, id: crate::arena::OpId) -> Option<&crate::op::PcodeOpRef> {
+        self.obank.optree.get_by_id(id)
+    }
+
+    /// The arena handle of a bank-inserted op, if any.
+    // RUGRA-GLUE: handle extraction (raw-pointer identity counterpart).
+    pub fn op_id_of(&self, op: &crate::op::PcodeOpRef) -> Option<crate::arena::OpId> {
+        op.0.read().unwrap().op_id
+    }
+
+    /// Resolve a varnode arena handle to its stored ref (P1 read form).
+    // RUGRA-GLUE: id dereference (varnode.hh:73 Varnode*).
+    pub fn vn_by_id(
+        &self,
+        id: crate::arena::VnId,
+    ) -> Option<&Arc<RwLock<crate::varnode::Varnode>>> {
+        self.vbank.vn_by_id(id)
+    }
+
+    /// The arena handle of a bank-allocated varnode, if any.
+    // RUGRA-GLUE: handle extraction (raw-pointer identity counterpart).
+    pub fn vn_id_of(&self, vn: &Arc<RwLock<crate::varnode::Varnode>>) -> Option<crate::arena::VnId> {
+        vn.read().unwrap().vn_id
     }
 
     // Ghidra: funcdata.hh:524 Funcdata::beginOp(const Address&)
@@ -6084,8 +6121,19 @@ impl Funcdata {
             .map_err(|e| crate::error::Error::Lowlevel(e))?;
         self.inject_raw_ops_single(&raw_ops, addr);
         // cc:865-875: walk from the first injected op to the dead end.
-        for index in dead_tail..self.obank.deadlist.len() {
-            let op = self.obank.deadlist[index].clone();
+        // The former form was `for index in dead_tail..len()` over the Vec:
+        // the range bound is captured ONCE, but op_insert's mark_alive
+        // removes each visited op from the dead list, so the remaining
+        // positions shift down and the positional walk reads the list as
+        // it is at each iteration. The chain port keeps that exact
+        // observable walk: index i addresses the CURRENT chain's position
+        // dead_tail + i (walked from the head), with the former Vec
+        // out-of-bounds panic when the position exceeds the live chain
+        // (dead_at_strict). (Unwired port — no callers; semantics preserved
+        // verbatim for the future wiring.)
+        let range_end = self.obank.deadlist.len();
+        for index in dead_tail..range_end {
+            let op = self.obank.dead_at_strict(index);
             let is_call_or_branch = {
                 let o = op.0.read().unwrap();
                 o.is_call() || o.is_branch()
@@ -6168,10 +6216,19 @@ impl Funcdata {
             let dead_before = self.obank.deadlist.len();
             flow.inline_ezclone(&inlineflow, callop_addr);
             // cc:877-889: if at least one op was cloned, move the cloned
-            // sequence to right after the callop.
+            // sequence to right after the callop. (inline_ezclone is a
+            // structural placeholder — no clone path yet — so this branch
+            // is currently unreachable; the positional probes keep the
+            // former index semantics verbatim.)
             if self.obank.deadlist.len() > dead_before {
-                let firstop = self.obank.deadlist[dead_before].clone();
-                let lastop = self.obank.deadlist[self.obank.deadlist.len() - 1].clone();
+                let firstop = self
+                    .obank
+                    .dead_at(dead_before)
+                    .expect("deadlist grew past the pre-clone boundary");
+                let lastop = self
+                    .obank
+                    .dead_tail()
+                    .expect("deadlist non-empty in the grew branch");
                 self.obank.move_sequence_dead(&firstop, &lastop, callop);
                 // cc:883: if (callop->isBlockStart()) — op.hh startbasic bit.
                 let callop_startbasic = {
@@ -6323,7 +6380,7 @@ impl Funcdata {
             op_guard.is_branch() && op_guard.opcode == OpCode::CPUI_BRANCHIND
         };
         if is_branch_indirect {
-            block.flags |= crate::block::block_flags::SWITCH_OUT;
+            block.set_flags(crate::block::block_flags::SWITCH_OUT);
         }
     }
 
@@ -6370,8 +6427,7 @@ impl Funcdata {
         // op is currently in the alive list, remove it (faithful op_uninsert).
         let in_alive = self
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .any(|r| std::sync::Arc::ptr_eq(&r.0, &op.0));
         if in_alive {
             self.op_uninsert(op);
@@ -7977,7 +8033,7 @@ impl Funcdata {
     pub fn calc_nz_mask(&mut self) {
         use crate::opcodes::OpCode;
         // cc:859-902: DFS with an explicit op stack in alive order.
-        let ops: Vec<crate::op::PcodeOpRef> = self.obank.alivelist.clone();
+        let ops: Vec<crate::op::PcodeOpRef> = self.obank.iter_alive().cloned().collect::<Vec<_>>();
         let mut opstack: Vec<(crate::op::PcodeOpRef, usize)> = Vec::new();
         for op_ref in ops {
             if op_ref.0.read().unwrap().is_mark() {
@@ -8043,7 +8099,7 @@ impl Funcdata {
 
         // cc:904-911: clear marks; seed the worklist with every MULTIEQUAL.
         let mut worklist: Vec<crate::op::PcodeOpRef> = Vec::new();
-        for op_ref in &self.obank.alivelist {
+        for op_ref in self.obank.iter_alive() {
             op_ref.0.write().unwrap().clear_mark();
             if op_ref.0.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL {
                 worklist.push(op_ref.clone());
@@ -8547,8 +8603,7 @@ impl Funcdata {
     pub fn build_blocks_from_alive(&mut self) {
         let op_refs: Vec<PcodeOpRef> = self
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .map(|r| PcodeOpRef(r.0.clone()))
             .collect();
         self.build_blocks_from_ops(&op_refs);
@@ -11333,22 +11388,20 @@ impl Funcdata {
         // dead-cycles the bank in lift order inside
         // `recover_jump_tables_injected` (flow.rs "Oracle recovery-time
         // lifecycle state" block). An op not found in the dead list (never
-        // possible on the oracle call path) yields start_idx 0 = the empty
-        // window, the same `iter == startiter` no-backtrack outcome Ghidra's
-        // loop entry condition gives.
-        let dead = &self.obank.deadlist;
-        let start_idx = dead
-            .iter()
-            .position(|r| Arc::ptr_eq(&r.0, &op.0))
-            .unwrap_or(0);
+        // possible on the oracle call path) yields an empty backtrack
+        // window, the same `iter == startiter` no-backtrack outcome
+        // Ghidra's loop entry condition gives. The id-space form walks the
+        // stored ins-links backward from op (the oracle's `--iter`,
+        // funcdata_block.cc:558-559).
+        let mut cur = if self.obank.in_dead(op) { self.obank.dead_prev(op) } else { None };
         let mut count_max: i32 = 8;
-        let mut i: isize = start_idx as isize - 1;
         let vn_size = vn_arc
             .as_ref()
             .map(|v| v.read().unwrap().get_size())
             .unwrap_or(0);
         let mut cur_vn_size = vn_size;
-        while i >= 0 {
+        while let Some(cur_op) = cur {
+            cur = self.obank.dead_prev(&cur_op);
             // Ghidra: if (vn->getSize() == 1) return success;
             if cur_vn_size == 1 {
                 return crate::jumptable::RecoveryMode::Success;
@@ -11357,7 +11410,6 @@ impl Funcdata {
             if count_max < 0 {
                 return crate::jumptable::RecoveryMode::Success;
             }
-            let cur_op = dead[i as usize].clone();
             let (eval_type, opcode, is_call, is_branch, out_arc, in0_arc, in1_arc) = {
                 let op_rg = cur_op.0.read().unwrap();
                 (
@@ -11455,7 +11507,6 @@ impl Funcdata {
             } else if outhit {
                 return crate::jumptable::RecoveryMode::Success;
             }
-            i -= 1;
         }
         crate::jumptable::RecoveryMode::Success
     }
@@ -11619,7 +11670,9 @@ impl Funcdata {
             }
             // cc:96-98: take first output block (for a donothing block it is
             // the only one) and the slot of bb in its in-list (dead-edge slot).
-            let out = bb_rg.get_out(0).map(|e| e.point);
+            let out = bb_rg
+                .get_out(0)
+                .map(|e| self.bblocks.bank.expect_arc(e.point));
             let rev = if let Some(bb_basic) = bb_rg.as_any().downcast_ref::<BlockBasic>() {
                 bb_basic.get_out_rev_index(0)
             } else {
@@ -11758,7 +11811,7 @@ impl Funcdata {
                     let out_rg = outblock.read().unwrap();
                     out_rg
                         .get_in(i)
-                        .is_some_and(|e| Arc::ptr_eq(&e.point, bb))
+                        .is_some_and(|e| self.bblocks.bank.registered_id_of(bb) == e.point)
                 };
                 if from_bb {
                     branches.push(origvn.clone());
@@ -11874,7 +11927,11 @@ impl Funcdata {
             }
         }
 
-        let bbout = bb.read().unwrap().get_out(num).map(|e| e.point);
+        let bbout = bb
+            .read()
+            .unwrap()
+            .get_out(num)
+            .map(|e| self.bblocks.bank.expect_arc(e.point));
         let bbout = match bbout {
             Some(o) => o,
             None => return,
@@ -11967,7 +12024,7 @@ impl Funcdata {
         (0..child_rg.size_in()).find(|&i| {
             child_rg
                 .get_in(i)
-                .map(|e| Arc::ptr_eq(&e.point, parent))
+                .map(|e| self.bblocks.bank.registered_id_of(parent) == e.point)
                 .unwrap_or(false)
         })
     }
@@ -12475,20 +12532,23 @@ impl Funcdata {
                     let inbl_start = inblk_edge
                         .as_ref()
                         .and_then(|e| {
-                        e.point
+                            self.bblocks
+                                .bank
+                                .expect_arc(e.point)
                                 .read()
                                 .unwrap()
                                 .as_any()
-                            .downcast_ref::<crate::block::BlockBasic>()
-                            .map(|bb| bb.start_addr)
-                    })
+                                .downcast_ref::<crate::block::BlockBasic>()
+                                .map(|bb| bb.start_addr)
+                        })
                         .unwrap_or(self.baseaddr);
                     let copyop = self.new_op(1, inbl_start);
                     self.op_set_opcode(&copyop, OC::CPUI_COPY);
                     let inputvn = self.new_unique_out(sz, &copyop);
                     self.op_set_input(&copyop, badconst, 0);
                     if let Some(e) = inblk_edge {
-                        self.op_insert_end(&copyop, &e.point);
+                        let inbl = self.bblocks.bank.expect_arc(e.point);
+                        self.op_insert_end(&copyop, &inbl);
                     }
                     self.op_set_input(&op_ref, inputvn, slot);
                 }
@@ -13781,7 +13841,7 @@ impl Funcdata {
 
         // cc:797-799: the raw p-code container is specifically the dead list,
         // whose linked-list order is independent of SeqNum ordering.
-        for source_op in &source.obank.deadlist {
+        for source_op in source.obank.iter_dead() {
             let seq = *source_op.0.read().unwrap().get_seq_num();
             self.clone_op(source_op, &seq);
         }
@@ -14484,8 +14544,7 @@ mod tests {
         // Locate the injected BRANCHIND and its parent block.
         let branchind = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .find(|o| o.0.read().unwrap().opcode == OpCode::CPUI_BRANCHIND)
             .expect("BRANCHIND survived injection")
             .clone();
@@ -14622,9 +14681,17 @@ mod tests {
         // out edge 0 = fall-through (false), out edge 1 = branch target
         // (true). Edge 1 must land on the synthetic target block; edge 0 on
         // the sequential fall-through block.
-        let edge0 = cb_block.read().unwrap().get_out(0).map(|e| e.point);
+        let edge0 = cb_block
+            .read()
+            .unwrap()
+            .get_out(0)
+            .map(|e| fd.bblocks.bank.expect_arc(e.point));
         let edge0 = edge0.expect("CBRANCH edge 0 exists");
-        let edge1 = cb_block.read().unwrap().get_out(1).map(|e| e.point);
+        let edge1 = cb_block
+            .read()
+            .unwrap()
+            .get_out(1)
+            .map(|e| fd.bblocks.bank.expect_arc(e.point));
         let edge1 = edge1.expect("CBRANCH edge 1 exists");
         assert!(Arc::ptr_eq(&edge1, &synth));
         assert_eq!(edge0.read().unwrap().get_start_addr().as_u64(), 0x1007);
@@ -14779,8 +14846,8 @@ mod tests {
         assert_eq!(join.read().unwrap().size_in(), 2, "JOIN takes both edges");
         // Walk order: THEN-edge (0x1040) BEFORE ELSE-edge (0x1010), although
         // ELSE has the smaller address — flow.cc walk discovery order.
-        let in0 = join.read().unwrap().get_in(0).map(|e| e.point).expect("in-edge 0");
-        let in1 = join.read().unwrap().get_in(1).map(|e| e.point).expect("in-edge 1");
+        let in0 = join.read().unwrap().get_in(0).map(|e| fd.bblocks.bank.expect_arc(e.point)).expect("in-edge 0");
+        let in1 = join.read().unwrap().get_in(1).map(|e| fd.bblocks.bank.expect_arc(e.point)).expect("in-edge 1");
         assert_eq!(
             in0.read().unwrap().get_start_addr().as_u64(),
             0x1040,
@@ -14796,13 +14863,13 @@ mod tests {
         // every CBRANCH, out[0]=fall-through, out[1]=branch target
         // (flow.cc:960-966).
         let a = block_by_start(0x1000);
-        let out0 = a.read().unwrap().get_out(0).map(|e| e.point).expect("A out 0");
-        let out1 = a.read().unwrap().get_out(1).map(|e| e.point).expect("A out 1");
+        let out0 = a.read().unwrap().get_out(0).map(|e| fd.bblocks.bank.expect_arc(e.point)).expect("A out 0");
+        let out1 = a.read().unwrap().get_out(1).map(|e| fd.bblocks.bank.expect_arc(e.point)).expect("A out 1");
         assert_eq!(out0.read().unwrap().get_start_addr().as_u64(), 0x1005);
         assert_eq!(out1.read().unwrap().get_start_addr().as_u64(), 0x1040);
         let b = block_by_start(0x1005);
-        let b_out0 = b.read().unwrap().get_out(0).map(|e| e.point).expect("B out 0");
-        let b_out1 = b.read().unwrap().get_out(1).map(|e| e.point).expect("B out 1");
+        let b_out0 = b.read().unwrap().get_out(0).map(|e| fd.bblocks.bank.expect_arc(e.point)).expect("B out 0");
+        let b_out1 = b.read().unwrap().get_out(1).map(|e| fd.bblocks.bank.expect_arc(e.point)).expect("B out 1");
         assert_eq!(b_out0.read().unwrap().get_start_addr().as_u64(), 0x1008);
         assert_eq!(b_out1.read().unwrap().get_start_addr().as_u64(), 0x1010);
     }
@@ -14863,8 +14930,8 @@ mod tests {
         // Fallback arm: both out-edges (fall-through 0 + target 1) exist
         // exactly as the historical address-order builder produced.
         assert_eq!(cb_block.read().unwrap().size_out(), 2);
-        let out0 = cb_block.read().unwrap().get_out(0).map(|e| e.point).expect("out 0");
-        let out1 = cb_block.read().unwrap().get_out(1).map(|e| e.point).expect("out 1");
+        let out0 = cb_block.read().unwrap().get_out(0).map(|e| fd.bblocks.bank.expect_arc(e.point)).expect("out 0");
+        let out1 = cb_block.read().unwrap().get_out(1).map(|e| fd.bblocks.bank.expect_arc(e.point)).expect("out 1");
         assert_eq!(out0.read().unwrap().get_start_addr().as_u64(), 0x1025);
         assert_eq!(out1.read().unwrap().get_start_addr().as_u64(), 0x1040);
     }
@@ -14972,7 +15039,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15076,7 +15143,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15160,7 +15227,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15243,7 +15310,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15319,7 +15386,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15371,7 +15438,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15465,7 +15532,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15542,7 +15609,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15648,7 +15715,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15729,7 +15796,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15808,7 +15875,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -15895,7 +15962,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -16033,7 +16100,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -16176,7 +16243,7 @@ mod tests {
 
         // Phase 4: Verify via RuntimeVerifier
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -16252,7 +16319,7 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -16351,7 +16418,7 @@ mod tests {
 
         // Phase 4: Verify via RuntimeVerifier
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.alivelist.iter().map(|op| op.0.clone()).collect();
+        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
@@ -17048,7 +17115,7 @@ mod tests {
                 let mut preds = Vec::new();
                 for j in 0..size_in {
                     if let Some(e) = b.get_in(j) {
-                        preds.push(e.point.read().unwrap().get_index());
+                        preds.push(fd.bblocks.bank.expect_index(e.point));
                     }
                 }
                 s.push_str(&format!(
@@ -17083,12 +17150,13 @@ mod tests {
                     // Find the successor that loops back to header.
                     for j in 0..b.size_out() {
                         if let Some(e) = b.get_out(j) {
-                            let s_idx = e.point.read().unwrap().get_index();
+                            let s_idx = fd.bblocks.bank.expect_index(e.point);
                             // The body is the successor whose own successor set
                             // contains header (back-edge).
-                            for k in 0..e.point.read().unwrap().size_out() {
-                                if let Some(e2) = e.point.read().unwrap().get_out(k) {
-                                    if e2.point.read().unwrap().get_index() == header {
+                            let succ_arc = fd.bblocks.bank.expect_arc(e.point);
+                            for k in 0..succ_arc.read().unwrap().size_out() {
+                                if let Some(e2) = succ_arc.read().unwrap().get_out(k) {
+                                    if fd.bblocks.bank.expect_index(e2.point) == header {
                                         body = s_idx;
                                     }
                                 }
@@ -17271,7 +17339,7 @@ mod tests {
         let mut _found_break = false;
         let mut found_continue = false;
 
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
                 OpCode::CPUI_BRANCH | OpCode::CPUI_CBRANCH => {
@@ -17350,30 +17418,35 @@ mod tests {
         let block_c: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(basic_c));
         let block_d: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(basic_d));
 
+        let mut graph = BlockGraph::new();
+        graph.register_fixture_blocks(&[
+            block_a.clone(),
+            block_b.clone(),
+            block_c.clone(),
+            block_d.clone(),
+        ]);
+
         // Wire edges
         {
             let mut a = block_a.write().unwrap();
-            a.add_out_edge(BlockEdge::new(block_b.clone(), 0)); // out(0)=B (false)
-            a.add_out_edge(BlockEdge::new(block_c.clone(), 0)); // out(1)=C (true)
+            a.add_out_edge(graph.fixture_edge(&block_b, 0)); // out(0)=B (false)
+            a.add_out_edge(graph.fixture_edge(&block_c, 0)); // out(1)=C (true)
         }
         {
             let mut b = block_b.write().unwrap();
-            b.add_in_edge(BlockEdge::new(block_a.clone(), 0));
-            b.add_out_edge(BlockEdge::new(block_d.clone(), 0)); // out(0)=D (false)
-            b.add_out_edge(BlockEdge::new(block_c.clone(), 1)); // out(1)=C (true)
+            b.add_in_edge(graph.fixture_edge(&block_a, 0));
+            b.add_out_edge(graph.fixture_edge(&block_d, 0)); // out(0)=D (false)
+            b.add_out_edge(graph.fixture_edge(&block_c, 1)); // out(1)=C (true)
         }
         {
             let mut c = block_c.write().unwrap();
-            c.add_in_edge(BlockEdge::new(block_a.clone(), 1));
-            c.add_in_edge(BlockEdge::new(block_b.clone(), 1));
+            c.add_in_edge(graph.fixture_edge(&block_a, 1));
+            c.add_in_edge(graph.fixture_edge(&block_b, 1));
         }
         {
             let mut d = block_d.write().unwrap();
-            d.add_in_edge(BlockEdge::new(block_b.clone(), 0));
+            d.add_in_edge(graph.fixture_edge(&block_b, 0));
         }
-
-        let mut graph = BlockGraph::new();
-        graph.blocks = vec![block_a, block_b, block_c, block_d];
 
         let mut cs = crate::blockaction::CollapseStructure::new(&mut graph, "test");
         cs.collapse_all();
@@ -17458,13 +17531,17 @@ mod tests {
             Arc::new(RwLock::new(BlockBasic::new(1, Address::new(0x2000))));
 
         let cond = BlockCondition {
+        owner_bank: std::sync::Weak::new(),
+        bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 10,
             op_type: BoolOp::And,
             first: a.clone(),
             second: b.clone(),
             incoming: Vec::new(),
+            // Bare structural fixture: the edge endpoint is unregistered
+            // (sentinel id) — these unit tests only read the edge flags.
             outgoing: vec![BlockEdge {
-                point: a.clone(),
+                point: crate::arena::ArenaId::SENTINEL,
                 flags: 0,
                 reverse_index: 0,
             }],
@@ -17479,6 +17556,8 @@ mod tests {
         assert_eq!(cond.get_start_addr(), Address::new(0x1000));
 
         let cond_or = BlockCondition {
+            owner_bank: std::sync::Weak::new(),
+            bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
             index: 20,
             op_type: BoolOp::Or,
             first: a,
@@ -17657,7 +17736,7 @@ mod tests {
         let mut output_varnodes: Vec<(
             crate::space::AddressSpace, u64, usize, Arc<RwLock<crate::varnode::Varnode>>,
         )> = Vec::new();
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if let Some(ref out_vn_arc) = op.output {
                 let out_vn = out_vn_arc.read().unwrap();
@@ -17667,7 +17746,7 @@ mod tests {
             }
         }
 
-        let ops_to_update: Vec<_> = fd.obank.alivelist.iter().cloned().collect();
+        let ops_to_update: Vec<_> = fd.obank.iter_alive().cloned().collect();
         for op_ref in &ops_to_update {
             let mut op = op_ref.0.write().unwrap();
             let num_inputs = op.inrefs.len();
@@ -17707,7 +17786,7 @@ mod tests {
 
         {
             let mut found = false;
-            for op_ref in &fd.obank.alivelist {
+            for op_ref in fd.obank.iter_alive() {
                 let op = op_ref.0.read().unwrap();
                 if op.opcode == OpCode::CPUI_COPY {
                     let mut in_vn = op.inrefs[0].write().unwrap();
@@ -17730,7 +17809,7 @@ mod tests {
         let mut checked_u3 = false;
         let mut checked_u4 = false;
 
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
                 OpCode::CPUI_COPY => {
@@ -18098,8 +18177,7 @@ mod tests {
         let u2_nzm = u2.read().unwrap().get_nzm();
         let div_alive = fd
             .obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .any(|op| op.0.read().unwrap().opcode == OpCode::CPUI_INT_DIV);
         assert_eq!(
             u2_nzm, 0x1ff,
@@ -18249,7 +18327,7 @@ mod tests {
         fd.split_uses(&tmp_out);
 
         // After: a new duplicated INT_ADD op exists whose output is NOT tmp_out.
-        let has_new_add = fd.obank.alivelist.iter().any(|r| {
+        let has_new_add = fd.obank.iter_alive().any(|r| {
             let o = r.0.read().unwrap();
             if o.opcode != OpCode::CPUI_INT_ADD { return false; }
             match o.output.as_ref() {
@@ -18288,7 +18366,7 @@ mod tests {
         );
         let mut fd = Funcdata::new("xor_eax_eax", start, code.len() as i32);
         fd.inject_raw_ops(&raw_ops);
-        for op_ref in &fd.obank.alivelist {
+        for op_ref in fd.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             if op.opcode == OpCode::CPUI_INT_XOR {
                 let i0 = &op.inrefs[0]; let i1 = &op.inrefs[1];
@@ -18599,11 +18677,12 @@ fn find_out_index(
     src: &Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
     target: &Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
 ) -> Option<usize> {
+    let bank = src.read().unwrap().bank();
     let rg = src.read().unwrap();
     let n = rg.size_out();
     for i in 0..n {
         if let Some(e) = rg.get_out(i) {
-            if Arc::ptr_eq(&e.point, target) {
+            if bank.registered_id_of(target) == e.point {
                 return Some(i);
             }
         }
@@ -18786,7 +18865,10 @@ impl AncestorRealistic {
         let (solid_point, size_in) = {
             let bl_rg = bl.read().unwrap();
             let solid_slot = state.get_solid_slot();
-            let point = bl_rg.get_in(solid_slot as usize).map(|e| e.point.clone());
+            let bank = bl_rg.bank();
+            let point = bl_rg
+                .get_in(solid_slot as usize)
+                .map(|e| bank.expect_arc(e.point));
             (point, bl_rg.size_in())
         };
         if size_in != 2 { return false; }
@@ -20399,15 +20481,14 @@ mod final_transform_op_move_tests {
 
     fn in_alive_exactly_once(fd: &Funcdata, op: &PcodeOpRef) -> bool {
         fd.obank
-            .alivelist
-            .iter()
+            .iter_alive()
             .filter(|r| Arc::ptr_eq(&r.0, &op.0))
             .count()
             == 1
     }
 
     fn in_dead(fd: &Funcdata, op: &PcodeOpRef) -> bool {
-        fd.obank.deadlist.iter().any(|r| Arc::ptr_eq(&r.0, &op.0))
+        fd.obank.iter_dead().any(|r| Arc::ptr_eq(&r.0, &op.0))
     }
 
     /// cc:3381-3384 shape: `iterateOp` sits mid-block in the tail block;
