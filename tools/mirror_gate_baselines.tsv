@@ -246,8 +246,36 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # varmapopcreate/speedprof2 are behavior-identity lanes — VdbeExec --one
 # mirror caliber bf2d9b85 held through all four, bare caliber a067e05c,
 # corpus assembled 5,284,971B byte-identical).
-sq	432	810	MB48-RATCHET-REPIN-0001	87f3ac97	2026-09-29
-sqlite	785	1385	MB49-RATCHET-REPIN-0001	75ea326f	2026-09-30
+# MB52-RATCHET-REPIN-0001 (2026-10-01, joint tree @ 5c64d869 after 5-branch
+# mirror+speed+docs batch [statusrefresh e23b39a2 + mcensus5 d509f831 +
+# w2remeasure 1c4c3f26 + actionpooliter 68ff043e+cabcb36f + wrapemit e6ec123e],
+# forced relink verified [fast-release 57s + release 3m50s, driver binaries
+# newer than all five merge commits], gate --jobs 5 round — binary sha change
+# invalidates digest cache keys, all five faces fresh-measured; repin commit
+# only edits this table, measurement tree=5c64d869):
+# ① sq 432→324 (−108 = WRAPEMIT wrap-family burn, joint arithmetic exact vs lane
+#    claim −108: STORE-assignment bump-5 + boolean-merge + keyword-separator
+#    emitOp three-token protocol restored in printc.rs; wrap-only family sq
+#    98→0 fully burned incl. GetOptimum 41→0 + GetOptimum.part.0 24→0 +
+#    GetOptimumFast 31→0 whole-function identical; same-family knock-on
+#    CAST-SHAPE wrap 56/UNAFF 16/OTHER 26 burned with the realigned break
+#    columns). matched 810/810, defects=numbering=0.
+# ② sqlite 785→706 (−79 = same WRAPEMIT root on the sqlite face; wrap-only
+#    family sqlite 110→37, residual 37 = division break-column sub-shape
+#    registered as WRAPEMIT-DIVBREAK-0001). matched 1385/1385,
+#    defects=numbering=0.
+# ③ curl 13 / httpd 2 / vsh 0 identical, not re-pinned (MB41/MB41/MB39 rows
+#    stay; ACTIONPOOLITER is output-neutral by construction — ACTIONSTATS
+#    counter identity + corpus assembled byte-identity; docs lanes no src).
+# Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
+# (compare verdict; all functions diff=0). Canon byte self-pins moved with the
+# lane-documented form-level emit change (trailing '&& ' EOL spaces removed +
+# STORE wraps now 'L =\n     R' oracle shape): curl 4ab1db2a→b7773087 (+10B)
+# / httpd 7d5b9e7c→54f9b02c — merged-tree outputs byte-identical to wrapemit
+# lane artifacts (zero integration drift). tests 2023P/0F/5I (=2022 + wrapemit
+# +1 store_assignment_wraps_at_operator_with_bump5, per-lane accounting exact).
+sq	324	810	MB52-RATCHET-REPIN-0001	5c64d869	2026-10-01
+sqlite	706	1385	MB52-RATCHET-REPIN-0001	5c64d869	2026-10-01
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
