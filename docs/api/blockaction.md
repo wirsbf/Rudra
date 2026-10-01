@@ -2066,3 +2066,18 @@ wave 3 边表影子（见 docs/api/block.md EdgeShadow 段）的写侧 choke 补
 绑定形并就地 sync；identify install 的 `nb.sync_edge_shadows()` 与
 strip_external 的 `w.sync_edge_shadows()` 补在既有 size/flags sync 旁。
 零读位迁移（本批），消费面迁移在批 3。
+
+## BLOCKFLIPW3（2026-10-01）批 2——五大规则深读位迁边影子
+
+`try_rule_proper_if`（cc:1378-1408）/`try_rule_if_else`（cc:1416-1444）/
+`try_rule_if_no_exit`（cc:1481-1512）/`try_rule_while_do`（cc:1518-1549）/
+`try_rule_cat`（cc:1284-1314）的 clause/merge 深读面迁移：miss 路径只携带
+BlockId + bank 影子读（size_in/size_out/flags=POD 影子;out[0]/goto 边标签=
+edge 影子——block.hh:301/347 非虚 inline 读形态），fire 路径才
+`expect_arc` 物化句柄（每 fire 一次 vs miss 百万次）。
+`count_non_structural_in_edges` 改 id 形态（`with_in_edges` 单锁批量读,
+per-edge peer 读仍走 btype/index 影子）。守卫序逐条==oracle 原文
+（sizeIn→sizeOut→isSwitchOut→isDecisionOut→isGotoOut→getOut(0)）;
+死读删除：if_no_exit/proper_if 的 `c_idx` 捕获（fire 用 install_idx,
+wave 2 try_rule_if_goto 死读删除同款）。find_dup_peers 不迁（peer
+half-delete 写路径需要句柄）。
