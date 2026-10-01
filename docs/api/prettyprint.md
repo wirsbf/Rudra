@@ -1323,3 +1323,33 @@ operator）。诱因：for 头超行宽折行后，续行形如
   镜面 sq 3021→2935（−86）；bank 391/391；cargo test 1957P/0F（亲父
   1955P + 新 2）。prettyprint 属机制 B 门禁（差分已过：defects=0/
   numbering=0），非机制 C 白名单。
+
+### 2026-10-01 — LONGADDEND（GEN4-SQ-CASTFUSE-DEPTH-0001 long-addend 族：P25 镜面面整臂跳过）
+
+- **结论先行**：CASTFUSEB 修掉的是 P25 指针名收集的**假名**（store 行误扫），
+  本道修掉的是真名命中下的**面错配**——P25 是 canon 拼写补偿（canon golden
+  本身含 `(long)`：curl 55 处 / httpd 1165 处），但在 direct-runner（镜面）
+  契约面 oracle 从不印 cast 于 PTRADD index 加数——`PrintC::opPtradd`
+  （printc.cc:880-893）以裸 `pushVn(op->getIn(1),op,m)` 推 index（无 cast
+  旗标），发射管线终点 `EmitPrettyPrint::flush`（prettyprint.cc:1194-1211）
+  是纯 token 队列排空、零文本再扫描；五面 direct-runner golden 全部 0 处
+  `(long)`。P25 在镜面面的每次点火 = 一行 skeleton diff。
+- **双侧 IR 钉形**（代表位点 sq `_ZN10COutBuffer5FlushEv` @0x42553，oracle
+  探针 castfuse2_probe probe 797——C 输出与 golden 逐字节恒等亲证）：
+  双侧 op 链**恒等**——`PTRADD(R12, LOAD(piVar16+5×8), ×1)` + 输出侧
+  `CAST(int8)`（`piVar16[5] = (int8)(pcVar20 + piVar16[5])` 的 `(int8)`
+  是真 IR CAST），Rugra 同 varnode id（u0x8f00/u0xd500/u0x100013c8）。
+  分歧**不在 IR**，纯粹是 P25 文本层把 `pcVar20 + piVar16[5]`（两操作数名
+  均为指针声明）重写成 `pcVar20 + (long)piVar16[5]`。
+- **修复形态**：`fix_pointer_arithmetic` 入口整臂 `mirror_face_active()`
+  早退（与 GEN4-SQ-DUPDECL-NUMBERING-0001 的 backfill/flush 两臂同形）；
+  canon 面 P25 逐字节保持运行。
+- **验收**：镜面五面官方门禁 PASS——sq **324→280**（−44 == MC5 census
+  long-addend sq 值精确燃尽：COutBuffer Flush/FlushPart 4+8 + NLZMA
+  CodeOneBlock/.part.0/Flush 4+8+4 + NPat TestRemove 克隆 2×8，13 函数
+  零回归）；sqlite **706→604**（−102 = trio 84 精确[vmprintf 46→16 /
+  mprintf 44→16 / Pragma 39→13] + 同根邻位 18[VdbeExec −8 / PagerWrite
+  −4 / BtreeTableMoveto −4 / EndTable −2]）；curl 13 / httpd 2 / vsh 0
+  恰钉值恒等；defects=numbering=0 全面。canon 红线：curl md5 b7773087 /
+  httpd md5 54f9b02c **字节恒等**（compare 0/0/0，124F+34F）。
+
