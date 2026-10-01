@@ -339,8 +339,8 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # raw unified +3/−3, nothing else moved); MB54 ledger is the authoritative
 # corpus-artifact record. tests 2026P/0F/5I (=2023 + readinode +3, per-lane
 # accounting exact; blockflipw1 zero new tests).
-sq	142	810	MB54-RATCHET-REPIN-0001	2c06364a	2026-10-01
-sqlite	599	1385	MB54-RATCHET-REPIN-0001	2c06364a	2026-10-01
+sq	140	810	INDEXCAST-RATCHET-REPIN-0001	be3333ef	2026-10-01
+sqlite	461	1385	INDEXCAST-RATCHET-REPIN-0001	be3333ef	2026-10-01
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
