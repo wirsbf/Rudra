@@ -1,5 +1,54 @@
 # `ruleaction.rs` API Reference
 
+## 2026-10-02：PERF-RULEBODY2-0001 规则体残量三类收敛（性能恒等重排）
+
+W2REMEASURE 勘定的 oppool1 残量（语料级 #1）在 ACTIONPOOL-ITER 之后的续作钻探
+（[RULEPROF] 临时探针 env RUGRA_RULEPROF=1 + 守卫消去归因实验 E1/E2/E3 + gdb 采样；
+探针交付前撤净三重亲证）定界：语料级规则体 57.79s[探针口径] 中 ruleaction 域内
+三大项 = multicollapse 9.94s@1224ns/8.12M + collect_terms 3.91s@784ns/4.98M +
+piecepathology 1.12s@6773ns/164K；早期移除/传播拷贝/间接塌缩的 miss 常数已收敛到
+守卫下界（见下"域外登记"）。本条对三个域内项做存储常数收敛（oracle 规则体 =
+裸指针直读，Rugra 差距 = Vec 物化/Arc 往返/重复守卫）：
+
+- **`RuleMultiCollapse::apply_op`（cc:3234-3343）—— matchlist 零克隆化**。原形每次
+  heritage-known try 克隆整个 `inrefs` Vec（1 次堆分配 + 每 input 一对 Arc 原子
+  往返，oracle cc:3250-3251 是零成本指针拷贝）。现初始 matchlist 在单次 op 读
+  守卫下**就地**读 `op.inrefs[j]`，仅 MULTIEQUAL 展开（cc:3291-3292）追加进本地
+  `expanded` Vec；句柄克隆只发生在 oracle 指针需跨迭代存活的位点（defcopyr 存
+  储、skiplist 推入、展开追加）。epilogue 的 totalReplace/opDestroy 写锁后代 op
+  （RULE-SUBCANCEL-RWLOCK-0001）——op 守卫先 drop 再进 epilogue。访问序/判定
+  序/突变集与 oracle 逐位相同。
+- **`RuleCollectTerms::apply_op`（cc:107-176）+ `get_mult_coeff`（cc:82-97）——
+  phase-1 扫描守卫合并**。`vn2` 的 isConstant/isWritten/def 三读合进单次 Varnode
+  读守卫（新增 `get_mult_coeff_from` 受卫字段形；`get_mult_coeff` 单守卫取字段后
+  委托）；`vn1`/`vn2` 句柄借用传递（`get_mult_coeff` 返回 owned 值，调用方零
+  clone；oracle cc:126-128 读裸指针）。
+- **`RulePiecePathology::trace_pathology_forward`（cc:10506-10570）—— descend 流式
+  迭代 + 守卫合并**。每次 walked op 的 descend 快照 Vec（1 分配 + 每条 upgrade）
+  改为单次 Varnode 读守卫下就地流式迭代（oracle cc:10525-10527 就地走 list）；
+  out 句柄在守卫内借用（CALL 臂 ptr 比较不再三次锁 cur_op）；每条 dop 的
+  opcode+MARK 位合进单次读守卫（oracle 读两个裸字段 cc:10528-10531）。marked/
+  worklist 追加序、清标序、count 语义逐行不变。
+
+**行为恒等证明链**：VdbeExec `--one 1055` stdout md5 `15b47cf7`（base 3 轮 + 每
+步 opt 亲跑 cmp）；ACTIONSTATS 单极计数恒等（perform=917/pool_passes=302/
+ops=5,825,839/rule_tries=28,722,524/rule_hits=63,713）；语料级 1385 子进程聚合计数
+五轮逐值恒等（perform=457,037/pool_passes=53,929/ops=52,481,311/
+rule_tries=232,020,420/rule_hits=2,344,818）；corpus assembled 5,285,270B 三轮
+cmp 字节恒等。
+
+**性能**（探针口径 A/B，计数恒等前提）：语料规则体 63.19→60.60s（**−4.1%**，
+3 轮负载共享对跑中位数；multicollapse −13.5% / collect_terms −15.1% /
+piecepathology −12.8%；未触碰 canary 规则 ±1% 内）；VdbeExec 单极规则体 top-18
+−8.6%（5 轮交错中位数）。
+
+**域外登记（本道钻定、非 ruleaction 域可修）**：earlyremoval 语料 9.7-11s 中
+≈115ns/try 消耗在 `Varnode::has_no_descend` 的 tombstone 扫描（E2/E3 归因实验
+亲证：Vec<Weak> 前导死条目线性扫；oracle `descend.empty()` O(1)）≈4.9s 语料级；
+`Varnode::lone_descend` 在"第二个活跃后代"拒绝路径上仍付一次 upgrade（原子对），
+collect_terms/zexteliminate/TermOrder::collect 每 try/每 edge 调用。两者均为
+varnode.rs descend 存储域（活跃后代影子/计数维护）——移交存储层车道。
+
 ## 2026-10-01：PERF-ACTIONPOOL-ITER-0001 规则体 op 迭代形态收敛（性能恒等重排）
 
 [SP2PROF]/[RULEPROF]/gdb 钻探（W2 残量 oppool1 10.39s = 规则体 7.87 + 派发 2.61；语料级 77.6s/#1）

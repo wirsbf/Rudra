@@ -1,5 +1,25 @@
 # `expression.rs` API Reference
 
+## 2026-10-02：PERF-RULEBODY2-0001 TermOrder 缓冲池化 + collect 就地扫描（性能恒等重排）
+
+`TermOrder` 是 collect_terms 每 try 构造的规则体专用 helper（本模块唯一消费方）。
+原形每次 try 付 4 次堆分配（terms/sorter/sort键/opstack Vec）+ 每 popped op 的
+inputs Vec 克隆（分配 + 每 input 一对 Arc 原子往返 + 推入 term 时二次克隆）。本条：
+
+- **`TermOrder::collect`（expression.cc:236-283）—— 就地扫描**。输入扫描在单次
+  PcodeOp 读守卫下直接迭代 `op.inrefs`（oracle `curop->getIn(i)` 裸指针读），
+  每个推入的 AdditiveEdge 只克隆它存储的句柄。LIFO 栈序、逐 slot 扫描序、term
+  推入序逐行不变。
+- **`TermOrder`/`Drop` —— 四缓冲线程本地池化**（`term_scratch` 模块，池容量 4）。
+  `terms/sorter/sort_keys/opstack` 从 thread-local 池取用，Drop 时 clear 后归还。
+  clear() 丢弃 Arc 句柄的时刻 == 原 owned Vec 析构时刻（同一语句末端），可观测
+  析构序不变；`sort_terms` 的 sorter 重建与稳定排序比较器逐位不变（键投影同
+  PERF-OPPOOL-0001 形）。
+
+**行为恒等**：纯存储复用，零突变面变化；证明链见 docs/api/ruleaction.md 同日条
+（VdbeExec md5 `15b47cf7` + ACTIONSTATS 单极/语料 2.32 亿尝试计数恒等 + assembled
+字节恒等）。collect_terms 语料 4.21→3.58s（−15.1%，3 轮负载共享对跑中位数）。
+
 ## 2026-10-01：PERF-ACTIONPOOL-ITER-0001 functional_equality_level_code 投影（性能恒等重排）
 
 新增 `pub fn functional_equality_level_code(vn1, vn2) -> i32`——`functional_equality_level`
