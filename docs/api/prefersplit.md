@@ -2,6 +2,19 @@
 
 Faithful port of Ghidra's `prefersplit.hh` / `prefersplit.cc` (631 lines).
 
+## 2026-10-01：`*mut Funcdata` 成员消灭（Lane ARENAFLIP-g 步骤 4）
+
+- `PreferSplitManager.data: Option<*mut Funcdata>` 字段与 `unsafe impl Send`
+  shim 删除（P6——与 transform.rs e7b15887 同族收尾）：fd 逐调用穿透
+  `fillin_instance/create_copy_ops/split_defining_copy/split_reading_copy/
+  split_zext/split_piece/split_subpiece/split_load/split_store/
+  split_varnode/split_record/split_temporary`（prefer­split.cc:33-527 的
+  `data->` 成员访问等价形态）。
+- `init(_fd, rec)`（cc:529 `data = fd; records = rec;`）保留签名但不再
+  存储 fd——fd 行为由 `split`/`split_additional` 逐调用承载；调用面
+  （heritage.rs 5870/5871/6049）零改动。src/prefersplit.rs 现在
+  unsafe-free 且自动 Send+Sync。
+
 **Status:** ✅ L3 — full algorithm ported & verified. All 18 private helpers
 (`fillinInstance`, `createCopyOps`, `testDefiningCopy`/`splitDefiningCopy`,
 `testReadingCopy`/`splitReadingCopy`, `testZext`/`splitZext`,
