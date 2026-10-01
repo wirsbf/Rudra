@@ -285,3 +285,11 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## BLOCKFLIPW3（2026-10-01）批 3——前驱扫迁边影子
+
+`push_predecessor_ids`（addRefRecurse 迭代展开的栈形, oracle
+cover.cc:535-536 `for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j))`）
+改 `BlockBankView::with_in_edges` 单锁批量读：in-向量镜像按 DESCENDING
+槽序 push 前驱 id（== 旧句柄守卫形态的同一 BlockId 序列），零句柄克隆/
+零 peer 锁/零 vtable（block.hh:304 非虚 inline 读形态, wave 3 边影子）。
