@@ -2089,3 +2089,35 @@ half-delete 写路径需要句柄）。
 （is_complex 虚深读需守卫）; registered_id_of 提升到守卫前每调用一次。
 残量登记：try_rule_case_fallthru/switch/identify_internal 尾部 ~165K
 view_arc 面 + find_dup_peers 2.27M 写路径面（peer half-delete 需句柄）。
+
+## FINDDUP（2026-10-02）——find_dup_peers 影子快照快路径（PERF-FINDDUP-0001）
+
+`find_dup_peers`（cc:507-523 findDups 的 Rust 承接,此前 BLOCKFLIPW3 判定
+"写路径本征不可收"系无 write-through 读形态时的结论）增**双形态**:
+
+- **快照快路径**（write-through 读形态）: `bl` 的边向量一次 `with_in/out_edges`
+  边影单锁批读 + 每个 peer 的 flags 走 (g) guard 影子原子读,纯计算 duplist
+  （第二目击序,count_before==1 精确=cc:514-517 的 push 序/f_mark2 单次抑制;
+  内层计数循环零分配=oracle 直接成员读形态,cc:510）。**有效性条件=全体边
+  point 到场无 MARK/MARK2**:此时锁协议的 set-then-erase 全部自消
+  （cc:521-522）,flags 净效应恒等,duplist 由边序列唯一决定——构造性论证,
+  非近似。命中时零 expect_arc（仅 2.7% 有 dup 的调用按 id 物化句柄）、零
+  peer 写锁、零 flags 影子重同步、零边表物化 Vec。
+- **锁协议回退**: 任一 point 预置 mark（外来 mark 协议在飞）或槽位不可解
+  → 原样运行历史锁协议（cc:507-523 逐行,含 self-loop 尾扫与预置 mark 的
+  oracle 语义[首目击即报 dup + 擦除预置 mark,cc:514/521-522]）。
+
+新私有 helper `dup_peers_from_snapshot`（同样标注 Ghidra: block.cc:507）
+承载纯计算半;`find_dup_peers` 签名不变（返回 Vec<Arc>,调用方零改动）。
+测试 +4: 第二目击序/三目击不重推/净零 mark 断言、预置 mark 回退+oracle
+擦除语义、并行自环、SENTINEL point 拒解。
+
+**机制证据（VdbeExec --one 1055,md5 840c4fb2 全轮恒等）**:
+view_arc 2,416,961→**154,023**（−2,262,938=残量面的 −93.6%;残量=尾部冷位
+~150K+dup 物化 3,706）;shadow_writes 4,976,239→2,710,670（−2,265,569
+==探针实测 flag_sets 1,132,247+flag_clears 1,133,322 **逐单位相等**→快路径
+100% 命中、零回退）;view_index +1,133,322==边总数（每边恰一次 flags 影子读）;
+结构面六计数器+id_lookups 逐值恒等。配对 A/B（绑核 96-111,10 对,load 12-42）:
+O 中位 28.16 vs B 28.28=Δ−0.12s（8/10 对负向,与 ~0.25s 预测/噪声自洽）;
+corpus --jobs 32 绑核配对=±1% 噪声带内平手,assembled 7ea4795a·5,285,935B
+base==opt 字节恒等。blockaction=机制 C 白名单→CR REQUIRED。
