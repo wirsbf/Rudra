@@ -274,8 +274,39 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # / httpd 7d5b9e7c→54f9b02c — merged-tree outputs byte-identical to wrapemit
 # lane artifacts (zero integration drift). tests 2023P/0F/5I (=2022 + wrapemit
 # +1 store_assignment_wraps_at_operator_with_bump5, per-lane accounting exact).
-sq	324	810	MB52-RATCHET-REPIN-0001	5c64d869	2026-10-01
-sqlite	706	1385	MB52-RATCHET-REPIN-0001	5c64d869	2026-10-01
+# MB53-RATCHET-REPIN-0001 (2026-10-01, joint tree @ 497f987b after 2-branch
+# mirror+speed CR-clear batch [longaddend 511425c1 + coverrebuild 658e57a9],
+# forced relink verified [fast-release --lib --examples 2m12s, driver binaries
+# newer than both merge commits], gate --jobs 5 round with digest cache —
+# binary sha change invalidates cache keys, all five faces fresh-measured;
+# repin commit only edits this table, measurement tree=497f987b):
+# ① sq 324→280 (−44 = LONGADDEND long-addend family burn — prettyprint P25
+#    fix_pointer_arithmetic mirror-face arm early-exit via mirror_face_active()
+#    [GEN4-SQ-DUPDECL-NUMBERING-0001 backfill/flush same-shape precedent;
+#    canon face still runs P25, canon golden itself carries `(long)` 55/1165];
+#    joint arithmetic exact vs census long-addend sq 44: COutBuffer FlushPart −8/
+#    Flush −4 + NLZMA CodeOneBlock.part.0 −8/CodeOneBlock −4/Flush −4 + NPat
+#    TestRemove clone 2×8, 13 functions zero-regression; `(long)` token count
+#    sq 22→0, `* (long)` multiply arm co-gated to zero). matched 810/810,
+#    defects=numbering=0.
+# ② sqlite 706→604 (−102 = same P25 mirror-face mismatch root on the sqlite
+#    face: census trio 84 exact [vmprintf 46→16/mprintf 44→16/sqlite3Pragma
+#    39→13] + same-root adjacent 18 [sqlite3VdbeExec −8/sqlite3PagerWrite −4/
+#    sqlite3BtreeTableMoveto −4/sqlite3EndTable −2, census-bucketed as
+#    misc-cast same-shape sites]; `(long)` count sqlite 56→0). matched
+#    1385/1385, defects=numbering=0.
+# ③ curl 13 / httpd 2 / vsh 0 identical, not re-pinned (MB41/MB41/MB39 rows
+#    stay; coverrebuild is behavior-identity by construction — faithful
+#    dual-build A/B corpus byte-identity, CR-COVERREBUILD APPROVE).
+# Canon faces (not in tsv): curl 0/0/0·124 + httpd 0/0/0·34 zero-state held
+# (compare verdict; all functions diff=0; byte self-pins b7773087/54f9b02c
+# exact — zero-state preserved, no re-pin needed). Corpus artifact re-pin
+# (CR-COVERREBUILD follow-up ①): lane/assembled pin 15f545aa proven stale
+# Standalone-type-domain binary artifact (TYPE-WIRING-0001 era, CR §F.1
+# triple-contradiction closure) — re-measured on faithful build, see MB53
+# ledger entry for the new corpus assembled pin.
+sq	280	810	MB53-RATCHET-REPIN-0001	497f987b	2026-10-01
+sqlite	604	1385	MB53-RATCHET-REPIN-0001	497f987b	2026-10-01
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
