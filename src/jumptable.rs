@@ -3254,16 +3254,16 @@ impl JumpBasic {
                     // Only 1 flow path to the switch
                     let prev_edge = cur_bl.read().unwrap().get_in(0);
                     let Some(prev_edge) = prev_edge else { return };
-                    let prev_bl_arc = bank.expect_arc(prev_edge.point);
                     // cc:1072: is it possible to deviate from switch path in
-                    // this block
-                    let prev_size_out = prev_bl_arc.read().unwrap().size_out();
+                    // this block — (W2) shadow read: sizeOut bank-served
+                    // (block.hh:312); the Arc resolves only when kept.
+                    let prev_size_out = bank.expect_size_out(prev_edge.point);
                     if prev_size_out != 1 {
-                        walk_prev = Some(prev_bl_arc);
+                        walk_prev = Some(bank.expect_arc(prev_edge.point));
                         break;
                     }
                     // cc:1074: if not, back up to next block
-                    cur_bl = prev_bl_arc;
+                    cur_bl = bank.expect_arc(prev_edge.point);
                 }
                 prevbl = walk_prev.unwrap();
                 // cc:1077: indpath = bl->getInRevIndex(0)
@@ -4703,23 +4703,26 @@ impl JumpTable {
         };
 
         for _ in 0..2 {
-            let Some(predecessor) = ({
+            let Some((predecessor, pred_point, bank)) = ({
                 let parent_read = parent.read().unwrap();
                 if parent_read.size_in() != 1 {
                     return true;
                 }
                 let bank = parent_read.bank();
-                parent_read.get_in(0).map(|edge| bank.expect_arc(edge.point))
+                parent_read
+                    .get_in(0)
+                    .map(|edge| (bank.expect_arc(edge.point), edge.point, bank))
             }) else {
                 return true;
             };
 
             let cbranch = {
-                let predecessor_read = predecessor.read().unwrap();
-                if predecessor_read.size_out() != 2 {
+                // (W2) shadow read: the 2-out gate is bank-served
+                // (block.hh:312); the ops probe keeps its peer guard.
+                if bank.expect_size_out(pred_point) != 2 {
                     continue;
                 }
-                predecessor_read.get_ops().last().cloned()
+                predecessor.read().unwrap().get_ops().last().cloned()
             };
             let Some(cbranch) = cbranch else {
                 continue;
