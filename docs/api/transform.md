@@ -159,8 +159,16 @@ orchestrates 变换生命周期。
 replacement op/out/(非 possible-out 时) in(0) 上置标志）。
 
 ## 已知限制
-- `transferVarnodeProperties`（transform.cc:208）尚未实现 — Rugra 的 Varnode 未暴露
-  完整的属性转移 API。
+- ~~`transferVarnodeProperties`（transform.cc:208）尚未实现 — Rugra 的 Varnode 未暴露
+  完整的属性转移 API~~ — 2026-10-01（READINODE2，TRANSFORM-PIECE-FLAGTRANSFER-0001）
+  已接线：`create_replacement` 的 `Piece` 臂现在调用
+  `Funcdata::transfer_varnode_properties`（src/funcdata.rs，funcdata_varnode.cc:614-629
+  1:1 移植），在地址保持 piece 上保留 `directwrite|addrforce` 标志与移位后的
+  consume 掩码。缺此调用时，被守卫位置（全局的 persist return-copy、addrforce
+  的栈槽）经 RuleSplitFlow/SplitFlow 拆分后丢失 addrforce →
+  RuleEarlyRemoval/ActionDeadCode 吞掉写回格（READINODE2 drill：
+  read_super xRam156858 的 6 字节 return-copy oracle 于 earlyremoval 6785
+  存活[isAutoLive]，Rugra 旧码 6257 即亡）。
 - `Funcdata::mark_indirect_creation`（src/funcdata.rs）对 in(0) 非常量走
   eprintln 而非 Ghidra 的 LowlevelError throw（funcdata_op.cc:743-744）；
   fixture 只覆盖常量 in(0) 路径（FUNCDATA-MARKINDIRECT-STRICT-0001）。
