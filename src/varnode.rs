@@ -608,6 +608,49 @@ pub struct Varnode {
     pub v_type: Option<Arc<Datatype>>,
     /// Ops that read this varnode
     pub descend: Vec<Weak<RwLock<PcodeOp>>>,
+    /// RUGRA-GLUE (PERF-VARNODE-DESCEND-SHADOW-0001): inline live-descendant
+    /// shadow for `descend`, restoring the oracle's O(1) `descend.empty()`
+    /// (varnode.hh:286 `hasNoDescend`). Ghidra's descend is a raw-pointer
+    /// `std::list<PcodeOp*>` (varnode.hh:149) whose entries are erased by
+    /// opUnsetInput/opDestroy *before* the op is freed, so `empty()` is one
+    /// inline word. Rugra's `Vec<Weak>` must instead dereference the first
+    /// entry's control block to learn liveness — two dependent cache misses
+    /// per probe (≈115ns; RULEBODY2 E2/E3 attribution), paid 73.4M times per
+    /// corpus (DESCENDSHADOW probe ①). The shadow keeps the answer inline:
+    ///
+    ///   descend_live = number of live (`strong_count > 0`) entries;
+    ///   descend_len  = `descend.len()` at the last exact observation.
+    ///
+    /// Exactness contract (three conditions, all verified):
+    /// 1. Every non-test mutation of `descend` goes through
+    ///    add_descend/erase_descend/destroy_descend/VarnodeBank::replace
+    ///    (code-audited; these fields are private to this module).
+    /// 2. The only direct mutations elsewhere are test-fixture raw
+    ///    `descend.push` sites (grep: all inside `#[cfg(test)]`). A raw push
+    ///    changes `descend.len()` without `descend_len`, so the staleness
+    ///    check (`descend_len != descend.len()`) forces a full-scan
+    ///    reconcile before the next answer — raw pushes can never desync
+    ///    the shadow, only cost one scan.
+    /// 3. No production path drops a `PcodeOp` Arc while a Weak to it sits
+    ///    in a descend list — the same invariant the oracle's raw-pointer
+    ///    list relies on (every op destroy path erases its links first).
+    ///    Runtime census (DESCENDSHADOW ① probe, withdrawn before
+    ///    delivery): dead-entry observations = 0 across 73.4M
+    ///    has_no_descend scans, 16.5M lone_descend scans, 14.7M erase
+    ///    scans (0 misses) and the destroy-time census on the full sqlite
+    ///    corpus + curl/httpd canon faces. A hypothetical future violation
+    ///    leaves `descend_live` stale-high: descend_iter/erase matching
+    ///    still filter dead entries (observable output unchanged); only
+    ///    the O(1) guards would answer from a stale count, and the
+    ///    `debug_assert` cross-checks in has_no_descend/lone_descend catch
+    ///    it in debug builds (the test suite runs there).
+    ///
+    /// Synchronization: every access happens under the owning Varnode's
+    /// RwLock discipline (readers hold a read guard, mutators the write
+    /// guard), so Relaxed ordering suffices; the atomics exist only to keep
+    /// `Varnode: Sync` for `Arc<RwLock<Varnode>>`.
+    descend_live: std::sync::atomic::AtomicUsize,
+    descend_len: std::sync::atomic::AtomicUsize,
     /// Typed, non-owning counterpart of the pointer encoded by Ghidra in an
     /// IPTR_FSPEC annotation address.  The Funcdata call-spec list owns the
     /// allocation; a CALL input must never keep it alive after deletion.
@@ -713,6 +756,8 @@ impl Varnode {
             // glb->types->getBase(size,TYPE_UNKNOWN), funcdata_varnode.cc:154).
             v_type: Some(default_unknown_type(None, size)),
             descend: Vec::new(),
+            descend_live: std::sync::atomic::AtomicUsize::new(0),
+            descend_len: std::sync::atomic::AtomicUsize::new(0),
             call_spec: None,
             self_ref: Weak::new(),
             cover: None,
@@ -2036,6 +2081,12 @@ impl Varnode {
     /// (varnode.cc:344-350).
     pub fn destroy_descend(&mut self) {
         self.descend.clear();
+        // PERF-VARNODE-DESCEND-SHADOW-0001: an empty list is exactly
+        // live=0/len=0 regardless of prior state.
+        self.descend_live
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.descend_len
+            .store(0, std::sync::atomic::Ordering::Relaxed);
     }
 
     // Ghidra: varnode.cc:1153 Varnode::termOrder
@@ -2493,7 +2544,28 @@ impl Varnode {
     pub fn has_no_descend(&self) -> bool {
         // PERF-OPPOOL-0001: liveness probe via strong_count (no refcount
         // round-trip per entry); same live-descendant predicate as before.
-        self.descend.iter().all(|w| std::sync::Weak::strong_count(w) == 0)
+        // PERF-VARNODE-DESCEND-SHADOW-0001: the oracle answers from
+        // `descend.empty()` (varnode.hh:286) — one inline word. The shadow
+        // restores the same O(1) form: `all(dead)` over the Vec is exactly
+        // "live count == 0", and the count is maintained inline by the
+        // mutation paths (see the descend_live field contract).
+        if self.descend_len.load(std::sync::atomic::Ordering::Relaxed) != self.descend.len() {
+            self.reconcile_descend_shadow();
+        }
+        #[cfg(debug_assertions)]
+        {
+            // Machine-checked shadow identity in debug builds (the test
+            // suite runs here); zero cost in release. Old predicate kept
+            // verbatim as the reference.
+            debug_assert_eq!(
+                self.descend.iter().all(|w| Weak::strong_count(w) == 0),
+                self.descend_live.load(std::sync::atomic::Ordering::Relaxed) == 0,
+                "descend live shadow drifted (space={:?} off={:#x})",
+                self.address_space,
+                self.loc.as_u64()
+            );
+        }
+        self.descend_live.load(std::sync::atomic::Ordering::Relaxed) == 0
     }
 
     // Ghidra: varnode.cc:676 Varnode::loneDescend
@@ -2505,19 +2577,52 @@ impl Varnode {
     /// guards). Early-exits at the second live entry, like the oracle's
     /// `iter != descend.end()` short-circuit (varnode.cc:686).
     pub fn lone_descend(&self) -> Option<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>> {
-        let mut found: Option<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>> = None;
-        for weak in &self.descend {
-            if std::sync::Weak::strong_count(weak) == 0 {
-                continue;
-            }
-            let upgraded = weak.upgrade();
-            let Some(live) = upgraded else { continue };
-            if found.is_some() {
-                return None;
-            }
-            found = Some(live);
+        // PERF-VARNODE-DESCEND-SHADOW-0001: oracle form — `descend.empty()`
+        // → null (cc:681), first + `iter != descend.end()` → null (cc:686-
+        // 687), else first (cc:688). The shadow count answers empty and
+        // multi-descendant cases from inline state with zero dereferences:
+        // the old form upgraded the FIRST descendant before discovering the
+        // second (one wasted atomic refcount round-trip on every reject —
+        // 6.77M rejects per corpus). For the single-live case the scan
+        // below finds the sole upgradable entry — dead Weaks fail upgrade
+        // without allocating, so the first success is that entry, the same
+        // element the old full scan returned.
+        if self.descend_len.load(std::sync::atomic::Ordering::Relaxed) != self.descend.len() {
+            self.reconcile_descend_shadow();
         }
-        found
+        match self.descend_live.load(std::sync::atomic::Ordering::Relaxed) {
+            0 => {
+                #[cfg(debug_assertions)]
+                debug_assert!(
+                    self.descend.iter().all(|w| Weak::strong_count(w) == 0),
+                    "descend live shadow drifted (space={:?} off={:#x})",
+                    self.address_space,
+                    self.loc.as_u64()
+                );
+                None
+            }
+            1 => {
+                let found = self.descend.iter().find_map(|w| w.upgrade());
+                #[cfg(debug_assertions)]
+                debug_assert!(
+                    found.is_some(),
+                    "descend live shadow drifted (space={:?} off={:#x})",
+                    self.address_space,
+                    self.loc.as_u64()
+                );
+                found
+            }
+            _ => {
+                #[cfg(debug_assertions)]
+                debug_assert!(
+                    self.descend.iter().filter(|w| Weak::strong_count(w) > 0).count() >= 2,
+                    "descend live shadow drifted (space={:?} off={:#x})",
+                    self.address_space,
+                    self.loc.as_u64()
+                );
+                None
+            }
+        }
     }
 
     // Ghidra: varnode.cc:155 Varnode::characterizeOverlap
@@ -2822,7 +2927,35 @@ impl Varnode {
     /// Count the live descendant ops. Useful for Rules that need the descend
     /// count without collecting into a Vec.
     pub fn count_descends(&self) -> usize {
-        self.descend.iter().filter(|w| w.strong_count() > 0).count()
+        // PERF-VARNODE-DESCEND-SHADOW-0001: full scan by definition — refresh
+        // the shadow exactly while here (self-healing site: any hypothetical
+        // drift is corrected on every call).
+        let live = self
+            .descend
+            .iter()
+            .filter(|w| w.strong_count() > 0)
+            .count();
+        self.descend_live
+            .store(live, std::sync::atomic::Ordering::Relaxed);
+        self.descend_len
+            .store(self.descend.len(), std::sync::atomic::Ordering::Relaxed);
+        live
+    }
+
+    // RUGRA-GLUE: PERF-VARNODE-DESCEND-SHADOW-0001 — re-derive the
+    // live/len shadow from the actual Vec content. Only reached when the
+    // fields are stale, i.e. a test fixture mutated `descend` directly
+    // (raw `descend.push`); production mutation paths keep both exact.
+    fn reconcile_descend_shadow(&self) {
+        let live = self
+            .descend
+            .iter()
+            .filter(|w| w.strong_count() > 0)
+            .count();
+        self.descend_live
+            .store(live, std::sync::atomic::Ordering::Relaxed);
+        self.descend_len
+            .store(self.descend.len(), std::sync::atomic::Ordering::Relaxed);
     }
 
     // Ghidra: varnode.cc:330 Varnode::addDescend
@@ -2852,8 +2985,10 @@ impl Varnode {
             // only live entries so drift cannot fabricate the
             // "multiple descendants" signal (has_no_descend/count_descends
             // already filter dead entries the same way).
-            let has_live_descend = self.descend.iter().any(|w| w.strong_count() > 0);
-            if has_live_descend {
+            // PERF-VARNODE-DESCEND-SHADOW-0001: `any(live)` == `!all(dead)`
+            // == `!has_no_descend()` — the shadowed form also reconciles a
+            // stale (test-raw-pushed) entry before the check.
+            if !self.has_no_descend() {
                 // Ghidra: throw LowlevelError("Free varnode has multiple
                 // descendants") (varnode.cc:336). Per-function isolation in
                 // the decompile worker maps the panic onto Ghidra's
@@ -2862,6 +2997,12 @@ impl Varnode {
             }
         }
         self.descend.push(std::sync::Arc::downgrade(op));
+        // PERF-VARNODE-DESCEND-SHADOW-0001: the fresh downgrade of a
+        // caller-held Arc is live by construction — +1 live, +1 len.
+        self.descend_live
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.descend_len
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         // Ghidra cc:339: setFlags(Varnode::coverdirty) — propagates
         // coverDirty to the owning high (varnode.cc:358-359) so the stored
         // aggregate is invalidated at mutation time (HIGHCOV lane 2026-09-25;
@@ -2880,13 +3021,29 @@ impl Varnode {
     /// Also sets coverdirty (Ghidra cc:325), now with the high propagation
     /// half (varnode.cc:358-359) — see set_flags.
     pub fn erase_descend(&mut self, op: &Arc<RwLock<PcodeOp>>) {
+        // PERF-VARNODE-DESCEND-SHADOW-0001: reconcile a stale shadow first
+        // (test raw-push window) so the post-remove fetch_sub below operates
+        // on exact values; production is never stale, so this is free.
+        if self.descend_len.load(std::sync::atomic::Ordering::Relaxed) != self.descend.len() {
+            self.reconcile_descend_shadow();
+        }
         let position = self.descend.iter().position(|weak| {
             weak.upgrade()
                 .is_some_and(|candidate| Arc::ptr_eq(&candidate, op))
         });
         if let Some(position) = position {
             self.descend.remove(position);
+            // PERF-VARNODE-DESCEND-SHADOW-0001: the removed entry matched an
+            // upgrade — it was live. -1 live, -1 len.
+            self.descend_live
+                .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+            self.descend_len
+                .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         } else {
+            // The position search examined every entry without a match —
+            // full knowledge of the current content; refresh the shadow
+            // exactly while here.
+            self.reconcile_descend_shadow();
             eprintln!(
                 "[VN] WARN: erase_descend op={:p} not in descend list (space={:?} off={:#x})",
                 std::sync::Arc::as_ptr(op), self.address_space, self.loc.as_u64()
@@ -3877,11 +4034,23 @@ impl VarnodeBank {
             // occurrence, so repeated use by one op is rewired slot-by-slot.
             {
                 let mut old = old_vn.write().unwrap();
+                // PERF-VARNODE-DESCEND-SHADOW-0001: same guard/maintenance
+                // contract as erase_descend (stale test window reconciled
+                // first; the matched entry upgraded = live).
+                if old.descend_len.load(std::sync::atomic::Ordering::Relaxed)
+                    != old.descend.len()
+                {
+                    old.reconcile_descend_shadow();
+                }
                 if let Some(pos) = old.descend.iter().position(|weak| {
                     weak.upgrade()
                         .is_some_and(|candidate| Arc::ptr_eq(&candidate, &op))
                 }) {
                     old.descend.remove(pos);
+                    old.descend_live
+                        .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                    old.descend_len
+                        .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 }
             }
             new_vn.write().unwrap().add_descend(&op);
@@ -3893,6 +4062,11 @@ impl VarnodeBank {
             // Arc may keep Rugra's allocation alive, but it must not retain
             // observable stale def-use links.
             old.descend.clear();
+            // PERF-VARNODE-DESCEND-SHADOW-0001: post-clear exact state.
+            old.descend_live
+                .store(0, std::sync::atomic::Ordering::Relaxed);
+            old.descend_len
+                .store(0, std::sync::atomic::Ordering::Relaxed);
             old.set_flags(varnode_flags::COVERDIRTY);
         }
         new_vn.write().unwrap().set_flags(varnode_flags::COVERDIRTY);
