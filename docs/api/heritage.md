@@ -388,23 +388,34 @@ Heritage 通常是后续高层规则与优化动作的前置基础之一。
 
 ---
 
-## `pub fn add(&mut self, addr: Address, size: i32, pass: i32)`
+## `pub fn add(&mut self, space: AddressSpace, addr: Address, size: i32, pass: i32) -> (i32, Address, i32)`
 
 ### 所属
 `LocationMap`
 
 ### 作用
-向位置映射中登记一条与 heritage 相关的位置信息记录。
+向位置映射中登记一条与 heritage 相关的位置信息记录（带空间键与合并语义）。
 
 ### 参数
+- `space`: 目标地址空间（跨空间永不合并/包含，heritage.hh:48）
 - `addr`: 目标地址
 - `size`: 关联尺寸
 - `pass`: 关联处理轮次
 
+### 返回值
+`(intersect, merged_addr, merged_size)` 三元组：
+
+- `intersect`: 相交码（0=全新、1=部分重叠已合并、2=完全被旧条目包含）
+- `merged_addr`/`merged_size`: 覆盖本次登记地址的（可能合并后的）条目边界——
+  即 oracle `LocationMap::add` 返回的迭代器所指条目（`(*liter).first` /
+  `(*liter).second.size`，heritage.cc:2710/2719/2722 直接消费）。调用方
+  无需再用 `entry_containing` 重定位同一条目。
+
 ### 语义
 该接口更适合被理解为：
 
-> “把某个地址位置在当前 heritage 流程中的元信息写入位置映射表中”
+> “把某个地址位置在当前 heritage 流程中的元信息写入位置映射表中，
+> 并拿回覆盖该位置的合并条目”
 
 ### 使用价值
 这类接口通常有助于：
@@ -415,7 +426,7 @@ Heritage 通常是后续高层规则与优化动作的前置基础之一。
 
 ---
 
-## `pub fn find_pass(&self, addr: Address) -> i32`
+## `pub fn find_pass(&self, space: AddressSpace, addr: Address) -> i32`
 
 ### 所属
 `LocationMap`
@@ -1729,3 +1740,35 @@ PERF-BLOCKSTORAGE-FLIP-0001 wave 2 批 5: `build_adt` 的 up-edge 扫描
 句柄不再解析（该位点 u 的 Arc 仅服务于 index 读,属纯死句柄面）。
 `rename_recurse`/`visit_rename_direct` 的 get_ops 深走保留 peer 守卫。
 行为恒等: canon curl `b7773087` + httpd `54f9b02c` 字节恒等 + tests 2026P。
+
+## HERITAGE2（2026-10-02）逐相位读形态对齐 oracle（残量 2.29s 深钻车道）
+
+W2REMEASURE 后 heritage 残量 2.29s（VdbeExec --one 1055, 24 调）的逐相位
+分解（[HER2PROF]/[FDPROF] 探针, 撤净交付）: pm 1.21s（grd 0.69+ME-insert
+0.48）/ rename 0.71s / **disc 0.44s** / 其余 ~0.35s。四件**读形态**对齐
+（全部行为恒等——迭代集合、顺序、判定、创建数逐位不变, VdbeExec stdout
+md5 15b47cf7 五连恒等亲证）:
+
+1. **`heritage()` 逐空间收集窗口**（原逐空间全 loc_tree 扫描+continue 过滤
+   → size-0 探针 range 起点空间序窗口+break）: oracle cc:2699-2700
+   `beginLoc(space)..endLoc(space)` 本就是空间限定树窗口——Rugra 原形态对
+   每个空间重扫全部 ~106K varnode（84 space-run × 全树读锁）;窗口化后只触
+   本空间成员。disc 443→~170ms。
+2. **`LocationMap::add` 返回覆盖条目**（原只返回相交码, 驱动再用
+   `entry_containing` upper_bound/back-up 重定位同一刚插入条目 → 返回
+   `(intersect, merged_addr, merged_size)` 三元组）: oracle 的 add 返回的
+   迭代器即该条目（cc:2710/2719/2722 直接 `(*liter).first/second.size`
+   消费）——重定位是纯冗余;`entry_containing` 保留为公共查询面。
+3. **`rename_recurse` 读锁合并**（is_heritage_known/is_active_heritage 两把
+   读锁 → 一把读守卫同时读两谓词; opcode/num_input 同并）: oracle 对同一
+   Varnode*/PcodeOp* 的连续字段读无锁——合并后每 slot 访问少一次锁往返。
+4. **`guard_stores_range` 收集态融合**（每 STORE 4 把读锁[DEAD 过滤+in(0)+
+   uses_sb+DEAD 复检] → 收集期一把读守卫读齐三字段+const 空间解码）:
+   oracle cc:1547-1558 逐 STORE 三字段读;死过滤/迭代序/判定逐位保持。
+
+残量分票（PERF-VARMAP-OPCREATE-0001 域, 见车道终报）: new_indirect_op 12-14µs
+（nio_newout 4.0µs=create+set_def_prevalidated[~6 次 BTreeMap 操作]+props /
+nio_insbef 3.7µs=op_insert_before 的 block_ops position 线性扫描[oracle
+stored basiciter O(1)]）、delete_varnode 1.06µs、create_with_space 1.24µs、
+op_insert_begin 4.0µs（Vec::insert 位移+order 塌缩 set_order 重编号）——
+funcdata/varnode 创建层结构域。
