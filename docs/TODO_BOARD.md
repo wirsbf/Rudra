@@ -2,6 +2,15 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
+## 车道 CMPDIR（2026-10-02 交付；镜面道——CLONESURG 根 B 移交 CMPDIR-BOOLNEGATE-0001 单根布尔极性级联 70 行**双侧事件级钻证+票面域翻案**。仪器化双侧证据链: ①规则池链逐事件全等——oracle WIT3 探针与 Rugra .dbg 同帧亲证 `CF||ZF`→LESSEQUAL(dx,3)→[IntLessEqual]LESS(dx,4)→[BoolNegate flip+swap]LESSEQUAL(4,dx)→[IntLessEqual]**LESS(3,dx)** 双 +1 链收敛,主循环终态双侧恒等=`#3<dx`+取边 goto 3b320——**票面预判 ruleaction 布尔塌缩/negate 落点缺陷不存在**;②分歧引入点=Rugra ActionPreferComplement（.dbg DEBUG 1722）对 `#3<dx` 的 flipInPlace 翻转（→`dx<4`）+swapBlocks 换臂——oracle 同探针零命中,原因=oracle 终态该位点是 if-goto(size=2) 结构性拒绝[getSize()!=3],Rugra 端口逐守卫忠实但拿到了 oracle 不存在的 if/else;③溯源=collapse 第 1-3 轮逐事件全等（含 IFELSE@3b298 两侧各 3 次）,第 4 轮 oracle 对 3b320 子句二次 goto 包裹（selectGoto 标 break 边→removeEdge 出度=0→if/else 永久拒绝[cc:1431]）→CAT 3b298 ifGoto+顺序形;Rugra 子句保全→IFELSE 第 4 次发射;④根因钉到 **selectGoto/likelygoto 发射记录级分歧: 记录 #43 oracle=`(21→39)`[3b277 开关 case 出边]Rugra 缺失**（前 42 条全等,后段 74 vs 70 条移位）——TraceDAG[BadEdgeScore 双比较器四键/三键排序密集区]发射域;⑤证伪排除: count_non_structural_in_edges 换 plain sizeIn 实验 collapse 序列 207 事件逐位恒等零影响/ActionNormalizeBranches 不在 decompile 组双侧均不运行/get_current_edge 再解析前 42 条全等。70 行残差=第 4 轮形差三投影（极性边界 9+臂嵌套标号+De Morgan 尾 5/函数×5 克隆）。**修复域移交 CMPDIR-TRACEDAG-GOTOEMIT-0001**（表面 suppress prefer_complement 违反铁律 1.5——发射器忠实,树错误）。src 净改动零（临时探针 action.rs 1 组+blockaction.rs 4 组撤净三重亲证:git diff=0/--one 345 与 session 基线字节恒等/仅文档变更）;**oracle 探针环境中途被内存盘回收后从仓内锁版组件全量重建**（git-archive e40ed130 cpp 树+tests/oracle/blockstruct_collapse_residual_1204.cc 驱动底盘+WIT3 五组探针,/dev/shm/rugra-tests/cmpdir/oracle_probe/）。五面钉值/canon 红线/tests 2034P 全保持（src 零改动,数字见终报）。写域=docs/TODO_BOARD.md 本行+终报;**CR REQUIRED 随修复域移交新票（root 预约 reviewer,本报告 §1/§2 双侧证据即复核进入门材料）**。基=master **c1273bd9**[MB61];worktree /dev/shm/rugra-worktrees/cmpdir[wt/cmpdir];终报=/dev/shm/rugra-reports/LANE_CMPDIR_2026-10-02.md；证据=/dev/shm/rugra-tests/cmpdir/）
+
+### 车道 CMPDIR 票登记
+
+| 稳定 ID | 函数/域 | 状态 | 证据 |
+|---|---|---|---|
+| `CMPDIR-BOOLNEGATE-0001` | 单根布尔极性级联 70 行（五克隆×14） | **DONE（钻证交付,票面域翻案——ruleaction 极性域双侧逐事件恒等;残差由新票承接）** | 终报 §1-§3 双侧仪器化证据链;commit=本 docs 行 |
+| `CMPDIR-TRACEDAG-GOTOEMIT-0001` | blockaction.rs TraceDAG/BadEdgeScore 发射域——likelygoto 记录 (21→39)[3b277 case 出边]缺失→collapse 第 4 轮 ifGoto/ifelse 分歧→prefer_complement 极性翻转级联→sqlite 70 行残差。写域=src/blockaction.rs[TraceDAG/BadEdgeScore/emitLikelyEdges 时机]邻域+docs/api/blockaction.md+本行;验收=sqlite 残差逐函数下降+五面钉值对账+棘轮重钉+**CR REQUIRED（blockaction 白名单）** | **OPEN P1**（root 预约 reviewer,可与 census 序 5 打包批摊销） | /dev/shm/rugra-tests/cmpdir/{one3d.err,rugra_sg2.err,rugra_clp_all.err,o_entries.txt,r_entries.txt[记录差分 #43 位点],oracle_probe/[可复算环境]};进入门=终报 §1.4+§7 |
+
 ## 车道 MERGEBATCH58 集成登记（root，2026-10-02）
 
 **MB58 单支 CR-clear 批（namevars mutable-cache 命名域——`PERF-NVREP-CACHE-0001` 承接票,VdbeExec −7% 车道受控锁定;单支批专记: 行为恒等速度道,零语义变更,CR APPROVE;前道 socket 瞬态死亡后复活道）**——合并 wt/namevars2 `11ce16d2`（单 commit,基=master `6740665b`[MB56,先于 MB57 双道],merge-base 亲证）,merge `3fb3e43d` --no-ff,**CR-NAMEVARS2 APPROVE 块逐字嵌入 merge message**（来源 CR_NAMEVARS2_2026-10-02.md §八,覆盖 11ce16d2 单 commit 全写域;块体红词预扫描 0 命中,机制 A 未触发）。
