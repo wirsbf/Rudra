@@ -356,8 +356,8 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
-sq	117	810	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
-sqlite	406	1385	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
+sq	95	810	SLOTMERGE-RATCHET-REPIN-0001	slotmerge	2026-10-02
+sqlite	393	1385	SLOTMERGE-RATCHET-REPIN-0001	slotmerge	2026-10-02
 # FLOAT8-RATCHET-REPIN-0001 (2026-10-02, wt/float8 @ fix commit, base
 # c69d9c60 [MB58], forced relink after test additions [fast-release --examples
 # 57s], gate --jobs 5 two rounds — gate1 fix-only tree digest=557b315e +
