@@ -356,8 +356,32 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
-sq	124	810	READINODE2-RATCHET-REPIN-0001	readinode2	2026-10-01
-sqlite	428	1385	READINODE2-RATCHET-REPIN-0001	readinode2	2026-10-01
+sq	117	810	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
+sqlite	406	1385	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
+# FLOAT8-RATCHET-REPIN-0001 (2026-10-02, wt/float8 @ fix commit, base
+# c69d9c60 [MB58], forced relink after test additions [fast-release --examples
+# 57s], gate --jobs 5 two rounds — gate1 fix-only tree digest=557b315e +
+# gate2 final tree digest=99439c8c, identical numbers, tests output-neutral;
+# stale-guard content probe digest=99439c8c7bb83a4a files=155):
+# ① sq 124→117 (−7 = MCENSUS6 float8-cast family sq share: progress_bar
+#    whole-function zero [census 7-line block: float8-family 2 + the
+#    float8-adjacent L5 blended block] — compare fix run perfunc
+#    progress_bar diff=0; remaining 117 unchanged families: read_inode_3 54 /
+#    GetOptimumFast 29 / read_inode_2 10 / read_xattrs 6 / etc. held exact).
+#    matched 810/810, defects=numbering=0.
+# ② sqlite 428→406 (−22 = the census float8-cast family exact: ValueApply
+#    Affinity 2→0 whole-fn / VdbeMemStringify 2→0 whole-fn / column_int64
+#    −6 [float8 lines match golden byte-exact: `if((float8)piRam <= fRam)` +
+#    `return(int4 *)(int8)(float8)piRam`; residual 2 = decl-move family] /
+#    Fts3Offsets −6 [float8 lines byte==golden; residual 5 = varmap symbol
+#    families] / VdbeExec −6 [3 text lines `(float8)` → `(float8)(int8)`,
+#    md5 15b47cf7→840c4fb2 byte-attributed, zero collateral]). matched
+#    1385/1385, defects=numbering=0.
+# ③ curl 13 / httpd 2 / vsh 0 identical, not re-pinned (MB41/MB41/MB39 rows
+#    stay; constructive — no float8-pinned sites on those corpora). Canon
+#    faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical (md5
+#    b7773087 / 54f9b02c exact — zero-state preserved, no re-pin needed).
+#    tests 2033P/0F/5I (=2031 + float8 2 new).
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,
 # forced relink verified, gate --jobs 5 + digest cache cold round):
 # ① sq 2724→1629 (−1095, 33 fns improved / 0 regressed): selectgoto RuleSubZext INT_RIGHT
