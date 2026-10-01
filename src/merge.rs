@@ -3244,7 +3244,9 @@ impl Merge {
                     (v.def.as_ref().and_then(|w| w.upgrade()), v.is_input())
                 };
                 single.add_def_point_full(vn_def.as_ref(), vn_is_input);
-                single.add_ref_point_full(&op_ref.0, vn);
+                let mut scratch_roots = Vec::new();
+                let mut scratch_stack = Vec::new();
+                single.add_ref_point_full(&op_ref.0, vn, &mut scratch_roots, &mut scratch_stack);
                 // Iterate over each block in the single-read cover.
                 for (&blocknum, _cb) in &single.blocks {
                     let Some(mut slot) = BlockVarnode::find_front(blocknum, blocksort) else {
@@ -4130,6 +4132,8 @@ impl Merge {
             // every block between each reader and the def point — the
             // order-domain entries silently dropped both.
             let mut a_cover = Cover::new();
+            let mut scratch_roots = Vec::new();
+            let mut scratch_stack = Vec::new();
             {
                 let dv = dom_vn.read().unwrap();
                 let def = dv.def.as_ref().and_then(|w| w.upgrade());
@@ -4137,7 +4141,7 @@ impl Merge {
                 a_cover.add_def_point_full(def.as_ref(), is_input);
             }
             for d_ref in &descends {
-                a_cover.add_ref_point_full(&d_ref.0, &out_vn_arc);
+                a_cover.add_ref_point_full(&d_ref.0, &out_vn_arc, &mut scratch_roots, &mut scratch_stack);
             }
             if b_cover.intersect_char(&a_cover) > 1 {
                 count -= 1;
@@ -4951,7 +4955,9 @@ impl Merge {
             // addRefPoint(subOp, subOp->getIn(0)) via the full op-based
             // entry (merge.cc:1121): endpoint identity + backward CFG
             // recursion, matching the oracle's intervening-write window.
-            range.add_ref_point_full(&sub_op.0, siv);
+            let mut scratch_roots = Vec::new();
+            let mut scratch_stack = Vec::new();
+            range.add_ref_point_full(&sub_op.0, siv, &mut scratch_roots, &mut scratch_stack);
         }
         // Look for high instances with intervening writes (merge.cc:1124-1134).
         let h = high.read().unwrap();

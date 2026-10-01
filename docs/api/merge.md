@@ -1264,3 +1264,14 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## COVERREBUILD（2026-10-01）add_ref_point_full 签名 scratch 参线程化
+
+**SPEEDPROF2-COVER-REBUILD-ALLOC-0001 邻域适配**: `Cover::add_ref_point_full`
+新增两 scratch 参（`&mut Vec<BlockId>` roots/stack,由 cover.rs 侧
+`rebuild_from_root_snapshot` 持有跨 addRefPoint 复用）。本模块**仅 3 处冷路径
+调用点签名适配**（mergeRange/交集窗/single-read 三处: `Vec::new()` 零容量
+零分配就地传入）——**算法/比较器/迭代序零变化**（scratch 不跨调用存活,内容
+逐闭包 clear）。恒等面随主件: VdbeExec stdout md5 `15b47cf7`/全语料 assembled
+cmp 恒等/canon 双 md5 钉值/镜面五面恰钉值（详见 docs/api/cover.md COVERREBUILD
+节与车道终报）。

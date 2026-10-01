@@ -4,7 +4,6 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-
 /// Pointer-identity domain of one `CoverBlock` range boundary.
 ///
 /// Ghidra's `CoverBlock` (cover.hh:75-96) stores its two range boundaries as
@@ -827,6 +826,8 @@ impl Cover {
         &mut self,
         op_arc: &std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>,
         root: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        scratch_roots: &mut Vec<crate::arena::BlockId>,
+        scratch_stack: &mut Vec<crate::arena::BlockId>,
     ) {
         let (order, endpoint, opcode, op_parent, matching_slots) = {
             let op = op_arc.read().unwrap();
@@ -850,15 +851,23 @@ impl Cover {
             )
         };
         let Some(bl_arc) = op_parent else { return };
-        let op_blk = bl_arc.read().unwrap().get_index();
+        // One read guard fetches both the block index and the owning bank
+        // (Ghidra inlines these as raw pointer derefs:
+        // `ref->getParent()->getIndex()` and the `getIn` edge walk below).
+        let (op_blk, bank) = {
+            let rg = bl_arc.read().unwrap();
+            (rg.get_index(), rg.bank())
+        };
 
         // Ghidra: FlowBlock *bl = ref->getParent();
         //         CoverBlock &block(cover[bl->getIndex()]);
-        let block_was_empty = {
-            let existing = self.blocks.get(&op_blk);
-            existing.map(|b| b.empty()).unwrap_or(true)
-        };
+        // Single map access with map::operator[] semantics (default-insert
+        // on absent key): the pre-insert emptiness classification the
+        // recursive original reads off `cover[idx]` is identical whether
+        // taken before the entry or on the freshly returned reference,
+        // because nothing mutates the entry in between.
         let cb = self.blocks.entry(op_blk).or_insert_with(CoverBlock::new);
+        let block_was_empty = cb.empty();
 
         if block_was_empty {
             // Ghidra: block.setEnd(ref);
@@ -899,15 +908,16 @@ impl Cover {
                             CoverEndpoint::Op { multiequal: true, .. }
                         )
                     {
-                        let preds = Self::predecessors_of(&bl_arc);
-                        // One dedup set spans this tip loop: the caller's
-                        // CoverBlock mutations all precede the first
-                        // recursion frame, so re-entries are provable
-                        // no-ops (add_ref_recurse_expansion's note).
-                        let mut visited = rustc_hash::FxHashSet::default();
-                        for pred in preds {
-                            self.add_ref_recurse_expansion(&pred, &mut visited);
+                        // Tip recursion (cover.cc:590-597): predecessor ids
+                        // collected under one read guard, then expanded.
+                        let mut roots = std::mem::take(scratch_roots);
+                        roots.clear();
+                        {
+                            let rg = bl_arc.read().unwrap();
+                            Self::collect_predecessor_ids(&rg, &mut roots);
                         }
+                        self.expand_roots(&bank, &mut roots, scratch_stack);
+                        *scratch_roots = roots;
                     }
                     return;
                 }
@@ -924,54 +934,46 @@ impl Cover {
         //           for(j=0;j<ref->numInput();++j)
         //             if (ref->getIn(j)==vn) addRefRecurse(bl->getIn(j));
         //         } else for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j));
-        // One dedup set spans this call's whole recursion closure (both arms
-        // are the same oracle bottom loop): every CoverBlock mutation of
-        // this function precedes the first recursion frame, so a later
-        // entry into an already-entered block is a provable no-op (see
-        // add_ref_recurse_expansion's equivalence note).
-        let mut visited = rustc_hash::FxHashSet::default();
+        let mut roots = std::mem::take(scratch_roots);
+        roots.clear();
         if opcode == crate::opcodes::OpCode::CPUI_MULTIEQUAL {
-            // Snapshot every exact-identity slot in ascending order while the
-            // op is locked, then snapshot the corresponding predecessor Arcs
-            // without carrying the block guard into recursive calls.
-            let predecessors = {
-                let block = bl_arc.read().unwrap();
-                let bank = block.bank();
-                matching_slots
-                    .into_iter()
-                    .filter_map(|slot| block.get_in(slot).map(|edge| bank.expect_arc(edge.point)))
-                    .collect::<Vec<_>>()
-            };
-            for predecessor in predecessors {
-                self.add_ref_recurse_expansion(&predecessor, &mut visited);
+            // Snapshot every exact-identity slot's predecessor id in ascending
+            // order while the block is locked, then expand without carrying
+            // the block guard into the recursion.
+            {
+                let rg = bl_arc.read().unwrap();
+                for slot in matching_slots {
+                    if let Some(edge) = rg.get_in_ref(slot) {
+                        roots.push(edge.point);
+                    }
+                }
             }
         } else {
-            for edge in Self::predecessors_of(&bl_arc) {
-                self.add_ref_recurse_expansion(&edge, &mut visited);
+            {
+                let rg = bl_arc.read().unwrap();
+                Self::collect_predecessor_ids(&rg, &mut roots);
             }
         }
+        self.expand_roots(&bank, &mut roots, scratch_stack);
+        *scratch_roots = roots;
     }
 
-    /// Collect the predecessor block Arcs of `bl` (its in-edges' `point`
-    /// targets). Mirrors Ghidra's `bl->getIn(j)` loop used by
-    /// `addRefPoint`/`addRefRecurse`. Returns a Vec so the caller can iterate
-    /// without holding the block's read lock (the recurse call needs to take
-    /// child locks).
+    /// Collect the predecessor block ids of `bl` (its in-edges' `point`
+    /// targets) in ascending in-edge slot order. Mirrors Ghidra's
+    /// `bl->getIn(j)` loop used by `Cover::addRefPoint`/`addRefRecurse`.
+    /// Ids are `Copy`, so no handles are cloned out of the guard.
     // RUGRA-GLUE: Rust lock-release snapshot helper; Ghidra walks FlowBlock
     // incoming raw pointers inline in Cover::addRefPoint/addRefRecurse.
-    fn predecessors_of(
-        bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
-    ) -> Vec<std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>> {
-        let rg = bl.read().unwrap();
-        let bank = rg.bank();
+    fn collect_predecessor_ids(
+        rg: &std::sync::RwLockReadGuard<'_, dyn crate::block::FlowBlock + Send + Sync>,
+        out: &mut Vec<crate::arena::BlockId>,
+    ) {
         let n = rg.size_in();
-        let mut out = Vec::with_capacity(n);
         for slot in 0..n {
-            if let Some(edge) = rg.get_in(slot) {
-                out.push(bank.expect_arc(edge.point));
+            if let Some(edge) = rg.get_in_ref(slot) {
+                out.push(edge.point);
             }
         }
-        out
     }
 
     // Ghidra: cover.cc:477 Cover::rebuild
@@ -1042,10 +1044,20 @@ impl Cover {
         // varnodes X->Y->X loop forever).
         let mut visited: rustc_hash::FxHashSet<usize> = rustc_hash::FxHashSet::default();
         let mut descendants = root_descendants.clone();
+        // Scratch buffers reused across every addRefPoint of this rebuild:
+        // predecessor-id roots and the expansion stack. Cleared (capacity
+        // kept) per closure; contents never survive a call.
+        let mut scratch_roots: Vec<crate::arena::BlockId> = Vec::new();
+        let mut scratch_stack: Vec<crate::arena::BlockId> = Vec::new();
         loop {
             for op_arc in descendants {
                 // The original root, not `current`, is the addRefPoint identity.
-                self.add_ref_point_full(&op_arc, root);
+                self.add_ref_point_full(
+                    &op_arc,
+                    root,
+                    &mut scratch_roots,
+                    &mut scratch_stack,
+                );
                 let output = op_arc.read().unwrap().get_out().cloned();
                 if let Some(output) = output {
                     let is_implied = if std::sync::Arc::ptr_eq(&output, root) {
@@ -1085,62 +1097,67 @@ impl Cover {
     /// stop==0, defined by a MULTIEQUAL) — recurse through the in-edges so
     /// the other branches still get filled.
     pub fn add_ref_recurse(&mut self, bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>) {
-        let mut visited = rustc_hash::FxHashSet::default();
-        self.add_ref_recurse_expansion(bl, &mut visited);
+        let (id, bank) = {
+            let rg = bl.read().unwrap();
+            (rg.bank_slot(), rg.bank())
+        };
+        let mut roots = vec![id];
+        let mut stack = Vec::new();
+        self.expand_roots(&bank, &mut roots, &mut stack);
     }
 
     // Ghidra: cover.cc:524 Cover::addRefRecurse
-    /// Iterative expansion of `Cover::addRefRecurse` (cover.cc:524-558) on
-    /// an explicit worklist — semantically identical to the oracle's literal
-    /// per-in-edge recursion. Two equivalence pillars:
+    /// Iterative single-stack expansion of `Cover::addRefRecurse`
+    /// (cover.cc:524-558) over one addRefPoint/addRefRecurse root set —
+    /// semantically identical to the oracle's literal per-in-edge recursion.
+    /// Three equivalence pillars:
     ///
-    /// 1. **Visit order**: predecessors are pushed in reverse and popped in
-    ///    ascending in-edge slot order, and each predecessor's whole subtree
-    ///    finishes before its siblings — the exact DFS preorder of the
-    ///    oracle's `for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j))`
-    ///    (cover.cc:535-536/551-552).
-    /// 2. **Revisit dedup** (`visited`): each frame mutates only its own
-    ///    block's CoverBlock entry, and every MUTATING visit leaves
-    ///    `end == u32::MAX` (`setAll` → stop sentinel 1, or the
-    ///    fill-to-bottom `setEnd((const PcodeOp *)1)`; both map to ~0 via
-    ///    getUIndex, cover.cc:29-49), while the remaining visits mutate
-    ///    nothing at all (two-piece wrap guard `ustop < ustart`, or ustop
-    ///    already ~0). Hence a second entry into an already-entered block
-    ///    fails both guards — `ustop != ~0` and `ustop == 0` cannot hold
-    ///    simultaneously — so it can neither mutate the map nor schedule
-    ///    further recursion: skipping it is unobservable in the final Cover.
-    ///    The set lives per addRefPoint/addRefRecurse entry (each caller's
-    ///    direct CoverBlock mutations precede its first recursion frame) and
-    ///    is never shared across callers that interleave mutations.
-    // RUGRA-GLUE: explicit-stack worklist replaces the oracle's literal
+    /// 1. **Visit order**: roots are pushed in reverse so the pop order is
+    ///    ascending root order, each predecessor's whole subtree finishes
+    ///    before its siblings, and per-frame predecessors are pushed in
+    ///    reverse slot order — the exact DFS preorder of the oracle's
+    ///    `for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j))`
+    ///    (cover.cc:535-536/551-552) applied to each root in ascending
+    ///    order (the caller's for-j loop, cover.cc:595-611).
+    /// 2. **Re-entry idempotence** (replaces the former per-closure visited
+    ///    set): each frame mutates only its own block's CoverBlock entry,
+    ///    and every MUTATING visit leaves `end == u32::MAX` (`setAll` →
+    ///    stop sentinel 1, or the fill-to-bottom `setEnd((const PcodeOp *)1)`;
+    ///    both map to ~0 via getUIndex, cover.cc:29-49), while the remaining
+    ///    visits mutate nothing at all (two-piece wrap guard
+    ///    `ustop < ustart`, or ustop already ~0). Hence a second entry into
+    ///    an already-entered block fails both guards — `ustop != ~0` and
+    ///    `ustop == 0` cannot hold simultaneously — so it can neither mutate
+    ///    the map nor schedule further recursion: processing it again is the
+    ///    oracle's own literal behavior (its recursion has no dedup either)
+    ///    and is unobservable in the final Cover.
+    /// 3. **Frame identity**: blocks travel as bank `BlockId`s (Copy), the
+    ///    index resolves through the bank view's generation-checked shadow
+    ///    (same value as `FlowBlock::getIndex`), and the block handle is
+    ///    materialized only for frames that actually read in-edges.
+    ///    No mutation can intervene inside one expansion closure (the
+    ///    single-threaded-per-Funcdata premise of `update_cover_locked`),
+    ///    so ids stay resolvable and the view's epoch check cannot fire.
+    // RUGRA-GLUE: explicit id-stack worklist replaces the oracle's literal
     // recursion: giant-function CFG cones make the no-op re-entry frames
-    // (DAG edge multiplicity) the dominant cost — per frame a FlowBlock read
-    // lock plus two map lookups — and the dedup turns them into one O(1)
-    // hash skip. The 16-frame stacks are harmless; the re-entries were not.
-    fn add_ref_recurse_expansion(
+    // (DAG edge multiplicity) the dominant cost, and the id form keeps a
+    // re-entry at one atomic index read plus one map lookup.
+    fn expand_roots(
         &mut self,
-        bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
-        visited: &mut rustc_hash::FxHashSet<i32>,
+        bank: &crate::block::BlockBank,
+        roots: &mut Vec<crate::arena::BlockId>,
+        stack: &mut Vec<crate::arena::BlockId>,
     ) {
-        let mut stack = Vec::new();
-        stack.push(bl.clone());
-        while let Some(bl) = stack.pop() {
-            // Resolve the block index from the FlowBlock.
-            let bl_index = {
-                let bl_rg = bl.read().unwrap();
-                bl_rg.get_index()
-            };
-            // Provably-inert re-entry (see doc comment above): skip before
-            // touching the map. A first entry falls through with the map
-            // entry present, exactly like the recursive original's
-            // `cover[bl->getIndex()]` operator[] access.
-            if !visited.insert(bl_index) {
-                continue;
-            }
+        let view = bank.hold();
+        stack.clear();
+        stack.extend(roots.iter().rev());
+        while let Some(id) = stack.pop() {
+            // Resolve the block index through the bank shadow — the
+            // identical value `bl->getIndex()` reads through the block
+            // guard, without the lock/vtable round-trip.
+            let bl_index = view.expect_index(id);
             // Ghidra: CoverBlock &block(cover[bl->getIndex()]);
             // operator[] default-constructs; entry().or_insert_with mirrors.
-            // One map lookup replaces the recursive version's get+entry pair
-            // (absent key → fresh empty entry → empty()==true, identical).
             let cb = self.blocks.entry(bl_index).or_insert_with(CoverBlock::new);
 
             if cb.empty() {
@@ -1149,7 +1166,7 @@ impl Cover {
                 // Ghidra: for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j));
                 // Reverse push keeps the pop order == ascending-slot DFS
                 // preorder of the oracle recursion.
-                push_predecessors_onto(&bl, &mut stack);
+                push_predecessor_ids(&view, id, stack);
                 continue;
             }
 
@@ -1178,31 +1195,30 @@ impl Cover {
             // the MULTIEQUAL marker identity of the stored stop op.
             if ustop == 0 && cb.get_start_id() == CoverEndpoint::Begin {
                 if matches!(old_stop, CoverEndpoint::Op { multiequal: true, .. }) {
-                    push_predecessors_onto(&bl, &mut stack);
+                    push_predecessor_ids(&view, id, stack);
                 }
             }
         }
     }
 }
 
-// RUGRA-GLUE: stack-push form of Cover::predecessors_of for the iterative
+// RUGRA-GLUE: stack-push form of the predecessor walk for the iterative
 // addRefRecurse expansion (Ghidra's `bl->getIn(j)` loop, cover.cc:535-536):
-// pushes each in-edge's `point` Arc onto `stack` in DESCENDING slot order
-// under one read guard — the identical Arc sequence the
-// `predecessors_of(...).into_iter().rev()` extend pushed, without the
-// intermediate Vec allocation per expansion frame. Only Arc clones of the
-// edge targets are pushed (get_in_ref avoids the full BlockEdge clone);
-// nothing recurses while the guard is held.
-fn push_predecessors_onto(
-    bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
-    stack: &mut Vec<std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>>,
+// resolves the frame's block handle once, then pushes each in-edge's bank id
+// (Copy) onto `stack` in DESCENDING slot order under one read guard — the
+// identical BlockId sequence the oracle's `bl->getIn(j)` pointers denote,
+// without any handle clones or guard round-trips per edge.
+fn push_predecessor_ids(
+    view: &crate::block::BlockBankView,
+    id: crate::arena::BlockId,
+    stack: &mut Vec<crate::arena::BlockId>,
 ) {
-    let rg = bl.read().unwrap();
-    let bank = rg.bank();
+    let arc = view.expect_arc(id);
+    let rg = arc.read().unwrap();
     let n = rg.size_in();
     for slot in (0..n).rev() {
         if let Some(edge) = rg.get_in_ref(slot) {
-            stack.push(bank.expect_arc(edge.point));
+            stack.push(edge.point);
         }
     }
 }
