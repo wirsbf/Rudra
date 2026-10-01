@@ -3017,22 +3017,22 @@ impl ActionDoNothing {
         // from a multi-out switch block and the out target is a join, the
         // switch edge may still be propagating a unique value.
         let bank = bl_rg.bank();
-        let out_target = bl_rg.get_out(0).map(|e| bank.expect_arc(e.point));
-        let Some(out_target) = out_target else {
-            return false;
+        // (W2) shadow reads: the join/switch-out/sizeOut guard trio is
+        // bank-served (block.hh:313/165/312) — no peer Arc/lock needed.
+        let out_point = match bl_rg.get_out(0) {
+            Some(e) => e.point,
+            None => return false,
         };
-        let out_n_in = out_target.read().unwrap().size_in();
+        let out_n_in = bank.expect_size_in(out_point);
         for s in 0..bl_rg.size_in() {
-            let switchbl = bl_rg.get_in(s).map(|e| bank.expect_arc(e.point));
-            let Some(switchbl) = switchbl else { continue };
-            let is_switch_out = {
-                let rg = switchbl.read().unwrap();
-                (rg.get_flags() & crate::block::block_flags::SWITCH_OUT) != 0
+            let switch_point = match bl_rg.get_in(s) {
+                Some(e) => e.point,
+                None => continue,
             };
-            if !is_switch_out {
+            if bank.expect_flags(switch_point) & crate::block::block_flags::SWITCH_OUT == 0 {
                 continue;
             }
-            if switchbl.read().unwrap().size_out() > 1 && out_n_in > 1 {
+            if bank.expect_size_out(switch_point) > 1 && out_n_in > 1 {
                 return false; // block.cc:2611
             }
         }
@@ -3329,10 +3329,11 @@ impl Action for ActionRedundBranch {
                 }
                 let first = bl_rg
                     .get_out(0)
-                    .map(|e| fd.bblocks.bank.expect_arc(e.point));
+                    .map(|e| (fd.bblocks.bank.expect_arc(e.point), e.point));
                 (n_out, first)
             };
-            let Some(first_target) = first_target else { continue ;
+            let Some((first_target, first_point)) = first_target else {
+                continue;
             };
 
             if n_out == 1 {
@@ -3346,8 +3347,14 @@ impl Action for ActionRedundBranch {
                     if bl_rg.is_switch_out() {
                         false
                     } else {
-                        let target_rg = first_target.read().unwrap();
-                        target_rg.size_in() == 1 && !target_rg.is_entry_point()
+                        // (W2) shadow reads: the successor's sizeIn gate +
+                        // entry-point flag are bank-served
+                        // (block.hh:313/165).
+                        let bank = fd.bblocks.bank.clone();
+                        bank.expect_size_in(first_point) == 1
+                            && bank.expect_flags(first_point)
+                                & crate::block::block_flags::ENTRY_POINT
+                                == 0
                     }
                 };
                 if should_splice && fd.splice_block_basic(&bl) {
@@ -4069,17 +4076,22 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
                                 let head = head_arc.read().unwrap();
                                 let bank = head.bank();
                                 head.get_in(entry_slot)
-                                    .map(|edge| bank.expect_arc(edge.point))
+                                    .map(|edge| (bank.expect_arc(edge.point), edge.point))
                             };
                             let parent_ok = match (&parent, &expected_block) {
-                                (Some(p), Some(e)) => Arc::ptr_eq(p, e),
+                                (Some(p), Some((e, _))) => Arc::ptr_eq(p, e),
                                 _ => false,
                             };
                             if parent_ok {
                                 // cc:3235-3236: initializer block must
                                 // flow only into the for loop.
-                                let out_count =
-                                    expected_block.unwrap().read().unwrap().size_out();
+                                // (W2) shadow read: sizeOut bank-served.
+                                let (_, exp_point) = expected_block.unwrap();
+                                let out_count = head_arc
+                                    .read()
+                                    .unwrap()
+                                    .bank()
+                                    .expect_size_out(exp_point);
                                 if out_count == 1 {
                                     Some(crate::op::PcodeOpRef(init_def.clone()))
                                 } else {
@@ -19501,24 +19513,35 @@ impl Action for ActionNodeJoin {
             // Ghidra's else-branch when !(out1 < out2)). inslot is the index
             // of bb in leastout's in-edge list = the chosen out-edge's
             // reverse_index field (FlowBlock::getOutRevIndex, block.hh:308).
-            let (leastout, inslot): (
-                Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>, usize,
+            let (leastout, inslot, least_point): (
+                Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
+                usize,
+                crate::arena::BlockId,
             ) = {
+                // (W2) shadow reads: the in-count comparison (cc:2340-2347)
+                // reads both candidates' sizeIn from the bank — the peer
+                // guard pair is gone; only the winner resolves an Arc.
                 let bank = fd.bblocks.bank.clone();
-                let o0_arc = bank.expect_arc(out0.point);
-                let o1_arc = bank.expect_arc(out1.point);
-                let o0 = o0_arc.read().unwrap();
-                let o1 = o1_arc.read().unwrap();
-                let in0 = o0.size_in();
-                let in1 = o1.size_in();
+                let in0 = bank.expect_size_in(out0.point);
+                let in1 = bank.expect_size_in(out1.point);
                 if in0 < in1 {
-                    (bank.expect_arc(out0.point), out0.reverse_index.max(0) as usize)
+                    (
+                        bank.expect_arc(out0.point),
+                        out0.reverse_index.max(0) as usize,
+                        out0.point,
+                    )
                 } else {
-                    (bank.expect_arc(out1.point), out1.reverse_index.max(0) as usize)
+                    (
+                        bank.expect_arc(out1.point),
+                        out1.reverse_index.max(0) as usize,
+                        out1.point,
+                    )
                 }
             };
             // leastout->sizeIn()==1 → skip (blockaction.cc:2349).
-            let leastout_in = leastout.read().unwrap().size_in();
+            // (W2) shadow read: the chosen slot's sizeIn re-read is
+            // bank-served.
+            let leastout_in = fd.bblocks.bank.expect_size_in(least_point);
             if leastout_in <= 1 {
                 i += 1;
                 continue;

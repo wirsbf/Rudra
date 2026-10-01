@@ -1720,3 +1720,12 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## BLOCKFLIPW2（2026-10-01）消费位点族影子读迁移（wave 2 批 5: heritage）
+
+PERF-BLOCKSTORAGE-FLIP-0001 wave 2 批 5: `build_adt` 的 up-edge 扫描
+（heritage.cc:2343-2350——oracle 即 `u != v->getImmedDom()` 指针比较+
+`b[u->getIndex()]` 字段读）改读 bank index 影子（block.hh:160）,前驱
+句柄不再解析（该位点 u 的 Arc 仅服务于 index 读,属纯死句柄面）。
+`rename_recurse`/`visit_rename_direct` 的 get_ops 深走保留 peer 守卫。
+行为恒等: canon curl `b7773087` + httpd `54f9b02c` 字节恒等 + tests 2026P。

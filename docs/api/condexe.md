@@ -353,3 +353,12 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## BLOCKFLIPW2（2026-10-01）消费位点族影子读迁移（wave 2 批 3: condexe）
+
+PERF-BLOCKSTORAGE-FLIP-0001 wave 2 批 3: `find_init_pre` 的双路 1in/1out 链
+门（condexe.cc:60/64/67 的 inline sizeOut/sizeIn 读）与 `discover_cbranch`
+的 zero/other/cond 三段 size 门（condexe.cc:545-556）改读 bank size 影子
+（block.hh:312-313）;链式 get_in(0)/get_out 深走保留 peer 守卫,point 随
+句柄并行携带。行为恒等: canon curl `b7773087` + httpd `54f9b02c` 字节恒等
++ tests 2026P。

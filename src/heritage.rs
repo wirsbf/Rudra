@@ -913,11 +913,14 @@ impl Heritage {
                 let v_sin = v_guard.size_in();
                 for k in 0..v_sin {
                     let bank = v_guard.bank();
-                    let u = match v_guard.get_in(k) {
-                        Some(e) => bank.expect_arc(e.point),
+                    // (W2) shadow read: the up-edge test needs only the
+                    // predecessor's index — bank-served (block.hh:160), no
+                    // peer handle/lock (oracle reads `u != immed_dom(v)`
+                    // as a pointer compare on field state).
+                    let u_idx = match v_guard.get_in(k) {
+                        Some(e) => bank.expect_index(e.point),
                         None => continue,
                     };
-                    let u_idx = u.read().unwrap().get_index();
                     if Some(u_idx) != v_idom {
                         // Up-edge: u -> v (pointer identity in Ghidra;
                         // block indices are unique per graph in Rugra).

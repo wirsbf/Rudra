@@ -4529,3 +4529,16 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## BLOCKFLIPW2（2026-10-01）消费位点族影子读迁移（wave 2 批 2: coreaction）
+
+PERF-BLOCKSTORAGE-FLIP-0001 wave 2 批 2: coreaction 的 POD 守卫读改走
+wave 1 判别位投影 + (g) guard-shadow。迁移位点族: `block_is_do_nothing`
+（block.cc:2604-2613 的 join/switch-out/sizeOut 守卫三连——oracle 原文即
+inline 字段读）、ActionRedundBranch apply 的 Case 1 后继守卫
+（sizeIn 门+entry-point 旗标）、`for_loop_finalize_printing` 的初始化块
+sizeOut 守卫、ActionNodeJoin apply 的 leastout 选择对（双候选 sizeIn
+对比+胜者 sizeIn 复读——peer 守卫对消除,仅胜者解析 Arc）。深读
+（unblockedMulti 的 redundlist 扫描/gatherReturnGotos 的 copy-map 链/
+restricted_by_conditional/dominates）保留 peer 守卫。行为恒等: canon curl
+`b7773087` + httpd `54f9b02c` 字节恒等 + tests 2026P。
