@@ -274,43 +274,71 @@ impl<'a> ConditionalExecution<'a> {
         // Walk up the prea path (chain of 1in/1out blocks) to the first block
         // with 2 out-edges = initblock.
         let bank = ib.read().unwrap().bank();
+        // (W2) shadow reads: the 1in/1out chain gates read the bank size
+        // shadows (block.hh:312-313); only the get_in(0) walk takes a peer
+        // guard. Points ride along with the handles.
         let prea_in = {
             let rg = ib.read().unwrap();
             rg.get_in(self.prea_inslot as usize)
-                .map(|e| bank.expect_arc(e.point))
+                .map(|e| (bank.expect_arc(e.point), e.point))
         };
-        let prea_in = match prea_in { Some(b) => b, None => return false };
-        let mut tmp = prea_in;
+        let (mut tmp, mut tmp_point) = match prea_in {
+            Some(b) => b,
+            None => return false,
+        };
         let mut last = ib.clone();
         loop {
-            let (sout, sin) = { let r = tmp.read().unwrap(); (r.size_out(), r.size_in()) };
-            if sout != 1 || sin != 1 { break; }
+            let (sout, sin) =
+                (bank.expect_size_out(tmp_point), bank.expect_size_in(tmp_point));
+            if sout != 1 || sin != 1 {
+                break;
+            }
             last = tmp.clone();
             let next = {
                 let r = tmp.read().unwrap();
-                r.get_in(0).map(|e| bank.expect_arc(e.point))
+                r.get_in(0).map(|e| (bank.expect_arc(e.point), e.point))
             };
-            tmp = match next { Some(b) => b, None => return false };
+            match next {
+                Some(b) => {
+                    tmp = b.0;
+                    tmp_point = b.1;
+                }
+                None => return false,
+            }
         }
-        let (sout_tmp,) = { let r = tmp.read().unwrap(); (r.size_out(),) };
-        if sout_tmp != 2 { return false; }
+        // (W2) shadow read: the initblock's 2-out gate.
+        if bank.expect_size_out(tmp_point) != 2 {
+            return false;
+        }
         self.initblock = Some(tmp.clone());
         // Walk up the other (1 - prea_inslot) path similarly; it must also
         // reach the same initblock.
         let other_in = {
             let rg = ib.read().unwrap();
             rg.get_in((1 - self.prea_inslot) as usize)
-                .map(|e| bank.expect_arc(e.point))
+                .map(|e| (bank.expect_arc(e.point), e.point))
         };
-        let mut tmp2 = match other_in { Some(b) => b, None => return false };
+        let (mut tmp2, mut tmp2_point) = match other_in {
+            Some(b) => b,
+            None => return false,
+        };
         loop {
-            let (sout, sin) = { let r = tmp2.read().unwrap(); (r.size_out(), r.size_in()) };
-            if sout != 1 || sin != 1 { break; }
+            let (sout, sin) =
+                (bank.expect_size_out(tmp2_point), bank.expect_size_in(tmp2_point));
+            if sout != 1 || sin != 1 {
+                break;
+            }
             let next = {
                 let r = tmp2.read().unwrap();
-                r.get_in(0).map(|e| bank.expect_arc(e.point))
+                r.get_in(0).map(|e| (bank.expect_arc(e.point), e.point))
             };
-            tmp2 = match next { Some(b) => b, None => return false };
+            match next {
+                Some(b) => {
+                    tmp2 = b.0;
+                    tmp2_point = b.1;
+                }
+                None => return false,
+            }
         }
         if !Arc::ptr_eq(&tmp2, &tmp) { return false; }
         if Arc::ptr_eq(&tmp, &ib) { return false; }
@@ -1392,40 +1420,52 @@ impl MultiPredicate {
             Some(b) => b, None => return false,
         };
         let bank = base_block.read().unwrap().bank();
-        let zero_block = base_block
+        // (W2) shadow reads: the zero/other path gates read the bank size
+        // shadows (block.hh:312-313); points ride along with the handles.
+        let zero_in = base_block
             .read()
             .unwrap()
             .get_in(self.zero_slot)
-            .map(|e| bank.expect_arc(e.point));
-        let other_block = base_block
+            .map(|e| (bank.expect_arc(e.point), e.point));
+        let other_in = base_block
             .read()
             .unwrap()
             .get_in(1 - self.zero_slot)
-            .map(|e| bank.expect_arc(e.point));
-        let (zero_block, other_block) = match (zero_block, other_block) {
-            (Some(z), Some(o)) => (z, o),
-            _ => return false,
-        };
+            .map(|e| (bank.expect_arc(e.point), e.point));
+        let ((zero_block, zero_point), (other_block, other_point)) =
+            match (zero_in, other_in) {
+                (Some(z), Some(o)) => (z, o),
+                _ => return false,
+            };
         self.zero_block = Some(zero_block.clone());
         let cond_block;
-        let zout = zero_block.read().unwrap().size_out();
+        let zout = bank.expect_size_out(zero_point);
         if zout == 1 {
-            if zero_block.read().unwrap().size_in() != 1 { return false; }
+            if bank.expect_size_in(zero_point) != 1 {
+                return false;
+            }
             cond_block = {
                 let r = zero_block.read().unwrap();
-                r.get_in(0).map(|e| bank.expect_arc(e.point))
+                r.get_in(0).map(|e| (bank.expect_arc(e.point), e.point))
             };
         } else if zout == 2 {
-            cond_block = Some(zero_block.clone());
+            cond_block = Some((zero_block.clone(), zero_point));
         } else {
             return false;
         }
-        let cond_block = match cond_block { Some(c) => c, None => return false };
-        if cond_block.read().unwrap().size_out() != 2 { return false; }
+        let (cond_block, cond_point) = match cond_block {
+            Some(c) => c,
+            None => return false,
+        };
+        if bank.expect_size_out(cond_point) != 2 {
+            return false;
+        }
         // Verify the other path also routes through cond_block.
-        let oout = other_block.read().unwrap().size_out();
+        let oout = bank.expect_size_out(other_point);
         if oout == 1 {
-            if other_block.read().unwrap().size_in() != 1 { return false; }
+            if bank.expect_size_in(other_point) != 1 {
+                return false;
+            }
             let o_in0 = {
                 let r = other_block.read().unwrap();
                 r.get_in(0).map(|e| bank.expect_arc(e.point))
