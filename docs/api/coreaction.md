@@ -1,5 +1,14 @@
 # `coreaction.rs` API Reference
 
+## 2026-10-01：PERF-ACTIONPOOL-ITER-0001 两处 functionalEqualityLevel 换 code-only 投影（性能恒等重排）
+
+- `ActionDirectWrite` 的 CSE 等价扫描（coreaction.cc 对应循环）与
+  `NodeJoin::find_dups` 的 cc:1936-1938 门——两处都只消费 functionalEqualityLevel 的
+  返回码,现走 `crate::expression::functional_equality_level_code`（见 expression.md:
+  oracle res1/res2 缓冲写是裸指针存,调用方丢弃缓冲时零可观测效应）。判定序与返回值
+  逐调用不变;本轮 oppool 主管线无 coreaction 侧行为差（canon/镜面/ACTIONSTATS 恒等
+  见车道报告）。
+
 ## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
 - test_prefercomplement_flips_if_else_condition：cond 块整体 outgoing 赋值
   后补 `sync_bank_shadows()`（该测试先 adopt 再赋值——影子需同步）；

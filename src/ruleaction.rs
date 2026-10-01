@@ -1315,51 +1315,57 @@ impl Rule for RuleAddMultCollapse {
                 return Ok(action_status::NO_CHANGE);
             }
             for i in 0..2usize {
-                // cc:4127-4130: pick the non-constant non-free other term.
-                let othervn = match subop_arc.read().unwrap().inrefs.get(i) {
-                    Some(v) => v.clone(),
-                    None => continue,
+                // PERF-ACTIONPOOL-ITER-0001: the oracle reads othervn/sub2
+                // as raw getIn pointers (cc:4127-4132); here both slot
+                // handles snapshot under one subop guard and each Varnode
+                // flag pair (isConstant/isFree; isWritten+def) shares one
+                // guard — same continue outcomes, same slot order.
+                let (othervn, sub2) = {
+                    let so = subop_arc.read().unwrap();
+                    match (so.inrefs.get(i).cloned(), so.inrefs.get(1 - i).cloned()) {
+                        (Some(a), Some(b)) => (a, b),
+                        _ => continue,
+                    }
                 };
-                if othervn.read().unwrap().is_constant() {
-                    continue;
-                }
-                if othervn.read().unwrap().is_free() {
-                    continue;
+                {
+                    let o = othervn.read().unwrap();
+                    if o.is_constant() || o.is_free() {
+                        continue;
+                    }
                 }
                 // cc:4131-4133: the other slot must be written.
-                let sub2 = match subop_arc.read().unwrap().inrefs.get(1 - i) {
-                    Some(v) => v.clone(),
-                    None => continue,
-                };
-                if !sub2.read().unwrap().is_written() {
-                    continue;
-                }
-                let baseop_arc = match sub2.read().unwrap().def.as_ref().and_then(|w| w.upgrade())
-                {
-                    Some(a) => a,
-                    None => continue,
+                let baseop_arc = {
+                    let s2 = sub2.read().unwrap();
+                    if !s2.is_written() {
+                        continue;
+                    }
+                    match s2.def.as_ref().and_then(|w| w.upgrade()) {
+                        Some(a) => a,
+                        None => continue,
+                    }
                 };
                 if baseop_arc.read().unwrap().opcode != OpCode::CPUI_INT_ADD {
                     continue;
                 }
-                // cc:4136-4137: baseop's slot-1 constant becomes c[1].
-                let base_c1 = match baseop_arc.read().unwrap().inrefs.get(1) {
-                    Some(v) => v.clone(),
-                    None => continue,
+                // cc:4136-4141: baseop's slot-1 constant and slot-0
+                // spacebase share one def-op guard.
+                let (base_c1, basevn) = {
+                    let bo = baseop_arc.read().unwrap();
+                    match (bo.inrefs.get(1).cloned(), bo.inrefs.get(0).cloned()) {
+                        (Some(a), Some(b)) => (a, b),
+                        _ => continue,
+                    }
                 };
                 if !base_c1.read().unwrap().is_constant() {
                     continue;
                 }
-                // cc:4138-4141: slot-0 must be a function-input spacebase.
-                let basevn = match baseop_arc.read().unwrap().inrefs.get(0) {
-                    Some(v) => v.clone(),
-                    None => continue,
-                };
-                if !basevn.read().unwrap().is_spacebase() {
-                    continue;
-                }
-                if !basevn.read().unwrap().is_input() {
-                    continue;
+                // PERF-ACTIONPOOL-ITER-0001: isSpacebase/isInput share one
+                // guard (cc:4140-4141 reads both flags off the raw Varnode).
+                {
+                    let b = basevn.read().unwrap();
+                    if !b.is_spacebase() || !b.is_input() {
+                        continue;
+                    }
                 }
                 // cc:4143-4150: fold c[0]+c[1], carrying symbol markup.
                 let size = c0.read().unwrap().get_size();
@@ -1462,39 +1468,61 @@ impl Rule for RuleLess2Zero {
     fn apply_op(
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
-        let (lvn, rvn) = {
+        // PERF-ACTIONPOOL-ITER-0001: the oracle reads lvn/rvn as raw
+        // pointers and only ever touches their flags (cc:5559-5579) — the
+        // Rust form borrows both handles under one op guard, reads
+        // (isConstant, offset, size) per side under one Varnode guard, and
+        // materializes the mutation handle inside the arms; the miss path
+        // (neither side an extremal constant) pays zero Arc round-trips.
+        let lside = {
             let op = op_arc.read().unwrap();
-            let l = match op.inrefs.get(0) {
-                Some(v) => v.clone(),
+            match op.inrefs.get(0) {
+                Some(v) => {
+                    let g = v.read().unwrap();
+                    if g.is_constant() {
+                        Some((g.get_offset(), g.get_size()))
+                    } else {
+                        None
+                    }
+                }
                 None => return Ok(action_status::NO_CHANGE),
-            };
-            let r = match op.inrefs.get(1) {
-                Some(v) => v.clone(),
-                None => return Ok(action_status::NO_CHANGE),
-            };
-            (l, r)
+            }
         };
-        let follow = crate::op::PcodeOpRef(op_arc.clone());
-        if lvn.read().unwrap().is_constant() {
-            let lsize = lvn.read().unwrap().get_size();
-            let loff = lvn.read().unwrap().get_offset();
+        if let Some((loff, lsize)) = lside {
             if loff == 0 {
                 // 0 < V  =>  0 != V  (all values except 0 are true)
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
                 fd.op_set_opcode(&follow, OpCode::CPUI_INT_NOTEQUAL);
                 return Ok(action_status::CHANGE);
             } else if loff == calc_mask(lsize) {
                 // ffff < V  =>  false
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
                 fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
                 fd.op_remove_input(&follow, 1);
                 let c = fd.new_constant(1, 0);
                 fd.op_set_input(&follow, c, 0);
                 return Ok(action_status::CHANGE);
             }
-        } else if rvn.read().unwrap().is_constant() {
-            let rsize = rvn.read().unwrap().get_size();
-            let roff = rvn.read().unwrap().get_offset();
+            return Ok(action_status::NO_CHANGE);
+        }
+        let rside = {
+            let op = op_arc.read().unwrap();
+            match op.inrefs.get(1) {
+                Some(v) => {
+                    let g = v.read().unwrap();
+                    if g.is_constant() {
+                        Some((g.get_offset(), g.get_size()))
+                    } else {
+                        None
+                    }
+                }
+                None => return Ok(action_status::NO_CHANGE),
+            }
+        };
+        if let Some((roff, rsize)) = rside {
             if roff == 0 {
                 // V < 0  =>  false
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
                 fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
                 fd.op_remove_input(&follow, 1);
                 let c = fd.new_constant(1, 0);
@@ -1502,6 +1530,7 @@ impl Rule for RuleLess2Zero {
                 return Ok(action_status::CHANGE);
             } else if roff == calc_mask(rsize) {
                 // V < ffff  =>  V != ffff
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
                 fd.op_set_opcode(&follow, OpCode::CPUI_INT_NOTEQUAL);
                 return Ok(action_status::CHANGE);
             }
@@ -1542,24 +1571,24 @@ impl Rule for RuleLessEqual2Zero {
     fn apply_op(
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
-        let (lvn, rvn) = {
+        // PERF-ACTIONPOOL-ITER-0001: same zero-clone flag-scan form as
+        // RuleLess2Zero — the oracle touches only the raw flags
+        // (cc:5607-5626), so each side's (isConstant, offset, size) reads
+        // under one guard and the mutation handle materializes per arm.
+        let lside = {
             let op = op_arc.read().unwrap();
-            let l = match op.inrefs.get(0) {
-                Some(v) => v.clone(),
+            match op.inrefs.get(0) {
+                Some(v) => {
+                    let g = v.read().unwrap();
+                    if g.is_constant() { Some((g.get_offset(), g.get_size())) } else { None }
+                }
                 None => return Ok(action_status::NO_CHANGE),
-            };
-            let r = match op.inrefs.get(1) {
-                Some(v) => v.clone(),
-                None => return Ok(action_status::NO_CHANGE),
-            };
-            (l, r)
+            }
         };
-        let follow = crate::op::PcodeOpRef(op_arc.clone());
-        if lvn.read().unwrap().is_constant() {
-            let lsize = lvn.read().unwrap().get_size();
-            let loff = lvn.read().unwrap().get_offset();
+        if let Some((loff, lsize)) = lside {
             if loff == 0 {
                 // 0 <= V  =>  true
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
                 fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
                 fd.op_remove_input(&follow, 1);
                 let c = fd.new_constant(1, 1);
@@ -1567,18 +1596,31 @@ impl Rule for RuleLessEqual2Zero {
                 return Ok(action_status::CHANGE);
             } else if loff == calc_mask(lsize) {
                 // ffff <= V  =>  ffff == V
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
                 fd.op_set_opcode(&follow, OpCode::CPUI_INT_EQUAL);
                 return Ok(action_status::CHANGE);
             }
-        } else if rvn.read().unwrap().is_constant() {
-            let rsize = rvn.read().unwrap().get_size();
-            let roff = rvn.read().unwrap().get_offset();
+            return Ok(action_status::NO_CHANGE);
+        }
+        let rside = {
+            let op = op_arc.read().unwrap();
+            match op.inrefs.get(1) {
+                Some(v) => {
+                    let g = v.read().unwrap();
+                    if g.is_constant() { Some((g.get_offset(), g.get_size())) } else { None }
+                }
+                None => return Ok(action_status::NO_CHANGE),
+            }
+        };
+        if let Some((roff, rsize)) = rside {
             if roff == 0 {
                 // V <= 0  =>  V == 0
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
                 fd.op_set_opcode(&follow, OpCode::CPUI_INT_EQUAL);
                 return Ok(action_status::CHANGE);
             } else if roff == calc_mask(rsize) {
                 // V <= ffff  =>  true
+                let follow = crate::op::PcodeOpRef(op_arc.clone());
                 fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
                 fd.op_remove_input(&follow, 1);
                 let c = fd.new_constant(1, 1);
@@ -2044,15 +2086,13 @@ impl Rule for RuleTermOrder {
     fn apply_op(
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
+        // PERF-ACTIONPOOL-ITER-0001: both constant-flag probes read through
+        // the op guard's borrowed handles (the oracle's vn1/vn2 are raw
+        // pointers, cc:665-670) — zero Arc round-trips on the miss path.
         let should_swap = {
             let op = op_arc.read().unwrap();
-            let in0 = match op.inrefs.get(0) {
-                Some(v) => v.clone(),
-                None => return Ok(action_status::NO_CHANGE),
-            };
-            let in1 = match op.inrefs.get(1) {
-                Some(v) => v.clone(),
-                None => return Ok(action_status::NO_CHANGE),
+            let (Some(in0), Some(in1)) = (op.inrefs.get(0), op.inrefs.get(1)) else {
+                return Ok(action_status::NO_CHANGE);
             };
             in0.read().unwrap().is_constant() && !in1.read().unwrap().is_constant()
         };
@@ -2755,15 +2795,19 @@ impl Rule for RuleIdentityEl {
         let (val, opc) = {
             let op = op_arc.read().unwrap();
             let constvn = match op.inrefs.get(1) {
-                Some(v) if v.read().unwrap().is_constant() => v.clone(),
+                Some(v) if v.read().unwrap().is_constant() => v,
                 _ => return Ok(action_status::NO_CHANGE),
             };
             let v = constvn.read().unwrap().get_offset();
             (v, op.opcode)
         };
-        let follow = crate::op::PcodeOpRef(op_arc.clone());
+        // PERF-ACTIONPOOL-ITER-0001: the miss paths (code()!=INT_MULT with
+        // val!=0, or INT_MULT with val outside {0,1}) run before the handle
+        // materializes — the oracle passes the raw op pointer and pays no
+        // refcount event on any return-0 arm (cc:3679-3709).
         if val == 0 && opc != OpCode::CPUI_INT_MULT {
             // +0, |0, ^0, ||0, ^^0 → COPY(in0)
+            let follow = crate::op::PcodeOpRef(op_arc.clone());
             fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
             fd.op_remove_input(&follow, 1);
             return Ok(action_status::CHANGE);
@@ -2772,12 +2816,14 @@ impl Rule for RuleIdentityEl {
             return Ok(action_status::NO_CHANGE);
         }
         if val == 1 {
+            let follow = crate::op::PcodeOpRef(op_arc.clone());
             fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
             fd.op_remove_input(&follow, 1);
             return Ok(action_status::CHANGE);
         }
         if val == 0 {
             // V * 0 → COPY(0) (replace in0 with 0)
+            let follow = crate::op::PcodeOpRef(op_arc.clone());
             fd.op_set_opcode(&follow, OpCode::CPUI_COPY);
             fd.op_remove_input(&follow, 0);
             return Ok(action_status::CHANGE);
@@ -4988,24 +5034,32 @@ impl Rule for RuleEarlyRemoval {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to Ghidra RuleEarlyRemoval::applyOp (ruleaction.cc:25-44).
-        // Guard 1: isCall
-        let out_vn = {
+        // PERF-ACTIONPOOL-ITER-0001: the output handle is NOT cloned — the
+        // oracle reads outvn as a raw pointer through op->getOut() and never
+        // touches the refcount; here the op guard holds the &Arc borrow while
+        // the Varnode guard evaluates all three output gates, so the miss
+        // path (the overwhelming form at 40.4M corpus tries) pays zero Arc
+        // round-trips. Guard order/semantics unchanged (cc:30-36).
+        let space = {
             let op = op_arc.read().unwrap();
+            // Guard 1: isCall
             if op.is_call() { return Ok(action_status::NO_CHANGE); }              // 30
             if op.is_indirect_source() { return Ok(action_status::NO_CHANGE); }    // 31 — guard 2
-            let out = match op.output.as_ref() { Some(o) => o.clone(), None => return Ok(action_status::NO_CHANGE) ,
+            let out = match op.output.as_ref() { Some(o) => o, None => return Ok(action_status::NO_CHANGE) ,
             }; // 32-33 guard 3
-            out
+            let out_guard = out.read().unwrap();
+            // Guard 4: hasNoDescend
+            if !out_guard.has_no_descend() { return Ok(action_status::NO_CHANGE); }    // 35
+            // Guard 5: isAutoLive (ADDRFORCE or the temporary AUTOLIVE_HOLD bit).
+            if out_guard.is_auto_live() { return Ok(action_status::NO_CHANGE); }       // 36
+            // Guard 6's space probe; the doesDeadcode gate itself runs after
+            // both guards drop (dead_removal_allowed_seen mutates heritage
+            // state, so no guard may straddle it — same drop order as the
+            // oracle's straight-line reads).
+            out_guard.get_space()
         };
-        let out_guard = out_vn.read().unwrap();
-        // Guard 4: hasNoDescend
-        if !out_guard.has_no_descend() { return Ok(action_status::NO_CHANGE); }    // 35
-        // Guard 5: isAutoLive (ADDRFORCE or the temporary AUTOLIVE_HOLD bit).
-        if out_guard.is_auto_live() { return Ok(action_status::NO_CHANGE); }       // 36
         // Guard 6: exact doesDeadcode/deadRemovalAllowedSeen gate.  The latter
           // both checks pass > deadcodedelay and records deadremoved=1 on success.
-        let space = out_guard.get_space();
-        drop(out_guard);
         if space.does_deadcode() && !fd.heritage.dead_removal_allowed_seen(space) {
             return Ok(action_status::NO_CHANGE);
         }
@@ -5346,7 +5400,12 @@ impl Rule for RuleCollectTerms {
         let mut termorder = crate::expression::TermOrder::new(op_arc.clone());
         termorder.collect();
         termorder.sort_terms();
-        let order = termorder.get_sort().to_vec();
+        // PERF-ACTIONPOOL-ITER-0001: the sorted index view is borrowed, not
+        // copied — the oracle passes `order` around as a const vector
+        // reference (cc:120 `const vector<AdditiveEdge *> &order`); no
+        // termorder mutation happens after sortTerms, so the immutable
+        // borrow coexists with every get_term read below.
+        let order = termorder.get_sort();
         if order.is_empty() { return Ok(action_status::NO_CHANGE); }
 
         let mut i = 0;
@@ -6288,9 +6347,15 @@ impl RulePushMulti {
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
     ) -> Option<std::sync::Arc<std::sync::RwLock<PcodeOp>>> {
         let mut res: Option<std::sync::Arc<std::sync::RwLock<PcodeOp>>> = None;
-        let descendants: Vec<std::sync::Arc<std::sync::RwLock<PcodeOp>>> =
-            vn.read().unwrap().descend_iter().collect();
-        for op_arc in descendants {
+        // PERF-ACTIONPOOL-ITER-0001: the oracle iterates the descend list
+        // in place (`for(iter=vn->beginDescend(); ...)`, block.cc:2783) —
+        // no descendant vector is materialized. The Weak entries upgrade
+        // one at a time under the single Varnode guard (read-shared with
+        // the op guards below), keeping the same skip-dead/same-order/first
+        // seen-wins-tie semantics.
+        let vn_guard = vn.read().unwrap();
+        for weak in &vn_guard.descend {
+            let Some(op_arc) = weak.upgrade() else { continue };
             // cc:2786: if (op->getParent() != this) continue — a parentless
             // op never matches the (non-null) block.
             let op_parent = op_arc
@@ -6338,8 +6403,12 @@ impl RulePushMulti {
         earliest: Option<&crate::op::PcodeOpRef>,
     ) -> Option<std::sync::Arc<std::sync::RwLock<PcodeOp>>> {
         // Search descendants of in1 for a MULTIEQUAL with inputs [in1, in2].
-        let descends: Vec<_> = in1.read().unwrap().descend_iter().collect();
-        for op_arc in descends {
+        // PERF-ACTIONPOOL-ITER-0001: in-place Weak-list iteration under one
+        // Varnode guard (the oracle walks beginDescend() raw pointers,
+        // cc:1038) — no descendant vector, no Arc round-trips per scan.
+        let in1_guard = in1.read().unwrap();
+        for weak in &in1_guard.descend {
+            let Some(op_arc) = weak.upgrade() else { continue };
             let op = op_arc.read().unwrap();
             // cc:1040: if (op->getParent() != bb) continue — raw pointer
             // inequality; null -bb- matches ONLY parentless ops (flat-bank
@@ -6356,15 +6425,17 @@ impl RulePushMulti {
             if op.opcode != OpCode::CPUI_MULTIEQUAL {
                 continue;
             }
-            let in0 = op.inrefs.get(0).cloned();
-            let in1_ref = op.inrefs.get(1).cloned();
+            let in0 = op.inrefs.get(0);
+            let in1_ref = op.inrefs.get(1);
             if let (Some(a), Some(b)) = (in0, in1_ref) {
-                if std::sync::Arc::ptr_eq(&a, in1) && std::sync::Arc::ptr_eq(&b, in2) {
+                if std::sync::Arc::ptr_eq(a, in1) && std::sync::Arc::ptr_eq(b, in2) {
                     drop(op);
+                    drop(in1_guard);
                     return Some(op_arc);
                 }
             }
         }
+        drop(in1_guard);
         // Check functional equality between in1 and in2.
         if std::sync::Arc::ptr_eq(in1, in2) {
             return None;
@@ -6420,23 +6491,31 @@ impl Rule for RulePushMulti {
         // Faithful to RulePushMulti::applyOp (ruleaction.cc:1074-1137).
         use crate::expression::functional_equality_level;
 
-        let num_input = op_arc.read().unwrap().inrefs.len();
-        if num_input != 2 {
-            return Ok(action_status::NO_CHANGE);
-        }
-        let in1 = match op_arc.read().unwrap().get_in(0).cloned() {
-            Some(v) => v,
-            None => return Ok(action_status::NO_CHANGE),
+        // PERF-ACTIONPOOL-ITER-0001: cc:1076-1082 reads numInput/getIn(0)/
+        // getIn(1) back-to-back off the raw op — one guard snapshots all
+        // three; the per-vn flag pairs (isWritten/isSpacebase, cc:1086-1089)
+        // likewise merge into one Varnode guard each.
+        let (in1, in2) = {
+            let op = op_arc.read().unwrap();
+            if op.inrefs.len() != 2 {
+                return Ok(action_status::NO_CHANGE);
+            }
+            (
+                op.inrefs[0].clone(),
+                op.inrefs[1].clone(),
+            )
         };
-        let in2 = match op_arc.read().unwrap().get_in(1).cloned() {
-            Some(v) => v,
-            None => return Ok(action_status::NO_CHANGE),
-        };
-        if !in1.read().unwrap().is_written() || !in2.read().unwrap().is_written() {
-            return Ok(action_status::NO_CHANGE);
+        {
+            let v = in1.read().unwrap();
+            if !v.is_written() || v.is_spacebase() {
+                return Ok(action_status::NO_CHANGE);
+            }
         }
-        if in1.read().unwrap().is_spacebase() || in2.read().unwrap().is_spacebase() {
-            return Ok(action_status::NO_CHANGE);
+        {
+            let v = in2.read().unwrap();
+            if !v.is_written() || v.is_spacebase() {
+                return Ok(action_status::NO_CHANGE);
+            }
         }
         let result = functional_equality_level(&in1, &in2);
         if result.code < 0 || result.code > 1 {
@@ -6452,8 +6531,11 @@ impl Rule for RulePushMulti {
             return Ok(action_status::NO_CHANGE);
         }
 
-        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
-        let op1_ref = crate::op::PcodeOpRef(op1_arc.clone());
+        // PERF-ACTIONPOOL-ITER-0001: the pure-read gates (out/bl snapshot,
+        // earliestUse, the res==0 COPY arm) run before the mutation handles
+        // materialize — the oracle holds raw pointers throughout (no
+        // refcount events), so deferring the two PcodeOpRef clones past
+        // every miss return restores the oracle's zero-cost miss shape.
         let out_vn = match op_arc.read().unwrap().output.clone() {
             Some(o) => o,
             None => return Ok(action_status::NO_CHANGE),
@@ -6487,6 +6569,7 @@ impl Rule for RulePushMulti {
                 Some(s) => s,
                 None => return Ok(action_status::NO_CHANGE),
             };
+            let op_ref = crate::op::PcodeOpRef(op_arc.clone());
             let sub_out = substitute.read().unwrap().output.clone();
             if let Some(sub_out) = sub_out {
                 // RULE-SUBCANCEL-RWLOCK-0001 audit: total_replace write-locks every
@@ -6515,6 +6598,12 @@ impl Rule for RulePushMulti {
             .unwrap_or(false) {
             return Ok(action_status::NO_CHANGE);
         }
+
+        // All miss gates passed — materialize the mutation handles (the
+        // remaining paths all mutate, matching the oracle's transition
+        // point at cc:1110 `data.opSetOutput`).
+        let op_ref = crate::op::PcodeOpRef(op_arc.clone());
+        let op1_ref = crate::op::PcodeOpRef(op1_arc.clone());
 
         // Move MULTIEQUAL output to op1 (the new unified op).
         fd.op_set_output(&op1_ref, out_vn.clone());
@@ -8078,50 +8167,82 @@ impl Rule for RuleEqual2Zero {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleEqual2Zero::applyOp (ruleaction.cc:5868-5924).
+        // PERF-ACTIONPOOL-ITER-0001: the which-input-is-zero scan reads
+        // (isConstant, offset) per side under one guard (cc:5872-5876 raw
+        // reads); only the surviving side's handle clones.
         let (addvn, central_opc) = {
             let op = op_arc.read().unwrap();
             if op.opcode != OpCode::CPUI_INT_EQUAL && op.opcode != OpCode::CPUI_INT_NOTEQUAL {
                 return Ok(action_status::NO_CHANGE);
             }
-            let vn0 = match op.inrefs.get(0) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
+            let vn0 = match op.inrefs.get(0) {
+                Some(v) => v,
+                None => return Ok(action_status::NO_CHANGE),
             };
-            let vn1 = match op.inrefs.get(1) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
+            let vn1 = match op.inrefs.get(1) {
+                Some(v) => v,
+                None => return Ok(action_status::NO_CHANGE),
             };
             // Find which input is zero.
-            let addvn = if vn0.read().unwrap().is_constant() && vn0.read().unwrap().get_offset() == 0 {
-                vn1
-            } else if vn1.read().unwrap().is_constant() && vn1.read().unwrap().get_offset() == 0 {
-                vn0
+            let v0_zero = {
+                let g = vn0.read().unwrap();
+                g.is_constant() && g.get_offset() == 0
+            };
+            let addvn = if v0_zero {
+                vn1.clone()
             } else {
-                return Ok(action_status::NO_CHANGE);
+                let v1_zero = {
+                    let g = vn1.read().unwrap();
+                    g.is_constant() && g.get_offset() == 0
+                };
+                if v1_zero { vn0.clone() } else { return Ok(action_status::NO_CHANGE) }
             };
             (addvn, op.opcode)
         };
         // Make sure the sum is only used in comparisons.
-        let descends: Vec<_> = addvn.read().unwrap().descend_iter().collect();
-        for dop in &descends {
-            if !dop.read().unwrap().is_bool_output() {
-                return Ok(action_status::NO_CHANGE);
+        // PERF-ACTIONPOOL-ITER-0001: in-place Weak-list iteration under one
+        // Varnode guard (the oracle walks beginDescend() raw pointers,
+        // cc:5881) — no descendant vector materialization.
+        {
+            let add_guard = addvn.read().unwrap();
+            for weak in &add_guard.descend {
+                let Some(dop) = weak.upgrade() else { continue };
+                if !dop.read().unwrap().is_bool_output() {
+                    return Ok(action_status::NO_CHANGE);
+                }
             }
         }
         // Get the addop.
-        if !addvn.read().unwrap().is_written() { return Ok(action_status::NO_CHANGE); }
-        let addop = match addvn.read().unwrap().get_def() { Some(d) => d, None => return Ok(action_status::NO_CHANGE) ,
+        // PERF-ACTIONPOOL-ITER-0001: isWritten+getDef share one guard
+        // (cc:5885 raw reads back-to-back).
+        let addop = {
+            let g = addvn.read().unwrap();
+            if !g.is_written() {
+                return Ok(action_status::NO_CHANGE);
+            }
+            match g.get_def() {
+                Some(d) => d,
+                None => return Ok(action_status::NO_CHANGE),
+            }
         };
-        if addop.read().unwrap().opcode != OpCode::CPUI_INT_ADD { return Ok(action_status::NO_CHANGE); }
-        let vn = addop.read().unwrap().inrefs.get(0).cloned();
-        let vn2 = addop.read().unwrap().inrefs.get(1).cloned();
-        let (vn, vn2) = match (vn, vn2) {
-            (Some(a), Some(b)) => (a, b),
-            _ => return Ok(action_status::NO_CHANGE),
+        if addop.read().unwrap().opcode != OpCode::CPUI_INT_ADD {
+            return Ok(action_status::NO_CHANGE);
+        }
+        let (vn, vn2) = {
+            let a = addop.read().unwrap();
+            match (a.inrefs.get(0).cloned(), a.inrefs.get(1).cloned()) {
+                (Some(x), Some(y)) => (x, y),
+                _ => return Ok(action_status::NO_CHANGE),
+            }
         };
-        let follow = crate::op::PcodeOpRef(op_arc.clone());
 
         // Determine posvn and unnegvn.
         let (posvn, unnegvn) = if vn2.read().unwrap().is_constant() {
             // 0 == V + c => V == -c (cc:5877-5882)
-            let size = vn2.read().unwrap().get_size();
-            let val = vn2.read().unwrap().get_offset();
+            let (size, val) = {
+                let g = vn2.read().unwrap();
+                (g.get_size(), g.get_offset())
+            };
             // cc:5878 uintb_negate(c-1, size) = ~(c-1) & mask = (-c) & mask
             // (address.cc:654 uintb_negate = (~in) & calc_mask(size)).
             let negated = (!val.wrapping_sub(1)) & calc_mask(size);
@@ -8171,6 +8292,10 @@ impl Rule for RuleEqual2Zero {
         if !posvn.read().unwrap().is_heritage_known() { return Ok(action_status::NO_CHANGE); }
         if !unnegvn.read().unwrap().is_heritage_known() { return Ok(action_status::NO_CHANGE); }
         let _ = central_opc;
+        // PERF-ACTIONPOOL-ITER-0001: the mutation handle materializes at
+        // the first Funcdata mutation (cc:5902) — every miss gate above ran
+        // clone-free.
+        let follow = crate::op::PcodeOpRef(op_arc.clone());
         fd.op_set_input(&follow, posvn, 0);
         fd.op_set_input(&follow, unnegvn, 1);
         Ok(action_status::CHANGE)
@@ -9299,7 +9424,13 @@ impl Rule for RuleThreeWayCompare {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleThreeWayCompare::applyOp (ruleaction.cc:10146-10263).
-        let (const_slot, val, tmp_vn, op_code) = {
+        // PERF-ACTIONPOOL-ITER-0001: the constant-slot scan reads each
+        // candidate's isConstant/getOffset/getSize under a single Varnode
+        // guard (the oracle reads the same three fields as raw loads,
+        // cc:10152-10162), and the two input handles clone only after the
+        // val/size form gates pass — every try that fails the form gates
+        // (the dominant miss) pays zero Arc round-trips.
+        let (const_slot, val, const_size, op_code) = {
             let op = op_arc.read().unwrap();
             let opc = op.opcode;
             if opc != OpCode::CPUI_INT_SLESS && opc != OpCode::CPUI_INT_SLESSEQUAL
@@ -9308,37 +9439,60 @@ impl Rule for RuleThreeWayCompare {
                 return Ok(action_status::NO_CHANGE);
             }
             // Find constant input.
-            let mut const_slot = 0;
-            let mut tmp_vn = match op.inrefs.get(0) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
+            let v0 = match op.inrefs.get(0) {
+                Some(v) => v,
+                None => return Ok(action_status::NO_CHANGE),
             };
-            if !tmp_vn.read().unwrap().is_constant() {
-                const_slot = 1;
-                tmp_vn = match op.inrefs.get(1) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
-                };
-                if !tmp_vn.read().unwrap().is_constant() { return Ok(action_status::NO_CHANGE); }
-            }
-            let val = tmp_vn.read().unwrap().get_offset();
-            let const_size = tmp_vn.read().unwrap().get_size();
-            let form = if val <= 2 {
-                val as i32 + 1
-            } else if val == calc_mask(const_size) {
-                0
+            let g0 = v0.read().unwrap();
+            if g0.is_constant() {
+                (0usize, g0.get_offset(), g0.get_size(), opc)
             } else {
-                return Ok(action_status::NO_CHANGE);
-            };
-            let tmp2 = match op.inrefs.get(1 - const_slot) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
-            };
-            (const_slot, form, tmp2, opc)
+                drop(g0);
+                let v1 = match op.inrefs.get(1) {
+                    Some(v) => v,
+                    None => return Ok(action_status::NO_CHANGE),
+                };
+                let g1 = v1.read().unwrap();
+                if !g1.is_constant() {
+                    return Ok(action_status::NO_CHANGE);
+                }
+                (1usize, g1.get_offset(), g1.get_size(), opc)
+            }
         };
-        if !tmp_vn.read().unwrap().is_written() { return Ok(action_status::NO_CHANGE); }
-        let addop = match tmp_vn.read().unwrap().get_def() { Some(d) => d, None => return Ok(action_status::NO_CHANGE) ,
+        // cc:10160-10167: encode the const value (-1,0,1,2) as the highest
+        // 3 bits — form STARTS at val+1 (or 0 for the all-ones mask); this
+        // is the same starting value the previous form passed downstream.
+        let mut form = if val <= 2 {
+            val as i32 + 1
+        } else if val == calc_mask(const_size) {
+            0
+        } else {
+            return Ok(action_status::NO_CHANGE);
+        };
+        let tmp_vn = {
+            let op = op_arc.read().unwrap();
+            match op.inrefs.get(1 - const_slot) {
+                Some(v) => v.clone(),
+                None => return Ok(action_status::NO_CHANGE),
+            }
+        };
+        // PERF-ACTIONPOOL-ITER-0001: isWritten+getDef share one guard
+        // (cc:10167-10169 reads them back-to-back off the raw Varnode).
+        let addop = {
+            let t = tmp_vn.read().unwrap();
+            if !t.is_written() {
+                return Ok(action_status::NO_CHANGE);
+            }
+            match t.get_def() {
+                Some(d) => d,
+                None => return Ok(action_status::NO_CHANGE),
+            }
         };
         if addop.read().unwrap().opcode != OpCode::CPUI_INT_ADD { return Ok(action_status::NO_CHANGE); }
         let (lessop, is_partial) = match Self::detect_three_way(&addop) {
             Some((l, p)) => (l, p),
             None => return Ok(action_status::NO_CHANGE),
         };
-        let mut form = val;
         if is_partial {
             if form == 0 { return Ok(action_status::NO_CHANGE); }
             form -= 1;
@@ -9350,13 +9504,23 @@ impl Rule for RuleThreeWayCompare {
         if op_code == OpCode::CPUI_INT_SLESSEQUAL { form += 1; }
         else if op_code == OpCode::CPUI_INT_EQUAL { form += 2; }
         else if op_code == OpCode::CPUI_INT_NOTEQUAL { form += 3; }
-        let b_vn = lessop.read().unwrap().get_in(0).cloned();
-        let a_vn = lessop.read().unwrap().get_in(1).cloned();
-        let (Some(a_vn), Some(b_vn)) = (a_vn, b_vn) else { return Ok(action_status::NO_CHANGE) ;
+        let (a_vn, b_vn) = {
+            let l = lessop.read().unwrap();
+            (l.get_in(1).cloned(), l.get_in(0).cloned())
         };
-        if !a_vn.read().unwrap().is_constant() && a_vn.read().unwrap().is_free() { return Ok(action_status::NO_CHANGE); }
-        if !b_vn.read().unwrap().is_constant() && b_vn.read().unwrap().is_free() { return Ok(action_status::NO_CHANGE); }
+        let (Some(a_vn), Some(b_vn)) = (a_vn, b_vn) else { return Ok(action_status::NO_CHANGE) };
+        {
+            let a = a_vn.read().unwrap();
+            if !a.is_constant() && a.is_free() { return Ok(action_status::NO_CHANGE); }
+        }
+        {
+            let b = b_vn.read().unwrap();
+            if !b.is_constant() && b.is_free() { return Ok(action_status::NO_CHANGE); }
+        }
 
+        // PERF-ACTIONPOOL-ITER-0001: the mutation handle materializes with
+        // the first Funcdata call below (cc:10209's newConstant) — all miss
+        // gates above run clone-free.
         let follow = crate::op::PcodeOpRef(op_arc.clone());
         // Encode lessform + 1 for LESSEQUAL.
         let less_equal_form = match lessform {
@@ -9451,22 +9615,29 @@ impl Rule for RuleMultiCollapse {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleMultiCollapse::applyOp (ruleaction.cc:3234-3343).
-        use crate::expression::functional_equality_level;
+        use crate::expression::functional_equality_level_code;
 
         // PERF-OPPOOL-0001: one op read snapshots the input handles; the
         // heritage-known precheck (cc:3243-3244) and the matchlist build
         // (cc:3247) both iterate the same inputs — merged into a single
         // pass over one cloned handle list (the oracle reads raw fields).
+        // PERF-ACTIONPOOL-ITER-0001: the clone is deferred behind the
+        // heritage precheck exactly as the oracle orders it — cc:3243-3244
+        // scans `op->getIn(i)` raw pointers and returns on the FIRST
+        // heritage-unknown input, and only then does cc:3247 build the
+        // matchlist. The previous clone-first form paid the Vec alloc plus
+        // one Arc round-trip per input on every heritage-miss try; the
+        // guard-held scan below reads the same Varnode flags in the same
+        // slot order and returns at the same first miss (zero clones).
         let matchlist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = {
             let op = op_arc.read().unwrap();
+            for vn in &op.inrefs {
+                if !vn.read().unwrap().is_heritage_known() {
+                    return Ok(action_status::NO_CHANGE);
+                }
+            }
             op.inrefs.clone()
         };
-        // cc:3243-3244: all direct inputs must have completed Heritage.
-        for vn in &matchlist {
-            if !vn.read().unwrap().is_heritage_known() {
-                return Ok(action_status::NO_CHANGE);
-            }
-        }
 
         // cc:3247: matchlist grows with expanded MULTIEQUAL branches.
         let mut matchlist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
@@ -9478,11 +9649,12 @@ impl Rule for RuleMultiCollapse {
 
         // Find base branch to match (first non-MULTIEQUAL input).
         for i in 0..matchlist.len() {
-            let copyr = matchlist[i].clone();
-            // PERF-OPPOOL-0001: one Varnode lock covers isWritten and the
-            // def handle; the def op's opcode needs its own single lock.
+            // PERF-ACTIONPOOL-ITER-0001: the handle clone moves inside the
+            // break arm — the scan iterations that keep looking (MULTIEQUAL
+            // inputs) no longer pay the Arc round-trip (cc:3253-3260 reads
+            // `copyr` as a raw pointer per iteration).
             let is_multiequal = {
-                let v = copyr.read().unwrap();
+                let v = matchlist[i].read().unwrap();
                 if !v.is_written() {
                     false
                 } else {
@@ -9492,7 +9664,7 @@ impl Rule for RuleMultiCollapse {
                 }
             };
             if !is_multiequal {
-                defcopyr = Some(copyr);
+                defcopyr = Some(matchlist[i].clone());
                 break;
             }
         }
@@ -9506,7 +9678,13 @@ impl Rule for RuleMultiCollapse {
         let mut j = 0usize;
         let mut success = true;
         while j < matchlist.len() {
-            let copyr = matchlist[j].clone();
+            // PERF-ACTIONPOOL-ITER-0001: the loop variable is the oracle's
+            // raw `copyr` pointer (cc:3267 `copyr = matchlist[j++]`) — the
+            // Rust form borrows the handle slot instead of cloning it every
+            // iteration; the three arms that need ownership (defcopyr
+            // store, skiplist push) clone at their use site, so mark-check
+            // and match-check continues pay zero Arc round-trips.
+            let copyr = &matchlist[j];
             j += 1;
             if copyr.read().unwrap().is_mark() {
                 continue; // Loop construct — value recurs without change.
@@ -9531,7 +9709,7 @@ impl Rule for RuleMultiCollapse {
                 if !is_written || is_multiequal { nofunc = true; }
             } else {
                 let dc = defcopyr.as_ref().unwrap();
-                if std::sync::Arc::ptr_eq(dc, &copyr) {
+                if std::sync::Arc::ptr_eq(dc, copyr) {
                     continue; // Matching branch.
                 }
                 // cc:3279 `else if (defcopyr == copyr) continue;` — a matching
@@ -9564,8 +9742,10 @@ impl Rule for RuleMultiCollapse {
                     continue; // Absolute match: same constant value.
                 }
                 if !nofunc {
-                    let result = functional_equality_level(&dc, &copyr);
-                    if result.code == 0 {
+                    // PERF-ACTIONPOOL-ITER-0001: code-only projection — the
+                    // oracle discards res1/res2 on this path (cc:3280 reads
+                    // only the return value), so no pair materialization.
+                    if functional_equality_level_code(dc, copyr) == 0 {
                         func_eq = true;
                         continue;
                     }
@@ -10972,10 +11152,13 @@ impl Rule for RuleShiftPiece {
             .and_then(|w| w.upgrade()) {
             Some(a) => a, None => return Ok(action_status::NO_CHANGE),
         };
+        // PERF-ACTIONPOOL-ITER-0001: the branch arms move the already-
+        // upgraded def handles instead of re-cloning them (the oracle's
+        // shiftop/zextloop are the same raw pointers, cc:3805-3810).
         let (shiftop, zextloop) = if vn1_def.read().unwrap().opcode == OpCode::CPUI_INT_LEFT {
-            (vn1_def.clone(), vn2_def.clone())
+            (vn1_def, vn2_def)
         } else if vn2_def.read().unwrap().opcode == OpCode::CPUI_INT_LEFT {
-            (vn2_def.clone(), vn1_def.clone())
+            (vn2_def, vn1_def)
         } else {
             return Ok(action_status::NO_CHANGE);
         };
@@ -15255,6 +15438,12 @@ impl Rule for RuleIndirectCollapse {
         // rule runs 1.9M tries on the VdbeExec pole and the Arc clone pair
         // used to run on every miss; the PcodeOpRef now materializes only
         // on the mutating paths below (branch-scoped).
+        // PERF-ACTIONPOOL-ITER-0001 drill verdict: deferring in0/outvn
+        // behind the IPTR_IOP gate REGRESSES the rule (+4.2% corpus,
+        // 408→425ns/try) — dispatched INDIRECT ops almost always pass the
+        // gate, so the second op guard runs per try while the deferred
+        // clones still materialize; the (c) single-guard triple snapshot
+        // stays (one op guard per try, three clones).
         let (in1, in0, outvn) = {
             let op = op_arc.read().unwrap();
             let in1 = match op.inrefs.get(1) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
@@ -17284,21 +17473,43 @@ impl RuleConditionalMove {
     fn check_boolean(
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
     ) -> Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> {
-        if !vn.read().unwrap().is_written() { return None; }
-        let op = vn.read().unwrap().get_def()?;
-        if op.read().unwrap().is_bool_output() {
-            return Some(vn.clone());
+        // PERF-ACTIONPOOL-ITER-0001: the oracle's five field reads
+        // (cc:9261-9274 isWritten/getDef/code/getIn(0)/isConstant/getOffset)
+        // collapse into three guards — one per object (vn, def op, inner
+        // vn) — with the same short-circuit order and the same results.
+        let op = {
+            let v = vn.read().unwrap();
+            if !v.is_written() { return None; }
+            v.get_def()?
+        };
+        // Tri-state: Left = isBoolOutput (root is the boolean), Right =
+        // COPY with a (possibly null) inner handle, neither = early None.
+        enum BoolRoot {
+            Root,
+            CopyInner(Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>>),
         }
-        if op.read().unwrap().opcode == OpCode::CPUI_COPY {
-            let inner = op.read().unwrap().get_in(0).cloned()?;
-            if inner.read().unwrap().is_constant() {
-                let val = inner.read().unwrap().get_offset();
-                if (val & !1u64) == 0 {
+        let root = {
+            let o = op.read().unwrap();
+            if o.is_bool_output() {
+                BoolRoot::Root
+            } else if o.opcode == OpCode::CPUI_COPY {
+                BoolRoot::CopyInner(o.get_in(0).cloned())
+            } else {
+                return None;
+            }
+        };
+        match root {
+            BoolRoot::Root => Some(vn.clone()),
+            BoolRoot::CopyInner(None) => None,
+            BoolRoot::CopyInner(Some(inner)) => {
+                let ig = inner.read().unwrap();
+                if ig.is_constant() && (ig.get_offset() & !1u64) == 0 {
+                    drop(ig);
                     return Some(inner);
                 }
+                None
             }
         }
-        None
     }
 
     /// Faithful to `gatherExpression` (ruleaction.cc:9287-9316). Collects the
@@ -17351,13 +17562,18 @@ impl RuleConditionalMove {
             pos += 1;
             // special ops cannot be pulled out (getEvalType()==special).
             use crate::op::pcodeop_flags;
-            if op.read().unwrap().get_eval_type() == pcodeop_flags::SPECIAL {
-                return false;
-            }
-            let num_in = op.read().unwrap().num_input();
-            for i in 0..num_in {
-                let in0 = match op.read().unwrap().get_in(i).cloned() { Some(v) => v, None => continue ,
-                };
+            // PERF-ACTIONPOOL-ITER-0001: one op guard covers the oracle's
+            // per-iteration raw reads (cc:9303 getEvalType, cc:9305
+            // numInput, cc:9308 getIn(i)) — the input handles snapshot once
+            // instead of re-locking the op per slot.
+            let inputs: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = {
+                let o = op.read().unwrap();
+                if o.get_eval_type() == crate::op::pcodeop_flags::SPECIAL {
+                    return false;
+                }
+                o.inrefs.clone()
+            };
+            for in0 in &inputs {
                 let in0_rg = in0.read().unwrap();
                 if in0_rg.is_free() && !in0_rg.is_constant() { return false; }
                 if in0_rg.is_written() {
@@ -17444,9 +17660,12 @@ impl Rule for RuleConditionalMove {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to RuleConditionalMove::applyOp (ruleaction.cc:9390-9558).
-        if op_arc.read().unwrap().num_input() != 2 { return Ok(action_status::NO_CHANGE); }
+        // PERF-ACTIONPOOL-ITER-0001: the numInput gate and the in0/in1/out
+        // snapshots share one op guard (cc:9392-9394 read them as raw
+        // fields back-to-back).
         let (in0, in1, outvn) = {
             let op = op_arc.read().unwrap();
+            if op.num_input() != 2 { return Ok(action_status::NO_CHANGE); }
             (
                 op.get_in(0).cloned(), op.get_in(1).cloned(), op.output.clone(),
             )

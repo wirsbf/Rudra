@@ -1,5 +1,16 @@
 # `expression.rs` API Reference
 
+## 2026-10-01：PERF-ACTIONPOOL-ITER-0001 functional_equality_level_code 投影（性能恒等重排）
+
+新增 `pub fn functional_equality_level_code(vn1, vn2) -> i32`——`functional_equality_level`
+的 code-only 投影,服务只读返回码的调用方（RuleMultiCollapse cc:3280、ActionDirectWrite
+dedup 扫描、NodeJoin::findDups cc:1936-1938、`functional_equality` 包装器）。
+oracle 的 res1/res2 输出缓冲写是裸指针存（expression.cc:475-477）,调用方丢弃缓冲时
+零可观测效应;投影保持双 op 读守卫借读输入句柄,零 pair 物化、零 Arc 往返,每个测试
+读同一字段同一序,返回码与 `functional_equality_level(..).code` 逐位相同。
+`functional_equality` 包装器改道该投影。完整 pair 返回形（push_multi 等 code==1
+读 pairs 的调用方）保持不变。
+
 **源代码路径**: `src/expression.rs`
 **Ghidra 对应**: `expression.hh` / `expression.cc`
 **状态**: 🔧 **L2**——部分函数已有实现和测试，但模块级逐函数 oracle 闭包尚未完成；不得沿用旧 L3 声明。

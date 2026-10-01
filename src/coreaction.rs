@@ -11235,7 +11235,7 @@ impl ActionMultiCse {
         target_idx: usize,
         in_vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
     ) -> Option<usize> {
-        use crate::expression::functional_equality_level;
+        use crate::expression::functional_equality_level_code;
         let in_resolved = Self::resolve_copy(in_vn);
         // Walk block_ops from the beginning up to target.
         for idx in 0..target_idx {
@@ -11267,8 +11267,9 @@ impl ActionMultiCse {
                 if std::sync::Arc::ptr_eq(&in1, &in2) {
                     continue;
                 }
-                let result = functional_equality_level(&in1, &in2);
-                if result.code != 0 {
+                // PERF-ACTIONPOOL-ITER-0001: code-only projection (the
+                // oracle reads only functionalEqualityLevel's return here).
+                if functional_equality_level_code(&in1, &in2) != 0 {
                     all_eq = false;
                     break;
                 }
@@ -19106,11 +19107,13 @@ pub(crate) fn nodejoin_find_dups(
         return NodeJoinFindDups::NoMatch;
     }
     // cc:1936-1938: functionalEqualityLevel must return 0 or 1.
-    let res = crate::expression::functional_equality_level(&vn1, &vn2);
-    if res.code < 0 {
+    // PERF-ACTIONPOOL-ITER-0001: code-only projection (blockaction.cc's
+    // findDups reads only the return code).
+    let res_code = crate::expression::functional_equality_level_code(&vn1, &vn2);
+    if res_code < 0 {
         return NodeJoinFindDups::NoMatch;
     }
-    if res.code > 1 {
+    if res_code > 1 {
         return NodeJoinFindDups::NoMatch;
     }
     // cc:1939-1941: vn1's defining op must not be SUBPIECE or COPY.

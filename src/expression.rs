@@ -808,14 +808,131 @@ pub fn functional_equality_level(
     FunctionalEqualityResult { code: 2, pairs }
 }
 
+// Ghidra: expression.cc:432 functionalEqualityLevel (code-only projection)
+/// Code-only projection of [`functional_equality_level`] for callers that
+/// never read the output pairs (RuleMultiCollapse's cc:3280 gate,
+/// ActionDirectWrite's dedup scan, NodeJoin::findDups' cc:1936-1938 gate,
+/// and the `functional_equality` wrapper). PERF-ACTIONPOOL-ITER-0001: the
+/// oracle's res1/res2 buffer writes are raw pointer stores
+/// (expression.cc:475-477) with no observable effect when the caller
+/// discards the buffers — this form keeps both op guards held and reads
+/// the input handles by borrow, so the discarded buffer costs zero Arc
+/// round-trips. Every test reads the same fields in the same order; the
+/// returned code is bit-identical to `functional_equality_level(..).code`.
+pub fn functional_equality_level_code(
+    vn1: &Arc<RwLock<Varnode>>,
+    vn2: &Arc<RwLock<Varnode>>,
+) -> i32 {
+    let testval = functional_equality_level0(vn1, vn2);
+    if testval != 1 {
+        return testval;
+    }
+    // Both must be written for a deeper comparison.
+    let (is_written1, is_written2, def1, def2) = {
+        let v1 = vn1.read().unwrap();
+        let v2 = vn2.read().unwrap();
+        (v1.is_written(), v2.is_written(), v1.get_def(), v2.get_def())
+    };
+    if !is_written1 || !is_written2 {
+        return -1;
+    }
+    let Some(op1_arc) = def1 else {
+        return -1;
+    };
+    let Some(op2_arc) = def2 else {
+        return -1;
+    };
+    let op1 = op1_arc.read().unwrap();
+    let op2 = op2_arc.read().unwrap();
+    let opc = op1.opcode;
+    if opc != op2.opcode {
+        return -1;
+    }
+    let mut num = op1.inrefs.len();
+    if num != op2.inrefs.len() {
+        return -1;
+    }
+    if op1.is_marker() || op2.is_call() {
+        return -1;
+    }
+    if opc == OpCode::CPUI_LOAD {
+        // Two loads produce the same result if same address and same instruction.
+        if op1.get_addr() != op2.get_addr() {
+            return -1;
+        }
+    }
+    if num >= 3 {
+        if opc != OpCode::CPUI_PTRADD {
+            return -1;
+        }
+        // Check element-size constant (slot 2) is equal.
+        let off1 = op1.get_in(2).map(|v| v.read().unwrap().get_offset());
+        let off2 = op2.get_in(2).map(|v| v.read().unwrap().get_offset());
+        if off1 != off2 {
+            return -1;
+        }
+        num = 2;
+    }
+    // Input pairs stay borrowed under the op guards (read-read nesting).
+    let testval = functional_equality_level0(&op1.inrefs[0], &op2.inrefs[0]);
+    if testval == 0 {
+        if num == 1 {
+            return 0;
+        }
+        let testval2 = functional_equality_level0(&op1.inrefs[1], &op2.inrefs[1]);
+        if testval2 == 0 {
+            return 0;
+        }
+        if testval2 < 0 {
+            return -1;
+        }
+        // Match is contingent on the second pair.
+        return 1;
+    }
+    if num == 1 {
+        return testval;
+    }
+    let testval2 = functional_equality_level0(&op1.inrefs[1], &op2.inrefs[1]);
+    if testval2 == 0 {
+        return testval;
+    }
+    let unmatchsize = if testval == 1 && testval2 == 1 { 2 } else { -1 };
+
+    // Check commutativity.
+    let is_commutative = opc.is_commutative();
+    if !is_commutative {
+        return unmatchsize;
+    }
+    // Try flipping for commutative operators.
+    let comm1 = functional_equality_level0(&op1.inrefs[0], &op2.inrefs[1]);
+    let comm2 = functional_equality_level0(&op1.inrefs[1], &op2.inrefs[0]);
+    if comm1 == 0 && comm2 == 0 {
+        return 0;
+    }
+    if comm1 < 0 || comm2 < 0 {
+        return unmatchsize;
+    }
+    if comm1 == 0 {
+        return 1;
+    }
+    if comm2 == 0 {
+        return 1;
+    }
+    // comm1==1 AND comm2==1.
+    2
+}
+
 // Ghidra: expression.cc:520 functionalEquality
 /// Determine whether two Varnodes are immediately provable as equivalent.
 /// The output buffers are intentionally local, matching Ghidra's wrapper.
+/// PERF-ACTIONPOOL-ITER-0001: routes through the code-only projection —
+/// the oracle wrapper discards the buffers, so this caller never pays the
+/// pair materialization.
 pub fn functional_equality(
     vn1: &Arc<RwLock<Varnode>>,
     vn2: &Arc<RwLock<Varnode>>,
 ) -> bool {
-    functional_equality_level(vn1, vn2).code == 0
+    functional_equality_level_code(vn1, vn2) == 0
 }
 
 #[cfg(test)]
