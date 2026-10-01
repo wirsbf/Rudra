@@ -2061,6 +2061,25 @@ impl EmitNoMarkup {
     /// Detect `IDENT + IDENT` and `IDENT * IDENT` patterns where both operands
     /// are declared as pointer types, and cast the right operand to `(long)`.
     fn fix_pointer_arithmetic(text: &str) -> String {
+        // LANE LONGADDEND (GEN4-SQ-CASTFUSE-DEPTH-0001 long-addend family,
+        // 2026-10-01): skip the whole arm on the direct-runner (mirror) face.
+        // The oracle prints a PTRADD index addend BARE regardless of its type
+        // — PrintC::opPtradd (printc.cc:880-893) pushes op->getIn(1) with a
+        // plain pushVn (no cast flag), so `pcVar20 + piVar16[5]` (char* +
+        // int8*, invalid C) is printed as-is; the emit pipeline ends in
+        // EmitPrettyPrint::flush (prettyprint.cc:1194-1211), a pure token-
+        // queue drain with zero text rescans. Every direct-runner golden
+        // carries 0 `(long)` tokens (sq/sqlite/curl/httpd/vsh), so every
+        // firing of this canon-spelling compensation arm is a mirror skeleton
+        // diff: IR-level fixtures show the op chain identical on both sides
+        // (PTRADD(R12, LOAD 8, ×1) + output CAST int8, same varnode ids), the
+        // divergence is purely this text pass. Canon goldens DO spell
+        // `(long)` (ghidra_curl_1204.c 55 / ghidra_httpd_1204.c 1165), so
+        // the arm must keep running there. Same gate shape as the
+        // GEN4-SQ-DUPDECL-NUMBERING-0001 mirror-face skips.
+        if Self::mirror_face_active() {
+            return text.to_string();
+        }
         // Collect names declared as pointers (type contains '*')
         use std::collections::HashSet;
         let mut ptr_names: HashSet<String> = HashSet::new();
