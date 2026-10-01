@@ -2157,6 +2157,22 @@ vn/param 尺寸门、implied+written 的 CAST 展开（vn→def->getIn(0)，类�
 None 降优先）、重复 high 的 tie-break 用 `Datatype::type_order`（旧类型更
 specific 则保留），rec_map 值扩为 (name, Option<Datatype>)。
 
+### 2026-10-02（PERF-NVREP-CACHE-0001）：`ActionNameVars::link_symbols` 名称代表缓存形态 + 符号显示名单趟传播
+
+- cc:2959 的 `curvn->getHigh()->getNameRepresentative()` 是 oracle 的 const 方法
+  经 `mutable` 成员写缓存（variable.cc:495-510）；Rugra 侧改用写锁
+  `get_name_representative_mut` 镜像该缓存写——每个 HighVariable 的 O(k)
+  `compareName` 选择走查每扫描一次（而非每成员 varnode 一次）。缓存失效完备：
+  构造（variable.cc:224）/`merge_internal`（cc:631 + 退役壳 tv2 显式置脏，oracle
+  在 cc:665 直接 delete tv2，无观察者）/`remove`/`remove_instance`/`flags_dirty`/
+  `add_instance`（glue 变异器，随构造/merge 不变量置脏）全路径 NAMEREPDIRTY。
+- 收尾的 high_symbols 显示名传播（PRINTC-SYMBOL-DECL-0001 桥域）由
+  per-symbol×全 varnode 扫描改为单趟：先解析 `(high_ptr → display)` 名单，再按
+  loc_tree 序单遍命中即 `set_name`。`set_name` 幂等（name+NAMELOCK，无计数器，
+  variable.rs:1520），命中集合与每 high 名值与原形相同——观察恒等。
+- A/B（master 6740665b 基 vs 本修复，交错 4+4 轮）：VdbeExec `--one 1055`
+  stdout md5 `15b47cf7…` 八轮全等；user 中位 32.2s → 30.0s（−7%）。
+
 ### 2026-08-24（TYPEFACTORY-EXACTPIECE-CALLERS-0001）：`ActionNameVars::link_symbols` 传 Architecture-owned TypeFactory
 
 `link_symbols` 开头按 coreaction.cc:2946 `TypeFactory *typeFactory =

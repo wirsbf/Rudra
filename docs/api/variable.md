@@ -222,7 +222,11 @@ transiently from the representative (what `updateType` would write into
 
 ### `pub fn merge_internal(&mut self, tv2: &mut HighVariable, isspeculative: bool)`
 Ghidra: variable.cc:626 `mergeInternal`. Merges another HighVariable's
-instances, classes, symbol, and cover.
+instances, classes, symbol, and cover. The retired `tv2` shell gets its
+`NAMEREPDIRTY` bit set after the instance drain (Rugra keeps the shell
+object where Ghidra deletes `tv2`; the invalidation makes any late
+name-representative query on the shell re-derive from the empty list,
+matching the pre-cache `&self` behavior).
 
 ### `pub fn merge(&mut self, tv2: &mut HighVariable, _test_cache: Option<()>, isspeculative: bool)`
 Ghidra: variable.cc:675 `merge`. Group-aware merge.
@@ -242,7 +246,27 @@ Ghidra: variable.cc:291 `transferPiece`.
 
 ### `pub fn get_name_representative(&self) -> Option<Arc<RwLock<Varnode>>>`
 Ghidra: variable.cc:492 `getNameRepresentative`. Takes `&self` (coreaction.rs:3799
-holds only a read lock).
+holds only a read lock); recomputes the `compareName` walk per call without
+touching the cache.
+
+### `pub fn get_name_representative_mut(&mut self) -> Option<Arc<RwLock<Varnode>>>`
+Ghidra: variable.cc:492 `getNameRepresentative` (mutable-cache form). Mirrors
+the oracle's `mutable`-member cache write exactly: cache-hit return when
+`NAMEREPDIRTY` is clear (cc:495-496); otherwise the dirty bit is cleared
+FIRST (cc:497), the representative is re-derived from `instances[0]` via
+`compare_name` (cc:502-509), stored into `name_representative`, and
+returned. The selection walk is the same deterministic algorithm as the
+`&self` form — the only delta is cache population, which is precisely what
+Ghidra's const method does through its `mutable` members.
+`ActionNameVars::link_symbols` (coreaction.cc:2959) uses this form under a
+write lock so each HighVariable's O(k) walk runs once per scan instead of
+per member varnode (PERF-NVREP-CACHE-0001). Cache safety: every
+`instances` mutation path re-sets `NAMEREPDIRTY` — init (variable.cc:224),
+`merge_internal` (variable.cc:631, plus the retired-shell `tv2`
+invalidation where Ghidra deletes tv2 outright), `remove`/`remove_instance`
+(variable.cc:524), `flags_dirty` (variable.hh:164), and `add_instance`
+(glue mutator, now dirty-marking like its oracle construction/merge
+counterparts).
 
 ### `pub fn compare_name(vn1: &Varnode, vn2: &Varnode) -> bool` (static)
 Ghidra: variable.cc:456 `compareName`.
