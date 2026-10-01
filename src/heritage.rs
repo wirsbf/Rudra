@@ -49,13 +49,20 @@ impl LocationMap {
     /// land on another space's entry but `Address::overlap` then returns -1
     /// (different spaces never overlap) and the walk advances back into the
     /// query space.
-    /// Returns the intersect code:
+    /// Returns the intersect code plus the (possibly merged) entry that
+    /// the oracle's returned iterator addresses (its `first` address and
+    /// `second.size`, heritage.cc:2710/2719/2722):
     ///   0 = no overlap with existing
     ///   1 = partial overlap (merged)
     ///   2 = completely contained in a previous (older) entry
+    /// The entry bounds are exactly what a subsequent
+    /// `entry_containing(space, addr)` finds: `add` just inserted (or
+    /// selected, in the fully-contained case) that entry, and nothing
+    /// mutates the map in between — returning it here removes the
+    /// redundant upper_bound/back-up walk the driver used to re-locate it.
     pub fn add(
         &mut self, space: AddressSpace, mut addr: Address, mut size: i32, mut pass: i32,
-    ) -> i32 {
+    ) -> (i32, Address, i32) {
         use crate::address::Address as A;
         // Ghidra cc:37-41: iter = lower_bound(addr); if (iter != begin)
         // --iter; if the resulting entry does not overlap, ++iter. The
@@ -100,7 +107,11 @@ impl LocationMap {
             if where_ != -1 {
                 // Ghidra cc:46-49: completely contained?
                 if where_ + size <= k_sp.size {
-                    return if k_sp.pass < pass { 2 } else { 0 };
+                    return if k_sp.pass < pass {
+                        (2, k_addr, k_sp.size)
+                    } else {
+                        (0, k_addr, k_sp.size)
+                    };
                 }
                 // Ghidra cc:50-56: merge — extend addr/size, take min pass.
                 addr = k_addr;
@@ -136,7 +147,7 @@ impl LocationMap {
         }
         // Ghidra cc:67-70: insert merged entry.
         self.themap.insert((space, addr), SizePass { size, pass });
-        intersect
+        (intersect, addr, size)
     }
 
     // Ghidra: heritage.cc:90 LocationMap::findPass
@@ -3880,32 +3891,38 @@ impl Heritage {
             _ => None,
         };
         // cc:1547-1548: iter=fd->beginOp(CPUI_STORE) .. endOp
-        let store_arcs: Vec<_> = fd
+        // One read guard per STORE covers the oracle's three field reads
+        // (cc:1549 isDead, cc:1550 getIn(0), cc:1552 usesSpacebasePtr) plus
+        // the const-space decode of the pointer varnode — same dead-filter,
+        // same iteration order, same classification, same short-circuit.
+        let store_matches: Vec<(
+            std::sync::Arc<std::sync::RwLock<PcodeOp>>,
+            Option<AddressSpace>,
+            bool,
+        )> = fd
             .obank
             .iter_store()
-            .filter(|s| !(s.0.read().unwrap().flags & crate::op::pcodeop_flags::DEAD != 0))
-            .map(|s| s.0.clone())
-            .collect();
-        for store_op in store_arcs {
-            // cc:1549: if (op->isDead()) continue;  (filtered above)
-            // cc:1550: storeSpace = op->getIn(0)->getSpaceFromConst()
-            let store_space = {
-                let s = store_op.read().unwrap();
-                s.get_in(0).map(|vn| {
-                    let r = vn.read().unwrap();
-                    if r.is_constant() {
-                        AddressSpace::from_id(r.get_offset() as crate::space::SpaceId)
+            .filter_map(|s| {
+                let r = s.0.read().unwrap();
+                if r.flags & crate::op::pcodeop_flags::DEAD != 0 {
+                    return None;
+                }
+                let store_space = r.get_in(0).map(|vn| {
+                    let vr = vn.read().unwrap();
+                    if vr.is_constant() {
+                        AddressSpace::from_id(vr.get_offset() as crate::space::SpaceId)
                     } else {
-                        r.address_space
+                        vr.address_space
                     }
-                })
-            };
+                });
+                Some((s.0.clone(), store_space, r.uses_spacebase_ptr()))
+            })
+            .collect();
+        for (store_op, store_space, uses_sb) in store_matches {
+            // cc:1550-1552: match against the range space or its container.
             let Some(store_space) = store_space else { continue ;
             };
-            // cc:1551-1552: match against the range space or its container.
-            let uses_sb = store_op.read().unwrap().uses_spacebase_ptr();
-            let matches = store_space == space
-                || (container == Some(store_space) && uses_sb);
+            let matches = store_space == space || (container == Some(store_space) && uses_sb);
             if !matches {
                 continue;
             }
@@ -5922,39 +5939,54 @@ impl Heritage {
             let mut warnvn: Option<Arc<RwLock<Varnode>>> = None;
             let vns_in_space: Vec<(Arc<RwLock<Varnode>>, Address, i32)> = {
                 let mut result = Vec::new();
-                for vn_ref in &fd.vbank.loc_tree {
-                    let vn = vn_ref.0.read().unwrap();
-                    if vn.address_space != space {
+                // cc:2699-2700: iter = fd->beginLoc(info->space);
+                // enditer = fd->endLoc(info->space). The oracle's window is
+                // a tree RANGE over the loc-set's space-major ordering — it
+                // never touches other spaces' Varnodes. The equivalent
+                // window here starts at a size-0 probe at the space's
+                // offset floor (which sorts before every same-offset
+                // member, the same beginLoc probe contract collect()
+                // relies on) and ends at the first foreign-space member
+                // (space-major walk). Scanning the whole tree per space —
+                // re-reading every foreign varnode under its lock — is a
+                // pure read-pattern divergence, not a different algorithm.
+                let probe = crate::varnode::VarnodeLocRef(Arc::new(RwLock::new(
+                    Varnode::new_with_space(0, space, 0),
+                )));
+                for entry in fd.vbank.loc_tree.range(probe..) {
+                    let vn_arc = entry.0.clone();
+                    let (in_space, skip, loc, size) = {
+                        let vn = vn_arc.read().unwrap();
+                        let skip = (!vn.is_written()
+                            && vn.has_no_descend()
+                            && !vn.is_unaffected()
+                            && !vn.is_input())
+                            || vn.is_write_mask();
+                        (vn.address_space == space, skip, vn.loc, vn.get_size() as i32)
+                    };
+                    // Space-major walk: the first foreign-space member is
+                    // the window's end (cc:2700 endLoc).
+                    if !in_space {
+                        break;
+                    }
+                    // cc:2704/2706: skip dead unused frees and write masks.
+                    if skip {
                         continue;
                     }
-                    // cc:2704: skip dead unused frees
-                    if !vn.is_written()
-                        && vn.has_no_descend()
-                        && !vn.is_unaffected()
-                        && !vn.is_input()
-                    {
-                        continue;
-                    }
-                    // cc:2706: if (vn->isWriteMask()) continue;
-                    if vn.is_write_mask() {
-                        continue;
-                    }
-                    result.push((vn_ref.0.clone(), vn.loc, vn.get_size() as i32));
+                    result.push((vn_arc, loc, size));
                 }
                 result
             };
             for (vn_arc, vn_addr, vn_size) in vns_in_space {
                 // cc:2708: LocationMap::iterator liter =
                 //   globaldisjoint.add(vn->getAddr(),vn->getSize(),pass,prev);
-                let prev = self.globaldisjoint.add(space, vn_addr, vn_size, pass);
                 // (*liter).first / (*liter).second.size: the merged map
-                // entry covering vn_addr (LocationMap::add returns the
-                // iterator to the merged entry; Rugra's add returns only the
-                // intersect code, so re-locate the containing entry).
-                let (m_addr, m_size) = match self.globaldisjoint.entry_containing(space, vn_addr) {
-                    Some(e) => e,
-                    None => (vn_addr, vn_size),
-                };
+                // entry covering vn_addr — `add` returns the same iterator
+                // position the oracle's map does, so the driver reads the
+                // entry bounds straight from the return value (the former
+                // `entry_containing` re-lookup was a pure redundancy).
+                let (prev, m_addr, m_size) =
+                    self.globaldisjoint.add(space, vn_addr, vn_size, pass);
                 if prev == 0 {
                     // cc:2709-2710: all-new location (or intersecting with
                     // something new)
@@ -6499,11 +6531,14 @@ impl Heritage {
                     let ops = block_arc.read().unwrap().get_ops();
                     for op_ref in &ops {
                         let op_arc = op_ref.0.clone();
-                        let op_is_multi =
-                            op_arc.read().unwrap().opcode == OpCode::CPUI_MULTIEQUAL;
+                        // One read guard for the opcode and input count (the
+                        // oracle reads both fields off the same PcodeOp*).
+                        let (op_is_multi, num_input) = {
+                            let r = op_arc.read().unwrap();
+                            (r.opcode == OpCode::CPUI_MULTIEQUAL, r.num_input())
+                        };
                         if !op_is_multi {
                             // cc:2493-2521: replace reads with the stack top.
-                            let num_input = op_arc.read().unwrap().num_input();
                             for slot in 0..num_input {
                                 let vnin_arc = {
                                     let op_r = op_arc.read().unwrap();
@@ -6512,12 +6547,18 @@ impl Heritage {
                                         None => continue,
                                     }
                                 };
-                                // cc:2495: not free
-                                if vnin_arc.read().unwrap().is_heritage_known() {
+                                // cc:2495-2496: not free / not being
+                                // heritaged this round — the oracle reads
+                                // both flag predicates off the same Varnode
+                                // object; one read guard observes both.
+                                let (heritage_known, active_heritage) = {
+                                    let r = vnin_arc.read().unwrap();
+                                    (r.is_heritage_known(), r.is_active_heritage())
+                                };
+                                if heritage_known {
                                     continue;
                                 }
-                                // cc:2496: not being heritaged this round
-                                if !vnin_arc.read().unwrap().is_active_heritage() {
+                                if !active_heritage {
                                     continue;
                                 }
                                 // cc:2497: consume the active mark
@@ -7524,12 +7565,18 @@ mod tests {
         use crate::space::AddressSpace;
         let mut lm = LocationMap::new();
         // Register 0x30 heritaged in pass 1.
-        assert_eq!(lm.add(AddressSpace::Register, Address::new(0x30), 8, 1), 0);
+        assert_eq!(
+            lm.add(AddressSpace::Register, Address::new(0x30), 8, 1).0,
+            0
+        );
         // A Stack varnode at the SAME offset must be NEW (prev==0), not
         // contained in the register entry (prev==2).
-        assert_eq!(lm.add(AddressSpace::Stack, Address::new(0x30), 8, 2), 0);
+        assert_eq!(lm.add(AddressSpace::Stack, Address::new(0x30), 8, 2).0, 0);
         // Re-adding the register range at a later pass is contained (prev==2).
-        assert_eq!(lm.add(AddressSpace::Register, Address::new(0x30), 8, 3), 2);
+        assert_eq!(
+            lm.add(AddressSpace::Register, Address::new(0x30), 8, 3).0,
+            2
+        );
         // Each space queries its own entry only.
         assert_eq!(lm.find_pass(AddressSpace::Register, Address::new(0x30)), 1);
         assert_eq!(lm.find_pass(AddressSpace::Stack, Address::new(0x30)), 2);
