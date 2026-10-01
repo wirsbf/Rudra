@@ -1204,23 +1204,21 @@ impl Cover {
 
 // RUGRA-GLUE: stack-push form of the predecessor walk for the iterative
 // addRefRecurse expansion (Ghidra's `bl->getIn(j)` loop, cover.cc:535-536):
-// resolves the frame's block handle once, then pushes each in-edge's bank id
-// (Copy) onto `stack` in DESCENDING slot order under one read guard — the
-// identical BlockId sequence the oracle's `bl->getIn(j)` pointers denote,
-// without any handle clones or guard round-trips per edge.
+// pushes each in-edge's bank id (Copy) onto `stack` in DESCENDING slot
+// order under ONE edge-table lock — the identical BlockId sequence the
+// oracle's `bl->getIn(j)` pointers denote, without any handle clones,
+// guard round-trips, or vtable dispatch per edge (wave 3: the in-vector
+// mirror serves block.hh:304's non-virtual inline read form).
 fn push_predecessor_ids(
     view: &crate::block::BlockBankView,
     id: crate::arena::BlockId,
     stack: &mut Vec<crate::arena::BlockId>,
 ) {
-    let arc = view.expect_arc(id);
-    let rg = arc.read().unwrap();
-    let n = rg.size_in();
-    for slot in (0..n).rev() {
-        if let Some(edge) = rg.get_in_ref(slot) {
+    view.with_in_edges(id, |ins| {
+        for edge in ins.iter().rev() {
             stack.push(edge.point);
         }
-    }
+    });
 }
 
 impl fmt::Display for CoverBlock {

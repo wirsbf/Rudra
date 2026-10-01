@@ -276,6 +276,9 @@ fn set_out_edge_flag_all_types(
         if let Some(edge) = w.out_edges_mut().get_mut(j) {
             edge.flags |= label;
         }
+        // (wave 3) label write on the out half — refresh the mirror under
+        // the same guard.
+        w.sync_out_edge_shadow();
     }
     // block.cc:245-247: the target's in-edge half of the label.
     if let Some((target, rev)) = mirror {
@@ -284,6 +287,8 @@ fn set_out_edge_flag_all_types(
         if let Some(edge) = t.in_edges_mut().get_mut(ri) {
             edge.flags |= label;
         }
+        // (wave 3) the target's in-half label — refresh under the guard.
+        t.sync_in_edge_shadow();
     }
 }
 
@@ -320,6 +325,14 @@ pub(crate) fn rewrite_out_edges_to_idx(
             changed = true;
         }
     }
+    // (wave 3) edge points were retargeted — refresh the out mirror under
+    // the same guard, ONLY when something actually changed (this rewrite
+    // runs per boundary edge of every self-identify install — the no-op
+    // calls are the overwhelming majority; syncing them was 95% of the
+    // wave-3 write amplification on the VdbeExec corpus).
+    if changed {
+        w.sync_out_edge_shadow();
+    }
     changed
 }
 
@@ -346,6 +359,12 @@ pub(crate) fn rewrite_in_edges_to_idx(
             edge.point = new_point_id;
             changed = true;
         }
+    }
+    // (wave 3) edge points were retargeted — refresh the in mirror under
+    // the same guard, ONLY when something actually changed (see the out
+    // half's note).
+    if changed {
+        w.sync_in_edge_shadow();
     }
     changed
 }
@@ -594,11 +613,20 @@ pub(crate) fn resync_boundary_reverse_indices(bl: &Arc<RwLock<dyn FlowBlock + Se
         };
         let Some(j) = j else { continue };
         if !Arc::ptr_eq(&peer, bl) {
-            peer.write().unwrap().out_edges_mut()[j].reverse_index = i as i32;
+            let mut p = peer.write().unwrap();
+            p.out_edges_mut()[j].reverse_index = i as i32;
+            // (wave 3) reciprocal re-pairing — refresh the peer's out mirror.
+            p.sync_out_edge_shadow();
         } else {
-            bl.write().unwrap().out_edges_mut()[j].reverse_index = i as i32;
+            let mut s = bl.write().unwrap();
+            s.out_edges_mut()[j].reverse_index = i as i32;
+            s.sync_out_edge_shadow();
         }
-        bl.write().unwrap().in_edges_mut()[i].reverse_index = j as i32;
+        {
+            let mut s = bl.write().unwrap();
+            s.in_edges_mut()[i].reverse_index = j as i32;
+            s.sync_in_edge_shadow();
+        }
     }
     // Out-edges: for slot k with target T, pair with T's occ-th in-slot that
     // points back at bl, where occ = number of T-targeted out-edges before k.
@@ -642,11 +670,20 @@ pub(crate) fn resync_boundary_reverse_indices(bl: &Arc<RwLock<dyn FlowBlock + Se
         };
         let Some(m) = m else { continue };
         if !Arc::ptr_eq(&peer, bl) {
-            peer.write().unwrap().in_edges_mut()[m].reverse_index = k as i32;
+            let mut p = peer.write().unwrap();
+            p.in_edges_mut()[m].reverse_index = k as i32;
+            // (wave 3) reciprocal re-pairing — refresh the peer's in mirror.
+            p.sync_in_edge_shadow();
         } else {
-            bl.write().unwrap().in_edges_mut()[m].reverse_index = k as i32;
+            let mut s = bl.write().unwrap();
+            s.in_edges_mut()[m].reverse_index = k as i32;
+            s.sync_in_edge_shadow();
         }
-        bl.write().unwrap().out_edges_mut()[k].reverse_index = m as i32;
+        {
+            let mut s = bl.write().unwrap();
+            s.out_edges_mut()[k].reverse_index = m as i32;
+            s.sync_out_edge_shadow();
+        }
     }
 }
 
@@ -4281,6 +4318,8 @@ impl<'a> CollapseStructure<'a> {
             // 0 -> |new_in|/|new_out|; the composite was adopted at the
             // identify entry, so its cells exist and must follow).
             nb.sync_bank_shadows();
+            // (wave 3) the edge mirrors refresh with the same choke.
+            nb.sync_edge_shadows();
         }
 
         // NOW install new_block at install_idx (replaces the cond block).
@@ -4399,8 +4438,10 @@ impl<'a> CollapseStructure<'a> {
                 w.out_edges_mut()
                     .retain(|edge| is_component(bank.expect_index(edge.point)));
                 // (g) guard-shadow: the retains change edge LENGTHS; push
-                // the post-strip sizes into the owning bank's cells.
+                // the post-strip sizes into the owning bank's cells. (wave 3)
+                // the edge mirrors refresh with the same choke.
                 w.sync_bank_shadows();
+                w.sync_edge_shadows();
             };
             if let Some(oi) = &old_install {
                 strip_external(oi);
@@ -4764,16 +4805,16 @@ impl<'a> CollapseStructure<'a> {
         let mut nodes: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = Vec::new();
         nodes.push(block.clone());
         // outblock = bl->getOut(0) — capture after the entry guards.
-        // (g) guard-shadow: carry the edge point alongside the handle —
-        // the entry guards below are pure sizeIn/flags reads, served from
-        // the bank cell without the peer lock.
-        let first_next_pair = {
+        // (W3) the chain walk carries only edge POINTS (ids); every guard
+        // on the walk is a bank shadow read (sizeIn/sizeOut/flags/out-edge
+        // label), and the handles materialize at fire below — the miss
+        // path (chain break) resolves nothing.
+        let first_next_point = {
             let b = block.read().unwrap();
-            b.get_out_ref(0)
-                .map(|e| (bank_view.expect_arc(e.point), e.point))
+            b.get_out_ref(0).map(|e| e.point)
         };
-        let (first_next, first_next_point) = match first_next_pair {
-            Some(pair) => pair,
+        let first_next_point = match first_next_point {
+            Some(p) => p,
             None => return false,
         };
         // cc:1294/1296: nothing else may hit the first link; a switch
@@ -4784,7 +4825,8 @@ impl<'a> CollapseStructure<'a> {
         if bank_view.expect_flags(first_next_point) & crate::block::block_flags::SWITCH_OUT != 0 {
             return false;
         }
-        nodes.push(first_next.clone());
+        let mut chain_points: Vec<crate::arena::BlockId> = Vec::new();
+        chain_points.push(first_next_point);
 
         // cc:1302: while(outblock->sizeOut()==1) { ... }
         // (g) guard-shadow: nextIdx/sizeIn/flags are pure guard reads —
@@ -4792,20 +4834,15 @@ impl<'a> CollapseStructure<'a> {
         // loop-invariant under the read-phase discipline: no publish
         // happens inside this loop, cc:1302-1310 only reads).
         let head_idx = nodes[0].read().unwrap().get_index();
-        let mut cur = first_next;
+        let mut cur_point = first_next_point;
         loop {
-            let cur_out = {
-                let c = cur.read().unwrap();
-                if c.size_out() != 1 {
-                    break;
-                }
-                c.get_out(0)
-            };
-            let next = match cur_out {
-                Some(e) => (bank_view.expect_arc(e.point), e.point),
+            if bank_view.expect_size_out(cur_point) != 1 {
+                break;
+            }
+            let next_point = match bank_view.expect_out_edge(cur_point, 0) {
+                Some(e) => e.point,
                 None => break,
             };
-            let (next, next_point) = next;
             let next_idx = bank_view.expect_index(next_point);
             // cc:1304: outbl2 == bl → no looping (compare against the chain head).
             if next_idx == head_idx {
@@ -4818,11 +4855,18 @@ impl<'a> CollapseStructure<'a> {
                 break;
             }
             // cc:1306: `if (!outblock->isDecisionOut(0)) break;` — the
-            // CURRENT tail's out-edge must be a plain forward edge.
-            let cur_decision = {
-                let c = cur.read().unwrap();
-                Self::out_edge_is_decision(&*c, 0)
-            };
+            // CURRENT tail's out-edge must be a plain forward edge. (W3)
+            // decision label via the edge shadow (block.hh:336 inline).
+            let cur_decision = bank_view
+                .expect_out_edge(cur_point, 0)
+                .map(|e| {
+                    e.flags
+                        & (crate::block::edge_flags::F_IRREDUCIBLE_EDGE
+                            | crate::block::edge_flags::F_BACK_EDGE
+                            | crate::block::edge_flags::F_GOTO_EDGE)
+                        == 0
+                })
+                .unwrap_or(false);
             if !cur_decision {
                 break;
             }
@@ -4831,18 +4875,26 @@ impl<'a> CollapseStructure<'a> {
                 break;
             }
             // cc:1308-1309: extend the chain.
-            nodes.push(next.clone());
-            cur = next;
+            chain_points.push(next_point);
+            cur_point = next_point;
             // Safety: limit chain length
-            if nodes.len() > 64 {
+            if chain_points.len() > 64 {
                 break;
             }
         }
 
         // Need at least 2 nodes to form a cat
-        if nodes.len() < 2 {
+        if chain_points.len() < 1 {
             return false;
         }
+
+        // (W3) fire path: materialize the chain handles once (the head is
+        // already in `nodes`); `first_next` keeps the first link's handle
+        // for the historical uses below.
+        for p in &chain_points {
+            nodes.push(bank_view.expect_arc(*p));
+        }
+        let first_next = nodes[1].clone();
 
         // Ghidra newBlockList (block.cc:1762-1764): capture the LAST chain
         // node's out-edge count — and its out(0) when binary — BEFORE
@@ -5009,19 +5061,18 @@ impl<'a> CollapseStructure<'a> {
     fn count_non_structural_in_edges(
         &self,
         bank: &crate::block::BlockBankView,
-        block: &std::sync::RwLockReadGuard<'_, dyn FlowBlock + Send + Sync>,
+        clause_id: crate::arena::BlockId,
     ) -> usize {
-        let total = block.size_in();
+        let total = bank.expect_size_in(clause_id);
         let mut structural = 0;
         // Hot path: per-edge peer reads go through the caller's dispatch
         // snapshot view (block.hh:160/184 field reads) — no peer RwLock, no
         // vtable, no per-scan view mintage. Edges with unresolved twins
         // (SENTINEL: bare test fixtures) fall back to the original guard
-        // read, byte-identical.
-        for slot in 0..total {
-            // Reference read of the in-edge (oracle reads intothis[i].point
-            // directly, block.hh:304) — no BlockEdge clone per edge.
-            if let Some(in_edge) = block.get_in_ref(slot) {
+        // read, byte-identical. (W3) the in-edge list itself comes from
+        // the edge shadow under one lock (block.hh:304 inline read form).
+        bank.with_in_edges(clause_id, |ins| {
+            for in_edge in ins {
                 let mut resolved_by_shadow = false;
                 if let Some(pred_btype) = bank.btype(in_edge.point) {
                     // Edge from BlockSwitch control → structural
@@ -5064,7 +5115,7 @@ impl<'a> CollapseStructure<'a> {
                     }
                 }
             }
-        }
+        });
         total - structural
     }
 
@@ -5104,7 +5155,7 @@ impl<'a> CollapseStructure<'a> {
         // Unresolved twins (bare fixtures) fall back to the guard read,
         // byte-identical. Scoped so the view drops before &self method
         // calls below.
-        let (self_loop, true_idx, false_idx, true_block, false_block) = {
+        let (self_loop, true_idx, false_idx, true_point, false_point) = {
             let read_idx = |b: &dyn FlowBlock, slot: usize| -> Option<i32> {
                 b.get_out_ref(slot).and_then(|e| match bank.index(e.point) {
                     Some(i) => Some(i),
@@ -5117,21 +5168,21 @@ impl<'a> CollapseStructure<'a> {
             let out1_idx = read_idx(&*b, 1);
             let self_loop = out0_idx == Some(cond_idx) || out1_idx == Some(cond_idx);
             // Reference reads of out[0]/out[1] (oracle getOut, block.hh:301)
-            // — handles held for the clause/merge walks below, with their
-            // twins captured for the shadow index reads.
-            let (true_block, false_block) = match (b.get_out_ref(0), b.get_out_ref(1)) {
-                (Some(te), Some(fe)) => (bank.expect_arc(te.point), bank.expect_arc(fe.point)),
+            // — the miss path carries only the edge POINTS (ids); handles
+            // materialize at fire (W3: millions of miss reads per fire).
+            let (true_point, false_point) = match (b.get_out_ref(0), b.get_out_ref(1)) {
+                (Some(te), Some(fe)) => (te.point, fe.point),
                 _ => return false,
             };
             let true_idx = match bank.index(b.get_out_ref(0).unwrap().point) {
                 Some(i) => i,
-                None => true_block.read().unwrap().get_index(),
+                None => bank.expect_index(true_point),
             };
             let false_idx = match bank.index(b.get_out_ref(1).unwrap().point) {
                 Some(i) => i,
-                None => false_block.read().unwrap().get_index(),
+                None => bank.expect_index(false_point),
             };
-            (self_loop, true_idx, false_idx, true_block, false_block)
+            (self_loop, true_idx, false_idx, true_point, false_point)
         };
         if self_loop {
             return false;
@@ -5155,58 +5206,53 @@ impl<'a> CollapseStructure<'a> {
         // isSwitchOut, added in the dir loop below per cc:1394).
 
         // Try both directions (i=0: true clause, i=1: false clause).
-        // Borrows of the captured targets — the old form cloned `clause`
-        // and `merge` Arcs per direction only to drop them again.
+        // (W3) the direction loop walks ids + bank shadows; the captured
+        // points select the clause/merge roles.
         for dir in 0..2 {
-            let clause = if dir == 0 { &true_block } else { &false_block };
-            let merge = if dir == 0 { &false_block } else { &true_block };
+            let clause_point = if dir == 0 { true_point } else { false_point };
             let merge_idx = if dir == 0 { false_idx } else { true_idx };
 
-            let c = clause.read().unwrap();
-            let c_idx = c.get_index();
             // Count non-structural in-edges: ignore edges from switch dispatch blocks.
             // Switch dispatch edges come from BlockSwitch control blocks or CBRANCH
             // cascade members. We check if any in-edge source is a BlockSwitch or
             // a block we know is a switch dispatch (marked CASE_BODY or is a cascade
             // member whose taken edge targets this clause).
-            let non_structural_in = self.count_non_structural_in_edges(bank, &c);
+            let non_structural_in = self.count_non_structural_in_edges(bank, clause_point);
             if non_structural_in != 1 {
                 continue;
             }
-            if c.size_out() != 1 {
+            if bank.expect_size_out(clause_point) != 1 {
                 continue;
             }
             // cc:1394: `if (clauseblock->isSwitchOut()) continue;` — don't
             // use a switch (possibly with goto edges) as the if clause.
-            if c.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-                drop(c);
+            if bank.expect_flags(clause_point) & crate::block::block_flags::SWITCH_OUT != 0 {
                 continue;
             }
             // cc:1395: `if (!bl->isDecisionOut(i)) continue;` — don't use a
             // loopbottom/exit/goto edge as the clause edge (captured before
             // the `b` guard was dropped).
             if !decision_out[dir] {
-                drop(c);
                 continue;
             }
             // cc:1396: `if (clauseblock->isGotoOut(0)) continue;` — no
-            // unstructured jumps out of the clause.
-            if Self::out_edge_is_goto(&*c, 0) {
-                drop(c);
+            // unstructured jumps out of the clause. (W3) goto label via the
+            // edge shadow (block.hh:347 inline label read).
+            if bank
+                .expect_out_edge(clause_point, 0)
+                .map(|e| e.flags & (crate::block::edge_flags::F_GOTO_EDGE | crate::block::edge_flags::F_IRREDUCIBLE_EDGE) != 0)
+                .unwrap_or(false)
+            {
                 continue;
             }
             // Note: we no longer skip switch case body blocks here — the DEAD flag
             // and orphan case label removal handle case label integrity at emit time.
             // Removing this guard allows CBRANCH blocks inside case bodies to be
             // structured into BlockIf, which is what we need for control-flow recovery.
-            let target_idx = match c.get_out_ref(0) {
+            let target_idx = match bank.expect_out_edge(clause_point, 0) {
                 Some(e) => bank.expect_index(e.point),
-                None => {
-                    drop(c);
-                    continue;
-                }
+                None => continue,
             };
-            drop(c);
             if target_idx != merge_idx {
                 continue;
             }
@@ -5219,7 +5265,9 @@ impl<'a> CollapseStructure<'a> {
             if dir == 0 && block.write().unwrap().negate_condition(true) {
                 self.dataflow_change_count += 1;
             }
-            self.new_block_if(&block, clause, i);
+            // (W3) fire path: the clause handle materializes once.
+            let clause = bank.expect_arc(clause_point);
+            self.new_block_if(&block, &clause, i);
             return true;
         }
         false
@@ -5286,8 +5334,8 @@ impl<'a> CollapseStructure<'a> {
         // exit clauses of CBRANCH chains, leaving the graph stuck at the
         // "selectGoto exhausted" dead-loop (TRI2-STRUCT-SELECTGOTO-SELFLOOP-0001).
 
-        let (true_block, false_block) = match (b.get_out_ref(0), b.get_out_ref(1)) {
-            (Some(te), Some(fe)) => (bank.expect_arc(te.point), bank.expect_arc(fe.point)),
+        let (true_point, false_point) = match (b.get_out_ref(0), b.get_out_ref(1)) {
+            (Some(te), Some(fe)) => (te.point, fe.point),
             _ => return false,
         };
         // cc:1501: `if (!bl->isDecisionOut(i)) continue;` — pre-captured
@@ -5299,34 +5347,35 @@ impl<'a> CollapseStructure<'a> {
         drop(b);
 
         for dir in 0..2 {
-            let clause = if dir == 0 { &true_block } else { &false_block };
-            let c = clause.read().unwrap();
-            let c_idx = c.get_index();
-            if c.size_in() != 1 {
+            // (W3) clause miss path via shadows (cc:1495-1497 reads only);
+            // the handle materializes at fire. (The old `c_idx` capture was
+            // a dead read — the fire path installs at `i`, wave-2's
+            // try_rule_if_goto dead-read deletion precedent.)
+            let clause_point = if dir == 0 { true_point } else { false_point };
+            if bank.expect_size_in(clause_point) != 1 {
                 continue;
             }
-            if c.size_out() != 0 {
+            if bank.expect_size_out(clause_point) != 0 {
                 continue;
             } // Must have no out-edge (RETURN/exit)
               // cc:1500: `if (clauseblock->isSwitchOut()) continue;`
-            if c.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-                drop(c);
+            if bank.expect_flags(clause_point) & crate::block::block_flags::SWITCH_OUT != 0 {
                 continue;
             }
             // cc:1501: `if (!bl->isDecisionOut(i)) continue;`
             if !decision_out[dir] {
-                drop(c);
                 continue;
             }
-            drop(c);
 
             // blockaction.cc:1504-1507 records polarity in the condition and
             // its edge state before constructing BlockIf.
             if dir == 0 && block.write().unwrap().negate_condition(true) {
                 self.dataflow_change_count += 1;
             }
+            // (W3) fire path: the clause handle materializes once.
+            let clause = bank.expect_arc(clause_point);
             // Create BlockIf via factory (block.cc:1822 newBlockIf).
-            self.new_block_if(&block, clause, i);
+            self.new_block_if(&block, &clause, i);
             return true;
         }
         false
@@ -5369,13 +5418,14 @@ impl<'a> CollapseStructure<'a> {
         // port read out[0] into the tc slot and out[1] into the fc slot,
         // printing the FALSE-path clause under `if` — inverted C vs the
         // oracle, which never negates here (cc:1442 newBlockIfElse(bl,tc,fc)
-        // with no negateCondition).
-        let tc = match b.get_out(1) {
-            Some(e) => bank.expect_arc(e.point),
+        // with no negateCondition). (W3) the clause miss path reads
+        // ids + shadows; handles materialize at fire.
+        let tc_point = match b.get_out(1) {
+            Some(e) => e.point,
             None => return false,
         };
-        let fc = match b.get_out(0) {
-            Some(e) => bank.expect_arc(e.point),
+        let fc_point = match b.get_out(0) {
+            Some(e) => e.point,
             None => return false,
         };
         drop(b);
@@ -5383,18 +5433,16 @@ impl<'a> CollapseStructure<'a> {
         // cc:1428-1429: nothing else must hit either clause.
         // cc:1431-1432: only one exit from each clause.
         {
-            let t = tc.read().unwrap();
-            let f = fc.read().unwrap();
-            if t.size_in() != 1 || f.size_in() != 1 {
+            if bank.expect_size_in(tc_point) != 1 || bank.expect_size_in(fc_point) != 1 {
                 return false;
             }
-            if t.size_out() != 1 || f.size_out() != 1 {
+            if bank.expect_size_out(tc_point) != 1 || bank.expect_size_out(fc_point) != 1 {
                 return false;
             }
             // cc:1433-1434: `outblock = tc->getOut(0); if (outblock == bl)
             // return false;` — no loops (the common merge must not be the
             // condition block itself).
-            let t_out0 = match t.get_out_ref(0) {
+            let t_out0 = match bank.expect_out_edge(tc_point, 0) {
                 Some(e) => bank.expect_index(e.point),
                 None => return false,
             };
@@ -5403,7 +5451,7 @@ impl<'a> CollapseStructure<'a> {
             }
             // cc:1435: `if (outblock != fc->getOut(0)) return false;` —
             // clauses must exit to the same place.
-            let f_out0 = match f.get_out_ref(0) {
+            let f_out0 = match bank.expect_out_edge(fc_point, 0) {
                 Some(e) => bank.expect_index(e.point),
                 None => return false,
             };
@@ -5413,24 +5461,36 @@ impl<'a> CollapseStructure<'a> {
             // cc:1437-1438: `if (tc->isSwitchOut()) return false; if
             // (fc->isSwitchOut()) return false;` — don't use a switch
             // (possibly with goto edges) as a clause.
-            if t.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
+            if bank.expect_flags(tc_point) & crate::block::block_flags::SWITCH_OUT != 0 {
                 return false;
             }
-            if f.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
+            if bank.expect_flags(fc_point) & crate::block::block_flags::SWITCH_OUT != 0 {
                 return false;
             }
             // cc:1439-1440: `if (tc->isGotoOut(0)) return false; if
             // (fc->isGotoOut(0)) return false;` — no unstructured jumps
             // out of either clause (label-based, works on structured
-            // components too).
-            if Self::out_edge_is_goto(&*t, 0) {
+            // components too). (W3) goto label via the edge shadow
+            // (block.hh:347 inline label read).
+            if bank
+                .expect_out_edge(tc_point, 0)
+                .map(|e| e.flags & (crate::block::edge_flags::F_GOTO_EDGE | crate::block::edge_flags::F_IRREDUCIBLE_EDGE) != 0)
+                .unwrap_or(false)
+            {
                 return false;
             }
-            if Self::out_edge_is_goto(&*f, 0) {
+            if bank
+                .expect_out_edge(fc_point, 0)
+                .map(|e| e.flags & (crate::block::edge_flags::F_GOTO_EDGE | crate::block::edge_flags::F_IRREDUCIBLE_EDGE) != 0)
+                .unwrap_or(false)
+            {
                 return false;
             }
         }
 
+        // (W3) fire path: clause handles materialize once.
+        let tc = bank.expect_arc(tc_point);
+        let fc = bank.expect_arc(fc_point);
         // Create BlockIf (if-then-else) via factory (block.cc:1840
         // newBlockIfElse: nodes = {cond, tc, fc}, forceOutputNum(1), no
         // condition negation).
@@ -5917,11 +5977,14 @@ impl<'a> CollapseStructure<'a> {
 
         let cond_idx = b.get_index();
         for slot in 0..2 {
-            let clause = match b.get_out(slot) {
-                Some(e) => bank.expect_arc(e.point),
+            // (W3) edge-shadow read: the clause miss path is pure
+            // sizeIn/sizeOut/flags/out-edge reads (cc:1533-1536) — all
+            // bank-served; the clause handle resolves only on the fire
+            // path below (millions of miss steps vs one fire).
+            let clause_point = match b.get_out(slot) {
+                Some(e) => e.point,
                 None => continue,
             };
-            let c = clause.read().unwrap();
             // cc:1533: `if (clauseblock->sizeIn() != 1) continue;` — plain
             // sizeIn, exactly as the oracle. The former
             // count_non_structural_in_edges (invented arm: edges from
@@ -5930,34 +5993,27 @@ impl<'a> CollapseStructure<'a> {
             // faithful (min-index install + boundary-edge strip), stale
             // component edges no longer leak into live blocks and the plain
             // count is both correct and aligned.
-            let clause_in = c.size_in();
+            let clause_in = bank.expect_size_in(clause_point);
             if clause_in != 1 {
                 continue;
             }
-            if c.size_out() != 1 {
+            if bank.expect_size_out(clause_point) != 1 {
                 continue;
             }
             // cc:1534: `if (clauseblock->isSwitchOut()) continue;`
-            if c.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-                drop(c);
+            if bank.expect_flags(clause_point) & crate::block::block_flags::SWITCH_OUT != 0 {
                 continue;
             }
             // Clause must loop back to the condition block
-            let back_idx = match c.get_out_ref(0) {
+            let back_idx = match bank.expect_out_edge(clause_point, 0) {
                 Some(e) => bank.expect_index(e.point),
-                None => {
-                    drop(c);
-                    continue;
-                }
+                None => continue,
             };
             if back_idx != cond_idx {
-                drop(c);
                 continue;
             }
-            drop(c);
-
             // Found while-do: cond block + clause (body) that loops back
-            let clause_idx = clause.read().unwrap().get_index();
+            let clause_idx = bank.expect_index(clause_point);
             // cc:1538-1542: `bool overflow = bl->isComplex(); if ((i==0)!=overflow)
             // { if (bl->negateCondition(true)) dataflow_changecount += 1; }` —
             // the clause must be the TRUE out of bl unless overflow syntax is
@@ -5976,6 +6032,9 @@ impl<'a> CollapseStructure<'a> {
                     self.dataflow_change_count += 1;
                 }
             }
+            // (W3) fire path: the clause handle materializes here (once
+            // per fired rule), not on the miss path.
+            let clause = bank.expect_arc(clause_point);
             let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                 Arc::new(RwLock::new(crate::block::BlockWhileDo {
                     owner_bank: std::sync::Weak::new(),
@@ -6137,16 +6196,25 @@ impl<'a> CollapseStructure<'a> {
         if b.is_switch_out() {
             return false;
         }
+        // (W3) the block's own bank id, hoisted before the guard — the
+        // self/peer comparisons below are pure id equality (oracle pointer
+        // equality, one identity lookup per rule invocation).
+        let block_point = self.graph_bank().registered_id_of(&block);
 
         for ii in 0..2 {
-            let orblock = match b.get_out(ii) {
-                Some(e) => bank.expect_arc(e.point),
+            // (W3) orblock handle resolves once (the is_complex guard below
+            // is a virtual deep read); the clause/other-out comparisons are
+            // pure id equality — no handles, no guards (oracle pointer
+            // equality on getOut results, cc:1345-1353).
+            let or_point = match b.get_out(ii) {
+                Some(e) => e.point,
                 None => continue,
             };
             // cc:1336: cannot be same block
-            if Arc::ptr_eq(&orblock, &block) {
+            if or_point == block_point {
                 continue;
             }
+            let orblock = bank.expect_arc(or_point);
             let or = orblock.read().unwrap();
             // cc:1337-1342
             if or.size_in() != 1 {
@@ -6169,22 +6237,26 @@ impl<'a> CollapseStructure<'a> {
             }
             drop(or);
             // cc:1345: clauseblock is the other out of bl
-            let clauseblock = match b.get_out(1 - ii) {
-                Some(e) => bank.expect_arc(e.point),
+            let clause_point = match b.get_out(1 - ii) {
+                Some(e) => e.point,
                 None => continue,
             };
-            if Arc::ptr_eq(&clauseblock, &block) {
+            if clause_point == block_point {
                 continue;
             }
-            if Arc::ptr_eq(&clauseblock, &orblock) {
+            if clause_point == or_point {
                 continue;
             }
             // cc:1348-1352: clauseblock must match one of orblock's outs
             let mut j_found: Option<usize> = None;
             for j in 0..2 {
-                let or_out = orblock.read().unwrap().get_out(j).map(|e| bank.expect_arc(e.point));
-                if let Some(oo) = or_out {
-                    if Arc::ptr_eq(&oo, &clauseblock) {
+                let or_out_point = orblock
+                    .read()
+                    .unwrap()
+                    .get_out(j)
+                    .map(|e| e.point);
+                if let Some(oo) = or_out_point {
+                    if oo == clause_point {
                         j_found = Some(j);
                         break;
                     }
@@ -6195,13 +6267,13 @@ impl<'a> CollapseStructure<'a> {
                 None => continue,
             };
             // cc:1353: orblock's other out must not loop back to bl
-            let or_other = orblock
+            let or_other_point = orblock
                 .read()
                 .unwrap()
                 .get_out(1 - j)
-                .map(|e| bank.expect_arc(e.point));
-            if let Some(oo) = or_other {
-                if Arc::ptr_eq(&oo, &block) {
+                .map(|e| e.point);
+            if let Some(oo) = or_other_point {
+                if oo == block_point {
                     continue;
                 }
             }

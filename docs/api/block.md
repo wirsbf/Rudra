@@ -2316,3 +2316,40 @@ identify 入口 adopt 后新条目罕见）。语义与逐成员 adopt 等价—
 临时 BANKTRACE 回溯采样器按 (f) 步骤 0 承诺移除（BANKSTATS 计数器保留,
 默认关）;expect_arc/expect_index 经 arc_of/index_of 委托时的计数双记已修
 （替代语料 read_arc 真实面 ~10M 次/跑,非 20M）。
+
+## BLOCKFLIPW3（2026-10-01）EdgeShadow 边表影子（typed BlockData 承接面）
+
+PERF-BLOCKSTORAGE-FLIP-0001 wave 3。**形态根因**：oracle 的全部边访问器是
+**非虚 inline 读**（block.hh:301-347——`getOut/getIn/isGotoOut/isDecisionOut/…
+= outofthis[i].point/.label` 直接成员加载）；Rugra 消费层深读位却付
+`expect_arc(id)`（Arc 克隆）→ peer RwLock → vtable 派发三段往返。wave 2
+BANKSTATS 归因证明 VdbeExec 语料 18.6M view_arc 面的 98.5% 集中在这类深读
+（blockaction try_rule_* 8 热位点 + cover 前驱扫）。**承接形态**（任务书
+"影子化[边标签/边表——opcode 影子先例]"路）：`BlockBankShared.edges:
+RwLock<Vec<EdgeShadowCell>>`——每槽 `out`/`in_` 两个 `Vec<BlockEdge>` 镜像
+（block.hh:127-128 intothis/outofthis 的 1:1 值镜像，12B POD 逐字段恒等）。
+
+**读 API**（fresh + view 两形，值==深读真值，debug 探针对账）：
+`BlockBank::expect_out_edge/expect_in_edge/with_out_edges/with_in_edges` +
+`BlockBankView::out_edge/in_edge/expect_out_edge/expect_in_edge/
+with_out_edges/with_in_edges`。锁序纪律：state → edges 单向（insert 在
+epoch 发布前 append 边槽；clear 随槽截断）。
+
+**维护 choke**（全量枚举，单点 sync）：`sync_edge_shadows/
+sync_out_edge_shadow/sync_in_edge_shadow`（trait 新法，SENTINEL 无操作）
+挂接——add_in/out_edge 默认法、half_delete 双法（自侧滑删+peer
+reciprocal decrement 就地）、set/clear_out_edge_flag/clear_edge_flags/
+set/clear_in_edge_flag/set_loop_exit/clear_loop_exit、swap_edges 三 impl
+（含 BlockBasic downcast peer 补丁的就地 peer sync）、
+set/clear_out_edge_flag_mirrored 自环臂、clear_edges、
+BlockGraph::clear_edge_flags_all/clear_edge_flags_mask、build_copy/identify
+install/strip_external/flow splitBasic 三处/coreaction test 采纳/
+funcdata node-split 双 retarget/blockaction set_out_edge_flag_all_types 双半/
+rewrite_out/in_edges_to_idx/resync_boundary_reverse_indices 六写。
+因 refresh 拷贝整向量（全字段），同块更早的无 choke 字段写被下一个 choke
+修复——只有无后续 choke 的孤立字段写需要自己的 sync 位。`claim` 在注册
+stamp 全量真值（adopt 路带既有边）。
+
+`BlockEdge` 增 `PartialEq/Eq` derive（仅 debug 探针与测试用，值语义逐字段）。
+测试：`edge_shadow_tracks_every_mutation_choke`（choke 全走查 + clear 后
+read-phase panic 纪律 + fresh/view 双形值恒等）。

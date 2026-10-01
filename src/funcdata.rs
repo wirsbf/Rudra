@@ -3178,6 +3178,9 @@ impl Funcdata {
                 ins[i as usize].point = bbnew_id;
                 ins[i as usize].reverse_index = blnew_size_out;
             }
+            // (wave 3) retargeted in-edge — refresh the in mirror under the
+            // guard.
+            out_rg.sync_in_edge_shadow();
         }
         // cc:167: b->outofthis.push_back(BlockEdge(this, intothis[num].label, num)).
         {
@@ -3794,6 +3797,9 @@ impl Funcdata {
                         out_edges[slot].reverse_index = new_in_size;
                     }
                 }
+                // (wave 3) retargeted out-edge — refresh the out mirror
+                // under the guard.
+                in_rg.sync_out_edge_shadow();
             }
             {
                 let mut new_rg = outafter.write().unwrap();

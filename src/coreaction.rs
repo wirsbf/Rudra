@@ -22236,6 +22236,8 @@ mod tests {
                 // (g) guard-shadow: test adopted the block first — sync the
                 // wholesale out-edge assignment.
                 g.sync_bank_shadows();
+                // (wave 3) the edge mirrors refresh with the same choke.
+                g.sync_edge_shadows();
             }
             let bif = BlockIf {
             owner_bank: std::sync::Weak::new(),
