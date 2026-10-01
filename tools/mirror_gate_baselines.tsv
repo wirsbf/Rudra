@@ -356,8 +356,8 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
-sq	117	810	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
-sqlite	396	1385	CLONESURG-RATCHET-REPIN-0001	clonesurg	2026-10-02
+sq	95	810	SLOTMERGE-RATCHET-REPIN-0001	slotmerge	2026-10-02
+sqlite	383	1385	SLOTMERGE-RATCHET-REPIN-0001	slotmerge	2026-10-02
 # FLOAT8-RATCHET-REPIN-0001 (2026-10-02, wt/float8 @ fix commit, base
 # c69d9c60 [MB58], forced relink after test additions [fast-release --examples
 # 57s], gate --jobs 5 two rounds — gate1 fix-only tree digest=557b315e +
@@ -396,6 +396,23 @@ sqlite	396	1385	CLONESURG-RATCHET-REPIN-0001	clonesurg	2026-10-02
 #    ratchet-passing] + joint 406−10=396 measured exact). matched 1385/1385,
 #    defects=numbering=0. sq 117 / curl 13 / httpd 2 / vsh 0 held (no
 #    clonesurg sites on those faces — rows stay). Canon faces: curl 0/0/0 +
+#    httpd 0/0/0 held byte-identical (md5 b7773087 / 54f9b02c exact —
+#    zero-state preserved, no re-pin needed).
+# SLOTMERGE-RATCHET-REPIN-0001 (2026-10-02, wt/slotmerge 64efa844 merged on the
+# MB63 joint tree, base c1273bd9 [MB61] over master rows sq 117 float8 /
+# sqlite 396 clonesurg, forced relink [fast-release --lib --examples 59s],
+# gate --jobs 5 --no-cache cold round, stale-guard content probe
+# digest=1b343350c6ebc805 files=155):
+# sq 117→95 (−22 = find_subpiece_shadow constant-terminal short-circuit burn:
+#    read_inode_1 2→0 + read_inode_2 10→0 + read_inode_3 54→44 — exactly 3
+#    functions move, 807 identical, zero regressions; master sq row untouched
+#    since the lane base so lane-own 95 lands directly on the joint tree).
+# sqlite 396→383 (−13 = sqlite3InitCallback 6→2 + sqlite3InitOne 6→2 +
+#    sqlite3Fts3Offsets 5→0; slotmerge three-function family ∩ clonesurg
+#    five-clone family = ∅ and ∩ float8 family = ∅ so deltas compose:
+#    lane own-base 406→393 − clonesurg 10 = joint 383 measured exact).
+#    matched 1385/1385, defects=numbering=0. curl 13 / httpd 2 / vsh 0 held
+#    (no slotmerge sites on those faces — rows stay). Canon faces: curl 0/0/0 +
 #    httpd 0/0/0 held byte-identical (md5 b7773087 / 54f9b02c exact —
 #    zero-state preserved, no re-pin needed).
 # MB36-RATCHET-REPIN-0001 (2026-09-28, joint tree @ 20819307 after 7-branch merge batch,

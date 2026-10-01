@@ -4999,37 +4999,116 @@ fn copy_chain_source_def(
 /// Establish that `vn` is produced from `whole` by SUBPIECE truncating
 /// `least_byte` low bytes (allowing COPY pass-through and 1 level of
 /// MULTIEQUAL recursion).
+/// The COPY walk (varnode.cc:1009-1011) must retain the terminal
+/// Varnode identity, not just its def op: when the chain ends at an
+/// unwritten *constant* — the standard propagatecopy shape
+/// `COPY slot = #0x0` — the constant short-circuit (varnode.cc:1013-1020)
+/// compares `whole`'s terminal constant, shifted by `least_byte` low
+/// bytes, against the *terminal* constant of `vn`'s chain. Dropping the
+/// terminal (as the old copy_chain_source_def-based walk did) made the
+/// unwritten-terminal path return false unconditionally, so merge.cc:525
+/// partialCopyShadow missed SUBPIECE shadows and eliminateIntersect
+/// snipped reads the oracle keeps (SLOTMERGE-ROUNDTRIP-0001 root cause).
 fn find_subpiece_shadow(vn: &Varnode, least_byte: i32, whole: &Varnode, recurse: i32) -> bool {
     use crate::opcodes::OpCode;
-    // Walk COPY chain from vn to its source.
-    let (def_arc, written) = match copy_chain_source_def(vn) {
-        Some(x) => x,
-        None => {
-            // vn not written at all.
-            if vn.is_constant() {
-                // Constant short-circuit (varnode.cc:1013-1020).
-                let whole_def = copy_chain_source_def(whole);
-                let whole_is_const = match &whole_def {
-                    Some((_, true)) => false,
-                    None => whole.is_constant(),
-                    Some((_, false)) => whole.is_constant(),
-                };
-                // Re-derive whole's terminal offset by walking its COPY chain.
-                if !whole_is_const {
-                    return false;
+    // Walk COPY chain from vn to its terminal Varnode (varnode.cc:1009-1011),
+    // keeping an owned Arc cursor so the terminal stays addressable.
+    let mut cursor: Option<std::sync::Arc<std::sync::RwLock<Varnode>>> = None;
+    loop {
+        let advance = {
+            let cur: &Varnode = match &cursor {
+                Some(a) => &a.read().unwrap(),
+                None => vn,
+            };
+            match cur.def.as_ref().and_then(|w| w.upgrade()) {
+                Some(d) => {
+                    let dr = d.read().unwrap();
+                    if dr.opcode == OpCode::CPUI_COPY {
+                        dr.inrefs.get(0).cloned()
+                    } else {
+                        None // terminal: written by a non-COPY op
+                    }
                 }
-                let whole_off = whole_terminal_offset(whole);
-                let off = whole_off >> (least_byte as u32 * 8);
-                let mask = crate::address::calc_mask(vn.size);
-                return (off & mask) == vn.get_offset();
+                None => None, // terminal: unwritten (input or constant)
             }
+        };
+        match advance {
+            Some(next) => cursor = Some(next),
+            None => break,
+        }
+    }
+    let (term_def, term_size, term_offset, term_is_const) = {
+        let cur: &Varnode = match &cursor {
+            Some(a) => &a.read().unwrap(),
+            None => vn,
+        };
+        (
+            cur.def.as_ref().and_then(|w| w.upgrade()),
+            cur.size,
+            cur.get_offset(),
+            cur.is_constant(),
+        )
+    };
+    if term_def.is_none() {
+        // varnode.cc:1012-1021: unwritten terminal.
+        if !term_is_const {
             return false;
         }
-    };
-    if !written {
-        // vn's COPY chain ends at an unwritten (input) non-constant Varnode.
-        return false;
+        // Walk whole's COPY chain to ITS terminal Varnode
+        // (varnode.cc:1014-1015).
+        let mut wcursor: Option<std::sync::Arc<std::sync::RwLock<Varnode>>> = None;
+        loop {
+            let advance = {
+                let cur: &Varnode = match &wcursor {
+                    Some(a) => &a.read().unwrap(),
+                    None => whole,
+                };
+                match cur.def.as_ref().and_then(|w| w.upgrade()) {
+                    Some(d) => {
+                        let dr = d.read().unwrap();
+                        if dr.opcode == OpCode::CPUI_COPY {
+                            dr.inrefs.get(0).cloned()
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                }
+            };
+            match advance {
+                Some(next) => wcursor = Some(next),
+                None => break,
+            }
+        }
+        let whole_is_const = {
+            let cur: &Varnode = match &wcursor {
+                Some(a) => &a.read().unwrap(),
+                None => whole,
+            };
+            cur.is_constant()
+        };
+        if !whole_is_const {
+            return false;
+        }
+        // varnode.cc:1017-1019: off = whole_offset >> leastByte*8,
+        // masked to the terminal's size, compared to the terminal's value.
+        let whole_off = {
+            let cur: &Varnode = match &wcursor {
+                Some(a) => &a.read().unwrap(),
+                None => whole,
+            };
+            cur.get_offset()
+        };
+        let shift = (least_byte as u32).saturating_mul(8);
+        let off = if shift >= 64 {
+            0
+        } else {
+            whole_off >> shift
+        };
+        let mask = crate::address::calc_mask(term_size);
+        return (off & mask) == term_offset;
     }
+    let def_arc = term_def.expect("terminal def presence checked above");
     let def = def_arc.read().unwrap();
     match def.opcode {
         OpCode::CPUI_SUBPIECE => {
@@ -5112,29 +5191,6 @@ fn find_subpiece_shadow(vn: &Varnode, least_byte: i32, whole: &Varnode, recurse:
         }
         _ => return false,
     }
-}
-
-// RUGRA-GLUE: 透传 whole 的 COPY 链取终端 offset（常量短路用）。
-// Ghidra 内联 while 循环 (varnode.cc:1014-1017)；Rugra 提取为函数。
-/// Get the terminal offset of a constant Varnode after walking its COPY
-/// chain. Used by findSubpieceShadow's constant short-circuit (varnode.cc:1017).
-fn whole_terminal_offset(whole: &Varnode) -> u64 {
-    use crate::opcodes::OpCode;
-    let mut off = whole.get_offset();
-    let mut cur = whole.def.as_ref().and_then(|w| w.upgrade());
-    while let Some(d_arc) = cur.take() {
-        let d = d_arc.read().unwrap();
-        if d.opcode != OpCode::CPUI_COPY {
-            break;
-        }
-        if let Some(next) = d.inrefs.get(0) {
-            off = next.read().unwrap().get_offset();
-            cur = next.read().unwrap().def.as_ref().and_then(|w| w.upgrade());
-        } else {
-            break;
-        }
-    }
-    off
 }
 
 // Ghidra: varnode.cc:1062 Varnode::findPieceShadow
@@ -5352,6 +5408,109 @@ impl crate::database::EquateSymbol {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Ghidra: varnode.cc:1006 Varnode::findSubpieceShadow (SLOTMERGE-ROUNDTRIP-0001 regression lock)
+    /// varnode.cc:1010-1021: the COPY-chain walk advances the *Varnode*
+    /// pointer, so a chain ending at an unwritten constant (the standard
+    /// propagatecopy shape `COPY slot = #0x0`) enters the constant
+    /// short-circuit: whole's terminal constant, shifted by leastByte low
+    /// bytes and masked to the terminal's size, must equal the terminal's
+    /// constant. Dropping the terminal (the pre-fix defect) returned false
+    /// unconditionally, so merge.cc:525 partialCopyShadow missed SUBPIECE
+    /// shadows and Merge::eliminateIntersect snipped reads the oracle keeps
+    /// (read_inode_1 slot -0xb0: extra `uTemp = sSlot` COPY + double
+    /// slot-input MULTIEQUAL trims in the mergerequired window).
+    #[test]
+    fn test_find_subpiece_shadow_constant_terminal() {
+        use crate::address::{Address, SeqNum};
+        use crate::op::PcodeOp;
+        use crate::opcodes::OpCode;
+        use std::sync::{Arc, RwLock};
+
+        // Builds `out = COPY(in)` with out.def wired back to the COPY.
+        // The op Arc is returned so the Weak in out.def stays resolvable.
+        fn copy_of(
+            vn: &Arc<RwLock<Varnode>>,
+            out_size: usize,
+        ) -> (Arc<RwLock<Varnode>>, Arc<RwLock<PcodeOp>>) {
+            let mut op = PcodeOp::new(SeqNum::new(Address::new(0x1000), 0), OpCode::CPUI_COPY);
+            op.inrefs.push(vn.clone());
+            let out = Arc::new(RwLock::new(Varnode::new(out_size, Address::new(0x3000))));
+            let op_arc = Arc::new(RwLock::new(op));
+            out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
+            op_arc.write().unwrap().output = Some(out.clone());
+            (out, op_arc)
+        }
+        // whole: 8-byte slot `= COPY(#0x0:8)` (read_inode_1 s-0xb0@feb3 shape).
+        let const8 = Arc::new(RwLock::new(Varnode::new_with_space(
+            8,
+            AddressSpace::Const,
+            0x0,
+        )));
+        let (whole, _whole_op) = copy_of(&const8, 8);
+        // small: 4-byte slot `= COPY(#0x0:4)` (s-0xb4@fed7 after propagatecopy
+        // + const-fold). leastByte=4 is the SUB84 truncation amount.
+        let const4 = Arc::new(RwLock::new(Varnode::new_with_space(
+            4,
+            AddressSpace::Const,
+            0x0,
+        )));
+        let (small, _small_op) = copy_of(&const4, 4);
+        assert!(
+            find_subpiece_shadow(&small.read().unwrap(), 4, &whole.read().unwrap(), 0),
+            "constant-terminal chain must shadow: 0>>32 & mask(4) == 0"
+        );
+
+        // via partial_copy_shadow (merge.cc:525 form): sizes 8/4 with off=-4
+        // swap to rel_off=+4, leastByte=4 — same short-circuit.
+        assert!(whole
+            .read()
+            .unwrap()
+            .partial_copy_shadow(&small.read().unwrap(), -4));
+
+        // Non-zero shifted bits: whole const 0x1122334455667788, leastByte=4
+        // → 0x11223344 ≠ const4(0x0) → no shadow.
+        let const8b = Arc::new(RwLock::new(Varnode::new_with_space(
+            8,
+            AddressSpace::Const,
+            0x1122334455667788,
+        )));
+        let (whole_b, _whole_b_op) = copy_of(&const8b, 8);
+        assert!(!find_subpiece_shadow(
+            &small.read().unwrap(),
+            4,
+            &whole_b.read().unwrap(),
+            0
+        ));
+
+        // whole's chain ends at a non-constant unwritten varnode (register
+        // input) → varnode.cc:1016 `!whole->isConstant()` → false.
+        let reg_in = Arc::new(RwLock::new(Varnode::new_with_space(
+            8,
+            AddressSpace::Register,
+            0x0,
+        )));
+        let (whole_r, _whole_r_op) = copy_of(&reg_in, 8);
+        assert!(!find_subpiece_shadow(
+            &small.read().unwrap(),
+            4,
+            &whole_r.read().unwrap(),
+            0
+        ));
+
+        // leastByte=0 within a same-size terminal also exercises the
+        // shift-0/mask path: const8 == const8 truncation of 0 bytes.
+        let (small8, _small8_op) = copy_of(&const8, 8);
+        // equal sizes are rejected by partialCopyShadow's normalizer, but
+        // findSubpieceShadow itself is size-agnostic on the constant branch:
+        // 0>>0 & mask(8) == 0 matches terminal offset 0.
+        assert!(find_subpiece_shadow(
+            &small8.read().unwrap(),
+            0,
+            &whole.read().unwrap(),
+            0
+        ));
+    }
 
     // Ghidra: userop.cc:361 InternalStringOp::getOutputLocal (PRINTC-STRDATA-TYPELOCK-0001 regression lock)
     /// userop.cc:361-364: `InternalStringOp::getOutputLocal` returns

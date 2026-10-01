@@ -1502,3 +1502,23 @@ coreaction `cast_output` 新 CALLOTHER token 臂（docs/api/coreaction.md 同日
   元素（Ghidra_12.0.4 源树 grep 干净）→ 链首即断，②-⑤ 全不可达；
   curl/httpd/vsh/sq/sqlite canon A/B 字节恒等（构造性：CALLOTHER 臂内
   新路径仅 volatile_read+special_prop 双门同时通过才激活）。
+
+### 2026-10-02：find_subpiece_shadow COPY 链终点保留（SLOTMERGE-ROUNDTRIP-0001 根因修复）
+- `find_subpiece_shadow`（varnode.cc:1006-1053）COPY 走链重写：旧实现经
+  `copy_chain_source_def` 只保留终点 **def op** + written 标志，链终点为
+  unwritten **常量**（propagatecopy 后的标准形 `COPY slot = #0x0`）时被
+  无条件判 false，丢了 varnode.cc:1013-1020 的常量短路分支。新实现以
+  `Option<Arc<RwLock<Varnode>>>` 游标走链（cc:1009-1011 逐跳保留终点
+  varnode 身份），unwritten 常量终点触发短路：whole 链终点常量
+  `>> leastByte*8` 后与 `calc_mask(终端 size)` 掩码，等于 vn 链终点常量
+  即 shadow 成立（cc:1017-1019）。
+- 删除死代码 `whole_terminal_offset`（唯一调用点=旧常量分支；新分支内联
+  走链并直接取终点 offset/const 判定）。
+- 下游效果：`partial_copy_shadow`→merge.cc:525 eliminateIntersect 的
+  部分重叠守卫恢复 oracle 判定——read_inode_1 槽 -0xb0 在
+  ActionMergeRequired 应用窗不再产生 Rugra-only 的
+  `uTemp = sSlot` snip COPY 与双 slot 输入 MULTIEQUAL 双 trim
+  （双侧 merge 窗 116/116 record 归一化同构，零差异）。
+- 回归锁 `test_find_subpiece_shadow_constant_terminal`：常量链正例
+  （0>>32 & mask(4)==0）、非零移位负例（0x1122334455667788 高 4 字节
+  截断不等）、whole 链非常量终点负例、leastByte=0 移位零路径。
