@@ -4549,3 +4549,39 @@ restricted_by_conditional/dominates）保留 peer 守卫。行为恒等: canon c
 test-BlockIf 采纳位的 wholesale out-edge 赋值在既有 size/flags sync 旁补
 `sync_edge_shadows`（wave 3 边表影子写侧, 见 docs/api/block.md）。零读位
 迁移（本批）。
+
+## INFERTYPES2（2026-10-02）ActionInferTypes 残量四手术（速度道,SPEEDPROF2-INFERTYPES2-DRILL-0001）
+
+W2 画像 infertypes 2.59s 残量的钻定（[ITPROF] 临时探针 + gdb 采样亲证:
+propagate_type_edge 47%/PropagationState::step 23%/主循环骨架 17%/
+get_local_type 7%/canonicalize+find_add 7%）后落地四件行为恒等优化:
+
+1. **PropagationState::numInput 帧缓存**: `step()` 的 `slot < numInput` 判定
+   （cc:5142-5144）原每次 step 付一次 `op.read()` RwLock 读往返（20M
+   edges/语料单函数）,现于每次 op 赋值点（ctor 起手/take_next_descendant/
+   定义算子转段）从同一读锁快照缓存。恒等论证: ActionInferTypes::apply
+   不做 op 创建/销毁/输入表变更（仅写 temp/永久类型与 stop 旗标）,帧生命
+   期内 numInput 不变——与 descendants 快照依赖的同一稳定性不变量。
+2. **主循环 op 句柄借用化**: `ptr.op.clone()`（每边一次 Arc clone+drop）改
+   `ptr.op.as_ref()` 借用传入 propagate_type_edge（借用终于调用点,step 的
+   &mut 在其后）。oracle 持裸 `ptr->op` 指针同形零引用计数。
+3. **出边目标句柄延迟克隆**: propagate_type_edge 的 outvn 解析（cc:5086-
+   5091）原无条件 `Arc::clone`（~19M 次/语料单函数）,现借用 `&Arc` 守卫
+   探测四谓词+vn_id,仅成功返回路径克隆（ok≈139k）。
+4. **propagate_ref 有序窗替代全库扫**: 候选收集（cc:5224-5230
+   beginLoc(addr)..endLoc(endaddr)）原整库 loc_tree 扫描+逐 varnode Arc
+   克隆（51 refs×30k varnodes×8 轮/语料单函数）,现走 heritage.rs:5163 同
+   款 size-0 探针 `loc_tree.range(probe..)`（space-major 键序,foreign-space
+   或 offset≥end 处 take_while 截止）。候选集与序全等（同空间同
+   [off,end) 窗同 loc-tree 序;get_space()==address_space 谓词同值）。
+
+行为恒等证明链: **walk 级计数器全量恒等**（基线探针 vs 优化探针逐项精确
+相等: edge_calls 20,008,328/ok 138,971/propnone 17,949,581/notbetter
+936,041/backtrack 642,382/annot 334,018/typelock 1,388/stop 47/bool
+5,887/frames 350,583/advances 1,296,237/getlocal 211,612/canon 三臂
+319,053/76,198/319,039/writeback 211,612/23,476）——同样的边、同样的拒绝、
+同样的成功;输出面: VdbeExec --one 1055 stdout md5 15b47cf7 基线=优化=
+12/12 A/B 轮全等;sqlite 全语料 --jobs 32 assembled md5 29f54d21 六轮
+（base×3+opt×3）字节恒等;canon curl b7773087/httpd 54f9b02c 钉值命中。
+性能: VdbeExec 单极配对中位 −1.95s（干净对 −0.99~−3.14）,语料干净对
+user −11.9s。探针交付前撤净（grep ITPROF/itprof 零命中亲证）。

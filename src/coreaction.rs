@@ -8558,12 +8558,20 @@ impl ActionInferTypes {
         // isTypeLock, stopsUpPropagation, getNZMask — are pure field reads
         // in both implementations; the merge only removes redundant lock
         // round-trips, the rejection set is unchanged).
-        let out_vn_arc = if outslot < 0 {
-            op.output.clone()
-        } else {
-            op.inrefs.get(outslot as usize).cloned()
+        // Resolve the outgoing varnode by reference (no Arc clone: the probe
+        // below only reads it, and the Arc is cloned solely on the success
+        // return path — ~19M clone+drop pairs removed on the corpus walk;
+        // the oracle reads the same `outvn` pointer with no refcount
+        // traffic).
+        let out_vn_arc: Option<&std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
+            if outslot < 0 {
+                op.output.as_ref()
+            } else {
+                op.inrefs.get(outslot as usize)
+            };
+        let Some(out_vn_arc) = out_vn_arc else {
+            return None;
         };
-        let out_vn_arc = out_vn_arc?;
         let (out_is_annot, out_is_lock, out_stops, out_nz, out_id) = {
             let ov = out_vn_arc.read().unwrap();
             (
@@ -8653,7 +8661,7 @@ impl ActionInferTypes {
             );
         }
         temps.insert(out_id, newtype);
-        (!active_path.contains(&out_id)).then_some(out_vn_arc)
+        (!active_path.contains(&out_id)).then(|| out_vn_arc.clone())
     }
 
     /// Per-opcode `propagateType` dispatch. Faithful to
@@ -9373,6 +9381,7 @@ impl ActionInferTypes {
             descendants: Vec<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
             next_desc: usize,
             op: Option<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
+            num_input: i32,
             slot: i32,
             inslot: i32,
         }
@@ -9392,11 +9401,13 @@ impl ActionInferTypes {
                     descendants,
                     next_desc: 0,
                     op: None,
+                    num_input: 0,
                     slot: 0,
                     inslot: -1,
                 };
-                if let Some((op, inslot, slot)) = state.take_next_descendant() {
+                if let Some((op, num_input, inslot, slot)) = state.take_next_descendant() {
                     state.op = Some(op);
+                    state.num_input = num_input;
                     state.inslot = inslot;
                     state.slot = slot;
                 } else {
@@ -9404,6 +9415,11 @@ impl ActionInferTypes {
                     // defining op; `vn->getDef()` may be null (input
                     // varnode), leaving the state invalid.
                     state.op = state.vn.read().unwrap().get_def();
+                    state.num_input = state
+                        .op
+                        .as_ref()
+                        .map(|op| op.read().unwrap().num_input() as i32)
+                        .unwrap_or(0);
                     state.inslot = -1;
                     state.slot = 0;
                 }
@@ -9412,8 +9428,8 @@ impl ActionInferTypes {
 
             /// Advance to the next descendant referencing `vn` (the oracle's
             /// `op = *iter++` plus the `getSlot` lookup, cc:5119-5127/5146-5152).
-            /// Returns (op, inslot, initial slot): slot is -1 when the op has
-            /// an output (the output edge comes first), else 0.
+            /// Returns (op, numInput, inslot, initial slot): slot is -1 when
+            /// the op has an output (the output edge comes first), else 0.
             // RUGRA-GLUE: borrow-splitting helper fusing the oracle's list-iterator
             // advance (*iter++) with getSlot and the no-output slot-0 start
             // (cc:5119-5127/5146-5152); Rust needs it as a method to mutate
@@ -9424,11 +9440,12 @@ impl ActionInferTypes {
                 std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>,
                 i32,
                 i32,
+                i32,
             )> {
                 while self.next_desc < self.descendants.len() {
                     let descendant = self.descendants[self.next_desc].clone();
                     self.next_desc += 1;
-                    let (inslot, has_output) = {
+                    let (inslot, has_output, num_input) = {
                         let op_guard = descendant.read().unwrap();
                         let Some(inslot) = op_guard
                             .inrefs
@@ -9438,10 +9455,10 @@ impl ActionInferTypes {
                         else {
                             continue;
                         };
-                        (inslot, op_guard.output.is_some())
+                        (inslot, op_guard.output.is_some(), op_guard.num_input() as i32)
                     };
                     let slot = if has_output { -1 } else { 0 };
-                    return Some((descendant, inslot, slot));
+                    return Some((descendant, num_input, inslot, slot));
                 }
                 None
             }
@@ -9452,13 +9469,20 @@ impl ActionInferTypes {
             /// descendant exhaustion the defining op's input pass.
             fn step(&mut self) {
                 self.slot += 1;
-                if let Some(op) = &self.op {
-                    if self.slot < op.read().unwrap().num_input() as i32 {
-                        return;
-                    }
+                // The frame caches the current op's numInput (set at every
+                // op assignment): ActionInferTypes::apply performs no op
+                // creation/destruction or input-list mutation — it only
+                // writes temp/permanent types and stop flags — so the value
+                // read at assignment time equals the oracle's live
+                // `op->numInput()` read for the frame's whole lifetime
+                // (SPEEDPROF2-INFERTYPES2-DRILL-0001; same stability
+                // invariant the descendants snapshot already relies on).
+                if self.slot < self.num_input {
+                    return;
                 }
-                if let Some((op, inslot, slot)) = self.take_next_descendant() {
+                if let Some((op, num_input, inslot, slot)) = self.take_next_descendant() {
                     self.op = Some(op);
+                    self.num_input = num_input;
                     self.inslot = inslot;
                     self.slot = slot;
                     return;
@@ -9469,8 +9493,14 @@ impl ActionInferTypes {
                 // (inslot==-1), there is nothing left.
                 if self.inslot == -1 {
                     self.op = None;
+                    self.num_input = 0;
                 } else {
                     self.op = self.vn.read().unwrap().get_def();
+                    self.num_input = self
+                        .op
+                        .as_ref()
+                        .map(|op| op.read().unwrap().num_input() as i32)
+                        .unwrap_or(0);
                     self.inslot = -1;
                     self.slot = 0;
                 }
@@ -9486,9 +9516,14 @@ impl ActionInferTypes {
 
         // cc:5181-5197: while(!state.empty()) — invalid states pop and clear
         // their mark; valid states try propagateTypeEdge(op, inslot, slot),
-        // stepping BEFORE the child push (cc:5190-5192).
+        // stepping BEFORE the child push (cc:5190-5192). The frame's op Arc
+        // is borrowed (`ptr.op.as_ref()`), not cloned: propagate_type_edge
+        // only reads through it, and the borrow ends at the call — one Arc
+        // clone+drop pair per edge removed on the 20M-edge corpus walk
+        // (SPEEDPROF2-INFERTYPES2-DRILL-0001; the oracle holds the raw
+        // `ptr->op` pointer the same way, no refcount traffic).
         while let Some(ptr) = stack.last_mut() {
-            let Some(op_arc) = ptr.op.clone() else {
+            let Some(op_arc) = ptr.op.as_ref() else {
                 // !ptr->valid(): cc:5183-5185 clearMark + pop_back.
                 let frame_id = ptr.id;
                 active_path.remove(&frame_id);
@@ -9498,7 +9533,7 @@ impl ActionInferTypes {
             let in_id = ptr.id;
             let (inslot, slot) = (ptr.inslot, ptr.slot);
             let next_vn = Self::propagate_type_edge(
-                &op_arc,
+                op_arc,
                 in_id,
                 fd,
                 temps,
@@ -9779,27 +9814,37 @@ impl ActionInferTypes {
         // NEGATIVE offset — a state the oracle's beginLoc ordering never
         // produces. The `voff >= off` gate restores the half-open window
         // [addr, addr+ct_size).
+        // cc:5224-5230: `iter = data.beginLoc(addr)` .. `enditer =
+        // data.endLoc(endaddr)` — the oracle walks an ORDERED WINDOW of the
+        // loc-set starting at the walk address, not a full scan. Rugra's
+        // loc_tree is a BTreeMap keyed space-major (VarnodeCompareLocDef
+        // mirror), so the heritage.rs:5163 probe form applies: a synthetic
+        // probe varnode of size 0 at (walk_space, off) sorts before every
+        // same-offset member, `probe..` starts exactly at beginLoc(addr),
+        // and the walk ends at the first member past the window (foreign
+        // space, or offset ≥ end in the non-wrapped form — both monotone in
+        // the key order). The candidate set and its order are identical to
+        // the former whole-tree filter (same space, same [off, end) window,
+        // same loc-tree order), which in turn is the oracle's window
+        // (SPEEDPROF2-INFERTYPES2-DRILL-0001).
+        let probe = crate::varnode::VarnodeLocRef(std::sync::Arc::new(
+            std::sync::RwLock::new(crate::varnode::Varnode::new_with_space(0, walk_space, off)),
+        ));
         let candidates: Vec<_> = fd
             .vbank
             .loc_tree
-            .iter()
-            .map(|v| v.0.clone())
-            .filter(|vn_arc| {
-                let g = vn_arc.read().unwrap();
-                if g.get_space() != walk_space {
-                    return false;
+            .range(probe..)
+            .take_while(|entry| {
+                let g = entry.0.read().unwrap();
+                if g.address_space != walk_space {
+                    return false; // space-major: first foreign-space member ends the walk
                 }
-                let voff = g.get_offset();
-                if voff < off {
-                    // beginLoc(addr): strictly below the walk address.
-                    return false;
+                if wrapped {
+                    return true; // endLoc(space): accept the rest of the space
                 }
-                if !wrapped {
-                    voff < end
-                } else {
-                    true // endLoc(space) — accept the rest of the space
-                }
+                g.get_offset() < end // endLoc(endaddr)
             })
+            .map(|v| v.0.clone())
             .collect();
         for vn_arc in candidates {
             // Skip annotation / dead / typelock / symbol-mapped varnodes
