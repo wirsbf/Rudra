@@ -10371,7 +10371,12 @@ impl ActionNameVars {
             //               if (vn != curvn) continue; — hit each high once.
             let high_arc = vn.high.clone();
             let is_rep = match &high_arc {
-                Some(h) => match h.read().unwrap().get_name_representative() {
+                // cc:2959: the oracle's const getNameRepresentative writes
+                // its `mutable` cache (variable.cc:497-509); the write-lock
+                // +get_name_representative_mut form mirrors that cache
+                // write, so each HighVariable's O(k) selection walk runs
+                // once instead of per member varnode.
+                Some(h) => match h.write().unwrap().get_name_representative_mut() {
                     Some(rep_vn) => Arc::ptr_eq(vn_arc, &rep_vn),
                     // Ghidra dereferences inst.front() (variable.cc:503) — an
                     // instance-less high is unreachable there; skip it here.
@@ -10762,23 +10767,42 @@ impl Action for ActionNameVars {
         // namevars output supersedes them). Retirement of this bridge is
         // PRINTC-SYMBOL-DECL-0001.
         if let Some(scope) = fd.scope.as_ref() {
+            // Pre-resolve each linked symbol's display name once (same
+            // filter as before: non-empty display names only).
+            let mut name_by_high: std::collections::HashMap<usize, String> =
+                std::collections::HashMap::with_capacity(fd.high_symbols.len());
             for (high_ptr, sym_idx) in fd.high_symbols.iter() {
-                let Some(display) = scope
+                if let Some(display) = scope
                     .symbols
                     .get(*sym_idx)
                     .map(|s| s.display_name.clone())
                     .filter(|n| !n.is_empty())
-                else {
-                    continue;
-                };
+                {
+                    name_by_high.insert(*high_ptr, display);
+                }
+            }
+            if !name_by_high.is_empty() {
+                // Single pass over the varnodes (loc-tree order): each
+                // present HighVariable receives its symbol's display name
+                // exactly once. Observationally identical to the former
+                // per-symbol inner scan: set_name(name) is idempotent
+                // (name + NAMELOCK flag, no counter), the set of highs
+                // that receive a name is the same intersection
+                // (high_symbols keys present in loc_tree highs), and the
+                // per-high name value is the same display string.
+                let mut done: std::collections::HashSet<usize> =
+                    std::collections::HashSet::with_capacity(name_by_high.len());
                 for vn_ref in &fd.vbank.loc_tree {
                     let high_arc = {
                         let vn = vn_ref.0.read().unwrap();
                         vn.high.clone()
                     };
                     if let Some(high) = high_arc {
-                        if Arc::as_ptr(&high) as usize == *high_ptr {
-                            high.write().unwrap().set_name(display.clone());
+                        let ptr = Arc::as_ptr(&high) as usize;
+                        if let Some(display) = name_by_high.get(&ptr) {
+                            if done.insert(ptr) {
+                                high.write().unwrap().set_name(display.clone());
+                            }
                         }
                     }
                 }

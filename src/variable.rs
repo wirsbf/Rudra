@@ -637,6 +637,46 @@ impl HighVariable {
         Some(self.instances[rep_idx].clone())
     }
 
+    // Ghidra: variable.cc:492 HighVariable::getNameRepresentative
+    /// Mutable-cache form of [`Self::get_name_representative`], mirroring
+    /// the oracle's `mutable`-member cache write exactly
+    /// (variable.cc:495-510): return the cache when the dirty bit is
+    /// clear; otherwise clear the dirty bit FIRST (cc:497), then
+    /// re-derive the representative from `instances[0]` via
+    /// `compare_name` (cc:502-509), store it into `name_representative`,
+    /// and return it. The selection walk is the same deterministic
+    /// algorithm as the `&self` form — the only difference is the cache
+    /// population, which is precisely what Ghidra's const method does
+    /// through its `mutable` members. Callers that can only take a read
+    /// lock keep the `&self` form (recompute, no cache write).
+    pub fn get_name_representative_mut(&mut self) -> Option<Arc<RwLock<Varnode>>> {
+        if self.instances.is_empty() {
+            return None;
+        }
+        // Faithful to variable.cc:495-496.
+        if (self.highflags & high_internal_flags::NAMEREPDIRTY) == 0 {
+            if let Some(cached) = &self.name_representative {
+                return Some(cached.clone());
+            }
+        }
+        // Faithful to variable.cc:497: clear the dirty bit before the scan
+        // (the oracle's `mutable` write; instance-list mutations re-set it,
+        // see merge_internal/remove/flags_dirty).
+        self.highflags &= !high_internal_flags::NAMEREPDIRTY;
+        // Faithful to variable.cc:502-510.
+        let mut rep_idx: usize = 0;
+        for (i, inst) in self.instances.iter().enumerate().skip(1) {
+            let rep_vn = self.instances[rep_idx].read().unwrap();
+            let vn = inst.read().unwrap();
+            if Self::compare_name(&rep_vn, &vn) {
+                rep_idx = i;
+            }
+        }
+        let rep = Some(self.instances[rep_idx].clone());
+        self.name_representative = rep.clone();
+        rep
+    }
+
     // Ghidra: variable.cc:515 HighVariable::remove
     /// Remove a member Varnode and mark all properties dirty. Faithful to
     /// `remove` (variable.cc:515-532). Searches (sorted by location) for the
@@ -882,6 +922,16 @@ impl HighVariable {
         }
         self.instances = merged;
         tv2.instances.clear(); // Faithful to variable.cc:658.
+        // RUGRA-GLUE: the oracle DELETES tv2 after mergeInternal (the
+        // caller in merge.cc destroys it), so no oracle code can observe
+        // tv2's member list or its caches afterwards. Rust keeps the
+        // retired shell object (varnode high pointers are rewired to
+        // -self-, but the shell may still be reachable through a stale
+        // handle); invalidate tv2's name-representative cache so any such
+        // late query re-derives from the now-empty list (returning None,
+        // exactly like the pre-cache &self form) instead of a stale
+        // cached representative.
+        tv2.highflags |= high_internal_flags::NAMEREPDIRTY;
 
         // Faithful to variable.cc:660-663: merge covers if both clean, else dirty.
         if (self.highflags & high_internal_flags::COVERDIRTY) == 0
@@ -1522,7 +1572,14 @@ impl HighVariable {
     // RUGRA-GLUE: Legacy membership mutator; Ghidra adds members only through
     // construction/merge and has no public HighVariable::addInstance method.
     /// Add a varnode instance.
+    ///
+    /// The member-list change marks the name-representative cache dirty
+    /// (mirroring how every oracle member-list change — construction
+    /// (variable.cc:224) and mergeInternal (variable.cc:631) — leaves
+    /// `namerepdirty` set) so a cached representative can never outlive
+    /// the list it was derived from.
     pub fn add_instance(&mut self, vn: Arc<RwLock<Varnode>>) {
+        self.highflags |= high_internal_flags::NAMEREPDIRTY;
         self.instances.push(vn);
     }
 
