@@ -10668,7 +10668,10 @@ impl Rule for RuleSubNormal {
             let out_size = out_vn.read().unwrap().get_size() as i64;
             (opc, a, n, c, in_size, out_size)
         };
-        let k = n / 8;
+        // cc:7750 — Ghidra's k is mutable: the extension path returns early,
+        // and the else arm REASSIGNS it (`k = insize-c-outsize`, cc:7757
+        // "Or we can shrink the cut") before the tail consumes it.
+        let mut k = n / 8;
         // Total shift + outsize must be >= size of input, or n must not be byte-aligned.
         if n + 8 * c + 8 * out_size < 8 * in_size && n != k * 8 {
             return Ok(action_status::NO_CHANGE);
@@ -10695,8 +10698,12 @@ impl Rule for RuleSubNormal {
                 fd.op_set_opcode(&follow, ext_opc);
                 return Ok(action_status::CHANGE);
             } else {
-                // Shrink the cut.
-                let _ = k; // Already used below.
+                // cc:7756-7757 — shrink the cut: the SUBPIECE cut is reduced
+                // so that c+outsize stays within the input (Ghidra reassigns
+                // k here; the old port's `let _ = k;` no-op kept the full
+                // byte-shift cut, producing sub(V, n/8) >> n%8 instead of
+                // Ghidra's sub(V, insize-c-outsize) >> remainder form).
+                k = in_size - c - out_size;
             }
         }
 
@@ -23796,6 +23803,197 @@ mod tests {
         assert!(Arc::ptr_eq(&o.inrefs[0], &v));
         // mask = (calc_mask(4) >> 4) & calc_mask(4) = 0x0fffffff
         assert_eq!(o.inrefs[1].read().unwrap().get_val(), 0x0fffffff);
+    }
+
+    // --- RuleSubNormal (ruleaction.cc:7714) ---
+
+    #[test]
+    fn test_subnormal_shrinks_cut_when_sub_exceeds_input() {
+        // sub84(V8 >> 0x3c, 0): k=7, c=0, outsize=4, insize=8 →
+        // k+c+outsize = 11 > 8 → n(60) != k*8(56) → Ghidra's else arm
+        // REASSIGNS k = insize-c-outsize = 4 (ruleaction.cc:7757 "Or we can
+        // shrink the cut") → result RIGHT(SUB84(V,4), 28), NOT the
+        // unshrunk SUB84(V,7) >> 4 form the old no-op-else port produced.
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let a = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        a.write()
+            .unwrap()
+            .set_flags(crate::varnode::varnode_flags::INPUT);
+        let shift_amt = fd.vbank.create_constant(4, 60);
+        let shift_out = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x20);
+        let shift = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 0),
+            OpCode::CPUI_INT_RIGHT,
+        )));
+        {
+            let mut s = shift.write().unwrap();
+            s.inrefs = vec![a.clone(), shift_amt];
+            s.output = Some(shift_out.clone());
+        }
+        shift_out.write().unwrap().def = Some(Arc::downgrade(&shift));
+        shift_out
+            .write()
+            .unwrap()
+            .set_flags(crate::varnode::varnode_flags::WRITTEN);
+        let cut = fd.vbank.create_constant(4, 0);
+        let sub = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 1),
+            OpCode::CPUI_SUBPIECE,
+        )));
+        {
+            let mut s = sub.write().unwrap();
+            s.inrefs = vec![shift_out.clone(), cut];
+            s.output = Some(fd.vbank.create_with_space(
+                4, crate::space::AddressSpace::Register, 0x30,
+            ));
+        }
+        shift_out
+            .write()
+            .unwrap()
+            .descend
+            .push(Arc::downgrade(&sub));
+        let rule = RuleSubNormal::new();
+        let result = rule.apply_op(&sub, &mut fd).unwrap();
+        assert_eq!(result, action_status::CHANGE);
+        let s = sub.read().unwrap();
+        // The SUBPIECE op itself becomes the surviving INT_RIGHT by n_new=28.
+        assert_eq!(s.opcode, OpCode::CPUI_INT_RIGHT);
+        assert_eq!(s.inrefs[1].read().unwrap().get_val(), 28);
+        // Its input is the new SUB84(a, 4): cut shrunk to insize-c-outsize=4,
+        // not the unshrunk n/8=7.
+        let newsub_def = s.inrefs[0].read().unwrap().def.as_ref().and_then(|w| w.upgrade()).unwrap();
+        let newsub = newsub_def.read().unwrap();
+        assert_eq!(newsub.opcode, OpCode::CPUI_SUBPIECE);
+        assert!(Arc::ptr_eq(&newsub.inrefs[0].clone(), &a));
+        assert_eq!(newsub.inrefs[1].read().unwrap().get_val(), 4);
+    }
+
+    #[test]
+    fn test_subnormal_byte_aligned_extension_path_unchanged() {
+        // sub4(V4 >> 0x18, 0): n=24=k*8, c=0, outsize=4, insize=4 →
+        // k+c+outsize = 7 > 4 → truncSize = insize-c-k = 1 (power of 2) and
+        // n == k*8 → the EXTENSION arm fires (cc:7747-7760): new
+        // SUB84(V,3)@1B + the original SUBPIECE op becomes INT_ZEXT.
+        // Guards that the k-shrink repair left the extension arm intact.
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let a = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x10);
+        a.write()
+            .unwrap()
+            .set_flags(crate::varnode::varnode_flags::INPUT);
+        let shift_amt = fd.vbank.create_constant(4, 24);
+        let shift_out = fd
+            .vbank
+            .create_with_space(4, crate::space::AddressSpace::Register, 0x20);
+        let shift = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 0),
+            OpCode::CPUI_INT_RIGHT,
+        )));
+        {
+            let mut s = shift.write().unwrap();
+            s.inrefs = vec![a.clone(), shift_amt];
+            s.output = Some(shift_out.clone());
+        }
+        shift_out.write().unwrap().def = Some(Arc::downgrade(&shift));
+        shift_out
+            .write()
+            .unwrap()
+            .set_flags(crate::varnode::varnode_flags::WRITTEN);
+        let cut = fd.vbank.create_constant(4, 0);
+        let sub = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 1),
+            OpCode::CPUI_SUBPIECE,
+        )));
+        {
+            let mut s = sub.write().unwrap();
+            s.inrefs = vec![shift_out.clone(), cut];
+            s.output = Some(fd.vbank.create_with_space(
+                4, crate::space::AddressSpace::Register, 0x30,
+            ));
+        }
+        shift_out
+            .write()
+            .unwrap()
+            .descend
+            .push(Arc::downgrade(&sub));
+        let rule = RuleSubNormal::new();
+        let result = rule.apply_op(&sub, &mut fd).unwrap();
+        assert_eq!(result, action_status::CHANGE);
+        let s = sub.read().unwrap();
+        // Extension arm: the op becomes a zero-extension of the new piece.
+        assert_eq!(s.opcode, OpCode::CPUI_INT_ZEXT);
+        assert_eq!(s.inrefs.len(), 1);
+        let newsub_def = s.inrefs[0].read().unwrap().def.as_ref().and_then(|w| w.upgrade()).unwrap();
+        let newsub = newsub_def.read().unwrap();
+        assert_eq!(newsub.opcode, OpCode::CPUI_SUBPIECE);
+        assert!(Arc::ptr_eq(&newsub.inrefs[0].clone(), &a));
+        assert_eq!(newsub.inrefs[1].read().unwrap().get_val(), 3);
+        assert_eq!(newsub.output.as_ref().unwrap().read().unwrap().get_size(), 1);
+    }
+
+    #[test]
+    fn test_subnormal_boundary_no_shrink_needed() {
+        // sub1(V8 >> 0x3c, 0): n=60, c=0, outsize=1, insize=8 →
+        // k+c+outsize = 8 <= 8 → no shrink arm: SUB81(V,7) >> 4 — the exact
+        // read_inode_2 golden shape ((xStack_58 >> 0x3c) consumed 1 byte).
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let a = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x10);
+        a.write()
+            .unwrap()
+            .set_flags(crate::varnode::varnode_flags::INPUT);
+        let shift_amt = fd.vbank.create_constant(4, 60);
+        let shift_out = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x20);
+        let shift = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 0),
+            OpCode::CPUI_INT_RIGHT,
+        )));
+        {
+            let mut s = shift.write().unwrap();
+            s.inrefs = vec![a.clone(), shift_amt];
+            s.output = Some(shift_out.clone());
+        }
+        shift_out.write().unwrap().def = Some(Arc::downgrade(&shift));
+        shift_out
+            .write()
+            .unwrap()
+            .set_flags(crate::varnode::varnode_flags::WRITTEN);
+        let cut = fd.vbank.create_constant(4, 0);
+        let sub = Arc::new(RwLock::new(PcodeOp::new(
+            SeqNum::new(Address::new(0x1000), 1),
+            OpCode::CPUI_SUBPIECE,
+        )));
+        {
+            let mut s = sub.write().unwrap();
+            s.inrefs = vec![shift_out.clone(), cut];
+            s.output = Some(fd.vbank.create_with_space(
+                1, crate::space::AddressSpace::Register, 0x30,
+            ));
+        }
+        shift_out
+            .write()
+            .unwrap()
+            .descend
+            .push(Arc::downgrade(&sub));
+        let rule = RuleSubNormal::new();
+        let result = rule.apply_op(&sub, &mut fd).unwrap();
+        assert_eq!(result, action_status::CHANGE);
+        let s = sub.read().unwrap();
+        assert_eq!(s.opcode, OpCode::CPUI_INT_RIGHT);
+        assert_eq!(s.inrefs[1].read().unwrap().get_val(), 4);
+        let newsub_def = s.inrefs[0].read().unwrap().def.as_ref().and_then(|w| w.upgrade()).unwrap();
+        let newsub = newsub_def.read().unwrap();
+        assert_eq!(newsub.opcode, OpCode::CPUI_SUBPIECE);
+        assert!(Arc::ptr_eq(&newsub.inrefs[0].clone(), &a));
+        assert_eq!(newsub.inrefs[1].read().unwrap().get_val(), 7);
     }
 
     // --- RuleIdentityEl (ruleaction.cc:3668-3702) ---

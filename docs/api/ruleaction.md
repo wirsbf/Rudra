@@ -1318,6 +1318,12 @@ identity、mark、def-use、alive/dead bank、基本块顺序和 `Funcdata::opDe
   - `sub(V >> n, c) => V >> n'`（合并移位+截断，字节对齐时消除多余移位）
   - 处理溢出情况：当截断超出输入大小时，创建额外扩展（ZEXT/SEXT）
   - 饱和移位：当剩余移位超过输出大小时，饱和到最大值
+  - **2026-10-01（车道 READINODE）k-shrink 臂修复**：ruleaction.cc:7756-7757 的 else 臂
+    `k = insize-c-outsize`（"Or we can shrink the cut"——把 SUBPIECE 切口收缩到输入范围内）
+    此前移植为 no-op（`let _ = k;`），导致 `sub84(V8 >> 0x3c, 0)` 产出 `sub84(V,7) >> 4`
+    而非 oracle 的 `sub84(V,4) >> 28` 形态；sq 镜面 read_inode 簇 211→85（该形态为
+    `(uint1)*V >> 4` 泄漏根，连带 OPNAME-LEAK sq 67→12）。新增 3 测试钉死三臂
+    （shrink/extension/no-shrink 边界）。
 
 ## 2026-06-27（续 26）：有符号模运算优化
 
