@@ -1,5 +1,54 @@
 # `coreaction.rs` API Reference
 
+## 2026-10-02：input_metatype 补 FLOAT 族条目 + FLOAT_INT2FLOAT 专属臂（MCENSUS6-FLOAT8-SETCASTS-0001 / lane FLOAT8）
+
+- **缺口**（census v4 float8-cast 族 24 行）：`input_metatype` 无 FLOAT 族条目——
+  FLOAT_LESS/LESSEQUAL/SUB/MULT 等 slot 上的 INT 型输入（`piRam`/`V[LIT]`/
+  `(uint8)V & uRam` 乘积）落 `None` → ct 恒 null → oracle 在此插入的
+  `(float8)` 输入 cast 永不产生（R 裸 `piRam <= fRam` vs G `if((float8)piRam
+  <= fRam)`；sqlite 22 行 + sq progress_bar 2 行）；同时 `FLOAT_INT2FLOAT`
+  的 `TypeOpFloatInt2Float::getInputCast` 覆写（typeop.cc:1847-1862）无
+  cast_input 分派臂——FLOAT 型输入（call 返回局部 `fVar5`）不再获得
+  `(int8)` 前铸（R `(float8)V` vs G `(float8)(int8)V` 双铸形）。
+- **oracle 链（亲读）**：coreaction.cc:2662 `getInputCast` 虚分派——
+  ① FLOAT 族基臂 typeop.cc:293-300：reqtype=`inputTypeLocal(slot)`
+  =`getBase(in(slot)->size, TYPE_FLOAT)`（ctor metain：EQUAL/NOTEQUAL/LESS/
+  LESSEQUAL/NAN/ADD/DIV/MULT/SUB/NEG/ABS/SQRT/FLOAT2FLOAT/TRUNC/CEIL/FLOOR/
+  ROUND——typeop.cc:1744/1752/1760/1768/1776/1784/1792/1800/1808/1816/1824/
+  1832/1905/1913/1921/1929/1937），curtype=read-facing high 型；
+  `castStandard(float8, int8, false, TRUE)`（cast.cc:339-390：TYPE_FLOAT
+  请求落 switch default——对 TYPE_INT cur 无 no-cast 豁免）→ 返回 float8 →
+  插 CAST → 印 `(float8)piRam`。② INT2FLOAT 覆写（FLOAT 族唯一）：
+  absorbZext 守卫（cc:1850-1851，吸收 implied INT_ZEXT 时无 cast）+
+  reqtype=int8（ctor typeop.cc:1840 metain=**TYPE_INT**，非 FLOAT）+
+  care_uint_int 动态（cc:1856-1860：size≤8 时取 NZMask 高位，高位 0 则
+  FALSE）→ `castStandard(int8, float8, care, TRUE)`（INT 臂 care=TRUE 时
+  FLOAT cur 无豁免）→ 返回 int8 → 插 CAST → INT2FLOAT 渲染
+  （printc.cc:830-840 opFloatInt2Float 以输出 def-facing 型印 typecast）
+  包裹成 `(float8)(int8)V`。IR 亲证（--one 1028）：R 终态
+  `XMM1_Qa = i2f RAX`（RAX=double 返回 call 链）——修复后该链获得
+  CAST(int8) 前铸。
+- **修复**：`input_metatype` 加 17 条 FLOAT 族 => `Some(Float)`（FLOAT_INT2FLOAT
+  排除——走专属臂）；`cast_input` 分派加 `CPUI_FLOAT_INT2FLOAT` 臂，路由到
+  typeop.rs 既有 1:1 端口 `float_int2float_input_cast`（typeop.rs:368，原为
+  未接线状态）。通用 metain 臂本身不动（INT/UINT/BOOL 行为零改动）。
+- **测试**：
+  `test_action_setcasts_float_compare_cast_inserted_for_int_typed_input`
+  （FLOAT_LESSEQUAL + int8 型 slot0/工厂 float8 型 slot1 → 仅 slot0 得
+  implied CAST(float8)，slot1 findAdd-equal 无 cast 防过铸）+
+  `test_action_setcasts_int2float_input_cast_int8_for_float_typed_input`
+  （float8 型输入 → implied CAST(int8) 前铸，双铸形钉死）。
+- **镜面效果**：sqlite **428→406**（−22 = census float8-cast 族全燃：VAA 2→0
+  /VMS 2→0 整函数零/col64 −6/Fts3Offsets −6/VdbeExec −6）；sq **124→117**
+  （−7 = progress_bar 整函数归零，float8 双子形+邻接 wrap 混合块）；curl 13/
+  httpd 2/vsh 0 三面恒等（构造性：三语料无 float8 钉形位点）；canon curl
+  b7773087/httpd 54f9b02c 字节恒等；VdbeExec --one 1055 仅 3 文本行位移
+  （`*V = (float8)*V` → `*V = (float8)(int8)*V` ×3，md5 15b47cf7→840c4fb2
+  逐字节归因零附带）。tests 2033P（=2031+2）。
+- **邻接注记更新**：INDEXCAST 遗留注记的 FLOAT 族半已由本道燃尽；
+  **CBRANCH slot 1（TYPE_BOOL，typeop.cc:614-615）仍未钉形**——五面 census
+  无该族行，留后续车道。
+
 ## 2026-10-01：PERF-ACTIONPOOL-ITER-0001 两处 functionalEqualityLevel 换 code-only 投影（性能恒等重排）
 
 - `ActionDirectWrite` 的 CSE 等价扫描（coreaction.cc 对应循环）与
@@ -43,6 +92,8 @@
   （FLOAT_ADD/SUB/MULT/DIV/NEG/ABS/INT2FLOAT 等 ctor metain=TYPE_FLOAT，
   typeop.cc:1784-1824）与 CBRANCH slot 1（TYPE_BOOL，typeop.cc:614-615）条目——
   同类缺口但 census 无钉形族，留独立车道验证后补。
+  **[2026-10-02 更新]**：FLOAT 族半已由 lane FLOAT8 燃尽（本文件 2026-10-02
+  条目，MCENSUS6-FLOAT8-SETCASTS-0001）；CBRANCH slot 1 仍未钉形。
 
 ## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
 
