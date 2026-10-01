@@ -5500,6 +5500,26 @@ impl ActionSetCasts {
             | OpCode::CPUI_INT_NEGATE
             | OpCode::CPUI_INT_RIGHT
             | OpCode::CPUI_INT_DIV | OpCode::CPUI_INT_REM => Some(TypeMetatype::Uint),
+            // typeop.cc:2232 TypeOpPtradd::getInputLocal / cc:2314
+            // TypeOpPtrsub::getInputLocal: both pointer-arithmetic classes
+            // override getInputLocal to `getBase(in(slot)->size, TYPE_INT)`
+            // — slot-agnostic INT of the input's own size. PTRADD slot 1 is
+            // the array INDEX: an index varnode whose high type is a pointer
+            // (`int8 *piVar11` used as subscript) hits
+            // castStandard(int8, int8*, false, care_ptr_uint=TRUE)
+            // (typeop.cc:295-303 base getInputCast → cast.cc:362-377+391)
+            // which returns int8, so castInput inserts the CAST that prints
+            // `pxVar20[(int8)piVar11]`. Without the table entry the generic
+            // arm returned None and the index never got its cast (the
+            // mirror census "index-cast" 90-line family). PTRADD slot 0 /
+            // PTRSUB slot 0 are routed to cast_input_ptr by the apply loop
+            // before this table is consulted (TypeOpPtradd::getInputCast /
+            // TypeOpPtrsub::getInputCast slot-0 overrides, typeop.cc:2253/
+            // 2323); the remaining slots here are PTRADD slot 1 (index) /
+            // slot 2 (scale const) and PTRSUB slot 1 (offset const), whose
+            // constants take the cc:2687 updateType arm exactly as the
+            // oracle computes them.
+            OpCode::CPUI_PTRADD | OpCode::CPUI_PTRSUB => Some(TypeMetatype::Int),
             // Boolean ops: metain = TYPE_BOOL
             OpCode::CPUI_BOOL_NEGATE | OpCode::CPUI_BOOL_AND
             | OpCode::CPUI_BOOL_OR | OpCode::CPUI_BOOL_XOR => Some(TypeMetatype::Bool),
@@ -21374,6 +21394,210 @@ mod tests {
         "the CAST output carries the INT_ADD metain base int (8 bytes), got {ct:?}"
     );
         let _ = &int_ptr;
+    }
+
+    // Ghidra: typeop.cc:2232 TypeOpPtradd::getInputLocal + typeop.cc:295
+    // TypeOp::getInputCast (base arm, slot 1) — the array INDEX cast.
+    #[test]
+    fn test_action_setcasts_ptradd_index_cast_inserted_for_pointer_typed_index() {
+        use crate::address::{Address, SeqNum};
+        use crate::op::{PcodeOp, PcodeOpRef};
+        use crate::opcodes::OpCode;
+        use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
+        use crate::varnode::{varnode_flags, Varnode};
+        use crate::variable::HighVariable;
+        use std::sync::{Arc, RwLock};
+
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x40);
+
+        // Base (int4, align 4) so the PTRADD fits its pointer: pointee
+        // alignSize 4 == the scale constant 4 → cc:2740-2746 undo does not
+        // fire and the op stays PTRADD through the input-cast loop.
+        let int_t = Arc::new(Datatype::Base(TypeBase::new(
+            "int".to_string(),
+            4,
+            TypeMetatype::Int,
+        )));
+        let int_ptr = Arc::new(Datatype::Pointer(TypePointer {
+            base: TypeBase::new("int *".to_string(), 8, TypeMetatype::Pointer),
+            ptr_to: int_t.clone(),
+            wordsize: 1,
+        }));
+
+        // in0: v_type == high type == int* → slot-0 req/cur pointee aligns
+        // match (typeop.cc:2261) → no slot-0 cast, no undo.
+        let in0 = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x2000))));
+        in0.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        in0.write().unwrap().v_type = Some(int_ptr.clone());
+        in0.write().unwrap().high = Some(Arc::new(RwLock::new(HighVariable::new(
+            int_ptr.clone(),
+        ))));
+
+        // idx: 8-byte NAMED (non-implied) variable whose high type is a
+        // POINTER (the mirror-census index-cast family shape: `int8
+        // *piVar11` consumed as an array subscript). typeop.cc:2235 makes
+        // the required slot-1 type `getBase(8, TYPE_INT)` = int8, and
+        // castStandard(int8, int8*, false, care_ptr_uint=TRUE) (cast.cc:362+
+        // 391) returns int8 → castInput inserts CAST(int8) feeding slot 1,
+        // which printc renders as `base[(int8)piVar11]`.
+        let int8_t = Arc::new(Datatype::Base(TypeBase::new(
+            "int8".to_string(),
+            8,
+            TypeMetatype::Int,
+        )));
+        let int8_ptr = Arc::new(Datatype::Pointer(TypePointer {
+            base: TypeBase::new("int8 *".to_string(), 8, TypeMetatype::Pointer),
+            ptr_to: int8_t.clone(),
+            wordsize: 1,
+        }));
+        let idx = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x2800))));
+        idx.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        idx.write().unwrap().v_type = Some(int8_ptr.clone());
+        idx.write().unwrap().high = Some(Arc::new(RwLock::new(HighVariable::new(
+            int8_ptr.clone(),
+        ))));
+
+        let out = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x3000))));
+        out.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        out.write().unwrap().v_type = Some(int_ptr.clone());
+
+        let sz = Arc::new(RwLock::new(Varnode::new_constant(4, 4)));
+
+        let mut op = PcodeOp::new(SeqNum::new(Address::new(0x4000), 0), OpCode::CPUI_PTRADD);
+        op.inrefs = vec![in0.clone(), idx.clone(), sz];
+        op.output = Some(out.clone());
+        let op_arc = Arc::new(RwLock::new(op));
+        out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
+        let op_ref = PcodeOpRef(op_arc);
+        fd.obank.adopt_alive_op(op_ref.clone());
+
+        let mut a = ActionSetCasts::new();
+        let status = a.apply(&mut fd).unwrap();
+        assert_eq!(status, action_status::NO_CHANGE);
+        // The PTRADD fits its pointer (pointee align 4 == scale 4): not undone.
+        assert_eq!(
+            op_ref.0.read().unwrap().opcode,
+            OpCode::CPUI_PTRADD,
+            "well-fitting PTRADD must survive the cc:2740-2746 undo check"
+        );
+        assert!(a.count >= 1);
+        // Slot 0 untouched (req/cur int* pointees align-match).
+        assert!(Arc::ptr_eq(
+            &op_ref.0.read().unwrap().get_in(0).unwrap().clone(),
+            &in0
+        ));
+        // Slot 1 now fed by a CAST whose output is implied int8.
+        let new_idx = {
+            let rg = op_ref.0.read().unwrap();
+            rg.get_in(1).cloned().unwrap()
+        };
+        let cast_def = {
+            let rg = new_idx.read().unwrap();
+            rg.def.as_ref().and_then(|w| w.upgrade())
+        };
+        assert!(
+            cast_def.is_some(),
+            "pointer-typed index must gain a CAST at PTRADD slot 1"
+        );
+        let cast_op = cast_def.unwrap();
+        {
+            let cog = cast_op.read().unwrap();
+            assert_eq!(cog.opcode, OpCode::CPUI_CAST);
+            // CAST re-casts directly from the previous cast's input: the
+            // index was CAST-written (to int8*) but NOT implied, so the
+            // cc:2680-2684 splice cannot drop the outer cast here (the
+            // previous CAST's input type int8* != required int8) — vnin
+            // stays the index varnode itself.
+            assert!(Arc::ptr_eq(
+                &cog.get_in(0).unwrap().clone(),
+                &idx
+            ));
+        }
+        let ct = new_idx.read().unwrap().v_type.clone().unwrap();
+        assert!(
+            ct.get_metatype() == TypeMetatype::Int && ct.get_size() == 8,
+            "index CAST output must carry the int8 base (typeop.cc:2235), got {ct:?}"
+        );
+        assert!(new_idx.read().unwrap().is_implied());
+    }
+
+    // Ghidra: typeop.cc:2232 TypeOpPtradd::getInputLocal + cast.cc:362-368 —
+    // an INT-typed index of its own size takes no cast (findAdd-equal
+    // req/cur), guarding against over-casting every subscript.
+    #[test]
+    fn test_action_setcasts_ptradd_index_no_cast_for_int_typed_index() {
+        use crate::address::{Address, SeqNum};
+        use crate::op::{PcodeOp, PcodeOpRef};
+        use crate::opcodes::OpCode;
+        use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
+        use crate::type_system::typefactory::TypeFactory;
+        use crate::varnode::{varnode_flags, Varnode};
+        use crate::variable::HighVariable;
+        use std::sync::{Arc, RwLock};
+
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x40);
+
+        let int_t = Arc::new(Datatype::Base(TypeBase::new(
+            "int".to_string(),
+            4,
+            TypeMetatype::Int,
+        )));
+        let int_ptr = Arc::new(Datatype::Pointer(TypePointer {
+            base: TypeBase::new("int *".to_string(), 8, TypeMetatype::Pointer),
+            ptr_to: int_t.clone(),
+            wordsize: 1,
+        }));
+
+        let in0 = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x2000))));
+        in0.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        in0.write().unwrap().v_type = Some(int_ptr.clone());
+        in0.write().unwrap().high = Some(Arc::new(RwLock::new(HighVariable::new(
+            int_ptr.clone(),
+        ))));
+
+        // The index high type is the FACTORY int8 base — findAdd-equal to the
+        // required `getBase(8, TYPE_INT)` → castStandard returns null
+        // (cast.cc:302 via the interned compare) and no CAST is inserted.
+        let factory_int8 = TypeFactory::shared_default()
+            .read()
+            .unwrap()
+            .get_base(8, TypeMetatype::Int)
+            .expect("factory int8 base");
+        let idx = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x2800))));
+        idx.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        idx.write().unwrap().high = Some(Arc::new(RwLock::new(HighVariable::new(
+            factory_int8.clone(),
+        ))));
+
+        let out = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x3000))));
+        out.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        out.write().unwrap().v_type = Some(int_ptr.clone());
+
+        let sz = Arc::new(RwLock::new(Varnode::new_constant(4, 4)));
+
+        let mut op = PcodeOp::new(SeqNum::new(Address::new(0x4000), 0), OpCode::CPUI_PTRADD);
+        op.inrefs = vec![in0.clone(), idx.clone(), sz];
+        op.output = Some(out.clone());
+        let op_arc = Arc::new(RwLock::new(op));
+        out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
+        let op_ref = PcodeOpRef(op_arc);
+        fd.obank.adopt_alive_op(op_ref.clone());
+
+        let mut a = ActionSetCasts::new();
+        a.apply(&mut fd).unwrap();
+        assert_eq!(
+            op_ref.0.read().unwrap().opcode,
+            OpCode::CPUI_PTRADD,
+            "well-fitting PTRADD must survive"
+        );
+        let new_idx = {
+            let rg = op_ref.0.read().unwrap();
+            rg.get_in(1).cloned().unwrap()
+        };
+        assert!(
+            Arc::ptr_eq(&new_idx, &idx),
+            "int-typed index of its own size must NOT gain a cast (cast.cc:302)"
+        );
     }
 
     // ---- ActionInferTypes + default-pipeline tree tests ----
