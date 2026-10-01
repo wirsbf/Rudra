@@ -46,12 +46,123 @@ pub struct TermOrder {
     root: Arc<RwLock<PcodeOp>>,
     terms: Vec<AdditiveEdge>,
     sorter: Vec<usize>, // indices into terms, sorted
+    /// PERF-RULEBODY2-0001: pooled scratch for sortTerms — the oracle's
+    /// additiveCompare key projection (expression.cc:292 `sort` comparator)
+    /// allocates nothing; the former per-call `keys` Vec paid one malloc per
+    /// rule try. Pure storage reuse, no semantic change.
+    sort_keys: Vec<TermSortKey>,
+    /// PERF-RULEBODY2-0001: pooled collect scratch (the former per-call
+    /// opstack Vec paid one malloc per try; the oracle reuses no vector but
+    /// builds its opstack on the stack-allocated vector template — the
+    /// allocator round-trip is Rust-side storage cost only).
+    opstack: Vec<(Arc<RwLock<PcodeOp>>, Option<Arc<RwLock<PcodeOp>>>)>,
+}
+
+/// Sort key of an additive term (the additiveCompare projection,
+/// expression.cc:292 / varnode.cc:1153-1175 termOrder).
+type TermSortKey = (u8, u8, crate::space::AddressSpace, u64);
+
+// PERF-RULEBODY2-0001: thread-local scratch pools backing TermOrder's four
+// Vecs. TermOrder is a rule-body-only helper (RuleCollectTerms) constructed
+// once per rule try; pooling the buffers removes the per-try heap allocs
+// while keeping every drop of an Arc handle at the same observable moment
+// (the clear() calls in Drop run exactly where the owned Vecs used to
+// destruct). Pools are capped; overflow vectors fall to the allocator.
+mod term_scratch {
+    use std::cell::RefCell;
+    use std::sync::Arc;
+    use std::sync::RwLock;
+
+    use crate::op::PcodeOp;
+
+    use super::{AdditiveEdge, TermSortKey};
+
+    thread_local! {
+        static TERMS: RefCell<Vec<Vec<AdditiveEdge>>> = const { RefCell::new(Vec::new()) };
+        static SORTERS: RefCell<Vec<Vec<usize>>> = const { RefCell::new(Vec::new()) };
+        static KEYS: RefCell<Vec<Vec<TermSortKey>>> = const { RefCell::new(Vec::new()) };
+        static OPSTACKS: RefCell<
+            Vec<Vec<(Arc<RwLock<PcodeOp>>, Option<Arc<RwLock<PcodeOp>>>)>>,
+        > = const { RefCell::new(Vec::new()) };
+    }
+
+    const POOL_CAP: usize = 4;
+
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take/give pair (pure
+    // Rust storage reuse; no Ghidra counterpart — the oracle's vectors
+    // allocate per call, which is exactly the cost this removes).
+    pub fn take_terms() -> Vec<AdditiveEdge> {
+        TERMS.with(|p| p.borrow_mut().pop()).unwrap_or_default()
+    }
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
+    pub fn take_sorters() -> Vec<usize> {
+        SORTERS.with(|p| p.borrow_mut().pop()).unwrap_or_default()
+    }
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
+    pub fn take_keys() -> Vec<TermSortKey> {
+        KEYS.with(|p| p.borrow_mut().pop()).unwrap_or_default()
+    }
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
+    pub fn take_opstacks() -> Vec<(Arc<RwLock<PcodeOp>>, Option<Arc<RwLock<PcodeOp>>>)> {
+        OPSTACKS.with(|p| p.borrow_mut().pop()).unwrap_or_default()
+    }
+
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
+    pub fn give_terms(v: Vec<AdditiveEdge>) {
+        if v.capacity() > 0 {
+            TERMS.with(|p| {
+                let mut pool = p.borrow_mut();
+                if pool.len() < POOL_CAP {
+                    pool.push(v);
+                }
+            });
+        }
+    }
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
+    pub fn give_sorters(v: Vec<usize>) {
+        if v.capacity() > 0 {
+            SORTERS.with(|p| {
+                let mut pool = p.borrow_mut();
+                if pool.len() < POOL_CAP {
+                    pool.push(v);
+                }
+            });
+        }
+    }
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
+    pub fn give_keys(v: Vec<TermSortKey>) {
+        if v.capacity() > 0 {
+            KEYS.with(|p| {
+                let mut pool = p.borrow_mut();
+                if pool.len() < POOL_CAP {
+                    pool.push(v);
+                }
+            });
+        }
+    }
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
+    pub fn give_opstacks(v: Vec<(Arc<RwLock<PcodeOp>>, Option<Arc<RwLock<PcodeOp>>>)>) {
+        if v.capacity() > 0 {
+            OPSTACKS.with(|p| {
+                let mut pool = p.borrow_mut();
+                if pool.len() < POOL_CAP {
+                    pool.push(v);
+                }
+            });
+        }
+    }
 }
 
 impl TermOrder {
     // Ghidra: expression.hh:124 TermOrder::new
     pub fn new(root: Arc<RwLock<PcodeOp>>) -> Self {
-        Self { root, terms: Vec::new(), sorter: Vec::new() }
+        Self {
+            root,
+            terms: term_scratch::take_terms(),
+            sorter: term_scratch::take_sorters(),
+            sort_keys: term_scratch::take_keys(),
+            opstack: term_scratch::take_opstacks(),
+        }
     }
 
     // Ghidra: expression.hh:124 TermOrder::getSize
@@ -68,15 +179,19 @@ impl TermOrder {
     /// raw read in the oracle). Same LIFO stack order, same per-slot scan
     /// order, same term push order as the oracle loop.
     pub fn collect(&mut self) {
-        let mut opstack: Vec<(Arc<RwLock<PcodeOp>>, Option<Arc<RwLock<PcodeOp>>>)> = Vec::new();
-        opstack.push((self.root.clone(), None));
-        while let Some((curop, multop)) = opstack.pop() {
-            // One lock per popped op: snapshot the input Arc handles.
-            let inputs: Vec<Arc<RwLock<Varnode>>> = {
-                let op = curop.read().unwrap();
-                op.inrefs.clone()
-            };
-            for (i, curvn) in inputs.iter().enumerate() {
+        // PERF-RULEBODY2-0001: the input scan runs under one per-op read
+        // guard instead of cloning the inrefs Vec first — the oracle reads
+        // `curop->getIn(i)` as raw pointers (expression.cc:254), and each
+        // pushed AdditiveEdge clones exactly the handles it stores. The
+        // former form paid one heap alloc plus an Arc round-trip pair for
+        // EVERY input (then cloned the pushed ones a second time).
+        // Same LIFO stack order, same per-slot scan order, same term push
+        // order as the oracle loop.
+        self.opstack.clear();
+        self.opstack.push((self.root.clone(), None));
+        while let Some((curop, multop)) = self.opstack.pop() {
+            let op = curop.read().unwrap();
+            for (i, curvn) in op.inrefs.iter().enumerate() {
                 // One Varnode lock per edge: the three fields the oracle
                 // reads as isWritten / loneDescend / getDef.
                 let (is_written, lone, subop) = {
@@ -135,7 +250,7 @@ impl TermOrder {
                                             |output| output.read().unwrap().lone_descend().is_some(),
                                         );
                                         if out_lone {
-                                            opstack.push((ao, Some(subop.clone())));
+                                            self.opstack.push((ao, Some(subop.clone())));
                                             continue;
                                         }
                                     }
@@ -151,7 +266,7 @@ impl TermOrder {
                     });
                     continue;
                 }
-                opstack.push((subop, multop.clone()));
+                self.opstack.push((subop, multop.clone()));
             }
         }
     }
@@ -169,7 +284,7 @@ impl TermOrder {
     /// unchanged).
     pub fn sort_terms(&mut self) {
         let term_key =
-            |edge: &AdditiveEdge| -> (u8, u8, crate::space::AddressSpace, u64) {
+            |edge: &AdditiveEdge| -> TermSortKey {
                 let vn = edge.vn.read().unwrap();
                 if vn.is_constant() {
                     // Constants form one tie class that sorts after every
@@ -205,15 +320,36 @@ impl TermOrder {
                     )
                 }
             };
-        let keys: Vec<(u8, u8, crate::space::AddressSpace, u64)> =
-            self.terms.iter().map(term_key).collect();
-        self.sorter = (0..self.terms.len()).collect();
+        // PERF-RULEBODY2-0001: the key projection lands in the pooled
+        // sort_keys buffer (cleared each call); the sorter is rebuilt into
+        // its pooled buffer. Same stable sort, same comparator verdicts.
+        self.sort_keys.clear();
+        self.sort_keys.extend(self.terms.iter().map(term_key));
+        self.sorter.clear();
+        self.sorter.extend(0..self.terms.len());
         self.sorter.sort_by(|&a, &b| {
             if Arc::ptr_eq(&self.terms[a].vn, &self.terms[b].vn) {
                 return std::cmp::Ordering::Equal;
             }
-            keys[a].cmp(&keys[b])
+            self.sort_keys[a].cmp(&self.sort_keys[b])
         });
+    }
+
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch return — returns the four
+    // buffers (after clear) to the thread-local pools. The clear() calls
+    // drop exactly the Arc handles the owned Vecs used to drop at the same
+    // statement-end moment, so the observable destruction order is
+    // unchanged; nothing Ghidra-side corresponds (the oracle's vectors
+    // destruct at scope exit either way).
+    fn return_scratch(&mut self) {
+        self.terms.clear();
+        self.sorter.clear();
+        self.sort_keys.clear();
+        self.opstack.clear();
+        term_scratch::give_terms(std::mem::take(&mut self.terms));
+        term_scratch::give_sorters(std::mem::take(&mut self.sorter));
+        term_scratch::give_keys(std::mem::take(&mut self.sort_keys));
+        term_scratch::give_opstacks(std::mem::take(&mut self.opstack));
     }
 
     // Ghidra: expression.hh:124 TermOrder::getSort
@@ -224,6 +360,14 @@ impl TermOrder {
     /// Get a term by index.
     pub fn get_term(&self, idx: usize) -> Option<&AdditiveEdge> {
         self.terms.get(idx)
+    }
+}
+
+impl Drop for TermOrder {
+    // RUGRA-GLUE: PERF-RULEBODY2-0001 pooled-buffer recycle (no Ghidra
+    // counterpart; storage-only).
+    fn drop(&mut self) {
+        self.return_scratch();
     }
 }
 

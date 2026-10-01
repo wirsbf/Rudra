@@ -5356,13 +5356,29 @@ impl RuleCollectTerms {
     ) -> (
         std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>, u64,
     ) {
-        let def = {
+        // PERF-RULEBODY2-0001: single guard for the isWritten/getDef pair,
+        // delegating to the guarded-fields form (same reads as the oracle's
+        // getMultCoeff, ruleaction.cc:82-97).
+        let (is_written, def) = {
             let v = vn.read().unwrap();
-            if !v.is_written() {
-                return (vn.clone(), 1);
-            }
-            v.def.as_ref().and_then(|w| w.upgrade())
+            (v.is_written(), v.def.as_ref().and_then(|w| w.upgrade()))
         };
+        Self::get_mult_coeff_from(vn, is_written, def)
+    }
+
+    /// Guarded-fields form of [`Self::get_mult_coeff`]: the caller supplies
+    /// the isWritten/def reads already taken under one Varnode guard; the
+    /// def-op lock and constant reads follow the oracle exactly
+    /// (ruleaction.cc:82-97).
+    // Ghidra: ruleaction.cc:82 RuleCollectTerms::getMultCoeff
+    fn get_mult_coeff_from(
+        vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        is_written: bool,
+        def: Option<std::sync::Arc<std::sync::RwLock<PcodeOp>>>,
+    ) -> (
+        std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>, u64,
+    ) {
+        let def = if is_written { def } else { return (vn.clone(), 1) };
         if let Some(op) = def {
             let o = op.read().unwrap();
             if o.opcode == OpCode::CPUI_INT_MULT {
@@ -5431,17 +5447,34 @@ impl Rule for RuleCollectTerms {
                 let (base1, coef1) = match carried.take() {
                     Some(pair) => pair,
                     None => {
+                        // PERF-RULEBODY2-0001: borrow the handle directly —
+                        // get_mult_coeff returns owned values and needs no
+                        // caller-side clone (cc:127 reads vn1 as a raw
+                        // pointer).
                         let vn1 = termorder
                             .get_term(order[i - 1])
                             .unwrap()
-                            .get_varnode()
-                            .clone();
-                        Self::get_mult_coeff(&vn1)
+                            .get_varnode();
+                        Self::get_mult_coeff(vn1)
                     }
                 };
-                let vn2 = termorder.get_term(order[i]).unwrap().get_varnode().clone();
-                if vn2.read().unwrap().is_constant() { break; }
-                let (base2, coef2) = Self::get_mult_coeff(&vn2);
+                let vn2 = termorder.get_term(order[i]).unwrap().get_varnode();
+                // PERF-RULEBODY2-0001: isConstant + isWritten + def in ONE
+                // Varnode guard (the oracle reads the raw fields, cc:126
+                // isConstant then cc:127-128 getMultCoeff's isWritten/getDef
+                // — pure reads, no side effects, so the guard merge changes
+                // nothing observable). The handle clone moves into the two
+                // arms that need ownership (carried base / break needs none).
+                let (is_const2, written2, def2) = {
+                    let v = vn2.read().unwrap();
+                    (
+                        v.is_constant(),
+                        v.is_written(),
+                        v.def.as_ref().and_then(|w| w.upgrade()),
+                    )
+                };
+                if is_const2 { break; }
+                let (base2, coef2) = Self::get_mult_coeff_from(vn2, written2, def2);
                 if std::sync::Arc::ptr_eq(&base1, &base2) {
                     // Like terms → combine. Handle multiplier sub-case.
                     let mult1 = termorder
@@ -9617,44 +9650,41 @@ impl Rule for RuleMultiCollapse {
         // Faithful to RuleMultiCollapse::applyOp (ruleaction.cc:3234-3343).
         use crate::expression::functional_equality_level_code;
 
-        // PERF-OPPOOL-0001: one op read snapshots the input handles; the
-        // heritage-known precheck (cc:3243-3244) and the matchlist build
-        // (cc:3247) both iterate the same inputs — merged into a single
-        // pass over one cloned handle list (the oracle reads raw fields).
-        // PERF-ACTIONPOOL-ITER-0001: the clone is deferred behind the
-        // heritage precheck exactly as the oracle orders it — cc:3243-3244
-        // scans `op->getIn(i)` raw pointers and returns on the FIRST
-        // heritage-unknown input, and only then does cc:3247 build the
-        // matchlist. The previous clone-first form paid the Vec alloc plus
-        // one Arc round-trip per input on every heritage-miss try; the
-        // guard-held scan below reads the same Varnode flags in the same
-        // slot order and returns at the same first miss (zero clones).
-        let matchlist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = {
-            let op = op_arc.read().unwrap();
-            for vn in &op.inrefs {
-                if !vn.read().unwrap().is_heritage_known() {
-                    return Ok(action_status::NO_CHANGE);
-                }
-            }
-            op.inrefs.clone()
-        };
-
-        // cc:3247: matchlist grows with expanded MULTIEQUAL branches.
-        let mut matchlist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
-            matchlist;
+        // PERF-RULEBODY2-0001: clone-free matchlist. The oracle's matchlist
+        // (cc:3237, filled at cc:3250-3251) holds raw pointers into
+        // op->getIn(i) — zero-cost copies. The prior Rugra form cloned the
+        // whole inrefs Vec (one heap alloc + one Arc round-trip pair per
+        // input) on every heritage-known try. Here the initial matchlist is
+        // read IN PLACE under the single op guard (same slot order), and
+        // only the MULTIEQUAL expansions (cc:3291-3292) append to a local
+        // Vec. Handle clones now happen only where the oracle stores a
+        // pointer that outlives the iteration: defcopyr, skiplist, and the
+        // expansion appends. The op guard is dropped before the epilogue —
+        // totalReplace/opDestroy write-lock descendant ops
+        // (RULE-SUBCANCEL-RWLOCK-0001), which may include op itself.
         let mut func_eq = false;
         let mut nofunc = false;
-        let mut defcopyr: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = None;
-        let mut skiplist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = Vec::new();
+        let mut defcopyr: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
+            None;
+        let mut skiplist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
+            Vec::new();
+        let mut expanded: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
+            Vec::new();
 
-        // Find base branch to match (first non-MULTIEQUAL input).
-        for i in 0..matchlist.len() {
-            // PERF-ACTIONPOOL-ITER-0001: the handle clone moves inside the
-            // break arm — the scan iterations that keep looking (MULTIEQUAL
-            // inputs) no longer pay the Arc round-trip (cc:3253-3260 reads
-            // `copyr` as a raw pointer per iteration).
+        let op_guard = op_arc.read().unwrap();
+        // cc:3243-3244: everything must be heritaged before collapse; the
+        // precheck scans the same slots in the same order (first
+        // heritage-unknown input returns).
+        for vn in &op_guard.inrefs {
+            if !vn.read().unwrap().is_heritage_known() {
+                return Ok(action_status::NO_CHANGE);
+            }
+        }
+        // cc:3250-3258: find base branch to match (first input that is not
+        // written by a MULTIEQUAL).
+        for vn in &op_guard.inrefs {
             let is_multiequal = {
-                let v = matchlist[i].read().unwrap();
+                let v = vn.read().unwrap();
                 if !v.is_written() {
                     false
                 } else {
@@ -9664,27 +9694,36 @@ impl Rule for RuleMultiCollapse {
                 }
             };
             if !is_multiequal {
-                defcopyr = Some(matchlist[i].clone());
+                defcopyr = Some(vn.clone());
                 break;
             }
         }
 
-        // Mark the output for loop-construct detection.
-        let out_vn = match op_arc.read().unwrap().output.as_ref() { Some(o) => o.clone(), None => return Ok(action_status::NO_CHANGE) ,
+        // cc:3261-3262: mark the output for loop-construct detection.
+        let out_vn: std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>> = match op_guard
+            .output
+            .as_ref()
+        {
+            Some(o) => o.clone(),
+            None => return Ok(action_status::NO_CHANGE),
         };
         out_vn.write().unwrap().set_mark();
-        skiplist.push(out_vn.clone());
+        skiplist.push(out_vn);
 
+        let base_len = op_guard.inrefs.len();
         let mut j = 0usize;
         let mut success = true;
-        while j < matchlist.len() {
-            // PERF-ACTIONPOOL-ITER-0001: the loop variable is the oracle's
-            // raw `copyr` pointer (cc:3267 `copyr = matchlist[j++]`) — the
-            // Rust form borrows the handle slot instead of cloning it every
-            // iteration; the three arms that need ownership (defcopyr
-            // store, skiplist push) clone at their use site, so mark-check
-            // and match-check continues pay zero Arc round-trips.
-            let copyr = &matchlist[j];
+        while j < base_len + expanded.len() {
+            // cc:3264 `copyr = matchlist[j++]` — the initial region reads
+            // the op-guarded inrefs slot in place; the expansion region
+            // reads the local Vec. Same visit order as the oracle's
+            // monolithic matchlist.
+            let copyr: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>> =
+                if j < base_len {
+                    &op_guard.inrefs[j]
+                } else {
+                    &expanded[j - base_len]
+                };
             j += 1;
             if copyr.read().unwrap().is_mark() {
                 continue; // Loop construct — value recurs without change.
@@ -9767,12 +9806,15 @@ impl Rule for RuleMultiCollapse {
                     }
                 };
                 if let Some(newop) = expand_def {
-                    let newop_inputs =
-                        newop.read().unwrap().inrefs.clone();
+                    // cc:3288-3292: one last chance for the branch — mark it
+                    // and append its inputs to the matchlist. The handle
+                    // clones mirror the oracle's pointer copies that outlive
+                    // the loop iteration.
                     skiplist.push(copyr.clone());
                     copyr.write().unwrap().set_mark();
-                    for v in newop_inputs {
-                        matchlist.push(v);
+                    let newop_guard = newop.read().unwrap();
+                    for v in &newop_guard.inrefs {
+                        expanded.push(v.clone());
                     }
                 } else {
                     success = false;
@@ -9780,6 +9822,10 @@ impl Rule for RuleMultiCollapse {
                 }
             }
         }
+        // RULE-SUBCANCEL-RWLOCK-0001: the epilogue's totalReplace/opDestroy
+        // write-lock descendant ops (possibly op itself) — the op read
+        // guard must be gone before them.
+        drop(op_guard);
 
         if success {
             let defining_branch = defcopyr
@@ -17265,37 +17311,35 @@ impl RulePiecePathology {
         while pos < worklist.len() {
             let cur_op = worklist[pos].clone();
             pos += 1;
-            // Snapshot of descendant ops reading cur_op's output.
-            let descends: Vec<std::sync::Arc<std::sync::RwLock<PcodeOp>>> = {
+            // PERF-RULEBODY2-0001: one op guard snapshots the output handle;
+            // the descend scan streams under the single Varnode guard (the
+            // oracle iterates the raw descend list in place,
+            // ruleaction.cc:10525-10527 — no per-op descend Vec
+            // materialization). The owned out_vn handle serves the CALL
+            // arm's identity comparisons without a third lock.
+            let out_vn: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = {
                 let cur = cur_op.read().unwrap();
-                match cur.get_out() {
-                    Some(out_vn) => out_vn
-                        .read()
-                        .unwrap()
-                        .descend
-                        .iter()
-                        .filter_map(|w| w.upgrade())
-                        .collect(),
-                    None => Vec::new(),
-                }
+                cur.get_out().cloned()
             };
-            // The output varnode of cur_op (compared by ptr against call inputs).
-            let out_vn = cur_op.read().unwrap().get_out().cloned();
-            for dop in descends {
-                let code = dop.read().unwrap().opcode;
+            let Some(out_vn) = out_vn else { continue };
+            let out_guard = out_vn.read().unwrap();
+            for dop in out_guard.descend.iter().filter_map(|w| w.upgrade()) {
+                // PERF-RULEBODY2-0001: opcode + mark bit in one read guard
+                // (the oracle reads two raw fields, cc:10528-10531).
+                let (code, already_marked) = {
+                    let d = dop.read().unwrap();
+                    (d.opcode, (d.flags & pcodeop_flags::MARK) != 0)
+                };
                 match code {
                     OpCode::CPUI_COPY | OpCode::CPUI_INDIRECT | OpCode::CPUI_MULTIEQUAL => {
-                        let already = (dop.read().unwrap().flags & pcodeop_flags::MARK) != 0;
-                        if !already {
+                        if !already_marked {
                             dop.write().unwrap().flags |= pcodeop_flags::MARK;
                             marked.push(dop.clone());
                             worklist.push(dop);
                         }
                     }
                     OpCode::CPUI_CALL | OpCode::CPUI_CALLIND => {
-                        if let (Some(out), Some(idx)) =
-                            (out_vn.as_ref(), Self::find_call_spec_for_op(fd, &dop))
-                        {
+                        if let Some(idx) = Self::find_call_spec_for_op(fd, &dop) {
                             let may_update = fd
                                 .get_call_specs(idx)
                                 .map(|fc| !fc.is_input_active() && !fc.is_input_locked())
@@ -17307,7 +17351,7 @@ impl RulePiecePathology {
                                         .read()
                                         .unwrap()
                                         .get_in(i)
-                                        .map(|v| std::sync::Arc::ptr_eq(v, out))
+                                        .map(|v| std::sync::Arc::ptr_eq(v, &out_vn))
                                         .unwrap_or(false);
                                     if same {
                                         if fd
