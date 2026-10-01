@@ -3390,7 +3390,7 @@ impl<'a> CollapseStructure<'a> {
                 Some(b) => b,
                 None => continue,
             };
-            {
+            let cond_idx = {
                 let h = head_blk.read().unwrap();
                 if self.is_consumed(h.get_index()) {
                     continue;
@@ -3410,8 +3410,8 @@ impl<'a> CollapseStructure<'a> {
                 if !has_cbranch {
                     continue;
                 }
-            }
-            let cond_idx = head_blk.read().unwrap().get_index();
+                h.get_index()
+            };
             let is_dowhile = {
                 let h = head_blk.read().unwrap();
                 (0..h.size_out()).any(|s| {
@@ -3427,32 +3427,40 @@ impl<'a> CollapseStructure<'a> {
                 let mut found = None;
                 for s in 0..h.size_out() {
                     if let Some(e) = h.get_out(s) {
-                        let body_blk = self.graph_bank().expect_arc(e.point);
-                        let body_idx = body_blk.read().unwrap().get_index();
+                        // (W2) shadow reads: body_idx via the bank index
+                        // shadow; the loops_back scan takes ONE peer guard
+                        // for the deep get_out walk (block.hh:160/312).
+                        let bank = self.graph_bank();
+                        let body_idx = bank.expect_index(e.point);
                         if body_idx == cond_idx {
                             continue;
                         }
-                        let loops_back = (0..body_blk.read().unwrap().size_out()).any(|bs| {
-                            body_blk.read().unwrap().get_out(bs).map_or(false, |be| {
-                                self.graph_bank().expect_index(be.point) == cond_idx
+                        let body_blk = bank.expect_arc(e.point);
+                        let loops_back = {
+                            let bd = body_blk.read().unwrap();
+                            (0..bd.size_out()).any(|bs| {
+                                bd.get_out(bs).map_or(false, |be| {
+                                    self.graph_bank().expect_index(be.point) == cond_idx
+                                })
                             })
-                        });
+                        };
                         if loops_back {
-                            found = Some((body_blk, body_idx));
+                            found = Some((body_blk, body_idx, e.point));
                             break;
                         }
                     }
                 }
                 found
             };
-            if let Some((body_blk, body_idx)) = body_info {
-                let body_ok = {
-                    let bd = body_blk.read().unwrap();
-                    let bt = bd.get_type();
-                    (bt == crate::block::BlockType::Basic || bt == crate::block::BlockType::Copy)
-                        && bd.get_flags() & crate::block::block_flags::CASE_BODY == 0
-                        && !self.is_consumed(bd.get_index())
-                };
+            if let Some((body_blk, body_idx, body_point)) = body_info {
+                // (W2) shadow reads: type/flags/index all guard-served
+                // (block.hh:184/165/160) — no peer lock for the ok-check.
+                let bank = self.graph_bank();
+                let body_ok = matches!(
+                    bank.btype_of(body_point),
+                    Some(crate::block::BlockType::Basic) | Some(crate::block::BlockType::Copy)
+                ) && bank.expect_flags(body_point) & crate::block::block_flags::CASE_BODY == 0
+                    && !self.is_consumed(body_idx);
                 if !body_ok {
                     continue;
                 }
@@ -3858,22 +3866,22 @@ impl<'a> CollapseStructure<'a> {
                 continue;
             }
             // Check if fallthrough (out[0]) leads to another CBRANCH (cascade)
-            let fallthrough = match b.get_out(0) {
-                Some(e) => self.graph_bank().expect_arc(e.point),
+            let ft_point = match b.get_out(0) {
+                Some(e) => e.point,
                 None => {
                     continue;
                 }
             };
-            let ft_is_cbranch = {
-                let ft = fallthrough.read().unwrap();
-                if ft.size_out() != 2 {
-                    false
-                } else {
-                    let ft_ops = ft.get_ops();
-                    ft_ops.last().map_or(false, |o| {
-                        o.0.read().unwrap().opcode == OpCode::CPUI_CBRANCH
-                    })
-                }
+            let fallthrough = self.graph_bank().expect_arc(ft_point);
+            // (W2) shadow read: the sizeOut guard is bank-served
+            // (block.hh:312); only the ops probe takes the peer lock.
+            let ft_is_cbranch = if self.graph_bank().expect_size_out(ft_point) != 2 {
+                false
+            } else {
+                let ft_ops = fallthrough.read().unwrap().get_ops();
+                ft_ops.last().map_or(false, |o| {
+                    o.0.read().unwrap().opcode == OpCode::CPUI_CBRANCH
+                })
             };
             if !ft_is_cbranch {
                 continue;
@@ -4012,14 +4020,12 @@ impl<'a> CollapseStructure<'a> {
                 let c = cb.read().unwrap();
                 for slot in 0..c.size_in() {
                     if let Some(e) = c.get_in(slot) {
-                        // Use try_read to avoid RwLock deadlock when the source
-                        // block's lock is held (e.g. by a prior identify_internal
-                        // edge rewrite on the same thread). Skip the edge if
-                        // the lock can't be acquired.
-                        let src_idx = match bank.expect_arc(e.point).try_read() {
-                            Ok(g) => g.get_index(),
-                            Err(_) => continue,
-                        };
+                        // (W2) shadow read: src_idx via the bank index shadow
+                        // (block.hh:160) — the pre-W2 try_read guard's only
+                        // failure mode was same-thread lock recursion, which
+                        // the shadow form cannot hit; Ghidra reads the index
+                        // field directly (block.cc:907 `otherbl->parent`).
+                        let src_idx = bank.expect_index(e.point);
                         // Exclude: consumed blocks, install_idx itself (self-loop),
                         // and the new_block (not yet installed, but guard anyway).
                         if !consumed_set.contains(&src_idx) && src_idx != install_idx as i32 {
@@ -4048,10 +4054,8 @@ impl<'a> CollapseStructure<'a> {
                 let mut install_ext_out = false;
                 for slot in 0..c.size_out() {
                     if let Some(e) = c.get_out(slot) {
-                        let dst_idx = match bank.expect_arc(e.point).try_read() {
-                            Ok(g) => g.get_index(),
-                            Err(_) => continue,
-                        };
+                        // (W2) shadow read: dst_idx via the bank index shadow.
+                        let dst_idx = bank.expect_index(e.point);
                         if !consumed_set.contains(&dst_idx) && dst_idx != install_idx as i32 {
                             // cc:910 replaceOutEdge keeps the peer's edge label
                             // (block.cc:188 BlockEdge(this, outofthis[num].label,
@@ -4126,10 +4130,8 @@ impl<'a> CollapseStructure<'a> {
                 let mut ob = Vec::new();
                 for slot in 0..c.size_in() {
                     if let Some(e) = c.get_in(slot) {
-                        let src_idx = match bank.expect_arc(e.point).try_read() {
-                            Ok(g) => g.get_index(),
-                            Err(_) => continue,
-                        };
+                        // (W2) shadow read: src_idx via the bank index shadow.
+                        let src_idx = bank.expect_index(e.point);
                         // Ghidra selfIdentify: the install block is part of
                         // the consumed node set (identifyInternal's -nodes-),
                         // so edges between it and other consumed blocks are
@@ -4141,10 +4143,8 @@ impl<'a> CollapseStructure<'a> {
                 }
                 for slot in 0..c.size_out() {
                     if let Some(e) = c.get_out(slot) {
-                        let dst_idx = match bank.expect_arc(e.point).try_read() {
-                            Ok(g) => g.get_index(),
-                            Err(_) => continue,
-                        };
+                        // (W2) shadow read: dst_idx via the bank index shadow.
+                        let dst_idx = bank.expect_index(e.point);
                         if !consumed_set.contains(&dst_idx) && dst_idx != install_idx as i32 {
                             ob.push((bank.expect_arc(e.point), e.flags));
                         }
@@ -4383,22 +4383,21 @@ impl<'a> CollapseStructure<'a> {
         // incremental list compaction (block.cc:953-960).
         {
             let is_component = |idx: i32| consumed_set.contains(&idx) || idx == install_idx as i32;
-            // Snapshot-view reads (zero-lock resolution; the try_read
-            // fallback semantics on the peer guard are unchanged).
+            // (W2) shadow reads: component membership via the bank index
+            // shadow — the peer lock/vtable round-trip is gone and the
+            // self-loop arm keeps its edge exactly as before.
             let strip_external = |bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>| {
                 let mut w = bl.write().unwrap();
-                w.in_edges_mut().retain(|edge| {
-                    bank.expect_arc(edge.point)
-                        .try_read()
-                        .map(|peer| is_component(peer.get_index()))
-                        .unwrap_or(true)
-                });
-                w.out_edges_mut().retain(|edge| {
-                    bank.expect_arc(edge.point)
-                        .try_read()
-                        .map(|peer| is_component(peer.get_index()))
-                        .unwrap_or(true)
-                });
+                // (W2) shadow reads: the component test reads the bank index
+                // shadow (block.hh:160) — no peer lock. The old try_read's
+                // failure arm (unwrap_or(true) = keep) fired on self-loops,
+                // where the shadow form also keeps the edge (both endpoints
+                // are components), matching Ghidra's direct parent compare
+                // (block.cc:907).
+                w.in_edges_mut()
+                    .retain(|edge| is_component(bank.expect_index(edge.point)));
+                w.out_edges_mut()
+                    .retain(|edge| is_component(bank.expect_index(edge.point)));
                 // (g) guard-shadow: the retains change edge LENGTHS; push
                 // the post-strip sizes into the owning bank's cells.
                 w.sync_bank_shadows();
@@ -5051,16 +5050,16 @@ impl<'a> CollapseStructure<'a> {
                 }
                 if !resolved_by_shadow {
                     // Stale-id fallback (unreachable while the single-bank
-                    // invariant holds): resolve through the owning bank and
-                    // guard-read, the pre-bank form.
-                    let pred_arc = self.graph_bank().expect_arc(in_edge.point);
-                    let pred = pred_arc.read().unwrap();
-                    let pred_type = pred.get_type();
-                    if pred_type == crate::block::BlockType::Switch {
+                    // invariant holds): bank discriminant/shadow reads, the
+                    // pre-bank guard form's equivalents (block.hh:184/160).
+                    // The old expect_arc panicked on stale ids; expect_index
+                    // keeps the same panic profile.
+                    let bank = self.graph_bank();
+                    if bank.btype_of(in_edge.point) == Some(crate::block::BlockType::Switch) {
                         structural += 1;
                         continue;
                     }
-                    if self.is_consumed(pred.get_index()) {
+                    if self.is_consumed(bank.expect_index(in_edge.point)) {
                         structural += 1;
                     }
                 }
@@ -5529,19 +5528,14 @@ impl<'a> CollapseStructure<'a> {
         }
 
         // Post-negation edge layout (cc:1465 + block.cc:1799-1816).
-        let body_edge = match block.read().unwrap().get_out(0) {
-            Some(e) => e,
-            None => return false,
-        };
-        let body_block = self.graph_bank().expect_arc(body_edge.point);
-        let body_idx = body_block.read().unwrap().get_index();
+        // (W2) the former body handle/index capture here was dead code —
+        // removed; only the goto target handle survives.
         let goto_target = match block.read().unwrap().get_out(1) {
             Some(e) => self.graph_bank().expect_arc(e.point),
             None => return false,
         };
-        drop(body_edge);
 
-        // NOTE: no switch_case_indices guard on body_idx here — Ghidra's
+        // NOTE: no switch_case_indices guard on the body here — Ghidra's
         // ruleBlockGoto (cc:1446-1471) has no case-body pre-guard. The old
         // invented guard (`refreshSwitchCases` cascade marking) rejected
         // IfGoto wraps whose body was a CBRANCH-chain taken target — exactly
@@ -5549,7 +5543,6 @@ impl<'a> CollapseStructure<'a> {
         // marks unconsumed and driving the cc:1275 exhausted path
         // (TRI2-STRUCT-IRREDUCIBLE-TRACE-0001). refreshSwitchCases has no
         // oracle counterpart at all.
-        let _ = body_idx;
 
         // Create BlockIf in newBlockIfGoto style (Ghidra block.cc:1799-1816):
         // - Only [cond] is consumed (body stays external as an out-edge)
@@ -6423,18 +6416,19 @@ impl<'a> CollapseStructure<'a> {
         let mut nonfallthru = 0usize;
         let mut fallthru: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = Vec::new();
         for j in 0..sizeout {
-            let curbl = match block.read().unwrap().get_out(j) {
-                Some(e) => bank.expect_arc(e.point),
+            let cur_point = match block.read().unwrap().get_out(j) {
+                Some(e) => e.point,
                 None => continue,
             };
+            let curbl = bank.expect_arc(cur_point);
             // cc:1739: cannot exit to itself (pointer identity).
             if Arc::ptr_eq(&curbl, &block) {
                 return false;
             }
-            let (cur_sin, cur_sout) = {
-                let r = curbl.read().unwrap();
-                (r.size_in(), r.size_out())
-            };
+            // (W2) shadow reads: the sizeIn/sizeOut guard pair is bank-served
+            // (block.hh:312-313) — cc:1740 checks below read no peer lock.
+            let (cur_sin, cur_sout) =
+                (bank.expect_size_in(cur_point), bank.expect_size_out(cur_point));
             // cc:1740: sizeIn>2 OR sizeOut>1 counts as a (the at most one)
             // nonfallthru exit.
             if cur_sin > 2 || cur_sout > 1 {
@@ -6444,14 +6438,12 @@ impl<'a> CollapseStructure<'a> {
                 // block shared only with the switch itself.
                 let target_edge = {
                     let r = curbl.read().unwrap();
-                    r.get_out(0)
-                        .map(|e| (bank.expect_arc(e.point), e.reverse_index))
+                    r.get_out(0).map(|e| (bank.expect_arc(e.point), e.point, e.reverse_index))
                 };
-                if let Some((target, inslot)) = target_edge {
-                    let (tgt_sin, tgt_sout) = {
-                        let t = target.read().unwrap();
-                        (t.size_in(), t.size_out())
-                    };
+                if let Some((target, tgt_point, inslot)) = target_edge {
+                    // (W2) shadow reads: the target size guard pair (cc:1744).
+                    let (tgt_sin, tgt_sout) =
+                        (bank.expect_size_in(tgt_point), bank.expect_size_out(tgt_point));
                     if tgt_sin == 2 && tgt_sout <= 1 {
                         // cc:1745: inslot = curbl->getOutRevIndex(0) — the
                         // in-slot this edge occupies on the target; the
@@ -6512,11 +6504,13 @@ impl<'a> CollapseStructure<'a> {
             let outs: Vec<String> = (0..r.size_out())
                 .filter_map(|j| {
                     r.get_out(j).map(|e| {
-                        let tgt = self.graph_bank().expect_arc(e.point);
+                        // (W2) shadow read: index via the bank (debug face).
                         format!(
                             "{}@{:#x}(L{:x})",
-                            tgt.read().unwrap().get_index(),
-                            crate::block::dbg_front_leaf_start_addr(&tgt),
+                            self.graph_bank().expect_index(e.point),
+                            crate::block::dbg_front_leaf_start_addr(
+                                &self.graph_bank().expect_arc(e.point)
+                            ),
                             e.flags
                         )
                     })
@@ -6536,20 +6530,23 @@ impl<'a> CollapseStructure<'a> {
         // Ghidra cc:1656-1671: Find "obvious" exitblock.
         let mut exitblock: Option<i32> = None;
         for j in 0..sizeout {
-            let curbl = match block.read().unwrap().get_out(j) {
-                Some(e) => self.graph_bank().expect_arc(e.point),
+            let cur_point = match block.read().unwrap().get_out(j) {
+                Some(e) => e.point,
                 None => continue,
             };
-            let cur_idx = curbl.read().unwrap().get_index();
+            // (W2) shadow reads: idx + the sizeIn/sizeOut guard pair
+            // (cc:1659/1663/1667) — the whole scan is bank-served (the old
+            // form resolved each target's Arc only to read its fields).
+            let cur_idx = self.graph_bank().expect_index(cur_point);
             // cc:1659: self-loop (exit back to top)
             if cur_idx == i as i32 {
                 exitblock = Some(cur_idx);
                 break;
             }
-            let (cur_sin, cur_sout) = {
-                let r = curbl.read().unwrap();
-                (r.size_in(), r.size_out())
-            };
+            let (cur_sin, cur_sout) = (
+                self.graph_bank().expect_size_in(cur_point),
+                self.graph_bank().expect_size_out(cur_point),
+            );
             if cur_sout > 1 {
                 exitblock = Some(cur_idx);
                 break;
@@ -6563,40 +6560,44 @@ impl<'a> CollapseStructure<'a> {
         if exitblock.is_none() {
             // Ghidra cc:1672-1690: fallback — find first out with an output.
             for j in 0..sizeout {
-                let curbl = match block.read().unwrap().get_out(j) {
-                    Some(e) => self.graph_bank().expect_arc(e.point),
+                let cur_point = match block.read().unwrap().get_out(j) {
+                    Some(e) => e.point,
                     None => continue,
                 };
+                let curbl = self.graph_bank().expect_arc(cur_point);
+                let bank = self.graph_bank();
+                // (W2) shadow read: cur_idx for the debug face.
+                let cur_idx = bank.expect_index(cur_point);
                 // cc:1679: In cannot be a goto
                 if curbl.read().unwrap().is_goto_in(0) {
                     if irred_sw {
                         eprintln!(
                             "[IRRED-SW] reject blk{} fallback cc:1679 goto-in case blk{}",
-                            i,
-                            curbl.read().unwrap().get_index()
+                            i, cur_idx
                         );
                     }
                     return false;
                 }
                 // cc:1680: Must resolve nested switch first
-                if curbl.read().unwrap().is_switch_out() {
+                // (W2) shadow read: f_switch_out via the flags shadow
+                // (block.hh:165).
+                if bank.expect_flags(cur_point) & crate::block::block_flags::SWITCH_OUT != 0 {
                     if irred_sw {
                         eprintln!(
                             "[IRRED-SW] reject blk{} fallback cc:1680 nested switch blk{}",
-                            i,
-                            curbl.read().unwrap().get_index()
+                            i, cur_idx
                         );
                     }
                     return false;
                 }
-                let cur_sout = curbl.read().unwrap().size_out();
+                // (W2) shadow read: sizeOut (block.hh:312).
+                let cur_sout = bank.expect_size_out(cur_point);
                 if cur_sout == 1 {
                     if curbl.read().unwrap().is_goto_out(0) {
                         if irred_sw {
                             eprintln!(
                                 "[IRRED-SW] reject blk{} fallback cc:1682 goto-out case blk{}",
-                                i,
-                                curbl.read().unwrap().get_index()
+                                i, cur_idx
                             );
                         }
                         return false;
@@ -6653,22 +6654,26 @@ impl<'a> CollapseStructure<'a> {
                 }
             }
             for j in 0..sizeout {
-                let curbl = match block.read().unwrap().get_out(j) {
-                    Some(e) => self.graph_bank().expect_arc(e.point),
+                let cur_point = match block.read().unwrap().get_out(j) {
+                    Some(e) => e.point,
                     None => continue,
                 };
-                let cur_idx = curbl.read().unwrap().get_index();
+                let curbl = self.graph_bank().expect_arc(cur_point);
+                let bank = self.graph_bank();
+                // (W2) shadow reads: idx + sizeIn/sizeOut guards
+                // (cc:1700/1702) bank-served; the goto-label reads stay on
+                // the peer (edge flags are not shadowed).
+                let cur_idx = bank.expect_index(cur_point);
                 if cur_idx == exit_idx {
                     continue;
                 }
                 // cc:1700: case can only have switch fall into it
-                if curbl.read().unwrap().size_in() > 1 {
+                let cur_sin = bank.expect_size_in(cur_point);
+                if cur_sin > 1 {
                     if irred_sw {
                         eprintln!(
                             "[IRRED-SW] reject blk{} cc:1700 case blk{} size_in={}",
-                            i,
-                            cur_idx,
-                            curbl.read().unwrap().size_in()
+                            i, cur_idx, cur_sin
                         );
                     }
                     return false;
@@ -6684,18 +6689,16 @@ impl<'a> CollapseStructure<'a> {
                     return false;
                 }
                 // cc:1702: at most 1 exit from case
-                if curbl.read().unwrap().size_out() > 1 {
+                let cur_sout = bank.expect_size_out(cur_point);
+                if cur_sout > 1 {
                     if irred_sw {
                         eprintln!(
                             "[IRRED-SW] reject blk{} cc:1702 case blk{} size_out={}",
-                            i,
-                            cur_idx,
-                            curbl.read().unwrap().size_out()
+                            i, cur_idx, cur_sout
                         );
                     }
                     return false;
                 }
-                let cur_sout = curbl.read().unwrap().size_out();
                 if cur_sout == 1 {
                     if curbl.read().unwrap().is_goto_out(0) {
                         if irred_sw {
@@ -6785,11 +6788,13 @@ impl<'a> CollapseStructure<'a> {
         let mut default_isexit = false;
         let exit_idx = exitblock;
         for j in 0..sizeout {
-            let curbl = match block.read().unwrap().get_out(j) {
-                Some(e) => self.graph_bank().expect_arc(e.point),
+            let cur_point = match block.read().unwrap().get_out(j) {
+                Some(e) => e.point,
                 None => continue,
             };
-            let cur_idx = curbl.read().unwrap().get_index();
+            let curbl = self.graph_bank().expect_arc(cur_point);
+            // (W2) shadow reads: idx + the isexit sizeOut probe bank-served.
+            let cur_idx = self.graph_bank().expect_index(cur_point);
             if Some(cur_idx) == exit_idx {
                 continue;
             }
@@ -6810,7 +6815,8 @@ impl<'a> CollapseStructure<'a> {
             // basic-graph in-edge walk.
             let (is_default_edge, _outindex, _basic) =
                 Self::switch_case_basic_coords(&switch_basic, &curbl);
-            let isexit_flag = curbl.read().unwrap().size_out() == 1;
+            // (W2) shadow read: isexit sizeOut probe (cc:3512).
+            let isexit_flag = self.graph_bank().expect_size_out(cur_point) == 1;
             if irred_sw {
                 eprintln!(
                     "[IRRED-SW] capture fn={} case blk{} addr={:#x} isdefault={} isexit={} (size_out={})",
@@ -6819,7 +6825,7 @@ impl<'a> CollapseStructure<'a> {
                     crate::block::dbg_front_leaf_start_addr(&curbl),
                     is_default_edge,
                     isexit_flag,
-                    curbl.read().unwrap().size_out()
+                    self.graph_bank().expect_size_out(cur_point)
                 );
             }
             if is_default_edge {
@@ -7449,11 +7455,14 @@ impl<'a> CollapseStructure<'a> {
                         let _fb = self.graph_bank().expect_arc(fe.point);
                         drop(b);
 
-                        let tbr = tb.read().unwrap();
-                        if tbr.size_out() == 1 && tbr.size_in() == 1 {
-                            if let Some(out_edge) = tbr.get_out(0) {
+                        // (W2) shadow reads: the sizeIn/sizeOut gate
+                        // (cc: while-body shape) bank-served — the peer lock
+                        // only serves the deep get_out walk.
+                        if self.graph_bank().expect_size_out(te.point) == 1
+                            && self.graph_bank().expect_size_in(te.point) == 1
+                        {
+                            if let Some(out_edge) = tb.read().unwrap().get_out(0) {
                                 if self.graph_bank().expect_index(out_edge.point) == cond_idx {
-                                    drop(tbr);
                                     let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                                         Arc::new(RwLock::new(BlockWhileDo {
                                             owner_bank: std::sync::Weak::new(),
@@ -7522,7 +7531,8 @@ impl<'a> CollapseStructure<'a> {
             }
 
             let header = self.graph_bank().expect_arc(target_edge.point);
-            let header_idx = header.read().unwrap().get_index();
+            // (W2) shadow read: header_idx via the bank index shadow.
+            let header_idx = self.graph_bank().expect_index(target_edge.point);
 
             if replacements
                 .iter()
@@ -7554,10 +7564,13 @@ impl<'a> CollapseStructure<'a> {
             let h = header.read().unwrap();
             let out0 = self.graph_bank().expect_arc(h.get_out(0).unwrap().point);
             let out1 = self.graph_bank().expect_arc(h.get_out(1).unwrap().point);
+            let (out0_point, out1_point) =
+                (h.get_out(0).unwrap().point, h.get_out(1).unwrap().point);
             drop(h);
 
-            let out0_idx = out0.read().unwrap().get_index();
-            let out1_idx = out1.read().unwrap().get_index();
+            // (W2) shadow reads: out indexes via the bank (block.hh:160).
+            let out0_idx = self.graph_bank().expect_index(out0_point);
+            let out1_idx = self.graph_bank().expect_index(out1_point);
 
             let (body_entry, _exit_block) =
                 if out0_idx == header_idx as i32 || out1_idx == latch_idx {
@@ -7703,13 +7716,20 @@ impl<'a> CollapseStructure<'a> {
                 // header decides entry, latch decides repeat.
                 // Use header as condition block, latch's block as body end.
                 let h = header.read().unwrap();
-                let h_out0 = h.get_out(0).map(|e| self.graph_bank().expect_arc(e.point));
-                let h_out1 = h.get_out(1).map(|e| self.graph_bank().expect_arc(e.point));
+                let (h_out0, h_out0_point) = match h.get_out(0) {
+                    Some(e) => (Some(self.graph_bank().expect_arc(e.point)), Some(e.point)),
+                    None => (None, None),
+                };
+                let (h_out1, _) = match h.get_out(1) {
+                    Some(e) => (Some(self.graph_bank().expect_arc(e.point)), Some(e.point)),
+                    None => (None, None),
+                };
                 drop(h);
 
                 // Determine which of header's exits leads into the loop body
-                let body_entry = if let Some(ref ho0) = h_out0 {
-                    let ho0_idx = ho0.read().unwrap().get_index();
+                let body_entry = if let (Some(ref ho0), Some(ho0_point)) = (&h_out0, h_out0_point) {
+                    // (W2) shadow read: index via the bank (block.hh:160).
+                    let ho0_idx = self.graph_bank().expect_index(ho0_point);
                     if ho0_idx == latch_idx || self.dominates(&block, ho0) {
                         h_out0.clone()
                     } else {
@@ -7772,7 +7792,10 @@ impl<'a> CollapseStructure<'a> {
         };
         // Collect candidate clause block without holding the read lock across
         // mutations (identify_internal needs write access).
-        let candidate: Option<(Arc<RwLock<dyn FlowBlock + Send + Sync>>, i32)> = {
+        let candidate: Option<(
+            (Arc<RwLock<dyn FlowBlock + Send + Sync>>, i32),
+            Option<crate::arena::BlockId>,
+        )> = {
             let b = block.read().unwrap();
             if b.get_type() != crate::block::BlockType::Basic
                 && b.get_type() != crate::block::BlockType::Copy
@@ -7806,6 +7829,7 @@ impl<'a> CollapseStructure<'a> {
             // Find the clause: out-edge slot whose target has sizeIn==1,
             // sizeOut==1, not switch-out, and loops back to bl (cc:1531-1547).
             let mut found: Option<(Arc<RwLock<dyn FlowBlock + Send + Sync>>, i32)> = None;
+            let mut found_point: Option<crate::arena::BlockId> = None;
             for slot in 0..2 {
                 // Skip goto-marked edges (break-edges): they should not be
                 // structured as the loop body.
@@ -7817,17 +7841,23 @@ impl<'a> CollapseStructure<'a> {
                     None => continue,
                 };
                 let clauseblock = self.graph_bank().expect_arc(clause_edge.point);
-                let loops_back = {
-                    let cb = clauseblock.read().unwrap();
-                    if cb.size_in() != 1 {
+                // (W2) shadow reads: the sizeIn/sizeOut/type guards
+                // (cc:1533-1535) bank-served; only the deep get_out walk
+                // takes the peer lock.
+                {
+                    let bank = self.graph_bank();
+                    if bank.expect_size_in(clause_edge.point) != 1 {
                         continue;
                     } // Nothing else must hit clause
-                    if cb.size_out() != 1 {
+                    if bank.expect_size_out(clause_edge.point) != 1 {
                         continue;
                     } // Only one way out of clause
-                    if cb.get_type() == crate::block::BlockType::Switch {
+                    if bank.btype_of(clause_edge.point) == Some(crate::block::BlockType::Switch) {
                         continue;
                     } // not switch-out
+                }
+                let loops_back = {
+                    let cb = clauseblock.read().unwrap();
                     match cb.get_out(0) {
                         Some(e) => self.graph_bank().expect_index(e.point) == cond_idx,
                         None => false,
@@ -7836,14 +7866,16 @@ impl<'a> CollapseStructure<'a> {
                 if loops_back {
                     // Clause must loop back to bl — found a WhileDo.
                     found = Some((clauseblock, cond_idx));
+                    found_point = Some(clause_edge.point);
                     break;
                 }
             }
-            found
+            found.map(|t| (t, found_point))
         };
 
-        if let Some((clauseblock, cond_idx)) = candidate {
-            let body_idx = clauseblock.read().unwrap().get_index();
+        if let Some(((clauseblock, cond_idx), Some(clause_point))) = candidate {
+            // (W2) shadow read: body_idx via the bank index shadow.
+            let body_idx = self.graph_bank().expect_index(clause_point);
             let while_block: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
                 Arc::new(RwLock::new(crate::block::BlockWhileDo {
                     owner_bank: std::sync::Weak::new(),
@@ -7971,18 +8003,19 @@ impl<'a> CollapseStructure<'a> {
                 None => continue,
             };
             let succ = self.graph_bank().expect_arc(succ_edge.point);
-            let succ_idx = succ.read().unwrap().get_index() as usize;
+            // (W2) shadow read: succ_idx via the bank index shadow.
+            let succ_idx = self.graph_bank().expect_index(succ_edge.point) as usize;
             drop(b);
 
             if succ_idx >= size || merged[succ_idx] || succ_idx == i {
                 continue;
             }
 
-            let s = succ.read().unwrap();
-            if s.size_in() != 1 {
+            // (W2) shadow read: the successor's sizeIn==1 gate bank-served
+            // (block.hh:313).
+            if self.graph_bank().expect_size_in(succ_edge.point) != 1 {
                 continue;
             }
-            drop(s);
 
             // Sequence match: merge block[i] and block[succ_idx] into BlockList
             // The BlockList's out-edges come from the LAST child's out-edges
@@ -8278,7 +8311,9 @@ impl<'a> CollapseStructure<'a> {
                     None => break,
                 };
                 let next_block = self.graph_bank().expect_arc(fallthrough_edge.point);
-                let next_idx = next_block.read().unwrap().get_index() as usize;
+                // (W2) shadow read: next_idx via the bank index shadow.
+                let next_idx =
+                    self.graph_bank().expect_index(fallthrough_edge.point) as usize;
                 drop(cb);
 
                 if visited.contains(&next_idx) {
@@ -8306,8 +8341,11 @@ impl<'a> CollapseStructure<'a> {
                     // (skip over case body blocks in the chain)
                     if nb.size_out() == 1 {
                         if let Some(skip_edge) = nb.get_out(0) {
+                            // (W2) shadow read: skip_idx via the bank index
+                            // shadow.
+                            let skip_idx =
+                                self.graph_bank().expect_index(skip_edge.point) as usize;
                             let skip_block = self.graph_bank().expect_arc(skip_edge.point);
-                            let skip_idx = skip_block.read().unwrap().get_index() as usize;
                             drop(nb);
                             if skip_idx < size && !consumed[skip_idx] && skip_idx != next_idx {
                                 let sb = skip_block.read().unwrap();
@@ -8699,7 +8737,9 @@ impl<'a> CollapseStructure<'a> {
                 None => break,
             };
             let succ = self.graph_bank().expect_arc(succ_edge.point);
-            let succ_idx = succ.read().unwrap().get_index();
+            // (W2) shadow reads: idx/sizeIn/type gates bank-served
+            // (block.hh:160/313/184).
+            let succ_idx = self.graph_bank().expect_index(succ_edge.point);
             drop(cur);
             if succ_idx as usize >= size || succ_idx as usize == switch_idx {
                 break;
@@ -8710,12 +8750,13 @@ impl<'a> CollapseStructure<'a> {
             if default_idx == Some(succ_idx) {
                 break;
             }
-            let succ_in = succ.read().unwrap().size_in();
-            if succ_in != 1 {
+            if self.graph_bank().expect_size_in(succ_edge.point) != 1 {
                 break;
             }
-            let st = succ.read().unwrap().get_type();
-            if st != crate::block::BlockType::Basic && st != crate::block::BlockType::Copy {
+            let st = self.graph_bank().btype_of(succ_edge.point);
+            if st != Some(crate::block::BlockType::Basic)
+                && st != Some(crate::block::BlockType::Copy)
+            {
                 break;
             }
             if chain

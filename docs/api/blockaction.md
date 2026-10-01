@@ -2033,3 +2033,24 @@ BANKSTATS（替代语料 VdbeExec 50969B, (f) 终态实测——CR-ARENAFLIP-F n
 149.1M→1.49M（−99.0%）、read_arc 50.8M→9.96M（−80.4%）、id_lookups
 150.0M→4.33M（−97.1%）、view_holds 43.3M→22.1M、per-read 锁面合计
 392.8M→37.9M（−90.3%）。
+
+## BLOCKFLIPW2（2026-10-01）消费位点族影子读迁移（wave 2 批 1: blockaction）
+
+PERF-BLOCKSTORAGE-FLIP-0001 wave 2: 消费代码 `expect_arc().read()` 位点族的
+peer RwLock+vtable 消除——纯 POD 守卫读（`get_index`/`sizeIn`/`sizeOut`/
+`getFlags`/`getType`, block.hh:160/313/312/165/184）改走 wave 1 的
+`BlockKind` 判别位投影与 (g) 段 guard-shadow（`BlockBankView::expect_index/
+expect_size_in/expect_size_out/expect_flags` 与 `btype_of`）;深读
+（`get_out`/`get_in`/`get_ops`/goto 边标签）保留 peer 守卫。迁移位点族:
+`structure_loops_first`（cond_idx 守卫合并+body_info/body_ok 影子化）、
+`refresh_switch_cases`（ft sizeOut 守卫）、`identify_internal`（6 处
+`try_read().get_index()` → `expect_index`;strip_external 的 2 处 retain
+守卫——self-loop 的 `unwrap_or(true)` 保边语义由影子形态等价保持）、
+`count_non_structural_in_edges`（stale 回退臂 btype+index）、`try_rule_if_goto`
+（死 body 捕获读删除）、`try_rule_case_fallthru`（cur/target 两对 size 守卫）、
+`try_rule_switch`（4 段扫描的 idx/size/flags 守卫+debug 面）、`collapse_loops`
+（WhileDo 门+header/out 索引）、`rule_block_while_do`（clause 守卫+body_idx）、
+`collapse_sequences`（succ_idx+sizeIn 门）、`collapse_cbranch_cascades`
+（next_idx/skip_idx）、`build_fallthrough_chain`（succ idx/sizeIn/type 门）。
+行为恒等: canon curl `b7773087` + httpd `54f9b02c` 字节恒等 + tests 2026P
+（BANKSTATS 对比与镜面五面见车道终报）。
