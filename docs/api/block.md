@@ -2,6 +2,21 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-10-01：守卫读消费迁移（Lane ARENAFLIP-g 步骤 3）
+
+- **`BlockBank::expect_size_in/expect_size_out/expect_flags`**（fresh-snapshot
+  形，block.rs:3808-3846）：冷/单发守卫位的无句柄读——state 读锁 + gen 检查 +
+  影子原子 load（与 `expect_index` 同纪律；热位继续用 `BlockBankView` 无锁形）。
+- 消费迁移（blockaction.rs）：`clip_extra_roots` in-body 扫描的 sizeIn 守卫、
+  `try_rule_cat` 入口/首链/链行走进守卫（blockaction.cc:1291/1294/1296/
+  1302-1310 全食谱）、`collapse_switches` case-isexit 的 sizeOut 守卫
+  （block.cc:3514 形态）——peer 深读（Arc 克隆+peer RwLock+vtable）全部换为
+  影子读；cat 链头 index 提升出循环（循环体纯读，index 循环不变量）。
+- BANKSTATS（VdbeExec --one 2415，vs (f) 终态）：view_arc 49.68M→45.11M，
+  链行走 per-iteration peer 锁（~2 把/迭代）→ 原子影子 load；shadow_writes
+  1.19M→7.22M 为步骤 2 维护面（原地 ns 级 store）。stdout md5 abbd0632
+  字节恒等。
+
 ## 2026-09-30：size/flags 守卫影子（Lane ARENAFLIP-g 步骤 2）
 
 - **BankShadowCell** 增 `size_in`/`size_out`/`flags` 三个原子槽（block.hh:

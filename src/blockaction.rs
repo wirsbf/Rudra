@@ -3611,7 +3611,8 @@ impl<'a> CollapseStructure<'a> {
                         }
                         let count = visit_count.entry(nxt).or_insert(0);
                         *count += 1;
-                        let nxt_in = self.graph_bank().expect_arc(e.point).read().unwrap().size_in() as i32;
+                        // (g) guard-shadow: pure sizeIn guard — bank cell read.
+                        let nxt_in = self.graph_bank().expect_size_in(e.point) as i32;
                         if *count == nxt_in {
                             in_body.insert(nxt);
                             body.push(nxt);
@@ -4727,7 +4728,9 @@ impl<'a> CollapseStructure<'a> {
             let block_idx = b.get_index();
             if b.size_in() == 1 {
                 if let Some(in_edge) = b.get_in_ref(0) {
-                    let pred_out = bank_view.expect_arc(in_edge.point).read().unwrap().size_out();
+                    // (g) guard-shadow: pure sizeOut guard on the peer —
+                    // served from the bank cell (no Arc clone/peer lock).
+                    let pred_out = bank_view.expect_size_out(in_edge.point);
                     if pred_out == 1 {
                         return false;
                     } // not start of chain
@@ -4762,53 +4765,55 @@ impl<'a> CollapseStructure<'a> {
         let mut nodes: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = Vec::new();
         nodes.push(block.clone());
         // outblock = bl->getOut(0) — capture after the entry guards.
-        let first_next = {
+        // (g) guard-shadow: carry the edge point alongside the handle —
+        // the entry guards below are pure sizeIn/flags reads, served from
+        // the bank cell without the peer lock.
+        let first_next_pair = {
             let b = block.read().unwrap();
-            b.get_out_ref(0).map(|e| bank_view.expect_arc(e.point))
+            b.get_out_ref(0)
+                .map(|e| (bank_view.expect_arc(e.point), e.point))
         };
-        let first_next = match first_next {
-            Some(n) => n,
+        let (first_next, first_next_point) = match first_next_pair {
+            Some(pair) => pair,
             None => return false,
         };
         // cc:1294/1296: nothing else may hit the first link; a switch
         // dispatch block must be resolved first.
-        {
-            let n = first_next.read().unwrap();
-            if n.size_in() != 1 {
-                return false;
-            }
-            if n.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-                return false;
-            }
+        if bank_view.expect_size_in(first_next_point) != 1 {
+            return false;
+        }
+        if bank_view.expect_flags(first_next_point) & crate::block::block_flags::SWITCH_OUT != 0 {
+            return false;
         }
         nodes.push(first_next.clone());
 
         // cc:1302: while(outblock->sizeOut()==1) { ... }
+        // (g) guard-shadow: nextIdx/sizeIn/flags are pure guard reads —
+        // served from the bank cells (the chain head's index is
+        // loop-invariant under the read-phase discipline: no publish
+        // happens inside this loop, cc:1302-1310 only reads).
+        let head_idx = nodes[0].read().unwrap().get_index();
         let mut cur = first_next;
         loop {
-            let (cur_idx, cur_out_target) = {
+            let cur_out = {
                 let c = cur.read().unwrap();
                 if c.size_out() != 1 {
                     break;
                 }
-                let t = c.get_out(0).map(|e| bank_view.expect_arc(e.point));
-                (c.get_index(), t)
+                c.get_out(0)
             };
-            let next = match cur_out_target {
-                Some(n) => n,
+            let next = match cur_out {
+                Some(e) => (bank_view.expect_arc(e.point), e.point),
                 None => break,
             };
-            let next_idx = next.read().unwrap().get_index();
+            let (next, next_point) = next;
+            let next_idx = bank_view.expect_index(next_point);
             // cc:1304: outbl2 == bl → no looping (compare against the chain head).
-            let head_idx = nodes[0].read().unwrap().get_index();
-            let _ = cur_idx;
             if next_idx == head_idx {
                 break;
             }
-            let (n_in, n_flags) = {
-                let n = next.read().unwrap();
-                (n.size_in(), n.get_flags())
-            };
+            let n_in = bank_view.expect_size_in(next_point);
+            let n_flags = bank_view.expect_flags(next_point);
             // cc:1305: outbl2->sizeIn() != 1 → break (nothing else may hit it)
             if n_in != 1 {
                 break;
@@ -8107,7 +8112,8 @@ impl<'a> CollapseStructure<'a> {
             });
             for j in 0..size_out {
                 if let Some(edge) = b.get_out(j) {
-                    let isexit_flag = self.graph_bank().expect_arc(edge.point).read().unwrap().size_out() == 1;
+                    // (g) guard-shadow: pure sizeOut guard — bank cell read.
+                    let isexit_flag = self.graph_bank().expect_size_out(edge.point) == 1;
                     let is_default_edge = switch_basic_orig
                         .as_ref()
                         .map(|sb| sb.read().unwrap().is_default_branch(j))

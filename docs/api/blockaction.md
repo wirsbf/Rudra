@@ -1,5 +1,13 @@
 # `blockaction.rs` API Reference
 
+## 2026-10-01：守卫读消费迁移（Lane ARENAFLIP-g 步骤 3）
+- `clip_extra_roots`（in-body 扫描 sizeIn 守卫）、`try_rule_cat`（入口
+  pred sizeOut / 首链 sizeIn+SWITCH_OUT / 链行走 next index+sizeIn+flags，
+  blockaction.cc:1291-1310 逐位对应）、`collapse_switches`（case-isexit
+  sizeOut，block.cc:3514 形态）——peer `expect_arc().read()` 深读全部换
+  bank 影子读（docs/api/block.md 同日条目）；cat 链头 index 提升出循环
+  （循环体纯读=无发布点，index 循环不变量）。判定次序与边界逐字未动。
+
 ## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2）
 - identify_internal 安装链（BlockIf/BlockList/WhileDo/DoWhile/Goto/Condition/
   InfLoop/MultiGoto/Switch downcast 整体赋值后）与 strip_external 双 retain

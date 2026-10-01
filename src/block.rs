@@ -3802,6 +3802,46 @@ impl BlockBank {
         }
     }
 
+    /// Peer `sizeIn` shadow read (block.hh:313 without the block
+    /// lock/vtable), fresh-snapshot form; hot callers use `hold()`.
+    // RUGRA-GLUE: guard-shadow read (fresh-snapshot form)
+    pub fn expect_size_in(&self, id: BlockId) -> usize {
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+            panic!("BlockBank: stale or foreign BlockId {:?}", id);
+        }
+        st.cells[i]
+            .size_in
+            .load(std::sync::atomic::Ordering::Relaxed) as usize
+    }
+
+    /// Peer `sizeOut` shadow read (block.hh:312), fresh-snapshot form.
+    // RUGRA-GLUE: guard-shadow read (fresh-snapshot form)
+    pub fn expect_size_out(&self, id: BlockId) -> usize {
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+            panic!("BlockBank: stale or foreign BlockId {:?}", id);
+        }
+        st.cells[i]
+            .size_out
+            .load(std::sync::atomic::Ordering::Relaxed) as usize
+    }
+
+    /// Peer `flags` shadow read (block.hh:165), fresh-snapshot form.
+    // RUGRA-GLUE: guard-shadow read (fresh-snapshot form)
+    pub fn expect_flags(&self, id: BlockId) -> u32 {
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+            panic!("BlockBank: stale or foreign BlockId {:?}", id);
+        }
+        st.cells[i]
+            .flags
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     /// Shadow write for `FlowBlock::index` mutations (single choke point:
     /// `BlockGraph::set_block_index`). Stores in place into the shared
     /// cells under the state read lock (publishing here would be O(n) Arc
