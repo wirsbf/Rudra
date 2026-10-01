@@ -680,6 +680,18 @@ pub struct PrintC {
     /// the `dup_` arm of the same hasSpecialLabel gate.
     /// PRINTC-LABSPELL-LABSYMS-0001.
     dup_label_addrs: std::collections::HashSet<u64>,
+    /// Entry addresses of basics carrying `f_unstructured_targ`
+    /// (block.hh:93) — the emitLabelStatement structured arm's print
+    /// gate (printc.cc:3206-3209: only `isUnstructuredTarget()` t_copy
+    /// leaves print labels). The GOTO-LABEL-UNPRINTED-0001 backpatch
+    /// defers to these anchored leaves: when any leaf with this entry
+    /// address is marked, the label prints at the marked leaf's own
+    /// emission point (emit_any_label_statement, the oracle's
+    /// emitAnyLabelStatement path), never at the first-emitted duplicate
+    /// — the anchored leaf is the copy the goto sites name
+    /// (markCopyBlock → the front leaf, block.cc:1233-1238).
+    /// CLONESURG-CLONELABEL-ANCHOR-0001.
+    anchored_label_addrs: std::collections::HashSet<u64>,
     /// Suffix appended to an integer constant flagged `longprint`
     /// (`push_integer` printc.cc:1364-1365 `t << sizeSuffix`), set by
     /// `PrintC::initializeFromArchitecture` (printc.cc:2332-2340): `"LL"`
@@ -1108,6 +1120,7 @@ impl PrintC {
             code_label_base: 0,
             joined_label_addrs: std::collections::HashSet::new(),
             dup_label_addrs: std::collections::HashSet::new(),
+            anchored_label_addrs: std::collections::HashSet::new(),
             // printc.cc:2336-2339: long(8) != int(4) on the x86-64 gcc
             // corpus, so the sized-constant suffix is "L" (see field doc).
             size_suffix: "L",
@@ -6086,6 +6099,23 @@ impl PrintC {
         // pass and on capture buffers — emit_label_statement's gates would
         // swallow the print but the pending removal must only happen where
         // the label really prints.
+        //
+        // CLONESURG-CLONELABEL-ANCHOR-0001: when a leaf with this entry
+        // address IS marked f_unstructured_targ (the printc.cc:3206-3209
+        // gate — markCopyBlock anchored the goto target's front leaf,
+        // block.cc:1233-1238), the backpatch must NOT fire at whichever
+        // duplicate copy emits first: emitLabel names the goto sites from
+        // the anchored leaf (printc.cc:3167-3170 getFrontLeaf), so the
+        // label belongs at the anchored leaf's own emission
+        // (emit_any_label_statement), which may come LATER in program
+        // order than an unmarked duplicate of the same entry (observed:
+        // sqlite ExprIsConstant×5 — the return-1 nodeSplit duplicate of
+        // the shared epilogue printed `dup_r0x3b232:` before the anchored
+        // return-0 leaf, leaving the switch-default `goto code_r0x3b232`
+        // dangling — gcc `标签' label-not-found). Deferring here keeps
+        // the address pending for the anchored print; only truly unmarked
+        // addresses (the unwrapped-if-goto workaround's original shape)
+        // still backpatch at first emission.
         if !self.discovery_pass
             && (&*self.emit) as *const dyn Emit as *const () as usize == self.main_emit_id
             && matches!(
@@ -6094,7 +6124,25 @@ impl PrintC {
             )
         {
             if let Some(start) = Self::flow_entry_address(block_arc) {
-                if self.pending_goto_labels.remove(&start) {
+                // CLONESURG-CLONELABEL-ANCHOR-0001 gate: an anchored
+                // (f_unstructured_targ) leaf exists for this entry address
+                // — the label prints at an anchored leaf only (the
+                // printc.cc:3206-3209 gate). A leaf flagged HERE prints
+                // (this IS the anchor, possibly via this pending arm when
+                // the goto already fired); an unmarked duplicate defers
+                // (the anchor emits later). No anchor at all → the
+                // original unwrapped-if-goto workaround fires unchanged.
+                let anchor_exists = self.anchored_label_addrs.contains(&start);
+                let leaf_is_anchor = crate::block::front_leaf(block_arc)
+                    .map(|leaf| {
+                        leaf.read().unwrap().get_flags()
+                            & crate::block::block_flags::UNSTRUCTURED_TARG
+                            != 0
+                    })
+                    .unwrap_or(false);
+                if (!anchor_exists || leaf_is_anchor)
+                    && self.pending_goto_labels.remove(&start)
+                {
                     // Per-site flags from THIS block's leaf (the label's
                     // own placement — emitLabel cc:3164-3193).
                     self.emit_label_statement(start, Self::site_label_flags(block_arc));
@@ -11809,6 +11857,17 @@ impl PrintLanguage for PrintC {
         use crate::block::FlowBlock as _;
         self.joined_label_addrs.clear();
         self.dup_label_addrs.clear();
+        // CLONESURG-CLONELABEL-ANCHOR-0001: reset the anchored-label set.
+        // Populated during the discovery pass (emit_any_label_statement
+        // visits every leaf the main pass emits — the same invariant the
+        // discovery_block_starts ledger relies on): entry addresses of
+        // f_unstructured_targ tree leaves, the printc.cc:3206-3209 print
+        // gate the GOTO-LABEL-UNPRINTED-0001 backpatch must defer to.
+        // get_entry_addr (block.cc:2302) is the label-address oracle: with
+        // a multi-range spliced block it resolves the range holding the
+        // first op, so a merged [empty-beg; epilogue] block anchors at the
+        // epilogue's entry exactly like emitLabel's front-leaf read.
+        self.anchored_label_addrs.clear();
         for i in 0..fd.bblocks.get_size() {
             let Some(blk) = fd.bblocks.get_block(i) else {
                 continue;
@@ -16686,15 +16745,47 @@ impl PrintC {
         if self.is_set(print_mods::ONLY_BRANCH) {
             return;
         }
+        // CLONESURG-CLONELABEL-ANCHOR-0001: hoisted leaf read — during the
+        // discovery pass, record the entry address of every anchored
+        // (f_unstructured_targ) leaf BEFORE the discovery early-return
+        // below. Every leaf the main pass emits visits here in pass 1
+        // first (the discovery_block_starts ledger invariant), so the
+        // anchored set is complete before the main pass runs. The pending
+        // arm / backpatch defer to these addresses: emitLabel
+        // (printc.cc:3164-3193) names goto sites from the
+        // markCopyBlock-anchored front leaf (block.cc:1233-1238), so the
+        // label prints at an anchored leaf's own emission — which may come
+        // LATER in program order than an unmarked duplicate of the same
+        // entry (observed: sqlite ExprIsConstant×5 — the return-1
+        // nodeSplit duplicate of the shared epilogue printed
+        // `dup_r0x3b232:` before the anchored return-0 leaf, leaving the
+        // switch-default `goto code_r0x3b232` dangling — gcc label-not-
+        // found). only_branch/bumpup contexts never print labels, so they
+        // return above and do not record.
+        if self.discovery_pass {
+            if let Some(leaf_arc) = crate::block::front_leaf(block_arc) {
+                let is_target = {
+                    let l = leaf_arc.read().unwrap();
+                    (l.get_flags()
+                        & crate::block::block_flags::UNSTRUCTURED_TARG)
+                        != 0
+                };
+                if is_target {
+                    if let Some(addr) = Self::flow_entry_address(&leaf_arc) {
+                        if addr != 0 {
+                            self.anchored_label_addrs.insert(addr);
+                        }
+                    }
+                }
+            }
+            return;
+        }
         // Pass-1 discovery runs the full emission into a NullEmit; labels
         // are pure text (no discovered symbols) and must neither print nor
         // commit to printed_labels — otherwise the real pass treats every
         // label as already printed and goto targets lose their labels
         // (GOTO-LABEL-UNPRINTED-0001). The main-emitter identity gate below
         // also excludes discovery and every capture buffer mechanically.
-        if self.discovery_pass {
-            return;
-        }
         if (&*self.emit) as *const dyn Emit as *const () as usize != self.main_emit_id {
             return;
         }
@@ -16753,10 +16844,23 @@ impl PrintC {
                 // order-independence: the label prints at THIS block's
                 // emission point (the oracle's own placement) whether the
                 // goto text comes before or after it in the output.
+                //
+                // CLONESURG-CLONELABEL-ANCHOR-0001 deferral: when an
+                // anchored leaf with this entry address exists (discovery
+                // recorded one — a real markCopyBlock target), THIS
+                // unmarked duplicate must not consume the label: the goto
+                // sites name the anchored leaf (emitLabel front-leaf read,
+                // printc.cc:3167-3170), so the label belongs at the
+                // anchored leaf's own emission later in the walk — with
+                // this leaf's per-site flags (a nodeSplit duplicate's
+                // `dup_` prefix) the label name would disagree with the
+                // goto and dangle. Deferring keeps the pending entry for
+                // the anchored site.
                 let Some(addr) = Self::flow_entry_address(&leaf_arc) else {
                     return;
                 };
                 if addr != 0
+                    && !self.anchored_label_addrs.contains(&addr)
                     && self.pending_goto_labels.contains(&addr)
                     && self.printed_labels.insert(addr)
                 {
