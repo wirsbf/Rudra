@@ -293,3 +293,38 @@ cover.cc:535-536 `for(j=0;j<bl->sizeIn();++j) addRefRecurse(bl->getIn(j))`）
 改 `BlockBankView::with_in_edges` 单锁批量读：in-向量镜像按 DESCENDING
 槽序 push 前驱 id（== 旧句柄守卫形态的同一 BlockId 序列），零句柄克隆/
 零 peer 锁/零 vtable（block.hh:304 非虚 inline 读形态, wave 3 边影子）。
+
+## MARKIMPLIED2（2026-10-02）重建热径块索引翻转——瞬态稠密 scratch 表 + 拷出
+
+**PERF-COVER-REBUILD-DENSE-0001**: `Cover::rebuild`（cover.cc:477-496）的
+26.25M 帧重建热径（`cover[bl->getIndex()]` operator[] 序列, cover.cc:530/573）
+从每-Cover 的 `BTreeMap<i32,CoverBlock>` 查找翻转为**线程局部瞬态稠密
+scratch 表**（`RebuildScratch`: `Vec<Option<CoverBlock>>` 按块索引直取,
+负索引防御侧表 + `slots_clean` 拷出后免清零标记）+ 重建尾**拷出**回持久
+BTreeMap（升序插入=同键同值同在场集,含 empty-present 项——oracle
+operator[] 默认插入语义逐键保留）。要点:
+
+- **`CoverWriteTable` 双实例化**: `entry_or_default`/`clear_table` 两臂
+  （持久 BTreeMap 臂=冷入口 `add_ref_recurse`/merge.rs 单读 cover 路径;
+  稠密 scratch 臂=重建热径）。核心 `add_def_point_tbl`/`add_ref_point_tbl`/
+  `expand_roots_tbl` 泛型共享同一算法,守卫序逐条不变。
+- **内存形态裁定**: 探针实测 cov_live_hwm=54,432 活 Cover、平均 46.3 项/
+  重建 vs 稠密长 731.6——**每-Cover 稠密表不可行**（~0.5-1.1GB）;瞬态
+  单表（~1,163 槽×28B/线程）+ 拷出（~46 次插入/重建）为 EdgeShadow 模板
+  （id 索引/影子表/choke 拷出）的 cover 域承接。
+- **(id, index) 栈帧对**: 展开帧压栈时一次解析块索引（bank 影子
+  `expect_index`, 3.38M 次）,26.25M 弹帧免逐帧解析（无发布前提=既有
+  expand_roots 支柱 3 的等值论证,注释就地记录）。
+- **行为恒等**: 最终 map 态逐键逐值同前（rb_len_sum 1,372,916 逐位恒等）;
+  读 API/Display/clone/PartialEq 面 BTreeMap 表示零变化,merge.rs 零改动。
+  证明链: VdbeExec --one 1055 md5 **15b47cf7** base==opt==交付三态 +
+  corpus assembled **29f54d21/5,280,272B** 逐字节恒等 + canon 双语素
+  **b7773087/54f9b02c**==钉值 + 镜面五面恰钉值（详见车道终报）。
+  机器检验: `test_cover_write_table_arm_equivalence`（cover.rs 测试模块）将
+  同一 operator[]/clear 操作序列分别驱动两臂,断言 copy_out 后 map 逐键逐值
+  相等（含 empty-present 键、负索引侧表、scratch 复用轮次零残留）——双臂
+  等价性质的回归锁定。
+- **性能**: 探针口径 ucl 2.04→0.97s、rc 62.7→13.6ns/帧（−78%）、
+  markimplied 动作 2.81→1.88s;VdbeExec 单极 user 配对中位 −0.37~−0.39s
+  （taskset 定核 3/5、5/6 对胜,负载 35-58 窗）;corpus wall 三交错对
+  **−0.84~−0.95s**（37.42/34.64/34.75 → 36.57/33.69/33.91）。
