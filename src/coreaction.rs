@@ -5535,6 +5535,26 @@ impl ActionSetCasts {
             // Boolean ops: metain = TYPE_BOOL
             OpCode::CPUI_BOOL_NEGATE | OpCode::CPUI_BOOL_AND
             | OpCode::CPUI_BOOL_OR | OpCode::CPUI_BOOL_XOR => Some(TypeMetatype::Bool),
+            // FLOAT family: metain = TYPE_FLOAT for every ctor except
+            // FLOAT_INT2FLOAT (see the dedicated castInput arm below).
+            // TypeOpBinary (typeop.cc:1744/1752/1760/1768/1784/1792/1800/
+            // 1808 — EQUAL/NOTEQUAL/LESS/LESSEQUAL have metaout=BOOL,
+            // ADD/DIV/MULT/SUB metaout=FLOAT, metain=TYPE_FLOAT for all):
+            OpCode::CPUI_FLOAT_EQUAL | OpCode::CPUI_FLOAT_NOTEQUAL
+            | OpCode::CPUI_FLOAT_LESS | OpCode::CPUI_FLOAT_LESSEQUAL
+            | OpCode::CPUI_FLOAT_ADD | OpCode::CPUI_FLOAT_DIV
+            | OpCode::CPUI_FLOAT_MULT | OpCode::CPUI_FLOAT_SUB
+            // TypeOpUnary (typeop.cc:1816 TypeOpFloatNeg):
+            | OpCode::CPUI_FLOAT_NEG
+            // TypeOpFunc (typeop.cc:1776 NAN metaout=BOOL, 1824 ABS, 1832
+            // SQRT, 1905 FLOAT2FLOAT, 1913 TRUNC metaout=TYPE_INT, 1921
+            // CEIL, 1929 FLOOR, 1937 ROUND — metain=TYPE_FLOAT for all):
+            | OpCode::CPUI_FLOAT_NAN | OpCode::CPUI_FLOAT_ABS
+            | OpCode::CPUI_FLOAT_SQRT | OpCode::CPUI_FLOAT_FLOAT2FLOAT
+            | OpCode::CPUI_FLOAT_TRUNC | OpCode::CPUI_FLOAT_CEIL
+            | OpCode::CPUI_FLOAT_FLOOR | OpCode::CPUI_FLOAT_ROUND => {
+                Some(TypeMetatype::Float)
+            }
             _ => None,
         }
     }
@@ -6076,6 +6096,27 @@ impl ActionSetCasts {
                 }
                 OpCode::CPUI_INT_SDIV | OpCode::CPUI_INT_SREM => {
                     Self::divrem_input_cast(op_ref, slot, strategy, 2, &type_factory, fd)
+                }
+                // typeop.cc:1847 TypeOpFloatInt2Float::getInputCast — the
+                // FLOAT family's ONLY getInputCast override (typeop.hh:708-
+                // 716): the conversion's input takes the inputTypeLocal base
+                // TYPE_INT (ctor typeop.cc:1840 metain arg), NOT TYPE_FLOAT,
+                // under a dynamic care_uint_int that drops to FALSE when the
+                // input's NZMask high bit is clear (cc:1856-1860), with the
+                // absorbZext guard (cc:1850-1851) suppressing the cast
+                // entirely when the conversion absorbs an implied INT_ZEXT.
+                // This is the arm that prints the oracle's
+                // `(float8)(int8)V` double-cast: a FLOAT-typed input (call
+                // return local) meets reqtype int8 → CAST(int8) inserted →
+                // the INT2FLOAT render (printc.cc:830 opFloatInt2Float)
+                // wraps it as `(float8)(int8)V`. Routed through the
+                // existing typeop.rs port (float_int2float_input_cast).
+                OpCode::CPUI_FLOAT_INT2FLOAT => {
+                    let typeop =
+                        crate::typeop::TypeOpFloatInt2Float::new(std::sync::Arc::clone(
+                            &type_factory,
+                        ));
+                    crate::typeop::float_int2float_input_cast(&typeop, op_ref, slot, strategy, fd)
                 }
                 // typeop.cc:295-303 base TypeOp::getInputCast with
                 // inputTypeLocal = TypeOpReturn::getInputLocal
@@ -21690,6 +21731,185 @@ mod tests {
             Arc::ptr_eq(&new_idx, &idx),
             "int-typed index of its own size must NOT gain a cast (cast.cc:302)"
         );
+    }
+
+    // Ghidra: typeop.cc:1767 TypeOpFloatLessEqual ctor (metain=TYPE_FLOAT)
+    // + typeop.cc:293-300 base TypeOp::getInputCast + cast.cc:339-390 —
+    // the FLOAT-family metain gap (MCENSUS6-FLOAT8-SETCASTS-0001 subshape A:
+    // `if((float8)piRam <= fRam)` vs the pre-fix bare `piRam <= fRam`): an
+    // INT-typed input to a FLOAT comparison takes the inputTypeLocal base
+    // `getBase(8, TYPE_FLOAT)` = float8; castStandard(float8, int8, false,
+    // TRUE) falls through the switch default (TYPE_FLOAT request has no
+    // no-cast exemption for TYPE_INT cur) → CAST(float8) inserted, which
+    // printc renders as `(float8)piRam`.
+    #[test]
+    fn test_action_setcasts_float_compare_cast_inserted_for_int_typed_input() {
+        use crate::address::{Address, SeqNum};
+        use crate::op::{PcodeOp, PcodeOpRef};
+        use crate::opcodes::OpCode;
+        use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+        use crate::type_system::typefactory::TypeFactory;
+        use crate::varnode::{varnode_flags, Varnode};
+        use crate::variable::HighVariable;
+        use std::sync::{Arc, RwLock};
+
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x40);
+
+        // lhs: the mirror-census shape — an int8-typed global/local feeding
+        // a float comparison (`piRam000000000011c6e0` in column_int64).
+        let int8_t = Arc::new(Datatype::Base(TypeBase::new(
+            "int8".to_string(),
+            8,
+            TypeMetatype::Int,
+        )));
+        let lhs = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x2000))));
+        lhs.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        lhs.write().unwrap().v_type = Some(int8_t.clone());
+        lhs.write().unwrap().high = Some(Arc::new(RwLock::new(HighVariable::new(
+            int8_t.clone(),
+        ))));
+
+        // rhs: factory float8 base — findAdd-equal to the required
+        // `getBase(8, TYPE_FLOAT)` → no cast on this side.
+        let factory_float8 = TypeFactory::shared_default()
+            .read()
+            .unwrap()
+            .get_base(8, TypeMetatype::Float)
+            .expect("factory float8 base");
+        let rhs = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x2800))));
+        rhs.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        rhs.write().unwrap().v_type = Some(factory_float8.clone());
+        rhs.write().unwrap().high = Some(Arc::new(RwLock::new(HighVariable::new(
+            factory_float8.clone(),
+        ))));
+
+        let out = Arc::new(RwLock::new(Varnode::new(1, Address::new(0x3000))));
+        out.write().unwrap().set_flags(varnode_flags::WRITTEN);
+
+        let mut op = PcodeOp::new(
+            SeqNum::new(Address::new(0x4000), 0),
+            OpCode::CPUI_FLOAT_LESSEQUAL,
+        );
+        op.inrefs = vec![lhs.clone(), rhs.clone()];
+        op.output = Some(out.clone());
+        let op_arc = Arc::new(RwLock::new(op));
+        out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
+        let op_ref = PcodeOpRef(op_arc);
+        fd.obank.adopt_alive_op(op_ref.clone());
+
+        let mut a = ActionSetCasts::new();
+        a.apply(&mut fd).unwrap();
+        assert!(a.count >= 1);
+        // Slot 1 (float8 input) untouched: req == cur (factory float8).
+        let new_rhs = {
+            let rg = op_ref.0.read().unwrap();
+            rg.get_in(1).cloned().unwrap()
+        };
+        assert!(
+            Arc::ptr_eq(&new_rhs, &rhs),
+            "float-typed input of its own size must NOT gain a cast (over-cast guard)"
+        );
+        // Slot 0 (int8 input) now fed by an implied CAST(float8).
+        let new_lhs = {
+            let rg = op_ref.0.read().unwrap();
+            rg.get_in(0).cloned().unwrap()
+        };
+        let cast_def = {
+            let rg = new_lhs.read().unwrap();
+            rg.def.as_ref().and_then(|w| w.upgrade())
+        };
+        assert!(
+            cast_def.is_some(),
+            "int-typed input to a FLOAT comparison must gain a CAST"
+        );
+        let cast_op = cast_def.unwrap();
+        {
+            let cog = cast_op.read().unwrap();
+            assert_eq!(cog.opcode, OpCode::CPUI_CAST);
+            assert!(Arc::ptr_eq(&cog.get_in(0).unwrap().clone(), &lhs));
+        }
+        let ct = new_lhs.read().unwrap().v_type.clone().unwrap();
+        assert!(
+            ct.get_metatype() == TypeMetatype::Float && ct.get_size() == 8,
+            "compare-input CAST output must carry the float8 base (typeop.cc:298 + ctor :1768), got {ct:?}"
+        );
+        assert!(new_lhs.read().unwrap().is_implied());
+    }
+
+    // Ghidra: typeop.cc:1847 TypeOpFloatInt2Float::getInputCast (the FLOAT
+    // family's ONLY override) — MCENSUS6-FLOAT8-SETCASTS-0001 subshape B:
+    // the oracle prints `(float8)(int8)V` because a FLOAT-typed 8-byte input
+    // meets the conversion's inputTypeLocal base TYPE_INT (ctor typeop.cc:1840
+    // metain arg) under castStandard(int8, float8, care_uint_int=TRUE-from-
+    // NZMask-highbit, TRUE) → CAST(int8) inserted; the INT2FLOAT render
+    // (printc.cc:830 opFloatInt2Float) then wraps it as `(float8)(int8)V`.
+    #[test]
+    fn test_action_setcasts_int2float_input_cast_int8_for_float_typed_input() {
+        use crate::address::{Address, SeqNum};
+        use crate::op::{PcodeOp, PcodeOpRef};
+        use crate::opcodes::OpCode;
+        use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+        use crate::varnode::{varnode_flags, Varnode};
+        use crate::variable::HighVariable;
+        use std::sync::{Arc, RwLock};
+
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x40);
+
+        // in0: float8-typed call-return local (the `fVar5` shape from
+        // sqlite3ValueApplyAffinity) feeding the int→float conversion.
+        let float8_t = Arc::new(Datatype::Base(TypeBase::new(
+            "double".to_string(),
+            8,
+            TypeMetatype::Float,
+        )));
+        let in0 = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x2000))));
+        in0.write().unwrap().set_flags(varnode_flags::WRITTEN);
+        in0.write().unwrap().v_type = Some(float8_t.clone());
+        in0.write().unwrap().high = Some(Arc::new(RwLock::new(HighVariable::new(
+            float8_t.clone(),
+        ))));
+
+        let out = Arc::new(RwLock::new(Varnode::new(8, Address::new(0x3000))));
+        out.write().unwrap().set_flags(varnode_flags::WRITTEN);
+
+        let mut op = PcodeOp::new(
+            SeqNum::new(Address::new(0x4000), 0),
+            OpCode::CPUI_FLOAT_INT2FLOAT,
+        );
+        op.inrefs = vec![in0.clone()];
+        op.output = Some(out.clone());
+        let op_arc = Arc::new(RwLock::new(op));
+        out.write().unwrap().def = Some(Arc::downgrade(&op_arc));
+        let op_ref = PcodeOpRef(op_arc);
+        fd.obank.adopt_alive_op(op_ref.clone());
+
+        let mut a = ActionSetCasts::new();
+        a.apply(&mut fd).unwrap();
+        assert!(a.count >= 1);
+        let new_in0 = {
+            let rg = op_ref.0.read().unwrap();
+            rg.get_in(0).cloned().unwrap()
+        };
+        let cast_def = {
+            let rg = new_in0.read().unwrap();
+            rg.def.as_ref().and_then(|w| w.upgrade())
+        };
+        assert!(
+            cast_def.is_some(),
+            "float-typed input to FLOAT_INT2FLOAT must gain the (int8) pre-cast"
+        );
+        let cast_op = cast_def.unwrap();
+        {
+            let cog = cast_op.read().unwrap();
+            assert_eq!(cog.opcode, OpCode::CPUI_CAST);
+            assert!(Arc::ptr_eq(&cog.get_in(0).unwrap().clone(), &in0));
+        }
+        let ct = new_in0.read().unwrap().v_type.clone().unwrap();
+        assert!(
+            ct.get_metatype() == TypeMetatype::Int && ct.get_size() == 8,
+            "INT2FLOAT input CAST output must carry the int8 base (typeop.cc:1853 metain arg), got {ct:?}"
+        );
+        assert!(new_in0.read().unwrap().is_implied());
     }
 
     // ---- ActionInferTypes + default-pipeline tree tests ----
