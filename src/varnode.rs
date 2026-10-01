@@ -621,16 +621,29 @@ pub struct Varnode {
     ///   descend_live = number of live (`strong_count > 0`) entries;
     ///   descend_len  = `descend.len()` at the last exact observation.
     ///
-    /// Exactness contract (three conditions, all verified):
+    /// Exactness contract (three conditions):
     /// 1. Every non-test mutation of `descend` goes through
     ///    add_descend/erase_descend/destroy_descend/VarnodeBank::replace
-    ///    (code-audited; these fields are private to this module).
-    /// 2. The only direct mutations elsewhere are test-fixture raw
-    ///    `descend.push` sites (grep: all inside `#[cfg(test)]`). A raw push
-    ///    changes `descend.len()` without `descend_len`, so the staleness
-    ///    check (`descend_len != descend.len()`) forces a full-scan
-    ///    reconcile before the next answer — raw pushes can never desync
-    ///    the shadow, only cost one scan.
+    ///    (code-audited; these fields are private to this module). One
+    ///    historical exception existed — ActionCse::apply (coreaction.rs)
+    ///    raw-pushed into `descend`; the CR-DESCENDSHADOW independent
+    ///    enumeration (2026-10-02) falsified the original "grep: no
+    ///    non-test raw push" claim, and the site was converted to
+    ///    `add_descend` in the same wave (MB61 remediation,
+    ///    CR-DESC-F1-CONTRACT-FALSIFIED-0001).
+    /// 2. The remaining direct mutations are test-fixture raw
+    ///    `descend.push` sites inside `#[cfg(test)]` (27 sites at the
+    ///    CR enumeration). The staleness check is the GENERAL backstop
+    ///    for raw pushes from ANY source: a raw push changes
+    ///    `descend.len()` without `descend_len`, so the check
+    ///    (`descend_len != descend.len()`) forces a full-scan
+    ///    reconcile before the next answer — raw pushes can never
+    ///    desync the shadow, only cost one scan. (Theoretical blind
+    ///    spot, no live instance: a shape-preserving whole-assignment
+    ///    `descend = vec![..]` that keeps `len` unchanged would evade
+    ///    the len snapshot — the unique such site today,
+    ///    coreaction.rs:22249, is a 0→1 length change and detected;
+    ///    CR-DESC-F3-SHAPE-ASSIGN-BLINDSPOT-0001.)
     /// 3. No production path drops a `PcodeOp` Arc while a Weak to it sits
     ///    in a descend list — the same invariant the oracle's raw-pointer
     ///    list relies on (every op destroy path erases its links first).

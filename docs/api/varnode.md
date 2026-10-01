@@ -94,9 +94,15 @@ has_dead=0/erase_miss=0/destroy 终态 census_dead=0——零死条目），而�
   一契约维护影子。
 
 **精确性契约**（字段注释全录）：① 生产全部变更走 add/erase/destroy/bank-replace 四
-方法（代码审计；字段私有）；② 唯一直接变更 = `#[cfg(test)]` 内的 raw
-`descend.push`（grep 全量核对），raw push 改变 `len` 不改 `descend_len` → 陈旧检查
-强制下次观测前全表 reconcile——raw push 永不可能让影子失真，只付一次扫描；③ 无生产
+方法（代码审计；字段私有）——曾有一处历史例外：ActionCse::apply（coreaction.rs）的
+raw `descend.push`；CR-DESCENDSHADOW 独立枚举（2026-10-02）证伪了原"grep: 非测试
+域无 raw push"的主张，该位点已在同批（MB61 整改，`CR-DESC-F1-CONTRACT-FALSIFIED-0001`）
+转换走 `add_descend`；② 其余直接变更 = `#[cfg(test)]` 内的 raw `descend.push`
+（CR 枚举 27 处），len 快照陈旧检查是**对任意来源 raw push 的通用兜底**——raw push
+改变 `len` 不改 `descend_len` → 陈旧检查强制下次观测前全表 reconcile——raw push
+永不可能让影子失真，只付一次扫描（理论盲区=保形整体赋值 `descend = vec![..]`
+[len 不变内容变]可绕过 len 快照；现库唯一位点 coreaction.rs:22249 为 0→1 变长、
+可检测，无现行盲区实例——`CR-DESC-F3-SHAPE-ASSIGN-BLINDSPOT-0001` 注记）；③ 无生产
 路径在 descend 列表仍持有 Weak 时丢弃 PcodeOp Arc（= oracle 裸指针链表依赖的同一
 不变量，逐 op 销毁路径先 erase）：运行时普查 has_dead=0（73.4M 扫描点）+ erase_miss=0
 + destroy 终态 census_dead=0（1,433,590 张被销毁 varnode 的终态表）于全 sqlite 语料

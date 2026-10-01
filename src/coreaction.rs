@@ -1433,7 +1433,24 @@ impl Action for ActionCse {
                         for slot in 0..user.inrefs.len() {
                             if Arc::ptr_eq(&user.inrefs[slot], &dst) {
                                 user.inrefs[slot] = src.clone();
-                                src.write().unwrap().descend.push(Arc::downgrade(&user_arc));
+                                // CR-DESCENDSHADOW F1 (MB61 remediation): was a
+                                // raw `descend.push(Arc::downgrade(&user_arc))` —
+                                // the one production-domain direct mutation that
+                                // falsified the descend-shadow's "four-methods
+                                // only" contract (CR independent enumeration,
+                                // 2026-10-02). Converted to add_descend so the
+                                // live/len shadow is maintained per mutation;
+                                // the historical oracle redirect form went
+                                // through opSetInput -> addDescend (which also
+                                // sets coverdirty, coreaction.cc:708 commented
+                                // body via cseEliminateList), which add_descend
+                                // restores. ActionCse is an orphan (never
+                                // registered — the pipeline registers
+                                // ActionMultiCse, action.rs), so this has zero
+                                // runtime surface; see ticket
+                                // CR-DESC-F4-ACTIONCSE-ORPHAN-FORM-0001 for the
+                                // registry-side form check.
+                                src.write().unwrap().add_descend(&user_arc);
                             }
                         }
                     }

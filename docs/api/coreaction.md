@@ -1103,6 +1103,15 @@ Action for performing Common Subexpression Elimination (CSE)
 
 Corresponds to Ghidra's `ActionCse`
 
+- `apply(&mut fd)`（CR-DESC-F1-CONTRACT-FALSIFIED-0001, 2026-10-02 MB61 整改）:
+  重定向 user 输入时对 `src` 的 descend 变更走 `add_descend`（原 raw
+  `descend.push` 是生产域唯一直接突变，证伪 descend 影子"四方法"契约文字，
+  同批转换）——影子逐突变维护，且恢复 oracle 历史形 opSetInput→addDescend
+  的 setFlags(coverdirty) 半边（coreaction.cc:708 注释体经 cseEliminateList）。
+  ActionCse 系孤儿（全库无构造/注册——管线注册的是 ActionMultiCse,
+  action.rs），零运行面；registry 侧形态核查见
+  `CR-DESC-F4-ACTIONCSE-ORPHAN-FORM-0001`。
+
 ### `pub fn new() -> Self`
 
 *暂无代码注释*
