@@ -2,6 +2,40 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-10-01：BlockKind 枚举槽位存储（Lane BLOCKFLIPW1——PERF-BLOCKSTORAGE-FLIP-0001 wave 1）
+
+- **`BlockKind` 枚举**（block.hh:77-80 `FlowBlock::block_type` 13 值闭集的
+  Rust 枚举形态；ARENA_DESIGN §1.4 "闭集枚举 = 13 型 vtable 面"）：11 个
+  reachable 变体（Basic/Copy/Goto/MultiGoto/List/Condition/If/WhileDo/DoWhile/
+  InfLoop/Switch——即全部 11 个 `impl FlowBlock` 型）+ Plain/Graph（oracle 面
+  完备性；Rugra 的 BlockGraph 不是 FlowBlock、t_plain 无构造点，今日不可达）。
+  每变体持该块的 `Arc<RwLock<dyn FlowBlock + Send + Sync>>` 句柄。
+- **`BankTable` 槽位翻转**：`arcs: Vec<Option<Arc>>` + `btypes: Vec<BlockType>`
+  双表合并为 `kinds: Vec<Option<BlockKind>>` 单表——kind 标签只存一处（变体
+  判别位），bank 侧类型派发（`btype_of`/`view.btype`）从"第二张表读"变为
+  判别位投影。变体在注册时从 `get_type()` 一次性盖印（每 publish 一次
+  vtable 调用，冷位；53k publishes vs 45M reads），插入后不可变（同原
+  btype 语义，block.hh:184 型不换）。
+- **`BlockCell`**：`arc`+`btype` 字段合并为 `kind: BlockKind`；index/size_in/
+  size_out/flags 影子快照不变。`insert`/`adopt`/`adopt_bulk`/`add_block` 的
+  cell 构造同点更新（同一读守卫内取样不变）。
+- **桥接 API（消费层零改动）**：全部既有公开签名与语义不变——`expect_arc/
+  arc_of/btype_of/index_of/expect_index/expect_size_*/expect_flags/hold/
+  BlockBankView::{arc,expect_arc,btype,index,...}`。恒等论证：
+  - ids mint 序/槽代际 gens/epoch 发布纪律逐字节未动（`bank_cow_tests::
+    cow_bank_mints_arena_identical_ids` 与 arena.rs Arena parity 钉死）；
+  - 恒等键 `Arc::as_ptr`（`BlockKind::ptr_key` 与原 `cell.arc` 同一 Arc
+    分配、同式键）；
+  - `arc()/expect_arc()` 返回同一 Arc 分配（变体载荷即注册时的句柄克隆）；
+  - `btype()` 判别位投影 == 注册时 `get_type()` 值（与原表存值同源同值）；
+  - Plain/Graph 变体保证 `from_dyn` 对 BlockType 13 值全定义（无新 panic 面）。
+- **`clone_arc`** 辅助（已死代码）随字段合并删除。
+- 行为红线：tests 2023P/0F/5I == 基线；canon/镜面门禁见车道终报
+  （/dev/shm/rugra-reports/LANE_BLOCKFLIPW1_2026-10-01.md）。
+- wave 2 交接面（消费层 `.read` 迁移）：热面（view_arc 45.1M 的 peer 锁+
+  vtable）在消费代码持有句柄 `.read()` 处——wave 1 存储翻转不动消费层，
+  45.1M 面的收割属 wave 2（`BlockKind` 判别位/typed 槽位即 wave 2 派发面）。
+
 ## 2026-10-01：守卫读消费迁移（Lane ARENAFLIP-g 步骤 3）
 
 - **`BlockBank::expect_size_in/expect_size_out/expect_flags`**（fresh-snapshot
@@ -2258,7 +2292,8 @@ gen_decompile 尾部（all 模式与 --one 模式）打一行 stderr。纯观测
 ## ARENAFLIP-f（2026-09-30）BlockBank COW-Arc 快照存储（交接面①）
 
 `BlockBankShared` 存储翻转为 COW-Arc 快照形态：`state: RwLock<BankState>`
-（`table: Arc<BankTable>` = arcs/btypes/gens 发布后不可变，insert/clear 经
+（`table: Arc<BankTable>` = kinds/gens 发布后不可变（2026-10-01 BLOCKFLIPW1
+起 BlockKind 枚举单槽取代 arcs+btypes 双槽），insert/clear 经
 `Arc::make_mut` 写时复制并 bump `epoch`；`cells: Arc<Vec<BankShadowCell>>`
 = 原子 index 影子原地写，rpost 重编号 O(n) 次不重发布）+ `epoch: AtomicU64`。
 **minting 与冻结的 arena.rs::Arena 逐值恒等**（append-only between clears、

@@ -3375,19 +3375,166 @@ impl PartialEq for BlockRef {
     }
 }
 
-/// One slot of the owning graph's block bank: the block handle plus hot-POD
-/// shadows (ARENA_DESIGN §1.4 BlockArena, (c)-segment opcode-shadow
-/// precedent). `btype` is immutable after insert (a FlowBlock's type never
-/// changes, block.hh:184). `index` mirrors `FlowBlock::index` (block.hh:160)
-/// and is single-choke maintained: every live mutator goes through
-/// `BlockGraph::set_block_index` (the set_index trait method itself stays
-/// the field writer; the graph helper adds the shadow write), so a bank
-/// read `bank.cell(id).index()` always equals `get_index()` on the block.
-// RUGRA-GLUE: block bank cell (storage-iterator shadow form)
+/// The closed set of FlowBlock kinds — Rugra's enum form of Ghidra's
+/// `FlowBlock::block_type` closed set (block.hh:77-80, `t_plain`..
+/// `t_infloop`; ARENA_DESIGN §1.4 "闭集枚举 = 13 型 vtable 面").
+///
+/// Wave-1 storage flip (PERF-BLOCKSTORAGE-FLIP-0001): the bank's slot
+/// table stores this enum instead of a parallel `arcs` + `btypes` pair,
+/// so the kind tag lives in ONE place (the variant) and every bank-side
+/// type dispatch is a discriminant match instead of a second table read.
+/// Each variant carries the block's `Arc<RwLock<dyn FlowBlock>>` handle:
+/// the variant is chosen once, at registration, from `get_type()` (one
+/// vtable call per publish — 53k publishes vs 45M reads on the giant
+/// corpus), and is immutable after insert exactly like `btype` was
+/// (block.hh:184 — a FlowBlock's type never changes).
+///
+/// The 11 `impl FlowBlock` types are the reachable variants; `Plain` and
+/// `Graph` mirror the oracle enumerators that Rugra never instantiates
+/// behind a handle today (Rugra's `BlockGraph` is not a FlowBlock;
+/// Ghidra's `newBlock()` plain factory has no Rugra caller) so the
+/// enum↔`BlockType` maps stay total over the oracle's 13-value face.
+// RUGRA-GLUE: block-kind enum (block.hh:77-80 block_type closed set;
+// storage form — Ghidra's counterpart is the C++ vtable face itself)
+#[derive(Clone, Debug)]
+pub enum BlockKind {
+    /// `t_basic` (block.hh:480) — `BlockBasic`.
+    Basic(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_plain` (block.hh:184) — bare FlowBlock; unreachable today.
+    Plain(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_graph` (block.hh:385) — `BlockGraph`; unreachable today (Rugra
+    /// graphs are not FlowBlock handles).
+    Graph(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_copy` (block.hh:525) — `BlockCopy`.
+    Copy(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_goto` (block.hh:555) — `BlockGoto`.
+    Goto(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_multigoto` (block.hh:584) — `BlockMultiGoto`.
+    MultiGoto(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_ls` (block.hh:602) — `BlockList`.
+    List(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_condition` (block.hh:626) — `BlockCondition`.
+    Condition(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_if` (block.hh:666) — `BlockIf`.
+    If(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_whiledo` (block.hh:707) — `BlockWhileDo`.
+    WhileDo(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_dowhile` (block.hh:723) — `BlockDoWhile`.
+    DoWhile(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_switch` (block.hh:793) — `BlockSwitch`.
+    Switch(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+    /// `t_infloop` (block.hh:737) — `BlockInfLoop`.
+    InfLoop(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
+}
+
+impl BlockKind {
+    /// Stamp the runtime kind (the single vtable dispatch per
+    /// registration; the oracle equivalent is the C++ object's own
+    /// vtable, consulted once when the pointer is banked).
+    // RUGRA-GLUE: registration-time variant selection
+    pub fn from_dyn(bt: BlockType, arc: Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Self {
+        match bt {
+            BlockType::Basic => Self::Basic(arc),
+            BlockType::Plain => Self::Plain(arc),
+            BlockType::Graph => Self::Graph(arc),
+            BlockType::Copy => Self::Copy(arc),
+            BlockType::Goto => Self::Goto(arc),
+            BlockType::MultiGoto => Self::MultiGoto(arc),
+            BlockType::List => Self::List(arc),
+            BlockType::Condition => Self::Condition(arc),
+            BlockType::If => Self::If(arc),
+            BlockType::WhileDo => Self::WhileDo(arc),
+            BlockType::DoWhile => Self::DoWhile(arc),
+            BlockType::Switch => Self::Switch(arc),
+            BlockType::InfLoop => Self::InfLoop(arc),
+        }
+    }
+
+    /// `FlowBlock::getType` projection of the variant (discriminant match,
+    /// no block lock, no vtable — the value was stamped at registration
+    /// from the same `get_type()` call the pre-flip table stored).
+    // RUGRA-GLUE: discriminant → block.hh:184 getType projection
+    pub fn btype(&self) -> BlockType {
+        match self {
+            Self::Basic(_) => BlockType::Basic,
+            Self::Plain(_) => BlockType::Plain,
+            Self::Graph(_) => BlockType::Graph,
+            Self::Copy(_) => BlockType::Copy,
+            Self::Goto(_) => BlockType::Goto,
+            Self::MultiGoto(_) => BlockType::MultiGoto,
+            Self::List(_) => BlockType::List,
+            Self::Condition(_) => BlockType::Condition,
+            Self::If(_) => BlockType::If,
+            Self::WhileDo(_) => BlockType::WhileDo,
+            Self::DoWhile(_) => BlockType::DoWhile,
+            Self::Switch(_) => BlockType::Switch,
+            Self::InfLoop(_) => BlockType::InfLoop,
+        }
+    }
+
+    /// The block handle (the identity every consumer-visible API returns).
+    // RUGRA-GLUE: variant payload access
+    pub fn arc(&self) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
+        match self {
+            Self::Basic(a)
+            | Self::Plain(a)
+            | Self::Graph(a)
+            | Self::Copy(a)
+            | Self::Goto(a)
+            | Self::MultiGoto(a)
+            | Self::List(a)
+            | Self::Condition(a)
+            | Self::If(a)
+            | Self::WhileDo(a)
+            | Self::DoWhile(a)
+            | Self::Switch(a)
+            | Self::InfLoop(a) => a.clone(),
+        }
+    }
+
+    /// Borrow the handle without a clone (internal truth-check reads).
+    // RUGRA-GLUE: variant payload access, borrowed form
+    fn arc_ref(&self) -> &Arc<RwLock<dyn FlowBlock + Send + Sync>> {
+        match self {
+            Self::Basic(a)
+            | Self::Plain(a)
+            | Self::Graph(a)
+            | Self::Copy(a)
+            | Self::Goto(a)
+            | Self::MultiGoto(a)
+            | Self::List(a)
+            | Self::Condition(a)
+            | Self::If(a)
+            | Self::WhileDo(a)
+            | Self::DoWhile(a)
+            | Self::Switch(a)
+            | Self::InfLoop(a) => a,
+        }
+    }
+
+    /// Arc-identity key (the `ids` map key form — `Arc::as_ptr` of the
+    /// same handle the pre-flip table stored, so identity semantics are
+    /// bit-identical).
+    // RUGRA-GLUE: identity key (ids map)
+    fn ptr_key(&self) -> usize {
+        Arc::as_ptr(self.arc_ref()) as *const () as usize
+    }
+}
+
+/// One slot of the owning graph's block bank: the kind-stamped block
+/// handle plus hot-POD shadows (ARENA_DESIGN §1.4 BlockArena, (c)-segment
+/// opcode-shadow precedent). The kind tag is immutable after insert (a
+/// FlowBlock's type never changes, block.hh:184). `index` mirrors
+/// `FlowBlock::index` (block.hh:160) and is single-choke maintained:
+/// every live mutator goes through `BlockGraph::set_block_index` (the
+/// set_index trait method itself stays the field writer; the graph helper
+/// adds the shadow write), so a bank read `bank.cell(id).index()` always
+/// equals `get_index()` on the block.
+// RUGRA-GLUE: block bank cell (storage-iterator shadow form;
+// PERF-BLOCKSTORAGE-FLIP-0001 wave 1 — BlockKind enum storage)
 pub struct BlockCell {
-    /// The block handle (identity + deep access).
-    pub arc: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
-    btype: BlockType,
+    /// The kind-stamped block handle (identity + deep access).
+    pub kind: BlockKind,
     index: i32,
     /// Hot-POD shadow snapshot at registration ((g) guard-shadow):
     /// `FlowBlock::sizeIn`/`sizeOut`/`flags` (block.hh:312-313/165).
@@ -3398,20 +3545,14 @@ pub struct BlockCell {
     flags: u32,
 }
 
-impl BlockCell {
-    // RUGRA-GLUE: helper for insert()'s post-insert claim (the cell is
-    // consumed by the bank insert; keep a handle clone for ownership setup).
-    fn clone_arc(&self) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
-        self.arc.clone()
-    }
-}
-
 /// Per-graph block bank: COW-Arc slot tables behind one RwLock
 /// (ARENAFLIP-f handoff ① — the per-read resolution lock removal).
 ///
 /// Storage split (the opcode-shadow precedent of (c) applied to the block
 /// domain, extended with copy-on-write publishing):
-/// - `BankState.table` — `arcs`/`btypes`/`gens`, **immutable once
+/// - `BankState.table` — `kinds`/`gens` (PERF-BLOCKSTORAGE-FLIP-0001 wave
+///   1: the `BlockKind` enum slot replaced the arcs+btypes pair — one tag,
+///   one payload), **immutable once
 ///   published**; `insert`/`clear` copy-on-write (`Arc::make_mut`: free
 /// when no snapshot is outstanding) and bump `epoch`. Id minting
 /// replicates the frozen `arena.rs::Arena` discipline exactly: slots are
@@ -3475,15 +3616,15 @@ struct BankState {
     cells: std::sync::Arc<Vec<BankShadowCell>>,
 }
 
-/// Slot-indexed immutable table (COW-published). `arcs[i] == None` only
+/// Slot-indexed immutable table (COW-published). `kinds[i] == None` only
 /// for the reserved sentinel slot 0; live and zombie slots stay `Some`
-/// until `clear`.
+/// until `clear` (PERF-BLOCKSTORAGE-FLIP-0001 wave 1: the BlockKind enum
+/// slot replaces the arcs+btypes pair — one tag, one payload).
 // RUGRA-GLUE: COW-Arc slot table (arena.rs Arena minting parity — see
 /// BlockBank type doc)
 #[derive(Clone)]
 struct BankTable {
-    arcs: Vec<Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>>>,
-    btypes: Vec<BlockType>,
+    kinds: Vec<Option<BlockKind>>,
     /// Per-slot generation; `gens[i]` bumps on every clear that found
     /// slot i occupied, exactly as `arena.rs::Arena::clear` does. Never
     /// shrinks: post-clear inserts reuse the bumped generations.
@@ -3496,8 +3637,7 @@ impl BankTable {
     // table keeps the same reserved layout)
     fn reserved() -> Self {
         BankTable {
-            arcs: vec![None],
-            btypes: vec![BlockType::Plain],
+            kinds: vec![None],
             gens: vec![0],
         }
     }
@@ -3561,7 +3701,7 @@ impl std::fmt::Debug for BlockBank {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let slots = {
             let st = self.sh.state.read().unwrap();
-            st.table.arcs.len().saturating_sub(1)
+            st.table.kinds.len().saturating_sub(1)
         };
         write!(f, "BlockBank({} slots)", slots)
     }
@@ -3622,18 +3762,17 @@ impl BlockBank {
     // taken before the publish fails its read check.
     pub(crate) fn insert(&self, cell: BlockCell) -> BlockId {
         bank_stats::bump(&bank_stats::STATS.publishes);
-        let key = Arc::as_ptr(&cell.arc) as *const () as usize;
-        let arc = cell.arc.clone();
+        let key = cell.kind.ptr_key();
+        let arc = cell.kind.arc();
         let id = {
             let mut st = self.sh.state.write().unwrap();
-            let idx = st.table.arcs.len() as u32;
+            let idx = st.table.kinds.len() as u32;
             let table = std::sync::Arc::make_mut(&mut st.table);
             if idx as usize == table.gens.len() {
                 table.gens.push(0);
             }
             let id = BlockId::from_parts(idx, table.gens[idx as usize]);
-            table.arcs.push(Some(cell.arc));
-            table.btypes.push(cell.btype);
+            table.kinds.push(Some(cell.kind));
             let cells = std::sync::Arc::make_mut(&mut st.cells);
             cells.push(BankShadowCell {
                 index: std::sync::atomic::AtomicI32::new(cell.index),
@@ -3672,8 +3811,7 @@ impl BlockBank {
             )
         };
         self.insert(BlockCell {
-            arc: bl.clone(),
-            btype,
+            kind: BlockKind::from_dyn(btype, bl.clone()),
             index,
             size_in,
             size_out,
@@ -3711,8 +3849,7 @@ impl BlockBank {
                 )
             };
             self.insert(BlockCell {
-                arc: bl.clone(),
-                btype,
+                kind: BlockKind::from_dyn(btype, bl.clone()),
                 index,
                 size_in,
                 size_out,
@@ -3744,7 +3881,7 @@ impl BlockBank {
         // API serves cold sites; hot scans take `hold()`).
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
-        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
             return None;
         }
         st.cells
@@ -3759,10 +3896,10 @@ impl BlockBank {
         bank_stats::bump(&bank_stats::STATS.read_btype);
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
-        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
             return None;
         }
-        Some(st.table.btypes[i])
+        st.table.kinds[i].as_ref().map(BlockKind::btype)
     }
 
     /// Resolve `id` back to the block handle (clone of the bank's Arc).
@@ -3771,10 +3908,10 @@ impl BlockBank {
         bank_stats::bump(&bank_stats::STATS.read_arc);
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
-        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
             return None;
         }
-        st.table.arcs[i].clone()
+        st.table.kinds[i].as_ref().map(|k| k.arc())
     }
 
     /// Resolve `id` to the block handle, panicking with context when the id
@@ -3808,7 +3945,7 @@ impl BlockBank {
     pub fn expect_size_in(&self, id: BlockId) -> usize {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
-        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
             panic!("BlockBank: stale or foreign BlockId {:?}", id);
         }
         st.cells[i]
@@ -3821,7 +3958,7 @@ impl BlockBank {
     pub fn expect_size_out(&self, id: BlockId) -> usize {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
-        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
             panic!("BlockBank: stale or foreign BlockId {:?}", id);
         }
         st.cells[i]
@@ -3834,7 +3971,7 @@ impl BlockBank {
     pub fn expect_flags(&self, id: BlockId) -> u32 {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
-        if i == 0 || i >= st.table.arcs.len() || st.table.gens[i] != id.gen() {
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
             panic!("BlockBank: stale or foreign BlockId {:?}", id);
         }
         st.cells[i]
@@ -3855,7 +3992,7 @@ impl BlockBank {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
         if i != 0
-            && i < st.table.arcs.len()
+            && i < st.table.kinds.len()
             && st.table.gens[i] == id.gen()
             && i < st.cells.len()
         {
@@ -3876,7 +4013,7 @@ impl BlockBank {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
         if i != 0
-            && i < st.table.arcs.len()
+            && i < st.table.kinds.len()
             && st.table.gens[i] == id.gen()
             && i < st.cells.len()
         {
@@ -3903,11 +4040,10 @@ impl BlockBank {
         {
             let mut st = self.sh.state.write().unwrap();
             let table = std::sync::Arc::make_mut(&mut st.table);
-            for i in 1..table.arcs.len() {
+            for i in 1..table.kinds.len() {
                 table.gens[i] = table.gens[i].wrapping_add(1);
             }
-            table.arcs.truncate(1);
-            table.btypes.truncate(1);
+            table.kinds.truncate(1);
             st.cells = std::sync::Arc::new(vec![BankShadowCell::sentinel()]);
         }
         self.sh
@@ -3975,7 +4111,7 @@ impl BlockBankView {
     // parity: idx 0 reserved, bounds, gen compare)
     fn slot_ok(&self, id: BlockId) -> Option<usize> {
         let i = id.idx() as usize;
-        if i == 0 || i >= self.table.arcs.len() || self.table.gens[i] != id.gen() {
+        if i == 0 || i >= self.table.kinds.len() || self.table.gens[i] != id.gen() {
             return None;
         }
         Some(i)
@@ -3998,7 +4134,7 @@ impl BlockBankView {
     // RUGRA-GLUE: shadow read
     pub fn btype(&self, id: BlockId) -> Option<BlockType> {
         bank_stats::bump(&bank_stats::STATS.view_btype);
-        let v = self.slot_ok(id).map(|i| self.table.btypes[i]);
+        let v = self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(BlockKind::btype));
         self.check_epoch();
         v
     }
@@ -4007,7 +4143,7 @@ impl BlockBankView {
     // RUGRA-GLUE: id→handle
     pub fn arc(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         bank_stats::bump(&bank_stats::STATS.view_arc);
-        let v = self.slot_ok(id).and_then(|i| self.table.arcs[i].clone());
+        let v = self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc()));
         self.check_epoch();
         v
     }
@@ -4017,7 +4153,7 @@ impl BlockBankView {
     // RUGRA-GLUE: id→handle, panicking form
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         bank_stats::bump(&bank_stats::STATS.view_arc);
-        let v = match self.slot_ok(id).and_then(|i| self.table.arcs[i].clone()) {
+        let v = match self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc())) {
             Some(a) => a,
             None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
         };
@@ -4060,7 +4196,7 @@ impl BlockBankView {
         });
         self.check_epoch();
         #[cfg(debug_assertions)]
-        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.arcs[i].as_ref()))
+        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc_ref())))
         {
             let truth = arc.read().unwrap().size_in();
             debug_assert_eq!(shadow, truth, "size_in shadow diverged for {:?}", id);
@@ -4079,7 +4215,7 @@ impl BlockBankView {
         });
         self.check_epoch();
         #[cfg(debug_assertions)]
-        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.arcs[i].as_ref()))
+        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc_ref())))
         {
             let truth = arc.read().unwrap().size_out();
             debug_assert_eq!(shadow, truth, "size_out shadow diverged for {:?}", id);
@@ -4098,7 +4234,7 @@ impl BlockBankView {
         });
         self.check_epoch();
         #[cfg(debug_assertions)]
-        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.arcs[i].as_ref()))
+        if let (Some(shadow), Some(arc)) = (v, self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc_ref())))
         {
             let truth = arc.read().unwrap().get_flags();
             debug_assert_eq!(shadow, truth, "flags shadow diverged for {:?}", id);
@@ -4226,8 +4362,7 @@ impl BlockGraph {
                 )
             };
             self.bank.insert(BlockCell {
-                arc: bl.clone(),
-                btype,
+                kind: BlockKind::from_dyn(btype, bl.clone()),
                 index,
                 size_in,
                 size_out,
@@ -11742,8 +11877,7 @@ mod bank_cow_tests {
             BlockBasic::new(seed as i32, Address::new(seed as u64)),
         ));
         BlockCell {
-            arc,
-            btype: BlockType::Basic,
+            kind: BlockKind::Basic(arc),
             index: seed as i32,
             size_in: 0,
             size_out: 0,
