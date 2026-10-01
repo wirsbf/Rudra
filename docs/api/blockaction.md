@@ -2081,3 +2081,11 @@ per-edge peer 读仍走 btype/index 影子）。守卫序逐条==oracle 原文
 死读删除：if_no_exit/proper_if 的 `c_idx` 捕获（fire 用 install_idx,
 wave 2 try_rule_if_goto 死读删除同款）。find_dup_peers 不迁（peer
 half-delete 写路径需要句柄）。
+
+## BLOCKFLIPW3（2026-10-01）批 4——try_rule_or id 相等比较
+
+`try_rule_or`（cc:1321-1371）的 clauseblock/or_out/or_other 指针相等比较
+改 BlockId 相等（注册 id 与句柄 1:1; 零句柄克隆）; orblock 保留句柄
+（is_complex 虚深读需守卫）; registered_id_of 提升到守卫前每调用一次。
+残量登记：try_rule_case_fallthru/switch/identify_internal 尾部 ~165K
+view_arc 面 + find_dup_peers 2.27M 写路径面（peer half-delete 需句柄）。

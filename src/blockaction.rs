@@ -6196,16 +6196,25 @@ impl<'a> CollapseStructure<'a> {
         if b.is_switch_out() {
             return false;
         }
+        // (W3) the block's own bank id, hoisted before the guard — the
+        // self/peer comparisons below are pure id equality (oracle pointer
+        // equality, one identity lookup per rule invocation).
+        let block_point = self.graph_bank().registered_id_of(&block);
 
         for ii in 0..2 {
-            let orblock = match b.get_out(ii) {
-                Some(e) => bank.expect_arc(e.point),
+            // (W3) orblock handle resolves once (the is_complex guard below
+            // is a virtual deep read); the clause/other-out comparisons are
+            // pure id equality — no handles, no guards (oracle pointer
+            // equality on getOut results, cc:1345-1353).
+            let or_point = match b.get_out(ii) {
+                Some(e) => e.point,
                 None => continue,
             };
             // cc:1336: cannot be same block
-            if Arc::ptr_eq(&orblock, &block) {
+            if or_point == block_point {
                 continue;
             }
+            let orblock = bank.expect_arc(or_point);
             let or = orblock.read().unwrap();
             // cc:1337-1342
             if or.size_in() != 1 {
@@ -6228,22 +6237,26 @@ impl<'a> CollapseStructure<'a> {
             }
             drop(or);
             // cc:1345: clauseblock is the other out of bl
-            let clauseblock = match b.get_out(1 - ii) {
-                Some(e) => bank.expect_arc(e.point),
+            let clause_point = match b.get_out(1 - ii) {
+                Some(e) => e.point,
                 None => continue,
             };
-            if Arc::ptr_eq(&clauseblock, &block) {
+            if clause_point == block_point {
                 continue;
             }
-            if Arc::ptr_eq(&clauseblock, &orblock) {
+            if clause_point == or_point {
                 continue;
             }
             // cc:1348-1352: clauseblock must match one of orblock's outs
             let mut j_found: Option<usize> = None;
             for j in 0..2 {
-                let or_out = orblock.read().unwrap().get_out(j).map(|e| bank.expect_arc(e.point));
-                if let Some(oo) = or_out {
-                    if Arc::ptr_eq(&oo, &clauseblock) {
+                let or_out_point = orblock
+                    .read()
+                    .unwrap()
+                    .get_out(j)
+                    .map(|e| e.point);
+                if let Some(oo) = or_out_point {
+                    if oo == clause_point {
                         j_found = Some(j);
                         break;
                     }
@@ -6254,13 +6267,13 @@ impl<'a> CollapseStructure<'a> {
                 None => continue,
             };
             // cc:1353: orblock's other out must not loop back to bl
-            let or_other = orblock
+            let or_other_point = orblock
                 .read()
                 .unwrap()
                 .get_out(1 - j)
-                .map(|e| bank.expect_arc(e.point));
-            if let Some(oo) = or_other {
-                if Arc::ptr_eq(&oo, &block) {
+                .map(|e| e.point);
+            if let Some(oo) = or_other_point {
+                if oo == block_point {
                     continue;
                 }
             }
