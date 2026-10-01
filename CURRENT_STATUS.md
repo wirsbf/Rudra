@@ -1,8 +1,139 @@
-**日期**: 2026-09-29（STATUSREFRESH 大刷新——canon 双语素零残差态 + 镜面棘轮剧变 + 速度减半三大里程碑入档；更早为历史快照族）
+**日期**: 2026-10-01（STATUSREFRESH 大刷新——arena campaign W1 里程碑 + canon 零态全程保持 + 速度总账 −80.6% 入档；2026-09-29 及更早为历史快照族）
 **版本**: 0.1.0
-**状态**: 🟡 **核心库持续开发中；canon 双语料零残差态保持 + 镜面五面棘轮全 PASS；锁定 oracle 逐函数差分流水线运转中；全局完成度未证明**
+**状态**: 🟡 **核心库持续开发中；canon 双语料零残差态保持 + 镜面五面棘轮全 PASS + arena W1 落地（核心域 unsafe=0·锁面 −90.3%）；锁定 oracle 逐函数差分流水线运转中；全局完成度未证明**
 
-## 2026-09-29 STATUSREFRESH 大刷新（当前事实源；master `16851e20` = origin，MB43 收官态）
+## 2026-10-01 STATUSREFRESH 大刷新（当前事实源；master `4b1a4bbe` = origin，MB51 收官态）
+
+> 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB44~MB51 全序列）+
+> 各 MB 终报（`/dev/shm/rugra-reports/LANE_MERGEBATCH4{4..9}_*` / `LANE_MERGEBATCH5{0a,0b,1}_*`）+
+> arena campaign 族报告（LANE_ARENA{DESIGN,CORE,FIX}_* + LANE_ARENAFLIP_{a..g}_* +
+> CR_ARENA{CORE,FLIP_*} 判决链）+ `tools/mirror_gate_baselines.tsv` 现钉值。本节为
+> docs-only 汇编，数字与在案证据一致，**未跑新门禁**；口径不确定处逐条标注。
+> canon/镜面口径沿 2026-09-29 节分界点①②；速度口径见里程碑③（旧语料 1385 fn 轨道与
+> 替代语料 2813 fn 载体双轨如实并列，不可混）。
+
+### 里程碑① canon 双语素零残差保持（MB38 归零后历批复验字节恒等——含 arena 31-commit 全库重构全程）
+
+curl/httpd canon 面 skeleton/defects/numbering = **0/0/0·124/124 + 0/0/0·34/34**（158 函数
+全数零残差）保持；输出 md5 双钉 curl `4ab1db2a177e854c6bddca2ecf413685`·96,616B /
+httpd `7d5b9e7c3348ee8da1865df281ec05b9`·62,715B（vs `tests/golden/ghidra_{curl,httpd}_1204.c`）。
+本刷新窗口（MB44~MB51）每批集成轮均无 mirror env 亲跑复验恒等——**arena W1 全库类型翻转
+（31 commit/78 文件 +6437/−1902）期间逐段每 commit 树亲跑双 md5 恒等，零回退**。归零
+轨迹与 campaign 总弧（curl 157→0 / httpd 311→0，MB34 冲刺→MB38 归零）见 2026-09-29 节。
+窗口内全部镜面燃烧族（CASTSHAPE/CASE-CAST/CASTSUB23/FTSINCRMERGE/L1SURGERY/
+SQLITEDUPLABEL）与 arena 重构均以 canon 恒等为伴随红线——质量改善与零态全程兼容。
+
+### 里程碑② arena campaign W1 落地（项目史上最大单批；双目标兑现）
+
+**campaign 判决**（ARENA_DESIGN `bffde202`，用户 2026-09-30 放行全库 arena/索引化重构）：
+五道速度道终报共同结论=残差集中在**数据结构形态**（136.6M 空锁读/53.4M BlockEdge 克隆/
+mark_dead O[n] retain 5.58s）而非算法；oracle 形态=Funcdata 属主+裸指针交叉引用+单线程
+Action 域零锁。campaign 双目标=**同时消灭锁/克隆速度地板与裸指针 alias unsafe**；行为恒等
+红线四重（canon 双 md5+镜面五面钉值+全语料 cmp+tests 计数，任何非恒等立即停——设计 D10）。
+
+落地序列（W0→W1 七段，全部已并 master；MB51 merge `718a856f`+环棘轮重冻结 `49337e77`
++账本 `4b1a4bbe`）：
+
+| 阶段 | commits | 内容 |
+|---|---|---|
+| W0 ARENACORE（MB50a `ab018960`） | `14fe708f`+`5bc6e3cb`+`df364395` | `src/arena.rs` 2648 行纯新增：typed 代际 id（OpId/VnId/BlockId/HighId，8B=oracle 指针宽）+Arena<T,Id>（Vec 槽+free-list+gen，无迭代 API——物理槽序永不可观测）+IdList 侵入式 id 双向链（O[1] 保序 unlink/splice_after=std::list 同构）+POD 树键（Ord≡varnode.cc:34-79）+29 测（op.cc 生命周期重放+fuzz 模型对差分+400 记录逐字转录）。CR-ARENACORE REJECT（F1 splice pos==last 边界新 UB 窗）→ARENAFIX `df364395` 窄域修复→CR delta APPROVE（MB50b `efbd8073` 合入）。microbench：IdList::unlink 43ns vs Vec::retain 52,137ns@32.6K=**1210×**；arena alloc 10.9ns vs Arc 53.5ns |
+| W1 (a) 容器 | `b36822f0`+`c1a5e3a4`+`a829d4d9` | VarnodeBank 双树 POD 键化+存储迭代器 arena+op 树 BTreeMap<SeqNumKey,OpId>；消费层九文件零改动；两起红线事件当场闭环（SpaceOff::null 偏移携带修复/insert 死锁） |
+| W1 (b) 链翻转 | `929c94cf`+`092b5f78`+`feb6d98d` | op 七条 Vec 链→冻结 IdList，O[1] markDead 兑现（VARMAPOPCREATE 5.58s retain 地板消灭）；flow 24 处消费迁 OpId 游标；镜面 sqlite 捕获 clear 槽回收序红线→七链先摘再回收闭环 |
+| W1 (c) 影子游标 | `41c98b38`+`d7eb7681`+`55190960` | opcode 反规范化影子+ActionPool OpId 游标（**28,722,524 rule tries 的 per-try 锁读消灭**）+coreaction 七工作集 id 化零克隆；ACTIONSTATS 双二进制计数恒等=最强恒等证明 |
+| W1 (d) 边值化 | `b8ca60f9`+`cc1c7ef2`+`9f8f70fa` | per-graph BlockBank（Arc::as_ptr 键身份映射+zombie 槽生命周期=oracle identifyInternal 同构）+BlockEdge.point_id 值孪生+set_block_index 单点影子 |
+| W1 (e) point 本体 | 6 commits（tip `fc801822`） | BlockEdge.point **Arc→BlockId Copy 值形态**（oracle block.hh:57-65 的 12B 语义；53.4M 克隆地板源头）+11 concrete 块型 owner-bank Weak 回指+跨域 18 文件 ~360 读位随迁；CR-E 条件式（examples 5 错位）→(f) fixup `6367b43a` 兑现，--examples 0 error |
+| W1 (f) COW 快照 | 6 commits（tip `b1b42145`） | BlockBank 翻 COW-Arc 快照（发布后不可变 table+epoch 失效；mint 与冻结 arena 双实现并行回放恒等单测钉死）+blockstructure 读相全迁共享视图——**per-read 锁面 392.8M→37.9M=−90.3%**（BANKSTATS 实测：read_index −99%/read_arc −80%/id_lookups −97%） |
+| W1 (g) unsafe 收尾 | 5 commits（tip `613ca4ea`） | transform.rs+prefersplit.rs `*mut Funcdata`+`unsafe impl Send` 系**双系消灭**（生产管线最后一族 god-pointer 清零）+size/flags 守卫影子（peer 深读→bank 原子影子）+unsafe 全库盘点表 |
+
+**CR 链 A-G 七链全 APPROVE**（CR-ARENAFLIP-A..G：各区间独立 oracle 亲读+独立 git archive
+快照复跑，报告 /dev/shm/rugra-reports/CR_ARENAFLIP_*.md；G 判决块逐字嵌入 MB51 merge
+commit，G_BLOCK_EMBED_VERBATIM=YES 字节恒等亲证）。环棘轮协议重冻结 `49337e77`：
+FROZEN_SCC 24==24 恒等，**arena 仍 solo 不入 core-SCC=W1 形态核通过**（E7 族 +2 bank 存储
+键逐边定性；4 冻结键随改善消失）。
+
+**双目标兑现证据**：
+- **反编译算法核心域 unsafe=0**（CR-G §4 独立复算，grep 全库逐位人工分类亲证）：
+  transform/subflow/prefersplit/block/blockaction/heritage*/varmap/merge/printc/coreaction/
+  ruleaction/condexe*/flow 全域 0；`*mut Funcdata` 全库残留=0。
+- **per-read 锁面 −90.3%**：392.8M→37.9M（替代语料 VdbeExec BANKSTATS 实测=1.49M
+  read_index+9.96M read_arc+22.13M view_holds+4.33M id_lookups 恰口径；CR-G §5 独立复跑
+  逐位复现+MB51 集成轮三跑全同=计数器确定性；探针开启 md5 仍 `abbd0632`=零扰动）。
+- **性能兑现**（B2 亲跑，同语料 A/B 交错两对四跑）：替代语料全量 2813 fn --jobs 32
+  **user −19.0%（中位 2107.5→1706.2s）/wall −30.1%（186.1→130.0s），四输出 md5 `e2b98cc8`
+  逐位相同**；VdbeExec 单极（--one 2415）user 中位 **114.4s=（f）基线 135.34s 的 −15.5%**
+  （优于 ~118s 预期包络；load 16-23 如实记）。
+
+### 里程碑③ 速度总账（session 累计；三口径对照表）
+
+| 口径 | oracle | Rugra 现值 | 比值 |
+|---|---|---|---|
+| sqlite 全语料 wall（--jobs 32，旧 1385 fn 轨道=session 主账） | 17.77s（w=32） | **~31.0s**（W1 缩放推算，注①） | **1.74×**（session 起点 159.9s=**9.0×**） |
+| VdbeExec 单极 | 8.80s（direct-runner，旧语料） | 替代语料 --one 2415 user **114.4s**（−15.5% vs (f) 135.34s；md5 `abbd0632` 双轮逐位相同）；旧语料终值 41.21s[MB49]=**4.7×**（二进制消失不可直测） | 口径切换如实并列（替代语料函数本体更大，不可直除 8.80s） |
+| per-child 固定底（每函数一子进程） | 0.10-0.11s/38MB RSS（one 模式同构） | **0.10s×5 稳定**（SLEIGHSNAP 后 in-gate 实测） | **oracle-par**（FIXEDFLOOR 判决=对齐成本非可修常数，−10~20ms 固有差） |
+
+> 注①（~31.0s 口径）：旧语料二进制（/usr/local/bin/sqlite3）已消失，W1 增益以**替代语料
+> （2813 fn，/tmp/sqlite3）同语料 A/B** 实测（wall −30.1%），叠加 MB49 旧语料实测 44.31s
+> 得缩放推算 44.31×0.699≈31.0s。session 累计 **159.9→31.0s=−80.6%**。
+> 注②（全轨迹，每环输出字节恒等伴随）：全语料 wall 159.9→140.4[MB40]→130.0[MB41]→
+> 82.1[MB42]→79.9[MB43]→64.7[MB45]→61.9[MB46]→53.7[MB47]→46.6[MB48]→44.3[MB49]→
+> ~31.0[W1 arena]。VdbeExec 旧语料 159.2→41.21s[MB49 终值]；W1 段内（车道口径）45.92→
+> 44.1[a]→36.7[b]→35.2[c]→~35.0[d/e]→(f) 配对 −2.94s→(g)→MB51 集成 114.4s（替代语料）。
+
+### 现值总表（@ master `4b1a4bbe` = origin；MB51 收官亲测，全部溯源终报）
+
+| 门禁 | 数字 | 说明 |
+|---|---|---|
+| canon curl | **0/0/0**·124/124 matched | md5 `4ab1db2a…`==MB38 归零态字节恒等（MB38~MB51 历批复验）；result/ 已回流 |
+| canon httpd | **0/0/0**·34/34 matched | md5 `7d5b9e7c…` 同上恒等 |
+| 镜面五面 | curl **13**/74 · httpd **2**/29 · vsh **0**/71[完美面] · sq **432**/810 · sqlite **785**/1385，全 PASS | defects=numbering=0 五面；stale-guard digest b59c653a·files=155（==CR-G 独立复跑指纹）；钉值行=MB41[curl/httpd]·MB39[vsh]·MB48[sq]·MB49[sqlite]，窗口内重钉链 MB44 `5c5beb0b`→MB47 `0fc55918`→MB48 `1fb179b2`→MB49 `fae5aade` |
+| 镜面窗口燃烧 | sqlite 1655→**785**（MB44 −176/MB47 −634/MB49 −60）· sq 516→**432**（MB44 −2/MB47 −56/MB48 −26）· curl/httpd/vsh 恒等 | 燃烧族=CASTSHAPE+CASE-CAST/CASTSUB23+FTSINCRMERGE/L1SURGERY/SQLITEDUPLABEL（全部 canon 恒等伴随） |
+| cargo test --lib | **2022P / 0F / 5I** | 1974[MB43]→2022（+48 逐道对账：MB44 +2/MB47 +4/MB48 +4/MB49 +3/W0 +29/ARENAFIX +1/W1-f +3/W1-g +4） |
+| 投影银行（B2 钉板） | **391/391 MATCH** | 全批次共证（冻结投影 sha256 钉+mirror 裸径采集契约） |
+| 速度 | 全语料 wall ~31.0s（W1 缩放口径）/替代语料 2813 fn 实测 130.0s；VdbeExec 替代语料 user 114.4s | 见里程碑③双轨口径 |
+| unsafe 残量（(g) 段盘点表+CR-G §4 独立复算） | **核心域 0**；生产管线 9=compression 6[libz FFI 本征]+cover/funcdata Iop 解码 2[安全化实测 10×+ 墙钟回退阻断，修复路径=OpId codec 票]+sleigh_ffi 1[kuna Rc Send 契约]；豁免 7=ffi.rs 4+float_emulate libc 3[用户裁定] | `*mut Funcdata` 全库 0 |
+| per-read 锁面 | **37.9M** | (f) 前基线 392.8M=−90.3%；BANKSTATS 计数器确定性三跑全同 |
+| 三门禁+gate health+.sla+环棘轮+examples | annotations 101 文件/refs --all --strict/markers 0 violation（2 allowlisted）/evidence self-test 6 cases strict 4/4/gate health OK[oracle=e40ed130]/.sla 四 sha==钉值/FROZEN_SCC 24==24（arena solo）/build --examples 0 error 双 profile | 全绿（MB51 集成轮亲跑；CR-E 条件保持） |
+| CI（alignment-gates） | 两 job 形态见 2026-09-29 节 | 本刷新 docs-only 未跑（纪律：不跑门禁） |
+
+### 剩余工作地图（下一战场；票面全部在案）
+
+| 战场 | 状态/票 | 说明 |
+|---|---|---|
+| **W2 重测** | 在飞（/dev/shm/rugra-worktrees/w2remeasure） | arena campaign 收尾 wave：SPEEDPROF 同口径五道复跑，W1 后残差重排（PERF-ARENA-MIGRATION-0001 W2 子票） |
+| **镜面归零路径 v3** | 在飞（/dev/shm/rugra-worktrees/mcensus5） | 五面现值 13/2/0/432/785 口径再归因+归零路径表 v3（MIRRORCENSUS4 v2 后第三代） |
+| 块存储翻转定界票 | OPEN（W2 后评估） | enum BlockKind arena 终态——全量=364 句柄引用+~2000 .read() 位跨 6+ 域外文件（printc/flow/heritage/jumptable/condexe）；(g) 段诚实定界缓置；view_holds 22.1M≈0.4s 残面连根收 |
+| PERF-ARENA-CHOKE-0001 | OPEN（P2，MB51 随批登记） | CR-G NIT-1：非守卫位旗 ~17 机械直写位收 choke（size/flags 影子全字闭集化；或文档收窄二选一） |
+| ARENA-UNSAFE-LEDGER-0001 | OPEN（P3，MB51 随批登记） | CR-G NIT-2：kuna-sleigh 2 生产 unsafe 位补录/盘点表口径收窄（核心域=0 结论不受影响） |
+| W3 可选 Architecture 面 | 待 W2 数据决策 | qlst/jumpvec id 化（funcdata.hh:88-89 低频 churn）；SLEIGHSNAP 74ms 图物化地板同域（设计期已标注预期零改善） |
+| 镜面残差续燃 | 各票在案 | sqlite 785（WhereCodeOneLoopStart 90 等 SWITCH-GOTO goto↔break 反转+index-cast 90+long-addend ~150+read_inode 簇 ~211+UNAFF 108）/sq 432（GOF-WHILEDOOVERFLOW P2 族表首位 fam=25+小残差）/curl 13（UNTYPEDCONST 9+NONALLOC-STRFOLD 2+尾量 2）/httpd 2（ap_fini decl-move=第三完美面最后一步） |
+| try_rule_cat 64 帽/visit_count HashMap | 账本登记观察项（CR-G 移交） | 安全帽+FxHash 迭代序位点先在形态函数账本标注 |
+
+### 可靠性评估（诚实计量）
+
+1. **红线体系**（arena 设计 D10 四重行为恒等红线，全程运转零返工）：①canon 0/0 字节恒等
+   ×全程（归零态 md5 双钉历批复验；W1 重构逐段每 commit 树亲跑双 md5，各段红线事件全部
+   当场闭环）；②镜面钉值恰顶格（五面单向棘轮+stale-guard digest==CR 独立指纹）；③全语料
+   A/B 四跑输出 md5 `e2b98cc8` 逐位相同；④tests 计数可归因（+48 逐道对账闭环）。伴随更强
+   形态证据：ACTIONSTATS 双二进制计数恒等[（c）段]、BANKSTATS 计数器确定性三跑全同、
+   COW mint 与冻结 arena 双实现并行回放恒等单测、W1 验收 §8 红线八条全绿兑现。
+2. **CR 链**：本窗口（MB44~MB51）机制 C 独立复核判决 21 份，覆盖改动终态全链 APPROVE
+   ——18 份直接 APPROVE（CR-CASTSHAPE/MERGEREQ/ACTIVEPARAM/HERITAGE/CASTSUB23/
+   BLOCKSTRUCT/L1SURGERY/VARMAPOPCREATE/SPEEDPROF2/INFERTYPES/INTERSECTCACHE/
+   ARENAFLIP-A..G）+2 起初判 REJECT 被独立复核真实拦下后窄域修复翻正（CR-FTSINCRMERGE；
+   CR-ARENACORE→CR-ARENAFIX delta 覆盖）——REJECT 门槛非橡皮图章。
+3. **覆盖边界**：canon 零态覆盖 curl+httpd 158 函数；镜面覆盖五面（sqlite 1385/sq 810/
+   vsh 71/curl 74/httpd 29）；速度为 sqlite 语料域同机配对 A/B（负载各轮如实记录）。
+   **全局完成度仍未证明**——权威判定=9494 分母逐函数 oracle 行为门禁（FUNCTION_MAP
+   账本，默认 UNTESTED，仅锁定 fixture 同输入/同输出可升 MATCH）。canon/镜面零态、速度
+   增益与 unsafe=0 **不构成模块或项目 L3 声明**。
+4. **口径纪律**：速度双轨如实并列（旧语料轨道=session 累计账；替代语料=W1 A/B 实测载体）；
+   VdbeExec 旧语料 md5 钉面随二进制消失不可恢复（车道勘定在案），替代语料 md5 `abbd0632`
+   双轮逐位相同为新钉；canon 沿 F2B/PFLIP 分界后口径；镜面 curl 13 沿 COMPAREFIX 工具口径。
+5. **已知未清项**：镜面残差五面 1232 行（13+2+0+432+785，归票见剩余工作地图）；unsafe
+   生产管线 9 位（FFI 本征+Iop 解码 2 待 OpId codec 票）；速度域 W2 复测前残差清单待重排；
+   httpd 语料 DWARF-less（HTTPD-CORPUS-DWARF-0001 在案）。
+
+## 2026-09-29 STATUSREFRESH 大刷新（历史——MB43 收官态快照；数字被 2026-10-01 节取代）
 
 > 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB27~MB43 全序列 200+ 条）+
 > 各 MB 终报（`/dev/shm/rugra-reports/LANE_MERGEBATCH3{5..9}_*` / `LANE_MERGEBATCH4{0..3}_*`）+
