@@ -196,9 +196,8 @@ FROZEN_EDGES = {
         'field|struct Architecture|userops',
     ],
     "block->block": [
-        'dyn-hold|struct BankTable|FlowBlock',
+        'dyn-hold|enum BlockKind|FlowBlock',
         'dyn-hold|struct BlockBasic|FlowBlock',
-        'dyn-hold|struct BlockCell|FlowBlock',
         'dyn-hold|struct BlockCondition|FlowBlock',
         'dyn-hold|struct BlockCopy|FlowBlock',
         'dyn-hold|struct BlockDoWhile|FlowBlock',

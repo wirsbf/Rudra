@@ -98,7 +98,7 @@ varnode`/`LoadGuard.op→op` 路径留环）,intra-SCC 边对 87→86,唯一差�
 | E9-ARCH | `arch→transform` | a | 1 键(field×1) | Architecture.lane_records |
 | E16-1 | `arch→type_system` | c | 1 键(field×1) | Architecture.types: TypeFactory（3-环闭包边） |
 | E9-ARCH | `arch→userop` | a | 1 键(field×1) | Architecture.userops |
-| E7 | `block→block` | c | 16 键(dyn-hold×16) | Block* struct 族持 dyn FlowBlock（族内互持;2026-10-01 MB51 重冻结: BlockEdge point→BlockId 值化[(e) 段]退出 1 键,BlockBank 存储位 BankTable/BlockCell 入 2 键——block.hh:365-366 `BlockGraph{vector<FlowBlock*> list}` 图属主持有的 id/arena 形态,族内同形态） |
+| E7 | `block→block` | c | 15 键(dyn-hold×15) | Block* struct 族持 dyn FlowBlock（族内互持;2026-10-01 MB51 重冻结: BlockEdge point→BlockId 值化[(e) 段]退出 1 键,BlockBank 存储位 BankTable/BlockCell 入 2 键——block.hh:365-366 `BlockGraph{vector<FlowBlock*> list}` 图属主持有的 id/arena 形态,族内同形态;2026-10-01 MB54 §5.2: BlockKind 枚举单表化,存储位证据自 BankTable/BlockCell 两键并入 `dyn-hold\|enum BlockKind\|FlowBlock` 一键——同一句柄的表示层移位,E7 同族） |
 | SCC-BASE | `block→jumptable` | a | 1 键(field×1) | BlockSwitch.jump（block.hh:462-473 同构） |
 | E7 | `block→op` | c | 5 键(field×4, held-trait-sig×1) | BlockBasic.ops + BlockWhileDo ops 字段 + FlowBlock 签名族 |
 | SCC-BASE | `block→varnode` | a | 1 键(field×1) | BlockSwitch.index_varnode |
@@ -227,6 +227,26 @@ E 表的家族（PcodeOpSetImpl/SleighSymbolLookup/FlowBlock;类 c）· `E9-ARCH
 `--emit-freeze` 重冻结 diff 人工核对: FROZEN_SCC 24==24 恒等（arena 仍 solo 不入环,
 **W1 形态核通过**）;FROZEN_SOLO 吸收 arena（+1,58 项）;证据键 180→178（+2 已定性/−4
 改善）。重冻结后 `verify_cycle_ratchet.sh` 三断言全 PASS。
+
+### 5.2 白名单增补记录 — 2026-10-01（MB54 blockflipw1 合入后）
+
+触发: wt/blockflipw1（PERF-BLOCKSTORAGE-FLIP-0001 wave 1,merge 33a5ab65）合入
+master 后,断言 (b) 对 1 个新证据键 FAIL。逐边定性（协议步骤 2,亲核双侧行）:
+
+| 证据键 | Rust 侧 | Ghidra 侧 | 分类 | 处置 |
+|---|---|---|---|---|
+| `dyn-hold\|enum BlockKind\|FlowBlock`（新增） | block.rs:3400-3431 `enum BlockKind` 13 变体各持 `Arc<RwLock<dyn FlowBlock…>>`——wave 1 单表化: 原 BankTable.arcs/BlockCell.arc 双存储位的块句柄并入枚举变体载荷（RUGRA-GLUE 注释锚 block.hh:77-80 block_type 闭集存储形态） | block.hh:365-366 `class BlockGraph : public FlowBlock { vector<FlowBlock *> list; }`——图属主持有块对象表（MB51 §5.1 BankTable/BlockCell 同一 oracle 对应物,句柄未变只换表示位） | c（族内互持,E7 同族） | 入白名单（E7 行已更新） |
+
+同时消失的 2 个冻结键（表示层移位吸收,非破环——句柄仍在,证据键随存储位移入枚举）:
+- `dyn-hold|struct BankTable|FlowBlock`——BankTable.kinds: Vec<Option<BlockKind>>,
+  不再直持 dyn 字段（sink 链经枚举）;
+- `dyn-hold|struct BlockCell|FlowBlock`——BlockCell.kind: BlockKind,同上。
+
+`--emit-freeze --accept-new` 增补 diff 人工核对: FROZEN_SCC 24==24 恒等;
+FROZEN_SOLO 58==58 恒等（**无成员变化,无新分层事件,纯表示层证据键移位**）;
+block→block 证据键 16→15（+1 已定性/−2 移位吸收）。增补后
+`verify_cycle_ratchet.sh` 三断言全 PASS。CR-BLOCKFLIPW1 §5 已核
+消费层零改动+BANKSTATS 十计数器恒等——本增补是其 SCC 面的机械后果。
 
 
 ## 6. CI 接入（Phase A/A2 执行时启用;当前入库+文档化,不强制）
