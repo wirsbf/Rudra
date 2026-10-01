@@ -3561,6 +3561,19 @@ impl PrintC {
                 if !deref_form {
                     m |= print_mods::PRINT_STORE_VALUE;
                 }
+                // printc.cc:507: pushOp(&assignment,op) — the assignment
+                // binary OpToken (printc.cc:56: spacing 1, bump 5) enters
+                // the RPN stack FIRST, before any address/value push. Its
+                // openGroup spans LHS+operator and the operator text fires
+                // via rpn_emit_op at visited==1 — spaces(1,5), tagOp("="),
+                // spaces(1,5) (printlanguage.cc:332-337) — exactly between
+                // the two sides (oracle-verified: driving printlanguage.cc
+                // pushOp/pushAtom with printc.cc:23-77 tokens reproduces
+                // the golden `L =\n     R` break). The pre-RPN glued
+                // tagOp(" = ") deleted both bump-5 break points — the
+                // main mass of the sq/sqlite wrap-only family
+                // (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                self.rpn_push_op(self.rpn_tok_assignment);
                 // Legacy substitute (pre-dates the checkArrayDeref port):
                 // INT_ADD(struct_ptr, field_offset) -> `ptr->field` write.
                 let mut field_access = false;
@@ -3643,7 +3656,12 @@ impl PrintC {
                     self.rpn_push_in(op_arc, op, 1, m);
                     self.rpn_recurse();
                 }
-                self.emit.tag_op(" = ");
+                // printc.cc:516-517: pushVn(in(2),op,mods) — the value is
+                // queued via nodepend (after the address push above);
+                // rpn_recurse drains it, and the value side's first
+                // pushOp/pushAtom fires the assignment operator text at
+                // exactly the oracle's position. The oracle never
+                // hand-prints " = ".
                 self.rpn_push_in(op_arc, op, 2, self.mods);
                 self.rpn_recurse();
             }
@@ -3793,7 +3811,8 @@ impl PrintC {
                     })
                     .unwrap_or(false);
                 if op.get_in(1).is_some() && !return_value_is_void_call {
-                    self.emit.print(" ");
+                    // printc.cc:763: emit->spaces(1) — break token.
+                    self.emit.spaces(1, 0);
                     self.rpn_push_in(op_arc, op, 1, self.mods);
                     self.rpn_recurse();
                 }
@@ -6921,7 +6940,11 @@ impl PrintC {
         // printc.cc:2907-2913: second visit of the identical condition object,
         // now selecting only its terminal branch expression.
         self.emit.tag_op("if");
-        self.emit.print(" ");
+        // printc.cc:2909: emit->spaces(1) — a BREAK TOKEN, not a literal
+        // space print: when the line wraps here the emitter breaks without
+        // printing the space (trailing-space wrap family,
+        // MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+        self.emit.spaces(1, 0);
         self.push_mod();
         self.set_mod(print_mods::ONLY_BRANCH);
         emitted.insert(std::sync::Arc::as_ptr(&condition) as *const () as usize);
@@ -6941,7 +6964,11 @@ impl PrintC {
                 ,
                 _ => crate::op::branch_type::GOTO,
             };
-            self.emit.print(" ");
+            // printc.cc:2914-2916: emit->spaces(1) + emitGotoStatement —
+            // the leading separator is a BREAK TOKEN (same wrap rule as
+            // cc:2909; a literal print leaves a trailing space at the
+            // wrap column).
+            self.emit.spaces(1, 0);
             // cc:2914-2916 emitGotoStatement(condBlock, gotoTarget, type):
             // emitLabel reads the prefix from the copy under the target's
             // front leaf — per-site flags (printc.cc:2318 + 3164-3193).
@@ -7516,10 +7543,20 @@ impl PrintC {
         self.push_mod();
         self.unset_mod(print_mods::ONLY_BRANCH);
         self.set_mod(print_mods::COMMA_SEPARATE);
-        match op_type {
-            crate::block::BoolOp::And => self.emit.print(" && "),
-            crate::block::BoolOp::Or => self.emit.print(" || "),
-        }
+        // printc.cc:2854-2862: the merged-condition operator runs through
+        // emitOp with a visited==1 ReversePolish holding boolean_and or
+        // boolean_or (spacing 1, bump 0, printc.cc:53-55) — i.e.
+        // spaces(1,0), tagOp("&&"/"||"), spaces(1,0)
+        // (printlanguage.cc:332-337). A glued " && " print deletes the
+        // post-operator break point, leaving a trailing space at the
+        // wrap column (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+        let op_sym = match op_type {
+            crate::block::BoolOp::And => "&&",
+            crate::block::BoolOp::Or => "||",
+        };
+        self.emit.spaces(1, 0);
+        self.emit.tag_op(op_sym);
+        self.emit.spaces(1, 0);
 
         let right = self.emit.open_paren("(");
         emitted.insert(std::sync::Arc::as_ptr(&second) as *const () as usize);
@@ -10729,15 +10766,23 @@ impl PrintC {
         if let Some(cond) = block.as_any().downcast_ref::<BlockCondition>() {
             let first = cond.first.clone();
             let second = cond.second.clone();
-            let op_str = match cond.op_type {
-                BoolOp::And => " && ",
-                BoolOp::Or => " || ",
-            };
+            let cond_op_type = cond.op_type;
             drop(block);
             self.emit.print("(");
             self.emit_block_condition_rpn(&first);
             self.emit.print(")");
-            self.emit.print(op_str);
+            // printc.cc:2854-2862: emitOp(pol) with visited==1 and the
+            // boolean_and/boolean_or OpToken — spaces(1,0) + tagOp("&&"/
+            // "||") + spaces(1,0) (printlanguage.cc:332-337, printc.cc:
+            // 53-55), never a glued " && " print (deletes the wrap break
+            // point — MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            let op_sym = match cond_op_type {
+                BoolOp::And => "&&",
+                BoolOp::Or => "||",
+            };
+            self.emit.spaces(1, 0);
+            self.emit.tag_op(op_sym);
+            self.emit.spaces(1, 0);
             self.emit.print("(");
             self.emit_block_condition_rpn(&second);
             self.emit.print(")");
@@ -11153,9 +11198,11 @@ impl PrintC {
         if block_type == BlockType::Condition {
             let block = block_arc.read().unwrap();
             if let Some(cond_data) = block.as_any().downcast_ref::<BlockCondition>() {
+                // Bare operator symbol: emission wraps it in the
+                // emitOp boolean protocol below (printc.cc:2854-2862).
                 let op_str = match cond_data.op_type {
-                    BoolOp::And => " && ",
-                    BoolOp::Or => " || ",
+                    BoolOp::And => "&&",
+                    BoolOp::Or => "||",
                 };
                 let first = cond_data.first.clone();
                 let second = cond_data.second.clone();
@@ -11210,7 +11257,13 @@ impl PrintC {
                     self.emit.print("(");
                     self.emit.print(&left_text);
                     self.emit.print(")");
-                    self.emit.print(op_str);
+                    // printc.cc:2854-2862 emitOp protocol: spaces(1,0) +
+                    // tagOp(sym) + spaces(1,0) — no glued " && " (keeps the
+                    // post-operator wrap break point,
+                    // MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                    self.emit.spaces(1, 0);
+                    self.emit.tag_op(op_str);
+                    self.emit.spaces(1, 0);
                     self.emit.print("(");
                     self.emit.print(&right_text);
                     self.emit.print(")");
@@ -11220,7 +11273,10 @@ impl PrintC {
                 self.emit.print("(");
                 self.emit_block_condition_inner(&first);
                 self.emit.print(")");
-                self.emit.print(op_str);
+                // printc.cc:2854-2862 emitOp protocol (same as above).
+                self.emit.spaces(1, 0);
+                self.emit.tag_op(op_str);
+                self.emit.spaces(1, 0);
                 self.emit.print("(");
                 self.emit_block_condition_inner(&second);
                 self.emit.print(")");
@@ -13192,7 +13248,13 @@ impl PrintLanguage for PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
             if let Some(in0) = op.get_in(0) {
                 self.push_varnode(&in0.read().unwrap(), Some(op));
             }
@@ -13205,7 +13267,13 @@ impl PrintLanguage for PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
             // Typed dereference: if address input has pointer type, emit *(type *)addr
             if op.inrefs.len() >= 2 {
                 let addr_type_name = op.inrefs[1].read().unwrap().v_type.as_ref()
@@ -13390,7 +13458,13 @@ impl PrintLanguage for PrintC {
                         );
                         drop(addr_vn);
                         self.emit.tag_variable(&var_name, 0);
-                        self.emit.tag_op(" = ");
+                        // printc.cc:56 assignment OpToken via printlanguage.cc:
+                // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+                // spaces(1,5) — the glued " = " form deleted the two
+                // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                self.emit.spaces(1, 5);
+                self.emit.tag_op("=");
+                self.emit.spaces(1, 5);
                         self.push_input(op, 2);
                         return;
                     }
@@ -13406,7 +13480,13 @@ impl PrintLanguage for PrintC {
                         // *(long *)sym — cast makes dereference legal regardless of sym's type
                         self.emit.print("*(long *)");
                         self.emit.tag_variable(sym_name, 0);
-                        self.emit.tag_op(" = ");
+                        // printc.cc:56 assignment OpToken via printlanguage.cc:
+                // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+                // spaces(1,5) — the glued " = " form deleted the two
+                // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                self.emit.spaces(1, 5);
+                self.emit.tag_op("=");
+                self.emit.spaces(1, 5);
                         self.push_input(op, 2);
                         return;
                     }
@@ -13421,7 +13501,13 @@ impl PrintLanguage for PrintC {
                         drop(addr_vn);
                         self.emit.print("*(long *)");
                         self.emit.tag_variable(&syn_name, 0);
-                        self.emit.tag_op(" = ");
+                        // printc.cc:56 assignment OpToken via printlanguage.cc:
+                // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+                // spaces(1,5) — the glued " = " form deleted the two
+                // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                self.emit.spaces(1, 5);
+                self.emit.tag_op("=");
+                self.emit.spaces(1, 5);
                         self.push_input(op, 2);
                         return;
                     }
@@ -13451,7 +13537,13 @@ impl PrintLanguage for PrintC {
                 self.push_input(op, 1);
             }
         }
-        self.emit.tag_op(" = ");
+        // printc.cc:56 assignment OpToken via printlanguage.cc:
+        // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+        // spaces(1,5) — the glued " = " form deleted the two
+        // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+        self.emit.spaces(1, 5);
+        self.emit.tag_op("=");
+        self.emit.spaces(1, 5);
         self.push_input(op, 2);
     }
 
@@ -13474,7 +13566,13 @@ impl PrintLanguage for PrintC {
                 self.is_lhs = true;
                 self.push_varnode(&out.read().unwrap(), Some(op));
                 self.is_lhs = false;
-                self.emit.tag_op(" = ");
+                // printc.cc:56 assignment OpToken via printlanguage.cc:
+                // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+                // spaces(1,5) — the glued " = " form deleted the two
+                // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                self.emit.spaces(1, 5);
+                self.emit.tag_op("=");
+                self.emit.spaces(1, 5);
                 self.mark_variable_used(
                     stack_name.clone(), AddressSpace::Stack, 0, "int".to_string(),
                 );
@@ -13522,7 +13620,13 @@ impl PrintLanguage for PrintC {
                         self.is_lhs = true;
                         self.push_varnode(&out.read().unwrap(), Some(op));
                         self.is_lhs = false;
-                        self.emit.tag_op(" = ");
+                        // printc.cc:56 assignment OpToken via printlanguage.cc:
+                // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+                // spaces(1,5) — the glued " = " form deleted the two
+                // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                self.emit.spaces(1, 5);
+                self.emit.tag_op("=");
+                self.emit.spaces(1, 5);
                         self.emit.print(&base_text);
                         self.emit.print("->");
                         self.emit.print(&fname);
@@ -13560,7 +13664,13 @@ impl PrintLanguage for PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
 
             let op_sym = match op.opcode {
                 OpCode::CPUI_INT_NEGATE => "~",
@@ -13641,7 +13751,13 @@ impl PrintLanguage for PrintC {
                 self.is_lhs = true;
                 self.push_varnode(&out.read().unwrap(), Some(op));
                 self.is_lhs = false;
-                self.emit.tag_op(" = ");
+                // printc.cc:56 assignment OpToken via printlanguage.cc:
+                // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+                // spaces(1,5) — the glued " = " form deleted the two
+                // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                self.emit.spaces(1, 5);
+                self.emit.tag_op("=");
+                self.emit.spaces(1, 5);
             }
         }
         if let Some(in0) = op.get_in(0) {
@@ -13716,7 +13832,8 @@ impl PrintLanguage for PrintC {
                 })
                 .unwrap_or(false);
             if !return_value_is_void_call {
-                self.emit.print(" ");
+                // printc.cc:763: emit->spaces(1) — break token.
+                self.emit.spaces(1, 0);
                 if let Some(in1) = op.get_in(1) {
                     self.push_varnode(&in1.read().unwrap(), Some(op));
                 }
@@ -13750,9 +13867,10 @@ impl PrintLanguage for PrintC {
         let mut booleanflip = op.is_boolean_flip();
 
         if yesif {
-            // printc.cc:546-547
+            // printc.cc:546-547: tagOp(KEYWORD_IF) + emit->spaces(1) —
+            // break token, not a literal space (wrap rule, see cc:2909).
             self.emit.tag_op("if");
-            self.emit.print(" ");
+            self.emit.spaces(1, 0);
             // printc.cc:548-551
             if op.is_fallthru_true() {
                 booleanflip = !booleanflip;
@@ -13799,16 +13917,20 @@ impl PrintLanguage for PrintC {
             let target_valid = self.flat_goto_target_valid(op);
             match op.branch_type {
                 branch_type::BREAK => {
-                    self.emit.print(" ");
+                    // printc.cc:575: spaces(1) — break token.
+                    self.emit.spaces(1, 0);
                     self.emit.print("break");
                 }
                 branch_type::CONTINUE if self.loop_depth > 0 => {
-                    self.emit.print(" ");
+                    // printc.cc:575: spaces(1) — break token.
+                    self.emit.spaces(1, 0);
                     self.emit.print("continue");
                 }
                 _ if let Some(target_addr) = target_valid => {
-                    self.emit.print(" ");
-                    self.emit.print("goto ");
+                    // printc.cc:575-577: spaces(1); KEYWORD_GOTO; spaces(1).
+                    self.emit.spaces(1, 0);
+                    self.emit.print("goto");
+                    self.emit.spaces(1, 0);
                     if let Some(in0) = op.get_in(0) {
                         self.push_goto_target(&in0.read().unwrap());
                     }
@@ -14576,9 +14698,10 @@ impl PrintC {
         let mut m = self.mods;
 
         if yesif {
-            // printc.cc:546-547: tagOp(KEYWORD_IF) + spaces(1).
+            // printc.cc:546-547: tagOp(KEYWORD_IF) + emit->spaces(1) —
+            // break token, not a literal space (wrap rule, see cc:2909).
             self.emit.tag_op("if");
-            self.emit.print(" ");
+            self.emit.spaces(1, 0);
             // printc.cc:548-551: fallthru edge is the TRUE branch → print
             // the negated condition and name the false (non-fallthru) edge.
             if op.is_fallthru_true() {
@@ -14656,21 +14779,25 @@ impl PrintC {
             match op.branch_type {
                 // emitGotoStatement fold (printc.cc:2309-2314).
                 branch_type::BREAK => {
-                    // printc.cc:575: spaces(1) before the keyword.
-                    self.emit.print(" ");
+                    // printc.cc:575: spaces(1) before the keyword — break
+                    // token (no trailing space at the wrap column,
+                    // MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                    self.emit.spaces(1, 0);
                     self.emit.print("break");
                 }
                 branch_type::CONTINUE if self.loop_depth > 0 => {
-                    // printc.cc:575: spaces(1) before the keyword.
-                    self.emit.print(" ");
+                    // printc.cc:575: spaces(1) before the keyword — break
+                    // token (same wrap rule).
+                    self.emit.spaces(1, 0);
                     self.emit.print("continue");
                 }
                 _ if let Some(target_addr) = target_valid => {
                     // printc.cc:575-578: spaces(1); KEYWORD_GOTO; spaces(1);
-                    // pushVn(op->getIn(0)) — cc:2315-2318 f_goto_goto.
-                    self.emit.print(" ");
+                    // pushVn(op->getIn(0)) — cc:2315-2318 f_goto_goto. Both
+                    // separators are break tokens (wrap rule, cc:2909).
+                    self.emit.spaces(1, 0);
                     self.emit.print("goto");
-                    self.emit.print(" ");
+                    self.emit.spaces(1, 0);
                     if let Some(in0) = op.get_in(0) {
                         self.push_goto_target(&in0.read().unwrap());
                     }
@@ -14873,7 +15000,13 @@ impl PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
         }
         // printc.cc:642-645: fc = fd->getCallSpecs(op); skip = getHiddenThisSlot(op,fc).
         // Rugra does not port getHiddenThisSlot (audit P2-1); default skip = -1.
@@ -15010,7 +15143,13 @@ impl PrintC {
                 self.is_lhs = true;
                 self.push_varnode(&out.read().unwrap(), Some(op));
                 self.is_lhs = false;
-                self.emit.tag_op(" = ");
+                // printc.cc:56 assignment OpToken via printlanguage.cc:
+                // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+                // spaces(1,5) — the glued " = " form deleted the two
+                // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+                self.emit.spaces(1, 5);
+                self.emit.tag_op("=");
+                self.emit.spaces(1, 5);
             }
             // printc.cc:679: nm = op->getOpcode()->getOperatorName(op).
             self.emit.tag_variable(&name, 0);
@@ -15032,7 +15171,13 @@ impl PrintC {
             if let Some(in1) = op.get_in(1) {
                 self.push_varnode(&in1.read().unwrap(), Some(op));
             }
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
             if let Some(in2) = op.get_in(2) {
                 self.push_varnode(&in2.read().unwrap(), Some(op));
             }
@@ -15206,7 +15351,13 @@ impl PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
         }
         // printc.cc:1159-1163: gather refs from in(1..)->getOffset().
         let refs: Vec<u64> = (1..op.num_input())
@@ -15317,7 +15468,13 @@ impl PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
         }
         // printc.cc:430: nm = op->getOpcode()->getOperatorName(op) — the
         // carry family overrides the TypeOp base name with CARRY/SCARRY/
@@ -15409,7 +15566,13 @@ impl PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
         }
         // printc.cc:1233-1257: array allocation form (2 inputs, in(0) non-const).
         let vn0_const = op
@@ -15501,7 +15664,13 @@ impl PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
         }
         // printc.cc:940-941: in0 = op->getIn(0); in1const = op->getIn(1)->getOffset().
         let (in0_type, in1const) = {
@@ -15827,7 +15996,13 @@ impl PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
         }
         // printc.cc:1153: pushVn(op->getIn(2),op,mods).
         if let Some(in2) = op.get_in(2) {
@@ -16685,9 +16860,10 @@ impl PrintC {
         // cc:2966-2967: emitCommentBlockTree(condBlock); emit->tagLine();
         self.emit_comment_block_tree(&bl.condition);
         self.emit.tag_line(0);
-        // cc:2970-2971: emit->tagOp(KEYWORD_FOR, ...); emit->spaces(1);
+        // cc:2970-2971: emit->tagOp(KEYWORD_FOR, ...); emit->spaces(1) —
+        // break token, not a literal space (wrap rule, cc:2909).
         self.emit.tag_op("for");
-        self.emit.print(" ");
+        self.emit.spaces(1, 0);
         // cc:2972: id1 = openParen(OPEN_PAREN) — the id MUST be threaded to
         // the matching closeParen (EmitPrettyPrint pairs paren groups by id;
         // closing with a foreign id corrupts the group stack and spills
@@ -19789,7 +19965,13 @@ impl PrintC {
             self.is_lhs = true;
             self.push_varnode(&out.read().unwrap(), Some(op));
             self.is_lhs = false;
-            self.emit.tag_op(" = ");
+            // printc.cc:56 assignment OpToken via printlanguage.cc:
+            // 332-337 emitOp (visited==1): spaces(1,5), tagOp("="),
+            // spaces(1,5) — the glued " = " form deleted the two
+            // bump-5 wrap break points (MCENSUS5-WRAPEMIT-CROSSFACE-0001).
+            self.emit.spaces(1, 5);
+            self.emit.tag_op("=");
+            self.emit.spaces(1, 5);
         }
         self.emit.print("!");
         if let Some(in0) = op.get_in(0) {
@@ -20575,6 +20757,65 @@ mod tests {
 
         printer.op_copy(&op);
         // Verify emission doesn't panic
+    }
+
+    // MCENSUS5-WRAPEMIT-CROSSFACE-0001 regression: the STORE statement's
+    // assignment operator must enter the RPN stack (printc.cc:507
+    // pushOp(&assignment)) so emitOp fires spaces(1,5) + "=" + spaces(1,5)
+    // (printlanguage.cc:332-337, printc.cc:56 spacing 1 / bump 5) between
+    // the two sides — never a glued " = " tokenstring, which deleted both
+    // bump-5 break points and made overflowing stores break at the wrong
+    // token with no continuation indent (sq GetOptimum 41-line wrap family,
+    // golden ghidra_sq_1204.direct-runner.c:50023-50025 shape
+    // `...LHS... =\n     ...RHS...;`). Oracle-verified by driving Ghidra's
+    // own PrintLanguage pushOp/pushAtom + EmitPrettyPrint with printc's
+    // OpTokens: the protocol stream reproduces the golden bytes exactly.
+    #[test]
+    fn store_assignment_wraps_at_operator_with_bump5() {
+        use crate::prettyprint::{Emit, EmitPrettyPrint};
+        let mut printer = PrintC::new(Box::new(EmitPrettyPrint::new()));
+        // Shrink the line budget so the store must wrap (setMaxLineSize
+        // floor is 20, prettyprint.cc:1228). Child-module access to the
+        // private `emit` field of PrintC.
+        {
+            let pp = printer
+                .emit
+                .as_any_mut()
+                .and_then(|a| a.downcast_mut::<EmitPrettyPrint>())
+                .expect("PrintC default emitter is EmitPrettyPrint");
+            pp.set_max_line_size(20);
+        }
+        let mut vbank = crate::varnode::VarnodeBank::new();
+        let addr_vn = vbank.create(4, Address::new(0x1000));
+        let val_vn = vbank.create(4, Address::new(0x2000));
+        let mut op = PcodeOp::new(
+            crate::address::SeqNum::new(Address::new(0x100), 0),
+            OpCode::CPUI_STORE,
+        );
+        op.inrefs.push(vbank.create(4, Address::new(0x0))); // in(0) target
+        op.inrefs.push(addr_vn); // in(1) address
+        op.inrefs.push(val_vn); // in(2) value
+        let op_arc: std::sync::Arc<std::sync::RwLock<PcodeOp>> =
+            std::sync::Arc::new(std::sync::RwLock::new(op));
+        let guard = op_arc.read().unwrap();
+        printer.emit_statement_rpn(&op_arc, &guard);
+        drop(guard);
+        let out = printer
+            .take_emit()
+            .into_any()
+            .downcast::<EmitPrettyPrint>()
+            .unwrap()
+            .get_output();
+        eprintln!("STORE-OUT: {:?}", out);
+        // The wrapped form must break AFTER the "=" and indent the value
+        // side by the assignment bump (5) — the glued form produced a
+        // single unbreakable " = " tokenstring instead (statement indent 0
+        // here, so the continuation column is exactly 5).
+        assert!(
+            out.contains(" =\n     "),
+            "store must wrap at the assignment operator (bump-5 break), got: {:?}",
+            out
+        );
     }
 
     #[test]

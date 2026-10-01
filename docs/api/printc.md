@@ -1,5 +1,49 @@
 # `printc.rs` API Reference
 
+## 2026-10-01：MCENSUS5-WRAPEMIT-CROSSFACE-0001 — 运算符 glue 解胶：STORE 赋值/布尔合并/if-goto-头分隔恢复 emitOp token 协议（Lane WRAPEMIT）
+**现象**：镜面 wrap-only 族 208 行（sq 98 + sqlite 110，块去空白恒等判定）——
+sq GetOptimum 双函数整函数纯 wrap（41+24）、sqlite str_appendf/trio/Btree 簇。
+双侧形：Rugra 断点错位（STORE 在 `= ` 后断、续行无 +5 缩进、行尾空格；
+`if (...&& ` 行尾空格 + `; ` 独行；除法断列错位），Ghidra 断在 emitOp 断点
+token 上（`=` 后断 + bump 5 续行、`&&` 后断无尾空格）。
+
+**根因（oracle 亲读 + 双侧机制实验）**：Ghidra 折行引擎 = EmitPrettyPrint
+（prettyprint.hh:1042，Oppen 算法）——断点只存在于 tokenbreak（`spaces(num,
+bump)`，prettyprint.hh:914-915），printc 的每个运算符经 `PrintLanguage::emitOp`
+（printlanguage.cc:328-371）发射为 `spaces(spacing,bump) + tagOp(op) +
+spaces(spacing,bump)` 三 token 序（赋值 bump=5/cc:56，布尔 and/or bump=0/
+cc:53-55）。Rugra 的 EmitPrettyPrint 端口逐位恒等（同 token 流喂双侧 C++/Rust
+实现输出字节相同——oracle_probe 实验亲证）；差异在**流构造层**：printc.rs 的
+STORE 臂（dispatch_op_rpn）把赋值运算符胶合为单次 `tag_op(" = ")`（217 处/
+GetOptimum），布尔合并条件胶合 `print(" && ")`/`print(" || ")`，if/for/return/
+goto 的 oracle `spaces(1)` 分隔被替换为字面 `print(" ")`——断点 token 被删，
+溢出断行落到合成 0 宽 token（行尾空格）或组边界（断列错位）。
+
+**修复**（文本不变性：非断行处 spaces(n) 印 n 空格=胶合形态字节恒等；断行处
+空格被换行吸收=oracle 字节形态）：
+- **STORE 臂**（printc.cc:500-518 opStore）：`rpn_push_op(assignment)` 先行
+  入 RPN 栈（cc:507——其 openGroup 跨 LHS+运算符，运算符文本经
+  rpn_emit_op@visited==1 在两侧间发射，value 侧首 push 触发）；删除
+  `tag_op(" = ")`。oracle-verified：C++ ProbeLang 驱动 printlanguage.cc
+  pushOp/pushAtom + printc.cc:23-77 OpToken 复现 golden `L =\n     R` 字节。
+- **布尔合并**（cc:2836-2870 emitBlockCondition）：三处 `" && "`/`" || "`
+  胶合 print → emitOp 协议 `spaces(1,0)+tagOp+spaces(1,0)`（emit_structured_
+  condition / emit_block_condition_rpn / emit_block_condition_inner×2）。
+- **legacy ` = ` 位点**：19 处 `tag_op(" = ")` → 三 token 协议（字节恒等域）。
+- **关键字分隔**（oracle `emit->spaces(1)` 位点）：emitBlockIf 的 `if`/
+  goto 前（cc:2909/2915）、opCbranch yesif/if-goto 尾（cc:547/575-577，
+  break/continue/goto 关键字两侧）、opReturn（cc:763）、emitForLoop `for`
+  （cc:2971）——字面 `print(" ")` → `spaces(1,0)`。
+
+**验收**：镜面五面 --jobs 5 --no-cache 冷轮全 PASS：**sq 432→324（−108）/sqlite
+785→706（−79）**，wrap-only 族 **208→37**（sq 98→**0** 全燃；sqlite 110→37，
+残量为除法断列子形——UNAFF-EXTRAOUT 块内 G 断在 `/` 后 vs R 断在前一运算符，
+组结构级差异，登记续作）；canon 红线 curl **0/0/0·124/124**/httpd **0/0/0·34/34**
+保持；vsh 0/httpd 2/curl 13 纹丝不动；bank 391/391；新增回归测试
+`store_assignment_wraps_at_operator_with_bump5`（src/printc.rs，maxlinesize=20
+强制断行，锁定 `= ` 后断 + bump-5 续行字节形态）。同族连带：GetOptimum 双
+函数 + GetOptimumFast 整函数归零（41+24+31→0）。
+
 ## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
 - 测试块构造字面量增 `bank_slot: SENTINEL` 初始化（生产代码零变化）。
 
