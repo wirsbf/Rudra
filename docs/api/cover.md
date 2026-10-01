@@ -236,7 +236,7 @@ clone/drop churn+`visited` FxHash 插入+per-根 Vec 分配（MULTIEQUAL 底臂
 （~6ns/帧,全 L1 热指针操作,oracle markimplied 总量 0.175s=2.6% 份额）——
 差距 100% 实现级（锁/vtable/句柄 churn,非算法）。四件恒等收口:
 
-1. **`visited` 去重集整体移除**: 重入帧可证 no-op 引理（199-09-29 已证——
+1. **`visited` 去重集整体移除**: 重入帧可证 no-op 引理（2026-09-29 已证——
    每可突变访问必留 `end==u32::MAX`,二次进入两守卫互斥不成立,既不突变
    也不展开）⇒ 处理重入帧=oracle 字面递归自身的行为,最终 Cover 不可区分。
    帧级实证: 移除前后帧流逐位恒等（26,254,274 帧/2,339,339 空臂/3,381,608
@@ -258,12 +258,21 @@ clone/drop churn+`visited` FxHash 插入+per-根 Vec 分配（MULTIEQUAL 底臂
    scratch 参（merge.rs 三处冷路径调用点就地 `Vec::new()`——零容量零分配）。
 
 行为恒等证明链: VdbeExec --one 1055 stdout md5 `15b47cf7` base==opt==交付
-三态全等;sqlite 全语料 --jobs 32 assembled 5,285,218B cmp 字节恒等
-（md5 `15f545aa`）;canon curl/httpd md5 `b7773087`/`54f9b02c`==钉值+机制 B
+三态全等;sqlite 全语料 --jobs 32 assembled cmp 字节恒等——**车道口径勘误
+（CR-COVERREBUILD §F.1/§G 跟进①,2026-10-01）**: 车道工件 5,285,218B/
+md5 `15f545aa` 系 TYPE-WIRING-0001 之前的陈旧 Standalone 类型域二进制产物,
+不可由任何忠实 658e57a9/0d137be0 构建复现（三重矛盾闭环见 CR 报告）,其
+A/B 恒等结论仅在陈旧域内自洽;**权威口径 = 忠实双构建 A/B**（CR 亲证
+0d137be0 与 658e57a9 各自忠实构建 assembled 逐字节恒等）+ **MB53 合并树
+忠实重测新钉 5,279,330B/md5 `e96d2dc8`（--jobs 32 三轮字节稳定,1385/1385
+ok）**,或以镜面 sqlite 面（对 oracle 真值 604/1385 恒等口径）为准;
+canon curl/httpd md5 `b7773087`/`54f9b02c`==钉值+机制 B
 0/0/0·124/124+34/34;镜面五面 curl 13·74/httpd 2·29/vsh 0·71/sq 324·810/
-sqlite 706·1385 全 PASS 恰钉值;tests 2023P==基线。性能: 单极 user 中位
-37.90→31.58s（−17%）;全语料 wall 37.46→34.45s（−8.0%）;探针口径 ucl
-5.93→1.57s（rc 142→42ns/帧,块锁 28.59M→2.66M）。
+sqlite 706·1385 全 PASS 恰钉值;tests 2023P==基线。性能（**窗口限定口径,
+CR §F.3/§G 跟进②校正**）: VdbeExec 单极 user **−2~−17% 窗口依赖**（车道
+单窗 37.90→31.58s=−17%@load 23-37;CR 独立配对 −1.7%@load~90 分布不重叠;
+方向多点独立证实）;全语料 wall **~−5%**（车道 −8.0%,CR 独立 −4.7%）;
+探针口径 ucl 5.93→1.57s（rc 142→42ns/帧,块锁 28.59M→2.66M）。
 
 
 ## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
