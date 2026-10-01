@@ -2028,5 +2028,8 @@ adopt 是该路径唯一发布点,fire 后无 view 读）;`extend_to_container` 
 `find_dup_peers`、`count_non_structural_in_edges`（签名增 view 参数）同模式;
 collapse 首部的 adopt 扫描改 `adopt_bulk`（一次身份读锁覆盖整批幂等探针）。
 行为恒等: canon curl `4ab1db2a` + httpd `7d5b9e7c` 字节恒等 + tests 2021P。
-BANKSTATS（替代语料 VdbeExec 50969B）: read_index 149.1M→~3M、id_lookups
-150.0M→<0.1M、view_holds 43.3M→~33.7M（dispatch 共享后）。
+BANKSTATS（替代语料 VdbeExec 50969B, (f) 终态实测——CR-ARENAFLIP-F nit-2
+校正: 早前草稿值系开发中问快照,以车道终报 §3.1 为准）: read_index
+149.1M→1.49M（−99.0%）、read_arc 50.8M→9.96M（−80.4%）、id_lookups
+150.0M→4.33M（−97.1%）、view_holds 43.3M→22.1M、per-read 锁面合计
+392.8M→37.9M（−90.3%）。

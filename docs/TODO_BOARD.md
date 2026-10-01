@@ -2,9 +2,9 @@
 
 本文档的顶部“活跃 wave”是当前任务唯一事实源；后文保留历史阶段记录，不能作为当前优先级。
 
-## 车道 ARENAFLIP-g（2026-09-30 认领；W1 翻转 (g) 终段——`PERF-ARENA-FLIP-0001` (g) transform unsafe 消灭+size/flags 影子+块存储终态评估段，续 (f) 分支 `wt/arenaflip` 基=b1b42145，worktree /dev/shm/rugra-worktrees/arenaflip，owner=arenaflip-g worker）
+## 车道 ARENAFLIP-g（2026-09-30 认领 2026-10-01 交付；W1 翻转 (g) 终段——`PERF-ARENA-FLIP-0001` (g) transform unsafe 消灭+size/flags 影子+块存储终态评估段，续 (f) 分支 `wt/arenaflip` 基=b1b42145，交付 tip=2fe68e8e+docs，worktree /dev/shm/rugra-worktrees/arenaflip，owner=arenaflip-g worker）
 
-**状态: IN FLIGHT**——①transform.rs `*mut Funcdata`+`unsafe impl Send` 系消灭（P6 god-object 形态）;②size/flags 影子按 (f) 勘定闭集落地（含 flow.rs/funcdata.rs 8 个 flags 直写位触达）;③块存储翻转（enum BlockKind arena 终态）按实测残面重估;④unsafe 全库盘点收尾。红线: canon 双 md5+镜面五面+tests 2021P。终报（交付时）=/dev/shm/rugra-reports/LANE_ARENAFLIP_G_2026-09-30.md。
+**状态: 交付**——①transform.rs `*mut Funcdata`+`unsafe impl Send` 系消灭[e7b15887,前会话]+**prefersplit.rs 同族收尾[2fe68e8e,本会话——最后一处生产 `*mut Funcdata` god-pointer 家族]**;②size/flags 影子落地[61851321,前会话]+**守卫消费迁移[02ab51f8,本会话——clip_extra_roots/try_rule_cat/collapse_switches 的 peer 深读→bank 影子读,view_arc 49.68M→45.11M+cat 链行走 ~2 peer 锁/迭代→原子影子]**;③块存储翻转（enum BlockKind arena 终态）**按实测残面诚实定界缓置**——flip 的两目标面中 peer RwLock 深读已由 ①②③ 收割（残 read_arc 9.96M 全冷位+view_arc 45.1M 需真实块数据），残 view_holds 22.1M×~18ns≈0.4s 分散于 ~8 个扫描循环位点（apply_rules_to_block/try_rule_or/if_no_exit/check_switch_skips/case_fallthru/collapse_all 直呼/find_dup_peers/identify_internal），Scoped hoisting 有 epoch 违例风险而收益 <0.5%——**全量 enum 翻转=364 处句柄引用+~2000 .read() 位跨 6+ 域外文件（printc/flow/heritage/jumptable/condexe），结构性根治归 W1 后续票**;④unsafe 全库盘点表交付（见终报 §unsafe——生产管线残 9 位:compression 6[libz FFI 本征]+cover/funcdata Iop 解码 2[O(1) 指针解码 vs O(n) bank 扫描——实测 10×+ 墙钟回退阻断,修复路径=OpId 编码 codec 票]+sleigh_ffi 1[kuna Rc 引擎 Send 生命周期契约];豁免=ffi.rs 4+float_emulate libc 3[用户裁定]）。红线: canon 双 md5[每 commit 树]+镜面五面+tests 2022P。终报=/dev/shm/rugra-reports/LANE_ARENAFLIP_G_2026-10-01.md。
 
 ## 车道 ARENAFLIP-f（2026-09-30 交付；W1 翻转 (f) 段——`PERF-ARENA-FLIP-0001` (f) bank COW-Arc 快照锁消除+blockstructure 快照读迁移+CR-E 集成条件 fixup 段，续 (e) 分支 `wt/arenaflip` 基=fc801822，交付 tip=见终报，worktree /dev/shm/rugra-worktrees/arenaflip）
 
