@@ -9,7 +9,43 @@
   逐调用不变;本轮 oppool 主管线无 coreaction 侧行为差（canon/镜面/ACTIONSTATS 恒等
   见车道报告）。
 
+## 2026-10-01：input_metatype 补 PTRADD/PTRSUB 条目（INDEXCAST-SETCASTS-IDXCAST-0001 / lane INDEXCAST）
+
+- **缺口**：`cast_input` 的通用 metain 回退表 `input_metatype`（:5482 区）没有
+  CPUI_PTRADD/CPUI_PTRSUB 条目——PTRADD slot 1（数组下标）落 `None` → ct 恒 null →
+  oracle 在此插入的 `(int8)` 下标 cast 永不产生。镜面 census "index-cast" 90 行
+  恒等不动族（G `pxVar20[(int8)piVar11]` vs R `pxVar20[piVar11]`，13 函数）即此根因。
+- **oracle 链（亲读）**：coreaction.cc:2662 `getInputCast(op,slot,strategy)` 虚分派，
+  TypeOpPtradd（typeop.cc:2250-2266）只覆写 slot 0（ptr↔ptr 对齐），slot 1/2 落
+  基臂 typeop.cc:295-303：reqtype=`op->inputTypeLocal(slot)` 虚分派到
+  TypeOpPtradd::getInputLocal（typeop.cc:2232-2236）=`getBase(in(slot)->size, TYPE_INT)`
+  ——**slot 无关、尺寸取输入自身**；curtype=`vn->getHighTypeReadFacing(op)`（下标
+  变量 high 型为 `int8 *` 指针时）；`castStandard(int8, int8*, false, care_ptr_uint=TRUE)`
+  （cast.cc:362-377+391：INT 臂 no-cast 名单不含 PTR，359 care_ptr_uint=TRUE 挡住
+  ptr→int 豁免）→ 返回 int8 → castInput 插 CAST → printc 印 `(int8)piVar11`。
+  TypeOpPtrsub::getInputLocal（typeop.cc:2314-2318）同式（slot 1 常量走 cc:2687
+  updateType 臂，通常无可见输出）。下标变量为 CAST 产物但非 implied 时（命名变量），
+  double-cast 守卫（cc:2672-2686）按 oracle 落穿到新 CAST 插入（vnin 保持原 vn）。
+- **修复**：表加 `CPUI_PTRADD | CPUI_PTRSUB => Some(Int)`（slot 0 仍由 apply 循环先
+  行路由 cast_input_ptr，typeop.cc:2253/2323 覆写臂不受影响；slot 2 尺度常量/
+  PTRSUB 偏移常量走 cc:2687 常量臂与 oracle 同算；markExplicit 双臂对 PTRADD 均为
+  no-op——inheritsSign=false（typeop.cc:2228 addlflags 仅 arithmetic_op）且非 shift）。
+- **测试**：`test_action_setcasts_ptradd_index_cast_inserted_for_pointer_typed_index`
+  （良配 PTRADD + 指针型 8B 下标 → CAST(int8) implied 插入 slot 1，slot 0 恒等，CAST
+  直接从原 vn 重铸）+ `test_action_setcasts_ptradd_index_no_cast_for_int_typed_index`
+  （工厂 int8 型下标 findAdd-equal → 无 cast，防过铸）。
+- **镜面效果**：sqlite **599→461**（−138；27 函数改善/0 回归/1358 恒等：changegroup/
+  changeset_concat×strm+rebaser 三姐妹 −12×7、BtreeInsert/EndTable/WalFrames −6×3、
+  16 邻接函数 −2；index-cast 族残块 **0**，CAST-SHAPE 157→51）；sq **142→140**
+  （GetOptimumFast −2，同根 `(int8)` 邻接）；curl 13/httpd 2/vsh 0 三面恒等（构造性：
+  双语料无指针型下标位点）；canon curl b7773087/httpd 54f9b02c 字节恒等；bank 391/391。
+- **邻接扫描注记（未动，登记票）**：`input_metatype` 仍缺 FLOAT 族
+  （FLOAT_ADD/SUB/MULT/DIV/NEG/ABS/INT2FLOAT 等 ctor metain=TYPE_FLOAT，
+  typeop.cc:1784-1824）与 CBRANCH slot 1（TYPE_BOOL，typeop.cc:614-615）条目——
+  同类缺口但 census 无钉形族，留独立车道验证后补。
+
 ## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2，测试域）
+
 - test_prefercomplement_flips_if_else_condition：cond 块整体 outgoing 赋值
   后补 `sync_bank_shadows()`（该测试先 adopt 再赋值——影子需同步）；
   块构造字面量增 `bank_slot` 初始化。
