@@ -1,5 +1,58 @@
 # `ruleaction.rs` API Reference
 
+## 2026-10-01：PERF-ACTIONPOOL-ITER-0001 规则体 op 迭代形态收敛（性能恒等重排）
+
+[SP2PROF]/[RULEPROF]/gdb 钻探（W2 残量 oppool1 10.39s = 规则体 7.87 + 派发 2.61；语料级 77.6s/#1）
+后对规则体的 per-try 存储常数做三类恒等收敛（oracle 规则 apply 的 op 迭代 = 裸指针直读
++ 内联字段读，ruleaction.cc 对应函数；Rugra 差距全在 Arc 克隆/RwLock 读守卫/守卫求值三常数）：
+
+- **miss 路径句柄物化消除**（（c） 段五热规则之外的本道残量清单）:
+  - `RuleEarlyRemoval::apply_op`（cc:25-44）—— outvn 句柄不再 clone；op 守卫借出
+    `&Arc` 下完成 hasNoDescend/isAutoLive/getSpace 三门（oracle 读 `vn = op->getOut()`
+    裸指针）。miss 路径（40.4M corpus tries 的主体）零 Arc 往返。
+  - `RuleIndirectCollapse::apply_op`——保持 段单守卫三句柄快照原形:钻探证明
+    把 in(0)/outvn 推迟到 IPTR_IOP 门后反而 +4.2%（派发面 INDIRECT 的 in(1)
+    几乎恒为 IOP 空间,门后二次 op 守卫每 try 必付,而推迟的 clone 照旧物化）——
+    负结果记录在案。
+  - `RuleIdentityEl::apply_op`（cc:3676-3709）—— `follow` 句柄推迟到三个变异臂内。
+  - `RuleThreeWayCompare::apply_op`（cc:10146-10263）—— 常量槽扫描 (isConstant,
+    offset,size) 每 vn 单守卫；两输入句柄 clone 推迟到 form 门后；`follow` 推迟到首个
+    Funcdata 调用（cc:10209 newConstant）；`isWritten+getDef` 单守卫。
+  - `RulePushMulti::apply_op`（cc:1076-1089）—— numInput/getIn(0)/getIn(1) 单 op
+    守卫快照；isWritten/isSpacebase 每 vn 单守卫；`op_ref/op1_ref` 推迟到全部 miss
+    门（res==0 COPY 臂、findSubstitute None、loneDescend 门）之后。
+  - `RuleLess2Zero`/`RuleLessEqual2Zero`（cc:5553-5651）—— 全 flag 化重写:每侧
+    (isConstant,offset,size) 单守卫借读,零句柄 clone,`follow` 每臂物化。
+  - `RuleEqual2Zero::apply_op`（cc:5868-5924）—— descends 不再物化
+    `Vec<Arc<RwLock<PcodeOp>>>`:Weak 列表就地迭代（同 beginDescend() 语义）;
+    isWritten+getDef 单守卫;`follow` 推迟到 cc:5902 首变异。
+- **descend 工作集 id/就地形态**（gdb 亲证 `Vec<Arc<RwLock<PcodeOp>>>` churn 位点）:
+  - `RulePushMulti::earliest_use_in_block`（block.cc:2778-2795）与
+    `find_substitute`（ruleaction.cc:1031-1060）—— descendant 向量物化改为单 vn
+    读守卫下 Weak 就地 upgrade 迭代;同序同 skip 语义;无 Vec 分配、无 per-descendant
+    Arc 往返。
+- **单锁批量解引用（P1/P2,INFERTYPES 先例）**:
+  - `RuleConditionalMove::check_boolean`（cc:9259-9276）—— 7 守卫 → 3（vn:isWritten
+    +getDef;op:isBoolOutput+code+getIn(0);inner:isConstant+offset）;短路序与返回值
+    逐调用不变。`gather_expression`（cc:9300-9316）每迭代 3 次 op 重锁 → 1 次
+    (evalType+inputs 快照)。applyOp 头部 numInput+in0/in1/out 单守卫。
+  - `RuleTermOrder::apply_op`（cc:663-673）—— 两输入 isConstant 借读（零 clone）。
+  - `RuleAddMultCollapse`（cc:4127-4141）—— spacebase 臂每 i 的 subop 3 重锁 → 1,
+    (isConstant,isFree)/(isWritten,def)/(isSpacebase,isInput) 各并一守卫。
+  - `RuleMultiCollapse::apply_op`（cc:3234-3343）—— heritage 预检恢复 oracle 序
+    （先检后建 matchlist,首个 heritage-unknown 即返,零物化）;defcopyr 扫描与 while
+    循环每迭代句柄 clone → 借用+使用点 clone;`functional_equality_level` 换 code-only
+    投影（见 expression.md —— cc:3280 只读返回值,res1/res2 缓冲丢弃,零 pair 物化）。
+  - `RuleCollectTerms::apply_op` —— `get_sort().to_vec()` → 切片借用
+    （cc:120 `const vector &order` 同形）。
+  - `RuleShiftPiece::apply_op`（cc:3805-3810）—— shiftop/zextloop 臂内 move 已
+    upgrade 的 def 句柄（不再 clone）。
+
+行为恒等: 全部为纯读区间重排/物化推迟——守卫求值序、判定值、突变调用序逐调用不变;
+VdbeExec --one 1055 stdout 字节恒等（md5 a067e05c）+ ACTIONSTATS 计数器逐值恒等
+（perform=917/pool_passes=302/ops=5825839/rule_tries=28722524/rule_hits=63713）+
+sqlite 全语料 assembled 字节恒等 + canon/镜面门禁见车道 ACTIONPOOLITER 报告。
+
 ## 2026-09-29：PERF-OPPOOL-0001 规则池派发邻域 miss 路径锁合并（性能恒等重排）
 
 [OPPROF] 钻探（VdbeExec `--one 1055`）将 oppool1 22-28s 残差分解到规则后，
