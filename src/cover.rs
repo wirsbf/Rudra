@@ -459,6 +459,147 @@ impl CoverBlock {
     }
 }
 
+/// Write-side map surface the rebuild core needs from a block-index →
+/// CoverBlock table. Two instantiations share the exact same algorithm:
+/// the persistent `BTreeMap<i32, CoverBlock>` (Ghidra's
+/// `map<int4,CoverBlock>`, cover.hh:109 — used by the cold entry points)
+/// and the transient dense `RebuildScratch` used by `Cover::rebuild`
+/// (see its doc comment for the equivalence argument).
+// RUGRA-GLUE: table abstraction for the dense rebuild scratch (Ghidra has
+// a single map form; the scratch is a pure representation flip with
+/// identical key/value semantics).
+trait CoverWriteTable {
+    /// `cover[idx]` with `map::operator[]` default-insert semantics
+    /// (cover.hh:109 + cover.cc:530/573's `cover[bl->getIndex()]`).
+    // RUGRA-GLUE: table abstraction for the two map representations
+    // (Ghidra has one map form; operator[] is inline at each site).
+    fn entry_or_default(&mut self, idx: i32) -> &mut CoverBlock;
+    /// `cover.clear()` (cover.hh:113, called from addDefPoint cover.cc:506).
+    // RUGRA-GLUE: table abstraction (Ghidra calls map::clear inline).
+    fn clear_table(&mut self);
+}
+
+impl CoverWriteTable for BTreeMap<i32, CoverBlock> {
+    // RUGRA-GLUE: persistent-map arm — literal map::operator[]/map::clear.
+    #[inline]
+    fn entry_or_default(&mut self, idx: i32) -> &mut CoverBlock {
+        self.entry(idx).or_insert_with(CoverBlock::new)
+    }
+    // RUGRA-GLUE: persistent-map arm of cover.clear().
+    #[inline]
+    fn clear_table(&mut self) {
+        self.clear();
+    }
+}
+
+/// Transient dense rebuild table for `Cover::rebuild` — the block-index
+/// structure flip for the addRefRecurse expansion hot path.
+///
+/// `Cover::rebuild` (cover.cc:477-496) clears the map and re-inserts every
+/// touched block through `cover[bl->getIndex()]` (cover.cc:530/573): on the
+/// VdbeExec corpus that is 26.25M map touches per run, 91% of them read
+/// hits on an average of ~46 live entries (probe evidence: rc_new 2.34M /
+/// rc_hit 23.9M / rb_len avg 46.3). A `BTreeMap` lookup costs ~20ns there
+/// versus the oracle's L1-resident RB-tree find (~6ns); a dense slot table
+/// makes the same operator[] a bounds check plus an Option test.
+///
+/// Equivalence to the oracle's single map:
+/// 1. **Same key/value semantics**: `entry_or_default` inserts an empty
+///    `CoverBlock` for every touched index (operator[] default-constructs,
+///    cover.hh:79) — `Some(slot)` after the rebuild is exactly the set of
+///    keys the oracle map would hold, empty-present entries included (they
+///    are observable through `print`/`compareTo`'s first key, cover.cc:233/
+///    620-624, so presence is tracked exactly, not approximated by
+///    `CoverBlock::empty`).
+/// 2. **Copy-out**: at rebuild end every `Some` slot is moved into the
+///    persistent `BTreeMap` in ascending index order — the identical final
+///    map state the pre-flip code produced, so every read API (contain,
+///    intersect*, merge, compareTo, Display) observes byte-identical data.
+/// 3. **Lifetime**: the scratch is thread-local and reused across rebuilds
+///    (29,683 dirty rebuilds on the corpus); `clear_table` resets slots
+///    in place, keeping capacity. No state crosses a rebuild — the cover's
+///    authoritative storage is still its own `BTreeMap`.
+///
+/// Negative indices never occur for bank-registered blocks (indices are
+/// assigned at graph build), but `decode_header`/reverse-post-order windows
+/// store -1 transiently (block.cc:1023-1030); those land in the `neg` side
+/// map so no reachable input can panic or over-resize the dense vector.
+// RUGRA-GLUE: dense transient table (Ghidra rebuilds its map in place; the
+// flip is a Rust-side representation change with identical semantics).
+struct RebuildScratch {
+    slots: Vec<Option<CoverBlock>>,
+    neg: BTreeMap<i32, CoverBlock>,
+    /// True when every slot is known `None` — set by the copy-out walk
+    /// (which `take()`s each entry), consumed by `clear_table` to skip the
+    /// reset walk. Only set after a completed copy-out, so a rebuild that
+    /// panicked midway leaves the flag false and the next `clear_table`
+    /// still walks (fail-safe).
+    slots_clean: bool,
+}
+
+impl RebuildScratch {
+    // RUGRA-GLUE: scratch constructor (no Ghidra counterpart — the
+    // oracle's map plays both roles).
+    fn new() -> Self {
+        Self {
+            slots: Vec::new(),
+            neg: BTreeMap::new(),
+            slots_clean: true,
+        }
+    }
+
+    /// Copy every present entry into `out` in ascending index order,
+    /// leaving the slot vector all-`None` (tracked via `slots_clean`).
+    // RUGRA-GLUE: copy-out step (no Ghidra counterpart — the oracle
+    /// builds its one map in place; this bridges scratch → persistent).
+    fn copy_out(&mut self, out: &mut BTreeMap<i32, CoverBlock>) {
+        out.clear();
+        for (i, slot) in self.slots.iter_mut().enumerate() {
+            if let Some(cb) = slot.take() {
+                out.insert(i as i32, cb);
+            }
+        }
+        self.slots_clean = true;
+        for (&k, cb) in self.neg.iter() {
+            out.insert(k, cb.clone());
+        }
+    }
+}
+
+impl CoverWriteTable for RebuildScratch {
+    // RUGRA-GLUE: dense-table arm of operator[] (bounds check + Option
+    // slot insert replaces the RB-tree walk).
+    #[inline]
+    fn entry_or_default(&mut self, idx: i32) -> &mut CoverBlock {
+        if idx < 0 {
+            return self.neg.entry(idx).or_insert_with(CoverBlock::new);
+        }
+        let i = idx as usize;
+        if i >= self.slots.len() {
+            self.slots.resize(i + 1, None);
+        }
+        self.slots[i].get_or_insert_with(CoverBlock::new)
+    }
+    // RUGRA-GLUE: dense-table arm of cover.clear() — reset walk skipped
+    // when the copy-out already left every slot None (slots_clean).
+    fn clear_table(&mut self) {
+        if !self.slots_clean {
+            for slot in self.slots.iter_mut() {
+                *slot = None;
+            }
+        }
+        self.slots_clean = false;
+        self.neg.clear();
+    }
+}
+
+thread_local! {
+    /// One dense rebuild scratch per decompile thread; see `RebuildScratch`.
+    // RUGRA-GLUE: thread-local scratch reuse across rebuilds
+    static REBUILD_SCRATCH: std::cell::RefCell<RebuildScratch> =
+        std::cell::RefCell::new(RebuildScratch::new());
+}
+
 /// Full liveness cover of a varnode across multiple blocks
 ///
 /// Corresponds to Ghidra's `Cover` class
@@ -787,8 +928,20 @@ impl Cover {
         def: Option<&std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
         is_input: bool,
     ) {
+        Self::add_def_point_tbl(def, is_input, &mut self.blocks);
+    }
+
+    /// Table-generic core of `Cover::addDefPoint` (cover.cc:501-519): the
+    /// same algorithm on either the persistent map or the dense rebuild
+    /// scratch (`CoverWriteTable`).
+    // RUGRA-GLUE: table-generic core for the dense rebuild scratch flip
+    fn add_def_point_tbl<T: CoverWriteTable>(
+        def: Option<&std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
+        is_input: bool,
+        tbl: &mut T,
+    ) {
         // Ghidra: cover.clear();
-        self.clear();
+        tbl.clear_table();
         if let Some(def) = def {
             let def_rg = def.read().unwrap();
             // Ghidra: def->getParent()->getIndex()
@@ -797,7 +950,7 @@ impl Cover {
             // The endpoint keeps the full pointer identity: a MULTIEQUAL def
             // stores order 0 with its marker identity (getUIndex, cover.cc:41-43).
             let endpoint = CoverEndpoint::from_op(&def_rg);
-            let cb = self.blocks.entry(blk).or_insert_with(CoverBlock::new);
+            let cb = tbl.entry_or_default(blk);
             cb.set_begin_id(endpoint);
             cb.set_end_id(endpoint);
         } else if is_input {
@@ -807,7 +960,7 @@ impl Cover {
             // comparison goes through CoverBlock::getUIndex, which maps it to
             // 0 (cover.cc:29-49), but boundary/merge discriminate the raw
             // pointer identity, so the InputMark identity is kept.
-            let cb = self.blocks.entry(0).or_insert_with(CoverBlock::new);
+            let cb = tbl.entry_or_default(0);
             cb.set_begin_id(CoverEndpoint::InputMark);
             cb.set_end_id(CoverEndpoint::InputMark);
         }
@@ -827,7 +980,23 @@ impl Cover {
         op_arc: &std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>,
         root: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
         scratch_roots: &mut Vec<crate::arena::BlockId>,
-        scratch_stack: &mut Vec<crate::arena::BlockId>,
+        scratch_stack: &mut Vec<(crate::arena::BlockId, i32)>,
+    ) {
+        Self::add_ref_point_tbl(op_arc, root, scratch_roots, scratch_stack, &mut self.blocks);
+    }
+
+    /// Table-generic core of `Cover::addRefPoint` (cover.cc:565-612): the
+    /// same algorithm on either the persistent map or the dense rebuild
+    /// scratch (`CoverWriteTable`). Only the target table differs — the
+    /// guard sequence, endpoint bookkeeping and root selection are
+    /// verbatim the persistent-map body.
+    // RUGRA-GLUE: table-generic core for the dense rebuild scratch flip
+    fn add_ref_point_tbl<T: CoverWriteTable>(
+        op_arc: &std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>,
+        root: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        scratch_roots: &mut Vec<crate::arena::BlockId>,
+        scratch_stack: &mut Vec<(crate::arena::BlockId, i32)>,
+        tbl: &mut T,
     ) {
         let (order, endpoint, opcode, op_parent, matching_slots) = {
             let op = op_arc.read().unwrap();
@@ -866,7 +1035,7 @@ impl Cover {
         // recursive original reads off `cover[idx]` is identical whether
         // taken before the entry or on the freshly returned reference,
         // because nothing mutates the entry in between.
-        let cb = self.blocks.entry(op_blk).or_insert_with(CoverBlock::new);
+        let cb = tbl.entry_or_default(op_blk);
         let block_was_empty = cb.empty();
 
         if block_was_empty {
@@ -905,7 +1074,10 @@ impl Cover {
                     if startop == CoverEndpoint::Begin
                         && matches!(
                             old_stop,
-                            CoverEndpoint::Op { multiequal: true, .. }
+                            CoverEndpoint::Op {
+                                multiequal: true,
+                                ..
+                            }
                         )
                     {
                         // Tip recursion (cover.cc:590-597): predecessor ids
@@ -916,7 +1088,7 @@ impl Cover {
                             let rg = bl_arc.read().unwrap();
                             Self::collect_predecessor_ids(&rg, &mut roots);
                         }
-                        self.expand_roots(&bank, &mut roots, scratch_stack);
+                        Self::expand_roots_tbl(&bank, &mut roots, scratch_stack, tbl);
                         *scratch_roots = roots;
                     }
                     return;
@@ -954,7 +1126,7 @@ impl Cover {
                 Self::collect_predecessor_ids(&rg, &mut roots);
             }
         }
-        self.expand_roots(&bank, &mut roots, scratch_stack);
+        Self::expand_roots_tbl(&bank, &mut roots, scratch_stack, tbl);
         *scratch_roots = roots;
     }
 
@@ -973,6 +1145,75 @@ impl Cover {
             if let Some(edge) = rg.get_in_ref(slot) {
                 out.push(edge.point);
             }
+        }
+    }
+
+    /// Worklist half of `Cover::rebuild` (cover.cc:477-496): breadth-first
+    /// walk over implied outputs, contributing one addRefPoint per reading
+    /// op into `scratch` (the dense rebuild table). Extracted unchanged
+    /// from the pre-flip rebuild body — only the addRefPoint target table
+    /// is a parameter.
+    // RUGRA-GLUE: worklist extraction for the dense rebuild scratch flip
+    fn rebuild_worklist(
+        &self,
+        root: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        root_descendants: Vec<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
+        root_is_implied: bool,
+        scratch: &mut RebuildScratch,
+    ) {
+        let mut path = Vec::new();
+        let mut pos = 0usize;
+        // Termination guard mirroring Ghidra's cover-based recursion bound:
+        // Cover::addRefPoint/addRefRecurse (cover.cc:549-612) only extend
+        // EMPTY or uncovered regions — a second visit to an already-covered
+        // block returns without recursing, so implied-varnode chains can
+        // never cycle. Rugra's explicit worklist has no such containment
+        // signal, so an explicit visited set on the implied outputs is the
+        // equivalent cycle bound (without it, mutually-reading implied
+        // varnodes X->Y->X loop forever).
+        let mut visited: rustc_hash::FxHashSet<usize> = rustc_hash::FxHashSet::default();
+        let mut descendants = root_descendants.clone();
+        // Scratch buffers reused across every addRefPoint of this rebuild:
+        // predecessor-id roots and the expansion stack. Cleared (capacity
+        // kept) per closure; contents never survive a call.
+        let mut scratch_roots: Vec<crate::arena::BlockId> = Vec::new();
+        let mut scratch_stack: Vec<(crate::arena::BlockId, i32)> = Vec::new();
+        loop {
+            for op_arc in descendants {
+                // The original root, not `current`, is the addRefPoint identity.
+                Self::add_ref_point_tbl(
+                    &op_arc,
+                    root,
+                    &mut scratch_roots,
+                    &mut scratch_stack,
+                    scratch,
+                );
+                let output = op_arc.read().unwrap().get_out().cloned();
+                if let Some(output) = output {
+                    let is_implied = if std::sync::Arc::ptr_eq(&output, root) {
+                        root_is_implied
+                    } else {
+                        output.read().unwrap().is_implied()
+                    };
+                    if is_implied {
+                        let key = std::sync::Arc::as_ptr(&output) as usize;
+                        if visited.insert(key) {
+                            path.push(output);
+                        }
+                    }
+                }
+            }
+            if pos >= path.len() {
+                break;
+            }
+            let current = path[pos].clone();
+            pos += 1;
+            descendants = if std::sync::Arc::ptr_eq(&current, root) {
+                root_descendants.clone()
+            } else {
+                let current_value = current.read().unwrap();
+                current_value.descend_iter().collect::<Vec<_>>()
+            };
         }
     }
 
@@ -1020,6 +1261,7 @@ impl Cover {
     // RUGRA-GLUE: lock-release adapter for Cover::rebuild; Ghidra's raw
     // Varnode pointer needs no snapshot when updateCover is called through a
     // mutable Rust RwLock guard.
+
     pub(crate) fn rebuild_from_root_snapshot(
         &mut self,
         root: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
@@ -1028,63 +1270,24 @@ impl Cover {
         root_descendants: Vec<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
         root_is_implied: bool,
     ) {
-        // Ghidra: vector<const Varnode *> path(1,vn); int4 pos = 0;
-        // Ghidra: addDefPoint(vn);
-        self.add_def_point_full(definition.as_ref(), is_input);
-
-        let mut path = Vec::new();
-        let mut pos = 0usize;
-        // Termination guard mirroring Ghidra's cover-based recursion bound:
-        // Cover::addRefPoint/addRefRecurse (cover.cc:549-612) only extend
-        // EMPTY or uncovered regions — a second visit to an already-covered
-        // block returns without recursing, so implied-varnode chains can
-        // never cycle. Rugra's explicit worklist has no such containment
-        // signal, so an explicit visited set on the implied outputs is the
-        // equivalent cycle bound (without it, mutually-reading implied
-        // varnodes X->Y->X loop forever).
-        let mut visited: rustc_hash::FxHashSet<usize> = rustc_hash::FxHashSet::default();
-        let mut descendants = root_descendants.clone();
-        // Scratch buffers reused across every addRefPoint of this rebuild:
-        // predecessor-id roots and the expansion stack. Cleared (capacity
-        // kept) per closure; contents never survive a call.
-        let mut scratch_roots: Vec<crate::arena::BlockId> = Vec::new();
-        let mut scratch_stack: Vec<crate::arena::BlockId> = Vec::new();
-        loop {
-            for op_arc in descendants {
-                // The original root, not `current`, is the addRefPoint identity.
-                self.add_ref_point_full(
-                    &op_arc,
-                    root,
-                    &mut scratch_roots,
-                    &mut scratch_stack,
-                );
-                let output = op_arc.read().unwrap().get_out().cloned();
-                if let Some(output) = output {
-                    let is_implied = if std::sync::Arc::ptr_eq(&output, root) {
-                        root_is_implied
-                    } else {
-                        output.read().unwrap().is_implied()
-                    };
-                    if is_implied {
-                        let key = std::sync::Arc::as_ptr(&output) as usize;
-                        if visited.insert(key) {
-                            path.push(output);
-                        }
-                    }
-                }
-            }
-            if pos >= path.len() {
-                break;
-            }
-            let current = path[pos].clone();
-            pos += 1;
-            descendants = if std::sync::Arc::ptr_eq(&current, root) {
-                root_descendants.clone()
-            } else {
-                let current_value = current.read().unwrap();
-                current_value.descend_iter().collect::<Vec<_>>()
-            };
-        }
+        // The rebuild runs on the thread-local dense scratch table and
+        // copies out into this Cover's persistent map at the end — the
+        // block-index structure flip for the hot addRefRecurse expansion
+        // (see RebuildScratch for the equivalence argument). Final map
+        // state (keys, values, presence) is identical to building the map
+        // directly.
+        REBUILD_SCRATCH.with(|cell| {
+            let mut scratch = cell.borrow_mut();
+            // Ghidra: vector<const Varnode *> path(1,vn); int4 pos = 0;
+            // Ghidra: addDefPoint(vn);
+            Self::add_def_point_tbl(definition.as_ref(), is_input, &mut *scratch);
+            self.rebuild_worklist(root, root_descendants, root_is_implied, &mut scratch);
+            // Copy-out: every Some slot (the exact operator[]-touched key
+            // set, empty-present entries included) moves into the persistent
+            // BTreeMap in ascending index order. The oracle map state after
+            // rebuild is reproduced exactly.
+            scratch.copy_out(&mut self.blocks);
+        });
     }
 
     // Ghidra: cover.cc:524 Cover::addRefRecurse
@@ -1096,7 +1299,10 @@ impl Cover {
     /// existing cover is only an infinitesimal MULTIEQUAL tip (start==0,
     /// stop==0, defined by a MULTIEQUAL) — recurse through the in-edges so
     /// the other branches still get filled.
-    pub fn add_ref_recurse(&mut self, bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>) {
+    pub fn add_ref_recurse(
+        &mut self,
+        bl: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
+    ) {
         let (id, bank) = {
             let rg = bl.read().unwrap();
             (rg.bank_slot(), rg.bank())
@@ -1146,19 +1352,37 @@ impl Cover {
         &mut self,
         bank: &crate::block::BlockBank,
         roots: &mut Vec<crate::arena::BlockId>,
-        stack: &mut Vec<crate::arena::BlockId>,
+        stack: &mut Vec<(crate::arena::BlockId, i32)>,
+    ) {
+        Self::expand_roots_tbl(bank, roots, stack, &mut self.blocks);
+    }
+
+    /// Table-generic core of the iterative `addRefRecurse` expansion — the
+    /// same single-stack DFS on either the persistent map or the dense
+    /// rebuild scratch (`CoverWriteTable`). The hot per-frame map touch
+    /// (`cover[bl->getIndex()]`, cover.cc:530) becomes a direct slot index
+    /// on the scratch instantiation.
+    // RUGRA-GLUE: table-generic core for the dense rebuild scratch flip
+    fn expand_roots_tbl<T: CoverWriteTable>(
+        bank: &crate::block::BlockBank,
+        roots: &mut Vec<crate::arena::BlockId>,
+        stack: &mut Vec<(crate::arena::BlockId, i32)>,
+        tbl: &mut T,
     ) {
         let view = bank.hold();
         stack.clear();
-        stack.extend(roots.iter().rev());
-        while let Some(id) = stack.pop() {
-            // Resolve the block index through the bank shadow — the
-            // identical value `bl->getIndex()` reads through the block
-            // guard, without the lock/vtable round-trip.
-            let bl_index = view.expect_index(id);
+        // Frames carry (id, index) pairs: the index is resolved ONCE at
+        // push time through the bank shadow — the identical value
+        // `bl->getIndex()` reads through the block guard — so a popped
+        // frame needs no per-pop resolution. The no-publish premise below
+        // (pillar 3) makes push-time and pop-time reads equal.
+        for id in roots.iter().rev() {
+            stack.push((*id, view.expect_index(*id)));
+        }
+        while let Some((id, bl_index)) = stack.pop() {
             // Ghidra: CoverBlock &block(cover[bl->getIndex()]);
-            // operator[] default-constructs; entry().or_insert_with mirrors.
-            let cb = self.blocks.entry(bl_index).or_insert_with(CoverBlock::new);
+            // operator[] default-constructs; entry().or_insert mirrors.
+            let cb = tbl.entry_or_default(bl_index);
 
             if cb.empty() {
                 // Ghidra: block.setAll();  // No cover encountered, fill in entire block
@@ -1194,7 +1418,13 @@ impl Cover {
             // start_id is the raw-pointer begin-sentinel test; old_stop carries
             // the MULTIEQUAL marker identity of the stored stop op.
             if ustop == 0 && cb.get_start_id() == CoverEndpoint::Begin {
-                if matches!(old_stop, CoverEndpoint::Op { multiequal: true, .. }) {
+                if matches!(
+                    old_stop,
+                    CoverEndpoint::Op {
+                        multiequal: true,
+                        ..
+                    }
+                ) {
                     push_predecessor_ids(&view, id, stack);
                 }
             }
@@ -1212,11 +1442,12 @@ impl Cover {
 fn push_predecessor_ids(
     view: &crate::block::BlockBankView,
     id: crate::arena::BlockId,
-    stack: &mut Vec<crate::arena::BlockId>,
+    stack: &mut Vec<(crate::arena::BlockId, i32)>,
 ) {
     view.with_in_edges(id, |ins| {
         for edge in ins.iter().rev() {
-            stack.push(edge.point);
+            // Index resolved once at push (see expand_roots_tbl).
+            stack.push((edge.point, view.expect_index(edge.point)));
         }
     });
 }
@@ -1663,6 +1894,80 @@ mod tests {
         assert!(cb.contain(0));
         assert!(cb.contain(100));
         assert!(cb.contain(u32::MAX));
+    }
+
+    /// MARKIMPLIED2 (PERF-COVER-REBUILD-DENSE-0001): the dense
+    /// `RebuildScratch` arm of `CoverWriteTable` must be observationally
+    /// identical to the persistent `BTreeMap` arm — the equivalence the
+    /// rebuild hot-path flip relies on. Same key/value/presence set after
+    /// `copy_out`, empty-present entries included (observable through
+    /// print/compareTo first key, cover.cc:620-624), negative-index side
+    /// table merged and cleared between rebuilds.
+    #[test]
+    fn test_cover_write_table_arm_equivalence() {
+        // The op sequence a rebuild performs: clear, default-insert +
+        // mutate a spread of indices — including a key that is only
+        // touched (default-constructed, never mutated = empty-present)
+        // and a re-touched key (the 91% read-hit path).
+        fn drive<T: CoverWriteTable>(tbl: &mut T) {
+            tbl.clear_table();
+            tbl.entry_or_default(0).set_all();
+            tbl.entry_or_default(3).set_begin(7);
+            tbl.entry_or_default(3).set_end(9);
+            let _ = tbl.entry_or_default(5); // touched, never mutated
+            tbl.entry_or_default(9).set_begin(4);
+            tbl.entry_or_default(9).set_end(6);
+            tbl.entry_or_default(9).set_end(11); // re-touch (read hit)
+        }
+
+        // Persistent arm: operator[]/clear on the BTreeMap directly.
+        let mut map_arm: BTreeMap<i32, CoverBlock> = BTreeMap::new();
+        drive(&mut map_arm);
+
+        // Dense arm: identical sequence on the scratch, then copy_out.
+        let mut scratch = RebuildScratch::new();
+        drive(&mut scratch);
+        let mut dense_out: BTreeMap<i32, CoverBlock> = BTreeMap::new();
+        scratch.copy_out(&mut dense_out);
+
+        // Identical final map: same key set (empty-present key 5 included),
+        // same values, ascending iteration order on both sides.
+        assert_eq!(map_arm, dense_out);
+        assert!(
+            dense_out.contains_key(&5),
+            "empty-present key must survive copy_out"
+        );
+        assert_eq!(dense_out.get(&3).map(|cb| (cb.start, cb.end)), Some((7, 9)));
+        assert_eq!(dense_out.get(&9).map(|cb| (cb.start, cb.end)), Some((4, 11)));
+
+        // Reuse round 2 (29,683 dirty rebuilds on the corpus share one
+        // thread-local scratch): clear_table must fully reset — the
+        // copy-out walk already emptied every slot (slots_clean), so the
+        // reset walk is skipped but the next round still starts empty.
+        fn drive2<T: CoverWriteTable>(tbl: &mut T) {
+            tbl.clear_table();
+            tbl.entry_or_default(2).set_all();
+        }
+        drive2(&mut map_arm);
+        drive2(&mut scratch);
+        let mut dense_out2: BTreeMap<i32, CoverBlock> = BTreeMap::new();
+        scratch.copy_out(&mut dense_out2);
+        assert_eq!(map_arm, dense_out2);
+        assert_eq!(dense_out2.len(), 1, "scratch reuse must not leak round-1 keys");
+
+        // Negative indices (decode/RPO -1 windows, block.cc:1023-1030)
+        // land in the side map, copy out, and clear between rebuilds —
+        // zero panic paths, zero cross-rebuild state.
+        scratch.clear_table();
+        scratch.entry_or_default(-1).set_all();
+        let mut neg_out: BTreeMap<i32, CoverBlock> = BTreeMap::new();
+        scratch.copy_out(&mut neg_out);
+        assert_eq!(neg_out.len(), 1);
+        assert!(neg_out.contains_key(&-1));
+        scratch.clear_table();
+        let mut neg_out2: BTreeMap<i32, CoverBlock> = BTreeMap::new();
+        scratch.copy_out(&mut neg_out2);
+        assert!(neg_out2.is_empty(), "neg side map must clear between rebuilds");
     }
 
     /// `compare_to` orders Covers by the first covered block index. Empty
