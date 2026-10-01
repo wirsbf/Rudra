@@ -4542,3 +4542,10 @@ sizeOut 守卫、ActionNodeJoin apply 的 leastout 选择对（双候选 sizeIn
 （unblockedMulti 的 redundlist 扫描/gatherReturnGotos 的 copy-map 链/
 restricted_by_conditional/dominates）保留 peer 守卫。行为恒等: canon curl
 `b7773087` + httpd `54f9b02c` 字节恒等 + tests 2026P。
+
+
+## BLOCKFLIPW3（2026-10-01）edge-shadow 维护 choke（批 1 配套）
+
+test-BlockIf 采纳位的 wholesale out-edge 赋值在既有 size/flags sync 旁补
+`sync_edge_shadows`（wave 3 边表影子写侧, 见 docs/api/block.md）。零读位
+迁移（本批）。

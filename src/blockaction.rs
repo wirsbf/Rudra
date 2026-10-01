@@ -276,6 +276,9 @@ fn set_out_edge_flag_all_types(
         if let Some(edge) = w.out_edges_mut().get_mut(j) {
             edge.flags |= label;
         }
+        // (wave 3) label write on the out half — refresh the mirror under
+        // the same guard.
+        w.sync_out_edge_shadow();
     }
     // block.cc:245-247: the target's in-edge half of the label.
     if let Some((target, rev)) = mirror {
@@ -284,6 +287,8 @@ fn set_out_edge_flag_all_types(
         if let Some(edge) = t.in_edges_mut().get_mut(ri) {
             edge.flags |= label;
         }
+        // (wave 3) the target's in-half label — refresh under the guard.
+        t.sync_in_edge_shadow();
     }
 }
 
@@ -320,6 +325,9 @@ pub(crate) fn rewrite_out_edges_to_idx(
             changed = true;
         }
     }
+    // (wave 3) edge points were retargeted — refresh the out mirror under
+    // the same guard (no-op when nothing changed).
+    w.sync_out_edge_shadow();
     changed
 }
 
@@ -347,6 +355,9 @@ pub(crate) fn rewrite_in_edges_to_idx(
             changed = true;
         }
     }
+    // (wave 3) edge points were retargeted — refresh the in mirror under
+    // the same guard (no-op when nothing changed).
+    w.sync_in_edge_shadow();
     changed
 }
 
@@ -594,11 +605,20 @@ pub(crate) fn resync_boundary_reverse_indices(bl: &Arc<RwLock<dyn FlowBlock + Se
         };
         let Some(j) = j else { continue };
         if !Arc::ptr_eq(&peer, bl) {
-            peer.write().unwrap().out_edges_mut()[j].reverse_index = i as i32;
+            let mut p = peer.write().unwrap();
+            p.out_edges_mut()[j].reverse_index = i as i32;
+            // (wave 3) reciprocal re-pairing — refresh the peer's out mirror.
+            p.sync_out_edge_shadow();
         } else {
-            bl.write().unwrap().out_edges_mut()[j].reverse_index = i as i32;
+            let mut s = bl.write().unwrap();
+            s.out_edges_mut()[j].reverse_index = i as i32;
+            s.sync_out_edge_shadow();
         }
-        bl.write().unwrap().in_edges_mut()[i].reverse_index = j as i32;
+        {
+            let mut s = bl.write().unwrap();
+            s.in_edges_mut()[i].reverse_index = j as i32;
+            s.sync_in_edge_shadow();
+        }
     }
     // Out-edges: for slot k with target T, pair with T's occ-th in-slot that
     // points back at bl, where occ = number of T-targeted out-edges before k.
@@ -642,11 +662,20 @@ pub(crate) fn resync_boundary_reverse_indices(bl: &Arc<RwLock<dyn FlowBlock + Se
         };
         let Some(m) = m else { continue };
         if !Arc::ptr_eq(&peer, bl) {
-            peer.write().unwrap().in_edges_mut()[m].reverse_index = k as i32;
+            let mut p = peer.write().unwrap();
+            p.in_edges_mut()[m].reverse_index = k as i32;
+            // (wave 3) reciprocal re-pairing — refresh the peer's in mirror.
+            p.sync_in_edge_shadow();
         } else {
-            bl.write().unwrap().in_edges_mut()[m].reverse_index = k as i32;
+            let mut s = bl.write().unwrap();
+            s.in_edges_mut()[m].reverse_index = k as i32;
+            s.sync_in_edge_shadow();
         }
-        bl.write().unwrap().out_edges_mut()[k].reverse_index = m as i32;
+        {
+            let mut s = bl.write().unwrap();
+            s.out_edges_mut()[k].reverse_index = m as i32;
+            s.sync_out_edge_shadow();
+        }
     }
 }
 
@@ -4281,6 +4310,8 @@ impl<'a> CollapseStructure<'a> {
             // 0 -> |new_in|/|new_out|; the composite was adopted at the
             // identify entry, so its cells exist and must follow).
             nb.sync_bank_shadows();
+            // (wave 3) the edge mirrors refresh with the same choke.
+            nb.sync_edge_shadows();
         }
 
         // NOW install new_block at install_idx (replaces the cond block).
@@ -4399,8 +4430,10 @@ impl<'a> CollapseStructure<'a> {
                 w.out_edges_mut()
                     .retain(|edge| is_component(bank.expect_index(edge.point)));
                 // (g) guard-shadow: the retains change edge LENGTHS; push
-                // the post-strip sizes into the owning bank's cells.
+                // the post-strip sizes into the owning bank's cells. (wave 3)
+                // the edge mirrors refresh with the same choke.
                 w.sync_bank_shadows();
+                w.sync_edge_shadows();
             };
             if let Some(oi) = &old_install {
                 strip_external(oi);

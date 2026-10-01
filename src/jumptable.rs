@@ -6236,6 +6236,8 @@ mod tests {
             // (g) guard-shadow: test-registered block — sync after the raw
             // pushes.
             bl_w.sync_bank_shadows();
+            // (wave 3) the edge mirrors refresh with the same choke.
+            bl_w.sync_edge_shadows();
         }
         indop.write().unwrap().parent =
             Some(std::sync::Arc::downgrade(&(bl.clone() as Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>)));

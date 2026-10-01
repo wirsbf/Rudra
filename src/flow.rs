@@ -3605,6 +3605,8 @@ fn split_block_at_case_dest(
         // (g) guard-shadow: mem::take empties the out-edge vector — push the
         // post-take sizes into the owning bank's cells.
         pbb.sync_bank_shadows();
+        // (wave 3) the out-edge mirror empties with the take.
+        pbb.sync_out_edge_shadow();
         let mut tail_w = tail.write().unwrap();
         let tbb = tail_w
             .as_any_mut()
@@ -3644,6 +3646,9 @@ fn split_block_at_case_dest(
         if let Some(in_edge) = target_bb.incoming.get_mut(slot) {
             in_edge.point = tail_id;
         }
+        // (wave 3) re-pointed in-half — refresh the target's in mirror
+        // under the guard.
+        target_w.sync_in_edge_shadow();
     }
     {
         let mut tail_w = tail.write().unwrap();
@@ -3654,6 +3659,8 @@ fn split_block_at_case_dest(
         tbb.outgoing = parent_outgoing;
         // (g) guard-shadow: wholesale out-edge inheritance — sync sizes.
         tbb.sync_bank_shadows();
+        // (wave 3) the out-edge mirror refreshes with the same choke.
+        tbb.sync_out_edge_shadow();
     }
     // Insert the tail directly after its head so the block list keeps the
     // address order splitBasic's dead-list walk produces (the linear

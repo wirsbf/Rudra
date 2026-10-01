@@ -2054,3 +2054,15 @@ expect_size_in/expect_size_out/expect_flags` 与 `btype_of`）;深读
 （next_idx/skip_idx）、`build_fallthrough_chain`（succ idx/sizeIn/type 门）。
 行为恒等: canon curl `b7773087` + httpd `54f9b02c` 字节恒等 + tests 2026P
 （BANKSTATS 对比与镜面五面见车道终报）。
+
+
+## BLOCKFLIPW3（2026-10-01）edge-shadow 维护 choke（批 1 配套）
+
+wave 3 边表影子（见 docs/api/block.md EdgeShadow 段）的写侧 choke 补齐：
+`set_out_edge_flag_all_types` 双半标签写（block.cc:240-247 双侧 mirror）各
+自守卫内 sync；`rewrite_out_edges_to_idx`/`rewrite_in_edges_to_idx`
+（replaceOut/InEdge 的 idx 形, block.cc:178-191）retarget 后 sync；
+`resync_boundary_reverse_indices` 六处 reciprocal reverse_index 写改守卫
+绑定形并就地 sync；identify install 的 `nb.sync_edge_shadows()` 与
+strip_external 的 `w.sync_edge_shadows()` 补在既有 size/flags sync 旁。
+零读位迁移（本批），消费面迁移在批 3。

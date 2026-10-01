@@ -1061,6 +1061,10 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         }
         self.in_edges_mut().pop();
         self.sync_bank_shadows();
+        // (wave 3) both halves may have changed: the in-vector slid/popped,
+        // and the WouldBlock self-loop arm decremented our OWN out-vector
+        // entries — refresh both edge mirrors.
+        self.sync_edge_shadows();
     }
 
     // Ghidra: block.cc:115 FlowBlock::halfDeleteOutEdge
@@ -1104,6 +1108,8 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         }
         self.out_edges_mut().pop();
         self.sync_bank_shadows();
+        // (wave 3) see half_delete_in_edge: both halves may have changed.
+        self.sync_edge_shadows();
     }
 
     // Ghidra: block.cc:130 FlowBlock::removeInEdge (exclusion-list form)
@@ -1181,6 +1187,9 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         if slot < outs.len() {
             outs[slot].flags |= flag;
         }
+        // (wave 3) label write changes no lengths — refresh the out mirror
+        // so bank-side edge reads see the new label.
+        self.sync_out_edge_shadow();
     }
 
     // Ghidra: block.hh:289 FlowBlock::clearOutEdgeFlag
@@ -1192,6 +1201,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         if slot < outs.len() {
             outs[slot].flags &= !flag;
         }
+        self.sync_out_edge_shadow();
     }
 
     /// Clear a mask of edge flags from ALL outgoing edges.
@@ -1201,6 +1211,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         for e in self.out_edges_mut().iter_mut() {
             e.flags &= !mask;
         }
+        self.sync_out_edge_shadow();
     }
 
     // Ghidra: block.cc:446 FlowBlock::eliminateInDups
@@ -1446,6 +1457,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         if slot < ins.len() {
             ins[slot].flags |= flag;
         }
+        self.sync_in_edge_shadow();
     }
 
     /// Clear edge flags from the `slot`-th incoming edge. This is the mirrored
@@ -1460,6 +1472,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         if slot < ins.len() {
             ins[slot].flags &= !flag;
         }
+        self.sync_in_edge_shadow();
     }
 
     /// Get the copy-map reference (Ghidra `copymap`: back reference to a
@@ -1503,11 +1516,13 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     fn add_in_edge(&mut self, edge: BlockEdge) {
         self.in_edges_mut().push(edge);
         self.sync_bank_shadows();
+        self.sync_in_edge_shadow();
     }
     // RUGRA-GLUE: Rust edge-construction helper (Ghidra manages outofthis via friend addInEdge)
     fn add_out_edge(&mut self, edge: BlockEdge) {
         self.out_edges_mut().push(edge);
         self.sync_bank_shadows();
+        self.sync_out_edge_shadow();
     }
 
     // RUGRA-GLUE: owning-bank slot stamp (set by `BlockBank::claim` at
@@ -1534,6 +1549,45 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
             let size_out = self.out_edges_mut().len() as u32;
             let flags = self.get_flags();
             bank.set_block_shadows(slot, size_in, size_out, flags);
+        }
+    }
+
+    /// Refresh BOTH edge-vector mirrors (`outofthis`/`intothis`,
+    /// block.hh:127-128) in the owning bank's edge-shadow table — the
+    /// wave-3 deep-read surface's maintenance choke. The two halves are
+    /// separate calls because a `&mut self` method cannot borrow both
+    /// edge vectors at once. No-op for unregistered blocks (bare
+    /// fixtures keep their guard-read paths). Because the refresh copies
+    /// the WHOLE vector (all fields), any earlier unsynced field write on
+    /// the same block is repaired here — only field writes with no later
+    /// choke on that block before a read need their own sync site.
+    // RUGRA-GLUE: (wave 3) edge-shadow maintenance (block.hh:127-128)
+    fn sync_edge_shadows(&mut self) {
+        self.sync_out_edge_shadow();
+        self.sync_in_edge_shadow();
+    }
+
+    /// Out-half of the edge-shadow refresh (see `sync_edge_shadows`).
+    // RUGRA-GLUE: (wave 3) edge-shadow maintenance, out half
+    fn sync_out_edge_shadow(&mut self) {
+        let slot = self.bank_slot();
+        if slot == BlockId::SENTINEL {
+            return;
+        }
+        if let Some(bank) = self.owner_bank() {
+            bank.set_out_edge_shadow(slot, &*self.out_edges_mut());
+        }
+    }
+
+    /// In-half of the edge-shadow refresh (see `sync_edge_shadows`).
+    // RUGRA-GLUE: (wave 3) edge-shadow maintenance, in half
+    fn sync_in_edge_shadow(&mut self) {
+        let slot = self.bank_slot();
+        if slot == BlockId::SENTINEL {
+            return;
+        }
+        if let Some(bank) = self.owner_bank() {
+            bank.set_in_edge_shadow(slot, &*self.in_edges_mut());
         }
     }
 
@@ -1880,6 +1934,8 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
                     if let Some(edge) = peer.in_edges_mut().get_mut(reverse_index as usize) {
                         edge.reverse_index = slot as i32;
                     }
+                    // (wave 3) peer's in-half changed — refresh its mirror.
+                    peer.sync_in_edge_shadow();
                 }
                 Err(std::sync::TryLockError::WouldBlock) => {
                     if let Some(edge) = self.in_edges_mut().get_mut(reverse_index as usize) {
@@ -1896,6 +1952,10 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         } else {
             self.set_flags(block_flags::FLIP_PATH);
         }
+        // (wave 3) both halves changed (the swap + the WouldBlock self-arm's
+        // in-half decrements); the set/clear_flags above only refreshed the
+        // POD cells.
+        self.sync_edge_shadows();
     }
 
     /// Is this block the entry point of the function? (block.hh:325)
@@ -2253,6 +2313,9 @@ pub fn set_out_edge_flag_mirrored(
         if (rev as usize) < ins.len() {
             ins[rev as usize].flags |= lab;
         }
+        // (wave 3) both halves changed under this guard — refresh both
+        // mirrors before the guard drops.
+        g.sync_edge_shadows();
     } else {
         cur.write().unwrap().set_out_edge_flag(i, lab);
         target.write().unwrap().set_in_edge_flag(rev as usize, lab);
@@ -2295,6 +2358,9 @@ pub fn clear_out_edge_flag_mirrored(
         if (rev as usize) < ins.len() {
             ins[rev as usize].flags &= !lab;
         }
+        // (wave 3) both halves changed under this guard — refresh both
+        // mirrors before the guard drops.
+        g.sync_edge_shadows();
     } else {
         cur.write().unwrap().clear_out_edge_flag(i, lab);
         target
@@ -3121,6 +3187,10 @@ impl FlowBlock for BlockBasic {
                                 in_edge.reverse_index = slot as i32;
                             }
                         }
+                        // (wave 3) the peer's in-half changed under this
+                        // guard — refresh its mirror before the guard drops
+                        // (no later choke on the peer is guaranteed).
+                        target_guard.sync_in_edge_shadow();
                     }
                 }
                 if !handled {
@@ -3129,6 +3199,11 @@ impl FlowBlock for BlockBasic {
                     }
                 }
             }
+            // (wave 3) peer in-halves were patched through the downcast
+            // above (no choke inside) and our own halves moved — refresh
+            // both mirrors. The peer mirrors refresh through their own
+            // next choke; the debug probe pins any divergence.
+            self.sync_edge_shadows();
             // cc:232: flags ^= f_flip_path
             self.flags ^= block_flags::FLIP_PATH;
         }
@@ -3184,12 +3259,16 @@ impl FlowBlock for BlockBasic {
         if let Some(e) = self.outgoing.get_mut(i) {
             e.flags |= edge_flags::F_LOOP_EXIT_EDGE;
         }
+        // (wave 3) label write — refresh the out mirror.
+        self.sync_out_edge_shadow();
     }
     // Ghidra: block.hh:295 FlowBlock::clearLoopExit
     fn clear_loop_exit(&mut self, i: usize) {
         if let Some(e) = self.outgoing.get_mut(i) {
             e.flags &= !edge_flags::F_LOOP_EXIT_EDGE;
         }
+        // (wave 3) label write — refresh the out mirror.
+        self.sync_out_edge_shadow();
     }
 }
 
@@ -3213,6 +3292,14 @@ fn decrement_reciprocal_reverse_index(block: &mut dyn FlowBlock, incoming_half: 
         return;
     }
     edges[slot].reverse_index -= 1;
+    // (wave 3) the peer's edge vector changed under this free function —
+    // refresh its shadow half before any bank-side edge read can observe
+    // the stale reverse_index.
+    if incoming_half {
+        block.sync_in_edge_shadow();
+    } else {
+        block.sync_out_edge_shadow();
+    }
 }
 
 /// BlockBasic-specific methods for edge manipulation (Ghidra identifyInternal support)
@@ -3299,6 +3386,8 @@ impl BlockBasic {
         self.incoming.clear();
         self.outgoing.clear();
         self.sync_bank_shadows();
+        // (wave 3) both vectors emptied — refresh both mirrors.
+        self.sync_edge_shadows();
     }
 
     // RUGRA-GLUE: Rust accessor for outgoing edge slice (Ghidra exposes outofthis via getOut/sizeOut)
@@ -3322,7 +3411,9 @@ impl BlockBasic {
 /// `bank.index_of(e.point)` for hot POD reads). Every edge endpoint is
 /// registered in its owning graph's bank at construction (add_block /
 /// adopt); `BlockId::SENTINEL` therefore never appears in a live edge.
-#[derive(Debug, Clone, Copy)]
+/// `PartialEq` (wave 3) serves only the edge-shadow debug probes —
+/// field-by-field value equality, no oracle counterpart needed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockEdge {
     /// The block at the other end of the edge (bank id form of the
     /// oracle's `FlowBlock *point`).
@@ -3594,6 +3685,14 @@ pub struct BlockBank {
 
 pub(crate) struct BlockBankShared {
     state: RwLock<BankState>,
+    /// Edge-shadow table (PERF-BLOCKSTORAGE-FLIP-0001 wave 3): per-slot
+    /// mirrors of `FlowBlock::outofthis`/`intothis` (block.hh:127-128),
+    /// maintained in place at every edge-mutation choke and served to the
+    /// deep-read sites (getOut/getIn/edge labels) without the peer
+    /// RwLock or vtable. One bank-level lock (the `ids` pattern): edge
+    /// writes take it leaf (never nested under `state` the other way);
+    /// the lock order is state → edges everywhere.
+    edges: RwLock<Vec<EdgeShadowCell>>,
     /// Arc-identity → slot map (`Arc::as_ptr` keys, the established
     /// identity-key pattern). Gives `id_of(&Arc)` without touching the
     /// block's own RwLock — the only deadlock-free way to stamp
@@ -3695,6 +3794,39 @@ impl BankShadowCell {
     }
 }
 
+/// Per-slot mirror of a FlowBlock's edge vectors (block.hh:127-128
+/// `intothis`/`outofthis`). PERF-BLOCKSTORAGE-FLIP-0001 wave 3 — the
+/// typed-BlockData harvest surface: every oracle edge accessor is a
+/// NON-VIRTUAL inline read of these vectors (block.hh:301-347 `getOut`,
+/// `getIn`, `isGotoOut`, `isDecisionOut`, ... — plain
+/// `outofthis[i].label/.point` member loads), so serving the same 12-byte
+/// POD values from the bank removes the peer RwLock + vtable round-trip
+/// the `expect_arc(id).read().get_out(i)` form paid per deep read, while
+/// returning bit-identical values (the shadow is refreshed at every
+/// edge-mutation choke; the debug probe below pins shadow == truth).
+///
+/// Stored behind ONE bank-level RwLock (the `ids` pattern — lock order is
+/// state → edges, never reversed): reads are copy-out of a `BlockEdge`
+/// (plain-Copy), writes are `clone_from` (reuses the existing Vec
+/// allocation, so steady-state maintenance is a tens-of-bytes memcpy).
+// RUGRA-GLUE: edge shadow cell (block.hh:127-128 vector mirror;
+// PERF-BLOCKSTORAGE-FLIP-0001 wave 3)
+#[derive(Default)]
+struct EdgeShadowCell {
+    /// Mirror of `outofthis` (block.hh:128).
+    out: Vec<BlockEdge>,
+    /// Mirror of `intothis` (block.hh:127).
+    in_: Vec<BlockEdge>,
+}
+
+impl EdgeShadowCell {
+    // RUGRA-GLUE: reserved-slot constructor (sentinel slot 0 / post-clear
+    // reset — empty vectors, never read: slot_ok rejects idx 0)
+    fn sentinel() -> Self {
+        EdgeShadowCell::default()
+    }
+}
+
 impl std::fmt::Debug for BlockBank {
     // RUGRA-GLUE: debug form (slot count only; slot order must never be
     // observable, ARENA_DESIGN §2.4/§8.3)
@@ -3721,6 +3853,7 @@ impl BlockBank {
                     cells: std::sync::Arc::new(vec![BankShadowCell::sentinel()]),
                 }),
                 ids: RwLock::new(rustc_hash::FxHashMap::default()),
+                edges: RwLock::new(vec![EdgeShadowCell::sentinel()]),
                 epoch: std::sync::atomic::AtomicU64::new(0),
             }),
         }
@@ -3749,6 +3882,13 @@ impl BlockBank {
             None => {
                 g.set_owner_bank(Some(self));
                 g.set_bank_slot(slot);
+                // Stamp the registration-time truth: adopted blocks can
+                // carry live edges (adopt/adopt_bulk read only the POD
+                // snapshot into the cell), so the edge shadow is seeded
+                // here — the same choke `insert` funnels every block
+                // through. No-op for unregistered fixtures' SENTINEL.
+                g.sync_bank_shadows();
+                g.sync_edge_shadows();
             }
         }
     }
@@ -3782,6 +3922,11 @@ impl BlockBank {
             });
             id
         };
+        // Edge-shadow slot (wave 3): appended BEFORE the epoch publish so
+        // no reader can observe the new id without its edge cell (the id
+        // only becomes resolvable through a view after the bump). Leaf
+        // lock — never nested inside `state` write sections elsewhere.
+        self.sh.edges.write().unwrap().push(EdgeShadowCell::sentinel());
         self.sh
             .epoch
             .fetch_add(1, std::sync::atomic::Ordering::Release);
@@ -4029,6 +4174,117 @@ impl BlockBank {
         }
     }
 
+    /// Edge-shadow write, out half (mirror refresh of `outofthis`,
+    /// block.hh:128). Single-choke maintenance form for out-side edge
+    /// mutations; `clone_from` reuses the slot's existing allocation.
+    /// Bumps `shadow_writes` once per call (the same accounting the
+    /// size/flags chokes use).
+    // RUGRA-GLUE: edge-shadow maintenance (wave 3; block.hh:128 mirror)
+    pub fn set_out_edge_shadow(&self, id: BlockId, edges: &[BlockEdge]) {
+        bank_stats::bump(&bank_stats::STATS.shadow_writes);
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        let live = i != 0
+            && i < st.table.kinds.len()
+            && st.table.gens[i] == id.gen();
+        drop(st);
+        if live {
+            let mut tab = self.sh.edges.write().unwrap();
+            if i < tab.len() {
+                tab[i].out.clear();
+                tab[i].out.extend_from_slice(edges);
+            }
+        }
+    }
+
+    /// Edge-shadow write, in half (mirror refresh of `intothis`,
+    /// block.hh:127). See `set_out_edge_shadow` for the discipline.
+    // RUGRA-GLUE: edge-shadow maintenance (wave 3; block.hh:127 mirror)
+    pub fn set_in_edge_shadow(&self, id: BlockId, edges: &[BlockEdge]) {
+        bank_stats::bump(&bank_stats::STATS.shadow_writes);
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        let live = i != 0
+            && i < st.table.kinds.len()
+            && st.table.gens[i] == id.gen();
+        drop(st);
+        if live {
+            let mut tab = self.sh.edges.write().unwrap();
+            if i < tab.len() {
+                tab[i].in_.clear();
+                tab[i].in_.extend_from_slice(edges);
+            }
+        }
+    }
+
+    /// `FlowBlock::getOut` shadow (block.hh:301 — an inline
+    /// `outofthis[i]` member load in the oracle): the i-th out edge as a
+    /// plain Copy value, no peer RwLock, no vtable. `None` mirrors the
+    /// slot being out of range (the oracle's UB slot would be a caller
+    /// bug; Rugra's `get_out` is Option-shaped and so is this).
+    // RUGRA-GLUE: edge-shadow read (wave 3; block.hh:301 direct form)
+    pub fn expect_out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
+            return None;
+        }
+        drop(st);
+        let tab = self.sh.edges.read().unwrap();
+        tab.get(i).and_then(|c| c.out.get(slot).copied())
+    }
+
+    /// `FlowBlock::getIn` shadow (block.hh:304 — inline `intothis[i]`).
+    // RUGRA-GLUE: edge-shadow read (wave 3; block.hh:304 direct form)
+    pub fn expect_in_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
+            return None;
+        }
+        drop(st);
+        let tab = self.sh.edges.read().unwrap();
+        tab.get(i).and_then(|c| c.in_.get(slot).copied())
+    }
+
+    /// Whole out-vector view under ONE edge-table lock — the multi-read
+    /// cluster form (e.g. a clause walk reading several edges of one
+    /// block): the guard is released before returning, so the closure
+    /// must not call back into edge-mutating code.
+    // RUGRA-GLUE: edge-shadow bulk read (wave 3)
+    pub fn with_out_edges<R>(
+        &self,
+        id: BlockId,
+        f: impl FnOnce(&[BlockEdge]) -> R,
+    ) -> Option<R> {
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
+            return None;
+        }
+        drop(st);
+        let tab = self.sh.edges.read().unwrap();
+        tab.get(i).map(|c| f(&c.out))
+    }
+
+    /// Whole in-vector view under ONE edge-table lock (see
+    /// `with_out_edges`).
+    // RUGRA-GLUE: edge-shadow bulk read (wave 3)
+    pub fn with_in_edges<R>(
+        &self,
+        id: BlockId,
+        f: impl FnOnce(&[BlockEdge]) -> R,
+    ) -> Option<R> {
+        let st = self.sh.state.read().unwrap();
+        let i = id.idx() as usize;
+        if i == 0 || i >= st.table.kinds.len() || st.table.gens[i] != id.gen() {
+            return None;
+        }
+        drop(st);
+        let tab = self.sh.edges.read().unwrap();
+        tab.get(i).map(|c| f(&c.in_))
+    }
+
     /// Reclaim every slot (graph reset; bumps generations). Publish side:
     /// the fresh table keeps the (bumped) `gens` and truncates the slot
     /// arrays to the sentinel — post-clear inserts reuse slot indexes
@@ -4046,6 +4302,10 @@ impl BlockBank {
             table.kinds.truncate(1);
             st.cells = std::sync::Arc::new(vec![BankShadowCell::sentinel()]);
         }
+        // Edge-shadow table reclaims with the slots (zombie ids stop
+        // resolving via the bumped generations, so no reader can reach
+        // these cells after the epoch publish below).
+        *self.sh.edges.write().unwrap() = vec![EdgeShadowCell::sentinel()];
         self.sh
             .epoch
             .fetch_add(1, std::sync::atomic::Ordering::Release);
@@ -4267,6 +4527,102 @@ impl BlockBankView {
             Some(v) => v,
             None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
         }
+    }
+
+    /// `FlowBlock::getOut` edge-shadow read (block.hh:301 — a non-virtual
+    /// inline `outofthis[i]` load in the oracle; wave 3 serves it from the
+    /// bank without the peer RwLock or vtable). Same None-for-out-of-range
+    /// shape as `FlowBlock::get_out`; debug builds probe shadow == truth.
+    // RUGRA-GLUE: edge-shadow read (wave 3; block.hh:301 direct form)
+    pub fn out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
+        let i = self.slot_ok(id)?;
+        let v = {
+            let tab = self.sh.edges.read().unwrap();
+            tab.get(i).and_then(|c| c.out.get(slot).copied())
+        };
+        self.check_epoch();
+        #[cfg(debug_assertions)]
+        if let Some(arc) = self.table.kinds[i].as_ref().map(|k| k.arc_ref()) {
+            let truth = arc.read().unwrap().get_out_ref(slot).copied();
+            debug_assert_eq!(v, truth, "out-edge shadow diverged for {:?} slot {}", id, slot);
+        }
+        v
+    }
+
+    /// `FlowBlock::getOut` edge-shadow read, panicking-id form.
+    // RUGRA-GLUE: edge-shadow read, panicking-id form (wave 3)
+    pub fn expect_out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
+        match self.out_edge(id, slot) {
+            Some(v) => Some(v),
+            None if self.slot_ok(id).is_none() => {
+                panic!("BlockBankView: stale or foreign BlockId {:?}", id)
+            }
+            None => None, // live slot, out-of-range edge index: get_out's None
+        }
+    }
+
+    /// `FlowBlock::getIn` edge-shadow read (block.hh:304 — inline
+    /// `intothis[i]`); see `out_edge`.
+    // RUGRA-GLUE: edge-shadow read (wave 3; block.hh:304 direct form)
+    pub fn in_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
+        let i = self.slot_ok(id)?;
+        let v = {
+            let tab = self.sh.edges.read().unwrap();
+            tab.get(i).and_then(|c| c.in_.get(slot).copied())
+        };
+        self.check_epoch();
+        #[cfg(debug_assertions)]
+        if let Some(arc) = self.table.kinds[i].as_ref().map(|k| k.arc_ref()) {
+            let truth = arc.read().unwrap().get_in_ref(slot).copied();
+            debug_assert_eq!(v, truth, "in-edge shadow diverged for {:?} slot {}", id, slot);
+        }
+        v
+    }
+
+    /// `FlowBlock::getIn` edge-shadow read, panicking-id form.
+    // RUGRA-GLUE: edge-shadow read, panicking-id form (wave 3)
+    pub fn expect_in_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
+        match self.in_edge(id, slot) {
+            Some(v) => Some(v),
+            None if self.slot_ok(id).is_none() => {
+                panic!("BlockBankView: stale or foreign BlockId {:?}", id)
+            }
+            None => None,
+        }
+    }
+
+    /// Whole out-vector read under one edge-table lock (multi-read
+    /// clusters; the guard is released before returning).
+    // RUGRA-GLUE: edge-shadow bulk read (wave 3)
+    pub fn with_out_edges<R>(
+        &self,
+        id: BlockId,
+        f: impl FnOnce(&[BlockEdge]) -> R,
+    ) -> Option<R> {
+        let i = self.slot_ok(id)?;
+        let v = {
+            let tab = self.sh.edges.read().unwrap();
+            tab.get(i).map(|c| f(&c.out))
+        };
+        self.check_epoch();
+        v
+    }
+
+    /// Whole in-vector read under one edge-table lock (see
+    /// `with_out_edges`).
+    // RUGRA-GLUE: edge-shadow bulk read (wave 3)
+    pub fn with_in_edges<R>(
+        &self,
+        id: BlockId,
+        f: impl FnOnce(&[BlockEdge]) -> R,
+    ) -> Option<R> {
+        let i = self.slot_ok(id)?;
+        let v = {
+            let tab = self.sh.edges.read().unwrap();
+            tab.get(i).map(|c| f(&c.in_))
+        };
+        self.check_epoch();
+        v
     }
 }
 
@@ -4518,8 +4874,10 @@ impl BlockGraph {
             block.set_immed_dom(mapped_dom);
             // (g) guard-shadow: mapped twin assignment rewrites the edge
             // vectors wholesale (same lengths, re-pointed ends) — sync so
-            // the shadow equals the post-assignment truth.
+            // the shadow equals the post-assignment truth. (wave 3) the
+            // edge mirrors refresh with the same call.
             block.sync_bank_shadows();
+            block.sync_edge_shadows();
         }
     }
 
@@ -4590,6 +4948,8 @@ impl BlockGraph {
             for edge in g.out_edges_mut() {
                 edge.flags = 0;
             }
+            // (wave 3) both halves' labels changed — refresh both mirrors.
+            g.sync_edge_shadows();
         }
     }
 
@@ -4863,6 +5223,8 @@ impl BlockGraph {
             for edge in g.out_edges_mut() {
                 edge.flags &= keep;
             }
+            // (wave 3) both halves' labels changed — refresh both mirrors.
+            g.sync_edge_shadows();
         }
     }
 
@@ -7071,12 +7433,16 @@ impl FlowBlock for BlockCopy {
         if let Some(edge) = self.outgoing.get_mut(slot) {
             edge.flags |= edge_flags::F_LOOP_EXIT_EDGE;
         }
+        // (wave 3) label write — refresh the out mirror.
+        self.sync_out_edge_shadow();
     }
     // Ghidra: block.hh:295 FlowBlock::clearLoopExit
     fn clear_loop_exit(&mut self, slot: usize) {
         if let Some(edge) = self.outgoing.get_mut(slot) {
             edge.flags &= !edge_flags::F_LOOP_EXIT_EDGE;
         }
+        // (wave 3) label write — refresh the out mirror.
+        self.sync_out_edge_shadow();
     }
     // Ghidra: block.cc:218 FlowBlock::swapEdges
     fn swap_edges(&mut self) {
@@ -7099,6 +7465,8 @@ impl FlowBlock for BlockCopy {
                     if let Some(edge) = peer.in_edges_mut().get_mut(reverse_index as usize) {
                         edge.reverse_index = slot as i32;
                     }
+                    // (wave 3) peer's in-half changed — refresh its mirror.
+                    peer.sync_in_edge_shadow();
                 }
                 Err(std::sync::TryLockError::WouldBlock) => {
                     if let Some(edge) = self.incoming.get_mut(reverse_index as usize) {
@@ -7111,6 +7479,8 @@ impl FlowBlock for BlockCopy {
             }
         }
         self.flags ^= block_flags::FLIP_PATH;
+        // (wave 3) both halves changed (swap + WouldBlock self-arm).
+        self.sync_edge_shadows();
     }
     // Ghidra: block.hh:534 BlockCopy::negateCondition
     fn negate_condition(&mut self, toporbottom: bool) -> bool {
@@ -12029,5 +12399,111 @@ mod bank_cow_tests {
             w.sync_bank_shadows();
         }
         assert_eq!(view.size_in(id_b), Some(2));
+    }
+
+    #[test]
+    fn edge_shadow_tracks_every_mutation_choke() {
+        // PERF-BLOCKSTORAGE-FLIP-0001 wave 3: every edge-mutation choke
+        // (add_in/add_out_edge, half_delete pair + peer reciprocal
+        // decrements, label mutators, mirrored label helpers, wholesale
+        // assignment, clear_edges) must leave the bank's edge mirrors
+        // equal to the block's deep truth — the debug probe in the view
+        // readers pins this per read; this test walks the chokes
+        // explicitly, mirroring guard_shadow_tracks_every_mutation_choke.
+        let mut g = BlockGraph::new();
+        let a: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
+            BlockBasic::new(0, Address::new(0x100)),
+        ));
+        let b: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
+            BlockBasic::new(1, Address::new(0x200)),
+        ));
+        let c: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
+            BlockBasic::new(2, Address::new(0x300)),
+        ));
+        g.add_block(a.clone());
+        g.add_block(b.clone());
+        g.add_block(c.clone());
+        let view = g.bank.hold();
+        let id_a = g.bank.id_of(&a).unwrap();
+        let id_b = g.bank.id_of(&b).unwrap();
+        let id_c = g.bank.id_of(&c).unwrap();
+        // Fresh blocks: no edges resolvable through the shadow.
+        assert_eq!(view.out_edge(id_a, 0), None);
+        assert_eq!(view.in_edge(id_a, 0), None);
+        assert_eq!(view.with_out_edges(id_a, |o| o.len()), Some(0));
+        // add_edge routes through the add_in/add_out_edge defaults.
+        g.add_edge(a.clone(), b.clone());
+        g.add_edge(a.clone(), c.clone());
+        let truth0 = a.read().unwrap().get_out(0).unwrap();
+        let truth1 = a.read().unwrap().get_out(1).unwrap();
+        assert_eq!(view.out_edge(id_a, 0), Some(truth0));
+        assert_eq!(view.out_edge(id_a, 1), Some(truth1));
+        assert_eq!(view.out_edge(id_a, 2), None);
+        assert_eq!(view.with_out_edges(id_a, |o| o.len()), Some(2));
+        let in_truth = b.read().unwrap().get_in(0).unwrap();
+        assert_eq!(view.in_edge(id_b, 0), Some(in_truth));
+        // Fresh (bank) form serves the same values.
+        assert_eq!(g.bank.expect_out_edge(id_a, 0), Some(truth0));
+        assert_eq!(g.bank.expect_in_edge(id_b, 0), Some(in_truth));
+        // Label mutator: set_out_edge_flag refreshes the out mirror.
+        a.write()
+            .unwrap()
+            .set_out_edge_flag(0, edge_flags::F_GOTO_EDGE);
+        let labeled = a.read().unwrap().get_out(0).unwrap();
+        assert_eq!(view.out_edge(id_a, 0), Some(labeled));
+        assert!(labeled.flags & edge_flags::F_GOTO_EDGE != 0);
+        // Mirrored helper: both halves refresh (a's out, b's in).
+        set_out_edge_flag_mirrored(&a, 1, edge_flags::F_LOOP_EXIT_EDGE);
+        assert_eq!(view.out_edge(id_a, 1), a.read().unwrap().get_out(1));
+        let b_in = b.read().unwrap().get_in(0).unwrap();
+        assert_eq!(view.in_edge(id_b, 0), Some(b_in));
+        // half_delete_out_edge: slide + peer reciprocal decrement land in
+        // both mirrors (a's out halves, b/c in halves keep reverse_index).
+        let slot_c = a
+            .read()
+            .unwrap()
+            .get_out_ref(0)
+            .map(|e| e.point == id_c)
+            .map(|is_c| if is_c { 0 } else { 1 })
+            .unwrap_or(0);
+        a.write().unwrap().half_delete_out_edge(slot_c);
+        assert_eq!(view.with_out_edges(id_a, |o| o.len()), Some(1));
+        assert_eq!(view.out_edge(id_a, 0), a.read().unwrap().get_out(0));
+        assert_eq!(view.in_edge(id_c, 0), c.read().unwrap().get_in(0));
+        // Wholesale assignment (identify install form) refreshes.
+        {
+            let mut w = b.write().unwrap();
+            *w.in_edges_mut() = vec![BlockEdge::new(id_a, 7), BlockEdge::new(id_c, 9)];
+            w.sync_bank_shadows();
+            w.sync_edge_shadows();
+        }
+        assert_eq!(
+            view.with_in_edges(id_b, |i| i.len()),
+            Some(2)
+        );
+        assert_eq!(view.in_edge(id_b, 0), b.read().unwrap().get_in(0));
+        assert_eq!(view.in_edge(id_b, 1), b.read().unwrap().get_in(1));
+        // clear_edges empties the mirrors.
+        a.write()
+            .unwrap()
+            .as_any_mut()
+            .downcast_mut::<BlockBasic>()
+            .unwrap()
+            .clear_edges();
+        assert_eq!(view.with_out_edges(id_a, |o| o.len()), Some(0));
+        // Post-clear reclaim: the stale view's reads PANIC by the
+        // read-phase discipline (insert/clear publish invalidates
+        // outstanding snapshots — same contract as
+        // cow_snapshot_invalidated_by_publish); the fresh bank form
+        // returns None (bumped generations).
+        g.bank.clear();
+        let stale = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = view.out_edge(id_a, 0);
+        }));
+        assert!(
+            stale.is_err(),
+            "stale view edge read must panic after a publish"
+        );
+        assert!(g.bank.expect_out_edge(id_b, 0).is_none());
     }
 }

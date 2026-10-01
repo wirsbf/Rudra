@@ -757,3 +757,9 @@ sizeOut 门（jumptable.cc:1075 的 inline 读——影子读后 Arc 仅在保�
 解析）与 `is_reachable` 的 2-out 守卫门（jumptable.cc:2362）改读 bank
 size 影子（block.hh:312）;ops/lastOp 深探针保留 peer 守卫。行为恒等:
 canon curl `b7773087` + httpd `54f9b02c` 字节恒等 + tests 2026P。
+
+
+## BLOCKFLIPW3（2026-10-01）edge-shadow 维护 choke（批 1 配套）
+
+测试位 raw out-edge push 的既有 size/flags sync 旁补 `sync_edge_shadows`
+（wave 3 边表影子写侧, 见 docs/api/block.md）。零读位迁移（本批）。

@@ -967,3 +967,11 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+
+## BLOCKFLIPW3（2026-10-01）edge-shadow 维护 choke（批 1 配套）
+
+splitBasic 的三处边变异补影子 sync（wave 3, 见 docs/api/block.md）：
+mem::take 父块 out 向量后 `sync_out_edge_shadow`；继承块 wholesale 赋值旁
+`sync_out_edge_shadow`；逐 target 的 in-half re-point（tail_id）在
+target 守卫内 `sync_in_edge_shadow`。零读位迁移（本批）。
