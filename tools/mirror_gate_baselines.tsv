@@ -255,6 +255,36 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # 保持;CR-FTS3DOMCOPY D 裁定注记: corpus 钉组真值链=可复现链（MB78 ced48470/1466ee4b
 # → MB79 e3822667/50c15616 → MB80 6427a459/c46d0fe8 → MB81 df204662/62f74d43 →
 # 本道联合新钉;CONDMERGE 车道行 3f32b73a/1ce87062 系分支树误记,联合树以实测为准）。
+# 2026-10-03 STRUCTAIL 车道重钉（STRUCTAIL-REPIN-0001）: 结构尾清扫（TAILCENSUS 备靶
+# 序四 TC-F4+F9+F13 族）——公共根因=RUDRA-GLUE 文本补偿层四 pass 误吞 oracle-真发射
+# （发射层 pre-pass 输出==golden 逐字节,post_process_output_legacy 层吃掉）: P10 死区
+# 启动子把 overflow 臂折行 `break;`（前一非空行以 ')' 结尾）当无条件终结符[吞
+# Fts3GetVarintBounded 循环闩 6 行]、P14 连续 goto 把折行 if 臂 goto 后的外层出口
+# goto 当死码[吞 ExprImplies/ResolveSelectNames/session_changeset/RecordCompare×2/
+# WalFrames 各 1 行]、P16c 空 if 块删除不留 else 检查[吞 InitCallback/InitOne 空
+# then-臂 2+2 行并留裸 else 非法 C]、P24 孤儿 break 的行级 loop 头识别盲于折行
+# while 头[吞 Bitvec `if (...) break;` 1 行];修复=四 pass 各加窄守卫（同一
+# SWITCH-CASE-TAIL-0001 条件臂判据扩到 break/continue/return + P14 goto + P16c
+# else-跟随检查 + P24 pending 折行头追踪）,零 oracle 对应物变更。实测 sqlite
+# 28→10（=28−18 精确,残 10=WindowCodeStep 5+Reindex 2+Select 2+AddCheckConstraint
+# 1 全 misc-tail 族非本道）+sq 35→33（read_super+GetLongestMatch 各 1 行）;canon 红线
+# f903372a/3617ecc3 字节恒等;corpus A/B 双面各恰 11 函数 11 hunks 纯+18 行 golden
+# 复原,其余 1374 函数字节恒等,函数集差=∅;VdbeExec b3f5b487/606dd8c0 恒等。
+# 2026-10-03 MB85 联合注记（STRUCTAIL-MB85-JOINT-REPIN-0001 联合树兑现）: structail 并入
+# master[MB84 后 56508b9f] 联合树实测 sqlite 10（=28−18 精确——11 sqlite 受害函数族与
+# 已燃族[MB79 F1 三重奏/MB80 Wal 两函数/MB81 config+test_control/MB82 Fts3DeferredTokenList
+# 及此前各族]全部不相交,加性合成实测兑现;残 10=WindowCodeStep 5+Reindex 2+Select 2+
+# AddCheckConstraint 1 全 misc-tail 族[TAILCENSUS 序五备靶,域深票移交]）+**sq 0（=2−2
+# 精确——车道 sq 受害 read_super+GetLongestMatch 恰为 master 残 2 的全部,两族全预存,
+# 联合树第四完美面 0/0/0/0/10 兑现）**;commit 前联合树强制重链 1m02s（stale-guard
+# digest=c079d1ab352e49cb files=155——联合树新指纹,自 MB84 843270ba45c85445 的预期位移
+# [prettyprint 四守卫入联合树]）+五面 --no-cache --jobs 5 冷测 curl 0/0·httpd 0/0·vsh 0/0·
+# sq 0/2·sqlite 10/28（master GOF29-MB84/FTS3DOMCOPY-MB82 基线下全 PASS,defects=0
+# numbering=0,matched 满额）;车道注记块内 sqlite 10/sq 33 系车道基 21d8f9a4[MB82]口径,
+# 联合树以 master MB84 值 sq 2/sqlite 28 为基——车道 10/33 陈旧行按 MB77-84 先例由本
+# 联合行取代（车道注记块逐字保留）;重钉后冷复跑 sq 0/0+sqlite 10/10 恰钉值（首行命中
+# STRUCTAIL-MB85-JOINT-REPIN-0001,确定性）。
+sqlite	10	1385	STRUCTAIL-MB85-JOINT-REPIN-0001	mb85-joint	2026-10-03
 sqlite	28	1385	FTS3DOMCOPY-MB82-JOINT-REPIN-0001	mb82-joint	2026-10-02
 sqlite	31	1385	MISC24-MB81-JOINT-REPIN-0001	mb81-joint	2026-10-02
 curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02
@@ -404,6 +434,11 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # multiply_overflow 4 (MISC24) + read_super 1 (READINODE2 SUB8X) +
 # GetLongestMatch 1 (OTHER). Supersedes sq 35 SELECTDUP-MB75-JOINT-REPIN-0001
 # (mb75-joint, 2026-10-02) history line.
+# 2026-10-03 MB85 联合行（STRUCTAIL-MB85-JOINT-REPIN-0001）: sq 2→0 — structail 补偿层
+# 四守卫烧尽 read_super 1+GetLongestMatch 1（恰 master 残 2 全部,两族全预存;联合树
+# 第四完美面 0/0/0/0/10——冷测 0/2 于 GOF29-MB84 基线下 PASS,重钉后 0/0 恰钉值
+# 首行命中）。sqlite 联合行 10 见 sqlite 面首（=28−18,11 受害函数族与已燃族不相交）。
+sq	0	810	STRUCTAIL-MB85-JOINT-REPIN-0001	mb85-joint	2026-10-03
 sq	2	810	GOF29-MB84-JOINT-REPIN-0001	mb84-joint	2026-10-02
 # F5SQ re-pin (F5SQ-RETJOIN-REPIN-0001, 2026-10-02, wt/f5sq): joint measured
 # sq 35-4=31 — ActionReturnRecovery::buildReturnOutput 两分片 join 槽位收敛修复

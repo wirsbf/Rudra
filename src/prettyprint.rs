@@ -1319,12 +1319,27 @@ impl EmitNoMarkup {
             // with `)` (closed if/while condition) or `else` marks the goto
             // as the arm of a wrapped `if`, whose fall-through statements
             // are live code.
-            let goto_starts_dead_zone = t.starts_with("goto ")
-                && !prev_nonempty_trimmed.as_deref().map_or(false, |p| {
-                    let p = p.trim_end();
-                    p.ends_with(')') || p == "else" || p.ends_with(" else")
-                });
-            if t == "return;" || t == "break;" || t == "continue;" || goto_starts_dead_zone {
+            let prev_conditional_arm = prev_nonempty_trimmed.as_deref().map_or(false, |p| {
+                let p = p.trim_end();
+                p.ends_with(')') || p == "else" || p.ends_with(" else")
+            });
+            let goto_starts_dead_zone =
+                t.starts_with("goto ") && !prev_conditional_arm;
+            // STRUCTAIL-POSTFIX-TAILKEEP-0001 (arm 1): a bare `break;` /
+            // `continue;` / `return;` directly after a closed condition is
+            // the wrapped arm of `if (cond) <NL> break;` (oracle
+            // emitBlockWhileDo's overflow arm, printc.cc:3035-3043 — the
+            // Oppen wrapper breaks between the condition and the arm when
+            // the line is long). Its fall-through statements are the live
+            // loop latch, not dead code — the oracle emitter has no
+            // post-processing at all (docFunction printc.cc:2641-2676 ends
+            // at flush; prettyprint.cc:1194-1211 flush is a pure token
+            // drain), so golden keeps them (sqlite3Fts3GetVarintBounded:
+            // golden 0x4839e latch survives after `break;`). Same
+            // predicate as SWITCH-CASE-TAIL-0001's goto guard.
+            let keyword_unconditional = (t == "return;" || t == "break;" || t == "continue;")
+                && !prev_conditional_arm;
+            if keyword_unconditional || goto_starts_dead_zone {
                 dead_after_return = true;
                 dead_indent = indent;
             }
@@ -1390,6 +1405,7 @@ impl EmitNoMarkup {
         let snap_p14 = PostfixStats::snap(&final_out);
         let mut pass14: Vec<String> = Vec::with_capacity(final_out.len());
         let mut prev_was_goto = false;
+        let mut p14_prev_nonempty: Option<String> = None;
         for line in &final_out {
             let t = line.trim();
             if prev_was_goto {
@@ -1400,7 +1416,27 @@ impl EmitNoMarkup {
                 prev_was_goto = false;
             }
             if t.starts_with("goto ") && t.ends_with(';') {
-                prev_was_goto = true;
+                // STRUCTAIL-POSTFIX-TAILKEEP-0001 (arm 2): only an
+                // UNCONDITIONAL goto makes the next line dead. A goto
+                // directly after a line ending with `)` / `else` is the
+                // wrapped arm of `if (cond) <NL> goto X;` (oracle
+                // emitBlockIf's goto arm, printc.cc:2914-2917, wrapped by
+                // the Oppen pretty printer); the following `goto Y;` is
+                // the enclosing block's live false-exit (BlockGoto,
+                // emitBlockGoto printc.cc:2766-2779), which golden keeps —
+                // sqlite3VdbeRecordCompareWithSkip golden:124331-124333
+                // (`goto code_r0x000e6c7f;` + `goto code_r0x000e6dc0;`).
+                // Same predicate as P10's SWITCH-CASE-TAIL-0001 guard.
+                let prev_conditional_arm = p14_prev_nonempty
+                    .as_deref()
+                    .map_or(false, |p| {
+                        let p = p.trim_end();
+                        p.ends_with(')') || p == "else" || p.ends_with(" else")
+                    });
+                prev_was_goto = !prev_conditional_arm;
+            }
+            if !t.is_empty() {
+                p14_prev_nonempty = Some(t.to_string());
             }
             pass14.push(line.clone());
         }
@@ -1445,8 +1481,29 @@ impl EmitNoMarkup {
             // Remove empty if blocks: "if (...) {" followed by "}"
             if t.starts_with("if (") && t.ends_with('{') {
                 if i16c + 1 < pass16_lines.len() && pass16_lines[i16c + 1].trim() == "}" {
-                    i16c += 2; // skip both lines
-                    continue;
+                    // STRUCTAIL-POSTFIX-TAILKEEP-0001 (arm 3): an empty
+                    // then-arm with a following `else` belongs to an
+                    // if/else whose condition and else-arm stay live.
+                    // Removing the header here orphans the `else` (bare
+                    // `else {` — invalid C) and drops the branch
+                    // condition's side of the structure. The oracle
+                    // emitter prints the empty then-arm verbatim
+                    // (emitBlockIf printc.cc:2918-2925 emits the body
+                    // object even when its op list is empty; golden
+                    // sqlite3InitCallback keeps `if ((*(uint1 *)... & 2)
+                    // == 0) {` + `}` before its else). Only an else-less
+                    // empty if may be dropped.
+                    let next_after_close = pass16_lines
+                        .get(i16c + 2)
+                        .map(|s| s.trim())
+                        .unwrap_or("");
+                    let else_follows = next_after_close == "else"
+                        || next_after_close.starts_with("else ")
+                        || next_after_close.starts_with("} else");
+                    if !else_follows {
+                        i16c += 2; // skip both lines
+                        continue;
+                    }
                 }
             }
 
@@ -2221,6 +2278,9 @@ impl EmitNoMarkup {
         // In the skip_line layout, the index of the lone `{` line that the
         // signature reset already accounted for (must not bump depth again).
         let mut consumed_function_brace_line: Option<usize> = None;
+        // STRUCTAIL-POSTFIX-TAILKEEP-0001 arm 4: wrapped loop header seen,
+        // waiting for the line that carries its opening `{`.
+        let mut pending_loop_header = false;
         for (i, line) in lines.iter().enumerate() {
             let t = line.trim();
             // Reset brace tracking at each function signature (line ends with '{'
@@ -2236,6 +2296,7 @@ impl EmitNoMarkup {
             ) {
                 brace_depth = 1;
                 loop_depths.clear();
+                pending_loop_header = false;
                 in_loop_switch[i] = false;
                 if !t.ends_with('{') {
                     consumed_function_brace_line = Some(i + 1);
@@ -2246,15 +2307,23 @@ impl EmitNoMarkup {
                 in_loop_switch[i] = false;
                 continue;
             }
-            // Detect loop/switch opener: line ends with '{' and starts with keyword.
-            // Skip lines that start with '}' (like "} else {") — they're handled below
-            // by the closing-brace logic to avoid double-counting the brace delta.
+            // STRUCTAIL-POSTFIX-TAILKEEP-0001 (arm 4): a wrapped loop
+            // header — `while (cond,` / `cond,` / `... cond) {` across
+            // lines (the Oppen pretty printer wraps the comma_separate
+            // condition replay, emitBlockWhileDo printc.cc:3053-3056) —
+            // has its opening `{` on a LATER line that does not start
+            // with the keyword. Track the pending keyword so the body's
+            // `break;` / `if (cond) break;` lines stay protected
+            // (golden sqlite3BitvecBuiltinTest keeps
+            // `if (param_1 < (int4)uStack_44) break;` inside a 3-line
+            // wrapped while header).
             if t.ends_with('{') && !t.starts_with('}') {
                 // MAIN-RC3-STRUCTURED-EMIT-0001: the compact `while(` (the
                 // oracle overflow header, printc.cc:3023-3028) is a loop
                 // opener too — without it the second pass below strips every
                 // `break;` in its body as unprotected.
-                let is_loop_hdr = t.starts_with("while ")
+                let is_loop_hdr = pending_loop_header
+                    || t.starts_with("while ")
                     || t.starts_with("while(")
                     || t.starts_with("for ")
                     || t.starts_with("do ")
@@ -2264,6 +2333,20 @@ impl EmitNoMarkup {
                 if is_loop_hdr {
                     loop_depths.push(brace_depth);
                 }
+                pending_loop_header = false;
+            } else if !pending_loop_header
+                && !t.starts_with('}')
+                && (t.starts_with("while ")
+                    || t.starts_with("while(")
+                    || t.starts_with("for ")
+                    || t.starts_with("for(")
+                    || t.starts_with("do ")
+                    || Self::is_switch_stmt_prefix(t))
+            {
+                // Wrapped header keyword seen; its `{` lands on a later
+                // line. Continuation lines (condition operands) do not
+                // start with these keywords, so the claim is unambiguous.
+                pending_loop_header = true;
             }
             // Mark this line if any loop/switch is currently open
             if !loop_depths.is_empty() {
