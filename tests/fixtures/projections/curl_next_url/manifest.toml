@@ -30,5 +30,5 @@ date = "2026-09-24"
 
 [integrity]
 oracle_sha256 = "105dd75ead1202360b78dd685f11f12b9c89cd69a78f4ff31d662a0ffad8ba99"
-rugra_sha256 = "ec4281d2abece41d5d3df5acb7d8f2057f3dd65cf433ba8e2027bc5e4e7674aa"
+rudra_sha256 = "ec4281d2abece41d5d3df5acb7d8f2057f3dd65cf433ba8e2027bc5e4e7674aa"
 binary_sha256 = "8af50bca2f812580933fbbf125b66ce8ba4acfe88ef4435c89ac72356f122d41"

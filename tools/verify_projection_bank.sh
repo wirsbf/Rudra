@@ -4,12 +4,12 @@
 # For every function entry under tests/fixtures/projections/<name>/ this
 # gate verifies, in order:
 #   1. the entry is complete (manifest.toml + oracle.projection +
-#      rugra.projection);
+#      rudra.projection);
 #   2. the banked projection bytes still match the sha256 pins recorded in
 #      manifest.toml (drift of the frozen anchor itself is a gate failure,
 #      independent of comparison outcome);
 #   3. tools/run_stage_bisect.sh (stage_bisect.py --v1, strict offsets)
-#      reports kind=MATCH for the oracle/rugra pair (exit 0).
+#      reports kind=MATCH for the oracle/rudra pair (exit 0).
 #
 # Exit codes: 0 all entries MATCH, 1 any failure, 2 usage. CI gate form:
 #   tools/verify_projection_bank.sh
@@ -42,28 +42,28 @@ verify_entry() { # verify_entry <entry-dir>
   name=$(basename "$dir")
   local manifest="$dir/manifest.toml"
   local oracle="$dir/oracle.projection"
-  local rugra="$dir/rugra.projection"
+  local rudra="$dir/rudra.projection"
 
   if [[ ! -f $manifest ]]; then
     printf 'FAIL %-38s missing manifest.toml\n' "$name" >&2
     fail=1
     return
   fi
-  local want_oracle want_rugra func corpus
+  local want_oracle want_rudra func corpus
   want_oracle=$(manifest_value "$manifest" oracle_sha256)
-  want_rugra=$(manifest_value "$manifest" rugra_sha256)
+  want_rudra=$(manifest_value "$manifest" rudra_sha256)
   func=$(manifest_value "$manifest" function)
   corpus=$(manifest_value "$manifest" corpus)
-  if [[ -z $want_oracle || -z $want_rugra || -z $func || -z $corpus ]]; then
+  if [[ -z $want_oracle || -z $want_rudra || -z $func || -z $corpus ]]; then
     printf 'FAIL %-38s manifest.toml missing required keys\n' "$name" >&2
     fail=1
     return
   fi
   local side file want have
-  for side in oracle rugra; do
+  for side in oracle rudra; do
     file=$oracle
     want=$want_oracle
-    [[ $side == rugra ]] && { file=$rugra; want=$want_rugra; }
+    [[ $side == rudra ]] && { file=$rudra; want=$want_rudra; }
     if [[ ! -f $file ]]; then
       printf 'FAIL %-38s missing %s.projection\n' "$name" "$side" >&2
       fail=1
@@ -80,7 +80,7 @@ verify_entry() { # verify_entry <entry-dir>
 
   # The comparison gate itself: strict --v1 (no relax-unique), exit 0=MATCH.
   local bisect_out status
-  bisect_out=$(bash "$script_dir/run_stage_bisect.sh" "$oracle" "$rugra" 2>&1)
+  bisect_out=$(bash "$script_dir/run_stage_bisect.sh" "$oracle" "$rudra" 2>&1)
   status=$?
   if [[ $status -ne 0 ]]; then
     printf 'FAIL %-38s stage_bisect --v1 exit=%s\n' "$name" "$status" >&2

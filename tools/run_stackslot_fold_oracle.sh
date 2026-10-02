@@ -5,7 +5,7 @@ set -euo pipefail
 # stack-space reindex regression.  The bilateral comparand evidence lives
 # in the pinned excerpts (tests/oracle/stackslot_fold_1204.ghidra.c from
 # the headless golden tests/golden/ghidra_httpd_1204.c vs
-# tests/oracle/stackslot_fold_1204.rugra.c) and the deterministic
+# tests/oracle/stackslot_fold_1204.rudra.c) and the deterministic
 # regression driver examples/stackfold_dbg.rs, which re-runs the
 # ap_parse_vhost_addrs pipeline with the canonical Architecture attached
 # and fails unless every in_RSP-chained LOAD/STORE folded (census under the
@@ -21,7 +21,7 @@ oracle_tag=Ghidra_12.0.4_build
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/stackslot_fold_1204.metadata.json"
 ghidra_excerpt="$repo_root/tests/oracle/stackslot_fold_1204.ghidra.c"
-rugra_excerpt="$repo_root/tests/oracle/stackslot_fold_1204.rugra.c"
+rugra_excerpt="$repo_root/tests/oracle/stackslot_fold_1204.rudra.c"
 golden="$repo_root/tests/golden/ghidra_httpd_1204.c"
 golden_provenance="$repo_root/tests/golden/ghidra_httpd_1204.provenance.json"
 

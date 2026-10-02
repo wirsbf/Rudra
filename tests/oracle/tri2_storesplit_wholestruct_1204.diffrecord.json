@@ -54,7 +54,7 @@
         "extracted_from": "tests/golden/ghidra_curl_1204.c lines 2164-2190 (progressbarinit @0x1049a0) and 1104-1122 (my_fwrite @0x103460)"
       },
       "rugra_side": {
-        "path": "tests/oracle/tri2_storesplit_wholestruct_1204.rugra.c",
+        "path": "tests/oracle/tri2_storesplit_wholestruct_1204.rudra.c",
         "sha256": "32b91bed5b3cf5f2c4dd767ac0729af05e8159dab6f7b504875ebff82ab8ad2e",
         "extracted_from": "result/curl_cur.c lines 1499-1521 (progressbarinit @0x49a0) and 1046-1061 (my_fwrite @0x3460), full E2E run of the 124-function corpus"
       }

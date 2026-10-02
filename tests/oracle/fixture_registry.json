@@ -8007,7 +8007,7 @@
         },
         "inputs": {
           "ghidra_excerpt": "tests/oracle/stackslot_fold_1204.ghidra.c",
-          "rugra_excerpt": "tests/oracle/stackslot_fold_1204.rugra.c"
+          "rugra_excerpt": "tests/oracle/stackslot_fold_1204.rudra.c"
         }
       },
       "impact": {
@@ -8017,7 +8017,7 @@
           "examples/httpd_decompile.rs",
           "examples/stackfold_dbg.rs",
           "tests/oracle/stackslot_fold_1204.ghidra.c",
-          "tests/oracle/stackslot_fold_1204.rugra.c",
+          "tests/oracle/stackslot_fold_1204.rudra.c",
           "tools/run_stackslot_fold_oracle.sh"
         ],
         "rust_function_ids": [
@@ -8807,7 +8807,7 @@
           "binary": "tests/oracle/switchout_ruleswitchsingle_1204.elf",
           "oracle_record_out": "tests/oracle/switchout_ruleswitchsingle_1204.oracle.out",
           "oracle_record_err": "tests/oracle/switchout_ruleswitchsingle_1204.oracle.err",
-          "rugra_record": "tests/oracle/switchout_ruleswitchsingle_1204.rugra.c",
+          "rugra_record": "tests/oracle/switchout_ruleswitchsingle_1204.rudra.c",
           "prefix_ablation_record": "tests/oracle/switchout_ruleswitchsingle_1204.prefix.c"
         }
       },
@@ -8821,7 +8821,7 @@
           "tests/oracle/switchout_ruleswitchsingle_1204.elf",
           "tests/oracle/switchout_ruleswitchsingle_1204.oracle.out",
           "tests/oracle/switchout_ruleswitchsingle_1204.oracle.err",
-          "tests/oracle/switchout_ruleswitchsingle_1204.rugra.c",
+          "tests/oracle/switchout_ruleswitchsingle_1204.rudra.c",
           "tests/oracle/switchout_ruleswitchsingle_1204.prefix.c",
           "tests/oracle/switchout_ruleswitchsingle_1204.metadata.json",
           "tools/run_switchout_ruleswitchsingle_oracle.sh"

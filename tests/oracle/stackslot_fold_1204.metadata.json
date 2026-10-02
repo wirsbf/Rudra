@@ -30,7 +30,7 @@
    "examples/stackfold_dbg.rs",
    "tools/run_stackslot_fold_oracle.sh",
    "tests/oracle/stackslot_fold_1204.ghidra.c",
-   "tests/oracle/stackslot_fold_1204.rugra.c",
+   "tests/oracle/stackslot_fold_1204.rudra.c",
    "tests/oracle/stackslot_fold_1204.metadata.json"
   ],
   "verification": {

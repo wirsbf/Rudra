@@ -11,7 +11,7 @@
 #               banked single-target dispatch ELF (mirror arm), function
 #               single_target_switch located by name via --list (index-stable
 #               against future discovery-order changes), stdout compared to
-#               the banked tests/oracle/switchout_ruleswitchsingle_1204.rugra.c.
+#               the banked tests/oracle/switchout_ruleswitchsingle_1204.rudra.c.
 # Comparand   : C body (from `int4 single_target_switch` to EOF) byte-equal
 #               oracle-vs-rugra; warning-comment line byte-equal; oracle
 #               stderr [BLOCKFLAGS]/[JT-REMAIN] are the direct observables of
@@ -34,7 +34,7 @@ fixture_cc="$base.cc"
 fixture_elf="$base.elf"
 oracle_out="$base.oracle.out"
 oracle_err="$base.oracle.err"
-rugra_record="$base.rugra.c"
+rudra_record="$base.rudra.c"
 prefix_record="$base.prefix.c"
 
 fixture_asm_sha256=58ce246067c22d33681f83cbd8f42b38facaef60977dfdf6a078c5348a96e568
@@ -62,7 +62,7 @@ check_sha "$fixture_cc"     "$fixture_cc_sha256"
 check_sha "$fixture_elf"    "$fixture_elf_sha256"
 check_sha "$oracle_out"     "$oracle_out_sha256"
 check_sha "$oracle_err"     "$oracle_err_sha256"
-check_sha "$rugra_record"   "$rugra_record_sha256"
+check_sha "$rudra_record"   "$rugra_record_sha256"
 check_sha "$prefix_record"  "$prefix_record_sha256"
 
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/rugra-switchout.XXXXXX")
@@ -131,7 +131,7 @@ RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=120 "$gen_bin" "$fixture_elf" --one "$
   || die "driver --one $index failed"
 
 # Full-driver stdout vs the banked merged-tree record (byte-exact).
-cmp -s "$rugra_record" "$workdir/rugra.out" \
+cmp -s "$rudra_record" "$workdir/rugra.out" \
   || die "rugra driver stdout drifted from banked .rugra.c (behavior change on this fixture!)"
 
 # ---- decisive bilateral comparands ----------------------------------------
