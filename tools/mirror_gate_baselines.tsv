@@ -226,8 +226,8 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # amount; md5 4503f498->8dafa799 / c3b4706c->2fbf13b1, canon not in tsv — recorded in the MB34
 # report). Forced relink before measurement (digest 19db58af files=103, binaries newer than all
 # three merge commits). tests 1963P/0F/5I = 1963+0 (all three lanes add zero tests).
-curl	13	74	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
-httpd	2	29	MB41-RATCHET-REPIN-0001	ffb7b819	2026-09-29
+curl	11	74	DECLFAM-RATCHET-REPIN-0001	declfam	2026-10-02
+httpd	0	29	DECLFAM-RATCHET-REPIN-0001	declfam	2026-10-02
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # MB48-RATCHET-REPIN-0001 (2026-09-29, joint tree @ 87f3ac97 after 4-branch
 # mirror+speed batch [l1surgery 8e13e44d+9a5856f8 + tracedag 797af59b +
@@ -356,8 +356,41 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
-sq	117	810	FLOAT8-RATCHET-REPIN-0001	float8	2026-10-02
-sqlite	396	1385	CLONESURG-RATCHET-REPIN-0001	clonesurg	2026-10-02
+sq	115	810	DECLFAM-RATCHET-REPIN-0001	declfam	2026-10-02
+sqlite	322	1385	DECLFAM-RATCHET-REPIN-0001	declfam	2026-10-02
+# DECLFAM-RATCHET-REPIN-0001 (2026-10-02, wt/declfam @ fix commit, base
+# fe84ed97 [MB62], forced relink, gate --jobs 5 --no-cache cold round,
+# stale-guard content probe digest=692ec37e54dd861d files=155):
+# ① sqlite 396→322 (−74 = census v4 DECL-CHURN passive family sub-shape A
+#    exact burn: printc.rs local_maptable_space_rank now returns the true
+#    x86-64 space index (AddressSpace::get_index; restoreFromSpec
+#    architecture.cc:624-644 creation order: .sla spaces → fspec → iop →
+#    join → cspec stack), so Join-space symbol decls (16-byte recovered
+#    locals axVarN[16], storage space=Join start=0x0 addrtied=false) print
+#    between the register group and the first stack decl like golden
+#    (VdbeExec `fVar72; axVar73[16]; cStack_160;`), instead of after all
+#    stack decls. Census family recount: DECL-CHURN 102→28 (47→16 funcs),
+#    family-surgical — every other family byte-count identical (OTHER 79 /
+#    UNAFF 60 / CONDNEGATE 45 / SWITCH-GOTO 38 / CAST-SHAPE 32). Residual
+#    28 = sub-shapes B/C (R-only extra xunknown4/xunknown8 Var symbols +
+#    G-only stack decls) = varmap partial-symbol lease domain
+#    (VARMAP-UNAFF-TYPEMAT-0001), not printc ordering). matched 1385/1385,
+#    defects=numbering=0.
+# ② httpd 2→0 — THIRD PERFECT FACE (the ap_fini decl-move trailing family
+#    AFINI-DECLMOVE is exactly the join-decl shape: axVar15[16] relocation;
+#    whole face byte==golden). curl 13→11 (−2 = axVar19[16] one pair),
+#    sq 117→115 (−2 = same join shape). matched 74/74, 29/29, 810/810,
+#    defects=numbering=0 on all faces.
+# ③ Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held BYTE-IDENTICAL
+#    (md5 b7773087 / 54f9b02c exact == MB62 pins — canon face carries zero
+#    join-array decl sites, constructive). Corpus pin group displaced with
+#    full byte attribution (decl-line moves only): corpus canon 9879e1ac →
+#    c30d43eb (34 funcs × 1 decl move, 34 balanced insert/delete pairs,
+#    ±37/37) / corpus mirror c7d0beaf → d7fda800 (same 34-func shape) /
+#    VdbeExec mirror 840c4fb2 → 7e312fe6 (axVar73 single move) /
+#    VdbeExec canon 0d97ca97 → 6f1c38b1 (auVar73 single move); zero
+#    non-decl hunks on any artifact. tests 2038P/0F/5I (no new tests —
+#    order-only emission change, existing symbol-driven decl tests cover).
 # FLOAT8-RATCHET-REPIN-0001 (2026-10-02, wt/float8 @ fix commit, base
 # c69d9c60 [MB58], forced relink after test additions [fast-release --examples
 # 57s], gate --jobs 5 two rounds — gate1 fix-only tree digest=557b315e +

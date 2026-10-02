@@ -386,25 +386,28 @@ fn is_label_symbol(sym: &crate::database::Symbol) -> bool {
 }
 
 // Ghidra: printc.cc:2535-2553 emitScopeVarDecls MapIterator space order
-/// Address-space rank emulating the x86-64 `ScopeInternal::maptable`
+/// Address-space rank reproducing the x86-64 `ScopeInternal::maptable`
 /// iteration order (database.hh:810 maptable; database.cc:1889-1919
 /// MapIterator walks the per-space EntryMaps in space-index order) used by
-/// `emitScopeVarDecls` (printc.cc:2535). For the locked x86-64 oracle the
-/// function-local ScopeLocal only ever holds entries in the unique
-/// (linkSymbol SSA temporaries), register (input/representative storage),
-/// and stack (restructured locals + stack inputs) spaces, and the locked
-/// 12.0.4 golden decl blocks order them Unique < Register < Stack (e.g.
-/// `helpf`: unique temp `lVar1`, then register `in_AL..in_XMM7_Qa`, then
-/// stack `ap`/`local_*`). Any other space (ram globals live in the global
-/// scope, not ScopeLocal) sorts last, deterministically.
-fn local_maptable_space_rank(space: crate::space::AddressSpace) -> u8 {
-    use crate::space::AddressSpace;
-    match space {
-        AddressSpace::Unique => 0,
-        AddressSpace::Register => 1,
-        AddressSpace::Stack => 2,
-        _ => 3,
-    }
+/// `emitScopeVarDecls` (printc.cc:2535). The maptable vector is indexed by
+/// `AddrSpace::getIndex()` (database.cc:1952 maptable.resize against
+/// `g->numSpaces()`), so the group order is the locked x86-64 space-index
+/// order itself (space.rs `AddressSpace::get_index`, provenance
+/// Architecture::restoreFromSpec architecture.cc:624-644: copySpaces(.sla) →
+/// fspec → iop → join → parseCompilerConfig's stack): const=0, other=1,
+/// unique=2, ram=3, register=4, fspec=5, iop=6, join=7, stack=8. For the
+/// function-local ScopeLocal this means Unique(2) < Register(4) < Join(7) <
+/// Stack(8): unique temps before register entries (locked golden `helpf`:
+/// `lVar1` before `in_AL..in_XMM7_Qa`), join entries (recovered multi-register
+/// locals, e.g. sqlite `axVar73 [16]`) between the register group and the
+/// first stack decl (golden sqlite3VdbeExec: `fVar72; axVar73 [16];
+/// cStack_160;`), and stack entries (negative offsets ascending = printed hex
+/// descending) last. Overlay carries no index in Rugra's enum (-1 sentinel,
+/// space.rs get_index) — it sorts first by raw index, but no locked-corpus
+/// ScopeLocal symbol ever stores in an overlay space (x86-64 defines none),
+/// so the placement is unobservable; it is kept deterministic.
+fn local_maptable_space_rank(space: crate::space::AddressSpace) -> i32 {
+    space.get_index()
 }
 
 /// One disjoint sub-range of the rangemap common refinement
@@ -8661,7 +8664,7 @@ impl PrintC {
         // Entries carry the owning statics index: a space group is not
         // contiguous in creation order (e.g. ap_fini_vhost_config's stack
         // entries at creation indexes 0-6 and 30).
-        let mut grouped: Vec<(u8, Vec<(u64, u64, (u32, u64), usize)>)> = Vec::new();
+        let mut grouped: Vec<(i32, Vec<(u64, u64, (u32, u64), usize)>)> = Vec::new();
         for (i, s) in statics.iter().enumerate() {
             let rank = local_maptable_space_rank(s.space);
             let a = s.start;
