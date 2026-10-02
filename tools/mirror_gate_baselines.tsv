@@ -255,6 +255,23 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # 保持;CR-FTS3DOMCOPY D 裁定注记: corpus 钉组真值链=可复现链（MB78 ced48470/1466ee4b
 # → MB79 e3822667/50c15616 → MB80 6427a459/c46d0fe8 → MB81 df204662/62f74d43 →
 # 本道联合新钉;CONDMERGE 车道行 3f32b73a/1ce87062 系分支树误记,联合树以实测为准）。
+# 2026-10-03 STRUCTAIL 车道重钉（STRUCTAIL-REPIN-0001）: 结构尾清扫（TAILCENSUS 备靶
+# 序四 TC-F4+F9+F13 族）——公共根因=RUDRA-GLUE 文本补偿层四 pass 误吞 oracle-真发射
+# （发射层 pre-pass 输出==golden 逐字节,post_process_output_legacy 层吃掉）: P10 死区
+# 启动子把 overflow 臂折行 `break;`（前一非空行以 ')' 结尾）当无条件终结符[吞
+# Fts3GetVarintBounded 循环闩 6 行]、P14 连续 goto 把折行 if 臂 goto 后的外层出口
+# goto 当死码[吞 ExprImplies/ResolveSelectNames/session_changeset/RecordCompare×2/
+# WalFrames 各 1 行]、P16c 空 if 块删除不留 else 检查[吞 InitCallback/InitOne 空
+# then-臂 2+2 行并留裸 else 非法 C]、P24 孤儿 break 的行级 loop 头识别盲于折行
+# while 头[吞 Bitvec `if (...) break;` 1 行];修复=四 pass 各加窄守卫（同一
+# SWITCH-CASE-TAIL-0001 条件臂判据扩到 break/continue/return + P14 goto + P16c
+# else-跟随检查 + P24 pending 折行头追踪）,零 oracle 对应物变更。实测 sqlite
+# 28→10（=28−18 精确,残 10=WindowCodeStep 5+Reindex 2+Select 2+AddCheckConstraint
+# 1 全 misc-tail 族非本道）+sq 35→33（read_super+GetLongestMatch 各 1 行）;canon 红线
+# f903372a/3617ecc3 字节恒等;corpus A/B 双面各恰 11 函数 11 hunks 纯+18 行 golden
+# 复原,其余 1374 函数字节恒等,函数集差=∅;VdbeExec b3f5b487/606dd8c0 恒等。
+sqlite	10	1385	STRUCTAIL-REPIN-0001	structail	2026-10-03
+sq	33	810	STRUCTAIL-REPIN-0001	structail	2026-10-03
 sqlite	28	1385	FTS3DOMCOPY-MB82-JOINT-REPIN-0001	mb82-joint	2026-10-02
 sqlite	31	1385	MISC24-MB81-JOINT-REPIN-0001	mb81-joint	2026-10-02
 curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02

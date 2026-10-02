@@ -1380,3 +1380,58 @@ printc.rs `cast_type_string_anonymous_array_double_space` 钉住拼写源头
 defects/numbering 0/0 双面保持）；corpus 钉组 canon b6d76445/mirror d526070e
 （+325B=317 行+8 双位点行,全 P9 形,73 函数/面,函数集恒等）;VdbeExec
 20920e63/0668b234（各 39 行纯双空格形）；五面详见 LANE_READINODE3_2026-10-02.md。
+
+### 2026-10-03：STRUCTAIL-POSTFIX-TAILKEEP-0001 — 四 GLUE pass 误吞 oracle-真结构尾（P10/P14/P16c/P24 各加窄守卫）
+
+**背景**（Lane STRUCTAIL，TAILCENSUS 备靶序四「结构尾清扫 19 行」TC-F4+F9+F13 族）：
+镜面 sqlite 残 28 中的 18 行 + sq 残 35 中的 2 行属结构尾族（goto-keep/empty-branch-keep/
+G-only 块）。双侧钻定（RUDRA_DUMP_FUNC 树 dump + LOWPRINT 发射踪迹 + RUDRA_POSTFIX_STATS
+逐 pass 计数）证明**发射层零缺陷**：全部受害函数的 pre-post_process 输出与 golden
+**逐字节恒等**（InitCallback/InitOne/WalFrames/RecordCompare×2/ExprImplies/
+ResolveSelectNames/session_changeset/Bitvec/GetVarintBounded/Fts3ExprParse + sq 面
+read_super/GetLongestMatch 亲证）——残差 100% 产生于 `post_process_output_legacy`
+补偿层四个 pass 的文本误吞（第十四例翻案谱系: census 预判「blockaction/condexe 结构
+域」被证伪,真域=prettyprint 文本补偿层,oracle 侧 printc.cc:2641-2676 docFunction 止于
+flush、prettyprint.cc:1194-1211 flush 为纯 token 队列排水,零文本后处理）。
+
+**四个误吞位点**（同一公共根因的四个切面——行级启发式补偿 pass 无法区分「折行条件臂」
+与「无条件终结语句」,oracle-真发射被当死码删除）:
+
+1. **P10（remove dead code after return/break/continue）**: `while( true ) { ...
+   if (长条件...) <折行> break;` 的 overflow 臂折行 `break;`（emitBlockWhileDo
+   printc.cc:3035-3043,Oppen 在条件与臂之间断行）被当无条件 break 启动死区,吞掉
+   其后全部同缩进语句直到浅层 `}` —— Fts3GetVarintBounded 循环闩 6 行
+   （`iVar3=iVar3+7; puVar2=puVar2+1; if(iVar3==0x46){...return...}`）。
+2. **P14（consecutive goto）**: 折行 if 臂 `goto A;`（前一行以 `)` 结尾=折行条件,
+   emitBlockIf goto 臂 printc.cc:2914-2917）之后的外层块出口 `goto B;`
+   （emitBlockGoto printc.cc:2766-2779）被当连续 goto 死码吞掉 —— golden
+   VdbeRecordCompareWithSkip:124331-124333 双 goto 形 oracle 保留 —— 六函数各 1 行。
+3. **P16c（empty if removal）**: `if (cond) {` + `}`（空 then-臂,后随 `else {`）
+   被整对删除但 else 留存 → 裸 `else {`（非法 C）。oracle emitBlockIf
+   printc.cc:2918-2925 对空体也发射 body 对象 —— InitCallback/InitOne 各 2 行。
+4. **P24（orphan breaks）**: 行级 loop 头识别（行以 while/for/do/switch 开头**且**
+   以 `{` 结尾）盲于折行 while 头（`while (cond,`/`cond,`/`...) {` 三行,
+   emitBlockWhileDo cc:3053-3056 comma_separate 条件重放折行）→ 整个循环体失去
+   保护 → `if (param_1 < (int4)uStack_44) break;` 的 break token 被摘、行以 `)`
+   结尾整行删除 —— BitvecBuiltinTest 1 行。
+
+**修复**（四窄守卫,全部限缩在既有 pass 设计补偿目标内,oracle 行为对齐方向）:
+
+- P10/P14: SWITCH-CASE-TAIL-0001 的折行条件臂判据（前一非空行以 `)` 结尾或
+  `else`）从 goto 启动子扩到 `break;`/`continue;`/`return;`（P10）与 prev_was_goto
+  置位（P14）——折行臂后的语句是活 fall-through/出口,不启动死区。
+- P16c: 空 if 块删除前检查闭 `}` 后一行——`else`/`else `跟随则保留该 if（删除会
+  留孤儿 else 并丢分支结构）;无 else 的空 if 仍删（原行为）。
+- P24: 预扫描加 `pending_loop_header` 追踪——行以 loop 关键字开头但不以 `{` 结尾
+  时置 pending,后续携带 `{` 的行认领 opener（函数签名 reset 处同步清 pending）。
+
+**验收**: 镜面五面 curl 0/74·httpd 0/29·vsh 0/71·sq 35→**33**/810·sqlite
+28→**10**/1385 全 PASS defects=numbering=0（残 10=WindowCodeStep 5+Reindex 2+
+Select 2+AddCheckConstraint 1 全 misc-tail 族;残 33=sq F1 29+F5 4 两在飞族）;
+受害函数逐一对 golden 全等（compare --func skeleton=0 defects=0 numbering=0,
+11+2 函数亲证）;canon 红线 curl f903372a·124/124 全零+httpd 3617ecc3·34/34
+全零字节恒等;corpus A/B（vs MB82 钉 1fa47be4/dbe6f683）双面各恰 11 函数 11
+hunks 纯 +18 行 golden 复原（canon +536B/mirror +540B）,其余 1374 函数字节
+恒等,函数集差=∅;VdbeExec mirror b3f5b487/canon 606dd8c0 恒等;tests 2049P;
+ratchet 同 commit 重钉（STRUCTAIL-REPIN-0001: sqlite 10+sq 33）。该层属
+POSTFIX-RETIRE-0001 补偿层,本修复为层内误伤封堵,不改变层的退役路线。
