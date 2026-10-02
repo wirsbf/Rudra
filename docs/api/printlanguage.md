@@ -197,4 +197,4 @@ nested_parenthesized=a * (b + c)
   (代码库类型一律以 Arc<Datatype> 流转)。实现(PrintC)同步声明符栈化
   (见 docs/api/printc.md 2026-09-24 节);调用侧仅
   emit_prototype_output/doc_variable_decl 两处,均已是 &Arc。
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

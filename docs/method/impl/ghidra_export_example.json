@@ -167,6 +167,6 @@
   ],
   "notes": [
     "Hand-crafted reference snapshot for mov rax, [rbx] (0x48 0x8b 0x03)",
-    "Used to test Rugra JSON import path"
+    "Used to test Rudra JSON import path"
   ]
 }

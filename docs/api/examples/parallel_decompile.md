@@ -62,10 +62,10 @@ cargo run --profile fast-release --example parallel_decompile -- \
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `--jobs N` / `-j` | 1（或 env `RUGRA_PAR_JOBS`） | worker 线程数；1=串行形态 |
+| `--jobs N` / `-j` | 1（或 env `RUDRA_PAR_JOBS`） | worker 线程数；1=串行形态 |
 | `--max-funcs N\|all` | 24 | 最大函数选集（largest-first，地址 tie-break）；`all`=全量 |
 | `--skip 1,2` | 无 | 选集后索引跳过表（病态函数筛除口径） |
-| `--out-dir DIR` | /dev/shm/rugra-tests/phaseland/parallel-out | 输出根 |
+| `--out-dir DIR` | /dev/shm/rudra-tests/phaseland/parallel-out | 输出根 |
 | `--name RUN` | `<image>_j<N>` | run 子目录名 |
 | `--quiet` | 关 | 抑制 stdout 摘要行 |
 
@@ -89,4 +89,4 @@ cargo run --profile fast-release --example parallel_decompile -- \
 - 无跨线程硬超时：病态函数（PATHOSLOW-DIVCHAIN-0001 残差慢尾）会拖住
   一个 worker；硬超时需求用 bin_sweep 进程形态。
 - sqlite3 全量 1385 函数的扩量验证与 workers 缩放曲线见车道终报
-  （`/dev/shm/rugra-reports/LANE_PHASE1LAND_2026-09-26.md`）。
+  （`/dev/shm/rudra-reports/LANE_PHASE1LAND_2026-09-26.md`）。

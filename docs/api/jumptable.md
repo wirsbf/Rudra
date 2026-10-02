@@ -109,14 +109,14 @@ indirect=None）后，M1.stage2 guards 3≠2、P1 guards 3≠6，两通道均被
   均无 marker。锁定 C++ 输出已生成，当前 Rust source 也通过 31 个 focused
   jumptable tests。历史 runner 曾在 Cargo 成功后、Rust fixture 链接前因
   artifact selector 误匹配 25 个 dependency `root-output` 而停止（已修复为
-  depth-2 + `rugra-*` 过滤 + 唯一性断言）。2026-08-25 起 24-case 双侧真实
+  depth-2 + `rudra-*` 过滤 + 唯一性断言）。2026-08-25 起 24-case 双侧真实
   执行：stdout 逐字节一致（sha `c4cc2b35…`）、raw.diff 为空、双侧 stderr 空，
   10 个双侧覆盖组 `MATCH`（R2 独立复核含一次完整重跑复现）。
 - 双侧现都经 production XML decoder 建立并选中
   `<prototype name="fixture" extrapop="0"><input/><output/></prototype>`，Rust
   fixture 同时把 `max_basetype_size=16`、stack pointer `register:0/8` 钉到
   C++ synthetic Architecture 的值。仍不能把整个 compiler-spec/Architecture
-  全局状态称作同输入：Rugra 的 `ProtoModelFull.output` 仍是输入型
+  全局状态称作同输入：Rudra 的 `ProtoModelFull.output` 仍是输入型
   `ParamListStandard`，而 locked Ghidra 使用 `ParamListStandardOut`
 （`FSPEC-PARAMLIST-OUTPUT-DISPATCH-0001`）；两侧未被本 24-case 消费的
 TypeFactory/instruction registry/symbol scope 也不是同构对象。该输入表示债务
@@ -167,7 +167,7 @@ TypeFactory/instruction registry/symbol scope 也不是同构对象。该输入�
   明确钉到已哈希的 `/usr/bin/gcc`，不经 clean PATH 隐式选择 `/usr/bin/cc`。
   `LIBZ_SYS_STATIC=1` 令 `libz-sys` 从该已认证 vendor
   构建 bundled zlib，不查询 pkg-config。`root-output` 只在 build 目录深度 2 搜索并以直接
-  父目录 basename `rugra-*` 过滤，不读取共享 target 的 latest 产物。
+  父目录 basename `rudra-*` 过滤，不读取共享 target 的 latest 产物。
   direct-rustc 前后还绑定 dependency/native 两个完整输入树（含根目录、所有
   regular file bytes 与目录 mode），最终重验两个 fixture executable；Ghidra
   冷构建输出严格限制为两个 dependency 文件、locked Makefile 独立展开的 79 个
@@ -493,7 +493,7 @@ Light-weight emulator for switch targets (jumptable.hh:110).
 
 **JumpBasic::build_addresses**：成功时使用 `emulate_path` 计算目标；
 但 `None` 或缺 start op/varnode 仍会写入 0，因此现阶段仍存在可见占位回退。
-**2026-07-05 修正**：jumptable.cc:1465-1469 的 `funcptr_align` 掩码之前被硬编码为 `u64::MAX`（无对齐），与 Ghidra 在任何 `funcptr_align != 0` 的架构上分歧；并补上 jumptable.cc:1475 的 `AddrSpace::addressToByte(addr, spc->getWordSize())`（Rugra 单空间模型下 `wordSize==1`，no-op，已显式标注）。同时把 `loadcounts` 改为 Ghidra 的累计语义（`loadpoints->size()` 而非 per-iter 局部计数）。`curval` 重置（jumptable.cc:289 `mutable curval`）改为在 `build_addresses` 内重置克隆的迭代器，对齐 Ghidra 的 `initializeForReading` 副作用。
+**2026-07-05 修正**：jumptable.cc:1465-1469 的 `funcptr_align` 掩码之前被硬编码为 `u64::MAX`（无对齐），与 Ghidra 在任何 `funcptr_align != 0` 的架构上分歧；并补上 jumptable.cc:1475 的 `AddrSpace::addressToByte(addr, spc->getWordSize())`（Rudra 单空间模型下 `wordSize==1`，no-op，已显式标注）。同时把 `loadcounts` 改为 Ghidra 的累计语义（`loadpoints->size()` 而非 per-iter 局部计数）。`curval` 重置（jumptable.cc:289 `mutable curval`）改为在 `build_addresses` 内重置克隆的迭代器，对齐 Ghidra 的 `initializeForReading` 副作用。
 
 测试：历史上新增 2 个 Rust 回归（emulate_path INT_ADD + COPY）；它们不是
 loader/MULTIEQUAL/BRANCH/lastOp/Lowlevel 通道的双侧 oracle 证据。
@@ -699,7 +699,7 @@ docs/api/block.md / blockaction.md。
   `FlowInfo::target`（flow.cc:115-138）对未解码地址**抛出** `"Could not find op
   at target address: (<spc>,<printRaw>)"`（space.cc:206-216 的 0x+2*addrSize
   零填充、按 >>32/>>48 前导零裁剪，wordsize=1 恒等映射），而 cc:2545-2546 的
-  `"Jumptable destination not linked"` 只覆盖出边扫描失配。Rugra 侧此前把
+  `"Jumptable destination not linked"` 只覆盖出边扫描失配。Rudra 侧此前把
   `flow.target()==None`（未解码地址）也折叠进 not-linked 文本，两条件混淆。
   现未解码地址按 oracle 原文（含空间名 + printRaw 形态）单独上报；site1/3/4
   （间接 op 无父块 / 目标 op 无父块 / 出边失配）仍走 not-linked。
@@ -722,7 +722,7 @@ switchvn 定义链（写域预测=src/jumptable.rs）。**本车道核验证伪�
 - oracle 侧 stage_drill_1204（sqlite3Pragma）终态帧同构：
   `switch u0x00023b00:1(ad657:447)` ← `*(ram,u0x00008f00(f244))` ←
   `RAX + #0x1(*#0x8)`——`foldInNormalization`（cc:1546-1553）只置
-  BRANCHIND 输入，switchvn 自身 load+地址链两侧同活。Rugra 的
+  BRANCHIND 输入，switchvn 自身 load+地址链两侧同活。Rudra 的
   `fold_in_normalization`（cc:1546-1553 移植，见上节）行为已对齐，**本票
   jumptable.rs 零改动**。
 - 真根因=printc.rs `emit_switch_head_expr` legacy 传输缺 PTRADD 臂（详见

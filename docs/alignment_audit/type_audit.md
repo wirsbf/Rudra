@@ -1,12 +1,12 @@
 # type.cc 对齐审计 (2026-07-22)
 
 函数级审计:Ghidra `type.hh`/`type.cc` (4677 行,~177 个类方法 + 5 个独立函数)
-vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`cast.rs` 376 行、
+vs Rudra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`cast.rs` 376 行、
 `mod.rs` 16 行、`protomodel.rs` 315 行)。
 
 ## 覆盖率
 
-| 子类区域 | Ghidra 方法数 | Rugra 已对齐 | 缺失 | 覆盖率 |
+| 子类区域 | Ghidra 方法数 | Rudra 已对齐 | 缺失 | 覆盖率 |
 |---|---|---|---|---|
 | Datatype 基类 | 27 | 14 | 13 | 52% |
 | TypeField | 2 | 0 | 2 | 0% |
@@ -27,13 +27,13 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
 | 独立函数 | 5 | 0 | 5 | 0% |
 | **总计** | **~215** | **46** | **169** | **21%** |
 
-(覆盖率为"严格命名对齐"口径;Rugra 用单一 `Datatype` 枚举 + 工厂方法替代了 C++ 类层级,
-许多 Ghidra 子类方法在 Rugra 由工厂或 `match` 分支部分实现 — 见"已对齐函数"表注释。)
+(覆盖率为"严格命名对齐"口径;Rudra 用单一 `Datatype` 枚举 + 工厂方法替代了 C++ 类层级,
+许多 Ghidra 子类方法在 Rudra 由工厂或 `match` 分支部分实现 — 见"已对齐函数"表注释。)
 
 ## 已对齐函数
 
 ### Datatype 基类 (datatype.rs)
-| Ghidra | Rugra | 备注 |
+| Ghidra | Rudra | 备注 |
 |---|---|---|
 | `Datatype::getSize` | `Datatype::get_size` | 枚举 match |
 | `Datatype::getMetatype` | `Datatype::get_metatype` | |
@@ -63,7 +63,7 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
 | `setDefaultAlignmentMap` | `primitive_alignment`(自由函数) | 仅默认表 |
 
 ### TypeFactory (typefactory.rs)
-| Ghidra | Rugra | 备注 |
+| Ghidra | Rudra | 备注 |
 |---|---|---|
 | `TypeFactory(Architecture*)` | `TypeFactory::new(ptr_size)` | 无 Architecture 接入 |
 | `clearNoncore` | `clear_non_core` | |
@@ -285,9 +285,9 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
 | `TypeFactory::findAdd` | L3412 | 中 | 工厂方法已内联此模式 |
 | `TypeFactory::setName` | L3445 | 中 | |
 | `TypeFactory::setDisplayFormat` | L3466 | 低 | |
-| `TypeFactory::setFields(Struct/Union,带 flags)` | L3479/3500 | 低 | Rugra 版无 flags 参数 |
+| `TypeFactory::setFields(Struct/Union,带 flags)` | L3479/3500 | 低 | Rudra 版无 flags 参数 |
 | `TypeFactory::setPrototype` | L3518 | 高 | TypeCode 原型设置 |
-| `TypeFactory::getTypeChar(name)` | L3593 | 中 | Rugra 仅按 size |
+| `TypeFactory::getTypeChar(name)` | L3593 | 中 | Rudra 仅按 size |
 | `TypeFactory::getTypeChar(size)` | L3678 | 低 | 已有 |
 | `TypeFactory::getBaseNoChar` | L3619 | 中 | |
 | `TypeFactory::getBase(s,m,n)` | L3667 | 中 | 命名重载缺 |
@@ -295,7 +295,7 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
 | `TypeFactory::recalcPointerSubmeta` | L3724 | 中 | |
 | `TypeFactory::insertWarning` / `removeWarning` | L3750/3761 | 中 | DatatypeWarning 缺失 |
 | `TypeFactory::resolveIncompleteTypedefs` | L3777 | 中 | |
-| `TypeFactory::getTypedef(ct,name,id,format)` | L3818 | 低 | Rugra 版无 id/format |
+| `TypeFactory::getTypedef(ct,name,id,format)` | L3818 | 低 | Rudra 版无 id/format |
 | `TypeFactory::getTypePointerStripArray` | L3849 | 高 | 剥离 ARRAY 层 |
 | `TypeFactory::getTypePointer(s,pt,ws)` | L3867 | 中 | `get_ptr` 已有(无 size) |
 | `TypeFactory::getTypePointer(s,pt,ws,n)` | L3885 | 中 | 命名重载缺 |
@@ -306,7 +306,7 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
 | `TypeFactory::getTypePartialEnum` | L3980 | 高 | |
 | `TypeFactory::getTypeSpacebase` | L3992 | 高 | |
 | `TypeFactory::getTypeCode(PrototypePieces)` | L4002 | 高 | 函数 datatype |
-| `TypeFactory::getTypePointerRel(parentPtr,ptrTo,off)` | L4016 | 中 | Rugra 仅 1 个重载 |
+| `TypeFactory::getTypePointerRel(parentPtr,ptrTo,off)` | L4016 | 中 | Rudra 仅 1 个重载 |
 | `TypeFactory::getTypePointerRel(sz,parent,ptrTo,ws,off,nm)` | L4036 | 中 | 命名重载缺 |
 | `TypeFactory::getTypePointerWithSpace` | L4055 | 高 | AddrSpace 关联指针 |
 | `TypeFactory::getExactPiece` | L4090 | 高 | **已在 ruleaction.rs 内联** |
@@ -345,7 +345,7 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
 ### P0 - 阻塞核心反编译流程
 1. **TypePartialStruct / TypePartialEnum / TypePartialUnion 整个三个子类**
    — 被 `varmap.cc`、`printc.cc`、`ruleaction.cc` 大量用于"局部变量是某 struct/union/enum 的一片"的传播。
-   Rugra 完全无对应变体,导致 partial 类型信息丢失。
+   Rudra 完全无对应变体,导致 partial 类型信息丢失。
 
 2. **`TypeFactory::getExactPiece`** — 已在 `ruleaction.rs:11547` 内联,但应提升为 TypeFactory 方法。
    被 RulePtrsubUndo、varmap 用于"取出 struct/union 的精确片段类型"。
@@ -354,13 +354,13 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
    — 已在 `ruleaction.rs:12718` 内联,但缺少 `getLowerBoundField` 正确语义。
    PTRSUB→数组下标还原依赖。
 
-4. **`TypeSpacebase::getMap` / `getSubType` / `getAddress`** — TypeSpacebase 在 Rugra 仅是
+4. **`TypeSpacebase::getMap` / `getSubType` / `getAddress`** — TypeSpacebase 在 Rudra 仅是
    数据结构(有 `address`、`fd` 字段),完全无 Scope 集成。栈帧/全局变量类型传播阻塞。
 
 ### P1 - 阻塞 XML 持久化(类型归档加载/保存)
 5. **整个 encode/decode XML 方法族**(Datatype::encode/decodeBasic、TypeField::encode/decode、
    各子类 encode/decode、TypeFactory::decodeType/encode/decodeCoreTypes/decodeDataOrganization
-   等) — 约 25 个方法。Rugra 当前无任何类型 XML 序列化,无法加载 `.gpci`/程序类型归档。
+   等) — 约 25 个方法。Rudra 当前无任何类型 XML 序列化,无法加载 `.gpci`/程序类型归档。
 
 6. **`TypeFactory::setupSizes` / `setCoreType` / `cacheCoreTypes`** — 核心类型矩阵
    `typecache[9][8]` 与 `charcache[5]` 缺失,导致 `getBase(s,m)` 性能退化到 BTreeMap 查找。
@@ -370,7 +370,7 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
    `values: BTreeMap<u64,String>` 已有,但无 Representation 还原逻辑(OR/补码/移位)。
 
 8. **`TypeStruct::assignFieldOffsets` / `scoreSingleComponent`** — 字段对齐计算与 PTRSUB 打分。
-   Rugra `set_fields` 直接信任传入 offset,无对齐填充/size 重算。
+   Rudra `set_fields` 直接信任传入 offset,无对齐填充/size 重算。
 
 9. **`TypeCode::setPrototype` (两个重载) + `TypeFactory::getTypeCode(PrototypePieces)`**
    — 函数指针原型绑定缺失。
@@ -393,7 +393,7 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
 ## 备注
 
 - **架构性差异**:Ghidra 用 C++ 类层级(Datatype 抽象基类 + 14 个子类)+ 虚函数分派;
-  Rugra 用单一 `Datatype` 枚举 + `match` 分派 + 工厂方法。许多 Ghidra"子类方法"在 Rugra
+  Rudra 用单一 `Datatype` 枚举 + `match` 分派 + 工厂方法。许多 Ghidra"子类方法"在 Rudra
   被合并到 `Datatype::impl` 的 match 分支或 `TypeFactory` 方法中。本审计按"是否存在语义等价
   实现"判定对齐,而非严格命名/签名匹配。
 
@@ -403,7 +403,7 @@ vs Rugra `src/type_system/`(`datatype.rs` 917 行、`typefactory.rs` 913 行、`
   `TypeFactory` 方法以避免逻辑重复。
 
 - **AddrSpace 集成缺失**:`TypePointer::spaceid`、`TypeSpacebase::spaceid`、
-  `TypeFactory::getTypePointerWithSpace` 都依赖 AddrSpace,Rugra TypePointer 仅有 `wordsize`。
+  `TypeFactory::getTypePointerWithSpace` 都依赖 AddrSpace,Rudra TypePointer 仅有 `wordsize`。
 
 - **Architecture 接入缺失**:`TypeFactory::new(ptr_size)` 仅接受指针大小,无 Architecture
   对象,因此 `getArch`、`setupSizes`、Scope 查询等均无法实现。

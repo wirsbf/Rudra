@@ -1,7 +1,7 @@
 # 函数清单:type.cc + typeop.cc + cast.cc + printc.cc + prettyprint.cc + printlanguage.cc
 
 来源:Ghidra 6 个类型/输出 .cc(~620 函数)
-Rugra 对应:`src/type_system/` + `src/typeop.rs` + `src/printc.rs` + `src/prettyprint.rs` + `src/printlanguage.rs`
+Rudra 对应:`src/type_system/` + `src/typeop.rs` + `src/printc.rs` + `src/prettyprint.rs` + `src/printlanguage.rs`
 
 ## type.cc(~175 函数)
 

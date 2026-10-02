@@ -25,7 +25,7 @@ byte-identical.
    (advisory-only in the consumer).
 
 Existing oracle artifact (no rebuild needed):
-`/dev/shm/rugra-tests/sb-oracle/httpd.main.oracle.projection`
+`/dev/shm/rudra-tests/sb-oracle/httpd.main.oracle.projection`
 (events=294 snaps=294 ops=878973 restarts=0,
 sha256=3815f999ef5676a5b17a85f0be60938fad3dfa1e7dabc9be5cefca007d95d8a3,
 binary_sha256=805f89cdbdce827f8f6ccd877aa7c344ff1105713b7bf7b0e6f313affa93b1c1).
@@ -35,13 +35,13 @@ binary_sha256=805f89cdbdce827f8f6ccd877aa7c344ff1105713b7bf7b0e6f313affa93b1c1).
 - `worker_memory_image_bytes` example-layer construction: PT_LOAD segments
   laid out at their virtual addresses, image top = max(vaddr+memsz), NOBITS
   (.bss) zero-fill. Identical builder works for httpd (see §3.1).
-- Gate: `RUGRA_MIRROR=1` (canonical bundle key) or legacy
-  `RUGRA_FLOW_MIRROR=1` → `mirror_flow_enabled()`
+- Gate: `RUDRA_MIRROR=1` (canonical bundle key) or legacy
+  `RUDRA_FLOW_MIRROR=1` → `mirror_flow_enabled()`
   (MIRROR-ENVS-CANONICAL-0001 accessor form). httpd has no libc-signature
   ledger and no known-noreturn marking, so the bundle reduces to the flow
   component on this driver.
 - Under the gate: SLEIGH configured over the full image at base 0
-  (`configure_x86_64(&full_image, 0)`) + `rugra::flow::follow_flow_range(fd,
+  (`configure_x86_64(&full_image, 0)`) + `rudra::flow::follow_flow_range(fd,
   sleigh, 0, u64::MAX, ∅)` + projection META `load_mode=single_function_bfd`
   (D10 honest literal).
 - Everything env-unset: the historical iced linear disassemble → lift →
@@ -87,7 +87,7 @@ established for its PLT. SLEIGH decodes the thunks because the image covers
   transport — the oracle runs no analyzers. Default path keeps them.
 - `fd.external_prototypes` (prepass-inferred param counts): driver-only data;
   the bare BFD harness carries no callee signature data (same principle as
-  curl's `RUGRA_BARE_LOAD` emptying the libc ledger). Left empty.
+  curl's `RUDRA_BARE_LOAD` emptying the libc ledger). Left empty.
 - `.rodata` string seeding is KEPT: the oracle StringManager reads the same
   bytes through the loader (stringmanage.cc loadFill), so the seed mirrors
   oracle-side data, not analyzer output.
@@ -103,13 +103,13 @@ needed on this path.
 
 ## 4. Verification results (M3, 2026-09-22)
 
-1. **load_mode flip** — `RUGRA_MIRROR=1 RUGRA_STAGE_PROJ=1
-   RUGRA_STAGE_FUNC=main RUGRA_STAGE_PROJ_OUT=…` produces
+1. **load_mode flip** — `RUDRA_MIRROR=1 RUDRA_STAGE_PROJ=1
+   RUDRA_STAGE_FUNC=main RUDRA_STAGE_PROJ_OUT=…` produces
    `META binary_sha256=805f89cd… func_entry=0x2b820 func_name=main
    load_mode=single_function_bfd` — the consumer's identity precheck
    passes against the locked oracle projection (only advisory warnings:
    producer blob, unique_base 0x364200 vs 10000000). Projection:
-   `/dev/shm/rugra-tests/sb-httpdff/httpd_main_mirror2.proj`
+   `/dev/shm/rudra-tests/sb-httpdff/httpd_main_mirror2.proj`
    (sha256 bc203c43…, 263 @SNAPs).
 2. **Cross-side first divergence (new territory)** — first run exposed a
    driver-side loading defect, then the converged contract's first real
@@ -119,7 +119,7 @@ needed on this path.
      `2ba94:1dc BRANCHIND` (a relative-offset switch: table @0x88530 via
      `lea 0x5caa6(%rip); movslq (%rcx,%rax,4); add %rcx,%rax;
      notrack jmp *%rax`, guarded at 2ba7f) and walks the case bodies at
-     0x2ba97+; Rugra fail-thunked it into `CALLIND` + artificial
+     0x2ba97+; Rudra fail-thunked it into `CALLIND` + artificial
      `RETURN` (1404 ops / 55 blocks vs oracle walking on). Root cause:
      jumptable recovery reads table bytes through `fd.arch.loader`
      (jumptable.rs:2568/3152/5229 — the jumptable.cc:1225-1226/1588-1598
@@ -129,12 +129,12 @@ needed on this path.
      identical on both sides** — the loading contract converges (main
      loads 2040 ops / 92 blocks). First divergence moves to stage
      ordinal 3, tree-path `universal:constbase`, round 0, op-line 3
-     (`/dev/shm/rugra-tests/sb-httpdff/cross_side_report2.txt`):
+     (`/dev/shm/rudra-tests/sb-httpdff/cross_side_report2.txt`):
      - oracle-only: `2b824:7f8 COPY d=0 out=n:register:20a:1 in=c:0:1`
        (uniq 0x7f8 = 2040 — freshly allocated after the initial tree,
        i.e. created during start/constbase on the oracle side);
-     - rugra-only: `2b826:6 INT_ZEXT d=0 out=n:register:10:8
-       in=n:register:10:4` (uniq 6 — in Rugra's initial tree: the
+     - rudra-only: `2b826:6 INT_ZEXT d=0 out=n:register:10:8
+       in=n:register:10:4` (uniq 6 — in Rudra's initial tree: the
        implicit 32→64 zero-extension of the `xor edx,edx` write at
        0x2b826).
      Attribution is pipeline-level (a start/constbase-phase transform
@@ -144,11 +144,11 @@ needed on this path.
 3. **env-off byte identity** — full default E2E with the final binary vs
    a master-build binary: `cmp` clean, both
    sha256 e91880ddb84bc3c430a5573a527a240b04ab6e0e5a0f9b6ca85501189149a897
-   (29 function headers, `/dev/shm/rugra-tests/sb-httpdff/envoff_*.c`).
+   (29 function headers, `/dev/shm/rudra-tests/sb-httpdff/envoff_*.c`).
 
 ## 5. Known advisory deltas (recorded, not blocking)
 
-- `unique_base`: oracle 0x364200 vs Rugra 10000000 — advisory warning in the
+- `unique_base`: oracle 0x364200 vs Rudra 10000000 — advisory warning in the
   consumer (compare-the-base-first canary); same standing delta as the curl
   lane.
 - `producer` blob and `callspec_link=inject-path` annotation remain

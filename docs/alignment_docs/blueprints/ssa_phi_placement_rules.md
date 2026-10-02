@@ -3,14 +3,14 @@
 **[状态]**: 🟢 理论补全  
 **[目标模块]**: 结构化控制流下的数据并发交汇处理机制  
 **[关联 Ghidra 源码位置]**: `Ghidra/Features/Decompiler/src/decompile/cpp/heritage.cc: Heritage::buildPhiNodes`  
-**[关联 Rugra 源码位置]**: `src/heritage.rs`  
+**[关联 Rudra 源码位置]**: `src/heritage.rs`  
 
 ---
 
 ## 1. 目标描述 (Description)
 
 在将非 SSA 形态转化为完全静态单赋值网络时，不仅需要利用支配边界 (Dominance Frontier) 建立 `MULTIEQUAL` (Phi) 节点，还需要针对“永远死循环无法退出”、“虚假分支”以及**别名指针**带来的不确定性调整构建策略。
-Rugra 的目标是在 `src/heritage.rs` 完全复刻 Ghidra 的启发式重排过滤法则与空间敏感的递进式 SSA 构建过程 (Phased SSA Construction)，避免生成臃肿且错误的 Phi 节点。
+Rudra 的目标是在 `src/heritage.rs` 完全复刻 Ghidra 的启发式重排过滤法则与空间敏感的递进式 SSA 构建过程 (Phased SSA Construction)，避免生成臃肿且错误的 Phi 节点。
 
 ## 2. Ghidra 的核心实现逻辑与数据结构约束 (Ghidra Implementation)
 
@@ -37,9 +37,9 @@ Ghidra 的 Phi 放置算法并非常规的静态一次性生成，而是通过�
 *   为所有后继块 (Successors) 的开头处的 Phi 节点分配对应的来源输入。
 *   退出当前块及其子树时，弹出本次定义，回退状态。
 
-## 3. Rugra 的工程演进与对齐方案 (Rugra Approach)
+## 3. Rudra 的工程演进与对齐方案 (Rudra Approach)
 
-Rugra 的 `src/heritage.rs` 已经具备了基本的支配前沿 (DF) 和重命名扫描实现。下一步必须完善如下严格的对齐逻辑：
+Rudra 的 `src/heritage.rs` 已经具备了基本的支配前沿 (DF) 和重命名扫描实现。下一步必须完善如下严格的对齐逻辑：
 
 - [ ] **多轮次管控 (Pass Tracking)**: 强化 `HeritageInfo`，禁止在 pass 计数未达到栈变量的 delay 阈值时对其执行 `place_multiequals`。
 - [ ] **地址大小交叉检测 (Size Overlap Detection)**: Ghidra 在生成时会对同一位置但不同大小 (例如 AL 与 EAX) 的局部写入进行分量拆解或拼接合并。目前 `heritage.rs` 单纯回退到 `4` 字节 fallback 是不合格的。须引入基于 `LocationMap` 的精细范围检查。

@@ -2,7 +2,7 @@
 
 **状态**: 已核对（当前有效；2026-09-27 GIANTS-GA1-PRAGMADISPATCH-0001 移除 push_branches 诊断迭代上限）
 **2026-09-27 追加（GIANTS-GA1-PRAGMADISPATCH-0001）**: `push_branches` 移除 5000 次迭代的
-DIAGNOSTIC 硬上限（Rugra 自创胶水，Ghidra `TraceDAG::pushBranches`（blockaction.cc:983-1015）
+DIAGNOSTIC 硬上限（Rudra 自创胶水，Ghidra `TraceDAG::pushBranches`（blockaction.cc:983-1015）
 无上限——终止性是结构性的：back/loop-exit 边被 isLoopDAGOut/In 排除，且
 `missed>=activecount` 回退每轮严格移除一条非 terminal 候选 trace）。该上限在
 sqlite3Pragma 的 final-trace 轮（oracle 同轮 ~11.2k 事件）中途截断 likelygoto 列表，
@@ -114,13 +114,13 @@ check_open 使用简化近似（size_in <= edgelump），select_bad_edge 选第�
 - `check_open` 分母从 `size_in`（所有入边）改为 loop-DAG 入边计数（对齐 blockaction.cc:826-831 遍历 isLoopDAGIn）。
 - `open_branch` 的 `is_loop_dag_out` 极性修正：从 `if is_loop_dag_out { continue }` 改为 `if !is_loop_dag_out { continue }`（对齐 createTraces :504 `if (!isLoopDAGOut) continue`）。
 - 新增 `is_loop_dag_in` helper（对齐 block.hh:345 isLoopDAGIn）。
-- `opened` 集合保留为保守安全网（Ghidra 无此机制，靠纯 visit-count 终止；Rugra 的 visit-count 终止性待验证后可移除）。
+- `opened` 集合保留为保守安全网（Ghidra 无此机制，靠纯 visit-count 终止；Rudra 的 visit-count 终止性待验证后可移除）。
 <!-- annotation-pass: 2026-07-04 -->
 
 ## 2026-08-30：generate_likely_gotos 僵尸幻影根过滤（MAIN-RC4-DOWHILE-TRACE-0001）
 
 `generate_likely_gotos` 的根收集补 `graph.absorbed_into` 过滤：Ghidra 的列表从不包含已被
-折叠进组合块的组件（identifyInternal 移除, block.cc:953-960），Rugra 平铺 Vec 里被剥光的
+折叠进组合块的组件（identifyInternal 移除, block.cc:953-960），Rudra 平铺 Vec 里被剥光的
 僵尸 size_in()==0 时会伪装成 sizeIn==0 根并污染 final-DAG trace。collapse 管线的
 `update_loop_body` final-DAG 分支已改为内联收集（virtual_list 顺序, 见 blockaction.md
 2026-08-30 条目），此自由函数仅作独立 helper 保留。
@@ -143,7 +143,7 @@ check_open 使用简化近似（size_in <= edgelump），select_bad_edge 选第�
 `std::env::var("RUDRA_IRRED_DBG")`（env 锁+分配）。**oracle 对照**（亲读
 blockaction.cc:810-833 + block.hh:345）: oracle checkOpen 每边 = `bl->isLoopDAGIn(i)`
 内联 `intothis[i].label & mask` 纯字段读——12.2M 边访问是 oracle 同构工作面
-（同 trace 形态/同边数）,oracle 侧 ~25ms vs Rugra ~850ms,差距全部实现级常数。
+（同 trace 形态/同边数）,oracle 侧 ~25ms vs Rudra ~850ms,差距全部实现级常数。
 
 **落地（行为恒等: 输出零变,全部纯读区间）**:
 

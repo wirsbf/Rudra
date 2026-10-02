@@ -37,16 +37,16 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-// RUGRA-GLUE: build/verification infrastructure — the locked Ghidra oracle
+// RUDRA-GLUE: build/verification infrastructure — the locked Ghidra oracle
 // has no counterpart for build-script plumbing; the guarded decompiler
 // pipeline is untouched by this module.
-pub const STALE_GUARD_DOMAIN: &str = "RUGRA-STALE-GUARD-V1";
+pub const STALE_GUARD_DOMAIN: &str = "RUDRA-STALE-GUARD-V1";
 
-// RUGRA-GLUE: FNV-1a-64 constants (public 64-bit variant).
+// RUDRA-GLUE: FNV-1a-64 constants (public 64-bit variant).
 const FNV1A_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV1A_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-// RUGRA-GLUE: one FNV-1a-64 stream step over a byte slice.
+// RUDRA-GLUE: one FNV-1a-64 stream step over a byte slice.
 pub fn fnv1a64(mut state: u64, bytes: &[u8]) -> u64 {
     for &byte in bytes {
         state ^= u64::from(byte);
@@ -55,7 +55,7 @@ pub fn fnv1a64(mut state: u64, bytes: &[u8]) -> u64 {
     state
 }
 
-// RUGRA-GLUE: recursively collect the `.rs` files of `root` into `out`
+// RUDRA-GLUE: recursively collect the `.rs` files of `root` into `out`
 // (unsorted; callers sort). Read errors on individual entries are skipped —
 // a file that vanishes mid-walk simply drops out of both sides equally.
 fn collect_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
@@ -75,7 +75,7 @@ fn collect_rs_files(root: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-// RUGRA-GLUE: digest of the guard domain under `root` — every
+// RUDRA-GLUE: digest of the guard domain under `root` — every
 // `root/src/**/*.rs` and (domain v2) every `root/crates/**/*.rs`, plus the
 // guard's own build inputs (`root/examples/gen_decompile.rs`,
 // `root/examples/common/stale_guard_hash.rs`, `root/build.rs`), sorted by
@@ -138,7 +138,7 @@ pub fn source_digest(root: &Path) -> std::io::Result<(u64, usize)> {
     Ok((state, count))
 }
 
-// RUGRA-GLUE: runtime verdict of the embedded build-time digest against the
+// RUDRA-GLUE: runtime verdict of the embedded build-time digest against the
 // current source tree. `embedded_hex` is the build.rs-emitted
 // RUDRA_BUILD_SOURCE_DIGEST (None when the build script did not run/emit).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,7 +153,7 @@ pub enum GuardVerdict {
     UnreadableSourceTree,
 }
 
-// RUGRA-GLUE: pure decision function (unit-tested below); callers render
+// RUDRA-GLUE: pure decision function (unit-tested below); callers render
 // messages and exit codes.
 pub fn guard_verdict(embedded_hex: Option<&str>, root: &Path) -> GuardVerdict {
     let Some(hex) = embedded_hex else {
@@ -179,11 +179,11 @@ mod tests {
     use super::*;
     use std::fs;
 
-    // RUGRA-GLUE: scratch fixture tree factory (content-addressed guard
+    // RUDRA-GLUE: scratch fixture tree factory (content-addressed guard
     // semantics exercised on temp dirs, cleaned up best-effort).
     fn scratch_tree(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "rugra-stale-guard-{}-{}",
+            "rudra-stale-guard-{}-{}",
             std::process::id(),
             tag
         ));
@@ -318,7 +318,7 @@ mod tests {
             GuardVerdict::NoEmbeddedDigest
         );
         let ghost = std::env::temp_dir().join(format!(
-            "rugra-stale-guard-{}-ghost",
+            "rudra-stale-guard-{}-ghost",
             std::process::id()
         ));
         let (digest, _) = source_digest(&tree).expect("digest");

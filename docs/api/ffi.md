@@ -5,9 +5,9 @@
 
 ## 模块说明 (Module Doc)
 
-FFI interface for Rugra
+FFI interface for Rudra
 
-This module provides C-compatible interfaces to Rugra's core logic,
+This module provides C-compatible interfaces to Rudra's core logic,
 allowing it to be integrated into Ghidra's C++ decompiler or used for
 comparison testing ("对拍").
 
@@ -16,19 +16,19 @@ comparison testing ("对拍").
 锁定 oracle 为 Ghidra 12.0.4 commit
 `e40ed13014025f82488b1f8f7bca566894ac376b`。本轮为 10 个导出的
 `extern "C"` / `unsafe extern "C"` 函数补充了逐入口 `RUDRA-GLUE`
-来源说明：这些函数是 Rugra 的 C/Python 对拍 ABI，不是 Ghidra 的一对一算法函数。
+来源说明：这些函数是 Rudra 的 C/Python 对拍 ABI，不是 Ghidra 的一对一算法函数。
 
 - `rudra_evaluate_constant` 聚合桥接多个
   `OpBehavior::evaluateUnary/evaluateBinary` 实现；Ghidra 没有相同的单一 C ABI
   dispatcher。
-- `rudra_init_test_program` 与 `rudra_add_test_op` 构造 Rugra 专用的全局测试
+- `rudra_init_test_program` 与 `rudra_add_test_op` 构造 Rudra 专用的全局测试
   fixture；它们不是 `Funcdata`、`PcodeOpBank` 或 `Varnode` 构造算法的映射。
 - `rudra_observe_jumptable`、`rudra_check_varnode_version`、
   `rudra_check_block_structure` 与 `rudra_check_action_apply` 只消费并记录外部观察，
   分别不等同于 `JumpTable::recoverAddresses`、`Heritage::rename`、`FlowBlock`
   算法或 `Action::perform`。
 - `rudra_version`、`rudra_set_binary_data` 与 `rudra_compare_pcode` 分别是版本导出、
-  仅忽略外部指针并记录长度的诊断入口和跨引擎比较器，Ghidra 没有对应的 Rugra
+  仅忽略外部指针并记录长度的诊断入口和跨引擎比较器，Ghidra 没有对应的 Rudra
   ABI endpoint。Ghidra 的 `Varnode` 也没有 `rudra_check_varnode_version` 所接收的
   数字 `version` 字段。
 
@@ -62,12 +62,12 @@ The resulting constant value, or 0 if evaluation failed or opcode is unsupported
 
 ### `pub extern "C" fn rudra_version() -> *const c_char`
 
-Get the version of Rugra as a C string
+Get the version of Rudra as a C string
 
 ### `pub fn set_current_program(program: Funcdata)`
 
 Set the current program for comparison
-This is called by Rugra before starting the comparison with Ghidra
+This is called by Rudra before starting the comparison with Ghidra
 
 **2026-09-24**：`CURRENT_PROGRAM` 四个访问点（`set_current_program` /
 `rudra_init_test_program` / `rudra_add_test_op` / `rudra_compare_pcode`）的
@@ -83,7 +83,7 @@ Initialize a blank program for FFI testing
 ### `pub extern "C" fn rudra_add_test_op(`
 
 Add an operation to the current test program
-This allows Python/C++ to simulate Rugra's analysis state for comparison tests
+This allows Python/C++ to simulate Rudra's analysis state for comparison tests
 
 ### `pub extern "C" fn rudra_set_binary_data(_ptr: *const u8, len: usize)`
 
@@ -94,14 +94,14 @@ The pointer is currently ignored; only the supplied length is logged.
 
 Observe and validate a jumptable recovery in Ghidra
 
-This is used for comparison testing to ensure Rugra's jumptable
+This is used for comparison testing to ensure Rudra's jumptable
 recovery matches Ghidra's and is logically sound.
 
 ### `pub unsafe extern "C" fn rudra_compare_pcode(`
 
-Compare a P-code operation from Ghidra with Rugra's internal state
+Compare a P-code operation from Ghidra with Rudra's internal state
 
-This is the "ultimate comparison" function that verifies if Rugra's
+This is the "ultimate comparison" function that verifies if Rudra's
 entire analysis pipeline produces the same P-code structure as Ghidra.
 
 ### `pub unsafe extern "C" fn rudra_check_varnode_version(`
@@ -118,13 +118,13 @@ Intercept and compare Transformation Actions
 
 ### OpCode → Ghidra numeric value mapping
 
-`fn opcode_to_ghidra_value(opc: OpCode) -> Option<u32>` maps Rugra's
+`fn opcode_to_ghidra_value(opc: OpCode) -> Option<u32>` maps Rudra's
 `OpCode` enum to the integer wire-value used by Ghidra's P-code format
 (`opcodes.hh`). **2026-06-27**：新增 `CPUI_CAST => Some(64)`，填补
 `SUBPIECE(63)` 与 `PTRADD(65)` 之间的空缺。
 
  2026-06-27: opcode 改名对齐 Ghidra 规范名 — BOOL_NOT->BOOL_NEGATE / INT_NEG->INT_2COMP / INT_NOT->INT_NEGATE (opcodes.hh:67/68/81)。纯重命名，行为不变。
 
-**2026-07-02**：`map_ghidra_opcode(64)` Ghidra→Rugra 方向原被注释掉，与 `to_ghidra_opcode`（Rugra→Ghidra 已映射 CPUI_CAST→64）不对称，导入时丢失 CPUI_CAST。现已补回 `64 => Some(OpCode::CPUI_CAST)`，往返对称。
+**2026-07-02**：`map_ghidra_opcode(64)` Ghidra→Rudra 方向原被注释掉，与 `to_ghidra_opcode`（Rudra→Ghidra 已映射 CPUI_CAST→64）不对称，导入时丢失 CPUI_CAST。现已补回 `64 => Some(OpCode::CPUI_CAST)`，往返对称。
 <!-- annotation-pass: 2026-07-04 -->
 <!-- opcode-correct: 1783180039.0619004 -->

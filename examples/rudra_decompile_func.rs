@@ -2,13 +2,13 @@
 //!
 //! Decompile ONE function from a binary and print it with the same
 //! `/* ---- 0xADDR: NAME (SIZE bytes) ---- */` header format that
-//! tests/golden/ uses, so tools/align_check.py can diff Rugra output
+//! tests/golden/ uses, so tools/align_check.py can diff Rudra output
 //! against a Ghidra golden slice token-for-token.
 //!
 //! Usage:
-//!   cargo run --release --example rugra_decompile_func -- <binary> <name_or_addr>
-//!   cargo run --release --example rugra_decompile_func -- examples/curl my_fwrite
-//!   cargo run --release --example rugra_decompile_func -- examples/curl 0x3460
+//!   cargo run --release --example rudra_decompile_func -- <binary> <name_or_addr>
+//!   cargo run --release --example rudra_decompile_func -- examples/curl my_fwrite
+//!   cargo run --release --example rudra_decompile_func -- examples/curl 0x3460
 //!
 //! Output goes to stdout (the C text only), diagnostic logs to stderr.
 //! Exit code 0 on success, 1 if the function is not found.
@@ -318,7 +318,7 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
         let _ = db.perform_action("decompile", &mut fdw);
     }
 
-    // Print with the golden header format. Rugra uses relative addresses;
+    // Print with the golden header format. Rudra uses relative addresses;
     // align_check.py handles the 0x100000 offset to Ghidra's absolute addrs.
     let mut printer = PrintC::new(Box::new(EmitNoMarkup::new()));
     {

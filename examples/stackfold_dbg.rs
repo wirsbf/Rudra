@@ -406,7 +406,7 @@ fn main() -> anyhow::Result<()> {
     // (no TypeFactory/casts, no effect walk); under the canonical
     // configuration the survivors are the param-register pointer chains
     // (in_RDX +0x30/+0x60, in_RSI +0x28 — the *param_1 + 0xNN deref forms
-    // of the pinned rugra excerpt) plus RBP-derived stack-address values,
+    // of the pinned rudra excerpt) plus RBP-derived stack-address values,
     // none RSP-chained. Pre-fix (arch-less) census was 7 with 7/7 in_RSP
     // chains (loop-1 era; arch-less is now the fspec.rs:574 model-less
     // panic under loop-2, mirroring the oracle's unconditional

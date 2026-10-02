@@ -1,6 +1,6 @@
 //! Structure-tree dumper for BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001 diagnosis.
 //!
-//! Decompile ONE function (same setup as rugra_decompile_func.rs) and dump the
+//! Decompile ONE function (same setup as rudra_decompile_func.rs) and dump the
 //! final structured tree (fd.sblocks) recursively to stderr: node index, block
 //! type, address range, and for unstructured nodes (BlockGoto / if-goto) the
 //! target address + goto_type + precomputed prints flag.

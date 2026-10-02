@@ -1,6 +1,6 @@
 # 最小 P-code 首批样本记录草案
 
-本文档用于为 Rugra 恢复 Ghidra 对齐工作的第一批**最小 P-code 局部对拍样本**建立统一记录模板，并先给出 3 条样本的草案。
+本文档用于为 Rudra 恢复 Ghidra 对齐工作的第一批**最小 P-code 局部对拍样本**建立统一记录模板，并先给出 3 条样本的草案。
 
 这些样本的目标不是直接证明端到端一致性，而是优先验证以下最小闭环：
 
@@ -56,7 +56,7 @@
 - **目标指令 / 指令序列**
 - **代表性目的**
 - **原始字节**
-- **预期 Rugra 入口**
+- **预期 Rudra 入口**
 - **预期比较入口**
 - **当前预期关注点**
 - **潜在风险点**
@@ -136,7 +136,7 @@
 mov rbx, rax
 ```
 
-### 预期 Rugra 入口
+### 预期 Rudra 入口
 - `src/disasm/mod.rs`
   - `Instruction`
   - `Operand`
@@ -152,7 +152,7 @@ mov rbx, rax
 - `src/align/runtime_verify.rs`
   - `verify_pcode_generation(...)`
 - `src/ffi.rs`
-  - `rugra_compare_pcode(...)`
+  - `rudra_compare_pcode(...)`
 
 ### 当前预期关注点
 1. 是否生成单条核心 `CPUI_COPY`
@@ -179,7 +179,7 @@ input0: register(rax)
 ### 当前状态
 - **状态**: 第一条真实记录草案（未完成参考侧实测）
 - **可信边界**:
-  - 当前草案已经把 Rugra 侧最小链路、预期关键字段与可复现输入固定下来
+  - 当前草案已经把 Rudra 侧最小链路、预期关键字段与可复现输入固定下来
   - 但尚未补入真实参考侧输出，因此**不能**写成“已通过”或“已一致”
 
 ### 证据来源
@@ -192,23 +192,23 @@ input0: register(rax)
 - `src/ffi.rs`
 
 ### 运行结果记录
-- **Rugra 侧最小输入**:
+- **Rudra 侧最小输入**:
 ```/dev/null/sample.bin#L1-1
 48 89 c3
 ```
 - **固定起始地址**: 待填写（建议固定为单一地址，如 `0x1000`）
-- **Rugra 侧指令层记录**:
+- **Rudra 侧指令层记录**:
   - `mnemonic`: 待填写（预期 `mov`）
   - `length`: 待填写
   - `operands.len()`: 待填写（预期 `2`）
   - operand0: 待填写（预期 `Register { name: "rbx", size: 8 }`）
   - operand1: 待填写（预期 `Register { name: "rax", size: 8 }`）
-- **Rugra 侧 lifting 记录**:
+- **Rudra 侧 lifting 记录**:
   - raw op 数量: 待填写
   - raw op opcode 列表: 待填写
   - raw op 输入/输出摘要: 待填写
   - 首轮重点观察：是否至少出现 1 条核心 `CPUI_COPY`
-- **Rugra 侧注入后记录**:
+- **Rudra 侧注入后记录**:
   - injected op 数量: 待填写
   - block 数量: 待填写
   - 核心 injected op 摘要: 待填写
@@ -222,7 +222,7 @@ input0: register(rax)
     - [ ] 入口已跑通但比较粒度不足
 - **参考结果**: 当前待补真实运行结果
 - **是否可复现**:
-  - Rugra 侧输入样本：是
+  - Rudra 侧输入样本：是
   - 参考侧输出：待补
 - **比较层级**: `P-code`
 
@@ -385,7 +385,7 @@ mov rbx, rax
 ```/dev/null/sample.bin#L1-1
 48 89 c3
 ```
-- **Rugra 侧预期最小链路**:
+- **Rudra 侧预期最小链路**:
   - `Instruction`
   - `X86Lifter::lift(...)`
   - `Vec<PcodeOpRaw>`
@@ -430,7 +430,7 @@ mov rbx, rax
 add rax, 1
 ```
 
-### 预期 Rugra 入口
+### 预期 Rudra 入口
 - `src/disasm/mod.rs`
 - `src/disasm/x86_lift.rs`
 - `src/pcoderaw.rs`
@@ -440,7 +440,7 @@ add rax, 1
 - `src/align/runtime_verify.rs`
   - `verify_pcode_generation(...)`
 - `src/ffi.rs`
-  - `rugra_compare_pcode(...)`
+  - `rudra_compare_pcode(...)`
 
 ### 当前预期关注点
 1. 是否生成 `CPUI_INT_ADD`
@@ -478,7 +478,7 @@ input1: const(1)
 - `src/ffi.rs`
 
 ### 运行结果记录
-- Rugra 结果: 待填写
+- Rudra 结果: 待填写
 - 参考结果: 待填写
 - 是否可复现: 待填写
 - 比较层级: `P-code`
@@ -519,7 +519,7 @@ input1: const(1)
 sub rax, 8
 ```
 
-### 预期 Rugra 入口
+### 预期 Rudra 入口
 - `src/disasm/mod.rs`
 - `src/disasm/x86_lift.rs`
 - `src/pcoderaw.rs`
@@ -562,7 +562,7 @@ input1: const(8)
 - `src/ffi.rs`
 
 ### 运行结果记录
-- Rugra 结果: 待填写
+- Rudra 结果: 待填写
 - 参考结果: 待填写
 - 是否可复现: 待填写
 - 比较层级: `P-code`

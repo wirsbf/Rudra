@@ -1,14 +1,14 @@
-# Rugra vs Ghidra: 差距分析与路线图
+# Rudra vs Ghidra: 差距分析与路线图
 
 > **时效声明（2026-09-26）**：正文第 1-4 节为第 8 阶段历史快照，多数"差距/下一步"已被
 > 后续波次消化（如 uVar 碎片化、while/if 检测、DCE 等）；当前缺口以文末
 > 「2026-09-26 波次缺口增量」节 + `docs/TODO_BOARD.md` 为准。
 
-本文档概述了 Rugra（截至第 8 阶段）与 Ghidra 之间的技术差距，重点关注 C/C++ 反编译质量。虽然 Rugra 已经实现了一个功能性的反编译流水线，但要达到 Ghidra 的行业标准输出，还需要通过几个高级功能来弥补差距。
+本文档概述了 Rudra（截至第 8 阶段）与 Ghidra 之间的技术差距，重点关注 C/C++ 反编译质量。虽然 Rudra 已经实现了一个功能性的反编译流水线，但要达到 Ghidra 的行业标准输出，还需要通过几个高级功能来弥补差距。
 
 ## 1. 变量恢复与符号化 (Variable Recovery & Symbolization)
 
-| 特性 | Ghidra | Rugra | 差距 / 下一步 |
+| 特性 | Ghidra | Rudra | 差距 / 下一步 |
 | :--- | :--- | :--- | :--- |
 | **变量合并** | 使用“高级变量 (High Variables)”在整个函数生命周期内合并 SSA 节点，智能处理寄存器复用。 | 实现了 `HighVariableMap`，但代码生成仍依赖于启发式命名 (`RegisterNamer`) 和基础栈分析。 | **关键**：将 `HighVariable` 分析完全集成到 `codegen` 中。将所有 SSA 版本映射到单个逻辑变量，以消除 `uVarX` 碎片化。 |
 | **栈帧分析** | 复杂的栈帧重构，处理动态栈指针 (`alloca`) 和复杂的函数序言 (prologues)。 | 基于偏移量的基础栈变量检测 (`local_X`)。输出中已隐藏栈指针调整 (`RSP`)。 | 实现虚拟栈指针跟踪，以处理非标准栈帧。 |
@@ -16,7 +16,7 @@
 
 ## 2. 类型系统与推断 (Type System & Inference)
 
-| 特性 | Ghidra | Rugra | 差距 / 下一步 |
+| 特性 | Ghidra | Rudra | 差距 / 下一步 |
 | :--- | :--- | :--- | :--- |
 | **类型传播引擎** | 基于约束的系统，在 P-code 图中向前和向后传播类型。 | **已实现**：`TypeSolver` 现在具备完整的全程序类型传播能力，基于统一的 `DataType` 系统处理所有 P-code 操作和 SSA Phi 节点。 | **完成**：持续优化特定架构的类型推断规则。 |
 | **类型库** | 包含 C/C++ 标准库（`libc`, `windows.h` 等）的海量数据库，用于自动函数签名解析。 | **部分**：PLT 解析可识别外部函数（如 `printf`）。类型仅从使用上下文中推断。 | **重大**：集成类型库格式，以对已解析的 PLT 函数强制执行标准签名。 |
@@ -26,21 +26,21 @@
 
 ## 3. 控制流结构化 (Control Flow Structuring)
 
-| 特性 | Ghidra | Rugra | 差距 / 下一步 |
+| 特性 | Ghidra | Rudra | 差距 / 下一步 |
 | :--- | :--- | :--- | :--- |
 | **结构恢复** | 高级的“块结构化”算法处理不可约循环、复杂的 `switch` 语句和 `goto` 消除。 | 对自然循环 (`while`) 和 `if/else` 块的基本检测。对于复杂流回退到 `goto`。 | 实现完整的“基于区域 (Region-based)”的结构分析，以清晰地恢复 `for`, `do-while` 和 `switch-case` 结构。 |
 | **布尔逻辑** | 将嵌套分支折叠为逻辑运算符 (`&&`, `||`)。 | 生成嵌套的 `if` 语句。 | 在 AST 构建器中实现条件折叠逻辑。 |
 
 ## 4. 优化与惯用语识别 (Optimization & Idiom Recognition)
 
-| 特性 | Ghidra | Rugra | 差距 / 下一步 |
+| 特性 | Ghidra | Rudra | 差距 / 下一步 |
 | :--- | :--- | :--- | :--- |
 | **编译器惯用语** | 识别除法转乘法、内联 `memcpy`/`memset` 和安全编码模式 (canaries)。 | 基础常量折叠。栈 canary 显示为原始逻辑。 | 添加模式匹配过程，以识别编译器惯用语并将其替换为高级等价形式。 |
 | **死代码消除** | 激进的、数据流驱动的 DCE。 | **已实现**：增强型 DCE 利用 SSA 版本信息，不仅移除临时变量，还能安全移除未使用的寄存器定义（如死循环计数器）。 | 继续增强对副作用（如内存写入、标志位）的精细分析。 |
 
 ## 总结路线图
 
-为了缩小与 Ghidra 的差距，Rugra 需要从一个**带有基础分析的 P-code 提升器**进化为一个**语义重构引擎**。
+为了缩小与 Ghidra 的差距，Rudra 需要从一个**带有基础分析的 P-code 提升器**进化为一个**语义重构引擎**。
 
 **近期优先事项：**
 1.  **高级控制流结构化**：实现基于区域（Region-based）的结构化算法，以完美恢复 `switch`、`for` 和 `do-while`。
@@ -81,8 +81,8 @@
 | CALLOTHER 输出 token 三级链缺失 | COREACTION-CALLOTHER-OUTTOKEN-0001 | P2 | coreaction.rs+userop.rs | TypeOpCallother::getOutputLocal（typeop.cc:866-872）→InternalStringOp 特化（userop.cc:361-364）→默认 TYPE_UNKNOWN 非 Int；修后 STRNCPY 票逐字节验收即达（PRINTCS 车道登记，在 wt/printcs 分支） |
 | checkAddressOfCast 整体未移植 | PRINTC-CHECKADDRESSOFCAST-0001 | P2 | printc.rs | cc:379/381/403 `&` 数组衰减形（PKG-C 伴生） |
 | gen 驱动符号 DB 通道缺失 | GENDRIVER-SYMTAB-DB-0001 | P2 | examples/gen_decompile.rs | BFD 函数符号不喂 Architecture symboltab→ActionConstantPtr queryContainer 恒 miss→vsh `main` 印裸地址（CODENAME 票判定移交） |
-| 字节车道重构形态差 | GEN4-SQ-BYTELANE-STRUCT-0001 | P2 | 待判域（疑 subflow/heritage 交互） | header.1 读改写链 oracle 逐字节 MULTIEQUAL 重构 vs Rugra 寄存器粒度；不 panic、defects=0，SQMERGE 车道登记（在 wt/sqmerge 分支） |
-| 病态慢族（首个性能级分歧） | GEN5-SQLITE-PATHOSLOW-BITVEC-0001 | **P1** | 待探针定位（疑 heritage/merge 活跃性或 blockaction fixpoint） | sqlite3BitvecSet/Clear/TestNotNull：oracle 毫秒级 vs Rugra 600s 墙杀；GEN5 车道登记（在 wt/gen5 分支） |
+| 字节车道重构形态差 | GEN4-SQ-BYTELANE-STRUCT-0001 | P2 | 待判域（疑 subflow/heritage 交互） | header.1 读改写链 oracle 逐字节 MULTIEQUAL 重构 vs Rudra 寄存器粒度；不 panic、defects=0，SQMERGE 车道登记（在 wt/sqmerge 分支） |
+| 病态慢族（首个性能级分歧） | GEN5-SQLITE-PATHOSLOW-BITVEC-0001 | **P1** | 待探针定位（疑 heritage/merge 活跃性或 blockaction fixpoint） | sqlite3BitvecSet/Clear/TestNotNull：oracle 毫秒级 vs Rudra 600s 墙杀；GEN5 车道登记（在 wt/gen5 分支） |
 
 > 同波次证据扩容（不开新票）：PRETTYFLUSH panic 族半径 ×13.5（sq 2 站点→sqlite 27 站点，
 > MIRROR3-PRETTYFLUSH-FAILCLOSED-0001 建议升 P1/P2 头名）；sqlite 面既有结构族（CAST/SWITCH/

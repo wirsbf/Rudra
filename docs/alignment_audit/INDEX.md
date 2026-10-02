@@ -5,14 +5,14 @@ cross-review agents (per AGENTS.md rule 12). Each auditor read the actual Ghidra
 cited lines and verified the four decisive-semantic categories (reference params, traversal
 order, counter scope, comparison key) — not just the surface annotation.
 
-**Goal reference (user directive)**: "每个 ghidra 原有函数都必须保证语义完全对齐；每个 rugra
+**Goal reference (user directive)**: "每个 ghidra 原有函数都必须保证语义完全对齐；每个 rudra
 自定义函数都必须解释为什么不和 ghidra 对齐；解释不合理的都必须与 ghidra 做到完全对齐；
 不应该存在任何理由和 ghidra 不对齐。"
 
 ## 2026-08-11 targeted audits (Ghidra 12.0.4)
 
 - [`PcodeSnippet` mandatory punctuation and failure state](PCODEPARSE_SYNTAX_2026-08-11.md)
-  — confirmed Rugra accepts malformed snippets that the locked Bison grammar rejects.
+  — confirmed Rudra accepts malformed snippets that the locked Bison grammar rejects.
 - [Foundation and pipeline audit](FOUNDATION_PIPELINE_2026-08-11.md)
   — records deterministic Action-tree/executor, callspec, opcode/flags, SLEIGH,
   compression, multiprecision, ledger, and gate failures without promoting
@@ -59,9 +59,9 @@ order, counter scope, comparison key) — not just the surface annotation.
 
 | ID | Module:fn | Defect |
 |---|---|---|
-| P1-1 | `coreaction.rs` (~30 Actions) | **systemic return-value divergence**: every Ghidra `Action::apply` returns `0`, Rugra returns `CHANGE`/`NO_CHANGE` leaking `count` into parent group's repeatapply driver → root cause of disabled mainloop/fullloop repeatapply + deleted ActionSimplify workaround (rule-5 violation surface) |
+| P1-1 | `coreaction.rs` (~30 Actions) | **systemic return-value divergence**: every Ghidra `Action::apply` returns `0`, Rudra returns `CHANGE`/`NO_CHANGE` leaking `count` into parent group's repeatapply driver → root cause of disabled mainloop/fullloop repeatapply + deleted ActionSimplify workaround (rule-5 violation surface) |
 | P1-2 | `coreaction.rs:7193 build_full_pipeline_actions` | shadowed by `action.rs::set_default_actions`; double-registers ActionInferTypes/ActionActiveParam/ActionReturnRecovery |
-| P1-3 | `coreaction.rs:3561 ActionNameVars` | STUB — does nothing → **Rugra never names local variables** |
+| P1-3 | `coreaction.rs:3561 ActionNameVars` | STUB — does nothing → **Rudra never names local variables** |
 | P1-4 | `coreaction.rs:5632 ActionConditionalConst` | STUB — entire conditional-constant machinery missing |
 | P1-5 | `coreaction.rs:5730 ActionReturnRecovery` | rewritten as hardcoded x86-64 RAX scan, not ParamActive/AncestorRealistic |
 | P1-6 | `coreaction.rs:327 ActionConstantPtr` | rewritten as READONLY flag tag, not selectInferSpace/isPointer/spacebaseConstant |
@@ -73,17 +73,17 @@ order, counter scope, comparison key) — not just the surface annotation.
 | P1-12 | `blockaction.rs:4770 ActionFinalStructure::apply` | does GOTO tagging + dead-op removal instead of `orderBlocks`+`finalizePrinting`+`scopeBreak`+`markUnstructured`+`markLabelBumpUp` |
 | P1-13 | `blockaction.rs:3982 collapse_switches` | `ruleBlockSwitch` MISSING; existing fn is a different algorithm under misleading name → `switch=0 ❌` |
 | P1-14 | `blockaction.rs apply_rules_to_block` | `ruleBlockInfLoop` MISSING (infinite loops never structured), `ruleBlockOr` absent from `collapseConditions` (no AND/OR short-circuit folding) |
-| P1-15 | `condexe.rs:632 do_replacement` (RETURN branch) | new COPY's output never wired into RETURN slot 1 (Rugra feeds `retvn`, Ghidra feeds `outvn`) |
+| P1-15 | `condexe.rs:632 do_replacement` (RETURN branch) | new COPY's output never wired into RETURN slot 1 (Rudra feeds `retvn`, Ghidra feeds `outvn`) |
 | P1-16 | `condexe.rs:1330 ActionConditionalExe::apply` | constructs fresh `ConditionalExecution` per block + early-break restart; Ghidra reuses one instance + continues inner loop |
 | P1-17 | `heritage.rs:679 heritage` (entry) | gutted to 3 lines vs Ghidra's 90-line per-space/per-range orchestrator (no buildADT/processJoins/disjoint-range/guard/analyzeNewLoadGuards) |
 | P1-18 | `heritage.rs:36 LocationMap::add` | replaces disjoint-cover merge with blind BTreeMap insert |
 
 ## P2 — annotation hygiene (rule 5.5 / 13 Red Flags)
 
-- **`blockaction.hh:46` placeholder cluster** (33 fns cite the line `class LoopBody {` instead of real `blockaction.cc:<line>` or `RUGRA-GLUE`).
-- **`merge.hh:83` fabricated-name cluster** (15 fns cite non-existent `Merge::<name>` methods; should be `RUGRA-GLUE` or renamed to match real Ghidra).
+- **`blockaction.hh:46` placeholder cluster** (33 fns cite the line `class LoopBody {` instead of real `blockaction.cc:<line>` or `RUDRA-GLUE`).
+- **`merge.hh:83` fabricated-name cluster** (15 fns cite non-existent `Merge::<name>` methods; should be `RUDRA-GLUE` or renamed to match real Ghidra).
 - **`condexe.cc:432` mis-cite cluster** (~10 fns cite the constructor; expression-matching fns should cite `expression.cc`).
-- **`varmap.hh:137` / `varmap.hh:90` mis-cite cluster** (5 invented helpers `resolve_rsp_offset*`/`find_spacebase_input`/`make_int_type` should be `RUGRA-GLUE`).
+- **`varmap.hh:137` / `varmap.hh:90` mis-cite cluster** (5 invented helpers `resolve_rsp_offset*`/`find_spacebase_input`/`make_int_type` should be `RUDRA-GLUE`).
 - **`heritage.cc:219` drift** (~10 fns all cite the Heritage ctor).
 - All drifts pass `check_ghidra_refs.py` because the cited line exists but is the wrong target. The annotation gate needs strengthening (rule 14) OR fns need re-annotation.
 

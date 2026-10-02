@@ -1,8 +1,8 @@
-//! Emit layered Rugra pipeline snapshots for `GetStr` in `examples/curl`.
+//! Emit layered Rudra pipeline snapshots for `GetStr` in `examples/curl`.
 //!
 //! The locked Ghidra fixture emits the same JSON schema.  This is diagnostic
 //! evidence, not a parity claim: the Heritage stage is explicitly a direct
-//! Rugra Action replay because Rugra's Action tree has no observation hook yet.
+//! Rudra Action replay because Rudra's Action tree has no observation hook yet.
 
 use goblin::Object;
 use rudra::action::{Action, ActionDatabase};
@@ -147,7 +147,7 @@ fn op_values(ids: &SnapshotIds, include_high_read_types: bool) -> Vec<Value> {
             json!({
                 "id": index,
                 "address": address_value(rudra::space::AddressSpace::Ram, op.start.addr.as_u64()),
-                // Rugra currently collapses Ghidra SeqNum::uniq/time and mutable order.
+                // Rudra currently collapses Ghidra SeqNum::uniq/time and mutable order.
                 // Recording the same field twice exposes this structural mismatch.
                 "time": op.start.order,
                 "order": op.start.order,
@@ -901,7 +901,7 @@ fn run(binary: &Path, output_directory: &Path) -> Result<(), Box<dyn Error>> {
 
     // 02b: the production-path heritage moment. Ghidra's locked fixture
     // observes the same instant through a post-heritage breakpoint in the
-    // universal action list (getstr_pipeline_1204.cc). Rugra's action.rs has
+    // universal action list (getstr_pipeline_1204.cc). Rudra's action.rs has
     // no breakpoint table yet, so this diagnostic replays the exact pre-
     // heritage action sequence from build_default_pipeline (universal
     // children before fullloop, then mainloop's varnodeprops) and snapshots
@@ -974,7 +974,7 @@ fn run(binary: &Path, output_directory: &Path) -> Result<(), Box<dyn Error>> {
         )?
         .is_none()
     {
-        return Err("Rugra did not configure the decompile action".into());
+        return Err("Rudra did not configure the decompile action".into());
     }
     let action_read = action_fd.read().expect("Funcdata snapshot read lock");
     write_snapshot(
@@ -1033,7 +1033,7 @@ fn main() {
         .get(1)
         .map_or_else(|| PathBuf::from("examples/curl"), PathBuf::from);
     let output_directory = arguments.get(2).map_or_else(
-        || PathBuf::from("result/pipeline_snapshots/getstr/rugra"),
+        || PathBuf::from("result/pipeline_snapshots/getstr/rudra"),
         PathBuf::from,
     );
     if let Err(error) = run(&binary, &output_directory) {

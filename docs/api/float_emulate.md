@@ -132,4 +132,4 @@ IEEE754 浮点格式描述。对应 Ghidra `FloatFormat`。
   print 侧）；双侧 fixture `printc_singleton_emission_1204` 21 float case
   字节恒等（含 subnormal `1.4013e-45`、scinote `3.1415927e+00`、
   `1.00000000000000e-01` 往返精度形态）。
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

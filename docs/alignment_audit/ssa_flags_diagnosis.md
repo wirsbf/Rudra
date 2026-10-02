@@ -195,19 +195,19 @@ Secondary clean-ups (not the cause, but related stale code):
 
 ## 7. File references (absolute)
 
-- Defect: `D:/ghidra/rugra/src/block.rs:1863` (`calc_dom_frontier`, guard at
+- Defect: `D:/ghidra/rudra/src/block.rs:1863` (`calc_dom_frontier`, guard at
   line 1876 `if incoming.len() >= 2`).
-- Phi placement that depends on it: `D:/ghidra/rugra/src/heritage.rs:3150`
+- Phi placement that depends on it: `D:/ghidra/rudra/src/heritage.rs:3150`
   (`place_multiequals_direct`), uses `get_dom_frontier` at line 3231.
-- Rename (correct, not the cause): `D:/ghidra/rugra/src/heritage.rs:3337`
+- Rename (correct, not the cause): `D:/ghidra/rudra/src/heritage.rs:3337`
   (`rename_direct`) and `:3415` (`visit_rename_direct`).
-- Curl pipeline lifter: `D:/ghidra/rugra/examples/curl_decompile.rs:284`
-  (`SleighLifter::lift_function`); `D:/ghidra/rugra/src/disasm/sleigh_lift.rs`.
+- Curl pipeline lifter: `D:/ghidra/rudra/examples/curl_decompile.rs:284`
+  (`SleighLifter::lift_function`); `D:/ghidra/rudra/src/disasm/sleigh_lift.rs`.
 - Varnode dedup that separates written ZF from free ZF read:
-  `D:/ghidra/rugra/src/varnode.rs:2264` (`find_or_create_input_space`).
-- printc value-based scan: `D:/ghidra/rugra/src/printc.rs:3984`
+  `D:/ghidra/rudra/src/varnode.rs:2264` (`find_or_create_input_space`).
+- printc value-based scan: `D:/ghidra/rudra/src/printc.rs:3984`
   (`emit_block_condition_inner`).
-- Stale native lifter (unused for curl): `D:/ghidra/rugra/src/disasm/x86_lift.rs`.
-- Regression tests added: `D:/ghidra/rugra/src/funcdata.rs`
+- Stale native lifter (unused for curl): `D:/ghidra/rudra/src/disasm/x86_lift.rs`.
+- Regression tests added: `D:/ghidra/rudra/src/funcdata.rs`
   (`test_cbranch_condition_def_wired_via_heritage_single_block`,
    `test_cbranch_condition_def_wired_multiblock_real_x86`).

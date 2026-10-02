@@ -13,7 +13,7 @@
 
 ## 0. 问题陈述
 
-Ghidra 的 `Address`（address.hh:59）= `AddrSpace *base` + `uintb offset`。Rugra 的 legacy
+Ghidra 的 `Address`（address.hh:59）= `AddrSpace *base` + `uintb offset`。Rudra 的 legacy
 `Address(u64)`（阶段一前）只有 offset：**所有地址被隐式压进单一匿名空间**。后果：
 
 1. **跨空间地址不可区分**——`ram:0x1000` / `register:0x1000` / `const:0x1000` 相等、
@@ -43,7 +43,7 @@ SPACE-0001 已交付 1:1 的 `SpaceAddress`（空间句柄版，fixture
 | `BlockBasic.start_addr`（block.rs:970；flow.rs:1918 铸 `Address::new(start)`） | block.hh:478 `getStart` | **阶段二主对象** |
 | `Varnode.loc`（varnode.rs:135）→ VarnodeBank `loc_tree` BTreeSet 键 | varnode.hh `loc` | 阶段三（VARNODE-0001） |
 | override_rs 四张 `BTreeMap<Address,·>`（forcegoto/indirectover/protoover/flowover，override_rs.rs:72-83） | override.hh `map<Address,·>` | 阶段三 |
-| lib.rs `pcode_cache`/`analysis_cache` `HashMap<Address,·>`（lib.rs:169/172） | （Rugra 自有缓存） | 阶段三（无 oracle 面） |
+| lib.rs `pcode_cache`/`analysis_cache` `HashMap<Address,·>`（lib.rs:169/172） | （Rudra 自有缓存） | 阶段三（无 oracle 面） |
 | jumptable.rs `adset: BTreeSet<Address>`（:3137） | jumptable.hh `adset` | 阶段三 |
 | rangeutil.rs `HashMap<SeqNum, ValueSetRead>`（:2206） | rangutil.hh `map<SeqNum,·>` | 随 SeqNum 迁移 |
 | binary/mod.rs `functions: HashMap<Address,String>`（:50） | （加载器面） | 阶段三 |
@@ -113,7 +113,7 @@ Ghidra null-base（invalid）形态，None↔None 比较保持 offset-only = 现
 **显式登记的过渡偏差（Ghidra 无对应物）**：
 - D1 None 的 Display 拼写（上表）；
 - D2 None 的算术/overlap 无 oracle（Ghidra 在 null-base 上是空指针解引用 = 未定义；
-  Rust 保留阶段零行为，靠 Rugra 侧回归 + E2E 证明不变）；
+  Rust 保留阶段零行为，靠 Rudra 侧回归 + E2E 证明不变）；
 - D3 `m_maximal` 不可表达（桥上 panic）；
 - D4 SpaceTag serde 数值是 thread-local 表槽位——序列化态不可跨线程/跨会话复活
   （现状无持久化消费者，grep 证实 comment/range/seqnum encode 均为手写串）。
@@ -218,7 +218,7 @@ numbering=0 / Matched=123 双零；fixture `address_space_phase1_1204` 双侧逐
 
 ## 5. 阶段一 fixture：`address_space_phase1_1204`（复核期 /tmp 构建，未入库登记——write-set 不含此文件；后续需要时再正式登记）
 
-双侧（锁定 oracle C++ vs Rugra）逐字节对比，四 case：
+双侧（锁定 oracle C++ vs Rudra）逐字节对比，四 case：
 
 | case | 覆盖 | 状态 |
 |---|---|---|
@@ -227,7 +227,7 @@ numbering=0 / Matched=123 双零；fixture `address_space_phase1_1204` 双侧逐
 | `tag_identity` | 同句柄重复构造相等（intern 幂等 = C++ 同 `AddrSpace*` 指针身份）；HashSet 去重（Hash↔Eq 一致）；同 offset 异空间不等/不 overlap | MATCH |
 | `wrap_overlap_tagged` | tagged operator+/- 经 wrapOffset（4 字节空间回卷）；overlap 同空间 wrap 距离/负 skip/constant -1/跨空间 -1（address.cc:153-165） | MATCH |
 
-明确不进 oracle 的面（Rugra 侧回归/E2E 证明）：None 算术与 overlap（Ghidra null 解引用
+明确不进 oracle 的面（Rudra 侧回归/E2E 证明）：None 算术与 overlap（Ghidra null 解引用
 = D2）、None Display 拼写（D1）、`m_maximal` 过桥 panic（D3）。
 
 ---
@@ -277,7 +277,7 @@ printRaw 形态），是伪收益；铸造点在 funcdata.rs（禁域），故�
 
 | ID | 风险 | 处置 |
 |---|---|---|
-| R1 | None-vs-Some 语义 Ghidra 无对应物（Ghidra 无无空间地址） | 显式过渡 adapter（RUGRA-GLUE 注释）；排序 ≡ null-base 最前、Eq 不等；双侧 fixture 锚定可对拍部分；阶段三消亡 |
+| R1 | None-vs-Some 语义 Ghidra 无对应物（Ghidra 无无空间地址） | 显式过渡 adapter（RUDRA-GLUE 注释）；排序 ≡ null-base 最前、Eq 不等；双侧 fixture 锚定可对拍部分；阶段三消亡 |
 | R2 | serde 新字段改变序列格式 | 仅内存缓存使用；无持久化 golden 依赖 Address 序列 |
 | R3 | 跨 registry 同 index 异 tag（测试态） | Ord tag tiebreak 保 Ord/Eq 契约 |
 | R4 | HashMap 迭代序变化 | Rust HashMap 本就 RandomState；BTreeMap 序由 Ord 决定，None↔None 序不变 |

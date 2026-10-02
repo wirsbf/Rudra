@@ -45,7 +45,7 @@
 //!
 //! Usage (run from the repo root — sleigh_specs/ is CWD-relative):
 //!   cargo run --profile fast-release --example parallel_decompile -- \
-//!       examples/curl --jobs 8 --out-dir /dev/shm/rugra-tests/phaseland
+//!       examples/curl --jobs 8 --out-dir /dev/shm/rudra-tests/phaseland
 //!   # full corpus (all discovered functions, no cap):
 //!   cargo run --profile fast-release --example parallel_decompile -- \
 //!       /tmp/sqlite3 --jobs 8 --max-funcs all
@@ -932,7 +932,7 @@ fn parse_args() -> Result<Args, String> {
         jobs: DEFAULT_JOBS,
         max_funcs: DEFAULT_MAX_FUNCS,
         skip: Vec::new(),
-        out_dir: PathBuf::from("/dev/shm/rugra-tests/phaseland/parallel-out"),
+        out_dir: PathBuf::from("/dev/shm/rudra-tests/phaseland/parallel-out"),
         run_name: None,
         quiet: false,
     };

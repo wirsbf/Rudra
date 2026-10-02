@@ -5,7 +5,7 @@
 > `funcdata.cc:150-182`(startProcessing/stopProcessing)、`ghidra_process.cc:310`(驱动入口)。
 > 用途:PIPE 系列任务(`PIPE-DERIVED-TREE-0001`、`PIPE-STACKSTALL-COUNT-0001`、
 > `PIPE-HEAD-FLAT-ACTIONS-0001`)与逐阶段差分/快照基础设施的唯一阶段参考。
-> Rugra 侧对应文档:`docs/api/action.md`、`docs/api/coreaction.md`。
+> Rudra 侧对应文档:`docs/api/action.md`、`docs/api/coreaction.md`。
 
 ## 1. 生命周期三层
 
@@ -99,7 +99,7 @@ universal (ActionRestartGroup, onceperfunc, max=1)          ← pending restart 
   是 Ghidra 原生的"中途停下观察"机制;console 另有 dataflow/controlflow/dom 图 dump
   (ifacedecomp.cc:2526/2552/2578,仅导出观察用)。
 - **Funcdata 无 saveXml/restoreXml**:锁定 oracle 不存在整函数 IR 的序列化/恢复。
-  任何"每阶段缓存/断点续跑"设施在 Rugra 侧均无 oracle 对应物,属 RUGRA-GLUE 工具层,
+  任何"每阶段缓存/断点续跑"设施在 Rudra 侧均无 oracle 对应物,属 RUDRA-GLUE 工具层,
   禁止进入对齐语义路径(见 §5)。
 
 ### 3.1 阶段寻址与停/续是 oracle 原生机制(逐行核实 2026-08-22)
@@ -124,7 +124,7 @@ universal (ActionRestartGroup, onceperfunc, max=1)          ← pending restart 
   `PIPE-STACKSTALL-COUNT-0001`)。
 
 > 结论:阶段寻址、停/续、变更投影、计数**全部有 oracle 对应物**,应按对齐移植
-> (不是 RUGRA-GLUE);只有"缓存/断点续跑的持久化"没有 oracle 对应物,属工具层。
+> (不是 RUDRA-GLUE);只有"缓存/断点续跑的持久化"没有 oracle 对应物,属工具层。
 
 ## 4. 稳定切点 vs 不稳定切点(差分/fixture 边界规则)
 
@@ -138,7 +138,7 @@ universal (ActionRestartGroup, onceperfunc, max=1)          ← pending restart 
 任何阶段 fixture / 差分记录必须同时登记:阶段路径(树路径)、restart 轮次(curstart)、
 各 repeatapply 组的 count 状态。
 
-## 5. 每阶段快照/缓存的设计约束(RUGRA-GLUE,无 oracle 对应物)
+## 5. 每阶段快照/缓存的设计约束(RUDRA-GLUE,无 oracle 对应物)
 
 1. **定位**:缓存是纯加速/调试设施,不得改变任何可观测行为;必须实现在驱动层
    (perform 树外层包装),禁止在 Action/Rule 内部感知缓存。
@@ -147,14 +147,14 @@ universal (ActionRestartGroup, onceperfunc, max=1)          ← pending restart 
      需克隆时置 None/重绑),手动 `Clone` 深 IR 可行;恢复 = 替换 fd 后继续 perform 余下子树。
    - B. 磁盘序列化:可跨 session 复用,但需要完整 Funcdata 编解码器;漏字段会造成
      "续跑结果 ≠ 全量结果"的静默正确性风险,必须配等价门禁(见 4)。
-3. **缓存键(内容寻址)**:oracle/Rugra 源码版本(含 dirty 标记)+ 函数输入指纹
+3. **缓存键(内容寻址)**:oracle/Rudra 源码版本(含 dirty 标记)+ 函数输入指纹
    (地址/字节/架构 spec/analysis options)+ 阶段路径 + restart 轮次 + 各组 count。
 4. **失效规则**:保守 = 任一管线相关 `src/*.rs` 变更即整体失效;精确 = 仅使阶段路径的
    前缀算法失效。
 5. **等价门禁**:对每个快照点,随机抽样"全量跑" vs "缓存续跑",最终输出(含 stderr
    warning 与最终 IR)必须字节一致;接入 `check_determinism.py` 式双跑框架。
 
-### 5.1 阶段投影二分工具(`tools/stage_bisect.py`,RUGRA-GLUE,2026-08-23)
+### 5.1 阶段投影二分工具(`tools/stage_bisect.py`,RUDRA-GLUE,2026-08-23)
 
 消费 §3.1 原生观测机制(OPACTION_DEBUG 的 per-Action/per-Rule before/after 投影 +
 setBreakPoint 名字路径停/续)产出的两侧投影文件,定位**第一个分歧边界**并把缺陷
@@ -177,7 +177,7 @@ setBreakPoint 名字路径停/续)产出的两侧投影文件,定位**第一个�
   `setBreakPoint(break_start, path)` + perform 续跑逐段走树,路径无歧义。fixture
   必须在 metadata 记录 `-DOPACTION_DEBUG` 构建标志,否则按 NO_ORACLE 处理。
 - **根集成流程**:双侧投影(同函数输入/同 arch/同 options)→
-  `python3 tools/stage_bisect.py <ghidra.proj> <rugra.proj> [--json]` → 按归因
+  `python3 tools/stage_bisect.py <ghidra.proj> <rudra.proj> [--json]` → 按归因
   定位到 Action 轮次;`--relax-unique` 仅作 triage 屏蔽 unique id,不得作为对齐
   证据。自测:`python3 tools/stage_bisect.py --selftest`(合成投影 + 已知分歧点,
   13 场景)。

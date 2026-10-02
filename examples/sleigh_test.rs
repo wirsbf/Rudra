@@ -1,4 +1,4 @@
-//! Minimal smoke test for Rugra's direct Ghidra SLEIGH FFI.
+//! Minimal smoke test for Rudra's direct Ghidra SLEIGH FFI.
 
 use anyhow::{ensure, Context, Result};
 use rudra::sleigh_ffi::SleighCtx;

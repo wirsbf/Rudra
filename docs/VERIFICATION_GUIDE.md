@@ -1,9 +1,9 @@
-# Rugra-Ghid
+# Rudra-Ghid
 ra 验证指南
 
 > **
 状态声明**：截至当前仓库可见代码与文档状态，
-Rugra 的验证体系仍处于
+Rudra 的验证体系仍处于
 **未完成**阶段。  
 > 已经具备一部分静态对齐测试与运行时验证框架代码，但**不能据
 此宣称**已经完成了与 Ghidra 的端到端一致性验证，也**不能宣称**当前输出与 Ghidra 100% 等价。
@@ -58,10 +58,10 @@ reducer hardening ────────────────────�
 日常验证统一通过以下入口，避免每次人工拼接一整套命令：
 
 ```bash
-python3 tools/rugra_gate.py edit
-python3 tools/rugra_gate.py commit --staged
-python3 tools/rugra_gate.py wave
-python3 tools/rugra_gate.py nightly
+python3 tools/rudra_gate.py edit
+python3 tools/rudra_gate.py commit --staged
+python3 tools/rudra_gate.py wave
+python3 tools/rudra_gate.py nightly
 ```
 
 `edit` 只做秒级反馈；`commit` 增加全静态检查、生成账本检查和受影响的真实 oracle
@@ -88,16 +88,16 @@ provenance 预检阶段 fail-closed，而不是产出当前诊断：
 tools/run_getstr_pipeline_oracle.sh
 ```
 
-历史结果写入 `result/pipeline_snapshots/getstr/`：`ghidra/`、`rugra/` 和
-`rugra-repeat/` 分别保存 raw P-code、CFG、Heritage/SSA、完整 Action IR、结构树和 C 文本；
+历史结果写入 `result/pipeline_snapshots/getstr/`：`ghidra/`、`rudra/` 和
+`rudra-repeat/` 分别保存 raw P-code、CFG、Heritage/SSA、完整 Action IR、结构树和 C 文本；
 `comparison.json` 保存每层首个 JSON 路径差异，`README.md` 给出紧凑摘要，`ghidra.c`、
-`rugra.c` 与 `rugra-repeat.c` 可阅读。历史报告为 `MISMATCH`，不是 golden；它曾记录两侧
+`rudra.c` 与 `rudra-repeat.c` 可阅读。历史报告为 `MISMATCH`，不是 golden；它曾记录两侧
 103 ops / 272 Varnodes / 6 CFG blocks，但审计确认旧 runner 实际没有比较其声明中的
 `has_output`，并且 `zip` 未检查尾部长度，因此这些字段不能继续作为完整同输出证明。
 
 历史 raw 层也不是 `MATCH`：第一个 op-storage 差异位于 direct CALL，Ghidra 用动态 Fspec
-space index 5，Rugra 因固定 `AddressSpace` 模型只能用 synthetic Iop index 7；第一个
-Varnode-state 差异是 Ghidra 已附 unknown datatype/COVERDIRTY，而 Rugra 尚未附这些状态。
+space index 5，Rudra 因固定 `AddressSpace` 模型只能用 synthetic Iop index 7；第一个
+Varnode-state 差异是 Ghidra 已附 unknown datatype/COVERDIRTY，而 Rudra 尚未附这些状态。
 此外 Ghidra 侧实际载入完整 gcc cspec，而当前 Rust companion 没有消费同一 cspec；新的
 `00_effective_configuration` preflight 在这一差异关闭前必须报告 `NO_ORACLE`，不得继续解释
 后续 IR 差异。`ORACLE-RESULT-0001` 将拆分 `--verify-recorded`、`--diagnose-current` 和审核后的
@@ -107,7 +107,7 @@ Varnode-state 差异是 Ghidra 已附 unknown datatype/COVERDIRTY，而 Rugra �
 `VARMAP-GATHEROFFSET-0001` 与 `RULE-COLLECTTERMS-0001` 两个核心无符号边界缺陷；因为它们
 尚未完成独立核心复核，本 snapshot 不把 release 成功冒充对应分支 `MATCH`。
 
-Ghidra 的 Heritage 快照来自真实 `decompile` Action 在 `paramdouble` 前的 breakpoint；Rugra
+Ghidra 的 Heritage 快照来自真实 `decompile` Action 在 `paramdouble` 前的 breakpoint；Rudra
 目前只能直接重放 `ActionHeritage`，所以该层明确是 `NO_ORACLE` 诊断边界。只有补齐同一
 Action-tree 观察点并在完整状态上零差异，才能将该层改记 `MATCH`。
 
@@ -121,7 +121,7 @@ Action-tree 观察点并在完整状态上零差异，才能将该层改记 `MAT
 ## 1
 . 验证目标
 
-Rugra 的验证工作不是单一测试，而是分层目标：
+Rudra 的验证工作不是单一测试，而是分层目标：
 
 - **结构层验证**：核心数据结构是否与 Ghidra 的概念模型基本对齐
 - **算法层验证**：P-code、SSA、CFG、类型传播等核心算法行为是否一致
@@ -163,7 +163,7 @@ Rugra 的验证工作不是单一测试，而是分层目标：
 
 但这只能说明“**框架方向存在**”，**不能直接等价于验证已经完成**。  
 按当前最近一次最小样本推进记录看，`mov rbx, rax` 这条样本已经从“框架级真实运行记录”进一步推进到：比较入口能够接收 **真实 opcode、真实 output、真实 input 列表**，并由 `verify_pcode_generation(...)` 基于结构化本地比较结果返回 `Match` 或 `Mismatch(...)`，不再无条件返回 `Match`。  
-进一步地，当前比较入口也已经不再只是 stdout 日志副作用：`rugra_compare_pcode(...)` 现在会返回结构化比较状态，调用侧可以区分 `match`、`opcode mismatch`、`output mismatch`、`input count mismatch`、`input mismatch`、`missing Rugra op` 等结果类型。
+进一步地，当前比较入口也已经不再只是 stdout 日志副作用：`rudra_compare_pcode(...)` 现在会返回结构化比较状态，调用侧可以区分 `match`、`opcode mismatch`、`output mismatch`、`input count mismatch`、`input mismatch`、`missing Rudra op` 等结果类型。
 
 #### C. FFI 相关代码存在
 仓库中存在 `src/ffi.rs`，且运行时验证框架中引用了 FFI 接口。这说明项目确实计划走“Rust 实现 ↔ Ghidra/相关原生能力”的跨边界验证路线。
@@ -246,8 +246,8 @@ Rugra 的验证工作不是单一测试，而是分层目标：
 - 哪些局部行为存在偏差
 - 差异集中在哪个算法阶段
 
-当前这一层已经不再只是纯占位框架：至少在第一条最小样本 `mov rbx, rax` 上，Rugra 侧已经能够把真实的 opcode / output / input 元数据送入比较层，比较入口也已经能够返回结构化状态码，随后再由 `verify_pcode_generation(...)` 汇总为 `VerifyResult`。  
-但这一层**仍然不能被表述为已完成**，因为当前比较虽然已经具备“结构化返回路径”，参考数据仍主要来自 Rugra 侧本地构造与当前程序态，并不等价于“已接入稳定、完整、可信的 Ghidra 参考侧逐字段结果”。
+当前这一层已经不再只是纯占位框架：至少在第一条最小样本 `mov rbx, rax` 上，Rudra 侧已经能够把真实的 opcode / output / input 元数据送入比较层，比较入口也已经能够返回结构化状态码，随后再由 `verify_pcode_generation(...)` 汇总为 `VerifyResult`。  
+但这一层**仍然不能被表述为已完成**，因为当前比较虽然已经具备“结构化返回路径”，参考数据仍主要来自 Rudra 侧本地构造与当前程序态，并不等价于“已接入稳定、完整、可信的 Ghidra 参考侧逐字段结果”。
 
 ---
 
@@ -281,9 +281,9 @@ Rugra 的验证工作不是单一测试，而是分层目标：
 
 #### Level 4 已落地资产：投影 fixture 银行（2026-09-25 扩至 391 条）
 
-`tests/fixtures/projections/` 固化了 71 个函数的锁 oracle / Rugra 双侧
+`tests/fixtures/projections/` 固化了 71 个函数的锁 oracle / Rudra 双侧
 stage projection（v1.2），每函数一个目录（oracle.projection +
-rugra.projection + manifest.toml，记录 oracle commit e40ed130、capture
+rudra.projection + manifest.toml，记录 oracle commit e40ed130、capture
 命令、日期、sha256 pin 与验证状态）。门禁入口：
 
 ```bash
@@ -312,7 +312,7 @@ httpd 侧同族 PLT-thunk 总群已于 2026-09-25 全量入库（lane HBANK 盘�
 `FUN_00129020`）+ .plt.got 槽位 GOT-tail 解码（bnd/plain 两种拼写，
 httpd 为 plain `ff 25`）+ .plt.sec 槽 i 对第 i 条 .rela.plt JUMP_SLOT，
 账本 793 = 473 dynsym + 320 thunk；地址形 selector
-`RUGRA_STAGE_FUNC=0x<entry>` 可选 thunk。臂仅扩 selector 面：stage 门内
+`RUDRA_STAGE_FUNC=0x<entry>` 可选 thunk。臂仅扩 selector 面：stage 门内
 生效、落在所有其他账本消费者之后，env 全 unset 的默认 E2E 输出与亲父
 构建 cmp 字节恒等（stderr 唯一差异是亲父自身两次运行也出现的
 `[INJECT]` 日志交错序，非本改动引入）。详见银行 README httpd 节。
@@ -350,9 +350,9 @@ UNTESTED 升为锁定 oracle 对照 MATCH：
 类型 token（`unkN` = metatype + 元素宽）规避双侧工厂对 unknown 基的不同拼写
 （oracle fixture `xunknownN` vs Rust 工厂 `undefinedN`）。复现配方：oracle 侧
 git-archive 锁定 commit 干净重编 libdecomp.a（勿复用带 `-DOPACTION_DEBUG` 的
-对象树）后按 varmap_localwindow runner 同款 g++ 命令链接；Rugra 侧
-`cargo build --lib` 后 rustc 挂 librugra.rlib 编译 .rs；证据归档
-`/dev/shm/rugra-tests/f1fix/`。
+对象树）后按 varmap_localwindow runner 同款 g++ 命令链接；Rudra 侧
+`cargo build --lib` 后 rustc 挂 librudra.rlib 编译 .rs；证据归档
+`/dev/shm/rudra-tests/f1fix/`。
 
 ---
 
@@ -414,7 +414,7 @@ cargo test --lib align::
   - 入口是否可执行
   - 比较参数是否真实
   - 结果是否被结构化回传
-  - 当前差异究竟来自 Rugra 侧实现，还是参考侧数据仍未真正接入
+  - 当前差异究竟来自 Rudra 侧实现，还是参考侧数据仍未真正接入
 
 > 这类最小样本属于 **Level 2：运行时局部对拍** 的基础建设。  
 > 即使某条样本通过，也**不能**直接外推出“更大范围样本已完成一致性验证”。
@@ -450,7 +450,7 @@ cargo test --lib align::
 - **目标层级**：`Level 2：运行时局部对拍`
 - **机器码**：`48 89 c3`
 - **汇编文本**：`mov rbx, rax`
-- **Rugra 入口链路**：
+- **Rudra 入口链路**：
   - `src/disasm/x86_64.rs`
   - `src/disasm/x86_lift.rs`
   - `src/funcdata.rs`
@@ -488,13 +488,13 @@ cargo test --lib align::
 
 但以下限制仍然存在：
 
-- 当前参考信息仍主要来自 Rugra 侧本地构造，而不是 Ghidra 独立返回的结构化结果
+- 当前参考信息仍主要来自 Rudra 侧本地构造，而不是 Ghidra 独立返回的结构化结果
 - 当前还没有形成“Ghidra 参考侧结果 -> 结构化返回 -> 统一差异报告”的完整双边闭环
 - 当前仍不能把最小样本的本地结构化通过，外推出更大范围的真实 parity 结论
 
 因此，这条样本当前更准确的结论是：
 
-> **Rugra 已经具备第一条最小 `mov reg, reg` 样本的本地可执行验证记录，**
+> **Rudra 已经具备第一条最小 `mov reg, reg` 样本的本地可执行验证记录，**
 > **并已具备结构化 FFI 比较返回路径，**
 > **但目前仍处于“局部结构化验证已建立、真实 Ghidra 侧独立参考尚未完整接入”的阶段。**
 
@@ -527,7 +527,7 @@ cargo test --lib align::
 围绕这条样本，后续最优先的动作应是：
 
 1. 让比较入口返回的不只是状态码，还能携带更细粒度的结构化差异信息
-2. 让 `verify_pcode_generation(...)` 消费来自参考侧的独立结果，而不是主要依赖 Rugra 本地构造数据
+2. 让 `verify_pcode_generation(...)` 消费来自参考侧的独立结果，而不是主要依赖 Rudra 本地构造数据
 3. 将当前“已具备结构化返回路径”的状态，推进到真正的双边逐字段比较
 4. 在完成后，再复制同样流程到：
    - `add rax, 1`
@@ -546,7 +546,7 @@ cargo test --lib align::
 - **目标层级**：`Level 2：运行时局部对拍`
 - **机器码**：`48 83 c0 01`
 - **汇编文本**：`add rax, 1`
-- **Rugra 入口链路**：
+- **Rudra 入口链路**：
   - `src/disasm/x86_64.rs`
   - `src/disasm/x86_lift.rs`
   - `src/funcdata.rs`
@@ -596,7 +596,7 @@ cargo test --lib align::
 换句话说：
 
 > `add rax, 1` 已从“计划样本”推进为“真实失败样本记录”，  
-> 但当前结果表明 Rugra 侧 lifting 产物、FFI 比较口径或参考数据组织之间仍存在错位，尚不能写成局部 parity 已建立。
+> 但当前结果表明 Rudra 侧 lifting 产物、FFI 比较口径或参考数据组织之间仍存在错位，尚不能写成局部 parity 已建立。
 
 ### 当前差异分类
 
@@ -628,7 +628,7 @@ cargo test --lib align::
 
 围绕这条样本，后续最优先的动作应是：
 
-1. 先确认当前 `add rax, 1` 的两条 op 是否就是 Rugra 侧期望的最小表示
+1. 先确认当前 `add rax, 1` 的两条 op 是否就是 Rudra 侧期望的最小表示
 2. 继续检查 opcode 比较错位为何表现为 `Ghidra Op: 4`
 3. 继续检查 unique 输入在 FFI 比较中的空间 ID / 偏移口径
 4. 先把该样本从“失败记录”推进到“局部结构化比较可通过”
@@ -732,7 +732,7 @@ cargo test --lib align::
 
 当前对 `src/align/runtime_verify.rs` 的正确表述应是：
 
-> 它是一个**运行时验证框架草案/早期实现**，用于承载 Rugra 与外部参考实现之间的行为比对逻辑。  
+> 它是一个**运行时验证框架草案/早期实现**，用于承载 Rudra 与外部参考实现之间的行为比对逻辑。  
 > 它表明项目正在建设运行时一致性验证能力，并且现在已经具备“比较入口返回结构化状态 -> 调用侧消费状态 -> 统一映射到 `VerifyResult`”这一基础返回路径，  
 > 但**并不代表所有验证路径都已打通，也不代表这些验证已被持续执行**。
 
@@ -861,7 +861,7 @@ CFG 偏差会进一步放大到 SSA、变量恢复与控制流结构化。
 
 - 测试对象
 - 地址/函数
-- Rugra 输出
+- Rudra 输出
 - 参考输出
 - 差异类别
 - 初步原因判断
@@ -891,7 +891,7 @@ CFG 偏差会进一步放大到 SSA、变量恢复与控制流结构化。
 
 ## 10. 当前结论
 
-截至当前仓库可见状态，Rugra 的验证工作应当被准确描述为：
+截至当前仓库可见状态，Rudra 的验证工作应当被准确描述为：
 
 - **静态对齐：已有一部分基础**
 - **运行时验证：已有框架，但未完成**
@@ -901,7 +901,7 @@ CFG 偏差会进一步放大到 SSA、变量恢复与控制流结构化。
 
 因此，当前最准确的总述是：
 
-> Rugra 已经开始建设面向 Ghidra 的多层验证体系，但现阶段仍处于“结构层已有进展、运行时与端到端层面尚未完成”的状态。任何关于“已完全对齐”或“已保障一致性”的表述都应视为失真，后续文档与日志应统一回到这一真实基线之上。
+> Rudra 已经开始建设面向 Ghidra 的多层验证体系，但现阶段仍处于“结构层已有进展、运行时与端到端层面尚未完成”的状态。任何关于“已完全对齐”或“已保障一致性”的表述都应视为失真，后续文档与日志应统一回到这一真实基线之上。
 
 ---
 
@@ -917,10 +917,10 @@ CFG 偏差会进一步放大到 SSA、变量恢复与控制流结构化。
 
 ```bash
 # 构建（锁定对象由 BRIDGE1 lane 预备，stamp 必须等于 e40ed130…）
-bash /dev/shm/rugra-tests/unreffix/build_namevars_badjt.sh \
+bash /dev/shm/rudra-tests/unreffix/build_namevars_badjt.sh \
      FIXTURE=$PWD/tests/oracle/namevars_badjumptable_1204.cc
 # 运行（目标函数/入口有默认值，可省 env）
-/dev/shm/rugra-tests/unreffix/namevars_badjumptable_1204 sleight_specs examples/httpd \
+/dev/shm/rudra-tests/unreffix/namevars_badjumptable_1204 sleight_specs examples/httpd \
      >oracle.out 2>oracle.err
 ```
 
@@ -930,17 +930,17 @@ bash /dev/shm/rugra-tests/unreffix/build_namevars_badjt.sh \
 观察面：stderr `[CALLSPEC-BADJT]`（注册序逐 callspec 的 badjt 旗标）+
 `[SYMDUMP-FINAL]`（改名后的 ScopeLocal map tree）+ stdout C 渲染。
 
-### 11.2 Rugra 侧（生产驱动，零 fixture 侧重复实现）
+### 11.2 Rudra 侧（生产驱动，零 fixture 侧重复实现）
 
 ```bash
-RUGRA_DUMP_FUNC=ap_vhost_iterate_given_conn MAX_FUNCS=30 \
-RUGRA_SEEDS=0 RUGRA_SYMDB=0 \
-<target>/fast-release/examples/httpd_decompile >rugra.out 2>rugra.err
+RUDRA_DUMP_FUNC=ap_vhost_iterate_given_conn MAX_FUNCS=30 \
+RUDRA_SEEDS=0 RUDRA_SYMDB=0 \
+<target>/fast-release/examples/httpd_decompile >rudra.out 2>rudra.err
 ```
 
-`RUGRA_SEEDS=0 RUGRA_SYMDB=0` 是 direct-runner 等价 bare 脸；观察面：stderr
+`RUDRA_SEEDS=0 RUDRA_SYMDB=0` 是 direct-runner 等价 bare 脸；观察面：stderr
 `[JUMPTABLE] recovery failed at 0x2daeb mode=FailNormal → truncate`（生产者）、
-`[DUMP] sym#…`（RUGRA_DUMP_FUNC 符号倾泻）+ stdout C 渲染。确定性口径：stdout 必须逐
+`[DUMP] sym#…`（RUDRA_DUMP_FUNC 符号倾泻）+ stdout C 渲染。确定性口径：stdout 必须逐
 字节恒等；stderr 只比对 `[DUMP]`/`[JUMPTABLE]` 观察行（`[INJECT]` 为并行线程顺序噪音，
 机制 B 已注记的噪声类）。
 
@@ -949,13 +949,13 @@ RUGRA_SEEDS=0 RUGRA_SYMDB=0 \
 - 生产者（truncate 失败臂）双侧 MATCH；旗标只落在被截断的 `0x2daeb` CALLIND
   （oracle `[CALLSPEC-BADJT] i=0 badjt=1`，`0x2daa5` 真·间接调用 badjt=0）；
 - **改名点火成功**：双侧 ScopeLocal 均出现 `UNRECOVERED_JUMPTABLE`，存储键一致
-  （oracle `u0x00000030:8` == rugra `[DUMP] sym#1 start=0x30 size=8`）——root 复测的
+  （oracle `u0x00000030:8` == rudra `[DUMP] sym#1 start=0x30 size=8`）——root 复测的
   “最终 C 文本 UNRECOVERED 计数=0”不是链条未点火，而是**渲染层不读改名后的符号**；
 - 渲染层 MISMATCH 两处（→ `PRINTC-BADJT-PARAMSYM-0001`）：签名位 2 oracle
   `code *UNRECOVERED_JUMPTABLE`（printc.cc:2222-2250 经 `param->getSymbol()`→
-  `emitVarDecl(sym)` 印后端符号）vs Rugra `void (*)()param_2`（printc.rs
+  `emitVarDecl(sym)` 印后端符号）vs Rudra `void (*)()param_2`（printc.rs
   `emit_prototype_inputs` 印 ProtoParameter 自带名，后端符号通道缺失）；调用点 oracle
-  `(*UNRECOVERED_JUMPTABLE)(…)` vs Rugra `(*(code *)param_2)(…)`
+  `(*UNRECOVERED_JUMPTABLE)(…)` vs Rudra `(*(code *)param_2)(…)`
   （`get_varnode_display_name_inner` P0.4 register-input 前置 proto 名，先于符号分支）；
 - 附带 `switch() {}` 空骨架残片（→ `BLOCKSTRUCT-TRUNC-SWITCHEMPTY-0001`）。
 
@@ -976,10 +976,10 @@ RUGRA_SEEDS=0 RUGRA_SYMDB=0 \
 
 | 面 | 驱动 | golden |
 |---|---|---|
-| curl | `RUGRA_MIRROR=1 examples/curl_decompile` | `ghidra_curl_1204.direct-runner.c` |
-| httpd | `RUGRA_MIRROR=1 examples/httpd_decompile` | `ghidra_httpd_1204.direct-runner.c` |
-| vsh | `RUGRA_GEN_MIRROR=1 examples/gen_decompile /usr/bin/virt-ssh-helper` | `ghidra_vsh_1204.direct-runner.c` |
-| sq | `RUGRA_GEN_MIRROR=1 examples/gen_decompile /usr/local/bin/sasquatch` | `ghidra_sq_1204.direct-runner.c`（GEN4 第四语料棘轮面） |
+| curl | `RUDRA_MIRROR=1 examples/curl_decompile` | `ghidra_curl_1204.direct-runner.c` |
+| httpd | `RUDRA_MIRROR=1 examples/httpd_decompile` | `ghidra_httpd_1204.direct-runner.c` |
+| vsh | `RUDRA_GEN_MIRROR=1 examples/gen_decompile /usr/bin/virt-ssh-helper` | `ghidra_vsh_1204.direct-runner.c` |
+| sq | `RUDRA_GEN_MIRROR=1 examples/gen_decompile /usr/local/bin/sasquatch` | `ghidra_sq_1204.direct-runner.c`（GEN4 第四语料棘轮面） |
 
 compare 统一 `--base 0 --summary-only`。vsh/sq 的语料二进制是宿主特定资产：缺失时该面
 显式 **SKIP**（exit 0，输出 SKIP 行），curl/httpd 两面照常门禁（CI 形态）。`VSH_BINARY`/
@@ -1031,11 +1031,11 @@ CARGO_TARGET_DIR=<dir> cargo build --profile fast-release --examples
 ```
 
 **canon 门禁 env 卫生（CR-TRIGFACE F-4 操作规程，2026-09-26）**：
-`RUGRA_MIRROR`/`RUGRA_FLOW_MIRROR`/`RUGRA_GEN_MIRROR` 是**存在性开关**——驱动侧
+`RUDRA_MIRROR`/`RUDRA_FLOW_MIRROR`/`RUDRA_GEN_MIRROR` 是**存在性开关**——驱动侧
 判定为 `env::var(...).is_ok()`/`.ok()`（curl_decompile.rs:41、httpd_decompile.rs:87、
-gen_decompile.rs:663 亲核），**置空串（`RUGRA_MIRROR=`）也切换输出形态到镜面脸**。
+gen_decompile.rs:663 亲核），**置空串（`RUDRA_MIRROR=`）也切换输出形态到镜面脸**。
 canon 门禁（默认脸差分）运行前必须显式
-`unset RUGRA_MIRROR RUGRA_FLOW_MIRROR RUGRA_GEN_MIRROR`——继承环境里残留的空值
+`unset RUDRA_MIRROR RUDRA_FLOW_MIRROR RUDRA_GEN_MIRROR`——继承环境里残留的空值
 变量足以让 canon 跑出镜面脸静默爆 diff（与上方 2026-09-25 事故同族；CR-TRIGFACE
 终判发现项 F-4，root 波次账本 2026-09-26 在案）。
 
@@ -1127,10 +1127,10 @@ root 集成后以下路径直接成立。
 
 oracle 真值：1385/1385 OK、30.3s、determinism 12/12 字节恒等（hermetic one-mode ×12
 workers，600s/函数）。重生成复用 `tools/regen_ghidra_golden.py`（preflight 需锁定
-oracle 树 `e40ed130` + BFD 2.38 `/tmp/rugra-ghidra-bfd-2.38`——内存盘 oracle 环境，
+oracle 树 `e40ed130` + BFD 2.38 `/tmp/rudra-ghidra-bfd-2.38`——内存盘 oracle 环境，
 机器重启即丢，重建用直连 https 拉 binutils-dev deb 解包）。
 
-**镜像发现一致性（同输入前提）**：Rugra gen 驱动对同一 .so 发现 1385/1385 单元与
+**镜像发现一致性（同输入前提）**：Rudra gen 驱动对同一 .so 发现 1385/1385 单元与
 oracle **逐名逐址一致**，才允许进入 mirror 对拍——发现面（单元数/地址/名）不一致时
 先修发现层，不做文本对比。镜像臂成绩单（首期）：ok=1355/1385（27 PANICKED +
 3 TIMEOUT）、skeleton 17652、defects 0、numbering 0、874/1355 骨架字节恒等；新票
@@ -1141,23 +1141,23 @@ oracle **逐名逐址一致**，才允许进入 mirror 对拍——发现面（�
 全量串行不可行。车道形态 = **并行分片驱动**（16 分片 × 顺序 `--one <i>` 子进程 =
 与 all-mode 完全相同的 hermetic 逐函数语义的并行化包装，失败重试 3 轮），795s 完成。
 注意：分片脚本 `mirror_shard_sqlite.py` 与 `capture_oracle_gen5.py` 是车道证据脚本，
-归档于内存盘 `/dev/shm/rugra-reports/gen5-evidence/`（重启即丢，未版本化——债务已
+归档于内存盘 `/dev/shm/rudra-reports/gen5-evidence/`（重启即丢，未版本化——债务已
 登记 `DOCGUIDE-GEN5-SHARD-EVIDENCE-0001`）。
 
 **复现配方**（记分板 §7 原文形态）：
 
 ```bash
 # oracle 真值（已入库，重生成用）
-python3 /dev/shm/rugra-reports/gen5-evidence/capture_oracle_gen5.py   # 需 worktree 内 tools/regen_ghidra_golden.py
-# Rugra 镜像（并行分片 = hermetic --one 语义并行化，重试 3 轮）
-python3 /dev/shm/rugra-reports/gen5-evidence/mirror_shard_sqlite.py 1385
+python3 /dev/shm/rudra-reports/gen5-evidence/capture_oracle_gen5.py   # 需 worktree 内 tools/regen_ghidra_golden.py
+# Rudra 镜像（并行分片 = hermetic --one 语义并行化，重试 3 轮）
+python3 /dev/shm/rudra-reports/gen5-evidence/mirror_shard_sqlite.py 1385
 # 单函数病态复现（PATHOSLOW 族）
-RUGRA_GEN_MIRROR=1 <gen_decompile> /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 --one 55   # 57/114 同形
+RUDRA_GEN_MIRROR=1 <gen_decompile> /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 --one 55   # 57/114 同形
 # 对拍
 python3 tools/compare_ghidra.py <mirror_out>.c tests/golden/ghidra_sqlite_1204.direct-runner.c --base 0 --summary-only
 ```
 
-**车道终报归位**：所有车道终报统一在内存盘 `/dev/shm/rugra-reports/`
+**车道终报归位**：所有车道终报统一在内存盘 `/dev/shm/rudra-reports/`
 （`LANE_<NAME>_<date>.md` 形态；如 `LANE_DWARDBASE_2026-09-26.md`、
 `LANE_F7NAME_2026-09-26.md`）。内存盘重启即丢——未集成的证据由车道自行负责及时
 归档；按机制 B2 必须固化的双侧回归 fixture 只在 root 集成阶段挑拣入库。
@@ -1172,16 +1172,16 @@ python3 tools/compare_ghidra.py <mirror_out>.c tests/golden/ghidra_sqlite_1204.d
 | 脸 | 形态 |
 |---|---|
 | 默认脸（无 env） | PARAMID 自产迭代环 **默认开** + generic_clib 导入台账（59 条）默认开 |
-| `RUGRA_PARAMID=0` | 断路自产迭代 → 无通道脸 |
-| `RUGRA_V3SIG=1` | 恢复 callee-siglock manifest 锁通道（退化为显式 opt-in；`=0` 无附加语义） |
-| `RUGRA_IMPORTSIG=0` | 断路导入台账 → **默认脸降级**（实测 285→537；PAB 消融族 ~691，劣于 manifest 时代 ~590 基线）——台账是默认脸的**承重数据**，不是可选增强 |
-| `RUGRA_SEEDS=0` | 全局逃生 → bare 脸（分层退出：`SEEDS=0` 压制其余所有门） |
-| `RUGRA_MIRROR=1` | 镜面门**绝对优先**，恒拒所有通道（投影纯度） |
+| `RUDRA_PARAMID=0` | 断路自产迭代 → 无通道脸 |
+| `RUDRA_V3SIG=1` | 恢复 callee-siglock manifest 锁通道（退化为显式 opt-in；`=0` 无附加语义） |
+| `RUDRA_IMPORTSIG=0` | 断路导入台账 → **默认脸降级**（实测 285→537；PAB 消融族 ~691，劣于 manifest 时代 ~590 基线）——台账是默认脸的**承重数据**，不是可选增强 |
+| `RUDRA_SEEDS=0` | 全局逃生 → bare 脸（分层退出：`SEEDS=0` 压制其余所有门） |
+| `RUDRA_MIRROR=1` | 镜面门**绝对优先**，恒拒所有通道（投影纯度） |
 
 **curl_decompile**（同族翻转）：manifest 装载器 opt-in only，All 模式迭代门默认开；
-`RUGRA_PARAMID=0` 单退 = 无通道脸，`RUGRA_PARAMID=0` + `RUGRA_V3SIG=1` = manifest 脸。
+`RUDRA_PARAMID=0` 单退 = 无通道脸，`RUDRA_PARAMID=0` + `RUDRA_V3SIG=1` = manifest 脸。
 
-**优先级链**（PFLIP commit 原文）：mirror > `RUGRA_SEEDS=0` > PARAMID（默认） >
+**优先级链**（PFLIP commit 原文）：mirror > `RUDRA_SEEDS=0` > PARAMID（默认） >
 V3SIG（opt-in）。
 
 **评测语义分界（跨口径禁比）**：翻转后**默认脸 = 自产口径**。历史 manifest 时代的
@@ -1199,7 +1199,7 @@ tools/verify_projection_bank.sh                    # 全部条目（391）
 tools/verify_projection_bank.sh curl_next_url      # 单条目 triage 形态
 ```
 
-每条目三步：①条目完整（manifest.toml + oracle.projection + rugra.projection）；
+每条目三步：①条目完整（manifest.toml + oracle.projection + rudra.projection）；
 ②冻结锚自身 sha256 仍与 manifest 钉值一致（锚漂移=门禁失败，与比对结论无关）；
 ③`run_stage_bisect.sh`（stage_bisect.py --v1，strict offsets）报 `kind: MATCH`
 （exit 0）。本车道亲测单条目：`PASS curl_next_url curl/next_url MATCH (335 stages,

@@ -10,8 +10,8 @@ PLT JUMP_SLOT 桩，按地址 `or_insert_with` 首胜去重）+ PT_LOAD 内存�
 Architecture + 全默认 action 管线 + `PrintC::doc_function`。两种运行形态：
 
 - `--one <index>`：单进程单函数（大栈线程内）；
-- all-mode（默认）：每函数一个隔离子进程，`RUGRA_GEN_TIMEOUT_SECS` 逐函数
-  超时帽（默认 60s），`RUGRA_GEN_MIRROR=1` 对齐 golden direct-runner 契约。
+- all-mode（默认）：每函数一个隔离子进程，`RUDRA_GEN_TIMEOUT_SECS` 逐函数
+  超时帽（默认 60s），`RUDRA_GEN_MIRROR=1` 对齐 golden direct-runner 契约。
 
 对照 oracle = `tools/regen_ghidra_golden.py` 的 "one"/全量模式（BfdArchitecture
 init → followFlow(code:0, code:highest) → universal action → PrintC docFunction），
@@ -31,7 +31,7 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
    golden harness 的 `registerFunctionSymbol`（regen_ghidra_golden.py:219-231 →
    `scope->addFunction`；生产同面 = `BfdArchitecture::init` readLoaderSymbols）
    的 1:1 对应：`ActionConstantPtr::isPointer` 的容器查询（coreaction.cc:1151
-   `queryContainer`，Rugra 侧 `Funcdata::query_container_parent_scope`）自此能
+   `queryContainer`，Rudra 侧 `Funcdata::query_container_parent_scope`）自此能
    命中函数地址常量，`Funcdata::spacebaseConstant`（funcdata.cc:360-461）把
    LEA 派生常量换形 `PTRSUB(spacebase-0, symaddr)` 并将输出定型为
    ptr-to-符号类型——函数符号类型 = `TypeCode`（database.cc
@@ -53,7 +53,7 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
 - **TypeSpacebase scope 装表**（2026-09-28 补，ACTORDER-SPACEBASE-SCOPEWIRE-0001）：
   analysis-DB 安装后、`Funcdata::new` 前，`TypeFactory::set_spacebase_scope_source
   (arch.symboltab)` 把同一 DB 接到共享 TypeFactory 的 spacebase scope 快照源
-  （`TypeFactory::get_type_spacebase` 构造 `TypeSpacebase` 时快照该源；RUGRA-GLUE
+  （`TypeFactory::get_type_spacebase` 构造 `TypeSpacebase` 时快照该源；RUDRA-GLUE
   ——oracle 的 `TypeSpacebase::getMap`（type.cc:2935-2945）每次经 `glb->symboltab->
   getGlobalScope()` 动态解析）。oracle 语义链：`TypeSpacebase::getSubType`
   （type.cc:2947-2969）queryContainer 命中 → 返回符号类型（FunctionSymbol =
@@ -75,12 +75,12 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
   CODEPTR-DECL 形态③（`code *unaff_R12` vs `xunknown1 *`）与 7 星指针戳链
   （`uint4 *******`）的深层根因 = varmap↔downChain 反馈环 runaway
   （SQLCENSUS-CODESTAR-DOWNCHAIN-0001 根因二，事件级已钉死、src 修复待续，
-  见 /dev/shm/rugra-reports/LANE_S2CODESTAR_2026-09-28.md）。
+  见 /dev/shm/rudra-reports/LANE_S2CODESTAR_2026-09-28.md）。
 
 ## 只读装表与段链字节（MIRRORCENSUS-GEN-READONLY-STRFOLD-0001，2026-09-28 车道 GENREADONLY）
 
 **动机（MIRRORCENSUS2 §3-H 新钉族）**：oracle golden 的字符串常量折叠
-（`unaff_R12 = "LIT"`，sqlite 镜面 120 行 + sq 18 行）在 Rugra 侧永不发生——
+（`unaff_R12 = "LIT"`，sqlite 镜面 120 行 + sq 18 行）在 Rudra 侧永不发生——
 `PrintC::pushPtrCharConstant` 的 isReadOnly 门（printc.cc:1709）恒拒。链路：
 
 - oracle：`LoadImageBfd::getReadonly`（loadimage_bfd.cc:286-303）遍历 BFD 段链
@@ -116,25 +116,25 @@ golden = `tests/golden/ghidra_{sq,sqlite}_1204.direct-runner.c`。
 sqlite/sq 镜面 strfold 族收敛（sqlite −~120 / sq −~18 方向）、vsh 零回退
 （golden 侧 0 折叠点）；canon 面（curl/httpd 驱动）构造性零触及。
 
-## 逐函数诊断落盘（RUGRA_DUMP_FUNC / RUGRA_STAGE_DRILL，2026-09-28 车道 CMPORIENT 补全）
+## 逐函数诊断落盘（RUDRA_DUMP_FUNC / RUDRA_STAGE_DRILL，2026-09-28 车道 CMPORIENT 补全）
 
 gen 驱动的逐函数诊断钩子（env 门控、默认关闭、对输出零影响）：
 
-- **`RUGRA_DUMP_FUNC=<name>`**（GETLONGEST 车道引入，curl/httpd 驱动同款先例）：
+- **`RUDRA_DUMP_FUNC=<name>`**（GETLONGEST 车道引入，curl/httpd 驱动同款先例）：
   post-`perform_action`、pre-`docFunction` 落盘三件套——`<name>.tree`
   （`sblocks` 结构树，oracle `getStructure().printTree` 对应物）、`<name>.ir`
   （`print_raw` 整函数 IR）、`<name>.ops`（逐块 `seqnum:\top_raw` 行，oracle
   `BlockBasic::printRaw` 面）。CWD 相对输出。
-- **`RUGRA_STAGE_DRILL=1`**（CMPORIENT 车道补全，curl/httpd drill 臂同款）：
-  在 `perform_action` 前调 `rugra::drillobserve::start(fd_arch)` 武装
+- **`RUDRA_STAGE_DRILL=1`**（CMPORIENT 车道补全，curl/httpd drill 臂同款）：
+  在 `perform_action` 前调 `rudra::drillobserve::start(fd_arch)` 武装
   OPACTION_DEBUG 镜像记录器，管线跑完后 `drain()` 落盘 `<name>.dbg`——
   每 application 一帧 `DEBUG <n>: <leafname>` + before/after op 对，与 oracle
   探针 `GLM_TRACE=1` 输出同构（funcdata.cc:1034-1057 debugModPrint 的
   Rust 镜像，src/drillobserve.rs）。这是事件级规则链对照（同 op 的
   before/after 序列逐帧 diff）的 gen 面入口；此前仅 curl/httpd 驱动可产。
 
-配套（blockaction.rs 侧，GETLONGEST 车道引入）：`RUGRA_BS_TREES=<prefix>`
-逐轮结构树、`RUGRA_BS_VISIT=1` visit 流（ty/i/o/@addr）。
+配套（blockaction.rs 侧，GETLONGEST 车道引入）：`RUDRA_BS_TREES=<prefix>`
+逐轮结构树、`RUDRA_BS_VISIT=1` visit 流（ty/i/o/@addr）。
 
 ## 陈旧二进制自检（INFRA-EXAMPLES-STALELINK-0001，2026-09-28 车道 INFRASTALE）
 
@@ -147,7 +147,7 @@ MB29 集成用陈旧 gen_decompile 测出"五面全恒等"，漏检 r3merge 的 
    （`src/**/*.rs` + `examples/gen_decompile.rs` +
    `examples/common/stale_guard_hash.rs` + `build.rs`——守卫自身构建输入也是域锚点，
    系车道红/绿自测中发现并补上的盲区）的 FNV-1a-64 内容摘要嵌入
-   `RUGRA_BUILD_SOURCE_DIGEST`；驱动启动时重算比对，**不符/缺指纹/树不可读一律
+   `RUDRA_BUILD_SOURCE_DIGEST`；驱动启动时重算比对，**不符/缺指纹/树不可读一律
    exit 2 fail-fast**（消息含"陈旧二进制"+ 重链命令），**新鲜时完全静默**
    （stdout/stderr 零字节）——canon/镜面输出与无守卫驱动逐字节恒等。
    摘要算法的单点事实源 = `examples/common/stale_guard_hash.rs`，
@@ -165,7 +165,7 @@ MB29 集成用陈旧 gen_decompile 测出"五面全恒等"，漏检 r3merge 的 
 |---|---|
 | `--stale-guard-probe` | 只跑自检：fresh → stdout 一行 `STALE-GUARD OK digest=… files=…` exit 0；否则 [GEN-STALE] 块 + exit 2（忽略 inherited 标记，探针必须真探） |
 | 正常启动（coordinator/probe 之外） | 静默校验，陈旧即 exit 2（先于一切语料工作，stdout 零输出） |
-| all-mode `--one` 子进程 | 继承 `RUGRA_GEN_STALE_GUARD_INHERITED=1`（coordinator 启动时已验同一 exe，子进程免重算——sq 810/sqlite 1385 个子进程不再逐一重扫源码树） |
+| all-mode `--one` 子进程 | 继承 `RUDRA_GEN_STALE_GUARD_INHERITED=1`（coordinator 启动时已验同一 exe，子进程免重算——sq 810/sqlite 1385 个子进程不再逐一重扫源码树） |
 
 红/绿自测（19 项全绿）：新鲜 probe/list 双绿静默；内容漂移不重链 → probe 与正常
 运行双 exit 2（消息含陈旧二进制+重链命令，stdout 空）；错误 CWD → 源码树不可读
@@ -176,7 +176,7 @@ ok=71/71）；canon curl/httpd 双语素 base≡head 字节恒等且对 golden 5
 
 ## all-mode 函数级子进程池（SPEEDPROF-PAR-CHILDREN-0001，2026-09-28 车道 PARCHILDREN）
 
-**动机（车道 SPEEDPROF 实测，证据 /dev/shm/rugra-tests/speedprof/）**：all-mode
+**动机（车道 SPEEDPROF 实测，证据 /dev/shm/rudra-tests/speedprof/）**：all-mode
 coordinator 原为逐函数串行子进程循环——镜面门禁循环里 vsh/sq/sqlite 三面合计
 ~24 分钟串行 wall（sqlite 单面 953.6s、sq 393.7s 干净串行锚）。jobs=32 子进程池
 harness 实测 sqlite **953.6→165.4s（5.76×，wall==Amdahl 尾界=VdbeExec 166.5s 单极）**、
@@ -189,7 +189,7 @@ harness 并行；sqlite 5,289,364B + sq 全量 cmp）。本票把该形态收编
   per child，CR-S1 已证的隔离形态；不做进程内并行——PAREVAL-DETERM-HERMETICITY-0001
   前置保持）。协调器侧是 `--jobs N` 个有界 worker **线程**，每线程循环领取槽位、
   构造同一 `timeout --kill-after=30s {T}s <exe> <bin> --one i` 子命令（同 env
-  镜像态 + `RUGRA_GEN_STALE_GUARD_INHERITED=1`）、经 `run_capped_output`
+  镜像态 + `RUDRA_GEN_STALE_GUARD_INHERITED=1`）、经 `run_capped_output`
   （GEN-DRIVER-STALL-0001 监督）收集。
 - **输出序恒 = 函数 index 序**：块文本按槽位收集（`child_block` = 历史串行
   四分类 ok/TIMEOUT/PANICKED/ERROR 逐字抽出，含 STALL 臂），池排干后按 index
@@ -207,11 +207,11 @@ harness 并行；sqlite 5,289,364B + sq 全量 cmp）。本票把该形态收编
 **验收**：并行 vs 串行全量 cmp 字节恒等（sq+sqlite 双语料三方链复现）；
 canon 双语素 md5 恒等（gen 驱动无 canon 面）；镜面五面 PASS；bank/tests 零回退。
 性能（本机共享负载，如实记）：见车道终报
-/dev/shm/rugra-reports/LANE_PARCHILDREN_2026-09-28.md。
+/dev/shm/rudra-reports/LANE_PARCHILDREN_2026-09-28.md。
 
 ## 逐相位计时通道（SPEEDPROF-FIXEDFLOOR-0001，2026-09-28 车道 FIXEDFLOOR）
 
-**动机（车道钻定，证据 /dev/shm/rugra-tests/fixedfloor/）**：镜面门禁 gen 三面的
+**动机（车道钻定，证据 /dev/shm/rudra-tests/fixedfloor/）**：镜面门禁 gen 三面的
 每个 `--one` 子进程都要从零装配一套 Architecture——SPEEDPROF 实测每子固定底
 ≈0.12s（16B 函数子进程 wall），1225/1385 个 sqlite 函数 <0.5s，固定底支配了
 串行口径的 ~25% 面墙。本通道把该固定底的构成做成可复现的事件级测量，是
@@ -222,7 +222,7 @@ gen 面的 [STEP] 等价物（curl 驱动已有 flow/action/print 通道；SPEED
 
 ```bash
 # 任一模式前置 env（--one 子进程内生效）：
-RUGRA_GEN_PHASE_TIMING=1 \
+RUDRA_GEN_PHASE_TIMING=1 \
   target/fast-release/examples/gen_decompile <binary> --one <index>
 ```
 
@@ -243,19 +243,19 @@ RUGRA_GEN_PHASE_TIMING=1 \
   （DecisionNode/SymbolTable/PackedDecode 主导两侧）——**固定底是
   oracle 同构的对齐成本**（golden 契约 = 逐函数 hermetic 进程，
   provenance "mode: one, parallel_workers: 12"）。详见车道终报
-  /dev/shm/rugra-reports/LANE_FIXEDFLOOR_2026-09-28.md。
+  /dev/shm/rudra-reports/LANE_FIXEDFLOOR_2026-09-28.md。
 
-## 阶段钻 drain（RUGRA_STAGE_DRILL_OUT，2026-09-28 车道 ACTORDER）
+## 阶段钻 drain（RUDRA_STAGE_DRILL_OUT，2026-09-28 车道 ACTORDER）
 
-curl/httpd 驱动已有的 stage-drill 落盘臂（`RUGRA_STAGE_DRILL` +
-`RUGRA_STAGE_DRILL_OUT`）在 gen 驱动的等价物：记录器本体在库内
+curl/httpd 驱动已有的 stage-drill 落盘臂（`RUDRA_STAGE_DRILL` +
+`RUDRA_STAGE_DRILL_OUT`）在 gen 驱动的等价物：记录器本体在库内
 （`src/drillobserve.rs` 的 activate/flush/mod_check 钩子，action.rs/
 funcdata.rs 挂点），驱动只需在 `perform_action` 前后包 start/drain——
-`RUGRA_STAGE_DRILL_OUT=<path>` 时 `rugra::drillobserve::start(arch)`，
+`RUDRA_STAGE_DRILL_OUT=<path>` 时 `rudra::drillobserve::start(arch)`，
 perform 完成后 drain 块写文件。env 未设时零行为面（与 curl/httpd 同契约）。
-用途：逐函数 OPACTION_DEBUG 镜像（双侧事件级钻定的 Rugra 侧证据通道，
+用途：逐函数 OPACTION_DEBUG 镜像（双侧事件级钻定的 Rudra 侧证据通道，
 ACTORDER 车道 sqlite3Select 双侧 drill 即此产物）。与 CMPORIENT 的
-`RUGRA_STAGE_DRILL`（单独置位→`<name>.dbg` 落盘）构成三臂并集：DRILL
+`RUDRA_STAGE_DRILL`（单独置位→`<name>.dbg` 落盘）构成三臂并集：DRILL
 单独＝`<name>.dbg`；DRILL+OUT 双置＝显式 path 汇先 drain，`<name>.dbg`
 空守卫跳过。
 
@@ -267,19 +267,19 @@ target/fast-release/examples/gen_decompile /usr/local/bin/sasquatch --one 391
 
 # 镜面全量（cwd=worktree 根，sleigh_specs CWD 相对；--jobs 默认 8，
 # --jobs 1 = 精确历史串行形态；任意 jobs 输出序恒 = 函数 index 序）
-RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=600 \
+RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=600 \
   target/fast-release/examples/gen_decompile /usr/local/bin/sasquatch \
   [--jobs 8] \
   > /dev/shm/.../sq_mirror.c 2> /dev/shm/.../sq_mirror.err
 
 python3 tools/compare_ghidra.py <mirror.c> tests/golden/ghidra_sq_1204.direct-runner.c \
   --base 0 --summary-only
-python3 /dev/shm/rugra-tests/mirrortriage/mirror_family_census.py <mirror.c> <golden.c> \
+python3 /dev/shm/rudra-tests/mirrortriage/mirror_family_census.py <mirror.c> <golden.c> \
   --clusters 25 --samples <face>_census.json
 ```
 
 关联：`docs/api/examples/parallel_decompile.md`（同 face 的线程形态驱动）；
-MIRRORTRIAGE 终报 §3.1（/dev/shm/rugra-reports/LANE_MIRRORTRIAGE_2026-09-27.md）。
+MIRRORTRIAGE 终报 §3.1（/dev/shm/rudra-reports/LANE_MIRRORTRIAGE_2026-09-27.md）。
 
 ## 2026-09-29：userops 基座名表安装（MCENSUS4-SQLITE-FTSTYPING-0001，Lane FTSINCRMERGE）
 

@@ -1,28 +1,28 @@
 # database 对齐审计 (2026-07-22)
 
 ## 覆盖率
-Ghidra: 3430行 (`database.cc`) + 996行 (`database.hh`) / Rugra: 2702行 (`src/database.rs`) / 比率: 78%
+Ghidra: 3430行 (`database.cc`) + 996行 (`database.hh`) / Rudra: 2702行 (`src/database.rs`) / 比率: 78%
 
 Ghidra 头文件 `database.hh` 的内联访问器（`Symbol::getType/getId/getFlags/...`、`Scope::getName/getId/isGlobal/...`、`Database::getGlobalScope/getProperty/...`）一并纳入统计。
 
 ## 设计说明（重要架构偏差）
-1. **Symbol 子类用独立 struct 而非继承**：Ghidra 的 `Symbol` 抽象基类派生 5 个子类（`FunctionSymbol`/`EquateSymbol`/`UnionFacetSymbol`/`LabSymbol`/`ExternRefSymbol`），每个子类有自己的 `encode`/`decode` 虚方法重载。Rugra 用 5 个独立 struct（`Symbol` + `FunctionSymbol` + `EquateSymbol` + `UnionFacetSymbol` + `LabSymbol` + `ExternRefSymbol`），**各自重复存储 scope_id/type 字段而不共享基类**，且子类之间无多态分发——`Scope::add_map_sym` 必须按 element name 手动 match 分发到对应子类的 decode（src/database.rs:1744）。
-2. **Scope/ScopeInternal 合并为单一 Scope struct**：Ghidra 的 `Scope`（抽象基类，database.hh:462）+ `ScopeInternal`（具体实现，database.hh:798）是两层。Rugra 的 `Scope` struct（src/database.rs:1155）把两者合并，**跳过了所有纯虚方法的多态分发**（`buildSubScope`/`addSymbolInternal`/`addMapInternal`/`addDynamicMapInternal`/`findAddr`/...），直接用 BTreeMap 实现。这导致 Rugra 无法支持 Ghidra 的多后端 Scope（如 Database-backed Scope vs in-memory ScopeInternal）。
-3. **Scope 不持有 `Architecture *glb`**：Ghidra 的 `Scope` 持有 `glb`，所以 `buildVariableName`/`buildUndefinedName`/`makeNameUnique`/`resolveExternalRefFunction`/`adjustCaches` 可访问 TypeFactory/Funcdata。Rugra 的 `Scope` 无 glb 句柄，所以这些方法要么缺失要么简化（`build_default_name` 是简化版，src/database.rs:1858）。
-4. **MapIterator 缺失**：Ghidra 的 `MapIterator`（database.hh:379）+ `Scope::begin/end` 提供 SymbolEntry 的范围迭代器。Rugra 无 MapIterator 等价物，`begin/end/beginDynamic/endDynamic` 缺失，只能通过 `find_addr`/`find_container` 单点查询。
-5. **Scope 静态栈查询方法缺失**：Ghidra 的 `Scope::stackAddr`/`stackContainer`/`stackClosestFit`/`stackFunction`/`stackExternalRef`/`stackCodeLabel`（database.cc:909-1095，6 个静态方法，约 190 行）是 `queryByAddr`/`queryContainer`/`queryFunction`/... 的底层，用于在两个候选 Scope 间仲裁。Rugra 完全缺失这 6 个方法，`query_by_name`/`query_function`/`query_by_addr`/`query_container`/`query_properties`/`query_function(addr)`/`query_external_ref_function`/`query_code_label` 全部缺失。
-6. **Scope 的 ScopeCompare/SymbolCompareName/SymbolNameTree 缺失**：Ghidra 用 `SymbolNameTree`（基于 `SymbolCompareName`）维护按名排序的符号集，用于 `findByName`/`assignDefaultNames`/`findFirstByName`。Rugra 用 `BTreeMap<String, ...>` 按名索引，语义近似但**无 SymbolNameTree 的 dedup id 机制**（`nameDedup` 字段）。
-7. **Symbol::wholeCount / mapentry 列表 缺失**：Ghidra 的 Symbol 持有 `wholeCount`（整 Symbol 映射数，判断 `isMultiEntry`）和 `mapentry`（SymbolEntry 指针向量，按地址排序），`getFirstWholeMap`/`getMapEntry(addr)`/`getMapEntry(i)`/`numEntries`/`getMapEntryPosition` 据此查找。Rugra 的 Symbol 无此字段——多映射（multi-entry）符号的入口查找在 Scope 侧用 Vec<SymbolEntry> 线性扫描。
-8. **Scope::getResolutionDepth / depthScope / depthResolution 缺失**：Ghidra 的 Symbol 缓存 `depthScope`/`depthResolution`（database.hh:206-207），`getResolutionDepth(useScope)` 计算解析符号所需的作用域名层级数。Rugra 缺失此缓存与方法。
+1. **Symbol 子类用独立 struct 而非继承**：Ghidra 的 `Symbol` 抽象基类派生 5 个子类（`FunctionSymbol`/`EquateSymbol`/`UnionFacetSymbol`/`LabSymbol`/`ExternRefSymbol`），每个子类有自己的 `encode`/`decode` 虚方法重载。Rudra 用 5 个独立 struct（`Symbol` + `FunctionSymbol` + `EquateSymbol` + `UnionFacetSymbol` + `LabSymbol` + `ExternRefSymbol`），**各自重复存储 scope_id/type 字段而不共享基类**，且子类之间无多态分发——`Scope::add_map_sym` 必须按 element name 手动 match 分发到对应子类的 decode（src/database.rs:1744）。
+2. **Scope/ScopeInternal 合并为单一 Scope struct**：Ghidra 的 `Scope`（抽象基类，database.hh:462）+ `ScopeInternal`（具体实现，database.hh:798）是两层。Rudra 的 `Scope` struct（src/database.rs:1155）把两者合并，**跳过了所有纯虚方法的多态分发**（`buildSubScope`/`addSymbolInternal`/`addMapInternal`/`addDynamicMapInternal`/`findAddr`/...），直接用 BTreeMap 实现。这导致 Rudra 无法支持 Ghidra 的多后端 Scope（如 Database-backed Scope vs in-memory ScopeInternal）。
+3. **Scope 不持有 `Architecture *glb`**：Ghidra 的 `Scope` 持有 `glb`，所以 `buildVariableName`/`buildUndefinedName`/`makeNameUnique`/`resolveExternalRefFunction`/`adjustCaches` 可访问 TypeFactory/Funcdata。Rudra 的 `Scope` 无 glb 句柄，所以这些方法要么缺失要么简化（`build_default_name` 是简化版，src/database.rs:1858）。
+4. **MapIterator 缺失**：Ghidra 的 `MapIterator`（database.hh:379）+ `Scope::begin/end` 提供 SymbolEntry 的范围迭代器。Rudra 无 MapIterator 等价物，`begin/end/beginDynamic/endDynamic` 缺失，只能通过 `find_addr`/`find_container` 单点查询。
+5. **Scope 静态栈查询方法缺失**：Ghidra 的 `Scope::stackAddr`/`stackContainer`/`stackClosestFit`/`stackFunction`/`stackExternalRef`/`stackCodeLabel`（database.cc:909-1095，6 个静态方法，约 190 行）是 `queryByAddr`/`queryContainer`/`queryFunction`/... 的底层，用于在两个候选 Scope 间仲裁。Rudra 完全缺失这 6 个方法，`query_by_name`/`query_function`/`query_by_addr`/`query_container`/`query_properties`/`query_function(addr)`/`query_external_ref_function`/`query_code_label` 全部缺失。
+6. **Scope 的 ScopeCompare/SymbolCompareName/SymbolNameTree 缺失**：Ghidra 用 `SymbolNameTree`（基于 `SymbolCompareName`）维护按名排序的符号集，用于 `findByName`/`assignDefaultNames`/`findFirstByName`。Rudra 用 `BTreeMap<String, ...>` 按名索引，语义近似但**无 SymbolNameTree 的 dedup id 机制**（`nameDedup` 字段）。
+7. **Symbol::wholeCount / mapentry 列表 缺失**：Ghidra 的 Symbol 持有 `wholeCount`（整 Symbol 映射数，判断 `isMultiEntry`）和 `mapentry`（SymbolEntry 指针向量，按地址排序），`getFirstWholeMap`/`getMapEntry(addr)`/`getMapEntry(i)`/`numEntries`/`getMapEntryPosition` 据此查找。Rudra 的 Symbol 无此字段——多映射（multi-entry）符号的入口查找在 Scope 侧用 Vec<SymbolEntry> 线性扫描。
+8. **Scope::getResolutionDepth / depthScope / depthResolution 缺失**：Ghidra 的 Symbol 缓存 `depthScope`/`depthResolution`（database.hh:206-207），`getResolutionDepth(useScope)` 计算解析符号所需的作用域名层级数。Rudra 缺失此缓存与方法。
 
 ## 已对齐函数 (按类统计)
 
 ### SymbolEntry (18) — 覆盖完整
 - `new_dynamic` (cc:68 构造), `new_static` (cc:50 构造), `is_piece`(hh:141), `is_dynamic`(hh:142), `is_invalid`(hh:143), `get_offset`(hh:154), `get_first`(cc:50), `get_last`(cc:50), `get_symbol`(hh:149), `get_addr`(cc:50), `get_hash`(hh:151), `get_size`(hh:152), `get_all_flags`(hh:144), `in_use`(cc:114), `get_use_limit`(cc:50 uselimit 字段), `set_use_limit`(hh:156), `is_addr_tied`(hh:157), `encode`(cc:187), `decode`(cc:206) ✅
-- `encode_use_limit`/`decode_use_limit` — Rugra 私有辅助（cc:187/206 内部分支，合理拆分）
+- `encode_use_limit`/`decode_use_limit` — Rudra 私有辅助（cc:187/206 内部分支，合理拆分）
 
 ### Symbol (32) — 核心访问器齐全
-- `new` (hh:960), `new_unnamed`(hh:979), `get_name`(hh), `get_display_name`(hh), `get_type_name`(RUGRA 扩展), `get_type`(hh:224), `set_dtype`(hh), `get_id`(hh:225), `get_flags`(hh:226), `get_display_format`(hh:227), `get_category`(hh), `get_category_index`(hh), `is_type_locked`(hh:230), `is_name_locked`(hh:231), `is_name_undefined`(cc:246), `is_size_type_locked`(hh:232), `is_volatile`(hh:233), `is_this_pointer`(hh:234), `is_indirect_storage`(hh:235), `is_hidden_return`(hh:236), `is_multi_entry`(hh:238), `is_isolated`(hh:241), `set_display_format`(cc:550 类比 hh:194), `set_isolated`(cc:255), `set_this_pointer`(cc:235), `encode_header`(cc:363), `decode_header`(cc:394), `encode_body`(cc:466), `decode_body`(cc:473), `encode`(cc:481), `decode`(cc:492) ✅
+- `new` (hh:960), `new_unnamed`(hh:979), `get_name`(hh), `get_display_name`(hh), `get_type_name`(Rudra 扩展), `get_type`(hh:224), `set_dtype`(hh), `get_id`(hh:225), `get_flags`(hh:226), `get_display_format`(hh:227), `get_category`(hh), `get_category_index`(hh), `is_type_locked`(hh:230), `is_name_locked`(hh:231), `is_name_undefined`(cc:246), `is_size_type_locked`(hh:232), `is_volatile`(hh:233), `is_this_pointer`(hh:234), `is_indirect_storage`(hh:235), `is_hidden_return`(hh:236), `is_multi_entry`(hh:238), `is_isolated`(hh:241), `set_display_format`(cc:550 类比 hh:194), `set_isolated`(cc:255), `set_this_pointer`(cc:235), `encode_header`(cc:363), `decode_header`(cc:394), `encode_body`(cc:466), `decode_body`(cc:473), `encode`(cc:481), `decode`(cc:492) ✅
 
 ### FunctionSymbol (5)
 - `new` (cc:534/544), `get_bytes_consumed`(cc:294/508), `get_entry`(cc:557 类比), `encode`(cc:566), `decode`(cc:580) ✅
@@ -55,7 +55,7 @@ Ghidra 头文件 `database.hh` 的内联访问器（`Symbol::getType/getId/getFl
 ### Database (22) — 主表层完整
 - `new`(cc:2924), `default`(cc:2924), `get_global_scope`(hh:939), `get_global_scope_mut`(hh:939), `attach_scope`(cc:2946), `resolve_scope`(cc:3092), `resolve_scope_mut`(cc:3092), `find_create_scope`(cc:3078), `delete_scope`(cc:2985), `delete_sub_scopes`(cc:3003), `set_range`(cc:3036), `add_range`(cc:3050), `remove_range`(cc:3064), `get_property`(hh:946), `set_property_range`(cc:3220), `clear_property_range`(cc:3245), `map_scope`(cc:3185/3202), `num_scopes`(hh 类比) ✅
 - `encode`(cc:3270), `encode_scope_recursive`(cc:1371), `parse_parent_tag`(cc:3300), `decode`(cc:3314), `decode_scope`(cc:3375), `decode_scope_path`(cc:3398) ✅
-- `attach_scope_by_id`(RUGRA-GLUE 辅助，无 Ghidra 对应，合理)
+- `attach_scope_by_id`(RUDRA-GLUE 辅助，无 Ghidra 对应，合理)
 
 ## 缺失函数
 
@@ -68,7 +68,7 @@ Ghidra 头文件 `database.hh` 的内联访问器（`Symbol::getType/getId/getFl
 - `Scope::stackCodeLabel` — Ghidra: database.cc:1074 — 优先级: **高** — `queryCodeLabel` 的底层。
 
 ### Scope — 公共查询方法（8 个方法，全部依赖上面的 stack*）
-- `Scope::queryByName` — Ghidra: database.cc:1198 — 优先级: **高** — 全局按名查询（遍历作用域栈）。Rugra `find_by_name` 只查当前 Scope。
+- `Scope::queryByName` — Ghidra: database.cc:1198 — 优先级: **高** — 全局按名查询（遍历作用域栈）。Rudra `find_by_name` 只查当前 Scope。
 - `Scope::queryFunction(string)` — Ghidra: database.cc:1212 — 优先级: **高** — 全局按名查函数。
 - `Scope::queryByAddr` — Ghidra: database.cc:1231 — 优先级: **高** — 全局按地址查 Symbol。
 - `Scope::queryContainer` — Ghidra: database.cc:1246 — 优先级: **高** — 全局查最小包含 Symbol。
@@ -89,18 +89,18 @@ Ghidra 头文件 `database.hh` 的内联访问器（`Symbol::getType/getId/getFl
 - `Scope::isReadOnly` — Ghidra: database.cc:1796 — 优先级: 中 — 地址是否只读。
 
 ### Scope — 符号工厂方法（6 个方法，依赖 Architecture）
-- `Scope::addSymbol(nm,ct)` — Ghidra: database.cc:1510 — 优先级: 中 — 不映射到地址的纯符号创建（Rugra `add_symbol(nm,type_name)` 用类型名字符串而非 Datatype 对象，语义偏差）。
+- `Scope::addSymbol(nm,ct)` — Ghidra: database.cc:1510 — 优先级: 中 — 不映射到地址的纯符号创建（Rudra `add_symbol(nm,type_name)` 用类型名字符串而非 Datatype 对象，语义偏差）。
 - `Scope::addMapPoint` — Ghidra: database.cc:1548 — 优先级: 中 — 将符号映射到指定地址。
-- `Scope::addFunction` — Ghidra: database.cc:1615 — 优先级: **高** — 创建 FunctionSymbol 并映射到函数地址。Rugra 缺失（FunctionSymbol 是独立 struct，无 Scope 集成入口）。
+- `Scope::addFunction` — Ghidra: database.cc:1615 — 优先级: **高** — 创建 FunctionSymbol 并映射到函数地址。Rudra 缺失（FunctionSymbol 是独立 struct，无 Scope 集成入口）。
 - `Scope::addExternalRef` — Ghidra: database.cc:1642 — 优先级: **高** — 创建 ExternRefSymbol。
 - `Scope::addCodeLabel` — Ghidra: database.cc:1664 — 优先级: **高** — 创建 LabSymbol。
 - `Scope::addDynamicSymbol` — Ghidra: database.cc:1690 — 优先级: **高** — 创建动态符号。
 - `Scope::addEquateSymbol` — Ghidra: database.cc:1712 — 优先级: **高** — 创建 EquateSymbol。
 - `Scope::addUnionFacetSymbol` — Ghidra: database.cc:1737 — 优先级: **高** — 创建 UnionFacetSymbol。
-- `Scope::buildDefaultName` — Ghidra: database.cc:1756 — 优先级: 中 — Rugra `build_default_name` 是简化版（不查 Varnode/类型）。
+- `Scope::buildDefaultName` — Ghidra: database.cc:1756 — 优先级: 中 — Rudra `build_default_name` 是简化版（不查 Varnode/类型）。
 
 ### Scope — 名字生成（3 个方法，依赖 Architecture）
-- `Scope::buildVariableName` — Ghidra: database.cc:2434 — 优先级: **高** — 根据地址/类型/flags 生成变量名（如 `i8i9i10` 栈偏移命名、`param_1` 参数命名）。Rugra 缺失，符号默认名生成能力受限。
+- `Scope::buildVariableName` — Ghidra: database.cc:2434 — 优先级: **高** — 根据地址/类型/flags 生成变量名（如 `i8i9i10` 栈偏移命名、`param_1` 参数命名）。Rudra 缺失，符号默认名生成能力受限。
 - `Scope::buildUndefinedName` — Ghidra: database.cc:2520 — 优先级: 中 — 生成内部未定义名。
 - `Scope::makeNameUnique` — Ghidra: database.cc:2553 — 优先级: 中 — 名字去重（带 dedup id）。
 
@@ -129,20 +129,20 @@ Ghidra 头文件 `database.hh` 的内联访问器（`Symbol::getType/getId/getFl
 - `ScopeInternal::getCategorySymbol` — Ghidra: database.cc:2814 — 优先级: 中 — 按 cat+ind 查 Symbol。
 
 ### Scope — 辅助（2 个方法）
-- `Scope::attachScope`/`detachScope` — Ghidra: database.cc:857/866 — 优先级: 低（私有，Rugra `attach_child`/`detach_child` 用 id 而非 Scope*，语义近似）。
-- `Scope::hashScopeName` — Ghidra: database.cc:880 — 优先级: 低（静态，作用域 id 哈希；Rugra 用不同 id 分配策略）。
-- `Scope::addMap` — Ghidra: database.cc:1126 — 优先级: 中 — 将 SymbolEntry 集成到范围映射（私有，Rugra 内联到 add_symbol_mapped）。
+- `Scope::attachScope`/`detachScope` — Ghidra: database.cc:857/866 — 优先级: 低（私有，Rudra `attach_child`/`detach_child` 用 id 而非 Scope*，语义近似）。
+- `Scope::hashScopeName` — Ghidra: database.cc:880 — 优先级: 低（静态，作用域 id 哈希；Rudra 用不同 id 分配策略）。
+- `Scope::addMap` — Ghidra: database.cc:1126 — 优先级: 中 — 将 SymbolEntry 集成到范围映射（私有，Rudra 内联到 add_symbol_mapped）。
 - `Scope::restrictScope` — Ghidra: database.cc:1096 — 优先级: 中 — 转为局部作用域（绑定 Funcdata）。
 - `Scope::decodeWrappingAttributes` — Ghidra: database.hh:719 — 优先级: 低（虚，默认空实现）。
 
 ### Symbol — 缺失方法（7 个方法）
-- `Symbol::checkSizeTypeLock` — Ghidra: database.cc:226 — 优先级: **高** — 计算 size_typelock 属性（在 setDisplayFormat/flags 变更后调用）。Rugra 缺失，size_typelock 状态可能不一致。
+- `Symbol::checkSizeTypeLock` — Ghidra: database.cc:226 — 优先级: **高** — 计算 size_typelock 属性（在 setDisplayFormat/flags 变更后调用）。Rudra 缺失，size_typelock 状态可能不一致。
 - `Symbol::getFirstWholeMap` — Ghidra: database.cc:268 — 优先级: **高** — 获取首个整映射 SymbolEntry。
 - `Symbol::getMapEntry(addr)` — Ghidra: database.cc:280 — 优先级: **高** — 获取包含地址的 SymbolEntry。
 - `Symbol::getMapEntryPosition` — Ghidra: database.cc:301 — 优先级: 中 — 多映射中位置。
 - `Symbol::getResolutionDepth` — Ghidra: database.cc:323 — 优先级: 中 — 解析深度。
-- `Symbol::getBytesConsumed` — Ghidra: database.cc:508 — 优先级: 中 — 虚方法（基类返回 0），Rugra 仅 FunctionSymbol 有。
-- `Symbol::hasMergeProblems`/`setMergeProblems` — Ghidra: database.hh:239-240 — 优先级: 低（内联访问器，Rugra 无此字段）。
+- `Symbol::getBytesConsumed` — Ghidra: database.cc:508 — 优先级: 中 — 虚方法（基类返回 0），Rudra 仅 FunctionSymbol 有。
+- `Symbol::hasMergeProblems`/`setMergeProblems` — Ghidra: database.hh:239-240 — 优先级: 低（内联访问器，Rudra 无此字段）。
 
 ### SymbolEntry — 缺失方法（3 个方法）
 - `SymbolEntry::getSubsort` — Ghidra: database.cc:97 — 优先级: 中 — 返回 subsorttype（用于范围映射排序键）。
@@ -150,11 +150,11 @@ Ghidra 头文件 `database.hh` 的内联访问器（`Symbol::getType/getId/getFl
 - `SymbolEntry::updateType` — Ghidra: database.cc:135 — 优先级: **高** — 从 SymbolEntry 更新 Varnode 类型（typepropagation 核心入口）。
 - `SymbolEntry::getSizedType` — Ghidra: database.cc:151 — 优先级: **高** — 获取指定地址+尺寸的子类型。
 - `SymbolEntry::printEntry` — Ghidra: database.cc:166 — 优先级: 低 — 调试输出。
-- `SymbolEntry::getAllFlags` — Ghidra: 已对齐（注意：Ghidra 此方法非内联，cc:145，Rugra 实现一致）。
+- `SymbolEntry::getAllFlags` — Ghidra: 已对齐（注意：Ghidra 此方法非内联，cc:145，Rudra 实现一致）。
 
 ### Symbol 子类 — 缺失辅助（3 个方法）
 - `FunctionSymbol::buildType` — Ghidra: database.cc:514 — 优先级: 中 — 构建 FunctionSymbol 关联类型。
-- `FunctionSymbol::getFunction` — Ghidra: database.cc:557 — 优先级: **高** — 获取关联 Funcdata 对象。Rugra FunctionSymbol 持有 entry: Address 而非 Funcdata*。
+- `FunctionSymbol::getFunction` — Ghidra: database.cc:557 — 优先级: **高** — 获取关联 Funcdata 对象。Rudra FunctionSymbol 持有 entry: Address 而非 Funcdata*。
 - `EquateSymbol::isValueClose` — Ghidra: database.cc:640 — 优先级: 中 — 判定 equate 值相似。
 - `LabSymbol::buildType` — Ghidra: database.cc:728 — 优先级: 低 — 占位类型。
 - `ExternRefSymbol::buildNameType` — Ghidra: database.cc:768 — 优先级: 中 — 构建名称+类型。
@@ -174,13 +174,13 @@ Ghidra 头文件 `database.hh` 的内联访问器（`Symbol::getType/getId/getFl
 - `Database::getArch` — Ghidra: database.hh:930 — 优先级: 低（内联访问器）。
 
 ### ScopeMapper — 整类缺失
-- `ScopeMapper` — Ghidra: database.hh:874 — 优先级: 低 — Database 与外部符号存储的桥接基类（虚 buildScope/buildFunctionType 等），Rugra 无外部存储后端。
+- `ScopeMapper` — Ghidra: database.hh:874 — 优先级: 低 — Database 与外部符号存储的桥接基类（虚 buildScope/buildFunctionType 等），Rudra 无外部存储后端。
 
 ## 高优先级缺失清单 (按影响排序)
 
 ### 作用域栈查询（最关键，整条链断裂）
 1. **`Scope::stackAddr`/`stackContainer`/`stackClosestFit`/`stackFunction`/`stackExternalRef`/`stackCodeLabel`** (database.cc:909-1095) — 6 个静态仲裁方法缺失
-2. **`Scope::queryByName`/`queryFunction(name)`/`queryByAddr`/`queryContainer`/`queryProperties`/`queryFunction(addr)`/`queryExternalRefFunction`/`queryCodeLabel`** (database.cc:1198-1416) — 8 个全局查询方法全部缺失（Rugra 的 find_* 只查当前 Scope，**无法跨作用域栈查询**）
+2. **`Scope::queryByName`/`queryFunction(name)`/`queryByAddr`/`queryContainer`/`queryProperties`/`queryFunction(addr)`/`queryExternalRefFunction`/`queryCodeLabel`** (database.cc:1198-1416) — 8 个全局查询方法全部缺失（Rudra 的 find_* 只查当前 Scope，**无法跨作用域栈查询**）
 3. **`Scope::resolveScope(string,bool)`** (database.cc:1315) — 按名解析子作用域
 
 ### 符号-类型联动（关键）
@@ -195,13 +195,13 @@ Ghidra 头文件 `database.hh` 的内联访问器（`Symbol::getType/getId/getFl
 10. **`Scope::buildVariableName`** (database.cc:2434) — 默认变量名生成（栈偏移/参数序号）缺失
 
 ### 次要（架构依赖）
-11. **`Scope`/`ScopeInternal` 分层** — 上述 stack* / 虚方法依赖抽象 Scope 基类；Rugra 合并实现需先重构为 trait + 多实现
+11. **`Scope`/`ScopeInternal` 分层** — 上述 stack* / 虚方法依赖抽象 Scope 基类；Rudra 合并实现需先重构为 trait + 多实现
 12. **`Scope` 持有 `Architecture *glb`** — buildVariableName/makeNameUnique/resolveExternalRefFunction 依赖 glb
 13. **MapIterator** — begin/end 范围迭代缺失，影响全局符号遍历
 14. **SymbolNameTree/dedup id** — findFirstByName/assignDefaultNames 的去重机制简化为 BTreeMap
 
 ## 说明
-- `Symbol` 子类（`FunctionSymbol`/`EquateSymbol`/`LabSymbol`/`ExternRefSymbol`/`UnionFacetSymbol`）的 encode/decode 在 Rugra 中**已完整对齐**，是 database.rs 中质量最高的部分；主要缺口在子类与 Scope 的集成入口（addFunction 等工厂方法）和与 Architecture/Funcdata 的联动。
+- `Symbol` 子类（`FunctionSymbol`/`EquateSymbol`/`LabSymbol`/`ExternRefSymbol`/`UnionFacetSymbol`）的 encode/decode 在 Rudra 中**已完整对齐**，是 database.rs 中质量最高的部分；主要缺口在子类与 Scope 的集成入口（addFunction 等工厂方法）和与 Architecture/Funcdata 的联动。
 - `Scope::decode`（src/database.rs:1634）已对齐 Ghidra `ScopeInternal::decode`（database.cc:2744），正确处理 `<parent>`/`<rangelist>`/`<rangeequalssymbols>`/`<symbollist>`/`<mapsym>`/`<hole>`/`<collision>` 子元素——`<parent>` 由 Database 侧应用，`<hole>`/`<collision>` 由 Scope 单独跳过。
 - `Database::decode`/`decode_scope`/`decode_scope_path` 已对齐，正确处理 `<db>` → `<scope>` 递归 → `<parent>` 链接。
 - `Database` 的 encode/decode 完整路径已对齐（src/database.rs:2103/2162），是 Database 集成测试 (`test_database_encode_decode_roundtrip`) 通过的基础。

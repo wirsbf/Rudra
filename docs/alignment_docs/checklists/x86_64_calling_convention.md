@@ -3,7 +3,7 @@
 **[状态]**: 🔴 TODO  
 **[目标模块]**: x86_64 架构下系统及用户函数的参数传递规则还原  
 **[关联 Ghidra 源码位置]**: `Ghidra/Processors/x86/data/languages/x86-64.cspec` 及对应分析层  
-**[关联 Rugra 源码位置]**: 待新建或补充 `src/analysis/calls.rs` 等模块  
+**[关联 Rudra 源码位置]**: 待新建或补充 `src/analysis/calls.rs` 等模块  
 
 ---
 
@@ -21,9 +21,9 @@
   1. 通过支配与活跃度分析，收集入参点寄存器 (`RCX`, `RDX`, `R8`, `R9` 等) 或者出参寄存器 (`RAX`) 是否在其定义前被该函数块消费者所读取 (`Varnode::is_input() == true`)。
   2. 匹配 `cspec` 中的顺序模板分配规则，按字长给他们贴上实参编号。
 
-## 3. Rugra 的对齐方案 (Rugra Approach)
+## 3. Rudra 的对齐方案 (Rudra Approach)
 
-Rugra 计划在后续模块中实现一套针对 FFI 的静态传参推导状态机，以对齐 Ghidra 的 `cspec` 核心机制。现硬编码规定以下两种主流 ABI 规约作为分析器推断基准：
+Rudra 计划在后续模块中实现一套针对 FFI 的静态传参推导状态机，以对齐 Ghidra 的 `cspec` 核心机制。现硬编码规定以下两种主流 ABI 规约作为分析器推断基准：
 
 ### 3.1. System V AMD64 ABI (Linux/macOS)
 - **整型/指针参数寄存器 (按序)**: `RDI`, `RSI`, `RDX`, `RCX`, `R8`, `R9`

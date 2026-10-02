@@ -48,4 +48,4 @@ P-code 模拟执行引擎。对应 Ghidra 的 `emulate.hh`。
 4 单元测试：COPY 常量、INT_ADD、链式执行（COPY→INT_ADD 结果传递）、RETURN 终止。
 2026-06-27: opcode 改名对齐 Ghidra 规范名 — BOOL_NOT->BOOL_NEGATE / INT_NEG->INT_2COMP / INT_NOT->INT_NEGATE (opcodes.hh:67/68/81)。纯重命名，行为不变。
 <!-- annotation-pass: 2026-07-04 -->
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

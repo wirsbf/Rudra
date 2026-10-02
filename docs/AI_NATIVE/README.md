@@ -1,4 +1,4 @@
-# AI-Native Decompiler 架构愿景（Rugra 后迁移优化路线）
+# AI-Native Decompiler 架构愿景（Rudra 后迁移优化路线）
 
 > 创建: 2026-09-23。依据: stage-bisect wave(~48h、40+ 车道、双全函数 MATCH)的实战证据。
 > 性质: **设计愿景文档**,非当前任务。所有优化均为迁移完成后的分层工作,须过差分门禁。
@@ -39,7 +39,7 @@ agent 的作业单元从"函数"降为"阶段+事件",探索成本从"全量重�
 - 每条 Rule 每次 apply 发结构化 mutation 事件(持久 log): `{stage, seq, op, before, after, reason}`。
 - wave 的 stage_bisect/drill/projection harness 全部退役为**查询 API**:"这个 op 谁杀的"
   = event log 一次检索;归因从天级降到毫秒级。
-- 实现: Action/Rule trait 加 event sink(RUGRA-GLUE 层已有雏形——drillobserve.rs 的
+- 实现: Action/Rule trait 加 event sink(RUDRA-GLUE 层已有雏形——drillobserve.rs 的
   mod_check/flush 即其原型),IO 与逻辑分离。
 
 ### L2 — 确定性构造化
@@ -74,7 +74,7 @@ agent 的作业单元从"函数"降为"阶段+事件",探索成本从"全量重�
 ### L6 — 结构化 IR 查询
 
 - 类型化查询替代遍历: `query(run, Ops::Ptrsub.with_type(X))`、
-  "stage N 后活着的所有 COPY"——wave 的 RUGRA_DUMP_FUNC/env 探针是原型,
+  "stage N 后活着的所有 COPY"——wave 的 RUDRA_DUMP_FUNC/env 探针是原型,
   正规化为索引层 API。
 
 ## 3. AI-Native SDK 形态(终局草图)

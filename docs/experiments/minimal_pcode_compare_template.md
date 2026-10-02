@@ -1,6 +1,6 @@
 # 最小 P-code 对拍记录模板
 
-本文档用于记录 **Rugra ↔ Ghidra** 的最小 P-code 局部对拍结果。  
+本文档用于记录 **Rudra ↔ Ghidra** 的最小 P-code 局部对拍结果。  
 目标不是一次性描述整个反编译流程，而是把**单条指令**或**极短指令序列**的对拍结果记录清楚，形成可复现、可追踪、可积累的最小证据链。
 
 > **使用范围**
@@ -103,7 +103,7 @@ sub rax, 2
 
 ---
 
-## 4. Rugra 侧执行路径
+## 4. Rudra 侧执行路径
 
 ### 4.1 入口链路
 按当前主线，通常应填写：
@@ -144,7 +144,7 @@ sub rax, 2
 ### 5.2 相关比较入口
 可填写：
 
-- `rugra_compare_pcode(...)`
+- `rudra_compare_pcode(...)`
 - `runtime_verify::verify_pcode_generation(...)`
 - 其他：
 
@@ -158,11 +158,11 @@ sub rax, 2
 
 ---
 
-## 6. Rugra 结果记录
+## 6. Rudra 结果记录
 
 ### 6.1 Disasm 结果
 ```/dev/null/minimal_pcode_compare_template.txt#L1-20
-(在这里填写 Rugra 解析出的 Instruction / operands 摘要)
+(在这里填写 Rudra 解析出的 Instruction / operands 摘要)
 ```
 
 ### 6.2 Raw P-code 结果
@@ -287,7 +287,7 @@ mov rbx, rax
   - 是否生成单条 `CPUI_COPY`
   - 输入寄存器是否为 `rax`
   - 输出寄存器是否为 `rbx`
-- **Rugra 侧入口链路**：
+- **Rudra 侧入口链路**：
   - `Instruction`
   - `X86Lifter::lift(...)`
   - `PcodeOpRaw`
@@ -307,4 +307,4 @@ mov rbx, rax
 3. **可积累**
 4. **可回链**
 
-只有这样，Rugra 后续恢复对齐 Ghidra 的工作，才会从“看起来在做”变成“真的在逐步收敛”。
+只有这样，Rudra 后续恢复对齐 Ghidra 的工作，才会从“看起来在做”变成“真的在逐步收敛”。

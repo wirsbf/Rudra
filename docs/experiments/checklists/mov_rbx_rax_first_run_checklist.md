@@ -214,7 +214,7 @@ notes:
   - [ ] Match
   - [ ] Mismatch
   - [ ] GhidraError
-  - [ ] RugraError
+  - [ ] RudraError
   - [ ] 当前无法判断
 - **当前比较粒度**:
   - [ ] 计数级
@@ -340,4 +340,4 @@ suspected_root_cause:
 
 当前这条 `mov rbx, rax` 样本的核心目标不是“证明已经对齐”，而是：
 
-> **先把 Rugra 的最小 P-code 对拍真正变成一条可复现、可记录、可定位差异的真实样本记录。**
+> **先把 Rudra 的最小 P-code 对拍真正变成一条可复现、可记录、可定位差异的真实样本记录。**

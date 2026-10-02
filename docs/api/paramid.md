@@ -53,4 +53,4 @@ Parameter ID analysis for a function (paramid.hh:70).
 API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
 迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
 `alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

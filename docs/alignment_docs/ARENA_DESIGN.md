@@ -9,14 +9,14 @@
 > - oracle = 锁定 **e40ed130**(Ghidra 12.0.4)。本文引用的 oracle 行号全部亲读核验
 >   (funcdata.hh / op.hh / op.cc / varnode.hh / varnode.cc / block.hh / architecture.hh)。
 > - 证据底座: INTERSECTCACHE / BLOCKSTRUCT / VARMAPOPCREATE / SLEIGHSNAP / SPEEDPROF2
->   五道终报(/dev/shm/rugra-reports/LANE_*_2026-09-29.md),全部为事件级探针实测数字。
+>   五道终报(/dev/shm/rudra-reports/LANE_*_2026-09-29.md),全部为事件级探针实测数字。
 > - campaign: `PERF-ARENA-MIGRATION-0001`(见 docs/TODO_BOARD.md)。
 
 ---
 
 ## §0 执行摘要与决策记录
 
-**诊断**: Rugra 现形态是"对齐优先时期的保守安全直译"——oracle 的裸指针交叉引用
+**诊断**: Rudra 现形态是"对齐优先时期的保守安全直译"——oracle 的裸指针交叉引用
 (PcodeOp/Varnode/FlowBlock 互相指)被翻译成 `Arc<RwLock<T>>` + `Weak`,结果是每个字段读都付
 锁守卫+原子+引用计数+克隆税。五道速度道已把**算法本体**逐一对到 oracle 同构(尝试次数/迁移
 次数/序全部相同,canon 0/0 旁证),残差集中在三类**实现级常数**:
@@ -58,7 +58,7 @@ Funcdata 属主(god-object,oracle 本来就是)+ 存储链结构的 1:1 镜像(�
 
 ### 1.1 Funcdata 成员映射表(funcdata.hh:74-100 逐项)
 
-| oracle 成员(funcdata.hh 行) | 现状(Rugra) | arena 形态 | 说明 |
+| oracle 成员(funcdata.hh 行) | 现状(Rudra) | arena 形态 | 说明 |
 |---|---|---|---|
 | `flags` + 4 个 create-index/相位标记(:74-78) | 平面字段 | 保持 | 无句柄语义 |
 | `Architecture *glb`(:80) | `Option<Arc<Architecture>>` | **保持 Arc 共享** | 见 §1.6;oracle 同为跨函数共享裸指针 |
@@ -284,7 +284,7 @@ pub struct HighId { idx: u32, gen: u32 }
 ### 2.3 红线: 删除必须保 oracle 列表序,禁 swap-remove
 
 **证据链**(VARMAPOPCREATE 已证): oracle markAlive/markDead = 存储迭代器 O(1) erase +
-尾插,删除**保序**;Rugra 现在的 `retain` 兜底路径(非尾部删除)逐元素等价于 oracle
+尾插,删除**保序**;Rudra 现在的 `retain` 兜底路径(非尾部删除)逐元素等价于 oracle
 erase 结果序——**序保持是行为等价的前提**。任何 swap-remove 都会重排 alivelist/deadlist,
 而这两条表的序是 beginOpAlive/beginOpDead 消费者(DeadCode/结构化/打印遍历)的可见输入。
 
@@ -332,7 +332,7 @@ descend 向量、HighVariable instances 向量),序由结构自身承载。arena
   (funcdata.hh:444-527 亲读;Varnode 侧 `newVarnodeOut/setInputVarnode/deleteVarnode`
   同族)。
 - 也就是说: **oracle 的全部交叉突变(op↔varnode↔block)本来就 100% 经 Funcdata 方法
-  中转**。Rugra 现在的 `Arc<RwLock>` 形态才是偏离——每处 `op.write()` 对应的 oracle
+  中转**。Rudra 现在的 `Arc<RwLock>` 形态才是偏离——每处 `op.write()` 对应的 oracle
   原文几乎都是 `fd->opXxx(...)`。
 
 因此 id 化后的签名 `fd.op_set_input(op, Some(vn), slot)` **不是新设计,是 oracle 原形**;
@@ -380,7 +380,7 @@ helper 或 0;与"消灭裸指针 unsafe"的目标口径一致。
 
 ### 4.0 结构性事实(决定迁移形态)
 
-- Rugra 反编译核心是**单 lib crate**(80 模块,src/ 305k LOC;crates/kuna-* 是 SLEIGH
+- Rudra 反编译核心是**单 lib crate**(80 模块,src/ 305k LOC;crates/kuna-* 是 SLEIGH
   引擎独立 crate,不在翻转域)。类型是病毒式传染的:`PcodeOpRef` 改定义 ⇒ 全 crate
   必须同 commit 编译通过,**不存在"半个 crate 编译绿"的中间态**。
 - 因此: **W0 spike 先行(纯新增,零集成)→ W1 在长寿命 lane 分支上做原子类型翻转**,
@@ -393,7 +393,7 @@ helper 或 0;与"消灭裸指针 unsafe"的目标口径一致。
 | Wave | 内容 | 写域 | 车道数 | 出口门禁(全部亲跑) |
 |---|---|---|---|---|
 | **W0 spike** | `src/arena.rs` 新模块: OpId/VnId/BlockId/HighId newtype + slot 存储 + free-list/gen + IdList 侵入链 + BTreeMap 键类型 + **oracle 序语义单元测试**(markAlive/markDead/insertAfterDead/moveSequenceDead 重放 op.cc 序列;xref/setDef/makeFree 树键重放 varnode.cc 比较器投影)+ microbench(markDead 26.9µs→ns 级对照) | 纯新增 `src/arena.rs`(+`docs/api/arena.md`)+TODO_BOARD | 1 | ①单测全绿含序恒等;②microbench ≥1000× on retain 路径;③**设计复核 CR**(机制 C 形态:arena core 是全部核心算法的新地基);④API 冻结评审 |
-| **W1 类型翻转**(原子,单分支 `/dev/shm/rugra-worktrees/arenaflip`,基=冻结点 master) | 按 DAG 序: (a) op.rs/varnode.rs/block.rs/funcdata.rs 容器+god-object API; (b) heritage/flow/frontend(创建路径先行,尽早暴露 API 缺口); (c) ruleaction(30k)/coreaction(23.7k)(规则池主力); (d) blockaction+tracedag+condexe; (e) varmap/merge/variable/cover/double_precis/prefersplit; (f) printc/prettyprint/printlanguage+长尾(comment/dynamic/paramid/fspec/jumptable/…); (g) transform.rs unsafe 消灭+float_emulate+ffi cfg+examples 接线 | (a)-(g) 分 write-set;串行依赖: b 依赖 a,c-f 依赖 a,API 补丁回灌 a | 5-7(a 冻结后 c/d/e/f 可并行;同一文件单 writer 铁律) | **硬红线(任何一条非恒等⇒停+二分,禁前推)**: ①canon curl `4ab1db2a`/httpd `7d5b9e7c` 双 md5 字节恒等(0/0/0·124/124+34/34); ②镜面五面=curl 13/httpd 2/vsh 0/sq 432/sqlite 845 全 PASS defects=numbering=0; ③sqlite 全语料 assembled cmp 字节恒等(1385/1385); ④VdbeExec --one 1055 GEN_MIRROR md5 `a067e05c` 恒等; ⑤`cargo test --lib` 1985P/0F/5I 数恒等(允许纯机械改写的测试同 commit 修,但**计数不得漂移**且 diff 逐条可归因为机械形态); ⑥bank 391/391; ⑦unsafe 清点(transform 归零/数值类清单化); ⑧机制 C CR(blockaction/varmap/merge/heritage 白名单逐 commit) |
+| **W1 类型翻转**(原子,单分支 `/dev/shm/rudra-worktrees/arenaflip`,基=冻结点 master) | 按 DAG 序: (a) op.rs/varnode.rs/block.rs/funcdata.rs 容器+god-object API; (b) heritage/flow/frontend(创建路径先行,尽早暴露 API 缺口); (c) ruleaction(30k)/coreaction(23.7k)(规则池主力); (d) blockaction+tracedag+condexe; (e) varmap/merge/variable/cover/double_precis/prefersplit; (f) printc/prettyprint/printlanguage+长尾(comment/dynamic/paramid/fspec/jumptable/…); (g) transform.rs unsafe 消灭+float_emulate+ffi cfg+examples 接线 | (a)-(g) 分 write-set;串行依赖: b 依赖 a,c-f 依赖 a,API 补丁回灌 a | 5-7(a 冻结后 c/d/e/f 可并行;同一文件单 writer 铁律) | **硬红线(任何一条非恒等⇒停+二分,禁前推)**: ①canon curl `4ab1db2a`/httpd `7d5b9e7c` 双 md5 字节恒等(0/0/0·124/124+34/34); ②镜面五面=curl 13/httpd 2/vsh 0/sq 432/sqlite 845 全 PASS defects=numbering=0; ③sqlite 全语料 assembled cmp 字节恒等(1385/1385); ④VdbeExec --one 1055 GEN_MIRROR md5 `a067e05c` 恒等; ⑤`cargo test --lib` 1985P/0F/5I 数恒等(允许纯机械改写的测试同 commit 修,但**计数不得漂移**且 diff 逐条可归因为机械形态); ⑥bank 391/391; ⑦unsafe 清点(transform 归零/数值类清单化); ⑧机制 C CR(blockaction/varmap/merge/heritage 白名单逐 commit) |
 | **W2 收获验证** | SPEEDPROF2 探针口径全套重测(逐动作比值表重画)+ 锁/克隆计数归零证明(grep .read()/.write() 于 src 核心 15 文件=0)+ 残差分票 + 数值 unsafe 卫生收尾 | profiling 只读+小额修复 | 1-2 | ①W1 全红线复跑;②逐动作比值表 vs SPEEDPROF2 §3 基线(每动作给出 Δ 与归因);③新票登记(未达 §7 预期的项逐项归因) |
 | **W3(可选)** | Architecture 面: TypeFactory TypeId 驻留/callspec-jumptable arena/HighVariable 域终态微调;SLEIGHSNAP 分配器实验(SPEEDPROF-SNAP-ALLOCATOR-0001 既有候选) | 独立票,按 W2 数据决策 | 2-3 | 同 W1 红线子集+对应专项 |
 
@@ -412,7 +412,7 @@ helper 或 0;与"消灭裸指针 unsafe"的目标口径一致。
 
 | # | 风险 | 等级 | 机制/缓解 |
 |---|---|---|---|
-| R1 | **列表序分歧**(alive/dead/opcode 链 splice 位点移植错) | 高(对齐) | 侵入链与 std::list 同构(§2.3)+ 逐函数 Ghidra 注释锚定位点 + W0 序语义单测重放 + 可选: oracle OPACTION_DEBUG 事件流与 Rugra 探针逐事件对拍(仓库既有 drill 工具族) |
+| R1 | **列表序分歧**(alive/dead/opcode 链 splice 位点移植错) | 高(对齐) | 侵入链与 std::list 同构(§2.3)+ 逐函数 Ghidra 注释锚定位点 + W0 序语义单测重放 + 可选: oracle OPACTION_DEBUG 事件流与 Rudra 探针逐事件对拍(仓库既有 drill 工具族) |
 | R2 | **树比较器投影错**(loc/def 键漏字段/错序) | 高(对齐) | 键构造收敛为单一 `loc_key()/def_key()` 函数;W0 单测逐字段重放 varnode.cc:34-79;更新只允许在 oracle erase+reinsert 同位点(xref/setDef/setInput/makeFree)——位点清单在 W0 冻结 |
 | R3 | **iop 偏移编码消费者泄漏**(marshal/printRaw/探针 dump 裸偏移) | 中 | W1 审计项: grep 全部 iop 空间偏移消费点;C 输出门禁字节恒等本身即最终捕获器 |
 | R4 | **descend/维护纪律依赖 Weak 失败代偿**(不对称: oracle 显式擦除,Weak 形态漏擦不可见) | 中高(对齐) | id 形态漏擦=迭代序可见陈旧条目(更易暴露也更危险);W1 逐条移植 eraseDescend/addDescend/destroyDescend 位点;W0 加 descend 不变式 debug 断言(descend 中每个 OpId 可解析且其 inrefs 反指) |
@@ -421,7 +421,7 @@ helper 或 0;与"消灭裸指针 unsafe"的目标口径一致。
 | R7 | **行为恒等门禁本身不充分**(字节恒等但语义漂移到"另一个同样字节恒等的形态") | 低 | 字节恒等是本仓最强门禁(五重);此外 bank 391/391 fixture 与 B2 逐函数门禁覆盖;W2 探针计数恒等(ops_visited/rule_tries/rule_hits/pool_passes 逐值)==ACTIONSTATS 口径(OPTREE 先例)作为行为旁证 |
 | R8 | **借用冲突长尾**(P3-P5 覆盖不了的形状) | 中 | 预计集中在 merge/varmap/heritage(现持双 guard 位点最多);W1(c) 并行 lane 前先由 spike lane 把 ruleaction 前 3 个文件的冲突形态清单化,必要时增补 id-trio helper;禁止为绕冲突引入 RefCell(§3.3) |
 | R9 | **回滚/事故** | 低 | 分支级共存;master 未动;铁律 5 |
-| R10 | **人力/编译反馈**(12k 机械点,单 crate 翻转期无中间编译绿) | 中 | codemod(ast-grep 模式库,W1 前在 W0 末尾预演于 2 个文件)+ 每文件批后 `cargo check` 错误数单调下降作为进度计;W1 分支用 `/dev/shm/rugra-targets/arenaflip` 独立 CARGO_TARGET_DIR |
+| R10 | **人力/编译反馈**(12k 机械点,单 crate 翻转期无中间编译绿) | 中 | codemod(ast-grep 模式库,W1 前在 W0 末尾预演于 2 个文件)+ 每文件批后 `cargo check` 错误数单调下降作为进度计;W1 分支用 `/dev/shm/rudra-targets/arenaflip` 独立 CARGO_TARGET_DIR |
 | R11 | **内存形态**(槽不复用则峰值=历史创建总数) | 低 | 采用 free-list 复用(gen 防 ABA);deadandgone 槽保持占用=oracle 同语义;VdbeExec 量级 ~120k 槽 × ~120B ≈ 14MB,无忧 |
 | R12 | **W3 范围蔓延**(Architecture 面被顺手改) | 中 | W1 明确不动 Architecture 字段形态;W3 独立票按 W2 数据决策,防"重构无止境" |
 
@@ -514,5 +514,5 @@ lane 交付需独立复核;按仓库现行 CR 车道节奏并行消化。
 
 ---
 
-*设计: ARENADESIGN 车道(2026-09-30)。证据工件: /dev/shm/rugra-reports/
+*设计: ARENADESIGN 车道(2026-09-30)。证据工件: /dev/shm/rudra-reports/
 LANE_ARENADESIGN_2026-09-30.md;campaign 票组: docs/TODO_BOARD.md(PERF-ARENA-MIGRATION-0001)。*

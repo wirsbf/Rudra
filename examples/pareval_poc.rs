@@ -9,7 +9,7 @@
 //!     action pipeline, PrintC pretty face). The ONLY parameterization is
 //!     the TypeFactory source under measurement:
 //!       - isolated : fresh `TypeFactory::new(8)` per function
-//!                    (rugra_decompile_func.rs shape)
+//!                    (rudra_decompile_func.rs shape)
 //!       - shared   : process-global `TypeFactory::shared_default()`
 //!                    singleton (bin_sweep shape) — the PKGG contention
 //!                    surface
@@ -30,7 +30,7 @@
 //! Usage (run from the repo root — sleigh_specs/ is CWD-relative):
 //!   cargo run --profile fast-release --example pareval_poc -- \
 //!       examples/curl --workers 8 --max-funcs 31 \
-//!       --out-dir /dev/shm/rugra-tests/pareval/run-curl
+//!       --out-dir /dev/shm/rudra-tests/pareval/run-curl
 //!   # screening pass (builds the deterministic skip list for corpora with
 //!   # known non-terminating functions — RuleDivChain PORT-DEFECT):
 //!   cargo run --profile fast-release --example pareval_poc -- \
@@ -305,7 +305,7 @@ impl rudra::pcodeparse::SleighSymbolLookup for SweepSpecHost {
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Debug)]
 #[serde(rename_all = "lowercase")]
 enum FactoryMode {
-    /// Fresh `TypeFactory::new(8)` per function (rugra_decompile_func shape).
+    /// Fresh `TypeFactory::new(8)` per function (rudra_decompile_func shape).
     Isolated,
     /// Process-global `TypeFactory::shared_default()` (bin_sweep shape).
     Shared,
@@ -879,7 +879,7 @@ fn parse_args() -> Result<Args, String> {
         modes: vec![FactoryMode::Isolated, FactoryMode::Shared],
         skip: Vec::new(),
         screen: false,
-        out_dir: PathBuf::from("/dev/shm/rugra-tests/pareval/poc-out"),
+        out_dir: PathBuf::from("/dev/shm/rudra-tests/pareval/poc-out"),
     };
     let mut i = 2;
     while i < argv.len() {

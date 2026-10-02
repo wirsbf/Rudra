@@ -56,4 +56,4 @@ no input, output-limited streaming, clean and mid-stream input replacement,
 caller-side input mutation, same-address input/output, normal stream
 completion, and `Z_DATA_ERROR`.
 <!-- annotation-pass: 2026-07-04 -->
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

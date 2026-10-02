@@ -1,6 +1,6 @@
-# AGENTS.md — Rugra AI 开发铁律
+# AGENTS.md — Rudra AI 开发铁律
 
-> Rugra 是 Ghidra 的 Rust 重写版,目标是**完整、1:1 对齐 Ghidra 反编译器的所有算法**。
+> Rudra 是 Ghidra 的 Rust 重写版,目标是**完整、1:1 对齐 Ghidra 反编译器的所有算法**。
 
 ## 架构流水线
 
@@ -16,7 +16,7 @@ Ghidra 源码位于 `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/`。项
 - 所有 golden、函数 fixture、差分报告和 Alignment Evidence 必须记录 oracle commit、架构、
   compiler spec、analysis options 与输入指纹。任一项缺失即为 `NO_ORACLE`。
 - `docs/alignment_audit/FUNCTION_MAP.md` 是逐函数账本入口；每个 Ghidra `.cc/.hh` 函数必须有
-  稳定 ID、完整签名、Rugra 对应物、状态和行为证据。分母冲突已裁决并关闭（FMAPRECON 车道,
+  稳定 ID、完整签名、Rudra 对应物、状态和行为证据。分母冲突已裁决并关闭（FMAPRECON 车道,
   `docs/alignment_audit/FUNCTION_MAP_RECONCILE_2026-09-26.md`）: `~2055` = 手写计划子集估算、
   `~5200+` = 归档手审部分文件集计数、`5549` = 解析器唯一名粒度——均非全量分母。**唯一权威
   完成分母 = 9494**（5691 `.cc` + 3803 `.hh` inline，机器账本 15811 条 raw 记录 1:1 全等，
@@ -40,22 +40,22 @@ Ghidra 源码位于 `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/`。项
 
 **(1.2) 修改任何 `src/*.rs` 函数前,本 session 内必须重新读过该函数对应的 Ghidra 函数代码全貌**(不止签名行,要读完整个函数体)。PreToolUse hook (`.zcode/align_gate.py`) 通过 `.alignment_receipts.json` 回执强制此规则。
 
-**(1.3) 每个 `src/*.rs` 非测试函数上方必须有一行 `// Ghidra: <file>:<line> <ghidraFn>` 注释**(指向 Ghidra 函数定义的起始行)或 `// RUGRA-GLUE: <为何 Ghidra 没有对应物>`(纯 Rust 语言结构胶水:构造器/访问器/trait impl/借用安全 helper)。无注释 = 自创函数 = 违反对齐。`tools/check_ghidra_annotations.py` 在 commit 时强制。
+**(1.3) 每个 `src/*.rs` 非测试函数上方必须有一行 `// Ghidra: <file>:<line> <ghidraFn>` 注释**(指向 Ghidra 函数定义的起始行)或 `// RUDRA-GLUE: <为何 Ghidra 没有对应物>`(纯 Rust 语言结构胶水:构造器/访问器/trait impl/借用安全 helper)。无注释 = 自创函数 = 违反对齐。`tools/check_ghidra_annotations.py` 在 commit 时强制。
 
 **(1.4) 禁止任何形式的简易实现**。包括但不限于:
 - ❌ "先用简化版,以后再对齐" / "差不多就行" / "这个我看不懂,跳过"
 - ❌ 把 Ghidra 有的东西标 `// TODO` / `// simplified` 而无 `ALIGNMENT_ROADMAP.md` 记录
-- ❌ 因 Rugra 缺基础设施(缺 op / 缺 flag / 缺数据结构)就在上层绕过 — 必须**从底向上补齐**
+- ❌ 因 Rudra 缺基础设施(缺 op / 缺 flag / 缺数据结构)就在上层绕过 — 必须**从底向上补齐**
 - ❌ 凭记忆猜 flag/字段/边界语义 — 必须读 Ghidra 行确认
 - ✅ 复杂度高时,**兴奋**地读 Ghidra,拆小片段,画数据流图,直到懂
 
-**(1.5) 禁止移除/禁用 Ghidra 有的 Rule/Action/算法**。Rugra 侧出 bug 时,默认假设是**移植缺陷**(守卫缺失/算法不完整/基础设施缺口),去读 Ghidra 源码修。只有核实 Ghidra 确实没有该机制时,才考虑保守降级(必须注释说明降级理由 + 修复路径)。
+**(1.5) 禁止移除/禁用 Ghidra 有的 Rule/Action/算法**。Rudra 侧出 bug 时,默认假设是**移植缺陷**(守卫缺失/算法不完整/基础设施缺口),去读 Ghidra 源码修。只有核实 Ghidra 确实没有该机制时,才考虑保守降级(必须注释说明降级理由 + 修复路径)。
 
 **(1.6) P-code 必须完整**。缺失的 op / 不完整的 op 语义必须补齐 P-code 层,禁止让上层 Action/Rule 适配/绕过。
 
 ### 铁律 2 — 遇 bug 先看 Ghidra 怎么做
 
-任何 bug / 失败 / 非收敛 / 输出错误,**第一步是读 Ghidra 对应源码看它怎么处理,第二步才是改 Rugra**。Ghidra 能跑就有解法,找不到说明读得不够细。
+任何 bug / 失败 / 非收敛 / 输出错误,**第一步是读 Ghidra 对应源码看它怎么处理,第二步才是改 Rudra**。Ghidra 能跑就有解法,找不到说明读得不够细。
 
 ### 铁律 2.1 — 逐函数同输入同输出
 
@@ -64,7 +64,7 @@ Ghidra 源码位于 `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/`。项
 - “同输出”包括返回值/异常、所有输出参数及对象突变、创建/删除/重排的
   Varnode/PcodeOp/边、flags/type/symbol 状态、迭代顺序以及最终文本/字节。
 - 只允许规范化已证明无语义的临时 ID；规范化不得删除顺序、别名、控制流或状态差异。
-- 每个被修改的映射函数必须用同一 fixture 分别运行 Ghidra oracle 与 Rugra，对比完整观察结果。
+- 每个被修改的映射函数必须用同一 fixture 分别运行 Ghidra oracle 与 Rudra，对比完整观察结果。
   仅 Rust 自测、手写 expected、代码形似或 curl 单样本通过，均不能证明函数对齐。
 
 ### 铁律 3 — 原子化提交 + 文档同步
@@ -75,7 +75,7 @@ Ghidra 源码位于 `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/`。项
 - `docs/TODO_BOARD.md` 是活动任务队列，`ALIGNMENT_ROADMAP.md` 是模块状态账本，二者不得混用。
 - 任一缺口被发现、认领、阻塞、解锁、送审或验证完成时，当轮立即更新 TODO；
   代码状态变化必须同 commit 更新。
-- 每项 TODO 必须包含稳定 ID、Ghidra/Rugra 函数、状态、owner agent、依赖、精确 write-set、
+- 每项 TODO 必须包含稳定 ID、Ghidra/Rudra 函数、状态、owner agent、依赖、精确 write-set、
   验收命令、证据 commit 和最后更新时间。
 - 代码中的 `TODO/stub/placeholder/simplified/no-op` 必须引用 TODO ID；未登记缺口禁止存在。
 - 差分非零可提交修复进度，但每个剩余差异必须绑定 TODO ID，模块最高保持 L2，禁止宣称已对齐。
@@ -128,7 +128,7 @@ Ghidra: <file>:<line> <函数签名逐字摘录>
   - 循环边界/遍历顺序: ...
   - 计数器/累加器: ...
   - 排序/比较键: ...
-Rugra: <file>:<line> <对应函数>
+Rudra: <file>:<line> <对应函数>
   - <逐条对应, 注明如何对齐上述每一类>
 四类决定性语义核对: [x]引用参数 [x]遍历顺序 [x]计数器 [x]排序键
 ```
@@ -169,7 +169,7 @@ python3 tools/compare_ghidra.py result/curl_cur.c tests/golden/ghidra_curl_1204.
 | `NO_ORACLE` | 没有真实 Ghidra 运行结果或版本/选项不同 | 否 |
 | `UNTESTED` | 分支、边界、错误路径或状态突变未覆盖 | 否 |
 
-低层函数改动还必须验证受影响调用闭包与端到端语料。手写 expected 只能作为 Rugra 回归测试，
+低层函数改动还必须验证受影响调用闭包与端到端语料。手写 expected 只能作为 Rudra 回归测试，
 不能将 `NO_ORACLE/UNTESTED` 升为 `MATCH`。
 
 ### 机制 C — 强制独立复核(Cross-Review)
@@ -184,7 +184,7 @@ python3 tools/compare_ghidra.py result/curl_cur.c tests/golden/ghidra_curl_1204.
 
 复核 Agent 必须:
 - 自己打开 Ghidra 源码读对应行,**不得直接采信实现 Agent 的 Alignment Evidence 块**(那只是声明,不是证据)。
-- 独立列出四类语义清单再对比,发现任一 MISMATCH → REJECT,指出 Rugra 行号 + Ghidra 行号 + 修正方向。
+- 独立列出四类语义清单再对比,发现任一 MISMATCH → REJECT,指出 Rudra 行号 + Ghidra 行号 + 修正方向。
 - 在 commit message 加 `## Cross-Review: APPROVE` 块。
 
 **判定准则**:核心算法白名单模块的 commit,若无 `## Cross-Review: APPROVE` 块,不得合并到主管线分支。
@@ -290,15 +290,15 @@ python tools/compare_ghidra.py result/curl_cur.c tests/golden/ghidra_curl.c --su
 - **worktree 惯例**:runner 需 `ghidra -> 主仓/ghidra` symlink(gitignored);GIT_DIR 劫持已修(tools/check_gate_health.py 清环境变量),worktree 提交无需 --no-verify。
 - **worktree 内禁用 `git stash`**(2026-08-30 三起事故):stash 栈是 repo 级共享(~170 worktree),并发 agent 交错 push/pop 会弹错分支致改动丢失;一律 per-worktree commit(wip checkpoint --no-verify)。
 - **分支修复测试代码放内存盘**(2026-09-21 用户指令;**2026-09-23 扩展到 worktree**):
-  agent 在分支/worktree 上修复时产生的测试代码(探针脚本、调试 harness、临时 fixture 草稿、A/B 对拍驱动)一律写入内存盘 **`/dev/shm/rugra-tests/<branch>/`**;**新 worktree 一律建在
-  `/dev/shm/rugra-worktrees/<name>`**(commit 对象存于主仓 .git 对象库=重启安全,工作区易失可由 wip 纪律覆盖)。
+  agent 在分支/worktree 上修复时产生的测试代码(探针脚本、调试 harness、临时 fixture 草稿、A/B 对拍驱动)一律写入内存盘 **`/dev/shm/rudra-tests/<branch>/`**;**新 worktree 一律建在
+  `/dev/shm/rudra-worktrees/<name>`**(commit 对象存于主仓 .git 对象库=重启安全,工作区易失可由 wip 纪律覆盖)。
   在飞车道完成前不迁移其 worktree;空闲的旧 `/home/ls/Rugra-wt-*` 在下次认领时迁移。
   **回收纪律(2026-09-23 用户指令)**: 车道交付并集成后立即回收其内存盘资源
-  (`rm -rf /dev/shm/rugra-targets/<lane>` 与已合并 worktree 的 `target/`);root 在每次
+  (`rm -rf /dev/shm/rudra-targets/<lane>` 与已合并 worktree 的 `target/`);root 在每次
   merge 后执行清扫,agent 在 lane 收尾时自清自己的 /dev/shm 产物目录(保留 LANE_REPORT
-  等结论文件可归档至 /dev/shm/rugra-reports/)。
+  等结论文件可归档至 /dev/shm/rudra-reports/)。
   例外:按机制 B2 必须固化的双侧回归 fixture,只在 root 集成阶段挑拣入库,分支上仍先在内存盘迭代。内存盘重启即丢,未集成的证据自行负责及时归档。
-- **oracle 环境**:`/tmp/rugra-ghidra-bfd-2.38` 机器重启即丢;重建用直连 https 拉 binutils-dev deb 解包(**apt 代理不可用**)。
+- **oracle 环境**:`/tmp/rudra-ghidra-bfd-2.38` 机器重启即丢;重建用直连 https 拉 binutils-dev deb 解包(**apt 代理不可用**)。
 
 当前反编译质量数据见 `CURRENT_STATUS.md`(不再放 AGENTS.md,避免数据过期)。
 

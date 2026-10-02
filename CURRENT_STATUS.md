@@ -5,7 +5,7 @@
 ## 2026-10-01 STATUSREFRESH 大刷新（当前事实源；master `4b1a4bbe` = origin，MB51 收官态）
 
 > 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB44~MB51 全序列）+
-> 各 MB 终报（`/dev/shm/rugra-reports/LANE_MERGEBATCH4{4..9}_*` / `LANE_MERGEBATCH5{0a,0b,1}_*`）+
+> 各 MB 终报（`/dev/shm/rudra-reports/LANE_MERGEBATCH4{4..9}_*` / `LANE_MERGEBATCH5{0a,0b,1}_*`）+
 > arena campaign 族报告（LANE_ARENA{DESIGN,CORE,FIX}_* + LANE_ARENAFLIP_{a..g}_* +
 > CR_ARENA{CORE,FLIP_*} 判决链）+ `tools/mirror_gate_baselines.tsv` 现钉值。本节为
 > docs-only 汇编，数字与在案证据一致，**未跑新门禁**；口径不确定处逐条标注。
@@ -46,7 +46,7 @@ Action 域零锁。campaign 双目标=**同时消灭锁/克隆速度地板与裸
 | W1 (g) unsafe 收尾 | 5 commits（tip `613ca4ea`） | transform.rs+prefersplit.rs `*mut Funcdata`+`unsafe impl Send` 系**双系消灭**（生产管线最后一族 god-pointer 清零）+size/flags 守卫影子（peer 深读→bank 原子影子）+unsafe 全库盘点表 |
 
 **CR 链 A-G 七链全 APPROVE**（CR-ARENAFLIP-A..G：各区间独立 oracle 亲读+独立 git archive
-快照复跑，报告 /dev/shm/rugra-reports/CR_ARENAFLIP_*.md；G 判决块逐字嵌入 MB51 merge
+快照复跑，报告 /dev/shm/rudra-reports/CR_ARENAFLIP_*.md；G 判决块逐字嵌入 MB51 merge
 commit，G_BLOCK_EMBED_VERBATIM=YES 字节恒等亲证）。环棘轮协议重冻结 `49337e77`：
 FROZEN_SCC 24==24 恒等，**arena 仍 solo 不入 core-SCC=W1 形态核通过**（E7 族 +2 bank 存储
 键逐边定性；4 冻结键随改善消失）。
@@ -65,7 +65,7 @@ FROZEN_SCC 24==24 恒等，**arena 仍 solo 不入 core-SCC=W1 形态核通过**
 
 ### 里程碑③ 速度总账（session 累计；三口径对照表）
 
-| 口径 | oracle | Rugra 现值 | 比值 |
+| 口径 | oracle | Rudra 现值 | 比值 |
 |---|---|---|---|
 | sqlite 全语料 wall（--jobs 32，旧 1385 fn 轨道=session 主账） | 17.77s（w=32） | **~31.0s**（W1 缩放推算，注①） | **1.74×**（session 起点 159.9s=**9.0×**） |
 | VdbeExec 单极 | 8.80s（direct-runner，旧语料） | 替代语料 --one 2415 user **114.4s**（−15.5% vs (f) 135.34s；md5 `abbd0632` 双轮逐位相同）；旧语料终值 41.21s[MB49]=**4.7×**（二进制消失不可直测） | 口径切换如实并列（替代语料函数本体更大，不可直除 8.80s） |
@@ -99,8 +99,8 @@ FROZEN_SCC 24==24 恒等，**arena 仍 solo 不入 core-SCC=W1 形态核通过**
 
 | 战场 | 状态/票 | 说明 |
 |---|---|---|
-| **W2 重测** | 在飞（/dev/shm/rugra-worktrees/w2remeasure） | arena campaign 收尾 wave：SPEEDPROF 同口径五道复跑，W1 后残差重排（PERF-ARENA-MIGRATION-0001 W2 子票） |
-| **镜面归零路径 v3** | 在飞（/dev/shm/rugra-worktrees/mcensus5） | 五面现值 13/2/0/432/785 口径再归因+归零路径表 v3（MIRRORCENSUS4 v2 后第三代） |
+| **W2 重测** | 在飞（/dev/shm/rudra-worktrees/w2remeasure） | arena campaign 收尾 wave：SPEEDPROF 同口径五道复跑，W1 后残差重排（PERF-ARENA-MIGRATION-0001 W2 子票） |
+| **镜面归零路径 v3** | 在飞（/dev/shm/rudra-worktrees/mcensus5） | 五面现值 13/2/0/432/785 口径再归因+归零路径表 v3（MIRRORCENSUS4 v2 后第三代） |
 | 块存储翻转定界票 | OPEN（W2 后评估） | enum BlockKind arena 终态——全量=364 句柄引用+~2000 .read() 位跨 6+ 域外文件（printc/flow/heritage/jumptable/condexe）；(g) 段诚实定界缓置；view_holds 22.1M≈0.4s 残面连根收 |
 | PERF-ARENA-CHOKE-0001 | OPEN（P2，MB51 随批登记） | CR-G NIT-1：非守卫位旗 ~17 机械直写位收 choke（size/flags 影子全字闭集化；或文档收窄二选一） |
 | ARENA-UNSAFE-LEDGER-0001 | OPEN（P3，MB51 随批登记） | CR-G NIT-2：kuna-sleigh 2 生产 unsafe 位补录/盘点表口径收窄（核心域=0 结论不受影响） |
@@ -136,7 +136,7 @@ FROZEN_SCC 24==24 恒等，**arena 仍 solo 不入 core-SCC=W1 形态核通过**
 ## 2026-09-29 STATUSREFRESH 大刷新（历史——MB43 收官态快照；数字被 2026-10-01 节取代）
 
 > 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB27~MB43 全序列 200+ 条）+
-> 各 MB 终报（`/dev/shm/rugra-reports/LANE_MERGEBATCH3{5..9}_*` / `LANE_MERGEBATCH4{0..3}_*`）+
+> 各 MB 终报（`/dev/shm/rudra-reports/LANE_MERGEBATCH3{5..9}_*` / `LANE_MERGEBATCH4{0..3}_*`）+
 > `tools/mirror_gate_baselines.tsv` 现钉值。本节为 docs-only 汇编，数字与在案证据一致，**未跑新门禁**；
 > 口径不确定处逐条标注。评测语义分界点①（PFLIP）②（F2B）见下方历史节——canon/httpd 数字
 > 沿分界后口径，与更早谱系不可比；镜面沿 `--base 0` direct-runner golden 口径。
@@ -184,7 +184,7 @@ defects=numbering=0，matched 满额 74/29/71/810/1385，health ok。
 
 | 口径 | 优化前 | 现值 | 降幅 | vs oracle |
 |---|---|---|---|---|
-| sqlite 全语料 wall（--jobs 32，RUGRA_GEN_MIRROR 全量） | 159.9s | **79.9s**（ok 1385/1385，panic 0） | **−50%** | 9.0× → **4.5×**（oracle w=32 = 17.77s） |
+| sqlite 全语料 wall（--jobs 32，RUDRA_GEN_MIRROR 全量） | 159.9s | **79.9s**（ok 1385/1385，panic 0） | **−50%** | 9.0× → **4.5×**（oracle w=32 = 17.77s） |
 | VdbeExec 单极（--one 1055 裸跑） | 159.2s | **71.1s**（中位；70.84/71.28 双跑，la-65 尖峰 79.21s 离群在案） | **−55%** | 18.1× → **8.1×**（oracle direct-runner = 8.80s；SPEEDPROF 首测 166.5s=18.9×） |
 | per-child 固定底（每函数一子进程） | 0.12s | 0.12s | — | **oracle-par**（oracle one 模式 0.10-0.11s/38MB RSS 同构；FIXEDFLOOR 判决=对齐成本非可修常数，−10~20ms 固有差） |
 
@@ -194,7 +194,7 @@ defects=numbering=0，matched 满额 74/29/71/810/1385，health ok。
 |---|---|---|---|
 | PAR-CHILDREN | MB35 | **5.76×**（harness 953.6→165.4s；落地 917.8→161.1-181.7s） | 函数级子进程池（默认 jobs=8；任意 --jobs stdout 与串行逐字节恒等，fail-closed） |
 | GATEDIGEST | MB35 | **54×**（vsh 冷 14.52s→命中 0.27s；五面全暖重放 0.39s vs 串行 1476.8s） | 门禁 digest 缓存（六分量全内容 sha256 键，任一变即失效，fail-closed） |
-| VDBEEXEC | MB40 | **−46.5%**（单极 159.2→85.2s；refresh_switch_cases 12701→11 调；collapse_internal 86.0→16.2s） | refresh 自创簿记移位 collapseAll 尾（oracle 无对应物，RUGRA-GLUE 残留清除；CR-VDBEEXEC） |
+| VDBEEXEC | MB40 | **−46.5%**（单极 159.2→85.2s；refresh_switch_cases 12701→11 调；collapse_internal 86.0→16.2s） | refresh 自创簿记移位 collapseAll 尾（oracle 无对应物，RUDRA-GLUE 残留清除；CR-VDBEEXEC） |
 | OPPPOOL | MB42 | **−16%**（VdbeExec bare 92.3→74.9s） | per-op 规则池派发钻修（投影键缓存+miss 路径锁合并+lone_descend 免分配；CR-OPPPOOL） |
 | OPTREE | MB43 | **−7.2%**（77.1→71.5s 车道口径；联合树中位 71.1s） | PcodeOpTree=BTreeMap<SeqNum,PcodeOpRef>＝oracle op.hh:280 原生同构（免锁下降） |
 | （累计轨迹） | — | 全语料 159.9→140.4[MB40]→130.0[MB41]→82.1[MB42]→**79.9s**；单极 159.2→101.9[MB40 合并树]→92.3→74.9→**71.1s** | — |
@@ -288,10 +288,10 @@ ORAL-0001）随两面各同基收口。残差：curl `(undefined *)0x103af8` 常
 
 **自产 Parameter ID 模式默认转正**（Lane PFLIP，wt/pflip @ master efc28f4a，用户拍板
 PARAMID-DEFAULT-FLIP-0001；examples 驱动层极性翻转，**零 src/ 改动**）：httpd+curl 双驱动的
-`paramid_active` 默认 ON（`RUGRA_PARAMID=0` 逃生断路），callee-siglock manifest 通道退
-opt-in（仅 `RUGRA_V3SIG=1` 显式开；`=0` 保持 kill 义）。优先链=mirror > `RUGRA_SEEDS=0` >
+`paramid_active` 默认 ON（`RUDRA_PARAMID=0` 逃生断路），callee-siglock manifest 通道退
+opt-in（仅 `RUDRA_V3SIG=1` 显式开；`=0` 保持 kill 义）。优先链=mirror > `RUDRA_SEEDS=0` >
 PARAMID（默认）> V3SIG（opt-in）。generic_clib 导入签名台账（59 条）保持默认开捆绑——
-`RUGRA_IMPORTSIG=0` 断路将退无导入锚脸（亲测 285→537；PAB 口径 ~691 族同向），台账为默认脸
+`RUDRA_IMPORTSIG=0` 断路将退无导入锚脸（亲测 285→537；PAB 口径 ~691 族同向），台账为默认脸
 承重数据。转正判据=PAB A/B 复证（自产 ≥ manifest 严格成立+导入锚在场时锁源脸中性）。
 
 **⚠ 评测语义分界点（PFLIP commit=分界）**：httpd 默认脸口径自本 commit 起为**自产口径**。
@@ -304,12 +304,12 @@ golden 零 typedef 行→更贴 canon）；curl 默认 267/0/0 分界前后恒�
 | 门禁（fast-release 亲测，@ master efc28f4a + PFLIP） | 数字 | 说明 |
 |---|---|---|
 | httpd E2E（新默认脸=自产） | **285 / 0 / 0**（34 函数） | 双跑 cmp 恒等+并发负载复现恒等；函数体与 manifest 脸逐字节同（唯一差=7 行 typedef 序言）；vs `tests/golden/ghidra_httpd_1204.c` |
-| httpd manifest 恢复（`RUGRA_PARAMID=0 RUGRA_V3SIG=1`） | **285 / 0 / 0** | ==翻转前默认脸 cmp **字节恒等**（回归证据）；manifest 文件与 harvest 工具链保留 |
-| httpd `RUGRA_PARAMID=0` 单退 | **285 / 0 / 0** | ==manifest 脸字节恒等——@efc28f4a 自产/manifest/无锁三态在导入锚在场时脸中性（IMPORTFLIP 台账已吸收 manifest 历史贡献） |
-| httpd `RUGRA_IMPORTSIG=0` 降级 | **537 / 0 / 0** | 断路实证（+252）；台账承重；A/B 仪器保留 |
-| httpd `RUGRA_SEEDS=0` 逃生 | **785 / 0 / 0** | 裸脸（全局逃生门，一切播种通道静默关） |
+| httpd manifest 恢复（`RUDRA_PARAMID=0 RUDRA_V3SIG=1`） | **285 / 0 / 0** | ==翻转前默认脸 cmp **字节恒等**（回归证据）；manifest 文件与 harvest 工具链保留 |
+| httpd `RUDRA_PARAMID=0` 单退 | **285 / 0 / 0** | ==manifest 脸字节恒等——@efc28f4a 自产/manifest/无锁三态在导入锚在场时脸中性（IMPORTFLIP 台账已吸收 manifest 历史贡献） |
+| httpd `RUDRA_IMPORTSIG=0` 降级 | **537 / 0 / 0** | 断路实证（+252）；台账承重；A/B 仪器保留 |
+| httpd `RUDRA_SEEDS=0` 逃生 | **785 / 0 / 0** | 裸脸（全局逃生门，一切播种通道静默关） |
 | httpd gcc 审计（新默认脸） | 15 OK / 14 FAIL | fail 名集与 manifest 脸/翻转前默认**逐名恒等**（pRam 族=在账预存域） |
-| curl E2E（新默认脸=自产） | **267 / 0 / 0**（124 函数） | sha `c0610164…` ==翻转前默认==manifest 恢复==`RUGRA_PARAMID=0` 单退（三脸等式维持，canon 零回退）；复现 10/10；首跑并发下一次字节离群（gate 同 267/0/0）→ TODO PARAMID-CURL-LOADDETERMINISM-0001 |
+| curl E2E（新默认脸=自产） | **267 / 0 / 0**（124 函数） | sha `c0610164…` ==翻转前默认==manifest 恢复==`RUDRA_PARAMID=0` 单退（三脸等式维持，canon 零回退）；复现 10/10；首跑并发下一次字节离群（gate 同 267/0/0）→ TODO PARAMID-CURL-LOADDETERMINISM-0001 |
 | 投影银行（B2 钉板） | **391/391 MATCH** | 冻结投影 sha256 钉+mirror 裸径契约→不受门极性影响（亲验） |
 | 镜面棘轮 | curl 78/275、httpd 208/460、vsh 15/55 全 PASS | 上限未动（mirror 恒拒一切通道——极性翻转不变量亲验） |
 | 三门禁（annotations/refs/evidence） | 全绿 | src/ 零改动（97 文件注解/引用不变量） |
@@ -319,11 +319,11 @@ golden 零 typedef 行→更贴 canon）；curl 默认 267/0/0 分界前后恒�
 | env 形态 | 行为 |
 |---|---|
 | （无） | **自产迭代默认开**（httpd 主循环前迭代环+curl worker 表接管；curl 仅 DriverMode::All） |
-| `RUGRA_PARAMID=0` | 单门退（自产迭代关；callee-siglock 通道落到 V3SIG 门——见下） |
-| `RUGRA_V3SIG=1` | manifest 显式开（仅 `RUGRA_PARAMID=0` 时生效——PARAMID owns channel 优先） |
-| `RUGRA_V3SIG=0`/unset | manifest 不装（manifest 通道 opt-in 形态） |
-| `RUGRA_IMPORTSIG=0` | 导入锚断路（默认脸劣化——仪器用途，非逃生门） |
-| `RUGRA_SEEDS=0` | **全局退**（PARAMID/V3SIG/IMPORTSIG/TYPESEED 等全关，裸脸） |
+| `RUDRA_PARAMID=0` | 单门退（自产迭代关；callee-siglock 通道落到 V3SIG 门——见下） |
+| `RUDRA_V3SIG=1` | manifest 显式开（仅 `RUDRA_PARAMID=0` 时生效——PARAMID owns channel 优先） |
+| `RUDRA_V3SIG=0`/unset | manifest 不装（manifest 通道 opt-in 形态） |
+| `RUDRA_IMPORTSIG=0` | 导入锚断路（默认脸劣化——仪器用途，非逃生门） |
+| `RUDRA_SEEDS=0` | **全局退**（PARAMID/V3SIG/IMPORTSIG/TYPESEED 等全关，裸脸） |
 | mirror 分量在场 | 恒拒一切通道（projection purity，含显式 =1） |
 
 
@@ -332,15 +332,15 @@ golden 零 typedef 行→更贴 canon）；curl 默认 267/0/0 分界前后恒�
 > 本节基点 = master **efc28f4a**（CI 全绿，见 §门禁与 CI）。已并入 master 的车道给终值；
 > 尚在分支待 root 合并的车道（PRINTCS/SQNULLT/SQMERGE/GEN5/BRANAUDIT 等）单列
 > "在飞待并"小节，数字为车道终报实测，**不代表 master 合成态**——叠加效果待 root 集成复测。
-> 质量数字全部溯源车道终报（/dev/shm/rugra-reports/LANE_*_2026-09-2[56].md）。
+> 质量数字全部溯源车道终报（/dev/shm/rudra-reports/LANE_*_2026-09-2[56].md）。
 > **MERGEBATCH 集成注记（root 2026-09-26）**：本节所述"在飞待并"车道已全部并入 master——PRINTCS `d0e27c14`、SQNULLT `59bf17bf`、SQMERGE `e54af07d`、BRANAUDIT `f62bef3a`、DOCSYNC `af526da5`、TESTFIX `a96e2480`、PFLIP 本合并 commit；GEN5（wt/gen5）仍在飞。下表数字仍为车道终报口径，master 合成态实测见 LANE_MERGEBATCH_2026-09-26.md。
 > **MERGEBATCH2 集成注记（root 2026-09-26，九支串行零丢失并入 `b46e2a5e..5bf7afdb`）**：CURLATTR `f79659be`（docs，curl canon 267 残差 18 族归因+12 票）、DOCGUIDE `6fa155cc`（docs，手册刷新）、BRANHYG `2ee66159`（docs，分支清理收口）、FMAPRECON `8f24b79a`（docs，分母对账 9494+REGEN 票）、PERFAN `19109a14`（docs，性能深挖+6 票含 DIVCHAIN P0）、PANICSWEEP `ec03e660`（examples/bin_sweep.rs+记分板+3 新族票）、GLOBREPIN `36f9156c`（三打捞票收口+fixtures 重钉+runner 卫生）、CORESMALL `7be4d899`（typeop/coreaction 两票，CR-CORESMALL APPROVE+O-1/2/3 观察）、RASWEEP `5bf7afdb`（ruleaction 两票+散文重钉，CR-RASWEEP APPROVE+F1 UNTESTED-branch 限定/F2 行引勘正）。终态 fresh 实测：canon curl **266**/0/0（=267−coresmall _start 警告行，预期精确命中）+httpd **283**/0/0 恒等；镜面 curl **67**/275（=69−coresmall 警告面×2）+httpd **196**/460 精确+vsh **13**/55（=14−coresmall _start 面）全 PASS 零缺陷；sq 面承重态 ok **808/810**+matched **808≥805**+skeleton **9142≤22639**+defects 0+numbering 7=在案承重红（同 MERGEBATCH 态 9163→9142 改善向;PRETTYFLUSH 余 2 修复在 wt/pflush 未并）;bank **391/391**；cargo test --lib **1747P/0F**；三门禁+doc_sync 绿；flip 语义实证（[PARAMID] 85 行三轮默认+siglock manifest skip）。九支 worktree/分支/targets 已回收。终报=内存盘车道终报目录 LANE_MERGEBATCH2_2026-09-26.md。
 
-> **MERGEBATCH3 集成注记（root 2026-09-26，五支串行零丢失并入 `46ffb6c2..d50168fc`）**：KUNAUB `69934c99`（docs，kuna UB 六项对照复检+4 票）、PFLUSH `4f6b9b20`（prettyprint/printc，PendingBrace BraceId 身份化，prettyprint.rs:3946 panic 族全灭）、DIVCHAIN `7080de6c`（ruleaction P0 非终止修复，CR-DIVCHAIN APPROVE=五复核点 5/5+终止性单调测度独立证明）、CURLE `92730a61`（debugproto delta-depth，canon curl E 族收敛）、VZEXT `c3768261`（printc ZEXT 子族收口，CR-VZEXT 窄域 REJECT 两条件已清免重审）+ B2 fixture 固化 `d50168fc`（PATHOSLOW-DIVCHAIN：sqlite3 idx55 双侧字节恒等 MATCH，oracle 纯净重建直跑+集成态 gen_decompile，tests/oracle/divchain_sqlite_bitvec_1204 四件套）。五支三点 diff 筛查零陈旧树病、零丢失。终态 fresh 实测：canon curl **247/0/0**（=266−19 E 族，精确命中）+httpd **263/0/0**（=283−20 SEXT48，精确命中）；镜面 curl **59/275**+httpd **172/460**+vsh **13/55** 三面 PASS 改善向（棘轮未重钉，实测供 root 参考）；sq 面 matched **810/810** health=ok（PRETTYFLUSH 余 2 panic 清零，MB2 808→810）+skeleton **8504**+defects 0+numbering 7=GetOptimum 预存承重红（SQFACE-NUMBERING-GETOPTIMUM-0001 在案）；bank **391/391**；cargo test --lib **1752P/0F**（1747+divchain 5）；三门禁+gate health 绿；flip 语义实证（PARAMID 三轮默认定点+V3SIG opt-in）。五支 worktree/分支/targets 已回收。终报=/dev/shm/rugra-reports/LANE_MERGEBATCH3_2026-09-26.md。
+> **MERGEBATCH3 集成注记（root 2026-09-26，五支串行零丢失并入 `46ffb6c2..d50168fc`）**：KUNAUB `69934c99`（docs，kuna UB 六项对照复检+4 票）、PFLUSH `4f6b9b20`（prettyprint/printc，PendingBrace BraceId 身份化，prettyprint.rs:3946 panic 族全灭）、DIVCHAIN `7080de6c`（ruleaction P0 非终止修复，CR-DIVCHAIN APPROVE=五复核点 5/5+终止性单调测度独立证明）、CURLE `92730a61`（debugproto delta-depth，canon curl E 族收敛）、VZEXT `c3768261`（printc ZEXT 子族收口，CR-VZEXT 窄域 REJECT 两条件已清免重审）+ B2 fixture 固化 `d50168fc`（PATHOSLOW-DIVCHAIN：sqlite3 idx55 双侧字节恒等 MATCH，oracle 纯净重建直跑+集成态 gen_decompile，tests/oracle/divchain_sqlite_bitvec_1204 四件套）。五支三点 diff 筛查零陈旧树病、零丢失。终态 fresh 实测：canon curl **247/0/0**（=266−19 E 族，精确命中）+httpd **263/0/0**（=283−20 SEXT48，精确命中）；镜面 curl **59/275**+httpd **172/460**+vsh **13/55** 三面 PASS 改善向（棘轮未重钉，实测供 root 参考）；sq 面 matched **810/810** health=ok（PRETTYFLUSH 余 2 panic 清零，MB2 808→810）+skeleton **8504**+defects 0+numbering 7=GetOptimum 预存承重红（SQFACE-NUMBERING-GETOPTIMUM-0001 在案）；bank **391/391**；cargo test --lib **1752P/0F**（1747+divchain 5）；三门禁+gate health 绿；flip 语义实证（PARAMID 三轮默认定点+V3SIG opt-in）。五支 worktree/分支/targets 已回收。终报=/dev/shm/rudra-reports/LANE_MERGEBATCH3_2026-09-26.md。
 
-> **MERGEBATCH4 集成注记（root 2026-09-26，两支并入+一支 defer，区间 `e486fb18..`）**：F8FOR `c961ed8d`（block/blockaction/printc/prettyprint/coreaction，for 循环形成族 block.cc:3080-3488 六函数 1:1 落位；CR-F8FOR APPROVE=六函数族零 MISMATCH+放置偏差合规登记；同 commit 登记 F8FOR-FINALIZE-VISITED-0001（P2 MEDIUM 潜伏,finalize visited 守卫）+ROADMAP 两锚点补记；MSTRUCT-FORSPLIT-DECOMP-0001 SUPERSEDED）；JTDEST `7087a579`（jumptable 错误文本归真 flow.cc:133-137+gen_decompile 全空间范围；CR-JTDEST APPROVE=文本逐字等价+全空间契约亲证；同 commit 登记 JTDEST-FLOW-CATCH-ABORT-0001 P3）+F3 同修 `d7b5ad5a`（bin_sweep.rs 同款有界默认改全空间）。**SLOTDEEP defer**：重制 commit 4255fadb 父=7ac53771（stale d0e27c14 树）非声称的 46ffb6c2，树缺 MB3 的 divchain B2 fixture 四件+worktree 残留 staged +355 行回加已退役 resolver 层（重制会话失联现场）→按筛查红线 defer，worktree/分支/targets 保留 root 裁决。终态 fresh 实测（slotdeep 未并）：canon curl **247/0/0 与 pre-merge 基线字节恒等**（预期 −3 未转移：config-for 位点在 master 现 IR 不成形，属已登记 F8FOR-REJECT-RESIDUAL-0001 拒绝族；pre-merge 工作树 A/B diff=0 亲证零回退）+httpd **255/0/0**（=263−8，精确命中）；镜面 curl **61/275**（+2=拒绝族迁移残差,车道预告）+httpd **146/460**（−26=for-split 族精确兑现）+vsh **15/55**（+2 同族）全 PASS 棘轮未重钉；sq 面 matched **810/810**+health=ok+skeleton **8418**（=8504−86 f8for 增益;slotdeep 退役的 ~7250 降幅随 defer 未兑现）+defects 0+numbering 7=预存承重红；bank **391/391**；cargo test --lib **1752P/0F**；三门禁+gate health+self-test 绿；flip 语义实证（PARAMID 三轮默认定点+56 原型表+V3SIG opt-in）。F8FOR/JTDEST worktree/分支/targets 已回收；/home/ls/rugra-tmp-targets/vzext 磁盘遗留已清。终报=/dev/shm/rugra-reports/LANE_MERGEBATCH4_2026-09-26.md。
+> **MERGEBATCH4 集成注记（root 2026-09-26，两支并入+一支 defer，区间 `e486fb18..`）**：F8FOR `c961ed8d`（block/blockaction/printc/prettyprint/coreaction，for 循环形成族 block.cc:3080-3488 六函数 1:1 落位；CR-F8FOR APPROVE=六函数族零 MISMATCH+放置偏差合规登记；同 commit 登记 F8FOR-FINALIZE-VISITED-0001（P2 MEDIUM 潜伏,finalize visited 守卫）+ROADMAP 两锚点补记；MSTRUCT-FORSPLIT-DECOMP-0001 SUPERSEDED）；JTDEST `7087a579`（jumptable 错误文本归真 flow.cc:133-137+gen_decompile 全空间范围；CR-JTDEST APPROVE=文本逐字等价+全空间契约亲证；同 commit 登记 JTDEST-FLOW-CATCH-ABORT-0001 P3）+F3 同修 `d7b5ad5a`（bin_sweep.rs 同款有界默认改全空间）。**SLOTDEEP defer**：重制 commit 4255fadb 父=7ac53771（stale d0e27c14 树）非声称的 46ffb6c2，树缺 MB3 的 divchain B2 fixture 四件+worktree 残留 staged +355 行回加已退役 resolver 层（重制会话失联现场）→按筛查红线 defer，worktree/分支/targets 保留 root 裁决。终态 fresh 实测（slotdeep 未并）：canon curl **247/0/0 与 pre-merge 基线字节恒等**（预期 −3 未转移：config-for 位点在 master 现 IR 不成形，属已登记 F8FOR-REJECT-RESIDUAL-0001 拒绝族；pre-merge 工作树 A/B diff=0 亲证零回退）+httpd **255/0/0**（=263−8，精确命中）；镜面 curl **61/275**（+2=拒绝族迁移残差,车道预告）+httpd **146/460**（−26=for-split 族精确兑现）+vsh **15/55**（+2 同族）全 PASS 棘轮未重钉；sq 面 matched **810/810**+health=ok+skeleton **8418**（=8504−86 f8for 增益;slotdeep 退役的 ~7250 降幅随 defer 未兑现）+defects 0+numbering 7=预存承重红；bank **391/391**；cargo test --lib **1752P/0F**；三门禁+gate health+self-test 绿；flip 语义实证（PARAMID 三轮默认定点+56 原型表+V3SIG opt-in）。F8FOR/JTDEST worktree/分支/targets 已回收；/home/ls/rudra-tmp-targets/vzext 磁盘遗留已清。终报=/dev/shm/rudra-reports/LANE_MERGEBATCH4_2026-09-26.md。
 
-> **GEN5C 集成注记（root 2026-09-26，GEN5 车道收口，`0c353d5a..f183385c`）**：wt/gen5 `--no-ff` 合并（唯一冲突 TODO_BOARD union；golden 三件套零丢失：合并前后 git 侧 diff 空+sha256 `90950e1f…` 复核恒等；gen5 未触 src/examples，驱动以 ancestry 自动取 master 修复版）。**第五语料 sqlite3 终版全量（fresh 16 分片 172s 零重试）**：ok **1385/1385**（TIMEOUT 3→0/PANICKED 27→0，三修复分解=DIVCHAIN 11 非终止全灭+PFLUSH 27 panic 全转正+JTDEST 镜像面直接贡献 0）/defects **0**/numbering **0**/skeleton 31214（口径分解=旧 1355 基 −2036 窗口增益+新完成 30 函数 +15598）/骨架恒等 971；终版记分板=docs/alignment_audit/SQLITE3_SCOREBOARD_2026-09-26.md；GEN5 三票闭环（PATHOSLOW-BITVEC→DIVCHAIN 闭单指针/GOLDEN 落账/SHARD-EVIDENCE 实况注记）。**canon 双语料零扰动最强级亲证**：0c353d5a 干净 worktree 独立构建 vs 集成态 canon curl cmp 字节恒等（同 sha `638ffcb3…`）+httpd 与合并前档案字节恒等（255/0/0）；观察项=MB4 注记的 curl 247/"config-for 不成形"与本轮 3/3 次 246/config-for 成形相左，归 PARAMID-CURL-LOADDETERMINISM-0001 证据面。wt/gen5 worktree/分支/targets 已回收。终报=/dev/shm/rugra-reports/LANE_GEN5C_2026-09-26.md。
+> **GEN5C 集成注记（root 2026-09-26，GEN5 车道收口，`0c353d5a..f183385c`）**：wt/gen5 `--no-ff` 合并（唯一冲突 TODO_BOARD union；golden 三件套零丢失：合并前后 git 侧 diff 空+sha256 `90950e1f…` 复核恒等；gen5 未触 src/examples，驱动以 ancestry 自动取 master 修复版）。**第五语料 sqlite3 终版全量（fresh 16 分片 172s 零重试）**：ok **1385/1385**（TIMEOUT 3→0/PANICKED 27→0，三修复分解=DIVCHAIN 11 非终止全灭+PFLUSH 27 panic 全转正+JTDEST 镜像面直接贡献 0）/defects **0**/numbering **0**/skeleton 31214（口径分解=旧 1355 基 −2036 窗口增益+新完成 30 函数 +15598）/骨架恒等 971；终版记分板=docs/alignment_audit/SQLITE3_SCOREBOARD_2026-09-26.md；GEN5 三票闭环（PATHOSLOW-BITVEC→DIVCHAIN 闭单指针/GOLDEN 落账/SHARD-EVIDENCE 实况注记）。**canon 双语料零扰动最强级亲证**：0c353d5a 干净 worktree 独立构建 vs 集成态 canon curl cmp 字节恒等（同 sha `638ffcb3…`）+httpd 与合并前档案字节恒等（255/0/0）；观察项=MB4 注记的 curl 247/"config-for 不成形"与本轮 3/3 次 246/config-for 成形相左，归 PARAMID-CURL-LOADDETERMINISM-0001 证据面。wt/gen5 worktree/分支/targets 已回收。终报=/dev/shm/rudra-reports/LANE_GEN5C_2026-09-26.md。
 
 
 ### 本 wave 落地清单（已并入 master efc28f4a）
@@ -379,12 +379,12 @@ golden 零 typedef 行→更贴 canon）；curl 默认 267/0/0 分界前后恒�
 
 ### 第五语料 sqlite3（GEN5，golden 入库待并）
 
-- **靶** `/usr/lib/x86_64-linux-gnu/libsqlite3.so.0`（sha256 `f5a7fc23…`）：首个 stripped 共享库 profile（dynsym-only、库脸无 main、API 导出入口、导出互调图）；SQLite amalgamation 源系与四语料零重叠；sqlite3VdbeExec 3877 行=五语料最大单函数；oracle 自带压力面（327× jumptable 超限+1760× unreachable+12× typeprop 不收敛）Rugra 近 parity 复现（319/1613/10）。
+- **靶** `/usr/lib/x86_64-linux-gnu/libsqlite3.so.0`（sha256 `f5a7fc23…`）：首个 stripped 共享库 profile（dynsym-only、库脸无 main、API 导出入口、导出互调图）；SQLite amalgamation 源系与四语料零重叠；sqlite3VdbeExec 3877 行=五语料最大单函数；oracle 自带压力面（327× jumptable 超限+1760× unreachable+12× typeprop 不收敛）Rudra 近 parity 复现（319/1613/10）。
 - **golden**：`tests/golden/ghidra_sqlite_1204.direct-runner.c`（wt/gen5 `ff06b3c7`，1385/1385 OK 30.3s、determinism 12/12、provenance NO_ORACLE 缺项为零）+记分板 `docs/alignment_audit/GEN5_SQLITE_CORPUS_SCOREBOARD_2026-09-26.md`。
-- **Rugra 首份成绩单**（mirror 臂并行分片）：ok **1355/1385**（27 PANICKED+3 TIMEOUT）、skeleton **17652**、defects **0**、numbering **0**（sq 曾破零=7，sqlite 复零）、骨架恒等 874/1355（64.4%）。
+- **Rudra 首份成绩单**（mirror 臂并行分片）：ok **1355/1385**（27 PANICKED+3 TIMEOUT）、skeleton **17652**、defects **0**、numbering **0**（sq 曾破零=7，sqlite 复零）、骨架恒等 874/1355（64.4%）。
 - **panic 族扩容**：27 panic 全部落 MIRROR3-PRETTYFLUSH-FAILCLOSED-0001（sq 2 站点→sqlite 27 站点，半径 ×13.5，含 VdbeExec/RunParser/mprintf 顶梁函数）——原票建议升至 P1/P2 头名。
-- **新族 PATHOSLOW**：GEN5-SQLITE-PATHOSLOW-BITVEC-0001（**P1，首个性能级分歧族**）——sqlite3BitvecSet/Clear/TestNotNull 三函数 oracle 毫秒级 vs Rugra 单函数 100% CPU 燃烧至 600s 墙杀（Bitvec 位图散列子表递归三兄弟同根）。
-- 残差分拣：CAST-SHAPE 3908/SWITCH-GOTO 3779/UNAFF-EXTRAOUT 2235/OPNAME-LEAK 1263/LOOPSHAPE 810 行全归并既有票；链表遍历 for 形 golden 31 处 vs Rugra 0 处（MSTRUCT-FORSPLIT 绝对缺席证据面）。
+- **新族 PATHOSLOW**：GEN5-SQLITE-PATHOSLOW-BITVEC-0001（**P1，首个性能级分歧族**）——sqlite3BitvecSet/Clear/TestNotNull 三函数 oracle 毫秒级 vs Rudra 单函数 100% CPU 燃烧至 600s 墙杀（Bitvec 位图散列子表递归三兄弟同根）。
+- 残差分拣：CAST-SHAPE 3908/SWITCH-GOTO 3779/UNAFF-EXTRAOUT 2235/OPNAME-LEAK 1263/LOOPSHAPE 810 行全归并既有票；链表遍历 for 形 golden 31 处 vs Rudra 0 处（MSTRUCT-FORSPLIT 绝对缺席证据面）。
 
 ### 门禁体系四门 + CI（efc28f4a 实态）
 
@@ -407,18 +407,18 @@ golden 零 typedef 行→更贴 canon）；curl 默认 267/0/0 分界前后恒�
 自本快照起为**默认行为**（转正判据：V3SIG opt-in 轮全量验证过——**−190 skeleton 零回退/默认脸
 字节恒等/mirror 恒拒/bank 391**，f9b3f1bf 终报 + 用户既定模式"实际性错误解决就默认开" +
 DFLIP/SEEDFLIP 门反转形态先例）。**新默认脸 == 原 opt-in 态逐字节**（httpd 951 ==
-RUGRA_V3SIG=1 态，cmp 恒等亲测）；curl 驱动未触、**577/0/0 不变**（cmp 字节恒等亲证）。
-门极性 = **opt-out 三段判定**（mirror 左短路恒拒 → `RUGRA_SEEDS=0` 全局退 →
-`RUGRA_V3SIG=0` 单门退 → 默认装）；任意二进制无 manifest 优雅 no-op（非致命告警 + 裸脸）。
+RUDRA_V3SIG=1 态，cmp 恒等亲测）；curl 驱动未触、**577/0/0 不变**（cmp 字节恒等亲证）。
+门极性 = **opt-out 三段判定**（mirror 左短路恒拒 → `RUDRA_SEEDS=0` 全局退 →
+`RUDRA_V3SIG=0` 单门退 → 默认装）；任意二进制无 manifest 优雅 no-op（非致命告警 + 裸脸）。
 
 | 门禁（fast-release 亲测，@ master 535dd91f + V3FLIP） | 数字 | 说明 |
 |---|---|---|
-| httpd E2E（新默认脸） | **951 / 0 / 0**（skeleton/defects/numbering，34 函数） | vs `tests/golden/ghidra_httpd_1204.c`；==原 opt-in 态（RUGRA_V3SIG=1）逐字节；双跑 cmp 恒等；per-fn 表承 V3SIG 终报（main 613→505 / ap_fini 159→90 / ap_update_vhost_from_headers 56→51 / ap_matches 6→2 / caseD_0@0x154470 4→0 canon 逐字节，其余 29 函数恒等零回退） |
-| httpd 单门退 RUGRA_V3SIG=0 | **1141 / 0 / 0** | ==转正前默认脸 cmp 逐字节恒等（TYPESEED 保持默认开——单门退不牵连） |
-| httpd 全局逃生门 RUGRA_SEEDS=0 | **1234 / 0 / 0** | ==转正前 SEEDS=0 脸逐字节（分层退出：TYPESEED+V3SIG 同退）；`RUGRA_SEEDS=0 RUGRA_V3SIG=1` 仍全退（层级压制亲测 cmp 恒等） |
-| httpd 显式开 RUGRA_V3SIG=1 | **951 / 0 / 0** | ==新默认脸 cmp 恒等（历史 opt-in 见证形态保留） |
-| httpd mirror（RUGRA_MIRROR=1，含 +V3SIG=1） | 输出 cmp 恒等基线 mirror | 恒拒（左短路 "projection purity"，压制含显式 =1） |
-| httpd 无 manifest（RUGRA_V3SIG_MANIFEST→缺失路径） | **1141 / 0 / 0** ==旧默认 | 优雅 no-op（"cannot read manifest … (gate disabled)" 非致命告警）；任意二进制语义 |
+| httpd E2E（新默认脸） | **951 / 0 / 0**（skeleton/defects/numbering，34 函数） | vs `tests/golden/ghidra_httpd_1204.c`；==原 opt-in 态（RUDRA_V3SIG=1）逐字节；双跑 cmp 恒等；per-fn 表承 V3SIG 终报（main 613→505 / ap_fini 159→90 / ap_update_vhost_from_headers 56→51 / ap_matches 6→2 / caseD_0@0x154470 4→0 canon 逐字节，其余 29 函数恒等零回退） |
+| httpd 单门退 RUDRA_V3SIG=0 | **1141 / 0 / 0** | ==转正前默认脸 cmp 逐字节恒等（TYPESEED 保持默认开——单门退不牵连） |
+| httpd 全局逃生门 RUDRA_SEEDS=0 | **1234 / 0 / 0** | ==转正前 SEEDS=0 脸逐字节（分层退出：TYPESEED+V3SIG 同退）；`RUDRA_SEEDS=0 RUDRA_V3SIG=1` 仍全退（层级压制亲测 cmp 恒等） |
+| httpd 显式开 RUDRA_V3SIG=1 | **951 / 0 / 0** | ==新默认脸 cmp 恒等（历史 opt-in 见证形态保留） |
+| httpd mirror（RUDRA_MIRROR=1，含 +V3SIG=1） | 输出 cmp 恒等基线 mirror | 恒拒（左短路 "projection purity"，压制含显式 =1） |
+| httpd 无 manifest（RUDRA_V3SIG_MANIFEST→缺失路径） | **1141 / 0 / 0** ==旧默认 | 优雅 no-op（"cannot read manifest … (gate disabled)" 非致命告警）；任意二进制语义 |
 | curl E2E（默认脸） | **577 / 0 / 0**（124 函数） | curl 驱动未触；cmp 字节恒等基线（亲证）；curl 侧 siglock 通道另行立项（V3SIG 终报剩余面） |
 | httpd gcc 审计（新默认脸） | 14 OK / 15 FAIL | fail 函数名集与原 opt-in 态**逐名相同**（亲验；pRam 未声明族=在账 PRINTC-AFINI-UNIQUELOC-0001 等登记项，非本次引入） |
 | 投影银行（B2 钉板） | **391/391 MATCH** | 冻结投影 sha256 钉 + mirror 裸径采集契约 → 不受门极性影响（亲验） |
@@ -429,12 +429,12 @@ RUGRA_V3SIG=1 态，cmp 恒等亲测）；curl 驱动未触、**577/0/0 不变**
 | env 形态 | 行为 |
 |---|---|
 | （无） | **装**（新默认；manifest 在库即装） |
-| `RUGRA_V3SIG=1` | 显式开——与默认等效（历史 opt-in 见证形态保留） |
-| `RUGRA_V3SIG=0` | 单门退（仅 V3SIG 关；TYPESEED 保持默认开，SEEDFLIP 语义不动） |
-| `RUGRA_SEEDS=0` | **全局退**——种子族全关（httpd TYPESEED+V3SIG 同退；curl 三门同语义），拿回裸脸（逃生门；在层级上压制含 `RUGRA_V3SIG=1` 的显式开——分层退出语义亲测） |
-| mirror 分量在场（RUGRA_MIRROR/RUGRA_FLOW_MIRROR/…） | 恒拒——压制一切 V3SIG 形态（含显式 =1），判定短路左侧 |
+| `RUDRA_V3SIG=1` | 显式开——与默认等效（历史 opt-in 见证形态保留） |
+| `RUDRA_V3SIG=0` | 单门退（仅 V3SIG 关；TYPESEED 保持默认开，SEEDFLIP 语义不动） |
+| `RUDRA_SEEDS=0` | **全局退**——种子族全关（httpd TYPESEED+V3SIG 同退；curl 三门同语义），拿回裸脸（逃生门；在层级上压制含 `RUDRA_V3SIG=1` 的显式开——分层退出语义亲测） |
+| mirror 分量在场（RUDRA_MIRROR/RUDRA_FLOW_MIRROR/…） | 恒拒——压制一切 V3SIG 形态（含显式 =1），判定短路左侧 |
 
-注意：`RUGRA_V3SIG=0` 在转正前语义为"任意值=开"（`is_ok()` 判定），转正后按字面意义改为单门退——
+注意：`RUDRA_V3SIG=0` 在转正前语义为"任意值=开"（`is_ok()` 判定），转正后按字面意义改为单门退——
 仓库内无任何脚本/测试依赖旧语义（grep 亲查，仅历史文档描述）；需要历史等价形态用 `=1`。
 
 ## 2026-09-25 CURLSYM curl 侧 SYMDB 移植快照（历史，httpd 数字被 V3FLIP 节取代）
@@ -446,7 +446,7 @@ DFLIP 已转正的 `build_action_data_symbol_db` 形态复制到 curl 驱动—�
 OBJECT/GOT PTR_/rodata char[]/DAT_ 引用标签早已在库；OBJECT 臂补 mark_readonly 形态）③
 **FunctionSymbol 层进 ACTION DB** + spacebase scope source 解析面（PREGFREE 通道形态；print
 swap 降级为历史脸回退，httpd `mirror_fn || !action_db_attached` 同款门）。**默认开**；
-`RUGRA_SYMDB=0` 逃生门拿回历史 fold-only 脸；mirror 分量恒压制（含显式 =1）。
+`RUDRA_SYMDB=0` 逃生门拿回历史 fold-only 脸；mirror 分量恒压制（含显式 =1）。
 
 **实测结论（诚实计量，"以亲测为准"）**：curl 默认脸 **767/0/0 不变**（输出与基线 **cmp 字节
 恒等**；逐函数零回退=平凡成立）。根因＝派单前提已被历史车道超越——curl worker 早已通过
@@ -461,8 +461,8 @@ fn 符号层（CURL-CODEREF-SYMBOLIZE-0001）已覆盖 code-ref 渲染通道；�
 | 门禁（fast-release 亲测，@ master bdf2bd7f + CURLSYM） | 数字 | 说明 |
 |---|---|---|
 | curl E2E（默认脸） | **767 / 0 / 0**（124 函数） | ==基线 cmp 字节恒等；双跑 cmp 恒等；SYMDB 层装 3 R-only 段区间 + 76 action 侧函数符号/函数（亲见 stderr 日志） |
-| curl 逃生门 RUGRA_SYMDB=0 | **767 / 0 / 0** | ==旧默认脸 cmp 字节恒等（层跳过，print swap 恢复历史通道） |
-| curl mirror（RUGRA_MIRROR=1） | 输出 cmp 恒等基线 mirror | 层零安装（mirror 分量短路左侧）；裸库真值通道不受影响 |
+| curl 逃生门 RUDRA_SYMDB=0 | **767 / 0 / 0** | ==旧默认脸 cmp 字节恒等（层跳过，print swap 恢复历史通道） |
+| curl mirror（RUDRA_MIRROR=1） | 输出 cmp 恒等基线 mirror | 层零安装（mirror 分量短路左侧）；裸库真值通道不受影响 |
 | curl gcc 审计（默认脸） | 104 OK / 20 FAIL | ==基线 fail 函数名集逐名相同（字节恒等的直接推论，亲验） |
 | 投影银行（B2+HBANK2 钉板） | **391/391 MATCH** | sha 钉板 + mirror 裸径采集契约 → 不受本层影响（亲验） |
 | httpd E2E（默认脸） | **1125 / 0 / 0**（34 函数） | curl 驱动单文件改动，httpd 驱动未触；@bdf2bd7f 本 lane 亲跑（优于派单快照 1243 与 SEEDFLIP 快照 1197——基线间提交所致，非本 lane 贡献） |
@@ -479,11 +479,11 @@ stripped 兼容已由 HSEED 判决背书——无 DWARF 语料的 DWARF/STRUCT �
 
 | 门禁（fast-release 亲测，@ master 898a975b + SEEDFLIP） | 数字 | 说明 |
 |---|---|---|
-| curl E2E（新默认脸） | **767 / 0 / 0**（skeleton/defects/numbering，124 函数） | vs `tests/golden/ghidra_curl_1204.c`；==原三门叠加态（RUGRA_TYPESEED=1 DWARFSEED=1 STRUCTSEED=1）逐字节；双跑 cmp 恒等 |
+| curl E2E（新默认脸） | **767 / 0 / 0**（skeleton/defects/numbering，124 函数） | vs `tests/golden/ghidra_curl_1204.c`；==原三门叠加态（RUDRA_TYPESEED=1 DWARFSEED=1 STRUCTSEED=1）逐字节；双跑 cmp 恒等 |
 | httpd E2E（新默认脸） | **1197 / 0 / 0**（34 函数） | vs `tests/golden/ghidra_httpd_1204.c`；==原 TYPESEED 门控态逐字节；双跑 cmp 恒等 |
-| 全局逃生门 RUGRA_SEEDS=0 | curl **1096/0/0**、httpd **1315/0/0** | ==转正前默认脸逐字节（裸种子脸，未删除）；两驱动同语义 |
-| 单门退（如 RUGRA_TYPESEED=0） | curl ==双门态逐字节 | 各门独立退；旧 =1 显式形态继续等效（==新默认） |
-| mirror（RUGRA_MIRROR=1，含 +显式=1） | 输出 cmp 恒等基线 mirror | mirror 分量在场 → 拒装一切种子（转正前后同契约） |
+| 全局逃生门 RUDRA_SEEDS=0 | curl **1096/0/0**、httpd **1315/0/0** | ==转正前默认脸逐字节（裸种子脸，未删除）；两驱动同语义 |
+| 单门退（如 RUDRA_TYPESEED=0） | curl ==双门态逐字节 | 各门独立退；旧 =1 显式形态继续等效（==新默认） |
+| mirror（RUDRA_MIRROR=1，含 +显式=1） | 输出 cmp 恒等基线 mirror | mirror 分量在场 → 拒装一切种子（转正前后同契约） |
 | 无 manifest（任意二进制） | ==裸脸逐字节 | 优雅 no-op（两驱动亲测，_MANIFEST 指向缺失路径） |
 | curl gcc 审计（新默认脸） | 104 OK / 20 FAIL | fail 函数名集与三门叠加态**逐名相同**（真子集不回退判据的更强形态） |
 | 投影银行（B2 钉板） | **71/71 MATCH** | 全部 curl 语料 + mirror 裸径采集契约 → 不受种子门转正影响（亲验） |
@@ -494,12 +494,12 @@ stripped 兼容已由 HSEED 判决背书——无 DWARF 语料的 DWARF/STRUCT �
 | env 形态 | 行为 |
 |---|---|
 | （无） | **种子门全开**（新默认；manifest 在库即装） |
-| `RUGRA_X=1` | 显式开——与默认等效（历史 opt-in 见证形态保留） |
-| `RUGRA_X=0` | 单门退（仅 X 关；curl 其余门保持默认开） |
-| `RUGRA_SEEDS=0` | **全局退**——一切种子门关，拿回裸脸（逃生门） |
-| mirror 分量在场（RUGRA_MIRROR/RUGRA_FLOW_MIRROR/…） | 恒裸——压制一切种子形态（含显式 =1），判定短路左侧 |
+| `RUDRA_X=1` | 显式开——与默认等效（历史 opt-in 见证形态保留） |
+| `RUDRA_X=0` | 单门退（仅 X 关；curl 其余门保持默认开） |
+| `RUDRA_SEEDS=0` | **全局退**——一切种子门关，拿回裸脸（逃生门） |
+| mirror 分量在场（RUDRA_MIRROR/RUDRA_FLOW_MIRROR/…） | 恒裸——压制一切种子形态（含显式 =1），判定短路左侧 |
 
-注意：`RUGRA_X=0` 在转正前语义为"任意值=开"（`is_ok()` 判定），转正后按字面意义改为单门退——
+注意：`RUDRA_X=0` 在转正前语义为"任意值=开"（`is_ok()` 判定），转正后按字面意义改为单门退——
 仓库内无任何脚本/测试依赖旧语义（grep 亲查）；需要历史等价形态用 `=1`。
 
 ## 2026-09-25 DFLIP 默认脸快照（历史，数字被本节取代）
@@ -507,16 +507,16 @@ stripped 兼容已由 HSEED 判决背书——无 DWARF 语料的 DWARF/STRUCT �
 **SYMDB 默认转正**（Lane DFLIP，wt/dflip）：httpd 驱动的 action 侧符号 Database 建库+attach+
 spacebase scope source 装配与 canon 装配 emitter（EmitPrettyPrint，Oppen 100 列）自本快照起为
 **默认行为**（转正判据：功能残差清单清空 + 门控 1315 ≤ 默认 1472，CURB2→DATASYMS→PREGFREE
-车道链终报，归档 /dev/shm/rugra-reports/LANE_*_2026-09-25.md）。**默认新脸 == 原门控态逐字节**
-（亲测 cmp 恒等）；**逃生门 `RUGRA_SYMDB=0`** 拿回旧 fold-only 脸（1472/0/0，同样逐字节恒等，
-旧脸为 opt-out 未删除）；**mirror 路径恒裸**（RUGRA_MIRROR 任何分量在场 → 不建库不 attach 不换
+车道链终报，归档 /dev/shm/rudra-reports/LANE_*_2026-09-25.md）。**默认新脸 == 原门控态逐字节**
+（亲测 cmp 恒等）；**逃生门 `RUDRA_SYMDB=0`** 拿回旧 fold-only 脸（1472/0/0，同样逐字节恒等，
+旧脸为 opt-out 未删除）；**mirror 路径恒裸**（RUDRA_MIRROR 任何分量在场 → 不建库不 attach 不换
 emitter，纯库真值通道）。
 
 | 门禁（fast-release 亲测，@ master a600826e + DFLIP） | 数字 | 说明 |
 |---|---|---|
-| httpd E2E（默认脸） | **1315 / 0 / 0**（skeleton/defects/numbering，34 函数） | vs `tests/golden/ghidra_httpd_1204.c`；双跑 cmp 恒等；==原 RUGRA_SYMDB=1 门控态逐字节 |
-| httpd 逃生门 RUGRA_SYMDB=0 | **1472 / 0 / 0** | ==原默认脸逐字节（fold-only + EmitNoMarkup） |
-| httpd mirror（RUGRA_MIRROR=1） | 输出 cmp 恒等亲父 | 裸库真值通道不受转正影响；SYMDB=1 显式开也被 mirror 压制 |
+| httpd E2E（默认脸） | **1315 / 0 / 0**（skeleton/defects/numbering，34 函数） | vs `tests/golden/ghidra_httpd_1204.c`；双跑 cmp 恒等；==原 RUDRA_SYMDB=1 门控态逐字节 |
+| httpd 逃生门 RUDRA_SYMDB=0 | **1472 / 0 / 0** | ==原默认脸逐字节（fold-only + EmitNoMarkup） |
+| httpd mirror（RUDRA_MIRROR=1） | 输出 cmp 恒等亲父 | 裸库真值通道不受转正影响；SYMDB=1 显式开也被 mirror 压制 |
 | curl E2E（默认） | **1096 / 0 / 0**（124 函数） | vs `tests/golden/ghidra_curl_1204.c`；curl 驱动未触（curl 的 SYMDB 化另行立项） |
 | httpd gcc 审计（默认脸） | 14 OK / 15 FAIL | 旧默认脸 13/16 → +1（DATASYMS readonly 旗标通道随 DB 默认开自动生效） |
 | 投影银行（B2 钉板） | **71/71 MATCH** | 全部 curl 语料 + mirror 裸径采集契约 → 不受 emitter/DB 转正影响（亲验） |
@@ -526,11 +526,11 @@ emitter，纯库真值通道）。
 
 | 通道 | 环境变量 | 状态 | 语料 |
 |---|---|---|---|
-| action 侧符号 DB + EmitPrettyPrint | `RUGRA_SYMDB` | **默认开**（`RUGRA_SYMDB=0` opt-out 拿回旧脸） | httpd |
-| TYPESEED 提交局部类型种子 | `RUGRA_TYPESEED`(+`_MANIFEST`) | manifest 驱动 opt-in，维持（→ 同日 SEEDFLIP 转正默认开，见上节） | httpd/curl |
-| DWARFSEED 原型种子 | `RUGRA_DWARFSEED`(+`_MANIFEST`) | manifest 驱动 opt-in，维持（→ 同日 SEEDFLIP 转正默认开，见上节） | curl |
-| STRUCTSEED 结构复合种子 | `RUGRA_STRUCTSEED`(+`_MANIFEST`) | manifest 驱动 opt-in，维持（→ 同日 SEEDFLIP 转正默认开，见上节） | curl |
-| mirror 裸库真值 | `RUGRA_MIRROR`/`RUGRA_FLOW_MIRROR` | 在场即恒裸（压制一切 SYMDB 形态），维持 | httpd/curl |
+| action 侧符号 DB + EmitPrettyPrint | `RUDRA_SYMDB` | **默认开**（`RUDRA_SYMDB=0` opt-out 拿回旧脸） | httpd |
+| TYPESEED 提交局部类型种子 | `RUDRA_TYPESEED`(+`_MANIFEST`) | manifest 驱动 opt-in，维持（→ 同日 SEEDFLIP 转正默认开，见上节） | httpd/curl |
+| DWARFSEED 原型种子 | `RUDRA_DWARFSEED`(+`_MANIFEST`) | manifest 驱动 opt-in，维持（→ 同日 SEEDFLIP 转正默认开，见上节） | curl |
+| STRUCTSEED 结构复合种子 | `RUDRA_STRUCTSEED`(+`_MANIFEST`) | manifest 驱动 opt-in，维持（→ 同日 SEEDFLIP 转正默认开，见上节） | curl |
+| mirror 裸库真值 | `RUDRA_MIRROR`/`RUDRA_FLOW_MIRROR` | 在场即恒裸（压制一切 SYMDB 形态），维持 | httpd/curl |
 
 **2026-09-25 HSEED 阶梯补充（Lane HSEED，wt/hseed @ master 33894226 亲测）**——SYMDB 默认脸 ×
 TYPESEED 的叠加态首次实测：
@@ -538,9 +538,9 @@ TYPESEED 的叠加态首次实测：
 | 阶梯（httpd E2E canon） | env | skeleton/defects/numbering |
 |---|---|---|
 | 新默认脸 | （无） | **1315/0/0**（==DFLIP final 逐字节；双跑 cmp 恒等） |
-| +TYPESEED | `RUGRA_TYPESEED=1` | **1197/0/0**（−118 全部由 6 个播种函数贡献：main 644→622、ap_fini_vhost_config 191→158、ap_update_vhost_from_headers 81→56、ap_parse_vhost_addrs 27→9、ap_os_is_path_absolute 23→7、ap_ht_time 17→13；逐函数零回退；gcc 审计函数名集与默认脸逐名相同 14OK/15FAIL） |
-| 逃生门+TYPESEED | `RUGRA_SYMDB=0 RUGRA_TYPESEED=1` | **1360/0/0**（==BRIDGE1 历史 opt-in 见证精确复现，通道完整性再证） |
-| mirror×TYPESEED | `RUGRA_MIRROR=1 RUGRA_TYPESEED=1` | 输出 cmp 恒等基线 mirror（门在 mirror 下正确拒载；新默认脸下投影纯度保持） |
+| +TYPESEED | `RUDRA_TYPESEED=1` | **1197/0/0**（−118 全部由 6 个播种函数贡献：main 644→622、ap_fini_vhost_config 191→158、ap_update_vhost_from_headers 81→56、ap_parse_vhost_addrs 27→9、ap_os_is_path_absolute 23→7、ap_ht_time 17→13；逐函数零回退；gcc 审计函数名集与默认脸逐名相同 14OK/15FAIL） |
+| 逃生门+TYPESEED | `RUDRA_SYMDB=0 RUDRA_TYPESEED=1` | **1360/0/0**（==BRIDGE1 历史 opt-in 见证精确复现，通道完整性再证） |
+| mirror×TYPESEED | `RUDRA_MIRROR=1 RUDRA_TYPESEED=1` | 输出 cmp 恒等基线 mirror（门在 mirror 下正确拒载；新默认脸下投影纯度保持） |
 | +DWARFSEED/+STRUCTSEED | — | **语料级不可用**（见下） |
 
 **httpd 语料事实（HSEED 判决，机器可复核）**：`examples/httpd`（sha256 `805f89cd…`，与 golden
@@ -555,8 +555,8 @@ curl 侧两通道不受影响（重收割字节恒等复证）。
 
 
 文本级钉板重钉清单（emitter 转正影响面亲查）：**空**——银行 71 项全部 curl 语料且采集命令带
-`RUGRA_MIRROR=1`（裸径，转正不改其再生成契约）；`tests/golden/` 为 oracle 侧输出；
-`tests/oracle/*.c` 为独立 oracle harness fixture，非驱动产物；tests/ 内无 rugra 侧 httpd 文本钉板。
+`RUDRA_MIRROR=1`（裸径，转正不改其再生成契约）；`tests/golden/` 为 oracle 侧输出；
+`tests/oracle/*.c` 为独立 oracle harness fixture，非驱动产物；tests/ 内无 rudra 侧 httpd 文本钉板。
 
 ## 2026-08-28 PTRSUB 正式输出快照
 
@@ -597,7 +597,7 @@ full suite 仍 FAIL，但 17 个失败名与 2026-08-27 归档基线完全相同
 | defects / numbering | 0 / 0 | **0 / 0** | numbering 由 isComplex 集成顺带归零（match_url 合法 \|\| 折叠恢复） |
 | 三函数严格字节 | 0/3 | **0/3**（结构大幅收敛） | my_fwrite 守卫+fwrite+return 恢复（剩 21 行 TEMPVAR 在途）；progressbarinit `__nptr` 达成 golden 同名（13 函数获 DWARF 推荐命名）；hugehelp 六 puts 结构就绪等 CPTR |
 | main 状态 | 1 TIMEOUT | **0 TIMEOUT（30s 对齐 oracle）**，894 行 diff 已分诊 6 桶（结构化 373/命名 171/全局 162/常量字符串 181/死存储 105/调用原型 52） | argc 原型 `int main(int argc,char **argv)` 逐字节=golden |
-| httpd 语料 | 未测 | 首回归跑：timeout 全消、21 函数净 −53；暴露 2 P0 panic（已钉死引入 commit，修复在途）+ goto 三缺陷家族（curl 零覆盖路径） | 报告 /tmp/rugra-reports/HTTPD-GATE-c1e3733d.md |
+| httpd 语料 | 未测 | 首回归跑：timeout 全消、21 函数净 −53；暴露 2 P0 panic（已钉死引入 commit，修复在途）+ goto 三缺陷家族（curl 零覆盖路径） | 报告 /tmp/rudra-reports/HTTPD-GATE-c1e3733d.md |
 | 复核闭环 | — | 本批 5 复核：4 APPROVE（含 mutation 实证）+1 REJECT（回走双步，C++ 复刻实证）→ 返修中 | 机制 C 运转正常 |
 
 ## 关键指标增量（2026-08-25 第一批，W-2026-08-24-TRIFUNC-GAP wave 进行中）
@@ -711,7 +711,7 @@ OWNERSHIP(0618b1c) → CALLGUARD(126b56f) → ADT-RENAME(c96f699，含确定性�
 
 `tools/compare_ghidra.py` 的 `check_numbering_continuity` 旧实现用 `VARDECL_RE` 扫整个函数体，把每一次变量**使用**当成**声明**计数（`return pcVar1;` / `if (bVar5)` / `bVar3 = ...` 全被计入）。这导致 fc6fd1f 引入类型前缀命名后，numbering 从 3 暴涨到 749——而其中**全部都是误报**：连 Ghidra 自己的正确黄金输出（`tests/golden/ghidra_curl.c`）也被同一 checker 报 995 个问题。
 
-修复：改为只统计**声明行**（`^[ \t]+<C 类型>...<Var 名>(;|=)`，要求 Var 名前是真正的 C 类型关键字而非 `return`/语句关键字），并用**共享计数器不变量**替换被声明字母序干扰的 per-prefix 文本序单调性检查——直接抓 181538f 类 per-prefix 计数器 bug（max(num) << 声明总数）。修复后 Rugra 与 Ghidra 黄金输出 numbering 均为 0。详见 `tools/compare_ghidra.py` 注释。
+修复：改为只统计**声明行**（`^[ \t]+<C 类型>...<Var 名>(;|=)`，要求 Var 名前是真正的 C 类型关键字而非 `return`/语句关键字），并用**共享计数器不变量**替换被声明字母序干扰的 per-prefix 文本序单调性检查——直接抓 181538f 类 per-prefix 计数器 bug（max(num) << 声明总数）。修复后 Rudra 与 Ghidra 黄金输出 numbering 均为 0。详见 `tools/compare_ghidra.py` 注释。
 
 
 ### 2026-06-28 双重突破（历史记录，数值已被后续覆盖）

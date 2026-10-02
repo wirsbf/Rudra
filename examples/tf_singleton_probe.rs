@@ -25,7 +25,7 @@
 //! 用法（repo 根运行，sleigh_specs/ 为 CWD 相对）：
 //!   cargo run --profile fast-release --example tf_singleton_probe -- \
 //!       --factory fresh --binaries examples/curl examples/httpd \
-//!       --max-funcs 24 --out-dir /dev/shm/rugra-tests/tfsingle/probe-run
+//!       --max-funcs 24 --out-dir /dev/shm/rudra-tests/tfsingle/probe-run
 
 use goblin::Object;
 use rudra::action::ActionDatabase;
@@ -61,7 +61,7 @@ const SPEC_SPACES: [(&str, u64); 9] = [
 /// for the locked x86-64 .sla (bin_sweep value).
 const SPEC_UNIQUE_INJECT_BASE: u64 = 0x364_400;
 
-// RUGRA-GLUE: one discovered decompilable unit (bin_sweep shape verbatim).
+// RUDRA-GLUE: one discovered decompilable unit (bin_sweep shape verbatim).
 #[derive(Clone)]
 struct GenFunction {
     vaddr: u64,
@@ -69,7 +69,7 @@ struct GenFunction {
     size: usize,
 }
 
-// RUGRA-GLUE: probe row (out-dir summary.jsonl record).
+// RUDRA-GLUE: probe row (out-dir summary.jsonl record).
 #[derive(Serialize)]
 struct ProbeRow {
     binary_index: usize,
@@ -84,7 +84,7 @@ struct ProbeRow {
     err_msg: String,
 }
 
-// RUGRA-GLUE: BFD static/dynamic FUNC symbols + PLT JUMP_SLOT stubs,
+// RUDRA-GLUE: BFD static/dynamic FUNC symbols + PLT JUMP_SLOT stubs,
 // dedup by address, (offset, name) order (bin_sweep discover_functions
 // verbatim — the gen_decompile bare-face contract).
 fn discover_functions(elf: &goblin::elf::Elf) -> Vec<GenFunction> {
@@ -159,7 +159,7 @@ fn discover_functions(elf: &goblin::elf::Elf) -> Vec<GenFunction> {
     functions
 }
 
-// RUGRA-GLUE: PT_LOAD vaddr-keyed memory image with import relocations
+// RUDRA-GLUE: PT_LOAD vaddr-keyed memory image with import relocations
 // applied (bin_sweep memory_image_bytes verbatim).
 fn memory_image_bytes(elf: &goblin::elf::Elf, buffer: &[u8]) -> Vec<u8> {
     let mut top = 0usize;
@@ -688,7 +688,7 @@ fn run_probe(mode: FactoryMode, binaries: &[String], max_funcs: usize, out_dir: 
     rows.len()
 }
 
-// RUGRA-GLUE: panic payload to string (sweep_one payload_str shape).
+// RUDRA-GLUE: panic payload to string (sweep_one payload_str shape).
 fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
     if let Some(text) = payload.downcast_ref::<&str>() {
         (*text).to_string()
@@ -699,7 +699,7 @@ fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
-// RUGRA-GLUE: sha256 via coreutils (bin_sweep sha256_of precedent — the
+// RUDRA-GLUE: sha256 via coreutils (bin_sweep sha256_of precedent — the
 // sweep already shells out for cross-verification hashes).
 fn sha256_hex(path: &str) -> String {
     std::process::Command::new("sha256sum")

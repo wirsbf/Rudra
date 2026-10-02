@@ -342,7 +342,7 @@ fn build_architecture(
     arch.set_commentdb(Arc::new(std::sync::RwLock::new(
         rudra::comment::CommentDatabaseInternal::new(),
     )));
-    // isolated factory mode (rugra_decompile_func shape) — the archived
+    // isolated factory mode (rudra_decompile_func shape) — the archived
     // dose evidence was collected in this mode.
     let types = Arc::new(std::sync::RwLock::new(
         rudra::type_system::typefactory::TypeFactory::new(8),
@@ -1037,7 +1037,7 @@ fn main() {
     let mut mode_dose = false;
     let mut mode_dump = false;
     let mut trace_k: Option<usize> = None;
-    let mut out_dir = PathBuf::from("/dev/shm/rugra-tests/hermit");
+    let mut out_dir = PathBuf::from("/dev/shm/rudra-tests/hermit");
     let mut binary = String::new();
     let mut i = 1;
     while i < argv.len() {

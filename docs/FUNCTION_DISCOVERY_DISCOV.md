@@ -1,4 +1,4 @@
-# FULL-CORPUS-0001 — curl 驱动函数发现层（RUGRA_DISCOV）
+# FULL-CORPUS-0001 — curl 驱动函数发现层（RUDRA_DISCOV）
 
 状态：DISCOV lane（wt/discov）。首次落地 2026-09-25。
 写域：`examples/curl_decompile.rs`（驱动分析层）+ 本文档 + TODO 看板。
@@ -9,7 +9,7 @@ curl 驱动的反编译语料来自 `GOLDEN_CORPUS_LEDGER`——锁定 12.0.4 or
 （e40ed130）analyzeHeadless run 的 124 条 provenance 硬清单。这是把
 Ghidra Java 前端（loader/PLT/entry analyzer + 调用跟随）的**函数发现**
 整个外置成了一张静态表：换任何一个二进制，驱动就没有函数宇宙可用。
-本层把这根拐杖拔掉：`RUGRA_DISCOV=1`（opt-in）时，语料全集改由驱动
+本层把这根拐杖拔掉：`RUDRA_DISCOV=1`（opt-in）时，语料全集改由驱动
 自己从二进制里**发现**，ledger 只留作对拍基准。
 
 ## 2. 判据
@@ -68,7 +68,7 @@ symtab 符号要么是 PLT 桩）。
 
 ### 3.4 接线
 
-- `RUGRA_DISCOV=1`：语料循环以发现集为源；共享返回 CALL_RETURN 前置
+- `RUDRA_DISCOV=1`：语料循环以发现集为源；共享返回 CALL_RETURN 前置
   pass 的分析体表（`analysis_bodies`）同样换发现集界（保持自持）；
   DWARF 名先验、ELF 符号名/尺寸优先、ELF-backed origin 校验等合并
   规则与 ledger 路径完全同源。
@@ -77,7 +77,7 @@ symtab 符号要么是 PLT 桩）。
 ## 4. 对拍结果（锁定 fixture，commit 见 TODO 行）
 
 见 `report_discovery_vs_ledger` 的 `[DISCOV]` stderr 输出；数字以
-lane 报告为准（/dev/shm/rugra-reports/ 与 TODO_BOARD 行内证据）。
+lane 报告为准（/dev/shm/rudra-reports/ 与 TODO_BOARD 行内证据）。
 
 ## 5. 边界与后续
 

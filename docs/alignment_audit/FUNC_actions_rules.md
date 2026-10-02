@@ -1,7 +1,7 @@
 # 函数清单:action.cc + coreaction.cc + ruleaction.cc
 
 来源:Ghidra 3 个主管线 .cc(~464 函数)
-Rugra 对应:`src/action.rs` + `src/coreaction.rs` + `src/ruleaction.rs`
+Rudra 对应:`src/action.rs` + `src/coreaction.rs` + `src/ruleaction.rs`
 
 ## action.cc(80 函数)
 

@@ -7,13 +7,13 @@ Source: `tools/verify_mirror_gate.sh`. 台账: `tools/mirror_gate_baselines.tsv`
 ```bash
 tools/verify_mirror_gate.sh [--corpus curl|httpd|vsh|sq|sqlite|all] [--bin-dir DIR] [--keep-dir]
                             [--jobs N]      # N>1: 五面并发(SPEEDPROF-PAR-FACES-0001), 默认 1=串行
-                            [--no-cache]    # 禁用 digest 缓存(等价 RUGRA_GATE_CACHE=0)
+                            [--no-cache]    # 禁用 digest 缓存(等价 RUDRA_GATE_CACHE=0)
 tools/verify_mirror_gate.sh --update-baseline <TODO_ID>
 tools/verify_mirror_gate.sh --self-test
 ```
 
 五面契约（Ghidra 12.0.4 e40ed130 direct-runner golden，`tests/golden/*_1204.direct-runner.c`）:
-`RUGRA_MIRROR=1` 的 curl/httpd 驱动 + `RUGRA_GEN_MIRROR=1` 的 gen 驱动三宿主语料
+`RUDRA_MIRROR=1` 的 curl/httpd 驱动 + `RUDRA_GEN_MIRROR=1` 的 gen 驱动三宿主语料
 （vsh/sq/sqlite；宿主资产缺失时该面显式 SKIP）。判定 = 冻结基线单向棘轮
 （skeleton>ceiling / defects>0 / numbering>0 / matched<floor / 健康信号非零 → FAIL）。
 
@@ -47,10 +47,10 @@ tools/verify_mirror_gate.sh --self-test
 
 ### 缓存目录管理
 
-- 位置: `${RUGRA_GATE_CACHE_DIR:-/tmp/rugra-gate-cache}`。
-- 容量: 默认上限 40 条（`RUGRA_GATE_CACHE_MAX`），写入后按 mtime LRU 淘汰，
+- 位置: `${RUDRA_GATE_CACHE_DIR:-/tmp/rudra-gate-cache}`。
+- 容量: 默认上限 40 条（`RUDRA_GATE_CACHE_MAX`），写入后按 mtime LRU 淘汰，
   只删除匹配 `<corpus>-<64hex>` 的条目目录。
-- 禁用: `--no-cache` 或 `RUGRA_GATE_CACHE=0`；目录不可用时自动降级为不缓存并告警。
+- 禁用: `--no-cache` 或 `RUDRA_GATE_CACHE=0`；目录不可用时自动降级为不缓存并告警。
 
 ## 自检
 

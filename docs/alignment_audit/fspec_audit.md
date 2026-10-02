@@ -1,14 +1,14 @@
 # fspec 对齐审计 (2026-07-22)
 
 ## 覆盖率
-Ghidra: 5976行 (`fspec.cc`) / Rugra: 2794行 (`src/fspec.rs`) / 比率: 46%
+Ghidra: 5976行 (`fspec.cc`) / Rudra: 2794行 (`src/fspec.rs`) / 比率: 46%
 
 Ghidra 头文件 `fspec.hh` 声明的内联/虚方法（`ParamEntry::getGroup/getSize/getAlign/...`、`ParamTrial::getAddress/getSize/markUsed/...`、`FuncProto::isOutputLocked/...` 等）一并纳入。
 
 ## 设计说明（重要架构偏差 — 这是 46% 覆盖率的根因）
-1. **`ProtoModel` 类拆分且为 stub**：Ghidra 的 `ProtoModel`（fspec.cc:2263-2922，含 `decode`/`isCompatible`/`assignParameterStorage`/`lookupEffect`/`buildParamList` 等约 12 个方法）在 Rugra 拆到独立文件 `src/type_system/protomodel.rs`（315 行），且**所有方法均标注 `RUGRA-GLUE: no Ghidra counterpart found`**——即未做 1:1 对齐，是简化的 x86_64 专用 stub。完整的模型解码（fspec.cc:2549-2700，约 150 行）完全缺失。
-2. **ParamList 子类型缺失**：Ghidra 有 4 个 ParamList 子类（`ParamListStandard`/`ParamListRegister`/`ParamListRegisterOut`/`ParamListStandardOut`）+ `ParamListMerged`，分别承载输入/输出路径。Rugra **只实现了 `ParamListStandard`**，其余 4 个类完全缺失（输出原型路径无入口）。
-3. **Parameter/ProtoStore 层级缺失**：Ghidra 的 `ParameterBasic`/`ParameterSymbol`/`ProtoStoreSymbol`/`ProtoStoreInternal`（参数对象的多态实现与原型存储）在 Rugra 完全缺失，参数改用单一扁平 struct `ProtoParameter`。
+1. **`ProtoModel` 类拆分且为 stub**：Ghidra 的 `ProtoModel`（fspec.cc:2263-2922，含 `decode`/`isCompatible`/`assignParameterStorage`/`lookupEffect`/`buildParamList` 等约 12 个方法）在 Rudra 拆到独立文件 `src/type_system/protomodel.rs`（315 行），且**所有方法均标注 `RUDRA-GLUE: no Ghidra counterpart found`**——即未做 1:1 对齐，是简化的 x86_64 专用 stub。完整的模型解码（fspec.cc:2549-2700，约 150 行）完全缺失。
+2. **ParamList 子类型缺失**：Ghidra 有 4 个 ParamList 子类（`ParamListStandard`/`ParamListRegister`/`ParamListRegisterOut`/`ParamListStandardOut`）+ `ParamListMerged`，分别承载输入/输出路径。Rudra **只实现了 `ParamListStandard`**，其余 4 个类完全缺失（输出原型路径无入口）。
+3. **Parameter/ProtoStore 层级缺失**：Ghidra 的 `ParameterBasic`/`ParameterSymbol`/`ProtoStoreSymbol`/`ProtoStoreInternal`（参数对象的多态实现与原型存储）在 Rudra 完全缺失，参数改用单一扁平 struct `ProtoParameter`。
 4. **FspecSpace 缺失**：Ghidra 的 `FspecSpace`（地址空间，fspec.cc:2116）整类缺失。
 5. **FuncProto 多个方法为空 stub**：`param_shift`/`resolve_extra_pop`/`update_this_pointer`/`set_inject_id` 存在签名但函数体为空注释，因依赖未实现的 ProtoModel。
 6. **FuncCallSpecs 大半方法缺失**：21 个方法（transferLocked*、commitNew*、deindirect、forceSet、insertPcode、checkInputJoin、lateRestriction 等）缺失，调用规约恢复的核心链路不完整。
@@ -22,7 +22,7 @@ Ghidra 头文件 `fspec.hh` 声明的内联/虚方法（`ParamEntry::getGroup/ge
 - `EffectRecord::get_size` — Ghidra: fspec.cc:2212 `getSize` ✅
 - (构造重载 `EffectRecord(addr,size)` / `EffectRecord(entry,t)` / `EffectRecord(data,t)` 与 `encode`/`decode` 见缺失段)
 
-### ProtoParameter (3) — Rugra 扁平化替代 ParameterBasic/ParameterSymbol
+### ProtoParameter (3) — Rudra 扁平化替代 ParameterBasic/ParameterSymbol
 - `ProtoParameter::new` — Ghidra: fspec.hh:1100 ✅
 - `ProtoParameter::is_this_pointer` — Ghidra: fspec.hh:1100 ✅
 - `ProtoParameter::is_type_locked` — Ghidra: fspec.hh:1100 ✅
@@ -101,7 +101,7 @@ Ghidra 头文件 `fspec.hh` 声明的内联/虚方法（`ParamEntry::getGroup/ge
 - `copy_from`(cc:3789 copy), `clear_unlocked_input`(cc:3994), `clear_input`(cc:4016), `copy_flow_effects`(cc:3806) ✅
 - `param_shift`(cc:3706) ⚠️ stub, `resolve_extra_pop`(cc:3971) ⚠️ stub, `set_inject_id`(cc:4025) ⚠️ stub, `cancel_inject_id`(cc:4036) ⚠️ stub, `clear_unlocked_output`(cc:4001), `set_internal`(cc:3891), `update_this_pointer`(cc:3572) ⚠️ stub ✅(签名对齐，实现待补)
 - `is_varargs`, `set_dotdotdot`, `get_model_name`, `set_model_name`, `is_model_unknown`(hh:1394), `print_model_in_decl`(hh:1395) ✅
-- `resolve_model`(cc:3767) ✅ (Rugra FuncCallSpecs 版)
+- `resolve_model`(cc:3767) ✅ (Rudra FuncCallSpecs 版)
 - `has_effect`(cc:4234) ✅
 - `possible_input_param`(cc:4366) ✅
 
@@ -117,7 +117,7 @@ Ghidra 头文件 `fspec.hh` 声明的内联/虚方法（`ParamEntry::getGroup/ge
 - `abort_spacebase_relative`(cc:4910), `clear_stack_placeholder_slot`(hh:1654) ✅
 
 ### VarnodeData / ParameterPieces / PrototypePieces (辅助结构, 合理)
-- `VarnodeData` 字段+`get_addr`(RUGRA-GLUE) ✅
+- `VarnodeData` 字段+`get_addr`(RUDRA-GLUE) ✅
 - `ParameterPieces::swap_markup`(cc:2175)/`assign_address_from_pieces`(cc:2191) ✅
 - `PrototypePieces` 结构 ✅
 
@@ -126,36 +126,36 @@ Ghidra 头文件 `fspec.hh` 声明的内联/虚方法（`ParamEntry::getGroup/ge
 ### 整类缺失 (12个类)
 
 #### ProtoModel — 缺失（拆到 protomodel.rs 且为 stub，缺 12 个方法）
-- `ProtoModel::defaultLocalRange` — Ghidra: fspec.cc:2263 — 优先级: **高** — 建立默认本地变量范围。Rugra protomodel.rs 无对应。
+- `ProtoModel::defaultLocalRange` — Ghidra: fspec.cc:2263 — 优先级: **高** — 建立默认本地变量范围。Rudra protomodel.rs 无对应。
 - `ProtoModel::defaultParamRange` — Ghidra: fspec.cc:2292 — 优先级: **高**
-- `ProtoModel::buildParamList` — Ghidra: fspec.cc:2323 — 优先级: **高** — 根据 strategy 字符串构建 ParamList 子类。Rugra 无 ParamList 子类机制。
+- `ProtoModel::buildParamList` — Ghidra: fspec.cc:2323 — 优先级: **高** — 根据 strategy 字符串构建 ParamList 子类。Rudra 无 ParamList 子类机制。
 - `ProtoModel::ProtoModel` (构造 cc:2339 / 拷贝 cc:2360 / 析构 cc:2392) — 优先级: 中
 - `ProtoModel::isCompatible` — Ghidra: fspec.cc:2406 — 优先级: **高** — 判定两个模型是否兼容（调用规约匹配的核心）。
-- `ProtoModel::assignParameterStorage` — Ghidra: fspec.cc:2429 — 优先级: **高** — 为原型各参数分配存储位置（ABI 参数放置算法）。Rugra 缺失，无法从类型推导参数寄存器/栈槽。
+- `ProtoModel::assignParameterStorage` — Ghidra: fspec.cc:2429 — 优先级: **高** — 为原型各参数分配存储位置（ABI 参数放置算法）。Rudra 缺失，无法从类型推导参数寄存器/栈槽。
 - `ProtoModel::lookupEffect` — Ghidra: fspec.cc:2472 — 优先级: 中
 - `ProtoModel::lookupRecord` — Ghidra: fspec.cc:2510 — 优先级: 中
 - `ProtoModel::hasEffect` — Ghidra: fspec.cc:2541 — 优先级: 中
-- `ProtoModel::decode` — Ghidra: fspec.cc:2549 — 优先级: **高** — 从 XML 解码整个调用规约（约 150 行，含 `<pentry>`/`<group>`/`<resolvelist>`/`<model>` 等）。Rugra 完全缺失，无法从 .cspec 加载非默认调用规约。
+- `ProtoModel::decode` — Ghidra: fspec.cc:2549 — 优先级: **高** — 从 XML 解码整个调用规约（约 150 行，含 `<pentry>`/`<group>`/`<resolvelist>`/`<model>` 等）。Rudra 完全缺失，无法从 .cspec 加载非默认调用规约。
 - `ScoreProtoModel` 整类 — Ghidra: fspec.cc:2705 (`addParameter`/`doScore`) — 优先级: 中 — 调用规约评分（用于自动推断未知调用规约）。
 - `ProtoModelMerged` 整类 — Ghidra: fspec.cc:2780 (`intersectEffects`/`intersectRegisters`/`foldIn`/`decode`) — 优先级: 中 — 合并多个兼容模型的效果。
 
 #### ParamList 子类型 — 缺失 4 个类
-- `ParamListRegisterOut` — Ghidra: fspec.cc:1519 (`assignMap`) — 优先级: **高** — 寄存器输出参数列表。Rugra 无输出 ParamList。
+- `ParamListRegisterOut` — Ghidra: fspec.cc:1519 (`assignMap`) — 优先级: **高** — 寄存器输出参数列表。Rudra 无输出 ParamList。
 - `ParamListRegister` — Ghidra: fspec.cc:1542 (`fillinMap`) — 优先级: 中 — 寄存器输入参数列表（无 trial 映射）。
 - `ParamListStandardOut` — Ghidra: fspec.cc:1569-1776 (`assignMap`/`initialize`/`fillinMapFallback`/`fillinMap`/`possibleParam`/`decode`) — 优先级: **高** — 标准输出参数列表，含输出 trial 恢复（`fillinMapFallback` 是 ActionActiveOutput 的核心）。
 - `ParamListMerged` — Ghidra: fspec.cc:1794 (`foldIn`) — 优先级: 中
 
 #### Parameter / ProtoStore 层级 — 缺失 4 个类
-- `ParameterBasic` 整类 — Ghidra: fspec.cc:2924 (`setTypeLock`/`setNameLock`/`setThisPointer`/`overrideSizeLockType`/`resetSizeLockType`) — 优先级: 中 — 参数的基本实现。Rugra 用扁平 `ProtoParameter` 替代，部分标志位访问无对应方法。
+- `ParameterBasic` 整类 — Ghidra: fspec.cc:2924 (`setTypeLock`/`setNameLock`/`setThisPointer`/`overrideSizeLockType`/`resetSizeLockType`) — 优先级: 中 — 参数的基本实现。Rudra 用扁平 `ProtoParameter` 替代，部分标志位访问无对应方法。
 - `ParameterSymbol` 整类 — Ghidra: fspec.cc:2993-3083 (`getAddress`/`getSize`/`isTypeLocked`/...共 12 个访问器 + `setTypeLock`/`setNameLock`/...) — 优先级: 中 — 基于 Symbol 的参数实现。
 - `ProtoStoreSymbol` 整类 — Ghidra: fspec.cc:3103-3304 (`clearInput`/`clearAllInputs`/`getNumInputs`/`clearOutput`/`encode`/`decode`) — 优先级: 中 — 基于 Symbol 作用域的原型存储。
 - `ProtoStoreInternal` 整类 — Ghidra: fspec.cc:3306-3464 (`clearInput`/`clearAllInputs`/`getNumInputs`/`clearOutput`/`encode`/`decode`) — 优先级: 中 — 内部原型存储（无 Symbol）。
 
 #### FspecSpace — 缺失整类
-- `FspecSpace` — Ghidra: fspec.cc:2116-2166 (`FspecSpace`/`encodeAttributes`(2 arg)/`encodeAttributes`(3 arg)/`printRaw`/`decode`) — 优先级: 中 — 函数规格地址空间。Rugra 无此 AddressSpace 子类。
+- `FspecSpace` — Ghidra: fspec.cc:2116-2166 (`FspecSpace`/`encodeAttributes`(2 arg)/`encodeAttributes`(3 arg)/`printRaw`/`decode`) — 优先级: 中 — 函数规格地址空间。Rudra 无此 AddressSpace 子类。
 
 ### FuncProto — 缺失方法 (19个)
-- `FuncProto::setModel` — Ghidra: fspec.cc:3818 — 优先级: **高** — 绑定 ProtoModel。Rugra `set_model` 只存名字字符串，不绑定模型对象。
+- `FuncProto::setModel` — Ghidra: fspec.cc:3818 — 优先级: **高** — 绑定 ProtoModel。Rudra `set_model` 只存名字字符串，不绑定模型对象。
 - `FuncProto::setPieces` — Ghidra: fspec.cc:3843 — 优先级: 中 — 从 PrototypePieces 设置原型。
 - `FuncProto::getPieces` — Ghidra: fspec.cc:3857 — 优先级: 中
 - `FuncProto::setScope` — Ghidra: fspec.cc:3879 — 优先级: 中
@@ -164,16 +164,16 @@ Ghidra 头文件 `fspec.hh` 声明的内联/虚方法（`ParamEntry::getGroup/ge
 - `FuncProto::updateOutputTypes` — Ghidra: fspec.cc:4136 — 优先级: **高** — 从 active trials 更新输出类型。
 - `FuncProto::updateOutputNoTypes` — Ghidra: fspec.cc:4172 — 优先级: **高**
 - `FuncProto::updateAllTypes` — Ghidra: fspec.cc:4194 — 优先级: **高**
-- `FuncProto::characterizeAsOutput` — Ghidra: fspec.cc:4336 — 优先级: 中 (Rugra 在 FuncCallSpecs 有，FuncProto 自身缺)
+- `FuncProto::characterizeAsOutput` — Ghidra: fspec.cc:4336 — 优先级: 中 (Rudra 在 FuncCallSpecs 有，FuncProto 自身缺)
 - `FuncProto::possibleOutputParam` — Ghidra: fspec.cc:4398 — 优先级: 中
 - `FuncProto::unjustifiedInputParam` — Ghidra: fspec.cc:4426 — 优先级: 中
 - `FuncProto::getBiggestContainedInputParam` — Ghidra: fspec.cc:4459 — 优先级: 中
 - `FuncProto::getBiggestContainedOutput` — Ghidra: fspec.cc:4492 — 优先级: 中
 - `FuncProto::getThisPointerStorage` — Ghidra: fspec.cc:4516 — 优先级: 中
 - `FuncProto::isCompatible` — Ghidra: fspec.cc:4542 — 优先级: **高**
-- `FuncProto::printRaw` — Ghidra: fspec.cc:4583 — 优先级: 低 (Rugra 有 print_model_in_decl，部分覆盖)
+- `FuncProto::printRaw` — Ghidra: fspec.cc:4583 — 优先级: 低 (Rudra 有 print_model_in_decl，部分覆盖)
 - `FuncProto::encode` — Ghidra: fspec.cc:4625 — 优先级: 中
-- `FuncProto::decode` — Ghidra: fspec.cc:4675 — 优先级: **高** — 从 XML 解码整个函数原型（约 170 行）。Rugra 缺失，无法从 .xml 加载函数签名。
+- `FuncProto::decode` — Ghidra: fspec.cc:4675 — 优先级: **高** — 从 XML 解码整个函数原型（约 170 行）。Rudra 缺失，无法从 .xml 加载函数签名。
 - `FuncProto::encodeEffect`/`encodeLikelyTrash`/`decodeEffect`/`decodeLikelyTrash` — Ghidra: fspec.cc:3589/3631/3652/3684 — 优先级: 中 — effect/trash 的编解码。
 - `FuncProto::trashBegin`/`trashEnd` — Ghidra: fspec.cc:4260/4269 — 优先级: 低 — likely-trash 迭代器。
 - `FuncProto::characterizeAsInputParam` — Ghidra: fspec.cc:4289 — 优先级: 中 (FuncProto 自身缺，FuncCallSpecs 有委托)
@@ -229,7 +229,7 @@ Ghidra 头文件 `fspec.hh` 声明的内联/虚方法（`ParamEntry::getGroup/ge
 12. **`ParamListRegisterOut`** (fspec.cc:1519) — 寄存器输出参数列表缺失
 
 ## 说明
-- `ProtoModel` 在 `src/type_system/protomodel.rs`（315 行，10 个方法），但全部标注 `RUGRA-GLUE: no Ghidra counterpart found`，是对齐缺失而非位置拆分。
-- `FuncProto::param_shift`/`resolve_extra_pop`/`update_this_pointer`/`set_inject_id`/`cancel_inject_id` 在 Rugra 中为空 stub（签名对齐，函数体为空），因依赖未实现的 ProtoModel。这些计入"已对齐"但标 ⚠️。
+- `ProtoModel` 在 `src/type_system/protomodel.rs`（315 行，10 个方法），但全部标注 `RUDRA-GLUE: no Ghidra counterpart found`，是对齐缺失而非位置拆分。
+- `FuncProto::param_shift`/`resolve_extra_pop`/`update_this_pointer`/`set_inject_id`/`cancel_inject_id` 在 Rudra 中为空 stub（签名对齐，函数体为空），因依赖未实现的 ProtoModel。这些计入"已对齐"但标 ⚠️。
 - `ParamEntry`/`ParamTrial`/`ParamActive`/`ParamListStandard` 四个类覆盖率高（trial 状态机与输入 ParamList 完整），是 fspec.rs 中质量最高的部分。
 - 缺失根因是 **ProtoModel 基础设施未完成**：调用规约的解码/放置/匹配依赖 ProtoModel，而 ProtoModel 为 stub，导致 FuncProto/FuncCallSpecs 的大量方法无意义而留空或缺省。

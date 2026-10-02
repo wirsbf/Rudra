@@ -13,7 +13,7 @@ wave 抓到三起确定性 P0,全部证明同一结论:**差分门禁的信任�
 | DETERM-DOMINANTCOPY-0001 | 同源(DominantCopy 委托 processCopyTrims) | 与上合并修复 |
 | run-to-run 1 行漂移 | 输出路径某处顺序不定 | AX 车道实证 16 次 3:3 互换 |
 
-Ghidra 自身是确定性的(map 序/单线程序),Rugra 的任何无序引入都是移植缺陷。
+Ghidra 自身是确定性的(map 序/单线程序),Rudra 的任何无序引入都是移植缺陷。
 
 ## 设计原则
 

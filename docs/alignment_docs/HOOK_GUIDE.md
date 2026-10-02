@@ -138,7 +138,7 @@ worktree 文件路径），gate **不再静默放行**，按以下顺序处理�
    (覆盖本代码库的 `(coreaction.cc:4886)` 风格, 302 处)。
 
 无任何 Ghidra 引用的 fn → 不 gate (由 `check_ghidra_annotations.py`
-在 commit 时强制要求加注释)。`// RUGRA-GLUE:` 标注的 fn → 豁免。
+在 commit 时强制要求加注释)。`// RUDRA-GLUE:` 标注的 fn → 豁免。
 
 ## pre-commit 的 refs 门禁语义（TOOLS-REFS-DEFSTART-0001，2026-09-26 REFSDEF lane 更新）
 

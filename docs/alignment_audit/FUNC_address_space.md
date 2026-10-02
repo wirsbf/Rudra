@@ -1,11 +1,11 @@
 # 函数清单:address.cc + space.cc
 
 来源:Ghidra `address.cc`(~836 行,~51 函数)+ `space.cc`(~33 函数)
-Rugra 对应:`src/address.rs` + `src/space.rs`
+Rudra 对应:`src/address.rs` + `src/space.rs`
 
 ## address.cc
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L32 | `operator<<(s, SeqNum)` | — | 🔍 |
 | L47 | `operator<<(s, Address)` | — | 🔍 |
@@ -55,7 +55,7 @@ Rugra 对应:`src/address.rs` + `src/space.rs`
 
 ## space.cc
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L34 | `void AddrSpace::calcScaleMask()` | — | 🔍 |
 | L58 | `AddrSpace::AddrSpace(AddrSpaceManager*, const Translate*, spacetype, const string&, bool, uint4, uint4, int4, uint4, int4, int4)` | — | 🔍 |
@@ -92,4 +92,4 @@ Rugra 对应:`src/address.rs` + `src/space.rs`
 
 **space.cc 统计**:32 函数,全部 🔍 待核对。
 
-**注意**:Rugra 的 `AddressSpace` 是简化模型(枚举而非完整 AddrSpace 类),很多 Ghidra AddrSpace 方法可能 ➖(用替代实现)。核对时要判断每个方法是否在 Rugra 简化模型下有意义。
+**注意**:Rudra 的 `AddressSpace` 是简化模型(枚举而非完整 AddrSpace 类),很多 Ghidra AddrSpace 方法可能 ➖(用替代实现)。核对时要判断每个方法是否在 Rudra 简化模型下有意义。

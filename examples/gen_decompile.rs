@@ -1,7 +1,7 @@
 //! GENSMOKE-0001: bare generalization driver for arbitrary ELF x86-64
 //! binaries (third-binary smoke lane).
 //!
-//! Purpose: run Rugra's decompiler over a NEVER-TUNED binary with the bare
+//! Purpose: run Rudra's decompiler over a NEVER-TUNED binary with the bare
 //! native face only — no seed manifests, no DWARF prototype imports, no
 //! libc signature table, no string table, no data symbols: exactly the
 //! symbol data Ghidra's console-mode BfdArchitecture derives on its own
@@ -114,7 +114,7 @@ const R_X86_64_GLOB_DAT: u32 = 1;
 const R_X86_64_JUMP_SLOT: u32 = 7;
 const PT_LOAD: u32 = 1;
 
-// RUGRA-GLUE: one discovered decompilable unit (address, name, size).
+// RUDRA-GLUE: one discovered decompilable unit (address, name, size).
 #[derive(Clone)]
 struct GenFunction {
     vaddr: u64,
@@ -137,7 +137,7 @@ struct GenFunction {
 // ---------------------------------------------------------------------------
 static PHASE_TIMING: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
-// RUGRA-GLUE: parse RUDRA_GEN_PHASE_TIMING once (any value except "0"
+// RUDRA-GLUE: parse RUDRA_GEN_PHASE_TIMING once (any value except "0"
 // enables, mirroring RUDRA_SLEIGH_LOAD_REPORT's convention).
 fn phase_timing_enabled() -> bool {
     *PHASE_TIMING.get_or_init(|| {
@@ -145,12 +145,12 @@ fn phase_timing_enabled() -> bool {
     })
 }
 
-// RUGRA-GLUE: last phase-mark instant, process-global so the coordinator
+// RUDRA-GLUE: last phase-mark instant, process-global so the coordinator
 // thread's discovery mark chains into the run_one worker thread's assembly
 // marks (single `--one` child, sequential phases).
 static PHASE_LAST: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
 
-// RUGRA-GLUE: emit one [PHASE] line (if enabled). First mark reports the
+// RUDRA-GLUE: emit one [PHASE] line (if enabled). First mark reports the
 // time since process start (clock origin), which for a `--one` child
 // includes exec + dynamic link + stale-guard skip.
 fn phase_mark(label: &str) {
@@ -169,7 +169,7 @@ fn phase_mark(label: &str) {
     *last = Some(now);
 }
 
-// RUGRA-GLUE: process-start anchor for the first phase mark's
+// RUDRA-GLUE: process-start anchor for the first phase mark's
 // "since process start" leg (lazily initialized on first use — Instant
 // is not const-constructible).
 static PROCESS_STARTUP: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
@@ -178,7 +178,7 @@ fn process_startup() -> std::time::Instant {
     *PROCESS_STARTUP.get_or_init(std::time::Instant::now)
 }
 
-// RUGRA-GLUE: mirror of golden_dump_1204.cc registerFunctionSymbol +
+// RUDRA-GLUE: mirror of golden_dump_1204.cc registerFunctionSymbol +
 // registerBfdFunctionSymbols + registerPltStubs + collectFunctions: BFD
 // static/dynamic FUNC symbols, PLT JUMP_SLOT stubs, dedup by address,
 // (offset, name) order.
@@ -260,7 +260,7 @@ fn discover_functions(elf: &goblin::elf::Elf) -> Vec<GenFunction> {
     functions
 }
 
-// RUGRA-GLUE: PT_LOAD vaddr-keyed memory image with the ELF loader's
+// RUDRA-GLUE: PT_LOAD vaddr-keyed memory image with the ELF loader's
 // import relocations applied (GLOB_DAT/JUMP_SLOT slots hold the
 // EXTERNAL-block slot address of the undefined import, RELATIVE entries
 // are identity at base 0) — the image contract the curl worker
@@ -356,7 +356,7 @@ fn memory_image_bytes(elf: &goblin::elf::Elf, buffer: &[u8]) -> Vec<u8> {
 // SEC_READONLY (bfd/elf.c _bfd_elf_make_section_from_shdr maps !SHF_WRITE
 // -> SEC_READONLY with NO SHF_ALLOC requirement — probe-verified against
 // the real BFD 2.38 in the FSTRFOLDUP lane,
-// /dev/shm/rugra-tests/fstrfoldup/bfd_ro_probe.c). An oracle-side fold of
+// /dev/shm/rudra-tests/fstrfoldup/bfd_ro_probe.c). An oracle-side fold of
 // a char* constant pointing there (pushPtrCharConstant printc.cc:1698-1719
 // -> StringManagerUnicode::getStringData stringmanage.cc:459 loadFill)
 // reads those section bytes, which the PT_LOAD memory image alone does not
@@ -548,7 +548,7 @@ impl rudra::pcodeparse::SleighSymbolLookup for GenSpecHost {
     }
 }
 
-// RUGRA-GLUE: bare Architecture for the generalization lane — the same
+// RUDRA-GLUE: bare Architecture for the generalization lane — the same
 // init sequence the curl worker installs (archid, SLEIGH register_xref,
 // commentdb, single shared TypeFactory with the locked cspec's
 // data_organization + setup_sizes, inject library + userops, pspec
@@ -755,9 +755,9 @@ fn build_architecture(
     Ok((Arc::new(arch), sleigh))
 }
 
-// RUGRA-GLUE: hermetic single-function decompile, the shape the oracle
+// RUDRA-GLUE: hermetic single-function decompile, the shape the oracle
 // golden_dump_1204 "one" mode drives (BfdArchitecture init, followFlow,
-// universal action, PrintC docFunction) on Rugra's side.
+// universal action, PrintC docFunction) on Rudra's side.
 fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result<(), String> {
     let buffer = fs::read(binary_path).map_err(|e| e.to_string())?;
     let obj = Object::parse(&buffer).map_err(|e| e.to_string())?;
@@ -795,7 +795,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     // Funcdata::spacebaseConstant (funcdata.cc:413-419), whose PTRSUB output
     // is typed pointer-to-the-symbol's-type — for a function symbol that is
     // TypeFactory::getTypeCode (database.cc FunctionSymbol::buildType), i.e.
-    // the code* mint seed of the whole downChain family. Rugra's gen driver
+    // the code* mint seed of the whole downChain family. Rudra's gen driver
     // previously installed NO analysis symboltab (query channel returned None
     // on every isPointer consult), so the seed never existed in the mirror
     // arm. build_architecture now owns the Database (with the cspec <global>
@@ -829,10 +829,10 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     // (the `(code *)sqlite3WalkNoop` mirror family — S2SELECT bucket B,
     // ACTORDER lane: both-side drill pinned the same is_copy-arm
     // PTRSUB直写 stack slot on op 0xccfe2:36db; the oracle's token is
-    // code* via this scope hit, Rugra's fell to the xunknown1* fallback
+    // code* via this scope hit, Rudra's fell to the xunknown1* fallback
     // because the factory's spacebase scope snapshot was never attached
-    // in the gen driver). Rugra's factory snapshots the scope at
-    // TypeSpacebase construction (RUGRA-GLUE, typefactory.rs
+    // in the gen driver). Rudra's factory snapshots the scope at
+    // TypeSpacebase construction (RUDRA-GLUE, typefactory.rs
     // get_type_spacebase) instead of resolving live, so the driver must
     // attach the source before the first get_type_spacebase call — the
     // exact CURL-CODEREF/PREGFREE precedent (curl_decompile.rs:4697,
@@ -901,7 +901,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     // PIPE-RESTART-0001 (chain ②): install the driver-owned raw-flow
     // regeneration callback for the oracle's restart cycle (action.cc:574
     // clearAnalysis → second-pass ActionStart → startProcessing →
-    // followFlow, funcdata.cc:157-163). Rugra's flow generation lives at
+    // followFlow, funcdata.cc:157-163). Rudra's flow generation lives at
     // the driver boundary, so the configured SLEIGH lifter moves into the
     // callback (no second holder during the pipeline — pass 1 completed
     // above); a restart re-runs the same flow contract the first pass
@@ -1007,7 +1007,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
                 }
             }
             // Per-op raw listing (oracle BlockBasic::printRaw face: one
-            // `seqnum:\top_raw` line per op, per basic block) — Rugra's
+            // `seqnum:\top_raw` line per op, per basic block) — Rudra's
             // print_raw currently prints only block headers for the bblocks
             // state, so the op lines are emitted here directly through the
             // drill formatter (same DrillFmt::op_raw the raw-ops arm uses).
@@ -1081,7 +1081,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     // (printc.cc:1730-1742) resolves pointer-to-code constants through
     // glb->symboltab->getGlobalScope()->queryFunction and prints the
     // function display name instead of the default `(code *)0xVAL` arm
-    // (printc.cc:1806-1814). Rugra's mechanism pieces are all present
+    // (printc.cc:1806-1814). Rudra's mechanism pieces are all present
     // (push_ptr_code_constant → query_global_function →
     // Scope::query_function_addr) but the gen driver never installed a
     // symboltab, so the PrintC snapshot taken in doc_function
@@ -1233,7 +1233,7 @@ fn load_functions(binary_path: &str) -> Result<Vec<GenFunction>, String> {
 // ---------------------------------------------------------------------------
 // GEN-DRIVER-STALL-0001: all-mode child supervision.
 //
-// RUGRA-GLUE: pure driver infrastructure — the oracle golden generator is a
+// RUDRA-GLUE: pure driver infrastructure — the oracle golden generator is a
 // C++ harness with its own OS plumbing; there is no decompiler counterpart
 // to match here. The mechanism being guarded against (verified in the
 // locked toolchain's std source, 1.96.0-nightly):
@@ -1291,7 +1291,7 @@ fn pipe_inode(fd: std::os::fd::RawFd) -> Option<u64> {
         })
 }
 
-// RUGRA-GLUE: one /proc snapshot of (ppid, pid) edges under `root`,
+// RUDRA-GLUE: one /proc snapshot of (ppid, pid) edges under `root`,
 // deepest-first. Killing deepest-first means no not-yet-killed descendant
 // can be reparented out of the walk while we are killing its ancestors.
 fn descendant_pids(root: u32) -> Vec<u32> {
@@ -1349,7 +1349,7 @@ fn process_comm(pid: u32) -> String {
         .unwrap_or_else(|_| "?".to_string())
 }
 
-// RUGRA-GLUE: SIGKILL every foreign process still holding an end of one of
+// RUDRA-GLUE: SIGKILL every foreign process still holding an end of one of
 // our pipes, found by matching "pipe:[inode]" fd symlinks in /proc. This is
 // the only reach a coordinator has into holders that were reparented away
 // when the direct child died before them — the observed stall topology.
@@ -1398,7 +1398,7 @@ fn kill_pipe_holders(inodes: &[u64]) -> Vec<(u32, String)> {
     killed
 }
 
-// RUGRA-GLUE: Command::output() with the same capture face (stdin null,
+// RUDRA-GLUE: Command::output() with the same capture face (stdin null,
 // stdout/stderr piped and read to EOF, exit status via wait4) plus a
 // wall-clock cap with tree-kill escalation. Normal-path bytes and status
 // are identical to std's output(); the escalation arms only fire when the
@@ -1554,7 +1554,7 @@ fn run_capped_output(
 // ---------------------------------------------------------------------------
 // INFRA-EXAMPLES-STALELINK-0001: startup staleness self-check.
 //
-// RUGRA-GLUE: pure driver/gate infrastructure — the locked Ghidra oracle's
+// RUDRA-GLUE: pure driver/gate infrastructure — the locked Ghidra oracle's
 // golden harness is a C++ build with its own artifact management; there is
 // no decompiler-side counterpart to match. The guarded failure mode (a
 // cargo-reused examples binary that predates the sources under test) caused
@@ -1570,26 +1570,26 @@ fn run_capped_output(
 // to the unguarded driver.
 // ---------------------------------------------------------------------------
 
-// RUGRA-GLUE: digest core kept in lockstep with build.rs via one shared
+// RUDRA-GLUE: digest core kept in lockstep with build.rs via one shared
 // verbatim source file (see examples/common/stale_guard_hash.rs header).
 #[path = "common/stale_guard_hash.rs"]
 mod stale_guard_hash;
 
-// RUGRA-GLUE: build-time digest + domain size emitted by build.rs; None
+// RUDRA-GLUE: build-time digest + domain size emitted by build.rs; None
 // only when the build script did not run or emit (fail-closed below).
 const EMBEDDED_SOURCE_DIGEST: Option<&str> = option_env!("RUDRA_BUILD_SOURCE_DIGEST");
 const EMBEDDED_SOURCE_FILE_COUNT: Option<&str> = option_env!("RUDRA_BUILD_SOURCE_FILE_COUNT");
 
-// RUGRA-GLUE: all-mode coordinator -> child handoff marker. The coordinator
+// RUDRA-GLUE: all-mode coordinator -> child handoff marker. The coordinator
 // verified this exact exe against the tree at launch; per-function children
 // (810 on the sq face, 1385 on sqlite) skip re-hashing the source tree.
 const STALE_GUARD_INHERITED_ENV: &str = "RUDRA_GEN_STALE_GUARD_INHERITED";
 
-// RUGRA-GLUE: guard failure exit code — distinct from `timeout`'s 124 and
+// RUDRA-GLUE: guard failure exit code — distinct from `timeout`'s 124 and
 // from the usage/panic codes so gate scripts can tell staleness apart.
 const STALE_GUARD_EXIT_CODE: i32 = 2;
 
-// RUGRA-GLUE: render the fail-closed [GEN-STALE] block for a non-Fresh
+// RUDRA-GLUE: render the fail-closed [GEN-STALE] block for a non-Fresh
 // verdict (None for Fresh). The message must name 陈旧二进制 and the relink
 // command — gate operators act on it directly.
 fn stale_guard_report(verdict: stale_guard_hash::GuardVerdict) -> Option<String> {
@@ -1619,7 +1619,7 @@ fn stale_guard_report(verdict: stale_guard_hash::GuardVerdict) -> Option<String>
     }
 }
 
-// RUGRA-GLUE: startup enforcement — verify the embedded digest against the
+// RUDRA-GLUE: startup enforcement — verify the embedded digest against the
 // current tree unless this process is an all-mode child inheriting the
 // coordinator's verified-at-launch state. Exits 2 on any non-Fresh verdict;
 // returns silently (no output at all) when fresh.
@@ -1635,7 +1635,7 @@ fn enforce_stale_guard() {
     }
 }
 
-// RUGRA-GLUE: standalone guard mode for gate scripts (--stale-guard-probe):
+// RUDRA-GLUE: standalone guard mode for gate scripts (--stale-guard-probe):
 // run ONLY the self-check — one stdout status line on success, the same
 // [GEN-STALE] block + exit 2 on failure. Ignores the inherited marker (a
 // probe must always actually probe) and needs no corpus binary argument.
@@ -1662,11 +1662,11 @@ fn stale_guard_probe() {
 // ---------------------------------------------------------------------------
 // SPEEDPROF-PAR-CHILDREN-0001: all-mode per-function child pool.
 //
-// RUGRA-GLUE: pure coordinator scheduling infrastructure — the locked
+// RUDRA-GLUE: pure coordinator scheduling infrastructure — the locked
 // oracle's golden generator (regen_ghidra_golden.py) is a Python harness
 // whose "all" mode serializes its per-function "one" children; there is no
 // decompiler-side function to mirror. The lane's measured evidence
-// (/dev/shm/rugra-tests/speedprof/): jobs=32 child pool on this machine ran
+// (/dev/shm/rudra-tests/speedprof/): jobs=32 child pool on this machine ran
 // sqlite 953.6s -> 165.4s (5.76x) and sq 393.7s -> 43.5s (9.05x) with a
 // three-way byte-identity chain (official serial == harness serial ==
 // harness parallel; sqlite 5,289,364B + sq full cmp). This in-driver pool
@@ -1685,11 +1685,11 @@ fn stale_guard_probe() {
 //     aborts the whole run with a nonzero exit and no assembled output.
 // ---------------------------------------------------------------------------
 
-// RUGRA-GLUE: conservative default pool width (shared host discipline;
+// RUDRA-GLUE: conservative default pool width (shared host discipline;
 // SPEEDPROF measured up to 32 safe, 8 keeps headroom under foreign load).
 const DEFAULT_POOL_JOBS: usize = 8;
 
-// RUGRA-GLUE: parse `--jobs N` / `--jobs=N` (default DEFAULT_POOL_JOBS);
+// RUDRA-GLUE: parse `--jobs N` / `--jobs=N` (default DEFAULT_POOL_JOBS);
 // invalid usage (non-numeric, zero, or a trailing `--jobs` with no value)
 // exits 1 before any corpus work (fail-closed).
 fn parse_jobs(args: &[String]) -> usize {
@@ -1721,7 +1721,7 @@ fn parse_jobs(args: &[String]) -> usize {
     jobs
 }
 
-// RUGRA-GLUE: classify one supervised child's capture into its all-mode
+// RUDRA-GLUE: classify one supervised child's capture into its all-mode
 // output block — the historical serial coordinator's four-way selection,
 // factored out verbatim so serial and pooled emission share one code path
 // (bytes identical by construction). Returns (ok-flag, block text with its
@@ -1852,7 +1852,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        // RUGRA-GLUE: PERF-ARENA-FLIP (f) observation probe (--one tail;
+        // RUDRA-GLUE: PERF-ARENA-FLIP (f) observation probe (--one tail;
         // default off).
         rudra::block::bank_stats::report();
         return;
@@ -2029,6 +2029,6 @@ fn main() {
         }
     }
     eprintln!("[GEN] ok={}/{} functions", ok_count, functions.len());
-    // RUGRA-GLUE: PERF-ARENA-FLIP (f) observation probe tail (default off).
+    // RUDRA-GLUE: PERF-ARENA-FLIP (f) observation probe tail (default off).
     rudra::block::bank_stats::report();
 }

@@ -75,7 +75,7 @@ oracle 的 Emit 基类有两个**分离的**换行 virtual（prettyprint.hh:173/
 EmitPrettyPrint 发 bump_t 令牌，hh:918-920）与带参 `tagLine(int4 indent)`（**绝对**——
 endl + 恰好 `indent` 个空格：EmitNoMarkup hh:559-560；EmitPrettyPrint 发 line_t 令牌，
 hh:922-924，break 路径 cc:674-676 `spaceremain = maxlinesize - indentbump` 后
-`lowlevel->tagLine(indentbump)`）。Rugra 的单一 `tag_line(indent)` 入口把两者合一：
+`lowlevel->tagLine(indentbump)`）。Rudra 的单一 `tag_line(indent)` 入口把两者合一：
 `indent==0` 落相对形——而 printc.cc:3211 `emitLabelStatement` 的 `emit->tagLine(0)`
 恰恰是**带参绝对形**（goto 标签 `LAB_…:`/`switchD_…_caseD_…:` 恒列 0 顶格，与嵌套
 深度无关），导致 curl 32 处/httpd 34 处标签行带缩进、canon 全部顶格。
@@ -99,7 +99,7 @@ MAIN-RC3-STRUCTURED-EMIT-0001 起豁免 `while(` 开头的行（紧凑 while-do 
 do-while 无限循环尾行：closeBraceIndent + spaces(1) + KEYWORD_WHILE +
 openParen + spaces(1) + KEYWORD_TRUE + spaces(1) + closeParen + SEMICOLON，
 `tagLine`/`closeBrace` 强制行界，trim 后恒行首；这是 Ghidra 发射序列中
-**第二个也是仅剩的**字节含 ` )` 的形态。修复前 Rugra 尾行被 trim 成
+**第二个也是仅剩的**字节含 ` )` 的形态。修复前 Rudra 尾行被 trim 成
 `} while( true);`（vsh 镜脸 7 行、curl canon 2 行）。行为验证：vsh 镜脸
 skeleton 549→55（T6 族归零）；curl canon 脸两行
 `} while( true);`→`} while( true );` ==canon golden 1049/2362 行逐字节，
@@ -162,7 +162,7 @@ void 函数会静默产出非法 C（`return pthread_mutex_lock();` 类 gcc erro
   `ActionFuncLink::funcLinkOutput`（coreaction.cc:1521-1541）对 **output-locked
   void** 被调方保持 CALL 无输出，`PrintC::emitExpression`（printc.cc:2471-2476）
   的 `outvn != 0` 测试随之不打印赋值 LHS（语句形态 `f(args);`），`opReturn`
-  （printc.cc:758-761）对无值 RETURN 打印裸 `return;`。Rugra 在 print 层加
+  （printc.cc:758-761）对无值 RETURN 打印裸 `return;`。Rudra 在 print 层加
   FuncProto-void 投影守卫（详见 `docs/api/printc.md` 同日节）：callspec
   `prototype.output_type_locked && return_type==Void` 时投影无输出字节。
 - **本文件改动**：删除 P13 拆分块（`void_funcs` 硬编码表 + 行改写循环），P14
@@ -244,7 +244,7 @@ flush 结尾——这些文本 pass 在 Ghidra 无对应物，删除即向 oracl
 
 ## 2026-08-30：POSTFIX-RETIRE-0001 W1 — 逐 pass 突变计数器（env 门控，零行为差）
 
-路线图 W1 节（`/tmp/rugra-reports/w-postfix-2026-08-30.md` §5）：为 W0 后幸存的
+路线图 W1 节（`/tmp/rudra-reports/w-postfix-2026-08-30.md` §5）：为 W0 后幸存的
 全部 **33 个**后处理 pass 加突变计数器，作为 W2 零突变退役的判定依据。验收门禁：
 curl/httpd E2E 输出与 master **sha256 逐字节一致**（`f6e35fcd…` / `5200602a…`），
 `cargo test --lib` 17 失败全部为 funcdata 预存项。
@@ -269,11 +269,11 @@ curl/httpd E2E 输出与 master **sha256 逐字节一致**（`f6e35fcd…` / `52
   P25 Pdl P26）——含整条 LAB_ goto 族（P16c 除外，curl 单函数 264 行突变）。
   P13（void 拆分,硬编码 libc 表）在双语料零突变,但按路线图仍须等
   PRINTC-VOIDCALL-0001 落地后退役。非零 pass 明细见 W1 报告
-  （`/tmp/rugra-reports/w-w1-2026-08-30.md`）。
+  （`/tmp/rudra-reports/w-w1-2026-08-30.md`）。
 
 ## 2026-08-30：POSTFIX-RETIRE-0001 W0 — 死代码清除（字节级零行为差）
 
-路线图 `/tmp/rugra-reports/w-postfix-2026-08-30.md` W0 第一刀：删除全仓零引用的
+路线图 `/tmp/rudra-reports/w-postfix-2026-08-30.md` W0 第一刀：删除全仓零引用的
 死函数与 no-op scaffold，并改正伪造的 `// Ghidra: prettyprint.hh:547
 EmitNoMarkup::<方法>` 注解（锁定 oracle 的 `EmitNoMarkup`（hh:547-594）只有
 `Emit` 虚方法族，无任何 postProcess/文本 pass 方法）。验收门禁：curl/httpd E2E
@@ -348,7 +348,7 @@ golden 保持一致。
 
 Ghidra 反编译器的主输出走 `EmitPrettyPrint`（`printlanguage.cc:69`
 `emit = new EmitPrettyPrint()`），即 Derek C. Oppen 令牌队列折行算法。
-Rugra 此前只有 `EmitNoMarkup` 直写路径，长表达式永不折行（hugehelp
+Rudra 此前只有 `EmitNoMarkup` 直写路径，长表达式永不折行（hugehelp
 长字面量为单行，golden 为 `puts(\n      "..."\n      );` 三行）。
 
 本提交补齐 emit 层行宽机制（prettyprint.cc:541-1243 / prettyprint.hh:609-1115）：
@@ -368,7 +368,7 @@ Rugra 此前只有 `EmitNoMarkup` 直写路径，长表达式永不折行（huge
   + 全部 emitter 方法（cc:858-1192）。`open_paren` 自动开组（cc:1094-1103:
   `id = openGroup(); …; needbreak = true`），`close_paren` 关组；
   `flush`（cc:1194-1211）排空队列（未闭合组在 oracle 抛 LowlevelError，
-  Rugra 记日志跳过——emit 层无错误通道的保守降级）；
+  Rudra 记日志跳过——emit 层无错误通道的保守降级）；
   `set_max_line_size`（cc:1225-1235，20..=10000，`3*val` 队列容量）；
   `clear`（cc:1153-1166）。低层为 `EmitNoMarkup` 字节汇。
 - `Emit` trait 变更：`open_paren(paren) -> i32` / `close_paren(paren, id)`
@@ -423,7 +423,7 @@ hugehelp -12；5 个函数 +14 行均为内容本已分叉的长表达式折行�
   plain-text 的不可见语义，尚未实现/观察 `TokenSplit`/Oppen scan queue、exact
   group ID、semantic object identity、spaces+bump 和 line-width break/indent，
   模块整体仍为 `UNTESTED/MISMATCH`。
-- **对应源码**: 当前 `rugra/src/prettyprint.rs`
+- **对应源码**: 当前 `rudra/src/prettyprint.rs`
 
 **源代码路径**: `src/prettyprint.rs`
 
@@ -456,7 +456,7 @@ allowing for different output formats (plain text, XML, HTML with markup, etc.)
   `Emit::closeBraceIndent`（prettyprint.hh:481-483）。`EmitNoMarkup` 的
   覆写按 oracle 的无条件 `tagLine`（`\n` + indent，prettyprint.hh:557）
   语义发射：`SkipLine` 产生恰好两个换行（`)\n\n{`），`SameLine` 产生
-  ` {`；close 为 stopIndent + 换行 + `}`。Rugra 的 `tag_line` 会吞掉重复
+  ` {`；close 为 stopIndent + 换行 + `}`。Rudra 的 `tag_line` 会吞掉重复
   换行，因此两个换行在覆写里直接写入以保证 oracle 字节格式。
   `bump_indent`/`drop_indent` 是 startIndent/stopIndent 的 indent 半边
   （indentincrement=2 空格/层）。
@@ -602,7 +602,7 @@ Emitter that discards all output (used for discovery pass)
 
 - 实现了 recover_struct_fields：将 *(long *)(ptr + 0xN) 转换为 ptr->field_N。
 - 恢复了 53 个字段访问（curl）。
-- 但 -> 运算符要求左侧是 struct pointer 类型，而 Rugra 声明指针为 long/int。
+- 但 -> 运算符要求左侧是 struct pointer 类型，而 Rudra 声明指针为 long/int。
 - -> 在 long 类型上非法，gcc 从 53/53 降到 40/53。
 - 禁用 recover_struct_fields —— 需要 struct 类型传播引擎才能正确使用 -> 运算符。
 - Ghidra 能用 -> 是因为有类型库（FILE*, Configurable* 等）的 struct 定义。
@@ -649,7 +649,7 @@ Emitter that discards all output (used for discovery pass)
 
 ### 2026-06-23（续）：rename_vars.py — DWARF 局部变量名恢复
 
-- 新增 `tools/rename_vars.py`：从 DWARF debug_info 提取函数局部变量名（DW_TAG_variable + DW_OP_fbreg），映射到 Rugra 的 local_XX 栈变量。
+- 新增 `tools/rename_vars.py`：从 DWARF debug_info 提取函数局部变量名（DW_TAG_variable + DW_OP_fbreg），映射到 Rudra 的 local_XX 栈变量。
 - 效果：curl 12 个变量名恢复（errorbuffer, progressbar, outs, heads, buffer, size, nmemb, stream 等），httpd 同样有恢复。
 - 与 struct_recover.py 串联使用：struct_recover → rename_vars → audit_syntax。
 
@@ -677,7 +677,7 @@ Emitter that discards all output (used for discovery pass)
 ### 2026-07-04（续 2）：恢复 post_process_output（emit 层不完整的必要补偿）
 - 之前将 post_process_output 改为空操作（input.to_string()），但**重新生成输出**后发现 gcc 审计从 23/24 降到 5/24——之前的 23/24 基于旧缓存。
 - 恢复 post_process_output 调用 post_process_output_legacy（27 趟文本后处理）。
-- 27 趟 pass 虽然违反铁律 5.5（在 print 层做 Action 的事），但在 Rugra 的 Action/emit 层完整前是必要补偿。
+- 27 趟 pass 虽然违反铁律 5.5（在 print 层做 Action 的事），但在 Rudra 的 Action/emit 层完整前是必要补偿。
 - **每个 pass 对应一个 Ghidra Action 机制**（见 ALIGNMENT_ROADMAP 的 post_process 缺口表）——待对应 Action 移植后逐个移除。
 - 同时确认：之前的 printc BRANCH 无条件跳过 + None 守卫修复确实生效——`goto ;` 从 1 降到 **0**。
 
@@ -951,7 +951,7 @@ E2E:curl `while( true )` ×3 与 golden 逐字节一致,3 处 if-break 保持,
 `has_pending_print_id`/`pending_brace_fired_id`。oracle 的 PendPrint 槽是 **Emit 基类**状态
 （prettyprint.hh:102/446-457），`emitPending` 触发只在 EmitPrettyPrint/EmitMarkup::tagLine
 （prettyprint.cc:920/930/129/136）；EmitNoMarkup::tagLine（hh:557）不触发，故其路径恒为
-"已安装未触发"→ printc.cc:2900-2902 cancel+spaces(1) 合并 else-if。Rugra 两侧均按此实现：
+"已安装未触发"→ printc.cc:2900-2902 cancel+spaces(1) 合并 else-if。Rudra 两侧均按此实现：
 EmitNoMarkup 只存槽不触发；EmitPrettyPrint 在 tag_line push 前调用私有 `emit_pending()`
 （`open_brace_indent("{", style)`，PendingBrace::callback printc.cc:2872-2876）。
 
@@ -960,7 +960,7 @@ EmitNoMarkup 只存槽不触发；EmitPrettyPrint 在 tag_line push 前调用私
 **根因**（本 lane PFLUSH 仪器复钉，与 SQATTR 归因独立收敛）：oracle 的 `PendingBrace` 是
 **每次 `emitBlockIf` 调用一枚栈对象**（printc.cc:2882，printc.hh:347-361，`indentId` 起始
 -1、callback 置 >=0），装/查/关全走**指针身份**——`hasPendingPrint` 比较 `pendPrint == pend`
-（prettyprint.hh:457），`cc:2946-2948` 只关**自己那枚**已触发 brace。Rugra 旧实现把
+（prettyprint.hh:457），`cc:2946-2948` 只关**自己那枚**已触发 brace。Rudra 旧实现把
 `pending_brace_fired` 做成 **emitter 级全局粘性布尔**（set 时清零、fire 时置位、无人复
 位）：嵌套 else-if 子帧触发后，外层帧的 `installed && fired()` 读到子帧的残火 → 对未开
 过 brace 的帧多发一次 `close_brace_indent` → 函数级 startIndent/stopIndent 计数 21/22 失
@@ -1006,7 +1006,7 @@ decl 走查为空导致伪 body 内的 iVar4 被重复注入 `  int iVar4;`（nu
 `pretty_print_while_break_fold_compact_prefix`（prettyprint.rs tests）锁定两种头部
 拼写的折叠条件切片：紧凑 `while( true )` 折叠为 `if (true) x = 1;`（无悬垂括号），
 空格 `while (c)` 形态不变。双侧 fixture `printc_pending_brace_emit_1204` 的
-`comparand_sha256.rugra_prettyprint` 随测试加入重钉（runner 重验 overall=MATCH）。
+`comparand_sha256.rudra_prettyprint` 随测试加入重钉（runner 重验 overall=MATCH）。
 
 ## 2026-09-22 追加（PRINTC-SWITCH-EMIT-0001 — P17 孤立 `} while` 判定的深度配对）
 
@@ -1028,7 +1028,7 @@ httpd 29 函数全部平衡（master 基线因 main 未闭合 brace 整文件提
 
 ## 2026-09-22 追加（SWITCH-CASE-TAIL-0001 — P10 死区启动子误伤折行 if 臂 goto）
 
-**现象**（Lane BW triage 定位，/dev/shm/rugra-tests/sb-switch/GP978_TRIAGE.md §3(a)）：
+**现象**（Lane BW triage 定位，/dev/shm/rudra-tests/sb-switch/GP978_TRIAGE.md §3(a)）：
 curl getparameter.constprop.0 的 switch 内 case 0x23/0x35 尾部
 `::config.httpreq = HTTPREQ_POST/CUSTOM; break;` 整体蒸发（guard-goto 在场、
 直落下一 case），是该 switch 唯一的真语义损失（≈10 行）。
@@ -1168,7 +1168,7 @@ stage_bisect --v1 **MATCH×3**。该修复为 POSTFIX-RETIRE-0001 补偿层内
 Ghidra 按位打印负加数：`push_integer`（printc.cc:1288-1368）把负号放进常量
 atom（`-8`），binary_plus 保留 ` + ` 记号 → 输出 `X + -8`。canon golden 含
 666 处 `+ -` 形、direct-runner golden 1096 处；本仓后处理把所有 `+ -N` 改写
-成 `- N`，使 Rugra 侧为 0 处——每一行都是骨架差分。该"算术简化"非 Ghidra
+成 `- N`，使 Rudra 侧为 0 处——每一行都是骨架差分。该"算术简化"非 Ghidra
 行为（无 oracle 对应物），已删除。删除后 httpd 56 处、curl 相应恢复
 `+ -N` 正典拼写。
 
@@ -1199,7 +1199,7 @@ printc 侧空间名形态接通后（`&stack0x00000008` canon 形），不跳过
   `spaceremain = maxlinesize - indentbump` **绝对列**断行
   （prettyprint.cc:674-675），与缩进栈无关 → goto 标号恒在列 0
   （golden httpd 620/620、curl 47/47 全部 `^code_r` 列 0 实证）。
-- **Rugra 旧缺陷**：`Emit` trait 的合并式 `tag_line(indent: i32)` 用
+- **Rudra 旧缺陷**：`Emit` trait 的合并式 `tag_line(indent: i32)` 用
   `indent > 0` 分支区分两种形态，`tagLine(0)` 被路由到相对 `bump_t`
   （当前缩进层）→ 标号随嵌套缩进（httpd 42 处、curl 45 处 `^ *code_r`
   实证，golden 0 处）。语句层 `tag_line(0)`（=oracle 平凡 `tagLine()`）
@@ -1302,16 +1302,16 @@ operator）。诱因：for 头超行宽折行后，续行形如
   **store-through-deref 语句行**误当声明行。修复 = 声明行判定追加
   `!t.contains('=')` 判别子（声明行永不含 `=`；被误扫的 store 行必含）。
 - **机制链**（代表函数 `_ZN5NPat29CPatricia15GetLongestMatchEPj`
-  `--one 611`，A/B 亲证 /dev/shm/rugra-tests/castfuseb/one611_{base,fix}.c）：
+  `--one 611`，A/B 亲证 /dev/shm/rudra-tests/castfuseb/one611_{base,fix}.c）：
   `*piVar19 = iVar31 - uVar35;` 同样满足旧行判定（`;` 结尾 + 含 `*`（解引用
   前缀）+ 无 `(` + 无 `return`），其末 token `uVar35` 被误收进 ptr_names →
-  P25 把合法的 `puVar26 = puVar13 + uVar35;`（Rugra 原始 emit 本就裸 idx，
+  P25 把合法的 `puVar26 = puVar13 + uVar35;`（Rudra 原始 emit 本就裸 idx，
   与 oracle opPtradd 非值上下文印法一致——printc.cc:880-893，:891
   `pushVn(op->getIn(1),op,m)` 裸推 index 操作数，机制 E 亲读）重写成
   `puVar13 + (long)uVar35` —— 即 sq CAST-SHAPE addend-widening 族与
   sqlite `+ (long)` R-only census（SQLCENSUS4 §S4 89 处）的主量。
 - **oracle 侧亲证**：golden 同函数 0 处 `+ (long)`；裸形
-  `puVar28 = puVar16 + uVar34;`（golden:41059 附近）与修复后 Rugra 输出
+  `puVar28 = puVar16 + uVar34;`（golden:41059 附近）与修复后 Rudra 输出
   同形；golden 内 28 条 `*piVarNN = …;` store-through-deref 行 = 误扫源
   全景（每条以标识符结尾者都是潜在假名）。
 - **修复形态**：单判别子（declarations never contain `=`）+ 两测锁定
@@ -1338,7 +1338,7 @@ operator）。诱因：for 头超行宽折行后，续行形如
   探针 castfuse2_probe probe 797——C 输出与 golden 逐字节恒等亲证）：
   双侧 op 链**恒等**——`PTRADD(R12, LOAD(piVar16+5×8), ×1)` + 输出侧
   `CAST(int8)`（`piVar16[5] = (int8)(pcVar20 + piVar16[5])` 的 `(int8)`
-  是真 IR CAST），Rugra 同 varnode id（u0x8f00/u0xd500/u0x100013c8）。
+  是真 IR CAST），Rudra 同 varnode id（u0x8f00/u0xd500/u0x100013c8）。
   分歧**不在 IR**，纯粹是 P25 文本层把 `pcVar20 + piVar16[5]`（两操作数名
   均为指针声明）重写成 `pcVar20 + (long)piVar16[5]`。
 - **修复形态**：`fix_pointer_arithmetic` 入口整臂 `mirror_face_active()`

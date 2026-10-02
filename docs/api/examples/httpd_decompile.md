@@ -9,7 +9,7 @@ TODO_BOARD 各 DONE 行——DISPLAYREBASE / ACTION-SYMDB-DATASYM / DFLIP 等）
 httpd 语料的**门禁驱动**：canon 面（默认）以 analyzeHeadless 契约装配
 传输层后跑全默认 action 管线 + `PrintC`，对照 golden
 `tests/golden/ghidra_httpd_1204.c`（锁定 oracle e40ed130，Ghidra 12.0.4）；
-镜面面（`RUGRA_MIRROR=1`）复现 direct-runner oracle 契约（BfdArchitecture
+镜面面（`RUDRA_MIRROR=1`）复现 direct-runner oracle 契约（BfdArchitecture
 裸装载 + `followFlow`），对照 `ghidra_httpd_1204.direct-runner.c`。
 
 ## ACTION-SYMDB builder（canon-only 传输层，mirror 永不进入）
@@ -34,7 +34,7 @@ httpd 语料的**门禁驱动**：canon 面（默认）以 analyzeHeadless 契�
 curl ENVDAT 车道（STRLIT-ENVDAT-0001）钉死的结论在 httpd 同构成立：
 analyzeHeadless 的 string-Data/DAT-标签层是**逐地址环境事实**，不可从字节
 推导（长度/字符集/引用性规则均被 curl 语料证伪）。驱动因此以锁定传输
-捕获（`/dev/shm/rugra-tests/headlessdist/xml/httpd/*.xml`，canon golden 的
+捕获（`/dev/shm/rudra-tests/headlessdist/xml/httpd/*.xml`，canon golden 的
 协议亲捕）为 ground truth 持四张见证表：
 
 | 常量 | 值 | 语义 |
@@ -68,7 +68,7 @@ WIRING-0001 教训）。
 CARGO_TARGET_DIR=<t> cargo build --release --example httpd_decompile
 <t>/release/examples/httpd_decompile > httpd_cur.c          # canon 面
 python3 tools/compare_ghidra.py httpd_cur.c tests/golden/ghidra_httpd_1204.c --summary-only
-RUGRA_MIRROR=1 <t>/release/examples/httpd_decompile        # 镜面面（第四门禁）
+RUDRA_MIRROR=1 <t>/release/examples/httpd_decompile        # 镜面面（第四门禁）
 tools/verify_mirror_gate.sh --corpus httpd --bin-dir <t>/release/examples
 ```
 
@@ -90,7 +90,7 @@ tools/verify_mirror_gate.sh --corpus httpd --bin-dir <t>/release/examples
 均为 8B ptr。而驱动 `object_datatype` 的 W6 臂（V3SIG-UND224-TYPEORDER-0001）
 把"全槽指针证据"的表定型为 `undefined*[size/8]` **数组**——printc.rs SPACEBASE
 臂（printc.cc:1064）对 TYPE_ARRAY 符号 **丢弃 `&`**（cc:1071-1073 才印
-`&name`），故 Rugra 直印裸符号。W6 见证文件 o_w6_proto_arrayptr.c 第 205 行亲证
+`&name`），故 Rudra 直印裸符号。W6 见证文件 o_w6_proto_arrayptr.c 第 205 行亲证
 oracle 对**数组形**种子印的是裸 `ppxVar15 = ap_prelinked_modules`（无 `&`）——
 前代票面把 `&` 归给 W6 是误读。
 

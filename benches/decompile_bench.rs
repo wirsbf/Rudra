@@ -1,4 +1,4 @@
-//! Benchmarks for Rugra decompiler
+//! Benchmarks for Rudra decompiler
 //!
 //! Run with: cargo bench
 

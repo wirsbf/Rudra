@@ -3,7 +3,7 @@
 日期: 2026-09-22 | Lane AD | oracle = Ghidra 12.0.4 e40ed130
 范围: newBlockMultiGoto + ruleBlockGoto isSwitchOut arm + 消费者(checkSwitchSkips /
 grabCaseBasic / scopeBreak / markUnstructured / emitBlockSwitch)。
-上游报告: /dev/shm/rugra-tests/sb-switch/GP_SWITCH_ROOTCAUSE.md §4 P0-B。
+上游报告: /dev/shm/rudra-tests/sb-switch/GP_SWITCH_ROOTCAUSE.md §4 P0-B。
 
 ## A. BlockGraph::newBlockMultiGoto (block.cc:1720-1753)
 
@@ -114,9 +114,9 @@ grabCaseBasic / scopeBreak / markUnstructured / emitBlockSwitch)。
 4. 其他 setGotoBranch 源: clipExtraRoots→markExitsAsGotos(cc:1083-1099,每个未 mark
    出边);checkSwitchSkips(cc:1640,skip-to-exit 表条目);cc:1758(ruleBlockGoto 邻域)。
 
-## Rugra 落点(write-set)
+## Rudra 落点(write-set)
 
-| Ghidra | Rugra |
+| Ghidra | Rudra |
 |---|---|
 | block.hh:573-593 BlockMultiGoto 类 | block.rs 新 struct + FlowBlock impl |
 | block.cc:1720 newBlockMultiGoto | blockaction.rs new_block_multigoto(CollapseStructure 方法,同 new_block_goto 惯例) |
@@ -132,7 +132,7 @@ grabCaseBasic / scopeBreak / markUnstructured / emitBlockSwitch)。
 ## 已知耦合(非本 lane)
 
 - switch case 真实 label(finalizePrinting 按 label 排序 + recoverLabels)=
-  JUMPTABLE-TABLEAPI-0001(P0-A,wt/sb-switchnorm)。Rugra 现状 case_values 为边序占位
+  JUMPTABLE-TABLEAPI-0001(P0-A,wt/sb-switchnorm)。Rudra 现状 case_values 为边序占位
   [j];本 lane 的 goto case 同样以 basic 级出边槽占位,不发明 label。
 - oracle gp 的 default case 是**常规 case**(body 内部以 BlockGoto 结尾);default 边被
   goto 摘除时按 E 节语义成为 `default:` + goto 语句(无 body)的形态——两种都按原文支持。

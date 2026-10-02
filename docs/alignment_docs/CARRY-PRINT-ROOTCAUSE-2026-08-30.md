@@ -1,14 +1,14 @@
 # CARRY 泄漏根因档案(register0x00000200 vs oracle CARRY1 宏)
 
 任务:`GLOBWORD-C3-CARRY-INJECT-0001`(writer w-x86carry, 2026-08-30)
-worktree:`/home/wirs/.cache/rugra-w2-x86c`(master=66ae28b8)
+worktree:`/home/wirs/.cache/rudra-w2-x86c`(master=66ae28b8)
 oracle:Ghidra 12.0.4 `e40ed13014025f82488b1f8f7bca566894ac376b`(decompile cpp)
 SLEIGH spec:`sleigh_specs/x86-64.sla`(编译自同一 oracle 的 x86-64 语言)
 
 ## 0. 结论(一句话)
 
 **curl 全语料 5 处 `register0x00000200` 泄漏不在 x86 提升,也不在 ruleaction 折叠规则:
-SLEIGH 提升产出的 INT_CARRY 完整存活到最终 IR(输出 implied),但 Rugra printc 的
+SLEIGH 提升产出的 INT_CARRY 完整存活到最终 IR(输出 implied),但 Rudra printc 的
 `emit_inline_expr` 没有 INT_CARRY/INT_SCARRY/INT_SBORROW 分支,implied 下降落入
 `_ =>` fallback,把 CF(:register:200)按未命名位置打成 `register0x00000200`。**
 Ghidra 侧对应物是 `PrintC::opIntCarry`(printc.hh:293)→ `opFunc`(printc.cc:424-448)
@@ -18,7 +18,7 @@ SBORROW 化简 signed 比较、RuleCarryElim 是常量 carry,均不在本形态�
 
 ## 1. 泄漏清单(基线 = master 66ae28b8,E2E 3104/0/0)
 
-| Rugra 输出行 | 函数 | oracle golden 对应 |
+| Rudra 输出行 | 函数 | oracle golden 对应 |
 |---|---|---|
 | :1206 声明 `long register0x00000200;` | my_get_line(0x3840, 共享 file2string 尾) | — |
 | :1231 `0 - (int *)(bool)(long)register0x00000200` | 同上 | :1331 `-(ulong)CARRY1((byte)uVar7,(byte)uVar7)` |
@@ -53,7 +53,7 @@ sleigh_shim 直通):
 是 1 字节 CF 高变量走了未命名位置回退(worker Architecture 已装全量 register xref,
 CF 有名,但 print 回退路径不查 xref)。
 
-### 2.2 Rugra 最终 IR(E2E RUGRA_DUMP_FUNC=file2string.part.0)
+### 2.2 Rudra 最终 IR(E2E RUDRA_DUMP_FUNC=file2string.part.0)
 
 ```
 op @0x3b5c CPUI_INT_CARRY outimpl=true vn#561(h=:register:200, t=Bool/bool)
@@ -79,12 +79,12 @@ iVar4 = (int8)puVar9 + ((-3 - (uint8)CARRY1((uint1)uVar3,(uint1)uVar3)) - (int8)
    (Ghidra printc.hh:293-295 opIntCarry/opIntScarry/opIntSborrow 全部 → opFunc)。
 2. **operator 名**(typeop.cc:1340/1356/1372 getOperatorName):
    `format!("{}{}", NAME, op.get_in(0).size())`,NAME = `CARRY`/`SCARRY`/`SBORROW`
-   (大写,非 pcode 名;非 Rugra 现有 "carry" 小写,无 size 后缀)。
-   Rugra printc.rs:10827 `op_func` 现用 `op.opcode.name()`("INT_CARRY"),需改走
+   (大写,非 pcode 名;非 Rudra 现有 "carry" 小写,无 size 后缀)。
+   Rudra printc.rs:10827 `op_func` 现用 `op.opcode.name()`("INT_CARRY"),需改走
    typeop get_operator_name 端口。typeop.rs functional_binary_op! 宏(:610)的
    `push` 也应走 op_func(Ghidra typeop.hh:460-468 push → lng->opIntCarry)。
 3. **残留预告(修复①②后仍存在,须另行登记)**:
-   - CARRY 参数:Rugra IR 输入是裸 `register:0:1`(h=:register:0 无符号),oracle 是
+   - CARRY 参数:Rudra IR 输入是裸 `register:0:1`(h=:register:0 无符号),oracle 是
      `(byte)uVar7` = SUBPIECE 化的 eax 读 → heritage 子寄存器 piece-split 域
      (heritage.rs,禁止本任务动)。不修则泄漏变形为 `CARRY1(register0x00000000, …)`。
    - 多余 CAST(bool) 链(§2.2 cast①②):oracle 只有一层 (uint8);coreaction
@@ -97,7 +97,7 @@ iVar4 = (int8)puVar9 + ((-3 - (uint8)CARRY1((uint1)uVar3,(uint1)uVar3)) - (int8)
 - `src/disasm/x86_lift.rs`(iced 路径寄存器表):`"rip"|"eip"` 偏移 0x200 → **0x288**
   (oracle sla 布局;旧值与 CF..F5 flag 区 0x200..0x205 别名,rip 相对内存操作数的
   地址基会落在 flags 区)。curl E2E 实测输出字节不变(3104/0/0,leak 5 不变)。
-- iced 路径(`httpd_decompile`/`rugra_decompile_func`)已知更大缺口,另行登记:
+- iced 路径(`httpd_decompile`/`rudra_decompile_func`)已知更大缺口,另行登记:
   `add/sub/and/or/xor/shl/shr/sar` 不产任何 flag pcode(Ghidra x86 sinc 语义全量
   CF/OF/SF/ZF/AF/PF);`sbb/adc/cmovcc/setcc` 完全未实现(0 op)。httpd golden 有
   `CARRY1`(:39307)与 `CARRY8`(:35777)形态;修复须按 ia.sinc 逐语义补,禁止简化版。
@@ -106,6 +106,6 @@ iVar4 = (int8)puVar9 + ((-3 - (uint8)CARRY1((uint1)uVar3,(uint1)uVar3)) - (int8)
 
 - probe:`examples/x86carry_probe.rs`(寄存器布局 + strlen 尾 pcode dump)。
 - 基线/修复后 E2E:`/tmp/w-x86c-base.stdout`、`/tmp/w-x86c-fix.stdout`(字节一致)。
-- IR dump:`/tmp/w-x86c-dump.stderr`(RUGRA_DUMP_FUNC=file2string.part.0)。
+- IR dump:`/tmp/w-x86c-dump.stderr`(RUDRA_DUMP_FUNC=file2string.part.0)。
 - oracle 运行:`/tmp/w-x86c-ore-f2s.stdout`(decomp_opt, /tmp/w-carry-ore)。
 - 全量寄存器表 dump:probe 输出(1440 条,GPR/flags/rflags/RIP 摘录见 §2.1)。

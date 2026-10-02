@@ -58,7 +58,7 @@ index 7434830..51e8a84 100644
 +}
 +
 +impl EnumConfigType {
-+    // RUGRA-GLUE: metatype (Ghidra stores the raw type_metatype value)
++    // RUDRA-GLUE: metatype (Ghidra stores the raw type_metatype value)
 +    /// The numeric `type_metatype` of this enumeration flavor.
 +    pub fn metatype(&self) -> i32 {
 +        match self {
@@ -131,7 +131,7 @@ index 7434830..51e8a84 100644
 +/// `numSpaces()` with delay `ptrdata.space->getDelay()+1`, inserted into
 +/// the space manager and given its base register by
 +/// `AddrSpaceManager::addSpacebasePointer` ->
-+/// `SpacebaseSpace::setBaseRegister` (translate.cc:86-102).  Rugra has no
++/// `SpacebaseSpace::setBaseRegister` (translate.cc:86-102).  Rudra has no
 +/// dynamic space creation, so the install is recorded here; live
 +/// `SpacebaseSpace` insertion is the registered SPACE-domain residual.
 +#[derive(Debug, Clone)]

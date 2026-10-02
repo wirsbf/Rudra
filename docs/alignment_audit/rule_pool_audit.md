@@ -5,15 +5,15 @@
 
 ## 汇总
 
-| Pool | Ghidra Rule 数 | Rugra 已注册 | 对齐情况 |
+| Pool | Ghidra Rule 数 | Rudra 已注册 | 对齐情况 |
 |------|---------------|-------------|---------|
-| oppool1 (simplify) | 134 | 134 | **完全对齐**（另含 2 个 Rugra-local 规则） |
+| oppool1 (simplify) | 134 | 134 | **完全对齐**（另含 2 个 Rudra-local 规则） |
 | oppool2 | 5 | 5 | **完全对齐**（Ghidra 第 6 个 `RuleIndirectConcat` 在源码中被注释掉，实际未注册） |
-| cleanup | 15 | 15 | **完全对齐**（另含 1 个 Rugra-local 规则） |
+| cleanup | 15 | 15 | **完全对齐**（另含 1 个 Rudra-local 规则） |
 
 **结论**：三个 pool 在 Rule 名称/数量上均已与 Ghidra 对齐。没有"缺失的 Rule"。
 唯一的结构性 gap 是 **oppool1 末尾的 CPU-specific `extra_pool_rules` 注入点**
-（Ghidra coreaction.cc:5647-5649）——Rugra 当前未实现该机制。
+（Ghidra coreaction.cc:5647-5649）——Rudra 当前未实现该机制。
 
 ---
 
@@ -164,17 +164,17 @@
 | 133 | RuleDoubleIn | 5645 |
 | 134 | RuleDoubleOut | 5646 |
 
-（Ghidra 行号 5642 是注释/gap，非 Rule —— Rugra `action.rs:684` 已正确跳过。）
+（Ghidra 行号 5642 是注释/gap，非 Rule —— Rudra `action.rs:684` 已正确跳过。）
 
 ### 缺失 (0 个 — 名称层面无缺失)
 
 无。134 个 Ghidra Rule 全部注册。
 
-### Rugra-local 额外规则 (2 个，非 Ghidra)
+### Rudra-local 额外规则 (2 个，非 Ghidra)
 
 `src/action.rs:695-696` 在 Ghidra 列表末尾额外追加：
 
-- `RuleSextEliminate`（ruleaction.rs:290）— Rugra-specific，消除冗余 sign-extend
+- `RuleSextEliminate`（ruleaction.rs:290）— Rudra-specific，消除冗余 sign-extend
 - `RuleEquality`（ruleaction.rs:2937）— 对应 Ghidra `ruleaction.cc:619` 的 RuleEquality 语义（两输入均为常量时折叠 INT_EQUAL/NOTEQUAL）
 
 > **注**：`RuleMultNegOne` / `Rule2Comp2Sub` 有意不放在 oppool1，而是放到
@@ -187,9 +187,9 @@
 - **CPU-specific `extra_pool_rules` 未实现**：Ghidra 在 oppool1 末尾
   (coreaction.cc:5647-5649) 通过 `conf->extra_pool_rules` 注入架构相关 Rule
   （由 `Architecture::registerPcodeRules` 等填充），随后清空该容器。
-  Rugra 全代码库无 `extra_pool_rules` 字段（已确认：grep 无命中）。
+  Rudra 全代码库无 `extra_pool_rules` 字段（已确认：grep 无命中）。
   - 影响：依赖 `extra_pool_rules` 的架构（如 x86 的 carry-flag Rule、ARM 的
-    shift-carry Rule）将缺少这些 Rule。当前 Rugra 目标架构若不需要，
+    shift-carry Rule）将缺少这些 Rule。当前 Rudra 目标架构若不需要，
     则无实际影响。
   - 优先级：中（仅在引入新架构支持时成为阻塞项）
 
@@ -216,7 +216,7 @@
 
 > **关于 `RuleIndirectConcat`**：Ghidra coreaction.cc:5667 该行是**被注释掉的**
 > (`//	actprop2->addRule( new RuleIndirectConcat("analysis") );`)，实际未注册。
-> 因此 Rugra 不注册它是正确的对齐行为，不算缺失。
+> 因此 Rudra 不注册它是正确的对齐行为，不算缺失。
 
 ---
 
@@ -249,14 +249,14 @@
 
 无。
 
-### Rugra-local 额外规则 (1 个)
+### Rudra-local 额外规则 (1 个)
 
 `src/action.rs:741` 在 cleanup pool 末尾额外追加：
 
 - `RuleTrivialArith` — 复用 oppool1 的同款 Rule，用于折叠 type-recovery /
   copy-prop / structuring 等**晚于** simplifypool 运行的 pass 所产生的平凡算术
   （如 `x^x → 0`）。Ghidra 的 mainloop 以 `repeatapply` 多轮运行 actprop，
-  能自动重简化这些晚到的 op；Rugra 的 simplifypool 在 stackstall 内只跑一次，
+  能自动重简化这些晚到的 op；Rudra 的 simplifypool 在 stackstall 内只跑一次，
   故在此补一次清理。理由见 `action.rs:734-740` 的注释。
 
 ### 待办（实现深度，非注册层面）
@@ -281,6 +281,6 @@ cleanup 15/15）。
    注册已就位，但 transform 需 CALLOTHER 基础设施。
 
 相关文件：
-- `D:/ghidra/rugra/src/action.rs:545-764`（三个 pool builder）
-- `D:/ghidra/rugra/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc:5511-5711`
-- `D:/ghidra/rugra/src/ruleaction.rs`（Rule 实现主体）
+- `D:/ghidra/rudra/src/action.rs:545-764`（三个 pool builder）
+- `D:/ghidra/rudra/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc:5511-5711`
+- `D:/ghidra/rudra/src/ruleaction.rs`（Rule 实现主体）

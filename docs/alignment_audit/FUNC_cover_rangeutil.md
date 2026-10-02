@@ -1,13 +1,13 @@
 # 函数清单:cover.cc + rangeutil.cc
 
 来源:Ghidra 2 个 .cc(~85 函数)
-Rugra 对应:`src/cover.rs` + `src/rangeutil.rs`
+Rudra 对应:`src/cover.rs` + `src/rangeutil.rs`
 
 ## cover.cc(23 函数)
 
 CoverBlock + Cover + PcodeOpSet。
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L29 | `uintm CoverBlock::getUIndex(const PcodeOp*)` | — | 🔍 |
 | L59 | `int4 CoverBlock::intersect(const CoverBlock&) const` | — | 🔍 |
@@ -32,13 +32,13 @@ CoverBlock + Cover + PcodeOpSet。
 | L627 | `void PcodeOpSet::finalize()` | — | 🔍 |
 | L646 | `bool PcodeOpSet::compareByBlock(const PcodeOp*, const PcodeOp*)` | — | 🔍 |
 
-**cover.cc 统计**:23 函数。全部 🔍。**注意**:Rugra 的 cover 是简化版(merge.rs:2409 compute_varnode_covers 用 def_order-last_use 近似),需要核对是否对齐 Ghidra 的 CoverBlock 精确范围模型。
+**cover.cc 统计**:23 函数。全部 🔍。**注意**:Rudra 的 cover 是简化版(merge.rs:2409 compute_varnode_covers 用 def_order-last_use 近似),需要核对是否对齐 Ghidra 的 CoverBlock 精确范围模型。
 
 ## rangeutil.cc(~62 函数)
 
 CircleRange + ValueSet + ValueSetRead + WidenerFull/None + ValueSetSolver。
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L25 | `CircleRange::normalize()` | — | 🔍 |
 | L38 | `complement()` | — | 🔍 |
@@ -63,6 +63,6 @@ CircleRange + ValueSet + ValueSetRead + WidenerFull/None + ValueSetSolver。
 | L1833-L1896 | WidenerFull/None(determineIterationReset/checkFreeze/doWidening) | — | 🔍 |
 | L1910-L2588 | ValueSetSolver(ValueSetEdge/newValueSet/partitionSurround/component/visit/establishTopologicalOrder/generateTrueEquation/FalseEquation/applyConstraints/constraintsFromPath/CBranch/generateConstraints/checkRelativeConstant/generateRelativeConstraint/establishValueSets/solve/dumpValueSets) | — | 🔍 |
 
-**rangeutil.cc 统计**:~62 函数。全部 🔍。**注意**:ValueSetSolver 是 value-set 分析(LoadGuard 用),Rugra 的 LoadGuard.establishRange/finalizeRange 是 stub(INDEX P0),所以 ValueSetSolver 可能整个 ➖。
+**rangeutil.cc 统计**:~62 函数。全部 🔍。**注意**:ValueSetSolver 是 value-set 分析(LoadGuard 用),Rudra 的 LoadGuard.establishRange/finalizeRange 是 stub(INDEX P0),所以 ValueSetSolver 可能整个 ➖。
 
 **两文件合计**:~85 函数。

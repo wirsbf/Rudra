@@ -1,28 +1,28 @@
-# Rugra-Ghidra 完整对齐路线图
+# Rudra-Ghidra 完整对齐路线图
 
 > 📌 **主管线差异基线（2026-07-01）**：见 [`docs/archive/dated/PIPELINE_DIFF_2026-07-01.md`](docs/archive/dated/PIPELINE_DIFF_2026-07-01.md)。
-> 逐 Action 对齐 Ghidra `universalAction`（coreaction.cc:5462-5739）vs Rugra `set_default_actions`（action.rs:383-492）。
-> **核心发现**：Ghidra 是 4 层嵌套 repeatapply 管线（universal→fullloop→mainloop→stackstall），Rugra 是单遍扁平 24 步；
+> 逐 Action 对齐 Ghidra `universalAction`（coreaction.cc:5462-5739）vs Rudra `set_default_actions`（action.rs:383-492）。
+> **核心发现**：Ghidra 是 4 层嵌套 repeatapply 管线（universal→fullloop→mainloop→stackstall），Rudra 是单遍扁平 24 步；
 > 37 个顶层 Action 中只有 8 个真正对齐，19 个有 impl 未接入，6 个完全缺失；~~oppool1 缺 36 条规则~~（2026-07-01 已补 ~30 条，剩 RulePtrFlow 等 ~6 条），oppool2 整池缺，~~cleanup 缺 11 条~~（已补 10 条，剩 RuleDumptyHumpLate）；
 > 另有 6 个 Ghidra 不存在的自造 Action（simplify/typeinfer/~~copypropagate~~（2026-09-22 sb-copyprop lane 已删：死代码零引用+前提纠错，oracle 12.0.4 无 ActionCopyPropagation，判决见 docs/alignment_docs/COPYPROP_LANE_VERDICT_1204.md）/typepropagate/inferparams/cse）是技术债。
 > P0 = 管线嵌套化改造 + 19 个未接入 Action 接线。
 >
 > 📌 **2026-07-01 更新**：并发移植 subflow.cc（SubvariableFlow + 8 Rule）、double.cc（SplitVarnode + 4 Rule）、ruleaction.cc 补 21 Rule + 修 RuleDivOpt。oppool1/cleanup 池大批补缺 Rule 已接入主管线。~~832/832 测试，curl 24/24 无回归~~（**2026-07-02 19:29 校对注**：测试数现 960/960，curl 当前 `switch` 已 18→0、`uVar` 已 0，但仍残留 2 个 `if (1) goto ;` 语法错误 + StackX/param 占位名；详见 AGENTS.md「当前反编译质量（2026-07-02 19:29）」节）。
 
-**最后核实（模块级全局快照）**: 2026-08-16（session 收尾快照：以下 L1/L2/L3 为模块级算法对齐状态；本 session 89 提交后 heritage 四链与 typed-decl 链已 APPROVE 收官，逐模块行内证据已随各 commit 更新；输出质量数据见 CURRENT_STATUS.md）（逐行核对 Rugra 源码 vs Ghidra 源码）。**2026-08-27 PTRSUB 窄证据补记**：本轮只重核 `space`/`typeop`/`varnode`/`coreaction`/`typefactory` 对应投影并保持各模块 L2；Varnode exact mapped method 在新增 infer canary 的 Rust 侧未调用，仍为 UNTESTED，production closure 为 MISMATCH，不代表路线图全局重验。**2026-09-25 STRNCPY 窄修注**：本轮只更新第 24 行 `constseq`（RuleStringStore 全链接通+CR 修 F1/F2，B2 面见行内）；`userop.rs` 的 STRINGDATA display 旗标与 `funcdata.rs` 的 getInternalString 键修不改变两模块整体 L2 判定，行内证据见 docs/api/{constseq,funcdata,userop}.md 当日节。**历史校对口径**：2026-07-02 的输出质量/测试数字以及本文件旧统计表均只作历史记录；当前可实测输出事实以 `CURRENT_STATUS.md` 顶部 2026-08-28 正式快照为准。模块级状态仍须重新逐行核实 Ghidra 源码后方可更新，不能由输出净变化推升。
+**最后核实（模块级全局快照）**: 2026-08-16（session 收尾快照：以下 L1/L2/L3 为模块级算法对齐状态；本 session 89 提交后 heritage 四链与 typed-decl 链已 APPROVE 收官，逐模块行内证据已随各 commit 更新；输出质量数据见 CURRENT_STATUS.md）（逐行核对 Rudra 源码 vs Ghidra 源码）。**2026-08-27 PTRSUB 窄证据补记**：本轮只重核 `space`/`typeop`/`varnode`/`coreaction`/`typefactory` 对应投影并保持各模块 L2；Varnode exact mapped method 在新增 infer canary 的 Rust 侧未调用，仍为 UNTESTED，production closure 为 MISMATCH，不代表路线图全局重验。**2026-09-25 STRNCPY 窄修注**：本轮只更新第 24 行 `constseq`（RuleStringStore 全链接通+CR 修 F1/F2，B2 面见行内）；`userop.rs` 的 STRINGDATA display 旗标与 `funcdata.rs` 的 getInternalString 键修不改变两模块整体 L2 判定，行内证据见 docs/api/{constseq,funcdata,userop}.md 当日节。**历史校对口径**：2026-07-02 的输出质量/测试数字以及本文件旧统计表均只作历史记录；当前可实测输出事实以 `CURRENT_STATUS.md` 顶部 2026-08-28 正式快照为准。模块级状态仍须重新逐行核实 Ghidra 源码后方可更新，不能由输出净变化推升。
 **2026-08-28 PTRSUB production 差分补记（不改变 L 级别）**：release curl formal stdout 两次 byte-identical（sha=`f04dee502d…`；只证明 stdout），124/124、defects=0、numbering=0、skeleton 2822→2820；raw A/B 的 `diff -U3` 为 12 grouped hunks，`diff -U0` 为 33 atomic hunks、42-/42+，跨 7 functions。progressbarinit 字段 cast 的 skeleton 15→13；main 从 pointer arithmetic 精确化为 `"--"`，但仍不等于 golden `&DAT_001062f8`，该差异继续绑定 `TYPEOP-PTRSUB-FIELDCAST-0001`；六个函数新增无类型 concrete-pointer declaration 绑定 `PTRSUB-TYPED-DECL-RESIDUAL-0001`，glob_set 新增 outer/nested cast churn 绑定 `PTRSUB-SWITCH-CAST-RESIDUAL-0001`。其完整依赖仍含 `ACTION-INFERTYPES-DISPATCH-0001`、`TYPE-UNKNOWN-0001`、`PRINTC-SYMBOL-DECL-0001`、`RULE-PTRARITH-ADDTREE-0001`、`JUMPTABLE-TABLEAPI-0001` 与 `PRINTC-SWITCH-EMIT-0001`。故 production closure 明确仍为 MISMATCH，不能据净减 2 升级模块。
 **2026-08-28 BlockCopy/buildCopy wave 补记（不改变 L 级别）**：真实 `BlockCopy`、append-only `buildCopy`、有序 edge/label/reverse-slot/state/copymap 复制及 Basic insert/removeEdge 调用闭包已接入。锁定 12.0.4 双侧 fixture 的 `incoming_order_6_2` / `append_prefix_untouched` / `live_delegate` / `blockbasic_insert_end` / `parallel_remove_after_swap` 五个投影产生 37 records / 5577 bytes，stdout sha=`650c8aa6bc…`，raw diff 为空；独立复核仅对这五个 covered projection APPROVE。overall 仍为 `MISMATCH`：真实 graph parent、内建 structured source 状态、BlockGoto/MultiGoto、negate/print/marshal、Action executor、完整 StructureTransform 与 GetStr 后续结构化闭包仍为 MISMATCH/UNTESTED；`block`、`blockaction`、`coreaction`、`funcdata`、`printc` 均不得因此升级。
 **2026-08-28 RuleEarlyRemoval 窄证据补记（不改变 L 级别）**：锁定 12.0.4 双侧 fixture 的 14 个 covered records（六守卫、pass/delay/deadremoved、writemask/autolive、OTHER policy、covered graph 突变与 72 typed-opcode dispatch）逐字节 `MATCH`，covered sha=`b8d27bf21815…`，并获独立 scoped review APPROVE。overall 仍为 `MISMATCH`：raw opcode 0/45、nullable input slot、FSPEC/overlay/manager-indexed Heritage state、完整 op-bank 和未动态覆盖的 Heritage 生命周期均未闭合；`action`、`ruleaction`、`heritage`、`space`、`varnode` 均保持原 L 级。
-**2026-09-22 BLOCKSTRUCT-MULTIGOTO-0001 补记（block/blockaction/printc 不升 L2→L3，L2 内窄证据）**：`BlockMultiGoto`（block.hh:573-593）、`newBlockMultiGoto`（block.cc:1720-1753）、ruleBlockGoto isSwitchOut arm（blockaction.cc:1456-1458）、checkSwitchSkips cc:1630-1635 arm、grabCaseBasic cc:3548-53 goto-case 记录、scopeBreak/markUnstructured gototype arm、printc emitBlockSwitch cc:3334-37 已接线（此前为"显式跳过 switch"缺口，root 报告 GP_SWITCH_ROOTCAUSE §4 P0-B）。锁定 12.0.4 双侧 fixture `blockmultigoto_1204`（rule 驱动 case + 直驱 case：自环恢复/default 前置捕获/add-to-existing/scopeBreak）逐字节 MATCH（分支迭代产物在 /dev/shm/rugra-tests/sb-multigoto/，root 集成时固化 pinned runner+metadata）。production curl 124 golden：0 panic/0 timeout/76 decompiled=baseline、defects=0/numbering=0、skeleton 3711→3386（getparameter 869→539——多 goto 摘除解除 111×cc:1705 拒绝环，switch 邻域 do-while 恢复；glob_set 91→96 残差登记）；httpd 与 baseline 逐字节一致。配套修复 `dedup_edges_all_types` 锁纪律（单锁编排，替代"整 dedup 一把锁"下 peer 修复错块 OOB 与挂起队列版的收敛挂死）。overall 仍 MISMATCH/不升级：switch case 真实 label（recoverLabels/finalizePrinting 排序）仍属 JUMPTABLE-TABLEAPI-0001（P0-A 域）、fixture family C（copy 合成消费形）双侧分歧撤下待分诊、glob_set +5 残差、完整 switch 语义闭包与 P0-A 联合 E2E 待 root 集成。
+**2026-09-22 BLOCKSTRUCT-MULTIGOTO-0001 补记（block/blockaction/printc 不升 L2→L3，L2 内窄证据）**：`BlockMultiGoto`（block.hh:573-593）、`newBlockMultiGoto`（block.cc:1720-1753）、ruleBlockGoto isSwitchOut arm（blockaction.cc:1456-1458）、checkSwitchSkips cc:1630-1635 arm、grabCaseBasic cc:3548-53 goto-case 记录、scopeBreak/markUnstructured gototype arm、printc emitBlockSwitch cc:3334-37 已接线（此前为"显式跳过 switch"缺口，root 报告 GP_SWITCH_ROOTCAUSE §4 P0-B）。锁定 12.0.4 双侧 fixture `blockmultigoto_1204`（rule 驱动 case + 直驱 case：自环恢复/default 前置捕获/add-to-existing/scopeBreak）逐字节 MATCH（分支迭代产物在 /dev/shm/rudra-tests/sb-multigoto/，root 集成时固化 pinned runner+metadata）。production curl 124 golden：0 panic/0 timeout/76 decompiled=baseline、defects=0/numbering=0、skeleton 3711→3386（getparameter 869→539——多 goto 摘除解除 111×cc:1705 拒绝环，switch 邻域 do-while 恢复；glob_set 91→96 残差登记）；httpd 与 baseline 逐字节一致。配套修复 `dedup_edges_all_types` 锁纪律（单锁编排，替代"整 dedup 一把锁"下 peer 修复错块 OOB 与挂起队列版的收敛挂死）。overall 仍 MISMATCH/不升级：switch case 真实 label（recoverLabels/finalizePrinting 排序）仍属 JUMPTABLE-TABLEAPI-0001（P0-A 域）、fixture family C（copy 合成消费形）双侧分歧撤下待分诊、glob_set +5 残差、完整 switch 语义闭包与 P0-A 联合 E2E 待 root 集成。
 **2026-09-22 OPPOOL28 补记（ruleaction/funcdata 不升 L2→L3，L2 内窄证据；Lane CD=wt/sb-oppool28）**：Phase 2 首分歧 ordinal 28 `stackstall:oppool1` pool count 863 vs 826（差 37）三根因修复——①RuleEqual2Zero MULT 分支 else-if 阶梯倒置（ruleaction.cc:5884-5893）+补 isHeritageKnown（cc:5900-5901）/copySymbolIfValid（cc:5880）；②Funcdata::cseElimination 幸存者选择无视 parent（funcdata_op.cc:1356-1398 的 findCommonBlock 支配树分支+公共块新 op 路径）+cseEliminateList 补 isHeritaged 守卫（cc:1436-1437）；③RulePullsubMulti 新 MULTIEQUAL 输出误落 unique 空间（cc:921-940 smalladdr2+renormalize+newVarnodeOut 保持原空间）+插入改 opInsertBegin（cc:943）+补 isPrecisLo/Hi（cc:889）。窄证据：next_url 双侧 stage 投影 ordinal 1-38 全字节匹配、首oppool1 窗口 863=863 事件序列+规则计数全等（drill 窗口分解 earlyremoval −22/equal2zero −6 等全部回收）；Phase 2 首分歧 28→39（`mainloop:redundbranch` 1 vs 0）。production curl 124/124 defects=numbering=0、httpd 29/29 defects=numbering=0。overall ruleaction/funcdata 仍 L2：本补记仅覆盖 next_url 单函数 oppool1 首窗证据，join-renormalize/hasLoopIn 残差登记 `RULE-PULLSUBMULTI-JOINRENORM-0001`/`RULE-PULLSUBMULTI-LOOPIN-0001`，机制 C Cross-Review PENDING。
-**2026-09-23 SB-MATCHURL-ORD70 补记（varmap/coreaction/funcdata/fspec 不升 L2→L3，L2 内窄证据；Lane DC=wt/sb-ord70）**：match_url Phase 2 首分歧 ordinal 70（stackstall:oppool1 102 vs 151，RuleIndirectCollapse +39）根因=ScopeLocal 生命周期：Ghidra scope 为 per-Funcdata 单例（funcdata.cc:63-71），buildInputFromTrials（fspec.cc:5737 outgoing 栈参槽 b8/c0/c8）与 ActionRestrictLocal（coreaction.cc:1979/1997 saved-reg 槽 a8/b0/e0/e8/f0/f8）的 markNotMapped 窗口窄化跨 restructure 趟存活，下一趟 addRange 的 range.inRange 门（varmap.cc:902）丢弃这些槽 hint；Rugra 每趟 fresh scope+全量重装窗口→窄化被抹→entry 复活被 markUnaliased 判 unaliased→varnode 置 NOLOCALALIAS→39 个 call-guard INDIRECT 提前折叠（oracle 到 ordinal 214 才折叠其中 41 个）。双侧探针实证别名表逐 pass 全等（推翻登记的别名表内容差假设）。修复：scope 跨趟持久+构造点 reset_local_window+aliasyes=(numpass!=0) 穿透（cc:1280-1282）+ActionRestrictLocal 逐行重写（IPTR_SPACEBASE 判定替代 >0x7FFF_FFFF 启发式+findVarnodeInput/isUnaffected/isUnaffectedStorage 链）+setInputVarnode 补 cc:365-370 hasEffect 尾（unaffected/return_address 标志）。窄证据：match_url Phase 2 投影 ordinal 1-163 全匹配、首分歧 70→164（activereturn CALL 输出试探族，登记 SB-MATCHURL-ORD164-0001）；drill indirectcollapse 8=8。三门禁：curl 124/124 defects=numbering=0（skeleton 3029→2795，main 929→693）、httpd 29/29 0/0（2339=基线）、config 域零回退、next_url MATCH 保持、cargo test --lib 串行 1650/18 基线一致。`VARMAP-CROSSPASS-PERSISTENCE-0001` 关闭；新登记 `DRILL-FIXTURE-RESET-0001`（oracle drill 夹具缺 root->reset，numpass 未初始化读堆垃圾，drill/projection 的 pass1 aliasyes 协议分叉——基础设施）。overall varmap 仍 L2；机制 C Cross-Review PENDING（varmap 核心算法层白名单）。
-**2026-09-26 SUBCOMMUTE 补记（ruleaction 不升 L2→L3，L2 内窄证据；Lane=wt/subcommute，并入=MERGEBATCH15）**：RuleSubCommute INT_SDIV/INT_SREM SEXT 臂按 ruleaction.cc:4570-4602 逐字补齐+cancel_extensions（cc:4483-4512）/shorten_extension（cc:4463-4472）1:1 helper；B2 双侧 fixture 16 normal 例字节恒等+2 trap 形态锁定（oracle SIGFPE rc136 vs Rugra panic rc101，KUNAUB-SDIV-0001 裁决 (a)）；CR-SUBCOMMUTE 终判 APPROVE（4/4 MATCH）。**CR 条件①注记：RuleSubCommute::applyOp 函数级状态=UNTESTED，不得记 MATCH/L3**——函数内残差分支 RULEACTION-SUBCOMMUTE-ZEXT-PARTIAL-0001 与 RULEACTION-SUBCOMMUTE-SUBZEXT-OVERLAP-0001 两 P3 票在案（fixture metadata overall_status 已更正为票域限定，MATCH 仅限本票域投影面）；sq 镜面 6818→6778（−40，SEXT16 除法成语折叠，方向=golden）。
-**2026-09-23 MYPROGRESS 双根因补记（ruleaction/block 不升 L2→L3，L2 内窄证据；Lane=wt/andcommute）**：myprogress Phase 2 首分歧 ordinal 28（`stackstall:oppool1` SNAP op-idx 24）双根因修复——①RuleAndCommute 收益门（ruleaction.cc:1582-1603）：Rugra 误删 OR/PIECE 强制门,对 `AND(RIGHT(load,10),0xffffffff)` 无条件 commute(+2 unique→后续 unique 偏移+0x10/时间戳+2 全为残差);重写为 cc:1532-1626 全结构(LEFT+常量+loneDescend 唯一快路;cc:1566 `&&` 字面逻辑与;cc:1556 isHeritageKnown 守卫;wrapping 移位),commit 99886d14。②FlowBlock::findCondition 步进缺陷(block.cc:845-856):bl1/edge1 不随 walk 前移,菱形 CFG 恒返臂块出边槽 0→RuleInt2FloatCollapse(EZ 车道已落地本体+5637 注册)判向恒拒永不 fire;修复 cur_bl1/cur_edge1 步进,commit 21426fb2——3594:501 MULTIEQUAL 折叠/9 字节 zext/358f+36a0 对死灭与 oracle 一致。窄证据:myprogress 投影首分歧 28→150(新登记 MYPROGRESS-OPPOOL2-CONSTSPLIT-0001),stage 299→402/402,ords 1-149 identical;curl 2507/0/0(基线≈2511,-4)/httpd 2282/0/0==基线/gcc 82OK25FAIL==基线;next_url/match_url MATCH 保持;parseconfig ord155 switchnorm=constgen 车道登记残差指纹不变(ords 1-154 identical 证明零影响);ruleaction:: 215/215(+3-1);全库 18 失败==master 预存集。overall ruleaction/block 仍 L2;机制 C Cross-Review PENDING。
-**2026-09-23 SB-MATCHURL-ORD164 补记（fspec 保持 L2，L2 内窄证据；Lane DF=wt/sb-ord164）**：match_url Phase 2 首分歧 ordinal 164（activereturn，exit@plt 的 RDX const0 输出试探 INDIRECT 被 rugra 直连提交）根因=`ParamListStandardOut::initialize`（fspec.cc:1614-1627）钉死空规则分支：Rugra 无 `<rule>` 解码 → `use_fillin_fallback=true` 恒走 `fillin_map_fallback(false)`，firstOnly=false 放行非-first-in-class 的 RDX output entry → lone RDX 试探 markUsed → 单试探提交；oracle 因 gcc __stdcall output 含 `<join_dual_class/>`（MultiSlotDualAssign fillinOutputActive=true，modelrules.cc:1143）得 useFillinFallback=false → 规则步拒绝（!isFirstInClass，RAX 才是 general 类首）→ fallback(true) 跳过 RDX → markNoUse 全体 → 无提交、试探 INDIRECT 存活。修复（src/fspec.rs）：ModelRuleFillin/FillinAction `<rule>` fillin 投影（七 action 派发 modelrules.cc:587-614；五种 fillinOutputActive=true 的 trial-walk 逐行移植 cc:731/902/1019/1242/1345；filter/qualifier/precondition/sideeffect 结构化跳过）+ ParamListStandard.model_rules + initialize 忠实扫描（同步消除 __stdcall output 的 auto_killed_by_call 假 true）+ fillin_map 规则步（cc:1746-1761）。窄证据：首分歧 164→191（oppool2 CROSSBUILD 族，SB-MATCHURL-ORD191-0001）；curl 0/0 skeleton 2795=亲父基线、httpd 0/0 2339=基线、config 域 10 函数 0/0、next_url 投影 MATCH 保持、cargo test --lib 1650/18 基线一致。ModelRule forward assignAddress 消费端仍属 FSPEC-0002 残差；fspec 整体仍 L2。
+**2026-09-23 SB-MATCHURL-ORD70 补记（varmap/coreaction/funcdata/fspec 不升 L2→L3，L2 内窄证据；Lane DC=wt/sb-ord70）**：match_url Phase 2 首分歧 ordinal 70（stackstall:oppool1 102 vs 151，RuleIndirectCollapse +39）根因=ScopeLocal 生命周期：Ghidra scope 为 per-Funcdata 单例（funcdata.cc:63-71），buildInputFromTrials（fspec.cc:5737 outgoing 栈参槽 b8/c0/c8）与 ActionRestrictLocal（coreaction.cc:1979/1997 saved-reg 槽 a8/b0/e0/e8/f0/f8）的 markNotMapped 窗口窄化跨 restructure 趟存活，下一趟 addRange 的 range.inRange 门（varmap.cc:902）丢弃这些槽 hint；Rudra 每趟 fresh scope+全量重装窗口→窄化被抹→entry 复活被 markUnaliased 判 unaliased→varnode 置 NOLOCALALIAS→39 个 call-guard INDIRECT 提前折叠（oracle 到 ordinal 214 才折叠其中 41 个）。双侧探针实证别名表逐 pass 全等（推翻登记的别名表内容差假设）。修复：scope 跨趟持久+构造点 reset_local_window+aliasyes=(numpass!=0) 穿透（cc:1280-1282）+ActionRestrictLocal 逐行重写（IPTR_SPACEBASE 判定替代 >0x7FFF_FFFF 启发式+findVarnodeInput/isUnaffected/isUnaffectedStorage 链）+setInputVarnode 补 cc:365-370 hasEffect 尾（unaffected/return_address 标志）。窄证据：match_url Phase 2 投影 ordinal 1-163 全匹配、首分歧 70→164（activereturn CALL 输出试探族，登记 SB-MATCHURL-ORD164-0001）；drill indirectcollapse 8=8。三门禁：curl 124/124 defects=numbering=0（skeleton 3029→2795，main 929→693）、httpd 29/29 0/0（2339=基线）、config 域零回退、next_url MATCH 保持、cargo test --lib 串行 1650/18 基线一致。`VARMAP-CROSSPASS-PERSISTENCE-0001` 关闭；新登记 `DRILL-FIXTURE-RESET-0001`（oracle drill 夹具缺 root->reset，numpass 未初始化读堆垃圾，drill/projection 的 pass1 aliasyes 协议分叉——基础设施）。overall varmap 仍 L2；机制 C Cross-Review PENDING（varmap 核心算法层白名单）。
+**2026-09-26 SUBCOMMUTE 补记（ruleaction 不升 L2→L3，L2 内窄证据；Lane=wt/subcommute，并入=MERGEBATCH15）**：RuleSubCommute INT_SDIV/INT_SREM SEXT 臂按 ruleaction.cc:4570-4602 逐字补齐+cancel_extensions（cc:4483-4512）/shorten_extension（cc:4463-4472）1:1 helper；B2 双侧 fixture 16 normal 例字节恒等+2 trap 形态锁定（oracle SIGFPE rc136 vs Rudra panic rc101，KUNAUB-SDIV-0001 裁决 (a)）；CR-SUBCOMMUTE 终判 APPROVE（4/4 MATCH）。**CR 条件①注记：RuleSubCommute::applyOp 函数级状态=UNTESTED，不得记 MATCH/L3**——函数内残差分支 RULEACTION-SUBCOMMUTE-ZEXT-PARTIAL-0001 与 RULEACTION-SUBCOMMUTE-SUBZEXT-OVERLAP-0001 两 P3 票在案（fixture metadata overall_status 已更正为票域限定，MATCH 仅限本票域投影面）；sq 镜面 6818→6778（−40，SEXT16 除法成语折叠，方向=golden）。
+**2026-09-23 MYPROGRESS 双根因补记（ruleaction/block 不升 L2→L3，L2 内窄证据；Lane=wt/andcommute）**：myprogress Phase 2 首分歧 ordinal 28（`stackstall:oppool1` SNAP op-idx 24）双根因修复——①RuleAndCommute 收益门（ruleaction.cc:1582-1603）：Rudra 误删 OR/PIECE 强制门,对 `AND(RIGHT(load,10),0xffffffff)` 无条件 commute(+2 unique→后续 unique 偏移+0x10/时间戳+2 全为残差);重写为 cc:1532-1626 全结构(LEFT+常量+loneDescend 唯一快路;cc:1566 `&&` 字面逻辑与;cc:1556 isHeritageKnown 守卫;wrapping 移位),commit 99886d14。②FlowBlock::findCondition 步进缺陷(block.cc:845-856):bl1/edge1 不随 walk 前移,菱形 CFG 恒返臂块出边槽 0→RuleInt2FloatCollapse(EZ 车道已落地本体+5637 注册)判向恒拒永不 fire;修复 cur_bl1/cur_edge1 步进,commit 21426fb2——3594:501 MULTIEQUAL 折叠/9 字节 zext/358f+36a0 对死灭与 oracle 一致。窄证据:myprogress 投影首分歧 28→150(新登记 MYPROGRESS-OPPOOL2-CONSTSPLIT-0001),stage 299→402/402,ords 1-149 identical;curl 2507/0/0(基线≈2511,-4)/httpd 2282/0/0==基线/gcc 82OK25FAIL==基线;next_url/match_url MATCH 保持;parseconfig ord155 switchnorm=constgen 车道登记残差指纹不变(ords 1-154 identical 证明零影响);ruleaction:: 215/215(+3-1);全库 18 失败==master 预存集。overall ruleaction/block 仍 L2;机制 C Cross-Review PENDING。
+**2026-09-23 SB-MATCHURL-ORD164 补记（fspec 保持 L2，L2 内窄证据；Lane DF=wt/sb-ord164）**：match_url Phase 2 首分歧 ordinal 164（activereturn，exit@plt 的 RDX const0 输出试探 INDIRECT 被 rudra 直连提交）根因=`ParamListStandardOut::initialize`（fspec.cc:1614-1627）钉死空规则分支：Rudra 无 `<rule>` 解码 → `use_fillin_fallback=true` 恒走 `fillin_map_fallback(false)`，firstOnly=false 放行非-first-in-class 的 RDX output entry → lone RDX 试探 markUsed → 单试探提交；oracle 因 gcc __stdcall output 含 `<join_dual_class/>`（MultiSlotDualAssign fillinOutputActive=true，modelrules.cc:1143）得 useFillinFallback=false → 规则步拒绝（!isFirstInClass，RAX 才是 general 类首）→ fallback(true) 跳过 RDX → markNoUse 全体 → 无提交、试探 INDIRECT 存活。修复（src/fspec.rs）：ModelRuleFillin/FillinAction `<rule>` fillin 投影（七 action 派发 modelrules.cc:587-614；五种 fillinOutputActive=true 的 trial-walk 逐行移植 cc:731/902/1019/1242/1345；filter/qualifier/precondition/sideeffect 结构化跳过）+ ParamListStandard.model_rules + initialize 忠实扫描（同步消除 __stdcall output 的 auto_killed_by_call 假 true）+ fillin_map 规则步（cc:1746-1761）。窄证据：首分歧 164→191（oppool2 CROSSBUILD 族，SB-MATCHURL-ORD191-0001）；curl 0/0 skeleton 2795=亲父基线、httpd 0/0 2339=基线、config 域 10 函数 0/0、next_url 投影 MATCH 保持、cargo test --lib 1650/18 基线一致。ModelRule forward assignAddress 消费端仍属 FSPEC-0002 残差；fspec 整体仍 L2。
 **2026-09-22 BLOCKSTRUCT-ORDERBLOCKS-0001 补记（block/blockaction 不升 L2→L3，L2 内窄证据；Lane BV=CR-BO 条件③）**：`BlockGraph::orderBlocks`（block.hh:430-431，单元素守卫+compareFinalOrder 排序）接入 ActionFinalStructure（blockaction.cc:2191 位，finalizePrinting 之前）；`FlowBlock::compareFinalOrder`（block.cc:709-730）三键（entry idx==0 恒首/lastOp()==CPUI_RETURN 压尾/其余按 index；双 RETURN 块双向 false=tie）移植为 block.rs `compare_final_order`（稳定 sort_by 解 tie，与 libstdc++ std::sort ≤16 元素插入排序 phase 同形）；补齐缺失的 per-type lastOp 委托 BlockGoto（cc:562）/BlockMultiGoto（cc:590）→wrapped。锁定 12.0.4 双侧 fixture `blockstruct_orderblocks_1204`（5 case：entry/return 键+stable tie、null↔RETURN 混合臂、真 newBlockGoto 委托、真 newBlockMultiGoto 委托、单元素跳过）逐字节 MATCH（runner tools/run_blockstruct_orderblocks_oracle.sh）。production curl 124/124、httpd 29/29 全量 A/B（d847acc 基线）输出 sha256 恒等——当前语料所有函数顶层列表均为单元素（glob_set 15→1/getparameter 30→1/main 105→1），block.hh:431 守卫双侧同步跳过；getparameter(978)/glob_set(97) --func defects=numbering=0 前后不变。overall 仍不升级：顶层索引继承语义（finalize_structure 的紧凑重编号 vs oracle min-of-components 持有）与 >16 元素 tie 置换仍为已登记残差（metadata residual_diffs），机制 C Cross-Review PENDING。
 **2026-08-28 GetStr 字符/结构化窄证据补记（不改变 L 级别）**：fresh GetStr runner 证明 reachable raw P-code signature 103/103、272 个有序 raw Varnode 的 flags/type records 与聚焦 char read-facing/token 投影 `MATCH`；双方类型直方图均为 174×`xunknown8` + 93×`xunknown1` + 5×`code`。最终条件逐 token 为 `if ((param_1 != (char *)0x0) && (*param_1 != '\0')) {`，oracle 只在参数编号上不同。structured-negate 13-case fixture 的 14 行/3628 bytes 双侧 stdout逐字节 `MATCH`（sha=`d47ef9da43…`），Atom metadata fixture 的 8 records/678 bytes逐字节 `MATCH`（sha=`d84d1ae86b…`），两者均获独立 scoped APPROVE。整体不得外推：GetStr 五个可比较 stage 均仍 `MISMATCH`、Heritage 为 `NO_ORACLE`；首个剩余 raw storage 差异是 CALL 的 FSPEC space，且 identify/ProperIf/newBlockCondition、TokenSplit/EmitPrettyPrint/markup 等残差均已登记。
 
-**2026-08-28 GetStr 生产 DWARF char 边界补记（不改变 L 级别）**：旧阶段 fixture 不执行 Program DB/DWARF，因而没有覆盖真实生产首叉。锁定 curl 的 GetStr `value` 参数实际指向 `name=char,size=1,DW_ATE_signed_char`；Rugra importer 曾只保留 `TYPE_INT/name=char` 而丢失 `chartype`。现在 DWARF signed-char/core-char、generic_clib char 与 typedef/qualifier shape/flags 已保留，fresh release GetStr 完整函数体对 `ghidra_curl_1204.c` 为 skeleton identical、defects=0、numbering=0，真实条件精确恢复 `*value != '\0'`。该证据只批准最终可见 GetStr 投影；Java analyzer 的完整 name-first/cache、Program typedef identity、Pcode 编码矩阵与 Architecture TypeFactory canonical identity仍为 `NO_ORACLE/MISMATCH`，由 `DEBUGPROTO-DWARF-CHAR-0001` 跟踪，debug importer 与类型系统均不升级。
+**2026-08-28 GetStr 生产 DWARF char 边界补记（不改变 L 级别）**：旧阶段 fixture 不执行 Program DB/DWARF，因而没有覆盖真实生产首叉。锁定 curl 的 GetStr `value` 参数实际指向 `name=char,size=1,DW_ATE_signed_char`；Rudra importer 曾只保留 `TYPE_INT/name=char` 而丢失 `chartype`。现在 DWARF signed-char/core-char、generic_clib char 与 typedef/qualifier shape/flags 已保留，fresh release GetStr 完整函数体对 `ghidra_curl_1204.c` 为 skeleton identical、defects=0、numbering=0，真实条件精确恢复 `*value != '\0'`。该证据只批准最终可见 GetStr 投影；Java analyzer 的完整 name-first/cache、Program typedef identity、Pcode 编码矩阵与 Architecture TypeFactory canonical identity仍为 `NO_ORACLE/MISMATCH`，由 `DEBUGPROTO-DWARF-CHAR-0001` 跟踪，debug importer 与类型系统均不升级。
 **目标**: 完整实现 Ghidra 反编译器的所有算法，不使用简化版。
 
 **2026-08-25 wave 补记（不改变 L 级别，仅登记已集成证据；逐项复核/差分证据见 TODO_BOARD 对应行）**：
@@ -49,18 +49,18 @@
 > （如 condexe 只检测不重写、emulate 无 execute 循环）一律降为 L2 或 L1。
 >
 > **核实样本**：
-> - `condexe.rs`(238行) vs `condexe.cc`(712行)：Rugra 仅做 CBRANCH 检测 + eprintln 标记，
+> - `condexe.rs`(238行) vs `condexe.cc`(712行)：Rudra 仅做 CBRANCH 检测 + eprintln 标记，
 >   Ghidra 的 `findInitPre`/`forceSpecific`/`removeBlockEdges`/`setOut` 图重写**全部缺失** → 实际 L1。
 > - `RuleDivOpt`(未提交)：`findForm`/`calcDivisor`/`checkFormOverlap` 忠实对应
 >   ruleaction.cc:8295-8355。此前误标"缺第二变体"——核实后确认 8010-8046 是
 >   **独立的 RuleDivTermAdd2**(另一个 Rule)，非 RuleDivOpt 的一部分。RuleDivOpt 本身完整。
 
 > **Rule 主管线接入状态（2026-06-28 实测核实，推翻此前"系统性缺口"声明）**：
-> Rugra 的 `ActionPool`（action.rs:89）忠实实现了 Ghidra 的 Rule 遍历调度——
+> Rudra 的 `ActionPool`（action.rs:89）忠实实现了 Ghidra 的 Rule 遍历调度——
 > `build_simplify_pool` 注册 **98 个 Rule**（对齐 oppool1, coreaction.cc:5511+），
 > `build_cleanup_pool` 对齐 actcleanup（阶段分隔），两者均接入 `decompile_group` 主管线。
 > `ActionPool::apply` 是 Ghidra 式 repeat-until-stable 遍历（action.rs:118）。
-> **实测证据**（`RUGRA_RULE_STATS=1 cargo run --example curl_decompile`）：
+> **实测证据**（`RUDRA_RULE_STATS=1 cargo run --example curl_decompile`）：
 > curl 24 函数反编译中 Rule 池触发 **515 次简化**，涉及 **21 个不同 Rule**
 > （propagate_copy 244 / and_mask 43 / sub2_add 40 / less2_zero 39 / ...）。
 > 此前声称"实际反编译不触发任何 Rule 简化"为**过期误判**，已作废。
@@ -75,7 +75,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 | 分类 | 文件数 | 处理方式 |
 |---|---|---|
 | 核心算法（必须完整移植） | ~80 | 逐文件 L1/L2/L3 跟踪 |
-| Sleigh 编译器（slgh_*/sleigh*/slaformat/rulecompile/semantics） | ~14 | **战略排除**：Rugra 用 iced-x86 替代处理器规格语言编译，无需移植编译器本身 |
+| Sleigh 编译器（slgh_*/sleigh*/slaformat/rulecompile/semantics） | ~14 | **战略排除**：Rudra 用 iced-x86 替代处理器规格语言编译，无需移植编译器本身 |
 | Ghidra GUI/进程桥（ghidra_process/ghidra_arch/ifacedecomp/ifaceterm/interface/consolemain/libdecomp） | ~7 | **战略排除**：IDE 集成层，不属于算法 |
 | BFD/原始加载器（bfd_arch/loadimage_bfd/raw_arch/loadimage_xml/loadimage_ghidra） | ~5 | **替代实现**：用 goblin/object 替代 |
 | 注入桥接（inject_ghidra/inject_sleigh/comment_ghidra/ghidra_context/ghidra_translate/string_ghidra） | ~6 | 🟢 L2.5（pcodeinject.rs 代码完整：InjectPayload/InjectContext/PcodeEmitArray/PcodeInjectLibrary + register_call_fixup/call_other_fixup/call_mechanism/get_payload_id。9 单元测试。**未接入主管线**：需 Sleigh 架构初始化 + .cspec 解码，见条目 #45） |
@@ -83,7 +83,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 | 工具/测试（test/testfunction/filemanage/sleighexample/typegrp_ghidra/codedata/xml_arch/codedata） | ~7 | 按需 |
 
 **完全遗漏、需补入跟踪的核心文件**（此前路线图未提及）：
-- `flow.cc` — 控制流分析基础。**2026-08-23 FLOW-GAPS 审计勘误**：可达性流追踪**已移植并主管线接线**（src/flow.rs 2756 行：addrlist work-list/visited/setFallthruBound/xrefControlFlow/generateBlocks 五步全在，rugra.rs:246 接线），2026-07-04 的『线性扫描替代 L1』声明过时（httpd 门禁仍走旧 inject_raw_ops 线路）。真实缺失：checkContainedCall 整函数、truncatedFlow/partial 克隆（funcdata_op.cc:792）、内联（flow.rs:1658 硬编码 res=-1 永不成功）、injectPcode 流内接线（flow.cc:794/819 调用点）、Override 流改写、error 语义。详见 docs/alignment_audit/FLOW_GAPS_2026-08-23.md 与 TODO FLOW-*。对普通函数功能等价（curl 24/24 能反编译）。**真正缺失的 5 个子系统**：(1) 可达性流追踪（无法区分可达/不可达字节）；(2) 跳转表流内展开（跳转表目标不被流追踪）；(3) 截断流/部分 Funcdata 克隆（truncatedFlow）；(4) 子函数内联（inlineSubFunction/inlineFlow/EZ-model）；(5) 流内 P-code 注入（injectPcode/injectSubFunction）。CFG 构建（generateBlocks）有等价替代（build_blocks_from_ops, ~L2）。这是架构级迁移，需专门多轮 sessions。
+- `flow.cc` — 控制流分析基础。**2026-08-23 FLOW-GAPS 审计勘误**：可达性流追踪**已移植并主管线接线**（src/flow.rs 2756 行：addrlist work-list/visited/setFallthruBound/xrefControlFlow/generateBlocks 五步全在，rudra.rs:246 接线），2026-07-04 的『线性扫描替代 L1』声明过时（httpd 门禁仍走旧 inject_raw_ops 线路）。真实缺失：checkContainedCall 整函数、truncatedFlow/partial 克隆（funcdata_op.cc:792）、内联（flow.rs:1658 硬编码 res=-1 永不成功）、injectPcode 流内接线（flow.cc:794/819 调用点）、Override 流改写、error 语义。详见 docs/alignment_audit/FLOW_GAPS_2026-08-23.md 与 TODO FLOW-*。对普通函数功能等价（curl 24/24 能反编译）。**真正缺失的 5 个子系统**：(1) 可达性流追踪（无法区分可达/不可达字节）；(2) 跳转表流内展开（跳转表目标不被流追踪）；(3) 截断流/部分 Funcdata 克隆（truncatedFlow）；(4) 子函数内联（inlineSubFunction/inlineFlow/EZ-model）；(5) 流内 P-code 注入（injectPcode/injectSubFunction）。CFG 构建（generateBlocks）有等价替代（build_blocks_from_ops, ~L2）。这是架构级迁移，需专门多轮 sessions。
 - `codedata.cc` — 代码数据分析（L1）
 - `printjava.cc` — Java 后端（远期）
 - 其余 slgh_*/ghidra_* 按上表战略排除
@@ -92,7 +92,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ## 一、核心 IR / 数据模型（基础设施层）
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 1 | `address.cc` | `address.rs` | 🔧 L2 | **2026-08-23 锁定复审**：phase-1 bridge 仍保留两套地址模型。legacy `Address/RangeList` 被 Database、Flow、Block、Funcdata 主路径消费，却会让 `Address::new(vaddr)` 保持 null-space、Range 合并/排序丢空间、SeqNum clone/order 与 Ghidra 分离语义不等价；较完整的 `SpaceAddress/SpaceRangeList` 尚未进入这些 consumer。`PcodeOpBank::create/target`、Flow visited/bounds、Block cover 因此一起保持 `MISMATCH/UNTESTED`，按 `ADDRESS-PHASE2-CLOSURE-0001` 从完整 Address 域向上迁移。 | `address.cc`, `address.hh` |
 | 2 | `varnode.cc` | `varnode.rs` | 🔧 L2 | **2026-08-13 `VARNODE-INIT-0001`**：锁定 12.0.4 direct runner 为 `PARTIAL_MATCH`，constructor flags、unique/create counter、covered Loc/Def ordering、canonical xref/重复 slot 重接、checked setInput/setDef/makeFree/destroy，以及 synthetic LE `combineInputVarnodes` 调用闭包通过独立复核。**2026-08-15 `COVER-REBUILD-SELFLOCK-0001`**：`update_cover_locked` root-identity 重建（持锁窗口快照、无写锁重入）+ `self_ref` bank 分配 + input sentinel uindex 修正经 cover_rebuild_1204 fixture 8/8 MATCH；「Cover semantic endpoint」残差缩小为 MULTIEQUAL-tip/INDIRECT 目标 order 两项。**2026-08-28 PTRSUB/GetStr local**：14-case PcodeOp/direct 8-byte local identity、selected infer `getLocalType`/canonical int8 identity，以及 GetStr 272 个 ordered raw Varnode flags/type records 子投影 MATCH；`Funcdata::set_arch` 现把 Architecture TypeFactory 注入 bank。仍有 IOP/FSPEC、动态 Address/SeqNum、nullable slot、BE/ProtoModel、副本外部 Arc/public key mutation、完整 High/query/SymbolEntry/exact-piece 等 `MISMATCH/UNTESTED`；继续绑定 `VARNODE-0001`/`VARNODE-LOCALTYPE-RESOLUTION-0001`/`ADDRESS-0001`/`SEQNUM-0001`/`OPBANK-0001`，模块不升 L3。 | `varnode.cc` |
@@ -109,10 +109,10 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ## 二、分析流水线（核心算法层）
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 11 | `action.cc` | `action.rs` | 🔧 **L2（2026-08-23 executor 复审）** | Action/Rule start/action breakpoint 状态、临时 flag 清除、Group child cursor 时机、ActionPool live-tree iterator/rule resume/dead cleanup/count/warning 与派生 root group 过滤均未闭合；当前 `ACTION-EXECUTOR-BREAKPOOL-0001` 正在独立 worktree 以双侧状态机 fixture 修复，批准前不得恢复 L3。 | `action.cc`, `action.hh` |
-| 12 | `heritage.cc` | `heritage.rs` | 🔧 L2 | **2026-08-23 全文件锁定复审**（部分项已修复，见下行 2026-08-25 更新）：indexed-stack/ValueSet、`guardLoads` COPY、`processJoins` 仍缺失或为空壳。**2026-08-25 更新**：`HERITAGE-GUARD-NORMALIZE-0001`（R9 附条件 APPROVE）已修 `callOpIndirectEffect` 极性、`normalizeWriteSize` 回写、`guard` fl 真查询+`guardReturns`/`guardReturnsOverlapping` 移植、queryProperties 投影、newVarnode 属性尾；双侧 6 case covered MATCH(5)（case 2 卡 `FSPEC-JUSTIFIED-CONTAIN-0001`，修复后自动翻）；剩余=indexed/join 切片、BE overlap 域（整改中）、跨模块 funcdata 属性尾 TODO；不得据窄 fixture 恢复 L3。**2026-09-25 更新（Lane PJOINS）**：`processJoins` 消费链 1:1 落地（迭代/findJoin/尺寸校验/读拆分/delay 门/写拆分+splitJoinRead/Write 逐层化+precis 旗+floatExtension* oracle 签名）；oracle 探针锁定 e40ed130 行为=两语料全部 join 访问 skip_write（80+4 次，零 split）；Rugra join 记录表恒空（生产侧 HERITAGE-PJOINS-UNLINKED-0001，coreaction 域）→findJoin 走登记降级；split 臂状态 UNTESTED（4 个 Rugra 回归测试锚定结构，不能升 B2 MATCH）；join 切片从"缺失"改记"已移植待生产触发"。 | `heritage.cc`, `heritage.hh` |
+| 12 | `heritage.cc` | `heritage.rs` | 🔧 L2 | **2026-08-23 全文件锁定复审**（部分项已修复，见下行 2026-08-25 更新）：indexed-stack/ValueSet、`guardLoads` COPY、`processJoins` 仍缺失或为空壳。**2026-08-25 更新**：`HERITAGE-GUARD-NORMALIZE-0001`（R9 附条件 APPROVE）已修 `callOpIndirectEffect` 极性、`normalizeWriteSize` 回写、`guard` fl 真查询+`guardReturns`/`guardReturnsOverlapping` 移植、queryProperties 投影、newVarnode 属性尾；双侧 6 case covered MATCH(5)（case 2 卡 `FSPEC-JUSTIFIED-CONTAIN-0001`，修复后自动翻）；剩余=indexed/join 切片、BE overlap 域（整改中）、跨模块 funcdata 属性尾 TODO；不得据窄 fixture 恢复 L3。**2026-09-25 更新（Lane PJOINS）**：`processJoins` 消费链 1:1 落地（迭代/findJoin/尺寸校验/读拆分/delay 门/写拆分+splitJoinRead/Write 逐层化+precis 旗+floatExtension* oracle 签名）；oracle 探针锁定 e40ed130 行为=两语料全部 join 访问 skip_write（80+4 次，零 split）；Rudra join 记录表恒空（生产侧 HERITAGE-PJOINS-UNLINKED-0001，coreaction 域）→findJoin 走登记降级；split 臂状态 UNTESTED（4 个 Rudra 回归测试锚定结构，不能升 B2 MATCH）；join 切片从"缺失"改记"已移植待生产触发"。 | `heritage.cc`, `heritage.hh` |
 | 13 | `merge.cc` | `merge.rs` | 🔧 **L2（2026-08-24 ADDRTIED 窄地基已集成）** | main `e9a0b7a`（reviewed source `c8001f5`）覆盖 processor/spacebase、exact-run 首成员 flags、free 跳过、max-overlap、offset-aware `groupWith` 与 forced-error 的 8-line scoped projection；冷启动双侧8/8逐字节相同、独立复核 APPROVE。my_fwrite A/B 仅 skeleton45→44、decl30→29，全语料 implied 警告259→136，故它是 split 后放大器而非首因，整体仍 `MISMATCH`。残差保持：未知 `Other(non-1)`、`Result`→panic production boundary、grouped required/unifyAddress、comparator/边界/原生group顺序及完整错误状态；`mergeOp` 重链、persistent StackAffectingOps/protoPartial、`groupPartials`、copy-trim 首次出现序、完整 markImplied/cache/partial-piece 仍未闭合。**2026-08-30 `MERGE-ELIMINATE-FULLCOVER-0001`（LATTICE-GEN 阻塞①）**：`eliminate_intersect` 单读 cover 改 merge.cc:501-505 op-based 全量构造（addDefPoint+addRefPoint CFG 递归）+ vn2 def order 走 getUIndex marker 规则（MULTIEQUAL→0/INDIRECT→被守护 op order）；双侧 glob_range 组 23 成员 1:1、INPUT snips 8=8，curl 全语料 main/glob_range/next_url 3 panic→0、defects 0/numbering 0；同文件 3230/4036 两处 order 域 cover 构造（copy-trim/range 检查）仍用便捷入口（潜在同类残留，未观测到行为差）。不得据窄 fixture 恢复 L3。 | `merge.cc`, `merge.hh` |
 | 14 | `variable.cc` | `variable.rs` | 🔧 L2 | HighVariable 未原子建立 VN↔High 关系，annotation/后建 VN 挂接错误，强 Arc 形成环，instances 未按 compareJustLoc 维持顺序，销毁与 dirty 传播未闭合 | `variable.cc` |
 | 15 | **`varmap.cc`** | `varmap.rs` | 🔧 L2 | **RangeHint/AliasChecker/MapState/ScopeLocal 算法层 1:1 对齐**；已接入 printc；**Stack-spacebase 解析**已实现（gather_spacebase 递归解析 RSP/frame_base 链）。**2026-06-29 重大进展**：ActionSpacebase 接入主管线（coreaction.cc:5506），标记 RSP 输入为 SPACEBASE → varmap/printc 正确识别栈指针 → **curl uVar 碎片 149→0**。**剩余**：alias_block_level、LoadGuard addGuard；部分 LOAD/STORE 为 RIP-relative 全局（非栈）仍需类型传播配合 | `varmap.cc` |
@@ -122,7 +122,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ## 三、控制流结构化
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 17 | `blockaction.cc` | `blockaction.rs` | 🔧 L2 | **2026-08-28 入口收口**：`ActionBlockStructure::apply` 采用非空 once-guard，严格执行 `installSwitchDefaults → buildCopy → collapseAll`，把 collapse change count 经 `take_count_delta` 交给 ActionState，同时 `apply` 返回 0；`order_loop_bodies` 仅消费复制标签，不重跑 `structure_loops`。这只是候选 progress slice：`identifyInternal/selfIdentify` 的真实 parent、顶层 list move、paired dedup/identity/DEAD 模型，LoopBody 双半边 exit 标签，BlockGoto/MultiGoto，完整 orderLoopBodies/TraceDAG/switch 闭包均仍 `MISMATCH/UNTESTED`；不再宣称 orderLoopBodies 或 identify 完整。 | `blockaction.cc`, `blockaction.hh` |
 | 18 | TraceDAG (blockaction.cc 内) | `tracedag.rs` | 🟢 **L2.5（2026-07-04 check_open 修复）** | BranchPoint/BlockTrace/BadEdgeScore 完整移植。**check_open 已修复 3 个差异**：(1) finishblock 守卫（对齐 blockaction.cc:822）；(2) loop-DAG in-edge 分母（对齐 :826-831）；(3) isLoopDAGOut 极性修正。`opened` HashSet 保留为保守安全网（Ghidra 无此机制，标 TODO 待移除——需验证 visit-count 终止性）。 | `blockaction.cc:499-1014` |
@@ -134,7 +134,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ## 四、优化与简化规则
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 22 | `coreaction.cc` (5741行) | `coreaction.rs` | 🔧 **L2（2026-08-24 LOAD/STORE 宽度门已集成）** | main `92daed3` 将 `ActionInferTypes` 的 LOAD/STORE pointer→value 传播改为使用真实访问宽度：32B pointee 对16/4B访问拒绝、32B exact保持canonical identity；锁定12.0.4双侧selected projection MATCH、独立复核APPROVE。immutable curl A/B使 progressbarinit skeleton 22→20、my_fwrite 44→16、hugehelp零漂移。整体仍 `MISMATCH`：CALL local-type dispatch、DFS/reset/localcount、value→pointer、完整 PTRSUB downChain/PointerRel、getLocalType/STOP消费、异常与Architecture完整状态均未闭合；不得据窄宽度fixture提升L3。既有 ActionSpacebase、结构清理与 MultiCse/ShadowVar 进展保留。**2026-08-26 读者派发**：`build_localtypes` LOAD/STORE 臂以 `merge_min_type_order` 播种 `getBase(ownSize,UNKNOWN)`（varnode.cc:900 descendant typeOrder-最小值投影，typeop.hh:269/279 无 override），>10 字节产 unknown1[N]（type.cc:3652）不再被 8 字节 long 饱和——RuleSplitStore 整结构常量 STORE 拆分（progressbarinit 5 行字段清零）落地，E2E defects=0（TRI2-STORESPLIT-WHOLESTRUCT-0001，双侧 fixture）；仍不改变整体 MISMATCH 判定。**2026-08-28 PTRSUB evidence 重钉**：ordinary castOutput no-op/CAST、raw apply `result=0,count=1` 与 selected infer shape/STOP/canonical int8 identity 均 MATCH；Rust-only `take_count_delta` 无 Ghidra 对应方法，记 NO_ORACLE。完整 perform/repeat count、VarnodeLocSet/SymbolEntry/exact-piece/DFS、union/implied/PTRSUB0/pointer checks 仍 MISMATCH/UNTESTED。**2026-08-28 FuncLink input**：101-record bilateral fixture 证明单 Architecture x86-64 GCC 的 locked register/first-stack、register-only、varargs、unlocked、ParamActive/placeholder/order coarse 投影 MATCH；Action-local callspec/known-return invention已删除，GetStr 恢复 `strdup(value)`。full Address、ModelRules、generic newVarnode tail 与 funcLinkOutput 仍 MISMATCH/UNTESTED，整体不变。 | `coreaction.cc`, `coreaction.hh` |
 | 23 | `ruleaction.cc` | `ruleaction.rs` | 🔧 L2 | **2026-08-23 136-class 复审**：默认 decompile 三池成员/顺序现为 134/5/15，无整条活跃 Rule 漏注册；旧“98/~11 missing”已失效。仍有 5 个 opcode 集差异，并发现可见错改：IdentityEl 多注册 INT_AND 会把 `x&0` 改成 `x`；BooleanDedup 用 `4-bi` 选错边且漏 complement；SignMod2nOpt2 把 `(~c)+1` 写成 `~(c+1)`并跳 PHI；ConditionalMove 可返回0却已突变图；PieceStructure 丢 space/partial-root。另112个 raw diagnostic name 只在删下划线后相同。须在 ActionPool/OpBank 地基后由单一 ruleaction writer 串行修复。 | `ruleaction.cc`, `ruleaction.hh` |
@@ -142,13 +142,13 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 | 24 | `constseq.cc` | `constseq.rs` | 🔧 L2 | **2026-09-25 STRNCPY 车道（01879607+复核修）**：`RuleStringStore` 完整 HeapSequence 链接通（applyOp 守卫/findBasePointer/findDuplicateBases 锁定文本链形[cc:495 入口门含 PTRADD；cc:510-511/526-527 链滤只收 PTRSUB/INT_ADD，双写 PTRSUB=12.0.4 上游原文即锁定行为]/findInitialStores/calcPtraddOffset/collectStoreOps/checkInterference[cc:62-96 忠实，nextOp 块序+special 五豁免]/formByteArray[used[] 计数+越界截断]/buildStringCopy[cc:698-762，basePointer+index 链、get_internal_string 源、typed builtin 注册、updateType 全单参非锁定形]/transform[cc:927-940]）；previousOp 近似已换 op.rs 忠实 previous_op_in_block；CALLOTHER consumer 在 IR 层闭合（ap_ht_time 实证最终 IR 存活 STRINGDATA+strncpy 对，打印侧=STRNCPY-PRINT-CALLOTHER-0001 移交 printc）。RuleStringCopy 分析体未移植（CONSTSEQ-STRINGCOPY-0001，需 ScopeLocal queryContainer）。**B2 现状**：语料实证仅覆盖 char 元素/strncpy 选择/同块序列/裸寄存器 base 指针（httpd 镜 301→297、canon 872→868、curl/vsh 字节恒等）；wcsncpy/memcpy 选择、baseOffset≠0、nonConstAdds 参与、dedup abort 路径、大端编码=UNTESTED，无 12.0.4 同输入函数 fixture——**L2 维持**。既有残留：wordsize 转换恒等化（byte_to_address_int，wordsize≠1 架构不可观测面未建）、space-id 非编码指针 | `constseq.cc` |
 | 25 | `transform.cc` | `transform.rs` | 🔧 L2 | 2026-08-21：createReplacement/attemptInsertion 的 immediate/follow MULTIEQUAL 块首逆序插入与普通 op 原序已由 4-record locked fixture 证明 5/5 投影 MATCH，R2 scoped Cross-Review APPROVE；整体仍 UNTESTED：output-null、op_preexisting、nested-follow、INDIRECT、异常部分状态与 SeqNum `setOrder` 重排边界绑定 `TRANSFORM-MULTIEQUAL-INSERT-RESIDUAL-0001`。其余 piece storage/endian/property/IOP、nullable slot/bank 清理等历史缺口仍在，模块不得升 L3 | `transform.cc` |
 | 26 | `userop.cc` | `userop.rs` | 🔧 L2 | derived UserPcodeOp 类型被扁平化，selector/index/conflict/builtin 契约不全；SegmentOp 被硬编码 `base<<4`（不适用于 HCS12/Z80/x86 protected），JumpAssist consumer 缺失，ActionSegmentize 仅计数 no-op；生产 Architecture/Flow 链未安装或读取 userops | `userop.cc` |
-| 27 | `unify.cc` | `unify.rs` (2595行) | 🟢 **L2.5（代码完整，Ghidra 设计上非主管线模块）** | **全部 unify 方法覆盖**：UnifyDatatype + RHSConstant 系列（ConstantNamed/Absolute/NZMask/Consumed/Offset/IsConstant/HeritageKnown/VarnodeSize/Expression）+ TraverseConstraint 系列（Descend/Count/Group）+ UnifyConstraint 系列（20 个 Constraint 类型：Boolean/VarConst/NamedExpression/OpCopy/Opcode/OpCompare/OpInput/OpInputAny/OpOutput/ParamConstVal/ParamConst/VarnodeCopy/VarCompare/Def/Descend/LoneDescend/OtherInput/ConstCompare/Group/Or）+ UnifyState（数据存储/op/vn 初始化/count/descend 管理）+ UnifyCPrinter（initialize_basic/add_names/print/print_get_op_list/print_rule_header/print_var_decls）。111 个 pub fn。16 单元测试。无 TODO。**设计上不属于主管线**：Ghidra 的 unify 引擎是**规则编译器代码生成工具**（rulecompile.cc/ruleparse.y）的一部分，用于在**构建时**生成自定义 Rule 的 C++ 代码，运行时不被 universalAction 调用。Rugra 的 Rule 全部手写（不经过 unify 引擎），与 Ghidra 的内置 Rule 一致 | `unify.cc` |
+| 27 | `unify.cc` | `unify.rs` (2595行) | 🟢 **L2.5（代码完整，Ghidra 设计上非主管线模块）** | **全部 unify 方法覆盖**：UnifyDatatype + RHSConstant 系列（ConstantNamed/Absolute/NZMask/Consumed/Offset/IsConstant/HeritageKnown/VarnodeSize/Expression）+ TraverseConstraint 系列（Descend/Count/Group）+ UnifyConstraint 系列（20 个 Constraint 类型：Boolean/VarConst/NamedExpression/OpCopy/Opcode/OpCompare/OpInput/OpInputAny/OpOutput/ParamConstVal/ParamConst/VarnodeCopy/VarCompare/Def/Descend/LoneDescend/OtherInput/ConstCompare/Group/Or）+ UnifyState（数据存储/op/vn 初始化/count/descend 管理）+ UnifyCPrinter（initialize_basic/add_names/print/print_get_op_list/print_rule_header/print_var_decls）。111 个 pub fn。16 单元测试。无 TODO。**设计上不属于主管线**：Ghidra 的 unify 引擎是**规则编译器代码生成工具**（rulecompile.cc/ruleparse.y）的一部分，用于在**构建时**生成自定义 Rule 的 C++ 代码，运行时不被 universalAction 调用。Rudra 的 Rule 全部手写（不经过 unify 引擎），与 Ghidra 的内置 Rule 一致 | `unify.cc` |
 
 ### coreaction.cc Action 列表（L1 → L2 → L3）— 2026-06-26 按 Ghidra 源码核对
 
-> **重要更正**：原列表中的 `ActionCast`/`ActionFuncbinding`/`ActionVmeven`/`ActionHhrlLocal`/`ActionBitAnalysis`/`ActionSlice`/`ActionConditionalExe`/`ActionPrototypeComments` 等名在 Ghidra coreaction.cc 中**不存在**（凭记忆臆造）。下表为逐行核对 coreaction.cc 实际 `::apply` 方法后的真实清单，并标注 Rugra 现有基础设施依赖。
+> **重要更正**：原列表中的 `ActionCast`/`ActionFuncbinding`/`ActionVmeven`/`ActionHhrlLocal`/`ActionBitAnalysis`/`ActionSlice`/`ActionConditionalExe`/`ActionPrototypeComments` 等名在 Ghidra coreaction.cc 中**不存在**（凭记忆臆造）。下表为逐行核对 coreaction.cc 实际 `::apply` 方法后的真实清单，并标注 Rudra 现有基础设施依赖。
 
-**已实现（✅ L3，Rugra coreaction.rs 中已有）：**
+**已实现（✅ L3，Rudra coreaction.rs 中已有）：**
 `ActionStart`, `ActionHeritage`, `ActionInferParams`, `ActionCopyPropagate`,
 `ActionDeadCode`, `ActionMergeType`, `ActionTypeInfer`, `ActionCallParams`,
 `ActionCse`, `ActionSimplify`
@@ -157,7 +157,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 **尚未闭合（📋 L1 / 🔧 L2）— 按 Ghidra coreaction.cc 行号 + 依赖标注：**
 
-| Ghidra Action | coreaction.cc | 功能 | 依赖（Rugra 现状） |
+| Ghidra Action | coreaction.cc | 功能 | 依赖（Rudra 现状） |
 |---|---|---|---|
 | `ActionRestructureVarnode` | 2274 | 调用 ScopeLocal::restructureVarnode + syncVarnodesWithSymbols | ScopeLocal 已移植 ✅；缺 syncVarnodesWithSymbols |
 | `ActionSetCasts` | 2722 | P-code 级 Cast 插入 | 🔧 L2：ordinary PTRSUB output-token no-op/CAST selected graph MATCH；完整 apply/castOutput 的 count、遍历、union/resolution/implied/PTRSUB0/checkPointerIssues 仍 MISMATCH/UNTESTED |
@@ -207,7 +207,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ### ruleaction.cc Rule 列表（L1 → L2 → L3）— 2026-06-26 更新
 
-**已实现（✅ L3，Rugra ruleaction.rs 中已有，37 个 2026-06-26 新移植 + 原有）：**
+**已实现（✅ L3，Rudra ruleaction.rs 中已有，37 个 2026-06-26 新移植 + 原有）：**
 
 原有（pre-session）：`RuleCollapseConstants`, `RulePropagateCopy`, `RuleSub2Sext`, `RuleSubNormal`,
 `RuleShiftBitops`, `RuleDivOpt`, `RuleSignDiv2`, `RuleSignShift`, `RuleLessEqual`(struct),
@@ -224,14 +224,14 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 `RuleScarry`, `RuleSborrow`（2026-08-25 MAINDIFF-UNIQLEAK-0001 补齐 AddExpression 深形式，ruleaction.cc:3376-3410/3447-3492，依托 expression.rs）
 
 **✅ 全部已移植（2026-07-04 核实）** — 主管线 oppool1/oppool2/cleanup 的 Rule 差距为 0。
-之前此表标注的 22 个"缺失"Rule 经逐行对比 Ghidra coreaction.cc 注册列表 vs Rugra action.rs 注册列表，确认全部已移植并注册到主管线。
+之前此表标注的 22 个"缺失"Rule 经逐行对比 Ghidra coreaction.cc 注册列表 vs Rudra action.rs 注册列表，确认全部已移植并注册到主管线。
 （`RuleSubfloatCpool`/`RuleFloatCpool`/`RulePtraddShift`/`RulePtraddPiece` 在 Ghidra 中不存在——虚构条目。`RuleIndirectConcat` 在 Ghidra 中被注释掉。）
 
 ---
 
 ## 五、类型系统
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 28 | `type.cc` (4674行) | `type_system/datatype.rs` + `typefactory.rs` | 🔧 L2 | **2026-08-23 全文件复审**：182-record datatype 与 220-record local-cache fixture 只证明限定投影；当前仍缺稳定对象原地 completion、完整 structural tree 与同名多 ID 索引、alignment/display/typedef/field-ident 状态、Struct/Union resolve cache、TypeCode live prototype/null output、通用 `<typegrp>` decode。base `getHoleSize`、Union `getSubType` 已有静态反例；所有相关函数账本仍 UNTESTED。**2026-08-27**：ordinary Struct component Arc identity 窄投影 MATCH；`TYPEFACTORY-ARC-IDENTITY-0001` 对 incomplete composite/旧 handle/其余 subtype family 仍开放。 | `type.cc`, `type.hh` |
 | 29 | `cast.cc` | `type_system/cast.rs` | 🔧 **L2（2026-08-23 撤销旧 L3）** | `base_type_for` 仍会新建非 canonical Arc，且现在存在 production fallback caller；GetStr char/char reader-aware compare 的聚焦路径改走 Architecture TypeFactory 并已 MATCH，但 `is_cast_implied`/`cast_standard_full` 的完整 identity、typedef、pointer-space、跨架构 promote-size 与错误路径仍未进入完整双侧 fixture。继续依赖 `CAST-CANONICAL-IDENTITY-0001`，不得重评 L3。 | `cast.cc`, `cast.hh` |
@@ -243,7 +243,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ## 六、代码生成（打印层）
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 33 | `printc.cc` | `printc.rs` | 🔧 L2 | **2026-08-28 structured-condition/char 投影**：Basic/直接 BlockIf/BlockCondition/GetStr 形 BlockList 的 4-case non-flat、zero-edge、EmitNoMarkup fixture、structured-negate 13-case fixture，以及 GetStr 聚焦结构树/短路 token 均 `MATCH`；最终行已逐字恢复为 `*param_1 != '\0'`，没有打印期文本替换。完整结构发射仍 `MISMATCH`：Graph/MultiGoto、带 prelude 的 pending-brace else-if、FLAT+NOFALLTHRU、有出边 nextInFlow、ProperIf raw guard/identity、newBlockCondition、identify、markup/异常及其他 subtype 未闭合；GetStr 五个可比较 stage 仍 overall `MISMATCH`，故模块不升状态。**2026-08-23 Symbol/constant 复审**：主管线仍在 Funcdata flat map、varmap ScopeLocal、database Scope 三套符号状态间分叉；PrintC production constant leaf 的完整消费 op/read-facing High/metadata 路径仍不完整，curl quoted strings/enum tokens 及 declarator 继续受上游类型/符号身份约束。必须先闭合 persistent Scope/global/TypeFactory，再删除打印期 discovery/synthetic typedef/extern/backfill，不能在 emitter 继续补语义。**2026-08-25 R-RAWQUAR F3 登记（TYPE_SPACEBASE 臂两分支缺口）**：①`PRINTC-SPACEBASE-TYPECODE-0001`（printc.cc:1068-1069 `TYPE_CODE → valueon=true`，函数符号不打 `&`——**2026-09-24 已解锁接通**：HTTPD-CODEREF-SYMBOLIZE-0001 的 driver 函数符号 DB 让全局 scope CODE 命中可达，见 docs/TODO_BOARD.md 该行与 docs/api/printc.md 同日节）；②`PRINTC-SPACEBASE-PARTIALSYM-0001`（printc.cc:1084-1093 `symbolOffset≠0 → pushPartialSymbol`，mid-symbol 命中打子字段而非整符号名——容器查询 stand-in 无 symbol-offset 通道且 ConstantPtr 路径 off 恒 0，现管线不可达）。 | `printc.cc`, `printlanguage.cc` |
 | ↳ | `printc.cc` 2026-08-28 Copy 入口 | `printc.rs` | 不改变 L2 | label discovery/pending label/graph start/BlockIf goto-target 已经 `front_leaf → Copy.subBlock(0) → Basic` 取入口地址。完整 `getEntryAddr`、parent/next-flow、BlockGoto/MultiGoto 及零地址 `unwrap_or(0)` sentinel 仍 `MISMATCH/UNTESTED`，绑定 `GOTO-LABEL-UNPRINTED-0001` / `PRINTC-GOTOPRINTS-0001`。 | `printc.cc`, `printlanguage.cc` |
@@ -259,7 +259,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 > Ghidra 的 `EmitMarkup`（prettyprint.cc）**零后处理**——所有语义在 Action 阶段 + emit 阶段正确遍历完成。
 > 逐 pass 按"对应的 Ghidra 正确机制"分组，按对齐难度排序。
 
-**A. 简单（纯 Rugra-Emit 输出瑕疵；Ghidra Emit 层从不产生，对齐 = 直接移除该 pass）**
+**A. 简单（纯 Rudra-Emit 输出瑕疵；Ghidra Emit 层从不产生，对齐 = 直接移除该 pass）**
 
 | Pass | 行 | 功能 | 移除条件 |
 |---|---|---|---|
@@ -267,7 +267,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 | 8 | 749 | 声明块内删空行 | Emit 层单遍发声明 |
 | 12 | 975 | `} else {` 后删空行 | Emit 层括号后无换行 |
 | 15 | 1029 | `func());`→`func();` 双括号修 | printc emitFuncCall 括号配对 bug，应在 emit 修 |
-| 19 | 1425 | 删多余 `}` | Rugra Emit 遍历括号不平衡（纯 Emit bug） |
+| 19 | 1425 | 删多余 `}` | Rudra Emit 遍历括号不平衡（纯 Emit bug） |
 
 **B. 中等（局部类型/格式问题，需轻量分析但非完整 Action）**
 
@@ -302,17 +302,17 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 **最关键观察**：
 - Pass 20 和 21 **互为反作用**（20 引入 `->field_N`，21 又改回 `*(long *)(p+N)`）。两者同时存在，净效果是双重文本变换什么都没做。这是铁律 5.5 违规的教科书案例。
-- **goto/loop/label/死代码 pass（C 组前半）占大多数**，全部依赖 `ActionBlockStructure` 的结构恢复 + `ActionDeadCode`。这是 Rugra 当前最薄弱的子系统。
+- **goto/loop/label/死代码 pass（C 组前半）占大多数**，全部依赖 `ActionBlockStructure` 的结构恢复 + `ActionDeadCode`。这是 Rudra 当前最薄弱的子系统。
 - **对齐策略**：不能一次性移除（会破坏输出）。必须**自底向上**——先补齐对应 Action（让 P-code/CFG 层正确），再移除补偿 pass。每移除一个 pass 前先验证其对应的 Ghidra 机制已移植。
 
 ### merge 命名对齐缺口（2026-07-03 深度分析）— `merge.rs`
 
 > 2026-07-04 更新：原 3 个偏离方法已全部对齐处理。详见下表。
 
-| Rugra 方法 | Ghidra 对应 | 状态（2026-07-04） |
+| Rudra 方法 | Ghidra 对应 | 状态（2026-07-04） |
 |---|---|---|
 | `Merge::merge_opcode(opc)` (原 merge_copy) | `Merge::mergeOpcode(OpCode)` (merge.cc:326) | ✅ **已对齐**：签名改为通用 `opc` 参数，用 `merge_test_required` + `merge_speculative`（cover 相交静默跳过，对齐 merge.cc:1565-1575）。`ActionMergeCopy::apply` 改为纯委托（coreaction.hh:392）。新增 `merge_test_required`（对齐 merge.cc:102-166）。 |
-| `Merge::process_copy_trims` (原 dominant_copy) | `Merge::processCopyTrims()` (merge.cc:1415) | ✅ **已对齐为忠实 no-op**：原自创的 cover-extent dominant 合并已删除，改为遍历 `copyTrims`（永远空）的 no-op。**剩余缺口**：copyTrims 由 forced-merge 路径填充（snipReads/eliminateIntersect/allocateCopyTrim，merge.cc:411/443/489），Rugra 未移植 snip 子系统。要实现真正的 dominant-copy 合并需先补齐 snip 机制（见下方 snip 子系统缺口）。 |
+| `Merge::process_copy_trims` (原 dominant_copy) | `Merge::processCopyTrims()` (merge.cc:1415) | ✅ **已对齐为忠实 no-op**：原自创的 cover-extent dominant 合并已删除，改为遍历 `copyTrims`（永远空）的 no-op。**剩余缺口**：copyTrims 由 forced-merge 路径填充（snipReads/eliminateIntersect/allocateCopyTrim，merge.cc:411/443/489），Rudra 未移植 snip 子系统。要实现真正的 dominant-copy 合并需先补齐 snip 机制（见下方 snip 子系统缺口）。 |
 | ~~`Merge::merge_by_cover`~~ | **无 Ghidra 对应** | ✅ **已删除**：原自创的多趟迭代补偿 pass 已移除。`merge_opcode` 忠实于 Ghidra 后不再需要迭代。 |
 
 **snip 子系统已移植（2026-07-04）**：
@@ -329,7 +329,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
   - ✅ `merge_test_must` 门控接入 merge_addr_tied（对齐 mergeRangeMust 的 mergeTestMust 检查）。
 - **剩余已知简化**（非阻塞，记录为技术债）：
   - `build_dominant_copy` 的 union 解析路径（merge.cc:1170-1178）省略（无 union 基础设施）
-  - `merge_range_must` (merge.cc:301) 用 merge_test_must + merge_force 近似（Ghidra 失败 throw，Rugra 跳过）
+  - `merge_range_must` (merge.cc:301) 用 merge_test_must + merge_force 近似（Ghidra 失败 throw，Rudra 跳过）
   - `find_piece_shadow` 无 MULTIEQUAL 递归（Ghidra 本身也无，对齐）
   - `processHighRedundantCopy`/`markRedundantCopies`/`checkCopyPair`/`shadowedVarnode`（merge.cc:1345/1249/1112/1271）✅ **2026-07-04 续 6 已移植**：4 个方法全部移植，接入 mark_internal_copies（含 shadowedVarnode 无后代检查 + processHighRedundantCopy 冗余标记）。
 - **2026-07-04 续 4 审计发现的 2 个高优先级缺口**（之前路线图低估）：
@@ -340,7 +340,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ## 七、模拟执行
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 39 | `emulate.cc` | `emulate.rs` (480行) | 🟢 **L2.5（核心引擎完整，缺集成包装器）** | **2026-06-27**：完整移植 execute_current_op（emulate.cc:143-216 dispatch）+ execute() 主循环 + get_value/set_value（值解析，非仅常量）+ execute_unary/binary/load/store。4 个单元测试验证 COPY/INT_ADD/链式执行/RETURN 终止。**接入缺口**：BreakTable/BreakCallBack、EmulateFunction（函数级模拟包装器）。注：jumptable.rs 已用 EmulateFunction（L3）；emulate.rs 核心引擎完整 | `emulate.cc` |
 | 40 | `emulateutil.cc` | `emulate.rs`（同上） | 🔧 L2 | 模拟工具与 emulate.rs 合并；EmulateFunction 部分 | `emulateutil.cc` |
@@ -353,16 +353,16 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ## 八、P-code 注入与重写
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 45 | `pcodeinject.cc` | `pcodeinject.rs` | 🔧 L2 | decoder/参数索引/tempbase/script/id-vector/dynamic payload/duplicate-error 契约不全；Architecture 无 pcodeinjectlib，Flow 不收集 CALLOTHER injection、也不调用 injectPcode，直接 API 又从 HashMap 非确定地取首项，故生产闭包不可达 | `pcodeinject.cc` |
-| 46 | `pcodecompile.cc` + `pcodeparse.cc` | `pcodeparse.rs` | 🔧 **L2（解析失败语义未对齐，且未接 Sleigh 架构初始化）** | Lexer、模板构造与递归下降语法主体已存在；`UserOpSymbol` 的非零 index 现会进入 `CPUI_CALLOTHER` input 0。仍有 27 个必选标点错误被丢弃、3 个 `local` 分支可静默漏分号，失败时 result 状态也未与 Bison 对齐（`PARSER-0001`）。Ghidra 在 inject 初始化链调用该解析器，Rugra 尚未接入同等 Sleigh 架构初始化。 | `pcodecompile.cc`, `pcodeparse.cc`, `pcodeparse.y` |
+| 46 | `pcodecompile.cc` + `pcodeparse.cc` | `pcodeparse.rs` | 🔧 **L2（解析失败语义未对齐，且未接 Sleigh 架构初始化）** | Lexer、模板构造与递归下降语法主体已存在；`UserOpSymbol` 的非零 index 现会进入 `CPUI_CALLOTHER` input 0。仍有 27 个必选标点错误被丢弃、3 个 `local` 分支可静默漏分号，失败时 result 状态也未与 Bison 对齐（`PARSER-0001`）。Ghidra 在 inject 初始化链调用该解析器，Rudra 尚未接入同等 Sleigh 架构初始化。 | `pcodecompile.cc`, `pcodeparse.cc`, `pcodeparse.y` |
 
 ---
 
 ## 九、架构支持
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
 | 47 | Sleigh (20+ 文件) | `iced-x86` (仅 x86-64) | 🔧 L2 | **仅支持 x86-64**；不支持 ARM/MIPS/RISC-V/PowerPC | `sleigh*.cc`, `slgh*.cc` |
 | 48 | `architecture.cc` | `arch.rs` | 🔧 L2 | 配置容器存在，但 `Funcdata.arch` 生产路径始终 None，裸 Architecture 的 loader/types/userops/cpool 也为空；缺 pcodeinjectlib 及 build/init/decode 闭包，使 userop/injection/type/cpool consumers 全不可达 | `architecture.cc` |
@@ -373,10 +373,10 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 ## 十、其他基础设施
 
-| # | Ghidra 模块 | Rugra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
+| # | Ghidra 模块 | Rudra 模块 | 状态 | 差距说明 | Ghidra 源码参考 |
 |---|---|---|---|---|---|
-| 51 | `callgraph.cc` | `callgraph.rs` (370行) | 🟢 **L2.5（代码完整，Ghidra 设计上非主管线模块）** | **全部方法覆盖**：CallGraph（add_node/find_node/add_edge/delete_in_edge/snip_edge/snip_cycles/snip_cycles_dfs/cycle_structure/find_no_entry/clear_marks/init_leaf_walk/next_leaf/build_edges/edges/all_addrs）+ CallGraphNode/CallGraphEdge + edge_flags/node_flags。**build_edges** 从 Funcdata callspecs 构建调用边（对齐 cc:406）。**snip_edge** 标记循环边（对齐 cc:164）。**cycle_structure** 分析循环结构（对齐 cc:352）。8 单元测试。**设计上不属于主管线**：Ghidra 的 CallGraph 是程序级全局对象，仅通过控制台命令（ifacedecomp.cc:2721 `IfcCallGraphBuild`）构建，非 universalAction 的一部分。Rugra 的主管线是 per-function 的，与 CallGraph 的全局粒度不匹配 | `callgraph.cc` |
-| 52 | `database.cc` + `database_ghidra.cc` | `database.rs` | 🔧 L2 | **2026-08-23 ownership 复审**：Ghidra 是 Architecture→Database→Scope tree/FunctionSymbol→Funcdata 的唯一所有权图，Funcdata 只借用 Database-owned ScopeLocal；Rugra 则默认无 symboltab、Database/Scope 可 Clone 按值、FunctionSymbol 不持 Funcdata、Funcdata 自己拥有 ScopeLocal 且 Action 每 pass 重建，另有 mirror SymbolEntry。对象身份、parent/query 遍历、resolver、clearUnlocked 与析构顺序均不等价；先以 `DATABASE-SCOPE-OWNERSHIP-FIXTURE-0001` 固定双侧对象图，再串行收敛 `DATABASE-0001`。 | `database.cc`, `database_ghidra.cc`, `database.hh` |
+| 51 | `callgraph.cc` | `callgraph.rs` (370行) | 🟢 **L2.5（代码完整，Ghidra 设计上非主管线模块）** | **全部方法覆盖**：CallGraph（add_node/find_node/add_edge/delete_in_edge/snip_edge/snip_cycles/snip_cycles_dfs/cycle_structure/find_no_entry/clear_marks/init_leaf_walk/next_leaf/build_edges/edges/all_addrs）+ CallGraphNode/CallGraphEdge + edge_flags/node_flags。**build_edges** 从 Funcdata callspecs 构建调用边（对齐 cc:406）。**snip_edge** 标记循环边（对齐 cc:164）。**cycle_structure** 分析循环结构（对齐 cc:352）。8 单元测试。**设计上不属于主管线**：Ghidra 的 CallGraph 是程序级全局对象，仅通过控制台命令（ifacedecomp.cc:2721 `IfcCallGraphBuild`）构建，非 universalAction 的一部分。Rudra 的主管线是 per-function 的，与 CallGraph 的全局粒度不匹配 | `callgraph.cc` |
+| 52 | `database.cc` + `database_ghidra.cc` | `database.rs` | 🔧 L2 | **2026-08-23 ownership 复审**：Ghidra 是 Architecture→Database→Scope tree/FunctionSymbol→Funcdata 的唯一所有权图，Funcdata 只借用 Database-owned ScopeLocal；Rudra 则默认无 symboltab、Database/Scope 可 Clone 按值、FunctionSymbol 不持 Funcdata、Funcdata 自己拥有 ScopeLocal 且 Action 每 pass 重建，另有 mirror SymbolEntry。对象身份、parent/query 遍历、resolver、clearUnlocked 与析构顺序均不等价；先以 `DATABASE-SCOPE-OWNERSHIP-FIXTURE-0001` 固定双侧对象图，再串行收敛 `DATABASE-0001`。 | `database.cc`, `database_ghidra.cc`, `database.hh` |
 | 53 | `xml.cc` + `marshal.cc` | `marshal.rs` | 🔧 L2 | 固定进程级 ID/名称表被实例注册顺序取代（0 被误当 UNKNOWN），Translate 共享 ID 也错；PackedDecode 以单 `pos+pending` 替代 start/cur/end/attributeRead，导致 unread attributes、strict/recursive close、typed error/EOF/raw byte 全不等价，Decoder trait 又无错误通道。**2026-08-24 增量（MARSHAL-XML-TEXT-0001）**：`PackedEncode::writeSpace` 特殊空间字节（fspec 0x62/iop 0x63/join 0x61/stack 0x60/二级 spacebase 0x64 + index 默认臂）、`PackedDecode::readSpace`（index/STACK/JOIN 可解，其余特殊码 `Cannot marshal special address space` 拒绝）、`TreeEncoder`（XmlEncode 形态）`writeSpace`/`writeStringIndexed`（`{base}{index+1}` 1-based，修正原 `{base}_{index}` 自创形态）/`getIndexedAttributeId`、`TreeDecoder::readSpace` 按名解析 + JoinSpace piece 编解码（`space.cc:502-588`，含 MAX_PIECES/浮点扩展 logicalsize/findAddJoin dedup）双侧 fixture `marshal_packed_join_1204` 5/5 MATCH；残差：寄存器名 piece（SPACE-0001）、未知名 piece 的 C++ null-space UB-邻接行为（Rust 查名点拒绝） | `xml.cc`, `marshal.cc` |
 | 54 | `stringmanage.cc` + `string_ghidra.cc` | `stringmanage.rs` | ✅ L3 | **完整实现**：StringManager + StringManagerUnicode + 完整 UTF8/UTF16/UTF32 解码 + XML encode/decode。所有 L3 缺口已关闭 | `stringmanage.cc` |
 | 55 | `crc32.cc` + `compression.cc` | `crc32.rs` + `compression.rs` | 🔧 L2 | crc32 已实现；`Decompress` 的无输入/分步/替换/原位变更/输入输出同址/data-error 路径已与 12.0.4 同 schema stdout 直接差分 MATCH，异常注入仍未闭合。`Compress` 仍重建流、错误处理/返回值不符，`CompressBuffer` 缺失，禁止宣称模块 L3 | `crc32.cc`, `compression.cc` |
@@ -420,7 +420,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 | 模块 | Ghidra 真实定位 | 为什么不接入 |
 |---|---|---|
 | 🟢 **callgraph** (#51) | 程序级全局对象，仅控制台命令 `IfcCallGraphBuild`（ifacedecomp.cc:2721）构建 | universalAction 是 per-function 的，与 CallGraph 全局粒度不匹配 |
-| 🟢 **unify** (#27) | **规则编译器代码生成工具**（rulecompile.cc/ruleparse.y），构建时生成自定义 Rule 的 C++ | 运行时不被调用；Rugra 的 Rule 全部手写，与 Ghidra 内置 Rule 一致 |
+| 🟢 **unify** (#27) | **规则编译器代码生成工具**（rulecompile.cc/ruleparse.y），构建时生成自定义 Rule 的 C++ | 运行时不被调用；Rudra 的 Rule 全部手写，与 Ghidra 内置 Rule 一致 |
 | 🟢 **float_emulate** (#41) | Ghidra **无** float emulation Action；float 语义由 Rule 处理 | RuleFloatRange/RuleFloatCast 等已在 oppool1/cleanup（L3）；float_emulate.rs 作为底层求值库被间接使用 |
 | 🟢 **grammar** (#50) | .cspec/.pspec 解析器，架构初始化时用 | 非反编译运行时 Action。注意：同条的 expression.rs **已接入**主管线（printc 用 TermOrder 排序） |
 
@@ -433,7 +433,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 | 🟢 **pcodeparse** (#46) | 同上 | inject_sleigh.cc:373 `PcodeSnippet` 解析 inject payload → 需 Sleigh 架构初始化 |
 | 🟢 **emulate** (#39) | 缺 BreakTable/EmulateFunction 集成包装器 | jumptable.rs 已用 EmulateFunction（L3）；emulate.rs 核心引擎（execute_current_op dispatch + execute 主循环 + LOAD/STORE）完整，4 测试 |
 
-> **类型 C 共同根因**：缺 Sleigh 架构初始化层（architecture.cc:635/638）。这是 userop/pcodeinject/pcodeparse 三个模块的共同阻塞点。Rugra 用 iced-x86 替代 Sleigh，需补一个轻量"架构初始化"阶段从 .cspec/.pspec 加载编译器规范。
+> **类型 C 共同根因**：缺 Sleigh 架构初始化层（architecture.cc:635/638）。这是 userop/pcodeinject/pcodeparse 三个模块的共同阻塞点。Rudra 用 iced-x86 替代 Sleigh，需补一个轻量"架构初始化"阶段从 .cspec/.pspec 加载编译器规范。
 
 ### 额外 L2.5（审计 paramid 时发现）
 
@@ -500,7 +500,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 │  architecture.cc:638 buildPcodeInjectLibrary ──→ 阻塞:                │
 │         pcodeinject(🟢L2.5) ← pcodeparse(🟢L2.5)                       │
 │         ← grammar(🟢L2.5, .cspec 解析)                                 │
-│  Rugra 替代：iced-x86（仅 x86-64）                                    │
+│  Rudra 替代：iced-x86（仅 x86-64）                                    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -534,7 +534,7 @@ Ghidra 反编译器共 **114 个 .cc 文件**。本路线图按**是否属于核
 
 > **背景**：2026-07-27 完成 RPN 路径 `dispatch_op_rpn` 的 `opPtrsub`/`opTypeCast` 历史窄实现（见 docs/api/printc.md），但当时 curl 中**不存在** `CPUI_PTRSUB`/`CPUI_CAST` op，故新 dispatch 不触发。后续状态按下方 2026-08-27 双侧证据纠偏：
 
-10. **`RulePtrsub` 创建规则缺失** (L1→L3) — Rugra 只移植了消费现有 PTRSUB 的规则（`RulePtrsubUndo`/`RulePtrsubCharConstant`/`RulePtraddUndo`，见 action.rs:680-681,723），**缺** Ghidra 的 `RulePtrsub`（INT_ADD(指针,常量)→PTRSUB 的创建规则）与 `RulePtradd`。补齐后 curl 结构体字段访问 `ptr->field` 才能产生 PTRSUB op，printc dispatch 即生效。
+10. **`RulePtrsub` 创建规则缺失** (L1→L3) — Rudra 只移植了消费现有 PTRSUB 的规则（`RulePtrsubUndo`/`RulePtrsubCharConstant`/`RulePtraddUndo`，见 action.rs:680-681,723），**缺** Ghidra 的 `RulePtrsub`（INT_ADD(指针,常量)→PTRSUB 的创建规则）与 `RulePtradd`。补齐后 curl 结构体字段访问 `ptr->field` 才能产生 PTRSUB op，printc dispatch 即生效。
 11. **`ActionSetCasts` PTRSUB output token / castOutput**（🔧 L2；2026-08-27
 窄生产路径已接入）— `TypeOpPtrsub::getOutputToken` 只在 `castOutput` 消费；
 	24-record fixture 中 scale、8-byte local identity、direct token、ordinary cast
@@ -558,14 +558,14 @@ checkPointerIssues、needs-resolution/implied/PTRSUB0 与异常状态继续绑�
 
 ### P3（🟢 L2.5 — 设计上非主管线模块，代码完整不强行接入）
 
-16. **`unify.cc`** (🟢 L2.5，类型 B) — Ghidra 的 unify 引擎是**规则编译器代码生成工具**（rulecompile.cc/ruleparse.y），构建时生成自定义 Rule 的 C++，运行时不被 universalAction 调用。Rugra 的 Rule 全部手写，与 Ghidra 内置 Rule 一致。
+16. **`unify.cc`** (🟢 L2.5，类型 B) — Ghidra 的 unify 引擎是**规则编译器代码生成工具**（rulecompile.cc/ruleparse.y），构建时生成自定义 Rule 的 C++，运行时不被 universalAction 调用。Rudra 的 Rule 全部手写，与 Ghidra 内置 Rule 一致。
 17. **`float.cc` + `double.cc`** (🟢 L2.5，类型 B) — Ghidra **无** float emulation Action；float 语义由 Rule 处理（RuleFloatRange/RuleFloatCast 等已在 oppool1/cleanup）。float_emulate.rs 作为底层求值库。
-18. **`callgraph.cc`** (🟢 L2.5，类型 B) — 程序级全局对象，Ghidra 仅通过控制台命令（ifacedecomp.cc:2721）构建，非 universalAction。Rugra 主管线是 per-function，粒度不匹配。
+18. **`callgraph.cc`** (🟢 L2.5，类型 B) — 程序级全局对象，Ghidra 仅通过控制台命令（ifacedecomp.cc:2721）构建，非 universalAction。Rudra 主管线是 per-function，粒度不匹配。
 19. **`grammar.cc`** (🟢 L2.5，类型 B) — .cspec/.pspec 解析器，架构初始化时用（非反编译运行时）。同条 expression.rs 已接入。
 
 ### P4（🟢 L2.5 — 被 Sleigh 基础设施阻塞）
 
-20. **`userop.cc`** + **`pcodeinject.cc`** + **`pcodeparse.cc`** (🟢 L2.5，类型 C) — Ghidra 在 architecture.cc:635/638 初始化 UserOpManage 和 PcodeInjectLibrary，被 ActionSegmentize/ActionConstbase 消费。Rugra 缺 Sleigh 架构初始化 + .cspec/.pspec 解析。**这是 3 个模块的共同阻塞点**——一次补 Sleigh 架构初始化层可全部解锁。
+20. **`userop.cc`** + **`pcodeinject.cc`** + **`pcodeparse.cc`** (🟢 L2.5，类型 C) — Ghidra 在 architecture.cc:635/638 初始化 UserOpManage 和 PcodeInjectLibrary，被 ActionSegmentize/ActionConstbase 消费。Rudra 缺 Sleigh 架构初始化 + .cspec/.pspec 解析。**这是 3 个模块的共同阻塞点**——一次补 Sleigh 架构初始化层可全部解锁。
 21. **Sleigh 多架构** (战略排除) — ARM/MIPS/RISC-V 支持（需 Sleigh，见〇节）
 
 ---
@@ -610,7 +610,7 @@ checkPointerIssues、needs-resolution/implied/PTRSUB0 与异常状态继续绑�
 
 ### blockaction collapseAll 5-step 移植阻断清单（来自审计）
 
-Ghidra `collapseAll`（blockaction.cc:1877-1893）5 步：orderLoopBodies → collapseConditions → collapseInternal(NULL) → selectGoto 循环 → collapseInternal(targetbl)。Rugra 当前是 7-phase。**B1（try_rule_or negateCondition）已修复**。**B2（new_block_condition/if/if_else 工厂层）已修复（37f99a2）**。**B4（set_goto_branch 3-op 完整化）已修复（0377b4c）**。**B8（collapse_conditions fixpoint + 删除 collapse_bool_conditions）已修复（18d227a）**。剩余阻断：
+Ghidra `collapseAll`（blockaction.cc:1877-1893）5 步：orderLoopBodies → collapseConditions → collapseInternal(NULL) → selectGoto 循环 → collapseInternal(targetbl)。Rudra 当前是 7-phase。**B1（try_rule_or negateCondition）已修复**。**B2（new_block_condition/if/if_else 工厂层）已修复（37f99a2）**。**B4（set_goto_branch 3-op 完整化）已修复（0377b4c）**。**B8（collapse_conditions fixpoint + 删除 collapse_bool_conditions）已修复（18d227a）**。剩余阻断：
 
 - ~~**B2**: 缺 `new_block_condition`/`new_block_if`/etc. 工厂层~~ **已修复（37f99a2）**。
 - ~~**B3**: `try_rule_inf_loop`（blockaction.rs:3261）不创建 BlockInfLoop（只 eprintln）。缺 BlockInfLoop struct。~~ **已修复（c77a545）**：新增 BlockInfLoop struct + new_block_inf_loop 工厂 + try_rule_inf_loop 真正创建节点 + printc emit_structured_infloop。
@@ -621,12 +621,12 @@ Ghidra `collapseAll`（blockaction.cc:1877-1893）5 步：orderLoopBodies → co
 - ~~**B8**: collapse_conditions 单遍非 fixpoint~~ **已修复（18d227a）**：现 do-while fixpoint，删除 collapse_bool_conditions 重复实现。
 - ~~**B9**: apply_rules_to_block 缺 try_rule_if_no_exit + try_rule_case_fallthru（cc:1840 第二内循环）。~~ **已修复（e6731bb）**：phase2 加 collapseInternal 第二趟（IfNoExit per-block + CaseFallthru batch），外层 'fullchange 循环包裹内层 fixpoint。
 
-**最小路径**：B1（已修）→ ~~B2/B3/B4/B5/B6/B7/B8/B9~~（**全部已修**）→ ~~重写 collapse_all 为 5 步~~ **已实现（76bbead）+ 硬化（7f3debf）+ 突破（413728c）+ 默认切换（30600b1）**：`collapse_all_5step` 字面 5 步现是**默认**（`RUGRA_7PHASE=1` 回退 7-phase）。调和：collapse_loops + collapse_switches（7-phase phase1 方法）在 collapse_internal 前运行，消除 while-break→WhileDo + switch→BlockSwitch 分歧。**953/953 测试通过，curl 24/24 defects=0 numbering=485（与 7-phase 完全一致），httpd 27/29 gcc-clean（同 baseline）**。collapseAll 5-step 移植完成。
+**最小路径**：B1（已修）→ ~~B2/B3/B4/B5/B6/B7/B8/B9~~（**全部已修**）→ ~~重写 collapse_all 为 5 步~~ **已实现（76bbead）+ 硬化（7f3debf）+ 突破（413728c）+ 默认切换（30600b1）**：`collapse_all_5step` 字面 5 步现是**默认**（`RUDRA_7PHASE=1` 回退 7-phase）。调和：collapse_loops + collapse_switches（7-phase phase1 方法）在 collapse_internal 前运行，消除 while-break→WhileDo + switch→BlockSwitch 分歧。**953/953 测试通过，curl 24/24 defects=0 numbering=485（与 7-phase 完全一致），httpd 27/29 gcc-clean（同 baseline）**。collapseAll 5-step 移植完成。
 
 ### printc 对齐缺口（来自审计，按影响排序）
 
-- **P1（最高潜在缺陷）**: 无 OpToken 优先级引擎 / 无括号化。Ghidra printlanguage.cc:269 parentheses + emitOp。Rugra op_binary/op_unary 直接拼 infix 串，嵌套表达式可能语义错误（如 `a + b << c`、`x && y == z`）。curl 语料未触发但风险高。
-- ~~**P2**: goto/label 发射在 op 层非 block 层；无 flat/no_branch/only_branch mod 栈。~~ **已关闭（非活跃）**：分析发现 Rugra 的结构化输出已正确抑制分支——`emit_block_ops` 在结构化路径用 `skip_terminal=true` 跳过 CBRANCH/BRANCH/BRANCHIND（printc.rs:479-488），BRANCH 无条件跳过（:475）。curl 输出 0 个 `goto`/`if(...)goto`。op_cbranch/op_branch 仅在 skip_terminal=false 时调用（flat/非结构化回退），而 Rugra 不产 flat 输出，故 P2 非活跃缺口。Ghidra 的 flat-mod gating 在 Rugra 无对应输出模式，不需要。
+- **P1（最高潜在缺陷）**: 无 OpToken 优先级引擎 / 无括号化。Ghidra printlanguage.cc:269 parentheses + emitOp。Rudra op_binary/op_unary 直接拼 infix 串，嵌套表达式可能语义错误（如 `a + b << c`、`x && y == z`）。curl 语料未触发但风险高。
+- ~~**P2**: goto/label 发射在 op 层非 block 层；无 flat/no_branch/only_branch mod 栈。~~ **已关闭（非活跃）**：分析发现 Rudra 的结构化输出已正确抑制分支——`emit_block_ops` 在结构化路径用 `skip_terminal=true` 跳过 CBRANCH/BRANCH/BRANCHIND（printc.rs:479-488），BRANCH 无条件跳过（:475）。curl 输出 0 个 `goto`/`if(...)goto`。op_cbranch/op_branch 仅在 skip_terminal=false 时调用（flat/非结构化回退），而 Rudra 不产 flat 输出，故 P2 非活跃缺口。Ghidra 的 flat-mod gating 在 Rudra 无对应输出模式，不需要。
 - **P3（已修）**: 标签格式 LAB_ vs code_r0xXXXX。✅ b4b4617
 - **P4**: 变量声明/编号顺序用 op 遍历首次触及顺序，非 Ghidra nametree 顺序。是 numbering diff 的主因。**分析（2026-07-16）**：Ghidra `assignDefaultNames` 遍历 `SymbolNameTree`（按 name 排序，tie-break `nameDedup`）。**栈变量路径已对齐**：`doc_variable_decls_from_funcdata` 按 `scope.symbols`（stack offset 顺序）遍历。**寄存器变量已改进（3118552）**：`preallocate_register_compact_names` 按 def-op 地址序预分配 compact 名（近似 Ghidra nameDedup 创建序）。numbering=485 不变（defects=0，编号是外观差异；Ghidra 精确 nameDedup 是 HighVariable 创建序，def-op 地址是近似）。
 - ~~**P5**: for 循环 init/iter 是预算字符串非重发表达式；无 comma_separate。~~ **部分修复（8277ce7）**：for-loop header 发射现激活 comma_separate mod（对齐 emitForLoop printc.cc:2973-2990）。**2026-09-26 F8FOR 取代**：init/iter 主通道已改走 ops 端口（`iterate_op` 真端口设置→`emit_for_loop`→`emit_expression_rpn`=printc.cc:2468 忠实端口,`V = (t*)*V` 通用形成文）；legacy 预算字符串通道保留为过渡（与真通道检测互斥）,残余=拒例族 F8FOR-REJECT-RESIDUAL-0001+TYPEOP-PUSH-PTRADD-0001。

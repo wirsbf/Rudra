@@ -3,13 +3,13 @@
 **[状态]**: 🔴 TODO / 🟡 WIP (进行中) / 🟢 DONE (已对齐)  
 **[目标模块]**: (如：x86_64 寄存器映射，或者 PcodeOp::INT_ADD 的翻译规则)  
 **[关联 Ghidra 源码位置]**: (如：`Ghidra/Features/Decompiler/src/decompile/cpp/translate.cc:150`)  
-**[关联 Rugra 源码位置]**: (如：`src/translator/x86_64.rs`)  
+**[关联 Rudra 源码位置]**: (如：`src/translator/x86_64.rs`)  
 
 ---
 
 ## 1. 目标描述 (Description)
 
-> 描述需要对齐的具体规则或机制。为何要在 Rugra 中进行特别处理？
+> 描述需要对齐的具体规则或机制。为何要在 Rudra 中进行特别处理？
 
 （请在此处填入：该机制的背景、在反编译中起到的作用等）
 
@@ -21,7 +21,7 @@
 - **数据结构**: 
 - **核心算法/特判**:
 
-## 3. Rugra 的对齐方案 (Rugra Approach)
+## 3. Rudra 的对齐方案 (Rudra Approach)
 
 > 描述在 Rust 端我们是如何（或计划如何）等价实现这一套规则的。如果因为语言特性有所舍弃或调整，请指明偏差。
 

@@ -304,4 +304,4 @@ overflow" panic；release 语义零变化（对一切非溢出输入 wrapping �
 对抗输入来源=伪造 spec/XML/cpool 文件（非物理语料）；B2 状态=debug/release
 同值锁定 + de facto 回绕值回归，oracle 侧无需 golden（无已定义标准行为，
 de facto 行为由平台语义决定）。
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

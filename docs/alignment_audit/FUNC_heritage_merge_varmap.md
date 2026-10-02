@@ -1,11 +1,11 @@
 # 函数清单:heritage.cc + merge.cc + varmap.cc
 
 来源:Ghidra 3 个核心算法 .cc(~170 函数)
-Rugra 对应:`src/heritage.rs` + `src/merge.rs` + `src/varmap.rs`
+Rudra 对应:`src/heritage.rs` + `src/merge.rs` + `src/varmap.rs`
 
 ## heritage.cc(72 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L34 | `LocationMap::add(Address, int4, int4, int4&)` | — | 🔍 |
 | L77 | `LocationMap::find(const Address&)` | — | 🔍 |
@@ -70,7 +70,7 @@ Rugra 对应:`src/heritage.rs` + `src/merge.rs` + `src/varmap.rs`
 
 ## merge.cc(49 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L24/L43 | `BlockVarnode::set/findFront` | — | 🔍 |
 | L63/L78 | `StackAffectingOps::populate/affectsTest` | — | 🔍 |
@@ -107,7 +107,7 @@ Rugra 对应:`src/heritage.rs` + `src/merge.rs` + `src/varmap.rs`
 
 ## varmap.cc(51 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L30-L321 | `RangeHint::isConstAbsorbable/reconcile/contain/preferred/attemptJoin/absorb/merge/compare` | `RangeHint::*` | 🔍 INDEX OK |
 | L341 | `ScopeLocal::ScopeLocal(...)` | `ScopeLocal::new` | 🔍 |
@@ -132,7 +132,7 @@ Rugra 对应:`src/heritage.rs` + `src/merge.rs` + `src/varmap.rs`
 | L926 | `addFixedType(uintb, Datatype*, uint4, TypeFactory*)` | `add_fixed_type` | 🔍 |
 | L960 | `reconcileDatatypes()` | — | 🔍 |
 | L1003 | `addGuard(const LoadGuard&, OpCode, TypeFactory*)` | — | 🔍 |
-| L1044 | `gatherSymbols(const EntryMap*)` | `gather_symbols`(Rugra 用 gather_spacebase 替代) | ⚠️ INDEX |
+| L1044 | `gatherSymbols(const EntryMap*)` | `gather_symbols`(Rudra 用 gather_spacebase 替代) | ⚠️ INDEX |
 | L1063 | `initialize()` | `initialize` | 🔍 |
 | L1088 | `isReadActive(Varnode*)` | `is_read_active` | 🔍 |
 | L1124 | `gatherVarnodes(const Funcdata&)` | `gather_varnodes` | 🔍 |

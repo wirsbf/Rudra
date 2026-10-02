@@ -1,6 +1,6 @@
 # 核心对齐规则与实现鸿沟文档总线 (Alignment Docs)
 
-本目录（`docs/alignment_docs/`）专门用于**严格归档并跟踪记录 Rugra 和 Ghidra (标杆) 之间的所有算法、架构、与反编译中间表示（IR）层面的对齐规则**。
+本目录（`docs/alignment_docs/`）专门用于**严格归档并跟踪记录 Rudra 和 Ghidra (标杆) 之间的所有算法、架构、与反编译中间表示（IR）层面的对齐规则**。
 
 由于反编译引擎是对精度有着极端苛求的系统工程，每一条指令的寄存器分配、标志位还原，甚至于 `PcodeOp` 下的一个特殊 Flag 位偏差，都可能在后端 AST 化时引发灾难性雪崩。因此，**“无档不对齐，有档必核验”**是开发铁规。
 
@@ -20,7 +20,7 @@
 
 ### 高优先级 (P0) —— 影响控制流网生成的命脉
 - [ ] **TODO**: 撰写 `checklists/x86_64_calling_convention.md`
-  - *说明*: Ghidra 内部存在极其复杂的参数栈寻址启发式推演，当前 Rugra 在解析诸如 `stdcall`, `fastcall` 等调用约定上尚未对齐。
+  - *说明*: Ghidra 内部存在极其复杂的参数栈寻址启发式推演，当前 Rudra 在解析诸如 `stdcall`, `fastcall` 等调用约定上尚未对齐。
 - [ ] **TODO**: 撰写 `checklists/branch_indirect_recovery.md`
   - *说明*: 针对 `OpCode::BRANCHIND` (Switch 表跳或函数指针) 的目标推算机制，需要深挖 `Ghidra` 的 JumpTable 模型并向 Rust 端搬运。
 

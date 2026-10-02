@@ -19,7 +19,7 @@ use rudra::{
 };
 
 fn main() {
-    println!("=== Rugra Decompilation Demo (End-to-End Pipeline) ===\n");
+    println!("=== Rudra Decompilation Demo (End-to-End Pipeline) ===\n");
 
     // Example 1: Simple addition function
     println!("Example 1: Simple Addition Function");

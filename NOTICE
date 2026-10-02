@@ -1,5 +1,5 @@
-Rugra
-Copyright 2026 Rugra contributors
+Rudra
+Copyright 2026 Rudra contributors
 
 This product includes software developed as a Rust port of the NSA Ghidra
 decompiler (decompile/cpp), licensed under the Apache License, Version 2.0.
@@ -40,8 +40,8 @@ carried for provenance completeness of the upstream tree).
 
 Vendoring shape: crate sources (src/) and manifests only; kuna's own
 integration-test trees (tests/) and its vendored Ghidra processor-spec corpus
-are not included. Rugra's .slaspec inputs always come from the locked Ghidra
+are not included. Rudra's .slaspec inputs always come from the locked Ghidra
 12.0.4 oracle tree (see tools/build_locked_x86_64_sla.sh). A small number of
 #[cfg(test)] unit tests inside the vendored sources reference kuna's
-repo-root datatest corpus that is not vendored; they are inert for Rugra's
+repo-root datatest corpus that is not vendored; they are inert for Rudra's
 gates (which exercise the root package) and are skipped in practice.

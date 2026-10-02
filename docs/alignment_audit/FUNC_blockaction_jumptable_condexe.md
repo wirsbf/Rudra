@@ -1,11 +1,11 @@
 # 函数清单:blockaction.cc + jumptable.cc + condexe.cc + block.cc
 
 来源:Ghidra 4 个 .cc(~309 函数)
-Rugra 对应:`src/blockaction.rs` + `src/jumptable.rs` + `src/condexe.rs` + `src/block.rs`
+Rudra 对应:`src/blockaction.rs` + `src/jumptable.rs` + `src/condexe.rs` + `src/block.rs`
 
 ## blockaction.cc(67 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L46 | `LoopBody::extendToContainer(...)` | — | 🔍 |
 | L119 | `findBase(...)` | `find_base` | 🔍 |
@@ -37,7 +37,7 @@ Rugra 对应:`src/blockaction.rs` + `src/jumptable.rs` + `src/condexe.rs` + `src
 
 ## jumptable.cc(105 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L39/L50/L62 | `LoadTable::encode/decode/collapseTable` | `LoadTable` | 🔍 |
 | L115-L218 | `EmulateFunction::executeLoad/Branch/Branchind/Call/Callind/Callother/setExecuteAddress/getVarnodeValue/setVarnodeValue/fallthruOp/emulatePath` | `EmulateFunction::*` | ⚠️ 2026-07-16 已实现（get_varnode_value/set_varnode_value/emulate_path/execute_op 均有实现，executeOp 不接 addressToByte 是结构性差异） |
@@ -62,7 +62,7 @@ Rugra 对应:`src/blockaction.rs` + `src/jumptable.rs` + `src/condexe.rs` + `src
 
 ## condexe.cc(15 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L23 | `buildHeritageArray()` | (ConditionalExecution::new) | ⚠️ INDEX(硬编码 4 空间) |
 | L43 | `testIBlock()` | `test_iblock` | 🔍 |
@@ -81,7 +81,7 @@ Rugra 对应:`src/blockaction.rs` + `src/jumptable.rs` + `src/condexe.rs` + `src
 
 ## block.cc(122 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L35-L48 | `BlockEdge::encode/decode` | — | 🔍 |
 | L73-L709 | FlowBlock 系列(addInEdge/decodeNextInEdge/halfDeleteInEdge/OutEdge/removeInEdge/OutEdge/replaceInEdge/OutEdge/replaceEdgesThru/swapEdges/setOutEdgeFlag/clearOutEdgeFlag/markLabelBumpUp/replaceEdgeMap/replaceUsingMap/negateCondition/setGotoBranch/setDefaultSwitch/isJumpTarget/calcDepth/dominates/restrictedByConditional/hasLoopIn/Out/eliminateInDups/OutDups/findDups/dedup/checkEdges/getInIndex/getOutIndex/printHeader/Tree/ShortHeader/nameToType/typeToName/compareFinalOrder) | `FlowBlock::*`(部分) | 🔍 大量待核 |

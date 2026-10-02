@@ -6,7 +6,7 @@
 
 ## 0. 勘误(2026-09-22 CE 实证修正,不删原文)
 
-> 来源:wt/sb-impliedfold lane 报告 `/dev/shm/rugra-tests/sb-impliedfold/LANE_REPORT.md`(commit `1250e5d0`,oracle 直连探针双侧实证;机制 C cross-review PENDING)。以下修正本文两处结论的**泛化读法**,下文各节原文保留不动。
+> 来源:wt/sb-impliedfold lane 报告 `/dev/shm/rudra-tests/sb-impliedfold/LANE_REPORT.md`(commit `1250e5d0`,oracle 直连探针双侧实证;机制 C cross-review PENDING)。以下修正本文两处结论的**泛化读法**,下文各节原文保留不动。
 
 ### 0.1 "oracle 12.0.4 无 copyprop 规则"系错名搜索
 
@@ -16,18 +16,18 @@
 - ruleaction.cc:3924-3926 `/// \class RulePropagateCopy` 文档注释 + `int4 RulePropagateCopy::applyOp(PcodeOp *op,Funcdata &data)` 定义;
 - 注册位 coreaction.cc:5566 `actprop->addRule( new RulePropagateCopy("analysis") );`(oppool1 池,与 §1 引用的 cc:5509-5511 同一块的后续行)。
 
-Rugra 侧**已有实现且已注册**:`src/ruleaction.rs:205-218` `RulePropagateCopy`(注 `// Ghidra: ruleaction.cc:3926`;前序 TODO `RULE-PROPAGATECOPY-DRIFT-0001` 2026-08-17 已 faithful 重写+5 回归测试),注册于 `src/action.rs:1649`(`// 5566`)。因此:
+Rudra 侧**已有实现且已注册**:`src/ruleaction.rs:205-218` `RulePropagateCopy`(注 `// Ghidra: ruleaction.cc:3926`;前序 TODO `RULE-PROPAGATECOPY-DRIFT-0001` 2026-08-17 已 faithful 重写+5 回归测试),注册于 `src/action.rs:1649`(`// 5566`)。因此:
 
 - §1 结论 2(删除自创死代码 `ActionCopyPropagate`)仍然成立——那是未注册的自创 Action,无守卫 blanket 传播,与 `RulePropagateCopy` 语义不同,两回事;
-- 但任何"oracle 无 COPY 传播机制/Rugra 无对应物"的推论不再成立;`RulePropagateCopy` 的 B2 逐函数 oracle fixture 仍缺(RULE-PROPAGATECOPY-DRIFT-0001 残留明载),登记 TODO `RULE-PROPAGATECOPY-0001`(P2,已有实现待差分);
+- 但任何"oracle 无 COPY 传播机制/Rudra 无对应物"的推论不再成立;`RulePropagateCopy` 的 B2 逐函数 oracle fixture 仍缺(RULE-PROPAGATECOPY-DRIFT-0001 残留明载),登记 TODO `RULE-PROPAGATECOPY-0001`(P2,已有实现待差分);
 - TODO_BOARD `CALLSPEC-DRIVER-0002` 行的"前提纠错"注同源错误,已加指针(该行门条件(b)关于 ActionCopyPropagation 的结论不受影响)。
 
 ### 0.2 "折叠责任在打印侧"推断被推翻(§4 R1 指认 merge 域被证实并已修复)
 
 sb-copynoise lane 据本文 §3 数据推得的"噪声主杠杆在 MarkImplied×打印折叠,归 printc/implied lane"(载体=TODO_BOARD `MERGE-COPYNOISE-DIFFHIGH-0001` 行)被双侧实证推翻:
 
-- oracle main 自己打印 **20 个合法 in-implied COPY**(RHS 内联 CAST 表达式);printc.cc:2703-2705 只跳过 **out**-implied(`vn->isImplied() continue` 作用于语句输出),Rugra printc.rs:3341 已有同语义跳过——打印侧不存在"in-implied COPY 折叠"责任,一刀切折叠反而错杀 oracle 合法输出;
-- 真根因=Rugra `merge_test_with_list`(merge.cc:1657 `Merge::mergeTest` 对应物)绕过 testCache 用 `aggregate_high_cover`+`intersect_char>0` 粗近似(同块字符重叠⇒相交),oracle 走 `testCache.intersection`(merge.cc:1664,intersectList(…,2)+blockIntersection 实例级判定)。粗近似使 ActionMergeRequired 阶段 main **多打 +8804 个 trim COPY**(oracle +45),这些 trim COPY 被 MarkImplied 标 implied 后 mergeTestBasic 正确拒绝合并——sb-copynoise 探针测到的"1957 个 diff-high 幸存中 1531 一侧 implied"即此**本侧 bug 制造的噪声**,非合法幸存;
+- oracle main 自己打印 **20 个合法 in-implied COPY**(RHS 内联 CAST 表达式);printc.cc:2703-2705 只跳过 **out**-implied(`vn->isImplied() continue` 作用于语句输出),Rudra printc.rs:3341 已有同语义跳过——打印侧不存在"in-implied COPY 折叠"责任,一刀切折叠反而错杀 oracle 合法输出;
+- 真根因=Rudra `merge_test_with_list`(merge.cc:1657 `Merge::mergeTest` 对应物)绕过 testCache 用 `aggregate_high_cover`+`intersect_char>0` 粗近似(同块字符重叠⇒相交),oracle 走 `testCache.intersection`(merge.cc:1664,intersectList(…,2)+blockIntersection 实例级判定)。粗近似使 ActionMergeRequired 阶段 main **多打 +8804 个 trim COPY**(oracle +45),这些 trim COPY 被 MarkImplied 标 implied 后 mergeTestBasic 正确拒绝合并——sb-copynoise 探针测到的"1957 个 diff-high 幸存中 1531 一侧 implied"即此**本侧 bug 制造的噪声**,非合法幸存;
 - 修复=CE `1250e5d0`:`merge_test_with_list` 改走 `self.type_test_cache.intersection`(与 merge.cc:1664 字面一致);curl skeleton 3654→3018、全文件自赋值 907→2、defects/numbering 全零;机制 C(merge 白名单)cross-review PENDING,集成前必须独立复核。
 
 ## 1. 前提纠错(决定性)
@@ -49,14 +49,14 @@ actstackstall = new ActionGroup(Action::rule_repeatapply,"stackstall");
 即 oppool1 规则池块,**不是任何 COPY 传播 Action 的注册位**。
 
 结论:
-1. TODO_BOARD:491 `CALLSPEC-DRIVER-0002` 解除门条件 写的"(b)补 ActionCopyPropagation(coreaction.cc:5510-5511,Rugra universal 树缺失)"是事实错误——universal 树没有该槽位,oracle 也没有该 Action。实现它=自创 Action(违反 AGENTS.md 铁律 1.1/1.4,ROADMAP 头部已把 `copypropagate` 列为 6 个 Ghidra 不存在的自造 Action 技术债之一)。
-2. Rugra `src/coreaction.rs:1798-1911` 存在一个**未注册的死代码** `ActionCopyPropagate`(全仓零引用),注释谎称 "Corresponds to Ghidra's `RuleCopyPropagate`"(12.0.4 无此 Rule),且实现是无守卫的 blanket 传播(重定向全部 users 后杀 COPY,无 Cover/liveness 检查)——Ghidra 从不做这种传播;Ghidra 的 COPY 治理是 merge 相位的 HighVariable 分组+打印抑制。本 lane 已删除该死代码(行为零变化,E2E byte-identical 验证)。
+1. TODO_BOARD:491 `CALLSPEC-DRIVER-0002` 解除门条件 写的"(b)补 ActionCopyPropagation(coreaction.cc:5510-5511,Rudra universal 树缺失)"是事实错误——universal 树没有该槽位,oracle 也没有该 Action。实现它=自创 Action(违反 AGENTS.md 铁律 1.1/1.4,ROADMAP 头部已把 `copypropagate` 列为 6 个 Ghidra 不存在的自造 Action 技术债之一)。
+2. Rudra `src/coreaction.rs:1798-1911` 存在一个**未注册的死代码** `ActionCopyPropagate`(全仓零引用),注释谎称 "Corresponds to Ghidra's `RuleCopyPropagate`"(12.0.4 无此 Rule),且实现是无守卫的 blanket 传播(重定向全部 users 后杀 COPY,无 Cover/liveness 检查)——Ghidra 从不做这种传播;Ghidra 的 COPY 治理是 merge 相位的 HighVariable 分组+打印抑制。本 lane 已删除该死代码(行为零变化,E2E byte-identical 验证)。
 
 ## 2. oracle 12.0.4 真实的 COPY 噪声治理机制(四个 Action)
 
 全部注册在 universal 根 merge 组(coreaction.cc:5712-5731 尾段),顺序:
 
-| 槽位 | Action | apply 委托 | Ghidra 实现 | Rugra 状态 |
+| 槽位 | Action | apply 委托 | Ghidra 实现 | Rudra 状态 |
 |---|---|---|---|---|
 | cc:5722 | `ActionMergeCopy` | `data.getMerge().mergeOpcode(CPUI_COPY)` | merge.cc:326-348 | ✅ 已实现已挂(action.rs // :5722) |
 | cc:5723 | `ActionDominantCopy` | `data.getMerge().processCopyTrims()` | merge.cc:1415-1437 | ✅ 已实现已挂(// :5723) |
@@ -74,7 +74,7 @@ actstackstall = new ActionGroup(Action::rule_repeatapply,"stackstall");
 3. **计数器/累加器**: 无。
 4. **排序/比较键**: 无排序;守卫=`mergeTestBasic(vn)`(per-varnode 标志)与 `mergeTestRequired(high_out,high_in)`(merge.cc:102,高层标志:addrTied/persistent/error 类),合并成败由 Cover 相交测试决定。
 
-Rugra 对应 `Merge::merge_opcode`(merge.rs:2307):块序/槽位序/守卫/非 snip 语义均按上表;分歧点=Cover 模型本身(见 §3 R1)。
+Rudra 对应 `Merge::merge_opcode`(merge.rs:2307):块序/槽位序/守卫/非 snip 语义均按上表;分歧点=Cover 模型本身(见 §3 R1)。
 
 #### B. `Merge::processCopyTrims(void)` — merge.cc:1415-1437(签名逐字:`void Merge::processCopyTrims(void)`)
 
@@ -83,7 +83,7 @@ Rugra 对应 `Merge::merge_opcode`(merge.rs:2307):块序/槽位序/守卫/非 sn
 3. **计数器/累加器**: per-HighVariable 的 `copy_in1/copy_in2` 标志充当"≥2"计数器;循环尾 `clearCopyIns()` 清零。
 4. **排序/比较键**: HighVariable 指针等值(first-seen 去重);≥2 才进 `processHighDominantCopy`。
 
-Rugra `Merge::process_copy_trims`(merge.rs:3552):first_seen Vec+counts HashMap,迭代序由 Vec 承载(HashMap 仅查询)——与上表四项一致。
+Rudra `Merge::process_copy_trims`(merge.rs:3552):first_seen Vec+counts HashMap,迭代序由 Vec 承载(HashMap 仅查询)——与上表四项一致。
 
 #### C. `ActionHideShadow::apply(Funcdata &data)` — coreaction.cc:4831-4849 + `Merge::hideShadows(HighVariable *high)` — merge.cc:1070-1108(签名逐字:`int4 ActionHideShadow::apply(Funcdata &data)` / `bool Merge::hideShadows(HighVariable *high)`)
 
@@ -92,7 +92,7 @@ Rugra `Merge::process_copy_trims`(merge.rs:3552):first_seen Vec+counts HashMap,�
 3. **计数器/累加器**: `count += 1` 仅在 hideShadows 返回 true 时;mark 标志作用域=本次 apply。
 4. **排序/比较键**: `vn1->copyShadow(vn2)`(共同祖先 shadow 测试)+ `getCover()->containVarnodeDef(...)==1`(cover 包含判定,值必须恰为 1)。
 
-Rugra `ActionHideShadow::apply`(coreaction.rs:3564)+`Merge::hide_shadows_of`(merge.rs:4036):**类别 2 分歧**——遍历用 `fd.vbank.loc_tree`(地址序)而非 VarnodeDefSet(定义序)。hideShadows 的结果按 high 处理顺序可能级联(改一个 COPY 输入影响后续 high 的 findSingleCopy/copyShadow),此分歧登记为 R3。
+Rudra `ActionHideShadow::apply`(coreaction.rs:3564)+`Merge::hide_shadows_of`(merge.rs:4036):**类别 2 分歧**——遍历用 `fd.vbank.loc_tree`(地址序)而非 VarnodeDefSet(定义序)。hideShadows 的结果按 high 处理顺序可能级联(改一个 COPY 输入影响后续 high 的 findSingleCopy/copyShadow),此分歧登记为 R3。
 
 #### D. `Merge::markInternalCopies(void)` — merge.cc:1444-1541(签名逐字:`void Merge::markInternalCopies(void)`)
 
@@ -101,13 +101,13 @@ Rugra `ActionHideShadow::apply`(coreaction.rs:3564)+`Merge::hide_shadows_of`(mer
 3. **计数器/累加器**: per-high copy_in1/copy_in2(≥2 信号);`processHighRedundantCopy` 后 `clearCopyIns()`。**守卫语义:只有 `hasCopyIn2()`(≥2)才进 processHighRedundantCopy(cc:1535-1536)**。
 4. **排序/比较键**: `h1 == op->getIn(0)->getHigh()` 指针等值(internal COPY);`shadowedVarnode(v1)`(同 High 内 cover 全交==2);`findAllIntoCopies` 按**输入 Varnode 等值**分组;`checkCopyPair` 用 dominates + Cover range 的中间写判定。
 
-Rugra `Merge::mark_internal_copies`(merge.rs:4349):COPY 分支忠实;**分歧 R4a**:PIECE/SUBPIECE 两臂整体省略(VariablePiece 基建缺失,登记缺口);**分歧 R4b**:≥2 门被"对 multiCopy 全体调用,靠 find_all_into_copies 内部 <2 早退"替代——side-effect 等价性成立(早退无突变)但与 cc:1535 的门形式不同,复核时按行为论。
+Rudra `Merge::mark_internal_copies`(merge.rs:4349):COPY 分支忠实;**分歧 R4a**:PIECE/SUBPIECE 两臂整体省略(VariablePiece 基建缺失,登记缺口);**分歧 R4b**:≥2 门被"对 multiCopy 全体调用,靠 find_all_into_copies 内部 <2 早退"替代——side-effect 等价性成立(早退无突变)但与 cc:1535 的门形式不同,复核时按行为论。
 
 ## 3. main 实证噪声解剖(本 worktree,master 77e97b4,fast-release)
 
-基线门禁:curl 全量 skeleton diff **3752**,defects **0**,numbering **0**;自赋值语句(文本层 `x = x;`)Rugra **326** vs golden **0**(main 214 / helpf 102 / 其余 10)。
+基线门禁:curl 全量 skeleton diff **3752**,defects **0**,numbering **0**;自赋值语句(文本层 `x = x;`)Rudra **326** vs golden **0**(main 214 / helpf 102 / 其余 10)。
 
-探针(RUGRA_DBG_COPYPROBE,已在提交前移除,E2E byte-identical 复核)测得:
+探针(RUDRA_DBG_COPYPROBE,已在提交前移除,E2E byte-identical 复核)测得:
 
 | 观测点 | 数值 |
 |---|---|

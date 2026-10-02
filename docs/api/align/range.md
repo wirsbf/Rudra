@@ -101,4 +101,4 @@ Verify that a Rudra RangeList aligns with Ghidra's representation
 Verify that contains() function aligns
 
 <!-- annotation-pass: 2026-07-04 -->
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

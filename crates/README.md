@@ -16,7 +16,7 @@ the attribution chain (kuna/Noelo-Lab → Ghidra/NSA).
 ## Why they are workspace members
 
 `kuna-sleigh` (plus `kuna-base`/`kuna-num`, which its public API names
-directly) **is in the rugra build graph**: `src/sleigh_ffi.rs` drives it as
+directly) **is in the rudra build graph**: `src/sleigh_ffi.rs` drives it as
 the production SLEIGH decode engine (Phase2 of SLEIGH-RUSTIFY — the C++
 FFI runtime was retired 2026-09-26 after the dual-engine gates passed, see
 `docs/alignment_docs/SLEIGH_PHASE2_SWAP_2026-09-26.md`). `kuna-slacomp`
@@ -27,7 +27,7 @@ stream (FORMAT_VERSION + inflated sha256 + size band), because the zlib C
 and flate2/miniz_oxide deflate backends produce different (but
 content-equivalent) compressed bytes.
 
-Runtime dedup with Rugra's own `marshal/space/pcoderaw/translate/...`
+Runtime dedup with Rudra's own `marshal/space/pcoderaw/translate/...`
 modules is deliberately deferred (Phase 0 §7.1 decision item); the sources
 are kept byte-identical to the pinned upstream commit for auditability.
 
@@ -36,7 +36,7 @@ are kept byte-identical to the pinned upstream commit for auditability.
 - kuna's per-crate `tests/` integration trees (they reference kuna's
   repo-root datatest corpus).
 - kuna's own vendored Ghidra processor-spec tree (148 specs, ≠ the locked
-  12.0.4 oracle's 146). Rugra spec inputs always come from the locked oracle
+  12.0.4 oracle's 146). Rudra spec inputs always come from the locked oracle
   tree via `git archive` (see `tools/build_locked_x86_64_sla.sh`).
 
 Known consequence: a few `#[cfg(test)]` unit tests inside
@@ -46,7 +46,7 @@ those paths do not exist, so `cargo test -p kuna-base` / `-p kuna-sleigh`
 has expected failures in those specific tests. Measured at vendoring time
 (release, `--lib`): kuna-base 127 passed / 4 failed (all datatests file-not-found),
 kuna-num 32/0, kuna-sleigh 205 passed / 5 failed (same class),
-kuna-slacomp 3/0. Rugra's gates exercise the root package
+kuna-slacomp 3/0. Rudra's gates exercise the root package
 (`cargo test --lib`) and the compiler binary, not those tests.
 
 ## Verification

@@ -58,7 +58,7 @@ const CANON_UNK_CODE_LABELS_HTTPD: [(u64, &str); 1] = [(0x12df1b, "UNK_0012df1b"
 // UNK table above): the canon analyzeHeadless DB's per-address string-Data
 // and DAT-label environment facts for the httpd main window — the httpd
 // twin of curl's CANON_DAT_LABEL_STARTS (STRLIT-ENVDAT-0001). The locked
-// transport capture (/dev/shm/rugra-tests/headlessdist/xml/httpd/
+// transport capture (/dev/shm/rudra-tests/headlessdist/xml/httpd/
 // 0x12b820.xml — the exact protocol XML the canon golden's decompiler
 // received for main) proves two string-Data absences against the driver's
 // full ASCII scan:
@@ -135,7 +135,7 @@ const CANON_HARVEST_REF_EXCLUSIONS_HTTPD: [u64; 1] = [0x131f4ab];
 // projections (bank pins and the direct-runner golden unchanged).
 const NATIVE_IMAGE_BASE: u64 = 0x100000;
 
-// RUGRA-GLUE (RUGRA-FLOW-MIRROR-0001, httpd lane BP / MIRROR-ENVS-CANONICAL
+// RUDRA-GLUE (RUGRA-FLOW-MIRROR-0001, httpd lane BP / MIRROR-ENVS-CANONICAL
 // -0001): the flow-mirror gate — the oracle single-function input contract.
 // The locked oracle harness (tests/oracle/stage_projection_1204.cc run())
 // loads httpd through BfdArchitecture (every PT_LOAD mapped, SLEIGH decode)
@@ -174,7 +174,7 @@ struct TypedefSeedState {
 static TYPEDEFSEED_STATE: std::sync::OnceLock<Option<TypedefSeedState>> =
     std::sync::OnceLock::new();
 
-// RUGRA-GLUE: gate + manifest decode + TypeFactory::get_typedef install
+// RUDRA-GLUE: gate + manifest decode + TypeFactory::get_typedef install
 // (the curl driver's install_typedef_seed_channel, httpd mirror form: the
 // purity gate is mirror_flow_enabled alone, matching this driver's TYPESEED
 // gate; the httpd corpus ships no typedef manifest — HSEED stripped-binary
@@ -290,7 +290,7 @@ fn install_typedef_seed_channel() -> Option<TypedefSeedState> {
     Some(state)
 }
 
-// RUGRA-GLUE: cached accessor for the typedef channel state.
+// RUDRA-GLUE: cached accessor for the typedef channel state.
 fn typedefseed_state() -> Option<&'static TypedefSeedState> {
     TYPEDEFSEED_STATE
         .get_or_init(install_typedef_seed_channel)
@@ -383,9 +383,9 @@ const KNOWN_NO_RETURN_ELF_NAMES: [&str; 21] = [
     "pthread_exit",
 ];
 
-// RUGRA-GLUE: Java-side analyzer (NoReturnFunctionAnalyzer.added) with no
+// RUDRA-GLUE: Java-side analyzer (NoReturnFunctionAnalyzer.added) with no
 // decompiler-C++ counterpart; this driver function is the program-database
-// seeding equivalent on Rugra's side of the front-end boundary.
+// seeding equivalent on Rudra's side of the front-end boundary.
 /// Strip leading '_' chars from a raw ELF symbol name, mirroring the
 /// analyzer's `while (name.charAt(startIndex) == '_') ++startIndex;` loop.
 /// ASCII-only names from the ELF strtab; the '_' byte prefix is what the
@@ -394,7 +394,7 @@ pub fn strip_leading_underscores(name: &str) -> &str {
     name.trim_start_matches('_')
 }
 
-// RUGRA-GLUE: Java-side analyzer (NoReturnFunctionAnalyzer.added) with no
+// RUDRA-GLUE: Java-side analyzer (NoReturnFunctionAnalyzer.added) with no
 // decompiler-C++ counterpart; see the module note above.
 /// Exact no-return classification for a raw ELF symbol name: strip leading
 /// underscores, then case-sensitive containment in the Known list (the ELF
@@ -404,7 +404,7 @@ pub fn is_known_no_return(symbol_name: &str) -> bool {
         .contains(&strip_leading_underscores(symbol_name))
 }
 
-// RUGRA-GLUE: Java-side analyzer makeNoReturnFunction
+// RUDRA-GLUE: Java-side analyzer makeNoReturnFunction
 // (NoReturnFunctionAnalyzer.java:121-180, the functionAt.setNoReturn(true)
 // calls at :144/:168) with no decompiler-C++ counterpart; the driver's
 // program-database equivalent for the function being decompiled.
@@ -426,9 +426,9 @@ pub fn mark_known_no_return_function(fd: &mut Funcdata, symbol_name: &str) -> bo
     true
 }
 
-// RUGRA-GLUE: the analyzer's program-database marking + Ghidra's
+// RUDRA-GLUE: the analyzer's program-database marking + Ghidra's
 // FlowInfo::queryCall queryFunction boundary (flow.cc:660) in one
-// driver-owned table; Rugra's Funcdata owns no per-callee Funcdata at flow
+// driver-owned table; Rudra's Funcdata owns no per-callee Funcdata at flow
 // time, so the driver hands the callee `funcp` slices to the flow walk
 // (mirror face) or to the canon splice pass below.
 /// Flow-visible callee table (HTTPDMAIN-F1-NORETURN-0001 segment (c)):
@@ -468,7 +468,7 @@ pub fn known_no_return_callee_protos(
         .collect()
 }
 
-// RUGRA-GLUE: the canon (linear inject) transport of
+// RUDRA-GLUE: the canon (linear inject) transport of
 // FlowInfo::checkForFlowModification (flow.cc:636-651). On the mirror face
 // the FlowInfo walk consumes the callee table natively (flow.rs:1306-1320
 // — artificial_halt(NORETURN) + the warning); the canon face lifts the
@@ -724,7 +724,7 @@ fn flow_visit_uniq_map(
 }
 
 
-// RUGRA-GLUE: the flag half of the canon transport — Funcdata::opMarkHalt
+// RUDRA-GLUE: the flag half of the canon transport — Funcdata::opMarkHalt
 // (funcdata_op.cc:37-48) + Funcdata::warning, the two mutations
 // checkForFlowModification performs on the Funcdata (flow.cc:643/646).
 /// Post-inject halt marking: for every spliced RETURN (identified by the
@@ -978,7 +978,7 @@ fn harvest_data_references(
 ///      SPACELESS Address, so a readonly PT_LOAD range starting at 0
 ///      (the ELF-header segment [0,0x29000)) marks register/unique/stack
 ///      varnodes at offsets < 0x29000 READONLY (Ghidra's flagbase is
-///      space-qualified; Rugra's Address cannot be).
+///      space-qualified; Rudra's Address cannot be).
 ///   3. HERITAGE-CROSSSPACE-MERGE-0001: MULTIEQUALs with RAM-space outputs
 ///      at register offsets (Ram@0x8 = RCX's offset etc.) whose inputs are
 ///      Register varnodes — a cross-space merge the oracle never forms
@@ -1468,7 +1468,7 @@ fn build_action_data_symbol_db(
     // (5b) DISPLAYREBASE-UNK-0001: the canon Program-DB's offcut UNK_ code
     // labels — one locked witness for the httpd corpus: UNK_0012df1b.
     // Provenance: the headless transport capture
-    // /dev/shm/rugra-tests/headlessdist/xml/httpd/0x12ddc0.xml (real
+    // /dev/shm/rudra-tests/headlessdist/xml/httpd/0x12ddc0.xml (real
     // analyzeHeadless 12.0.4 DB, ap_ht_time window) carries exactly one
     // UNK_ mapsym in that window:
     //   <symbol id="0x0" name="UNK_0012df1b" typelock="true" namelock="true"
@@ -1544,7 +1544,7 @@ fn build_action_data_symbol_db(
     db
 }
 
-// RUGRA-GLUE (RUGRA-FLOW-MIRROR-0001, httpd lane BP): the vaddr-keyed
+// RUDRA-GLUE (RUGRA-FLOW-MIRROR-0001, httpd lane BP): the vaddr-keyed
 // memory image the mirror path hands SLEIGH — the PT_LOAD segments laid
 // out at their virtual addresses, NOBITS (.bss) zero-fill via the memsz
 // top. httpd's four segments: 0x0 R (headers/.rela), 0x29000 RX (.plt/
@@ -1587,7 +1587,7 @@ fn worker_memory_image_bytes(elf: &goblin::elf::Elf, buffer: &[u8]) -> Vec<u8> {
 // vma 0, size 0x2b, file 0xa07e0, flags MS) which BFD exposes in the chain
 // with SEC_READONLY (bfd/elf.c maps !SHF_WRITE -> SEC_READONLY with NO
 // SHF_ALLOC requirement — probe-verified against the real BFD 2.38 with
-// /dev/shm/rugra-tests/fstrfoldup/bfd_ro_probe.c: 22 SEC_READONLY sections,
+// /dev/shm/rudra-tests/fstrfoldup/bfd_ro_probe.c: 22 SEC_READONLY sections,
 // .comment included, and loadFill(0x20) serves "4.2) 9.4.0"). The PT_LOAD
 // memory image alone leaves [0,0x2b) as ELF-header bytes, so the oracle's
 // `pcVar19 = "4.2) 9.4.0"` folding of the char* constant 0x20
@@ -1881,7 +1881,7 @@ fn tracked_context_architecture(
         // DECLFAM-DEADSLOT-0001 (httpd half): decode the cspec's
         // data_organization into the ONE shared TypeFactory — the curl
         // worker's canonical single-factory pattern (curl_decompile.rs
-        // HTTPDMAIN-FUNCPROTO cspec block: "Rugra's canonical single
+        // HTTPDMAIN-FUNCPROTO cspec block: "Rudra's canonical single
         // factory is TypeFactory::shared_default ... makes the worker
         // architecture, the libc signature path and the DWARF import paths
         // share one identity domain, the way the oracle does"). The former
@@ -2830,7 +2830,7 @@ fn install_import_signatures(
 // 2. NARROW-INT POINTER DEMOTION — int */uint */short */ushort * carry
 //    no strict evidence: the canon oracle's 60-lock table contains ZERO
 //    narrow-int-pointer slots, and every measured face regression traced
-//    to an int * anchor (Rugra's typeprop types canon's wide-scalar
+//    to an int * anchor (Rudra's typeprop types canon's wide-scalar
 //    chains as narrow-int pointers — the recovery residual is the root;
 //    the demotion keeps strict evidence to oracle-attested form classes).
 // 3. DEGENERATE-SITE FILTER — a zero-arity site against positive-arity
@@ -3051,7 +3051,7 @@ fn known_evidence_base(base: &str) -> bool {
 // Either tier demotes NARROW-INT pointers (int */uint */short */
 // ushort *): the corpus oracle never exhibits that call-site form among
 // its committed evidence (0 of 60 entries), and every measured face
-// regression traced to an int * anchor — Rugra's typeprop types those
+// regression traced to an int * anchor — Rudra's typeprop types those
 // wide-scalar chains as narrow-int pointers where canon recovers long,
 // so admitting them locks a form canon never sees (the recovery
 // residual, not a policy delta, is the root; the demotion keeps
@@ -3802,7 +3802,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         // its BfdArchitecture attached, and `RuleLoadVarnode::
         // correctSpacebase` / `RuleStoreVarnode` (ruleaction.cc:4173-4341)
         // dereference `data.getArch()->getSpaceBySpacebase(...)`
-        // unconditionally. Rugra's arch-less Funcdata made those rules
+        // unconditionally. Rudra's arch-less Funcdata made those rules
         // take the miss branch for the input-RSP case, so spacebase-
         // relative STORE/LOAD (`push`/`sub rsp` prologues and `mov
         // [rsp+k], reg` spills) never reindexed into the stack space and
@@ -3831,7 +3831,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         // main's relative-offset switch at 0x2ba94 (table @0x88530)
         // fail-thunks into CALLIND + artificial RETURN (the first
         // recorded httpd cross-side divergence, see
-        // /dev/shm/rugra-tests/sb-httpdff/cross_side_report.txt).
+        // /dev/shm/rudra-tests/sb-httpdff/cross_side_report.txt).
         let mut thread_arch = thread_arch;
         {
             // HTTPD-ARCH-LOADER-0001: Ghidra's BfdArchitecture maps
@@ -4586,7 +4586,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
     }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Rugra Decompilation: httpd ===\n");
+    println!("=== Rudra Decompilation: httpd ===\n");
 
     let buffer = match fs::read("examples/httpd") {
         Ok(b) => b,
@@ -4757,7 +4757,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let max_functions = std::env::var("MAX_FUNCS").ok().and_then(|s| s.parse::<usize>().ok()).unwrap_or(30);
 
-    // RUGRA-GLUE (stage emitters, httpd lane): env-gated single-function
+    // RUDRA-GLUE (stage emitters, httpd lane): env-gated single-function
     // projection/drill emitters with the same contract as the curl driver
     // (RUDRA_STAGE_PROJ / RUDRA_STAGE_DRILL + RUDRA_STAGE_FUNC selector +
     // RUDRA_STAGE_PROJ_OUT / RUDRA_STAGE_DRILL_OUT sinks; see
@@ -4779,7 +4779,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         None
     };
-    // RUGRA-GLUE: RUDRA_STAGE_FUNC=<name|0xaddr> (curl driver contract);
+    // RUDRA-GLUE: RUDRA_STAGE_FUNC=<name|0xaddr> (curl driver contract);
     // the address arm only exists behind the stage envs so env-unset runs
     // keep name-only selection semantics untouched. F2B base note: the
     // `functions` ledger carries canon-space addresses on the canon face,
@@ -4931,11 +4931,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // recovered prototypes to the Program database; every later decompilation
     // then decompiles with those callee signatures present (FlowInfo::
     // queryCall -> FuncCallSpecs::setFuncdata -> ActionDefaultParams'
-    // fc->copy(otherfunc->getFuncProto()), coreaction.cc:2322-2330). Rugra's
+    // fc->copy(otherfunc->getFuncProto()), coreaction.cc:2322-2330). Rudra's
     // httpd corpus has no such channel: call sites run with unlocked,
     // actively-recovered prototypes, and the missing callee type anchors are
     // exactly the httpd shape family (locked-oracle flip evidence:
-    // /dev/shm/rugra-reports/LANE_SHAPEFIX_2026-09-25.md — installing ONE
+    // /dev/shm/rudra-reports/LANE_SHAPEFIX_2026-09-25.md — installing ONE
     // callee prototype, ap_setup_prelinked_modules (long*)->long, flipped
     // the locked oracle's main output to the canon `long *` subscript /
     // 8-byte-load family, env-flip census 154/156 lines). This gate loads
@@ -4966,7 +4966,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // retreats to the explicit opt-in RUDRA_V3SIG=1 form (RUDRA_V3SIG=0
     // keeps its historical kill meaning; unset now leaves the channel to
     // the self-hosted mode). Flip evidence: the PAB A/B re-measure
-    // (/dev/shm/rugra-reports/PAB_PARAMID_AB_2026-09-26.md) — with the
+    // (/dev/shm/rudra-reports/PAB_PARAMID_AB_2026-09-26.md) — with the
     // import-signature transport on (its own default since IMPORTFLIP)
     // the self-produced table and the manifest table converge to
     // byte-identical function bodies (the sole delta = the manifest
@@ -5643,7 +5643,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // HERITAGE P1s, DATASYMS cleared the render residuals, PREGFREE
     // cleared ap_pregfree (gated 1315/0/0 <= default 1472/0/0, defects/
     // numbering 0/0; lane reports archived under
-    // /dev/shm/rugra-reports/LANE_*_2026-09-25.md). Escape hatch:
+    // /dev/shm/rudra-reports/LANE_*_2026-09-25.md). Escape hatch:
     // RUDRA_SYMDB=0 restores the historical fold-only face (no Database,
     // no spacebase scope source, EmitNoMarkup stream) — the old face is
     // opt-out, not deleted. The mirror keeps absolute precedence over
@@ -5917,7 +5917,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // HTTPD-CODEREF-SYMBOLIZE-0001: the canon golden's emitter
                 // (tools/ghidra_decompile_all.py postScript) separates
                 // function blocks with TWO blank lines (`}\n\n\n/* ----`),
-                // one more than Rugra's historical single blank. Emit the
+                // one more than Rudra's historical single blank. Emit the
                 // matching layout so per-function body blocks compare
                 // byte-exact including the trailing separator; the gate's
                 // skeleton normalization is whitespace-insensitive, so
@@ -6172,7 +6172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // gate and every env-unset run never enter: canon-face only, opt-in
     // like the stage emitters). The headless channels this face models,
     // each pinned to the locked oracle (e40ed130) with the
-    // stage_thunk_diag harness (/dev/shm/rugra-tests/thunkgot/):
+    // stage_thunk_diag harness (/dev/shm/rudra-tests/thunkgot/):
     //
     //   * the terminal `jmp *[GOT]` transport — the Java side's
     //     FlowOverride.CALL_RETURN (OperandReferenceAnalyzer.
@@ -6461,7 +6461,7 @@ impl ScanInsn {
     }
 }
 
-// RUGRA-GLUE: linear SLEIGH scan producing the switchD scanners'
+// RUDRA-GLUE: linear SLEIGH scan producing the switchD scanners'
 // instruction records (ops are classified and dropped — the .text walk is
 // ~100k instructions and holds no pcode).
 fn sleigh_scan_range(sleigh: &mut SleighLifter, start: u64, end: u64) -> Vec<ScanInsn> {
@@ -6982,7 +6982,7 @@ fn scan_switch_cased_handlers(
 }
 
 // ===========================================================================
-// RUGRA-GLUE (httpd stage emitters, Lane BF): env-gated single-function
+// RUDRA-GLUE (httpd stage emitters, Lane BF): env-gated single-function
 // stage projection (spec v1.2.1 grammar, consumer tools/stage_bisect.py)
 // and OPACTION_DEBUG-equivalent per-application drill (consumer
 // tools/drill_diff.py). Ported from the curl driver's emitter block
@@ -7040,7 +7040,7 @@ fn stage_sha256(bytes: &[u8]) -> Result<String, String> {
         .ok_or_else(|| "sha256sum returned no digest".to_string())
 }
 
-// RUGRA-GLUE: the producer identity records the source tree observed by the
+// RUDRA-GLUE: the producer identity records the source tree observed by the
 // driver; the action pipeline never reads this value.
 fn stage_producer() -> String {
     Command::new("git")
@@ -7049,19 +7049,19 @@ fn stage_producer() -> String {
         .ok()
         .filter(|output| output.status.success())
         .and_then(|output| String::from_utf8(output.stdout).ok())
-        .map(|commit| format!("rugra-tree-{}", commit.trim()))
-        .unwrap_or_else(|| "rugra-tree-unknown".to_string())
+        .map(|commit| format!("rudra-tree-{}", commit.trim()))
+        .unwrap_or_else(|| "rudra-tree-unknown".to_string())
 }
 
-// RUGRA-GLUE (stage projection v1.2, punch list P5): renders a spaceid
+// RUDRA-GLUE (stage projection v1.2, punch list P5): renders a spaceid
 // constant slot as `s:<spacename>`. The oracle harness identifies these by
 // exact-match against its registered AddrSpace object addresses
 // (stage_projection_1204.cc:309-313 building g_spaceIdNames; the pointer
-// encoding is `(uintb)(uintp)spc`, sleigh.cc:236/269). Rugra encodes the
+// encoding is `(uintb)(uintp)spc`, sleigh.cc:236/269). Rudra encodes the
 // SpaceId enum value instead, and small integers are genuine constants on
 // both sides (`c:0:8`/`c:1:8`/`c:8:8` occur as real constants in both
 // projections), so the value alone cannot carry the discrimination: the
-// structural mirror is the slot. Rugra's only spaceid-encoding slots are
+// structural mirror is the slot. Rudra's only spaceid-encoding slots are
 // LOAD/STORE input 0 (funcdata.rs inject_raw_ops lift path,
 // double_precis.rs make_space_varnode, funcdata.rs op_stack_store/load),
 // which is exactly the set Varnode::getSpaceFromConst decodes
@@ -7082,7 +7082,7 @@ fn stage_spaceid_name(offset: u64) -> Option<&'static str> {
     }
 }
 
-// RUGRA-GLUE: one descriptor formatter is the sole owner of the v1.2
+// RUDRA-GLUE: one descriptor formatter is the sole owner of the v1.2
 // varnode normalization contract (STAGE_BISECT_SPEC_1204.md §v1.2). Unique
 // offsets intentionally remain raw. Pointer-valued varnodes render through
 // stable identities, never raw pointers: spaceid constant slots as
@@ -7119,7 +7119,7 @@ fn stage_vn(
         return format!("u:{offset:x}:{size}");
     }
     if vn.get_space() == rudra::space::AddressSpace::Iop {
-        // Rugra shares the Iop enum space for both annotation kinds
+        // Rudra shares the Iop enum space for both annotation kinds
         // (TYPEOP-FSPEC-SPACE-0001); Funcdata::get_op_from_const
         // discriminates fspec vs iop by the typed callspec binding, expired
         // or not (funcdata.rs "v.call_spec.is_some()"), and so does the
@@ -7138,7 +7138,7 @@ fn stage_vn(
     format!("n:{}:{offset:x}:{size}", vn.get_space().name())
 }
 
-// RUGRA-GLUE (stage projection v1.2.1, punch list P4): the op-line opcode
+// RUDRA-GLUE (stage projection v1.2.1, punch list P4): the op-line opcode
 // domain is get_opname() verbatim — Ghidra's generated opcode_name[] table
 // (opcodes.cc:29-48, 74 entries, upper-case, no CPUI_ prefix). The table is
 // the emitted domain even where it drifted from the enum identifiers:
@@ -7169,7 +7169,7 @@ const STAGE_OPCODE_NAME: [&str; 74] = [
     "INSERT", "EXTRACT", "POPCOUNT", "LZCOUNT",
 ];
 
-// Rugra OpCode::name() spellings that deliberately differ from the locked
+// Rudra OpCode::name() spellings that deliberately differ from the locked
 // table above — the exact set the full-table parity check pins. Since
 // PCODE-OPNAME-TABLE-0001 (OpCode::name() 1:1 with get_opname) every variant
 // spells exactly its locked-table slot, including the generated-table quirk
@@ -7177,7 +7177,7 @@ const STAGE_OPCODE_NAME: [&str; 74] = [
 // CROSSBUILD) and the FLOAT_-prefix family, so the divergence set is EMPTY.
 const STAGE_OPCODE_TABLE_DIVERGENCE: [(&str, &str); 0] = [];
 
-// RUGRA-GLUE: stage-projection op-name lookup — table spelling by numeric
+// RUDRA-GLUE: stage-projection op-name lookup — table spelling by numeric
 // slot, mirroring get_opname(opcodes.cc:60-64). Real ops are always inside
 // the table; an out-of-table value is an emitter bug worth a panic, not a
 // silent wrong name.
@@ -7190,7 +7190,7 @@ fn stage_opname(code: rudra::opcodes::OpCode) -> &'static str {
 }
 
 // v1.2.1 requires the parity check over the FULL 74-name table, not just
-// the opcode subset seen in one corpus: every Rugra variant must match its
+// the opcode subset seen in one corpus: every Rudra variant must match its
 // locked-table slot, and every difference must be one of the pinned
 // STAGE_OPCODE_TABLE_DIVERGENCE entries. Run once per projection.
 fn stage_opcode_parity() -> Result<(), String> {
@@ -7216,7 +7216,7 @@ fn stage_opcode_parity() -> Result<(), String> {
     Ok(())
 }
 
-// RUGRA-GLUE: emits the complete optree in PcodeOpBank::optree order, which
+// RUDRA-GLUE: emits the complete optree in PcodeOpBank::optree order, which
 // is the v1.1 beginAll/optree order shared with the oracle fixture. Two
 // passes per snapshot mirror the harness writeSnapshot
 // (stage_projection_1204.cc:193-210): pass 1 builds the live-op identity
@@ -7247,7 +7247,7 @@ fn stage_snapshot(
         // (no parent FlowBlock). The parent arm reads the Option without
         // upgrading the Weak (op.rs parent: Option<Weak<...>>).
         let dead = op.is_dead() || op.parent.is_none();
-        // Only LOAD/STORE input 0 carries a spaceid constant on the Rugra
+        // Only LOAD/STORE input 0 carries a spaceid constant on the Rudra
         // side (see stage_spaceid_name); every other slot stays value-only.
         let spaceid_slot = matches!(
             op.get_opcode(),
@@ -7282,7 +7282,7 @@ fn stage_snapshot(
     Ok(())
 }
 
-// RUGRA-GLUE: static stage-tree description for the projection emitter. The
+// RUDRA-GLUE: static stage-tree description for the projection emitter. The
 // tree is walked once from the live root; paths follow Ghidra's colon
 // convention rooted at the registered root Action name (the derived
 // "decompile" root keeps the cloned name "universal", matching the oracle's
@@ -7294,7 +7294,7 @@ struct StageNode {
     children: Vec<usize>,
 }
 
-// RUGRA-GLUE: one open v1.1 application frame; @BEGIN pushed it, and the
+// RUDRA-GLUE: one open v1.1 application frame; @BEGIN pushed it, and the
 // matching @END/@SNAP pair must reuse its seq (consumer stacks frames LIFO).
 struct StageFrame {
     node: usize,
@@ -7303,7 +7303,7 @@ struct StageFrame {
     apply_before: u32,
 }
 
-// RUGRA-GLUE: pre-order walk of the Action tree; ActionPool leaves are event
+// RUDRA-GLUE: pre-order walk of the Action tree; ActionPool leaves are event
 // boundaries but their Rules are not (v1.1 has no rule-level events).
 fn stage_walk(
     action: &dyn Action,
@@ -7330,7 +7330,7 @@ fn stage_walk(
     index
 }
 
-// RUGRA-GLUE: descends the live tree to a node's Action (read-only view).
+// RUDRA-GLUE: descends the live tree to a node's Action (read-only view).
 fn stage_action_of<'a>(root: &'a dyn Action, nodes: &[StageNode], node: usize) -> &'a dyn Action {
     let mut chain = Vec::new();
     let mut current = node;
@@ -7350,7 +7350,7 @@ fn stage_action_of<'a>(root: &'a dyn Action, nodes: &[StageNode], node: usize) -
     action
 }
 
-// RUGRA-GLUE: read-only access to a node's externalized ActionState; never
+// RUDRA-GLUE: read-only access to a node's externalized ActionState; never
 // touches take_count_delta (v1.1 reads ActionState.count directly). A node's
 // executor state lives in its parent's child_states slot; the root uses the
 // externally held state.
@@ -7369,7 +7369,7 @@ fn stage_state_of<'a>(
     }
 }
 
-// RUGRA-GLUE: sets BREAK_START on one node identified by tree index. This
+// RUDRA-GLUE: sets BREAK_START on one node identified by tree index. This
 // bypasses set_break_point's name resolution because the oracle tree has
 // duplicate leaf names (e.g. two "unreachable" siblings inside mainloop,
 // coreaction.cc:5490/5673) whose colon-path lookup is ambiguous; indexing the
@@ -7408,7 +7408,7 @@ fn stage_set_start_break(
         .set_break(break_flags::BREAK_START);
 }
 
-// RUGRA-GLUE: first child of `group_node` at or after `from` whose status is
+// RUDRA-GLUE: first child of `group_node` at or after `from` whose status is
 // not STATUS_END — v1.1 enumeration rule (ii): completed onceperfunc nodes
 // are skipped without events or breakpoints.
 fn stage_next_runnable(
@@ -7431,7 +7431,7 @@ fn stage_next_runnable(
     None
 }
 
-// RUGRA-GLUE: proper-ancestor test used to decide which open frames are still
+// RUDRA-GLUE: proper-ancestor test used to decide which open frames are still
 // mid-apply at the next pause (v1.1 rule (iii): group @END is emitted only
 // after the group resumes to completion, so a frame whose subtree contains
 // the next paused node stays open).
@@ -7446,7 +7446,7 @@ fn stage_is_proper_ancestor(nodes: &[StageNode], ancestor: usize, node: usize) -
     false
 }
 
-// RUGRA-GLUE: ordered candidate set for the next STATUS_START entry after the
+// RUDRA-GLUE: ordered candidate set for the next STATUS_START entry after the
 // paused node applies — v1.1 enumeration rules (i)/(ii)/(iii). Exactly one
 // node applies between two pauses; the first candidate whose start-break
 // fires is the true next application. Candidates cover: the paused group's
@@ -7487,7 +7487,7 @@ fn stage_frontier(
         }
         if parent == 0 {
             // Root restart re-entry: ActionRestartGroup re-drives its children
-            // from the top after curstart increments (Rugra: PIPE-RESTART-0001
+            // from the top after curstart increments (Rudra: PIPE-RESTART-0001
             // keeps this unreachable today; the candidate is defensive).
             if let Some(child) = stage_next_runnable(root, nodes, parent, 0) {
                 push(child, &mut candidates);
@@ -7498,10 +7498,10 @@ fn stage_frontier(
     candidates
 }
 
-// RUGRA-GLUE (v2 drill emitter plan, Lane AA): the OPACTION_DEBUG-equivalent
+// RUDRA-GLUE (v2 drill emitter plan, Lane AA): the OPACTION_DEBUG-equivalent
 // per-application modified-op drill for stage-bisect v2, mirroring the
 // locked-oracle harness tests/oracle/stage_drill_1204.cc (Lane Q; oracle
-// baseline /dev/shm/rugra-tests/sb-drill/next_url.oracle.drill, 1293 blocks,
+// baseline /dev/shm/rudra-tests/sb-drill/next_url.oracle.drill, 1293 blocks,
 // 1019 records, sha b227ae94...). Design: DRILL_DESIGN.md §3/§4.
 //
 // Reused from the v1.1 emitter above (f07229c/05c8314):
@@ -7533,7 +7533,7 @@ fn stage_frontier(
 // per-item, never forced to match) -> M3 minimal src accessors + env-off
 // byte-identity check.
 
-// RUGRA-GLUE: wraps the existing Action::perform state machine with only
+// RUDRA-GLUE: wraps the existing Action::perform state machine with only
 // BREAK_START bits and read-only optree observation; no Action/Rule
 // implementation changes and no snapshot is fed back into the pipeline.
 // Stepping protocol (v1.1): breakpoint before each node apply; resume past
@@ -7707,7 +7707,7 @@ fn emit_stage_projection(
     let callspec_link = true;
     writeln!(
         output,
-        "META side=rugra oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b arch=x86:LE:64:default cspec=gcc"
+        "META side=rudra oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b arch=x86:LE:64:default cspec=gcc"
     )
     .map_err(|error| format!("unable to write stage metadata: {error}"))?;
     writeln!(
@@ -7890,7 +7890,7 @@ fn emit_stage_projection(
     Ok(())
 }
 
-// RUGRA-GLUE (v2 drill emitter, Lane AA): per-application modified-op drill
+// RUDRA-GLUE (v2 drill emitter, Lane AA): per-application modified-op drill
 // using the same BREAK_START frontier stepping as the v1.1 projection
 // above, but emitting the oracle-drill grammar of
 // tests/oracle/stage_drill_1204.cc (Lane Q):
@@ -7919,7 +7919,7 @@ fn emit_stage_drill(
     );
     writeln!(
         output,
-        "META side=rugra oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b build_flags=env-RUDRA_STAGE_DRILL func={} entry=0x{:x} arch=x86:LE:64:default cspec=gcc format=raw-native-printdebug record_seq=native_opactdbg_count boundary_seq=1based_perform_bracket ladder=break_start_frontier binary_sha256={} producer={}",
+        "META side=rudra oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b build_flags=env-RUDRA_STAGE_DRILL func={} entry=0x{:x} arch=x86:LE:64:default cspec=gcc format=raw-native-printdebug record_seq=native_opactdbg_count boundary_seq=1based_perform_bracket ladder=break_start_frontier binary_sha256={} producer={}",
         func_name,
         func_vaddr,
         binary_sha256,

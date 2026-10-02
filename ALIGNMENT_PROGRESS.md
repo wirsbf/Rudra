@@ -1,6 +1,6 @@
-# Rugra-Ghidra Alignment Verification Progress
+# Rudra-Ghidra Alignment Verification Progress
 
-本文档用于追踪 **Rugra 与 Ghidra 在核心对象、算法行为与端到端输出上的对齐状态**。  
+本文档用于追踪 **Rudra 与 Ghidra 在核心对象、算法行为与端到端输出上的对齐状态**。  
 其核心目标是：**把“已完成静态结构对齐”与“尚未验证运行时一致性”严格区分开来**，避免把未验证能力误写成既成事实。
 
 > **重要声明**
@@ -74,7 +74,7 @@
 
 > 本节为 W-2026-09-26 波次的类/算法层增量账。以下各项均以锁定 oracle
 > （Ghidra 12.0.4 `e40ed130`）行为为对照源；证据=车道终报
-> （/dev/shm/rugra-reports/LANE_*_2026-09-2[56].md）+差分门禁数字。历史节（src/align/ 时代）
+> （/dev/shm/rudra-reports/LANE_*_2026-09-2[56].md）+差分门禁数字。历史节（src/align/ 时代）
 > 的 Level A/B 框架仍适用，但其具体清单已严重滞后，以本节与本仓库近期账本为准。
 
 ### 1. varmap：NameRecommend 存储与恢复链（F7NAME，已在 master）
@@ -100,7 +100,7 @@
   `BlockGraph::getSize()/getBlock(i)`（blockaction.cc:2154-2160）对两者下降（单组件 wrapped，
   block.hh:547/573）。修复=两臂各返回 `[wrapped]`。
 - 仪器化对照（git-archive 锁定树+F5T patch）：oracle main 6 个 if/else 节点中 2c109 唯一翻转
-  （opFlipInPlaceTest 对 INT_NOTEQUAL 返 0→翻条件+swapBlocks）；Rugra 修前访问 0 节点、
+  （opFlipInPlaceTest 对 INT_NOTEQUAL 返 0→翻条件+swapBlocks）；Rudra 修前访问 0 节点、
   修后同集合同测试值、第二趟翻转粘性同 oracle。
 - 行为面：httpd canon 590→436（main 232→78），其余 33 函数字节恒等。
 
@@ -160,7 +160,7 @@
   - 证据来源：`src/align/runtime_verify.rs`
 
 ### 尚不能确认
-- 尚**不能确认** Rugra 当前运行时行为与 Ghidra 完全一致
+- 尚**不能确认** Rudra 当前运行时行为与 Ghidra 完全一致
 - 尚**不能确认** SSA 版本分配算法已完成 1:1 对拍
 - 尚**不能确认** P-code 生成序列已与 Ghidra 完整比对
 - 尚**不能确认** CFG 结构恢复已完成逐函数等价验证
@@ -297,7 +297,7 @@
 - 可确认内容：
   - opcode 映射、输入输出、序号等基础形态已有映射基础
 - 运行时结论：
-  - **不能据此推出** Rugra 生成的 P-code 序列已逐指令与 Ghidra 一致
+  - **不能据此推出** Rudra 生成的 P-code 序列已逐指令与 Ghidra 一致
 
 #### `PcodeOpRaw`
 - 对应文件：`src
@@ -410,7 +410,7 @@
 
 ### 6.1 P-code 生成一致性
 **问题**  
-Rugra 的 lifting / raw op 注入 / P-code 组织流程，
+Rudra 的 lifting / raw op 注入 / P-code 组织流程，
 是否与 Ghidra 对同一条指令生成完全一致，仍需逐点验证。
 
 **尚未可宣称**
@@ -784,7 +784,7 @@ ra 语义对齐”
 当后续开始按这一路径恢复对齐推进时，建议每一轮至少记录：
 
 - 目标指令或目标函数
-- Rugra 侧入口文件
+- Rudra 侧入口文件
 - Ghidra 侧参考入口或比较方式
 - 当前比较层级（P-code / SSA / CFG / 输出）
 - 已知差异
@@ -848,44 +848,44 @@ ra 语义对齐”
 ## 11
 . 当前一句话结论
 
-**Rugra 当前已经具备一批面向 Ghidra 的静态对齐基础与运行时验证框架雏形，但尚不能根据现有仓库信息宣称已完成运行时 parity 或
+**Rudra 当前已经具备一批面向 Ghidra 的静态对齐基础与运行时验证框架雏形，但尚不能根据现有仓库信息宣称已完成运行时 parity 或
 端到端一致性；最准确的状态是：结构
 对齐在推进，行为对齐仍待系统验证。**
 
 ## 12. Ghidra 参考输出语义对比（2026-06-23）
 
-本节记录首次使用可运行 Ghidra（11.3.2 headless）对 curl 二进制生成参考反编译输出，并与 Rugra 输出做逐函数语义对比的结果。
+本节记录首次使用可运行 Ghidra（11.3.2 headless）对 curl 二进制生成参考反编译输出，并与 Rudra 输出做逐函数语义对比的结果。
 
 ### 证据来源
 - Ghidra 参考输出：`tools/ghidra_decompile_all.py` 脚本运行 `ghidra_11.3.2` headless 生成
-- Rugra 输出：`examples/curl_decompile` + `examples/httpd_decompile`
+- Rudra 输出：`examples/curl_decompile` + `examples/httpd_decompile`
 - gcc 语法通过率：53/53（100%）— 但这只是语法合法性，不等于语义等价
 
 ### 系统性语义差距（按优先级）
 
 #### 差距 1：参数类型恢复缺失（最高优先级）
 - Ghidra：`int my_fwrite(void *buffer, size_t size, size_t nmemb, FILE *stream)`
-- Rugra：`int my_fwrite(long param_1, long param_2, long param_3, long param_4)`
+- Rudra：`int my_fwrite(long param_1, long param_2, long param_3, long param_4)`
 - 根因：ActionInferParams 只按 size 给 scalar 类型，不传播指针/结构体类型
 
 #### 差距 2：结构体字段访问未恢复
 - Ghidra：`stream->_IO_read_ptr`、`config->url`
-- Rugra：`*(long *)(piVar_18 + 0x8)`
+- Rudra：`*(long *)(piVar_18 + 0x8)`
 - 根因：无结构体布局恢复（Ghidra 用 FILE/Configurable 等已知类型）
 
 #### 差距 3：控制流分支丢失
 - Ghidra SetHTTPrequest：`if ((*store != UNSPEC) && (*store != req)) { return SetHTTPrequest(...); }`
-- Rugra：只输出 `if (iVar10 == 0) {...}`，丢失 `&&` 分支和 tail call
+- Rudra：只输出 `if (iVar10 == 0) {...}`，丢失 `&&` 分支和 tail call
 - 根因：blockaction.rs 控制流结构化不完整，未处理 CBRANCH 级联到 tail call
 
 #### 差距 4：返回值推断缺失
 - Ghidra：`return -1;` / `return 0;`
-- Rugra：`return;`（void）
+- Rudra：`return;`（void）
 - 根因：未从 RETURN op 的输入推断返回值
 
 #### 差距 5：变量名传播缺失
 - Ghidra：`__s, config, glob, pOVar15`
-- Rugra：`lVar_0, piVar_18, struct1`
+- Rudra：`lVar_0, piVar_18, struct1`
 - 根因：无类型库/调试符号集成
 
 ### 结论
@@ -906,7 +906,7 @@ gcc 语法 100% 是必要条件但非充分条件。语义对齐 Ghidra 需要�
 
 > ⚠️ **控制流计数已废弃**（2026-07-02）：if/while/for/switch 计数是错误度量（计数相同 ≠ 结构对齐，for↔while 等价变换）。改用 `tools/compare_ghidra.py` 的结构骨架 diff + 编号连续性检查。旧数字 160/168 仅供参考，不再作为对齐依据。
 
-控制流差距是最大问题（源于 blockaction.rs 的区域化结构分析不完整）。Ghidra 的 ActionBlockStructure 恢复完整 if-else/switch/loop 嵌套，而 Rugra 只做基础检测。
+控制流差距是最大问题（源于 blockaction.rs 的区域化结构分析不完整）。Ghidra 的 ActionBlockStructure 恢复完整 if-else/switch/loop 嵌套，而 Rudra 只做基础检测。
 
 **后续改进路线（按 ROI 排序）**：
 1. 控制流结构化（移植 Ghidra blockaction.cc 的区域分析）— 最大差距
@@ -917,9 +917,9 @@ gcc 语法 100% 是必要条件但非充分条件。语义对齐 Ghidra 需要�
 
 ### 控制流差距根因分析（2026-06-23 深入）
 
-对 getparameter.constprop.0（121 个基本块，Rugra 4 if vs Ghidra 42 if）的深入分析：
+对 getparameter.constprop.0（121 个基本块，Rudra 4 if vs Ghidra 42 if）的深入分析：
 
-**根因**：Rugra 的 `collapse_all`（blockaction.rs）在 121 块上运行后，**块数不变（仍 121）**——没有任何规则匹配。
+**根因**：Rudra 的 `collapse_all`（blockaction.rs）在 121 块上运行后，**块数不变（仍 121）**——没有任何规则匹配。
 
 **Ghidra blockaction.cc 的结构化流程**：
 1. `orderLoopBodies` — 循环识别 + 排序
@@ -929,20 +929,20 @@ gcc 语法 100% 是必要条件但非充分条件。语义对齐 Ghidra 需要�
    - `ruleBlockWhileDo` / `ruleBlockDoWhile` / `ruleBlockInfLoop`
    - `ruleBlockSwitch` / `ruleCaseFallthru`
 
-**Rugra 当前的 collapse_all**：
+**Rudra 当前的 collapse_all**：
 - `collapse_loops` — 基础循环检测（自然循环 + CBRANCH latch）
 - `collapse_conditions` — 只做简单 Triangle（if-then）和 Diamond（if-then-else），要求 size_in==1 && size_out==1
 - `collapse_switches` — BRANCHIND switch 检测
 - `collapse_bool_conditions` — &&/|| 折叠
 
 **缺失**：
-1. **多轮迭代直到收敛**（Ghidra 反复跑直到 change==false；Rugra 只跑 3 轮固定）
-2. **ruleBlockProperIf 通用化**（Rugra 的 Triangle 条件太严格）
+1. **多轮迭代直到收敛**（Ghidra 反复跑直到 change==false；Rudra 只跑 3 轮固定）
+2. **ruleBlockProperIf 通用化**（Rudra 的 Triangle 条件太严格）
 3. **ruleBlockIfElse**（完整 if-else 结构化）
 4. **ruleBlockWhileDo/DoWhile 的完整实现**
 5. **ruleCaseFallthru**（switch case fallthrough 处理）
 
-**改进路线**：移植 Ghidra 的 collapseInternal 到 Rugra blockaction.rs，实现 10+ 规则的多轮迭代。这是缩小控制流差距（128/119）的唯一途径。
+**改进路线**：移植 Ghidra 的 collapseInternal 到 Rudra blockaction.rs，实现 10+ 规则的多轮迭代。这是缩小控制流差距（128/119）的唯一途径。
 
 **尝试过的 printc 层修复**（递归 Basic 块后继）失败了——破坏 switch 结构（case label 出现在 switch 体外）。控制流结构化必须在 blockaction 层完成，不能在 printc 层 ad-hoc 处理。
 
@@ -952,7 +952,7 @@ interleaved 规则框架已实现但对复杂 CFG 无额外改善。
 
 > ⚠️ 下表的 "if 计数差" 是废弃度量（2026-07-02）。if 计数相同 ≠ 结构对齐。这些数字反映的是 2026-06-23 的历史状态，仅供诊断参考。当前应使用 `tools/compare_ghidra.py` 的结构骨架 diff。
 
-| 函数 | Rugra if | Ghidra if | 差距（废弃度量） | 根因（仍有参考价值） |
+| 函数 | Rudra if | Ghidra if | 差距（废弃度量） | 根因（仍有参考价值） |
 |------|----------|-----------|------|------|
 | getparameter | 4 | 42 | 38 | 121 块 0 个被结构化 |
 | glob_word | 1 | 7 | 6 | 循环+条件嵌套缺失 |
@@ -975,7 +975,7 @@ interleaved 规则框架已实现但对复杂 CFG 无额外改善。
 **实验 2**：加 `switch_case_indices` 保护（跳过 BlockSwitch.cases）→ 仍有 case label 问题，因为 main 的 switch 是 CBRANCH cascade（BlockIf 类型），不是 BlockSwitch
 **实验 3**：加 `cond block size_in <= 1` 保护 → 仍有 case label 问题，因为 case 内的 CBRANCH 也可以 size_in==1（通过 fallthrough 进入）
 
-**根本障碍**：Rugra 缺少 Ghidra 的以下机制：
+**根本障碍**：Rudra 缺少 Ghidra 的以下机制：
 1. **`isSwitchOut` / `isGotoOut` 边标记** — Ghidra 在 FlowBlock 边上标记哪些是 switch dispatch 出边
 2. **`ruleBlockGoto`** — 在结构化前标记不可归约边为 goto，打破僵局
 3. **switch 上下文传播** — 结构化时知道哪些块在 switch case body 内

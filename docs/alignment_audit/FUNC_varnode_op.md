@@ -1,11 +1,11 @@
 # 函数清单:varnode.cc + op.cc
 
 来源:Ghidra `varnode.cc`(~2053 行,~86 函数)+ `op.cc`(~48 函数)
-Rugra 对应:`src/varnode.rs` + `src/op.rs`
+Rudra 对应:`src/varnode.rs` + `src/op.rs`
 
 ## varnode.cc
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L34 | `bool VarnodeCompareLocDef::operator()(const Varnode*, const Varnode*) const` | — | 🔍 |
 | L60 | `bool VarnodeCompareDefLoc::operator()(const Varnode*, const Varnode*) const` | — | 🔍 |
@@ -94,7 +94,7 @@ Rugra 对应:`src/varnode.rs` + `src/op.rs`
 | L1869 | `VarnodeDefSet::const_iterator VarnodeBank::endDef(uint4 fl) const` | — | 🔍 |
 | L1908 | `VarnodeDefSet::const_iterator VarnodeBank::beginDef(uint4 fl, const Address&) const` | — | 🔍 |
 | L1942 | `VarnodeDefSet::const_iterator VarnodeBank::endDef(uint4 fl, const Address&) const` | — | 🔍 |
-| L1971 | `void VarnodeBank::verifyIntegrity() const` (#ifdef VARBANK_DEBUG) | — | ➖ `#ifdef VARBANK_DEBUG` 条件编译,Rugra 不移植 |
+| L1971 | `void VarnodeBank::verifyIntegrity() const` (#ifdef VARBANK_DEBUG) | — | ➖ `#ifdef VARBANK_DEBUG` 条件编译,Rudra 不移植 |
 | L2014 | `bool contiguous_test(Varnode*, Varnode*)` | — | 🔍 |
 | L2045 | `Varnode *findContiguousWhole(Funcdata&, Varnode*, Varnode*)` | — | 🔍 |
 
@@ -102,7 +102,7 @@ Rugra 对应:`src/varnode.rs` + `src/op.rs`
 
 ## op.cc
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L33 | `IopSpace::IopSpace(AddrSpaceManager*, const Translate*, int4)` | — | 🔍 |
 | L41 | `void IopSpace::printRaw(ostream&, uintb) const` | — | 🔍 |

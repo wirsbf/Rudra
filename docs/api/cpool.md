@@ -108,4 +108,4 @@ Known residuals:
   Rudra snapshot base is re-pinned to 71971b2 (whose TypeFactory provides the
   Result twins) with comparand hashes re-recorded.
 <!-- annotation-pass: 2026-07-04 -->
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

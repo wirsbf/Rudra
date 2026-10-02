@@ -42,7 +42,7 @@ stack range 的 `guard()` 内由 `Heritage::guardLoads`（heritage.cc:1570-1601�
 与 range 相交的 `loadGuard` 记录创建一个 COPY 边界 op（cc:1590-1599，uniq 消耗 =
 每 range 每记录 1 个），`handleNewLoadCopies`（cc:695-730）在 pass 尾
 `propagateCopyAway` 把它们传播销毁——drill 中表现为 7 个"双 `**`"即死临时 op
-（52bd:643..52c5:649），使后续 MULTIEQUAL 的 uniq 从 64a 起。Rugra 侧
+（52bd:643..52c5:649），使后续 MULTIEQUAL 的 uniq 从 64a 起。Rudra 侧
 `load_guard` 记录生产链整体缺失（`guard_loads` 记录构造器仅测试调用，
 `guard_loads_range` 的 COPY 插入体为登记 stub）→ phi uniq 前移 7 至 643。
 
@@ -58,7 +58,7 @@ stack range 的 `guard()` 内由 `Heritage::guardLoads`（heritage.cc:1570-1601�
   STORE 在指针输入来自链上时 traversals≠0 走 `generate_store_guard`
   （cc:926-936）否则仅 mark（cc:1087）；链死端输出落 SPACEBASE 型空间
   （enum 模型 = Stack）置 `unknown_stack_storage`，结尾按 checkFreeStores 调
-  `protect_free_stores`。Rugra 语义注记：INT_SUB 不在 oracle switch 内，不移植
+  `protect_free_stores`。Rudra 语义注记：INT_SUB 不在 oracle switch 内，不移植
   （旧近似 `discover_and_guard_stack_stores_fd` 曾含 INT_SUB 且自建 INDIRECT——
   非 oracle 行为，该函数保留但生产路径不再触达）。
 - `protect_free_stores`（cc:944-972）：bank 序 STORE，指针经 COPY / INT_ADD(常量)
@@ -80,7 +80,7 @@ stack range 的 `guard()` 内由 `Heritage::guardLoads`（heritage.cc:1570-1601�
 
 对齐证据（match_url Phase 2 mirror 投影 vs curl.match_url.oracle.projection
 sha 2bdabd73…，340 stages/80385 ops）：首分歧 ordinal 55 → **70**。heritage 二轮
-drill 块（oracle 847 行 vs rugra 846 行）除既有 `ffunc_0x…` vs `i0x…` 调用名显示
+drill 块（oracle 847 行 vs rudra 846 行）除既有 `ffunc_0x…` vs `i0x…` 调用名显示
 噪音外逐行一致，slot 130 的 phi uniq 64a-64f 双侧对齐（64d/725/741… 处处相等）。
 新首分歧 ordinal 70 = stackstall:oppool1 count 102 vs 151（RuleIndirectCollapse
 +39），探针实证为 stack 槽位 varnode `nolocalalias` flag 状态差
@@ -94,7 +94,7 @@ SB-MATCHURL-ORD70-0001，非本 lane write-set。
 
 heritage.cc:2634 的原调用是 `vnout = fd->newVarnodeOut(size, memrange.addr, multiop)`——带
 assignHigh + laned 检查 + localmap queryProperties 尾(funcdata_varnode.cc:104-122),其 local 腿
-对域内栈存储折叠 mapped|addrtied(database.cc:1268-1277,无符号条目也如此)。Rugra 此前用
+对域内栈存储折叠 mapped|addrtied(database.cc:1268-1277,无符号条目也如此)。Rudra 此前用
 vbank 裸构造 + set_varnode_properties(无 local 腿)→ 影写合并的 MULTIEQUAL 输出从不 addr-tied
 → RuleSubRight 的 overlap 守卫(ruleaction.cc:7265-7268,双侧 tied)不触发 → splitCopy 建出的
 45 个栈地址 SUBPIECE 被化成 INT_RIGHT 移位梯(42 处 CONCAT 中间态直接诱因)。改走
@@ -132,7 +132,7 @@ usepoint=`op->getAddr()`,**同样有 queryProperties→setSymbolProperties 尾**
 | cc:1595 guardLoads `invn` | newVarnode | **已补**（2026-09-23 SB-MATCHURL-ORD55-0001） | COPY 插入体落地：`create_with_space` + `set_varnode_properties`（HERITAGE-MULTIEQ-VNIN-SYMBOLTAIL-0001 模式） |
 | cc:1742/1750 splitByRefinement 循环片 | newVarnode | **补** | Rust 4422 循环单建点覆盖两行 |
 | cc:2008 guardInput `newout` | newVarnode | **补** | Rust 4327 裸建(concat 目标) |
-| cc:2095/2100 splitJoinLevel 半片 | newVarnode(Address 形) | **补** | Rust 3390/3397 + 2-piece 内联点 3284/3285(read)/3327/3337(write);register 空间在 Rugra 当前查询通道为 no-op,结构补齐 |
+| cc:2095/2100 splitJoinLevel 半片 | newVarnode(Address 形) | **补** | Rust 3390/3397 + 2-piece 内联点 3284/3285(read)/3327/3337(write);register 空间在 Rudra 当前查询通道为 no-op,结构补齐 |
 | cc:2241 floatExtensionRead `bigvn` | newVarnode(Address 形) | **补** | Rust 3433;同上 no-op 结构补齐 |
 | (新发现,同族) cc:1502 guardCalls trial 输入 | newVarnode | **补** | Rust 1550 仅折叠 |
 | (新发现,同族) cc:1634 guardReturnsOverlapping `retVal` | newVarnodeOut | **补** | Rust 1694 def-裸建+折叠 |
@@ -149,8 +149,8 @@ httpd 29 函数**字节级一致**(2459/0/0);config 域重放 main/getparameter/
 parseconfig/glob_set/glob_range/glob_url 逐函数**字节级一致**,全语料
 `::config.`=181、DAT_00117[56]xx=0、.rodata witnesses、glob_expand 字段化
 形态(5 处)全部与 base 相等——零回退、零改善(语料内这些位点未激活或无可附着
-符号,Rugra 侧行为中性)。join 族/register 空间位点按结构补齐(oracle 有尾,
-Rugra 通道 no-op)。
+符号,Rudra 侧行为中性)。join 族/register 空间位点按结构补齐(oracle 有尾,
+Rudra 通道 no-op)。
 
 ## 2026-09-22：heritage 提升/守卫路径补符号尾（HERITAGE-PROMOTE-SYMBOLTAIL-0001）
 
@@ -160,7 +160,7 @@ Rugra 通道 no-op)。
 `Heritage::guardInput` 的两处洞填补（cc:1973-1976/1985-1988）全部经
 `Funcdata::newVarnode`（funcdata_varnode.cc:148-169），其符号尾
 `queryProperties → setSymbolProperties`（cc:161-166）把 typelocked 全局符号的
-DWARF 类型挂到被提升 varnode 上。Rugra 这些点此前只跑 `apply_new_varnode_flags`
+DWARF 类型挂到被提升 varnode 上。Rudra 这些点此前只跑 `apply_new_varnode_flags`
 （仅 flags 折叠，且 Ram 腿给一切全局地址 OR 上 MAPPED——`set_varnode_properties`
 的 `isMapped` 守卫被预先堵死，符号 attach 永不发生）。witness：glob_set 的
 `glob_expand` 读（ram:0x17660，8B，DWARF `URLGlob*`）经 renameRecurse 提升后
@@ -194,7 +194,7 @@ nullable op input 与完整 manager 生命周期也继续作为残差。
 ## 文档状态
 
 - **状态**: 🔧 **L2（2026-08-11 锁定 12.0.4 审计）**——canonical `Heritage::heritage` 没有生产调用且会重入写锁；主管线改走未建 dominator 的 direct phi/rename 两遍。pass、def-use、IOP、block membership、refinement 与 guard 闭包均不等价，正式行为门禁为 `NO_ORACLE`。详见 `docs/alignment_audit/CONTROL_OUTPUT_PIPELINES_2026-08-11.md`。
-- **文档目标**: 说明 Rugra 当前 `heritage.rs` 在 SSA 构造与相关中间状态管理中的职责、边界与公开接口
+- **文档目标**: 说明 Rudra 当前 `heritage.rs` 在 SSA 构造与相关中间状态管理中的职责、边界与公开接口
 - **可信边界**: 本文档围绕“当前架构中的 SSA / Heritage 责任分工”进行说明，不把“结构存在”写成“已完成与 Ghidra 的运行时一致性验证”
 - **阅读建议**: 请结合以下模块一起理解：
   - `src/funcdata.rs`
@@ -207,7 +207,7 @@ nullable op input 与完整 manager 生命周期也继续作为残差。
   - `docs/VERIFICATION_GUIDE.md`
 
 > 重要提醒：  
-> `heritage.rs` 对应的是 Rugra 当前 SSA / heritage 相关核心层之一。  
+> `heritage.rs` 对应的是 Rudra 当前 SSA / heritage 相关核心层之一。  
 > 结构存在不等于生产接线正确；修复前不得把 direct 算法单测当作 Ghidra 运行时 1:1 对拍。
 
 ## 2026-08-28：load-guard COPY 的销毁语义
@@ -223,7 +223,7 @@ nullable op input 与完整 manager 生命周期也继续作为残差。
 
 ## 模块定位
 
-`heritage.rs` 是 Rugra 当前反编译主线中，负责 **SSA 构造、变量版本传播、Phi / MULTIEQUAL 放置及其辅助状态管理** 的关键模块。
+`heritage.rs` 是 Rudra 当前反编译主线中，负责 **SSA 构造、变量版本传播、Phi / MULTIEQUAL 放置及其辅助状态管理** 的关键模块。
 
 从整体链路看，它大致处在这样的位置：
 
@@ -655,7 +655,7 @@ heritage.cc:2663-2758）。
 签名从无参（内部 `Weak<RwLock<Funcdata>>` 升级取锁）改为显式
 `&mut Funcdata`。单 pass 序列 1:1 对应锁定 oracle：
 
-1. `maxdepth == -1` 时重建增广支配树（cc:2676-2677；Rugra 先
+1. `maxdepth == -1` 时重建增广支配树（cc:2676-2677；Rudra 先
    `build_dom_tree` 再 `build_adt`，对齐上游 structureReset）；
 2. `process_joins`（cc:2679）；
 3. pass 0：同一个局部 `PreferSplitManager` init+split（cc:2680-2683）；
@@ -733,7 +733,7 @@ block.cc:2036-2051）；`buildDomDepth` 根深度 1、子 = 父+1、尾部哨兵
   endaddr 回绕钳位（heritage.cc:317-320）：`endaddr = wrapOffset(addr+size)` 落到
   start 之下时，窗口终点不用 beginLoc(endaddr)（会立刻截断成空窗口），而是钳到
   `endLoc(space, getHighest())` —— 从 start 扫到本空间末尾（首个异空间成员终止，
-  无偏移上界）。Rugra 空间均为 8 字节寻址（`space_highest` 约定），u64 wrapping add
+  无偏移上界）。Rudra 空间均为 8 字节寻址（`space_highest` 约定），u64 wrapping add
   即 oracle 算术。生产可达性：仅当 MemRange 跨越空间顶端（offset 0xffffffffffffffff
   且 size>1 的 varnode 进入 disjoint cover）触发，真实 loader 不产出 —— 预存非 r2
   引入。单点 fixture `tests/oracle/heritage_collect_wraparound_1204` 三案例（回绕
@@ -825,11 +825,11 @@ v_type 拷贝、宽泛 active 标记）仍留在 `rename_direct`，切换归
 
 `visit_rename_direct` 此前声称对齐 Ghidra `renameRecurse`（heritage.cc:2479-2562），但漏掉了 3 个决定性语义：
 
-1. **empty-stack input promotion**（cc:2499-2502 / cc:2540-2543）—— 当 varstack 为空时，Ghidra 创建新 varnode 并 `setInputVarnode` 提升为函数输入。Rugra 此前静默跳过 → 自由读未被替换 → SSA 不完整。现移植：通过 `VarnodeBank::set_input_varnode`（对齐 `Funcdata::setInputVarnode` cc:340-373）。
+1. **empty-stack input promotion**（cc:2499-2502 / cc:2540-2543）—— 当 varstack 为空时，Ghidra 创建新 varnode 并 `setInputVarnode` 提升为函数输入。Rudra 此前静默跳过 → 自由读未被替换 → SSA 不完整。现移植：通过 `VarnodeBank::set_input_varnode`（对齐 `Funcdata::setInputVarnode` cc:340-373）。
 
-2. **INDIRECT same-time stack-deepening**（cc:2507-2516）—— 当栈顶 vnnew 是 INDIRECT 写且其 iop-const input(1) 指向当前 op 时，Ghidra 认为 "INDIRECT 和它的 op 同时发生"，深入栈一层（`stack[size-2]`）。Rugra 此前完全缺失 → 栈指针 INDIRECT 配对的 op 拿到错误的 SSA 名。现已按 cc:2508 比对 iop 偏移与当前 op 指针。
+2. **INDIRECT same-time stack-deepening**（cc:2507-2516）—— 当栈顶 vnnew 是 INDIRECT 写且其 iop-const input(1) 指向当前 op 时，Ghidra 认为 "INDIRECT 和它的 op 同时发生"，深入栈一层（`stack[size-2]`）。Rudra 此前完全缺失 → 栈指针 INDIRECT 配对的 op 拿到错误的 SSA 名。现已按 cc:2508 比对 iop 偏移与当前 op 指针。
 
-3. **deleteVarnode of consumed frees**（cc:2519-2520 / cc:2548-2549）—— 替换后若 `vnin->hasNoDescend()` 则 `fd->deleteVarnode(vnin)`。Rugra 此前从不删除 → 死 varnode 留在 loc_tree 污染后续 pass。现由该 exact guard 调 `VarnodeBank::destroy_varnode_prevalidated`；debug build 重新断言 no-def/no-descendant 与 bank ownership，public integrated 错误没有被吞掉。
+3. **deleteVarnode of consumed frees**（cc:2519-2520 / cc:2548-2549）—— 替换后若 `vnin->hasNoDescend()` 则 `fd->deleteVarnode(vnin)`。Rudra 此前从不删除 → 死 varnode 留在 loc_tree 污染后续 pass。现由该 exact guard 调 `VarnodeBank::destroy_varnode_prevalidated`；debug build 重新断言 no-def/no-descendant 与 bank ownership，public integrated 错误没有被吞掉。
 
 2026-08-13 `VARNODE-INIT-0001` caller closure：生产 direct 路径的 `insert_multiequal_direct` 为 fresh bank-owned 输出调用 `set_def_prevalidated`，并把 xref 返回的 canonical Arc 写入 MULTIEQUAL output；每个 fresh placeholder 也像 locked `heritage.cc:2638-2639` 的 `opSetInput` 一样建立一条 descendant。`renameRecurse` 的普通 op 与 successor MULTIEQUAL 两条替换路径都先从旧 Varnode 精确擦除一个 descendant，再向 canonical 新值添加一条，并保留 same-Arc early return；删除仅发生在 locked `heritage.cc:2519/2548 hasNoDescend()` 守卫内。Rust graph tests 覆盖普通 free replacement 后旧值退 bank、两 predecessor 的 phi placeholder 逐槽退 bank，以及 same-Arc 不增边/不删除；这些是 Rust-only 生命周期回归，不是同输入 Ghidra 差分，故 `visit_rename_direct` caller graph 仍为 `UNTESTED`，Heritage 整体仍无逐函数 oracle。低层 erase/add/slot 迁移另由 Varnode/combine oracle 覆盖。legacy `place_multiequals` 尚未统一到这条 setDef 路径，仍归 `HERITAGE-OWNERSHIP-0001`/后续 driver 闭包。该原子只修所触及 direct 路径的引用/输出身份和 destroy 先验，不提升 Heritage 模块整体级别。
 
@@ -899,7 +899,7 @@ pass 计数只代表处理轮次，不等于质量保证。
 
 ## 当前应如何看待 `heritage.rs`
 
-如果你正在理解当前 Rugra 主线，可以把 `heritage.rs` 概括为：
+如果你正在理解当前 Rudra 主线，可以把 `heritage.rs` 概括为：
 
 > **负责把函数级 IR 推进到更稳定 SSA 形态的核心模块。**
 
@@ -958,7 +958,7 @@ pass 计数只代表处理轮次，不等于质量保证。
 
 ## 一句话总结
 
-`heritage.rs` 是 Rugra 当前 **SSA 构造与 heritage 过程控制** 的核心模块：它负责
+`heritage.rs` 是 Rudra 当前 **SSA 构造与 heritage 过程控制** 的核心模块：它负责
 组织版本传播、合流节点放置、rename 及相关辅助状态管理，为后续数据流分析、变量恢复和输出层提供更稳定的函数级语义骨架。
 
 ## 2026-08-16：HERITAGE-DRIVER-SWITCH-0001 —— 生产路径切 canonical 单 pass + LocationMap 空间键
@@ -978,7 +978,7 @@ pass 计数只代表处理轮次，不等于质量保证。
 
 ### 2026-06-29（续）：rename isHeritageKnown 检查 + 两 pass heritage
 
-- **rename 跳过 heritage-known varnode**（对齐 heritage.cc:2495 `isHeritageKnown`）：input 重写只替换 free varnode（非 input/written/constant），跳过已 SSA 解析的。此前 Rugra rename 无条件替换所有 input，会错误 re-rename。这是 written varnode dedup 的前提。
+- **rename 跳过 heritage-known varnode**（对齐 heritage.cc:2495 `isHeritageKnown`）：input 重写只替换 free varnode（非 input/written/constant），跳过已 SSA 解析的。此前 Rudra rename 无条件替换所有 input，会错误 re-rename。这是 written varnode dedup 的前提。
 - **两 pass heritage**：ActionHeritage::apply 跑两遍 place+rename。Pass 1 连接 op 图（rename 重写 STORE input 引用 INT_ADD output），Pass 2 的 discover 在连接后的图上发现 stack STOREs。对齐 Ghidra 多 pass heritage。
 - **varnode 去重仍限 free/input**：written varnode 去重需要 loc_tree 排序按 input/written/free 分类（VarnodeCompareLocDef），是更深的重构。
 - **VarnodeCompareLocDef 排序已对齐**（2026-06-29 续）：loc_tree 排序键改为 `(address_space, loc, size, input/written/free, def SeqNum or createIndex)`，对齐 Ghidra VarnodeCompareLocDef（varnode.cc:34-52）。input 同位置返回 Equal；written 按 def SeqNum 区分；free 按 createIndex 区分。
@@ -1031,7 +1031,7 @@ visit_rename_impl 从递归改为迭代式（显式 work stack + Enter/Leave 状
 
 `guard_calls_range_with_space` 不是 Ghidra 的独立 overload。锁定 oracle 只有
 `Heritage::guardCalls(uint4, const Address &, int4, vector<Varnode *> &)`
-(`heritage.cc:1443-1527`)，其中 address-space 身份由 `Address` 自身携带。Rugra
+(`heritage.cc:1443-1527`)，其中 address-space 身份由 `Address` 自身携带。Rudra
 当前 `Address` 只有数值 offset，因此该 helper 额外传递 `AddressSpace`，属于
 临时参数适配层；由 `ADDRESS-0001` / `HERITAGE-0001` 跟踪并在 space-aware
 `Address` 与 canonical Heritage 接线完成后移除。本轮只补 `RUDRA-GLUE`
@@ -1220,7 +1220,7 @@ normalizeWriteSize/callOpIndirectEffect 的 1:1 移植：
   （mapped|addrtied(无 usepoint)|typelock|namelock|nolocalalias）；在
   local_range 内 → mapped|addrtied；否则 → Architecture::symboltab 的
   flagbase（persist 等属性带）。残余：Ghidra 的 stackContainer 会继续走到
-  父（global）scope，Rugra ScopeLocal 无父链，global 符号不可见（管线内
+  父（global）scope，Rudra ScopeLocal 无父链，global 符号不可见（管线内
   stack/register 路径不依赖）；`fd.scope` 为空时属性查询走 arch flagbase。
 - **2026-08-29 补（GETPARAM-EMPTYELSE-0001）**：上条"global scope 不可见"
   残差被 oracle 实测证为行为缺口——oracle 的 `Scope::queryProperties`
@@ -1244,7 +1244,7 @@ normalizeWriteSize/callOpIndirectEffect 的 1:1 移植：
   （空间+偏移）查 `partmap<Address,uint4>`，而 `Address::operator<`
   （address.hh:375-390）先比空间索引再比偏移，故 RAM 空间的 readonly/volatile
   分区永不覆盖 Register/Unique/Stack 地址（锁定 pspec 零 `<volatile>`，loader
-  readonly 均在 RAM——非 ram 查询的 oracle 值恒 0）。Rugra 的 `PartMap` 键是
+  readonly 均在 RAM——非 ram 查询的 oracle 值恒 0）。Rudra 的 `PartMap` 键是
   legacy **无空间** `Address`（只装过 RAM 域），非 ram 查询只能与 RAM 分区按
   偏移碰撞：门控态 R-only PT_LOAD `[0,0x29000)` 把 Register/Unique/Stack 小偏移
   varnode 标 READONLY → `ActionVarnodeProps` 的 `hasActionProperty` 分支
@@ -1263,7 +1263,7 @@ normalizeWriteSize/callOpIndirectEffect 的 1:1 移植：
   末空间之后返回 `~0` 哨兵基址+offset 0，`isInvalid()` 只查 null 基址
   （address.hh:285-287）不命中，故 database.cc:3229-3234 走 split 分支、
   walk-to-`end()` 无闭合 `else` 保持防御性死分支）——留下非零 Ram 尾分区
-  `[X, ram-top]`，唯一闭合 changepoint 落在 Ram 空间之外；Rugra 无空间镜像
+  `[X, ram-top]`，唯一闭合 changepoint 落在 Ram 空间之外；Rudra 无空间镜像
   完全丢弃开放形（`decode_hole` 缺 `last` 补 0 退化成 [0,0]；legacy
   `get_last_addr_open = last.next()` 无跨空间/哨兵机制，无空间顶会回卷 0 什么
   也不装），于是臂 (3) 在 Ram 尾上答 0 而 oracle 答属性（非 ram 查询 oracle
@@ -1407,7 +1407,7 @@ normalizeWriteSize/callOpIndirectEffect 的 1:1 移植：
   back-only、front-only）驱动真实函数，投影 block 内 op 序、SUBPIECE
   常量、PIECE slot、write 表项；case2 钉 cc:1336/cc:1358 调用形态的
   LE/BE 双路由算术。covered=MATCH（47 行双侧字节一致，
-  ghidra_stdout_sha256=rugra_stdout_sha256）；overall=UNTESTED（BE 栈
+  ghidra_stdout_sha256=rudra_stdout_sha256）；overall=UNTESTED（BE 栈
   空间在过渡枚举模型下不可 stage、guardCalls→tryOutputStackGuard 生产
   入口未驱动、负 sf/sb 生产不可达分支未覆盖）。
 - **before 证据**：预修复代码 geom0 即死锁（超时无输出）；仅解锁死锁
@@ -1435,7 +1435,7 @@ normalizeWriteSize/callOpIndirectEffect 的 1:1 移植：
     距离）。SUBPIECE 插在 call 之后（cc:1424），其输出即 vnFinal。
   - cc:1426-1429：vnFinal 非空才 `setActiveHeritage` + push write；
     cc:1430 恒返回 true（vnFinal 空的 no-op 几何也如此）。
-- **Rugra 适配**（FSPEC-OUTPUT-STORAGE-0001 修复后形态，2026-08-25）：
+- **Rudra 适配**（FSPEC-OUTPUT-STORAGE-0001 修复后形态，2026-08-25）：
   返回存储不再经参数暂存——函数自身从 call spec 的 proto-store 输出参数
   读取（`FuncCallSpecs::get_output_storage`，即 cc:1407 的
   `fc->getOutput()->getAddress()`；`retSize` = 返回类型 size，即
@@ -1494,7 +1494,7 @@ Override/重启标志生效，而非改 `HeritageInfo`。语义链：
 - cc:2580 `Override::insertDeadcodeDelay(spc, deadcodedelay+1)`
   （override.cc:79-89）——**不**改本 pass 的 `HeritageInfo`；
 - cc:2581 `fd->setRestartPending(true)`——重启由
-  `ActionRestartGroup::apply`（action.cc:553-582）执行；Rugra 侧重启环
+  `ActionRestartGroup::apply`（action.cc:553-582）执行；Rudra 侧重启环
   未接线（PIPE-RESTART-0001，有界完成，见 action.md）。
 
 旧实现（已删）：直接 `infolist[i].deadcodedelay += 1` 的 pass 中途变异 +
@@ -1553,8 +1553,8 @@ oracle 逐字一致，改成 `clear_flags` 反而偏离原文（若 `fl` 含 TYP
 ## 2026-09-23：MATCHURL-CONCAT-SEQNUM-0001 — guardOutputOverlap concat op 地址忠实化（Phase 2 ordinal 12 清零）
 
 match_url Phase 2 mirror 首分歧（ordinal 12 heritage，op-idx 0）：双侧 1503-op
-快照仅差 14 个 PIECE 的 **SeqNum pc**——oracle `526c:5a0`（call 地址），Rugra
-`1200:5a0`（返回存储地址）。根因：Rugra `guard_output_overlap` 的两个 concat
+快照仅差 14 个 PIECE 的 **SeqNum pc**——oracle `526c:5a0`（call 地址），Rudra
+`1200:5a0`（返回存储地址）。根因：Rudra `guard_output_overlap` 的两个 concat
 （heritage.rs:3054/3075）以 `ret_addr` 为 op 地址；oracle cc:1259/1272 用
 `indOp->getAddr()`——第一个 `newIndirectCreation`（cc:1253）的地址，即
 致效 call 的地址（`newIndirectCreation` 以 `newOp(2, indeffect->getAddr())`
@@ -1587,7 +1587,7 @@ architecture.cc:565 `ptrdata.space->getDelay()+1` 中 ptrdata.space 是栈指针
 **根因**（backtrace 探针实锤，wt/xcross lane）：CURB2 登记的"MULTIEQUAL 输出
 Ram@0x90、输入 Register@0x90"跨空间合并垃圾，注入点不在 collect/guard 的
 loc_tree 窗口（`HERITAGE-DRIVER-SWITCH-0001` 后已 space-correct），而在
-**guard/block-removal 家族的无空间 varnode 创建**：Rugra 的
+**guard/block-removal 家族的无空间 varnode 创建**：Rudra 的
 `new_varnode_out`/`new_varnode` 历史适配器分别 **Register-pin/implicit-RAM**，
 而 oracle 的 `newVarnodeOut(s, Address, op)`/`newVarnode(s, Address)` 携带
 完整 (space, offset)：
@@ -1631,7 +1631,7 @@ cc:135 的 implicit-RAM 伪造（RAM@register 偏移 = 门控 ap_getparents 的
   迭代中插入；split 系列只往 piece/const 空间建 varnode，join 子区间不
   增长，快照与守卫式游走可观察等价。
 - **findJoin**（cc:2293→translate.cc:746-762）：miss 时 oracle 抛
-  LowlevelError("Unlinked join address")。Rugra 生产者
+  LowlevelError("Unlinked join address")。Rudra 生产者
   （coreaction.rs `return_join_address`）以无状态 hash 铸 offset、无
   findAddJoin 登记——**降级为响亮 log+跳过**（HERITAGE-PJOINS-UNLINKED-0001，
   见下方证据：oracle 本语料上 trials 全程 used=0，生产侧分歧才是 canon
@@ -1652,7 +1652,7 @@ cc:135 的 implicit-RAM 伪造（RAM@register 偏移 = 门控 ap_getparents 的
   SUBPIECE 常量与输出全部经 `fd.new_constant`/`fd.op_set_output` 全
   def 接线（旧存根直写字段绕过 descend 簿记）。
 
-**Oracle 探针证据**（锁定 e40ed130 libdecomp + BFD，/dev/shm/rugra-tests/
+**Oracle 探针证据**（锁定 e40ed130 libdecomp + BFD，/dev/shm/rudra-tests/
 pjoins/oracle-cpp/，instrumented processJoins/ActionReturnRecovery）：
 httpd 473 函数全量扫描——9 函数产生 return-pair join
 （join:0x0,sz=16,pieces=[reg:0x10+8,reg:0x0+8],free=0：
@@ -1661,12 +1661,12 @@ ap_is_recursion_limit_exceeded/ap_mpm_run/ap_walk_config/unixd_setup_child），
 **80/80 次访问全部 `pass(≥1) != delay(0) → skip_write`，零次 split**；
 curl 全量仅 main 4 次访问同形态 skip。即 oracle 消费链在两语料上的可观察
 行为=迭代+查找+尺寸校验+跳过；join 存续到打印层。ap_init_vhost_config
-（Rugra 唯一 join 产地）oracle 侧 trials
+（Rudra 唯一 join 产地）oracle 侧 trials
 `[slot=1 reg:0x0+8 used=0 active=0][slot=2 reg:0x10+8 used=0 active=0]`——
-`buildReturnOutput` 的 `isUsed()` 早退使 oracle 根本不建 join；Rugra 生产
+`buildReturnOutput` 的 `isUsed()` 早退使 oracle 根本不建 join；Rudra 生产
 者建了=生产侧（coreaction 判定链）分歧，AUVar16 残差归它（另行 TODO）。
 
-**Rugra 回归测试**（不升 B2 状态，仅回归锚）：write-split 双 SUBPIECE
+**Rudra 回归测试**（不升 B2 状态，仅回归锚）：write-split 双 SUBPIECE
 （shift 8→reg:0x10+precis_hi、shift 0→reg:0x0+precis_lo、均读 join vn）、
 delay 门（pass=2 零 SUBPIECE）、unlinked 降级（无记录零 SUBPIECE 不崩）、
 read-split（free+单读者→PIECE 链定义 join vn、半片 precis 旗）。
@@ -1751,7 +1751,7 @@ md5 15b47cf7 五连恒等亲证）:
 
 1. **`heritage()` 逐空间收集窗口**（原逐空间全 loc_tree 扫描+continue 过滤
    → size-0 探针 range 起点空间序窗口+break）: oracle cc:2699-2700
-   `beginLoc(space)..endLoc(space)` 本就是空间限定树窗口——Rugra 原形态对
+   `beginLoc(space)..endLoc(space)` 本就是空间限定树窗口——Rudra 原形态对
    每个空间重扫全部 ~106K varnode（84 space-run × 全树读锁）;窗口化后只触
    本空间成员。disc 443→~170ms。
 2. **`LocationMap::add` 返回覆盖条目**（原只返回相交码, 驱动再用

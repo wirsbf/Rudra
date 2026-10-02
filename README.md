@@ -1,4 +1,4 @@
-# Rugra 🦀
+# Rudra 🦀
 
 **Ghidra 反编译器的 Rust 移植** —— 把 NSA Ghidra 的反编译核心(`decompile/cpp`,纯 C++)忠实搬到 Rust,并以"锁定同版本 Ghidra、同输入同输出"的差分测试作为唯一正确性标准。
 
@@ -12,7 +12,7 @@
 
 Ghidra 的反编译器是一份教科书级的 C++ 代码库——SSA 构造、值域分析、控制流结构化、类型恢复,四十万行沉淀。但它不易嵌入、不易实验、没有内存安全保证,而且行为难以验证。
 
-Rugra 的目标:**算法层 1:1 移植,工程层现代化**。每一处实现都标注它对应的 Ghidra 源码位置(`// Ghidra: varmap.cc:1263 buildDynamicName`),并用自动化差分门禁证明"Ghidra 在同样输入下产出同样的东西"。移植就是理解——当你能把 jumptable 恢复或 conditional-execution 消除逐行复刻并被 oracle 验证时,才算真的读懂了它。
+Rudra 的目标:**算法层 1:1 移植,工程层现代化**。每一处实现都标注它对应的 Ghidra 源码位置(`// Ghidra: varmap.cc:1263 buildDynamicName`),并用自动化差分门禁证明"Ghidra 在同样输入下产出同样的东西"。移植就是理解——当你能把 jumptable 恢复或 conditional-execution 消除逐行复刻并被 oracle 验证时,才算真的读懂了它。
 
 适合:反编译研究、PL 课程参考、嵌入式静态分析基座、以及对"老牌 C++ 项目如何安全演进"感兴趣的人。
 
@@ -51,8 +51,8 @@ void GetStr(char **string,char *value)
 构建需要锁定版本的 Ghidra 源码树（SLEIGH 引擎经 FFI 编译 + 对齐锚点校验）：
 
 ```bash
-git clone https://github.com/wirsbf/Rugra.git
-cd Rugra
+git clone https://github.com/wirsbf/Rudra.git
+cd Rudra
 # 侧车方式放置锁定 oracle(build.rs 会校验 commit):
 git clone https://github.com/NationalSecurityAgency/ghidra ghidra-src
 git -C ghidra-src checkout e40ed13014025f82488b1f8f7bca566894ac376b
@@ -96,7 +96,7 @@ binary/ ──► disasm/ ──► P-code IR ──► Action 管线 ──► 
 
 ## 与相关项目的区别
 
-| | Rugra | Ghidra(反编译核心) | angr / RetDec |
+| | Rudra | Ghidra(反编译核心) | angr / RetDec |
 |---|---|---|---|
 | 语言 | Rust | C++ | Python/C++ |
 | 与 Ghidra 语义关系 | 逐函数对拍验证的移植 | 本体 | 自研算法,语义不同源 |

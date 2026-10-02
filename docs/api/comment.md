@@ -195,4 +195,4 @@ and exact address-space identity remain with `ADDRESS-0001` and
   残差不变。
 <!-- annotation-pass: 2026-08-23 -->
 
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

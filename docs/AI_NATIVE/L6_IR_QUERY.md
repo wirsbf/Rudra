@@ -4,8 +4,8 @@
 
 ## 动机（wave 实证）
 
-wave 的观测原语全是**过程性的**: RUGRA_DUMP_FUNC(dump 函数全文)、
-RUGRA_RULE_STATS(规则计数)、RUGRA_BS_DUMP(树 dump)——agent 要"找某类 op"只能
+wave 的观测原语全是**过程性的**: RUDRA_DUMP_FUNC(dump 函数全文)、
+RUDRA_RULE_STATS(规则计数)、RUDRA_BS_DUMP(树 dump)——agent 要"找某类 op"只能
 dump 全文再人读/脚本过滤。lane 们反复重写 grep/awk/difflib 探针(内存盘里散落
 analyze_*.py 上十个)。
 

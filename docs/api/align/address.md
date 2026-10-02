@@ -31,4 +31,4 @@ Helper to convert Ghidra space ID to Rudra AddressSpace for verification
 
  
 <!-- annotation-pass: 2026-07-04 -->
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

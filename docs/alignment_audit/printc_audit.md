@@ -2,11 +2,11 @@
 
 **Sources**:
 - Ghidra: `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc` (3401 lines, ~104 `PrintC::` methods)
-- Rugra: `src/printc.rs` (6560 lines) + `src/printlanguage.rs` (`PrintLanguage` trait / shared helpers)
+- Rudra: `src/printc.rs` (6560 lines) + `src/printlanguage.rs` (`PrintLanguage` trait / shared helpers)
 
 **Audit method**: Extracted every `PrintC::method` definition in `printc.cc`, then name-matched each
 against `fn method` declarations across `src/printc.rs` and `src/printlanguage.rs`. Methods whose
-semantics are split across multiple Rugra helpers (or replaced by a direct-emit equivalent) are
+semantics are split across multiple Rudra helpers (or replaced by a direct-emit equivalent) are
 flagged `PARTIAL`/`EQUIV`; methods with no Rust callable of recognizably similar name are flagged
 `MISSING`.
 
@@ -20,7 +20,7 @@ flagged `PARTIAL`/`EQUIV`; methods with no Rust callable of recognizably similar
 | Total Ghidra `PrintC::` methods (excluding ctors / static token defs) | 95 |
 | ✅ Present + faithful (or EQUIV by a direct-emit helper) | 27 |
 | ⚠️ PARTIAL (present but signature/semantics diverge or stub body) | 14 |
-| ❌ MISSING (no callable in Rugra) | 54 |
+| ❌ MISSING (no callable in Rudra) | 54 |
 
 **Missing method total: 54** (counting `PrintCCapability` / ctor methods as informational;
 strictly `PrintC` member-function gap = **52**).
@@ -29,14 +29,14 @@ strictly `PrintC` member-function gap = **52**).
 
 ### Capabilities / construction (L23-L143)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L108 | `PrintCCapability::PrintCCapability` / `initialize` / `buildPrinter` | none | ❌ MISSING |
 | L123 | `PrintC::PrintC(Architecture*, string)` (ctor) | `PrintC::new(emit)` at printc.rs:319 | ⚠️ PARTIAL — different signature, no Architecture binding, no `resetDefaults()` call chain |
 
 ### Type/symbol scope helpers (L143-L353)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L143 | `PrintC::buildTypeStack` | none | ❌ MISSING |
 | L169 | `PrintC::pushPrototypeInputs` | none (inlined into `emit_prototype_inputs`) | ⚠️ PARTIAL — logic folded |
@@ -49,7 +49,7 @@ strictly `PrintC` member-function gap = **52**).
 
 ### op* family — core P-code emission (L424-L929)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L424 | `PrintC::opFunc` | none (op dispatch via `doc_statement`→`op.push(self)`) | ❌ MISSING — the master `opFunc` dispatcher |
 | L448 | `PrintC::opTypeCast` | `op_type_cast` at printc.rs:5649 | ⚠️ PARTIAL — stub: emits in(0) only, no cast markup |
@@ -75,7 +75,7 @@ strictly `PrintC` member-function gap = **52**).
 
 ### op* family — extended P-code (L1150-L1288)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L1150 | `PrintC::opSegmentOp` | `op_segment` at printc.rs:5638 | ⚠️ PARTIAL — emits literal `SEGMENTOP(...)` |
 | L1156 | `PrintC::opCpoolRefOp` | `op_cpoolref` at printc.rs:5580 | ⚠️ PARTIAL — emits literal `CPOOLREF` |
@@ -85,7 +85,7 @@ strictly `PrintC` member-function gap = **52**).
 
 ### Constant/value pushers (L1288-L1606)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L1288 | `PrintC::push_integer` | none (closest: `emit_integer_value` at printc.rs:6303) | ❌ MISSING — no hex/decimal/char-mode dispatch |
 | L1380 | `PrintC::push_float` | none | ❌ MISSING |
@@ -100,7 +100,7 @@ strictly `PrintC` member-function gap = **52**).
 
 ### Constant pushers (L1606-L2085)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L1606 | `PrintC::pushCharConstant` | `push_char_constant` at printc.rs:5661 | ⚠️ PARTIAL — drops tag/vn/op; partial logic |
 | L1666 | `PrintC::pushEnumConstant` | `push_enum_constant` at printc.rs:5667 | ⚠️ PARTIAL — no enum-name lookup, emits raw hex |
@@ -117,7 +117,7 @@ strictly `PrintC` member-function gap = **52**).
 
 ### Struct/enum/prototype emission (L2120-L2350)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L2120 | `PrintC::emitStructDefinition` | `emit_struct_definition` at printc.rs:6061 | ✅ |
 | L2153 | `PrintC::emitEnumDefinition` | `emit_enum_definition` at printc.rs:6121 | ✅ |
@@ -133,7 +133,7 @@ strictly `PrintC` member-function gap = **52**).
 
 ### Type/definition/global docs (L2369-L2641)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L2369 | `PrintC::emitTypeDefinition` | `emit_type_definition` at printc.rs:6021 | ✅ |
 | L2388 | `PrintC::checkPrintNegation` | none | ❌ MISSING |
@@ -151,7 +151,7 @@ strictly `PrintC` member-function gap = **52**).
 
 ### Block emission (L2678-L3359)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L2678 | `PrintC::emitBlockBasic` | none (closest: `emit_structured_basic` at printc.rs:1396 + `emit_block_ops` at printc.rs:429) | ⚠️ PARTIAL — split across two helpers, neither is the faithful walk |
 | L2746 | `PrintC::emitBlockGraph` | none (closest: `emit_block_structured` at printc.rs:662 — the dispatcher) | ⚠️ PARTIAL — different recursion, no `emitBlockCopy`/`Goto`/`Ls` chain |
@@ -172,7 +172,7 @@ strictly `PrintC` member-function gap = **52**).
 
 ### Comment emission (L3231-L3359)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L3231 | `PrintC::emitCommentGroup` | none | ❌ MISSING |
 | L3247 | `PrintC::emitCommentBlockTree` | `emit_comment_block_tree` at printc.rs:5704 | ⚠️ PARTIAL — empty stub `{}` |
@@ -180,14 +180,14 @@ strictly `PrintC` member-function gap = **52**).
 
 ### Misc helpers (L3359-L3373)
 
-| Ghidra line | Ghidra method | Rugra | Status |
+| Ghidra line | Ghidra method | Rudra | Status |
 |---|---|---|---|
 | L3359 | `PrintC::genericFunctionName` | none (inline in `code_label`/`sanitize_c_ident`) | ❌ MISSING |
 | L3373 | `PrintC::genericTypeName` | none | ❌ MISSING |
 
 ## High-priority MISSING methods (output-correctness impact)
 
-Ordered by impact on emitted C-text fidelity. The Rugra `PrintC` re-implements the high-level
+Ordered by impact on emitted C-text fidelity. The Rudra `PrintC` re-implements the high-level
 emission flow but **bypasses Ghidra's expression-stack (`pushAtom`/`OpToken`/`recurse`) machinery**
 that the bulk of `printc.cc` is built on; the gap below is therefore dominated by missing
 `push*`/constant-formatting helpers and the structured-block / comment subtrees.
@@ -196,9 +196,9 @@ that the bulk of `printc.cc` is built on; the gap below is therefore dominated b
 
 | ID | Method | Ghidra line | Why it matters |
 |---|---|---|---|
-| P0-1 | `opFunc` (master op dispatcher) | L424 | Rugra replaces with `op.push(self)` Rust trait dispatch; divergence in any opcode mapping silently mis-emits |
-| P0-2 | `pushConstant` / `pushCharConstant` / `pushEnumConstant` / `push_integer` | L1288/L1606/L1666/L1744 | Rugra versions drop the `tag/vn/op` params and the hex/decimal/char-mode dispatch (`mods & force_hex` etc.) → constants print in wrong base, char literals never emitted, enum values never named |
-| P0-3 | `pushSymbol` / `pushPartialSymbol` / `pushMismatchSymbol` / `pushUnnamedLocation` / `pushImpliedField` / `pushAnnotation` | L1861-L2085 | None ported; Rugra inlines raw symbol-name lookup in `push_varnode`. No partial-symbol offsetting, no implied-field rendering, no annotation markup → struct/union field access, dynamic symbols, and `hidden` pcode ops render incorrectly |
+| P0-1 | `opFunc` (master op dispatcher) | L424 | Rudra replaces with `op.push(self)` Rust trait dispatch; divergence in any opcode mapping silently mis-emits |
+| P0-2 | `pushConstant` / `pushCharConstant` / `pushEnumConstant` / `push_integer` | L1288/L1606/L1666/L1744 | Rudra versions drop the `tag/vn/op` params and the hex/decimal/char-mode dispatch (`mods & force_hex` etc.) → constants print in wrong base, char literals never emitted, enum values never named |
+| P0-3 | `pushSymbol` / `pushPartialSymbol` / `pushMismatchSymbol` / `pushUnnamedLocation` / `pushImpliedField` / `pushAnnotation` | L1861-L2085 | None ported; Rudra inlines raw symbol-name lookup in `push_varnode`. No partial-symbol offsetting, no implied-field rendering, no annotation markup → struct/union field access, dynamic symbols, and `hidden` pcode ops render incorrectly |
 | P0-4 | `resetDefaultsPrintC` (PrintC-specific option flags) | L1581 | Only the trait-default `reset_defaults(){}` exists; `option_convention`/`option_hide_thisparam`/`option_nocprops`/`option_max_implied_ref` etc. never reset → option state leaks across functions |
 | P0-5 | `pushPtrCodeConstant` | L1730 | Function-pointer constants never emitted; `pushPtrCharConstant` is also a stub (`"<str>"`) |
 | P0-6 | `opIntZext` / `opIntSext` / `opBoolNegate` / `opSubpiece` / `opPtradd` | L786-L880 | None ported as named callables; cast/truncation/negation logic is scattered across `push_varnode` and `try_fold_bool_comparison` with no Ghidra-faithful equivalents (cast-implied checks, sign-extension printing, `!` collapse) |
@@ -211,10 +211,10 @@ that the bulk of `printc.cc` is built on; the gap below is therefore dominated b
 | P1-1 | `emitBlockBasic` / `emitBlockGraph` / `emitBlockCopy` / `emitBlockGoto` / `emitBlockLs` | L2678-L2781 | Block-tree emission replaced by `emit_block_structured` dispatcher + `emit_structured_*` family with different signatures; the Ghidra block-copy (goto forwarding) and block-list (consecutive stmt) cases have no faithful equivalent |
 | P1-2 | `emitForLoop` | L2957 | For-loop pattern detection (`while`-with-init+update) missing → all loops emit as `while` |
 | P1-3 | `emitCommentGroup` / `emitCommentFuncHeader` | L3231/L3272 | Header/body comments never emitted |
-| P1-4 | `docAllGlobals` / `docSingleGlobal` / `emitGlobalVarDeclsRecursive` / `emitScopeVarDecls` | L2518-L2631 | Global/scope var decl emission missing; Rugra uses a different `doc_variable_decls_from_funcdata` path |
+| P1-4 | `docAllGlobals` / `docSingleGlobal` / `emitGlobalVarDeclsRecursive` / `emitScopeVarDecls` | L2518-L2631 | Global/scope var decl emission missing; Rudra uses a different `doc_variable_decls_from_funcdata` path |
 | P1-5 | `emitInplaceOp` (compound assignment `+=` etc.) | L2418 | Compound-assign detection missing; all updates emit `x = x + y` |
 | P1-6 | `checkPrintNegation` | L2388 | Negation-folding predicate missing; `!(a==b)` may not collapse |
-| P1-7 | `emitStatement` | L2285 | Rugra uses `doc_statement` (different signature/role); not a drop-in replacement |
+| P1-7 | `emitStatement` | L2285 | Rudra uses `doc_statement` (different signature/role); not a drop-in replacement |
 
 ### P2 — infrastructure (lower blast radius but blocks faithful alignment)
 
@@ -224,31 +224,31 @@ that the bulk of `printc.cc` is built on; the gap below is therefore dominated b
 | P2-2 | `printUnicode` / `printCharHexEscape` / `printCharacterConstant` / `doEmitWideCharPrefix` / `push_float` | L1288-L1534 | Char/string/float formatting helpers missing |
 | P2-3 | `initializeFromArchitecture` / `adjustTypeOperators` / `setCommentStyle` | L2332-L2350 | Architecture-specific option wiring (comment style, type-op overrides) missing |
 | P2-4 | `genericFunctionName` / `genericTypeName` | L3359/L3373 | Name-generation fallbacks missing (logic inlined into `code_label`) |
-| P2-5 | `PrintCCapability::*` (printer registration) | L108 | No capability/plugin registration; Rugra instantiates `PrintC::new` directly |
+| P2-5 | `PrintCCapability::*` (printer registration) | L108 | No capability/plugin registration; Rudra instantiates `PrintC::new` directly |
 
 ## Notes on PARTIAL items
 
 - **`opPtrsub`/`opCallind`/`opCpoolRefOp`/`opNewOp`/`opInsertOp`/`opExtractOp`/`opSegmentOp`/`opTypeCast`** (printc.rs:5549-5651): all are one-line literal-text stubs that emit a fixed token (`SEGMENTOP(...)`, `INSERT(...)`, `CPOOLREF`, etc.) instead of the Ghidra-faithful logic. They satisfy the name-match but diverge semantically.
 - **`push_constant`/`push_char_constant`/`push_enum_constant`/`push_bool_constant`/`push_ptr_char_constant`/`push_equate`** (printc.rs:5654-5684): all carry the `// Missing printc.cc methods (batch 1)` banner — explicitly self-identified stubs with simplified signatures and bodies.
 - **`emit_comment_block_tree`** (printc.rs:5704): empty body `{}`.
-- **`emit_block_structured` + `emit_structured_*`** family (printc.rs:662-1553): the Rugra replacement for the entire `emitBlock*` subtree; functionally emits *a* C representation but is not a line-by-line port of `emitBlockBasic`/`Graph`/`Copy`/`Goto`/`Ls`/`If`/`WhileDo`/`DoWhile`/`InfLoop`/`Switch`.
+- **`emit_block_structured` + `emit_structured_*`** family (printc.rs:662-1553): the Rudra replacement for the entire `emitBlock*` subtree; functionally emits *a* C representation but is not a line-by-line port of `emitBlockBasic`/`Graph`/`Copy`/`Goto`/`Ls`/`If`/`WhileDo`/`DoWhile`/`InfLoop`/`Switch`.
 
 ## Detailed P1 inventory: `emitBlock*` subtree and comment system
 
 The summary tables above flag the `emitBlock*` / comment methods as PARTIAL or MISSING at a
 per-name level. This section enumerates, per Ghidra method, (a) the exact line range in
-`printc.cc`, (b) what the method does, and (c) what (if anything) exists in Rugra today, so a
+`printc.cc`, (b) what the method does, and (c) what (if anything) exists in Rudra today, so a
 porter can scope each gap without re-reading the C++.
 
 All references are to `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc`.
 
 ### Block-tree emission (`emitBlock*`) — L2678-L3353
 
-| Ghidra method (line) | Signature / role | Rugra status | Gap |
+| Ghidra method (line) | Signature / role | Rudra status | Gap |
 |---|---|---|---|
-| `emitBlockBasic` (L2678-L2744, 67 lines) | `void emitBlockBasic(const BlockBasic *bb)` — walks the basic block's PcodeOp list, skipping `notPrinted`/`BRANCH`/implied-output ops, calling `emitCommentGroup` + `emitStatement` per op, applying `comma_separate` / `only_branch` / `no_branch` mods, and emitting the flat-print `goto` when `nofallthru` is set. Drives the per-op comment sorter via `commsorter.setupBlockList(bb)`. | **PARTIAL** — split across `emit_block_ops` (printc.rs:491) and `emit_structured_basic` (printc.rs:1458). Neither is the faithful walk: `emit_block_ops` skips branches/implied ops but has no `comma_separate` handling, no per-op `emitCommentGroup`, no flat-print goto path, and adds Rugra-original dead-output/COPY/rip-relative filters not present in Ghidra. | No `commsorter` integration (comments never per-op), no `comma_separate`, no flat-goto, extra filters diverge output. |
-| `emitBlockGraph` (L2746-L2757, 12 lines) | `void emitBlockGraph(const BlockGraph *bl)` — iterates the block list, bracketing each child in `beginBlock`/`endBlock` and recursing via `(*iter)->emit(this)`. The top-level entry for block-tree emission. | **PARTIAL** — closest is `emit_block_structured` (printc.rs:724), the Rugra dispatcher. It uses `Arc<RwLock<dyn FlowBlock>>` + `BlockGraph` + `emitted` set (Rugra-original cycle-break) instead of the recursive `emit` virtual dispatch. | No `beginBlock`/`endBlock` bracketing (Emit markup ids dropped), no virtual-dispatch recursion. |
-| `emitBlockCopy` (L2759-L2764, 6 lines) | `void emitBlockCopy(const BlockCopy *bl)` — emits any label, then recurses into the single sub-block. The block-duplication forwarding case. | **MISSING** — no Rust callable. Rugra's `emit_block_structured` does not special-case `BlockCopy`/`BlockGoto` block types; the goto-forwarding that `BlockCopy`/`BlockGoto` exist to express has no equivalent. | Entire block-copy class unhandled. |
+| `emitBlockBasic` (L2678-L2744, 67 lines) | `void emitBlockBasic(const BlockBasic *bb)` — walks the basic block's PcodeOp list, skipping `notPrinted`/`BRANCH`/implied-output ops, calling `emitCommentGroup` + `emitStatement` per op, applying `comma_separate` / `only_branch` / `no_branch` mods, and emitting the flat-print `goto` when `nofallthru` is set. Drives the per-op comment sorter via `commsorter.setupBlockList(bb)`. | **PARTIAL** — split across `emit_block_ops` (printc.rs:491) and `emit_structured_basic` (printc.rs:1458). Neither is the faithful walk: `emit_block_ops` skips branches/implied ops but has no `comma_separate` handling, no per-op `emitCommentGroup`, no flat-print goto path, and adds Rudra-original dead-output/COPY/rip-relative filters not present in Ghidra. | No `commsorter` integration (comments never per-op), no `comma_separate`, no flat-goto, extra filters diverge output. |
+| `emitBlockGraph` (L2746-L2757, 12 lines) | `void emitBlockGraph(const BlockGraph *bl)` — iterates the block list, bracketing each child in `beginBlock`/`endBlock` and recursing via `(*iter)->emit(this)`. The top-level entry for block-tree emission. | **PARTIAL** — closest is `emit_block_structured` (printc.rs:724), the Rudra dispatcher. It uses `Arc<RwLock<dyn FlowBlock>>` + `BlockGraph` + `emitted` set (Rudra-original cycle-break) instead of the recursive `emit` virtual dispatch. | No `beginBlock`/`endBlock` bracketing (Emit markup ids dropped), no virtual-dispatch recursion. |
+| `emitBlockCopy` (L2759-L2764, 6 lines) | `void emitBlockCopy(const BlockCopy *bl)` — emits any label, then recurses into the single sub-block. The block-duplication forwarding case. | **MISSING** — no Rust callable. Rudra's `emit_block_structured` does not special-case `BlockCopy`/`BlockGoto` block types; the goto-forwarding that `BlockCopy`/`BlockGoto` exist to express has no equivalent. | Entire block-copy class unhandled. |
 | `emitBlockGoto` (L2766-L2779, 14 lines) | `void emitBlockGoto(const BlockGoto *bl)` — emits the body with `no_branch`, then conditionally emits `emitGotoStatement(...)` based on `bl->gotoPrints()` (suppresses goto when the target is the next block). | **MISSING** — referenced in a comment at printc.rs:540 but not implemented. `emit_goto_statement` (printc.rs:5768) exists with a different signature (addr + goto_type, not `FlowBlock*` + `getGotoTarget()`/`getGotoType()`). | The `gotoPrints()` adjacency check (suppress goto if target is next-in-flow) is not ported → spurious `goto next_label;`. |
 | `emitBlockLs` (L2781-L2834, 54 lines) | `void emitBlockLs(const BlockList *bl)` — emits the list of sub-blocks; for non-flat prints it sets `no_branch` on all but the last block and sets `nofallthru` on any sub-block whose successor is not `nextInFlow()`. | **PARTIAL** — closest is `emit_structured_list` (printc.rs:1191), a thin iterator over the list. It does not apply the `no_branch`/`nofallthru` per-subblock mod logic that drives correct goto insertion between non-adjacent list members. | Missing per-subblock fallthru-mod logic → missing `goto` between non-flow-adjacent siblings. |
 | `emitBlockCondition` (L2836-L2870, 35 lines) | `void emitBlockCondition(const BlockCondition *bl)` — emits `(A && B)` / `(A || B)` using the `ReversePolish`/`emitOp` machinery for the boolean token; honors `only_branch`/`comma_separate`/`no_branch`. | **PARTIAL** — `emit_block_condition` (printc.rs:3036) + `emit_block_condition_inner` (printc.rs:3317). Emits text `&&`/`||` rather than going through the OpToken stack; does not honor `only_branch`/`comma_separate` mods. | No OpToken-stack emission, mod handling incomplete. |
@@ -261,7 +261,7 @@ All references are to `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/print
 
 **Subtree status**: 12 `emitBlock*` methods. Of these, **2 are MISSING** (`emitBlockCopy`, `emitBlockGoto`) and **10 are PARTIAL** (`emitBlockBasic`, `emitBlockGraph`, `emitBlockLs`, `emitBlockCondition`, `emitBlockIf`, `emitForLoop`, `emitBlockWhileDo`, `emitBlockDoWhile`, `emitBlockInfLoop`, `emitBlockSwitch`). Additionally `emitSwitchCase` (L3129-L3158) is folded into `emit_structured_switch` and `emitLabel`/`emitLabelStatement`/`emitAnyLabelStatement` (L3164-L3230) are PARTIAL with `FlowBlock*`-vs-`addr` signature divergence.
 
-The common structural divergence is that Rugra's `emit_block_structured` dispatcher takes
+The common structural divergence is that Rudra's `emit_block_structured` dispatcher takes
 `(block_arc: Arc<RwLock<dyn FlowBlock>>, graph: &BlockGraph, emitted: &mut HashSet<usize>)` and
 dispatches by `BlockType` enum, whereas Ghidra's `FlowBlock::emit(this)` is a virtual call that
 lands in each `emitBlock*` overload. This means none of the per-block mod stacking
@@ -272,12 +272,12 @@ lands in each `emitBlock*` overload. This means none of the per-block mod stacki
 
 The Ghidra comment system is built on a `CommentSorter commsorter` member driven by
 `setupBlockList` / `setupOpList` / `setupHeader`, and gated by two printer flags
-(`instr_comment_type`, `head_comment_type`). **Rugra has no `CommentSorter` equivalent at all**
+(`instr_comment_type`, `head_comment_type`). **Rudra has no `CommentSorter` equivalent at all**
 — comments are never collected, sorted, or emitted anywhere in `printc.rs` (confirmed: grep for
 `commsorter`/`CommentSorter`/`comment_sorter` in `src/printc.rs` returns zero hits outside
 string literals).
 
-| Ghidra method (line) | Signature / role | Rugra status | Gap |
+| Ghidra method (line) | Signature / role | Rudra status | Gap |
 |---|---|---|---|
 | `emitCommentGroup` (L3231-L3241, 11 lines) | `void emitCommentGroup(const PcodeOp *inst)` — drains `commsorter` (set up via `setupOpList`) and emits each non-already-emitted comment whose type passes `instr_comment_type` via `emitLineComment(-1, comm)`. Called per-op in `emitBlockBasic`. | **MISSING** — no callable, no `commsorter`. | All per-op line comments (header/body/tail/warning) dropped. |
 | `emitCommentBlockTree` (L3247-L3267, 21 lines) | `void emitCommentBlockTree(const FlowBlock *bl)` — recursively descends the block subtree (collapsing `t_copy`, skipping `t_plain`), calls `commsorter.setupBlockList` + `emitCommentGroup(0)` at each basic block. Used by `emitBlockIf`/`emitForLoop`/`emitBlockWhileDo` to flush comments for statements printed on a shared line. | **PARTIAL — empty stub** — `emit_comment_block_tree` (printc.rs:5766) is `pub fn emit_comment_block_tree(&self, _block: ...) {}` (empty body, `_block` unused). | Stub; no recursion, no `setupBlockList`, no `emitCommentGroup`. |
@@ -288,25 +288,25 @@ string literals).
 `CommentSorter` infrastructure plus the missing `emitLineComment` lower half (which itself is not
 in the `PrintC::` method set audited here but lives in `printlanguage.cc`). The two gating fields
 `instr_comment_type` / `head_comment_type` and the `option_unplaced` / `option_nocasts` flags are
-also absent in Rugra.
+also absent in Rudra.
 
 ### Global / scope var-decl emission — L2518-L2641
 
 These four methods form the global-symbol-documentation path that Ghidra's `docFunction` calls
 into (`docFunction` at L2641 calls `docAllGlobals`; `emitScopeVarDecls` is also reused for
 function-local category emission). They are grouped here because they share the
-`Symbol`/`Scope`/`MapIterator` traversal that Rugra's `doc_variable_decls_from_funcdata`
+`Symbol`/`Scope`/`MapIterator` traversal that Rudra's `doc_variable_decls_from_funcdata`
 (printc.rs:1800) bypasses.
 
-| Ghidra method (line) | Signature / role | Rugra status | Gap |
+| Ghidra method (line) | Signature / role | Rudra status | Gap |
 |---|---|---|---|
 | `emitScopeVarDecls` (L2518-L2575, 58 lines) | `bool emitScopeVarDecls(const Scope *symScope, int4 cat)` — iterates category symbols (if `cat>=0`) or the full `MapIterator` + dynamic-entry list, skipping pieces/unnamed/`FunctionSymbol`/`LabSymbol` and de-duping multi-entry symbols via `getFirstWholeMap()`, emitting `emitVarDeclStatement(sym)` for each. Returns whether anything was emitted. | **MISSING** — no callable. `doc_variable_decls_from_funcdata` (printc.rs:1800) walks `fd`'s stack/param varnodes via a different path; it does not iterate a `Scope`/category map. | No `Scope`-map iteration, no category filter, no `FunctionSymbol`/`LabSymbol`/multi-entry de-dup. |
 | `emitGlobalVarDeclsRecursive` (L2608-L2619, 12 lines) | `void emitGlobalVarDeclsRecursive(Scope *symScope)` — guards on `isGlobal()`, calls `emitScopeVarDecls(symScope, no_category)`, recurses over all non-function child scopes. | **MISSING** — no callable. | No recursive global-scope walk. |
-| `docAllGlobals` (L2621-L2629, 9 lines) | `void docAllGlobals(void)` — wraps a `beginDocument`/`endDocument`/`flush` around `emitGlobalVarDeclsRecursive(glb->symboltab->getGlobalScope())`. | **MISSING** — no callable. | No global-symbol document emission; Rugra's `doc_function` (printc.rs:3735) emits only the current function and never the global table. |
+| `docAllGlobals` (L2621-L2629, 9 lines) | `void docAllGlobals(void)` — wraps a `beginDocument`/`endDocument`/`flush` around `emitGlobalVarDeclsRecursive(glb->symboltab->getGlobalScope())`. | **MISSING** — no callable. | No global-symbol document emission; Rudra's `doc_function` (printc.rs:3735) emits only the current function and never the global table. |
 | `docSingleGlobal` (L2631-L2639, 9 lines) | `void docSingleGlobal(const Symbol *sym)` — wraps `beginDocument`/`endDocument` around a single `emitVarDeclStatement(sym)`. | **MISSING** — no callable. | No single-global decl emission. |
 
 **Global/scope status**: all **4 methods MISSING**. They block faithful alignment of
-`docFunction` (L2641), whose Ghidra body calls `docAllGlobals` as its first act; Rugra's
+`docFunction` (L2641), whose Ghidra body calls `docAllGlobals` as its first act; Rudra's
 `doc_function` (printc.rs:3735) is a from-scratch reimplementation that never emits globals.
 
 ### P1 subtotal
@@ -326,11 +326,11 @@ table; the remainder of the gap sits in the P0 (op-dispatch + `push*`/constant f
 1. This audit is **name-based**; PARTIAL items may share a name but emit substantially different
    text. A second-pass body audit (per INDEX.md's four-decisive-semantics rubric) is recommended
    for the P0/P1 items before claiming faithful alignment.
-2. Rugra helper functions named `emit_*` / `push_*` / `doc_*` that do **not** correspond to a
+2. Rudra helper functions named `emit_*` / `push_*` / `doc_*` that do **not** correspond to a
    Ghidra `PrintC::` method (e.g. `emit_cbranch_condition`, `emit_block_ops`,
    `doc_variable_decls_from_funcdata`, `emit_inline_expr`, `emit_call_arg_text`,
    `emit_block_condition_inner`, `emit_condition`, `emit_type_prefix`, `emit_integer_value`,
    `capture_*`, `mark_variable_used`, `preallocate_register_compact_names`, etc.) are
-   **Rugra-original glue** and are not counted as covering Ghidra methods.
-3. `push_varnode` (printc.rs:5150) is the Rugra amalgam of `pushVnExplicit` + several `push*`
+   **Rudra-original glue** and are not counted as covering Ghidra methods.
+3. `push_varnode` (printc.rs:5150) is the Rudra amalgam of `pushVnExplicit` + several `push*`
    helpers; it is marked PARTIAL for each `push*` it partially absorbs rather than counted once.

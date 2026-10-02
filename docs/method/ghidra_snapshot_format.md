@@ -2,11 +2,11 @@
 
 > **版本**: 1.0  
 > **状态**: 初始设计  
-> **目标**: 定义 Ghidra Headless Analyzer 可导出、Rugra 可导入的 JSON 快照格式
+> **目标**: 定义 Ghidra Headless Analyzer 可导出、Rudra 可导入的 JSON 快照格式
 
 ## 概述
 
-本文档定义了 Ghidra 侧导出函数级语义快照的 JSON 格式，使其能与 Rugra 的
+本文档定义了 Ghidra 侧导出函数级语义快照的 JSON 格式，使其能与 Rudra 的
 `FunctionSemanticSnapshot` 结构兼容，实现跨工具的 P-code / CFG / SSA 对比。
 
 ## Schema 映射
@@ -72,21 +72,21 @@ Ghidra 导出的 JSON 必须符合 `FunctionSemanticSnapshot` 的 serde 反序�
 
 ### 1. AddressSpace 映射
 
-| Ghidra Space Name | Rugra `AddressSpace` 枚举 | `space_id()` |
+| Ghidra Space Name | Rudra `AddressSpace` 枚举 | `space_id()` |
 |---|---|---|
 | `ram` | `Ram` | 2 |
 | `register` | `Register` | 3 |
 | `const` / `constant` | `Const` | 0 |
 | `unique` | `Unique` | 1 |
 
-Ghidra 导出时应使用 Rugra 的枚举名称（如 `"Ram"`, `"Register"` 等），
-或者使用 space_id 数值。Rugra 侧的 serde 反序列化器使用枚举变体名。
+Ghidra 导出时应使用 Rudra 的枚举名称（如 `"Ram"`, `"Register"` 等），
+或者使用 space_id 数值。Rudra 侧的 serde 反序列化器使用枚举变体名。
 
 ### 2. OpCode 映射
 
-使用 Rugra 的 `OpCode` 枚举名称，例如：
+使用 Rudra 的 `OpCode` 枚举名称，例如：
 
-| Ghidra P-code Op | Rugra OpCode |
+| Ghidra P-code Op | Rudra OpCode |
 |---|---|
 | `COPY` | `CPUI_COPY` |
 | `LOAD` | `CPUI_LOAD` |
@@ -101,9 +101,9 @@ Ghidra 导出时应使用 Rugra 的枚举名称（如 `"Ram"`, `"Register"` 等�
 
 ### 3. Unique 空间偏移
 
-Ghidra 的 unique space 偏移与 Rugra 的分配策略不同。
+Ghidra 的 unique space 偏移与 Rudra 的分配策略不同。
 对比时应 **跳过 unique space varnode 的 offset 比较**，
-只比较 space 和 size。这与现有 `rugra_compare_pcode` 的策略一致。
+只比较 space 和 size。这与现有 `rudra_compare_pcode` 的策略一致。
 
 ### 4. SeqNum 格式
 
@@ -219,13 +219,13 @@ for func in fm.getFunctions(True):
         export_function_snapshot(func, output_dir)
 ```
 
-## Rugra 侧导入流程
+## Rudra 侧导入流程
 
 ```rust
 // 已由 function_snapshot.rs 提供：
 let ghidra_snap = FunctionSemanticSnapshot::read_json_file("path/to/ghidra_export.json")?;
-let rugra_snap = FunctionSemanticSnapshot::from_funcdata(&funcdata);
-let result = FunctionSemanticCompareResult::compare(&rugra_snap, &ghidra_snap);
+let rudra_snap = FunctionSemanticSnapshot::from_funcdata(&funcdata);
+let result = FunctionSemanticCompareResult::compare(&rudra_snap, &ghidra_snap);
 
 if !result.matched {
     for m in &result.mismatches {
@@ -243,5 +243,5 @@ if !result.matched {
 2. **CFG 导出**：上述脚本骨架未包含 CFG 导出逻辑。完整实现需使用
    `BasicBlockModel` API 获取基本块和边。
 
-3. **Unique space 偏移**：Ghidra 和 Rugra 的 unique space 分配不同。
+3. **Unique space 偏移**：Ghidra 和 Rudra 的 unique space 分配不同。
    比较时应忽略 unique space 的 offset。

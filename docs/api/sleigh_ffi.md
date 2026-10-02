@@ -86,7 +86,7 @@ object, so we don't reload the .sla file"）；`Architecture::restoreFromSpec`
 目录（`SleighBase::getAllRegisters` → `varnode_xref`，sleighbase.cc:182-186）
 与全部解码共用这一个实例——即 **每个 Architecture 恰好一次 .sla 反序列化**。
 
-修复前 Rugra 侧同一线程内 `SleighCtx::new()` 建两个独立引擎（驱动
+修复前 Rudra 侧同一线程内 `SleighCtx::new()` 建两个独立引擎（驱动
 build_architecture 寄存器目录枚举一个 + `SleighLifter::new()` 解码一个），
 hermetic 每子进程反序列化 `x86-64.sla` 两次（PERFBENCH gdb/strace 钉死，
 固定开销 ≈430–480ms/子 vs oracle 85–180ms）。修复后驱动经
@@ -146,7 +146,7 @@ padding, so a linear walk filters NOP-classified ops to keep the oracle's effect
 
 `RustSleighEngine::new` 先查 **引擎表快照缓存**，miss 才走冷 `.sla`
 解码（之后 best-effort 回写快照）。机制（SPEEDPROF-SLEIGH-SNAPSHOT-0001，oracle
-无对应物——锁定 oracle 的 golden 生成器每子同样全量冷解码；这是 Rugra 的工程
+无对应物——锁定 oracle 的 golden 生成器每子同样全量冷解码；这是 Rudra 的工程
 超越点，契约是**行为恒等**）：
 
 - **负载**：`Sleigh::snapshot_payload()` = 既有 `SleighBase::encode` 全图遍历
@@ -157,7 +157,7 @@ padding, so a linear walk filters NOP-classified ops to keep the oracle's effect
   `FlatDecode` 传输——**与冷路径同一构建代码路径**，恒等由构造保证；单测
   `snapshot_load_is_graph_identical_to_cold_build` 以冷/快照引擎双侧
   PackedEncode 再编码逐字节相等 + 实指令解码 op-for-op 相等钉死。
-- **缓存键/文件**：`/dev/shm/rugra-sleigh-snapshots/`（或
+- **缓存键/文件**：`/dev/shm/rudra-sleigh-snapshots/`（或
   `$RUDRA_SLEIGH_SNAPSHOT_DIR`）下 `<sla FNV64>-<kuna 构建摘要>.v2.snap`；
   kuna 构建摘要由 `crates/kuna-sleigh/build.rs` 对 kuna-base/kuna-num/
   kuna-sleigh 源树内容计算并在编译期嵌入（`kuna_sleigh::BUILD_DIGEST`）——任何

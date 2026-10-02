@@ -6,10 +6,10 @@
 |---|---|
 | Ghidra 4 个 `funcdata_*.cc` 源文件 | 5969 行 |
 | Ghidra `Funcdata::` 类外方法定义 | **173 个**（去重后唯一签名 173 个） |
-| Rugra `src/funcdata.rs` | 6728 行 |
-| Rugra `impl Funcdata` 方法 | 111 个 |
-| 已对齐（Ghidra→Rugra 一一映射） | **67 / 173 = 38.7%** |
-| 缺失（无对应 Rugra 方法） | **106 个** |
+| Rudra `src/funcdata.rs` | 6728 行 |
+| Rudra `impl Funcdata` 方法 | 111 个 |
+| 已对齐（Ghidra→Rudra 一一映射） | **67 / 173 = 38.7%** |
+| 缺失（无对应 Rudra 方法） | **106 个** |
 | 优先级分布 | 高 **87** / 中 **13** / 低 **6** |
 
 按来源文件拆分：
@@ -21,9 +21,9 @@
 | `funcdata_varnode.cc` (2239行) | 56 | 18 | 38 | 32.1% |
 | `funcdata_block.cc` (1106行) | 29 | 15 | 14 | 51.7% |
 
-**结论**：`funcdata_op.cc`（PcodeOp 操作原语）覆盖最好，Rugra 已落地的绝大多数 op-级 API 都位于此处。`funcdata.cc` 覆盖最差——Rugra 几乎完全跳过了 XML 编解码、警告注释、callspec 排序、union 解析与所有 OPACTION_DEBUG 调试钩子。`funcdata_varnode.cc` 缺失集中在符号映射（dynamic symbol、remap、linkProtoPartial）和只读/易失内存建模，这部分是 Rugra 当前分析管线的明显空白。`funcdata_block.cc` 缺失集中在 jumptable 恢复（stage/recover/early-fail）和 basic-block 移除原语（branchRemoveInternal / blockRemoveInternal / pushMultiequals / opZeroMulti）。
+**结论**：`funcdata_op.cc`（PcodeOp 操作原语）覆盖最好，Rudra 已落地的绝大多数 op-级 API 都位于此处。`funcdata.cc` 覆盖最差——Rudra 几乎完全跳过了 XML 编解码、警告注释、callspec 排序、union 解析与所有 OPACTION_DEBUG 调试钩子。`funcdata_varnode.cc` 缺失集中在符号映射（dynamic symbol、remap、linkProtoPartial）和只读/易失内存建模，这部分是 Rudra 当前分析管线的明显空白。`funcdata_block.cc` 缺失集中在 jumptable 恢复（stage/recover/early-fail）和 basic-block 移除原语（branchRemoveInternal / blockRemoveInternal / pushMultiequals / opZeroMulti）。
 
-注：`onlyOpUse` / `ancestorOpUse` 在 Rugra 中以**自由函数**形式实现（`src/funcdata.rs:6333`, `6428`），不属于 `impl Funcdata`；逻辑等价但签名不对齐，本审计按"缺失方法"计。
+注：`onlyOpUse` / `ancestorOpUse` 在 Rudra 中以**自由函数**形式实现（`src/funcdata.rs:6333`, `6428`），不属于 `impl Funcdata`；逻辑等价但签名不对齐，本审计按"缺失方法"计。
 
 ---
 
@@ -73,7 +73,7 @@
 - `newUniqueOut` → `new_unique_out` (rust L637) ✅
 - `newVarnode(int4,Address&,Datatype*)` / `newVarnode(int4,AddrSpace*,uintb)` → `new_varnode` (rust L200) ✅
 - `newVarnodeIop` → `new_varnode_iop` (rust L2129) ✅
-- `destroyVarnode` → `delete_varnode` (rust L221) ✅（Rugra 命名为 `delete_varnode`）
+- `destroyVarnode` → `delete_varnode` (rust L221) ✅（Rudra 命名为 `delete_varnode`）
 - `setInputVarnode` → `set_input_varnode` (rust L211) ✅
 - `combineInputVarnodes` → `combine_input_varnodes` (rust L230) ✅
 - `newExtendedConstant` → `new_extended_constant` (rust L659) ✅
@@ -111,10 +111,10 @@
 ### funcdata.cc (36 缺失)
 
 #### 警告与处理生命周期 — 高
-- **[高]** `warning(const string &txt,const Address &ad)` — funcdata.cc:119 — 地址级警告注释。Rugra 仅实现了 `warning_header`（函数级），缺失将 warning 挂到具体 p-code 地址的能力，所有需要带地址的诊断信息（如 `fillinReadOnly` 写只读、`replaceVolatile` 异常）都无落脚点。
-- **[高]** `startProcessing(void)` — funcdata.cc:150 — 处理流水线启动入口（`followFlow` + `structureReset` + `sortCallSpecs` + `heritage.buildInfoList` + `localoverride.applyDeadCodeDelay`）。Rugra 把这些步骤散落到调用方手动编排，缺少一站式入口。
-- **[高]** `stopProcessing(void)` — funcdata.cc:170 — 处理完成钩子（`destroyDead` + `issueDatatypeWarnings` + 统计）。Rugra 无对应收尾。
-- **[高]** `startTypeRecovery(void)` — funcdata.cc:182 — 标记类型恢复开始（设置 `typerecovery_start` flag）。Rugra 提供 `set_type_recovery_started` 但缺少"原子检查并设置"语义。
+- **[高]** `warning(const string &txt,const Address &ad)` — funcdata.cc:119 — 地址级警告注释。Rudra 仅实现了 `warning_header`（函数级），缺失将 warning 挂到具体 p-code 地址的能力，所有需要带地址的诊断信息（如 `fillinReadOnly` 写只读、`replaceVolatile` 异常）都无落脚点。
+- **[高]** `startProcessing(void)` — funcdata.cc:150 — 处理流水线启动入口（`followFlow` + `structureReset` + `sortCallSpecs` + `heritage.buildInfoList` + `localoverride.applyDeadCodeDelay`）。Rudra 把这些步骤散落到调用方手动编排，缺少一站式入口。
+- **[高]** `stopProcessing(void)` — funcdata.cc:170 — 处理完成钩子（`destroyDead` + `issueDatatypeWarnings` + 统计）。Rudra 无对应收尾。
+- **[高]** `startTypeRecovery(void)` — funcdata.cc:182 — 标记类型恢复开始（设置 `typerecovery_start` flag）。Rudra 提供 `set_type_recovery_started` 但缺少"原子检查并设置"语义。
 
 #### Spacebase 体系 — 高
 - **[高]** `newSpacebasePtr(AddrSpace *id)` — funcdata.cc:275 — 构造栈指针 Varnode。`createStackRef`/`opStackStore`/`opStackLoad` 全部依赖它。
@@ -138,7 +138,7 @@
 - **[高]** `inheritResolution(Datatype*,const PcodeOp*,int4,PcodeOp*,int4)` — funcdata.cc:995 — 把一个 PcodeOp 的 union 字段解析继承到另一个 PcodeOp（cast 插入后必需）。
 
 #### P-code 注入 — 高
-- **[高]** `doLiveInject(InjectPayload*,const Address&,BlockBasic*,list<PcodeOp*>::iterator)` — funcdata.cc:848 — 在活块中插入注入 payload 生成的 p-code。Rugra 有 `inject_raw_ops*` 但接口形态不同。
+- **[高]** `doLiveInject(InjectPayload*,const Address&,BlockBasic*,list<PcodeOp*>::iterator)` — funcdata.cc:848 — 在活块中插入注入 payload 生成的 p-code。Rudra 有 `inject_raw_ops*` 但接口形态不同。
 
 #### XML 编解码 — 中
 - **[中]** `printRaw(ostream&) const` — funcdata.cc:209 — 控制台打印原始 p-code。
@@ -163,9 +163,9 @@
 ### funcdata_op.cc (18 缺失)
 
 #### Op 维护原语 — 高
-- **[高]** `opInsert(PcodeOp*,BlockBasic*,list<PcodeOp*>::iterator)` — funcdata_op.cc:150 — 所有 `opInsertBefore/After/Begin/End` 的底层实现（markAlive + bl->insert）。Rugra 各 `op_insert_*` 直接操作 list，未抽取公共底层；签名缺失。
-- **[高]** `opUnlink(PcodeOp*)` — funcdata_op.cc:179 — 同时 unset 输入输出并 uninsert（op 销毁前的标准清理）。Rugra 无对应一站式入口。
-- **[高]** `opDestroyRaw(PcodeOp*)` — funcdata_op.cc:253 — 销毁原始 op 及其所有 io Varnode（用于 flow 生成期的替换）。Rugra 的 `op_destroy` 不破坏 io，签名不同。
+- **[高]** `opInsert(PcodeOp*,BlockBasic*,list<PcodeOp*>::iterator)` — funcdata_op.cc:150 — 所有 `opInsertBefore/After/Begin/End` 的底层实现（markAlive + bl->insert）。Rudra 各 `op_insert_*` 直接操作 list，未抽取公共底层；签名缺失。
+- **[高]** `opUnlink(PcodeOp*)` — funcdata_op.cc:179 — 同时 unset 输入输出并 uninsert（op 销毁前的标准清理）。Rudra 无对应一站式入口。
+- **[高]** `opDestroyRaw(PcodeOp*)` — funcdata_op.cc:253 — 销毁原始 op 及其所有 io Varnode（用于 flow 生成期的替换）。Rudra 的 `op_destroy` 不破坏 io，签名不同。
 
 #### Stack ref 工具链 — 高
 - **[高]** `createStackRef(AddrSpace*,uintb,PcodeOp*,Varnode*,bool)` — funcdata_op.cc:459 — 构造相对于栈指针的 INT_ADD（带段运算）。`opStackStore`/`opStackLoad` 的公共依赖。
@@ -174,13 +174,13 @@
 
 #### 克隆与流复制 — 高/中
 - **[高]** `cloneOp(const PcodeOp*,const SeqNum&)` — funcdata_op.cc:616 — 深克隆 op（含 io Varnode）。`truncatedFlow`/`inlineFlow` 的依赖。
-- **[高]** `followFlow(const Address&,const Address&)` — funcdata_op.cc:756 — 从入口跟随流生成原始 p-code + 块 + callspec。Rugra 把这部分能力放到了 `inject_raw_ops*`（rust L2829-3018），签名与流程都不对齐。
-- **[中]** `truncatedFlow(const Funcdata*,const FlowInfo*)` — funcdata_op.cc:792 — 部分流克隆（用于 jumptable 恢复）。Rugra 设计上不做 partial clone，标记为有意省略。
-- **[中]** `inlineFlow(Funcdata*,FlowInfo&,PcodeOp*)` — funcdata_op.cc:853 — 函数内联。Rugra 不做 inline，标记为有意省略。
+- **[高]** `followFlow(const Address&,const Address&)` — funcdata_op.cc:756 — 从入口跟随流生成原始 p-code + 块 + callspec。Rudra 把这部分能力放到了 `inject_raw_ops*`（rust L2829-3018），签名与流程都不对齐。
+- **[中]** `truncatedFlow(const Funcdata*,const FlowInfo*)` — funcdata_op.cc:792 — 部分流克隆（用于 jumptable 恢复）。Rudra 设计上不做 partial clone，标记为有意省略。
+- **[中]** `inlineFlow(Funcdata*,FlowInfo&,PcodeOp*)` — funcdata_op.cc:853 — 函数内联。Rudra 不做 inline，标记为有意省略。
 
 #### 流覆盖与控制流覆写 — 高
 - **[高]** `findPrimaryBranch(iter,enditer,bool,bool,bool)` — funcdata_op.cc:929 — 在一段 p-code 中找到主分支/调用/返回 op。`overrideFlow` 的依赖。
-- **[高]** `overrideFlow(const Address&,uint4)` — funcdata_op.cc:969 — 应用用户 flow override（BRANCH/CALL/CALL_RETURN/RETURN）。Rugra 计划放到独立 `override.rs`，当前缺失。
+- **[高]** `overrideFlow(const Address&,uint4)` — funcdata_op.cc:969 — 应用用户 flow override（BRANCH/CALL/CALL_RETURN/RETURN）。Rudra 计划放到独立 `override.rs`，当前缺失。
 
 #### 表达式规范化 — 高
 - **[高]** `collapseIntMultMult(Varnode*)` — funcdata_op.cc:1132 — 合并两条链式常量乘法。
@@ -193,7 +193,7 @@
 ### funcdata_varnode.cc (38 缺失)
 
 #### Varnode 属性与 HighVariable — 高
-- **[高]** `setVarnodeProperties(Varnode*) const` — funcdata_varnode.cc:25 — 从 localmap 查询属性并应用到 Varnode；cover 计算；几乎所有新 Varnode 的统一后处理。Rugra 内联到各 new_* 入口，缺公共函数。
+- **[高]** `setVarnodeProperties(Varnode*) const` — funcdata_varnode.cc:25 — 从 localmap 查询属性并应用到 Varnode；cover 计算；几乎所有新 Varnode 的统一后处理。Rudra 内联到各 new_* 入口，缺公共函数。
 - **[高]** `assignHigh(Varnode*)` — funcdata_varnode.cc:48 — 为 Varnode 分配/构造 HighVariable。
 - **[高]** `findHigh(const string&) const` — funcdata_varnode.cc:316 — 按名查 HighVariable。
 - **[高]** `transferVarnodeProperties(Varnode*,Varnode*,int4)` — funcdata_varnode.cc:614 — 把 consume 位与 directwrite/addrforce flag 从旧 Varnode 转移到新 Varnode（SUBPIECE / 截断后必需）。
@@ -241,8 +241,8 @@
 
 #### 参数 trial 分析 — 高
 - **[高]** `checkCallDoubleUse(const PcodeOp*,const PcodeOp*,const Varnode*,uint4,const ParamTrial&) const` — funcdata_varnode.cc:1756 — 测试同一 Varnode 在两个 CALL 间是否合法双重使用。
-- **[高]** `onlyOpUse(const Varnode*,const PcodeOp*,const ParamTrial&,uint4) const` — funcdata_varnode.cc:1805 — 测试 trial Varnode 是否只用于指定 CALL/RETURN。Rugra 以自由函数 `only_op_use`（rust L6333）实现，逻辑等价但签名不对齐。
-- **[高]** `ancestorOpUse(int4,const Varnode*,const PcodeOp*,ParamTrial&,int4,uint4) const` — funcdata_varnode.cc:1917 — 沿祖先链测试 trial 是否仅用于指定 op。Rugra 以自由函数 `ancestor_op_use`（rust L6428）实现。
+- **[高]** `onlyOpUse(const Varnode*,const PcodeOp*,const ParamTrial&,uint4) const` — funcdata_varnode.cc:1805 — 测试 trial Varnode 是否只用于指定 CALL/RETURN。Rudra 以自由函数 `only_op_use`（rust L6333）实现，逻辑等价但签名不对齐。
+- **[高]** `ancestorOpUse(int4,const Varnode*,const PcodeOp*,ParamTrial&,int4,uint4) const` — funcdata_varnode.cc:1917 — 沿祖先链测试 trial 是否仅用于指定 op。Rudra 以自由函数 `ancestor_op_use`（rust L6428）实现。
 
 ### funcdata_block.cc (14 缺失)
 
@@ -270,14 +270,14 @@
 
 按主题分组：
 
-1. **警告与处理生命周期 (4)** — `warning`、`startProcessing`、`stopProcessing`、`startTypeRecovery`。Rugra 当前缺地址级 warning 落点与一站式 start/stop。
+1. **警告与处理生命周期 (4)** — `warning`、`startProcessing`、`stopProcessing`、`startTypeRecovery`。Rudra 当前缺地址级 warning 落点与一站式 start/stop。
 2. **Spacebase 体系 (5)** — `newSpacebasePtr`、`findSpacebaseInput`、`constructSpacebaseInput`、`constructConstSpacebase`、`spacebaseConstant`。栈/全局寻址的核心构造块，缺失会阻断 stack-relative 分析。
 3. **Callspec 管理 (6)** — `clearCallSpecs`、`issueDatatypeWarnings`、`compareCallspecs`、`sortCallSpecs`、`deleteCallSpecs`、`fillinExtrapop`。参数分析与 x86 extrapop 恢复必需。
 4. **Union 字段解析 (4)** — `getUnionField`、`setUnionField`、`forceFacingType`、`inheritResolution`。union 类型传播的关键存储。
 5. **P-code 注入 (1)** — `doLiveInject`。
 6. **Op 维护原语 (3)** — `opInsert`、`opUnlink`、`opDestroyRaw`。
 7. **Stack ref 工具链 (3)** — `createStackRef`、`opStackStore`、`opStackLoad`。
-8. **克隆与流复制 (2)** — `cloneOp`、`followFlow`（Rugra 当前用 `inject_raw_ops*` 但签名不对齐）。
+8. **克隆与流复制 (2)** — `cloneOp`、`followFlow`（Rudra 当前用 `inject_raw_ops*` 但签名不对齐）。
 9. **流覆盖与覆写 (2)** — `findPrimaryBranch`、`overrideFlow`。
 10. **表达式规范化 (6)** — `collapseIntMultMult`、`buildCopyTemp`、`opFlipInPlaceTest`、`opFlipInPlaceExecute`、`cseFindInBlock`、`moveRespectingCover`。
 11. **Varnode 属性 (4)** — `setVarnodeProperties`、`assignHigh`、`findHigh`、`transferVarnodeProperties`。
@@ -290,7 +290,7 @@
 18. **块结构维护 (8)** — `printBlockTree`、`clearBlocks`、`clearJumpTables`、`pushMultiequals`、`opZeroMulti`、`branchRemoveInternal`、`descendantsOutside`、`blockRemoveInternal`。
 19. **Jumptable 恢复 (6)** — `linkJumpTable`、`installJumpTable`、`stageJumpTable`、`earlyJumpTableFail`、`recoverJumpTable`、`switchOverJumpTables`。
 
-中优先级 (13)：XML 编解码全套（`encode`/`decode`/`encodeJumpTable`/`decodeJumpTable`/`encodeVarnode`/`encodeHigh`/`encodeTree`）、`printRaw`、`printVarnodeTree`、`printLocalRange`、`findLinkedVarnode`(单)、`truncatedFlow`、`inlineFlow`（后两者 Rugra 设计上已决定不做 partial clone / inline）。
+中优先级 (13)：XML 编解码全套（`encode`/`decode`/`encodeJumpTable`/`decodeJumpTable`/`encodeVarnode`/`encodeHigh`/`encodeTree`）、`printRaw`、`printVarnodeTree`、`printLocalRange`、`findLinkedVarnode`(单)、`truncatedFlow`、`inlineFlow`（后两者 Rudra 设计上已决定不做 partial clone / inline）。
 
 低优先级 (6)：全部 OPACTION_DEBUG 调试钩子（`debugModCheck`、`debugModClear`、`debugModPrint`、`debugSetRange`、`debugCheckRange`、`debugPrintRange`）。
 
@@ -298,9 +298,9 @@
 
 ## 说明
 
-- **签名归一**：Ghidra 的 `Funcdata::method` 与 Rugra 的 `snake_case` 方法对齐时，允许返回类型 `*` 紧贴方法名（如 `PcodeOp *Funcdata::newOp`）和参数换行；本审计以多行括号平衡算法提取，确保 `stageJumpTable`/`recoverJumpTable`/`overrideFlow` 等长签名被正确捕获。
-- **逻辑等价但签名不对齐**：`onlyOpUse` / `ancestorOpUse` 在 Rugra 中以自由函数（带显式 `has_active_output` 等参数）实现，逻辑忠实于 Ghidra，但因不是 `impl Funcdata` 方法而计入"缺失"。如需严格 API 对齐，应改为 `impl Funcdata` 上的方法或提供 trait 桥接。
-- **重载合并**：Ghidra 的 `newOp(int4,Address&)` 与 `newOp(int4,SeqNum&)` 在 Rugra 合并为单个 `new_op`；`newVarnode` 的两个重载合并为单个 `new_varnode`。Rugra 的 `new_op_before` 与 Ghidra 的 `newOpBefore` 均复用 `op_insert_before` 入口。这些合并视为合理 Rust 适配，算作对齐。
-- **命名差异**：`destroyVarnode` → `delete_varnode`（Rugra 改名）；`syncVarnodesWithSymbols` → `sync_varnodes_with_symbols`（已实现），但其内部辅助 `syncVarnodesWithSymbol`（单数）缺失。
-- **设计性省略**：`truncatedFlow` 与 `inlineFlow` 依赖 partial-function 克隆机制，Rugra 当前架构不做 partial clone；FUNC_funcdata.md 已标注为设计决策（➖），本审计按"缺失但中优先级"计，以待后续架构调整时再评估。
-- **来源行号基准**：所有 Ghidra 行号基于 `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/funcdata*.cc`；Rugra 行号基于 `src/funcdata.rs`。
+- **签名归一**：Ghidra 的 `Funcdata::method` 与 Rudra 的 `snake_case` 方法对齐时，允许返回类型 `*` 紧贴方法名（如 `PcodeOp *Funcdata::newOp`）和参数换行；本审计以多行括号平衡算法提取，确保 `stageJumpTable`/`recoverJumpTable`/`overrideFlow` 等长签名被正确捕获。
+- **逻辑等价但签名不对齐**：`onlyOpUse` / `ancestorOpUse` 在 Rudra 中以自由函数（带显式 `has_active_output` 等参数）实现，逻辑忠实于 Ghidra，但因不是 `impl Funcdata` 方法而计入"缺失"。如需严格 API 对齐，应改为 `impl Funcdata` 上的方法或提供 trait 桥接。
+- **重载合并**：Ghidra 的 `newOp(int4,Address&)` 与 `newOp(int4,SeqNum&)` 在 Rudra 合并为单个 `new_op`；`newVarnode` 的两个重载合并为单个 `new_varnode`。Rudra 的 `new_op_before` 与 Ghidra 的 `newOpBefore` 均复用 `op_insert_before` 入口。这些合并视为合理 Rust 适配，算作对齐。
+- **命名差异**：`destroyVarnode` → `delete_varnode`（Rudra 改名）；`syncVarnodesWithSymbols` → `sync_varnodes_with_symbols`（已实现），但其内部辅助 `syncVarnodesWithSymbol`（单数）缺失。
+- **设计性省略**：`truncatedFlow` 与 `inlineFlow` 依赖 partial-function 克隆机制，Rudra 当前架构不做 partial clone；FUNC_funcdata.md 已标注为设计决策（➖），本审计按"缺失但中优先级"计，以待后续架构调整时再评估。
+- **来源行号基准**：所有 Ghidra 行号基于 `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/funcdata*.cc`；Rudra 行号基于 `src/funcdata.rs`。

@@ -15,7 +15,7 @@ R3MERGE 等）。
 curl 语料的**门禁驱动**：canon 面（默认）以 analyzeHeadless 契约装配
 传输层后跑全默认 action 管线 + `PrintC`，对照 golden
 `tests/golden/ghidra_curl_1204.c`（锁定 oracle e40ed130，Ghidra 12.0.4）；
-镜面面（`RUGRA_MIRROR` 族）复现 direct-runner oracle 契约（BfdArchitecture
+镜面面（`RUDRA_MIRROR` 族）复现 direct-runner oracle 契约（BfdArchitecture
 裸装载 + `followFlow`）。
 
 ## FIELDRETYPE 通道（canon 默认开，`CANON-BOOLCHAR-FIELDTYPE-0001`）
@@ -24,7 +24,7 @@ curl 语料的**门禁驱动**：canon 面（默认）以 analyzeHeadless 契约
 
 canon golden main 的 `::config.remotefile ==/!= false`（4 站）与
 getparameter 的 `::config.remotefile = (bool)(::config.remotefile ^ 1)`（1
-站）共 10 行，Rugra 基线印 `'\0'` 字符字面量与无 cast 形。前波（R4BOOL /
+站）共 10 行，Rudra 基线印 `'\0'` 字符字面量与无 cast 形。前波（R4BOOL /
 CURLFAM）双证伪判决在 4df1e154 重钻恒等：**Java headless DWARF importer
 提交层字段改型，非渲染/传播缺陷**——
 
@@ -61,9 +61,9 @@ CURLFAM）双证伪判决在 4df1e154 重钻恒等：**Java headless DWARF impor
   manager remap 后的单身份状态，cast.cc:304 指针同一性比较无 cast）。
   刻意不用 per-site 树改写（第二身份会分裂 cast 引擎指针同一性检查）。
 - **门极性（SYMDB DFLIP 形状，BOOLDRILL 2026-09-28 翻转）**:
-  canon 面**默认装**；`RUGRA_FIELDRETYPE=0` 恢复 DWARF 字面（char）脸；
-  mirror 组件恒拒（五投影纯净）；`RUGRA_SEEDS=0` 全局裸脸逃生；
-  `RUGRA_FIELDRETYPE_MANIFEST=<path>` 覆盖；manifest 缺失/损坏=响亮
+  canon 面**默认装**；`RUDRA_FIELDRETYPE=0` 恢复 DWARF 字面（char）脸；
+  mirror 组件恒拒（五投影纯净）；`RUDRA_SEEDS=0` 全局裸脸逃生；
+  `RUDRA_FIELDRETYPE_MANIFEST=<path>` 覆盖；manifest 缺失/损坏=响亮
   no-op。
 
 ### 效果（基=4df1e154 A/B 亲测）
@@ -87,7 +87,7 @@ canon curl **42→32/0/0**（−10 精确=票面全额：main 9→1[BOOLCHAR 8 �
 ### 现象（canon curl 残差 myprogress 3 行）
 
 golden `fVar9 = DAT_00107178 * fVar10;`（ghidra_curl_1204.c:1163）vs
-Rugra `fVar9 = _DAT_00107178 * fVar10;` + 函数头
+Rudra `fVar9 = _DAT_00107178 * fVar10;` + 函数头
 `/* WARNING: Globals starting with '_' overlap smaller symbols at the
 same address */`。同站双票登记：`CURLCANON-DATSLOT-SIZE-0001`（尺寸）
 ≡`CANON-GLOBALSYM-UNDERSCORE-0001`（`_` 前缀+WARNING）——同一 3 行。
@@ -101,7 +101,7 @@ same address */`。同站双票登记：`CURLCANON-DATSLOT-SIZE-0001`（尺寸�
   **size 4**、typelock/namelock/readonly、merge=false——oracle 的
   reference-following data creation 按**访问宽度**定 Data 尺寸（对照：同窗
   `lea` 站 DAT_001061d9=1 字节 undefined）。
-- **Rugra 基线 DB**（probe 亲证 `query_container(0x107178,1)→
+- **Rudra 基线 DB**（probe 亲证 `query_container(0x107178,1)→
   DAT_00107178+3`）：通用非 string 臂 8 字节宽被 next-string-start 裁到
   **3**（裁刀=浮点末字节 0x42='B' 构成的 1 字符 run @0x10717b——canon
   strings analyzer 从不收录），symbol type=undefined1。
@@ -150,7 +150,7 @@ master 全等（`git diff 24e7188f..HEAD -- src/` 空）→ cargo test 1969P/0F/
 
 canon curl `_start` 5 行残差（签名对 2 + `undefined8 unaff_retaddr;` 声明 1 +
 `__libc_start_main` 实参位 2）：golden 印 `void processEntry
-_start(undefined8 param_1,undefined8 param_2)`，Rugra 印 3 参形 +
+_start(undefined8 param_1,undefined8 param_2)`，Rudra 印 3 参形 +
 `unaff_retaddr`。**根因=传送缺口，非机制缺陷**——cspec 数据层
 （`sleigh_specs/x86-64-gcc.cspec:258-283` `processEntry` 原型：input#1=RDX、
 input#2=stack[0] 槽、伪 retaddr=RBP、extrapop=0、unaffected RSP）、fspec 消费层
@@ -174,7 +174,7 @@ fspec.cc:4690-4705             FuncProto::decode: mod=glb->getModel("processEntr
 ```
 
 **modellock 承重**：`ActionPrototypeTypes`（coreaction.cc:4617-4619）对未锁
-模型重绑 evalfp——无锁即中途抹掉约定（Rugra `coreaction.rs:12038` 同构守卫）。
+模型重绑 evalfp——无锁即中途抹掉约定（Rudra `coreaction.rs:12038` 同构守卫）。
 
 ### 通道形态
 
@@ -185,8 +185,8 @@ fspec.cc:4690-4705             FuncProto::decode: mod=glb->getModel("processEntr
   arch.proto_models 含 processEntry` →
   `fd.funcp.set_model(Some(processEntry)) + fd.funcp.set_model_lock(true)`，
   `[ENTRYCONV]` stderr 记账行。
-- **门极性**: canon 面默认装；`mirror_bare_load`（=RUGRA_MIRROR ∨
-  RUGRA_BARE_LOAD）恒拒——BfdArchitecture+readLoaderSymbols 裸环境无 Java
+- **门极性**: canon 面默认装；`mirror_bare_load`（=RUDRA_MIRROR ∨
+  RUDRA_BARE_LOAD）恒拒——BfdArchitecture+readLoaderSymbols 裸环境无 Java
   ElfProgramBuilder，direct-runner golden 亲证 `_start` 保持 3 参+unaff_retaddr
   裸形（镜面 `_start` diff=3 预存基线残差零漂移）。
 - **触发面**: 全语料恰 1 站（e_entry 唯一匹配 `_start`；记账行恰 1 条亲证）。
@@ -200,7 +200,7 @@ RDX 读=param_1 非 param_3） (d) `processEntry ` 前缀。canon curl 42→37
 （−5 精确，全语料 A/B diff 恰 `_start` 5 行外科手术式）；canon httpd 26
 零漂移（httpd 语料显式跳过 `_start`——零连带如实记）；镜面五面钉值恒等；
 bank 391/391；cargo test 1965P（examples-only 零新测）。详证=
-`/dev/shm/rugra-reports/LANE_ENTRYCONV_2026-09-28.md`。
+`/dev/shm/rudra-reports/LANE_ENTRYCONV_2026-09-28.md`。
 
 ## 验证口径
 
@@ -208,7 +208,7 @@ bank 391/391；cargo test 1965P（examples-only 零新测）。详证=
 CARGO_TARGET_DIR=<t> cargo build --release --example curl_decompile
 <t>/release/examples/curl_decompile > curl_cur.c             # canon 面（默认装 retype）
 python3 tools/compare_ghidra.py curl_cur.c tests/golden/ghidra_curl_1204.c --summary-only
-RUGRA_FIELDRETYPE=0 <t>/release/examples/curl_decompile     # DWARF 字面脸逃生
+RUDRA_FIELDRETYPE=0 <t>/release/examples/curl_decompile     # DWARF 字面脸逃生
 tools/verify_mirror_gate.sh --corpus curl --bin-dir <t>/release/examples
 ```
 
@@ -228,13 +228,13 @@ analyzeHeadless 正典产物）。差分门禁 =
 `tools/compare_ghidra.py <out> tests/golden/ghidra_curl_1204.c --summary-only`。
 
 驱动携带的正典数据通道（canon-only，镜面组件恒拒——五投影 bank 纯净性；
-`RUGRA_SEEDS=0` 为全局裸脸逃生门）包括：
+`RUDRA_SEEDS=0` 为全局裸脸逃生门）包括：
 
 - PLT/libc ABI 签名表 + DWARF callee 签名（`link_call_specs`，queryCall 边界）；
 - FIELDRETYPE 字段改型台账（`field_retype_curl_1204.json`，DFLIP 默认开）；
 - CMTSEED 注释种子（`curl_cmt_1204.json`）；
 - V3SIG callee 锁定原型清单（`callee_siglock_curl_1204.json`，opt-in）；
-- 自托管 Parameter ID 迭代（PARAMID，默认开，`RUGRA_PARAMID=0` 逃生）。
+- 自托管 Parameter ID 迭代（PARAMID，默认开，`RUDRA_PARAMID=0` 逃生）。
 
 ## analysis-DB 入口签名台账（CURLCANON-INITPROTO-FID-0001）
 
@@ -275,11 +275,11 @@ golden_sha256 + adjudication + witnesses 溯源）。装配方
 ### 门极性（DFLIP，booldrill 先例形）
 
 - 默认开（canon 面默认装台账）；
-- 镜面组件（RUGRA_MIRROR / RUGRA_FLOW_MIRROR / RUGRA_BARE_LOAD /
-  RUGRA_ORACLE_FIXTURE_DATA，含 bundle 传递）恒拒；
-- `RUGRA_SEEDS=0` 全局裸脸；
-- `RUGRA_FIDSIG=0` 通道自 opt-out（= 基线脸 `8dafa799…` 字节恒等）；
-- `RUGRA_FIDSIG_MANIFEST=<path>` 覆盖清单路径；缺失/损坏 = 响亮 no-op。
+- 镜面组件（RUDRA_MIRROR / RUDRA_FLOW_MIRROR / RUDRA_BARE_LOAD /
+  RUDRA_ORACLE_FIXTURE_DATA，含 bundle 传递）恒拒；
+- `RUDRA_SEEDS=0` 全局裸脸；
+- `RUDRA_FIDSIG=0` 通道自 opt-out（= 基线脸 `8dafa799…` 字节恒等）；
+- `RUDRA_FIDSIG_MANIFEST=<path>` 覆盖清单路径；缺失/损坏 = 响亮 no-op。
 
 ### 验收锚（2026-09-28，基 4df1e154）
 
@@ -315,7 +315,7 @@ analyzeHeadless 默认分析在代码引用的地址创建
 createData`（:292-364），`Undefined.getUndefinedDataType(size)` 中 `size` =
 读/写宽，`DataUtilities.createData(…, CLEAR_ALL_UNDEFINED_CONFLICT_DATA)`
 顺序后写覆盖（1..8 之外不建、与已定义 Data 冲突则整体不建）。真机探针
-（/dev/shm/rugra-tests/datslot/probe_out2.log，锁定 e40ed130 发行版）：
+（/dev/shm/rudra-tests/datslot/probe_out2.log，锁定 e40ed130 发行版）：
 0x107178 = **undefined4/size-4** + DEFAULT 动态标签 DAT_00107178（4 字节
 READ 引用）；0x107180 = undefined1（纯 DATA 型地址引用不建宽 Data）。
 
@@ -327,7 +327,7 @@ READ 引用）；0x107180 = undefined1（纯 DATA 型地址引用不建宽 Data�
   体（STT_FUNC + analysis-body 台账 + PLT 槽 = Java 分析器走过的指令全集）
   得 (地址→访问宽)；流引用（BRANCH/CALL 目标）按 Java `refType.isData()`
   门排除；地址序后写覆盖镜像 createData 顺序替换。**无 env 门**——所喂 DB
-  层在一切非 bare 面安装，挂 RUGRA_DISABLE_SHARED_RETURN 会在无关诊断 env
+  层在一切非 bare 面安装，挂 RUDRA_DISABLE_SHARED_RETURN 会在无关诊断 env
   下改变 canon 脸。
 - **传输**：`DecompileRequest.rodata_ref_widths: Vec<(u64,i32)>`（canon
   空间键，边界 +img_base 重定基，同其余数据层）。

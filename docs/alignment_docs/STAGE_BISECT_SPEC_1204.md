@@ -3,7 +3,7 @@
 > **Oracle 指纹**:Ghidra 12.0.4,commit `e40ed13014025f82488b1f8f7bca566894ac376b`
 > (与 AGENTS.md 锁定的源码 oracle 同版),架构 `x86:LE:64:default`。
 >
-> **用途**:双侧管线 stage 投影(oracle harness / Rugra emitter)的生成与消费契约。
+> **用途**:双侧管线 stage 投影(oracle harness / Rudra emitter)的生成与消费契约。
 > 投影是单次反编译运行的逐 application 边界 + 完成态快照轨迹,消费端
 > `tools/stage_bisect.py`(`--v1` 模式)据此定位双侧首个分歧边界并归因到
 > Action 树节点/op 行。
@@ -29,10 +29,10 @@ META/@BEGIN/@END/@CONVERGED/@RESTART + 记录行;升级 parser 与 selftest 由 
 与生产端同一阶段落地):
 
 ```
-META side=oracle|rugra oracle_commit=e40ed130... arch=... cspec=...
+META side=oracle|rudra oracle_commit=e40ed130... arch=... cspec=...
 META analysis_options=<指纹> build_flags=v1-no-OPACTION_DEBUG
 META binary_sha256=<...> func_entry=<0x...> func_name=<...> load_mode=single_function_bfd
-META producer=<harness-blob-sha 或 rugra-tree-commit> maxrestarts=1 unique_base=<hex>
+META producer=<harness-blob-sha 或 rudra-tree-commit> maxrestarts=1 unique_base=<hex>
 @RESTART <curstart>                    # Ghidra curstart 原生 0 基字段;首轮不发行
 @BEGIN <seq> <tree-path>               # seq=全局单调递增应用序号(1 基);断点停顿不发(纯边界事件不编号)
 @END <seq> <tree-path> result=<perform-ret> count=<count-at-completion> tests=<ΔnumTests> apply=<ΔnumApply>
@@ -58,7 +58,7 @@ result/count 字段级定义(Gate 1 BLOCKER-4 修正):
   断点停顿不发 @BEGIN/@END)。
 - count = 该节点 perform 完成那一刻的 Action::count:oracle 经 fixture 访问 hack 读取
   (先例 action_break_pool_1204.cc:561 读 protected curstart 同款模式);
-  Rugra 读 ActionState.count,**禁止 take_count_delta()**(它会清空 delta,生命周期不同)。
+  Rudra 读 ActionState.count,**禁止 take_count_delta()**(它会清空 delta,生命周期不同)。
 - tests/apply = getNumTests/getNumApply 差值(action.hh:110-112 公开接口)。
 - 声明:断点步进使 count_tests 系统性少于连续运行(action.cc:306-311 恢复 fall-through
   跳过自增)——计数仅在双侧同协议步进下可比,禁止与非步进基线混比。
@@ -82,9 +82,9 @@ restart:全树唯一 ActionRestartGroup=universal(max=1);轮次以 curstart(0 �
   两侧都按 count 读。
 
 构建与边界(Gate 1 第 6 点):v1 双侧均**不带 OPACTION_DEBUG** 构建(消灭 build flag 变量
-与 debugBreak 可达性扰动);Rugra emitter 的 src/ 变更仅允许纯只读访问器
-(`// RUGRA-GLUE:` 注释);两侧加载契约钉死同一单函数 BFD 契约(同入口/同 context/
-同原型与选项注入,Rugra 侧需与 oracle harness 对齐而非沿用全程序 shim 路径时,头部
+与 debugBreak 可达性扰动);Rudra emitter 的 src/ 变更仅允许纯只读访问器
+(`// RUDRA-GLUE:` 注释);两侧加载契约钉死同一单函数 BFD 契约(同入口/同 context/
+同原型与选项注入,Rudra 侧需与 oracle harness 对齐而非沿用全程序 shim 路径时,头部
 load_mode 记录差异)。
 
 ## 实现备注(消费端解析决策,2026-09-22 Gate 2-E 返修,commit 006db61)
@@ -104,7 +104,7 @@ load_mode 记录差异)。
   独立 kind `V1_META_MISMATCH` + exit 1,且**先于**任何 stage 比较(防止不同
   函数投影互比的静默假 MATCH)。`func_name`/`producer` 保持 warning(两侧本就
   异构);`unique_base` 保持"先比基址"金丝雀 warning,不进身份键
-  (Rugra 侧 unique 空间基址与 oracle 不必同值,漂移语义由 op 行金丝雀承担)。
+  (Rudra 侧 unique 空间基址与 oracle 不必同值,漂移语义由 op 行金丝雀承担)。
 - **R-1 per-slot `-`**:`in=` 逗号列表的元素允许 `-`(null 槽位,槽位序保留,如
   `in=u:1008:8,-,c:1:4`);整列表 `in=-` 仍为 M1 的"无输入"拼写。
 - **R-2 seq 强连续**:`@BEGIN` 的 seq 必须等于 last_seq+1(全局 1 基连续),
@@ -137,7 +137,7 @@ vn 描述符新增三类:
 
 - `s:<spacename>` — 空间引用常量槽。oracle 侧识别 = 常量空间、宽度
   sizeof(AddrSpace*) 且值命中本进程注册空间对象表(与 getSpaceFromConst 解码集合
-  逐一致);Rugra 侧识别 = 其 spaceid 编码槽(结构对应)。渲染被引用空间名。
+  逐一致);Rudra 侧识别 = 其 spaceid 编码槽(结构对应)。渲染被引用空间名。
   名字唯一性由 AddrSpaceManager::insertSpace 强制(translate.cc:415-433,重名即
   LowlevelError),s: 无碰撞。
 - `f:<addr>:<time>` — fspec 空间 varnode。渲染**宿主 op 自身 SeqNum**(与 op-line
@@ -157,7 +157,7 @@ clone 携带原 SeqNum = 原地替换习语,逻辑身份连续。指针伪影只
 op-line 的 <OPC_NAME>(v1.2.1 勘误,2026-09-22)= get_opname(op->code()) 原文
 (opcodes.hh:133;正典表 = opcodes.cc opcode_name[],74 名,大写无前缀,如
 COPY / BRANCH / CBRANCH / INT_ADD / INT_SUB / SUBPIECE / INT_ZEXT)。两侧拼写
-逐字钉死该表;Rugra 侧用其 CPUI 等价枚举名,须对全表 74 名(不只已出现子集)
+逐字钉死该表;Rudra 侧用其 CPUI 等价枚举名,须对全表 74 名(不只已出现子集)
 做 parity 检查。消费端文法收紧为 ^[A-Z][A-Z0-9_]*$(可选闭集校验)。
 勘误动因:getOpName() 的 TypeOp name 域(typeop.cc ctor 表)是有损映射——
 goto=BRANCH+CBRANCH、+=INT_ADD/FLOAT_ADD/PTRADD、-=INT_SUB/FLOAT_SUB/
@@ -197,7 +197,7 @@ FLOAT_NEG/INT_2COMP、</<=/==/!=/*// /%/>> 等 INT/FLOAT 合并类(11 个有损�
   `followFlow(code:0, code:highest)`(regen_ghidra_golden.py:388 ≡ oracle
   harness:315)。oracle 生产端不得收窄;任何加载段改动须先证明与 regen
   路径逐调用等价。
-- Rugra 侧在实现同语义流跟随(含尾调用/跳转落入 code space 内地址的 op
+- Rudra 侧在实现同语义流跟随(含尾调用/跳转落入 code space 内地址的 op
   生成,Funcdata::followFlow/FlowInfo 无界-range 语义)之前,META
   load_mode 发 `single_function_flow`;镜像落地后切换 `single_function_bfd`。
   load_mode 为身份键:字面不同即 V1_META_MISMATCH(输入构造不同=不可比,

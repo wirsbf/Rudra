@@ -8,7 +8,7 @@
   Rust 枚举形态；ARENA_DESIGN §1.4 "闭集枚举 = 13 型 vtable 面"）：11 个
   reachable 变体（Basic/Copy/Goto/MultiGoto/List/Condition/If/WhileDo/DoWhile/
   InfLoop/Switch——即全部 11 个 `impl FlowBlock` 型）+ Plain/Graph（oracle 面
-  完备性；Rugra 的 BlockGraph 不是 FlowBlock、t_plain 无构造点，今日不可达）。
+  完备性；Rudra 的 BlockGraph 不是 FlowBlock、t_plain 无构造点，今日不可达）。
   每变体持该块的 `Arc<RwLock<dyn FlowBlock + Send + Sync>>` 句柄。
 - **`BankTable` 槽位翻转**：`arcs: Vec<Option<Arc>>` + `btypes: Vec<BlockType>`
   双表合并为 `kinds: Vec<Option<BlockKind>>` 单表——kind 标签只存一处（变体
@@ -31,7 +31,7 @@
   - Plain/Graph 变体保证 `from_dyn` 对 BlockType 13 值全定义（无新 panic 面）。
 - **`clone_arc`** 辅助（已死代码）随字段合并删除。
 - 行为红线：tests 2023P/0F/5I == 基线；canon/镜面门禁见车道终报
-  （/dev/shm/rugra-reports/LANE_BLOCKFLIPW1_2026-10-01.md）。
+  （/dev/shm/rudra-reports/LANE_BLOCKFLIPW1_2026-10-01.md）。
 - wave 2 交接面（消费层 `.read` 迁移）：热面（view_arc 45.1M 的 peer 锁+
   vtable）在消费代码持有句柄 `.read()` 处——wave 1 存储翻转不动消费层，
   45.1M 面的收割属 wave 2（`BlockKind` 判别位/typed 槽位即 wave 2 派发面）。
@@ -193,7 +193,7 @@ child 分发取反并执行 AND/OR 对偶。锁定 structured-negate fixture 覆
 - **2026-08-28 追加（BLOCK-BUILDCOPY-MIRROR-0001）**: `BlockGraph::new_block_copy/build_copy` 与真实 `BlockCopy` 已接入。锁定 12.0.4 的 5-case fixture 对边向量/标签/reverse slot、状态复制、copymap、append-prefix、实时委托、Basic end-insert 及 swap 后平行边删除产生 37 records / 5577 bytes，双侧逐字节相同（covered projection `MATCH`），并获得独立 scoped review APPROVE。default-switch 标签以 Ghidra 的 `0x04` 同步写入出入两半边，`BlockBasic::insert_op` 对 `BRANCHIND` 设置 `f_switch_out`。完整状态仍为 `MISMATCH`：真实 parent 身份、内建 structured source 状态、BlockCopy negate/print/marshal、Action executor 与完整结构化消费闭包均未取得完整行为门禁。
 - **2026-08-27 追加（TRI2-STRUCT-IRREDUCIBLE-TRACE-0001）**: `BlockGraph` 新增 `absorbed_into: HashMap<i32,i32>` 字段（吸收块索引 → 吸收它的组合块 install 槽位）+ `resolve_to_graph_level(&self, idx) -> i32`（沿链传递解析；live 块返回自身；`clear()` 一并重置）。该 map 只是对 Ghidra `FlowBlock::parent` 链的索引近似，不能保存对象身份、真实别名或父对象状态，因此不算等价 parent 实现；完整修复绑定 `BLOCK-ADDGRAPH-SEMANTICS-0001`。
 - **Ghidra 12.0.4 对齐级别**: L2；edge flags、双向 reverse-index、parent、RPO/loop/dominator 与 marshal 均有已复现反例
-- **文档目标**: 说明 Rugra 当前控制流块模型、CFG 相关对象和结构化块表示
+- **文档目标**: 说明 Rudra 当前控制流块模型、CFG 相关对象和结构化块表示
 - **可信边界**: 本文档描述的是当前 `block.rs` 在工程中的职责与公开接口角色，不代表“控制流恢复已经与 Ghidra 完全一致”
 - **阅读建议**: 建议与以下文档配合阅读：
   - `funcdata.md`
@@ -207,7 +207,7 @@ child 分发取反并执行 AND/OR 对偶。锁定 structured-negate fixture 覆
 
 ## 模块定位
 
-`block.rs` 是 Rugra 当前**控制流块模型与块图组织层**的核心模块之一。  
+`block.rs` 是 Rudra 当前**控制流块模型与块图组织层**的核心模块之一。  
 它的主要职责是：
 
 1. 定义基本块及其共同抽象
@@ -354,7 +354,7 @@ raw ops / PcodeOp
 Ghidra 共享位包括 `SWITCH_OUT`、`UNSTRUCTURED_TARG`、`MARK`、
 `MARK2`、`ENTRY_POINT`、`INTERIOR_GOTOOUT`、`INTERIOR_GOTOIN`、
 `LABEL_BUMPUP`、`DONOTHING_LOOP`、`DEAD`、`WHILEDO_OVERFLOW`、
-`FLIP_PATH`、`JOINED_BLOCK` 与 `DUPLICATE_BLOCK`。Rugra 专用位为
+`FLIP_PATH`、`JOINED_BLOCK` 与 `DUPLICATE_BLOCK`。Rudra 专用位为
 `RETURN_TERMINAL`、`CASE_BODY`、`GOTO_EDGE_0` 与 `GOTO_EDGE_1`。
 
 ### 这些标志的作用
@@ -371,7 +371,7 @@ Ghidra 共享位包括 `SWITCH_OUT`、`UNSTRUCTURED_TARG`、`MARK`、
 ### 推荐理解方式
 
 #### A. 终结性质相关
-- `RETURN_TERMINAL`（Rugra 胶水位）
+- `RETURN_TERMINAL`（Rudra 胶水位）
 
 这些标志主要帮助判断 block 的控制流结束方式。
 
@@ -507,7 +507,7 @@ parent 仍未等价；`BlockCopy` 的 print/raw/marshal 及所有取反组合
 FIXTURE-REGRESSION-0001 放宽）。Ghidra 侧 `setInitialRange` 为 private +
 `friend class Funcdata`（block.hh:462/467），公开构造路径是
 `Funcdata::setBasicBlockRange(bb, beg, end)`（funcdata.hh:556，内联转发）。
-Rugra 直接在 `BlockBasic` 上暴露 `pub`，使 crate 外的 oracle fixture
+Rudra 直接在 `BlockBasic` 上暴露 `pub`，使 crate 外的 oracle fixture
 能构造同等的合法块状态（锁定 C++ fixture 经 `#define private public`
 走 `fd.setBasicBlockRange`）。生产语义不变；无 range 时的回退仍见下条。
 
@@ -677,7 +677,7 @@ fixture）、`flags`、`reverse_index`。
 - 它还包含块间连接
 - 它可以作为更高一级结构块继续参与控制流建模
 
-这种“图也是块”的设计，是理解 Rugra 当前 block 架构的关键。
+这种“图也是块”的设计，是理解 Rudra 当前 block 架构的关键。
 
 ## 它通常承担的职责
 
@@ -1090,7 +1090,7 @@ getSplitPoint 都实时委托源块；getExitLeaf 返回副本自身。negateCon
 
 ## 一句话总结
 
-`block.rs` 是 Rugra 当前**控制流块模型与结构化块表示层**的核心模块：它既负责基本块和 CFG 的组织，也为 dominance、loop 分析和更高层的 `if/while/list/goto` 结构表达提供对象基础，是从底层操作图走向可打印控制流结构的关键桥梁。
+`block.rs` 是 Rudra 当前**控制流块模型与结构化块表示层**的核心模块：它既负责基本块和 CFG 的组织，也为 dominance、loop 分析和更高层的 `if/while/list/goto` 结构表达提供对象基础，是从底层操作图走向可打印控制流结构的关键桥梁。
 ### 2026-06-23（续）：F_SWITCH_DISPATCH 边标记
 
 - `edge_flags` 新增 `F_SWITCH_DISPATCH` 用于标记 switch dispatch 边。
@@ -1222,7 +1222,7 @@ BlockGraph 新增：
 - `get_visit_count`/`set_visit_count`（block.hh visit count）
 - `is_goto_in(i)`/`is_goto_out(i)`（block.hh:346-347）——**2026-06-29 修复**：`BlockBasic::is_goto_out` 此前只查边级 `F_GOTO_EDGE`，但 TraceDAG 把 goto 标在 block 级 `GOTO_EDGE_0/1` 上。修复后同时查边级和 block 级标志，使 ruleBlockWhileDo 能正确识别 break 边。
 - `set_loop_exit(i)`/`clear_loop_exit(i)`（block.hh:294-295）
-- `remove_in_edge_from(exclude_indices)`（block.cc:1469 忠实移植）——从块的 incoming 列表中移除 index 匹配的前驱边。对应 Ghidra `BlockGraph::removeEdge(begin, end)`，是 newBlockGoto/newBlockIfGoto "消费" goto 边的机制（使 goto 源对 target 的 sizeIn 不可见）。2026-06-29 新增，当前未被调用（ruleBlockGoto 消费实验因 Rugra 非对称边追踪导致图损坏，已回退；保留为未来对称边图工作的基础设施）。
+- `remove_in_edge_from(exclude_indices)`（block.cc:1469 忠实移植）——从块的 incoming 列表中移除 index 匹配的前驱边。对应 Ghidra `BlockGraph::removeEdge(begin, end)`，是 newBlockGoto/newBlockIfGoto "消费" goto 边的机制（使 goto 源对 target 的 sizeIn 不可见）。2026-06-29 新增，当前未被调用（ruleBlockGoto 消费实验因 Rudra 非对称边追踪导致图损坏，已回退；保留为未来对称边图工作的基础设施）。
 
 ### 2026-06-29：BlockIf goto_target 字段（newBlockIfGoto 风格，block.cc:1799）
 - BlockIf 新增 `goto_target: Option<Arc<...>>` 字段。当 Some 时，表示 if-goto 块（`if (cond) goto target;`），body 保持外部（非嵌入）。忠实 Ghidra BlockIf::gototarget（block.hh:660）。
@@ -1236,7 +1236,7 @@ BlockGraph 新增：
 
 ### 2026-07-01：CBRANCH 出边 + 支配查询（解锁 RuleConditionalMove/Int2FloatCollapse/IgnoreNan）
 - `FlowBlock::dominates(other)`（block.cc:386-395）— 沿 immed_dom 链上溯判断支配。
-- `FlowBlock::get_true_out(cbranch)/get_false_out(cbranch)`（block.hh:299-300）— **2026-08-23 CONDEXE-TRUEOUT-0002 修正为纯位置语义**：`get_false_out()=out[0]`、`get_true_out()=out[1]`，与 Ghidra 逐字一致，**不读 BOOLEAN_FLIP**。Rugra 流构造（flow.rs:920-928，同 flow.cc:960-967）先压 fallthru 再压 branch，因此 out[0]=false 路径、out[1]=true 路径，与 Ghidra 布局相同；negateCondition（block.cc:2351）翻转 flip 同时交换两条出边以维持该不变量。BOOLEAN_FLIP 只在显式调用点消费（condexe.cc:612、expression.cc:227-230、ruleaction.cc:8981/9428、coreaction.cc:4538、double.cc:922）。`cbranch` 形参已废弃（纯位置实现忽略之），仅为带租约消费文件（ruleaction.rs）保持签名兼容，租约释放后应移除。
+- `FlowBlock::get_true_out(cbranch)/get_false_out(cbranch)`（block.hh:299-300）— **2026-08-23 CONDEXE-TRUEOUT-0002 修正为纯位置语义**：`get_false_out()=out[0]`、`get_true_out()=out[1]`，与 Ghidra 逐字一致，**不读 BOOLEAN_FLIP**。Rudra 流构造（flow.rs:920-928，同 flow.cc:960-967）先压 fallthru 再压 branch，因此 out[0]=false 路径、out[1]=true 路径，与 Ghidra 布局相同；negateCondition（block.cc:2351）翻转 flip 同时交换两条出边以维持该不变量。BOOLEAN_FLIP 只在显式调用点消费（condexe.cc:612、expression.cc:227-230、ruleaction.cc:8981/9428、coreaction.cc:4538、double.cc:922）。`cbranch` 形参已废弃（纯位置实现忽略之），仅为带租约消费文件（ruleaction.rs）保持签名兼容，租约释放后应移除。
 - `FlowBlock::swap_edges()`（block.cc:218-233）— **2026-08-23 补齐 cc:225-228**：交换 out[0]/out[1] 后，按交换后槽位回写目标块入边的 reverse_index（此前缺失，negateCondition 后 get_in_rev_index 会过期）。
 - `FlowBlock::get_in_rev_index(slot)` trait 方法（block.hh:308）— 入边的反向索引。
 - `find_condition(bl1,edge1,bl2,edge2)` 自由函数（block.cc:839-858）— 返回支配两路径的 CBRANCH 块 + slot1。解锁 RuleInt2FloatCollapse 核心。
@@ -1272,7 +1272,7 @@ block_flags: +JOINED_BLOCK (1<<9, block.hh:97)。Funcdata: +create_new_block。
 
 ### 2026-07-04：block_flags 位值完整对齐 Ghidra block.hh:88-105
 - 所有 Ghidra 共享 flags 用精确位值：SWITCH_OUT=0x10, UNSTRUCTURED_TARG=0x20, MARK=0x80, ENTRY_POINT=0x200, DEAD=0x4000, JOINED_BLOCK=0x20000。
-- Rugra 独有 flags 当前位值：RETURN_TERMINAL=0x100000,
+- Rudra 独有 flags 当前位值：RETURN_TERMINAL=0x100000,
   CASE_BODY=0x200000, GOTO_EDGE_0=0x400000, GOTO_EDGE_1=0x800000。
 - 删除死代码 TERMINAL/GOTO_TERMINAL（从未被读取）。
 - 验证：所有 flag 访问通过命名的 `block_flags::*` 常量（无原始十六进制掩码），所以位值变更不影响任何调用点语义。952/952 测试通过，curl 无回归。
@@ -1343,7 +1343,7 @@ printHeader、markUnstructured、scopeBreak、nextFlowAfter、flipInPlace、mars
   `get_switch_varnode`。
   （`is_exit` 已删除——CASEWRAP-CR-F2：零调用者，且读取期从已消费 case 块重导
   `size_out()==1` 在 identifyInternal 半删出边后恒 false；oracle 的 `isExit(i)`
-  读的是 addCase 期捕获的 `caseblocks[i].isexit`（block.hh:791），对应 Rugra 的
+  读的是 addCase 期捕获的 `caseblocks[i].isexit`（block.hh:791），对应 Rudra 的
   `case_isexit`/`default_isexit` 捕获旗标数组，block.cc:3511-3514。）
 
 **调用点更新（blockaction.rs）：**
@@ -1385,7 +1385,7 @@ printHeader、markUnstructured、scopeBreak、nextFlowAfter、flipInPlace、mars
 ### 2026-08-15：公共 BlockGraph::find_spanning_tree（BLOCK-INDEX-ASSIGN-0001）
 
 Ghidra `FlowBlock::index` 生产唯一赋值点的 1:1 移植：`BlockGraph::findSpanningTree`
-（block.cc:1009-1136，Tarjan 生成树 + 反向后序）。此前 Rugra 侧只有
+（block.cc:1009-1136，Tarjan 生成树 + 反向后序）。此前 Rudra 侧只有
 blockaction.rs 的私有 `find_spanning_tree`（位置索引域、HashMap 局部状态、
 不写 `FlowBlock.index`）——本次新增**公共**方法，全副作用对齐：
 
@@ -1575,7 +1575,7 @@ case 的 desc/copymap 投影为 "-"：oracle FlowBlock 用户构造器（cc:61-6
 
 ### 2026-08-25：FlowBlock 边 flag 写入 trait 化（selectGoto 非终止修复）
 - `FlowBlock::out_edges_mut` / `in_edges_mut`（新 trait 方法）— Ghidra 的 FlowBlock 基类持有
-  `outofthis`/`intothis`（block.hh:124-127），对所有子类型生效；Rugra 每个具体类型各存
+  `outofthis`/`intothis`（block.hh:124-127），对所有子类型生效；Rudra 每个具体类型各存
   `outgoing`/`incoming`，`set_out_edge_flag`/`clear_out_edge_flag`/`clear_edge_flags`/
   `set_in_edge_flag`/`clear_in_edge_flag` 改经这对访问器路由，替换原先只覆盖
   BlockBasic/BlockGraph 的 downcast 链。此前 goto 标记在结构化块（BlockIf/BlockList/
@@ -1598,8 +1598,8 @@ max_implied_ref(默认 2, architecture.cc:1420) 任一命中 +1），statement>2
 blockaction.rs `try_rule_or`（ruleBlockOr blockaction.cc:1342）在折叠
 INT_OR/AND 条件前用 `orblock.is_complex()` 守卫——此前恒 false 宽松放行，
 导致 my_fwrite 出现 Ghidra 不会做的错误折叠（空体 `if (…||…) {}` 形态）。
-注：Ghidra 对 `bl` 自身的 isComplex 检查在 cc:1333-1334 处于注释状态，Rugra
-同样不查 `bl` 只查 `orblock`。Rugra 的 BlockBasic 无 arch 回指针，
+注：Ghidra 对 `bl` 自身的 isComplex 检查在 cc:1333-1334 处于注释状态，Rudra
+同样不查 `bl` 只查 `orblock`。Rudra 的 BlockBasic 无 arch 回指针，
 max_implied_ref 取默认常量 2（与 ActionRestructureVarnode 同一先例）。
 
 ### 边互惠（reciprocal reverse_index）修复族（2026-08-25，BLOCK-RECIPROCAL-OOB-0001）
@@ -1611,7 +1611,7 @@ max_implied_ref 取默认常量 2（与 ActionRestructureVarnode 同一先例）
   （block.cc:446-523）完整移植：消除重复边用**成对** half-delete
   （cc:461-462/490-491），两侧 reverse_index 同步维护；`find_dups` 的
   f_mark/f_mark2 标记协议照搬（自环经 self_arc 报告）。
-- `FlowBlock::remove_in_edge_from`（Rugra 排除表形式的 removeInEdge
+- `FlowBlock::remove_in_edge_from`（Rudra 排除表形式的 removeInEdge
   block.cc:130-141）改为全双边：先 `half_delete_in_edge(slot)` 再对源块
   `half_delete_out_edge(rev)`；原单侧 `retain` 版本留下源侧出边半边与
   幸存边的互惠索引全 stale。
@@ -1639,7 +1639,7 @@ ActionBlockStructure 之后插入的 CAST、SplitStore 等仍可见，但结构�
 ## GOTO-LABEL-UNPRINTED-0001：goto 标记/打印族（2026-08-26）
 
 - 新增 `front_leaf`（block.cc:340 FlowBlock::getFrontLeaf）：沿
-  subBlock(0) 下行到叶。oracle 与当前 Rugra 的结构树叶均为 t_copy
+  subBlock(0) 下行到叶。oracle 与当前 Rudra 的结构树叶均为 t_copy
   (`BlockCopy`)；Basic 不再充当结构图叶替身。
   List→children[0]、If→condition、WhileDo→condition、DoWhile/InfLoop→
   body、Condition→first、Switch→control，与各类 subBlock(0) 一致。
@@ -1649,13 +1649,13 @@ ActionBlockStructure 之后插入的 CAST、SplitStore 等仍可见，但结构�
   getFrontLeaf() 组合的类型化形态，block.cc:2885）。
 - 新增 `BlockGraph::next_flow_after`（block.cc:1335-1353）：子块 bl
   之后流中下一语句所在块 = 列表中 bl 的下一块前叶化；列表末尾在根处
-  返回 None（Rugra 的 BlockGraph 不是 FlowBlock，嵌套图不可能出现在
+  返回 None（Rudra 的 BlockGraph 不是 FlowBlock，嵌套图不可能出现在
   父图列表中，父递归臂结构性不可达）。
 - `BlockGoto::goto_prints`（block.cc:2881-2890）修正：无 parent 臂
   oracle 返回 **false**（旧实现恒 true 恰好反转了该臂）；parent-present
   比较移入 `goto_prints_in`（cc:2884-2888：
   gotobl=getGotoTarget()->getFrontLeaf() vs
-  nextbl=getParent()->nextFlowAfter(this)，不等才打印）。Rugra 结构器
+  nextbl=getParent()->nextFlowAfter(this)，不等才打印）。Rudra 结构器
   目前不接线 BlockGoto::parent（try_rule_goto 构造为 None），空 parent
   臂承载现状。
 - `BlockGoto::mark_unstructured_target`（block.cc:2856-2863）与
@@ -1676,7 +1676,7 @@ ActionBlockStructure 之后插入的 CAST、SplitStore 等仍可见，但结构�
 Ghidra `block.hh:108-118` 定义完整 edge_flags：
 `goto=1, loop=2, default=4, irreducible=8, tree=0x10,
 forward=0x20, cross=0x40, back=0x80, loop_exit=0x100`。
-Rugra 现按 oracle 位值实现；仅 Rugra 结构化 break/continue/switch-dispatch
+Rudra 现按 oracle 位值实现；仅 Rudra 结构化 break/continue/switch-dispatch
 标注使用高位扩展。单测锁定位值并断言全部 edge flags 两两唯一。
 
 ## MAIN-RC2-BLOCKGOTO-WRAPPED-0001：BlockGoto 持有 wrapped 组件 + 真实 goto target（2026-08-30）
@@ -1684,7 +1684,7 @@ Rugra 现按 oracle 位值实现；仅 Rugra 结构化 break/continue/switch-dis
 oracle：`BlockGoto : BlockGraph`（block.hh:547），`newBlockGoto(bl)`（block.cc:1702-1713）
 先 `new BlockGoto(bl->getOut(0))` 捕获 gototarget，再 `identifyInternal(ret,[bl])`
 使 bl 成为唯一 list 组件（getBlock(0)），`addBlock(ret)`、`forceOutputNum(1)`、
-`removeEdge(ret,ret->getOut(0))`。旧 Rugra 实现三者全缺：无 wrapped 字段
+`removeEdge(ret,ret->getOut(0))`。旧 Rudra 实现三者全缺：无 wrapped 字段
 （identify_internal 换槽后组件蒸发）、`goto_target=None`、get_ops 走 trait 默认
 空 Vec、goto_prints 硬编码 false —— main 的 14 个包装块整体静默丢失。
 
@@ -1746,7 +1746,7 @@ body_is_dead 门禁 + RC-4 循环形态 + RC-5 条件错接均未修），内容
   状态 MISMATCH（14 行），登记于 BLOCKSTRUCT-IDENTIFY-BOUNDARY-0001 —— 两个
   探针形态上 oracle 的 collapseAll 留下纯 BlockGoto 包装（double_back_goto:
   wrapped=b3 basic/target=whiledo 复合；loop_exit_conflict_gotos: wrapped=list
-  与 properif 复合、其一 target 指向另一 goto 节点），Rugra 侧同图结构化不产
+  与 properif 复合、其一 target 指向另一 goto 节点），Rudra 侧同图结构化不产
   t_goto（与 goto_cascade 185 行/deadregion 149 行同根因族，两 fixture 在
   master 上即 MISMATCH，本次重钉 comparand sha 后复核数字不变）。oracle 侧
   观测同时实证了 target 为复合块（whiledo/list/goto）—— dyn target 设计的
@@ -1960,22 +1960,22 @@ MATCH（runner `tools/run_blockstruct_orderblocks_oracle.sh`）。
 `BlockSwitch` 增 `default_label: Option<u64>`：oracle 的 default 是 caseblocks 普通成员
 （addCase cc:3515 isdefault），label 取其基本块首个表索引（finalizePrinting
 block.cc:3573-3576），与全部 case 一起按 (label,depth) 稳定排序（cc:3591）——
-`default:` 印在 label 秩位而非末位。Rugra default 走独立槽，该字段由
+`default:` 印在 label 秩位而非末位。Rudra default 走独立槽，该字段由
 `finalize_case_labels` 末尾按同款配方计算（front_leaf→original 基本块 +
 getIndexByBlock(basic,0)→getLabelByIndex）；无表索引或 case_order/cases 长度不齐时
 None（printc 保持末位旧位）。已知角落：default 为 fall-thru 链非根时 oracle 继承
-链根 label（cc:3577-3584），Rugra 按自身首索引排位（语料未见）。消费方与门禁见
+链根 label（cc:3577-3584），Rudra 按自身首索引排位（语料未见）。消费方与门禁见
 docs/api/printc.md 同日条目。
 
 ## 2026-09-23：RULE-PULLSUBMULTI-LOOPIN-0001 关闭 — FlowBlock::hasLoopIn 落地
 
 新增 trait 默认方法 `has_loop_in`（block.cc:428-428-433 逐行）：任一入边带
 `f_loop_edge` 即真。边标已由 `find_spanning_tree`（block.cc:1101 回边标
-`F_BACK_EDGE|F_LOOP_EDGE`，Rugra block.rs:3492 同字面）维护，
+`F_BACK_EDGE|F_LOOP_EDGE`，Rudra block.rs:3492 同字面）维护，
 `ActionLaneDivide` 前无清除点，规则期读取即 oracle 语义。消费者
 `RulePullsubMulti::applyOp` cc:883 守卫（"We only pull up, do not pull down
 to bottom of loop"）接入：match_url Phase 2 ordinal 28 oppool1 首个发射错位
-（idx 358，Rugra 多发 pullsub_multi+dumptyhump）即 __libc_csu_init 循环体
+（idx 358，Rudra 多发 pullsub_multi+dumptyhump）即 __libc_csu_init 循环体
 phi@0x5440（5454→5440 回边）被错误放行；守卫接入后该池 861=861 对齐。
 四类核对：引用参数=无（只读入边 flags）；遍历序=入边槽位序；计数器=无；
 排序键=flag 位测试（block.hh:110 f_loop_edge=2）。
@@ -1998,7 +1998,7 @@ phi@0x5440（5454→5440 回边）被错误放行；守卫接入后该池 861=86
 
 1. **`BlockSwitch::default_order`**（新字段）：oracle 的 `caseblocks` 含正式 default
    为普通成员（grabCaseBasic cc:3529-3533 逐组件 addCase；仅 cc:3515 isdefault 旗
-   标区分）。Rugra 把 default 体放独立 `default_case` 槽，此前链图（cc:3536-3544
+   标区分）。Rudra 把 default 体放独立 `default_case` 槽，此前链图（cc:3536-3544
    fall-thru chain）无法把「case 组件 goto 目标=default 基本块」的链边接上——
    glob_set 的 `'\\'`(0x4c48→0x4c5e) 链断，default 以自身首表项 0x5e 排序，落
    `'`'` 之后并显式 `goto switchD_..._5e`。新虚拟条目（index=case_order.len()）
@@ -2055,7 +2055,7 @@ phi@0x5440（5454→5440 回边）被错误放行；守卫接入后该池 861=86
   `finalize_printing_graph`/`finalize_printing_block`（签名改收 `&mut
   Funcdata`——WhileDo 覆盖需要 `moveRespectingCover`/`opMarkNonPrinting`）—
   终检 + `opMarkNonPrinting(iterateOp/initializeOp)` 喂 printc 的 for 头。
-- **锁纪律**（RUGRA 侧）：`final_transform_block` 在持块写锁前解析
+- **锁纪律**（Rudra 侧）：`final_transform_block` 在持块写锁前解析
   `front_leaf()->sub_block(0)` 头块——std RwLock 同线程读写在同锁上死锁
   （实测 main 15s 超时根因）；共享子节点 visited 集防二次处理。
 - **visited 不对称的语义裁定**（F8FOR-FINALIZE-VISITED-0001，CR-F8FOR
@@ -2063,7 +2063,7 @@ phi@0x5440（5454→5440 回边）被错误放行；守卫接入后该池 861=86
   靠结构树单所有权不变式保证每块恰访一次——`addBlock` 唯一 `parent` 指针
   （cc:862-875）+ `identifyInternal` 物理摘除组件（cc:953-960）+ goto 臂
   switch 目标留在周围图不消费（cc:3548-3553），且 `BLOCKCONSISTENT_DEBUG`
-  构建在折叠期断言所有权（cc:945-948）。Rugra 的 Arc 块模型有一个**受制裁
+  构建在折叠期断言所有权（cc:945-948）。Rudra 的 Arc 块模型有一个**受制裁
   别名**：multigoto 控制的 `BlockSwitch` 把 goto 臂目标留在顶层根的同时
   记进 `cases`（gototype != 0，镜像 cc:3548-3553）。由此：
   ①`final_transform_block` 走 `component_list_dyn`（Switch 臂=cases+
@@ -2081,7 +2081,7 @@ phi@0x5440（5454→5440 回边）被错误放行；守卫接入后该池 861=86
   （block.rs `finalize_visited_tests`）：共享子检出/父环检出/goto 臂别名
   合规+oracle 走形唯一/默认 5 步折叠端到端单所有权。
 - **放置偏差登记**：oracle 在 :5715（ActionStructureTransform，merge 组前）
-  跑 finalTransform；Rugra 的该 Action apply 在 coreaction.rs（车道写域
+  跑 finalTransform；Rudra 的该 Action apply 在 coreaction.rs（车道写域
   冻结，为 no-op），扫描改挂在 blockaction.rs 的 ActionFinalStructure
   （:5736 槽，紧邻 finalizePrinting 前）——canon 双语料字节级 A/B 验证
   放置无行为差（间隔 merge/cast 动作只读 observe 迭代 op 原位置 vs 移后
@@ -2141,7 +2141,7 @@ structure_loops 驱动端到端）。
 
 ## 2026-09-27 — F8FOR-REJECT-RESIDUAL-0001 两门拒例钉因 + 门链回归锁（Lane F8FOR 续）
 
-F8FOR 残量票（oracle 转 for 而 Rugra 拒的两门）逐函数探针钉因结论（探针
+F8FOR 残量票（oracle 转 for 而 Rudra 拒的两门）逐函数探针钉因结论（探针
 eprintln 逐门打点，`--one`/`RUDRA_GEN_ONLY` 逐函数跑 sq 21 + sqlite 44 个
 census 两族函数，探针代码提交前全数移除）：
 
@@ -2162,12 +2162,12 @@ census 两族函数，探针代码提交前全数移除）：
   不匹配是这些循环迭代语句输入确实不达 loopDef 输出 high（oracle 同判）。
 - **flv_dfs 深度耗尽分量——上游 IR 表示分歧，超出 block.rs 写域**：
   sqlite 仅剩 2 函数缺 for（sqlite3ExprAffinity / sqlite3_str_vappendf，
-  211→209）：条件链里 Rugra IR 多一枚 CAST（EQUAL→AND→SEXT→**CAST**→LOAD，
+  211→209）：条件链里 Rudra IR 多一枚 CAST（EQUAL→AND→SEXT→**CAST**→LOAD，
   吃掉 path[4] 一级深度）或指针算术用 INT_ADD+CAST 而非 PTRADD（链深 5>4），
   oracle IR 无此 CAST 故深度 4 内可达 MULTIEQUAL。根因在 cast 插入/op 选择
   上游域（CAST-SHAPE 族邻域，GEN4-SQ-CASTFUSE-DEPTH-0001 域），已归因登记。
 - **init 提取分歧类（sq 面 +10 行/4 函数）**：LzmaEnc_Construct /
-  LzmaEncProps_GetDictSize / LzmaEnc_FastPosInit / _GLOBAL__sub_I——Rugra
+  LzmaEncProps_GetDictSize / LzmaEnc_FastPosInit / _GLOBAL__sub_I——Rudra
   提取 initializer 而 golden 留空 `for(;`（探针 `init_accepted
   init=INT_ZEXT span_to=COPY`）。判决链（findInitializer→isMoveable→
   testTerminal(1-slot)）对该 IR 是 oracle 忠实的；分歧根因是 init 块内
@@ -2224,7 +2224,7 @@ cc:3515 isdefault;label 稳定排序要到 finalizePrinting cc:3591 才发生）
 后果:最后一个真实 case 的 nextFlowAfter 后继错位成 default 前叶;当该 case 是
 以 default 块为 goto 目标的 BlockGoto 时,gotoPrints（block.cc:2881-2890,
 gotobl != nextbl）翻 false,gatherReturnGotos 拒选该边 → nodeSplit 少拆 →
-结构树形态级联（SetCoderProperties 0x2891e:oracle 17 边拆/Rugra 16;if-goto/
+结构树形态级联（SetCoderProperties 0x2891e:oracle 17 边拆/Rudra 16;if-goto/
 dup_ 标签/default 位/嵌套标签位全系）。
 
 **修复**（src/block.rs）:
@@ -2234,14 +2234,14 @@ dup_ 标签/default 位/嵌套标签位全系）。
    cc:3509 `getInRevIndex`）先于 default 出边的 **regular（gototype==0）** case
    数——multigoto 臂追加的 case（cc:3548-3553,GOTO_GOTO）在 oracle 中本来就
    整体后置,不计数。坐标残缺（outindex<0 / 平行数组失配）时回退原 append-last
-   （oracle 该形态会 LowlevelError,cc:3507-3508,Rugra 保守降级不变原行为）。
+   （oracle 该形态会 LowlevelError,cc:3507-3508,Rudra 保守降级不变原行为）。
 2. **`next_flow_after_successors` Switch 臂 def_pos 分派相位化**:
    `default_label` 已置（finalizePrinting 后,compute_goto_prints/printc 消费
    者）→ label rank（不变）;未置（gather 期）→ 构造序 rank（新）。
 
 **验证**：sasquatch SetCoderProperties（idx 470）:双侧 GATHER 探针对拍 —
 oracle（gold_gather_trace,RUDRA_GATHER_TRACE）edge 7 链 `t_goto prints=1
-parent_null=0`（后继链终于 InfLoop 头 0x288db）;Rugra 修复前
+parent_null=0`（后继链终于 InfLoop 头 0x288db）;Rudra 修复前
 `target=0x2890a succ=0x2890a`（后继=自身目标 → prints=false 拒选）,修复后
 `succ=0x289f0`（≠ 目标 → 选入）→ nodeSplit 17 份对齐,函数体规范化 diff 归零
 （typedef 前导为 --one harness 差,非代码生成差）。default 在输出中回到
@@ -2258,7 +2258,7 @@ case 0x442 与 0x450 之间的 oracle 位。
 （gototype!=0）不推进 default 构造 rank（oracle cc:3548-3553 整体后置）。
 ③`incomplete_coordinates_fall_back_to_append_last` — 无 default_order/
 坐标 -1 三形回退 append-last（oracle 该形态 LowlevelError cc:3507-3508,
-Rugra 保守降级不变原行为）。
+Rudra 保守降级不变原行为）。
 ④`label_rank_arm_unchanged_post_finalize` — default_label 置位后 label-rank
 臂接管（print 期相位,cc:3591 排序后语义）,构造序臂不介入。
 
@@ -2273,9 +2273,9 @@ Rugra 保守降级不变原行为）。
 **症状链**（sqlite3ExprIsConstant,TRACEDAG-ROUND3-BBLOCK-MERGE-0001 钻证）:
 3b201-switch 的 default 边（→3b232 return hub）在 round 4 被标 goto 剥离;
 oracle caseblocks = `[3b2c0,3b240,3b298,3b232(default,gt=1),3b254]`（default
-追加位 index 3）;Rugra 启发式给 0 → `next_flow_after_successors` 的 merged 序
+追加位 index 3）;Rudra 启发式给 0 → `next_flow_after_successors` 的 merged 序
 错位 → 3b298 goto case 的 `gotoPrints`（cc:2881-2890 gotobl!=nextbl）翻 true →
-gatherReturnGotos 误选 3b2a9 入边 → ReturnSplit round-B 多拆 1 份（Rugra 5 vs
+gatherReturnGotos 误选 3b2a9 入边 → ReturnSplit round-B 多拆 1 份（Rudra 5 vs
 oracle 4）→ hub 入度 4→3 + 私有 dup → 终局轮 TraceDAG REGEN 缺 (3b2a1,hub)
 两记录 → 3b320 子句未 goto 包裹 → IFELSE@3b298 第 4 次发射 →
 prefer_complement 极性级联（五克隆 ×14 行族）。
@@ -2353,7 +2353,7 @@ identify 入口 adopt 后新条目罕见）。语义与逐成员 adopt 等价—
 
 PERF-BLOCKSTORAGE-FLIP-0001 wave 3。**形态根因**：oracle 的全部边访问器是
 **非虚 inline 读**（block.hh:301-347——`getOut/getIn/isGotoOut/isDecisionOut/…
-= outofthis[i].point/.label` 直接成员加载）；Rugra 消费层深读位却付
+= outofthis[i].point/.label` 直接成员加载）；Rudra 消费层深读位却付
 `expect_arc(id)`（Arc 克隆）→ peer RwLock → vtable 派发三段往返。wave 2
 BANKSTATS 归因证明 VdbeExec 语料 18.6M view_arc 面的 98.5% 集中在这类深读
 （blockaction try_rule_* 8 热位点 + cover 前驱扫）。**承接形态**（任务书

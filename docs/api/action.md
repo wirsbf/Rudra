@@ -7,7 +7,7 @@
 `ActionPool::process_op` 每 rule 尝试后的 `drillobserve::flush(rule_name)` 调用点
 现以 `drillobserve::is_enabled()` 同门预判（action.cc:844-846 的
 `data.debugModPrint(rl->getName())` 在 oracle 是 OPACTION_DEBUG **编译期**开关，
-Rugra 外部化为运行期 env 门）。drill 关闭时跳过每次尝试的 vtable `get_name()`
+Rudra 外部化为运行期 env 门）。drill 关闭时跳过每次尝试的 vtable `get_name()`
 取名（flush 本体在关闭时为立即返回，返回 bool 被丢弃）——调用/不调用语义恒等
 （OnceLock 门一经初始化不可翻转）。VdbeExec 27.7M 次尝试各省一次虚调用。
 
@@ -63,7 +63,7 @@ SPEEDPROF-ACTIONLOOP-RESTART-0001。oracle 侧亲读判定（action.cc:553-582 �
 实例，因此不继承 disabled/warning-given、breakpoint 或统计值；ActionPool 本身
 则复制源池的 Action flags/name，但 status、breakpoint 和统计值重新初始化。
 
-Rugra 的 `Rule::clone_for_groups` 和 `Action::clone_for_groups` 提供对应虚拟契约。
+Rudra 的 `Rule::clone_for_groups` 和 `Action::clone_for_groups` 提供对应虚拟契约。
 由于本改动的租约不能触碰约 150 个具体 Rule/Action 文件，默认 universal builder
 在每个锁定 `coreaction.cc` 注册槽保存 group 和无捕获构造工厂；容器或自定义实现
 可以直接覆盖虚拟 clone。`ActionPool::clone_pool`、`ActionGroup::clone_group` 与
@@ -150,7 +150,7 @@ E2E 语料的完整 IR/order/stats 差分与独立复核未完成（`PIPE-POOL-0
 opcode-change 路径都会丢弃旧 opcode 尚未执行的 Rule，并从新 opcode 的规则表
 索引 0 重新派发。`ActionPool::apply`（`action.cc:877-887`）负责遍历 op bank。
 
-Rugra 现在恢复了上述 enabled/live、单 op、无断点投影，修复
+Rudra 现在恢复了上述 enabled/live、单 op、无断点投影，修复
 SUBPIECE 被 RuleSubExtComm 改写为 INT_ZEXT 后仍继续调用旧 SUBPIECE Rule、最终
 越界读取输入 1 的崩溃。真实锁定 oracle 门禁为
 `tools/run_action_opcode_redispatch_oracle.sh`；它覆盖返回 1 的正常改写与“改写但
@@ -165,7 +165,7 @@ Rule 统计/warning/breakpoint、`op_state`/`rule_index`、live tree 与 dead cl
 锁定 Ghidra `ActionDatabase::buildDefaultGroups`（`coreaction.cc:5421-5441`）
 只把 `normalanalysis` 放入 `normalize` 根组；默认 `decompile` 根组不包含它。
 `ActionNormalizeSetup` 虽存在于 universal tree（`:5479`），但其 group 是
-`normalanalysis`，标准反编译时不会执行。Rugra 此前把 universal tree 全部平铺，
+`normalanalysis`，标准反编译时不会执行。Rudra 此前把 universal tree 全部平铺，
 导致正常反编译也清除已导入原型的 output/model lock。本轮从默认 decompile
 构造中排除该 Action；完整六组选择与其余平铺差异仍由 `PIPE-0001` 跟踪，模块
 不因此升级。
@@ -173,7 +173,7 @@ Rule 统计/warning/breakpoint、`op_state`/`rule_index`、live tree 与 dead cl
 ## 文档状态
 
 - **状态**: 已核对（当前有效，2026-07-02）——mainloop repeatapply 仍未启用（overflow 根因见 action.rs:806 注释，CFT 树遍历迁移后重新评估）
-- **文档目标**: 说明 Rugra 当前 `Action` / `Rule` 分析流水线的职责、边界与公开接口
+- **文档目标**: 说明 Rudra 当前 `Action` / `Rule` 分析流水线的职责、边界与公开接口
 - **可信边界**: 本文档描述的是当前源码可见的 **Action / Rule 管线抽象**，不是对“所有规则都已实现”或“与 Ghidra 行为已完全一致”的证明
 - **阅读建议**: 建议结合以下文档一起阅读：
   - `lib.md`
@@ -189,7 +189,7 @@ Rule 统计/warning/breakpoint、`op_state`/`rule_index`、live tree 与 dead cl
 
 ## 模块定位
 
-`action.rs` 是 Rugra 当前分析流水线中的**动作调度层与规则抽象层**。  
+`action.rs` 是 Rudra 当前分析流水线中的**动作调度层与规则抽象层**。  
 它的核心作用不是直接表示指令或变量，而是定义：
 
 1. 什么是一个“高层分析动作”（`Action`）
@@ -217,7 +217,7 @@ raw semantics / PcodeOp / Varnode / Funcdata
 
 ## 设计意图
 
-Rugra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` 体系启发。  
+Rudra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` 体系启发。  
 这一层的价值在于：把复杂的分析流程拆分成可组合、可替换、可局部扩展的步骤。
 
 ### 为什么要有 `Action`
@@ -229,7 +229,7 @@ Rugra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` �
 - 难以局部替换或扩展
 - 难以和 Ghidra 的分阶段流水线建立语义映射
 
-因此，`Action` 的引入让 Rugra 可以：
+因此，`Action` 的引入让 Rudra 可以：
 
 - 用多个分析阶段组织函数处理流程
 - 明确哪些步骤是“管线级动作”
@@ -309,7 +309,7 @@ Rugra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` �
 
 ## `pub trait Action`
 
-`Action` 是当前 Rugra 中“高层分析动作”的基础抽象。
+`Action` 是当前 Rudra 中“高层分析动作”的基础抽象。
 
 > trait 声明为 `Action: Send + Sync`（`Rule` 同）。Ghidra 的反编译器对象
 > 全部存活于单线程，这是 Rust 侧 glue：`Architecture` 通过
@@ -336,7 +336,7 @@ Rugra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` �
 > “任意一条局部 rewrite 规则。”
 
 ### 设计意义
-有了 `Action` trait 之后，Rugra 可以：
+有了 `Action` trait 之后，Rudra 可以：
 
 - 把分析阶段模块化
 - 让不同动作可注册、可替换
@@ -355,7 +355,7 @@ Rugra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` �
 
 ## `pub trait Rule`
 
-`Rule` 是当前 Rugra 中“局部变换规则”的基础抽象。
+`Rule` 是当前 Rudra 中“局部变换规则”的基础抽象。
 
 ### 角色
 它通常表示一个更小粒度的规则，往往针对：
@@ -467,7 +467,7 @@ Rugra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` �
 
 ## `pub struct ActionDatabase`
 
-`ActionDatabase` 是当前 Rugra 动作体系中最关键的管理对象之一。
+`ActionDatabase` 是当前 Rudra 动作体系中最关键的管理对象之一。
 
 ### 角色
 它负责统一管理已注册动作，并提供默认分析动作集的构建和访问入口。
@@ -483,7 +483,7 @@ Rugra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` �
 - 为高层分析流程提供统一入口
 
 ### 当前在架构中的意义
-`ActionDatabase` 的存在非常重要，因为它意味着 Rugra 当前不再把分析阶段写成“硬编码大流程”，而是在向：
+`ActionDatabase` 的存在非常重要，因为它意味着 Rudra 当前不再把分析阶段写成“硬编码大流程”，而是在向：
 
 - 可注册
 - 可组合
@@ -642,7 +642,7 @@ Architecture 子类驱动真实 `OptionSplitDatatypes::apply`（options.cc:999�
 ### 更准确的理解
 当前应把它理解为：
 
-> “为当前 Rugra 架构建立一套默认动作装配方案。”
+> “为当前 Rudra 架构建立一套默认动作装配方案。”
 
 而不是：
 
@@ -763,7 +763,7 @@ Funcdata ready
 
 ## 推荐联动阅读
 
-若你正在理解当前 Rugra 的动作管线，建议继续阅读：
+若你正在理解当前 Rudra 的动作管线，建议继续阅读：
 
 1. `funcdata.md`
 2. `op.md`
@@ -799,7 +799,7 @@ Funcdata ready
 
 ## 一句话总结
 
-`action.rs` 是 Rugra 当前 **Action / Rule 分析流水线的抽象与调度入口**：它定义了什么是动作、什么是规则、如何把动作组织成组、如何通过数据库建立默认分析管线。它是当前主线架构中非常关键的过程组织层，但不应被文档夸大成“所有分析能力已成熟”或“与 Ghidra 动作体系已完全一致”的证明。
+`action.rs` 是 Rudra 当前 **Action / Rule 分析流水线的抽象与调度入口**：它定义了什么是动作、什么是规则、如何把动作组织成组、如何通过数据库建立默认分析管线。它是当前主线架构中非常关键的过程组织层，但不应被文档夸大成“所有分析能力已成熟”或“与 Ghidra 动作体系已完全一致”的证明。
 ### 2026-06-24：ActionTypePropagate 集成
 
 - ActionTypePropagate 在 ActionCopyPropagate 之后运行，保守标记 struct pointer varnode。
@@ -822,7 +822,7 @@ Funcdata ready
 ### 2026-06-29：ActionMarkType 移到 dead-code 之后（对齐 Ghidra 管线顺序）
 
 - `ActionMergeType` 此前注册在 `CopyPropagate` **之前**（action.rs 416），违反 Ghidra 顺序（coreaction.cc:5682 deadcode → 5718-5729 merge 阶段）。后果：merge 在 copy-prop/dead-code 删除 op 之前建立 `high.instances`，之后这些 instances 永不更新（copy-prop/dead-code 不清理），printc 拿到陈旧 instances → 自建 4 套 map 重建 def 关系。
-- 现顺序：`CopyPropagate → TypePropagate → CallParams → RestrictLocal → DeadCode → ActionMergeType → MarkExplicit → MarkImplied → RestructureVarnode`。MarkExplicit/MarkImplied 在 MergeType 之后（Ghidra 的 MergeRequired 在 MarkImplied 前建 high，Rugra 的 merge_all 合并了 MergeRequired+MergeType，故 MarkImplied 跟在 merge_all 后）。配合 `Merge::is_live_varnode`（merge.rs）跳过死 varnode，`high.instances` 现反映 dead-code 后的 varnode 集，成为 printc 可信的权威来源。这是 P0 "声明却未赋值" 症状的根因修复（详见 `docs/alignment_docs/P0_DEF_CHAIN_DIAGNOSIS_2026-06-29.md`）。
+- 现顺序：`CopyPropagate → TypePropagate → CallParams → RestrictLocal → DeadCode → ActionMergeType → MarkExplicit → MarkImplied → RestructureVarnode`。MarkExplicit/MarkImplied 在 MergeType 之后（Ghidra 的 MergeRequired 在 MarkImplied 前建 high，Rudra 的 merge_all 合并了 MergeRequired+MergeType，故 MarkImplied 跟在 merge_all 后）。配合 `Merge::is_live_varnode`（merge.rs）跳过死 varnode，`high.instances` 现反映 dead-code 后的 varnode 集，成为 printc 可信的权威来源。这是 P0 "声明却未赋值" 症状的根因修复（详见 `docs/alignment_docs/P0_DEF_CHAIN_DIAGNOSIS_2026-06-29.md`）。
 - **implied 机制接入**（2026-06-29）：MarkImplied 用 checkImpliedCover（cover 相交）标记 implied varnode；printc 的 emit_block_ops 跳过 implied-output 的 op（对齐 printc.cc:2704），push_varnode 对 implied varnode 递归 inline 其 def 表达式（recurse 等价）。这是 Ghidra 控制内联的权威机制，替代 printc 自造的 4 套 map。
 - curl 审计保持 24/24；`debug_my_fwrite` 中间变量（如 `piVar1`/`lVar3`）被正确内联。已知调优项：部分函数有重复变量声明（块内 shadow，gcc 允许但影响可读性）。
 
@@ -834,11 +834,11 @@ Funcdata ready
 
 ### 2026-06-27（会话3 续）：ActionPool — Rule 调度器接入主管线（G6 核心补全）
 
-**系统性架构补全**：Rugra 此前 ~90 个 Rule 全部实现了 `apply_op` 但**均未接入主管线**——无 Ghidra ActionPool 式的 Rule 遍历调度。本次补全：
+**系统性架构补全**：Rudra 此前 ~90 个 Rule 全部实现了 `apply_op` 但**均未接入主管线**——无 Ghidra ActionPool 式的 Rule 遍历调度。本次补全：
 
 - 新增 `ActionPool` struct（对应 Ghidra `ActionPool`，action.hh:262）：持有 `Vec<Box<dyn Rule>>` + `per_op: Vec<Vec<usize>>` 按 OpCode 判别值索引的数组（2026-09-28 ACTIONLOOP-RESTART-0001 起，原为 `HashMap<OpCode, Vec<usize>>`，即 oracle `perop[CPUI_MAX]` action.hh:264 的数组形态）。`add_rule` 注册 Rule 并按 opcode 建索引；`apply` 遍历所有 live op，按 opcode 匹配 Rule，循环至固定点（对应 Ghidra rule_repeatapply）。
 - `build_simplify_pool()` 注册 **112 个简化 Rule**（2026-06-29 实测：`grep -cE 'pool\.add_rule'` = 105）。**镜像 Ghidra `oppool1` 精确顺序**（coreaction.cc:5511-5649）：每行标注 Ghidra 源码行号，未移植的 Rule 以 `skip` 注释标注。**2026-06-29 新增**：RuleSubCommute（5577）、RuleFloatSign（5619）、RuleSLess2Zero（5558）。
-- **`build_cleanup_pool()`**（对齐 Ghidra `actcleanup` coreaction.cc:5694-5710）：独立池，含 `RuleMultNegOne`/`Rule2Comp2Sub` + **`RuleStringCopy`/`RuleStringStore`（constseq，coreaction.cc:5709-5710）**。constseq 模块此前代码完整但从未接入主管线（死代码），现已接入。**在 simplify 池之后跑**（阶段分隔）。这解决了一个收敛 bug：RuleMultNegOne（`x*-1→INT_2COMP`）若与 Rule2Comp2Mult（`INT_2COMP→x*-1`，oppool1 内）同池会无限 ping-pong；Ghidra 靠阶段分隔（主池先收敛、cleanup 池再跑一次）避免循环，Rugra 现忠实移植此机制。constseq 的 transform 阶段（替换为 CALLOTHER）仍待 userop 基础设施。
+- **`build_cleanup_pool()`**（对齐 Ghidra `actcleanup` coreaction.cc:5694-5710）：独立池，含 `RuleMultNegOne`/`Rule2Comp2Sub` + **`RuleStringCopy`/`RuleStringStore`（constseq，coreaction.cc:5709-5710）**。constseq 模块此前代码完整但从未接入主管线（死代码），现已接入。**在 simplify 池之后跑**（阶段分隔）。这解决了一个收敛 bug：RuleMultNegOne（`x*-1→INT_2COMP`）若与 Rule2Comp2Mult（`INT_2COMP→x*-1`，oppool1 内）同池会无限 ping-pong；Ghidra 靠阶段分隔（主池先收敛、cleanup 池再跑一次）避免循环，Rudra 现忠实移植此机制。constseq 的 transform 阶段（替换为 CALLOTHER）仍待 userop 基础设施。
 - RuleEarlyRemoval(5512) 的“只允许 CONSTANT”是历史实现，现已废止。当前锁定
   fixture 覆盖六守卫、严格 `pass > deadcodedelay`、writemask/autolive 正交、
   OTHER policy 与 72 个 typed-opcode dispatch（68 删除、四类 call/new 保留），
@@ -853,7 +853,7 @@ Funcdata ready
 
 ### 2026-06-27（会话3 G5）：结构清理 Action 未接入说明
 
-ActionDeterminedBranch/ActionUnreachable/ActionDoNothing/ActionRedundBranch 的 apply() 已完整移植（coreaction.cc:3457-3528），但**未接入 set_default_actions**。set_default_actions 中有 NOTE 说明：Ghidra 在 selectGoto→collapseInternal 循环内运行这些清理 Action，structurer 围绕块删除设计；Rugra 的 staged-phase structurer 依赖这些块，接入导致回归。完整接入需 staged→collapseInternal 架构迁移（G4 可选优化）。apply() 逻辑已就绪。
+ActionDeterminedBranch/ActionUnreachable/ActionDoNothing/ActionRedundBranch 的 apply() 已完整移植（coreaction.cc:3457-3528），但**未接入 set_default_actions**。set_default_actions 中有 NOTE 说明：Ghidra 在 selectGoto→collapseInternal 循环内运行这些清理 Action，structurer 围绕块删除设计；Rudra 的 staged-phase structurer 依赖这些块，接入导致回归。完整接入需 staged→collapseInternal 架构迁移（G4 可选优化）。apply() 逻辑已就绪。
 ### 2026-06-27（续）：ActionStackPtrFlow 接入管线（Heritage 后）
 - set_default_actions 在 ActionHeritage 后接入 ActionStackPtrFlow（对齐 Ghidra actstackstall, coreaction.cc:5656）。
 
@@ -886,7 +886,7 @@ lib.rs 新增 `pub mod double_precis`。RuleFloatCast 从 local-extras 移除（
 - **ActionRestartGroup 新建**：移植 action.cc:554-583。universal 根容器，支持 restart pending → clearAnalysis → 重跑。
 - **Funcdata +restart_pending + has_restart_pending/set_restart_pending + is_jumptable_recovery_on**。
 - **set_default_actions 重构为嵌套树**：universal(ActionRestartGroup) → fullloop(ActionGroup) → mainloop(ActionGroup) → stackstall(ActionGroup) → oppool1(ActionPool)。
-- **TODO**：fullloop/mainloop/stackstall 暂不设 RULE_REPEATAPPLY（Rugra 自造 Action 非幂等，重复会导致死循环）。待自造 Action 幂等化或替换为 Ghidra 机制后启用。
+- **TODO**：fullloop/mainloop/stackstall 暂不设 RULE_REPEATAPPLY（Rudra 自造 Action 非幂等，重复会导致死循环）。待自造 Action 幂等化或替换为 Ghidra 机制后启用。
 - **apply_all 改 perform 驱动**：每个函数先 reset，再 perform。
 
 ### 2026-07-01（续）：perform count 修复 + stackstall repeatapply 启用
@@ -933,7 +933,7 @@ ActionGroup.perform 重写为迭代式：循环调 self.apply()，不递归进�
   - func_gap_audit（vs tests/golden/ghidra_curl.c）：0 EXACT / 24 DIFF — 与移除前**完全一致**（输出中性）。即此改动既未引入回归也未带来改善，但消除了收敛性阻塞，为后续 Rule 多轮简化生效扫清障碍。
 - **诚实声明**：本次改动对 curl 当前输出**无可见影响**（return-V^V 等缺陷未变）。其根因经诊断（RUDRA_DBG_XOR）证实不在迭代上限，而在更深处（main_init 的 `iVar1^iVar1` 中 iVar1 为未初始化 varnode，由 printc 返回值启发式合成，非真实 `xor eax,eax`）。单指令 `xor eax,eax` 提升测试（test_xor_eax_eax_input_identity）证明 lifter 的 varnode 身份 dedup 正确（ptreq=true），故 main_init 缺陷需在返回值恢复层（ActionReturnRecovery）继续追查。
 
-**最终根因**：mainloop repeatapply 重新运行 ActionHeritage（有深层递归 rename 逻辑 visit_rename_impl）。glob_range 有 17 bblocks，Heritage 的递归重命名在多轮 repeatapply 下累积递归深度，即使 256MB 栈也溢出。修复需要让 Heritage 的 rename 迭代化（非递归），或接受 Rugra 的 Actions 有内部循环不需要外部 repeatapply。
+**最终根因**：mainloop repeatapply 重新运行 ActionHeritage（有深层递归 rename 逻辑 visit_rename_impl）。glob_range 有 17 bblocks，Heritage 的递归重命名在多轮 repeatapply 下累积递归深度，即使 256MB 栈也溢出。修复需要让 Heritage 的 rename 迭代化（非递归），或接受 Rudra 的 Actions 有内部循环不需要外部 repeatapply。
 
 ### 2026-07-01（续 11）：mainloop repeatapply 仍阻塞（迭代 Heritage 后 cap=1 仍溢出）
 
@@ -960,10 +960,10 @@ printc emit_block_structured +thread_local depth guard（>200 回退）。sblock
 printc emit_block_structured 拆分 7 个 per-arm helpers。mainloop repeatapply 测试 depth 20-200+256MB：全部溢出。最终诊断=不是栈帧大小而是 sblocks 重建后的真正无限递归。
 
 ### cleanup pool 加 RuleTrivialArith（2026-07-03）— **2026-08-23 已回退（PIPE-POOL-LOCAL-RULES-0001）**
-- ~~在 `build_cleanup_pool` 末尾注册 `RuleTrivialArith`。~~ 该 Rugra-local 注册已
+- ~~在 `build_cleanup_pool` 末尾注册 `RuleTrivialArith`。~~ 该 Rudra-local 注册已
   删除：oracle actcleanup（coreaction.cc:5694-5711）没有 RuleTrivialArith；Ghidra
   只在 oppool1（coreaction.cc:5522）注册它一次。Ghidra 靠 mainloop repeatapply
-  `actprop` 重简化后期新创建的 op；Rugra 此前靠 cleanup 补刀是绕过基础设施缺口
+  `actprop` 重简化后期新创建的 op；Rudra 此前靠 cleanup 补刀是绕过基础设施缺口
   的上层适配（铁律 1.4/1.5 违例），已回退。"mainloop 不 repeatapply 导致后期
   trivial op 不被再简化"是真实残差，登记为 TODO（见 pipeline_tree_1204.metadata
   的 mainloop 阶段残差；对齐路径 = 补齐 mainloop RULE_REPEATAPPLY，而非在
@@ -985,7 +985,7 @@ printc emit_block_structured 拆分 7 个 per-arm helpers。mainloop repeatapply
   - ActionInputPrototype：从 input varnodes 推导参数个数/类型（已由 ActionInferParams 做初步检测）。
 
 ### 主管线全量审计 + 注册（2026-07-03 续）
-- 审计了 Ghidra universalAction（coreaction.cc:5462-5738）的全部 72 个 Action，对比 Rugra 注册情况。
+- 审计了 Ghidra universalAction（coreaction.cc:5462-5738）的全部 72 个 Action，对比 Rudra 注册情况。
 - 发现 24 个 Ghidra Action 有 struct 定义但未注册。
 - **安全注册**了无害的：ActionPrototypeWarnings（:5737）。
 - **禁用**了导致回归的（注释说明原因）：ActionConstbase/ExtraPopSetup/Unreachable/RedundBranch/DeterminedBranch/NodeJoin/ConditionalConst/LikelyTrash/DoNothing/ReturnSplit/MappedLocalSync/StartCleanUp/PreferComplement/StructureTransform/MarkIndirectOnly/MapGlobals/DynamicSymbols/Stop。
@@ -1004,7 +1004,7 @@ printc emit_block_structured 拆分 7 个 per-arm helpers。mainloop repeatapply
 
 ### ActionUnreachable 根因更正（2026-07-03 续 3）
 - **更正**：curl 的 24 个函数中 **0 个 BRANCHIND op**（之前误诊为 BRANCHIND 边缺失）。CFG 边对 BRANCH/CBRANCH 基本完整（仅 3 个目标因地址对齐偏移 3 字节未解析，不影响块可达性）。
-- **真根因**：Rugra 的块移除（remove_block_arc/remove_edge_blocks）**不修补数据流**。Ghidra 的 `blockRemoveInternal`（funcdata_block.cc:255-335）移除 MULTIEQUAL 输入、修补后代 Varnode、处理搁浅引用。Rugra 只删 CFG 边和块 → 留下悬空 phi-node 和断裂数据流 → 函数体损坏。
+- **真根因**：Rudra 的块移除（remove_block_arc/remove_edge_blocks）**不修补数据流**。Ghidra 的 `blockRemoveInternal`（funcdata_block.cc:255-335）移除 MULTIEQUAL 输入、修补后代 Varnode、处理搁浅引用。Rudra 只删 CFG 边和块 → 留下悬空 phi-node 和断裂数据流 → 函数体损坏。
 - **修复路径**：移植 Ghidra `blockRemoveInternal`（含 MULTIEQUAL 调整 + descendantsOutside 检查）。
 
 ### ActionUnreachable op-destruction + 仍禁用（2026-07-03 续 4）
@@ -1018,8 +1018,8 @@ printc emit_block_structured 拆分 7 个 per-arm helpers。mainloop repeatapply
 
 ### ActionUnreachable 安全启用（2026-07-03 续 6）★
 - **将 ActionUnreachable 移到 ActionBlockStructure 之后**——解决了 pipeline 顺序问题。
-- 根因：Rugra 的 bblocks CFG 在 mainloop 最开始（heritage 之前）不完整（sblocks 还没建），在此阶段移除块破坏后续阶段。移到 BlockStructure 后，CFG 完整，只有真不可达块被移除。
-- Ghidra 在 :5490（更早）运行此 Action，但 Ghidra 的 CFG 在反汇编阶段就已完整。Rugra 需要在 BlockStructure 后才能保证 CFG 完整。
+- 根因：Rudra 的 bblocks CFG 在 mainloop 最开始（heritage 之前）不完整（sblocks 还没建），在此阶段移除块破坏后续阶段。移到 BlockStructure 后，CFG 完整，只有真不可达块被移除。
+- Ghidra 在 :5490（更早）运行此 Action，但 Ghidra 的 CFG 在反汇编阶段就已完整。Rudra 需要在 BlockStructure 后才能保证 CFG 完整。
 - **curl gcc 24/24（确定，3/3 runs），0 defects，956/956 测试**。
 
 ### 批量启用 13 个 Actions（2026-07-03 续 7）★
@@ -1042,7 +1042,7 @@ printc emit_block_structured 拆分 7 个 per-arm helpers。mainloop repeatapply
 
 ### mainloop 顺序对齐：RedundBranch 移到 BlockStructure 之前（2026-07-03 续 11）★
 - Ghidra coreaction.cc:5658-5659 的精确顺序：`ActionRedundBranch("deadcontrolflow")` 在 `ActionBlockStructure("blockrecovery")` **之前**。死分支 splice 必须在结构化前 settle CFG。
-- Rugra 之前顺序反了（BlockStructure → Unreachable → RedundBranch），导致：结构化产出 sblocks 后，RedundBranch 改 bblocks → 下轮 mainloop 检测到 bblocks 变化清空 sblocks → 若 repeatapply 在重建前退出，print 时 sblocks=0 → 退化为 flat bblocks 遍历。
+- Rudra 之前顺序反了（BlockStructure → Unreachable → RedundBranch），导致：结构化产出 sblocks 后，RedundBranch 改 bblocks → 下轮 mainloop 检测到 bblocks 变化清空 sblocks → 若 repeatapply 在重建前退出，print 时 sblocks=0 → 退化为 flat bblocks 遍历。
 - 修复后顺序（action.rs mainloop 尾段）：
   `ConditionalExe → RedundBranch(:5658) → BlockStructure(:5659) → DeterminedBranch(:5672) → Unreachable(:5673) → ConditionalConst(:5676)`
 - 效果：之前 4 个函数（my_get_token/file2string/getparameter/glob_range）sblocks=0（flat 退化），现在**全部 sblocks>0**（正确结构化）。
@@ -1138,7 +1138,7 @@ prefercomplement(:5714) → structuretransform(:5715) → normalizebranches(:571
   T6 域）；本轮只移除已迁移到精确位置的三个。
 - 主管线独立 merge Action（mergerequired/mergecopy/mergeadjacent）在无
   cover 前提下运行：Ghidra 的 `data.getMerge()` 是 Funcdata 持久对象且
-  testCache 惰性建 cover，Rugra 每 Action 新建 `Merge::new()`（live_set/
+  testCache 惰性建 cover，Rudra 每 Action 新建 `Merge::new()`（live_set/
   covers 未建立）——`merge_adjacent` 对同尺寸 (in,out) 对会凭空合并。merge.rs
   域外租约，登记跟进 TODO；fixture 图以常量输入规避该路径。
 
@@ -1266,16 +1266,16 @@ convention` **51** / gcc 审计 16 FAIL 持平；glob_url 单声明块（无重�
   normalize/jumptable 根运行）；mainloop 恢复 oracle 全序
   （unreachable(base) 首槽、forcegoto :5496、dynamicmapping :5504、
   restrictlocal→deadcode→restructure_varnode→spacebase→nonzeromask→
-  infertypes）；Rugra-local `inferparams` 从树中移除；池名
+  infertypes）；Rudra-local `inferparams` 从树中移除；池名
   simplifypool→oppool1；lanedivide=onceperfunc、donothing=repeatapply、
   normalizesetup=onceperfunc flags 对齐 ctor。
 - 对拍：`tools/run_pipeline_tree_oracle.sh`（pin-base schema2，base=dd76d37
   + action.rs/coreaction.rs overlay）——Ghidra 真实
-  universalAction→resetDefaults→getCurrent DFS 与 Rugra 实际默认数据库
+  universalAction→resetDefaults→getCurrent DFS 与 Rudra 实际默认数据库
   DFS **78 节点字节一致**（path/ordinal/kind/name/basegroup/flags，
   重复节点保留不排序），stdout_sha256=60af6c04…，overall=MATCH。
 - 残差：rule 级 clone 过滤（非 decompile 根）无 oracle 观察
-  （PIPE-RULE-CLONE-FILTER-0001 建议）；oppool1/cleanup 内 Rugra-local
+  （PIPE-RULE-CLONE-FILTER-0001 建议）；oppool1/cleanup 内 Rudra-local
   Rule 未在 Action 节点投影中观察（PIPE-POOL-LOCAL-RULES-0001 建议）；
   节点 apply 体/计数反馈归 PIPE-STACKSTALL-COUNT-0001。
 
@@ -1293,7 +1293,7 @@ convention` **51** / gcc 审计 16 FAIL 持平；glob_url 单声明块（无重�
   examples/curl_decompile.rs 的 v1.1 stage 投影 emitter（env 门控
   RUDRA_STAGE_PROJ=1）检测 @RESTART 轮次；与既有具体方法
   `ActionRestartGroup::fixture_curstart`（fixture-only，action_break_pool
-  protected-field 读取模式）同源同义。零管线语义变更（Rugra 侧重启未接线，
+  protected-field 读取模式）同源同义。零管线语义变更（Rudra 侧重启未接线，
   PIPE-RESTART-0001，恒返回 0）。emitter 本体与树遍历/断点步进
   （BREAK_START 前沿候选集、索引寻址绕开同名叶子歧义、开帧 LIFO 收口）
   全部位于 examples 层，复用既有 fixture 视图
@@ -1305,15 +1305,15 @@ convention` **51** / gcc 审计 16 FAIL 持平；glob_url 单声明块（无重�
 - **新增 fixture-only API**：`ActionPool::rules() -> &[Box<dyn Rule>]`——注册序
   规则只读视图（oracle 侧对应物是公有虚函数 `ActionPool::print`，
   action.cc:753-775，按 allrules 注册序逐条打印规则名，即 console
-  printActionList 的数据源；oracle fixture 经 print 输出解析读取，Rugra
+  printActionList 的数据源；oracle fixture 经 print 输出解析读取，Rudra
   fixture 经 rules() 读取，两侧同一投影）。
-- **删除三处 Rugra-local 注册**（ruleaction 审计确认的存量违例，复核锁定
+- **删除三处 Rudra-local 注册**（ruleaction 审计确认的存量违例，复核锁定
   oracle e40ed130 全树后执行）：
   1. oppool1 末尾的 `RuleSextEliminate`——oracle 全源码树不存在该类（grep
      零命中），struct 连同注册一并删除（无单测引用）。
   2. oppool1 末尾的 `RuleEquality`——oracle 定义了类（ruleaction.hh:243-250，
      方法体 ruleaction.cc:624/631）但从未实例化（全树无 `new RuleEquality`）。
-     Rugra 移除注册，struct + 3 单测保留为未注册存档（与 oracle 死代码状态
+     Rudra 移除注册，struct + 3 单测保留为未注册存档（与 oracle 死代码状态
      1:1，注释说明）。
   3. cleanup 池末尾的 `RuleTrivialArith`——oracle actcleanup
      （coreaction.cc:5694-5711）无此条目；Ghidra 只在 oppool1:5522 注册一次。
@@ -1321,7 +1321,7 @@ convention` **51** / gcc 审计 16 FAIL 持平；glob_url 单声明块（无重�
   以 `RuleStringStore`（5710）结尾，与 oracle 池序逐条一致（oracle 后续只有
   CPU-specific `conf->extra_pool_rules` 吸收循环，x86-64 gcc spec 注册 0 条）。
 - 对拍：`tools/run_pool_purity_oracle.sh`（pin-base schema2）——Ghidra 真实
-  universalAction 原始树与 Rugra 实际默认数据库中 oppool1/oppool2/cleanup
+  universalAction 原始树与 Rudra 实际默认数据库中 oppool1/oppool2/cleanup
   三池的 rule 注册序列投影（pool|index|name|basegroup 逐条）**字节一致**，
   overall=MATCH。
 - E2E 门禁（curl 1204 语料，fast-release）：删除前后 defects=1/numbering=0/
@@ -1343,9 +1343,9 @@ convention` **51** / gcc 审计 16 FAIL 持平；glob_url 单声明块（无重�
 ## 2026-08-27（MAIN-POSTSTRUCT-SPIN-0001）：ActionRestartGroup 重启环降级为有界完成
 
 `apply_restart`（action.cc:553-582）的重启分支（cc:574-580
-clearAnalysis → 逐子 reset → status_start → 重跑）在 Rugra 侧不可执行：
+clearAnalysis → 逐子 reset → status_start → 重跑）在 Rudra 侧不可执行：
 oracle 的重启环依赖 `Funcdata::startProcessing → followFlow`
-（funcdata.cc:157）在清空的 Funcdata 上重新生成原始 p-code，而 Rugra 的
+（funcdata.cc:157）在清空的 Funcdata 上重新生成原始 p-code，而 Rudra 的
 流生成在驱动侧（`rudra::flow::follow_flow*` 于管线前调用），
 `Funcdata::start_processing` 无法重入。旧代码在未清空状态上
 `group.reset + STATUS_START` 重跑整个子树——这正是
@@ -1378,7 +1378,7 @@ bump register，见 heritage.md）。真实重启环（clearAnalysis + in-Funcda
    持有的注释库按函数入口地址清 warning/warningheader 注释）。
 2. **流再生成 seam**：oracle 第二遍经 `ActionStart → startProcessing →
    followFlow`（funcdata.cc:157）在 Architecture 持有的 loader/lifter 上
-   重建原始 p-code；Rugra 的流生成在驱动边界，故由驱动安装的
+   重建原始 p-code；Rudra 的流生成在驱动边界，故由驱动安装的
    `RestartFlowCallback`（`Arc<dyn Fn(&mut Funcdata) -> Result<()> +
    Send + Sync>`）在此处执行——与 clearAnalysis 的相对位置和 oracle 的
    followFlow 一致。**未安装回调的调用面（standalone fixture）走有界完成**
@@ -1421,7 +1421,7 @@ post-F2B 配置好的 `SleighLifter`（`Arc<Mutex>`）+ no-return callee 表 +
 >   `install_callee_siglock_protos`/paramid 通道第二遍丢失；oracle 第二遍
 >   经 queryCall 全量重取锁定签名。真实点火时第二遍调用签名为可观测
 >   分歧（当前全语料 0 触发不可达）。登记于 PIPE-RESTART-0001 剩余项 e。
-> - **F2（勘误）**：早期记录称 fspec.cc:5503 forceSet 触发点 "Rugra 未移植
+> - **F2（勘误）**：早期记录称 fspec.cc:5503 forceSet 触发点 "Rudra 未移植
 >   =CALLSPEC-0001 seam 已知缺口"——表述过期：fspec deindirect（:5471）/
 >   forceSet（:5503）两 `setRestartPending(true)` 触发点已移植。
 > - **F3（standalone 注记）**：clearAnalysis 的
@@ -1453,7 +1453,7 @@ varnode(INT_EQUAL 输出)供两 CBRANCH 读取——F3 语义 vn1==vn2 完整 ma
 action.cc:316-322 与 :839-845;pool 自身的 flush 因 active 位被 rule 对
 复位而自然 no-op,与 oracle 相同)。env 门控 `RUDRA_STAGE_DRILL`;
 env-off 字节一致性验证:05c8314 基线 vs 本分支,examples/
-rugra_decompile_func 对 examples/curl 的 next_url 输出逐字节相同。
+rudra_decompile_func 对 examples/curl 的 next_url 输出逐字节相同。
 
 
 ### 2026-09-26 — TOOLS-REFS-DEFSTART-0001 citation re-anchor
@@ -1471,7 +1471,7 @@ rugra_decompile_func 对 examples/curl 的 next_url 输出逐字节相同。
 oracle 侧 GLM_ACTSIG 同点插桩（scratch 树 ActionGroup::apply 子分发尾钩）
 的对照面。本轮用它证明 fn 653 的 518 步动作序与前 87 步逐动作 CFG 双侧
 恒等，把 round-2→3 窗口首分歧钉到 @ACT 87 nodejoin（oracle res=2 vs
-Rugra res=1），最终定位 RuleSubZext INT_RIGHT 臂缺失（详见
+Rudra res=1），最终定位 RuleSubZext INT_RIGHT 臂缺失（详见
 docs/api/ruleaction.md 与 docs/api/blockaction.md 的 SELECTGOTO 修复③节）。
 
 ## 2026-09-30（c 段）：ActionPool 游标 OpId 化 + 派发复读槽影化（PERF-ARENA-FLIP-0001 (c)）
@@ -1515,7 +1515,7 @@ oppool 派发面（W2REMEASURE 勘定 VdbeExec 极 2.61s、语料级派发残量
    影子，写点纪律见 op.md 2026-10-02 节）——去掉派发路径上的 PcodeOp
    RwLock 往返（VdbeExec 极 5.83M 访问 ×2 读点）。
 2. **早算后继 memo + optree version 守卫**：oracle 的 `op_state++`
-   （cc:871/830，活 map 迭代器 O(1)）在 Rugra id 空间 = 每次推进一次
+   （cc:871/830，活 map 迭代器 O(1)）在 Rudra id 空间 = 每次推进一次
    BTreeMap range 搜索（~73ns × 5.2M 推进）。现为规则循环**前**预算
    `next_op_after(op_id)`（此时游标自身槽行正热），尾推进在
    `optree_version()` 未变时直接复用（同 version ⇒ inner 未变 ⇒ 同树

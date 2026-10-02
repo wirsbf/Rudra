@@ -90,4 +90,4 @@ Partition map from linear space to values (partmap.hh:49).
 - `default_value()`, `default_value_mut()`, `clear()`, `is_empty()`,
   `num_splits()`, `splits()`.
 <!-- annotation-pass: 2026-07-04 -->
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

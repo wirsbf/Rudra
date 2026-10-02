@@ -8,7 +8,7 @@
 
 ## 1. 目标描述 (Description)
 
-Rugra 需要在 P-code 的基础上，通过抽象解释与约束求解（Constraint Solving）推导出每个 `Varnode` 的高级数据类型（如 `int`, `float`, `struct *` 等）。为了与 Ghidra 的输出保持 1:1, 需要严格挂载其**类型格（Type Lattice）**与**强制转换（Casting）**策略。
+Rudra 需要在 P-code 的基础上，通过抽象解释与约束求解（Constraint Solving）推导出每个 `Varnode` 的高级数据类型（如 `int`, `float`, `struct *` 等）。为了与 Ghidra 的输出保持 1:1, 需要严格挂载其**类型格（Type Lattice）**与**强制转换（Casting）**策略。
 
 ## 2. Ghidra 的实现逻辑 (Ghidra Implementation)
 
@@ -16,9 +16,9 @@ Ghidra 的类型推导分为局部和全局机制，依赖于：
 1. **格子理论 (Lattice Propagation)**: 类型的约束具有方向性。例如 `INT` 与 `FLOAT`，在不同 P-code 操作下存在提升（Promotion）或降级。底类型为 `UNKNOWN`。
 2. **Casting Strategy (`cast.hh`)**: 规定了在生成 C 代码时，何时需要插入显式 `(类型)` 类型转换符。例如短整型参与加法时的整型提升。
 
-## 3. Rugra 的对齐蓝图 (Rugra Blueprint)
+## 3. Rudra 的对齐蓝图 (Rudra Blueprint)
 
-Rugra 将在 `type_system` 和 `analysis::type_propagation` 模块中落实以下规范：
+Rudra 将在 `type_system` 和 `analysis::type_propagation` 模块中落实以下规范：
 
 ### 3.1. 类型格子结构 (Type Lattice Structure)
 - **初始态认定**: 将反汇编常量、导入导出函数 API 签名硬编码为**数据流源点 (Sources)**。

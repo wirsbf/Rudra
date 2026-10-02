@@ -1,7 +1,7 @@
 //! PANICSWEEP lane (BINSWEEP-0001): generic robustness sweep driver for
 //! arbitrary system ELF x86-64 binaries.
 //!
-//! Purpose: run Rugra's decompiler over a broad corpus of NEVER-TUNED
+//! Purpose: run Rudra's decompiler over a broad corpus of NEVER-TUNED
 //! system binaries (network tools / compression / crypto / interpreters /
 //! lib .so) with the bare native face — the same load + decompile shape
 //! `gen_decompile` established (BFD function-symbol discovery, PT_LOAD
@@ -43,8 +43,8 @@
 //!
 //! Usage (run from the repo root — sleigh_specs/ is CWD-relative):
 //!   cargo run --profile fast-release --example bin_sweep -- \
-//!       --manifest /dev/shm/rugra-tests/panicsweep/manifest.jsonl \
-//!       --out-dir /dev/shm/rugra-tests/panicsweep/run1
+//!       --manifest /dev/shm/rudra-tests/panicsweep/manifest.jsonl \
+//!       --out-dir /dev/shm/rudra-tests/panicsweep/run1
 
 use goblin::Object;
 use serde::{Deserialize, Serialize};
@@ -83,7 +83,7 @@ const STDERR_TAIL_CLIP: usize = 400;
 // binary; this driver adds no corpus-specific channels.
 // ===========================================================================
 
-// RUGRA-GLUE: one discovered decompilable unit (address, name, size).
+// RUDRA-GLUE: one discovered decompilable unit (address, name, size).
 #[derive(Clone)]
 struct GenFunction {
     vaddr: u64,
@@ -91,7 +91,7 @@ struct GenFunction {
     size: usize,
 }
 
-// RUGRA-GLUE: BFD static/dynamic FUNC symbols + PLT JUMP_SLOT stubs,
+// RUDRA-GLUE: BFD static/dynamic FUNC symbols + PLT JUMP_SLOT stubs,
 // dedup by address, (offset, name) order (golden_dump_1204.cc shape).
 fn discover_functions(elf: &goblin::elf::Elf) -> Vec<GenFunction> {
     let mut by_addr: HashMap<u64, GenFunction> = HashMap::new();
@@ -165,7 +165,7 @@ fn discover_functions(elf: &goblin::elf::Elf) -> Vec<GenFunction> {
     functions
 }
 
-// RUGRA-GLUE: PT_LOAD vaddr-keyed memory image with the ELF loader's
+// RUDRA-GLUE: PT_LOAD vaddr-keyed memory image with the ELF loader's
 // import relocations applied (curl worker PLTSTUB-THUNKRELRO-0001 image
 // contract generalized to any ELF).
 fn memory_image_bytes(elf: &goblin::elf::Elf, buffer: &[u8]) -> Vec<u8> {
@@ -326,7 +326,7 @@ impl rudra::pcodeparse::SleighSymbolLookup for SweepSpecHost {
     }
 }
 
-// RUGRA-GLUE: bare Architecture — gen_decompile's build_architecture
+// RUDRA-GLUE: bare Architecture — gen_decompile's build_architecture
 // verbatim (archid, SLEIGH register_xref, commentdb, shared TypeFactory
 // with the locked cspec data_organization, inject library + userops,
 // pspec context/register decode, parse_compiler_config establishing
@@ -490,7 +490,7 @@ fn build_architecture(
 }
 
 
-// RUGRA-GLUE: hermetic single-function decompile (gen run_one shape) that
+// RUDRA-GLUE: hermetic single-function decompile (gen run_one shape) that
 // RETURNS the produced C text length instead of printing it, so the sweep
 // worker can report over the sentinel channel.
 fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result<usize, String> {
@@ -579,7 +579,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
 // Sweep records + worker protocol
 // ===========================================================================
 
-// RUGRA-GLUE: worker -> parent result over the sentinel line.
+// RUDRA-GLUE: worker -> parent result over the sentinel line.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 struct WorkerResult {
     status: String, // "ok" | "panic" | "error"
@@ -590,7 +590,7 @@ struct WorkerResult {
     err_msg: String,
 }
 
-// RUGRA-GLUE: one attempted function (functions.jsonl record).
+// RUDRA-GLUE: one attempted function (functions.jsonl record).
 #[derive(Clone, Debug, Serialize)]
 struct FuncRecord {
     binary: String,
@@ -612,7 +612,7 @@ struct FuncRecord {
     stdout_noise: usize,
 }
 
-// RUGRA-GLUE: one swept binary (results.jsonl record).
+// RUDRA-GLUE: one swept binary (results.jsonl record).
 #[derive(Clone, Debug, Serialize)]
 struct BinaryRecord {
     path: String,
@@ -643,7 +643,7 @@ struct BinaryRecord {
     note: String,
 }
 
-// RUGRA-GLUE: manifest row (path + category + any extra provenance fields
+// RUDRA-GLUE: manifest row (path + category + any extra provenance fields
 // copied through, e.g. sha256 for cross-verification).
 #[derive(Clone, Debug, Deserialize)]
 struct ManifestRow {
@@ -656,13 +656,13 @@ struct ManifestRow {
     extra: HashMap<String, serde_json::Value>,
 }
 
-// RUGRA-GLUE: normalizes a panic location to the bare `file.rs:line` form
+// RUDRA-GLUE: normalizes a panic location to the bare `file.rs:line` form
 // (panic! locations carry the crate-relative `src/` prefix).
 fn normalize_loc(loc: &str) -> &str {
     loc.strip_prefix("src/").unwrap_or(loc)
 }
 
-// RUGRA-GLUE: classifies one function outcome into a family key. "K:" =
+// RUDRA-GLUE: classifies one function outcome into a family key. "K:" =
 // known ticket (corpus evidence for an existing TODO entry), "NEW:" =
 // unregistered family (needs a ticket), "E:" = error-path family,
 // "T:"/"C:" = timeout / crash classes.
@@ -722,7 +722,7 @@ fn classify_family(status: &str, loc: &str, msg: &str) -> String {
     }
 }
 
-// RUGRA-GLUE: clips a diagnostic string to a bounded length.
+// RUDRA-GLUE: clips a diagnostic string to a bounded length.
 fn clip(text: &str, limit: usize) -> String {
     let mut out: String = text.chars().take(limit).collect();
     if out.len() < text.len() {
@@ -731,7 +731,7 @@ fn clip(text: &str, limit: usize) -> String {
     out.replace('\n', "\\n")
 }
 
-// RUGRA-GLUE: last non-empty stderr lines for the record tail.
+// RUDRA-GLUE: last non-empty stderr lines for the record tail.
 fn stderr_tail(stderr: &[u8]) -> String {
     let text = String::from_utf8_lossy(stderr);
     let lines: Vec<&str> = text.lines().filter(|line| !line.trim().is_empty()).collect();
@@ -749,7 +749,7 @@ fn payload_str(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
-// RUGRA-GLUE: ELF header facts straight from the first 64 bytes (class,
+// RUDRA-GLUE: ELF header facts straight from the first 64 bytes (class,
 // endian, e_type, e_machine) — no parser API surface involved.
 #[derive(Default)]
 struct ElfFacts {
@@ -781,7 +781,7 @@ fn et_type_str(et_type: u16) -> String {
     }
 }
 
-// RUGRA-GLUE: sha256 via coreutils (the sweep already shells out to
+// RUDRA-GLUE: sha256 via coreutils (the sweep already shells out to
 // `timeout`; one more deterministic subprocess keeps the driver
 // dependency-free).
 fn sha256_of(path: &str) -> String {
@@ -799,7 +799,7 @@ fn sha256_of(path: &str) -> String {
         .unwrap_or_default()
 }
 
-// RUGRA-GLUE: sanitized file name fragment for stderr archives.
+// RUDRA-GLUE: sanitized file name fragment for stderr archives.
 fn name_fragment(path: &str) -> String {
     path.rsplit('/').next().unwrap_or("bin").replace('/', "_")
 }
@@ -915,7 +915,7 @@ struct SharedOutputs {
     stderr_dir: String,
 }
 
-// RUGRA-GLUE: one spawn attempt outcome for a single function.
+// RUDRA-GLUE: one spawn attempt outcome for a single function.
 struct SpawnOutcome {
     status: String,
     worker: Option<WorkerResult>,
@@ -983,7 +983,7 @@ fn spawn_one_function(
     })
 }
 
-// RUGRA-GLUE: one binary's whole sweep; returns the per-binary record and
+// RUDRA-GLUE: one binary's whole sweep; returns the per-binary record and
 // appends per-function records to the shared outputs.
 fn sweep_binary(
     exe: &str,
@@ -1294,7 +1294,7 @@ fn sweep_binary(
     record
 }
 
-// RUGRA-GLUE: numeric env knob with CLI override.
+// RUDRA-GLUE: numeric env knob with CLI override.
 fn knob(env_key: &str, flag_value: Option<&str>, default: u64) -> u64 {
     flag_value
         .and_then(|value| value.parse().ok())
@@ -1306,7 +1306,7 @@ fn knob(env_key: &str, flag_value: Option<&str>, default: u64) -> u64 {
         .unwrap_or(default)
 }
 
-// RUGRA-GLUE: flags that consume one value argument.
+// RUDRA-GLUE: flags that consume one value argument.
 const VALUE_FLAGS: [&str; 6] = [
     "--manifest",
     "--out-dir",
@@ -1316,7 +1316,7 @@ const VALUE_FLAGS: [&str; 6] = [
     "--jobs",
 ];
 
-// RUGRA-GLUE: positional binaries (skipping the program name, flags, and
+// RUDRA-GLUE: positional binaries (skipping the program name, flags, and
 // each value-taking flag's consumed argument).
 fn positional_paths(args: &[String]) -> Vec<String> {
     let mut out = Vec::new();

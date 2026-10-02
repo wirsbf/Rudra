@@ -37,7 +37,7 @@ oracle 的 res1/res2 输出缓冲写是裸指针存（expression.cc:475-477）,�
 
 ## 2026-09-29：PERF-OPPOOL-0001 TermOrder 收集/排序每边锁合并（性能恒等重排）
 
-[OPPROF] 钻探（VdbeExec `--one 1055`，RUGRA_OPPROF=1 探针，交付前撤净）显示
+[OPPROF] 钻探（VdbeExec `--one 1055`，RUDRA_OPPROF=1 探针，交付前撤净）显示
 `collect_terms` 是 oppool1 22-28s 残差的单一最大项：8.47s / 617,430 次尝试 /
 **13.7µs 每次尝试**（oracle 同规则密度采样仅 ~0.5s = 17× 实现级常数差）。本条
 消除该常数，算法与可观察结果不变：

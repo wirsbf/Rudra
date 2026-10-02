@@ -2,7 +2,7 @@
 
 ## 1. Context & Motivation
 
-Currently, Rugra's decompilation pipeline has two distinct paradigms coexisting:
+Currently, Rudra's decompilation pipeline has two distinct paradigms coexisting:
 1. **The Old Pipeline**: Centered around `src/pcode/program.rs` (`Program` structure) and `src/analysis/mod.rs` (`analyze_function`). This pipeline is monolithic, running sequential passes (CFG -> Variables -> Type Inference -> SSA -> Optimization). It relies on flat `Vec<PcodeOperation>`.
 2. **The New Pipeline (Ghidra-Aligned)**: Centered around `src/funcdata.rs` (`Funcdata`) and `src/action.rs` (`Action` & `ActionDatabase`). This matches Ghidra's C++ design, using `VarnodeBank` and `PcodeOpBank` for efficient graph manipulations, and modular `Action` passes that can be dynamically grouped and run until fixed points.
 

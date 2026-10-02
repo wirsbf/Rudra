@@ -1,6 +1,6 @@
 # 方法论（学术/模型）沉淀模板 (Methodology)
 
-在这里存放对 RustVSR / Rugra 中具备较高理论性、有学术突破向或打破逆向工程常理的方法、抽象模型的探讨文档。
+在这里存放对 RustVSR / Rudra 中具备较高理论性、有学术突破向或打破逆向工程常理的方法、抽象模型的探讨文档。
 
 ## 命名指引
 `method_YYYY-MM-DD_<high-level-topic>.md` 

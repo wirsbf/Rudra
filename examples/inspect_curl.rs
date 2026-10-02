@@ -5,14 +5,14 @@ use goblin::Object;
 use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Rugra Binary Inspector: examples/curl ===\n");
+    println!("=== Rudra Binary Inspector: examples/curl ===\n");
 
     // Read the binary file
     let buffer = match fs::read("examples/curl") {
         Ok(b) => b,
         Err(e) => {
             eprintln!("Error: Could not read examples/curl: {}", e);
-            eprintln!("Make sure you are running from the rugra project root.");
+            eprintln!("Make sure you are running from the rudra project root.");
             return Ok(());
         }
     };

@@ -139,7 +139,7 @@ Create a new TypeFactory and initialize core types
 表（`xunknownN`/`int4`/`uint1`/`code`）= direct-runner 契约；
 `ArchitectureGhidra` 接收 Java 客户端 `<coretypes>` 流
 （PcodeDataTypeManager.encodeCoreTypes）拼 `undefinedN`/`int`/`long` =
-canon headless 门。Rugra 驱动以环境变量选契约（curl/httpd =
+canon headless 门。Rudra 驱动以环境变量选契约（curl/httpd =
 `RUDRA_MIRROR`/`RUDRA_FLOW_MIRROR`，泛化驱动 = `RUDRA_GEN_MIRROR`，
 MIRROR-ENVS-CANONICAL-0001），故 `new` 在这些进程中构造 Standalone 表，
 默认进程保持 DataOrg（canon 脸不变）。探测函数为
@@ -303,8 +303,8 @@ projected Rust enum `space_id`, descending size, then id (`type.cc:954-967`,
 `3867-3875`). This projection is not equivalent to Ghidra's `AddrSpace*`
 object-identity gate followed by architecture `getIndex()` ordering. Ordinary
 typedefs remain pointees; Partial and ephemeral PointerRel values use their
-stripped object. `get_type_pointer_default` supplies Rugra's current default
-geometry for the grammar caller. Because Rugra's production Architecture still
+stripped object. `get_type_pointer_default` supplies Rudra's current default
+geometry for the grammar caller. Because Rudra's production Architecture still
 records `types->setupSizes()` as a no-op (`CSPEC-TYPEORG-STATE-0001`), this Rust
 glue uses the same structural key with the registered primitive-layout fallback;
 the explicit `get_type_pointer` API remains fail-closed on an empty align map.
@@ -505,7 +505,7 @@ structurally, and a miss inserts with the `"Shared type id: {id:x}"`
 `getAlignment(alignSize)` 写入候选 `TypeBase`，再注册。alignment map 的
 `"TypeFactory alignment map not initialized"`
 LowlevelError is enforced on the `get_base_result` entry only — production
-Rugra factories do not yet thread the decoded alignment map
+Rudra factories do not yet thread the decoded alignment map
 (TYPEFACTORY-ARCH-ALIGNMAP-WIRING-0001).
 
 For series B, the ordered key additionally projects TypeArray's element
@@ -729,7 +729,7 @@ Consequences, registered under `TYPEFACTORY-UNDEFNAME-0001`:
   side runs the SLEIGH standalone fallback, so re-running the gate against the
   renamed factory now yields a name/id MISMATCH on the four core unknowns
   (structural identity, anonymous ordering, and clear/recreate behavior are
-  unaffected). This is a registered inter-flavor divergence — Rugra has one
+  unaffected). This is a registered inter-flavor divergence — Rudra has one
   factory default rather than per-architecture core-type registration — not a
   port defect of `getBase` itself;
 - the `xVar` prefix family disappears for every name sourced from the factory;
@@ -771,7 +771,7 @@ return-only snapshots:
   full default derivation 1:1 (int from the stack spacebase clamped to 4,
   long via `(int==4) ? 8 : int`, char 1, wchar 2, pointer from the default
   data space, far-pointer `alt_pointer`, default map, enum defaults).
-  Because Rugra's factory has no `glb` Architecture handle yet, the
+  Because Rudra's factory has no `glb` Architecture handle yet, the
   `glb->getStackSpace()/getDefaultDataSpace()/getSegmentOp()/getDefaultSize()`
   lookups are passed in as `SizeArchInputs` (RUDRA-GLUE).
 - New readers `get_alignment(u32) -> Result<i32, String>` (type.cc:3296;
@@ -803,7 +803,7 @@ RangeHint / symbol unknown type now resolves through a `TypeFactory`.
   headless oracle's single Architecture: Ghidra builds exactly one
   `TypeFactory` per `Architecture` (`TypeFactory::TypeFactory(Architecture*)`,
   `type.cc:3106-3119`) and the headless oracle runs one Architecture per
-  process. Production Rugra `Funcdata` does not yet carry an attached
+  process. Production Rudra `Funcdata` does not yet carry an attached
   Architecture (`FUNCPROTO-MODEL-BIND-0001` chain), so factory-less callers
   resolve this process-wide DataOrg-flavor canonical instance. An explicitly
   injected handle (`VarnodeBank::set_type_factory`, `fd.arch.types` in
@@ -823,13 +823,13 @@ RangeHint / symbol unknown type now resolves through a `TypeFactory`.
 ## 2026-08-18 TYPEFACTORY-NEEDSRES-SINGLEFIELD-0001
 
 The complete `needs_resolution` setting matrix is now mirrored on every
-TypeFactory creation path, closing the audit gap where Rugra never produced
+TypeFactory creation path, closing the audit gap where Rudra never produced
 a single-field `needsResolution` struct (the SUBPIECE findResolve write-side
 producer):
 
 - `set_fields` — `TypeStruct::setFields` single-field arm
   (type.cc:1569-1571): ORs the flag in (never cleared) when exactly one
-  field's full `get_size()` equals the caller-supplied `newSize`. Rugra's
+  field's full `get_size()` equals the caller-supplied `newSize`. Rudra's
   arm recomputes the grammar-path newSize
   (`calc_align_size(field.get_align_size(), field.get_alignment().max(1))`,
   `assignFieldOffsets` type.cc:1971-1993) instead of comparing against the
@@ -884,7 +884,7 @@ Historical pre-series-C oracle evidence:
 pointer stays clear; differently-sized new pointer inherits],
 dec.acceptance [overlap throw-out ×2, empty size-8 and size-0 incomplete
 residue], dec.err [order/fit/void/name-empty/name+void-precedence verbatim
-error texts]), real locked-12.0.4 oracle vs Rugra byte-identical
+error texts]), real locked-12.0.4 oracle vs Rudra byte-identical
 (`records=27 … MATCH`), expected stdout sha256 locked in metadata. Series C
 changes the pointer factory bytes, so this older fixture cannot upgrade the
 new projection above from `NO_ORACLE`. Its historical E2E curl
@@ -928,7 +928,7 @@ compare exact custom names, unsigned ids, flags, metatypes, and canonical
 pointer/`Arc` identity for two non-ASCII signed bytes, two unsigned bytes,
 an ASCII byte, repeated cache calls, a later higher-id signed byte, double
 clear, empty-cache fallback, and post-clear plain→ASCII reconstruction. The
-runner builds Ghidra at commit `e40ed130…376b` and an isolated Rugra closure
+runner builds Ghidra at commit `e40ed130…376b` and an isolated Rudra closure
 from pinned commit `8012627…8c65` with only this task's hash-verified
 `typefactory.rs` overlaid, so concurrent dirty files cannot affect the
 comparand. Result: all 99 records byte-identical, stdout SHA-256
@@ -1063,7 +1063,7 @@ calls are ported 1:1 against locked `type.cc`/`marshal.cc`:
   pointer"` for a non-`ptr` metatype, then executes the WORDSIZE attribute
   loop **without** a preceding `rewindAttributes` (type.cc:4201-4207, unlike
   `TypePointer::decode` at type.cc:1015). Because neither `XmlDecode`
-  (marshal.cc:231-241) nor Rugra's `TreeDecoder` restarts an exhausted
+  (marshal.cc:231-241) nor Rudra's `TreeDecoder` restarts an exhausted
   attribute enumeration, the loop reads nothing and `wordsize` keeps the
   `TypePointer` ctor default 1 (type.hh:407). `decodeCode` then re-reads the
   SAME still-open element and raises `"Bad size for type "` (empty name) —
@@ -1104,7 +1104,7 @@ calls are ported 1:1 against locked `type.cc`/`marshal.cc`:
 Oracle evidence: `tests/oracle/typefactory_codeflags_decode_1204.{cc,rs,
 metadata.json}` + runner `tools/run_typefactory_codeflags_decode_oracle.sh`
 (89 records, projection MATCH). Registered residual: a present
-`<prototype>` child errors in Rugra until `FuncProto::decode`
+`<prototype>` child errors in Rudra until `FuncProto::decode`
 (fspec.cc:4675-4839, fspec.rs lease) is ported — the stub inserted before
 the throw survives exactly like the oracle's own prototype-decode
 failures; live ctor/dtor/`has_thisptr` flag observation is gated on the
@@ -1116,7 +1116,7 @@ same port (TYPEFACTORY-CODEFLAGS-DECODE-0001 residual).
 - `TypeFactory::symboltab: Option<Arc<RwLock<Database>>>`（两构造器
   初始化 None）+ `set_spacebase_scope_source(db)`：Ghidra 的
   `TypeSpacebase::getMap` 每次 `glb->symboltab->getGlobalScope()` 动态解析
-  （type.cc:2935-2945）；Rugra 类型不携带 Architecture，改为构造时快照
+  （type.cc:2935-2945）；Rudra 类型不携带 Architecture，改为构造时快照
   （符号图在反编译前安装、期间稳定，与 oracle 可观察答案一致）。
 - `TypeFactory::live_local_scopes: BTreeMap<u64, Arc<RwLock<ScopeLocal>>>`
   （2026-09-24 VARMAP-STACKBOUNDARY-0001 新字段，两构造器初始化空表）+
@@ -1141,7 +1141,7 @@ const Address&, Architecture*)`（type.hh:735-736）基类构造
 `PrintC::buildTypeStack`（printc.cc:143-163）在匿名非 PTR/ARRAY/CODE 类型处
 终止，`pushTypeStart` 匿名分支（printc.cc:280-285）经 `genericTypeName`
 （printc.cc:3373）拼出 **`BADSPACEBASE`**（cc:3387-3389，无 size 后缀）。
-现 Rugra 侧 `TypeBase::new(String::new(), ...)` 与 oracle 同为空名，
+现 Rudra 侧 `TypeBase::new(String::new(), ...)` 与 oracle 同为空名，
 printc 的 `push_type_start_opt` 匿名分支 → `generic_type_name` →
 `BADSPACEBASE *in_RSP`。合成键仅存续为 name-keyed BTreeMap 的去重槽位
 （Ghidra 经 findAdd 的 compare 树去重，type.cc:3996/3045-3055）。curl E2E
@@ -1166,7 +1166,7 @@ httpd 2339==基线；glob_set/glob_range/glob_url 与 next_url 输出零行变�
 - 语义依据：Ghidra 中管线可达的工厂必经 decode→setupSizes，`alignMap` 永不
   为空；`"TypeFactory alignment map not initialized"` LowlevelError
   （type.cc:3296-3305 getAlignment，经 findAdd type.cc:3433-3436 触发）只在
-  raw 构造与 decode 之间可达，绝不会出现在被反编译函数内。Rugra 的
+  raw 构造与 decode 之间可达，绝不会出现在被反编译函数内。Rudra 的
   httpd 驱动没有 Architecture，进程级工厂此前停在 raw 构造态，首个
   `getTypePointer` 树 miss 即触发该错误（panic 桥）→ 共享工厂 RwLock 中毒
   → 后续 worker PoisonError 级联（master 上 httpd 仅 4/29 函数输出）。
@@ -1193,7 +1193,7 @@ extra 恒 0）就此消灭；构造签名与去重键不变。
 - **根因（镜面残差族=unkbyte 拼写）**：oracle 的 spacebase/符号查询 miss 臂
   一律返回 `glb->types->getBase(1,TYPE_UNKNOWN)`（type.cc:2965-2967；
   database.cc:629/681/731）——经工厂解析为**命名**核心类型
-  （standalone 档 `xunknown1`、DataOrg 档 `undefined1`）。Rugra 的
+  （standalone 档 `xunknown1`、DataOrg 档 `undefined1`）。Rudra 的
   datatype.rs 六处 miss/untyped 臂构造**裸匿名** `TypeBase::new("",1,
   Unknown)` → `PrintC::genericTypeName`（printc.cc:3383）拼成 `unkbyte1`
   （curl 镜 5 处、httpd 镜 1 处 `(unkbyte1 *)` cast 实证）。
@@ -1248,7 +1248,7 @@ extra 恒 0）就此消灭；构造签名与去重键不变。
 ### 2026-09-26 — WORKPKG-UNMAP-TYPEUNION-0003（type.cc 3724/3445/3750/3761/4055/4122/3479/3500 残项）
 
 - **`pub struct DatatypeWarning`**（type.hh:752-762）：警告记录
-  `{ type_name, type_id, warning }`——Ghidra 存 `Datatype*`，Rugra 记
+  `{ type_name, type_id, warning }`——Ghidra 存 `Datatype*`，Rudra 记
   `removeWarning` 比较所用的 (id,name) 身份对（type.cc:3766）。新字段
   `warnings: Vec<DatatypeWarning>`（type.hh:760）随两个构造器初始化。
 - **`pub fn insert_warning(&mut self, dt, warn) -> Result<Arc<Datatype>, String>`**
@@ -1261,14 +1261,14 @@ extra 恒 0）就此消灭；构造签名与去重键不变。
   （type.cc:3445-3459）：经 define_replace 完成 nametree/tree 双通道
   erase-reinsert、`name`/`displayName` 同置、id==0 时 `hashName(n)`。
   与 oracle 的分歧：撞名/撞树键时 oracle std::set::insert 静默失败（类型
-  不入索引），Rugra 以 `Err` 显式拒绝（注册表误用面）。
+  不入索引），Rudra 以 `Err` 显式拒绝（注册表误用面）。
 - **`pub fn recalc_pointer_submeta(&mut self, base, sub)`**
   （type.cc:3724-3745）：忠实移植——`TypePointer top(1,base,0)` 探针的
   calcSubmeta 即当前正确 submeta；相等早退；否则从
   `lower_bound((sub, base, 0,0,0, no-space, Reverse(1), 0))` 起沿树序走，
   首个非 TYPE_PTR 或 `ptrto != base`（Arc 身份）即 break；old-key submeta
   分量 == sub 的条目 remove + 以当前投影重插（Ghidra 原位改
-  `ptr->submeta = curSub`，Rugra submeta 为派生量，重键即迁移）。探针
+  `ptr->submeta = curSub`，Rudra submeta 为派生量，重键即迁移）。探针
   形状继承 oracle 的 wordsize-0/无空间/size-1 错过面。define_replace 的
   Arc 重包接缝限制：pointee 为完成前旧 Arc 的指针不可达
   （TYPEFACTORY-ARC-IDENTITY-0001）。

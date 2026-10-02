@@ -1,4 +1,4 @@
-# Ghidra 12.0.4 ↔ Rugra 函数账本入口
+# Ghidra 12.0.4 ↔ Rudra 函数账本入口
 
 本目录的权威机器账本由 `tools/generate_function_ledger.py` 从锁定 oracle 与当前
 Rust 源码生成：

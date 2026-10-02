@@ -1,13 +1,13 @@
-# Rugra ↔ Ghidra 完整文件映射文档
+# Rudra ↔ Ghidra 完整文件映射文档
 
 > 由 5 个子 Agent 并行审计生成（2026-07-21）
-> 总计：Ghidra 114 个 .cc 文件，Rugra 67 个 .rs 文件
+> 总计：Ghidra 114 个 .cc 文件，Rudra 67 个 .rs 文件
 
 ---
 
 ## 一、模块组总览
 
-| 模块组 | Ghidra 文件数 | Ghidra 行数 | Ghidra 函数 | Rugra 文件数 | Rugra 函数 | `// Ghidra:` 注释 |
+| 模块组 | Ghidra 文件数 | Ghidra 行数 | Ghidra 函数 | Rudra 文件数 | Rudra 函数 | `// Ghidra:` 注释 |
 |---|---|---|---|---|---|---|
 | Core IR | 4 | 7041 | 396 | 5 | 473 | 450 |
 | Pipeline + SSA | 8 | 27380 | 784 | 8 | 1520 | 1297 |
@@ -20,7 +20,7 @@
 
 ## 二、Core IR 模块组
 
-| Ghidra 文件 | 行数 | 函数 | Rugra 文件 | 函数 | 注释 | 状态 |
+| Ghidra 文件 | 行数 | 函数 | Rudra 文件 | 函数 | 注释 | 状态 |
 |---|---|---|---|---|---|---|
 | op.cc | 1213 | 47 | op.rs | 94 | 93 | ✅ 强对齐 |
 | varnode.cc | 2053 | 88 | varnode.rs | 210 | 203 | ✅ 强对齐 |
@@ -36,7 +36,7 @@
 
 ## 三、Pipeline + SSA 模块组
 
-| Ghidra 文件 | 行数 | 函数 | Rugra 文件 | 函数 | 注释 | 状态 |
+| Ghidra 文件 | 行数 | 函数 | Rudra 文件 | 函数 | 注释 | 状态 |
 |---|---|---|---|---|---|---|
 | action.cc | 1163 | 68 | action.rs | 44 | 5 | ⚠️ 部分（54/68 方法，多为生命周期辅助） |
 | coreaction.cc | 5741 | 125 | coreaction.rs | 327 | 248 | ✅ 强对齐（40/125 缺失，大 Action 子方法） |
@@ -56,7 +56,7 @@
 
 ## 四、Structuring + Output 模块组
 
-| Ghidra 文件 | 行数 | 函数 | Rugra 文件 | 函数 | 注释 | 状态 |
+| Ghidra 文件 | 行数 | 函数 | Rudra 文件 | 函数 | 注释 | 状态 |
 |---|---|---|---|---|---|---|
 | block.cc | 3723 | 204 | block.rs | 248 | 198 | ✅ 强对齐 |
 | blockaction.cc | 2366 | 83 | blockaction.rs | 69 | 87 | ✅ 强对齐 |
@@ -80,7 +80,7 @@
 
 ### 已匹配文件（34 个）
 
-| Ghidra 文件 | 行数 | 函数 | Rugra 文件 | 函数 | 注释 |
+| Ghidra 文件 | 行数 | 函数 | Rudra 文件 | 函数 | 注释 |
 |---|---|---|---|---|---|
 | funcdata.cc | 1122 | 42 | funcdata.rs | 165 | 135 |
 | fspec.cc | 5976 | 239 | fspec.rs | 122 | 116 |
@@ -139,9 +139,9 @@
 
 | 类别 | Ghidra 文件 | 原因 |
 |---|---|---|
-| SLEIGH 编译器 | slgh_compile/slghparse/slghscan/slghsymbol/slghpatexpress/slghpattern/semantics.cc | Rugra 不编译 .sleigh 规格，加载预编译 .sla |
+| SLEIGH 编译器 | slgh_compile/slghparse/slghscan/slghsymbol/slghpatexpress/slghpattern/semantics.cc | Rudra 不编译 .sleigh 规格，加载预编译 .sla |
 | SLEIGH 运行时引擎 | sleigh.cc/sleighbase.cc/slaformat.cc | 通过 FFI shim 包装 Ghidra C++ 引擎 |
-| Ghidra GUI/进程桥 | ghidra_arch/ghidra_process/ghidra_translate/ghidra_context.cc | Rugra 独立运行，不做 Ghidra 子进程 |
+| Ghidra GUI/进程桥 | ghidra_arch/ghidra_process/ghidra_translate/ghidra_context.cc | Rudra 独立运行，不做 Ghidra 子进程 |
 
 ### 已移植/部分移植
 
@@ -201,7 +201,7 @@
 
 ---
 
-## 八、Rugra 独有文件（Ghidra 无直接对应物）
+## 八、Rudra 独有文件（Ghidra 无直接对应物）
 
 | Rust 文件 | 说明 |
 |---|---|
@@ -211,7 +211,7 @@
 | ffi.rs | 通用 FFI 入口 |
 | error.rs | anyhow 错误处理 |
 | utils.rs | 工具函数 |
-| types.rs | Rugra 标量类型（非 type.cc 对应物） |
+| types.rs | Rudra 标量类型（非 type.cc 对应物） |
 | float_emulate.rs | 浮点模拟 |
 | grammar.rs | C 语法解析（替代 grammar.cc 的 yacc/lex） |
 | expression.rs | 表达式等价分析 |

@@ -1,13 +1,13 @@
-# Ghidra ↔ Rugra 文件级总览清单
+# Ghidra ↔ Rudra 文件级总览清单
 
-**用途**:覆盖全部 114 个 Ghidra `.cc` 文件,标注每个的 Rugra 对应、范围判定、优先级。这是 `FUNCTION_MAP.md`(函数级清单)的索引 —— 每个文件核对函数前,先在此确认范围。
+**用途**:覆盖全部 114 个 Ghidra `.cc` 文件,标注每个的 Rudra 对应、范围判定、优先级。这是 `FUNCTION_MAP.md`(函数级清单)的索引 —— 每个文件核对函数前,先在此确认范围。
 
 **范围判定**:
-- **核心**:Rugra 必须 1:1 移植(反编译器算法)
-- **集成**:Ghidra-app 集成层(Rugra 用自己的 loader/arch/ffi,不直接移植,但语义要等价)
-- **SLEIGH**:SLEIGH 编译器(Rugra 通过 sleigh_shim 调用,不移植)
-- **测试/接口/控制台**:Ghidra 内部测试与命令行(Rugra 不需要)
-- **不移植**:明显不在 Rugra 范围(如 bfd/xml/特定平台 arch)
+- **核心**:Rudra 必须 1:1 移植(反编译器算法)
+- **集成**:Ghidra-app 集成层(Rudra 用自己的 loader/arch/ffi,不直接移植,但语义要等价)
+- **SLEIGH**:SLEIGH 编译器(Rudra 通过 sleigh_shim 调用,不移植)
+- **测试/接口/控制台**:Ghidra 内部测试与命令行(Rudra 不需要)
+- **不移植**:明显不在 Rudra 范围(如 bfd/xml/特定平台 arch)
 
 **优先级**(只对"核心"标注):
 - P0 地基 — 数据结构 + op/var 编辑原语(所有上层都依赖)
@@ -22,7 +22,7 @@
 
 ### P0 地基(数据结构 + 原语)
 
-| Ghidra .cc | Rugra 模块 | 函数清单状态 |
+| Ghidra .cc | Rudra 模块 | 函数清单状态 |
 |---|---|---|
 | `address.cc` | `address.rs` | 🔍 待列 |
 | `space.cc` | `space.rs` | 🔍 待列 |
@@ -38,7 +38,7 @@
 
 ### P1 核心算法
 
-| Ghidra .cc | Rugra 模块 | 函数清单状态 |
+| Ghidra .cc | Rudra 模块 | 函数清单状态 |
 |---|---|---|
 | `heritage.cc` | `heritage.rs` | ⚠️ 部分审(INDEX.md P0) |
 | `merge.cc` | `merge.rs` | ⚠️ 部分审(INDEX.md) |
@@ -72,7 +72,7 @@
 
 ### P2 主管线(Actions/Rules)
 
-| Ghidra .cc | Rugra 模块 | 函数清单状态 |
+| Ghidra .cc | Rudra 模块 | 函数清单状态 |
 |---|---|---|
 | `action.cc` | `action.rs` | 🔍 待列 |
 | `coreaction.cc` | `coreaction.rs` | ⚠️ 部分审(INDEX.md) |
@@ -82,7 +82,7 @@
 
 ### P3 类型 + 输出
 
-| Ghidra .cc | Rugra 模块 | 函数清单状态 |
+| Ghidra .cc | Rudra 模块 | 函数清单状态 |
 |---|---|---|
 | `type.cc` | `type_system.rs` | 🔍 待列 |
 | `printc.cc` | `printc.rs` | 🔍 待列 |
@@ -93,7 +93,7 @@
 
 ### P4 外围(基础设施)
 
-| Ghidra .cc | Rugra 模块 | 函数清单状态 |
+| Ghidra .cc | Rudra 模块 | 函数清单状态 |
 |---|---|---|
 | `architecture.cc` | `arch.rs` | 🔍 待列 |
 | `capability.cc` | `capability.rs` | 🔍 待列 |
@@ -118,7 +118,7 @@
 
 ---
 
-## B. SLEIGH 编译器(不移植,Rugra 通过 sleigh_shim 调用)
+## B. SLEIGH 编译器(不移植,Rudra 通过 sleigh_shim 调用)
 
 | Ghidra .cc | 处理 |
 |---|---|
@@ -139,14 +139,14 @@
 
 ---
 
-## C. Ghidra-app 集成层(不直接移植,Rugra 用自己的实现)
+## C. Ghidra-app 集成层(不直接移植,Rudra 用自己的实现)
 
-| Ghidra .cc | Rugra 替代 | 备注 |
+| Ghidra .cc | Rudra 替代 | 备注 |
 |---|---|---|
-| `ghidra_arch.cc` | `arch.rs` | Rugra 自己的 arch 配置 |
+| `ghidra_arch.cc` | `arch.rs` | Rudra 自己的 arch 配置 |
 | `ghidra_context.cc` | `context.rs` |  |
-| `ghidra_process.cc` | — | Ghidra 进程协议,Rugra 不需要 |
-| `ghidra_translate.cc` | `disasm/` | Rugra 用 SLEIGH shim |
+| `ghidra_process.cc` | — | Ghidra 进程协议,Rudra 不需要 |
+| `ghidra_translate.cc` | `disasm/` | Rudra 用 SLEIGH shim |
 | `comment_ghidra.cc` | `comment.rs` |  |
 | `database_ghidra.cc` | `database.rs` |  |
 | `cpool_ghidra.cc` | `cpool.rs` |  |
@@ -159,7 +159,7 @@
 
 ---
 
-## D. Loader / 平台 arch(Rugra 用 goblin/iced,不移植 Ghidra 的)
+## D. Loader / 平台 arch(Rudra 用 goblin/iced,不移植 Ghidra 的)
 
 | Ghidra .cc | 处理 |
 |---|---|
@@ -191,7 +191,7 @@
 
 | Ghidra .cc | 处理 |
 |---|---|
-| `xml.cc` | 部分移植(`marshal.rs`,Rugra 用 serde 替代大部分) |
+| `xml.cc` | 部分移植(`marshal.rs`,Rudra 用 serde 替代大部分) |
 
 ---
 

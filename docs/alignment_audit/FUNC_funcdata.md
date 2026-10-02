@@ -1,11 +1,11 @@
 # 函数清单:funcdata_op.cc + funcdata.cc + funcdata_varnode.cc + funcdata_block.cc
 
 来源:Ghidra 4 个 funcdata_*.cc(~185 函数)
-Rugra 对应:`src/funcdata.rs`
+Rudra 对应:`src/funcdata.rs`
 
 ## funcdata_op.cc(47 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L25 | `void opSetOpcode(PcodeOp*, OpCode)` | `op_set_opcode` | 🔍 |
 | L37 | `void opMarkHalt(PcodeOp*, uint4 flag)` | — | 🔍 |
@@ -41,8 +41,8 @@ Rugra 对应:`src/funcdata.rs`
 | L710 | `PcodeOp *newIndirectCreation(PcodeOp*, const Address&, int4, bool)` | `new_indirect_creation` | 🔍 |
 | L736 | `void markIndirectCreation(PcodeOp*, bool)` | — | 🔍 |
 | L756 | `void followFlow(const Address&, const Address&)` | (flow.rs) | 🔍 |
-| L792 | `void truncatedFlow(const Funcdata*, const FlowInfo*)` | — | ➖ Rugra 不做 partial clone(设计决策) |
-| L853 | `int4 inlineFlow(Funcdata*, FlowInfo&, PcodeOp*)` | — | ➖ Rugra 不做 inline(设计决策) |
+| L792 | `void truncatedFlow(const Funcdata*, const FlowInfo*)` | — | ➖ Rudra 不做 partial clone(设计决策) |
+| L853 | `int4 inlineFlow(Funcdata*, FlowInfo&, PcodeOp*)` | — | ➖ Rudra 不做 inline(设计决策) |
 | L929 | `PcodeOp *findPrimaryBranch(iter, iter, bool, bool, bool)` | — | 🔍 |
 | L969 | `void overrideFlow(const Address&, uint4)` | (override_rs.rs) | 🔍 |
 | L1029 | `bool replaceLessequal(PcodeOp*)` | `replace_lessequal` | 🔍 |
@@ -60,7 +60,7 @@ Rugra 对应:`src/funcdata.rs`
 
 ## funcdata.cc(41 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L34 | `Funcdata::Funcdata(...)` | `Funcdata::new` | 🔍 |
 | L84 | `void clear()` | — | 🔍 |
@@ -86,11 +86,11 @@ Rugra 对应:`src/funcdata.rs`
 | L613-L848 | decode/encode 系列(jumpTable/varnode/high/tree/Funcdata) | — | 🔍 |
 | L878 | `PcodeEmitFd::dump(...)` | — | 🔍 |
 | L917-L1011 | union field 系列(getUnionField/setUnionField/forceFacingType/inheritResolution) | — | 🔍 |
-| L1012-L1100 | debug 系列(debugModCheck/Clear/Print/SetRange/CheckRange/PrintRange) | — | ➖ `#ifdef OPACTION_DEBUG` 条件编译,Rugra 不移植 |
+| L1012-L1100 | debug 系列(debugModCheck/Clear/Print/SetRange/CheckRange/PrintRange) | — | ➖ `#ifdef OPACTION_DEBUG` 条件编译,Rudra 不移植 |
 
 ## funcdata_varnode.cc(61 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L25 | `setVarnodeProperties(Varnode*) const` | — | 🔍 |
 | L48 | `HighVariable *assignHigh(Varnode*)` | — | 🔍 |
@@ -108,7 +108,7 @@ Rugra 对应:`src/funcdata.rs`
 | L272 | `void destroyVarnode(Varnode*)` | `delete_varnode` | 🔍 |
 | L298 | `void checkForLanedRegister(int4, const Address&)` | — | 🔍 |
 | L316 | `HighVariable *findHigh(const string&) const` | — | 🔍 |
-| L340 | `Varnode *setInputVarnode(Varnode*)` | `set_input_varnode` | ⚠️ Rugra 已补 overlap dedup,缺 ProtoModel 效果 |
+| L340 | `Varnode *setInputVarnode(Varnode*)` | `set_input_varnode` | ⚠️ Rudra 已补 overlap dedup,缺 ProtoModel 效果 |
 | L381 | `void combineInputVarnodes(Varnode*, Varnode*)` | — | 🔍 |
 | L462 | `Varnode *newExtendedConstant(int4, uint8*, PcodeOp*)` | `new_extended_constant` | 🔍 |
 | L494 | `void adjustInputVarnodes(const Address&, int4)` | — | 🔍 |
@@ -149,7 +149,7 @@ Rugra 对应:`src/funcdata.rs`
 
 ## funcdata_block.cc(36 函数)
 
-| 行 | Ghidra 函数 | Rugra | 状态 |
+| 行 | Ghidra 函数 | Rudra | 状态 |
 |---|---|---|---|
 | L28 | `printBlockTree` | — | 🔍 |
 | L35 | `clearBlocks` | — | 🔍 |
