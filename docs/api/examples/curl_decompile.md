@@ -346,3 +346,85 @@ canon curl **8→5/0/0**（−3 精确=票面全额：myprogress 3→0，函数�
 逐字节恒等，WARNING 头清零；残 5 = `_start` ENTRYCONV 票域）；其余 123
 函数零漂移。httpd 侧同形对照 = **零连带**（httpd 驱动无逐字节 .rodata DAT
 层——其 DAT 标签是 2 条硬编码 1 字节 witness，8 字节硬宽域不存在）。
+
+## bare-load 装载符号/只读/段链通道（mirror-only，`CURLCODEPTR-0001`）
+
+Source: `examples/curl_decompile.rs`（车道 CURLCODEPTR / 镜面 curl 面收口，
+2026-10-02；TC-F2 CODEPTR-ARG-SYMBOL 9 行 + TC-F3 STRLIT-NONALLOC-FOLD
+2 行 = curl 镜面 11→0，第三完美面）。
+
+### 现象与根因（oracle 亲证）
+
+镜面 curl 面残差 11 行两族（TAILCENSUS TC-F2/TC-F3）：
+
+- **F2（9 行，main 6 + _start 3）**：golden 印
+  `curl_easy_setopt(iVar9,0x4e2b,my_fwrite)` /
+  `(*pcRam0000000000016fe0)(main,…,__libc_csu_init,…)` —— 函数入口地址常量
+  印**符号名**；Rudra 同位印 hex（`0x3460`/`0x34d0`/`0x25a0`/`0x5400`/
+  `0x5470`）。根因：UNTYPEDCONST（ba632c40）正确删除了 printc 无类型叶的
+  过宽 queryFunction 后，oracle 的真通道浮出——bare BfdArchitecture 在
+  decompile **前**执行 `readLoaderSymbols`（architecture.cc:346-359），
+  把 BFD 符号表（`LoadImageBfd::advanceToNextSymbol`，loadimage_bfd.cc:
+  181-192 的 **BSF_FUNCTION 门** = .symtab STT_FUNC）经 `scope->addFunction`
+  注册进**分析期**符号表 → `ActionConstantPtr::isPointer` 的
+  `queryContainer`（coreaction.cc:1151）对 CALL/CALLIND 实参位常量命中 →
+  `Funcdata::spacebaseConstant`（funcdata.cc:360）改写为
+  `PTRSUB(#0x0[spacebase typelock], off)` → 打印走 op_ptrsub 的
+  TYPE_SPACEBASE 臂（printc.cc:1057-1097），FunctionSymbol 的 TYPE_CODE 使
+  `valueon=true` 印**裸名**。Rudra 镜面 bare DB 此前只有 `<global>` 范围 +
+  .rodata span，函数符号仅装在 print-only 换装 DB（pushPtrCodeConstant 的
+  queryFunction 通道）——而该通道要求叶已定型 TYPE_PTR→TYPE_CODE，裸常量
+  进不去。
+- **F3（2 行，glob_set）**：golden 印 `pcVar14 = "~20.04.2) 9.4.0";`，
+  Rudra 印 `pcVar14 = (char *)0x1b;`。0x1b = .comment（SHT_PROGBITS，vma 0，
+  size 0x2b，flags MS）内偏移（"GCC: (Ubuntu 9.4.0-1ubuntu1" 恰 0x1b 字节）。
+  oracle 通道：`PrintC::pushPtrCharConstant`（printc.cc:1698-1719）→
+  `Scope::isReadOnly(0x1b)`（database.cc:1796 → queryProperties → flagbase）
+  + `printCharacterConstant` → `StringManagerUnicode::getStringData`
+  （stringmanage.cc:459）→ `LoadImageBfd::loadFill`。两道门都缺：
+  ① `fillinReadOnlyFromLoader`（architecture.cc:1371-1383 →
+  `LoadImageBfd::getReadonly`，loadimage_bfd.cc:286-301）把**每个**
+  SEC_READONLY 段的 [vma, vma+size) 并入属性库——BFD 的 ELF 后端把
+  !SHF_WRITE → SEC_RDONLY **不要求 SHF_ALLOC**（FSTRFOLDUP 巷道对真 BFD
+  2.38 亲测），.comment 因此认领 [0,0x2a]；Rudra 镜面只装了 .rodata span。
+  ② `loadFill` 是**段链服务不是 PT_LOAD 服务**（findSection 按段表序首个
+  覆盖者胜出，非 ALLOC 段照服务）——[0,0x2b) 无 ALLOC 段认领（.interp 自
+  0x318 起），首个认领者即 .comment；Rudra 的 PT_LOAD 镜像在该处是 ELF
+  header 字节。
+
+### 通道形态（三件，全部 mirror-bare-load 门内）
+
+- **readLoaderSymbols 符号装表（F2）**：worker 在 bare-load 分支把
+  `bare_loader_fn_symbols`（.symtab `is_function() && st_value != 0 &&
+  !is_import()`，地址排序 + 去重，img_base=0）以 `add_function(addr, name,
+  1)`（consume = min_funcsymbol_size）装进**分析期** program DB 的全局
+  scope——STT_FUNC 门刻意对齐 oracle 的 BSF_FUNCTION 行（镜面 print 层的
+  "every loader symbol" 宽集保持 print-only：OBJECT 符号不是 LoadImageFunc
+  记录，装到 action 侧就是 ORD185 记录的 4 处 over-fire 形）。
+  `tf.set_spacebase_scope_source` 本就指向该 DB，PREGFREE 通道
+  （TypeSpacebase::getSubType 命中 code 类型，ActionSetCasts 保持
+  coreaction.cc:2544 短路，无强加匿名 Code CAST）与 canon SYMDB 层同契约。
+  print 换装处跳过已装地址（oracle 只有一张符号表，避免同 scope 双
+  SymbolEntry）。
+- **SEC_READONLY 段认领（F3 门①）**：bare-load 分支按 httpd/gen 先例形装
+  全部 !SHF_WRITE 段的 [sh_addr, sh_addr+sh_size-1]（跳过 size==0 /
+  SHT_SYMTAB / .strtab / e_shstrndx —— BFD 内部吸收段不入链）。并集语义
+  （set_property_range），.rodata span 被含并保留形状连续性；.data/.got/
+  .bss 带 SHF_WRITE 不受影响。
+- **段链字节 overlay（F3 门②）**：`worker_memory_load_image` 在
+  `mirror_bare_load_enabled()` 门内对新镜像跑 `overlay_bfd_nonalloc_sections`
+  ——gen 巷道的 claim-cursor 一般形（段表序遍历，ALLOC 段只认领不写，非
+  ALLOC 非 NOBITS 段把文件字节写到**无更早认领者**的子区间，复制
+  findSection 首认胜出）。curl 的 .debug_info（vma 0，size 0x5710）与
+  .text [0x25a0,0x5475) 相交——盲拷会腐码（sq 首迭代 57020 事故同型），
+  claim 保护是正确性前提。canon 面零触碰：analyzeHeadless 只映射 LOAD 段，
+  golden 印裸常量，overlay 全程不进。
+
+### 效果（基=29b52550 A/B 亲测）
+
+镜面 curl **11→0/0/0**（defects=0 numbering=0，matched 74/74；五个符号位
+点 my_fwrite/myprogress/main/__libc_csu_init/__libc_csu_fini + glob_set 字面
+量全部与 golden 逐字节恒等，_start 的
+`(*pcRam…)(main,…)` 换行形同步收敛）。canon curl 124 函数 0/0/0、canon
+httpd 34 函数 0/0/0 红线保持（双面字节恒等——canon 路不进任何新门）。
+镜面 httpd/vsh/sq/sqlite 四面零回退（门禁亲测）。
