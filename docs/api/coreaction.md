@@ -3036,8 +3036,17 @@ INFERTYPES-SETTLE-0001 在两个 `temps.insert` choke point
 `TypeBase`、若干 propagate 臂），同名类型跨轮 Arc 不同 → `update_type`
 恒真。MISC3 车道在 `writeBack` 自身加第三 choke point：回写前对每个 `ct`
 过 `canonicalize_temp_type`（coreaction.cc:5043-5059 边界，oracle 语义 =
-所有交给 `vn->updateType` 的 `ct` 都是工厂 intern 产品）。实测
-sqlite3AddCheckConstraint：同名 `Int/long→Int/long` 449 次假 churn 清零。
+所有交给 `vn->updateType` 的 `ct` 都是工厂 intern 产品）。
+
+**CR-MISC3 三臂 A/B 归因修正（2026-10-03，合并前置 N1）**：先前表述
+「实测 sqlite3AddCheckConstraint：同名 `Int/long→Int/long` 449 次假 churn
+清零」归因不实——三臂插桩（7dc3bd70 基线 / 本交付 / 摘除 canonicalize）
+逐事件恒等（轨迹同 0,1,2,3,4,4,5,6,6,7；具名同名 churn 三臂同 0；事件
+总数同 813；单函数 C md5 同）。同名假 churn 的清零系更早落地的
+producer 侧 choke point（coreaction.rs:8543/8696，base 已在）之效；
+本边界 canonicalize 在当前树上为**结构性 no-op 防御层**——架构正确
+（writeBack 是 temps 的唯一 Arc 身份敏感消费点）、无害、零输出影响
+（零位移全链恒等）。
 
 残余（登记 MISC3-SETTLE-VARCHURN-0001）：剩余 writeBack-true 轮全部是
 `Unknown/undefinedN → 具体` 的**新建 varnode 首次定型**（每轮 ~8 个：
