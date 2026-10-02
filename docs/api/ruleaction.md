@@ -1,5 +1,41 @@
 # `ruleaction.rs` API Reference
 
+## 2026-10-03：RuleSubCommute 摘除发明性 outvn>8 尺寸闸（MISC3-WINDOWCODESTEP-PIECESTORE-0001）
+
+WCS 车道双侧 IR 钻定（sqlite3WindowCodeStep@0x101450,oracle 亲跑 stepwise trace）
+钉死的偏离:Rudra `RuleSubCommute::apply_op`（ruleaction.rs）入口带一个 oracle 没有
+的 `if outvn_size > 8 { return NO_CHANGE }` 闸（542c8f9f 原始移植时引入,自称 1:1 实
+则多出）。oracle `RuleSubCommute::applyOp`（ruleaction.cc:4514-4653）对 SUBPIECE 输
+出**没有任何尺寸上限**——唯一的输出闸是 isPrecisLo/isPrecisHi（cc:4521）;尺寸敏感
+判定全部在各 arm 内部自管（INT_LEFT 的 in(0) ZEXT/PIECE 判定 cc:4530-4537、DIV/REM
+的 calc_mask 常量适配 cc:4555-4567——calc_mask 对 >8B 返回全 64 位掩码,双侧同体）。
+
+该闸的可见破坏 = heritage piece 组装的 12B 窄化被吞:WindowCodeStep s-0x58 槽
+（movaps zero16@0x80 + mov eax→0x84 + mov u+3→0x8c）经 heritage
+normalizeWriteSize(u 写)+rename 产 `bigout_B:16 = ZEXT416(u)<<0x20`、
+u+3 写的 NWS 产 `leastvn:12 = SUB1612(bigout_B,0)` 后,oracle 规则链
+`RuleSubCommute`(INT_LEFT 臂,把 SUB 推进 shift 内侧,输出变 12B s-addr 写)
+→ `RuleSubExtComm`(内层 `SUB1612(ZEXT416(u),0)` 原地转 `ZEXT412(u)`,cc:4396-4441)
+→ 16B 中间值死码消除,终态 = **12B 窄写** `s-0x58:12 = ZEXT412(u)<<0x20`
+（oracle trace [RSC]/[RSEC] 双锚点亲证,遗产 uniq 4b95=被改写的 SUBPIECE op）。
+Rudra 被 >8 闸拦在第一步:SUB 不 commute,16B 整写存活,终态 =
+`ZEXT416(u)<<0x20` 16B 整存 + `SUB1612(16B 写,0)` 收窄喂 CONCAT412 join——
+mirror 印 `axStack_58=ZEXT416(uVar22)<<0x20`,无 staging 符号。
+
+修复 = 删除该闸（一行）。摘除后 Rudra IR 与 oracle 逐 op 对齐（staging unique
+u0x10000c68/u0x10000c6c、CONCAT84/COPY 暂存、12B 窄写、CONCAT412 join 全同形,
+subvarielom 后 `axVar9._4_8_=0; axVar9._0_4_=uVar23; axStack_58._0_12_=axVar9<<0x20;`
+golden 四行全等）。判定性语义四类核对:输出参数=op_set_output 重键（无原地突变,
+BINSWEEP 语义保持）;遍历=commute 循环逐 input 快照序;计数器=无;j=1 特殊槽豁免
+保持（shift 常量不入 SUB）。
+
+**验收**: sqlite 镜面 6→1（WindowCodeStep 5 行出列,`--func` compare
+[Skeleton] identical defects=0 numbering=0;残 1=AddCheckConstraint[SETTLE 域另票]）;
+镜面五面 curl 0/74·httpd 0/29·vsh 0/71·sq 0/810·sqlite 1/1385 全 PASS
+defects=0 numbering=0;canon curl f903372a/httpd 3617ecc3 字节恒等;tests 2061P;
+VdbeExec mirror b3f5b487/canon 606dd8c0 恒等;见车道终报
+LANE_WCS_2026-10-03.md。
+
 ## 2026-10-02：PERF-RULEBODY2-0001 规则体残量三类收敛（性能恒等重排）
 
 W2REMEASURE 勘定的 oppool1 残量（语料级 #1）在 ACTIONPOOL-ITER 之后的续作钻探

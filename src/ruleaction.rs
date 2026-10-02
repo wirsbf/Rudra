@@ -8997,7 +8997,15 @@ impl Rule for RuleSubCommute {
                 None => return Ok(action_status::NO_CHANGE),
             };
             let outvn_size = outvn.read().unwrap().get_size();
-            if outvn_size > 8 { return Ok(action_status::NO_CHANGE); }
+            // Ghidra cc:4518-4521: the only output gate is
+            // isPrecisLo/isPrecisHi — there is NO size ceiling on the
+            // SUBPIECE output. A previous `outvn_size > 8` bail here was an
+            // invented guard (not in ruleaction.cc:4514-4653) that suppressed
+            // the INT_LEFT commute for 12B partial-store pieces:
+            // SUB1612(ZEXT416(u) << 0x20, 0) stayed uncommuted, so the
+            // WindowCodeStep 16B whole-write survived instead of narrowing to
+            // the oracle's 12B `ZEXT412(u) << 0x20` form (SubCommute ->
+            // SubExtComm chain, MISC3-WINDOWCODESTEP-PIECESTORE-0001).
             // isPrecisLo/Hi check omitted (Rudra has no precis flags; the
             // check would return false anyway).
             let base = match op.inrefs.get(0) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
