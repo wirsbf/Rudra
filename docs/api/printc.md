@@ -4317,3 +4317,19 @@ grabCaseBasic addCase 构造位的分流点现场记录,详见 block.md/blockact
 2026-10-02 节）后,本文件 `mod tests` 内的 `BlockSwitch` 字面量 fixture 补
 `default_construct_index: None` 一行（无行为面——test-only 字段初始化,
 printc 消费路径零改动;print 期 def_pos 仍走 default_label 相位）。
+
+## 2026-10-02：匿名数组 cast 双空格拼写钉（READINODE3 配套测试）
+
+`cast_type_string` 对匿名数组类型拼写 `base  [N]`（双空格）——oracle
+pushType 的合法字节：`type_expr_space`（spacing=1,printc.cc:73）后接
+`array_expr`（postsurround,spacing=1,printc.cc:76）在无标识符位相邻叠加
+（pushType 尾栈 cc:290-295 逆序 push array_expr）。golden 形如
+`(xunknown1  [16])`（canon httpd 84 位点/sqlite 308）。本仓打印层本就
+产出该形；新测 `cast_type_string_anonymous_array_double_space` 把拼写
+钉死（`xunknown1  [8]` 逐字），防回归——配套 prettyprint P9 塌缩收窄
+（见 prettyprint.md 2026-10-02 节）保证这些字节在 post-process 后存活。
+
+**验收**：read_inode_3 函数体与 golden 逐字节恒等;canon curl 字节恒等
+b7773087,canon httpd 重钉 cf316540（恰 2 位点复原,行形态==golden,
+0/0/0 双面）;corpus/VdbeExec 位移全为该双空格形（车道终报逐字节归因）。
+

@@ -356,7 +356,7 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
-sq	87	810	DIVBREAK-RATCHET-REPIN-0001	divbreak-joint	2026-10-02
+sq	41	810	READINODE3-RATCHET-REPIN-0001	readinode3-joint	2026-10-02
 sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
 # MB68 joint re-pin (ROUND3-BBLOCK-MERGE-REPIN-0001 joint form, 2026-10-02,
 # MB68 merge of wt/round3 93e7da85 [single commit, base 2a3da1ae/TRACEDAG
@@ -373,6 +373,44 @@ sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
 # measured == pinned, see merge commit Differential block). sq 87 /
 # curl 11 / httpd 0 / vsh 0 rows stay (round3 carries zero sq/curl/
 # httpd/vsh sites; master rows untouched since the partsym repin).
+# READINODE3-RATCHET-REPIN-0001 @ readinode3 pre-commit joint tree, base 72c118da
+# [MB67] (2026-10-02, forced relink stale-guard digest=c4709885a8b2db50 files=155,
+# five-face --jobs 5 --no-cache cold round gateB):
+# ① sq 87→41 (−46 = READINODE3 two-rule burn: read_inode_3 44→0 — function body
+#    byte-identical to golden (SUBZEXT const-size 38-line shift-position family +
+#    SUBRIGHT addr-tied disjoint 6-line SUB8x family both closed); read_super
+#    3→1 [SUB82×2 burned by the RuleSubRight exact-piece guard; residual 1 =
+#    duplicate-goto line, pre-existing blockaction-domain tail]; per-function
+#    A/B snapA independent build: exactly 2 functions move, 808 identical, zero
+#    regressions). matched 810/810, defects=numbering=0.
+# ② sqlite 250 identical at skeleton level — NOT re-pinned (P9 double-space is a
+#    byte-level form: prettyprint P9 collapse scoping restores oracle-legitimate
+#    `  ` runs in array-cast type names [printc.cc:73 spacing=1 + cc:76
+#    postsurround adjacent stacking]; skeleton normalization is blind to it).
+#    curl 11 / httpd 0 / vsh 0 rows stay.
+# ③ Canon faces red line held: curl b7773087 byte-identical (0/0/0·124F);
+#    httpd 54f9b02c→cf316540 re-pin per MB52 form-level precedent — exactly 2
+#    sites `(undefined1  [16])` double-space restored, each byte-identical to
+#    the golden line form (0/0/0·34F). Corpus pin group re-pinned with full byte
+#    attribution: canon b6d76445·5,280,252B / mirror d526070e·5,285,841B
+#    (+325B/+325B = 317 lines + 8 two-site lines, ALL P9 double-space forms;
+#    73/1157 · 73/1175 functions touched, function sets identical; A-state
+#    reproduced old pins aca1ed85/413e5a86 exact); VdbeExec canon 20920e63 /
+#    mirror 0668b234 (39 lines each, double-space forms only, zero others).
+#    tests 2045P/0F/5I (=2040 + readinode3 5 new).
+# MB69 joint re-pin (READINODE3-RATCHET-REPIN-0001 joint form, 2026-10-02,
+# MB69 merge of wt/readinode3 a2b190d9 [single commit, base 72c118da/MB67
+# — pre-MB68] onto master 0962150a [MB68, rows sq 87 / sqlite 180 =
+# ROUND3-BBLOCK-MERGE-REPIN-0001 joint form]): the readinode3 sq burn
+# composes on the joint tree (sq function families disjoint: readinode3
+# moves exactly read_inode_3 + read_super on the sq face vs round3
+# five-clone family on the sqlite face — zero overlap, CR-READINODE3-proven
+# + joint-tree verified): sq 87-46=41 measured on the pre-commit joint
+# tree (forced relink 63s + gate --jobs 5 --no-cache cold round,
+# stale-guard digest=2002d1d8f10bf0f9 files=155; measured == pinned,
+# curl 11 / httpd 0 / vsh 0 / sqlite 180 all PASS defects=numbering=0 —
+# see merge commit Differential block). sqlite 180 stays (P9 double-space
+# is byte-level only, skeleton-blind; readinode3 zero sqlite-face sites).
 # MB67 joint re-pin (PARTSYM-RATCHET-REPIN-0001 joint form, 2026-10-02,
 # MB67 merge of wt/partsym 19a922a4 [single commit, base abfb3d15/MB64 —
 # pre-MB65/66] onto master 3498c67b [MB66b, rows sq 87 / sqlite 267 =

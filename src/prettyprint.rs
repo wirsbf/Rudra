@@ -1105,9 +1105,21 @@ impl EmitNoMarkup {
                 ("+ 4 - 4", ""),
                 ("+ 8 - 8", ""),
             ];
+            let pre_cancellation = line.clone();
             for (pattern, replacement) in &cancel_patterns {
                 line = line.replace(pattern, replacement);
             }
+            // READINODE3 (2026-10-02): the double-space collapse below is
+            // scoped to lines the cancellation actually rewrote. The oracle
+            // LEGITIMATELY emits `  ` runs in array-cast type names —
+            // pushType's type_expr_space (spacing=1, printc.cc:73) followed
+            // by array_expr's postsurround spacing (printc.cc:76) yields
+            // golden `(xunknown1  [16])` (curl canon :2271, httpd canon 84
+            // sites, sq 66, sqlite 308) — the unconditional collapse ate
+            // every one of them. Cleaning only where "+N - N" left debris
+            // restores the oracle bytes with the compensation's purpose
+            // intact.
+            let cancellation_fired = line != pre_cancellation;
             // Clean up double spaces in content (not indent) from cancellation.
             // String/char literals are opaque (MAINDIFF-STRCONST-0001): the
             // decompiler's string constants legally contain runs of spaces
@@ -1129,7 +1141,9 @@ impl EmitNoMarkup {
             // the line boundary, so the form is always line-initial after
             // trim; the trailer is the second (and only other) Ghidra emit
             // sequence whose bytes include ` )`.
-            if !(t.starts_with("while(") || t.starts_with("} while( true );")) {
+            if cancellation_fired
+                && !(t.starts_with("while(") || t.starts_with("} while( true );"))
+            {
                 let trimmed_start = line.len() - line.trim_start().len();
                 let indent_part = &line[..trimmed_start];
                 let content = &line[trimmed_start..];
@@ -4878,6 +4892,29 @@ impl Emit for EmitPrettyPrint {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// READINODE3: the P9 double-space collapse is scoped to lines the
+    /// "+N - N" cancellation actually rewrote — oracle-legitimate `  ` runs
+    /// in array-cast type names survive post-processing byte-intact.
+    #[test]
+    fn postprocess_preserves_array_cast_double_space() {
+        let input = "void f(void) {\n        axStack_70 = (xunknown1  [8])puVar29[1];\n}\n";
+        let out = EmitNoMarkup::post_process_output(input);
+        assert!(
+            out.contains("xunknown1  [8]"),
+            "array-cast double space must survive post-processing: {out:?}"
+        );
+        // A cancellation-debris line still collapses: `+ 1 - 1` removal
+        // leaves `x  y`, which the scoped cleanup folds to `x y`.
+        let debris = "void g(void) {\n  iVar1 = a + 1 - 1 + b;\n}\n";
+        let out2 = EmitNoMarkup::post_process_output(debris);
+        assert!(
+            !out2.contains("  ") || out2.contains("a + b"),
+            "cancellation debris must still collapse: {out2:?}"
+        );
+    }
+
     use super::EmitNoMarkup;
 
     // CASTFUSEB (GEN4-SQ-CASTFUSE-DEPTH-0001 subfamily B, 2026-09-28):

@@ -1353,3 +1353,30 @@ operator）。诱因：for 头超行宽折行后，续行形如
   恰钉值恒等；defects=numbering=0 全面。canon 红线：curl md5 b7773087 /
   httpd md5 54f9b02c **字节恒等**（compare 0/0/0，124F+34F）。
 
+
+## 2026-10-02：P9 双空格塌缩收窄到 "+N − N" 消除实际改写的行（READINODE3）
+
+`post_process_output_legacy` 第九 pass 的 content 双空格塌缩（`"  " → " "`，
+`" )"` trim 同块）原本无条件跑每一行。oracle 的 pushType 对匿名数组 cast
+合法产出双空格——`type_expr_space`（spacing=1,printc.cc:73）+ `array_expr`
+postsurround spacing（printc.cc:76）在无标识符位相邻叠加,golden 形如
+`(xunknown1  [16])`（canon curl :2271 两位点、canon httpd 84 位点、sq 66、
+sqlite 308）。无条件塌缩把每一处都吃成单空格——read_inode_3 函数体最后
+10 行原始字节差即此形（skeleton 归一化不可见,语料字节面全量损伤）。
+
+修复 = 该清理本为 `+N − N` 消除的碎片清理（自身注释声明）,现按行记录
+`pre_cancellation` 快照,仅 `line != pre_cancellation`（消除真实发生）的行
+执行塌缩/trim;`while(` / `} while( true );` 豁免保持不变。oracle 合法
+`  ` 字节全部存活,消除碎片行仍清理。
+
+**单测**（prettyprint.rs tests）: `postprocess_preserves_array_cast_double_space`
+（数组 cast 双空格存活 + `+ 1 - 1` 碎片行仍塌缩双断言）;配套
+printc.rs `cast_type_string_anonymous_array_double_space` 钉住拼写源头
+（`xunknown1  [8]` 双空格,与 golden 逐字）。
+
+**验收**: read_inode_3 函数体与 golden 逐字节恒等；canon curl **字节恒等 b7773087**
+（零位移——golden curl 的 `  [` 命中系折行缩进伪形,P9 只触 content）,canon httpd
+54f9b02c→cf316540 重钉（恰 2 位点 `(undefined1  [16])` 复原,行形态==golden;
+defects/numbering 0/0 双面保持）；corpus 钉组 canon b6d76445/mirror d526070e
+（+325B=317 行+8 双位点行,全 P9 形,73 函数/面,函数集恒等）;VdbeExec
+20920e63/0668b234（各 39 行纯双空格形）；五面详见 LANE_READINODE3_2026-10-02.md。

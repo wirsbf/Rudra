@@ -20732,6 +20732,49 @@ mod tests {
     // object — get_name (printlanguage.hh:448), set_comment_style
     // (printc.cc:2350), reset_defaults (printc.cc:2325 including the
     // emit->resetDefaults() half, printlanguage.cc:674).
+    /// READINODE3: an anonymous array cast spells `base  [N]` (double
+    /// space) — type_expr_space (spacing=1) + array_expr postsurround
+    /// spacing (printc.cc:73/76), matching golden `(xunknown1  [16])`.
+    #[test]
+    fn cast_type_string_anonymous_array_double_space() {
+        use crate::type_system::datatype::{TypeArray, TypeBase, Datatype};
+        use crate::type_system::TypeMetatype;
+        let base = Arc::new(Datatype::Base(TypeBase {
+            name: "xunknown1".to_string(),
+            display_name: "xunknown1".to_string(),
+            size: 1,
+            alignment: 1,
+            align_size: 1,
+            metatype: TypeMetatype::Unknown,
+            id: 0,
+            flags: 0,
+            submeta_override: None,
+            pointer_rel: None,
+            pointer_space: None,
+            typedef_imm: None,
+        }));
+        let arr = Arc::new(Datatype::Array(TypeArray {
+            base: TypeBase {
+                name: String::new(),
+                display_name: String::new(),
+                size: 8,
+                alignment: 1,
+                align_size: 8,
+                metatype: TypeMetatype::Array,
+                id: 0,
+                flags: 0,
+                submeta_override: None,
+                pointer_rel: None,
+                pointer_space: None,
+                typedef_imm: None,
+            },
+            array_of: base,
+            num_elements: 8,
+        }));
+        let s = PrintC::cast_type_string(&arr);
+        assert_eq!(s, "xunknown1  [8]");
+    }
+
     #[test]
     fn print_language_trait_object_dispatch() {
         use crate::prettyprint::{Emit, EmitPrettyPrint};
