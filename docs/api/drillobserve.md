@@ -30,3 +30,22 @@
 语义保障:flush 生成的 after 串在 application 边界读取 op 当前状态
 (dead op 保留 `<seqnum>: **`,与 oracle 时序一致);MODIFIED 位在
 flush 时清除;记录器线程本地(每 worker 线程独立)。
+
+## 2026-10-03：resolve_iop_printraw 全派发（VNPRINT-JOINIOP 收口）
+
+- 新增 `resolve_iop_printraw(offset: u64) -> Option<String>`：
+  `IopSpace::printRaw` 全派发（op.cc:41-59）供 legacy 枚举打印路径
+  （`AddressSpace::print_raw_offset_arch` 的 Iop 臂）调用。非分支臂印
+  `op->getSeqNum()`（op.cc:48-50）；分支臂印 `code_` + 目标块起始地址
+  shortcut + 起始地址 printRaw（op.cc:52-58）——sizeOut()==2 时目标 =
+  `isFallthruTrue() ? getOut(0) : getOut(1)`（印非落穿条件块），否则
+  `getOut(0)`。无空间句柄的 legacy 起始地址按镜面码空间 ram 投影
+  （'r' + 基类形，与 heritage.rs warnop 形同判据）；tagged 地址走
+  SpaceAddress::print_raw/get_shortcut。
+- 查找侧无 env 门（设计性）：注册侧 `register_iop` 仍持 RUDRA_STAGE_DRILL
+  门 → 生产运行注册表恒空 → 本函数返回 None（与门控形观测恒等），单测
+  fixture 可直接注入 thread_local 注册表而绕开 OnceLock 闩锁。None 同时是
+  oracle 悬空解引用臂（被引用 op 已销毁）的确定性映射，调用方回退基类形。
+- `resolve_iop_seq` 重构为共享 `lookup_iop_op`（行为不变，drillfmt 消费者
+  观测恒等）。单测五例：非分支 SeqNum 形/未注册 None/双出边
+  fallthru_true→out(0)/非 fallthru_true→out(1)/单出边→out(0)。

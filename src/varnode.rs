@@ -1026,8 +1026,18 @@ impl Varnode {
                 }
             }
         }
-        // cc:728-732: s << loc.getShortcut(); loc.printRaw(s);
-        self.print_raw_no_markup()
+        // cc:728-732 (register lookup unavailable or missed): shortcut +
+        //   loc.printRaw — through the space's virtual dispatch, i.e. the
+        //   arch-aware twin so the registry-bound join (space.cc:590) and
+        //   iop (op.cc:41) overrides are live; with no Translate the twin
+        //   degenerates to the same base-form stand-in as the
+        //   parameterless form.
+        // cc:730: expect = trans->getDefaultSize()
+        let mut s = String::new();
+        s.push(self.address_space.shortcut());
+        s.push_str(&self.address_space.print_raw_offset_arch(self.loc.as_u64(), trans));
+        let expect = 8; // x86-64 default (Translate::getDefaultSize)
+        (s, expect)
     }
 
     // Ghidra: varnode.cc:741 Varnode::printRaw
@@ -6514,5 +6524,49 @@ mod tests {
         // A non-constant 8-byte varnode with no def returns None.
         let v = Varnode::new(8, Address::new(0x100));
         assert_eq!(v.is_constant_extended(), None);
+    }
+
+    // ---- print_raw_no_markup_arch 回退臂接线（varnode.cc:728-732 → join/iop
+    // 空间虚派发,VNPRINT-JOINIOP 收口单测;机制 B2 记录: Rudra 侧回归覆盖,
+    // oracle 锚 = Ghidra_12.0.4_build e40ed130 varnode.cc:711-734 +
+    // space.cc:590-609,本 session 亲读）----
+
+    #[test]
+    fn test_print_raw_no_markup_arch_join_varnode_full_form() {
+        // cc:729+731: 无寄存器名命中 → shortcut 'j' + JoinSpace::printRaw
+        // 括号分片形（space.cc:596-608;片为寄存器空间基类形）;
+        // cc:730: expect = getDefaultSize() = 8（x86-64）。
+        use crate::space::{JoinDatabase, JoinRecord, VarnodeData};
+        let mut arch = crate::arch::Architecture::new();
+        let mut join_db = JoinDatabase::new();
+        join_db.records.push(JoinRecord {
+            pieces: vec![
+                VarnodeData { space: AddressSpace::Register, offset: 0x10, size: 8 },
+                VarnodeData { space: AddressSpace::Register, offset: 0x0, size: 8 },
+            ],
+            unified: VarnodeData { space: AddressSpace::Join, offset: 0, size: 16 },
+        });
+        *arch
+            .join_db
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = join_db;
+        let vn = Varnode::new_with_space(16, AddressSpace::Join, 0);
+        assert_eq!(
+            vn.print_raw_no_markup_arch(Some(&arch)),
+            ("j{0x00000010,0x00000000}".to_string(), 8)
+        );
+    }
+
+    #[test]
+    fn test_print_raw_no_markup_arch_iop_varnode_unregistered_base_form() {
+        // iop 臂注册表 miss（生产形:drill env 未设）→ 基类形代位
+        // （'i' + 零填充 hex）;oracle 该臂为指针身份解析,Rudra 注册表
+        // 空时确定性回退（VNPRINT-JOINIOP 注记,非对齐残差——生产观测面
+        // 零入口,drill 面 RUDRA_STAGE_DRILL 下走 SeqNum 形）。
+        let vn = Varnode::new_with_space(8, AddressSpace::Iop, 0x7f00);
+        assert_eq!(
+            vn.print_raw_no_markup_arch(None),
+            ("i0x00007f00".to_string(), 8)
+        );
     }
 }

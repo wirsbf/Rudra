@@ -132,9 +132,11 @@ impl AddressSpace {
     /// addrSize 8 / wordsize 1 on the x86-64 mirror targets) for
     /// ram/register/stack/unique/overlay, the unpadded overrides for
     /// constant (space.cc:371) and other (space.cc:409). The registry-bound
-    /// join (space.cc:590) and iop (op.cc:41) overrides need
-    /// `SpaceRegistry` data the legacy enum does not carry; the base form
-    /// stands in there (MISC24-VNPRINT-JOINIOP-0001 residual).
+    /// join (space.cc:590) and iop (op.cc:41) overrides need the join
+    /// database / op registry the legacy enum does not carry; use the
+    /// arch-aware twin [`AddressSpace::print_raw_offset_arch`] for those
+    /// forms (this parameterless form keeps the base stand-in for the
+    /// no-manager case Ghidra cannot express).
     pub fn print_raw_offset(&self, offset: u64) -> String {
         match self {
             // Ghidra: space.cc:372 ConstantSpace::printRaw
@@ -146,12 +148,96 @@ impl AddressSpace {
             _ => {
                 let mut sz: u32 = 8;
                 if (offset >> 32) == 0 {
-                    sz = 4; // Don't print a bunch of zeroes at front
+                    sz = 4; // Don't print a bunch of zeroes in front
                 } else if (offset >> 48) == 0 {
                     sz = 6;
                 }
                 format!("0x{:0width$x}", offset, width = (2 * sz) as usize)
             }
+        }
+    }
+
+    // Ghidra: space.cc:590 JoinSpace::printRaw / op.cc:41 IopSpace::printRaw
+    /// The registry-aware twin of [`AddressSpace::print_raw_offset`]:
+    /// Ghidra's `AddrSpace` holds a manager back-pointer
+    /// (`getManager()`, space.hh:118), so its virtual `printRaw` reaches
+    /// the join registry (`getManager()->findJoin`) and can treat the
+    /// iop offset as a `PcodeOp*`; the legacy enum carries neither, so
+    /// the arch parameter passes the same registries explicitly.
+    /// Per-arm semantics:
+    ///
+    /// - **Join** (space.cc:590-609): `findJoin(offset)` through the
+    ///   Architecture's join database — an unlinked offset panics with
+    ///   the oracle's `LowlevelError("Unlinked join address")`
+    ///   (translate.cc:761; `findJoin`'s exact-match miss arm). Pieces
+    ///   print in JoinRecord registration order, a comma before every
+    ///   piece except `i == 0` (space.cc:600-601), each piece through
+    ///   its own space's dispatch (this twin, recursively —
+    ///   `vdat.space->printRaw(s,vdat.offset)`, space.cc:602). The
+    ///   `szsum` accumulator adds every piece size but is only ever
+    ///   printed after being overwritten with the unified (logical)
+    ///   size in the single-piece case (space.cc:604-606); the
+    ///   multi-piece sum is a dead accumulator in the oracle, kept
+    ///   verbatim.
+    /// - **Iop** (op.cc:41-59): the offset is the referenced op's
+    ///   pointer identity, resolved through the drill iop registry
+    ///   ([`crate::drillobserve::resolve_iop_printraw`]); non-branch
+    ///   ops print the SeqNum, branch ops print
+    ///   `code_<shortcut><start>`. A registry miss (drill env unset —
+    ///   empty registry in production runs — or the referenced op
+    ///   destroyed, the oracle's dangling-deref arm) falls back to the
+    ///   base form.
+    /// - Everything else — and a `None` arch (the degenerate no-manager
+    ///   form Ghidra cannot express, its JoinSpace ctor always takes
+    ///   one, space.cc:446) — is the base
+    ///   [`AddressSpace::print_raw_offset`] projection.
+    pub fn print_raw_offset_arch(
+        &self,
+        offset: u64,
+        arch: Option<&crate::arch::Architecture>,
+    ) -> String {
+        match self {
+            AddressSpace::Join => {
+                let Some(arch) = arch else {
+                    // No manager to consult: keep the base-form stand-in
+                    // for this degenerate form.
+                    return self.print_raw_offset(offset);
+                };
+                // JoinRecord *rec = getManager()->findJoin(offset);
+                let join_db = arch
+                    .join_db
+                    .read()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let rec = join_db
+                    .find_join(offset)
+                    .unwrap_or_else(|| panic!("Unlinked join address"));
+                let mut szsum: i32 = 0;
+                let num = rec.num_pieces();
+                let mut out = String::from("{");
+                for i in 0..num {
+                    let vdat = rec.get_piece(i);
+                    szsum += vdat.size as i32;
+                    if i != 0 {
+                        out.push(',');
+                    }
+                    // vdat.space->printRaw(s,vdat.offset);
+                    out.push_str(&vdat.space.print_raw_offset_arch(vdat.offset, Some(arch)));
+                }
+                if num == 1 {
+                    szsum = rec.get_unified().size as i32;
+                    out.push_str(&format!(":{}", szsum));
+                }
+                out.push('}');
+                out
+            }
+            AddressSpace::Iop => match crate::drillobserve::resolve_iop_printraw(offset) {
+                Some(text) => text,
+                // Registry miss (drill env unset → empty registry, or the
+                // referenced op destroyed — the oracle derefs the raw
+                // pointer): deterministic base-form fallback.
+                None => self.print_raw_offset(offset),
+            },
+            _ => self.print_raw_offset(offset),
         }
     }
 
@@ -4357,5 +4443,88 @@ mod join_db_tests {
         assert_eq!(rec.pieces.len(), 2);
         assert_eq!(rec.pieces[0].offset, 0x10);
         assert!(db.find_join(8).is_none());
+    }
+
+    // ---- print_raw_offset_arch join 形（space.cc:590-609，VNPRINT-JOINIOP
+    // 收口单测——机制 B2 记录: Rudra 侧回归覆盖，oracle 锚 =
+    // Ghidra_12.0.4_build e40ed130 space.cc:590-609 / translate.cc:746-762，
+    // 本 session 亲读）----
+
+    /// 构造带单条 JoinRecord 的 Architecture（镜像 heritage.rs
+    /// pjoins_fixture 的 join_db 注入形）。
+    fn arch_with_join_record(
+        pieces: Vec<VarnodeData>,
+        unified_size: usize,
+    ) -> crate::arch::Architecture {
+        let mut arch = crate::arch::Architecture::new();
+        let mut join_db = JoinDatabase::new();
+        join_db.records.push(JoinRecord {
+            pieces,
+            unified: VarnodeData {
+                space: AddressSpace::Join,
+                offset: 0,
+                size: unified_size,
+            },
+        });
+        *arch
+            .join_db
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = join_db;
+        arch
+    }
+
+    #[test]
+    fn test_print_raw_offset_arch_join_multi_piece() {
+        // space.cc:596-603: `{` + 分片按注册序,每片前逗号（i==0 除外）,
+        // 各片经自身空间 printRaw（寄存器空间 = space.cc:206 基类零填充形,
+        // >>32==0 → sz4 → 8 位宽）。多片 szsum 累加后不打印（oracle 死累加）。
+        let arch = arch_with_join_record(
+            vec![
+                VarnodeData { space: AddressSpace::Register, offset: 0x10, size: 8 },
+                VarnodeData { space: AddressSpace::Register, offset: 0x0, size: 8 },
+            ],
+            16,
+        );
+        assert_eq!(
+            AddressSpace::Join.print_raw_offset_arch(0, Some(&arch)),
+            "{0x00000010,0x00000000}"
+        );
+    }
+
+    #[test]
+    fn test_print_raw_offset_arch_join_single_piece_logical_size() {
+        // space.cc:604-606: num==1 时 szsum 被覆写为 getUnified().size
+        // （逻辑尺寸,非片尺寸 4）后才打印 → `{piece:logicalsize}`。
+        let arch = arch_with_join_record(
+            vec![VarnodeData { space: AddressSpace::Register, offset: 0x0, size: 4 }],
+            8,
+        );
+        assert_eq!(
+            AddressSpace::Join.print_raw_offset_arch(0, Some(&arch)),
+            "{0x00000000:8}"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Unlinked join address")]
+    fn test_print_raw_offset_arch_join_unlinked_panics_like_throw() {
+        // translate.cc:761: findJoin 精确匹配 miss → LowlevelError(
+        // "Unlinked join address") —— Rudra panic == throw 语义传播。
+        let arch = crate::arch::Architecture::new();
+        let _ = AddressSpace::Join.print_raw_offset_arch(0x30, Some(&arch));
+    }
+
+    #[test]
+    fn test_print_raw_offset_arch_join_no_arch_base_fallback() {
+        // 无 manager 的退化形（Ghidra JoinSpace ctor 恒持 manager,
+        // space.cc:446——不可表达态）: 基类形代位,与无参孪生恒等。
+        assert_eq!(
+            AddressSpace::Join.print_raw_offset_arch(0, None),
+            AddressSpace::Join.print_raw_offset(0)
+        );
+        assert_eq!(
+            AddressSpace::Join.print_raw_offset_arch(0, None),
+            "0x00000000"
+        );
     }
 }
