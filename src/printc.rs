@@ -22714,6 +22714,7 @@ mod tests {
             case_order: Vec::new(),
             default_label: None,
             default_order: None,
+            default_construct_index: None,
             case_values: Vec::new(),
             index_varnode: None,
             incoming: Vec::new(),

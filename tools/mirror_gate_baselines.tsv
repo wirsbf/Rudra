@@ -357,7 +357,22 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
 sq	87	810	DIVBREAK-RATCHET-REPIN-0001	divbreak-joint	2026-10-02
-sqlite	250	1385	PARTSYM-RATCHET-REPIN-0001	partsym-joint	2026-10-02
+sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
+# MB68 joint re-pin (ROUND3-BBLOCK-MERGE-REPIN-0001 joint form, 2026-10-02,
+# MB68 merge of wt/round3 93e7da85 [single commit, base 2a3da1ae/TRACEDAG
+# tip — pre-MB64/65/66/67] onto master 72c118da [MB67, rows sq 87 /
+# sqlite 250 = PARTSYM-RATCHET-REPIN-0001 joint form]): the round3
+# five-clone burn composes on top of the partsym/divbreak/declfam/slotmerge
+# burns (function families disjoint: round3 moves exactly the
+# sqlite3ExprIsConstant five-clone family [5 functions, 14/clone:
+# const-direction 9 + tail-shape 5] vs partsym
+# sqlite3ResolveExprListNames single / divbreak census 12 / declfam
+# join-decl 34 + slotmerge 3 — zero overlap, CR-ROUND3-proven +
+# joint-tree verified): sqlite 250-70=180 measured on the pre-commit
+# joint tree (forced relink + gate --jobs 5 --no-cache cold round;
+# measured == pinned, see merge commit Differential block). sq 87 /
+# curl 11 / httpd 0 / vsh 0 rows stay (round3 carries zero sq/curl/
+# httpd/vsh sites; master rows untouched since the partsym repin).
 # MB67 joint re-pin (PARTSYM-RATCHET-REPIN-0001 joint form, 2026-10-02,
 # MB67 merge of wt/partsym 19a922a4 [single commit, base abfb3d15/MB64 —
 # pre-MB65/66] onto master 3498c67b [MB66b, rows sq 87 / sqlite 267 =
@@ -489,6 +504,14 @@ sqlite	250	1385	PARTSYM-RATCHET-REPIN-0001	partsym-joint	2026-10-02
 #    VdbeExec canon 0d97ca97 → 6f1c38b1 (auVar73 single move); zero
 #    non-decl hunks on any artifact. tests 2038P/0F/5I (no new tests —
 #    order-only emission change, existing symbol-driven decl tests cover).
+# ROUND3-BBLOCK-MERGE-REPIN-0001 (2026-10-02, wt/round3 @ fix commit, base
+# 2a3da1ae [TRACEDAG tip], forced relink --examples, gate --no-cache):
+# 383→313 = −70 = TRACEDAG-ROUND3-BBLOCK-MERGE-0001's five-clone family
+# (sqlite3ExprIsConstant×5, 14/clone: const-direction 9 + tail-shape 5)
+# burned by the switch-default construction-index fix (caseblocks merged
+# order for pre-finalizePrinting nextFlowAfter consumers). curl 13/httpd 2/
+# vsh 0/sq 95 identical (rows stay); canon b7773087/54f9b02c byte-held;
+# VdbeExec mirror 840c4fb2 byte-held; tests 2039P/0F/5I == base.
 # FLOAT8-RATCHET-REPIN-0001 (2026-10-02, wt/float8 @ fix commit, base
 # c69d9c60 [MB58], forced relink after test additions [fast-release --examples
 # 57s], gate --jobs 5 two rounds — gate1 fix-only tree digest=557b315e +

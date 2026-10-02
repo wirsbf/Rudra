@@ -4310,3 +4310,10 @@ Rugra 修复前 axVar22/axVar73 均垫底（worktree 探针 SYM 表 space=Join
 
 **验证**：sqlite3AffinityType 修复后与 golden 逐字节 MATCH（typedef
 preamble 外零差异）；五面镜像门禁/canon 红线/census 复算见车道终报。
+## 2026-10-02 补（ROUND3-BBLOCK-MERGE — 测试 fixture 字段随迁）
+
+`BlockSwitch` 新增 `default_construct_index: Option<usize>`（block.rs,oracle
+grabCaseBasic addCase 构造位的分流点现场记录,详见 block.md/blockaction.md 的
+2026-10-02 节）后,本文件 `mod tests` 内的 `BlockSwitch` 字面量 fixture 补
+`default_construct_index: None` 一行（无行为面——test-only 字段初始化,
+printc 消费路径零改动;print 期 def_pos 仍走 default_label 相位）。
