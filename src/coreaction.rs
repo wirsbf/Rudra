@@ -17324,9 +17324,17 @@ impl ActionReturnRecovery {
             join_vn.write().unwrap().set_write_mask();
             // Ghidra cc:1862: opInsertBefore(newop, retop).
             fd.op_insert_before(&newop, retop);
-            // Ghidra cc:1863-1865: pop back, replace with newwhole, opSetAllInput.
+            // Ghidra cc:1863-1864: pop_back() drops hivn (the slot-2
+            // varnode), then `back() = newwhole` REPLACES the remaining
+            // last element (lovn) with the join — the return ends up with
+            // exactly [indirect, join] (2 inputs). The former push form
+            // left lovn alive in slot 1 ([indirect, lovn, join], 3 inputs),
+            // which kept a second COPY consumer of the underlying value
+            // alive through markexplicit (F5SQ-RETJOIN-0001 root cause).
             newparam.pop();
-            newparam.push(join_vn.clone());
+            if let Some(back) = newparam.last_mut() {
+                *back = join_vn.clone();
+            }
             fd.op_set_all_input(retop, &newparam);
             // Ghidra cc:1866-1867: opSetInput(hi,0) opSetInput(lo,1).
             fd.op_set_input(&newop, hivn, 0);
