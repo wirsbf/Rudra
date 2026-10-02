@@ -121,7 +121,19 @@ Ghidra: variable.cc:302 `stripType`. `&self` mirrors the Ghidra const member:
 the write goes through the `mutable` type cache (`TypeCell`). Preserves a
 partial-union/partial-struct when a struct/union backing Symbol exists
 (variable.cc:308-313) and a partial enum on a single constant member
-(variable.cc:315-318).
+(variable.cc:315-318). The final `type = type->getStripped()`
+(variable.cc:319) is a POINTER assignment of the factory-interned stripped
+form — Rudra routes through the Arc-preserving
+`Datatype::get_stripped_arc` twin so the stripped result keeps pointer
+identity with the canonical factory base type. This identity is load-bearing
+for every `Datatype*` pointer-equality comparand downstream:
+`Merge::mergeByDatatype` grouping (merge.cc:386 `ct == high->getType()`),
+`mergeTestRequired`'s typelock pair and `mergeTestAdjacent`'s same-type gate
+(merge.cc:196). A fresh-arc clone here fragments those same-type groups
+(DECL-B3-HIGHMERGE-0001: sqlite3Select stack-slot load COPYs excluded from
+the xunknown4 group → +3 `xunknown4` symbols + renumbering cascade).
+`get_stripped_arc` returning `None` (`getStripped()` yields \b this) is the
+oracle's self-assignment: the current Arc is kept.
 
 ### `pub fn get_type(&self) -> Arc<Datatype>`
 Ghidra: variable.hh:174 `getType` — `updateType(); return type;`. The lazy

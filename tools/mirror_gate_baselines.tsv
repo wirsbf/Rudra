@@ -357,6 +357,24 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
 sq	41	810	READINODE3-RATCHET-REPIN-0001	readinode3-joint	2026-10-02
+# DECLB3 re-pin (DECLB3-RATCHET-REPIN-0001, 2026-10-02,
+# strip_type Arc-identity fix in src/variable.rs, lane wt/declb3
+# base be755f6e/MB74): sqlite 107-16=91 — per-function accounting:
+# sqlite3Select 16->2 (the B3 +3 xunknown4 decls and the full
+# renumbering cascade burned; xVar9/xVar12 slot-read merges now
+# golden-aligned line-for-line; remaining 2 lines = pre-existing
+# cond-shape family, NOT the merge domain) + sqlite3changeset_invert
+# 2->0 (bonus burn: the B1-family changeset_invert symbol-set delta
+# resolved by the same identity fix) + sqlite3changeset_invert_strm
+# skeleton-identical both sides (byte-level symbol-reuse convergence
+# only, xVar23/21 -> shared xVar14); the other 21 differing
+# functions zero drift (corpus mirror attribution: exactly 3
+# functions touched, 1382 byte-identical). curl 11/httpd 0/vsh 0/
+# sq 41 rows stay; canon byte pins f903372a/3617ecc3 exact;
+# VdbeExec mirror/canon b3f5b487/606dd8c0 exact; corpus pins shift
+# attributed (mirror 79c4cc0c->87a3f85d, canon 6640fcf0->3cb07c6c,
+# both exactly the 3 functions above).
+sqlite	91	1385	DECLB3-RATCHET-REPIN-0001	declb3	2026-10-02
 # MB74 joint re-pin (DECLB12-MB74-JOINT-REPIN-0001, 2026-10-02,
 # merge of wt/declb12 0ac6c556 [single commit, base 624e5a6a/MB70]
 # onto master aefbe6a9 [MB73, sqlite 115 = DECLBFORM-MB72-JOINT-
