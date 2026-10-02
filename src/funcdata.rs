@@ -15,7 +15,7 @@ use crate::space::AddressSpace;
 /// The core anonymous "code" `Datatype` that `Funcdata::newCodeRef`
 /// (funcdata_varnode.cc:222-233) attaches to every one-byte code-reference
 /// annotation Varnode. Ghidra reads it from the architecture's TypeFactory
-/// cache (`TypeFactory::getTypeCode`, type.cc:3692-3701); Rugra does not
+/// cache (`TypeFactory::getTypeCode`, type.cc:3692-3701); Rudra does not
 /// thread a factory through the raw emit path, so the equivalent value
 /// object — name "code", metatype TYPE_CODE, size 1 — is built directly.
 fn code_ref_datatype() -> std::sync::Arc<crate::type_system::datatype::Datatype> {
@@ -87,7 +87,7 @@ fn piece_node_find_root(
                 addr = addr.wrapping_add(if slot == 0 { in1_size } else { in0_size } as u64);
             }
             // addr.renormalize(vn->getSize()) — identity for word-size-1
-            // spaces (Rugra's scalar Address carries no word size).
+            // spaces (Rudra's scalar Address carries no word size).
             if addr == cur_addr {
                 match &piece_op {
                     Some(prev) => {
@@ -224,7 +224,7 @@ pub fn scope_local_find_overlap(
 /// `EntrySubsort::operator<` (database.hh:127-133): the minimal subsort
 /// (0,0) for address-tied storage (symbol flag set when the mapping has an
 /// empty uselimit, modeled by `usepoint == None`), else
-/// `(useindex, useoffset)` of the first uselimit range. Rugra's
+/// `(useindex, useoffset)` of the first uselimit range. Rudra's
 /// LocalSymbol.usepoint carries only the offset, and every static mapping's
 /// uselimit lives in the (single) code space, so the index component is
 /// uniform and modeled as the constant 1 (> the minimal index 0).
@@ -317,8 +317,8 @@ pub mod funcdata_flags {
     /// funcdata.hh:85 = 0x2000).
     pub const DOUBLE_PRECIS_ON: u32 = 1 << 13;
     /// Basic blocks have been generated (Ghidra `blocks_generated`,
-    /// funcdata.hh:84 = 0x2). Rugra uses bit 2 to avoid clashing with
-    /// HIGHLEVEL_ON (which occupies bit 2 in Rugra's remapped flag space).
+    /// funcdata.hh:84 = 0x2). Rudra uses bit 2 to avoid clashing with
+    /// HIGHLEVEL_ON (which occupies bit 2 in Rudra's remapped flag space).
     pub const BLOCKS_GENERATED: u32 = 1 << 3;
     /// Processing of the function has started (Ghidra `processing_started`,
     /// funcdata.hh:84 = 0x8). Set by `startProcessing`; checked to make the
@@ -340,7 +340,7 @@ pub mod funcdata_flags {
     /// `restart_pending`, funcdata.hh:84 = 0x400).
     pub const RESTART_PENDING: u32 = 1 << 10;
     /// At least one basic block is currently unreachable (Ghidra
-    /// `blocks_unreachable`, funcdata.hh:60 = 0x4). Rugra uses bit 6 to
+    /// `blocks_unreachable`, funcdata.hh:60 = 0x4). Rudra uses bit 6 to
     /// avoid clashing with the remapped flag space (HIGHLEVEL_ON occupies
     /// Ghidra's bit 2; see BLOCKS_GENERATED's note). Set/cleared only by
     /// `structure_reset` mirroring funcdata_block.cc:710/713-714
@@ -446,13 +446,13 @@ pub struct Funcdata {
 
     /// `Funcdata::clean_up_index` (funcdata.hh:187): the VarnodeBank
     /// creation index recorded when the clean-up phase starts
-    /// (`startCleanUp`, funcdata.hh:186). Previously absent in Rugra (the
+    /// (`startCleanUp`, funcdata.hh:186). Previously absent in Rudra (the
     /// coreaction marker was a no-op); restored as real storage.
     pub clean_up_index: u32,
 
     // --- OPACTION_DEBUG observation state (funcdata.hh:580-592). ---
     // Ghidra compiles these members only under `#ifdef OPACTION_DEBUG`
-    // (funcdata.hh:580); Rugra always compiles them, with all behavior
+    // (funcdata.hh:580); Rudra always compiles them, with all behavior
     // gated on `opactdbg_on` exactly like the debug build. The hook
     // entries (`debugModCheck`/`debugModPrint`) live in drillobserve.rs.
 
@@ -497,7 +497,7 @@ pub struct Funcdata {
 
     // RUDRA-GLUE: display_image_base (RESIDMAP-PRINTBATCH-0001 transport; no
     // single Ghidra counterpart — the oracle's Funcdata Addresses ARE the
-    // loaded analyzeHeadless addresses, while Rugra's pipeline runs on
+    // loaded analyzeHeadless addresses, while Rudra's pipeline runs on
     // ELF-relative offsets (ADDRESS-0001) and the drivers add the image-base
     // delta at display time, exactly like PrintC::code_label_base for
     // labels). Warning texts that embed an address (funcdata_block.cc:374
@@ -523,7 +523,7 @@ pub struct Funcdata {
     /// by-value `Merge` member constructed with \b this (funcdata.cc:39),
     /// shared by every merge-family Action via `getMerge()`
     /// (funcdata.hh:440), and cleared only by `Funcdata::clear()`
-    /// (funcdata.cc:108). Rugra's merge Actions construct local `Merge`
+    /// (funcdata.cc:108). Rudra's merge Actions construct local `Merge`
     /// instances, so only the persistent channels are mounted here; see
     /// `merge::MergePersistentState`.
     pub merge_state: crate::merge::MergePersistentState,
@@ -555,7 +555,7 @@ pub struct Funcdata {
     /// Populated by the decompiler driver before analysis; read by
     /// `type_infer::propagate_types` to seed struct-pointer types on the
     /// constant varnodes that reference these globals. Mirrors Ghidra's
-    /// SymbolEntry type assignment (database.cc) which the Rugra driver
+    /// SymbolEntry type assignment (database.cc) which the Rudra driver
     /// lacks an Architecture/SymbolTable layer to populate automatically.
     pub global_struct_ptrs: HashMap<u64, std::sync::Arc<crate::type_system::datatype::Datatype>>,
     /// Function prototype (return type, parameters)
@@ -577,7 +577,7 @@ pub struct Funcdata {
     /// `ScopeInternal::decode` installs the analyzer-committed symbols
     /// BEFORE any action runs). The headless canon golden is produced with
     /// that channel present; the bare driver contract (direct-runner
-    /// golden) is produced with it absent. Rugra's driver installs the
+    /// golden) is produced with it absent. Rudra's driver installs the
     /// harvested list here under the opt-in env gate and
     /// ActionRestructureVarnode materializes the symbols into the fresh
     /// ScopeLocal at its first apply (the lifecycle position mirroring the
@@ -618,12 +618,12 @@ pub struct Funcdata {
     /// Restart-pending flag for ActionRestartGroup (funcdata.hh).
     pub restart_pending: bool,
     /// Once-per-function guard for ActionConditionalConst. The conditional
-    /// constant propagation is useful but, under Rugra's repeatapply mainloop,
+    /// constant propagation is useful but, under Rudra's repeatapply mainloop,
     /// re-running it after the first mutation can interact poorly with
     /// downstream ActionConditionalExe/branch-folding and fail to converge for
     /// some functions (5/24 curl timeouts). This flag ensures the IR-mutating
     /// propagation runs at most once per function (reset on restart). It is a
-    /// Rugra-specific convergence guard with no Ghidra counterpart.
+    /// Rudra-specific convergence guard with no Ghidra counterpart.
     pub cond_const_done: bool,
     /// Jump tables recovered for this function. Faithful to
     /// `Funcdata::jumpvec` (funcdata.hh:89). Populated by JumpTable recovery.
@@ -658,7 +658,7 @@ pub struct Funcdata {
     // ---- Stack space / spacebase configuration (from Architecture, defaults to x86-64) ----
     // Faithful to Architecture's cspec <stackpointer> fields. These mirror
     // the canonical Architecture's x86-64-gcc.cspec defaults (identical
-    // values in `Architecture::new`): Rugra snapshots them as Funcdata
+    // values in `Architecture::new`): Rudra snapshots them as Funcdata
     // fields rather than reading `glb` per query.
     /// The stack address space (IPTR_SPACEBASE). Stack varnodes live here.
     pub stack_space: crate::space::AddressSpace,
@@ -675,7 +675,7 @@ pub struct Funcdata {
 // takes its Architecture unconditionally from the Scope
 // (`glb = scope->getArch()`, funcdata.cc:48; `Scope::getArch` is the
 // database.hh:775 inline) and every Funcdata decompiled under one database
-// shares that single pointer. Rugra's Funcdata::new has no Scope parameter
+// shares that single pointer. Rudra's Funcdata::new has no Scope parameter
 // yet (FUNCDATA-LOCALSCOPE-OWNERSHIP-0001), so this lazily-built
 // `Architecture::new()` (architecture.cc:150 ctor + `resetDefaultsInternal`
 // defaults, architecture.cc:1416-1432) restores both the never-null `glb`
@@ -789,7 +789,7 @@ impl Funcdata {
     /// Create a new Funcdata instance. Faithful to the constructor
     /// (funcdata.cc:34-82): every C++ Funcdata is constructed with its
     /// Scope's Architecture (`glb = scope->getArch()`, funcdata.cc:48) and
-    /// immediately sources `minLanedSize` from it (funcdata.cc:49). Rugra
+    /// immediately sources `minLanedSize` from it (funcdata.cc:49). Rudra
     /// binds the canonical default Architecture through `set_arch` (which
     /// runs the same ctor tail: model binding + `min_laned_size`); callers
     /// that own a real architecture replace it via a later `set_arch`.
@@ -996,7 +996,7 @@ impl Funcdata {
 
     // RUDRA-GLUE: explicit-space adapter for Ghidra's Address-valued
     // Funcdata::newVarnode; ADDRESS-0001 keeps space and offset split across
-    // Rugra until the entire comparison domain migrates atomically.
+    // Rudra until the entire comparison domain migrates atomically.
     pub(crate) fn new_varnode_in_space(
         &mut self,
         size: usize,
@@ -1023,7 +1023,7 @@ impl Funcdata {
     ///   vn->setFlags(vflags & ~Varnode::typelock);
     /// ```
     /// Ghidra's ONE query walks ScopeLocal -> parents -> global scope
-    /// (database.cc:1268 stackContainer). Rugra's walk is composed the same
+    /// (database.cc:1268 stackContainer). Rudra's walk is composed the same
     /// way linkSymbol composes it (funcdata.rs link_symbol): the ScopeLocal
     /// leg is `ScopeLocal::query_properties_ex` over `fd.scope` (the
     /// database.cc:943/1263 walk with the Database property lookup wired
@@ -1048,7 +1048,7 @@ impl Funcdata {
         };
         // database.cc:1276/1279 — glb->symboltab->getProperty(addr): the
         // Database flagbase, reachable only for default-data (RAM) space in
-        // Rugra's split representation.
+        // Rudra's split representation.
         let property = |spc: crate::space::AddressSpace, off: u64| -> u32 {
             if spc != crate::space::AddressSpace::Ram {
                 return 0;
@@ -1103,7 +1103,7 @@ impl Funcdata {
             return;
         }
         // The parent/global leg: only the default-data (RAM) space reaches
-        // the Database channel in Rugra's split representation; other
+        // the Database channel in Rudra's split representation; other
         // spaces end the C++ walk at the bare getProperty(addr) fold
         // (database.cc:1279), which the property closure already applied
         // (0 for non-RAM).
@@ -1347,7 +1347,7 @@ impl Funcdata {
         // For each PIECE: remove input[1], unset input[0] (will be replaced).
         for p in &piece_list {
             self.op_remove_input(p, 1);
-            // Rugra's Vec cannot hold Ghidra's cleared/null slot. Remove slot
+            // Rudra's Vec cannot hold Ghidra's cleared/null slot. Remove slot
             // zero as well, then insert the combined input below. This avoids
             // retaining a deleted high-input Arc and a second eraseDescend.
             self.op_remove_input(p, 0);
@@ -1487,7 +1487,7 @@ impl Funcdata {
     }
     // RUDRA-GLUE: Rust ownership seam for the Architecture reference Ghidra's
     // Funcdata constructor obtains from its Scope (`glb = scope->getArch()`,
-    // funcdata.cc:48). Rugra's Funcdata has no constructor-time Scope yet
+    // funcdata.cc:48). Rudra's Funcdata has no constructor-time Scope yet
     // (FUNCDATA-LOCALSCOPE-OWNERSHIP-0001), so `set_arch` is the moment `glb`
     // becomes available and must also run the constructor's model-binding
     // tail: funcdata.cc:69 `funcp.setScope(localmap,baseaddr+ -1)` ->
@@ -1499,7 +1499,7 @@ impl Funcdata {
     pub fn set_arch(&mut self, arch: Arc<crate::arch::Architecture>) {
         // Ghidra: funcdata_varnode.cc:66 Funcdata::newConstant
         // Every newVarnode* caller supplies a Datatype from this Funcdata's
-        // Architecture-owned `glb->types`.  Rugra's bank resolves that
+        // Architecture-owned `glb->types`.  Rudra's bank resolves that
         // required argument internally, so attach the identical factory
         // before any subsequent Varnode allocation.
         if let Some(types) = arch.types.clone() {
@@ -1705,7 +1705,7 @@ impl Funcdata {
     /// arm (funcdata_varnode.cc:1000-1003) attaches it to the Varnode's
     /// HighVariable without creating any ScopeLocal symbol.
     ///
-    /// Rugra channels, in fidelity order:
+    /// Rudra channels, in fidelity order:
     /// 1. The real `Database` graph (`Architecture::symboltab`), queried
     ///    through the parent-scope channel with the same container
     ///    semantics (`Database::query_properties`, database.cc:1263).
@@ -1715,7 +1715,7 @@ impl Funcdata {
     ///
     /// Space gate: only Ram varnodes are queried. The global scope owns
     /// ram ranges only (stack/register/unique addresses find nothing in
-    /// Ghidra's walk either), and Rugra's `SymbolEntry` addresses are
+    /// Ghidra's walk either), and Rudra's `SymbolEntry` addresses are
     /// spaceless offsets, so an ungated query could cross-space collide a
     /// register offset with a ram global.
     fn query_global_symbol_hit(
@@ -1803,7 +1803,7 @@ impl Funcdata {
         } else if vn.read().unwrap().get_space() == crate::space::AddressSpace::Ram {
             // The parent leg of the same queryProperties call (B3 channel):
             // Ghidra's ONE query walks ScopeLocal -> parent -> global scope
-            // (database.cc:1268 stackContainer); Rugra's ScopeLocal leg saw
+            // (database.cc:1268 stackContainer); Rudra's ScopeLocal leg saw
             // no local symbol, so consult the Database global scope — where
             // global symbols (ELF/DWARF/GOT imports, plus the Symbols
             // mapGlobals created at fixateglobals time) answer.
@@ -1825,7 +1825,7 @@ impl Funcdata {
                     // RUDRA-GLUE: publish the symbol's display name onto the
                     // high the way the namevars write-back bridge does for
                     // ScopeLocal symbols (Ghidra resolves the name through
-                    // high->getSymbol() at print; Rugra's printc reads
+                    // high->getSymbol() at print; Rudra's printc reads
                     // high.get_name() behind its symbol_table priority).
                     let display = {
                         let h = high.read().unwrap();
@@ -1862,7 +1862,7 @@ impl Funcdata {
             // Symbol — it is NOT put into the function's ScopeLocal, so
             // `PrintC::emitScopeVarDecls` (printc.cc:2254-2276, walking
             // ScopeLocal + children only) never declares it. MAINDIFF-
-            // UNIQLEAK-0001: Rugra previously stopped at the local model
+            // UNIQLEAK-0001: Rudra previously stopped at the local model
             // and fell straight into the cc:1173-1181 create-local-symbol
             // arm, minting dead `in_ram_XXXX` declarations for every
             // global-sourced heritage input (37 in main alone vs golden 0).
@@ -1870,7 +1870,7 @@ impl Funcdata {
                 // handleSymbolConflict early-arm bridge (cc:1002-1003
                 // vn->setSymbolEntry(entry) + HighVariable::setSymbol): the
                 // global Symbol's display name is published onto the high
-                // (Rugra's print resolves through `high->get_name()` where
+                // (Rudra's print resolves through `high->get_name()` where
                 // Ghidra resolves `high->getSymbol()->getDisplayName()`).
                 // No ScopeLocal symbol is created; returning None mirrors
                 // linkSymbols' cc:2963 `if (sym == 0)` skip for the
@@ -1916,7 +1916,7 @@ impl Funcdata {
     /// The Funcdata query channel into the faithful `Database`/`Scope`
     /// symbol graph: the equivalent of
     /// `data.getScopeLocal()->getParent()->queryContainer(rampoint, 1,
-    /// Address())`. Rugra's Funcdata carries no per-function database.rs
+    /// Address())`. Rudra's Funcdata carries no per-function database.rs
     /// local Scope (`scope` is the varmap `ScopeLocal` model), and a
     /// function-local Scope's parent is the global Scope, so the query
     /// point is `Database`'s global scope — exactly the scope Ghidra's
@@ -2055,14 +2055,14 @@ impl Funcdata {
         let op_arc = vn.read().unwrap().lone_descend()?;
         let op = op_arc.read().unwrap();
         // cc:1197-1202: check that in(0) is a spacebase pointer type.
-        // Rugra: check if the PTRSUB's first input is a spacebase varnode.
+        // Rudra: check if the PTRSUB's first input is a spacebase varnode.
         if op.opcode != OpCode::CPUI_PTRSUB { return None; }
         let in0 = op.get_in(0)?;
         let in0_r = in0.read().unwrap();
         if !in0_r.is_spacebase() { return None; }
         drop(in0_r);
         // cc:1204: addr = sb->getAddress(vn->getOffset(), in0->getSize(), op->getAddr())
-        // Rugra: the offset encodes the stack/global address directly.
+        // Rudra: the offset encodes the stack/global address directly.
         let vn_offset = vn.read().unwrap().get_offset();
         // cc:1207: entry = scope->queryContainer(addr, 1, Address())
         // The real query channel first: the ram spacebase's map is the
@@ -2087,7 +2087,7 @@ impl Funcdata {
         let sym_name = self.symbol_table.get(&vn_offset).cloned();
         if let Some(ref name) = sym_name {
             // cc:1210-1211: vn->setSymbolReference(entry, off)
-            // Rugra: we don't have full SymbolEntry infrastructure, but we
+            // Rudra: we don't have full SymbolEntry infrastructure, but we
             // can record the name on the varnode via the symbol reference.
             // For now, the symbol_table lookup IS the resolution.
             return Some(name.clone());
@@ -2162,7 +2162,7 @@ impl Funcdata {
     /// fast path resolves the op's in(0) fspec constant back to the
     /// FuncCallSpecs; the fallback linearly scans the call list for the
     /// spec whose op matches. Until a dedicated FSPEC address space exists,
-    /// Rugra's annotation remains in Iop space but carries a typed Weak
+    /// Rudra's annotation remains in Iop space but carries a typed Weak
     /// handle. A raw constant with the same numeric offset is never decoded
     /// as a spec.
     pub fn get_call_specs_of_op(
@@ -2171,7 +2171,7 @@ impl Funcdata {
     ) -> Option<Arc<RwLock<crate::fspec::FuncCallSpecs>>> {
         // Per-walk resolution memo (RUDRA-GLUE). Ghidra's fast path is a
         // constant-space pointer read (funcdata.cc:486-487) and its fallback
-        // is a bare-pointer scan (funcdata.cc:489-490); Rugra's form pays a
+        // is a bare-pointer scan (funcdata.cc:489-490); Rudra's form pays a
         // lock + Weak upgrade per spec per resolution. During the parameter
         // recovery walks (FuncCallSpecs::checkInputTrialUse's trial loop and
         // the return-recovery trial loop in ActionReturnRecovery) neither
@@ -2320,7 +2320,7 @@ impl Funcdata {
         &mut self, num_inputs: usize, pc: crate::address::Address,
     ) -> crate::op::PcodeOpRef {
         // PcodeOpBank::create puts a newly allocated op on Ghidra's dead list
-        // (op.cc:941-948).  PcodeOpBank::create is also used by Rugra's raw
+        // (op.cc:941-948).  PcodeOpBank::create is also used by Rudra's raw
         // injection bridge, whose legacy lifecycle is different, so enforce
         // the mapped Funcdata::newOp contract at this API boundary.
         let op = self
@@ -2491,7 +2491,7 @@ impl Funcdata {
     // Ghidra: funcdata_op.cc:37 Funcdata::opMarkHalt
     /// Mark a CPUI_RETURN op as an artificial halt. Faithful to
     /// `opMarkHalt` (funcdata_op.cc:37-48). Throws if op is not RETURN
-    /// or flag is invalid (Rugra logs + returns).
+    /// or flag is invalid (Rudra logs + returns).
     pub fn op_mark_halt(&self, op: &crate::op::PcodeOpRef, flag: u32) {
         use crate::op::pcodeop_flags;
         use crate::opcodes::OpCode;
@@ -2534,12 +2534,12 @@ impl Funcdata {
     ///   (2) const dedup: if vn is constant AND has descend AND not spacebase,
     ///       create a fresh constant copy (with copySymbol) and use that
     ///   (3) opUnsetInput(op, slot) on the OLD input — erases op from old
-    ///       vn's descend list (Rugra's inrefs Vec can't hold null, so the
+    ///       vn's descend list (Rudra's inrefs Vec can't hold null, so the
     ///       "clearInput" half is implicit: inrefs[slot] gets overwritten
     ///       below; the load-bearing part is erase_descend on the old vn)
     ///   (4) vn->addDescend(op) + op->setInput(vn, slot)
     ///
-    /// **2026-07-05 修正**:此前 Rugra 漏了 (1)(2)(3),直接 addDescend + 赋值,
+    /// **2026-07-05 修正**:此前 Rudra 漏了 (1)(2)(3),直接 addDescend + 赋值,
     /// 导致旧 vn 的 descend 列表残留当前 op 引用 → has_no_descend 永远返回
     /// false → heritage rename 的 deleteVarnode (heritage.cc:2521) 永远不执行
     /// → 死 varnode 累积污染后续 pass。同时 const 去重缺失导致同一常量 vn 被
@@ -2562,7 +2562,7 @@ impl Funcdata {
             }
         }
         let mut o = op.0.write().unwrap();
-        // Ghidra has nullable preallocated slots. For Rugra's Vec model, a
+        // Ghidra has nullable preallocated slots. For Rudra's Vec model, a
         // sequential slot exactly at len is the representable NULL boundary
         // and is appended below without allocating a sentinel. Preserve gap
         // sentinels only for the still-unresolved slot>len representation.
@@ -2670,7 +2670,7 @@ impl Funcdata {
         // (op.cc:311-318) pushes a NULL slot at `slot` and shifts existing
         // inputs at/after `slot` up by one. Descend entries store the op
         // pointer, not the slot index, so the shift needs no descend
-        // update. Rugra's inrefs Vec cannot hold the transient NULL without
+        // update. Rudra's inrefs Vec cannot hold the transient NULL without
         // allocating an observable sentinel Varnode in the bank, and every
         // Ghidra statement between insertInput and opSetInput's final
         // setInput is a no-op on that NULL slot (cc:107 vn != NULL so the
@@ -2811,7 +2811,7 @@ impl Funcdata {
             // afterwards. A parentless op in Ghidra is already in the
             // deadlist (PcodeOpBank::create starts ops dead, op.cc:946;
             // only opInsert's markAlive, funcdata_op.cc:157, brings them
-            // alive), so Ghidra needs no explicit markDead here. Rugra's
+            // alive), so Ghidra needs no explicit markDead here. Rudra's
             // create() (op.rs) starts ops alive in the alivelist, so a
             // parentless destroy (never-inserted op, or a block whose Arc
             // was already dropped) must still mark_dead to reach the same
@@ -2885,7 +2885,7 @@ impl Funcdata {
     /// once and the loop terminates at `endDescend()` regardless of what
     /// remains in the live list (e.g. when `newvn == vn`, opSetInput's
     /// early-out leaves entries in place and Ghidra still exits after one
-    /// pass). Rugra must NOT re-scan the list until it drains: entries the
+    /// pass). Rudra must NOT re-scan the list until it drains: entries the
     /// per-site opSetInput cannot remove would spin forever (this was the
     /// FUNC-GLOBRANGE-HANG-0001 deadlock). Snapshot the live descendants
     /// once (dead Weak entries — op Arc freed without unset, unreachable in
@@ -2929,7 +2929,7 @@ impl Funcdata {
     // Ghidra: funcdata.cc:34 Funcdata::opUnsetInput
     /// Unset an input slot. Faithful to `Funcdata::opUnsetInput`
     /// (funcdata_op.cc). Removes the descend link from the input varnode and
-    /// sets the slot to None (represented as removing from inrefs in Rugra).
+    /// sets the slot to None (represented as removing from inrefs in Rudra).
     // Ghidra: funcdata_op.cc:92 Funcdata::opUnsetInput
     /// Unlink the input Varnode at `slot` from `op`. Faithful to
     /// `Funcdata::opUnsetInput` (funcdata_op.cc:92-99):
@@ -2940,7 +2940,7 @@ impl Funcdata {
     /// later reader sees `getIn(slot) == NULL` and skips it — most
     /// importantly `opDestroy` (funcdata_op.cc:213-215), which guards each
     /// slot with `if (vn != NULL) opUnsetInput(op,i)`. The slot is then
-    /// cleared in place (cc:98 `op->clearInput(slot)`): Rugra writes the
+    /// cleared in place (cc:98 `op->clearInput(slot)`): Rudra writes the
     /// shared `null_slot_sentinel` (Ghidra's `(Varnode *)0`), preserving the
     /// slot count — a dead op keeps `numInput()` NULL slots, exactly like
     /// Ghidra's inrefs array (SB-ORD159-NULLSLOT-0001). Descend membership
@@ -3017,7 +3017,7 @@ impl Funcdata {
         addr: crate::address::Address,
         op: &crate::op::PcodeOpRef,
     ) -> std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>> {
-        // Rugra split-Address adapter: callers without a known true space keep
+        // Rudra split-Address adapter: callers without a known true space keep
         // the historical Register pin; the full newVarnodeOut sequence runs in
         // new_varnode_out_full below.
         self.new_varnode_out_full(size, crate::space::AddressSpace::Register, addr, op)
@@ -3025,7 +3025,7 @@ impl Funcdata {
 
     // Ghidra: funcdata_varnode.cc:104 Funcdata::newVarnodeOut
     /// Space-preserving `Funcdata::newVarnodeOut`: the oracle's `m` is a full
-    /// `Address` (space + offset). Rugra's scalar `Address` cannot carry the
+    /// `Address` (space + offset). Rudra's scalar `Address` cannot carry the
     /// space, so callers that must reproduce the oracle's full storage address
     /// — e.g. `CloneBlockOps::buildVarnodeOutput`
     /// (funcdata_block.cc:988 `data.newVarnodeOut(opvn->getSize(),opvn->getAddr(),cloneOp)`)
@@ -3133,7 +3133,7 @@ impl Funcdata {
     ///   - the in-slot `i` on `outbl` is KEPT and re-pointed at `bbnew` with
     ///     `reverse_index = bbnew.size_out()`;
     ///   - `bbnew` gets a fresh out-edge appended with `reverse_index = i`.
-    /// The former Rugra version appended a new in-edge to `bbnew` and
+    /// The former Rudra version appended a new in-edge to `bbnew` and
     /// `Vec::remove`d the old in-edge from `outbl` — a one-sided removal
     /// that slid `outbl`'s in-list without decrementing the OTHER sources'
     /// out-edge reverse_index entries (BLOCK-RECIPROCAL-OOB-0001), and only
@@ -3258,7 +3258,7 @@ impl Funcdata {
     ///      block's interior (read by hasInteriorGoto).
     ///   3. outofthis[j].point->flags |= f_interior_gotoin — mark the TARGET
     ///      block as a goto target (read by isInteriorGotoTarget).
-    /// Previously Rugra only did (1) for BlockBasic, so is_interior_goto_target
+    /// Previously Rudra only did (1) for BlockBasic, so is_interior_goto_target
     /// could not behave correctly for goto-marked targets.
     pub fn set_goto_branch(
         &mut self,
@@ -3336,9 +3336,9 @@ impl Funcdata {
     /// - cc:728 `sblocks.clear()`
     /// - cc:730 `heritage.forceRestructure()` (maxdepth = -1)
     ///
-    /// Rugra glue tail (no oracle counterpart on the Funcdata level):
+    /// Rudra glue tail (no oracle counterpart on the Funcdata level):
     /// refresh the per-block dominator depth/subtree/frontier caches so
-    /// Rugra consumers (find_common_block, phi placement) stay coherent
+    /// Rudra consumers (find_common_block, phi placement) stay coherent
     /// with the freshly written immed_dom set — Ghidra computes dominator
     /// depth locally inside Heritage::buildADT (heritage.cc:2338).
     ///
@@ -3374,7 +3374,7 @@ impl Funcdata {
                 match jt.get_indirect_op() {
                     Some(indop) => indop.read().unwrap().is_dead(),
                     // Ghidra dereferences getIndirectOp() unconditionally
-                    // (funcdata_block.cc:719); Rugra's Option is treated as
+                    // (funcdata_block.cc:719); Rudra's Option is treated as
                     // alive — no production path leaves a jumptable without
                     // its indirect op here.
                     None => false,
@@ -3393,7 +3393,7 @@ impl Funcdata {
         // (maxdepth = -1), so the next Heritage pass rebuilds the augmented
         // dominator tree from the CFG re-established above.
         self.heritage.force_restructure();
-        // RUDRA-GLUE: refresh Rugra's per-block dominator caches (dom depth,
+        // RUDRA-GLUE: refresh Rudra's per-block dominator caches (dom depth,
         // subtree children, dominance frontiers) that other passes read
         // directly off FlowBlock; the immed_dom set written by
         // calc_forward_dominator is the oracle-observable state.
@@ -3467,7 +3467,7 @@ impl Funcdata {
     /// MULTIEQUAL input splice (remove bb's slot, append bb's in-edge
     /// varnodes), opZeroMulti, removeFromFlow retarget, op destruction,
     /// removeBlock. `unreachable` mirrors the C++ flag (stranded-descendant
-    /// warning path; Rugra degrades the LowlevelError throw to a warning +
+    /// warning path; Rudra degrades the LowlevelError throw to a warning +
     /// removal abort so one function cannot kill the worker).
     pub fn block_remove_internal(
         &mut self,
@@ -3620,7 +3620,7 @@ impl Funcdata {
         }
         // cc:298-318: finally remove all the ops. The C++ throws
         // LowlevelError("Deleting op with descendants") when an op still has
-        // descendants outside bb; Rugra degrades the throw to a warning +
+        // descendants outside bb; Rudra degrades the throw to a warning +
         // skips destroying the stranded op (worker survives; divergence
         // visible on stderr for fixture differencing).
         let mut desc_warning = false;
@@ -4215,7 +4215,7 @@ impl Funcdata {
     /// `blockRemoveInternal(bb,true)` (descend2Undef on stranded outputs +
     /// destruction of ALL its ops), and finally structureReset.
     ///
-    /// The former Rugra "conservative guard" (skip removal when >=5 blocks
+    /// The former Rudra "conservative guard" (skip removal when >=5 blocks
     /// and >5% were unreachable) and the "leave ops with external
     /// descendants alive" approximation are removed: both deviate from the
     /// oracle and leave live ops in dead blocks reading free varnodes,
@@ -4251,7 +4251,7 @@ impl Funcdata {
         }
 
         // cc:365-366: find entry point. The oracle indexes off the end when
-        // no entry exists (UB); Rugra falls back to block 0 rather than
+        // no entry exists (UB); Rudra falls back to block 0 rather than
         // panicking, which only fires on synthetic test graphs.
         let entry_idx = (0..n)
             .find(|&i| {
@@ -4279,7 +4279,7 @@ impl Funcdata {
                 // cc:372-378: ostringstream s; s << "Removing unreachable
                 // block ("; s << bb->getStart().getSpace()->getName();
                 // s << ','; bb->getStart().printRaw(s); s << ')'.
-                // Space name: Rugra block covers carry spaceless
+                // Space name: Rudra block covers carry spaceless
                 // ELF-relative addresses (ADDRESS-0001); code blocks live in
                 // ram, so a tagged address prints its own space name and the
                 // spaceless transport prints the oracle's "ram". The offset
@@ -4684,7 +4684,7 @@ impl Funcdata {
     ///   - inserted before the causing op via `opInsertBefore`
     /// The constructor performs no setActiveHeritage – Ghidra's callers
     /// (guardCalls/guardStores, heritage.cc:1512-1516/1553-1556) do that
-    /// after construction, so Rugra callers must too.
+    /// after construction, so Rudra callers must too.
     /// Both varnode constructors run the symbol tail inside themselves,
     /// with two distinct usepoint paths (FUNCDATA-INDIRECT-SYMBOLTAIL-0001):
     ///   - `newVarnode` (cc:689, funcdata_varnode.cc:148-169) on the free
@@ -4755,7 +4755,7 @@ impl Funcdata {
     ///   Varnode *vn = vbank.create(sizeof(op), Address(cspc,(uintb)(uintp)op), ct);
     ///   assignHigh(vn);
     ///   return vn;
-    /// Ghidra encodes the raw op pointer as the iop-space offset; Rugra
+    /// Ghidra encodes the raw op pointer as the iop-space offset; Rudra
     /// encodes `Arc::as_ptr()` (the stable address of the inner RwLock).
     /// The assignHigh call is a structural no-op for iop varnodes (they are
     /// annotations), kept for call-site parity with cc:182.
@@ -4788,7 +4788,7 @@ impl Funcdata {
     /// Resolve an iop-space constant varnode back to the PcodeOp it references.
     /// Models the kind-discrimination slice corresponding to
     /// `PcodeOp::getOpFromConst` (op.hh:249). Ghidra's dedicated IPTR_IOP space
-    /// excludes IPTR_FSPEC before pointer decoding. Rugra temporarily shares
+    /// excludes IPTR_FSPEC before pointer decoding. Rudra temporarily shares
     /// `AddressSpace::Iop`, so a typed callspec binding (including an expired
     /// Weak) must be rejected before interpreting the numeric compatibility
     /// shadow as an op pointer. The remaining raw-Arc decoder is the
@@ -4969,7 +4969,7 @@ impl Funcdata {
     /// mapentry attach for type-locked symbols) on a hit, else folding
     /// `setFlags(vflags & ~typelock)` — and no setActiveHeritage is done
     /// here (guardCalls cc:1523 does it after construction).
-    // RUDRA-GLUE: split entry because Rugra Address lacks space identity; the
+    // RUDRA-GLUE: split entry because Rudra Address lacks space identity; the
     // legacy Unique-space entry keeps out-of-write-set callers compiling.
     pub fn new_indirect_creation_in_space(
         &mut self,
@@ -5256,7 +5256,7 @@ impl Funcdata {
     /// Start the clean-up phase: record the VarnodeBank creation index at
     /// phase entry. Faithful to `Funcdata::startCleanUp`
     /// (funcdata.hh:186) `{ clean_up_index = vbank.getCreateIndex(); }`.
-    /// Rugra previously had no `clean_up_index` storage (the coreaction
+    /// Rudra previously had no `clean_up_index` storage (the coreaction
     /// marker was a no-op); the field now mirrors funcdata.hh:187 exactly.
     pub fn start_clean_up(&mut self) {
         self.clean_up_index = self.vbank.get_create_index();
@@ -5481,7 +5481,7 @@ impl Funcdata {
     /// Given a storage start, return the maximal range of overlapping
     /// Varnodes. Faithful in intent to `Funcdata::overlapLoc`
     /// (funcdata.hh:375-376), which forwards to
-    /// `vbank.overlapLoc(iter,bounds)`; Rugra's bank counterpart takes the
+    /// `vbank.overlapLoc(iter,bounds)`; Rudra's bank counterpart takes the
     /// (address,size) of the starting Varnode directly instead of a C++
     /// set iterator plus out-vector, so the forwarder uses the adapted
     /// bank signature (same overlap decision: `vn_start < target_end &&
@@ -5513,7 +5513,7 @@ impl Funcdata {
         &self, fl: u32,
     ) -> impl Iterator<Item = &crate::varnode::VarnodeDefRef> {
         // cc:1831-1881 (varnode.cc): inputs head the def tree, written
-        // occupy the middle (def-seqnum order), frees the tail. Rugra's
+        // occupy the middle (def-seqnum order), frees the tail. Rudra's
         // bank begin_def_fl interprets fl as a 0/1 selector (divergence);
         // this forwarder restores the oracle Varnode::input(8) /
         // Varnode::written(16) / 0-free semantics locally
@@ -5544,7 +5544,7 @@ impl Funcdata {
     /// address-restricted def bounds (varnode.cc:1908-1961). CRITICAL:
     /// `fl == Varnode::written` is an ILLEGAL combination — the oracle
     /// throws `LowlevelError("Cannot get contiguous written AND
-    /// addressed")` (varnode.cc:1913-1914); Rugra mirrors the throw as a
+    /// addressed")` (varnode.cc:1913-1914); Rudra mirrors the throw as a
     /// panic with the same message. The span covers inputs (fl==input) or
     /// frees (anything else) whose storage starts at the address.
     pub fn begin_def_addr(
@@ -5582,7 +5582,7 @@ impl Funcdata {
     /// Ending iterator over laned accesses: faithful to
     /// `Funcdata::endLaneAccess` (funcdata.hh:398)
     /// `{ return lanedMap.end(); }` (the begin counterpart is
-    /// `lane_accesses`, funcdata.hh:397). Rugra exposes the BTreeMap tail
+    /// `lane_accesses`, funcdata.hh:397). Rudra exposes the BTreeMap tail
     /// range as the parity endpoint.
     pub fn end_lane_access(
         &self,
@@ -5675,7 +5675,7 @@ impl Funcdata {
     /// `obank.begin(opc)`/`obank.end(opc)` (op.cc:1158-1185): only
     /// STORE/LOAD/RETURN/CALLOTHER have per-opcode lists; every other
     /// opcode yields an EMPTY range (the C++ default arm returns
-    /// `alivelist.end()` for both endpoints). NOTE: Rugra's
+    /// `alivelist.end()` for both endpoints). NOTE: Rudra's
     /// `PcodeOpBank::begin_op` default arm currently returns the full
     /// alivelist (op.rs divergence); this forwarder restores the oracle
     /// empty-range default locally (FUNCDATA-OPBEGIN-DEFAULT-0001).
@@ -5795,7 +5795,7 @@ impl Funcdata {
     // ====================================================================
     // OPACTION_DEBUG observation family (funcdata.hh:580-612 inline +
     // funcdata.cc:1007-1118). Ghidra compiles these only with
-    // -DOPACTION_DEBUG; Rugra always compiles and gates behavior on
+    // -DOPACTION_DEBUG; Rudra always compiles and gates behavior on
     // `opactdbg_on`, which the ctor initializes false (funcdata.cc:74-81)
     // so the production pipeline is untouched.
     // ====================================================================
@@ -5951,7 +5951,7 @@ impl Funcdata {
     /// print only when valid (`"PC = (low,high)  "` with raw address text,
     /// else `"entire function "`), then the unique bounds print only when
     /// set (`"unique = (low,high)"` in hex, no separator). Ghidra emits
-    /// through `glb->printDebug` which appends `endl`; Rugra returns the
+    /// through `glb->printDebug` which appends `endl`; Rudra returns the
     /// message string so the caller owns the sink.
     pub fn debug_print_range(&self, i: usize) -> String {
         let mut s = String::new();
@@ -5990,7 +5990,7 @@ impl Funcdata {
     /// by the drill formatter (`DrillFmt::op_raw`); the SeqNum text is
     /// `operator<<(ostream,const SeqNum&)` (address.cc:32-38):
     /// `pc.printRaw() ':' uniq` with the uniq counter in DECIMAL.
-    /// Rugra returns a String instead of writing to ostream and maps
+    /// Rudra returns a String instead of writing to ostream and maps
     /// RecovError onto `Error::Lowlevel`.
     pub fn print_raw(&self) -> crate::error::Result<String> {
         if self.bblocks.get_size() == 0 {
@@ -6062,7 +6062,7 @@ impl Funcdata {
     /// (`Scope::printBounds` database.hh:789 → `RangeList::printBounds`
     /// address.cc:588-600: `"all\n"` when empty, else one
     /// `"<spcname>: <first>-<last>\n"` line per Range in hex), then every
-    /// child scope's bounds in map order. Rugra's `ScopeLocal` keeps the
+    /// child scope's bounds in map order. Rudra's `ScopeLocal` keeps the
     /// union range tree as offset tuples in the stack space with no
     /// child-scope map; the child loop is therefore structurally absent
     /// (FUNCDATA-LOCALRANGE-CHILDREN-0001) and the space name comes from
@@ -6100,7 +6100,7 @@ impl Funcdata {
     /// ops are walked), and each new op is rejected with
     /// `LowlevelError("Illegal branching injection")` when it calls or
     /// branches (cc:872-873), else inserted into the block at the given
-    /// position (cc:874). Rugra threads the payload through
+    /// position (cc:874). Rudra threads the payload through
     /// `InjectPayload::inject` returning raw ops that
     /// `inject_raw_ops_single` (the `PcodeEmitFd::dump` port) materializes
     /// on the dead list; the C++ list-iterator insertion point is the
@@ -6271,7 +6271,7 @@ impl Funcdata {
             let retaddr_final = retaddr.unwrap_or(callop_addr);
             flow.inline_clone(&inlineflow, retaddr_final);
             // cc:897-901: clone any jumptables from the inline piece
-            // (`new JumpTable(*jiter)` deep copy). RUGRA-GAP: Rugra's
+            // (`new JumpTable(*jiter)` deep copy). RUDRA-GAP: Rudra's
             // JumpTable has no copy constructor (jumptable.rs), so the
             // table Arc is shared instead of deep-copied — divergent only
             // when the inlined copy is later mutated independently
@@ -6418,7 +6418,7 @@ impl Funcdata {
     ///   opUnsetOutput(op);
     ///   for(i=0;i<op->numInput();++i) opUnsetInput(op,i);
     ///   if (op->getParent() != NULL) opUninsert(op);
-    /// The op remains in the \e dead list (Rugra: detached from the alive
+    /// The op remains in the \e dead list (Rudra: detached from the alive
     /// list, awaiting a subsequent `mark_dead`).
     pub fn op_unlink(&mut self, op: &crate::op::PcodeOpRef) {
         // cc:188: opUnsetOutput(op).
@@ -6429,7 +6429,7 @@ impl Funcdata {
             self.op_unset_input(op, i);
         }
         // cc:191-192: if (op->getParent() != NULL) opUninsert(op).
-        // Rugra's alive list is the analogue of "is in a basic block"; if the
+        // Rudra's alive list is the analogue of "is in a basic block"; if the
         // op is currently in the alive list, remove it (faithful op_uninsert).
         let in_alive = self
             .obank
@@ -6479,7 +6479,7 @@ impl Funcdata {
     ///
     /// Query routing: Ghidra's ONE `localmap->queryProperties` walks
     /// ScopeLocal → parent → global scope (database.cc:1268 stackContainer).
-    /// Rugra composes the same walk: the ScopeLocal leg runs FIRST
+    /// Rudra composes the same walk: the ScopeLocal leg runs FIRST
     /// (`ScopeLocal::query_properties_ex` over `fd.scope`, usepoint =
     /// `get_use_point` — a VALID address, unlike newVarnode's invalid
     /// `Address()` form), and only when the local scope does not terminate
@@ -6737,14 +6737,14 @@ impl Funcdata {
     ///   vn = findLinkedVarnode(sym->getFirstWholeMap());
     ///   if (vn) return vn->getHigh();
     ///   return NULL;
-    /// Rugra: `symbol_table` is address-keyed; we scan it (and `scope.symbols`)
+    /// Rudra: `symbol_table` is address-keyed; we scan it (and `scope.symbols`)
     /// for a name match, then resolve the varnode at that address via the
     /// VarnodeBank's loc tree. Scope matches carry the symbol's space so
     /// linkSymbol-created register/unique symbols resolve in their own space.
     pub fn find_high(
         &self, nm: &str,
     ) -> Option<std::sync::Arc<std::sync::RwLock<crate::variable::HighVariable>>> {
-        // cc:319-320: queryByName(nm, symList). Rugra: search symbol_table +
+        // cc:319-320: queryByName(nm, symList). Rudra: search symbol_table +
         // scope.symbols for an entry whose name matches `nm`.
         let addr: Option<u64> = self
             .symbol_table
@@ -7002,9 +7002,9 @@ impl Funcdata {
     ///   vn->clearSymbolLinks();
     ///   entry = localmap->remapSymbol(sym, vn->getAddr(), usepoint);
     ///   vn->setSymbolEntry(entry);
-    /// Rugra: ScopeLocal::remapSymbol is not ported; we approximate by
+    /// Rudra: ScopeLocal::remapSymbol is not ported; we approximate by
     /// recording the symbol name at `vn`'s address in `symbol_table`. The
-    /// usepoint is preserved for downstream resolution but not stored (Rugra
+    /// usepoint is preserved for downstream resolution but not stored (Rudra
     /// has no per-usepoint SymbolEntry).
     pub fn remap_varnode(
         &mut self,
@@ -7016,7 +7016,7 @@ impl Funcdata {
         vn.write().unwrap().clear_symbol_links();
         // cc:1108-1109: entry = localmap->remapSymbol(sym, vn->getAddr(), usepoint).
         let vn_addr = vn.read().unwrap().get_offset();
-        // Rugra: record the name at vn's address.
+        // Rudra: record the name at vn's address.
         self.symbol_table.insert(vn_addr, sym_name.to_string());
         // cc:1109: vn->setSymbolEntry(entry). Approximate by setting MAPPED.
         vn.write()
@@ -7030,7 +7030,7 @@ impl Funcdata {
     ///   vn->clearSymbolLinks();
     ///   entry = localmap->remapSymbolDynamic(sym, hash, usepoint);
     ///   vn->setSymbolEntry(entry);
-    /// Rugra: dynamic-symbol storage is not yet implemented; we record the
+    /// Rudra: dynamic-symbol storage is not yet implemented; we record the
     /// symbol name in symbol_table keyed by a synthetic dynamic id. The hash
     /// is preserved on the varnode via a best-effort flag.
     pub fn remap_dynamic_varnode(
@@ -7043,7 +7043,7 @@ impl Funcdata {
         // cc:1123: vn->clearSymbolLinks().
         vn.write().unwrap().clear_symbol_links();
         // cc:1124: entry = localmap->remapSymbolDynamic(sym, hash, usepoint).
-        // Rugra: encode the dynamic symbol under a synthetic key so lookups
+        // Rudra: encode the dynamic symbol under a synthetic key so lookups
         // still resolve. Key space is the high bit of u64 (set MSB), which is
         // above any real 48-bit x86-64 address.
         let key = hash | 0x8000_0000_0000_0000;
@@ -7122,7 +7122,7 @@ impl Funcdata {
     /// to `Funcdata::findLinkedVarnode` (funcdata_varnode.cc:1218-1251). For
     /// dynamic entries, resolve via DynamicHash; for static entries, scan the
     /// loc tree at (entry->getSize(), entry->getAddr()) honoring usepoints.
-    /// Rugra: we accept (addr, size, is_dynamic, first_use_addr) as the
+    /// Rudra: we accept (addr, size, is_dynamic, first_use_addr) as the
     /// SymbolEntry projection, avoiding the full SymbolEntry dependency.
     pub fn find_linked_varnode(
         &self,
@@ -7179,7 +7179,7 @@ impl Funcdata {
     ///   if (entry->isDynamic()) { dhash.findVarnode(...); res.push_back(vn); }
     ///   else for vn in locTree(entry->getSize(), entry->getAddr()):
     ///     if (entry->inUse(vn->getUsePoint(*this))) res.push_back(vn);
-    /// Rugra: same SymbolEntry projection as `find_linked_varnode`.
+    /// Rudra: same SymbolEntry projection as `find_linked_varnode`.
     pub fn find_linked_varnodes(
         &self,
         entry_addr: u64,
@@ -7204,7 +7204,7 @@ impl Funcdata {
                 entry_size);
             for vn in candidates {
                 let up = vn.read().unwrap().get_use_point(self);
-                // cc:1272: if (entry->inUse(addr)). Rugra: approximate "in use"
+                // cc:1272: if (entry->inUse(addr)). Rudra: approximate "in use"
                 // by comparing against first_use_addr (entries without a
                 // usepoint restriction use addr 0 → always in use).
                 if first_use_addr.as_u64() == 0 || up.as_u64() >= first_use_addr.as_u64() {
@@ -7357,7 +7357,7 @@ impl Funcdata {
     /// Mark registers that map to a virtual address space (the stack
     /// spacebase). Faithful to `Funcdata::spacebase()` (funcdata.cc:230-269).
     ///
-    /// For Rugra's x86-64 lift, the stack pointer is RSP at
+    /// For Rudra's x86-64 lift, the stack pointer is RSP at
     /// `AddressSpace::Register`, offset 0x20, size 8 (see `x86_lift.rs:40`).
     /// This method finds all varnodes at that location, marks them with the
     /// `SPACEBASE` flag, and — for already-marked spacebase varnodes with
@@ -7417,7 +7417,7 @@ impl Funcdata {
                 // Ghidra funcdata.cc:262-264: only the input spacebase
                 // register gets the TypeSpacebase pointer type
                 // (`vn->updateType(ptr,true,true)`). Re-enabled with the
-                // LOAD-claim chain (HERITAGE-LOADCLAIM-0001): the Rugra
+                // LOAD-claim chain (HERITAGE-LOADCLAIM-0001): the Rudra
                 // pipeline now matches the oracle's claim sequence (LOAD
                 // directified by RuleLoadVarnode in mainloop iter1 oppool2 ->
                 // restart -> heritage refinement/refineRead claims the free
@@ -7456,7 +7456,7 @@ impl Funcdata {
     ///   const VarnodeData &point(id->getSpacebase(0));
     ///   vn = newVarnode(point.size, Address(point.space,point.offset));
     ///   return vn;
-    /// Rugra: `id` is approximated by the Funcdata's configured stack space
+    /// Rudra: `id` is approximated by the Funcdata's configured stack space
     /// (Architecture cspec). The stack-pointer (space, offset, size) come from
     /// the `stack_pointer_*` fields populated by `set_arch`.
     pub fn new_spacebase_ptr(
@@ -7464,7 +7464,7 @@ impl Funcdata {
         id: crate::space::AddressSpace,
     ) -> std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>> {
         // cc:281: const VarnodeData &point(id->getSpacebase(0)).
-        // Rugra: only the stack space has a known base register; for other
+        // Rudra: only the stack space has a known base register; for other
         // spaces we fall back to the configured stack-pointer location.
         let (sp_space, sp_offset, sp_size) = if id.is_stack() {
             (
@@ -7484,7 +7484,7 @@ impl Funcdata {
     // standing in for Ghidra's dynamic getMap resolution (type.cc:2935-2945:
     // every `TypeSpacebase::getSubType` re-resolves
     // `queryFunction(localframe)->fd->getScopeLocal()` and therefore observes
-    // the CURRENT map). Rugra's Funcdata owns the ScopeLocal and the
+    // the CURRENT map). Rudra's Funcdata owns the ScopeLocal and the
     // factory-cached stack spacebase type holds a shared handle (attached at
     // construction, see TypeFactory::get_type_spacebase); this refresh makes
     // the handle contents match the Funcdata's just-mutated scope, so
@@ -7557,7 +7557,7 @@ impl Funcdata {
             return existing;
         }
         // cc:315-316: if (id->numSpacebase() == 0) throw LowlevelError(...).
-        // Rugra: only the stack space is known to have a base register; for
+        // Rudra: only the stack space is known to have a base register; for
         // other spaces we still attempt construction (best-effort) rather than
         // panic, mirroring the existing spacebase() method's tolerance.
         // cc:317-320: build the varnode + pointer type.
@@ -7572,7 +7572,7 @@ impl Funcdata {
             .write()
             .unwrap()
             .set_flags(crate::varnode::varnode_flags::SPACEBASE);
-        // cc:323: spacePtr->updateType(ptr, true, true). Rugra lacks
+        // cc:323: spacePtr->updateType(ptr, true, true). Rudra lacks
         // TypeSpacebase; the SPACEBASE flag is sufficient for downstream
         // recognition (see existing `spacebase()` note).
         space_ptr
@@ -7622,7 +7622,7 @@ impl Funcdata {
     /// `entry->getSymbol()` for the output typing/typelock (cc:413-419).
     /// `spaceid` carries the resolved space: its addrSize is the pointer
     /// size `sz` (cc:363, `rampoint.getAddrSize()`) and its wordSize feeds
-    /// the byteToAddress normalization (cc:370) — Rugra's legacy
+    /// the byteToAddress normalization (cc:370) — Rudra's legacy
     /// `Address` is spaceless (ADDRESS-0001 residual), so the space rides
     /// this parameter instead of the address.
     pub fn spacebase_constant(
@@ -7672,7 +7672,7 @@ impl Funcdata {
                 zext_op = Some(op.clone());
             } else {
                 // cc:382: op->insertInput(1) — PTRSUB, ADD, SUBPIECE all
-                // take 2 parameters. Rugra's op_insert_input performs the
+                // take 2 parameters. Rudra's op_insert_input performs the
                 // insertInput+opSetInput pair with a real varnode (the
                 // transient NULL slot is unobservable), so the actual input
                 // install happens at each opSetInput site below.
@@ -7870,7 +7870,7 @@ impl Funcdata {
     ///   segdef = glb->userops.getSegmentOp(spc->getContain()->getIndex());
     ///   if (segdef) { build SEGMENTOP chain; addout = segout; }
     ///   return addout;
-    /// Rugra: SegmentOp is architecturally rare (x86-64 has none); we skip the
+    /// Rudra: SegmentOp is architecturally rare (x86-64 has none); we skip the
     /// SEGMENTOP branch (logged) since the Funcdata has no userops handle yet.
     pub fn create_stack_ref(
         &mut self,
@@ -7906,7 +7906,7 @@ impl Funcdata {
         } else {
             self.op_insert_before(&addop, op);
         }
-        // cc:481-493: SegmentOp chain. Rugra: skipped (no userops handle);
+        // cc:481-493: SegmentOp chain. Rudra: skipped (no userops handle);
         // x86-64 has no segment ops so this branch is dead code for the
         // current target. Width note (FUNCDATA-SPACEID-WIDTH-0001): the
         // cc:488 SEGMENTOP spaceid input is also newVarnodeSpace(containerid)
@@ -7942,7 +7942,7 @@ impl Funcdata {
         // cc:523: opSetInput(storeop, newVarnodeSpace(spc->getContain()), 0).
         // spc->getContain() (space.hh:505, SpacebaseSpace override
         // translate.hh:187) is the container of the (stack) space — ram on
-        // x86-64 — NOT spc itself. Rugra resolves it via
+        // x86-64 — NOT spc itself. Rudra resolves it via
         // Architecture::get_contain (arch.rs:968); a missing container is
         // unreachable here (Ghidra would pass NULL to newVarnodeSpace = UB).
         // cc:523 + funcdata_varnode.cc:190-198: the spaceid input is
@@ -7994,7 +7994,7 @@ impl Funcdata {
         // cc:547: opSetInput(loadop, newVarnodeSpace(spc->getContain()), 0).
         // spc->getContain() (space.hh:505, SpacebaseSpace override
         // translate.hh:187) is the container of the (stack) space — ram on
-        // x86-64 — NOT spc itself. Rugra resolves it via
+        // x86-64 — NOT spc itself. Rudra resolves it via
         // Architecture::get_contain (arch.rs:968); a missing container is
         // unreachable here (Ghidra would pass NULL to newVarnodeSpace = UB).
         // Using spc's own id broke RuleLoadVarnode::correctSpacebase
@@ -8411,7 +8411,7 @@ impl Funcdata {
     }
 
     // Ghidra: funcdata.cc:34 Funcdata::opBoolNegate
-    /// Insert a BOOL_NEGATE (CPUI_BOOL_NEGATE in Rugra) of `vn`, returning the
+    /// Insert a BOOL_NEGATE (CPUI_BOOL_NEGATE in Rudra) of `vn`, returning the
     /// new output Varnode. Faithful to `Funcdata::opBoolNegate`
     /// (funcdata_op.cc:560-572). If `insert_after` is true, the negate op is
     /// inserted after `op`; otherwise before.
@@ -8438,7 +8438,7 @@ impl Funcdata {
     /// Flip the condition of a CBRANCH/comparison op. Faithful to
     /// `Funcdata::opFlipCondition` (funcdata.hh:489): flips the
     /// `boolean_flip` flag on the given CBRANCH — nothing else. The old
-    /// Rugra body ran `get_booleanflip` on the CBRANCH's own opcode, which
+    /// Rudra body ran `get_booleanflip` on the CBRANCH's own opcode, which
     /// returns the CPUI_MAX sentinel for CBRANCH and corrupted the opcode
     /// field (RuleCondNegate sites); the oracle never rewrites the opcode
     /// here (comparison-opcode rewriting is opFlipInPlaceExecute's job).
@@ -8541,7 +8541,7 @@ impl Funcdata {
                         let mut value = in_vn.write().unwrap();
                         value.set_flags(crate::varnode::varnode_flags::ANNOTATION);
                         // Core "code" type (sleigh_arch.cc:233); Ghidra reads
-                        // it from the architecture TypeFactory, which Rugra
+                        // it from the architecture TypeFactory, which Rudra
                         // does not thread through this emit path.
                         value.v_type = Some(code_ref_datatype());
                         value.add_descend(&op_ref.0);
@@ -8626,10 +8626,10 @@ impl Funcdata {
     /// `data.getOverride().getFlowOverride(curaddr)` after the SLEEF
     /// translation and, if non-NONE, calls `data.overrideFlow(curaddr,...)`
     /// (flow.cc:474-475) BEFORE `xrefControlFlow` — i.e. on the raw p-code,
-    /// before block formation. Rugra's `inject_raw_ops` is the transport of
+    /// before block formation. Rudra's `inject_raw_ops` is the transport of
     /// that disassembly walk (phase 1 = oneInstruction's dump, phase 2 =
     /// xrefControlFlow's block marking), so the override is applied between
-    /// the same two points, but at the raw layer: Rugra's documented
+    /// the same two points, but at the raw layer: Rudra's documented
     /// create-implies-alive divergence (op.rs `PcodeOpBank::create`) means
     /// phase-1 ops are never `isDead()`, so the dead-op
     /// `Funcdata::overrideFlow` port cannot run on them — and the
@@ -9038,7 +9038,7 @@ impl Funcdata {
         // queryCall / checkForFlowModification), and that tail's callee
         // resolution rides on the architecture's model space
         // (queryFunction -> otherfunc->getFuncProto() -> the cspec-bound
-        // defaultfp; flow.cc:660-664). Rugra's linear-scan drivers split
+        // defaultfp; flow.cc:660-664). Rudra's linear-scan drivers split
         // that atomicity: a driver whose Funcdata carries no bound model
         // (fd.funcp.has_model() == false — e.g. the httpd driver's bare
         // `Architecture::new()`) cannot run the tail's resolution half at
@@ -9061,7 +9061,7 @@ impl Funcdata {
         // queryCall/checkForFlowModification tail onto the driver boundary
         // with a driver-fed callee table + defaultfp model, and port
         // ActionCopyPropagation (coreaction.cc:5510-5511, absent from
-        // Rugra's universal tree — the reason the guarded reload copies
+        // Rudra's universal tree — the reason the guarded reload copies
         // survive as statements today).
         let register_specs = self.funcp.has_model();
         for op_ref in &op_refs {
@@ -9173,7 +9173,7 @@ impl Funcdata {
         //   (2) at every jump TARGET address — any address that a BRANCH/
         //       CBRANCH points to must begin a new block, so the target edge
         //       resolves to a block start.
-        // Rugra previously did only (1) for op-bearing addresses, which meant
+        // Rudra previously did only (1) for op-bearing addresses, which meant
         // jump targets landing in the middle of a block were unresolvable —
         // the CBRANCH edge was silently dropped (observed: curl main 56 /
         // global 182 CBRANCH targets unmatched, losing back-edges and
@@ -9198,7 +9198,7 @@ impl Funcdata {
         // Ghidra's flow-driven block formation (flow.cc FlowInfo) makes EVERY
         // intra-function jump target a block start — in Ghidra every
         // instruction emits at least one p-code op, so the target address
-        // always names an op. Rugra's lifters can emit ZERO ops for an
+        // always names an op. Rudra's lifters can emit ZERO ops for an
         // instruction (x86_lift.rs:602 push/pop arm, missing movzx/movsx
         // arms), so the target address may have no op; the faithful CFG
         // shape is still a block boundary at that address. Insert a
@@ -9383,7 +9383,7 @@ impl Funcdata {
         //   is entered once by the contiguous fall-through-first walk, and
         //   each block's edge contribution order is independent of when its
         //   ops were created within the block.
-        // Blocks the walk never reaches (Rugra-only: linear injection also
+        // Blocks the walk never reaches (Rudra-only: linear injection also
         // materializes never-flowed regions Ghidra would not generate) keep
         // the historical address-order edge addition appended at the end, so
         // those degenerate CFGs behave exactly as before this reordering.
@@ -9526,7 +9526,7 @@ impl Funcdata {
         for &i in &visit_order {
             add_block_edges(i);
         }
-        // Rugra-only never-walked regions: preserve the historical
+        // Rudra-only never-walked regions: preserve the historical
         // address-order edge addition for blocks the walk never reached.
         for i in 0..blocks.len() {
             if !visited.contains(&i) {
@@ -9563,9 +9563,9 @@ impl Funcdata {
     /// jumptablerecovery_dont, unimplemented_present, baddata_present and
     /// typerecovery_exceeded across clear (only the seven analysis-phase bits
     /// die), so a restarted function keeps its completion/limit markers.
-    /// Rugra's remapped `funcdata_flags` bit values differ from Ghidra's raw
+    /// Rudra's remapped `funcdata_flags` bit values differ from Ghidra's raw
     /// bit positions, but the logical mask is the same seven flags.
-    /// `clean_up_index` has no Rugra field (the startCleanUp marker in
+    /// `clean_up_index` has no Rudra field (the startCleanUp marker in
     /// coreaction.rs is a faithful no-op), so only its reset is a no-op;
     /// `cast_phase_index` (funcdata.hh:77) is reset below.
     pub fn clear(&mut self) {
@@ -9580,18 +9580,18 @@ impl Funcdata {
             | funcdata_flags::DOUBLE_PRECIS_ON
             | funcdata_flags::RESTART_PENDING);
         // Ghidra's restart_pending lives in the flags word (funcdata.hh:84,
-        // 0x400); Rugra additionally mirrors it in a dedicated bool
+        // 0x400); Rudra additionally mirrors it in a dedicated bool
         // (funcdata.hh:216 hasRestartPending accessor counterpart), so the
         // same masked bit must clear both projections.
         self.restart_pending = false;
-        // cc:90-92: counter resets. clean_up_index now has real Rugra
+        // cc:90-92: counter resets. clean_up_index now has real Rudra
         // storage (funcdata.hh:187), so all three counters reset here.
         self.clean_up_index = 0;
         self.high_level_index = 0;
         self.cast_phase_index = 0;
         // cc:93: minLanedSize = glb->getMinimumLanedRegisterSize()
         // (architecture.cc:312-317: -1 when lanerecords is empty; u32::MAX is
-        // the same sentinel in Rugra's unsigned representation).
+        // the same sentinel in Rudra's unsigned representation).
         self.min_laned_size = self
             .arch
             .as_ref()
@@ -9599,7 +9599,7 @@ impl Funcdata {
             arch.get_minimum_laned_register_size() as u32
         });
         // cc:95: localmap->clearUnlocked() — clear non-permanent stuff.
-        // RUGRA modeling (same convention as start_processing, funcdata.cc
+        // RUDRA modeling (same convention as start_processing, funcdata.cc
         // 160): the varmap ScopeLocal keeps its index-keyed nametree/category
         // lists private, so the faithful typelock-preserving clearUnlocked
         // (database.cc:2042-2064) cannot be projected from this module; the
@@ -9615,7 +9615,7 @@ impl Funcdata {
             // minParamOffset = ~(uintb)0; maxParamOffset = 0 (varmap.cc:443-444);
             // the stackGrowsNegative/local-range re-derivation reads
             // FuncProto::getLocalRange/isStackGrowsNegative (fspec.hh:1539-1541,
-            // 978) which Rugra's FuncProto does not expose — no Rugra writer
+            // 978) which Rudra's FuncProto does not expose — no Rudra writer
             // drifts those fields after construction, so their reset is
             // currently unobservable (residual branch reset_local_window_range).
             scope.min_param_offset = u64::MAX;
@@ -9628,7 +9628,7 @@ impl Funcdata {
         // cc:98: clearActiveOutput() (funcdata.hh:420-423: delete + null).
         self.active_output = None;
         // cc:99: funcp.clearUnlockedOutput() — inputs are cleared by localmap.
-        // RUGRA residual: fspec.rs clear_unlocked_output is a simplification
+        // RUDRA residual: fspec.rs clear_unlocked_output is a simplification
         // of fspec.cc:4001-4013 (no size-lock type reset, no store output
         // clear, returnBytesConsumed not zeroed) — bound to
         // MERGE-CLEAR-LIFECYCLE-RESIDUAL-0001 / funcproto_unlocked_output.
@@ -9668,7 +9668,7 @@ impl Funcdata {
     ///   iter = unionMap.find(edge);
     ///   if (iter != unionMap.end()) return &(*iter).second;
     ///   return NULL;
-    /// Returns a cloned `ResolvedUnion` (Rugra's borrow model cannot hand out
+    /// Returns a cloned `ResolvedUnion` (Rudra's borrow model cannot hand out
     /// a borrow tied to `&self` alongside later `&mut self` setUnionField).
     pub fn get_union_field(
         &self,
@@ -9760,7 +9760,7 @@ impl Funcdata {
     ///                                         ((TypePointer*)parent)->getWordSize());
     ///   ResolvedUnion resolve(parent, fieldNum, *glb->types);
     ///   setUnionField(parent, op, slot, resolve);
-    /// Rugra: relative pointers (pointerRel) are not modeled as a distinct
+    /// Rudra: relative pointers (pointerRel) are not modeled as a distinct
     /// Datatype flag yet; the rewrite to a standard pointer is a no-op until
     /// that metadata lands. The ResolvedUnion is built via `with_field`
     /// under a TypeFactory **write** guard (UNIONRESOLVE-PKG-G-0001): the
@@ -9780,7 +9780,7 @@ impl Funcdata {
             crate::type_system::datatype::Datatype::Pointer(p) => p.ptr_to.clone(),
             _ => parent.clone(),
         };
-        // cc:980-983: relative-pointer → standard-pointer rewrite (Rugra gap).
+        // cc:980-983: relative-pointer → standard-pointer rewrite (Rudra gap).
         // cc:984-985: ResolvedUnion resolve(parent, fieldNum, *glb->types).
         let resolve = if let Some(arch) = &self.arch {
             if let Some(tg) = &arch.types {
@@ -9793,7 +9793,7 @@ impl Funcdata {
                 crate::unionresolve::ResolvedUnion::new(parent.clone())
             }
         } else {
-            // RUGRA-GAP: no TypeFactory available; record a self-resolution so
+            // RUDRA-GAP: no TypeFactory available; record a self-resolution so
             // the edge is at least tracked in unionMap.
             crate::unionresolve::ResolvedUnion::new(parent.clone())
         };
@@ -10506,7 +10506,7 @@ impl Funcdata {
                 let mut mgr = userops.write().unwrap();
                 mgr.register_builtin_by_id(crate::userop::BUILTIN_STRINGDATA) as u64
             } else {
-                // RUGRA-GAP: no userop table — use the canonical builtin id.
+                // RUDRA-GAP: no userop table — use the canonical builtin id.
                 crate::userop::BUILTIN_STRINGDATA as u64
             }
         } else {
@@ -10631,7 +10631,7 @@ impl Funcdata {
         let mut addr = *vn.read().unwrap().get_addr();
         let mut end_off = addr.as_u64() + vn.read().unwrap().get_size() as u64;
         // cc:1580-1586: walk backward over overlapping earlier varnodes.
-        // Rugra: overlap_loc returns candidates overlapping the current range;
+        // Rudra: overlap_loc returns candidates overlapping the current range;
         // we rescan with the expanded range until it stabilizes.
         let mut changed = true;
         while changed {
@@ -10767,7 +10767,7 @@ impl Funcdata {
     ///   ResolvedUnion resolve(sym->getType(), fldNum, *glb->types);
     ///   resolve.setLock(true);
     ///   return setUnionField(sym->getType(), op, slot, resolve);
-    /// RUGRA-GAP: there is no UnionFacetSymbol type yet; the caller passes the
+    /// RUDRA-GAP: there is no UnionFacetSymbol type yet; the caller passes the
     /// resolved (parent type, field number) projection of the facet symbol.
     /// Returns true if the op was located and the resolution cached.
     pub fn apply_union_facet(
@@ -10823,7 +10823,7 @@ impl Funcdata {
     ///   dt = getTypePointer(spc->getAddrSize(), dt, spc->getWordSize());
     ///   addr = funcp.getThisPointerStorage(dt);
     ///   localmap->addTypeRecommendation(addr, dt);
-    /// RUGRA-GAP: ScopeLocal has no type-recommendation store; we approximate
+    /// RUDRA-GAP: ScopeLocal has no type-recommendation store; we approximate
     /// by recording the recommendation address in symbol_table. The
     /// "this"-pointer storage location is taken from funcp's first param
     /// marked as THIS_POINTER, or from the configured stack pointer.
@@ -10838,7 +10838,7 @@ impl Funcdata {
             }
         }
         // cc:1735-1736: if (localmap->hasTypeRecommendations()) return.
-        // Rugra: symbol_table acts as the recommendation store; presence of a
+        // Rudra: symbol_table acts as the recommendation store; presence of a
         // "this" entry means a recommendation was already collected.
         let has_recommendation = self
             .symbol_table
@@ -10864,7 +10864,7 @@ impl Funcdata {
         };
         // cc:1741-1742: addr = funcp.getThisPointerStorage(dt);
         //   localmap->addTypeRecommendation(addr, dt).
-        // Rugra: prefer the first THIS_POINTER param's address; else the stack
+        // Rudra: prefer the first THIS_POINTER param's address; else the stack
         // pointer offset.
         let this_addr = (0..num_inputs)
             .find_map(|i| {
@@ -10925,24 +10925,24 @@ impl Funcdata {
     /// heritage info, and applies dead-code delay. Faithful to
     /// `Funcdata::startProcessing` (funcdata.cc:150-168).
     ///
-    /// RUGRA-GAP: `followFlow` and the inline-function header warning depend
+    /// RUDRA-GAP: `followFlow` and the inline-function header warning depend
     /// on infrastructure not yet ported; the flag transition,
     /// unlocked-output clear, structuring reset, call-spec sort,
     /// heritage-info build, and dead-code-delay application are all
     /// performed.
     pub fn start_processing(&mut self) {
         if self.is_proc_started() {
-            // Ghidra throws LowlevelError here; Rugra panics to preserve the
+            // Ghidra throws LowlevelError here; Rudra panics to preserve the
             // invariant that startProcessing is called at most once.
             panic!("Function processing already started");
         }
         self.flags |= funcdata_flags::PROCESSING_STARTED;
 
         // Ghidra: if (funcp.isInline()) warningHeader("This is an inlined function");
-        // RUGRA-GAP: FuncProto has no is_inline flag yet.
+        // RUDRA-GAP: FuncProto has no is_inline flag yet.
 
         // Ghidra: localmap->clearUnlocked();
-        // RUGRA modeling: same wholesale reset as Funcdata::clear (see the
+        // RUDRA modeling: same wholesale reset as Funcdata::clear (see the
         // cc:95 seam above) — symbols + nametree + category_lists +
         // mapentry_log clear together, mirroring the oracle's atomic
         // removeSymbol/removeSymbolMappings pair (database.cc:2117-2149).
@@ -10954,11 +10954,11 @@ impl Funcdata {
         self.symbol_entry_cache.clear();
 
         // Ghidra: funcp.clearUnlockedOutput();
-        // Rugra's FuncProto::clear_unlocked_output exists (fspec.rs:308).
+        // Rudra's FuncProto::clear_unlocked_output exists (fspec.rs:308).
         self.funcp.clear_unlocked_output();
 
         // Ghidra: followFlow(baddr, eaddr); structureReset();
-        // RUGRA-GAP: followFlow not ported. structureReset is available.
+        // RUDRA-GAP: followFlow not ported. structureReset is available.
         //   self.follow_flow(...);  // TODO: port followFlow
         self.structure_reset();
 
@@ -11017,11 +11017,11 @@ impl Funcdata {
     /// Re-emit all accumulated datatype warnings as header warnings. Faithful
     /// to `Funcdata::issueDatatypeWarnings` (funcdata.cc:475-482). In Ghidra
     /// this iterates `glb->types->beginWarnings()..endWarnings()` and calls
-    /// `warningHeader` for each. RUGRA-GAP: `TypeFactory` has no warning list
+    /// `warningHeader` for each. RUDRA-GAP: `TypeFactory` has no warning list
     /// yet, so this is currently a no-op that preserves the call site in
     /// [`stop_processing`](Self::stop_processing).
     pub fn issue_datatype_warnings(&self) {
-        // RUGRA-GAP: TypeFactory::beginWarnings/endWarnings not ported.
+        // RUDRA-GAP: TypeFactory::beginWarnings/endWarnings not ported.
         // Once ported, this becomes:
         //   for w in arch.types.iter_warnings() { self.warning_header(w); }
     }
@@ -11131,7 +11131,7 @@ impl Funcdata {
     /// `ret imm16` is `0xc2 lo hi`). Faithful to `Funcdata::fillinExtrapop`
     /// (funcdata.cc:545-573). Returns the recovered value.
     ///
-    /// RUGRA-GAP: Rugra's `FuncProto` has no `extrapop` field (only
+    /// RUDRA-GAP: Rudra's `FuncProto` has no `extrapop` field (only
     /// `ProtoModel` does). The recovery is computed and returned, but cannot
     /// yet be cached on the prototype. Callers that need the side effect
     /// should store the return value themselves.
@@ -11166,7 +11166,7 @@ impl Funcdata {
             extrapop += buffer[1] as i32; // lo
             extrapop += 4; // extra 4 for the return address
         }
-        // RUGRA-GAP: funcp.setExtraPop(extrapop) — FuncProto has no extrapop.
+        // RUDRA-GAP: funcp.setExtraPop(extrapop) — FuncProto has no extrapop.
         extrapop
     }
 
@@ -11254,7 +11254,7 @@ impl Funcdata {
             // fail_normal (cc:514-518).
             //
             // Ghidra's `glb->allacts` is architecture-owned and initialized
-            // by Architecture::buildAction (architecture.cc:582-591). Rugra
+            // by Architecture::buildAction (architecture.cc:582-591). Rudra
             // drivers build their own root database and never call
             // build_action, so the architecture slot is typically None; when
             // present the shared slot is used with the oracle's
@@ -11387,7 +11387,7 @@ impl Funcdata {
         // (funcdata_block.cc:558-559) is a DEAD-list window: at
         // recoverJumpTables time (FlowInfo::generateOps, flow.cc:792-814,
         // before splitBasic's markAlive at flow.cc:1013) every lifted op is
-        // on the dead list in bank (creation) order. Rugra's flow phase
+        // on the dead list in bank (creation) order. Rudra's flow phase
         // reproduces that lifecycle exactly: follow-flow drivers lift via
         // `FlowInfo::generate_ops` (flow.rs, recovery ahead of
         // `generate_blocks`), while the httpd linear-inject driver
@@ -11607,7 +11607,7 @@ impl Funcdata {
     // Ghidra: funcdata_block.cc:27 Funcdata::printBlockTree
     /// Print the structure tree (composite blocks) to a string. Faithful to
     /// `Funcdata::printBlockTree` (funcdata_block.cc:28-33), which delegates
-    /// to `BlockGraph::printTree(s, 0)`. Rugra's `BlockGraph` has no
+    /// to `BlockGraph::printTree(s, 0)`. Rudra's `BlockGraph` has no
     /// `print_tree`, so this walks the top-level structure blocks and emits
     /// one line per block with its index and type, indented to depth 0.
     pub fn print_block_tree(&self) -> String {
@@ -12007,7 +12007,7 @@ impl Funcdata {
     /// patch up data-flow and control-flow (mostly MULTIEQUALs). Faithful to
     /// `Funcdata::blockRemoveInternal` (funcdata_block.cc:255-321).
     ///
-    /// RUGRA-GAP: the full MULTIEQUAL-splicing logic and
+    /// RUDRA-GAP: the full MULTIEQUAL-splicing logic and
     /// `bblocks.removeFromFlow` are not ported. This implementation performs
     /// the reachable parts: jump-table removal for a trailing BRANCHIND,
     /// call-spec deletion, op destruction, and final block removal. The
@@ -12051,7 +12051,7 @@ impl Funcdata {
     }
 
     /// Load `size` bytes from the load image at `addr`. Adapts Ghidra's
-    /// `glb->loader->loadFill(buf, size, addr)` to Rugra's
+    /// `glb->loader->loadFill(buf, size, addr)` to Rudra's
     /// `LoadImage::load_fill(size, addr) -> Result<Vec<u8>, DataUnavailError>`.
     /// Returns `None` if the image has no data at `addr`.
     // RUDRA-GLUE: Rust Result/buffer adapter around LoadImage::load_fill;
@@ -12063,7 +12063,7 @@ impl Funcdata {
     }
 
     /// Get the prototype's extrapop. Adapts Ghidra's `funcp.getExtraPop()`.
-    /// RUGRA-GAP: Rugra's `FuncProto` has no `extrapop` field (only
+    /// RUDRA-GAP: Rudra's `FuncProto` has no `extrapop` field (only
     /// `ProtoModel` does), and `Funcdata` has no architecture-resolved default
     /// model, so this always returns `EXTRAPOP_UNKNOWN_FULL` — which forces
     /// [`fillin_extrapop`](Self::fillin_extrapop) to attempt byte-level
@@ -12075,7 +12075,7 @@ impl Funcdata {
     }
 
     /// Does this function have no code body (external/thunk)? Adapts Ghidra's
-    /// `hasNoCode()`. RUGRA-GAP: Rugra has no explicit flag; approximate via
+    /// `hasNoCode()`. RUDRA-GAP: Rudra has no explicit flag; approximate via
     /// an empty obank (no ops means no body).
     // Ghidra: funcdata.hh:153 Funcdata::hasNoCode
     fn has_no_code(&self) -> bool {
@@ -12109,15 +12109,15 @@ impl Funcdata {
     /// INDIRECT, and INT_AND (alignment mask) ops; any other op breaks the
     /// chain. The terminal Varnode must be an input marked as the return
     /// address storage location.
-    /// RUGRA-GAP: Ghidra compares against `glb->defaultReturnAddr` (a
-    /// VarnodeData). Rugra's Architecture does not yet hold that datum, so we
+    /// RUDRA-GAP: Ghidra compares against `glb->defaultReturnAddr` (a
+    /// VarnodeData). Rudra's Architecture does not yet hold that datum, so we
     /// instead check the terminal Varnode's `is_input()` and its
     /// `RETURN_ADDRESS` flag (set by the loader/disassembler on the storage
     /// location). When no return-address flag is present we conservatively
     /// return false.
     pub fn test_for_return_address(&self, vn: &Arc<RwLock<crate::varnode::Varnode>>) -> bool {
         // cc:1445-1447: retaddr = glb->defaultReturnAddr; if null return false.
-        // Rugra: the RETURN_ADDRESS varnode flag is our analogue of having a
+        // Rudra: the RETURN_ADDRESS varnode flag is our analogue of having a
         // known return-address storage location.
         let mut cur = vn.clone();
         loop {
@@ -12165,7 +12165,7 @@ impl Funcdata {
             }
         }
         // cc:1463-1466: terminal must match the return-address storage and be
-        // an input. Rugra: check is_input() + RETURN_ADDRESS flag.
+        // an input. Rudra: check is_input() + RETURN_ADDRESS flag.
         let c = cur.read().unwrap();
         if !c.is_input() {
             return false;
@@ -12181,7 +12181,7 @@ impl Funcdata {
     ///   assignHigh(vn);
     ///   return vn;
     /// These Varnodes are used as the first input to LOAD/STORE p-code ops to
-    /// name the address space being accessed. Rugra encodes the space via its
+    /// name the address space being accessed. Rudra encodes the space via its
     /// SpaceId (which uniquely identifies the space) as the constant offset.
     pub fn new_varnode_space(
         &mut self,
@@ -12206,7 +12206,7 @@ impl Funcdata {
     ///   assignHigh(vn);
     ///   return vn;
     /// The Varnode is the first input to a CPUI_CALL op and accelerates lookup
-    /// of the associated call specification. Rugra still lacks a dedicated
+    /// of the associated call specification. Rudra still lacks a dedicated
     /// fspace address space, so D0 uses Iop. Until PrintC consumes the typed
     /// handle, a direct call retains its entry address as the legacy numeric
     /// payload; an invalid entry falls back to a pointer-shaped diagnostic.
@@ -12247,7 +12247,7 @@ impl Funcdata {
     ///   vn->setFlags(Varnode::annotation);
     ///   assignHigh(vn);
     ///   return vn;
-    /// Rugra has no dedicated TypeCode; we still create a 1-byte Varnode at the
+    /// Rudra has no dedicated TypeCode; we still create a 1-byte Varnode at the
     /// given code address and mark it as an annotation.
     pub fn new_code_ref(
         &mut self,
@@ -12323,7 +12323,7 @@ impl Funcdata {
     ///   VarnodeData storage{addr.getSpace(), addr.getOffset(), sz};
     ///   lanedMap[storage] = lanedRegister;
     /// The explicit `space` parameter restores the address-space component
-    /// carried by Ghidra's `Address`, which Rugra's scalar `Address` separates.
+    /// carried by Ghidra's `Address`, which Rudra's scalar `Address` separates.
     pub fn check_for_laned_register(
         &mut self,
         sz: usize,
@@ -12393,8 +12393,8 @@ impl Funcdata {
     ///   invn = newVarnode(sz, addr); invn = setInputVarnode(invn);
     ///   invn->setWriteMask();
     ///   for each vn in inlist: opSetInput(vn->getDef(), invn, 0);
-    /// RUGRA-GAP: `justifiedContain` is approximated by a direct byte offset;
-    /// Rugra scans loc_tree for inputs completely contained in the range —
+    /// RUDRA-GAP: `justifiedContain` is approximated by a direct byte offset;
+    /// Rudra scans loc_tree for inputs completely contained in the range —
     /// now pinned to the container's space (Ghidra's beginDef/endDef iterate
     /// the Address-ordered def subset, so the offset bounds never cross
     /// spaces; the piece outputs and the new combined input keep the
@@ -12670,7 +12670,7 @@ impl Funcdata {
     ///     opSetInput(op, cvn, slot);
     ///     changemade = true;
     ///   return changemade;
-    /// RUGRA-GAP: requires the Architecture's LoadImage; when absent the method
+    /// RUDRA-GAP: requires the Architecture's LoadImage; when absent the method
     /// returns false (no change). Marker-op collapse + locktype propagation are
     /// faithfully ported.
     pub fn fillin_read_only(
@@ -12730,7 +12730,7 @@ impl Funcdata {
             None => return false,
         };
         if bytes.len() < sz { return false; }
-        // cc:669-682: assemble the value (little-endian default; Rugra lacks
+        // cc:669-682: assemble the value (little-endian default; Rudra lacks
         // per-space endianness, so we mirror x86-64 LE).
         let mut res: u64 = 0;
         for i in (0..sz).rev() {
@@ -12759,7 +12759,7 @@ impl Funcdata {
             let cvn = self.new_constant(sz, res);
             if let Some(lt) = &locktype {
                 // cc:703-704: cvn->updateType(locktype, true, true) — pass on
-                // the locked datatype. Rugra's update_type takes (Arc<Datatype>);
+                // the locked datatype. Rudra's update_type takes (Arc<Datatype>);
                 // the (lock, override_lock) flags map to the lock-keeping path
                 // via update_type_lock when typelock is set.
                 cvn.write()
@@ -12801,7 +12801,7 @@ impl Funcdata {
     ///   }
     ///   if (vn->isTypeLock()) newop->setAdditionalFlag(special_prop);
     ///   return true;
-    /// RUGRA-GAP: Architecture's UserOpManage is consulted for the builtin
+    /// RUDRA-GAP: Architecture's UserOpManage is consulted for the builtin
     /// index; if absent the method returns false (no change).
     pub fn replace_volatile(
         &mut self,
@@ -12922,7 +12922,7 @@ impl Funcdata {
             // default non-functional), and the on-demand default is
             // functional=false as well (userop.cc:443-444).
             if vr_display != 0 {
-                // HOLD_OUTPUT lives in addl_flags (Rugra models it as an addlflag).
+                // HOLD_OUTPUT lives in addl_flags (Rudra models it as an addlflag).
                 newop.0.write().unwrap().addlflags |= crate::op::op_addl_flags::HOLD_OUTPUT;
             }
             newop
@@ -13128,7 +13128,7 @@ impl Funcdata {
                 // (Address::operator<): the loc walk is space-ascending, so
                 // the first varnode of a later space compares Greater and
                 // breaks the group — cross-space groups cannot exist in the
-                // oracle. Rugra's Address carries no space, so the same
+                // oracle. Rudra's Address carries no space, so the same
                 // break is explicit here.
                 if n_space != base_space { break; }
                 if n_addr_arc.as_u64() < endaddr {
@@ -13363,7 +13363,7 @@ impl Funcdata {
     /// The size-match arm surfaces Varnode::setSymbolProperties' boolean
     /// verbatim (varnode.cc:410-424): an unlocked dynamic symbol returns
     /// false even though the mapped flag was applied.
-    /// RUGRA-GAP: Rugra has no SymbolEntry/Symbol objects on Funcdata; the
+    /// RUDRA-GAP: Rudra has no SymbolEntry/Symbol objects on Funcdata; the
     /// caller supplies (first_use_addr, hash, size, category) directly. On a
     /// successful find, MAPPED is set and the name is recorded; the typelock
     /// arm is reconstructed from the scope's dynamic LocalSymbol (typelock
@@ -13379,7 +13379,7 @@ impl Funcdata {
     ) -> bool {
         // cc:1322-1324: union_facet → applyUnionFacet.
         if is_union_facet {
-            // RUGRA-GAP: full union-facet path needs parent type; callers
+            // RUDRA-GAP: full union-facet path needs parent type; callers
             // should use apply_union_facet directly. We treat as no-match.
             return false;
         }
@@ -13470,7 +13470,7 @@ impl Funcdata {
     ///   if (!sym->isTypeLocked()) localmap->retypeSymbol(sym, vn->getType());
     ///   else if (sym->getType() != vn->getType()) warningHeader(...);
     ///   return true;
-    /// RUGRA-GAP: SymbolEntry/ScopeLocal.retypeSymbol not ported; we attach the
+    /// RUDRA-GAP: SymbolEntry/ScopeLocal.retypeSymbol not ported; we attach the
     /// name + MAPPED flag and warn on size mismatch, matching the user-visible
     /// behaviour.
     pub fn attempt_dynamic_mapping_late(
@@ -13571,7 +13571,7 @@ impl Funcdata {
         self.symbol_table
             .insert(hash | 0x8000_0000_0000_0000, sym_name.to_string());
         // cc:1389-1397: retype / warningHeader on type mismatch omitted
-        // (RUGRA-GAP: no ScopeLocal.retypeSymbol).
+        // (RUDRA-GAP: no ScopeLocal.retypeSymbol).
         true
     }
 
@@ -13621,7 +13621,7 @@ impl Funcdata {
     ///     return true;
     ///   }
     ///   return false;
-    /// Rugra's free-function `only_op_use` does NOT consult call-spec trials,
+    /// Rudra's free-function `only_op_use` does NOT consult call-spec trials,
     /// so this method provides the missing double-use reasoning. It takes the
     /// raw (opmatch, op, vn, fl, trial_addr) inputs; the ParamTrial is reduced
     /// to its address for the same-function / same-trial comparison.
@@ -13680,7 +13680,7 @@ impl Funcdata {
             };
             if same_target {
                 // cc:1770-1778: same trial address + ordering test.
-                // Rugra: we approximate the per-slot trial-address lookup by
+                // Rudra: we approximate the per-slot trial-address lookup by
                 // checking that the candidate's address equals the trial's.
                 let vn_addr = vn.read().unwrap().loc;
                 if vn_addr == trial.get_address() {
@@ -14143,12 +14143,12 @@ impl Funcdata {
     ///   switchOverJumpTables(flow);
     ///   if (flow.hasUnimplemented()) flags |= unimplemented_present;
     ///   if (flow.hasBadData())      flags |= baddata_present;
-    /// RUGRA-GAP: Rugra currently ingests p-code via `inject_raw_ops` +
+    /// RUDRA-GAP: Rudra currently ingests p-code via `inject_raw_ops` +
     /// `build_blocks_from_ops` (see x86_lift.rs / the test harness), so the
     /// disassembly-driven FlowInfo walk is not wired up. This stub preserves
     /// the Ghidra semantics for the "already translated" early-return path
     /// and the flag side-effects, and is the natural attachment point when
-    /// a Rugra FlowInfo / lifter is added.
+    /// a Rudra FlowInfo / lifter is added.
     pub fn follow_flow(&mut self, baddr: crate::address::Address, eaddr: crate::address::Address) {
         // cc:759-763: if obank already populated, this function is either
         // already translated (blocks_generated set → return) or was loaded
@@ -14160,7 +14160,7 @@ impl Funcdata {
             return;
         }
         // cc:767-783: FlowInfo walk + block generation + flag side-effects.
-        // RUGRA-GAP: full FlowInfo not implemented; record the range so any
+        // RUDRA-GAP: full FlowInfo not implemented; record the range so any
         // future lifter can pick it up, and set blocks_generated defensively.
         let _ = (baddr, eaddr);
         self.flags |= funcdata_flags::BLOCKS_GENERATED;
@@ -14200,7 +14200,7 @@ impl Funcdata {
     }
 
     // Ghidra: funcdata_varnode.cc:272 Funcdata::destroyVarnode
-    /// Detach a Varnode from Rugra's descendant/definition indexes and remove
+    /// Detach a Varnode from Rudra's descendant/definition indexes and remove
     /// it from the bank, adapting `Funcdata::destroyVarnode`
     /// (funcdata_varnode.cc:272-292):
     ///   for(iter=vn->beginDescend(); iter!=vn->endDescend(); ++iter) {
@@ -14272,7 +14272,7 @@ impl Funcdata {
     /// Datatype. Faithful to `Funcdata::syncVarnodesWithSymbol(VarnodeLocSet::const_iterator &iter, uint4 fl, Datatype *ct)`
     /// (funcdata_varnode.cc:1048-1095). Ghidra walks an iterator range
     /// `[iter, endLoc(size, addr))` advancing the caller's iterator in place;
-    /// Rugra passes the explicit slice of Varnodes at that address instead
+    /// Rudra passes the explicit slice of Varnodes at that address instead
     /// (the idiomatic Rust equivalent of the iterator range), since the
     /// in-out iterator pattern has no direct Rust analogue.
     ///
@@ -14288,7 +14288,7 @@ impl Funcdata {
     /// otherwise apply `fl` vs `mask`. Finally, if `ct` is provided, call
     /// `vn->updateType(ct)`.
     ///
-    /// RUGRA-GAP: Rugra's Varnode has no `mapentry` field (no SymbolEntry
+    /// RUDRA-GAP: Rudra's Varnode has no `mapentry` field (no SymbolEntry
     /// infrastructure), so the "dynamic SymbolEntry attached" branch is taken
     /// to be the same as the plain branch — the `mapped` bit is updated along
     /// with the rest of the mask. When SymbolEntry wiring lands, restore the
@@ -14315,7 +14315,7 @@ impl Funcdata {
             // cc:1073: if (vn->isFree()) continue.
             if vn.is_free() { continue; }
             let vnflags = vn.flags;
-            // RUGRA-GAP: no mapentry — treat all varnodes uniformly (see doc).
+            // RUDRA-GAP: no mapentry — treat all varnodes uniformly (see doc).
             if (vnflags & mask) != fl {
                 update_occurred = true;
                 vn.set_flags(fl);
@@ -14523,12 +14523,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 3);
     }
 
-    // SWITCHOUT-CLEAR-REMOVETABLE-0001 fixture (Rugra side).
+    // SWITCHOUT-CLEAR-REMOVETABLE-0001 fixture (Rudra side).
     // Funcdata::removeJumpTable (funcdata_block.cc:64-78) must clear
     // f_switch_out from the parent block of the table's BRANCHIND (cc:76)
     // when unlinking the table — the oracle-side bilateral evidence is the
     // switchout_ruleswitchsingle_1204 RuleSwitchSingle jumptable-elimination
-    // fixture (lane-side under /dev/shm/rugra-tests/switchout/ until root
+    // fixture (lane-side under /dev/shm/rudra-tests/switchout/ until root
     // curates it into tests/oracle/); this unit test pins the same semantics
     // at the Funcdata seam.
     #[test]
@@ -14565,7 +14565,7 @@ mod tests {
 
         // Simulate the flag state as flow/recovery leaves it: the dispatch
         // block holds f_switch_out for its BRANCHIND (block.cc:2287 insert
-        // arm; Rugra flow.rs:2514 / funcdata.rs:6199).
+        // arm; Rudra flow.rs:2514 / funcdata.rs:6199).
         parent.write().unwrap().set_flags(block_flags::SWITCH_OUT);
         assert_ne!(
             parent.read().unwrap().get_flags() & block_flags::SWITCH_OUT,
@@ -14603,7 +14603,7 @@ mod tests {
         assert!(fd.jump_tables.is_empty());
     }
 
-    // FUNCDATA-ZOMBIE-DECISION-ORIGIN-0001 fixture (Rugra side).
+    // FUNCDATA-ZOMBIE-DECISION-ORIGIN-0001 fixture (Rudra side).
     //
     // Oracle contract: Ghidra's flow-driven block formation makes EVERY
     // intra-function jump target a block start, and branchRemoveInternal
@@ -14612,7 +14612,7 @@ mod tests {
     // out-edge. Oracle-side witness: golden ghidra_httpd_1204.c
     // ap_strcasecmp_match emits LAB_0012e022 for the jump target 0x2e022,
     // the exact address whose instruction (movslq) lifts to zero p-code in
-    // Rugra and used to make the CBRANCH edge unresolvable (the "zombie
+    // Rudra and used to make the CBRANCH edge unresolvable (the "zombie
     // decision block" origin; 260 occurrences across httpd before the fix,
     // 0 after — see /tmp evidence in the task report).
     //
@@ -14750,7 +14750,7 @@ mod tests {
         assert_eq!(cb_block.read().unwrap().size_out(), 1);
     }
 
-    // CANON-COPYJUNK-NOOP-ORDER-0001 (Rugra side lock).
+    // CANON-COPYJUNK-NOOP-ORDER-0001 (Rudra side lock).
     //
     // Oracle contract (all lines read personally, locked e40ed130):
     //   - op.cc:941-948   PcodeOpBank::create appends ops to the dead list
@@ -14880,7 +14880,7 @@ mod tests {
         assert_eq!(b_out1.read().unwrap().get_start_addr().as_u64(), 0x1010);
     }
 
-    // Case 5: blocks the walk never reaches (Rugra-only never-flowed
+    // Case 5: blocks the walk never reaches (Rudra-only never-flowed
     // regions from linear injection) keep the historical address-order
     // edge addition — an entry RETURN plus an unreachable CBRANCH region
     // still gets its out-edges (fall-through + target).
@@ -15045,11 +15045,11 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
-        let result = verifier.verify_pcode_generation("mov_rbx_rax_minimal", start, &rugra_ops, 1);
+        let result = verifier.verify_pcode_generation("mov_rbx_rax_minimal", start, &rudra_ops, 1);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15149,11 +15149,11 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
-        let result = verifier.verify_pcode_generation("add_rax_1_minimal", start, &rugra_ops, 9);
+        let result = verifier.verify_pcode_generation("add_rax_1_minimal", start, &rudra_ops, 9);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15233,11 +15233,11 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
-        let result = verifier.verify_pcode_generation("sub_rax_8_minimal", start, &rugra_ops, 9);
+        let result = verifier.verify_pcode_generation("sub_rax_8_minimal", start, &rudra_ops, 9);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15316,12 +15316,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("and_rax_0xf_minimal", start, &rugra_ops, 9);
+            verifier.verify_pcode_generation("and_rax_0xf_minimal", start, &rudra_ops, 9);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15392,12 +15392,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("or_rax_0x10_minimal", start, &rugra_ops, 9);
+            verifier.verify_pcode_generation("or_rax_0x10_minimal", start, &rudra_ops, 9);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15444,12 +15444,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("xor_rax_0x7_minimal", start, &rugra_ops, 9);
+            verifier.verify_pcode_generation("xor_rax_0x7_minimal", start, &rudra_ops, 9);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15538,12 +15538,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("shl_rax_4_minimal", start, &rugra_ops, 37);
+            verifier.verify_pcode_generation("shl_rax_4_minimal", start, &rudra_ops, 37);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15615,12 +15615,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("shr_rax_4_minimal", start, &rugra_ops, 37);
+            verifier.verify_pcode_generation("shr_rax_4_minimal", start, &rudra_ops, 37);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15721,12 +15721,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("cmp_rax_rbx_minimal", start, &rugra_ops, 10);
+            verifier.verify_pcode_generation("cmp_rax_rbx_minimal", start, &rudra_ops, 10);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15802,12 +15802,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("load_mov_rax_mem_rbx", start, &rugra_ops, 2);
+            verifier.verify_pcode_generation("load_mov_rax_mem_rbx", start, &rudra_ops, 2);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15881,12 +15881,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("store_mov_mem_rbx_rax", start, &rugra_ops, 2);
+            verifier.verify_pcode_generation("store_mov_mem_rbx_rax", start, &rudra_ops, 2);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -15968,14 +15968,14 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result = verifier.verify_pcode_generation(
             "load_mov_rax_mem_rbx_disp",
             start,
-            &rugra_ops,
+            &rudra_ops,
             3);
 
         assert!(matches!(result, VerifyResult::Match));
@@ -16106,12 +16106,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("add_mem_rbx_rax_rmw", start, &rugra_ops, 16);
+            verifier.verify_pcode_generation("add_mem_rbx_rax_rmw", start, &rudra_ops, 16);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -16249,12 +16249,12 @@ mod tests {
 
         // Phase 4: Verify via RuntimeVerifier
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("seq_mov_add_ret", start, &rugra_ops, 13);
+            verifier.verify_pcode_generation("seq_mov_add_ret", start, &rudra_ops, 13);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -16325,12 +16325,12 @@ mod tests {
         assert_eq!(fd.bblocks.get_size(), 1);
 
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("seq_and_shl_ret", start, &rugra_ops, 50);
+            verifier.verify_pcode_generation("seq_and_shl_ret", start, &rudra_ops, 50);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -16424,12 +16424,12 @@ mod tests {
 
         // Phase 4: Verify via RuntimeVerifier
         let verifier = RuntimeVerifier::new();
-        let rugra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
+        let rudra_ops: Vec<_> = fd.obank.iter_alive().map(|op| op.0.clone()).collect();
 
         ffi::set_current_program(fd);
 
         let result =
-            verifier.verify_pcode_generation("seq_cmp_je_multiblock", start, &rugra_ops, 27);
+            verifier.verify_pcode_generation("seq_cmp_je_multiblock", start, &rudra_ops, 27);
 
         assert!(matches!(result, VerifyResult::Match));
     }
@@ -17686,7 +17686,7 @@ mod tests {
     }
 
     // Isolated per board ACTIONTYPEINFER-VTYPE-0001 (audit 2026-08-20): this
-    // test drives the Rugra-local ActionTypeInfer glue action (no Ghidra
+    // test drives the Rudra-local ActionTypeInfer glue action (no Ghidra
     // counterpart; real inference is ActionInferTypes) over hand-linked IR the
     // audit declared non-oracle. Its assertions assume the pre-canonical
     // v_type=None representation; since VarnodeBank::create mints
@@ -17857,7 +17857,7 @@ mod tests {
     }
 
     // Isolated per board ACTIONTYPEINFER-VTYPE-0001 (audit 2026-08-20): the
-    // "long" return assertion exercises the Rugra-local ActionInferParams
+    // "long" return assertion exercises the Rudra-local ActionInferParams
     // glue action's size-based fallback, which only fired when the RETURN
     // value varnode had v_type=None. With the canonical Some(undefined8) —
     // Ghidra: varnode.cc:1250 VarnodeBank::create (ct "must not be NULL"),
@@ -18061,7 +18061,7 @@ mod tests {
             .downcast::<EmitNoMarkup>()
             .unwrap()
             .get_output();
-        println!("\n====== Rugra Decompiled Output: curl_easy_setopt ======\n{}\n======================================================", emitted_code);
+        println!("\n====== Rudra Decompiled Output: curl_easy_setopt ======\n{}\n======================================================", emitted_code);
 
         // Basic structure assertions
         assert!(
@@ -18091,7 +18091,7 @@ mod tests {
     /// production call site of `Funcdata::calcNZMask` is
     /// `ActionNonzeroMask::apply` (coreaction.hh:300), registered in the
     /// universal mainloop directly after `ActionSpacebase` and before
-    /// `ActionInferTypes` (coreaction.cc:5506-5508; Rugra src/action.rs:1196,
+    /// `ActionInferTypes` (coreaction.cc:5506-5508; Rudra src/action.rs:1196,
     /// "analysis" survives the default decompile grouplist). Observable:
     /// after the default decompile root runs on
     /// `u1 = EDI & 0x3f0; u2 = u1 / 3; STORE(u2)`, the INT_DIV output carries
@@ -18112,7 +18112,7 @@ mod tests {
         // `FuncProto::setScope` (fspec.cc:3879), and `FuncProto::
         // effectBegin/effectEnd` (fspec.cc:4243-4259) unconditionally
         // dereference that pointer when the prototype-local effect list is
-        // empty (no graceful path exists in the oracle). Rugra's canonical
+        // empty (no graceful path exists in the oracle). Rudra's canonical
         // default Architecture is cspec-less (`defaultfp == None`), so the
         // synthetic fixture must bind the stand-in `defaultfp` model itself
         // — exactly what ActionRestrictLocal (coreaction.cc:1983-1985)
@@ -18551,7 +18551,7 @@ mod tests {
 
         // totalReplace(vn, vn): opSetInput early-outs (getIn(0) == vn ==
         // newvn) leaving the descend entry in place — Ghidra still exits
-        // after one pass. Pre-fix Rugra spun forever here.
+        // after one pass. Pre-fix Rudra spun forever here.
         fd.total_replace(&vn, vn.clone());
 
         // Ghidra end state: opSetInput early-out mutates nothing.
@@ -18631,7 +18631,7 @@ mod tests {
     // Regression for the erase_descend WARN storm (UPSTREAM-OUTVN-DEADWIRE
     // family). Ghidra opUnlink (funcdata_op.cc:186-193) NULLs every input
     // slot via opUnsetInput/clearInput, and opDestroy (funcdata_op.cc:211-216)
-    // then skips those NULL slots. Rugra cannot NULL a Vec slot, so the
+    // then skips those NULL slots. Rudra cannot NULL a Vec slot, so the
     // second unset must detect the already-severed link through descend
     // membership and be a no-op instead of re-erasing.
     #[test]
@@ -18677,7 +18677,7 @@ mod tests {
 }
 
 // RUDRA-GLUE: 在出边列表中查找指向目标块的索引。Ghidra 用 FlowBlock::getOutIndex
-// (block.hh:317)；Rugra 内联为文件级函数（需 downcast 到 BlockBasic/BlockGraph）。
+// (block.hh:317)；Rudra 内联为文件级函数（需 downcast 到 BlockBasic/BlockGraph）。
 /// Find the index of the outgoing edge pointing to `target` in `src`.
 fn find_out_index(
     src: &Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
@@ -18723,7 +18723,7 @@ pub struct AncestorRealistic {
     trial_size: i32,
     // Deferred ParamTrial flag mutations (applied by execute() after the
     // traversal). Ghidra mutates the trial pointer mid-traversal
-    // (setIndCreateFormed / setCondExeEffect); Rugra defers these to avoid
+    // (setIndCreateFormed / setCondExeEffect); Rudra defers these to avoid
     // &mut aliasing on ParamTrial during the self-referential traversal.
     pending_ind_create_formed: bool,
     pending_condexe_effect: bool,
@@ -19424,14 +19424,14 @@ fn only_op_use(
     }
     varlist.push(TNode { vn: invn.clone(), flags: main_flags });
     // Oracle reads `opmatch->code()` (a bare field load, funcdata_varnode.cc
-    // :1850) inside the loop. Rugra's read is a RwLock acquisition, and
+    // :1850) inside the loop. Rudra's read is a RwLock acquisition, and
     // nothing in the walk mutates any op's opcode (the walk is read-only on
     // ops; varnode/op marks and the trial are the only writes, and the
     // opSetInput tail runs only after the walk returns), so hoisting the
     // read out of the loop observes the same value on every iteration.
     let opmatch_is_return = opmatch.0.read().unwrap().opcode == OC::CPUI_RETURN;
     // Reused descendant buffer: oracle iterates `vn->descend` in place
-    // (funcdata_varnode.cc:1818); the Rugra form snapshots upgraded Arcs so
+    // (funcdata_varnode.cc:1818); the Rudra form snapshots upgraded Arcs so
     // no vn guard is held across the per-op body. Reusing one buffer across
     // the visits preserves the exact per-visit snapshot semantics
     // (same content, same order) without a fresh allocation per visit.
@@ -20000,7 +20000,7 @@ impl CloneBlockOps {
                     // Ghidra iterates `cloneOp->numInput()`, which equals
                     // `origOp->numInput()` because buildOpClone created the
                     // clone with the orig's slot count (funcdata_block.cc:970
-                    // `data.newOp(op->numInput(),...)`). Rugra's `create`
+                    // `data.newOp(op->numInput(),...)`). Rudra's `create`
                     // only RESERVES the capacity — the clone's inrefs are
                     // still empty — so the orig's count is the faithful loop
                     // bound (op_set_input extends/fills the clone's slots).
@@ -20013,7 +20013,7 @@ impl CloneBlockOps {
                             if v.is_constant() {
                                 Some(orig_vn.clone())
                             } else if v.is_annotation() {
-                                // data.newCodeRef — Rugra shares annotation varnodes.
+                                // data.newCodeRef — Rudra shares annotation varnodes.
                                 Some(orig_vn.clone())
                             } else if v.is_free() {
                                 eprintln!("[BLOCK] Can't clone free varnode in nodesplit");
@@ -20577,7 +20577,7 @@ mod final_transform_op_move_tests {
             .unwrap_or(false));
     }
 
-    /// General primitive semantics the ticket called missing ("Rugra op bank
+    /// General primitive semantics the ticket called missing ("Rudra op bank
     /// 无跨块搬移表达"): opUninsert detaches from one block's list and
     /// opInsertAfter reattaches into ANOTHER block's list (funcdata_op.cc:164
     /// only reads op->getParent(); opInsertAfter inserts into

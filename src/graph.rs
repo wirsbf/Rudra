@@ -21,7 +21,7 @@
 //!
 //! # Mapping notes
 //!
-//! | Ghidra (graph.cc)               | Rugra                                    |
+//! | Ghidra (graph.cc)               | Rudra                                    |
 //! |--------------------------------|------------------------------------------|
 //! | `ostream &s`                   | `&mut dyn std::fmt::Write`               |
 //! | `vn->isMark()` / `setMark()`   | `Varnode::is_mark()` / `set_mark()`      |
@@ -33,7 +33,7 @@
 //! | `graph.getSize()` / `getBlock` | `BlockGraph::get_size()` / `get_block()` |
 //! | `bl->getImmedDom()`            | `FlowBlock::get_immed_dom()`             |
 //!
-//! Rugra does not model an `IPTR_FSPEC` space (see `space.rs`), so the two
+//! Rudra does not model an `IPTR_FSPEC` space (see `space.rs`), so the two
 //! `spc->getType() == IPTR_FSPEC` guards in Ghidra are translated to a
 //! best-effort `is_fspec_space()` helper that currently always returns
 //! `false` — documented inline at each call site.
@@ -48,14 +48,14 @@ use crate::opcodes::OpCode;
 use crate::space::AddressSpace;
 use crate::varnode::Varnode;
 
-// RUDRA-GLUE: IPTR_FSPEC is not modeled in Rugra (space.rs has no Fspec variant).
+// RUDRA-GLUE: IPTR_FSPEC is not modeled in Rudra (space.rs has no Fspec variant).
 // Ghidra's `graph.cc` skips varnodes whose space type is `IPTR_FSPEC` (function
-// specs) or `IPTR_IOP` (op-reference slots). Rugra models IOP via
+// specs) or `IPTR_IOP` (op-reference slots). Rudra models IOP via
 // `AddressSpace::is_iop()` but has no Fspec variant; this helper returns
 // `false` unconditionally so the Fspec skip is a no-op while remaining a clear
 // adaptation point should Fspec be added later. Faithful to the *behavior* for
-// all spaces Rugra actually produces.
-/// Ghidra `spc->getType() == IPTR_FSPEC` stand-in. Always `false` in Rugra
+// all spaces Rudra actually produces.
+/// Ghidra `spc->getType() == IPTR_FSPEC` stand-in. Always `false` in Rudra
 /// because no Fspec address space is modeled (see `space.rs`).
 fn is_fspec_space(_spc: &AddressSpace) -> bool {
     false
@@ -462,7 +462,7 @@ pub fn dump_dataflow_graph(data: &Funcdata, s: &mut dyn Write) {
 // RUDRA-GLUE: Approximation of Ghidra `FlowBlock::getStop()`. In Ghidra,
 // `FlowBlock::getStop()` is virtual and only `BlockBasic` provides a real
 // implementation (block.cc); the base method throws a low-level error.
-// Rugra's `FlowBlock` trait does not expose a stop address, so we downcast
+// Rudra's `FlowBlock` trait does not expose a stop address, so we downcast
 // to `BlockBasic` (which carries `get_stop_addr`) and fall back to the
 // block's start address for structured blocks. This only affects the
 // Renoir vertex label, not control flow, so the approximation is safe.
@@ -857,7 +857,7 @@ mod tests {
 
     #[test]
     fn test_is_fspec_space_is_false() {
-        // Rugra models no Fspec space, so the FSPEC skip is a no-op.
+        // Rudra models no Fspec space, so the FSPEC skip is a no-op.
         assert!(!is_fspec_space(&AddressSpace::Ram));
         assert!(!is_fspec_space(&AddressSpace::Register));
     }

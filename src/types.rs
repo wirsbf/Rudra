@@ -1,4 +1,4 @@
-//! Core type definitions for Rugra
+//! Core type definitions for Rudra
 //!
 //! This module contains fundamental types used throughout the decompiler,
 //! including address types, architecture definitions, and basic data types.
@@ -233,7 +233,7 @@ impl TypeKind {
     }
 
     /// Check if this is an integer type
-    // RUDRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra classifies per-instance Datatype metatypes.
+    // RUDRA-GLUE: Predicate over Rudra's coarse TypeKind enum; Ghidra classifies per-instance Datatype metatypes.
     pub const fn is_integer(&self) -> bool {
         matches!(
             self,
@@ -249,7 +249,7 @@ impl TypeKind {
     }
 
     /// Check if this is a signed integer type
-    // RUDRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra represents signedness through Datatype metatypes.
+    // RUDRA-GLUE: Predicate over Rudra's coarse TypeKind enum; Ghidra represents signedness through Datatype metatypes.
     pub const fn is_signed(&self) -> bool {
         matches!(
             self,
@@ -258,13 +258,13 @@ impl TypeKind {
     }
 
     /// Check if this is a floating point type
-    // RUDRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra tests a Datatype's stored metatype.
+    // RUDRA-GLUE: Predicate over Rudra's coarse TypeKind enum; Ghidra tests a Datatype's stored metatype.
     pub const fn is_float(&self) -> bool {
         matches!(self, TypeKind::Float32 | TypeKind::Float64)
     }
 
     /// Check if this is a pointer type
-    // RUDRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra uses Datatype subclasses and stored metatypes.
+    // RUDRA-GLUE: Predicate over Rudra's coarse TypeKind enum; Ghidra uses Datatype subclasses and stored metatypes.
     pub const fn is_pointer(&self) -> bool {
         matches!(self, TypeKind::Pointer)
     }

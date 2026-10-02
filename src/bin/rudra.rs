@@ -15,7 +15,7 @@ use rudra::address::Address;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: rugra <binary> [max_functions] [--symbols-only]");
+        eprintln!("Usage: rudra <binary> [max_functions] [--symbols-only]");
         eprintln!("  binary          ELF/PE binary to decompile");
         eprintln!("  max_functions   Limit number of functions (default: all)");
         eprintln!("  --symbols-only  Only decompile functions with symbols (skip stripped)");

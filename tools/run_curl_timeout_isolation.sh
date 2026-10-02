@@ -187,8 +187,8 @@ snapshot_manifest="$workspace/snapshot.sha256"
 
 # Make the verification configuration explicit; the controller and every
 # self-exec worker inherit this same cleared option set.
-unset RUGRA_RULE_STATS RUGRA_7PHASE RUGRA_LOOP_DEBUG
-unset RUGRA_DEBUG_ACTIVEPARAM RUGRA_DEBUG_CALLS
+unset RUDRA_RULE_STATS RUDRA_7PHASE RUDRA_LOOP_DEBUG
+unset RUDRA_DEBUG_ACTIVEPARAM RUDRA_DEBUG_CALLS
 if [[ ! -r "$snapshot/examples/curl" ]]; then
     printf 'timeout isolation: missing readable snapshot input\n' >&2
     exit 1

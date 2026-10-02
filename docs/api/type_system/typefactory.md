@@ -69,7 +69,7 @@ canon golden（headless Java 桥）全量使用该表拼写；direct-runner gold
 库，SLEIGH standalone 表 `int8/uint8`）不受影响——两 golden 契约差异已在
 GOLDEN-CONTRACT-PUSHABSORB-0001/FI 判例框架内登记。E2E：curl 1910→1847、
 httpd 1960→1782（defects/numbering 双零保持，逐函数零回退）；五投影
-（next_url/match_url/parseconfig/getparameter/myprogress，RUGRA_MIRROR=1 正典
+（next_url/match_url/parseconfig/getparameter/myprogress，RUDRA_MIRROR=1 正典
 bundle）MATCH 保持——投影快照不含核心类型名。新单测
 `test_data_org_core_inventory_matches_java_coretypes` 固定表与 cache 槽位
 （`get_base(8,Int)==long`、`get_base(2,Int)==short`、`get_base(1,Uint)==byte`、
@@ -140,7 +140,7 @@ Create a new TypeFactory and initialize core types
 `ArchitectureGhidra` 接收 Java 客户端 `<coretypes>` 流
 （PcodeDataTypeManager.encodeCoreTypes）拼 `undefinedN`/`int`/`long` =
 canon headless 门。Rugra 驱动以环境变量选契约（curl/httpd =
-`RUGRA_MIRROR`/`RUGRA_FLOW_MIRROR`，泛化驱动 = `RUGRA_GEN_MIRROR`，
+`RUDRA_MIRROR`/`RUDRA_FLOW_MIRROR`，泛化驱动 = `RUDRA_GEN_MIRROR`，
 MIRROR-ENVS-CANONICAL-0001），故 `new` 在这些进程中构造 Standalone 表，
 默认进程保持 DataOrg（canon 脸不变）。探测函数为
 [`direct_runner_tier_active`](#pub-fn-direct_runner_tier_active---bool)。
@@ -149,7 +149,7 @@ MIRROR-ENVS-CANONICAL-0001），故 `new` 在这些进程中构造 Standalone �
 ### `pub fn direct_runner_tier_active() -> bool`
 
 进程级档位探针（RUDRA-GLUE，Ghidra 以架构子类选择 buildCoreTypes 而非
-环境）：`RUGRA_MIRROR`/`RUGRA_FLOW_MIRROR`/`RUGRA_GEN_MIRROR` 任一在进程
+环境）：`RUDRA_MIRROR`/`RUDRA_FLOW_MIRROR`/`RUDRA_GEN_MIRROR` 任一在进程
 环境中即本进程运行 direct-runner（独立 SLEIGH）oracle 契约。当前消费方 =
 `TypeFactory::new` 的表档位选择。（printc.rs 的 typedef 前言**不**消费此
 探针——curl 驱动的 worker 协议要求每个 worker 文档以 TYPEDEF_PREAMBLE

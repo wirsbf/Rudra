@@ -7723,7 +7723,7 @@
     },
     {
       "id": "flow_overlap_hlt_1204",
-      "description": "followFlow overlap-region fallthrough seam: direct-fallthrough/direct-call+nopl+endbr64+call *[rip]+hlt self-loop constructions produce byte-identical 3-block graphs versus locked Ghidra 12.0.4 (flow boundary = full code space both sides; symbol size never participates) [FLOW-339E-OVERLAP-HLT-0001; root cause re-adjudicated: Rugra's 149-block main is CORRECT vs the full-analysis golden (known-noreturn data); the fixture oracle (no Java analyzers) falls through to hlt=150 blocks; gated driver env RUGRA_ORACLE_FIXTURE_DATA for parity]",
+      "description": "followFlow overlap-region fallthrough seam: direct-fallthrough/direct-call+nopl+endbr64+call *[rip]+hlt self-loop constructions produce byte-identical 3-block graphs versus locked Ghidra 12.0.4 (flow boundary = full code space both sides; symbol size never participates) [FLOW-339E-OVERLAP-HLT-0001; root cause re-adjudicated: Rugra's 149-block main is CORRECT vs the full-analysis golden (known-noreturn data); the fixture oracle (no Java analyzers) falls through to hlt=150 blocks; gated driver env RUDRA_ORACLE_FIXTURE_DATA for parity]",
       "runner": [
         "tools/run_flow_overlap_hlt_oracle.sh"
       ],

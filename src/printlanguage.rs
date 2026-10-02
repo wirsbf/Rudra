@@ -6,7 +6,7 @@
 //! data-types, and the formatting utilities (`mostNaturalBase`, `formatBinary`,
 //! `unnamedField`, `escapeCharacterData`, `unicodeNeedsEscape`).
 //!
-//! Rugra's `PrintC` currently emits directly via `Emit` for output-quality
+//! Rudra's `PrintC` currently emits directly via `Emit` for output-quality
 //! reasons, but this module provides the faithful Ghidra base-class algorithm
 //! surface so that:
 //!   1. The parenthesization algorithm (`parentheses()`) is available as a
@@ -175,7 +175,7 @@ pub enum SyntaxHighlight {
 /// spacing, and how it groups its input expressions.
 ///
 /// In Ghidra this is a static instance per operator (e.g. `operation`, `add`,
-/// `sub` in printc.cc:36-55). Rugra stores the same fields; static instances
+/// `sub` in printc.cc:36-55). Rudra stores the same fields; static instances
 /// are constructed via `OpToken::new_*` constructors or directly.
 #[derive(Clone, Debug)]
 pub struct OpToken {
@@ -337,7 +337,7 @@ impl OpToken {
 #[derive(Clone)]
 pub struct ReversePolish {
     /// Index into the OpToken table (Ghidra stores `const OpToken *tok`).
-    /// Rugra uses an index because Rust lacks pointer-equality for `&OpToken`
+    /// Rudra uses an index because Rust lacks pointer-equality for `&OpToken`
     /// across static slices; callers resolve via their token table.
     pub tok_index: usize,
     /// The current stage of printing for the operator (printlanguage.hh:184).
@@ -348,7 +348,7 @@ pub struct ReversePolish {
     /// (printlanguage.hh:185).
     pub paren: bool,
     /// The PcodeOp associated with the operator token (printlanguage.hh:186).
-    /// Rugra stores an index into a caller-side op arena; -1 = no op.
+    /// Rudra stores an index into a caller-side op arena; -1 = no op.
     pub op_index: i64,
     /// The id of the token group which this belongs to (printlanguage.hh:187).
     /// Returned by `Emit::open_group`/`open_paren`.
@@ -410,7 +410,7 @@ impl NodePending {
 /// tokens on the RPN stack alongside the operator tokens. An Atom can be a
 /// variable, data-type name, function name, or structure field.
 ///
-/// Rugra stores the union payload (`ptr_second`) as an enum to stay
+/// Rudra stores the union payload (`ptr_second`) as an enum to stay
 /// type-safe; Ghidra uses a C++ `union { vn, fd, ct, intValue }`.
 #[derive(Clone, Debug)]
 pub struct Atom {
@@ -1289,7 +1289,7 @@ pub fn rpn_emit_atom(emit: &mut dyn Emit, atom: &Atom) {
 /// - Sort/comparison key: `vn->isImplied()` decides implied-vs-explicit path.
 ///
 /// NOTE: The actual Varnode/PcodeOp dispatch (`defOp->getOpcode()->push`)
-/// requires the full Rugra op arena, which the RPN engine does not own. This
+/// requires the full Rudra op arena, which the RPN engine does not own. This
 /// function drains `nodepend` and invokes the `push_pending` callback for each,
 /// letting the caller resolve Varnode semantics.
 pub fn rpn_recurse(
@@ -1370,7 +1370,7 @@ pub fn rpn_op_binary(
         *mods &= !modifiers::NEGATETOKEN;
         let neg = token_table[tok_index].negate;
         if neg < 0 {
-            // Ghidra throws LowlevelError; Rugra panics to match.
+            // Ghidra throws LowlevelError; Rudra panics to match.
             panic!("Could not find fliptoken");
         }
         neg as usize
@@ -1452,7 +1452,7 @@ pub const CLOSE_PAREN: &str = ")";
 /// above (`rpn_push_op`, `rpn_push_atom`, `parentheses`, etc.) and the data
 /// types (`OpToken`, `Atom`, `ReversePolish`, `NodePending`).
 ///
-/// RUDRA-GLUE: This trait exists because Rugra's `PrintC` pre-dates the RPN
+/// RUDRA-GLUE: This trait exists because Rudra's `PrintC` pre-dates the RPN
 /// engine port and emits directly. Ghidra's `PrintLanguage` is an abstract
 /// base class; the methods here are the subset `PrintC` currently overrides.
 ///
@@ -1566,7 +1566,7 @@ struct PrintlistState {
 thread_local! {
     // RUDRA-GLUE: thread-local registry keyed by architecture identity.
     // The oracle stores the printer pointers INSIDE the Architecture
-    // object (architecture.hh:206); Rugra cannot: the canonical-Factory
+    // object (architecture.hh:206); Rudra cannot: the canonical-Factory
     // static in funcdata.rs pins `Architecture: Send + Sync`, while every
     // printer is !Send (Rc-heavy shared types + `dyn Emit` — probe-tested
     // 2026-09-27). The same constraint led the TypeFactory per-Architecture

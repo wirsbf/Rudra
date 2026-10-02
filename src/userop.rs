@@ -365,8 +365,8 @@ impl SegmentOp {
     /// Faithful to `SegmentOp::execute` (userop.cc:218-223). Ghidra evaluates
     /// the `<pcode>` body of the `<segmentop>` via `pcodeinjectlib`:
     ///   `ExecutablePcode *script = getPayload(injectId); return script->evaluate(input);`
-    /// Rugra has no pcode-inject engine, so we evaluate the canonical
-    /// segmented-address formula directly. For the only architecture Rugra
+    /// Rudra has no pcode-inject engine, so we evaluate the canonical
+    /// segmented-address formula directly. For the only architecture Rudra
     /// models a segment on (x86 16-bit real mode, see
     /// `x86-16-real.pspec`/`x86-16.pspec`), the injected p-code is:
     ///   `res = (zext(base) << 4) + zext(inner);`
@@ -452,7 +452,7 @@ pub struct UserOpManage {
     /// vector in Ghidra's UserOpManage (userop.hh:347 `getSegmentOp`).
     pub segment_ops: HashMap<i32, SegmentOp>,
     /// Jump-assist ops decoded from `<jumpassist>` elements.  Ghidra stores
-    /// these as `JumpAssistOp` records in the same `useroplist`; Rugra
+    /// these as `JumpAssistOp` records in the same `useroplist`; Rudra
     /// keeps the 4 inject ids in this side vector.
     pub jump_assist_ops: Vec<JumpAssistOp>,
     /// Built-in id (BUILTIN_*) → user op. Faithful to Ghidra's
@@ -609,7 +609,7 @@ impl UserOpManage {
     /// three DatatypeUserOp builtins (MEMCPY/STRNCPY/WCSNCPY) construct
     /// their ptr/char pointer metadata on demand exactly as cc:449-477
     /// builds it (see `datatype_builtin_local_types`); without it they fall
-    /// to the metadata-less compat record. Rugra deliberately threads the
+    /// to the metadata-less compat record. Rudra deliberately threads the
     /// factory instead of a back-pointer — the documented 2026-08-25 方案论证
     /// (docs/api/varnode.md, TYPEOP-LOCALTYPE-CALLOTHER-0001): a back-pointer
     /// on the process-wide shared factory would be cross-Architecture
@@ -1316,7 +1316,7 @@ impl UserOpManage {
 /// Collect the `space`/`offset`/`size` or `name` (register) attributes of
 /// the current element into a VarnodeData triple.  Faithful to
 /// `VarnodeData::decodeFromAttributes` (pcoderaw.cc:33-55): on `space` the
-/// whole attribute set is re-scanned by the space decoder (Rugra collects
+/// whole attribute set is re-scanned by the space decoder (Rudra collects
 /// offset/size from the full pass), on `name` the whole varnode is replaced
 /// by the named register; the space stays `None` (Ghidra's null sentinel)
 /// unless a `space` or `name` attribute appears.
@@ -1766,7 +1766,7 @@ mod tests {
             // The element type selects STRNCPY vs WCSNCPY vs MEMCPY
             // (cc:453/463/473): char (1), wchar (2), void (0); the
             // pointer's wordsize is the default-space word size (1 here).
-            // Rugra char types are Int-metatype bases carrying the
+            // Rudra char types are Int-metatype bases carrying the
             // CHARTYPE flag, so the element is identified by name/size.
             let crate::type_system::datatype::Datatype::Pointer(ptr) = &**in1 else {
                 panic!("slot-1 metadata must be the constructed pointer");
@@ -1858,7 +1858,7 @@ mod tests {
         // core-type table registers no size-2 wide char (only char(1) and
         // wchar_t(4)), so `getTypeChar(2)` raises "Request for unsupported
         // character data-type" (type.cc:3686). Ghidra's registerBuiltin
-        // would propagate that LowlevelError; Rugra's thread keeps the
+        // would propagate that LowlevelError; Rudra's thread keeps the
         // metadata-less compat record (the same `.ok()?` degrade the
         // constseq typed entry takes on this factory state). Unreachable
         // on live architectures — the same cspec data_organization that

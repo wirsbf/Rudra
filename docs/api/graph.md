@@ -87,12 +87,12 @@ RUDRA-GLUE：Ghidra 通过 `ostream` 接收结果；此函数只新建 `String` 
 | `dump_dom_edges`           | :363 `dump_dom_edges`       | 所有支配边                             |
 | `dump_block_attributes`    | :378 `dump_block_attributes`| `DefineAttribute`/`SetKeyAttribute` 声明 |
 | `dump_block_properties`    | :412 `dump_block_properties`| AutomaticArrangement/VertexColors 等偏好 |
-| `is_fspec_space`           | (RUDRA-GLUE)                | `IPTR_FSPEC` 占位：Rugra 未建模 Fspec 空间，恒返回 `false` |
+| `is_fspec_space`           | (RUDRA-GLUE)                | `IPTR_FSPEC` 占位：Rudra 未建模 Fspec 空间，恒返回 `false` |
 | `block_stop_addr`          | (RUDRA-GLUE)                | `FlowBlock::getStop()` 近似：`BlockBasic` 用真实 stop，否则用 start |
 
 ## 类型映射 (Mapping Notes)
 
-| Ghidra (graph.cc)               | Rugra                                    |
+| Ghidra (graph.cc)               | Rudra                                    |
 |---------------------------------|------------------------------------------|
 | `ostream &s`                    | `&mut dyn std::fmt::Write`               |
 | `vn->isMark()` / `setMark()`    | `Varnode::is_mark()` / `set_mark()`      |
@@ -107,7 +107,7 @@ RUDRA-GLUE：Ghidra 通过 `ostream` 接收结果；此函数只新建 `String` 
 
 ## 注意事项 (Caveats)
 
-- **`IPTR_FSPEC` 未建模**：Rugra 的 `AddressSpace` 没有 Fspec 变体（见
+- **`IPTR_FSPEC` 未建模**：Rudra 的 `AddressSpace` 没有 Fspec 变体（见
   `space.rs`），因此 `is_fspec_space()` 恒返回 `false`。这只影响 Renoir
   顶点的过滤（跳过 FSPEC 空间的 varnode），对实际数据流无影响。
 - **`FlowBlock::getStop()` 近似**：`FlowBlock` trait 未暴露 stop 地址，

@@ -47,7 +47,7 @@ GHIDRA_LINE = re.compile(r'^Ghidra:\s+\S+\.(?:cc|hh):\d+\s+\S.*$', re.MULTILINE)
 # AGENTS.md 机制 A 模板是 `Rugra: <file>:<line> <对应函数>`，未限定 src/；
 # 仓库内 Ghidra 语义的 Rust 代码还包括 examples/ 驱动（如 curl_decompile.rs
 # 的 oracle 语义 port），因此接受 src/ 与 examples/ 两种路径形态。
-RUGRA_LINE = re.compile(r'^Rugra:\s+(?:src|examples)/\S+\.rs:\d+\s+\S.*$', re.MULTILINE)
+RUDRA_LINE = re.compile(r'^Rugra:\s+(?:src|examples)/\S+\.rs:\d+\s+\S.*$', re.MULTILINE)
 CHECKLIST_ITEMS = ('引用参数', '遍历顺序', '计数器', '排序键')
 
 
@@ -70,7 +70,7 @@ def validate_evidence_block(block: str) -> tuple[bool, str]:
     """严格验证 Evidence 块的结构和四项显式核对。"""
     if not GHIDRA_LINE.search(block):
         return False, '缺少 `Ghidra: <file>:<line> <完整签名>` 行。'
-    if not RUGRA_LINE.search(block):
+    if not RUDRA_LINE.search(block):
         return False, '缺少 `Rugra: src/<file>.rs:<line> <对应函数>` 或 `Rugra: examples/<file>.rs:<line> <对应函数>` 行。'
 
     for label, pattern in REQUIRED_SECTIONS:

@@ -21,7 +21,7 @@ macro_rules! register_rule {
 }
 
 // RUDRA-GLUE: ACTIONLOOP-RESTART-0001 env-gated dispatch-loop observation
-// counters (RUGRA_ACTION_STATS=1; stderr only, default off). Event
+// counters (RUDRA_ACTION_STATS=1; stderr only, default off). Event
 // accounting of the Action-dispatch/restart cycle — the per-restart
 // amplification the ticket asks to quantify: perform() invocations,
 // ActionPool passes, ops visited, Rule applyOp attempts/hits. The oracle
@@ -53,7 +53,7 @@ mod action_stats {
     // RUDRA-GLUE: ACTIONLOOP-RESTART-0001 observation gate (no Ghidra counterpart; the counted events mirror Rule::count_tests)
     fn enabled() -> bool {
         static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-        *ENABLED.get_or_init(|| std::env::var("RUGRA_ACTION_STATS").is_ok_and(|v| v == "1"))
+        *ENABLED.get_or_init(|| std::env::var("RUDRA_ACTION_STATS").is_ok_and(|v| v == "1"))
     }
 
     // RUDRA-GLUE: ACTIONLOOP-RESTART-0001 relaxed counter step (no Ghidra counterpart)
@@ -151,7 +151,7 @@ pub enum RuleTargetMutation {
 /// analysis or transformation step performed on a function.
 ///
 /// State management: Ghidra's Action carries `status`/`flags`/`count` fields
-/// that drive the `perform()` state machine (repeatapply/onceperfunc). Rugra
+/// that drive the `perform()` state machine (repeatapply/onceperfunc). Rudra
 /// mirrors this via `ActionState`, stored alongside each Action in its container.
 // RUDRA-GLUE: Send + Sync supertrait (Ghidra's decompiler objects live on one thread; Architecture embeds the ActionDatabase, so the Rust Arc<RwLock> embedding needs the bounds)
 pub trait Action: Send + Sync {
@@ -207,7 +207,7 @@ pub trait Action: Send + Sync {
 
     // Ghidra: action.hh:119 Action *clone(const ActionGroupList &grouplist) const
     /// Construct a fresh, selectively filtered copy. Leaf Actions registered
-    /// by Rugra's universal builder use their registration-slot factory;
+    /// by Rudra's universal builder use their registration-slot factory;
     /// container and fixture Actions can implement the virtual directly.
     fn clone_for_groups(&self, _grouplist: &ActionGroupList) -> Option<Box<dyn Action>> {
         None
@@ -714,7 +714,7 @@ pub struct ActionGroup {
     /// Per-child execution state (status/count/etc). Parallel to `actions`.
     child_states: Vec<ActionState>,
     /// Ghidra: basegroup member of each child Action (action.hh:88). Ghidra
-    /// stores the group inside every Action instance; Rugra records it at
+    /// stores the group inside every Action instance; Rudra records it at
     /// the registration slot in the parent (RUDRA-GLUE: per-instance storage
     /// would require touching Action classes owned by other write-sets).
     /// Observably identical for the default tree: every instance is
@@ -994,7 +994,7 @@ impl ActionGroup {
             // the counterpart of the oracle probe's GLM_ACTSIG hook at
             // ActionGroup::apply's child dispatch (action.cc:514). Env-gated,
             // default off; debug-only, no pipeline behavior.
-            if std::env::var("RUGRA_ACTSIG").is_ok() {
+            if std::env::var("RUDRA_ACTSIG").is_ok() {
                 use std::fmt::Write as _;
                 static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
                 let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -1111,7 +1111,7 @@ impl Action for ActionGroup {
 /// In the oracle, `ActionRestartGroup::apply` (action.cc:574) calls
 /// `Architecture::clearAnalysis`, and the second pass's `ActionStart` re-enters
 /// `Funcdata::startProcessing` → `followFlow` (funcdata.cc:157), regenerating
-/// the raw p-code through the Architecture-owned loader/lifter. Rugra's flow
+/// the raw p-code through the Architecture-owned loader/lifter. Rudra's flow
 /// generation lives at the driver boundary (`rudra::flow::follow_flow*`,
 /// because the followFlow port inside `Funcdata::start_processing` is a
 /// registered gap), so the driver installs this callback — the Rust
@@ -1289,14 +1289,14 @@ impl ActionRestartGroup {
             // The oracle's restart cycle re-enters ActionStart →
             // Funcdata::startProcessing → followFlow (funcdata.cc:157),
             // regenerating the raw p-code through the Architecture-owned
-            // loader/lifter. Rugra's flow generation lives at the driver
+            // loader/lifter. Rudra's flow generation lives at the driver
             // boundary, so the driver-installed restart_flow callback
             // performs the regeneration here, after clearAnalysis and
             // before the child resets — the same point relative to
             // clearAnalysis as the oracle's followFlow, which runs inside
             // the second pass's ActionStart after those resets.
             // The oracle has no callback-less path (its Architecture
-            // always owns a loader); standalone Rugra callers without a
+            // always owns a loader); standalone Rudra callers without a
             // driver bridge take the bounded completion BELOW, before any
             // state mutation, so the print phase keeps the converged
             // first-pass analysis.
@@ -1867,7 +1867,7 @@ impl ActionPool {
                 return Ok(-1);
             }
         }
-        if std::env::var("RUGRA_RULE_STATS").is_ok_and(|value| value == "1")
+        if std::env::var("RUDRA_RULE_STATS").is_ok_and(|value| value == "1")
             && self.pending_count > count_before
         {
             eprintln!(
@@ -2109,7 +2109,7 @@ pub fn build_oppool1() -> ActionPool {
     // remaining oracle loop (coreaction.cc:5647-5649) only absorbs
     // CPU-specific conf->extra_pool_rules, of which the x86-64 gcc spec
     // registers none. PIPE-POOL-LOCAL-RULES-0001 removed the former
-    // Rugra-local registrations of RuleSextEliminate (no oracle class at
+    // Rudra-local registrations of RuleSextEliminate (no oracle class at
     // all) and RuleEquality (oracle class exists, ruleaction.hh:243, but
     // is never instantiated anywhere in the locked tree).
     // NOTE: RuleMultNegOne (x*-1 -> INT_2COMP) and Rule2Comp2Sub are NOT here
@@ -2168,7 +2168,7 @@ pub fn build_cleanup_pool() -> ActionPool {
     );  // coreaction.cc:5710
     // Pool ends at RuleStringStore (5710), exactly as Ghidra's actcleanup
     // (coreaction.cc:5694-5711). PIPE-POOL-LOCAL-RULES-0001 removed the
-    // former Rugra-local re-registration of RuleTrivialArith here — the
+    // former Rudra-local re-registration of RuleTrivialArith here — the
     // oracle cleanup pool has no such entry; Ghidra registers
     // RuleTrivialArith exactly once, in oppool1 (coreaction.cc:5522).
     pool
@@ -2546,7 +2546,7 @@ impl ActionDatabase {
     // the production driver's derived "decompile" clone. Ghidra's restart
     // cycle reaches the Architecture-owned loader through
     // Funcdata::getArch() inside the second pass's startProcessing →
-    // followFlow; Rugra's flow generation lives at the driver boundary, so
+    // followFlow; Rudra's flow generation lives at the driver boundary, so
     // the driver injects its loader bridge through the database handle it
     // already owns, before performing the root. Returns false when the
     // named root is absent or is not an ActionRestartGroup.

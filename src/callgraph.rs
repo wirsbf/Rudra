@@ -109,7 +109,7 @@ pub struct CallGraphNode {
     /// Node flags
     pub flags: u32,
     /// Address of the backing `Funcdata`, if any (Ghidra stores a `Funcdata*`;
-    /// Rugra keeps only the address to avoid a borrow-cycle).
+    /// Rudra keeps only the address to avoid a borrow-cycle).
     pub funcdata_addr: Option<u64>,
 }
 
@@ -512,7 +512,7 @@ impl CallGraph {
 
     // Ghidra: callgraph.cc:385 CallGraph::iterateFunctionsAddrOrder
     /// Add a node for every `FunctionSymbol` in `scope`. Faithful to
-    /// `CallGraph::iterateFunctionsAddrOrder` (callgraph.cc:385). Rugra
+    /// `CallGraph::iterateFunctionsAddrOrder` (callgraph.cc:385). Rudra
     /// identifies function symbols by `type_name == "func"` (see
     /// `ScopeInternal::findFunction`); the entry address serves as the node
     /// address and the symbol name as the node name.
@@ -537,7 +537,7 @@ impl CallGraph {
 
 // Ghidra: address.cc:289 (helper) Address::encode as <addr offset=...>
 /// Encode an address as an `<addr>` element with an `offset` attribute, matching
-/// the Rugra marshaling convention (see `SymbolEntry::encode` in database.rs).
+/// the Rudra marshaling convention (see `SymbolEntry::encode` in database.rs).
 fn encode_addr_element(encoder: &mut dyn Encoder, addr: u64) {
     encoder.open_element(&ElementId::new("addr", 0));
     encoder.write_unsigned_integer(&AttributeId::new("offset", 0), addr);

@@ -109,7 +109,7 @@ NDJSON 逐字节相同。
   空间，重映射只影响 CPUID 决策树这类 label 分支，因此 curl/httpd 路径不受
   影响（GetStr 无 intra-instruction label 分支）。
 - `lift_instruction` 语义不变：一次严格 `oneInstruction`，step 与全部 ops 原子
-  返回；shim（sleigh_shim/rugra_sleigh.cpp `RudraPcodeEmit`）只规范化
+  返回；shim（sleigh_shim/rudra_sleigh.cpp `RudraPcodeEmit`）只规范化
   LOAD/STORE 的 space-id 常量偏移，不改分支空间。
 
 真实 `0f a2 c3` 门禁（`tools/run_sleigh_flow_relative_oracle.sh`）：Rust 侧
@@ -137,7 +137,7 @@ pspec 全量、Fspec 动态空间等见 `SLEIGH-0002C/D`、`ADDR-0001`）。
 ## 2026-09-26 SLEIGH-RUSTIFY-PHASE3-0001 debugger-walk additions
 
 The seven pipeline debugger examples (stackfold_dbg / callin0_trace / diag_stack /
-rugra_decompile_func / debug_cfg / debug_my_fwrite / blockstruct_tree_dump) migrated off
+rudra_decompile_func / debug_cfg / debug_my_fwrite / blockstruct_tree_dump) migrated off
 the retired iced lift in the same lane:
 
 - `SleighLifter::assembly_mnemonic(addr) -> Option<String>`: passthrough of

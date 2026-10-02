@@ -3,11 +3,11 @@
 # 阶段一形态：冻结基线 + 漂移报警，绑定 MIRROR3-GATE4-BASELINE-0001）。
 #
 # 契约（Ghidra 12.0.4 e40ed130 direct-runner golden，tests/golden/*_1204.direct-runner.c）：
-#   curl  : RUGRA_MIRROR=1     examples/curl_decompile  vs ghidra_curl_1204.direct-runner.c  --base 0
-#   httpd : RUGRA_MIRROR=1     examples/httpd_decompile vs ghidra_httpd_1204.direct-runner.c --base 0
-#   vsh   : RUGRA_GEN_MIRROR=1 examples/gen_decompile /usr/bin/virt-ssh-helper
+#   curl  : RUDRA_MIRROR=1     examples/curl_decompile  vs ghidra_curl_1204.direct-runner.c  --base 0
+#   httpd : RUDRA_MIRROR=1     examples/httpd_decompile vs ghidra_httpd_1204.direct-runner.c --base 0
+#   vsh   : RUDRA_GEN_MIRROR=1 examples/gen_decompile /usr/bin/virt-ssh-helper
 #                                   vs ghidra_vsh_1204.direct-runner.c --base 0
-#   sq    : RUGRA_GEN_MIRROR=1 examples/gen_decompile /usr/local/bin/sasquatch
+#   sq    : RUDRA_GEN_MIRROR=1 examples/gen_decompile /usr/local/bin/sasquatch
 #                                   vs ghidra_sq_1204.direct-runner.c --base 0
 #                                   (GEN4 fourth-corpus ratchet face)
 #
@@ -21,7 +21,7 @@
 # 用法：
 #   tools/verify_mirror_gate.sh [--corpus curl|httpd|vsh|sq|sqlite|all] [--bin-dir DIR] [--keep-dir DIR]
 #                               [--jobs N]   # N>1: 五面并发(SPEEDPROF-PAR-FACES-0001)，默认 1=串行原形
-#                               [--no-cache] # 禁用 digest 缓存（等价 RUGRA_GATE_CACHE=0）
+#                               [--no-cache] # 禁用 digest 缓存（等价 RUDRA_GATE_CACHE=0）
 #   tools/verify_mirror_gate.sh --update-baseline <TODO_ID>   # 重钉（须给 TODO ID，写入台账行）
 #   tools/verify_mirror_gate.sh --self-test                   # 无二进制自检（解析/断言/缓存逻辑）
 #
@@ -49,9 +49,9 @@
 #     只缓存 PASS 轮: FAIL 轮永远全量重跑（诊断新鲜性；不缓存瞬时噪声）。
 #     陈旧守卫(a/b)每轮照常先行——缓存只跳过 face 执行，不跳过守卫；
 #     键含二进制内容 digest，与 stale-guard 天然协同（无键碰撞面）。
-#   缓存目录: ${RUGRA_GATE_CACHE_DIR:-/tmp/rugra-gate-cache}（默认上限 40 条，
+#   缓存目录: ${RUDRA_GATE_CACHE_DIR:-/tmp/rugra-gate-cache}（默认上限 40 条，
 #   LRU 按 mtime 淘汰，只删除匹配 <corpus>-<64hex> 的条目目录）。
-#   禁用: --no-cache 或 RUGRA_GATE_CACHE=0。
+#   禁用: --no-cache 或 RUDRA_GATE_CACHE=0。
 
 set -u
 
@@ -70,10 +70,10 @@ SELF_TEST=0
 # lines re-emitted in canonical face order after all faces finish).
 PAR_JOBS=1
 # GATE-DIGEST-CACHE-0001: repeat-round digest cache (default on;
-# --no-cache / RUGRA_GATE_CACHE=0 disables).
+# --no-cache / RUDRA_GATE_CACHE=0 disables).
 CACHE_ON=1
-[[ "${RUGRA_GATE_CACHE:-1}" == "0" ]] && CACHE_ON=0
-CACHE_ROOT="${RUGRA_GATE_CACHE_DIR:-/tmp/rugra-gate-cache}"
+[[ "${RUDRA_GATE_CACHE:-1}" == "0" ]] && CACHE_ON=0
+CACHE_ROOT="${RUDRA_GATE_CACHE_DIR:-/tmp/rugra-gate-cache}"
 CACHE_SCHEMA="v1"   # bump on any change to verdict/artifact/cache semantics
 
 while [[ $# -gt 0 ]]; do
@@ -190,7 +190,7 @@ cache_entry_valid() {
 
 # LRU 淘汰：只删 CACHE_ROOT 下形如 <corpus>-<64hex> 的条目目录，保守不动其他。
 cache_prune() {
-    local max="${RUGRA_GATE_CACHE_MAX:-40}"
+    local max="${RUDRA_GATE_CACHE_MAX:-40}"
     [[ "$max" =~ ^[0-9]+$ ]] || max=40
     (( max > 0 )) || return 0
     local d
@@ -277,16 +277,16 @@ PY
     # ---- 1. 运行驱动（镜像态） ----
     case "$corpus" in
         curl)
-            RUGRA_MIRROR=1 "$BIN_DIR/curl_decompile" > "$bin_out" 2> "$err_log" || true ;;
+            RUDRA_MIRROR=1 "$BIN_DIR/curl_decompile" > "$bin_out" 2> "$err_log" || true ;;
         httpd)
-            RUGRA_MIRROR=1 "$BIN_DIR/httpd_decompile" > "$bin_out" 2> "$err_log" || true ;;
+            RUDRA_MIRROR=1 "$BIN_DIR/httpd_decompile" > "$bin_out" 2> "$err_log" || true ;;
         vsh)
             local vsh_bin="${VSH_BINARY:-/usr/bin/virt-ssh-helper}"
             if [[ ! -x "$vsh_bin" ]]; then
                 echo "MIRROR-GATE[vsh] SKIP: corpus binary $vsh_bin absent (host-specific asset)"
                 return
             fi
-            RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=600 \
+            RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=600 \
                 "$BIN_DIR/gen_decompile" "$vsh_bin" > "$bin_out" 2> "$err_log" || true ;;
         sq)
             local sq_bin="${SQ_BINARY:-/usr/local/bin/sasquatch}"
@@ -294,7 +294,7 @@ PY
                 echo "MIRROR-GATE[sq] SKIP: corpus binary $sq_bin absent (host-specific asset)"
                 return
             fi
-            RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=600 \
+            RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=600 \
                 "$BIN_DIR/gen_decompile" "$sq_bin" > "$bin_out" 2> "$err_log" || true ;;
         sqlite)
             # GENWIRE-SQLITE-RATCHET-REPIN-0001 (MERGEBATCH17): fifth gate
@@ -305,7 +305,7 @@ PY
                 echo "MIRROR-GATE[sqlite] SKIP: corpus binary $sqlite_bin absent (host-specific asset)"
                 return
             fi
-            RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=600 \
+            RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=600 \
                 "$BIN_DIR/gen_decompile" "$sqlite_bin" > "$bin_out" 2> "$err_log" || true ;;
     esac
 
@@ -466,7 +466,7 @@ EOF
     hex64=$(printf 'a%.0s' {1..64})
     mkdir "$CACHE_ROOT/httpd-$hex64"
     touch -d 'now + 2 seconds' "$CACHE_ROOT/httpd-$hex64"
-    RUGRA_GATE_CACHE_MAX=1 cache_prune
+    RUDRA_GATE_CACHE_MAX=1 cache_prune
     [[ -d "$sentry" ]] && { echo "SELF-TEST FAIL: prune kept over-limit entry"; exit 1; } || true
     [[ -d "$CACHE_ROOT/httpd-$hex64" ]] || { echo "SELF-TEST FAIL: prune dropped the newest entry"; exit 1; }
     echo "SELF-TEST PASS"

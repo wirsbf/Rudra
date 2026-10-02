@@ -110,3 +110,4 @@ TypeOp 名即表拼写 typeop.cc:1840-1937，本修使其一致；MULTIEQUAL/IND
 PTRADD/PTRSUB 有专用 emitter，兜底不可达）。相邻残差（另行登记）：
 typeop.rs 宏的 TypeOp nametext 面（getOperatorName，float 六成员拼写同此分歧，
 Rudra 侧无消费者）不在本票写域。
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

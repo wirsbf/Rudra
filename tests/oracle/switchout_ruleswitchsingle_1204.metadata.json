@@ -13,7 +13,7 @@
   "tag": "Ghidra_12.0.4_build",
   "commit": "e40ed13014025f82488b1f8f7bca566894ac376b",
   "probe": "tests/oracle/switchout_ruleswitchsingle_1204.cc (BfdArchitecture over the raw ELF, readLoaderSymbols, full-range followFlow, universal action to completion, PrintC::docFunction to stdout; stderr emits per-block [BLOCKFLAGS] start/flags/isSwitchOut and [JT-REMAIN] numJumpTables — same load contract as tests/oracle/namevars_badjumptable_1204.cc)",
-  "live_rerun": "RUGRA_SWITCHOUT_ORACLE_RUN=1 rebuilds the runner from the locked cpp tree (see tools/run_switchout_ruleswitchsingle_oracle.sh)"
+  "live_rerun": "RUDRA_SWITCHOUT_ORACLE_RUN=1 rebuilds the runner from the locked cpp tree (see tools/run_switchout_ruleswitchsingle_oracle.sh)"
  },
  "architecture": "x86:LE:64:default",
  "compiler_spec": {

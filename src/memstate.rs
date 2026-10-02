@@ -84,7 +84,7 @@ impl MemoryBank {
     /// Generic constructor for a memory bank. Faithful to
     /// `MemoryBank::MemoryBank(AddrSpace *spc,int4 ws,int4 ps)`
     /// (memstate.cc:75-81). Both `ws` and `ps` must be a power of 2 in Ghidra;
-    /// rugra does not assert this (the SLEIGH spec already enforces it).
+    /// rudra does not assert this (the SLEIGH spec already enforces it).
     pub fn new(space: AddressSpace, wordsize: usize, pagesize: usize) -> Self {
         Self {
             wordsize,
@@ -459,7 +459,7 @@ impl MemoryBank {
     }
 
     // RUDRA-GLUE: clear (no direct Ghidra counterpart; MemState management
-    // of overlay pages is Ghidra's domain, but rugra exposes this for tests
+    // of overlay pages is Ghidra's domain, but rudra exposes this for tests
     // and for the emulator's reset path).
     /// Clear all stored words.
     pub fn clear(&mut self) {
@@ -788,7 +788,7 @@ impl MemoryPageOverlay {
     // RUDRA-GLUE: is_page_overlayed / num_pages / read / write / get_value /
     // set_value / get_word_size / get_page_size / get_space (no direct Ghidra
     // counterparts at this level; convenience helpers used by tests and by
-    // rugra's emulator which addresses memory by raw offset rather than by
+    // rudra's emulator which addresses memory by raw offset rather than by
     // Address, mirroring how MemState::setValue forwards to the bank). These
     // wrap the faithful `insert`/`find`/`get_page`/`set_page` paths.
 
@@ -1261,7 +1261,7 @@ impl MemoryHashOverlay {
 
 // RUDRA-GLUE: construct_memory_bank (no single Ghidra counterpart; Ghidra's
 // Architecture wires up MemoryImage / overlays via the LoadImage during
-// initialisation in architecture.cc. Rugra exposes a single factory used by
+// initialisation in architecture.cc. Rudra exposes a single factory used by
 // the emulator to build a default bank for a space).
 /// Build a default `MemoryBank` for the given space. Mirrors the way Ghidra's
 /// `Architecture` instantiates a writable `MemoryBank` (page-aligned) for a
@@ -1288,11 +1288,11 @@ pub struct MemState {
 
 impl MemState {
     // RUDRA-GLUE: new (Ghidra's MemoryState constructor takes a Translate*;
-    // rugra's Translate equivalent is not wired into MemState yet, so the
+    // rudra's Translate equivalent is not wired into MemState yet, so the
     // constructor is parameter-less for now. The named-register
     // `setValue`/`getValue` (memstate.cc:684-702) are therefore exposed via
     // `set_register_value`/`get_register_value`, which look the bank up by
-    // the rugra register-space name "register" rather than via Translate.)
+    // the rudra register-space name "register" rather than via Translate.)
     pub fn new() -> Self {
         Self {
             banks: BTreeMap::new(),
@@ -1301,7 +1301,7 @@ impl MemState {
 
     // Ghidra: memstate.cc:620 MemoryState::setMemoryBank
     /// Map a memory bank into the state. Faithful to
-    /// `MemoryState::setMemoryBank` (memstate.cc:620-630). Rugra keys the
+    /// `MemoryState::setMemoryBank` (memstate.cc:620-630). Rudra keys the
     /// bank by the space name; Ghidra keys it by `spc->getIndex()` into
     /// `memspace`.
     pub fn set_memory_bank(&mut self, bank: MemoryBank) {
@@ -1338,7 +1338,7 @@ impl MemState {
     /// `MemoryState::setValue(AddrSpace *spc,uintb off,int4 size,uintb cval)`
     /// (memstate.cc:652-659). If there is no registered MemoryBank for the
     /// desired address space, this is a no-op (Ghidra throws LowlevelError;
-    /// rugra's emulator relies on the silent no-op for unmapped spaces).
+    /// rudra's emulator relies on the silent no-op for unmapped spaces).
     pub fn set_value(&mut self, space_name: &str, offset: u64, size: usize, val: u64) {
         if let Some(bank) = self.banks.get_mut(space_name) {
             bank.set_value(offset, size, val);
@@ -1360,7 +1360,7 @@ impl MemState {
     // RUDRA-GLUE: set_register_value / get_register_value (compat for the
     // named-register `setValue(const string&,...)` / `getValue(const string&,...)`
     // overloads in memstate.cc:684-702; those resolve a register name to a
-    // varnode via the Translate object, which rugra does not yet wire here).
+    // varnode via the Translate object, which rudra does not yet wire here).
     /// Set a value on a named register. Faithful in spirit to
     /// `MemoryState::setValue(const string &nm,uintb cval)` (memstate.cc:684-689).
     pub fn set_register_value(&mut self, reg_name: &str, val: u64) {
@@ -1410,7 +1410,7 @@ impl Default for MemState {
     }
 }
 
-// RUDRA-GLUE: hash_register_name (no Ghidra counterpart; rugra's
+// RUDRA-GLUE: hash_register_name (no Ghidra counterpart; rudra's
 // named-register API lacks a Translate object to resolve names, so we hash
 // the name into a stable register-bank offset as a placeholder).
 fn hash_register_name(name: &str) -> u64 {

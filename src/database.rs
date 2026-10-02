@@ -58,7 +58,7 @@ fn format_range_list_bounds(rl: &RangeList) -> String {
 /// (address.hh:202-205: space index first, then first-offset).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScopeRange {
-    /// Space containing the range (address.hh:175 `spc`), as Rugra's
+    /// Space containing the range (address.hh:175 `spc`), as Rudra's
     /// IR-space enum (the SpecQuery flow's space carrier; ordering via
     /// [`crate::space::AddressSpace::get_index`], the locked x86-64
     /// space-index table).
@@ -371,7 +371,7 @@ fn find_subslice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
 /// `Varnode::addrtied` (database.cc:1150) and the flagbase bits
 /// (database.cc:1153) into `symbol->flags`, and
 /// `SymbolEntry::getAllFlags` (database.hh:271) ORs them with the entry's
-/// `extraflags` in ONE bit space. The legacy Rugra constants (TYPELOCK=1<<0
+/// `extraflags` in ONE bit space. The legacy Rudra constants (TYPELOCK=1<<0
 /// …) were a private bit space that could never mix with the Varnode-space
 /// `extraflags`; they now alias the varnode bit values
 /// (varnode.hh:82-115) so the fold and getAllFlags projections match the
@@ -694,7 +694,7 @@ impl SymbolEntry {
         if self.is_addr_tied() {
             return true;
         }
-        // cc:118: usepoint.isInvalid() — Rugra's legacy Address is invalid
+        // cc:118: usepoint.isInvalid() — Rudra's legacy Address is invalid
         // exactly when spaceless (address.rs is_invalid: space.is_none()).
         if usepoint.is_invalid() {
             return false;
@@ -709,7 +709,7 @@ impl SymbolEntry {
     /// range of the uselimit (`uselimit.getFirstRange()`,
     /// RangeList set-order = lowest (space index, first offset)), its
     /// `getFirstAddr()`; an empty uselimit yields the invalid `Address()`.
-    /// Rugra's plain `RangeList` keeps ranges sorted by first offset, and
+    /// Rudra's plain `RangeList` keeps ranges sorted by first offset, and
     /// the invalid address is the spaceless form (`Address::new(0)`).
     pub fn get_first_use_address(&self) -> Address {
         match self.uselimit.ranges().first() {
@@ -763,7 +763,7 @@ impl SymbolEntry {
 
     // RUDRA-GLUE: stable identity predicate standing in for the C++
     // `SymbolEntry*` pointer comparison (varnode.cc:415 `mapentry != entry`
-    // inside Varnode::setSymbolProperties). Rugra's Database hands out
+    // inside Varnode::setSymbolProperties). Rudra's Database hands out
     /// cloned entries wrapped in fresh Arcs
     /// (`Database::query_container_entry`), so Arc identity can never match
     /// across two queries of the same storage; within one scope's entry map
@@ -808,7 +808,7 @@ impl SymbolEntry {
     /// exact sub-type of the requested size at the computed offset.
     ///
     /// Ghidra reaches the owning Architecture's `TypeFactory` through the
-    /// Symbol's Scope. Rugra's Symbol does not retain that owner, so the caller
+    /// Symbol's Scope. Rudra's Symbol does not retain that owner, so the caller
     /// passes the same factory explicitly rather than constructing a local or
     /// process-global substitute.
     pub fn get_sized_type(
@@ -1330,7 +1330,7 @@ impl Symbol {
     // Ghidra: database.cc:268 Symbol::getFirstWholeMap
     /// Return the first SymbolEntry that maps the whole Symbol. Faithful to
     /// `Symbol::getFirstWholeMap` (database.cc:268). Ghidra's Symbol carries a
-    /// `mapentry` vector; Rugra's Symbol does not, so this method accepts the
+    /// `mapentry` vector; Rudra's Symbol does not, so this method accepts the
     /// list of SymbolEntries (typically from the owning Scope) and returns the
     /// first entry whose `offset == 0`. The C++ form throws `LowlevelError`
     /// when no mapping exists; the Rust port returns `None`.
@@ -1344,7 +1344,7 @@ impl Symbol {
     /// Return the SymbolEntry containing the given address. Faithful to
     /// `Symbol::getMapEntry(addr)` (database.cc:280). May return a partial
     /// entry (one holding only part of the whole Symbol). Ghidra walks the
-    /// Symbol's own `mapentry` vector; Rugra's Symbol does not carry one, so
+    /// Symbol's own `mapentry` vector; Rudra's Symbol does not carry one, so
     /// this method accepts the list of SymbolEntries (typically from the
     /// owning Scope). Returns the first entry whose address range contains
     /// `addr`.
@@ -1353,7 +1353,7 @@ impl Symbol {
             if e.symbol.read().unwrap().symbol_id != self.symbol_id {
                 return false;
             }
-            // Same address space (Rugra is single-space, so skip the space
+            // Same address space (Rudra is single-space, so skip the space
             // check at database.cc:287).
             let start = e.addr.as_u64();
             let diff = addr.as_u64().wrapping_sub(start);
@@ -1649,7 +1649,7 @@ impl FunctionSymbol {
     /// lazily from the symbol's first whole-map entry
     /// (`fd = new Funcdata(name,displayName,scope,entry->getAddr(),this)`,
     /// database.cc:557-564). MIGRATION RULING (no hard port of the
-    /// Funcdata* channel): in Rugra the Funcdata objects are materialized
+    /// Funcdata* channel): in Rudra the Funcdata objects are materialized
     /// and owned by the driver/Funcdata layer; this database-side
     /// projection exposes exactly the constructor arguments Ghidra feeds
     /// the lazy construction — (name, displayName, scope id, entry
@@ -2161,7 +2161,7 @@ impl UnionFacetSymbol {
 
 // RUDRA-GLUE: AddMapContext (Ghidra's Scope reads `glb->symboltab` through
 // its Architecture handle inside Scope::addMap — database.cc:1136/1153;
-// Rugra's Scope is Architecture-less, so the Database side passes the two
+// Rudra's Scope is Architecture-less, so the Database side passes the two
 // lookups in one context struct. `None` models a standalone scope.)
 /// The Database-side lookups `Scope::addMap` needs: the flagbase property
 /// at an address (`glb->symboltab->getProperty`, database.hh:946) and the
@@ -2697,8 +2697,8 @@ impl Scope {
     /// Find the FunctionSymbol whose entry starts at `addr`. Faithful to
     /// `ScopeInternal::findFunction` (database.cc:2321). Returns the
     /// FunctionSymbol's entry address (the C++ version returns a `Funcdata*`;
-    /// Rugra's FunctionSymbol is a separate struct without Funcdata
-    /// integration, so we return the entry's `Address`). Rugra identifies
+    /// Rudra's FunctionSymbol is a separate struct without Funcdata
+    /// integration, so we return the entry's `Address`). Rudra identifies
     /// function symbols by `type_name == "func"` since the Symbol struct is
     /// not polymorphic.
     pub fn find_function(&self, addr: Address) -> Option<Address> {
@@ -2717,7 +2717,7 @@ impl Scope {
     // Ghidra: database.cc:2342 ScopeInternal::findExternalRef
     /// Find the ExternRefSymbol whose entry starts at `addr`. Faithful to
     /// `ScopeInternal::findExternalRef` (database.cc:2342). The C++ version
-    /// returns the `ExternRefSymbol*`; Rugra's ExternRefSymbol is a separate
+    /// returns the `ExternRefSymbol*`; Rudra's ExternRefSymbol is a separate
     /// struct, so we return the symbol id of the matching entry (identified
     /// by `type_name == "exref"`).
     pub fn find_external_ref(&self, addr: Address) -> Option<u64> {
@@ -2736,7 +2736,7 @@ impl Scope {
     // Ghidra: database.cc:2368 ScopeInternal::findCodeLabel
     /// Find the LabSymbol for the given address, valid at `addr`. Faithful to
     /// `ScopeInternal::findCodeLabel` (database.cc:2368). The C++ version
-    /// returns the `LabSymbol*`; Rugra's LabSymbol is a separate struct, so
+    /// returns the `LabSymbol*`; Rudra's LabSymbol is a separate struct, so
     /// we return the symbol id of the matching entry (identified by
     /// `type_name == "label"`).
     pub fn find_code_label(&self, addr: Address) -> Option<u64> {
@@ -2762,7 +2762,7 @@ impl Scope {
     /// Return the first SymbolEntry that maps the whole of the given Symbol
     /// within this Scope. Faithful to `Symbol::getFirstWholeMap`
     /// (database.cc:268). Ghidra's Symbol carries its own `mapentry` list;
-    /// Rugra's does not, so the owning Scope provides the entries.
+    /// Rudra's does not, so the owning Scope provides the entries.
     pub fn symbol_first_whole_map(&self, symbol_id: u64) -> Option<&SymbolEntry> {
         self.entries.iter().find(|e| {
             e.symbol.read().unwrap().symbol_id == symbol_id && e.offset == 0
@@ -2772,7 +2772,7 @@ impl Scope {
     // Ghidra: database.cc:280 Symbol::getMapEntry (Scope-side helper)
     /// Return the SymbolEntry for `symbol_id` that contains `addr`. Faithful
     /// to `Symbol::getMapEntry(addr)` (database.cc:280). May return a partial
-    /// entry. Ghidra walks the Symbol's own `mapentry` vector; Rugra's Symbol
+    /// entry. Ghidra walks the Symbol's own `mapentry` vector; Rudra's Symbol
     /// does not carry one, so the owning Scope provides the entries.
     pub fn symbol_map_entry(&self, symbol_id: u64, addr: Address) -> Option<&SymbolEntry> {
         self.entries.iter().find(|e| {
@@ -2793,7 +2793,7 @@ impl Scope {
     /// passed back via `addrmatch`. Returns the owning Scope's index in
     /// `scope_stack`, or `None` if no Scope controls the address.
     ///
-    /// Ghidra threads the scope chain via `Scope::getParent()`; Rugra's
+    /// Ghidra threads the scope chain via `Scope::getParent()`; Rudra's
     /// Scopes are owned by the `Database` and carry no parent pointer chain,
     /// so the caller supplies the ordered stack of ancestor scopes
     /// (`scope_stack[0]` = innermost). `scope1_end` is the exclusive end
@@ -2805,13 +2805,13 @@ impl Scope {
         usepoint: Address,
         addrmatch: &mut Option<usize>,
     ) -> Option<usize> {
-        // database.cc:916 — bail on constant addresses. Rugra is a
+        // database.cc:916 — bail on constant addresses. Rudra is a
         // single-address-space model with no constant space, so this guard
         // is a no-op preserved for fidelity.
         let mut i = 0;
         while i < scope1_end && i < scope_stack.len() {
             let scope1 = scope_stack[i];
-            // database.cc:918 — findAddr(addr, usepoint). Rugra's find_addr
+            // database.cc:918 — findAddr(addr, usepoint). Rudra's find_addr
             // ignores usepoint (all entries are considered valid); we refine
             // to in_use(usepoint) here.
             if let Some(entry) = scope1.find_addr(addr) {
@@ -2982,7 +2982,7 @@ impl Scope {
     /// the given name; if none are found in this scope, recurse into the
     /// parent (next entry in the stack). Faithful to `Scope::queryByName`
     /// (database.cc:1198). The C++ form recurses via `parent->queryByName`;
-    /// Rugra walks the supplied ancestor stack. Returns the ids of all
+    /// Rudra walks the supplied ancestor stack. Returns the ids of all
     /// matching Symbols in the first scope that has any.
     pub fn query_by_name(scope_stack: &[&Scope], nm: &str) -> Vec<u64> {
         for scope in scope_stack {
@@ -3075,7 +3075,7 @@ impl Scope {
     /// or `(None, flags)` with the scope/property-derived flags otherwise.
     ///
     /// `flag_lookup` provides the analogue of
-    /// `glb->symboltab->getProperty(addr)` (Rugra's Database::get_property),
+    /// `glb->symboltab->getProperty(addr)` (Rudra's Database::get_property),
     /// since the Scope itself has no Architecture handle.
     pub fn query_properties(
         scope_stack: &[&Scope],
@@ -3138,7 +3138,7 @@ impl Scope {
     /// it refers to. Faithful to `Scope::queryExternalRefFunction`
     /// (database.cc:1416). The C++ version calls
     /// `basescope->resolveExternalRefFunction(sym)`, which is
-    /// `queryFunction(sym->getRefAddr())`; Rugra returns the referred-to
+    /// `queryFunction(sym->getRefAddr())`; Rudra returns the referred-to
     /// function's entry address by performing that lookup against the same
     /// scope stack.
     pub fn query_external_ref_function(
@@ -4185,11 +4185,11 @@ impl Scope {
     /// Create a function Symbol at the given address in this Scope. Faithful to
     /// `Scope::addFunction` (database.cc:1615). The C++ form builds a
     /// `FunctionSymbol` (carrying `glb->min_funcsymbol_size`) and maps it to the
-    /// function entry address; Rugra's `Scope` stores generic `Symbol`s, so we
+    /// function entry address; Rudra's `Scope` stores generic `Symbol`s, so we
     /// create a `FunctionSymbol` struct (for the caller) and register its base
     /// `Symbol` (with `type_name == "func"`) plus a whole-map `SymbolEntry` at
     /// `addr`. As in database.cc:1620-1625, an overlapping container is queried
-    /// for a warning; Rugra has no `glb->printMessage`, so the overlap is
+    /// for a warning; Rudra has no `glb->printMessage`, so the overlap is
     /// reported only via the returned `overlap` flag.
     ///
     /// Returns `(FunctionSymbol, overlap)` where `overlap` is the address of an
@@ -4257,11 +4257,11 @@ impl Scope {
     /// Faithful to `Scope::addExternalRef` (database.cc:1642). The C++ form
     /// builds an `ExternRefSymbol` storing `refaddr`, maps it to `addr`, and
     /// clears the `Varnode::readonly` flag on the resulting SymbolEntry's
-    /// symbol (database.cc:1654). Rugra's `Scope` stores generic `Symbol`s, so
+    /// symbol (database.cc:1654). Rudra's `Scope` stores generic `Symbol`s, so
     /// we create an `ExternRefSymbol` struct (for the caller) and register its
     /// base `Symbol` (with `type_name == "exref"`) plus a whole-map entry. The
     /// readonly flag is cleared via `symbol_flags::READONLY` (database.cc:1654
-    /// uses `Varnode::readonly`; Rugra's Symbol flags namespace reuses
+    /// uses `Varnode::readonly`; Rudra's Symbol flags namespace reuses
     /// `symbol_flags::READONLY` for the same purpose).
     ///
     /// Returns the `ExternRefSymbol` view for the caller.
@@ -4303,7 +4303,7 @@ impl Scope {
     /// `Scope::addCodeLabel` (database.cc:1664). The C++ form builds a
     /// `LabSymbol` and maps it to `addr`; as in database.cc:1669-1674, an
     /// overlapping container is queried for a warning (using `addr` itself as
-    /// the usepoint). Rugra has no `glb->printMessage`, so the overlap is
+    /// the usepoint). Rudra has no `glb->printMessage`, so the overlap is
     /// reported only via the returned `overlap` flag.
     ///
     /// Returns `(LabSymbol, overlap)` where `overlap` is the symbol id of an
@@ -4341,7 +4341,7 @@ impl Scope {
     /// Faithful to `Scope::addDynamicSymbol` (database.cc:1690). The C++ form
     /// builds a `Symbol`, then calls `addDynamicMapInternal(sym, Varnode::mapped,
     /// hash, 0, ct->getSize(), rnglist)` (database.cc:1700), where `rnglist`
-    /// holds `caddr` if it is valid. Rugra's `Scope` stores generic `Symbol`s
+    /// holds `caddr` if it is valid. Rudra's `Scope` stores generic `Symbol`s
     /// and uses `dynamic_entries` for hashed `SymbolEntry`s; we mirror that by
     /// pushing a `SymbolEntry::new_dynamic` with `extraflags = MAPPED`, offset 0
     /// and the requested size, and a `RangeList` containing `caddr` when valid.
@@ -4423,7 +4423,7 @@ impl Scope {
     /// constructor (database.cc:624-631) sets `value`, `category = equate`,
     /// `dispflags |= format` — then calls `addSymbolInternal(sym)` and
     /// `addDynamicMapInternal(sym, Varnode::mapped, hash, 0, 1, rnglist)`
-    /// (database.cc:1722), where `rnglist` holds `addr` if valid. Rugra
+    /// (database.cc:1722), where `rnglist` holds `addr` if valid. Rudra
     /// registers the base `Symbol` (with `type_name == "equ"`, category
     /// `Equate`, and the requested display format) and pushes a single-byte
     /// dynamic `SymbolEntry`.
@@ -4490,7 +4490,7 @@ impl Scope {
     /// variable with union data-type. Faithful to `Scope::addUnionFacetSymbol`
     /// (database.cc:1737). The C++ form builds a `UnionFacetSymbol(owner, nm,
     /// dt, fieldNum)`, then calls `addDynamicMapInternal(sym, Varnode::mapped,
-    /// hash, 0, 1, rnglist)` (database.cc:1745). Rugra builds a
+    /// hash, 0, 1, rnglist)` (database.cc:1745). Rudra builds a
     /// `UnionFacetSymbol` struct (for the caller), registers its base `Symbol`
     /// (with `type_name == "union"` and the requested category), and pushes a
     /// single-byte dynamic `SymbolEntry`.
@@ -4552,7 +4552,7 @@ impl Scope {
     ///   (`addr = None`, database.cc:1146-1147 addDynamicMapInternal) never
     ///   take addrtied or the fold.
     /// - the join-address piece loop (database.cc:1156-1177) is out of this
-    ///   helper: Rugra's map-install callers never map join addresses.
+    ///   helper: Rudra's map-install callers never map join addresses.
     ///
     /// `ctx` carries the two `glb->symboltab` lookups the C++ scope reads
     /// through its Architecture handle; `None` models a standalone scope
@@ -4641,7 +4641,7 @@ impl Scope {
     /// ordered by mapping address. Faithful to `ScopeInternal::begin`
     /// (database.cc:1889) / `ScopeInternal::end` (database.cc:1914). Ghidra's
     /// `MapIterator` walks the per-address-space `maptable` rangemaps in
-    /// address order; Rugra stores a single `entries` vector, so we sort a
+    /// address order; Rudra stores a single `entries` vector, so we sort a
     /// snapshot by address to provide the same ordering guarantee. This is the
     /// range-for equivalent used by `Database::encode` and debugging output.
     ///
@@ -4664,7 +4664,7 @@ impl Scope {
     /// Return an iterator over the dynamic (hash-based) `SymbolEntry`s in this
     /// Scope. Faithful to `ScopeInternal::beginDynamic` (database.cc:1921) /
     /// `ScopeInternal::endDynamic` (database.cc:1927). Ghidra returns a
-    /// `list<SymbolEntry>::const_iterator` over `dynamicentry`; Rugra returns a
+    /// `list<SymbolEntry>::const_iterator` over `dynamicentry`; Rudra returns a
     /// slice iterator over `dynamic_entries`.
     pub fn begin_end_dynamic(&self) -> std::slice::Iter<'_, SymbolEntry> {
         self.dynamic_entries.iter()
@@ -4676,10 +4676,10 @@ impl Scope {
     /// symbol in `category[cat]` is removed via `removeSymbol`; when `cat < 0`,
     /// every symbol whose category is `>= 0` is skipped (Ghidra clears the
     /// `no_category` bucket, i.e. symbols whose category is `< 0`). The C++
-    /// implementation uses the `nametree` to enumerate; Rugra collects ids from
+    /// implementation uses the `nametree` to enumerate; Rudra collects ids from
     /// `symbols` first to avoid mutating the map while iterating.
     ///
-    /// NOTE: Rugra maps Ghidra's `Symbol::no_category = -1` to
+    /// NOTE: Rudra maps Ghidra's `Symbol::no_category = -1` to
     /// `SymbolCategory::NoCategory`; the `cat < 0` branch therefore clears
     /// symbols whose category is `NoCategory` (i.e. `get_category() < 0` in the
     /// C++ sense), matching database.cc:2032-2038.
@@ -4722,7 +4722,7 @@ impl Scope {
     /// clear any unlocked name and reset size-typelock (Ghidra renames to an
     /// undefined name and calls `resetSizeLockType`); otherwise remove it. When
     /// `cat < 0`, the same logic applies to symbols whose category is
-    /// `NoCategory`. Rugra inlines the rename to an undefined placeholder and
+    /// `NoCategory`. Rudra inlines the rename to an undefined placeholder and
     /// clears the size-typelock flag directly (see `clear_unlocked` for the
     /// same simplification).
     pub fn clear_unlocked_category(&mut self, cat: i32) {
@@ -4776,13 +4776,13 @@ impl Scope {
     /// Let the Scope adjust its internal caches after the Architecture's
     /// address-space configuration is finalized. Faithful to
     /// `ScopeInternal::adjustCaches` (database.cc:2111). The C++ form resizes
-    /// `maptable` to `glb->numSpaces()`; Rugra's Scope has a single address
+    /// `maptable` to `glb->numSpaces()`; Rudra's Scope has a single address
     /// space and uses flat vectors rather than a per-space rangemap, so this is
     /// a no-op preserved for API fidelity (callers in the configuration path
     /// may still invoke it).
     pub fn adjust_caches(&mut self) {
         // database.cc:2114 — maptable.resize(glb->numSpaces(), NULL).
-        // Rugra has no per-space maptable to resize.
+        // Rudra has no per-space maptable to resize.
     }
 
     // Ghidra: database.cc:2117 ScopeInternal::removeSymbolMappings
@@ -4791,7 +4791,7 @@ impl Scope {
     /// `ScopeInternal::removeSymbolMappings` (database.cc:2117). The C++ form
     /// erases each iterator in `symbol->mapentry` from the owning rangemap (or
     /// `dynamicentry` for dynamic maps), resets `wholeCount = 0`, and clears
-    /// `mapentry`. Rugra retains entries in the flat `entries` /
+    /// `mapentry`. Rudra retains entries in the flat `entries` /
     /// `dynamic_entries` vectors, so we filter them out by symbol id and reset
     /// `whole_count` on the Symbol.
     pub fn remove_symbol_mappings(&mut self, symbol_id: u64) {
@@ -4814,9 +4814,9 @@ impl Scope {
     /// symbol has exactly one address-tied mapping, that mapping is removed,
     /// the type is updated, and a new whole-map entry is added at the saved
     /// address with the new size (database.cc:2177-2196). Otherwise the
-    /// retype fails; Ghidra throws `RecovError`, Rugra returns `false`.
+    /// retype fails; Ghidra throws `RecovError`, Rudra returns `false`.
     ///
-    /// Rugra accepts the new type as `(type_name, size)` since Datatype
+    /// Rudra accepts the new type as `(type_name, size)` since Datatype
     /// integration is deferred; `checkSizeTypeLock` is re-run after the change
     /// (database.cc:2174/2192).
     pub fn retype_symbol(&mut self, symbol_id: u64, type_name: &str, new_size: i32) -> bool {
@@ -4834,7 +4834,7 @@ impl Scope {
             .map(|(i, _)| i)
             .collect();
         // database.cc:2171 — if size matches OR no mappings, just set type.
-        // Ghidra's sym->type->getSize() is the symbol's data-type size; Rugra's
+        // Ghidra's sym->type->getSize() is the symbol's data-type size; Rudra's
         // dtype may be None (deferred integration), so we fall back to the
         // first whole-map entry's size when dtype is unset.
         let cur_size = sym_arc.read().unwrap()
@@ -4880,14 +4880,14 @@ impl Scope {
                 return true;
             }
         }
-        // database.cc:2197 — throw RecovError. Rugra returns false.
+        // database.cc:2197 — throw RecovError. Rudra returns false.
         false
     }
 
     // Ghidra: database.cc:2218 ScopeInternal::setDisplayFormat
     /// Set the display format of a Symbol. Faithful to
     /// `ScopeInternal::setDisplayFormat` (database.cc:2218). The C++ form
-    /// forwards to `sym->setDisplayFormat(attr)`; Rugra does the same. No-op if
+    /// forwards to `sym->setDisplayFormat(attr)`; Rudra does the same. No-op if
     /// the symbol id is not registered.
     pub fn set_display_format(&mut self, symbol_id: u64, attr: u32) {
         if let Some(sym) = self.symbols.get(&symbol_id) {
@@ -4899,7 +4899,7 @@ impl Scope {
     /// Get the indexed Symbol within the given category. Faithful to
     /// `ScopeInternal::getCategorySymbol` (database.cc:2814). Returns `None`
     /// when `cat` is out of range or `ind` is out of range for that category.
-    /// The C++ form indexes `category[cat][ind]`; Rugra stores categories in a
+    /// The C++ form indexes `category[cat][ind]`; Rudra stores categories in a
     /// `BTreeMap<i32, Vec<...>>`, so we look up the vector and index it.
     pub fn get_category_symbol(&self, cat: i32, ind: i32) -> Option<Arc<RwLock<Symbol>>> {
         // database.cc:2817-2818 — bounds on cat.
@@ -4983,7 +4983,7 @@ impl PartMap {
     // RUDRA-GLUE: debug-only key-form guard (FLAGBASE-CR-F2; no Ghidra
     // counterpart — the oracle's flagbase is `partmap<Address,uint4>`
     // over space-qualified keys by construction, database.hh:921).
-    /// Rugra's flagbase runs on the legacy SPACELESS `Address` form on
+    /// Rudra's flagbase runs on the legacy SPACELESS `Address` form on
     /// BOTH sides (producers: the loader readonly / SYMDB `<hole>`
     /// installs; consumers: the Ram consults in funcdata/heritage), and
     /// `Address::cmp` orders `None` before every `Some(_)` tag (the
@@ -5110,7 +5110,7 @@ pub struct Database {
 
 /// Observable projection of a `queryContainer`/`queryProperties` hit — the
 /// currency of the Funcdata query channel (B3-COREACTION-CONSTANTPTR-0001).
-/// Ghidra returns the scope-owned `SymbolEntry*` directly; Rugra's scopes
+/// Ghidra returns the scope-owned `SymbolEntry*` directly; Rudra's scopes
 /// live behind `Arc<RwLock<Database>>`, so a query hands back this by-value
 /// summary of the same observables. It carries everything the production
 /// consumers read off the entry:
@@ -5893,7 +5893,7 @@ impl Database {
         // database.cc:3057-3059 — clearResolve + fillResolve. Both bail
         // early for the global scope (database.cc:2873/:2901-2903: the
         // global scope never enters the resolvemap) and for functional
-        // scopes (fd != 0); Rugra scopes carry no Funcdata binding, so the
+        // scopes (fd != 0); Rudra scopes carry no Funcdata binding, so the
         // functional-scope guard is vacuous (documented residual).
         if scope_id == self.global_scope_id {
             return;
@@ -6015,7 +6015,7 @@ impl Database {
     ///   (database.cc:3236) — overlapping property ranges ACCUMULATE on the
     ///   shared partitions, they do not overwrite each other.
     ///
-    /// Rugra notes: `Range::get_last_addr_open` (address.cc:265 mirror) has
+    /// Rudra notes: `Range::get_last_addr_open` (address.cc:265 mirror) has
     /// no `Address::m_maximal` sentinel for the "range runs to the space
     /// top and no later space exists" case — `last.next()` is used as the
     /// open end, which is equivalent for `getValue` queries; the residual
@@ -6067,7 +6067,7 @@ impl Database {
     /// non-default-data-space probes (the cspec register window, OTHER)
     /// walk the space-keyed ownership tree exactly the way the C++
     /// `queryProperties(const Address&, ...)` does. The entry leg admits
-    /// the default-data-space (RAM) entries only — Rugra's `SymbolEntry`
+    /// the default-data-space (RAM) entries only — Rudra's `SymbolEntry`
     /// addresses are spaceless offsets (the DB-LOCALSCOPE-MAP-0001 split
     /// residual) — which matches the C++ walk for every probe of this
     /// fixture's shape (the locked global scopes carry ram loader
@@ -6138,7 +6138,7 @@ impl Database {
 
     // RUDRA-GLUE: spaced `getProperty` (the flagbase partitions are
     /// Address-keyed in the oracle — space index then offset, partmap.hh
-    /// ordering via address.hh:375); Rugra's flagbase is the legacy
+    /// ordering via address.hh:375); Rudra's flagbase is the legacy
     /// spaceless partmap over RAM offsets, so a non-RAM probe reads the
     /// default 0 partition — the same answer the oracle gives for spaces
     /// no property range ever labeled.
@@ -6151,13 +6151,13 @@ impl Database {
 
 
     // RUDRA-GLUE: parent-chain materializer (Ghidra's scopes carry
-    // `parent` pointers followed by stackContainer et al.; Rugra's Scopes
+    // `parent` pointers followed by stackContainer et al.; Rudra's Scopes
     // are Database-owned values, so the chain is walked here from
     // `parent_id` — the observable walk order is identical).
     /// Build the ordered ancestor stack of scopes starting at `scope_id`
     /// (`scope_stack[0]` = innermost, then parents up to the global scope).
-    /// This is the Rugra equivalent of following `Scope::getParent()` links
-    /// (database.cc:1251 `stackContainer(basescope, NULL, ...)`): Rugra's
+    /// This is the Rudra equivalent of following `Scope::getParent()` links
+    /// (database.cc:1251 `stackContainer(basescope, NULL, ...)`): Rudra's
     /// Scopes are owned by the `Database` and carry no parent pointer, so
     /// the chain is materialized here. A cycle guard stops at a repeated id.
     pub fn ancestor_stack(&self, scope_id: u64) -> Vec<&Scope> {
@@ -6385,7 +6385,7 @@ impl Database {
     /// through the Database scope stack: `mapScope(this, addr, usepoint)`
     /// then walk parents until `inScope(addr, sz, usepoint)` holds. The
     /// constant-address guard (cc:1358 `addr.isConstant()`) is the caller's
-    /// space gate — Rugra's `Address` carries no space, so callers only
+    /// space gate — Rudra's `Address` carries no space, so callers only
     /// reach this channel for default-data-space (RAM) addresses.
     pub fn discover_scope(&self, qpoint_scope_id: u64, addr: Address, sz: i32) -> Option<u64> {
         let base = self.map_scope(qpoint_scope_id, addr);
@@ -7842,7 +7842,7 @@ mod tests {
 
     #[test]
     fn test_scope_adjust_caches_noop() {
-        // database.cc:2111 — adjustCaches is a no-op in Rugra (single space).
+        // database.cc:2111 — adjustCaches is a no-op in Rudra (single space).
         let mut scope = Scope::new(2, "func", 1); // non-global
         scope.add_symbol_mapped("x", "int", Address::new(0x1000), 4);
         scope.adjust_caches();

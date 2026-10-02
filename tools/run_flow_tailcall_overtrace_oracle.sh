@@ -29,7 +29,7 @@ done
 # Locked binutils 2.38 BFD build (same pins as run_flow_containedcall_oracle.sh).
 bfd_header_sha256=c8c9c20823ebd8d427d9f91dd642b82b263fca2245a8ef4eb34f0de0cde25702
 bfd_library_sha256=f9ca64d035c483bbfac32ca550074c20398ae2f0bb84dd989059dadb9cea8a1e
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" ]]; then
   for candidate in /tmp/rugra-ghidra-bfd-2.38/usr/include /usr/include; do
     if [[ -f "$candidate/bfd.h" ]] && \
@@ -39,7 +39,7 @@ if [[ -z "$bfd_include" ]]; then
     fi
   done
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-}
+bfd_library=${RUDRA_BFD_LIBRARY:-}
 if [[ -z "$bfd_library" ]]; then
   for candidate in \
       /tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \

@@ -68,7 +68,7 @@ A storage location for a particular Symbol. Faithful to `SymbolEntry`
   dynamic ? entry offset : `(inaddr - addr) + offset`，然后调用方传入的
   Architecture-owned TypeFactory 的 canonical `get_exact_piece`
   （database.cc:161 经 `symbol->getScope()->getArch()->types` 到达同一工厂；
-  Rugra 的 Symbol 不持有 Scope owner，故工厂作为显式参数传入，不建局部/全局替身）。
+  Rudra 的 Symbol 不持有 Scope owner，故工厂作为显式参数传入，不建局部/全局替身）。
   2026-08-24（TYPEFACTORY-EXACTPIECE-CALLERS-0001）移除旧的
   `Datatype::get_sub_type` 本地替代路径。
 - `update_type(type_factory, vn_addr, vn_size)` (database.cc:135):
@@ -441,7 +441,7 @@ equate-pipeline 测试随 VARNODE-COPYSYMBOL-HIGHBRANCH-0001 的关联函数签�
   Varnode::mapped,...)`），`getAllFlags` 现在包含 mapped 位。
 - `add_range`/`remove_range` 重写为 `clearResolve`+`fillResolve` 语义
   （database.cc:3050-3077/:2871/:2897）：global scope 不入 resolvemap
-  （cc:2873/:2901 早退；Rugra scope 无 fd 绑定，functional-scope 守卫为空，
+  （cc:2873/:2901 早退；Rudra scope 无 fd 绑定，functional-scope 守卫为空，
   已注释）；namespace range 以 `resolve_insert_split`（ScopeResolve
   rangemap insert 的重叠分裂语义，database.hh:900）写入，新 range 接管与
   现有 owner 的重叠区，旧 owner 保留不相交余量。

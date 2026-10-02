@@ -30,8 +30,8 @@ fn main() {
     println!("cargo:rerun-if-changed=examples/common/stale_guard_hash.rs");
     match source_digest(std::path::Path::new(".")) {
         Ok((digest, count)) => {
-            println!("cargo:rustc-env=RUGRA_BUILD_SOURCE_DIGEST={digest:016x}");
-            println!("cargo:rustc-env=RUGRA_BUILD_SOURCE_FILE_COUNT={count}");
+            println!("cargo:rustc-env=RUDRA_BUILD_SOURCE_DIGEST={digest:016x}");
+            println!("cargo:rustc-env=RUDRA_BUILD_SOURCE_FILE_COUNT={count}");
         }
         Err(error) => {
             // Fail the build loudly: a package build without a readable

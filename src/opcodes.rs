@@ -132,7 +132,7 @@ impl OpCode {
             OpCode::CPUI_INT_SLESSEQUAL => "INT_SLESSEQUAL",
             OpCode::CPUI_INT_ZEXT => "INT_ZEXT",
             OpCode::CPUI_INT_SEXT => "INT_SEXT",
-            // CPUI_TRUNC removed: was Rugra-only, not in Ghidra. Integer
+            // CPUI_TRUNC removed: was Rudra-only, not in Ghidra. Integer
             // truncation uses CPUI_SUBPIECE; float uses CPUI_FLOAT_TRUNC.
             OpCode::CPUI_FLOAT_ADD => "FLOAT_ADD",
             OpCode::CPUI_FLOAT_SUB => "FLOAT_SUB",
@@ -384,7 +384,7 @@ impl fmt::Display for OpCode {
 /// must be swapped to preserve semantics (e.g. `!(V < W) => W <= V`).
 /// Returns `CPUI_MAX` if `opc` is not a flippable comparison.
 ///
-/// Note: Rugra `CPUI_BOOL_NEGATE` == Ghidra `CPUI_BOOL_NEGATE`.
+/// Note: Rudra `CPUI_BOOL_NEGATE` == Ghidra `CPUI_BOOL_NEGATE`.
 pub fn get_booleanflip(opc: OpCode, reorder: &mut bool) -> OpCode {
     match opc {
         OpCode::CPUI_INT_EQUAL => {
@@ -411,7 +411,7 @@ pub fn get_booleanflip(opc: OpCode, reorder: &mut bool) -> OpCode {
             *reorder = true;
             OpCode::CPUI_INT_LESS
         }
-        // Ghidra BOOL_NEGATE == Rugra BOOL_NOT.
+        // Ghidra BOOL_NEGATE == Rudra BOOL_NOT.
         OpCode::CPUI_BOOL_NEGATE => {
             *reorder = false;
             OpCode::CPUI_COPY

@@ -1,6 +1,6 @@
 //! Range and RangeList alignment verification logic.
 //!
-//! This module ensures that Rugra's address range representation matches Ghidra's
+//! This module ensures that Rudra's address range representation matches Ghidra's
 //! internal Range and RangeList classes as defined in `address.hh`.
 
 use crate::Address;
@@ -200,20 +200,20 @@ impl Default for RangeList {
 }
 
 // RUDRA-GLUE: verify_range (no Ghidra counterpart found)
-/// Verify that a Rugra Range aligns with Ghidra's representation
+/// Verify that a Rudra Range aligns with Ghidra's representation
 pub fn verify_range(
-    rugra_range: &Range,
+    rudra_range: &Range,
     ghidra_first: u64,
     ghidra_last: u64,
 ) -> bool {
-    let first_match = rugra_range.first.as_u64() == ghidra_first;
-    let last_match = rugra_range.last.as_u64() == ghidra_last;
+    let first_match = rudra_range.first.as_u64() == ghidra_first;
+    let last_match = rudra_range.last.as_u64() == ghidra_last;
 
     if !first_match || !last_match {
         eprintln!(
-            "[ALIGN DIFF] Range mismatch: Rugra [0x{:x}, 0x{:x}] != Ghidra [0x{:x}, 0x{:x}]",
-            rugra_range.first.as_u64(),
-            rugra_range.last.as_u64(),
+            "[ALIGN DIFF] Range mismatch: Rudra [0x{:x}, 0x{:x}] != Ghidra [0x{:x}, 0x{:x}]",
+            rudra_range.first.as_u64(),
+            rudra_range.last.as_u64(),
             ghidra_first,
             ghidra_last
         );
@@ -223,22 +223,22 @@ pub fn verify_range(
 }
 
 // RUDRA-GLUE: verify_range_list (no Ghidra counterpart found)
-/// Verify that a Rugra RangeList aligns with Ghidra's representation
+/// Verify that a Rudra RangeList aligns with Ghidra's representation
 pub fn verify_range_list(
-    rugra_list: &RangeList,
+    rudra_list: &RangeList,
     ghidra_ranges: &[(u64, u64)], // (first, last) pairs
 ) -> bool {
-    if rugra_list.num_ranges() != ghidra_ranges.len() {
+    if rudra_list.num_ranges() != ghidra_ranges.len() {
         eprintln!(
-            "[ALIGN DIFF] RangeList count mismatch: Rugra {} != Ghidra {}",
-            rugra_list.num_ranges(),
+            "[ALIGN DIFF] RangeList count mismatch: Rudra {} != Ghidra {}",
+            rudra_list.num_ranges(),
             ghidra_ranges.len()
         );
         return false;
     }
 
-    for (rugra_range, (ghidra_first, ghidra_last)) in rugra_list.ranges().iter().zip(ghidra_ranges.iter()) {
-        if !verify_range(rugra_range, *ghidra_first, *ghidra_last) {
+    for (rudra_range, (ghidra_first, ghidra_last)) in rudra_list.ranges().iter().zip(ghidra_ranges.iter()) {
+        if !verify_range(rudra_range, *ghidra_first, *ghidra_last) {
             return false;
         }
     }
@@ -249,22 +249,22 @@ pub fn verify_range_list(
 // RUDRA-GLUE: verify_contains (no Ghidra counterpart found)
 /// Verify that contains() function aligns
 pub fn verify_contains(
-    rugra_range: &Range,
+    rudra_range: &Range,
     test_addr: u64,
     ghidra_result: bool,
 ) -> bool {
-    let rugra_result = rugra_range.contains(Address::new(test_addr));
+    let rudra_result = rudra_range.contains(Address::new(test_addr));
 
-    if rugra_result != ghidra_result {
+    if rudra_result != ghidra_result {
         eprintln!(
-            "[ALIGN DIFF] Range::contains(0x{:x}) mismatch: Rugra {} != Ghidra {}",
+            "[ALIGN DIFF] Range::contains(0x{:x}) mismatch: Rudra {} != Ghidra {}",
             test_addr,
-            rugra_result,
+            rudra_result,
             ghidra_result
         );
     }
 
-    rugra_result == ghidra_result
+    rudra_result == ghidra_result
 }
 
 #[cfg(test)]

@@ -1720,7 +1720,7 @@ inject Phase 4 全局 def-linking 确认禁用——它正确解析栈符号但�
   - `scope_local_is_unmapped_unaliased` — `ScopeLocal::isUnmappedUnaliased`（varmap.cc:494-502）。
   - `local_symbol_sized_type`（2026-08-24 TYPEFACTORY-EXACTPIECE-CALLERS-0001 重写）— `SymbolEntry::getSizedType`（database.cc:151-162）的 LocalSymbol 形式：`off = inaddr - sym.start`（whole-map entry offset 为 0），piece 查找委托 Architecture-owned TypeFactory 的 canonical `TypeFactory::get_exact_piece`（type.cc:4090-4117，经 funcdata_varnode.cc:957 的 entry→scope→arch 链到达同一工厂；Rugra 侧由 `sync_varnodes_with_symbols` 从 `self.get_arch().types` 捕获并传入）。旧的 `exact_piece_arc_sub_type` 本地下钻副本已删除（无 partial 构造、丢 canonical identity）；Architecture 未接线时 fail-closed（类型投影跳过，flag 同步照常）。双侧门禁 `tests/oracle/exactpiece_callers_1204`。
 - 调用闭包：`ActionRestructureVarnode`（coreaction.cc:2281-2282，false/aliasyes，count 累计）与 `ActionMappedLocalSync`（coreaction.cc:2302-2303，true/true，count 累计）。
-- 已知残差：① ~~`getExactPiece` 的 partial 构造缺失~~（2026-08-24 起走 canonical 工厂，partial struct/array/enum/union 与 exact 命中同 oracle）；Architecture 未接线时类型投影 fail-closed（RUGRA-GAP，见 ARCH-0001 接线 TODO）；② Rugra `Varnode::set_flags/clear_flags` 本体不带 flagsDirty 传播（varnode.rs 端预置缺口，本移植在调用点补偿）；③ Architecture-attached 路径现保持其 factory flavor 的真实命名与 Arc identity；无 Architecture 的 legacy fallback 与不同 Ghidra frontend flavor 仍须分别登记，禁止 fixture 层把 `undefined{size}`/`xunknown{size}` 归一化成 MATCH。
+- 已知残差：① ~~`getExactPiece` 的 partial 构造缺失~~（2026-08-24 起走 canonical 工厂，partial struct/array/enum/union 与 exact 命中同 oracle）；Architecture 未接线时类型投影 fail-closed（RUDRA-GAP，见 ARCH-0001 接线 TODO）；② Rugra `Varnode::set_flags/clear_flags` 本体不带 flagsDirty 传播（varnode.rs 端预置缺口，本移植在调用点补偿）；③ Architecture-attached 路径现保持其 factory flavor 的真实命名与 Arc identity；无 Architecture 的 legacy fallback 与不同 Ghidra frontend flavor 仍须分别登记，禁止 fixture 层把 `undefined{size}`/`xunknown{size}` 归一化成 MATCH。
 
 ### 2026-06-29（续 2）：new_extended_constant（funcdata_varnode.cc:462）
 - `new_extended_constant(s, lo, hi, before_op)` — 创建可能 >8 字节的常量 Varnode。s≤8 时直接 newConstant；s>8 且 hi==0 时 INT_ZEXT(const)；s>8 且 hi!=0 时 PIECE(hi,lo)。忠实移植 Ghidra `Funcdata::newExtendedConstant`（funcdata_varnode.cc:462-484）。解锁 RuleDivTermAdd。
@@ -2649,7 +2649,7 @@ Rugra 通道（保真序）：
   删"的顺序下漏跳死块读者；MULTIEQUAL 臂经 slot 前驱块尾插 COPY、INDIRECT
   臂前插 COPY、普通 op 直插常量。
 - `block_remove_internal` 不可达臂接线 `descend2_undef`（cc:304-310 的
-  undef 返回值控制一次性警告），移除 RUGRA-GAP 注释。
+  undef 返回值控制一次性警告），移除 RUDRA-GAP 注释。
 - `descendants_outside`（funcdata_block.cc:234-241）改查读者 op 的**父块**
   DEAD flag（原查 op 自身 is_dead，删块序中恒 false → 误报）。
 - `move_out_edge` 忠实重写（block.cc:1502 moveOutEdge = replaceInEdge
@@ -2924,7 +2924,7 @@ funcdata_varnode.cc:269-292 的 OPACTION_DEBUG 钩子位;守卫先行、变更�
 
 - `switch_over_jump_tables(fd: &Funcdata, flow: &FlowInfo)`（关联函数形态）：
   遍历 `fd.jump_tables` 逐表 `jt.write().switch_over(flow)`。原 `&mut self` stub
-  （RUGRA-GAP 注释、零调用者）删除。RUDRA-GLUE：flow 跟随期唯一 `&mut Funcdata`
+  （RUDRA-GAP 注释、零调用者）删除。RUDRA-GLUE：flow 跟随期唯一 `&mut Funcdata`
   由 `FlowInfo` 持有，oracle 的成员函数形态无法同时借用两侧，故取共享引用 +
   `Arc<RwLock<JumpTable>>` 写锁内变更（与 Ghidra 经 jumpvec 指针改写一致）。
   错误经 `Error::Lowlevel` 传播（followFlow 同语义）。
@@ -3460,7 +3460,7 @@ module retirement commit — the disasm module no longer exports those types.
 ## 2026-09-27：attempt_dynamic_mapping_late 补 cc:1373-1386 implied→CAST 对侧重定向（DYNMAP-LATE-CAST-RETARGET-0001，Lane DYNMAPLATE）
 
 `Funcdata::attempt_dynamic_mapping_late`（funcdata.rs，Ghidra funcdata_varnode.cc:1347
-`Funcdata::attemptDynamicMappingLate`）此前自注 RUGRA-GAP 跳过 cc:1373-1386 的
+`Funcdata::attemptDynamicMappingLate`）此前自注 RUDRA-GAP 跳过 cc:1373-1386 的
 implied-Varnode CAST 对侧重定向。本批 1:1 移植该块：哈希命中的 vn 为 implied 且
 CAST 邻接时，取"另一侧"（`vn->isWritten() && getDef()->code()==CPUI_CAST` →
 `getIn(0)`；否则 `loneDescend()` 为 CAST → `getOut()`），仅当对侧 `isExplicit()`
@@ -3482,7 +3482,7 @@ Rugra 反接 tmp；修复后（基 master 6a458387 + 本批）双侧该 case 全
 哈希行，前置 DYNHASH-UNIQUE-ANCHOR-0001 已并）。metadata 不动（重钉留 MB20）；官方
 runner 按钉死 crate 快照（f3499354）复跑全绿，pin 完整性保持。残余分歧仅剩
 DYNMAP-SETPROPS-RET-0001 / COREACT-DYNMAP-STUB-0001 / COREACT-DYNSYM-STUB-0001
-（非本票写域）。`retypeSymbol`（cc:1389-1397）维持既有 RUGRA-GAP 注记不动。
+（非本票写域）。`retypeSymbol`（cc:1389-1397）维持既有 RUDRA-GAP 注记不动。
 ## 2026-09-27：`Funcdata::clone_block_expression` pub 桥（RULEACTION-CLONEBLOCKOPS-0001，Lane RULEADJ2）
 
 新增 6 行公共方法 `Funcdata::clone_block_expression(ops, follow_op)`：纯委托

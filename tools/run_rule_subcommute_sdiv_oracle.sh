@@ -11,7 +11,7 @@
 # Comparand   : normal mode = byte-compare vs the archived oracle record;
 #               trap modes = form assertions (Rugra rc 101 + the exact
 #               opbehavior panic messages; oracle re-verified live only under
-#               RUGRA_SUBCOMMUTE_ORACLE_RUN=1).
+#               RUDRA_SUBCOMMUTE_ORACLE_RUN=1).
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -44,11 +44,11 @@ trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # ---- oracle comparand (archive or live) -----------------------------------
 oracle_out="$workdir/oracle_normal.out"
-if [[ ${RUGRA_SUBCOMMUTE_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUGRA_SUBCOMMUTE_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-subcommute-1204}
+if [[ ${RUDRA_SUBCOMMUTE_ORACLE_RUN:-0} == 1 ]]; then
+  cache_root=${RUDRA_SUBCOMMUTE_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-subcommute-1204}
   runner="$cache_root/rule_subcommute_sdiv_1204_cpp"
   if [[ ! -x $runner ]]; then
-    bfd_include=${RUGRA_SUBCOMMUTE_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+    bfd_include=${RUDRA_SUBCOMMUTE_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
     [[ -d $bfd_include ]] || die "BFD include tree missing: $bfd_include (see AGENTS.md oracle env note)"
     mkdir -p "$cache_root/x"
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \

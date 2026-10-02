@@ -34,7 +34,7 @@ EXPECTED_SLA_DEFLATED_SIZE=484937
 EXPECTED_SLA_SIZE_BAND_PCT=8
 
 repo_root=$(git rev-parse --show-toplevel)
-ghidra_repo=${RUGRA_GHIDRA_DIR:-"$repo_root/ghidra"}
+ghidra_repo=${RUDRA_GHIDRA_DIR:-"$repo_root/ghidra"}
 output_dir=${1:-"$repo_root/sleigh_specs"}
 
 die() {

@@ -416,7 +416,7 @@ for key, value in decisive.items():
         raise SystemExit(f"decisive_semantics.{key} must be non-empty")
 PY
 
-jobs=${RUGRA_DB_SCOPE_GHIDRA_JOBS:-4}
+jobs=${RUDRA_DB_SCOPE_GHIDRA_JOBS:-4}
 if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$host_make_bin" --silent -C "$oracle_cpp" -j "$jobs" \
   CXX="$host_cxx_bin -std=c++11" EXTRA= libdecomp.a \
@@ -442,7 +442,7 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_cxx_bin" \
   exit 1
 fi
 
-fixture_target=${RUGRA_DB_SCOPE_TARGET_DIR:-/tmp/rugra-target-db-scope-fixture}
+fixture_target=${RUDRA_DB_SCOPE_TARGET_DIR:-/tmp/rugra-target-db-scope-fixture}
 mkdir -p "$fixture_target"
 if ! (
   cd "$snapshot"

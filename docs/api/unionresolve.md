@@ -135,7 +135,7 @@ downcasts or `Arc` ownership. No behavior changed and no status was promoted.
   with a matching numeric offset cannot impersonate a typed FSPEC annotation;
   an already-bound op can still resolve through the oracle's exact-op fallback.
 - This is only the D0 identity/guard adaptation. The module remains L2 and the
-  overall verdict remains `MISMATCH`: Rugra still uses `AddressSpace::Iop`
+  overall verdict remains `MISMATCH`: Rudra still uses `AddressSpace::Iop`
   instead of dedicated `IPTR_FSPEC` (`TYPEOP-FSPEC-SPACE-0001`), does not wire
   the TypeOp getter/PrintC/StringManager path in this phase, and retains the
   other scoring gaps listed above.
@@ -152,7 +152,7 @@ No scorer/dispatch logic in this file changed otherwise.
 
 The module now HAS its pipeline producers. New public free functions
 (threading `fd` in place of Ghidra's virtual `Datatype` dispatch, since
-Rugra's `Datatype` enum has no Funcdata back-pointer):
+Rudra's `Datatype` enum has no Funcdata back-pointer):
 
 - `resolve_in_flow(fd, ct, op, slot)` — `Datatype::resolveInFlow` virtual
   mirror (type.cc:574 base / 1177 pointer-to-union / 1283 array / 1929
@@ -227,7 +227,7 @@ Faithfulness fixes, each keyed to the oracle line:
   `score_parameter`/`score_return_type` (locked call-specs) exactly as
   cc:184/cc:204 do, falling back to the unlocked heuristic when `fd` is
   absent (Ghidra derives fd from `op->getParent()->getFuncdata()`;
-  Rugra PcodeOps have no back-pointer).
+  Rudra PcodeOps have no back-pointer).
 - `score_trial_down` INT_ADD/INT_SUB/PTRSUB pointer+const arm drills via
   the virtual `TypePointer::downChain(off, par, parOff, array)`
   (type.cc:1084) through `TypeFactory::down_chain_virtual`, with the +5

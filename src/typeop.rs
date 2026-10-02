@@ -77,7 +77,7 @@ fn as_printc_mut(lng: &mut dyn PrintLanguage) -> Option<&mut PrintC> {
 /// the TypeFactory every TypeOp constructor receives (typeop.cc:233-242);
 /// For sizes within the architecture base limit, `getBase` returns the
 /// canonical interned base type. Ghidra converts larger requests to an
-/// unknown-byte array (type.cc:3652-3656); Rugra's remaining large-base
+/// unknown-byte array (type.cc:3652-3656); Rudra's remaining large-base
 /// caller closure is tracked by `TYPEFACTORY-LOCALTYPE-CACHE-0001`.
 // Ghidra: typeop.cc:261 TypeOp::getOutputLocal / typeop.cc:274 TypeOp::getInputLocal
 fn base_local_type(
@@ -139,7 +139,7 @@ pub fn comparison_input_cast(
 
 /// The `CastStrategyC` every trait arm in this file constructs:
 /// `CastStrategy::setTypeFactory` sets `promoteSize = tlst->getSizeOfInt()`
-/// (cast.cc:27). Rugra's trait objects reach the factory through
+/// (cast.cc:27). Rudra's trait objects reach the factory through
 /// `local_type_factory`, so the strategy is rebuilt per call from it.
 // RUDRA-GLUE: strategy construction mirror of CastStrategy::setTypeFactory
 //   (cast.cc:27); detached fixtures without a factory fall back to the
@@ -605,7 +605,7 @@ pub fn propagate_across_compare(
     let outvn = op.get_in(outslot as usize);
     if invn.is_some_and(|vn| vn.read().unwrap().is_spacebase()) {
         // cc:968-971: pointer to the unknown base, alttype-sized, wordsize
-        // of the default data space (x86-64 ram wordsize 1 in the Rugra
+        // of the default data space (x86-64 ram wordsize 1 in the Rudra
         // driver; propagate_to_pointer_sized carries the 1).
         return Some(propagate_to_pointer_sized(alt_type, alt_type.get_size(), type_factory));
     }
@@ -749,10 +749,10 @@ pub trait TypeOp {
     /// The TypeFactory this op's TypeOp object was constructed with — the
     /// Ghidra base-class `tlst` field (typeop.cc:233-242). Every Ghidra
     /// TypeOp subclass constructor takes `TypeFactory *t` and stores it on
-    /// the base; Rugra trait objects for the macro-generated opcodes are
+    /// the base; Rudra trait objects for the macro-generated opcodes are
     /// stateless unit structs, so the factory is exposed as this provider
     /// hook instead. `None` leaves the local-type defaults below without a
-    /// factory to query (mirroring an op whose Rugra impl has not yet been
+    /// factory to query (mirroring an op whose Rudra impl has not yet been
     /// wired to its Architecture TypeFactory).
     // RUDRA-GLUE: base-class `tlst` field access as a trait provider hook;
     //   impls that hold the constructor-injected factory override it.
@@ -788,7 +788,7 @@ pub trait TypeOp {
     /// `PcodeOp::inputTypeLocal` caller can also reach the owning function
     /// via `op->getParent()->getFuncdata()` (op.hh:252 inlines straight to
     /// `opcode->getInputLocal(this,slot)`, but the Funcdata is one hop away
-    /// for the TypeOp virtuals that need it). Rugra `PcodeOp` holds no
+    /// for the TypeOp virtuals that need it). Rudra `PcodeOp` holds no
     /// parent-to-Funcdata chain, so the Funcdata is threaded through this
     /// entry instead. `TypeOpCallind::getInputLocal` is currently the only
     /// override that consumes it (`getCallSpecs(op)`, typeop.cc:757); every
@@ -876,7 +876,7 @@ pub trait TypeOp {
     //   cached by Ghidra's TypeOpBinary/TypeOpUnary/TypeOpFunc constructors
     //   (typeop.hh:205 / :222 / :239). Ghidra has no virtual getOutputMetatype
     //   method; the field is read directly by getOutputLocal (typeop.cc:326
-    //   etc.), so Rugra exposes it via this helper.
+    //   etc.), so Rudra exposes it via this helper.
     fn get_output_metatype(&self) -> Option<TypeMetatype> {
         None
     }
@@ -2044,7 +2044,7 @@ impl TypeOp for TypeOpIntLeft {
             .unwrap_or_else(|| "_".to_string());
         format!("{} = {} << {}", out, in0, in1)
     }
-    // Ghidra: typeop.hh:529 TypeOpIntLeft::push -> lng->opIntLeft(op). Rugra's
+    // Ghidra: typeop.hh:529 TypeOpIntLeft::push -> lng->opIntLeft(op). Rudra's
     //   PrintLanguage does not yet expose opIntLeft (print-side emitter gap,
     //   PRINTC-CAST-OPNAME follow-up); op_binary preserves the previous
     //   routing until that emitter is ported.
@@ -2130,7 +2130,7 @@ impl TypeOp for TypeOpIntRight {
             .unwrap_or_else(|| "_".to_string());
         format!("{} = {} >> {}", out, in0, in1)
     }
-    // Ghidra: typeop.hh:538 TypeOpIntRight::push -> lng->opIntRight(op). Rugra
+    // Ghidra: typeop.hh:538 TypeOpIntRight::push -> lng->opIntRight(op). Rudra
     //   has no opIntRight emitter yet (print-side gap, see IntLeft note);
     //   op_binary preserves the previous routing.
     fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
@@ -2236,7 +2236,7 @@ impl TypeOp for TypeOpIntSright {
         format!("{} = {} s>> {}", out, in0, in1)
     }
     // Ghidra: typeop.hh:548 TypeOpIntSright::push -> lng->opIntSright(op).
-    //   Rugra has no opIntSright emitter yet (print-side gap, see IntLeft
+    //   Rudra has no opIntSright emitter yet (print-side gap, see IntLeft
     //   note); op_binary preserves the previous routing.
     fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
         lng.op_binary(op);
@@ -3038,7 +3038,7 @@ impl TypeOp for TypeOpCall {
         let fallback = || base_local_type(&self.type_factory, input_size, TypeMetatype::Unknown);
 
         // Ghidra gate: `(slot==0)||(vn->getSpace()->getType()!=IPTR_FSPEC)`
-        // (typeop.cc:695). Rugra has no dedicated fspace yet: the D0
+        // (typeop.cc:695). Rudra has no dedicated fspace yet: the D0
         // representation of an IPTR_FSPEC annotation is an Iop-space
         // ANNOTATION varnode carrying the typed callspec Weak
         // (Funcdata::new_varnode_call_specs / Funcdata::get_call_specs_of_op,
@@ -3052,7 +3052,7 @@ impl TypeOp for TypeOpCall {
                 None
             } else {
                 // Ghidra: FuncCallSpecs::getFspecFromConst(vn->getAddr())
-                // (fspec.hh:1733) — typed Weak upgrade in Rugra.
+                // (fspec.hh:1733) — typed Weak upgrade in Rudra.
                 input0.get_call_spec()
             }
         };
@@ -3129,7 +3129,7 @@ impl TypeOpCallind {
             // return tlst->getTypePointer(in0.size, td, spc->getWordSize());
             // getTypeCode/getTypePointer mutate the factory cache, so a write
             // guard replaces the read guard for this branch. A spaceless op
-            // address (Rugra legacy Address) has no wordsize to read; the
+            // address (Rudra legacy Address) has no wordsize to read; the
             // locked oracles run code spaces with wordsize 1, so 1 is the
             // faithful default.
             let mut factory = self.type_factory.write().unwrap();
@@ -3217,7 +3217,7 @@ impl TypeOp for TypeOpCallind {
     fn get_input_local(&self, op: &PcodeOp, slot: usize) -> Option<Arc<Datatype>> {
         // Slot 0 (code pointer) needs no Funcdata. For slot >= 1 Ghidra
         // resolves the callspec through op->getParent()->getFuncdata()->
-        // getCallSpecs(op); a bare &PcodeOp carries no such chain in Rugra,
+        // getCallSpecs(op); a bare &PcodeOp carries no such chain in Rudra,
         // so the fd-less form observes the fc==0 default path. Use
         // get_input_local_in_fd for the full callspec resolution.
         self.callind_input_local(op, slot, None)
@@ -4182,7 +4182,7 @@ impl TypeOpCallother {
     /// input slot 0; if a registered `UserPcodeOp` exists, return its name;
     /// otherwise fall back to `CALLOTHER[<slot0>]`.
     ///
-    /// Rugra's `TypeOp` does not (yet) carry a back-pointer to the owning
+    /// Rudra's `TypeOp` does not (yet) carry a back-pointer to the owning
     /// `Architecture`/`UserOpManage`, so the table lookup must be supplied by
     /// the caller. The default path mirrors Ghidra's fallback branch
     /// (`TypeOp::getOperatorName(op) + '[' + slot0 + ']'`).
@@ -4205,7 +4205,7 @@ impl TypeOpCallother {
 /// `UserOpManage` entry for a CALLOTHER index.
 ///
 /// Ghidra reaches the manager via `op->getParent()->getFuncdata()->getArch()
-/// ->userops.getOp(index)` (typeop.cc:840-846). Rugra's `PcodeOp` has no such
+/// ->userops.getOp(index)` (typeop.cc:840-846). Rudra's `PcodeOp` has no such
 /// link today, so this returns `None` until the architecture wiring lands; the
 /// caller then falls back to the `CALLOTHER[...]` form, exactly as Ghidra does
 /// when the index is unregistered.
@@ -4271,7 +4271,7 @@ impl TypeOp for TypeOpCast {
     // Ghidra: typeop.hh:809 TypeOpCast::push  -> lng->opCast(op)
     //
     // Was previously mis-routed: `TypeOpCast::push` called the trait's generic
-    // `op_binary` fallback because Rugra's `PrintLanguage` trait did not (and
+    // `op_binary` fallback because Rudra's `PrintLanguage` trait did not (and
     // still does not) declare an `op_cast`. Ghidra's `TypeOpCast::push`
     // (typeop.hh:809) calls `PrintLanguage::opCast`, overridden by
     // `PrintC::op_type_cast` (printc.cc). We recover `PrintC` via
@@ -5165,7 +5165,7 @@ impl TypeOpManager {
     // RUDRA-GLUE: Rust manager ctor; mirrors Ghidra's
     //   `TypeOp::registerInstructions(inst, tlst, trans)` (typeop.cc:24),
     //   which allocates and registers one TypeOp subclass per op-code into the
-    //   `inst` vector. Rugra stores them in `Self::ops` keyed by OpCode.
+    //   `inst` vector. Rudra stores them in `Self::ops` keyed by OpCode.
     pub fn new(type_factory: Arc<RwLock<TypeFactory>>) -> Self {
         let mut ops: Vec<Option<Box<dyn TypeOp>>> = Vec::new();
         ops.resize_with(256, || None); // Large enough for all opcodes
@@ -5297,7 +5297,7 @@ impl TypeOpManager {
 // (see printc::OpArcRef). The `None` fallback mirrors the legacy generic
 // emitters for any PrintLanguage implementation other than PrintC (the C++
 // virtuals are pure — every language supplies its own; op_binary/op_unary
-// are Rugra's generic stand-ins, matching the PcodeOp::push wrapper above).
+// are Rudra's generic stand-ins, matching the PcodeOp::push wrapper above).
 //
 // Production entry: PrintC::dispatch_op_rpn delegates the 53 opcodes in
 // push_opcode_rpn here (typeop.hh:170 TypeOp::push virtual dispatch twin)
@@ -5399,7 +5399,7 @@ pub fn push_int_sext(
 
 // Ghidra: typeop.hh:439 TypeOpIntAdd::push
 // (`{ lng->opIntAdd(op); }` → printc.hh:291 opBinary(&binary_plus,op))
-/// INT_ADD push route: PrintC::opIntAdd — binary_plus "+" (id 3); Rugra
+/// INT_ADD push route: PrintC::opIntAdd — binary_plus "+" (id 3); Rudra
 /// keeps the struct-field recovery pre-check (documented at the emitter).
 pub fn push_int_add(lng: &mut dyn PrintLanguage, op_arc: &OpArcRef, op: &PcodeOp) {
     match as_printc_mut(lng) {
@@ -5833,7 +5833,7 @@ pub fn push_subpiece(lng: &mut dyn PrintLanguage, op_arc: &OpArcRef, op: &PcodeO
 // (`{ lng->opPtradd(op); }` → printc.cc:880 body)
 /// PTRADD push route: PrintC::opPtradd — subscript/binary_plus decision.
 /// This closes the table gap the legacy `PcodeOp::push` wrapper registered
-/// ("Rugra's typeop.rs push dispatch table lacks the PTRADD arm", printc.rs
+/// ("Rudra's typeop.rs push dispatch table lacks the PTRADD arm", printc.rs
 /// emit_expression comment): the RPN transport now routes through here.
 pub fn push_ptradd(lng: &mut dyn PrintLanguage, op_arc: &OpArcRef, op: &PcodeOp) {
     match as_printc_mut(lng) {
@@ -6085,7 +6085,7 @@ impl crate::op::PcodeOp {
 // In Ghidra, `PcodeOp::collapse` (op.cc:450-472) calls
 // `opcode->evaluateUnary/evaluateBinary` — where `opcode` is the op's TypeOp*
 // — and those inline methods (typeop.hh:81-92) delegate directly to the
-// OpBehavior object (`behave->evaluateUnary/evaluateBinary`). Rugra has no
+// OpBehavior object (`behave->evaluateUnary/evaluateBinary`). Rudra has no
 // per-op TypeOp instance, so this module-level bridge plays that role:
 // integer/bool/piece arms delegate to the `opbehavior` free functions
 // (opbehavior.cc:171-792), and the FLOAT_* arms perform the

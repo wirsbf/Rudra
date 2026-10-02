@@ -187,7 +187,7 @@ impl CircleRange {
     /// faithful `circle_intersect` port of `CircleRange::intersect`
     /// (rangeutil.cc:549) which carries the full step/newStride/newDomain
     /// and wrap-around overlap-code semantics, then remaps to the legacy
-    /// Rugra return codes kept for existing callers:
+    /// Rudra return codes kept for existing callers:
     /// 0 = result is empty, 1 = non-empty single interval,
     /// 2 = two pieces (this range is NOT modified).
     pub fn intersect(&mut self, op2: &CircleRange) -> i32 {
@@ -2315,7 +2315,7 @@ impl ValueSet {
     ///
     /// Alignment Evidence (four decisive semantics):
     /// - References/out params: `vn` is shared (Arc); `vn->setValueSet(this)`
-    ///   back-pointer storage is omitted because Rugra's ValueSet is arena-owned
+    ///   back-pointer storage is omitted because Rudra's ValueSet is arena-owned
     ///   (the solver maps Varnode↔VsId directly). getDef()/getOffset() are reads.
     /// - Loop bounds/order: none.
     /// - Counter/accumulator: `leftIsStable`/`rightIsStable` initialized
@@ -2324,7 +2324,7 @@ impl ValueSet {
     pub fn set_varnode(&mut self, v: Arc<RwLock<Varnode>>, t_code: i32) {
         self.type_code = t_code;
         self.vn = Some(v.clone());
-        // Note: Ghidra calls vn->setValueSet(this). Rugra does not store a
+        // Note: Ghidra calls vn->setValueSet(this). Rudra does not store a
         // back-pointer on Varnode; the solver keeps the Varnode→ValueSet map.
         let vn_guard = v.read().unwrap();
         if self.type_code != 0 {
@@ -2608,7 +2608,7 @@ impl ValueSetRead {
     /// Faithful to `ValueSetRead::compute` (rangeutil.cc:1804).
     ///
     /// `src_value_set` is the ValueSet of the Varnode being read; in C++ it is
-    /// fetched via `op->getIn(slot)->getValueSet()`. Rugra passes it in.
+    /// fetched via `op->getIn(slot)->getValueSet()`. Rudra passes it in.
     pub fn compute(&mut self, src_value_set: &ValueSet) {
         self.type_code = src_value_set.type_code;
         self.range = src_value_set.range.clone();
@@ -3132,7 +3132,7 @@ impl ValueSetSolver {
         //   for (riter=readNodes.begin(); riter!=readNodes.end(); ++riter)
         //     (*riter).second.compute();
         // which internally resolves the source ValueSet via
-        // `op->getIn(slot)->getValueSet()`. Rugra resolves it via
+        // `op->getIn(slot)->getValueSet()`. Rudra resolves it via
         // `resolve_read_source` (Varnode identity scan over the arena).
         let read_keys: Vec<SeqNum> = self.read_nodes.keys().cloned().collect();
         for key in &read_keys {
@@ -3154,7 +3154,7 @@ impl ValueSetSolver {
     /// Regenerate the given value set (arena id `cur`) from its operator
     /// inputs. Faithful port of `ValueSet::iterate` (rangeutil.cc:1611-1737).
     /// The C++ reads the inputs' ValueSets live via
-    /// `op->getIn(i)->getValueSet()`; Rugra reads them live from the arena
+    /// `op->getIn(i)->getValueSet()`; Rudra reads them live from the arena
     /// through the `input_ids` staged at establish time (ids are stable, so
     /// this is the same live read).
     ///
@@ -3412,7 +3412,7 @@ impl ValueSetSolver {
     /// Best-effort resolution of the ValueSet backing a ValueSetRead.
     /// Returns the source ValueSet if its underlying Varnode has an entry in
     /// the solver arena. Ghidra resolves this via the Varnode→ValueSet
-    /// back-pointer (`vn->getValueSet()`); Rugra searches the arena by
+    /// back-pointer (`vn->getValueSet()`); Rudra searches the arena by
     /// Varnode identity.
     // RUDRA-GLUE: stands in for C++ `op->getIn(slot)->getValueSet()`, which
     // needs the unported Varnode→ValueSet back-pointer; arena scan instead.
@@ -3490,7 +3490,7 @@ impl ValueSetSolver {
     }
 
     /// Find the arena id of the ValueSet attached to `vn`, if any. Ghidra
-    /// resolves this via `vn->getValueSet()`; Rugra scans the arena by
+    /// resolves this via `vn->getValueSet()`; Rudra scans the arena by
     /// Varnode identity.
     // RUDRA-GLUE: stands in for unported `Varnode::getValueSet()` back-pointer;
     // linear scan over the arena by Arc identity.

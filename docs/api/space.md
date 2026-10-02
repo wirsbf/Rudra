@@ -300,16 +300,16 @@ Decode from string format "id:base_space_id:name"
   `translate->getRegister`），**不是** basespace(ram)+1；SpacebaseSpace 将该 dl 同时
   作 delay/deadcodedelay 转发 AddrSpace，translate.cc:57-59）、unique/register=0
   （x86-64.sla space 表）。oracle HeritageInfo 实测 `stack delay=1`。
-  - 历史 1（MAINDIFF-UNIQLEAK-0001，2026-08-25）：此前 Rugra 硬编码 Ram=0/Stack=1，
+  - 历史 1（MAINDIFF-UNIQLEAK-0001，2026-08-25）：此前 Rudra 硬编码 Ram=0/Stack=1，
     ram 提前一个 pass 被 heritage 是真缺陷（已修正 ram=1）；但当时依据“oracle 首个
     stack pass 在 pass 2”把 Stack 拔到 2 是误读——该 pass 号按 mainloop 轮计数，
     恰对应 heritage delay=1。
   - 历史 2（RCA-2，2026-09-22）：Stack=2 使 stack 首次 heritage/占位符解析推迟一遍
     （freePlaceholderSlot→maxpass 翻转与 ActionActiveParam build 各晚 1 遍，oracle
-    build@pass2 vs rugra build@pass3），并经 ParamList::calcDelay 抬高
+    build@pass2 vs rudra build@pass3），并经 ParamList::calcDelay 抬高
     getMaxInputDelay（2 vs 1，initActiveInput 侧 maxdelay_in）。单行回改 1 即把
     maxdelay_in 与翻转相位同时拉回 oracle（充分性实验见
-    /dev/shm/rugra-tests/sb-integration/RCA2_MAXPASS.md §4.3/§5）。
+    /dev/shm/rudra-tests/sb-integration/RCA2_MAXPASS.md §4.3/§5）。
 - `get_deadcode_delay`: = get_delay（SpacebaseSpace 构造 `dl, dl` 同源）。
 - `is_heritaged`: Const/Iop/Join 不 heritaged。
  
@@ -424,7 +424,7 @@ P3 残差）。registry 侧新增 Ghidra `AddrSpaceManager` join 半部的 1:1 �
   逻辑尺寸/尺寸和、split_set 去重、16 字节对齐 roundsize 分配）与 `find_join`
   （translate.cc:746-762：split_list 二分，未命中 panic `"Unlinked join address"`）。
 - `AddrSpaceInner.manager_join_tables`（space.hh:118 `AddrSpace::manage` 的 join 半）：
-  `insert_space` 注册 Join 空间时接线（Rugra 构造器不收 manager，insertSpace 即关联
+  `insert_space` 注册 Join 空间时接线（Rudra 构造器不收 manager，insertSpace 即关联
   点；校验前接线，与 Ghidra 构造即持有 manager 的可观察序一致）。`SpaceRegistry`
   持有共享表并提供 `find_add_join`/`find_join` 桥（translate.hh:270/271）。
 - `AddrSpace::print_raw` 派发新增 `SpaceType::Join → print_raw_join`（space.cc:590）：
@@ -473,7 +473,7 @@ space.rs/op.rs overlay）。IopSpace 形式按上述残差不在本 fixture 内�
   packed 协议拒编组 Java TYPE_EXTERNAL（PackedEncode.java:186）。EXTERNAL 工件在 Ghidra
   平台侧：Java `GenericAddressSpace("EXTERNAL", 32, TYPE_EXTERNAL, 0)`（AddressSpace.java:80）
   + ELF importer 在默认空间造人工 EXTERNAL 内存块（ElfProgramBuilder.java:1532-1556，
-  0x1000 对齐 linkage 块、每 UND import 8 字节）。Rugra 按该 Java 定义构造（Processor 型、
+  0x1000 对齐 linkage 块、每 UND import 8 字节）。Rudra 按该 Java 定义构造（Processor 型、
   addrsize 4），供 registry 命名注册。
 
 `src/translate.rs` 侧：
@@ -625,4 +625,4 @@ UB-邻接行为（Rust 在查名点拒绝）。
 - 双侧证据（sqlite3_vmprintf，oracle fixture oracle_probe_834 @
   ghidra 12.0.4 e40ed130）：oracle 的 RDX:RAX 双 trial 输出 join whole
   位于 join:0x0（首个 findAddJoin 分配），16 字节粒度推进；修复后
-  Rugra 的 11 处 CALL join 全部 dedup 到同一 join:0x0 地址。
+  Rudra 的 11 处 CALL join 全部 dedup 到同一 join:0x0 地址。

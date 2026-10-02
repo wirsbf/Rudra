@@ -25,7 +25,7 @@ if ! git -C "$ghidra_root" diff --quiet -- \
   exit 1
 fi
 
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
@@ -33,10 +33,10 @@ if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; t
   bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
 fi
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" ]]; then
-  echo "binutils 2.38 bfd.h not found; set RUGRA_BFD_INCLUDE" >&2
+  echo "binutils 2.38 bfd.h not found; set RUDRA_BFD_INCLUDE" >&2
   exit 1
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
+bfd_library=${RUDRA_BFD_LIBRARY:-/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
 if [[ ! -f "$bfd_library" ]]; then
   echo "binutils 2.38 BFD library not found: $bfd_library" >&2
   exit 1
@@ -138,7 +138,7 @@ g++ -std=c++11 -O2 -I"$bfd_include" -I"$cpp_root" \
 
 # Reuse Cargo's normal incremental cache.  The executable and observations
 # remain isolated in oracle_tmp; only dependency compilation is cached.
-fixture_target=${RUGRA_PIPELINE_LIFECYCLE_TARGET_DIR:-"$repo_root/target"}
+fixture_target=${RUDRA_PIPELINE_LIFECYCLE_TARGET_DIR:-"$repo_root/target"}
 if ! CARGO_TARGET_DIR="$fixture_target" \
   cargo build --manifest-path "$repo_root/Cargo.toml" --locked --offline --quiet --lib \
   2>"$oracle_tmp/cargo.stderr"; then

@@ -1,14 +1,14 @@
-//! Error types for Rugra
+//! Error types for Rudra
 //!
 //! This module defines all error types used throughout the decompiler.
 //! We use `thiserror` for ergonomic error handling.
 
 use thiserror::Error;
 
-/// Result type alias for Rugra operations
+/// Result type alias for Rudra operations
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Main error type for Rugra
+/// Main error type for Rudra
 #[derive(Error, Debug)]
 pub enum Error {
     /// Low-level decompiler failure that aborts the current operation.

@@ -106,12 +106,12 @@ TARGETS = {
 }
 
 BFD_INCLUDE_CANDIDATES = [
-    os.environ.get("RUGRA_BFD_INCLUDE", ""),
+    os.environ.get("RUDRA_BFD_INCLUDE", ""),
     "/tmp/rugra-ghidra-bfd-2.38/usr/include",
     "/usr/include",
 ]
 BFD_LIBRARY_CANDIDATES = [
-    os.environ.get("RUGRA_BFD_LIBRARY", ""),
+    os.environ.get("RUDRA_BFD_LIBRARY", ""),
     "/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so",
 ]
 
@@ -643,7 +643,7 @@ def headless_environment(headless_exe):
         build_env = json.loads(build_env_path.read_text(encoding="utf-8"))
         if build_env.get("oracle_commit") != ORACLE_COMMIT:
             raise RuntimeError("headless build-environment.json oracle commit mismatch")
-    java_home = os.environ.get("RUGRA_JDK21_HOME", "")
+    java_home = os.environ.get("RUDRA_JDK21_HOME", "")
     if not java_home:
         candidate = dist_root.parent.parent / "jdk21"
         if (candidate / "bin" / "java").exists():
@@ -840,12 +840,12 @@ def resolve_bfd():
         if include and Path(include, "bfd.h").exists():
             break
     else:
-        raise RuntimeError("bfd.h not found; set RUGRA_BFD_INCLUDE")
+        raise RuntimeError("bfd.h not found; set RUDRA_BFD_INCLUDE")
     for library in BFD_LIBRARY_CANDIDATES:
         if library and Path(library).exists():
             break
     else:
-        raise RuntimeError("libbfd not found; set RUGRA_BFD_LIBRARY")
+        raise RuntimeError("libbfd not found; set RUDRA_BFD_LIBRARY")
     return include, library
 
 

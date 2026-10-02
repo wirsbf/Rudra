@@ -24,7 +24,7 @@
 //! This is a faithful 1:1 port of Ghidra's `ConditionalExecution` class and
 //! `ActionConditionalExe`, including the full data-flow rewrite
 //! (`doReplacement` / `getReplacementRead` / `pullbackOp` / `getNewMulti`)
-//! and the CFG rewrite (`removeFromFlowSplit`). The previous Rugra
+//! and the CFG rewrite (`removeFromFlowSplit`). The previous Rudra
 //! implementation only detected candidates and emitted diagnostics; this one
 //! performs the actual transformation.
 
@@ -50,7 +50,7 @@ fn opref(a: &Arc<RwLock<PcodeOp>>) -> PcodeOpRef {
 /// (`op->getIn(0)`, `vn->getDef()`, `op->getOut()`, `iblock->getImmedDom()`,
 /// condexe.cc:166/172/181/202/274/325) — for IR that passed `verify()` those
 /// are never null, and a null would be undefined behaviour (crash), not a
-/// `LowlevelError`. Rugra's split Arc/Weak model makes those states
+/// `LowlevelError`. Rudra's split Arc/Weak model makes those states
 /// representable, so this helper converts them into a clearly-marked,
 /// terminating internal error instead of UB or a silent skip. Oracle-reachable
 /// failures use `Error::Lowlevel` with the verbatim oracle message instead
@@ -114,12 +114,12 @@ pub struct ConditionalExecution<'a> {
 }
 
 // Ghidra: condexe.cc:28-30 glb->numSpaces()/glb->getSpace(i) enumeration
-/// Rugra's per-space enumeration standing in for the architecture's
+/// Rudra's per-space enumeration standing in for the architecture's
 /// `baselist` walk in `buildHeritageArray` (condexe.cc:29-30): the same
 /// fixed AddressSpace list `Heritage::buildInfoList` walks (heritage.rs:660,
 /// heritage.cc:2664-2672). Ghidra's `glb->getSpace(i)` reads the
 /// architecture-owned AddrSpaceManager, which is not yet reachable from a
-/// Rugra Funcdata (SPACE-0001); Overlay/Other(id) dynamic spaces are not
+/// Rudra Funcdata (SPACE-0001); Overlay/Other(id) dynamic spaces are not
 /// enumerable through it and index lookup treats them as not heritaged.
 const CONDEXE_SPACE_LIST: [crate::space::AddressSpace; 7] = [
     crate::space::AddressSpace::Ram,
@@ -132,7 +132,7 @@ const CONDEXE_SPACE_LIST: [crate::space::AddressSpace; 7] = [
 ];
 
 // Ghidra: space.hh:332 AddrSpace::getIndex
-/// Index of a space within [`CONDEXE_SPACE_LIST`] — Rugra's stand-in for
+/// Index of a space within [`CONDEXE_SPACE_LIST`] — Rudra's stand-in for
 /// `AddrSpace::getIndex()` (the slot position in the architecture baselist)
 /// as consumed by the `heritageyes[index]` reads (condexe.cc:35/392).
 /// `None` for spaces outside the enumerable list (Overlay/Other).
@@ -176,7 +176,7 @@ impl<'a> ConditionalExecution<'a> {
             // cc:34: `fd->numHeritagePasses(spc)` — funcdata.hh:237 inline
             // delegation to `Heritage::numHeritagePasses(spc)`
             // (heritage.cc:2779-2788: `return pass - info->delay`), read
-            // through Rugra's Heritage directly (the Funcdata wrapper
+            // through Rudra's Heritage directly (the Funcdata wrapper
             // predates the per-space parameter).
             if fd.heritage.num_heritage_passes(*spc) > 0 {
                 heritageyes[condexe_space_index(spc).unwrap()] = true; // cc:35
@@ -214,7 +214,7 @@ impl<'a> ConditionalExecution<'a> {
         }
     }
 
-    // RUDRA-GLUE: graph helpers adapted to Rugra's dynamic-dispatch blocks
+    // RUDRA-GLUE: graph helpers adapted to Rudra's dynamic-dispatch blocks
     // (Ghidra accesses BlockBasic members directly; `lastOp` maps to
     // BlockBasic::lastOp, block.hh:490).
     // ------------------------------------------------------------------
@@ -222,7 +222,7 @@ impl<'a> ConditionalExecution<'a> {
     fn block_as_basic(
         arc: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     ) -> bool {
-        // We need to downcast the trait object to BlockBasic. Because Rugra
+        // We need to downcast the trait object to BlockBasic. Because Rudra
         // stores blocks as trait-object Arcs, we cannot trivially recover a
         // typed Arc<BlockBasic>. Instead we operate through the trait methods
         // and, where structural mutation is required, re-acquire the write
@@ -571,7 +571,7 @@ impl<'a> ConditionalExecution<'a> {
     /// op (funcdata_op.cc:435-446).
     ///
     /// The oracle function has no failure mode (no throw, no null return); the
-    /// `Err` legs here are Rugra structural-invariant guards for states the
+    /// `Err` legs here are Rudra structural-invariant guards for states the
     /// oracle would hit as null-deref UB (see `structural`).
     fn pullback_op(&mut self, op: &Arc<RwLock<PcodeOp>>, inbranch: usize) -> Result<Arc<RwLock<Varnode>>> {
         // cc:163-165: cached pullback output for this inbranch wins.
@@ -649,7 +649,7 @@ impl<'a> ConditionalExecution<'a> {
     /// output (condexe.cc:182) and the RETURN-holding COPY's output
     /// (condexe.cc:343, "Preserve the CPUI_RETURN storage address").
     /// `Funcdata::new_varnode_out` (funcdata.rs) pins AddressSpace::Register
-    /// because Rugra's split Address model does not carry a space; the exact
+    /// because Rudra's split Address model does not carry a space; the exact
     /// newVarnodeOut leg is replicated here against the true space:
     ///   Varnode *vn = vbank.createDef(s,m,ct,op);
     ///   op->setOutput(vn);
@@ -685,7 +685,7 @@ impl<'a> ConditionalExecution<'a> {
 
     // Ghidra: condexe.cc:198 ConditionalExecution::getNewMulti
     /// getNewMulti (condexe.cc:198-217). The oracle has no failure mode; the
-    /// `Err` legs are Rugra structural-invariant guards (see `structural`).
+    /// `Err` legs are Rudra structural-invariant guards (see `structural`).
     fn get_new_multi(&mut self, op: &Arc<RwLock<PcodeOp>>, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Result<Arc<RwLock<Varnode>>> {
         let outvn_size = op.read().unwrap().output.as_ref().map(|o| o.read().unwrap().get_size()).unwrap_or(0);
         let outvn = op.read().unwrap().output.clone()
@@ -705,7 +705,7 @@ impl<'a> ConditionalExecution<'a> {
     // Ghidra: condexe.cc:224 ConditionalExecution::resolveRead
     /// resolveRead (condexe.cc:224-237). `Err` propagates the
     /// `resolveIblockRead` LowlevelError verbatim; structural legs are
-    /// Rugra-invariant guards (see `structural`).
+    /// Rudra-invariant guards (see `structural`).
     fn resolve_read(&mut self, op: &Arc<RwLock<PcodeOp>>, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Result<Arc<RwLock<Varnode>>> {
         let sin = bl.read().unwrap().size_in();
         if sin == 1 {
@@ -733,7 +733,7 @@ impl<'a> ConditionalExecution<'a> {
     /// `Error::Lowlevel`. In particular a COPY whose input 0 is written by
     /// anything other than a MULTIEQUAL in the iblock keeps `op` unchanged
     /// (cc:249-250) and reaches the throw through the `CPUI_COPY` fall-through,
-    /// exactly like the oracle (the old Rugra code silently returned `None`
+    /// exactly like the oracle (the old Rudra code silently returned `None`
     /// here, which do_replacement then skipped, looping forever).
     fn resolve_iblock_read(&mut self, op: &Arc<RwLock<PcodeOp>>, inbranch: usize) -> Result<Arc<RwLock<Varnode>>> {
         let mut op = op.clone();
@@ -773,7 +773,7 @@ impl<'a> ConditionalExecution<'a> {
 
     // Ghidra: condexe.cc:270 ConditionalExecution::getMultiequalRead
     /// getMultiequalRead (condexe.cc:270-279). `Err` propagates the resolve
-    /// chain's LowlevelError verbatim; structural legs are Rugra-invariant
+    /// chain's LowlevelError verbatim; structural legs are Rudra-invariant
     /// guards (see `structural`).
     fn get_multiequal_read(&mut self, op: &Arc<RwLock<PcodeOp>>, readop: &Arc<RwLock<PcodeOp>>, slot: usize) -> Result<Arc<RwLock<Varnode>>> {
         let read_parent = readop.read().unwrap().parent.as_ref().and_then(|w| w.upgrade())
@@ -921,7 +921,7 @@ impl<'a> ConditionalExecution<'a> {
                     //   retvn->getAddr(), newcopyop) — preserve the
                     // CPUI_RETURN storage address INCLUDING its address
                     // space (funcdata_varnode.cc:104-127 exact leg, shared
-                    // with pullbackOp's cc:182 call; Rugra's
+                    // with pullbackOp's cc:182 call; Rudra's
                     // Funcdata::new_varnode_out pins the Register space
                     // because its Address lacks a space).
                     let outvn =
@@ -1000,8 +1000,8 @@ impl<'a> ConditionalExecution<'a> {
         // LowlevelError on a non-empty block (funcdata_block.cc:884-885), and
         // that exception propagates. The Err is therefore NOT discarded here
         // (the old code did `let _ =`); it is mapped into the Lowlevel error
-        // channel at this call boundary. RESIDUAL CFG-0001: the Rugra callee
-        // (funcdata.rs remove_from_flow_split) still returns Rugra-side
+        // channel at this call boundary. RESIDUAL CFG-0001: the Rudra callee
+        // (funcdata.rs remove_from_flow_split) still returns Rudra-side
         // message text and the pre-fix swap mapping; its ownership sits with
         // the funcdata.rs/block.rs lease and is registered as TODO CFG-0001.
         self.fd.remove_from_flow_split(&ib, swap).map_err(Error::Lowlevel)?;
@@ -1097,7 +1097,7 @@ impl<'a> ConditionalExecution<'a> {
     // RUDRA-GLUE: fixture observability (see fixture_heritage_array).
     /// The space labels for [`Self::fixture_heritage_array`]'s slots, so the
     /// external fixture can project `name=value` pairs instead of raw
-    /// indices (Rugra's CONDEXE_SPACE_LIST order need not match the oracle
+    /// indices (Rudra's CONDEXE_SPACE_LIST order need not match the oracle
     /// architecture's baselist order).
     #[doc(hidden)]
     pub fn fixture_heritage_space_names() -> Vec<&'static str> {
@@ -1751,7 +1751,7 @@ impl Rule for RuleOrPredicate {
 /// Faithful to Ghidra's `ActionConditionalExe` (condexe.hh:133).
 pub struct ActionConditionalExe {
     /// Externalized Ghidra protected `Action::count` accumulator: the oracle
-    /// does `count += numhits` at condexe.cc:501 and returns 0; Rugra's
+    /// does `count += numhits` at condexe.cc:501 and returns 0; Rudra's
     /// Action trait keeps the control-flow return (0) separate from the
     /// statistics, harvesting this field through `take_count_delta` in
     /// `Action::perform` (action.rs).
@@ -1823,7 +1823,7 @@ impl Action for ActionConditionalExe {
                 if let Some(bb) = bb {
                     // cc:494: condexe.trial(bb) — the (BlockBasic*) cast is
                     // unchecked in the oracle; bblocks only ever holds
-                    // BlockBasics, and Rugra's get_block returns None only
+                    // BlockBasics, and Rudra's get_block returns None only
                     // for an out-of-range index, which the bound above
                     // already excludes.
                     if condexe.trial(bb) {
@@ -2136,7 +2136,7 @@ mod tests {
     /// outside the iblock by a non-MULTIEQUAL op passes verify()/testOpRead
     /// but is illegal for resolveIblockRead. The oracle throws LowlevelError
     /// ("Conditional execution: Illegal op in iblock") out of
-    /// ActionConditionalExe::apply; Rugra must return the SAME verbatim Err
+    /// ActionConditionalExe::apply; Rudra must return the SAME verbatim Err
     /// (and must terminate — the pre-fix code silently skipped the
     /// op_set_input and looped forever on the same descendant).
     #[test]
@@ -2173,7 +2173,7 @@ mod tests {
     /// E2 (condexe.cc:303): the reader's block is not dominated by the
     /// iblock, so getReplacementRead's dominator walk leaves the graph. The
     /// oracle throws LowlevelError ("Conditional execution: Could not find
-    /// dominator"); Rugra must return the SAME verbatim Err (pre-fix: silent
+    /// dominator"); Rudra must return the SAME verbatim Err (pre-fix: silent
     /// None + death loop).
     #[test]
     fn test_apply_aborts_missing_dominator() {

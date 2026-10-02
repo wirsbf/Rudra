@@ -301,7 +301,7 @@ impl InjectPayload {
     /// empty parsestring on a non-dynamic payload throws.
     ///
     /// RUDRA-GLUE: Ghidra's `readString(ATTRIB_CONTENT)` reads the current
-    /// element's character content (marshal.cc:390-395); Rugra's
+    /// element's character content (marshal.cc:390-395); Rudra's
     /// `TreeDecoder` cannot surface element content through the `Decoder`
     /// trait, so the content of the `<body>` child is threaded in by the
     /// caller from the paired DOM handle (`body_content`).
@@ -549,7 +549,7 @@ impl PcodeEmit for PcodeEmitArray {
 /// One resolved p-code op held by the injection cacher. Mirrors
 /// `PcodeData` (sleigh.hh:46-50) as a value type; the label-reference
 /// back-patch target is the `inputs[0]` of a relative-branch op.
-// RUDRA-GLUE: value-type mirror of sleigh.hh:46 PcodeData because Rugra has
+// RUDRA-GLUE: value-type mirror of sleigh.hh:46 PcodeData because Rudra has
 // no pooled VarnodeData arena; resolveRelatives mutates in place instead of
 // through pool pointers.
 struct PcodeDataInject {
@@ -807,7 +807,7 @@ impl<'c> InjectBuilder<'c> {
             self.fix(&vn_tpl.offset)?
         } else {
             // space.hh:383 AddrSpace::wrapOffset — offsets within the space
-            // bound pass through unchanged. RUDRA-GLUE: Rugra's AddressSpace
+            // bound pass through unchanged. RUDRA-GLUE: Rudra's AddressSpace
             // tag enum carries no `highest` metadata (ADDRESS-0001 family);
             // injection snippet offsets are in-bounds machine/unique
             // offsets, so the pass-through covers the reachable inputs and
@@ -820,7 +820,7 @@ impl<'c> InjectBuilder<'c> {
     /// Resolve a ConstTpl to its value in context. Faithful to
     /// `ConstTpl::fix` (semantics.cc:116-179) for the injection-reachable
     /// const types. RUDRA-GLUE: `j_curspace`/`spaceid` positions where C++
-    /// yields the AddrSpace heap pointer yield Rugra's stable `space_id()`
+    /// yields the AddrSpace heap pointer yield Rudra's stable `space_id()`
     /// tag (only observable in LOAD space-reference constants, where
     /// PcodeEmitFd reads it via getSpaceFromConst).
     // Ghidra: semantics.cc:116 ConstTpl::fix
@@ -838,9 +838,9 @@ impl<'c> InjectBuilder<'c> {
             // inject_sleigh.cc:52 setCalladdr(con.calladdr) feeds getDestAddr.
             ConstTpl::JFlowDest => Ok(self.context.call_addr),
             // ParserContext::getCurSpace()->getAddrSize() — the address size
-            // of the instruction space. RUDRA-GLUE: Rugra's AddressSpace tag
+            // of the instruction space. RUDRA-GLUE: Rudra's AddressSpace tag
             // enum carries no per-space metadata; the SLEIGH x86-64 machine
-            // model that Rugra pins defines the default space with 8-byte
+            // model that Rudra pins defines the default space with 8-byte
             // addresses (ADDRESS-0001 family residual).
             ConstTpl::JCurSpaceSize => Ok(8),
             ConstTpl::JCurSpace => Ok(crate::space::AddressSpace::Ram.space_id() as u64),
@@ -1290,7 +1290,7 @@ impl PcodeInjectLibrary {
     ///
     /// RUDRA-GLUE: the extra `body_content` parameter carries the current
     /// payload's `<body>` character content, which Ghidra reads via
-    /// `readString(ATTRIB_CONTENT)` but Rugra's `TreeDecoder` cannot
+    /// `readString(ATTRIB_CONTENT)` but Rudra's `TreeDecoder` cannot
     /// surface through the `Decoder` trait (see `InjectPayload::decode_body`).
     pub fn decode_inject(
         &mut self,

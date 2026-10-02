@@ -24,7 +24,7 @@ use std::sync::Arc;
 /// standing in for the `Architecture`'s `AddrSpaceManager` + `Translate`
 /// during `parseCompilerConfig` (space-by-name, per-space highest,
 /// register lookup, overlay enumeration, SLEIGH symbols).  Ghidra reads
-/// these off the Architecture itself; Rugra's `Architecture` does not own
+/// these off the Architecture itself; Rudra's `Architecture` does not own
 /// an `AddrSpaceManager` yet, so the parse entry points take this trait.
 pub trait SpecQuery {
     // Ghidra: sleighbase.cc:133 SleighBase::getRegister (via Translate)
@@ -124,14 +124,14 @@ pub struct TrackedRegister {
 
 // Ghidra: globalcontext.hh:284 ContextInternal::trackbase (partmap<Address,TrackedSet>)
 /// Space-aware partition map of tracked register sets, keyed on
-/// `(space order, offset)` — the Rugra stand-in for
+/// `(space order, offset)` — the Rudra stand-in for
 /// `ContextInternal::trackbase` (globalcontext.hh:284,
 /// `partmap<Address,TrackedSet>`), holding the partitions fed by pspec
 /// `<context_data><tracked_set>` children through the mirrored
 /// `split`/`clearRange`/`getValue` step semantics (partmap.hh:81-157).
 ///
 /// Ordering caveat (registered residual): Ghidra orders `Address` by the
-/// live `AddrSpaceManager` baselist index; Rugra orders by
+/// live `AddrSpaceManager` baselist index; Rudra orders by
 /// `AddressSpace::space_id()`.  The two agree for all same-space lookups —
 /// the only production consumer (`ActionConstbase`,
 /// coreaction.cc:692) queries the function's address in `ram`.
@@ -217,7 +217,7 @@ impl TrackedSetMap {
 /// payload parsestring (decodeBody overwrites per iteration), so the last
 /// match is what the subsequent compile consumes.  Ghidra's
 /// `XmlDecode::readString(ATTRIB_CONTENT)` (marshal.cc:390-395) reads the
-/// element content field directly; Rugra's `TreeDecoder` cannot surface it
+/// element content field directly; Rudra's `TreeDecoder` cannot surface it
 /// through the `Decoder` trait, so the paired DOM handle provides it.
 fn find_body_content(element: &std::sync::Arc<std::sync::RwLock<crate::marshal::Element>>) -> Option<String> {
     const PCODE_TAGS: [&str; 5] = ["pcode", "case_pcode", "addr_pcode", "default_pcode", "size_pcode"];
@@ -553,7 +553,7 @@ pub struct Architecture {
     pub cpool: Option<std::sync::Arc<std::sync::RwLock<crate::cpool::ConstantPoolInternal>>>,
     /// Context database. Faithful to `context`.
     pub context_db: Option<std::sync::Arc<std::sync::RwLock<crate::context::ContextInternal>>>,
-    /// pspec `<context_data>` tracked-register partitions — Rugra-side
+    /// pspec `<context_data>` tracked-register partitions — Rudra-side
     /// stand-in for the `ContextInternal::trackbase` partition map
     /// (globalcontext.hh:284) behind `Architecture::context`
     /// (architecture.hh:191), filled by the `ELEM_CONTEXT_DATA` arm of
@@ -582,7 +582,7 @@ pub struct Architecture {
     pub print_registry_key: u64,
     /// Root Action database. Faithful to `allacts` (architecture.hh:212).
     /// Ghidra embeds the `ActionDatabase` by value inside `Architecture`;
-    /// Rugra defers instantiation to [`Architecture::build_action`] (like the
+    /// Rudra defers instantiation to [`Architecture::build_action`] (like the
     /// other sub-components) behind a shared lock, because option appliers
     /// mutate the current root through `&mut Architecture`
     /// (options.cc:1008-1015 `glb->allacts.toggleAction(...)`) while other
@@ -657,7 +657,7 @@ pub struct Architecture {
     /// `(space index, offset, size)` with BIG sizes first
     /// (`VarnodeData::operator<`, pcoderaw.hh:67-71). Populated from
     /// `SleighBase::getAllRegisters` (sleighbase.cc:182-186) — the
-    /// `varnode_xref` copy the shim's `rugra_sleigh_register_info` walks —
+    /// `varnode_xref` copy the shim's `rudra_sleigh_register_info` walks —
     /// by the driver at architecture build time. Consumers:
     /// [`Architecture::get_register_name`] (the
     /// `SleighBase::getRegisterName` projection) and
@@ -687,7 +687,7 @@ impl Default for Architecture {
 // Ghidra: architecture.cc:211-212 ~Architecture: if (types != 0) delete types;
 /// TF-SINGLETON-WIRING-0001 step 1 teardown mirror: the oracle Architecture
 /// DESTROYS its TypeFactory in the destructor (architecture.cc:211-212),
-/// ending the factory's cross-Architecture lifetime. Rugra's factory lives
+/// ending the factory's cross-Architecture lifetime. Rudra's factory lives
 /// behind `Arc<RwLock<..>>`, so the destruction equivalent is unpublishing
 /// the thread's current-Architecture entry when it still points at OUR
 /// factory — after this, `TypeFactory::shared_default` resolutions on this
@@ -918,7 +918,7 @@ impl Architecture {
     /// order) and each space's spacebase records, returning the first
     /// space whose record matches the register's size/space/offset.
     ///
-    /// Registry source: Rugra's enum-space Architecture keeps the
+    /// Registry source: Rudra's enum-space Architecture keeps the
     /// spacebase records as flat config (Ghidra stores them on the spaces
     /// via `numSpacebase`/`getSpacebase`, space.hh:155-156); the locked
     /// x86-64 oracle has exactly one record-bearing space — the stack
@@ -1065,11 +1065,11 @@ impl Architecture {
 
     // RUDRA-GLUE: set_register_xref (no Ghidra counterpart; Ghidra fills
     //   varnode_xref during SleighBase::buildXrefs (sleighbase.cc:79-96)
-    //   from the live symbol table, Rugra snapshots the shim's
+    //   from the live symbol table, Rudra snapshots the shim's
     //   getAllRegisters enumeration at driver time).
     /// Install the SLEIGH register cross-reference: entries are
     /// `(space index, offset, size, name)` tuples from
-    /// `rugra_sleigh_register_info` (the `SleighBase::getAllRegisters`
+    /// `rudra_sleigh_register_info` (the `SleighBase::getAllRegisters`
     /// copy). The key mirrors `VarnodeData::operator<` with big sizes
     /// first (pcoderaw.hh:67-71); the value is the register name. A
     /// duplicate key keeps the FIRST insert, matching
@@ -1094,7 +1094,7 @@ impl Architecture {
     /// non-virtual spaces, and the `SpacebaseSpace` override
     /// (translate.hh:187) returns the space's `contain` link
     /// (translate.hh:174) — for the stack space, the cspec basespace
-    /// installed by `addSpacebase` (architecture.cc:564-565). Rugra's
+    /// installed by `addSpacebase` (architecture.cc:564-565). Rudra's
     /// enum-space model has no per-space record store, so the link lives
     /// on the Architecture ([`Self::stack_base_space`]) and the lookup is
     /// keyed by the associated space. Callers compare the result against
@@ -1685,7 +1685,7 @@ impl Architecture {
     /// (address.cc:265-281): when `last` is the space's highest offset the
     /// boundary is the NEXT SPACE IN ORDER at offset 0
     /// (`AddrSpaceManager::getNextSpaceInOrder`, translate.cc:647-667);
-    /// otherwise it is `last + 1` in the same space.  Rugra orders spaces
+    /// otherwise it is `last + 1` in the same space.  Rudra orders spaces
     /// by `AddressSpace::space_id()`, so the next space in order is
     /// `(sid + 1, 0)` — strictly greater than every `(sid, off)` key, which
     /// is what makes a query at the space's highest offset still resolve to
@@ -1776,7 +1776,7 @@ impl Architecture {
     /// sleighbase.cc:133-142) and returns immediately; other attributes are
     /// skipped.  An attribute-less element decodes to Ghidra's null-space
     /// sentinel (`space = (AddrSpace*)0; size = 0`, pcoderaw.cc:35-36),
-    /// which Rugra's space enum cannot represent — the default
+    /// which Rudra's space enum cannot represent — the default
     /// `VarnodeData` (ram/0/0) stands in for the sentinel.
     fn varnode_data_from_attributes(
         decoder: &mut dyn crate::marshal::Decoder,
@@ -1947,7 +1947,7 @@ impl Architecture {
     /// truncated base space truncates the pointer size (cc:1007-1011) —
     /// the [`Self::stack_pointer_*`] triple is `SpacebaseSpace::baseloc`
     /// (possibly truncated) and [`Self::stack_pointer_full_*`] is
-    /// `baseOrig` (translate.cc:95-101).  Rugra has no
+    /// `baseOrig` (translate.cc:95-101).  Rudra has no
     /// dynamic space creation: the decoded values land on the
     /// `stack_*` fields of the Architecture (the SpacebaseSpace insertion
     /// is carried by the `stack_space` enum stand-in).
@@ -2346,7 +2346,7 @@ impl Architecture {
         let mut model = parent.as_ref().clone();
         model.name = alias_name.to_string();
         // The alias copy constructor sets compatModel to the parent
-        // (fspec.cc:2359-2377); Rugra marks the copy via `compat_model`
+        // (fspec.cc:2359-2377); Rudra marks the copy via `compat_model`
         // (only Some/None is observable; the numeric value is a marker).
         model.set_alias_parent_marker();
         model.set_print_in_decl(true);
@@ -2436,7 +2436,7 @@ impl Architecture {
                     //     types->decodeDataOrganization(decoder);
                     // The factory exists for the whole parse (Architecture::init
                     // builds it before parseCompilerConfig, architecture.cc:1391);
-                    // Rugra's `types` is optional, so the canonical factory is
+                    // Rudra's `types` is optional, so the canonical factory is
                     // installed lazily here (TYPE-WIRING-0001). This is what
                     // populates sizeOfInt/Long/Pointer/Char/WChar and the
                     // alignment map that `TypeFactory::getBase`'s findAdd
@@ -2666,7 +2666,7 @@ impl Architecture {
             );
         }
         // PreferSplitManager::initialize(splitrecords) installs the global
-        // prefer-split map (prefersplit.cc); Rugra's PreferSplitManager is
+        // prefer-split map (prefersplit.cc); Rudra's PreferSplitManager is
         // per-Funcdata, so the global install step is a residual.
         if !self.split_records.is_empty() {
             report.post_step_residuals.push(
@@ -2676,7 +2676,7 @@ impl Architecture {
         // types->setupSizes() (architecture.cc:1350): if no
         // data_organization was registered, set up default values. Ghidra's
         // setupSizes reads the Architecture for the stack spacebase size,
-        // default data space address size, and default size; Rugra threads
+        // default data space address size, and default size; Rudra threads
         // the same values from the compiler-spec address size (x86-64: the
         // ram default data space and the RSP stack spacebase are both
         // addr_size wide; there is no far-pointer segment op in the locked
@@ -2845,7 +2845,7 @@ impl Architecture {
         //   buildAction(store)
         //   postSpecFile()
         //
-        // In Rugra, sub-components are set externally via set_* methods,
+        // In Rudra, sub-components are set externally via set_* methods,
         // with buildStringManager now wired for real (architecture.cc:1401
         // ordering: the loader, installed by buildLoader, precedes it).
         // This method verifies that essential components are present.
@@ -2908,7 +2908,7 @@ impl Architecture {
 
     // RUDRA-GLUE: set_string_manager (test/driver injection point; Ghidra
     // only assigns `stringManager` from its own buildStringManager factory,
-    // architecture.cc:1401 — Rugra keeps the external setter for pre-seeded
+    // architecture.cc:1401 — Rudra keeps the external setter for pre-seeded
     // test managers and until the driver pipeline owns the loader lifecycle)
     /// Set the string manager. Replaces `buildStringManager` injection.
     pub fn set_string_manager(&mut self, sm: std::sync::Arc<std::sync::RwLock<crate::stringmanage::StringManager>>) {
@@ -2921,7 +2921,7 @@ impl Architecture {
     /// `Architecture::init` (architecture.cc:1401) and overridden at
     /// ghidra_arch.cc:365-369 as `stringManager = new GhidraStringManager(this,2048)`.
     ///
-    /// Declared detection contract (JAVA CONTRACT, B4): Rugra's production
+    /// Declared detection contract (JAVA CONTRACT, B4): Rudra's production
     /// manager implements the `GhidraStringManager`/Java behavior — charset
     /// validity plus NUL termination with **no 2048 search bound**, with
     /// `maximumChars=2048` truncating only the returned bytes and setting
@@ -2967,7 +2967,7 @@ impl Architecture {
     // RUDRA-GLUE: set_types (no Ghidra counterpart found)
     /// Set the TypeFactory instance. Replaces `buildTypegrp`.
     ///
-    /// TF-SINGLETON-WIRING-0001 step 1: this is the Rugra moment the
+    /// TF-SINGLETON-WIRING-0001 step 1: this is the Rudra moment the
     /// oracle's `SleighArchitecture::buildTypegrp` installs the factory
     /// into the Architecture (`types = new TypeFactory(this);`,
     /// sleigh_arch.cc:201; TypeFactoryGhidra twin ghidra_arch.cc:321), so
@@ -3031,13 +3031,13 @@ impl Architecture {
     /// locations. Faithful to `constructJoinAddress`
     /// (translate.cc:817-860):
     ///   1. both pieces must live in a SPACEBASE or PROCESSOR space
-    ///      (Rugra enum: Stack = spacebase, Ram/Register/Overlay/Other =
+    ///      (Rudra enum: Stack = spacebase, Ram/Register/Overlay/Other =
     ///      processor) — the oracle throws LowlevelError otherwise,
     ///      degraded here to `None` so callers can skip the join (the
     ///      established LowlevelError-arm degradation pattern,
     ///      e.g. `return_join_address` coreaction.rs);
     ///   2. `usejoinspace = false` when either piece is the spacebase or
-    ///      the default code space (Rugra's x86-64 corpus: Ram) —
+    ///      the default code space (Rudra's x86-64 corpus: Ram) —
     ///      contiguous pieces then resolve to the earliest address
     ///      directly;
     ///   3. contiguous pieces in a register space resolve to the covering

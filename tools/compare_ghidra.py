@@ -150,9 +150,9 @@ def match_functions(rugra_funcs, ghidra_funcs, base_offset=0x100000):
 # ---------------------------------------------------------------------------
 
 # Rugra 独有噪音
-RUGRA_TYPEDEF_RE = re.compile(r'^\s*typedef\b.*;$', re.MULTILINE)
-RUGRA_EXTERN_RE = re.compile(r'^\s*extern\b.*;$', re.MULTILINE)
-RUGRA_BANNER_RE = re.compile(r'^===.*===\s*$', re.MULTILINE)
+RUDRA_TYPEDEF_RE = re.compile(r'^\s*typedef\b.*;$', re.MULTILINE)
+RUDRA_EXTERN_RE = re.compile(r'^\s*extern\b.*;$', re.MULTILINE)
+RUDRA_BANNER_RE = re.compile(r'^===.*===\s*$', re.MULTILINE)
 # 裸寄存器泄漏 (Ghidra 永不泄漏, 出现即缺陷)
 REGISTER_LEAK_RE = re.compile(
     r'\b(?:RAX|R BX|RCX|RDX|RSI|RDI|RBP|RSP|R8|R9|R10|R11|R12|R13|R14|R15|'
@@ -182,9 +182,9 @@ STR_LIT_RE = re.compile(r'"[^"]*"')
 def strip_noise(body, side):
     """剥离格式噪音, 返回干净函数体。side='rugra'|'ghidra'。"""
     s = body
-    s = RUGRA_TYPEDEF_RE.sub('', s)
-    s = RUGRA_EXTERN_RE.sub('', s)
-    s = RUGRA_BANNER_RE.sub('', s)
+    s = RUDRA_TYPEDEF_RE.sub('', s)
+    s = RUDRA_EXTERN_RE.sub('', s)
+    s = RUDRA_BANNER_RE.sub('', s)
     if side == 'ghidra':
         s = GHIDRA_PTR_RE.sub('PTR', s)
         s = GHIDRA_DAT_RE.sub('DAT', s)

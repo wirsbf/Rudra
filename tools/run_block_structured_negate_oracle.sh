@@ -457,4 +457,4 @@ if ! /usr/bin/cmp -s "$run_tmp/owned.before" "$run_tmp/owned.after"; then
 fi
 
 /usr/bin/cat "$run_tmp/ghidra.stdout"
-echo "block_structured_negate_1204: scoped=MATCH full=MISMATCH residual=RUGRA_DIAGNOSTIC_STDERR stdout_sha256=$ghidra_stdout_sha rugra_stderr_sha256=$rugra_stderr_sha"
+echo "block_structured_negate_1204: scoped=MATCH full=MISMATCH residual=RUDRA_DIAGNOSTIC_STDERR stdout_sha256=$ghidra_stdout_sha rugra_stderr_sha256=$rugra_stderr_sha"

@@ -1,6 +1,6 @@
 //! COREACTION-CALLIN0-CLOBBER-0001 trace probe: run prefix 18 vs prefix 19 of
 //! the DECOMPILE groups on ap_pregfree and dump CALL in(0) + STORE count.
-//! With RUGRA_CALLIN0_TRACE set, funcdata::op_set_input backtraces CALL slot-0
+//! With RUDRA_CALLIN0_TRACE set, funcdata::op_set_input backtraces CALL slot-0
 //! rewrites (temp diagnostic).
 
 use rudra::action::ActionDatabase;

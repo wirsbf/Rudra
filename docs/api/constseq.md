@@ -84,7 +84,7 @@
   （flat/nested_struct/array_offset_root/too_short/root_not_first/gap_in_copies/
   wide_copy/concat_cascade——含 PIECE 级联 + INDIRECT 重定义 + STRINGDATA hash
   回读经真实 `getStringData`），双侧 stdout **字节恒等 77/77 行**
-  （`/dev/shm/rugra-tests/strfold/{ghidra,rugra}_fixture.out`，oracle 直跑
+  （`/dev/shm/rudra-tests/strfold/{ghidra,rudra}_fixture.out`，oracle 直跑
   e40ed130 libdecomp）。
 
 **源代码路径**: `src/constseq.rs`
@@ -94,7 +94,7 @@
 
 **验证**：httpd 镜 ap_ht_time 的 "+0000" 五连 STORE → `builtin_strncpy`
 CALLOTHER 对（STRINGDATA+strncpy）在最终 stage projection 中存活（亲采
-`/dev/shm/rugra-tests/strncpy/apht_stage_after.txt`）；httpd 镜 301→297、
+`/dev/shm/rudra-tests/strncpy/apht_stage_after.txt`）；httpd 镜 301→297、
 ap_ht_time 13→9、defects/numbering 双零。**残差**：printc.rs 的
 `dispatch_op_rpn` 无 CPUI_CALLOTHER 臂（自述 "everything else is a no-op"）、
 `op_callother` 为零调用死码、display_string 臂硬编码 "badstring"——语句现

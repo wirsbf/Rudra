@@ -10,7 +10,7 @@ cpp_path=Ghidra/Features/Decompiler/src/decompile/cpp
 metadata="$repo_root/tests/oracle/type_ptrwidth_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/type_ptrwidth_1204.cc"
 rust_fixture="$repo_root/tests/oracle/type_ptrwidth_1204.rs"
-target_dir=${RUGRA_TYPE_PTRWIDTH_TARGET_DIR:-/home/wirs/.cache/rugra-type-ptrwidth-target}
+target_dir=${RUDRA_TYPE_PTRWIDTH_TARGET_DIR:-/home/wirs/.cache/rugra-type-ptrwidth-target}
 runner_tmp_parent=/home/wirs/.cache/rugra-type-ptrwidth-runner
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)

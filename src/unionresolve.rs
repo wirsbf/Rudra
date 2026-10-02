@@ -113,7 +113,7 @@ impl ResolvedUnion {
 
     // RUDRA-GLUE: Stringly-typed constructor for callers that only have a
     //   type name and cannot readily produce an Arc<Datatype>. Not present in
-    //   Ghidra; included so existing Rugra call-sites keep compiling.
+    //   Ghidra; included so existing Rudra call-sites keep compiling.
     pub fn new_self(parent_name: &str) -> Self {
         let parent = name_placeholder(parent_name);
         Self::new(parent)
@@ -356,7 +356,7 @@ pub struct ScoreUnionFields<'t> {
     pub typegrp: Arc<RwLock<TypeFactory>>,
     /// The function being scored, for the locked call-spec consults
     /// (scoreParameter cc:184 / scoreReturnType cc:204). Ghidra derives it
-    /// from `op->getParent()->getFuncdata()`; Rugra PcodeOps carry no
+    /// from `op->getParent()->getFuncdata()`; Rudra PcodeOps carry no
     /// Funcdata back-pointer, so the caller threads it. `None` falls back to
     /// the unlocked-param heuristic arms of both scorers.
     pub fd: Option<&'t crate::funcdata::Funcdata>,
@@ -1524,7 +1524,7 @@ impl<'t> ScoreUnionFields<'t> {
 // ===========================================================================
 //
 // Ghidra dispatches `Datatype::resolveInFlow` / `Datatype::findResolve`
-// virtually per concrete subclass (type.hh:279-280). Rugra's `Datatype` is an
+// virtually per concrete subclass (type.hh:279-280). Rudra's `Datatype` is an
 // enum in type_system/datatype.rs with no Funcdata back-pointer, so the
 // virtual dispatch is mirrored here as free functions threading `fd` — the
 // same pattern the type layer already uses for `find_truncation`'s

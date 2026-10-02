@@ -21,7 +21,7 @@ use std::fmt;
 ///   - the MULTIEQUAL-tip tests in `Cover::addRefPoint`/`addRefRecurse` call
 ///     `op->code()==CPUI_MULTIEQUAL` on the stored stop pointer
 ///     (cover.cc:547, 590-591)
-/// Rugra models the pointer with this enum; the `getUIndex` projection is
+/// Rudra models the pointer with this enum; the `getUIndex` projection is
 /// cached in the public `CoverBlock::start`/`end` u32 fields.
 // Ghidra: cover.hh:76-77 CoverBlock::start / CoverBlock::stop (pointer values)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,7 +109,7 @@ impl CoverEndpoint {
 
 /// Resolve the SeqNum order of the op an INDIRECT marker is guarding,
 /// mirroring `PcodeOp::getOpFromConst(op->getIn(1)->getAddr())->getSeqNum()
-/// ->getOrder()` (cover.cc:41-43). Rugra's Iop-space constants encode the
+/// ->getOrder()` (cover.cc:41-43). Rudra's Iop-space constants encode the
 /// target PcodeOp with `Arc::as_ptr` — the same legacy OPBANK-0001 encoding
 /// `Funcdata::get_op_from_const` decodes; typed `call_spec` annotations are
 /// excluded exactly like that function's guard.
@@ -222,7 +222,7 @@ impl CoverBlock {
     // Ghidra: cover.hh:84 CoverBlock::setAll
     /// Mark the entire block as covered. Faithful to `CoverBlock::setAll`
     /// (cover.hh:84-85): Ghidra sets `start=(PcodeOp*)0` (begin-of-block
-    /// sentinel) and `stop=(PcodeOp*)1` (end-of-block sentinel). In Rugra's
+    /// sentinel) and `stop=(PcodeOp*)1` (end-of-block sentinel). In Rudra's
     /// u32-order projection, begin-of-block is order 0 and end-of-block is
     /// `u32::MAX` (the `~((uintm)0)` value returned by `getUIndex` for the
     /// sentinel-1 stop).
@@ -262,7 +262,7 @@ impl CoverBlock {
     ///                                            its iop input)
     ///   - normal op                          -> SeqNum::order
     ///
-    /// Rugra's `CoverBlock` stores raw u32 orders directly (rather than
+    /// Rudra's `CoverBlock` stores raw u32 orders directly (rather than
     /// `PcodeOp*` pointers), so the sentinel-to-order translation has already
     /// happened at `set_begin`/`set_end` time. This method is provided as a
     /// bridge so that other modules (Funcdata, merge, varmap) which in Ghidra
@@ -629,7 +629,7 @@ impl Cover {
     /// block is covered by this. Faithful to `Cover::getCoverBlock`
     /// (cover.cc:253-260): returns a reference to the CoverBlock for block
     /// `i`, or the global empty block if this cover does not touch block `i`.
-    /// Rugra returns `Option<&CoverBlock>` rather than a reference to a global
+    /// Rudra returns `Option<&CoverBlock>` rather than a reference to a global
     /// empty singleton; callers that need the Ghidra (empty-block) behavior
     /// should `.copied().unwrap_or_else(CoverBlock::new)`.
     pub fn get_cover_block(&self, i: i32) -> Option<&CoverBlock> {
@@ -1167,7 +1167,7 @@ impl Cover {
         // Cover::addRefPoint/addRefRecurse (cover.cc:549-612) only extend
         // EMPTY or uncovered regions — a second visit to an already-covered
         // block returns without recursing, so implied-varnode chains can
-        // never cycle. Rugra's explicit worklist has no such containment
+        // never cycle. Rudra's explicit worklist has no such containment
         // signal, so an explicit visited set on the implied outputs is the
         // equivalent cycle bound (without it, mutually-reading implied
         // varnodes X->Y->X loop forever).
@@ -1233,7 +1233,7 @@ impl Cover {
     ///   3. if a reading op's output is non-null and implied, the output is
     ///      pushed onto the worklist so ITS readers also extend the cover.
     ///
-    /// Because Rugra's internal cover stores `(block_idx, u32 order)` pairs,
+    /// Because Rudra's internal cover stores `(block_idx, u32 order)` pairs,
     /// this entry point resolves each PcodeOp's block index and SeqNum order
     /// and delegates to the order-based `add_def_point`/`add_ref_point_full`.
     pub fn rebuild(
@@ -1492,8 +1492,8 @@ impl fmt::Display for Cover {
     }
 }
 
-/// Alias for the owned PcodeOp reference type used throughout Rugra.
-/// (Ghidra stores raw `PcodeOp*` in `opList`; Rugra stores the strong Arc.)
+/// Alias for the owned PcodeOp reference type used throughout Rudra.
+/// (Ghidra stores raw `PcodeOp*` in `opList`; Rudra stores the strong Arc.)
 type OpArc = std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>;
 
 /// A set of PcodeOps that can be tested for Cover intersections.
@@ -1507,7 +1507,7 @@ type OpArc = std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>;
 ///
 /// Ghidra models this as an abstract base class with two pure-virtual methods
 /// (`populate`, `affectsTest`) and protected storage (`opList`, `blockStart`,
-/// `is_pop`). Rugra splits it into:
+/// `is_pop`). Rudra splits it into:
 ///   - `PcodeOpSetImpl`: the trait subclass owners implement (populate +
 ///     affects_test), mirroring the virtual methods.
 ///   - `PcodeOpSet`: the owning struct that holds the shared storage and a
@@ -1695,7 +1695,7 @@ impl PcodeOpSet {
     }
 
     /// Number of ops currently in the set. (Ghidra uses `opList.size()`;
-    /// Rugra exposes this as a method since `op_list` is private.)
+    /// Rudra exposes this as a method since `op_list` is private.)
     // RUDRA-GLUE: Rust visibility adapter for private RwLock storage; Ghidra
     // accesses PcodeOpSet::opList directly and has no getNumOps method.
     pub fn get_num_ops(&self) -> usize {
@@ -1703,7 +1703,7 @@ impl PcodeOpSet {
     }
 
     /// Get the i-th op in the sorted set. (Ghidra indexes `opList[i]`
-    /// directly; Rugra exposes a method since `op_list` is private.)
+    /// directly; Rudra exposes a method since `op_list` is private.)
     // RUDRA-GLUE: Rust visibility/ownership adapter returning an Arc clone;
     // Ghidra indexes the protected opList vector directly.
     pub fn get_op(&self, i: usize) -> Option<OpArc> {

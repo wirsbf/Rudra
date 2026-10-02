@@ -454,3 +454,4 @@ Oracle 证据：与 space.md 同一条目——`tests/oracle/fspec_space_identit
 fspec invalid/valid-entry 投影、ram 自往返、按名 resolve、未知名与空 `<addr/>` 路径）。
 2026-08-24 起 Join 编解码另见 `tests/oracle/marshal_packed_join_1204.*`
 （MARSHAL-XML-TEXT-0001）。
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

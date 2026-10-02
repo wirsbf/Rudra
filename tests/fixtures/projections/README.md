@@ -154,21 +154,21 @@ Oracle side (requires the locked ghidra tree + binutils 2.38 BFD, see
 contract; `/tmp/rugra-ghidra-bfd-2.38` is the usual include root):
 
 ```bash
-RUGRA_STAGE_PROJECTION_OUT=tests/fixtures/projections/curl_<fn>/oracle.projection \
+RUDRA_STAGE_PROJECTION_OUT=tests/fixtures/projections/curl_<fn>/oracle.projection \
   bash tools/run_stage_projection_oracle.sh curl <entry-hex> <function>
 # next_url may equivalently use the zero-arg default mode (same bytes).
 # PLT-thunk entries (no BFD symbol): pass "-" as the function token to
 # take the address-only arm, e.g. ... curl 22f0 -   (see curl_plt_*).
-# Batch drivers may set RUGRA_STAGE_PROJECTION_BUILD=<dir> to cache the
+# Batch drivers may set RUDRA_STAGE_PROJECTION_BUILD=<dir> to cache the
 # instrumented oracle build across invocations.
 ```
 
-Rugra side (cwd = repo root; projection lands via RUGRA_STAGE_PROJ_OUT;
+Rugra side (cwd = repo root; projection lands via RUDRA_STAGE_PROJ_OUT;
 each capture is run twice and `cmp`-verified deterministic before banking):
 
 ```bash
-RUGRA_MIRROR=1 RUGRA_STAGE_PROJ=1 RUGRA_STAGE_FUNC=<selector> \
-  RUGRA_STAGE_PROJ_OUT=tests/fixtures/projections/curl_<fn>/rugra.projection \
+RUDRA_MIRROR=1 RUDRA_STAGE_PROJ=1 RUDRA_STAGE_FUNC=<selector> \
+  RUDRA_STAGE_PROJ_OUT=tests/fixtures/projections/curl_<fn>/rugra.projection \
   cargo run --profile fast-release --example curl_decompile
 ```
 
@@ -185,7 +185,7 @@ difference is the same constprop-clone BFD/DWARF spelling class.
 FuncInfo layer agree on this name).
 
 The 15 cascade-harvest entries (2026-09-24, lane HARVEST) were captured
-with the address-form selector `RUGRA_STAGE_FUNC=0x<entry>`
+with the address-form selector `RUDRA_STAGE_FUNC=0x<entry>`
 (`main_free`, `main_init`, `SetHTTPrequest.part.0`, `SetHTTPrequest`,
 `glob_url`, `frame_dummy`, `__do_global_dtors_aux`, `_init`, `_fini`,
 `__libc_csu_fini`, `__libc_csu_init`, `deregister_tm_clones`,
@@ -254,10 +254,10 @@ excluded by construction):
 in any BFD symbol table — the address-only arm is the only oracle
 capture channel). All 320 oracle projections were captured
 deterministically (double-run cmp) through it with the shared build
-cache (`RUGRA_STAGE_PROJECTION_BUILD`) by lane HBANK, and lane HBANK2
+cache (`RUDRA_STAGE_PROJECTION_BUILD`) by lane HBANK, and lane HBANK2
 unlocked the rugra side: the httpd driver's stage-selectable function
 ledger was dynsym-defined-only (473 entries, first at 0x2b820), so
-`RUGRA_STAGE_FUNC=0x2a430` exited 1 — the driver now carries a
+`RUDRA_STAGE_FUNC=0x2a430` exited 1 — the driver now carries a
 stage-gated PLT-thunk ledger arm (`HBANK-DRIVER-STAGELEDGER-0001`,
 driver commit 534f9802) scanning the same slot population (PLT0 via
 the `.plt` head with the golden `FUN_00129020` spelling, `.plt.got` via

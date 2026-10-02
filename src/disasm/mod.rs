@@ -1,4 +1,4 @@
-//! Disassembly module for Rugra
+//! Disassembly module for Rudra
 //!
 //! P-code emission for the decompiler pipeline. The retired iced-x86
 //! bootstrap decoder and its hand-written X86Lifter are gone

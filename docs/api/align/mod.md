@@ -25,3 +25,4 @@ Note: Runtime verification requires `once_cell` dependency in Cargo.toml
 Helper trait for objects that can be cross-verified with Ghidra
 
 <!-- annotation-pass: 2026-07-04 -->
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

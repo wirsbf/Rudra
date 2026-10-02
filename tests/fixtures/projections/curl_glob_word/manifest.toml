@@ -10,7 +10,7 @@ side = "oracle"
 commit = "e40ed13014025f82488b1f8f7bca566894ac376b"
 tag = "Ghidra_12.0.4_build"
 producer_blob = "24a4bec28f2786d0b0f4b23e540c67228519b92f"
-capture_command = "RUGRA_STAGE_PROJECTION_OUT=tests/fixtures/projections/curl_glob_word/oracle.projection bash tools/run_stage_projection_oracle.sh curl 4a60 glob_word"
+capture_command = "RUDRA_STAGE_PROJECTION_OUT=tests/fixtures/projections/curl_glob_word/oracle.projection bash tools/run_stage_projection_oracle.sh curl 4a60 glob_word"
 pin_mode = "bank-sha256"
 date = "2026-09-24"
 
@@ -18,7 +18,7 @@ date = "2026-09-24"
 side = "rugra"
 driver_commit = "f6dcbed0683a3dbfeac5370eea57f6c2594f2ce7"
 driver_profile = "fast-release"
-capture_command = "RUGRA_MIRROR=1 RUGRA_STAGE_PROJ=1 RUGRA_STAGE_FUNC=glob_word RUGRA_STAGE_PROJ_OUT=tests/fixtures/projections/curl_glob_word/rugra.projection cargo run --profile fast-release --example curl_decompile"
+capture_command = "RUDRA_MIRROR=1 RUDRA_STAGE_PROJ=1 RUDRA_STAGE_FUNC=glob_word RUDRA_STAGE_PROJ_OUT=tests/fixtures/projections/curl_glob_word/rugra.projection cargo run --profile fast-release --example curl_decompile"
 date = "2026-09-24"
 
 [verification]

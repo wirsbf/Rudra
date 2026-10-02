@@ -16,11 +16,11 @@
 # No root/system installation is required; every artifact lives in the work dir.
 #
 # Environment overrides:
-#   RUGRA_HEADLESS_WORKDIR  build directory (default /tmp/rugra-ghidra-1204-headless)
-#   RUGRA_JDK21_HOME        reuse an existing JDK >= 21 instead of downloading one
-#   RUGRA_GRADLE_BIN        reuse an existing Gradle >= 8.5 instead of downloading one
-#   RUGRA_GRADLE_VERSION    portable Gradle version to fetch (default 8.14.3)
-#   RUGRA_GRADLE_WORKERS    max gradle workers (default 32)
+#   RUDRA_HEADLESS_WORKDIR  build directory (default /tmp/rugra-ghidra-1204-headless)
+#   RUDRA_JDK21_HOME        reuse an existing JDK >= 21 instead of downloading one
+#   RUDRA_GRADLE_BIN        reuse an existing Gradle >= 8.5 instead of downloading one
+#   RUDRA_GRADLE_VERSION    portable Gradle version to fetch (default 8.14.3)
+#   RUDRA_GRADLE_WORKERS    max gradle workers (default 32)
 #
 # Output: a ready-to-run distribution under $WORKDIR/dist plus machine-readable
 # RESULT_* lines on stdout. Exit 0 on success, 1 on any failure.
@@ -36,11 +36,11 @@ unset LD_PRELOAD
 
 LOCKED_ORACLE=e40ed13014025f82488b1f8f7bca566894ac376b
 ORACLE_TAG=Ghidra_12.0.4_build
-WORKDIR=${RUGRA_HEADLESS_WORKDIR:-/tmp/rugra-ghidra-1204-headless}
-GRADLE_VERSION=${RUGRA_GRADLE_VERSION:-8.14.3}
-GRADLE_WORKERS=${RUGRA_GRADLE_WORKERS:-32}
+WORKDIR=${RUDRA_HEADLESS_WORKDIR:-/tmp/rugra-ghidra-1204-headless}
+GRADLE_VERSION=${RUDRA_GRADLE_VERSION:-8.14.3}
+GRADLE_WORKERS=${RUDRA_GRADLE_WORKERS:-32}
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-ghidra_repo=${RUGRA_GHIDRA_DIR:-"$repo_root/ghidra"}
+ghidra_repo=${RUDRA_GHIDRA_DIR:-"$repo_root/ghidra"}
 
 log() { printf '[build_ghidra_1204_headless] %s\n' "$*"; }
 die() { printf '[build_ghidra_1204_headless] BLOCKED: %s\n' "$*" >&2; exit 1; }
@@ -104,8 +104,8 @@ mkdir -p "$src_dir/dependencies/flatRepo"
 
 # ---------------------------------------------------------------- JDK >= 21
 jdk_home=""
-if [[ -n "${RUGRA_JDK21_HOME:-}" ]]; then
-  jdk_home="$RUGRA_JDK21_HOME"
+if [[ -n "${RUDRA_JDK21_HOME:-}" ]]; then
+  jdk_home="$RUDRA_JDK21_HOME"
 elif [[ -x "$WORKDIR/jdk21/bin/java" ]]; then
   jdk_home="$WORKDIR/jdk21"
 else
@@ -128,8 +128,8 @@ jdk_sha=$(sha256sum "$jdk_home/release" 2>/dev/null | cut -d' ' -f1 || true)
 
 # ---------------------------------------------------------------- Gradle
 gradle_bin=""
-if [[ -n "${RUGRA_GRADLE_BIN:-}" ]]; then
-  gradle_bin="$RUGRA_GRADLE_BIN"
+if [[ -n "${RUDRA_GRADLE_BIN:-}" ]]; then
+  gradle_bin="$RUDRA_GRADLE_BIN"
 elif [[ -x "$WORKDIR/gradle/bin/gradle" ]]; then
   gradle_bin="$WORKDIR/gradle/bin/gradle"
 else

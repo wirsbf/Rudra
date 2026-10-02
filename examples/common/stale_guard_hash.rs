@@ -140,7 +140,7 @@ pub fn source_digest(root: &Path) -> std::io::Result<(u64, usize)> {
 
 // RUGRA-GLUE: runtime verdict of the embedded build-time digest against the
 // current source tree. `embedded_hex` is the build.rs-emitted
-// RUGRA_BUILD_SOURCE_DIGEST (None when the build script did not run/emit).
+// RUDRA_BUILD_SOURCE_DIGEST (None when the build script did not run/emit).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuardVerdict {
     /// Embedded digest matches the current source tree (guard passes).

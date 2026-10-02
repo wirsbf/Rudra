@@ -18,7 +18,7 @@
 //! semantic actions (ConstructTpl assembly), `SleighBase::findSymbol`, the
 //! register resolver for `<register>` XML.
 //!
-//! Rugra uses `iced-x86` instead of SLEIGH, so SLEIGH integration is itself an
+//! Rudra uses `iced-x86` instead of SLEIGH, so SLEIGH integration is itself an
 //! L3 gap; this module therefore exposes a clean Rust API that downstream
 //! SLEIGH work can plug into.
 
@@ -353,7 +353,7 @@ pub enum PcodeToken {
 impl PcodeToken {
     /// Project a fine-grained `PcodeTokenKind` down to a coarse `PcodeToken`.
     /// RUDRA-GLUE: Ghidra has no projection layer; the Bison token enum is
-    /// returned directly to the grammar. Rugra keeps a coarse view for
+    /// returned directly to the grammar. Rudra keeps a coarse view for
     /// pre-existing callers.
     pub fn from_kind(kind: PcodeTokenKind) -> PcodeToken {
         match kind {
@@ -1179,7 +1179,7 @@ fn parse_number_token_checked(s: &str) -> (bool, u64) {
 // ---------------------------------------------------------------------------
 
 /// Tagged SLEIGH symbol kind, faithful to the `switch(sym->getType())` in
-/// `PcodeSnippet::lex` (pcodeparse.y:730-758). Rugra does not link against
+/// `PcodeSnippet::lex` (pcodeparse.y:730-758). Rudra does not link against
 /// SLEIGH, so each kind carries the resolved payload directly.
 #[derive(Debug, Clone)]
 pub enum SleightSymbolKind {
@@ -1226,7 +1226,7 @@ pub trait SleighSymbolLookup: Send + Sync {
 /// Which of the five JUMPSYM `SpecificSymbol` subclasses a jump-target
 /// symbol is. Ghidra models these as distinct classes
 /// (slghsymbol.hh:359 `StartSymbol`, :376 `EndSymbol`, :393 `Next2Symbol`,
-/// :410 `FlowDestSymbol`, :422 `FlowRefSymbol`); Rugra folds the class
+/// :410 `FlowDestSymbol`, :422 `FlowRefSymbol`); Rudra folds the class
 /// identity into this tag because the only snippet-compiler-visible
 /// behavior that differs between them is the dynamic offset produced by
 /// `getVarnode()`.
@@ -1301,7 +1301,7 @@ pub struct PredefinedJumpSymbols<L: SleighSymbolLookup> {
 
 impl<L: SleighSymbolLookup> PredefinedJumpSymbols<L> {
     // RUDRA-GLUE: new (Ghidra installs the symbols at .sla build time via
-    // SleighCompile::predefinedSymbols; Rugra composes them over the host
+    // SleighCompile::predefinedSymbols; Rudra composes them over the host
     // lookup because it links no SLEIGH engine.)
     /// Wrap the given language lookup with the predefined JUMPSYM symbols.
     pub fn new(inner: L) -> Self {
@@ -1391,7 +1391,7 @@ impl PcodeData {
 
 // RUDRA-GLUE: element_id helpers
 // Ghidra declares these as file-scope `ElementId`/`AttributeId` globals
-// (translate.cc:20-28, address.cc:25-30). Rugra's `ElementId::new` /
+// (translate.cc:20-28, address.cc:25-30). Rudra's `ElementId::new` /
 // `AttributeId::new` are non-const, so we construct fresh values here. Exact
 // wire-ID parity is tracked by MARSHAL-ID-0001.
 
@@ -1418,7 +1418,7 @@ pub fn elem_varnode() -> ElementId {
     ElementId::new("varnode", 16)
 }
 
-/// Rugra currently constructs `ELEM_VOID` with id 18; locked Ghidra uses id 10.
+/// Rudra currently constructs `ELEM_VOID` with id 18; locked Ghidra uses id 10.
 // RUDRA-GLUE: Rust function wrapper for Ghidra's file-scope ELEM_VOID (marshal.cc:1269); wire-ID parity remains tracked by MARSHAL-ID-0001.
 pub fn elem_void() -> ElementId {
     ElementId::new("void", 18)
@@ -1436,25 +1436,25 @@ pub fn attrib_code() -> AttributeId {
     AttributeId::new("code", 43)
 }
 
-/// Rugra currently constructs `ATTRIB_SIZE` with id 7; locked Ghidra uses 19.
+/// Rudra currently constructs `ATTRIB_SIZE` with id 7; locked Ghidra uses 19.
 // RUDRA-GLUE: Rust function wrapper for Ghidra's file-scope ATTRIB_SIZE (marshal.cc:1246); wire-ID parity remains tracked by MARSHAL-ID-0001.
 pub fn attrib_size() -> AttributeId {
     AttributeId::new("size", 7)
 }
 
-/// Rugra currently constructs `ATTRIB_SPACE` with id 9; locked Ghidra uses 20.
+/// Rudra currently constructs `ATTRIB_SPACE` with id 9; locked Ghidra uses 20.
 // RUDRA-GLUE: Rust function wrapper for Ghidra's file-scope ATTRIB_SPACE (marshal.cc:1247); wire-ID parity remains tracked by MARSHAL-ID-0001.
 pub fn attrib_space() -> AttributeId {
     AttributeId::new("space", 9)
 }
 
-/// Rugra currently constructs `ATTRIB_NAME` with id 2; locked Ghidra uses 14.
+/// Rudra currently constructs `ATTRIB_NAME` with id 2; locked Ghidra uses 14.
 // RUDRA-GLUE: Rust function wrapper for Ghidra's file-scope ATTRIB_NAME (marshal.cc:1241); wire-ID parity remains tracked by MARSHAL-ID-0001.
 pub fn attrib_name() -> AttributeId {
     AttributeId::new("name", 2)
 }
 
-/// Rugra currently constructs `ATTRIB_OFFSET` with id 4; locked Ghidra uses 16.
+/// Rudra currently constructs `ATTRIB_OFFSET` with id 4; locked Ghidra uses 16.
 // RUDRA-GLUE: Rust function wrapper for Ghidra's file-scope ATTRIB_OFFSET (marshal.cc:1243); wire-ID parity remains tracked by MARSHAL-ID-0001.
 pub fn attrib_offset() -> AttributeId {
     AttributeId::new("offset", 4)
@@ -1466,7 +1466,7 @@ pub fn attrib_offset() -> AttributeId {
 
 /// Resolve a space spelling to an `AddressSpace`. Ghidra's manager-backed
 /// `Decoder::readSpace` lookup throws for an unknown name; this fallback uses
-/// Rugra's fixed variants until the canonical registry and decoder land.
+/// Rudra's fixed variants until the canonical registry and decoder land.
 // RUDRA-GLUE: Fixed-name fallback for XmlDecode::readSpace (marshal.cc:400); exact registry/error semantics are tracked by SPACE-0001 and MARSHAL-PACKED-0001.
 pub fn parse_space_name(name: &str) -> AddressSpace {
     match name {
@@ -1488,7 +1488,7 @@ pub fn parse_space_name(name: &str) -> AddressSpace {
 // Ghidra: pcoderaw.cc:33 VarnodeData::decodeFromAttributes
 /// Maps to `VarnodeData::decodeFromAttributes` (pcoderaw.cc:33-55).
 /// Walks the current element's attributes; on `space=` reads the offset/size
-/// from the space's own attribute set, on `name=` looks up a register. Rugra
+/// from the space's own attribute set, on `name=` looks up a register. Rudra
 /// has no register resolver yet, so `name=` falls back to a register-space
 /// varnode with offset 0; manager-backed identity is tracked by `SPACE-0001`
 /// and production ownership by `ARCH-0001`.
@@ -1502,7 +1502,7 @@ pub fn decode_varnode_from_attributes(decoder: &mut dyn Decoder) -> VarnodeData 
         if attrib_id == 0 {
             break;
         }
-        // Compare by name (Ghidra compares AttributeId pointers; Rugra's ids
+        // Compare by name (Ghidra compares AttributeId pointers; Rudra's ids
         // are registry-assigned so we compare names instead — equivalent for
         // the well-known attributes used here).
         let Some(aname) = decoder.attribute_name(attrib_id) else {
@@ -1534,7 +1534,7 @@ pub fn decode_varnode_from_attributes(decoder: &mut dyn Decoder) -> VarnodeData 
     if let Some(sp) = space {
         // RUDRA-GLUE: register resolver (L3 gap)
         // On `name=` with a register, Ghidra calls trans->getRegister(name).
-        // Rugra has no Translate yet, so emit a Register-space varnode with
+        // Rudra has no Translate yet, so emit a Register-space varnode with
         // offset 0 when only a name was given. This keeps the shape correct.
         VarnodeData {
             space: sp,
@@ -1574,7 +1574,7 @@ pub fn decode_varnode(decoder: &mut dyn Decoder) -> VarnodeData {
 /// element is already open. Reads `code=` as the opcode, handles `<void>`
 /// output (no output) vs. an output varnode, then decodes `isize` inputs with
 /// special `<spaceid>` handling (constant-space varnode whose offset is the
-/// space pointer — Rugra approximates this with a Const varnode pending
+/// space pointer — Rudra approximates this with a Const varnode pending
 /// `SPACE-0001`).
 pub fn decode_pcode_op_raw(decoder: &mut dyn Decoder, isize_: i32) -> Option<PcodeData> {
     let code_raw = decoder.read_signed_integer_attr(&attrib_code()) as i32;
@@ -1597,7 +1597,7 @@ pub fn decode_pcode_op_raw(decoder: &mut dyn Decoder, isize_: i32) -> Option<Pco
         let sub_id = decoder.peek_element();
         if sub_id == spaceid_id {
             // <spaceid name="..."> — Ghidra stores the AddrSpace pointer as
-            // the offset in the constant space. Rugra has no space pointer to
+            // the offset in the constant space. Rudra has no space pointer to
             // encode, so we record the name as a zero-offset Const varnode of
             // pointer size. RUDRA-GLUE: SLEIGH gap.
             let opened = decoder.open_element();
@@ -1619,7 +1619,7 @@ pub fn decode_pcode_op_raw(decoder: &mut dyn Decoder, isize_: i32) -> Option<Pco
 /// Maps to `PcodeEmit::decodeOp` (translate.cc:996-1014): opens the
 /// `<op>` element, reads `size=` as the input count, delegates to
 /// `decode_pcode_op_raw`, then closes the element. Returns the decoded op
-/// (Rugra returns it directly; Ghidra hands it to `PcodeEmit::dump`).
+/// (Rudra returns it directly; Ghidra hands it to `PcodeEmit::dump`).
 pub fn decode_op(decoder: &mut dyn Decoder) -> Option<PcodeData> {
     let elem_id = decoder.open_element_matching(&elem_op());
     let isize_ = decoder.read_signed_integer_attr(&attrib_size()) as i32;
@@ -1666,7 +1666,7 @@ pub struct PcodeSnippet {
     enforce_local_key: bool,
     /// The SLEIGH language symbol table consulted when a STRING token is not
     /// in the local table (`sleigh->findSymbol` at pcodeparse.cc:3223-3224).
-    /// Ghidra's `PcodeSnippet` holds a `const SleighBase *sleigh`; Rugra has
+    /// Ghidra's `PcodeSnippet` holds a `const SleighBase *sleigh`; Rudra has
     /// no linked SLEIGH engine, so the language symbols arrive through this
     /// lookup hook (installed by the pcode-inject library before parsing).
     sleigh_lookup: Option<Arc<dyn SleighSymbolLookup + Send + Sync>>,
@@ -1678,7 +1678,7 @@ pub struct PcodeSnippet {
     unique_space: AddressSpace,
     /// Current line number for error reporting (1-based). Advanced as the
     /// lexer scans '\n'. Ghidra does not track this in PcodeSnippet itself
-    /// (it is in `Location`), but Rugra threads it through for richer
+    /// (it is in `Location`), but Rudra threads it through for richer
     /// error messages.
     line_number: u32,
     /// Hard-error channel standing in for the `SleighError` that Ghidra's
@@ -1686,7 +1686,7 @@ pub struct PcodeSnippet {
     /// (pcodecompile.cc:129/137) THROW — the exception escapes
     /// `PcodeSnippet::parseStream` entirely (no catch between yyparse and
     /// the payload compiler), so neither `errorcount` nor `firsterror` is
-    /// touched and `result` stays unset. Rugra has no unwinding channel,
+    /// touched and `result` stays unset. Rudra has no unwinding channel,
     /// so the parse aborts with this message recorded instead; fixture
     /// twins observe it through `get_hard_error` the way the C++ fixture
     /// observes the caught `SleighError::explain`.
@@ -1697,7 +1697,7 @@ impl PcodeSnippet {
     // Ghidra: pcodeparse.y:676 PcodeSnippet::PcodeSnippet
     /// Construct a snippet compiler. Faithful to pcodeparse.y:676-695: zero
     /// tempbase, zero errors, no result, and seed the well-known address
-    /// spaces. Rugra has no SLEIGH handle so the spaces are the built-in
+    /// spaces. Rudra has no SLEIGH handle so the spaces are the built-in
     /// `AddressSpace` variants.
     pub fn new() -> Self {
         let mut s = Self {
@@ -1721,7 +1721,7 @@ impl PcodeSnippet {
         };
         // pcodeparse.y:686-692: insert a SpaceSymbol for each space of type
         // CONSTANT / PROCESSOR / SPACEBASE / INTERNAL, in the language's
-        // space order. Rugra seeds the built-in equivalents of the x86-64
+        // space order. Rudra seeds the built-in equivalents of the x86-64
         // .sla space set: const (CONSTANT), ram/register/OTHER
         // (PROCESSOR), stack would be SPACEBASE but no SLEIGH language
         // defines it in the .sla (the stack space is architecture-side),
@@ -1865,7 +1865,7 @@ impl PcodeSnippet {
     /// to pcodeparse.cc:3215-3265 (pcodeparse.y:717-768): the local `tree`
     /// is searched first, then `sleigh->findSymbol`; symbols of other kinds
     /// (dummy/subtable) fall back to STRING. Returns the Bison token id
-    /// (258-314, ASCII for punctuation, 0 for EOF). Rugra returns
+    /// (258-314, ASCII for punctuation, 0 for EOF). Rudra returns
     /// `PcodeTokenKind` which carries the same information.
     pub fn lex(&mut self) -> PcodeTokenKind {
         let tok = self.lexer.get_next_token();
@@ -1941,7 +1941,7 @@ impl Default for PcodeSnippet {
 
 // RUDRA-GLUE: space_symbol_name
 /// Produce the lookup key for a space's auto-inserted `SpaceSymbol`, matching
-/// the names Ghidra derives from `AddrSpace->getName()`. Rugra's
+/// the names Ghidra derives from `AddrSpace->getName()`. Rudra's
 /// `AddressSpace` has no embedded name, so we use a canonical spelling per
 /// variant.
 fn space_symbol_name(sp: &AddressSpace) -> String {
@@ -1968,7 +1968,7 @@ fn space_symbol_name(sp: &AddressSpace) -> String {
 // The Bison grammar in pcodeparse.y builds an in-memory ConstructTpl — a flat
 // vector of OpTpl — via the PcodeCompile builder methods. This section ports
 // those types and builders so the recursive-descent parser below can emit the
-// same IR. Rugra has no SLEIGH integration, so ConstructTpl is never fed into
+// same IR. Rudra has no SLEIGH integration, so ConstructTpl is never fed into
 // the main decompiler pipeline, but the types let us faithfully reproduce the
 // grammar's semantic actions and provide a clean hook for future SLEIGH work.
 
@@ -1985,7 +1985,7 @@ fn space_symbol_name(sp: &AddressSpace) -> String {
 ///   - a dynamic per-instruction offset placeholder
 ///     (`j_start`/`j_next`/`j_next2`/`j_flowref`/`j_flowdest`, semantics.hh:36).
 ///
-/// Rugra collapses Ghidra's `const_type` enum + value fields into a tagged
+/// Rudra collapses Ghidra's `const_type` enum + value fields into a tagged
 /// enum so the kinds are exhaustive at the type level. The
 /// `j_flowref_size`/`j_flowdest_size` members of Ghidra's enum
 /// (semantics.hh:36-38, values 10/12) have no snippet-compiler producer —
@@ -2488,7 +2488,7 @@ impl LabelSymbol {
 //
 // These are the helpers the Bison semantic actions call. They are methods on
 // PcodeSnippet here (rather than a separate PcodeCompile base class) because
-// Rugra collapses the C++ inheritance into a single struct. Each method
+// Rudra collapses the C++ inheritance into a single struct. Each method
 // carries the Ghidra line annotation so the mapping is auditable.
 
 impl PcodeSnippet {
@@ -2519,7 +2519,7 @@ impl PcodeSnippet {
     /// LABELBUILD is `#define LABELBUILD CPUI_PTRADD` (semantics.hh:30).
     pub fn place_label(&mut self, labsym: &mut LabelSymbol) -> Vec<OpTpl> {
         // Ghidra's LabelSymbol lives in the shared symbol tree, so the
-        // `label` rule and placeLabel mutate ONE object. Rugra hands out
+        // `label` rule and placeLabel mutate ONE object. Rudra hands out
         // clones, so the placed state is kept authoritative in the stored
         // copy (self.labels) and mirrored back to the caller's clone.
         let already_placed = self
@@ -2878,7 +2878,7 @@ impl PcodeSnippet {
         }
         let res = match (var.offset, var.space) {
             (ConstTpl::Real(off), ConstTpl::SpaceId(_spc)) => {
-                // byteToAddress(off, wordSize) — wordSize is 1 in Rugra.
+                // byteToAddress(off, wordSize) — wordSize is 1 in Rudra.
                 let word_size = _spc.word_size() as u64;
                 let address = if word_size <= 1 {
                     off
@@ -3024,8 +3024,8 @@ impl PcodeSnippet {
                     self.hard_error = Some("Could not construct requested bit range".to_string());
                     return None;
                 }
-                // Big-endian adjustment would need defaultspace; Rugra assumes
-                // little-endian (the common case for x86 which is rugra's
+                // Big-endian adjustment would need defaultspace; Rudra assumes
+                // little-endian (the common case for x86 which is rudra's
                 // primary target).
                 let _plus = byteoffset as u64;
                 let _ = fullsz;
@@ -4908,7 +4908,7 @@ mod tests {
         // a plain binary search over the table as written), so both entries
         // deterministically return -1: "a || b" and "abs(x)" cannot be used
         // as keywords in a pcode snippet (they degrade to STRING tokens).
-        // Rugra mirrors the table order byte-for-byte (PCODE_IDENTS below);
+        // Rudra mirrors the table order byte-for-byte (PCODE_IDENTS below);
         // DO NOT "fix" the ordering — that would diverge from the oracle.
         assert_eq!(find_identifier("||"), None, "\"||\" must miss: oracle sort inversion at idents[8]");
         assert_eq!(find_identifier("abs"), None, "\"abs\" must miss: oracle sort inversion at idents[9]");

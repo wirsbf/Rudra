@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 /// A single storage location for a parameter (register or stack slot).
 /// Faithful to Ghidra's `ParamEntry` (fspec.hh:84-155), simplified to the
-/// data Rugra needs: space, offset, size, minsize, group, alignment, flags.
+/// data Rudra needs: space, offset, size, minsize, group, alignment, flags.
 #[derive(Debug, Clone)]
 pub struct ParamEntry {
     /// Address space of this entry (Register or Stack).
@@ -177,7 +177,7 @@ impl ProtoModel {
     /// trials (sorted by slot), mark each as USED or NOT-USED based on
     /// whether it maps to a parameter slot in this model.
     ///
-    /// Algorithm (simplified for Rugra's model):
+    /// Algorithm (simplified for Rudra's model):
     /// 1. Walk trials in slot order.
     /// 2. For each trial, check if its address matches a parameter entry.
     /// 3. Mark matching trials as USED; gaps before them get filled.

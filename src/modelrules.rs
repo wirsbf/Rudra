@@ -35,7 +35,7 @@ use std::sync::Arc;
 // Forward-declared stubs for unported upstream Ghidra types
 // ===========================================================================
 // These mirror the C++ types referenced in modelrules.hh's signatures but
-// which are not yet ported in Rugra (see `Rugra type-system / fspec` roadmap).
+// which are not yet ported in Rudra (see `Rudra type-system / fspec` roadmap).
 // They exist so that the trait/struct method signatures of modelrules match
 // Ghidra 1:1. Once each upstream lands, the corresponding stub here is
 // deleted and the `use` switched to the real type. Every use site is marked
@@ -184,7 +184,7 @@ pub enum AssignResponse {
 // ===========================================================================
 // Ghidra defines these as `extern AttributeId ATTRIB_*` / `extern ElementId
 // ELEM_*` globals in modelrules.cc:21-42 and they are registered with the
-// marshaling layer. Rugra's marshal.rs represents these as `AttributeId` /
+// marshaling layer. Rudra's marshal.rs represents these as `AttributeId` /
 // `ElementId` newtypes; the registration of the modelrules-specific ids is
 // pending (marshal.rs roadmap). The constants below let decode() bodies
 // reference the same logical names; once marshal.rs exposes them, replace.
@@ -463,7 +463,7 @@ impl PrimitiveExtractor {
                 true
             }
             TypeMetatype::Array => {
-                // Ghidra casts to TypeArray*; Rugra pattern-matches.
+                // Ghidra casts to TypeArray*; Rudra pattern-matches.
                 // Faithful body (modelrules.cc:197-207):
                 //   int4 numEls = ((TypeArray *)dt)->numElements();
                 //   Datatype *base = ((TypeArray *)dt)->getBase();

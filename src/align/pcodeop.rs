@@ -1,6 +1,6 @@
 //! PcodeOp and PcodeOperation alignment verification logic.
 //!
-//! This module ensures that Rugra's P-code operations match Ghidra's
+//! This module ensures that Rudra's P-code operations match Ghidra's
 //! internal PcodeOp representation as defined in `op.hh`.
 
 use crate::op::PcodeOp;
@@ -11,19 +11,19 @@ use crate::align::address::verify_seqnum;
 use crate::align::varnode::verify_varnode;
 
 // RUDRA-GLUE: verify_opcode (no Ghidra counterpart found)
-/// Verify that a Rugra OpCode matches a Ghidra opcode
+/// Verify that a Rudra OpCode matches a Ghidra opcode
 ///
 /// Note: `ghidra_opcode` uses Ghidra's numbering scheme (from opcodes.hh),
-/// which is DIFFERENT from Rugra's enum values. We must use
+/// which is DIFFERENT from Rudra's enum values. We must use
 /// `map_ghidra_opcode` (not `OpCode::from_i32`) to convert.
-pub fn verify_opcode(rugra_op: OpCode, ghidra_opcode: i32) -> bool {
+pub fn verify_opcode(rudra_op: OpCode, ghidra_opcode: i32) -> bool {
     match crate::ffi::map_ghidra_opcode(ghidra_opcode) {
         Some(mapped_op) => {
-            let matches = rugra_op == mapped_op;
+            let matches = rudra_op == mapped_op;
             if !matches {
                 eprintln!(
-                    "[ALIGN DIFF] Opcode mismatch: Rugra {:?} != Ghidra opcode {} (mapped: {:?})",
-                    rugra_op, ghidra_opcode, mapped_op
+                    "[ALIGN DIFF] Opcode mismatch: Rudra {:?} != Ghidra opcode {} (mapped: {:?})",
+                    rudra_op, ghidra_opcode, mapped_op
                 );
             }
             matches
@@ -47,7 +47,7 @@ pub fn verify_opcode(rugra_op: OpCode, ghidra_opcode: i32) -> bool {
 /// - Input count and values
 /// - Output presence and value
 pub fn verify_operation(
-    rugra_op: &PcodeOp,
+    rudra_op: &PcodeOp,
     ghidra_opcode: i32,
     ghidra_addr: u64,
     ghidra_seq: u32,
@@ -55,18 +55,18 @@ pub fn verify_operation(
     ghidra_output: Option<&VarnodeFFI>,
 ) -> bool {
     // 1. Verify opcode
-    let opcode_match = verify_opcode(rugra_op.get_opcode(), ghidra_opcode);
+    let opcode_match = verify_opcode(rudra_op.get_opcode(), ghidra_opcode);
 
     // 2. Verify sequence number
-    let seqnum_match = verify_seqnum(rugra_op.get_seq_num(), ghidra_addr, ghidra_seq);
+    let seqnum_match = verify_seqnum(rudra_op.get_seq_num(), ghidra_addr, ghidra_seq);
 
     // 3. Verify input count
-    let input_count_match = rugra_op.num_input() == ghidra_inputs.len();
+    let input_count_match = rudra_op.num_input() == ghidra_inputs.len();
     if !input_count_match {
         eprintln!(
-            "[ALIGN DIFF] Input count mismatch at {}: Rugra {} != Ghidra {}",
-            rugra_op.get_seq_num(),
-            rugra_op.num_input(),
+            "[ALIGN DIFF] Input count mismatch at {}: Rudra {} != Ghidra {}",
+            rudra_op.get_seq_num(),
+            rudra_op.num_input(),
             ghidra_inputs.len()
         );
     }
@@ -74,8 +74,8 @@ pub fn verify_operation(
     // 4. Verify inputs
     let inputs_match = if input_count_match {
         let mut all_match = true;
-        for i in 0..rugra_op.num_input() {
-            if let Some(r_in_lock) = rugra_op.get_in(i) {
+        for i in 0..rudra_op.num_input() {
+            if let Some(r_in_lock) = rudra_op.get_in(i) {
                 let r_in = r_in_lock.read().unwrap();
                 if !verify_varnode(&r_in, &ghidra_inputs[i]) {
                     all_match = false;
@@ -88,7 +88,7 @@ pub fn verify_operation(
     };
 
     // 5. Verify output
-    let output_match = match (rugra_op.get_out(), ghidra_output) {
+    let output_match = match (rudra_op.get_out(), ghidra_output) {
         (Some(r_out_lock), Some(g_out)) => {
             let r_out = r_out_lock.read().unwrap();
             verify_varnode(&r_out, g_out)
@@ -97,7 +97,7 @@ pub fn verify_operation(
         _ => {
             eprintln!(
                 "[ALIGN DIFF] Output presence mismatch at {}",
-                rugra_op.get_seq_num()
+                rudra_op.get_seq_num()
             );
             false
         }
@@ -108,33 +108,33 @@ pub fn verify_operation(
 
 // RUDRA-GLUE: verify_inputs (no Ghidra counterpart found)
 /// Verify input list alignment
-pub fn verify_inputs(rugra_inputs: &[Varnode], ghidra_inputs: &[VarnodeFFI]) -> bool {
-    if rugra_inputs.len() != ghidra_inputs.len() {
+pub fn verify_inputs(rudra_inputs: &[Varnode], ghidra_inputs: &[VarnodeFFI]) -> bool {
+    if rudra_inputs.len() != ghidra_inputs.len() {
         eprintln!(
-            "[ALIGN DIFF] Input count mismatch: Rugra {} != Ghidra {}",
-            rugra_inputs.len(),
+            "[ALIGN DIFF] Input count mismatch: Rudra {} != Ghidra {}",
+            rudra_inputs.len(),
             ghidra_inputs.len()
         );
         return false;
     }
 
-    rugra_inputs.iter()
+    rudra_inputs.iter()
         .zip(ghidra_inputs.iter())
         .all(|(r, g)| verify_varnode(r, g))
 }
 
 // RUDRA-GLUE: verify_output (no Ghidra counterpart found)
 /// Verify output alignment
-pub fn verify_output(rugra_output: Option<&Varnode>, ghidra_output: Option<&VarnodeFFI>) -> bool {
-    match (rugra_output, ghidra_output) {
+pub fn verify_output(rudra_output: Option<&Varnode>, ghidra_output: Option<&VarnodeFFI>) -> bool {
+    match (rudra_output, ghidra_output) {
         (Some(r), Some(g)) => verify_varnode(r, g),
         (None, None) => true,
         (Some(_), None) => {
-            eprintln!("[ALIGN DIFF] Rugra has output but Ghidra doesn't");
+            eprintln!("[ALIGN DIFF] Rudra has output but Ghidra doesn't");
             false
         }
         (None, Some(_)) => {
-            eprintln!("[ALIGN DIFF] Ghidra has output but Rugra doesn't");
+            eprintln!("[ALIGN DIFF] Ghidra has output but Rudra doesn't");
             false
         }
     }

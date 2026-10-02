@@ -170,7 +170,7 @@ def self_test(binary: Path, timeout: int, outdir: Path) -> bool:
     mid = max(1, len(lines) // 2)
     # 任务规格：用 sed 改一次输出中间物（只改 mid 行，内容替换为漂移标记）
     subprocess.run(
-        ["sed", "-i", f"{mid}s/.*/__RUGRA_DETERMINISM_DRIFT__/", str(drifted)],
+        ["sed", "-i", f"{mid}s/.*/__RUDRA_DETERMINISM_DRIFT__/", str(drifted)],
         check=True,
     )
     drifted_bytes = drifted.read_bytes()

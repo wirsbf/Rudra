@@ -53,7 +53,7 @@
  },
  "analysis_options": {
   "OPACTION_DEBUG": false,
-  "RUGRA_RULE_STATS": false,
+  "RUDRA_RULE_STATS": false,
   "pool_flags": 0,
   "pcode_opcode": "CPUI_COPY",
   "function_entry": 2048,

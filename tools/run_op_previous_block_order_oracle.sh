@@ -39,14 +39,14 @@ if ! git -C "$ghidra_root" diff --quiet -- \
   exit 1
 fi
 
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
 if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
   bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
+bfd_library=${RUDRA_BFD_LIBRARY:-/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" || ! -f "$bfd_library" ]]; then
   echo "binutils 2.38 BFD development files are unavailable" >&2
   exit 1

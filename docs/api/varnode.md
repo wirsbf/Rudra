@@ -129,7 +129,7 @@ assembled 29f54d21 + 镜面五面钉值 + `cargo test --lib` 2031P。
   `iter != descend.end()` 短路），唯一存活项才 `upgrade`。零/一/多后代三种
   判定与返回的 Arc 与原实现逐调用恒等。
 - `has_no_descend`（varnode.hh:286）— 存活探测改用 `Weak::strong_count() == 0`
-  （无引用计数往返），谓词语义不变（无存活后代）。Rugra 的 `descend` 是
+  （无引用计数往返），谓词语义不变（无存活后代）。Rudra 的 `descend` 是
   `Vec<Weak>`（oracle 是被主动维护的裸指针链表），存活过滤语义原样保留。
 
 VdbeExec `--one 1055` stdout 字节恒等 + canon/镜面门禁见车道 OPPPOOL 报告。
@@ -159,13 +159,13 @@ local-type closure，继续为 `MISMATCH/UNTESTED`。
 - **可信度**: 高
 - **文档定位**: 当前源码的接口解释层
 - **可信边界**: 以 `src/varnode.rs` 实际代码为准
-- **注意**: 本文描述的是 Rugra 当前的 **storage-node / IR data node** 模型，不等同于“与 Ghidra 运行时行为已完全一致”的证明
+- **注意**: 本文描述的是 Rudra 当前的 **storage-node / IR data node** 模型，不等同于“与 Ghidra 运行时行为已完全一致”的证明
 
 ---
 
 ## 模块说明
 
-`varnode.rs` 定义了 Rugra 中最核心的数据节点类型之一：`Varnode`。
+`varnode.rs` 定义了 Rudra 中最核心的数据节点类型之一：`Varnode`。
 
 在当前实现里，`Varnode` 的职责可以概括为：
 
@@ -189,7 +189,7 @@ local-type closure，继续为 `MISMATCH/UNTESTED`。
 
 ## 设计定位：当前的 storage-node 模型
 
-在当前 Rugra 架构里，`Varnode` 主要围绕以下三个维度组织：
+在当前 Rudra 架构里，`Varnode` 主要围绕以下三个维度组织：
 
 ### 1. 位置语义
 一个 `Varnode` 首先要能说明"它在哪"：
@@ -206,11 +206,11 @@ local-type closure，继续为 `MISMATCH/UNTESTED`。
 - 内部临时值（如 `unique` 空间）
 - 常量值（通过特定空间或构造方式表达）
 
-**bank 排序键**（2026-08-13，`VARNODE-INIT-0001`）：`VarnodeLocRef::Ord` 在当前 fixture 的合法、唯一数字 space-id 域内按完整 Address（numeric space id、offset）、size、`input < written < free` 分类排序；written 以定义 op 的不可变 `SeqNum(Address,time)` 破同值，free 以 `create_index` 破同值。`VarnodeDefRef::Ord` 先按同一分类/定义点，再按完整 Address、size、free create-index 排序。两个 wrapper 的 `Eq` 都定义为 `cmp == Equal`，块内 `SeqNum.order` 重编号不会改变键。Rugra enum 可以构造两个不同 variant 却使用同一个数字 id；这种 Ghidra manager 不允许的输入使用稳定 enum tie-break 保持 Rust `Eq/Ord` 合约，但不作为 oracle MATCH。defining-op AddressSpace 仍受简化 Address 模型限制。
+**bank 排序键**（2026-08-13，`VARNODE-INIT-0001`）：`VarnodeLocRef::Ord` 在当前 fixture 的合法、唯一数字 space-id 域内按完整 Address（numeric space id、offset）、size、`input < written < free` 分类排序；written 以定义 op 的不可变 `SeqNum(Address,time)` 破同值，free 以 `create_index` 破同值。`VarnodeDefRef::Ord` 先按同一分类/定义点，再按完整 Address、size、free create-index 排序。两个 wrapper 的 `Eq` 都定义为 `cmp == Equal`，块内 `SeqNum.order` 重编号不会改变键。Rudra enum 可以构造两个不同 variant 却使用同一个数字 id；这种 Ghidra manager 不允许的输入使用稳定 enum tie-break 保持 Rust `Eq/Ord` 合约，但不作为 oracle MATCH。defining-op AddressSpace 仍受简化 Address 模型限制。
 
 **初始状态与 bank 分配**（2026-08-13，`VARNODE-INIT-0001`）：`Varnode::new_with_space` 现在按锁定 Ghidra 12.0.4 `Varnode::Varnode` 初始化主 flags、`nzm` 与 `consumed`：普通存储为 `COVERDIRTY`，常量为 `CONSTANT` 且 `nzm=offset`，IOP annotation 为 `ANNOTATION|COVERDIRTY`，`consumed=~0`。`VarnodeBank::set_def` / `set_input` 对合法 bank-owned free 输入分别形成 `WRITTEN|INSERT|COVERDIRTY` 与 `INPUT|INSERT|COVERDIRTY`，并返回 xref 选出的 canonical `Arc`；重复键会按 descendant 列表顺序重接全部输入槽。`create_def_with_space` 直接走 Ghidra `createDef` 的 allocate→setDef→xref 路径。`make_free` 先按对象身份移除两个树键、突变，再重插，并以 Arc identity 拒绝 foreign/stale equal-key handle。analysis-owned unique 地址从 `0x10000000` 起，并在 `clear()` 后重置到该值。显式 space 在插入两个 `BTreeSet` 索引前即固定。
 
-**makeFree/setInput/setDef 的 stored-iterator 删除语义**（2026-08-15，`VARNODE-BANK-KEY-LIVE-0001`）：Ghidra `VarnodeBank::makeFree`（varnode.cc:1316-1327）、`setInput`（cc:1358-1372）、`setDef`（cc:1380-1404）全部通过保存在 Varnode 内的 `lociter/defiter` 删除树节点——删除从不重算比较键，也没有 ownership 预检。Rugra 原实现用 `BTreeSet::remove(&live_key)` 重算键删除，一旦调用方在 Varnode 树内驻留期间原地突变 key 字段（手搓 fixture 直接写 `def`/`WRITTEN`，或 `Funcdata::destroyVarnode` 先清 def），live key 便不再指向存储位置，删除 miss → `makeFree ownership preflight disagrees with removal` panic（曾致 5 个单测失败与 E2E `ActionSetCasts::cast_output` panic）。修复：新增 `erase_loc_identity` / `erase_def_identity` 模拟 stored-iterator 语义——快路径按 live key `take` 并校验取出的就是该 Arc（防止 live key 撞上其它成员误删，误中则放回），否则退化为 `Arc::ptr_eq` 全树 retain 精确删除该对象；`make_free_prevalidated`、`transition_input`、`transition_def` 三处转换统一改用。debug 断言改为断言「对象确实在树中并被删除」（Ghidra 的构造性前提），不再断言 live-key 一致。4 case 行为门禁 `tests/oracle/setcasts_output_bank_1204.*`（castOutput 语义 opSetOutput 换绑两次、手搓 in-place key drift 后走 opUnsetOutput→makeFree、write→free→rebind→destroy、same-output 早退）对锁定 oracle 字节级 MATCH；A/B 验证旧 key 删除实现在 drift case 即 panic。
+**makeFree/setInput/setDef 的 stored-iterator 删除语义**（2026-08-15，`VARNODE-BANK-KEY-LIVE-0001`）：Ghidra `VarnodeBank::makeFree`（varnode.cc:1316-1327）、`setInput`（cc:1358-1372）、`setDef`（cc:1380-1404）全部通过保存在 Varnode 内的 `lociter/defiter` 删除树节点——删除从不重算比较键，也没有 ownership 预检。Rudra 原实现用 `BTreeSet::remove(&live_key)` 重算键删除，一旦调用方在 Varnode 树内驻留期间原地突变 key 字段（手搓 fixture 直接写 `def`/`WRITTEN`，或 `Funcdata::destroyVarnode` 先清 def），live key 便不再指向存储位置，删除 miss → `makeFree ownership preflight disagrees with removal` panic（曾致 5 个单测失败与 E2E `ActionSetCasts::cast_output` panic）。修复：新增 `erase_loc_identity` / `erase_def_identity` 模拟 stored-iterator 语义——快路径按 live key `take` 并校验取出的就是该 Arc（防止 live key 撞上其它成员误删，误中则放回），否则退化为 `Arc::ptr_eq` 全树 retain 精确删除该对象；`make_free_prevalidated`、`transition_input`、`transition_def` 三处转换统一改用。debug 断言改为断言「对象确实在树中并被删除」（Ghidra 的构造性前提），不再断言 live-key 一致。4 case 行为门禁 `tests/oracle/setcasts_output_bank_1204.*`（castOutput 语义 opSetOutput 换绑两次、手搓 in-place key drift 后走 opUnsetOutput→makeFree、write→free→rebind→destroy、same-output 早退）对锁定 oracle 字节级 MATCH；A/B 验证旧 key 删除实现在 drift case 即 panic。
 
 **DeadCode 工作队列标记**（2026-08-14，`DEADCODE-SELFLOOP-0001`）：新增
 `is_consume_list` / `set_consume_list` / `clear_consume_list`，逐项映射锁定
@@ -222,13 +222,13 @@ local-type closure，继续为 `MISMATCH/UNTESTED`。
 
 `Varnode::term_order` 已按 `varnode.cc:1153-1172` 收窄为表达式项排序：两个常量互等且排在非常量之后；written `INT_MULT(base, constant)` 各自剥一层到 `base`；最后只比较完整 Address 的 numeric space id 与 offset，不比较 size。该算法由 `RULE-COLLECTTERMS-0001` 的独立逐函数 oracle 负责最终行为门禁，不包含在初始化 fixture 的 MATCH 分母中。
 
-**默认类型单轨（2026-08-16，`TYPE-WIRING-0001`）**：bank-local `xunknown<size>` adapter 已删除。Ghidra 的 `VarnodeBank::create(s,m,ct)`（varnode.cc:1250）从不自造类型——每个 `Funcdata::newVarnode*` 调用方传入 `glb->types->getBase(s,TYPE_UNKNOWN)`（funcdata_varnode.cc:69/87/107/132/154/179/193/208），即 Architecture 唯一 `TypeFactory`（type.cc:3106）的产物。Rugra 现由 `default_unknown_type` 解析同一工厂对象：`VarnodeBank::set_type_factory` 注入的句柄优先（per-Architecture 通道，Standalone flavor 等测试注入走此路）；无注入时用 `TypeFactory::shared_default()`（DataOrg flavor，模拟 headless oracle 单 Architecture 进程）。生产未知类型因此改拼 `undefined{size}`（核心 1/2/4/8 尺寸为命名核心类型，其它尺寸为未命名 id=0 TypeBase——即 Ghidra `findAdd` 的无名插入），并取得跨 bank 的同对象 identity。`VarnodeBank` 改为手写 `Debug`（工厂句柄无 Debug 面）。原「synthetic fixture caller-supplied TypeBase（xunknownN/id=0/non-core）」投影随之过期：`varnode_init_1204` fixture 的 Rust 侧 `type=`/`type_id=`/`type_core=` 字段将变为 `undefinedN`/hashName/1，需重 pin（登记交 root）。
+**默认类型单轨（2026-08-16，`TYPE-WIRING-0001`）**：bank-local `xunknown<size>` adapter 已删除。Ghidra 的 `VarnodeBank::create(s,m,ct)`（varnode.cc:1250）从不自造类型——每个 `Funcdata::newVarnode*` 调用方传入 `glb->types->getBase(s,TYPE_UNKNOWN)`（funcdata_varnode.cc:69/87/107/132/154/179/193/208），即 Architecture 唯一 `TypeFactory`（type.cc:3106）的产物。Rudra 现由 `default_unknown_type` 解析同一工厂对象：`VarnodeBank::set_type_factory` 注入的句柄优先（per-Architecture 通道，Standalone flavor 等测试注入走此路）；无注入时用 `TypeFactory::shared_default()`（DataOrg flavor，模拟 headless oracle 单 Architecture 进程）。生产未知类型因此改拼 `undefined{size}`（核心 1/2/4/8 尺寸为命名核心类型，其它尺寸为未命名 id=0 TypeBase——即 Ghidra `findAdd` 的无名插入），并取得跨 bank 的同对象 identity。`VarnodeBank` 改为手写 `Debug`（工厂句柄无 Debug 面）。原「synthetic fixture caller-supplied TypeBase（xunknownN/id=0/non-core）」投影随之过期：`varnode_init_1204` fixture 的 Rust 侧 `type=`/`type_id=`/`type_core=` 字段将变为 `undefinedN`/hashName/1，需重 pin（登记交 root）。
 
 `Varnode::get_cover` 现在按 `getCover()` 先在 dirty+non-null 分支调用 `Cover::rebuild`，再清 `COVERDIRTY`。fixture 同时证明 raw input sentinel、lazy invocation 和 dirty 清除。**2026-08-15 `COVER-REBUILD-SELFLOCK-0001` 更新**：input sentinel 已按 `getUIndex(2)=0` 语义修正（Rust 直接存 uindex 域 0，见 cover.md 同日条目），此前「sentinel 保存为数值 2 导致的 Cover MISMATCH」不再是当前行为；8 case 完整 Cover 投影（含 slot2 自引用、双槽读、implied 链、setAll 前驱填充）由 `tests/oracle/cover_rebuild_1204.*` 行为门禁覆盖为 MATCH，残差（MULTIEQUAL-tip 旧 stop 判别、INDIRECT 目标 order）见该 metadata 的 coverage 表。
 
 **`update_cover_locked` 与 `self_ref`（2026-08-15，`COVER-REBUILD-SELFLOCK-0001`）**：`Varnode::update_cover_locked(root: &Arc<RwLock<Varnode>>)` 取代旧 `update_cover(&mut self)` 生产入口（`merge.rs::update_high_cover` 改调它）：持 root 写锁 → 快照 def/is_input/descend/is_implied → `Cover::rebuild_from_root_snapshot`（root Arc 仅作身份令牌，MULTIEQUAL 槽匹配用 `Arc::ptr_eq`，descendant op 输出恰为 root 时用快照的 implied 标志避免写锁重入，全程不再锁 root）→ 复位同一 Box → 无条件清 `COVERDIRTY`（对齐 varnode.cc:233-241，含 hasCover 而 cover 对象为 null 时只清 dirty 的分支）。新增 `self_ref: Weak<RwLock<Varnode>>` 由 `VarnodeBank::allocate` 对所有 bank 分配的 Varnode 设置，供 `get_cover` 在 `&mut self` 路径升级出 root Arc；unmanaged Arc（无 self_ref）时保守返回现有 Cover 并保留 dirty。
 
-该窄域不代表完整 `VARNODE-0001` 已完成。除上述 TypeFactory/Cover/SeqNum 残差外，Ghidra unmanaged constructor 可接收 null Address space/Datatype，而 Rugra enum Address 与默认类型 adapter 无法表达该状态；FSPEC 与 IOP 仍合并为一个 Rust enum variant；`Varnode` 的 key 字段仍可被外部 public 直接突变；direct `Varnode::operator<`/`operator==`、public `setDef` duplicate canonical return 与 `replace` 的 defining-op self-edge guard尚未单独对拍；`Funcdata::setInputVarnode` 的 partial-overlap 异常和 ProtoModel 属性传播未由本 bank fixture 证明；外部 `Arc` 在 Ghidra 会 delete 的 xref/clear 后仍可存活；create/unique 计数器溢出、corrupt descendant、HighVariable dirty propagation、32-bit `uintb` 与 big-endian 分支均未闭合。
+该窄域不代表完整 `VARNODE-0001` 已完成。除上述 TypeFactory/Cover/SeqNum 残差外，Ghidra unmanaged constructor 可接收 null Address space/Datatype，而 Rudra enum Address 与默认类型 adapter 无法表达该状态；FSPEC 与 IOP 仍合并为一个 Rust enum variant；`Varnode` 的 key 字段仍可被外部 public 直接突变；direct `Varnode::operator<`/`operator==`、public `setDef` duplicate canonical return 与 `replace` 的 defining-op self-edge guard尚未单独对拍；`Funcdata::setInputVarnode` 的 partial-overlap 异常和 ProtoModel 属性传播未由本 bank fixture 证明；外部 `Arc` 在 Ghidra 会 delete 的 xref/clear 后仍可存活；create/unique 计数器溢出、corrupt descendant、HighVariable dirty propagation、32-bit `uintb` 与 big-endian 分支均未闭合。
 
 **varnode 去重（find_or_create_input_space）**（2026-06-29）：新增 `VarnodeBank::find_or_create_input_space(size, space, offset)`——查找已有的同 (space, offset, size) 的 free/input varnode（不含 written），复用它；没有则创建。对齐 Ghidra `Funcdata::newVarnode`（funcdata_varnode.cc:148）——建 free varnode，由 rename 连接到 written。修复了 descend 链碎片化（RSP input 从 1 个 descend 变 64 个）。
 
@@ -353,7 +353,7 @@ local-type closure，继续为 `MISMATCH/UNTESTED`。
 
 ### 语义
 
-`Varnode` 是 Rugra 当前 IR 中的基础存储节点，表示：
+`Varnode` 是 Rudra 当前 IR 中的基础存储节点，表示：
 
 - 一个有位置的数据单元
 - 一个数据流节点
@@ -803,7 +803,7 @@ autolive_hold/proto_partial 在 oracle 也是裸写，维持内联。
 
 ## 一句话总结
 
-`Varnode` 是 Rugra 当前 storage-node 模型中的基础数据节点：  
+`Varnode` 是 Rudra 当前 storage-node 模型中的基础数据节点：  
 它统一承载“位置 + 大小 + 节点状态 + 分析附着点”这几类信息，是从原始 P-code、函数级图模型、SSA 分析到最终打印输出之间最重要的底层数据载体之一。
 ## 2026-06-26：Ghidra-faithful flag 访问器（varnode.hh:235-330）
 
@@ -909,7 +909,7 @@ autolive_hold/proto_partial 在 oracle 也是裸写，维持内联。
 ### 2026-07-01（续 2）：update_type + get_type_read_facing + copy_symbol（解锁 ~15 TODO）
 - `update_type(ct)`（varnode.cc:456-464）— 无锁设类型，typelock 时不改。
 - `update_type_lock(ct, lock, override)`（varnode.cc:474-489）— TYPE_UNKNOWN 强制 unlock + lock/override 控制。
-- `get_type_read_facing()`（varnode.cc:639-645）— 退化版直接返回 v_type（union 解析路径 Rugra 无 union varnode）。
+- `get_type_read_facing()`（varnode.cc:639-645）— 退化版直接返回 v_type（union 解析路径 Rudra 无 union varnode）。
 - `copy_symbol(vn)`（varnode.cc:493-505）— 退化版复制 type + typelock/namelock flag（mapentry stub 不碰）。
 
 ### 2026-07-01（续 3）：has_no_local_alias + destroy_varnode
@@ -920,7 +920,7 @@ autolive_hold/proto_partial 在 oracle 也是裸写，维持内联。
 - `VarnodeBank::set_input_varnode(vn) -> Arc<Varnode>`（对齐 `Funcdata::setInputVarnode`
   funcdata_varnode.cc:340-373 的 vbank-level 核心）。Ghidra 语义：(1) early-out if already
   input，(2) overlap dedup against existing inputs（exact match 返回已存在的，partial overlap
-  Ghidra 抛 LowlevelError，Rugra log + 继续），(3) `vbank.set_input(vn)`（set INPUT|INSERT
+  Ghidra 抛 LowlevelError，Rudra log + 继续），(3) `vbank.set_input(vn)`（set INPUT|INSERT
   并重新插入两棵树）。省略 (4) ProtoModel 效果属性（unaffected/return_address）—— 这些
   不影响 SSA 正确性，只影响后续 type/recovery pass。**用于 heritage rename 的 empty-stack
   promotion**（heritage.cc:2502/2512）。`Funcdata::set_input_varnode` 是 thin wrapper。
@@ -1056,7 +1056,7 @@ autolive_hold/proto_partial 在 oracle 也是裸写，维持内联。
   匹配返回 false。
 - `equate_symbol_registry::{register_value, query_value}`（RUDRA-GLUE）：
   C++ 侧 EquateSymbol 是 Symbol 子类，`dynamic_cast` 从多态 `Symbol*` 同时
-  恢复 equate 身份与 `value` 字段；Rugra `database::Symbol` 无 equate 载荷
+  恢复 equate 身份与 `value` 字段；Rudra `database::Symbol` 无 equate 载荷
   且 `SymbolEntry::symbol` 为具体 `Arc<RwLock<Symbol>>`，故 varnode 域内以
   符号身份（Arc 指针）→ value 侧表最小建模。条目刻意不删除（镜像 C++
   「EquateSymbol 终身是 EquateSymbol」的对象生命周期语义，避免地址复用
@@ -1116,7 +1116,7 @@ autolive_hold/proto_partial 在 oracle 也是裸写，维持内联。
 - `clone_varnode` 会复制这个 `Weak`，对应 Ghidra 克隆 annotation 地址时暂时复制
   同一裸指针；`truncated_flow` 随后必须创建新的 callspec owner，并把新 CALL 的
   input(0) 重绑到新 owner，不能让克隆长期指回源函数。
-- D0 整体仍为 `MISMATCH`：Rugra 暂用 `AddressSpace::Iop`，尚无专用
+- D0 整体仍为 `MISMATCH`：Rudra 暂用 `AddressSpace::Iop`，尚无专用
   `IPTR_FSPEC`，numeric payload 也不是 Ghidra 的 raw `FuncCallSpecs *` codec
   （`TYPEOP-FSPEC-SPACE-0001`）；本阶段不接 TypeOp getter、PrintC typed callspec
   consumer 或 StringManager。其余既有 Varnode 残差与模块级状态不提升。
@@ -1129,7 +1129,7 @@ autolive_hold/proto_partial 在 oracle 也是裸写，维持内联。
 `op2size-1-over`（自最低显著侧起算），否则 -1。调用方仅 heritage 两个
 normalize 位点（LE 值与修复前逐位一致；BE 域整体 UNTESTED，登记
 `HERITAGE-BE-OVERLAP`）。跨 space 的 -1 哨兵（address.cc:161 `base != op.base`）
-为已登记残差 —— Rugra `Address` 无 space 身份，调用方自守（见函数注释）。
+为已登记残差 —— Rudra `Address` 无 space 身份，调用方自守（见函数注释）。
 
 ## 2026-08-24：get_local_type 核心算法 + STOP flag 常量（VARNODE-LOCALTYPE-RESOLUTION-0001）
 
@@ -1152,10 +1152,10 @@ TypeOp 消费闭包。它替换此前只 clone
      submeta 升序 + size 降序，type.cc:212-218），平局保留先遇者；
   5. 全空 → `Err("NULL local type")`（cc:933-934 LowlevelError 通道）。
   `type_factory` 参数承接 Ghidra 经 `PcodeOp::opcode->tlst`（op.hh:122）隐式
-  可达的 Architecture TypeFactory —— Rugra `PcodeOp` 无 parent 链，工厂显式传入。
+  可达的 Architecture TypeFactory —— Rudra `PcodeOp` 无 parent 链，工厂显式传入。
   `Ok(None)` 对应 Ghidra 返回 null `Datatype*` 的两条路径（typelock null type /
   STOP 早退时 ct 为 null）；`newct==null && ct!=null` 在 Ghidra 是 null-this UB，
-  Rugra 保守保留现任（注释在函数体内，override 表任何可达 op 均不产生该状态）。
+  Rudra 保守保留现任（注释在函数体内，override 表任何可达 op 均不产生该状态）。
 - **派发表**（本文件私有，`// Ghidra:` 逐行引用）：`op_output_type_local` /
   `op_input_type_local`（op.hh:251-252 转发器）+ `local_meta_pair`（TypeOp
   ctor metain/metaout 表）+ `local_base`（typeop.cc:264/274 基类默认
@@ -1229,14 +1229,14 @@ tlst->getArch()->userops.getOp(in(0).offset) → 基类 canonical 回落`
 （typeop.cc:855-873）。
 
 - **方案论证**（userops 参数线程 vs TypeFactory arch 反链）：选**参数线程**。
-  (1) Rugra `Architecture::ensure_types` 借 `TypeFactory::shared_default()`
+  (1) Rudra `Architecture::ensure_types` 借 `TypeFactory::shared_default()`
   进程级单例充任 canonical 工厂（TYPE-WIRING-0001 D0 临时态）——反链落在共享
   单例上是跨 Architecture 的 last-writer-wins 污染，Ghidra 每架构独占工厂
   （type.hh:819 `getArch()` 无此歧义）；(2) `Architecture::set_types(&mut self)`
   在 Architecture 被 Arc 包装**之前**调用（fixture/管线两处形态皆然），
   `Weak<Architecture>` 在唯一可靠设置点无法成形，~13 处独立工厂构造点需逐一
   回填接线；(3) 参数线程沿用同函数既有 `type_factory` 参数的先例与理由
-  （"Rugra PcodeOp 无 parent 链"，varnode.rs:1747-1750 注释）；
+  （"Rudra PcodeOp 无 parent 链"，varnode.rs:1747-1750 注释）；
   (4) `get_local_type` 全仓零生产调用方，线程侵入面 = 3 个函数签名 + 1 个
   pinned fixture 调用点更新，`None`（无宿主 Architecture）行为等价于
   metadata-less 描述符走基类默认。
@@ -1289,7 +1289,7 @@ tlst->getArch()->userops.getOp(in(0).offset) → 基类 canonical 回落`
 ## VarnodeBank::set_def 所有权证明重构（本次性能修复）
 
 Ghidra `setDef`（varnode.cc:1390-1398）以存储在 Varnode 内的 lociter/defiter
-执行 erase —— erase 本身即所有权证明，O(log n)。Rugra 原实现先做
+执行 erase —— erase 本身即所有权证明，O(log n)。Rudra 原实现先做
 `owns_loc_ref`/`owns_def_ref` 两个 O(n) 全树扫描再 `transition_def`，使
 heritage/pool 的 setDef 路径在大函数上呈二次方。现 `transition_def` 返回
 `Option<Arc<..>>`（identity-erase 的两个 residency bool 作为所有权证明），
@@ -1362,7 +1362,7 @@ queryProperties/inUse 差异)。
 `VarnodeBank::create_unique_typed(size, ct)` — `VarnodeBank::createUnique(int4 s,
 Datatype *ct)`（varnode.cc:1265-1271）的 typed 镜像：分配 unique 地址偏移后以
 显式 `ct` 构造 varnode（ctor `type = dt`，varnode.cc:583）。Ghidra 要求 ct 非空
-（null 默认在 `Funcdata::newUnique` cc:86-87 完成），Rugra 侧由
+（null 默认在 `Funcdata::newUnique` cc:86-87 完成），Rudra 侧由
 `Funcdata::new_unique_typed` 承担同一默认。调用方：
 `Merge::allocateCopyTrim`（merge.cc:416/429）与 `Merge::trimOpOutput`
 （merge.cc:668/677）的 trim COPY 输出携带源 varnode 类型（PM-F2S ord337 修复）。
@@ -1482,7 +1482,7 @@ coreaction `cast_output` 新 CALLOTHER token 臂（docs/api/coreaction.md 同日
 - **`symboltab` 线程**：`op_output_type_local` /
   `Varnode::get_local_type` 签名各加
   `symboltab: Option<&Arc<RwLock<Database>>>`——oracle 经描述符
-  `glb->symboltab` 边（userop.hh:38）到达全局 scope，Rugra `UserOpManage`
+  `glb->symboltab` 边（userop.hh:38）到达全局 scope，Rudra `UserOpManage`
   无该反链，沿既有 `userops` Option-thread 先例（TYPEOP-LOCALTYPE-DISPATCH-0001）
   显式传参；`None`（无宿主 Architecture）= 描述符 metadata-less 同回落。
   生产接线=`coreaction.rs build_localtypes` 从 `fd.arch.symboltab` 提取。
@@ -1516,7 +1516,7 @@ coreaction `cast_output` 新 CALLOTHER token 臂（docs/api/coreaction.md 同日
   走链并直接取终点 offset/const 判定）。
 - 下游效果：`partial_copy_shadow`→merge.cc:525 eliminateIntersect 的
   部分重叠守卫恢复 oracle 判定——read_inode_1 槽 -0xb0 在
-  ActionMergeRequired 应用窗不再产生 Rugra-only 的
+  ActionMergeRequired 应用窗不再产生 Rudra-only 的
   `uTemp = sSlot` snip COPY 与双 slot 输入 MULTIEQUAL 双 trim
   （双侧 merge 窗 116/116 record 归一化同构，零差异）。
 - 回归锁 `test_find_subpiece_shadow_constant_terminal`：常量链正例

@@ -13,7 +13,7 @@
 # Comparand   : normal mode = byte-compare vs the archived oracle record;
 #               trap mode = form assertions (Rugra rc 101 + the exact panic
 #               site varnode.rs:2716; oracle re-verified live only under
-#               RUGRA_FREEVN_ORACLE_RUN=1).
+#               RUDRA_FREEVN_ORACLE_RUN=1).
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -46,11 +46,11 @@ trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # ---- oracle comparand (archive or live) -----------------------------------
 oracle_out="$workdir/oracle_normal.out"
-if [[ ${RUGRA_FREEVN_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUGRA_FREEVN_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-subcommute-1204}
+if [[ ${RUDRA_FREEVN_ORACLE_RUN:-0} == 1 ]]; then
+  cache_root=${RUDRA_FREEVN_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-subcommute-1204}
   runner="$cache_root/rule_subcommute_freevn_1204_cpp"
   if [[ ! -x $runner ]]; then
-    bfd_include=${RUGRA_FREEVN_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+    bfd_include=${RUDRA_FREEVN_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
     [[ -d $bfd_include ]] || die "BFD include tree missing: $bfd_include (see AGENTS.md oracle env note)"
     mkdir -p "$cache_root/x"
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \

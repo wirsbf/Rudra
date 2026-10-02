@@ -17,7 +17,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 cpp_fixture="$repo_root/tests/oracle/goto_prints_nextflowafter_1204.cc"
 rust_fixture="$repo_root/tests/oracle/goto_prints_nextflowafter_1204.rs"
 metadata="$repo_root/tests/oracle/goto_prints_nextflowafter_1204.metadata.json"
-bfd_root="${RUGRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")

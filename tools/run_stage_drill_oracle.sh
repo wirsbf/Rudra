@@ -86,7 +86,7 @@ if ! git -C "$ghidra_root" diff --quiet -- \
   exit 1
 fi
 
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
@@ -94,10 +94,10 @@ if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; t
   bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
 fi
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" ]]; then
-  echo "binutils 2.38 bfd.h not found; set RUGRA_BFD_INCLUDE" >&2
+  echo "binutils 2.38 bfd.h not found; set RUDRA_BFD_INCLUDE" >&2
   exit 1
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
+bfd_library=${RUDRA_BFD_LIBRARY:-/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
 if [[ ! -f "$bfd_library" ]]; then
   echo "binutils 2.38 BFD library not found: $bfd_library" >&2
   exit 1
@@ -202,7 +202,7 @@ if metadata.get("host_compiler") != compiler:
 PY
 
 bash "$build_script"
-drill_bin=${RUGRA_DRILL_WORKROOT:-/dev/shm/rugra-tests/sb-drill/build}/stage_drill_1204
+drill_bin=${RUDRA_DRILL_WORKROOT:-/dev/shm/rugra-tests/sb-drill/build}/stage_drill_1204
 if [[ ! -x "$drill_bin" ]]; then
   echo "drill binary not found after build: $drill_bin" >&2
   exit 1

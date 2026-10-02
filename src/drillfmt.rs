@@ -1,5 +1,5 @@
 //! Oracle-faithful raw debug formatting for the stage drill emitter
-//! (stage-bisect v2). This module exists ONLY to render Rugra IR in the
+//! (stage-bisect v2). This module exists ONLY to render Rudra IR in the
 //! exact text spelling of Ghidra's console debug primitives; it never
 //! feeds anything back into the pipeline.
 //!
@@ -28,7 +28,7 @@
 //!     multiequal, 2022-2033 indirect, 2283+ ptradd, 2380+ ptrsub,
 //!     668-684 call, 791+ callind) with operator names from the Ghidra
 //!     constructors and `getOperatorName` overrides (typeop.cc; the same
-//!     names are registered in Rugra's src/typeop.rs).
+//!     names are registered in Rudra's src/typeop.rs).
 //!
 //! RUDRA-GLUE: no single Ghidra counterpart — this is a formatting-only
 //! projection of the primitives above, owned by the drill emitter.
@@ -46,7 +46,7 @@ const DEFAULT_SIZE: usize = 8;
 
 // Ghidra: translate.cc:517 AddrSpaceManager::assignShortcut
 // Shortcut characters per the oracle's assignShortcut switch, keyed on
-// Rugra's canonical space names (space.rs name(): "const", "register",
+// Rudra's canonical space names (space.rs name(): "const", "register",
 // "unique", "stack", "join", "iop", "ram"): IPTR_CONSTANT '#' (cc:524-526),
 // IPTR_PROCESSOR named "register" '%' else name[0] (cc:527-533, so
 // "ram" -> 'r'), IPTR_SPACEBASE 's' (cc:535-537), IPTR_INTERNAL 'u'
@@ -91,7 +91,7 @@ fn print_raw_offset(addr_size: usize, offset: u64) -> String {
 }
 
 /// space address sizes: ram/stack 8, register 8, unique 4, const 0.
-// RUDRA-GLUE: per-space getAddrSize() table; Rugra AddressSpace carries no address-size field.
+// RUDRA-GLUE: per-space getAddrSize() table; Rudra AddressSpace carries no address-size field.
 fn space_addr_size(space: AddressSpace) -> usize {
     match space {
         AddressSpace::Ram | AddressSpace::Stack | AddressSpace::Register => 8,
@@ -253,7 +253,7 @@ impl DrillFmt {
     /// `Varnode::printRaw(ostream&, const Varnode*)` (varnode.cc:1207-1214):
     /// a null slot prints `<null>`. Ghidra ops reserve null input slots at
     /// creation (`PcodeOp::PcodeOp(int4,s)` op.cc:71-84 sizes `inrefs(s)`
-    /// with nulls), while Rugra's `inrefs` only holds SET inputs, so absent
+    /// with nulls), while Rudra's `inrefs` only holds SET inputs, so absent
     /// slots render as `<null>` here.
     // Ghidra: op.cc:385 PcodeOp::printRaw (TypeOp dispatch)
     pub fn op_raw(&self, op: &PcodeOp) -> String {
@@ -426,7 +426,7 @@ impl DrillFmt {
 }
 
 // RUDRA-GLUE: LOAD/STORE print the target space NAME from the constant in
-// input 0 (typeop.cc:462-475 `getSpaceFromConst`). Rugra encodes the same
+// input 0 (typeop.cc:462-475 `getSpaceFromConst`). Rudra encodes the same
 // constant space id; map it back to the name. If input 0 is not (yet) a
 // constant the oracle would dereference garbage, so the drill prints the
 // varnode raw text as a visible placeholder.
@@ -445,7 +445,7 @@ fn load_store_space_name(op: &PcodeOp, inputs: &[String]) -> String {
 
 // RUDRA-GLUE: CALL input 0 is the call-target encoding. Ghidra renders it
 // through FspecSpace::printRaw as the callee's NAME (ffunc_<addr> for
-// symbol-less functions); Rugra has no fspec space, so the drill uses the
+// symbol-less functions); Rudra has no fspec space, so the drill uses the
 // ffunc_<addr> form derived from the constant. Named callees differ from
 // the oracle here (tracked as SB-DRILL-FSPEC-NAME).
 fn call_target_raw(fmt: &DrillFmt, op: &PcodeOp, inputs: &[String]) -> String {
@@ -462,7 +462,7 @@ fn call_target_raw(fmt: &DrillFmt, op: &PcodeOp, inputs: &[String]) -> String {
 
 // RUDRA-GLUE: branch destination (typeop.cc:583-629): with an unambiguous
 // out edge the destination is the out block's printShortHeader
-// (`Block_<index>:<start>`), else the raw input varnode. Rugra block
+// (`Block_<index>:<start>`), else the raw input varnode. Rudra block
 // indices live on the BlockBasic; fall back to the varnode form when the
 // parent graph is unavailable.
 fn branch_dest_raw(op: &PcodeOp, inputs: &[String]) -> String {
@@ -485,7 +485,7 @@ fn branch_dest_raw(op: &PcodeOp, inputs: &[String]) -> String {
     inputs.first().cloned().unwrap_or_default()
 }
 
-// RUDRA-GLUE: opcode-class table for the TypeOpBinary::printRaw structure (typeop.cc:335); Rugra has no flags query on the table.
+// RUDRA-GLUE: opcode-class table for the TypeOpBinary::printRaw structure (typeop.cc:335); Rudra has no flags query on the table.
 fn is_binary(opc: OpCode) -> bool {
     matches!(
         opc,
@@ -551,7 +551,7 @@ fn is_unary(opc: OpCode) -> bool {
 
 /// printRaw operator names: Ghidra constructor names plus the
 /// `getOperatorName` overrides (typeop.cc; identical strings are
-/// registered in Rugra's src/typeop.rs binary_op!/unary_op! tables).
+/// registered in Rudra's src/typeop.rs binary_op!/unary_op! tables).
 // RUDRA-GLUE: static getOperatorName table (typeop.cc constructors + overrides; same strings as src/typeop.rs registrations).
 fn operator_name(opc: OpCode) -> &'static str {
     match opc {

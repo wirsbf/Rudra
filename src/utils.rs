@@ -1,4 +1,4 @@
-//! Utility functions and helpers for Rugra
+//! Utility functions and helpers for Rudra
 //!
 //! This module contains various utility functions used throughout the decompiler,
 //! including bit manipulation, collection helpers, and common operations.

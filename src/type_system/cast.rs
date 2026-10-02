@@ -20,7 +20,7 @@ use std::sync::Arc;
 /// competitors). Faithful to `CastStrategyC::arithmeticOutputStandard`
 /// (cast.cc:394-409); Ghidra reaches it through the TypeOp getOutputToken
 /// overrides (typeop.cc:1175/1326/1388/1402/1416/1449/1482/1625).
-// RUDRA-GLUE: free function instead of a CastStrategyC method — Rugra's
+// RUDRA-GLUE: free function instead of a CastStrategyC method — Rudra's
 // CastStrategyC carries no TypeFactory member (tlst), so the factory is
 // passed in by the caller.
 pub fn arithmetic_output_standard(
@@ -131,7 +131,7 @@ impl CastStrategyC {
     /// assigned once in `CastStrategy::setTypeFactory`
     /// (`promoteSize = tlst->getSizeOfInt()`, cast.cc:27); every consumer
     /// (cast.cc:86/182/284) is a strategy member function reading the field
-    /// directly, so Ghidra has no accessor. Rugra's ported consumer
+    /// directly, so Ghidra has no accessor. Rudra's ported consumer
     /// `CastStrategyC::isExtensionCastImplied` (cast.cc:284) lives on
     /// `PrintC` (printc.rs `is_extension_cast_implied`), and the field is
     /// private to this module — cross-module reads need this accessor.
@@ -325,7 +325,7 @@ impl CastStrategyC {
     // RUDRA-GLUE: is_char_type (no Ghidra counterpart found)
     /// Check if the type is a character type
     pub fn is_char_type(&self, dt: &Datatype) -> bool {
-        // In Rugra, this would check the CHARTYPE flag in TypeBase
+        // In Rudra, this would check the CHARTYPE flag in TypeBase
         (dt.get_flags() & crate::type_system::datatype::type_flags::CHARTYPE) != 0
     }
 
@@ -357,7 +357,7 @@ impl CastStrategyC {
     /// constructor with TYPE_PARTIALENUM, which the ternary also maps to
     /// TYPE_UINT — so Ghidra partial-enums pass the whitelists identically
     /// (verified against the locked oracle: cast.int_partialenum_0=1 /
-    /// cast.partialenum_out_0=1). Rugra's `TypeMetatype::Enum` and
+    /// cast.partialenum_out_0=1). Rudra's `TypeMetatype::Enum` and
     /// `TypeMetatype::PartialEnum` are those same TypeEnum surfaces, so both
     /// are listed in the three whitelists to preserve the observable
     /// decision — same convention as
@@ -502,7 +502,7 @@ impl CastStrategy for CastStrategyC {
 // compareDependency for base scalars is exactly (submeta, size)
 // (type.cc:227-233), and id is hashName(name) on both sides of a name hit,
 // so the findAdd-equal key reduces to (name, size, sub-metatype) —
-// base_submeta folds the chartype/enum/UTF flags the same way. Rugra's
+// base_submeta folds the chartype/enum/UTF flags the same way. Rudra's
 // import/seed layers can mint structurally equal base scalars outside the
 // factory (observed: non-core "bool"/"byte" clones), so the cast decision
 // must compare that key for Base variants instead of bare Arc identity;
@@ -551,7 +551,7 @@ impl CastStrategyC {
     /// cast.cc:366-367/374 int arms).
     ///
     /// Typedef chains strip through the per-type `typedef_imm` channel
-    /// (cast.cc:325-328, type.hh:196/244). Rugra's Datatype still lacks
+    /// (cast.cc:325-328, type.hh:196/244). Rudra's Datatype still lacks
     /// variable-length arrays and per-pointer AddrSpace; those branches are
     /// faithfully no-ops (a cast decision is never wrong in their absence —
     /// at worst slightly more conservative).
@@ -568,7 +568,7 @@ impl CastStrategyC {
         // hit whose compareDependency is equal returns the EXISTING
         // factory object (type.cc:3423-3427), so two distinct Datatype
         // objects with the same (name, size, sub-metatype) can never meet
-        // inside the decompiler. Rugra's import/seed layers can mint
+        // inside the decompiler. Rudra's import/seed layers can mint
         // structurally equal base scalars outside the factory (observed:
         // non-core "bool" clones meeting the factory core bool at
         // ActionSetCasts, printing `*(bool *)&aliases[V].extraparam` /
@@ -598,7 +598,7 @@ impl CastStrategyC {
         while reqbase.get_metatype() == TypeMetatype::Pointer
             && curbase.get_metatype() == TypeMetatype::Pointer
         {
-            // Rugra TypePointer has no separate AddrSpace/wordsize comparison
+            // Rudra TypePointer has no separate AddrSpace/wordsize comparison
             // beyond wordsize==1 default; skip the space-mismatch cast branch
             // (would need AddrSpace wiring). Wordsize equality is implicitly
             // handled by size equality below.
@@ -612,7 +612,7 @@ impl CastStrategyC {
         // cast.cc:325-328: strip the typedef chains on both bases —
         // `while(reqbase->getTypedef() != 0) reqbase = reqbase->getTypedef();`
         // (and the curbase twin) — "Different typedefs could point to the
-        // same type" (cast.cc:329). Rugra walks the per-type `typedef_imm`
+        // same type" (cast.cc:329). Rudra walks the per-type `typedef_imm`
         // channel (type.hh:196/244), set only by factory get_typedef
         // (type.cc:3834), so non-typedef bases stop immediately exactly as
         // the oracle's null typedefImm does.
@@ -641,7 +641,7 @@ impl CastStrategyC {
         // TYPE_UINT internally") — so cast.cc:339-389's switch never sees a
         // distinct enum metatype; enum-ness rides the ENUMTYPE flag (see
         // the "meta can be TYPE_UINT ... if typedef/enumerated" comments
-        // at cast.cc:347/363). Rugra carries a distinct `Enum` metatype
+        // at cast.cc:347/363). Rudra carries a distinct `Enum` metatype
         // (signedness untracked → signed default, cf. get_submeta's
         // IntEnum mapping) plus `PartialEnum`; normalize both to the
         // internal Ghidra presentation: Enum → Int, PartialEnum → Uint
@@ -811,7 +811,7 @@ mod tests {
     }
 
     // Ghidra: type.hh:489-494 TypeEnum ctor normalizes metatype to INT/UINT,
-    // so a Ghidra enum passes the cast.cc:416 whitelist as UINT/INT; Rugra's
+    // so a Ghidra enum passes the cast.cc:416 whitelist as UINT/INT; Rudra's
     // TypeMetatype::Enum is that same surface (see is_subpiece_cast doc).
     // TypePartialEnum (type.cc:2255-2262) delegates to the same ctor and so
     // passes as TYPE_UINT too (audit-verified: cast.int_partialenum_0=1 /

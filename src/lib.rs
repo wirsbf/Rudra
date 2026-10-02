@@ -1,7 +1,7 @@
-//! # Rugra - Rust Ghidra-inspired Decompiler
+//! # Rudra - Rust Ghidra-inspired Decompiler
 //!
 //! A high-performance, memory-safe decompiler for C/C++ binaries written in Rust.
-//! Rugra aims to provide production-quality decompilation with a focus on correctness,
+//! Rudra aims to provide production-quality decompilation with a focus on correctness,
 //! performance, and extensibility.
 //!
 //! ## Architecture
@@ -148,7 +148,7 @@ pub use types::Architecture;
 /*
 /// Main decompiler interface
 ///
-/// This is the primary entry point for using Rugra. It orchestrates the entire
+/// This is the primary entry point for using Rudra. It orchestrates the entire
 /// decompilation pipeline from binary loading to C code generation.
 ///
 /// # Example

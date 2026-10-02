@@ -787,9 +787,9 @@ def self_test() -> int:
             raise AssertionError("tampered artifact passed verification")
 
         # --- environment snapshot matrix -------------------------------------
-        declared = "RUGRA_CACHE_TEST_DECLARED"
-        undeclared = "RUGRA_CACHE_TEST_UNDECLARED"
-        absent = "RUGRA_CACHE_TEST_ABSENT_1204"
+        declared = "RUDRA_CACHE_TEST_DECLARED"
+        undeclared = "RUDRA_CACHE_TEST_UNDECLARED"
+        absent = "RUDRA_CACHE_TEST_ABSENT_1204"
         original_path = os.environ.get("PATH")
         assert original_path, "self-test requires an ambient PATH"
         try:
@@ -873,7 +873,7 @@ def self_test() -> int:
                     "--context",
                     "mode=test",
                     "--env",
-                    "RUGRA_CACHE_TEST_CLI",
+                    "RUDRA_CACHE_TEST_CLI",
                     "--cache-dir",
                     str(cache),
                     "--timeout",
@@ -893,8 +893,8 @@ def self_test() -> int:
         )
         cli_cache = temp / "cli-cache"
         cli_env = dict(os.environ)
-        cli_env["RUGRA_ATTACK_UNDECLARED"] = "ambient-payload"
-        cli_env["RUGRA_CACHE_TEST_CLI"] = "ok"
+        cli_env["RUDRA_ATTACK_UNDECLARED"] = "ambient-payload"
+        cli_env["RUDRA_CACHE_TEST_CLI"] = "ok"
         first = run_cli(cli_env, cli_cache, [python, str(env_dump)])
         assert first.returncode == 0, first.stderr.decode()
         assert b"STORE" in first.stderr
@@ -902,28 +902,28 @@ def self_test() -> int:
         expected_env = child_environment(
             {
                 name: cli_env.get(name)
-                for name in capture_env_names(["RUGRA_CACHE_TEST_CLI"])
+                for name in capture_env_names(["RUDRA_CACHE_TEST_CLI"])
             }
         )
         # Popen(env=...) is exactly the provenance environment: undeclared
         # ambient variables are invisible to the captured command.
         assert observed_env == expected_env
-        assert "RUGRA_ATTACK_UNDECLARED" not in observed_env
-        assert observed_env["RUGRA_CACHE_TEST_CLI"] == "ok"
+        assert "RUDRA_ATTACK_UNDECLARED" not in observed_env
+        assert observed_env["RUDRA_CACHE_TEST_CLI"] == "ok"
         # undeclared ambient change neither busts the cache nor leaks in
-        cli_env["RUGRA_ATTACK_UNDECLARED"] = "different-payload"
+        cli_env["RUDRA_ATTACK_UNDECLARED"] = "different-payload"
         replay = run_cli(cli_env, cli_cache, [python, str(env_dump)])
         assert replay.returncode == 0, replay.stderr.decode()
         assert b"HIT" in replay.stderr
         assert replay.stdout == first.stdout
         # declared value change must produce a different key (miss)
-        cli_env["RUGRA_CACHE_TEST_CLI"] = "tampered"
+        cli_env["RUDRA_CACHE_TEST_CLI"] = "tampered"
         rotated = run_cli(cli_env, cli_cache, [python, str(env_dump)])
         assert rotated.returncode == 0, rotated.stderr.decode()
         assert b"STORE" in rotated.stderr
-        assert json.loads(rotated.stdout.decode("utf-8"))["RUGRA_CACHE_TEST_CLI"] == "tampered"
+        assert json.loads(rotated.stdout.decode("utf-8"))["RUDRA_CACHE_TEST_CLI"] == "tampered"
         # PATH value change must produce a different key (miss)
-        cli_env["RUGRA_CACHE_TEST_CLI"] = "ok"
+        cli_env["RUDRA_CACHE_TEST_CLI"] = "ok"
         cli_env["PATH"] = f"{temp / 'path-shadow'}{os.pathsep}{cli_env.get('PATH', original_path)}"
         repathed = run_cli(cli_env, cli_cache, [python, str(env_dump)])
         assert repathed.returncode == 0, repathed.stderr.decode()
@@ -967,7 +967,7 @@ def self_test() -> int:
 
         # --- mid-execution environment drift refuses to store -----------------
         drift_cache = temp / "drift-cache"
-        drift_var = "RUGRA_CACHE_TEST_DRIFT"
+        drift_var = "RUDRA_CACHE_TEST_DRIFT"
         os.environ[drift_var] = "before"
 
         def mutate_during_execution() -> None:

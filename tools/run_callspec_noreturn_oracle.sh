@@ -22,9 +22,9 @@ overlay_paths=(
   src/fspec.rs
 )
 
-run_cache=${RUGRA_CALLSPEC_NORETURN_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-callspec-noreturn-1204}
-cargo_target=${RUGRA_CALLSPEC_NORETURN_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-callspec-noreturn-target}
-cargo_tmp=${RUGRA_CALLSPEC_NORETURN_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-callspec-noreturn-tmp}
+run_cache=${RUDRA_CALLSPEC_NORETURN_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-callspec-noreturn-1204}
+cargo_target=${RUDRA_CALLSPEC_NORETURN_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-callspec-noreturn-target}
+cargo_tmp=${RUDRA_CALLSPEC_NORETURN_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-callspec-noreturn-tmp}
 mkdir -p "$run_cache" "$cargo_target" "$cargo_tmp"
 oracle_tmp=$(mktemp -d "$run_cache/run.XXXXXX")
 cleanup() {
@@ -242,7 +242,7 @@ for observation in observations:
         raise SystemExit("out_of_scope_observations entries must be non-empty")
 PY
 
-if [[ ${RUGRA_CALLSPEC_NORETURN_VALIDATE_ONLY:-0} == 1 ]]; then
+if [[ ${RUDRA_CALLSPEC_NORETURN_VALIDATE_ONLY:-0} == 1 ]]; then
   echo "callspec_noreturn_1204 metadata/source lock validation passed"
   exit 0
 fi

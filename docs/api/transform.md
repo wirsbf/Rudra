@@ -15,14 +15,14 @@
 ## Rust 适配设计
 
 Ghidra 使用原始 `TransformVar*` / `TransformOp*` 指针指向 `TransformManager`
-拥有的 `list<TransformVar>` / `list<TransformOp>`。Rugra 采用 arena 风格 ID 索引：
+拥有的 `list<TransformVar>` / `list<TransformOp>`。Rudra 采用 arena 风格 ID 索引：
 `TransformManager` 拥有 `Vec<TransformVar>` 和 `Vec<TransformOp>`，引用使用稳定
 的 `usize` 索引。Split 数组（Ghidra 的 `new TransformVar[n]`）存储为连续的 run，
 其起始索引记录在 `piece_map` 中。
 
 NULL input slot 建模：Ghidra 的 `PcodeOp` 构造函数（op.cc:71，`inrefs(s)`）
 把输入槽预置为 NULL，`TransformOp::createReplacement` 的 grow 循环
-（transform.cc:236）也插入 NULL 槽，直到 `placeInputs` 逐槽覆写。Rugra 的
+（transform.cc:236）也插入 NULL 槽，直到 `placeInputs` 逐槽覆写。Rudra 的
 `inrefs` 是非可选 `Vec<Arc<RwLock<Varnode>>>`，因此用 `null_slot_sentinel()`
 （脱离 bank、size-0 的 Varnode）表示 NULL 槽：不经 `VarnodeBank` 创建（无
 create-index/计数副作用）、不带 descendant、在观察投影中按 NULL 处理。
@@ -159,7 +159,7 @@ orchestrates 变换生命周期。
 replacement op/out/(非 possible-out 时) in(0) 上置标志）。
 
 ## 已知限制
-- ~~`transferVarnodeProperties`（transform.cc:208）尚未实现 — Rugra 的 Varnode 未暴露
+- ~~`transferVarnodeProperties`（transform.cc:208）尚未实现 — Rudra 的 Varnode 未暴露
   完整的属性转移 API~~ — 2026-10-01（READINODE2，TRANSFORM-PIECE-FLAGTRANSFER-0001）
   已接线：`create_replacement` 的 `Piece` 臂现在调用
   `Funcdata::transfer_varnode_properties`（src/funcdata.rs，funcdata_varnode.cc:614-629
@@ -168,7 +168,7 @@ replacement op/out/(非 possible-out 时) in(0) 上置标志）。
   的栈槽）经 RuleSplitFlow/SplitFlow 拆分后丢失 addrforce →
   RuleEarlyRemoval/ActionDeadCode 吞掉写回格（READINODE2 drill：
   read_super xRam156858 的 6 字节 return-copy oracle 于 earlyremoval 6785
-  存活[isAutoLive]，Rugra 旧码 6257 即亡）。测试覆盖（CR-READINODE2 §5-2
+  存活[isAutoLive]，Rudra 旧码 6257 即亡）。测试覆盖（CR-READINODE2 §5-2
   整改补齐）：原三断言（addrforce/directwrite 转移、lsb 6 高 lane fill_bits、
   零标志零 consume 对照）+ 2026-10-02 补 `lsb_offset>=8` 守卫假分支
   （funcdata_varnode.cc:618 false → newConsume 保持 `~0` 初值、不落
@@ -183,7 +183,7 @@ replacement op/out/(非 possible-out 时) in(0) 上置标志）。
 - `parse_sizes` 非法尺寸走日志跳过而非 throw（transform.cc:323-324，
   TRANSFORM-PARSESIZES-STRICT-0001）；`get_piece` 重复 piece 冲突同样
   （transform.cc:607，TRANSFORM-GETPIECE-DUP-THROW-0001）。
-- ~~`ConstantIop` 类型使用常量 fallback（Rugra 无 iop space）~~ — 2026-08-23
+- ~~`ConstantIop` 类型使用常量 fallback（Rudra 无 iop space）~~ — 2026-08-23
   （TRANSFORM-CONSTANT-IOP-SPACE-0001）已按 cc:211-215 接入：`create_replacement`
   经私有 `get_op_from_const_offset`（op.hh:249 `PcodeOp::getOpFromConst` 的按
   offset 重载，镜像 transform.cc:213 直接从占位符值构造 Address 的调用形态）

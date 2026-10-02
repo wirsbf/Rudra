@@ -99,7 +99,7 @@ Abstract callback for emitting pcode to an application.
 - `fn decode_op(&mut self, addr: Address, decoder: &mut dyn Decoder)`
   — Ghidra: translate.cc:996 `PcodeEmit::decodeOp`. Default implementation
   parses an `<op>` element and invokes `dump`. (Ghidra reuses a 16-entry
-  stack array; Rugra always heap-allocates the input vec — observable
+  stack array; Rudra always heap-allocates the input vec — observable
   behavior is identical.)
 
 The trait is **object-safe** (`dyn PcodeEmit` is usable) because the
@@ -133,7 +133,7 @@ Converts native constants to addresses (segmented / near-pointer extension).
 #### `pub struct SpacebaseSpace`
 
 A virtual stack space indexed relative to a base register. In Ghidra this
-inherits from `AddrSpace`; Rugra's enum address spaces carry the identity, so
+inherits from `AddrSpace`; Rudra's enum address spaces carry the identity, so
 this struct holds only the spacebase-specific state.
 
 Fields (all `pub`): `contain`, `has_base_register`, `is_negative_stack`,
@@ -185,7 +185,7 @@ listed most-significant first).
 #### `pub struct AddrSpaceManager`
 
 Owns and indexes the address spaces for a processor. In Ghidra this is the
-base class of `Translate`; Rugra composes it as a field.
+base class of `Translate`; Rudra composes it as a field.
 
 Fields mirror Ghidra's members (translate.hh:221-235): `base_list`,
 `resolve_list` (`Vec<Option<Box<dyn AddressResolver>>>`), `name_to_space`,
@@ -212,7 +212,7 @@ translate.hh:448-561):
   unlinked address).
 - `find_join_internal(offset) -> Option<&JoinRecord>` — translate.cc:722
   (range match; the public `find_join` panics instead of returning `None`).
-- `set_deadcode_delay(spc, delta)` — translate.cc:768 (no-op in Rugra's
+- `set_deadcode_delay(spc, delta)` — translate.cc:768 (no-op in Rudra's
   fixed-delay enum model).
 - `truncate_space(tag)` — translate.cc:776.
 - `construct_float_extension_address(real_addr, real_size, logical_size)`
@@ -224,7 +224,7 @@ translate.hh:448-561):
 - `set_default_code_space(index)` — translate.cc:309.
 - `set_default_data_space(index)` — translate.cc:323.
 - `insert_space(spc)` — translate.cc:352 (RUDRA-GLUE: the
-  `name_type_mismatch` branch is dropped because Rugra's enum variants
+  `name_type_mismatch` branch is dropped because Rudra's enum variants
   carry their type; duplicate-name / duplicate-id checks remain).
 - `resolve_constant(spc, val, sz, point, full_encoding)` — translate.cc:628.
 - (private) `assign_shortcut(spc)` — translate.cc:517.
@@ -242,7 +242,7 @@ Variants: `RuntimeBooleanInvert` (0), `RuntimeReturnLocation` (0x80),
 #### `pub trait Translate`
 
 The processor translation engine. In Ghidra this inherits from
-`AddrSpaceManager`; Rugra uses composition (`manager`/`manager_mut`).
+`AddrSpaceManager`; Rudra uses composition (`manager`/`manager_mut`).
 
 - `fn manager(&self) -> &AddrSpaceManager` / `fn manager_mut(&mut self)`
   — RUDRA-GLUE for the inherited base.
@@ -301,7 +301,7 @@ not establish `MATCH` or L3:
 
 - `is_contiguous` is anchored to `pcoderaw.cc:73
   VarnodeData::isContiguous`. The oracle calls the concrete space's
-  `isBigEndian()` and `wrapOffset()`; Rugra still depends on its flat
+  `isBigEndian()` and `wrapOffset()`; Rudra still depends on its flat
   `AddressSpace` model, so endian/wrap branches remain unproven.
 - `TruncationTag::new`, `AddrSpaceManager::fmt`, `addr_mask_for`, and
   `Translate::manager_mut` are explicit Rust glue. The annotation pass had
@@ -310,7 +310,7 @@ not establish `MATCH` or L3:
   the concrete `marshal::DocumentStorage` (Ghidra's `DocumentStorage` exposes
   `parseDocument/openDocument/registerTag/getTag`; it has no `nextDocument`).
 - `addr_mask_for` is not `AddrSpace::wrapOffset`: it derives a bit mask from
-  Rugra's current address-size accessor and cannot preserve all descriptor and
+  Rudra's current address-size accessor and cannot preserve all descriptor and
   signed-remainder semantics.
 
 Canonical Ghidra 12.0.4 runtime fixtures for these paths are still missing;
@@ -320,11 +320,11 @@ the formal behavior status is `NO_ORACLE`.
 
 - **Inheritance → composition**: Ghidra's `Translate : public AddrSpaceManager`
   is modeled as composition in Rust (`Translate::manager` / `manager_mut`).
-- **`SpacebaseSpace : public AddrSpace`**: Rugra's enum address spaces carry
+- **`SpacebaseSpace : public AddrSpace`**: Rudra's enum address spaces carry
   the space identity, so `SpacebaseSpace` holds only the spacebase-specific
   state.
 - **Panics for `LowlevelError`**: Ghidra throws `LowlevelError` in several
-  methods (`get_spacebase`, `find_join`, `insert_space`, etc.). Rugra
+  methods (`get_spacebase`, `find_join`, `insert_space`, etc.). Rudra
   panics with the same messages, preserving the control-flow contract.
   Callers that prefer `Result` can wrap these.
 - **`decode_pcode_raw` placeholder**: returns `CPUI_COPY` until
@@ -349,7 +349,7 @@ the formal behavior status is `NO_ORACLE`.
 ### 2026-08-15：SPACE-0001 translate 桥（架构动态 space 注册表接入）
 
 - `AddrSpaceManager` 新增 `space_registry: crate::space::SpaceRegistry` 字段（Ghidra 单一
-  AddrSpaceManager = Translate 基类；Rugra 过渡期为旧 enum 表 + 架构owned 双表，消费方在
+  AddrSpaceManager = Translate 基类；Rudra 过渡期为旧 enum 表 + 架构owned 双表，消费方在
   ADDRESS-0001 切换后收敛）。resolver/join 半部（resolvelist/splitset/splitlist）仍在旧 manager。
 - 新增桥方法：
   - `insert_dyn_space(&mut self, spc: AddrSpace) -> Result<(), String>`（translate.hh:244

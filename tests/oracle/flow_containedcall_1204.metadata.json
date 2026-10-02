@@ -121,7 +121,7 @@
    "header_sha256": "c8c9c20823ebd8d427d9f91dd642b82b263fca2245a8ef4eb34f0de0cde25702",
    "capture_library_path": "/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so",
    "library_sha256": "f9ca64d035c483bbfac32ca550074c20398ae2f0bb84dd989059dadb9cea8a1e",
-   "replay_resolution_policy": "Resolve RUGRA_BFD_INCLUDE/RUGRA_BFD_LIBRARY or the known /tmp and system candidates by the locked hashes; add the selected library directory to LD_LIBRARY_PATH before executing the oracle. Paths are not identity."
+   "replay_resolution_policy": "Resolve RUDRA_BFD_INCLUDE/RUDRA_BFD_LIBRARY or the known /tmp and system candidates by the locked hashes; add the selected library directory to LD_LIBRARY_PATH before executing the oracle. Paths are not identity."
   }
  },
  "input_manifest": {

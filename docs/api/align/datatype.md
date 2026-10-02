@@ -36,7 +36,7 @@ Verify pointer type alignment
 
 Verify array type alignment
 
-### `pub fn verify_primitive_size(rugra_type: &DataType, ghidra_size: usize) -> bool`
+### `pub fn verify_primitive_size(rudra_type: &DataType, ghidra_size: usize) -> bool`
 
 Verify primitive type size alignment
 

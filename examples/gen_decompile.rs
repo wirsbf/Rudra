@@ -28,13 +28,13 @@
 //!   cargo run --profile fast-release --example gen_decompile -- <binary> [--jobs N]
 //!
 //! Env:
-//!   RUGRA_GEN_MIRROR         inert (historical): flow always uses the
+//!   RUDRA_GEN_MIRROR         inert (historical): flow always uses the
 //!                             direct-runner oracle range (0, u64::MAX) —
 //!                             followFlow(code:0, code:highest),
 //!                             funcdata.cc:163 startProcessing. Formerly
 //!                             toggled the driver-bounded [entry, MAX) form
 //!                             (BINSWEEP-JTDEST-UNLINKED-0001 root cause).
-//!   RUGRA_GEN_TIMEOUT_SECS   per-function child timeout in all-mode
+//!   RUDRA_GEN_TIMEOUT_SECS   per-function child timeout in all-mode
 //!                             (default 60; 0 = unlimited). The `timeout`
 //!                             wrapper also carries --kill-after=30s so a
 //!                             SIGTERM-immune child is force-killed at the
@@ -48,14 +48,14 @@
 //!                             Command::output() polls with timeout=-1 and
 //!                             blocks forever when a surviving descendant of
 //!                             a dead child keeps a write end open).
-//!   RUGRA_GEN_ONLY=<name>    all-mode: decompile only the named function
-//!   RUGRA_GEN_STALE_GUARD_INHERITED  internal, set by the all-mode
+//!   RUDRA_GEN_ONLY=<name>    all-mode: decompile only the named function
+//!   RUDRA_GEN_STALE_GUARD_INHERITED  internal, set by the all-mode
 //!                             coordinator on its `--one` children: the
 //!                             coordinator verified THIS exe against the
 //!                             source tree at launch, so per-function
 //!                             workers skip re-hashing the tree (see the
 //!                             staleness self-check below).
-//!   RUGRA_GEN_PHASE_TIMING    =1 emits per-phase wall-clock [PHASE] lines
+//!   RUDRA_GEN_PHASE_TIMING    =1 emits per-phase wall-clock [PHASE] lines
 //!                             on stderr (SPEEDPROF-FIXEDFLOOR-0001; the
 //!                             gen-face counterpart of the curl driver's
 //!                             [STEP] channel). Default silent — zero
@@ -70,7 +70,7 @@
 //!
 //! Staleness self-check (INFRA-EXAMPLES-STALELINK-0001): at startup the
 //! driver compares the build-time source digest embedded by build.rs
-//! (RUGRA_BUILD_SOURCE_DIGEST over every src/**/*.rs file plus this file,
+//! (RUDRA_BUILD_SOURCE_DIGEST over every src/**/*.rs file plus this file,
 //! the shared guard core, and build.rs itself) against a freshly computed
 //! digest of the current tree. A mismatch — or a missing digest, or an
 //! unreadable tree — fails fast with exit 2 BEFORE any corpus work: a
@@ -124,7 +124,7 @@ struct GenFunction {
 
 // ---------------------------------------------------------------------------
 // SPEEDPROF-FIXEDFLOOR-0001: env-gated per-phase wall-clock channel
-// (RUGRA_GEN_PHASE_TIMING=1) — the gen-face counterpart of the curl driver's
+// (RUDRA_GEN_PHASE_TIMING=1) — the gen-face counterpart of the curl driver's
 // [STEP] lines (curl_decompile.rs:6612). Pure observability: stderr-only,
 // default completely silent, zero effect on stdout blocks or exit codes, so
 // the canon/mirror protocols are untouched (the [GEN-PAR] progress-line
@@ -137,11 +137,11 @@ struct GenFunction {
 // ---------------------------------------------------------------------------
 static PHASE_TIMING: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
-// RUGRA-GLUE: parse RUGRA_GEN_PHASE_TIMING once (any value except "0"
-// enables, mirroring RUGRA_SLEIGH_LOAD_REPORT's convention).
+// RUGRA-GLUE: parse RUDRA_GEN_PHASE_TIMING once (any value except "0"
+// enables, mirroring RUDRA_SLEIGH_LOAD_REPORT's convention).
 fn phase_timing_enabled() -> bool {
     *PHASE_TIMING.get_or_init(|| {
-        std::env::var("RUGRA_GEN_PHASE_TIMING").is_ok_and(|value| value != "0")
+        std::env::var("RUDRA_GEN_PHASE_TIMING").is_ok_and(|value| value != "0")
     })
 }
 
@@ -926,11 +926,11 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             )
         }),
     );
-    // STAGE-DRILL (RUGRA_STAGE_DRILL_OUT=<path>, same env pair as the
+    // STAGE-DRILL (RUDRA_STAGE_DRILL_OUT=<path>, same env pair as the
     // curl/httpd drivers): the recorder itself lives in the library
     // (drillobserve hooks in action.rs/funcdata.rs), so the generic driver
     // only needs the start/drain bracket around perform_action.
-    let drill_out = std::env::var("RUGRA_STAGE_DRILL_OUT").ok();
+    let drill_out = std::env::var("RUDRA_STAGE_DRILL_OUT").ok();
     if drill_out.is_some() {
         let fd_arch = fd_arc
             .read()
@@ -940,17 +940,17 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
             .ok_or_else(|| "drill requires a bound Architecture".to_string())?;
         rudra::drillobserve::start(fd_arch);
     }
-    // LANE CMPORIENT diagnostic (RUGRA_STAGE_DRILL precedent from the
+    // LANE CMPORIENT diagnostic (RUDRA_STAGE_DRILL precedent from the
     // curl/httpd drill arms): arm the OPACTION_DEBUG mirror recorder for
     // the --one target before the pipeline runs, then after perform drain
     // the per-application `DEBUG <n>: <leafname>` frames to <name>.dbg —
     // the exact counterpart of the oracle probe's GLM_TRACE output, for
     // event-level rule-chain comparison. Env-gated; no pipeline change.
     // (Three-arm union with the STAGE-DRILL arm above and the [PHASE]
-    // timing marks: RUGRA_STAGE_DRILL alone sinks to <name>.dbg below;
-    // with RUGRA_STAGE_DRILL_OUT also set the explicit path sink drains
+    // timing marks: RUDRA_STAGE_DRILL alone sinks to <name>.dbg below;
+    // with RUDRA_STAGE_DRILL_OUT also set the explicit path sink drains
     // first and the <name>.dbg sink skips on its empty-guard.)
-    if std::env::var("RUGRA_STAGE_DRILL").is_ok() {
+    if std::env::var("RUDRA_STAGE_DRILL").is_ok() {
         let fd_arch = fd_arc
             .read()
             .map_err(|_| "Funcdata read lock poisoned during drill arm".to_string())?
@@ -973,7 +973,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         std::fs::write(&path, drained.join("\n"))
             .map_err(|e| format!("stage drill write failed for {path}: {e}"))?;
     }
-    if std::env::var("RUGRA_STAGE_DRILL").is_ok() {
+    if std::env::var("RUDRA_STAGE_DRILL").is_ok() {
         let drained = rudra::drillobserve::drain();
         if !drained.is_empty() {
             std::fs::write(format!("{}.dbg", target.name), drained.join("\n"))
@@ -981,14 +981,14 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
         }
     }
 
-    // LANE GETLONGEST diagnostic (RUGRA_DUMP_FUNC precedent from the
+    // LANE GETLONGEST diagnostic (RUDRA_DUMP_FUNC precedent from the
     // curl/httpd drivers): after the universal action and before printing,
     // dump the final structured tree (sblocks) and the final raw p-code
     // listing for the named function — the exact counterparts of the
     // oracle probe's `fd->getStructure().printTree` / `fd->printRaw`
     // (post-perform, pre-docFunction). Env-gated; CWD-relative output
     // <name>.tree / <name>.ir.
-    if let Ok(dump_fn) = std::env::var("RUGRA_DUMP_FUNC") {
+    if let Ok(dump_fn) = std::env::var("RUDRA_DUMP_FUNC") {
         if dump_fn == target.name {
             let fd_read = fd_arc
                 .read()
@@ -1211,7 +1211,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     // PERF-DUAL-SLEIGH-INIT-0001 load-count gate: report this process's
     // full .sla deserializations when asked (default silent — the canon and
     // mirror protocols see no extra output line).
-    if std::env::var("RUGRA_SLEIGH_LOAD_REPORT").is_ok_and(|value| value != "0") {
+    if std::env::var("RUDRA_SLEIGH_LOAD_REPORT").is_ok_and(|value| value != "0") {
         eprintln!(
             "[GEN] sleigh engine loads={}",
             rudra::sleigh_ffi::engine_load_count()
@@ -1577,13 +1577,13 @@ mod stale_guard_hash;
 
 // RUGRA-GLUE: build-time digest + domain size emitted by build.rs; None
 // only when the build script did not run or emit (fail-closed below).
-const EMBEDDED_SOURCE_DIGEST: Option<&str> = option_env!("RUGRA_BUILD_SOURCE_DIGEST");
-const EMBEDDED_SOURCE_FILE_COUNT: Option<&str> = option_env!("RUGRA_BUILD_SOURCE_FILE_COUNT");
+const EMBEDDED_SOURCE_DIGEST: Option<&str> = option_env!("RUDRA_BUILD_SOURCE_DIGEST");
+const EMBEDDED_SOURCE_FILE_COUNT: Option<&str> = option_env!("RUDRA_BUILD_SOURCE_FILE_COUNT");
 
 // RUGRA-GLUE: all-mode coordinator -> child handoff marker. The coordinator
 // verified this exact exe against the tree at launch; per-function children
 // (810 on the sq face, 1385 on sqlite) skip re-hashing the source tree.
-const STALE_GUARD_INHERITED_ENV: &str = "RUGRA_GEN_STALE_GUARD_INHERITED";
+const STALE_GUARD_INHERITED_ENV: &str = "RUDRA_GEN_STALE_GUARD_INHERITED";
 
 // RUGRA-GLUE: guard failure exit code — distinct from `timeout`'s 124 and
 // from the usage/panic codes so gate scripts can tell staleness apart.
@@ -1797,7 +1797,7 @@ fn main() {
     enforce_stale_guard();
     if args.len() < 2 {
         eprintln!(
-            "usage: {} <binary> [--list | --one <index> | --jobs N]\n  env: RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=<n> RUGRA_GEN_ONLY=<name>",
+            "usage: {} <binary> [--list | --one <index> | --jobs N]\n  env: RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=<n> RUDRA_GEN_ONLY=<name>",
             args[0]
         );
         std::process::exit(1);
@@ -1859,7 +1859,7 @@ fn main() {
     }
 
     // all-mode: isolated child per function (hermetic "one" mirror),
-    // `timeout`-wrapped when RUGRA_GEN_TIMEOUT_SECS > 0. The wrapper also
+    // `timeout`-wrapped when RUDRA_GEN_TIMEOUT_SECS > 0. The wrapper also
     // carries --kill-after so a SIGTERM-immune child is SIGKILLed at the
     // deadline instead of wedging `timeout` in waitpid, and the coordinator
     // supervises each child through run_capped_output (GEN-DRIVER-STALL-0001:
@@ -1870,7 +1870,7 @@ fn main() {
     // index order after the pool drains — stdout stays byte-identical to
     // the historical serial coordinator at every pool width (see the pool
     // section comment above parse_jobs).
-    let timeout_secs: u64 = std::env::var("RUGRA_GEN_TIMEOUT_SECS")
+    let timeout_secs: u64 = std::env::var("RUDRA_GEN_TIMEOUT_SECS")
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(60);
@@ -1879,16 +1879,16 @@ fn main() {
             timeout_secs + TIMEOUT_KILL_AFTER_SECS + WALL_CAP_SLACK_SECS,
         )
     });
-    let only = std::env::var("RUGRA_GEN_ONLY").ok();
+    let only = std::env::var("RUDRA_GEN_ONLY").ok();
     let only_addr = only
         .as_deref()
         .and_then(|value| value.strip_prefix("0x"))
         .and_then(|value| u64::from_str_radix(value, 16).ok());
     let exe = std::env::current_exe().expect("current_exe");
-    let mirror_env = std::env::var("RUGRA_GEN_MIRROR").ok();
+    let mirror_env = std::env::var("RUDRA_GEN_MIRROR").ok();
     let jobs = parse_jobs(&args);
 
-    // Work list: indices passing the RUGRA_GEN_ONLY filter (same predicate
+    // Work list: indices passing the RUDRA_GEN_ONLY filter (same predicate
     // as the historical serial loop — include when no filter is set, or
     // when either the name or the 0x-address form matches).
     let work: Vec<usize> = functions
@@ -1955,7 +1955,7 @@ fn main() {
                             plain
                         };
                         if let Some(mirror) = mirror_env.as_ref() {
-                            command.env("RUGRA_GEN_MIRROR", mirror);
+                            command.env("RUDRA_GEN_MIRROR", mirror);
                         }
                         // INFRA-EXAMPLES-STALELINK-0001: children inherit the
                         // coordinator's verified-at-launch state instead of

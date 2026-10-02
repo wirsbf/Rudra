@@ -14,7 +14,7 @@ release_asset=ghidra_12.0.4_PUBLIC_20260303.zip
 release_sha256=c3b458661d69e26e203d739c0c82d143cc8a4a29d9e571f099c2cf4bda62a120
 release_page_url="https://github.com/NationalSecurityAgency/ghidra/releases/tag/$oracle_tag"
 release_url="https://github.com/NationalSecurityAgency/ghidra/releases/download/$oracle_tag/$release_asset"
-cache_root=${RUGRA_PROGRAM_FLOW_GHIDRA_CACHE:-/tmp/rugra-program-flow-ghidra-1204}
+cache_root=${RUDRA_PROGRAM_FLOW_GHIDRA_CACHE:-/tmp/rugra-program-flow-ghidra-1204}
 release_zip="$cache_root/$release_asset"
 update_expected=0
 
@@ -55,12 +55,12 @@ for required in curl sha256sum unzip as ld readelf python3; do
   command -v "$required" >/dev/null 2>&1 || die "missing required tool: $required"
 done
 
-runtime_tmp_root=${RUGRA_PROGRAM_FLOW_RUNTIME_TMP:-/var/tmp}
+runtime_tmp_root=${RUDRA_PROGRAM_FLOW_RUNTIME_TMP:-/var/tmp}
 [[ -d "$runtime_tmp_root" && -w "$runtime_tmp_root" ]] || \
   die "runtime temp root is not writable: $runtime_tmp_root"
 fixture_tmp=$(mktemp -d "$runtime_tmp_root/rugra-program-flow-metadata-1204.XXXXXX")
 cleanup() {
-  if [[ ${RUGRA_KEEP_TMP:-0} == 1 ]]; then
+  if [[ ${RUDRA_KEEP_TMP:-0} == 1 ]]; then
     echo "preserving fixture temp directory: $fixture_tmp" >&2
     return
   fi

@@ -21,7 +21,7 @@ bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 spec_dir="$repo_root/sleigh_specs"
 binary="$repo_root/examples/curl"
 
-workroot=${RUGRA_PROTOCAST_WORKROOT:-/dev/shm/rugra-tests/protocast/runner}
+workroot=${RUDRA_PROTOCAST_WORKROOT:-/dev/shm/rugra-tests/protocast/runner}
 mkdir -p "$workroot"
 
 for required in "$fixture_cc" "$fixture_rs" \

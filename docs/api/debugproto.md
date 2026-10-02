@@ -2,7 +2,7 @@
 
 ## 2026-09-26：DWARF 匿名类型命名指纹（DWARF-ANON-TYPENAME-0001）
 
-**根因（cast 名残差族 −44 票面）**：Rugra 对无名 `DW_TAG_structure_type`/
+**根因（cast 名残差族 −44 票面）**：Rudra 对无名 `DW_TAG_structure_type`/
 `union_type`（及 `shallow_type` 回边投影）一律落 `struct_<offset>`/`union_<offset>`
 占位拼写；Ghidra 的匿名复合体名由 **Java 侧 DWARF importer** 在 Program 导入期
 合成（非 cpp 反编译器）：`DWARFProgram.getDWARFName`（DWARFProgram.java:608-675）
@@ -36,7 +36,7 @@ Java 节全局 `DebugInfoEntry.getOffset()`，DebugInfoEntry.java:162；`type_re
 物化层重命名，不动）。
 
 **保守降级两处（铁律 1.5，恢复路径已注明）**：①`:650-656` 单入边 typedef
-偷名不承载——Rugra 以 `materialized_alias` 把 typedef 物化为改名克隆（无
+偷名不承载——Rudra 以 `materialized_alias` 把 typedef 物化为改名克隆（无
 `TypeTypedef` 变体，type.hh:431），偷名的端到端效果已由别名层承载；指纹名
 对该路径不可见（curl 4 例 0xa77/0xaa7/0x4952/0x4982 唯一入边即 typedef，
 全 DAG 无回边投影）。②匿名 enum 保持 `enum_<offset>` 拼写，不承载
@@ -72,7 +72,7 @@ TYPE_NAME token 的 `glb->types->findByName` 镜像（grammar.cc:2989）；工�
 同型分组/指针恒等比较生效；curl 默认 1099→1096（main −1、getparameter −2，
 零回退；W1b/C2DWARF 见证基线随之移 3 行，见 Differential 归因）；mirror 五投影
 新鲜复跑 next_url/getparameter **MATCH**（97,466 行投影体逐字节=冻结银行，仅
-META producer 行异）。C4 STRUCT-SEED 通道（RUGRA_STRUCTSEED 门）依赖本修复：
+META producer 行异）。C4 STRUCT-SEED 通道（RUDRA_STRUCTSEED 门）依赖本修复：
 `OutStruct`/`stat` 等拼写经名树解析为带字段复合体。
 
 
@@ -85,7 +85,7 @@ META producer 行异）。C4 STRUCT-SEED 通道（RUGRA_STRUCTSEED 门）依赖�
 `ActionMergeType`→`Merge::mergeLinear`（coreaction.hh:414 → merge.cc:272-292/359-402）
 按**类型指针恒等**（merge.cc:387 `ct == high->getType()`）投机合并成多类，从而
 **不**继承 `__haystack/__ptr/__filename/__s/nextarg` 之类名字；寄存器常驻单类值
-（main 的 R14/R15 FILE*）才得名 `__stream/__stream_00`。Rugra 侧
+（main 的 R14/R15 FILE*）才得名 `__stream/__stream_00`。Rudra 侧
 `parse_c_type`（libc 24 表）此前**每次 `Arc::new` 裸铸**类型，per-call-site 身份
 碎片化使同型分组无法成组 → 临时恒单类 → 被过命名（main 多 4 名 48 行；
 `nextarg` 为 DWARF callee 同病）。**修复（本文件 3 处 + curl 驱动 1 处）**：
@@ -122,7 +122,7 @@ DWARF analyzer 把每个 DIE 类型解析进 Architecture 的**唯一** TypeFact
 `DebugGlobalDatabase` 与原型的 `DebugPrototypeDatabase`）看到的同名结构是**同一**
 interned 对象——指针恒等比较（`CastStrategyC::castStandard` 的
 `curtype == reqtype`，cast.cc:299；ActionSetCasts 的 store-value cast，
-coreaction.cc:553-554）判定相等、免 cast。Rugra 双通道各自裸建时，
+coreaction.cc:553-554）判定相等、免 cast。Rudra 双通道各自裸建时，
 `*glob = glob_expand;`（`URLGlob**` 形参 vs typelocked `URLGlob*` 全局读）多出
 伪 `(URLGlob *)` cast（glob_url 4→6）。修复：`intern_named` 软驻留——共享工厂
 按名命中且**枚举变体/size/metatype 全同**时复用既有 Arc（形状守卫使环回
@@ -130,10 +130,10 @@ shallow 投影不得遮蔽同名字段的完整定义），未命中时经新
 `TypeFactory::intern_imported`（find_add 包装，type.cc:3390 导入边界）注册；
 `pointer_type` 走 `get_type_pointer`（pointee 已驻留后结构去重生效）。
 
-`src/debugproto.rs` implements Rugra's native equivalent of Ghidra's
+`src/debugproto.rs` implements Rudra's native equivalent of Ghidra's
 pre-decompiler debug-import boundary. Ghidra's DWARF analyzer writes declared
 function prototypes into the Program database; the C++ decompiler subsequently
-receives a locked `FuncProto`. Rugra now parses concrete ELF DWARF subprograms,
+receives a locked `FuncProto`. Rudra now parses concrete ELF DWARF subprograms,
 follows `DW_AT_abstract_origin` / `DW_AT_specification`, preserves formal
 parameter order, names, resolved scalar/pointer types and varargs, asks the
 bound compiler model to assign register or stack storage, and locks
@@ -201,7 +201,7 @@ parse product (the DWARF-import tests assert it unchanged).
 
 ## Locked libc ABI signatures (`CALLSPEC-DRIVER-0001`)
 
-`LibcSignatureTable` is Rugra's native front-end adapter for the platform-side
+`LibcSignatureTable` is Rudra's native front-end adapter for the platform-side
 signature data Ghidra ships as generic_clib: the decompile/cpp code never
 parses these declarations — the Program database holds the locked `FuncProto`
 for each EXTERNAL symbol, `FlowInfo::queryCall` (flow.cc:656-672) associates
@@ -218,7 +218,7 @@ included) that back the external-stub rendering
   reproducing the raw-BFD load environment of the oracle single-function
   harness (BfdArchitecture + readLoaderSymbols carry no generic_clib
   signature data; ACTIVEPARAM-COUNT-9V2-0001 RCA-1). The curl driver
-  selects it under `RUGRA_BARE_LOAD=1`; default construction keeps the full
+  selects it under `RUDRA_BARE_LOAD=1`; default construction keeps the full
   locked ledger.
 - `LibcSignatureTable::locked_proto(name, model_carrier, type_names)` — builds
   a clean callee `FuncProto` that shares the carrier's resolved model, then
@@ -273,7 +273,7 @@ observable oracle behaviors depend on the split:
    and bare args where both sides live in one domain
    (`fclose(__stream)`, `fwrite(...,stderr)`).
 
-Rugra models the split with:
+Rudra models the split with:
 
 - `clib_file_types()` — a process-wide OnceLock holding the archive FILE
   struct (deliberately NOT registered in the factory name tree — the "FILE"
@@ -306,7 +306,7 @@ for `stat` (PROTOCAST43 §③ root R1): golden prints
 `__xstat(1,x,(stat *)&fileinfo)` (main:797/:878, getparameter:2105) — the
 signature's `stat *` and the local's DWARF `stat *` are distinct objects,
 so `castStandard`'s pointer-identity early-exits (cast.cc:304/:329) do not
-fire and the struct default arm (:387) casts. Rugra resolved the ledger's
+fire and the struct default arm (:387) casts. Rudra resolved the ledger's
 `stat` spelling through the DWARF name index, collapsing signature param
 and local to one interned object (`&fileinfo`, no cast). The fix follows
 the FILE precedent verbatim:
@@ -333,7 +333,7 @@ all six corpora (curl 11.3.2/1204, httpd, sq, sqlite, vsh): the oracle's
 DWARF front end drops qualifier wrappers at import. my_get_token's DWARF
 `const char *` param chain (0x3ca ptr → 0x186 const → char,
 readelf-verified) prints as `char * my_get_token(char *line)` with
-`(char *)0x0` constant casts (golden :1213/:1226/:1603). Rugra's
+`(char *)0x0` constant casts (golden :1213/:1226/:1603). Rudra's
 `resolve_type` used to mint an `alias_type("const char", char)` — an
 independent qualifier object as the prototype's req, printing
 `const char *` signatures and `(const char *)0x0` casts. The qualifier
@@ -380,7 +380,7 @@ pairs. Unit tests cover the 24-entry table, SYSV storage assignment
   table) becomes a `CHARTYPE`/`SUB_INT_CHAR` datatype, while
   `DW_ATE_unsigned_char` resolves through the alias table to the ordinary
   unsigned `uchar` type; every other name keeps its DWARF spelling (the
-  typedef-wrap arm — Rugra materializes typedefs as the renamed underlying
+  typedef-wrap arm — Rudra materializes typedefs as the renamed underlying
   type);
 - pointers/references build `Datatype::Pointer` with the pointee's spelling
   (`URLGlob *`, and `URLGlob **` for pointer-to-pointer);
@@ -407,7 +407,7 @@ pairs. Unit tests cover the 24-entry table, SYSV storage assignment
   `DW_AT_count`/`DW_AT_upper_bound`+1 (`char *[10]`, `URLPattern[9]`);
 - typedefs/qualifiers clone and rename the complete resolved datatype instead
   of reducing it to a base `(size, metatype)` pair. This preserves character
-  flags/submeta and pointer/array/composite shape. Rugra still has no
+  flags/submeta and pointer/array/composite shape. Rudra still has no
   `TypeTypedef` variant or importer-side TypeFactory registry identity;
   **exception（PRINTC-BOOLLITERAL-0001, 2026-09-24）**: the conventional
   boolean typedef names (`bool`/`_Bool`, 1-byte underlying) short-circuit to
@@ -495,7 +495,7 @@ ATTRIB_NAMELOCK 置 `ParameterPieces::namelock`（fspec.cc:3503-3506），
 `param->isNameLocked()`（coreaction.cc:2818，经 `makeRec`）——没有该位，
 strtol 的 `__nptr`/strstr 的 `__haystack` 永远不会推荐到调用点变量。
 
-Rugra 此前 `ProtoParameter::new` 恒 `flags: 0`，两个适配层都只靠
+Rudra 此前 `ProtoParameter::new` 恒 `flags: 0`，两个适配层都只靠
 `set_input_lock(true)` 置 TYPE_LOCKED，NAME_LOCKED 全程缺失，推荐链断在
 数据侧（coreaction.rs 的 lookForFuncParamNames 内联实现本身已齐全）。修复：
 
@@ -603,7 +603,7 @@ helpf 81→77，10 函数改善 0 回退），defects=0/numbering=0；httpd 2331
 
 **残余**（登记 TODO DWARF-SYMFIELD-TYPESTATE-0001 ②③，不在 debugproto 域）：
 `glob.pattern[8].content.Set.elements = (undefined8)in_stack_...fd90` 的
-`(char **)` 缺失——Rugra 在该 STORE 插入的是 `union_a49` 8 字节 PartialUnion
+`(char **)` 缺失——Rudra 在该 STORE 插入的是 `union_a49` 8 字节 PartialUnion
 cast（`get_exact_piece` union 臂，dump op@0x30d6
 `CAST(PartialUnion)=in_stack_fd90`），oracle 经 ScoreUnionFields/
 derefPointer 钻取 Set→elements@0 尺寸匹配后 cast 到叶子类型 char**；
@@ -731,7 +731,7 @@ isModelUnknown && !hasCustomStorage && (inputLocked || outputLocked)）——
 （0x102310 strcpy / 0x102320 puts 等见 witnesses）的头注释
 `/* WARNING: Unknown calling convention -- yet parameter storage is locked */`；
 表外 21 个引入（curl_easy_*、__vfprintf_chk、__cxa_finalize 等）无锁定
-签名、golden 同样无警告。Rugra 只钉名字符串：绑定的 ProtoModelFull 仍是
+签名、golden 同样无警告。Rudra 只钉名字符串：绑定的 ProtoModelFull 仍是
 defaultfp 克隆，模型对象消费者（hasEffect、derive_input_map、varmap 名字
 键注册表回退 defaultfp）保持 UnknownProtoModel 的占位行为。
 

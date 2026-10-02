@@ -332,7 +332,7 @@
 #### 适合放什么
 例如：
 
-- `rugra`
+- `rudra`
 - `batch-candidate`
 - `x86_64`
 - `cfg-only`

@@ -402,7 +402,7 @@ fn reconcile_int_minus_pointer(line: &str) -> String {
 // RUDRA-GLUE: 纯诊断插桩,Ghidra 无对应物(oracle 的 EmitNoMarkup 是无缓冲直写
 // emitter,prettyprint.hh:542-594,唯一字段 ostream *s;发射路径以 flush 结束,
 // prettyprint.cc:1194-1213,之后零扫描)。W2 零突变退役的判定基础:设置
-// RUGRA_POSTFIX_STATS 环境变量时,post_process_output_legacy 每次调用向 stderr
+// RUDRA_POSTFIX_STATS 环境变量时,post_process_output_legacy 每次调用向 stderr
 // 输出一行 [POSTFIX] 统计(逐 pass 行级突变计数);未设置时所有插桩点均为
 // no-option 短路(不 clone、不比较、不打印),输出字节与未插桩版本完全一致。
 // 语义:计数器只度量、绝不改变管线行为 —— 退役判定以计数=0 为必要证据。
@@ -447,10 +447,10 @@ struct PostfixStats {
 }
 
 impl PostfixStats {
-    // RUDRA-GLUE: env 门控,每进程求值一次(RUGRA_POSTFIX_STATS 是否设置)
+    // RUDRA-GLUE: env 门控,每进程求值一次(RUDRA_POSTFIX_STATS 是否设置)
     fn stats_enabled() -> bool {
         static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-        *ENABLED.get_or_init(|| std::env::var_os("RUGRA_POSTFIX_STATS").is_some())
+        *ENABLED.get_or_init(|| std::env::var_os("RUDRA_POSTFIX_STATS").is_some())
     }
 
     // RUDRA-GLUE: Rust 结构体构造器(Ghidra 无对应物)
@@ -501,7 +501,7 @@ impl PostfixStats {
     // RUDRA-GLUE: 每次 post_process_output 调用向 stderr 输出一行 [POSTFIX]
     // 统计;inv=进程内调用序号,rpt=1 表示本次输入与上次调用的输出相同
     // (双重执行标记;当前生产路径单次执行,rpt 恒 0)。W3 诊断扩展:设置
-    // RUGRA_POSTFIX_RAW_DIR 时,把本次输入(=emit 原始输出)与最终输出按
+    // RUDRA_POSTFIX_RAW_DIR 时,把本次输入(=emit 原始输出)与最终输出按
     // <pid>-<inv>.{in,out} 落盘,供 emit 缺陷定位使用(零行为差,env 门控)。
     fn emit(self, input: &str, output: &str) {
         if !self.enabled {
@@ -510,7 +510,7 @@ impl PostfixStats {
         static INVOCATIONS: std::sync::atomic::AtomicU64 =
             std::sync::atomic::AtomicU64::new(0);
         let inv0 = INVOCATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-        if let Some(dir) = std::env::var_os("RUGRA_POSTFIX_RAW_DIR") {
+        if let Some(dir) = std::env::var_os("RUDRA_POSTFIX_RAW_DIR") {
             let name = format!("{}-{}.in", std::process::id(), inv0);
             let path = std::path::Path::new(&dir).join(name);
             if let Ok(text) = std::fs::write(path, input) {
@@ -638,9 +638,9 @@ impl EmitNoMarkup {
         }
     }
 
-    // RUDRA-GLUE: RUGRA_LOOP_DEBUG 诊断 helper(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: RUDRA_LOOP_DEBUG 诊断 helper(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Debug helper: count "while" and "\ndo " occurrences in the raw output.
-    /// Used by RUGRA_LOOP_DEBUG diagnostics to track loop rendering.
+    /// Used by RUDRA_LOOP_DEBUG diagnostics to track loop rendering.
     #[allow(dead_code)]
     pub fn debug_count_while(&self) -> (usize, usize) {
         let w = self.output.matches("while").count();
@@ -648,7 +648,7 @@ impl EmitNoMarkup {
         (w, d)
     }
 
-    // RUDRA-GLUE: RUGRA_LOOP_DEBUG 诊断 helper(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: RUDRA_LOOP_DEBUG 诊断 helper(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Debug helper: borrow the raw output string for diagnostics.
     #[allow(dead_code)]
     pub fn debug_get_output_ref(&self) -> &str {
@@ -691,7 +691,7 @@ impl EmitNoMarkup {
         // Ghidra's EmitMarkup (prettyprint.cc) does ZERO post-processing.
         // All structure is produced by Action-phase + structured emit.
         // The 27+ text passes below violate rule 5.5 but are NECESSARY
-        // until Rugra's Action/emit layers are complete (removing them
+        // until Rudra's Action/emit layers are complete (removing them
         // drops gcc audit from 23/24 to 5/24). Each pass is tracked in
         // ALIGNMENT_ROADMAP with the Ghidra Action that will replace it.
         Self::post_process_output_legacy(input)
@@ -818,7 +818,7 @@ impl EmitNoMarkup {
         // PTR_strcpy_00116e90)();` + `return pcVar1;` (golden:67-70) and
         // `iVar4 = curl_easy_perform(lVar13);` (golden:993). The inline arm
         // destroyed exactly those shapes: 23 corpus functions × 3 line
-        // mutations (RUGRA_POSTFIX_RAW_DIR dump, 2026-09-24) — the 22 PLT
+        // mutations (RUDRA_POSTFIX_RAW_DIR dump, 2026-09-24) — the 22 PLT
         // stubs' whole bodies (`uVarN = <callind>();` + decl + return
         // substitution) and main's `uVar3 = curl_easy_perform(iVar10);`
         // inlined into a CONCAT argument.
@@ -826,7 +826,7 @@ impl EmitNoMarkup {
         // DEAD-ELIM arm (count==2) — retained as an explicitly oracle-
         // foreign compensation layer: dead single-assignments to never-read
         // locals (`uVar1 = pRam...;`, no call/side-effect RHS) survive
-        // Rugra's action pipeline where the oracle's ActionDeadCode removes
+        // Rudra's action pipeline where the oracle's ActionDeadCode removes
         // them at the IR level (canon carries no such lines — httpd
         // ap_strcmp_match witness, golden:2df20). Retiring this arm leaked
         // +19 httpd skeleton lines (9 functions, gate run 2026-09-24). The
@@ -972,7 +972,7 @@ impl EmitNoMarkup {
             // the minus sign inside the constant atom; binary_plus keeps its
             // ` + ` token). The canon golden has 666 `+ -` forms and the
             // direct-runner golden 1096, while this local rewrite produced
-            // zero on the Rugra side, so every one of those lines was a
+            // zero on the Rudra side, so every one of those lines was a
             // skeleton diff. The rewrite is not a Ghidra behavior — deleted.
 
             // 4. Character constants in if comparisons — RETIRED
@@ -1797,7 +1797,7 @@ impl EmitNoMarkup {
 
         // P-wbfold (while-break -> if fold) retired in POSTFIX-RETIRE-0001
         // W2 cut 2: W1 counters proved zero mutations on both corpora
-        // (curl 190 + httpd 102 calls, both rpt rounds) - Rugra's emit
+        // (curl 190 + httpd 102 calls, both rpt rounds) - Rudra's emit
         // layer no longer produces single-shot while+break loops on the
         // corpora. The PRINTC-WHILEIF-FOLD-PREFIX-0001 slice logic and the
         // MAIN-RC3 compact-header exemptions in P9/P17 remain (other passes
@@ -2105,7 +2105,7 @@ impl EmitNoMarkup {
             // with ';' and contain '*' with no '(', and their last token
             // (`uVar35`) was mis-collected as a pointer name — P25 then
             // rewrote the legitimate `puVar13 + uVar35` (oracle opPtradd
-            // prints the PTRADD index bare, printc.cc:891; Rugra's raw emit
+            // prints the PTRADD index bare, printc.cc:891; Rudra's raw emit
             // is already bare-identical) into `puVar13 + (long)uVar35` —
             // the sq CAST-SHAPE `+ (long)` addend-widening family. No
             // declaration line ever contains '='; every mis-scanned store
@@ -2366,7 +2366,7 @@ impl EmitNoMarkup {
     // emitVarDeclStatement per symbol) and never re-scans or re-declares
     // anything afterwards (docFunction printc.cc:2641-2676 ends at flush;
     // EmitPrettyPrint::flush prettyprint.cc:1194-1211 is a pure token-queue
-    // drain with zero text analysis). The injection arms are Rugra's canon-
+    // drain with zero text analysis). The injection arms are Rudra's canon-
     // face self-containment compensation (POSTFIX-RETIRE-0001 W0), whose
     // declared-name collectors and signature probes only recognize the canon
     // type spellings (int/long/char */undefinedN) — on the direct-runner
@@ -2389,7 +2389,7 @@ impl EmitNoMarkup {
     /// non-declaration body line. The locked oracle's prettyprint.hh has no
     /// backfill pass of any kind (verified: prettyprint.hh:547 is the
     /// EmitNoMarkup class declaration, and grep over the oracle tree finds
-    /// no backfillMissingLocals); this pass exists only to keep Rugra's
+    /// no backfillMissingLocals); this pass exists only to keep Rudra's
     /// unlinked-symbol body references (PRINTC-UNLINKED-REF-0001 domain)
     /// compilable and is retired as that domain closes. NUMDECL-DOUBLE-V:
     /// the identifier scanner below must respect C identifier boundaries —
@@ -2903,7 +2903,7 @@ impl EmitNoMarkup {
     //   oracle's two-line function-header layout: printc.cc:1590 sets
     //   option_brace_func=skip_line and printc.cc:2655 emits the body `{`
     //   two lines below the declaration, so `sig {` and `sig` + `{` are both
-    //   valid function openings in Rugra text).
+    //   valid function openings in Rudra text).
     /// Whether a trimmed line is a C function signature that opens a body
     /// brace, either trailing on the same line (legacy `sig {`) or alone on
     /// the next non-blank line (oracle skip_line `sig` / `{`).
@@ -2965,7 +2965,7 @@ impl EmitNoMarkup {
     //   docFunction emits every function-local declaration from Action-phase
     //   symbols via emitLocalVarDecls and nothing else, so "does this text
     //   already carry symbol-driven declarations" is a question that only
-    //   exists for Rugra's legacy compensation passes).
+    //   exists for Rudra's legacy compensation passes).
     /// Conservative bypass predicate for the two synthetic-declaration legacy
     /// passes (`flush_func_remove_unused`, `fix_unary_deref_declarations`):
     /// does this function chunk, starting at its signature line, already
@@ -3469,7 +3469,7 @@ impl Emit for EmitNoMarkup {
     /// `EmitNoMarkup::tagLine` (prettyprint.hh:557) writes `endl` + indent
     /// UNCONDITIONALLY, so `skip_line` produces exactly two line breaks
     /// (a blank line) even when the output already sits at line start.
-    /// Rugra's `tag_line` suppresses a repeated newline, so the two breaks
+    /// Rudra's `tag_line` suppresses a repeated newline, so the two breaks
     /// are emitted directly here to preserve the oracle byte format.
     fn open_brace_indent(&mut self, brace: &str, style: BraceStyle) {
         match style {
@@ -3659,7 +3659,7 @@ pub enum PrintClass {
 }
 
 // Ghidra: prettyprint.hh:625 TokenSplit::tag_type
-/// The exhaustive list of token types (prettyprint.hh:625-656). Rugra's
+/// The exhaustive list of token types (prettyprint.hh:625-656). Rudra's
 /// plain-text low level only consumes the character data, so the markup
 /// companions (op/vn/fd/ct pointers) of the oracle TokenSplit are elided;
 /// the tag type itself drives the class switch in `EmitPrettyPrint`.
@@ -3962,12 +3962,12 @@ impl<T: Clone + Default> CircularQueue<T> {
 /// group closes (or a line overflows) `advanceleft` commits tokens to the
 /// low-level emitter, inserting line breaks at the breakable whitespace of
 /// overflowing groups and indenting continuations from the indent stack.
-/// The low-level emitter is Rugra's `EmitNoMarkup` byte sink (the oracle's
+/// The low-level emitter is Rudra's `EmitNoMarkup` byte sink (the oracle's
 /// default low level, prettyprint.cc:545).
 pub struct EmitPrettyPrint {
     lowlevel: EmitNoMarkup,
     /// Ghidra: prettyprint.hh:102 Emit::pendPrint — one PendPrint slot.
-    /// Rugra stores the deferred brace style directly (printc.cc:2872-2880
+    /// Rudra stores the deferred brace style directly (printc.cc:2872-2880
     /// PendingBrace: callback == openBraceIndent(OPEN_CURLY, style)) keyed
     /// by the install's BraceId (the oracle's stack-object identity).
     pending_brace: Option<(BraceId, BraceStyle)>,
@@ -4401,7 +4401,7 @@ impl EmitPrettyPrint {
     // Ghidra: prettyprint.cc:1194 EmitPrettyPrint::flush
     /// Commit every remaining token; an unbalanced group (negative size)
     /// is a fatal misprint in the oracle (LowlevelError, prettyprint.cc:
-    /// 1199-1201) — Rugra logs and skips the token to keep the byte stream
+    /// 1199-1201) — Rudra logs and skips the token to keep the byte stream
     /// flowing, since the emitter has no error channel.
     pub fn flush_impl(&mut self) {
         while !self.tokqueue.empty() {
@@ -4598,7 +4598,7 @@ impl Emit for EmitPrettyPrint {
 
     // Ghidra: prettyprint.cc:900 EmitPrettyPrint::beginBlock +
     //          prettyprint.cc:61 Emit::openBraceIndent(same_line)
-    /// Rugra's `begin_block` helper (" {") is the collapsed form of the
+    /// Rudra's `begin_block` helper (" {") is the collapsed form of the
     /// oracle's markup-only `beginBlock` (bloc_b, printclass ignore — no
     /// bytes, no indent effect) plus the same_line `openBraceIndent` the
     /// if/loop body emitters issue right after it (printc.cc:2875/2920/
@@ -4823,7 +4823,7 @@ impl Emit for EmitPrettyPrint {
     }
 
     // Ghidra: prettyprint.cc:1177 EmitPrettyPrint::startIndent
-    /// (Rugra trait name `bump_indent`.)
+    /// (Rudra trait name `bump_indent`.)
     fn bump_indent(&mut self) {
         let count = self.next_count();
         let tok = self.tokqueue.push();
@@ -4832,7 +4832,7 @@ impl Emit for EmitPrettyPrint {
     }
 
     // Ghidra: prettyprint.cc:1186 EmitPrettyPrint::stopIndent
-    /// (Rugra trait name `drop_indent`.)
+    /// (Rudra trait name `drop_indent`.)
     fn drop_indent(&mut self) {
         let tok = self.tokqueue.push();
         tok.stop_indent(0);

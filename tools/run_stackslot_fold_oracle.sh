@@ -86,7 +86,7 @@ PY
 # /home/wirs/.cache (unwritable on other machines, mechanism-F style path
 # hardcode). Portable form: XDG_CACHE_HOME/HOME, overridable for /dev/shm
 # staging.
-stage_root="${RUGRA_FIXTURE_STAGE:-${XDG_CACHE_HOME:-$HOME/.cache}}"
+stage_root="${RUDRA_FIXTURE_STAGE:-${XDG_CACHE_HOME:-$HOME/.cache}}"
 mkdir -p "$stage_root"
 oracle_tmp=$(mktemp -d "$stage_root/rugra-stackslot-fold-1204.XXXXXX")
 cleanup() {

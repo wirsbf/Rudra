@@ -144,3 +144,4 @@ gatherOpsAtAddress、所有哈希解码静态方法。
 模块等级以 `ALIGNMENT_ROADMAP.md` 为准，不据此宣称 L3。
 
 <!-- annotation-pass: 2026-08-11 ANN-I; provenance-only -->
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

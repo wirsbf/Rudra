@@ -1105,7 +1105,7 @@ pub trait JumpValues: Send + Sync {
     fn clone_boxed(&self) -> Box<dyn JumpValues>;
 
     // RUDRA-GLUE: trait object downcast helper — Ghidra 直接用 `JumpValues*`
-    // 指针,需要具体类型时用 dynamic_cast 或虚方法。Rugra 用 trait object,
+    // 指针,需要具体类型时用 dynamic_cast 或虚方法。Rudra 用 trait object,
     /// 需要这个辅助方法在 Box<dyn JumpValues> 持有的是 JumpValuesRange 时
     /// 返回其克隆,否则 None。JumpBasic::find_smallest_normal 用它把 jrange
     /// 从 trait object 取出当 JumpValuesRange 改(基本模型一定是 Range)。
@@ -1144,7 +1144,7 @@ pub struct JumpValuesRange {
 
 // RUDRA-GLUE: impl Clone for JumpValuesRange — Ghidra 的 JumpValuesRange 是
 // C++ 可拷贝类，拷贝语义由 `JumpValues *JumpValuesRange::clone(void) const`
-// (jumptable.cc:317) 提供，拷贝所有字段。Rugra 因 curval 用 AtomicU64（非
+// (jumptable.cc:317) 提供，拷贝所有字段。Rudra 因 curval 用 AtomicU64（非
 // Clone）必须手写 Clone impl；行为等价于 Ghidra 的拷贝构造（逐字段拷贝，
 // Atomic 取当前快照值）。
 impl Clone for JumpValuesRange {
@@ -1298,7 +1298,7 @@ pub struct JumpValuesRangeDefault {
 
 // RUDRA-GLUE: impl Clone for JumpValuesRangeDefault — 同 JumpValuesRange，
 // Ghidra 由 `JumpValues *JumpValuesRangeDefault::clone(void) const`
-// (jumptable.cc:378) 提供。Rugra 因 lastvalue 用 AtomicBool 必须手写。
+// (jumptable.cc:378) 提供。Rudra 因 lastvalue 用 AtomicBool 必须手写。
 impl Clone for JumpValuesRangeDefault {
     // RUDRA-GLUE: 手写 Clone（AtomicBool 非 Clone）— Ghidra 等价：JumpValuesRangeDefault::clone (jumptable.cc:378)
     fn clone(&self) -> Self {
@@ -1313,7 +1313,7 @@ impl Clone for JumpValuesRangeDefault {
 }
 
 // RUDRA-GLUE: impl Default for JumpValuesRangeDefault — Ghidra 由 ctor
-// `JumpValuesRangeDefault(JumpTable *jt)` (jumptable.hh:214) 构造,Rugra
+// `JumpValuesRangeDefault(JumpTable *jt)` (jumptable.hh:214) 构造,Rudra
 // 用 Default trait 等价。
 impl Default for JumpValuesRangeDefault {
     // RUDRA-GLUE: fn default — Default trait glue (Ghidra ctor jumptable.hh:214)
@@ -1588,7 +1588,7 @@ pub trait JumpModel: Send + Sync {
     ) -> bool;
 
     // Ghidra: jumptable.hh:328 JumpModel::clone (pure virtual)
-    /// Clone this model. (Ghidra passes the new parent `jt`; Rugra models
+    /// Clone this model. (Ghidra passes the new parent `jt`; Rudra models
     /// are parentless — see `JumpParentFacts` — so the parameter is gone.)
     fn clone_model(&self) -> Box<dyn JumpModel>;
 
@@ -1612,7 +1612,7 @@ pub struct JumpModelTrivial {
 
 impl JumpModelTrivial {
     // Ghidra: jumptable.hh:353 JumpModelTrivial::JumpModelTrivial
-    /// Construct (Ghidra passes the parent jump-table; Rugra models are
+    /// Construct (Ghidra passes the parent jump-table; Rudra models are
     /// parentless — parent reads flow via `JumpParentFacts`, see its docs).
     pub fn new() -> Self {
         Self { size: 0 }
@@ -1762,7 +1762,7 @@ impl JumpModel for JumpModelTrivial {
 pub struct JumpBasic {
     /// Range of values for the (normalized) switch variable.
     /// Ghidra 用 `JumpValues *jrange`(指针,可指向 JumpValuesRange 或
-    /// JumpValuesRangeDefault)。Rugra 用 `Box<dyn JumpValues>` 实现同样的
+    /// JumpValuesRangeDefault)。Rudra 用 `Box<dyn JumpValues>` 实现同样的
     /// 多态 —— JumpBasic2/JumpBasicOverride 会把 jrange 设为
     /// JumpValuesRangeDefault 实例。
     pub jrange: Option<Box<dyn JumpValues>>,
@@ -1780,7 +1780,7 @@ pub struct JumpBasic {
 
 impl JumpBasic {
     // Ghidra: jumptable.hh:410 JumpBasic::JumpBasic
-    /// Construct (Ghidra passes the parent jump-table `jt`; Rugra models are
+    /// Construct (Ghidra passes the parent jump-table `jt`; Rudra models are
     /// parentless — the two parent reads during recovery flow in as
     /// `JumpParentFacts`, see its docs).
     pub fn new() -> Self {
@@ -2410,7 +2410,7 @@ impl JumpBasic {
     /// `setRange/setStartVn/setStartOp`(cc:1186-1187,1188-1189);
     /// `JumpBasic2` 调用本函数时 jrange 已是 `JumpValuesRangeDefault`
     /// (cc:1698-1702 先装好),C++ 继承保证原地更新只改基类字段、
-    /// 保留 Default 的 extravalue/extravn/extraop。Rugra 用
+    /// 保留 Default 的 extravalue/extravn/extraop。Rudra 用
     /// [`JumpValues::as_range_base_mut`] 实现同一语义(旧实现 take 后
     /// 重装箱会把 Default 替换成普通 Range = INVENTED)。
     pub fn find_smallest_normal(&mut self, matchsize: u32) {
@@ -2494,7 +2494,7 @@ impl JumpBasic {
                 //   MemoryImage mem(vn->getSpace(),4,16,glb->loader);
                 //   uintb val = mem.getValue(vn->getOffset(),vn->getSize());
                 // MemoryImage::getValue reads exactly `size` bytes honoring
-                // the space endianness; Rugra 的单空间模型是小端,等价于
+                // the space endianness; Rudra 的单空间模型是小端,等价于
                 // loader 的 load_value(精确 size 字节,小端拼装)。
                 let (vn_offset, vn_size) = {
                     let v = vn.read().unwrap();
@@ -2765,7 +2765,7 @@ impl JumpModel for JumpBasic {
     ///       完整,`isprune` 的 def-less 剪枝只会发生在真正的 switch 变量
     ///       读上,而不是 raw pcode 的跨指令寄存器读上。
     ///
-    /// Rugra 在段2(funcdata/fspec/coreaction 的 stageJumpTable)落地前,
+    /// Rudra 在段2(funcdata/fspec/coreaction 的 stageJumpTable)落地前,
     /// 调用方若在未生成块的 raw Funcdata 上调用本函数(`indop.parent == None`,
     /// 对应 flow.generate_ops 阶段),本函数**fail-closed** 返回
     /// `Ok(false)`(Ghidra 在此环境会空指针崩溃,从不运行),不再静默走
@@ -2848,15 +2848,15 @@ impl JumpModel for JumpBasic {
         // Address space + wordSize for AddrSpace::addressToByte (jumptable.cc:1448,1453).
         //   AddrSpace *spc = indop->getAddr().getSpace();
         //   addr = AddrSpace::addressToByte(addr, spc->getWordSize());
-        // Rugra's Address is currently single-space (no AddrSpace field), and
+        // Rudra's Address is currently single-space (no AddrSpace field), and
         // the code space has wordSize==1, so addressToByte(addr, 1) == addr
         // is a no-op. Documented divergence until Address gains a space field
         // (P1 architectural item). The byte conversion would be:
         //   addr = addr.wrapping_mul(word_size as u64);
-        let word_size: u64 = 1; // Rugra single-space model; x86 code space has wordSize=1
+        let word_size: u64 = 1; // Rudra single-space model; x86 code space has wordSize=1
 
         // Ghidra: `JumpValues *jrange` 是指针;buildAddresses 用 jrange->clone()
-        // 取迭代器。Rugra 的 jrange 是 Box<dyn JumpValues>,用 clone_boxed()。
+        // 取迭代器。Rudra 的 jrange 是 Box<dyn JumpValues>,用 clone_boxed()。
         let mut iter_box = jrange.clone_boxed();
         let iter: &mut dyn JumpValues = iter_box.as_mut();
         // Collect load counts into a local Vec, then merge at the end to avoid
@@ -2890,7 +2890,7 @@ impl JumpModel for JumpBasic {
                 addresstable.push(Address::new(addr));
                 if collect_loads {
                     // Ghidra cc:1456-1457: loadcounts->push_back(loadpoints->size())
-                    // — the cumulative count after this iteration. Rugra drains
+                    // — the cumulative count after this iteration. Rudra drains
                     // the per-iteration collects into the out vector, so the
                     // cumulative count is out.len() + (current emul len).
                     let n = loadpoints.as_deref().map_or(0, |v| v.len())
@@ -3012,7 +3012,7 @@ impl JumpModel for JumpBasic {
             return;
         };
         // Ghidra: `JumpValues *jrange` 是指针;buildAddresses 用 jrange->clone()
-        // 取迭代器。Rugra 的 jrange 是 Box<dyn JumpValues>,用 clone_boxed()。
+        // 取迭代器。Rudra 的 jrange 是 Box<dyn JumpValues>,用 clone_boxed()。
         let mut iter_box = jrange.clone_boxed();
         let iter: &mut dyn JumpValues = iter_box.as_mut();
         if iter.initialize_for_reading() {
@@ -3197,7 +3197,7 @@ impl JumpBasic {
     ) {
         // cc:1049-1052: maxbranch=2, maxpullback=2, usenzmask = !isPartial.
         // Ghidra reads `!jt->isPartial()` through the model's parent pointer;
-        // Rugra carries the snapshot taken by JumpTable::recover_model
+        // Rudra carries the snapshot taken by JumpTable::recover_model
         // (see JumpParentFacts) — a partial (multistage) table must see
         // usenzmask=false here, exactly like cc:1052.
         let max_branch = 2i32;
@@ -3964,7 +3964,7 @@ impl JumpModel for JumpBasicOverride {
 /// A jump-table model assisted by pseudo-op directives (jumpassist CALLOTHER).
 /// Faithful to Ghidra `JumpAssisted` (jumptable.hh:510-543).
 ///
-/// Recovery requires the `JumpAssistOp` userop (userop.cc). Rugra's userop is
+/// Recovery requires the `JumpAssistOp` userop (userop.cc). Rudra's userop is
 /// L1, so `recover_model` returns false until userop is ported. This matches
 /// Ghidra's behavior on binaries without jumpassist directives.
 pub struct JumpAssisted {
@@ -4006,7 +4006,7 @@ impl JumpModel for JumpAssisted {
     ///   `assistOp->numInput() < 3` → false;
     ///   `userops.getOp(in(0)->getOffset())` 类型非 jumpassist → false。
     /// 之后 Ghidra 读 `JumpAssistOp` 子类的 getCalcSize/getIndex2Addr 载荷
-    /// (cc:2111-2122);Rugra 的 `UserPcodeOp` 尚未携带 JumpAssistOp 载荷,
+    /// (cc:2111-2122);Rudra 的 `UserPcodeOp` 尚未携带 JumpAssistOp 载荷,
     /// 该步保守 fail-closed 返回 `Ok(false)`(保守降级:形状判定与 Ghidra
     /// 同序,载荷步骤留待 userop.rs 补齐后启用;TODO JUMPTABLE-PIPELINE-0001)。
     fn recover_model(
@@ -4055,7 +4055,7 @@ impl JumpModel for JumpAssisted {
                     .get_op(index)
                     .map(|op| op.get_type() == crate::userop::UserOpType::JumpAssist)
                     .or_else(|| {
-                        // Ghidra 的 getOp 假定 CALLOTHER id 恒登记;Rugra 的
+                        // Ghidra 的 getOp 假定 CALLOTHER id 恒登记;Rudra 的
                         // 注册表可能缺项,缺项视作非 jumpassist(与类型判定
                         // 失败同路,不 panic)。
                         Some(false)
@@ -4433,7 +4433,7 @@ impl JumpTable {
     /// block hits it. The position is the switch basic block's out-edge slot,
     /// which is deduped and may include guard destinations (unlike the address
     /// table index). Ghidra throws `LowlevelError("Requested block, not in
-    /// jumptable")` at cc:2346-2347 when no edge hits the block; Rugra returns
+    /// jumptable")` at cc:2346-2347 when no edge hits the block; Rudra returns
     /// `None` and the callers ([`num_indices_by_block`],
     /// [`get_index_by_block`]) degrade to "no indices", because every
     /// reachable caller passes a `CaseOrder::basicblock` that acquired its
@@ -4493,7 +4493,7 @@ impl JumpTable {
     /// Get the address table index of the i-th entry corresponding to the
     /// given basic-block. Ghidra throws
     /// `LowlevelError("Could not get jumptable index for block")` (cc:2499)
-    /// when the block has no i-th entry; Rugra returns `None`.
+    /// when the block has no i-th entry; Rudra returns `None`.
     pub fn get_index_by_block(
         &self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, i: usize,
     ) -> Option<usize> {
@@ -4836,7 +4836,7 @@ impl JumpTable {
     ///
     /// Ghidra 的 maxtablesize 来自 `glb->max_jumptable_size`
     /// (cc:2626 经 recoverModel 的调用点 cc:2259/2270/2276/2281);
-    /// Rugra 从 `Architecture::max_jumptable_size` 读取,无 Architecture
+    /// Rudra 从 `Architecture::max_jumptable_size` 读取,无 Architecture
     /// 时退回默认 1024(architecture.cc:1433)。
     pub fn recover_addresses_classified(
         &mut self,
@@ -4903,7 +4903,7 @@ impl JumpTable {
     }
 
     // RUDRA-GLUE: bool compatibility adapter for callers not yet migrated to JumpTableRecoveryError
-    /// Compatibility adapter for legacy Rugra callers. New code should use
+    /// Compatibility adapter for legacy Rudra callers. New code should use
     /// [`recover_addresses_classified`](Self::recover_addresses_classified)
     /// so thunk and ordinary low-level failures remain distinguishable.
     pub fn recover_addresses(&mut self, fd: &crate::funcdata::Funcdata) -> bool {
@@ -5030,7 +5030,7 @@ impl JumpTable {
                 // "Could not find op at target address: (<spc>,<printRaw>)"
                 // when the address was never decoded into p-code — a
                 // distinct failure from the cc:2545-2546 out-edge link
-                // check. Rugra's FlowInfo::target returns Option instead of
+                // check. Rudra's FlowInfo::target returns Option instead of
                 // throwing, so the oracle's error text is reproduced here
                 // instead of conflating the two conditions (an address with
                 // no generated op is not a "not linked" destination).
@@ -5421,7 +5421,7 @@ impl<'fd> EmulateFunction<'fd> {
     /// `res &= calc_mask(sz)`。`loadFill` 失败抛 `DataUnavailError`
     /// (本实现返回 `Err(EmulateFailure::DataUnavail)`)。
     ///
-    /// Rugra 单空间模型的 `spc` 参数保留为文档位:地址无 space 字段
+    /// Rudra 单空间模型的 `spc` 参数保留为文档位:地址无 space 字段
     /// (P1 architectural item),x86-64 代码/ram 空间均小端。
     fn get_load_image_value(
         &self,
@@ -5719,7 +5719,7 @@ impl<'fd> EmulateFunction<'fd> {
     // Ghidra: emulateutil.cc:122 EmulatePcodeOp::executeSegmentOp
     fn execute_segmentop(&mut self) -> Result<(), EmulateFailure> {
         // Ghidra: segdef == 0 → "Segment operand missing definition"。
-        // Rugra 未移植 SegmentOp 注册表(userops segment 句柄),统一走
+        // Rudra 未移植 SegmentOp 注册表(userops segment 句柄),统一走
         // 同一 Lowlevel 通道(保守降级,TODO JUMPTABLE-PIPELINE-0001)。
         Err(EmulateFailure::Lowlevel(
             "Segment operand missing definition".to_string(),
@@ -5926,7 +5926,7 @@ pub fn try_recover_classified(
 /// This is the Rust analogue of Ghidra's
 /// `Funcdata::recoverJumpTable` (funcdata_block.cc:640) +
 /// `JumpTable::recoverAddresses` (jumptable.cc:2645), collapsed into a single
-/// call because Rugra does not yet clone a partial `Funcdata` for dedicated
+/// call because Rudra does not yet clone a partial `Funcdata` for dedicated
 /// jumptable simplification. Returns a populated `JumpTable` on success, or
 /// `None` if no model could be recovered.
 ///
@@ -5948,7 +5948,7 @@ pub fn try_recover(
 /// This is the entry point that finally wires the [`JumpTable`] machinery into
 /// [`crate::funcdata::Funcdata`]. It mirrors the per-BRANCHIND loop that, in
 /// Ghidra, is driven from flow tracing (`subflow.cc` →
-/// `Funcdata::recoverJumpTable`). Because Rugra performs recovery in-place
+/// `Funcdata::recoverJumpTable`). Because Rudra performs recovery in-place
 /// (no partial `Funcdata` clone), we run it as a pre-pass.
 ///
 /// For each alive BRANCHIND op that does not already have a [`JumpTable`] (see

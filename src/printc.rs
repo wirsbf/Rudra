@@ -284,7 +284,7 @@ pub mod print_mods {
 /// mostNaturalBase / mods". Used by push_integer / push_char_constant_fmt /
 /// push_enum_constant_named to honour the formatting decisions recorded on
 /// the symbol/type — the core of the P0 constant-formatting gap (audit P0-2).
-/// Rugra's `database::Symbol` and `Datatype` already persist this field, but
+/// Rudra's `database::Symbol` and `Datatype` already persist this field, but
 /// the `PrintC::push_integer` helper signature and production call sites do
 /// not yet carry their alias/state into this formatter; current production
 /// callers therefore still pass `display_format::DEFAULT` (auto).
@@ -368,7 +368,7 @@ fn escape_c_string(s: &str) -> String {
 /// Approximate Ghidra's `dynamic_cast<FunctionSymbol*>(sym)` used by
 /// `emitScopeVarDecls` (printc.cc:2543). Ghidra skips FunctionSymbol entries
 /// when walking the scope map so function symbols are never emitted as
-/// variable declarations. Rugra's `Scope.entries` hold plain `Symbol`s (the
+/// variable declarations. Rudra's `Scope.entries` hold plain `Symbol`s (the
 /// `FunctionSymbol`/`LabSymbol` wrappers live as separate structs that embed a
 /// `Symbol`), so there is no runtime subclass tag. We detect by the canonical
 /// type-name that `FunctionSymbol::new` / `LabSymbol::new` set ("func" /
@@ -402,7 +402,7 @@ fn is_label_symbol(sym: &crate::database::Symbol) -> bool {
 /// locals, e.g. sqlite `axVar73 [16]`) between the register group and the
 /// first stack decl (golden sqlite3VdbeExec: `fVar72; axVar73 [16];
 /// cStack_160;`), and stack entries (negative offsets ascending = printed hex
-/// descending) last. Overlay carries no index in Rugra's enum (-1 sentinel,
+/// descending) last. Overlay carries no index in Rudra's enum (-1 sentinel,
 /// space.rs get_index) — it sorts first by raw index, but no locked-corpus
 /// ScopeLocal symbol ever stores in an overlay space (x86-64 defines none),
 /// so the placement is unobservable; it is kept deterministic.
@@ -658,7 +658,7 @@ pub struct PrintC {
     /// populated lazily by the remote `getCodeLabel` query
     /// (database_ghidra.cc:308-325) against the front-end program DB
     /// (default `LAB_` labels at referenced code addresses, absent at
-    /// function entries where a FUNCTION symbol is primary). Rugra's driver
+    /// function entries where a FUNCTION symbol is primary). Rudra's driver
     /// installs the equivalent layer per function before printing; the
     /// raw-BFD mirror environment (no analyzers, no reference-driven
     /// default labels) keeps it empty, matching the oracle single-function
@@ -699,7 +699,7 @@ pub struct PrintC {
     /// (`push_integer` printc.cc:1364-1365 `t << sizeSuffix`), set by
     /// `PrintC::initializeFromArchitecture` (printc.cc:2332-2340): `"LL"`
     /// when the type factory's long size equals the int size, `"L"`
-    /// otherwise. Rugra's corpus is x86-64 gcc (long=8, int=4), so the
+    /// otherwise. Rudra's corpus is x86-64 gcc (long=8, int=4), so the
     /// constructor pins `"L"`; re-pin when the printlanguage-side
     /// architecture hookup lands.
     size_suffix: &'static str,
@@ -736,7 +736,7 @@ pub struct PrintC {
     /// the oracle's print layer never sees an output varnode on a locked-void
     /// call: `PrintC::emitExpression` (printc.cc:2471-2476) prints no
     /// assignment LHS (`free(p);` statement form) and `PrintC::opReturn`
-    /// (printc.cc:754-763) prints a bare `return;`. Rugra's action layer
+    /// (printc.cc:754-763) prints a bare `return;`. Rudra's action layer
     /// removes the output on the same conditions, but any call site whose
     /// output survived (action ordering noise) must still render with the
     /// oracle's no-output bytes: the print layer projects the
@@ -836,7 +836,7 @@ pub struct PrintC {
     main_emit_id: usize,
     /// Labels already printed this function, keyed by target address.
     /// Transport for Ghidra's f_label_bumpup (block.hh:99: "any label
-    /// printed higher up in hierarchy"): Rugra's structured tree shares
+    /// printed higher up in hierarchy"): Rudra's structured tree shares
     /// Basic leaves across constructs (no BlockCopy duplication), so a
     /// marked leaf reachable from several construct entries must print its
     /// `code_r...:` label exactly once (printc.cc:3198-3214).
@@ -950,7 +950,7 @@ pub struct PrintC {
     /// The language's unique name (printlanguage.hh:261 `name`, stored by
     /// the base ctor `name = nm`, printlanguage.cc:69). The capability path
     /// passes "c-language" (PrintCCapability ctor printc.cc:111 ->
-    /// buildLanguage printc.cc:118 -> PrintC ctor printc.cc:123); Rugra's
+    /// buildLanguage printc.cc:118 -> PrintC ctor printc.cc:123); Rudra's
     /// drivers construct PrintC directly, so the value is pinned here —
     /// read by `PrintLanguage::get_name` (printlanguage.hh:448) and the
     /// architecture-side printlist bookkeeping.
@@ -978,7 +978,7 @@ pub struct PrintC {
     /// by `rpn_push_partial_symbol`'s STRUCT findResolve arm (printc.cc:1968
     /// `ct->findResolve(op,slot)` → TypeStruct::findResolve type.cc:1944-1951,
     /// which reads `fd->getUnionField(this,op,slot)` via the op's Funcdata).
-    /// Rugra's PcodeOp/blocks carry no Funcdata back-pointer, so the printer
+    /// Rudra's PcodeOp/blocks carry no Funcdata back-pointer, so the printer
     /// snapshots the map instead — same (parent,op-time,slot)-keyed lookups.
     union_resolutions:
         std::collections::BTreeMap<
@@ -1000,7 +1000,7 @@ pub struct PrintC {
     symboltab: Option<Arc<RwLock<crate::database::Database>>>,
     /// Borrowed address-space manager used for constant resolution (Ghidra
     /// reaches `glb->resolveConstant` == `AddrSpaceManager::resolveConstant`,
-    /// translate.cc:628-641, through the Architecture). Rugra's Architecture
+    /// translate.cc:628-641, through the Architecture). Rudra's Architecture
     /// does not own an AddrSpaceManager yet (SPACE-0001), so production
     /// resolves through the default no-resolver path and fixtures/drivers
     /// inject one via [`Self::set_space_manager`].
@@ -1237,7 +1237,7 @@ impl PrintC {
     // RUDRA-GLUE: set_space_manager (test/driver injection point; Ghidra's
     /// PrintLanguage reaches the AddrSpaceManager through its permanent
     /// `glb` pointer — Architecture IS an AddrSpaceManager in the C++
-    /// hierarchy — while Rugra's `Architecture` does not own one yet
+    /// hierarchy — while Rudra's `Architecture` does not own one yet
     /// (SPACE-0001). Mirrors `Architecture::set_string_manager`
     /// (arch.rs) as the documented injection seam.)
     /// Install the address-space manager consulted by
@@ -1572,10 +1572,10 @@ impl PrintC {
     /// }
     /// ```
     ///
-    /// Ghidra throws when a token has no flip target; Rugra keeps the
+    /// Ghidra throws when a token has no flip target; Rudra keeps the
     /// original token in that case because the negatetoken mod is only ever
     /// set around comparison tokens by opBoolNegate (printc.cc:814-824),
-    /// which Rugra's RPN path has not wired yet — a null-negate flip here
+    /// which Rudra's RPN path has not wired yet — a null-negate flip here
     /// would be unreachable in practice and printc has no error channel.
     fn rpn_tok_binary(&mut self, opc: OpCode) -> usize {
         let mut spec = match optoken::binary_token(opc) {
@@ -1662,14 +1662,14 @@ impl PrintC {
     /// **pushVnExplicit faithfulness:** Ghidra's pushVnExplicit (218-230)
     /// handles annotation / constant fast-paths then calls
     /// `pushSymbolDetail(vn, op, true)` (238-262), which falls back through
-    /// symbol / partial-symbol / unnamed-location resolution. Rugra's
+    /// symbol / partial-symbol / unnamed-location resolution. Rudra's
     /// `make_atom_for_vn` covers the same cascade (constant, named symbol via
     /// get_varnode_display_name, unnamed-location fallback), so pushing its
-    /// Atom via rpn_push_atom is the Rugra equivalent of pushVnExplicit.
+    /// Atom via rpn_push_atom is the Rudra equivalent of pushVnExplicit.
     ///
     /// **Implied-field branch:** Ghidra's `vn->hasImpliedField()` /
     /// `pushImpliedField` (printlanguage.cc:528-529) handles a partial-symbol
-    /// implied field. Rugra has no implied-field machinery yet, so we treat the
+    /// implied field. Rudra has no implied-field machinery yet, so we treat the
     /// branch as the no-op it would be (hasImpliedField returns false) and go
     /// straight to the def-op dispatch — matches Ghidra behaviour for any
     /// implied Varnode whose high-symbol offset is the base.
@@ -1703,7 +1703,7 @@ impl PrintC {
             // inserts the CAST, coreaction.cc:2704+), and that CAST's
             // dispatch (opTypeCast, printc.cc:459-462: pushOp(&typecast) +
             // pushType) fires at exactly this drain point, wrapping
-            // whatever expression the target varnode holds. Rugra's IR
+            // whatever expression the target varnode holds. Rudra's IR
             // carries the code* type directly on the input varnode instead
             // of a CAST op, so the same two pushes are transported here —
             // before the implied-def dispatch or the leaf atom — for both
@@ -1758,7 +1758,7 @@ impl PrintC {
                     // Ghidra's virtual TypeOp::push covers every opcode, so the
                     // def-op dispatch always has an emitter (marker ops
                     // MULTIEQUAL/INDIRECT intentionally emit nothing,
-                    // printc.hh:331-332). Rugra's dispatch_op_rpn is partial
+                    // printc.hh:331-332). Rudra's dispatch_op_rpn is partial
                     // (PRINT-RPN-0001), and dispatching an unhandled/dead def
                     // would silently DROP the operand text ("a + " fragments).
                     // Guard: inline only when the def op is live and its
@@ -1788,7 +1788,7 @@ impl PrintC {
             } else {
                 // printlanguage.cc:538: pushVnExplicit(vn, op) — annotation /
                 // constant fast-paths (218-226) then pushSymbolDetail (238-262).
-                // Rugra's make_atom_for_vn covers the same cascade; pushing its
+                // Rudra's make_atom_for_vn covers the same cascade; pushing its
                 // Atom via rpn_push_atom is the faithful equivalent.
                 let atom = self.make_atom_for_vn(&vn_guard, &op_guard);
                 drop(vn_guard);
@@ -2033,7 +2033,7 @@ impl PrintC {
     // RUDRA-GLUE: rpn_def_inline_reachable (Ghidra counterpart is the total
     // TypeOp::push virtual dispatch — typeop.cc registers a pusher for every
     // opcode — so Ghidra never needs this predicate; it exists only because
-    // Rugra's dispatch_op_rpn match is partial, PRINT-RPN-0001 residual).
+    // Rudra's dispatch_op_rpn match is partial, PRINT-RPN-0001 residual).
     /// Whether dispatch_op_rpn has an arm that actually emits output for this
     /// def op (and has the inputs that arm requires). Used by rpn_recurse's
     /// implied branch to decide between inlining the def expression and
@@ -2045,7 +2045,7 @@ impl PrintC {
     /// opcodes falling into the `_ => {}` arm (PIECE, MULTIEQUAL, INDIRECT,
     /// BRANCH, BRANCHIND, CPOOLLOAD, CPOOLSTORE, NEW, SEGMENTOP, PCODEOP, ...)
     /// are `false` and keep the leaf form. MULTIEQUAL/INDIRECT emit nothing in
-    /// Ghidra too (printc.hh:331-332), but Rugra's MarkImplied cover data is
+    /// Ghidra too (printc.hh:331-332), but Rudra's MarkImplied cover data is
     /// not proven to exclude phi outputs, so the leaf fallback is the
     /// conservative choice until PRINT-RPN-0001 completes the dispatch table.
     fn rpn_def_inline_reachable(op: &PcodeOp) -> bool {
@@ -2146,7 +2146,7 @@ impl PrintC {
     // ---- Step 4: make_atom_for_vn (printlanguage.cc:218 pushVnExplicit) ----
 
     // Ghidra: printlanguage.cc:218 pushVnExplicit + cc:238 pushSymbolDetail
-    /// Build the leaf Atom for a Varnode. Reuses Rugra's existing name-
+    /// Build the leaf Atom for a Varnode. Reuses Rudra's existing name-
     /// resolution logic (get_varnode_display_name) so variable/parameter/
     /// symbol naming stays identical between the legacy and RPN paths.
     /// Constants become a syntax Atom carrying the literal text. `op` is the
@@ -2182,7 +2182,7 @@ impl PrintC {
     /// then each pointer layer contributes a `*` (cc:292-293) and each
     /// array layer an `[numElements]` (cc:324-328). Pointer-into-array
     /// spellings that need the `(*)[n]` operator form are not emitted
-    /// (Rugra's cast sites only spell flat types); those keep the outer
+    /// (Rudra's cast sites only spell flat types); those keep the outer
     /// layer order, matching the common single-pointer case exactly.
     fn cast_type_string(ct: &crate::type_system::Datatype) -> String {
         use crate::type_system::datatype::Datatype;
@@ -2228,7 +2228,7 @@ impl PrintC {
         // Pointer(Pointer(char)) prints `char **`, Pointer³ prints
         // `ushort ***` — the old per-layer " *" produced the non-oracle
         // `char * *`. The named-layer early break of buildTypeStack
-        // (printc.cc:150) is not mirrored here: Rugra's parsed nested
+        // (printc.cc:150) is not mirrored here: Rudra's parsed nested
         // pointers carry display names while the oracle corpus types are
         // anonymous factory pointers, and stopping at a named layer would
         // re-introduce `char * *` against golden `char **`.
@@ -2339,7 +2339,7 @@ impl PrintC {
             // Ghidra stores enums as TYPE_INT/TYPE_UINT + the enumtype flag
             // (TypeEnum ctor/decode, type.hh:490-494 / type.cc:1475), so its
             // TYPE_UINT/TYPE_INT arms reach pushEnumConstant
-            // (printc.cc:1756/1763). Rugra's Enum metatype IS that
+            // (printc.cc:1756/1763). Rudra's Enum metatype IS that
             // enum-int/uint collapse, so it takes the same named path: the
             // getMatches representation (enum_match_text — `A`, `A|B`,
             // `~(A|B)`, `... >> n`), else the unsigned integer
@@ -2349,7 +2349,7 @@ impl PrintC {
             // (printc.cc:1801 break).
             // (TypeEnum ctor/decode, type.hh:487-491 + type.cc:1475), so its
             // TYPE_UINT/TYPE_INT arms reach pushEnumConstant (printc.cc
-            // 1756/1763). Rugra's Enum metatype IS that enum-int/uint
+            // 1756/1763). Rudra's Enum metatype IS that enum-int/uint
             // collapse, so it takes the same named path: the getMatches
             // representation (enum_match_text), else the unsigned integer
             // TYPE_PARTIALENUM keeps Ghidra's default-cast arm (printc.cc
@@ -2371,7 +2371,7 @@ impl PrintC {
                 if val != 0 { "true".to_string() } else { "false".to_string() }
             }
             TypeMetatype::Void => {
-                // printc.cc:1772-1774: clear(); throw LowlevelError. Rugra:
+                // printc.cc:1772-1774: clear(); throw LowlevelError. Rudra:
                 // the same marker the direct-emit path prints (no panic in
                 // the emit path).
                 "/* void constant */".to_string()
@@ -2443,7 +2443,7 @@ impl PrintC {
         // Ghidra's constants always carry a HighVariable whose type
         // ActionInferTypes seeded (coreaction.cc:5016-5036); the high's type
         // is itself the member Varnode's type (HighVariable::updateType,
-        // variable.cc:400-416). Rugra's leaf chase can bypass the high (no
+        // variable.cc:400-416). Rudra's leaf chase can bypass the high (no
         // HighVariable on the const), so the varnode's own v_type — where
         // the driver's param-lock annotation lands — is the oracle-shaped
         // substitute when the high answered nothing
@@ -2526,7 +2526,7 @@ impl PrintC {
             let name = self.constant_leaf_text(vn, Some(op));
             // printlanguage.cc:226 passes vartoken + the consuming op + the
             // constant Varnode into pushConstant. pushCharConstant and
-            // push_integer preserve all three on the Atom. Rugra's Atom uses
+            // push_integer preserve all three on the Atom. Rudra's Atom uses
             // immutable numeric identities in place of C++ pointers.
             return Atom ::with_op_vn_int(
                 &name,
@@ -2537,7 +2537,7 @@ impl PrintC {
                 val,
             );
         }
-        // printlanguage.cc:243-261: resolve symbol detail. Rugra folds the
+        // printlanguage.cc:243-261: resolve symbol detail. Rudra folds the
         // HighVariable / parameter / symbol-table / unnamed-location cascades
         // into the existing get_varnode_display_name helper so the RPN path
         // shares the exact name-resolution behaviour of the legacy path.
@@ -2609,7 +2609,7 @@ impl PrintC {
     ) {
         // printc.cc:2471-2476: assignment LHS — guarded by `outvn != 0`. A
         // locked-void callee CALL has NO output in the oracle IR
-        // (funcLinkOutput, coreaction.cc:1539-1541); Rugra projects the same
+        // (funcLinkOutput, coreaction.cc:1539-1541); Rudra projects the same
         // no-output bytes when the action layer left the output in place
         // (PRINTC-VOIDCALL-0001): the statement renders as `f(args);`.
         if let Some(out) = op.get_out() {
@@ -2780,7 +2780,7 @@ impl PrintC {
     /// here: negatetoken is only set by opBoolNegate (printc.cc:819-820)
     /// gated on checkPrintNegation, whose flippable set (get_booleanflip,
     /// opcodes.cc:94-130) maps exactly onto the comparison tokens that all
-    /// carry negate targets (printc.cc:129-134). Rugra keeps the original
+    /// carry negate targets (printc.cc:129-134). Rudra keeps the original
     /// token for a hypothetical null-negate flip (no print-time error
     /// channel).
     pub fn rpn_op_binary(
@@ -2866,13 +2866,13 @@ impl PrintC {
     }
 
     // Ghidra: printc.hh:291 PrintC::opIntAdd { opBinary(&binary_plus,op); }
-    /// INT_ADD → binary_plus token (registry id 3, "+"). Rugra keeps the
+    /// INT_ADD → binary_plus token (registry id 3, "+"). Rudra keeps the
     /// struct-field recovery pre-check the former inline dispatch arm had
     /// (INT_ADD(ptr-to-struct, const-offset) → `ptr->field`, the documented
     /// substitute for PTRSUB conversion at the printing layer); the oracle
     /// has no such branch — opIntAdd is the bare one-liner.
     pub fn op_int_add(&mut self, op_arc: &OpArcRef, op: &PcodeOp) {
-        // Rugra struct-field recovery (see the former dispatch arm's
+        // Rudra struct-field recovery (see the former dispatch arm's
         // comment, printc.cc:476-484 opPtrsub shape): INT_ADD(Struct*,
         // offset) renders `base->field` via the pointer_member RPN token.
         if op.opcode == OpCode::CPUI_INT_ADD && op.inrefs.len() >= 2 {
@@ -3712,7 +3712,7 @@ impl PrintC {
                 self.rpn_push_op(self.rpn_tok_function_call);
                 self.rpn_push_op(self.rpn_tok_dereference);
                 // cc:642-645: fc = fd->getCallSpecs(op) (a missing callspec
-                // is an oracle LowlevelError; Rugra's driver always installs
+                // is an oracle LowlevelError; Rudra's driver always installs
                 // one with the op). cc:646: skip = getHiddenThisSlot(op,fc)
                 // — not ported (returns -1, matching Ghidra's own opCall
                 // TODO, printc.cc:619-623).
@@ -3766,7 +3766,7 @@ impl PrintC {
                     // printc.cc:597-602: the unnamed-callee arm reads
                     // fc->getEntryAddress() — the callspec's entry address,
                     // whose space is the CALL's pre-annotation in(0)
-                    // address space (fspec.cc:4934 ctor). Rugra's Iop
+                    // address space (fspec.cc:4934 ctor). Rudra's Iop
                     // annotation mirrors only the offset
                     // (new_varnode_call_specs compatibility_offset), so the
                     // space rides the callspec channel: get_call_spec() ->
@@ -3837,7 +3837,7 @@ impl PrintC {
             // statement: `if (<cond>) goto <target>;` (+ `;` from
             // emit_statement_rpn, mirroring printc.cc:2291-2292 emitStatement).
             // A CBRANCH reaches emitStatement → opfunc only in a flat print in
-            // the oracle (printc.cc:2657-2658); Rugra's emit_block_ops sets
+            // the oracle (printc.cc:2657-2658); Rudra's emit_block_ops sets
             // the FLAT mod for exactly those contexts, so opCbranch's `yesif`
             // arm fires. pushVn(op->getIn(1),op,m) + recurse() keep the
             // PRINTC-UNLINKED-REF-0001 implied-comparison inlining.
@@ -3996,7 +3996,7 @@ impl PrintC {
                         // `fd->getUnionField(ptype, op, -1)` keyed on the
                         // POINTER type with slot -1 (the attach edge
                         // ActionSetCasts::resolveUnion created in
-                        // coreaction.cc:2509), never findTruncation. Rugra
+                        // coreaction.cc:2509), never findTruncation. Rudra
                         // consults the doc_function-time snapshot
                         // (union_resolutions) with the same ResolveEdge
                         // key. The oracle's two LowlevelError arms
@@ -4025,7 +4025,7 @@ impl PrintC {
                         } else {
                             // printc.cc:991-1010 (TYPE_STRUCT): resolve the
                             // field name via findTruncation(suboff,0,op,0).
-                            // Rugra uses the Datatype::find_truncation port
+                            // Rudra uses the Datatype::find_truncation port
                             // (TypeStruct arm is structural; the consult
                             // context is inert for structs). Default
                             // fallback name is "field_0x<hex>"
@@ -4172,7 +4172,7 @@ impl PrintC {
                         // constant resolves to a global symbol (`&name`) or an
                         // unnamed location. symbol = op->getIn(1)->getHigh()
                         // ->getSymbol() (the linkSymbolReference attachment,
-                        // variable.cc:419-432); Rugra's ActionNameVars namerec
+                        // variable.cc:419-432); Rudra's ActionNameVars namerec
                         // is a registered no-op (FUNCDATA-LINKSYMBOL residual),
                         // so the print-side stand-in is the same container
                         // query linkSymbolReference issues (queryContainer at
@@ -4235,7 +4235,7 @@ impl PrintC {
                         // symbol, resolved in the oracle by the SAME
                         // linkSymbolReference attachment (variable.cc:419-432
                         // queries fd->getScopeLocal() for stack references).
-                        // Rugra's stand-in: query the print-time ScopeLocal
+                        // Rudra's stand-in: query the print-time ScopeLocal
                         // snapshot (`self.scope`, snapshot_local_scope) with
                         // the same container semantics — find_container_entry
                         // is the Scope::findContainer port (database.cc:2262-
@@ -4340,7 +4340,7 @@ impl PrintC {
                             // 0` the arm prints
                             // pushPartialSymbol(symbol, off, 0, ...) (a
                             // mid-symbol reference renders the accessed
-                            // sub-field, not the whole symbol name). Rugra's
+                            // sub-field, not the whole symbol name). Rudra's
                             // container-query stand-in has no symbol-offset
                             // channel (FUNCDATA-LINKSYMBOL residual), and the
                             // ConstantPtr path always constructs off==0
@@ -4374,7 +4374,7 @@ impl PrintC {
                     // field-name rendering below.
                 }
                 // printc.cc:1139-1142 throws "PTRSUB off of non structured
-                // pointer type"; Rugra cannot throw, so fall back to the
+                // pointer type"; Rudra cannot throw, so fall back to the
                 // generic `in0->field_<hex>` (constant) / `in0[in1]` (variable)
                 // rendering, matching the legacy op_ptrsub fallback.
                 let in1 = op.get_in(1).map(|a| a.read().unwrap());
@@ -4615,7 +4615,7 @@ impl PrintC {
                 // pushType(dt) renders the structural cast spelling
                 // (printc.cc:2013 pushType -> pushTypeStart/pushTypeEnd):
                 // buildTypeStack walks the pointer/array layers and emits
-                // `char **` for nested pointers. Rugra's non-interned
+                // `char **` for nested pointers. Rudra's non-interned
                 // pointers carry per-layer display names (`char * *` on the
                 // outer of a pointer-to-pointer built by make_ptr), so the
                 // raw get_name() here must go through the same structural
@@ -4732,7 +4732,7 @@ impl PrintC {
         // printc.cc:428-431: "Using function syntax but don't markup the
         // name as a normal function call" — `pushAtom(Atom(nm, optoken,
         // EmitMarkup::no_color, op))`: NoColor, not FuncnameColor, and the
-        // atom anchors to the op itself. Rugra's RPN path has no op arena
+        // atom anchors to the op itself. Rudra's RPN path has no op arena
         // (all atoms carry op_index=-1), so the op anchor is not
         // materialized; the text emitter's tagOp consumes neither the
         // highlight nor the anchor, so output is unchanged.
@@ -4773,10 +4773,10 @@ impl PrintC {
         use crate::printlanguage::{Atom, SyntaxHighlight, TagType};
         // printc.cc:597: pushOp(&function_call,op)
         self.rpn_push_op(self.rpn_tok_function_call);
-        // printc.cc:605-616: the callpoint fspec name atom. Rugra resolves
+        // printc.cc:605-616: the callpoint fspec name atom. Rudra resolves
         // the name from the callpoint address (the driver's stand-in for
         // the oracle's fspec table; the space check IPTR_FSPEC at cc:601
-        // has no Rugra counterpart — the driver only feeds resolved
+        // has no Rudra counterpart — the driver only feeds resolved
         // callpoints into this arm).
         let name_atom = Atom::new(
             target_name, TagType::FunToken, SyntaxHighlight::FuncnameColor,
@@ -5018,7 +5018,7 @@ impl PrintC {
     /// ```
     ///
     /// The lsb comes from the SUBPIECE constant input in(1); endianness is
-    /// the input varnode's space endianness (Rugra x86/x64 spaces are
+    /// the input varnode's space endianness (Rudra x86/x64 spaces are
     /// little-endian, so the common case is `byteOff = lsb`).
     fn compute_byte_offset_for_composite(op: &PcodeOp) -> i64 {
         let out_size = op
@@ -5249,7 +5249,7 @@ impl PrintC {
                             .map(|h| h.read().unwrap().get_type());
                         // spc = sym->getFirstWholeMap()->getAddr().getSpace();
                         // if (spc == null) spc = vn->getSpace();
-                        // Rugra's `Address` is a bare scalar with no
+                        // Rudra's `Address` is a bare scalar with no
                         // AddrSpace (address.rs:26), so a SymbolEntry address
                         // cannot supply the space; this is Ghidra's null-space
                         // fallback arm: the varnode's own space endianness.
@@ -5414,13 +5414,13 @@ impl PrintC {
 
     // RUDRA-GLUE: derive the BlockBasic index for the cc:2684
     // setupBlockList(bb) call from the ops themselves. Ghidra's
-    // emitBlockBasic receives the BlockBasic directly; Rugra's rpn/legacy
+    // emitBlockBasic receives the BlockBasic directly; Rudra's rpn/legacy
     // statement loops only hold the op slice. CommentSorter::findPosition
     // and setupOpList both key on op->getParent()->getIndex()
     /// (comment.cc:295/370), so the first op's parent yields the exact
     /// window key the sorter placed comments under.
     ///
-    /// Dead-op transport deviation: Rugra keeps destroyed ops in a block's
+    /// Dead-op transport deviation: Rudra keeps destroyed ops in a block's
     /// op-list snapshot with `parent == None`, while Ghidra's
     /// BlockBasic::removeOp (block.cc:2292-2297) sets the parent to NULL and
     /// erases the op from the list in the same step — every op in
@@ -5482,7 +5482,7 @@ impl PrintC {
         // printc.cc:2684: commsorter.setupBlockList(bb); — Ghidra runs
         // emitBlockBasic per BASIC block, opening a fresh comment window per
         // block and draining its tail (cc:2742) before the next block's
-        // window. Rugra's transport can receive a flattened ops slice whose
+        // window. Rudra's transport can receive a flattened ops slice whose
         // first op's parent no longer upgrades (block replaced during
         // structuring), which previously skipped the setup entirely and let
         // per-op emitCommentGroup(Some) run against a STALE window — start
@@ -5508,7 +5508,7 @@ impl PrintC {
                 cur_block = op_block;
             }
             let op_guard = op_ref.0.read().unwrap();
-            // Rugra's dead ops stay in the block's op list (Ghidra unlinks
+            // Rudra's dead ops stay in the block's op list (Ghidra unlinks
             // them from PcodeOpBank), so keep the is_dead guard first.
             if op_guard.is_dead() {
                 continue;
@@ -5660,7 +5660,7 @@ impl PrintC {
             // contexts only. The oracle's tail goto requires the
             // FUNCTION-level flat mod (PrintLanguage::setFlat,
             // printlanguage.cc:662-669 — unstructured function prints),
-            // which Rugra transports as the emit_block_ops ENTRY snapshot:
+            // which Rudra transports as the emit_block_ops ENTRY snapshot:
             // a structured emission (switch case body, loop body residue)
             // must not print its trailing BRANCH as `goto` — the owning
             // construct's break/goto machinery (cc:3342 / BlockGoto) prints
@@ -5704,7 +5704,7 @@ impl PrintC {
     /// Emit the boolean condition of a CBRANCH (its in(1)). When in(1) is
     /// absent, emit `1` (always-true) instead of leaving the parentheses empty.
     /// Rationale: Ghidra's `opCbranch` (printc.cc) always pushes `getIn(1)` —
-    /// it never drops the condition. Rugra's structurer can build a BlockIf
+    /// it never drops the condition. Rudra's structurer can build a BlockIf
     /// around a CBRANCH whose in(1) was consumed upstream, leaving the op with
     /// no condition. Previously this produced `if () goto ;` (syntax error);
     /// emitting `1` gives valid, if conservative, C. (Audit: BATCH1 R50.)
@@ -5979,7 +5979,7 @@ impl PrintC {
         ))
     }
 
-    // RUDRA-GLUE: transports Ghidra's PrintLanguage::no_branch modifier as an explicit boolean through Rugra's structured-block dispatcher
+    // RUDRA-GLUE: transports Ghidra's PrintLanguage::no_branch modifier as an explicit boolean through Rudra's structured-block dispatcher
     /// Emit a single block's operations, with dead code elimination.
     ///
     /// Skips: COPY ops (folded via copy_map), terminal branches (when skip_terminal),
@@ -5997,7 +5997,7 @@ impl PrintC {
         // printc.cc:3198-3214), which for a marked BODY leaf is inside the
         // braces immediately before its first statement (Ghidra bodies are
         // BlockCopy sub-trees and emitBlockCopy prints the label there).
-        // Rugra's construct emitters emit Basic bodies/conditions directly
+        // Rudra's construct emitters emit Basic bodies/conditions directly
         // via this function without dispatcher re-entry, so the same
         // front-leaf check runs here; printed_labels (the f_label_bumpup
         // transport, block.hh:99) keeps exactly one print at the earliest
@@ -6091,7 +6091,7 @@ impl PrintC {
         // GOTO-LABEL-UNPRINTED-0001 backpatch: a `goto` to this block's
         // start was already printed but its label is still undefined
         // (pending_goto_labels) — the address-keyed twin of the oracle's
-        // marked-leaf print. Rugra's structurer leaves some if-goto edges
+        // marked-leaf print. Rudra's structurer leaves some if-goto edges
         // unwrapped (no BlockIf::goto_target, so markUnstructured never
         // marked the leaf — observed: code_r0x0002D2E4, httpd
         // ap_fini_vhost_config); in Ghidra every unstructured edge is
@@ -6159,7 +6159,7 @@ impl PrintC {
             // basic-block graph, and only there does a CBRANCH reach
             // emitStatement → opfunc → opCbranch's `yesif` arm (structured
             // conditions print via only_branch, printc.cc:2911-2912, where
-            // `flat` is clear). Rugra transports the same invariant with
+            // `flat` is clear). Rudra transports the same invariant with
             // skip_terminal: emit_block_basic_rpn skips every branch op
             // unless it is false, so a CBRANCH reaching statement emission
             // here is always in flat context (if-goto condition emission,
@@ -6245,7 +6245,7 @@ impl PrintC {
                 }
             }
 
-            // Rugra's dead ops can stay in a block's op list snapshots
+            // Rudra's dead ops can stay in a block's op list snapshots
             // (Ghidra's Funcdata::opDestroy unlinks them from the owning
             // BlockBasic immediately, and the structure graph wraps the
             // ORIGINAL blocks via BlockGraph::buildCopy block.cc:1925, so
@@ -6302,7 +6302,7 @@ impl PrintC {
             // Ghidra printc.cc:2696: if (inst->notPrinted()) continue;
             // Skip ops explicitly marked as non-printing. NOTE: in Ghidra,
             // NONPRINTING is only set on branch ops consumed by the structurer
-            // and redundant internal COPYs. Rugra's mark_internal_copies sets
+            // and redundant internal COPYs. Rudra's mark_internal_copies sets
             // it on same-high COPYs (which IS correct — they are internal).
             // However, applying this unconditionally breaks output because
             // many COPYs are marked NONPRINTING but still need to print as
@@ -6404,7 +6404,7 @@ impl PrintC {
         // ===== printc.cc:2685 emitLabelStatement(bb) + cc:2723-2741 tail =====
         // Ghidra's emitBlockBasic prints the block's label FIRST (cc:2685,
         // before the op loop) — in flat mode for every jump target
-        // (FlowBlock::isJumpTarget, cc:3204). Rugra's flat CBRANCH emission
+        // (FlowBlock::isJumpTarget, cc:3204). Rudra's flat CBRANCH emission
         // (op_cbranch / op_cbranch_rpn, the cc:536-580 port) renders the
         // non-fallthru edge as `goto code_r0x...;` — the fallthru edge's
         // block then continues in place. The fallthru block's own entry is a
@@ -6412,7 +6412,7 @@ impl PrintC {
         // the GOTO TARGET block (which the block-graph loop later emits)
         // must carry a label or the goto names an undeclared label
         // (F1 residual: 39/39 flat gotos were label-less in the curl E2E).
-        // Rugra's dispatcher does not run emitBlockBasic on the CFG blocks
+        // Rudra's dispatcher does not run emitBlockBasic on the CFG blocks
         // (it walks the structured graph), so the per-block label is
         // emitted here, at the head of the block that OWNS the goto's
         // fallthrough continuation — i.e. when this block's ops contain a
@@ -6483,7 +6483,7 @@ impl PrintC {
             // KEYWORD_GOTO / emitLabel / SEMICOLON / endStatement). The
             // oracle's gate is the FUNCTION-level flat mod
             // (PrintLanguage::setFlat, printlanguage.cc:662-669 — this arm
-            // never fires in a structured emission); Rugra transports it as
+            // never fires in a structured emission); Rudra transports it as
             // the entry snapshot captured above the opCbranch mirror
             // (MCENSUS3-SWITCH-BREAKGOTO-EMIT-0001: a switch case body's
             // trailing BRANCH is printed by cc:3342's `break;`, not as a
@@ -6691,7 +6691,7 @@ impl PrintC {
         // emits exactly once through the virtual dispatch (block.hh emit),
         // so Ghidra's "is this target a live emitted block" question is
         // answered by the tree itself, and this ledger merely mirrors that
-        // completeness across Rugra's two leaf emission paths.
+        // completeness across Rudra's two leaf emission paths.
         if self.discovery_pass
             && (&*self.emit) as *const dyn Emit as *const () as usize == self.discovery_emit_id
             && matches!(
@@ -6942,7 +6942,7 @@ impl PrintC {
         // call (printc.cc:2882) and all later questions — the cc:2900
         // cancel/merge decision and the cc:2946 close — are answered from
         // THAT object (pointer identity, prettyprint.hh:457; indentId,
-        // printc.hh:347-361). Rugra keeps the install's BraceId in this
+        // printc.hh:347-361). Rudra keeps the install's BraceId in this
         // frame and asks per id; the inherited PENDING_BRACE mod alone is
         // only the install trigger, never the fire/close state.
         let installed_brace_id = if self.is_set(print_mods::PENDING_BRACE) {
@@ -7005,7 +7005,7 @@ impl PrintC {
         if let Some(target) = goto_target {
             // printc.cc:2914-2917: a one-component BlockIf emits its formal
             // goto directly after the condition and has no structured body.
-            // A fully formed Ghidra structure always resolves here. Rugra's
+            // A fully formed Ghidra structure always resolves here. Rudra's
             // registered BlockGoto/Graph target residual can still fail the
             // leaf chain, so preserve the existing non-panicking sentinel.
             let target_addr = Self::flow_entry_address(&target).unwrap_or(0);
@@ -7358,7 +7358,7 @@ impl PrintC {
                     // body children — the break-guard `if (lVar13 == 0)
                     // break;` If inside the main strlen loops (golden keeps
                     // it inside `do { ... } while`) and any nested loop
-                    // compound never dispatch. Rugra's BlockDoWhile
+                    // compound never dispatch. Rudra's BlockDoWhile
                     // `condition` field IS Ghidra's getBlock(0) (the single
                     // body subblock, block.hh:727); dispatch it exactly like
                     // the whiledo sibling's emit_block_structured(body).
@@ -7392,7 +7392,7 @@ impl PrintC {
                     // basic block's only_branch path prints just lastOp's
                     // expression via emitExpression (cc:2686-2690) → opCbranch.
                     // The former buffer channel ran the LEGACY value-scan
-                    // emitter plus Rugra-side textual malformed-guards (R50
+                    // emitter plus Rudra-side textual malformed-guards (R50
                     // folds) that have no oracle counterpart; the missing-in(1)
                     // case is handled at the op layer (op_cbranch_rpn R50
                     // transport). emit_flow_block does not consult the
@@ -7632,7 +7632,7 @@ impl PrintC {
         // rewired it, that is the switchvn normalization expression
         // (e.g. `AND(SUB(x,min),mask)`), which ActionMarkImplied marks
         // implied and pushVn therefore inlines as an expression tree.
-        // Rugra's BlockSwitch captured `index_varnode` during
+        // Rudra's BlockSwitch captured `index_varnode` during
         // ActionBlockStructure — BEFORE switchnorm/deadcode rewrite the
         // input — so the snapshot goes stale and printed the pre-rewrite
         // varnode's name (PRINTC-SWITCH-EMIT-0001 head-shape residual:
@@ -7778,7 +7778,7 @@ impl PrintC {
                     // channel only ever meets opBranchind (printc.cc:582-591),
                     // which renders a switch dispatch as its HEAD expression —
                     // `switch(<expr>)` — with no brace and no case replay.
-                    // Rugra's structurer can park the formed BlockSwitch as an
+                    // Rudra's structurer can park the formed BlockSwitch as an
                     // if-condition list's last child (the dispatcher becomes
                     // absorbable once new_block_switch clears f_switch_out,
                     // block.cc:1917), and the full replay here reprinted every
@@ -7820,7 +7820,7 @@ impl PrintC {
                     // Print switch header.
                     // Ghidra emitBlockSwitch (printc.cc:3313) emits `switch (<expr>)`
                     // where <expr> is the raw switch control op (BRANCHIND input),
-                    // with NO synthetic cast. Rugra previously wrapped the control
+                    // with NO synthetic cast. Rudra previously wrapped the control
                     // expression in `(long)(...)` to force integrality, but Ghidra
                     // never does this — it normalizes the type upstream via the
                     // FuncProto/typelock. Emit the bare expression to match Ghidra.
@@ -7840,14 +7840,14 @@ impl PrintC {
                     // option_brace_switch = Emit::same_line (printc.cc:1593) —
                     // spaces(1) then the brace with NO newline: the line break
                     // before each case label comes from emitSwitchCase's own
-                    // tagLine (cc:3142/3150). Rugra's begin_block would emit
+                    // tagLine (cc:3142/3150). Rudra's begin_block would emit
                     // " {\n" AND bump the indent level — both diverge from the
                     // oracle's startIndent-per-case layout.
                     self.emit.print(" {");
 
                     // cc:3137: ct = switchbl->getSwitchType() — the data-type
                     // of the switch variable. Ghidra (block.cc:3596-3600) reads
-                    // the high type of the BRANCHIND's input varnode; Rugra's
+                    // the high type of the BRANCHIND's input varnode; Rudra's
                     // BlockSwitch carries the index varnode, so read its type.
                     // Drives pushConstant's rendering (printc.cc:1744-1810):
                     // char-print types render as character literals, ints via
@@ -7873,7 +7873,7 @@ impl PrintC {
                     // caseblocks in Ghidra (tagged isdefault, addCase
                     // cc:3515), placed at its label rank by the cc:3591 sort
                     // (oracle gp prints it 2nd, ghidra_curl_1204.c:1769).
-                    // Rugra stores it separately; default_label (computed in
+                    // Rudra stores it separately; default_label (computed in
                     // finalize_case_labels, block.cc:3573-3576 recipe) now
                     // restores the oracle rank: first slot whose case label
                     // exceeds the default's. None (no table index for the
@@ -8160,7 +8160,7 @@ impl PrintC {
     // (block.hh:221). printc.cc:3339-3341 emitBlockSwitch emits a case body
     // via bl2->emit(this): a virtual dispatch on getType() with NO consumed/
     // dead-block guard — the BlockSwitch component owns its case blocks and
-    // is their sole emitter. Rugra's emit_block_structured carries a DEAD-flag
+    // is their sole emitter. Rudra's emit_block_structured carries a DEAD-flag
     // guard for flat-graph hygiene, but the structurer's identify_internal
     // absorbs the case blocks into the BlockSwitch AND flags them
     // DEAD+CASE_BODY (finalize_structure removes them from the top-level
@@ -8410,12 +8410,12 @@ impl PrintC {
     /// Faithful to `emitLabel` (printc.cc:3164-3193):
     ///   - `hasSpecialLabel()` gate (block.hh:291): joined blocks print
     ///     "joined_", duplicated blocks print "dup_" — and these skip the
-    ///     label-symbol lookup entirely. Rugra transports the flag state as
+    ///     label-symbol lookup entirely. Rudra transports the flag state as
     ///     the `joined_label_addrs`/`dup_label_addrs` entry-address sets
     ///     snapshotted from the final block graph.
     ///   - otherwise `queryCodeLabel(addr)` (database.cc:1301): a mapped
     ///     LabSymbol's display name wins (the front-end `LAB_` labels).
-    ///     Rugra consults the driver-installed `code_labels` layer.
+    ///     Rudra consults the driver-installed `code_labels` layer.
     ///   - generic arm: "code_" + shortcut char + printRaw.
     ///   - shortcut char: space-name first char lowercased (translate.cc:529-533).
     ///     For x86 RAM space ("ram"), this is 'r'.
@@ -8444,7 +8444,7 @@ impl PrintC {
     /// documented approximation.
     fn code_label_with(&self, addr: u64, site: Option<(bool, bool)>) -> String {
         // printc.cc:3170: emitLabel formats bb->getEntryAddr() — the
-        // front-end address. Rugra's Funcdata keeps ELF-relative offsets,
+        // front-end address. Rudra's Funcdata keeps ELF-relative offsets,
         // so the driver's image-base delta is added here.
         let display = addr.wrapping_add(self.code_label_base);
         // printRaw size selection (space.cc:210-215): if offset>>32 == 0, sz=4.
@@ -8513,7 +8513,7 @@ impl PrintC {
     /// Emit a formal variable declaration for a `varmap::LocalSymbol`
     /// (without the trailing `;` or line break). Faithful to
     /// `PrintC::emitVarDecl(const Symbol*)` (printc.cc:2497-2508), operating
-    /// on Rugra's local-scope symbol model (`varmap::LocalSymbol` mirrors
+    /// on Rudra's local-scope symbol model (`varmap::LocalSymbol` mirrors
     /// Ghidra's `Symbol` for the function-local ScopeLocal; the parallel
     /// `emit_var_decl` covers `database::Symbol` for global scopes).
     ///
@@ -8565,12 +8565,12 @@ impl PrintC {
     // Ghidra: printc.cc:2518 PrintC::emitScopeVarDecls
     /// Emit a declaration for every qualifying symbol in the function-local
     /// scope, faithful to `PrintC::emitScopeVarDecls(const Scope*,int4 cat)`
-    /// (printc.cc:2518-2575), operating on Rugra's `varmap::ScopeLocal`.
+    /// (printc.cc:2518-2575), operating on Rudra's `varmap::ScopeLocal`.
     ///
     /// Ghidra walk order (the decisive semantics):
     /// 1. cat >= 0 (cc:2523-2534): iterate the category table in slot order,
     ///    skipping empty-name (cc:2528) and `$$undef` (cc:2529) symbols.
-    ///    No Rugra local-scope caller passes cat >= 0 (both call sites below
+    ///    No Rudra local-scope caller passes cat >= 0 (both call sites below
     ///    pass Symbol::no_category, as do printc.cc:2265/2272/2612), and
     ///    `varmap::ScopeLocal` keeps its category table private, so this
     ///    branch returns the vacuous `false` (an empty category walk).
@@ -8592,7 +8592,7 @@ impl PrintC {
     /// 3. Dynamic entries (cc:2554-2572): the `dynamicentry` list in
     ///    insertion order (database.cc:1921-1931), same filters.
     ///
-    /// Rugra adaptation: each `varmap::LocalSymbol` models a symbol plus its
+    /// Rudra adaptation: each `varmap::LocalSymbol` models a symbol plus its
     /// single whole SymbolEntry (space/start/usepoint/dyn/hash fields,
     /// varmap.rs:1444-1490), so the MapIterator walk is emulated by the
     /// per-space `scope_rangemap_list_order` replay of the insertion
@@ -8603,7 +8603,7 @@ impl PrintC {
     /// `ap`/`local_*` stack entries). `usepoint: None` models the invalid
     /// usepoint of an addrtied entry, whose EntrySubsort (0,0) sorts
     /// earliest exactly like Ghidra's minimal subsort (database.cc:100).
-    /// Rugra LocalSymbols are single-entry (no `wholeCount`), cannot be
+    /// Rudra LocalSymbols are single-entry (no `wholeCount`), cannot be
     /// FunctionSymbol/LabSymbol (no such creation path in
     /// `varmap::ScopeLocal`), and never carry `precislo/precishi` piece
     /// flags, so those three Ghidra filters reduce to no-ops here.
@@ -8653,7 +8653,7 @@ impl PrintC {
             .filter(|s| !s.is_dynamic)
             .collect();
         // MapIterator concatenates the per-space EntryMap lists in address
-        // space index order (database.cc:1940-1954 operator++); Rugra groups
+        // space index order (database.cc:1940-1954 operator++); Rudra groups
         // by local_maptable_space_rank. Within one space the list order is
         // the rangemap::insert splice order — see scope_rangemap_list_order.
         // EntrySubsort projection (database.cc:97-109 getSubsort): the
@@ -8698,8 +8698,8 @@ impl PrintC {
                 continue;
             }
             // cc:2543-2546: FunctionSymbol/LabSymbol skip — impossible in
-            // Rugra's ScopeLocal model (no such creation path), no-op.
-            // cc:2547-2550: multi-entry dedup — Rugra LocalSymbols are
+            // Rudra's ScopeLocal model (no such creation path), no-op.
+            // cc:2547-2550: multi-entry dedup — Rudra LocalSymbols are
             // single-entry, no-op.
             notempty = true;
             self.emit_local_symbol_decl_statement(sym);
@@ -8745,12 +8745,12 @@ impl PrintC {
     /// `Symbol::no_category`, and closes the block with one `tagLine` when
     /// anything was emitted (cc:2277-2278).
     ///
-    /// Rugra adaptation: `self.scope` is the print-time snapshot of
+    /// Rudra adaptation: `self.scope` is the print-time snapshot of
     /// `Funcdata::scope` (the Action-phase ScopeLocal; see doc_function).
     /// `varmap::ScopeLocal` has no child-scope table, so the cc:2267-2275
     /// children loop never iterates (childrenBegin==childrenEnd in Ghidra's
     /// model of a childless scope); the observable behavior matches for
-    /// childless local scopes, which is the only shape Rugra's ScopeLocal
+    /// childless local scopes, which is the only shape Rudra's ScopeLocal
     /// can hold.
     ///
     /// Alignment Evidence:
@@ -8852,7 +8852,7 @@ impl PrintC {
     /// (printc.cc:1938-1945) prints the space name + printRaw of the HIGH
     /// NAME REPRESENTATIVE's address — one label per HighVariable no matter
     /// how many instances it holds, and the same label at every site that
-    /// prints any instance of it. Rugra's fallback label forms
+    /// prints any instance of it. Rudra's fallback label forms
     /// (`uVar_`/`uVar` + hex, plus the `local_`/`param_stack_`/`vn_` ladder
     /// arms) differ from the oracle form and are unified separately (slice
     /// A); this helper unifies only the ADDRESS SOURCE: it returns the name
@@ -8864,7 +8864,7 @@ impl PrintC {
     /// No-high degradation: Ghidra never reaches the sym==null arm without
     /// a high at print time (every explicit print-time varnode is
     /// high-covered after set_high_level), so a varnode with no HighVariable
-    /// (or an instance-empty high) is a Rugra-only shape; the conservative
+    /// (or an instance-empty high) is a Rudra-only shape; the conservative
     /// fallback keeps the instance's own offset. For Stack/Ram addrtied
     /// varnodes the representative offset equals the instance offset by
     /// construction (a HighVariable never merges two addrtied instances at
@@ -8928,7 +8928,7 @@ impl PrintC {
     ///   (space.cc:590-609) decode the offset as a PcodeOp pointer / a
     ///   join-record table lookup; neither shape reaches a print-time
     ///   explicit varnode (iop varnodes ride op annotations, join varnodes
-    ///   are split/unified before print) and Rugra's flat space enum
+    ///   are split/unified before print) and Rudra's flat space enum
     ///   carries neither registry, so those spaces degrade to the base
     ///   form here (PRINTC-UNLINKED-REF-FAMILY slice A degradation; fix
     ///   path: port the join registry with ADDRESS-0001).
@@ -9030,7 +9030,7 @@ impl PrintC {
     /// entry point ([`PrintC::push_unnamed_location`]) delegates here. No
     /// space-specific branching at the print site. Called with the HIGH
     /// NAME REPRESENTATIVE's address (printlanguage.cc:244; see
-    /// [`Self::unnamed_location_offset`]). This replaces Rugra's three
+    /// [`Self::unnamed_location_offset`]). This replaces Rudra's three
     /// divergent fallback ladders (`uVar_<hex>` / `uVar<hex>` /
     /// `local_<hex>` / `param_stack_<hex>` / `DAT_<hex>` / `vn_<hex>` /
     /// `v_<size>_<hex>`), closing the Register-ladder raw-negative-offset
@@ -9043,7 +9043,7 @@ impl PrintC {
 
     // Ghidra: database.hh:742 Scope::isGlobal (ownership stand-in)
     /// Whether `sym` is a global-scope symbol the Database actually owns
-    /// (`Symbol::getScope()->isGlobal()`). Two Rugra-specific shapes make
+    /// (`Symbol::getScope()->isGlobal()`). Two Rudra-specific shapes make
     /// a bare scope_id test wrong: ScopeLocal bridges
     /// (`Funcdata::symbol_entry_for`) hardcode scope_id 0, which collides
     /// with the worker Database's default global_scope_id (0) —
@@ -9106,7 +9106,7 @@ impl PrintC {
     /// in unshadowed functions) get depth 0 and no prefix.
     ///
     /// Non-global symbols print no prefix (their scope is curscope:
-    /// database.cc:326 `if (scope == useScope) return 0`). Rugra's
+    /// database.cc:326 `if (scope == useScope) return 0`). Rudra's
     /// precomposed function-namespace names (`my_get_token::save`,
     /// driver DWARF merge) already carry their scope elements, so they
     /// take no additional prefix either.
@@ -9135,7 +9135,7 @@ impl PrintC {
     /// symbol, ahead of the function-name token. Faithful to
     /// `emitSymbolScope` (printc.cc:233-259):
     /// - `namespc_strategy` is MINIMAL_NAMESPACES (the printlanguage.cc:581
-    ///   default; Rugra has no option channel that changes it), so the
+    ///   default; Rudra has no option channel that changes it), so the
     ///   depth is `Symbol::getResolutionDepth(curscope)`
     ///   (database.cc:323-359).
     /// - The function Symbol lives in the GLOBAL scope; `curscope` at
@@ -9213,7 +9213,7 @@ impl PrintC {
     /// data types, then `writeBack` (coreaction.cc:5043-5066) materializes
     /// it; `RulePtrsubCharConstant` (ruleaction.cc:7354) re-types the
     /// collapsed lea constant only when the PTRSUB output is ALREADY char*
-    /// (ruleaction.cc:7366-7369). Rugra's former Priority 0 emitted string
+    /// (ruleaction.cc:7366-7369). Rudra's former Priority 0 emitted string
     /// literals by bare `string_table` address membership — a channel the
     /// oracle does not have — which typed-or-not rendered "ptemp" for the
     /// int web `iVar3 = 0x17a422` (httpd main F4 family).
@@ -9267,7 +9267,7 @@ impl PrintC {
     // Ghidra: printlanguage.cc:238 PrintLanguage::pushSymbolDetail
     /// Returns `None` when the varnode has no symbol-bearing high — the
     /// caller then runs its legacy fallback ladder (the oracle's sole
-    /// sym==null arm is `pushUnnamedLocation`; Rugra's address proxy is
+    /// sym==null arm is `pushUnnamedLocation`; Rudra's address proxy is
     /// the demoted stand-in for symbol-less globals).
     ///
     /// `allow_cast` is the oracle call-site's `isRead`
@@ -9330,7 +9330,7 @@ impl PrintC {
         }
         let Some(symt) = sym_type else {
             // RUDRA-GLUE degradation: oracle Symbols always carry a type;
-            // an untyped Rugra symbol cannot evaluate the 255 bound nor
+            // an untyped Rudra symbol cannot evaluate the 255 bound nor
             // walk fields, so degrade to the pushSymbol form (the
             // pre-fix observable for symbol-backed highs was the plain
             // display name too).
@@ -9392,7 +9392,7 @@ impl PrintC {
         // through pushSymbolDetail to the ScopeLocal param Symbol whose
         // displayName IS the proto name (param_N) — ActionParameterSymbols
         // keeps scope symbols and the FuncProto name-synced, so param_names
-        // and the symbol form are the same text. Rugra's ScopeLocal bridge
+        // and the symbol form are the same text. Rudra's ScopeLocal bridge
         // (Funcdata::symbol_entry_for) does not carry that sync: param
         // symbols keep buildVariableName auto names
         // (`in_register_00000288`), so the symbol branch must not preempt
@@ -9432,7 +9432,7 @@ impl PrintC {
         // prints the symbol's scope-qualified whole/partial/mismatch
         // form (`::config.outfile`) regardless of what the proxy tables
         // hold at that address. The Ram|Const proxy below is demoted to
-        // the symbol-miss fallback (Rugra's stand-in for the oracle's
+        // the symbol-miss fallback (Rudra's stand-in for the oracle's
         // global-scope Data symbols reaching symbol-less varnodes).
         // allow_cast = isRead (printlanguage.cc:256-257): the RPN leaf is
         // reached with is_lhs=true only from emit_expression_rpn's LHS atom
@@ -9650,7 +9650,7 @@ impl PrintC {
     /// consumed by buildVariableName at database.cc:2485-2509 which appends "Var").
     /// Returns e.g. "iVar" for int, "piVar" for int*, "pUVar" for pointer to a
     /// struct named "URLGlob". Falls back to size-based dispatch when no Datatype
-    /// is available (Rugra-specific gap: Ghidra always has a Datatype object).
+    /// is available (Rudra-specific gap: Ghidra always has a Datatype object).
     fn var_prefix(
         v_type: &Option<std::sync::Arc<crate::type_system::Datatype>>, size: usize,
     ) -> String {
@@ -9658,7 +9658,7 @@ impl PrintC {
         match v_type {
             Some(dt) => dt.print_name_base(&mut base),
             None => match size {
-                // Size-based fallback when no type info (Rugra-specific).
+                // Size-based fallback when no type info (Rudra-specific).
                 // Matches the size dispatch Ghidra uses in buildLocalName
                 // (database.cc:2501-2504) when no Datatype is attached.
                 8 => base.push('l'),
@@ -9721,8 +9721,8 @@ impl PrintC {
     /// local name (`<prefix>_<offset>`). In the oracle the name would have
     /// been finalized by ActionNameVars/assignDefaultNames before printing
     /// (coreaction.cc:2978-2998); this path only fires for highs whose
-    /// symbol link is still missing (Rugra coverage gap).
-    /// The trailing `_N` is Rugra's SSA-instance disambiguator produced by
+    /// symbol link is still missing (Rudra coverage gap).
+    /// The trailing `_N` is Rudra's SSA-instance disambiguator produced by
     /// `Merge::assign_names` (merge.rs:560-574); stripping it recovers the
     /// underlying register name, matching Ghidra's one-name-per-HighVariable
     /// model (the SSA instance count is irrelevant to the printed name).
@@ -9850,7 +9850,7 @@ impl PrintC {
 
             // Prefer a restructured ScopeLocal symbol (faithful varmap.cc) when
             // one covers this raw stack offset. Falls through to the heuristic
-            // when the scope has no symbol here (common, since Rugra's lift does
+            // when the scope has no symbol here (common, since Rudra's lift does
             // not yet produce Stack-space varnodes for RSP-relative accesses).
             // The symbol's name was already assigned by the authoritative
             // `assignDefaultNames` pass (database.cc:2850) at scope-snapshot
@@ -11008,7 +11008,7 @@ impl PrintC {
     /// `X < X`, `X <= X`, `X > X`, or `X >= X`, where the two operands are
     /// the same identifier token. This is the signature of a CBRANCH whose
     /// condition varnode has a missing/dead SSA def (a common x86-flags
-    /// recovery failure in Rugra): emit_block_condition_inner's value-based
+    /// recovery failure in Rudra): emit_block_condition_inner's value-based
     /// scan picks the wrong comparison op, whose inputs have already been
     /// folded to the same garbage Const/Stack-0 placeholder, producing a
     /// tautology like `local_0 == local_0`. The real control-flow intent is
@@ -11121,7 +11121,7 @@ impl PrintC {
         // Ghidra's opCall pushes each argument varnode directly
         // (printc.cc:631-635) and the leaf resolves through the
         // HighVariable's Symbol (pushVnExplicit → pushSymbolDetail,
-        // printlanguage.cc:218-262). The offset-keyed chase below is Rugra
+        // printlanguage.cc:218-262). The offset-keyed chase below is Rudra
         // scaffolding for varnodes with no usable high; when the varnode HAS
         // a named high (e.g. my_fwrite's address-tied MULTIEQUAL __s at the
         // stream register) the chase must not override it — keying on
@@ -11746,7 +11746,7 @@ impl PrintC {
     /// Emit the top-level structured block list once, in `BlockGraph` order.
     ///
     /// Ghidra dispatches every entry in `BlockGraph::getList()` exactly once.
-    /// Rugra's structured nodes hold child `Arc`s and recursively emit them, so
+    /// Rudra's structured nodes hold child `Arc`s and recursively emit them, so
     /// a shared identity set additionally prevents a child that is also present
     /// in the flat Rust graph from being emitted a second time.
     pub fn emit_block_graph(&mut self, graph: &crate::block::BlockGraph) {
@@ -11808,7 +11808,7 @@ impl PrintLanguage for PrintC {
         self.string_manager = fd.arch.as_ref().and_then(|a| a.string_manager.clone());
         self.symboltab = fd.arch.as_ref().and_then(|a| a.symboltab.clone());
         // printc.cc:2332 initializeFromArchitecture — the oracle runs it
-        // once at Architecture init (architecture.cc:1407); Rugra's PrintC
+        // once at Architecture init (architecture.cc:1407); Rudra's PrintC
         // reaches the TypeFactory only through fd.arch, so the idempotent
         // size-suffix computation runs here (x86-64: long=8, int=4 -> "L",
         // byte-identical to the former constructor pin).
@@ -11842,7 +11842,7 @@ impl PrintLanguage for PrintC {
         // for a missing scope: a function without an Action-built scope gets
         // no declarations (PRINTC-SCOPE-RESTRUCT-0001, absorbed here).
         // Queried by get_stack_variable_name and emit_local_var_decls.
-        // NOTE: Rugra's x86 lift keeps RSP-relative accesses in Register space
+        // NOTE: Rudra's x86 lift keeps RSP-relative accesses in Register space
         // rather than producing Stack-space varnodes, so gather_varnodes finds
         // few stack symbols today. gather_spacebase compensates for RSP-derived
         // LOAD/STORE. Full coverage needs type propagation.
@@ -11910,7 +11910,7 @@ impl PrintLanguage for PrintC {
         // nametree holds every named local Symbol: parameters, the
         // Action-built ScopeLocal symbols, and ActionNameVars-named
         // highs (each print-named high is a local Symbol in the oracle).
-        // Rugra's stand-in set collects exactly those three channels;
+        // Rudra's stand-in set collects exactly those three channels;
         // highs carrying a GLOBAL symbol are global-scope business and
         // must not self-shadow their own name.
         {
@@ -12247,7 +12247,7 @@ impl PrintLanguage for PrintC {
                 .collect();
             // Helper: check if a varnode's COPY def chain leads to Ram@addr
             // where addr matches a known global. Returns the struct pointer type.
-            // RUDRA-GLUE: print-time COPY-chain type recovery for Rugra's split IR ownership; Ghidra relies on upstream symbol/type propagation and has no nested resolver
+            // RUDRA-GLUE: print-time COPY-chain type recovery for Rudra's split IR ownership; Ghidra relies on upstream symbol/type propagation and has no nested resolver
             fn resolve_global_ptr(
                 vn: &crate::varnode::Varnode,
                 globals: &[(u64, std::sync::Arc<Datatype>)],
@@ -12997,7 +12997,7 @@ impl PrintLanguage for PrintC {
         //   2653  emit->tagLine();
         // `beginFunction` is markup-only in the oracle's text path
         // (prettyprint.cc:877 beginFunction → checkstart + markup token; no
-        // plain-text bytes), matching Rugra's no-op EmitNoMarkup::begin_function.
+        // plain-text bytes), matching Rudra's no-op EmitNoMarkup::begin_function.
         // Without an Architecture/commentdb (legacy callers) the sorter stays
         // empty and emit_comment_func_header emits nothing, exactly as
         // Ghidra would for an empty comment database.
@@ -13008,7 +13008,7 @@ impl PrintLanguage for PrintC {
         self.emit_comment_func_header(fd);
         // cc:2653: emit->tagLine();  NOTE: the oracle's EmitPrettyPrint
         // tagLine writes endl unconditionally, so after a header comment the
-        // signature lands one blank line below it. Rugra's
+        // signature lands one blank line below it. Rudra's
         // EmitNoMarkup::tag_line suppresses a newline when the output
         // already ends with one (see the same note on open_brace_indent),
         // so the warning/signature separator collapses to a single line
@@ -13095,13 +13095,13 @@ impl PrintLanguage for PrintC {
     /// delimiters, with the given indent level. Faithful port of
     /// `PrintLanguage::emitLineComment(int4 indent,const Comment *comm)`
     /// (printlanguage.cc:589-648). Ghidra's emitLineComment is a
-    /// non-virtual base member, so PrintC inherits it verbatim; Rugra's
+    /// non-virtual base member, so PrintC inherits it verbatim; Rudra's
     /// `PrintLanguage` trait declared a no-op default body, so the real port
     /// lives here on PrintC.
     ///
     /// **Four decisive semantics (verified against printlanguage.cc:589-648):**
-    /// - Reference/output params: reads `comm->getText()` (Rugra: the `text`
-    ///   slice) and `comm->getAddr()` (Rugra: elided — used only for markup
+    /// - Reference/output params: reads `comm->getText()` (Rudra: the `text`
+    ///   slice) and `comm->getAddr()` (Rudra: elided — used only for markup
     ///   tags the plain-text emitter drops).
     /// - Loop boundaries: `while(pos < text.size())` — byte walk from 0;
     ///   space runs consume their whole run, word tokens stop at
@@ -13131,7 +13131,7 @@ impl PrintLanguage for PrintC {
         // tagLine(int4) (prettyprint.hh:557) writes endl + EXACTLY `indent`
         // spaces: the line-comment indent is an absolute column override,
         // NOT the current indent level, and the endl is unconditional.
-        // Rugra's EmitNoMarkup::tag_line ignores the override argument
+        // Rudra's EmitNoMarkup::tag_line ignores the override argument
         // (it prints the current level) and suppresses a newline at line
         // start, so reproduce the oracle bytes here directly. Other
         // emitters keep the trait call.
@@ -13267,13 +13267,13 @@ impl PrintLanguage for PrintC {
     }
 
 
-    // Ghidra: printc.cc:2285 PrintC::emitStatement (Rugra dispatch entry)
-    /// Emit a statement via `tagLine` + `emit_statement`. This is the Rugra
+    // Ghidra: printc.cc:2285 PrintC::emitStatement (Rudra dispatch entry)
+    /// Emit a statement via `tagLine` + `emit_statement`. This is the Rudra
     /// internal entry that drives per-op statement emission from
     /// `emit_block_ops` and `emit_structured_basic`; it is the same body as the
     /// Ghidra-faithful `emit_statement` above except it performs the leading
-    /// `tagLine` (newline + indent) that Rugra's block walker relies on, since
-    /// Rugra does not run Ghidra's per-op `emitCommentGroup` → `tagLine` chain.
+    /// `tagLine` (newline + indent) that Rudra's block walker relies on, since
+    /// Rudra does not run Ghidra's per-op `emitCommentGroup` → `tagLine` chain.
     fn doc_statement(&mut self, op: &PcodeOp) {
         if matches!(
             op.opcode, crate::opcodes::OpCode::CPUI_INDIRECT
@@ -13791,14 +13791,14 @@ impl PrintLanguage for PrintC {
     fn op_multiequal(&mut self, _op: &PcodeOp) {
         // Ghidra printc.hh:331 — opMultiequal is a no-op `{}`. PHI nodes are
         // never emitted as statements (they're resolved during SSA analysis).
-        // Previously Rugra emitted `out = phi(a, b, ...)` which is non-C.
+        // Previously Rudra emitted `out = phi(a, b, ...)` which is non-C.
     }
 
     // Ghidra: printc.cc:123 PrintC::opIndirect
     fn op_indirect(&mut self, _op: &PcodeOp) {
         // Ghidra printc.hh:332 — opIndirect is a no-op `{}`. INDIRECT ops are
         // markers for side-effects and never emit a statement.
-        // Previously Rugra emitted `out = in0 (indirect)` which is non-C.
+        // Previously Rudra emitted `out = in0 (indirect)` which is non-C.
     }
 
     // Ghidra: printc.cc:593 PrintC::opCall
@@ -13841,7 +13841,7 @@ impl PrintLanguage for PrintC {
         } else {
             // CALL with no in(0) — target unknown. Emit a placeholder so
             // the output is valid C (Ghidra would have resolved the target
-            // via FuncCallSpecs; Rugra lacks this infrastructure).
+            // via FuncCallSpecs; Rudra lacks this infrastructure).
             if !self.discovery_pass {
                 self.emit.tag_variable("FUN_unknown", 0);
             }
@@ -13854,7 +13854,7 @@ impl PrintLanguage for PrintC {
                 self.emit.print(", ");
             }
             // Faithful to Ghidra opCall (printc.cc:626-633): every parameter is
-            // emitted via pushVn, which always produces text. Rugra's arg-
+            // emitted via pushVn, which always produces text. Rudra's arg-
             // resolution can resolve to an empty emit (dead def / inline-
             // candidate Unique). That yields illegal `f(, arg)` (gcc: "expected
             // expression before ','"). emit_call_arg_text captures each arg's
@@ -13941,7 +13941,7 @@ impl PrintLanguage for PrintC {
         // printc.cc:558-563: checkPrintNegation fold — when a flip survives
         // and in(1)'s defining op has a flippable token, print the flipped
         // comparison directly instead of `!(<cond>)`. Ghidra dereferences
-        // getIn(1) unconditionally (cc:559); Rugra's R50 data-loss cases can
+        // getIn(1) unconditionally (cc:559); Rudra's R50 data-loss cases can
         // lose in(1), in which case the fold is skipped and the `1`
         // always-true policy applies downstream.
         let mut negate_token = false;
@@ -14078,7 +14078,7 @@ impl PrintLanguage for PrintC {
         // Faithful to Ghidra's implied-variable model: if this varnode is
         // implied (ActionMarkImplied decided its def expression inlines into
         // the consumer), emit the def expression here instead of the name.
-        // This is the recurse() equivalent for Rugra's leaf-based push_varnode.
+        // This is the recurse() equivalent for Rudra's leaf-based push_varnode.
         // Guarded: not on LHS (an assignment target is never implied), and
         // depth-bounded to prevent runaway recursion.
         if vn.is_implied() && !self.is_lhs && self.inline_depth < 8 {
@@ -14096,7 +14096,7 @@ impl PrintLanguage for PrintC {
 
         // Priority 0.4: Parameter names for Register-space INPUT varnodes,
         // ahead of the symbol branch — the oracle's ScopeLocal param Symbol
-        // carries the proto name (ActionParameterSymbols sync), Rugra's
+        // carries the proto name (ActionParameterSymbols sync), Rudra's
         // bridge does not (auto `in_register_...` names), so the proto name
         // must win for actual register INPUTS (same gate as the P0.5 ladder
         // below). PRINTC-GLOBALSYM-LEAF-PRIORITY-0001 ① httpd regression
@@ -14728,7 +14728,7 @@ impl PrintC {
     ///   once by a successful checkPrintNegation fold (cc:561).
     /// - Sort/comparison keys: none.
     ///
-    /// Rugra transports:
+    /// Rudra transports:
     /// - The flat if-goto trailing keyword folds Ghidra's
     ///   `emitGotoStatement` (printc.cc:2303-2323: f_break_goto → `break`,
     ///   f_continue_goto → `continue`, f_goto_goto → `goto <label>`) into
@@ -14741,7 +14741,7 @@ impl PrintC {
     /// - The `continue` loop_depth guard keeps the legacy protection for a
     ///   structurer mislabel (Ghidra needs none: scope_break only produces
     ///   f_continue_goto inside a loop scope).
-    /// - in(1) == None never occurs in the oracle; Rugra's structurer can
+    /// - in(1) == None never occurs in the oracle; Rudra's structurer can
     ///   lose the condition varnode, and the BATCH1 R50 policy prints `1`
     ///   (always-true) instead of `if () goto ;`.
     fn op_cbranch_rpn(
@@ -14780,7 +14780,7 @@ impl PrintC {
         };
         // printc.cc:558-563: checkPrintNegation fold — flip the comparison
         // token (== → !=) instead of printing `!`. Ghidra never has a null
-        // in(1); Rugra's R50 policy prints the constant 1 with no negation
+        // in(1); Rudra's R50 policy prints the constant 1 with no negation
         // (a dangling unary_not entry would corrupt the next statement's
         // revpol stack).
         let has_in1 = op.get_in(1).is_some();
@@ -14829,7 +14829,7 @@ impl PrintC {
             // printc.cc:575-577: spaces(1); print(KEYWORD_GOTO); spaces(1).
             // GOTO-UNIQSPACE-TARGET-UPSTREAM-0001 defense: the oracle's
             // in(0) is a live code address (emitLabel renders it,
-            // printc.cc:2315-2318); Rugra's structurer can rewrite a
+            // printc.cc:2315-2318); Rudra's structurer can rewrite a
             // CBRANCH in(0) to a Const-space constant carrying a
             // unique-space offset (observed: 0x1000011F / 0x100000D8 /
             // 0x10000000). The flat tail prints only when the target is a
@@ -14903,7 +14903,7 @@ impl PrintC {
     /// recurse();
     /// ```
     ///
-    /// Rugra adaptation: there is no RPN expression stack (`pushOp`/`recurse`/
+    /// Rudra adaptation: there is no RPN expression stack (`pushOp`/`recurse`/
     /// `pushSymbolDetail`); each `op_*` method emits its text directly. We
     /// therefore reproduce the three-way dispatch of `emitExpression`:
     ///   1. If the op has an output and `option_inplace_ops` is on and
@@ -14911,10 +14911,10 @@ impl PrintC {
     ///   2. The C++ constructor special-printing branch
     ///      (`op->doesSpecialPrinting()` -> `opConstructor(op,true)`) requires the
     ///      NEW/CALLOTHER wrapping machinery (`opConstructor`, printc.cc:717) which
-    ///      Rugra has not ported (audit P0-7). We fall through to the generic path
+    ///      Rudra has not ported (audit P0-7). We fall through to the generic path
     ///      for such ops - matching Ghidra's own "fall through to functional
     ///      rendering" pattern used elsewhere (e.g. opSubpiece printc.cc:869).
-    ///   3. Otherwise call `op.push(self)` (Rugra's opcode->push equivalent) which
+    ///   3. Otherwise call `op.push(self)` (Rudra's opcode->push equivalent) which
     ///      emits the op's `output = ...` assignment via the per-opcode `op_*`
     ///      method. This covers the assignment case: each `op_*` that produces a
     ///      value emits `<lhs> = <rhs>` directly when `op.get_out()` is present.
@@ -14924,7 +14924,7 @@ impl PrintC {
             return;
         }
         // Ghidra typeop.hh:823 TypeOpPtradd::push → lng->opPtradd(op).
-        // Rugra's typeop.rs push dispatch table lacks the PTRADD arm (falls
+        // Rudra's typeop.rs push dispatch table lacks the PTRADD arm (falls
         // to the generic op_binary, which has no PTRADD token and prints the
         // literal " op " placeholder). Route it here at PrintC's expression
         // channel to the existing op_ptradd emitter — identical routing to
@@ -14936,11 +14936,11 @@ impl PrintC {
         }
         // printc.cc:2477-2486: constructor special-printing branch. Not ported
         // (opConstructor / opConstructor nesting requires the NEW-wrapping layer
-        // Rugra lacks - audit P0-7). Fall through to the generic dispatch below,
+        // Rudra lacks - audit P0-7). Fall through to the generic dispatch below,
         // which renders the op via its opcode handler (the constructor case will
         // emit the functional form, never the C++ `Type(...)` syntax).
         // printc.cc:2493-2494: op->getOpcode()->push(this,op,0); recurse();
-        // In Rugra, `op.push(self)` dispatches to the matching `op_*` method,
+        // In Rudra, `op.push(self)` dispatches to the matching `op_*` method,
         // which emits the assignment / expression text directly.
         op.push(self);
     }
@@ -14959,8 +14959,8 @@ impl PrintC {
     ///   emit->print(SEMICOLON);
     /// ```
     ///
-    /// Rugra adaptation: the EmitMarkup `begin_statement`/`end_statement` are
-    /// no-op defaults in Rugra's text emitter (no markup ids), so we call them
+    /// Rudra adaptation: the EmitMarkup `begin_statement`/`end_statement` are
+    /// no-op defaults in Rudra's text emitter (no markup ids), so we call them
     /// unconditionally to preserve the bracketing for any future markup emitter
     /// but do not bind an `id`. The `comma_separate` guard is faithful: when
     /// emitting for-loop init/iter slots (see `emit_for_loop`), the trailing `;`
@@ -15000,7 +15000,7 @@ impl PrintC {
     /// the target's read-facing type IS the factory code-pointer — the same
     /// Arc the inputLocal channel mints, which type propagation carries
     /// whole (both symbol dtype and proto param dtype hold one Arc —
-    /// PRINTC-BADJT-PARAMSYM-0001 probe). A structural match on Rugra's
+    /// PRINTC-BADJT-PARAMSYM-0001 probe). A structural match on Rudra's
     /// alias (anonymous proto-less Code base) reproduces that outcome: the
     /// code*-typed target prints `(*sym)(...)` with no `(code *)` cast
     /// (`(*UNRECOVERED_JUMPTABLE)(...)`, ghidra_httpd_1204.c:4927), every
@@ -15047,9 +15047,9 @@ impl PrintC {
     /// }
     /// ```
     ///
-    /// Rugra adaptation: the `function_call` + `dereference` OpTokens render
+    /// Rudra adaptation: the `function_call` + `dereference` OpTokens render
     /// textually as `(*callable)(args)`. Ghidra pushes inputs in reverse for
-    /// RPN-stack efficiency; Rugra emits left-to-right, so the callable (`in0`)
+    /// RPN-stack efficiency; Rudra emits left-to-right, so the callable (`in0`)
     /// is emitted first, then the comma-separated args. The `getHiddenThisSlot`
     /// C++-method-this hiding (audit P2-1, printc.cc:1562) is not ported —
     /// `get_hidden_this_slot` returns -1, matching Ghidra's own `opCall` TODO
@@ -15071,7 +15071,7 @@ impl PrintC {
             self.emit.spaces(1, 5);
         }
         // printc.cc:642-645: fc = fd->getCallSpecs(op); skip = getHiddenThisSlot(op,fc).
-        // Rugra does not port getHiddenThisSlot (audit P2-1); default skip = -1.
+        // Rudra does not port getHiddenThisSlot (audit P2-1); default skip = -1.
         let skip = self.get_hidden_this_slot(op);
         // printc.cc:646-648: count = numInput() - 1 - (skip<0 ? 0 : 1)
         let n_inputs = op.num_input();
@@ -15168,7 +15168,7 @@ impl PrintC {
     /// }
     /// ```
     ///
-    /// Rugra adaptation: the CALLOTHER index is held in `in(0)`; the
+    /// Rudra adaptation: the CALLOTHER index is held in `in(0)`; the
     /// architecture's `userops.getOp(index)` is consulted via the cached
     /// `self.userops` handle (faithful to `glb->userops`). When no userop is
     /// registered (or the Funcdata has no Architecture), Ghidra's
@@ -15308,9 +15308,9 @@ impl PrintC {
     /// else { pushAtom(EMPTY_STRING); }
     /// ```
     ///
-    /// Rugra adaptation: the `new_op` + `function_call` OpTokens render textually
+    /// Rudra adaptation: the `new_op` + `function_call` OpTokens render textually
     /// as `new Type(args)` (when `with_new`) or `Type(args)`. Ghidra pushes the
-    /// constructor arguments in reverse for RPN efficiency; Rugra emits them
+    /// constructor arguments in reverse for RPN efficiency; Rudra emits them
     /// left-to-right after the type name. The type name is resolved from the
     /// `this`/new-output varnode, dereferencing once if it is a pointer (so
     /// `Foo *` renders as `Foo(...)`).
@@ -15401,7 +15401,7 @@ impl PrintC {
     /// }
     /// ```
     ///
-    /// Rugra adaptation: when no constant pool is attached (non-JVM/DEX target,
+    /// Rudra adaptation: when no constant pool is attached (non-JVM/DEX target,
     /// or a Funcdata built without an Architecture), we fall back to the
     /// faithful `UNKNOWNREF` token Ghidra itself emits when `getRecord` returns
     /// null (printc.cc:1166). The LHS-assignment emit (`out = ...`) mirrors the
@@ -15520,7 +15520,7 @@ impl PrintC {
     ///
     /// This is the catch-all functional renderer used by `opInsertOp` /
     /// `opExtractOp` (printc.cc:1267, 1273: `opFunc(op);`) and as the fallback
-    /// for ops without a dedicated pretty-printer. Rugra emits the operator
+    /// for ops without a dedicated pretty-printer. Rudra emits the operator
     /// name (via `OpCode::name()`, the faithful `getOperatorName` equivalent)
     /// followed by the comma-separated inputs in source order (Ghidra pushes
     /// them in reverse only because its RPN stack pops them in reverse; the
@@ -15617,7 +15617,7 @@ impl PrintC {
     /// pushVn(vn0,op,mods);
     /// ```
     ///
-    /// Rugra adaptation: the array form (`new_op` + `subscript` OpTokens)
+    /// Rudra adaptation: the array form (`new_op` + `subscript` OpTokens)
     /// renders textually as `new Type[size]`; the scalar form
     /// (`function_call` OpToken) renders as `new(vn0)`. The constructed type is
     /// dereferenced through any pointer layers (matching Ghidra's `while
@@ -15709,7 +15709,7 @@ impl PrintC {
     /// else throw LowlevelError("PTRSUB off of non structured pointer type");
     /// ```
     ///
-    /// Rugra adaptation: `TypePointerRel` (formal-relative pointers),
+    /// Rudra adaptation: `TypePointerRel` (formal-relative pointers),
     /// `isValueFlexible`, `pushTypePointerRel`, `pushPartialSymbol`, and
     /// `pushUnnamedLocation(addr,vn,op)` are not yet ported (audit P0-3, P2-1).
     /// We faithfully render the struct/union field arm (the overwhelmingly
@@ -15750,7 +15750,7 @@ impl PrintC {
             (ptype, in1const)
         };
         // printc.cc:943-946: if (ptype->meta != TYPE_PTR) throw.
-        // (Rugra cannot throw from the printer without disrupting output; we
+        // (Rudra cannot throw from the printer without disrupting output; we
         //  fall through to the generic field-name fallback instead.)
         // printc.cc:947-954: ptrel/ct resolution. The production (RPN)
         // path carries the full formal-relative port (see the PTRSUB arm
@@ -15810,7 +15810,7 @@ impl PrintC {
                     // field from the union-resolution map (cc:979-990,
                     // `fd->getUnionField(ptype, op, -1)` — the attach edge
                     // from ActionSetCasts::resolveUnion, coreaction.cc:2509),
-                    // never findTruncation; Rugra reads the doc_function-time
+                    // never findTruncation; Rudra reads the doc_function-time
                     // snapshot with the same ResolveEdge key (the oracle's
                     // LowlevelError arms are unreachable in a resolveUnion-
                     // gated pipeline and the printer cannot throw — the
@@ -16019,7 +16019,7 @@ impl PrintC {
             }
         }
         // printc.cc:1139-1142: throw "PTRSUB off of non structured pointer type".
-        // Rugra cannot throw here; fall back to the pre-port behaviour, which
+        // Rudra cannot throw here; fall back to the pre-port behaviour, which
         // emitted `in0->field_<hex>` for constant offsets and `in0[in1]` for
         // variable offsets. This is the faithful default-field-name rendering
         // extended to the variable-offset case.
@@ -16051,7 +16051,7 @@ impl PrintC {
     ///
     /// A SEGMENTOP dereferences a segmented pointer; the segment selector
     /// (slot 1) and the spaceid (slot 0) are not printed — only the resolved
-    /// pointer (slot 2) is. Rugra mirrors this by emitting just `in(2)`,
+    /// pointer (slot 2) is. Rudra mirrors this by emitting just `in(2)`,
     /// wrapped in the LHS-assignment emit when the op produces a value.
     pub fn op_segment(&mut self, op: &PcodeOp) {
         if let Some(out) = op.get_out() {
@@ -16093,7 +16093,7 @@ impl PrintC {
     /// pushVn(op->getIn(0),op,mods);
     /// ```
     ///
-    /// Rugra adaptation: the RPN-stack `pushOp(&typecast)` + `pushType(dt)` +
+    /// Rudra adaptation: the RPN-stack `pushOp(&typecast)` + `pushType(dt)` +
     /// `pushVn` sequence renders textually as `(typename) operand`. The
     /// `isPointerToArray()` + `checkAddressOfCast()` short-circuit (which
     /// rewrites `&x[0]`-style casts back to `&x`) depends on
@@ -16226,7 +16226,7 @@ impl PrintC {
     /// - 排序/比较键: pointer metatype + `isCharPrint()` base selects this
     ///   arm (printc.cc:1781-1783); the resolved `Address` keys the cache.
     ///
-    /// Rugra adaptation: the RPN `pushAtom` renders textually as a direct
+    /// Rudra adaptation: the RPN `pushAtom` renders textually as a direct
     /// `emit.print` of the built literal (the direct-emit equivalent used by
     /// every push* port in this file). The transitional spaceless
     /// `Address::new(offset)` is the resolved data-space form (the same key
@@ -16314,7 +16314,7 @@ impl PrintC {
     /// printc.cc:1735), query the global scope for a function there
     /// (1736), and push the function's display name (1738).
     ///
-    /// Rugra adaptation: Rugra's printer holds no Funcdata objects, so the
+    /// Rudra adaptation: Rudra's printer holds no Funcdata objects, so the
     /// display name comes from the `symbol_table` snapshot (populated by
     /// the driver with function display names) keyed by the queried entry
     /// address — `Scope::query_function_addr` returns the entry address
@@ -16349,7 +16349,7 @@ impl PrintC {
 
     // Ghidra: translate.cc:979 Translate::getFloatFormat (default formats)
     /// The FloatFormat for a given encoding size — the print-side stand-in
-    /// for `glb->translate->getFloatFormat(sz)` (printc.cc:1384). Rugra's
+    /// for `glb->translate->getFloatFormat(sz)` (printc.cc:1384). Rudra's
     /// transitional Architecture owns no Translate, so the formats come
     /// from the oracle's own default registration:
     /// `Translate::setDefaultFloatFormats` (translate.cc:962-970) installs
@@ -16452,7 +16452,7 @@ impl PrintC {
     ///
     /// The `FUN_` face is the headless FRONTEND's database name
     /// (analyzeHeadless symbol manager), which the decompiler library
-    /// never generates — Rugra's canon-tier fallback applies it at the
+    /// never generates — Rudra's canon-tier fallback applies it at the
     /// opCall consumer (the unnamed-callee arm of the RPN dispatch),
     /// spelled with the same printRaw digit rule (`FUN_00102020`), while
     /// the direct-runner tier (GENSMOKE-S3 / MIRROR2-S3 callee-naming
@@ -16643,7 +16643,7 @@ impl PrintC {
 
     // RUDRA-GLUE: translate_is_big_endian (Ghidra reads
     /// `glb->translate->isBigEndian()` at printc.cc:1547; the transitional
-    /// Rugra Architecture/AddrSpaceManager has no Translate-level endianness
+    /// Rudra Architecture/AddrSpaceManager has no Translate-level endianness
     /// flag, so the default data space's endianness stands in — little-endian
     /// ram on every locked corpus — until SPACE-0001/ADDRESS-0001 land a
     /// real Translate.)
@@ -16676,7 +16676,7 @@ impl PrintC {
     /// emit->print(COLON);
     /// ```
     ///
-    /// Rugra transport: the caller (flat tail-goto path of emit_block_ops,
+    /// Rudra transport: the caller (flat tail-goto path of emit_block_ops,
     /// the cc:2725-2741 port) has already verified the address is a live
     /// `code_r0x` goto target, so this emitter unconditionally prints the
     /// label + colon (the isJumpTarget check lives in the caller's
@@ -16696,7 +16696,7 @@ impl PrintC {
         }
         // Shared once-per-address guard across BOTH label mechanisms (the
         // flat-tail path here and emit_any_label_statement's structured
-        // front-leaf path). Rugra's structured tree shares Basic leaves and
+        // front-leaf path). Rudra's structured tree shares Basic leaves and
         // its flattened slices re-print blocks, so without the guard the two
         // mechanisms double-print the same address (`重复的标号' — duplicate
         // label — gcc errors, GOTO-LABEL-UNPRINTED-0001). This is the
@@ -16736,14 +16736,14 @@ impl PrintC {
         // printc.cc:3219-3226 emitAnyLabelStatement:
         //   bl = bl->getFrontLeaf(); if (bl == 0) return;
         //   emitLabelStatement(bl);
-        //   (printed_labels: Rugra's address-keyed transport suppressing
-        //   re-prints of a shared leaf — Rugra duplicates Basics, not
+        //   (printed_labels: Rudra's address-keyed transport suppressing
+        //   re-prints of a shared leaf — Rudra duplicates Basics, not
         //   BlockCopies — layered on top of the oracle's structural
         //   once-only guarantee.)
         // printc.cc:3198-3214 emitLabelStatement (structured arm):
         //   if (isSet(only_branch)) return;
         //   if (!bl->isUnstructuredTarget()) return;
-        //   if (bl->getType() != t_copy) return;   — Rugra leaves: Basic|Copy
+        //   if (bl->getType() != t_copy) return;   — Rudra leaves: Basic|Copy
         //   tagLine + emitLabel + COLON
         if self.is_set(print_mods::ONLY_BRANCH) {
             return;
@@ -16831,7 +16831,7 @@ impl PrintC {
                 | crate::block::BlockType::Copy
             ) {
                 // GOTO-LABEL-UNPRINTED-0001 order-independent pending arm:
-                // the leaf is NOT f_unstructured_targ-marked (Rugra's
+                // the leaf is NOT f_unstructured_targ-marked (Rudra's
                 // structurer left this goto edge unwrapped at the BlockIf/
                 // BlockGoto level — no markCopyBlock ever ran on it), but a
                 // `goto <label>` referencing this address HAS printed (or,
@@ -16924,11 +16924,11 @@ impl PrintC {
     /// popMod();
     /// ```
     ///
-    /// Rugra adaptation: `BlockWhileDo.for_init` / `for_iter` hold the init and
+    /// Rudra adaptation: `BlockWhileDo.for_init` / `for_iter` hold the init and
     /// iterate expressions as *rendered text strings* (set at for-loop detection
     /// time by `ActionStructureTransform`), not as `PcodeOp*` roots. Ghidra's
     /// `getInitializeOp()`/`getIterateOp()` return `PcodeOp*` which it then
-    /// re-emits via `emitExpression(op)`; Rugra cannot re-emit because the
+    /// re-emits via `emitExpression(op)`; Rudra cannot re-emit because the
     /// structurer already collapsed the ops to text. The faithful adaptation is
     /// to print the cached strings directly inside the `comma_separate` mod
     /// scope — this reproduces Ghidra's exact bracketing:
@@ -16938,7 +16938,7 @@ impl PrintC {
     ///     the three header slots exactly as in printc.cc:2973-2990;
     ///   - `beginStatement`/`endStatement` bracket each slot (no-ops in text mode
     ///     but preserved for markup emitters);
-    ///   - the condition is emitted via `emit_block_condition` (Rugra's
+    ///   - the condition is emitted via `emit_block_condition` (Rudra's
     ///     `condBlock->emit(this)` equivalent under `comma_separate`);
     ///   - the body is wrapped in `begin_block`/`end_block` under `no_branch`,
     ///     matching Ghidra's `setMod(no_branch)` before `bl->getBlock(1)->emit`.
@@ -17058,7 +17058,7 @@ impl PrintC {
         // cc:2996: endBlock(id2);
         self.emit.end_block();
         // cc:2997: closeBraceIndent(CLOSE_CURLY, indent);
-        // ( Rugra's text emitter folds the closing brace into end_block(). )
+        // ( Rudra's text emitter folds the closing brace into end_block(). )
         // cc:2998: popMod();
         self.pop_mod();
     }
@@ -17081,7 +17081,7 @@ impl PrintC {
     ///   - otherwise (a `t_basic` leaf) call `commsorter.setupBlockList(bl)` +
     ///     `emitCommentGroup(null)` to flush this block's comments.
     ///
-    /// Rugra adaptation: there is no virtual `FlowBlock::subBlock(i)`; each
+    /// Rudra adaptation: there is no virtual `FlowBlock::subBlock(i)`; each
     /// structured block stores its children as struct fields. We therefore
     /// collect the child Arcs per concrete block type (BlockGraph via
     /// `get_block(i)`, BlockCopy via `original`, BlockGoto via its wrapped
@@ -17215,7 +17215,7 @@ impl PrintC {
 
     // RUDRA-GLUE: goto-label pending ledger — the oracle has a single emitter
     // whose goto targets are always live structured-tree FlowBlocks labeled
-    // via markCopyBlock/emitAnyLabelStatement; Rugra's shared-leaf tree needs
+    // via markCopyBlock/emitAnyLabelStatement; Rudra's shared-leaf tree needs
     // this address-keyed ledger to place the same label exactly once.
     /// GOTO-LABEL-UNPRINTED-0001 ledger step for goto STATEMENT FRAGMENTS
     /// (legacy op_cbranch/op_branch tails, op_cbranch_rpn's flat tail):
@@ -17279,7 +17279,7 @@ impl PrintC {
         // GOTO-UNIQSPACE-TARGET-UPSTREAM-0001 defense: the oracle's goto
         // target is always a live FlowBlock of the structured tree
         // (emitGotoStatement, printc.cc:2307-2322, receives bl directly).
-        // Rugra's structurer can wire a degenerate target — a BlockIf
+        // Rudra's structurer can wire a degenerate target — a BlockIf
         // goto_target or a rewritten CBRANCH in(0) carrying a unique-space
         // offset (observed: goto code_r0x1000011F / 0x100000D8 /
         // 0x10000000) — a label no block can ever define. The
@@ -17357,10 +17357,10 @@ impl PrintC {
     /// emitAnyLabelStatement(bl);
     /// bl->subBlock(0)->emit(this);
     /// ```
-    /// Rugra adaptation: `BlockCopy.original` is the dynamic single sub-block
+    /// Rudra adaptation: `BlockCopy.original` is the dynamic single sub-block
     /// (`subBlock(0)`). There is no virtual `emit`, so
     /// we re-enter `emit_block_structured` on the original. `beginBlock`/
-    /// `endBlock` markup ids are not tracked by Rugra's emit layer.
+    /// `endBlock` markup ids are not tracked by Rudra's emit layer.
     pub fn emit_block_copy(
         &mut self, block_arc: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>, graph: &crate::block::BlockGraph, emitted: &mut std::collections::HashSet<usize>,
     ) {
@@ -17399,7 +17399,7 @@ impl PrintC {
     ///     emitGotoStatement(bl->getBlock(0), bl->getGotoTarget(), bl->getGotoType());
     /// }
     /// ```
-    /// Rugra adaptation: `BlockGoto` does not hold a separate "body" sub-block;
+    /// Rudra adaptation: `BlockGoto` does not hold a separate "body" sub-block;
     /// it wraps the consumed source `BlockBasic` (whose ops are reached via
     /// `get_ops()`). We therefore emit the wrapped block's ops with
     /// `no_branch` active (matching Ghidra's `setMod(no_branch)` before
@@ -17407,7 +17407,7 @@ impl PrintC {
     /// `BlockGoto::goto_prints` (block.rs): the parent-present arm compares
     /// the target's front leaf against the parent's `nextFlowAfter`
     /// (goto_prints_in + BlockGraph::next_flow_after); the null-parent arm
-    /// returns false (block.cc:2889). Rugra's structurer never wires
+    /// returns false (block.cc:2889). Rudra's structurer never wires
     /// BlockGoto::parent, so the null arm carries today.
     pub fn emit_block_goto(
         &mut self, block_arc: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
@@ -17557,7 +17557,7 @@ impl PrintC {
     /// }
     /// ```
     ///
-    /// Rugra adaptation: the loop drives the sorter's iterator state machine
+    /// Rudra adaptation: the loop drives the sorter's iterator state machine
     /// directly (`setup_op_stop` + `has_next`/`get_next`, the cc:3234-3236
     /// protocol). `inst == None` is the cc:3241/3266 form
     /// `emitCommentGroup((const PcodeOp *)0)`: `setupOpList(NULL)` sets
@@ -17602,7 +17602,7 @@ impl PrintC {
     /// `option_nocasts`, emit the "DISPLAY WARNING: Type casts are NOT being
     /// printed" banner. Emit a trailing linebreak if any comment was emitted.
     ///
-    /// Rugra adaptation: both passes drive the sorter's iterator state
+    /// Rudra adaptation: both passes drive the sorter's iterator state
     /// machine directly (`setup_header` windows + `has_next`/`get_next`), so
     /// the header_basic loop walks only the (-1, header_basic, *) keys and
     /// the unplaced banner loop only the (-1, header_unplaced, *) keys — the
@@ -17712,12 +17712,12 @@ impl PrintC {
     ///    pieces, unnamed, `FunctionSymbol`, `LabSymbol`, and de-duping
     ///    multi-entry symbols via `getFirstWholeMap()`.
     ///
-    /// Rugra adaptation: Rugra's `Scope` keeps `symbols: BTreeMap<u64,
+    /// Rudra adaptation: Rudra's `Scope` keeps `symbols: BTreeMap<u64,
     /// Arc<RwLock<Symbol>>>` plus `entries`/`dynamic_entries` (the maps) and a
     /// `categories` table. We faithfully implement both the category branch
     /// (using `Scope::get_category_size`/`categories`) and the full-map branch
     /// (iterating `entries` + `dynamic_entries`). FunctionSymbol/LabSymbol are
-    /// approximated by a name-based check (Rugra's `Symbol` has no subclass);
+    /// approximated by a name-based check (Rudra's `Symbol` has no subclass);
     /// the multi-entry de-dup uses `Symbol::is_multi_entry()` keyed by symbol
     /// id (we only emit the first entry seen for a multi-entry symbol).
     pub fn emit_scope_var_decls(&mut self, sym_scope: &crate::database::Scope, cat: i32) -> bool {
@@ -17817,7 +17817,7 @@ impl PrintC {
     /// for (child : symScope->children) emitGlobalVarDeclsRecursive(child);
     /// ```
     ///
-    /// Rugra adaptation: `Database` (the symbol table) owns all scopes by id;
+    /// Rudra adaptation: `Database` (the symbol table) owns all scopes by id;
     /// `Scope::children` holds child scope ids. We resolve each child through
     /// the `Database` to recurse. `Symbol::no_category` == -1 (database.hh).
     pub fn emit_global_var_decls_recursive(
@@ -17828,7 +17828,7 @@ impl PrintC {
             return;
         }
         // cc:2612: emitScopeVarDecls(symScope, Symbol::no_category);
-        // Symbol::no_category == -1 (database.hh); Rugra has no constant for it.
+        // Symbol::no_category == -1 (database.hh); Rudra has no constant for it.
         self.emit_scope_var_decls(sym_scope, -1);
         // cc:2613-2618: recurse over non-function child scopes.
         for &child_id in &sym_scope.children {
@@ -17851,9 +17851,9 @@ impl PrintC {
     /// emit->flush();
     /// ```
     ///
-    /// Rugra adaptation: the global scope is reached via the Architecture's
+    /// Rudra adaptation: the global scope is reached via the Architecture's
     /// `symboltab` (`Arc<RwLock<Database>>`). The caller passes the database
-    /// because Rugra's `PrintC` does not hold an `Architecture*` / `glb`
+    /// because Rudra's `PrintC` does not hold an `Architecture*` / `glb`
     /// reference (the audit's P2-5 gap). When the database/global scope is
     /// absent this is a no-op (no globals to emit).
     pub fn doc_all_globals(&mut self, db: Option<&crate::database::Database>) {
@@ -17869,7 +17869,7 @@ impl PrintC {
         self.emit.tag_line(0);
         // cc:2627: emit->endDocument(id);
         self.emit.end_document();
-        // cc:2628: emit->flush(); — Rugra's emitters stream directly (no
+        // cc:2628: emit->flush(); — Rudra's emitters stream directly (no
         //   buffered flush); the Emit trait has no flush() method, so this is
         //   a faithful no-op.
     }
@@ -17895,7 +17895,7 @@ impl PrintC {
         self.emit.tag_line(0);
         // cc:2637: emit->endDocument(id);
         self.emit.end_document();
-        // cc:2638: emit->flush(); — Rugra's emitters stream directly (no
+        // cc:2638: emit->flush(); — Rudra's emitters stream directly (no
         //   buffered flush); the Emit trait has no flush() method, so this is
         //   a faithful no-op.
     }
@@ -17923,7 +17923,7 @@ impl PrintC {
     /// Ghidra wraps the body in `emit->beginVarDecl(sym)` / `endVarDecl(id)`
     /// markup tags, then emits `<type> <name>` via the pushTypeStart /
     /// pushSymbol / pushTypeEnd expression-stack machinery + recurse().
-    /// Rugra's print layer does not use the Atom/expression-stack model, so
+    /// Rudra's print layer does not use the Atom/expression-stack model, so
     /// `push_type_start` / `push_symbol` / `push_type_end` below are the
     /// direct-text equivalents (see each helper's Ghidra citation).
     ///
@@ -17979,7 +17979,7 @@ impl PrintC {
     /// the parameter list (emitPrototypeInputs), closes the paren, closes the
     /// group, ends the func proto.
     ///
-    /// Rugra adaptation: the calling-convention printing is gated on
+    /// Rudra adaptation: the calling-convention printing is gated on
     /// `option_convention` (which defaults to true in Ghidra's
     /// PrintC::resetDefaultsPrintC, printc.cc:1584; `printModelInDecl` is
     /// false for unknown models, so the token rarely appears). The
@@ -18134,7 +18134,7 @@ impl PrintC {
     /// `ActionNameVars::lookForBadJumpTables` renames (coreaction.cc:2799,
     /// `renameSymbol` mutates name+displayName in place, database.cc:2152),
     /// so a rename is visible through the proto parameter at print time.
-    /// Rugra's FuncProto keeps only the flat parameter store; the folded
+    /// Rudra's FuncProto keeps only the flat parameter store; the folded
     /// install (coreaction.rs store_install, fspec.cc:3147-3183) maintains
     /// the same category slots on `varmap::ScopeLocal`, so this projection
     /// reads the print snapshot (`self.scope`, cloned in doc_function after
@@ -18162,7 +18162,7 @@ impl PrintC {
     /// a register INPUT's high symbol is exactly the ProtoStoreSymbol
     /// category symbol at that storage (attached via `linkSymbol` ->
     /// `queryProperties` at the input's entry-1 usepoint). Gating on the
-    /// category (not the raw high->symbol channel) keeps Rugra's unsynced
+    /// category (not the raw high->symbol channel) keeps Rudra's unsynced
     /// auto-name symbols (`in_register_...`, no_category creations of the
     /// linkSymbol bridge) OUT of this lookup — the P0.4 proto-name fallback
     /// below still covers them.
@@ -18223,7 +18223,7 @@ impl PrintC {
                     None => continue,
                 };
                 // if (isSet(hide_thisparam) && param->isThisPointer()) continue;
-                // Rugra: hide_thisparam not wired; Ghidra default is unset, so
+                // Rudra: hide_thisparam not wired; Ghidra default is unset, so
                 // the skip never fires. Branch preserved for alignment.
                 if param.is_this_pointer() {
                     // would `continue` if hide_thisparam were set; Ghidra
@@ -18246,7 +18246,7 @@ impl PrintC {
                 // (printc.cc:2239-2240 -> 2497-2508), so an
                 // ActionNameVars rename (UNRECOVERED_JUMPTABLE,
                 // coreaction.cc:2799-2801) reaches the signature through
-                // the mutated Symbol. Rugra's flat FuncProto parameters
+                // the mutated Symbol. Rudra's flat FuncProto parameters
                 // never diverge observationally from the category symbols
                 // except through exactly those renames (the folded install
                 // names both sides param_N from the same commit,
@@ -18259,7 +18259,7 @@ impl PrintC {
                     self.emit_local_symbol_decl(&sym);
                     continue;
                 }
-                // Rugra ProtoParameter has no backing Symbol (no scope
+                // Rudra ProtoParameter has no backing Symbol (no scope
                 // snapshot or empty category slot): the else branch
                 // (printc.cc:2242-2247) emits the proto type with a blank
                 // name atom.
@@ -18267,13 +18267,13 @@ impl PrintC {
                 self.push_type_start_opt(Some(&param.data_type), true);
                 // pushAtom(Atom(EMPTY_STRING,blanktoken,no_color));
                 //   — blank token emits nothing (the param NAME would go here
-                //     in Ghidra; Rugra emits the name via the type-start's
+                //     in Ghidra; Rudra emits the name via the type-start's
                 //     noident=true path which omits the trailing identifier).
                 // pushTypeEnd(param->getType()); recurse();
                 self.push_type_end_opt(Some(&param.data_type));
                 // Emit the parameter name after the type, mirroring what
                 // emitVarDecl(sym) would have produced. Ghidra gets the name
-                // from the backing Symbol; Rugra's ProtoParameter carries it
+                // from the backing Symbol; Rudra's ProtoParameter carries it
                 // directly. The join spacing follows the type OpTokens
                 // (printc.cc:73-77): type_expr_space puts ONE space between
                 // the base type and the next token, ptr_expr has spacing=0,
@@ -18358,7 +18358,7 @@ impl PrintC {
             }
         } else {
             // clear(); throw LowlevelError("Unsupported typedef");
-            // Rugra: log + skip (no LowlevelError throw in print layer).
+            // Rudra: log + skip (no LowlevelError throw in print layer).
             eprintln!(
                 "[DECOMP] emit_type_definition: unsupported typedef {}", ct.get_name()
             );
@@ -18376,7 +18376,7 @@ impl PrintC {
     /// separator + tagLine between fields; closeBraceIndent(CLOSE_CURLY);
     /// spaces(1); print display name; print ';'.
     ///
-    /// Rugra adaptation: no openBraceIndent/closeBraceIndent markup, so we
+    /// Rudra adaptation: no openBraceIndent/closeBraceIndent markup, so we
     /// emit literal `{` / `}` on their own lines (same visual result).
     ///
     /// Alignment Evidence:
@@ -18452,7 +18452,7 @@ impl PrintC {
             eprintln!("[DECOMP] emit_enum_definition: unnamed enumeration");
             return;
         }
-        // pushMod();   — mods stack push (printlanguage.hh). Rugra: no-op
+        // pushMod();   — mods stack push (printlanguage.hh). Rudra: no-op
         //   visible-state change here (sign is a local); popMod at end.
         // bool sign = (ct->getMetatype() == TYPE_INT);
         let sign = ct.base.metatype == TypeMetatype::Int;
@@ -18494,7 +18494,7 @@ impl PrintC {
     }
 
     // Ghidra: printc.cc:2641 PrintC::docFunction
-    /// Thin Rugra-side entry that delegates to `PrintLanguage::doc_function`
+    /// Thin Rudra-side entry that delegates to `PrintLanguage::doc_function`
     /// (the trait impl at printc.rs:3667). Provided so callers with an
     /// inherent `PrintC` value can emit a full function document without
     /// going through the trait. The faithful body lives in the trait impl
@@ -18554,13 +18554,13 @@ impl PrintC {
     /// (cc:161-162). The stack is base-type-last: `typestack[0]` is the full
     /// declared type, `typestack.back()` the identifier's base type.
     ///
-    /// Rugra stores `ptr_to`/`array_of` as `Arc<Datatype>` and `TypeCode`
+    /// Rudra stores `ptr_to`/`array_of` as `Arc<Datatype>` and `TypeCode`
     /// prototypes as `Option<Arc<FuncProto>>`, so the stack holds cloned
     /// `Arc` handles (identity-preserving reference count, no deep copy)
     /// instead of C++ pointers. The CODE arm reads `proto->getOutputType()`
     /// through the public `return_type` field; the no-proto arm substitutes a
     /// locally constructed `void` (`Datatype("void",0,TYPE_VOID)`, the
-    /// constructor shape of Ghidra's `TypeVoid`) because Rugra's PrintC holds
+    /// constructor shape of Ghidra's `TypeVoid`) because Rudra's PrintC holds
     /// no Architecture reference (documented P2-5 gap), so the canonical
     /// factory void is unavailable. The substitution is print-faithful: the
     /// void type's non-empty name ends the drill on the next iteration and it
@@ -18601,7 +18601,7 @@ impl PrintC {
                     // code-pointer carries the NAMED "code" base and
                     // buildTypeStack's named-break fires at cc:151 — the
                     // oracle never renders pointer-to-code as
-                    // `void (*x)`. Rugra's factory instances can mint
+                    // `void (*x)`. Rudra's factory instances can mint
                     // anonymous proto-less Code layers (the inputLocal
                     // code-pointer channel dedupes per-tree, and the fd-side
                     // factory view bypasses the arch coretype table), so the
@@ -18645,7 +18645,7 @@ impl PrintC {
     /// `LowlevelError("Bad type expression")` for any other metatype. The
     /// identifier slot sits between start and end.
     ///
-    /// Rugra adaptation: the Atom/expression-stack + OpToken recurse() model is
+    /// Rudra adaptation: the Atom/expression-stack + OpToken recurse() model is
     /// not present, so we emit the equivalent TEXT directly. The token text
     /// semantics (printc.cc:73-77): the base-type atom is followed by
     /// `type_expr_space`'s single blank, then each `ptr_expr` `*` glues
@@ -18659,7 +18659,7 @@ impl PrintC {
     ///
     /// Alignment Evidence:
     /// - References/output params: `ct` borrowed read-only (Option allows the
-    ///   "no type" case Ghidra never hits but Rugra's optional Symbol.dtype
+    ///   "no type" case Ghidra never hits but Rudra's optional Symbol.dtype
     ///   can). Emits via `self.emit`.
     /// - Loop bounds/order: Ghidra walks typestack `size-2 .. 0` (outermost
     ///   modifier first); we walk the drilled stack in the same order.
@@ -18669,7 +18669,7 @@ impl PrintC {
         let dt = match ct {
             Some(d) => d,
             None => {
-                // No resolved type — emit "long" as the Rugra fallback for
+                // No resolved type — emit "long" as the Rudra fallback for
                 // untyped symbols (matches doc_function's inferred defaults).
                 self.emit.tag_type("long", 0);
                 if !noident {
@@ -18833,7 +18833,7 @@ impl PrintC {
     /// [`Self::push_prototype_inputs`].
     ///
     /// Alignment Evidence:
-    /// - References/output params: `ct` borrowed read-only (Option for Rugra's
+    /// - References/output params: `ct` borrowed read-only (Option for Rudra's
     ///   optional Symbol.dtype). Emits via `self.emit`.
     /// - Loop bounds/order: Ghidra loops `for(;;)` unwrapping
     ///   PTR/ARRAY/CODE until it hits a named base type (cc:319-343); we walk
@@ -19012,7 +19012,7 @@ impl PrintC {
 
     // ===== P0 push*/constant methods (faithful ports from printc.cc) =====
     //
-    // Architecture note (audit "Methodology caveats"): Rugra's PrintC renders
+    // Architecture note (audit "Methodology caveats"): Rudra's PrintC renders
     // C text directly via `self.emit.print(...)` instead of Ghidra's RPN
     // expression-stack (`pushAtom`/`OpToken`/`recurse`) machinery. The ports
     // below faithfully reproduce each method's DECISION LOGIC — the
@@ -19082,7 +19082,7 @@ impl PrintC {
     /// simplified API receives the resulting `u32`; that object/alias path is
     /// not a same-input `MATCH`.
     ///
-    /// Rugra adaptation: drops the `(vn, op)` reads for per-symbol
+    /// Rudra adaptation: drops the `(vn, op)` reads for per-symbol
     /// display-format / isUnsignedPrint / isLongPrint. Symbol and Datatype
     /// already store display format, but this PrintC API and its production
     /// call chain do not carry that state into the helper; the caller passes
@@ -19244,7 +19244,7 @@ impl PrintC {
     /// `PrintC::pushCharConstant` (printc.cc:1606-1655), including the
     /// byte-character >=0x80 fall-through and wide-char (`L`) prefix.
     ///
-    /// Rugra adaptation: this simplified API does not receive `(vn, op)`, so
+    /// Rudra adaptation: this simplified API does not receive `(vn, op)`, so
     /// it cannot resolve the Symbol/Datatype format and does not carry the
     /// castStrategy `caresAboutCharRepresentation` observation; it accepts the
     /// resolved `display_format` u32 directly. The byte>=0x80 branch
@@ -19296,7 +19296,7 @@ impl PrintC {
     ///
     /// Ghidra builds a value out of named enum members via
     /// `TypeEnum::getMatches` (which can OR/complement/shift members to form
-    /// `val`) and emits `NAME1 | NAME2`. Rugra's `TypeEnum.values` is a flat
+    /// `val`) and emits `NAME1 | NAME2`. Rudra's `TypeEnum.values` is a flat
     /// `BTreeMap<u64,String>` with no getMatches, so this port renders the
     /// exact-match member name when present and otherwise falls back to
     /// `push_integer` — the two cases at printc.cc:1672/1684-1686. The
@@ -19375,7 +19375,7 @@ impl PrintC {
                 self.emit.print(if val != 0 { "true" } else { "false" });
             }
             TypeMetatype::Void => {
-                // printc.cc:1772-1774: clear(); throw. Rugra: emit a marker
+                // printc.cc:1772-1774: clear(); throw. Rudra: emit a marker
                 // (no panic in the emit path).
                 self.emit.print("/* void constant */");
             }
@@ -19415,7 +19415,7 @@ impl PrintC {
                 let t = self.push_float_text(val, sz as i32);
                 self.emit.print(&t);
             }
-            // Rugra's Enum metatype is Ghidra's enum-int/uint collapse
+            // Rudra's Enum metatype is Ghidra's enum-int/uint collapse
             // (stored as TYPE_INT/TYPE_UINT + enumtype flag, type.hh:490-494),
             // so pushConstant's TYPE_UINT/TYPE_INT arms reach
             // pushEnumConstant (printc.cc:1756/1763) — the getMatches
@@ -19499,7 +19499,7 @@ impl PrintC {
     /// category==function_parameter / category==equate / else var_color
     /// (printc.cc:1909-1918), calls pushSymbolScope, then handles merge-
     /// problem suffixes (`$N`/`$$`, printc.cc:1920-1934) before pushing the
-    /// display-name atom. Rugra has no Scope/merge-problem model, so this port
+    /// display-name atom. Rudra has no Scope/merge-problem model, so this port
     /// preserves the colour decision (informational for the plain-text
     /// emitter) and emits the display name.
     ///
@@ -19513,7 +19513,7 @@ impl PrintC {
     ) {
         // Colour cascade encoded via the tag choice for markup emitters;
         // plain-text emitters ignore it. pushSymbolScope is a no-op for
-        // Rugra's flat symbol model.
+        // Rudra's flat symbol model.
         self.emit.tag_variable(sym_name, 0);
     }
 
@@ -19553,13 +19553,13 @@ impl PrintC {
     /// then pushes operators in reverse and entries front-to-back so
     /// parentheses come out right (printc.cc:1949-2064).
     ///
-    /// Rugra adaptation: no findTruncation/RPN stack, so this renders the
+    /// Rudra adaptation: no findTruncation/RPN stack, so this renders the
     /// equivalent text directly, handling Struct (`.field` for the matching
     /// offset), Array (`[off/elsize]`), the allowCast SUBPIECE-cast arm, and
     /// the synthetic fallback. `outtype`/`out_space_bigend` carry the
     /// `vn->getHigh()->getType()` and space endianness the cast arm needs
     /// (`sym->getFirstWholeMap()->getAddr().getSpace()` is not reachable —
-    /// Rugra's transitional `Address` has no space — so the caller passes
+    /// Rudra's transitional `Address` has no space — so the caller passes
     /// the consuming varnode's space endianness, Ghidra's own null-space
     /// fallback at printc.cc:2021-2022).
     ///
@@ -19847,7 +19847,7 @@ impl PrintC {
     /// Ghidra resolves the varnode against the function's local scope
     /// (`queryContainer`) and either pushes the whole symbol, a partial
     /// symbol, or — if no symbol covers the address — falls back to the
-    /// register/space name (capitalising the space's first letter). Rugra
+    /// register/space name (capitalising the space's first letter). Rudra
     /// uses its `symbol_table` for the lookup; the CALLOTHER
     /// `extractAnnotationSize` path (printc.cc:1866-1869) is a TODO hook.
     ///
@@ -19859,7 +19859,7 @@ impl PrintC {
     pub fn push_annotation(&mut self, vn: &Varnode) {
         let addr = vn.get_offset();
         // printc.cc:1871-1888: queryContainer -> entry; whole or partial
-        // symbol. Rugra: consult the printer's symbol table.
+        // symbol. Rudra: consult the printer's symbol table.
         if let Some(name) = self.symbol_table.get(&addr) {
             self.emit.tag_variable(name, 0);
             return;
@@ -19867,7 +19867,7 @@ impl PrintC {
         // printc.cc:1889-1902: register/space name fallback.
         let space = vn.get_space();
         let base = Self::space_name(space);
-        // translate->getRegisterName — Rugra has no register map; treat as
+        // translate->getRegisterName — Rudra has no register map; treat as
         // empty so the synthetic-name branch runs (printc.cc:1891).
         // Capitalise first letter (printc.cc:1893-1894) + zero-padded hex.
         let mut regname = String::new();
@@ -19887,7 +19887,7 @@ impl PrintC {
     /// The legacy-walk consult-slot helper mirroring `PcodeOp::getSlot`
     /// (op.hh:166): the index of the input holding `vn`, or — matching
     /// Ghidra's loop-exit value when the varnode is not an input (an
-    /// output printed with isRead semantics) — `numInput`. Rugra's
+    /// output printed with isRead semantics) — `numInput`. Rudra's
     /// `push_varnode` borrows the varnode without its Arc, so identity is
     /// (space, offset, size) rather than pointer equality; the first
     /// match wins, as in the Ghidra scan.
@@ -19930,7 +19930,7 @@ impl PrintC {
     //
     // NOTE on the expression-stack model: Ghidra's originals push onto an RPN
     // expression stack (pushOp/pushVn/pushAtom/recurse) which is later emitted
-    // by emitExpression. Rugra emits text directly via self.emit, so each port
+    // by emitExpression. Rudra emits text directly via self.emit, so each port
     // performs the equivalent text emission inline. The decision logic (which
     // branch is taken) is faithful; the emission primitive differs by design
     // (see printc_audit.md notes on the PARTIAL emit_* family).
@@ -19943,7 +19943,7 @@ impl PrintC {
     ///
     /// Faithful to `PrintC::opIntZext(const PcodeOp*, const PcodeOp*)`
     /// (printc.cc:786-797). Ghidra's second parameter `readOp` is the consumer
-    /// of this op's output, used only by `isExtensionCastImplied`. Rugra does
+    /// of this op's output, used only by `isExtensionCastImplied`. Rudra does
     /// not track the single consumer op here, so we pass `None`; in that case
     /// `is_extension_cast_implied` returns false (matching Ghidra's
     /// `readOp == nullptr -> return false`), so a recognized zext cast still
@@ -19977,7 +19977,7 @@ impl PrintC {
                 self.op_type_cast(op);
             }
         } else {
-            // opFunc(op) - generic functional rendering. Rugra routes INT_ZEXT
+            // opFunc(op) - generic functional rendering. Rudra routes INT_ZEXT
             // through op_unary (which emits `(uint)in0`).
             self.op_unary(op);
         }
@@ -20019,7 +20019,7 @@ impl PrintC {
     // Ghidra: printc.cc:474 PrintC::opHiddenFunc  (referenced by opIntZext/Sext)
     /// Suppress this op entirely - its output is rendered inline by the
     /// consumer. Faithful to `PrintC::opHiddenFunc` (printc.cc:754-760):
-    /// Ghidra pushes nothing (the op is implied). Rugra marks the op as
+    /// Ghidra pushes nothing (the op is implied). Rudra marks the op as
     /// inlined so the statement emitter skips its standalone line.
     pub fn op_hidden_func(&mut self, op: &PcodeOp) {
         self.inlined_ops.insert(*op.get_seq_num());
@@ -20038,7 +20038,7 @@ impl PrintC {
     ///    the flipped comparison.
     /// 3. Else print `!in(0)`.
     ///
-    /// Rugra's comparison emitter (`op_binary` for CPUI_INT_EQUAL etc.) reads
+    /// Rudra's comparison emitter (`op_binary` for CPUI_INT_EQUAL etc.) reads
     /// `negatetoken` to pick the flipped token, mirroring Ghidra's
     /// printlanguage.cc:549-554 negatetoken handling.
     pub fn op_bool_negate(&mut self, op: &PcodeOp) {
@@ -20111,7 +20111,7 @@ impl PrintC {
                 if let Some(ct) = self.vn_high_type_read_facing_snap(&vn, op, 0) {
                     if ct.is_piece_structured() {
                         // byteOff = TypeOpSubpiece::computeByteOffsetForComposite(op)
-                        // (typeop.cc:2195) — endianness-aware; Rugra's x86/x64
+                        // (typeop.cc:2195) — endianness-aware; Rudra's x86/x64
                         // spaces are little-endian, reducing to in(1).
                         let mut byte_off = Self::compute_byte_offset_for_composite(op);
                         // printc.cc:852-861: explicit-vn symbol arm.
@@ -20241,7 +20241,7 @@ impl PrintC {
     ///
     /// Faithful to `PrintC::opPtradd(const PcodeOp*)` (printc.cc:880-893).
     /// Ghidra pushes the inputs in reverse order (in1 then in0) for RPN-stack
-    /// efficiency; Rugra emits left-to-right text, so we print in0 then the
+    /// efficiency; Rudra emits left-to-right text, so we print in0 then the
     /// operator then in1. The `m` mask strips the load/store-value mods before
     /// recursing into the inputs, matching
     /// `m = mods & ~(print_load_value | print_store_value)`.
@@ -20277,7 +20277,7 @@ impl PrintC {
     ///
     /// Ghidra also resets the brace-formatting options
     /// (`option_brace_func`/`option_brace_ifelse`/`option_brace_loop`/
-    /// `option_brace_switch`) and calls `setCStyleComments()`. Rugra has no
+    /// `option_brace_switch`) and calls `setCStyleComments()`. Rudra has no
     /// brace-formatting fields (the structured-block emitter uses a fixed
     /// style) and no comment-style switch, so those resets are noted but not
     /// applied here. The integer/bool options below ARE reset, matching Ghidra
@@ -20295,7 +20295,7 @@ impl PrintC {
         self.option_null = false;
         // printc.cc:1589
         self.option_unplaced = false;
-        // printc.cc:1590-1593: option_brace_* (brace formatting). Rugra ports
+        // printc.cc:1590-1593: option_brace_* (brace formatting). Rudra ports
         //   option_brace_func (the function-body brace, read at printc.cc:2655);
         //   the ifelse/loop/switch styles are hard-coded SameLine by the
         //   structured-block emitter (` {`), matching the oracle defaults
@@ -20311,7 +20311,7 @@ impl PrintC {
     /// to `initializeFromArchitecture` (printc.cc:2332-2340):
     /// - `castStrategy->setTypeFactory(glb->types)` (2335) — the
     ///   strategy's only factory-derived state is `promoteSize`
-    ///   (`getSizeOfInt()`, cast.cc:27), which Rugra materializes at
+    ///   (`getSizeOfInt()`, cast.cc:27), which Rudra materializes at
     ///   `CastStrategyC::new`; the call is a structural no-op here
     ///   (cast.rs keeps no factory handle).
     /// - the integer size suffix (2336-2339): `"LL"` when the type
@@ -20319,7 +20319,7 @@ impl PrintC {
     ///   distinction is needed), else `"L"`.
     ///
     /// The oracle invokes this once at Architecture init
-    /// (architecture.cc:1407, after buildCoreTypes); Rugra's PrintC
+    /// (architecture.cc:1407, after buildCoreTypes); Rudra's PrintC
     /// reaches the TypeFactory only through `fd.arch`, so the (idempotent)
     /// computation runs at doc_function entry — the same observable for
     /// every architecture (the x86-64 corpus: long=8, int=4 -> `"L"`,
@@ -20339,7 +20339,7 @@ impl PrintC {
     /// Set basic data-type information for p-code operators. Faithful to
     /// `adjustTypeOperators` (printc.cc:2342-2348), whose three actions
     /// are all re-assertions of the C defaults on this face:
-    /// - `scope.print1 = "::"` (2345) — Rugra's scope element prints the
+    /// - `scope.print1 = "::"` (2345) — Rudra's scope element prints the
     ///   literal `"::"` (symbol_scope_prefix / emit_symbol_scope; the
     ///   RPN table carries no separate scope token to reset);
     /// - `shift_right.print1 = ">>"` (2346) — the binary token table
@@ -20347,14 +20347,14 @@ impl PrintC {
     /// - `TypeOp::selectJavaOperators(glb->inst,false)` (2347) — the C
     ///   operator selection (typeop.cc:114-141 `else` arm: ZEXT/NEGATE/
     ///   XOR/OR/AND/RIGHT metatypes TYPE_UINT, INT_RIGHT symbol ">>").
-    ///   Rugra's typeop emitters carry exactly these C defaults baked in
+    ///   Rudra's typeop emitters carry exactly these C defaults baked in
     ///   (the Java arm is the PrintJava override); the `inst`-table
     ///   mutation itself is the typeop domain (in-flight lease) — the
     ///   C-selection state it would assert is already the operative
     ///   state, so the call is a structural no-op here.
     ///
     /// The oracle invokes this from `Architecture::setPrintLanguage`
-    /// (architecture.cc:417/432); Rugra's PrintC is driver-constructed,
+    /// (architecture.cc:417/432); Rudra's PrintC is driver-constructed,
     /// so the method stands as the faithful entry point for the day the
     /// architecture-side printlist lands (same structural gap as
     /// `resetDefaults`'s caller note).
@@ -20385,7 +20385,7 @@ impl PrintC {
     ///
     /// Caller note: the oracle invokes this from
     /// `Architecture::resetDefaults` (architecture.cc:1443-1444,
-    /// `printlist[i]->resetDefaults()`); Rugra's `Architecture` reaches it
+    /// `printlist[i]->resetDefaults()`); Rudra's `Architecture` reaches it
     /// through the per-architecture printer registry
     /// (`printlanguage::printlist_reset_defaults`, the architecture.hh:206
     /// `printlist` storage mirror) — drivers that never register a printer
@@ -20402,7 +20402,7 @@ impl PrintC {
         // printlanguage.cc:580: line_commentindent = 20;
         self.line_commentindent = 20;
         // printlanguage.cc:581: namespc_strategy = MINIMAL_NAMESPACES;
-        //   Rugra has no strategy field — MINIMAL is the only strategy in
+        //   Rudra has no strategy field — MINIMAL is the only strategy in
         //   play (see symbol_scope_prefix), so this is a no-op.
         // printlanguage.cc:582: instr_comment_type = user2|warning;
         self.instr_comment_type = crate::comment::comment_type::USER2
@@ -20494,7 +20494,7 @@ impl PrintC {
     ///
     /// Faithful to `PrintC::emitInplaceOp(const PcodeOp*)` (printc.cc:2418-
     /// 2466). Ghidra maps each opcode to a static OpToken (multequal,
-    /// divequal, ...) and pushes it onto the RPN stack; Rugra emits the
+    /// divequal, ...) and pushes it onto the RPN stack; Rudra emits the
     /// equivalent text directly. The opcode->token table and the
     /// `out.getHigh() != in(0).getHigh()` same-variable guard are faithful.
     pub fn emit_inplace_op(&mut self, op: &PcodeOp) -> bool {
@@ -20541,7 +20541,7 @@ impl PrintC {
         }
         // printc.cc:2461-2464: pushOp(tok,op); pushVnExplicit(vn,op);
         // pushVn(op->getIn(1),op,mods); recurse();
-        // Rugra emits `in0 tok in1` directly.
+        // Rudra emits `in0 tok in1` directly.
         if let Some(in0) = op.get_in(0) {
             self.push_varnode(&in0.read().unwrap(), Some(op));
         }
@@ -20571,11 +20571,11 @@ impl PrintC {
     ///
     /// Ghidra returns the slot (1 for direct calls, 0 for constructor/new)
     /// when the call's prototype is a `this`-call AND `option_hide_thisparam`
-    /// is set; otherwise -1. Rugra does not yet port `option_hide_thisparam`
+    /// is set; otherwise -1. Rudra does not yet port `option_hide_thisparam`
     /// (audit P0-4) nor the `FuncCallSpecs` `isThisCall()` lookup, and — per
     /// the Ghidra `opCall`/`opCallind` TODO (printc.cc:619-620, 646) — the
     /// `this`-hiding is gated on emitting proper C++ method-invocation syntax,
-    /// which Rugra does not do. We therefore return -1 (no slot hidden),
+    /// which Rudra does not do. We therefore return -1 (no slot hidden),
     /// matching the conservative default that keeps all parameters visible.
     fn get_hidden_this_slot(&self, _op: &PcodeOp) -> i32 {
         -1
@@ -20636,7 +20636,7 @@ impl PrintC {
     ///
     /// This is inlined here (rather than ported to cast.rs) because the task
     /// scope restricts edits to `src/printc.rs`. The logic is faithful to
-    /// cast.cc:249-298 for the cases Rugra can evaluate:
+    /// cast.cc:249-298 for the cases Rudra can evaluate:
     /// - outVn explicit -> Ghidra falls through to `return false` (the empty
     ///   `if (outVn->isExplicit()) {}` branch at cast.cc:253-255), so we
     ///   return false.
@@ -21001,7 +21001,7 @@ mod tests {
     #[test]
     fn test_typedef_preamble_per_document_closure() {
         // Predecessor document first (fresh PrintC per document — the
-        // driver shape of curl_decompile/httpd_decompile/rugra).
+        // driver shape of curl_decompile/httpd_decompile/rudra).
         let predecessor = doc_function_capture("func_a", 0x1000);
         assert!(
             predecessor.contains("typedef unsigned char byte;"),
@@ -21238,7 +21238,7 @@ mod tests {
         assert_eq!(name_b, "unique0x10000000");
 
         // Degradation: without a high there is no representative; the
-        // fallback keeps the instance's own offset (Rugra-only shape,
+        // fallback keeps the instance's own offset (Rudra-only shape,
         // Ghidra never prints an explicit varnode without a high).
         let orphan_op = fd.new_op(1, Address::new(0x10d0));
         let orphan = fd.new_unique_out(4, &orphan_op);
@@ -22893,7 +22893,7 @@ mod tests {
     // boolean_not wrapper. Rust-side regression pinning of the decision
     // structure only; the B2 status of the legacy transport itself is
     // NO_ORACLE (no oracle run isolates it — the oracle has a single
-    // opCbranch, whose production Rugra route is the RPN twin).
+    // opCbranch, whose production Rudra route is the RPN twin).
     mod negtoken {
         use super::*;
 

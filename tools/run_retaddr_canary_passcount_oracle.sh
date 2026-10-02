@@ -16,7 +16,7 @@
 #   4. web survival        — oracle ALIVE (registered MISMATCH on the canon
 #                            face: rugra+typeseed DEAD, bound to
 #                            HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001);
-#                            rugra bare face (RUGRA_SEEDS=0) must be ALIVE
+#                            rugra bare face (RUDRA_SEEDS=0) must be ALIVE
 #                            (library-side chain oracle-faithful)
 #   5. output face pins    — sha256 drift alarms for the three artifacts
 #
@@ -67,8 +67,8 @@ httpd_bin="$bin_dir/httpd_decompile"
 [[ -x "$httpd_bin" ]] || { echo "build first: CARGO_TARGET_DIR=<dir> cargo build --profile fast-release --examples" >&2; exit 2; }
 
 note "capturing rugra canon drill..."
-( cd "$repo_root" && RUGRA_STAGE_DRILL=1 RUGRA_STAGE_FUNC=main \
-    RUGRA_STAGE_DRILL_OUT="$work/gate_rugra_drill.txt" "$httpd_bin" > /dev/null 2>/dev/null ) \
+( cd "$repo_root" && RUDRA_STAGE_DRILL=1 RUDRA_STAGE_FUNC=main \
+    RUDRA_STAGE_DRILL_OUT="$work/gate_rugra_drill.txt" "$httpd_bin" > /dev/null 2>/dev/null ) \
   || { echo "rugra drill run failed" >&2; exit 2; }
 rugra_sha=$(sha256sum "$work/gate_rugra_drill.txt" | awk '{print $1}')
 [[ "$rugra_sha" == "$expected_rugra_drill_sha" ]] || bad "rugra drill sha $rugra_sha != pin $expected_rugra_drill_sha (canon-face pipeline drift)"
@@ -79,8 +79,8 @@ note "capturing rugra canon output..."
 canon_sha=$(sha256sum "$work/gate_rugra_canon.c" | awk '{print $1}')
 [[ "$canon_sha" == "$expected_rugra_canon_sha" ]] || bad "rugra canon output sha $canon_sha != pin $expected_rugra_canon_sha"
 
-note "capturing rugra bare face (RUGRA_SEEDS=0)..."
-( cd "$repo_root" && RUGRA_SEEDS=0 "$httpd_bin" > "$work/gate_rugra_bare.c" 2>/dev/null ) \
+note "capturing rugra bare face (RUDRA_SEEDS=0)..."
+( cd "$repo_root" && RUDRA_SEEDS=0 "$httpd_bin" > "$work/gate_rugra_bare.c" 2>/dev/null ) \
   || { echo "rugra bare run failed" >&2; exit 2; }
 bare_sha=$(sha256sum "$work/gate_rugra_bare.c" | awk '{print $1}')
 [[ "$bare_sha" == "$expected_rugra_bare_sha" ]] || bad "rugra bare output sha $bare_sha != pin $expected_rugra_bare_sha"

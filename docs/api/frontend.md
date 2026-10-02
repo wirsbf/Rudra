@@ -10,7 +10,7 @@ vs the canon manual seed data recorded below.
 Ghidra role correspondence (Java analyzer layer, **not** in the locked
 decompile-cpp tree — the oracle's Program arrives pre-populated):
 
-| Rugra (`src/frontend.rs`) | Ghidra Java layer | ELF spec basis |
+| Rudra (`src/frontend.rs`) | Ghidra Java layer | ELF spec basis |
 |---|---|---|
 | `import_symbols` | `ElfProgramBuilder.addSymbols` | System V ABI 4.1 ch.4 "Symbol Table" |
 | `discover_functions` | `ElfProgramBuilder.addFunctionsFromSymbolTable` + entry-point analyzer | System V ABI 4.1 ch.4 (`e_entry`, `SHF_EXECINSTR`) |

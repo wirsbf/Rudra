@@ -3,7 +3,7 @@
  "fixture_id": "PATHOSLOW-DIVCHAIN-B2-0001",
  "projection_status": "MATCH",
  "overall_status": "MATCH",
- "status_note": "Complete bilateral B2 observation on a real corpus function that RuleDivChain fires on: sqlite3BitvecTestNotNull (libsqlite3.so.0, index 55 under the runner's offset-sorted enumeration). Locked-oracle direct run (pristine rebuild of the GEN5-provenance build command, BFD 2.38 include tree /tmp/rugra-ghidra-bfd-2.38) and the integration-state Rugra production driver (RUGRA_GEN_MIRROR=1 gen_decompile --one 55) produce byte-identical function bodies. The division-chain folding shapes (uVar4 % 0x7c, >> 3 constant chains, / 0x7c survivors) are the RuleDivChain-covered projection; the pre-fix tree did not terminate on this function (PERFAN: >=600s burn, pass_changes==2 loop), so termination itself is part of the pinned observation.",
+ "status_note": "Complete bilateral B2 observation on a real corpus function that RuleDivChain fires on: sqlite3BitvecTestNotNull (libsqlite3.so.0, index 55 under the runner's offset-sorted enumeration). Locked-oracle direct run (pristine rebuild of the GEN5-provenance build command, BFD 2.38 include tree /tmp/rugra-ghidra-bfd-2.38) and the integration-state Rugra production driver (RUDRA_GEN_MIRROR=1 gen_decompile --one 55) produce byte-identical function bodies. The division-chain folding shapes (uVar4 % 0x7c, >> 3 constant chains, / 0x7c survivors) are the RuleDivChain-covered projection; the pre-fix tree did not terminate on this function (PERFAN: >=600s burn, pass_changes==2 loop), so termination itself is part of the pinned observation.",
  "oracle": {
   "project": "Ghidra",
   "tag": "Ghidra_12.0.4_build",
@@ -37,7 +37,7 @@
  "compiler_spec": "gcc (x86-64-gcc.cspec from the locked spec root)",
  "analysis_options": {
   "oracle_api": "BfdArchitecture over the locked sleigh assets; readLoaderSymbols static+dynamic registration, raw .rela.plt JUMP_SLOT PLT stubs; per-function followFlow + full universal action resumed past all breakpoints; PrintC docFunction",
-  "rugra_api": "examples/gen_decompile.rs production diff-gate driver with RUGRA_GEN_MIRROR=1 (mirror-mode bare-load etc.) and --one 55 hermetic single-function run",
+  "rugra_api": "examples/gen_decompile.rs production diff-gate driver with RUDRA_GEN_MIRROR=1 (mirror-mode bare-load etc.) and --one 55 hermetic single-function run",
   "random_seed": "none; deterministic",
   "error_injection": "none"
  },

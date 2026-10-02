@@ -5,7 +5,7 @@
 ## 文档状态
 
 - **状态**: 已核对（当前有效）
-- **文档目标**: 解释 Rugra 当前 `PcodeOp` 相关结构、标志位和操作银行的职责
+- **文档目标**: 解释 Rudra 当前 `PcodeOp` 相关结构、标志位和操作银行的职责
 - **可信边界**: 本文以当前 `src/op.rs` 所体现的 **P-code 操作结构建模** 为核心，不再沿用旧式“完整旧架构已稳定可用”的写法
 - **阅读方式**: 请结合以下文件一起看：
   - `src/op.rs`
@@ -21,7 +21,7 @@
 
 ## 模块定位
 
-`op.rs` 是 Rugra 当前 **P-code 操作层** 的核心模块之一，主要负责：
+`op.rs` 是 Rudra 当前 **P-code 操作层** 的核心模块之一，主要负责：
 
 1. 定义单条 P-code 操作的结构表示：`PcodeOp`
 2. 定义与操作状态相关的一组位标志（flags）
@@ -51,7 +51,7 @@
 但需要明确：
 
 - **结构命名接近 Ghidra，不等于运行时行为已经与 Ghidra 完全一致**
-- 本模块当前应被理解为 **Rugra 的现行操作层建模基础**
+- 本模块当前应被理解为 **Rudra 的现行操作层建模基础**
 - 与 Ghidra 的“行为级一致性”仍需依赖单独的验证与对拍文档，而不是由 API 文档直接证明
 
 ---
@@ -257,7 +257,7 @@
 
 ### `pub fn opcode_flags(opc: OpCode) -> u32`
 
-Ghidra: `typeop.cc` 各 `TypeOpXxx::TypeOpXxxx` 构造函数体中的 `opflags = ...` 赋值（约 70 个 ctor）。Rugra 无 `TypeOp` 层，本函数作为 `TypeOp::getFlags()` 的等价替代。
+Ghidra: `typeop.cc` 各 `TypeOpXxx::TypeOpXxxx` 构造函数体中的 `opflags = ...` 赋值（约 70 个 ctor）。Rudra 无 `TypeOp` 层，本函数作为 `TypeOp::getFlags()` 的等价替代。
 
 #### 语义
 对每个 `CPUI_*` 变体返回对应的 TypeOp 衍生标志位（`unary`/`binary`/`ternary`/`special`/`branch`/`call`/`coderef`/`returns`/`nocollapse`/`marker`/`booloutput`/`commutative`/`has_callspec`/`return_copy`）。每个 match arm 标注了对应 typeop.cc 的 ctor 行号。
@@ -285,7 +285,7 @@ Ghidra: `typeop.cc` 各 `TypeOpXxx::TypeOpXxxx` 构造函数体中的 `opflags =
 Ghidra: `op.cc:276 PcodeOp::setOpcode`。清空 14 位 opcode-衍生标志（含 `COMMUTATIVE`），然后 `flags |= opcode_flags(opc)`。同时设置 `self.opcode = opc`。
 
 #### 用途
-为给定 opcode 一次性设置所有衍生的标志位。Rugra 无 TypeOp 层，故将 Ghidra 的 `flags |= t_op->getFlags()` 替换为查表 `opcode_flags(opc)`。
+为给定 opcode 一次性设置所有衍生的标志位。Rudra 无 TypeOp 层，故将 Ghidra 的 `flags |= t_op->getFlags()` 替换为查表 `opcode_flags(opc)`。
 
 ---
 
@@ -340,7 +340,7 @@ OpBehavior::evaluate*`。行为差异仅 FLOAT_*：此前 FLOAT 族在自由函�
 Ghidra 虚派发对应物；`space::AddrSpace::print_raw` 的 `SpaceType::Iop` 分支为同
 残差登记的内联回落，解阻塞后同 wave 接上本函数）。Ghidra 语义：offset 即
 `(PcodeOp *)(uintp)offset`（op.cc:46，`Funcdata::newVarnodeIop` 的同一编码，
-Rugra 侧为 `Arc::as_ptr` 数据指针）；非分支 op 打印其 `SeqNum`（address.cc:32：
+Rudra 侧为 `Arc::as_ptr` 数据指针）；非分支 op 打印其 `SeqNum`（address.cc:32：
 `pc.printRaw` + `':'` + uniq/time，ostream 粘滞 hex 故 uniq 为无填充小写 hex）；
 分支 op 打印非落 fall-thru 目标块 `code_` + 目标块起始地址空间 shortcut + 起始
 地址 printRaw（父块 `sizeOut()==2` 时 `isFallthruTrue() ? getOut(0) : getOut(1)`，
@@ -364,7 +364,7 @@ ADDRESS-0001（`src/address.rs` 现由 CSPEC-RANGEPROPS-0001 租约中）。落�
 
 ### `pub struct PcodeOp`
 
-`PcodeOp` 是本模块最核心的类型，表示 **一条正式进入 Rugra IR 图结构的 P-code 操作**。
+`PcodeOp` 是本模块最核心的类型，表示 **一条正式进入 Rudra IR 图结构的 P-code 操作**。
 
 它承担的核心职责包括：
 
@@ -393,7 +393,7 @@ ADDRESS-0001（`src/address.rs` 现由 CSPEC-RANGEPROPS-0001 租约中）。落�
 - 最终高层 AST 节点
 - 直接面向用户的 C 代码语句
 
-它是 Rugra 当前反编译分析主链路中的 **正式 IR 操作节点**。
+它是 Rudra 当前反编译分析主链路中的 **正式 IR 操作节点**。
 
 ---
 
@@ -503,7 +503,7 @@ ADDRESS-0001（`src/address.rs` 现由 CSPEC-RANGEPROPS-0001 租约中）。落�
 - 对应输入 varnode 的只读引用包装，若不存在则返回 `None`
 
 #### 说明
-之所以返回带锁的共享引用，说明当前 Rugra 的操作对象与 varnode 对象是图式共享结构，而不是简单值复制。
+之所以返回带锁的共享引用，说明当前 Rudra 的操作对象与 varnode 对象是图式共享结构，而不是简单值复制。
 
 ---
 
@@ -569,7 +569,7 @@ Ghidra: `op.cc:178 PcodeOp::isMoveable`。判断该操作是否可在所属基�
 
 #### 决定性语义
 - **引用/输出参数**: `&self` + `&point` + `&PcodeOpBank`（bank 仅为调用点兼容保留，Ghidra 方法只读 `basiciter`/`parent`）全程只读；`crossed_ops: Vec<PcodeOpRef>` 共享所有权（等价 Ghidra `basiciter` 游走的 op 指针）；`tied_list: Vec<Arc<RwLock<Varnode>>>`（等价 Ghidra `vector<const Varnode*>`）。
-- **遍历顺序**: 解析 parent `BlockBasic::ops`（块序）中 self 与 point 的索引，遍历 `ops[self_idx+1..=point_idx]`——严格后于 self 到 **含 point** 的闭区间，块序。等价 Ghidra 的 `biter = basiciter; do { ++biter; ... } while (biter != point->basiciter)` block-local 遍历。**不是** alivelist（markAlive 追加序，op.cc:1022）：块中段重插/move 后与块序发散（OP-ISMOVEABLE-WALKORDER-0001）。point 先于 self 时 Ghidra 越界 UB，Rugra fail-closed 返回 false；索引缺失（Rust 侧异常态）同样 fail-closed。
+- **遍历顺序**: 解析 parent `BlockBasic::ops`（块序）中 self 与 point 的索引，遍历 `ops[self_idx+1..=point_idx]`——严格后于 self 到 **含 point** 的闭区间，块序。等价 Ghidra 的 `biter = basiciter; do { ++biter; ... } while (biter != point->basiciter)` block-local 遍历。**不是** alivelist（markAlive 追加序，op.cc:1022）：块中段重插/move 后与块序发散（OP-ISMOVEABLE-WALKORDER-0001）。point 先于 self 时 Ghidra 越界 UB，Rudra fail-closed 返回 false；索引缺失（Rust 侧异常态）同样 fail-closed。
 - **计数器**: `cross_calls`（普通 op，输出+所有输入均非 addr-tied/persist 时 true）、`moving_load`（LOAD special op）、`tied_list`（addr-tied 输入集合）。
 - **排序/比较键**: `Arc::ptr_eq` 比对 parent 身份（替代 Ghidra 裸指针 `!=`）；`basic_block_index` 按 `PcodeOp` 对象地址在块 ops 中定位（替代 Ghidra `basiciter` O(1) 迭代器，O(块长) 代价、可观测语义恒等）；`readOp->start.getOrder() <= point->start.getOrder()` 判输出被过早读；`op->getEvalType()==special` 后按 `op->code()` switch（LOAD/STORE/INDIRECT/SEGMENTOP/CPOOLREF/CALL/CALLIND/NEW）；`vn->overlap(*op_output)>=0 && op_output->overlap(*vn)>=0` 判 addr-tied 重叠。
 
@@ -587,7 +587,7 @@ Ghidra: `op.cc:178 PcodeOp::isMoveable`。判断该操作是否可在所属基�
 
 #### 用途
 用于：
-- `BlockWhileDo::finalTransform` 的 iterate/initialize 终端搬移门（block.cc:3389-3396 两个调用点，point 均为所在块 lastOp；Rugra 消费方 `block.rs` `while_do_final_transform`）
+- `BlockWhileDo::finalTransform` 的 iterate/initialize 终端搬移门（block.cc:3389-3396 两个调用点，point 均为所在块 lastOp；Rudra 消费方 `block.rs` `while_do_final_transform`）
 - SSA 优化中操作重排
 - 跨操作 dead-code/merge 分析
 - INDIRECT 围绕操作的合法性判断
@@ -599,14 +599,14 @@ Ghidra: `op.cc:178 PcodeOp::isMoveable`。判断该操作是否可在所属基�
 Ghidra: `op.cc:344 PcodeOp::previousOp`。返回在同一基本块内紧邻本 op 之前的 op；本 op 是块首时返回 `None`。搜索范围**不越过所属基本块**。
 
 #### 决定性语义
-- **引用/输出参数**: `&self` 只读；Ghidra 版本无 bank 参数（只读 `basiciter`/`parent`），Rugra 保留 `bank` 参数仅为既有调用点签名兼容，函数体不使用它。
+- **引用/输出参数**: `&self` 只读；Ghidra 版本无 bank 参数（只读 `basiciter`/`parent`），Rudra 保留 `bank` 参数仅为既有调用点签名兼容，函数体不使用它。
 - **遍历顺序**: **父块 op 列表序（`BlockBasic::ops` 的下标序，等价 Ghidra `basiciter` 前驱）**，不是 `alivelist` 的 mark-alive 追加序。`op_insert_before` 晚插入的 op（如 INDIRECT guard）位于块中部但 alivelist 尾部——本函数必须返回它。
 - **计数器**: 无计数器/累加器。
 - **排序/比较键**: 用 `PcodeOp` 对象地址（`&*guard as *const PcodeOp`）在父块 `ops` 中定位自身下标（等价 Ghidra 裸 `PcodeOp*` 身份）；下标为 0（块首）返回 `None`，否则返回 `ops[index-1]`。
 
 #### 注意
-- 死 op / 未挂块 op（`parent == None`）返回 `None`；Ghidra 对 dead op 读 stale `basiciter` 是未定义行为，Rugra 以安全 `None` 收敛（调用方约定只在 alive op 上调用，与 Ghidra 调用点一致）。
-- Ghidra 的 `basiciter` 是 O(1) 存储迭代器；Rugra 按地址重算下标为 O(块大小)，可观察语义一致。
+- 死 op / 未挂块 op（`parent == None`）返回 `None`；Ghidra 对 dead op 读 stale `basiciter` 是未定义行为，Rudra 以安全 `None` 收敛（调用方约定只在 alive op 上调用，与 Ghidra 调用点一致）。
+- Ghidra 的 `basiciter` 是 O(1) 存储迭代器；Rudra 按地址重算下标为 O(块大小)，可观察语义一致。
 - Oracle fixture: `tests/oracle/op_previous_block_order_1204.*`（runner `tools/run_op_previous_block_order_oracle.sh`，状态 MATCH）。
 
 ---
@@ -644,7 +644,7 @@ Ghidra: `op.cc:323 PcodeOp::nextOp`。返回流程上紧随本 op 的下一个 o
 
 ### 为什么需要包装
 
-因为当前 Rugra 的 IR 不是简单的树或线性列表，而是带有共享引用关系的图结构。  
+因为当前 Rudra 的 IR 不是简单的树或线性列表，而是带有共享引用关系的图结构。  
 `PcodeOpRef` 让以下事情更容易处理：
 
 - 存入 bank
@@ -738,7 +738,7 @@ merge/comment/coreaction 与 funcdata 前转器全部调用形态零改动（fun
 `begin_op_all`/`end_op_all` 返回类型随动为 `impl Iterator`）。
 
 **键形态**：键为 `SeqNum` **值快照**（插入时一次短读锁取得），排序即
-`SeqNum::operator<`（address.hh:154-158：先 `pc` 后 `uniq`；Rugra 对应
+`SeqNum::operator<`（address.hh:154-158：先 `pc` 后 `uniq`；Rudra 对应
 `Ord for SeqNum` = `(addr, time)`，不含可变的 `order` 字段）。树下降过程
 只比较键值——**下降内部零 RwLock**。
 
@@ -787,7 +787,7 @@ oracle 的 `++op_state` 是 std::map 节点迭代器 O(1) 均摊后继且跨插�
 
 ### `pub struct PcodeOpBank`
 
-`PcodeOpBank` 是当前 Rugra 中 **统一管理 P-code 操作对象的容器**。
+`PcodeOpBank` 是当前 Rudra 中 **统一管理 P-code 操作对象的容器**。
 
 你可以把它理解为：
 
@@ -803,7 +803,7 @@ oracle 的 `++op_state` 是 std::map 节点迭代器 O(1) 均摊后继且跨插�
 - 清理 dead 操作
 - 销毁指定操作
 
-在 Rugra 当前架构里，它通常会与以下对象协作：
+在 Rudra 当前架构里，它通常会与以下对象协作：
 
 - `Funcdata`
 - `VarnodeBank`（若在其他模块中定义）
@@ -894,7 +894,7 @@ deadlist 做 `retain` 线性扫描（VdbeExec 峰值 dead 3.5K 条/次）。主�
 #### 尾部快速擦除（PERF-VARMAP-OPCREATE-0001，2026-09-29）
 
 oracle `markDead`（op.cc:1028-1034）经存储 `insertiter` 的 `alivelist.erase`
-是 O(1)，随后 `deadlist.insert(end)`。Rugra 原实现 `alivelist.retain` 全表扫描
+是 O(1)，随后 `deadlist.insert(end)`。Rudra 原实现 `alivelist.retain` 全表扫描
 ——[OPCPROF] 实测 VdbeExec 单函数 207,611 次调用/5.58s/均值 32.6K 元素扫描，
 其中 56% 调用（创建形态：`obank::create` 的 alivelist push 紧接
 `Funcdata::newOp` 的 markDead，op.cc:941 → funcdata_op.cc:322-327）op 位于
@@ -1097,7 +1097,7 @@ PcodeOpRaw
 
 ## 11. 一句话总结
 
-`op.rs` 是 Rugra 当前 P-code 操作层的核心建模模块：它定义了**操作节点是什么、如何被标记、如何被引用、如何被统一管理**，并为后续的 SSA、规则重写、控制流分析和打印输出提供操作级基础设施。
+`op.rs` 是 Rudra 当前 P-code 操作层的核心建模模块：它定义了**操作节点是什么、如何被标记、如何被引用、如何被统一管理**，并为后续的 SSA、规则重写、控制流分析和打印输出提供操作级基础设施。
 ## 2026-06-26：is_calculated_bool
 
 - `is_calculated_bool()` — `PcodeOp::isCalculatedBool`（op.hh:211）：检查 CALCULATED_BOOL|BOOLOUTPUT 标志。解锁 RuleBooleanNegate/RuleLogic2Bool。
@@ -1120,7 +1120,7 @@ PcodeOpRaw
 
 ### 2026-06-27（会话2）：is_boolean_flip（解锁 condexe）
 
-- `is_boolean_flip() -> bool` — `PcodeOp::isBooleanFlip`（op.hh:210）：CBRANCH 的布尔语义是否翻转。当为 true 时，CBRANCH 在输入为 TRUE 时走 fallthru 边（FALSE 时跳转）。condexe 的 verifySameCondition + is_true_out_to 用此适配 Rugra 边顺序。
+- `is_boolean_flip() -> bool` — `PcodeOp::isBooleanFlip`（op.hh:210）：CBRANCH 的布尔语义是否翻转。当为 true 时，CBRANCH 在输入为 TRUE 时走 fallthru 边（FALSE 时跳转）。condexe 的 verifySameCondition + is_true_out_to 用此适配 Rudra 边顺序。
 
 ### 2026-06-27（会话2 续）：compare_order（解锁 RuleOrPredicate）
 
@@ -1223,7 +1223,7 @@ cleanup 池对同一根反复返回 change 导致 universal 尾部不收敛。
 
 Ghidra cc:941-948 PcodeOpBank::create 无操作码分配；操作码经 opSetOpcode→
 changeOpcode（op.cc:1005-1012）的 addToCodeList（op.cc:881-900）注册进
-STORE/LOAD/RETURN/CALLOTHER 专用表。Rugra create() 直接收操作码，故在
+STORE/LOAD/RETURN/CALLOTHER 专用表。Rudra create() 直接收操作码，故在
 create 处补 add_to_code_list 以维持"可列表操作码自诞生即在表中"不变量
 （否则 inject_raw_ops 出生的 RETURN 对 begin_op(RETURN) 消费者不可见，
 httpd 语系未锁返回值全体塌缩 `return;`）。change_opcode 的先删后加防双注册。
@@ -1235,7 +1235,7 @@ httpd 语系未锁返回值全体塌缩 `return;`）。change_opcode 的先删�
 从 optree/deadlist/code-list 移除后 `deadandgone.push_back(op)`，op.cc:1203-1209
 clear 才统一 delete）。Ghidra 在容器析构前**从不回收退役操作的内存**，
 正是为了让 iop 空间常量（`RuleIndirectCollapse::getOpFromConst` 等解码的
-裸指针）在原对象销毁后仍可安全读 `isDead()` 等旗标。Rugra 此前 destroy
+裸指针）在原对象销毁后仍可安全读 `isDead()` 等旗标。Rudra 此前 destroy
 直接丢弃 bank 全部句柄 → 末句柄 drop 即释放 → tcache 元数据覆写 Arc 计数/
 `inrefs` → `Funcdata::get_op_from_const` 依据陈旧常量伪造的 `Arc<PcodeOp>`
 在 RuleIndirectCollapse 尾部 drop 时对已释放内存 `-1`，级联 drop 垃圾

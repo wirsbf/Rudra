@@ -23,10 +23,10 @@ ghidra_golden="$repo_root/tests/golden/ghidra_curl_1204.c"
 compare_tool="$repo_root/tools/compare_ghidra.py"
 runner="$repo_root/tools/run_flow_sharedreturn_process_oracle.sh"
 cargo_lock=/tmp/rugra-cargo-build.lock
-cargo_target=${RUGRA_FLOW_SHAREDRETURN_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-target}
-cargo_tmp=${RUGRA_FLOW_SHAREDRETURN_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-tmp}
-bfd_include=${RUGRA_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
-bfd_library=${RUGRA_BFD_LIBRARY:-/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
+cargo_target=${RUDRA_FLOW_SHAREDRETURN_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-target}
+cargo_tmp=${RUDRA_FLOW_SHAREDRETURN_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-tmp}
+bfd_include=${RUDRA_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+bfd_library=${RUDRA_BFD_LIBRARY:-/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
 
 overlay_paths=(
   examples/curl_decompile.rs
@@ -41,7 +41,7 @@ overlay_paths=(
   src/varnode.rs
 )
 
-run_cache=${RUGRA_FLOW_SHAREDRETURN_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-1204}
+run_cache=${RUDRA_FLOW_SHAREDRETURN_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-1204}
 /usr/bin/mkdir -p "$run_cache" "$cargo_tmp"
 oracle_tmp=$(mktemp -d "$run_cache/run.XXXXXX")
 link_tmp=$(mktemp -d "$cargo_tmp/rust-fixture.XXXXXX")
@@ -349,7 +349,7 @@ for key, record in coverage.items():
 require("residual union", residual_union, set(metadata["residual_todo_ids"]))
 PY
 
-if [[ ${RUGRA_FLOW_SHAREDRETURN_VALIDATE_ONLY:-0} == 1 ]]; then
+if [[ ${RUDRA_FLOW_SHAREDRETURN_VALIDATE_ONLY:-0} == 1 ]]; then
   echo "flow_sharedreturn_process_1204 metadata/source lock validation passed"
   exit 0
 fi
@@ -482,7 +482,7 @@ PY
 curl_example="$cargo_target/debug/examples/curl_decompile"
 (cd "$snapshot_root" && "$curl_example" --rugra-selected-function \
   hugehelp progressbarinit >"$oracle_tmp/enabled.c" 2>"$oracle_tmp/enabled.err")
-(cd "$snapshot_root" && RUGRA_DISABLE_SHARED_RETURN=1 \
+(cd "$snapshot_root" && RUDRA_DISABLE_SHARED_RETURN=1 \
   "$curl_example" --rugra-selected-function hugehelp progressbarinit \
   >"$oracle_tmp/disabled.c" 2>"$oracle_tmp/disabled.err")
 python3 "$snapshot_root/tools/compare_ghidra.py" "$oracle_tmp/enabled.c" \

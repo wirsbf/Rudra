@@ -98,7 +98,7 @@ no-image/no-context/never-decoded 状态，`configure_x86_64` 观察零差异。
 本层提供的观测面：`ENGINE_LOADS`（进程级原子计数，仅统计
 `initialize_from_sla` 成功完成的构造）+ `engine_load_count()` 读取器。
 hermetic 单函数子进程期望值为 1；`gen_decompile --one` 在
-`RUGRA_SLEIGH_LOAD_REPORT=1` 时打印 `[GEN] sleigh engine loads=N`
+`RUDRA_SLEIGH_LOAD_REPORT=1` 时打印 `[GEN] sleigh engine loads=N`
 （默认静默，不改变任何协议输出）。亲证（2026-09-26，本车道）：
 修复前 strace openat `x86-64.sla` ×2 + 计数 N/A → 修复后 openat ×1 +
 计数 `loads=1`；canon curl/httpd E2E 输出字节恒等。
@@ -158,15 +158,15 @@ padding, so a linear walk filters NOP-classified ops to keep the oracle's effect
   `snapshot_load_is_graph_identical_to_cold_build` 以冷/快照引擎双侧
   PackedEncode 再编码逐字节相等 + 实指令解码 op-for-op 相等钉死。
 - **缓存键/文件**：`/dev/shm/rugra-sleigh-snapshots/`（或
-  `$RUGRA_SLEIGH_SNAPSHOT_DIR`）下 `<sla FNV64>-<kuna 构建摘要>.v2.snap`；
+  `$RUDRA_SLEIGH_SNAPSHOT_DIR`）下 `<sla FNV64>-<kuna 构建摘要>.v2.snap`；
   kuna 构建摘要由 `crates/kuna-sleigh/build.rs` 对 kuna-base/kuna-num/
   kuna-sleigh 源树内容计算并在编译期嵌入（`kuna_sleigh::BUILD_DIGEST`）——任何
   引擎解码/编码源码变更自动失效旧快照。写入 = tmp + `rename(2)` 原子发布，
   并发首子竞争幂等。
 - **失败策略**：性能 fail-open（任何 miss/损坏/解码错误→冷路径+重写），
   行为 fail-closed（部分解码引擎永不泄出——解码失败的引擎整体丢弃重建）。
-- **开关**：`RUGRA_SLEIGH_SNAPSHOT=0` 全禁用（A/B 恒等证明用）；
-  `RUGRA_SLEIGH_SNAPSHOT_REPORT=1` 输出 `[SNAP] miss/hit/read/decode/write`
+- **开关**：`RUDRA_SLEIGH_SNAPSHOT=0` 全禁用（A/B 恒等证明用）；
+  `RUDRA_SLEIGH_SNAPSHOT_REPORT=1` 输出 `[SNAP] miss/hit/read/decode/write`
   stderr 观察行（默认全静默——stdout 是输出契约面）。
 - **性能注记（本道钻定）**：快照削减的是 ingest(zlib 13ms)+传输层；剩余
   ~74ms 为**图物化本体**（~1.5-2M 次小分配 + 首触缺页 + 首跑指令缓存），

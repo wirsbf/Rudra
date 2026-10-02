@@ -24,7 +24,7 @@ fixture_cc="$repo_root/tests/oracle/pcode_snippet_face_1204.cc"
 fixture_rs="$repo_root/tests/oracle/pcode_snippet_face_1204.rs"
 spec_dir="$repo_root/sleigh_specs"
 
-workroot=${RUGRA_PCODE_SNIPPET_FACE_WORKROOT:-/dev/shm/rugra-tests/pcodeface/runner}
+workroot=${RUDRA_PCODE_SNIPPET_FACE_WORKROOT:-/dev/shm/rugra-tests/pcodeface/runner}
 mkdir -p "$workroot"
 
 for required in "$fixture_cc" "$fixture_rs" "$spec_dir/x86-64.sla"; do

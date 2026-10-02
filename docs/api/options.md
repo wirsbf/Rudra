@@ -25,7 +25,7 @@ Partial port of Ghidra's `options.hh` / `options.cc` (1063 lines).
 validation, registration-order, and state-mutation differences.
 Every option carries per-function `// Ghidra: options.hh/options.cc:<line>`
 mapping comments.
-Some options mutate Rugra `Architecture` state. Options targeting missing
+Some options mutate Rudra `Architecture` state. Options targeting missing
 subsystems generally return a confirmation string without performing the
 corresponding Ghidra state transition.
 
@@ -38,13 +38,13 @@ Ghidra reference: `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/options.{
 
 ## Free functions
 - `on_or_off(p) -> bool` — parse "on"/"off"/empty string. Empty defaults to
-  true, but Rugra currently accepts other values while Ghidra throws
+  true, but Rudra currently accepts other values while Ghidra throws
   `ParseError` (`OPTIONS-0001`).
 - `parse_int_any_base(s) -> Option<i64>` — replicate `std::istringstream`
   basefield-reset semantics: `0x..`→hex, leading `0`→octal, else decimal.
   Sign aware. `// RUDRA-GLUE` (no Ghidra counterpart; C++ uses streams).
 - `parse_uint_any_base(s) -> Option<u64>` — unsigned variant.
-- `alias_block_flag(name) -> Option<i32>` — Rugra symbolic token → bit mask.
+- `alias_block_flag(name) -> Option<i32>` — Rudra symbolic token → bit mask.
   This accepts tokens and combinations not present in Ghidra's four-level
   `none/struct/array/all` model (`OPTIONS-0001`).
 - `get_option_bit(val) -> Result<u32, String>` — translate a split-datatype
@@ -64,7 +64,7 @@ Ghidra reference: `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/options.{
   never renames the current root (action.cc:1049/1024).
 
 ## Module `elem_ids`
-`<optionslist>` XML element ids. Rugra currently holds private `u32` values;
+`<optionslist>` XML element ids. Rudra currently holds private `u32` values;
 these do not match the locked wire IDs and depend on `MARSHAL-ID-0001`.
 - `ELEM_OPTIONSBODY = 174`, `ELEM_OPTIONSHEAD = 175`, `ELEM_OPTIONSLIST = 176`,
   `ELEM_PARAM1 = 177`, `ELEM_PARAM2 = 178`, `ELEM_PARAM3 = 179`.
@@ -76,7 +76,7 @@ Base trait for options (options.hh:75).
 
 ## `OptionDatabase`
 Dispatcher for ArchOption commands (options.hh:106). The C++ class keys its
-map by element id (`uint4`); rugra keys by name string because the `Decoder`
+map by element id (`uint4`); rudra keys by name string because the `Decoder`
 trait resolves element ids to names.
 - `new()` / `default()` — register all 38 built-in options in the order
   Ghidra's constructor uses (options.cc:96-133).
@@ -152,7 +152,7 @@ not parity evidence.
 - `OptionExtraPop` parses its parameter but cannot store it —
   `ProtoModelEntry` has no `extrapop` field.
 - PrintLanguage / ActionDatabase / ContextCache / function-lookup hooks.
-- `nullprinting` name differs from Rugra's registered spelling; the option
+- `nullprinting` name differs from Rudra's registered spelling; the option
   element IDs and registration set/order differ elsewhere (`OPTIONS-0001`).
 - Invalid toggles, numeric bounds, alias levels, NaN rule toggles, and
   `decode_one` error propagation differ from Ghidra (`OPTIONS-0001`).

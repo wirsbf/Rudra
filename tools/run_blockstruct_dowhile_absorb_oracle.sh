@@ -15,7 +15,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 cpp_fixture="$repo_root/tests/oracle/blockstruct_dowhile_absorb_1204.cc"
 rust_fixture="$repo_root/tests/oracle/blockstruct_dowhile_absorb_1204.rs"
 metadata="$repo_root/tests/oracle/blockstruct_dowhile_absorb_1204.metadata.json"
-bfd_root="${RUGRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -60,9 +60,9 @@ PY
 # fixture links the full debug librugra rlib, and the shared /tmp tmpfs
 # user quota can EDQUOT/SIGBUS the linker mid-write. 2026-09-26: default
 # moved off the branch-era author home /home/wirs (absent on this machine,
-# mkdir failed) to $HOME; override with RUGRA_DOWHILE_STAGE_ROOT (salvage
+# mkdir failed) to $HOME; override with RUDRA_DOWHILE_STAGE_ROOT (salvage
 # of wt/sb-fixturehyg 69a8f690, SALVAGE-BRANAUDIT-FIXTUREHYG-PINENV-0001).
-stage_root=${RUGRA_DOWHILE_STAGE_ROOT:-${HOME}/.cache}
+stage_root=${RUDRA_DOWHILE_STAGE_ROOT:-${HOME}/.cache}
 mkdir -p "$stage_root"
 oracle_tmp=$(mktemp -d "$stage_root/rugra-blockstruct-dowhile-1204.XXXXXX")
 cleanup() {

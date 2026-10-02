@@ -1,9 +1,9 @@
 #![allow(clippy::module_name_repetitions)]
 
-//! Function-level semantic snapshot scaffolding for Rugra-Ghidra alignment.
+//! Function-level semantic snapshot scaffolding for Rudra-Ghidra alignment.
 //!
 //! This module provides a **function-oriented, serializable snapshot format**
-//! that can be used to compare Rugra and Ghidra at a granularity that is more
+//! that can be used to compare Rudra and Ghidra at a granularity that is more
 //! meaningful than single-instruction checks.
 //!
 //! The goal of this module is **not** to prove current parity by itself.
@@ -33,7 +33,7 @@
 //! ## Important boundary
 //!
 //! This module is **scaffolding** for batch alignment. It should be understood
-//! as a structured export layer, not as an assertion that Rugra and Ghidra are
+//! as a structured export layer, not as an assertion that Rudra and Ghidra are
 //! already aligned at the function level.
 
 use crate::address::{Address, SeqNum};
@@ -56,7 +56,7 @@ use std::sync::{Arc, RwLock};
 ///
 /// A snapshot is intentionally descriptive rather than prescriptive:
 ///
-/// - it records what Rugra currently observes
+/// - it records what Rudra currently observes
 /// - it does not claim that those observations are already aligned with Ghidra
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FunctionSemanticSnapshot {
@@ -96,7 +96,7 @@ impl FunctionSemanticSnapshot {
     // RUDRA-GLUE: from_funcdata (no Ghidra counterpart found)
     /// Build a snapshot directly from a [`crate::Funcdata`].
     ///
-    /// This is the main construction entrypoint for Rugra-side batch alignment
+    /// This is the main construction entrypoint for Rudra-side batch alignment
     /// scaffolding. It extracts currently observable function-level state and
     /// packages it into a stable, serializable structure.
     pub fn from_funcdata(func: &Funcdata) -> Self {
@@ -179,7 +179,7 @@ impl FunctionSemanticSnapshot {
 /// Identity and coarse metadata for a function.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FunctionIdentitySnapshot {
-    /// Human-readable function name as currently known to Rugra.
+    /// Human-readable function name as currently known to Rudra.
     pub name: String,
 
     /// Function entry address.
@@ -241,7 +241,7 @@ pub struct CfgSnapshot {
 /// Serializable basic block snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BasicBlockSnapshot {
-    /// Block index as currently assigned by Rugra.
+    /// Block index as currently assigned by Rudra.
     pub index: i32,
 
     /// Block start address.
@@ -270,7 +270,7 @@ pub struct SsaVarnodeSnapshot {
     /// Storage identity summary.
     pub varnode: VarnodeSnapshot,
 
-    /// SSA version, if currently meaningful in the Rugra-side representation.
+    /// SSA version, if currently meaningful in the Rudra-side representation.
     pub version: usize,
 
     /// Whether this varnode currently looks like a formal input.
@@ -330,8 +330,8 @@ pub enum SnapshotSemanticLayer {
 
 /// A single semantic mismatch record between two function snapshots.
 ///
-/// This struct is intentionally generic so it can be reused by future Rugra-
-/// side batch runners and by eventual Rugra-vs-Ghidra comparison tooling.
+/// This struct is intentionally generic so it can be reused by future Rudra-
+/// side batch runners and by eventual Rudra-vs-Ghidra comparison tooling.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FunctionSemanticMismatch {
     /// Function entry address used as the mismatch anchor.
@@ -353,7 +353,7 @@ pub struct FunctionSemanticMismatch {
 /// Per-function comparison result summary.
 ///
 /// This is a lightweight result shape that future batch runners can emit after
-/// comparing a Rugra snapshot with a Ghidra snapshot.
+/// comparing a Rudra snapshot with a Ghidra snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FunctionSemanticCompareResult {
     /// Function entry point used as comparison key.
@@ -397,13 +397,13 @@ impl FunctionSemanticCompareResult {
 
     // RUDRA-GLUE: compare (no Ghidra counterpart found)
     /// Compare two function snapshots and return a per-function comparison result.
-    pub fn compare(rugra: &FunctionSemanticSnapshot, reference: &FunctionSemanticSnapshot) -> Self {
-        let mismatches = collect_snapshot_mismatches(rugra, reference);
+    pub fn compare(rudra: &FunctionSemanticSnapshot, reference: &FunctionSemanticSnapshot) -> Self {
+        let mismatches = collect_snapshot_mismatches(rudra, reference);
 
         if mismatches.is_empty() {
-            Self::match_result(rugra)
+            Self::match_result(rudra)
         } else {
-            Self::mismatch_result(rugra, mismatches)
+            Self::mismatch_result(rudra, mismatches)
         }
     }
 }
@@ -443,14 +443,14 @@ impl BatchSemanticCompareReport {
         }
     }
 
-    // RUDRA-GLUE: from_rugra_snapshots (no Ghidra counterpart found)
-    /// Build a batch report from Rugra-side function snapshots without requiring
+    // RUDRA-GLUE: from_rudra_snapshots (no Ghidra counterpart found)
+    /// Build a batch report from Rudra-side function snapshots without requiring
     /// a Ghidra-side reference yet.
     ///
     /// Each snapshot is treated as an individual “matched” entry so the report can
     /// already be used as a batch export / inventory artifact before true
     /// cross-tool comparison is wired in.
-    pub fn from_rugra_snapshots(snapshots: &[FunctionSemanticSnapshot]) -> Self {
+    pub fn from_rudra_snapshots(snapshots: &[FunctionSemanticSnapshot]) -> Self {
         let results = snapshots
             .iter()
             .map(FunctionSemanticCompareResult::match_result)
@@ -528,7 +528,7 @@ impl PartialOrd for SnapshotSemanticLayer {
 }
 
 // RUDRA-GLUE: build_function_snapshots (no Ghidra counterpart found)
-/// Build Rugra-side semantic snapshots for a batch of functions.
+/// Build Rudra-side semantic snapshots for a batch of functions.
 ///
 /// This helper is intentionally simple: it just maps each provided
 /// [`crate::Funcdata`] to a [`FunctionSemanticSnapshot`]. The resulting vector can
@@ -542,27 +542,27 @@ pub fn build_function_snapshots(funcs: &[Funcdata]) -> Vec<FunctionSemanticSnaps
 }
 
 // RUDRA-GLUE: compare_function_snapshots (no Ghidra counterpart found)
-/// Compare a single Rugra-side snapshot against a reference snapshot.
+/// Compare a single Rudra-side snapshot against a reference snapshot.
 pub fn compare_function_snapshots(
-    rugra: &FunctionSemanticSnapshot,
+    rudra: &FunctionSemanticSnapshot,
     reference: &FunctionSemanticSnapshot,
 ) -> FunctionSemanticCompareResult {
-    FunctionSemanticCompareResult::compare(rugra, reference)
+    FunctionSemanticCompareResult::compare(rudra, reference)
 }
 
 // RUDRA-GLUE: compare_snapshot_batches (no Ghidra counterpart found)
-/// Compare Rugra-side snapshots against reference snapshots in batch.
+/// Compare Rudra-side snapshots against reference snapshots in batch.
 ///
-/// Snapshots are paired by function entry address. Any Rugra snapshot without a
+/// Snapshots are paired by function entry address. Any Rudra snapshot without a
 /// matching reference is reported as a function-layer mismatch. Any reference
-/// snapshot without a matching Rugra snapshot is also surfaced as a mismatch
+/// snapshot without a matching Rudra snapshot is also surfaced as a mismatch
 /// entry so the batch report can be used as a real inventory diff, not just a
 /// pairwise compare helper.
 pub fn compare_snapshot_batches(
-    rugra_snapshots: &[FunctionSemanticSnapshot],
+    rudra_snapshots: &[FunctionSemanticSnapshot],
     reference_snapshots: &[FunctionSemanticSnapshot],
 ) -> BatchSemanticCompareReport {
-    let rugra_by_entry = rugra_snapshots
+    let rudra_by_entry = rudra_snapshots
         .iter()
         .map(|snapshot| (snapshot.function.entry, snapshot))
         .collect::<BTreeMap<_, _>>();
@@ -571,7 +571,7 @@ pub fn compare_snapshot_batches(
         .map(|snapshot| (snapshot.function.entry, snapshot))
         .collect::<BTreeMap<_, _>>();
 
-    let all_entries = rugra_by_entry
+    let all_entries = rudra_by_entry
         .keys()
         .chain(reference_by_entry.keys())
         .copied()
@@ -580,21 +580,21 @@ pub fn compare_snapshot_batches(
     let mut results = Vec::new();
 
     for entry in all_entries {
-        match (rugra_by_entry.get(&entry), reference_by_entry.get(&entry)) {
-            (Some(rugra), Some(reference)) => {
-                results.push(compare_function_snapshots(rugra, reference));
+        match (rudra_by_entry.get(&entry), reference_by_entry.get(&entry)) {
+            (Some(rudra), Some(reference)) => {
+                results.push(compare_function_snapshots(rudra, reference));
             }
-            (Some(rugra), None) => {
+            (Some(rudra), None) => {
                 results.push(FunctionSemanticCompareResult::mismatch_result(
-                    rugra,
+                    rudra,
                     vec![FunctionSemanticMismatch {
-                        function_entry: rugra.function.entry,
-                        function_name: rugra.function.name.clone(),
+                        function_entry: rudra.function.entry,
+                        function_name: rudra.function.name.clone(),
                         layer: SnapshotSemanticLayer::Function,
                         code: "missing_reference_function".to_string(),
                         details: format!(
                             "No reference snapshot was found for function {} at {}",
-                            rugra.function.name, rugra.function.entry
+                            rudra.function.name, rudra.function.entry
                         ),
                     }],
                 ));
@@ -608,9 +608,9 @@ pub fn compare_snapshot_batches(
                         function_entry: reference.function.entry,
                         function_name: reference.function.name.clone(),
                         layer: SnapshotSemanticLayer::Function,
-                        code: "missing_rugra_function".to_string(),
+                        code: "missing_rudra_function".to_string(),
                         details: format!(
-                            "No Rugra snapshot was found for function {} at {}",
+                            "No Rudra snapshot was found for function {} at {}",
                             reference.function.name, reference.function.entry
                         ),
                     }],
@@ -660,88 +660,88 @@ pub fn read_snapshots_json_file(
 
 // RUDRA-GLUE: collect_snapshot_mismatches (no Ghidra counterpart found)
 fn collect_snapshot_mismatches(
-    rugra: &FunctionSemanticSnapshot,
+    rudra: &FunctionSemanticSnapshot,
     reference: &FunctionSemanticSnapshot,
 ) -> Vec<FunctionSemanticMismatch> {
     let mut mismatches = Vec::new();
-    let entry = rugra.function.entry;
-    let name = &rugra.function.name;
+    let entry = rudra.function.entry;
+    let name = &rudra.function.name;
 
     // --- Function-level checks ---
 
-    if rugra.schema_version != reference.schema_version {
+    if rudra.schema_version != reference.schema_version {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: name.clone(),
             layer: SnapshotSemanticLayer::Function,
             code: "schema_version_mismatch".to_string(),
             details: format!(
-                "Schema version differs: Rugra {} vs reference {}",
-                rugra.schema_version, reference.schema_version
+                "Schema version differs: Rudra {} vs reference {}",
+                rudra.schema_version, reference.schema_version
             ),
         });
     }
 
-    if rugra.function.name != reference.function.name {
+    if rudra.function.name != reference.function.name {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: name.clone(),
             layer: SnapshotSemanticLayer::Function,
             code: "function_name_mismatch".to_string(),
             details: format!(
-                "Function name differs: Rugra '{}' vs reference '{}'",
-                rugra.function.name, reference.function.name
+                "Function name differs: Rudra '{}' vs reference '{}'",
+                rudra.function.name, reference.function.name
             ),
         });
     }
 
-    if rugra.function.entry != reference.function.entry {
+    if rudra.function.entry != reference.function.entry {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: name.clone(),
             layer: SnapshotSemanticLayer::Function,
             code: "function_entry_mismatch".to_string(),
             details: format!(
-                "Function entry differs: Rugra {} vs reference {}",
-                rugra.function.entry, reference.function.entry
+                "Function entry differs: Rudra {} vs reference {}",
+                rudra.function.entry, reference.function.entry
             ),
         });
     }
 
-    if rugra.function.size != reference.function.size {
+    if rudra.function.size != reference.function.size {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: name.clone(),
             layer: SnapshotSemanticLayer::Function,
             code: "function_size_mismatch".to_string(),
             details: format!(
-                "Function size differs: Rugra {} vs reference {}",
-                rugra.function.size, reference.function.size
+                "Function size differs: Rudra {} vs reference {}",
+                rudra.function.size, reference.function.size
             ),
         });
     }
 
-    if rugra.summary != reference.summary {
+    if rudra.summary != reference.summary {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: name.clone(),
             layer: SnapshotSemanticLayer::Function,
             code: "function_summary_mismatch".to_string(),
             details: format!(
-                "Function summary differs: Rugra {:?} vs reference {:?}",
-                rugra.summary, reference.summary
+                "Function summary differs: Rudra {:?} vs reference {:?}",
+                rudra.summary, reference.summary
             ),
         });
     }
 
     // --- Fine-grained P-code diff ---
-    mismatches.extend(diff_pcode_ops(entry, name, &rugra.pcode, &reference.pcode));
+    mismatches.extend(diff_pcode_ops(entry, name, &rudra.pcode, &reference.pcode));
 
     // --- Fine-grained CFG diff ---
-    mismatches.extend(diff_cfg_blocks(entry, name, &rugra.cfg, &reference.cfg));
+    mismatches.extend(diff_cfg_blocks(entry, name, &rudra.cfg, &reference.cfg));
 
     // --- Fine-grained SSA diff ---
-    mismatches.extend(diff_ssa_varnodes(entry, name, &rugra.ssa, &reference.ssa));
+    mismatches.extend(diff_ssa_varnodes(entry, name, &rudra.ssa, &reference.ssa));
 
     mismatches
 }
@@ -757,28 +757,28 @@ fn collect_snapshot_mismatches(
 fn diff_pcode_ops(
     entry: Address,
     func_name: &str,
-    rugra: &PcodeSnapshot,
+    rudra: &PcodeSnapshot,
     reference: &PcodeSnapshot,
 ) -> Vec<FunctionSemanticMismatch> {
     let mut mismatches = Vec::new();
 
-    if rugra.ops.len() != reference.ops.len() {
+    if rudra.ops.len() != reference.ops.len() {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: func_name.to_string(),
             layer: SnapshotSemanticLayer::Pcode,
             code: "pcode_op_count_mismatch".to_string(),
             details: format!(
-                "P-code op count differs: Rugra {} vs reference {}",
-                rugra.ops.len(),
+                "P-code op count differs: Rudra {} vs reference {}",
+                rudra.ops.len(),
                 reference.ops.len()
             ),
         });
     }
 
-    let paired_len = rugra.ops.len().min(reference.ops.len());
+    let paired_len = rudra.ops.len().min(reference.ops.len());
     for i in 0..paired_len {
-        let r_op = &rugra.ops[i];
+        let r_op = &rudra.ops[i];
         let g_op = &reference.ops[i];
 
         if r_op.opcode != g_op.opcode {
@@ -788,7 +788,7 @@ fn diff_pcode_ops(
                 layer: SnapshotSemanticLayer::Pcode,
                 code: "pcode_opcode_mismatch".to_string(),
                 details: format!(
-                    "Op[{}] opcode differs: Rugra {:?} vs reference {:?} (seq: {:?})",
+                    "Op[{}] opcode differs: Rudra {:?} vs reference {:?} (seq: {:?})",
                     i, r_op.opcode, g_op.opcode, r_op.seq
                 ),
             });
@@ -801,7 +801,7 @@ fn diff_pcode_ops(
                 layer: SnapshotSemanticLayer::Pcode,
                 code: "pcode_output_mismatch".to_string(),
                 details: format!(
-                    "Op[{}] output differs: Rugra {:?} vs reference {:?}",
+                    "Op[{}] output differs: Rudra {:?} vs reference {:?}",
                     i, r_op.output, g_op.output
                 ),
             });
@@ -814,7 +814,7 @@ fn diff_pcode_ops(
                 layer: SnapshotSemanticLayer::Pcode,
                 code: "pcode_input_count_mismatch".to_string(),
                 details: format!(
-                    "Op[{}] input count differs: Rugra {} vs reference {}",
+                    "Op[{}] input count differs: Rudra {} vs reference {}",
                     i,
                     r_op.inputs.len(),
                     g_op.inputs.len()
@@ -829,7 +829,7 @@ fn diff_pcode_ops(
                         layer: SnapshotSemanticLayer::Pcode,
                         code: "pcode_input_varnode_mismatch".to_string(),
                         details: format!(
-                            "Op[{}] input[{}] differs: Rugra {:?} vs reference {:?}",
+                            "Op[{}] input[{}] differs: Rudra {:?} vs reference {:?}",
                             i, slot, r_in, g_in
                         ),
                     });
@@ -839,15 +839,15 @@ fn diff_pcode_ops(
     }
 
     // Report extra ops as trailing mismatches
-    for i in paired_len..rugra.ops.len() {
+    for i in paired_len..rudra.ops.len() {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: func_name.to_string(),
             layer: SnapshotSemanticLayer::Pcode,
-            code: "pcode_extra_rugra_op".to_string(),
+            code: "pcode_extra_rudra_op".to_string(),
             details: format!(
-                "Op[{}] exists only in Rugra: {:?} (seq: {:?})",
-                i, rugra.ops[i].opcode, rugra.ops[i].seq
+                "Op[{}] exists only in Rudra: {:?} (seq: {:?})",
+                i, rudra.ops[i].opcode, rudra.ops[i].seq
             ),
         });
     }
@@ -879,28 +879,28 @@ fn diff_pcode_ops(
 fn diff_cfg_blocks(
     entry: Address,
     func_name: &str,
-    rugra: &CfgSnapshot,
+    rudra: &CfgSnapshot,
     reference: &CfgSnapshot,
 ) -> Vec<FunctionSemanticMismatch> {
     let mut mismatches = Vec::new();
 
-    if rugra.blocks.len() != reference.blocks.len() {
+    if rudra.blocks.len() != reference.blocks.len() {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: func_name.to_string(),
             layer: SnapshotSemanticLayer::Cfg,
             code: "cfg_block_count_mismatch".to_string(),
             details: format!(
-                "Block count differs: Rugra {} vs reference {}",
-                rugra.blocks.len(),
+                "Block count differs: Rudra {} vs reference {}",
+                rudra.blocks.len(),
                 reference.blocks.len()
             ),
         });
     }
 
-    let paired_len = rugra.blocks.len().min(reference.blocks.len());
+    let paired_len = rudra.blocks.len().min(reference.blocks.len());
     for i in 0..paired_len {
-        let r_blk = &rugra.blocks[i];
+        let r_blk = &rudra.blocks[i];
         let g_blk = &reference.blocks[i];
 
         if r_blk.start != g_blk.start {
@@ -910,7 +910,7 @@ fn diff_cfg_blocks(
                 layer: SnapshotSemanticLayer::Cfg,
                 code: "cfg_block_start_mismatch".to_string(),
                 details: format!(
-                    "Block[{}] start address differs: Rugra {} vs reference {}",
+                    "Block[{}] start address differs: Rudra {} vs reference {}",
                     i, r_blk.start, g_blk.start
                 ),
             });
@@ -923,7 +923,7 @@ fn diff_cfg_blocks(
                 layer: SnapshotSemanticLayer::Cfg,
                 code: "cfg_block_successors_mismatch".to_string(),
                 details: format!(
-                    "Block[{}] successors differ: Rugra {:?} vs reference {:?}",
+                    "Block[{}] successors differ: Rudra {:?} vs reference {:?}",
                     i, r_blk.successors, g_blk.successors
                 ),
             });
@@ -936,7 +936,7 @@ fn diff_cfg_blocks(
                 layer: SnapshotSemanticLayer::Cfg,
                 code: "cfg_block_predecessors_mismatch".to_string(),
                 details: format!(
-                    "Block[{}] predecessors differ: Rugra {:?} vs reference {:?}",
+                    "Block[{}] predecessors differ: Rudra {:?} vs reference {:?}",
                     i, r_blk.predecessors, g_blk.predecessors
                 ),
             });
@@ -949,7 +949,7 @@ fn diff_cfg_blocks(
                 layer: SnapshotSemanticLayer::Cfg,
                 code: "cfg_block_ops_count_mismatch".to_string(),
                 details: format!(
-                    "Block[{}] op count differs: Rugra {} vs reference {}",
+                    "Block[{}] op count differs: Rudra {} vs reference {}",
                     i,
                     r_blk.ops.len(),
                     g_blk.ops.len()
@@ -958,15 +958,15 @@ fn diff_cfg_blocks(
         }
     }
 
-    for i in paired_len..rugra.blocks.len() {
+    for i in paired_len..rudra.blocks.len() {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: func_name.to_string(),
             layer: SnapshotSemanticLayer::Cfg,
-            code: "cfg_extra_rugra_block".to_string(),
+            code: "cfg_extra_rudra_block".to_string(),
             details: format!(
-                "Block[{}] exists only in Rugra: start={}",
-                i, rugra.blocks[i].start
+                "Block[{}] exists only in Rudra: start={}",
+                i, rudra.blocks[i].start
             ),
         });
     }
@@ -997,28 +997,28 @@ fn diff_cfg_blocks(
 fn diff_ssa_varnodes(
     entry: Address,
     func_name: &str,
-    rugra: &SsaSnapshot,
+    rudra: &SsaSnapshot,
     reference: &SsaSnapshot,
 ) -> Vec<FunctionSemanticMismatch> {
     let mut mismatches = Vec::new();
 
-    if rugra.varnodes.len() != reference.varnodes.len() {
+    if rudra.varnodes.len() != reference.varnodes.len() {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: func_name.to_string(),
             layer: SnapshotSemanticLayer::Ssa,
             code: "ssa_varnode_count_mismatch".to_string(),
             details: format!(
-                "Varnode count differs: Rugra {} vs reference {}",
-                rugra.varnodes.len(),
+                "Varnode count differs: Rudra {} vs reference {}",
+                rudra.varnodes.len(),
                 reference.varnodes.len()
             ),
         });
     }
 
-    let paired_len = rugra.varnodes.len().min(reference.varnodes.len());
+    let paired_len = rudra.varnodes.len().min(reference.varnodes.len());
     for i in 0..paired_len {
-        let r_vn = &rugra.varnodes[i];
+        let r_vn = &rudra.varnodes[i];
         let g_vn = &reference.varnodes[i];
 
         if r_vn.varnode != g_vn.varnode {
@@ -1028,7 +1028,7 @@ fn diff_ssa_varnodes(
                 layer: SnapshotSemanticLayer::Ssa,
                 code: "ssa_varnode_identity_mismatch".to_string(),
                 details: format!(
-                    "Varnode[{}] identity differs: Rugra {:?} vs reference {:?}",
+                    "Varnode[{}] identity differs: Rudra {:?} vs reference {:?}",
                     i, r_vn.varnode, g_vn.varnode
                 ),
             });
@@ -1041,7 +1041,7 @@ fn diff_ssa_varnodes(
                 layer: SnapshotSemanticLayer::Ssa,
                 code: "ssa_version_mismatch".to_string(),
                 details: format!(
-                    "Varnode[{}] ({:?}) version differs: Rugra {} vs reference {}",
+                    "Varnode[{}] ({:?}) version differs: Rudra {} vs reference {}",
                     i, r_vn.varnode, r_vn.version, g_vn.version
                 ),
             });
@@ -1054,7 +1054,7 @@ fn diff_ssa_varnodes(
                 layer: SnapshotSemanticLayer::Ssa,
                 code: "ssa_input_flag_mismatch".to_string(),
                 details: format!(
-                    "Varnode[{}] is_input differs: Rugra {} vs reference {}",
+                    "Varnode[{}] is_input differs: Rudra {} vs reference {}",
                     i, r_vn.is_input, g_vn.is_input
                 ),
             });
@@ -1067,7 +1067,7 @@ fn diff_ssa_varnodes(
                 layer: SnapshotSemanticLayer::Ssa,
                 code: "ssa_written_flag_mismatch".to_string(),
                 details: format!(
-                    "Varnode[{}] is_written differs: Rugra {} vs reference {}",
+                    "Varnode[{}] is_written differs: Rudra {} vs reference {}",
                     i, r_vn.is_written, g_vn.is_written
                 ),
             });
@@ -1080,7 +1080,7 @@ fn diff_ssa_varnodes(
                 layer: SnapshotSemanticLayer::Ssa,
                 code: "ssa_defining_op_mismatch".to_string(),
                 details: format!(
-                    "Varnode[{}] defining_op differs: Rugra {:?} vs reference {:?}",
+                    "Varnode[{}] defining_op differs: Rudra {:?} vs reference {:?}",
                     i, r_vn.defining_op, g_vn.defining_op
                 ),
             });
@@ -1093,22 +1093,22 @@ fn diff_ssa_varnodes(
                 layer: SnapshotSemanticLayer::Ssa,
                 code: "ssa_uses_mismatch".to_string(),
                 details: format!(
-                    "Varnode[{}] uses differ: Rugra {:?} vs reference {:?}",
+                    "Varnode[{}] uses differ: Rudra {:?} vs reference {:?}",
                     i, r_vn.uses, g_vn.uses
                 ),
             });
         }
     }
 
-    for i in paired_len..rugra.varnodes.len() {
+    for i in paired_len..rudra.varnodes.len() {
         mismatches.push(FunctionSemanticMismatch {
             function_entry: entry,
             function_name: func_name.to_string(),
             layer: SnapshotSemanticLayer::Ssa,
-            code: "ssa_extra_rugra_varnode".to_string(),
+            code: "ssa_extra_rudra_varnode".to_string(),
             details: format!(
-                "Varnode[{}] exists only in Rugra: {:?}",
-                i, rugra.varnodes[i].varnode
+                "Varnode[{}] exists only in Rudra: {:?}",
+                i, rudra.varnodes[i].varnode
             ),
         });
     }
@@ -1455,7 +1455,7 @@ mod tests {
                     },
                 ],
             },
-            tags: vec!["rugra".to_string()],
+            tags: vec!["rudra".to_string()],
             notes: vec!["match".to_string()],
         };
 
@@ -1467,7 +1467,7 @@ mod tests {
 
     #[test]
     fn test_compare_function_snapshots_detects_layered_mismatches() {
-        let rugra = FunctionSemanticSnapshot {
+        let rudra = FunctionSemanticSnapshot {
             schema_version: 1,
             function: FunctionIdentitySnapshot {
                 name: "cmp_bad".to_string(),
@@ -1588,7 +1588,7 @@ mod tests {
             notes: Vec::new(),
         };
 
-        let result = compare_function_snapshots(&rugra, &reference);
+        let result = compare_function_snapshots(&rudra, &reference);
 
         assert!(!result.matched);
         assert!(result
@@ -1611,10 +1611,10 @@ mod tests {
 
     #[test]
     fn test_compare_snapshot_batches_reports_missing_entries() {
-        let rugra = FunctionSemanticSnapshot {
+        let rudra = FunctionSemanticSnapshot {
             schema_version: 1,
             function: FunctionIdentitySnapshot {
-                name: "only_rugra".to_string(),
+                name: "only_rudra".to_string(),
                 entry: Address::new(0x5000),
                 size: 4,
             },
@@ -1653,7 +1653,7 @@ mod tests {
             notes: Vec::new(),
         };
 
-        let report = compare_snapshot_batches(&[rugra], &[reference]);
+        let report = compare_snapshot_batches(&[rudra], &[reference]);
 
         assert_eq!(report.total_functions, 2);
         assert_eq!(report.matched_functions, 0);
@@ -1667,7 +1667,7 @@ mod tests {
             .results
             .iter()
             .flat_map(|result| result.mismatches.iter())
-            .any(|mismatch| mismatch.code == "missing_rugra_function"));
+            .any(|mismatch| mismatch.code == "missing_rudra_function"));
     }
 
     #[test]
@@ -1689,7 +1689,7 @@ mod tests {
             pcode: PcodeSnapshot::default(),
             cfg: CfgSnapshot::default(),
             ssa: SsaSnapshot::default(),
-            tags: vec!["rugra".to_string()],
+            tags: vec!["rudra".to_string()],
             notes: vec!["example".to_string()],
         };
 
@@ -1712,7 +1712,7 @@ mod tests {
     }
 
     #[test]
-    fn test_batch_report_from_rugra_snapshots() {
+    fn test_batch_report_from_rudra_snapshots() {
         let snapshots = vec![
             FunctionSemanticSnapshot {
                 schema_version: 1,
@@ -1756,7 +1756,7 @@ mod tests {
             },
         ];
 
-        let report = BatchSemanticCompareReport::from_rugra_snapshots(&snapshots);
+        let report = BatchSemanticCompareReport::from_rudra_snapshots(&snapshots);
 
         assert_eq!(report.total_functions, 2);
         assert_eq!(report.matched_functions, 2);

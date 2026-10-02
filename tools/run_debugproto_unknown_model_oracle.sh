@@ -14,7 +14,7 @@ set -euo pipefail
 # content from wt2/debugwarn commit 5aecd028 and re-pinned against current
 # master.  Adaptation vs the branch version: the cargo target stages under
 # ${HOME}/.cache (persistent NVMe, not /tmp tmpfs: the shared quota can
-# EDQUOT/SIGBUS the linker mid-write) with the RUGRA_DEBUGPROTO_TARGET_DIR
+# EDQUOT/SIGBUS the linker mid-write) with the RUDRA_DEBUGPROTO_TARGET_DIR
 # override, matching the blockstruct runner path-hygiene convention.
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -109,8 +109,8 @@ g++ -std=c++11 -O1 -I"$bfd_include" -I"$cpp_root" "$cpp_fixture" \
   "$bfd_library" -lz -o "$oracle_tmp/debugproto_unknown_model_1204_cpp"
 
 # Persistent cargo target on the user's home cache (see the salvage note in
-# the header); override with RUGRA_DEBUGPROTO_TARGET_DIR.
-fixture_target=${RUGRA_DEBUGPROTO_TARGET_DIR:-${HOME}/.cache/rugra-debugproto-target}
+# the header); override with RUDRA_DEBUGPROTO_TARGET_DIR.
+fixture_target=${RUDRA_DEBUGPROTO_TARGET_DIR:-${HOME}/.cache/rugra-debugproto-target}
 mkdir -p "$fixture_target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --manifest-path "$repo_root/Cargo.toml" --locked --offline --quiet \

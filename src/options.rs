@@ -22,7 +22,7 @@ use std::collections::HashMap;
 /// Parse an "on" or "off" string into a boolean. Faithful to
 /// `ArchOption::onOrOff` (options.cc:69). An empty string defaults to true.
 ///
-/// Ghidra throws `ParseError` for any other value. Rugra returns `true`
+/// Ghidra throws `ParseError` for any other value. Rudra returns `true`
 /// for unknown values to keep the `apply` signatures side-effect free.
 pub fn on_or_off(p: &str) -> bool {
     if p.is_empty() {
@@ -460,7 +460,7 @@ impl ArchOption for OptionCommentInstruction {
 // ===========================================================================
 /// Configure how integers are rendered (hex/dec/best). Faithful to
 /// `OptionIntegerFormat::apply` (options.cc:505-525). The C++ class stores
-/// `format` and `force` flags used to configure each PrintLanguage. Rugra
+/// `format` and `force` flags used to configure each PrintLanguage. Rudra
 /// has no per-language emitter yet, so we record the request verbatim.
 pub struct OptionIntegerFormat;
 impl ArchOption for OptionIntegerFormat {
@@ -900,7 +900,7 @@ impl ArchOption for OptionSplitDatatypes {
         // getCurrentName() is re-read at each call site, but toggleAction
         // never writes currentactname (action.cc:1049 only reads it; the sole
         // writer is setCurrent at action.cc:1024), so one snapshot is
-        // equivalent for the pair. A `None` database (Rugra's pre-build_action
+        // equivalent for the pair. A `None` database (Rudra's pre-build_action
         // state, unrepresentable for Ghidra's embedded allacts member) skips
         // the toggles — same Option-guard precedent as reset_defaults
         // (architecture.cc:1442 wiring in src/arch.rs).
@@ -1111,7 +1111,7 @@ fn parse_uint_any_base_u64(s: &str) -> Option<u64> {
 // ===========================================================================
 
 // RUDRA-GLUE: ElementId constants. Ghidra uses a runtime ElementId registry
-// (`element.cc`) with names registered in `options.cc` lines 23-63. Rugra
+// (`element.cc`) with names registered in `options.cc` lines 23-63. Rudra
 // defines the numeric IDs as plain constants because the Decoder trait keys
 // off integer IDs (src/marshal.rs:389); the values mirror the locked
 // options.cc registrations (also present in the marshal.rs name table).
@@ -1134,7 +1134,7 @@ pub mod elem_ids {
 /// to `OptionDatabase` (options.hh:106-116).
 ///
 /// The C++ class owns `map<string, ArchOption *> optionmap` and a reference
-/// to the `Architecture`. Rugra stores owned trait objects and clones the
+/// to the `Architecture`. Rudra stores owned trait objects and clones the
 /// architecture reference on each call instead.
 pub struct OptionDatabase {
     // RUDRA-GLUE: Ghidra stores pointers; we store Boxes keyed by option name.
@@ -1503,7 +1503,7 @@ mod tests {
         assert!(on_or_off("on"));
         assert!(!on_or_off("off"));
         assert!(on_or_off(""));
-        // Ghidra throws on unknown; rugra defaults to true.
+        // Ghidra throws on unknown; rudra defaults to true.
         assert!(on_or_off("yes"));
     }
 

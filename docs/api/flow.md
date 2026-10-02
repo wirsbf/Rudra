@@ -32,7 +32,7 @@ core(flow): new src/flow.rs — FlowInfo Phase 1 (reachability flow tracking)
 
 New src/flow.rs implementing Ghidra's FlowInfo reachability-based flow
 tracking (flow.hh:58-169, flow.cc:785-822). This is the core of the
-L1 gap: replaces Rugra's linear scan with address-list-driven decoding.
+L1 gap: replaces Rudra's linear scan with address-list-driven decoding.
 
 ## Components
 
@@ -164,10 +164,10 @@ not yet wired into main.rs; existing linear scan still active).
 5. CALL/CALLIND 在 flow 阶段创建 `FuncCallSpecs`，直接 CALL 的 input(0) 改成
    synthetic call-spec annotation。
 
-真实 `GetStr` 六层 fixture 的直接结果：旧 Rugra 在 RETURN 后仍线性提升的
+真实 `GetStr` 六层 fixture 的直接结果：旧 Rudra 在 RETURN 后仍线性提升的
 `0x3702` 对齐 NOP 已消失；两侧 raw P-code 均为 103 ops / 272 Varnodes、CFG 均为
 6 blocks，并且全部 103 条 op 的 `(address, opcode, input_count, has_output)` 顺序一致。
-两次 Rugra release 运行的六层 JSON 逐字节相同。
+两次 Rudra release 运行的六层 JSON 逐字节相同。
 
 这只是 `PIPE-REACH-0001` 的窄闭环，`flow.rs` 仍是 **L2 / MISMATCH**：
 
@@ -198,7 +198,7 @@ Ghidra `flow.cc:824-845`、`:906-1037` 与 `block.cc:1627-1645` 执行：
    的首个实际 P-code，与 Ghidra `target()` 一致。
 
 真实行为门禁 `tools/run_block_entry_oracle.sh` 用同一个无 PIE x86-64 fixture 分别
-运行锁定的 Ghidra 与 Rugra，完整对比普通 RETURN 与入口自环两条路径的块顺序、
+运行锁定的 Ghidra 与 Rudra，完整对比普通 RETURN 与入口自环两条路径的块顺序、
 入口对象身份/数量/flags、op 数、归一化地址范围、正反向边及 reverse slot。当前
 结果为 `MATCH`。这证明上述窄行为，不代表整个 FlowInfo 或 CFG 模块 L3；
 multiple roots、unreachable pruning、BRANCHIND 和 Action 后 index 仍未覆盖。
@@ -343,7 +343,7 @@ jumptable 内循环之后）、`setPossibleUnreachable` 的设置点 `inlineSubF
     `Call to offcut address within same function` warning。
 - **erase-后继跳过 quirk**：Ghidra 的 `iter = qlst.erase(iter); if (iter ==
   qlst.end()) break;` 加 for 头部 `++iter` 意味着紧随被转换 spec 之后的
-  spec 在本轮**不被检查**。Rugra 以相同索引步进复刻（fixture `multi` case
+  spec 在本轮**不被检查**。Rudra 以相同索引步进复刻（fixture `multi` case
   锁定该行为）。
 - **`generate_ops` 接线**（flow.cc:796-821）：重构为 do-while 形状——jumptable
   内循环（`!branchinds.is_empty()`）之后无条件执行 `check_contained_call()`，
@@ -351,7 +351,7 @@ jumptable 内循环之后）、`setPossibleUnreachable` 的设置点 `inlineSubF
   退出条件保持既有 multistage 近似（`checkMultistageJumptables` 仍未移植）。
 - **possible_unreachable 消费端**（跨域）：`setPossibleUnreachable` 由
   `inlineSubFunction`（flow.cc:1274）设置、`generateBlocks`（flow.cc:843-844）
-  消费 `data.removeUnreachableBlocks(false,true)`。Rugra 的
+  消费 `data.removeUnreachableBlocks(false,true)`。Rudra 的
   `generate_blocks` 已有 `has_possible_unreachable → remove_unreachable_blocks`
   接线；`remove_unreachable_blocks` 本体在 funcdata.rs 的对齐深度属 flow 审计
   另一项（见报告登记的 TODO 建议），本租约未触碰。
@@ -381,7 +381,7 @@ call 均保留为 CPUI_CALL + callspec）。
 
 - **`xref_control_flow` CALLOTHER 臂**（flow.cc:344-348）：
   `arch.userops.get_op(in(0) 常量).is_injected()` → `injectlist.push`。
-  Ghidra 裸解引用 getOp；Rugra 对 Option 缺失按"非注入"守卫。
+  Ghidra 裸解引用 getOp；Rudra 对 Option 缺失按"非注入"守卫。
   `xref_control_flow_at` 扩展为返回（最后处理 op, isfallthru）并透传
   `inject_fc`（Ghidra fc 参数，供 setupCallSpecs/setupCallindSpecs 的注入
   循环检查，flow.cc:337/341）。
@@ -409,7 +409,7 @@ call 均保留为 CPUI_CALL + callspec）。
   PcodeOp owner lookup）→ isInline → injectId≥0：injectSubFunction+
   `Function: <name> replaced with injection: <fixup>` warningHeader+
   deleteCallSpec（inline/query/name/error-channel consumer 仍为 `CALLSPEC-0001`；
-  Rugra callspec 无名时 warning 以 entry 地址拼写）；
+  Rudra callspec 无名时 warning 以 entry 地址拼写）；
   否则 inlineSubFunction+`Inlined function`+deleteCallSpec；收尾
   injectlist.clear()。
 - **`fixture_queue_inject`**（RUDRA-GLUE，snapshot() 同类 fixture 观察 API）：
@@ -428,7 +428,7 @@ call 均保留为 CPUI_CALL + callspec）。
 ### 2026-08-23（续）：`flow_inject_1204` oracle 门禁 MATCH
 
 `tools/run_flow_inject_oracle.sh`（pin-base schema 2，oracle 锁定 commit
-`e40ed130…`，Rugra 源 pin `835456b` + flow.rs/pcodeinject.rs 双 overlay）
+`e40ed130…`，Rudra 源 pin `835456b` + flow.rs/pcodeinject.rs 双 overlay）
 三 case 双侧 stdout 逐字节一致（sha256 `6effd232…`，stderr 空，diff 空）：
 
 - `inject_cpuid`：真实生产路径——x86-64 SLEIGH 对 `cpuid` 指令发射
@@ -462,7 +462,7 @@ space 全域 baddr/eaddr 调用）后修复 curl `glob_word` 5 处
 `visited` 因此含被调者入口与函数体，这是正确行为；Ghidra 不误发的机制是
 `setupCallSpecs` → `queryCall`（flow.cc:660 `queryFunction(entry)` → 662
 `setFuncdata`）解析出 callee Funcdata，使 `checkContainedCall` 的
-`fd != 0 continue`（flow.cc:1367-1368）跳过这些调用。Rugra 的
+`fd != 0 continue`（flow.cc:1367-1368）跳过这些调用。Rudra 的
 `query_call`（flow.rs）此前是 CALLSPEC-0001 no-op、扩展 trait
 `has_funcdata` 恒 false，该守卫从不触发——尾跳污染进 visited 的合法调用
 （`call glob_word` 递归 ×3、override 转换出的 CALL ×2）全部误判为 PIC，
@@ -476,7 +476,7 @@ CALL→BRANCH、callspec 被删，引发 10 级指针链与返回地址常量 st
   切片：入口 + 显示名）；
 - FlowInfo 新增 `resolved_funcdata: BTreeSet<u64>`（按 spec `op_addr` 键控）
   承载"已解析"观察，`check_contained_call` 以集合成员测试实现
-  flow.cc:1367-1368 守卫（RUDRA-GLUE：Rugra FuncCallSpecs 无 per-spec
+  flow.cc:1367-1368 守卫（RUDRA-GLUE：Rudra FuncCallSpecs 无 per-spec
   callee Funcdata 存储，fspec 侧缺口；集合仅在 query_call 写入、
   同一 FlowInfo 生命周期内消费，与 Ghidra spec 内指针同寿）；
 - 扩展 trait `is_inline`/`is_no_return` 从硬编码 false 改为委托
@@ -486,7 +486,7 @@ CALL→BRANCH、callspec 被删，引发 10 级指针链与返回地址常量 st
 **残差**（FLOW-NORETURN-DATA-0001，登记于 fixture metadata）：Ghidra 的
 "Non-Returning Functions - Known" 分析器按名字把 `exit` 类函数标 no-return，
 `copyFlowEffects` 拷贝后 `checkForFlowModification`（flow.cc:641-647）插
-artificialHalt 截断 fall-through；Rugra 前端尚无该数据源，函数体以
+artificialHalt 截断 fall-through；Rudra 前端尚无该数据源，函数体以
 `call exit` 结尾时仍会顺序流进下一函数体（curl glob_word 344 vs golden
 323 字节的过度追踪来源）。flow.rs 侧 is_no_return 委托已就位，等驱动侧
 喂数即生效。`copyFlowEffects` 的 inline 旗标拷贝同属该数据缺口。
@@ -536,7 +536,7 @@ recursion 与 injection 分支尚未逐分支驱动，仍标 `UNTESTED`；FlowIn
 L2，不沿用本文早期“Phase 完成”文字推断全模块对齐。
 
 2026-08-24 的切片 B 另增单块地址序列 `[0,64,32]`：Ghidra 与
-Rugra 都保留默认 code space 身份，范围为闭区间 `[0,64]`，
+Rudra 都保留默认 code space 身份，范围为闭区间 `[0,64]`，
 从而同时锁定完整 `Address` 传递、遍历边界与“块内最大值而非最后
 op”。`BlockBasic` 多范围 copy/merge/marshal 仍归 `BLOCKBASIC-COVER-0001`，
 本 fixture 对该部分保持 `UNTESTED`。
@@ -634,7 +634,7 @@ curl 小范围 A/B 的生产收益是：`hugehelp` callspec/puts `5 -> 6`，
   （flow.cc:663-664，one-way 旗标覆写）。callee `FuncProto` 来自新 FlowInfo 字段
   `callee_func_protos: BTreeMap<u64, FuncProto>`（按 callee 入口地址键控）——
   Ghidra 侧该数据在符号库 Funcdata.funcp 里（"Non-Returning Functions - Known"
-  分析器生产）；Rugra 流时无 per-callee Funcdata，驱动侧经
+  分析器生产）；Rudra 流时无 per-callee Funcdata，驱动侧经
   `follow_flow_with_callee_protos`（`follow_flow` 以空表委托）喂数，
   生产数据源归 FLOW-NORETURN-DATA-0001。表经 `TruncatedFlowState` 随克隆传递
   （Ghidra 的克隆共享同一符号库）。
@@ -644,7 +644,7 @@ curl 小范围 A/B 的生产收益是：`hugehelp` callspec/puts `5 -> 6`，
   fall-through 判定仍看到 CALL → fall-through 照常入队，noreturn 截流失效。
   改为 `fd.obank.insert_after_dead`（funcdata.hh:460 `opDeadInsertAfter` 薄包装
   的逐行镜像）；`truncate_indirect_jump` 的 artificialHalt 同改（flow.cc:767）。
-  该缺陷由双侧 fixture case 1 锁定（Ghidra 删除 addr=5 的 RET ops，Rugra 修复前
+  该缺陷由双侧 fixture case 1 锁定（Ghidra 删除 addr=5 的 RET ops，Rudra 修复前
   仍过度追踪）。
 - **truncate_indirect_jump 重塑为 Ghidra 原形**：参数从自创 `fail_mode: u8`
   重编码改回 `jumptable::RecoveryMode`（消除 `FailNormal as u8 = 1` 误落
@@ -669,7 +669,7 @@ curl 小范围 A/B 的生产收益是：`hugehelp` callspec/puts `5 -> 6`，
 迭代处理（Ghidra `--oiter`）。
 
 **双侧 fixture**：`tests/oracle/noreturn_wire_b_1204.{cc,rs,metadata.json}` +
-`tools/run_noreturn_wire_b_oracle.sh`（锁定 oracle 身份 + Rugra base 快照 +
+`tools/run_noreturn_wire_b_oracle.sh`（锁定 oracle 身份 + Rudra base 快照 +
 src/flow.rs overlay 三件套钉扎）。5 case 双侧 41 行 stdout 逐字节一致
 （`expected ghidra_stdout_sha256 ebf3c910…`）：noreturn callee → spec 位传播 +
 halt 0x1000000 插入 + "Subroutine does not return" + 下游 RET 指令不再访问；
@@ -685,7 +685,7 @@ callspec noret=1 + "Does not return" + noreturn halt；copy_flow_effects 单向
 **生产影响**：生产路径无任何 callee proto 喂入（表恒空）且
 `truncate_indirect_jump` 在 curl 语料 0 次触发（旧诊断 eprintln 0 命中），curl
 E2E 零变化。hasModel（truncate case 的 setInternal 分歧）与 spec name
-（Ghidra CALLIND spec 名按地址派生 vs Rugra 继承 caller funcp 名，既有
+（Ghidra CALLIND spec 名按地址派生 vs Rudra 继承 caller funcp 名，既有
 `setup_call_specs` 构造 quirk）在 fixture 中显式不投影并在 metadata 登记。
 
 ### truncate_indirect_jump noParams 臂补全 + early_jump_table_fail 死表窗口（2026-09-29，FTSINCRMERGE 车道）
@@ -698,7 +698,7 @@ gen 驱动，见对应文档）：
   `iter = op->insertiter; startiter = beginOpDead()`
   （funcdata_block.cc:564-565）是 **dead 表窗口**——recoverJumpTables 时刻
   （FlowInfo::generateOps，flow.cc:792-814；splitBasic 的 markAlive 在
-  flow.cc:1013 之后）所有 lift op 都在 deadlist 里。Rugra 的 flow 阶段以
+  flow.cc:1013 之后）所有 lift op 都在 deadlist 里。Rudra 的 flow 阶段以
   "recovery-time dead-cycle" 复现了同一生命周期，但本函数却查 alivelist →
   `position()` 恒 None → `unwrap_or(0)` → 窗口为空 → 恒返回 Success。
   后果：`ud2`（SLEIGH 语义 `uniq = CALLOTHER invalidInstructionException();
@@ -719,7 +719,7 @@ gen 驱动，见对应文档）：
 同族连带 sqlite3Insert 14→4 / sqlite3ColumnsFromExprList 12→0 /
 sqlite3GenerateColumnNames 12→0 / sqlite3MemoryBarrier 4→0；全语料
 1479→1315（−164），1385/1385 matched，零回退。残差 3 行 =
-func_0x0006a390/0x0006a150 调用输出宽度（Rugra RAX-8+SUB84 物化 vs
+func_0x0006a390/0x0006a150 调用输出宽度（Rudra RAX-8+SUB84 物化 vs
 golden EAX-4 直出，heritage 输出 trial 宽度仲裁域，归
 MCENSUS4-CASTSHAPE-RESID-FIVE-0001 注记，语料内同形 13 站点）。
 
@@ -760,7 +760,7 @@ MCENSUS4-CASTSHAPE-RESID-FIVE-0001 注记，语料内同形 13 站点）。
 - `follow_flow_with_callee_protos` 保留原签名并委托
   `follow_flow_range(baddr=entry)`：历史驱动有界形态,既有调用点
   （curl_decompile 默认路径、getstr_stage_snapshot）行为逐字节不变。
-- 消费方:curl driver 在 `RUGRA_FLOW_MIRROR=1` 时走
+- 消费方:curl driver 在 `RUDRA_FLOW_MIRROR=1` 时走
   `follow_flow_range(0, u64::MAX)`（examples 级 env 门控,默认 off）;
   stage projection 的 META `load_mode` 在同一门下发 `single_function_bfd`
   （STAGE_BISECT_SPEC_1204.md D10）。
@@ -858,7 +858,7 @@ MCENSUS4-CASTSHAPE-RESID-FIVE-0001 注记，语料内同形 13 站点）。
   `setup_callind_specs(op, None)` + `find_callspec_for_op` 链同源。
 - **接线形态**（src/flow.rs `truncate_indirect_jump` `_` 臂）：`fc_owner`
   解析 `Some` 时 `fc.write().set_bad_jump_table(true)`，随后照 Ghidra
-  754→755 顺序发 warning；`None` 守卫沿用 fail_callother 臂先例（Rugra
+  754→755 顺序发 warning；`None` 守卫沿用 fail_callother 臂先例（Rudra
   Option owner 形态的等价守卫，oracle 侧 fc 经 736 行必然存在）。字段/
   访问器/ctor 初值/clone 携带四件 = CALLSPEC 车道 fspec 数据面
   （fspec.hh:1660/1701-1702、fspec.cc:4945/4974，commit deb2b09b）。
@@ -917,7 +917,7 @@ MCENSUS4-CASTSHAPE-RESID-FIVE-0001 注记，语料内同形 13 站点）。
 ### 2026-09-28 — SQLCENSUS-CHARSCAN-BREAKGUARD-0001：block_insert_at_end 补 BlockBasic::insert 的 BRANCHIND 旗标臂
 
 - **根因**：`BlockBasic::insert`（block.cc:2286-2292 尾臂）每次插入 BRANCHIND op 都
-  `setFlag(f_switch_out)`。Rugra 的两个插入路径中 `funcdata.rs insert_op` 有该臂，而
+  `setFlag(f_switch_out)`。Rudra 的两个插入路径中 `funcdata.rs insert_op` 有该臂，而
   follow_flow_range 建块主路径的 end-append 克隆 `block_insert_at_end`（flow.rs，cc:2258
   注解锚）**漏了**——jumptable 派发 bblock 无 f_switch_out。下游两处消费者穿透：
   `BlockBasic::isDoNothing`（block.cc:2604-2613）的 switch-target 守卫（入边来自多出边
@@ -936,11 +936,11 @@ MCENSUS4-CASTSHAPE-RESID-FIVE-0001 注记，语料内同形 13 站点）。
 - **验证**（本道亲测，worktree wt/s5breakguard @ 基 5eff829f）：oracle 侧
   OPACTION_DEBUG harness（锁定 e40ed130 对象树）416 括号全树 dump 证明 oracle 在
   returnsplit 后重建（bracket 278）仍产 Whiledo(overflow)，且 oracle 重建图保有
-  e43c0（Rugra 缺）；修复后两孪生 sqlite3VdbeChangeP4/sqlite3VdbeExplain 均呈
+  e43c0（Rudra 缺）；修复后两孪生 sqlite3VdbeChangeP4/sqlite3VdbeExplain 均呈
   `while( true ) { … break;` golden 形（--func 骨架 401→262，残量=跨族命名/类型）；
   canon curl **54/0/0** / httpd **36/0/0**（=MB30 钉值零回退，httpd md5 c3b4706c
   字节恒等）；镜面五面/bank/tests 见车道终报
-  （/dev/shm/rugra-reports/LANE_S5BREAKGUARD_2026-09-28.md）。
+  （/dev/shm/rudra-reports/LANE_S5BREAKGUARD_2026-09-28.md）。
 
 ## 2026-09-30：dead-list 消费迁 OpId marker（PERF-ARENA-FLIP-0001 (b)）
 

@@ -35,7 +35,7 @@ overlay_paths=(
   src/varnode.rs
 )
 
-cache_root=${RUGRA_TRUNCATED_FLOW_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-truncated-flow-1204}
+cache_root=${RUDRA_TRUNCATED_FLOW_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-truncated-flow-1204}
 cargo_target_dir=${CARGO_TARGET_DIR:-$cache_root/target}
 cargo_tmp_dir=${TMPDIR:-$cache_root/tmp}
 mkdir -p "$cache_root" "$cargo_target_dir" "$cargo_tmp_dir"
@@ -106,7 +106,7 @@ for binding in \
   fi
 done
 
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" ]]; then
   for candidate in /tmp/rugra-ghidra-bfd-2.38/usr/include /usr/include; do
     if [[ -f "$candidate/bfd.h" ]] && \
@@ -116,7 +116,7 @@ if [[ -z "$bfd_include" ]]; then
     fi
   done
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-}
+bfd_library=${RUDRA_BFD_LIBRARY:-}
 if [[ -z "$bfd_library" ]]; then
   for candidate in \
       /tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \
@@ -352,7 +352,7 @@ for observation in observations:
         raise SystemExit("out_of_scope_observations entries must be non-empty")
 PY
 
-if [[ ${RUGRA_TRUNCATED_FLOW_VALIDATE_ONLY:-0} == 1 ]]; then
+if [[ ${RUDRA_TRUNCATED_FLOW_VALIDATE_ONLY:-0} == 1 ]]; then
   echo "truncated_flow_1204 metadata/source lock validation passed"
   exit 0
 fi

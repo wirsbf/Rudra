@@ -5,7 +5,7 @@
 ## 文档状态
 
 - **状态**: 已核对（当前有效）
-- **文档目标**: 说明 Rugra 当前 `pcoderaw.rs` 在主链路中的角色，以及它如何作为 **raw p-code → `Funcdata`** 的桥接层
+- **文档目标**: 说明 Rudra 当前 `pcoderaw.rs` 在主链路中的角色，以及它如何作为 **raw p-code → `Funcdata`** 的桥接层
 - **可信边界**: 本文档描述的是当前工程中“原始 P-code 表示层”的职责与公开接口，不代表：
   - lifting 已与 Ghidra 完全一致
   - raw p-code 已完成运行时对拍
@@ -16,7 +16,7 @@
 
 ## 模块定位
 
-`pcoderaw.rs` 定义了 Rugra 中的 **原始 P-code 操作表示层**。  
+`pcoderaw.rs` 定义了 Rudra 中的 **原始 P-code 操作表示层**。  
 它位于“反汇编 / 指令语义提升”和“正式函数级图结构”之间，用于表达：
 
 - 一条机器指令被拆解后的原始语义操作
@@ -308,7 +308,7 @@ binary / disasm
 
 RUDRA-GLUE 变更器：`Funcdata::overrideFlow` raw 层传输
 （funcdata_op.cc:991-1020 的 `opSetOpcode` 表）需要原地改写 raw op 的
-opcode（BRANCH→CALL 等）。Ghidra 在块形成前直接改 dead `PcodeOp`；Rugra
+opcode（BRANCH→CALL 等）。Ghidra 在块形成前直接改 dead `PcodeOp`；Rudra
 的注入路径在 `inject_raw_ops` phase-1 创建 `PcodeOp` 之前改写 raw op，
 builder API 只覆盖整 op 构造，故补此 setter。消费方：
 `Funcdata::apply_flow_overrides_raw`（见 docs/api/funcdata.md 同日节）。
@@ -665,6 +665,6 @@ raw 层只解决“如何表达原始语义”，不解决后续 SSA、类型恢
 
 ## 一句话总结
 
-`pcoderaw.rs` 是 Rugra 当前主线中的 **raw p-code 桥接层**：  
+`pcoderaw.rs` 是 Rudra 当前主线中的 **raw p-code 桥接层**：  
 它用 `VarnodeRaw` 和 `PcodeOpRaw` 承接 lifting 阶段的原始语义结果，并把这些结果以可注入、可调试、可构造的形式送入 `Funcdata`，为后续正式图结构、分析动作和输出链路提供输入基础。
 <!-- annotation-pass: 2026-07-04 -->

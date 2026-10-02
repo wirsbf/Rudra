@@ -16,7 +16,7 @@
 //!     per first-touched op in modify_list order, count advanced only
 //!     when the application actually modified a traced op.
 //!
-//! Everything is gated on RUGRA_STAGE_DRILL=1: with the env unset every
+//! Everything is gated on RUDRA_STAGE_DRILL=1: with the env unset every
 //! entry point is a no-op and the pipeline behaves byte-identically.
 //!
 //! RUDRA-GLUE: no single Ghidra counterpart — observation-only recorder
@@ -96,10 +96,10 @@ pub fn resolve_iop_seq(ptr: u64) -> Option<String> {
 
 static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
-/// RUGRA_STAGE_DRILL gate, evaluated once per process.
+/// RUDRA_STAGE_DRILL gate, evaluated once per process.
 // RUDRA-GLUE: process env gate standing in for the OPACTION_DEBUG compile-time switch (types.h:82-97); no runtime Ghidra counterpart.
 pub fn is_enabled() -> bool {
-    *ENABLED.get_or_init(|| std::env::var("RUGRA_STAGE_DRILL").is_ok())
+    *ENABLED.get_or_init(|| std::env::var("RUDRA_STAGE_DRILL").is_ok())
 }
 
 /// Bind the formatter's Architecture and reset all recorder state. Called

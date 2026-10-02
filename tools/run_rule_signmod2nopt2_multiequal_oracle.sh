@@ -6,7 +6,7 @@
 #               headers; normal-mode stdout archived at
 #               tests/oracle/rule_signmod2nopt2_multiequal_1204.oracle.out
 #               (sha-pinned below). Live oracle re-verification under
-#               RUGRA_RULEADJ_ORACLE_RUN=1 (see AGENTS.md oracle env note).
+#               RUDRA_RULEADJ_ORACLE_RUN=1 (see AGENTS.md oracle env note).
 # Rugra side  : current worktree lib (cargo build --lib) + the mirrored
 #               tests/oracle/rule_signmod2nopt2_multiequal_1204.rs.
 # Comparand   : normal mode = byte-compare vs the archived oracle record.
@@ -40,11 +40,11 @@ trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # ---- oracle comparand (archive or live) -----------------------------------
 oracle_out="$workdir/oracle_normal.out"
-if [[ ${RUGRA_RULEADJ_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUGRA_RULEADJ_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-subcommute-1204}
+if [[ ${RUDRA_RULEADJ_ORACLE_RUN:-0} == 1 ]]; then
+  cache_root=${RUDRA_RULEADJ_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-subcommute-1204}
   runner="$cache_root/rule_signmod2nopt2_multiequal_1204_cpp"
   if [[ ! -x $runner ]]; then
-    bfd_include=${RUGRA_RULEADJ_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+    bfd_include=${RUDRA_RULEADJ_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
     [[ -d $bfd_include ]] || die "BFD include tree missing: $bfd_include (see AGENTS.md oracle env note)"
     mkdir -p "$cache_root/x"
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \

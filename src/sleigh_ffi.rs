@@ -64,7 +64,7 @@ pub enum SleighErrorKind {
 
 impl SleighErrorKind {
     // RUDRA-GLUE: decode the fixed-width error discriminant used by the C ABI
-    // and the Rust engine alike (sleigh_shim RugraSleighErrorKind values 1-11)
+    // and the Rust engine alike (sleigh_shim RudraSleighErrorKind values 1-11)
     fn from_raw(value: u32) -> Option<Self> {
         match value {
             1 => Some(Self::Unimplemented),
@@ -132,7 +132,7 @@ impl std::error::Error for SleighDecodeError {}
 // RUDRA-GLUE: a per-machine content-addressed cache of the decoded SLEIGH
 // table, so the per-function hermetic child processes stop re-paying the
 // ~0.09s packed `.sla` decode in every exec. The oracle has no counterpart
-// (its golden generator cold-decodes in every child too); this is a Rugra
+// (its golden generator cold-decodes in every child too); this is a Rudra
 // engineering edge whose contract is BEHAVIORAL IDENTITY — a snapshot hit
 // builds the engine through the very same `SleighBase::decode` construction
 // code as the cold path (only the byte transport differs: fixed-width words
@@ -148,13 +148,13 @@ impl std::error::Error for SleighDecodeError {}
 //     the kuna-base/kuna-num/kuna-sleigh source trees — any decode/encode
 //     code change re-keys every snapshot) + the snapshot format version.
 //   * file = "<dir>/<sla_digest>-<build_digest>.v<n>.snap" under
-//     $RUGRA_SLEIGH_SNAPSHOT_DIR or /dev/shm/rugra-sleigh-snapshots
+//     $RUDRA_SLEIGH_SNAPSHOT_DIR or /dev/shm/rudra-sleigh-snapshots
 //     (content-addressed: safe to share across worktrees).
 //   * ANY miss/invalid/corrupt/decode-error falls back to the cold path and
 //     (best-effort) rewrites the snapshot via tmp-file + atomic rename, so
 //     concurrent first children racing to write are idempotent.
-//   * RUGRA_SLEIGH_SNAPSHOT=0 disables the cache entirely (A/B identity
-//     runs); RUGRA_SLEIGH_SNAPSHOT_REPORT=1 emits [SNAP] stderr lines
+//   * RUDRA_SLEIGH_SNAPSHOT=0 disables the cache entirely (A/B identity
+//     runs); RUDRA_SLEIGH_SNAPSHOT_REPORT=1 emits [SNAP] stderr lines
 //     (default fully silent — stdout is an output-contract face).
 mod sleigh_snapshot {
     use std::path::PathBuf;
@@ -186,14 +186,14 @@ mod sleigh_snapshot {
         state
     }
 
-    // RUDRA-GLUE: parse RUGRA_SLEIGH_SNAPSHOT once ("0" disables).
+    // RUDRA-GLUE: parse RUDRA_SLEIGH_SNAPSHOT once ("0" disables).
     pub fn enabled() -> bool {
-        !matches!(std::env::var("RUGRA_SLEIGH_SNAPSHOT"), Ok(value) if value == "0")
+        !matches!(std::env::var("RUDRA_SLEIGH_SNAPSHOT"), Ok(value) if value == "0")
     }
 
-    // RUDRA-GLUE: parse RUGRA_SLEIGH_SNAPSHOT_REPORT once.
+    // RUDRA-GLUE: parse RUDRA_SLEIGH_SNAPSHOT_REPORT once.
     pub fn report_enabled() -> bool {
-        std::env::var_os("RUGRA_SLEIGH_SNAPSHOT_REPORT").is_some()
+        std::env::var_os("RUDRA_SLEIGH_SNAPSHOT_REPORT").is_some()
     }
 
     // RUDRA-GLUE: env-gated stderr observation channel (cache plumbing).
@@ -211,10 +211,10 @@ mod sleigh_snapshot {
     // RUDRA-GLUE: resolve the cache dir (env override, else /dev/shm — the
     // machine's designated cross-process scratch).
     fn cache_dir() -> Option<PathBuf> {
-        if let Some(dir) = std::env::var_os("RUGRA_SLEIGH_SNAPSHOT_DIR") {
+        if let Some(dir) = std::env::var_os("RUDRA_SLEIGH_SNAPSHOT_DIR") {
             return Some(PathBuf::from(dir));
         }
-        Some(PathBuf::from("/dev/shm/rugra-sleigh-snapshots"))
+        Some(PathBuf::from("/dev/shm/rudra-sleigh-snapshots"))
     }
 
     // RUDRA-GLUE: content-addressed cache file name (cache plumbing).
@@ -340,7 +340,7 @@ static SLA_PATH: OnceLock<std::path::PathBuf> = OnceLock::new();
 // (SleighBase::getAllRegisters, sleighbase.cc:182) and all decoding
 // (architecture.cc:627-641 restoreFromSpec installs it as `translate`
 // once). Hermetic one-function drivers print this counter for the
-// load-count gate (RUGRA_SLEIGH_LOAD_REPORT=1); expected value is 1.
+// load-count gate (RUDRA_SLEIGH_LOAD_REPORT=1); expected value is 1.
 static ENGINE_LOADS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 // RUDRA-GLUE: read the PERF-DUAL-SLEIGH-INIT-0001 engine-load counter
@@ -369,8 +369,8 @@ unsafe impl Send for SleighCtx {
     // RUDRA-GLUE: single-thread lifecycle contract inherited from the retired
     // C++ handle: a context is created, used, and dropped on one thread (the
     // C++ SLEIGH object graph was never thread-safe either). The kuna engine
-    // holds `Rc` state with the identical constraint; no rugra caller moves a
-    // lifter across threads (verified: rugra.rs/httpd_decompile create lifters
+    // holds `Rc` state with the identical constraint; no rudra caller moves a
+    // lifter across threads (verified: rudra.rs/httpd_decompile create lifters
     // inside the thread that uses them).
 }
 
@@ -447,7 +447,7 @@ impl SleighCtx {
     // RUDRA-GLUE: legacy length-only wrapper retained until callers consume the
     // atomic `one_instruction` result in SLEIGH-0002D; &mut because the engine
     // freezes image/context here (decode_started, mirroring the retired
-    // rugra_sleigh.cpp:500 behavior)
+    // rudra_sleigh.cpp:500 behavior)
     pub fn instruction_length(&mut self, offset: u64) -> Option<usize> {
         self.backend.instruction_length(offset)
     }
@@ -500,13 +500,13 @@ mod rust_backend {
 
     // Shared mutable image state behind the engine's boxed LoadImage so
     // `try_set_image` can swap bytes in place without replacing the box
-    // (the C++ shim mutates its own `RugraLoadImage` member the same way).
+    // (the C++ shim mutates its own `RudraLoadImage` member the same way).
     struct SharedImageState {
         data: Vec<u8>,
         base_addr: u64,
     }
 
-    // RUDRA-GLUE: `RugraLoadImage` equivalent (sleigh_shim/rugra_sleigh.cpp:88-137):
+    // RUDRA-GLUE: `RudraLoadImage` equivalent (sleigh_shim/rudra_sleigh.cpp:88-137):
     // owns one contiguous byte image; `load_fill` mirrors its exact
     // wrap-subtraction bounds check, partial-copy, and zero-fill semantics.
     struct SharedLoadImage {
@@ -514,12 +514,12 @@ mod rust_backend {
     }
 
     impl LoadImage for SharedLoadImage {
-        // RUDRA-GLUE: mirror of `RugraLoadImage::getArchType`'s sibling name accessor
+        // RUDRA-GLUE: mirror of `RudraLoadImage::getArchType`'s sibling name accessor
         fn get_file_name(&self) -> &str {
-            "rugra"
+            "rudra"
         }
 
-        // RUDRA-GLUE: mirror of RugraLoadImage::loadFill (rugra_sleigh.cpp:108-133):
+        // RUDRA-GLUE: mirror of RudraLoadImage::loadFill (rudra_sleigh.cpp:108-133):
         // unsigned `start - base_addr` modulo wrap (RawLoadImage behavior the shim
         // preserves), DataUnavailError message text identical, `min(requested,
         // available)` copy then zero-fill of the remainder.
@@ -544,12 +544,12 @@ mod rust_backend {
             Ok(())
         }
 
-        // RUDRA-GLUE: mirror of RugraLoadImage::getArchType (rugra_sleigh.cpp:135)
+        // RUDRA-GLUE: mirror of RudraLoadImage::getArchType (rudra_sleigh.cpp:135)
         fn get_arch_type(&self) -> Vec<u8> {
-            b"rugra".to_vec()
+            b"rudra".to_vec()
         }
 
-        // RUDRA-GLUE: mirror of RugraLoadImage::adjustVma (rugra_sleigh.cpp:136 no-op)
+        // RUDRA-GLUE: mirror of RudraLoadImage::adjustVma (rudra_sleigh.cpp:136 no-op)
         fn adjust_vma(&mut self, _adjust: i64) {}
     }
 
@@ -559,7 +559,7 @@ mod rust_backend {
     // wire value to the space index, so the wire bytes agree.
     const SIZEOF_SPACE: u32 = 8;
 
-    // RUDRA-GLUE: `RugraPcodeEmit` equivalent (sleigh_shim/rugra_sleigh.cpp:154-244).
+    // RUDRA-GLUE: `RudraPcodeEmit` equivalent (sleigh_shim/rudra_sleigh.cpp:154-244).
     // Identity is keyed by the address of each emitted varnode: the kuna engine
     // emits `&pool[range]` slices after the whole instruction is built
     // (one_instruction -> PcodeCacher::emit, mirroring sleigh.cc:776
@@ -577,7 +577,7 @@ mod rust_backend {
     }
 
     impl RustPcodeCollector {
-        // RUDRA-GLUE: mirror of RugraPcodeEmit's constructor space table setup
+        // RUDRA-GLUE: mirror of RudraPcodeEmit's constructor space table setup
         fn new(engine: &Sleigh) -> Self {
             let manager = engine.manager_rc();
             let const_space_index = manager
@@ -608,7 +608,7 @@ mod rust_backend {
             }
         }
 
-        // RUDRA-GLUE: mirror of RugraPcodeEmit::requireSpaceIndex; kuna's
+        // RUDRA-GLUE: mirror of RudraPcodeEmit::requireSpaceIndex; kuna's
         // `Option<Rc<AddrSpace>>` carries the manager index directly.
         fn require_space_index(&mut self, space: Option<&Rc<kuna_base::space::AddrSpace>>) -> i32 {
             match space {
@@ -620,7 +620,7 @@ mod rust_backend {
             }
         }
 
-        // RUDRA-GLUE: mirror of RugraPcodeEmit::identityFor over pool slot addresses
+        // RUDRA-GLUE: mirror of RudraPcodeEmit::identityFor over pool slot addresses
         fn identity_for(&mut self, varnode: &VarnodeData) -> u64 {
             let key = std::ptr::from_ref(varnode) as usize;
             if let Some(existing) = self.identities.get(&key) {
@@ -632,7 +632,7 @@ mod rust_backend {
             identity
         }
 
-        // RUDRA-GLUE: mirror of RugraPcodeEmit::copyVarnode (rugra_sleigh.cpp:181-205);
+        // RUDRA-GLUE: mirror of RudraPcodeEmit::copyVarnode (rudra_sleigh.cpp:181-205);
         // LOAD/STORE input 0 is normalized to the target space index on the wire.
         fn copy_varnode(
             &mut self,
@@ -684,7 +684,7 @@ mod rust_backend {
     }
 
     impl PcodeEmit for RustPcodeCollector {
-        // RUDRA-GLUE: mirror of RugraPcodeEmit::dump (rugra_sleigh.cpp:222-243)
+        // RUDRA-GLUE: mirror of RudraPcodeEmit::dump (rudra_sleigh.cpp:222-243)
         fn dump(
             &mut self,
             addr: &Address,
@@ -721,7 +721,7 @@ mod rust_backend {
     }
 
     impl RustSleighEngine {
-        // RUDRA-GLUE: mirror of rugra_sleigh_create (rugra_sleigh.cpp:325-348):
+        // RUDRA-GLUE: mirror of rudra_sleigh_create (rudra_sleigh.cpp:325-348):
         // construct Sleigh(loader, ContextInternal), then initialize from the
         // .sla file; any failure maps to None exactly like the C++ catch-all.
         // SPEEDPROF-SLEIGH-SNAPSHOT-0001: initialization first tries the
@@ -788,7 +788,7 @@ mod rust_backend {
         }
 
         // RUDRA-GLUE: one bare Sleigh construction (loader + context db) with
-        // its shared image state — the shape rugra_sleigh_create wraps. The
+        // its shared image state — the shape rudra_sleigh_create wraps. The
         // image Rc is threaded out so `try_set_image` keeps swapping bytes in
         // place inside the loader (the C++ shim mutates its own member the
         // same way).
@@ -804,7 +804,7 @@ mod rust_backend {
             )
         }
 
-        // RUDRA-GLUE: mirror of rugra_sleigh_set_image (rugra_sleigh.cpp:350-372):
+        // RUDRA-GLUE: mirror of rudra_sleigh_set_image (rudra_sleigh.cpp:350-372):
         // the decode_started guard is InvalidState; a zero-length image is the
         // same "empty vector" state the C++ setBytes produced.
         pub(crate) fn try_set_image(
@@ -825,7 +825,7 @@ mod rust_backend {
             Ok(())
         }
 
-        // RUDRA-GLUE: mirror of rugra_sleigh_set_context (rugra_sleigh.cpp:374-396):
+        // RUDRA-GLUE: mirror of rudra_sleigh_set_context (rudra_sleigh.cpp:374-396):
         // ContextInternal::setVariableDefault with the decode_started guard.
         pub(crate) fn try_set_context(
             &mut self,
@@ -844,7 +844,7 @@ mod rust_backend {
                 .map_err(map_kuna_error)
         }
 
-        // RUDRA-GLUE: mirror of rugra_sleigh_decode (rugra_sleigh.cpp:398-417):
+        // RUDRA-GLUE: mirror of rudra_sleigh_decode (rudra_sleigh.cpp:398-417):
         // decode at Address(defaultCodeSpace, offset) through the collector,
         // surfacing a deferred emitter failure over a successful decode.
         pub(crate) fn one_instruction(
@@ -902,7 +902,7 @@ mod rust_backend {
             Some(mnemonic)
         }
 
-        // RUDRA-GLUE: mirror of rugra_sleigh_instruction_length (rugra_sleigh.cpp:496-507):
+        // RUDRA-GLUE: mirror of rudra_sleigh_instruction_length (rudra_sleigh.cpp:496-507):
         // the C++ shim sets decode_started here too (the parse tree cache is
         // consulted), so a later set_image/set_context returns InvalidState;
         // any decode failure folds to None exactly like the C++ catch -> -1.
@@ -921,12 +921,12 @@ mod rust_backend {
             }
         }
 
-        // RUDRA-GLUE: mirror of rugra_sleigh_num_spaces over the kuna manager
+        // RUDRA-GLUE: mirror of rudra_sleigh_num_spaces over the kuna manager
         pub(crate) fn num_spaces(&self) -> usize {
             usize::try_from(self.sleigh.manager_rc().num_spaces()).unwrap_or(0)
         }
 
-        // RUDRA-GLUE: mirror of rugra_sleigh_space_info (spacetype ordinals
+        // RUDRA-GLUE: mirror of rudra_sleigh_space_info (spacetype ordinals
         // match space.hh IPTR_* on both sides)
         pub(crate) fn space_info(&self, index: usize) -> Option<(i32, String)> {
             let index = i32::try_from(index).ok()?;
@@ -935,14 +935,14 @@ mod rust_backend {
             Some((space.get_type() as i32, space.get_name().to_string()))
         }
 
-        // RUDRA-GLUE: mirror of rugra_sleigh_num_registers over the kuna register
+        // RUDRA-GLUE: mirror of rudra_sleigh_num_registers over the kuna register
         // cross-reference (BTreeMap ordered by VarnodeData::operator< like the
         // C++ std::map the shim copied out of)
         pub(crate) fn num_registers(&self) -> usize {
             self.sleigh.base().get_all_registers().len()
         }
 
-        // RUDRA-GLUE: mirror of rugra_sleigh_register_info (same map order)
+        // RUDRA-GLUE: mirror of rudra_sleigh_register_info (same map order)
         pub(crate) fn register_info(&self, index: usize) -> Option<(String, i32, u64, i32)> {
             let registers = self.sleigh.base().get_all_registers();
             let storage = registers.keys().nth(index)?;
@@ -967,7 +967,7 @@ mod rust_backend {
         }
     }
 
-    // RUDRA-GLUE: mirror of captureCurrentException (rugra_sleigh.cpp:296-319).
+    // RUDRA-GLUE: mirror of captureCurrentException (rudra_sleigh.cpp:296-319).
     // The C++ catch order maps: UnimplError(1) -> BadDataError(2) ->
     // DataUnavailError(3) -> SleighError(4) -> LowlevelError(5) ->
     // DecoderError(6) -> bad_alloc(11) -> std::exception(7) -> unknown(8).

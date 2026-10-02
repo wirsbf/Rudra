@@ -10,7 +10,7 @@
 //!
 //! Ghidra uses raw `TransformVar*` / `TransformOp*` pointers into
 //! `list<TransformVar>` / `list<TransformOp>` owned by `TransformManager`.
-//! Rugra mirrors this with arena-style ID indexing: `TransformManager` owns
+//! Rudra mirrors this with arena-style ID indexing: `TransformManager` owns
 //! `Vec<TransformVar>` and `Vec<TransformOp>`, and references are stable
 //! `usize` indices. Split arrays (Ghidra's `new TransformVar[n]`) are stored
 //! as contiguous runs whose start index is recorded in `piece_map`.
@@ -93,7 +93,7 @@ impl LanedRegister {
             }
             let sz: i32 = tok.parse().unwrap_or(-1);
             if sz < 0 || sz > 16 {
-                // Ghidra throws LowlevelError; Rugra logs and skips.
+                // Ghidra throws LowlevelError; Rudra logs and skips.
                 eprintln!("[TRANSFORM] Bad lane size: {}", tok);
                 continue;
             }
@@ -406,7 +406,7 @@ impl TransformVar {
                 let mut byte_pos = self.val as i32;
                 if (byte_pos & 7) != 0 {
                     // cc:197-198 throws LowlevelError("Varnode piece is not
-                    // byte aligned"); panic! is Rugra's established
+                    // byte aligned"); panic! is Rudra's established
                     // LowlevelError mapping (cf. funcdata.rs opSetOutput
                     // precondition, funcdata.rs:1706).
                     panic!("Varnode piece is not byte aligned");
@@ -425,7 +425,7 @@ impl TransformVar {
                     byte_pos = vn_size - byte_pos - self.byte_size;
                 }
                 let addr = Address::new(vn_offset + byte_pos as u64);
-                // renormal(byteSize) is a no-op for Rugra's Address (no sub-byte
+                // renormal(byteSize) is a no-op for Rudra's Address (no sub-byte
                 // alignment tracking); the address is already byte-aligned.
                 // transform.cc:202-207: the piece address stays in the ORIGINAL
                 // varnode's space (`Address addr = vn->getAddr() + bytePos`
@@ -452,7 +452,7 @@ impl TransformVar {
                 // global) — RuleEarlyRemoval/ActionDeadCode then ate the
                 // write-back lattice (READINODE2 drill, read_super
                 // xRam156858: oracle earlyremoval 6785 keeps the 6-byte
-                // return-copy via isAutoLive; Rugra killed it at 6257).
+                // return-copy via isAutoLive; Rudra killed it at 6257).
                 {
                     let orig = self.vn.as_ref().expect("piece vn").clone();
                     let repl = self.replacement.as_ref().expect("piece replacement").clone();
@@ -471,7 +471,7 @@ impl TransformVar {
                 // never as a const-space constant. getOpFromConst is a bare
                 // `(PcodeOp*)(uintp)addr.getOffset()` (op.hh:249): a zero
                 // offset decodes to a NULL PcodeOp* (valid, non-dereferenced
-                // in Ghidra); Rugra models that as None, and newVarnodeIop
+                // in Ghidra); Rudra models that as None, and newVarnodeIop
                 // then re-encodes offset 0 (funcdata_varnode.cc:176-184) —
                 // the annotation flag comes from the Varnode ctor
                 // (varnode.cc:599-601) and assignHigh is the annotation
@@ -500,12 +500,12 @@ impl TransformVar {
 /// offset-based overload of `Funcdata::get_op_from_const` (funcdata.rs,
 /// varnode-parametered) mirroring transform.cc:213, where the Address is
 /// constructed directly from the placeholder value without a materialized
-/// Varnode. Rugra decodes the same `Arc::as_ptr` encoding written by
+/// Varnode. Rudra decodes the same `Arc::as_ptr` encoding written by
 /// `Funcdata::new_varnode_iop` (funcdata.rs).
 ///
 /// Ghidra's decode is a nullable `(PcodeOp*)(uintp)addr.getOffset()`; offset
 /// 0 decodes to NULL, which `newVarnodeIop` re-encodes without dereferencing.
-/// The safe Rugra form resolves the offset by IDENTITY SEARCH over the op
+/// The safe Rudra form resolves the offset by IDENTITY SEARCH over the op
 /// bank (optree + deadandgone — destroy keeps the allocation bank-resident,
 /// op.cc:984-999, so retired targets still resolve): the producer contract
 /// (`OPBANK-0001`, cf. `Funcdata::get_op_from_const`) guarantees the encoded
@@ -1143,7 +1143,7 @@ impl TransformManager {
             let input_len = self.new_ops[op_idx].input.len();
             // cc:239: fd->newOp(input.size(), op->getAddr()) — Ghidra's
             // PcodeOp ctor (op.cc:71, `inrefs(s)`) pre-sizes the input slots
-            // to NULL; Rugra's PcodeOpBank::create only reserves capacity, so
+            // to NULL; Rudra's PcodeOpBank::create only reserves capacity, so
             // pre-fill sentinels to keep numInput identical until placeInputs
             // (transform.cc:747-751) overwrites every slot.
             let newop = fd.new_op(input_len, addr);
@@ -1272,7 +1272,7 @@ impl TransformManager {
             }
         }
         // Create standalone (non-piece-map) varnodes.
-        // Ghidra iterates newVarnodes (the list of non-piece-map vars). Rugra
+        // Ghidra iterates newVarnodes (the list of non-piece-map vars). Rudra
         // stores everything in one arena; standalone vars are those not in any
         // piece_map range. For simplicity, create all uncreated non-piece vars.
         let standalone_indices: Vec<usize> = (0..self.new_varnodes.len())

@@ -101,10 +101,10 @@ Manages splitting based on records (prefersplit.hh:33-72).
   Written Varnodes must have `hasNoDescend` and be defined by COPY/PIECE/LOAD/
   INT_ZEXT; unwritten Varnodes must be free with a single descendant (loneDescend)
   that is a COPY/SUBPIECE/STORE.
-- **splitRecord** re-iterates `loc_tree` after each successful split (Rugra
+- **splitRecord** re-iterates `loc_tree` after each successful split (Rudra
   loops until no matches remain), matching Ghidra's iterator regeneration.
 - **splitAdditional** scans `tempsplits` for SUBPIECE inputs / PIECE outputs in
   Unique space, then runs `testTemporary` + `splitTemporary` on each candidate.
-- **Endianness** is read from the Varnode's space (`is_big_endian`); Rugra's
+- **Endianness** is read from the Varnode's space (`is_big_endian`); Rudra's
   `AddressSpace::is_big_endian` currently returns false (little-endian default).
 <!-- annotation-pass: 2026-07-04 -->

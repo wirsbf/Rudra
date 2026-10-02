@@ -536,7 +536,7 @@ fn operator_syntax(opc: OpCode) -> (&'static str, bool) {
 
 /// Ghidra's `Varnode::isHeritageKnown` (varnode.hh):
 /// `(flags & (insert|constant|annotation)) != 0`. Replicated locally because
-/// rugra's `Varnode` does not yet expose this accessor.
+/// rudra's `Varnode` does not yet expose this accessor.
 // RUDRA-GLUE: free helper mirroring varnode.hh isHeritageKnown flag check
 fn is_heritage_known(vn: &Varnode) -> bool {
     let mask = varnode_flags::INSERT | varnode_flags::CONSTANT | varnode_flags::ANNOTATION;
@@ -1638,8 +1638,8 @@ impl UnifyConstraint for ConstraintLoneDescend {
 
 /// Find the input-slot index holding varnode `vn` on op `op` (pointer
 /// identity). Stands in for Ghidra's `PcodeOp::getSlot(Varnode*)` which
-/// rugra's `PcodeOp` does not yet expose.
-// RUDRA-GLUE: free helper standing in for PcodeOp::getSlot(Varnode*) (op.hh) not yet exposed on rugra PcodeOp
+/// rudra's `PcodeOp` does not yet expose.
+// RUDRA-GLUE: free helper standing in for PcodeOp::getSlot(Varnode*) (op.hh) not yet exposed on rudra PcodeOp
 fn find_input_slot(op: &PcodeOp, vn: &VnArc) -> Option<usize> {
     for (i, input) in op.inrefs.iter().enumerate() {
         if Arc::ptr_eq(input, vn) { return Some(i); }

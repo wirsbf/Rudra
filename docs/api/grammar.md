@@ -5,7 +5,7 @@ Faithful port of Ghidra's `grammar.hh` / `grammar.cc` (3338 lines).
 **Status:** 🔧 **L2 / overall MISMATCH**. GrammarToken + GrammarLexer +
 TypeModifier/TypeDeclarator + TypeSpecifiers/Enumerator + the CParse parser
 framework and entry functions are present. Series C routes PointerModifier
-through TypeFactory's canonical unnamed pointer tree, but Rugra still lacks
+through TypeFactory's canonical unnamed pointer tree, but Rudra still lacks
 the `Architecture *glb` channel needed to observe a non-unit default-space
 wordsize, and this changed projection remains `NO_ORACLE` until the series-D
 bilateral fixture. Existing recursive-descent/bison gaps below also preclude
@@ -137,11 +137,11 @@ Document type requested from the parser (grammar.hh:217): `Declaration`,
   oracle definition), with the free `mod_type` acting as the enum-dispatch
   twin of the C++ virtual call sites (`TypeDeclarator::buildType`
   grammar.cc:2501 / `getPrototype` grammar.cc:2542). The dispatch consults
-  Rugra's `TypeFactory` (`get_type_pointer_default` / `get_array` /
+  Rudra's `TypeFactory` (`get_type_pointer_default` / `get_array` /
   `get_type_code`). PointerModifier no longer uses the legacy pointee-name
   cache: distinct anonymous array bases retain distinct pointer identities,
   and repeat construction aliases the direct canonical pointer. The wrapper
-  uses the factory's default address size and Rugra's currently modelled
+  uses the factory's default address size and Rudra's currently modelled
   default wordsize 1; until Architecture wires `setupSizes`, only its layout
   calculation uses TypeFactory's registered compatibility fallback.
   Arbitrary architecture wordsize remains `TYPE-0001`.
@@ -156,7 +156,7 @@ Document type requested from the parser (grammar.hh:217): `Declaration`,
   (type.cc:3635-3640) the lenient twin read, so the resolved `Arc` is
   identical.
 - `CParse::newFunc`'s varargs trailer is encoded as a sentinel declarator with
-  `flags == u32::MAX` (Rugra-private; flagged `RUDRA-GLUE`), since Rust cannot
+  `flags == u32::MAX` (Rudra-private; flagged `RUDRA-GLUE`), since Rust cannot
   store a `null` slot in `Vec<TypeDeclarator>`.
 
 ## L3 gaps

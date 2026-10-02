@@ -41,7 +41,7 @@ SPEEDPROF-ACTIONLOOP-RESTART-0001。oracle 侧亲读判定（action.cc:553-582 �
 5. 派发内两个 `get_name().to_string()` 每次分配删除（drillobserve::flush 本取
    &str；issue_warning 用 rules/rule_states 不相交字段借用）。
 
-同 commit 新增 env 门控观察计数 `RUGRA_ACTION_STATS=1`（stderr
+同 commit 新增 env 门控观察计数 `RUDRA_ACTION_STATS=1`（stderr
 `[ACTIONSTATS]` 行：per 重启边界的 perform/pool_passes/ops/rule_tries/rule_hits
 累计——重启放大事件级量化通道，与 oracle Rule::count_tests 同类事件账）。
 行为恒等链：canon 双语素 md5 恒等 + 镜面五面钉值 + bank 391（见票行验收）。
@@ -847,7 +847,7 @@ Funcdata ready
   ActionPool 闭包 MATCH。
 - 接入 `set_default_actions`：`ActionStart` → `ActionHeritage` → **`ActionSpacebase`** → `ActionStackPtrFlow` → `ActionSimplify` → `build_simplify_pool()` → `build_cleanup_pool()` → ... → `ActionCallParams` → **`ActionRestrictLocal`**（2026-06-29 新增）→ `ActionDeadCode` → ...
 
-**验证（2026-06-28 量化核实）**：`ActionPool::apply` 增加可选 per-Rule 触发计数（环境变量 `RUGRA_RULE_STATS=1` 开启，默认关闭，不影响行为）。实测 `RUGRA_RULE_STATS=1 cargo run --example curl_decompile`：curl 24 函数反编译中 Rule 池触发 **515 次简化**，涉及 **21 个不同 Rule**（propagate_copy 244 / and_mask 43 / sub2_add 40 / less2_zero 39 / or_consume 29 / collapse_constants 23 / add_mult_collapse 20 / mult_neg_one 18 / 2comp2sub 18 / bool_negate 11 / ...）。**此前声称"实际反编译不触发任何 Rule 简化"为过期误判，已作废。** 776/776 测试通过，curl 24/24 + httpd 29/29 gcc 审计，0 goto。
+**验证（2026-06-28 量化核实）**：`ActionPool::apply` 增加可选 per-Rule 触发计数（环境变量 `RUDRA_RULE_STATS=1` 开启，默认关闭，不影响行为）。实测 `RUDRA_RULE_STATS=1 cargo run --example curl_decompile`：curl 24 函数反编译中 Rule 池触发 **515 次简化**，涉及 **21 个不同 Rule**（propagate_copy 244 / and_mask 43 / sub2_add 40 / less2_zero 39 / or_consume 29 / collapse_constants 23 / add_mult_collapse 20 / mult_neg_one 18 / 2comp2sub 18 / bool_negate 11 / ...）。**此前声称"实际反编译不触发任何 Rule 简化"为过期误判，已作废。** 776/776 测试通过，curl 24/24 + httpd 29/29 gcc 审计，0 goto。
 
 **注意**：**2026-06-29 ActionSpacebase 接入后，uVar 碎片 149→0**（此前的说明"uVar 碎片数未变 149"已过时）。spacebase 标记让 varmap/printc 正确识别 RSP 为栈空间指针，消除了变量恢复层的 def 断链问题。
 
@@ -931,7 +931,7 @@ ActionGroup.perform 重写为迭代式：循环调 self.apply()，不递归进�
   - `cargo test --lib` 961/961 通过，零回归零挂起。
   - curl_decompile 连跑 3 次：rc=0，1281 行，glob_range 函数体完整（1266 字符，以 `}` 收尾），**无栈溢出**。
   - func_gap_audit（vs tests/golden/ghidra_curl.c）：0 EXACT / 24 DIFF — 与移除前**完全一致**（输出中性）。即此改动既未引入回归也未带来改善，但消除了收敛性阻塞，为后续 Rule 多轮简化生效扫清障碍。
-- **诚实声明**：本次改动对 curl 当前输出**无可见影响**（return-V^V 等缺陷未变）。其根因经诊断（RUGRA_DBG_XOR）证实不在迭代上限，而在更深处（main_init 的 `iVar1^iVar1` 中 iVar1 为未初始化 varnode，由 printc 返回值启发式合成，非真实 `xor eax,eax`）。单指令 `xor eax,eax` 提升测试（test_xor_eax_eax_input_identity）证明 lifter 的 varnode 身份 dedup 正确（ptreq=true），故 main_init 缺陷需在返回值恢复层（ActionReturnRecovery）继续追查。
+- **诚实声明**：本次改动对 curl 当前输出**无可见影响**（return-V^V 等缺陷未变）。其根因经诊断（RUDRA_DBG_XOR）证实不在迭代上限，而在更深处（main_init 的 `iVar1^iVar1` 中 iVar1 为未初始化 varnode，由 printc 返回值启发式合成，非真实 `xor eax,eax`）。单指令 `xor eax,eax` 提升测试（test_xor_eax_eax_input_identity）证明 lifter 的 varnode 身份 dedup 正确（ptreq=true），故 main_init 缺陷需在返回值恢复层（ActionReturnRecovery）继续追查。
 
 **最终根因**：mainloop repeatapply 重新运行 ActionHeritage（有深层递归 rename 逻辑 visit_rename_impl）。glob_range 有 17 bblocks，Heritage 的递归重命名在多轮 repeatapply 下累积递归深度，即使 256MB 栈也溢出。修复需要让 Heritage 的 rename 迭代化（非递归），或接受 Rugra 的 Actions 有内部循环不需要外部 repeatapply。
 
@@ -1291,7 +1291,7 @@ convention` **51** / gcc 审计 16 FAIL 持平；glob_url 单声明块（无重�
 - **新增只读 trait 默认方法**：`Action::fixture_curstart() -> i32`（默认 0）
   与 `ActionRestartGroup` 重载（返回 protected `curstart`）——供
   examples/curl_decompile.rs 的 v1.1 stage 投影 emitter（env 门控
-  RUGRA_STAGE_PROJ=1）检测 @RESTART 轮次；与既有具体方法
+  RUDRA_STAGE_PROJ=1）检测 @RESTART 轮次；与既有具体方法
   `ActionRestartGroup::fixture_curstart`（fixture-only，action_break_pool
   protected-field 读取模式）同源同义。零管线语义变更（Rugra 侧重启未接线，
   PIPE-RESTART-0001，恒返回 0）。emitter 本体与树遍历/断点步进
@@ -1451,7 +1451,7 @@ varnode(INT_EQUAL 输出)供两 CBRANCH 读取——F3 语义 vn1==vn2 完整 ma
 `Action::perform` 的 apply 两侧加 `drillobserve::activate()/flush(name)`,
 `ActionPool::process_op` 的 `apply_op` 两侧加 per-rule 同对(镜像
 action.cc:316-322 与 :839-845;pool 自身的 flush 因 active 位被 rule 对
-复位而自然 no-op,与 oracle 相同)。env 门控 `RUGRA_STAGE_DRILL`;
+复位而自然 no-op,与 oracle 相同)。env 门控 `RUDRA_STAGE_DRILL`;
 env-off 字节一致性验证:05c8314 基线 vs 本分支,examples/
 rugra_decompile_func 对 examples/curl 的 next_url 输出逐字节相同。
 
@@ -1462,12 +1462,12 @@ rugra_decompile_func 对 examples/curl 的 next_url 输出逐字节相同。
   的函数定义起始行；本文件中同名单点引用同步更新（正文内点引用/区间端点不在
   机制 D checker 范围，遗留见 RULEACTION-ANNO-PROSE-RANGE-0001）。注释-only，零行为变化。
 
-### 2026-09-28：`RUGRA_ACTSIG` 逐动作 CFG 签名探针（SELECTGOTO2 车道）
+### 2026-09-28：`RUDRA_ACTSIG` 逐动作 CFG 签名探针（SELECTGOTO2 车道）
 
 `ActionGroup::apply_children`（action.cc:506 ActionGroup::apply 的子分发尾）
-新增 env 门控（默认关闭，debug-only）诊断：`RUGRA_ACTSIG=1` 时每个 child
+新增 env 门控（默认关闭，debug-only）诊断：`RUDRA_ACTSIG=1` 时每个 child
 `perform` 返回后把 `@ACT <seq> <name> res=<res>` + `fd.bblocks` 全量 CFG 签名
-（块地址/出度/目标列表，与 RUGRA_BBSIG 同格式）累积落 `<fn>.actsig`——
+（块地址/出度/目标列表，与 RUDRA_BBSIG 同格式）累积落 `<fn>.actsig`——
 oracle 侧 GLM_ACTSIG 同点插桩（scratch 树 ActionGroup::apply 子分发尾钩）
 的对照面。本轮用它证明 fn 653 的 518 步动作序与前 87 步逐动作 CFG 双侧
 恒等，把 round-2→3 窗口首分歧钉到 @ACT 87 nodejoin（oracle res=2 vs

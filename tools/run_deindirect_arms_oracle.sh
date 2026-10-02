@@ -34,8 +34,8 @@ runner="$repo_root/tools/run_deindirect_arms_oracle.sh"
 bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
-cargo_target=${RUGRA_DEINDIRECT_TARGET_DIR:-/dev/shm/rugra-targets/fspecdein-fixture}
-cargo_tmp=${RUGRA_DEINDIRECT_TMP_DIR:-/dev/shm/rugra-tests/fspecdein/fixture-tmp}
+cargo_target=${RUDRA_DEINDIRECT_TARGET_DIR:-/dev/shm/rugra-targets/fspecdein-fixture}
+cargo_tmp=${RUDRA_DEINDIRECT_TMP_DIR:-/dev/shm/rugra-tests/fspecdein/fixture-tmp}
 mkdir -p "$cargo_target" "$cargo_tmp"
 
 oracle_tmp=$(mktemp -d /tmp/rugra-deindirect-arms-1204.XXXXXX)

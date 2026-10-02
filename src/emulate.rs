@@ -174,7 +174,7 @@ impl Emulate {
             // p-code, where these appear).
             OpCode::CPUI_MULTIEQUAL | OpCode::CPUI_INDIRECT => EmulateOpBehavior::Continue,
             // ---- Unary arithmetic (emulate.cc:208-211) ----
-            // Ghidra BOOL_NEGATE == Rugra BOOL_NOT; INT_2COMP == INT_NEG;
+            // Ghidra BOOL_NEGATE == Rudra BOOL_NOT; INT_2COMP == INT_NEG;
             // INT_NEGATE == INT_NOT. COPY is also unary (1 input).
             OpCode::CPUI_COPY
             | OpCode::CPUI_BOOL_NEGATE

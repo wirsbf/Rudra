@@ -936,8 +936,8 @@ fn parse_args() -> Result<Args, String> {
         run_name: None,
         quiet: false,
     };
-    if let Ok(jobs) = std::env::var("RUGRA_PAR_JOBS") {
-        args.jobs = jobs.parse().map_err(|_| "RUGRA_PAR_JOBS must be a number")?;
+    if let Ok(jobs) = std::env::var("RUDRA_PAR_JOBS") {
+        args.jobs = jobs.parse().map_err(|_| "RUDRA_PAR_JOBS must be a number")?;
     }
     let mut i = 2;
     while i < argv.len() {

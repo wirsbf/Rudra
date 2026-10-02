@@ -28,7 +28,7 @@
 //!   --jobs <n>            concurrent binaries (default 4)
 //!   --out-dir <dir>       result directory (default /tmp/opencode/binsweep)
 //!   --list-only           enumerate + write the plan, run nothing
-//!   env RUGRA_SWEEP_MIRROR inert (historical): worker flow always uses
+//!   env RUDRA_SWEEP_MIRROR inert (historical): worker flow always uses
 //!                         the direct-runner oracle range (0, u64::MAX) —
 //!                         same semantics as gen_decompile after
 //!                         BINSWEEP-JTDEST-UNLINKED-0001. Formerly
@@ -537,7 +537,7 @@ fn run_one(binary_path: &str, functions: &[GenFunction], index: usize) -> Result
     // contract (followFlow(code:0, code:highest), funcdata.cc:163
     // startProcessing). The historical bounded [entry, MAX) form rejected
     // far-away jumptable case targets as out-of-bounds
-    // (BINSWEEP-JTDEST-UNLINKED-0001); RUGRA_SWEEP_MIRROR is now an
+    // (BINSWEEP-JTDEST-UNLINKED-0001); RUDRA_SWEEP_MIRROR is now an
     // inert marker (still forwarded to children and recorded).
     rudra::flow::follow_flow_range(&mut fd, &mut sleigh, 0, u64::MAX, &empty_protos)
         .map_err(|error| format!("flow generation failed for {}: {error}", target.name))?;
@@ -940,7 +940,7 @@ fn spawn_one_function(
         .arg(path)
         .arg(index.to_string());
     if mirror {
-        command.env("RUGRA_SWEEP_MIRROR", "1");
+        command.env("RUDRA_SWEEP_MIRROR", "1");
     }
     command
         .stdin(Stdio::null())
@@ -1378,7 +1378,7 @@ fn main() {
         )),
         jobs: knob("BINSWEEP_JOBS", flag_value("--jobs").as_deref(), DEFAULT_JOBS as u64) as usize,
         list_only: args.iter().any(|arg| arg == "--list-only"),
-        mirror: std::env::var("RUGRA_SWEEP_MIRROR").is_ok(),
+        mirror: std::env::var("RUDRA_SWEEP_MIRROR").is_ok(),
     };
 
     // Manifest + ad-hoc positional binaries.

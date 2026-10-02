@@ -21,7 +21,7 @@
   `ty=Copy szout=5 front=3b201`——cbranch 块与 3-way 派发块并成单个 5 出边
   基本块，oracle 双侧分立 [3b201]+[3b208]；3b277/3b27e 同形）——flow/
   dataflow 层独立缺陷，登记 TRACEDAG-ROUND3-BBLOCK-MERGE-0001。
-- 同 commit：`select_goto` 的 RUGRA_TRACE_SELECTGOTO 永久探针 src_addr 打印
+- 同 commit：`select_goto` 的 RUDRA_TRACE_SELECTGOTO 永久探针 src_addr 打印
   从失效的 `front_leaf().get_start_addr()`（恒 0x0）换为
   `dbg_front_leaf_start_addr`（穿 BlockCopy 链），诊断输出修复，无行为影响。
 
@@ -42,13 +42,13 @@
 
 ### 2026-09-29 性能修复（SPEEDPROF-BSPERULE-0001, 巨函数 collapse per-rule 常数削减——行为恒等）
 
-**根因（车道 BLOCKSTRUCT 钻定, [BSPROF] env 门控探针 RUGRA_BSPROF=1（交付前撤净）
+**根因（车道 BLOCKSTRUCT 钻定, [BSPROF] env 门控探针 RUDRA_BSPROF=1（交付前撤净）
 + gdb 采样）**：VDBEEXEC 残差② blockstructure 18s（3522 selectGoto 轮）构成 =
 `try_rule_proper_if` 7.55s/4.03M 试（1834ns/试——其中 `count_non_structural_in_edges`
 3.78s/3.45M 调/53.4M 入边扫描, 每边 ~70ns = BlockEdge 克隆（Arc 往返 2 原子）+
 pred RwLock + 2 vtable + `is_consumed` SipHash）+ cat 1.67s + 其余规则 0.4-0.9s 每项
-+ 扫描非规则开销 ~1.3s（每访问 2 次 `std::env::var`：RUGRA_RULE2×4.03M/RUGRA_BS_VISIT
-×3.70M/RUGRA_IRRED_DBG×4.02M——env 锁+分配, oracle 无对应物）+ IfNoExit/CaseFallthru
++ 扫描非规则开销 ~1.3s（每访问 2 次 `std::env::var`：RUDRA_RULE2×4.03M/RUDRA_BS_VISIT
+×3.70M/RUDRA_IRRED_DBG×4.02M——env 锁+分配, oracle 无对应物）+ IfNoExit/CaseFallthru
 第二趟 1.52s + selectGoto/TraceDAG 1.05s。oracle 对照亲读（blockaction.cc:1768-1851/
 1284-1475/1518-1593）: 每规则试 = 裸指针 + 内联字段读（`clauseblock->sizeIn()!=1` 是
 一次 vector size 读, block.hh:312）——差距全部是实现级常数（Arc/RwLock/vtable/clone）,
@@ -66,7 +66,7 @@ pred RwLock + 2 vtable + `is_consumed` SipHash）+ cat 1.67s + 其余规则 0.4-
 4. `try_rule_while_do`/`do_while`/`if_else`/`cat` 自环/邻居检查改 `get_out_ref`/
    `get_in_ref` 引用读（do_while 每 slot 每 test 的 point 克隆删除; 比较仍为 index 判等
    ——ptr 判等与 index 判等在 `graph.blocks[i]` 替换形态下发散, 不动）。
-5. RUGRA_RULE2/RUGRA_BS_VISIT/RUGRA_IRRED_DBG 三处每访问 `std::env::var` 改
+5. RUDRA_RULE2/RUDRA_BS_VISIT/RUDRA_IRRED_DBG 三处每访问 `std::env::var` 改
    `OnceLock<bool>` 进程内单读（env 运行期不可变——src 无 set_var/remove_var 亲验;
    决策值恒等）。
 6. `BlockGraph.absorbed_into` HashMap<i32,i32> → `FxHashMap<i32,i32>`（rustc-hash
@@ -170,12 +170,12 @@ casefallthru 标 4c48-region→4c5e, goto#12, **switch 5 cases exit=head**, cat#
 golden-closer，defects/numbering 双 0）；httpd 2057==2057/0/0 **字节恒等**；
 next_url/match_url 投影 **MATCH**；parseconfig 对 sb-oracle pin 首散点保持 opline 367
 零移动（对 FO 交付态的首个实质差 = stage 209 oppool1 CROSSBUILD→INT_ADD，结构修复的
-下游重派生）。旧 `collapse_case_fallthru` 保留给 RUGRA_7PHASE=1 遗留路径（非默认）。
+下游重派生）。旧 `collapse_case_fallthru` 保留给 RUDRA_7PHASE=1 遗留路径（非默认）。
 
 
 ### 2026-08-30 追加（seam #2/#3 定缝结论, 未修）
 
-双侧 visit 级 trace（oracle BS_ORACLE_VISIT vs Rugra RUGRA_BS_VISIT，均 env 门控）：
+双侧 visit 级 trace（oracle BS_ORACLE_VISIT vs Rugra RUDRA_BS_VISIT，均 env 门控）：
 - Or-cond 创建序列双侧**完全一致**（6,26,29,89,95,101,117,120,123,126,132,141 + 重触发 89→91,
   126→128），此前"顺序发散"判断系 dump 误读（重触发把首代 cond 移到尾部）。
 - properif/cat 消费集逐事件**完全一致**（105→106, 109→110, ..., 29→31, 117→119, 132→134,
@@ -189,7 +189,7 @@ next_url/match_url 投影 **MATCH**；parseconfig 对 sb-oracle pin 首散点保
 
 ## 2026-08-30：Ghidra 列表序镜像 virtual_list（MAIN-RC4-DOWHILE-TRACE-0001, P1）
 
-**根因（双侧 trace 定缝, oracle 插桩 /tmp/w-rc4-ore + RUGRA_BS_TRACE）**：Ghidra 的 collapse
+**根因（双侧 trace 定缝, oracle 插桩 /tmp/w-rc4-ore + RUDRA_BS_TRACE）**：Ghidra 的 collapse
 图是**可变列表**——`identifyInternal` 从 `list` 移除被消费组件（block.cc:953-960），每个
 `newBlock*` 工厂经 `addBlock` 把组合块**追加到列表尾部**（block.cc:862-875 `list.push_back`）；
 `collapseInternal`（cc:1776-1811）、`collapseConditions`（cc:1858）、IfNoExit 二趟（cc:1838）、
@@ -215,7 +215,7 @@ cargo test --lib 10 failed（全部为已知 funcdata 基线, 无 blockaction/tr
 main do-while 仍为 0：剩余分歧在 oracle 事件 22+（cat@117/properif@139 次序、properif@137、
 cat@146 339e 关联），继续定缝中。双侧探针证据：/tmp/w-rc4-ore-main{,2,3}.stderr（oracle
 BS_ORACLE/BS_ORACLE_DUMP/BS_ORACLE_VISIT）vs /tmp/w-rc4-{trace2,fix1,fix2}.stderr（Rugra
-RUGRA_BS_TRACE/RUGRA_BS_DUMP=2）。
+RUDRA_BS_TRACE/RUDRA_BS_DUMP=2）。
 
 # `blockaction.rs` API Reference
 
@@ -271,7 +271,7 @@ full 状态为 `MISMATCH`，独立复核只批准上述投影。
 1. **捕获**（cc:1762-1764，必须在 identifyInternal 之前）：链尾节点的出边数 `outforce`，二元时再捕获其 out(0) 目标 `out0`。链尾指回链内的回边在合并后成为复合块内部边——外部出边数低于 outforce。
 2. **`force_output_num`**（cc:1768 → block.cc:880-889 `BlockGraph::forceOutputNum`）：复合块出边数 < outforce 时，按 `addInEdge(this, f_loop_edge|f_back_edge)`（block.cc:73-80/888）在 out/in 两个半边上追加**复合块自环边**（label=loop|back，reverse_index=对侧 push 前槽位）。这是链内回边在复合块层的幸存形态。
 3. **`force_false_edge_composite`**（cc:1769-1770 → block.cc:1204-1217 `forceFalseEdge`）：sizeOut==2 时保证 out(0)=out0；`out0->getParent()==this`（out0 是被合并组件，Rugra 以 Arc::ptr_eq 对组件集判定）时改为要求 out(0)==自环边；否则 `swapEdges`。
-这正是 main 的 do-while 吸收链（@321a/@3225/@28ec/@28f7 同地址 latch 对：`ruleBlockGoto→newBlockIfGoto` 删 goto 出边 → `ruleBlockCat` 合并 ifgoto+latch（force 出自环）→ `ruleBlockDoWhile`（cc:1555，sizeOut==2 且 getOut(i)==self）吸收 latch → `cat 66` 并入上游）。此前复合块只有 1 条外部出边 → dowhile 永不触发。门控（RUGRA_ORACLE_FIXTURE_DATA=1）main 规则序列 vs oracle（/tmp/w-rc4-ore 探针树）**126/126 事件全对齐**（oracle "goto" 事件名=ruleBlockGoto 统称，含 if_goto 子路径）；do_while 计数 **0→5=golden 5**；E2E curl：defects=0/numbering=0，skeleton 3119→3088（−31，main 4 `do {` vs oracle golden_dump 6——残差为 oracle 的第二轮 collapseAll（146 块重启，管线编排域）与渲染层差异，非本缝）。Cross-Review: PENDING（机制 C 白名单）。
+这正是 main 的 do-while 吸收链（@321a/@3225/@28ec/@28f7 同地址 latch 对：`ruleBlockGoto→newBlockIfGoto` 删 goto 出边 → `ruleBlockCat` 合并 ifgoto+latch（force 出自环）→ `ruleBlockDoWhile`（cc:1555，sizeOut==2 且 getOut(i)==self）吸收 latch → `cat 66` 并入上游）。此前复合块只有 1 条外部出边 → dowhile 永不触发。门控（RUDRA_ORACLE_FIXTURE_DATA=1）main 规则序列 vs oracle（/tmp/w-rc4-ore 探针树）**126/126 事件全对齐**（oracle "goto" 事件名=ruleBlockGoto 统称，含 if_goto 子路径）；do_while 计数 **0→5=golden 5**；E2E curl：defects=0/numbering=0，skeleton 3119→3088（−31，main 4 `do {` vs oracle golden_dump 6——残差为 oracle 的第二轮 collapseAll（146 块重启，管线编排域）与渲染层差异，非本缝）。Cross-Review: PENDING（机制 C 白名单）。
 **2026-08-28 追加（真实 BlockCopy/buildCopy）**: `ActionBlockStructure::apply`
 改为调用 `BlockGraph::build_copy`；不再清空结构图、创建 Basic 替身或重放边。
 复制后的 incoming/outgoing 顺序、label、reverse slot、idom、index、numdesc、
@@ -303,7 +303,7 @@ collapse 后累加 `CollapseStructure::getChangeCount()`；由 Rust 适配层
 2. `FloatingEdge::get_current_edge`（cc:27-37 重写）：`cc:28-33` 双端点父链解析（吸收端点解析到组合块，其 selfIdentify 继承的边界边代表同一流），`cc:34-35` 找 out-slot。旧实现遇 DEAD source 直接 None——正是 selectGoto 重解析残留候选时丢边的位置。
 3. `LoopBody::emit_likely_edges`（cc:364-412 重写）：`cc:367-371` head/exitblock 解析、`cc:372-379` tails 解析 + `tail == exitblock → exitblock = -1`（exitblock 被吸收进 tail 则环无出口）、`cc:381-397` exit_edges 逐条 getCurrentEdge 重解析（消失边跳过）+ 官方 exit 边（解析后目标 == exitblock 的**最后一条**）held、`cc:398-409` held 边在最终 back-edge 前发射 + back-edges 逆 tail 序。旧实现 clone 原始条目不重解析、hold 判定用陈旧 to_idx。
 4. 吸收登记：`identify_internal` 消费块 DEAD 处 + `collapse_sequences` succ DEAD 处写 `graph.absorbed_into[idx] = install_idx`（Ghidra `FlowBlock::parent` 指向组合块的等价记录，见 block.md `resolve_to_graph_level`）。
-E2E（curl 124 fn，fast-release + RUGRA_IRRED_DBG=1）：exit 0 / 0 panic，`selectGoto exhausted` **9→6 hits**（main、glob_word 清零；getparameter/glob_set/glob_range/match_url/next_url×1(原2)/parseconfig 残留），defects=0 / numbering=0，skeleton 3050→2742。`[IRRED]`（finaltrace 残差图 dump）/`[TD]`（TraceDAG OPEN/RETIRE/STALL/BADEDGE 决策日志）为 RUGRA_IRRED_DBG=1 环境变量门控的诊断输出（stderr）。
+E2E（curl 124 fn，fast-release + RUDRA_IRRED_DBG=1）：exit 0 / 0 panic，`selectGoto exhausted` **9→6 hits**（main、glob_word 清零；getparameter/glob_set/glob_range/match_url/next_url×1(原2)/parseconfig 残留），defects=0 / numbering=0，skeleton 3050→2742。`[IRRED]`（finaltrace 残差图 dump）/`[TD]`（TraceDAG OPEN/RETIRE/STALL/BADEDGE 决策日志）为 RUDRA_IRRED_DBG=1 环境变量门控的诊断输出（stderr）。
 **状态（前）**: 已核对（2026-08-26 BLOCKSTRUCT-GUARD-GAPS-0001 三处存量守卫缺口补齐）
 **2026-08-26 追加（BLOCKSTRUCT-GUARD-GAPS-0001）**: 补齐复核登记的三处 oracle 守卫缺口（存量债，非上一轮引入）：
 1. `try_rule_if_else` 补全 ruleBlockIfElse 守卫组（blockaction.cc:1416-1444 逐行）：cc:1422 `bl->isSwitchOut()`、cc:1423-1424 双出边 `isDecisionOut`（经 `out_edge_is_decision`，block.hh:336 = 非 irreducible/back/goto）、cc:1433-1434 共同汇合点非 cond 自身（No loops）、cc:1435 两子句 exit 同点、cc:1437-1438 子句 `isSwitchOut`、cc:1439-1440 子句 `isGotoOut(0)`。**同时修正 tc/fc 位置语义**：oracle `tc = bl->getTrueOut()` = out[1]、`fc = bl->getFalseOut()` = out[0]（block.hh:299-300，位置性；Rugra flow.rs:1045 fallthru-first 同构）。当时文档中的 `new_block_if_else(..., negated=false)` 是已删除的历史签名；当前 factory 没有 `negated` 参数，必要极性变化在建块前通过 virtual `negateCondition` 完成。
@@ -329,9 +329,9 @@ E2E（curl 124 fn，fast-release）：exit 0 / 0 panic，defects=0 / numbering=0
 9. `identify_internal` 边界修复（部分）：install↔consumed 边按 internal 处理 + 捕获 install 块外部出边（WhileDo false-exit 不再丢失）。残余边界/去重差异 → BLOCKSTRUCT-IDENTIFY-BOUNDARY-0001。
 10. 双侧 fixture：`tests/oracle/blockstruct_goto_cascade_1204.{cc,rs,metadata.json}` + `tools/run_blockstruct_goto_cascade_oracle.sh`（6 case：级联收敛/条件体恢复/while+dowhile 守卫方向/DEAD 判定/标签提升 goto 目标）。核心可观测 MATCH（goto 目标、flip 位、whiledo/condition/properif 树形）；残余 110 行 diff 全部归因 identify_internal 边界模型 → BLOCKSTRUCT-IDENTIFY-BOUNDARY-0001；switch 首例标签打印缺口 → PRINTC-SWITCH-EMIT-0001（funcdata test_switch_case_structuring 断言绑定）。
 11. 单测：`cargo test --lib -- --test-threads=1` 失败集与基线 ba910ed 完全一致（comment/infer_params/type_propagation，非本域）。
-**状态（前）**: 已核对（2026-07-16 collapse_all 默认切到 5-step，RUGRA_7PHASE=1 回退 7-phase）
+**状态（前）**: 已核对（2026-07-16 collapse_all 默认切到 5-step，RUDRA_7PHASE=1 回退 7-phase）
 **源代码路径**: `src/blockaction.rs`
-**2026-07-16 修复（collapseAll 5-step 路径）**: 新增 `collapse_internal(target_idx: Option<i32>)`（对齐 cc:1768-1851，fixpoint + 第二趟，返回 isolated_count）+ `collapse_all_5step`（字面 5 步：orderLoopBodies → collapseConditions → collapseInternal(NULL) → selectGoto 循环 → collapseInternal(targetbl)，cc:1877-1893）。`collapse_all` 加 `RUGRA_5STEP=1` feature flag 路由到 5-step；默认仍 7-phase（铁律 5）。**突破**：collapseConditions 前加 `run_tracedag`（标 break/continue/goto 边）+ collapseInternal(NULL) 前加 `structure_loops_first`（匹配 7-phase 顺序）后，curl 5-step 达 **24/24 defects=0 numbering=485（与 7-phase 完全一致）**，httpd 27/29 gcc-clean。**默认未切**：18 个单元测试失败中**仅 2 个是真实分歧**（test_normalize_branches_break_in_while_loop：while-with-break 结构化为 If+Goto 非 WhileDo；test_switch_case_structuring：switch 未形成）——其余 16 个是 FFI_TEST_LOCK 被 panic 毒化的级联 PoisonError。2 个真实失败是结构内部路由差异（5-step 输出与 7-phase 在 curl 上完全一致，但 loop/switch 内部块类型不同）。7-phase 默认保留。
+**2026-07-16 修复（collapseAll 5-step 路径）**: 新增 `collapse_internal(target_idx: Option<i32>)`（对齐 cc:1768-1851，fixpoint + 第二趟，返回 isolated_count）+ `collapse_all_5step`（字面 5 步：orderLoopBodies → collapseConditions → collapseInternal(NULL) → selectGoto 循环 → collapseInternal(targetbl)，cc:1877-1893）。`collapse_all` 加 `RUDRA_5STEP=1` feature flag 路由到 5-step；默认仍 7-phase（铁律 5）。**突破**：collapseConditions 前加 `run_tracedag`（标 break/continue/goto 边）+ collapseInternal(NULL) 前加 `structure_loops_first`（匹配 7-phase 顺序）后，curl 5-step 达 **24/24 defects=0 numbering=485（与 7-phase 完全一致）**，httpd 27/29 gcc-clean。**默认未切**：18 个单元测试失败中**仅 2 个是真实分歧**（test_normalize_branches_break_in_while_loop：while-with-break 结构化为 If+Goto 非 WhileDo；test_switch_case_structuring：switch 未形成）——其余 16 个是 FFI_TEST_LOCK 被 panic 毒化的级联 PoisonError。2 个真实失败是结构内部路由差异（5-step 输出与 7-phase 在 curl 上完全一致，但 loop/switch 内部块类型不同）。7-phase 默认保留。
 **2026-07-16 修复（B5/B6/B7 selectGoto 状态机 — 最大块）**: 实现 Ghidra `updateLoopBody`（blockaction.cc:1193-1253）+ `selectGoto`（cc:1260-1277）状态机。新增 CollapseStructure 字段：`finaltrace`/`likelygoto`/`likelyiter`/`likelylistfull`/`loopbodyiter`（blockaction.hh:89-95）。新增：`FloatingEdge::get_current_edge`（cc:27，按 live graph 重新解析边，跳过已折叠的）、`LoopBody::update`（cc:94，返回 loop bottom）、`LoopBody::set_exit_marks`/`clear_exit_marks`（cc:416/430）、`FlowBlock::clear_out_edge_flag`（block.hh:289）、`update_loop_body`（推进 loopbodyiter，per-loop TraceDAG）、`select_goto`（消费 likelygoto，重新解析，set_goto_branch_on_block 3-op 标记）。接入 `run_goto_cascade` 为首选路径（batch 回退保留）。**B1-B9 全部完成**，collapseAll 5-step 移植的前置依赖全部就绪。
 **2026-07-16 修复（B9）**: phase2 interleaved 循环加 collapseInternal 第二趟（对齐 Ghidra `blockaction.cc:1837-1848`）。此前只跑 8 条第一趟规则 fixpoint。现外层 `'fullchange` 循环包裹内层 fixpoint，收敛后跑第二趟：`try_rule_if_no_exit(j)` per-block（break on match，!has_switch gate）+ `collapse_case_fallthru()` batch（返回 bool），任一变更则重跑内层。`collapse_case_fallthru` 签名改返回 bool。
 **2026-07-16 修复（B3）**: 新增 `BlockInfLoop` struct（block.rs，对齐 Ghidra block.hh:735）+ `new_block_inf_loop` 工厂（blockaction.rs，对齐 block.cc:1889 `newBlockInfLoop`）+ `try_rule_inf_loop` 真正创建节点（此前只 eprintln）+ printc `emit_structured_infloop`（`do { } while(true);`，对齐 printc.cc:3097）。identify_internal 加 BlockInfLoop downcast。
@@ -1100,7 +1100,7 @@ out-edge 仍持有旧块的 Arc（Arc identity 不变），导致新结构化块
 - `order_loop_bodies` 改读 `F_BACK_EDGE` 标签（对齐 labelLoops, blockaction.cc:1126-1143），不再用支配者判定。
 - **设计要点**：用**局部 DFS 状态**（HashMap），**不碰** `FlowBlock.index`/`visit_count`。Rugra 的 `index` == 块在 `BlockGraph.blocks` 中的位置（被 compute_dominators/collect_loop_body 依赖）；Ghidra 把 index 重载为 rpostorder，此处不适用。
 
-**实测证据**（`RUGRA_LOOP_DEBUG=1`）：main 回边 0→3，my_get_line 1→2，next_url 2→3；curl 全局回边检测 0→19；idom_entries 恢复（main 21→86）。
+**实测证据**（`RUDRA_LOOP_DEBUG=1`）：main 回边 0→3，my_get_line 1→2，next_url 2→3；curl 全局回边检测 0→19；idom_entries 恢复（main 21→86）。
 
 **剩余**：while 输出数未变（curl 4/httpd 8），因为下游循环结构化（把检测到的循环变成 while/do-while）是独立的下一层。736/736 测试，curl 24/24 + httpd 29/29，0 goto，0 回归。
 
@@ -1201,7 +1201,7 @@ commit `e40ed13014025f82488b1f8f7bca566894ac376b`。
   CollapseStructure::CollapseStructure`。Rust 额外接收诊断名并初始化若干缓存、
   switch 与 iterator 状态；这些扩展不把构造器变成无 oracle 对应物的胶水。
 - `CollapseStructure::collapse_all` 映射 `blockaction.cc:1877
-  CollapseStructure::collapseAll`。当前 Rust 仍包含 `RUGRA_7PHASE` 分流、额外
+  CollapseStructure::collapseAll`。当前 Rust 仍包含 `RUDRA_7PHASE` 分流、额外
   TraceDAG/loop/switch 阶段、deadline 和 fallback，因此 provenance 注释不代表
   逐函数行为已经 `MATCH`。
 
@@ -1336,7 +1336,7 @@ interior-goto 标记。
 
 ### selectGoto exhausted 调试注桩（2026-08-26，TRI2-STRUCT-SELECTGOTO-SELFLOOP-0001）
 - `bs_trace_cfg_sig` + `ActionBlockStructure::apply` pre/post witness（RUDRA-GLUE，
-  无 Ghidra 对应物，debug-only）：`RUGRA_BS_TRACE=1` 时在每次 blockstructure 施加
+  无 Ghidra 对应物，debug-only）：`RUDRA_BS_TRACE=1` 时在每次 blockstructure 施加
   前后打印 bblocks 完整签名（槽位/索引/起始地址/类型/入出边及 GOTO 标记/末位
   CBRANCH 及其 const/val/BOOLEAN_FLIP/块 flags），用于 mainloop 不收敛/CFG 往复
   症状的逐轮夹逼（HTTPD-STRCASECMP-NONCONVERGE-0001 定位中引入：识别出
@@ -1344,9 +1344,9 @@ interior-goto 标记。
 - `debug_type_name`（RUDRA-GLUE，debug-only）：`bs_trace_cfg_sig` 行内的短类型
   标签（downcast 实现；派生 Debug 会递归子块并可能溢出 worker 栈）。
 - 2026-09-27 卫生清理（HYGIENE 微件车道，CR-STRDATA 遗留债）：删除
-  `CollapseStructure::debug_dump_graph`（`RUGRA_BS_DUMP=1/2/3` 全图 dump 探针，
+  `CollapseStructure::debug_dump_graph`（`RUDRA_BS_DUMP=1/2/3` 全图 dump 探针，
   initial/stuck1/exhausted/after_&lt;rule&gt; 四调用点随门一起清除）及
-  `apply_rules_to_block` 内 `bs_try!` 宏的 `RUGRA_BS_TRACE` 规则命中打印——两者
+  `apply_rules_to_block` 内 `bs_try!` 宏的 `RUDRA_BS_TRACE` 规则命中打印——两者
   使用临时 `[DBG]` TAG，违反"临时 TAG 提交前必须删除"纪律；`bs_try!` 还原为
   cc:1797-1828 的裸 `if (ruleX) continue` 派发形态。均为 stderr/env-gated 输出，
   默认关闭，stdout 零变化（双语料 canon 字节恒等亲证）。历史定位叙述（TRI2
@@ -1481,8 +1481,8 @@ F_DEFAULTSWITCH_EDGE 标签（funcdata.rs set_default_switch_mirrored 安装）�
 
 **验证**：curl 全语料 3096/0/0（defects=0 保持）；cargo check 通过。
 诊断设施：block.rs `print_tree_dbg`/`dbg_front_leaf_start_addr`（结构树 dump，
-RUGRA_DUMP_FUNC hook 于 curl/httpd runners）、blockaction.rs SELECTGOTO 级联
-trace（RUGRA_TRACE_SELECTGOTO）、IRRED-SW try 行含地址。
+RUDRA_DUMP_FUNC hook 于 curl/httpd runners）、blockaction.rs SELECTGOTO 级联
+trace（RUDRA_TRACE_SELECTGOTO）、IRRED-SW try 行含地址。
 
 ## 2026-09-22 追加（BLOCKSTRUCT-MULTIGOTO-0001 — newBlockMultiGoto + ruleBlockGoto isSwitchOut arm）
 
@@ -1576,7 +1576,7 @@ defects=numbering=0。
   set_default_switch_mirrored）：被标记出边的目标路由进 `default_case` 独立槽
   （default_gototype=0 正文形态），不再混入 `cases`（否则其 40 个表条目会被
   finalizePrinting 物化成 40 个假 `case v:` 臂——gp 实测 88→48 对齐 golden）。
-- `finalize_case_labels` 尾部加 RUGRA_BS_DUMP=1/2 门控的 `[BLOCKSTRUCT]
+- `finalize_case_labels` 尾部加 RUDRA_BS_DUMP=1/2 门控的 `[BLOCKSTRUCT]
   finalizePrinting case[i] label/depth/chain/outindex/labels` 结构层见证
   （无 Ghidra 对应物，纯调试工具）。
 - gp 结构层验证：finalize 后 48 臂 label 集合与 golden 逐项相等、逐臂顺序
@@ -1676,7 +1676,7 @@ Ghidra `CollapseStructure::collapseInternal`（blockaction.cc:1776-1834）的内
 
 两处均不动 `dataflow_change_count`（Ghidra 对应臂同样不增 dataflow 计数）。实证：
 getparameter（curl@0x3f00）Phase 2 投影 stage 40 计数 27 vs 26；双侧规则点火轨迹 +
-likelygoto 生成列表（RUGRA_BS_TRACE/RUGRA_TRACE_SELECTGOTO/RUGRA_IRRED_DBG vs oracle
+likelygoto 生成列表（RUDRA_BS_TRACE/RUDRA_TRACE_SELECTGOTO/RUDRA_IRRED_DBG vs oracle
 探桩 /dev/shm/rugra-tests/sb-getparam/oracle-probe，drill sha 92c66176…=pin）逐条对齐至
 pick 111 后分叉：oracle 以 Cat 15+DoWhile 15（+1 dfc）收掉 loop(15,131)，Rugra 假收敛
 后 selectGoto 挑走 (131,133)/(131,15) 两条外来边。修复后点火轨迹经 Switch 29(#2)+Cat 15
@@ -1789,7 +1789,7 @@ default，对 default 的链（`chain==k`）静默改接重加 case。修复 = �
   故 `==k` 无歧义只能是 grab 期 default 链；`default_order.chain` 目标恒为正则索引
   或 -1，不可能为 k——三守卫使重映射 correct-by-construction；
 - `debug_assert` 后置不变量：重映射后无 `chain==k` 残留（k 槽现为不参与链的重加
-  case）；RUGRA_BS_DUMP=1 输出臂事件见证行（k、+g、remapped 数）；
+  case）；RUDRA_BS_DUMP=1 输出臂事件见证行（k、+g、remapped 数）；
 - 触发面亲测：curl 3 次臂事件（47→48）与 httpd 3 次（16→17）全部 remapped=0——
   双语料休眠；3 个单测（`multigoto_defaultchain_tests`）钉死重映射数学；
 - 补丁前后 curl（474/0/0）与 httpd（908/0/0）输出字节恒等。
@@ -1797,7 +1797,7 @@ default，对 default 的链（`chain==k`）静默改接重加 case。修复 = �
 ## 2026-09-25 追加（MSTRUCT — try_rule_switch isexit/isdefault 捕获见证探针）
 
 Lane MSTRUCT（结构族分拣）在 `try_rule_switch` 的 case 捕获循环（cc:3511-3515 addCase
-语义位点）补一条 `RUGRA_IRRED_DBG=1` 门控的 stderr 见证行（`[IRRED-SW] capture`：
+语义位点）补一条 `RUDRA_IRRED_DBG=1` 门控的 stderr 见证行（`[IRRED-SW] capture`：
 case 块号/首叶地址/isdefault/isexit/size_out），与既有 `[IRRED-SW] try/reject` 探针族
 同库同门。零行为变化（stdout 字节恒等亲证：curl 镜 200 与基线 cmp IDENTICAL）。
 
@@ -1921,16 +1921,16 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
 （my_get_token 2→0 / parseconfig 2→0）、双跑与前置会话产物 md5 恒等。
 
 ### GETLONGEST 车道钻定工件注记（2026-09-28，MIRRORCENSUS-GETLONGESTMATCH-CLONE-0001）
-- `RUGRA_BS_TREES=<prefix>`（RUDRA-GLUE，debug-only）：每次
+- `RUDRA_BS_TREES=<prefix>`（RUDRA-GLUE，debug-only）：每次
   `ActionBlockStructure::apply` 收尾把 `fd.sblocks` 的 print_tree_dbg 树落到
   `<prefix>.<round>` 文件——oracle 侧 bracket-ladder 逐 perform printTree 探针
   的对照面（LANE GETLONGEST 工件 /dev/shm/rugra-tests/getlongest/：o653l.ladder
   vs rtree.0..4）。默认关闭，stdout 零变化。
-- `RUGRA_BS_VISIT=1` 输出升级：visit 行增 `ty/i/o`（结构类型+入出度），对齐
+- `RUDRA_BS_VISIT=1` 输出升级：visit 行增 `ty/i/o`（结构类型+入出度），对齐
   oracle 侧 OVISIT 探针（块类型枚举名映射 t_ls→list 等已校准，两侧 visit 流
   在 NPat2R9::GetLongestMatch round-0 前 647 事件逐事件恒等——首分歧即
   selectGoto 靶向重访，见 TODO_BOARD 票行根因链）。
-- examples/gen_decompile.rs 新增 `RUGRA_DUMP_FUNC=<name>`（curl/httpd runner
+- examples/gen_decompile.rs 新增 `RUDRA_DUMP_FUNC=<name>`（curl/httpd runner
   同款先例）：post-action/pre-print 落 `<name>.tree`/`<name>.ir`/`<name>.ops`
   （print_tree_dbg + printRaw + 逐基本块 op 原始行，后者为 gen 驱动侧 BlockBasic
   printRaw 面的等价物——funcdata.rs print_raw 的 bblocks 臂目前只打印块头）。
@@ -1953,12 +1953,12 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   `count_non_structural_in_edges` 折算（switch 派发/已吸收源折扣两臂）——
   oracle 是裸 `clauseblock->sizeIn() != 1`；复合体模型对齐后 stale 组件边
   不再泄漏进活块，裸计数既正确又对齐。
-- 新增 env 门控诊断（默认关闭）：`RUGRA_TRACE_SELECTGOTO` 升级
+- 新增 env 门控诊断（默认关闭）：`RUDRA_TRACE_SELECTGOTO` 升级
   （updateLoopBody 的 REGEN/REMAINDER 倾印+select_goto 的 pick/skip 逐条）、
-  `RUGRA_RULE2`（collapse 规则 fire 流，oracle [ORULE] 对照面）、
-  `RUGRA_GOTOSTEP`（tracedag pushBranches 逐步+[RROOT] 根收集，oracle
-  [OSTEP]/[OROOT] 对照面）、`RUGRA_TREE1`（首轮 collapseAll 后 sblocks 树落
-  `<fn>.tree1`，oracle GLM_TREE1 对照面）、`RUGRA_BS_VISIT` visit 行追加
+  `RUDRA_RULE2`（collapse 规则 fire 流，oracle [ORULE] 对照面）、
+  `RUDRA_GOTOSTEP`（tracedag pushBranches 逐步+[RROOT] 根收集，oracle
+  [OSTEP]/[OROOT] 对照面）、`RUDRA_TREE1`（首轮 collapseAll 后 sblocks 树落
+  `<fn>.tree1`，oracle GLM_TREE1 对照面）、`RUDRA_BS_VISIT` visit 行追加
   `@ addr`（BlockCopy.original 的起始地址）。
 - **验收（全部本 worktree 亲跑）**：canon curl/httpd A/B md5
   4503f498/c3b4706c 双字节恒等==基线（54/36/0/0 继承）；镜面 sq
@@ -1968,7 +1968,7 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   的 returnsplit/nodeSplit 链差，见 TODO_BOARD 票行。
 
 ### SELECTGOTO 车道诊断②（2026-09-28，同票续作——round-2→3 窗口钉靶）
-- `RUGRA_BBSIG=1`（RUDRA-GLUE，debug-only）：每次 `ActionBlockStructure::apply`
+- `RUDRA_BBSIG=1`（RUDRA-GLUE，debug-only）：每次 `ActionBlockStructure::apply`
   入口把 `fd.bblocks` 全量 CFG 签名（块地址/出度/目标列表）落到
   `<fn>.bbsig<round>`——oracle 侧 scratch GLM_BBSIG 探针的对照面。本轮用它
   钉死：round1/round2 入口 CFG 双侧恒等，round3 入口首分歧（oracle 多一块
@@ -1983,7 +1983,7 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   对齐。
 
 ### SELECTGOTO 车道修复③（2026-09-28，同票续作——round-2→3 窗口 0x3561b 分裂解锁）
-- **双侧逐动作 CFG 钉靶（新证据面）**：`RUGRA_ACTSIG=1`（src/action.rs
+- **双侧逐动作 CFG 钉靶（新证据面）**：`RUDRA_ACTSIG=1`（src/action.rs
   `ActionGroup::apply_children`，oracle 侧 GLM_ACTSIG 同点插桩于
   ActionGroup::apply 子分发尾钩）逐 action 落 `<fn>.actsig`（动作名+res+全量
   bblocks CFG）。fn 653 对照：**518 步动作序双侧恒等，前 87 步逐动作 CFG

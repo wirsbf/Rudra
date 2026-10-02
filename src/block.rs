@@ -10,7 +10,7 @@ use crate::opcodes::OpCode;
 use std::sync::{Arc, OnceLock, RwLock, Weak};
 
 // RUDRA-GLUE: PERF-ARENA-FLIP-0001 (f) env-gated bank-read observation
-// counters (RUGRA_BANKSTATS=1; stderr only, default off). Event accounting
+// counters (RUDRA_BANKSTATS=1; stderr only, default off). Event accounting
 // of the per-read bank resolution surface the (e)-segment handoff ①
 // attributes ~1.1s to (~57M reads x ~20ns/lock): which API each read flows
 // through (per-read lock vs per-scan view), plus publish/shadow-write
@@ -49,7 +49,7 @@ pub mod bank_stats {
     // RUDRA-GLUE: observation gate (same pattern as action.rs ACTIONSTATS)
     fn enabled() -> bool {
         static ENABLED: OnceLock<bool> = OnceLock::new();
-        *ENABLED.get_or_init(|| std::env::var("RUGRA_BANKSTATS").is_ok_and(|v| v == "1"))
+        *ENABLED.get_or_init(|| std::env::var("RUDRA_BANKSTATS").is_ok_and(|v| v == "1"))
     }
 
     // RUDRA-GLUE: relaxed counter step
@@ -84,7 +84,7 @@ pub mod bank_stats {
 }
 
 // ===== Marshal ElementId / AttributeId helpers (block.cc:22-28, 30-31) =====
-// Ghidra defines these as static ElementId/AttributeId instances. Rugra builds
+// Ghidra defines these as static ElementId/AttributeId instances. Rudra builds
 // them on demand via constructor functions matching the Ghidra names.
 
 /// `ELEM_BLOCK` (block.cc:22): a \<block> element wrapping a FlowBlock.
@@ -189,7 +189,7 @@ pub fn type_to_name(bt: BlockType) -> &'static str {
 /// graph every emitted path bottoms out at a BlockCopy. Returns the entering
 /// arc when it is already a copy; when a non-copy has no first component,
 /// returns the deepest reachable node (Ghidra returns null there — callers
-/// treat None as "no label", Rugra callers do the same via flag checks).
+/// treat None as "no label", Rudra callers do the same via flag checks).
 pub fn front_leaf(
     bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
 ) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
@@ -268,7 +268,7 @@ pub fn mark_front_leaf(bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, fl: u32) {
 /// `getFrontLeaf` for an already-typed `Arc<RwLock<BlockBasic>>` — the
 /// `getGotoTarget()->getFrontLeaf()` composition of
 /// `BlockGoto::gotoPrints` (block.cc:2885). A BlockBasic is already a leaf
-/// (Basic is one of Rugra's t_copy stand-ins), so the descent is a no-op
+/// (Basic is one of Rudra's t_copy stand-ins), so the descent is a no-op
 /// coercion; kept as a named helper so the call site reads as the oracle.
 pub fn front_leaf_basic(
     bl: &Arc<RwLock<BlockBasic>>,
@@ -281,10 +281,10 @@ pub fn front_leaf_basic(
 /// The label address of a (possibly structured) block for goto-statement
 /// emission: the start address of the underlying basic block. The oracle's
 /// emitGotoStatement prints `emitLabel(exp_bl)` — the label manager entry of
-/// the destination FlowBlock; Rugra's printc derives `code_label(addr)` from
+/// the destination FlowBlock; Rudra's printc derives `code_label(addr)` from
 /// the same basic block's start address, reached by descending the front
 /// leaf and taking the BlockCopy's original (BlockCopy itself does not
-/// override getStart — block.hh:505-538 has no getStart, matching Rugra's
+/// override getStart — block.hh:505-538 has no getStart, matching Rudra's
 /// trait default — so the original's start is the faithful projection).
 pub fn front_leaf_start_addr(
     bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
@@ -348,11 +348,11 @@ pub fn dbg_front_leaf_start_addr(
 
 // RUDRA-GLUE: diagnostic tree dumper for BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001
 /// Debug-only replica of the `FlowBlock::printTree` recursion (block.cc:616)
-/// covering every composite Rugra defines (Ghidra's virtual printTree does
+/// covering every composite Rudra defines (Ghidra's virtual printTree does
 /// this via the virtual dispatch): node index, type, front-leaf address, and
 /// for unstructured nodes (BlockGoto / if-goto) target + goto_type +
 /// precomputed prints flag. No oracle counterpart line-for-line; used by the
-/// curl/httpd drivers' RUGRA_DUMP_FUNC hook and the tree-dump example.
+/// curl/httpd drivers' RUDRA_DUMP_FUNC hook and the tree-dump example.
 pub fn print_tree_dbg(
     bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     depth: usize,
@@ -580,7 +580,7 @@ pub fn switch_default_construct_pos(sw: &BlockSwitch) -> usize {
 /// - `BlockGoto` (block.cc:2899-2903): front leaf of the goto target, for
 ///   any component (the wrapped block flows to the target).
 /// - `BlockMultiGoto` (block.cc:2931-2934): null for any component — but
-///   Rugra's MultiGoto `component_list_dyn` is empty (its wrapped child is
+///   Rudra's MultiGoto `component_list_dyn` is empty (its wrapped child is
 ///   the dispatch basic leaf, which holds no BlockGoto), so this arm is
 ///   structurally unreachable here.
 /// - `BlockCondition` (block.cc:3053-3056): null ("do not know where flow
@@ -597,7 +597,7 @@ pub fn switch_default_construct_pos(sw: &BlockSwitch) -> usize {
 /// - `BlockInfLoop` (block.cc:3476-3483): `front_leaf(getBlock(0))` = the
 ///   loop head for any component (flow re-enters the loop).
 /// - `BlockSwitch` (block.cc:3639-3661): oracle arm ① `getBlock(0)==bl →
-///   null` addresses the dispatch root cs[0], which Rugra keeps in
+///   null` addresses the dispatch root cs[0], which Rudra keeps in
 ///   `BlockSwitch::control` OUTSIDE the component list — no Rust component
 ///   reaches that arm (a t_multigoto root also falls to null via arm ②).
 ///   Arm ②: a component whose type is not `t_goto` → null ("Otherwise there
@@ -703,7 +703,7 @@ pub fn next_flow_after_successors(
                         // default's block, gotoPrints (cc:2881-2890) flips
                         // false and gatherReturnGotos drops the edge
                         // (SetCoderProperties 0x2891e: oracle splits 17
-                        // return in-edges, Rugra 16).
+                        // return in-edges, Rudra 16).
                         _ => switch_default_construct_pos(sw),
                     };
                     let pos = def_pos.min(m.len());
@@ -842,7 +842,7 @@ pub mod block_flags {
     pub const DUPLICATE_BLOCK: u32 = 0x40000;
     // Ghidra f_flip_path = 0x10000 (block.hh:103). Path to this block was flipped.
     pub const FLIP_PATH: u32 = 0x10000;
-    // Rugra-only flags (no Ghidra counterpart, placed at 0x100000+)
+    // Rudra-only flags (no Ghidra counterpart, placed at 0x100000+)
     pub const RETURN_TERMINAL: u32 = 0x100000;
     pub const CASE_BODY: u32 = 0x200000;
     pub const GOTO_EDGE_0: u32 = 0x400000;
@@ -884,11 +884,11 @@ pub mod edge_flags {
     pub const F_BACK_EDGE: u32 = 0x80;
     /// Ghidra `f_loop_exit_edge` (block.hh:117).
     pub const F_LOOP_EXIT_EDGE: u32 = 0x100;
-    /// Rugra-only structured break annotation; kept outside oracle bits.
+    /// Rudra-only structured break annotation; kept outside oracle bits.
     pub const F_BREAK_EDGE: u32 = 0x200;
-    /// Rugra-only structured continue annotation; kept outside oracle bits.
+    /// Rudra-only structured continue annotation; kept outside oracle bits.
     pub const F_CONTINUE_EDGE: u32 = 0x400;
-    /// Rugra-only switch dispatch annotation; kept outside oracle bits.
+    /// Rudra-only switch dispatch annotation; kept outside oracle bits.
     pub const F_SWITCH_DISPATCH: u32 = 0x800;
 
     /// All spanning-tree edge flags, for clearing (Ghidra clears these
@@ -940,7 +940,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
 
     /// Number of out-edges excluding goto-marked edges.
     /// GOTO_EDGE_0 marks out[0] as goto, GOTO_EDGE_1 marks out[1].
-    // RUDRA-GLUE: Rugra helper for goto-aware out-edge counting (Ghidra uses raw sizeOut + edge flags)
+    // RUDRA-GLUE: Rudra helper for goto-aware out-edge counting (Ghidra uses raw sizeOut + edge flags)
     fn effective_size_out(&self) -> usize {
         let total = self.size_out();
         let flags = self.get_flags();
@@ -955,7 +955,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     }
 
     /// Get the i-th non-goto out-edge (skipping goto-marked edges).
-    // RUDRA-GLUE: Rugra helper for goto-aware out-edge access (no direct Ghidra counterpart)
+    // RUDRA-GLUE: Rudra helper for goto-aware out-edge access (no direct Ghidra counterpart)
     fn effective_get_out(&self, slot: usize) -> Option<BlockEdge> {
         let flags = self.get_flags();
         let total = self.size_out();
@@ -994,7 +994,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     // subtype. Ghidra's FlowBlock base class owns outofthis/intothis
     // (block.hh:124-127), so edge-label writes (setOutEdgeFlag block.cc:240,
     // setGotoBranch block.cc:305) apply to EVERY block kind — structured
-    // blocks included. Rugra duplicates the vectors per concrete type, so
+    // blocks included. Rudra duplicates the vectors per concrete type, so
     // the label mutators route through these accessors instead of a
     // downcast chain that silently dropped writes on BlockIf/BlockList/
     // BlockCondition/... (root cause of the selectGoto non-termination:
@@ -1636,13 +1636,13 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     }
     // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::immed_dom is private; set by buildDomTree as friend)
     fn set_immed_dom(&mut self, _dom: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>) {}
-    // RUDRA-GLUE: Rugra-only dom-depth field (Ghidra computes depth via buildDomDepth into separate vec)
+    // RUDRA-GLUE: Rudra-only dom-depth field (Ghidra computes depth via buildDomDepth into separate vec)
     fn get_dom_depth(&self) -> i32 {
         -1
     }
     // RUDRA-GLUE: Rust mutator for dom_depth (Ghidra has no dom-depth field on FlowBlock)
     fn set_dom_depth(&mut self, _depth: i32) {}
-    // RUDRA-GLUE: Rugra-only dom-children field (Ghidra returns dom tree via buildDomTree(child) external vec)
+    // RUDRA-GLUE: Rudra-only dom-children field (Ghidra returns dom tree via buildDomTree(child) external vec)
     fn get_dom_children(&self) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         Vec::new()
     }
@@ -1650,7 +1650,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     fn add_dom_child(&mut self, _child: Arc<RwLock<dyn FlowBlock + Send + Sync>>) {}
     // RUDRA-GLUE: Rust mutator for dom_children (Ghidra has no dom-children field on FlowBlock)
     fn clear_dom_children(&mut self) {}
-    // RUDRA-GLUE: Rugra-only dom-frontier field (Ghidra has no dom-frontier field on FlowBlock)
+    // RUDRA-GLUE: Rudra-only dom-frontier field (Ghidra has no dom-frontier field on FlowBlock)
     fn get_dom_frontier(&self) -> std::collections::HashSet<i32> {
         std::collections::HashSet::new()
     }
@@ -1797,7 +1797,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     /// Is this block the target of an unstructured (goto) jump from inside
     /// a loop body? Faithful to `isInteriorGotoTarget()` (block.hh:336).
     /// Ghidra reads the f_interior_gotoin flag (set by setGotoBranch
-    /// block.cc:313). Rugra now sets that flag in set_goto_branch, so this
+    /// block.cc:313). Rudra now sets that flag in set_goto_branch, so this
     /// checks it directly. We also keep the in-edge goto check as a
     /// fallback for edges marked GOTO via other paths.
     fn is_interior_goto_target(&self) -> bool {
@@ -1985,7 +1985,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     /// children so unstructured gotos can be reclassified as `break`/
     /// `continue`. Default: recurse into all children. Structured block
     /// subtypes override this (block.cc:3075 BlockIf, 3324 BlockWhileDo, etc.).
-    /// Rugra provides a default no-op for blocks with no structured children
+    /// Rudra provides a default no-op for blocks with no structured children
     /// (BlockBasic/BlockCopy); the structured blocks override via their
     /// inherent `scope_break_goto_type` helpers which call this trait method
     /// to recurse.
@@ -1997,7 +1997,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     /// `BlockGraph` override recurses into all children (block.cc:1238-1245);
     /// `BlockGoto`/`BlockIf`/`BlockSwitch` recurse then mark their goto
     /// targets (if still `f_goto_goto`) as `f_unstructured_targ`
-    /// (block.cc:2811, 3022, 3558). Rugra's structured blocks provide
+    /// (block.cc:2811, 3022, 3558). Rudra's structured blocks provide
     /// inherent helpers; the default no-op covers BlockBasic (BlockGoto marks
     /// via its inherent `mark_unstructured_target`).
     // Ghidra: block.hh FlowBlock::markUnstructured
@@ -2013,7 +2013,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     /// composite recurses — first subblock receives `bump` unchanged, all
     /// others receive `false`; WhileDo/DoWhile/InfLoop (block.cc:3316/3426/
     /// 3454) force `true` down the front chain, then clear their own flag
-    /// when the incoming `bump` was false. Rugra's composite structs override
+    /// when the incoming `bump` was false. Rudra's composite structs override
     /// this trait method; leaves (BlockBasic/BlockCopy) keep this default.
     // Ghidra: block.hh:195 FlowBlock::markLabelBumpUp
     fn mark_label_bump_up_trait(&mut self, bump: bool) {
@@ -2169,7 +2169,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
 
 /// Ghidra `BlockEdge::encode` (block.cc:35-43): emit an \<edge> element with
 /// `end` (the other-end block index) and `rev` (reverse-index) attributes.
-/// Free function because Rugra's `BlockEdge` is a plain struct (no Ghidra
+/// Free function because Rudra's `BlockEdge` is a plain struct (no Ghidra
 /// `BlockEdge::encode` method dispatch).
 // Ghidra: block.cc:35 BlockEdge::encode
 pub fn encode_block_edge(bank: &BlockBank, edge: &BlockEdge, encoder: &mut dyn Encoder) {
@@ -2290,7 +2290,7 @@ fn find_copy_map(
 /// incoming edge of the target block. Faithful to the complete Ghidra
 /// `FlowBlock::setOutEdgeFlag` (block.cc:240-246): the label is applied to
 /// `outofthis[i]` and to `outofthis[i].point->intothis[reverse_index]`.
-/// Ghidra follows raw pointers; in Rugra the two halves live behind separate
+/// Ghidra follows raw pointers; in Rudra the two halves live behind separate
 /// `RwLock`s, so a self-edge (loop to the same block) must set both halves
 /// under ONE guard — taking the second lock would deadlock on the caller's
 /// held guard.
@@ -2337,7 +2337,7 @@ pub fn set_out_edge_flag_mirrored(
 /// Ghidra `FlowBlock::clearOutEdgeFlag` (block.cc:250-256): the label bits
 /// are removed from `outofthis[i]` and from
 /// `outofthis[i].point->intothis[reverse_index]`. Ghidra follows raw
-/// pointers; in Rugra the two halves live behind separate `RwLock`s, so a
+/// pointers; in Rudra the two halves live behind separate `RwLock`s, so a
 /// self-edge (loop to the same block) must clear both halves under ONE
 /// guard. Called by findIrreducible (block.cc:1182) when a non-tree edge is
 /// promoted to irreducible: the stale cross/forward classification is
@@ -2598,7 +2598,7 @@ impl BlockBasic {
     /// Faithful to `noInterveningStatement` (block.cc:2712-2747).
     pub fn no_intervening_statement(&self) -> bool {
         // RUDRA-GLUE: Ghidra compares `op->getParent() != this` by C++ pointer
-        // identity. Rugra blocks live behind Arc<RwLock<dyn FlowBlock>>;
+        // identity. Rudra blocks live behind Arc<RwLock<dyn FlowBlock>>;
         // ops' parents and this block's self_ref are weak refs to the same Arc
         // (set together by BlockGraph::add_block, block.rs:2792-2800), so
         // Arc::ptr_eq is the identity test. A block never inserted into a
@@ -2687,7 +2687,7 @@ impl BlockBasic {
     /// Visibility: Ghidra keeps `setInitialRange` private with
     /// `friend class Funcdata` (block.hh:462/467), so the public construction
     /// path is the `Funcdata` inline `setBasicBlockRange(bb, beg, end)`
-    /// (funcdata.hh:556) that just delegates here.  Rugra exposes this method
+    /// (funcdata.hh:556) that just delegates here.  Rudra exposes this method
     /// as `pub` so out-of-crate oracle fixtures can build the same legal
     /// block state (the locked C++ fixture reaches the private member via
     /// `#define private public` and calls `fd.setBasicBlockRange`).
@@ -2738,7 +2738,7 @@ impl BlockBasic {
         // itself is the answer.
         let Some(first) = self.ops.first() else {
             // cc:2300-2301: no ops — Ghidra returns an invalid Address();
-            // Rugra falls back to the construction addr (see get_stop_addr).
+            // Rudra falls back to the construction addr (see get_stop_addr).
             return self.start_addr;
         };
         let addr = first.0.read().unwrap().get_addr();
@@ -2754,7 +2754,7 @@ impl BlockBasic {
     pub fn get_stop_addr(&self) -> crate::address::Address {
         match self.cover.ranges().last() {
             Some(range) => range.get_last_addr(),
-            // Ghidra returns an invalid Address() for an empty cover; Rugra
+            // Ghidra returns an invalid Address() for an empty cover; Rudra
             // has no invalid Address, so fall back to the construction addr
             // (no flow-created block reaches this arm: flow.cc always sets a
             // range before the block joins the graph).
@@ -2926,7 +2926,7 @@ impl FlowBlock for BlockBasic {
             statement = 1;
         }
         // cc:2401: maxref = data->getArch()->max_implied_ref — the default 2
-        // (architecture.cc:1420). Rugra's BlockBasic holds no arch
+        // (architecture.cc:1420). Rudra's BlockBasic holds no arch
         // back-pointer; same constant precedent as ActionRestructureVarnode
         // (coreaction.rs "arch.max_implied_ref default").
         let maxref: i32 = 2;
@@ -3085,7 +3085,7 @@ impl FlowBlock for BlockBasic {
     fn set_immed_dom(&mut self, dom: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>) {
         self.immed_dom = dom;
     }
-    // RUDRA-GLUE: Rugra-only dom_depth field
+    // RUDRA-GLUE: Rudra-only dom_depth field
     fn get_dom_depth(&self) -> i32 {
         self.dom_depth
     }
@@ -3093,7 +3093,7 @@ impl FlowBlock for BlockBasic {
     fn set_dom_depth(&mut self, depth: i32) {
         self.dom_depth = depth;
     }
-    // RUDRA-GLUE: Rugra-only dom_children field
+    // RUDRA-GLUE: Rudra-only dom_children field
     fn get_dom_children(&self) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.dom_children.clone()
     }
@@ -3105,7 +3105,7 @@ impl FlowBlock for BlockBasic {
     fn clear_dom_children(&mut self) {
         self.dom_children.clear();
     }
-    // RUDRA-GLUE: Rugra-only dom_frontier field
+    // RUDRA-GLUE: Rudra-only dom_frontier field
     fn get_dom_frontier(&self) -> std::collections::HashSet<i32> {
         self.dom_frontier.clone()
     }
@@ -3246,7 +3246,7 @@ impl FlowBlock for BlockBasic {
     // Ghidra: block.hh:347 FlowBlock::isGotoOut
     fn is_goto_out(&self, i: usize) -> bool {
         // Goto-out: the i-th outgoing edge is goto or irreducible (block.hh:351).
-        // Rugra marks gotos via block-level GOTO_EDGE_0/GOTO_EDGE_1 flags
+        // Rudra marks gotos via block-level GOTO_EDGE_0/GOTO_EDGE_1 flags
         // (set by run_tracedag / goto_cascade), so we check both the edge flag
         // AND the block-level flag for slot i.
         let edge_goto = self
@@ -3476,7 +3476,7 @@ impl PartialEq for BlockRef {
     }
 }
 
-/// The closed set of FlowBlock kinds — Rugra's enum form of Ghidra's
+/// The closed set of FlowBlock kinds — Rudra's enum form of Ghidra's
 /// `FlowBlock::block_type` closed set (block.hh:77-80, `t_plain`..
 /// `t_infloop`; ARENA_DESIGN §1.4 "闭集枚举 = 13 型 vtable 面").
 ///
@@ -3491,9 +3491,9 @@ impl PartialEq for BlockRef {
 /// (block.hh:184 — a FlowBlock's type never changes).
 ///
 /// The 11 `impl FlowBlock` types are the reachable variants; `Plain` and
-/// `Graph` mirror the oracle enumerators that Rugra never instantiates
-/// behind a handle today (Rugra's `BlockGraph` is not a FlowBlock;
-/// Ghidra's `newBlock()` plain factory has no Rugra caller) so the
+/// `Graph` mirror the oracle enumerators that Rudra never instantiates
+/// behind a handle today (Rudra's `BlockGraph` is not a FlowBlock;
+/// Ghidra's `newBlock()` plain factory has no Rudra caller) so the
 /// enum↔`BlockType` maps stay total over the oracle's 13-value face.
 // RUDRA-GLUE: block-kind enum (block.hh:77-80 block_type closed set;
 // storage form — Ghidra's counterpart is the C++ vtable face itself)
@@ -3503,7 +3503,7 @@ pub enum BlockKind {
     Basic(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
     /// `t_plain` (block.hh:184) — bare FlowBlock; unreachable today.
     Plain(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
-    /// `t_graph` (block.hh:385) — `BlockGraph`; unreachable today (Rugra
+    /// `t_graph` (block.hh:385) — `BlockGraph`; unreachable today (Rudra
     /// graphs are not FlowBlock handles).
     Graph(Arc<RwLock<dyn FlowBlock + Send + Sync>>),
     /// `t_copy` (block.hh:525) — `BlockCopy`.
@@ -4231,7 +4231,7 @@ impl BlockBank {
     /// `outofthis[i]` member load in the oracle): the i-th out edge as a
     /// plain Copy value, no peer RwLock, no vtable. `None` mirrors the
     /// slot being out of range (the oracle's UB slot would be a caller
-    /// bug; Rugra's `get_out` is Option-shaped and so is this).
+    /// bug; Rudra's `get_out` is Option-shaped and so is this).
     // RUDRA-GLUE: edge-shadow read (wave 3; block.hh:301 direct form)
     pub fn expect_out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         let st = self.sh.state.read().unwrap();
@@ -4662,7 +4662,7 @@ pub struct BlockGraph {
     /// Number of descendants in the spanning tree (+1) (Ghidra `numdesc`,
     /// block.hh:126); -1 marks unset.
     pub num_desc: i32,
-    /// Parent chain (Rugra's equivalent of Ghidra `FlowBlock::parent`,
+    /// Parent chain (Rudra's equivalent of Ghidra `FlowBlock::parent`,
     /// block.hh:78): consumed block index -> index of the composite that
     /// absorbed it (the composite's install slot). Ghidra's
     /// `BlockGraph::addBlock` sets `bl->parent = this` when
@@ -4672,12 +4672,12 @@ pub struct BlockGraph {
     /// (identifyInternal sets no flag; f_dead is exclusively Funcdata's
     /// dead basic-block removal, funcdata_block.cc:333/370). Algorithms
     /// like LoopBody::update (blockaction.cc:95-102) walk `getParent()`
-    /// up to the graph level; Rugra resolves the same chain transitively
+    /// up to the graph level; Rudra resolves the same chain transitively
     /// via `resolve_to_graph_level`, and rule sweeps use map membership
     /// (`is_consumed`) in place of Ghidra's incremental list compaction
     /// (block.cc:953-960).
     // RUDRA-GLUE: identity-keyed hash map (Ghidra has no map here — blocks
-    // are removed from the list on identifyInternal, block.cc:953-960; Rugra
+    // are removed from the list on identifyInternal, block.cc:953-960; Rudra
     // keeps stable slots and records absorption instead). FxHashMap: the
     // is_consumed membership test runs per rule-try/per in-edge in the
     // collapse scan (tens of millions of lookups on giant functions); the
@@ -4991,7 +4991,7 @@ impl BlockGraph {
     ///
     /// Errors: if after two passes extra roots are still being discovered,
     /// Ghidra throws LowlevelError("Could not generate spanning tree")
-    /// (block.cc:1110-1111); Rugra returns the equivalent `anyhow` error.
+    /// (block.cc:1110-1111); Rudra returns the equivalent `anyhow` error.
     // Ghidra: block.cc:1009 BlockGraph::findSpanningTree
     pub fn find_spanning_tree(
         &mut self,
@@ -5332,7 +5332,7 @@ impl BlockGraph {
                     // pointers — when y' == x (the loop head's own edge into
                     // a reachunder member: y == x and copymap still points
                     // at itself, cc:1027/1122) C++ reads the same object
-                    // twice, which is naturally legal without locks. Rugra's
+                    // twice, which is naturally legal without locks. Rudra's
                     // per-block RwLock must not take two read guards of one
                     // lock for that snapshot (std::sync::RwLock::read is
                     // documented "might panic" when the lock is already
@@ -5614,7 +5614,7 @@ impl BlockGraph {
     // cc:953-960; addBlock assigns the one `parent` pointer, cc:862-875;
     // goto-arm switch targets stay unconsumed in the surrounding graph,
     // cc:3548-3553; the BLOCKCONSISTENT_DEBUG build even asserts that
-    // ownership at collapse time, cc:945-948). Rugra's dispatch keeps
+    // ownership at collapse time, cc:945-948). Rudra's dispatch keeps
     // the same per-node-once property structurally: the Switch arm walks
     // control + gototype==0 cases + the gototype==0 default arm, so the
     // one sanctioned aliasing (goto-arm case targets — and a
@@ -5695,7 +5695,7 @@ impl BlockGraph {
     /// `if ((*iter)->parent != this) throw LowlevelError("Bad block
     /// identify")`).
     ///
-    /// Rugra's Arc block model reproduces that shape with ONE sanctioned
+    /// Rudra's Arc block model reproduces that shape with ONE sanctioned
     /// aliasing exception: a `BlockSwitch` whose control is a
     /// `BlockMultiGoto` records the peeled goto-edge targets in `cases`
     /// with gototype != 0 while they remain top-level roots
@@ -5717,7 +5717,7 @@ impl BlockGraph {
     /// sweeps stay byte-identical to the oracle's unguarded recursion.
     // RUDRA-GLUE: debug-only ownership invariant walk — Ghidra's counterpart
     // is the compile-time BLOCKCONSISTENT_DEBUG #ifdef ownership check at the
-    // collapse site (block.cc:945-948), not a runtime tree walk; Rugra's Arc
+    // collapse site (block.cc:945-948), not a runtime tree walk; Rudra's Arc
     // model without a `parent` invariant needs the walk to assert the same.
     #[cfg(debug_assertions)]
     fn debug_assert_component_tree_unique(
@@ -5844,7 +5844,7 @@ impl BlockGraph {
     /// following `bl` in this graph's emission list, front-leafed; when `bl`
     /// is the last child, the oracle defers to the parent graph
     /// (`getParent()->nextFlowAfter(this)`) and returns null at the root.
-    /// Rugra's `BlockGraph` is not a `FlowBlock` (no inheritance), so a
+    /// Rudra's `BlockGraph` is not a `FlowBlock` (no inheritance), so a
     /// nested graph can never sit in another graph's `blocks` list — the
     /// only graph the emitter walks (`sblocks`) is the root, where the
     /// oracle's end-of-list arm is exactly the null it returns at the root.
@@ -5869,7 +5869,7 @@ impl BlockGraph {
             .position(|b| Arc::ptr_eq(b, bl))?
             .checked_add(1)?;
         // cc:1344-1348: end-of-list -> parent chain, null at the root;
-        // Rugra's graph is always the root (see doc comment).
+        // Rudra's graph is always the root (see doc comment).
         // cc:1349-1352: nextbl = *iter; front-leaf it.
         let nextbl = graph_arc.read().unwrap().blocks.get(next)?.clone();
         front_leaf(&nextbl)
@@ -5877,14 +5877,14 @@ impl BlockGraph {
 
     // RUDRA-GLUE: Ghidra's uniform BlockGraph::list / getBlock(i) component
     // protocol (block.hh:365-380, factories block.cc:1758-1918), projected
-    // onto Rugra's typed composite fields. Order matches the -nodes- vector
+    // onto Rudra's typed composite fields. Order matches the -nodes- vector
     // each factory passes to identifyInternal: BlockList [nodes in order],
     // BlockIf [cond] for if-goto (newBlockIfGoto cc:1799-1810) / [cond, tc]
     // (newBlockIf cc:1822-1830) / [cond, tc, fc] (newBlockIfElse cc:1840-
     // 1849), BlockWhileDo [cond, cl] (cc:1858), BlockDoWhile [condcl]
     // (cc:1874), BlockInfLoop [body] (cc:1889), BlockCondition [b1, b2]
     // (cc:1780), BlockSwitch [cs..., default] (cc:1904 — the control stays
-    // outside the list; Rugra's default_case models the default arm),
+    // outside the list; Rudra's default_case models the default arm),
     // BlockGoto [bl] (cc:1702). Leaves (Basic/Copy) return an empty list:
     // Ghidra's walk only recurses through BlockGraph subtypes.
     //
@@ -6176,10 +6176,10 @@ impl BlockGraph {
     ///   virtual root the start node's self-domination is cleared instead
     ///   (cc:2031).
     ///
-    /// Rugra binding note: Ghidra reads the RPO ordering from the graph's
+    /// Rudra binding note: Ghidra reads the RPO ordering from the graph's
     /// own `list` (contract: "blocks are in reverse post-order and this is
     /// reflected in the index field", block.hh:434). This port takes the RPO
-    /// view as an explicit slice because Rugra's shared `blocks` vector is
+    /// view as an explicit slice because Rudra's shared `blocks` vector is
     /// position-indexed by other passes and must not be reordered outside
     /// `find_spanning_tree` (BLOCK-INDEX-ASSIGN-0001); the rpo slot number
     /// plays the role of the oracle's `index` field.
@@ -6754,7 +6754,7 @@ impl BlockGraph {
     /// gets an empty dominance frontier, no MULTIEQUAL (phi) is placed for the
     /// loop-carried flag varnode, and the CBRANCH condition read is left
     /// unresolved (root cause of the `while(local_0==local_0)` dead-loop).
-    // RUDRA-GLUE: Rugra-only dom-frontier calculation (Ghidra has no dom-frontier field on FlowBlock)
+    // RUDRA-GLUE: Rudra-only dom-frontier calculation (Ghidra has no dom-frontier field on FlowBlock)
     pub fn calc_dom_frontier(&mut self) {
         for i in 0..self.blocks.len() {
             let b_ref = self.blocks[i].clone();
@@ -6844,7 +6844,7 @@ impl BlockGraph {
     /// covering every block. Previously this accessor DFS'd the entry
     /// candidates in vector order, letting a trailing orphan block steal
     /// RPO[0] (HTTPD-ADDDESCEND-THROW-0001 root cause).
-    // RUDRA-GLUE: Rugra RPO calculation (Ghidra uses findSpanningTree + orderBlocks block.cc:1009)
+    // RUDRA-GLUE: Rudra RPO calculation (Ghidra uses findSpanningTree + orderBlocks block.cc:1009)
     pub fn calc_rpo(&self) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.compute_spanning_rpo().0
     }
@@ -6914,7 +6914,7 @@ impl BlockGraph {
     /// target identity) precisely because multiple out-edges to the same
     /// block must stay distinguishable (block.cc:1459-1462 comment). The
     /// `#ifdef BLOCKCONSISTENT_DEBUG` parent check (block.cc:1454-1458) is
-    /// compiled out in the oracle release build and has no Rugra
+    /// compiled out in the oracle release build and has no Rudra
     /// counterpart.
     // Ghidra: block.cc:1451 BlockGraph::addLoopEdge
     pub fn add_loop_edge(
@@ -7034,7 +7034,7 @@ impl BlockGraph {
 /// over its component children. `BlockMultiGoto`'s wrapped copy is a
 /// dispatch leaf (newBlockMultiGoto nodes=[bl], block.cc:1734-1738), so
 /// the no-entry walk matches the oracle.
-// RUDRA-GLUE: free-function form of the C++ virtual dispatch; Rugra
+// RUDRA-GLUE: free-function form of the C++ virtual dispatch; Rudra
 // composites implement FlowBlock individually instead of subclassing one
 // BlockGraph vtable. `fd` threads the Funcdata the WhileDo override needs
 // (block.cc:3403 `BlockWhileDo::finalizePrinting(Funcdata&)`).
@@ -7215,7 +7215,7 @@ pub struct BlockCopy {
     pub copy_map: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>,
     pub visit_count: i32,
     pub num_desc: i32,
-    /// Rugra's derived dominator caches; rebuilt on the copied graph.
+    /// Rudra's derived dominator caches; rebuilt on the copied graph.
     // RUDRA-GLUE: Rust caches for Ghidra's external dominator vectors
     pub dom_depth: i32,
     // RUDRA-GLUE: Rust caches for Ghidra's external dominator vectors
@@ -7375,35 +7375,35 @@ impl FlowBlock for BlockCopy {
     fn set_num_desc(&mut self, count: i32) {
         self.num_desc = count;
     }
-    // RUDRA-GLUE: Rugra-only dom-depth cache
+    // RUDRA-GLUE: Rudra-only dom-depth cache
     fn get_dom_depth(&self) -> i32 {
         self.dom_depth
     }
-    // RUDRA-GLUE: Rugra-only dom-depth cache mutator
+    // RUDRA-GLUE: Rudra-only dom-depth cache mutator
     fn set_dom_depth(&mut self, depth: i32) {
         self.dom_depth = depth;
     }
-    // RUDRA-GLUE: Rugra-only dominator-child cache
+    // RUDRA-GLUE: Rudra-only dominator-child cache
     fn get_dom_children(&self) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.dom_children.clone()
     }
-    // RUDRA-GLUE: Rugra-only dominator-child cache mutator
+    // RUDRA-GLUE: Rudra-only dominator-child cache mutator
     fn add_dom_child(&mut self, child: Arc<RwLock<dyn FlowBlock + Send + Sync>>) {
         self.dom_children.push(child);
     }
-    // RUDRA-GLUE: Rugra-only dominator-child cache reset
+    // RUDRA-GLUE: Rudra-only dominator-child cache reset
     fn clear_dom_children(&mut self) {
         self.dom_children.clear();
     }
-    // RUDRA-GLUE: Rugra-only dominance-frontier cache
+    // RUDRA-GLUE: Rudra-only dominance-frontier cache
     fn get_dom_frontier(&self) -> std::collections::HashSet<i32> {
         self.dom_frontier.clone()
     }
-    // RUDRA-GLUE: Rugra-only dominance-frontier cache mutator
+    // RUDRA-GLUE: Rudra-only dominance-frontier cache mutator
     fn add_to_dom_frontier(&mut self, index: i32) {
         self.dom_frontier.insert(index);
     }
-    // RUDRA-GLUE: Rugra-only dominance-frontier cache reset
+    // RUDRA-GLUE: Rudra-only dominance-frontier cache reset
     fn clear_dom_frontier(&mut self) {
         self.dom_frontier.clear();
     }
@@ -7593,7 +7593,7 @@ pub struct BlockGoto {
     pub goto_type: u32,
     /// Transport for the oracle's lazy `gotoPrints()` evaluation
     /// (block.cc:2881-2890). Ghidra reads `getParent()->nextFlowAfter(this)`
-    /// at emit time; Rugra composites other than the root `BlockGraph` cannot
+    /// at emit time; Rudra composites other than the root `BlockGraph` cannot
     /// sit in a `BlockGraph::blocks` list, so `BlockGoto::parent` is never
     /// wired and the parent-present arm cannot run on demand. Instead
     /// `BlockGraph::compute_goto_prints` evaluates the identical comparison
@@ -7748,7 +7748,7 @@ impl FlowBlock for BlockGoto {
     }
     // Ghidra: block.cc:2856 BlockGoto::markUnstructured — delegate to the
     // inherent helper (cc:2814 recurses into the wrapped child via
-    // BlockGraph::markUnstructured, but Rugra's BlockGoto wraps a BlockBasic
+    // BlockGraph::markUnstructured, but Rudra's BlockGoto wraps a BlockBasic
     // with no structured children, so only the target-marking cc:2815-2818
     // step is needed).
     fn mark_unstructured_trait(&mut self) {
@@ -7851,7 +7851,7 @@ impl BlockGoto {
     /// `goto` statement be emitted for this block? The oracle asks the parent
     /// for the block following this one in flow and compares it (pointer
     /// identity) to the target's front leaf; with no parent (block.cc:2889)
-    /// it returns \b false. Rugra composites cannot sit in a
+    /// it returns \b false. Rudra composites cannot sit in a
     /// `BlockGraph::blocks` list, so the parent-present comparison is
     /// evaluated once over the final tree by
     /// `BlockGraph::compute_goto_prints` (run in ActionFinalStructure between
@@ -8037,7 +8037,7 @@ impl FlowBlock for BlockMultiGoto {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
     // Ghidra: block.hh:590 BlockMultiGoto::lastOp — getBlock(0)->lastOp().
-    // Rugra projects the BlockGraph delegation (block.cc:1330-1333) as the
+    // Rudra projects the BlockGraph delegation (block.cc:1330-1333) as the
     // wrapped component's full op list, same as BlockGoto::get_ops.
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         match &self.wrapped {
@@ -8311,7 +8311,7 @@ impl FlowBlock for BlockIf {
     // RUDRA-GLUE: Rust helper (Ghidra has no getOps; the flatten projection
     // of BlockIf's component list). Ghidra's factories hold exactly
     // [cond] for an if-goto (newBlockIfGoto block.cc:1799-1810 — the body
-    // stays external as the out-edge, and Rugra's if_body is a placeholder
+    // stays external as the out-edge, and Rudra's if_body is a placeholder
     // aliasing condition there) and [cond, tc(, fc)] otherwise
     // (newBlockIf block.cc:1822 / newBlockIfElse block.cc:1840). The emit
     // order those lists induce (printc.cc:2900+: condition, then clause
@@ -8338,7 +8338,7 @@ impl FlowBlock for BlockIf {
     // Ghidra: block.cc:3067 BlockIf::markUnstructured — recurse into
     // condition/then/else (cc:3025 BlockGraph::markUnstructured), then if this
     // is an if-goto whose goto is still f_goto_goto, mark its target as
-    // f_unstructured_targ (cc:3026-3027). Rugra delegates target-marking to
+    // f_unstructured_targ (cc:3026-3027). Rudra delegates target-marking to
     // the inherent helper.
     fn mark_unstructured_trait(&mut self) {
         // cc:3025: recurse into all sub-blocks (condition + bodies).
@@ -8402,7 +8402,7 @@ impl BlockIf {
     /// Ghidra `BlockIf::markUnstructured` (block.cc:3067-3073): if this is an
     /// if-goto block (gototarget != null) with a plain goto edge, mark the
     /// target block with `f_unstructured_targ`. The C++ first recurses into
-    /// children via `BlockGraph::markUnstructured`; Rugra's BlockIf exposes
+    /// children via `BlockGraph::markUnstructured`; Rudra's BlockIf exposes
     /// its condition/if_body/else_body directly, and those components are
     /// marked separately by the structurer, so only the target-marking step
     /// is ported here.
@@ -8411,7 +8411,7 @@ impl BlockIf {
         // cc:3071-3072: if (gototarget != null && gototype == f_goto_goto) markCopyBlock(gototarget, f_unstructured_targ);
         // markCopyBlock (block.cc:1233-1237) sets the flag on the target's
         // FRONT LEAF (getFrontLeaf, block.cc:340-349: descend subBlock(0)
-        // until t_copy), never on the wrapper itself. Rugra's leaf stand-ins
+        // until t_copy), never on the wrapper itself. Rudra's leaf stand-ins
         // are Basic/Copy, so marking the wrapper leaves the leaf unmarked and
         // emitLabelStatement never fires (GOTO-LABEL-UNPRINTED-0001).
         if self.goto_target.is_some() && self.goto_type == goto_type::GOTO_GOTO {
@@ -8424,7 +8424,7 @@ impl BlockIf {
     /// Ghidra `BlockIf::scopeBreak` (block.cc:3075-3084): propagate scope-break
     /// classification into the condition and body, and reclassify the goto
     /// edge as a `break` if its target is the enclosing loop's exit. The C++
-    /// body recurses via `getBlock(i)->scopeBreak(...)`; Rugra recurses into
+    /// body recurses via `getBlock(i)->scopeBreak(...)`; Rudra recurses into
     /// the held `condition`/`if_body`/`else_body` blocks directly. The
     /// condition block has multiple exits (so it gets cur_exit = -1), while
     /// the bodies share the if's exit block (so they get the real cur_exit).
@@ -8464,7 +8464,7 @@ impl BlockIf {
 
     /// Ghidra `BlockIf::getExitLeaf` (block.cc:3111-3117): in the special case
     /// of an if-goto block (getSize()==1), the exit leaf is the condition
-    /// block's exit leaf; otherwise there is no single exit leaf. Rugra models
+    /// block's exit leaf; otherwise there is no single exit leaf. Rudra models
     /// the if-goto case by `goto_target.is_some()` (which implies the
     /// condition is the only embedded component), delegating to the condition.
     // Ghidra: block.cc:3111 BlockIf::getExitLeaf
@@ -8479,7 +8479,7 @@ impl BlockIf {
 
     /// Ghidra `BlockIf::lastOp` (block.cc:3119-3125): in the special case of
     /// an if-goto block, the last op is the condition's last op; otherwise
-    /// there is no single last op. Rugra delegates to the condition.
+    /// there is no single last op. Rudra delegates to the condition.
     // Ghidra: block.cc:3119 BlockIf::lastOp
     pub fn last_op(&self) -> Option<PcodeOpRef> {
         // cc:3122-3123: if (getSize() == 1) return getBlock(0)->lastOp();
@@ -8494,7 +8494,7 @@ impl BlockIf {
     /// if/else block, test whether flipping the CBRANCH condition (so the
     /// if/else arms swap) is legal and beneficial, and if so perform the
     /// flip in place. Returns true if the complement was applied. The C++
-    /// uses `getSize()==3` to detect if/else; Rugra uses
+    /// uses `getSize()==3` to detect if/else; Rudra uses
     /// `else_body.is_some()`. The flip is delegated to the condition block's
     /// `flip_in_place_test`/`flip_in_place_execute` trait methods.
     // Ghidra: block.cc:3093 BlockIf::preferComplement
@@ -8504,7 +8504,7 @@ impl BlockIf {
             return false;
         }
         // cc:3099-3101: split = getBlock(0)->getSplitPoint(); if (split == null) return false;
-        // Rugra's condition is the split point itself for an if; we treat the
+        // Rudra's condition is the split point itself for an if; we treat the
         // condition as the split and ask it whether a flip is legal.
         // cc:3102-3104: if (0 != split->flipInPlaceTest(fliplist)) return false;
         if self.condition.read().unwrap().flip_in_place_test() != 0 {
@@ -8512,7 +8512,7 @@ impl BlockIf {
         }
         // cc:3105: split->flipInPlaceExecute();
         self.condition.write().unwrap().flip_in_place_execute();
-        // cc:3106: data.opFlipInPlaceExecute(fliplist);  -- Rugra folds this into flip_in_place_execute.
+        // cc:3106: data.opFlipInPlaceExecute(fliplist);  -- Rudra folds this into flip_in_place_execute.
         // cc:3107: swapBlocks(1, 2);  -- swap if_body and else_body in place.
         let if_arc = self.if_body.clone();
         let else_arc = self.else_body.as_ref().unwrap().clone();
@@ -8687,7 +8687,7 @@ impl FlowBlock for BlockWhileDo {
         self.scope_break_children(cur_exit, cur_loop_exit);
     }
     // Ghidra: block.cc BlockWhileDo::markUnstructured — only recurses (via
-    // BlockGraph::markUnstructured). Rugra recurses into its two children.
+    // BlockGraph::markUnstructured). Rudra recurses into its two children.
     fn mark_unstructured_trait(&mut self) {
         self.condition.write().unwrap().mark_unstructured_trait();
         self.body.write().unwrap().mark_unstructured_trait();
@@ -8703,7 +8703,7 @@ impl FlowBlock for BlockWhileDo {
 // RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockWhileDo virtual overrides)
 impl BlockWhileDo {
     /// Ghidra `BlockWhileDo::getInitializeOp` (block.hh:703, inline): root of
-    /// the for-loop initializer statement, or null. Rugra stores the rendered
+    /// the for-loop initializer statement, or null. Rudra stores the rendered
     /// init text in `for_init` rather than a PcodeOp pointer, so this returns
     /// `Some(text)` when an initializer was detected.
     // Ghidra: block.hh:703 BlockWhileDo::getInitializeOp
@@ -8712,7 +8712,7 @@ impl BlockWhileDo {
     }
 
     /// Ghidra `BlockWhileDo::getIterateOp` (block.hh:704, inline): root of the
-    /// for-loop iterator statement, or null. Rugra stores the rendered iterate
+    /// for-loop iterator statement, or null. Rudra stores the rendered iterate
     /// text in `for_iter`.
     // Ghidra: block.hh:704 BlockWhileDo::getIterateOp
     pub fn get_iterate_op(&self) -> Option<&String> {
@@ -8766,7 +8766,7 @@ impl BlockWhileDo {
     /// Ghidra `BlockWhileDo::scopeBreak` (block.cc:3324-3330): a new loop scope
     /// begins — the current loop exit becomes the new `cur_exit`. The top
     /// block (condition) has multiple exits so gets `cur_exit = -1`; the body
-    /// exits into the top block so gets `cur_exit = condition's index`. Rugra
+    /// exits into the top block so gets `cur_exit = condition's index`. Rudra
     /// recurses into the held `condition`/`body` via the trait method.
     // Ghidra: block.cc:3324 BlockWhileDo::scopeBreak
     pub fn scope_break_children(&mut self, cur_exit: i32, cur_loop_exit: i32) {
@@ -8803,7 +8803,7 @@ impl BlockWhileDo {
 type DynBlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
 /// Is `op` a member of `blk`'s op list (Arc identity)?
-// RUDRA-GLUE: Ghidra compares `defOp->getParent() != head` pointers; Rugra
+// RUDRA-GLUE: Ghidra compares `defOp->getParent() != head` pointers; Rudra
 /// op->parent weak links are the primary channel, with the block's op-list as
 /// a belt-and-suspenders fallback for ops whose parent link is not wired.
 fn op_lives_in_block(op: &Arc<RwLock<crate::op::PcodeOp>>, blk: &DynBlockArc) -> bool {
@@ -9347,7 +9347,7 @@ pub fn final_transform_block(
     let bl_id = Arc::as_ptr(bl) as *const () as usize;
     if !visited.insert(bl_id) {
         // LOAD-BEARING revisit guard (the oracle has none — cc:1355-1362
-        // is a plain recursion over its single-owner `list`). Rugra's
+        // is a plain recursion over its single-owner `list`). Rudra's
         // walk uses `component_list_dyn`, whose BlockSwitch arm returns
         // `cases + default_case` INCLUDING the gototype != 0 goto-arm
         // targets — the one sanctioned aliasing in the Arc model: those
@@ -9538,7 +9538,7 @@ impl FlowBlock for BlockDoWhile {
         self.scope_break_body(cur_exit, cur_loop_exit);
     }
     // Ghidra: block.cc BlockDoWhile::markUnstructured — only recurses (via
-    // BlockGraph::markUnstructured). Rugra recurses into condition.
+    // BlockGraph::markUnstructured). Rudra recurses into condition.
     fn mark_unstructured_trait(&mut self) {
         self.condition.write().unwrap().mark_unstructured_trait();
     }
@@ -9576,7 +9576,7 @@ impl BlockDoWhile {
     /// Ghidra `BlockDoWhile::scopeBreak` (block.cc:3434-3439): a new loop scope
     /// begins — the current loop exit becomes the new `cur_exit`. The single
     /// child (the fused body+condition) has multiple exits so gets
-    /// `cur_exit = -1`. Rugra recurses into the held `condition` (which holds
+    /// `cur_exit = -1`. Rudra recurses into the held `condition` (which holds
     /// the fused body) via the trait method.
     // Ghidra: block.cc:3434 BlockDoWhile::scopeBreak
     pub fn scope_break_body(&mut self, cur_exit: i32, cur_loop_exit: i32) {
@@ -9724,7 +9724,7 @@ impl FlowBlock for BlockInfLoop {
         self.scope_break_body(cur_exit, cur_loop_exit);
     }
     // Ghidra: block.cc BlockInfLoop::markUnstructured — only recurses (via
-    // BlockGraph::markUnstructured). Rugra recurses into body.
+    // BlockGraph::markUnstructured). Rudra recurses into body.
     fn mark_unstructured_trait(&mut self) {
         self.body.write().unwrap().mark_unstructured_trait();
     }
@@ -9762,7 +9762,7 @@ impl BlockInfLoop {
     /// Ghidra `BlockInfLoop::scopeBreak` (block.cc:3462-3467): a new loop scope
     /// begins — the current loop exit becomes the new `cur_exit`. The body
     /// exits into itself (the loop's entry), so it gets
-    /// `cur_exit = body's index`. Rugra recurses into the held `body` via the
+    /// `cur_exit = body's index`. Rudra recurses into the held `body` via the
     /// trait method.
     // Ghidra: block.cc:3462 BlockInfLoop::scopeBreak
     pub fn scope_break_body(&mut self, cur_exit: i32, cur_loop_exit: i32) {
@@ -9843,7 +9843,7 @@ impl BlockList {
 
     /// Ghidra `BlockList::negateCondition` (block.cc:2967-2974): negate the
     /// condition of the last child and flip the order of this block's outgoing
-    /// edges. Returns true if the child's condition was negated. Rugra
+    /// edges. Returns true if the child's condition was negated. Rudra
     /// delegates to the last child's `negate_condition` and then swaps the
     /// outgoing edges in place.
     // Ghidra: block.cc:2967 BlockList::negateCondition
@@ -9863,7 +9863,7 @@ impl BlockList {
 
     /// Ghidra `BlockList::getSplitPoint` (block.cc:2976-2981): the split point
     /// is the last child's split point. Returns null if there are no children.
-    /// Rugra returns the last child itself (the block whose CBRANCH can be
+    /// Rudra returns the last child itself (the block whose CBRANCH can be
     /// flipped), as the front-leaf split-point concept does not yet have a
     /// distinct Rust counterpart.
     // Ghidra: block.cc:2976 BlockList::getSplitPoint
@@ -10017,7 +10017,7 @@ impl FlowBlock for BlockList {
     // — there is no override, so a BlockList walks its children exactly like
     // a BlockGraph: each child's exit is the next child's index (or the
     // inherited cur_exit for the last child), and cur_loop_exit propagates
-    // unchanged. Rugra's BlockList is a separate struct (not a BlockGraph
+    // unchanged. Rudra's BlockList is a separate struct (not a BlockGraph
     // subclass), so we replicate the traversal here.
     // Ghidra: block.cc:1270 BlockGraph::scopeBreak (inherited by BlockList)
     fn scope_break_trait(&mut self, cur_exit: i32, cur_loop_exit: i32) {
@@ -10240,7 +10240,7 @@ impl FlowBlock for BlockCondition {
         self.scope_break_children(cur_exit, cur_loop_exit);
     }
     // Ghidra: block.cc BlockCondition::markUnstructured — only recurses (via
-    // BlockGraph::markUnstructured). Rugra recurses into first/second.
+    // BlockGraph::markUnstructured). Rudra recurses into first/second.
     fn mark_unstructured_trait(&mut self) {
         self.first.write().unwrap().mark_unstructured_trait();
         self.second.write().unwrap().mark_unstructured_trait();
@@ -10270,7 +10270,7 @@ impl FlowBlock for BlockCondition {
 // RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockCondition virtual overrides)
 impl BlockCondition {
     /// Ghidra `BlockCondition::getOpcode` (block.hh:625, inline): the boolean
-    /// operation (BOOL_AND / BOOL_OR). Rugra returns the `BoolOp` enum.
+    /// operation (BOOL_AND / BOOL_OR). Rudra returns the `BoolOp` enum.
     // Ghidra: block.hh:625 BlockCondition::getOpcode
     pub fn get_opcode(&self) -> BoolOp {
         self.op_type
@@ -10280,11 +10280,11 @@ impl BlockCondition {
     /// whether the short-circuit condition can be flipped by testing each
     /// sub-block's split point. Returns the reason code (0 = flippable, 2 =
     /// not flippable). The C++ walks `getBlock(0)->getSplitPoint()` and
-    /// `getBlock(1)->getSplitPoint()`; Rugra asks each child via the trait.
+    /// `getBlock(1)->getSplitPoint()`; Rudra asks each child via the trait.
     // Ghidra: block.cc:2990 BlockCondition::flipInPlaceTest
     pub fn is_split_point(&self) -> bool {
         // cc:2993-3005: both children must have a split point that is flippable.
-        // Rugra treats each child as its own split point and asks flip_in_place_test.
+        // Rudra treats each child as its own split point and asks flip_in_place_test.
         if self.first.read().unwrap().flip_in_place_test() != 0 {
             return false;
         }
@@ -10357,7 +10357,7 @@ impl BlockCondition {
     }
 
     /// Ghidra `BlockCondition::encodeHeader` (block.cc:3059-3065): emit the
-    /// base header plus an `opcode` attribute with the boolean op name. Rugra
+    /// base header plus an `opcode` attribute with the boolean op name. Rudra
     /// returns `(index, opcode_name)` for the marshal layer.
     // Ghidra: block.cc:3059 BlockCondition::encodeHeader
     pub fn encode_header(&self) -> (i32, &'static str) {
@@ -10463,7 +10463,7 @@ pub struct BlockSwitch {
     /// to `cases`.
     pub case_isexit: Vec<bool>,
     /// `CaseOrder::isexit` for the default slot (cc:3512-3514 applied to
-    /// Rugra's separate default arm).
+    /// Rudra's separate default arm).
     pub default_isexit: bool,
     /// Ghidra `BlockSwitch::jump` (block.hh:753): the jump table associated
     /// with this switch, captured by the ctor (`jump = ind->getJumptable()`,
@@ -10482,13 +10482,13 @@ pub struct BlockSwitch {
     /// from the default basic block's first table index (block.cc:3573-3576
     /// `getIndexByBlock(basicblock,0)`/`getLabelByIndex`) — so `default:`
     /// prints at its label rank, not last (printc.cc:3331-3332 + cc:3140).
-    /// Rugra keeps the default in its own slot; this field carries the same
+    /// Rudra keeps the default in its own slot; this field carries the same
     /// label so printc can place it at the identical rank. None until
     /// `finalize_case_labels` computes it (or when the default basic block
     /// has no table indices — the cc:3588 `label = 0; Should never happen`
     /// corner keeps legacy last-position emission). Known corner vs the
     /// oracle: a default that is a fall-thru chain non-root takes its chain
-    /// root's label in Ghidra (cc:3577-3584); Rugra's default slot carries
+    /// root's label in Ghidra (cc:3577-3584); Rudra's default slot carries
     /// no chain link, so such a default places by its own first index.
     /// — CLOSED (BLOCKACTION-SWITCH-DEFAULTCHAIN-0001): the virtual
     /// `default_order` below restores the chain link.
@@ -10505,12 +10505,12 @@ pub struct BlockSwitch {
     /// corner: a fall-thru chain CONTINUING past the default (the default
     /// chained into a later regular case sharing its label) has no exact
     /// scalar rank; the key then places the default after that whole label
-    /// group (witnessed under RUGRA_BS_DUMP=1; unreachable in both
+    /// group (witnessed under RUDRA_BS_DUMP=1; unreachable in both
     /// corpora — full-corpus byte comparison verified).
     pub default_label: Option<u64>,
     /// Ghidra keeps the formal default as an ordinary `caseblocks` member
     /// (`grabCaseBasic` cc:3529-3533 adds every component; only the
-    /// `isdefault` flag distinguishes it, cc:3515). Rugra stores the
+    /// `isdefault` flag distinguishes it, cc:3515). Rudra stores the
     /// default body in `default_case` outside the parallel `cases` arrays;
     /// this virtual `CaseOrder` is the default's own record (`addCase`
     /// cc:3498-3515 applied to the default edge), including its fall-thru
@@ -10533,7 +10533,7 @@ pub struct BlockSwitch {
     /// pre-`finalizePrinting` consumers (`ActionReturnSplit`'s
     /// gatherReturnGotos → BlockGoto::gotoPrints →
     /// BlockSwitch::nextFlowAfter, block.cc:3639-3661): the oracle reads
-    /// caseblocks directly at that phase, so the merged order Rugra
+    /// caseblocks directly at that phase, so the merged order Rudra
     /// rebuilds must place the default at this index — the out-edge rank
     /// heuristic (`switch_default_construct_pos`) reconstructs the grab-
     /// time arm but is WRONG for a peeled-goto default, whose oracle
@@ -10658,9 +10658,9 @@ impl FlowBlock for BlockSwitch {
     }
     // Ghidra: block.cc:3603 BlockSwitch::markUnstructured — recurse via
     // BlockGraph::markUnstructured (cc:3561), then mark each case whose
-    // gototype is f_goto_goto (cc:3562-3565). Rugra recurses into the control
+    // gototype is f_goto_goto (cc:3562-3565). Rudra recurses into the control
     // and every case; per-case goto target marking is a conservative no-op
-    // (Rugra does not yet track per-case gototype).
+    // (Rudra does not yet track per-case gototype).
     fn mark_unstructured_trait(&mut self) {
         self.control.write().unwrap().mark_unstructured_trait();
         for case in &self.cases {
@@ -10696,7 +10696,7 @@ impl FlowBlock for BlockSwitch {
 // RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockSwitch virtual overrides)
 impl BlockSwitch {
     /// Ghidra `BlockSwitch::getSwitchBlock` (block.hh:772, inline): the root
-    /// switch component (getBlock(0)). Rugra returns the `control` block.
+    /// switch component (getBlock(0)). Rudra returns the `control` block.
     // Ghidra: block.hh:772 BlockSwitch::getSwitchBlock
     pub fn get_switch_block(&self) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         self.control.clone()
@@ -10718,7 +10718,7 @@ impl BlockSwitch {
 
     /// Ghidra `BlockSwitch::getNumLabels` (block.hh:785, inline):
     /// `jump->numIndicesByBlock(caseblocks[i].basicblock)` — the number of
-    /// case labels for the i-th case. Rugra materializes the identical value
+    /// case labels for the i-th case. Rudra materializes the identical value
     /// group into `case_values[i]` during `finalize_case_labels`
     /// (block.cc:3556-3592 runs before any printing), so this reads the
     /// materialized length; before finalize the field holds the addCase-style
@@ -10730,7 +10730,7 @@ impl BlockSwitch {
 
     /// Ghidra `BlockSwitch::getLabel` (block.hh:786, inline):
     /// `jump->getLabelByIndex(jump->getIndexByBlock(caseblocks[i].basicblock, j))`
-    /// — the j-th case label value for the i-th case. Rugra reads the group
+    /// — the j-th case label value for the i-th case. Rudra reads the group
     /// materialized by `finalize_case_labels` (same jumptable queries, same
     /// per-block addressIndex order).
     // Ghidra: block.hh:786 BlockSwitch::getLabel
@@ -10748,7 +10748,7 @@ impl BlockSwitch {
     /// cases with no address-table entry keep label 0 (cc:3588 "Should never
     /// happen"). The sort (cc:3591, `stable_sort` with
     /// `CaseOrder::compare`, block.hh:903-909: label, then depth) reorders
-    /// the caseblocks; Rugra permutes the parallel `cases`/`case_gototypes`/
+    /// the caseblocks; Rudra permutes the parallel `cases`/`case_gototypes`/
     /// `case_values`/`case_order` arrays jointly. Finally the label groups
     /// are materialized into `case_values` with the exact print-time queries
     /// (block.hh:780/787) so `get_num_labels`/`get_label` observe the same
@@ -10770,7 +10770,7 @@ impl BlockSwitch {
         // cc:3556-3592 runs over the oracle's caseblocks vector, which
         // INCLUDES the formal default as an ordinary member (grabCaseBasic
         // cc:3529-3533 added every component; only the isdefault flag set
-        // by addCase cc:3515 distinguishes it). Rugra keeps the default
+        // by addCase cc:3515 distinguishes it). Rudra keeps the default
         // body in its separate `default_case` slot with parallel `cases`
         // arrays, so the passes below run over the EXTENDED view `ext`:
         // the regular case_order entries plus the virtual default entry
@@ -10846,7 +10846,7 @@ impl BlockSwitch {
                 ca.depth.cmp(&cb.depth)
             }
         });
-        // Split the merged sort back into Rugra's storage shape: the
+        // Split the merged sort back into Rudra's storage shape: the
         // regular entries (perm slots holding indices < n) reorder the
         // parallel arrays jointly, exactly as the pre-extension code did.
         let regular_perm: Vec<usize> = perm.iter().copied().filter(|&x| x < n).collect();
@@ -10919,7 +10919,7 @@ impl BlockSwitch {
                 // label with a regular sorting after it — no scalar can
                 // express the oracle's exact interleaving. Best effort:
                 // keep the key (default places after that label group).
-                if std::env::var("RUGRA_BS_DUMP")
+                if std::env::var("RUDRA_BS_DUMP")
                     .map(|v| v == "1" || v == "2")
                     .unwrap_or(false)
                 {
@@ -10955,10 +10955,10 @@ impl BlockSwitch {
                 }
             }
         }
-        // RUDRA-GLUE: env-gated (RUGRA_BS_DUMP=1) structural witness for the
+        // RUDRA-GLUE: env-gated (RUDRA_BS_DUMP=1) structural witness for the
         // label pipeline (no Ghidra counterpart; debug-only) — prints the
         // finalized CaseOrder records per switch.
-        if std::env::var("RUGRA_BS_DUMP")
+        if std::env::var("RUDRA_BS_DUMP")
             .map(|v| v == "1" || v == "2")
             .unwrap_or(false)
         {
@@ -10984,7 +10984,7 @@ impl BlockSwitch {
     }
 
     /// Ghidra `BlockSwitch::isDefaultCase` (block.hh:789, inline): is the i-th
-    /// case the default case? Rugra compares against `default_case`.
+    /// case the default case? Rudra compares against `default_case`.
     // Ghidra: block.hh:789 BlockSwitch::isDefaultCase
     pub fn is_default_case(&self, i: usize) -> bool {
         if let (Some(case), Some(default)) = (self.cases.get(i), &self.default_case) {
@@ -11006,7 +11006,7 @@ impl BlockSwitch {
 
     /// Ghidra `BlockSwitch::markUnstructured` (block.cc:3603-3611): mark each
     /// case whose goto edge is a plain `goto` with `f_unstructured_targ`. The
-    /// C++ first recurses via `BlockGraph::markUnstructured`; Rugra's
+    /// C++ first recurses via `BlockGraph::markUnstructured`; Rudra's
     /// `BlockSwitch` exposes its cases directly, so only the per-case marking
     /// is ported here. scopeBreak runs before markUnstructured (the oracle's
     /// own evaluation order), so cases already promoted to `f_break_goto`
@@ -11020,7 +11020,7 @@ impl BlockSwitch {
             }
         }
         // The default case is a caseblock in the oracle (isdefault tag);
-        // Rugra stores it separately — same marking rule.
+        // Rudra stores it separately — same marking rule.
         if self.default_gototype == goto_type::GOTO_GOTO {
             if let Some(def) = &self.default_case {
                 mark_front_leaf(def, block_flags::UNSTRUCTURED_TARG);
@@ -11058,7 +11058,7 @@ impl BlockSwitch {
             }
         }
         // The default case is a caseblock in the oracle's single list; the
-        // same gototype arm applies to Rugra's separate slot.
+        // same gototype arm applies to Rudra's separate slot.
         if self.default_gototype != 0 {
             if let Some(def) = &self.default_case {
                 if def.read().unwrap().get_index() == cur_exit {
@@ -11081,7 +11081,7 @@ impl BlockSwitch {
 
     /// Ghidra `BlockSwitch::getSwitchVar` (block.cc:3596-3601): the input
     /// Varnode to the switch's BRANCHIND, used by the printer to emit the
-    /// switch expression. Rugra returns the held `index_varnode`.
+    /// switch expression. Rudra returns the held `index_varnode`.
     // Ghidra: block.cc:3596 BlockSwitch::getSwitchVar
     pub fn get_switch_varnode(&self) -> Option<Arc<RwLock<crate::varnode::Varnode>>> {
         self.index_varnode.clone()

@@ -128,3 +128,4 @@ types.h:27 `typedef uint32_t uintm` = 4），已由整面 fixture
 `pcode_snippet_face_1204` 的 st20/LF|clrlbl 记录（`const_real val="0x4"`）
 逐字节钉死。仅测试断言重钉，生产代码零改动（g6 修复在
 `docs/api/pcodeparse.md` 2026-09-27 节）。
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

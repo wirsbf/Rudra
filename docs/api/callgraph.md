@@ -42,3 +42,4 @@
 - `clear_marks()` — 清除所有标记
 - `all_addrs()` / `get_out_edges(addr)` / `delete_in_edge(addr, index)`
 <!-- annotation-pass: 2026-07-04 -->
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

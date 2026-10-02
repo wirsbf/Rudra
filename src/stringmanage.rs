@@ -28,7 +28,7 @@
 //! The production golden corpus (`tests/golden/ghidra_curl_1204.c`) proves the
 //! oracle walked the `GhidraStringManager` path (hugehelp strings with the NUL
 //! at 3354-10329 bytes decode as 2048-char `/* TRUNCATED STRING LITERAL */`
-//! literals; under `StringManagerUnicode` all six would be negative). Rugra's
+//! literals; under `StringManagerUnicode` all six would be negative). Rudra's
 //! production manager therefore implements the **GhidraStringManager/Java
 //! contract**: detection is unbounded (charset-valid + NUL-terminated), and
 //! `maximumChars=2048` only truncates the *returned* bytes (via
@@ -355,7 +355,7 @@ enum StringBackend {
     /// Data the query falls back to a **raw memory read**
     /// (MemoryBufferImpl) bounded by maxChars (`length > maxChars →
     /// null`). The attached client is free to model that full shape or to
-    /// answer a narrower projection (see `StringDataClient`); Rugra's
+    /// answer a narrower projection (see `StringDataClient`); Rudra's
     /// driver currently attaches the corpus-witness projection.
     /// `None` keeps the declared raw-read contract (the pre-client
     /// stand-in used by faces without the analysis-period environment
@@ -393,7 +393,7 @@ enum StringBackend {
 ///    `sz = res.length + 1`; ghidra_arch.cc:801-810 pushes the full
 ///    amount into the buffer). Byte-level B2 fixtures must count it.
 ///
-/// Rugra's driver currently attaches a **corpus-witness projection** of
+/// Rudra's driver currently attaches a **corpus-witness projection** of
 /// the observable query-point answer set (the canon golden's per-address
 /// fold/&DAT verdicts), which is narrower than the full Java shape: it
 /// answers `Some` only at the witnessed string-Data starts and `None`
@@ -425,7 +425,7 @@ pub trait StringDataClient: Send + Sync {
 pub struct StringManager {
     /// Map from address to string data (stringmanage.hh:48). Interior
     /// mutability is required because Ghidra's `isString` mutates the cache
-    /// through the shared base pointer while Rugra consumers hold the
+    /// through the shared base pointer while Rudra consumers hold the
     /// manager behind `Arc<RwLock<StringManager>>` with read guards.
     string_map: RwLock<BTreeMap<Address, StringData>>,
     /// Maximum characters in a string before truncating
@@ -488,7 +488,7 @@ impl StringManager {
     // point; the C++ counterpart is the sout/sin pipe itself —
     // ArchitectureGhidra::getStringData writes COMMAND_GETSTRINGDATA to
     // the Java process, ghidra_arch.cc:783-795, and the process is fixed
-    // at architecture construction; Rugra keeps the query target
+    // at architecture construction; Rudra keeps the query target
     // attachable so the analysis-period environment layer can install its
     // answer-set projection without rebuilding the manager)
     /// Attach the environment-side COMMAND_GETSTRINGDATA target (the
@@ -512,7 +512,7 @@ impl StringManager {
 
     // RUDRA-GLUE: get_maximum_chars (accessor for the protected
     // `maximumChars` member, stringmanage.hh:49; Ghidra has no public getter;
-    // Rugra consumers such as the internal-string registration path read it
+    // Rudra consumers such as the internal-string registration path read it
     // through the shared handle)
     /// Get the maximum character count.
     pub fn get_maximum_chars(&self) -> i32 {
@@ -797,7 +797,7 @@ impl StringManager {
     /// with [`Self::calc_internal_hash`], and cached at the constant-space
     /// address of the hash; returns the hash (or 0 on illegal encoding).
     ///
-    /// RUDRA-GLUE: Ghidra's key is `getConstant(hash)`; Rugra's transitional
+    /// RUDRA-GLUE: Ghidra's key is `getConstant(hash)`; Rudra's transitional
     /// constant-space address is the spaceless `Address::new(hash)`
     /// (translate.rs `AddrSpaceManager::get_constant`).
     pub fn register_internal_string_data(
@@ -843,7 +843,7 @@ impl StringManager {
         let map = self.string_map.read().unwrap();
         for (addr, data) in map.iter() {
             encoder.open_element(&str_elem);
-            // Address. RUDRA-GLUE: Rugra's transitional encoder records the
+            // Address. RUDRA-GLUE: Rudra's transitional encoder records the
             // offset (and the interned space tag id) rather than Ghidra's
             // `<addr space="name" offset=.../>` form; space-name restore
             // needs the architecture space registry (XML fidelity is an

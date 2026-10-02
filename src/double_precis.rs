@@ -49,7 +49,7 @@
 //! - `RuleDoubleLoad`(noWriteConflict/getOpList/applyOp)       double.cc:3370/3436/3442
 //! - `RuleDoubleStore`(getOpList/applyOp/testIndirectUse/reassignIndirects) double.cc:3507/3513/3578/3622
 //!
-//! ## Rugra-side adaptations (no behaviour change)
+//! ## Rudra-side adaptations (no behaviour change)
 //! - Ghidra raw pointers `Varnode*`/`PcodeOp*` map to Rust `VnArc`/`OpArc`
 //!   (`Arc<RwLock<...>>`); null checks become `Option`.
 //! - `wholeList`/`findCopies` consume `&self` for `&in` style but build new
@@ -65,7 +65,7 @@
 //!   `noWriteConflict` (double.cc:3406) and `testIndirectUse` (double.cc:3598).
 //! - Remaining infrastructure gaps are marked with `TODO` and degrade
 //!   gracefully. As of this revision the only such gap is
-//!   `Funcdata::hasUnreachableBlocks` (double.cc:3267, 3348): Rugra has only
+//!   `Funcdata::hasUnreachableBlocks` (double.cc:3267, 3348): Rudra has only
 //!   the mutating `remove_unreachable_blocks`, so the "bail if unreachable
 //!   blocks exist" guard is not modeled (we proceed, a conservative over-approx).
 
@@ -90,7 +90,7 @@ pub type OpArc = Arc<RwLock<PcodeOp>>;
 // RUDRA-GLUE: bit-flag accessor wrapping Varnode::isPrecisLo (varnode.hh, not in double.cc)
 // ---------------------------------------------------------------------------
 // Precis flag helpers. Ghidra exposes `setPrecisLo`/`isPrecisLo` (and the hi
-// variants) on Varnode; Rugra stores these in `varnode_flags::PRECISLO`/`PRECISHI`
+// variants) on Varnode; Rudra stores these in `varnode_flags::PRECISLO`/`PRECISHI`
 // but has no accessors yet, so we provide local faithful wrappers.
 // ---------------------------------------------------------------------------
 
@@ -118,7 +118,7 @@ fn set_precis_hi(vn: &mut Varnode) {
 /// Read the address-space a LOAD/STORE space-id constant operand encodes.
 ///
 /// Ghidra stores the target address space in `op->getIn(0)` as a special
-/// constant Varnode and recovers it via `Varnode::getSpaceFromConst()`. Rugra
+/// constant Varnode and recovers it via `Varnode::getSpaceFromConst()`. Rudra
 /// does not yet model the constant-space-id encoding; we approximate by reading
 /// the constant offset and mapping it through `AddressSpace::from_id`. The exact
 /// numeric encoding is architecture-dependent in Ghidra.
@@ -132,7 +132,7 @@ fn get_space_from_const(vn: &Varnode) -> AddressSpace {
     }
 }
 
-/// BlockBasic handle (`BlockBasic *` in Ghidra). Rugra's blocks are
+/// BlockBasic handle (`BlockBasic *` in Ghidra). Rudra's blocks are
 /// `Arc<RwLock<dyn FlowBlock>>`; we type-erase to that.
 pub type BlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -1544,7 +1544,7 @@ impl SplitVarnode {
             let hi_size = hi.read().unwrap().get_size();
             let lo_size = locpy.read().unwrap().get_size();
             // double.cc:887: addr.isBigEndian() ? addr - hi_size : addr + lo_size.
-            // Rugra exposes endianness via the varnode's address space
+            // Rudra exposes endianness via the varnode's address space
             // (AddressSpace::is_big_endian, space.rs:131).
             if locpy.read().unwrap().get_space().is_big_endian() {
                 addr = addr.wrapping_sub(hi_size as u64);
@@ -1635,7 +1635,7 @@ impl SplitVarnode {
             }
         };
         // double.cc:948-957: iterate bl->beginOp() .. bl->endOp().
-        // Rugra's FlowBlock::get_ops returns the block's ordered op list,
+        // Rudra's FlowBlock::get_ops returns the block's ordered op list,
         // which is the faithful equivalent of Ghidra's [beginOp, endOp).
         let ops = parent.read().unwrap().get_ops();
         for op_arc in ops {
@@ -2240,7 +2240,7 @@ fn lone_descend(vn: &VnArc) -> Option<OpArc> {
 
 // RUDRA-GLUE: wraps BlockBasic::lastOp (block.hh) for dyn FlowBlock trait objects
 /// `FlowBlock::lastOp()` for the erased `dyn FlowBlock`. Ghidra's
-/// `BlockBasic::lastOp()` returns the terminal op; Rugra's `last_op` is only on
+/// `BlockBasic::lastOp()` returns the terminal op; Rudra's `last_op` is only on
 /// the concrete `BlockBasic` struct, not the trait, so we implement it via the
 /// trait's `get_ops()` (`ops.last()`). Faithful to BlockBasic::lastOp
 /// (block.cc).
@@ -5074,7 +5074,7 @@ impl IndirectForm {
         self.reshi = ind.read().unwrap().get_out().cloned();
         let reshi = self.reshi.clone().unwrap();
         // double.cc:3090: reshi->getSpace()->getType()==IPTR_INTERNAL => false.
-        // Rugra models the internal/temporary space as AddressSpace::Unique.
+        // Rudra models the internal/temporary space as AddressSpace::Unique.
         if reshi.read().unwrap().get_space().is_unique() {
             return false;
         }
@@ -5172,7 +5172,7 @@ pub struct CopyForceForm {
     copyhi: Option<OpArc>,
     addr_out: Address,
     /// double.cc:3137-3180: addrOut is filled by isAddrTiedContiguous with
-    /// the reslo/reshi piece's own full address (double.cc:811/816); Rugra's
+    /// the reslo/reshi piece's own full address (double.cc:811/816); Rudra's
     /// split Address carries the space here
     /// (FAMILY-AUDIT-SPACELESS-SITES-0001).
     addr_out_space: AddressSpace,
@@ -5346,7 +5346,7 @@ impl CopyForceForm {
 // LessThreeWay (double.hh:182-216, double.cc:2026-2496)
 //
 // Three-way double-precision less-than compare across three CBRANCH blocks.
-// This is the single most block-control-flow-heavy Form. Rugra has the
+// This is the single most block-control-flow-heavy Form. Rudra has the
 // necessary block helpers (get_true_false/otherwise_empty/dominance), so the
 // full form is ported 1:1.
 // ---------------------------------------------------------------------------
@@ -6245,7 +6245,7 @@ fn is_addr_tied_contiguous(lo: &VnArc, hi: &VnArc) -> Option<Address> {
     }
 }
 
-// Block-related helpers. Ghidra uses BlockBasic*; Rugra uses Option<Arc<...>>.
+// Block-related helpers. Ghidra uses BlockBasic*; Rudra uses Option<Arc<...>>.
 
 // RUDRA-GLUE: wraps PcodeOp::getParent (op.hh) returning Option<BlockArc> for weak-ref upgrade
 /// Get the parent block of an op as `Option<BlockArc>`.
@@ -6490,7 +6490,7 @@ impl Rule for RuleDoubleIn {
             return Ok(Self::attempt_marking(&outvn, &op_arc));
         }
         // double.cc:3267: if (data.hasUnreachableBlocks()) return 0;
-        // TODO(double.cc:3267): Rugra has no Funcdata::hasUnreachableBlocks
+        // TODO(double.cc:3267): Rudra has no Funcdata::hasUnreachableBlocks
         // (only remove_unreachable_blocks, which mutates). Guard is therefore
         // not modeled; we proceed as if there were no unreachable blocks.
         // Conservative effect: we may attempt a transform Ghidra would skip.
@@ -6626,7 +6626,7 @@ impl Rule for RuleDoubleOut {
             return Ok(Self::attempt_marking(&vnhi, &vnlo, &op_arc));
         }
         // double.cc:3348: if (data.hasUnreachableBlocks()) return 0;
-        // TODO(double.cc:3348): Rugra has no Funcdata::hasUnreachableBlocks
+        // TODO(double.cc:3348): Rudra has no Funcdata::hasUnreachableBlocks
         // (only remove_unreachable_blocks, which mutates). Guard not modeled; we
         // proceed as if there were no unreachable blocks (conservative: may
         // combine where Ghidra would skip).
@@ -6671,7 +6671,7 @@ impl RuleDoubleLoad {
     /// from being combined. (`noWriteConflict`, double.cc:3370) Returns the
     /// later of the two PcodeOps if combinable, otherwise None.
     ///
-    /// Ghidra walks the block with `getBasicIter()`/`previousOp()`. Rugra does
+    /// Ghidra walks the block with `getBasicIter()`/`previousOp()`. Rudra does
     /// not expose those on PcodeOp, but `FlowBlock::get_ops` returns the block's
     /// ordered op list, which is walked in order (and backwards for the STORE
     /// leading-INDIRECT extension, double.cc:3385-3389).
@@ -6695,7 +6695,7 @@ impl RuleDoubleLoad {
         }
         let startop = op1.clone();
         // double.cc:3385-3389: if startop is a STORE, walk backwards (previousOp)
-        // extending the range start over leading INDIRECTs. Rugra has no
+        // extending the range start over leading INDIRECTs. Rudra has no
         // previousOp(), but FlowBlock::get_ops returns the block's ordered op
         // list, so we find startop's position and step backwards over INDIRECTs.
         let bb = parent_block(&startop);
@@ -7164,14 +7164,14 @@ impl Rule for RuleDoubleStore {
 // Shared opcode-category helpers.
 //
 // Ghidra categorizes opcodes via TypeOp flags (isArithmeticOp /
-// isFloatingPointOp) on the opcode table. Rugra has no TypeOp flag table yet,
+// isFloatingPointOp) on the opcode table. Rudra has no TypeOp flag table yet,
 // so we enumerate the categorization faithfully (see typeop.cc / opcodes.hh).
 // ---------------------------------------------------------------------------
 
 // RUDRA-GLUE: wraps TypeOp::isArithmeticOp (typeop.hh, not double.cc); opcode categorization
 /// `TypeOp::isArithmeticOp()` — opcodes whose result is an arithmetic function
 /// of integer operands. (typeop.hh / typeop.cc) Enumerated explicitly against
-/// Rugra's `OpCode` variants.
+/// Rudra's `OpCode` variants.
 ///
 /// The set mirrors the locked oracle's `addlflags = arithmetic_op` table in
 /// typeop.cc exactly (verified per-constructor, 2026-09-26 BYTELANE):
@@ -7209,8 +7209,8 @@ fn is_arithmetic_op(opc: OpCode) -> bool {
 
 // RUDRA-GLUE: wraps TypeOp::isFloatingPointOp (typeop.hh, not double.cc); opcode categorization
 /// `TypeOp::isFloatingPointOp()` — opcodes operating on floating-point values.
-/// (typeop.hh / typeop.cc) Enumerated explicitly against Rugra's `OpCode`
-/// variants. NOTE: Rugra's enum currently omits `CPUI_FLOAT_ZEXT`/`SEXT`
+/// (typeop.hh / typeop.cc) Enumerated explicitly against Rudra's `OpCode`
+/// variants. NOTE: Rudra's enum currently omits `CPUI_FLOAT_ZEXT`/`SEXT`
 /// (Ghidra's float-widening is FLOAT_FLOAT2FLOAT); only existing variants are
 /// listed so the categorization stays faithful.
 fn is_floating_point_op(opc: OpCode) -> bool {
@@ -7339,7 +7339,7 @@ mod tests {
         let least = mk_op(OpCode::CPUI_LOAD, 0);
         let least_out = mk_reg_written(4, 0x40, &least);
         least.write().unwrap().output = Some(least_out.clone());
-        // Pointer base = #0x1000. Marked INPUT so Rugra's is_free() (which
+        // Pointer base = #0x1000. Marked INPUT so Rudra's is_free() (which
         // returns true when neither INPUT nor WRITTEN is set) does not reject
         // it at double.cc:768. (A constant base in real IR would come from an
         // input varnode anyway.)

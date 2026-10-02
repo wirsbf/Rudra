@@ -1,6 +1,6 @@
-# `bin/rugra.rs` — current Rudra CLI
+# `bin/rudra.rs` — current Rudra CLI
 
-Source: `src/bin/rugra.rs`.
+Source: `src/bin/rudra.rs`.
 
 ## 2026-08-13 Action 根入口
 

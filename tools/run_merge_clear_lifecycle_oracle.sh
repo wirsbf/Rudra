@@ -6,11 +6,11 @@ runner_fd_path="/proc/$$/fd/3"
 if [[ "${BASH_SOURCE[0]}" != "$runner_fd_path" ]]; then
   exec 3<"${BASH_SOURCE[0]}"
   exec /usr/bin/env -i PATH=/usr/bin:/bin \
-    RUGRA_MERGE_CLEAR_CALLER_TMPDIR="$runner_tmpdir_input" \
+    RUDRA_MERGE_CLEAR_CALLER_TMPDIR="$runner_tmpdir_input" \
     /usr/bin/bash "$runner_fd_path" "$@"
 fi
-runner_tmpdir_input=${RUGRA_MERGE_CLEAR_CALLER_TMPDIR:-}
-unset RUGRA_MERGE_CLEAR_CALLER_TMPDIR
+runner_tmpdir_input=${RUDRA_MERGE_CLEAR_CALLER_TMPDIR:-}
+unset RUDRA_MERGE_CLEAR_CALLER_TMPDIR
 runner_source=$(/usr/bin/readlink -f "$runner_fd_path")
 if [[ -z "$runner_source" || ! -f "$runner_source" || -L "$runner_source" ]]; then
   echo "immutable runner fd does not resolve to a regular file" >&2

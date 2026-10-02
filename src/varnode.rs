@@ -30,7 +30,7 @@ use crate::variable::HighVariable;
 /// `Translate::getUniqueStart(Translate::ANALYSIS)` returns this tag directly.
 const ANALYSIS_UNIQUE_START: u64 = 0x1000_0000;
 
-// RUDRA-GLUE: Rugra represents address spaces as an enum rather than unique
+// RUDRA-GLUE: Rudra represents address spaces as an enum rather than unique
 // AddrSpace objects.  Compare the Ghidra-compatible numeric index first, then
 // use the enum order only to keep Eq/Ord total for invalid duplicate-id values.
 fn compare_address_spaces(a: AddressSpace, b: AddressSpace) -> std::cmp::Ordering {
@@ -41,7 +41,7 @@ fn compare_address_spaces(a: AddressSpace, b: AddressSpace) -> std::cmp::Orderin
 // caller-supplied `Datatype *ct`. Ghidra's `VarnodeBank::create(s,m,ct)`
 // (varnode.cc:1250) never mints a type itself — every Funcdata `newVarnode*`
 // caller passes `glb->types->getBase(s,TYPE_UNKNOWN)` from the Architecture
-// TypeFactory (funcdata_varnode.cc:69/87/107/132/154/179/193/208). Rugra's
+// TypeFactory (funcdata_varnode.cc:69/87/107/132/154/179/193/208). Rudra's
 // historical two-argument constructors cannot receive a `ct`, so this helper
 // resolves the same factory object: an explicitly injected handle wins;
 // otherwise the process-canonical DataOrg factory models the headless
@@ -65,7 +65,7 @@ pub(crate) fn default_unknown_type(
 
 // RUDRA-GLUE: the two `PcodeOp::outputTypeLocal/inputTypeLocal` forwarders
 //   (op.hh:251-252) dispatch through `opcode->getOutputLocal/getInputLocal` —
-//   the Architecture-owned TypeOp virtual table. Rugra PcodeOp holds no
+//   the Architecture-owned TypeOp virtual table. Rudra PcodeOp holds no
 //   TypeOp pointer, and several current `src/typeop.rs` trait impls in the
 //   binary/unary/functional macro family and COPY/LOAD/STORE/MULTIEQUAL read
 //   the opposite varnode's v_type instead of the Ghidra
@@ -169,7 +169,7 @@ fn local_meta_pair(opcode: crate::opcodes::OpCode) -> Option<(TypeMetatype, Type
 ///   INT_ADD" (typeop.cc:2241/2311);
 /// - TypeOpCall: fspec gate -> output-locked gate -> VOID gate -> locked
 ///   output type, else base default (typeop.cc:720-735);
-/// - TypeOpCallind/TypeOpCpoolref: their overrides resolve state Rugra
+/// - TypeOpCallind/TypeOpCpoolref: their overrides resolve state Rudra
 ///   cannot reach from a Varnode (CALLIND needs the callspec via
 ///   `op->getParent()->getFuncdata()->getCallSpecs(op)` — no parent chain;
 ///   CPOOLREF needs the constant pool). Both converge to the base default
@@ -186,7 +186,7 @@ fn local_meta_pair(opcode: crate::opcodes::OpCode) -> Option<(TypeMetatype, Type
 ///   and resolves the output type from the global scope's symbol-table
 ///   query (`entry->getSizedType(addr,size)`); a descriptor with
 ///   fixed output metadata supplies it, anything else falls back to the
-///   TypeOp base default. Rugra reaches the manager through the `userops`
+///   TypeOp base default. Rudra reaches the manager through the `userops`
 ///   thread and the symbol table through the `symboltab` thread — the
 ///   explicit `Option<&Arc<RwLock<UserOpManage>>>` /
 ///   `Option<&Arc<RwLock<Database>>>` stand in
@@ -224,7 +224,7 @@ pub fn op_output_type_local(
                 local_base(type_factory, size, TypeMetatype::Unknown)
             };
             // cc:727-729: `vn->getSpace()->getType()!=IPTR_FSPEC` gate; the
-            // Rugra D0 representation of an fspec annotation is an Iop-space
+            // Rudra D0 representation of an fspec annotation is an Iop-space
             // ANNOTATION varnode carrying the typed callspec Weak
             // (TYPEOP-FSPEC-SPACE-0001).
             let callspec = {
@@ -613,7 +613,7 @@ pub struct Varnode {
     /// (varnode.hh:286 `hasNoDescend`). Ghidra's descend is a raw-pointer
     /// `std::list<PcodeOp*>` (varnode.hh:149) whose entries are erased by
     /// opUnsetInput/opDestroy *before* the op is freed, so `empty()` is one
-    /// inline word. Rugra's `Vec<Weak>` must instead dereference the first
+    /// inline word. Rudra's `Vec<Weak>` must instead dereference the first
     /// entry's control block to learn liveness — two dependent cache misses
     /// per probe (≈115ns; RULEBODY2 E2/E3 attribution), paid 73.4M times per
     /// corpus (DESCENDSHADOW probe ①). The shadow keeps the answer inline:
@@ -733,7 +733,7 @@ impl Varnode {
     /// Create a new RAM-space varnode.
     ///
     /// Ghidra receives the address space and a non-null `Datatype *` from the
-    /// Funcdata/VarnodeBank caller.  Rugra's historical two-argument API uses
+    /// Funcdata/VarnodeBank caller.  Rudra's historical two-argument API uses
     /// RAM as the implicit space and attaches the corresponding unknown type.
     pub fn new(size: usize, loc: Address) -> Self {
         Self::new_with_space(size, AddressSpace::Ram, loc.as_u64())
@@ -744,7 +744,7 @@ impl Varnode {
     pub fn new_with_space(size: usize, space: AddressSpace, offset: u64) -> Self {
         let (flags, nzm) = match space {
             AddressSpace::Const => (varnode_flags::CONSTANT, offset),
-            // Rugra uses Iop for both Ghidra's IPTR_IOP and its currently
+            // Rudra uses Iop for both Ghidra's IPTR_IOP and its currently
             // unmodelled IPTR_FSPEC values.  Both are annotations.
             AddressSpace::Iop => (
                 varnode_flags::ANNOTATION | varnode_flags::COVERDIRTY,
@@ -763,7 +763,7 @@ impl Varnode {
             def: None,
             high: None,
             mapentry: None,
-            // Ghidra's ctor stores the caller's `Datatype *dt`; Rugra's
+            // Ghidra's ctor stores the caller's `Datatype *dt`; Rudra's
             // historical API has no ct parameter, so draw the canonical
             // factory unknown (the stand-in for the Funcdata caller's
             // glb->types->getBase(size,TYPE_UNKNOWN), funcdata_varnode.cc:154).
@@ -974,7 +974,7 @@ impl Varnode {
     /// Faithful to `printRawNoMarkup` (varnode.cc:711-734).
     pub fn print_raw_no_markup(&self) -> (String, usize) {
         // cc:719: try register name
-        // Rugra doesn't have Translate::getRegisterName; use space+offset.
+        // Rudra doesn't have Translate::getRegisterName; use space+offset.
         let space_name = self.address_space.name();
         let offset = self.loc.as_u64();
         let s = format!("{}:{}", space_name, offset);
@@ -1053,7 +1053,7 @@ impl Varnode {
     // Ghidra: varnode.cc:533 Varnode::operator<
     /// Ghidra's Varnode comparison for sorting (loc→size→flag→def SeqNum).
     /// Faithful on valid unique-space-id inputs to `operator<`
-    /// (varnode.cc:533-547); Rugra adds a deterministic enum tie-break only
+    /// (varnode.cc:533-547); Rudra adds a deterministic enum tie-break only
     /// for invalid duplicate numeric space identifiers.
     pub fn ghidra_less(&self, other: &Varnode) -> bool {
         let space_order = compare_address_spaces(self.address_space, other.address_space);
@@ -1304,7 +1304,7 @@ impl Varnode {
     /// ends with clearFlags(coverdirty) (varnode.cc:239), which fires BOTH
     /// notification arms — flagsDirty unconditionally (cc:370) and coverDirty
     /// (cc:371-372; the load-bearing case is a member that was dirty BEFORE
-    /// its high was attached). Rugra CANNOT fire either arm here: callers
+    /// its high was attached). Rudra CANNOT fire either arm here: callers
     /// hold READ guards on the member's high across this call (merge.rs
     /// inflate_test via coreaction check_implied_cover's borrowed
     /// &HighVariable; aggregate_high_cover_from), and the notifications need
@@ -1570,7 +1570,7 @@ impl Varnode {
 
     // RUDRA-GLUE: identity handle for `PcodeOp::getSlot(this)`-style pointer
     //   comparisons. Ghidra compares raw `Varnode*` pointers (op.hh:166);
-    //   Rugra varnodes live in `Arc<RwLock<Varnode>>` allocations whose weak
+    //   Rudra varnodes live in `Arc<RwLock<Varnode>>` allocations whose weak
     //   self reference is installed by `VarnodeBank::allocate` (varnode.rs).
     pub(crate) fn self_arc(&self) -> Option<Arc<RwLock<Varnode>>> {
         self.self_ref.upgrade()
@@ -1971,7 +1971,7 @@ impl Varnode {
     /// Faithful to `setSymbolReference` (varnode.cc:446-452).
     pub fn set_symbol_reference(&mut self, _entry: &Arc<RwLock<SymbolEntry>>, _off: i32) {
         // cc:449-451: if high != null, high->setSymbolReference(entry->getSymbol(), off)
-        // Rugra's HighVariable setSymbolReference is not yet implemented.
+        // Rudra's HighVariable setSymbolReference is not yet implemented.
         // TODO: port when HighVariable symbol linking is available.
     }
 
@@ -2074,7 +2074,7 @@ impl Varnode {
 
     // Ghidra: varnode.cc:1182 Varnode::encode
     /// Encode this Varnode as XML attributes. Faithful to `encode`
-    /// (varnode.cc:1182-1201). Rugra returns a String (no Encoder).
+    /// (varnode.cc:1182-1201). Rudra returns a String (no Encoder).
     pub fn encode(&self) -> String {
         let mut s = format!(
             "<addr space=\"{}\" offset=\"{:x}\" size=\"{}\" ref=\"{}\"",
@@ -2187,7 +2187,7 @@ impl Varnode {
     pub fn clear_symbol_links(&mut self) {
         self.mapentry = None;
         if self.high.is_some() {
-            // Ghidra: high->setSymbol(null) — Rugra's HighVariable lacks setSymbol.
+            // Ghidra: high->setSymbol(null) — Rudra's HighVariable lacks setSymbol.
             // TODO: needs HighVariable::setSymbol(None).
         }
     }
@@ -2296,18 +2296,18 @@ impl Varnode {
     /// (`ActionInferTypes::buildLocaltypes`, coreaction.cc:5020) resets it to
     /// false per varnode. The `type_factory` parameter threads the
     /// Architecture TypeFactory that Ghidra reaches implicitly through
-    /// `PcodeOp::opcode->tlst` (op.hh:122) — Rugra `PcodeOp` holds no parent
+    /// `PcodeOp::opcode->tlst` (op.hh:122) — Rudra `PcodeOp` holds no parent
     /// chain, so the factory is an explicit argument. The `userops`
     /// parameter threads the Architecture user-op manager for the same
     /// reason: Ghidra's `TypeOpCallother::get*Local` reach it via
-    /// `tlst->getArch()->userops` (typeop.cc:858/868), a link Rugra's
+    /// `tlst->getArch()->userops` (typeop.cc:858/868), a link Rudra's
     /// TypeFactory cannot carry today (the canonical factory may be shared
     /// across Architectures via `TypeFactory::shared_default`, and
     /// `Architecture::set_types` runs before the Architecture is wrapped in
     /// an Arc, so a `Weak` backlink cannot be formed there). The `symboltab`
     /// parameter threads the Architecture Database the same way: Ghidra's
     /// `VolatileReadOp::getOutputLocal` reaches the global scope via the
-    /// descriptor's `glb->symboltab` edge (userop.cc:136), a link Rugra's
+    /// descriptor's `glb->symboltab` edge (userop.cc:136), a link Rudra's
     /// `UserOpManage` does not carry; `None` disables the volatile-read
     /// symbol query (same fall-through as a metadata-less descriptor).
     /// `None` (no
@@ -2389,7 +2389,7 @@ impl Varnode {
                 // smaller submeta, then bigger size; type.cc:212-218). Ties
                 // keep the incumbent, so with equal typeOrder the FIRST
                 // encountered type survives. A null newct alongside a non-null
-                // ct is a null-this dereference in Ghidra (UB); Rugra keeps
+                // ct is a null-this dereference in Ghidra (UB); Rudra keeps
                 // the incumbent instead of crashing — unreachable through the
                 // TypeOp override table, whose entries never return null on a
                 // reachable op.
@@ -2434,7 +2434,7 @@ impl Varnode {
     // Ghidra: varnode.cc:178 Varnode::overlap
     /// Return the relative point of overlap between this Varnode and `other`,
     /// or -1 if no overlap. Faithful to `Varnode::overlap` (varnode.cc:178).
-    /// For little-endian (Rugra's only supported case), this returns the byte
+    /// For little-endian (Rudra's only supported case), this returns the byte
     /// offset within `other` where this Varnode's low byte falls. Used by
     /// AncestorRealistic::enterNode (SUBPIECE case) to detect a no-op
     /// truncation extracting the same physical bytes.
@@ -2474,7 +2474,7 @@ impl Varnode {
     ///     significant side), else -1.
     /// Residual (VARNODE-INIT-0001 family): Ghidra's `Address::overlap`
     /// (address.cc:158-170) also returns -1 when the two Addresses live in
-    /// different spaces; Rugra's offset-only `Address` cannot see the
+    /// different spaces; Rudra's offset-only `Address` cannot see the
     /// caller's range space, so callers on cross-space graphs must guard
     /// space equality themselves (heritage's normalize sites are
     /// structurally single-space).
@@ -2975,7 +2975,7 @@ impl Varnode {
     /// Add a descendant op reference. Faithful to `Varnode::addDescend`
     /// (varnode.hh:295). Per Ghidra cc:333-336, a free non-spacebase varnode
     /// with an existing descendant throws
-    /// `LowlevelError("Free varnode has multiple descendants")` — Rugra
+    /// `LowlevelError("Free varnode has multiple descendants")` — Rudra
     /// panics with the identical message (memstate.rs read-only-bank
     /// precedent). The panic fires before the push, so — like the C++ throw —
     /// the Varnode state is unchanged on failure. The two producers of the
@@ -3332,7 +3332,7 @@ const ADDRESSSPACE_VARIANT_COUNT: u32 = 9;
 const VN_LOC_TAG_STRIDE: u32 = 1 << 20;
 
 // RUDRA-GLUE: enum-discriminant projection — Ghidra's varnode comparators
-// compare raw `AddrSpace*` pointers (interned, unique per space); Rugra's
+// compare raw `AddrSpace*` pointers (interned, unique per space); Rudra's
 // AddressSpace is a Copy enum, and `compare_address_spaces` orders by
 // `space_id()` first with the enum order as the total-order tiebreak. This
 // packs both into one u32 so `SpaceOff::space` preserves that exact order.
@@ -3941,7 +3941,7 @@ impl VarnodeBank {
     fn allocate(&mut self, mut vn: Varnode) -> Arc<RwLock<Varnode>> {
         // Ghidra's create/createDef receive the caller's `Datatype *ct`
         // (varnode.cc:1250/1411) — the Funcdata caller's
-        // `glb->types->getBase(size,TYPE_UNKNOWN)`. Rugra resolves the same
+        // `glb->types->getBase(size,TYPE_UNKNOWN)`. Rudra resolves the same
         // factory object here: injected handle, else the process-canonical
         // factory. Same-size requests return the same Arc, matching the
         // factory's findAdd identity domain.
@@ -3990,7 +3990,7 @@ impl VarnodeBank {
         self.vn_arena.get(id).map(|cell| &cell.vn)
     }
 
-    // RUDRA-GLUE: insertion half shared by Rugra's implicit-RAM and explicit
+    // RUDRA-GLUE: insertion half shared by Rudra's implicit-RAM and explicit
     // address-space forms of Ghidra VarnodeBank::create.
     fn insert_free(&mut self, vn: Varnode) -> Arc<RwLock<Varnode>> {
         let rc = self.allocate(vn);
@@ -4072,7 +4072,7 @@ impl VarnodeBank {
         {
             let mut old = old_vn.write().unwrap();
             // Ghidra deletes `oldvn` immediately after replace. An external
-            // Arc may keep Rugra's allocation alive, but it must not retain
+            // Arc may keep Rudra's allocation alive, but it must not retain
             // observable stale def-use links.
             old.descend.clear();
             // PERF-VARNODE-DESCEND-SHADOW-0001: post-clear exact state.
@@ -4296,7 +4296,7 @@ impl VarnodeBank {
     }
 
     // Ghidra: varnode.cc:1411 VarnodeBank::createDef
-    /// Explicit-address-space form required by Rugra's split Address model.
+    /// Explicit-address-space form required by Rudra's split Address model.
     pub fn create_def_with_space(
         &mut self,
         size: usize,
@@ -4428,7 +4428,7 @@ impl VarnodeBank {
     // Ghidra: varnode.cc:1276 VarnodeBank::destroy
     /// Remove a detached varnode from both trees. Ghidra rejects an integrated
     /// value (a defining op or any descendants) before erasing either index.
-    /// Rugra additionally rejects a foreign/stale Arc that only shares the key.
+    /// Rudra additionally rejects a foreign/stale Arc that only shares the key.
     pub fn destroy_varnode(&mut self, vn: &Arc<RwLock<Varnode>>) -> Result<()> {
         let value = vn.read().unwrap();
         if value.get_def().is_some() || !value.has_no_descend() {
@@ -4482,7 +4482,7 @@ impl VarnodeBank {
     /// partial overlap), (3) `vbank.setInput(vn)`, (4) ProtoModel effect
     /// property setting (unaffected / return_address).
     ///
-    /// Rugra ports (1)+(2)+(3) at the VarnodeBank level (the Funcdata
+    /// Rudra ports (1)+(2)+(3) at the VarnodeBank level (the Funcdata
     /// wrapper delegates here). Step (4) requires ProtoModel effect records
     /// not yet wired; conservative subset — these properties affect later
     /// type/recovery passes but not SSA correctness, so heritage rename
@@ -4530,7 +4530,7 @@ impl VarnodeBank {
                         return invn.clone();
                     }
                     // cc:358: partial overlap → Ghidra throws
-                    // LowlevelError("Overlapping input varnodes"). Rugra
+                    // LowlevelError("Overlapping input varnodes"). Rudra
                     // logs and falls through (conservative, pre-existing
                     // degrade recorded in the todo ledger).
                     eprintln!("[HERITAGE] WARN: overlapping input varnodes at {:x} (size {}) vs {:x} (size {})",
@@ -4708,7 +4708,7 @@ impl VarnodeBank {
     /// `VarnodeBank::findInput` (varnode.cc:1465-1478): the lookup key is
     /// the FULL Address — `beginLoc(s,loc,Varnode::input)` searches the
     /// (size, space, offset) tree keys and the found varnode must satisfy
-    /// `vn->getAddr()==loc`, which compares space AND offset. Rugra keeps
+    /// `vn->getAddr()==loc`, which compares space AND offset. Rudra keeps
     /// space and offset split (ADDRESS-0001), so the space is an explicit
     /// parameter. Used by ActionRestrictLocal and AncestorRealistic to
     /// find specific register inputs. (BANK-FINDINPUT-SPACE-0001)
@@ -4905,7 +4905,7 @@ impl Default for VarnodeBank {
 /// Walk forward along COPY defs from `vn`, returning true if `target` (by
 /// pointer identity) appears anywhere along the chain. Faithful to the
 // RUDRA-GLUE: 沿 COPY 链逐步比较指针身份。Ghidra 用裸指针 while 循环
-// (varnode.cc:1010,1030)；Rugra 需 clone Arc + 释放 guard 逐层展开。
+// (varnode.cc:1010,1030)；Rudra 需 clone Arc + 释放 guard 逐层展开。
 /// `while(vn->isWritten() && vn->getDef()->code()==CPUI_COPY) { vn=...; if(vn==t) return true; }`
 /// pattern in findSubpieceShadow/findPieceShadow (varnode.cc:1010,1030).
 fn copy_chain_hits(vn: &Varnode, target: &Varnode) -> bool {
@@ -4958,7 +4958,7 @@ fn copy_chain_hits(vn: &Varnode, target: &Varnode) -> bool {
 /// Actually, to avoid lifetime issues, we return the source Varnode's def
 /// op Arc so the caller can inspect its opcode/inputs.
 // RUDRA-GLUE: 透传 COPY 链到终端 def op（非 COPY 定义或 unwritten）。
-// Ghidra 内联 while 循环；Rugra 提取为函数以避免跨层 RwLockReadGuard 冲突。
+// Ghidra 内联 while 循环；Rudra 提取为函数以避免跨层 RwLockReadGuard 冲突。
 /// Returns None if vn is not written.
 fn copy_chain_source_def(
     vn: &Varnode,
@@ -5283,7 +5283,7 @@ pub fn find_contiguous_whole(vn1: &Varnode) -> Option<Arc<RwLock<Varnode>>> {
 /// In the C++ oracle, `EquateSymbol` is a `Symbol` subtype, so
 /// `dynamic_cast<EquateSymbol*>(mapEntry->getSymbol())` (varnode.cc:516)
 /// recovers both the equate-ness and the `uintb value` field
-/// (database.hh:302-308) from the polymorphic `Symbol*`. Rugra's
+/// (database.hh:302-308) from the polymorphic `Symbol*`. Rudra's
 /// `database::Symbol` (src/database.rs, outside the varnode lease) has no
 /// equate payload, and `SymbolEntry::symbol` is a concrete
 /// `Arc<RwLock<Symbol>>`, so subtype polymorphism is unavailable. This
@@ -5699,7 +5699,7 @@ mod tests {
 
     #[test]
     fn test_equate_is_value_close_table() {
-        // database.cc:640-659 branch table. These are Rugra-side regression
+        // database.cc:640-659 branch table. These are Rudra-side regression
         // checks; the locked 12.0.4 oracle gate is
         // tests/oracle/varnode_copysymbol_1204 (VARNODE-COPYSYMBOL-EQUATE-0001).
         use crate::database::EquateSymbol;

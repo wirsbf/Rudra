@@ -28,7 +28,7 @@ rust_fixture="$repo_root/tests/oracle/coreaction_callin0_clobber_1204.rs"
 metadata="$repo_root/tests/oracle/coreaction_callin0_clobber_1204.metadata.json"
 curl_binary="$repo_root/examples/curl"
 spec_root="$repo_root/sleigh_specs"
-bfd_root="${RUGRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")

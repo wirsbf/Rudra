@@ -122,7 +122,7 @@ pub mod high_flags {
 /// `symbol_offset`, `name_representative`, and `piece` extensions.
 #[derive(Debug)]
 pub struct HighVariable {
-    /// Name string (Rugra addition; Ghidra derives names from the Symbol).
+    /// Name string (Rudra addition; Ghidra derives names from the Symbol).
     pub name: String,
     /// Data type of the variable (`type` in Ghidra). Interior-mutable
     /// (`TypeCell`) because Ghidra declares it `mutable` (variable.hh:141) so
@@ -133,7 +133,7 @@ pub struct HighVariable {
     /// Inherited Varnode property flags (`flags` in Ghidra). Plain `u32`:
     /// refreshed by the `&mut` paths (`update_flags`/`update_type`).
     pub flags: u32,
-    /// Unique ID (Rugra addition for diagnostics).
+    /// Unique ID (Rudra addition for diagnostics).
     pub id: u64,
     /// Internal cover: union of all member Varnode covers (`internalCover`).
     pub cover: Cover,
@@ -161,7 +161,7 @@ impl HighVariable {
     /// `symbol = null`, `nameRepresentative = null`, `symboloffset = -1`,
     /// pushes `vn`, and calls `vn->setHigh(this, ...)` then `setSymbol(vn)`.
     ///
-    /// Rugra's `new(dt)` keeps the legacy `Arc<Datatype>` signature used by
+    /// Rudra's `new(dt)` keeps the legacy `Arc<Datatype>` signature used by
     /// funcdata.rs/merge.rs callers; those callers push the member Varnode via
     /// `add_instance` and wire `vn.high` themselves. We faithfully seed the same
     /// dirty bits so the first `updateFlags/updateType/updateCover` re-derives.
@@ -239,7 +239,7 @@ impl HighVariable {
             if !Arc::ptr_eq(existing, &entry_symbol)
                 && (self.highflags & high_internal_flags::SYMBOLDIRTY) == 0
             {
-                // Ghidra throws LowlevelError here; Rugra logs and keeps the
+                // Ghidra throws LowlevelError here; Rudra logs and keeps the
                 // existing symbol (the dirty branch would overwrite anyway).
                 // RUDRA-GLUE: cannot panic across FFI boundaries in tests.
                 eprintln!(
@@ -284,7 +284,7 @@ impl HighVariable {
         }
         drop(vn_g);
 
-        // Faithful to variable.cc:272-274. RUDRA-GLUE: Rugra's TypeMetatype has
+        // Faithful to variable.cc:272-274. RUDRA-GLUE: Rudra's TypeMetatype has
         // no TYPE_PARTIALUNION, so this branch never fires; we keep it as a
         // structural guard for the day the metatype is added.
         // Faithful to variable.cc:272-273: a partial-union cached type must
@@ -311,7 +311,7 @@ impl HighVariable {
     pub fn transfer_piece(&mut self, tv2: &mut HighVariable) {
         if let Some(piece) = tv2.piece.take() {
             // Re-point the piece's owning HighVariable to this.
-            // RUDRA-GLUE: Ghidra uses raw `piece->setHigh(this)`; Rugra's
+            // RUDRA-GLUE: Ghidra uses raw `piece->setHigh(this)`; Rudra's
             // VariablePiece holds a Weak<RwLock<HighVariable>> back-reference,
             // which we cannot re-point without an Arc to `this`. We carry the
             // piece over and inherit tv2's intersect/extend-cover dirty bits.
@@ -330,7 +330,7 @@ impl HighVariable {
     /// preserves a partial-union/partial-struct when a struct/union backing
     /// symbol exists, and preserves a partial enum on a single constant
     /// member. `&self` mirrors the Ghidra const member: the write goes
-    /// through the `mutable` type cache (variable.hh:141), which Rugra
+    /// through the `mutable` type cache (variable.hh:141), which Rudra
     /// models with `Cell`.
     pub fn strip_type(&self) {
         let cur = self.v_type.get();
@@ -360,7 +360,7 @@ impl HighVariable {
                 return;
             }
         }
-        // Faithful to variable.cc:319: type = type->getStripped(). Rugra's
+        // Faithful to variable.cc:319: type = type->getStripped(). Rudra's
         // get_stripped returns &Datatype; we clone into a fresh Arc.
         let stripped: Arc<Datatype> = Arc::new(cur.get_stripped().clone());
         self.v_type.set(stripped);
@@ -569,7 +569,7 @@ impl HighVariable {
         if vn1.is_proto_partial() != vn2.is_proto_partial() {
             return vn2.is_proto_partial(); // Prefer pieces (variable.cc:470)
         }
-        // Prefer NOT internal (variable.cc:474-479). Rugra's AddressSpace is an
+        // Prefer NOT internal (variable.cc:474-479). Rudra's AddressSpace is an
         // enum without IPTR_INTERNAL; we approximate via is_unique.
         let vn1_internal = vn1.is_unique();
         let vn2_internal = vn2.is_unique();
@@ -607,7 +607,7 @@ impl HighVariable {
     // Ghidra: variable.cc:492 HighVariable::getNameRepresentative
     /// Get the member Varnode that dictates the naming of this HighVariable.
     /// Faithful to `getNameRepresentative` (variable.cc:492-511). Ghidra caches
-    /// the result in `nameRepresentative` and returns it when not dirty; Rugra
+    /// the result in `nameRepresentative` and returns it when not dirty; Rudra
     /// recomputes each call (the cache is an optimisation) but still honors the
     /// dirty bit by re-running the scan.
     ///
@@ -749,7 +749,7 @@ impl HighVariable {
     /// pieces (merge the groups).
     pub fn group_with(&mut self, off: i32, hi2: &mut HighVariable) {
         // RUDRA-GLUE: Ghidra allocates `new VariablePiece(h, offset, grp)` and
-        // ties ownership via raw pointers. Rugra uses Arc<RwLock<VariablePiece>>
+        // ties ownership via raw pointers. Rudra uses Arc<RwLock<VariablePiece>>
         // and an Weak<RwLock<HighVariable>> back-ref inside the piece, which we
         // cannot synthesise without an existing Arc to `this`. This method is
         // therefore a structural faithful port of the offset/group arithmetic
@@ -878,7 +878,7 @@ impl HighVariable {
             for vn_arc in &tv2.instances {
                 let mut vn = vn_arc.write().unwrap();
                 vn.mergegroup = vn.mergegroup.saturating_add(num_merge_classes as i16);
-                // RUDRA-GLUE: Ghidra calls vn->setHigh(this, ...). Rugra's
+                // RUDRA-GLUE: Ghidra calls vn->setHigh(this, ...). Rudra's
                 // HighVariable ownership is via Arc<RwLock<HighVariable>> set
                 // by funcdata/merge, so the caller re-points vn.high after merge.
             }
@@ -949,7 +949,7 @@ impl HighVariable {
     /// tests, then handle the four piece cases; for two-piece merges, combine
     /// the groups and merge any colliding pairs.
     ///
-    /// Rugra has no HighIntersectTest port; `test_cache` is accepted but unused.
+    /// Rudra has no HighIntersectTest port; `test_cache` is accepted but unused.
     pub fn merge(&mut self, tv2: &mut HighVariable, _test_cache: Option<()>, isspeculative: bool) {
         // Faithful to variable.cc:678.
         if (tv2 as *const HighVariable) as usize == (self as *const HighVariable) as usize {
@@ -1142,7 +1142,7 @@ impl HighVariable {
     /// until explicit Varnodes are encountered; marks and collects their
     /// HighVariables. Returns a bitset: 1=call, 2=LOAD.
     ///
-    /// RUDRA-GLUE: the full traversal walks PcodeOp inputs via node.slot; Rugra
+    /// RUDRA-GLUE: the full traversal walks PcodeOp inputs via node.slot; Rudra
     /// has the pieces (PcodeOp::num_input/get_in, Varnode::is_explicit) and the
     /// algorithm is ported verbatim below using a local stack of (op_arc, slot).
     pub fn mark_expression(
@@ -1306,7 +1306,7 @@ impl HighVariable {
 
     // --- Property query methods (faithful to variable.hh:197-223). ----------
     // Ghidra's inline queries (isAddrTied, isInput, ...) call updateFlags()
-    // first to refresh the cache, then test the aggregated flag. Rugra's
+    // first to refresh the cache, then test the aggregated flag. Rudra's
     // call-sites (merge.rs) hold only a `RwLockReadGuard<HighVariable>` (a
     // shared reference), so these queries take `&self` and read the cached
     // `flags` bit directly. The cache is kept fresh by the `update_flags()`
@@ -1498,25 +1498,25 @@ impl HighVariable {
 
     // Ghidra: variable.hh:294-300 HighVariable::getCover
     /// Get the cover: internal, unless part of a group (then the piece's cover).
-    /// RUDRA-GLUE: Ghidra returns piece->getCover() by ref; Rugra cannot return
+    /// RUDRA-GLUE: Ghidra returns piece->getCover() by ref; Rudra cannot return
     /// a &Cover borrowed from under the piece's RwLock, so we return the
     /// internal cover as the closest stable reference.
     pub fn get_cover(&self) -> &Cover {
         &self.cover
     }
 
-    // --- Legacy Rugra convenience methods kept for existing call-sites. -----
+    // --- Legacy Rudra convenience methods kept for existing call-sites. -----
 
     // RUDRA-GLUE: Legacy direct-name accessor; Ghidra HighVariable derives its
     // name through Symbol/nameRepresentative and has no stored-name accessor.
-    /// Get the name string (Rugra convenience).
+    /// Get the name string (Rudra convenience).
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
     // RUDRA-GLUE: Legacy direct-name mutator; Ghidra changes the attached Symbol
     // rather than storing a String on HighVariable.
-    /// Set the name string and lock it (Rugra convenience).
+    /// Set the name string and lock it (Rudra convenience).
     pub fn set_name(&mut self, name: String) {
         self.name = name;
         self.flags |= high_flags::NAMELOCK;
@@ -1527,7 +1527,7 @@ impl HighVariable {
     /// (variable.hh:174): `updateType(); return type;` — the lazy
     /// re-derivation triggers HERE, through a shared reference (Ghidra's is
     /// a const member; the cache mutation rides the `mutable` domain, which
-    /// Rugra models with the `TypeCell` lock domain). When `typedirty` is
+    /// Rudra models with the `TypeCell` lock domain). When `typedirty` is
     /// set and the type is not finalized, the representative member's type
     /// is re-derived into the cache (variable.cc:408-415, incl. stripType),
     /// so a dirtying event (`typeDirty` from `Varnode::updateType`/
@@ -1667,9 +1667,9 @@ impl VariableGroup {
     /// `addPiece` (variable.cc:43-52). Sets the piece's group, inserts (throws
     /// on duplicate), and grows `size` to cover the piece.
     pub fn add_piece(&mut self, piece: Arc<RwLock<VariablePiece>>) {
-        // RUDRA-GLUE: Ghidra sets piece->group = this via raw pointer; Rugra
+        // RUDRA-GLUE: Ghidra sets piece->group = this via raw pointer; Rudra
         // stores an Arc<RwLock<VariableGroup>> on the piece, set by caller.
-        // Faithful to variable.cc:47-48: throw on duplicate insert. Rugra uses
+        // Faithful to variable.cc:47-48: throw on duplicate insert. Rudra uses
         // ptr-equality to detect a duplicate piece.
         if self.pieces.iter().any(|p| Arc::ptr_eq(p, &piece)) {
             // RUDRA-GLUE: Ghidra throws LowlevelError; log instead.
@@ -1803,7 +1803,7 @@ pub struct VariablePiece {
 impl VariablePiece {
     // Ghidra: variable.cc:96 VariablePiece::VariablePiece
     /// Construct a piece given a HighVariable and its position within the whole.
-    /// Faithful to the ctor (variable.cc:96-107). Rugra takes the owning
+    /// Faithful to the ctor (variable.cc:96-107). Rudra takes the owning
     /// HighVariable as a Weak and the size explicitly (Ghidra reads
     /// `h->getInstance(0)->getSize()`).
     pub fn new(
@@ -1829,7 +1829,7 @@ impl VariablePiece {
 
     // RUDRA-GLUE: Clones the Arc owning a VariableGroup; Ghidra's getGroup at
     // variable.hh:83 returns a borrowed raw pointer and needs no ownership clone.
-    /// Get the group Arc (Rugra helper used where Ghidra returns a raw group ptr).
+    /// Get the group Arc (Rudra helper used where Ghidra returns a raw group ptr).
     pub fn get_group_arc(&self) -> Option<Arc<RwLock<VariableGroup>>> {
         self.group.clone()
     }
@@ -2184,7 +2184,7 @@ mod tests {
     fn test_name_lock() {
         let mut hv = HighVariable::new(make_type());
         hv.set_name("myVar".into());
-        // set_name is a Rugra convenience that sets NAMELOCK directly on the
+        // set_name is a Rudra convenience that sets NAMELOCK directly on the
         // HighVariable (Ghidra sets it on member Varnodes). Since new() seeds
         // FLAGSDIRTY, is_name_lock()'s update_flags() call would re-derive
         // flags from the (empty) member list and wipe NAMELOCK. Clear

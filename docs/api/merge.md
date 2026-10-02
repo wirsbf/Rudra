@@ -724,7 +724,7 @@ main/glob_range/next_url 3 panic）、defects 0/numbering 0。
 的 order（原「回退自身 order」残留），使 call-guard 的新版定义端点与旧版
 读取端点重合于 call order → 相邻 cover 块 touch 而非 overlap；
 `add_def_point_full`/`add_ref_point_full` 转 `pub(crate)` 供 merge 调用。
-`RUGRA_MERGE_DIAG` 诊断扩展（MERGE-PAIR：失败对实例 cover + 读者 order）。
+`RUDRA_MERGE_DIAG` 诊断扩展（MERGE-PAIR：失败对实例 cover + 读者 order）。
 
 ## 2026-09-29：cover.rs 递归机制行为恒等提速（VDBEEXEC 残差⑤ mergerequired, MERGEREQ 车道）
 
@@ -1030,9 +1030,9 @@ HighVariable 的 `v_type` 缓存迁入 `TypeCell`（`RwLock<Arc<Datatype>>`，Gh
 `type_nochar`（type.cc:3240-3242），`get_base(1,INT)` 与其同对象 → 判 NOT
 distinct 的覆盖保持不变。仅测试构造方式变化，`factory_nochar_distinct` 生产语义零改动。
 
-## RUGRA_MERGE_FREEVN_DIAG（worktree 临时诊断，非对齐面）
+## RUDRA_MERGE_FREEVN_DIAG（worktree 临时诊断，非对齐面）
 
-`RUGRA_MERGE_FREEVN_DIAG=1` 时，`allocate_copy_trim` 在接线前检测
+`RUDRA_MERGE_FREEVN_DIAG=1` 时，`allocate_copy_trim` 在接线前检测
 「被剪输入为 free 且已有活 descendant」的 panic 前状态，向 stderr 转储
 in_vn（地址/尺寸/flags/def/high）、每个活 desc op（opcode/地址/dead/
 parent/inrefs 标 *THIS*）以及该地址全部触碰 op（读/写史）。
@@ -1070,7 +1070,7 @@ addrforce 进入该分支），NONCONVERGE 修复后 Ram 全局版本首次激�
 MULTIEQUAL@0x37b4），归 heritage place_multiequals/rename 代际差异，
 另行登记。
 
-## 诊断 TAG 登记（RUGRA_MERGE_DIAG / RUGRA_HERITAGE_TRACE）
+## 诊断 TAG 登记（RUDRA_MERGE_DIAG / RUDRA_HERITAGE_TRACE）
 
 > 2026-08-30 转正（R-LATTICE-CROSSREVIEW MINOR-3）：原先标注
 > "TEMPORARY … 合入 root 前必须移除" 的 env 门控 stderr 诊断已在集成
@@ -1079,10 +1079,10 @@ MULTIEQUAL@0x37b4），归 heritage place_multiequals/rename 代际差异，
 
 | TAG | 门控 | 位置 | 内容 |
 |---|---|---|---|
-| `[MERGE-FAIL]` | `RUGRA_MERGE_DIAG` | `merge_range_must` 失败前 | 整组 `(space,offset,size)` 成员转储（def/flags/high 实例数，`*FAIL*` 标注） |
-| `[MERGE-PAIR]` | `RUGRA_MERGE_DIAG` | `[MERGE-FAIL]` 之后 | 每对相交实例的 def/cover 与读者 op/order |
-| `[UNIFY]` | `RUGRA_MERGE_DIAG` | `unify_address` 逐 Ram vn | `descend/marked/ops_delta/flags`（marked = snip_reads 实际剪断的读 op 数，可与 oracle `[ORE-MARK]` 逐行对拍） |
-| `[H-GRET]` | `RUGRA_HERITAGE_TRACE` | heritage.rs `rebuild` 通 return 后缀 | pass/range/RETURN 地址（登记于本表以便检索；canonical 归属 heritage 模块文档） |
+| `[MERGE-FAIL]` | `RUDRA_MERGE_DIAG` | `merge_range_must` 失败前 | 整组 `(space,offset,size)` 成员转储（def/flags/high 实例数，`*FAIL*` 标注） |
+| `[MERGE-PAIR]` | `RUDRA_MERGE_DIAG` | `[MERGE-FAIL]` 之后 | 每对相交实例的 def/cover 与读者 op/order |
+| `[UNIFY]` | `RUDRA_MERGE_DIAG` | `unify_address` 逐 Ram vn | `descend/marked/ops_delta/flags`（marked = snip_reads 实际剪断的读 op 数，可与 oracle `[ORE-MARK]` 逐行对拍） |
+| `[H-GRET]` | `RUDRA_HERITAGE_TRACE` | heritage.rs `rebuild` 通 return 后缀 | pass/range/RETURN 地址（登记于本表以便检索；canonical 归属 heritage 模块文档） |
 
 oracle 侧等价探针（插桩 decomp_opt 的 `[ORE-UNIFY]`/`[ORE-MARK]`/
 `[AF-CLEAR]`/`[DEADCODE-ENTER|KILL]`/`[GLOBALTRACE]`）见

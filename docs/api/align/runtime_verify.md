@@ -689,3 +689,10 @@ CFG 是 SSA、结构化输出、循环识别和控制流恢复的基础。
 
 > **Rudra 运行时验证体系的基础框架模块，用于承载结果分类、统计、差异记录和局部对拍入口；它说明项目正在建设行为级对齐能力，但不能被写成“验证已经完成”或“与 Ghidra 已经一致”的证据。**
 <!-- annotation-pass: 2026-07-04 -->
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+
+#### 2026-10-02 改名同步
+
+src 侧公共常量 `PCODE_COMPARE_MISSING_RUGRA_OP` 随项目改名更新为
+`PCODE_COMPARE_MISSING_RUDRA_OP`（`src/ffi.rs` 定义,本模块 match 消费）,
+语义与数值(5)不变;诊断字符串前缀同步为 `[RUDRA …]` 标签族。

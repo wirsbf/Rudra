@@ -1451,7 +1451,7 @@ def harvest_dwarf(binary, golden_path=None, canon_types=True):
 #     requirement means an anchor in a dead-coded entry prologue or a
 #     mid-instruction lexical-block start has no live op and the record is
 #     excised; each calibration re-anchors to the first live op of the
-#     statement canon anchors the block before (RUGRA_DUMP_FUNC dumps;
+#     statement canon anchors the block before (RUDRA_DUMP_FUNC dumps;
 #     e40ed130 stage_cmt_diag oracle re-verified: 17 records / 45 lines
 #     byte-exact vs canon).
 # ---------------------------------------------------------------------------

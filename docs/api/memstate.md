@@ -11,7 +11,7 @@ Rust 单元测试全绿；但地址空间身份/端序来自简化的 `AddressSp
 
 内存存储/状态：为 LOAD/STORE 模拟提供字节级读写，对应 Ghidra 的 `memstate.hh` / `memstate.cc`。函数来源注释不表示当前实现已经行为等价。
 
-Ghidra 把 `MemoryBank` 建模为带两个纯虚方法（`insert`/`find`）与四个带默认实现的虚方法（`getPage`/`setPage`/静态 `constructValue`/`deconstructValue`）的抽象基类，派生类有 `MemoryImage` / `MemoryPageOverlay` / `MemoryHashOverlay`。Rugra 用具体结构体 + `Option<Box<MemoryBank>>` 作为各 Overlay 的 `underlie` 指针，忠实映射 C++ 继承语义。
+Ghidra 把 `MemoryBank` 建模为带两个纯虚方法（`insert`/`find`）与四个带默认实现的虚方法（`getPage`/`setPage`/静态 `constructValue`/`deconstructValue`）的抽象基类，派生类有 `MemoryImage` / `MemoryPageOverlay` / `MemoryHashOverlay`。Rudra 用具体结构体 + `Option<Box<MemoryBank>>` 作为各 Overlay 的 `underlie` 指针，忠实映射 C++ 继承语义。
 
 ## 导出的公共 API
 
@@ -56,11 +56,11 @@ Ghidra 把 `MemoryBank` 建模为带两个纯虚方法（`insert`/`find`）与�
 - `get_value` / `set_value` — 继承的 `getValue`/`setValue` 委托
 
 ### `pub fn construct_memory_bank(space, wordsize, pagesize)`
-RUDRA-GLUE 工厂：为某空间构造默认 `MemoryBank`。Ghidra 在 `Architecture` 初始化时按需构造 MemoryImage / Overlay；rugra 暴露单一入口。
+RUDRA-GLUE 工厂：为某空间构造默认 `MemoryBank`。Ghidra 在 `Architecture` 初始化时按需构造 MemoryImage / Overlay；rudra 暴露单一入口。
 
 ### `pub struct MemState`（对应 Ghidra `MemoryState`, memstate.hh:150）
 跨地址空间的内存管理。
-- `new()` — RUDRA-GLUE（Ghidra 构造器接收 `Translate*`；rugra 暂未接入）
+- `new()` — RUDRA-GLUE（Ghidra 构造器接收 `Translate*`；rudra 暂未接入）
 - `set_memory_bank(bank)` — `setMemoryBank`（memstate.cc:620），按 `space.name()` 索引
 - `get_memory_bank(space_name)` — `getMemoryBank`（memstate.cc:636）
 - `set_value(space, off, size, val)` — `setValue(AddrSpace*,...)`（memstate.cc:652）
@@ -71,7 +71,7 @@ RUDRA-GLUE 工厂：为某空间构造默认 `MemoryBank`。Ghidra 在 `Architec
 
 ## 端序与字大小
 
-这些方法保留了 Ghidra 的 `HOST_ENDIAN`/space-endian 分支形状，但 Rugra
+这些方法保留了 Ghidra 的 `HOST_ENDIAN`/space-endian 分支形状，但 Rudra
 当前 `AddressSpace::is_big_endian()` 对所有空间返回 false，且固定空间枚举
 无法表达架构拥有的动态 space 属性；因此大端和跨空间行为尚未对齐。
 
@@ -99,7 +99,7 @@ Oracle 默认实现 `MemoryBank::getPage`（memstate.cc:93-123）/`setPage`
 （`MemoryHashOverlay`，memstate.hh:130-141，仿真/standalone 面）；主管线用
 page-overlay 族不受影响。
 
-Rugra `get_page/set_page`（memstate.rs）镜像同一死修剪，载体为 `Vec<u8>`/
+Rudra `get_page/set_page`（memstate.rs）镜像同一死修剪，载体为 `Vec<u8>`/
 slice ⇒ 同输入下越界形态变为 slice range panic（全 profile 恒 panic，与
 overflow-checks 无关）。**裁决 起算原文 (a)（KUNAUB-SDIV-0001 先例）：oracle-UB
 输入无对拍义务，panic 严格安全于 oracle 的静默越界，保持 panic 形态，
@@ -110,7 +110,7 @@ skip=1 推演双侧同形）+ 1 个字对齐对照（对齐 skip 双侧均为已
 **约束（票面沿用）**：本裁决站立期间禁止为 `get_chunk/set_chunk` 引入
 生产调用方；选项 (b)（按 `startalign < ptraddr` 意图语义修=与
 oracle-as-written 分歧）须先记 ALIGNMENT_ROADMAP 再动。当前双侧主管线均
-零调用方（Rugra src/examples 无用户；MemState 消费方走 word 级 API）。
+零调用方（Rudra src/examples 无用户；MemState 消费方走 word 级 API）。
 
 ## Alignment Evidence
 

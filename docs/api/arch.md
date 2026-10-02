@@ -78,7 +78,7 @@ protected virtual methods of `Architecture` (architecture.hh:264-348).
 ### `SpecQuery`
 Language/space queries consumed by the compiler-spec decode chain, standing
 in for the Architecture's `AddrSpaceManager` + `Translate` during
-`parseCompilerConfig` (Rugra's `Architecture` does not own a space manager
+`parseCompilerConfig` (Rudra's `Architecture` does not own a space manager
 yet). Mirrors `SleighBase::getRegister` (sleighbase.cc:133),
 `AddrSpaceManager::getSpaceByName` (translate.cc:590),
 `AddrSpace::getHighest`, the overlay enumeration of
@@ -131,7 +131,7 @@ Space-aware partition map of tracked register sets keyed on
 `split`/`clearRange`/`getValue` step semantics (partmap.hh:81-157).
 - `new()`, `get_value(space, offset) -> &[TrackedRegister]`
   (upper_bound + predecessor; empty default before the first split).
-Ordering caveat: Ghidra orders `Address` by the live baselist index, Rugra
+Ordering caveat: Ghidra orders `Address` by the live baselist index, Rudra
 by `AddressSpace::space_id()`; same-space lookups agree (the only
 production consumer, `ActionConstbase`, queries the function address in
 ram), cross-space interleavings stay UNTESTED (SLEIGH-0002C / ADDRESS-0001).
@@ -173,7 +173,7 @@ Manager for all the major decompiler subsystems. Faithful to `Architecture`
 | `loadersymbols_parsed` | `bool` | Loader symbols read. |
 | `tracked_set_map` | `TrackedSetMap` | pspec `<context_data>` tracked partitions — stand-in for `ContextInternal::trackbase` (globalcontext.hh:284) behind `Architecture::context`, fed by `decode_context_data` (ARCH-CONTEXT-TRACKED-0001). |
 | `context_set_children_skipped` | `usize` | `<context_set>` children consumed but not decoded (low-level SLEIGH context blob, SLEIGH-0002C residual). |
-| `allacts` | `Option<Arc<RwLock<ActionDatabase>>>` | `allacts` (architecture.hh:212) — root Action database. Ghidra embeds by value; Rugra defers to `build_action()` behind a shared lock so option appliers can mutate the current root through `&mut Architecture` (options.cc:1008-1015), OPTIONS-SPLITDATATYPE-WIRING-0002. |
+| `allacts` | `Option<Arc<RwLock<ActionDatabase>>>` | `allacts` (architecture.hh:212) — root Action database. Ghidra embeds by value; Rudra defers to `build_action()` behind a shared lock so option appliers can mutate the current root through `&mut Architecture` (options.cc:1008-1015), OPTIONS-SPLITDATATYPE-WIRING-0002. |
 | `stack_pointer_full_space` / `stack_pointer_full_offset` / `stack_pointer_full_size` | `AddressSpace` / `u64` / `usize` | `SpacebaseSpace::baseOrig` (translate.hh:178) — the ORIGINAL (untruncated) stack-pointer register behind `getSpacebaseFull(0)` (translate.cc:118-124). Identical to the `stack_pointer_*` triple while the base space is untruncated (TRUNCSPACE-COREACT2-R2-0001). |
 | `default_code_space` | `AddressSpace` | `defaultcodespace` (translate.hh:226, `getDefaultCodeSpace` translate.hh:505-507) — enum-model stand-in: the locked x86-64 production code space `ram`. |
 | `space_truncations` | `Vec<(String, u32)>` | Applied `<truncate_space>` commands in application order (enum-model projection of the per-`AddrSpace` state `AddrSpace::truncateSpace` mutates, space.cc:105-112; applied via `AddrSpaceManager::truncateSpace` translate.cc:776-783 from `SleighArchitecture::modifySpaces` sleigh_arch.cc:423-430 over the `.ldefs` records sleigh_arch.cc:86-89). |
@@ -239,7 +239,7 @@ getTrackedDefault, globalcontext.hh:211/303 — empty on this ingest path:
 decodeFromSpec never assigns the partition-map default value),
 `get_space_by_spacebase(loc_space, loc_offset, size) -> Option<AddressSpace>`
 (Architecture::getSpaceBySpacebase, architecture.cc:264-282 — walks the
-spacebase records in baselist order matching size/space/offset; Rugra's
+spacebase records in baselist order matching size/space/offset; Rudra's
 enum-space registry reduces to the single stack record; returns `None`
 instead of Ghidra's `throw LowlevelError("Unable to find entry for
 spacebase register")` — pre-registered deviation,
@@ -298,7 +298,7 @@ model has no per-space record store).
   build_subpiece 读侧（后两者经 RwLock 读）。
 - **2026-08-16（`TYPE-WIRING-0001`）**：新增 `ensure_types()` — 无工厂时安装并返回
   process-canonical 工厂（`TypeFactory::shared_default()`，DataOrg flavor）。Ghidra 的
-  Architecture 恒持有唯一 `TypeFactory`（type.cc:3106）；Rugra 的 `types` 在
+  Architecture 恒持有唯一 `TypeFactory`（type.cc:3106）；Rudra 的 `types` 在
   CSPEC-TEXT-INGEST-0001 落地前可选。生产接线建议（root，funcdata.rs 租约外）：
   `fd.set_arch(arch)` 后调 `arch.ensure_types()` 并
   `fd.vbank.set_type_factory(handle)`，使 Varnode/varmap/打印消费同一工厂。
@@ -366,7 +366,7 @@ ConstructTpl delayslot 默认 0（semantics.hh:174）；`userop.rs` 补
 InjectedUserOp/SegmentOp/JumpAssistOp decode）。
 
 **对拍证据**：`tools/run_cspec_text_ingest_oracle.sh`（locked 12.0.4 oracle
-BfdArchitecture 真链 init vs Rugra 文本 ingest，同一 cspec/sla/curl 字节），
+BfdArchitecture 真链 init vs Rudra 文本 ingest，同一 cspec/sla/curl 字节），
 67 行投影逐字节一致（含 16 个 `<callfixup>` 的编译模板 XML：LOAD/INT_ADD/
 RETURN、COPY@unique 0x364420/0x364430 递进、13×CALLIND），合成探针覆盖
 callotherfixup 编译失败残留（count 16→17、residue id）、未知名错误、
@@ -386,10 +386,10 @@ context spec decode；`resolveprototype` → CSPEC-PARAMMODEL-0001；
 Ghidra 的 `Architecture::init`（architecture.cc:1391-1414）在 :1400 调
 `buildCommentDB`，`SleighArchitecture::buildCommentDB`（sleigh_arch.cc:241-245）
 分配内存态 `CommentDatabaseInternal`；构造器本身保持
-`commentdb = (CommentDatabase *)0`（architecture.cc:166，Rugra
+`commentdb = (CommentDatabase *)0`（architecture.cc:166，Rudra
 `Architecture::new` 的 `commentdb: None` 已对齐）。
 
-Rugra 的分配点在 worker 的 init 等价物
+Rudra 的分配点在 worker 的 init 等价物
 `examples/curl_decompile.rs::worker_architecture`：`Architecture::new()` 之后、
 cspec 解析（restoreFromSpec 等价步骤）之前，调用既有
 `set_commentdb(Arc<RwLock<CommentDatabaseInternal::new>>)`,
@@ -421,7 +421,7 @@ translator —— sleigh_arch.cc:181/185，Sleigh 构造器持它做反汇编 co
   消费；`range_from_attributes`（address.cc:316-353：space/first/last/name
   早返回、"No address space indicated in range tag"/"Illegal range tag"
   逐字）+ `last_addr_open`（address.cc:265-281：last==highest → 下一空间
-  基址 0，Rugra 以 `(space_id+1, 0)` 表达）+ `decode_tracked`
+  基址 0，Rudra 以 `(space_id+1, 0)` 表达）+ `decode_tracked`
   （globalcontext.cc:91：clear + 文档序 append）+
   `decode_tracked_context`（globalcontext.cc:56：`Expecting <set> but got
   <X>` 逐字）+ `varnode_data_from_attributes`（pcoderaw.cc:33-53：space
@@ -448,7 +448,7 @@ range 解码）。
 
 残差（登记）：`<context_set>` 低层 context blob（变量注册在 .sla context
 layout，SLEIGH-0002C）；跨空间 partition 交错 UNTESTED（Ghidra baselist 序
-vs Rugra space_id 序，生产只查 ram）；`TreeDecoder` 对锁定 ElementId 表外
+vs Rudra space_id 序，生产只查 ram）；`TreeDecoder` 对锁定 ElementId 表外
 元素名只给 `XMLunknown`（e6 因此选用表内 `<register>` 名）；缺失 `val`
 属性行为 oracle UB（marshal.cc:371-372 负下标），Rust 镜像返回 0。
 ActionConstbase（coreaction.rs:5477 stub）激活在 setcasts 租约释放后另行
@@ -493,7 +493,7 @@ ActionConstbase（coreaction.rs:5477 stub）激活在 setcasts 租约释放后�
   `(space index, offset, -size)` 精确镜像 `SleighBase::varnode_xref` 的
   `map<VarnodeData,string>` 排序（`VarnodeData::operator<`，
   pcoderaw.hh:67-71：space index → offset → **大 size 在前**，故第三元取
-  `-size` 升序）。装填源 = shim 的 `rugra_sleigh_register_info` 枚举
+  `-size` 升序）。装填源 = shim 的 `rudra_sleigh_register_info` 枚举
   （`SleighBase::getAllRegisters`，sleighbase.cc:182-186 的 varnode_xref 拷贝），
   `set_register_xref` 以 `or_insert` 保留首插——`varnode_xref.insert` 的
   no-overwrite 语义（sleighbase.cc:91，冲突对走 errorPairs）。
@@ -545,7 +545,7 @@ ELEM_REGISTER_DATA 臂逐行）：`<register vector_lane_sizes="1,2,4,8">` 经
 循环后按尺寸重建 lanerecords（`set_lane_records` 同序同并）。此前 lane 记录
 仅测试装载，生产恒空 → `getMinimumLanedRegisterSize()==-1` → Funcdata
 `min_laned_size=u32::MAX` → `check_for_laned_register` 永不触发 →
-ActionLaneDivide 空转（match_url Phase 2 ordinal 29：oracle 2 vs rugra 0）。
+ActionLaneDivide 空转（match_url Phase 2 ordinal 29：oracle 2 vs rudra 0）。
 装载后 min=16（XMM 整尺寸），XMM0(16) 读写入 laned map。两个易错点已修：
 ① **rewind**——oracle cc:945 在 storage 解析前显式 `rewindAttributes()`
 （旋钮循环已耗尽属性流），漏掉则 walk 空转返回默认 (0,0)，lanerecords 得
@@ -589,7 +589,7 @@ x86-64-gcc.cspec 的 `<global>` 携带 `<register name="MXCSR"/>`（寄存器空
 围），oracle 的 `Architecture::cacheAddrSpaceProperties`
 （architecture.cc:680-683）以 `if (spc->getDelay() == 0) continue; // Don't
 put in a register space` 把寄存器空间从 inferPtrSpaces 过滤——范围仍进全局
-作用域（`global_scope_ranges` 不变），仅推理列表排除。Rugra 侧曾把 Register
+作用域（`global_scope_ranges` 不变），仅推理列表排除。Rudra 侧曾把 Register
 （addr_size=4）推入列表，使 4 字节字符串地址常量通过
 `select_infer_space` 的精确尺寸门（4==4）被 `ActionConstantPtr`→
 `spacebase_constant` 改写成 4 字节 `PTRSUB(spacebase,#addr)`，再被
@@ -612,7 +612,7 @@ oracle 语义，互不冲突。
 
 ## 2026-09-27（Lane TRUNCSPACE）— 截断地址空间管道（COREACT2 残差②收口）
 
-COREACT2 残差②（`/dev/shm/rugra-reports/LANE_COREACT2_2026-09-27.md`）声明的
+COREACT2 残差②（`/dev/shm/rudra-reports/LANE_COREACT2_2026-09-27.md`）声明的
 "truncated 空间管道缺失"收口：oracle 链路 `.ldefs` `<truncate_space>` 记录
 （`LanguageDescription::decode` sleigh_arch.cc:86-89）→
 `SleighArchitecture::modifySpaces`（sleigh_arch.cc:423-430）→

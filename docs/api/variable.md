@@ -17,7 +17,7 @@ its members, tracked here with the dual-flag dirty model from Ghidra.
 
 ## 双标志模型 (Dual-Flag Dirty Model)
 
-Faithful to Ghidra's HighVariable (variable.hh:112-232). Rugra preserves
+Faithful to Ghidra's HighVariable (variable.hh:112-232). Rudra preserves
 two flag fields exactly as Ghidra does:
 
 - `highflags: u32` — dirtiness/status bits (variable.hh:119-131)
@@ -69,11 +69,11 @@ Faithful to Ghidra's `HighVariable` (variable.hh:112-232).
 
 | Field | Type | Ghidra |
 |-------|------|--------|
-| `name` | `String` | (Rugra addition; Ghidra derives from Symbol) |
+| `name` | `String` | (Rudra addition; Ghidra derives from Symbol) |
 | `v_type` | `TypeCell` (lock domain) | `type` (`mutable`, variable.hh:141) |
 | `instances` | `Vec<Arc<RwLock<Varnode>>>` | `inst` (sorted by storage address) |
 | `flags` | `u32` | `flags` |
-| `id` | `u64` | (Rugra diagnostic) |
+| `id` | `u64` | (Rudra diagnostic) |
 | `cover` | `Cover` | `internalCover` |
 | `highflags` | `u32` | `highflags` |
 | `num_merge_classes` | `i32` | `numMergeClasses` |
@@ -107,7 +107,7 @@ whose Symbol matches.
 
 ### `pub fn set_symbol(&mut self, vn: &Arc<RwLock<Varnode>>)`
 Ghidra: variable.cc:245 `setSymbol`. Updates Symbol info from a member Varnode;
-computes the offset via `Address::overlap` (Rugra's overlapJoin equivalent).
+computes the offset via `Address::overlap` (Rudra's overlapJoin equivalent).
 Re-arms `typedirty` when the cached type is a partial union (variable.cc:
 272-273, `TYPE_PARTIALUNION` — previously mis-checked as Unknown).
 
@@ -183,8 +183,8 @@ Ghidra: variable.hh:275-281 `coverDirty`.
 ## Flags 与属性查询 (variable.hh:197-223)
 
 All property queries below take `&self` and read the cached `flags` bit
-directly (Rugra call-sites in merge.rs hold only a `RwLockReadGuard`).
-Ghidra's inline variants call `updateFlags()` first; Rugra keeps the cache
+directly (Rudra call-sites in merge.rs hold only a `RwLockReadGuard`).
+Ghidra's inline variants call `updateFlags()` first; Rudra keeps the cache
 fresh via `update_flags()` on the `&mut self` mutation paths.
 
 ### `pub fn update_flags(&mut self)`
@@ -223,7 +223,7 @@ transiently from the representative (what `updateType` would write into
 ### `pub fn merge_internal(&mut self, tv2: &mut HighVariable, isspeculative: bool)`
 Ghidra: variable.cc:626 `mergeInternal`. Merges another HighVariable's
 instances, classes, symbol, and cover. The retired `tv2` shell gets its
-`NAMEREPDIRTY` bit set after the instance drain (Rugra keeps the shell
+`NAMEREPDIRTY` bit set after the instance drain (Rudra keeps the shell
 object where Ghidra deletes `tv2`; the invalidation makes any late
 name-representative query on the shell re-derive from the empty list,
 matching the pre-cache `&self` behavior).
@@ -322,7 +322,7 @@ Ghidra: variable.cc:820 `encode`. Encodes as a `<high>` element.
 ### `pub fn mark_expression(vn: &Arc<RwLock<Varnode>>, high_list: &mut Vec<Arc<RwLock<HighVariable>>>) -> i32` (static)
 Ghidra: variable.cc:872 `markExpression`. Returns bitset: 1=call, 2=LOAD.
 
-## Legacy Rugra 便利方法
+## Legacy Rudra 便利方法
 
 `get_type`, `num_instances`, `get_instance`, and `get_num_merge_classes` map to
 the inline Ghidra accessors at variable.hh:174, :179, :180, and :196;
@@ -374,7 +374,7 @@ HighVariable fits into a larger group or Symbol.
 ### Methods
 - `pub fn new(high, offset, size, group) -> Self` — variable.cc:96
 - `pub fn get_high(&self)` — variable.hh:82
-- `pub fn get_group_arc(&self)` — Rugra helper (Ghidra returns raw group ptr)
+- `pub fn get_group_arc(&self)` — Rudra helper (Ghidra returns raw group ptr)
 - `pub fn get_group(&self)` — variable.hh:83
 - `pub fn get_offset(&self) -> i32` — variable.hh:84
 - `pub fn get_size(&self) -> i32` — variable.hh:85

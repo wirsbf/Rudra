@@ -35,7 +35,7 @@ use std::sync::{Arc, RwLock};
 ///
 /// Faithful to `DynamicHash::transtable` (dynamic.cc:24-63). Indexed by the
 /// OpCode discriminant, matching Ghidra's `CPUI_*` numeric ordering. Both
-/// Ghidra's C++ enum and Rugra's `#[repr(i32)]` enum assign the same numeric
+/// Ghidra's C++ enum and Rudra's `#[repr(i32)]` enum assign the same numeric
 /// values (note value 45 is unused in both, so FLOAT_NAN == 46).
 pub const TRANSTABLE: [u32; 75] = {
     let mut t = [0u32; 75];
@@ -132,7 +132,7 @@ pub fn translate_opcode(opc: OpCode) -> u32 {
 }
 
 /// Number of address bytes hashed in `ToOpEdge::hash`. Ghidra uses
-/// `op->getSeqNum().getAddr().getAddrSize()`. Rugra's `Address` is a bare
+/// `op->getSeqNum().getAddr().getAddrSize()`. Rudra's `Address` is a bare
 /// `u64` with no associated space, so we hash all 8 bytes — matches Ghidra
 /// on 64-bit targets, conservative superset on 32-bit.
 const HASH_ADDR_SIZE: usize = 8;

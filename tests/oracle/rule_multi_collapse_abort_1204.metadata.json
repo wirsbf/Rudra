@@ -141,7 +141,7 @@
   "func_eq_skiplist_def_preserved/before": "MATCH",
   "func_eq_skiplist_def_preserved/after": "MATCH_MASKED_OPBANK_0001",
   "const_pair_distinct_objects/before": "MATCH",
-  "const_pair_distinct_objects/after": "ORACLE_CRASH_VS_RUGRA_COLLAPSE"
+  "const_pair_distinct_objects/after": "ORACLE_CRASH_VS_RUDRA_COLLAPSE"
  },
  "overall_status": "UNTESTED: (B2 migration of partial match state) no explanatory text",
  "overall_status_rationale": "Five of six records match byte-for-byte (one masked by the pre-registered OPBANK-0001 dead-slot representation limit). The crash-case record documents that the locked oracle itself cannot survive the abort shape; Rugra's completed absolute-constant collapse is the cc:3279/cc:3334-intended behavior. The case-level non-MATCH record keeps this fixture below full MATCH."

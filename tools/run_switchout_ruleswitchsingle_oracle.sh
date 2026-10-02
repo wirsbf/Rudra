@@ -6,7 +6,7 @@
 #               headers; stdout/stderr archived at
 #               tests/oracle/switchout_ruleswitchsingle_1204.oracle.{out,err}
 #               (sha-pinned below). Live oracle re-verification under
-#               RUGRA_SWITCHOUT_ORACLE_RUN=1 (see AGENTS.md oracle env note).
+#               RUDRA_SWITCHOUT_ORACLE_RUN=1 (see AGENTS.md oracle env note).
 # Rugra side  : current worktree fast-release gen_decompile driver over the
 #               banked single-target dispatch ELF (mirror arm), function
 #               single_target_switch located by name via --list (index-stable
@@ -70,7 +70,7 @@ trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # Optional source-rebuild verification (toolchain-sensitive; never replaces
 # the banked pinned ELF as the gate input).
-if [[ ${RUGRA_SWITCHOUT_REBUILD:-0} == 1 ]]; then
+if [[ ${RUDRA_SWITCHOUT_REBUILD:-0} == 1 ]]; then
   gcc -O2 -no-pie -o "$workdir/rebuilt.elf" "$fixture_asm" "$fixture_target_c" "$fixture_sink_c"
   [[ $(sha256sum "$workdir/rebuilt.elf" | cut -d' ' -f1) == "$fixture_elf_sha256" ]] \
     || die "rebuilt ELF sha drifted from pin (toolchain changed?)"
@@ -79,11 +79,11 @@ fi
 
 # ---- oracle comparand (archive or live) -----------------------------------
 live_oracle_err="$workdir/oracle_stderr.err"
-if [[ ${RUGRA_SWITCHOUT_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUGRA_SWITCHOUT_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-switchout-1204}
+if [[ ${RUDRA_SWITCHOUT_ORACLE_RUN:-0} == 1 ]]; then
+  cache_root=${RUDRA_SWITCHOUT_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-switchout-1204}
   runner="$cache_root/switchout_ruleswitchsingle_1204_cpp"
   if [[ ! -x $runner ]]; then
-    bfd_include=${RUGRA_SWITCHOUT_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+    bfd_include=${RUDRA_SWITCHOUT_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
     [[ -d $bfd_include ]] || die "BFD include tree missing: $bfd_include (see AGENTS.md oracle env note)"
     mkdir -p "$cache_root/x"
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \
@@ -117,16 +117,16 @@ else
 fi
 
 # ---- Rugra side -----------------------------------------------------------
-bin_dir=${RUGRA_SWITCHOUT_BIN_DIR:-$repo_root/target/fast-release/examples}
+bin_dir=${RUDRA_SWITCHOUT_BIN_DIR:-$repo_root/target/fast-release/examples}
 gen_bin="$bin_dir/gen_decompile"
 [[ -x $gen_bin ]] || die "gen_decompile missing under $bin_dir (build --profile fast-release --lib --examples)"
 
-list_out=$(RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=120 "$gen_bin" "$fixture_elf" --list 2>&1) \
+list_out=$(RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=120 "$gen_bin" "$fixture_elf" --list 2>&1) \
   || die "driver --list failed"
 index=$(sed -n 's/^\[GEN\] *\([0-9]*\) 0x *401166 *4 single_target_switch$/\1/p' <<<"$list_out")
 [[ -n $index ]] || die "single_target_switch @0x401166 not discovered; listing: $list_out"
 
-RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=120 "$gen_bin" "$fixture_elf" --one "$index" \
+RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=120 "$gen_bin" "$fixture_elf" --one "$index" \
   > "$workdir/rugra.out" 2> "$workdir/rugra.err" \
   || die "driver --one $index failed"
 

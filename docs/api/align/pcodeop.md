@@ -12,7 +12,7 @@ internal PcodeOp representation as defined in `op.hh`.
 
 ## 导出的公共 API (Public API)
 
-### `pub fn verify_opcode(rugra_op: OpCode, ghidra_opcode: i32) -> bool`
+### `pub fn verify_opcode(rudra_op: OpCode, ghidra_opcode: i32) -> bool`
 
 Verify that a Rudra OpCode matches a Ghidra opcode
 
@@ -26,11 +26,11 @@ This checks:
 - Input count and values
 - Output presence and value
 
-### `pub fn verify_inputs(rugra_inputs: &[Varnode], ghidra_inputs: &[VarnodeFFI]) -> bool`
+### `pub fn verify_inputs(rudra_inputs: &[Varnode], ghidra_inputs: &[VarnodeFFI]) -> bool`
 
 Verify input list alignment
 
-### `pub fn verify_output(rugra_output: Option<&Varnode>, ghidra_output: Option<&VarnodeFFI>) -> bool`
+### `pub fn verify_output(rudra_output: Option<&Varnode>, ghidra_output: Option<&VarnodeFFI>) -> bool`
 
 Verify output alignment
 

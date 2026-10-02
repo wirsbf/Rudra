@@ -2,7 +2,7 @@
 
 > 对应 `src/drillobserve.rs`。RUDRA-GLUE 模块:Ghidra 无单一对应物;
 > stage-bisect v2 drill 的只读 per-application 修改记录器,镜像 oracle
-> `OPACTION_DEBUG` 机制的同位钩子。激活条件:`RUGRA_STAGE_DRILL=1`;
+> `OPACTION_DEBUG` 机制的同位钩子。激活条件:`RUDRA_STAGE_DRILL=1`;
   env 未设置时所有入口为 no-op,管线行为与无此模块逐字节一致。
 
 ## 2026-09-22: 建模块(Lane AA, v2 drill emitter)

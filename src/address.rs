@@ -1068,7 +1068,7 @@ impl SpaceAddress {
     // Ghidra: address.hh:423 Address::operator+(int8 off)
     /// Add bytes to the offset, wrapping through the space's `wrapOffset`
     /// (space.hh:383). On invalid/maximal addresses Ghidra dereferences a
-    /// non-space; Rugra defensively plain-wraps the offset.
+    /// non-space; Rudra defensively plain-wraps the offset.
     pub fn add(&self, off: i64) -> Self {
         let offset = self.offset.wrapping_add(off as u64);
         SpaceAddress {
@@ -2301,7 +2301,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------------
-    // ADDRESS-0001 space-aware regression tests (Rugra-side only; oracle
+    // ADDRESS-0001 space-aware regression tests (Rudra-side only; oracle
     // parity is proven by tests/oracle/address_space_handle_1204.* + runner).
     // ------------------------------------------------------------------------
 

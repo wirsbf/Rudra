@@ -164,4 +164,4 @@
 2. marshal.rs 注册 modelrules 的 `AttributeId` / `ElementId`（`ELEM_DATATYPE` / `ELEM_CONSUME` / `ATTRIB_SIZES` 等，modelrules.cc:21-42）后，补齐所有 `decode()` XML 解析方法体。
 3. 接入主管线（`ProtoModel` / `ParamListStandard::assignAddress` 的规则分发）。
 <!-- annotation-pass: 2026-07-22 -->
-<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->
+<!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->

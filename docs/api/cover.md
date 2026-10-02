@@ -1,6 +1,6 @@
 # `cover.rs` API Reference
 
-**2026-08-23 修复（GETSTR-ZERODIFF-D）**: `rebuild_from_root_snapshot` 的 implied 输出遍历加 visited 集合（Arc 指针键）。Ghidra 的等价遍历（Cover::addRefPoint/addRefRecurse cover.cc:549-612）靠 cover 覆盖遏制递归——只扩展空/未覆盖区域，二次访问直接返回，implied 链不可能成环；Rugra 显式 worklist 无该信号，互读 implied varnode（X→Y→X）无限循环（my_fwrite/next_url 在参数 typelock 扩大同型合并组后实测 timeout）。
+**2026-08-23 修复（GETSTR-ZERODIFF-D）**: `rebuild_from_root_snapshot` 的 implied 输出遍历加 visited 集合（Arc 指针键）。Ghidra 的等价遍历（Cover::addRefPoint/addRefRecurse cover.cc:549-612）靠 cover 覆盖遏制递归——只扩展空/未覆盖区域，二次访问直接返回，implied 链不可能成环；Rudra 显式 worklist 无该信号，互读 implied varnode（X→Y→X）无限循环（my_fwrite/next_url 在参数 typelock 扩大同型合并组后实测 timeout）。
 
 
 **状态**: 核心语义已对齐（two-piece 回绕 + 指针身份域）；Ghidra 12.0.4 对齐级别 L2（oracle fixture `COVER-TWOPIECE-RESIDUAL-0001` 全 13 case `MATCH`）
@@ -24,7 +24,7 @@ getUIndex→`~0`）、`(PcodeOp*)2`（函数输入标记，getUIndex→0）。�
 走 `getUIndex` 投影（cover.cc:29-49），但 `empty()`/`boundary()`/`merge` 的
 internal3/internal4、MULTIEQUAL-tip 判别还依赖**原始指针身份**。
 
-Rugra 以 `CoverEndpoint` 枚举建模指针身份域，`CoverBlock::start`/`end`（pub
+Rudra 以 `CoverEndpoint` 枚举建模指针身份域，`CoverBlock::start`/`end`（pub
 u32）缓存 `getUIndex` 投影。**当 `end < start` 且块非空时表示 two-piece 回绕
 区间** `[start, ~0] ∪ [0, end]`（Ghidra merge 的 disjoint 分支 cover.cc:175-181
 与 addRefPoint 的 not-contained `setEnd` cover.cc:587 产生）。
@@ -200,7 +200,7 @@ BlockId 单栈迭代形（见 COVERREBUILD 节）;无 visited 集——重入帧
 
 **2026-09-29 性能重写（行为恒等, VDBEEXEC 残差⑤ mergerequired）**: oracle
 本身即递归形态（cover.cc:535-536/551-552 `for(j..sizeIn) addRefRecurse(
-bl->getIn(j))`）；Rugra 侧成本来自 DAG 边重入帧——每帧 FlowBlock 读锁 +
+bl->getIn(j))`）；Rudra 侧成本来自 DAG 边重入帧——每帧 FlowBlock 读锁 +
 双 BTreeMap 查找,而重入帧全部是可证 no-op（每次可突变访问必留
 `end == u32::MAX`——setAll 或填底 setEnd((PcodeOp\*)1),其余访问零突变;
 二次进入时 `ustop != ~0` 与 `ustop == 0` 互斥,两守卫均不成立 → 既不突变

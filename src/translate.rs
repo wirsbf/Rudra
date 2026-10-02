@@ -37,7 +37,7 @@ use std::collections::HashMap;
 //
 // These mirror Ghidra's file-scope `AttributeId ATTRIB_*` and
 // `ElementId ELEM_*` definitions. Ghidra assigns each a unique numeric id
-// (the second ctor argument); Rugra preserves those exact ids so that
+// (the second ctor argument); Rudra preserves those exact ids so that
 // encoded data remains wire-compatible.
 
 // Ghidra: translate.cc:20 ATTRIB_CODE
@@ -116,7 +116,7 @@ pub const ELEM_TRUNCATE_SPACE: ElementId = ElementId {
 
 // RUDRA-GLUE: Marshal attribute/element ids used by decode routines but not
 // defined in translate.cc. Ghidra defines these in marshal.cc with globally
-// consistent ids; Rugra reuses the names so decoded streams remain
+// consistent ids; Rudra reuses the names so decoded streams remain
 // interoperable. The ids here follow Ghidra's marshaling convention.
 /// Marshaling attribute "space" (used by `<truncate_space>` decode).
 pub const ATTRIB_SPACE: AttributeId = AttributeId::new_static("space", 47);
@@ -227,7 +227,7 @@ pub struct TruncationTag {
 impl TruncationTag {
     // RUDRA-GLUE: Explicit convenience constructor for Rust callers; Ghidra
     // relies on TruncationTag's implicit C++ default construction.
-    /// Construct an empty tag. Rugra convenience constructor.
+    /// Construct an empty tag. Rudra convenience constructor.
     pub fn new() -> Self {
         Self::default()
     }
@@ -297,7 +297,7 @@ pub trait PcodeEmit {
     /// returned to the application via [`PcodeEmit::dump`].
     ///
     /// Note: Ghidra reuses a stack-allocated 16-entry `invar` array and only
-    /// heap-allocates when `isize > 16`. Rugra always heap-allocates the
+    /// heap-allocates when `isize > 16`. Rudra always heap-allocates the
     /// input vec for simplicity; the observable behavior (a single `dump`
     /// callback with the parsed op) is identical.
     fn decode_op(&mut self, addr: Address, decoder: &mut dyn Decoder) {
@@ -312,11 +312,11 @@ pub trait PcodeEmit {
             size: 0,
         };
         // The C++ code passes &outptr so decode can set it to null for ops
-        // with no output. Rugra mirrors this with an Option.
+        // with no output. Rudra mirrors this with an Option.
         let mut has_output = true;
         // Ghidra calls PcodeOpRaw::decode(decoder, isize, invar, &outptr),
         // which populates the input array and (conditionally) the output
-        // varnode and returns the opcode. Rugra performs an equivalent decode
+        // varnode and returns the opcode. Rudra performs an equivalent decode
         // via the free function `decode_pcode_raw` below.
         let mut invars: Vec<VarnodeData> = Vec::with_capacity(isize);
         for _ in 0..isize {
@@ -336,7 +336,7 @@ pub trait PcodeEmit {
 }
 
 // RUDRA-GLUE: decode_pcode_raw (Ghidra delegates to PcodeOpRaw::decode in
-// pcoderaw.cc; Rugra does not yet port PcodeOpRaw::decode. Kept as a free
+// pcoderaw.cc; Rudra does not yet port PcodeOpRaw::decode. Kept as a free
 // function rather than a trait method so that `PcodeEmit` stays
 // dyn-compatible/object-safe while decode_op's control flow remains
 // faithful to translate.cc:996-1016. Concrete engines with a real
@@ -422,7 +422,7 @@ pub trait AddressResolver {
 /// might be a local variable. Such a space is inherently virtual and
 /// contained within whatever space is being indexed into.
 ///
-/// In Ghidra this class inherits from `AddrSpace`; Rugra models the address
+/// In Ghidra this class inherits from `AddrSpace`; Rudra models the address
 /// space identity via [`AddressSpace::Stack`] (and other `SpacebaseSpace`
 /// instances via their containing-space pointer), so this struct holds only
 /// the spacebase-specific state.
@@ -443,11 +443,11 @@ pub struct SpacebaseSpace {
     // Ghidra: translate.hh:178 baseOrig
     /// Original base register before any truncation.
     pub base_orig: VarnodeData,
-    /// Formal name of this space (e.g. "stack"). Rugra addition: Ghidra's
-    /// name lives on the AddrSpace base, which Rugra's enum does not carry
+    /// Formal name of this space (e.g. "stack"). Rudra addition: Ghidra's
+    /// name lives on the AddrSpace base, which Rudra's enum does not carry
     /// per-instance.
     pub name: String,
-    /// Index of this space in the manager. Rugra addition mirroring
+    /// Index of this space in the manager. Rudra addition mirroring
     /// AddrSpace::index.
     pub index: i32,
     /// Address size (bytes) of this space.
@@ -474,7 +474,7 @@ impl SpacebaseSpace {
         dl: i32,
         is_formal: bool,
     ) -> Self {
-        let _ = is_formal; // formal_stackspace flag is a no-op in Rugra's enum model
+        let _ = is_formal; // formal_stackspace flag is a no-op in Rudra's enum model
         Self {
             contain: base,
             has_base_register: false,
@@ -502,7 +502,7 @@ impl SpacebaseSpace {
     /// must be followed up with `decode` (translate.cc:73-79).
     ///
     /// Sets `has_base_register = false`, `is_negative_stack = true`, and
-    /// marks the space as program-specific (Rugra no-op).
+    /// marks the space as program-specific (Rudra no-op).
     pub fn new_for_decode() -> Self {
         Self {
             contain: AddressSpace::Ram,
@@ -530,7 +530,7 @@ impl SpacebaseSpace {
     /// `setBaseRegister(const VarnodeData &data, int4 truncSize,
     ///                  bool stackGrowth)` (translate.cc:86-102).
     ///
-    /// Throws (panics, in Rugra) if a different base register was already
+    /// Throws (panics, in Rudra) if a different base register was already
     /// assigned. When `trunc_size != data.size`, the stored `baseloc` is
     /// truncated: for big-endian spaces the high bytes are skipped.
     pub fn set_base_register(&mut self, data: &VarnodeData, trunc_size: i32, stack_growth: bool) {
@@ -630,7 +630,7 @@ impl SpacebaseSpace {
     }
 
     // RUDRA-GLUE: decode_basic_attributes (Ghidra's AddrSpace::decodeBasicAttributes
-    // lives in space.cc, not translate.cc. Rugra ports a minimal inline reader
+    // lives in space.cc, not translate.cc. Rudra ports a minimal inline reader
     // of name/address-size/word-size/delay so SpacebaseSpace::decode can run
     // without the full AddrSpace port.)
     /// Read the common address-space attributes (`name`, `size`,
@@ -638,7 +638,7 @@ impl SpacebaseSpace {
     /// (space.cc).
     fn decode_basic_attributes(&mut self, decoder: &mut dyn Decoder) {
         // Walk attributes: Ghidra recognizes ATTRIB_NAME, ATTRIB_SIZE,
-        // ATTRIB_WORDSIZE, ATTRIB_DELAY. Rugra uses the decoder's generic
+        // ATTRIB_WORDSIZE, ATTRIB_DELAY. Rudra uses the decoder's generic
         // attribute walk and dispatches on names.
         loop {
             let id = decoder.next_attribute_id();
@@ -663,9 +663,9 @@ impl SpacebaseSpace {
 }
 
 // RUDRA-GLUE: space_from_name (Ghidra resolves `contain` via the
-// AddrSpaceManager's name map; Rugra's enum address spaces are finite and
+// AddrSpaceManager's name map; Rudra's enum address spaces are finite and
 // named, so a local lookup suffices without requiring a live manager.)
-/// Map a SLEIGH space name to the Rugra [`AddressSpace`] enum. Unknown names
+/// Map a SLEIGH space name to the Rudra [`AddressSpace`] enum. Unknown names
 /// map to [`AddressSpace::Other`] (mirroring Ghidra's IPTR_PROCESSOR fallthrough).
 fn space_from_name(name: &str) -> AddressSpace {
     match name {
@@ -821,7 +821,7 @@ impl JoinRecord {
     /// the resulting byte range has a formal register name. The
     /// `exact_register_name` closure plays the role of
     /// `trans->getExactRegisterName` (which on [`Translate`] returns the
-    /// empty string by default in Rugra, so non-stack merges are inhibited
+    /// empty string by default in Rudra, so non-stack merges are inhibited
     /// unless the caller supplies a real register lookup).
     pub fn merge_sequence<F>(seq: &mut Vec<VarnodeData>, mut exact_register_name: F)
     where
@@ -882,11 +882,11 @@ impl JoinRecord {
 }
 
 // RUDRA-GLUE: varnode_less / is_contiguous (Ghidra defines VarnodeData::operator<
-// and VarnodeData::isContiguous in pcoderaw.hh / pcoderaw.cc. Rugra's
+// and VarnodeData::isContiguous in pcoderaw.hh / pcoderaw.cc. Rudra's
 // VarnodeData does not yet provide these, so local helpers carry the intended
 // formulas; the flat AddressSpace model still prevents an equivalence claim.)
 //
-// Ghidra ordering on VarnodeData is by (space index, offset, size). Rugra's
+// Ghidra ordering on VarnodeData is by (space index, offset, size). Rudra's
 // AddressSpace enum derives Ord, so we delegate to that.
 /// Lexicographic `(space, offset, size)` ordering, mirroring Ghidra's
 /// `VarnodeData::operator<`.
@@ -932,7 +932,7 @@ fn is_contiguous(hi: &VarnodeData, lo: &VarnodeData) -> bool {
 /// (translate.hh:220).
 ///
 /// Allows creation, lookup by name, lookup by shortcut, and iteration over
-/// address spaces. In Ghidra this is the base class of [`Translate`]; Rugra
+/// address spaces. In Ghidra this is the base class of [`Translate`]; Rudra
 /// composes it as a field rather than via inheritance.
 #[derive(Default)]
 pub struct AddrSpaceManager {
@@ -940,7 +940,7 @@ pub struct AddrSpaceManager {
     /// Every space we know about for this architecture, indexed by space index.
     pub base_list: Vec<Option<AddressSpace>>,
     // Ghidra: translate.hh:222 resolvelist
-    /// Special constant resolvers, indexed by space index. Rugra stores the
+    /// Special constant resolvers, indexed by space index. Rudra stores the
     /// resolver as a boxed trait object; in Ghidra these are non-owning
     /// pointers owned by the manager.
     pub resolve_list: Vec<Option<Box<dyn AddressResolver>>>,
@@ -948,7 +948,7 @@ pub struct AddrSpaceManager {
     /// Map from name -> space.
     pub name_to_space: HashMap<String, AddressSpace>,
     // Ghidra: translate.hh:224 shortcut2Space
-    /// Map from shortcut char -> space. (Rugra: shortcut encoded as the char
+    /// Map from shortcut char -> space. (Rudra: shortcut encoded as the char
     /// value.)
     pub shortcut_to_space: HashMap<char, AddressSpace>,
     // Ghidra: translate.hh:225 constantspace
@@ -979,7 +979,7 @@ pub struct AddrSpaceManager {
     /// Next offset to be allocated in the join space.
     pub join_allocate: u64,
     // Ghidra: translate.hh:234 splitset
-    /// Different splits that have been defined in the join space. Rugra uses
+    /// Different splits that have been defined in the join space. Rudra uses
     /// a sorted Vec; Ghidra uses a `set<JoinRecord*, JoinRecordCompare>`.
     pub split_set: Vec<JoinRecord>,
     // Ghidra: translate.hh:235 splitlist
@@ -997,7 +997,7 @@ pub struct AddrSpaceManager {
     pub space_registry: crate::space::SpaceRegistry,
 }
 
-// RUDRA-GLUE: Debug impl (Ghidra has no Debug formatting; Rugra needs it for
+// RUDRA-GLUE: Debug impl (Ghidra has no Debug formatting; Rudra needs it for
 // diagnostics. The `resolve_list` holds trait objects that have no Debug, so
 // we count resolvers instead of formatting them.)
 impl std::fmt::Debug for AddrSpaceManager {
@@ -1118,7 +1118,7 @@ impl AddrSpaceManager {
     /// Encode a specific value as a constant address. Faithful to the inline
     /// `getConstant(uintb val)` (translate.hh:532-534).
     ///
-    /// Rugra's `Address` is a single u64, so the constant space is implicit;
+    /// Rudra's `Address` is a single u64, so the constant space is implicit;
     /// this returns `Address::new(val)`.
     pub fn get_constant(&self, val: u64) -> Address {
         Address::new(val)
@@ -1128,7 +1128,7 @@ impl AddrSpaceManager {
     /// Encode a pointer to an address space as a constant address. Faithful
     /// to the inline `createConstFromSpace` (translate.hh:542-544).
     ///
-    /// Ghidra casts the space pointer to `uintp`; Rugra has no pointer to
+    /// Ghidra casts the space pointer to `uintp`; Rudra has no pointer to
     /// cast, so this returns the space's id encoded as a constant address.
     pub fn create_const_from_space(&self, spc: AddressSpace) -> Address {
         Address::new(spc.space_id() as u64)
@@ -1153,7 +1153,7 @@ impl AddrSpaceManager {
     /// `getNextSpaceInOrder` (translate.cc:647-663).
     ///
     /// Pass `None` to start iteration; returns `None` when exhausted.
-    /// (Ghidra distinguishes null from `~0`; Rugra collapses both to
+    /// (Ghidra distinguishes null from `~0`; Rudra collapses both to
     /// `None`.)
     pub fn get_next_space_in_order(&self, spc: Option<AddressSpace>) -> Option<AddressSpace> {
         match spc {
@@ -1300,7 +1300,7 @@ impl AddrSpaceManager {
     /// Set the dead-code delay for a specific space. Faithful to
     /// `setDeadcodeDelay` (translate.cc:768-772).
     ///
-    /// Rugra's enum address spaces carry fixed delays, so this is a no-op
+    /// Rudra's enum address spaces carry fixed delays, so this is a no-op
     /// kept for API parity.
     pub fn set_deadcode_delay(&mut self, _spc: AddressSpace, _delay_delta: i32) {}
 
@@ -1314,7 +1314,7 @@ impl AddrSpaceManager {
                 tag.get_name()
             )
         });
-        // Rugra's enum address spaces have fixed sizes; the truncation is a
+        // Rudra's enum address spaces have fixed sizes; the truncation is a
         // no-op at the enum level but the lookup/validation is preserved.
     }
 
@@ -1357,10 +1357,10 @@ impl AddrSpaceManager {
         lo_sz: i32,
         exact_register_name: &mut dyn FnMut(&AddressSpace, u64, usize) -> String,
     ) -> Address {
-        // Rugra collapses Ghidra's AddrSpace::getType() check to the enum:
-        // only stack/ram/register/other pieces are joinable. Rugra addresses
+        // Rudra collapses Ghidra's AddrSpace::getType() check to the enum:
+        // only stack/ram/register/other pieces are joinable. Rudra addresses
         // are space-less (a single u64), so the pieces' space defaults to the
-        // register space — the canonical joinable space in Rugra's model.
+        // register space — the canonical joinable space in Rudra's model.
         // Ghidra: if (hiaddr.isContiguous(hisz,loaddr,losz)) { ... }
         let hi_vn = VarnodeData {
             space: AddressSpace::Register,
@@ -1381,7 +1381,7 @@ impl AddrSpaceManager {
         }
         // Otherwise construct a formal JoinRecord with both pieces. Ghidra
         // checks `translate->getRegisterName(...)` for a parent register
-        // before falling back to the join space; Rugra invokes the supplied
+        // before falling back to the join space; Rudra invokes the supplied
         // `exact_register_name` hook for the same purpose.
         let total = (hi_sz as usize).saturating_add(lo_sz as usize);
         if !exact_register_name(&hi_vn.space, hi_vn.offset, total).is_empty() {
@@ -1479,7 +1479,7 @@ impl AddrSpaceManager {
                 (Some(spc), c + 1)
             }
         };
-        let _ = spc; // Rugra addresses are space-less; name validation preserved.
+        let _ = spc; // Rudra addresses are space-less; name validation preserved.
         let mut col = offset_start;
         // if (col + 2 <= val.size()) { if '0x' prefix, skip }
         if col + 2 <= val.len() {
@@ -1562,7 +1562,7 @@ impl AddrSpaceManager {
     /// Validates naming/indexing conventions and routes the space into the
     /// appropriate cached slot (constant/unique/fspec/join/iop/stack).
     pub fn insert_space(&mut self, spc: AddressSpace) {
-        // RUDRA-GLUE: Rugra's enum address spaces collapse Ghidra's
+        // RUDRA-GLUE: Rudra's enum address spaces collapse Ghidra's
         // per-type name validation: each variant already carries its type, so
         // `name_type_mismatch` from translate.cc:355 is always false here and
         // is omitted. The remaining duplicate-name/duplicate-id checks mirror
@@ -1730,10 +1730,10 @@ impl AddrSpaceManager {
 }
 
 // RUDRA-GLUE: space_index_of / addr_mask_for (Ghidra's AddrSpace carries an
-// `index` field and address-size/word-size; Rugra's enum address spaces have
+// `index` field and address-size/word-size; Rudra's enum address spaces have
 // stable indices via space_id() and a fixed address size. These helpers
 // bridge the two representations so AddrSpaceManager methods stay faithful.)
-/// Stable index for a Rugra address space, mirroring Ghidra's
+/// Stable index for a Rudra address space, mirroring Ghidra's
 /// `AddrSpace::getIndex()`.
 fn space_index_of(spc: AddressSpace) -> i32 {
     spc.space_id() as i32
@@ -1791,7 +1791,7 @@ pub enum UniqueLayout {
 /// of the reverse-engineering model associated with the processor: address
 /// spaces, registers, and spacebases.
 ///
-/// In Ghidra, `Translate` inherits from `AddrSpaceManager`. Rugra models
+/// In Ghidra, `Translate` inherits from `AddrSpaceManager`. Rudra models
 /// this as composition: implementations own an [`AddrSpaceManager`] and
 /// expose the manager's state via the `manager`/`manager_mut` methods.
 pub trait Translate {

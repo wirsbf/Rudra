@@ -420,7 +420,7 @@ output-locked/output-active guards 与 `addPush`。两者继续保守返回 fals
 
 Phase 2 next_url 镜像态首分歧 ordinal 65（event-ordinal 60，
 `universal:fullloop:mainloop:stackstall:oppool1` apply 轮 4）result/count
-85(oracle) vs 77(rugra) 的根因落地：Rudra `try_call_pull` 在 CALLSPEC-0001
+85(oracle) vs 77(rudra) 的根因落地：Rudra `try_call_pull` 在 CALLSPEC-0001
 D0 下无条件返回 false，凡 4 字节 lane 直达 CALL/CALLIND 参数槽的
 `RuleSubvarZext` 触发全部夭折（窗口内首例：ZEXT `5040:69a` 的 R9 lane 流入
 `505d:131` call free 的 R9D 槽，oracle 创建 `R9D(:803) = u:23d00:4(:11a)` 并
@@ -433,14 +433,14 @@ subflow.cc:208-228 全体语义：slot==0 早退 → 非 aggressive 的
 `op_set_input(pullop, invn, slot)` 已在位）。`try_call_return_push` 仍保留
 保守 false（indirect-creation trim 未被当前语料触发，绑定 CALLSPEC-0001）。
 
-验证（镜像态）：oppool1 四窗口应用计数 oracle/rugra = [863,85,15,12] 全等
+验证（镜像态）：oppool1 四窗口应用计数 oracle/rudra = [863,85,15,12] 全等
 
 ## 2026-09-29：CASTSUB23 — `try_call_return_push` 接线（D0 residual 消除之二）
 
 MCENSUS4-CASTSHAPE-RESID-FIVE-0001 的 ②+③ 子域（sqlite uint1-shift 47L + 裸
 cast ~60L，census 口径亲核为 misc-cast 内 98L）双侧钉形后根因收口：代表函数
 sqlite3ErrorMsg 双侧终态 IR 对照（oracle castfuse2_probe .ir vs Rudra
-RUGRA_DUMP_FUNC .ops）证明 oracle 的 `RuleSubvarSubpiece` → `SubvariableFlow`
+RUDRA_DUMP_FUNC .ops）证明 oracle 的 `RuleSubvarSubpiece` → `SubvariableFlow`
 trace 经 `traceBackward` INT_LEFT/INT_OR 穿透直达 CALL 后由
 `tryCallReturnPush`（subflow.cc:293-317）把 call 输出截断到逻辑子变量
 （`AL(0x000d8035:1fa) = call fsqlite3HexToInt`），而 Rudra 同位 call 输出保持

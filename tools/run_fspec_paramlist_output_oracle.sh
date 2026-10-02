@@ -10,12 +10,12 @@ set -euo pipefail
 
 runner_fd_path="/proc/$$/fd/3"
 if [[ "${BASH_SOURCE[0]}" != "$runner_fd_path" ]]; then
-  bfd_include_arg=${RUGRA_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
-  bfd_library_arg=${RUGRA_BFD_LIBRARY:-/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
+  bfd_include_arg=${RUDRA_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+  bfd_library_arg=${RUDRA_BFD_LIBRARY:-/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
   exec 3<"${BASH_SOURCE[0]}"
   exec /usr/bin/env -i PATH=/usr/bin:/bin \
-    RUGRA_BFD_INCLUDE="$bfd_include_arg" \
-    RUGRA_BFD_LIBRARY="$bfd_library_arg" \
+    RUDRA_BFD_INCLUDE="$bfd_include_arg" \
+    RUDRA_BFD_LIBRARY="$bfd_library_arg" \
     /usr/bin/bash "$runner_fd_path" "$@"
 fi
 
@@ -58,9 +58,9 @@ cpp_fixture="$repo_root/tests/oracle/fspec_paramlist_output_1204.cc"
 rust_fixture="$repo_root/tests/oracle/fspec_paramlist_output_1204.rs"
 fspec_rs="$repo_root/src/fspec.rs"
 fspec_doc="$repo_root/docs/api/fspec.md"
-bfd_include=${RUGRA_BFD_INCLUDE}
+bfd_include=${RUDRA_BFD_INCLUDE}
 bfd_header="$bfd_include/bfd.h"
-bfd_library=${RUGRA_BFD_LIBRARY}
+bfd_library=${RUDRA_BFD_LIBRARY}
 host_git=/usr/bin/git
 host_python=/usr/bin/python3
 host_cxx=/usr/bin/g++

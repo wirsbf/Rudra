@@ -15,7 +15,7 @@
 //!   matching `OpBehavior*::evaluate*` body.
 //! - **OOP trait + subclasses** (`OpBehavior` trait, `OpBehaviorIntAdd`, ...)
 //!   — a direct port of the C++ class hierarchy so the alignment between
-//!   Rugra and Ghidra can be audited class-by-class. `OpBehaviorFactory`
+//!   Rudra and Ghidra can be audited class-by-class. `OpBehaviorFactory`
 //!   mirrors `OpBehavior::registerInstructions`.
 //!
 //! # Status
@@ -1480,7 +1480,7 @@ impl_eval_only!(OpBehaviorBoolOr, OpCode::CPUI_BOOL_OR, false, binary, unary);
 // CPUI_FLOAT_* — OpBehaviorFloat* (opbehavior.hh:354-496)
 //
 // In Ghidra these carry a `const Translate *translate` member to look up the
-// FloatFormat for a given size. Rugra has no Translate object at this layer,
+// FloatFormat for a given size. Rudra has no Translate object at this layer,
 // so the float behaviors hold a closure `fmt_lookup: Fn(usize) -> Option<&'static FloatFormat>`
 // instead. The static float formats (single/double precision) are constructed
 // once and reused.

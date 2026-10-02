@@ -27,8 +27,8 @@ use rudra::printlanguage::PrintLanguage;
 // (BfdArchitecture + readLoaderSymbols, no analyzers, no DWARF import, no
 // generic_clib signature data), and reproducing that data environment used
 // to require setting three separate env gates in exactly the right
-// combination (RUGRA_FLOW_MIRROR + RUGRA_BARE_LOAD +
-// RUGRA_ORACLE_FIXTURE_DATA). RUGRA_MIRROR is the one-key switch: it
+// combination (RUDRA_FLOW_MIRROR + RUDRA_BARE_LOAD +
+// RUDRA_ORACLE_FIXTURE_DATA). RUDRA_MIRROR is the one-key switch: it
 // expands to the full union semantics of all three legacy gates plus the
 // target-function DWARF prototype lock suppression (RETURN-ARTIFICIAL-RAX
 // -0001 root cause, RAX_RETURN.md §3.1). The three legacy envs remain
@@ -36,7 +36,7 @@ use rudra::printlanguage::PrintLanguage;
 // semantics; every driver-side mirror-state query goes through these four
 // accessors, the single source of truth for the bundle.
 fn mirror_bundle_enabled() -> bool {
-    std::env::var("RUGRA_MIRROR").is_ok()
+    std::env::var("RUDRA_MIRROR").is_ok()
 }
 
 // HTTPDMAIN-F2-IMAGEBASE-DECISION-0001 (F2B, curl half, 2026-09-26): the
@@ -54,9 +54,9 @@ fn mirror_bundle_enabled() -> bool {
 // value — the W1b manifest-inheritance precedent).
 fn curl_image_base() -> u64 {
     if mirror_bundle_enabled()
-        || std::env::var("RUGRA_FLOW_MIRROR").is_ok()
-        || std::env::var("RUGRA_BARE_LOAD").is_ok()
-        || std::env::var("RUGRA_ORACLE_FIXTURE_DATA").is_ok()
+        || std::env::var("RUDRA_FLOW_MIRROR").is_ok()
+        || std::env::var("RUDRA_BARE_LOAD").is_ok()
+        || std::env::var("RUDRA_ORACLE_FIXTURE_DATA").is_ok()
     {
         0
     } else {
@@ -68,14 +68,14 @@ fn curl_image_base() -> u64 {
 // oracle followFlow load contract: full-range flow, full-segment SLEIGH
 // image, no shared-return overrides, load_mode=single_function_bfd.
 fn mirror_flow_enabled() -> bool {
-    mirror_bundle_enabled() || std::env::var("RUGRA_FLOW_MIRROR").is_ok()
+    mirror_bundle_enabled() || std::env::var("RUDRA_FLOW_MIRROR").is_ok()
 }
 
 // RUGRA-GLUE: bare-load component (RUGRA-FLOW-MIRROR-0001 M3) — the empty
 // libc signature ledger: a raw BfdArchitecture carries no generic_clib
 // signature data for PLT imports or call-spec resolution.
 fn mirror_bare_load_enabled() -> bool {
-    mirror_bundle_enabled() || std::env::var("RUGRA_BARE_LOAD").is_ok()
+    mirror_bundle_enabled() || std::env::var("RUDRA_BARE_LOAD").is_ok()
 }
 
 // RUGRA-GLUE: oracle-fixture-data component (FLOW-339E-OVERLAP-HLT-0001 /
@@ -83,7 +83,7 @@ fn mirror_bare_load_enabled() -> bool {
 // emulation in either half (pre-flow function attribute + flow callee
 // table).
 fn mirror_fixture_data_enabled() -> bool {
-    mirror_bundle_enabled() || std::env::var("RUGRA_ORACLE_FIXTURE_DATA").is_ok()
+    mirror_bundle_enabled() || std::env::var("RUDRA_ORACLE_FIXTURE_DATA").is_ok()
 }
 
 // HEADLESS-BRIDGE-V1-TYPESEED W1b (C1 TYPE-SEED-LOCAL, curl roll-in): the
@@ -105,10 +105,10 @@ fn mirror_fixture_data_enabled() -> bool {
 // environment (Command::new default env), so the subprocess reads the same
 // gate; the prototype pre-pass never seeds (hermetic param inference — the
 // httpd driver likewise seeds only its decompile threads). SEEDFLIP: the
-// gate is default-on (the manifest ships in-repo); RUGRA_SEEDS=0 restores
+// gate is default-on (the manifest ships in-repo); RUDRA_SEEDS=0 restores
 // the exact historical bare load (no manifest IO, the OnceLock caches
 // None, committed_locals stays empty, byte-identical output) and
-// RUGRA_TYPESEED=0 opts just this channel out. Any mirror
+// RUDRA_TYPESEED=0 opts just this channel out. Any mirror
 // component (bundle/flow/bare/fixture-data) keeps the gate closed — the
 // five-projection bank must stay byte-identical.
 static TYPESEED_LOCALS: std::sync::OnceLock<Option<HashMap<String, Vec<CommittedLocal>>>> =
@@ -119,7 +119,7 @@ static TYPESEED_LOCALS: std::sync::OnceLock<Option<HashMap<String, Vec<Committed
 // the controller's cache). Shared by every committed-local seed gate
 // (W1b TYPESEED, C2 DWARFSEED): identical decode walk, distinct env gates
 // and default manifests so each channel's contribution stays independently
-// attributable (SEEDFLIP opt-out form: RUGRA_TYPESEED=0 alone removes the
+// attributable (SEEDFLIP opt-out form: RUDRA_TYPESEED=0 alone removes the
 // W1b channel while the other gates stay on).
 fn load_committed_local_manifest(
     gate_env: &str,
@@ -131,7 +131,7 @@ fn load_committed_local_manifest(
     // gates are default-on — the manifests ship in-repo under
     // tests/golden/manifests/. Decision order: mirror components
     // short-circuit first and suppress every seed form (including the
-    // legacy explicit =1); RUGRA_SEEDS=0 is the global bare-face escape
+    // legacy explicit =1); RUDRA_SEEDS=0 is the global bare-face escape
     // hatch; <gate>=0 is the single-gate opt-out; any other value — the
     // legacy =1 witness included — leaves the gate on. A missing manifest
     // file stays a loud no-op ("seeding disabled"), so an arbitrary
@@ -140,7 +140,7 @@ fn load_committed_local_manifest(
         eprintln!("[{}] seed gate {} ignored under the mirror gate (projection purity)", tag, gate_env);
         return None;
     }
-    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+    if std::env::var("RUDRA_SEEDS").ok().as_deref() == Some("0") {
         return None;
     }
     if std::env::var(gate_env).ok().as_deref() == Some("0") {
@@ -220,8 +220,8 @@ fn typeseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLocal>
     TYPESEED_LOCALS
         .get_or_init(|| {
             load_committed_local_manifest(
-                "RUGRA_TYPESEED",
-                "RUGRA_TYPESEED_MANIFEST",
+                "RUDRA_TYPESEED",
+                "RUDRA_TYPESEED_MANIFEST",
                 "tests/golden/manifests/local_seed_curl_1204.json",
                 "TYPESEED",
             )
@@ -240,12 +240,12 @@ fn typeseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLocal>
 // stage_seed_diag <localdb> seeding) and decompile_request extends
 // fd.committed_locals with the canon-address-keyed seeds after the W1b
 // TYPESEED attach. Gates are additive and independently attributable:
-// RUGRA_TYPESEED=0 alone removes just the W1b channel;
-// RUGRA_DWARFSEED=0 removes just the DWARF-named slots (disjoint from
+// RUDRA_TYPESEED=0 alone removes just the W1b channel;
+// RUDRA_DWARFSEED=0 removes just the DWARF-named slots (disjoint from
 // local_ slots by construction
 // — canon prints a DWARF name wherever one exists, local_ otherwise).
 // Mirror components keep the gate closed (five-projection purity); SEEDFLIP
-// makes the gates default-on, with RUGRA_SEEDS=0 as the global bare-face
+// makes the gates default-on, with RUDRA_SEEDS=0 as the global bare-face
 // escape hatch (no manifest IO, empty field).
 static DWARFSEED_LOCALS: std::sync::OnceLock<Option<HashMap<String, Vec<CommittedLocal>>>> =
     std::sync::OnceLock::new();
@@ -255,8 +255,8 @@ fn dwarfseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLocal
     DWARFSEED_LOCALS
         .get_or_init(|| {
             load_committed_local_manifest(
-                "RUGRA_DWARFSEED",
-                "RUGRA_DWARFSEED_MANIFEST",
+                "RUDRA_DWARFSEED",
+                "RUDRA_DWARFSEED_MANIFEST",
                 "tests/golden/manifests/local_seed_curl_1204_dwarf.json",
                 "DWARFSEED",
             )
@@ -281,7 +281,7 @@ fn dwarfseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLocal
 // oracle-verified domain judgment). Gate form mirrors C2 exactly:
 // additive after TYPESEED/DWARFSEED, offset collisions are loud manifest
 // defects, mirror components keep the gate closed (five-projection
-// purity), SEEDFLIP default-on with RUGRA_SEEDS=0 / RUGRA_STRUCTSEED=0
+// purity), SEEDFLIP default-on with RUDRA_SEEDS=0 / RUDRA_STRUCTSEED=0
 // opt-outs (no manifest IO, empty field, no factory-name lookups fire —
 // the existing manifests carry only table-served spellings).
 static STRUCTSEED_LOCALS: std::sync::OnceLock<Option<HashMap<String, Vec<CommittedLocal>>>> =
@@ -292,8 +292,8 @@ fn structseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLoca
     STRUCTSEED_LOCALS
         .get_or_init(|| {
             load_committed_local_manifest(
-                "RUGRA_STRUCTSEED",
-                "RUGRA_STRUCTSEED_MANIFEST",
+                "RUDRA_STRUCTSEED",
+                "RUDRA_STRUCTSEED_MANIFEST",
                 "tests/golden/manifests/local_seed_curl_1204_struct.json",
                 "STRUCTSEED",
             )
@@ -354,10 +354,10 @@ fn structseed_local_table() -> Option<&'static HashMap<String, Vec<CommittedLoca
 // the CANON face by default — the canon DB truth IS the retyped field, so
 // the default install is the canon face (A/B at base 4df1e154: main
 // BOOLCHAR -8 + getparameter -2, five golden witness lines byte-converged,
-// zero drift across the other 122 functions). RUGRA_FIELDRETYPE=0
+// zero drift across the other 122 functions). RUDRA_FIELDRETYPE=0
 // restores the historical DWARF-literal (char) face, any mirror component
-// keeps the gate closed (five-projection purity), RUGRA_SEEDS=0 is the
-// global bare-face escape, RUGRA_FIELDRETYPE_MANIFEST=<path> overrides the
+// keeps the gate closed (five-projection purity), RUDRA_SEEDS=0 is the
+// global bare-face escape, RUDRA_FIELDRETYPE_MANIFEST=<path> overrides the
 // manifest location, and a missing/corrupt manifest is a loud no-op.
 static FIELDRETYPE_LEDGER: std::sync::OnceLock<Option<FieldRetypeLedger>> =
     std::sync::OnceLock::new();
@@ -382,24 +382,24 @@ struct FieldRetypeTarget {
 fn load_field_retype_ledger() -> Option<FieldRetypeLedger> {
     if mirror_flow_enabled() || mirror_bare_load_enabled() || mirror_fixture_data_enabled() {
         eprintln!(
-            "[FIELDRETYPE] retype gate RUGRA_FIELDRETYPE ignored under the mirror gate (projection purity)"
+            "[FIELDRETYPE] retype gate RUDRA_FIELDRETYPE ignored under the mirror gate (projection purity)"
         );
         return None;
     }
-    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+    if std::env::var("RUDRA_SEEDS").ok().as_deref() == Some("0") {
         return None;
     }
-    if std::env::var("RUGRA_FIELDRETYPE").ok().as_deref() == Some("0") {
+    if std::env::var("RUDRA_FIELDRETYPE").ok().as_deref() == Some("0") {
         // DFLIP polarity (SYMDB precedent shape, BOOLDRILL 2026-09-28):
         // default-on in the canon face — the in-tree locked-oracle witness
         // family is the manifest's five golden remotefile lines (§21.4(2)
         // revisit condition met by the witness ledger itself). The A/B at
         // base 4df1e154 converged all ten BOOLCHAR lines byte-identical
         // with zero drift elsewhere, which is the flip's acceptance gate.
-        // RUGRA_FIELDRETYPE=0 restores the historical DWARF-literal face.
+        // RUDRA_FIELDRETYPE=0 restores the historical DWARF-literal face.
         return None;
     }
-    let path = std::env::var("RUGRA_FIELDRETYPE_MANIFEST")
+    let path = std::env::var("RUDRA_FIELDRETYPE_MANIFEST")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "tests/golden/manifests/field_retype_curl_1204.json".to_string());
@@ -581,9 +581,9 @@ fn install_field_retype_channel() {
 // get_typedef faithfully throws on a same-named non-typedef, type.cc:3825).
 // Gate polarity follows the V3SIG/PFLIP opt-in precedent: the channel is
 // canon-visible when live (typedef-form cast/& rendering can change), so
-// RUGRA_TYPEDEFSEED=1 opts in, any mirror component keeps the gate closed
-// (five-projection purity), RUGRA_SEEDS=0 is the global bare-face escape,
-// RUGRA_TYPEDEFSEED_MANIFEST=<path> overrides the manifest location, and a
+// RUDRA_TYPEDEFSEED=1 opts in, any mirror component keeps the gate closed
+// (five-projection purity), RUDRA_SEEDS=0 is the global bare-face escape,
+// RUDRA_TYPEDEFSEED_MANIFEST=<path> overrides the manifest location, and a
 // missing/corrupt manifest is a loud no-op. The DEFAULT face is therefore
 // constructively identical: gate unset -> no manifest IO, no factory
 // mutation, zero get_typedef calls.
@@ -609,19 +609,19 @@ struct TypedefSeedState {
 // already-installed clone set).
 fn install_typedef_seed_channel() -> Option<TypedefSeedState> {
     if mirror_flow_enabled() || mirror_bare_load_enabled() || mirror_fixture_data_enabled() {
-        eprintln!("[TYPEDEFSEED] typedef gate RUGRA_TYPEDEFSEED ignored under the mirror gate (projection purity)");
+        eprintln!("[TYPEDEFSEED] typedef gate RUDRA_TYPEDEFSEED ignored under the mirror gate (projection purity)");
         return None;
     }
-    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+    if std::env::var("RUDRA_SEEDS").ok().as_deref() == Some("0") {
         return None;
     }
-    if std::env::var("RUGRA_TYPEDEFSEED").ok().as_deref() != Some("1") {
+    if std::env::var("RUDRA_TYPEDEFSEED").ok().as_deref() != Some("1") {
         // PFLIP polarity: opt-in only. The typedef channel is canon-visible
         // when live (no in-tree locked-oracle witness for its convergence
         // yet); the MB22 joint-debug run re-evaluates default-on.
         return None;
     }
-    let path = std::env::var("RUGRA_TYPEDEFSEED_MANIFEST")
+    let path = std::env::var("RUDRA_TYPEDEFSEED_MANIFEST")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "tests/golden/manifests/typedef_seed_curl_1204.json".to_string());
@@ -741,7 +741,7 @@ fn typedefseed_state() -> Option<&'static TypedefSeedState> {
 // blocks are analyzeHeadless front-end warnings the canonical run stores
 // through the program comment database (type=warning, instr_comment_type
 // prints them mid-body). CMTFILL shipped the channel behind an opt-in
-// RUGRA_CMTSEED=<tsv-file> gate with the seed built by a /dev/shm script;
+// RUDRA_CMTSEED=<tsv-file> gate with the seed built by a /dev/shm script;
 // this lane promotes it to a default-on manifest channel: the records are
 // harvested in-repo (tools/harvest_local_manifest.py --cmt: canon text
 // gate + DWARF scope anchors + the oracle-verified calibration table,
@@ -749,8 +749,8 @@ fn typedefseed_state() -> Option<&'static TypedefSeedState> {
 // tests/golden/manifests/curl_cmt_1204.json, canon-address keyed like
 // every other seed manifest (ELF vaddr + 0x100000). Gate polarity follows
 // SEEDFLIP: mirror components keep the gate closed (five-projection bank
-// purity), RUGRA_SEEDS=0 is the global bare-face escape, RUGRA_CMTSEED=0
-// opts just this channel out, RUGRA_CMTSEED=<path> overrides the manifest
+// purity), RUDRA_SEEDS=0 is the global bare-face escape, RUDRA_CMTSEED=0
+// opts just this channel out, RUDRA_CMTSEED=<path> overrides the manifest
 // location (JSON form; the CMTFILL TSV seed-file form is retired — the
 // in-repo manifest supersedes it), and a missing/corrupt manifest is a
 // loud no-op so a manifest-less checkout decompiles as the bare face.
@@ -762,16 +762,16 @@ static CMTSEED_COMMENTS: std::sync::OnceLock<Option<Vec<(u64, String)>>> =
 // filtered per target at the injection site.
 fn load_cmt_seed_manifest() -> Option<Vec<(u64, String)>> {
     if mirror_flow_enabled() || mirror_bare_load_enabled() || mirror_fixture_data_enabled() {
-        eprintln!("[CMTSEED] seed gate RUGRA_CMTSEED ignored under the mirror gate (projection purity)");
+        eprintln!("[CMTSEED] seed gate RUDRA_CMTSEED ignored under the mirror gate (projection purity)");
         return None;
     }
-    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+    if std::env::var("RUDRA_SEEDS").ok().as_deref() == Some("0") {
         return None;
     }
-    if std::env::var("RUGRA_CMTSEED").ok().as_deref() == Some("0") {
+    if std::env::var("RUDRA_CMTSEED").ok().as_deref() == Some("0") {
         return None;
     }
-    let path = std::env::var("RUGRA_CMTSEED")
+    let path = std::env::var("RUDRA_CMTSEED")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "tests/golden/manifests/curl_cmt_1204.json".to_string());
@@ -851,10 +851,10 @@ fn cmtseed_comments() -> Option<&'static Vec<(u64, String)>> {
 // / 687-718) can consume the locked parameter slots. Gate polarity
 // after PFLIP (PARAMID-DEFAULT-FLIP-0001, mirroring the httpd driver):
 // any mirror component keeps the gate closed (five-projection bank
-// purity), RUGRA_SEEDS=0 is the global bare-face escape, the manifest
-// channel is OPT-IN ONLY (RUGRA_V3SIG=1 — the self-hosted Parameter ID
+// purity), RUDRA_SEEDS=0 is the global bare-face escape, the manifest
+// channel is OPT-IN ONLY (RUDRA_V3SIG=1 — the self-hosted Parameter ID
 // mode is the default callee-siglock source; unset or =0 leaves the
-// channel to it), RUGRA_V3SIG_MANIFEST=<path> overrides the manifest
+// channel to it), RUDRA_V3SIG_MANIFEST=<path> overrides the manifest
 // location, and a missing/corrupt manifest is a loud no-op so a
 // manifest-less checkout decompiles as the unchanneled face.
 static CALLEE_SIGLOCK_PROTOS: std::sync::OnceLock<Option<HashMap<u64, CalleeSiglockProto>>> =
@@ -880,19 +880,19 @@ struct CalleeSiglockProto {
 // processes, the compare-functions direct path reuses the cache).
 fn load_callee_siglock_manifest() -> Option<HashMap<u64, CalleeSiglockProto>> {
     if mirror_flow_enabled() || mirror_bare_load_enabled() || mirror_fixture_data_enabled() {
-        eprintln!("[V3SIG] callee-siglock gate RUGRA_V3SIG ignored under the mirror gate (projection purity)");
+        eprintln!("[V3SIG] callee-siglock gate RUDRA_V3SIG ignored under the mirror gate (projection purity)");
         return None;
     }
-    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+    if std::env::var("RUDRA_SEEDS").ok().as_deref() == Some("0") {
         return None;
     }
-    if std::env::var("RUGRA_V3SIG").ok().as_deref() != Some("1") {
+    if std::env::var("RUDRA_V3SIG").ok().as_deref() != Some("1") {
         // PFLIP: the manifest channel is opt-in only; the self-hosted
         // Parameter ID mode (now the default) owns the callee-siglock
         // channel whenever its requests carry a table.
         return None;
     }
-    let path = std::env::var("RUGRA_V3SIG_MANIFEST")
+    let path = std::env::var("RUDRA_V3SIG_MANIFEST")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "tests/golden/manifests/callee_siglock_curl_1204.json".to_string());
@@ -1003,8 +1003,8 @@ fn load_callee_siglock_from_path(path: &str) -> Option<HashMap<u64, CalleeSigloc
 // so `_init(param_1)` forwards without waiting for the self-hosted
 // Parameter ID iteration to rediscover it. Gate polarity: any mirror
 // component keeps the gate closed (five-projection bank purity),
-// RUGRA_SEEDS=0 is the global bare-face escape, RUGRA_FIDSIG=0 is the
-// channel's own opt-out, RUGRA_FIDSIG_MANIFEST=<path> overrides the
+// RUDRA_SEEDS=0 is the global bare-face escape, RUDRA_FIDSIG=0 is the
+// channel's own opt-out, RUDRA_FIDSIG_MANIFEST=<path> overrides the
 // manifest location, and a missing/corrupt manifest is a loud no-op so
 // a manifest-less checkout decompiles as the unchanneled face.
 // ============================================================================
@@ -1039,14 +1039,14 @@ fn load_fidsig_manifest() -> Option<HashMap<u64, FidsigEntry>> {
         eprintln!("[FIDSIG] analysis-DB entry-sig gate ignored under the mirror gate (projection purity)");
         return None;
     }
-    if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+    if std::env::var("RUDRA_SEEDS").ok().as_deref() == Some("0") {
         return None;
     }
-    if std::env::var("RUGRA_FIDSIG").ok().as_deref() == Some("0") {
-        eprintln!("[FIDSIG] analysis-DB entry-sig ledger disabled (RUGRA_FIDSIG=0)");
+    if std::env::var("RUDRA_FIDSIG").ok().as_deref() == Some("0") {
+        eprintln!("[FIDSIG] analysis-DB entry-sig ledger disabled (RUDRA_FIDSIG=0)");
         return None;
     }
-    let path = std::env::var("RUGRA_FIDSIG_MANIFEST")
+    let path = std::env::var("RUDRA_FIDSIG_MANIFEST")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "tests/golden/manifests/fidsig_curl_1204.json".to_string());
@@ -1405,7 +1405,7 @@ fn install_fidsig_callsite_protos(
 //    at all leaves the callee's observation incomplete; no commit, and a
 //    later round's lock echo at the silent site is not the missing
 //    evidence.
-// PLT-slot evidence stays DROPPED by default (RUGRA_PARAMID_PLT=1 admits
+// PLT-slot evidence stays DROPPED by default (RUDRA_PARAMID_PLT=1 admits
 // it as the experiment): curl's link_call_specs already installs the libc
 // ABI prototypes and DWARF callee signatures on those callspecs
 // (CURLPREP verdict — the import-signature channel's data is already on
@@ -1415,14 +1415,14 @@ fn install_fidsig_callsite_protos(
 //
 // Iteration window: the full corpus window the main loop itself
 // decompiles (the 124 golden-corpus ledger entries — curl's window IS the
-// full corpus; under RUGRA_DISCOV=1 the discovery universe — minus the
+// full corpus; under RUDRA_DISCOV=1 the discovery universe — minus the
 // EXTERNAL-block stub-projection entries, which never produce a body).
 // Rounds are monotone (locked sites keep contributing evidence — their
 // arg varnodes echo the lock after typeprop) and stop at a fixed point or
-// RUGRA_PARAMID_ROUNDS (default 3, clamped 1..=3). PFLIP default-on
-// (opt-out RUGRA_PARAMID=0; DriverMode::All — the iteration window is
+// RUDRA_PARAMID_ROUNDS (default 3, clamped 1..=3). PFLIP default-on
+// (opt-out RUDRA_PARAMID=0; DriverMode::All — the iteration window is
 // the full corpus); the mirror gates keep absolute precedence
-// (projection purity) and RUGRA_SEEDS=0 stays the global escape,
+// (projection purity) and RUDRA_SEEDS=0 stays the global escape,
 // exactly like the manifest channel. The default face now carries the
 // self-produced table: every full-corpus request runs the iteration and
 // the final pass installs its locks (measured byte-identical to the
@@ -1431,13 +1431,13 @@ fn install_fidsig_callsite_protos(
 // Evidence tier (PARAMID2 §17.6): the DEFAULT admits undefined-family
 // scalars (the oracle's own lock tables contain undefined8 /
 // undefined8 * slots) guarded by the four refinements above;
-// RUGRA_PARAMID_EVIDENCE=strict selects the conservative tier. The tier
+// RUDRA_PARAMID_EVIDENCE=strict selects the conservative tier. The tier
 // and demotion knobs are read from the environment in BOTH the parent
 // (merge policy) and the workers (evidence spelling) — the workers
 // inherit the parent's env, so one knob moves both sides coherently.
-// Ablation instruments: RUGRA_PARAMID_EVICT=0xADDR,... drops entries from
-// the final table; RUGRA_PARAMID_SITES=1 dumps per-site evidence records;
-// RUGRA_PARAMID_DEBUG=1 dumps the final table; RUGRA_PARAMID_ROUND1=strict
+// Ablation instruments: RUDRA_PARAMID_EVICT=0xADDR,... drops entries from
+// the final table; RUDRA_PARAMID_SITES=1 dumps per-site evidence records;
+// RUDRA_PARAMID_DEBUG=1 dumps the final table; RUDRA_PARAMID_ROUND1=strict
 // stages a conservative round 1 (kept as the documented negative-result
 // instrument from the httpd measurements).
 // ============================================================================
@@ -2404,7 +2404,7 @@ fn function_timeout() -> Duration {
     // not converge in the post-blockstruct action loop — pre-existing at the
     // branch head) can be given a larger wall budget for measurement without
     // rebuilding. Defaults to the canonical 30s above.
-    std::env::var("RUGRA_FUNC_TIMEOUT_SECS")
+    std::env::var("RUDRA_FUNC_TIMEOUT_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .map(Duration::from_secs)
@@ -3263,7 +3263,7 @@ fn external_block_base(elf: &goblin::elf::Elf) -> u64 {
 }
 
 // ============================================================================
-// FULL-CORPUS-0001 discovery layer (RUGRA_DISCOV=1, opt-in)
+// FULL-CORPUS-0001 discovery layer (RUDRA_DISCOV=1, opt-in)
 // ----------------------------------------------------------------------------
 // The default corpus face takes its 124-entry universe from the locked
 // GOLDEN_CORPUS_LEDGER (the analyzeHeadless provenance record). This layer
@@ -4025,7 +4025,7 @@ fn scan_rodata_dat_entries(
 // address order, mirroring the sequential createData replacement. The
 // census is UNCONDITIONAL (no env gate): the DB layer it feeds installs
 // on every non-bare face, so coupling it to
-// RUGRA_DISABLE_SHARED_RETURN would change the canon face under an
+// RUDRA_DISABLE_SHARED_RETURN would change the canon face under an
 // unrelated diagnostic env.
 // RUGRA-GLUE: driver-side reference-width census; the mapped producer is
 // Java ConstantPropagationContextEvaluator.createData, not native
@@ -4295,16 +4295,16 @@ fn main() {
         return;
     }
 
-    let mode = match std::env::var("RUGRA_STAGE_PROJ").is_ok() || std::env::var("RUGRA_STAGE_DRILL").is_ok() {
-        true => match std::env::var("RUGRA_STAGE_FUNC") {
+    let mode = match std::env::var("RUDRA_STAGE_PROJ").is_ok() || std::env::var("RUDRA_STAGE_DRILL").is_ok() {
+        true => match std::env::var("RUDRA_STAGE_FUNC") {
             Ok(function) if !function.is_empty() => DriverMode::SelectedFunctions(vec![function]),
             _ => {
-                eprintln!("RUGRA_STAGE_FUNC is required when RUGRA_STAGE_PROJ/RUGRA_STAGE_DRILL is set");
+                eprintln!("RUDRA_STAGE_FUNC is required when RUDRA_STAGE_PROJ/RUDRA_STAGE_DRILL is set");
                 std::process::exit(2);
             }
         },
         // F2B selector base note: the ledger-matched selector surface stays
-        // link-time base-0 (the ledger corpus loop), so RUGRA_STAGE_FUNC
+        // link-time base-0 (the ledger corpus loop), so RUDRA_STAGE_FUNC
         // address forms are unchanged — base-0 under every mirror gate (the
         // bank capture contract) and base-0 on the canon stage face alike
         // (the worker target rebases +curl_image_base() at the request
@@ -5866,9 +5866,9 @@ fn stage_frontier(
 //     stage_frontier BREAK_START frontier stepping over the live Action tree
 //     (one application between two pauses, index-addressed to dodge duplicate
 //     leaf names);
-//   - the RUGRA_STAGE_FUNC single-function selection plumbing.
+//   - the RUDRA_STAGE_FUNC single-function selection plumbing.
 //
-// Added for v2 (all behind RUGRA_STAGE_DRILL=1; env-unset behavior stays
+// Added for v2 (all behind RUDRA_STAGE_DRILL=1; env-unset behavior stays
 // byte-identical, verified in M3 against the pre-change build):
 //   1. SeqNum raw formatter: "<pc-raw>:<uniq-hex>" matching Ghidra
 //      address.cc SeqNum operator<< (pc printRaw leaves the stream in hex,
@@ -5902,8 +5902,8 @@ fn emit_stage_projection(
     db: &mut ActionDatabase,
     request: &DecompileRequest,
 ) -> Result<(), String> {
-    let output_path = std::env::var("RUGRA_STAGE_PROJ_OUT")
-        .map_err(|_| "RUGRA_STAGE_PROJ_OUT is required when RUGRA_STAGE_PROJ is set")?;
+    let output_path = std::env::var("RUDRA_STAGE_PROJ_OUT")
+        .map_err(|_| "RUDRA_STAGE_PROJ_OUT is required when RUDRA_STAGE_PROJ is set")?;
     // v1.2.1 full-table opcode parity gate: refuse to emit a projection
     // whose enum/table correspondence has drifted from the locked 74 names.
     stage_opcode_parity()?;
@@ -5918,13 +5918,13 @@ fn emit_stage_projection(
     // keys). The callspec-link injection difference moves out of the
     // analysis_options identity key into the producer annotation (D3).
     // load_mode is the D10 honest literal: under the flow-mirror gate
-    // (RUGRA_MIRROR=1 or RUGRA_FLOW_MIRROR=1) the
+    // (RUDRA_MIRROR=1 or RUDRA_FLOW_MIRROR=1) the
     // mirror load contract (RUGRA-FLOW-MIRROR-0001) is in effect and the
     // literal is single_function_bfd; the default bounded driver range still
     // constructs a different input, says single_function_flow, and the
     // consumer's identity-key hard block on this field is the correct
     // behavior for it.
-    let callspec_link = std::env::var("RUGRA_DISABLE_CALLSPEC_LINK").is_err();
+    let callspec_link = std::env::var("RUDRA_DISABLE_CALLSPEC_LINK").is_err();
     writeln!(
         output,
         "META side=rugra oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b arch=x86:LE:64:default cspec=gcc"
@@ -5936,7 +5936,7 @@ fn emit_stage_projection(
     )
     .map_err(|error| format!("unable to write stage metadata: {error}"))?;
     // load_mode (D10): the flow-mirror gate (MIRROR-ENVS-CANONICAL-0001:
-    // RUGRA_MIRROR=1 or legacy RUGRA_FLOW_MIRROR=1) lands the oracle
+    // RUDRA_MIRROR=1 or legacy RUDRA_FLOW_MIRROR=1) lands the oracle
     // followFlow load
     // contract (follow_flow_range(0, u64::MAX) + no shared-return overrides),
     // so the honest literal flips to single_function_bfd; the default
@@ -6122,8 +6122,8 @@ fn emit_stage_drill(
     db: &mut ActionDatabase,
     request: &DecompileRequest,
 ) -> Result<(), String> {
-    let output_path = std::env::var("RUGRA_STAGE_DRILL_OUT")
-        .map_err(|_| "RUGRA_STAGE_DRILL_OUT is required when RUGRA_STAGE_DRILL is set")?;
+    let output_path = std::env::var("RUDRA_STAGE_DRILL_OUT")
+        .map_err(|_| "RUDRA_STAGE_DRILL_OUT is required when RUDRA_STAGE_DRILL is set")?;
     let binary_sha256 = stage_sha256(&request.binary_image)?;
     let mut output = std::io::BufWriter::new(
         fs::File::create(&output_path)
@@ -6131,7 +6131,7 @@ fn emit_stage_drill(
     );
     writeln!(
         output,
-        "META side=rugra oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b build_flags=env-RUGRA_STAGE_DRILL func={} entry=0x{:x} arch=x86:LE:64:default cspec=gcc format=raw-native-printdebug record_seq=native_opactdbg_count boundary_seq=1based_perform_bracket ladder=break_start_frontier binary_sha256={} producer={}",
+        "META side=rugra oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b build_flags=env-RUDRA_STAGE_DRILL func={} entry=0x{:x} arch=x86:LE:64:default cspec=gcc format=raw-native-printdebug record_seq=native_opactdbg_count boundary_seq=1based_perform_bracket ladder=break_start_frontier binary_sha256={} producer={}",
         request.target.name,
         request.target.vaddr,
         binary_sha256,
@@ -6403,12 +6403,12 @@ fn decompile_request(
     //      into the readonly answers RulePtrsubCharConstant
     //      (ruleaction.cc:7372) and PrintC::pushPtrCharConstant
     //      (printc.cc:1709) consume.
-    // DEFAULT-ON (DFLIP shape): RUGRA_SYMDB=0 restores the historical
+    // DEFAULT-ON (DFLIP shape): RUDRA_SYMDB=0 restores the historical
     // fold-only face (layer skipped, the print swap below runs);
     // every mirror component keeps absolute precedence over both (the
     // bare-library truth channel — the additions never install under
     // any mirror env).
-    let symdb_opt_out = std::env::var("RUGRA_SYMDB").ok().as_deref() == Some("0");
+    let symdb_opt_out = std::env::var("RUDRA_SYMDB").ok().as_deref() == Some("0");
     let symdb_default_on = !symdb_opt_out
         && !mirror_bundle_enabled()
         && !mirror_flow_enabled()
@@ -7053,7 +7053,7 @@ fn decompile_request(
                         seeded_dtype,
                         *size,
                     );
-                    if std::env::var("RUGRA_DBG_TYPEFLOW").is_ok() && address == 0x17660 {
+                    if std::env::var("RUDRA_DBG_TYPEFLOW").is_ok() && address == 0x17660 {
                         eprintln!("[DBG-TYPEFLOW] DWARF layer seeded glob_expand (locked)");
                     }
                 }
@@ -7129,7 +7129,7 @@ fn decompile_request(
                 );
                 if symdb_default_on {
                     eprintln!(
-                        "[PREPASS] {} CURLSYM SYMDB layer: {} R-only PT_LOAD ranges + {} action-side function symbols (RUGRA_SYMDB=0 restores the fold-only face)",
+                        "[PREPASS] {} CURLSYM SYMDB layer: {} R-only PT_LOAD ranges + {} action-side function symbols (RUDRA_SYMDB=0 restores the fold-only face)",
                         target.name,
                         symdb_ronly.len(),
                         symdb_fn_symbols
@@ -7283,7 +7283,7 @@ fn decompile_request(
     // like the op tree). Anchor rules, calibration table and provenance
     // are the harvest contract (tools/harvest_local_manifest.py --cmt;
     // SECSEED/CMTFILL e40ed130 verification: 17 records / 45 lines
-    // byte-exact vs canon). Escape hatches: RUGRA_CMTSEED=0 / RUGRA_SEEDS=0.
+    // byte-exact vs canon). Escape hatches: RUDRA_CMTSEED=0 / RUDRA_SEEDS=0.
     if let Some(records) = cmtseed_comments() {
         // F2B: target.vaddr is canon-space natively — the manifest anchors
         // (canon addresses) match the window directly.
@@ -7328,7 +7328,7 @@ fn decompile_request(
     // per-function decompile thread spawn). Manifest keys are
     // analyzeHeadless addresses = this driver's base-0 vaddr + 0x100000.
     // SEEDFLIP: the seed gates are default-on; the opt-out forms
-    // (RUGRA_SEEDS=0 global / <gate>=0 per-channel) leave the table None,
+    // (RUDRA_SEEDS=0 global / <gate>=0 per-channel) leave the table None,
     // the field stays empty, and the run is byte-identical to the
     // historical bare load.
     if let Some(table) = typeseed_local_table() {
@@ -7526,7 +7526,7 @@ fn decompile_request(
             );
         }
     }
-    let callspec_link_enabled = std::env::var("RUGRA_DISABLE_CALLSPEC_LINK").is_err();
+    let callspec_link_enabled = std::env::var("RUDRA_DISABLE_CALLSPEC_LINK").is_err();
     let mut dwarf_applied = false;
     // MIRROR-ENVS-CANONICAL-0001 target-DWARF suppression
     // (RETURN-ARTIFICIAL-RAX-0001 root cause, RAX_RETURN.md §3.1): the raw
@@ -7697,7 +7697,7 @@ fn decompile_request(
     // flow at those call sites — main's graph then falls through the
     // `__stack_chk_fail@plt` call into the _start overlap and contains the
     // @339e `hlt` self-loop block (150 blocks vs the analyzer-marked
-    // environment's 149). Setting RUGRA_ORACLE_FIXTURE_DATA=1 skips both
+    // environment's 149). Setting RUDRA_ORACLE_FIXTURE_DATA=1 skips both
     // halves of FLOW-NORETURN-DATA-0001 (segments (b) and (c)) to reproduce
     // that data environment for fixture/visit-trace comparisons; the E2E
     // golden (full Ghidra analysis) keeps the analyzer emulation by default.
@@ -7717,7 +7717,7 @@ fn decompile_request(
     // fd.funcp wholesale and would wipe an earlier bit; (2) applies
     // whether or not a locked signature was installed — the analyzer bit is
     // independent of the prototype model; (3) NOT gated by
-    // RUGRA_DISABLE_CALLSPEC_LINK — the analyzer is a pre-decompile
+    // RUDRA_DISABLE_CALLSPEC_LINK — the analyzer is a pre-decompile
     // platform pass, distinct from the callspec-link A/B gate; (4)
     // idempotent with the post-flow callsite marking in link_call_specs:
     // that sets the call-site proto's bit (queryCall's copy position),
@@ -7791,7 +7791,7 @@ fn decompile_request(
             callee_protos.len()
         );
     }
-    // RUGRA-FLOW-MIRROR-0001 M2: RUGRA_FLOW_MIRROR=1 drives the oracle load
+    // RUGRA-FLOW-MIRROR-0001 M2: RUDRA_FLOW_MIRROR=1 drives the oracle load
     // contract — followFlow(Address(codeSpace,0), Address(codeSpace,
     // getHighest())) (funcdata_op.cc:756; regen_ghidra_golden.py:388 ≡ oracle
     // harness:315) — so tail jumps into lower code-space regions (the PLT)
@@ -7828,8 +7828,8 @@ fn decompile_request(
     // (populated by the platform ELF/DWARF/signature analyzers); Rugra's
     // equivalent front-end state is the driver's symbol table plus the
     // locked libc ABI table. Unresolved targets stay unknown.
-    // A/B measurement gate (same precedent as RUGRA_RULE_STATS): setting
-    // RUGRA_DISABLE_CALLSPEC_LINK disables both halves of the wiring —
+    // A/B measurement gate (same precedent as RUDRA_RULE_STATS): setting
+    // RUDRA_DISABLE_CALLSPEC_LINK disables both halves of the wiring —
     // the call-spec resolution below and the PLT-import signature above —
     // so root can isolate this feature's corpus effect on the same tree.
     let mut named = 0usize;
@@ -7868,7 +7868,7 @@ fn decompile_request(
     // V3SIG/paramid install below — the oracle DB truth must win the
     // gap-fill race so the recovery channel's has_model skip leaves it
     // in place. Rides the same callspec channel switch as the V3SIG
-    // install (RUGRA_DISABLE_CALLSPEC_LINK stays the full kill-switch).
+    // install (RUDRA_DISABLE_CALLSPEC_LINK stays the full kill-switch).
     if callspec_link_enabled {
         if let Some(table) = fidsig_table() {
             if let Some(types) = fd.arch.as_ref().and_then(|arch| arch.types.clone()) {
@@ -7893,7 +7893,7 @@ fn decompile_request(
     // TypeOpCall::getInputLocal all run inside perform_action). Gate
     // form mirrors the httpd V3SIG install position (post-inject,
     // pre-pipeline) and rides the same callspec channel switch so
-    // RUGRA_DISABLE_CALLSPEC_LINK stays the full channel kill-switch.
+    // RUDRA_DISABLE_CALLSPEC_LINK stays the full channel kill-switch.
     // CURLPARAM-DRIVER-0001: a request-carried `paramid_table` OWNS the
     // channel for this run — the manifest/env-gated read is skipped
     // entirely (round 1's empty table = the bare round; the final pass
@@ -7974,8 +7974,8 @@ fn decompile_request(
         let mut fd_write = fd_arc
             .write()
             .map_err(|_| "Funcdata write lock poisoned during analysis".to_string())?;
-        if std::env::var("RUGRA_STAGE_PROJ").is_ok()
-            && std::env::var("RUGRA_STAGE_FUNC")
+        if std::env::var("RUDRA_STAGE_PROJ").is_ok()
+            && std::env::var("RUDRA_STAGE_FUNC")
                 .ok()
                 .is_some_and(|selector| {
                     selector == target.name
@@ -7988,8 +7988,8 @@ fn decompile_request(
         {
             emit_stage_projection(&mut fd_write, &mut db, request)?;
         }
-        if std::env::var("RUGRA_STAGE_DRILL").is_ok()
-            && std::env::var("RUGRA_STAGE_FUNC")
+        if std::env::var("RUDRA_STAGE_DRILL").is_ok()
+            && std::env::var("RUDRA_STAGE_FUNC")
                 .ok()
                 .is_some_and(|selector| {
                     selector == target.name
@@ -8073,7 +8073,7 @@ fn decompile_request(
     // pipeline), so the print phase resolves code refs through it and
     // the swap stays the historical-face fallback — exactly the httpd
     // gating form (mirror_fn || !action_db_attached). The mirror, the
-    // RUGRA_SYMDB=0 opt-out, and the no-program-DB shape all keep the
+    // RUDRA_SYMDB=0 opt-out, and the no-program-DB shape all keep the
     // swap (byte-identical historical print channel).
     if !symdb_default_on || program_db.is_none() {
         let mut print_symbol_db = match &program_db {
@@ -8107,7 +8107,7 @@ fn decompile_request(
         drop(fd_write);
     }
 
-    if let Ok(dump_fn) = std::env::var("RUGRA_DUMP_FUNC") {
+    if let Ok(dump_fn) = std::env::var("RUDRA_DUMP_FUNC") {
         if dump_fn == target.name {
             let fd_read = fd_arc.read().unwrap();
             eprintln!("[DUMP] === basic blocks for {} ===", target.name);
@@ -8390,12 +8390,12 @@ fn decompile_request(
     // worker's spelling policy and the parent's merge policy coherently.
     let sites = if request.harvest_callsite_evidence {
         let (loose, demote_narrow_int_ptr) = request.paramid_evidence_policy.unwrap_or_else(|| {
-            let loose = std::env::var("RUGRA_PARAMID_EVIDENCE")
+            let loose = std::env::var("RUDRA_PARAMID_EVIDENCE")
                 .ok()
                 .as_deref()
                 .map(|value| value != "strict")
                 .unwrap_or(true);
-            let demote = std::env::var("RUGRA_PARAMID_NOINTPTR").ok().as_deref() != Some("0");
+            let demote = std::env::var("RUDRA_PARAMID_NOINTPTR").ok().as_deref() != Some("0");
             (loose, demote)
         });
         extract_callsite_evidence(&fd_read, loose, demote_narrow_int_ptr)
@@ -9547,15 +9547,15 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // FULL-CORPUS-0001 (DISCOV): opt-in function-discovery layer. Default
-    // keeps the locked ledger corpus (byte-for-byte face); RUGRA_DISCOV=1
+    // keeps the locked ledger corpus (byte-for-byte face); RUDRA_DISCOV=1
     // rebuilds the corpus universe from the binary itself (see
     // discover_function_corpus) and reports the ledger comparison
     // (recall/precision + per-source census, stderr only).
     let discovered: Option<Vec<DiscoveredFunction>> =
-        if std::env::var("RUGRA_DISCOV").ok().as_deref() == Some("1") {
+        if std::env::var("RUDRA_DISCOV").ok().as_deref() == Some("1") {
             let universe = discover_function_corpus(&buffer, elf)?;
             eprintln!(
-                "[DISCOV] discovery universe: {} entries (RUGRA_DISCOV corpus face)",
+                "[DISCOV] discovery universe: {} entries (RUDRA_DISCOV corpus face)",
                 universe.len()
             );
             report_discovery_vs_ledger(&universe);
@@ -9565,7 +9565,7 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
         };
     // The analysis-body table feeding the Shared Return Calls projection
     // below: ledger (vaddr, size) pairs by default; discovery-derived
-    // bounds under RUGRA_DISCOV=1 so the opt-in face stays self-hosted.
+    // bounds under RUDRA_DISCOV=1 so the opt-in face stays self-hosted.
     let analysis_bodies: Vec<(u64, u64)> = match &discovered {
         Some(universe) => universe.iter().map(|entry| (entry.vaddr, entry.size)).collect(),
         None => GOLDEN_CORPUS_LEDGER
@@ -9581,7 +9581,7 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
     // ELF STT_FUNC bodies, relocation-derived PLT functions, and iced direct
     // jump references. The wider contiguous-function discovery option is not
     // part of this slice.
-    let flow_override_entries = if std::env::var("RUGRA_DISABLE_SHARED_RETURN").is_ok() {
+    let flow_override_entries = if std::env::var("RUDRA_DISABLE_SHARED_RETURN").is_ok() {
         eprintln!("[PREPASS] Shared Return Calls disabled for A/B");
         Vec::new()
     } else if mirror_flow_enabled() {
@@ -9644,7 +9644,7 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
     // default (124 functions: ELF-named code, PLT stubs, `_init`/`_fini`,
     // zero-sized symtab functions, and the 48 EXTERNAL-space entries at
     // 0x19000+ that Ghidra synthesized for undefined imports); the
-    // discovery universe under RUGRA_DISCOV=1. ELF symbols win for name
+    // discovery universe under RUDRA_DISCOV=1. ELF symbols win for name
     // and size wherever they exist at the same address, so the previously
     // ELF-only subset keeps its exact former inputs. The merge rules are
     // source-independent; only the fallback spelling (ledger entry name
@@ -10096,14 +10096,14 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // CURLPARAM-DRIVER-0001: the self-hosted Parameter ID mode gate (the
-    // httpd driver's RUGRA_PARAMID form). PFLIP (PARAMID-DEFAULT-FLIP-
-    // 0001) default-on: RUGRA_PARAMID=0 is the escape circuit, every
+    // httpd driver's RUDRA_PARAMID form). PFLIP (PARAMID-DEFAULT-FLIP-
+    // 0001) default-on: RUDRA_PARAMID=0 is the escape circuit, every
     // mirror component keeps absolute precedence (five-projection bank
-    // purity) and RUGRA_SEEDS=0 stays the global escape, exactly like
+    // purity) and RUDRA_SEEDS=0 stays the global escape, exactly like
     // the manifest channel; DriverMode::All is still required (the
     // iteration window is the full corpus). With the gate closed every
     // request below carries `paramid_table: None` and the worker falls
-    // back to the manifest channel — itself opt-in (RUGRA_V3SIG=1)
+    // back to the manifest channel — itself opt-in (RUDRA_V3SIG=1)
     // after the same flip, so the escaped face is the unchanneled one
     // unless the manifest is explicitly requested.
     let paramid_active = if mirror_bundle_enabled()
@@ -10113,14 +10113,14 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
     {
         eprintln!("[PARAMID] self-hosted Parameter ID mode ignored under the mirror gate (projection purity)");
         false
-    } else if std::env::var("RUGRA_SEEDS").ok().as_deref() == Some("0") {
+    } else if std::env::var("RUDRA_SEEDS").ok().as_deref() == Some("0") {
         false // the global escape silently owns every seed channel
     } else if !matches!(mode, DriverMode::All) {
         eprintln!("[PARAMID] self-hosted Parameter ID mode requires the full-corpus run (All mode)");
         false
     } else {
-        // PFLIP: default-on; RUGRA_PARAMID=0 is the escape circuit.
-        std::env::var("RUGRA_PARAMID").ok().as_deref() != Some("0")
+        // PFLIP: default-on; RUDRA_PARAMID=0 is the escape circuit.
+        std::env::var("RUDRA_PARAMID").ok().as_deref() != Some("0")
     };
 
     // CURLPARAM-DRIVER-0001: the iteration itself. Round 1 runs bare (the
@@ -10129,10 +10129,10 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
     // pipeline's final state through the worker protocol, merges it into a
     // manifest-shaped lock table with the four PARAMID2 guards, and the
     // next round installs that table through the identical install arm.
-    // Monotone to a fixed point or RUGRA_PARAMID_ROUNDS (default 3).
+    // Monotone to a fixed point or RUDRA_PARAMID_ROUNDS (default 3).
     let mut paramid_override: Option<Vec<(u64, CalleeSiglockProto)>> = None;
     if paramid_active {
-        let rounds = std::env::var("RUGRA_PARAMID_ROUNDS")
+        let rounds = std::env::var("RUDRA_PARAMID_ROUNDS")
             .ok()
             .and_then(|value| value.parse::<usize>().ok())
             .map(|value| value.clamp(1, 3))
@@ -10141,22 +10141,22 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
         // the default evidence tier admits undefined-family scalars
         // (guarded); sticky conflict memory and narrow-int-pointer
         // demotion are ON (=0 disables either for A/B); PLT-slot
-        // evidence stays DROPPED (RUGRA_PARAMID_PLT=1 admits it as the
+        // evidence stays DROPPED (RUDRA_PARAMID_PLT=1 admits it as the
         // experiment — curl's link_call_specs already installs the libc
         // ABI + DWARF signatures on those callspecs, and the install
         // arm's has_model() gap-fill rule would skip the covered
         // entries anyway).
-        let loose_evidence = std::env::var("RUGRA_PARAMID_EVIDENCE")
+        let loose_evidence = std::env::var("RUDRA_PARAMID_EVIDENCE")
             .ok()
             .as_deref()
             .map(|value| value != "strict")
             .unwrap_or(true);
         let sticky_conflicts =
-            std::env::var("RUGRA_PARAMID_STICKY").ok().as_deref() != Some("0");
+            std::env::var("RUDRA_PARAMID_STICKY").ok().as_deref() != Some("0");
         let demote_narrow_int_ptr =
-            std::env::var("RUGRA_PARAMID_NOINTPTR").ok().as_deref() != Some("0");
+            std::env::var("RUDRA_PARAMID_NOINTPTR").ok().as_deref() != Some("0");
         let admit_plt_slots =
-            std::env::var("RUGRA_PARAMID_PLT").ok().as_deref() == Some("1");
+            std::env::var("RUDRA_PARAMID_PLT").ok().as_deref() == Some("1");
         eprintln!(
             "[PARAMID] self-hosted Parameter ID mode: {} iteration round(s) over the corpus window (evidence={}, sticky={}, nointptr={}, plt={})",
             rounds,
@@ -10194,13 +10194,13 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
             if !sticky_conflicts {
                 dead = StickyDeadEvidence::default();
             }
-            // Staged round-1 instrument (RUGRA_PARAMID_ROUND1=strict):
+            // Staged round-1 instrument (RUDRA_PARAMID_ROUND1=strict):
             // round 1 harvests under the conservative tier — the httpd
             // measurement was net-negative (the guards must run under the
             // SAME tier that feeds them); kept as the documented
             // negative-result instrument.
             let round_loose = if round == 1
-                && std::env::var("RUGRA_PARAMID_ROUND1").ok().as_deref() == Some("strict")
+                && std::env::var("RUDRA_PARAMID_ROUND1").ok().as_deref() == Some("strict")
             {
                 false
             } else {
@@ -10263,9 +10263,9 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            // RUGRA_PARAMID_SITES=1: per-callee site dump (the gap-triage
+            // RUDRA_PARAMID_SITES=1: per-callee site dump (the gap-triage
             // instrument — which caller contributed which slot spelling).
-            if std::env::var("RUGRA_PARAMID_SITES").ok().as_deref() == Some("1") {
+            if std::env::var("RUDRA_PARAMID_SITES").ok().as_deref() == Some("1") {
                 let mut sorted: Vec<&u64> = records.keys().collect();
                 sorted.sort_unstable();
                 for entry in sorted {
@@ -10329,11 +10329,11 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
             }
             table = next;
         }
-        // RUGRA_PARAMID_EVICT=0xADDR,0xADDR...: the single-entry ablation
+        // RUDRA_PARAMID_EVICT=0xADDR,0xADDR...: the single-entry ablation
         // instrument (drop entries from the final table before the
         // printing pass installs them — used to attribute face lines to
         // lock entries; never a default behavior).
-        if let Ok(list) = std::env::var("RUGRA_PARAMID_EVICT") {
+        if let Ok(list) = std::env::var("RUDRA_PARAMID_EVICT") {
             for token in list.split(',') {
                 if let Ok(addr) = u64::from_str_radix(token.trim().trim_start_matches("0x"), 16) {
                     if table.remove(&addr).is_some() {
@@ -10348,7 +10348,7 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
             table.values().filter(|c| c.input_lock).count(),
             table.values().filter(|c| c.ret.is_some()).count()
         );
-        if std::env::var("RUGRA_PARAMID_DEBUG").ok().as_deref() == Some("1") {
+        if std::env::var("RUDRA_PARAMID_DEBUG").ok().as_deref() == Some("1") {
             let mut keys = table.keys().copied().collect::<Vec<_>>();
             keys.sort_unstable();
             for key in keys {
@@ -10362,8 +10362,8 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
         // The lane's acceptance instrument: exact-match table against the
         // harvested manifest (canon call-site locks). Diagnostics only —
         // stderr, never the C output stream.
-        if std::env::var("RUGRA_PARAMID_COMPARE").ok().as_deref() != Some("0") {
-            let path = std::env::var("RUGRA_V3SIG_MANIFEST")
+        if std::env::var("RUDRA_PARAMID_COMPARE").ok().as_deref() != Some("0") {
+            let path = std::env::var("RUDRA_V3SIG_MANIFEST")
                 .ok()
                 .filter(|value| !value.is_empty())
                 .unwrap_or_else(|| "tests/golden/manifests/callee_siglock_curl_1204.json".to_string());
@@ -10383,12 +10383,12 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
     for func in &functions {
         if let Some(names) = selected_functions {
             // RUGRA-GLUE: stage-projection selectors may name a function or
-            // give its address (RUGRA_STAGE_FUNC=<name|0xaddr>); the extra
-            // address arm only exists behind RUGRA_STAGE_PROJ or
-            // RUGRA_STAGE_DRILL so env-unset runs keep the name-only
+            // give its address (RUDRA_STAGE_FUNC=<name|0xaddr>); the extra
+            // address arm only exists behind RUDRA_STAGE_PROJ or
+            // RUDRA_STAGE_DRILL so env-unset runs keep the name-only
             // matching byte-for-byte.
-            let addr_selected = (std::env::var("RUGRA_STAGE_PROJ").is_ok()
-                || std::env::var("RUGRA_STAGE_DRILL").is_ok())
+            let addr_selected = (std::env::var("RUDRA_STAGE_PROJ").is_ok()
+                || std::env::var("RUDRA_STAGE_DRILL").is_ok())
                 && names.iter().any(|selector| {
                     selector
                         .strip_prefix("0x")
@@ -10686,10 +10686,10 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(names) = selected_functions {
         // RUGRA-GLUE: stage-projection addr selectors resolve to function
         // names during the loop, so the missing check must accept the same
-        // address form (behind RUGRA_STAGE_PROJ/RUGRA_STAGE_DRILL only).
+        // address form (behind RUDRA_STAGE_PROJ/RUDRA_STAGE_DRILL only).
         let stage_addr_seen = |name: &str| -> bool {
-            (std::env::var("RUGRA_STAGE_PROJ").is_ok()
-                || std::env::var("RUGRA_STAGE_DRILL").is_ok())
+            (std::env::var("RUDRA_STAGE_PROJ").is_ok()
+                || std::env::var("RUDRA_STAGE_DRILL").is_ok())
                 && functions.iter().any(|func| {
                     name.strip_prefix("0x")
                         .and_then(|value| u64::from_str_radix(value, 16).ok())

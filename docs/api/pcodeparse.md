@@ -362,3 +362,4 @@ fixture twin 以局部 canonical 表镜像编码通道，src 侧 `opcodes.rs` �
 共享表（print/opbehavior 面），超出本票写域，登记
 PCODE-OPNAME-TABLE-0001 待裁决。opcodes 名义上 LABELBUILD=PTRADD 是语义别名
 而非错误。
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

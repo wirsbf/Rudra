@@ -6,7 +6,7 @@
 #               `one <spec_root> <libsqlite3> 55 <out.json>` against the
 #               locked Ghidra 12.0.4 cpp tree + BFD 2.38 headers.
 # Rugra side  : examples/gen_decompile.rs production diff-gate driver with
-#               RUGRA_GEN_MIRROR=1 ... --one 55 (hermetic single function).
+#               RUDRA_GEN_MIRROR=1 ... --one 55 (hermetic single function).
 # Comparand   : tests/oracle/divchain_sqlite_bitvec_1204.oracle.json
 #               (archived locked-oracle capture; body byte-compare).
 #
@@ -14,7 +14,7 @@
 #   default            compare Rugra body vs the archived oracle record
 #                      (no oracle toolchain needed; the archive is pinned
 #                      by sha256 in the metadata).
-#   RUGRA_DIVCHAIN_ORACLE_RUN=1
+#   RUDRA_DIVCHAIN_ORACLE_RUN=1
 #                      additionally re-run the oracle runner live. Uses a
 #                      cached build when present, otherwise builds it from
 #                      the repo ghidra/ checkout at the locked commit
@@ -79,11 +79,11 @@ trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # ---- oracle comparand (archive or live) -----------------------------------
 oracle_json="$workdir/oracle_idx55.json"
-if [[ ${RUGRA_DIVCHAIN_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUGRA_DIVCHAIN_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-divchain-b2-1204}
+if [[ ${RUDRA_DIVCHAIN_ORACLE_RUN:-0} == 1 ]]; then
+  cache_root=${RUDRA_DIVCHAIN_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-divchain-b2-1204}
   runner="$cache_root/golden_dump_1204"
   if [[ ! -x $runner ]]; then
-    bfd_include=${RUGRA_DIVCHAIN_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+    bfd_include=${RUDRA_DIVCHAIN_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
     [[ -d $bfd_include ]] || die "BFD include tree missing: $bfd_include (see AGENTS.md oracle env note)"
     mkdir -p "$cache_root/x"
     git -C "$repo_root/ghidra" archive --format=tar \
@@ -116,7 +116,7 @@ assert record["status"] == "OK", f'status: {record["status"]}'
 PY
 
 # ---- Rugra side -----------------------------------------------------------
-gen_bin=${RUGRA_DIVCHAIN_GEN_BIN:-}
+gen_bin=${RUDRA_DIVCHAIN_GEN_BIN:-}
 if [[ -z $gen_bin ]]; then
   (cd "$repo_root" && cargo build --release --example gen_decompile >/dev/null)
   gen_bin="$repo_root/target/release/examples/gen_decompile"
@@ -124,7 +124,7 @@ fi
 [[ -x $gen_bin ]] || die "gen_decompile binary missing"
 
 rugra_out="$workdir/rugra_idx55.c"
-RUGRA_GEN_MIRROR=1 RUGRA_GEN_TIMEOUT_SECS=120 \
+RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=120 \
   "$gen_bin" "$sqlite3_bin" --one "$one_index" > "$rugra_out" 2> "$workdir/rugra.err"
 
 # ---- compare --------------------------------------------------------------

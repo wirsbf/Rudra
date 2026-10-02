@@ -5,7 +5,7 @@
 //! ELF symbol / entry-point / demangler analyzers — populates the Program
 //! database before the C++ decompiler runs; the locked decompile-cpp oracle
 //! tree only consumes that Program through its transport. This module is
-//! Rugra's native adapter for the same front-end boundary (the role
+//! Rudra's native adapter for the same front-end boundary (the role
 //! [`crate::debugproto`] plays for DWARF): it reads the ELF symbol tables
 //! (`.symtab` + `.dynsym`), derives the non-stripped function universe from
 //! defined `STT_FUNC` symbols and the entry point, derives the `PT_LOAD`

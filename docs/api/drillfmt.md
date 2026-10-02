@@ -2,8 +2,8 @@
 
 > 对应 `src/drillfmt.rs`。RUDRA-GLUE 模块:Ghidra 无单一对应物;这是
 > stage-bisect v2 drill 发射器(Lane AA)专用的 oracle 原文格式化层,把
-> Rugra IR 渲染成 Ghidra console debug 原语的精确文本拼写,只读、不回灌
-> 管线。激活条件:`RUGRA_STAGE_DRILL=1`(经 `drillobserve::is_enabled`)。
+> Rudra IR 渲染成 Ghidra console debug 原语的精确文本拼写,只读、不回灌
+> 管线。激活条件:`RUDRA_STAGE_DRILL=1`(经 `drillobserve::is_enabled`)。
 
 ## 2026-09-22: 建模块(Lane AA, v2 drill emitter)
 
@@ -39,7 +39,7 @@
 - `op_raw` null 槽渲染:每个 TypeOp 形态的 varnode 槽位都经
   `Varnode::printRaw(ostream&, const Varnode*)` 静态包装
   (varnode.cc:1207-1214),null 槽印 `<null>`;Ghidra op 构造即预留
-  null 槽(op.cc:71-84 `inrefs(s)`),Rugra `inrefs` 只存已设输入,
+  null 槽(op.cc:71-84 `inrefs(s)`),Rudra `inrefs` 只存已设输入,
   缺席槽位在此按 `<null>` 渲染(print_family fixture 的无输出
   INT_ADD 证明:`<null> = <null> + <null>`)。
 - CALLIND 形态修正:typeop.cc:791-807 `s << name` 后**无空格**直接接

@@ -124,7 +124,7 @@
   ap_fini_vhost_config 已知 decl-move 尾随族），curl/vsh/sq/sqlite 四面
   零回归，canon curl/httpd 0/0/0 红线保持。
 - **MAINTYPE-TYPETRACE-0001 诊断通道**（默认关，stderr-only）：
-  `RUGRA_TYPEPROP_DBG=1` 打开 `ActionInferTypes` 的 TYPEPROP_DEBUG 对等事件流
+  `RUDRA_TYPEPROP_DBG=1` 打开 `ActionInferTypes` 的 TYPEPROP_DEBUG 对等事件流
   ——`build_localtypes` 每条 seed 打 `<vn> : <type> init`，`propagate_type_edge`
   每次成功传播打 `<outvn> : <type> from <op> slot=<outslot> from_sb=<bool>`
   （oracle 的 compile-time `TypeFactory::propagatedbg_on` 变为运行期 env；
@@ -171,7 +171,7 @@ block.cc:1706-1708 / newBlockMultiGoto block.cc:1736-1739），`getBlock(0)` 即
 
 **修复**：`structure_children` 补两臂——`BlockGoto` 返回 `[wrapped]`、`BlockMultiGoto`
 返回 `[wrapped]`（镜像 getSize()==1/getBlock(0)），BFS 恢复与 oracle 同构的下降。修后
-Rugra 亲证（RUGRA_F5_TRACE）：main 的 prefer_complement 访问集与 oracle 逐节点一致
+Rugra 亲证（RUDRA_F5_TRACE）：main 的 prefer_complement 访问集与 oracle 逐节点一致
 （2be90/2beae/2bec8/2bee6 test=1，**2c109 test=0 翻转**，第二趟管线 pass 2c109 test=1
 =翻转粘性，与 oracle 同形）；输出 `if (iVar2 == 0){正常路} else {configtest}` 与
 mirror golden L3325 逐字一致。
@@ -411,8 +411,8 @@ structuretransform 恒 0=oracle，当前语料纯潜伏）；coreaction 单测 5
 
 ## 2026-09-23：castInput double-cast 臂锁卫生（HTTPD-MAIN-POSTBLOCKSTRUCT-HANG-0002 / EW）
 
-- **现象**：stage-projection/mirror 模式（`RUGRA_MIRROR=1 RUGRA_STAGE_PROJ=1
-  RUGRA_STAGE_FUNC=main`）httpd main 确定性死锁——输出冻结于 76745763B（两轮合并态
+- **现象**：stage-projection/mirror 模式（`RUDRA_MIRROR=1 RUDRA_STAGE_PROJ=1
+  RUDRA_STAGE_FUNC=main`）httpd main 确定性死锁——输出冻结于 76745763B（两轮合并态
   逐字节复现），CPU idle（600s wall / 3.1s user），stderr 终点
   `[BLOCKSTRUCT] main finalize_structure: 89 -> 12`；default 模式同树 main <1s 完成。
   gdb 双采样（setsid+gdb-as-parent 绕 ptrace_scope=1）定格：worker 线程阻塞于
@@ -3385,7 +3385,7 @@ ActionReturnSplit 的 `self.count +=` 同样无收割覆盖（ActionDoNothing �
   GLUE：varnode.cc:1536-1554 的 def 序 next/prev 探针）→ updateInputTypes
   （high 已开）/updateInputNoTypes（cc:4750-4753）→ clearDeadVarnodes
   （cc:4755）。
-- 验收（fast-release，RUGRA_MIRROR）：curl 镜像 4071→4064/0/0（vs canonical
+- 验收（fast-release，RUDRA_MIRROR）：curl 镜像 4071→4064/0/0（vs canonical
   golden）；vs direct-runner golden 3149→3118；default 模式 2683→2684
   （match_url +1：304B URLGlob 栈参数容器 adjust 后 in_stack_00000008[304]
   声明——oracle 同形 adjust 的符号吸附残差，登记 BOOMATTR-INSTACK-SYMATTACH
@@ -3547,7 +3547,7 @@ markUnaliased 的 alias_block 臂（varmap.cc:1376-1385，alias_block_level=2）
 → 死 canary 语句被消。锁定库 same-seed 实验（stage_seed_diag e40ed130）
 双向钉死：nameonly-agg 载荷网活、locked 载荷网死、drop 载荷丢名。落地面：
 canon httpd skeleton 311→304（main 15→13 = canary ×2 精确收敛；
-ap_fini_vhost_config 45→40 同族），其余函数字节恒等；RUGRA_SEEDS=0 控制臂
+ap_fini_vhost_config 45→40 同族），其余函数字节恒等；RUDRA_SEEDS=0 控制臂
 字节恒等；retaddr_canary_passcount_1204 fixture web_survival 翻 MATCH 重钉。
 
 ## 2026-09-25：BRIDGE1-TYPESEED-PARSEFAIL 降级声明（Lane TYPEFIX，注释级）
@@ -3641,7 +3641,7 @@ STORE/LOAD 的 spacebase 偏移相等」时无条件拒绝 implied——这是 o
 
 管线级效应（本车道 A/B 双构建亲测，基=cb759c42）：
 
-- curl 默认脸/裸脸（RUGRA_SEEDS=0）与基线**字节恒等**（577/948
+- curl 默认脸/裸脸（RUDRA_SEEDS=0）与基线**字节恒等**（577/948
   skeleton，defects/numbering 全零）——语料无放行路径触发。
 - httpd 默认脸 **1257→1179**（main 687→609，其余 30 函数逐函数恒等，
   零回退）；裸脸 1376→1298 同款。过度物化族回收：`apr_getopt(uVar9,…)
@@ -3657,7 +3657,7 @@ STORE/LOAD 的 spacebase 偏移相等」时无条件拒绝 implied——这是 o
 ## 2026-09-25（CSPEC2 lane）：ActionNameVars 消费 badjumptable 旗标（CALLSPEC-0001 (c) 收口）
 
 CALLSPEC 移交件三消费者之一的 (c) 落地：`lookForBadJumpTables`
-（coreaction.cc:2779-2803）此前是登记 no-op（RUGRA-GAP 注释），本轮
+（coreaction.cc:2779-2803）此前是登记 no-op（RUDRA-GAP 注释），本轮
 按锁定 oracle 逐行移植，插回 `ActionNameVars::apply` 的 cc:2985 位置
 （linkSymbols → recoverNameRecommendationsForSymbols(GAP) →
 **lookForBadJumpTables** → lookForFuncParamNames → 默认命名环）。
@@ -3871,7 +3871,7 @@ docs/api/varmap.md 同日节）：
 
 - **`ActionNameVars::apply`**（coreaction.cc:2978）— cc:2984 的
   `recoverNameRecommendationsForSymbols()` 调用落地（scope take/put-back 借用
-  seam），替换原 RUGRA-GAP 注释（"no name-recommendation store is ported
+  seam），替换原 RUDRA-GAP 注释（"no name-recommendation store is ported
   yet"）。顺序保持 oracle 逐字：linkSymbols → recover → lookForBadJumpTables →
   lookForFuncParamNames → buildDefaultName 循环 → assignDefaultNames。
   lookForFuncParamNames/makeRec（cc:2815-2897）此前已移植（锁定原型参数名→
@@ -3890,7 +3890,7 @@ docs/api/varmap.md 同日节）：
 /0/0（−151，9 函数改善 0 回退，main 232→196——`long *__s1` 声明+4 使用行与
 golden 逐字复现，含 oracle 的判别行为：喂 "crit" 的 (long*) cast 链局部得名
 `__s1`、直喂 "alert" 的 (char*) cast 局部保默认名）；curl canon 267/0/0 恒等；
-RUGRA_IMPORTSIG=0 断路==旧默认脸字节恒等（机制半全语料惰性亲证）；镜面三面
+RUDRA_IMPORTSIG=0 断路==旧默认脸字节恒等（机制半全语料惰性亲证）；镜面三面
 110/258/15==基线（275/460/55 棘轮未重钉）；bank 391/391；cargo test --lib
 1744P/1F（nonzeromask 预存）。机制 C：coreaction/varmap 核心层白名单——CR
 已请求（见车道终报）。
@@ -4117,7 +4117,7 @@ REGEN 边）：
   MISSING 五旗标，op.hh:171）——此前内联版漏此守卫；second loop（cc:5354-5371）同样补
   halt 跳过。typeOrder 严格 `< 0` 换绑（先到者平局保持）。
 - **extendInput**（cc:4590-4607）：ActionPrototypeTypes 关联函数 + locked-input 物化循环
-  （cc:4682-4703）整段补齐。原 RUGRA-GAP 注释（ProtoParameter 无空间/FuncProto 无
+  （cc:4682-4703）整段补齐。原 RUDRA-GAP 注释（ProtoParameter 无空间/FuncProto 无
   model）已过时——两载体现已存在，删除 stale 注释。PIECE 臂经 param 类型 INT→SEXT /
   其他→ZEXT；newOp(1, topbl.getStart) + newVarnodeOut(vdata) + opInsertBegin 全链。
   cc:4653-4674 truncated 空间栈指针 ZEXT 块：生产语料恒 untruncated（oracle 同死），
@@ -4288,7 +4288,7 @@ ALIASGATE cb759c42（isPossibleAlias 端口）共同关闭**，四件全部在�
 - **canon 双脸实测（836ae2bc 本树 release 构建）**：`cVar1 = *flag;`
   （canon :1677 对应位，Rugra :1570）与 canary
   `lVar2 = *(long *)(in_FS_OFFSET + 0x28);`、消费者 `if (cVar1 == '-')`
-  三件全数显式物化==canon 逐形；bare 脸（RUGRA_SEEDS=0）同样物化（:1549）。
+  三件全数显式物化==canon 逐形；bare 脸（RUDRA_SEEDS=0）同样物化（:1549）。
   canon 门禁 curl **157/0/0**、httpd **311/0/0**（==亲父基线，零漂移）；
   `--func getparameter` = 31 skeleton 行/0 defects/0 numbering，残差全为
   decl 类型槽族（Configurable*/FILE* 声明序）与 cast 渲染族（`(FILE *)fopen`
@@ -4345,7 +4345,7 @@ tokenct 分发补 **CPUI_CALLOTHER** 臂（此前落入 `output_metatype` 的
 - Rugra 实现直接复用 `crate::varnode::op_output_type_local`（该函数本批同步
   补齐 InternalStringOp 覆写，见 docs/api/varnode.md 同日节）；无工厂的
   detached fixture 回退 `base_type_for(size, Unknown)`。
-- 症状链（探针实证，RUGRA_DBG_STRDATA per-action 快照）：泛型臂给 STRINGDATA
+- 症状链（探针实证，RUDRA_DBG_STRDATA per-action 快照）：泛型臂给 STRINGDATA
   CALLOTHER 的 token=int8 → `tokenct != outHighType` 短路失效 →
   implied+typelock force 臂（cc:2559-2562）触发 cc:2595-2609 替换序列
   （`newUnique` + `updateType(tokenct)` + `opSetOutput(op,vn)`）→ STRINGDATA

@@ -34,9 +34,9 @@ overlay_paths=(
   src/varnode.rs
 )
 
-run_cache=${RUGRA_FLOW_CONTAINEDCALL_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-containedcall-1204}
-cargo_target=${RUGRA_FLOW_CONTAINEDCALL_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-containedcall-target}
-cargo_tmp=${RUGRA_FLOW_CONTAINEDCALL_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-containedcall-tmp}
+run_cache=${RUDRA_FLOW_CONTAINEDCALL_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-containedcall-1204}
+cargo_target=${RUDRA_FLOW_CONTAINEDCALL_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-containedcall-target}
+cargo_tmp=${RUDRA_FLOW_CONTAINEDCALL_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-containedcall-tmp}
 mkdir -p "$run_cache" "$cargo_target" "$cargo_tmp"
 oracle_tmp=$(mktemp -d "$run_cache/run.XXXXXX")
 cleanup() {
@@ -47,7 +47,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" ]]; then
   for candidate in /tmp/rugra-ghidra-bfd-2.38/usr/include /usr/include; do
     if [[ -f "$candidate/bfd.h" ]] && \
@@ -57,7 +57,7 @@ if [[ -z "$bfd_include" ]]; then
     fi
   done
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-}
+bfd_library=${RUDRA_BFD_LIBRARY:-}
 if [[ -z "$bfd_library" ]]; then
   for candidate in \
       /tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \
@@ -413,7 +413,7 @@ for observation in observations:
         raise SystemExit("out_of_scope_observations entries must be non-empty")
 PY
 
-if [[ ${RUGRA_FLOW_CONTAINEDCALL_VALIDATE_ONLY:-0} == 1 ]]; then
+if [[ ${RUDRA_FLOW_CONTAINEDCALL_VALIDATE_ONLY:-0} == 1 ]]; then
   echo "flow_containedcall_1204 metadata/source lock validation passed"
   exit 0
 fi

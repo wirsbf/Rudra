@@ -93,7 +93,7 @@ impl ArraySequence {
     /// The walk follows block order via `PcodeOp::nextOp()` (op.cc:323-339),
     /// crossing into the unique out-edge block when the parent has 1 or 2
     /// exits. If the walk runs off the end (no unique successor) before
-    /// reaching `end_op`, the oracle would dereference null; Rugra returns
+    /// reaching `end_op`, the oracle would dereference null; Rudra returns
     /// `true` (no interference) as the conservative non-crashing reading —
     /// this only differs on malformed sequences the oracle never builds.
     pub fn interfere_between(
@@ -213,7 +213,7 @@ impl ArraySequence {
     /// identity comparison against the factory's canonical char type selects
     /// BUILTIN_STRNCPY (element count), then the canonical wide-char type
     /// selects BUILTIN_WCSNCPY (element count); anything else falls back to
-    /// BUILTIN_MEMCPY with the byte length. Rugra compares via factory-canonical
+    /// BUILTIN_MEMCPY with the byte length. Rudra compares via factory-canonical
     /// `Arc` identity (the direct analogue of Ghidra's cached `Datatype *`
     /// identity), falling back to (size, char-print flag) equality for types
     /// that flowed through cloned records.
@@ -241,7 +241,7 @@ impl ArraySequence {
 
     /// Identity comparison of `candidate` against the factory's canonical
     /// character type of `size` (the cc:165/169 `charType == types->
-    /// getTypeChar(...)` pointer compare). Rugra's factory hands out
+    /// getTypeChar(...)` pointer compare). Rudra's factory hands out
     /// canonical `Arc`s so `Arc::ptr_eq` is the direct analogue; types that
     /// flowed through cloned records fall back to (name, size, char-print
     /// flags) equality.
@@ -369,12 +369,12 @@ pub struct StringSequence {
     /// Base ArraySequence
     pub base: ArraySequence,
     /// Address of the root COPY's output within the memory region
-    /// (constseq.hh:67 `rootAddr`). Rugra keeps the space separately
+    /// (constseq.hh:67 `rootAddr`). Rudra keeps the space separately
     /// (`space`) because its `Address` carries no space.
     pub root_addr: u64,
     /// Starting address of the memory region (constseq.hh:68 `startAddr`).
     pub start_addr: u64,
-    /// Space of `rootAddr`/`startAddr` (Rugra seam for Ghidra's
+    /// Space of `rootAddr`/`startAddr` (Rudra seam for Ghidra's
     /// `Address::getSpace()`).
     pub space: crate::space::AddressSpace,
     /// The container SymbolEntry projection at the root Address
@@ -390,7 +390,7 @@ pub struct StringSequence {
 /// appears in the StringSequence constructor walk (constseq.cc:188 ctor,
 /// the `if (parentType == ct) break;` at cc:204) and
 /// `constructTypedPointer` loop guard (cc:294 `while(baseType != charType)`).
-/// Rugra compares canonical `Arc`s
+/// Rudra compares canonical `Arc`s
 /// by pointer, falling back to (name, size, char-print flag) equality for
 /// types that flowed through cloned records — the same fallback shape as
 /// `ArraySequence::matches_factory_char`.
@@ -458,7 +458,7 @@ impl StringSequence {
         // cc:200-211: walk down from the Symbol's type to the character
         // type, tracking the last array layer and its offset.
         let Some(parent) = sym_type else {
-            // RUDRA-GLUE: Rugra's ScopeLocal symbols may carry no type;
+            // RUDRA-GLUE: Rudra's ScopeLocal symbols may carry no type;
             // Ghidra's Symbol always has one (TYPE_UNDEF at minimum), so the
             // walk below would simply fail to reach ct.
             return seq;
@@ -535,7 +535,7 @@ impl StringSequence {
             begin_addr = (self.root_addr as i64 - char_align) as u64;
         }
         // cc:235-236: VarnodeLocSet iteration from beginLoc(beginAddr) to
-        // endLoc(endAddr) — Rugra walks the bank's loc tree (same
+        // endLoc(endAddr) — Rudra walks the bank's loc tree (same
         // VarnodeCompareLocDef order). The tree is ordered
         // (space, loc, size, ...), so the walk stops as soon as an entry
         // sorts past (space, endAddr) — the exact bound of Ghidra's
@@ -855,7 +855,7 @@ impl StringSequence {
     /// Analyze output descendants of the given PcodeOp being removed.
     /// Faithful to `removeForward` (constseq.cc:383-409): record the read
     /// points for later replacement; a PIECE seen twice merges its two
-    /// points into a dead op carrying the smaller offset. Rugra mirrors the
+    /// points into a dead op carrying the smaller offset. Rudra mirrors the
     /// `map<PcodeOp*, list<WriteNode>::iterator>` xref as
     /// `Arc::as_ptr` keys into indices over the `points` vector, with
     /// `alive` as the erase projection of `points.erase(iter)`.
@@ -999,10 +999,10 @@ pub struct HeapSequence {
     /// Offset relative to pointer to root STORE (constseq.hh:98 `baseOffset`)
     pub base_offset: u64,
     /// Address space being STOREd to (constseq.hh:99 `storeSpace`).
-    /// Rugra stores the AddressSpace enum directly (Ghidra holds an `AddrSpace *`).
+    /// Rudra stores the AddressSpace enum directly (Ghidra holds an `AddrSpace *`).
     pub store_space: crate::space::AddressSpace,
     /// Required multiplier for PTRADD ops (constseq.hh:100 `ptrAddMult`).
-    /// Maps element size to address units. Rugra: with word_size==1, this equals
+    /// Maps element size to address units. Rudra: with word_size==1, this equals
     /// `charType->getAlignSize()` (see HeapSequence::new_heap).
     pub ptr_add_mult: u64,
     /// Non-constant Varnodes being added into pointer calculation
@@ -1035,7 +1035,7 @@ impl IndirectPair {
     // Ghidra: constseq.hh:93 IndirectPair::markDuplicate
     /// Note that `this` is a duplicate of another pair. Faithful to
     /// `markDuplicate(void)` (constseq.hh:93): sets `inVn = (Varnode *)0`.
-    /// Rugra uses `Option::None` as the null sentinel.
+    /// Rudra uses `Option::None` as the null sentinel.
     pub fn mark_duplicate(&mut self) {
         self.in_vn = None;
     }
@@ -1052,7 +1052,7 @@ impl IndirectPair {
     /// Faithful to `IndirectPair::compareOutput` (constseq.cc:808-820). Used as
     /// the sort comparator in `deduplicatePairs`. Returns true if `a < b`.
     ///
-    /// Ghidra orders address spaces by `AddrSpace::getIndex()`; Rugra uses
+    /// Ghidra orders address spaces by `AddrSpace::getIndex()`; Rudra uses
     /// `AddressSpace::space_id()` (the SLEIGH space index) for the same ordering.
     pub fn compare_output(a: &IndirectPair, b: &IndirectPair) -> std::cmp::Ordering {
         let va = a.out_vn.read().unwrap();
@@ -1108,7 +1108,7 @@ fn get_space_from_const(vn: &Arc<RwLock<Varnode>>) -> crate::space::AddressSpace
 
 impl HeapSequence {
     // Ghidra: constseq.hh:88 HeapSequence::HeapSequence (constructor body at
-    //   constseq.cc:907-921) — Rugra separates allocation (Struct::new) from
+    //   constseq.cc:907-921) — Rudra separates allocation (Struct::new) from
     //   analysis (new_heap / collect_store_ops). `new_heap` performs the
     //   storeSpace / ptrAddMult initialization that Ghidra does inline in the
     //   constructor (cc:911-912), then defers to find_base_pointer +
@@ -1506,7 +1506,7 @@ impl HeapSequence {
                 }
             }
         }
-        let _ = fd; // Ghidra reads block via rootOp->getParent(); Rugra does the same.
+        let _ = fd; // Ghidra reads block via rootOp->getParent(); Rudra does the same.
     }
 
     // Ghidra: constseq.cc:583 HeapSequence::calcAddElements

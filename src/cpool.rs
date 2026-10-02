@@ -147,7 +147,7 @@ impl CPoolRecord {
         self.data_type.as_ref()
     }
 
-    // RUDRA-GLUE: Compatibility display accessor for legacy Rugra printers;
+    // RUDRA-GLUE: Compatibility display accessor for legacy Rudra printers;
     // Ghidra callers use getType()->getName().
     /// Get the compatibility display name derived from the canonical type.
     pub fn get_type_name(&self) -> &str {

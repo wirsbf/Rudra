@@ -24,7 +24,7 @@ pub type SpaceId = u8;
 
 // Space IDs matching SLEIGH .sla spec space indices (space.hh getIndex()).
 // SLEIGH x86-64 spec: 0=const, 1=OTHER, 2=unique, 3=ram, 4=register.
-// Rugra extends past index 4 for its own spaces (Stack, Join, Iop).
+// Rudra extends past index 4 for its own spaces (Stack, Join, Iop).
 pub const SPACEID_CONST: SpaceId = 0;
 pub const SPACEID_OTHER: SpaceId = 1;
 pub const SPACEID_UNIQUE: SpaceId = 2;
@@ -158,7 +158,7 @@ impl AddressSpace {
     /// freePlaceholderSlot→maxpass flip, ActionActiveParam build) one
     /// pass late vs oracle (build@pass3 vs pass2) and inflating
     /// ParamList::calcDelay → getMaxInputDelay (2 vs 1). Fixed to 1.
-    /// MAINDIFF-UNIQLEAK-0001 history: before that, Rugra had Ram=0
+    /// MAINDIFF-UNIQLEAK-0001 history: before that, Rudra had Ram=0
     /// (wrong — ram heritaged one pass too early, fixed to 1) alongside
     /// Stack=1; the "oracle first stack pass at pass 2" observation that
     /// justified Stack=2 was counted in mainloop rounds and actually
@@ -219,10 +219,10 @@ impl AddressSpace {
     // RUDRA-GLUE: inverse of `AddressSpace::get_index` over the locked
     /// x86-64 corpus space table (same provenance as `get_index` above) —
     /// stands in for `AddrSpaceManager::getSpace(i)`
-    /// (translate.hh:559-561), which Rugra's `Architecture` does not own
+    /// (translate.hh:559-561), which Rudra's `Architecture` does not own
     /// yet. Used by `Funcdata::start_processing` to resolve
     /// `Override::applyDeadCodeDelay` index entries back to spaces.
-    /// Index 5 (fspec) has no enum variant (Rugra models no fspec space);
+    /// Index 5 (fspec) has no enum variant (Rudra models no fspec space);
     /// a deadcode-delay override can never be installed for it
     /// (`bumpDeadcodeDelay` gates to processor/spacebase kinds), so the
     /// hole is unobservable.
@@ -286,7 +286,7 @@ impl AddressSpace {
     /// Is this space heritaged (subject to SSA phi-placement)? Faithful to
     /// `AddrSpace::isHeritaged()` (space.hh). Ghidra's IPTR_CONSTANT,
     /// IPTR_FSPEC, IPTR_IOP, IPTR_JOIN are not heritaged; all others are.
-    /// Rugra: Const/Iop/Join/Fspec(not modeled) are not heritaged.
+    /// Rudra: Const/Iop/Join/Fspec(not modeled) are not heritaged.
     pub fn is_heritaged(&self) -> bool {
         !matches!(
             self, AddressSpace::Const | AddressSpace::Iop | AddressSpace::Join
@@ -773,7 +773,7 @@ pub mod manager_join {
         /// the unified varnode at `join_allocate` rounded up to the next
         /// multiple of 16 (`roundsize`).
         ///
-        /// Ghidra returns the new (or found) `JoinRecord *`; Rugra returns
+        /// Ghidra returns the new (or found) `JoinRecord *`; Rudra returns
         /// the unified join-space offset, from which the record stays
         /// reachable via [`JoinRecordTables::find_join`].
         pub fn find_add_join(
@@ -1131,7 +1131,7 @@ impl OverlaySpace {
 // ============================================================================
 // Architecture-owned AddrSpace registry (SPACE-0001)
 // ----------------------------------------------------------------------------
-// The enum `AddressSpace` above is Rugra's legacy fixed-enum bridge kept only
+// The enum `AddressSpace` above is Rudra's legacy fixed-enum bridge kept only
 // so un-migrated consumers keep compiling. Everything below is the 1:1 port of
 // Ghidra's architecture-owned address-space model:
 //   - `space.hh:30 spacetype` / `space.hh:85 AddrSpace` flag bits
@@ -1369,7 +1369,7 @@ struct AddrSpaceInner {
     spacebase: Option<SpacebaseState>,
     // Ghidra: space.hh:118 AddrSpace::manage (manager backlink, fspec half).
     /// Weak link to the owning manager's fspec-entry table, wired when the
-    /// registry inserts this space (Rugra's constructors take no manager, so
+    /// registry inserts this space (Rudra's constructors take no manager, so
     /// `insertSpace` is the association point). Only the fspec space reads
     /// it — `FspecSpace::printRaw`/`encodeAttributes` dereference the offset
     /// as a `FuncCallSpecs *` (fspec.cc:2125/2130/2145/2155); `None` on
@@ -1377,7 +1377,7 @@ struct AddrSpaceInner {
     fspec_table: Option<Weak<RefCell<FspecEntryTable>>>,
     // Ghidra: space.hh:118 AddrSpace::manage (manager backlink, join half).
     /// Weak link to the owning manager's join-record tables, wired when the
-    /// registry inserts this space (Rugra's constructors take no manager, so
+    /// registry inserts this space (Rudra's constructors take no manager, so
     /// `insertSpace` is the association point). Only the join space reads
     /// it — `JoinSpace::printRaw` resolves its pieces through
     /// `getManager()->findJoin` (space.cc:593); `None` on every other kind
@@ -2285,7 +2285,7 @@ impl AddrSpace {
     // import stub addresses as an artificial EXTERNAL *memory block* in the
     // default space (ElfProgramBuilder.java:1532-1556 createExternalBlock,
     // 0x1000-aligned linkage block, 8 bytes per UND import). This
-    // constructor mirrors that Java definition so a Rugra SpaceRegistry can
+    // constructor mirrors that Java definition so a Rudra SpaceRegistry can
     // name and register the EXTERNAL space alongside the decode-registered
     // spaces; the decompiler-side spacetype is Processor because the oracle
     // enum has no external member.)
@@ -2356,7 +2356,7 @@ impl AddrSpace {
 
     // RUDRA-GLUE: set_manager_join_tables — Ghidra's AddrSpace receives its
     // `AddrSpaceManager *manage` backlink in the constructor (space.hh:118);
-    // Rugra's constructors take no manager, so the registry wires the
+    // Rudra's constructors take no manager, so the registry wires the
     // join-record half (the only half any space method reads) when it
     // inserts the space. This is the injection point for
     // `JoinSpace::printRaw`'s `getManager()->findJoin` (space.cc:593).
@@ -3048,7 +3048,7 @@ impl SpaceRegistry {
                     duplicate_name = true;
                 }
                 // Wire the manager backlink (Ghidra's FspecSpace receives its
-                // AddrSpaceManager in the constructor, fspec.cc:2116; Rugra
+                // AddrSpaceManager in the constructor, fspec.cc:2116; Rudra
                 // constructors take no manager, so insertSpace is the
                 // association point). Wired before validation so an insert
                 // that throws still leaves the space pointing at this
@@ -3064,7 +3064,7 @@ impl SpaceRegistry {
                     duplicate_name = true;
                 }
                 // Wire the manager backlink (Ghidra's JoinSpace receives its
-                // AddrSpaceManager in the constructor, space.cc:446; Rugra
+                // AddrSpaceManager in the constructor, space.cc:446; Rudra
                 // constructors take no manager, so insertSpace is the
                 // association point). Wired before validation so an insert
                 // that throws still leaves the space pointing at this
@@ -3677,7 +3677,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------------
-    // SPACE-0001 registry regression tests (Rugra-side only; oracle parity is
+    // SPACE-0001 registry regression tests (Rudra-side only; oracle parity is
     // proven by tests/oracle/space_registry_1204.* + runner).
     // ------------------------------------------------------------------------
 
@@ -4081,7 +4081,7 @@ mod tests {
 
     #[test]
     fn test_join_print_raw_two_pieces() {
-        // Ghidra: space.cc:590 JoinSpace::printRaw — rugra regression only;
+        // Ghidra: space.cc:590 JoinSpace::printRaw — rudra regression only;
         // the byte-exact oracle is tests/oracle/space_printraw_special_1204.
         let (mut m, ram, reg) = special_printraw_registry();
         let join = m.get_join_space().unwrap();

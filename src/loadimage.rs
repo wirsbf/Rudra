@@ -246,7 +246,7 @@ impl LoadImage for RawLoadImage {
 }
 
 /// An in-memory load image backed by a byte buffer at a specific address.
-/// Useful for testing and for the existing Rugra binary-parsing pipeline.
+/// Useful for testing and for the existing Rudra binary-parsing pipeline.
 pub struct MemoryLoadImage {
     /// The byte data.
     data: Vec<u8>,

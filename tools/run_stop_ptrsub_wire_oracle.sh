@@ -17,7 +17,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 cpp_fixture="$repo_root/tests/oracle/stop_ptrsub_wire_1204.cc"
 rust_fixture="$repo_root/tests/oracle/stop_ptrsub_wire_1204.rs"
 metadata="$repo_root/tests/oracle/stop_ptrsub_wire_1204.metadata.json"
-bfd_root="${RUGRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -91,7 +91,7 @@ LD_LIBRARY_PATH="$bfd_runtime" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 
 # ---- Rugra comparand side --------------------------------------------------
-fixture_target=${RUGRA_STOPWIRE_TARGET_DIR:-/home/wirs/.cache/rugra-stop-wire-target}
+fixture_target=${RUDRA_STOPWIRE_TARGET_DIR:-/home/wirs/.cache/rugra-stop-wire-target}
 tool_tmp=$fixture_target/tmp
 mkdir -p "$fixture_target" "$tool_tmp"
 TMPDIR="$tool_tmp" CARGO_TARGET_DIR="$fixture_target" \

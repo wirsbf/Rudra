@@ -24,13 +24,13 @@ overlay_paths=(
   src/flow.rs
 )
 
-run_cache=${RUGRA_NORETURN_WIRE_B_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-noreturn-wire-b-1204}
-cargo_target=${RUGRA_NORETURN_WIRE_B_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-noreturn-wire-b-target}
-cargo_tmp=${RUGRA_NORETURN_WIRE_B_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-noreturn-wire-b-tmp}
+run_cache=${RUDRA_NORETURN_WIRE_B_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-noreturn-wire-b-1204}
+cargo_target=${RUDRA_NORETURN_WIRE_B_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-noreturn-wire-b-target}
+cargo_tmp=${RUDRA_NORETURN_WIRE_B_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-noreturn-wire-b-tmp}
 mkdir -p "$run_cache" "$cargo_target" "$cargo_tmp"
 oracle_tmp=$(mktemp -d "$run_cache/run.XXXXXX")
 cleanup() {
-  if [[ ${RUGRA_NORETURN_WIRE_B_KEEP:-0} == 1 ]]; then
+  if [[ ${RUDRA_NORETURN_WIRE_B_KEEP:-0} == 1 ]]; then
     echo "keeping oracle workdir: $oracle_tmp" >&2
     return 0
   fi
@@ -81,7 +81,7 @@ fi
 # Locked binutils 2.38 BFD build (same pins as run_flow_tailcall_overtrace_oracle.sh).
 bfd_header_sha256=c8c9c20823ebd8d427d9f91dd642b82b263fca2245a8ef4eb34f0de0cde25702
 bfd_library_sha256=f9ca64d035c483bbfac32ca550074c20398ae2f0bb84dd989059dadb9cea8a1e
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" ]]; then
   for candidate in /tmp/rugra-ghidra-bfd-2.38/usr/include /usr/include; do
     if [[ -f "$candidate/bfd.h" ]] && \
@@ -91,7 +91,7 @@ if [[ -z "$bfd_include" ]]; then
     fi
   done
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-}
+bfd_library=${RUDRA_BFD_LIBRARY:-}
 if [[ -z "$bfd_library" ]]; then
   for candidate in \
     /tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \
@@ -246,7 +246,7 @@ for observation in observations:
         raise SystemExit("out_of_scope_observations entries must be non-empty")
 PY
 
-if [[ ${RUGRA_NORETURN_WIRE_B_VALIDATE_ONLY:-0} == 1 ]]; then
+if [[ ${RUDRA_NORETURN_WIRE_B_VALIDATE_ONLY:-0} == 1 ]]; then
   echo "noreturn_wire_b_1204 metadata/source lock validation passed"
   exit 0
 fi

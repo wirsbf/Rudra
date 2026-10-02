@@ -408,7 +408,7 @@ impl ActionDeadCode {
     // FuncCallSpecs object is attached": flow.cc:685 FlowInfo::setupCallSpecs
     // creates the FuncCallSpecs and rewrites in(0) in the same breath, and no
     // other site sets the flag (typeop.cc:663/741 set it statically at
-    // opcode-assign time). Rugra's inject_raw_ops path births CPUI_CALL with
+    // opcode-assign time). Rudra's inject_raw_ops path births CPUI_CALL with
     // the static TypeOp flag but no FuncCallSpecs object, so the flag alone
     // is not a faithful proxy; query Funcdata::callspecs for an attached
     // spec instead (Weak identity link, fspec.rs FuncCallSpecs::op).
@@ -602,7 +602,7 @@ impl Action for ActionDeadCode {
                     // flow time, and TypeOpCall's static has_callspec flag
                     // — typeop.cc:663 — makes cc:3968's isCallWithoutSpec
                     // branch unreachable for CALL), so the cc:3846 guarantee
-                    // always covers in(0). Rugra's inject_raw_ops path births
+                    // always covers in(0). Rudra's inject_raw_ops path births
                     // calls with the static flag but NO FuncCallSpecs object;
                     // the mark_consumed_parameters loop below therefore never
                     // runs for them, in(0) keeps consume==0 after the reset
@@ -789,7 +789,7 @@ impl ActionConstantPtr {
         'chase: for _ in 0..3 {
             // cc:961-966: a pointer type with an explicit space attribute
             // whose addrSize matches the varnode size answers directly.
-            // Rugra's TypePointer does not model the space attribute yet
+            // Rudra's TypePointer does not model the space attribute yet
             // (TYPE-0001 residual), so the arm always falls through — the
             // behavior when no pointer carries a space attribute.
             let _ = vn.read().unwrap().get_type();
@@ -888,12 +888,12 @@ impl ActionConstantPtr {
     ) -> Option<crate::space::AddressSpace> {
         let mut res_space: Option<crate::space::AddressSpace> = None;
         // cc:1009-1013: explicit pointer type with a matching space.
-        // Rugra's TypePointer does not model the space attribute yet
+        // Rudra's TypePointer does not model the space attribute yet
         // (TYPE-0001 residual), so this arm cannot fire — the behavior when
         // no pointer type carries a space attribute.
         let _ = vn.read().unwrap().get_type();
         // cc:1014-1030: walk inferPtrSpaces in order (the default data space
-        // leads — architecture.cc:665-701 cacheAddrSpaceProperties; Rugra's
+        // leads — architecture.cc:665-701 cacheAddrSpaceProperties; Rudra's
         // list is built by <global> ingestion in registration order).
         for spc in space_list {
             let min_size = enum_minimum_ptr_size(*spc);
@@ -1136,7 +1136,7 @@ impl ActionConstantPtr {
             *rampoint = Self::resolve_constant(spc, vn_offset, vn_size, op_addr, full_encoding);
         }
 
-        // cc:1148: rampoint.isInvalid() — Rugra's no-resolver resolve always
+        // cc:1148: rampoint.isInvalid() — Rudra's no-resolver resolve always
         // produces a (spaceless but defined) address, and no resolver is
         // registered in this pipeline, so the invalid branch is unreachable
         // here (AddressResolver registration is the translate.cc residual).
@@ -1167,7 +1167,7 @@ impl ActionConstantPtr {
     /// Resolve a native constant into an address — the no-resolver default
     /// path of `AddrSpaceManager::resolveConstant` (translate.cc:637-641):
     /// `fullEncoding = val; val = addressToByte(val, wordSize); val =
-    /// wrapOffset(val)`. Rugra's Funcdata pipeline carries no
+    /// wrapOffset(val)`. Rudra's Funcdata pipeline carries no
     /// `AddrSpaceManager`, and no `AddressResolver` is registered for the
     /// production spaces (x86-64 registers none), so this local arm is the
     /// exact production behavior for this oracle configuration; the
@@ -1202,7 +1202,7 @@ impl ActionConstantPtr {
     /// `highest = calc_mask(addressSize)*wordsize + wordsize-1`,
     /// `bufferSize = addressSize<3 ? 0x100 : 0x1000`,
     /// `pointerLowerBound = bufferSize`, `pointerUpperBound =
-    /// highest-bufferSize`. Rugra's enum `AddressSpace` carries no cached
+    /// highest-bufferSize`. Rudra's enum `AddressSpace` carries no cached
     /// bounds (the registry handle does, and the Funcdata pipeline uses the
     /// enum), so the constructor formula is evaluated directly — same
     /// inputs, same unsigned wraparound arithmetic.
@@ -1485,7 +1485,7 @@ impl Action for ActionCse {
 ///
 /// Faithful to `ActionRestructureVarnode` (coreaction.cc:2274). In Ghidra this
 /// builds the `ScopeLocal` (via `ScopeLocal::restructureVarnode`) and syncs
-/// varnodes with the resulting symbols. In Rugra we build the `ScopeLocal` and
+/// varnodes with the resulting symbols. In Rudra we build the `ScopeLocal` and
 /// store it on `Funcdata::scope` so the printc emitter can query it for
 /// stack-variable names. The `aliasyes` flag (skip alias calculations on the
 /// first pass) maps to `ScopeLocal` running a full `mark_unaliased` pass here;
@@ -1763,7 +1763,7 @@ impl Action for ActionRestructureVarnode {
         // fspec.cc:5737 outgoing-parameter slots; ActionRestrictLocal
         // coreaction.cc:1979/1997 saved-register spills) active for the next
         // pass's MapState gather — addRange's inRange gate (varmap.cc:902)
-        // then drops hints for those slots. Rugra previously built a fresh
+        // then drops hints for those slots. Rudra previously built a fresh
         // ScopeLocal per pass and re-installed the full window, resurrecting
         // entries (and nolocalalias flags) for unmapped slots
         // (SB-MATCHURL-ORD70-0001). The scope is now created on the first
@@ -1823,7 +1823,7 @@ impl Action for ActionRestructureVarnode {
                         // register-space blob entry can never be consulted
                         // for stack reads — and vice versa. Installing the
                         // whole-type-width entry in the register space (the
-                        // old Rugra bug) made find_container_entry's
+                        // old Rudra bug) made find_container_entry's
                         // [start..start+size) containment (database.cc:2269)
                         // swallow unrelated pointer registers (rax) during
                         // ActionNameVars linkSymbols while the real stack
@@ -2013,7 +2013,7 @@ impl Action for ActionRestructureVarnode {
                 // Ghidra's ScopeInternal::buildVariableName register queries
                 // (database.cc:2447/2454/2462/2472/2485) read the SLEIGH
                 // `varnode_xref` through the Architecture's Translate;
-                // Rugra's ScopeLocal takes a caller-attached Architecture
+                // Rudra's ScopeLocal takes a caller-attached Architecture
                 // handle (`set_arch_lookup`) whose `register_xref`
                 // (populated from `SleighBase::getAllRegisters`,
                 // sleighbase.cc:182-186) answers via the faithful
@@ -2307,7 +2307,7 @@ impl Action for ActionMergeType {
 // call-site param knowledge reaches the caller only through the callee's
 // own FuncProto copy (ActionDefaultParams::apply, coreaction.cc:2321-2330,
 // `fc->copy(otherfunc->getFuncProto())`) or the platform signature data
-// (Rugra's equivalent data plane: debugproto::LibcSignatureTable, installed
+// (Rudra's equivalent data plane: debugproto::LibcSignatureTable, installed
 // on callspecs by the driver's callspec link); a function's own inputs come
 // from trial derivation only (ActionInputPrototype::apply,
 // coreaction.cc:4707-4761 — no self-name count override, no supplement/
@@ -2319,7 +2319,7 @@ impl Action for ActionMergeType {
 
 /// SysV AMD64 argument register offsets in order, consumed by
 /// ActionInferParams' input-register candidate scan.
-// RUDRA-GLUE: Rugra-specific ABI register index for the SysV trial scan
+// RUDRA-GLUE: Rudra-specific ABI register index for the SysV trial scan
 const SYSV_ARG_REGS: [(u64, &str); 6] = [
     (0x38, "rdi"),  // arg0
     (0x30, "rsi"),  // arg1
@@ -2340,14 +2340,14 @@ const SYSV_ARG_REGS: [(u64, &str); 6] = [
 pub struct ActionInferParams;
 
 impl ActionInferParams {
-    // RUDRA-GLUE: Rugra-specific param inference pass; no direct Ghidra Action counterpart
+    // RUDRA-GLUE: Rudra-specific param inference pass; no direct Ghidra Action counterpart
     pub fn new() -> Self {
         Self
     }
 }
 
 impl Action for ActionInferParams {
-    // RUDRA-GLUE: Rugra-specific param inference apply
+    // RUDRA-GLUE: Rudra-specific param inference apply
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         use crate::space::AddressSpace;
         use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
@@ -2568,7 +2568,7 @@ impl Action for ActionInferParams {
 
         // Ghidra: coreaction.cc:4711-4761 ActionInputPrototype mutates the
         // input map only when FuncProto::isInputLocked() is false. This
-        // Rugra-only compatibility action must honor the same boundary.
+        // Rudra-only compatibility action must honor the same boundary.
         if !fd.funcp.is_input_locked() && !params.is_empty() && fd.funcp.parameters.is_empty() {
             fd.funcp.parameters = params;
             changed = true;
@@ -2602,7 +2602,7 @@ impl Action for ActionInferParams {
                         // Only update if currently void
                         // Ghidra: coreaction.cc:4765-4782
                         // ActionOutputPrototype never replaces a type-locked
-                        // output. Preserve that invariant in this Rugra-only
+                        // output. Preserve that invariant in this Rudra-only
                         // compatibility action as well.
                         if !fd.funcp.is_output_locked()
                             && matches!(fd.funcp.return_type.as_ref(), Datatype::Void(_))
@@ -2622,7 +2622,7 @@ impl Action for ActionInferParams {
         }
     }
 
-    // RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionInferParams
+    // RUDRA-GLUE: Rust Action trait get_name for Rudra-specific ActionInferParams
     fn get_name(&self) -> &str {
         "infer_params"
     }
@@ -2637,14 +2637,14 @@ impl Action for ActionInferParams {
 pub struct ActionTypeInfer;
 
 impl ActionTypeInfer {
-    // RUDRA-GLUE: Rugra-specific whole-function type inference; no direct Ghidra Action counterpart (Ghidra uses ActionInferTypes instead)
+    // RUDRA-GLUE: Rudra-specific whole-function type inference; no direct Ghidra Action counterpart (Ghidra uses ActionInferTypes instead)
     pub fn new() -> Self {
         Self
     }
 }
 
 impl Action for ActionTypeInfer {
-    // RUDRA-GLUE: Rugra-specific whole-function type inference apply
+    // RUDRA-GLUE: Rudra-specific whole-function type inference apply
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
@@ -2927,13 +2927,13 @@ impl Action for ActionTypeInfer {
         }
     }
 
-    // RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionTypeInfer
+    // RUDRA-GLUE: Rust Action trait get_name for Rudra-specific ActionTypeInfer
     fn get_name(&self) -> &str {
         "type_infer"
     }
 }
 
-// RUDRA-GLUE: helper mirroring TypePointer::getPtrTo (type.hh); used by Rugra type inference
+// RUDRA-GLUE: helper mirroring TypePointer::getPtrTo (type.hh); used by Rudra type inference
 fn get_pointed_type(
     ptr_dt: &Arc<crate::type_system::datatype::Datatype>,
 ) -> Option<Arc<crate::type_system::datatype::Datatype>> {
@@ -2944,12 +2944,12 @@ fn get_pointed_type(
     }
 }
 
-// RUDRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh); used by Rugra type inference
+// RUDRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh); used by Rudra type inference
 // Ghidra: type.cc:3867 TypeFactory::getTypePointer(int4,Datatype*,uint4) — the 3-arg
 // overload constructs `TypePointer tmp(s,pt,ws)` with an EMPTY name (only the
 // 4-arg overload at type.cc:3885 attaches a name), so every type-inference
 // pointer the Actions build is ANONYMOUS. The former composed-name spelling
-// ("char *") made Rugra's pointers named, which the print layer then rendered
+// ("char *") made Rudra's pointers named, which the print layer then rendered
 // through the single-layer named-pointer path (`char * p`, oracle
 // printc_anonymous_pointer_decl_1204 named_ptr_contrast) instead of Ghidra's
 // drilled multi-layer `char *p` — the pointer NAME is not observable in any
@@ -3291,7 +3291,7 @@ impl Action for ActionDoNothing {
                 // so the rule_repeatapply fullloop re-runs mainloop and
                 // ActionBlockStructure re-structures the purged CFG
                 // (structureReset cleared sblocks). Returning CHANGE(1)
-                // mirrors the C++ count increment through Rugra's
+                // mirrors the C++ count increment through Rudra's
                 // state.count += res adapter.
                 fd.remove_do_nothing_block(&bl);
                 self.count += 1;
@@ -3478,7 +3478,7 @@ impl Action for ActionDeterminedBranch {
             // num∈{0,1} derefs `bb->getOut(num)` unconditionally
             // (funcdata_block.cc:206), and the oracle maintains the invariant
             // by construction (branchRemoveInternal destroys the cbranch at
-            // sizeOut==2 BEFORE any edge count drop, cc:203-204). Rugra can
+            // sizeOut==2 BEFORE any edge count drop, cc:203-204). Rudra can
             // carry malformed "zombie decision" blocks (CBRANCH lastOp with
             // <2 out-edges, left behind by edge-severing paths that skip the
             // op-destroy step); calling remove_branch on them mutates nothing
@@ -3592,7 +3592,7 @@ impl Action for ActionSwitchNorm {
         // In Ghidra, every JumpTable on `data` was already recovered during
         // flow tracing (`FlowInfo::recoverJumpTables` → Funcdata::
         // recoverJumpTable, funcdata_block.cc:640) — this action only
-        // normalizes the recovered tables. Rugra formerly ran an in-place
+        // normalizes the recovered tables. Rudra formerly ran an in-place
         // recovery pre-pass here because flow-time recovery was unwired;
         // JUMPTABLE-PIPELINE-0001 removed it now that the staged flow-time
         // path exists.
@@ -3661,7 +3661,7 @@ impl Action for ActionNormalizeSetup {
         //   fp.setOutputLock(false);
         fd.funcp.clear_unlocked_input();
         fd.funcp.set_output_lock(false);
-        // setModelLock(false): Rugra doesn't track model-lock state separately
+        // setModelLock(false): Rudra doesn't track model-lock state separately
         // (calling_convention is a String, not locked). This is a no-op until
         // model-lock tracking is added.
         Ok(action_status::NO_CHANGE)
@@ -3702,7 +3702,7 @@ fn proto_has_output_errors(_proto: &crate::fspec::FuncProto) -> bool { false }
 // Ghidra: fspec.hh:1400 FuncProto::hasCustomStorage
 /// Faithful mirror of `FuncProto::hasCustomStorage()` (fspec.hh:1400):
 /// `flags & custom_storage`. In Ghidra the bit is set only when a decoded
-/// prototype carries ATTRIB_CUSTOM (fspec.cc:4724-4727); Rugra's prototype
+/// prototype carries ATTRIB_CUSTOM (fspec.cc:4724-4727); Rudra's prototype
 /// decoder stubs that attribute as a no-op and no writer exists, so false is
 /// observably identical to the oracle today.
 fn proto_has_custom_storage(_proto: &crate::fspec::FuncProto) -> bool { false }
@@ -3710,7 +3710,7 @@ fn proto_has_custom_storage(_proto: &crate::fspec::FuncProto) -> bool { false }
 // Ghidra: fspec.hh:1686 FuncCallSpecs::getEntryAddress
 /// Faithful mirror of `FuncCallSpecs::getEntryAddress()` (fspec.hh:1686).
 /// The oracle leaves `entryaddress` invalid for indirect calls (fspec.cc:4943
-/// "If call is indirect, we leave address as invalid"); Rugra models an
+/// "If call is indirect, we leave address as invalid"); Rudra models an
 /// unknown target as `None`, normalized here to offset 0 — the same offset
 /// Ghidra's default-constructed invalid Address carries (address.cc:94-97).
 fn call_entry_address(fc: &crate::fspec::FuncCallSpecs) -> crate::address::Address {
@@ -3984,7 +3984,7 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
         }
         // Search the comparison's inputs for a head-MULTIEQUAL / tail-iterate
         // chain (block.cc:3186-3202). Ghidra walks up to 4 levels of
-        // non-MULTIEQUAL defs (PcodeOpNode path[4]); Rugra only follows the
+        // non-MULTIEQUAL defs (PcodeOpNode path[4]); Rudra only follows the
         // direct comparison inputs — the missing 3 descent levels are
         // registered (GETPARAM-FORLOOP-GAPSET-0001 ②).
         let mut found: Option<(crate::op::PcodeOpRef, crate::op::PcodeOpRef)> = None;
@@ -4047,7 +4047,7 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
             if idef.read().unwrap().is_marker() {
                 continue;
             }
-            // Rugra still lacks the full PcodeOp::isMoveable closure
+            // Rudra still lacks the full PcodeOp::isMoveable closure
             // (GETPARAM-FORLOOP-GAPSET-0001 ③). Preserve the
             // existing conservative INT_ADD gate whenever the candidate
             // is not already the tail's final statement.
@@ -4159,7 +4159,7 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
         // Render the iterate slot: emitExpression(iterateOp) for the
         // INT_ADD(var, const) form → "<name(out)> = <name(var)> + <const>".
         let iter_str = ActionStructureTransform::render_for_header_int_add(&iterate_op);
-        // Rugra can suppress the statements only when it can carry both
+        // Rudra can suppress the statements only when it can carry both
         // expressions into its for-loop printer. Otherwise keep the
         // statements visible, matching Ghidra's fail-closed transform.
         let (Some(init_str), Some(iter_str)) = (init_str, iter_str) else {
@@ -4200,7 +4200,7 @@ impl Action for ActionPrototypeWarnings {
 
         // coreaction.cc:4889-4892: override messages (deadcode-delay restart
         // notices). Space-name indexing needs Architecture's indexed space
-        // manager (override.cc:51-56 getSpace(i)->getName()); Rugra's
+        // manager (override.cc:51-56 getSpace(i)->getName()); Rudra's
         // Architecture has no indexed space list yet, so resolve names
         // through the locked x86-64 corpus space table
         // (AddressSpace::spec_space_name, same provenance as
@@ -4252,7 +4252,7 @@ impl Action for ActionPrototypeWarnings {
             };
             // The oracle prints the callee Funcdata's name, falling back to
             // "<indirect>" when the callspec has no Funcdata link
-            // (coreaction.cc:4913-4920). Rugra's front-end boundary binds the
+            // (coreaction.cc:4913-4920). Rudra's front-end boundary binds the
             // observable (name, entry) pair on the callspec prototype via
             // set_funcdata; an empty name is the no-link case.
             let callee = if fc.prototype.name.is_empty() {
@@ -4281,7 +4281,7 @@ impl Action for ActionPrototypeWarnings {
         // extraction (BlockWhileDo::finalizePrinting, block.cc:3399-3423)
         // no longer runs here. Its oracle trigger is
         // ActionFinalStructure::apply → graph.finalizePrinting
-        // (blockaction.cc:2192, pipeline :5736), which Rugra now dispatches
+        // (blockaction.cc:2192, pipeline :5736), which Rudra now dispatches
         // faithfully in blockaction.rs via
         // BlockGraph::finalize_printing_graph (which runs
         // while_do_finalize_printing per WhileDo). This :5737 hook was the
@@ -4591,7 +4591,7 @@ impl ActionMarkExplicit {
                     addr = addr.wrapping_add(if slot == 0 { in1_size } else { in0_size } as u64);
                 }
                 // addr.renormalize(vn->getSize()) — identity for word-size-1
-                // spaces (Rugra's scalar Address carries no word size).
+                // spaces (Rudra's scalar Address carries no word size).
                 if addr == cur_addr {
                     match &piece_op {
                         Some(prev) => {
@@ -5175,7 +5175,7 @@ impl ActionMarkImplied {
     /// Faithful to ActionMarkImplied::checkImpliedCover (coreaction.cc:3376).
     /// Returns true if it CAN be implied (no cover violation).
     ///
-    /// Ghidra checks three conditions; Rugra implements:
+    /// Ghidra checks three conditions; Rudra implements:
     ///  (1) LOAD def crossing STOREs — faithful: for each alive STORE
     ///      interior-contained in the cover (contain(storeop,2)), when the
     ///      STORE's spacebase offset equals the LOAD's, refuse the implied
@@ -5212,7 +5212,7 @@ impl ActionMarkImplied {
 
         // cc:3385/3403 read the cover via `vn->getCover()`, which lazily
         // REBUILDS a dirty Varnode Cover first (varnode.hh:202 → varnode.cc:231
-        // Varnode::updateCover → cover->rebuild). Rugra's Action-sequence
+        // Varnode::updateCover → cover->rebuild). Rudra's Action-sequence
         // pipeline (each merge step a separate Action, action.rs :5717-5729)
         // has no eager compute_varnode_covers sweep at this point, so the
         // raw `.cover` field can still be the empty post-calcCover shell
@@ -5261,7 +5261,7 @@ impl ActionMarkImplied {
                     // the pointer pair (STORE in(1) vs LOAD in(1)) and lets
                     // the load through when the pointers are provably
                     // distinct; only a possibly-aliasing pair refuses the
-                    // implied form (return false). Previously Rugra
+                    // implied form (return false). Previously Rudra
                     // refused every same-spacebase crossing — a superset
                     // of Ghidra's refusals that over-materialized
                     // canon-inlined field loads (httpd main
@@ -5324,7 +5324,7 @@ impl ActionMarkImplied {
                         if call_bi == def_bi && call_order == def_op.start.get_order() {
                             continue;
                         }
-                        // contain(callop, 2): interior only. Rugra's public
+                        // contain(callop, 2): interior only. Rudra's public
                         // Cover::contain(block, point) is the max==1 form, so
                         // the boundary==0 test from cover.cc:421 is applied on
                         // the CoverBlock directly.
@@ -5387,7 +5387,7 @@ impl Action for ActionMarkImplied {
         // the cover spans the rep-movs loop blocks and interior-contains
         // the aliases-init STORE, so checkImpliedCover check (1) consults
         // isPossibleAlias on the pointer pair and refuses the implied
-        // form). Rugra's previous flat loc-order loop processed producers
+        // form). Rudra's previous flat loc-order loop processed producers
         // before their consumers, so the cover never extended through
         // them and store-crossing loads stayed wrongly implied.
         let mut change_count = 0;
@@ -6777,7 +6777,7 @@ impl ActionSetCasts {
     /// `while(ct->getTypedef() != 0) ct = ct->getTypedef();`) before the
     /// identity comparison (cc:2480). Ghidra's `typedefImm` is a per-instance
     /// field (type.hh:196/244) set by `TypeFactory::getTypedef`
-    /// (type.cc:3834); Rugra now mirrors it as the per-type `typedef_imm`
+    /// (type.cc:3834); Rudra now mirrors it as the per-type `typedef_imm`
     /// channel on `Datatype`, so the walk needs no factory (the former
     /// name-table lookup was keyed by name and could false-strip an
     /// out-of-factory type that merely shared a typedef's name).
@@ -7122,7 +7122,7 @@ impl ActionSetCasts {
             Some(o) => o.clone(), None => return 0,
         };
         // cc:2541: tokenct = op->getOpcode()->getOutputToken(op, castStrategy)
-        // Rugra: compute the token type from the opcode's output metatype.
+        // Rudra: compute the token type from the opcode's output metatype.
         let out_size = outvn.read().unwrap().get_size();
         // TypeOpLoad::getOutputToken (typeop.cc:472-485): the LOAD's token
         // is the POINTEE of its address input's high type (when the pointee
@@ -7142,7 +7142,7 @@ impl ActionSetCasts {
             // reads the opcode once from a stable op, lock-free, in this
             // same order.
             let opcode = op.0.read().unwrap().opcode;
-            // A Ghidra PcodeOp always owns a TypeOp with a TypeFactory; Rugra
+            // A Ghidra PcodeOp always owns a TypeOp with a TypeFactory; Rudra
             // can represent a detached Funcdata, whose factory-dependent
             // token arms bail out (no bilateral token semantics).
             let type_factory = fd
@@ -7273,7 +7273,7 @@ impl ActionSetCasts {
                 // whose type equals the output high (strtol -> long) hit the
                 // type_equal short-circuit and take no cast.
                 // CALLIND reaches the callspec through Funcdata::getCallSpecs
-                // (typeop.cc:782); Rugra's get_call_specs_of_op performs the
+                // (typeop.cc:782); Rudra's get_call_specs_of_op performs the
                 // same op-identity verification through the slot-0 Iop
                 // annotation (TYPEOP-FSPEC-SPACE-0001).
                 // typeop.cc:261-265/720-735: the unlocked/void default is
@@ -7447,7 +7447,7 @@ impl ActionSetCasts {
             .unwrap_or_else(|| tokenct.clone());
         // cc:2544: if (tokenct == outHighType) → no cast needed. Ghidra
         // compares interned TypeFactory pointers (identical canonical types
-        // are the same object); Rugra's Datatypes are not interned, so the
+        // are the same object); Rudra's Datatypes are not interned, so the
         // equivalent is structural equality of base types
         // (metatype+size+name).
         if tokenct.type_equal(&out_high_type) {
@@ -7569,7 +7569,7 @@ impl ActionSetCasts {
         // opSetOutput(newop, outvn); opSetInput(newop, vn, 0)
         // opSetOutput(op, vn)
         // opInsertAfter(newop, op)
-        // Rugra: use op_set_output/op_set_input so def links, WRITTEN flags
+        // Rudra: use op_set_output/op_set_input so def links, WRITTEN flags
         // and descend xrefs are maintained consistently (faithful to Ghidra
         // which goes through Funcdata::opSetOutput/opSetInput).
         // Order is observable: the new op first steals outvn from its old
@@ -7599,7 +7599,7 @@ impl ActionSetCasts {
     // RUDRA-GLUE: cc:2570-2571/2578-2579 refresh helper — Varnode::updateType
     // calls high->typeDirty() in Ghidra so the following
     // getHighTypeDefFacing() recomputes from the just-written instance type;
-    // Rugra's typeDirty is a no-op, so a high still reporting the pre-update
+    // Rudra's typeDirty is a no-op, so a high still reporting the pre-update
     /// type (single-instance implied temp) is projected as the token type.
     fn refresh_out_high_resolve(
         fd: &Funcdata,
@@ -7844,7 +7844,7 @@ impl ActionSetCasts {
     }
 
     // RUDRA-GLUE: output_metatype (no Ghidra direct counterpart; derived from
-    // TypeOp::getOutputToken which Rugra lacks)
+    // TypeOp::getOutputToken which Rudra lacks)
     /// Determine the output metatype for an opcode (for castOutput). The
     /// metatypes are the TypeOpBinary/TypeOpUnary/TypeOpFunc constructor
     /// registrations (typeop.cc:925-2566), consumed via
@@ -8156,7 +8156,7 @@ impl ActionInferTypes {
 }
 
 /// Temporary type store for one propagation pass. Ghidra keeps the temp type
-/// directly on the Varnode (`temp_extra_type`). Rugra has no such field, so we
+/// directly on the Varnode (`temp_extra_type`). Rudra has no such field, so we
 /// key temp types by a stable per-varnode id. Faithful to the
 /// `getTempType`/`setTempType` pair used throughout ActionInferTypes
 /// (coreaction.cc:5008-5416).
@@ -8170,9 +8170,9 @@ type TempTypes =
 
 /// Stable id for a varnode inside the temp-type map. Combines the varnode's
 /// create_index with its size so that distinct overlapping varnodes don't
-/// collide. (Rugra varnodes are uniquely keyed by (loc, size, create_index).)
+/// collide. (Rudra varnodes are uniquely keyed by (loc, size, create_index).)
 #[inline]
-// RUDRA-GLUE: Rugra helper producing a stable u64 key for a Varnode (Rust borrow workaround)
+// RUDRA-GLUE: Rudra helper producing a stable u64 key for a Varnode (Rust borrow workaround)
 fn vn_id(vn: &crate::varnode::Varnode) -> u64 {
     // offset encodes the address+space identity; combine with size & create_index.
     let off = vn.get_offset();
@@ -8183,18 +8183,18 @@ fn vn_id(vn: &crate::varnode::Varnode) -> u64 {
 
 // Ghidra: coreaction.cc:4980 ActionInferTypes::propagationDebug (TYPEPROP_DEBUG
 // event channel; Rust form is env-gated and prints to stderr)
-/// MAINTYPE-TYPETRACE-0001: `RUGRA_TYPEPROP_DBG` gate for the type-propagation
+/// MAINTYPE-TYPETRACE-0001: `RUDRA_TYPEPROP_DBG` gate for the type-propagation
 /// event channel (print-only diagnostics; no behavioral effect). The oracle's
 /// compile-time `TypeFactory::propagatedbg_on` switch becomes a runtime env
 /// check cached in a `OnceLock`.
 pub(crate) fn typeprop_debug_enabled() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| std::env::var("RUGRA_TYPEPROP_DBG").is_ok())
+    *ENABLED.get_or_init(|| std::env::var("RUDRA_TYPEPROP_DBG").is_ok())
 }
 
 // Ghidra: op.cc:376 PcodeOp::printDebug op raw form (diagnostic compact form)
 /// Compact op rendering for the TYPEPROP event channel: `out = OP(in,...)`
-/// (PcodeOp::printRaw shape; used only under RUGRA_TYPEPROP_DBG).
+/// (PcodeOp::printRaw shape; used only under RUDRA_TYPEPROP_DBG).
 fn typeprop_op_raw(op: &crate::op::PcodeOp) -> String {
     let out = op
         .get_out()
@@ -8243,7 +8243,7 @@ fn merge_min_type_order(
 // attach only via the 4-arg overload, type.cc:3885); see make_pointer_type's
 // note for why the former composed-name spelling diverged from the oracle.
 // Ghidra: type.cc:3867 TypeFactory::getTypePointer (interning constructor)
-/// Build a pointer type of `base` with Rugra's TypeFactory interning, the
+/// Build a pointer type of `base` with Rudra's TypeFactory interning, the
 /// same way `tlst->getTypePointer(sz, pt, ws)` (typeop.cc:538/546 and
 /// parallels) hands the caller an INTERNED Datatype. Interning is load
 /// bearing for pointer identity: `TypeOpStore::getInputCast`'s
@@ -8284,7 +8284,7 @@ fn make_ptr(
 /// the `localcount >= 7` "not settling" warning (coreaction.cc:5390-5392)
 /// stays cold.
 ///
-/// Rugra's temp-type producers include factory-free constructors (the
+/// Rudra's temp-type producers include factory-free constructors (the
 /// COPY-spacebase pointer arm below, `typeop::propagate_to_pointer`), so a
 /// raw `Arc::ptr_eq` in `Varnode::updateType` never matches across passes
 /// and writeBack reported a change on every round forever. Routing every
@@ -8445,7 +8445,7 @@ impl ActionInferTypes {
             .and_then(|architecture| architecture.userops.clone());
         // The `symboltab` thread feeds `VolatileReadOp::getOutputLocal`'s
         // global-scope query (userop.cc:136) through the CALLOTHER arm of
-        // `op_output_type_local` — the Rugra stand-in for the descriptor's
+        // `op_output_type_local` — the Rudra stand-in for the descriptor's
         // `glb->symboltab` edge (VARNODE-CALLOTHER-VOLATILEOUT-0001).
         let symboltab = fd
             .arch
@@ -8546,7 +8546,7 @@ impl ActionInferTypes {
                 );
                 // MAINTYPE-TYPETRACE-0001: TYPEPROP_DEBUG-parity event
                 // channel ("init" seed records; coreaction.cc:5032-5036).
-                // stderr-only, gated by RUGRA_TYPEPROP_DBG (default off).
+                // stderr-only, gated by RUDRA_TYPEPROP_DBG (default off).
                 if typeprop_debug_enabled() {
                     let vn = vn_arc.read().unwrap();
                     eprintln!("[TYPEPROP] {} : {} init", vn.print_raw(), local_type.print_raw());
@@ -8696,7 +8696,7 @@ impl ActionInferTypes {
         let newtype = canonicalize_temp_type(&newtype, type_factory);
         // MAINTYPE-TYPETRACE-0001: TYPEPROP_DEBUG-parity event channel
         // ("from <op> slot=N" edge records; coreaction.cc:5105-5109).
-        // stderr-only, gated by RUGRA_TYPEPROP_DBG (default off).
+        // stderr-only, gated by RUDRA_TYPEPROP_DBG (default off).
         if typeprop_debug_enabled() {
             let out_desc = out_vn_arc.read().unwrap().print_raw();
             let from_sb = {
@@ -8729,7 +8729,7 @@ impl ActionInferTypes {
     /// original reaches through the TypeOp's `tlst` member (op.hh:122); the
     /// add-family pointer arms need it to intern the downChain-transformed
     /// types, so they stop the propagation when no factory is available.
-    // RUDRA-GLUE: Rugra driver that folds ActionInferTypes::propagateOneType over the varnode set (coreaction.cc:5400-5405)
+    // RUDRA-GLUE: Rudra driver that folds ActionInferTypes::propagateOneType over the varnode set (coreaction.cc:5400-5405)
     fn propagate_type(
         op: &crate::op::PcodeOp,
         alttype: &std::sync::Arc<crate::type_system::datatype::Datatype>,
@@ -9420,7 +9420,7 @@ impl ActionInferTypes {
         /// One DFS frame, mirroring the oracle's `PropagationState`
         /// (coreaction.hh:1072) field-for-field: the root Varnode, the
         /// descendant iteration position (the oracle holds a
-        /// `list<PcodeOp*>::const_iterator`; Rugra snapshots upgraded Arcs —
+        /// `list<PcodeOp*>::const_iterator`; Rudra snapshots upgraded Arcs —
         /// propagation performs no op creation/destruction, so the list is
         /// stable for the frame's lifetime), the current op, and the
         /// (inslot, slot) edge indices. Edges are generated lazily by
@@ -9874,7 +9874,7 @@ impl ActionInferTypes {
         // [addr, addr+ct_size).
         // cc:5224-5230: `iter = data.beginLoc(addr)` .. `enditer =
         // data.endLoc(endaddr)` — the oracle walks an ORDERED WINDOW of the
-        // loc-set starting at the walk address, not a full scan. Rugra's
+        // loc-set starting at the walk address, not a full scan. Rudra's
         // loc_tree is a BTreeMap keyed space-major (VarnodeCompareLocDef
         // mirror), so the heritage.rs:5163 probe form applies: a synthetic
         // probe varnode of size 0 at (walk_space, off) sorts before every
@@ -10005,7 +10005,7 @@ impl ActionInferTypes {
             sb_space
         } else {
             // The stack-pointer spacebase indexes the stack space; anything
-            // else cannot be walked with Rugra's stack-varnode model.
+            // else cannot be walked with Rudra's stack-varnode model.
             return;
         };
         let descendants: Vec<_> = spcvn.read().unwrap().descend_iter().collect();
@@ -10193,8 +10193,8 @@ impl Action for ActionInferTypes {
         // address of any known global (e.g. `::config` @ 0x17520 →
         // Configurable*) onto the varnode that holds that address, then the
         // standard COPY/INT_ADD/PTRSUB propagation diffuses it. Mirrors
-        // Ghidra's SymbolEntry→Datatype linkage that Rugra's driver populates
-        // via `Funcdata::global_struct_ptrs` (Rugra has no Architecture/
+        // Ghidra's SymbolEntry→Datatype linkage that Rudra's driver populates
+        // via `Funcdata::global_struct_ptrs` (Rudra has no Architecture/
         // SymbolTable layer).
         seed_global_struct_pointers(fd, &mut temps, ptr_size);
 
@@ -10252,14 +10252,14 @@ impl Action for ActionInferTypes {
 
 // RUDRA-GLUE: seed_global_struct_pointers (no Ghidra counterpart found)
 /// Stamp struct-pointer types from `Funcdata::global_struct_ptrs` into the
-/// ActionInferTypes temp-type map. This is Rugra's stand-in for Ghidra's
+/// ActionInferTypes temp-type map. This is Rudra's stand-in for Ghidra's
 /// SymbolEntry→Datatype linkage (database.cc): when the decompiler sees a
 /// varnode holding the address of a DWARF-known global, that global's
-/// struct-pointer type flows onto it. Without this seed, Rugra can only
+/// struct-pointer type flows onto it. Without this seed, Rudra can only
 /// synthesise a field-less `_struct *`, which never yields `->field` accesses
 /// nor drives RulePtrArith with a sized pointee.
 ///
-/// Because Rugra runs without an Architecture/SymbolTable layer, the driver
+/// Because Rudra runs without an Architecture/SymbolTable layer, the driver
 /// (curl_decompile.rs) registers the known globals in
 /// `Funcdata::global_struct_ptrs` first. We scan every live varnode and, when
 /// a constant or Ram-space varnode's offset matches a known global address,
@@ -10288,7 +10288,7 @@ fn seed_global_struct_pointers(
         let off = vn.get_offset();
         
         // Match known global addresses in both Const and Ram spaces.
-        // SLEIGH's ram space (index 0) maps to Rugra's Const, so global
+        // SLEIGH's ram space (index 0) maps to Rudra's Const, so global
         // addresses like 0x17520 surface as Const@0x17520.
         if known.contains_key(&off)
             && matches!(
@@ -10403,11 +10403,11 @@ impl ActionNameVars {
             let sym_name = fd.link_symbol_reference(&off_vn);
             // cc:2917-2918: if sym found and name undefined, add to namerec.
             if sym_name.is_some() {
-                // Rugra: symbol_table already has the name (not undefined),
+                // Rudra: symbol_table already has the name (not undefined),
                 // so we don't add to namerec unless it's a generated name.
-                // Ghidra checks sym->isNameUndefined(); Rugra's symbol_table
+                // Ghidra checks sym->isNameUndefined(); Rudra's symbol_table
                 // entries are user-defined (always named), so this branch
-                // is a no-op for Rugra's model.
+                // is a no-op for Rudra's model.
             }
         }
     }
@@ -10524,7 +10524,7 @@ impl ActionNameVars {
             }
             let _ = sym_size;
             // cc:2967-2970: if (sym->isSizeTypeLocked() && sizes match)
-            //   overrideSizeLockType — RUGRA-GAP: LocalSymbol models typelock
+            //   overrideSizeLockType — RUDRA-GAP: LocalSymbol models typelock
             //   only; the size-lock type override has no counterpart yet.
             // cc:2971-2972: if (vn->isAddrTied() && !sym->getScope()->isGlobal())
             //   high->finalizeDatatype(typeFactory);
@@ -10602,7 +10602,7 @@ impl ActionNameVars {
                 continue;
             }
             // cc:2795-2796: Symbol *sym = vn->getHigh()->getSymbol();
-            // if (sym == (Symbol *)0) continue; — Rugra's local-scope
+            // if (sym == (Symbol *)0) continue; — Rudra's local-scope
             // symbol channel is fd.high_symbols (populated by linkSymbol's
             // attach bridge); an absent entry models BOTH the null-symbol
             // gate and the cc:2798 getScope() != localmap gate (global
@@ -10671,7 +10671,7 @@ impl Action for ActionNameVars {
         // filled by collect_name_recs at the localdb-decode boundary
         // (ActionRestructureVarnode's scope construction, the varmap.cc:476
         // ScopeLocal::decode → collectNameRecs order) and drained here.
-        // HTTPDMAIN-F7-NAMERECOMMEND-0001: the former RUGRA-GAP ("no
+        // HTTPDMAIN-F7-NAMERECOMMEND-0001: the former RUDRA-GAP ("no
         // name-recommendation store is ported yet") is closed by the
         // varmap.cc:1507-1618 port (recover_name_recommendations_for_symbols
         // + add_recommend_name + collect_name_recs).
@@ -10862,7 +10862,7 @@ impl Action for ActionNameVars {
 
         // RUDRA-GLUE: symbol→HighVariable name write-back. Ghidra's PrintC
         // resolves every variable name through `high->getSymbol()` /
-        // `Symbol::getDisplayName`; Rugra's printc still reads
+        // `Symbol::getDisplayName`; Rudra's printc still reads
         // `HighVariable::name`. Mirror the symbol attachment by publishing
         // each linked symbol's finished display name onto its high — the
         // symbol is the single naming authority (earlier direct high.name
@@ -11170,7 +11170,7 @@ impl Action for ActionRestrictLocal {
     // Ghidra: coreaction.cc:1957 ActionRestrictLocal::apply
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         // Faithful to ActionRestrictLocal::apply (coreaction.cc:1957-2001).
-        // Ghidra calls ScopeLocal::markNotMapped inline; Rugra's scope lives
+        // Ghidra calls ScopeLocal::markNotMapped inline; Rudra's scope lives
         // in fd.scope, so the calls are buffered and replayed in collection
         // order once the fd borrows are dropped (the examinations below
         // never read scope state, so deferral is observationally identical).
@@ -11182,7 +11182,7 @@ impl Action for ActionRestrictLocal {
         // outgoing-argument slot unmapped with parameter=true:
         //   off = addr.getSpace()->wrapOffset(fc->getSpacebaseOffset()
         //                                      + addr.getOffset())
-        // (cc:1977-1979). Rugra's AddressSpace::Stack is the stack
+        // (cc:1977-1979). Rudra's AddressSpace::Stack is the stack
         // spacebase space (IPTR_SPACEBASE); wrapOffset for the 64-bit
         // stack is the modulo-2^64 wrap of the i128 sum.
         let n_calls = fd.num_calls();
@@ -11311,7 +11311,7 @@ impl ActionMultiCse {
 
     /// Resolve a COPY chain: if `vn` is defined by a COPY, return its input.
     /// Otherwise return `vn` itself. Used to allow copy-propagation differences.
-    // RUDRA-GLUE: Rugra helper chasing COPY chains; Ghidra inlines this within ActionMultiCse::processBlock (coreaction.cc:790-810)
+    // RUDRA-GLUE: Rudra helper chasing COPY chains; Ghidra inlines this within ActionMultiCse::processBlock (coreaction.cc:790-810)
     fn resolve_copy(
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
     ) -> std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>> {
@@ -11812,7 +11812,7 @@ impl Action for ActionConstbase {
         //   data.getFuncProto().getInjectUponEntry();
         //   if (injectid >= 0) { pcodeinjectlib->getPayload(injectid);
         //   data.doLiveInject(payload, bb->getStart(), bb, bb->beginOp()); }
-        // Rugra's FuncProto stores no injection id (FuncProto::set_inject_id
+        // Rudra's FuncProto stores no injection id (FuncProto::set_inject_id
         // is the INJECT-0001 no-op, and ProtoModelFull::inject_upon_entry is
         // only assigned through a prototype-model <inject> resolver that no
         // worker wires — production -1), so the leg reads as the INJECT-0001
@@ -11828,7 +11828,7 @@ impl Action for ActionConstbase {
         // Ghidra: coreaction.cc:692 — const TrackedSet trackset(
         //   data.getArch()->context->getTrackedSet(data.getAddress()));
         // The function entry address lives in the default code space
-        // (x86-64 ram); Rugra's Address carries no space dimension, so the
+        // (x86-64 ram); Rudra's Address carries no space dimension, so the
         // ram space is passed explicitly (same-space lookup is provably
         // equivalent to Ghidra's baselist-ordered Address compare — see
         // TrackedSetMap's ordering caveat in arch.rs).  The snapshot ends
@@ -11937,7 +11937,7 @@ impl Action for ActionInputPrototype {
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         // Faithful to ActionInputPrototype::apply (coreaction.cc:4707-4763).
         // cc:4714 — data.getScopeLocal()->clearCategory(Symbol::fake_input).
-        // Rugra's ScopeLocal lives on fd.scope (created by the earlier
+        // Rudra's ScopeLocal lives on fd.scope (created by the earlier
         // ActionRestructureVarnode pass); a missing scope is the no-scope
         // glue state, where the clear is vacuous.
         if let Some(scope) = fd.scope.as_mut() {
@@ -12194,7 +12194,7 @@ impl Action for ActionOutputPrototype {
     // Ghidra: coreaction.cc:4765 ActionOutputPrototype::apply
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         // Faithful port of ActionOutputPrototype::apply (coreaction.cc:4765
-        // -4782). When the output parameter is not type-locked (Rugra models
+        // -4782). When the output parameter is not type-locked (Rudra models
         // Ghidra's isSizeTypeLocked as output_type_locked with a size-derived
         // TYPE_UNKNOWN return; update_output_types applies the same
         // size-lock override rule), rebuild the return value from the first
@@ -12367,7 +12367,7 @@ impl Action for ActionPrototypeTypes {
         // already couples to model_locked exactly as fspec.cc:3924-3925
         // ("Locking input locks the model"), so a locked overlay keeps its
         // identity through this action; a modelless+locked FuncProto (a
-        // Rugra-only transitional form Ghidra cannot reach) likewise keeps
+        // Rudra-only transitional form Ghidra cannot reach) likewise keeps
         // its identity rather than being silently repaired here.
         if let Some(arch) = fd.get_arch() {
             let evalfp = arch
@@ -12565,7 +12565,7 @@ impl Action for ActionPrototypeTypes {
         // Ghidra coreaction.cc:4676-4703: force locked inputs to exist as
         // varnodes — a big locked input can survive with only a piece in
         // use, letting a SUBPIECE be built over the whole variable. The
-        // former RUGRA-GAP note (ProtoParameter lacking the storage space,
+        // former RUDRA-GAP note (ProtoParameter lacking the storage space,
         // FuncProto lacking the resolved model) is obsolete: both carriers
         // exist now, so the loop and extendInput are ported.
         if fd.funcp.is_input_locked() {
@@ -12657,7 +12657,7 @@ impl Action for ActionActiveParam {
         aliascheck.gather_internal(fd);
         let maxancestor = fd.get_arch().map(|a| a.trim_recurse_max).unwrap_or(5);
         let n_calls = fd.num_calls();
-        let debug = std::env::var("RUGRA_DEBUG_ACTIVEPARAM").is_ok();
+        let debug = std::env::var("RUDRA_DEBUG_ACTIVEPARAM").is_ok();
         if debug && n_calls > 0 { eprintln!("[ACTIVEPARAM-DBG] {} n_calls={}", fd.name, n_calls); }
         for i in 0..n_calls {
             let is_input_active = fd
@@ -12927,7 +12927,7 @@ impl Action for ActionActiveReturn {
                     },
                     // fspec.cc:5850-5859: destroy the INDIRECT and delete
                     // its two input varnodes (the constant-0 and the Iop
-                    // annotation). Rugra's bank may share constants, in
+                    // annotation). Rudra's bank may share constants, in
                     // which case the delete is a no-op error Ghidra never
                     // observes (dedicated per-op constants).
                     &|fd, dop| {
@@ -13089,7 +13089,7 @@ impl Action for ActionDefaultParams {
                             }
                         }
                         None => {
-                    // Rugra cannot resolve fc->getFuncdata() to a per-callee
+                    // Rudra cannot resolve fc->getFuncdata() to a per-callee
                     // Funcdata registry yet, so for callees without a
                     // queryCall-boundary prototype the cc:2327-2328 else
                     // branch runs: fc->setInternal(evalfp, void).
@@ -13099,7 +13099,7 @@ impl Action for ActionDefaultParams {
                     // platform-locked callee proto arrives WITH a model
                     // (setPieces model, or an UnknownProtoModel clone of the
                     // default, architecture.cc:1155-1166) — so setInternal
-                    // never clobbers a locked prototype there. Rugra's
+                    // never clobbers a locked prototype there. Rudra's
                     // LibcSignatureTable/DWARF boundary CAN produce a
                     // modelless + model-locked callspec
                     // (UNKNOWN-PROTOMODEL-0001 residual): setInternal's
@@ -13124,7 +13124,7 @@ impl Action for ActionDefaultParams {
                     }
                 }
                 // cc:2329 fc->insertPcode(data): callfixup injection for
-                // calls is not wired in Rugra yet (CALLFIXUP-INJECT domain).
+                // calls is not wired in Rudra yet (CALLFIXUP-INJECT domain).
             }
         }
         Ok(action_status::NO_CHANGE)
@@ -13548,7 +13548,7 @@ impl Action for ActionLikelyTrash {
     /// **Trash-list source projection (WORKPKG-UNMAP-COREACT-0002 residual,
     /// FSPEC-LIKELYTRASH-FOLD seam)**: the oracle's likelytrash vector is
     /// populated by FuncProto::resolveModel from the ProtoModel + decode
-    /// merges (fspec.cc:2849/2663). Rugra's fspec decode folds
+    /// merges (fspec.cc:2849/2663). Rudra's fspec decode folds
     /// `<likelytrash>` entries into the effects list as KilledByCall
     /// records (fspec.rs decode, documented seam) and keeps no separate
     /// trash list, so the production x86-64-gcc corpus iterates an EMPTY
@@ -13749,7 +13749,7 @@ impl Action for ActionShadowVar {
                 drop(prev_rg);
                 if let Some(prev_out) = prev_out {
                     fd.op_set_opcode(op, OpCode::CPUI_COPY);
-                    // Ghidra: opSetAllInput(op, {prev_out}). In Rugra, we
+                    // Ghidra: opSetAllInput(op, {prev_out}). In Rudra, we
                     // truncate inputs to 1 and set slot 0.  The length read
                     // is hoisted out of the branch condition: an `if`-condition
                     // temporary read guard lives through the branch body, and
@@ -13789,7 +13789,7 @@ impl Action for ActionShadowVar {
 
 /// Helper: get the basic-block ops list containing the given op. Returns an
 /// empty Vec if the op is not in any BlockBasic.
-// RUDRA-GLUE: Rugra helper bridging PcodeOpRef -> parent BlockBasic ops list (Ghidra reaches this via PcodeOp::parent)
+// RUDRA-GLUE: Rudra helper bridging PcodeOpRef -> parent BlockBasic ops list (Ghidra reaches this via PcodeOp::parent)
 fn get_block_ops(fd: &Funcdata, op: &crate::op::PcodeOpRef) -> Vec<crate::op::PcodeOpRef> {
     use crate::block::BlockBasic;
     for i in 0..fd.bblocks.get_size() {
@@ -14093,7 +14093,7 @@ impl Action for ActionDeindirect {
 
         // Ghidra cc:1226: for(int4 i=0;i<data.numCalls();++i). The loop
         // mutates callspec + op state in place (deindirect rewrites the
-        // opcode); Rugra does the stable-owner dance per index: clone the
+        // opcode); Rudra does the stable-owner dance per index: clone the
         // owner Arc, snapshot the op under a short-lived guard, drop all
         // fd-borrowing guards, then convert under owner.write() with the
         // exclusive &mut fd. The callspec vector itself never changes size
@@ -14286,7 +14286,7 @@ impl ActionDeindirect {
     /// preserving the pre-database production conversion set. Returns the
     /// entry address plus the callee display name (oracle:
     /// `newfd->getDisplayName()`).
-    // RUDRA-GLUE: production query channel for queryFunction (coreaction.cc:1251); Rugra has no per-callee Funcdata, so the (entry, name) observable slice is handed back
+    // RUDRA-GLUE: production query channel for queryFunction (coreaction.cc:1251); Rudra has no per-callee Funcdata, so the (entry, name) observable slice is handed back
     fn query_function_prod(
         fd: &Funcdata,
         codeaddr: crate::address::Address,
@@ -14337,7 +14337,7 @@ impl ActionDeindirect {
     /// (coreaction.cc:1234). Mirrors `Scope::queryExternalRefFunction`
     /// (database.cc:1416): find the ExternRefSymbol mapped at the varnode's
     /// address, then resolve the function its `refaddr` points at. The db
-    /// stores the exref symbol entry; Rugra's `Scope` does not yet persist
+    /// stores the exref symbol entry; Rudra's `Scope` does not yet persist
     /// the per-symbol `refaddr` (CALLSPEC-0001 seam — `add_external_ref`
     /// returns the view but the scope keeps only the base Symbol), so the
     /// referral resolution needs a refaddr channel that production does not
@@ -14381,7 +14381,7 @@ impl ActionDeindirect {
     /// constant target only resolves after `ActionActiveParam` finalized the
     /// spec (the post-copy `deriveInputMap` with a null model would crash,
     /// coreaction.cc:1753 → fspec.hh:1494), so the copy's model wipe is
-    /// inert there. Rugra's constant folding reaches the deindirect copy
+    /// inert there. Rudra's constant folding reaches the deindirect copy
     /// while trials are still active (probe: site 0xead55, npasses=1,
     /// 6 active trials), so the model-less copy would strand the still-live
     /// finalize on the simplified no-full-model fallback, dropping every
@@ -14791,9 +14791,9 @@ impl StackSolver {
     }
 
     // RUDRA-GLUE: find_varnode_index — Ghidra cc:184 用 lower_bound+
-    // Varnode::comparePointers; Rugra 用线性 Arc 指针匹配(vnlist 小)。
+    // Varnode::comparePointers; Rudra 用线性 Arc 指针匹配(vnlist 小)。
     /// Binary search for a varnode's index in vnlist (Ghidra cc:184
-    /// `lower_bound(vnlist, othervn, Varnode::comparePointers)`). Rugra's
+    /// `lower_bound(vnlist, othervn, Varnode::comparePointers)`). Rudra's
     /// vnlist is in loc_tree order (sorted by address), so binary search by
     /// Arc pointer identity works.
     fn find_varnode_index(
@@ -14827,7 +14827,7 @@ impl StackSolver {
         *self.soln.get(i).unwrap_or(&Self::UNSOLVED)
     }
     // RUDRA-GLUE: get_missed_variables — Ghidra StackSolver 暴露 missedvariables
-    // 字段 (coreaction.cc:50);Rugra 用访问器。
+    // 字段 (coreaction.cc:50);Rudra 用访问器。
     /// Number of variables for which we are missing an equation.
     pub fn get_missed_variables(&self) -> i32 {
         self.missed_variables
@@ -14871,7 +14871,7 @@ pub fn analyze_extra_pop(
         }
     }
     // cc:269-277: solver.build inside try/catch LowlevelError — a build
-    // failure warns and returns. Rugra's StackSolver::build reports gaps
+    // failure warns and returns. Rudra's StackSolver::build reports gaps
     // through the missed-variables counter instead of failing closed; the
     // "not setup normally" header-warning path has no faithful trigger.
     let mut solver = StackSolver::new();
@@ -15234,7 +15234,7 @@ impl Action for ActionStackPtrFlow {
             return Ok(action_status::NO_CHANGE);
         }
         // cc:490 — checkClog(data, stackspace, 0). A null stackspace
-        // (cc:486-489) has no Rugra counterpart: the spacebase-input lookup
+        // (cc:486-489) has no Rudra counterpart: the spacebase-input lookup
         // returning None is the same "nothing to analyze" condition and falls
         // into the clean-pass arm below, mirroring the finish side-effect.
         let (numchange, spacebase_loc) = Self::check_clog(fd);
@@ -15388,7 +15388,7 @@ impl Action for ActionExtraPopSetup {
         // `*(long*)((long)uVar20-8) = 0x3710` class of residual stores).
         //
         // cc:1441-1444: stackspace==0 → return; sb = stackspace->getSpacebase(0)
-        // (coreaction.cc:5472: stackspace = conf->getStackSpace()). Rugra's
+        // (coreaction.cc:5472: stackspace = conf->getStackSpace()). Rudra's
         // equivalent stack-pointer record lives on the Architecture
         // (stack_pointer_space/offset/size, x86-64 = register:0x20 size 8).
         let Some(arch) = fd.get_arch().cloned() else {
@@ -15710,7 +15710,7 @@ impl ActionConditionalConst {
         }
         // Clear marks on varnodes (Ghidra doesn't explicitly clear here —
         // marks are cleared later by clearMarks on ops, not varnodes. But
-        // Varnode marks in Rugra use the same MARK bit as PcodeOp — we need
+        // Varnode marks in Rudra use the same MARK bit as PcodeOp — we need
         // to be careful. Ghidra uses separate mark bits for Varnode vs PcodeOp.)
         for vn in &mark_set {
             vn.write().unwrap().clear_mark();
@@ -15730,7 +15730,7 @@ impl ActionConditionalConst {
         let eval_type = op_r.get_eval_type();
         if (eval_type & crate::op::pcodeop_flags::SPECIAL) != 0 { return; }
         // cc:4265: skip floating-point ops.
-        // (Rugra: check opcode for float ops.)
+        // (Rudra: check opcode for float ops.)
         if matches!(
             op_r.opcode,
             OpCode::CPUI_FLOAT_ADD | OpCode::CPUI_FLOAT_SUB | OpCode::CPUI_FLOAT_MULT
@@ -16235,13 +16235,13 @@ impl ActionConditionalConst {
                 if dominated {
                     // SAFETY GUARD (convergence): only count this as a change if
                     // the target slot does NOT already hold the same constant
-                    // value. Rugra's op_set_input does Arc-ptr dedup, but each
+                    // value. Rudra's op_set_input does Arc-ptr dedup, but each
                     // call to new_constant allocates a fresh constant Arc, so
                     // without a value-level guard the repeatapply mainloop
                     // re-reports the same propagation every pass and never
                     // converges (12/24 curl timeouts). Ghidra avoids this via
                     // immediate deadcode/condexe folding of the now-constant
-                    // compare; Rugra's downstream passes don't always fold, so
+                    // compare; Rudra's downstream passes don't always fold, so
                     // we guard at the source. For the CPUI_RETURN arm below the
                     // guard is vacuous after the first insertion (RETURN slot 1
                     // then holds the copyBeforeRet COPY output, never a
@@ -16372,7 +16372,7 @@ impl ActionConditionalConst {
             }
         }
         if blocks.is_empty() { return; }
-        // cc:4248: findCommonBlock — Rugra uses find_common_block_n.
+        // cc:4248: findCommonBlock — Rudra uses find_common_block_n.
         let root_block = match crate::block::BlockGraph::find_common_block_n(&blocks) {
             Some(b) => b, None => return,
         };
@@ -16448,7 +16448,7 @@ impl Action for ActionConditionalConst {
         //    d. propagateConstant: replace reads of the constant-path Varnode
         //       with the constant, within blocks dominated by the const edge.
         //
-        // Note on remaining Rugra-side guards (see propagateConstant):
+        // Note on remaining Rudra-side guards (see propagateConstant):
         //  - propagateConstant replaces an input only when the op's block is
         //    dominated by the const block, matching Ghidra's
         //    `constBlock->dominates(op->getParent())` check.
@@ -16464,7 +16464,7 @@ impl Action for ActionConditionalConst {
 
         self.count = 0;
 
-        // NOTE (PARSECONFIG-CONDCONST-PHI-0001): the former Rugra-only
+        // NOTE (PARSECONFIG-CONDCONST-PHI-0001): the former Rudra-only
         // guards are removed — (a) the once-per-function cond_const_done
         // gate and (b) the `use_multiequal = false` hard override — both
         // suppressed the oracle's MULTIEQUAL/phi-node path
@@ -16562,11 +16562,11 @@ impl Action for ActionConditionalConst {
             if bool_vn.read().unwrap().lone_descend().is_none() {
                 // Need the false/true out-blocks. Ghidra uses getFalseOut/getTrueOut
                 // which account for the boolean flip. bl_out is indexed [0,1] =
-                // [getOut(0), getOut(1)]. Rugra's CBRANCH edges are
+                // [getOut(0), getOut(1)]. Rudra's CBRANCH edges are
                 // [branch(taken), fallthru]; with flip, taken/true semantics swap.
-                // Match Ghidra: falseOut = getOut(flip ? 1 : 0)... but Rugra's
+                // Match Ghidra: falseOut = getOut(flip ? 1 : 0)... but Rudra's
                 // get_false_out/get_true_out helpers already encode this. Use them
-                // via the block trait to stay consistent with the rest of Rugra.
+                // via the block trait to stay consistent with the rest of Rudra.
                 let (false_out_idx, true_out_idx) = if flip_edge { (1, 0) } else { (0, 1) };
                 // cc:4539: push bool=flip?1:0 down false out, rev index 0.
                 if let Some(false_bl) = bl_out[false_out_idx].clone() {
@@ -17090,7 +17090,7 @@ impl Action for ActionLaneDivide {
 ///    for multi-register returns).
 /// 5. `clearActiveOutput`.
 ///
-/// Rugra note: the function-level `guardReturns` heritage pass that registers
+/// Rudra note: the function-level `guardReturns` heritage pass that registers
 /// RETURN trials and inserts their input varnodes is ported in heritage.rs
 /// (`Heritage::guard_returns`), so the active-output container arrives
 /// populated exactly like Ghidra's and no trial seeding happens here.
@@ -17127,7 +17127,7 @@ fn return_join_address(
 ) -> (crate::space::AddressSpace, u64) {
     let (hi_space, hi_off, hi_sz) = hi;
     let (lo_space, lo_off, lo_sz) = lo;
-    // cc:821-826: spacetype membership. Rugra enum model: Stack =
+    // cc:821-826: spacetype membership. Rudra enum model: Stack =
     // IPTR_SPACEBASE; Ram/Register/Overlay/Other = IPTR_PROCESSOR.
     let joinable = |spc: crate::space::AddressSpace| {
         !matches!(
@@ -17199,7 +17199,7 @@ fn return_join_address(
 /// identical join address (merge identity across RETURN ops,
 /// laned-map/loc-tree storage keys), distinct pieces to distinct offsets.
 /// The oracle instead allocates sequential 16-byte-aligned counter slots
-/// from a mutable process-global table; Rugra's production Architecture
+/// from a mutable process-global table; Rudra's production Architecture
 /// exposes no mutable join table (the legacy `join_db` is read-only through
 /// the shared Arc), and a stateless derivation is also race-free where the
 /// example drivers decompile functions on parallel threads. Offsets keep
@@ -17576,7 +17576,7 @@ impl Action for ActionForceGoto {
 // 12 previously-missing Actions (coreaction.hh / blockaction.hh).
 //
 // Each was written by first reading the Ghidra class declaration and the
-// matching `apply()` body (coreaction.cc / blockaction.cc). Where Rugra
+// matching `apply()` body (coreaction.cc / blockaction.cc). Where Rudra
 // lacks the underlying API (scope/symbol discovery for mapGlobals,
 // ConditionalJoin for nodejoin, collapseInternal/structure tree for the
 // block transforms), the struct + `impl Action` is still provided with a
@@ -17596,7 +17596,7 @@ impl Action for ActionForceGoto {
 ///
 /// Faithful to `ActionStartCleanUp` (coreaction.hh:58). Ghidra's `apply`
 /// only calls `data.startCleanUp()` which records a varnode creation index
-/// for the clean-up phase. Rugra's Funcdata does not yet carry a
+/// for the clean-up phase. Rudra's Funcdata does not yet carry a
 /// `clean_up_index`, so this is a faithful no-op marker.
 pub struct ActionStartCleanUp;
 
@@ -17625,7 +17625,7 @@ impl Action for ActionStartCleanUp {
 /// Faithful to `ActionStartTypes` (coreaction.hh:74). Ghidra's `reset()`
 /// enables type recovery on the function, and `apply()` flips the
 /// "type recovery started" bit (incrementing `count` on the first flip).
-/// Rugra maps this to `set_type_recovery_started()` / `set_type_recovery_on`.
+/// Rudra maps this to `set_type_recovery_started()` / `set_type_recovery_on`.
 pub struct ActionStartTypes {
     /// Number of times the type-recovery-start bit transitioned to set.
     pub count: i32,
@@ -17747,7 +17747,7 @@ impl Action for ActionAssignHigh {
 /// return 0;` — it walks the copyTrims list accumulated by the snip
 /// machinery of the forced-merge path (ActionMergeRequired) and replaces
 /// groups of ≥2 COPYs into the same HighVariable with a single dominant
-/// COPY. Rugra mirrors this with a transient `Merge` that attaches the
+/// COPY. Rudra mirrors this with a transient `Merge` that attaches the
 /// persistent `fd.merge_state.copy_trims` channel. In the standard pipeline
 /// the merge phase (`Merge::merge_all` step 6) consumes the trims first, so
 /// this standalone application normally sees an empty list; the traversal
@@ -17790,7 +17790,7 @@ impl Action for ActionDominantCopy {
 /// Faithful to `ActionCopyMarker` (coreaction.hh:1012). Ghidra's `apply`
 /// calls `data.getMerge().markInternalCopies()`, which sets the
 /// `nonprinting` flag on COPY ops whose input and output share a
-/// HighVariable. Rugra's `Merge::mark_internal_copies` performs exactly this.
+/// HighVariable. Rudra's `Merge::mark_internal_copies` performs exactly this.
 pub struct ActionCopyMarker;
 
 impl ActionCopyMarker {
@@ -17825,7 +17825,7 @@ impl Action for ActionCopyMarker {
 /// Faithful to `ActionMarkIndirectOnly` (coreaction.hh:357). Ghidra's
 /// `apply` calls `data.markIndirectOnly()` (funcdata_varnode.cc:815), which
 /// iterates input varnodes, and for each illegal input whose sole uses are
-/// INDIRECT ops, sets the `indirectonly` flag. Rugra now ports both the
+/// INDIRECT ops, sets the `indirectonly` flag. Rudra now ports both the
 /// `is_illegal_input` accessor (varnode_flags) and the
 /// `checkIndirectUse`/`markIndirectOnly` data-flow walk.
 pub struct ActionMarkIndirectOnly;
@@ -17841,7 +17841,7 @@ impl ActionMarkIndirectOnly {
     /// `Funcdata::checkIndirectUse` (funcdata_varnode.cc:771-811): a non-
     /// qualifying op anywhere in the transitive closure → false. Uses the
     /// MARK flag for cycle avoidance, mirroring Ghidra's setMark/clearMark.
-    // RUDRA-GLUE: Rugra helper factoring out INDIRECT-only-use predicate used by Funcdata::markIndirectOnly() (invoked from coreaction.hh:358)
+    // RUDRA-GLUE: Rudra helper factoring out INDIRECT-only-use predicate used by Funcdata::markIndirectOnly() (invoked from coreaction.hh:358)
     fn check_indirect_use(
         start: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
     ) -> bool {
@@ -17860,7 +17860,7 @@ impl ActionMarkIndirectOnly {
                 if opc == OpCode::CPUI_INDIRECT {
                     // An INDIRECT produced by a STORE is not a negative result;
                     // Ghidra follows its output to keep walking the data-flow
-                    // (funcdata_varnode.cc:786-793). Rugra does not yet expose
+                    // (funcdata_varnode.cc:786-793). Rudra does not yet expose
                     // op->isIndirectStore(), so we conservatively do NOT follow
                     // the output — the INDIRECT is treated as a terminal use,
                     // which keeps `result` true without over-marking.
@@ -17975,7 +17975,7 @@ impl Action for ActionMapGlobals {
 // ActionStructureTransform (:5715) ARE registered at their oracle slots in
 // build_default_pipeline; ActionFinalStructure (:5736) likewise. Any struct
 // here that remains unregistered says so in its own doc comment, because
-// Rugra's staged structurer assumes block indices are stable and a
+// Rudra's staged structurer assumes block indices are stable and a
 // mid-pipeline block edit would push it out of bounds. The structs exist so
 // the inventory matches Ghidra and so they can be enabled once the
 // collapseInternal migration lands.
@@ -17991,7 +17991,7 @@ impl Action for ActionMapGlobals {
 /// + `opFlipInPlaceExecute`) and swaps the two arms. `data.clearDeadOps()`
 /// runs afterward.
 ///
-/// Rugra port: full faithful port of the block-tree half and the p-code
+/// Rudra port: full faithful port of the block-tree half and the p-code
 /// half. `getSplitPoint` (block.hh:243 default NULL / BlockBasic this-if-
 /// sizeOut==2 / BlockCopy copy->getSplitPoint / BlockList last-child /
 /// BlockCondition this), `flipInPlaceTest` (block.cc:2368 BlockBasic via
@@ -18347,7 +18347,7 @@ impl ActionPreferComplement {
         fd: &mut Funcdata,
     ) -> bool {
         use crate::block::BlockIf;
-        // getSize()!=3 — Rugra BlockIf children: condition + if_body +
+        // getSize()!=3 — Rudra BlockIf children: condition + if_body +
         // else_body; three children iff there is an else arm.
         let (condition, has_else) = {
             let bl = if_arc.read().unwrap();
@@ -18470,7 +18470,7 @@ impl Action for ActionPreferComplement {
                 self.count += 1;
             }
         }
-        // Ghidra: data.clearDeadOps(); — Rugra clears dead ops via
+        // Ghidra: data.clearDeadOps(); — Rudra clears dead ops via
         // PcodeOpBank::destroy_dead from the pipeline, not per-action.
         // Ghidra always returns 0 (PreferComplement normalizes without
         // reporting a change count).
@@ -18502,7 +18502,7 @@ impl Action for ActionPreferComplement {
 /// + `findInitializer`: if the loop has an induction counter (condition is a
 /// counter compare and the body ends in a counter increment) it relocates the
 /// iterate/initialize ops and marks them non-printing so the printer emits a
-/// `for`. Rugra's printer does not distinguish while vs for loops (no
+/// `for`. Rudra's printer does not distinguish while vs for loops (no
 /// overflow-syntax / iterateOp / initializeOp fields), so there is no
 /// dedicated marker to set — but the core *detection* (`findLoopVariable`,
 /// block.cc:3164) and the op-marking (`opMarkNonPrinting`, block.cc:3421)
@@ -18510,7 +18510,7 @@ impl Action for ActionPreferComplement {
 /// WhileDo loop, if `arch.analyze_for_loops` is set and the loop has a
 /// recognizable induction counter (`i < N` in the head CBRANCH, `i++` in the
 /// tail feeding the head's MULTIEQUAL), we mark the iterate op non-printing
-/// (the Rugra equivalent of `iterateOp`'s `opMarkNonPrinting`). Ghidra always
+/// (the Rudra equivalent of `iterateOp`'s `opMarkNonPrinting`). Ghidra always
 /// returns 0.
 pub struct ActionStructureTransform {
     /// Number of WhileDo loops detected as convertible to for-loops
@@ -18798,7 +18798,7 @@ impl Action for ActionStructureTransform {
         // as the φ input, the gate flips to moveable, and the loop wrongly
         // converts to for (ap_fini_vhost_config DAT_001a0828 loop, oracle
         // drill 2026-09-28: oracle iterate=LOAD@0x2d0c3 isMoveable=0 →
-        // while vs Rugra-at-:5736 iterate=CAST isMoveable → for). The
+        // while vs Rudra-at-:5736 iterate=CAST isMoveable → for). The
         // relocation to ActionFinalStructure (:5736, HTTPDMAIN-F8-FORLOOP
         // lane write-set freeze) claimed behavioral unobservability —
         // disproven by that fixture; restored to the oracle slot here.
@@ -18822,11 +18822,11 @@ impl Action for ActionStructureTransform {
 /// blockaction.cc:2212) and calls `data.nodeSplit(parent, slot)` per split
 /// edge so each goto source gets its own RETURN block.
 ///
-/// Rugra port: calls the real `Funcdata::node_split` (port of
+/// Rudra port: calls the real `Funcdata::node_split` (port of
 /// funcdata_block.cc:856, including CloneBlockOps op cloning with the
 /// MULTIEQUAL → COPY in-edge split) — see apply for the one detection-side
 /// substitution (basic-block goto-predecessor proxy for the structured
-/// copy-map walk, because Rugra's structured BlockGoto/BlockIf keep their
+/// copy-map walk, because Rudra's structured BlockGoto/BlockIf keep their
 /// goto targets implicit).
 pub struct ActionReturnSplit {
     pub count: i32,
@@ -18885,7 +18885,7 @@ impl ActionReturnSplit {
     /// — `BlockCopy::subBlock` returns the mirrored ORIGINAL basic,
     /// block.hh:524, so the comparison is original-block pointer identity).
     ///
-    /// Rugra's structured tree keeps components via typed fields without
+    /// Rudra's structured tree keeps components via typed fields without
     /// bottom-up parent wiring, so the ancestor-chain walk is realized as
     /// the equivalent top-down subtree scan: an in-edge source is selected
     /// iff its structured copy is a leaf under a qualifying node. The
@@ -18953,7 +18953,7 @@ impl ActionReturnSplit {
 /// `vec` size for the cc:2285 `gotoblocks.empty()` decision (recorded while
 /// scanning; the selected-edge vector already encodes the same predicate).
 // RUDRA-GLUE: mark-set transport for blockaction.cc:2205 gatherReturnGotos
-/// (Ghidra marks live on FlowBlock flags; Rugra composites default the
+/// (Ghidra marks live on FlowBlock flags; Rudra composites default the
 /// setMark/clearMark trait to a no-op, so the marks ride the walk instead —
 /// same set/gather/select/clear scope, cc:2213-2306).
 struct GatherReturnGotosWalk {
@@ -19591,7 +19591,7 @@ impl Action for ActionNodeJoin {
         //       bb2 = leastout->getIn(j);
         //       if (condjoin.match(bb, bb2)) { count+=1; condjoin.execute(); condjoin.clear(); break; }
         //
-        // Rugra port: run Ghidra's candidate-finding loop with a faithful
+        // Rudra port: run Ghidra's candidate-finding loop with a faithful
         // ConditionalJoin state object (cc:2332). `condjoin.match` expands to
         // the diamond shape check (blockaction.cc:2071-2082), the full
         // findDups gate sequence (cc:1912-1945, nodejoin_find_dups) and the
@@ -19916,17 +19916,17 @@ impl Action for ActionNodeJoin {
 //   - ActionForceGoto (:5496): ported as a no-op stub, not registered
 //     (registration is observably inert either way; kept out to minimize
 //     tree churn until the real implementation lands).
-//   - ActionUnreachable base instance (:5490): Rugra registers a single
+//   - ActionUnreachable base instance (:5490): Rudra registers a single
 //     Unreachable at the :5673 slot (after BlockStructure) — running the
 //     :5490 instance before bblocks are complete caused false-positive
 //     unreachable removal (see the mainloop NOTE in action.rs).
 //   - the `noproto` FuncLinkOutOnly and `protorecovery_b` DirectWrite
 //     instances are decompile-grouplist-filtered in Ghidra itself
-//     (coreaction.cc:5424-5431); Rugra keeps FuncLinkOutOnly registered at
+//     (coreaction.cc:5424-5431); Rudra keeps FuncLinkOutOnly registered at
 //     :5485 (inert under FuncLink) and drops the protorecovery_b pair, per
 //     the wave target head (coreaction.cc:5477-5486).
 // ActionInferParams (mainloop, after StackPtrFlow's former slot) is
-// RUDRA-GLUE with no oracle counterpart — it provides Rugra's parameter
+// RUDRA-GLUE with no oracle counterpart — it provides Rudra's parameter
 // inference until ActionActiveParam/ActionDefaultParams fully cover it.
 //
 // ActionParamShiftStart / ActionParamShiftStop (coreaction.hh:772-793) are
@@ -20294,7 +20294,7 @@ mod tests {
     // Ghidra: coreaction.cc:4889-4892 ActionPrototypeWarnings::apply (override arm)
     /// Override messages ride the same warningHeader channel
     /// (coreaction.cc:4892). The deadcode-delay message text comes from
-    /// override.cc:51-56 generateDeadcodeDelayMessage; with Rugra's empty
+    /// override.cc:51-56 generateDeadcodeDelayMessage; with Rudra's empty
     /// space-name table (no indexed space manager yet) the space reads
     /// "unknown" — the channel and ordering are the oracle observables here.
     #[test]
@@ -20428,7 +20428,7 @@ mod tests {
     // ---- G5: structural cleanup Action apply() tests ----
     // These verify the apply() logic is correct (1:1 with Ghidra coreaction.cc).
     // The actions are not wired into the default pipeline (see action.rs note)
-    // because Rugra's staged structurer isn't designed around block removal,
+    // because Rudra's staged structurer isn't designed around block removal,
     // but the apply() implementations are complete and tested here.
 
     #[test]
@@ -21967,7 +21967,7 @@ mod tests {
         op.inrefs = vec![c0, c1];
         op.output = Some(out.clone());
         let op_arc = std::sync::Arc::new(std::sync::RwLock::new(op));
-        // Link the output varnode's def back to this op, matching how Rugra
+        // Link the output varnode's def back to this op, matching how Rudra
         // builds written varnodes in real functions.
         out.write().unwrap().def = Some(std::sync::Arc::downgrade(&op_arc));
         fd.obank.adopt_alive_op(crate::op::PcodeOpRef(op_arc));
@@ -22885,7 +22885,7 @@ mod tests {
             0,
             "iterate op stays printable until finalizePrinting"
         );
-        // The late extraction (Rugra placement of BlockWhileDo::
+        // The late extraction (Rudra placement of BlockWhileDo::
         // finalizePrinting, hooked at ActionPrototypeWarnings :5737).
         crate::coreaction::for_loop_finalize_printing(&mut fd);
         {
@@ -23157,7 +23157,7 @@ mod tests {
         );
     }
 
-    /// NODEJOIN-F2-EXECUTE-STEPS-0001 Rugra regression leg:
+    /// NODEJOIN-F2-EXECUTE-STEPS-0001 Rudra regression leg:
     /// `ConditionalJoin::execute` must run ALL FOUR steps
     /// (blockaction.cc:2094-2102). Fixture: a mergeable-condition diamond
     /// (identical INT_LESS conditions, res=0) whose exita merges two distinct
@@ -23396,7 +23396,7 @@ mod tests {
         );
     }
 
-    /// NODEJOIN-F5-DYNAMIC-SIZE-0001 Rugra regression leg: the outer
+    /// NODEJOIN-F5-DYNAMIC-SIZE-0001 Rudra regression leg: the outer
     /// walk's loop bound is re-evaluated every iteration
     /// (`for(int4 i=0;i<graph.getSize();++i)`, blockaction.cc:2334), so a
     /// join block appended by nodeJoinCreateBlock is itself visited — and
@@ -23479,7 +23479,7 @@ mod tests {
         assert_eq!(joined_count, 2, "two JOINED_BLOCK blocks (J1 and J2)");
     }
 
-    /// NODEJOIN-F4-MATCH-GATES-0001 Rugra regression leg: every
+    /// NODEJOIN-F4-MATCH-GATES-0001 Rudra regression leg: every
     /// ConditionalJoin::findDups gate (blockaction.cc:1920-1941) must reject
     /// its ineligible diamond — booleanFlip (cc:1920-1921), unwritten
     /// condition (cc:1930-1931), spacebase condition (cc:1932-1933),
@@ -23686,7 +23686,7 @@ mod tests {
     /// coreaction.cc:705).  The oracle side of this observable is pinned
     /// per-object by the 02b CALLGUARD projection (block0 COPY
     /// out=reg:0x20a:1 in0=const0, guards 18->20) against the locked
-    /// getstr_pipeline_1204 fixture; this test is the Rugra regression leg
+    /// getstr_pipeline_1204 fixture; this test is the Rudra regression leg
     /// (mechanism B2: a hand-written expectation cannot lift NO_ORACLE).
     #[test]
     fn test_action_constbase_inserts_tracked_copy_at_entry_head() {
@@ -24021,7 +24021,7 @@ mod tests {
             .expect("new input is op-written");
         assert_eq!(in0_def.0.read().unwrap().opcode, OpCode::CPUI_CAST);
         // opSetInput's constant dedup (funcdata_op.cc:108-115, mirrored
-        // in Rugra op_set_input) copies a many-descendant constant, so the
+        // in Rudra op_set_input) copies a many-descendant constant, so the
         // inserted CAST reads a same-value copy of const_c.
         let cast_in0 = in0_def.0.read().unwrap().get_in(0).cloned().expect("cast in0");
         let ci = cast_in0.read().unwrap();

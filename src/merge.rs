@@ -746,7 +746,7 @@ fn local_type_key_eq(a: &LocalTypeKey, b: &LocalTypeKey, nochar_distinct: bool) 
 ///   - `vector<PcodeOp *> copyTrims` — COPY trims inserted by forced merges
 ///     (ActionMergeRequired, merge.cc:411-434) and consumed later by
 ///     ActionDominantCopy's `processCopyTrims` (coreaction.hh:1008).
-///   - `vector<PcodeOp *> protoPartial` — no Rugra counterpart yet
+///   - `vector<PcodeOp *> protoPartial` — no Rudra counterpart yet
 ///     (`Merge::group_partials` is a documented no-op).
 ///   - `StackAffectingOps stackAffectingOps` — ported inside the shared
 ///     `MergeTypeIntersectCache` (MIRATTR-F-RESIDE-0001): the CALL +
@@ -758,12 +758,12 @@ fn local_type_key_eq(a: &LocalTypeKey, b: &LocalTypeKey, nochar_distinct: bool) 
 ///     mount at attach/detach, matching the C++ by-reference member's
 ///     cross-Action lifetime.
 ///
-/// Rugra's merge Actions each construct a local `Merge::new()`
+/// Rudra's merge Actions each construct a local `Merge::new()`
 /// (coreaction.rs applies), so the persistent channels round-trip through
 /// this mount at every Action-facing entry point (`Merge::attach`/
 /// `Merge::detach`). `live_set` is RUDRA-GLUE: the premise channel standing
 /// in for Ghidra's "iterate the live vbank" — Ghidra's vbank only retains
-/// live varnodes, while Rugra's bank keeps dead leftovers, so the live
+/// live varnodes, while Rudra's bank keeps dead leftovers, so the live
 /// premise is captured once (at the first merge Action) and shared.
 #[derive(Default, Debug)]
 pub struct MergePersistentState {
@@ -777,7 +777,7 @@ pub struct MergePersistentState {
     live_set: std::collections::HashSet<usize>,
     /// Roots of unmapped CONCAT trees (Ghidra merge.hh:88 `protoPartial`).
     /// Populated by `Merge::groupPartials` (merge.cc) and consumed by the
-    /// proto-partial grouping pass; Rugra's `group_partials` is a documented
+    /// proto-partial grouping pass; Rudra's `group_partials` is a documented
     /// no-op (MERGE-PROTOPARTIAL-GROUP-0001), so this channel is currently
     /// only deposited/observed by the clear-lifecycle fixture. `Merge::clear`
     /// (merge.cc:1582) empties it regardless.
@@ -938,9 +938,9 @@ fn high_cover(high: &Arc<RwLock<HighVariable>>) -> Cover {
 /// to `updateInternalCover` (variable.cc:324), whose member reads go through
 /// `inst[i]->getCover()` (varnode.hh:202) — the LAZY per-member rebuild —
 /// before merging; the member-rebuild leg is done explicitly here because
-/// Rugra's `update_internal_cover` (variable.rs) reads the raw `cover` field.
+/// Rudra's `update_internal_cover` (variable.rs) reads the raw `cover` field.
 /// Piece-owning highs route to the piece machinery (variable.cc:342-346);
-/// the intersecting-high instance rebuild is a Rugra-side freshness
+/// the intersecting-high instance rebuild is a Rudra-side freshness
 /// compensation for the piece walk (documented 2026-08-15,
 /// COVER-REBUILD-SELFLOCK-0001) kept from the parent shape.
 fn update_high_cover(high: &Arc<RwLock<HighVariable>>) {
@@ -1079,7 +1079,7 @@ impl Merge {
     /// `Funcdata::covermerge` object via `data.getMerge()`
     /// (coreaction.hh:370/381/392/403/415/1008/1019), so `testCache`,
     /// `copyTrims` and the cover premises computed by an earlier Action are
-    /// visible to every later Action. Rugra's merge Actions construct local
+    /// visible to every later Action. Rudra's merge Actions construct local
     /// `Merge::new()` instances, so each Action-facing entry point attaches
     /// at entry and detaches at exit, round-tripping the same channels
     /// through `Funcdata::merge_state`. Depth-counted: an inner attach while
@@ -1195,7 +1195,7 @@ impl Merge {
     /// Perform the full merging + naming pipeline.
     ///
     /// This mirrors the Ghidra merge action group (coreaction.cc:5718-5729)
-    /// as a 9-step sequence, augmented with the Rugra-specific cover/naming
+    /// as a 9-step sequence, augmented with the Rudra-specific cover/naming
     /// plumbing. Step order:
     ///
     ///   1. MergeRequired   — mergeAddrTied + mergeMarker (required merges)
@@ -1291,7 +1291,7 @@ impl Merge {
     // RUDRA-GLUE: wholesale post-merge cover sync. The oracle has no such
     /// pass — it maintains covers lazily (HighVariable::updateCover
     /// variable.cc:338 via HighIntersectTest::updateHigh variable.cc:1148,
-    /// Varnode::getCover varnode.hh:202); Rugra materializes high.cover
+    /// Varnode::getCover varnode.hh:202); Rudra materializes high.cover
     /// eagerly because downstream readers (markimplied's inflateTest fast
     /// path, varmap) read the stored field. Each high is synced through
     /// `update_high_cover` (the updateCover port), leaving the same
@@ -1398,7 +1398,7 @@ impl Merge {
         // dirty, relying on the invariant that EVERY mutation which dirties
         // a member Varnode cover also propagates coverDirty to the owning
         // high (varnode.cc:352-360 setFlags → high->coverDirty, fired by
-        // addDescend/eraseDescend/calcCover). Rugra's mutation paths do not
+        // addDescend/eraseDescend/calcCover). Rudra's mutation paths do not
         // all maintain that propagation (a rebuilt member cover leaves the
         // high "clean" with a stale stored aggregate — the
         // CANARY-EXPLICIT/loop-temp family: the PTRADD/PTRSUB for-header
@@ -1669,11 +1669,11 @@ impl Merge {
             Self::merge_test_must(&member.read().unwrap())?;
                 if !self.merge_required_result(fd, &high, &candidate)? {
                     // Registered debug TAG [MERGE-FAIL]/[MERGE-PAIR]
-                    // (stderr, env-gated by RUGRA_MERGE_DIAG; registry:
+                    // (stderr, env-gated by RUDRA_MERGE_DIAG; registry:
                     // docs/api/merge.md "诊断 TAG 登记"). Dumps the failing
                     // (space,offset,size) group and every intersecting
                     // instance pair for forced-merge triage.
-                    if std::env::var("RUGRA_MERGE_DIAG").is_ok() {
+                    if std::env::var("RUDRA_MERGE_DIAG").is_ok() {
                         // Dump every intersecting instance pair between the
                         // accumulated high and the failing candidate high.
                         let dump: Vec<String> = range
@@ -2026,9 +2026,9 @@ impl Merge {
     /// 这是 mergeTestRequired (merge.cc:102) 的简化子集:只检查 space+size+
     /// const/annotation。Ghidra 的 mergeTestRequired 还检查 typelock 冲突、
     /// addrtied-different-address、input/persist/extrout、protopartial。
-    /// Rugra 缺这些检查(简化),可能在罕见情况下允许 Ghidra 禁止的合并。
+    /// Rudra 缺这些检查(简化),可能在罕见情况下允许 Ghidra 禁止的合并。
     /// 注意:此函数 NOT 对应 Ghidra merge.cc:1657 Merge::mergeTest(那是
-    /// cover-intersection 测试,Rugra 的 merge_test_with_list 才是它的 port)。
+    /// cover-intersection 测试,Rudra 的 merge_test_with_list 才是它的 port)。
     pub fn merge_test(&self, v1: &Varnode, v2: &Varnode) -> bool {
         use crate::varnode::varnode_flags;
 
@@ -2308,7 +2308,7 @@ impl Merge {
                         // variable.cc:648-654 (inside mergeInternal, the
                         // non-speculative arm): every tv2 instance is
                         // re-pointed at the survivor via
-                        // `vn->setHigh(this, vn->getMergeGroup())`. Rugra's
+                        // `vn->setHigh(this, vn->getMergeGroup())`. Rudra's
                         // merge_internal delegates the vn.high write to the
                         // caller (RUDRA-GLUE ownership note above), so the
                         // pairs loop must snapshot h2's instances before the
@@ -2419,7 +2419,7 @@ impl Merge {
     /// intersection; false otherwise.
     ///
     /// Ghidra consults `testCache.intersection(a, high)` — the cached
-    /// HighIntersectTest pair test. Rugra routes through the same
+    /// HighIntersectTest pair test. Rudra routes through the same
     /// `type_test_cache` (MergeTypeIntersectCache::intersection,
     /// merge.rs — HighIntersectTest port with gather_block_varnodes +
     /// test_block_intersection). The former aggregate-cover approximation
@@ -2541,14 +2541,14 @@ impl Merge {
     /// mergeMarker();`. This is the initial *required* merge pass that
     /// runs before cover-based speculative merging.
     ///
-    ///   - `mergeAddrTied`  — Rugra's `merge_addr_tied` already implements
+    ///   - `mergeAddrTied`  — Rudra's `merge_addr_tied` already implements
     ///     the address-tied grouping (Ghidra merge.cc:609).
-    ///   - `groupPartials`  — CONCAT-piece grouping (merge.cc:967). Rugra has
+    ///   - `groupPartials`  — CONCAT-piece grouping (merge.cc:967). Rudra has
     ///     no CONCAT/partial-root machinery yet, so this is a no-op stub.
     ///   - `mergeMarker`    — force-merge MULTIEQUAL/INDIRECT input+output
     ///     Varnodes (merge.cc:889). Implemented below.
     pub fn merge_required(&mut self, fd: &mut Funcdata) {
-        // mergeAddrTied: already implemented as merge_addr_tied. In Rugra's
+        // mergeAddrTied: already implemented as merge_addr_tied. In Rudra's
         // pipeline merge_all calls merge_addr_tied separately; here we only
         // add the marker merge that address-tied alone does not cover.
         self.attach(fd);
@@ -2808,7 +2808,7 @@ impl Merge {
     /// them all into one HighVariable so the multiple storage locations of a
     /// single logical variable are represented as one.
     ///
-    /// Rugra does not yet build the `ScopeLocal` multi-entry registry
+    /// Rudra does not yet build the `ScopeLocal` multi-entry registry
     /// (`beginMultiEntry`), but Varnodes *do* carry a `mapentry` back-pointer
     /// to their `SymbolEntry` (and through it to the owning `Symbol`). So we
     /// reconstruct the multi-entry grouping directly: group live, merge-eligible
@@ -2949,7 +2949,7 @@ impl Merge {
                 merge_count += 1;
             }
             // merge.cc:950-961: report unfused symbols via warningHeader.
-            // skipCount is always 0 here: Rugra reconstructs the symbol list
+            // skipCount is always 0 here: Rudra reconstructs the symbol list
             // from Varnodes' mapentries, so SymbolEntries with no linked
             // Varnode (Ghidra's skipCount source) are invisible upstream of
             // this loop (no ScopeLocal multi-entry registry).
@@ -3052,7 +3052,7 @@ impl Merge {
     // RUDRA-GLUE: Funcdata::newUnique's assignHigh half (funcdata_varnode.cc:89).
     /// Ghidra's `Funcdata::newUnique` assigns a HighVariable to the fresh
     /// unique Varnode immediately (`vbank.createUnique` + `assignHigh`,
-    /// funcdata_varnode.cc:88-89). Rugra's `Funcdata::new_unique` leaves the
+    /// funcdata_varnode.cc:88-89). Rudra's `Funcdata::new_unique` leaves the
     /// Varnode high-less, so the merge-family trim paths that allocate
     /// uniques (`allocate_copy_trim`, `build_dominant_copy`'s dominant COPY)
     /// wire the High here exactly as `set_high_level` does — otherwise the
@@ -3085,7 +3085,7 @@ impl Merge {
     ///
     /// **Union resolution path omitted** (merge.cc:417-428): Ghidra resolves
     /// union field types via `inheritResolution`/`forceFacingType`/`getUnionField`.
-    /// Rugra has no union-resolution infrastructure; this path is skipped
+    /// Rudra has no union-resolution infrastructure; this path is skipped
     /// (the COPY is created without union field forcing — conservative).
     /// The base data-type carry (cc:416 `ct = inVn->getType()` → cc:429
     /// `newUnique(inVn->getSize(),ct)`) is NOT part of that omission: the
@@ -3207,7 +3207,7 @@ impl Merge {
     // RUDRA-GLUE: returns the marked-read count (Ghidra's eliminateIntersect
     // returns void) so the [UNIFY] diagnostic can print a direct marked=
     // field without re-deriving it; pure diagnostic return, callers ignore
-    // it when RUGRA_MERGE_DIAG is unset.
+    // it when RUDRA_MERGE_DIAG is unset.
     fn eliminate_intersect(
         &mut self,
         fd: &mut Funcdata,
@@ -3448,7 +3448,7 @@ impl Merge {
         // eliminateIntersect for each vn in the group.
         let vns: Vec<Arc<RwLock<Varnode>>> = group.to_vec();
         for vn in &vns {
-            let diag = std::env::var("RUGRA_MERGE_DIAG").is_ok()
+            let diag = std::env::var("RUDRA_MERGE_DIAG").is_ok()
                 && vn.read().unwrap().get_space() == crate::space::AddressSpace::Ram;
             let pre_desc = if diag {
                 vn.read()
@@ -3463,7 +3463,7 @@ impl Merge {
             let pre_ops = if diag { fd.obank.optree.len() } else { 0 };
             let marked_count = self.eliminate_intersect(fd, vn, &blocksort);
             // Registered debug TAG [UNIFY] (stderr, env-gated by
-            // RUGRA_MERGE_DIAG; registry: docs/api/merge.md "诊断 TAG
+            // RUDRA_MERGE_DIAG; registry: docs/api/merge.md "诊断 TAG
             // 登记"). One line per Ram varnode: readers, snipped readers
             // (marked), op-bank delta and flags. The marked= field is the
             // direct snip-read count, comparable 1:1 with the oracle's
@@ -3742,7 +3742,7 @@ impl Merge {
                 }
                 // Ghidra: testHigh == high || (testHigh->piece != 0 &&
                 // testHigh->piece->getGroup() == group)  (merge.cc:793-796).
-                // A Varnode with no High in Rugra cannot match either arm.
+                // A Varnode with no High in Rudra cannot match either arm.
                 let Some(test_high) = test_high else { continue };
                 if Arc::ptr_eq(&test_high, high) {
                     oplist.push((o_ref.clone(), i));
@@ -3867,7 +3867,7 @@ impl Merge {
     /// last resort snip the INDIRECT itself with allocateCopyTrim (:871),
     /// redirect input 0 through the trim COPY, and re-merge; Ghidra throws
     /// LowlevelError "Unable to merge address forced indirect" if the final
-    /// merge fails (:878-881) — Rugra logs to stderr instead of aborting the
+    /// merge fails (:878-881) — Rudra logs to stderr instead of aborting the
     /// pipeline (established merge.rs throw policy, cf. merge_op :765-769).
     fn merge_indirect(&mut self, fd: &mut Funcdata, indop: &crate::op::PcodeOpRef) {
         // merge.cc:849-853: !isAddrForce → plain MULTIEQUAL-style mergeOp.
@@ -3900,7 +3900,7 @@ impl Merge {
         let indop_addr = indop.0.read().unwrap().get_addr();
         let newop = self.allocate_copy_trim(fd, &invn0, indop_addr, indop);
         // merge.cc:872-875: SymbolEntry union-resolution inheritance
-        // (needsResolution) — omitted conservatively: Rugra has no
+        // (needsResolution) — omitted conservatively: Rudra has no
         // inheritResolution-on-trim infrastructure yet (same omission as
         // allocate_copy_trim, merge.cc:417-428).
         let newop_out = newop.0.read().unwrap().output.clone();
@@ -4415,7 +4415,7 @@ impl Merge {
     /// NOTE: this encodes the C-mode defaults; the Java-mode variants of
     /// selectJavaOperators (typeop.cc:118-140: ZEXT (INT,UNKNOWN), NEGATE/
     /// XOR/AND/OR (INT,INT), RIGHT (INT,INT)) are architecture-level state
-    /// that Rugra does not model yet (UNTESTED).
+    /// that Rudra does not model yet (UNTESTED).
     fn local_meta_pair(opcode: crate::opcodes::OpCode) -> Option<(TypeMetatype, TypeMetatype)> {
         use crate::opcodes::OpCode;
         use TypeMetatype::{Bool, Float, Int, Unknown, Uint};
@@ -4503,11 +4503,11 @@ impl Merge {
             OpCode::CPUI_PTRADD | OpCode::CPUI_PTRSUB => LocalTypeKey::Base(Int, out_size),
             // typeop.cc:2451-2459 — the constant-pool record type, or the
             // base UNKNOWN fallback (BOOL(1) for instance_of records).
-            // Rugra has no cpool on the fixture path; the record lookup
+            // Rudra has no cpool on the fixture path; the record lookup
             // degrades to the same base fallback until cpool lands.
             OpCode::CPUI_CPOOLREF => LocalTypeKey::Base(Unknown, out_size),
             // typeop.cc:865-872 — user-op metadata type or base UNKNOWN
-            // fallback; Rugra's UserPcodeOp carries no Datatype metadata
+            // fallback; Rudra's UserPcodeOp carries no Datatype metadata
             // yet (same fallback result).
             OpCode::CPUI_CALLOTHER => LocalTypeKey::Base(Unknown, out_size),
             _ => match Self::local_meta_pair(opcode) {
@@ -4856,7 +4856,7 @@ impl Merge {
     }
 
     // RUDRA-GLUE: 遍历所有 HighVariable 调 hide_shadows_of。Ghidra 在
-    // ActionHideShadow::apply (coreaction.cc:4831) 内联此遍历；Rugra 的
+    // ActionHideShadow::apply (coreaction.cc:4831) 内联此遍历；Rudra 的
     // merge_all 也调用此方法，故提取为函数。
     /// Iterate all HighVariables and apply hide_shadows_of to each.
     /// Used by merge_all (Ghidra's ActionHideShadow does this via its own
@@ -5164,7 +5164,7 @@ impl Merge {
                     if !same_group { continue; }
                     // Little-endian (cc:1496-1499): p3->getOffset() == p1->getOffset()
                     // && p2->getOffset() == p1->getOffset() + v3->getSize().
-                    // (Rugra targets x86-64 LE only; the BE arm mirrors cc:1492-1495.)
+                    // (Rudra targets x86-64 LE only; the BE arm mirrors cc:1492-1495.)
                     let (p1_off, p2_off, p3_off) = (
                         p1.read().unwrap().group_offset,
                         p2.read().unwrap().group_offset,
@@ -5263,7 +5263,7 @@ impl Merge {
     /// This pass runs the same rebuild eagerly at one pipeline point.
     /// `Cover::rebuild` is a pure function of the varnode's def/descendant/
     /// CFG state, so forcing the COVERDIRTY flag before rebuilding yields
-    /// the oracle state even if a Rugra mutation path misses setting the
+    /// the oracle state even if a Rudra mutation path misses setting the
     /// flag (the oracle's own rebuild always clears it afterward).
     pub fn compute_varnode_covers(&mut self, fd: &mut Funcdata) {
         let vn_arcs: Vec<Arc<RwLock<Varnode>>> = fd.vbank.loc_tree
@@ -6049,7 +6049,7 @@ mod tests {
         );
     }
 
-    /// Regression-only checks (Rugra side; oracle proof lives in
+    /// Regression-only checks (Rudra side; oracle proof lives in
     /// tests/oracle/merge_persistent_1204): `local_type_key_eq` mirrors
     /// getBaseNoChar canonical identity (type.cc:3619-3626) — the
     /// BaseNoChar/Base pair differs ONLY at (Int, 1) and ONLY when the

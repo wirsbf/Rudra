@@ -89,7 +89,7 @@ pub mod branch_type {
 // Ghidra: typeop.hh:72 TypeOp::getFlags (opflags field, set per-ctor in typeop.cc)
 /// Return the `opflags` value for `opc`, mirroring the constructor
 /// `opflags = ...` assignments in Ghidra's `typeop.cc`. This is the
-/// replacement for `TypeOp::getFlags()` which Rugra lacks (no TypeOp layer).
+/// replacement for `TypeOp::getFlags()` which Rudra lacks (no TypeOp layer).
 /// Faithful to typeop.cc constructor bodies (verified line-by-line).
 pub fn opcode_flags(opc: OpCode) -> u32 {
     use pcodeop_flags::*;
@@ -302,7 +302,7 @@ impl IopSpace {
 // an unlinked-but-still-counted slot as `(Varnode *)0`; `Funcdata::opUnsetInput`
 // (funcdata_op.cc:91-98) leaves exactly that state behind, so a dead op keeps
 // its `numInput()` slots as NULLs (observable in the oracle's debug/projection
-// stream as one '-' per slot, op.cc:376 printDebug harness rendering). Rugra's
+// stream as one '-' per slot, op.cc:376 printDebug harness rendering). Rudra's
 // `inrefs: Vec<Arc<RwLock<Varnode>>>` cannot hold NULL, so this detached,
 // never-bank-resident size-0 Varnode stands in for the NULL pointer. ONE
 // shared instance per process keeps `Arc::ptr_eq` between two NULL slots
@@ -344,7 +344,7 @@ pub struct PcodeOp {
 
 impl PcodeOp {
     // RUDRA-GLUE: Rust ctor; Ghidra's PcodeOp constructor is private and only
-    //   called via PcodeOpBank::create (op.hh:308). Rugra exposes PcodeOp::new
+    //   called via PcodeOpBank::create (op.hh:308). Rudra exposes PcodeOp::new
     //   because we don't have the same friend-class relationship to the bank.
     pub fn new(start: SeqNum, opcode: OpCode) -> Self {
         Self {
@@ -799,7 +799,7 @@ impl PcodeOp {
         self.flags &= !OPC_FLAGS_MASK;
         self.opcode = opc;
         // cc:284: flags |= t_op->getFlags()
-        // Rugra has no TypeOp; derive flags per typeop.cc constructors.
+        // Rudra has no TypeOp; derive flags per typeop.cc constructors.
         let extra = opcode_flags(opc);
         self.flags |= extra;
     }
@@ -823,7 +823,7 @@ impl PcodeOp {
         } else {
             false
         };
-        // cc:189: same block check (Rugra: same parent)
+        // cc:189: same block check (Rudra: same parent)
         let self_parent = self.parent.as_ref().and_then(|w| w.upgrade());
         let point_parent = point.parent.as_ref().and_then(|w| w.upgrade());
         match (&self_parent, &point_parent) {
@@ -887,7 +887,7 @@ impl PcodeOp {
         // the span (OP-ISMOVEABLE-WALKORDER-0001).
         // Oracle contract: point is strictly after self (both real call sites
         // pass the block's lastOp). Ghidra runs off the list end (undefined
-        // behavior) when point precedes self; Rugra fails closed.
+        // behavior) when point precedes self; Rudra fails closed.
         let crossed_ops: Vec<PcodeOpRef> = {
             // Same-parent gate above guarantees Some; mirror Ghidra's
             // unconditional parent dereference via basiciter.
@@ -973,7 +973,7 @@ impl PcodeOp {
 
     // Ghidra: op.cc:389 PcodeOp::encode
     /// Encode this op as XML. Faithful to `encode` (op.cc:389-448).
-    /// Rugra returns a String (no Encoder).
+    /// Rudra returns a String (no Encoder).
     pub fn encode(&self) -> String {
         let mut s = format!("<op code=\"{:?}\">", self.opcode);
         s += &format!("<seqnum>{:?}</seqnum>", self.start);
@@ -1171,7 +1171,7 @@ impl PcodeOp {
 
     // Ghidra: op.cc:376 PcodeOp::printDebug
     /// Print a debug representation (address + raw op) to a string.
-    /// Faithful to `printDebug` (op.cc:376-384). Rugra returns a String
+    /// Faithful to `printDebug` (op.cc:376-384). Rudra returns a String
     /// instead of writing to ostream.
     pub fn print_debug(&self) -> String {
         let mut s = String::new();
@@ -1267,7 +1267,7 @@ impl PcodeOp {
     /// return 0 for shift counts >= 64 exactly like those helpers.
     ///
     /// Oracle `Varnode::getNZMask` (varnode.hh:231) is the raw field access
-    /// `return nzm;`. Rugra's `Varnode::get_nz_mask` (varnode.rs) predates
+    /// `return nzm;`. Rudra's `Varnode::get_nz_mask` (varnode.rs) predates
     /// the calcNZMask wiring and substitutes a conservative approximation
     /// (constants -> offset, others -> calc_mask), so this method reads the
     /// stored field directly (`get_nzm`) exactly as the oracle does
@@ -1618,7 +1618,7 @@ impl PieceNode {
 /// is an O(1) amortized pointer walk and stays valid across insert/erase
 /// (action.cc:871 `op_state++` inside ActionPool::apply, :884-885 loop).
 /// Rust BTreeMap iterators cannot be held across the Rules' mutation, so
-/// Rugra reconstructs the successor by strict-key range (action.rs
+/// Rudra reconstructs the successor by strict-key range (action.rs
 /// next_op_after, ACTIONLOOP-RESTART-0001).
 ///
 /// **PERF-ARENA-FLIP-0001 (a) form** (ARENA_DESIGN §1.2): the map values
@@ -2380,7 +2380,7 @@ impl PcodeOpBank {
 
         let mut op = PcodeOp::new(seq, opcode);
         // cc:944 PcodeOp(inputs,SeqNum): sets flags=0, opcode=null.
-        // Rugra's PcodeOp::new takes an opcode, so we must apply TypeOp-derived
+        // Rudra's PcodeOp::new takes an opcode, so we must apply TypeOp-derived
         // flags here (Ghidra defers this to a later setOpcode call). Without
         // this, get_eval_type() returns 0 for all arithmetic ops, breaking
         // collapse/execute_simple/get_cse_hash/is_moveable.
@@ -2395,7 +2395,7 @@ impl PcodeOpBank {
         // Funcdata::opSetOpcode -> changeOpcode (op.cc:1005-1012), whose
         // addToCodeList (op.cc:881-900) registers STORE/LOAD/RETURN/
         // CALLOTHER ops into their opcode-specific lists exactly once, in
-        // assignment order. Rugra's create() takes the opcode directly, so
+        // assignment order. Rudra's create() takes the opcode directly, so
         // the same registration must happen HERE to preserve Ghidra's
         // invariant that a code-list-worthy op is in its list from the
         // moment its opcode exists — otherwise ops born through this path
@@ -2408,7 +2408,7 @@ impl PcodeOpBank {
         // op cannot double-register.
         self.add_to_code_list(&op_ref);
         // Ghidra cc:946-947: setFlag(dead) + insert into deadlist.
-        // Rugra historically inserts into alivelist (treats create as alive).
+        // Rudra historically inserts into alivelist (treats create as alive).
         // Changing this to deadlist would break many callers that assume
         // create ⇒ alive; the dead/alive distinction is preserved via
         // mark_alive/mark_dead, so semantics are functionally equivalent.
@@ -2566,9 +2566,9 @@ impl PcodeOpBank {
     // Ghidra: op.hh:312 PcodeOpBank::changeOpcode
     /// Change opcode: remove from old code list, set new opcode + flags, add to new list.
     /// Faithful to `changeOpcode` (op.cc:1005-1012). Ghidra guards the removal
-    /// with `if (op->opcode != 0)`; Rugra's OpCode is non-nullable, so removal
+    /// with `if (op->opcode != 0)`; Rudra's OpCode is non-nullable, so removal
     /// is unconditional when the op might have been in a list. cc:1010 calls
-    /// `op->setOpcode(newopc)` which sets opcode + cached flags; Rugra uses
+    /// `op->setOpcode(newopc)` which sets opcode + cached flags; Rudra uses
     /// `set_opcode_flags` for the same effect.
     pub fn change_opcode(&mut self, op: PcodeOpRef, new_opc: OpCode) {
         // cc:1008-1009: remove from old opcode's code list (uses current opcode).
@@ -2793,7 +2793,7 @@ impl PcodeOpBank {
     /// Find the first PcodeOp at or after the given Address.
     /// Faithful to `target` (op.cc:1089-1097): lower_bound(SeqNum(addr,0))
     /// — the first tree entry at or after the key, in (addr,time) order.
-    /// (Rugra returns the tree entry itself; the oracle additionally
+    /// (Rudra returns the tree entry itself; the oracle additionally
     /// redirects through `(*iter).second->target()` — pre-existing shape,
     /// unchanged by OPTREE.)
     pub fn target(&self, addr: crate::address::Address) -> Option<PcodeOpRef> {
@@ -2802,10 +2802,10 @@ impl PcodeOpBank {
 
     // Ghidra: op.cc:1110 PcodeOpBank::fallthru
     /// Find the fall-through op (next op in alive list after the given op).
-    /// Faithful to `fallthru` (op.cc:1110-1144) in Rugra's pre-existing
+    /// Faithful to `fallthru` (op.cc:1110-1144) in Rudra's pre-existing
     /// shape: the alive-arm of the oracle walk (an alive op's stored
     /// insertiter successor; the oracle's dead-arm uses block order via
-    /// nextOp — Rugra's former alivelist scan returned None for dead ops,
+    /// nextOp — Rudra's former alivelist scan returned None for dead ops,
     /// a divergence retained unchanged). The stored ins-link successor IS
     /// the former scan's "entry after the ptr match", O(1).
     pub fn fallthru(&self, op: &PcodeOpRef) -> Option<PcodeOpRef> {
@@ -2841,7 +2841,7 @@ impl PcodeOpBank {
     /// Beginning of ops with the given opcode (uses code lists).
     /// Faithful to `begin(OpCode)` (op.cc:1158-1174): STORE/LOAD/RETURN/
     /// CALLOTHER read their opcode chain; every other opcode yields the
-    /// alivelist end (Rugra's former default arm returned the full
+    /// alivelist end (Rudra's former default arm returned the full
     /// alivelist — a divergence funcdata::begin_op_code already corrects
     /// locally; kept here so the surface is unchanged for direct callers).
     pub fn begin_op(&self, opc: OpCode) -> OpChainIter<'_> {
@@ -3362,7 +3362,7 @@ mod tests {
     fn is_moveable_point_before_self_fails_closed() {
         // Oracle contract: point is strictly after self (both real call
         // sites pass the block's lastOp). Ghidra would walk off the list end
-        // (undefined behavior) when point precedes self; Rugra fails closed
+        // (undefined behavior) when point precedes self; Rudra fails closed
         // with false instead of reproducing UB.
         let mut fx = WalkOrderFixture::new();
         let a = fx.create(OpCode::CPUI_INT_ADD, 2);

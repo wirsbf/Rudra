@@ -1524,9 +1524,9 @@ Override/重启标志生效，而非改 `HeritageInfo`。语义链：
 差异，没有为 Heritage 的 range/alias/SSA 分支新增 oracle 证据，模块状态保持
 L2/MISMATCH。
 
-## RUGRA_HERITAGE_TRACE（worktree 临时诊断，非对齐面）
+## RUDRA_HERITAGE_TRACE（worktree 临时诊断，非对齐面）
 
-`RUGRA_HERITAGE_TRACE=1` 时，`guard_returns` 的 persist 循环对每个非 dead
+`RUDRA_HERITAGE_TRACE=1` 时，`guard_returns` 的 persist 循环对每个非 dead
 RETURN 打印 `[H-GRET] pass=<pass> range=<off>/<size> return=<addr>`（heritage.cc
 1677-1691 的观察位）。用于 LATTICE-GEN 阻塞①双侧对拍：锁定 oracle 探针（/tmp/
 w-carry-ore，CARRY_FAKE_NORET_ADDRS 供给 golden headless 环境的 {exit,
@@ -1609,7 +1609,7 @@ cc:135 的 implicit-RAM 伪造（RAM@register 偏移 = 门控 ap_getparents 的
 **验收（亲父 7a63a1b1 双态对照）**：
 - 默认路径 httpd **1472/0/0 输出 cmp 字节恒等**（Register-pin 位点在语料
   上只触 register-range，行为不变）；
-- 门控 `RUGRA_SYMDB=1` httpd **1561→1519**：ap_getparents 106→64（−42），
+- 门控 `RUDRA_SYMDB=1` httpd **1561→1519**：ap_getparents 106→64（−42），
   **小偏移 uRam(<0x10000)/unique0x/register0x 兜底名 0 处**，suck_in_APR
   零差 ✓ 不回退，✓ 集合与亲父门控基线恒等；
 - curl 1099/0/0、bank 26/26 MATCH、cargo test --lib 1709P/1F（唯一失败

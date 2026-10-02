@@ -25,7 +25,7 @@ pointing at the exact Ghidra source line; pure Rust glue (arena indices,
 `SignatureEntry::hash[2]` and `BlockSignatureEntry::hash[2]` are `[u64; 2]`.
 `Signature::sig` is explicitly `uint4` (32-bit) per `signature.hh:51`, so the
 emitted feature hash stored in a `Signature` is truncated to 32 bits (matching
-the constructor cast `sig=(uint4)h`). The original Rugra skeleton used `[u32; 2]`
+the constructor cast `sig=(uint4)h`). The original Rudra skeleton used `[u32; 2]`
 for the hash slots, which was incorrect.
 
 ## Public API
@@ -157,7 +157,7 @@ encoding, instead of returning a reference into a callspec that is owned by an
 `Arc<RwLock<_>>`. This is a borrow/lifecycle adaptation only: encoding order and
 address filtering are unchanged.
 
-Signature status is not promoted. D0 remains `MISMATCH` because Rugra's typed
+Signature status is not promoted. D0 remains `MISMATCH` because Rudra's typed
 handle is still carried in temporary `AddressSpace::Iop`, not dedicated
 `IPTR_FSPEC` (`TYPEOP-FSPEC-SPACE-0001`), and this phase intentionally does not
 wire TypeOp getter, PrintC, StringManager, or close other callspec/signature

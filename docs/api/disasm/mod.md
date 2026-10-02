@@ -6,7 +6,7 @@
 
 - **状态**: 已核对（当前有效，2026-09-26 SLEIGH-RUSTIFY-PHASE3-0001 重写）
 - **可信度**: 高
-- **文档目标**: 说明 Phase3 之后 Rugra 反汇编/P-code 发射层的角色、边界与公开接口
+- **文档目标**: 说明 Phase3 之后 Rudra 反汇编/P-code 发射层的角色、边界与公开接口
 - **重要提醒**: iced-x86 引导解码器与手写 `X86Lifter` 已于本车道退役删除；
   本文档不再描述 `Instruction` / `Operand` / `Disassembler` trait /
   `create_disassembler` 等已删除接口（历史版本见 git 历史）。
@@ -31,7 +31,7 @@ binary bytes
 ### 与 Ghidra 架构的对应关系
 
 Ghidra 反编译器只有一个解码入口：`Translate::oneInstruction` 按流跟随逐指令
-发射 P-code（flow.cc:421 的调用点）。Rugra Phase3 之后同样只有一个解码器
+发射 P-code（flow.cc:421 的调用点）。Rudra Phase3 之后同样只有一个解码器
 （kuna-sleigh 引擎 + 锁定 `sleigh_specs/x86-64.sla`），不再保留第二套
 x86 语义实现。
 
@@ -75,13 +75,13 @@ pub mod sleigh_lift;
 删除依据：canon curl 换装后字节恒等（md5 与基线一致）、num_params A/B 30 函数
 0 差异、DAT 候选 840==840、call targets 479==479；canon httpd 的残差全部
 归因到持有域管线分歧（见 TODO_BOARD 票面）。完整证据链见
-`/dev/shm/rugra-reports/LANE_SLEIGHP3_2026-09-26.md`（root 集成后归档）。
+`/dev/shm/rudra-reports/LANE_SLEIGHP3_2026-09-26.md`（root 集成后归档）。
 
 ---
 
 ## 风险与限制提示
 
-### 1. 线性 walk 是 Rugra 胶水，不是 Ghidra 契约
+### 1. 线性 walk 是 Rudra 胶水，不是 Ghidra 契约
 Ghidra 只有 flow-following 解码；`sleigh_raw_ops*` 的线性 walk 是驱动器
 构造 raw-op 的胶水，其“不可解码字节跳 1 字节”契约沿袭退役 iced walk。
 

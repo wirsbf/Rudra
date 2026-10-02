@@ -232,7 +232,7 @@ impl VarnodeSignature {
         encoder.open_element(&ELEM_VARSIG.get());
         encoder.write_unsigned_integer(&ATTRIB_HASH.get(), self.get_hash() as u64);
         // Ghidra emits vn->encode(encoder) and, if written, vn->getDef()->encode(encoder).
-        // Rugra Varnode/PcodeOp do not yet implement encode() (L3 gap), so we
+        // Rudra Varnode/PcodeOp do not yet implement encode() (L3 gap), so we
         // emit a textual origin via ATTRIB_INDEX carrying the create index as a
         // stable identifier, preserving the feature-comparison semantics.
         // RUDRA-GLUE: origin encoding (Ghidra vn->encode / op->encode are L3 gaps).
@@ -297,11 +297,11 @@ impl BlockSignature {
         // Ghidra: bl->getIndex() (signed). RUDRA-GLUE: block index carried on the
         // feature because Rust features do not hold a back-pointer to BlockBasic.
         encoder.write_signed_integer(&ATTRIB_INDEX.get(), self.block_index as i64);
-        // Ghidra emits bl->getStart().encode(encoder). Rugra Address has no
+        // Ghidra emits bl->getStart().encode(encoder). Rudra Address has no
         // encode(); emit the offset instead. RUDRA-GLUE: address encoding.
         encoder.write_unsigned_integer(&ATTRIB_OFFSET.get(), self.start_addr.as_u64());
         // Ghidra: if (op2 != 0) op2->encode(encoder); if (op1 != 0) op1->encode(encoder);
-        // Rugra PcodeOp lacks encode(); emit opcodes as a stable stand-in.
+        // Rudra PcodeOp lacks encode(); emit opcodes as a stable stand-in.
         // RUDRA-GLUE: op encode is an L3 gap; emit opcode as identifier.
         if let Some(op2) = &self.op2 {
             let code = op2.0.read().unwrap().get_opcode() as u64;
@@ -1573,7 +1573,7 @@ impl GraphSigManager {
     pub fn new() -> Self {
         let setting = SigSettings::get();
         if !Self::test_settings(setting) {
-            // Ghidra throws LowlevelError("Bad signature settings"). Rugra
+            // Ghidra throws LowlevelError("Bad signature settings"). Rudra
             // panics equivalently since the caller must set valid settings.
             panic!("Bad signature settings");
         }
@@ -2104,11 +2104,11 @@ pub fn simple_signature(fd: &Arc<RwLock<Funcdata>>, encoder: &mut dyn Encoder) {
             .get_call_specs(i)
             .and_then(|fc| fc.entry_addr);
         if let Some(addr) = entry_addr {
-            // Ghidra checks !addr.isInvalid(); Rugra uses the Option presence.
+            // Ghidra checks !addr.isInvalid(); Rudra uses the Option presence.
             if !addr.is_null() {
                 encoder.open_element(&ELEM_CALL.get());
                 // signature.cc:1125: writeSpace(ATTRIB_SPACE, addr.getSpace()).
-                // Rugra has a single address space, so we emit only the offset.
+                // Rudra has a single address space, so we emit only the offset.
                 // RUDRA-GLUE: single-space model omits writeSpace.
                 encoder.write_unsigned_integer(&ATTRIB_OFFSET.get(), addr.as_u64());
                 encoder.close_element(&ELEM_CALL.get());

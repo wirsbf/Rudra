@@ -1,4 +1,4 @@
-//! Datatype definitions for Rugra's type system
+//! Datatype definitions for Rudra's type system
 //!
 //! Corresponds to Ghidra's `type.hh`
 
@@ -17,7 +17,7 @@ use crate::AddressSpace;
 // ---------------------------------------------------------------------------
 //
 // Ghidra declares these as fixed global `ElementId`/`AttributeId` constants.
-// Rugra's Tree codec currently constructs ids from names dynamically. This is
+// Rudra's Tree codec currently constructs ids from names dynamically. This is
 // a local compatibility bridge only: numeric ids are protocol-significant for
 // PackedEncode/PackedDecode, so these helpers are not oracle-equivalent ids.
 
@@ -142,7 +142,7 @@ impl TypeXmlIdMap {
 /// Mirrors Ghidra's `type_metatype` (type.hh:79-98) discriminant set, including
 /// the three `Partial*` specializations introduced by this alignment pass:
 /// `TypePartialEnum`, `TypePartialStruct`, `TypePartialUnion`. Numeric values
-/// are Rugra-private and do not match Ghidra 1:1 (Ghidra orders them so the
+/// are Rudra-private and do not match Ghidra 1:1 (Ghidra orders them so the
 /// lowest number is the most specific); `type_order`/`compare` reproduce
 /// Ghidra's precedence via explicit comparison, not via the discriminant value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -174,7 +174,7 @@ pub enum TypeMetatype {
 // Ghidra: type.hh:103 sub_metatype
 /// Propagation-specific type ordering used by Ghidra's `Datatype::compare`.
 /// This mirrors Ghidra's `sub_metatype` exactly and is intentionally separate
-/// from Rugra's private `TypeMetatype` discriminants.
+/// from Rudra's private `TypeMetatype` discriminants.
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SubMetatype {
@@ -224,10 +224,10 @@ pub mod type_flags {
     // Bits 0x7000..0x8000 are `force_format` in Ghidra (3 display-format bits).
     // Bit 0x8000 is `truncate_bigendian`, 0x10000 is `pointer_to_array`,
     // 0x20000 is `warning_issued`. Ghidra has NO equate flag on Datatype —
-    // equates are `EquateSymbol`s (database.hh:302). Rugra reserves a high
+    // equates are `EquateSymbol`s (database.hh:302). Rudra reserves a high
     // private bit (not conflicting with any Ghidra flag) to track an
     // equated-mark on the type for the print path.
-    pub const EQUATED: u32 = 1 << 20; // Rugra-private (no Ghidra counterpart)
+    pub const EQUATED: u32 = 1 << 20; // Rudra-private (no Ghidra counterpart)
 
     // Kept for backward compatibility with earlier code (TYPEDEF alias).
     pub const TYPEDEF: u32 = VARLENGTH;
@@ -247,7 +247,7 @@ impl TypeField {
     // Ghidra: type.cc:798 TypeField::encode
     /// Encode a formal description of this field as a `<field>` element.
     /// Faithful to `TypeField::encode` (type.cc:798-807). Writes the field
-    /// `name`, `offset`, and (because Rugra's `TypeField` carries no separate
+    /// `name`, `offset`, and (because Rudra's `TypeField` carries no separate
     /// `ident` field — it always equals `offset`, see Ghidra's
     /// `if (ident < 0) ident = offset;` default at type.cc:792) omits the `id`
     /// attribute, then emits the field data-type via `encodeRef`.
@@ -255,7 +255,7 @@ impl TypeField {
         encoder.open_element(&elem::field());
         encoder.write_string(&attrib("name"), &self.name);
         encoder.write_signed_integer(&attrib("offset"), self.offset as i64);
-        // Ghidra emits `id` only when `ident != offset`; Rugra always has
+        // Ghidra emits `id` only when `ident != offset`; Rudra always has
         // ident == offset, so this branch is never taken.
         self.type_ptr.encode_ref(encoder);
         encoder.close_element(&elem::field());
@@ -265,7 +265,7 @@ impl TypeField {
 /// Parsed attributes of a `<field>` element, short of the child data-type.
 ///
 /// Ghidra's `TypeField` constructor (type.cc:768-794) reads `name`, `offset`,
-/// and `ident`, then calls `typegrp.decodeType(decoder)` for the child. Rugra
+/// and `ident`, then calls `typegrp.decodeType(decoder)` for the child. Rudra
 /// splits this so the `TypeFactory` (which owns `decodeType`) can drive the
 /// child decoding; `TypeField::decode_field_attributes` reads just the
 /// attributes and returns them, and the factory supplies `type_ptr`.
@@ -286,7 +286,7 @@ impl TypeField {
     /// Read the `<field>` element's attributes (`name`, `offset`, `id`).
     /// Faithful to the attribute-reading loop of `TypeField::TypeField`
     /// (type.cc:768-785). The element must already be open (Ghidra opens
-    /// `ELEM_FIELD` here; Rugra's `TypeFactory::decode_struct_fields` opens
+    /// `ELEM_FIELD` here; Rudra's `TypeFactory::decode_struct_fields` opens
     /// elements via `open_element()` and delegates the attribute parse here).
     /// The child `<typeref>`/`<type>` is decoded separately by the factory via
     /// `decodeType`, then `close_element` is called by the caller.
@@ -329,7 +329,7 @@ pub type UnionResolveMap = std::collections::BTreeMap<
 
 // Ghidra: type.hh:647 TypePointerRel
 /// TypePointerRel-only state. Ghidra stores these fields on the derived
-/// `TypePointerRel`; Rugra keeps them with the pointer's base record so legacy
+/// `TypePointerRel`; Rudra keeps them with the pointer's base record so legacy
 /// `TypePointer` struct literals remain source-compatible.
 #[derive(Debug, Clone)]
 pub struct PointerRelState {
@@ -504,7 +504,7 @@ pub fn pointer_submeta(pointer: &TypePointer) -> SubMetatype {
 }
 
 // Ghidra: type.hh:78 type_metatype
-/// Translate Rugra's private metatype values to the stored Ghidra values used
+/// Translate Rudra's private metatype values to the stored Ghidra values used
 /// by the first-level struct/union tie-break.
 fn ghidra_metatype_rank(datatype: &Datatype) -> i32 {
     match datatype.get_metatype() {
@@ -513,7 +513,7 @@ fn ghidra_metatype_rank(datatype: &Datatype) -> i32 {
         TypeMetatype::PartialEnum => 13, // Stored as TYPE_UINT in Ghidra
         TypeMetatype::Union => 3,
         TypeMetatype::Struct => 4,
-        TypeMetatype::Enum => 14, // Rugra's default enum is signed
+        TypeMetatype::Enum => 14, // Rudra's default enum is signed
         TypeMetatype::Array => 7,
         TypeMetatype::Pointer => 9,
         TypeMetatype::Float => 10,
@@ -742,7 +742,7 @@ impl Datatype {
     // Ghidra: type.hh:165 Datatype::isCharPrint
     /// Should this type be printed as a character/string type?
     /// Faithful to `Datatype::isCharPrint` (type.hh:218). Ghidra checks
-    /// flags (chartype|utf16|utf32|opaque_string). Rugra maps opaque_string
+    /// flags (chartype|utf16|utf32|opaque_string). Rudra maps opaque_string
     /// to OPAQUE_STRUCT.
     pub fn is_char_print(&self) -> bool {
         let f = self.get_flags();
@@ -772,7 +772,7 @@ impl Datatype {
     ///   TypeEnum constructor with TYPE_PARTIALENUM, which the ternary maps
     ///   to TYPE_UINT (type.cc:2255-2262) — so `metatype <= TYPE_ARRAY` is
     ///   false for it too.
-    /// Rugra's `TypeMetatype` numeric order differs from Ghidra's enum, so
+    /// Rudra's `TypeMetatype` numeric order differs from Ghidra's enum, so
     /// the set is matched explicitly instead of by `<=`.
     pub fn is_piece_structured(&self) -> bool {
         matches!(
@@ -876,7 +876,7 @@ impl Datatype {
                     return (None, off);
                 }
                 // getAlignSize is an inline read of the stored field in
-                // Ghidra. Do not invoke Rugra's legacy-constructor fallback.
+                // Ghidra. Do not invoke Rudra's legacy-constructor fallback.
                 let elem_align = a.array_of.base_record().align_size as i64;
                 let newoff = off % elem_align;
                 (Some(a.array_of.clone()), newoff)
@@ -945,7 +945,7 @@ impl Datatype {
     ///   the container is therefore the cache-key parent, exactly as in
     ///   Ghidra's delegation.
     ///
-    /// Ghidra threads `op`/`slot` as virtual parameters; Rugra's type layer
+    /// Ghidra threads `op`/`slot` as virtual parameters; Rudra's type layer
     /// has no Funcdata back-pointer, so the cache travels as the
     /// `resolutions` snapshot (the printer's clone of `Funcdata::union_map`,
     /// see `PrintC::union_resolutions`). `op == None` (no op context) or
@@ -1134,7 +1134,7 @@ impl Datatype {
     ///   - Base class (type.hh:273): `if (!name.empty()) s << name[0];`
     ///   - TypePointer (type.hh:424): `s << 'p'; ptrto->printNameBase(s);`
     ///   - TypeArray (type.hh:457): `s << 'a'; arrayof->printNameBase(s);`
-    /// Rugra's enum dispatch mirrors the C++ virtual method resolution.
+    /// Rudra's enum dispatch mirrors the C++ virtual method resolution.
     /// The prefix is derived from the data-organization type NAME, so the
     /// Ghidra core unknowns `undefined1/2/4/8`
     /// (ghidra_arch.cc:349 ArchitectureGhidra::buildCoreTypes) yield the
@@ -1225,7 +1225,7 @@ impl Datatype {
     /// returns null (here: `self`, matching the "no stripped form" intent);
     /// the partial-type overrides (TypePartialEnum::getStripped type.hh:586,
     /// TypePartialStruct::getStripped type.hh:607, TypePartialUnion::getStripped
-    /// type.hh:635) return their `stripped` field. Rugra stores the optional
+    /// type.hh:635) return their `stripped` field. Rudra stores the optional
     /// stripped form on each partial variant.
     pub fn get_stripped(&self) -> &Datatype {
         match self {
@@ -1300,7 +1300,7 @@ impl Datatype {
     /// which simply returns `this`. Ghidra's subclass overrides (TypePointer,
     /// TypeArray, TypeStruct, TypeUnion, TypePartialUnion) consult the
     /// Funcdata union-resolution cache via
-    /// `op->getParent()->getFuncdata()`; Rugra's PcodeOp has no Funcdata
+    /// `op->getParent()->getFuncdata()`; Rudra's PcodeOp has no Funcdata
     /// back-pointer, so those overrides live as the fd-aware free function
     /// `unionresolve::find_resolve` — use that for any op-bearing call.
     pub fn find_resolve(&self, _op: Option<&crate::op::PcodeOp>, _slot: i32) -> &Datatype {
@@ -1369,7 +1369,7 @@ impl Datatype {
     /// `getUnsizedId` (type.hh:202): for variable-length types, this strips
     /// the size-folding so the returned id is the same across instances of the
     /// same name at different sizes. For non-variable-length types, this is
-    /// just `id`. Rugra folds size via `Datatype::hashSize`, so we reverse the
+    /// just `id`. Rudra folds size via `Datatype::hashSize`, so we reverse the
     /// fold when `is_variable_length()` is set.
     pub fn get_unsized_id(&self) -> u64 {
         let id = self.get_id();
@@ -1419,7 +1419,7 @@ impl Datatype {
     //         type.cc:869 TypeUnicode::encode (virtual dispatch)
     /// Full per-subclass encode that emits the subclass-specific element and
     /// child elements. This mirrors Ghidra's virtual `encode` dispatch: each
-    /// subclass overrides `encode` to emit its particular structure. Rugra
+    /// subclass overrides `encode` to emit its particular structure. Rudra
     /// collapses the C++ class hierarchy into a single enum, so the dispatch is
     /// a `match` over the variants.
     ///
@@ -1709,7 +1709,7 @@ impl Datatype {
     // Ghidra: type.hh:165 Datatype::markEquate
     /// Mark/unmark this data-type as equated. Ghidra has no
     /// `Datatype::markEquate`; equates are represented as `EquateSymbol`
-    /// objects in a `Scope` (database.hh:302). Rugra mirrors the intent with
+    /// objects in a `Scope` (database.hh:302). Rudra mirrors the intent with
     /// a dedicated flag bit on the data-type so that print/format code can
     /// detect equated types without pulling in the full symbol machinery.
     /// Faithful in spirit to the equate handling in `printc.cc`/`varnode.cc`.
@@ -1724,7 +1724,7 @@ impl Datatype {
     }
 
     // Ghidra: type.hh:165 Datatype::isEquated
-    /// Has this data-type been marked equated? (Rugra-private, no Ghidra
+    /// Has this data-type been marked equated? (Rudra-private, no Ghidra
     /// counterpart — see `mark_equate`.)
     pub fn is_equated(&self) -> bool {
         (self.get_flags() & type_flags::EQUATED) != 0
@@ -1838,7 +1838,7 @@ impl Datatype {
     /// constructors normalize the stored metatype to TYPE_INT/TYPE_UINT
     /// (type.hh:489-490 ternary, TypePartialEnum included via
     /// type.cc:2255-2256), so an oracle enum instance is never
-    /// piece-structured and isPrimitiveWhole returns true. Rugra's enum
+    /// piece-structured and isPrimitiveWhole returns true. Rudra's enum
     /// instances may store the collapsed `TypeMetatype::Enum` variant —
     /// a reporting divergence outside this predicate's observable set,
     /// because `is_piece_structured` excludes both the Enum and the
@@ -1965,9 +1965,9 @@ pub fn calc_align_size(sz: usize, align: usize) -> usize {
 // Ghidra: type.cc:238 metatype2string
 /// Convert a `type_metatype` to its XML string form. Faithful to
 /// `metatype2string` (type.cc:238-299). Note that Ghidra's `type_metatype`
-/// enum (type.hh:79-99) uses a richer set of values than Rugra's
+/// enum (type.hh:79-99) uses a richer set of values than Rudra's
 /// `TypeMetatype` (which collapses the Enum/Partial specializations); we
-/// mirror Ghidra's emitted strings, mapping Rugra's collapsed enum back to
+/// mirror Ghidra's emitted strings, mapping Rudra's collapsed enum back to
 /// the canonical name for the base metatype.
 pub fn metatype2string(metatype: TypeMetatype) -> &'static str {
     match metatype {
@@ -1980,7 +1980,7 @@ pub fn metatype2string(metatype: TypeMetatype) -> &'static str {
         TypeMetatype::Array => "array",
         TypeMetatype::Struct => "struct",
         TypeMetatype::Union => "union",
-        TypeMetatype::Enum => "enum_int", // Rugra enums are signed by default
+        TypeMetatype::Enum => "enum_int", // Rudra enums are signed by default
         TypeMetatype::Code => "code",
         TypeMetatype::Spacebase => "spacebase",
         TypeMetatype::PartialStruct => "partstruct",
@@ -1995,7 +1995,7 @@ pub fn metatype2string(metatype: TypeMetatype) -> &'static str {
 /// `string2metatype` (type.cc:304-366). Returns `Err` for unrecognized
 /// strings (Ghidra throws `LowlevelError`). The Enum/PartialEnum
 /// specializations (`enum_int`/`enum_uint`/`partenum`) collapse to
-/// `TypeMetatype::Enum`/`PartialEnum` in Rugra; the caller is responsible for
+/// `TypeMetatype::Enum`/`PartialEnum` in Rudra; the caller is responsible for
 /// setting the `enumtype` flag separately.
 pub fn string2metatype(metastring: &str) -> TypeMetatype {
     let first = metastring.chars().next().unwrap_or('\0');
@@ -2133,7 +2133,7 @@ pub fn metatype2typeclass(meta: TypeMetatype) -> TypeClass {
 /// carrying the relative offset. Faithful to `TypePointerRel::encode`
 /// (type.cc:2641-2654).
 ///
-/// Rugra gap: `TypePointerRel` is not yet a distinct variant (see
+/// Rudra gap: `TypePointerRel` is not yet a distinct variant (see
 /// type_audit.md "PointerRel 未独立"). Its `ptrto`, `parent`, `offset`, and
 /// `wordsize` components are passed in explicitly so the XML structure is
 /// reproduced faithfully without adding fields to `TypePointer`. Once a
@@ -2152,7 +2152,7 @@ pub fn encode_pointer_rel(
     // pointers.
     as_datatype.encode_basic(TypeMetatype::Pointer, -1, encoder);
     // Re-write the metatype attribute Ghidra emits for ptrrel. Because
-    // encode_basic already wrote "ptr", and Rugra's marshal writes attributes
+    // encode_basic already wrote "ptr", and Rudra's marshal writes attributes
     // sequentially, we rely on the caller interpreting metatype="ptrrel";
     // metatype2string has no PointerRel arm, so document this here.
     if wordsize != 1 {
@@ -2173,7 +2173,7 @@ pub fn encode_pointer_rel(
 /// `wordsize`/`space`, then decodes the `ptrto` and `parent` child types and
 /// the `<off content="..."/>` element.
 ///
-/// Rugra gap: as with `encode_pointer_rel`, the components are returned rather
+/// Rudra gap: as with `encode_pointer_rel`, the components are returned rather
 /// than stored on a variant. Returns `(basic, wordsize, offset)`. The
 /// `ptrto`/`parent` children are decoded by the `TypeFactory` via `decodeType`
 /// (the caller drives the child-element iteration). The `<off>` element's
@@ -2202,7 +2202,7 @@ pub fn decode_pointer_rel_offset(decoder: &mut dyn Decoder) -> i64 {
 //
 // Ghidra's `TypePointerRel` (type.hh:647) is a `TypePointer` subclass
 // carrying a `parent` container data-type, a byte `offset` into it, and a
-// `stripped` pointer fallback. Rugra models relative pointers as
+// `stripped` pointer fallback. Rudra models relative pointers as
 // `Datatype::Pointer` with the `IS_PTRREL` flag plus an out-of-line
 // `RelativePointer { parent, offset }` record on the `TypeFactory`
 // (`rel_pointers`, keyed by the pointer name — see typefactory.rs). The
@@ -2213,7 +2213,7 @@ pub fn decode_pointer_rel_offset(decoder: &mut dyn Decoder) -> i64 {
 // methods (which call back into the factory) live in `typefactory.rs`.
 
 /// `wordsize`-scaled helpers mirroring `AddrSpace::addressToByteInt` /
-/// `byteToAddressInt` (space.hh:532-543). Centralised here because Rugra's
+/// `byteToAddressInt` (space.hh:532-543). Centralised here because Rudra's
 /// `AddressSpace` does not yet expose these as inherent methods.
 // Ghidra: space.hh:532 AddrSpace::addressToByteInt
 fn address_to_byte_int(val: i64, ws: usize) -> i64 {
@@ -2971,7 +2971,7 @@ impl TypePointer {
     /// Encode this pointer as a `<type>` element with a child reference to the
     /// pointed-to type. Faithful to `TypePointer::encode` (type.cc:969-984).
     /// Emits `encodeBasic` then `wordsize` (when != 1) then `ptrto->encodeRef`.
-    /// Rugra stores `spaceid` for identity/ordering, but the marshal `Encoder`
+    /// Rudra stores `spaceid` for identity/ordering, but the marshal `Encoder`
     /// still lacks Ghidra's `writeSpace`; that codec branch remains TYPE-0001.
     ///
     /// `typedef_target` is `Some` when this pointer is a typedef alias; it is
@@ -3107,7 +3107,7 @@ impl TypeArray {
     /// `rewindAttributes`, then this. The child element data-type is decoded
     /// separately by the `TypeFactory` via `decodeType`.
     ///
-    /// Returns the parsed `arraysize` (Ghidra initialises it to -1; Rugra
+    /// Returns the parsed `arraysize` (Ghidra initialises it to -1; Rudra
     /// returns 0 if absent so the caller can validate, matching Ghidra's
     /// `if (arraysize <= 0) throw`).
     pub fn decode_array_attributes(decoder: &mut dyn Decoder) -> usize {
@@ -3147,20 +3147,20 @@ impl TypeStruct {
     /// aligned offset within the structure.
     ///
     /// Faithful to `TypeStruct::assignFieldOffsets` (type.cc:1971-1993). Fields
-    /// whose `offset == -1` (Rugra sentinel: see note below) are assigned an
+    /// whose `offset == -1` (Rudra sentinel: see note below) are assigned an
     /// aligned offset; fields already carrying an explicit offset are skipped
     /// (Ghidra uses `-1` as "unassigned"). `new_size`/`new_align` are returned
     /// via the tuple. `new_size` is `calcAlignSize(offset, new_align)`.
     ///
     /// NOTE on the `-1` sentinel: Ghidra stores `TypeField::offset` as `int4`
-    /// and uses `-1` to mean "unassigned". Rugra's `TypeField.offset` is
+    /// and uses `-1` to mean "unassigned". Rudra's `TypeField.offset` is
     /// `usize` (cannot hold `-1`), so callers must use `usize::MAX` as the
     /// "unassigned" marker. Fields with any other value are treated as
     /// explicitly assigned and left in place, matching Ghidra's
     /// `if ((*iter).offset != -1) continue;`.
     ///
     /// NOTE on `ident`: Ghidra also sets `(*iter).ident = offset` here.
-    /// Rugra's `TypeField` has no `ident` field (it is unused outside XML
+    /// Rudra's `TypeField` has no `ident` field (it is unused outside XML
     /// decode), so that assignment is omitted.
     ///
     /// Returns `(new_size, new_align)`. Errors if a field is `TYPE_VOID`.
@@ -3232,7 +3232,7 @@ impl TypeStruct {
                 if vn_rg.is_type_lock() {
                     if let Some(vn_ty) = vn_rg.get_type() {
                         // Ghidra: `vn->getType() == parent` is pointer equality
-                        // between two `Datatype*`. Rugra mirrors that via raw
+                        // between two `Datatype*`. Rudra mirrors that via raw
                         // pointer comparison against the Arc's allocation.
                         let vn_ptr = Arc::as_ptr(&vn_ty) as *const Datatype;
                         if std::ptr::eq(vn_ptr, parent) {
@@ -3285,7 +3285,7 @@ impl TypeStruct {
                 //     param = fc->getOutput();
                 // ProtoStoreInternal::getInput returns null out of bounds
                 // (fspec.cc:3372-3377); Rust's Option mirrors that guard.
-                // The output ProtoParameter's getType() is Rugra's FuncProto
+                // The output ProtoParameter's getType() is Rudra's FuncProto
                 // `return_type` (the output param's data-type carrier).
                 let param_type: Option<&Arc<Datatype>> =
                     if slot >= 1 && fc.prototype.is_input_locked() {
@@ -3504,7 +3504,7 @@ impl TypeStruct {
             }
             i += 1;
         }
-        // Note: Ghidra drops overlapping fields here. Rugra's fields arrive
+        // Note: Ghidra drops overlapping fields here. Rudra's fields arrive
         // pre-sorted by the factory (see TypeStruct::assign_field_offsets), so
         // the overlap-drop branch is not exercised; we preserve the warning
         // semantics for the out-of-order case.
@@ -3720,7 +3720,7 @@ impl TypeEnum {
     /// Encode this enumeration as a `<type>` element with one `<val>` child
     /// per named value. Faithful to `TypeEnum::encode` (type.cc:1447-1464).
     /// Ghidra picks `TYPE_ENUM_INT` or `TYPE_ENUM_UINT` based on the stored
-    /// metatype; Rugra collapses both into `TypeMetatype::Enum`, so we emit
+    /// metatype; Rudra collapses both into `TypeMetatype::Enum`, so we emit
     /// `enum_int` (the canonical name for signed enums, which `metatype2string`
     /// produces for `Enum`).
     pub fn encode_enum(
@@ -3735,7 +3735,7 @@ impl TypeEnum {
         }
         encoder.open_element(&elem::type_());
         // Ghidra: encodeBasic((metatype==TYPE_INT)?TYPE_ENUM_INT:TYPE_ENUM_UINT,-1,...)
-        // Rugra's metatype2string(Enum) => "enum_int", which matches the
+        // Rudra's metatype2string(Enum) => "enum_int", which matches the
         // TYPE_ENUM_INT branch.
         as_datatype.encode_basic(enum_ty.base.metatype, -1, encoder);
         for (value, nm) in &enum_ty.values {
@@ -3953,9 +3953,9 @@ impl TypeCode {
     /// (type.cc:2713-2726): sets `variable_length`, (re)builds the internal
     /// `FuncProto`, configures it from `sig`, and locks both input and output.
     ///
-    /// Rugra note: Ghidra's `proto->setInternal(sig.model, voidtype)` +
+    /// Rudra note: Ghidra's `proto->setInternal(sig.model, voidtype)` +
     /// `proto->updateAllTypes(sig)` requires a `ProtoModel` object (from the
-    /// Architecture) to assign parameter storage. Rugra does not yet thread an
+    /// Architecture) to assign parameter storage. Rudra does not yet thread an
     /// Architecture through every type, so this port builds the `FuncProto`
     /// directly from the pieces (return type + parameter types/names) without
     /// address assignment, then sets the input/output locks as Ghidra does.
@@ -4145,7 +4145,7 @@ impl TypeCode {
     /// `typedef_target` is `Some` when this code type is a typedef alias; it is
     /// encoded via `Datatype::encode_typedef`.
     ///
-    /// Rugra gap: `FuncProto` does not yet implement `Encoder`-based XML
+    /// Rudra gap: `FuncProto` does not yet implement `Encoder`-based XML
     /// serialization (see type_audit.md). When present, the prototype is
     /// represented by an empty `<prototype>` placeholder element so that the
     /// `<type>...</type>` round-trip preserves the element structure; the full
@@ -4164,7 +4164,7 @@ impl TypeCode {
         as_datatype.encode_basic(code_ty.base.metatype, -1, encoder);
         if code_ty.proto.is_some() {
             // Ghidra: proto->encode(encoder);
-            // Rugra: placeholder until FuncProto::encode is ported.
+            // Rudra: placeholder until FuncProto::encode is ported.
             encoder.open_element(&elem::prototype());
             encoder.close_element(&elem::prototype());
         }
@@ -4203,11 +4203,11 @@ impl TypeCode {
         Ok((basic, has_proto))
     }
 
-    // Ghidra: fspec.cc:4675 FuncProto::decode (Rugra gap, fspec.rs lease)
+    // Ghidra: fspec.cc:4675 FuncProto::decode (Rudra gap, fspec.rs lease)
     /// Decode the `<prototype>` element into an existing `FuncProto`. The
     /// oracle's `FuncProto::decode` (fspec.cc:4675-4839) reads the
     /// model/extrapop/flag attributes and the `<returnsym>`/effect children
-    /// through the Architecture's `ProtoStore`; Rugra has not ported it yet
+    /// through the Architecture's `ProtoStore`; Rudra has not ported it yet
     /// (owned by the fspec.rs lease chain).
     ///
     /// The element is opened and skipped so the decoder advances exactly past
@@ -4219,7 +4219,7 @@ impl TypeCode {
         if child_id != 0 {
             decoder.close_element_skipping(child_id);
         }
-        Err("Rugra gap: FuncProto::decode (fspec.cc:4675) not ported; <prototype> child rejected (TYPEFACTORY-CODEFLAGS-DECODE-0001 residual)".to_string())
+        Err("Rudra gap: FuncProto::decode (fspec.cc:4675) not ported; <prototype> child rejected (TYPEFACTORY-CODEFLAGS-DECODE-0001 residual)".to_string())
     }
 
     // Ghidra: type.cc:2918 TypeCode::decodePrototype
@@ -4231,7 +4231,7 @@ impl TypeCode {
     /// `TypeFactory::decodeTypeWithCodeFlags`; finally `markComplete()` —
     /// which runs unconditionally, also when no prototype child is present.
     ///
-    /// Rugra gap: `FuncProto::decode` (fspec.cc:4675-4839) is not ported
+    /// Rudra gap: `FuncProto::decode` (fspec.cc:4675-4839) is not ported
     /// (fspec.rs lease); a present `<prototype>` child therefore errors after
     /// being consumed. The default-model wiring of `proto->setInternal` is
     /// likewise architecture-backed (FUNCPROTO-MODEL-BIND-0001). The
@@ -4265,7 +4265,7 @@ impl TypeCode {
 }
 
 /// Resolved map view for [`TypeSpacebase::get_map`] — the Rust shape of
-/// Ghidra's getMap, which returns one live `Scope*` flavor; Rugra's
+/// Ghidra's getMap, which returns one live `Scope*` flavor; Rudra's
 /// global and function-local scopes are different types, so the two arms
 /// materialize separately. The local arm holds the `RwLockReadGuard` so the
 /// borrowed `ScopeLocal` outlives the query that reads it.
@@ -4309,7 +4309,7 @@ impl ArrayedComponent {
 /// dynamic `getMap()` projection (type.cc:2935-2945). Ghidra re-resolves the
 /// map on EVERY query: `res = glb->symboltab->getGlobalScope()`, and — when
 /// `localframe` is valid — `res->queryFunction(localframe)` finds the owning
-/// function whose `getScopeLocal()` becomes the map. Rugra's
+/// function whose `getScopeLocal()` becomes the map. Rudra's
 /// construction-time `TypeSpacebase::scope` snapshot (typefactory.rs) cannot
 /// see the per-function ScopeLocal (built and restructured during the
 /// pipeline), so the live query path (`AddTreeState::calcSubtype`,
@@ -4573,7 +4573,7 @@ pub struct TypeSpacebase {
     /// Ghidra's `TypeSpacebase::getMap` (type.cc:2935-2945) resolves
     /// `queryFunction(localframe)->getScopeLocal()` dynamically on EVERY
     /// query, so subtype lookups observe the restructured map of the
-    /// function being decompiled. Rugra's ownership seam: the Funcdata owns
+    /// function being decompiled. Rudra's ownership seam: the Funcdata owns
     /// the `ScopeLocal`, the factory-cached spacebase type holds this
     /// shared handle (created eagerly at spacebase construction, an empty
     /// `ScopeLocal` mirroring the oracle's pre-restructure observable);
@@ -4582,19 +4582,19 @@ pub struct TypeSpacebase {
     /// unused `stubs::Funcdata` placeholder.)
     pub fd: Option<std::sync::Arc<std::sync::RwLock<crate::varmap::ScopeLocal>>>,
     /// The address space we are treating as a structure. Ghidra field
-    /// `spaceid` (type.hh:723). Rugra stores an `Option` because the decode
+    /// `spaceid` (type.hh:723). Rudra stores an `Option` because the decode
     /// path (type.cc:3090) may leave it unset when no `Architecture` is wired
     /// up; `get_address`/`get_sub_type` honour Ghidra's "no spaceid ⇒ no
     /// resolution" contract by returning the identity/unknown result.
     pub spaceid: Option<AddressSpace>,
     /// Address of the function whose symbol table is indexed, or the
-    /// "invalid" sentinel (all-zeros in Rugra's single-space model) for the
+    /// "invalid" sentinel (all-zeros in Rudra's single-space model) for the
     /// global scope. Ghidra field `localframe` (type.hh:724). `is_invalid()`
     /// matches Ghidra's `Address::isInvalid()`.
     pub localframe: Address,
     /// Symbol table indexed by this spacebase, when available. Ghidra obtains
     /// this on demand via `glb->symboltab->getGlobalScope()` /
-    /// `fd->getScopeLocal()` (type.cc:2935-2945 `getMap`); Rugra does not yet
+    /// `fd->getScopeLocal()` (type.cc:2935-2945 `getMap`); Rudra does not yet
     /// thread an `Architecture` object through every type, so the Scope is
     /// stored by reference and consulted lazily by `get_sub_type`. `None`
     /// mirrors Ghidra's "no map ⇒ TYPE_UNKNOWN" fallback (type.cc:2963-2965).
@@ -4631,7 +4631,7 @@ impl TypeSpacebase {
     /// `TypeSpacebase::getMap` (type.cc:2935-2945): the global scope, or —
     /// if `localframe` is valid — the function-local scope of the function
     /// at `localframe`, resolved dynamically on every call in the oracle
-    /// (`res->queryFunction(localframe)` → `fd->getScopeLocal()`). Rugra's
+    /// (`res->queryFunction(localframe)` → `fd->getScopeLocal()`). Rudra's
     /// ownership seam: the function's `ScopeLocal` is published into the
     /// `fd` live handle by the Funcdata pipeline (see
     /// `Funcdata::publish_scope_to_spacebase`), so the dynamic resolution
@@ -4642,7 +4642,7 @@ impl TypeSpacebase {
     /// observable. `None` for global spacebases without an attached scope
     /// mirrors the "no global scope" case.
     pub fn get_map(&self) -> Option<LiveSpacebaseMap<'_>> {
-        // Local-frame test: Rugra's legacy `Address::new(frame)` form is
+        // Local-frame test: Rudra's legacy `Address::new(frame)` form is
         // SPACELESS, so `is_invalid()` is true for real function entries
         // too; the factory's global spacebases always carry frame 0, so a
         // NONZERO localframe offset is the local-frame predicate (see
@@ -4662,7 +4662,7 @@ impl TypeSpacebase {
     /// Construct the `Address` referred to by a specific offset relative to a
     /// pointer of this type. Faithful to `TypeSpacebase::getAddress`
     /// (type.cc:3063-3071): for a global spacebase (`localframe` invalid)
-    /// Ghidra forces `sz = -1` to skip full-encoding recovery; Rugra, lacking
+    /// Ghidra forces `sz = -1` to skip full-encoding recovery; Rudra, lacking
     /// an `Architecture::resolveConstant`, returns the byte→address converted
     /// offset directly. `spaceid`, when present, converts `off` via
     /// `AddrSpace::byteToAddressInt(off, wordsize)` (= off * wordsize).
@@ -4726,7 +4726,7 @@ impl TypeSpacebase {
             }
             Some(LiveSpacebaseMap::Global(scope)) => {
                 // type.cc:2962-2963 — queryContainer(addr, 1, nullPoint):
-                // Rugra's null usepoint is Address::new(0).
+                // Rudra's null usepoint is Address::new(0).
                 let addr = Address::new(addr_off);
                 match scope.find_container(addr, 1, Address::new(0)) {
                     Some(entry_idx) => {
@@ -4994,10 +4994,10 @@ impl TypeSpacebase {
     /// `typedef_target` is `Some` when this spacebase is a typedef alias; it is
     /// encoded via `Datatype::encode_typedef`.
     ///
-    /// Rugra gap: the marshal `Encoder` trait has no `writeSpace`, so the
+    /// Rudra gap: the marshal `Encoder` trait has no `writeSpace`, so the
     /// space name is written as a plain string attribute (best-effort; see
     /// type_audit.md "AddrSpace 集成缺失"). `localframe` is written as a
-    /// string attribute rather than a child element because Rugra's
+    /// string attribute rather than a child element because Rudra's
     /// `Address::encode` produces a string.
     pub fn encode_spacebase(
         spacebase: &TypeSpacebase,
@@ -5016,7 +5016,7 @@ impl TypeSpacebase {
             encoder.write_string(&attrib("space"), space.name());
         }
         // Ghidra: localframe.encode(encoder);  (a child element)
-        // Rugra: write as a string attribute. `Address` has no `encode()`
+        // Rudra: write as a string attribute. `Address` has no `encode()`
         // method (unlike Ghidra's `Address::encode`), so we render the raw
         // address value. The decoder mirrors this with a string read.
         encoder.write_string(
@@ -5032,7 +5032,7 @@ impl TypeSpacebase {
     /// runs `decodeBasic`, then `spaceid = decoder.readSpace(ATTRIB_SPACE)`,
     /// then `localframe = Address::decode(decoder)`.
     ///
-    /// Rugra gap: the marshal `Decoder` has no `readSpace`, so the `space`
+    /// Rudra gap: the marshal `Decoder` has no `readSpace`, so the `space`
     /// attribute is read as a string and discarded (the caller's
     /// `TypeFactory` is responsible for resolving it to an `AddressSpace` via
     /// the `Architecture`). Returns the parsed `space` name and `localframe`
@@ -5089,7 +5089,7 @@ impl TypePartialStruct {
     /// Construct a partial-struct given the container, byte offset, size, and
     /// stripped fallback. Faithful to the C++ constructor
     /// (type.cc:2330-2341): sets `metatype = TYPE_PARTIALSTRUCT`, asserts the
-    /// container is a struct or array (debug-only in C++; Rugra uses
+    /// container is a struct or array (debug-only in C++; Rudra uses
     /// `debug_assert!`), and sets the `has_stripped` flag.
     pub fn new(
         container: Arc<Datatype>,
@@ -5174,7 +5174,7 @@ impl TypePartialStruct {
     // Ghidra: type.cc:2406 TypePartialStruct::compareDependency
     /// Compare for the type-factory tree sort. Faithful to
     /// `TypePartialStruct::compareDependency` (type.cc:2406-2414): submeta,
-    /// then container by identity (Rugra uses `Arc::as_ptr`), then offset,
+    /// then container by identity (Rudra uses `Arc::as_ptr`), then offset,
     /// then `(op.size - size)`.
     pub fn compare_dependency(&self, other: &TypePartialStruct) -> i32 {
         // Compare container by pointer identity (type.cc:2411).
@@ -5312,7 +5312,7 @@ impl TypePartialEnum {
         as_datatype: &Datatype,
     ) {
         encoder.open_element(&elem::type_());
-        // Ghidra: encodeBasic(TYPE_PARTIALENUM, -1, ...). Rugra's metatype is
+        // Ghidra: encodeBasic(TYPE_PARTIALENUM, -1, ...). Rudra's metatype is
         // already PartialEnum, which metatype2string renders as "partenum".
         as_datatype.encode_basic(TypeMetatype::PartialEnum, -1, encoder);
         encoder.write_signed_integer(&attrib("offset"), partial.offset);
@@ -5453,7 +5453,7 @@ impl TypePartialUnion {
     /// field index of that form, else -1. Faithful to
     /// `TypePartialUnion::findCompatibleResolve` (type.cc:2536-2540): pure
     /// delegation to the container union's `findCompatibleResolve` with the
-    /// SAME `ct`. Rugra's virtual dispatch is the fd-free free function
+    /// SAME `ct`. Rudra's virtual dispatch is the fd-free free function
     /// `unionresolve::find_compatible_resolve` (whose PartialUnion arm is
     /// this very delegation), so this method form forwards there.
     pub fn find_compatible_resolve(&self, ct: &Arc<Datatype>) -> i32 {
@@ -5466,7 +5466,7 @@ impl TypePartialUnion {
     /// truncation by delegating to the container union's
     /// `resolveTruncation` at `off + offset` — scoring and caching the
     /// `(union,op,slot)` edge on a miss. The oracle reaches the Funcdata
-    /// through `op->getParent()->getFuncdata()`; Rugra's PcodeOp has no
+    /// through `op->getParent()->getFuncdata()`; Rudra's PcodeOp has no
     /// Funcdata back-pointer, so the fd is threaded explicitly (same
     /// discipline as `unionresolve::union_resolve_truncation`, the
     /// TypeUnion member this delegates to).
@@ -5669,7 +5669,7 @@ mod tests {
         assert!(sub.is_none());
 
         // Ghidra reads the element's stored alignSize directly. A raw
-        // 3-byte element stores alignSize=3 even though Rugra's legacy public
+        // 3-byte element stores alignSize=3 even though Rudra's legacy public
         // get_align_size fallback reports a padded width of 4.
         let raw3 = Arc::new(Datatype::Base(TypeBase::new(
             "raw3".into(),
@@ -5881,7 +5881,7 @@ mod tests {
 
     #[test]
     fn test_mark_unmark_equate() {
-        // Rugra-private (no Ghidra counterpart): toggle EQUATED flag.
+        // Rudra-private (no Ghidra counterpart): toggle EQUATED flag.
         let mut int_t = Datatype::Base(TypeBase::new("x".into(), 4, TypeMetatype::Int));
         assert!(!int_t.is_equated());
         int_t.mark_equate();
@@ -6057,7 +6057,7 @@ mod tests {
         let mut sb = TypeSpacebase::new_global(Address::new(0));
         // No spaceid ⇒ wordsize 1 ⇒ identity.
         assert_eq!(sb.get_address(5, 8, Address::new(0)).as_u64(), 5);
-        // Attach a spaceid; Rugra's AddressSpace enum has word_size 1 for all
+        // Attach a spaceid; Rudra's AddressSpace enum has word_size 1 for all
         // variants, so the product is still identity. The contract is honoured.
         sb.spaceid = Some(AddressSpace::Ram);
         assert_eq!(sb.get_address(5, 8, Address::new(0)).as_u64(), 5);
@@ -6069,7 +6069,7 @@ mod tests {
         // still yields a scope whose queryContainer misses, landing on the
         // getBase(1,TYPE_UNKNOWN) fallback with newoff = 0 (verified against
         // the locked-oracle fixture tests/oracle/type_spacebase_subtype_1204:
-        // ghidra stdout == rugra stdout, 10/10 MATCH after
+        // ghidra stdout == rudra stdout, 10/10 MATCH after
         // TYPE-SPACEBASE-MISSFALLBACK-0001).
         let sb = TypeSpacebase::new_global(Address::new(0));
         let (sub, newoff) = sb.get_sub_type(42);
@@ -7118,7 +7118,7 @@ mod tests {
             }),
             // Enums: the oracle normalizes the stored metatype to
             // Int/Uint (type.hh:489-490), so enums are never
-            // piece-structured; Rugra's collapsed Enum variant is
+            // piece-structured; Rudra's collapsed Enum variant is
             // likewise excluded by is_piece_structured.
             Datatype::Enum(TypeEnum {
                 base: TypeBase::new("color".into(), 4, TypeMetatype::Enum),

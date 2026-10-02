@@ -78,7 +78,7 @@ pub fn initialize(records: &mut Vec<PreferSplitRecord>) {
 /// An instance of a split varnode being processed. Faithful to the private
 /// nested class `PreferSplitManager::SplitInstance` (prefersplit.hh:34-42).
 ///
-/// In Ghidra this holds a raw `Varnode*`; Rugra uses an `Arc` reference. The
+/// In Ghidra this holds a raw `Varnode*`; Rudra uses an `Arc` reference. The
 /// `hi`/`lo` fields hold the computed most-/least-significant piece varnodes.
 #[derive(Clone)]
 pub struct SplitInstance {
@@ -868,7 +868,7 @@ impl PreferSplitManager {
     /// Apply a single split record. Faithful to `splitRecord`
     /// (prefersplit.cc:430-449). Iterates over all varnodes at the record's
     /// storage location, splitting each one. Ghidra re-iterates after each
-    /// successful split; Rugra loops until no matches remain.
+    /// successful split; Rudra loops until no matches remain.
     fn split_record(&mut self, fd: &mut Funcdata, rec: &PreferSplitRecord) {
         let addr = Address::new(rec.storage_offset);
         let size = rec.storage_size as usize;
@@ -1135,7 +1135,7 @@ impl PreferSplitManager {
 // Ghidra: prefersplit.hh:33 PreferSplitManager::recreateIfFree
 /// Helper that re-creates a pointer varnode if it is free, mirroring Ghidra's
 /// `if (ptrvn->isFree()) ptrvn = data->newVarnode(...)` in splitLoad/splitStore.
-/// Rugra's `VarnodeBank::create_with_space` produces a fresh varnode at the
+/// Rudra's `VarnodeBank::create_with_space` produces a fresh varnode at the
 /// same (space, offset, size); for non-free varnodes the original is returned.
 fn recreate_if_free(
     fd: &mut Funcdata,

@@ -1,6 +1,6 @@
 //! Reachability-based control flow tracking.
 //!
-//! Partial port of Ghidra's `FlowInfo` (flow.cc/flow.hh). Replaces Rugra's
+//! Partial port of Ghidra's `FlowInfo` (flow.cc/flow.hh). Replaces Rudra's
 //! linear-scan approach (disassemble → lift → inject_raw_ops) with
 //! address-list-driven flow tracking that only decodes reachable code. The
 //! remaining error, injection, override, jump-table, and block-generation
@@ -50,10 +50,10 @@ pub mod flow_flags {
 }
 
 /// Extension trait providing the `FuncCallSpecs` accessors that Ghidra's
-/// `flow.cc` call-spec maintenance methods rely on but that Rugra's
+/// `flow.cc` call-spec maintenance methods rely on but that Rudra's
 /// `FuncCallSpecs` does not yet model. The audit (flow_audit.md item 2)
 /// flags this as a "FuncCallSpecs gap": Ghidra's `FuncCallSpecs` carries
-/// inject_id state, while Rugra's does not store it.
+/// inject_id state, while Rudra's does not store it.
 ///
 /// The flag accessors Ghidra inherits from `FuncProto` (`is_inline`,
 /// `is_no_return`, `set_no_return`, `copy_flow_effects`) now live on
@@ -88,12 +88,12 @@ trait FuncCallSpecsExt {
     fn cancel_inject_id(&mut self);
     /// Flow-local adapter for `FuncCallSpecs::setAddress` (fspec.hh). Clears the entry
     /// address to cancel an indirect override (flow.cc:713).
-    // RUDRA-GLUE: ANN-B; Rust extension-trait declaration representing Ghidra's setAddress(Address()) with Rugra's optional entry address.
+    // RUDRA-GLUE: ANN-B; Rust extension-trait declaration representing Ghidra's setAddress(Address()) with Rudra's optional entry address.
     fn clear_entry_address(&mut self);
 }
 
 impl FuncCallSpecsExt for crate::fspec::FuncCallSpecs {
-    // RUDRA-GLUE: ANN-B; INJECT-0001 compatibility fallback because Rugra FuncCallSpecs has no Ghidra injection-id field.
+    // RUDRA-GLUE: ANN-B; INJECT-0001 compatibility fallback because Rudra FuncCallSpecs has no Ghidra injection-id field.
     fn get_inject_id(&self) -> i32 {
         // TODO(INJECT-0001): depends on FuncCallSpecs storing an inject id. -1 = none.
         -1
@@ -102,9 +102,9 @@ impl FuncCallSpecsExt for crate::fspec::FuncCallSpecs {
     fn get_op(&self, fd: &Funcdata) -> Option<crate::op::PcodeOpRef> {
         self.find_call_op(fd)
     }
-    // RUDRA-GLUE: ANN-B; Rust adapter reads the nested FuncProto field because Rugra FuncCallSpecs does not inherit Ghidra's name accessor.
+    // RUDRA-GLUE: ANN-B; Rust adapter reads the nested FuncProto field because Rudra FuncCallSpecs does not inherit Ghidra's name accessor.
     fn get_name(&self) -> &str {
-        // FuncProto stores the callee name in a public `name` field; Rugra
+        // FuncProto stores the callee name in a public `name` field; Rudra
         // has no FuncProto::get_name accessor, so we read the field directly.
         self.prototype.name.as_str()
     }
@@ -116,7 +116,7 @@ impl FuncCallSpecsExt for crate::fspec::FuncCallSpecs {
     fn cancel_inject_id(&mut self) {
         self.prototype.cancel_inject_id();
     }
-    // RUDRA-GLUE: ANN-B; CALLSPEC-0001 adapter encodes flow.cc's setAddress(Address()) as Option::None in Rugra.
+    // RUDRA-GLUE: ANN-B; CALLSPEC-0001 adapter encodes flow.cc's setAddress(Address()) as Option::None in Rudra.
     fn clear_entry_address(&mut self) {
         self.entry_addr = None;
     }
@@ -266,7 +266,7 @@ pub struct FlowInfo<'a> {
     unprocessed: Vec<Address>,
     /// Source/target P-code pairs collected before the dead-list operations
     /// are assigned to basic blocks (flow.hh:91-92 block_edge1/block_edge2).
-    /// Rugra keeps each parallel-list entry together so alias identity and
+    /// Rudra keeps each parallel-list entry together so alias identity and
     /// insertion order cannot drift between the two sides of an edge.
     block_edges: Vec<(crate::op::PcodeOpRef, crate::op::PcodeOpRef)>,
     /// Visited instruction map (flow.hh:91 visited).
@@ -296,13 +296,13 @@ pub struct FlowInfo<'a> {
     /// Boolean options for flow following (flow.hh:101 flags).
     flags: u32,
     /// First function in the in-lining chain (flow.hh:102 inline_head).
-    /// Ghidra stores `Funcdata *`; Rugra stores the head function's base
+    /// Ghidra stores `Funcdata *`; Rudra stores the head function's base
     /// address so `inline_sub_function` can detect the top-level inline
     /// entry. `None` means no inlining is in progress.
     inline_head: Option<u64>,
     /// Active set of addresses for functions currently being in-lined
     /// (flow.hh:103 inline_recursion). Ghidra stores a pointer to an
-    /// externally-owned `set<Address>`; Rugra owns the set directly.
+    /// externally-owned `set<Address>`; Rudra owns the set directly.
     inline_recursion: std::collections::BTreeSet<u64>,
     /// Storage for addresses of functions that are in-lined (flow.hh:104
     /// inline_base). Backing store for `inline_recursion` at the top level.
@@ -319,7 +319,7 @@ pub struct FlowInfo<'a> {
     /// RUDRA-GLUE: Ghidra stores the resolved callee as a `Funcdata *` on
     /// each FuncCallSpecs (`fspecs.setFuncdata`, flow.cc:662), and
     /// `checkContainedCall` reads it via `fc->getFuncdata()` (flow.cc:1367).
-    /// Rugra's `FuncCallSpecs` has no per-spec callee-Funcdata storage
+    /// Rudra's `FuncCallSpecs` has no per-spec callee-Funcdata storage
     /// (fspec.rs gap), so this FlowInfo-side set carries the same
     /// "resolved" observation for the flow-time consumers
     /// (`check_contained_call`). Like Ghidra's spec-owned pointer, the set
@@ -338,7 +338,7 @@ pub struct FlowInfo<'a> {
     ///
     /// RUDRA-GLUE: Ghidra holds the callee protos inside the symbol
     /// database's Funcdata objects (marked by the "Non-Returning Functions -
-    /// Known" analyzer et al.); Rugra has no per-callee Funcdata at flow
+    /// Known" analyzer et al.); Rudra has no per-callee Funcdata at flow
     /// time, so the driver feeds the table through
     /// [`follow_flow_with_callee_protos`] (FLOW-NORETURN-DATA-0001 owns the
     /// production data source). The table is carried into truncated-flow
@@ -516,7 +516,7 @@ impl<'a> FlowInfo<'a> {
     /// `getSize` (flow.hh:160).
     // Ghidra: flow.hh:160 FlowInfo::getSize
     pub fn get_size(&self) -> u64 {
-        // Ghidra returns maxaddr - minaddr; Rugra uses u64 sentinel for "no min".
+        // Ghidra returns maxaddr - minaddr; Rudra uses u64 sentinel for "no min".
         if self.minaddr == u64::MAX {
             0
         } else {
@@ -615,7 +615,7 @@ impl<'a> FlowInfo<'a> {
 
     /// Generate warning message or throw exception for given flow that is
     /// out of bounds. Faithful to `handleOutOfBounds` (flow.cc:519-540).
-    /// Rugra does not throw — it logs a warning and sets the
+    /// Rudra does not throw — it logs a warning and sets the
     /// `OUTOFBOUNDS_PRESENT` flag unless `IGNORE_OUTOFBOUNDS` is set.
     // Ghidra: flow.cc:519 FlowInfo::handleOutOfBounds
     fn handle_out_of_bounds(&mut self, fromaddr: Address, toaddr: Address) {
@@ -635,7 +635,7 @@ impl<'a> FlowInfo<'a> {
                 self.fd.warning_header("Function flows out of bounds");
             }
         } else {
-            // Ghidra throws LowlevelError; Rugra logs at error level instead.
+            // Ghidra throws LowlevelError; Rudra logs at error level instead.
             eprintln!("[FLOW] ERROR: {}: {}", self.fd.name, msg);
         }
     }
@@ -643,7 +643,7 @@ impl<'a> FlowInfo<'a> {
     /// Generate warning message or exception for a reinterpreted address.
     /// Faithful to `reinterpreted` (flow.cc:606-629). A set of bytes is
     /// reinterpreted if there are at least two different interpretations of
-    /// the bytes as instructions. Rugra logs and sets the
+    /// the bytes as instructions. Rudra logs and sets the
     /// `REINTERPRETED_PRESENT` flag instead of throwing.
     // Ghidra: flow.cc:606 FlowInfo::reinterpreted
     fn reinterpreted(&mut self, addr: Address) {
@@ -964,7 +964,7 @@ impl<'a> FlowInfo<'a> {
     ///
     /// For BRANCHIND, Ghidra calls `data.linkJumpTable(op)` and, if that
     /// returns NULL, pushes the op onto `tablelist` so it will be recovered
-    /// later. Rugra does not yet have `Funcdata::linkJumpTable`, so we mirror
+    /// later. Rudra does not yet have `Funcdata::linkJumpTable`, so we mirror
     /// the logic with a local `find_jump_table` lookup and push onto the
     /// returned work-list when no table is linked.
     // Ghidra: flow.cc:1053 FlowInfo::xrefInlinedBranch
@@ -984,7 +984,7 @@ impl<'a> FlowInfo<'a> {
                 // but this xref consumer remains unwired under CALLSPEC-0001.
             }
             OpCode::CPUI_BRANCHIND => {
-                // data.linkJumpTable(op) — flow.cc:1061. Rugra's equivalent is
+                // data.linkJumpTable(op) — flow.cc:1061. Rudra's equivalent is
                 // find_jump_table; if none exists we queue the op for recovery.
                 let linked = self.fd.find_jump_table(op).is_some();
                 if !linked {
@@ -1148,7 +1148,7 @@ impl<'a> FlowInfo<'a> {
     // ===================== Public control-flow target queries =====================
     // These mirror Ghidra's public `target`/`branchTarget`/`fallthruOp`/
     // `findRelTarget`/`updateTarget` API (flow.cc:88/115/149/187/204). The
-    // audit (flow_audit.md item 8) flagged that Rugra downgraded these to
+    // audit (flow_audit.md item 8) flagged that Rudra downgraded these to
     // private (`target_op_*`/`fallthru_op`) and never exposed them; the
     // wrappers below restore the public surface so an action system can query
     // control-flow targets. The private helpers retain the original names so
@@ -1161,7 +1161,7 @@ impl<'a> FlowInfo<'a> {
     /// first-op `SeqNum` through `obank.findOp`, and — when the instruction
     /// produced no p-code (INVALID SeqNum) — falls through to the next
     /// instruction. It throws `LowlevelError` when no op is ultimately
-    /// found; Rugra returns `None` so callers can log/handle it.
+    /// found; Rudra returns `None` so callers can log/handle it.
     // Ghidra: flow.cc:115 FlowInfo::target
     pub fn target(&self, addr: Address) -> Option<crate::op::PcodeOpRef> {
         let mut cur = addr.as_u64();
@@ -1206,7 +1206,7 @@ impl<'a> FlowInfo<'a> {
                 Ok(RelativeTarget::Internal(retop)) => Some(retop),
                 Ok(RelativeTarget::Fallthru(res)) => self.target(res),
                 // Ghidra throws LowlevelError("Bad relative branch...");
-                // Rugra surfaces the failure to the caller.
+                // Rudra surfaces the failure to the caller.
                 Err(_) => None,
             }
         } else {
@@ -1233,7 +1233,7 @@ impl<'a> FlowInfo<'a> {
     /// not exist, the op one time earlier must exist and the branch is
     /// really to the next instruction, whose machine address is passed back
     /// through `res`. Anything else is a corrupt relative branch (Ghidra
-    /// throws `LowlevelError`; Rugra reports `Err`).
+    /// throws `LowlevelError`; Rudra reports `Err`).
     // Ghidra: flow.cc:149 FlowInfo::findRelTarget
     pub fn find_rel_target(
         &self,
@@ -1307,7 +1307,7 @@ impl<'a> FlowInfo<'a> {
     // ===================== FuncCallSpecs maintenance =====================
     // These mirror Ghidra's call-spec lifecycle methods (flow.cc:636-723,
     // 1306-1318). Ghidra's Funcdata `qlst` owns stable heap allocations;
-    // Rugra's `Vec<Arc<RwLock<FuncCallSpecs>>>` is the corresponding strong
+    // Rudra's `Vec<Arc<RwLock<FuncCallSpecs>>>` is the corresponding strong
     // owner container, while every reverse identity edge is Weak.
 
     /// Check for modifications to flow at a call site given the recovered
@@ -1373,7 +1373,7 @@ impl<'a> FlowInfo<'a> {
     /// skip calls whose entry was also traced by tail-jump flow — without
     /// it, every such legitimate call is misreported as a PIC construction.
     ///
-    /// Rugra's front-end equivalent of `queryFunction` is the driver-seeded
+    /// Rudra's front-end equivalent of `queryFunction` is the driver-seeded
     /// symbol table (`fd.symbol_table`, the same boundary the driver's
     /// CALLSPEC-DRIVER-0001 `link_call_specs` uses post-flow): a symbol at
     /// the entry address resolves the callee, `set_funcdata` copies the
@@ -1404,7 +1404,7 @@ impl<'a> FlowInfo<'a> {
         let callee_proto = self.callee_func_protos.get(&entry_addr.as_u64()).cloned();
         // Record the resolution for check_contained_call's flow.cc:1367
         // `fd != 0 continue` guard (RUDRA-GLUE: FlowInfo-side set stands in
-        // for the per-spec Funcdata pointer Rugra's FuncCallSpecs lacks).
+        // for the per-spec Funcdata pointer Rudra's FuncCallSpecs lacks).
         if let Some(op_addr) = self
             .fd
             .get_call_specs(fc_idx)
@@ -1439,8 +1439,8 @@ impl<'a> FlowInfo<'a> {
     /// Ghidra allocates a new `FuncCallSpecs(op)`, rewrites input(0) to a
     /// call-specs varnode, appends to qlst, applies any prototype override,
     /// runs `queryCall`, performs an injection cycle-check against `fc`, and
-    /// finally runs `checkForFlowModification`. Rugra constructs the spec
-    /// directly, rewrites input(0) to Rugra's synthetic call-spec Varnode,
+    /// finally runs `checkForFlowModification`. Rudra constructs the spec
+    /// directly, rewrites input(0) to Rudra's synthetic call-spec Varnode,
     /// appends to `self.fd.callspecs`, and runs the cycle check and
     /// flow-modification check. Prototype override application remains a
     /// `CALLSPEC-0001` gap.
@@ -1495,7 +1495,7 @@ impl<'a> FlowInfo<'a> {
     ///
     /// Ghidra's sequence applies an indirect override first, performs the
     /// injection-cycle cancellation, applies a prototype/query, and rewrites
-    /// a resolved CALLIND to CALL (flow.cc:711-721). Rugra currently preserves
+    /// a resolved CALLIND to CALL (flow.cc:711-721). Rudra currently preserves
     /// the owner/identity order and modeled cancellation/direct rewrite while
     /// override, prototype, and query consumers remain `CALLSPEC-0001`.
     // Ghidra: flow.cc:704 FlowInfo::setupCallindSpecs
@@ -1559,7 +1559,7 @@ impl<'a> FlowInfo<'a> {
     /// throwing `LowlevelError`.
     ///
     /// Ghidra scans `qlst` for the pointer, throws `LowlevelError` if absent,
-    /// then `delete`s and erases. Rugra locates the same allocation with
+    /// then `delete`s and erases. Rudra locates the same allocation with
     /// `Arc::ptr_eq`; a vector shift cannot retarget the identity.
     // Ghidra: flow.cc:1306 FlowInfo::deleteCallSpec
     fn delete_call_spec(&mut self, fc: Arc<RwLock<crate::fspec::FuncCallSpecs>>) {
@@ -1585,8 +1585,8 @@ impl<'a> FlowInfo<'a> {
     ///
     /// Ghidra copies the `inline_recursion` pointer and `inline_head` pointer
     /// from the parent flow so that, when cloning an inline flow into `this`,
-    /// the clone is informed of in-lining already performed. Rugra copies the
-    /// head address and the recursion set contents (Rugra owns the set by
+    /// the clone is informed of in-lining already performed. Rudra copies the
+    /// head address and the recursion set contents (Rudra owns the set by
     /// value rather than via a pointer).
     // Ghidra: flow.cc:1043 FlowInfo::forwardRecursion
     pub fn forward_recursion(&mut self, op2: &FlowInfo<'_>) {
@@ -1606,7 +1606,7 @@ impl<'a> FlowInfo<'a> {
     /// `xref_inlined_branch`.
     ///
     /// RUDRA-GLUE: Ghidra's clone path needs `data.cloneOp(op, seqnum)` and
-    /// `data.newCodeRef(retaddr)`, neither of which is ported. Rugra emits a
+    /// `data.newCodeRef(retaddr)`, neither of which is ported. Rudra emits a
     /// TODO and leaves the dead-list clone to a future partial-`Funcdata`
     /// clone implementation (flow_audit.md item 5). The flow-table merge and
     /// RETURN->BRANCH rewrite structure are preserved so the contract is
@@ -1615,7 +1615,7 @@ impl<'a> FlowInfo<'a> {
     pub fn inline_clone(&mut self, inlineflow: &FlowInfo<'_>, retaddr: Address) {
         // flow.cc:1077-1091: walk inlineflow's dead ops, cloning each.
         // TODO: depends on partial-function clone (Funcdata::clone_op) and
-        // Funcdata::new_code_ref. Rugra has no clone path yet, so we record
+        // Funcdata::new_code_ref. Rudra has no clone path yet, so we record
         // the gap and preserve the post-clone table merge below.
         let _ = retaddr; // would be used to build BRANCH targets (flow.cc:1083-1085).
         let mut new_tablelist: Vec<crate::op::PcodeOpRef> = Vec::new();
@@ -1650,7 +1650,7 @@ impl<'a> FlowInfo<'a> {
     ///
     /// Only straight-line code is cloned (cloning stops at the first
     /// RETURN), and every cloned op is reassigned the fixed `calladdr`.
-    /// Because Rugra has no clone path, this is a structural placeholder.
+    /// Because Rudra has no clone path, this is a structural placeholder.
     // Ghidra: flow.cc:1108 FlowInfo::inlineEZClone
     pub fn inline_ezclone(&mut self, inlineflow: &FlowInfo<'_>, calladdr: Address) {
         // flow.cc:1112-1117: walk dead ops until RETURN, cloning with a
@@ -1728,7 +1728,7 @@ impl<'a> FlowInfo<'a> {
     /// Returns None when either manager is absent — legacy callers and unit
     /// fixtures construct Funcdata without an Architecture.
     // RUDRA-GLUE: ARCH-GLUE — Ghidra reaches the managers through the raw
-    // Architecture pointer; Rugra's Funcdata::arch is Option<Arc<..>>.
+    // Architecture pointer; Rudra's Funcdata::arch is Option<Arc<..>>.
     fn arch_inject_sources(
         &self,
     ) -> Option<(
@@ -1767,7 +1767,7 @@ impl<'a> FlowInfo<'a> {
     /// Ghidra's `payload->inject(icontext, emitter)` (flow.cc:1185) runs the
     /// payload template through `InjectPayloadSleigh::inject`, whose emitted
     /// ops land at the end of the dead list via `PcodeEmitFd::dump`
-    /// (funcdata.cc:878). Rugra splits the same dataflow at the borrow
+    /// (funcdata.cc:878). Rudra splits the same dataflow at the borrow
     /// boundary: `InjectPayload::inject` (pcodeinject.rs) resolves the
     /// template into raw ops, and `Funcdata::inject_raw_ops_single` — the
     /// `PcodeEmitFd::dump` port — appends them to the bank with the
@@ -1789,7 +1789,7 @@ impl<'a> FlowInfo<'a> {
         let inject_marker = self.fd.obank.dead_tail_id();
         // flow.cc:1185: payload->inject(icontext, emitter) — empty
         // injections throw LowlevelError("Empty injection: " + name)
-        // (flow.cc:1188-1189); Rugra reports and bails like the rest of the
+        // (flow.cc:1188-1189); Rudra reports and bails like the rest of the
         // flow error paths.
         let raw_ops = match payload.inject(icontext) {
             Ok(ops) => ops,
@@ -1863,7 +1863,7 @@ impl<'a> FlowInfo<'a> {
         // payload lookup by inject id (`glb->userops.getOp(...)` /
         // `glb->pcodeinjectlib->getPayload(userop->getInjectId())`).
         // Ghidra dereferences getOp() unconditionally (SLEIGH guarantees the
-        // index); Rugra guards the Options and reports, per the flow error
+        // index); Rudra guards the Options and reports, per the flow error
         // policy (ARCH-GLUE: glb is `Funcdata::arch`).
         let Some((userops, inject_lib)) = self.arch_inject_sources() else {
             eprintln!(
@@ -1952,7 +1952,7 @@ impl<'a> FlowInfo<'a> {
     /// Ghidra sets up `inline_head` / `inline_recursion` on first entry,
     /// inserts the current function's address, refuses to inline a function
     /// already in the recursion set, then calls `data.inlineFlow(fd, *this,
-    /// op)` and interprets its result (easy vs hard model). Rugra has no
+    /// op)` and interprets its result (easy vs hard model). Rudra has no
     /// `inlineFlow` partial clone (flow_audit.md item 5), so the recursion
     /// bookkeeping is preserved and the actual clone is a documented TODO.
     // Ghidra: flow.cc:1242 FlowInfo::inlineSubFunction
@@ -1978,7 +1978,7 @@ impl<'a> FlowInfo<'a> {
             // flow.cc:1250: inline_head = &data (this flow's function).
             self.inline_head = Some(self.fd.baseaddr.as_u64());
             // flow.cc:1251: inline_recursion = &inline_base.
-            // Rugra owns inline_recursion directly, so we copy inline_base in.
+            // Rudra owns inline_recursion directly, so we copy inline_base in.
             self.inline_recursion = self.inline_base.clone();
         }
         // flow.cc:1253: insert current function's address.
@@ -1991,7 +1991,7 @@ impl<'a> FlowInfo<'a> {
         }
         // flow.cc:1260: data.inlineFlow(fd, *this, fc->getOp()).
         // TODO: depends on partial-function clone (Funcdata::inline_flow).
-        // Rugra cannot perform the actual clone yet; we return false so the
+        // Rudra cannot perform the actual clone yet; we return false so the
         // caller (inject_pcode) treats the site as not-inlined and leaves
         // the CALL in place.
         let res = -1i32;
@@ -2070,7 +2070,7 @@ impl<'a> FlowInfo<'a> {
     ///       - else -> `inlineSubFunction` + warningHeader + `deleteCallSpec`
     ///         (flow.cc:1347-1351)
     ///
-    /// Rugra's temporary Iop annotation carries a typed Weak counterpart of
+    /// Rudra's temporary Iop annotation carries a typed Weak counterpart of
     /// `getFspecFromConst`; the fallback compares exact PcodeOp identity.
     /// Payload resolution goes through the
     /// architecture's `PcodeInjectLibrary` exactly like Ghidra's
@@ -2133,7 +2133,7 @@ impl<'a> FlowInfo<'a> {
                                 lib.get_call_fixup_name(inject_id)
                             })
                             .unwrap_or_default();
-                        // RUDRA-GLUE: Rugra's FuncCallSpecs carries no name
+                        // RUDRA-GLUE: Rudra's FuncCallSpecs carries no name
                         // (Ghidra `fc->getName()`); the callspecs here are
                         // created during flow and unnamed until ActionFuncLink.
                         let fc_name = fc_owner
@@ -2168,7 +2168,7 @@ impl<'a> FlowInfo<'a> {
     /// construction. Faithful to `FlowInfo::checkContainedCall`
     /// (flow.cc:1361-1405).
     ///
-    /// For each remaining call spec (Ghidra's `qlst`, Rugra's
+    /// For each remaining call spec (Ghidra's `qlst`, Rudra's
     /// `fd.callspecs` in creation order):
     ///   - skip when the callee resolved to a Funcdata (flow.cc:1367-1368);
     ///   - skip when the op is not a direct CPUI_CALL (flow.cc:1369-1370);
@@ -2187,7 +2187,7 @@ impl<'a> FlowInfo<'a> {
     fn check_contained_call(&mut self) {
         // flow.cc:1364-1365: for(iter=qlst.begin();iter!=qlst.end();++iter).
         // Ghidra's qlst is the Funcdata-owned spec vector passed by
-        // reference; Rugra indexes fd.callspecs directly, so the list
+        // reference; Rudra indexes fd.callspecs directly, so the list
         // identity and traversal order are the same.
         let mut iter = 0usize;
         while iter != self.fd.callspecs.len() {
@@ -2197,7 +2197,7 @@ impl<'a> FlowInfo<'a> {
                 let fc = self.fd.callspecs[iter].read().unwrap();
                 // flow.cc:1367-1368: `Funcdata *fd = fc->getFuncdata();
                 // if (fd != (Funcdata *)0) continue;` — queryCall's resolved
-                // callee (flow.cc:662 setFuncdata). Rugra observes it via
+                // callee (flow.cc:662 setFuncdata). Rudra observes it via
                 // the FlowInfo-side `resolved_funcdata` set keyed by this
                 // spec's op address (see `query_call`).
                 let resolved = self.resolved_funcdata.contains(&fc.op_addr.as_u64());
@@ -2209,7 +2209,7 @@ impl<'a> FlowInfo<'a> {
                 continue;
             }
             // flow.cc:1369: `PcodeOp *op = fc->getOp();` — Ghidra's stored
-            // pointer is never null; Rugra upgrades the exact Weak PcodeOp
+            // pointer is never null; Rudra upgrades the exact Weak PcodeOp
             // identity, so None is an invariant break.
             let Some(op) = call_op else {
                 eprintln!(
@@ -2226,7 +2226,7 @@ impl<'a> FlowInfo<'a> {
                 continue;
             }
             // flow.cc:1372: `const Address &addr(fc->getEntryAddress());`.
-            // A CPUI_CALL always carries a direct target; Rugra models an
+            // A CPUI_CALL always carries a direct target; Rudra models an
             // invalid entry as None. An invalid Address sorts before every
             // visited key, so Ghidra's upper_bound lands on begin() and the
             // flow.cc:1375 guard continues — None maps to the same skip.
@@ -2263,7 +2263,7 @@ impl<'a> FlowInfo<'a> {
                 // flow.cc:1379-1398: exact visited instruction start — PIC.
                 // flow.cc:1380-1384: warningHeader("Possible PIC construction
                 // at <opaddr>: Changing call to branch"). The op address
-                // renders via Address::printRaw (flow.cc:1382) — Rugra's
+                // renders via Address::printRaw (flow.cc:1382) — Rudra's
                 // Funcdata helper ports the AddrSpace::printRaw spelling
                 // (0x + zero-pad + display base delta, RESIDMAP-PRINTBATCH
                 // -0001), replacing the legacy spaceless Display form.
@@ -2286,7 +2286,7 @@ impl<'a> FlowInfo<'a> {
                         // (flow.cc:135) when no op is ultimately found; a
                         // visited instruction start with a valid SeqNum
                         // always resolves, so this is unreachable in practice.
-                        // Rugra logs instead of panicking (same policy as
+                        // Rudra logs instead of panicking (same policy as
                         // delete_call_spec).
                         eprintln!(
                             "[FLOW] {}: checkContainedCall: target({:#x}) has no pcode",
@@ -2297,7 +2297,7 @@ impl<'a> FlowInfo<'a> {
                 }
                 // flow.cc:1389-1393: make sure the following op starts a
                 // basic block. Ghidra advances the op's dead-list insert
-                // iterator; Rugra's alive list plays the dead list during
+                // iterator; Rudra's alive list plays the dead list during
                 // flow (creation order == SeqNum order).
                 if let Some(next) = self.dead_list_next(&op) {
                     next.0.write().unwrap().flags |= pcodeop_flags::STARTBASIC;
@@ -2994,7 +2994,7 @@ impl<'a> FlowInfo<'a> {
     /// Order of operations (flow.cc:408-480):
     ///   1. remember the alive-list position before emission;
     ///   2. `oneInstruction` runs the emitter, which appends the instruction's
-    ///      ops (Rugra: `inject_raw_ops_single` = `PcodeEmitFd::dump`);
+    ///      ops (Rudra: `inject_raw_ops_single` = `PcodeEmitFd::dump`);
     ///   3. record `VisitStat { seqnum: first new op, size: step }` in
     ///      `visited` and update min/maxaddr;
     ///   4. mark the first new op as an instruction start and run
@@ -3273,7 +3273,7 @@ impl<'a> FlowInfo<'a> {
                     // flow.cc:344-348: an injected user-op goes on the
                     // injectlist. `glb->userops.getOp(op->getIn(0)->
                     // getOffset())->getType() == UserPcodeOp::injected` —
-                    // Ghidra dereferences getOp() unconditionally; Rugra
+                    // Ghidra dereferences getOp() unconditionally; Rudra
                     // guards the Option (an unregistered index is simply not
                     // injected).
                     let index_const = op_ref
@@ -3369,7 +3369,7 @@ impl<'a> FlowInfo<'a> {
                     *isfallthru = true;
                 }
                 Err(message) => {
-                    // Ghidra throws LowlevelError (flow.cc:173-178); Rugra
+                    // Ghidra throws LowlevelError (flow.cc:173-178); Rudra
                     // reports and truncates this instruction's flow.
                     eprintln!("[FLOW] {}: {}", self.fd.name, message);
                 }
@@ -3428,7 +3428,7 @@ pub fn follow_flow(
 /// (flow.cc:663-664); an empty table leaves every call site's
 /// inline/no-return flags untouched (the production data source — the
 /// driver-side known-noreturn name list — is FLOW-NORETURN-DATA-0001).
-// RUDRA-GLUE: Ghidra reaches the callee prototypes through the shared symbol database; Rugra's Funcdata owns no per-callee Funcdata at flow time, so the driver hands the table to the flow entry point.
+// RUDRA-GLUE: Ghidra reaches the callee prototypes through the shared symbol database; Rudra's Funcdata owns no per-callee Funcdata at flow time, so the driver hands the table to the flow entry point.
 pub fn follow_flow_with_callee_protos(
     fd: &mut Funcdata,
     lifter: &mut SleighLifter,
@@ -4091,7 +4091,7 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
 }
 
 // ===================== Injection helpers (RUDRA-GLUE) =====================
-// These free functions bridge gaps between Rugra's current types and the
+// These free functions bridge gaps between Rudra's current types and the
 // Ghidra flow.cc call paths. They are file-local to flow.rs because this
 // alignment task is constrained to editing src/flow.rs.
 

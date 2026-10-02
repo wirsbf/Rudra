@@ -3,12 +3,12 @@
 ## 2026-10-02：PERF-RULEBODY2-0001 规则体残量三类收敛（性能恒等重排）
 
 W2REMEASURE 勘定的 oppool1 残量（语料级 #1）在 ACTIONPOOL-ITER 之后的续作钻探
-（[RULEPROF] 临时探针 env RUGRA_RULEPROF=1 + 守卫消去归因实验 E1/E2/E3 + gdb 采样；
+（[RULEPROF] 临时探针 env RUDRA_RULEPROF=1 + 守卫消去归因实验 E1/E2/E3 + gdb 采样；
 探针交付前撤净三重亲证）定界：语料级规则体 57.79s[探针口径] 中 ruleaction 域内
 三大项 = multicollapse 9.94s@1224ns/8.12M + collect_terms 3.91s@784ns/4.98M +
 piecepathology 1.12s@6773ns/164K；早期移除/传播拷贝/间接塌缩的 miss 常数已收敛到
 守卫下界（见下"域外登记"）。本条对三个域内项做存储常数收敛（oracle 规则体 =
-裸指针直读，Rugra 差距 = Vec 物化/Arc 往返/重复守卫）：
+裸指针直读，Rudra 差距 = Vec 物化/Arc 往返/重复守卫）：
 
 - **`RuleMultiCollapse::apply_op`（cc:3234-3343）—— matchlist 零克隆化**。原形每次
   heritage-known try 克隆整个 `inrefs` Vec（1 次堆分配 + 每 input 一对 Arc 原子
@@ -53,7 +53,7 @@ varnode.rs descend 存储域（活跃后代影子/计数维护）——移交存
 
 [SP2PROF]/[RULEPROF]/gdb 钻探（W2 残量 oppool1 10.39s = 规则体 7.87 + 派发 2.61；语料级 77.6s/#1）
 后对规则体的 per-try 存储常数做三类恒等收敛（oracle 规则 apply 的 op 迭代 = 裸指针直读
-+ 内联字段读，ruleaction.cc 对应函数；Rugra 差距全在 Arc 克隆/RwLock 读守卫/守卫求值三常数）：
++ 内联字段读，ruleaction.cc 对应函数；Rudra 差距全在 Arc 克隆/RwLock 读守卫/守卫求值三常数）：
 
 - **miss 路径句柄物化消除**（（c） 段五热规则之外的本道残量清单）:
   - `RuleEarlyRemoval::apply_op`（cc:25-44）—— outvn 句柄不再 clone；op 守卫借出
@@ -168,7 +168,7 @@ action.cc:836-846 每 op×每 rule 尝试）做**读锁合并**，判定序与�
   原实现 ctor-consult vs buildDegenerate-raw 的不一致）+ out 门换
   `vn_type_def_facing`（原为裸 `v_type`）。
 
-**验证（CARGO_TARGET_DIR=/dev/shm/rugra-targets/pkgd，基=master 46db1767 亲测 A/B）**：
+**验证（CARGO_TARGET_DIR=/dev/shm/rudra-targets/pkgd，基=master 46db1767 亲测 A/B）**：
 canon curl（3154 行）与 httpd（2026 行）双语料 **字节恒等**（cmp=0；compare
 curl 267/0/0、httpd 862/0/0 == 基线，零回退）；镜面棘轮三面 PASS
 （curl 110/275、httpd 258/460、vsh 15/55，defects=0/numbering=0，matched 74/29/71，
@@ -197,7 +197,7 @@ opUnlink（funcdata_op.cc:179-193 = opUnsetOutput + 全部 opUnsetInput + opUnin
 throw 的忠实断言，断言无罪）。修复一行：`fd.op_unlink(&PcodeOpRef(op_arc.clone()))`
 （载体 funcdata.rs `op_unlink`，注释 `// Ghidra: funcdata_op.cc:179`）替代该
 unset；其余不动（bf3f5064 正控：`Free varnode` panic 0 次，未修基线 3/3 必现，
-见 /dev/shm/rugra-reports/sb-pcrepanic/LANE_REPORT_EJ.md）。
+见 /dev/shm/rudra-reports/sb-pcrepanic/LANE_REPORT_EJ.md）。
 
 **附带 RUDRA-GLUE（锁卫生，语义无变化）**：lump 臂入口的
 `if let Some(lone) = outvn.read().unwrap().lone_descend()` 的 scrutinee 临时读守卫
@@ -215,7 +215,7 @@ make_free_prevalidated` 会对同一 outvn 取写锁——同线程 RwLock 非�
 ## 2026-09-23：RulePieceStructure 叶 COPY 的 union 分辨率继承（UNIONRESOLVE-PIPELINE-WIRING-0001 / EN2）
 
 `RulePieceStructure::apply` 存储 walk 的叶 COPY 臂（ruleaction.cc:7661-7681）补上
-此前标注 "not modelled in Rugra" 的两行 union 记账：
+此前标注 "not modelled in Rudra" 的两行 union 记账：
 
 - **cc:7673-7676**：`vn.getType()` needsResolution 时 `inherit_resolution(vn.type,
   copyOp, 0, node.op, node.slot)` —— PIECE 读边的分辨率继承到新 COPY 的读边
@@ -233,7 +233,7 @@ next_url+match_url 投影 MATCH 保持。
 
 `RulePieceStructure::apply` 的重定位寻址（ruleaction.cc:7643-7695）改为携带根 varnode 的
 地址空间：`baseAddr = outvn->getAddr() - baseOffset` 的减法在 Ghidra 保持空间（唯一空间
-根 → 所有重定位件仍在唯一空间）；Rugra 此前用无空间 `Address::new(offset)` +
+根 → 所有重定位件仍在唯一空间）；Rudra 此前用无空间 `Address::new(offset)` +
 `new_varnode_out` 的 Register 钉死，使 concat 梯的叶子 COPY 与中间件全部落进
 Register 空间的唯一式偏移（r0x10000b2e 等），进而触发 splitcopy 二次拆分在寄存器域
 重建。现在：地址相等判据按（空间,偏移）双元组（对齐 Ghidra 的全 Address 比较）；
@@ -301,7 +301,7 @@ oppool2=5 / cleanup=15）。对拍证据：`tests/oracle/action_break_pool_1204`
 
 **状态**: 已核对（当前有效）  
 **源代码路径**: `src/ruleaction.rs`
-**2026-07-02 修复（R9）**: `RuleTrivialArith` 重写为忠实移植 Ghidra ruleaction.cc:2370-2433——同输入坍缩（`x^x→0`/`x==x→1`/`x!=x→0`/`x^^x→0`/`x&&x→x` 等），输入须 Arc::ptr_eq 或 is_cse_match。原 Rugra 实现做了 `RuleIdentityEl` 的活（`x+0→x`），从不执行同输入坍缩 → `x^x` 残留。getOpList 改为 Ghidra 16 opcode。3 个旧测试（add_zero/mult_one/sub_zero）重定向到 `RuleIdentityEl`（其本应处理），3 个新测试覆盖 x^x→0/x==x→1/distinct-no-change。
+**2026-07-02 修复（R9）**: `RuleTrivialArith` 重写为忠实移植 Ghidra ruleaction.cc:2370-2433——同输入坍缩（`x^x→0`/`x==x→1`/`x!=x→0`/`x^^x→0`/`x&&x→x` 等），输入须 Arc::ptr_eq 或 is_cse_match。原 Rudra 实现做了 `RuleIdentityEl` 的活（`x+0→x`），从不执行同输入坍缩 → `x^x` 残留。getOpList 改为 Ghidra 16 opcode。3 个旧测试（add_zero/mult_one/sub_zero）重定向到 `RuleIdentityEl`（其本应处理），3 个新测试覆盖 x^x→0/x==x→1/distinct-no-change。
 
 ## 2026-08-27：`RulePullsubMulti::buildSubpiece` JoinRecord 归属（RULE-PULLSUB-NEWVNODEOUT-0001）
 
@@ -334,7 +334,7 @@ block/alive/dead 顺序、parent/SeqNum order、每个输入槽与输出、所�
 追踪和变换新建 Varnode 的 SSA 分类、def 和有序 descendants；仅规范化
 allocation-only unique-space offset。这个窄 fixture 不声称观察 PcodeOp/Varnode
 的所有非目标 flags、type/symbol/high 状态，也不能消除 `OPBANK-0001`
-中 nullable input slot 被 Rugra 临时 sentinel Varnode 代替的 whole-bank 差异。root guard、
+中 nullable input slot 被 Rudra 临时 sentinel Varnode 代替的 whole-bank 差异。root guard、
 `distributeIntMultAdd` 两分支和无可归并项的 NO_CHANGE 路径仍单列为
 `UNTESTED`。其他未覆盖路径还包括 helper 的三种系数回退、all-constant 根、
 初始零和多于两个常量、multiplier constant-edge skip 与共享 ADD 边界；
@@ -472,7 +472,7 @@ Corresponds to Ghidra's `RuleZextEliminate` (ruleaction.cc:2471-2526, RULE-BEHAV
 ### `pub struct RuleSextEliminate` — 已删除（PIPE-POOL-LOCAL-RULES-0001，2026-08-23）
 
 **struct 连同注册一并删除。** 锁定 oracle（e40ed130）全源码树中不存在任何名为
-`RuleSextEliminate` 的类——它是 Rugra 自创并在 oppool1 末尾注册的规则（铁律 1.4
+`RuleSextEliminate` 的类——它是 Rudra 自创并在 oppool1 末尾注册的规则（铁律 1.4
 存量违例）。注册与其 struct 定义（原含"same-size INT_SEXT → COPY"折叠逻辑）已删除；
 oracle 池序 fixture `tests/oracle/pool_purity_1204` 证明删除后 oppool1 与 oracle
 逐条一致。同类 same-size SEXT 场景若 oracle 有处理，应由 oracle 真实规则承担。
@@ -525,7 +525,7 @@ Corresponds to Ghidra's `RuleShiftBitops` (ruleaction.cc:476-566, RULE-BEHAVIORA
 忠实移植 Ghidra `RuleNegateIdentity`。
 
 - `apply_op`：当 `INT_NOT(V)` 的输出被一个 `INT_AND`/`INT_OR`/`INT_XOR` 读取，且该逻辑 op 的另一输入正是 V 时，将该逻辑 op 折叠为 `COPY(0)`（AND）或 `COPY(all-ones)`（OR/XOR）。
-- `get_opcodes`：`[CPUI_INT_NOT]`（注意：Rugra `CPUI_INT_NOT` == Ghidra `INT_NEGATE`；Rugra `CPUI_INT_NEG` == Ghidra `INT_2COMP`）。
+- `get_opcodes`：`[CPUI_INT_NOT]`（注意：Rudra `CPUI_INT_NOT` == Ghidra `INT_NEGATE`；Rudra `CPUI_INT_NEG` == Ghidra `INT_2COMP`）。
 
 测试：ruleaction::tests 3 个新增（AND→0、OR→全1、无匹配→NO_CHANGE）。
 
@@ -538,7 +538,7 @@ Corresponds to Ghidra's `RuleShiftBitops` (ruleaction.cc:476-566, RULE-BEHAVIORA
 德摩根律：`!(V && W) => !V || !W`，`!(V || W) => !V && !W`。
 - `apply_op`：BOOL_NOT(BOOL_AND/OR(V,W)) → 创建两个 BOOL_NOT(V)/BOOL_NOT(W)，
   原 op 改写为对偶逻辑 op（AND↔OR）。
-- `get_opcodes`：`[CPUI_BOOL_NOT]`（Rugra CPUI_BOOL_NOT == Ghidra BOOL_NEGATE）。
+- `get_opcodes`：`[CPUI_BOOL_NOT]`（Rudra CPUI_BOOL_NOT == Ghidra BOOL_NEGATE）。
 
 测试：ruleaction::tests +2（AND→OR、非 bool 内层 NO_CHANGE）+ Funcdata API +3。
 
@@ -760,7 +760,7 @@ Rust ActionPool 尚未提供 Ghidra `getSubRule` 的生产 API，因此整体状
 `CPUI_INT_RIGHT`/`CPUI_INT_SRIGHT`，不注册 `CPUI_INT_LEFT`**。左移永远无法把
 最低有效片段移走（`INT_LEFT(PIECE(hi,lo),sa≥8|lo|)` 的 lo 字节仍留在低位），
 旧实现对 INT_LEFT 的重写是**改值**的（canonical 站点 CodeSpec@0x23478：
-golden `iVar9 << 8` vs Rugra `(int)(int3)uVar4`，丢 xVar7 且 hi 位移错）。
+golden `iVar9 << 8` vs Rudra `(int)(int3)uVar4`，丢 xVar7 且 hi 位移错）。
 移除后 INT_LEFT 保持读 4B CONCAT 输出 → PIECE 保住第二读者 → explicit
 命名 temp（fusion-depth 分歧根因，sq CAST-SHAPE 1176 pair 族主体）。
 同函数次要对齐：`sa2 != 0` 分支的新移位常量尺寸取原移位常量尺寸
@@ -814,10 +814,10 @@ AND-比较变换，把 AND 推到更大的定义域：
 **2026-08-23 注册移除（PIPE-POOL-LOCAL-RULES-0001）**：锁定 oracle 定义了该类
 （ruleaction.hh:243-250，方法体 ruleaction.cc:624/631）但**从未实例化**——全树无
 `new RuleEquality`，coreaction.cc 的 buildUniversalAction 也不在任何池注册它（oracle
-死代码）。Rugra 已从 oppool1 移除其注册；struct 与 3 个单测保留为未注册存档
+死代码）。Rudra 已从 oppool1 移除其注册；struct 与 3 个单测保留为未注册存档
 （"oracle 死代码，仅存档"），与 oracle 自身的死代码状态 1:1。字面语义注记：oracle
 applyOp 在 `opSetOpcode(op,CPUI_COPY)` **之后**才读 `op->code()`
-（ruleaction.cc:638/640），常量表达式恒为 0；Rugra 移植在变更前捕获 opcode
+（ruleaction.cc:638/640），常量表达式恒为 0；Rudra 移植在变更前捕获 opcode
 （实现文档化意图）。因 oracle 类为死代码，该差异不可观测。
 
 ### 2026-06-26（续）：RuleLessNotEqual
@@ -933,7 +933,7 @@ INT_AND 与 PIECE 简化：当 AND mask 清零某半时：
 ### 2026-06-26（续）：RuleOrConsume + get_consume/set_consume/get_nzm/set_nzm
 
 #### Varnode consume/nzm 访问器（varnode.hh:205-206）
-`get_consume/set_consume`（dead-code 维护的 consumed 掩码）、`get_nzm/set_nzm`（Heritage 维护的 nzm 字段）。Rugra Varnode 已有字段，此前无访问器。
+`get_consume/set_consume`（dead-code 维护的 consumed 掩码）、`get_nzm/set_nzm`（Heritage 维护的 nzm 字段）。Rudra Varnode 已有字段，此前无访问器。
 
 #### `pub struct RuleOrConsume`（ruleaction.cc:344-371）
 `V = A | B => COPY(B)` 当 nzm(A) & consume(V) == 0（A 贡献的位均未被消费）。也处理 XOR。
@@ -1127,7 +1127,7 @@ opUnsetOutput 断开 op 输出；newVarnodeOut 创建新输出 varnode 并关联
   - 如果 consumed bits 全为 0 → COPY(#0)
   - 如果交集 == NZM(A) 且 input(1) 是常量 → COPY(A)
   - 否则不做变换
-  - isHeritageKnown：常量视为 known（Rugra 常量无 INPUT/WRITTEN flag 但仍 known）。
+  - isHeritageKnown：常量视为 known（Rudra 常量无 INPUT/WRITTEN flag 但仍 known）。
   - 测试：`V = A & #0`（NZM(A)=0）→ COPY(#0)。
 
 ## 2026-06-27（续 5）：RuleBooleanUndistribute 完整移植
@@ -1267,7 +1267,7 @@ opUnsetOutput 断开 op 输出；newVarnodeOut 创建新输出 varnode 并关联
   - `(V + c) == d => V == (d - c)`（加法常量偏移）
   - `(V * -1) == d => V == -d`（乘 -1）
   - 验证 lhs 的所有后代都是比较
-  - 跳过 INT_NEGATE 情况（Rugra 缺少此 opcode）
+  - 跳过 INT_NEGATE 情况（Rudra 缺少此 opcode）
 - **RuleOrCompare**：完整移植 ruleaction.cc:10808-10872。分配 INT_OR 到比较：
   - `(V | W) == 0 => V == 0 && W == 0`（INT_EQUAL → BOOL_AND）
   - `(V | W) != 0 => V != 0 || W != 0`（INT_NOTEQUAL → BOOL_OR）
@@ -1410,21 +1410,21 @@ identity、mark、def-use、alive/dead bank、基本块顺序和 `Funcdata::opDe
 
 ### 2026-09-26：RuleSubCommute SDIV/SREM 臂补齐（RULEACTION-SUBCOMMUTE-SDIV-SEXT16-0001）
 
-- KUNASDIV 车道双侧实证的真缺口：Rugra 对 INT_SDIV/INT_SREM 臂树内 deferred（"need sign_extend helper"），16 字节除法成语不重写、折叠永不发生——g_div 100/-7 oracle 折成常量 `0xfffffffffffffff2`，Rugra 留 `SUB168(SEXT816(100)/SEXT816(-7),0)`；INT64_MIN/-1 的 E2E panic 被此缺口屏蔽。
+- KUNASDIV 车道双侧实证的真缺口：Rudra 对 INT_SDIV/INT_SREM 臂树内 deferred（"need sign_extend helper"），16 字节除法成语不重写、折叠永不发生——g_div 100/-7 oracle 折成常量 `0xfffffffffffffff2`，Rudra 留 `SUB168(SEXT816(100)/SEXT816(-7),0)`；INT64_MIN/-1 的 E2E panic 被此缺口屏蔽。
 - 补齐（ruleaction.rs `RuleSubCommute::apply_op` SEXT 臂，逐字对齐 cc:4570-4602）：①offset==0 才 commute；②in(0) 必须 INT_SEXT（cc:4575-4578）；③in(1) 写则 def 必须 SEXT，任一 sext 输入尺寸 > outvn → `cancel_extensions` 部分抵销（SUBPIECE 保留，cc:4583-4589）；④in(1) 常量且 sext0In ≤ outvn 时 `sign_extend_size(val & calc_mask(outvn), outvn, insize) == val` 符号适配校验（cc:4592-4597，helper=rangeutil::sign_extend_size，address.cc:666 的忠实镜像）；⑤否则 return 0。
 - 新增两个 1:1 helper：`shorten_extension`（cc:4463-4472，extension 输出缩到 maxSize，BE 空间保最高位字节，保空间 new_varnode_out_full）与 `cancel_extensions`（cc:4483-4512：longform 输出 loneDescend==subOp 守卫、等尺寸双侧 isFree 守卫、不等尺寸侧 shortenExtension+loneDescend 守卫、opUnsetOutput→newUniqueOut(maxSize)→三处 opSetInput 重绑）。isFree 语义双侧同体（constants 无 INPUT/WRITTEN flag → free，varnode.cc:578）。
-- **INT64_MIN/-1 零守卫保持**（KUNAUB-SDIV-0001 裁决 (a)）：commute 后的 8 字节 SDIV/SREM 经 RuleSubCancel→RulePropagateCopy→RuleCollapseConstants 直通 opbehavior 除法——oracle SIGFPE（rc 136）/Rugra panic（opbehavior.rs:195/:212），无 golden、形态锁定。
-- B2 双侧 fixture `tests/oracle/rule_subcommute_sdiv_1204.{cc,rs}`：16 例（双侧 SEXT 常量/寄存器输入、正/负除数、SEXT4/8→16 宽度边界、常量符号适配 fit/mismatch/high-bits、offset!=0、in0 ZEXT、in1 COPY、in1 寄存器输入、cancelExtensions 等尺寸/不等尺寸/常量-isFree 守卫、SREM 镜像例）normal 模式 **字节恒等**（oracle 直跑 vs Rust 镜像，sha 28d3bcd1…，含 unique 空间偏移全等）；trap_sdiv/trap_srem 模式双侧记崩溃形态（oracle SIGFPE rc=136/0 字节 stdout vs Rugra rc=101 panic）。
+- **INT64_MIN/-1 零守卫保持**（KUNAUB-SDIV-0001 裁决 (a)）：commute 后的 8 字节 SDIV/SREM 经 RuleSubCancel→RulePropagateCopy→RuleCollapseConstants 直通 opbehavior 除法——oracle SIGFPE（rc 136）/Rudra panic（opbehavior.rs:195/:212），无 golden、形态锁定。
+- B2 双侧 fixture `tests/oracle/rule_subcommute_sdiv_1204.{cc,rs}`：16 例（双侧 SEXT 常量/寄存器输入、正/负除数、SEXT4/8→16 宽度边界、常量符号适配 fit/mismatch/high-bits、offset!=0、in0 ZEXT、in1 COPY、in1 寄存器输入、cancelExtensions 等尺寸/不等尺寸/常量-isFree 守卫、SREM 镜像例）normal 模式 **字节恒等**（oracle 直跑 vs Rust 镜像，sha 28d3bcd1…，含 unique 空间偏移全等）；trap_sdiv/trap_srem 模式双侧记崩溃形态（oracle SIGFPE rc=136/0 字节 stdout vs Rudra rc=101 panic）。
 - 7 个新单元测试（sdiv_written/const_fit/const_sign_mismatch/offset_nonzero/zext_reject/partial_equal/partial_unequal）。
 - 发现并另行登记的邻臂缺口（非本票域）：`RULEACTION-SUBCOMMUTE-ZEXT-PARTIAL-0001`（ZEXT 臂 written-in1 部分抵销仍 deferred）与 `RULEACTION-SUBCOMMUTE-SUBZEXT-OVERLAP-0001`（cc:4623-4629 RuleSubZext 重叠检查缺失）——**后者已由 BINSWEEPFIX 车道关闭（2026-09-26，见下节）**。
 
 ### 2026-09-26：RuleSubCommute 尾段 opSetInput 顺序修复 + RuleSubZext 重叠检查补齐（BINSWEEP-SUBCOMMUTE-FREEVARNODE-0001）
 
-- CR-SUBCOMMUTE 发现③钉死的 P1：Rugra 尾段 commute 循环（ruleaction.rs `RuleSubCommute::apply_op` 尾段）把 oracle 的语句顺序反置——`newsub 先取 vn`（newsub slot 0 attach 在前）`longform 后释放`（slot i 换绑在后），而 oracle cc:4640-4641 是 **先 `opSetInput(longform,newVn,i)` 释放 vn、后 `opSetInput(newsub,vn,0)` 接入**（cc:4641 原注释逐字："vn may be free, so set as input after setting newVn"）。顺序承载语义，因为：
-  - `Varnode::addDescend`（varnode.cc:334-336）对 free varnode（无 INPUT/WRITTEN flag）的第二个后代直接 `throw LowlevelError("Free varnode has multiple descendants")`——反置顺序下 vn 尚挂 longform 时被接入 newsub，非 const 自由 varnode 直撞 Rugra 忠实镜像 panic（varnode.rs:2716）：ip 语料 3 函数（print_addrinfo@0x13820/do_iptunnel/print_neigh）确定性 rc=101（master 亲证 561/7671/788ms）。
+- CR-SUBCOMMUTE 发现③钉死的 P1：Rudra 尾段 commute 循环（ruleaction.rs `RuleSubCommute::apply_op` 尾段）把 oracle 的语句顺序反置——`newsub 先取 vn`（newsub slot 0 attach 在前）`longform 后释放`（slot i 换绑在后），而 oracle cc:4640-4641 是 **先 `opSetInput(longform,newVn,i)` 释放 vn、后 `opSetInput(newsub,vn,0)` 接入**（cc:4641 原注释逐字："vn may be free, so set as input after setting newVn"）。顺序承载语义，因为：
+  - `Varnode::addDescend`（varnode.cc:334-336）对 free varnode（无 INPUT/WRITTEN flag）的第二个后代直接 `throw LowlevelError("Free varnode has multiple descendants")`——反置顺序下 vn 尚挂 longform 时被接入 newsub，非 const 自由 varnode 直撞 Rudra 忠实镜像 panic（varnode.rs:2716）：ip 语料 3 函数（print_addrinfo@0x13820/do_iptunnel/print_neigh）确定性 rc=101（master 亲证 561/7671/788ms）。
   - `Funcdata::opSetInput`（funcdata_op.cc:108-115）对仍被读取的常量做 dedup **副本**替换——反置顺序下 newsub 读到的是副本而非原 varnode（身份偏离 oracle；C 输出不可观测，良性但偏离）。
 - 修复：尾段按 oracle cc:4637-4643 逐语句重排（newOp→opSetOpcode(SUBPIECE)→newUniqueOut(outvn 尺寸)→**opSetInput(longform,newVn,i) 释放**→**op_set_input(newsub,vn,0) 接入**→newConstant(4,offset) 在 slot-1 时点内联创建（不再前提，vbank create 顺序与 oracle 对齐）→opInsertBefore）；顺带消除 const 副本偏离（释放后 `has_no_descend` 为真→不触发 dedup 拷贝，newsub 直读原 varnode）。
-- **顺带关闭 `RULEACTION-SUBCOMMUTE-SUBZEXT-OVERLAP-0001`（P3）**：本票双侧 fixture 的 add_free_zext_overlap 例暴露 Rugra 仍缺 cc:4623-4629 RuleSubZext 重叠前置检查（offset==0 且 outvn 的 loneDescend 是 INT_ZEXT 且其输出尺寸==insize → return 0）；同 commit 补齐（loneDescend 守卫之后、尾段循环之前）。补齐后 fixture 例从 sub_apply=1（Rugra 过触发）对齐到 sub_apply=0==oracle。
+- **顺带关闭 `RULEACTION-SUBCOMMUTE-SUBZEXT-OVERLAP-0001`（P3）**：本票双侧 fixture 的 add_free_zext_overlap 例暴露 Rudra 仍缺 cc:4623-4629 RuleSubZext 重叠前置检查（offset==0 且 outvn 的 loneDescend 是 INT_ZEXT 且其输出尺寸==insize → return 0）；同 commit 补齐（loneDescend 守卫之后、尾段循环之前）。补齐后 fixture 例从 sub_apply=1（Rudra 过触发）对齐到 sub_apply=0==oracle。
 - E2E 亲证（双树 A/B）：ip 206/246/248 三函数 master=panic rc=101（varnode.rs:2716）→ 修复树 rc=0 + 非空 C（9774B/192383B/25951B），`bin_sweep --sweep-one` 三函数 `status ok`（1979ms/149834ms/3118ms）。
 - B2 双侧 fixture `tests/oracle/rule_subcommute_freevn_1204.{cc,rs,oracle.out,metadata.json}`：13 例 normal **字节恒等**（free/free ADD panic 形态、free/const 双向、const/const、MULT/AND/OR16/NEGATE 单输入/XOR offset=4、same-written-vn dup-reuse 臂恰好一个新 SUBPIECE、ZEXT-overlap 拒绝、双读者拒绝；keep 行用指针身份锁常量不被 dedup 副本替换——readers/descends 双 1）；trap_dupfree 模式锁崩溃形态对（同一 free varnode 双槽：oracle LowlevelError rc=1 vs Rust panic rc=101 varnode.rs:2716，同文案——varnode.cc:336 不变量双侧保持，无 golden）。fixture 判别力亲证：master lib 跑 normal 模式第一例即 panic（rc=101, 0 行输出）。
 - 门禁：canon curl 200/0/0（Matched 124）md5 `c33052a3…` + httpd 255/0/0（Matched 34）md5 `6923d6c1…` 双语料与 master 档案**字节恒等**（修复 canon 中性）；镜面四面 PASS 未重钉（curl 58/65·74/74+httpd 124/150·29/29+vsh 15/16·71/71+sq 6778/7500·810/810·numbering=0==现态）；bank 391/391；cargo test --lib 1783P/0F/5I==基线精确命中；rule_subcommute_sdiv_1204 双侧 fixture 复跑 16/16 MATCH 不回退。
@@ -1572,7 +1572,7 @@ RuleAddUnsigned: get_type_read_facing + TYPE_UINT/!is_char_print 守卫（cc:718
 - RulePtrsubCharConstant（ruleaction.cc:7372-7421）：完整 transform。用 Funcdata::string_table 做 read-only+string 检查（symaddr=vn1 offset，spacebase base=0）。PTRSUB→COPY of constant pointer + update_type。删除 resolveConstant/isReadOnly TODO（退化 via string_table）。
 
 ### 2026-07-01（续 6）：oppool2 完整移植（5 条 Rule，0%→100%）
-- RuleLoadVarnode（ruleaction.cc:4277 applyOp / 4271 getOpList）+ correct_spacebase（4173）/vn_spacebase（4194）/check_spacebase（4236）helper — LOAD→COPY 栈变量化。2026-08-18（PRINTC-INPUTREG-DEADSTORE-0001）：correct_spacebase 非常量 spacebase-input 腿接通——签名加 `glb`（对应 oracle `Architecture *glb`；Rust 侧为 `Option<&Architecture>`，因 Rugra Funcdata 可在 set_arch 前存在；const 腿不咨询 glb，与 oracle 一致）→ `Architecture::get_space_by_spacebase`（architecture.cc:264-282）+ `get_contain()==Some(spc)`（base space.hh:505，SpacebaseSpace override translate.hh:187）；三个 helper 与两个 applyOp 全部穿传 glb（cc:4285/4326 checkSpacebase(data.getArch(),...)）。oracle fixture：tests/oracle/rule_store_varnode_spacebase_1204（registry 观察 + 8 rule-call case，双侧逐字节一致）。
+- RuleLoadVarnode（ruleaction.cc:4277 applyOp / 4271 getOpList）+ correct_spacebase（4173）/vn_spacebase（4194）/check_spacebase（4236）helper — LOAD→COPY 栈变量化。2026-08-18（PRINTC-INPUTREG-DEADSTORE-0001）：correct_spacebase 非常量 spacebase-input 腿接通——签名加 `glb`（对应 oracle `Architecture *glb`；Rust 侧为 `Option<&Architecture>`，因 Rudra Funcdata 可在 set_arch 前存在；const 腿不咨询 glb，与 oracle 一致）→ `Architecture::get_space_by_spacebase`（architecture.cc:264-282）+ `get_contain()==Some(spc)`（base space.hh:505，SpacebaseSpace override translate.hh:187）；三个 helper 与两个 applyOp 全部穿传 glb（cc:4285/4326 checkSpacebase(data.getArch(),...)）。oracle fixture：tests/oracle/rule_store_varnode_spacebase_1204（registry 观察 + 8 rule-call case，双侧逐字节一致）。
 - RuleStoreVarnode（4319）— STORE→COPY 栈变量化。2026-08-15（VARNODE-INPLACE-MUTATION-SITES-0001）：输出创建改为 `vbank.create_def_with_space`（对应 `Funcdata::newVarnodeOut` funcdata_varnode.cc:104-122 → `VarnodeBank::createDef` varnode.cc:1411-1418，cc:4331-4332）——以最终 (space,offset) def 键直接创建已 WRITTEN varnode + op 输出接线 + `set_varnode_properties`；替换旧的 free 创建后原地 WRITTEN/def 突变。2026-08-18（PRINTC-INPUTREG-DEADSTORE-0001）：spacebase 链（`INT_ADD(RSP_input, const)`，含交换操作数序）现在命中并重写为 stack COPY + setStackStore（cc:4333）——此前该族 STORE 存活到 printc（curl E2E 29 处/11 函数 `= in_R` 序言 store；修复后 push 家族 `*uVar20 = in_RBP` 归零，残余 14 处集中在 3 函数——my_get_line 11、glob_word 2、glob_set 1——全部是 `*uVar20`/`*uVar_9d00` 指针链 STORE，即地址操作数非裸 spacebase/`INT_ADD(RSP_input,const)` 形态，oracle vnSpacebase（cc:4194-4227）同款守卫同样拒绝；其归一化/删除依赖 varmap local_XX 命名与死存储消除域的既有缺口，非本租约）。
 - RulePtrArith（6629）+ AddTreeState 状态机 + verify_preferred_pointer/evaluate_pointer_expression — INT_ADD/MULT→PTRADD/PTRSUB。
 - RulePushPtr（6852）+ build_varnode_out/collect_duplicate_needs/duplicate_need — 指针 push 到使用点。
@@ -1580,7 +1580,7 @@ RuleAddUnsigned: get_type_read_facing + TYPE_UINT/!is_char_print 守卫（cc:718
 20 新测试。
 
 ### 2026-07-01（续 7）：3 条缺失 Rule 实现 + 注册
-- RulePtrFlow（ruleaction.cc:9050-9251）：指针流传播+截断。trialSetPtrFlow/propagateFlowToDef/Reads/truncatePointer。注册 oppool1:5624。has_truncations 默认 false（Rugra 无 isTruncated 空间）。
+- RulePtrFlow（ruleaction.cc:9050-9251）：指针流传播+截断。trialSetPtrFlow/propagateFlowToDef/Reads/truncatePointer。注册 oppool1:5624。has_truncations 默认 false（Rudra 无 isTruncated 空间）。
 - RuleDumptyHumpLate（subflow.cc:3006-3064）：SUBPIECE(PIECE) 回溯。注册 cleanup:5699。
 - RuleOrPredicate（condexe.cc:509-635）：impl Rule trait（包装现有 apply_op）。注册 oppool1:5631。
 13 新测试。
@@ -1683,7 +1683,7 @@ read guard 内快照可更新条件，再释放 guard 后取得 write guard
 修改 `input_consume`，保持 Ghidra 的槽遍历与计数时机，同时避免 Rust 锁重入。
 
 该接线只覆盖 callspec identity/guard 生命周期，RuleAction 整体仍为
-`MISMATCH`。Rugra 继续以 `AddressSpace::Iop` 暂代专用 `IPTR_FSPEC`
+`MISMATCH`。Rudra 继续以 `AddressSpace::Iop` 暂代专用 `IPTR_FSPEC`
 （`TYPEOP-FSPEC-SPACE-0001`），且本阶段不接 TypeOp getter、PrintC、
 StringManager 或其它既有 Rule/callspec 残差。
 
@@ -1724,10 +1724,10 @@ abort placeholder）。闭合 CALLSPEC-0001 中登记的
 
 - 根因（锁定 oracle e40ed130 双侧 drill 实证）：match_url Phase 2 首分歧
   ordinal 191 `universal:fullloop:mainloop:oppool2`（oracle result/count
-  23/23 vs rugra 15/15）——oracle 在 0x52b0~0x5390 窗口对 `RSP(i)+#const`
+  23/23 vs rudra 15/15）——oracle 在 0x52b0~0x5390 窗口对 `RSP(i)+#const`
   与 pushptr 产物 `RSP(i)+(RAX+#const)` 触发 RulePtrArith/AddTreeState，
   产出 PTRSUB（opcode_name 表显示名 CROSSBUILD）+ INT_ADD 常量折叠链
-  （`7d7=RSP->#0x68`、`7d6=#-0x68+t`、`7d8=7d7+7d6`）；rugra 的 pushptr
+  （`7d7=RSP->#0x68`、`7d6=#-0x68+t`、`7d8=7d7+7d6`）；rudra 的 pushptr
   七连发后 calc_subtype 在 TYPE_SPACEBASE 臂因 `TypeSpacebase::get_sub_type`
   miss 返回 None 而 `valid=false`，ptrarith 一发未响（差 15 fire；
   AddTreeState walk 本身与 oracle 逐字段一致：size=0/offset=0x68/
@@ -1740,16 +1740,16 @@ abort placeholder）。闭合 CALLSPEC-0001 中登记的
   臂在 oracle 侧同为 extra=0）的等价性说明。
 - 验证：双侧 drill path layer 104 条共享路径计数全部相等
   （oppool2:ptrarith 23=23）；match_url 投影 ops 80385=80385，首分歧
-  191→317（`universal:prefercomplement`，oracle 1 vs rugra 0，新域移交）；
+  191→317（`universal:prefercomplement`，oracle 1 vs rudra 0，新域移交）；
   fixture `tests/oracle/type_spacebase_subtype_1204` 10/10 记录 MATCH
-  （ghidra/rugra stdout sha256 相同）。
+  （ghidra/rudra stdout sha256 相同）。
 
 ## 2026-08-27：RulePullsubMulti 非 join 输出空间（RULE-PULLSUB-NEWVNODEOUT-0001）
 
 `RulePullsubMulti::build_subpiece` 对照 `ruleaction.cc:776-839`：非 join 基底按
 `cc:816-821` 的端序计算 `smalladdr1`，并在 `cc:828-829` 的 renormalize 后以
 `newVarnodeOut` 建立输出，因此输出保留基底的地址空间（Ram/Register/Stack 等），不再
-无条件落入 Unique。Rugra 当前 Address 是标量，renormalize 等价为空操作；本实现仅在
+无条件落入 Unique。Rudra 当前 Address 是标量，renormalize 等价为空操作；本实现仅在
 `AddressSpace::Join` 仍使用 Unique fallback，因为 JoinRecord 基础设施尚未存在。该 join
 臂绑定本 TODO，不能据此宣称 RulePullsubMulti 完整 MATCH。
 
@@ -1776,7 +1776,7 @@ Ghidra 的簿记 API 调用序）：
 - `RuleNotDistribute::apply_op`（ruleaction.cc:1179-1181）：`opSetInput(op,newout1,0)`+
   `opInsertInput(op,newout2,1)` 替代直接重建 inrefs。
 
-E2E（3fb97c11+本修复，`/dev/shm/rugra-descendfix-curl.c`）：管线中止 10→0；
+E2E（3fb97c11+本修复，`/dev/shm/rudra-descendfix-curl.c`）：管线中止 10→0；
 raw `register0x|unique0x` 命名 1077→16；defects 2→0（getparameter/glob_word 的
 else 缺陷随悬空清除消失）；skeleton 3528→2134（优于 2d78b5af 健康基线 2881）；
 glob_range 新出现 1 个重复声明 `iVar3`（numbering，登记
@@ -1801,7 +1801,7 @@ setSymbolProperties→updateType,typelock 门控);同文件 RuleStoreVarnode(:17
 ## 2026-08-30:RulePullsubIndirect 恢复寄存器空间(RULEACTION-PULLSUB-SPACE-0001)
 
 w-rc5 双侧实证:Ghidra ruleaction.cc:996-1002 的 smalladdr2 是带空间全 Address,经
-newIndirectCreation(funcdata_op.cc:710)输出落 register:0;Rugra 用无空间 Address 调 legacy
+newIndirectCreation(funcdata_op.cc:710)输出落 register:0;Rudra 用无空间 Address 调 legacy
 new_indirect_creation(硬编码 Unique)→ which_trial_in_space 同空间匹配(fspec.cc:1982)永不命中 →
 trial 失活 → CALL 无 output → varmap 忠实产出 extraout_var_00。patch(w-rc5 fixsim 预验证):
 改调 new_indirect_creation_in_space 传 vn 空间。效果:main 与 golden 逐 token 同形
@@ -1810,7 +1810,7 @@ skeleton 3108→3068。
 
 ## 2026-08-30:Rule2Comp2Sub 重写为忠实形态(RULEACTION-NEGATION-FORM-0001)
 
-w-printc2 C3 残差落地:此前 Rugra 的 Rule2Comp2Sub 把**每个** INT_2COMP 无条件改写成
+w-printc2 C3 残差落地:此前 Rudra 的 Rule2Comp2Sub 把**每个** INT_2COMP 无条件改写成
 `INT_SUB(0, V)`(2comp→sub+插 0),而 oracle(ruleaction.cc:7224-7237)只在 2COMP 输出
 有**唯一** INT_ADD 父时触发:把该 ADD 原地改写成 `V - W`(槽 0 是 2COMP 输出时先交换),
 并 `opDestroy` 彻底删除 2COMP;无 ADD 父的 2COMP 保留一元 `-V` 形。错误改写使 curl 输出
@@ -1877,15 +1877,15 @@ defects/numbering 保持 0,`(0 - ` 残留 30→0。
   ord 150 `mainloop:oppool2` 的互补 ±1 常量拆分定位到
   `AddTreeState::calc_subtype` TYPE_SPACEBASE 臂的 `hasMatchingSubType`
   `extra`——oracle 对 `RSP(i)+(RCX+#-55)` 答出 extra=1（PTRSUB `#-0x38` +
-  INT_ADD `#0x238`），rugra 恒答 extra=0（`#-0x37`+`#0x237`）。parseconfig
+  INT_ADD `#0x238`），rudra 恒答 extra=0（`#-0x37`+`#0x237`）。parseconfig
   ord 186 同族（`#-0x4e8`+`#0x4e8` vs `#-0x4f0`+`#0x4f0`，extra=8 vs 0）。
-  rugra 恒 0 的两层原因：①`TypeSpacebase.scope` 装的是 typefactory 创建期
+  rudra 恒 0 的两层原因：①`TypeSpacebase.scope` 装的是 typefactory 创建期
   的全局 scope 克隆（typefactory.rs:1966-1973），从不查活跃 ScopeLocal——
   ord150 时活跃映射为 `$$undef2[-0x138,-0x30)` 264 字节数组（吞并 oracle
   outline[-0x138,-0x38) 256 与 [-0x38,-0x30) 8 的边界）+`$$undef3[-0x30,-0x28)`
   8B，与 oracle 边界不同（varmap restructure 域）；②Ghidra 的 extra 还有
   TypePointerRel 路径（ctor 6032-6037 以 `getAddressOffset()` 播种
-  nonmultsum）——Rugra facing type 实测为 plain `Pointer→Spacebase`
+  nonmultsum）——Rudra facing type 实测为 plain `Pointer→Spacebase`
   （`IS_PTRREL=false`），该路径 dormant。两层喂入端均不在本 write-set。
 - 本次交付（ruleaction.cc 逐行对照）：`AddTreeState` 补 `ct`/`p_rel` 字段与
   pRelType 全机制——ctor 6032-6037（formal 相对指针：baseType=parent、
@@ -1896,7 +1896,7 @@ defects/numbering 保持 0,`(0 - ` 残留 30→0。
   multiple 非空 → valid=false）、calc_subtype STRUCT 臂 6314-6320
   （offset==getAddressOffset() 时 `pointer_rel_evaluate_thru_parent(0)`
   失败→valid=false 走 basic 形态）与尾部 6332-6336（offset/correct 各减
-  ptrOff）。Rugra 相对指针为 TypePointer 扁平态（`IS_PTRREL`+
+  ptrOff）。Rudra 相对指针为 TypePointer 扁平态（`IS_PTRREL`+
   `base.pointer_rel{offset,parent}`），`ptr_rel_state` 即
   `isFormalPointerRel()`+getAddressOffset/getParent 的所有权镜像。
 - 行为验证：当前管线 facing type 无 rel 指针 → 全路径 dormant，四个投影
@@ -1917,7 +1917,7 @@ database.cc:1268 stackContainer **先走 ScopeLocal**：符号命中→entry fla
 父通道，**栈空间永不进 ScopeLocal 腿**→RuleLoadVarnode 产出的栈 varnode（如
 stack:0x…feb8:1）永远缺 addrtied。③ `BlockBasic::isComplex`（block.cc:2419）以
 isAddrTied 判定 SUBPIECE 计算是否算语句：oracle 块@3ad5（SUBPIECE+STORE）stmt=3→complex
-→`ruleBlockOr` 的 `orblock->isComplex()` 守卫拒绝 OR 折叠；Rugra stmt=2→放行→pass-2
+→`ruleBlockOr` 的 `orblock->isComplex()` 守卫拒绝 OR 折叠；Rudra stmt=2→放行→pass-2
 多折叠 3 个条件（negate 4 vs 1）→blockstructure dataflow_changecount 4 vs 1→结构化
 路径分叉（skeleton ~130 主因族）。修复：RuleLoadVarnode 改走
 `new_varnode_in_space`（=create+assignHigh+laned+完整符号尾，usepoint=invalid，
@@ -1925,8 +1925,8 @@ isAddrTied 判定 SUBPIECE 计算是否算语句：oracle 块@3ad5（SUBPIECE+ST
 补 assignHigh+laned 步 + ScopeLocal 腿 query_properties_ex（usepoint=op addr，
 fold=`getAllFlags() & ~typelock`，varnode.cc:410-424），其 MAPPED 位同时让后续
 set_varnode_properties 的 isMapped 门短路（栈路径单查询=oracle）。
-双侧探针实证（/dev/shm/rugra-tests/sb-f2string/，oracle RAM 副本 stderr 补丁
-NEGPROBE/ORTRACE/ICPROBE3/VNWATCH vs rugra 同款）：修后 feb8:1 varnode 逐 stage
+双侧探针实证（/dev/shm/rudra-tests/sb-f2string/，oracle RAM 副本 stderr 补丁
+NEGPROBE/ORTRACE/ICPROBE3/VNWATCH vs rudra 同款）：修后 feb8:1 varnode 逐 stage
 flags 与 oracle 逐字相同（0x1208000=mapped|addrtied|coverdirty），negate census
 10/10 逐 site 全等；首分歧 76→**178**（stackstall:oppool1 SNAP 多一条
 3aa2:541 SP INT_ADD，登记 SB-F2STRING-ORD178-0001）。
@@ -1941,7 +1941,7 @@ flags 与 oracle 逐字相同（0x1208000=mapped|addrtied|coverdirty），negate
   backward）。uint8 biggestNonMultCoeff→uint4 形参的 32 位截断保留。
 - `AddTreeState::spacebase_map`（RUDRA-GLUE）：Ghidra
   `TypeSpacebase::getMap`（type.cc:2935-2945）每次查询经 Architecture 动态
-  解析 queryFunction(localframe)→fd->getScopeLocal()；Rugra 的 spacebase
+  解析 queryFunction(localframe)→fd->getScopeLocal()；Rudra 的 spacebase
   类型内无法触达 Funcdata，故由持 `data: &mut Funcdata` 的 AddTreeState 在
   查询点解析（fd 入口==localframe 时取活跃 `fd.scope`，帧不匹配=queryFunction
   miss 回退全局 scope），以 `SpacebaseMap` 传入 datatype.rs 的
@@ -1972,7 +1972,7 @@ flags 与 oracle 逐字相同（0x1208000=mapped|addrtied|coverdirty），negate
   nearestArrayedComponent* 未建模），ord186 getparameter/ord186 parseconfig/
   ord150 myprogress 三处 oppool2 ptrarith 常量差 8 族（FG 归因
   LANE_FG_TABLEADDR_2026-09-23.md：oracle 对 aliases[].letter 链 -0x4f0
-  向前吸附 -0x4e8 数组符号 extra=-8，Rugra 全 miss extra=0）。
+  向前吸附 -0x4e8 数组符号 extra=-8，Rudra 全 miss extra=0）。
 
 ## 2026-09-24：AddTreeState 累加器宽度镜像 + SPACEBASE 臂无符号除（RULEARITH-ADDTREE-NUMWIDTH-0001，CR24 R1/R2）
 
@@ -2019,10 +2019,10 @@ flags 与 oracle 逐字相同（0x1208000=mapped|addrtied|coverdirty），negate
 - 根因（httpd main SP 下标族差分定位）：`calc_subtype` 开头
   `tmpoff < size` 的比较，Ghidra（ruleaction.cc:6256）是
   `uint8 tmpoff < int4 size` —— C++ 常规算术转换把两侧提升为 uint8，
-  **无符号比较**；Rugra 此前写成 `(tmpoff as i64) < size` 有符号比较。
+  **无符号比较**；Rudra 此前写成 `(tmpoff as i64) < size` 有符号比较。
   对向下生长栈的 SP-alias 加法（multsum=0xfff..f8 即 -8 字节），
   oracle 走模除路径（offset=0、multsum 保留 -8 → PTRADD 生成），
-  Rugra 走 `offset = tmpoff` 分支把 multsum 清零，随后
+  Rudra 走 `offset = tmpoff` 分支把 multsum 清零，随后
   `nonmult 空 && multsum==0 && multiple 空` 判 `valid=false` ——
   整个 INT_ADD→PTRADD 改写对负偏移 SP-alias 全灭（httpd main
   `*(undefined8 *)((int *)puVar10 - 8) = X` 印 101 行）。
@@ -2054,7 +2054,7 @@ oracle 语义逐行镜像补齐：
 
 - 输出地址保留（cc:1121-1124）：`buf1[0]->getAddr() == buf2[0]->getAddr()`
   且 `!buf1[0]->isAddrTied()` 时走 `newVarnodeOut(size, buf1[0]->getAddr(),
-  substitute)`（Rugra `new_varnode_out_full`，含 assignHigh/laned/符号尾
+  substitute)`（Rudra `new_varnode_out_full`，含 assignHigh/laned/符号尾
   全序列）；否则保持 `newUniqueOut`。glob_word 首分歧（stage 28 oppool1
   op 35）即此：两输入同 SLEIGH 临时槽 u:23b00 时 oracle 输出沿用原地址，
   旧实现造出 u:100002c5。
@@ -2079,7 +2079,7 @@ FAMAUDIT 第三波登记的 ruleaction×4 位点（ruleaction.cc:2035/1011/6770/
 1. **RuleLeftRight::apply_op**（ruleaction.cc:2029-2035）：新 SUBPIECE 输出地址
    `addr = shiftin->getAddr()` —— shiftin **自身完整存储地址**（cc:2029 在 unset 前
    捕获；BE 时 cc:2031 `+isa`；cc:2034 `renormalize(tsz)` 仅 join 空间生效，
-   address.cc:191-194，Rugra 无 JoinRecord 存储=degraded glue）。旧代码钉死
+   address.cc:191-194，Rudra 无 JoinRecord 存储=degraded glue）。旧代码钉死
    Register@0x1000（空间与偏移双错）。→ `new_varnode_out_full(tsz, shiftin_space,
    newaddr)`。
 2. **RulePullsubIndirect::apply_op**（ruleaction.cc:993-996/1011）：`smalladdr2 =
@@ -2096,7 +2096,7 @@ FAMAUDIT 第三波登记的 ruleaction×4 位点（ruleaction.cc:2035/1011/6770/
 4. **RulePtrFlow::truncate_pointer**（ruleaction.cc:9146-9152）：截断指针输出
    `addr = vn->getAddr()` = vn 自身空间；**cc:9148 `addr.isBigEndian()` 读的是
    addr 携带空间（=vn 空间）的端序**，旧代码误读指针目标空间 `spc`（源错误；
-   Rugra AddressSpace 端序谓词当前为 LE 枚举 stub，x86-64 oracle 全 LE=行为
+   Rudra AddressSpace 端序谓词当前为 LE 枚举 stub，x86-64 oracle 全 LE=行为
    等价）；`renormalize(addrSize)` 同 join-only。→ `new_varnode_out_full(
    addr_size, vn_space, addr_val)` + BE 源改 `vn_space`。
 
@@ -2111,7 +2111,7 @@ coreaction 三位点（cc:699/1551/1451）为 CSPEC2 并行车道登记项。
 httpd 0 次；位点 1/2/4 双语料休眠。双语料默认态输出与亲父 cmp **字节恒等**
 （=触发位点等价性实证，非休眠）+ 双跑确定性；curl/httpd canon golden 双零；
 三门禁+bank 391/391+cargo test --lib 亲父谱系同败——见 lane 终报
-（/dev/shm/rugra-reports/LANE_RUFOUR_2026-09-25.md）。
+（/dev/shm/rudra-reports/LANE_RUFOUR_2026-09-25.md）。
 
 ## 2026-09-25：`buildSubpiece` join 臂 usetmp 结构镜像（Lane PJOINS，SPACEFIX-CR-F6 收口）
 
@@ -2125,7 +2125,7 @@ is_join` 臂最终落到 unique、hash 偏移计算为死值，但结构性违�
 HERITAGE-PJOINS-UNLINKED-0001 降级：响亮 log + 保持 unique 输出（=oracle
 无覆盖片行为 cc:825-826）。非 join 基底 `plain_addr` 计算保持 cc:816-821
 端序分支不变。行为验收：httpd/curl 与亲父 cmp 字节恒等（join 臂两语料
-零触发——Rugra 生产者仅 httpd ap_init_vhost_config 铸 join 且不流经
+零触发——Rudra 生产者仅 httpd ap_init_vhost_config 铸 join 且不流经
 MULTIEQUAL→SUBPIECE）。
 
 ## 2026-09-25：AddTreeState::ptr_rel_state 正式形闸门（UNIONRES-RELPTR-SCOREPARITY-0001 配套，wt/unionf2）
@@ -2134,7 +2134,7 @@ MULTIEQUAL→SUBPIECE）。
 以 `ct->isFormalPointerRel()`（type.hh:228：
 `(is_ptrrel|has_stripped)==is_ptrrel`）为闸门 —— **临时** rel 形
 （`markEphemeral` type.cc:4020 置 `has_stripped`）被排除，其 parent/offset
-簿记归类型传播层所有；Rugra 的 `ptr_rel_state` 只查 `IS_PTRREL` 位，把临时
+簿记归类型传播层所有；Rudra 的 `ptr_rel_state` 只查 `IS_PTRREL` 位，把临时
 形也计入 `baseType=parent`/`nonmultsum=offset` 记账。
 
 该缺口此前不可见：`canonicalize_temp_type` 把 temp 里的临时 rel 剥成 plain，
@@ -2149,7 +2149,7 @@ oracle 投影终态（tests/fixtures/projections/curl_match_url 同数）。
 ## 2026-09-26：AddTree/RS0/PtrsubUndo/PtraddUndo 联合体读面咨询（UNIONRES-FIELDOFF-PTRSUBNORM-0001，Lane FIELDOFF）
 
 union_map 逐边解析落地后的消费者接线（oracle 的 `getTypeReadFacing(op)` =
-`findResolve(op,slot)` 只读咨询,Rugra 镜像为 unionresolve.rs 自由函数）:
+`findResolve(op,slot)` 只读咨询,Rudra 镜像为 unionresolve.rs 自由函数）:
 
 - **AddTreeState 构造器 ct**（ruleaction.cc:6037 `ct = ptr->getTypeReadFacing(op)`）:
   此前零参退化形。map 命中时 ct = 解析出的字段指针（如 `URLGlob.content` →
@@ -2159,7 +2159,7 @@ union_map 逐边解析落地后的消费者接线（oracle 的 `getTypeReadFacin
   态下的超界 stamping 也用解析形。
 - **buildTree 两处 inheritResolution**（ruleaction.cc:6500-6501/6512-6513）:
   新建 PTRADD/PTRSUB 后把 baseOp 边的解析记录复制到新 op 的 slot 0 —— 此前
-  注释"Rugra 无逐边 union resolution"已过时。RS0 的 PTRSUB(#0) 重写同样补上
+  注释"Rudra 无逐边 union resolution"已过时。RS0 的 PTRSUB(#0) 重写同样补上
   （ruleaction.cc:6751-6752）。
 - **RulePtrsubUndo applyOp**（ruleaction.cc:7138 `basevn->getTypeReadFacing(op)
   ->isPtrsubMatching(val,extra,multiplier)`）:此前读裸 `get_type()` —— 这是
@@ -2216,7 +2216,7 @@ isDegenerate=false；clear 重播种 4；wordsize 1 恒等臂；HAS_STRIPPED
 
 ## 2026-09-26：RuleStructOffset0 缺口注释补登记（RULEACTION-RS0-RELGATE-0001 注释卫生半项）
 
-`RuleStructOffset0` 两处缺口陈述过时（"Rugra has no TypePointerRel"——rel 基础
+`RuleStructOffset0` 两处缺口陈述过时（"Rudra has no TypePointerRel"——rel 基础
 设施已由 FIELDOFF/ADDRUNIT 车道落地：`AddTreeState::ptr_rel_state`、
 `pointer_rel_evaluate_thru_parent` 均在库内）且无 TODO ID。本次改为准确陈述：
 oracle ruleaction.cc:6695-6725 的 formal 相对指针臂（isFormalPointerRel &&
@@ -2457,11 +2457,11 @@ wrap-only 37 行预判为 printc.rs emit 断点序（Oppen 组结构）域。双
 1. **镜面探针（oracle_probe4.cc / probe4.rs）**: 用 ProbeLang 驱动真
    PrintLanguage RPN 机器（pushOp/pushAtom/recurse + PrintC OpToken 表
    cc:23-77）重放 AddOp4 语句——oracle 侧逐字节复现 golden（含逗号前断列
-   `,0,xVar29,...` 与 `);` 独立行）;Rugra 侧同 push 序列喂 rpn_push_op/
+   `,0,xVar29,...` 与 `);` 独立行）;Rudra 侧同 push 序列喂 rpn_push_op/
    rpn_push_atom+EmitPrettyPrint——**输出==oracle 输出==golden**。换
-   Rugra 实名（xVar12/xVar32,+1 字符）后**输出==Rugra 镜面实况字节**。
+   Rudra 实名（xVar12/xVar32,+1 字符）后**输出==Rudra 镜面实况字节**。
    ⇒ walk+emitter 逐位恒等,断行差异 100% 由 token 内容长度差驱动。
-2. **真实管线 emit 流捕获**（env 门控 EmitLog 装饰器,交付前撤净）: Rugra
+2. **真实管线 emit 流捕获**（env 门控 EmitLog 装饰器,交付前撤净）: Rudra
    真实 token 流与 oracle 推导流结构恒等（7 comma 组嵌套/postsurround
    spaces(0,10)/checkstring 零宽断点全对齐）。
 3. **逐位点归因**: 37 行 = 26 行幻影常量拼写差（`-0x100000005` vs `-5`、
@@ -2502,12 +2502,12 @@ mirror 位移逐字节归因=12 函数全落本根（含 canon 独见 Int64ToTex
 
 `zext(SUBPIECE(V, off))` → `V >> off*8 [& mask]` 改写中,oracle 的移位常量尺寸
 取自 SUBPIECE 偏移常量本身（`data.newConstant(constvn->getSize(), rightVal)`,
-constvn = subop->getIn(1)）。Rugra 旧码硬编码 `new_constant(4, right_val)`——
+constvn = subop->getIn(1)）。Rudra 旧码硬编码 `new_constant(4, right_val)`——
 read_inode_3 LE 分支的 `SUB81(load8, #0x2)`（偏移常量 8 字节,全局影子合并产物）
 经本规则后产出 8 字节宽 `V >> #0x10`,而 BE 分支 subzext 第二臂（cc:5092 忠实
 保尺寸）产出 4 字节 `V >> #0x10:4`——两移位常量尺寸不等使
 `functionalEqualityLevel0` 的 size-first 检查（expression.cc:407-408）判 -1,
-oracle 的 push_multi 拒绝合并;Rugra 侧两常量同为 4 字节 → 判 1 → push_multi
+oracle 的 push_multi 拒绝合并;Rudra 侧两常量同为 4 字节 → 判 1 → push_multi
 触发,把分支内两移位折叠成 `phi(load_LE, load_BE) >> 0x10`,打印面
 `uVar34 = xStack_78` 往返 + Var5/Var6↔iVar4/uVar6 编号移位 +
 `(uVar34 >> 0x10 & 0xff)` use-site 重移位全链（38 行）。修复 = 元组块同址
@@ -2518,7 +2518,7 @@ constvn 读取点等序）并传入 `new_constant`。
 
 oracle 仅在 `outvn->overlap(*a) == c`（Varnode::overlap,varnode.cc:177-189:
 outvn 的 LSB 落在 a 存储范围第 c 字节——精确件形,留给 ActionCopyMarker 转
-marker）时提前返回;Rugra 旧码对"双方 addr-tied"一律保守返回,导致
+marker）时提前返回;Rudra 旧码对"双方 addr-tied"一律保守返回,导致
 `uRam156ab2 = SUB81(uRam156a70,2)`（outvn @0x156ab2 与 a @0x156a70 同空
 间不相交,overlap=-1≠2）不触发 `sub(V,c) → sub(V>>c*8, 0)` 改写,打印面
 留 `SUB81(V,2)` 函数形而 golden 为 `(uint1)(V >> 0x10)`（6 行,③域

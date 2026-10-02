@@ -21,7 +21,7 @@ pub struct LocationMap {
     /// `map<Address,SizePass>`; `Address::operator<` orders by space index
     /// then offset, and `Address::overlap` returns -1 for different spaces),
     /// so entries from different address spaces never merge or overlap.
-    /// Rugra's `Address` is a bare offset, so the space identity is carried
+    /// Rudra's `Address` is a bare offset, so the space identity is carried
     /// explicitly in the key tuple (HERITAGE-DRIVER-SWITCH-0001: cross-space
     /// offset collisions previously misclassified ranges as NEW/OLD).
     pub themap: BTreeMap<(AddressSpace, Address), SizePass>,
@@ -201,7 +201,7 @@ impl LocationMap {
     /// Locate the map entry containing `addr`. Ghidra's `LocationMap::add`
     /// returns an iterator to the (possibly merged) entry covering the added
     /// range; the driver then reads `(*liter).first` / `(*liter).second.size`
-    /// (heritage.cc:2710/2719/2722). Rugra's `add` returns only the intersect
+    /// (heritage.cc:2710/2719/2722). Rudra's `add` returns only the intersect
     /// code, so this upper_bound/back-up lookup recovers the same entry.
     /// Scans only `space`'s sub-range — entries in other spaces can never
     /// contain this address (Ghidra `Address::overlap` is -1 cross-space).
@@ -252,7 +252,7 @@ pub struct MemRange {
     pub size: i32,
     pub flags: u32,
     /// Address space of the range. Ghidra's `MemRange::addr` is a full
-    /// space-carrying Address (heritage.hh:60); Rugra's `Address` is an
+    /// space-carrying Address (heritage.hh:60); Rudra's `Address` is an
     /// offset-only scalar, so the space rides as an explicit field until
     /// ADDRESS-0001 lands.
     // RUDRA-GLUE: explicit-space mirror of the oracle Address identity.
@@ -409,7 +409,7 @@ impl HeritageInfo {
     ///   - hasCallPlaceholders = (space type == IPTR_SPACEBASE) [Stack]
     ///   - deadremoved = 0
     ///   - loadGuardSearch = false
-    /// Previously Rugra hard-coded delay=0/deadcodedelay=0/deadremoved=-1/
+    /// Previously Rudra hard-coded delay=0/deadcodedelay=0/deadremoved=-1/
     /// load_guard_search=true, which broke the per-space staggered heritage
     /// timing and inverted the loadGuardSearch flag
     /// (Ghidra: false = search not yet performed).
@@ -503,7 +503,7 @@ impl LoadGuard {
     /// Ghidra: `set(o,s,off) { op=o; spc=s; pointerBase=off; minimumOffset=0;
     /// maximumOffset=s->getHighest(); step=0; analysisState=0; }`.
     ///
-    /// Rugra's `AddressSpace` is a flat enum without a per-space
+    /// Rudra's `AddressSpace` is a flat enum without a per-space
     /// `getHighest()`, so we use a conservative all-space maximum
     /// (`u64::MAX`). This matches Ghidra's "guards everything until value-set
     /// analysis narrows it" semantics and keeps `is_guarded` permissive.
@@ -679,7 +679,7 @@ const STACK_WALK_MULTIEQUAL: u32 = 2;
 
 // Ghidra: heritage.hh:142 LoadGuard::spaceHighest
 /// Conservative "highest addressable offset" for a space, standing in for
-/// Ghidra's `AddrSpace::getHighest()`. Rugra spaces are 64-bit addressable
+/// Ghidra's `AddrSpace::getHighest()`. Rudra spaces are 64-bit addressable
 /// (`addr_size()==8`), so the all-ones value is the natural maximum and keeps
 /// `is_guarded` permissive until value-set analysis narrows a range.
 fn space_highest(_spc: AddressSpace) -> u64 {
@@ -721,7 +721,7 @@ impl Heritage {
     /// (heritage.cc:218-224): `fd = data; pass = 0; maxdepth = -1;`.
     /// `maxdepth = -1` is load-bearing: it is the sentinel that makes the
     /// first `Heritage::heritage` pass rebuild the augmented dominator tree
-    /// (heritage.cc:2676-2677). (Previously Rugra initialized `maxdepth = 0`,
+    /// (heritage.cc:2676-2677). (Previously Rudra initialized `maxdepth = 0`,
     /// so the rebuild condition could never fire.)
     pub fn new() -> Self {
         Self {
@@ -770,7 +770,7 @@ impl Heritage {
     // Ghidra: heritage.hh:257 Heritage::getInfo
     /// Look up the HeritageInfo for `space`. Faithful to `getInfo`
     /// (heritage.hh:257). Ghidra indexes infolist by spc->getIndex();
-    /// Rugra scans by space match (infolist is small, ~6 entries).
+    /// Rudra scans by space match (infolist is small, ~6 entries).
     /// Auto-builds infolist if empty (buildInfoList cc:2650).
     pub fn get_info(&mut self, space: AddressSpace) -> &HeritageInfo {
         if self.infolist.is_empty() {
@@ -817,7 +817,7 @@ impl Heritage {
     /// Build the Augmented Dominator Tree. Faithful to `buildADT`
     /// (heritage.cc:2316-2385). Consumes the block dominator state populated
     /// upstream (Ghidra: `Funcdata::structureReset` -> `calcForwardDominator`;
-    /// Rugra: `BlockGraph::build_dom_tree`) and constructs the Bilardi-Pingali
+    /// Rudra: `BlockGraph::build_dom_tree`) and constructs the Bilardi-Pingali
     /// augmentation.
     ///
     /// Algorithm (locked oracle lines):
@@ -934,7 +934,7 @@ impl Heritage {
                     };
                     if Some(u_idx) != v_idom {
                         // Up-edge: u -> v (pointer identity in Ghidra;
-                        // block indices are unique per graph in Rugra).
+                        // block indices are unique per graph in Rudra).
                         upstart.push(u_idx);
                         upend.push(cidx);
                         b_count[u_idx as usize] += 1;
@@ -1130,10 +1130,10 @@ impl Heritage {
         }
     }
 
-    // RUDRA-GLUE: Rugra-specific stack-store discovery; no 1:1 Ghidra function.
+    // RUDRA-GLUE: Rudra-specific stack-store discovery; no 1:1 Ghidra function.
     /// Forward-descend the stack-pointer input varnode, mark STOREs whose
     /// pointer reaches it as spacebase users, and materialize stack-space
-    /// INDIRECT writes for them. This is Rugra's approximation of the
+    /// INDIRECT writes for them. This is Rudra's approximation of the
     /// marking half of `Heritage::discoverIndexedStackPointers`
     /// (heritage.cc:985-1108) + `protectFreeStores` (heritage.cc:943-968,
     /// `opMarkSpacebasePtr`); it does not implement the indexed-pointer
@@ -1666,7 +1666,7 @@ impl Heritage {
     //       renaming see the memory effect, and (for guardLoads) to drop stale
     //       guard records.
     //
-    // Rugra's pragmatic policy (per the alignment task) is to *populate* the
+    // Rudra's pragmatic policy (per the alignment task) is to *populate* the
     // store_guard/load_guard Vecs so that `get_store_guard`/`get_load_guard`
     // return non-`None` and RuleActionShadowOp's store-alias check works. We
     // therefore implement the record-creation half faithfully and leave the
@@ -1684,7 +1684,7 @@ impl Heritage {
     ///
     /// Differences from Ghidra: Ghidra's `guardStores` iterates by address
     /// range (`addr`/`size`) and creates the INDIRECT via `newIndirectOp`.
-    /// Rugra does not yet drive guarding per disjoint memory range (the SSA
+    /// Rudra does not yet drive guarding per disjoint memory range (the SSA
     /// pipeline calls this once per heritage pass), so we guard the *whole*
     /// stack space — i.e. every spacebase-marked STORE — which is the
     /// conservative superset and never under-protects. The full-range
@@ -1733,7 +1733,7 @@ impl Heritage {
                 .unwrap_or(store_space);
             // heritage.cc:1552: a STORE is guarded if its target space is the
             //   container of `spc` AND usesSpacebasePtr(), OR if its target
-            //   space == spc. Rugra's stack space has no separate "container"
+            //   space == spc. Rudra's stack space has no separate "container"
             //   space, so we simply guard STOREs targeting the stack space that
             //   are spacebase-marked (the indexed case), plus any STORE the
             //   existing discovery already flagged.
@@ -1774,7 +1774,7 @@ impl Heritage {
     /// Differences from Ghidra: Ghidra inserts a `COPY` "guard" op before each
     /// guarded LOAD (heritage.cc:1591-1600) to force a specific address, and
     /// only guards LOADs whose indexed range intersects the heritage range.
-    /// Rugra builds the guard records for all stack-pointer-indexed LOADs
+    /// Rudra builds the guard records for all stack-pointer-indexed LOADs
     /// (conservative superset) and defers the COPY insertion to a future
     /// per-range driver. Value-set analysis is not run yet, so each guard
     /// initially protects the whole stack space.
@@ -2289,7 +2289,7 @@ impl Heritage {
             if dead {
                 continue; // cc:1680
             }
-            if std::env::var("RUGRA_HERITAGE_TRACE").is_ok() {
+            if std::env::var("RUDRA_HERITAGE_TRACE").is_ok() {
                 eprintln!(
                     "[H-GRET] pass={} range={:#x}/{} return@{:#x}",
                     self.pass,
@@ -2419,7 +2419,7 @@ impl Heritage {
     ///       full-range Varnode is returned (cc:494) so `guard` can replace
     ///       the write-list entry (`*iter = vn =`, cc:1180).
     /// Big-endian `pieceaddr` selection mirrors cc:429-433/451-454 via the
-    /// range space's endianness (Rugra Address is offset-only).
+    /// range space's endianness (Rudra Address is offset-only).
     pub fn normalize_write_size(
         &self,
         fd: &mut Funcdata,
@@ -2662,7 +2662,7 @@ impl Heritage {
     /// (cc:2629). The `fl` query is `fd->getScopeLocal()->queryProperties`
     /// with an empty usepoint (cc:1191), modeled by
     /// [`Heritage::guard_query_properties`]. Ghidra throws
-    /// LowlevelError("Free varnode with multiple reads") at cc:1171; Rugra
+    /// LowlevelError("Free varnode with multiple reads") at cc:1171; Rudra
     /// keeps the file-wide stderr convention (no exception channel on the
     /// driver) and logs instead.
     pub fn guard_range(
@@ -2686,7 +2686,7 @@ impl Heritage {
                 continue; // cc:1168-1169: removed by removeRevisitedMarkers
             }
             // cc:1171-1172: free varnode with multiple reads = error.
-            // Rugra logs instead of throwing.
+            // Rudra logs instead of throwing.
             if descend_count > 1 {
                 eprintln!("[HERITAGE] WARN: free varnode with multiple reads");
             }
@@ -2756,7 +2756,7 @@ impl Heritage {
     /// global-scope tail `mapped | addrtied | persist | getProperty(addr)`
     /// (see the (3) branch below). Residuals: a global SymbolEntry
     /// containing the range (branch (1) in the global scope) and
-    /// register/unique-scope routing keep the flagbase-only tail; Rugra's
+    /// register/unique-scope routing keep the flagbase-only tail; Rudra's
     /// ScopeLocal has no parent linkage (fixtures and the stack/register
     /// pipeline never rely on it).
     ///
@@ -2769,7 +2769,7 @@ impl Heritage {
     /// another: a Register/Unique/Stack-space lookup only ever sees the
     /// default partition (0 — the locked pspec carries zero `<volatile>`
     /// ranges, and loader-derived `<readonly>` ranges live in the RAM
-    /// space, architecture.cc:1427 `readonlypropagate=false` aside). Rugra's
+    /// space, architecture.cc:1427 `readonlypropagate=false` aside). Rudra's
     /// `PartMap` is keyed by the legacy SPACELESS `Address` (only
     /// default-data RAM ranges are ever installed — the SYMDB driver's
     /// `set_property_range` calls), so consulting it from a non-Ram space
@@ -2856,7 +2856,7 @@ impl Heritage {
             // fold `flags |= getProperty(addr)` runs in the oracle with the
             // STACK-space Address — outside every RAM-space flagbase
             // partition (address.hh:375-390 space-index-first ordering),
-            // i.e. the locked-pspec oracle value is 0 — and Rugra's
+            // i.e. the locked-pspec oracle value is 0 — and Rudra's
             // spaceless PartMap cannot express a stack-space query at all
             // (consulting it would cross-space collide with the RAM
             // readonly ranges), so the fold projects to 0 here.
@@ -2908,7 +2908,7 @@ impl Heritage {
         // partition — 0 under the locked pspec (zero `<volatile>` ranges;
         // loader-derived `<readonly>` ranges are RAM-space only), the
         // space-qualified answer CURB2's probe registered as the oracle
-        // value. Rugra's PartMap is keyed by the spaceless legacy Address,
+        // value. Rudra's PartMap is keyed by the spaceless legacy Address,
         // so a lookup here cross-space collides with the RAM readonly
         // ranges instead (parent c010bbb3 gated probe: 17 Register-space
         // varnodes at offsets 0x0-0xb8/0x110 across 26 functions falsely
@@ -2932,7 +2932,7 @@ impl Heritage {
         // takes the split branch and its walk-to-`flagbase.end()`
         // no-closing-split `else` stays defensive — leaving a non-zero
         // Ram tail partition [X, ram-top] whose only closing changepoint
-        // lies OUTSIDE the Ram space. Rugra's spaceless mirror drops the
+        // lies OUTSIDE the Ram space. Rudra's spaceless mirror drops the
         // open form entirely (`Scope::decode_hole` defaults a missing
         // `last` to 0 and degrades the range to [0,0]; the legacy
         // `Range::get_last_addr_open` = `last.next()` has no
@@ -2971,10 +2971,10 @@ impl Heritage {
             .set_flags(fl & !crate::varnode::varnode_flags::TYPELOCK);
     }
 
-    // Ghidra: heritage.cc:219 Heritage::guardAll (Rugra analogue)
+    // Ghidra: heritage.cc:219 Heritage::guardAll (Rudra analogue)
     /// Run the guard phases against the whole stack space. This is the
     /// per-space analogue of Ghidra's guard() addIndirects half.
-    /// Calls guard_range with empty read/write lists (Rugra's
+    /// Calls guard_range with empty read/write lists (Rudra's
     /// setActiveHeritage is done by rename_direct's marker).
     pub fn guard_all(&mut self, fd: &mut Funcdata) {
         let mut empty_read = Vec::new();
@@ -3000,7 +3000,7 @@ impl Heritage {
     /// piece-space delay == pass, calls splitJoinWrite (which creates
     /// SUBPIECE ops to reconstruct the join from pieces).
     ///
-    /// Rugra's Join space is minimal (AddressSpace::Join enum, no JoinRecord
+    /// Rudra's Join space is minimal (AddressSpace::Join enum, no JoinRecord
     /// infrastructure). Full implementation needs JoinRecord/JoinSpace from
     /// Ghidra architecture. This method is a documented stub that scans
     /// Join-space varnodes and logs them.
@@ -3445,7 +3445,7 @@ impl Heritage {
     /// with WidenerFull and finalizeRange each.
     ///
     /// GETPARAM-OPPOOL-COUNT-0001: this used to be a documented stub
-    /// claiming "Rugra lacks ValueSetSolver" — but src/rangeutil.rs ports the
+    /// claiming "Rudra lacks ValueSetSolver" — but src/rangeutil.rs ports the
     /// solver (establish_value_sets/solve/get_value_set_read +
     /// WidenerNone/WidenerFull). The stub kept every guard at the full-stack
     /// `[0, highest]` range, so RuleIndirectCollapse's store-guard arm
@@ -3714,7 +3714,7 @@ impl Heritage {
         // at the heritage snapshot (first divergence: ordinal 12, op-idx 0).
         let ind_op_addr = ind_op.0.read().unwrap().get_addr();
         // cc:1273/1260 endianness: the locked oracle arch is x86:LE:64, so
-        // retAddr.isBigEndian() == false (Rugra Address carries no space,
+        // retAddr.isBigEndian() == false (Rudra Address carries no space,
         // so the flag cannot be consulted dynamically; ADDRESS-0001).
         let big_endian = false;
         // cc:1256-1267: front piece (aliases the return-storage INDIRECT).
@@ -4781,7 +4781,7 @@ impl Heritage {
     /// `Funcdata::startProcessing` (funcdata.cc:166); the current pass's
     /// `HeritageInfo` is deliberately NOT mutated here. The restart itself
     /// is requested via `Funcdata::setRestartPending(true)` and executed by
-    /// `ActionRestartGroup::apply` (action.cc:553-582; the Rugra-side
+    /// `ActionRestartGroup::apply` (action.cc:553-582; the Rudra-side
     /// restart-cycle gap is tracked by PIPE-RESTART-0001).
     pub fn bump_deadcode_delay(&mut self, fd: &mut Funcdata, space: AddressSpace) {
         // cc:2574-2575: if ((spc->getType() != IPTR_PROCESSOR)&&
@@ -4859,7 +4859,7 @@ impl Heritage {
     ) -> Arc<RwLock<Varnode>> {
         if vnlist.is_empty() { return final_vn.clone(); }
         let mut preexist = vnlist[0].clone();
-        let is_bigendian = false; // Rugra: x86-64 is little-endian
+        let is_bigendian = false; // Rudra: x86-64 is little-endian
         // cc:512-525: with a null insertop the expression goes to the
         // start block's beginning (getStartBlock + beginOp), and the ops
         // carry the function address; otherwise the ops insert before
@@ -5136,7 +5136,7 @@ impl Heritage {
         // cc:316: Address endaddr = memrange.addr + memrange.size —
         // Address::operator+ (address.hh:423) = wrapOffset(offset + size)
         // (space.hh:383), the int4->int8 sign-extending add taken modulo
-        // the space size. Rugra spaces are 64-bit addressable (see
+        // the space size. Rudra spaces are 64-bit addressable (see
         // space_highest, heritage.hh:142 note), so wrapOffset is the
         // identity and the plain u64 wrapping add IS the oracle arithmetic
         // (`size as u64` sign-extends exactly like int4->int8).
@@ -5164,7 +5164,7 @@ impl Heritage {
         // an entry-frozen snapshot would hide the pieces for the whole pass
         // and, because the next pass classifies the range OLD
         // (addIndirects=false), the missed INDIRECTs would never be built
-        // (review finding M1). Rugra's loc_tree is a
+        // (review finding M1). Rudra's loc_tree is a
         // BTreeSet<VarnodeLocRef> whose Ord acquires varnode read locks
         // during comparison, so the RangeFrom bound is built from a
         // synthetic probe varnode: size 0 sorts before every same-offset
@@ -5756,7 +5756,7 @@ impl Heritage {
     /// Unlinked-join degradation (documented deviation, see
     /// HERITAGE-PJOINS-UNLINKED-0001): the oracle's findJoin
     /// (translate.cc:746-762) throws LowlevelError("Unlinked join
-    /// address") when no JoinRecord covers the offset. Rugra's producer
+    /// address") when no JoinRecord covers the offset. Rudra's producer
     /// (coreaction.rs `return_join_address`, SPACEFIX lane) mints
     /// join-space offsets from a stateless hash with no findAddJoin
     /// registration, so a faithful throw would abort every function
@@ -5870,7 +5870,7 @@ impl Heritage {
         // maxdepth == -1 is the ctor/clear sentinel meaning "restructure
         // forced" — exactly one rebuild on the first pass after (re)reset.
         // Ghidra's buildADT consumes the dominator state produced upstream by
-        // Funcdata::structureReset (calcForwardDominator); Rugra's equivalent
+        // Funcdata::structureReset (calcForwardDominator); Rudra's equivalent
         // producer is BlockGraph::build_dom_tree.
         if self.maxdepth == -1 {
             fd.bblocks.build_dom_tree();
@@ -5881,7 +5881,7 @@ impl Heritage {
         self.process_joins(fd);
 
         // Ghidra cc:2674-2683: one local PreferSplitManager shared by
-        // split (pass 0) and splitAdditional (end of pass 0). Rugra has no
+        // split (pass 0) and splitAdditional (end of pass 0). Rudra has no
         // architecture split records on x86-64 (empty vec mirrors the locked
         // fixture architecture and the x86:LE:64:default oracle), but the
         // single-instance lifetime is preserved.
@@ -6211,7 +6211,7 @@ impl Heritage {
                 // the full newVarnodeOut sequence — assignHigh + laned check
                 // + localmap queryProperties tail (funcdata_varnode.cc:104-122)
                 // — whose local leg folds mapped|addrtied for in-scope stack
-                // storage. Rugra previously used the raw vbank constructor +
+                // storage. Rudra previously used the raw vbank constructor +
                 // set_varnode_properties, which lacks the local-scope leg, so
                 // heritage MULTIEQUAL outputs never became addr-tied and
                 // RuleSubRight's overlap guard (ruleaction.cc:7265-7268)
@@ -6252,7 +6252,7 @@ impl Heritage {
         self.merge.clear();
     }
 
-    // RUDRA-GLUE: Rugra-specific dominance-frontier phi placement; Ghidra has no `placeMultiequalsDirect`.
+    // RUDRA-GLUE: Rudra-specific dominance-frontier phi placement; Ghidra has no `placeMultiequalsDirect`.
     /// Insert Phi nodes directly using bank references. NOT the canonical
     /// algorithm: Ghidra's `placeMultiequals` (heritage.cc:2599-2645) derives
     /// merge blocks from the augmented dominator tree, not a dominance
@@ -6769,7 +6769,7 @@ impl Heritage {
     /// Perform SSA renaming directly using bank references.
     /// `vbank` is taken by &mut because heritage.cc:2501/2511 calls
     /// `fd->setInputVarnode` and cc:2520/2549 calls `fd->deleteVarnode`,
-    /// both of which mutate the bank. Rugra ports these as
+    /// both of which mutate the bank. Rudra ports these as
     /// `VarnodeBank::set_input_varnode` / `VarnodeBank::destroy_varnode`.
     /// Since HERITAGE-DRIVER-SWITCH-0001 this is off the production path
     /// (ActionHeritage drives canonical `Heritage::heritage`); remaining
@@ -6789,7 +6789,7 @@ impl Heritage {
         // input promotion (cc:2499-2502) creates a single shared input →
         // diamond merges lose per-branch distinctness.
         //
-        // Rugra approximates Ghidra's per-range guard by marking every
+        // Rudra approximates Ghidra's per-range guard by marking every
         // non-constant, non-annotation varnode in the bank (free + written
         // + input). Inputs are harmless to mark because rename's
         // isHeritageKnown check (cc:2495/2538) skips them before checking
@@ -6849,15 +6849,15 @@ impl Heritage {
     /// **2026-07-05 修正**：补齐 3 个 load-bearing 语义（audit P0-4）：
     ///   (1) **empty-stack input promotion** (cc:2499-2502 / cc:2540-2543) —
     ///       当 stack 为空时，Ghidra 创建新 varnode 并 `setInputVarnode` 提升为
-    ///       函数输入，push 到 stack。Rugra 此前静默跳过 → 自由读未被替换 →
+    ///       函数输入，push 到 stack。Rudra 此前静默跳过 → 自由读未被替换 →
     ///       SSA 不完整。
     ///   (2) **INDIRECT same-time stack-deepening** (cc:2507-2516) — 当 stack
     ///       顶的 vnnew 是 INDIRECT 写且其 target op 是当前 op 时，Ghidra 认为
     ///       "INDIRECT 和它的 op 同时发生"，深入 stack 一层（stack[size-2]）。
-    ///       Rugra 此前完全缺失 → 栈指针 INDIRECT 配对的 op 得到错误的 SSA 名。
+    ///       Rudra 此前完全缺失 → 栈指针 INDIRECT 配对的 op 得到错误的 SSA 名。
     ///   (3) **deleteVarnode of consumed frees** (cc:2519-2520 / cc:2548-2549) —
     ///       替换后若 `vnin->hasNoDescend()` 则 `fd->deleteVarnode(vnin)`。
-    ///       Rugra 此前从不删除 → 死 varnode 留在 loc_tree，污染后续 pass。
+    ///       Rudra 此前从不删除 → 死 varnode 留在 loc_tree，污染后续 pass。
     fn visit_rename_direct(
         &mut self,
         vbank: &mut VarnodeBank,
@@ -7143,7 +7143,7 @@ impl Heritage {
     /// Get the number of heritage passes performed for a space.
     /// Faithful to `numHeritagePasses` (heritage.cc:2793-2801):
     ///   `return pass - info->delay;`
-    /// Previously Rugra returned `self.pass` (ignoring per-space delay),
+    /// Previously Rudra returned `self.pass` (ignoring per-space delay),
     /// which over-reported the pass count for Stack (delay=1).
     pub fn num_heritage_passes(&self, space: AddressSpace) -> i32 {
         let info = self.infolist.iter().find(|i| i.space == space);
@@ -7155,7 +7155,7 @@ impl Heritage {
     /// Check if dead code removal is allowed for a space.
     /// Faithful to `deadRemovalAllowed` (heritage.cc:2829-2841):
     ///   `return pass > info->deadcodedelay;`
-    /// Previously Rugra returned const `true`, allowing dead-code removal
+    /// Previously Rudra returned const `true`, allowing dead-code removal
     /// on every pass including pass 0 — exactly the "Heritage AFTER dead
     /// removal" warning condition Ghidra prevents (cc:2728-2744).
     pub fn dead_removal_allowed(&self, space: AddressSpace) -> bool {
@@ -7223,7 +7223,7 @@ impl Heritage {
     // Ghidra: heritage.cc:2791 Heritage::seenDeadCode
     /// Mark that dead code was seen (removed) for a space. Faithful to
     /// `seenDeadCode` (heritage.cc:2791-2801): `info->deadremoved = 1`.
-    /// Previously Rugra was a no-op, so removeRevisitedMarkers/bumpDeadcodeDelay
+    /// Previously Rudra was a no-op, so removeRevisitedMarkers/bumpDeadcodeDelay
     /// warning paths could never trigger.
     pub fn seen_dead_code(&mut self, space: AddressSpace) {
         let idx = self.infolist.iter().position(|i| i.space == space);
@@ -8161,7 +8161,7 @@ mod tests {
     }
 
     // ---- processJoins regression tests (heritage.cc:2281-2313) ----
-    // Rugra-side regression coverage only (mechanism B2: these do NOT
+    // Rudra-side regression coverage only (mechanism B2: these do NOT
     // upgrade the oracle fixture status of processJoins — the producer
     // side still mints unlinked joins, see HERITAGE-PJOINS-UNLINKED-0001).
 

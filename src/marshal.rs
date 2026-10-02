@@ -3779,7 +3779,7 @@ mod tests {
         dec.close_element(eid);
     }
 
-    // ---- XML text ingestion (Rugra regression only; oracle parity is
+    // ---- XML text ingestion (Rudra regression only; oracle parity is
     // observed by tests/oracle/xml_text_dom_1204, not by these tests). ----
 
     #[test]

@@ -1,26 +1,26 @@
 //! Address and SeqNum alignment verification logic.
 //!
-//! This module ensures that Rugra's address representation matches Ghidra's
+//! This module ensures that Rudra's address representation matches Ghidra's
 //! internal Address and SeqNum classes as defined in `address.hh`.
 
 use crate::Address;
 use crate::{SeqNum, AddressSpace};
 
 // RUDRA-GLUE: verify_address (no Ghidra counterpart found)
-/// Verify that a Rugra Address aligns with Ghidra's representation.
+/// Verify that a Rudra Address aligns with Ghidra's representation.
 ///
 /// Ghidra Addresses consist of an AddressSpace and an offset.
 pub fn verify_address(
-    rugra_addr: &Address,
-    rugra_space: &AddressSpace,
+    rudra_addr: &Address,
+    rudra_space: &AddressSpace,
     ghidra_offset: u64,
     ghidra_space_id: i32,
 ) -> bool {
-    let offset_match = rugra_addr.as_u64() == ghidra_offset;
+    let offset_match = rudra_addr.as_u64() == ghidra_offset;
 
     // Space IDs are architecture-dependent in Ghidra.
     // Common mappings: Register=1, RAM=2 or higher.
-    let _space_match = match (rugra_space, ghidra_space_id) {
+    let _space_match = match (rudra_space, ghidra_space_id) {
         (AddressSpace::Register, 1) => true,
         (AddressSpace::Ram, id) if id >= 2 => true,
         (AddressSpace::Unique, _) => true, // Unique space IDs vary wildly
@@ -29,8 +29,8 @@ pub fn verify_address(
 
     if !offset_match {
         eprintln!(
-            "[ALIGN DIFF] Address offset mismatch: Rugra 0x{:x} != Ghidra 0x{:x}",
-            rugra_addr.as_u64(),
+            "[ALIGN DIFF] Address offset mismatch: Rudra 0x{:x} != Ghidra 0x{:x}",
+            rudra_addr.as_u64(),
             ghidra_offset
         );
     }
@@ -39,22 +39,22 @@ pub fn verify_address(
 }
 
 // RUDRA-GLUE: verify_seqnum (no Ghidra counterpart found)
-/// Verify that a Rugra SeqNum aligns with Ghidra's representation.
+/// Verify that a Rudra SeqNum aligns with Ghidra's representation.
 ///
 /// Ghidra SeqNum includes an Address and a 'time' or 'order' index
 /// used to distinguish multiple P-code operations for a single instruction.
 pub fn verify_seqnum(
-    rugra_seq: &SeqNum,
+    rudra_seq: &SeqNum,
     ghidra_offset: u64,
     ghidra_order: u32,
 ) -> bool {
-    let addr_match = rugra_seq.addr.as_u64() == ghidra_offset;
-    let order_match = rugra_seq.order == ghidra_order;
+    let addr_match = rudra_seq.addr.as_u64() == ghidra_offset;
+    let order_match = rudra_seq.order == ghidra_order;
 
     if !addr_match || !order_match {
         eprintln!(
-            "[ALIGN DIFF] SeqNum mismatch: Rugra ({}:{}) != Ghidra (0x{:x}:{})",
-            rugra_seq.addr, rugra_seq.order, ghidra_offset, ghidra_order
+            "[ALIGN DIFF] SeqNum mismatch: Rudra ({}:{}) != Ghidra (0x{:x}:{})",
+            rudra_seq.addr, rudra_seq.order, ghidra_offset, ghidra_order
         );
     }
 
@@ -62,7 +62,7 @@ pub fn verify_seqnum(
 }
 
 // RUDRA-GLUE: map_ghidra_space (no Ghidra counterpart found)
-/// Helper to convert Ghidra space ID to Rugra AddressSpace for verification
+/// Helper to convert Ghidra space ID to Rudra AddressSpace for verification
 pub fn map_ghidra_space(space_id: i32) -> AddressSpace {
     match space_id {
         1 => AddressSpace::Register,

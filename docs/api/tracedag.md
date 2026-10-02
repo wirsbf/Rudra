@@ -10,7 +10,7 @@ sqlite3Pragma 的 final-trace 轮（oracle 同轮 ~11.2k 事件）中途截断 l
 push 事件 #5186=`[TRACEDAG] iter cap 5000 hit`；移除后 retire/open/miss 41417 事件
 与 oracle 零 diff、selgoto 500 标记零 diff、臂形 40/0、双 switch 相邻 91 行、
 标号集 63/63 恒等）。
-**2026-08-27 追加（TRI2-STRUCT-IRREDUCIBLE-TRACE-0001）**: `push_branches` 增加 RUGRA_IRRED_DBG=1 门控的 stderr 诊断（`[TD] OPEN/RETIRE/STALL/BADEDGE` 行：trace#、bottom/dest、edgelump、visitcount、loopDAG_in/total_in、bp depth）——用于与 oracle 逐步决策对拍，无行为影响（env 未设时零开销路径不变）。
+**2026-08-27 追加（TRI2-STRUCT-IRREDUCIBLE-TRACE-0001）**: `push_branches` 增加 RUDRA_IRRED_DBG=1 门控的 stderr 诊断（`[TD] OPEN/RETIRE/STALL/BADEDGE` 行：trace#、bottom/dest、edgelump、visitcount、loopDAG_in/total_in、bp depth）——用于与 oracle 逐步决策对拍，无行为影响（env 未设时零开销路径不变）。
 **状态（前）**: 已重写核对（2026-08-24 BLOCKSTRUCT-GOTOCASCADE-CONDSTMT-0001，per-loop 驱动）
 **源代码路径**: `src/tracedag.rs`
 
@@ -126,7 +126,7 @@ check_open 使用简化近似（size_in <= edgelump），select_bad_edge 选第�
 2026-08-30 条目），此自由函数仅作独立 helper 保留。
 
 ### SELECTGOTO 车道诊断（2026-09-28，MIRRORCENSUS-GETLONGESTMATCH-CLONE-0001 续作）
-- `RUGRA_GOTOSTEP=1`（RUDRA-GLUE，debug-only）：`push_branches` 每步倾印
+- `RUDRA_GOTOSTEP=1`（RUDRA-GLUE，debug-only）：`push_branches` 每步倾印
   `[RSTEP] act/miss/cur=(bottom,dest)` + BADPICK/RETIRE/OPEN 动作行——oracle
   侧 scratch [OSTEP] 探针的对照面；`update_loop_body` 无环臂的根收集同步
   倾印 `[RROOT]`。默认关闭，管线行为零变化。本轮用它+oracle [OROOT] 钉死
@@ -135,12 +135,12 @@ check_open 使用简化近似（size_in <= edgelump），select_bad_edge 选第�
 
 ## 2026-09-29：per-event 常数收口（SPEEDPROF-TRACEDAG-CONST-0001）
 
-**钻定**（[TDP] 探针,env 门控 RUGRA_TDPROF=1,交付前撤净）: VdbeExec --one 1055
+**钻定**（[TDP] 探针,env 门控 RUDRA_TDPROF=1,交付前撤净）: VdbeExec --one 1055
 上 tracedag 1.05s/198 DAG 构建 = **check_open 0.911s（87%）+ stall 路径 env 检查
 0.170s + select_bad_edge 0.147s** + check_retirement 0.048s + open/retire ~7ms;
 1,412,207 事件,其中 **is_loop_dag_in 调用 12,204,131 次**（每调 = get_block Arc
 克隆 + RwLock read + BlockEdge 克隆,~70ns/边）+ 每事件 1 次
-`std::env::var("RUGRA_IRRED_DBG")`（env 锁+分配）。**oracle 对照**（亲读
+`std::env::var("RUDRA_IRRED_DBG")`（env 锁+分配）。**oracle 对照**（亲读
 blockaction.cc:810-833 + block.hh:345）: oracle checkOpen 每边 = `bl->isLoopDAGIn(i)`
 内联 `intothis[i].label & mask` 纯字段读——12.2M 边访问是 oracle 同构工作面
 （同 trace 形态/同边数）,oracle 侧 ~25ms vs Rugra ~850ms,差距全部实现级常数。
@@ -154,11 +154,11 @@ blockaction.cc:810-833 + block.hh:345）: oracle checkOpen 每边 = `bl->isLoopD
    `Vec<i32>`（构造时 `vec![0; graph.get_size()]` 直索引——语义更贴 oracle
    visitcount 字段（block.hh:125, clearVisitCount cc:940 的 per-instance 隐式
    化）;仅 dest>=0 索引被触碰,remove_trace/check_open/stall 诊断读全部守住）。
-3. `push_branches` 四个分支点每事件 `std::env::var("RUGRA_IRRED_DBG")` →
+3. `push_branches` 四个分支点每事件 `std::env::var("RUDRA_IRRED_DBG")` →
    fn 顶 `OnceLock<bool>` 单读（env 运行期不可变;blockaction.rs IRRED_SW 同款）。
 
 **结果**: 净口径 tracedag 总时 **1.05s → 0.222s（−79%）**（[TDPM] 最小探针,
-RUGRA_TDPROF=1）;残余 ~20ms 巨型 DAG = check_open 每事件一次 get_block+锁地板
+RUDRA_TDPROF=1）;残余 ~20ms 巨型 DAG = check_open 每事件一次 get_block+锁地板
 ×1.41M 事件 + select_bad_edge oracle 同构 sort/markPath 工作量 + Arc/RwLock
 结构地板（block.rs 数据结构域,与 PERF-* 残差同族）。**恒等链**: VdbeExec
 --one 1055 stdout md5 bf2d9b85 全等（base r1/r2==opt r1/r2 配对）;sqlite 全语料

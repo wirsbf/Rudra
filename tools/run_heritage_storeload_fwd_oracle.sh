@@ -6,7 +6,7 @@
 #               — no BFD needed); stdout archived at
 #               tests/oracle/heritage_storeload_fwd_1204.oracle.out
 #               (sha-pinned below). Live oracle re-capture only under
-#               RUGRA_STORELOADFWD_ORACLE_RUN=1 (rebuilds libdecomp.a from
+#               RUDRA_STORELOADFWD_ORACLE_RUN=1 (rebuilds libdecomp.a from
 #               the locked tree and re-verifies the archived record hash).
 # Rugra side  : current worktree lib (cargo build --lib) + the mirrored
 #               tests/oracle/heritage_storeload_fwd_1204.rs.
@@ -45,8 +45,8 @@ trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # ---- oracle comparand (archive or live) -----------------------------------
 oracle_out="$workdir/oracle.stdout"
-if [[ ${RUGRA_STORELOADFWD_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUGRA_STORELOADFWD_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-storeload-fwd-1204}
+if [[ ${RUDRA_STORELOADFWD_ORACLE_RUN:-0} == 1 ]]; then
+  cache_root=${RUDRA_STORELOADFWD_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-storeload-fwd-1204}
   runner="$cache_root/heritage_storeload_fwd_1204_cpp"
   if [[ ! -x $runner ]]; then
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \

@@ -59,7 +59,7 @@ rustc --edition=2021 -O \
 # Rust side must select the same tier (typefactory flavor switch;
 # MIRROR-ENVS-CANONICAL-0001) — the headless data-org flavor spells its
 # cores undefinedN/long and the first-character family would differ.
-RUGRA_MIRROR=1 "$work/pxname_rust" >"$work/rugra.stdout" 2>"$work/rugra.stderr"
+RUDRA_MIRROR=1 "$work/pxname_rust" >"$work/rugra.stdout" 2>"$work/rugra.stderr"
 
 echo "=== ghidra stdout ==="
 cat "$work/ghidra.stdout"

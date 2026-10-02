@@ -29,10 +29,10 @@ type TypeTreeKey = (
 /// A warning attached to a named data-type. Mirrors Ghidra's
 /// `DatatypeWarning` (type.hh:752-762): the data-type the warning is about
 /// plus the explanatory string displayed to the user. Ghidra stores the
-/// `Datatype*` itself; Rugra records the `(name, id)` identity pair that
+/// `Datatype*` itself; Rudra records the `(name, id)` identity pair that
 /// `removeWarning` compares on (type.cc:3766: `getId() == dt->getId() &&
 /// getName() == dt->getName()`) — for factory-registered types the pair is
-/// stable across the Arc re-wrapping that Rugra's immutable-Arc registry
+/// stable across the Arc re-wrapping that Rudra's immutable-Arc registry
 /// performs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatatypeWarning {
@@ -85,7 +85,7 @@ pub struct TypeFactory {
     live_local_scopes: BTreeMap<u64, std::sync::Arc<std::sync::RwLock<crate::varmap::ScopeLocal>>>,
 
     /// Side data for `TypePointerRel` instances: the parent container and
-    /// offset that do not fit on Rugra's flat `TypePointer`. Mirrors the
+    /// offset that do not fit on Rudra's flat `TypePointer`. Mirrors the
     /// `parent`/`offset` fields of Ghidra's `TypePointerRel` (type.hh:647).
     rel_pointers: BTreeMap<String, RelativePointer>,
 
@@ -135,13 +135,13 @@ pub struct TypeFactory {
     /// Maximum size of a scalar "base" type before `getBase` converts the
     /// request into an array of 1-byte unknowns (Ghidra
     /// `Architecture::max_basetype_size`, architecture.hh:173, set to 10 at
-    /// architecture.cc:1422). Rugra stores it on the factory because the
+    /// architecture.cc:1422). Rudra stores it on the factory because the
     /// factory has no Architecture handle yet.
     max_base_type_size: usize,
 
     /// The symbol-table snapshot global spacebases resolve through. Ghidra's
     /// `TypeSpacebase::getMap` reads `glb->symboltab->getGlobalScope()`
-    /// dynamically (type.cc:2935-2945); Rugra's types carry no Architecture,
+    /// dynamically (type.cc:2935-2945); Rudra's types carry no Architecture,
     /// so the factory holds the Database handle here and clones the global
     /// scope into each new spacebase product (the scope graph is installed
     /// before decompilation and stable during it, matching the oracle's
@@ -174,7 +174,7 @@ static CANONICAL_UNKNOWN_BASE_1: std::sync::OnceLock<std::sync::Arc<Datatype>> =
 
 // RUDRA-GLUE: thread-local stand-in for the oracle's `glb->types`
 // ownership resolution (architecture.hh:197). Ghidra's engine always
-// reaches the factory THROUGH the owning Architecture; Rugra's handle-less
+// reaches the factory THROUGH the owning Architecture; Rudra's handle-less
 // call sites (39 `shared_default` references) resolve through this
 // registry instead. The entry is published by
 // `Architecture::set_types`/`ensure_types` at the oracle `buildTypegrp`
@@ -197,7 +197,7 @@ thread_local! {
 impl TypeFactory {
     // RUDRA-GLUE: publication half of the `glb->types` ownership mirror
     // (oracle builds the factory INTO the Architecture: sleigh_arch.cc:201
-    // `types = new TypeFactory(this);`; Rugra drivers install the handle
+    // `types = new TypeFactory(this);`; Rudra drivers install the handle
     // via `Architecture::set_types`, which calls this).
     /// Publish `factory` as this thread's current-Architecture factory.
     ///
@@ -260,18 +260,18 @@ impl TypeFactory {
 // architecture description carries no `<coretypes>` element — the direct-
 // runner harness contract; ArchitectureGhidra receives the Java client's
 // `<coretypes>` stream (PcodeDataTypeManager.encodeCoreTypes) and spells
-// `undefinedN`/`int`/`long` — the canonical headless gate. Rugra's drivers
-// select the contract by environment (RUGRA_MIRROR / RUGRA_FLOW_MIRROR for
-// curl/httpd, RUGRA_GEN_MIRROR for the generalization driver; see
+// `undefinedN`/`int`/`long` — the canonical headless gate. Rudra's drivers
+// select the contract by environment (RUDRA_MIRROR / RUDRA_FLOW_MIRROR for
+// curl/httpd, RUDRA_GEN_MIRROR for the generalization driver; see
 // MIRROR-ENVS-CANONICAL-0001), so every `TypeFactory::new` constructed in
 // such a process must take the standalone table, exactly as the locked
 // direct-runner goldens (tests/golden/*_1204.direct-runner.c) spell it.
 /// Whether this process runs the direct-runner (standalone SLEIGH) oracle
 /// contract instead of the canonical headless contract.
 pub fn direct_runner_tier_active() -> bool {
-    std::env::var_os("RUGRA_MIRROR").is_some()
-        || std::env::var_os("RUGRA_FLOW_MIRROR").is_some()
-        || std::env::var_os("RUGRA_GEN_MIRROR").is_some()
+    std::env::var_os("RUDRA_MIRROR").is_some()
+        || std::env::var_os("RUDRA_FLOW_MIRROR").is_some()
+        || std::env::var_os("RUDRA_GEN_MIRROR").is_some()
 }
 
 impl TypeFactory {
@@ -356,7 +356,7 @@ impl TypeFactory {
             base_cache: RwLock::new(BTreeMap::new()),
             type_nochar: RwLock::new(None),
             char_cache: RwLock::new(BTreeMap::new()),
-            // Rugra's pointer-size field has no Ghidra member counterpart
+            // Rudra's pointer-size field has no Ghidra member counterpart
             // (Ghidra reads glb->sizeof_pointer at use sites); 0 marks the
             // uninitialized raw-constructor state.
             ptr_size: 0,
@@ -640,7 +640,7 @@ impl TypeFactory {
     // Ghidra: type.hh:236 Datatype::getSubMeta (via DatatypeCompare, type.hh:306)
     /// The propagation sub-metatype used by the factory's structural ordering
     /// (`DatatypeSet` with `DatatypeCompare`: submeta ascending, size
-    /// descending, id ascending — type.cc:227 `compareDependency`). Rugra
+    /// descending, id ascending — type.cc:227 `compareDependency`). Rudra
     /// derives it from the `Datatype` variant exactly as Ghidra's
     /// constructors assign it (TypeChar type.hh:356, TypeUnicode type.cc:862,
     /// TypeEnum type.hh:489), including the `submeta_override` those
@@ -748,7 +748,7 @@ impl TypeFactory {
     /// ordered tree. The byte-faithful port — including the
     /// `size > max_basetype_size` array conversion and the
     /// uninitialized-alignment-map LowlevelError — is [`Self::get_base_result`];
-    /// this lenient twin preserves the historical Rugra contract for existing
+    /// this lenient twin preserves the historical Rudra contract for existing
     /// callers on factories whose architecture wiring has not installed an
     /// alignment map yet (registered residual
     /// TYPEFACTORY-ARCH-ALIGNMAP-WIRING-0001).
@@ -885,7 +885,7 @@ impl TypeFactory {
     /// `Err`:
     /// - `size < 9` and a printable-scalar metatype: the preferred
     ///   `typecache[size][m]` entry returns immediately.
-    /// - `size >= 9` and TYPE_FLOAT: `typecache10`/`typecache16` (Rugra's
+    /// - `size >= 9` and TYPE_FLOAT: `typecache10`/`typecache16` (Rudra's
     ///   `base_cache[(10|16, Float)]`) return when populated.
     /// - `size > max_base_type_size` (10, architecture.cc:1422): the request
     ///   converts to an array of `size` cached 1-byte unknowns, exactly as
@@ -936,7 +936,7 @@ impl TypeFactory {
             // type.cc:3652-3657: build an array of unknown bytes to match the
             // size. Ghidra dereferences typecache[1][TYPE_UNKNOWN] without a
             // null check — a factory that never cached a 1-byte unknown
-            // crashes; Rugra panics with the same precondition documented.
+            // crashes; Rudra panics with the same precondition documented.
             let cache_key = (1_usize, TypeMetatype::Unknown);
             let element = {
                 let cache = self
@@ -1040,7 +1040,7 @@ impl TypeFactory {
     /// `"TypeFactory alignment map not initialized"` when no map was
     /// installed (the raw-constructor state) — gated behind
     /// `enforce_alignment`, which is set on the faithful `getBase` port
-    /// [`Self::get_base_result`] only: production Rugra factories do not yet
+    /// [`Self::get_base_result`] only: production Rudra factories do not yet
     /// thread the decoded alignment map through their architecture wiring
     /// (registered residual TYPEFACTORY-ARCH-ALIGNMAP-WIRING-0001), and a
     /// tree slot already holding the same key raises
@@ -1098,7 +1098,7 @@ impl TypeFactory {
                     }
                     return Ok(existing.clone());
                 }
-                // Ghidra's nametree keeps multiple (name,id) entries; Rugra's
+                // Ghidra's nametree keeps multiple (name,id) entries; Rudra's
                 // flat map holds one, so an id mismatch falls through to the
                 // structural insert and overwrites the name slot (registered
                 // TYPE-0001 name-map residual).
@@ -1184,7 +1184,7 @@ impl TypeFactory {
     /// resolution-needing type (union, single-field struct, size-1 array)
     /// inherits the flag, but never through a second pointer level. In Ghidra
     /// this runs in every `TypePointer` constructor (type.hh:413/416) and in
-    /// `TypePointer::decode` (type.cc:1027); Rugra applies it at each pointer
+    /// `TypePointer::decode` (type.cc:1027); Rudra applies it at each pointer
     /// construction site in this factory (get_ptr, get_type_pointer,
     /// get_type_pointer_rel, resize_pointer, and the decode `<type>` pointer
     /// branch), which are the paths that flow through the ctor in Ghidra.
@@ -1210,14 +1210,14 @@ impl TypeFactory {
 
     // RUDRA-GLUE: compatibility name for the default-space pointer factory;
     // Ghidra callers invoke TypeFactory::getTypePointer directly.
-    /// Get or create a canonical pointer using Rugra's default-space geometry.
+    /// Get or create a canonical pointer using Rudra's default-space geometry.
     pub fn get_ptr(&mut self, ptr_to: Arc<Datatype>) -> Arc<Datatype> {
         self.get_type_pointer_default(ptr_to)
     }
 
     // RUDRA-GLUE: PointerModifier receives Architecture in Ghidra, while the
     // Rust parser owns only TypeFactory. `ptr_size` is the default data-space
-    // address size supplied when this factory is constructed; Rugra's current
+    // address size supplied when this factory is constructed; Rudra's current
     // AddressSpace enum models the production default word size as one.
     /// Construct the canonical pointer used by grammar's default-space path.
     pub fn get_type_pointer_default(&mut self, ptr_to: Arc<Datatype>) -> Arc<Datatype> {
@@ -1299,7 +1299,7 @@ impl TypeFactory {
     /// single unassigned field is
     /// `calcAlignSize(field.getAlignSize(), max(1, field.getAlignment()))`
     /// (type.cc:1971-1993: running offset starts at 0 and advances by
-    /// ALIGN sizes; the struct size is the align-rounded end). Rugra's
+    /// ALIGN sizes; the struct size is the align-rounded end). Rudra's
     /// `set_fields` takes no size parameter, so the arm recomputes that
     /// grammar-form `newSize` instead of comparing against the derived
     /// `st.base.size` (`max(offset + get_size())`): comparing against the
@@ -1498,7 +1498,7 @@ impl TypeFactory {
     // Ghidra: type.cc:3545 TypeFactory::orderRecurse
     /// Recursively order: ensure dependents of `ct` are added before `ct`
     /// itself. Faithful to `orderRecurse` (type.cc:3545-3557). Visits
-    /// `ct->typedefImm` first (Rugra: typedef target), then each
+    /// `ct->typedefImm` first (Rudra: typedef target), then each
     /// `ct->getDepend(i)` for `i in 0..numDepend()`, then pushes `ct`.
     fn order_recurse(
         &self,
@@ -1537,7 +1537,7 @@ impl TypeFactory {
     /// - Struct/Union: `fields.len()` (`field[i].type`).
     /// - Code: 1 (the proto's return type — TypeCode::numDepend type.hh:629).
     ///   (Ghidra's TypeCode::getDepend returns the prototype's return type;
-    ///   Rugra's TypeCode.proto is Option<Arc<FuncProto>>.)
+    ///   Rudra's TypeCode.proto is Option<Arc<FuncProto>>.)
     fn depends_of(ct: &Datatype) -> Vec<Arc<Datatype>> {
         match ct {
             Datatype::Void(_) | Datatype::Base(_) | Datatype::Enum(_) | Datatype::Spacebase(_) => {
@@ -1615,7 +1615,7 @@ impl TypeFactory {
     /// whose object carries the core flag — INCLUDING entries that were
     /// promoted in place by `setCoreType` — while the preferred-type caches
     /// are left untouched (every cached entry is core by construction).
-    /// Rugra has no warning registry; the relative-pointer/typedef side
+    /// Rudra has no warning registry; the relative-pointer/typedef side
     /// registries follow their objects and the incomplete-typedef queue is
     /// cleared exactly like Ghidra's `incompleteTypedef` list.
     pub fn clear_non_core(&mut self) {
@@ -1778,7 +1778,7 @@ impl TypeFactory {
     /// Create an incomplete union data-type with the given name. Faithful to
     /// `TypeFactory::getTypeUnion` (type.cc:3940-3948). Ghidra's
     /// `TypeUnion()` constructor (type.hh:551) sets `type_incomplete |
-    /// needs_resolution`; Rugra mirrors both flags.
+    /// needs_resolution`; Rudra mirrors both flags.
     pub fn get_type_union(&mut self, name: &str) -> Arc<Datatype> {
         let mut base = TypeBase::new(name.to_string(), 0, TypeMetatype::Union);
         base.id = Datatype::hash_name(name);
@@ -1904,7 +1904,7 @@ impl TypeFactory {
     ///
     /// Alignment Evidence (four decisive-semantics checklist):
     /// - References/output params: mutates the stored pointer's submeta AND
-    ///   its tree slot in place (`base` is read-only). Rugra's submeta is
+    ///   its tree slot in place (`base` is read-only). Rudra's submeta is
     ///   DERIVED (`pointer_submeta`) rather than stored, so the re-key is
     ///   `remove(old_key)` + `insert(type_tree_key(same Arc))` — the same
     ///   Arc is preserved, only the ordering slot migrates.
@@ -1985,7 +1985,7 @@ impl TypeFactory {
     /// zero id throws `LowlevelError("Can only issue warnings for named
     /// data-types")`, the `warning_issued` flag is set on the type, and the
     /// record is appended. The flag write goes through the registered-slot
-    /// replace (Ghidra mutates the registered object in place); Rugra
+    /// replace (Ghidra mutates the registered object in place); Rudra
     /// re-wraps it in a new Arc under the same registry slots.
     pub fn insert_warning(
         &mut self,
@@ -2029,7 +2029,7 @@ impl TypeFactory {
     /// by `hashName(n)`, and both channels re-insert the type. Returns the
     /// renamed type.
     ///
-    /// Rugra performs the erase/reinsert through the registered-slot
+    /// Rudra performs the erase/reinsert through the registered-slot
     /// replace, which ADDITIONALLY refuses two pathological collisions the
     /// oracle would paper over silently (std::set::insert failing when
     /// another object already occupies the new name/tree slot): those are
@@ -2099,11 +2099,11 @@ impl TypeFactory {
     /// `TypeFactory::destroyType` (type.cc:4122-4132): a core type throws
     /// `LowlevelError("Cannot destroy core type")`; a type with a warning
     /// first drains its warning entries; the name reference and the tree
-    /// entry are erased; the object is deleted (Rugra: the Arc slots are
+    /// entry are erased; the object is deleted (Rudra: the Arc slots are
     /// dropped, so the object dies when the last external handle dies).
     ///
     /// Ghidra's `nametree.erase`/`tree.erase` remove by object identity
-    /// (set erase of the equivalent key); Rugra removes the slot when it
+    /// (set erase of the equivalent key); Rudra removes the slot when it
     /// holds this precise Arc OR an equivalent `(name, id)` / tree-key
     /// entry, mirroring key-equivalence semantics.
     pub fn destroy_type(&mut self, ct: &Arc<Datatype>) -> Result<(), String> {
@@ -2280,8 +2280,8 @@ impl TypeFactory {
     /// `setPrototype(this, proto, getTypeVoid())` on it, marks it complete, and
     /// dedupes via `findAdd`.
     ///
-    /// Rugra note: Ghidra dedupes prototype-bearing code types structurally
-    /// via `findAdd` (which uses `compare`). Rugra's flat name-keyed map cannot
+    /// Rudra note: Ghidra dedupes prototype-bearing code types structurally
+    /// via `findAdd` (which uses `compare`). Rudra's flat name-keyed map cannot
     /// look up an unnamed type by structure efficiently, so this port mints a
     /// synthetic name derived from the prototype's structure (return type name
     /// + parameter type names + model name) so that equivalent prototypes
@@ -2365,7 +2365,7 @@ impl TypeFactory {
     /// struct or array). Faithful to `TypeFactory::getTypePartialStruct`
     /// (type.cc:3929-3953): builds a `TypePartialStruct` whose `stripped`
     /// fallback is `getBase(sz, TYPE_UNKNOWN)` — i.e. an undefined type of
-    /// `sz` bytes. Rugra reuses `get_base(sz, Unknown)` for the stripped form.
+    /// `sz` bytes. Rudra reuses `get_base(sz, Unknown)` for the stripped form.
     pub fn get_type_partial_struct(
         &mut self,
         contain: Arc<Datatype>,
@@ -2494,7 +2494,7 @@ impl TypeFactory {
     /// Create a "spacebase" type for the given address space, scoped to
     /// `frame` (INVALID for the global spacebase). Faithful to
     /// `TypeFactory::getTypeSpacebase` (type.cc:3992-4000), which builds a
-    /// `TypeSpacebase(spaceid, localframe, glb)`. Rugra stores the optional
+    /// `TypeSpacebase(spaceid, localframe, glb)`. Rudra stores the optional
     /// `Scope` (set later when an Architecture/SymbolTable is attached).
     pub fn get_type_spacebase(
         &mut self,
@@ -2504,7 +2504,7 @@ impl TypeFactory {
         // RUDRA-GLUE dedup: Ghidra canonicalizes spacebases through the
         // compare-sorted tree in findAdd (type.cc:3996 via
         // TypeSpacebase::compareDependency type.cc:3045-3055 — base, then
-        // spaceid, then localframe); Rugra's factory is a name-keyed
+        // spaceid, then localframe); Rudra's factory is a name-keyed
         // BTreeMap, so the synthetic key below encodes the space+frame
         // identity for the map slot. It is NOT the type's display name.
         let key = format!(
@@ -2523,7 +2523,7 @@ impl TypeFactory {
         // type, so `PrintC::pushTypeStart`'s anonymous branch
         // (printc.cc:280-285) spells `PrintC::genericTypeName` →
         // "BADSPACEBASE" (printc.cc:3387-3389, returned before the size
-        // suffix), declaring e.g. `BADSPACEBASE *in_RSP`. Rugra previously
+        // suffix), declaring e.g. `BADSPACEBASE *in_RSP`. Rudra previously
         // carried the synthetic dedup key as the type NAME, leaking
         // `__spacebase_1_<frame> *in_RSP` into declarations
         // (SPACEBASE-SYMNAME-0001); the name is now empty like the oracle.
@@ -2538,7 +2538,7 @@ impl TypeFactory {
         // the handle CONTENTS. An empty ScopeLocal is the oracle's
         // pre-restructure observable.
         //
-        // Local-frame test: Rugra's legacy `Address::new(frame)` form is
+        // Local-frame test: Rudra's legacy `Address::new(frame)` form is
         // SPACELESS, so `is_invalid()` (null-base) is true for real function
         // entries too and cannot distinguish — the factory's global
         // spacebases are always constructed at frame 0 (funcdata
@@ -2590,7 +2590,7 @@ impl TypeFactory {
 
     // RUDRA-GLUE: set_spacebase_scope_source (no Ghidra counterpart; Ghidra
     // resolves the map dynamically through the Architecture on every
-    // TypeSpacebase::getMap call, Rugra snapshots it at construction).
+    // TypeSpacebase::getMap call, Rudra snapshots it at construction).
     /// Register the Database whose global scope new spacebase types resolve
     /// through — the driver/fixture attaches this right after installing the
     /// symbol graph and before the first `get_type_spacebase` call.
@@ -2949,7 +2949,7 @@ impl TypeFactory {
         *off = new_off;
         if !is_array {
             // getTypePointerStripArray: strip the array layer off `pt` if any
-            // (type.cc:3849). Rugra has no dedicated factory method yet; the
+            // (type.cc:3849). Rudra has no dedicated factory method yet; the
             // strip is done inline by recursing into the element type.
             let stripped = strip_array(pt.clone());
             Some(self.get_type_pointer(ptr.base.size, stripped, ptr.wordsize))
@@ -3005,7 +3005,7 @@ impl TypeFactory {
     /// Create a typedef of `ct` under a new `name`. Faithful to
     /// `TypeFactory::getTypedef` (type.cc:3818-3840): clone the base type,
     /// give it a new name/id, clear `coretype`, and record the typedef target.
-    /// Rugra stores the typedef target (the "stripped" form) in the
+    /// Rudra stores the typedef target (the "stripped" form) in the
     /// `typedefs` table so that `get_typedef_target` can walk it.
     pub fn get_typedef(&mut self, name: &str, ct: Arc<Datatype>) -> Arc<Datatype> {
         if let Some(existing) = self.find_by_name(name) {
@@ -3107,7 +3107,7 @@ impl TypeFactory {
         dt
     }
 
-    // RUDRA-GLUE: get_typedef_target (Rugra-side name index)
+    // RUDRA-GLUE: get_typedef_target (Rudra-side name index)
     /// Look up the typedef target (the stripped form) for a typedef name in
     /// the factory's `typedefs` index. Ghidra has no name-keyed accessor —
     /// type.cc:3850 is `getTypePointerStripArray`, and the only oracle
@@ -3159,7 +3159,7 @@ impl TypeFactory {
     /// `TypeFactory::findById` (type.cc:3354-3361). For variable-length base
     /// types a non-zero `sz` folds the size into the id via
     /// `Datatype::hashSize` (type.hh:206) before delegating to
-    /// `find_by_id_local`. Rugra does not currently store per-size variants,
+    /// `find_by_id_local`. Rudra does not currently store per-size variants,
     /// so we only apply the id-fold and fall back to a name+size match.
     pub fn find_by_id(&self, name: &str, id: u64, sz: usize) -> Option<Arc<Datatype>> {
         let effective_id = if sz > 0 { hash_size(id, sz) } else { id };
@@ -3180,7 +3180,7 @@ impl TypeFactory {
     /// (`TypeFactory::TypeFactory(Architecture *g)`, type.cc:3106-3119 — the
     /// factory holds `glb` and every `getBase`/`findAdd` call deduplicates
     /// against that one factory), and the canonical headless oracle runs one
-    /// Architecture per process. Rugra's production `Funcdata` does not yet
+    /// Architecture per process. Rudra's production `Funcdata` does not yet
     /// carry an attached `Architecture` (FUNCPROTO-MODEL-BIND-0001 chain), so
     /// callers with no injectable handle (`VarnodeBank` default typing,
     /// `ScopeLocal` symbol typing) resolve this process-wide DataOrg-flavor
@@ -3200,7 +3200,7 @@ impl TypeFactory {
     ///
     /// TF-SINGLETON-WIRING-0001 step 1 (per-Architecture resolution): the
     /// oracle's engine reaches the factory through the OWNING Architecture
-    /// (`glb->types`, architecture.hh:197); Rugra's handle-less call sites
+    /// (`glb->types`, architecture.hh:197); Rudra's handle-less call sites
     /// (39 `shared_default` references, 9 files) resolve through this entry
     /// instead. Resolution order mirrors that ownership: **the thread's
     /// current-Architecture factory wins** (published by
@@ -3355,7 +3355,7 @@ impl TypeFactory {
     /// returned unchanged.
     ///
     /// TYPEFACTORY-LEGACY-CALLER-MIGRATION-0001 note: the Ghidra method is
-    /// non-const, but Rugra's caller (`varmap.rs:2546`, varmap.cc:622) holds
+    /// non-const, but Rudra's caller (`varmap.rs:2546`, varmap.cc:622) holds
     /// a read guard on the shared factory, pinning this port to `&self` and
     /// therefore to the lenient `get_base` twin (cache/tree probe without the
     /// findAdd alignment error) — the cached `undefined1` core entry hits the
@@ -3379,7 +3379,7 @@ impl TypeFactory {
     // Ghidra: type.cc:3850 TypeFactory::deconcretize
     /// Inverse of `concretize`. NOTE: Ghidra has **no** `TypeFactory::deconcretize`
     /// (verified absent across the whole `cpp/` tree). The decompiler only ever
-    /// "concretizes" in one direction (varmap.cc:622). Rugra provides this as
+    /// "concretizes" in one direction (varmap.cc:622). Rudra provides this as
     /// the documented inverse: it restores a size-1 base back to an anonymous
     /// code type, and is otherwise the identity. This is a faithful "no-op for
     /// non-concretized types" companion so callers can round-trip.
@@ -3444,9 +3444,9 @@ impl TypeFactory {
     /// `enumsize` takes the architecture default size with unsigned
     /// meta-type.
     ///
-    /// Rugra glue: Ghidra pulls the stack spacebase size, default data space
+    /// Rudra glue: Ghidra pulls the stack spacebase size, default data space
     /// address size, default size, and far-pointer segment op from the
-    /// `Architecture` handle (`glb`). Rugra's `TypeFactory` does not hold an
+    /// `Architecture` handle (`glb`). Rudra's `TypeFactory` does not hold an
     /// Architecture yet, so those lookups are passed in as `SizeArchInputs`
     /// by the caller; the derivation arithmetic below is 1:1 with the
     /// oracle.
@@ -3843,7 +3843,7 @@ impl TypeFactory {
         let elem_id = decoder.open_element_matching(&elem::element("typegrp"));
         while decoder.peek_element() != 0 {
             // Ghidra: decodeTypeNoRef(decoder, false);
-            // Rugra: the full decode requires Architecture + FuncProto decode,
+            // Rudra: the full decode requires Architecture + FuncProto decode,
             // which are not wired through yet (see decode_type_no_ref). We
             // consume each child element so the decoder advances correctly.
             let child_id = decoder.open_element();
@@ -3961,9 +3961,9 @@ impl TypeFactory {
     /// `setDefaultAlignmentMap`) and no exception is raised. Returns a
     /// snapshot of the persisted map.
     ///
-    /// Rugra divergence (ill-formed input only): when a non-`<entry>` child
+    /// Rudra divergence (ill-formed input only): when a non-`<entry>` child
     /// appears mid-map, Ghidra breaks with the element left open (its parent
-    /// `closeElement` then throws `DecoderError`); Rugra's TreeDecoder must
+    /// `closeElement` then throws `DecoderError`); Rudra's TreeDecoder must
     /// close the opened child to keep its position coherent, so the child is
     /// skipped instead. Well-formed compiler specs (only `<entry>` children)
     /// never reach this branch.
@@ -4132,7 +4132,7 @@ impl TypeFactory {
     /// (type.cc:4155-4184). Returns the resolved `Datatype` (looked up by name
     /// and id) for a typeref, or the newly decoded type for a `<type>`.
     ///
-    /// Rugra gap: full `<type>` decoding requires the Architecture handle for
+    /// Rudra gap: full `<type>` decoding requires the Architecture handle for
     /// code/struct/union field decoding; the typeref path (name+id lookup) is
     /// fully functional.
     pub fn decode_type(
@@ -4181,7 +4181,7 @@ impl TypeFactory {
     /// element name (`<void>`, `<def>`) and the `metatype` attribute to the
     /// subclass decoders.
     ///
-    /// Rugra gap: the struct/union/code/pointerrel branches require
+    /// Rudra gap: the struct/union/code/pointerrel branches require
     /// Architecture-backed field/prototype decoding that is not yet wired
     /// (see type_audit.md). Those branches consume their child elements so the
     /// decoder advances correctly and return a placeholder error for the
@@ -4238,7 +4238,7 @@ impl TypeFactory {
                 // The locked path canonicalizes the decoded stack candidate
                 // through findAdd; a repeated decode returns the existing
                 // factory object instead of colliding in insert.
-                // Rugra's production Architecture currently records
+                // Rudra's production Architecture currently records
                 // `types->setupSizes()` as an executed no-op
                 // (CSPEC-TYPEORG-STATE-0001). Keep decode on findAdd's
                 // compatibility layout channel until that state is wired;
@@ -4463,8 +4463,8 @@ impl TypeFactory {
             id = Datatype::hash_size(id, defed_type.get_size() as i32);
         }
         // Ghidra: recursive struct/union typedef resolution via findByIdLocal.
-        // Rugra: delegate to get_typedef, which registers the alias.
-        let _ = format; // Rugra's get_typedef does not yet accept a format arg.
+        // Rudra: delegate to get_typedef, which registers the alias.
+        let _ = format; // Rudra's get_typedef does not yet accept a format arg.
         Ok(self.get_typedef(&nm, defed_type))
     }
 
@@ -4650,7 +4650,7 @@ impl TypeFactory {
             } else {
                 attrs.ident
             };
-            let _ = ident; // Rugra TypeField has no ident field; ident == offset.
+            let _ = ident; // Rudra TypeField has no ident field; ident == offset.
             fields.push(TypeField {
                 name: attrs.name,
                 offset: attrs.offset as usize,
@@ -4742,7 +4742,7 @@ impl TypeFactory {
         // overlap warning; an anonymous (id-0) type makes insertWarning
         // throw the verbatim LowlevelError (type.cc:3753-3754). The
         // returned Arc is the post-flag-write registration (Ghidra's `ct`
-        // mutates in place; Rugra re-wraps under the same slots).
+        // mutates in place; Rudra re-wraps under the same slots).
         let result = if !warning.is_empty() {
             self.insert_warning(&result, warning)?
         } else {
@@ -4889,7 +4889,7 @@ impl TypeFactory {
     /// `decodeTypeWithCodeFlags`) and stays open; the `<prototype>` child is
     /// consumed here.
     ///
-    /// Rugra gap: a present `<prototype>` child errors until
+    /// Rudra gap: a present `<prototype>` child errors until
     /// `FuncProto::decode` (fspec.cc:4675, fspec.rs lease) is ported — the
     /// stub inserted before the throw survives, matching the oracle's
     /// partial state on its own prototype-decode failures.
@@ -4997,7 +4997,7 @@ impl TypeFactory {
     /// setPrototype/setFields wrappers (`set_prototype_define`,
     /// `resolve_incomplete_typedefs`). Ghidra mutates the container object
     /// in place (tree.erase / mutate / tree.insert of the same pointer);
-    /// Rugra clones the candidate, applies the mutation, and replaces both
+    /// Rudra clones the candidate, applies the mutation, and replaces both
     /// owning channels (ordered tree slot + name map) with the updated
     /// `Arc`, which preserves every factory-mediated observation
     /// (re-lookup by name/id, repeated decode identity). This does not update
@@ -5197,7 +5197,7 @@ impl TypeFactory {
     ///   `rewindAttributes` (type.cc:4201-4207, unlike `TypePointer::decode`
     ///   at type.cc:1015). `decodeBasic`'s enumeration above has already run
     ///   the attribute index to exhaustion, and neither XmlDecode
-    ///   (marshal.cc:231-241) nor Rugra's `TreeDecoder` restarts enumeration
+    ///   (marshal.cc:231-241) nor Rudra's `TreeDecoder` restarts enumeration
     ///   implicitly, so this loop reads nothing and `wordsize` keeps the
     ///   `TypePointer` ctor default 1 (type.hh:407). The loop is kept
     ///   structurally identical to the oracle,
@@ -5269,7 +5269,7 @@ impl TypeFactory {
                 wordsize: wordsize as usize,
             });
         // Ghidra: tp.calcTruncate(*this); (type.cc:1058-1067) — assigns the
-        // truncated subcomponent when size == getSizeOfAltPointer(); Rugra's
+        // truncated subcomponent when size == getSizeOfAltPointer(); Rudra's
         // TypePointer has no `truncate` field (TYPE-0001 structural residual),
         // so the resize is issued for its factory-registration side effect.
         if candidate.get_size() as i32 == self.get_size_of_alt_pointer() {
@@ -5344,7 +5344,7 @@ pub struct DataOrganizationSizes {
 
 // RUDRA-GLUE: Architecture-handle lookups of TypeFactory::setupSizes
 /// The architecture-derived inputs `TypeFactory::setup_sizes` reads from
-/// `glb` in Ghidra (type.cc:3142-3167). Rugra's `TypeFactory` has no
+/// `glb` in Ghidra (type.cc:3142-3167). Rudra's `TypeFactory` has no
 /// Architecture handle yet, so callers provide the same observations:
 /// `getStackSpace()->getSpacebase(0).size` (`None` when there is no stack
 /// space), `getDefaultDataSpace()->getAddrSize()`, `getDefaultSize()`, and
@@ -5365,7 +5365,7 @@ pub struct SizeArchInputs {
 
 /// Side record for a relative pointer: the containing parent type and the
 /// byte offset into it. Models the `parent`/`offset` fields of Ghidra's
-/// `TypePointerRel` (type.hh:647) that do not fit on Rugra's flat `TypePointer`.
+/// `TypePointerRel` (type.hh:647) that do not fit on Rudra's flat `TypePointer`.
 #[derive(Debug, Clone)]
 pub struct RelativePointer {
     /// The container data-type this pointer indexes into.
@@ -7332,7 +7332,7 @@ mod tests {
 
     #[test]
     fn test_get_type_pointer_rel() {
-        // Legacy side-table glue retained for older Rugra callers. The locked
+        // Legacy side-table glue retained for older Rudra callers. The locked
         // type.cc:4016 parent-pointer overload is exercised by
         // test_ephemeral_pointer_rel_inherits_parent_geometry_and_identity.
         let mut factory = TypeFactory::new(8);
@@ -7658,7 +7658,7 @@ mod tests {
         let int_t = factory.find_by_name("int").unwrap();
         let passthrough = factory.concretize(int_t.clone());
         assert!(Arc::ptr_eq(&passthrough, &int_t));
-        // deconcretize (Rugra-only inverse) round-trips the concretized form.
+        // deconcretize (Rudra-only inverse) round-trips the concretized form.
         let back = factory.deconcretize(concrete);
         assert_eq!(back.get_metatype(), TypeMetatype::Code);
     }

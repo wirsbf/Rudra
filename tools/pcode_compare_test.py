@@ -97,7 +97,7 @@ def run_test():
     lib.rugra_compare_pcode(0x402000, CPUI_INT_XOR, None, None, 0)
 
     print("\n" + "=" * 50)
-    print("Test complete. Check console for [RUGRA DIFF] logs.")
+    print("Test complete. Check console for [RUDRA DIFF] logs.")
 
 if __name__ == "__main__":
     run_test()

@@ -348,7 +348,7 @@ for index, (ghidra_line, rust_line) in enumerate(zip(ghidra_lines, rugra_lines))
             raise SystemExit("rugra const-pair collapse did not complete: " + rust_line)
         verdicts.append((
             expected_case, expected_stage,
-            "ORACLE_CRASH_VS_RUGRA_COLLAPSE",
+            "ORACLE_CRASH_VS_RUDRA_COLLAPSE",
             "oracle null-def deref ruleaction.cc:3306; rugra absolute-constant collapse",
         ))
         continue

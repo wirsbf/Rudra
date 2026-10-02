@@ -1,6 +1,6 @@
-//! Runtime verification framework for Rugra-Ghidra alignment
+//! Runtime verification framework for Rudra-Ghidra alignment
 //!
-//! This module provides runtime comparison testing between Rugra and Ghidra's
+//! This module provides runtime comparison testing between Rudra and Ghidra's
 //! actual outputs, going beyond static type checking to ensure behavioral equivalence.
 //!
 //! # Architecture
@@ -9,11 +9,11 @@
 //! Binary Input
 //!     ↓
 //! ┌─────────────┐         ┌─────────────┐
-//! │   Rugra     │         │   Ghidra    │
+//! │   Rudra     │         │   Ghidra    │
 //! │ Decompiler  │         │ (via FFI)   │
 //! └─────────────┘         └─────────────┘
 //!     ↓                       ↓
-//! Rugra Output           Ghidra Output
+//! Rudra Output           Ghidra Output
 //!     ↓                       ↓
 //!     └───────────┬───────────┘
 //!                 ↓
@@ -28,7 +28,7 @@ use crate::opcodes::OpCode;
 use crate::align::pcodeop::verify_operation;
 use crate::ffi::{
     self, PcodeCompareResultFFI, VarnodeFFI, PCODE_COMPARE_INPUT_COUNT_MISMATCH,
-    PCODE_COMPARE_INPUT_MISMATCH, PCODE_COMPARE_MATCH, PCODE_COMPARE_MISSING_RUGRA_OP,
+    PCODE_COMPARE_INPUT_MISMATCH, PCODE_COMPARE_MATCH, PCODE_COMPARE_MISSING_RUDRA_OP,
     PCODE_COMPARE_OPCODE_MISMATCH, PCODE_COMPARE_OUTPUT_MISMATCH,
 };
 use crate::Address;
@@ -44,8 +44,8 @@ pub enum VerifyResult {
     Mismatch(String),
     /// Ghidra error (FFI call failed)
     GhidraError(String),
-    /// Rugra error
-    RugraError(String),
+    /// Rudra error
+    RudraError(String),
 }
 
 impl VerifyResult {
@@ -62,7 +62,7 @@ pub struct VerifyStats {
     pub matches: usize,
     pub mismatches: usize,
     pub ghidra_errors: usize,
-    pub rugra_errors: usize,
+    pub rudra_errors: usize,
 }
 
 impl VerifyStats {
@@ -73,7 +73,7 @@ impl VerifyStats {
             VerifyResult::Match => self.matches += 1,
             VerifyResult::Mismatch(_) => self.mismatches += 1,
             VerifyResult::GhidraError(_) => self.ghidra_errors += 1,
-            VerifyResult::RugraError(_) => self.rugra_errors += 1,
+            VerifyResult::RudraError(_) => self.rudra_errors += 1,
         }
     }
 
@@ -100,7 +100,7 @@ impl fmt::Display for VerifyStats {
         )?;
         writeln!(f, "Mismatches:     {}", self.mismatches)?;
         writeln!(f, "Ghidra Errors:  {}", self.ghidra_errors)?;
-        writeln!(f, "Rugra Errors:   {}", self.rugra_errors)?;
+        writeln!(f, "Rudra Errors:   {}", self.rudra_errors)?;
         Ok(())
     }
 }
@@ -118,7 +118,7 @@ pub struct RuntimeVerifier {
 pub struct MismatchRecord {
     pub test_name: String,
     pub address: Option<Address>,
-    pub rugra_output: String,
+    pub rudra_output: String,
     pub ghidra_output: String,
     pub details: String,
 }
@@ -135,7 +135,7 @@ impl RuntimeVerifier {
     // RUDRA-GLUE: verify_constant_eval (no Ghidra counterpart found)
     /// Verify constant folding/evaluation
     ///
-    /// Calls both Rugra's and Ghidra's constant evaluation and compares results
+    /// Calls both Rudra's and Ghidra's constant evaluation and compares results
     pub fn verify_constant_eval(
         &self,
         test_name: &str,
@@ -146,9 +146,9 @@ impl RuntimeVerifier {
         val2: Option<(u64, usize)>,
         size_out: usize,
     ) -> VerifyResult {
-        // Rugra evaluation
+        // Rudra evaluation
         // Ghidra evaluation (via FFI)
-        let ghidra_result = crate::ffi::rugra_evaluate_constant(
+        let ghidra_result = crate::ffi::rudra_evaluate_constant(
                 ghidra_opcode,
                 size_out,
                 val1,
@@ -158,23 +158,23 @@ impl RuntimeVerifier {
                 val2.is_some(),
             );
 
-        let rugra_result = Some(ghidra_result);
+        let rudra_result = Some(ghidra_result);
 
         // Compare results
-        let result = match rugra_result {
-            Some(rugra_val) => {
-                if rugra_val == ghidra_result {
+        let result = match rudra_result {
+            Some(rudra_val) => {
+                if rudra_val == ghidra_result {
                     VerifyResult::Match
                 } else {
                     let details = format!(
-                        "Constant eval mismatch: Rugra=0x{:x}, Ghidra=0x{:x}, Op={:?}, val1=0x{:x}, val2={:?}",
-                        rugra_val, ghidra_result, opcode, val1, val2
+                        "Constant eval mismatch: Rudra=0x{:x}, Ghidra=0x{:x}, Op={:?}, val1=0x{:x}, val2={:?}",
+                        rudra_val, ghidra_result, opcode, val1, val2
                     );
 
                     self.record_mismatch(MismatchRecord {
                         test_name: test_name.to_string(),
                         address: None,
-                        rugra_output: format!("0x{:x}", rugra_val),
+                        rudra_output: format!("0x{:x}", rudra_val),
                         ghidra_output: format!("0x{:x}", ghidra_result),
                         details: details.clone(),
                     });
@@ -187,7 +187,7 @@ impl RuntimeVerifier {
                     VerifyResult::Match // Both failed
                 } else {
                     VerifyResult::Mismatch(format!(
-                        "Rugra failed to evaluate, Ghidra returned 0x{:x}",
+                        "Rudra failed to evaluate, Ghidra returned 0x{:x}",
                         ghidra_result
                     ))
                 }
@@ -206,22 +206,22 @@ impl RuntimeVerifier {
         &self,
         test_name: &str,
         address: Address,
-        rugra_ops: &[std::sync::Arc<std::sync::RwLock<PcodeOp>>],
+        rudra_ops: &[std::sync::Arc<std::sync::RwLock<PcodeOp>>],
         ghidra_op_count: usize,
     ) -> VerifyResult {
         // Basic count check
-        if rugra_ops.len() != ghidra_op_count {
+        if rudra_ops.len() != ghidra_op_count {
             let details = format!(
-                "P-code count mismatch at 0x{:x}: Rugra generated {} ops, Ghidra generated {} ops",
+                "P-code count mismatch at 0x{:x}: Rudra generated {} ops, Ghidra generated {} ops",
                 address.as_u64(),
-                rugra_ops.len(),
+                rudra_ops.len(),
                 ghidra_op_count
             );
 
             self.record_mismatch(MismatchRecord {
                 test_name: test_name.to_string(),
                 address: Some(address),
-                rugra_output: format!("{} ops", rugra_ops.len()),
+                rudra_output: format!("{} ops", rudra_ops.len()),
                 ghidra_output: format!("{} ops", ghidra_op_count),
                 details: details.clone(),
             });
@@ -233,12 +233,12 @@ impl RuntimeVerifier {
 
         let mut mismatch_details = Vec::new();
 
-        for r_op_lock in rugra_ops.iter() {
+        for r_op_lock in rudra_ops.iter() {
             let r_op = r_op_lock.read().unwrap();
 
-            // Convert Rugra OpCode to Ghidra's integer opcode using the
-            // proper mapping. Rugra and Ghidra have DIFFERENT numeric
-            // assignments (e.g. Rugra CPUI_INT_ADD=4, Ghidra INT_ADD=19).
+            // Convert Rudra OpCode to Ghidra's integer opcode using the
+            // proper mapping. Rudra and Ghidra have DIFFERENT numeric
+            // assignments (e.g. Rudra CPUI_INT_ADD=4, Ghidra INT_ADD=19).
             let ghidra_opcode = ffi::to_ghidra_opcode(r_op.get_opcode())
                 .unwrap_or(r_op.get_opcode() as i32);
 
@@ -254,8 +254,8 @@ impl RuntimeVerifier {
                         _ => 0,
                     },
                     // For unique-space varnodes, use a sentinel offset (0)
-                    // since Rugra and Ghidra assign different unique offsets.
-                    // The comparison logic in rugra_compare_pcode will also
+                    // since Rudra and Ghidra assign different unique offsets.
+                    // The comparison logic in rudra_compare_pcode will also
                     // skip offset checks for unique-space varnodes.
                     offset: if is_unique { 0 } else { vn.offset() },
                     size: vn.size() as u32,
@@ -284,7 +284,7 @@ impl RuntimeVerifier {
                 .collect();
 
             let ffi_result = unsafe {
-                crate::ffi::rugra_compare_pcode(
+                crate::ffi::rudra_compare_pcode(
                     r_op.get_addr().as_u64(),
                     r_op.get_seq_num().order,
                     ghidra_opcode,
@@ -324,7 +324,7 @@ impl RuntimeVerifier {
                 self.record_mismatch(MismatchRecord {
                     test_name: test_name.to_string(),
                     address: Some(r_op.get_addr()),
-                    rugra_output: format!(
+                    rudra_output: format!(
                         "opcode={:?}, output={}, inputs={}",
                         r_op.get_opcode(),
                         if out_vn.is_some() { "present" } else { "none" },
@@ -369,16 +369,16 @@ impl RuntimeVerifier {
     pub fn verify_ssa_versions(
         &self,
         test_name: &str,
-        rugra_varnodes: &[(
+        rudra_varnodes: &[(
             Address,
             std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
         )],
         ghidra_versions: &[(u64, usize)],
     ) -> VerifyResult {
-        if rugra_varnodes.len() != ghidra_versions.len() {
+        if rudra_varnodes.len() != ghidra_versions.len() {
             let details = format!(
-                "SSA version count mismatch: Rugra has {} varnodes, Ghidra has {}",
-                rugra_varnodes.len(),
+                "SSA version count mismatch: Rudra has {} varnodes, Ghidra has {}",
+                rudra_varnodes.len(),
                 ghidra_versions.len()
             );
 
@@ -387,12 +387,12 @@ impl RuntimeVerifier {
             return result;
         }
 
-        for ((addr, vn_lock), (g_addr, g_ver)) in rugra_varnodes.iter().zip(ghidra_versions.iter())
+        for ((addr, vn_lock), (g_addr, g_ver)) in rudra_varnodes.iter().zip(ghidra_versions.iter())
         {
             let vn = vn_lock.read().unwrap();
             if addr.as_u64() != *g_addr {
                 let details = format!(
-                    "SSA address mismatch: Rugra 0x{:x}, Ghidra 0x{:x}",
+                    "SSA address mismatch: Rudra 0x{:x}, Ghidra 0x{:x}",
                     addr.as_u64(),
                     g_addr
                 );
@@ -403,7 +403,7 @@ impl RuntimeVerifier {
 
             if vn.version() != *g_ver {
                 let details = format!(
-                    "SSA version mismatch at 0x{:x}: Rugra v{}, Ghidra v{}",
+                    "SSA version mismatch at 0x{:x}: Rudra v{}, Ghidra v{}",
                     addr.as_u64(),
                     vn.version(),
                     g_ver
@@ -412,7 +412,7 @@ impl RuntimeVerifier {
                 self.record_mismatch(MismatchRecord {
                     test_name: test_name.to_string(),
                     address: Some(*addr),
-                    rugra_output: format!("v{}", vn.version()),
+                    rudra_output: format!("v{}", vn.version()),
                     ghidra_output: format!("v{}", g_ver),
                     details: details.clone(),
                 });
@@ -433,13 +433,13 @@ impl RuntimeVerifier {
     pub fn verify_cfg_structure(
         &self,
         test_name: &str,
-        rugra_blocks: &[(Address, Vec<Address>)], // (block_start, successors)
+        rudra_blocks: &[(Address, Vec<Address>)], // (block_start, successors)
         ghidra_blocks: &[(u64, Vec<u64>)],
     ) -> VerifyResult {
-        if rugra_blocks.len() != ghidra_blocks.len() {
+        if rudra_blocks.len() != ghidra_blocks.len() {
             let details = format!(
-                "CFG block count mismatch: Rugra has {} blocks, Ghidra has {}",
-                rugra_blocks.len(),
+                "CFG block count mismatch: Rudra has {} blocks, Ghidra has {}",
+                rudra_blocks.len(),
                 ghidra_blocks.len()
             );
 
@@ -448,11 +448,11 @@ impl RuntimeVerifier {
             return result;
         }
 
-        for ((r_addr, r_succs), (g_addr, g_succs)) in rugra_blocks.iter().zip(ghidra_blocks.iter())
+        for ((r_addr, r_succs), (g_addr, g_succs)) in rudra_blocks.iter().zip(ghidra_blocks.iter())
         {
             if r_addr.as_u64() != *g_addr {
                 let details = format!(
-                    "Block address mismatch: Rugra 0x{:x}, Ghidra 0x{:x}",
+                    "Block address mismatch: Rudra 0x{:x}, Ghidra 0x{:x}",
                     r_addr.as_u64(),
                     g_addr
                 );
@@ -463,7 +463,7 @@ impl RuntimeVerifier {
 
             if r_succs.len() != g_succs.len() {
                 let details = format!(
-                    "Block 0x{:x} successor count mismatch: Rugra {}, Ghidra {}",
+                    "Block 0x{:x} successor count mismatch: Rudra {}, Ghidra {}",
                     r_addr.as_u64(),
                     r_succs.len(),
                     g_succs.len()
@@ -472,7 +472,7 @@ impl RuntimeVerifier {
                 self.record_mismatch(MismatchRecord {
                     test_name: test_name.to_string(),
                     address: Some(*r_addr),
-                    rugra_output: format!("{} successors", r_succs.len()),
+                    rudra_output: format!("{} successors", r_succs.len()),
                     ghidra_output: format!("{} successors", g_succs.len()),
                     details: details.clone(),
                 });
@@ -486,7 +486,7 @@ impl RuntimeVerifier {
             for (r_succ, g_succ) in r_succs.iter().zip(g_succs.iter()) {
                 if r_succ.as_u64() != *g_succ {
                     let details = format!(
-                        "Block 0x{:x} successor mismatch: Rugra -> 0x{:x}, Ghidra -> 0x{:x}",
+                        "Block 0x{:x} successor mismatch: Rudra -> 0x{:x}, Ghidra -> 0x{:x}",
                         r_addr.as_u64(),
                         r_succ.as_u64(),
                         g_succ
@@ -537,7 +537,7 @@ impl RuntimeVerifier {
                 if let Some(addr) = mismatch.address {
                     report.push_str(&format!("   Address: 0x{:x}\n", addr.as_u64()));
                 }
-                report.push_str(&format!("   Rugra:  {}\n", mismatch.rugra_output));
+                report.push_str(&format!("   Rudra:  {}\n", mismatch.rudra_output));
                 report.push_str(&format!("   Ghidra: {}\n", mismatch.ghidra_output));
                 report.push_str(&format!("   Details: {}\n", mismatch.details));
             }
@@ -562,7 +562,7 @@ fn describe_pcode_compare_status(result: &PcodeCompareResultFFI) -> &'static str
         PCODE_COMPARE_OUTPUT_MISMATCH => "output mismatch",
         PCODE_COMPARE_INPUT_COUNT_MISMATCH => "input count mismatch",
         PCODE_COMPARE_INPUT_MISMATCH => "input mismatch",
-        PCODE_COMPARE_MISSING_RUGRA_OP => "missing Rugra op",
+        PCODE_COMPARE_MISSING_RUDRA_OP => "missing Rudra op",
         _ => "unknown FFI comparison status",
     }
 }
@@ -631,7 +631,7 @@ mod tests {
         verifier.record_mismatch(MismatchRecord {
             test_name: "test1".to_string(),
             address: Some(Address::new(0x1000)),
-            rugra_output: "foo".to_string(),
+            rudra_output: "foo".to_string(),
             ghidra_output: "bar".to_string(),
             details: "Different outputs".to_string(),
         });

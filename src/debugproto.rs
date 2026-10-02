@@ -2,7 +2,7 @@
 //!
 //! Ghidra imports DWARF into its Program database before the decompiler runs.
 //! The decompiler then receives a locked [`crate::fspec::FuncProto`].  This
-//! module provides the same front-end boundary for Rugra: it reads concrete
+//! module provides the same front-end boundary for Rudra: it reads concrete
 //! subprogram definitions (following `DW_AT_abstract_origin` and
 //! `DW_AT_specification`), materializes the declared prototype, assigns
 //! parameter storage from the active compiler-spec resource order, and locks
@@ -252,7 +252,7 @@ impl DebugGlobalDatabase {
         })
     }
 
-    // RUDRA-GLUE: address-keyed lookup mirroring the Program database query Rugra's driver performs when seeding global types
+    // RUDRA-GLUE: address-keyed lookup mirroring the Program database query Rudra's driver performs when seeding global types
     pub fn get(&self, address: u64) -> Option<&DebugGlobalVariable> {
         self.globals.get(&address)
     }
@@ -290,7 +290,7 @@ impl DebugGlobalDatabase {
     /// branch (coreaction.cc:5021-5027) — depend on it to attach a global
     /// Symbol's DWARF type onto the address varnode RuleLoadVarnode
     /// materializes (ruleaction.cc:4293 `newVarnode` → `queryProperties` →
-    /// `setSymbolProperties`). Rugra's driver seeds the query-channel
+    /// `setSymbolProperties`). Rudra's driver seeds the query-channel
     /// Database directly, so the typelock fold lives here as the single
     /// front-end semantic.
     pub fn seed_global_locked(
@@ -472,7 +472,7 @@ impl ElfPltImports {
 /// at 0x100000, so the golden's shared tail chunks read `FUN_0012c520` for
 /// ELF vaddr 0x2c520). The decompiler prints such names verbatim at call
 /// sites through the same fspec chain as named functions
-/// (`PrintC::opCall` printc.cc:601-609); Rugra's driver seeds the name into
+/// (`PrintC::opCall` printc.cc:601-609); Rudra's driver seeds the name into
 /// its callpoint-symbol stand-in for that table.
 // RUDRA-GLUE: Ghidra's Java SymbolManager owns this default-name policy (outside decompile/cpp); native front-end adapter for the boundary
 pub fn analyze_headless_function_symbol_name(vaddr: u64, image_base: u64) -> String {
@@ -635,7 +635,7 @@ fn global_address_type(global: &DebugGlobalVariable, ptr_size: usize) -> Arc<Dat
 }
 
 impl DebugPrototypeDatabase {
-    // RUDRA-GLUE: Ghidra's Java DWARF analyzer populates the Program database before the C++ decompiler; this is Rugra's native front-end adapter for that boundary
+    // RUDRA-GLUE: Ghidra's Java DWARF analyzer populates the Program database before the C++ decompiler; this is Rudra's native front-end adapter for that boundary
     pub fn parse_elf(bytes: &[u8]) -> Result<Self> {
         let dwarf = load_dwarf(bytes).context("parsing object for DWARF prototypes")?;
 
@@ -694,7 +694,7 @@ impl DebugPrototypeDatabase {
         self.prototypes.len()
     }
 
-    // RUDRA-GLUE: applies a Program-database prototype to Rugra Funcdata before Actions, matching Ghidra's externally locked prototype boundary
+    // RUDRA-GLUE: applies a Program-database prototype to Rudra Funcdata before Actions, matching Ghidra's externally locked prototype boundary
     pub fn apply(&self, fd: &mut Funcdata) -> Result<bool> {
         let Some(debug_proto) = self.get(fd.baseaddr.as_u64()) else {
             return Ok(false);
@@ -724,7 +724,7 @@ impl DebugPrototypeDatabase {
     /// Returns `Ok(None)` when the address has no DWARF definition (import
     /// thunk / non-debug function: the boundary contributes nothing and the
     /// generic_clib import table or active recovery owns the call site).
-    // RUDRA-GLUE: the queryCall -> ActionDefaultParams copy boundary for DWARF-locked callees; Ghidra reaches it via the Program database, Rugra's driver hands it directly
+    // RUDRA-GLUE: the queryCall -> ActionDefaultParams copy boundary for DWARF-locked callees; Ghidra reaches it via the Program database, Rudra's driver hands it directly
     pub fn locked_callsite_proto(
         &self,
         entry: u64,
@@ -826,7 +826,7 @@ impl DebugPrototypeDatabase {
         // locked" on exactly the three 0-param DWARF locals (main_init,
         // main_free, hugehelp). Param'd DWARF signatures keep STORAGE commit
         // mode (custom storage, custom_storage flag suppresses the warning
-        // in the oracle) and Rugra keeps the resolved default model name,
+        // in the oracle) and Rudra keeps the resolved default model name,
         // which suppresses the warning identically — so the pin applies to
         // the empty-signature case only.
         if debug_proto.parameters.is_empty() {
@@ -844,7 +844,7 @@ impl DebugPrototypeDatabase {
 /// signature data into the Program database and the locked `FuncProto` reaches
 /// the decompiler already materialized (queried by `FlowInfo::queryCall`
 /// flow.cc:660 and copied to call sites by `ActionDefaultParams`
-/// coreaction.cc:2327). This table is Rugra's native front-end adapter for
+/// coreaction.cc:2327). This table is Rudra's native front-end adapter for
 /// that same boundary.
 #[derive(Debug, Clone)]
 pub struct LibcSignature {
@@ -852,7 +852,7 @@ pub struct LibcSignature {
     pub parameters: &'static str,
 }
 
-/// Locked libc ABI signatures keyed by imported symbol name. Rugra's minimal
+/// Locked libc ABI signatures keyed by imported symbol name. Rudra's minimal
 /// equivalent of Ghidra's generic_clib signature data: the same public glibc
 /// ABI declarations verbatim. Anything not in the table keeps the unlocked
 /// `void F(void)` form (matching the external-stub rendering).
@@ -909,7 +909,7 @@ pub struct LibcSignatureTable {
 // RUDRA-GLUE: native front-end adapter for the platform-side type state —
 // Ghidra's generic_clib_64.gdt owns this FILE structure on the Java side
 // and hands it to the decompiler already materialized per locked
-// signature; Rugra builds the same type graph once per process.
+// signature; Rudra builds the same type graph once per process.
 pub(crate) fn clib_file_types(
 ) -> &'static (Arc<Datatype>, Arc<Datatype>) {
     static CLIB_FILE: std::sync::OnceLock<(Arc<Datatype>, Arc<Datatype>)> =
@@ -1001,7 +1001,7 @@ pub(crate) fn clib_file_struct() -> Arc<Datatype> {
 // signature's `stat *` and the local's DWARF `stat *` are TWO type objects
 // (CastStrategyC::castStandard's `curbase == reqbase` pointer-identity
 // early-exit, cast.cc:304/:329, does NOT fire through the struct default
-// arm :387 — distinct objects of equal 144-byte size cast). Rugra resolved
+// arm :387 — distinct objects of equal 144-byte size cast). Rudra resolved
 // the libc ledger's `stat` spelling through the DWARF name index, so the
 // signature param and fileinfo's local shared ONE interned DWARF struct
 // and the cast was suppressed (`&fileinfo`). The archive domain below is
@@ -1016,7 +1016,7 @@ pub(crate) fn clib_file_struct() -> Arc<Datatype> {
 // header, the tie the locked oracle's two stat objects also hold).
 // RUDRA-GLUE: the platform signature loader materializes generic_clib's
 // own stat from the archive data before the decompiler runs (same Java
-// seam as the archive FILE); this OnceLock is Rugra's form of that graph.
+// seam as the archive FILE); this OnceLock is Rudra's form of that graph.
 pub(crate) fn clib_stat_types(
 ) -> &'static (Arc<Datatype>, Arc<Datatype>) {
     static CLIB_STAT: std::sync::OnceLock<(Arc<Datatype>, Arc<Datatype>)> =
@@ -1114,7 +1114,7 @@ pub(crate) fn clib_stat_struct() -> Arc<Datatype> {
 // RUDRA-GLUE: the platform signature loader resolves spellings against the
 // Program type manager where the archive FILE/stat already live (the Java
 // side never consults the DWARF name index for a generic_clib signature);
-// this map is Rugra's form of that resolution boundary.
+// this map is Rudra's form of that resolution boundary.
 fn libc_type_resolution_index(
     type_names: Option<&HashMap<String, Arc<Datatype>>>,
 ) -> HashMap<String, Arc<Datatype>> {
@@ -1158,7 +1158,7 @@ fn remap_external_clib_file_pointer(dt: Arc<Datatype>) -> Arc<Datatype> {
 // GLIBC-CLIB-FILE-TYPEDOMAIN-0001 helper: replace a pointer-to-FILE
 impl Default for LibcSignatureTable {
     // RUDRA-GLUE: Ghidra draws these from its shipped generic_clib signature
-    // data on the platform side; Rugra encodes the same public glibc ABI
+    // data on the platform side; Rudra encodes the same public glibc ABI
     // declarations verbatim (the 24 imports the locked curl input references)
     fn default() -> Self {
         let entries: Vec<(&'static str, &'static str, &'static str)> = vec![
@@ -1348,7 +1348,7 @@ impl LibcSignatureTable {
         // exactly the 24 generic_clib-locked PLT stubs (locked curl witness
         // 0x102310 strcpy / 0x102320 puts; the 21 imports outside the table
         // — curl_easy_*, __vfprintf_chk, __cxa_finalize — stay unlocked and
-        // show no warning, matching the golden). Rugra pins the name string
+        // show no warning, matching the golden). Rudra pins the name string
         // only: the bound ProtoModelFull stays the defaultfp clone, so
         // every model-object consumer (hasEffect, derive_input_map,
         // varmap's name-keyed registry lookup falling back to defaultfp)
@@ -1759,7 +1759,7 @@ fn entry_reference(
     })
 }
 
-// RUDRA-GLUE: materializes the DWARF type graph into Rugra Datatype objects at the Program-import boundary; Ghidra performs this in its DWARF/type-manager front end. `visiting` holds the DIE offsets currently being resolved so recursive types (FILE -> struct _IO_FILE -> _chain FILE *) break at the back edge with a shallow named projection, the same way Ghidra's two-phase type manager exposes an already-created type before its members are filled in
+// RUDRA-GLUE: materializes the DWARF type graph into Rudra Datatype objects at the Program-import boundary; Ghidra performs this in its DWARF/type-manager front end. `visiting` holds the DIE offsets currently being resolved so recursive types (FILE -> struct _IO_FILE -> _chain FILE *) break at the back edge with a shallow named projection, the same way Ghidra's two-phase type manager exposes an already-created type before its members are filled in
 fn resolve_type(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -1821,7 +1821,7 @@ fn resolve_type_inner(
             match name {
                 // A typedef over a composite/enum keeps its fields and named
                 // values under the typedef spelling (this is how the type
-                // renders in decompiled C). Rugra's Datatype enum has no
+                // renders in decompiled C). Rudra's Datatype enum has no
                 // TypeTypedef variant yet, so the typedef is materialized as
                 // the renamed underlying type.
                 //
@@ -1863,7 +1863,7 @@ fn resolve_type_inner(
             // my_get_token's DWARF `const char *` param chain (0x3ca ptr
             // -> 0x186 const -> char, readelf-verified) prints as
             // `char * my_get_token(char *line)` with `(char *)0x0`
-            // constant casts (golden :1213/:1226/:1603). Rugra's former
+            // constant casts (golden :1213/:1226/:1603). Rudra's former
             // `alias_type("const char", char)` minted an independent
             // qualifier object as the prototype's req — printing
             // `const char *` signatures and `(const char *)0x0` casts.
@@ -2066,7 +2066,7 @@ fn shallow_type(
     }
 }
 
-// RUDRA-GLUE: maps DW_AT_encoding to the Rugra metatype the base-type importer assigns
+// RUDRA-GLUE: maps DW_AT_encoding to the Rudra metatype the base-type importer assigns
 fn base_metatype(entry: &DebuggingInformationEntry<DwarfReader>) -> Result<TypeMetatype> {
     let encoding = entry.attr_value(gimli::DW_AT_encoding)?;
     Ok(match encoding {
@@ -2104,7 +2104,7 @@ enum BaseAliasSign {
 }
 
 // Ghidra: DWARFDataTypeManager.java:477-549 initBaseDataTypes
-// (Java-side DWARF analyzer; decompile/cpp has no DWARF parser, so Rugra's
+// (Java-side DWARF analyzer; decompile/cpp has no DWARF parser, so Rudra's
 // debugproto is the native front-end adapter for that boundary).
 // The standard C base-type alias table the analyzer's getBaseType consults
 // FIRST (DWARFDataTypeManager.java:403 `dt = baseDataTypes.get(name)`): a
@@ -2213,7 +2213,7 @@ fn base_alias_encoding_compatible(
 //   2. DW_ATE_signed_char falls back to the char type (:426), keeping the
 //      DWARF spelling the way the typedef wrap (:441-447) renders it;
 //   3. every other name keeps its DWARF spelling (the typedef-wrap arm —
-//      Rugra materializes typedefs as the renamed underlying type).
+//      Rudra materializes typedefs as the renamed underlying type).
 fn dwarf_base_type(
     name: String,
     size: usize,
@@ -2783,7 +2783,7 @@ fn dwarf_type_leaf_name(table: &DwarfDieTable, id: GlobalDieId, depth: usize) ->
     let name = record.entry_name.clone();
     // :650-656 exactly one inbound DW_TAG_typedef referer steals the
     // typedef's own DWARFName — NOT CARRIED (conservative degradation,
-    // 铁律 1.5): Rugra materializes typedefs as renamed clones of the
+    // 铁律 1.5): Rudra materializes typedefs as renamed clones of the
     // underlying type (materialized_alias/alias_type) instead of Ghidra's
     // separate TypedefDataType, so the steal's only end-to-end effect here
     // is interning the underlying DIE under the typedef name, colliding
@@ -2971,7 +2971,7 @@ fn enum_type(name: String, size: usize, values: BTreeMap<u64, String>) -> Arc<Da
 // is ONE interned Datatype object, and pointer-identity comparisons
 // (CastStrategyC::castStandard's `curtype == reqtype`, cast.cc:299;
 // ActionSetCasts' store-value cast, coreaction.cc:553-554) see equal types
-// and emit no cast. Rugra's two independent DWARF passes each built fresh
+// and emit no cast. Rudra's two independent DWARF passes each built fresh
 // Arcs, so `*glob = glob_expand;` (URLGlob** param vs typelocked URLGlob*
 // global read) gained a spurious `(URLGlob *)` cast. This soft intern
 // reuses the shared factory's existing name entry when the shape (enum
@@ -2989,7 +2989,7 @@ fn intern_named(candidate: Arc<Datatype>) -> Arc<Datatype> {
     // no explicit id traveled (type.cc:675-676 `id = hashName(name); //
     // There must be some kind of id`, Datatype::decodeBasic) — and
     // TypeFactory::findAdd rejects a zero id outright (type.cc:3417-3425
-    // "Datatype must have a valid id"). Rugra's DWARF constructors
+    // "Datatype must have a valid id"). Rudra's DWARF constructors
     // (base_type/struct_type/union_type/enum_type) leave the fresh
     // TypeBase id at 0, so without this derivation the findAdd below
     // errors and the candidate silently stays UNREGISTERED — invisible
@@ -3010,7 +3010,7 @@ fn intern_named(candidate: Arc<Datatype>) -> Arc<Datatype> {
     // composite to TypeFactory::findAdd — findAdd's layout pass would hit
     // getPrimitiveAlignSize(0), a division by the default alignment map's
     // zero entry (type.cc:3429-3437); the declaration-only DIEs stay
-    // unregistered stubs on the Java side. Rugra's resolve_type still
+    // unregistered stubs on the Java side. Rudra's resolve_type still
     // builds zero-size candidates for DW_AT_declaration composites (the
     // anonymous forward refs inside field graphs), so they keep the
     // historical unregistered course here too: returned as-is, invisible
@@ -3041,7 +3041,7 @@ fn intern_named(candidate: Arc<Datatype>) -> Arc<Datatype> {
     }
 }
 
-// RUDRA-GLUE: materializes a DWARF typedef as the underlying composite/enum renamed to the typedef spelling; Rugra's Datatype enum has no TypeTypedef variant yet (Ghidra type.hh has one), so fields and enumerator names are carried on the renamed type
+// RUDRA-GLUE: materializes a DWARF typedef as the underlying composite/enum renamed to the typedef spelling; Rudra's Datatype enum has no TypeTypedef variant yet (Ghidra type.hh has one), so fields and enumerator names are carried on the renamed type
 fn materialized_alias(name: String, inner: &Datatype) -> Result<Arc<Datatype>> {
     Ok(alias_type(name, inner ))
 }
@@ -3783,7 +3783,7 @@ mod tests {
     // exact-piece branch coreaction.cc:5021-5027) skip the global Symbol's
     // DWARF type, and glob_expand's value degrades to raw offsets in the
     // output. seed_global_locked is the single driver-side projection of
-    // that semantic onto Rugra's query-channel Database.
+    // that semantic onto Rudra's query-channel Database.
     #[test]
     fn seed_global_locked_marks_dwarf_globals_typelocked_and_findable() {
         let bytes = std::fs::read("examples/curl").expect("curl fixture");

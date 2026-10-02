@@ -40,9 +40,9 @@ impl Action for ActionBlockStructure {
             return Ok(action_status::NO_CHANGE);
         }
 
-        // RUDRA-GLUE: env-gated (RUGRA_BS_TRACE=1) CFG signature dumper for
+        // RUDRA-GLUE: env-gated (RUDRA_BS_TRACE=1) CFG signature dumper for
         // mainloop non-convergence triage; no Ghidra counterpart (debug-only).
-        if std::env::var("RUGRA_BS_TRACE")
+        if std::env::var("RUDRA_BS_TRACE")
             .map(|v| v == "1")
             .unwrap_or(false)
         {
@@ -60,7 +60,7 @@ impl Action for ActionBlockStructure {
         // TEMP PROBE (selectgoto lane): per-round basic-block CFG signature —
         // the counterpart of the oracle probe's GLM_BBSIG dump at
         // ActionBlockStructure::apply entry. Env-gated; default off.
-        if std::env::var("RUGRA_BBSIG").is_ok() {
+        if std::env::var("RUDRA_BBSIG").is_ok() {
             static ROUND: std::sync::atomic::AtomicUsize =
                 std::sync::atomic::AtomicUsize::new(0);
             let round = ROUND.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -102,7 +102,7 @@ impl Action for ActionBlockStructure {
         // TEMP PROBE (selectgoto lane): dump the sblocks tree right after the
         // first collapseAll — the counterpart of the oracle probe's
         // post-collapse printTree dump (GLM_TREE1). Uncommitted-diagnostics.
-        if std::env::var("RUGRA_TREE1").is_ok() {
+        if std::env::var("RUDRA_TREE1").is_ok() {
             let mut out = String::new();
             for blk in &fd.sblocks.blocks {
                 crate::block::print_tree_dbg(blk, 0, &mut out);
@@ -113,8 +113,8 @@ impl Action for ActionBlockStructure {
             }
         }
 
-        // RUDRA-GLUE: post-collapse witness for the RUGRA_BS_TRACE dumper.
-        if std::env::var("RUGRA_BS_TRACE")
+        // RUDRA-GLUE: post-collapse witness for the RUDRA_BS_TRACE dumper.
+        if std::env::var("RUDRA_BS_TRACE")
             .map(|v| v == "1")
             .unwrap_or(false)
         {
@@ -122,12 +122,12 @@ impl Action for ActionBlockStructure {
             eprintln!("[BSTRACE] {} post  {}", fd.name, sig);
         }
 
-        // RUDRA-GLUE: env-gated (RUGRA_BS_TREES=<prefix>) per-round
+        // RUDRA-GLUE: env-gated (RUDRA_BS_TREES=<prefix>) per-round
         // structured-tree dump — the counterpart of the oracle ladder
         // probe's per-perform printTree (diagnostic only, no pipeline
         // effect). One file per blockstructure application, ordered by a
         // process-global round counter.
-        if let Ok(prefix) = std::env::var("RUGRA_BS_TREES") {
+        if let Ok(prefix) = std::env::var("RUDRA_BS_TREES") {
             static ROUND: std::sync::atomic::AtomicUsize =
                 std::sync::atomic::AtomicUsize::new(0);
             let round = ROUND.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -140,7 +140,7 @@ impl Action for ActionBlockStructure {
 
         // Ghidra blockaction.cc:2184: `count += collapse.getChangeCount();
         // return 0;` — the structurer NEVER feeds the repeatapply loop
-        // (returning a change count here made Rugra's mainloop re-enter
+        // (returning a change count here made Rudra's mainloop re-enter
         // forever once rules also reported changes).
         Ok(action_status::NO_CHANGE)
     }
@@ -158,7 +158,7 @@ impl Action for ActionBlockStructure {
     }
 }
 
-// RUDRA-GLUE: env-gated (RUGRA_BS_TRACE=1) CFG signature helper for
+// RUDRA-GLUE: env-gated (RUDRA_BS_TRACE=1) CFG signature helper for
 // mainloop non-convergence triage; no Ghidra counterpart (debug-only).
 fn bs_trace_cfg_sig(graph: &BlockGraph) -> String {
     let mut sig = format!("bbsize={}", graph.get_size());
@@ -215,7 +215,7 @@ fn bs_trace_cfg_sig(graph: &BlockGraph) -> String {
     sig
 }
 
-// RUDRA-GLUE: short type tag for the env-gated RUGRA_BS_TRACE CFG signature
+// RUDRA-GLUE: short type tag for the env-gated RUDRA_BS_TRACE CFG signature
 // dumper (downcast-based; the derived Debug impls recurse into children and can
 // overflow the worker stack). Debug-only helper, no Ghidra counterpart.
 fn debug_type_name(b: &dyn FlowBlock) -> String {
@@ -252,7 +252,7 @@ fn debug_type_name(b: &dyn FlowBlock) -> String {
 /// OR-set an edge label on the `j`-th outgoing edge of ANY concrete block
 /// type and on the mirrored in-edge of the target. Ghidra's label lives in
 /// the FlowBlock base's `outofthis`/`intothis` arrays, so one base-class
-/// method covers every block type; Rugra's per-struct `outgoing`/`incoming`
+/// method covers every block type; Rudra's per-struct `outgoing`/`incoming`
 /// Vecs historically required an explicit downcast per type. The shared
 /// trait path now reaches every built-in edge owner; this local compatibility
 /// form likewise keeps a goto mark observable to
@@ -375,7 +375,7 @@ pub(crate) fn rewrite_in_edges_to_idx(
 /// `FlowBlock::dedup`/`eliminateInDups`/`eliminateOutDups` (block.cc:447-501,
 /// 525-539). Ghidra runs `this->dedup()` on the composite; its half-deletes
 /// also clean the external counterpart halves, because Ghidra edges are
-/// paired. Rugra's one-sided edge model needs the same dedup applied to the
+/// paired. Rudra's one-sided edge model needs the same dedup applied to the
 /// external blocks that just had multiple edges retargeted onto the same
 /// composite (e.g. both the outer condition's false-exit and the inner
 /// clause's exit retarget onto the shared merge block, which must end with
@@ -634,7 +634,7 @@ fn eliminate_dup_pairs(
 
 // RUDRA-GLUE: 不变量修复 helper（Ghidra 无此独立函数——selfIdentify 经
 // replaceOutEdge/replaceInEdge（block.cc:160-191, 910-924）在重定向时同步
-// 两侧 reverse_index；Rugra 的 rewrite_out/in_edges_to_idx 只翻 e.point，
+// 两侧 reverse_index；Rudra 的 rewrite_out/in_edges_to_idx 只翻 e.point，
 // 故按指针重结对复合块边界边以恢复 checkEdges() 不变量 block.cc:545-570，
 // 一致状态下为 no-op，不引入与 oracle 可观测行为的分歧）。
 pub(crate) fn resync_boundary_reverse_indices(bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) {
@@ -1627,7 +1627,7 @@ pub struct CollapseStructure<'a> {
     /// loopbodyiter: current position in loop_order being processed by
     /// update_loop_body (blockaction.hh:89). -1 = not started.
     loopbodyiter: i32,
-    /// Ghidra-equivalent graph LIST order over Rugra's flat-Vec slots (see
+    /// Ghidra-equivalent graph LIST order over Rudra's flat-Vec slots (see
     /// `virtual_list`). Ghidra's collapse graph physically removes consumed
     /// nodes (identifyInternal, block.cc:953-960) and every newBlock*
     /// factory appends the composite at the END (addBlock, block.cc:862-875
@@ -1636,7 +1636,7 @@ pub struct CollapseStructure<'a> {
     /// the visited block plus its list neighbors, the survivors shift left
     /// under the already-incremented scan index and get skipped until the
     /// next fixpoint pass (collapseInternal cc:1783-1784 `index += 1`
-    /// happens BEFORE the rules run). Rugra keeps blocks at fixed slots
+    /// happens BEFORE the rules run). Rudra keeps blocks at fixed slots
     /// (zombies via absorbed_into), so this Vec mirrors the oracle's list
     /// exactly: initialized to the copy graph's order, identify_internal
     /// removes consumed entries and pushes the install slot at the end.
@@ -1644,7 +1644,7 @@ pub struct CollapseStructure<'a> {
     /// Jumptables of the function under collapse, for the BlockSwitch ctor
     /// (`jump = ind->getJumptable()`, block.cc:3488 — the oracle resolves
     /// the BRANCHIND last-op through Funcdata::findJumpTable, block.cc:637;
-    /// Rugra passes the Arc list in because CollapseStructure has no
+    /// Rudra passes the Arc list in because CollapseStructure has no
     /// Funcdata back-pointer).
     jump_tables: Vec<Arc<RwLock<crate::jumptable::JumpTable>>>,
 }
@@ -1682,7 +1682,7 @@ impl<'a> CollapseStructure<'a> {
 
     // RUDRA-GLUE: builder supplying Funcdata::jump_tables for the BlockSwitch
     // ctor lookup (Ghidra reaches them through the FlowBlock Funcdata
-    // back-pointer, block.cc:637; Rugra composites carry none).
+    // back-pointer, block.cc:637; Rudra composites carry none).
     /// Attach the function's jumptables so new BlockSwitch components can
     /// hold their table (block.cc:3488 ctor semantics).
     pub fn with_jump_tables(
@@ -1779,14 +1779,14 @@ impl<'a> CollapseStructure<'a> {
                     }
                     let slot = self.virtual_list[idx] as usize;
                     idx += 1;
-                    // w-rc4 probe (RUGRA_BS_VISIT=1): mirror oracle
+                    // w-rc4 probe (RUDRA_BS_VISIT=1): mirror oracle
                     // BS_ORACLE_VISIT — per-visit position/slot dump.
                     // (Read once per process — the per-visit std::env::var
                     // (env lock + alloc) ran ~4M times on VdbeExec; env is
                     // immutable at runtime, decision value identical.)
                     static BS_VISIT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
                     if *BS_VISIT.get_or_init(|| {
-                        std::env::var("RUGRA_BS_VISIT")
+                        std::env::var("RUDRA_BS_VISIT")
                             .map(|v| v == "1")
                             .unwrap_or(false)
                     }) {
@@ -1922,7 +1922,7 @@ impl<'a> CollapseStructure<'a> {
     ///   2. collapseConditions (cc:1886)
     ///   3. collapseInternal(NULL) (cc:1888)
     ///   4. while (isolated < graph.getSize()) { selectGoto; collapseInternal(targetbl) } (cc:1889-1892)
-    ///   5. finalize — Rugra's DEAD sweep (replaces Ghidra's incremental
+    ///   5. finalize — Rudra's DEAD sweep (replaces Ghidra's incremental
     ///      identifyInternal list compaction, block.cc:953-960)
     ///
     /// BLOCKSTRUCT-GOTOCASCADE-CONDSTMT-0001: the previous default path ran
@@ -1968,7 +1968,7 @@ impl<'a> CollapseStructure<'a> {
             isolated = self.collapse_internal(target);
             // cc:1275: Ghidra throws LowlevelError("Could not finish
             // collapsing block structure") when selectGoto+clipExtraRoots
-            // can't produce a mark. Rugra degrades to a log + stop so one
+            // can't produce a mark. Rudra degrades to a log + stop so one
             // function can't kill the process; the divergence is visible in
             // stderr for fixture differencing.
             if isolated == prev_isolated && target.is_none() {
@@ -1984,7 +1984,7 @@ impl<'a> CollapseStructure<'a> {
         // CASE_BODY flag set on the final pre-finalize graph state, exactly
         // what the old last per-round refresh saw.
         self.refresh_switch_cases();
-        // Finalize: DEAD-sweep + reindex (Rugra model of Ghidra
+        // Finalize: DEAD-sweep + reindex (Rudra model of Ghidra
         // identifyInternal's list compaction, block.cc:953-960), required
         // for downstream emit (printc emitBlockGraph).
         self.finalize_structure();
@@ -2020,8 +2020,8 @@ impl<'a> CollapseStructure<'a> {
         // and switch structure routes via collapse_loops + collapse_switches).
         // curl: 24/24 defects=0 numbering=485 (identical to 7-phase).
         // httpd: 29/29 decompile, 27/29 gcc-clean (same as 7-phase baseline).
-        // Set RUGRA_7PHASE=1 to use the legacy 7-phase path instead.
-        if !std::env::var("RUGRA_7PHASE")
+        // Set RUDRA_7PHASE=1 to use the legacy 7-phase path instead.
+        if !std::env::var("RUDRA_7PHASE")
             .map(|v| v == "1")
             .unwrap_or(false)
         {
@@ -2116,7 +2116,7 @@ impl<'a> CollapseStructure<'a> {
             // ruleBlockSwitch (blockaction.cc:1649) fires ONLY on isSwitchOut()
             // blocks, and f_switch_out is set exclusively by CPUI_BRANCHIND
             // (block.cc:2286). Ghidra NEVER forms a switch from CBRANCH
-            // if/else-if chains. Rugra's cascade function did, producing ~16/18
+            // if/else-if chains. Rudra's cascade function did, producing ~16/18
             // spurious switches (curl: switch 18 vs Ghidra's 2). The CBRANCH
             // chains are now structured as nested BlockIf via the try_rule_*
             // rules, exactly as Ghidra's collapseInternal does. (Audit: BATCH2 R15.)
@@ -2276,7 +2276,7 @@ impl<'a> CollapseStructure<'a> {
             if std::time::Instant::now() <= interleaved_deadline {
                 // ruleBlockIfNoExit (cc:1840): per-block, break on first match.
                 // Skip when the function has switches: case-label extraction is
-                // unsafe mid-structuring (Rugra-specific guard, see has_switch).
+                // unsafe mid-structuring (Rudra-specific guard, see has_switch).
                 if !has_switch {
                     let s2 = self.graph.get_size();
                     for j in 0..s2 {
@@ -2286,7 +2286,7 @@ impl<'a> CollapseStructure<'a> {
                         }
                     }
                 }
-                // ruleCaseFallthru (cc:1844): Rugra's collapse_case_fallthru is
+                // ruleCaseFallthru (cc:1844): Rudra's collapse_case_fallthru is
                 // batch (processes all switches at once); run it once here and
                 // treat any change as a fullchange trigger.
                 if !fullchange && self.collapse_case_fallthru() {
@@ -2314,7 +2314,7 @@ impl<'a> CollapseStructure<'a> {
         // Final sweep: physically remove DEAD-flagged blocks from the top-level
         // blocks[] array, faithful to Ghidra identifyInternal's list=newlist
         // (block.cc:953-960). In Ghidra, identifyInternal removes consumed nodes
-        // from the parent BlockGraph's list at structuring time; Rugra instead
+        // from the parent BlockGraph's list at structuring time; Rudra instead
         // marks them DEAD (blockaction.rs:2363) and leaves them in the array.
         // This final sweep collapses the array to only the surviving roots and
         // structured blocks, giving the CFT (control flow tree) single-ownership
@@ -2393,7 +2393,7 @@ impl<'a> CollapseStructure<'a> {
     /// compaction. Ghidra's identifyInternal rebuilds `list` without the
     /// identified nodes (block.cc:953-960), so every list walk
     /// (collapseInternal's `graph.getBlock(index)`, blockaction.cc:1781-
-    /// 1833) only ever visits top-level blocks. Rugra's flat `blocks` Vec
+    /// 1833) only ever visits top-level blocks. Rudra's flat `blocks` Vec
     /// keeps every node at its slot, so the equivalent observable test is
     /// the absorbed_into parent record (written by identify_internal /
     /// the sequence-merge pass): a block with an absorbed_into entry is a
@@ -2447,12 +2447,12 @@ impl<'a> CollapseStructure<'a> {
         // Running goto first ensures continue/break edges are consumed (wrapped
         // as BlockIfGoto/BlockGoto) BEFORE while_do tries to match the body,
         // which reduces clause size_in so WhileDo can form.
-        // (RUGRA_RULE2 read once per process: env is immutable at runtime and
+        // (RUDRA_RULE2 read once per process: env is immutable at runtime and
         // the per-visit std::env::var (env lock + alloc) ran 4M+ times on
         // giant functions — pure Rust bookkeeping the oracle has no
         // counterpart for; the decision value is identical.)
         static RULE2: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-        let rule2 = *RULE2.get_or_init(|| std::env::var("RUGRA_RULE2").is_ok());
+        let rule2 = *RULE2.get_or_init(|| std::env::var("RUDRA_RULE2").is_ok());
         macro_rules! bs_try {
             ($f:ident) => {
                 if self.$f(i, &block, &bank) {
@@ -2550,7 +2550,7 @@ impl<'a> CollapseStructure<'a> {
     /// live during the trace), otherwise the DAG walks the whole function and
     /// marks interior structured edges as likely gotos.
     fn update_loop_body(&mut self) -> bool {
-        let trace = std::env::var("RUGRA_TRACE_SELECTGOTO").is_ok();
+        let trace = std::env::var("RUDRA_TRACE_SELECTGOTO").is_ok();
         if self.finaltrace {
             return false; // cc:1196-1198
         }
@@ -2630,7 +2630,7 @@ impl<'a> CollapseStructure<'a> {
             // the mutating list) and feeds them to TraceDAG in that order;
             // the root order paces pushBranches and BadEdgeScore
             // tie-breaking. virtual_list entries are live slots only.
-            let step = std::env::var("RUGRA_GOTOSTEP").is_ok();
+            let step = std::env::var("RUDRA_GOTOSTEP").is_ok();
             let mut roots: Vec<i32> = Vec::new();
             let vlist = self.virtual_list.clone();
             for &slot in &vlist {
@@ -2657,7 +2657,7 @@ impl<'a> CollapseStructure<'a> {
         }
         // cc:1242
         self.likelylistfull = true;
-        if std::env::var("RUGRA_IRRED_DBG")
+        if std::env::var("RUDRA_IRRED_DBG")
             .map(|v| v == "1")
             .unwrap_or(false)
         {
@@ -2670,7 +2670,7 @@ impl<'a> CollapseStructure<'a> {
         }
         if loopbottom == -1 && edges.is_empty() {
             // cc:1247-1250: no loops left and the trace found no gotos.
-            if std::env::var("RUGRA_IRRED_DBG")
+            if std::env::var("RUDRA_IRRED_DBG")
                 .map(|v| v == "1")
                 .unwrap_or(false)
             {
@@ -2753,10 +2753,10 @@ impl<'a> CollapseStructure<'a> {
     /// mark it as goto via setGotoBranch. Returns the source block index, or
     /// None when the likelygoto lists are exhausted (then Ghidra falls back
     /// to clipExtraRoots — cc:1274 — and throws LowlevelError if that finds
-    /// nothing; Rugra logs and lets the caller stop, see the cc:1275 site in
+    /// nothing; Rudra logs and lets the caller stop, see the cc:1275 site in
     /// collapse_all_5step). Faithful to `selectGoto` (blockaction.cc:1260-1277).
     fn select_goto(&mut self) -> Option<i32> {
-        let trace = std::env::var("RUGRA_TRACE_SELECTGOTO").is_ok();
+        let trace = std::env::var("RUDRA_TRACE_SELECTGOTO").is_ok();
         while self.update_loop_body() {
             while self.likelyiter < self.likelygoto.len() {
                 let fe = self.likelygoto[self.likelyiter].clone();
@@ -2829,7 +2829,7 @@ impl<'a> CollapseStructure<'a> {
     ///     extra bad-edge selections).
     ///   - `flags |= f_interior_gotoout` on the source.
     ///   - `outofthis[i].point->flags |= f_interior_gotoin` on the target.
-    /// Rugra additionally records GOTO_EDGE_0/GOTO_EDGE_1 block flags for
+    /// Rudra additionally records GOTO_EDGE_0/GOTO_EDGE_1 block flags for
     /// BlockBasic (is_goto_out consults them as the f_goto_edge equivalent).
     fn set_goto_branch_on_block(
         &mut self,
@@ -2852,7 +2852,7 @@ impl<'a> CollapseStructure<'a> {
         // concrete edge owner, matching the now trait-wide mirrored helper
         // and preserving the historical dead-region fix.
         set_out_edge_flag_all_types(bl, j, crate::block::edge_flags::F_GOTO_EDGE);
-        // cc:311-312: interior goto flags (Rugra block-level flag names).
+        // cc:311-312: interior goto flags (Rudra block-level flag names).
         // The GOTO_EDGE_0/1 mirror flags are set for EVERY block type (they
         // live in the shared FlowBlock flags word), matching the oracle's
         // type-agnostic edge label; the previous BlockBasic-only downcast
@@ -2882,7 +2882,7 @@ impl<'a> CollapseStructure<'a> {
     // Ghidra: block.hh:347 FlowBlock::isGotoOut (label-based form)
     /// Type-agnostic goto-edge test: the oracle's isGotoOut reads the edge
     /// LABEL (f_goto_edge|f_irreducible) which exists on every block type;
-    /// Rugra's trait default only implements it for BlockBasic. Rules that
+    /// Rudra's trait default only implements it for BlockBasic. Rules that
     /// gate on goto edges (ruleBlockGoto/ProperIf/WhileDo/IfElse) must see
     /// goto marks on structured blocks too.
     fn out_edge_is_goto(b: &dyn FlowBlock, slot: usize) -> bool {
@@ -2917,7 +2917,7 @@ impl<'a> CollapseStructure<'a> {
     // RUDRA-GLUE: Ghidra's goto mark lives on the edge label itself
     // (outofthis[i].label, written by setGotoBranch block.cc:305-313), so
     // removeEdge (block.cc:1469-1481) removes the mark together with the
-    // edge and the surviving edges' marks are untouched. Rugra ADDITIONALLY
+    // edge and the surviving edges' marks are untouched. Rudra ADDITIONALLY
     // mirrors the mark in the slot-indexed GOTO_EDGE_0/GOTO_EDGE_1 block
     // flags (see set_goto_branch_on_block) for BlockBasic::is_goto_out —
     // those mirrors are slot-indexed and do NOT follow edge removal: after
@@ -3089,9 +3089,9 @@ impl<'a> CollapseStructure<'a> {
         self.compute_dominators();
         let size = self.graph.get_size();
 
-        // w-rc4 probe (RUGRA_BS_TRACE=1): mirror oracle collapseAll_entry
+        // w-rc4 probe (RUDRA_BS_TRACE=1): mirror oracle collapseAll_entry
         // graph dump (block idx/addr/in/out with edge labels) for seam diffing.
-        if std::env::var("RUGRA_BS_TRACE")
+        if std::env::var("RUDRA_BS_TRACE")
             .map(|v| v == "1")
             .unwrap_or(false)
         {
@@ -3157,8 +3157,8 @@ impl<'a> CollapseStructure<'a> {
             }
         }
 
-        // Diagnostic: dominator coverage + back-edge scan (RUGRA_LOOP_DEBUG=1)
-        let loop_dbg = std::env::var("RUGRA_LOOP_DEBUG")
+        // Diagnostic: dominator coverage + back-edge scan (RUDRA_LOOP_DEBUG=1)
+        let loop_dbg = std::env::var("RUDRA_LOOP_DEBUG")
             .map(|v| v == "1")
             .unwrap_or(false);
         if loop_dbg {
@@ -3220,9 +3220,9 @@ impl<'a> CollapseStructure<'a> {
                 (src, tgts)
             };
             for tgt_idx in back_targets {
-                // w-rc4 probe (RUGRA_BS_TRACE=1): mirror oracle labelLoops
+                // w-rc4 probe (RUDRA_BS_TRACE=1): mirror oracle labelLoops
                 // print (head/tail start addresses) for two-sided diffing.
-                if std::env::var("RUGRA_BS_TRACE")
+                if std::env::var("RUDRA_BS_TRACE")
                     .map(|v| v == "1")
                     .unwrap_or(false)
                 {
@@ -3359,7 +3359,7 @@ impl<'a> CollapseStructure<'a> {
             }
             // Set immed_container to the deepest container seen so far.
             // The oracle stores the container's LoopBody POINTER (survives
-            // the step-4 depth sort); Rugra stores the container's HEAD
+            // the step-4 depth sort); Rudra stores the container's HEAD
             // block index — unique after merge_identical_heads — so the
             // reference stays valid across the sort (BLOCKSTRUCT-COLLAPSE-
             // RESIDUAL-0001: the previous positional index went stale).
@@ -3408,7 +3408,7 @@ impl<'a> CollapseStructure<'a> {
         }
         // Store into the VecDeque for updateLoopBody-style iteration.
         self.loop_order = loop_order.into_iter().collect();
-        if std::env::var("RUGRA_IRRED_DBG")
+        if std::env::var("RUDRA_IRRED_DBG")
             .map(|v| v == "1")
             .unwrap_or(false)
         {
@@ -3881,7 +3881,7 @@ impl<'a> CollapseStructure<'a> {
 
     // RUDRA-GLUE: dominator lookup over the structuring graph's block
     // indices; Ghidra has no LoopBody::dominatesIdx (blockaction.hh:46 is
-    // the LoopBody class decl with no such member) — Rugra computes
+    // the LoopBody class decl with no such member) — Rudra computes
     // idoms locally to back refresh_switch_cases case-body detection.
     /// Check if block index `a` dominates block index `b`.
     fn dominates_idx(&self, a: i32, b: i32) -> bool {
@@ -3905,7 +3905,7 @@ impl<'a> CollapseStructure<'a> {
 
     // RUDRA-GLUE: interleaved-rule case-body bookkeeping; Ghidra has no
     // LoopBody::refreshSwitchCases and no f_case_body flag (block.hh:88-106
-    // enum tops out at f_duplicate_block=0x40000) — this tracks Rugra's
+    // enum tops out at f_duplicate_block=0x40000) — this tracks Rudra's
     // switch_case_indices so interleaved rules avoid pulling case labels
     // out of switch bodies. Clear/set must use clear_flags/set_flags
     // (FlowBlock::clearFlag/setFlag semantics: `&= ~fl` / `|= fl`).
@@ -4460,7 +4460,7 @@ impl<'a> CollapseStructure<'a> {
         // Re-pair the composite's boundary reverse indices by pointer. The
         // oracle's replace*Edge protocol (block.cc:160-191, invoked from
         // selfIdentify block.cc:910-924) sets both halves' reverse_index at
-        // retarget time; Rugra's rewrite_* only flips e.point, so this pass
+        // retarget time; Rudra's rewrite_* only flips e.point, so this pass
         // restores Ghidra's checkEdges() invariant (block.cc:545-570) before
         // the paired dedup reads the recorded slots. The pairing is a
         // BIJECTION: parallel edges to one peer consume distinct peer slots
@@ -4544,7 +4544,7 @@ impl<'a> CollapseStructure<'a> {
         // the composite's index is the MINIMUM over its component indices
         // (empirically confirmed on the oracle: WhileDo cond=79/clause=78
         // produces composite idx=78, all cond<clause wraps produce
-        // idx=cond). Rugra's slot model installs the composite at the
+        // idx=cond). Rudra's slot model installs the composite at the
         // cond/head slot, which equals the min for every wrap whose head
         // holds the smallest index; for the reversed case (a component at
         // a lower index than the head — e.g. the NPat2R9 WhileDo
@@ -4615,7 +4615,7 @@ impl<'a> CollapseStructure<'a> {
     ///  - opc = (b1->getFalseOut() == b2) ? CPUI_INT_OR : CPUI_INT_AND
     ///  - forceOutputNum(2) + forceFalseEdge(b2->getOut(0)) preserve the
     ///    condition's 2 outputs with the false-edge being b2's fallthrough.
-    ///    Rugra's BlockCondition tracks false-edge as outgoing[0]; the
+    ///    Rudra's BlockCondition tracks false-edge as outgoing[0]; the
     ///    identifyInternal boundary capture preserves this when b1's out[0]
     ///    is b2 (the consumed orblock), and b2's out[0] (out0) becomes the
     ///    condition's out[0].
@@ -4629,7 +4629,7 @@ impl<'a> CollapseStructure<'a> {
         let out0 = b2.read().unwrap().get_out(0).map(|e| self.graph_bank().expect_arc(e.point));
         // cc:1785: opc = (b1->getFalseOut() == b2) ? INT_OR : INT_AND
         // Ghidra getFalseOut() = outofthis[0].point, purely positional
-        // (block.hh:299, never reads BOOLEAN_FLIP). Rugra's flow construction
+        // (block.hh:299, never reads BOOLEAN_FLIP). Rudra's flow construction
         // (flow.rs:920-928, flow.cc:960-967) pushes the fallthru edge first,
         // so out[0] is the false path in both implementations and
         // get_false_out(cbranch) now returns exactly out[0] — the polarity
@@ -4671,10 +4671,10 @@ impl<'a> CollapseStructure<'a> {
                 flags: 0,
             }));
         let b2_idx = b2.read().unwrap().get_index();
-        // cc:1789: identifyInternal(ret, {b1, b2}). Rugra: b1 is at install_idx
+        // cc:1789: identifyInternal(ret, {b1, b2}). Rudra: b1 is at install_idx
         // (handled by identify_internal's install_idx capture), b2 is consumed.
         self.identify_internal(&cond_block, &[b2_idx], install_idx);
-        // cc:1791-1792: forceOutputNum(2) + forceFalseEdge(out0). Rugra's
+        // cc:1791-1792: forceOutputNum(2) + forceFalseEdge(out0). Rudra's
         // BlockCondition has exactly 2 outputs after identifyInternal; the
         // false-edge (out[0]) should be out0 (b2's fallthrough). If identify
         // didn't preserve it, fix up: ensure out[0] is out0.
@@ -5618,7 +5618,7 @@ impl<'a> CollapseStructure<'a> {
                 self.dataflow_change_count += 1;
             }
             // swap_edges (block.cc:218-233) swaps whole BlockEdge structs, so
-            // the f_goto_edge EDGE label follows the moved edge — but Rugra's
+            // the f_goto_edge EDGE label follows the moved edge — but Rudra's
             // block-level GOTO_EDGE_0/GOTO_EDGE_1 mirror flags do not follow.
             // Swap them here so is_goto_out (block.rs:1514, checks both) keeps
             // reporting the moved goto edge at its new slot, exactly as the
@@ -5766,7 +5766,7 @@ impl<'a> CollapseStructure<'a> {
             // The caller (ruleBlockGoto cc:1450-1458 arm) returns true after
             // this mutation-only path, so Ghidra's collapseInternal re-enters
             // the scan (change=true) and ruleBlockSwitch fires on the very
-            // next pass. Rugra's inner loop infers that change bool from a
+            // next pass. Rudra's inner loop infers that change bool from a
             // structure_change_count delta, so this arm must bump it like
             // the fresh-wrap arm below does: without the bump the loop
             // declares a false fixpoint right after peeling the edge, the
@@ -6419,7 +6419,7 @@ impl<'a> CollapseStructure<'a> {
     ///     (wrapping the newly marked edges) before the switch is built.
     /// `isDefaultBranch` reads the mirrored F_DEFAULTSWITCH_EDGE label
     /// (block.hh:320), installed by Funcdata::switchOver (funcdata_block.cc:
-    /// 697 setDefaultSwitch(jt->getDefaultBlock())) — Rugra's equivalent
+    /// 697 setDefaultSwitch(jt->getDefaultBlock())) — Rudra's equivalent
     /// wiring is funcdata.rs set_default_switch_mirrored.
     fn check_switch_skips(&mut self, switch_idx: usize, exitblock: Option<i32>) -> bool {
         // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view — hot
@@ -6611,13 +6611,13 @@ impl<'a> CollapseStructure<'a> {
     /// Try to find a switch structure: find the exitblock, validate all
     /// cases converge, run checkSwitchSkips, then build the BlockSwitch.
     pub fn try_rule_switch(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
-        // (RUGRA_IRRED_DBG read once per process: this rule runs ~4M times
+        // (RUDRA_IRRED_DBG read once per process: this rule runs ~4M times
         // on giant functions and the per-try std::env::var (env lock +
         // alloc) was pure Rust bookkeeping; env is immutable at runtime,
         // decision value identical.)
         static IRRED_SW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
         let irred_sw = *IRRED_SW
-            .get_or_init(|| std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false));
+            .get_or_init(|| std::env::var("RUDRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false));
         // Ghidra cc:1652: if (!bl->isSwitchOut()) return false;
         if !block.read().unwrap().is_switch_out() {
             return false;
@@ -6870,7 +6870,7 @@ impl<'a> CollapseStructure<'a> {
             // (no structure mutation). Ghidra's collapseInternal sets its
             // local change=true from the rule's RETURN VALUE and rescans
             // immediately, so ruleBlockGoto consumes the fresh marks in
-            // the next pass. Rugra's inner loop models that change bool as
+            // the next pass. Rudra's inner loop models that change bool as
             // a structure_change_count delta, so this mark-only arm must
             // bump it: without the bump the loop declares a false fixpoint
             // right after marking, the skip-edge gotos starve, and
@@ -6885,12 +6885,12 @@ impl<'a> CollapseStructure<'a> {
 
         // Ghidra cc:1714-1721: build cases list and create BlockSwitch. The
         // oracle's -cs- vector includes the dispatch block (cs[0]) because
-        // identifyInternal consumes it; Rugra's BlockSwitch keeps the
+        // identifyInternal consumes it; Rudra's BlockSwitch keeps the
         // dispatch in the `control` field and `cases` holds ONLY the case
         // bodies (aligned with case_values, which printc indexes jointly).
         // cc:3515 (addCase): isdefault = switchbl->isDefaultBranch(outindex)
         // — the out-edge installSwitchDefaults marked (the most-hit table
-        // target, switchOver cc:2552-2568) is the formal default; Rugra
+        // target, switchOver cc:2552-2568) is the formal default; Rudra
         // routes it to the separate default_case slot (Ghidra keeps it in
         // caseblocks tagged isdefault; printc.cc:3140-3145 prints `default:`
         // without labels either way).
@@ -7050,7 +7050,7 @@ impl<'a> CollapseStructure<'a> {
             // except the exitblock — including the DEFAULT case (Ghidra
             // keeps it in caseblocks tagged isdefault via addCase, cc:3515;
             // identifyInternal consumes it like any other component). The
-            // previous collection skipped Rugra's default_case slot, leaving
+            // previous collection skipped Rudra's default_case slot, leaving
             // the default body a top-level block whose dispatch->default
             // edge stayed external on the composite — the switch then
             // carried a spurious second out edge, ruleBlockInfLoop (needs
@@ -7116,9 +7116,9 @@ impl<'a> CollapseStructure<'a> {
                         Self::switch_case_basic_coords(&switch_basic, &target);
                     if isdefault {
                         // The oracle's addCase tags this case isdefault (it
-                        // prints `default:`); Rugra's BlockSwitch holds the
+                        // prints `default:`); Rudra's BlockSwitch holds the
                         // default in its own slot. The oracle still records
-                        // the CaseOrder entry; Rugra's separate default slot
+                        // the CaseOrder entry; Rudra's separate default slot
                         // never prints labels for it, so no order record is
                         // needed (documented divergence, block.rs).
                         sw_ref.default_case = Some(target);
@@ -7189,7 +7189,7 @@ impl<'a> CollapseStructure<'a> {
                             .all(|co| co.chain != grab_order_len as i32),
                         "default chain remap left a stale link at the re-added case slot"
                     );
-                    if std::env::var("RUGRA_BS_DUMP")
+                    if std::env::var("RUDRA_BS_DUMP")
                         .map(|v| v == "1" || v == "2")
                         .unwrap_or(false)
                     {
@@ -7357,7 +7357,7 @@ impl<'a> CollapseStructure<'a> {
         }
         // cc:3529-3533's loop adds EVERY component in cs as an ordinary
         // caseblocks member — including the formal default (only the
-        // isdefault flag from addCase cc:3515 distinguishes it). Rugra
+        // isdefault flag from addCase cc:3515 distinguishes it). Rudra
         // routes the default body to the separate default_case slot, so
         // its CaseOrder lives as the VIRTUAL entry at index cases.len():
         // registered in the same casemap so a regular case's fall-thru
@@ -7469,13 +7469,13 @@ impl<'a> CollapseStructure<'a> {
         (jump, order, default_order)
     }
 
-    // RUDRA-GLUE: index bookkeeping for Rugra's separate-default storage
+    // RUDRA-GLUE: index bookkeeping for Rudra's separate-default storage
     // shape — no single Ghidra counterpart function. The oracle's
     // grabCaseBasic appends the multigoto re-added cases AFTER every
     // cs-collected member (block.cc:3548-3553 lands after the chain-fill
     // loop cc:3536-3546, and the default IS a cs-collected member), so in
     // the oracle's flat caseblocks vector the default simply keeps its
-    // grab-time index and chains stay valid. Rugra stores the default in
+    // grab-time index and chains stay valid. Rudra stores the default in
     // its own slot and finalize_case_labels materializes it as the virtual
     // entry at `case_order.len()` (after the re-added cases), so chains
     // recorded against the grab-time virtual index k must shift by the
@@ -7964,10 +7964,10 @@ impl<'a> CollapseStructure<'a> {
             }
             // Faithful to blockaction.cc:1528-1530: in Ghidra, ruleBlockGoto has
             // already consumed break-edges (wrapped as BlockIfGoto) before
-            // ruleBlockWhileDo runs, so neither edge is goto. In Rugra's staged
+            // ruleBlockWhileDo runs, so neither edge is goto. In Rudra's staged
             // approach, the break-edge may still be marked goto on the loop head.
             // So we do NOT bail on goto edges here; instead we find the NON-goto
-            // clause below. (isInteriorGotoTarget omitted — Rugra does not track it.)
+            // clause below. (isInteriorGotoTarget omitted — Rudra does not track it.)
             // Find the clause: out-edge slot whose target has sizeIn==1,
             // sizeOut==1, not switch-out, and loops back to bl (cc:1531-1547).
             let mut found: Option<(Arc<RwLock<dyn FlowBlock + Send + Sync>>, i32)> = None;
@@ -8072,7 +8072,7 @@ impl<'a> CollapseStructure<'a> {
     // Ghidra: blockaction.cc:1854 CollapseStructure::collapseConditions
     /// Run ruleBlockOr on every block. Faithful to `collapseConditions`
     /// (blockaction.cc:1854-1865): simply iterates all blocks and calls
-    /// ruleBlockOr on each. Previously Rugra had a self-invented
+    /// ruleBlockOr on each. Previously Rudra had a self-invented
     /// triangle/diamond detection algorithm here.
     // Ghidra: blockaction.cc:1854 CollapseStructure::collapseConditions
     /// Faithful to `collapseConditions` (blockaction.cc:1854-1865): a do-while
@@ -9326,7 +9326,7 @@ impl Action for ActionFinalStructure {
         // so that scopeBreak's next-sibling fall-thru (block.cc:1277-1287),
         // gotoPrints' next-in-flow successor (block.cc:2881-2890) and
         // emitBlockGraph's emission order all observe the final printing
-        // order. Rugra previously kept finalize_structure's survivor (slot)
+        // order. Rudra previously kept finalize_structure's survivor (slot)
         // order, which is not the oracle's compareFinalOrder permutation:
         // return-ending top-level blocks stayed interleaved instead of
         // moving to the tail.
@@ -9369,7 +9369,7 @@ impl Action for ActionFinalStructure {
         fd.sblocks.scope_break(-1, -1);
         // gotoPrints transport (block.cc:2881-2890 evaluated tree-wide):
         // Ghidra reads `getParent()->nextFlowAfter(this)` lazily at
-        // markUnstructured/emit time; Rugra composites cannot sit in a
+        // markUnstructured/emit time; Rudra composites cannot sit in a
         // BlockGraph::blocks list (no parent wiring), so the identical
         // comparison (front_leaf(target) != next-in-flow successor,
         // block.cc:1335-1353) is evaluated once here — after scopeBreak,
@@ -9384,7 +9384,7 @@ impl Action for ActionFinalStructure {
         // front leaf with f_unstructured_targ. Only blocks carrying this flag
         // get a `code_r0x` label in emitLabelStatement (printc.cc:3198-3214) —
         // loop backedges and structured-branch targets never do. Without this
-        // call, Rugra's label emission fell back to a coarse scan of every
+        // call, Rudra's label emission fell back to a coarse scan of every
         // BRANCH/CBRANCH target (printc.rs goto_targets) and emitted dozens of
         // spurious unreferenced labels.
         fd.sblocks.mark_unstructured();
@@ -9425,7 +9425,7 @@ impl Action for ActionFinalStructure {
         // BlockBasic's op list ends at its terminator (blocks are split at
         // every branch during flow generation, funcdata_block.cc), and flow
         // following never marks ops past an unconditional BRANCH/RETURN
-        // alive. Where Rugra's loader still leaves ops in a block after its
+        // alive. Where Rudra's loader still leaves ops in a block after its
         // unconditional BRANCH/RETURN, this glue retires them via the
         // oracle's canonical kill path, Funcdata::opUninsert
         // (funcdata_op.cc:164-173): PcodeOpBank::markDead (op.cc:1028-1034 —
@@ -10197,7 +10197,7 @@ mod multigoto_defaultchain_tests {
         // sibling's index (i.e. the target IS the sibling's entry leaf)
         // must hold f_break_goto (block.cc:3075-3084 BlockIf::scopeBreak /
         // 2866-2874 BlockGoto::scopeBreak) — this is the `break;` the
-        // oracle prints where the pre-fix Rugra printed `goto code_rXXXX;`
+        // oracle prints where the pre-fix Rudra printed `goto code_rXXXX;`
         // + a spurious label.
         fn collect_carriers(
             bl: &BlockRef,

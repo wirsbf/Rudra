@@ -68,7 +68,7 @@ if ! git -C "$ghidra_root" diff --cached --quiet -- \
   exit 1
 fi
 
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" ]]; then
   for candidate in /tmp/rugra-ghidra-bfd-2.38/usr/include /usr/include; do
     if [[ -f "$candidate/bfd.h" ]] && \
@@ -78,7 +78,7 @@ if [[ -z "$bfd_include" ]]; then
     fi
   done
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-}
+bfd_library=${RUDRA_BFD_LIBRARY:-}
 if [[ -z "$bfd_library" ]]; then
   for candidate in \
       /usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \

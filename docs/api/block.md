@@ -146,8 +146,8 @@
 
 ## 2026-09-29：print_tree_dbg 补 InfLoop 臂（Lane SWITCHDISPATCH 诊断完善）
 
-- **缺口**：`print_tree_dbg`（RUDRA-GLUE 结构树调试转储器，`RUGRA_DUMP_FUNC`
-  /`RUGRA_TREE1` 的输出后端）此前对 `BlockType::InfLoop` 落入 `other` 兜底臂，
+- **缺口**：`print_tree_dbg`（RUDRA-GLUE 结构树调试转储器，`RUDRA_DUMP_FUNC`
+  /`RUDRA_TREE1` 的输出后端）此前对 `BlockType::InfLoop` 落入 `other` 兜底臂，
   只打印 `#N InfLoop @addr` 一行而不递归 `body` —— SetCoderProperties/
   GetOptimumFast（MIRROR-GIANTS-SWITCHDISPATCH-0001 双侧钉形）的结构树转储
   里最外层 InfLoop 的整个循环体不可见，导致与 oracle
@@ -1757,7 +1757,7 @@ body_is_dead 门禁 + RC-4 循环形态 + RC-5 条件错接均未修），内容
 - `print_tree_dbg`（RUDRA-GLUE，BlockGraph::printTree 的诊断复刻，block.cc:616
   printTree 语义）：递归 dump 结构树（索引/类型/front-leaf 地址/BlockGoto 目标
   + goto_type + prints 预计算/if-goto 目标/Switch cases），供 curl/httpd runners
-  的 RUGRA_DUMP_FUNC hook 与 examples/blockstruct_tree_dump.rs 使用。
+  的 RUDRA_DUMP_FUNC hook 与 examples/blockstruct_tree_dump.rs 使用。
 - `dbg_front_leaf_start_addr`：穿透 BlockCopy 包装读 front leaf 起始地址（组合
   节点自身无地址；BlockCopy 未覆写 get_start_addr）。
 
@@ -1871,7 +1871,7 @@ metadata rust_fixture_sha256 重钉（e8f69bfc→81656ef8）。
 
 ## 2026-09-22（续 2）：finalize 见证 dump（调试工具）
 
-`finalize_case_labels` 尾部新增 RUGRA_BS_DUMP=1/2 门控的
+`finalize_case_labels` 尾部新增 RUDRA_BS_DUMP=1/2 门控的
 `[BLOCKSTRUCT] finalizePrinting case[i] label=0x.. depth= chain= outindex=
 labels=[..]` 逐臂见证输出（RUDRA-GLUE，无 Ghidra 对应物；label 管道结构层
 验收的观察窗口）。
@@ -2013,7 +2013,7 @@ phi@0x5440（5454→5440 回边）被错误放行；守卫接入后该池 861=86
    `max(前缀 regular label)+1`（首位为 0），使 count==oracle 合并序前缀数 r
    （链根与 default 同 label 时仍计入前缀=oracle 的 depth tie-break）。残角：
    链穿过 default 延续（default 后还有同 label regular）无精确标量，key 尽力
-   （RUGRA_BS_DUMP 见证；双语料实测 0 次触发）。
+   （RUDRA_BS_DUMP 见证；双语料实测 0 次触发）。
 4. **效果**（curl 默认脸 489→474）：glob_set 38→23——switch 体与 canon 同构
    （`case '\\':` 直落 `default:` 无 goto、`case ']'` 居 default 后）；httpd
    908 逐字节恒等；glob_word 等 label-rank 消费者 def_pos 数学等价（root-default
@@ -2142,7 +2142,7 @@ structure_loops 驱动端到端）。
 ## 2026-09-27 — F8FOR-REJECT-RESIDUAL-0001 两门拒例钉因 + 门链回归锁（Lane F8FOR 续）
 
 F8FOR 残量票（oracle 转 for 而 Rugra 拒的两门）逐函数探针钉因结论（探针
-eprintln 逐门打点，`--one`/`RUGRA_GEN_ONLY` 逐函数跑 sq 21 + sqlite 44 个
+eprintln 逐门打点，`--one`/`RUDRA_GEN_ONLY` 逐函数跑 sq 21 + sqlite 44 个
 census 两族函数，探针代码提交前全数移除）：
 
 - **门 1（findLoopVariable 的 isMoveable 分量）——根因不在 block.rs**：
@@ -2240,7 +2240,7 @@ dup_ 标签/default 位/嵌套标签位全系）。
    者）→ label rank（不变）;未置（gather 期）→ 构造序 rank（新）。
 
 **验证**：sasquatch SetCoderProperties（idx 470）:双侧 GATHER 探针对拍 —
-oracle（gold_gather_trace,RUGRA_GATHER_TRACE）edge 7 链 `t_goto prints=1
+oracle（gold_gather_trace,RUDRA_GATHER_TRACE）edge 7 链 `t_goto prints=1
 parent_null=0`（后继链终于 InfLoop 头 0x288db）;Rugra 修复前
 `target=0x2890a succ=0x2890a`（后继=自身目标 → prints=false 拒选）,修复后
 `succ=0x289f0`（≠ 目标 → 选入）→ nodeSplit 17 份对齐,函数体规范化 diff 归零
@@ -2314,7 +2314,7 @@ tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence�
 
 ## ARENAFLIP-f（2026-09-30）BANKSTATS 观测探针（默认关）
 
-`RUGRA_BANKSTATS=1` 时 `src/block.rs::bank_stats` 累计 per-read bank 解析面
+`RUDRA_BANKSTATS=1` 时 `src/block.rs::bank_stats` 累计 per-read bank 解析面
 事件计数（read_index/read_btype/read_arc/view_holds/view_index/view_btype/
 view_arc/id_lookups/publishes/shadow_writes），`bank_stats::report()` 在
 gen_decompile 尾部（all 模式与 --one 模式）打一行 stderr。纯观测（默认零成

@@ -44,7 +44,7 @@ impl SleighLifter {
     /// translator's `varnode_xref`) and all instruction decoding
     /// (`Architecture::restoreFromSpec`, architecture.cc:627-641,
     /// `buildTranslator` + one `initialize` + `translate = newtrans`).
-    /// Rugra's two per-leg `SleighCtx::new()` calls deserialized
+    /// Rudra's two per-leg `SleighCtx::new()` calls deserialized
     /// `x86-64.sla` twice per hermetic child; this constructor restores the
     /// single-instance oracle shape by ownership transfer (Arc sharing is
     /// unnecessary: the single-threaded engine lifecycle
@@ -212,7 +212,7 @@ impl SleighLifter {
 // RUDRA-GLUE: linear SLEIGH decode over a byte window (driver/test raw-op
 // construction). Ghidra itself has no linear decoder — its only contract is
 // flow-following through Translate::oneInstruction (flow.cc:421) — so this
-// walk is pure Rugra glue: decode each boundary in [base, base+len), and on
+// walk is pure Rudra glue: decode each boundary in [base, base+len), and on
 // an undecodable byte skip one byte with zero ops (the retired iced walk's
 // "Unimplemented" fallback contract).
 pub fn sleigh_raw_ops(code: &[u8], base: u64) -> Vec<PcodeOpRaw> {

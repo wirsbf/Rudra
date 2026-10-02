@@ -1,24 +1,24 @@
 //! DataType alignment verification logic.
 //!
-//! This module ensures that Rugra's type system matches Ghidra's
+//! This module ensures that Rudra's type system matches Ghidra's
 //! internal Datatype representation as defined in `type.hh`.
 
 use crate::types::{DataType, StructDef, FieldDef};
 
 // RUDRA-GLUE: verify_datatype (no Ghidra counterpart found)
-/// Verify that a Rugra DataType aligns with Ghidra's representation
+/// Verify that a Rudra DataType aligns with Ghidra's representation
 ///
 /// Checks size and metatype compatibility
 pub fn verify_datatype(
-    rugra_type: &DataType,
+    rudra_type: &DataType,
     ghidra_name: &str,
     ghidra_size: usize,
     ghidra_metatype: &str,
 ) -> bool {
-    let size_match = rugra_type.size() == ghidra_size;
+    let size_match = rudra_type.size() == ghidra_size;
 
     // Verify metatype compatibility
-    let metatype_match = match (rugra_type, ghidra_metatype) {
+    let metatype_match = match (rudra_type, ghidra_metatype) {
         (DataType::Pointer(..), "ptr") => true,
         (DataType::Array(..), "array") => true,
         (DataType::Struct(_), "struct") => true,
@@ -32,19 +32,19 @@ pub fn verify_datatype(
 
     if !size_match {
         eprintln!(
-            "[ALIGN DIFF] DataType size mismatch: Ghidra '{}' size {}, Rugra size {}",
+            "[ALIGN DIFF] DataType size mismatch: Ghidra '{}' size {}, Rudra size {}",
             ghidra_name,
             ghidra_size,
-            rugra_type.size()
+            rudra_type.size()
         );
     }
 
     if !metatype_match {
         eprintln!(
-            "[ALIGN DIFF] DataType metatype mismatch: Ghidra '{}' type '{}', Rugra {:?}",
+            "[ALIGN DIFF] DataType metatype mismatch: Ghidra '{}' type '{}', Rudra {:?}",
             ghidra_name,
             ghidra_metatype,
-            rugra_type
+            rudra_type
         );
     }
 
@@ -54,63 +54,63 @@ pub fn verify_datatype(
 // RUDRA-GLUE: verify_struct_layout (no Ghidra counterpart found)
 /// Verify struct layout alignment
 ///
-/// Checks that field offsets and sizes match between Rugra and Ghidra
+/// Checks that field offsets and sizes match between Rudra and Ghidra
 pub fn verify_struct_layout(
-    rugra_struct: &StructDef,
+    rudra_struct: &StructDef,
     ghidra_name: &str,
     ghidra_fields: &[(String, usize, usize)], // (name, offset, size)
 ) -> bool {
-    if rugra_struct.name != ghidra_name {
+    if rudra_struct.name != ghidra_name {
         eprintln!(
-            "[ALIGN DIFF] Struct name mismatch: Rugra '{}' != Ghidra '{}'",
-            rugra_struct.name,
+            "[ALIGN DIFF] Struct name mismatch: Rudra '{}' != Ghidra '{}'",
+            rudra_struct.name,
             ghidra_name
         );
         return false;
     }
 
-    if rugra_struct.fields.len() != ghidra_fields.len() {
+    if rudra_struct.fields.len() != ghidra_fields.len() {
         eprintln!(
-            "[ALIGN DIFF] Struct '{}' field count mismatch: Rugra {} != Ghidra {}",
+            "[ALIGN DIFF] Struct '{}' field count mismatch: Rudra {} != Ghidra {}",
             ghidra_name,
-            rugra_struct.fields.len(),
+            rudra_struct.fields.len(),
             ghidra_fields.len()
         );
         return false;
     }
 
     // Verify each field
-    for (rugra_field, (ghidra_name, ghidra_offset, ghidra_size)) in
-        rugra_struct.fields.iter().zip(ghidra_fields.iter()) {
+    for (rudra_field, (ghidra_name, ghidra_offset, ghidra_size)) in
+        rudra_struct.fields.iter().zip(ghidra_fields.iter()) {
 
-        if rugra_field.name != *ghidra_name {
+        if rudra_field.name != *ghidra_name {
             eprintln!(
-                "[ALIGN DIFF] Field name mismatch in struct '{}': Rugra '{}' != Ghidra '{}'",
-                rugra_struct.name,
-                rugra_field.name,
+                "[ALIGN DIFF] Field name mismatch in struct '{}': Rudra '{}' != Ghidra '{}'",
+                rudra_struct.name,
+                rudra_field.name,
                 ghidra_name
             );
             return false;
         }
 
-        if rugra_field.offset != *ghidra_offset {
+        if rudra_field.offset != *ghidra_offset {
             eprintln!(
-                "[ALIGN DIFF] Field '{}' offset mismatch in struct '{}': Rugra {} != Ghidra {}",
-                rugra_field.name,
-                rugra_struct.name,
-                rugra_field.offset,
+                "[ALIGN DIFF] Field '{}' offset mismatch in struct '{}': Rudra {} != Ghidra {}",
+                rudra_field.name,
+                rudra_struct.name,
+                rudra_field.offset,
                 ghidra_offset
             );
             return false;
         }
 
-        let rugra_size = rugra_field.data_type.size();
-        if rugra_size != *ghidra_size {
+        let rudra_size = rudra_field.data_type.size();
+        if rudra_size != *ghidra_size {
             eprintln!(
-                "[ALIGN DIFF] Field '{}' size mismatch in struct '{}': Rugra {} != Ghidra {}",
-                rugra_field.name,
-                rugra_struct.name,
-                rugra_size,
+                "[ALIGN DIFF] Field '{}' size mismatch in struct '{}': Rudra {} != Ghidra {}",
+                rudra_field.name,
+                rudra_struct.name,
+                rudra_size,
                 ghidra_size
             );
             return false;
@@ -123,37 +123,37 @@ pub fn verify_struct_layout(
 // RUDRA-GLUE: verify_field (no Ghidra counterpart found)
 /// Verify field definition alignment
 pub fn verify_field(
-    rugra_field: &FieldDef,
+    rudra_field: &FieldDef,
     ghidra_name: &str,
     ghidra_offset: usize,
     ghidra_size: usize,
 ) -> bool {
-    let name_match = rugra_field.name == ghidra_name;
-    let offset_match = rugra_field.offset == ghidra_offset;
-    let size_match = rugra_field.data_type.size() == ghidra_size;
+    let name_match = rudra_field.name == ghidra_name;
+    let offset_match = rudra_field.offset == ghidra_offset;
+    let size_match = rudra_field.data_type.size() == ghidra_size;
 
     if !name_match {
         eprintln!(
-            "[ALIGN DIFF] Field name mismatch: Rugra '{}' != Ghidra '{}'",
-            rugra_field.name,
+            "[ALIGN DIFF] Field name mismatch: Rudra '{}' != Ghidra '{}'",
+            rudra_field.name,
             ghidra_name
         );
     }
 
     if !offset_match {
         eprintln!(
-            "[ALIGN DIFF] Field '{}' offset mismatch: Rugra {} != Ghidra {}",
-            rugra_field.name,
-            rugra_field.offset,
+            "[ALIGN DIFF] Field '{}' offset mismatch: Rudra {} != Ghidra {}",
+            rudra_field.name,
+            rudra_field.offset,
             ghidra_offset
         );
     }
 
     if !size_match {
         eprintln!(
-            "[ALIGN DIFF] Field '{}' size mismatch: Rugra {} != Ghidra {}",
-            rugra_field.name,
-            rugra_field.data_type.size(),
+            "[ALIGN DIFF] Field '{}' size mismatch: Rudra {} != Ghidra {}",
+            rudra_field.name,
+            rudra_field.data_type.size(),
             ghidra_size
         );
     }
@@ -164,24 +164,24 @@ pub fn verify_field(
 // RUDRA-GLUE: verify_pointer_type (no Ghidra counterpart found)
 /// Verify pointer type alignment
 pub fn verify_pointer_type(
-    rugra_type: &DataType,
+    rudra_type: &DataType,
     _ghidra_pointee_size: usize,
     ghidra_ptr_size: usize,
 ) -> bool {
-    match rugra_type {
+    match rudra_type {
         DataType::Pointer { .. } => {
-            let size_match = rugra_type.size() == ghidra_ptr_size;
+            let size_match = rudra_type.size() == ghidra_ptr_size;
             if !size_match {
                 eprintln!(
-                    "[ALIGN DIFF] Pointer size mismatch: Rugra {} != Ghidra {}",
-                    rugra_type.size(),
+                    "[ALIGN DIFF] Pointer size mismatch: Rudra {} != Ghidra {}",
+                    rudra_type.size(),
                     ghidra_ptr_size
                 );
             }
             size_match
         }
         _ => {
-            eprintln!("[ALIGN DIFF] Expected pointer type, got {:?}", rugra_type);
+            eprintln!("[ALIGN DIFF] Expected pointer type, got {:?}", rudra_type);
             false
         }
     }
@@ -190,25 +190,25 @@ pub fn verify_pointer_type(
 // RUDRA-GLUE: verify_array_type (no Ghidra counterpart found)
 /// Verify array type alignment
 pub fn verify_array_type(
-    rugra_type: &DataType,
+    rudra_type: &DataType,
     _ghidra_element_size: usize,
     _ghidra_element_count: usize,
     ghidra_total_size: usize,
 ) -> bool {
-    match rugra_type {
+    match rudra_type {
         DataType::Array { .. } => {
-            let size_match = rugra_type.size() == ghidra_total_size;
+            let size_match = rudra_type.size() == ghidra_total_size;
             if !size_match {
                 eprintln!(
-                    "[ALIGN DIFF] Array size mismatch: Rugra {} != Ghidra {}",
-                    rugra_type.size(),
+                    "[ALIGN DIFF] Array size mismatch: Rudra {} != Ghidra {}",
+                    rudra_type.size(),
                     ghidra_total_size
                 );
             }
             size_match
         }
         _ => {
-            eprintln!("[ALIGN DIFF] Expected array type, got {:?}", rugra_type);
+            eprintln!("[ALIGN DIFF] Expected array type, got {:?}", rudra_type);
             false
         }
     }
@@ -216,13 +216,13 @@ pub fn verify_array_type(
 
 // RUDRA-GLUE: verify_primitive_size (no Ghidra counterpart found)
 /// Verify primitive type size alignment
-pub fn verify_primitive_size(rugra_type: &DataType, ghidra_size: usize) -> bool {
-    let size_match = rugra_type.size() == ghidra_size;
+pub fn verify_primitive_size(rudra_type: &DataType, ghidra_size: usize) -> bool {
+    let size_match = rudra_type.size() == ghidra_size;
     if !size_match {
         eprintln!(
-            "[ALIGN DIFF] Primitive type size mismatch: Rugra {:?} (size {}) != Ghidra size {}",
-            rugra_type,
-            rugra_type.size(),
+            "[ALIGN DIFF] Primitive type size mismatch: Rudra {:?} (size {}) != Ghidra size {}",
+            rudra_type,
+            rudra_type.size(),
             ghidra_size
         );
     }
@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_verify_struct_layout() {
-        let rugra_struct = StructDef {
+        let rudra_struct = StructDef {
             name: "Point".to_string(),
             fields: vec![
                 FieldDef {
@@ -295,12 +295,12 @@ mod tests {
             ("y".to_string(), 4, 4),
         ];
 
-        assert!(verify_struct_layout(&rugra_struct, "Point", &ghidra_fields));
+        assert!(verify_struct_layout(&rudra_struct, "Point", &ghidra_fields));
     }
 
     #[test]
     fn test_verify_struct_layout_mismatch() {
-        let rugra_struct = StructDef {
+        let rudra_struct = StructDef {
             name: "Point".to_string(),
             fields: vec![
                 FieldDef {
@@ -316,6 +316,6 @@ mod tests {
             ("y".to_string(), 4, 4), // Extra field in Ghidra
         ];
 
-        assert!(!verify_struct_layout(&rugra_struct, "Point", &ghidra_fields));
+        assert!(!verify_struct_layout(&rudra_struct, "Point", &ghidra_fields));
     }
 }

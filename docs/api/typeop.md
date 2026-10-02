@@ -48,13 +48,13 @@ coreaction.rs 的 ActionInferTypes 分发，不受影响）：
   全灭且 `command==AddZero`（加了 0）时回退 alttype——此前 `pointer?` 一律
   None。双侧 fixture `ptr + 0`（base pointee）用例 oracle 直跑 present=1
   亲证该分支为 oracle 真行为。
-- **B2 双侧 fixture**（RAM 盘迭代形，`/dev/shm/rugra-tests/typeopfix/bilateral/`）：
+- **B2 双侧 fixture**（RAM 盘迭代形，`/dev/shm/rudra-tests/typeopfix/bilateral/`）：
   12 用例（int const/非 const/outslot 形态、uint、pointer wrap/bad-add/
   AddZero/NoPropagate/跨 input/反向）oracle 直跑 vs Rust **字节恒等**
   （sha256 `0dcbea29…`，双侧 76 行投影零差异）。
 - **登记发现（未修，越界）**：`propagate_add_pointer` INT_ADD 臂 cc:1302 读
   `othervn->getTempType()`（当轮浮动类型），Rust 镜像读永久 `v_type`——
-  Rugra 的 TempTypes 是 Action 帧侧表（coreaction.rs:7574），静态
+  Rudra 的 TempTypes 是 Action 帧侧表（coreaction.rs:7574），静态
   `propagate_add_pointer` 结构上不可达；两侧在 buildLocaltypes 初始化态下
   同结果（int8 ≠ PTR），但"常量当轮浮动成 pointer"的可达路径待
   TYPEOP-INTADD-TEMPREAD-0001 分析。
@@ -334,11 +334,11 @@ build_localtypes v_type 播种）另行切片。
   （`typeop.cc:745-774`）**，与 CALL 有意保留三处不对称（fixture 必测判别面）：
   - `slot==0` 返回 code pointer：`tlst->getTypeCode()` + `tlst->getTypePointer(
     in0.size, td, op.addr.space.wordsize)`（typeop.cc:752-756； getTypeCode/
-    getTypePointer 需工厂写锁）。Rugra 无 `op->getParent()->getFuncdata()` 链，
+    getTypePointer 需工厂写锁）。Rudra 无 `op->getParent()->getFuncdata()` 链，
     空间经 `op.get_addr().get_space()` 读取，spaceless 旧式 Address 回退
     wordsize 1（锁定 oracle 的 code space wordsize 均为 1）。
   - callspec 来源不同：走 `getCallSpecs(op)`（typeop.cc:757）而非 CALL 的
-    fspec 常量解码——Rugra 由 `fd.get_call_specs_of_op(op_ref)` 承载（op
+    fspec 常量解码——Rudra 由 `fd.get_call_specs_of_op(op_ref)` 承载（op
     identity 扫描，非地址扫描）。
   - 锁定参数检查**只有 VOID 拒绝，没有 `size <= in(slot).size` 检查**
     （typeop.cc:764 vs CALL 的 :707）；this-pointer 分支同 CALL（:767-771）。
@@ -398,7 +398,7 @@ ZEXT/UINT 与 SEXT/INT 判别（oracle 侧记录 TypeOpFunc metain/metaout 推�
 
 - `slot==0` 或 input0 不是 callspec 注解时，返回基类行为
   `tlst->getBase(op->getIn(slot)->getSize(), TYPE_UNKNOWN)`（`typeop.cc:271-275`）。
-  由于 Rugra 的 `TypeOp` trait object 不持有 `tlst`，`TypeOpCall` 构造时接收
+  由于 Rudra 的 `TypeOp` trait object 不持有 `tlst`，`TypeOpCall` 构造时接收
   `Arc<RwLock<TypeFactory>>`（与 Architecture/VarnodeBank 同一分配），fallback
   由该工厂的 canonical `get_base` 提供。
 - IPTR_FSPEC 判定采用 D0 表示：Iop 空间 + `ANNOTATION` flag + typed callspec
@@ -430,7 +430,7 @@ pointer→value 方向现在把目标 Varnode 的真实字节宽度传给
 错误标成整个 `ProgressData`，32B exact STORE 仍保留类型身份。
 
 prospective 双侧 fixture `tests/oracle/type_ptrwidth_1204.{cc,rs,metadata.json}` 计划直接调用
-锁定 Ghidra 12.0.4 `TypeOpLoad/Store::propagateType` 与 Rugra 对应函数，比较同一组
+锁定 Ghidra 12.0.4 `TypeOpLoad/Store::propagateType` 与 Rudra 对应函数，比较同一组
 LOAD/STORE 宽度、别名和身份观察。当前 prospective fixture 只把 Varnode 单向挂到 PcodeOp 槽位：
 C++ PcodeOp 的 opcode 仍为 null，且未建立 output→def/input→descend；Rust PcodeOp
 带 CPUI_LOAD/STORE opcode，但也没有走生产 builder。因此它不是同一份生产 IR/别名图。
@@ -442,7 +442,7 @@ covered projection 保守记为 `NO_ORACLE`，不得沿用旧 standalone fixture
 状态仍为 **MISMATCH**：Ghidra 在 size mismatch 时还允许 plain enum 的
 `TypePartialEnum` 与 `TypePointerRel` parent 上的 enum exact-piece。该路径必须由拥有
 canonical registry 的 `TypeFactory::getExactPiece` 构造；当前 TypeOp trait 没有 factory
-参数，所以 Rugra 暂时 fail-closed，记为 `TYPEFACTORY-EXACTPIECE-0001`，未用本地
+参数，所以 Rudra 暂时 fail-closed，记为 `TYPEFACTORY-EXACTPIECE-0001`，未用本地
 `Arc::new` 伪造对象身份。
 
 LOAD/STORE 的 spacebase 守卫按 oracle 的显式传播源 `invn` 判断；尤其 LOAD
@@ -674,7 +674,7 @@ Push this operation to a language printer
 新增模块级 `pub fn evaluate_unary(opc, size_out, size_in, in1) -> Option<u64>` 与
 `pub fn evaluate_binary(opc, size_out, size_in, in1, in2) -> Option<u64>`，
 对应 Ghidra `TypeOp::evaluateUnary/evaluateBinary`（typeop.hh:81-92，内联委托
-`behave->evaluate*`）。Rugra 无 per-op TypeOp 实例，桥承担该角色：
+`behave->evaluate*`）。Rudra 无 per-op TypeOp 实例，桥承担该角色：
 
 - 非 FLOAT opcode 委托 `opbehavior::{evaluate_unary, evaluate_binary}` 自由函数表
   （opbehavior.cc:171-792 的整数/布尔/PIECE/SUBPIECE 全表）；
@@ -720,7 +720,7 @@ LOAD/STORE 专用 cast 臂需要构造 pointer 包装类型（`tlst->getTypePoin
 
 Ghidra 的 `TypeOp::propagateToPointer` 终归 3-arg
 `t->getTypePointer(sz,dt,wordsz)`（typeop.cc:197 / type.cc:3867-3875），指针名
-为空。Rugra 此前给产物附带组合名（`"char *"`），使下游声明/转型把该指针当
+为空。Rudra 此前给产物附带组合名（`"char *"`），使下游声明/转型把该指针当
 命名单层指针渲染（`char * pcVar5`，oracle named_ptr_contrast 形），偏离
 golden 的匿名钻取形 `char *pcVar5`。现在用 `TypePointer::new`（空名 +
 calc_submeta）构造。coreaction.rs 的 `make_pointer_type`/`make_ptr`/
@@ -748,7 +748,7 @@ TypeOpStore::getInputCast cc:546-548 的 cast-already-in-place 测试——依�
 （`fp->getOutputType()`，fspec.hh:1538；非 void 且尺寸匹配时保留，否则基类默认
 `getBase(size,TYPE_UNKNOWN)`）。这是 DWARF 锁定枚举返回类型（`CURLcode`）经
 `ActionInferTypes::buildLocaltypes`→`writeBack` 到达 `return CURLE_OK;` 常量的
-唯一播种通道。Rugra 以 `get_input_local_in_fd`（fd 经 build_localtypes 显式穿线，
+唯一播种通道。Rudra 以 `get_input_local_in_fd`（fd 经 build_localtypes 显式穿线，
 因 Rust PcodeOp 无 parent→Funcdata 链）补齐该覆写；fd-缺失形态保持 Ghidra
 `bb==0` 回退（基 undefined）。
 

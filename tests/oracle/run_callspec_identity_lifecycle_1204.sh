@@ -36,7 +36,7 @@ overlay_paths=(
   src/varnode.rs
 )
 
-cache_root=${RUGRA_CALLSPEC_IDENTITY_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-callspec-identity-1204}
+cache_root=${RUDRA_CALLSPEC_IDENTITY_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-callspec-identity-1204}
 mkdir -p "$cache_root/tmp" "$cache_root/target"
 run_root=$(mktemp -d "$cache_root/run.XXXXXX")
 cleanup() {
@@ -99,7 +99,7 @@ if [[ "$(git -C "$repo_root" rev-parse "${rugra_base_commit}^{commit}")" != "$ru
   exit 1
 fi
 
-bfd_include=${RUGRA_BFD_INCLUDE:-}
+bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" ]]; then
   for candidate in /tmp/rugra-ghidra-bfd-2.38/usr/include /usr/include; do
     if [[ -f "$candidate/bfd.h" ]] && \
@@ -109,7 +109,7 @@ if [[ -z "$bfd_include" ]]; then
     fi
   done
 fi
-bfd_library=${RUGRA_BFD_LIBRARY:-}
+bfd_library=${RUDRA_BFD_LIBRARY:-}
 if [[ -z "$bfd_library" ]]; then
   for candidate in \
       /tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \
@@ -296,7 +296,7 @@ for key, record in metadata["coverage"].items():
 require("coverage residual union", coverage_residuals, set(metadata["residual_todo_ids"]))
 PY
 
-if [[ ${RUGRA_CALLSPEC_VALIDATE_ONLY:-0} == 1 ]]; then
+if [[ ${RUDRA_CALLSPEC_VALIDATE_ONLY:-0} == 1 ]]; then
   echo "callspec_identity_lifecycle_1204 metadata/source lock validation passed"
   exit 0
 fi

@@ -2,7 +2,7 @@
 
 ## 2026-10-02：CLONESURG-CLONELABEL-ANCHOR-0001 — 标签锚定叶优先：pending/backpatch 臂让位 `f_unstructured_targ` 锚定叶（Lane CLONESURG）
 **现象**：sqlite 镜面 ExprIsConstant×5 克隆族（5 函数 ×16 行）里的标号换位子形
-（2 行/函数 ×5）：Rugra 在 return-1 位点（共享尾声 0x3b232 的 nodeSplit 副本，
+（2 行/函数 ×5）：Rudra 在 return-1 位点（共享尾声 0x3b232 的 nodeSplit 副本，
 `f_duplicate_block`）打印 `dup_r0x0003b232:`，而 switch-default 的
 `goto code_r0x0003b232` 引用的锚定叶（return-0 链，`f_unstructured_targ`）无标号
 ——**悬空 goto**（gcc label-not-found 级缺陷）；oracle 在锚定叶位点打印
@@ -11,7 +11,7 @@
 **根因（oracle 亲读 + 双侧探针）**：Ghidra 的 goto 位点与标签位点都经
 `emitLabel(bl)`→`getFrontLeaf()`→同一 BlockBasic——`markCopyBlock(gototarget)`
 （block.cc:1233-1238）把 `f_unstructured_targ` 落在 goto 目标的前叶上，标号必然
-在该叶自己的发射点打印（emitAnyLabelStatement，printc.cc:3219-3226）。Rugra 的
+在该叶自己的发射点打印（emitAnyLabelStatement，printc.cc:3219-3226）。Rudra 的
 `pending_goto_labels` 兜底臂/回贴臂是地址键控的"首个发射副本"语义：return-1 副本
 在程序序上先于锚定叶发射，就以副本的 per-site dup 前缀抢印并经 `printed_labels`
 单次守卫压制了锚定叶的正确打印。
@@ -33,7 +33,7 @@ curl 13/httpd 2/vsh 0/sq 124 四面恒等保持；canon 双语素 md5 精确命�
 ## 2026-10-01：MCENSUS5-WRAPEMIT-CROSSFACE-0001 — 运算符 glue 解胶：STORE 赋值/布尔合并/if-goto-头分隔恢复 emitOp token 协议（Lane WRAPEMIT）
 **现象**：镜面 wrap-only 族 208 行（sq 98 + sqlite 110，块去空白恒等判定）——
 sq GetOptimum 双函数整函数纯 wrap（41+24）、sqlite str_appendf/trio/Btree 簇。
-双侧形：Rugra 断点错位（STORE 在 `= ` 后断、续行无 +5 缩进、行尾空格；
+双侧形：Rudra 断点错位（STORE 在 `= ` 后断、续行无 +5 缩进、行尾空格；
 `if (...&& ` 行尾空格 + `; ` 独行；除法断列错位），Ghidra 断在 emitOp 断点
 token 上（`=` 后断 + bump 5 续行、`&&` 后断无尾空格）。
 
@@ -42,7 +42,7 @@ token 上（`=` 后断 + bump 5 续行、`&&` 后断无尾空格）。
 bump)`，prettyprint.hh:914-915），printc 的每个运算符经 `PrintLanguage::emitOp`
 （printlanguage.cc:328-371）发射为 `spaces(spacing,bump) + tagOp(op) +
 spaces(spacing,bump)` 三 token 序（赋值 bump=5/cc:56，布尔 and/or bump=0/
-cc:53-55）。Rugra 的 EmitPrettyPrint 端口逐位恒等（同 token 流喂双侧 C++/Rust
+cc:53-55）。Rudra 的 EmitPrettyPrint 端口逐位恒等（同 token 流喂双侧 C++/Rust
 实现输出字节相同——oracle_probe 实验亲证）；差异在**流构造层**：printc.rs 的
 STORE 臂（dispatch_op_rpn）把赋值运算符胶合为单次 `tag_op(" = ")`（217 处/
 GetOptimum），布尔合并条件胶合 `print(" && ")`/`print(" || ")`，if/for/return/
@@ -81,13 +81,13 @@ goto 的 oracle `spaces(1)` 分隔被替换为字面 `print(" ")`——断点 to
 
 - **现象（sqlite 镜面 60 行/4 函数）**：golden `case (int4 *)0x1:` /
   `case (int8 *)0x2:`（sqlite3TableAffinity ×6 + sqlite3_serialize ×10 +
-  sqlite3VdbeRecordCompare{,WithSkip}），Rugra 全部印 `case 0x1:`。
+  sqlite3VdbeRecordCompare{,WithSkip}），Rudra 全部印 `case 0x1:`。
 - **根因**：`emitSwitchCase` 的 case 值发射（printc.cc:3153
   `pushConstant(val,ct,casetoken,(Varnode *)0,op)`）是**完整 metatype
   分派**——`ct = switchbl->getSwitchType()`（cc:3137，BRANCHIND 输入
   varnode 的类型）为 TYPE_PTR 时走默认 cast 臂（cc:1806-1815
   `pushOp(&typecast)+pushType`），enum 类型走成员名臂（cc:1756/1763）。
-  Rugra 的 case 值发射只手写了 charprint/整数两臂，缺 Pointer 默认
+  Rudra 的 case 值发射只手写了 charprint/整数两臂，缺 Pointer 默认
   cast 与 enum 成员名——指针型 switch 变量（TableAffinity 的
   `(int4*)` 强转链）的 case 标签丢 cast。
 - **修复**：`constant_leaf_text` 的 metatype match 抽出为
@@ -133,7 +133,7 @@ goto 的 oracle `spaces(1)` 分隔被替换为字面 `print(" ")`——断点 to
 
 **根因（双侧钉死）**：机器 0x2ba6f `test/jne 2bf00`——jne 走错误路径（0x1117e
 检查块 @0x12bf00），**直落 0x12ba77=switch dispatch 块**（`movzbl 0x33(%rsp)`…
-`notrack jmp *%rax`）；golden/Rugra 结构树两侧同形（Rugra `#5 IFGOTO
+`notrack jmp *%rax`）；golden/Rudra 结构树两侧同形（Rudra `#5 IFGOTO
 target=0x12ba77(#6)`→尾部 `#6 Switch control=#6`），标签机制链完整——分歧在
 RUDRA-GLUE 防御层：`emit_block_ops` 的 discovery 账本（GOTO-LABEL-UNPRINTED-
 0001）只解包 `BlockGoto`（BLOCKACTION-SWITCH-CASE-GOTO-WRAP-0001 先例），
@@ -158,9 +158,9 @@ BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001 的 httpd main 站点收口（curl `goto X; X
 
 ## 2026-09-28：MAINMIXED-WRAP-0001 — comma_separate 分隔符与 for 头子句分隔恢复双 token 发射（Lane MAINMIXED）
 
-**现象**：canon httpd main for 头折点错位——Rugra 在 `(undefined *)0x0` 之后、`;`
+**现象**：canon httpd main for 头折点错位——Rudra 在 `(undefined *)0x0` 之后、`;`
 之前断行（`...0x0\n    ; ppuVar15 = ppuVar15 + 1) {`），golden 断在逗号之后
-（`...puVar1 = *ppuVar14,\n    puVar1 != ...`）；且 Rugra 断行处遗留行尾空格
+（`...puVar1 = *ppuVar14,\n    puVar1 != ...`）；且 Rudra 断行处遗留行尾空格
 （`", "` 整 token 后接合成 0 宽 tokenbreak）。curl 同族 2 处行尾空格
 （:531/:2273）。
 
@@ -168,7 +168,7 @@ BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001 的 httpd main 站点收口（curl `goto X; X
 `emit->print(COMMA); emit->spaces(1);` **两次调用**——spaces(1) 是
 EmitPrettyPrint 的 tokenbreak（Oppen 扫描在溢出时按 scanqueue 自底强制的
 断行机会，prettyprint.cc:792-800）；emitForLoop 的两个子句分隔同理
-（cc:2981-2982/2984-2985 `print(SEMICOLON); spaces(1)`）。Rugra 把 `", "` /
+（cc:2981-2982/2984-2985 `print(SEMICOLON); spaces(1)`）。Rudra 把 `", "` /
 `"; "` 胶合成单次 `print`——断点消失，强制断行落到下一 token 前的合成 0 宽
 分隔（checkstring，cc:819-828），产生行尾空格 + 错位折点。
 
@@ -225,7 +225,7 @@ printlist 循环双锁）。oracle 侧 production `OptionCommentStyle::apply` +
 `check_address_of_cast`（printc.cc:376-418）补齐 cc:390-393 的两条剥离环：
 array 元素基（base0）与 dt1 pointee（base1）各自沿 per-type `typedef_imm`
 通道（type.hh:196/244，工厂 `get_typedef` type.cc:3834 置位）走到根后再比
-（cc:394-395）。此前该环被登记为"Rugra 无 typedef 链、恒等形态"（PRINTC0004
+（cc:394-395）。此前该环被登记为"Rudra 无 typedef 链、恒等形态"（PRINTC0004
 handover）；通道落地后为 1:1 行为。非 typedef 基型立即停步，与 oracle null
 `typedefImm` 恒等。测试矩阵 `test_check_address_of_cast_matrix` 新增
 (f) typedef 元素剥离正例（td(int) 元素 vs int pointee 仍渲染 `&`）与
@@ -262,7 +262,7 @@ golden 收敛）、canon httpd 283→**263**/0/0（20 行 SEXT48→`(long)` cast
 
 ## 2026-09-25：常量叶显式后缀 U/L 通道（PRINTC-INTSUFFIX-0001 / Lane STRLIT）
 
-`PrintC::push_integer`（Ghidra: printc.cc:1288）的显式打印后缀补全——`force_unsigned_token = vn->isUnsignedPrint()` / `force_sized_token = vn->isLongPrint()`（cc:1296-1297，`vn != 0 && !isAnnotation()` 门内读取）与尾部 `t << 'U'` / `t << sizeSuffix`（cc:1362-1365）。旗标由 `ActionSetCasts` 经 `CastStrategy::markExplicitUnsigned`/`markExplicitLongSize`（cast.cc:38-108，coreaction.cc:2664-2665 调用）写入 varnode `addlflags`（Rugra 的 `UNSIGNED_PRINT`/`LONG_PRINT` 已在 coreaction 落地），此前打印侧从不读取——常量恒无后缀。
+`PrintC::push_integer`（Ghidra: printc.cc:1288）的显式打印后缀补全——`force_unsigned_token = vn->isUnsignedPrint()` / `force_sized_token = vn->isLongPrint()`（cc:1296-1297，`vn != 0 && !isAnnotation()` 门内读取）与尾部 `t << 'U'` / `t << sizeSuffix`（cc:1362-1365）。旗标由 `ActionSetCasts` 经 `CastStrategy::markExplicitUnsigned`/`markExplicitLongSize`（cast.cc:38-108，coreaction.cc:2664-2665 调用）写入 varnode `addlflags`（Rudra 的 `UNSIGNED_PRINT`/`LONG_PRINT` 已在 coreaction 落地），此前打印侧从不读取——常量恒无后缀。
 
 实现：
 
@@ -272,14 +272,14 @@ golden 收敛）、canon httpd 283→**263**/0/0（20 行 SEXT48→`(long)` cast
 - 接线点：RPN 叶片 `constant_leaf_text` 全臂（Uint/Int/Unknown/None-ct/default-cast）、直接发射 `push_constant_typed`（Option vn）、`push_varnode` 常量梯级与 `push_constant`（vn 恒在域）。无 vn 的 scalar 形（enum/char 臂与 `vn==0` 调用点，cast.cc:50-51 对 charPrint/enum 恒拒）保持 false——与 oracle 观测恒等。
 - `size_suffix` 字段（`// Ghidra: printc.cc:2332`，`initializeFromArchitecture` cc:2336-2339）："LL" 当 sizeof(long)==sizeof(int)，否则 "L"；**PRINTC-UNMAP-SINGLETON-0001 起动态计算**——`initialize_from_architecture(types)` 在 doc_function 入口从 `fd.arch.types` 幂等求值（x86-64 语料 8≠4 → "L"，与旧构造器钉值字节恒等；castStrategy->setTypeFactory 半为结构 no-op：promote_size 已在 CastStrategyC::new 物化，cast.rs 无工厂句柄）。
 
-**E2E（curl 124 / httpd 34，fast-release 亲测，基=master 5ec78f22 干净重建 A/B）**：curl 369→**361**/0/0（main 100→94、getparameter 45→43，其余 122 函数零变化）；`0x4000U/0x2004000U/0x10000400U/0x23U` 四位与 golden 清单逐一对应，Rugra U-行骨架无 golden 之外形态（0 处 overshoot）。httpd 872→**866**/0/0（六处 `iVar10 + 1U/2U`；golden 115 U-行中 Rugra 现 6——其余为 coreaction `mark_explicit_unsigned` 在 httpd 的点火不足，登记移交）；双跑 cmp 恒等；gcc 审计 curl 104/20、httpd 15/14 双侧恒等；bank 391/391；lib 1730P/1F==亲父集（nonzeromask 预存）。
+**E2E（curl 124 / httpd 34，fast-release 亲测，基=master 5ec78f22 干净重建 A/B）**：curl 369→**361**/0/0（main 100→94、getparameter 45→43，其余 122 函数零变化）；`0x4000U/0x2004000U/0x10000400U/0x23U` 四位与 golden 清单逐一对应，Rudra U-行骨架无 golden 之外形态（0 处 overshoot）。httpd 872→**866**/0/0（六处 `iVar10 + 1U/2U`；golden 115 U-行中 Rudra 现 6——其余为 coreaction `mark_explicit_unsigned` 在 httpd 的点火不足，登记移交）；双跑 cmp 恒等；gcc 审计 curl 104/20、httpd 15/14 双侧恒等；bank 391/391；lib 1730P/1F==亲父集（nonzeromask 预存）。
 
 ## 2026-09-25：无名被调者两兜底的拼写/space 通道（PRINTC-FUN-PAD-0001 / PRINTC-OPCALL-ENTRYSPACE-0001 / Lane NAMFIX）
 
 RPN `opCall`（Ghidra: printc.cc:593）的无名被调者兜底两处正确化，均为**未触发兜底**（现语料 golden 全有符号名或 driver 预拼 `FUN_{:08x}` 数据库名——curl_cur 0 处、httpd_cur 全 8 位，均不经此臂），双差分预期字节恒等：
 
 1. **FUN_ 零填充**（PRINTC-FUN-PAD-0001，P3）：canon 兜底此前 `format!("FUN_{:x}", off)` 无填充，golden 拼写为 `FUN_00102020`（8 位）。CR-MIRROR2 核定 digit 规则 = oracle `AddrSpace::printRaw`（space.cc:206-222）的 `setw(2*sz)` 契约（`sz>4` 时 `offset>>32==0` 收缩 4、else `offset>>48==0` 收缩 6；`byteToAddress` 除 wordsize）。新 helper `PrintC::print_raw_zero_pad_digits(addr_size, word_size, offset)`（`// Ghidra: space.cc:206`，digit 核心——无 `0x` 前缀无 `+cut`，即 headless 数据库名 `FUN_<digits>` 的面）；与 `func_0x` 兜底同则不同前缀。单测钉拼写：`FUN_00102020`/`FUN_0012c520` 收缩宽 8、`0x123456789ab` 宽 12、wordsize 4 除法 + 传输面 `+cut`。
-2. **opCall entry space 通道**（PRINTC-OPCALL-ENTRYSPACE-0001，P4）：`func_` 面此前硬编码 `AddressSpace::Ram`。oracle 链 = printc.cc:602 `fc->getEntryAddress()`（fspec.hh:1686）自带 space（fspec.cc:4934 ctor：CALL 注解化**前**的 in(0) varnode 完整地址）。Rugra 的 Iop 注解只镜像 offset（`new_varnode_call_specs` compatibility_offset），space 走 callspec 通道：`get_call_spec() → entry_addr`；锁序按 fspec.rs:2470-2477 快照式（varnode 守卫先释再锁 callspec）。新 helper `PrintC::entry_addr_dims(entry)`（`// Ghidra: fspec.hh:1686`）从 `Address::get_space()` registry 句柄取 `(addrsize, wordsize)`，spaceless legacy 形（`FuncCallSpecs::new_for_op` 现产 `Address::new(offset)`）回退 flat Ram 默认 (8,1)——当前语料全部路径等价。`addr_space_print_raw` base 臂重构为委托新 `addr_space_print_raw_dims`（同规则单一来源）。fspec 侧 space 填充为 fspec 车道工作（见 TODO_BOARD 该 ID 的 fspec 半项）。
+2. **opCall entry space 通道**（PRINTC-OPCALL-ENTRYSPACE-0001，P4）：`func_` 面此前硬编码 `AddressSpace::Ram`。oracle 链 = printc.cc:602 `fc->getEntryAddress()`（fspec.hh:1686）自带 space（fspec.cc:4934 ctor：CALL 注解化**前**的 in(0) varnode 完整地址）。Rudra 的 Iop 注解只镜像 offset（`new_varnode_call_specs` compatibility_offset），space 走 callspec 通道：`get_call_spec() → entry_addr`；锁序按 fspec.rs:2470-2477 快照式（varnode 守卫先释再锁 callspec）。新 helper `PrintC::entry_addr_dims(entry)`（`// Ghidra: fspec.hh:1686`）从 `Address::get_space()` registry 句柄取 `(addrsize, wordsize)`，spaceless legacy 形（`FuncCallSpecs::new_for_op` 现产 `Address::new(offset)`）回退 flat Ram 默认 (8,1)——当前语料全部路径等价。`addr_space_print_raw` base 臂重构为委托新 `addr_space_print_raw_dims`（同规则单一来源）。fspec 侧 space 填充为 fspec 车道工作（见 TODO_BOARD 该 ID 的 fspec 半项）。
 
 休眠/恒等声明：两兜底在 curl/httpd 双语料 0 次触发（FUN_ 名全部由 driver 符号表预拼写 `FUN_{:08x}`，与 digit 规则对所有可达地址逐字节等价）；legacy 孪生 `FUN_{:08x}` 两处（emit 树 + `op_call`）不属两 ID 判例面且对语料地址域（<2³² 或 0x55xx… 自然 12 位）与规则输出恒等，不动。
 
@@ -287,7 +287,7 @@ RPN `opCall`（Ghidra: printc.cc:593）的无名被调者兜底两处正确化�
 
 `emitLabelStatement`（printc.cc:3198-3214）的 `emit->tagLine(0)` 是 Emit 的**带参
 绝对** virtual（prettyprint.hh:180）：标签行 = endl + 0 空格，**列 0 顶格，与嵌套深度
-无关**——canon curl 32 处（29 `LAB_` + 3 `switchD_…_caseD_…:`）全部顶格。Rugra 三个
+无关**——canon curl 32 处（29 `LAB_` + 3 `switchD_…_caseD_…:`）全部顶格。Rudra 三个
 标签调用点（`emit_label_statement` 平尾路径、`emit_any_label_statement` 结构臂与
 pending_goto_labels 兜底臂）此前走合并入口 `tag_line(0)`→相对形（当前缩进级），标签
 行带 2-8 空格缩进。现改走 `tag_line_indent(0)`（trait 绝对形，见 prettyprint.md 同日
@@ -320,7 +320,7 @@ curl 19 行拼接形）。
 验证（亲父 b5b949dd 前后对照，双侧亲测）：curl 门禁 1822/0/0 → **1744/0/0**、
 httpd 1756/0/0 → **1700/0/0**（零回退：curl 14 fn 改善、httpd 9 fn 改善）；
 gcc 审计 curl 104OK/20FAIL、httpd 23OK/6FAIL；双发射行两口径均清零；五投影
-（RUGRA_MIRROR=1）与锁定 oracle projection 逐字节 MATCH。归因账本见
+（RUDRA_MIRROR=1）与锁定 oracle projection 逐字节 MATCH。归因账本见
 `docs/alignment_docs/MAIN_RESID_ATTRIBUTION_2026-09-24.md`。
 
 ## 2026-09-24：印前指针兜底盖章通道按 oracle 方向收缩（WIDTHOP 宽度算子族 / Lane GF）
@@ -421,9 +421,9 @@ label 孤立输出（witness：curl my_get_token `joined_r0x001037b2:` 有 label
 **验收**（基线=亲父 2a32802e 亲测）：curl 2381/0/0 → **2330/0/0**（−51）、
 httpd 2238/0/0 → **2224/0/0**（−14）；label-without-goto 位点归零（curl 0/httpd 0，
 修前至少 1+若干）；joined_ 形态族在对比域内收敛（curl 唯一 joined 对
-my_get_token 0x1037b2 双行齐现；httpd golden 的 122 处 joined 全部位于 Rugra
+my_get_token 0x1037b2 双行齐现；httpd golden 的 122 处 joined 全部位于 Rudra
 29 函数语料之外，非对比域）。新暴露的结构族 goto（golden 以循环回边结构化而
-Rugra 树为 BlockGoto：curl glob_set 0x104c20、httpd ap_parse_vhost_addrs
+Rudra 树为 BlockGoto：curl glob_set 0x104c20、httpd ap_parse_vhost_addrs
 0x12cfcb / ap_pregsub 0x12e475 / ap_no2slash 0x12e87b）登记
 PRINTC-GOTOSTRUCT-RESID-0001（blockaction 域）；switch-case 标号拼写族
 （`switchD_.._caseD_..` vs `LAB_`/`code_r`）见 PRINTC-LABSPELL 残差清单。
@@ -440,7 +440,7 @@ displayName 整体替换（前端 DB 的默认 `LAB_<image-based addr>` 标号�
 flow reference 建立；函数入口处主符号是 FUNCTION 而非 LABEL → 返回空走泛型臂，
 golden httpd witness `goto code_r0x001542b0;` = FUN_001542b0 自环）；③泛型臂
 `code_` + shortcut + printRaw（space.cc:206-222，`<< hex` = **小写**零填充）。
-Rugra 旧实现三处偏差：无符号层（恒走③）、joined/dup 未追踪（③ 前缀恒 `code_`）、
+Rudra 旧实现三处偏差：无符号层（恒走③）、joined/dup 未追踪（③ 前缀恒 `code_`）、
 `{:0width$X}` 大写且无 image-base。修复：
 
 - **新字段**：`code_labels: HashMap<u64,String>`（前端 DB LABEL 符号层替身——
@@ -449,7 +449,7 @@ Rugra 旧实现三处偏差：无符号层（恒走③）、joined/dup 未追踪
   ELF 相对地址 = oracle 单函数 harness 的 printRaw 输出，直接 runner witness
   `code_r0x0002b8c0`）、`joined_label_addrs`/`dup_label_addrs: HashSet<u64>`
   （f_joined_block/f_duplicate_block 状态的入口地址投影，doc_function 时从
-  `fd.bblocks` 快照——Rugra 的 label 发射点是地址键控的，部分无块句柄）。
+  `fd.bblocks` 快照——Rudra 的 label 发射点是地址键控的，部分无块句柄）。
 - **`code_label(addr)` 重写**：`display = addr + code_label_base` 后按
   display 选 sz（>>32/>>48 收缩），依次判 joined → `joined_r0x…`、dup →
   `dup_r0x…`、符号层命中 → 名字整体返回、否则 `code_r0x{:0width$x}`（小写）。
@@ -464,20 +464,20 @@ Rugra 旧实现三处偏差：无符号层（恒走③）、joined/dup 未追踪
   in(0)=(Unique,0x10000114)），pcode 级扫描结构性丢目标。排除自身入口与
   DB 符号占用地址（Java `getCodeLabel` 的 SymbolType==LABEL 过滤替身）；
   `LAB_{:08x}` 小写 8 位零填充（与 `ANALYZE_HEADLESS_IMAGE_BASE` 相加后的
-  前端地址）。mirror（RUGRA_MIRROR）下不装层、base=0——raw-BFD oracle 无
+  前端地址）。mirror（RUDRA_MIRROR）下不装层、base=0——raw-BFD oracle 无
   analyzer 标号、地址 ELF 相对。
 - **验收**：curl skeleton 2511→**2381（−130）**、httpd 2282→**2238（−44）**，
   双门禁 defects=0/numbering=0；共享地址拼写错配双双归零
-  （curl 30 地址 rugra 侧 `code_r↔LAB_` 残留 0、httpd 23 地址残留 0）；
+  （curl 30 地址 rudra 侧 `code_r↔LAB_` 残留 0、httpd 23 地址残留 0）；
   逐函数 diff 零回退（curl 10 函数改善 main −39/getparameter −50/
   parseconfig −15/next_url −9 等,httpd 7 函数改善 ap_getparents −13/
   ap_ht_time −9/ap_fini_vhost_config −6 等）；三投影（next_url/match_url/
-  parseconfig.constprop.0，RUGRA_MIRROR=1 全家 env，stage_bisect v1.2）
+  parseconfig.constprop.0，RUDRA_MIRROR=1 全家 env，stage_bisect v1.2）
   保持 **MATCH×3**（label 属打印期，投影只追踪 PcodeOp 级 action 流）；
   printc 单测 12/12；gcc 审计 curl 82OK/25FAIL==DY 基线。残差：joined/dup
   投影只覆盖 nodejoin 创建的 BlockBasic 自带 flag（结构器 BlockCopy 包裹链
   上 flag 传递依赖既有 blockaction 生命周期，0x1037b2 的 joined_ 形态由该域
-  收官）；rugra-only/golden-only 标号地址（curl 5+5、httpd 5+~1120）属
+  收官）；rudra-only/golden-only 标号地址（curl 5+5、httpd 5+~1120）属
   goto 目标结构差（块分裂点/未发射块），非拼写层可收敛。
 
 ## 2026-09-30：label 前缀改 per-site 读取（MIRROR-GIANTS-SQLITEDUPLABEL-POSTSPLIT-0001）
@@ -490,7 +490,7 @@ funcdata_block.cc:824-837）只有**新拷贝**带 `f_duplicate_block`、原块�
 两份拷贝共享同一入口地址——地址键控的 `dup_label_addrs`/`joined_label_addrs`
 集合把两者合并后，所有同地址位点一律印 `dup_`（SQLITEDUPLABEL 根：
 sqlite3VdbeIntValue dup 0x1091aa×3 位点，oracle 逐位点印 `code_r0x001091aa`
-[位点叶=原块 #85]，Rugra 误印 `dup_r0x001091aa`）。双侧 caseblocks 探针亲证
+[位点叶=原块 #85]，Rudra 误印 `dup_r0x001091aa`）。双侧 caseblocks 探针亲证
 switch goto 臂/标签语句位点两侧结构恒等（caseblock/gototype/包裹块一致），
 分叉只在打印层。修复：
 
@@ -500,7 +500,7 @@ switch goto 臂/标签语句位点两侧结构恒等（caseblock/gototype/包裹
 - **新 `code_label_with(addr, site)`**：`Some((joined, dup))` =
   oracle 逐位点读（joined/dup 前缀 + cc:3173 hasSpecialLabel 门——特殊块
   不查 queryCodeLabel）；`None` 回退地址集合（flat/op 级地址键控传输，
-  oracle 对应位点持活块——Rugra 保留该近似，注释记载）。
+  oracle 对应位点持活块——Rudra 保留该近似，注释记载）。
   `code_label(addr)` = `code_label_with(addr, None)`。
 - **发射点接线**：`emit_label_statement(addr, site)` 增参；结构路径位点全部
   per-site——emit_any_label_statement 两臂（isUnstructuredTarget 臂 + pending
@@ -518,7 +518,7 @@ switch goto 臂/标签语句位点两侧结构恒等（caseblock/gototype/包裹
 
 oracle 的叶子名解析（`PrintLanguage::pushVnExplicit`，printlanguage.cc:218-230）只有
 annotation → constant → `pushSymbolDetail`（printlanguage.cc:238-262）三级，**不存在任何
-按地址查名字的代理**。Rugra 此前在两条生产叶子路径（RPN `make_atom_for_vn` →
+按地址查名字的代理**。Rudra 此前在两条生产叶子路径（RPN `make_atom_for_vn` →
 `get_varnode_display_name_inner` 与 legacy `push_varnode`）都把 Ram/Const 的
 `symbol_table` 地址代理放在 Priority 0——先于 `vn.high` 的符号解析直接 return，叠加
 driver 对 `.data/.bss` 逐字节 span-盲播 DAT_ 名，main/gp/parseconfig 的
@@ -536,15 +536,15 @@ oracle 语义修复三件：
   `partial_symbol_text` 渲染 `name.field[idx]...`）；否则 `pushMismatchSymbol`
   （printc.cc:2067-2083：off==0 → `_name`，else `pushUnnamedLocation(vn 自身地址)`）。
   地址代理（`symbol_table`/`string_table`）降级为符号未命中时的回退（oracle 的
-  sym==null 唯一臂是 pushUnnamedLocation；代理是 Rugra 对 oracle 全局 Data 符号的
+  sym==null 唯一臂是 pushUnnamedLocation；代理是 Rudra 对 oracle 全局 Data 符号的
   替身）。`allow_cast` = oracle 调用点的 `isRead`（读叶子 true，赋值 LHS false，
   printlanguage.cc:256-257），门控 walk 的 SUBPIECE-cast 臂。
-  **两个 Rugra 桥接防御**（httpd 回归实证）：(a) Priority 0.4——Register 空间
+  **两个 Rudra 桥接防御**（httpd 回归实证）：(a) Priority 0.4——Register 空间
   **is_input** varnode 的 `param_names` 查找先于符号分支：oracle 的 ScopeLocal
-  param Symbol 与 FuncProto 同名（ActionParameterSymbols 同步），Rugra 桥接
+  param Symbol 与 FuncProto 同名（ActionParameterSymbols 同步），Rudra 桥接
   （`Funcdata::symbol_entry_for`）没有该同步（auto `in_register_...` 名），符号分支
   会把 `*param_2 + 0xa11b8` 打成 `*in_register_00000288 + ...`；(b) partial/
-  mismatch 两臂**仅对全局符号**生效——Rugra 桥接的 entry 尺寸是近似值（1 字节
+  mismatch 两臂**仅对全局符号**生效——Rudra 桥接的 entry 尺寸是近似值（1 字节
   entry 盖 8 字节读触发假 `_pcVar12`），oracle 的 restructure 逐 varnode 精确；
   局部符号一律取 pushSymbol 纯名形态（= 修复前可观测文本）。
 - **②`::` 遮蔽前缀（MINIMAL_NAMESPACES）**：新 `symbol_scope_prefix(&self, sym,
@@ -605,7 +605,7 @@ oracle 的 void 调用语句形态由 IR 决定，不由 print 层拆分：
 （`newVarnodeOut`，cc:1540-1551）；`PrintC::emitExpression`（printc.cc:2471-2476）
 以 `outvn != 0` 决定赋值 LHS（无输出 ⇒ 语句形态 `f(args);`），`opReturn`
 （printc.cc:758-761）仅在 `numInput()>1` 时打印返回值（无值 ⇒ 裸 `return;`）。
-Rugra 的 action 层已移植同判定（coreaction.rs `ActionFuncLink::func_link_output`
+Rudra 的 action 层已移植同判定（coreaction.rs `ActionFuncLink::func_link_output`
 的 void 臂），但 print 层此前无投影：CALL 输出若幸存（action 顺序噪音）即渲染
 非法 C `return free(p);`，靠 prettyprint 的 P13 硬编码 13-libc 表文本拆分兜底。
 
@@ -667,7 +667,7 @@ goto 跨两层循环作用域，block.cc:2872/3082 只把目标==最内层循环
    discovery_pass + 主 NullEmit id + Basic/Copy 叶 + `flow_entry_address`），
    使账本覆盖两条叶发射路径——oracle 的对应不变量是 `BlockGraph::emit` 全量性
    （树上每个块经虚 dispatch 恰好发射一次），Ghidra 用树本身回答"目标是活块吗"，
-   账本只是把该完备性镜像到 Rugra 的双路径上。
+   账本只是把该完备性镜像到 Rudra 的双路径上。
 2. 两处尾扫描收窄为仅 `needs_anchor`（pending 且不在 `discovery_block_starts`）
    ——真被发射的目标标签回到其自身发射点（arm-1/arm-2/backpatch），只有从未发射
    的目标（上游结构器丢弃，见 GOTO-NEVEREMITTED-TARGET-UPSTREAM-0001）才在
@@ -699,7 +699,7 @@ funcdata 项，`--test-threads=1` 双向比对 IDENTICAL）。剩余 4 处自指
   INT_2COMP/FLOAT_NEG→unary_minus（printc.hh:296/322）、BOOL_NEGATE→boolean_not
   （printc.cc:814-825 else 臂；negatetoken/checkPrintNegation 短路尚未移植，
   现为该函数最终 else 的恒打 token 行为）。FLOAT_ABS/SQRT/CEIL/FLOOR/ROUND 在
-  Ghidra 为 opFunc（printc.hh:323-327），Rugra 无函数调用形，不推 token 只排
+  Ghidra 为 opFunc（printc.hh:323-327），Rudra 无函数调用形，不推 token 只排
   操作数——与旧行为逐字节一致。
 - 括号决策：unary(62) 嵌于 binary(如 `&`34) 下走 `34<62 → false` 免括号，
   `~*p` 与 golden `& ~*puVar4` 形态逐字一致。
@@ -773,8 +773,8 @@ Graph/MultiGoto 分派、带 condition prelude 的 pending-brace else-if，以�
 FLAT+NOFALLTHRU tail 三类确定残差；有出边的 `nextInFlow`、markup、普通
 else/if-goto、异常和其余结构子类型还未由该夹具覆盖。PrintC 继续保持 L2。
 
-fresh GetStr 六阶段 runner 已恢复真实 `BlockCondition`：Ghidra 与 Rugra 的
-`04_structure` 都只有一个 root child，Rugra 的目标行逐字为
+fresh GetStr 六阶段 runner 已恢复真实 `BlockCondition`：Ghidra 与 Rudra 的
+`04_structure` 都只有一个 root child，Rudra 的目标行逐字为
 `if ((param_1 != (char *)0x0) && (*param_1 != '\0')) {`，锁定 Ghidra 对应行为
 `param_2`。runner 只把 `03_action_ir` 已证明同为 `register:48:8` 的 producer-local
 标识投影成 `value_pointer`；双方原始行、op/Varnode ID 与空白全部保留，没有做
@@ -866,7 +866,7 @@ StringManager。本次替换为 `constant_leaf_text`（`&mut self`，持 vn/op�
   （`default_cast_constant_text` cc:1806-1815，可选 `(type)` cast + force_hex
   整数）。
 - `TYPE_VOID`（cc:1772-1774）：oracle 是 `clear(); throw LowlevelError`；
-  Rugra 双路径统一降级为 `/* void constant */` 标记（发射路径不 panic，与
+  Rudra 双路径统一降级为 `/* void constant */` 标记（发射路径不 panic，与
   直接发射臂同形）。`TYPE_FLOAT`（cc:1791-1793 → `push_float`
   cc:1380-1424）：**全量移植**（PRINTC-UNMAP-SINGLETON-0001）——
   `push_float_text` 双路径共享文本核：`get_float_format`（translate.cc:962-970
@@ -933,7 +933,7 @@ prototype remain separate residuals; the module remains L2.
   是 `Funcdata::opDestroy`（funcdata_op.cc:203-222）立即把 op 从所属
   BlockBasic 的 op 列表摘除，且结构图 `BlockGraph::buildCopy`
   （block.cc:1925-1936）用 `BlockCopy` 包**原始**块而非克隆，所以 oracle
-  从不会迭代到已销毁 op。Rugra 的 `build_copy`（blockaction.rs:98）把 op
+  从不会迭代到已销毁 op。Rudra 的 `build_copy`（blockaction.rs:98）把 op
   列表快照进克隆块，快照之后销毁的 op（flags 含 `DEAD`）滞留在结构节点里；
   fullloop 尾部 `ActionDeadCode`（coreaction.cc:5682 槽位）销毁的 op 即属
   此类。后果：else 臂块（仅含 dead INT_ADD + implied LOAD/COPY）被
@@ -980,7 +980,7 @@ prototype remain separate residuals; the module remains L2.
     （`get_varnode_display_name_inner` 的 `uVar_<hex>`/`uVar20` fallback），
     使 prettyprint `backfill_missing_locals` 不再为这些名字注入声明。
     新增 `rpn_def_inline_reachable` 守卫（RUDRA-GLUE）：Ghidra 的
-    `TypeOp::push` 虚 dispatch 覆盖全部 opcode，Rugra `dispatch_op_rpn`
+    `TypeOp::push` 虚 dispatch 覆盖全部 opcode，Rudra `dispatch_op_rpn`
     partial（PRINT-RPN-0001），对无发射臂/缺输入/已 dead 的 def op 回退
     叶子原子，防止操作数文本被静默丢弃（MULTIEQUAL/INDIRECT 在 Ghidra
     同样空发射，printc.hh:331-332，保守取叶子直到 dispatch 表补全）。
@@ -1008,7 +1008,7 @@ prototype remain separate residuals; the module remains L2.
     comment/dynamic/funcdata×2/ruleaction 预存集）。
 - **2026-08-12 `PRINTC-0001` display-format wire 修复**: `display_format` 现与锁定
   Ghidra `database.hh:199-204` / `type.cc:728-762` 一致：`DEFAULT=0`、
-  `HEX=1`、`DEC=2`、`OCT=3`、`BIN=4`、`CHAR=5`。此前 Rugra 把
+  `HEX=1`、`DEC=2`、`OCT=3`、`BIN=4`、`CHAR=5`。此前 Rudra 把
   `CHAR/OCT/BIN` 编成 `3/4/5`，会把持久化或跨层传入的 3、4、5 分别误解释为
   char、octal、binary。`tools/run_printc_display_oracle.sh` 从锁定 commit
   `e40ed13014025f82488b1f8f7bca566894ac376b` 编译真实 C++ `PrintC::push_integer`
@@ -1022,7 +1022,7 @@ prototype remain separate residuals; the module remains L2.
   Rust 简化 helper 则直接接收 u32，两端对象图、alias 与状态并非同输入。
   因此完整 `push_integer` 及 Datatype/Varnode alias 路径仍为
   **MISMATCH/UNTESTED**；codec 的未知名称/数值错误类型、消息与状态同样未测。
-  Rugra API 尚未观察 Ghidra 的 `tag/vn/op`、
+  Rudra API 尚未观察 Ghidra 的 `tag/vn/op`、
   Symbol-vs-Datatype 优先级、equate 早退、unsigned/long suffix、markup 及主管线
   接入，`PRINT-RPN-0001` 未关闭，模块保持 L2。
 - **2026-07-22 修复（cross-review printc.cc:2583 calling-convention）**: `emit_function_declaration` 的调用约定分支此前被注释掉且文档错误声称 `option_convention` 默认 false（实际默认 true，printc.cc:1584）。现已：新增 `PrintC.option_convention` 字段（默认 true）+ 取消注释分支 + 在 FuncProto 新增 `is_model_unknown()`/`print_model_in_decl()`（fspec.hh:1394-1395）。对 unknown 模型（curl 场景）`print_model_in_decl` 返回 false，不发射约定 token，与 Ghidra golden 一致（0 个约定 token）。
@@ -1030,13 +1030,13 @@ prototype remain separate residuals; the module remains L2.
 - **2026-07-16 修复（P4 register-var 编号顺序）**: 新增 `preallocate_register_compact_names`：在 doc_variable_decls 前扫描所有 op，收集 Register 空间 auto-local 输出 varnode 的 raw 名 + def-op 地址，按 def-op 地址排序（Ghidra nameDedup 创建顺序的近似），预填 compact_rename。使寄存器变量编号按 def-op 地址序确定，而非 op 遍历首次触及序。栈变量路径已对齐（doc_variable_decls 按 scope.symbols 顺序）。numbering=485 不变（defects=0，编号是外观差异）。
 - **2026-07-16 修复（P7-overflow_syntax）**: while-do 循环当条件块 isComplex 时（BlockWhileDo.overflow_syntax 标志，对齐 hasOverflowSyntax block.hh:692，由 try_rule_while_do 的 bl.is_complex() 设置，cc:1538），emit_structured_whiledo 发射 `while(true){ <cond body> if(cond) break; <body> }` 而非 `while(cond){ body }`（对齐 emitBlockWhileDo cc:3017-3044）。新增 BlockWhileDo.overflow_syntax 字段。
 - **2026-07-16 修复（P5 for-loop header comma_separate）**: for 循环头 `for(init;cond;iter)` 发射现包裹 `push_mod/set_mod(COMMA_SEPARATE)/pop_mod`，对齐 Ghidra `emitForLoop`（printc.cc:2973-2990）为 init/cond/iter 片段激活 comma_separate。配合 P10 的 `doc_statement` 按 `!is_set(COMMA_SEPARATE)` 条件输出 `;`，避免 for 头片段重复分号。init/iter 文本仍在检测时烘焙（ActionStructureTransform），非从 raw PcodeOp 重发——这是 P5 剩余保真细节，但 latent（curl 语料 0 个 for 循环）。
-- **2026-07-16 修复（P9 else-if 链化）**: `emit_structured_if` 的 else 分支现检测 else_body 是否为 BlockIf——若是，发射 `else if (...)`（无外层大括号）而非 `else { if (...) }`（对齐 Ghidra emitBlockIf printc.cc:2928-2935 的 pending_brace 路径）。Rugra 无 PendingBrace/Emit 回调机制，故直接检测 else_body type==If 并递归 emit_structured_if，产生 `else if(cond){body}`。mod-stack（P10）就绪，PENDING_BRACE 常量保留供未来完整 PendingBrace 回调模型。
+- **2026-07-16 修复（P9 else-if 链化）**: `emit_structured_if` 的 else 分支现检测 else_body 是否为 BlockIf——若是，发射 `else if (...)`（无外层大括号）而非 `else { if (...) }`（对齐 Ghidra emitBlockIf printc.cc:2928-2935 的 pending_brace 路径）。Rudra 无 PendingBrace/Emit 回调机制，故直接检测 else_body type==If 并递归 emit_structured_if，产生 `else if(cond){body}`。mod-stack（P10）就绪，PENDING_BRACE 常量保留供未来完整 PendingBrace 回调模型。
 - **2026-07-16 修复（P8 复合条件 + P10 mod-stack）**: P10: 新增 `print_mods` 模块（NO_BRANCH/ONLY_BRANCH/COMMA_SEPARATE/FLAT/PENDING_BRACE，printlanguage.hh:144-161）+ PrintC.mods/mod_stack 字段 + is_set/push_mod/pop_mod/set_mod/unset_mod 辅助（hh:284-290）。`doc_statement` 的 `;` 现按 `!is_set(COMMA_SEPARATE)` 条件输出（对齐 emitStatement printc.cc:2291）。是 P5（for 循环头）和 P9（else if pending_brace）的前置。P8: `emit_structured_condition` 对顶层 BlockCondition 现发射合并条件 `if (left && right) {}`（对齐 emitBlockCondition printc.cc:2836），此前把两个子块作为独立语句发射丢失 &&/||。capture_block_condition 递归处理嵌套 BlockCondition。
 - **2026-07-16 修复（P7 InfLoop emit）**: 新增 `emit_structured_infloop`（对齐 Ghidra `emitBlockInfLoop` printc.cc:3097-3122），输出 `do { <body> } while(true);`。`BlockType::InfLoop` 分发到该函数。此前 InfLoop 落入 `_ =>` basic 回退，输出裸 op + 无条件分支。配合 B3 的 `BlockInfLoop` struct + `try_rule_inf_loop` 工厂。
 - **2026-07-16 修复（P1 括号化 — 最高潜在缺陷风险）**: 实现 OpToken 优先级引擎与括号化，对齐 Ghidra `printlanguage.cc:269 parentheses` + `printc.cc:23-76` OpToken 静态实例表。此前 `op_binary`/`op_unary`/`emit_inline_expr` 直接拼 infix 串无括号化，嵌套表达式如 `a + (b << c)`、`a == (b && c)`、`a - (b - c)` 会语义错误。新增：`optoken` 模块（`binary_precedence`/`binary_associative` 表镜像 printc.cc 的 precedence/associative 字段）+ `child_needs_parens(parent, child, is_right)`（镜像 parentheses 的优先级比较）+ `push_input_parenthesized`（递归时按需包裹括号）。接入 `emit_inline_expr` 与 `op_binary` 两处二元路径。新增单元测试 `test_child_needs_parens_precedence` 覆盖 10 个教科书用例。curl 语料不触发嵌套二元内联故 numbering 不变，但正确性已保证。
 - **2026-07-16 修复（label 格式）**: goto 标签从自创的 `LAB_{:08x}` 改为 Ghidra `emitLabel`（printc.cc:3164）格式 `code_r0xXXXX`。新增 `code_label(addr)` helper，镜像 Ghidra：prefix `code_`（joined_/dup_ 块状态未追踪）+ shortcut `'r'`（RAM space，translate.cc:529-533 space 名首字母小写）+ printRaw（space.cc:206-222，`0x` + 按 addr>>32/>>48 收缩的零填充 hex）。两处标签发射点（块入口 printc.rs:592 + push_goto_target printc.rs:1322）已更新。curl 语料无 unstructured goto 故 numbering 不变，但对有 goto 的二进制正确性已保证。
 - **历史记录（2026-07-02，已被上方 2026-08-11 状态取代）**：printc 依赖 `emitted: HashSet<usize>`（key=Arc 指针身份）做去重，是 CFT 树遍历尚未完成的临时补丁。完整修复需按 `beginBlock/endBlock` 迁移到 Ghidra 的 `emitBlockGraph` 单次树遍历并删除 emitted/fresh-emitted 补丁；方法名存在不代表行为已覆盖。
-- **2026-08-23 修复（GETSTR-ZERODIFF-D 域，类型感知常量 + (bool) 抑制）**: ① `make_atom_for_vn`/push_varnode Const 臂加 `typed_constant_literal`（PrintC::pushConstant printc.cc:1744-1810 移植）：指针类型 0 值 → `({type})0x0`（默认臂 cc:1805-1809，C 无 null token）；char 打印类型 → 字符字面量（cc:1750-1752 pushCharConstant），转义表忠实 printUnicode（printc.cc:1426-1466：\\0 \\a \\b \\t \\n \\v \\f \\r \\" \\' \\\\ + 通用 hex）。② ActionSetCasts castOutput 的 token==high 短路由 Arc::ptr_eq 改为 Datatype::type_equal 结构比较（Ghidra 用 TypeFactory interned 指针比较，cc:2544-2551；Rugra 无 intern，Base 型按 name+size+metatype 等价），base_type_for 补 Bool→"bool" 映射（原落 "long"）——消除 CBRANCH 条件上的伪 `(bool)` cast。
+- **2026-08-23 修复（GETSTR-ZERODIFF-D 域，类型感知常量 + (bool) 抑制）**: ① `make_atom_for_vn`/push_varnode Const 臂加 `typed_constant_literal`（PrintC::pushConstant printc.cc:1744-1810 移植）：指针类型 0 值 → `({type})0x0`（默认臂 cc:1805-1809，C 无 null token）；char 打印类型 → 字符字面量（cc:1750-1752 pushCharConstant），转义表忠实 printUnicode（printc.cc:1426-1466：\\0 \\a \\b \\t \\n \\v \\f \\r \\" \\' \\\\ + 通用 hex）。② ActionSetCasts castOutput 的 token==high 短路由 Arc::ptr_eq 改为 Datatype::type_equal 结构比较（Ghidra 用 TypeFactory interned 指针比较，cc:2544-2551；Rudra 无 intern，Base 型按 name+size+metatype 等价），base_type_for 补 Bool→"bool" 映射（原落 "long"）——消除 CBRANCH 条件上的伪 `(bool)` cast。
 - **历史记录（2026-08-23，已由 2026-08-28 结构化极性实现取代）**: 当时曾以
   `demorgan_negate_text` 和 Rust-only `BlockIf.negated` 在打印期补偿复合条件。
   这不是当前实现，也不是可接受的 Ghidra 等价机制；两者现已删除。当前极性由
@@ -1046,15 +1046,15 @@ prototype remain separate residuals; the module remains L2.
   `MISMATCH/UNTESTED`。
 - **2026-07-02 修复（R50+R51）**: `op_multiequal`/`op_indirect` 改为 no-op（对齐 Ghidra printc.hh:331,332 `{}`，消除非 C 的 `phi(...)`/`(indirect)` 语句）；`op_cbranch`/`emit_block_condition` 增加条件输出捕获——当 `emit_condition` 产出无效条件（空串、` == `、`!()` 等缺操作数的垃圾）时回退为 `1`（always-true），消除 `if () goto ;`/`if () {`/`if (!())` 语法错误。curl 的 6 处语法错误全部清零。
 - **可信度**: 高
-- **对应源码**: 当前 `rugra/src/printc.rs`
-- **文档目标**: 说明 `PrintC` 在当前 Rugra 架构中的职责、输入依赖与输出边界
+- **对应源码**: 当前 `rudra/src/printc.rs`
+- **文档目标**: 说明 `PrintC` 在当前 Rudra 架构中的职责、输入依赖与输出边界
 - **可信边界**: 本文档描述的是**当前 C-like 输出层的责任分工**，不是“已经达到 Ghidra 等价输出质量”的证明
 
 ---
 
 ## 模块定位
 
-`printc.rs` 是 Rugra 当前输出层中的核心模块之一，负责把已经进入函数级分析上下文的内部表示，转换为**更接近 C 语言风格**的文本输出。
+`printc.rs` 是 Rudra 当前输出层中的核心模块之一，负责把已经进入函数级分析上下文的内部表示，转换为**更接近 C 语言风格**的文本输出。
 
 它在整体链路中的位置更接近：
 
@@ -1139,10 +1139,10 @@ printc.cc:2260/2518/2497）：
   subsort；外扩条目的分裂片可捕获后续小条目，使列表序**并非**纯
   `(end, subsort)` 排序——此形态由
   `test_scope_rangemap_list_order_enclosing_piece_capture` 固化。
-  dynamic 按插入序。过滤器：piece 跳过（Rugra 模型无 piece）、
+  dynamic 按插入序。过滤器：piece 跳过（Rudra 模型无 piece）、
   category != no_category 跳过（cc:2541，参数类 0 在签名里声明）、
   空名跳过（cc:2542）；FunctionSymbol/LabSymbol 与多 entry 去重
-  在 Rugra 模型中结构性不可达。
+  在 Rudra 模型中结构性不可达。
   **注意**：map 分支没有 `$$undef` 过滤（那是 cc:2529 类别分支独有的）
   ——`$$undef` 名的 no-category 符号会被原样声明；生产中
   assignDefaultNames 在 Action 期（coreaction.cc:2998）保证这类名字不会
@@ -1204,24 +1204,24 @@ printc.cc:2260/2518/2497）：
 - **背景**：RPN 发射路径（`dispatch_op_rpn` / `emit_expression_rpn` / `emit_block_basic_rpn`）此前只实现了 COPY、二元/一元算术、LOAD、STORE、CALL、RETURN、CBRANCH；PTRSUB 与 CAST 落入 `_ => {}` 兜底分支不发射任何文本。Ghidra 对应实现是 `PrintC::opPtrsub`（printc.cc:929-1143，结构体字段 `ptr->field`）与 `PrintC::opTypeCast`（printc.cc:448-464，`(type)x`）。
 - **本改动（faithful port）**：
   - 扩展 `build_rpn_token_table`，新增 4 个 OpToken（字段逐项对齐 printc.cc:25/26/33/35）：`pointer_member`（`->`，binary prec 66 assoc）、`object_member`（`.`，binary prec 66 assoc）、`typecast`（`(`/`)` presurround prec 62）、`addressof`（`&` unary prefix prec 62）。
-  - 在 `dispatch_op_rpn` 新增 `CPUI_PTRSUB` 分支：忠实移植 opPtrsub 的 struct/union（`[&]ptr->field`）、array（`*ptr`）与无类型回退（`ptr->field_0x<hex>` / `ptr[off]`）发射形态；Rugra 无 TypePointerRel，`ptrel` 分支塌缩为 `ct = ptype->getPtrTo()`（与 legacy `op_ptrsub` 一致）。
+  - 在 `dispatch_op_rpn` 新增 `CPUI_PTRSUB` 分支：忠实移植 opPtrsub 的 struct/union（`[&]ptr->field`）、array（`*ptr`）与无类型回退（`ptr->field_0x<hex>` / `ptr[off]`）发射形态；Rudra 无 TypePointerRel，`ptrel` 分支塌缩为 `ct = ptype->getPtrTo()`（与 legacy `op_ptrsub` 一致）。
 - 2026-08-25（B3-COREACTION-CONSTANTPTR-0001 段(b)）：RPN 路径补齐 TYPE_SPACEBASE 臂（printc.cc:1057-1097，此前 RPN 恒落 `field_0x` 回退）。symbol 经 in(1) high 的 linkSymbolReference 附件（namerec 残留未接，打印侧替代为同一 queryContainer 通道：global scope + 空 usepoint）；ARRAY symbol 按 cc:1062-1070 弃 `&`；`!valueon` 发 `&name`；无 symbol 走 `0x<hex>` 无名位置；arrayvalue 后置 `[0]`。hugehelp 六别名经此臂渲染 `&DAT_00107180/…99a8/…c1d8`（与 golden 逐字节一致）。
   - **R-RAWQUAR F3 登记（2026-08-25；①已于 2026-09-24 解锁，见文末 HTTPD-CODEREF-SYMBOLIZE-0001 节）**：该臂两分支缺口登记 TODO 并入 ALIGNMENT_ROADMAP printc 行——①`PRINTC-SPACEBASE-TYPECODE-0001`（printc.cc:1068-1069 `TYPE_CODE → valueon=true`：函数符号不打 `&`；已随 driver 函数符号 DB 的 CODE 条目接通）；②`PRINTC-SPACEBASE-PARTIALSYM-0001`（printc.cc:1084-1093 `symbolOffset≠0 → pushPartialSymbol`：mid-symbol 命中打子字段；容器查询 stand-in 无 symbol-offset 通道且 ConstantPtr 路径 off 恒 0，现管线不可达；解锁依赖 FUNCDATA-LINKSYMBOL 的 high→symbol 附着通道）。
   - 在 `dispatch_op_rpn` 新增 `CPUI_CAST` 分支：忠实移植 opTypeCast 的 array-decay `&in0` 短路与 `(type)in0` 主路径；`typecast` 是 presurround，RPN emit 机制自动产生 `(typename)operand`。
 - **隐式内联打通**：为让 PTRSUB/CAST（消费时一定是 implied）真正进入 dispatch，引入 `rpn_push_in(op_arc, op, slot, m)`——忠实 `PrintLanguage::pushVn`（printlanguage.cc:197）的 nodepend 记录语义。`COPY`/`LOAD`/`PTRSUB`/`CAST` 的操作数改为走 `rpn_push_in`，由 `rpn_recurse`（printlanguage.cc:514）按 implied 标志决定内联 def 或推叶子 atom。此前各 dispatch 分支直接 `make_atom_for_vn + rpn_push_atom`，等价于只走 `pushVnExplicit` 叶子路径，导致所有 implied def（含 PTRSUB/CAST）永不被内联。**2026-08-23 扩展**：二元/一元算术、STORE、CALL、RETURN、CBRANCH、PTRSUB 变址回退与 INT_ADD 字段短路的全部操作数位同步接通（见上文 PRINTC-UNLINKED-REF-0001 节），implied 内联覆盖所有表达式位。
-- **当前生效限制（诚实声明）**：`CPUI_PTRSUB`/`CPUI_CAST` op 目前在 curl/httpd 中**不被产生**——Rugra 缺少 `RulePtrsub`（INT_ADD→PTRSUB 的创建规则，ruleaction.cc，仅移植了 `RulePtrsubUndo`/`RulePtrsubCharConstant`/`RulePtraddUndo` 这类消费现有 op 的规则），且 `ActionSetCasts::castInput` 的 PTRADD/PTRSUB pointer-fit 检查与 castOutput 延后（coreaction.rs:2893-2897 注释），故 CAST 创建对 curl 当前类型推断结果不触发（`cast_standard_full` 返回 None）。本 PR 的 dispatch 分支已就位且经过 Ghidra 行逐行核对，待上述底层 infra 补齐后即生效。
+- **当前生效限制（诚实声明）**：`CPUI_PTRSUB`/`CPUI_CAST` op 目前在 curl/httpd 中**不被产生**——Rudra 缺少 `RulePtrsub`（INT_ADD→PTRSUB 的创建规则，ruleaction.cc，仅移植了 `RulePtrsubUndo`/`RulePtrsubCharConstant`/`RulePtraddUndo` 这类消费现有 op 的规则），且 `ActionSetCasts::castInput` 的 PTRADD/PTRSUB pointer-fit 检查与 castOutput 延后（coreaction.rs:2893-2897 注释），故 CAST 创建对 curl 当前类型推断结果不触发（`cast_standard_full` 返回 None）。本 PR 的 dispatch 分支已就位且经过 Ghidra 行逐行核对，待上述底层 infra 补齐后即生效。
 - **效果（curl diff 门禁）**：skeleton diff 2880→2873（轻微改善，来自 implied 算术 def 现在内联），defects 0→0，numbering 0→0，1287/1287 单元测试通过。无回归。
 
 ### RPN 表达式层畸形发射修复：notPrinted 过滤 + ZEXT/SEXT/SUBPIECE dispatch + 真 recurse 路由（2026-08-17，PRINTC-CAST-EXPR-0001）
 
 - **背景**：`result/curl_cur.c` 出现 1168+ 处 `= (uVar28;` / `* = uVar20)))) = 0x3489;` 形态的畸形行。根因（纯发射层，非上游 IR）：
-  1. `emit_block_basic_rpn` 缺 Ghidra `notPrinted()` 过滤（printc.cc:2696；op.hh:182 = `marker|nonprinting|noreturn`）。MULTIEQUAL/INDIRECT 的 TypeOp ctor 带 `marker`（typeop.cc:1947/1988），Ghidra 因此从不把它们作为语句打印；Rugra 放行后，`emit_expression_rpn` 已 push assignment token + LHS atom，而 dispatch 落入 no-op（`opMultiequal` 本身就是空实现，printc.hh:331）→ 语句结束时 `revpol` 残留 `assignment(visited=1 < stage=2)` 不完整条目，泄漏进下一语句的 `rpn_emit_op`，在错误位置输出 ` = ` / `(` / `)`——即全部 `= (` 行与 `))))` 连串。
+  1. `emit_block_basic_rpn` 缺 Ghidra `notPrinted()` 过滤（printc.cc:2696；op.hh:182 = `marker|nonprinting|noreturn`）。MULTIEQUAL/INDIRECT 的 TypeOp ctor 带 `marker`（typeop.cc:1947/1988），Ghidra 因此从不把它们作为语句打印；Rudra 放行后，`emit_expression_rpn` 已 push assignment token + LHS atom，而 dispatch 落入 no-op（`opMultiequal` 本身就是空实现，printc.hh:331）→ 语句结束时 `revpol` 残留 `assignment(visited=1 < stage=2)` 不完整条目，泄漏进下一语句的 `rpn_emit_op`，在错误位置输出 ` = ` / `(` / `)`——即全部 `= (` 行与 `))))` 连串。
   2. `INT_ZEXT`/`INT_SEXT`/`SUBPIECE` 同样落 `_ => {}`（Ghidra 是 printc.cc:786/799/843 的 cast-or-opFunc 双臂）。
   3. `rpn_push_op`/`rpn_push_atom` wrapper 把 printlanguage.cc:132-133/165-166 的 `recurse()` 委托给 printlanguage.rs 的 no-op 自由函数（无 op arena）——mid-expression push 时 pending 输入被静默丢弃。
   4. `hidden` token 表字段与 printc.cc:23 不符（应为 stage=1/prec 70，便捷 ctor 写死 stage=2/prec 0——同样残留 incomplete 条目）。
 - **本改动（faithful port）**：
   - `emit_block_basic_rpn` 增加 notPrinted 过滤：`is_marker() || (flags & NONPRINTING) || (flags & NORETURN)`（flags 由 `opcode_flags` 在 op 创建时正确初始化，已核实）。
-  - `dispatch_op_rpn` 新增 `CPUI_INT_ZEXT`/`CPUI_INT_SEXT`/`CPUI_SUBPIECE` 三臂：`cast_strategy.is_zext_cast/is_sext_cast/is_subpiece_cast` 命中 → `rpn_op_type_cast`；否则 `rpn_op_func`（`getOperatorName` = `"ZEXT/SEXT/SUB" + insize + outsize`，typeop.cc:1122/1148/2127）。SUBPIECE 的 `doesSpecialPrinting` 字段抽取分支（printc.cc:846-871）**可达**：SPECIAL_PRINT addlflag（op.rs ↔ op.hh:208）由 RuleSubRight（ruleaction.cc:7257，主管线已注册）设置，`is_piece_structured`（datatype.rs:443）对 Struct/Union/Array 为真；但字段抽取体（printc.cc:853-868 的 pushPartialSymbol/findTruncation+object_member 两臂）为继承 MISSING，RPN 路径落到 isSubpieceCast → opTypeCast / opFunc（与 legacy `op_subpiece` 同样 fall-through，行为非回归），降级登记 `PRINTC-SUBPIECE-FIELDEXTRACT-0001`（2026-08-17 事后审计修正，原文"Rugra 均无、不可达"失实）。
+  - `dispatch_op_rpn` 新增 `CPUI_INT_ZEXT`/`CPUI_INT_SEXT`/`CPUI_SUBPIECE` 三臂：`cast_strategy.is_zext_cast/is_sext_cast/is_subpiece_cast` 命中 → `rpn_op_type_cast`；否则 `rpn_op_func`（`getOperatorName` = `"ZEXT/SEXT/SUB" + insize + outsize`，typeop.cc:1122/1148/2127）。SUBPIECE 的 `doesSpecialPrinting` 字段抽取分支（printc.cc:846-871）**可达**：SPECIAL_PRINT addlflag（op.rs ↔ op.hh:208）由 RuleSubRight（ruleaction.cc:7257，主管线已注册）设置，`is_piece_structured`（datatype.rs:443）对 Struct/Union/Array 为真；但字段抽取体（printc.cc:853-868 的 pushPartialSymbol/findTruncation+object_member 两臂）为继承 MISSING，RPN 路径落到 isSubpieceCast → opTypeCast / opFunc（与 legacy `op_subpiece` 同样 fall-through，行为非回归），降级登记 `PRINTC-SUBPIECE-FIELDEXTRACT-0001`（2026-08-17 事后审计修正，原文"Rudra 均无、不可达"失实）。
   - token 表新增 `function_call`（`(`/`)` postsurround prec 66 bump 10，printc.cc:28）与 `comma`（binary prec 2 assoc，printc.cc:55）；`hidden` 改为表内直构聚合 `{ "", "", 1, 70, … }`（printc.cc:23）。
   - `rpn_op_func`/`rpn_op_hidden_func`/`rpn_op_type_cast`（自 CAST 臂重构共享）/`rpn_operator_name_ext` 四个 helper；`readOp` 线穿 dispatch（`emit_expression_rpn` 传 `None` = printc.cc:2493 的字面 0；`rpn_recurse` 传读 op = printlanguage.cc:532；`isExtensionCastImplied` 对 `readOp==null` 返回 false，与 cast.cc:257 一致）。
   - `rpn_push_op`/`rpn_push_atom` wrapper 先走真 `self.rpn_recurse()`（单一 `if (pending < nodepend.size()) recurse();` 语义不变），再进自由函数——Ghidra 的 recurse 是虚调用真实现，此前路由到 no-op 等于丢操作数。
@@ -1231,7 +1231,7 @@ printc.cc:2260/2518/2497）：
 ### PRINTC-CAST-EXPR-0001 事后审计窄面修复（2026-08-17，F1/F2/F3）
 
 - **F1 证据失实修正**：上文 198 行 SUBPIECE 分支"不可达"表述已就地改为"可达、字段抽取体为继承 MISSING、已登记降级"（见上）。`src/printc.rs` SUBPIECE 臂注释同步修正，并登记 `PRINTC-SUBPIECE-FIELDEXTRACT-0001`（三个邻接继承缺口：pushPartialSymbol/findTruncation 字段抽取体缺失；`is_piece_structured` 只匹配 Struct|Union|Array，窄于 Ghidra `metatype<=TYPE_ARRAY`（type.hh:929-934，含 enum/partial）；`is_subpiece_cast` 缺 PartialStruct/PartialUnion 输入臂（cast.cc:413-418 vs type_system/cast.rs:85-87））。
-- **F2 parentheses hiddenfunction 分支精确移植**（printlanguage.cc:309-319）：top 为 hidden 且 stage==0 且 revpol 长度>1 时，读 `revpol[size-2].tok`（前一个未完成 token）——非 binary 且非 unary_prefix → false；其 precedence 严格小于 op2 → false；相等保留括号（防相邻 token 被当作 associative）。Rugra 侧 `parentheses()` 增 `prev: Option<&OpToken>` 参数（None 编码 `revpol.size()<=1`），`rpn_push_op` 调用点从 revpol 倒数第二项构造。原实现硬编码 `return true` 且注释引用不存在的 `parentheses_in_stack`——已删除。curl 语料 hidden 路径 0 触发，E2E 输出逐字节不变（预期，见 Differential）。
+- **F2 parentheses hiddenfunction 分支精确移植**（printlanguage.cc:309-319）：top 为 hidden 且 stage==0 且 revpol 长度>1 时，读 `revpol[size-2].tok`（前一个未完成 token）——非 binary 且非 unary_prefix → false；其 precedence 严格小于 op2 → false；相等保留括号（防相邻 token 被当作 associative）。Rudra 侧 `parentheses()` 增 `prev: Option<&OpToken>` 参数（None 编码 `revpol.size()<=1`），`rpn_push_op` 调用点从 revpol 倒数第二项构造。原实现硬编码 `return true` 且注释引用不存在的 `parentheses_in_stack`——已删除。curl 语料 hidden 路径 0 触发，E2E 输出逐字节不变（预期，见 Differential）。
 - **F2 附带注释修正**：`build_rpn_token_table` hidden 项 "precedence 70 (looser than function_call's 66…)" → "tighter"（高 precedence=绑更紧；70>66 使父 function_call 走 `topToken->prec < op2->prec` 免括号），并补全 parent 侧由 hiddenfunction 分支经祖父 token 决定的表述。
 - **F3 markup 对齐**：`rpn_op_func` name atom 由 `FuncnameColor + op_index=-1` 改为 `NoColor + op 锚`（printc.cc:428-431 "don't markup the name as a normal function call"，`pushAtom(Atom(nm,optoken,EmitMarkup::no_color,op))`）。纯 markup 变更，无文本输出影响（text emitter 忽略颜色与锚）。
 
@@ -1250,11 +1250,11 @@ printc.cc:2260/2518/2497）：
 
 ### PRINTC-SUBPIECE-FIELDEXTRACT-0001 审计返工（2026-08-17，三处 MISMATCH 修正）
 
-- **REWORK #1 STRUCT 臂 findResolve**：原实现 `needs_resolution && size==sz` 时无条件 break——错误。oracle 的 `TypeStruct::findResolve` 有 override（type.cc:1944-1951）：**无缓存**返回 `field[0].type`（≠ct → 不 break，继续 findTruncation 下降），**有缓存**返回 `ResolvedUnion::getDatatype()`，仅 `==ct` 才 break（printc.cc:1969-1971）。修正：`rpn_push_partial_symbol` 查 `union_resolutions` 快照（PrintC 新字段，doc_function 时从 `fd.union_map` 克隆——Rugra 的 PcodeOp/block 无 Funcdata 反向指针，快照等价于 Ghidra 经 `op->getParent()->getFuncdata()` 的查询），无缓存回退 `field[0].type`，`Arc::ptr_eq` 判等。真 oracle 验证：`armA.nested=N.in.x`（fixture_inner 单字段填满 → 真 TypeFactory::setFields 置 needs_resolution，type.cc:1569-1871）。
-- **REWORK #2 PartialEnum 白名单**：`TypePartialEnum` 构造器（type.cc:2255-2262）委托 TypeEnum 归一化为 TYPE_UINT → Ghidra 三白名单全过；Rugra 侧 `is_subpiece_cast` 三处白名单（in/out/PTR→int 特例）补 `TypeMetatype::PartialEnum`。真 oracle 验证：`cast.int_partialenum_0=1` / `cast.partialenum_out_0=1`。
+- **REWORK #1 STRUCT 臂 findResolve**：原实现 `needs_resolution && size==sz` 时无条件 break——错误。oracle 的 `TypeStruct::findResolve` 有 override（type.cc:1944-1951）：**无缓存**返回 `field[0].type`（≠ct → 不 break，继续 findTruncation 下降），**有缓存**返回 `ResolvedUnion::getDatatype()`，仅 `==ct` 才 break（printc.cc:1969-1971）。修正：`rpn_push_partial_symbol` 查 `union_resolutions` 快照（PrintC 新字段，doc_function 时从 `fd.union_map` 克隆——Rudra 的 PcodeOp/block 无 Funcdata 反向指针，快照等价于 Ghidra 经 `op->getParent()->getFuncdata()` 的查询），无缓存回退 `field[0].type`，`Arc::ptr_eq` 判等。真 oracle 验证：`armA.nested=N.in.x`（fixture_inner 单字段填满 → 真 TypeFactory::setFields 置 needs_resolution，type.cc:1569-1871）。
+- **REWORK #2 PartialEnum 白名单**：`TypePartialEnum` 构造器（type.cc:2255-2262）委托 TypeEnum 归一化为 TYPE_UINT → Ghidra 三白名单全过；Rudra 侧 `is_subpiece_cast` 三处白名单（in/out/PTR→int 特例）补 `TypeMetatype::PartialEnum`。真 oracle 验证：`cast.int_partialenum_0=1` / `cast.partialenum_out_0=1`。
 - **REWORK #3 allowCast 臂实参**：Ghidra printc.cc:859 传 `op->getOut()`（**输出** varnode）——2019 行 `outtype = vn->getHigh()->getType()` 读输出 high 类型，2020-2022 的 space 回退同源；原实现传输入 vn → outtype 落输入类型 → 白名单恒拒 → finalcast 死代码。修正：dispatch 臂 (a) 传输出 varnode；符号 atom 的 vn 锚点同步取输出。真 oracle 验证：`armA.allowcast=(uint2)C.lo`（输出 typed uint2 → `(uint2)` 前缀可达）。
 - **同批**：legacy `push_partial_symbol` 补 loop-top TYPE_PTR 豁免（printc.cc:1962 `(!needsResolution || metatype==TYPE_PTR)`）；C++ fixture 的 COPY/SUBPIECE 插入真实基本块（`const_cast<BlockGraph&>(fd.getBasicBlocks()).newBlockBasic` + `opInsertEnd`）使 `findResolve` 的 `op->getParent()->getFuncdata()` 可达。
-- **衍生登记**：`TYPEFACTORY-NEEDSRES-SINGLEFIELD-0001`（Rugra `TypeFactory::set_fields` 不置单字段 needs_resolution，type.cc:1569-1871——铁律 1.5 基础设施缺口；fixture Rust 侧手动置 flag 规避并注释指向 TODO）。
+- **衍生登记**：`TYPEFACTORY-NEEDSRES-SINGLEFIELD-0001`（Rudra `TypeFactory::set_fields` 不置单字段 needs_resolution，type.cc:1569-1871——铁律 1.5 基础设施缺口；fixture Rust 侧手动置 flag 规避并注释指向 TODO）。
 - **fixture 重钉**：runner 22→**26 records**（+`armA.nested=N.in.x`、+`cast.int_partialenum_0=1`、+`cast.partialenum_out_0=1`、+`armA.allowcast=(uint2)C.lo`，cast sweep 8→10），双侧逐字节 MATCH；E2E 复跑零回归（diff 0 行），门禁 defects=0/numbering=0；metadata 登记修正（`needs_resolution_struct_break` UNTESTED→MATCH，`union_resolution_cache` → 读侧已接线/写侧 UNTESTED，`pipeline_needs_resolution_production` → MISSING 指向 TYPEFACTORY TODO）。
 
 ### TYPEUNION-CACHE-READSIDE-0001——UNION 臂 findTruncation 缓存读侧接线（2026-08-18）
@@ -1272,37 +1272,37 @@ printc.cc:2260/2518/2497）：
 - **`push_constant_typed` Pointer 臂接通分派**（printc.cc:1775-1790）：签名扩为 `(val, ct, vn: Option<&Varnode>, op: Option<&PcodeOp>)`（对齐 `pushConstant` 的 vn/op 形态，point 语义必需）；`option_NULL && val==0` → `NULL`；ptr-to-`isCharPrint()` → `push_ptr_char_constant`；ptr-to-CODE → `push_ptr_code_constant`；否则 default cast。生产调用点接线（make_atom_for_vn/legacy 路径改道 + driver string_table 退役）属 D3，本片后 E2E curl 输出不变。
 - **`op_ptrsub` TYPE_SPACEBASE 臂移植**（printc.cc:1057-1097，替换 `field_0x` 回退）：in(1) HighVariable symbol（`updateSymbol` 的 mapentry 回退等价，variable.cc:419-432）；array/code symbol 类型改写 valueon/arrayvalue（1062-1069）；`!valueon` 发 `&`（1071-1072）；symbol 引用 offset==0 → `push_symbol`（`&DAT_xxx`），否则 `push_partial_symbol`（allowCast=false，1092）；无 symbol → `TypeSpacebase::getAddress` + `push_unnamed_location`（1078-1082）；arrayvalue → 后置 `[0]`（1095-1096）。
 - **`push_unnamed_location` 格式修正**（printc.cc:1938-1945 + space.cc:206-218）：`{space name}` + `0x` + `byteToAddress(offset,wordsize)` 的 `2*sz` 位零填充十六进制（8 字节空间高位为零时收窄到 4/6 字节宽度）——`ram0x00002100` 形态（原 `ram2100` 非 Ghidra 形态）。
-- **M5**：legacy `push_partial_symbol` 补 allowCast/finalcast 臂（printc.cc:2018-2029：outtype=消费 vn 的 HighVariable 类型 + `cast_strategy.is_subpiece_cast_endian`，命中则 `(outtype)` 前缀于整条 entry 链前，2044-2047），签名增 `outtype/out_space_bigend/allow_cast` 三参；`op_subpiece` 调用点传 `allow_cast=true`（printc.cc:859）。陈旧注释（"Rugra has no isSubpieceCastEndian"/"SUBPIECE-style cast is a TODO hook"）随重写消除。**M4**（cast.cc:27 promoteSize 路由）**已收尾（2026-08-25，agent/cast-promotesize）**：`CastStrategyC` 补 `get_promote_size()` 访问器（cast.hh:57 保护字段 `promoteSize` 的 Rust 可见性胶水——Ghidra 侧消费者都是 strategy 成员函数直接读字段，Rugra 的 `is_extension_cast_implied` 落在 printc.rs 故需跨模块读取），`is_extension_cast_implied` 的 cast.cc:284 比较改经 `self.cast_strategy.get_promote_size()`，字面量 4 残余消除；访问器由 `type_system::cast::tests::test_get_promote_size_matches_constructor` 钉住，行为与所有锁定语料等价（x86/x64 int==4）。
+- **M5**：legacy `push_partial_symbol` 补 allowCast/finalcast 臂（printc.cc:2018-2029：outtype=消费 vn 的 HighVariable 类型 + `cast_strategy.is_subpiece_cast_endian`，命中则 `(outtype)` 前缀于整条 entry 链前，2044-2047），签名增 `outtype/out_space_bigend/allow_cast` 三参；`op_subpiece` 调用点传 `allow_cast=true`（printc.cc:859）。陈旧注释（"Rudra has no isSubpieceCastEndian"/"SUBPIECE-style cast is a TODO hook"）随重写消除。**M4**（cast.cc:27 promoteSize 路由）**已收尾（2026-08-25，agent/cast-promotesize）**：`CastStrategyC` 补 `get_promote_size()` 访问器（cast.hh:57 保护字段 `promoteSize` 的 Rust 可见性胶水——Ghidra 侧消费者都是 strategy 成员函数直接读字段，Rudra 的 `is_extension_cast_implied` 落在 printc.rs 故需跨模块读取），`is_extension_cast_implied` 的 cast.cc:284 比较改经 `self.cast_strategy.get_promote_size()`，字面量 4 残余消除；访问器由 `type_system::cast::tests::test_get_promote_size_matches_constructor` 钉住，行为与所有锁定语料等价（x86/x64 int==4）。
 - **快照字段**：`string_manager`/`symboltab`（doc_function 从 `fd.arch` 克隆，cpool/userops 同款）；`spaceman`（`glb->resolveConstant` 的 AddrSpaceManager，Architecture 尚无所有者 SPACE-0001——生产 None 走默认路径，fixture/driver 经 `set_space_manager` 注入）。
 - **双侧 fixture**（`tests/oracle/printc_ptrconst_1204.*` + `tools/run_printc_ptrconst_oracle.sh`）：14 渲染记录 + 5 read 计数——合法 ASCII×2（正缓存零重读）、0xAD 非法×2（负缓存零重读，hugehelp 0x7180/0x99a8/0xc1d8 的 print 侧规则）、>2048 截断（2048 字符 + TRUNCATED 标记的 2098 字符记录逐字节一致）、非只读（manager 零查询）、null、子串、上下文分辨（0x40@0x5000/0x5008 经真 AddressResolver）、`&DAT_00002100` 与 `&ram0x00002100`。manager 为声明式 GhidraStringManager/Java 契约（与 stringmanager_core_1204 同款子类）；输出 sha256 `315a0901…3585` 双侧一致。
 
 ### PRINTC-UNLINKED-REF-FAMILY B1——未符号化 varnode 兜底地址源统一到 high 的 name representative（2026-08-25）
 
 - **Ghidra 语义**（printlanguage.cc:238-262 `PrintLanguage::pushSymbolDetail`）：sym==null 唯一臂调 `pushUnnamedLocation(high->getNameRepresentative()->getAddr(), vn, op)`（:244）——兜底标签的地址是 **high 名字代表的地址**（`HighVariable::getNameRepresentative`，variable.cc:492-511，compareName 评分 variable.cc:456-488：namelock > unaffected > persist > input > addrtied > protoPartial > 非 internal 空间 > written > 更早 def），不是当前实例的 offset。`PrintC::pushUnnamedLocation`（printc.cc:1938-1945）打印该地址的空間名 + printRaw。推论：**一个 HighVariable 无论持有多少实例、在多少站点被打印，都只产生一个标签**。`emitExpression` 的两侧输出臂（printc.cc:2475/2482）与 `pushVnExplicit`（printlanguage.cc:229）都汇入该单一路径。
-- **Rugra 缺陷**（A35 审计类 (a)②）：三条空间阶梯（`get_varnode_display_name_inner` 尾部、`make_atom_for_vn` RPN 原子 fallback、`push_varnode` Priority 2 阶梯）+ `emit_inline_expr` 的 `_ =>` 臂 + raw-register 名转换臂，全部以 `vn.get_offset()`（当前实例）为地址源——同一 high 的 N 个实例碎片化为 N 个 `uVar_<offset>` 标签（A35 §1 的 my_get_line/next_url/glob_word 交换标签即其 E2E 放大面）。
-- **B1 修复**：新增 `PrintC::unnamed_location_offset(vn)`（单一地址源 helper，`// Ghidra: printlanguage.cc:238`）：有 high 且有实例 → `get_name_representative().get_offset()`；否则保守退回实例自身 offset（Ghidra 打印期不会遇到无 high 的显式 varnode，纯 Rugra 形态）。上述全部兜底标签臂改经该 helper 取地址；标签形式（`uVar_`/`uVar` + hex、`local_`/`param_stack_`、`vn_`、`DAT_`）**不变**（形式统一属切片 A）。Stack/Ram addrtied 臂经 helper 后观测等价（HighVariable 从不合并不同地址的两个 addrtied 实例，且 compareName 偏好 addrtied 成员 → 代表地址 == 实例地址），走 helper 仅为与 Ghidra 单一路径同构。
+- **Rudra 缺陷**（A35 审计类 (a)②）：三条空间阶梯（`get_varnode_display_name_inner` 尾部、`make_atom_for_vn` RPN 原子 fallback、`push_varnode` Priority 2 阶梯）+ `emit_inline_expr` 的 `_ =>` 臂 + raw-register 名转换臂，全部以 `vn.get_offset()`（当前实例）为地址源——同一 high 的 N 个实例碎片化为 N 个 `uVar_<offset>` 标签（A35 §1 的 my_get_line/next_url/glob_word 交换标签即其 E2E 放大面）。
+- **B1 修复**：新增 `PrintC::unnamed_location_offset(vn)`（单一地址源 helper，`// Ghidra: printlanguage.cc:238`）：有 high 且有实例 → `get_name_representative().get_offset()`；否则保守退回实例自身 offset（Ghidra 打印期不会遇到无 high 的显式 varnode，纯 Rudra 形态）。上述全部兜底标签臂改经该 helper 取地址；标签形式（`uVar_`/`uVar` + hex、`local_`/`param_stack_`、`vn_`、`DAT_`）**不变**（形式统一属切片 A）。Stack/Ram addrtied 臂经 helper 后观测等价（HighVariable 从不合并不同地址的两个 addrtied 实例，且 compareName 偏好 addrtied 成员 → 代表地址 == 实例地址），走 helper 仅为与 Ghidra 单一路径同构。
 - **不改变 inline 判定键**：`inline_candidates`/`value_def_map`/`def_map` 仍按当前实例 `(space, offset)` 键控（内联决策是逐实例的），只有发射标签的地址源移到代表。
 - **验收**（`tests/oracle/printc_unnamed_1204` + `tools/run_printc_unnamed_oracle.sh`，基线重钉到 9bdd5e3 + `src/printc.rs` overlay）：`multi_instance_unnamed` site=b 行从 `uVar_10000008`（第二实例自身 offset）塌缩为 `uVar_10000000`（代表地址，与 site=a 同标签）——registered 表第 31 行重钉，碎片化轴闭合；行 7/23/30/31 的 `uVar_` 形式差异与行 2/3 的 typechar 差异保留（分别属切片 A 与类型系统域）。Rust 侧回归 `test_unnamed_fallback_collapses_to_name_representative`（合并双实例 high → 双站点同标签；无 high 孤儿 → 退回实例 offset）。
 
 ### PRINTC-UNLINKED-REF-FAMILY A——兜底 token 形式统一到 `PrintC::pushUnnamedLocation`（2026-08-25）
 
-- **Ghidra 语义**（printc.cc:1938-1945 `PrintC::pushUnnamedLocation`）：`s << addr.getSpace()->getName(); addr.printRaw(s);` 后推 var 色 atom——**空間名 + printRaw**，打印点无任何空间分支。`printRaw` 是虚分派：base `AddrSpace::printRaw`（space.cc:206-222）= `"0x"` + `byteToAddress(offset,wordsize)`（**除法**，space.hh:523-525：byte 单位→可寻址单位）的 `2*sz` 位零填充十六进制（`setw` 最小宽度不截断），`sz=getAddrSize()` 仅当 >4 时按 `offset>>32==0→4`、`else if offset>>48==0→6` 收窄，wordsize>1 且 `offset%wordsize!=0` 时后缀 `+cut`（十进制）；`ConstantSpace::printRaw`（space.cc:372-376）与 `OtherSpace::printRaw`（space.cc:410-414）覆盖为无填充 plain hex；`JoinSpace::printRaw`（space.cc:590-609）/`IopSpace::printRaw`（op.cc:41-54）按记录表解码（打印期显式 varnode 不可达，Rugra 平面枚举无对应 registry → 保守走 base 形式，注释已记降级与修复路径）。unique 空间 addrsize=4（UniqueSpace::SIZE，space.cc:418）→ `unique0x10000000`；ram addrsize=8 高位零收窄 → `ram0x00023e00`。
-- **Rugra 缺陷**（A35 审计类 (a)①③）：三条阶梯形式互不一致且全非 oracle 形式——`get_varnode_display_name_inner` 尾部（Register→`uVar<hex>`/Stack→`local_`|`param_stack_`/Unique→`uVar_<hex>`）、`make_atom_for_vn` RPN fallback（Register→`uVar<hex>`/else→`vn_<hex>`）、`push_varnode` Priority 2（Register→`<prefix>_<hex>` var_prefix 名/Stack/Ram→`DAT_<08hex>`/else→`v_<size>_<hex>`）+ `emit_inline_expr` 的 `_` 臂（`uVar_<hex>`）。Register 阶梯 `uVar{:x}` 直接吞 raw 负 offset（E2E `uVarffffffffffffff70`×3，result/curl_cur.c:1233/1323/1396）。
+- **Ghidra 语义**（printc.cc:1938-1945 `PrintC::pushUnnamedLocation`）：`s << addr.getSpace()->getName(); addr.printRaw(s);` 后推 var 色 atom——**空間名 + printRaw**，打印点无任何空间分支。`printRaw` 是虚分派：base `AddrSpace::printRaw`（space.cc:206-222）= `"0x"` + `byteToAddress(offset,wordsize)`（**除法**，space.hh:523-525：byte 单位→可寻址单位）的 `2*sz` 位零填充十六进制（`setw` 最小宽度不截断），`sz=getAddrSize()` 仅当 >4 时按 `offset>>32==0→4`、`else if offset>>48==0→6` 收窄，wordsize>1 且 `offset%wordsize!=0` 时后缀 `+cut`（十进制）；`ConstantSpace::printRaw`（space.cc:372-376）与 `OtherSpace::printRaw`（space.cc:410-414）覆盖为无填充 plain hex；`JoinSpace::printRaw`（space.cc:590-609）/`IopSpace::printRaw`（op.cc:41-54）按记录表解码（打印期显式 varnode 不可达，Rudra 平面枚举无对应 registry → 保守走 base 形式，注释已记降级与修复路径）。unique 空间 addrsize=4（UniqueSpace::SIZE，space.cc:418）→ `unique0x10000000`；ram addrsize=8 高位零收窄 → `ram0x00023e00`。
+- **Rudra 缺陷**（A35 审计类 (a)①③）：三条阶梯形式互不一致且全非 oracle 形式——`get_varnode_display_name_inner` 尾部（Register→`uVar<hex>`/Stack→`local_`|`param_stack_`/Unique→`uVar_<hex>`）、`make_atom_for_vn` RPN fallback（Register→`uVar<hex>`/else→`vn_<hex>`）、`push_varnode` Priority 2（Register→`<prefix>_<hex>` var_prefix 名/Stack/Ram→`DAT_<08hex>`/else→`v_<size>_<hex>`）+ `emit_inline_expr` 的 `_` 臂（`uVar_<hex>`）。Register 阶梯 `uVar{:x}` 直接吞 raw 负 offset（E2E `uVarffffffffffffff70`×3，result/curl_cur.c:1233/1323/1396）。
 - **A 修复**：新增 `PrintC::addr_space_print_raw(space, offset)`（`// Ghidra: space.cc:206`，虚分派等价：Const/Other→plain hex，其余 base 形式含收窄/除法 byteToAddress/`+cut`）与 `PrintC::unnamed_location_token(space, offset)`（`// Ghidra: printc.cc:1938`，token 构造半部 = 空間名+printRaw）；三条阶梯 + `_` 臂的全部标签形式改走该单一 helper（param_names 前置检查与 inline-candidacy 守卫保留，inline 键仍按当前实例——B1 约定不变）；`push_varnode` Priority 2 Register 臂的 `var_prefix` 形式退役（Ghidra 打印期无 buildVariableName 路径——那是 symbol 命名域）。既有 `pub fn push_unnamed_location`（printc_symbol_decl 期移植）改为委托 token builder，并修正其 `byteToAddress` 方向 bug（原 `offset * wordsize` 是 `addressToByte`；x86-64 全 wordsize=1 故不可见，潜在 wordsize>1 分歧消除）。
 - **验收**（同 fixture，runner 重钉 slice C+B1+A）：行 7/23/30/31 翻为双侧逐字节一致（`unique0x10000000 = 5/7/5/6;`）——registered 表 6→2 行（仅 typechar 行 2/3，类型系统域）；`multi_instance` site=a/b 同标签（B1 地址源 + A 形式）；Rust 单测断言更新 `uVar_10000000`→`unique0x10000000`。E2E 方向（root 全量收口）：残余 `uVar_*` 兜底族整体变形为 `unique0x…`（golden 0 兜底，仍为差异但已是 oracle 兜底形式；真值闭合属 B2 符号化到达）；`local_`/`param_stack_`→`stack0x…`、`DAT_<08hex>`→`ram0x…`、Register 阶梯负 offset 产物→`register0xffffffffffffff…` 形。
 
 ### PRINTC-IFGOTO-EMIT——emitBlockIf 的 goto 分支移植（emit_structured_if goto_target 臂 + goto-cascade 顺序回退臂）（2026-08-25）
 
 - **Ghidra 语义**（printc.cc:2878-2949 `PrintC::emitBlockIf`，goto 分支 cc:2894-2916）：`pushMod(); setMod(no_branch); condBlock->emit(); popMod()`（cc:2894-2898）先发射条件块的**非分支语句**；`emitCommentBlockTree(condBlock)`；然后 cc:2905 `tagLine()`（else-if 的 pendingBrace 合并 cc:2900-2903 属父链职责）；cc:2907-2913 `tagOp(KEYWORD_IF)` + `spaces(1)` + `pushMod(); setMod(only_branch); condBlock->emit()`（走 `emitBlockBasic` 的 only_branch 臂 → `opCbranch` 打印条件表达式）；cc:2914-2916 `spaces(1) + emitGotoStatement(condBlock, bl->getGotoTarget(), bl->getGotoType())`。`emitGotoStatement`（printc.cc:2303-2322）= `beginStatement(bl->lastOp())` → keyword（f_break_goto→`break` / f_continue_goto→`continue` / f_goto_goto→`goto` + `emitLabel(exp_bl)`）→ `SEMICOLON` → `endStatement`——**函数体自身无 tagLine**，唯一行断点在调用点（emitBlockGoto cc:2775 的 tagLine；emitBlockIf 的 goto 臂是行中 `if (cond) ` 之后）。
-- **Rugra 缺陷**（F1 47 处 discarded conditions 的 emit 侧形态之一）：`emit_structured_if` 的 `goto_target.is_some()` 臂以 `emit_block_ops(&condition, false)`（no_branch **未激活**）发射条件块——终端 CBRANCH 走到 `doc_statement` 被捕获成一条裸 `(cond);` 语句（多数被 produced-empty 过滤吞掉，即"条件被丢弃"），从不打印 `if`/`goto`，直接 return——结构化期 `try_rule_if_goto`（blockaction.rs，newBlockIfGoto cc:1799-1816）建出的每个 if-goto 包装在发射侧全部作废。goto-cascade 顺序回退臂（GOTO_EDGE_1 干跑检测命中后的顺序发射）同样以 `emit_block_ops(&condition, false)` 泄漏 CBRANCH。
-- **修复**：goto_target 臂改为 ①`emit_block_ops(&condition, true)`（= cc:2894-2898 setMod(no_branch)；Rugra 的 skip_terminal 布尔是 no_branch 的传输载体）→ ②`tag_line(0)`（cc:2905）→ ③`if (` + `emit_block_condition(&condition)` + `)`（cc:2907-2913 的 only_branch 条件发射，`emit_block_condition_rpn` 已是 opCbranch pushVn(in(1))+recurse 的移植）→ ④`print(" ")` + `emit_goto_statement(target_addr, bt)`（cc:2914-2916）。goto_type 映射（block.hh:89-91 f_goto_goto/f_break_goto/f_continue_goto → op::branch_type）与 `emit_block_goto` 一致；Ghidra 直接把 `bl->getGotoType()` 透传给 emitGotoStatement，**从不改写 CBRANCH op**（旧实现的 branch_type 改写 hack 已删）。target_addr = `goto_target` 块的 `get_start_addr()`（结构块递归到首个 Basic 的 initial_range/start_addr，与 emitLabel 的 `getFrontLeaf→getEntryAddr`、UNSTRUCTURED_TARG 标记、`emit_any_label_statement` 同源）。顺序回退臂同型改造（目标/类型取自条件块自身 CBRANCH 的 in(0) offset + branch_type，flat-mode opCbranch 尾 printc.cc:574-579 的投影，经新增 helper `cbranch_goto_info`），随后仍发射 if_body。`emit_goto_statement` 移除函数内 `tag_line(0)`（cc:2303-2322 无 tagLine；调用点语义：emit_block_goto 自带 tag_line，if-goto 臂是行中——两处均忠实）。
+- **Rudra 缺陷**（F1 47 处 discarded conditions 的 emit 侧形态之一）：`emit_structured_if` 的 `goto_target.is_some()` 臂以 `emit_block_ops(&condition, false)`（no_branch **未激活**）发射条件块——终端 CBRANCH 走到 `doc_statement` 被捕获成一条裸 `(cond);` 语句（多数被 produced-empty 过滤吞掉，即"条件被丢弃"），从不打印 `if`/`goto`，直接 return——结构化期 `try_rule_if_goto`（blockaction.rs，newBlockIfGoto cc:1799-1816）建出的每个 if-goto 包装在发射侧全部作废。goto-cascade 顺序回退臂（GOTO_EDGE_1 干跑检测命中后的顺序发射）同样以 `emit_block_ops(&condition, false)` 泄漏 CBRANCH。
+- **修复**：goto_target 臂改为 ①`emit_block_ops(&condition, true)`（= cc:2894-2898 setMod(no_branch)；Rudra 的 skip_terminal 布尔是 no_branch 的传输载体）→ ②`tag_line(0)`（cc:2905）→ ③`if (` + `emit_block_condition(&condition)` + `)`（cc:2907-2913 的 only_branch 条件发射，`emit_block_condition_rpn` 已是 opCbranch pushVn(in(1))+recurse 的移植）→ ④`print(" ")` + `emit_goto_statement(target_addr, bt)`（cc:2914-2916）。goto_type 映射（block.hh:89-91 f_goto_goto/f_break_goto/f_continue_goto → op::branch_type）与 `emit_block_goto` 一致；Ghidra 直接把 `bl->getGotoType()` 透传给 emitGotoStatement，**从不改写 CBRANCH op**（旧实现的 branch_type 改写 hack 已删）。target_addr = `goto_target` 块的 `get_start_addr()`（结构块递归到首个 Basic 的 initial_range/start_addr，与 emitLabel 的 `getFrontLeaf→getEntryAddr`、UNSTRUCTURED_TARG 标记、`emit_any_label_statement` 同源）。顺序回退臂同型改造（目标/类型取自条件块自身 CBRANCH 的 in(0) offset + branch_type，flat-mode opCbranch 尾 printc.cc:574-579 的投影，经新增 helper `cbranch_goto_info`），随后仍发射 if_body。`emit_goto_statement` 移除函数内 `tag_line(0)`（cc:2303-2322 无 tagLine；调用点语义：emit_block_goto 自带 tag_line，if-goto 臂是行中——两处均忠实）。
 - **验收**：curl E2E（HEAD `e17b4295` 干净树对照同构 fast-release 构建）：HEAD 输出 **0 个 goto**（16 处裸 `(cond);`/条件丢弃形态）→ 修复后 **22 个 `if (cond) goto <label>;`**（golden 61；缺口=flat opCbranch 完整移植（stash `flatcbr-prev-agent-diff` 中的 FLAT mod + op_cbranch_rpn 全臂，未含本轮）与结构化覆盖域）；skeleton 2927→2923、defects 0→0、numbering 1→1（唯一 match_url numbering 为既有存量，与本改动无关）；多次重跑输出字节一致（一次 main TIMEOUT 为 10s 上限的负载抖动，复跑恢复）。逐行 diff 确认全部变化均为裸条件语句 → if-goto 形态（含 2 处复合条件 `(A) || (B)` 合并恢复：match_url 与 my_get_token 的两条独立条件语句合并回单条复合 if-goto）。样本：`(piVar37 != 0);` → `if (piVar37 != 0) goto code_r0x00002728;`（result/curl_cur.c main）。
-- **表示层残差**（如实登记）：①`if (` 文本直接 print（无 tagOp markup——Rugra EmitNoMarkup 无 markup 通道，文本等价）；②空体/畸形条件仍走 R50 `1` 回退；③goto 目标 label 与 golden 的 `LAB_` 符号名差异属 varmap 符号化域（golden 经 ScopeLocal queryCodeLabel，Rugra 的 `code_label` 已是 emitLabel 兜底形式 cc:3183-3192 的移植）；④golden 的 `file2string`/`parseconfig` 全体 goto 形态还依赖 flat 模式与结构化覆盖的后续 wave。
+- **表示层残差**（如实登记）：①`if (` 文本直接 print（无 tagOp markup——Rudra EmitNoMarkup 无 markup 通道，文本等价）；②空体/畸形条件仍走 R50 `1` 回退；③goto 目标 label 与 golden 的 `LAB_` 符号名差异属 varmap 符号化域（golden 经 ScopeLocal queryCodeLabel，Rudra 的 `code_label` 已是 emitLabel 兜底形式 cc:3183-3192 的移植）；④golden 的 `file2string`/`parseconfig` 全体 goto 形态还依赖 flat 模式与结构化覆盖的后续 wave。
 
 ### PRINTC-PENDINGBRACE-IDENTITY——emit_structured_if 的 PendingBrace 身份门（SQATTR-PENDINGBRACE-IDENTITY-0001，2026-09-26）
 
 - **Ghidra 语义**（printc.cc:2882-2949 `PrintC::emitBlockIf`）：`PendingBrace pendingBrace(option_brace_ifelse)` 是**本帧栈对象**（printc.hh:347-361，`indentId` ctor=-1，callback=cc:2872-2876 `openBraceIndent` 置位）；`isSet(pending_brace)` 时 `emit->setPendingPrint(&pendingBrace)`（cc:2884-2885）装槽；cc:2900 `hasPendingPrint(&pendingBrace)` **指针身份**判定——真则 `cancelPendingPrint()+spaces(1)`（else-if 合并），假则 `tagLine()`（brace 已中途触发或未安装）；cc:2946-2948 `pendingBrace.getIndentId() >= 0` 时**只有 owner 帧**补 `closeBraceIndent`。goto 臂（cc:2914-2917）**无 cancel**——cc:2900-2905 已保证本帧槽必先解决（触发即清槽 hh:1129-1137 / 取消即清槽 hh:451），不存在槽悬挂。
-- **Rugra 缺陷**：旧实现的 `installed_pending_brace=继承 mod 旗标` + emitter 级全局 `pending_brace_fired` 粘性布尔（无人复位）→ 嵌套 else-if 子帧触发后，父帧尾部 `installed && fired()` 读到子帧残火多发一次 `close_brace_indent` → startIndent/stopIndent 21/22 失衡 → 尾部多余 `}` 弹空 indentstack → prettyprint.rs:3946 相对断行 unwrap panic（sq 609/620 + sqlite3 27 索引族；PFLUSH 车道逐 token 台账+双关闭签名仪器独立复钉，与 SQATTR FWDLOG/MiniOppen 归因收敛）。goto 臂多余的 `cancel_pending_print`（oracle 无）在全局槽时代是防悬挂补丁，身份化后按 oracle 删除。
+- **Rudra 缺陷**：旧实现的 `installed_pending_brace=继承 mod 旗标` + emitter 级全局 `pending_brace_fired` 粘性布尔（无人复位）→ 嵌套 else-if 子帧触发后，父帧尾部 `installed && fired()` 读到子帧残火多发一次 `close_brace_indent` → startIndent/stopIndent 21/22 失衡 → 尾部多余 `}` 弹空 indentstack → prettyprint.rs:3946 相对断行 unwrap panic（sq 609/620 + sqlite3 27 索引族；PFLUSH 车道逐 token 台账+双关闭签名仪器独立复钉，与 SQATTR FWDLOG/MiniOppen 归因收敛）。goto 臂多余的 `cancel_pending_print`（oracle 无）在全局槽时代是防悬挂补丁，身份化后按 oracle 删除。
 - **修复**：install 持帧内 `Option<BraceId>`（`set_pending_brace` 返回新铸 id，oracle 栈对象身份的 Rust 化身）；cc:2900 合并门 → `has_pending_print_id(id)`；goto 臂/尾部关 → `pending_brace_fired_id(id)` + 删 cancel。emit 层状态模型详见 docs/api/prettyprint.md「SQATTR-PENDINGBRACE-IDENTITY-0001」节。
 - **验收**：sq 609/620 rc=0、defects=0/numbering=0（残差=unaff 既有族 3 行）；sqlite3 27 panic 索引全清 0/0；五面 A/B 字节恒等（canon curl 267/0/0+httpd 285/0/0、镜面 curl 78/httpd 208/vsh 15 修复前后同数——非 panic 语料行为等价）；bank 391/391；gcc 审计 104/20、15/14 == 常驻基线。
 
@@ -1373,7 +1373,7 @@ printc.cc:2260/2518/2497）：
 ## `pub struct PrintC`
 
 ### 作用
-`PrintC` 是当前 Rugra 中面向 C 风格输出的打印器。
+`PrintC` 是当前 Rudra 中面向 C 风格输出的打印器。
 
 它对应的核心角色是：
 
@@ -1443,7 +1443,7 @@ printc.cc:2260/2518/2497）：
 ### 设计意义
 这个接口说明 `PrintC` 的当前实现并不是直接返回一个“最终字符串”的最简单封装，而是通过 emitter 把输出过程与输出载体解耦。
 
-这对当前 Rugra 很重要，因为它允许：
+这对当前 Rudra 很重要，因为它允许：
 
 - 输出层与缓冲实现分离
 - 更方便做测试和调试
@@ -1458,7 +1458,7 @@ printc.cc:2260/2518/2497）：
 
 从整个工程现状出发，当前 `PrintC` 的合理定位应该是：
 
-> 一个正在持续演进中的 C-like 输出器，它已经承担 Rugra 输出链路中的关键角色，但它的最终表现高度依赖前序分析阶段的质量，不能单独被当作“完整反编译器输出质量”的证明。
+> 一个正在持续演进中的 C-like 输出器，它已经承担 Rudra 输出链路中的关键角色，但它的最终表现高度依赖前序分析阶段的质量，不能单独被当作“完整反编译器输出质量”的证明。
 
 换句话说：
 
@@ -1479,7 +1479,7 @@ printc.cc:2260/2518/2497）：
 
 ### 推荐表述
 
-- `PrintC` 是当前 Rugra 的 C 风格输出实现
+- `PrintC` 是当前 Rudra 的 C 风格输出实现
 - `PrintC` 负责把已有函数语义组织成可读文本
 - `PrintC` 建立在 `Funcdata` 和前序分析结果之上
 - `PrintC` 的输出质量依赖前序恢复结果
@@ -1490,7 +1490,7 @@ printc.cc:2260/2518/2497）：
 - `PrintC` 已生成与 Ghidra 完全一致的 C 输出
 - `PrintC` 已经完整恢复所有高级控制流结构
 - `PrintC` 可以单独代表端到端反编译质量
-- `PrintC` 的存在证明 Rugra 已是完整成熟反编译产品
+- `PrintC` 的存在证明 Rudra 已是完整成熟反编译产品
 
 ---
 
@@ -1536,7 +1536,7 @@ printc.cc:2260/2518/2497）：
 
 ## 一句话总结
 
-`PrintC` 是 Rugra 当前将内部分析结果转成 **C-like 文本输出** 的关键实现，它负责“如何写出来”，但不单独负责“前面的语义是否已经完整恢复”，因此应被理解为**输出主干模块**，而不是“已经证明最终反编译质量成熟”的证据。
+`PrintC` 是 Rudra 当前将内部分析结果转成 **C-like 文本输出** 的关键实现，它负责“如何写出来”，但不单独负责“前面的语义是否已经完整恢复”，因此应被理解为**输出主干模块**，而不是“已经证明最终反编译质量成熟”的证据。
 ---
 
 ## 更新日志
@@ -1763,7 +1763,7 @@ curl 24/24 gcc。httpd 29/29 gcc，0 goto。
 - `PrintC` 新增字段 `scope: Option<crate::varmap::ScopeLocal>`，在 `doc_function` 开头构建一次。
 - `get_stack_variable_name` 的 Case 1（INT_ADD(RSP, const)）在 struct 检测之后、启发式 local_XX 之前，查询 `scope.find_symbol(offset)`，命中则返回符号名。
 - **Graceful fallback**：当 scope 无符号覆盖该偏移时，回退到现有启发式，保证不破坏输出。
-- **已知阻碍**：Rugra 的 x86 lift 将 RSP 相对访问留在 Register space，不产生 Stack-space varnode，因此 `ScopeLocal::restructure_varnode` 的 `gather_varnodes` 几乎找不到符号。要真正消除 uVar 碎片，需先实现 RSP→Stack spacebase 提升通道（ALIGNMENT_ROADMAP P0 #1 剩余项）。
+- **已知阻碍**：Rudra 的 x86 lift 将 RSP 相对访问留在 Register space，不产生 Stack-space varnode，因此 `ScopeLocal::restructure_varnode` 的 `gather_varnodes` 几乎找不到符号。要真正消除 uVar 碎片，需先实现 RSP→Stack spacebase 提升通道（ALIGNMENT_ROADMAP P0 #1 剩余项）。
 - 验证：curl 24/24 gcc，httpd 29/29 gcc，200/200 测试。
 
 ### 2026-06-26（varmap 集成续）：复用 ActionRestructureVarnode 构建的 fd.scope
@@ -1781,7 +1781,7 @@ curl 24/24 gcc。httpd 29/29 gcc，0 goto。
 
 ### 2026-06-27（会话3 G3 续2）：~~switch 表达式 (long) cast~~（**2026-07-16 已移除**）
 
-- ~~switch 控制表达式包裹 `switch ((long)(...))`。~~ **2026-07-16 修复**：审计 P6 发现 Ghidra emitBlockSwitch（printc.cc:3313）发射 `switch (<expr>)` 无任何合成 cast —— Ghidra 通过 FuncProto/typelock 在上游规范化控制类型，从不在 print 阶段注入 cast。Rugra 的 `(long)(...)` 是无 Ghidra 对应物的自创。已改为 `switch (<expr>)`。当 varmap/typeop 把 switch index 推断为指针类型时仍可能 gcc 报错，但正确解法是上游 type 规范化（对齐 Ghidra），而非 print 阶段 cast。
+- ~~switch 控制表达式包裹 `switch ((long)(...))`。~~ **2026-07-16 修复**：审计 P6 发现 Ghidra emitBlockSwitch（printc.cc:3313）发射 `switch (<expr>)` 无任何合成 cast —— Ghidra 通过 FuncProto/typelock 在上游规范化控制类型，从不在 print 阶段注入 cast。Rudra 的 `(long)(...)` 是无 Ghidra 对应物的自创。已改为 `switch (<expr>)`。当 varmap/typeop 把 switch index 推断为指针类型时仍可能 gcc 报错，但正确解法是上游 type 规范化（对齐 Ghidra），而非 print 阶段 cast。
 
 ### 2026-06-27（会话3 uVar 调查）：uVar_N 碎片根因深度诊断
 
@@ -1838,7 +1838,7 @@ COPY 是语义上的 no-op 赋值，内联其源始终正确。
 - printc.rs BlockType::If emit 新增 if-goto 分支：当 `if_data.goto_target.is_some()` 时，emit condition block 的 ops（CBRANCH 处理分支），不 emit 占位 body。对应 Ghidra newBlockIfGoto 的 emit 语义。
 
 ### 2026-07-28：if-goto 的 BlockIf::goto_type → CBRANCH branch_type 映射（已被 2026-08-25 PRINTC-IFGOTO-EMIT 取代）
-- ~~Ghidra `emitBlockIf`（printc.cc:2914-2916）读取 BlockIf 的 gototype 并调用 `emitGotoStatement`；Rugra 在 `emit_block_ops(&condition, false)` 之前改写 condition block 末尾 CBRANCH 的 branch_type。~~
+- ~~Ghidra `emitBlockIf`（printc.cc:2914-2916）读取 BlockIf 的 gototype 并调用 `emitGotoStatement`；Rudra 在 `emit_block_ops(&condition, false)` 之前改写 condition block 末尾 CBRANCH 的 branch_type。~~
 - **2026-08-25 失效说明**：该方案（发射前改写 op.branch_type + `emit_block_ops(&condition, false)` 泄漏 CBRANCH 为裸 `(cond);`）已整体删除——Ghidra 从不改写 CBRANCH op，`bl->getGotoType()` 直通 `emitGotoStatement`（printc.cc:2914-2916）；条件以 only_branch 语义单独发射（`if (` + `emit_block_condition` + `)`）。现行实现见上文 PRINTC-IFGOTO-EMIT 节。
 
 ### 2026-07-01：while→for 发射
@@ -1857,15 +1857,15 @@ mainloop repeatapply 测试（per-arm helpers + depth 20-200 + 256MB 栈）：**
 
 ### 2026-07-02：compact_name_for 共享 base 计数器（181538f 修正）
 - **变更**：`compact_name_for`（src/printc.rs:1280）的 `compact_counters: HashMap<&'static str, u32>`（per-prefix 计数器）替换为单一 `compact_base: u32`（初值 1，跨所有前缀单调递增）。
-- **动机**：181538f 类红旗修正。Ghidra `ActionNameVars::apply`（coreaction.cc:2988）+ `assignDefaultNames(int4 &base)`（database.cc:2850）用**单一共享** `int4 base`（初值 1），非 per-prefix。此前 Rugra 用 per-prefix 计数器，产出 `bVar1,bVar2,lVar1,lVar2`（每前缀独立），而 Ghidra 产出 `...iVar4,lVar5...`（跨前缀共享编号）。
+- **动机**：181538f 类红旗修正。Ghidra `ActionNameVars::apply`（coreaction.cc:2988）+ `assignDefaultNames(int4 &base)`（database.cc:2850）用**单一共享** `int4 base`（初值 1），非 per-prefix。此前 Rudra 用 per-prefix 计数器，产出 `bVar1,bVar2,lVar1,lVar2`（每前缀独立），而 Ghidra 产出 `...iVar4,lVar5...`（跨前缀共享编号）。
 - **实测**：glob_set 现产出 `bVar1,bVar4,bVar5,...,iVar3,iVar9,iVar10,...,lVar13,lVar14,piVar2,piVar8`（共享单调编号），符合 Ghidra 共享 base 语义。
-- **诚实限制**：EXACT 数仍为 0（仅编号模型对齐不够）。Ghidra 的具体编号顺序由 `nametree` 创建顺序（SymbolCompareName: name.compare() + nameDedup）决定，需复现 varmap/HighVariable 的符号创建顺序才能完全匹配；Rugra 当前用 lazy first-touch 顺序近似。另：StackX_ 占位名（87 处）走另一路径（get_stack_variable_name → scope.find_symbol），未受本次修复影响，需独立处理。测试 `test_compact_name_for` 已改为断言共享编号（bVar1→bVar2→lVar3）。
+- **诚实限制**：EXACT 数仍为 0（仅编号模型对齐不够）。Ghidra 的具体编号顺序由 `nametree` 创建顺序（SymbolCompareName: name.compare() + nameDedup）决定，需复现 varmap/HighVariable 的符号创建顺序才能完全匹配；Rudra 当前用 lazy first-touch 顺序近似。另：StackX_ 占位名（87 处）走另一路径（get_stack_variable_name → scope.find_symbol），未受本次修复影响，需独立处理。测试 `test_compact_name_for` 已改为断言共享编号（bVar1→bVar2→lVar3）。
 
 ### 2026-07-02（续）：StackX_ 符号接入共享 base 重命名 (StackX_ 102→0)
 - **变更**：新增 `rename_scope_symbol`（printc.rs，faithful to Ghidra `assignDefaultNames` 对 stack-local 符号的重命名）。两处接入：
   1. `get_stack_variable_name`（INT_ADD(RSP,const) 路径）：scope.find_symbol 返回的 StackX_ 名经 rename_scope_symbol → iVar/lVar/bVar<base>。
   2. `doc_variable_decls_from_funcdata`（声明路径）：scope.symbols 遍历时预先 rename 所有 StackX_/Stack_ 名到 renamed_map，保证声明名与使用名一致。
-- **动机**：Ghidra `ActionNameVars::apply` 末尾 `scope->assignDefaultNames(base)`（database.cc:2850）重命名所有未命名符号（含 varmap.cc:548 的 StackX_ fallback 名）。此前 Rugra 只在 iVar/lVar 路径（compact_name_for）走共享 base，StackX_ 走另一路径原样输出。
+- **动机**：Ghidra `ActionNameVars::apply` 末尾 `scope->assignDefaultNames(base)`（database.cc:2850）重命名所有未命名符号（含 varmap.cc:548 的 StackX_ fallback 名）。此前 Rudra 只在 iVar/lVar 路径（compact_name_for）走共享 base，StackX_ 走另一路径原样输出。
 - **实测**：curl StackX_ 占位名 102→0（21 个 distinct 全部转为 iVar/lVar/bVar），0 undeclared，输出仍可编译。961/961 测试。
 - **诚实限制**：func_gap_audit EXACT 仍 0（每函数仍有 reg-leak/struct 访问/selfxor 等其他差异），但消除了一整类命名占位缺陷。
 
@@ -1883,17 +1883,17 @@ mainloop repeatapply 测试（per-arm helpers + depth 20-200 + 256MB 栈）：**
 ### op_call 参数空渲染修复（2026-07-03 续 5）
 - **根因**：main 的 `curl_easy_setopt(, 0x4e2b, ...)` 第一参数为空（gcc: expected expression before ','）。op_call 的参数解析（block_local_reg_defs / value_def_map / COPY-source 追踪 / inline）当 def op 已 dead 或解析到的 varnode 是 inline-candidate Unique（push_varnode 返回 ""）时，emit_inline_expr / push_varnode 不输出任何东西 → `f(, arg)` 非法 C。对照 Ghidra opCall（printc.cc:626-633）：每个参数都经 pushVn，永不空。
 - **修复**：把参数解析逻辑抽到 `emit_call_arg_text`（capture-emit-swap，保存/恢复 is_lhs），返回保证非空的 String；解析为空时 fallback 到 `in_<offset>`（对齐 Ghidra buildVariableName 不规则输入分支 database.cc:2470）并 mark_variable_used 注册声明。doc_variable_decls_from_funcdata 的 DECL_PREFIXES 加 `in_` 让 `in_<hex>` 可声明（之前只允许 lVar/uVar/iVar/...）。
-- **效果**：curl gcc 审计 23/24 → **24/24 OK**（main comma 错误消除）；Total Rugra defects 0（保持）。
+- **效果**：curl gcc 审计 23/24 → **24/24 OK**（main comma 错误消除）；Total Rudra defects 0（保持）。
 
 ### 变量声明确定性修复（2026-07-03 续 6）
 - **根因**：`doc_variable_decls_from_funcdata` 遍历 `used_varnode_types`（HashMap）输出声明。Rust HashMap 每次执行用随机 seed，迭代顺序不定 → 声明顺序在每次运行间变化 → 与 `compact_name_for` 的惰性编号（首次使用顺序）错位 → 偶尔产生 undeclared/duplicate 名字。实测：同一二进制 5 次运行 gcc 审计 22/24~24/24 随机波动。这是**输出非确定性** bug——Ghidra 永远是确定性的。
 - **修复**：新增 `declaration_order: Vec<String>`，在 `mark_variable_used` 时记录首次使用顺序（both passes）；声明循环改用 `declaration_order` 顺序（与 compact_name_for 编号顺序一致）。对齐 Ghidra `assignDefaultNames`（database.cc:2850-2865）单一确定性遍历顺序。
-- **效果**：curl 输出现在**完全确定**（5 次运行 gcc 审计恒定）；Total Rugra defects 恒定 0；956/956 测试。代价：稳定在 23/24 gcc（之前随机 22-24）——确定性优于偶发的 24。剩余 1 fail 是独立的 cast-concat bug（`(long)bVar1(long)bVar12` 缺 `||`），下一轮修。
+- **效果**：curl 输出现在**完全确定**（5 次运行 gcc 审计恒定）；Total Rudra defects 恒定 0；956/956 测试。代价：稳定在 23/24 gcc（之前随机 22-24）——确定性优于偶发的 24。剩余 1 fail 是独立的 cast-concat bug（`(long)bVar1(long)bVar12` 缺 `||`），下一轮修。
 
 ### cast-concat 条件防护（2026-07-03 续 7）
 - **根因**：确定性修复（4fa2012）暴露的稳定 gcc fail：main 的 `if ((long)bVar1(long)bVar12)`——两个 CAST 操作数间缺 `||` 运算符。诊断确认 emit_condition 的 BOOL_OR 路径在 emit 时正确生成 `left || right`（trace 显示 `(long)bVar11 || (long)bVar12`），但 capture_block_condition 的嵌套 emit-swap 在某条件下丢失了运算符（capture 产出的文本是 `(long)bVar1(long)bVar12`，无 `||`）。
 - **修复**（务实防护）：emit_block_condition 检测 captured 文本是否含 ≥2 个 `(type)` cast 且无任何布尔/比较运算符（`||`/`&&`/`==`/...）→ 判为 malformed concat-cast → fallback 到 `1`（always-true，对齐既有 malformed-condition 策略 R50）。底层 operator-drop（嵌套 emit-swap bug）记为独立后续。
-- **效果**：curl gcc 审计 23/24 → **24/24 OK（确定，3 runs 全 24）**；Total Rugra defects 0（保持）；956/956 测试。
+- **效果**：curl gcc 审计 23/24 → **24/24 OK（确定，3 runs 全 24）**；Total Rudra defects 0（保持）；956/956 测试。
 
 ### concat-varname + cbranch 条件防护扩展（2026-07-03 续 8）
 - **扩展**：cast-concat 防护（f89cdbe）只覆盖 emit_block_condition。同样根因（emit_condition BOOL_OR 嵌套 emit-swap 丢运算符）产生另一形式：变量名拼接 `bVar1bVar12`（非 cast 操作数），且经 emit_cbranch_condition（op_cbranch 的 if(cond) return/break 路径）输出。
@@ -1907,7 +1907,7 @@ mainloop repeatapply 测试（per-arm helpers + depth 20-200 + 256MB 栈）：**
 
 ### 2026-07-04（续）：NONPRINTING 守卫分析 + goto ; 缓存发现
 - NONPRINTING 守卫（对齐 Ghidra notPrinted()）在 emit_block_ops 里太激进——mark_internal_copies 把所有 same-high COPY 标记为 NONPRINTING，导致 19/24 函数失败。回退为 TODO。
-- Ghidra 的正确模型：COPY 靠 isImplied() 抑制，branch 靠 notPrinted()。Rugra 需要区分这两种情况。
+- Ghidra 的正确模型：COPY 靠 isImplied() 抑制，branch 靠 notPrinted()。Rudra 需要区分这两种情况。
 - **重要发现**：file2string 的 `goto ;` 在重新生成输出后消失了——之前的 23/24 gcc 审计基于**旧缓存文件**。post_process_output 移除后的真实输出质量是 5/24 gcc——post_process 之前确实在修复大量输出瑕疵（undeclared vars、duplicate labels、-> on non-pointer 等）。这些需要 emit 层修复而非文本后处理。
 
 ### 2026-07-04（续 3）：emit 层修复 — 变量声明 + LAB_ 格式
@@ -1965,13 +1965,13 @@ the ports follow the real current signatures:
   has no current counterpart; `docFunction` is the equivalent, already impl'd).
 
 Helper ports (text-faithful render path; the Atom/OpToken expression-stack
-model is not present in Rugra's print layer):
+model is not present in Rudra's print layer):
 - `build_type_stack` — printc.cc:143 `buildTypeStack`（匿名 PTR/ARRAY/CODE
   下钻至命名 base；PRINTC-BADJT-PARAMSYM-0001：无 proto 的匿名 CODE 层
   在此 break 为 base——oracle `findNoName`（type.cc:3454-3476）把
   `getTypeCode()` 的匿名 TypeCode 折叠到 spec coretype `code`
   （sleigh_arch.cc buildCoreTypes），故 oracle 代码指针的栈形是
-  `[Ptr, Code("code")]` 命名 break，`void (*x)` 从不出现；Rugra 的
+  `[Ptr, Code("code")]` 命名 break，`void (*x)` 从不出现；Rudra 的
   匿名无 proto Code 是同一对象的工厂别名，在此做同一折叠）
 - `type_stack_for` — RUDRA-GLUE 借用适配器（Arc 入栈/出栈配对）
 - `push_type_start_opt` — printc.cc:264 `pushTypeStart`（签名
@@ -2008,14 +2008,14 @@ model is not present in Rugra's print layer):
 ### PRINT-RPN-0001B：结构化块的 terminal/no-branch 选择（2026-08-12）
 
 - `emit_block_basic_rpn` 现在显式接收 `suppress_branch`，作为 Ghidra
-  `PrintLanguage::no_branch` modifier 在 Rugra 结构化分发层中的传输值。
-- 锁定 12.0.4 的真实 `PrintC::emitBlockBasic`（`printc.cc:2678`）与 Rugra
+  `PrintLanguage::no_branch` modifier 在 Rudra 结构化分发层中的传输值。
+- 锁定 12.0.4 的真实 `PrintC::emitBlockBasic`（`printc.cc:2678`）与 Rudra
   在六个同序 P-code block 上直接对拍：可见/抑制 CBRANCH、无条件 BRANCH、
   抑制模式下的 RETURN，以及 RETURN+CBRANCH 混合块。分号语句选择与遍历顺序
   `MATCH`：`no_branch` 过滤所有 branch-flagged op，无条件 BRANCH 始终由块层处理，
   RETURN 因不带 branch flag 而保留。
 - fixture 同时保存双方 raw hex，且要求它们继续不相等：可见 CBRANCH 在 Ghidra
-  是 `(true);`，Rugra 当前是 `(vn_1);`。因此这只是 terminal 选择闭环；完整
+  是 `(true);`，Rudra 当前是 `(vn_1);`。因此这只是 terminal 选择闭环；完整
   表达式文本、comment/markup、implied output 与 CFG 单次发射仍为
   `MISMATCH/UNTESTED`，由 `PRINT-RPN-0001`/`PRETTY-0001` 跟踪，模块保持 L2。
 - 验收：`tools/run_printc_terminal_oracle.sh`。
@@ -2024,11 +2024,11 @@ model is not present in Rugra's print layer):
 
 - 锁定 12.0.4 的 `PrintC::docFunction`（`printc.cc:2641`）只调用一次
   `emitBlockGraph`；后者（`printc.cc:2746`）按 `BlockGraph::getList()` 顺序，
-  对每个顶层 `FlowBlock` 恰好调用一次虚 `emit`。Rugra 现在把最终结构化输出
+  对每个顶层 `FlowBlock` 恰好调用一次虚 `emit`。Rudra 现在把最终结构化输出
   统一收敛到 `emit_block_graph`，使用一个跨递归共享的对象身份集合，不再用
   fresh set 重放全部 `WhileDo`/`DoWhile`。
 - `printc_blockgraph_1204` 锁定 fixture 的访问顺序和次数直接对拍为
-  `17,3,29` / `3`，其中 do-while 顶层项访问一次；Rugra 完整
+  `17,3,29` / `3`，其中 do-while 顶层项访问一次；Rudra 完整
   `doc_function` 对单一 do-while 也观测为一次。窄域状态为 `MATCH`；完整
   Ghidra `Funcdata`/`Architecture`、声明/comment/markup 与所有结构化分支仍未闭合，
   fixture overall 保持 `MISMATCH`，模块保持 L2。
@@ -2058,9 +2058,9 @@ model is not present in Rugra's print layer):
   `scope_naming_base`（assignDefaultNames 运行后的 base 终值）继续 — Ghidra 的单一
   `int4 base` 在 namerec 循环与 assignDefaultNames 之间从不重置（coreaction.cc:2988-2998）。
   剩余的 lazy 寄存器-high 重编号（`compact_name_for`，处理无 scope 符号支撑的
-  RAX/lVar_a8 类名）继续消费同一计数器，属 RUDRA-GLUE（Rugra 的 Action 管线尚未接入
+  RAX/lVar_a8 类名）继续消费同一计数器，属 RUDRA-GLUE（Rudra 的 Action 管线尚未接入
   ActionNameVars 的 linkSymbols/namerec 闭包；Ghidra 中该路径先于 assignDefaultNames 消耗
-  base，Rugra 在 emit 期近似，两者共享同一计数器语义）。
+  base，Rudra 在 emit 期近似，两者共享同一计数器语义）。
 - **curl 差分（A/B，同工作区仅回退本两文件）**：numbering 126→126、defects 0→0、
   skeleton 4524→4531；输出新增 `uStackX_0`/`auStackX_30` 类 Ghidra 风格栈名
   （printNameBase + StackX，对照 golden 的 `abStack_150`），无 `$$undef` 泄漏。
@@ -2091,7 +2091,7 @@ model is not present in Rugra's print layer):
 ### 2026-08-16：声明改 Symbol 驱动（PRINTC-SYMBOL-DECL-0001，吸收 PRINTC-SCOPE-RESTRUCT-0001）
 
 - **移植**：`emit_local_var_decls`（printc.cc:2260-2279，含 cc:2267-2275
-  子 scope 遍历——Rugra ScopeLocal 无子 scope，等价空遍）、
+  子 scope 遍历——Rudra ScopeLocal 无子 scope，等价空遍）、
   `emit_scope_local_var_decls`（cc:2518-2575，cat>=0 类别分支对局部声明
   不可达，cc:2535-2572 全 map 遍历 + dynamic 列表）、
   `emit_local_symbol_decl`/`emit_local_symbol_decl_statement`
@@ -2129,7 +2129,7 @@ model is not present in Rugra's print layer):
   `pushScope(fd->getScopeLocal())`、cc:2260-2279 emitLocalVarDecls、
   cc:2518-2575 emitScopeVarDecls）只读消费；`restructureVarnode`
   oracle 全库唯一调用点是 `ActionRestructureVarnode::apply`
-  （coreaction.cc:2280，Action 阶段）。Rugra 生产 actionlist 已接线
+  （coreaction.cc:2280，Action 阶段）。Rudra 生产 actionlist 已接线
   （action.rs:999 mainloop RestructureVarnode、action.rs:1077
   post-fullloop NameVars→`assign_default_names`，coreaction.rs:4670）。
 - **新增**：`test_doc_function_leaves_action_scope_unchanged`——用真实
@@ -2158,7 +2158,7 @@ undefined/undefined4/undefined8 同族）；driver 的 TYPEDEF_PREAMBLE 协议
 ### 2026-08-17：UNKNOWN-PROTOMODEL-WARN-EMIT-0001 ②③ — docFunction 注释链接线 + mask 对调
 
 **③（mask 对调，printlanguage.cc:579/582）**：构造器里
-`instr_comment_type`/`head_comment_type` 两个掩码此前互相装反——Rugra 写成
+`instr_comment_type`/`head_comment_type` 两个掩码此前互相装反——Rudra 写成
 `instr = header|warningheader`、`head = user2|warning`，而 oracle
 `PrintLanguage::resetDefaultsInternal`（printlanguage.cc:575-583）为
 
@@ -2199,7 +2199,7 @@ emit->tagLine();                                     // cc:2653
   的不变量）；逐字节 token 循环（空格/tab run→等长空格、`\n`→换行、
   `\r` 丢弃、`{@…@}` 注解单 token、词边界=isspace）后发 `" */"`。
 - cc:2653 的 `tagLine()`：oracle 的 `EmitPrettyPrint::tagLine` 无条件写
-  endl，注释与签名间隔一空行；Rugra `EmitNoMarkup::tag_line` 在输出已以
+  endl，注释与签名间隔一空行；Rudra `EmitNoMarkup::tag_line` 在输出已以
   `\n` 结尾时抑制重复换行，故警告与签名间只保留单个换行（差分门禁对空行
   归一化，注释位置=签名前最后一行不变；与 `open_brace_indent` 处登记的
   同源发射器差异）。
@@ -2252,7 +2252,7 @@ comment.rs 删除）迁移到 oracle 的迭代器状态机直接驱动：
   投影（同 `emit_type_definition` 的 LowlevelError 处理）。
 
 **迁移纯度**：E2E 可观测行为不变（块级注释仍只经 `emit_comment_block_tree`
-发射；Rugra 的语句行走本就不跑 per-op `emitCommentGroup` 链——该已知缺口
+发射；Rudra 的语句行走本就不跑 per-op `emitCommentGroup` 链——该已知缺口
 不变，见 `doc_statement` 处注释）。回归：printc:: 9 过 / comment:: 16 过；
 oracle fixture `comment_sorter_iterators_1204` Rust 侧 38 行 stdout sha256
 `072c03b2…` 与 pin 逐字节一致（注册 runner 的 `comment_rs_sha256` 门随
@@ -2260,7 +2260,7 @@ comment.rs 编辑失效，需主仓重登记）。
 
 ### 2026-08-25：PRINTC-WARNING-COMMENT-0001 — 语句级 WARNING 注释发射接线
 
-上一节登记的已知缺口（"Rugra 的语句行走不跑 per-op `emitCommentGroup`
+上一节登记的已知缺口（"Rudra 的语句行走不跑 per-op `emitCommentGroup`
 链"）由本变更关闭：golden 16 条 `/* WARNING: Subroutine does not return */`
 （flow.cc:646 → funcdata.cc:119 入库 commentdb）此前忠实存储但从不打印。
 
@@ -2281,7 +2281,7 @@ comment.rs 编辑失效，需主仓重登记）。
 
 **②（emit_line_comment 绝对缩进字节，printlanguage.cc:597 +
 prettyprint.hh:557）**：oracle `EmitNoMarkup::tagLine(int4)` 写 **无条件
-endl + 恰好 `indent` 个空格**（列覆盖，非当前层级）；Rugra
+endl + 恰好 `indent` 个空格**（列覆盖，非当前层级）；Rudra
 `EmitNoMarkup::tag_line` 忽略覆盖参数且在行首抑制换行。`emit_line_comment`
 内经 `as_any_mut().downcast_mut::<EmitNoMarkup>` 直接复刻 oracle 字节
 （`\n` + `indent` 空格），其他 emitter 走 trait 调用。文本内 `\n` 分支
@@ -2333,13 +2333,13 @@ oracle 的语义：`bl2->emit(this)` 从不带 consumed/dead 检查，BlockSwitc
 **②（oracle 布局字节，printc.cc:3329/3333/3348/3350-3351 +
 prettyprint.hh:555-556）**：`openBrace(OPEN_CURLY, same_line)`（printc.cc:1593
 option_brace_switch 默认 same_line）= 空格 + `{` 无换行；每 case
-`startIndent`/`stopIndent`（Rugra `bump_indent`/`drop_indent`），
+`startIndent`/`stopIndent`（Rudra `bump_indent`/`drop_indent`），
 `beginBlock`/`endBlock` 在 EmitNoMarkup 是 no-op——**不再**给 case 体包
 大括号；标签落在 switch 体缩进层、语句 +1 层；收尾 `tagLine` + `}`。
 
 **③（`switch(` 无空格，printc.cc:586-587）**：opBranchind 是
 `tagOp(KEYWORD_SWITCH)` 紧跟 `openParen`——无分隔空格，golden 的
-`switch((int)pCVar10 - 0x23U & 0xff)` 佐证。Rugra 原先打印 `switch (`
+`switch((int)pCVar10 - 0x23U & 0xff)` 佐证。Rudra 原先打印 `switch (`
 （带空格）——修正为 `switch` + `(` 两段。配套：prettyprint 后处理 5 处
 `switch `/`switch (` 前缀启发式统一走 `is_switch_stmt_prefix`（两种形态，
 `switch` 是 C 关键字不可能是标识符调用，词法安全）——否则
@@ -2378,7 +2378,7 @@ default 恒 None；doc_function 全管线中 `uVar0 = 10; return uVar0;` 未折�
 ### 2026-08-25：flattened emitBlockBasic 逐块注释窗口协议（main 打印 panic 修复）
 - `op_parent_block_index`（新 helper）— 从单个 op 的 live parent 取块索引。
 - `emit_block_basic_rpn` / `emit_block_ops` — Ghidra 逐基本块调 emitBlockBasic（每块
-  setupBlockList → emit → 尾部 emitCommentGroup(NULL)，printc.cc:2684/2742）。Rugra 的
+  setupBlockList → emit → 尾部 emitCommentGroup(NULL)，printc.cc:2684/2742）。Rudra 的
   flattened ops 切片原先只按首 op 的 parent 开窗：首 op parent 失效时 setup 被跳过，
   per-op emitCommentGroup(Some) 使用陈旧窗口，start 可超过后续 opstop，
   get_next 索引越过 commmap 末尾（main 打印阶段 index-out-of-bounds panic）。现于每个
@@ -2391,7 +2391,7 @@ E2E 中 parseconfig.constprop.0 / glob_set / next_url 三个 worker PANICKED
 （`comment.rs get_next` 越界：`commmap.len()==1` 但 `start==1`、`opstop==0`）。
 
 **根因（instrumented 复现）**：`emit_block_basic_rpn`/`emit_block_ops` 的块窗口
-键经 `ops_block_index(ops)` 从 `ops.first()` 的 `parent` 推导。Rugra 的死 op
+键经 `ops_block_index(ops)` 从 `ops.first()` 的 `parent` 推导。Rudra 的死 op
 transport 让块 op 列表快照保留已销毁 op（`parent=None`，is_dead=true），首 op
 为死 COPY 时推导得 `None`，cc:2684 的 `setup_block_bounds`（setupBlockList）
 被整段跳过；但循环内 per-op `emit_comment_group(Some(op))`（cc:2712/2717 语义）
@@ -2411,7 +2411,7 @@ transport 让块 op 列表快照保留已销毁 op（`parent=None`，is_dead=tru
 opstop 不会落到 start 之前。全死 op 前缀的块本就无 per-op landmark
 （is_dead 先 continue），None 分支行为不变。
 
-**验收**：`--rugra-selected-function parseconfig.constprop.0 glob_set next_url`
+**验收**：`--rudra-selected-function parseconfig.constprop.0 glob_set next_url`
 → 3/3 decompiled（633/402/547 字节），0 panic 0 timeout；main 维持 TIMEOUT
 （既有状态，非本缺陷范畴）。
 
@@ -2463,7 +2463,7 @@ goto：
   `if (cond) goto code_r0x...;`。
 
 **2. label 发射（printc.cc:2685 `emitLabelStatement(bb)` + cc:3198-3214）**
-- flat 模式下每个 isJumpTarget 块要打 `code_r0x...:` 标签。Rugra 的
+- flat 模式下每个 isJumpTarget 块要打 `code_r0x...:` 标签。Rudra 的
   dispatcher 不逐 CFG 块跑 emitBlockBasic，所以标签在 `emit_block_ops` /
   `emit_block_basic_rpn` 尾部补齐：块内 CBRANCH/BRANCH 的 code 地址目标
   ∈ `goto_targets` 时逆序发射标签（逆序保持多目标时序稳定）。
@@ -2503,7 +2503,7 @@ label 的 implicit-function-declaration）。
    内的 DEAD 早退移除，改由入口游走（`emit_block_graph` 顶层循环与
    doc_function 的 root/unreachable 循环）在调用前自行跳过 DEAD 块。
 2. **is_block_body_empty 只对叶体有意义**：Ghidra 的 emitBlockIf
-   （printc.cc:2878-2943）没有空体跳过；Rugra 的空体扫描只对叶体
+   （printc.cc:2878-2943）没有空体跳过；Rudra 的空体扫描只对叶体
    （Basic/Copy，get_ops() 列真实 op）有意义——结构化体（BlockIf/
    BlockList/...）自身无直接 op，扫描必须报非空并交给递归发射决定；之前
    扫描把每个结构化体都误判为空，吞掉整个 then 分支（my_fwrite 的嵌套
@@ -2521,7 +2521,7 @@ Priority 1 两处的 `maybe_apply_type_prefix`（RUDRA-GLUE）按 print 期
 修复：两处调用点镜像 oracle 分支结构——`printlanguage.cc:238-262
 pushSymbolDetail`：`sym != null` → `PrintC::pushSymbol`（printc.cc:1905-
 1936）打印 `sym->getDisplayName()` 逐字（唯一修饰是 unmerged `$N` 后
-缀，无类型前缀重写）；`sym == null` → unnamed-location。Rugra 侧
+缀，无类型前缀重写）；`sym == null` → unnamed-location。Rudra 侧
 `high.symbol.is_some()` → `high.get_name()` 逐字返回（ActionNameVars 的
 RUDRA-GLUE write-back 保证 high.name == symbol.display_name）；
 symbol-less high 保留原前缀重写（未链接引用域的 GLUE 兜底不变）。
@@ -2542,7 +2542,7 @@ numbering=0 保持；audit 错误总数 15→15（1 处形态变化见上）。
 - 新增 `cast_type_string`：cast 位点的平面类型拼写（pushType 的
   buildTypeStack 折叠，printc.cc:264/313/1472-1476）——根类型 displayName
   （匿名根走 genericTypeName）+ 每指针层一个 `*` + 每数组层 `[n]`；
-  `(*)[n]` 运算符形态不发射（Rugra cast 位点只拼平面类型）。PTR_ 槽位
+  `(*)[n]` 运算符形态不发射（Rudra cast 位点只拼平面类型）。PTR_ 槽位
   符号因此能拼出 golden 的 `(undefined *)0x0` 形态。
 ## RPN 常量字符串解析 + comma 分隔符（MYFWRITE-TEMPVAR-0001，2026-08-26）
 
@@ -2562,7 +2562,7 @@ numbering=0 保持；audit 错误总数 15→15（1 处形态变化见上）。
   unary_prefix spacing=0）或 array_expr `[n]`（printc.cc:78 postsurround
   spacing=1）。连续指针层粘着：Pointer(Pointer(char)) 打 `char **`，
   Pointer³ 打 `ushort ***`；旧逐层 `" *"` 产出非 oracle 的 `char * *`。
-  buildTypeStack 的 named-layer 早断（printc.cc:150）不镜像：Rugra 解析的
+  buildTypeStack 的 named-layer 早断（printc.cc:150）不镜像：Rudra 解析的
   嵌套指针携带显示名而 oracle 语料类型为匿名工厂指针，named 层截断会
   重新引入 `char * *`。
 - `rpn_op_type_cast` 的 pushType（printc.cc:2013）同样走结构化折叠：旧
@@ -2580,15 +2580,15 @@ numbering=0 保持；audit 错误总数 15→15（1 处形态变化见上）。
   only_branch 早退（cc:3201）→ 前叶下降（cc:3223，block.rs
   front_leaf）→ f_unstructured_targ + Basic|Copy 门（cc:3207-3208
   isUnstructuredTarget/t_copy）→ tagLine(0)+emitLabel+COLON（cc:3211-
-  3213）。Rugra 侧传输层差异（均注释记录）：printed_labels 地址键
-  once-guard 是 f_label_bumpup（block.hh:99）的传输——Rugra 结构树共享
+  3213）。Rudra 侧传输层差异（均注释记录）：printed_labels 地址键
+  once-guard 是 f_label_bumpup（block.hh:99）的传输——Rudra 结构树共享
   Basic 叶（Ghidra 复制 BlockCopy 子树），带标叶可从多个构造入口到达，
   必须恰好打印一次；discovery_pass / main_emit_id 门排除 NullEmit 发现
   pass 与捕获缓冲（标号打印进丢弃缓冲会既消失又占用 once-guard）。
   addr==0 防御跳过（GOTO-ZERO-TARGET-UPSTREAM-0001）。
 - `emit_block_ops` 顶部调用 emit_any_label_statement：Ghidra 在每个
   构造入口（emitBlockCopy cc:2762、emitBlockList/If/WhileDo/DoWhile
-  cc:2965/3014/3076/3104）对其子树调用；Rugra 构造发射器直接经
+  cc:2965/3014/3076/3104）对其子树调用；Rudra 构造发射器直接经
   emit_block_ops 发射 Basic 体/条件，前叶检查在同一入口执行。
 - `emit_goto_statement`（cc:2303-2323）：零地址与非 block-start 目标
   防御跳过（GOTO-ZERO/UNIQSPACE/NEVEREMITTED-TARGET-UPSTREAM-0001，
@@ -2629,7 +2629,7 @@ numbering=0 保持；audit 错误总数 15→15（1 处形态变化见上）。
   同样仅限 NullEmit 主发射器（只进丢弃缓冲的块不算主输出发射，误计会
   错误抑制 never-emitted 锚）。
 - `emit_any_label_statement` 新增 Basic|Copy 挂起臂：叶未带
-  f_unstructured_targ（Rugra 结构器留下未包裹的 goto 边，oracle 中
+  f_unstructured_targ（Rudra 结构器留下未包裹的 goto 边，oracle 中
   ruleBlockGoto blockaction.cc:1450 总会包裹）但 pending_goto_labels
   含其地址（pass 2 中**稍后**才打印的 goto 亦可——两 pass 决策相同）。
   这是 oracle 顺序无关性的地址键传输：标号在本块发射点打印，与 goto
@@ -2644,7 +2644,7 @@ numbering=0 保持；audit 错误总数 15→15（1 处形态变化见上）。
 
 集成 w-anondecl3 匿名声明渲染后 E2E 出现 `char * pcVar4` 形(golden 为 glued `char *pcVar1`)。
 根因分层:Ghidra `TypePointer(s,pt,ws)` 构造名为空(type.hh:412),生产指针皆匿名 →
-buildTypeStack 钻取为多层栈 → ptr_expr(spacing=0)与标识符 glue;Rugra 的 debugproto 导入器
+buildTypeStack 钻取为多层栈 → ptr_expr(spacing=0)与标识符 glue;Rudra 的 debugproto 导入器
 两处本地 helper(src/debugproto.rs:696 深度循环/:1337 pointer_type)组合名 "char *" 绕过工厂
 直建命名指针 → 单层栈走了 type_expr_space。修复(printc.rs):`decl_prefix_ends_with_star`
 与 push_type_start_opt 单层分支对"尾随 `*` 的组合名"按 drilled 语义 glue 标识符。
@@ -2705,7 +2705,7 @@ type_expr_space 形态(`char * x`),与 fixture named_ptr_contrast 记录重新�
   next_url +2。main 的 URL-glob 区现在与 golden 1:1 结构形态(含 golden 自身的
   `goto LAB_0010282a` 反向边、`LAB_00102873:` 标签、if/else 嵌套链、for 循环);
   next_url +2 = golden 的 `if (glob->size <= (int)uVar8) goto LAB_001050e7;`
-  循环守卫首次发射(Rugra 以 `==0 || <` 规范两行形态)。httpd:baseline 与翻转
+  循环守卫首次发射(Rudra 以 `==0 || <` 规范两行形态)。httpd:baseline 与翻转
   **逐字节相同**(2178/4/0,4 defects 均为 master 既有)。
 - **残差登记**(不回退,新 TODO):
   - `PRINTC-STRUCTEMIT-MAIN-IVAR4-DUP-0001`:main 结构化暴露区内 mid-block
@@ -2761,7 +2761,7 @@ option_brace_ifelse 默认 same_line，printc.cc:1591）。该延迟括号在**�
 `cancelPendingPrint() + spaces(1)` 合并成 `else if(...)`。函数尾部 cc:2946-2948 仅当括号已
 触发（`getIndentId() >= 0`）才补 `closeBraceIndent`。
 
-**Rugra 缺陷**：静态模拟——`emit_structured_if` 入口一次读取 `PENDING_BRACE` mod 决定
+**Rudra 缺陷**：静态模拟——`emit_structured_if` 入口一次读取 `PENDING_BRACE` mod 决定
 `merge_else_if`，条件块发射语句后仍按合并路径打印 `space + if`，同时丢失括号与换行。
 MAIN-RC3 翻门后 main 的 fopen 区域暴露：`p_Stack_210 = fopen(...); if (...) {` 同行 +
 裸 `else`，prettyprint `backfill_missing_locals` 把该行误判为函数签名注入 `int iVar4;`
@@ -2800,7 +2800,7 @@ curl 全量 skeleton 变化（+9 净）逐处核对均为同一形态修复：8 
   op-walk 侧臂；cc:2775-2778 仅当 `gotoPrints()`（block.cc:2881-2890：父在场时
   `gototarget front leaf != parent nextFlowAfter(this)`，父缺席恒 false）才发射形式 goto 语句。
 
-**Rugra 缺陷**：`emit_structured_dowhile` 的 body 走 `emit_block_ops(dowhile_arc, true)`
+**Rudra 缺陷**：`emit_structured_dowhile` 的 body 走 `emit_block_ops(dowhile_arc, true)`
 （聚合 op 平铺），`emit_block_goto` 的 wrapped 走 `emit_block_ops(goto_arc, true)`——两处都把
 结构子块塌缩成单次迭代语句。w-dowhile 的规则级修复后 main 已有 5 个 DoWhile 结构
 （=golden），但 else-if 臂的 `Goto(208)→List(208)→If(150){DoWhile@0x28ec,@0x28f7}` 复合体被
@@ -2811,7 +2811,7 @@ EmitNoMarkup 上产生 `do  {`（双空格，oracle 单空格）。
 **修复（本 commit，PRINTC-NESTED-DOWHILE-EMIT-0001）**：
 - `emit_structured_dowhile`：`print("do")` 裸关键字；body 改为
   `push_mod(); set_mod(NO_BRANCH); emit_block_structured(&dowhile_data.condition)` —— 与
-  whiledo 兄弟（MAIN-RC3-STRUCTURED-EMIT-0001）完全同型的结构化递归；Rugra `BlockDoWhile`
+  whiledo 兄弟（MAIN-RC3-STRUCTURED-EMIT-0001）完全同型的结构化递归；Rudra `BlockDoWhile`
   的 `condition` 字段即 Ghidra `getBlock(0)`（唯一 body 子块，block.hh:727）。`while (cond)`
   尾部仍读 dowhile arc 聚合 ops 的 last CBRANCH in(1)（带 R50 malformed-guard，不变）。
 - `emit_structured_infloop`：`print("do")` 裸关键字（cc:3106 同型）。
@@ -2892,7 +2892,7 @@ oracle `emitBlockInfLoop` printc.cc:3109 是 `bl->getBlock(0)->emit(this)` 虚�
   print(SEMICOLON)` —— 同为块分派重放：emitBlockLs 收缩到末子块（cc:2787-2791），
   emitBlockBasic only_branch 路径 print lastOp 表达式（cc:2686-2690）→ opCbranch，
   **`while (cond)` 的括号来自 opCbranch yesparen（cc:554-555），emitBlockDoWhile 自身不开
-  括号**。Rugra 原实现 = 取 dowhile 聚合 ops 的 last CBRANCH in(1) → 丢弃式文本缓冲 +
+  括号**。Rudra 原实现 = 取 dowhile 聚合 ops 的 last CBRANCH in(1) → 丢弃式文本缓冲 +
   legacy value-scan 发射器（RPN 模式下也不走 RPN！）+ 文本级 malformed-guard（R50 折叠）。
 
 - **改动**（src/printc.rs emit_structured_whiledo / emit_structured_dowhile）：
@@ -2941,10 +2941,10 @@ oracle 通道对照：
   关键字+开括号+索引表达式+闭括号，无 brace、无 case 重放、无 tagLine（表达式槽以
   spaces 与 `if `/`while (` 前缀衔接，printc.cc:2909/3033）。
 
-Rugra 侧拓扑缺口（本修复的防御面）：`new_block_switch` 清 f_switch_out（block.cc:1917，与
+Rudra 侧拓扑缺口（本修复的防御面）：`new_block_switch` 清 f_switch_out（block.cc:1917，与
 oracle 一致）后，已成形的 BlockSwitch 可被 cat/proper_if 吸收——gp 的 dispatcher 被卷入
 If 条件 List 末位（oracle 中该函数经 jumptable guard 折叠，golden 无此 If）。Ghidra 若真遇到
-此拓扑，emitBlockSwitch cc:3316 `unsetMod(no_branch|only_branch)` 也会整只重放；Rugra 选择
+此拓扑，emitBlockSwitch cc:3316 `unsetMod(no_branch|only_branch)` 也会整只重放；Rudra 选择
 把 ONLY_BRANCH 路由进 opBranchind 表达式通道（头文本逐字节一致），因为完整重放在表达式槽
 永远不是合法 C。
 
@@ -2972,8 +2972,8 @@ default-check（If body 侧）、SWITCH-CASE-TAIL-0001（0x23/0x35 尾语句蒸�
   读 BRANCHIND 的**活输入**。switchnorm（coreaction.cc:5684，fullloop 尾）晚于
   ActionBlockStructure（cc:5676，mainloop）——oracle 结构层从不缓存 switch 索引 varnode，
   头表达式永远反映 foldInNormalization（jumptable.cc:1546-1553）改写后的最终 IR。
-- Rugra 根因：`BlockSwitch::index_varnode` 在 blockaction 结构化时快照捕获；gp 终态 IR 实证
-  （RUGRA_DUMP_FUNC）BRANCHIND 输入已是 `AND(SUB(SUBPIECE(config_00),0x23),0xff)`（全 implied，
+- Rudra 根因：`BlockSwitch::index_varnode` 在 blockaction 结构化时快照捕获；gp 终态 IR 实证
+  （RUDRA_DUMP_FUNC）BRANCHIND 输入已是 `AND(SUB(SUBPIECE(config_00),0x23),0xff)`（全 implied，
   outimpl=true），但打印读的是结构化时刻的陈旧 varnode（被 varmap 命名 iVar31）→ 印裸名。
 - 修复：`emit_switch_head_expr` 先解析 control 块的活 BRANCHIND op，取其当前 in(0) 走
   `push_varnode`（implied 内联/常量/符号通道，即 pushVn 等价物）；无活 op 时保留快照回退。
@@ -2984,7 +2984,7 @@ default-check（If body 侧）、SWITCH-CASE-TAIL-0001（0x23/0x35 尾语句蒸�
   回退印 `unique0x1000026e`。
 - 头残余（登记族，非本层）：叶名 `config_00` vs `pCVar10`（varmap 命名族）；`0x23` vs
   `0x23U`（常量后缀族——scalar helper 无 U/L 后缀，push_integer 注释自认）；httpd main 头
-  现印未归一化派发表达式（该表 Rugra foldInNormalization 未折基，jumptable 上游域）。
+  现印未归一化派发表达式（该表 Rudra foldInNormalization 未折基，jumptable 上游域）。
 
 **② default 位置（末位 → label 排序位第二）**：
 
@@ -2993,7 +2993,7 @@ default-check（If body 侧）、SWITCH-CASE-TAIL-0001（0x23/0x35 尾语句蒸�
   （cc:3573-3576 getIndexByBlock(basic,0)→getLabelByIndex），与全部 case 一起按
   `(label,depth)` 稳定排序（cc:3591, block.hh:903-908 compare）→ `default:` 印在 label
   秩位（golden gp: case 0 → default → case 0xf，ghidra_curl_1204.c:1765-1769）。
-- Rugra 根因：default 存独立槽 `default_case`，发射恒在常规 case 之后（自认偏差），且从不
+- Rudra 根因：default 存独立槽 `default_case`，发射恒在常规 case 之后（自认偏差），且从不
   参与 finalize_case_labels 的 label 计算/排序。
 - 修复：`BlockSwitch` 增 `default_label: Option<u64>`（finalize_case_labels 末尾按 cc:3573-
   3576 同款配方计算——front_leaf→original 基本块 + 首个表索引 label；`case_order`/`cases`
@@ -3004,7 +3004,7 @@ default-check（If body 侧）、SWITCH-CASE-TAIL-0001（0x23/0x35 尾语句蒸�
   golden default 尾 `goto LAB_0010404b` 无 break；httpd 0x12f92a default 中位带 break）。
   last-case 的 `is_last_label` 同步泛化：default 中位时末 case 即最终标签（无 break）。
 - 已知角落（vs oracle，注释已记）：default 为 fall-thru 链非根时 oracle 继承链根 label
-  （cc:3577-3584），Rugra default 槽无链路，按自身首索引排位；语料未见该形态。
+  （cc:3577-3584），Rudra default 槽无链路，按自身首索引排位；语料未见该形态。
 
 **验证**：gp `--func` 887→878 skeleton（case 0 → default → case 0xf 逐位= golden；CB 修的
 0x23/0x35 尾赋值+break 原样保持；default 体不变仅位移）；curl 全量 3607→3595 / defects=0 /
@@ -3016,7 +3016,7 @@ CB 基线恒等；printc 单测 12/12 + switch 1/1；block:: 5/5、jumptable 36/
 ## 2026-09-23 Lane DY (wt/printres):打印阶段残差簇分类账 + InfLoop 尾距发射修正
 
 **基线**:master 47c9ad79,curl 2614/0/0、httpd 2331/0/0。按函数分解量化 printc 写域四个
-登记族的实际 skeleton 贡献(分类脚本 /dev/shm/rugra-tests/sb-printres/classify.txt 谱系):
+登记族的实际 skeleton 贡献(分类脚本 /dev/shm/rudra-tests/sb-printres/classify.txt 谱系):
 
 | 族 | curl 行贡献 | httpd | 修域裁决 |
 |---|---|---|---|
@@ -3042,14 +3042,14 @@ printlanguage.cc:142-148 的 emitOp 路径泄漏到下一语句——curl 22 处
 三分支 pushVn/pushAtom)已在隔离测试(EmitNoMarkup 与 EmitPrettyPrint 双验证)与 corpus
 低层字节 dump 双证实:修复后低层缓冲即 `uVar1 = (*(code *)PTR_00116e98)();`+`return uVar1;`
 (golden 同形)。**阻塞**:EmitNoMarkup::post_process 的 P6 单用变量内联(prettyprint.rs,
-Rugra-only 补偿层)对修好的合法 `uVarN = <callind>();` 行按 count==3 内联+死代码消除,
+Rudra-only 补偿层)对修好的合法 `uVarN = <callind>();` 行按 count==3 内联+死代码消除,
 把 thunk 体清空(净回归)。登记 PRINTC-CALLIND-RPN-ASSIGN-0001(修复就绪)+
 PRINTC-CALLIND-P6-NULLIFY-0001(prettyprint P6 门,被占域)——P6 门解除后协议臂即可落地
 (代码注释保留完整移植说明与臂位)。
 
 **③ LABSPELL 量化(登记 PRINTC-LABSPELL-LABSYMS-0001)**:golden 的 `LAB_00xxxxxx` 来自
 oracle emitLabel cc:3173-3181 的 queryCodeLabel 路径(Ghidra 前端在反汇编跳转目标建 LAB_
-标号符号);Rugra 无此符号数据,恒走 cc:3183-3192 泛型 `code_r0x` 臂。地址级核对(curl 基址
+标号符号);Rudra 无此符号数据,恒走 cc:3183-3192 泛型 `code_r0x` 臂。地址级核对(curl 基址
 0x100000/httpd 0x100000):curl 35 个 code_r 地址中 30 个(64/75 次出现)与 golden LAB_/
 joined_r 地址**精确重合**,httpd 23 个中 19 个(38/45)重合——拼写对齐后每处消除 1A+1D
 两行,潜在 curl ~128/httpd ~76 行。修域=examples driver 或 varmap 注入 LAB_ 符号
@@ -3065,7 +3065,7 @@ httpd 3 处 label-only(无 goto 消费者)经全 setter 插桩(BlockGoto 2856-28
 
 **三门禁 + 双投影**:curl 2614/0/0(==基线,逐函数 diff 恒等零回退)、httpd 2331/0/0(==
 基线)、next_url+match_url Phase 2 投影 **MATCH 保持**(stage_bisect --v1 vs
-/dev/shm/rugra-tests/sb-oracle 钉板);printc 单测 12/12;gcc 审计 curl 82OK/25FAIL==基线;
+/dev/shm/rudra-tests/sb-oracle 钉板);printc 单测 12/12;gcc 审计 curl 82OK/25FAIL==基线;
 lib 串行 1650/18(失败集=既有 flaky 家族)。
 
 ## 2026-09-24: CALLIND 协议臂启用 + pushType 声明符栈化(RESIDMAP-PLTSTUB-EMITSHAPE-0001)
@@ -3081,7 +3081,7 @@ lib 串行 1650/18(失败集=既有 flaky 家族)。
   `(code *)` 面向 cast 在 **rpn_recurse 的 calltarget 运输点**传输
   (PRINTC-CALLIND-CODECAST-0001 打印侧半):oracle 的 setcasts CAST 在
   pushVn(in0) 排空点经 opTypeCast(printc.cc:459-462)分派
-  pushOp(typecast)+pushType(code*);Rugra IR 把 code* 类型直载在输入
+  pushOp(typecast)+pushType(code*);Rudra IR 把 code* 类型直载在输入
   varnode 上,故同一对 push 在排空点(隐式/叶子两形都盖)镜像——
   `(*(code *)PTR_strcpy_00116e90)()` 与
   `(*(code *)*(BADTYPE **)(iVar1 * 8 + 0x16c48))(a,b,c)`(__libc_csu_init
@@ -3125,7 +3125,7 @@ fieldtype 为 ARRAY 时 `arrayvalue = valueon; valueon = true`（`&` 抹除）�
 `glob->pattern[SEXT48(iVar4)]->type`（`(&glob->` 10→0；余距=SEXT48+`->`vs`.`，他族）。
 **③ opPtrsub SPACEBASE 臂栈符号回查（cc:1057-1097 stand-in 扩展）**：oracle 的 symbol
 来源是 linkSymbolReference 挂接（variable.cc:419-432，对 stack 引用查 fd->getScopeLocal）
-——Rugra stand-in 原先只查全局容器（栈 PTRSUB 恒 miss → `&0xffffffffffffff38` 裸偏移形）。
+——Rudra stand-in 原先只查全局容器（栈 PTRSUB 恒 miss → `&0xffffffffffffff38` 裸偏移形）。
 补：spaceid==Some(Stack) 且全局 miss 时查 `self.scope`（snapshot_local_scope 的 ScopeLocal
 快照）`find_container_entry(Stack, in1const, 1, None)`（Scope::findContainer 同构，
 database.cc:2262-2282），仅整符号命中（entry.start==in1const && entry.offset==0，对应
@@ -3165,13 +3165,13 @@ httpd **1899/0/0**（−160）、gcc 82OK/25FAIL 恒等；next_url 92/match_url 
 
 httpd L1 破零车道（wt/l1zero）。canon golden（analyzeHeadless 产物）对
 分析器发现的代码引用函数印 `FUN_0012dc80` 形（如
-`apr_pool_cleanup_kill(param_1,param_2,FUN_0012dc80)`），Rugra 此前印
+`apr_pool_cleanup_kill(param_1,param_2,FUN_0012dc80)`），Rudra 此前印
 `0x2dc80`。oracle 的类型运输链 = Parameter ID 分析器把锁定函数指针类型
 挂在参数上（typeop.cc:703-708 TypeOpCall::getInputLocal 的 locked-param
 臂）→ ActionInferTypes 经 HighVariable 播类型（coreaction.cc:5016-5036）
 → pushConstant TYPE_PTR→TYPE_CODE 臂（printc.cc:1786-1788）→
 `pushPtrCodeConstant`（cc:1730-1742：默认代码空间 + 全局 scope
-`queryFunction` → displayName 原子）。Rugra 打印侧叶片追查绕过携带注解的
+`queryFunction` → displayName 原子）。Rudra 打印侧叶片追查绕过携带注解的
 SSA varnode（legacy value_def_map 侧表），常量叶片可能无类型到达。三处落地：
 
 - **`constant_leaf_text` 的 None/Unknown 臂**（PRINTC-UNTYPEDCONST-CODEQUERY-0001
@@ -3213,14 +3213,14 @@ ap_create_request_config 等）；curl 1995/0/0 字节恒等；三投影
 next_url/match_url/parseconfig MATCH 保持；getparameter ord351/
 myprogress ord399/httpd main ord83 前沿不动。gcc 审计 8OK→7OK：
 ap_pregfree 孤立块引用 `FUN_0012dc80` 无前向声明——canon golden 孤立块
-同形（FUN_ 定义块在 golden:5034，Rugra 29 函数门禁面不含该块），非打印
+同形（FUN_ 定义块在 golden:5034，Rudra 29 函数门禁面不含该块），非打印
 缺陷。
 ## 2026-09-24：枚举元类型常量走成员名臂（Lane GG2）
 `constant_leaf_text` 与 `push_constant_typed` 增 `TypeMetatype::Enum` 臂：
 精确成员名，否则无符号整数（printc.cc:1666-1691 pushEnumConstant 的 no-match
 else）。Ghidra 把枚举存为 TYPE_INT/TYPE_UINT + enumtype 旗标（TypeEnum::decode
 type.cc:1475），故其 TYPE_UINT/TYPE_INT 臂可达 pushEnumConstant（cc:1756/1763）
-——Rugra 的 Enum 元类型即该 enum-int/uint 折叠，取同一成员名路径。锁定见证：
+——Rudra 的 Enum 元类型即该 enum-int/uint 折叠，取同一成员名路径。锁定见证：
 `return CURLE_OK;`（main_init）、`*store != HTTPREQ_UNSPEC`（SetHTTPrequest）。
 TYPE_PARTIALENUM 保持 Ghidra 的默认 cast 臂。同时移除 lane 前代遗留的
 [DBGSTR] TEMP-DBG 块。
@@ -3261,7 +3261,7 @@ GG2/CR29 三个 hunk，致 dc7a0d0a 起 main_init/glob_url/SetHTTPrequest.part.0
    （枚举成员名渲染，`return CURLE_OK;`/`HTTPREQ_UNSPEC`）两处恢复——
    oracle 依据 printc.cc:1750-1764 TYPE_UINT/TYPE_INT 臂 isEnumType() 分流 +
    TypeEnum 构造器/decode 把 metatype 归一为 INT/UINT（type.hh:487-491、
-   type.cc:1475），Rugra Enum 元类型为该折叠的建模，落 `_` 兜底臂即成
+   type.cc:1475），Rudra Enum 元类型为该折叠的建模，落 `_` 兜底臂即成
    `(CURLcode)0x0` cast 形。
 2. statics 排序键改为 (space rank, end, usepoint)——较丢失的 GG2 4 键
    (space, start, end, usepoint) 更贴 oracle：MapIterator 按 space 表序 ×
@@ -3346,7 +3346,7 @@ flow 侧 case 目的地分裂（docs/api/flow.md 同日节）落地后，switch 
   `gt!=0→false; else isexit=(sizeOut()==1)`），叠加
   BLOCKACTION-SWITCH-CASE-GOTO-WRAP-0001 适配守卫：oracle 不变量是
   "每 case 的出口流恰表达一次"（组件自身语句 / 链式直落 / cc:3342 break），
-  Rugra 结构化侧把多数 case 组件留成 Goto 包裹且 gototype 未受
+  Rudra 结构化侧把多数 case 组件留成 Goto 包裹且 gototype 未受
   scopeBreak 晋升（block.cc:2866-2873/3613-3630 的域），故从发射侧重新
   推导：`case_exit_stmt_printed` 台账（`emit_block_goto` cc:2775 臂与
   gt!=0 语句臂置位）+ RETURN 终结豁免（无出边=oracle isexit false）+
@@ -3485,21 +3485,21 @@ PrintLanguage 配置）两调用为 trait no-op，绝对缩进字节复刻分支
 **23 列（20 缩进 + 3 fill）= canon 形**；单行记录字节不变（首行 tagLine 时
 commentmode 尚为 false，无 fill——与 oracle 时序一致）。
 
-**配套驱动通道**（examples/curl_decompile.rs，`RUGRA_CMTSEED=<file>` 门）：
+**配套驱动通道**（examples/curl_decompile.rs，`RUDRA_CMTSEED=<file>` 门）：
 canon 的 `/* Unresolved local var: ... */` 记录族（analyzer 侧经程序 commentdb
 进入，type=warning 由 instr_comment_type=user2|warning 放行，
 printlanguage.cc:582）的锁定语料注入通道——`<hexaddr>\t<text>` 记录（`\n` 转义），
 fad=目标入口、锚=记录地址按 [vaddr,vaddr+size) 过滤，经生产
 `CommentDatabaseInternal::add_comment` 注入（与 SECSEED stage_cmt_diag oracle
-harness 同契约）。锚校准：Rugra `find_position` 走 spaceless 精确匹配 backup 路径
+harness 同契约）。锚校准：Rudra `find_position` 走 spaceless 精确匹配 backup 路径
 （comment.rs，op.addr==comm.addr），入口/部分词法块首指令无存活 op——7 条记录按
 canon 锚定语句的首个存活 op 校准（0x3729/0x3850/0x3c91/0x3f52/0x428d/0x44bb/0x522e），
 e40ed130 oracle 复核 17 记录/45 行逐字节=canon（my_get_line 一条在 bare harness 环境
-内差一语句=环境噪声，Rugra 侧 canon 精确）。
+内差一语句=环境噪声，Rudra 侧 canon 精确）。
 
 **验证**（oracle=12.0.4 e40ed130，canon `tests/golden/ghidra_curl_1204.c`）：
 默认脸（无 env 门）curl E2E **577/0/0 与基线逐字节恒等**（零回归）；
-RUGRA_CMTSEED 注入脸 Unresolved 注释族 **0→45 行/17 块全部字节=canon、全部落在
+RUDRA_CMTSEED 注入脸 Unresolved 注释族 **0→45 行/17 块全部字节=canon、全部落在
 canon 锚定语句位**（9 块的 next-stmt 文本带预存语料残差——`pcVar11/pcVar12` 临时
 编号、`fp/__stream`、`pFVar10/pCVar9(Configurable*)` 类型推断、`(const char*)`
 cast 与 `my_get_token::save` 限定名，默认脸同位同文，非本改动引入）；
@@ -3514,7 +3514,7 @@ bad-jump-table 改名链（truncate→旗标→`lookForBadJumpTables` 改名
 改名后的后端符号。oracle 签名经 printc.cc:2222-2250 `emitPrototypeInputs` 的
 `param->getSymbol()`→`emitVarDecl(sym)` 印**符号 dtype+符号 displayName**；
 调用点经 `pushVnExplicit`→`pushSymbolDetail`（printlanguage.cc:218-262）的
-whole-map `pushSymbol` 印符号 displayName。Rugra 两处印 proto 自带名/类型。
+whole-map `pushSymbol` 印符号 displayName。Rudra 两处印 proto 自带名/类型。
 
 **四处改动**（判定序照 oracle）：
 
@@ -3557,7 +3557,7 @@ cargo test --lib 1713 通过 + 1 预存 master 失败
   LowlevelError）；字段名/类型/ident 取自 Funcdata 联合体解析图——
   `fd->getUnionField(ptype, op, -1)`，键为**指针类型** + slot -1（即
   `ActionSetCasts::resolveUnion` 在 coreaction.cc:2509 attach 的边），
-  从不 findTruncation。Rugra 联合体 PTRSUB 因此印成 `field_0x0` 或裸偏移——
+  从不 findTruncation。Rudra 联合体 PTRSUB 因此印成 `field_0x0` 或裸偏移——
   12.0 ResolvedUnion 机制的消费端缺口。
 - **本改动（对齐移植）**：
   - RPN 路径（`dispatch_op_rpn` CPUI_PTRSUB）与 legacy（`op_ptrsub`）在
@@ -3567,7 +3567,7 @@ cargo test --lib 1713 通过 + 1 预存 master 失败
     `field_num >= 0` 时从 `TypeUnion::fields[field_num]` 取 name/type。
     TYPE_STRUCT 保留原 find_partial_field 路径不动。
   - oracle 的两个 LowlevelError 臂（suboff≠0；解析缺失/负 fieldNum）在
-    resolveUnion 门控插入的管线里不可达，且 Rugra 打印器无抛错通道
+    resolveUnion 门控插入的管线里不可达，且 Rudra 打印器无抛错通道
     （同 cc:943-946 非 pointer 臂的既有 accommodations），落
     `field_0x<hex>` 默认名。
   - 四形态发射（valueon×flex，cc:1018-1055）复用 PDOTFORM 车道落地的基础
@@ -3581,14 +3581,14 @@ cargo test --lib 1713 通过 + 1 预存 master 失败
   形落地（`lVar3 = *(long *)&glob.pattern[iVar5].content.Set;`）；curl
   577→575（glob_range 38→32）；httpd 940 不动；bank 391/391。
 - **残余（登记 TODO，见对齐块）**：①`.Set` 后继偏移未规范化为
-  PTRSUB(#c)（canon `.Set.size` vs Rugra `(long)&...content.Set + 8`）——
+  PTRSUB(#c)（canon `.Set.size` vs Rudra `(long)&...content.Set + 8`）——
   oracle 在 rules 阶段经 `getTypeReadFacing` 的 findResolve 让 AddTree/
-  RuleStructOffset0 看到 Set*，Rugra 的 varnode 侧 read-facing 仍是退化形
+  RuleStructOffset0 看到 Set*，Rudra 的 varnode 侧 read-facing 仍是退化形
   （varnode.rs，HIGHCOV 并行域）；②per-edge 评分在"原始边"（canon 留
   `(int8)&...content + 8` 裸形的 sprintf 参数边）差一枚 +5：oracle 的
   union* 是 ephemeral TypePointerRel（propagateAddIn2Out 的 parent 记账，
   typeop.cc:1241），其 downChain 经 parent 再入返回非空 → 全联合体平局 →
-  whole-union 胜出；Rugra 该指针为裸形（rel=false 实证）→ Set 胜出 →
+  whole-union 胜出；Rudra 该指针为裸形（rel=false 实证）→ Set 胜出 →
   该边过度解析为 `.content.Set`（match_url 24/next_url 22 的 +2 来源）。
 
 ## 2026-09-25（Lane MIRROR2）：直接运行档被调名 `func_0x%.8x`（MIRROR2-S3-CALLEE-0001）
@@ -3599,7 +3599,7 @@ cargo test --lib 1713 通过 + 1 预存 master 失败
   （space.cc:206-222）零填充到 `2*addrsize`（offset<2^32 时 sz 缩 4），
   即直接运行档 golden 的 `func_0x00003190`。`FUN_%x` 是 headless
   **前端**数据库名（analyzeHeadless 符号管理器生成），反编译库自身从不
-  产生——Rugra printc 的 `FUN_{:x}` 兜底只是 canon 档的巧合匹配。
+  产生——Rudra printc 的 `FUN_{:x}` 兜底只是 canon 档的巧合匹配。
 - **修法**：opCall 兜底按档分派（`typefactory::direct_runner_tier_active`
   探针，MIRROR-ENVS-CANONICAL-0001 三驱动 env 包）：direct-runner 档 =
   `format!("func_{}", addr_space_print_raw(Ram, off))`（复用 printc 内
@@ -3650,7 +3650,7 @@ cargo test --lib 1713 通过 + 1 预存 master 失败
   ——`function_call`（printc.cc:28）= postsurround token，spacing 0、bump 10。
   在 EmitPrettyPrint 语义下 `spaces(num,bump)` 不是"无空格可省略"：它是
   TokenSplit spac_t/tokenbreak（prettyprint.hh:914）——零强制空格 + 可选
-  断行缩进 +bump 的**断点**。Rugra 移植时以 spacing==0 为由跳过两次调用，
+  断行缩进 +bump 的**断点**。Rudra 移植时以 spacing==0 为由跳过两次调用，
   断点丢失后长签名折行退化为参数间 type_expr_space 断（5 参/行、续行缩进
   0），golden 形态为开括号列续行（my_get_line 19 列、4 参/行）。
 - **修法①**：`emit_function_declaration` 恢复 `open_group`/`close_group(id1)`
@@ -3664,7 +3664,7 @@ cargo test --lib 1713 通过 + 1 预存 master 失败
   返回值仅在 `op->numInput()>1` 时发射；void return 的裁剪发生在 IR 层
   （`ActionReturnRecovery::buildReturnOutput` 只保留 used trial，
   coreaction.cc:1836-1906；trial 裁决在 `ParamListStandardOut::fillinMap`，
-  fspec.cc:1721-1758）。探针实证（RUGRA_PROBE_RET 构建）：httpd 镜
+  fspec.cc:1721-1758）。探针实证（RUDRA_PROBE_RET 构建）：httpd 镜
   ap_init_vhost_config 的 RETURN 到达 print 层时 `num_input=2`、in(1)=Register
   ——残值输入在 IR 中幸存，printc 两运输层（RPN 臂 cc 逐字镜像 + legacy
   孪生）均忠实打印 IR 给定的输入。**结论：printc 域无可修残差，残根在
@@ -3702,7 +3702,7 @@ cargo test --lib 1713 通过 + 1 预存 master 失败
   `emitAnyLabelStatement(bl)` 调用位于**每个构造发射器自身入口**
   （emitBlockCopy cc:2762、emitForLoop cc:2965、emitBlockWhileDo cc:3014、
   emitBlockDoWhile cc:3076、emitBlockInfLoop cc:3104——虚分发 `emit` 的
-  任何路径都会经过）。Rugra 把该调用集中到分发器
+  任何路径都会经过）。Rudra 把该调用集中到分发器
   `emit_block_structured`（对每个块先查后派发），但两条派发路径**绕过**
   分发器直达构造发射器：①`emit_structured_list`（cc:2795-2812 子块循环）
   经 `emit_flow_block` 派发 List 子块；②`emit_switch_case_body`
@@ -3710,7 +3710,7 @@ cargo test --lib 1713 通过 + 1 预存 master 失败
   `emit_structured_whiledo/dowhile/infloop`。glob_word 的 whiledo
   （0x4c20，顶层 List 子块）与 infloop（0x4d0e，switch case 体）恰好
   各命中一条绕行路径——构造入口标号检查从未运行（探针
-  RUGRA_DBG_LABELS 亲证：两构造的 self_type 从不出现在
+  RUDRA_DBG_LABELS 亲证：两构造的 self_type 从不出现在
   emit_any_label_statement 调用记录中，而其前叶 targ=true 已由
   blockaction.cc:2194 `markUnstructured` 链正确标记——block 侧无缺口）。
 - **修法（oracle 逐位复刻）**：四个循环构造发射器入口、在
@@ -3767,11 +3767,11 @@ no-op）；STRINGDATA 字面量臂硬编码 `"badstring"`。
 - **验收残差（上游域，非 printc）**：golden 逐字节形
   `builtin_strncpy(pcVar3,"+0000",5);` 差两点——`(char *)` 前缀与
   `"badstring"` 字面量。根因=**castOutput 对 STRINGDATA 误发**：
-  Rugra 的 CALLOTHER 输出 token 落 output_metatype 的 `_ => Int`
+  Rudra 的 CALLOTHER 输出 token 落 output_metatype 的 `_ => Int`
   兜底（int8），oracle 链=TypeOpCallother::getOutputLocal
   （typeop.cc:866-872）→ userOp->getOutputLocal：InternalStringOp
   返回 `op->getOut()->getType()`（userop.cc:361-364，即锁定 char*）→
-  tokenct==outHighType → cc:2544 短路不发 CAST；Rugra int8≠char* →
+  tokenct==outHighType → cc:2544 短路不发 CAST；Rudra int8≠char* →
   castOutput 插 CAST（偷走原 out 给 CAST、给 STRINGDATA 换 int8 新
   out）→ 打印侧忠实读 int8 → "badstring" + `(char *)`。登记
   `COREACTION-CALLOTHER-OUTTOKEN-0001`（coreaction.rs token 计算 +
@@ -3789,7 +3789,7 @@ no-op）；STRINGDATA 字面量臂硬编码 `"badstring"`。
   运输层对 LOAD 的处理不同：RPN 的 LOAD 臂忠实（cc:486-498 只发
   dereference token，cast 全部来自内联 CAST op，每 op 恰一次
   printc.cc:448）；legacy 的 `emit_inline_expr` LOAD 臂自带
-  `*((T *)` 类型化包装（Rugra 传输层发明，oracle 无对应物），叠加内联
+  `*((T *)` 类型化包装（Rudra 传输层发明，oracle 无对应物），叠加内联
   CAST 自己的 `(T *)` → 同型双层。地址输入即 CAST 输出 varnode，
   两处类型文本恒等（数据流保证）。
 - **修法①（同型折叠）**：legacy LOAD 臂在地址输入为 implied 且 def 为
@@ -3847,7 +3847,7 @@ no-op）；STRINGDATA 字面量臂硬编码 `"badstring"`。
 **背景**（UNION_CONSUMER_AUDIT_2026-09-26 §一/§三 包 C）：oracle 的四个
 facing 方法（varnode.cc:626-672 getTypeDefFacing/getTypeReadFacing/
 getHighTypeDefFacing/getHighTypeReadFacing = `needsResolution() ?
-findResolve(op,slot) : this`）在打印期经 `fd->unionMap` 活查询；Rugra 的
+findResolve(op,slot) : this`）在打印期经 `fd->unionMap` 活查询；Rudra 的
 打印站点此前用 varnode.rs 退化形（consult 恒走 map-miss 臂 `return
 this`）——union 分歧非潜伏（curl golden 含活 union
 `anon_union_16_3_e2f18bb4_for_content`×8）。
@@ -3997,7 +3997,7 @@ coreaction_constptr_registerspace_1204）。单测
   （curl/httpd 零浮点常量），双侧 fixture 激活。
 - `checkAddressOfCast`（printc.cc:376-418）——全量替换
   `rpn_op_type_cast`/`op_type_cast` 两处旧 in0-is-array 简化启发；typedef
-  剥离环（cc:390-393）为恒等形态（Rugra 类型系统无 typedefImm 链，
+  剥离环（cc:390-393）为恒等形态（Rudra 类型系统无 typedefImm 链，
   type_system 在飞租约 handover）；类型相等以 `Datatype::compare==0`
   （Ghidra 工厂驻留指针相等的非驻留等价）。单测五例矩阵
   `test_check_address_of_cast_matrix`；双侧全 IR fixture 登记
@@ -4014,10 +4014,10 @@ coreaction_constptr_registerspace_1204）。单测
   幂等求值 size_suffix（见上）。
 - `adjustTypeOperators`（printc.cc:2342-2348）——文档化 no-op 端口：三件
   （scope.print1="::" / shift_right.print1=">>" / selectJavaOperators(false)）
-  均为 Rugra 已固化的 C 默认。
+  均为 Rudra 已固化的 C 默认。
 - `resetDefaults`（printc.cc:2325-2330）——`reset_defaults` 链
   PrintLanguage::resetDefaultsInternal（printlanguage.cc:575-583 字段逐项）+
-  resetDefaultsPrintC；emit 半为 emitter 域 handover（Rugra emitter 无跨文档
+  resetDefaultsPrintC；emit 半为 emitter 域 handover（Rudra emitter 无跨文档
   选项）；Architecture printlist 循环保持既有结构缺口注记。
 - `pushTypePointerRel`（printc.hh:365-370）+ opPtrsub ptrel 臂
   （cc:947-976/966/1023/1030/1042/1048/1109/1115/1124/1132）——RPN 生产
@@ -4025,7 +4025,7 @@ coreaction_constptr_registerspace_1204）。单测
   evaluateThruParent）、parent 再定基 suboff（+getAddressOffset 后
   calc_mask 折叠）、suboff==0 特例臂、四 struct/union 发射形与四 array
   发射形的 ADJ 前插。TypePointerRel 状态在 PointerRelState（datatype.rs）
-  ——旧 "Rugra has no TypePointerRel" 注释已过期，同批更正。legacy
+  ——旧 "Rudra has no TypePointerRel" 注释已过期，同批更正。legacy
   direct-emit op_ptrsub 保持塌缩形（非生产路径注记）。
 - `pushImpliedField`（printc.cc:2085-2116）——消费半
   `rpn_push_implied_field`（rpn_recurse 的 hasImpliedField 臂，
@@ -4060,7 +4060,7 @@ genericFunctionName 3 例（printRaw 位数规则 32/64 位）、emitSymbolScope
 （architecture.cc:1371-1381）装的 SEC_READONLY 属性范围，isReadOnly 门
 （cc:1709）恒拒。httpd 驱动镜面 print_db 补装（SHF_ALLOC&&!SHF_WRITE 段，
 20 范围）→ httpd 镜 156→**152**（pcVar19="0.0.0.0"/pcVar19="255.255.255.255"
-两折叠点与 golden 逐字同形；golden 其余折叠点的常量在 Rugra IR 未获 char*
+两折叠点与 golden 逐字同形；golden 其余折叠点的常量在 Rudra IR 未获 char*
 型=varmap/SSA merge 上游域残差，如实登记）。F-PLTNAME：curl 驱动镜面
 bare-load 过滤器排除 .plt.got 槽（oracle registerPltStubs 只走 .rela.plt
 JUMP_SLOT）→ curl 镜 52→**50**（`func_0x000022e0` 与 golden 逐字，
@@ -4082,9 +4082,9 @@ booleanflip = false`，跳过 `pushOp(&boolean_not)`（cc:564-565），由
 `PrintLanguage::opBinary` 的 `tok = tok->negate` 前奏
 （printlanguage.cc:549-554，六个 negate-set token printc.cc:129-134，
 FLOAT 比较共用 printc.hh:313-316）；BOOL_NEGATE def 走 `opBoolNegate` 的
-negatetoken 臂（printc.cc:817-819）双重否定抵消直印内层。Rugra 侧 RPN 生产
+negatetoken 臂（printc.cc:817-819）双重否定抵消直印内层。Rudra 侧 RPN 生产
 孪生 `op_cbranch_rpn` 已有该臂（14236-14248），**legacy direct-emit 孪生
-`op_cbranch` 只有 `!(...)` 回退形**——潜在差预防票（七面零现行实例：Rugra
+`op_cbranch` 只有 `!(...)` 回退形**——潜在差预防票（七面零现行实例：Rudra
 `if (!(` 计 0，golden 3 处均为不可翻 `!(bool)` 回退形）。
 
 **修复（1:1 补齐）**：
@@ -4118,7 +4118,7 @@ flip 折叠/BOOL_NEGATE 双重抵消/不可翻回退）；生产 RPN fold 臂的
 由 `tests/oracle/typeop_push_dispatch_1204` 的 BOOL_NEGATE 三分支链 fixture
 （`!(a==b)`→`a!=b` 翻转 case）覆盖。negate 奇偶族站点（ap_ht_time/
 sqlite3VdbeSorterRewind）的激活依赖 BLOCKACT-CONDNEGATE-PARITY-0001（P3）
-先落地——彼票修复后 oracle 翻转奇偶对齐，若届时 Rugra 侧 flip 携可翻比较
+先落地——彼票修复后 oracle 翻转奇偶对齐，若届时 Rudra 侧 flip 携可翻比较
 存活到 legacy 打印则本路径接住。
 
 **验收（fast-release 亲测）**：canon curl 124/157/0/0、canon httpd
@@ -4151,7 +4151,7 @@ defects/numbering 双零）；`_ZThn16_..SetCoderProperties` thunk、
 ## 2026-09-27：partial-symbol finalcast pushType 拼写 + LHS allowCast 门（TYPEFACTORY-UNKBYTE-EMPTYCAST-0001 ①②）
 
 **根因（双侧对照钉死，sq 镜面 read_inode 族）**：golden
-`uRam…._0_3_ = CONCAT12(…,(unkbyte3)uRam…)` vs Rugra
+`uRam…._0_3_ = CONCAT12(…,(unkbyte3)uRam…)` vs Rudra
 `()uRam… = CONCAT12(…,()uRam…)`——两处偏差：
 
 1. **空 cast 拼写**（读侧 `(unkbyte3)` 位点）：oracle
@@ -4159,7 +4159,7 @@ defects/numbering 双零）；`_ZThn16_..SetCoderProperties` thunk、
    cc:2025 存 `finalcast = outtype`（Datatype\*），**渲染**在 cc:2044-2046
    经 `pushOp(&typecast) + pushType(finalcast)` → `pushTypeStart`
    （cc:280-285）——匿名基型拼 `genericTypeName`（`unkbyte3`/`unkuint7`），
-   非原始空名。Rugra `partial_symbol_walk`（printc.rs）在臂内直接
+   非原始空名。Rudra `partial_symbol_walk`（printc.rs）在臂内直接
    `finalcast = Some(outtype.get_name())`——匿名类型名恒空 → 印 `()`。
    同型偏差在 RPN 孪生 `rpn_push_partial_symbol` 的 finalcast atom
    （`finalcast.get_name()` 原始名）。**修复**：两处均改走
@@ -4169,7 +4169,7 @@ defects/numbering 双零）；`_ZThn16_..SetCoderProperties` thunk、
    赋值 LHS 走 `emitExpression`（printc.cc:2468-2495）→
    `pushSymbolDetail(outvn,op,false)`（cc:2475，isRead=**false**）→
    `pushPartialSymbol(…, allowCast=false)`——cast 臂被门死，走合成条目
-   `unnamedField(off,sz)`=`._off_sz_`（cc:2030-2041）。Rugra RPN 叶路径
+   `unnamedField(off,sz)`=`._off_sz_`（cc:2030-2041）。Rudra RPN 叶路径
    `make_atom_for_vn`→`get_varnode_display_name`→inner 的
    `push_symbol_detail_leaf(vn, true, …)` **硬编码 true**（读路径语义），
    emit_expression_rpn 虽在 LHS 原子构造窗外设了 `is_lhs=true`
@@ -4179,7 +4179,7 @@ defects/numbering 双零）；`_ZThn16_..SetCoderProperties` thunk、
    isRead 语义）。
 
 **非本票残差（如实登记）**：③掩码/位移规范序（`(V & LIT) >> LIT` 折叠
-形态）= ruleaction 域（RULEACTION-NEGCONST-FOLD-0001 邻接）；Rugra 镜面
+形态）= ruleaction 域（RULEACTION-NEGCONST-FOLD-0001 邻接）；Rudra 镜面
 `axStack_70[0]._0_4_` vs golden `axStack_70._0_4_` 的多余 `[N]` 元素下钻
 = walk 所见符号类型为 ≥4 字节元素数组（`xunknown8 [1]` 形）而 golden 符号
 类型为 1 字节元素（`xunknown1 [8]`）——varmap 域栈数组符号类型构造残差
@@ -4215,7 +4215,7 @@ ExprCodeTarget 2 处 `switch(*(uint8 *)unique0x00008f00 & 0xffffffff)`；golden
 
 **根因核验（前会话探针 + 本车道 oracle drill 双证，修正 GIANTS-DRILL 的推断）**：
 - **jumptable fold-in 无辜**：`foldInNormalization`（jumptable.cc:1546-1553，只
-  `opSetInput(indop,switchvn,0)`）Rugra 侧已 1:1——print 时 BRANCHIND 输入链
+  `opSetInput(indop,switchvn,0)`）Rudra 侧已 1:1——print 时 BRANCHIND 输入链
   **完整存活且 implied**（探针 FLAGS 亲证：`branchind@ad66a → LOAD@ad657 →
   PTRADD@ad657 → SUBPIECE@ad612` 全活全 implied）。GIANTS-DRILL "IR 里地址输入
   已无活定义" 是从输出文本反推的错误推断（报告内以 ⇒ 标注）。
@@ -4240,7 +4240,7 @@ switchvn 定义链经 per-op PrintC virtuals（opLoad/opPtradd/opTypeCast/
 opSubpiece）渲染，与普通表达式完全同构。`rpn_enabled=false` 时保留 legacy
 路径作回退（与 emit_block_condition 同一约定）。快照回退臂
 （index_varnode/末位 BRANCHIND/CBRANCH 比较）原样保留——控制块无活
-BRANCHIND 时 oracle 根本不会印 switch 头，属 Rugra 胶水面。
+BRANCHIND 时 oracle 根本不会印 switch 头，属 Rudra 胶水面。
 
 **结果（sqlite 镜面 A/B，基 e5fb3e54 双构建）**：
 - 8/8 位点 unique 泄漏全消；ExprCodeTarget 2 位点与 golden **逐字恒等**
@@ -4248,10 +4248,10 @@ BRANCHIND 时 oracle 根本不会印 switch 头，属 Rugra 胶水面。
 - Pragma 簇 6 位点印 `switch(puVar25[8])`——泄漏消除但距 golden
   `(uint1)puVar30[1]` 残三差：下标 `8` vs `1`（PTRADD 元素尺寸 1 vs 8）、
   缺 `(uint1)` cast（RuleExpandLoad 不触发）、变量编号（GA-1 级联域）。
-  **三差同根 = 指针 pointee 类型分歧**：Rugra 把该链指针定型 `uint1 *`
+  **三差同根 = 指针 pointee 类型分歧**：Rudra 把该链指针定型 `uint1 *`
   （golden `uint8 *`，sqlite3Pragma 参数面 uint1*×4 vs uint8*×3+int8），
   系 switchvn 字节 load 的反向类型传播（TypeOpLoad::propagateType out→ptr）
-  在 Rugra 侧胜出、oracle 侧被正向证据压制——infertypes 域，已登记
+  在 Rudra 侧胜出、oracle 侧被正向证据压制——infertypes 域，已登记
   `GA2-SWITCHVN-POINTTEE-TYPE-0001` 移交，非本票写域。
 - 新单测 `test_switch_head_expr_rpn_channel_ptradd_inline`：手搭
   BRANCHIND←LOAD←PTRADD(implied) 链，断言数组形 `[1]` 印出且
@@ -4282,7 +4282,7 @@ tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence�
 旧实现是三桶近似 `Unique→0 / Register→1 / Stack→2 / 其余→3`，把 **Join 空间
 符号垫到栈组之后**。census v4 逐函数钻取钉死被动形态：35 个函数的
 `xunknown1 VarN [16]`（16 字节恢复局部，print 时 space=Join, start=0x0,
-size=16, addrtied=false）在 Rugra 声明块**垫底**（stack 组后），golden 印在
+size=16, addrtied=false）在 Rudra 声明块**垫底**（stack 组后），golden 印在
 **寄存器组与首个栈声明之间**。oracle 侧决定链：`emitScopeVarDecls`
 （printc.cc:2535-2553）走 `MapIterator` = `maptable` 向量按空间索引拼接
 per-space EntryMap（database.cc:1889-1919 begin / 1952 maptable.resize），
@@ -4293,7 +4293,7 @@ x86-64 空间索引序由 `Architecture::restoreFromSpec`（architecture.cc:624-
 **join=7/stack=8**——Join(7) 严格介于 Register(4) 与 Stack(8) 之间。双侧
 亲证：golden sqlite3AffinityType `bVar21; axVar22[16]; pxStack_90;`、
 golden sqlite3VdbeExec `fVar72; axVar73[16]; cStack_160;`（位置 72→73→74），
-Rugra 修复前 axVar22/axVar73 均垫底（worktree 探针 SYM 表 space=Join
+Rudra 修复前 axVar22/axVar73 均垫底（worktree 探针 SYM 表 space=Join
 直接观测）。注意 varmap.rs `ghidra_space_index` 的 Join=9/Iop=10 为另一张
 未行使表（其注释自认只有 ram 参与 uselimit），与 restoreFromSpec 创建序
 矛盾；本修复取 space.rs `get_index`（= 创建序算术）为准。
@@ -4303,7 +4303,7 @@ Rugra 修复前 axVar22/axVar73 均垫底（worktree 探针 SYM 表 space=Join
 （-1 哨兵）按裸索引排最前——x86-64 无 overlay 空间，ScopeLocal 符号永不
 驻留，不可观测。
 
-**残差（同族非本根）**：DECL-CHURN 另有 R-only 16 行（Rugra 多出的
+**残差（同族非本根）**：DECL-CHURN 另有 R-only 16 行（Rudra 多出的
 `xunknown4/xunknown8 Var` 符号，如 InitCallback 的 xVar12——重编号级联）
 与 G-only 11 行（golden 多出的 Stack_ 符号），属 varmap 部分符号租约
 （VARMAP-UNAFF-TYPEMAT-0001 域），不在 printc 排序层。

@@ -274,7 +274,7 @@ pub struct GrammarLexer {
     /// Faithful to `map<int4,string> filenamemap` (grammar.hh:70).
     filenamemap: std::collections::HashMap<i32, String>,
     /// `streammap` — the text body of each filenum. Faithful to
-    /// `map<int4,istream *> streammap` (grammar.hh:71). Rugra has no
+    /// `map<int4,istream *> streammap` (grammar.hh:71). Rudra has no
     /// `istream`, so each "stream" is held as an owned `Vec<char>` body plus a
     /// per-stream position. The most recent entry is the "current" stream.
     streammap: Vec<LexerStream>,
@@ -284,7 +284,7 @@ pub struct GrammarLexer {
 }
 
 /// One logical input stream within the lexer's multi-file stack. Faithful to a
-/// single `istream *` entry in `GrammarLexer::streammap`; Rugra has no
+/// single `istream *` entry in `GrammarLexer::streammap`; Rudra has no
 /// `istream`, so the stream body and read position are owned here.
 struct LexerStream {
     /// Full text of the stream.
@@ -349,13 +349,13 @@ impl GrammarLexer {
     // Ghidra: grammar.hh:107 GrammarLexer::getCurStream
     /// Get the filenum of the current stream (the top of `filestack`), or `None`
     /// if no file is active. Faithful to `getCurStream` (Ghidra returns the raw
-    /// `istream *in`; Rugra exposes the filenum that indexes `streammap`).
+    /// `istream *in`; Rudra exposes the filenum that indexes `streammap`).
     pub fn get_cur_stream(&self) -> Option<i32> {
         self.filestack.last().copied()
     }
 
     // Ghidra: grammar.cc:2054 GrammarLexer::bumpLine
-    /// Increment the current line counter. Faithful to `bumpLine`. Rugra's
+    /// Increment the current line counter. Faithful to `bumpLine`. Rudra's
     /// `next_char` inlines this on `'\n'`; this method exposes it for callers
     /// that need to advance the line counter out-of-band (e.g. when swallowing
     /// a multi-line token via `moveState`).
@@ -372,7 +372,7 @@ impl GrammarLexer {
 
     // Ghidra: grammar.cc:2320 GrammarLexer::writeLocation
     /// Write the `" at line N in <file>"` location suffix used by error
-    /// reporting. Faithful to `writeLocation(ostream &, int4, int4)`. Rugra
+    /// reporting. Faithful to `writeLocation(ostream &, int4, int4)`. Rudra
     /// appends to the supplied `String` instead of an `ostream`.
     pub fn write_location(&self, s: &mut String, line: i32, filenum: i32) {
         use std::fmt::Write as _;
@@ -386,7 +386,7 @@ impl GrammarLexer {
     /// Write the `buffer + '\n' + colno spaces + "^--\n"` caret pointer used
     /// by error reporting. Faithful to `writeTokenLocation(ostream &, int4,
     /// int4)`. Returns without writing when `line` does not match the current
-    /// line (the C++ side does the same against `curlineno`). Rugra's "buffer"
+    /// line (the C++ side does the same against `curlineno`). Rudra's "buffer"
     /// is the current input's remaining text from the start of the current
     /// line, which is the closest analogue available.
     pub fn write_token_location(&self, s: &mut String, line: i32, colno: i32) {
@@ -738,11 +738,11 @@ fn parse_number(s: &str) -> u64 {
 /// Raw components of a function prototype obtained from parsing source code.
 /// Faithful to `struct PrototypePieces` (fspec.hh:377-384).
 ///
-/// Rugra note: `fspec.rs` already declares a `PrototypePieces` for the model-
+/// Rudra note: `fspec.rs` already declares a `PrototypePieces` for the model-
 /// rules / code-type pipeline (which is borrowed and carries no `model`/`name`/
 /// `innames`); the parser-facing variant here is owned and mirrors Ghidra's
 /// full struct, including the (optional) prototype-model name and parameter
-/// names. The `model` field stores the model *name* because Rugra has no
+/// names. The `model` field stores the model *name* because Rudra has no
 /// in-tree `ProtoModel *` reachable from this module; the C++ stores a pointer
 /// resolved via `glb->getModel(model)`.
 #[derive(Debug, Clone, Default)]
@@ -883,7 +883,7 @@ impl TypeModifier {
     // Ghidra: grammar.cc:2434 FunctionModifier::getInTypes
     /// Collect each parameter's built type into `intypes`. Faithful to
     /// `FunctionModifier::getInTypes(vector<Datatype *> &, Architecture *)`:
-    /// iterates the paramlist and pushes `decl->buildType(glb)`. Rugra's
+    /// iterates the paramlist and pushes `decl->buildType(glb)`. Rudra's
     /// function modifier carries `params: Vec<Option<TypeDeclarator>>` (the
     /// `None` slot encodes the trailing varargs trailer), so `None` is skipped.
     pub fn get_in_types(
@@ -1052,7 +1052,7 @@ impl TypeDeclarator {
     // Ghidra: grammar.cc:2506 TypeDeclarator::getModel
     /// Resolve the declarator's prototype model name. Faithful to
     /// `getModel(glb)`: returns `Some(model)` when a model name is present,
-    /// else `None` (Ghidra then falls back to `glb->defaultfp`). Rugra has no
+    /// else `None` (Ghidra then falls back to `glb->defaultfp`). Rudra has no
     /// in-tree `ProtoModel` resolver reachable from this module, so the name is
     /// returned to the caller rather than a `ProtoModel *`.
     pub fn get_model(&self) -> Option<&str> {
@@ -1099,7 +1099,7 @@ impl TypeDeclarator {
         // Construct the output type by applying every modifier EXCEPT the
         // (first) function modifier, in reverse binding order. Faithful to the
         // C++ loop that walks mods.end()-1 .. begin(). Ghidra's `basetype` is a
-        // (possibly null) `Datatype *`; Rugra carries it as an `Option`, so a
+        // (possibly null) `Datatype *`; Rudra carries it as an `Option`, so a
         // missing base type (abstract declarator) leaves `out_type = None`,
         // matching Ghidra passing a null pointer through to `modType`.
         let mut outtype = self.basetype.clone();
@@ -1121,7 +1121,7 @@ impl TypeDeclarator {
 /// Faithful to `PointerModifier::modType(Datatype *, const TypeDeclarator *,
 /// Architecture *)`: reads `glb->getDefaultDataSpace()->getAddrSize()` and
 /// `getWordSize()` and calls `glb->types->getTypePointer(addrsize, base,
-/// wordsize)`. Rugra's twin `get_type_pointer_default` reads the default
+/// wordsize)`. Rudra's twin `get_type_pointer_default` reads the default
 /// data-space address size captured on the `TypeFactory` and models the
 /// production default word size as one (RUDRA-GLUE documented on the twin).
 ///
@@ -1157,7 +1157,7 @@ pub fn array_mod_type(
 /// `FunctionModifier::modType`: fills a `PrototypePieces` (outtype = base,
 /// void when the base is absent; firstVarArgSlot from the trailing null
 /// slot; intypes from `getInTypes`; model from `decl->getModel`) and returns
-/// `glb->types->getTypeCode(proto)`. In Rugra the varargs trailer has already
+/// `glb->types->getTypeCode(proto)`. In Rudra the varargs trailer has already
 /// been folded into the `dotdotdot` bool by `CParse::new_func` (the oracle's
 /// `paramlist.back() == 0` probe is dead on the live path because `newFunc`
 /// grammar.cc:2769-2772 pops the null before the constructor runs), so the
@@ -1245,7 +1245,7 @@ pub fn function_modifier_ctor(declist: Vec<TypeDeclarator>, dotdotdot: bool) -> 
     TypeModifier::Function { params, dotdotdot }
 }
 
-// RUDRA-GLUE: Rugra encoding of the null `TypeDeclarator *` slot that
+// RUDRA-GLUE: Rudra encoding of the null `TypeDeclarator *` slot that
 // grammar.y:180 pushes for the `parameter_list ',' DOTDOTDOT` production
 // (the varargs trailer `newFunc` detects and pops at grammar.cc:2769-2772).
 // Rust cannot store a null in `Vec<TypeDeclarator>`, so the trailer is a
@@ -1259,7 +1259,7 @@ pub fn null_declarator_slot() -> TypeDeclarator {
 // Ghidra: grammar.cc:2434 FunctionModifier::getInTypes
 /// Collect each parameter's built type into `intypes`. Faithful to
 /// `FunctionModifier::getInTypes(vector<Datatype *> &, Architecture *)`:
-/// iterates the paramlist and pushes `decl->buildType(glb)`. Rugra's function
+/// iterates the paramlist and pushes `decl->buildType(glb)`. Rudra's function
 /// modifier carries `params: Vec<Option<TypeDeclarator>>` (the `None` slot
 /// encodes the trailing varargs trailer), so `None` is skipped.
 pub fn collect_param_types(
@@ -1376,7 +1376,7 @@ pub enum DocType {
 
 /// The C parser. Faithful to `class CParse` (grammar.hh:201).
 ///
-/// Rugra holds the lexer, the allocation arena (as owned `Vec`s rather than
+/// Rudra holds the lexer, the allocation arena (as owned `Vec`s rather than
 /// C++ `std::list`), the keyword table, and the most recent result/error. The
 /// original grammar-table driven `yyparse` is replaced with a hand-written
 /// recursive-descent driver (`run_parse`) because Rust has no in-tree bison
@@ -1385,9 +1385,9 @@ pub enum DocType {
 /// 1:1.
 pub struct CParse {
     /// Architecture reference (unused for parsing proper; consulted by
-    /// type-specifier resolution). Faithful to `glb`. Rugra holds an
+    /// type-specifier resolution). Faithful to `glb`. Rudra holds an
     /// `Option<Arc<Architecture>>` so a parser can be built without one (the
-    /// original Rugra `CParse::new(maxbuf)` path); Ghidra's constructor
+    /// original Rudra `CParse::new(maxbuf)` path); Ghidra's constructor
     /// requires it. Set via `new_with_arch`.
     pub glb: Option<Arc<Architecture>>,
     pub lexer: GrammarLexer,
@@ -1429,7 +1429,7 @@ impl CParse {
     /// Construct the parser. Faithful to the constructor — initialises the
     /// keyword table identically to the C++ side (grammar.cc:2594-2605).
     ///
-    /// Ghidra's constructor takes `Architecture *g`; Rugra has historically
+    /// Ghidra's constructor takes `Architecture *g`; Rudra has historically
     /// run with no architecture handle, so this signature is preserved for
     /// back-compat and `glb` is left `None`. Call `new_with_arch` to attach an
     /// `Architecture` for the `lookupIdentifier` / `lex` paths.
@@ -1653,7 +1653,7 @@ impl CParse {
         if let Some(true) = declist.last().map(|d| d.ident.is_empty() && d.mods.is_empty() && d.basetype.is_none() && d.flags == u32::MAX) {
             // RUDRA-GLUE: Ghidra signals varargs via a `null` slot in the
             // paramlist (grammar.y:180 pushes it; FunctionModifier ctor at
-            // grammar.cc:2419 receives it popped); Rugra encodes that trailer
+            // grammar.cc:2419 receives it popped); Rudra encodes that trailer
             // as a sentinel declarator with `flags=u32::MAX`.
             dotdotdot = true;
             declist.pop();
@@ -1669,7 +1669,7 @@ impl CParse {
     ///
     /// Returns `Some(res)` on success, or `None` after calling `set_error`.
     /// Ghidra's `TypeFactory::destroyType(res)` on the failure paths (removing
-    /// the stub) is currently a no-op here: Rugra's `TypeFactory` exposes no
+    /// the stub) is currently a no-op here: Rudra's `TypeFactory` exposes no
     /// removal API and the grammar alignment rule restricts edits to this
     /// module, so the stub is left in place on failure (a documented deviation;
     /// the stub is incomplete and only consulted for forward references).
@@ -1945,7 +1945,7 @@ impl CParse {
     ///     `FUNCTION_SPECIFIER`.
     ///   * Otherwise → `IDENTIFIER`.
     ///
-    /// Rugra note: this method requires the parser to be constructed via
+    /// Rudra note: this method requires the parser to be constructed via
     /// `new_with_arch`; without an architecture handle it cannot resolve
     /// `TYPE_NAME` or `FUNCTION_SPECIFIER` (those paths fall through to
     /// `IDENTIFIER`). The keyword paths always work because they consult the
@@ -2067,7 +2067,7 @@ impl CParse {
     /// then runs the parser. Returns `true` on success.
     ///
     /// Ghidra opens the file as an `ifstream` and throws `LowlevelError` if the
-    /// open fails; Rugra returns `Err(message)` from the IO error so callers
+    /// open fails; Rudra returns `Err(message)` from the IO error so callers
     /// can distinguish parse failure (`Ok(false)`) from IO failure (`Err(..)`).
     pub fn parse_file(&mut self, filename: &str, doctype: DocType) -> std::io::Result<bool> {
         use std::io::Read;
@@ -2115,7 +2115,7 @@ impl CParse {
 
     // Ghidra: grammar.cc:3053 CParse::runParse
     /// Drive the parser. Faithful to `runParse`. Ghidra dispatches to
-    /// `yyparse`; Rugra uses a hand-written recursive-descent driver because
+    /// `yyparse`; Rudra uses a hand-written recursive-descent driver because
     /// the bison grammar table (grammar.y) has no in-tree Rust equivalent.
     fn run_parse(&mut self, doctype: DocType) -> bool {
         self.first_token = match doctype {
@@ -2405,7 +2405,7 @@ impl CParse {
                         if pt.get_type() == token_type::DOTDOTDOT {
                             // grammar.y:180 `parameter_list ',' DOTDOTDOT` —
                             // the varargs trailer is a null declarator slot;
-                            // Rugra encodes it as the flags=u32::MAX sentinel
+                            // Rudra encodes it as the flags=u32::MAX sentinel
                             // that `new_func` detects and pops.
                             self.advance();
                             params.push(null_declarator_slot());
@@ -2967,7 +2967,7 @@ pub fn parse_protopieces(
 /// declarator is treated as a type definition (its built type is committed via
 /// `TypeFactory::findReplace`).
 ///
-/// Rugra wires only the parse + validation half (the `TypeFactory` here has no
+/// Rudra wires only the parse + validation half (the `TypeFactory` here has no
 /// `FuncProto`/`findReplace` bridge reachable from this module); the returned
 /// `TypeDeclarator` carries the fully parsed structure for the caller to
 /// commit. The validation/error semantics match Ghidra exactly.
@@ -2994,7 +2994,7 @@ pub fn parse_c(
         return Err("Parsed type is invalid".to_string());
     }
     // Ghidra: if decl->hasProperty(f_extern) build & commit a prototype; else
-    // commit the built type. Rugra builds the prototype/type so the returned
+    // commit the built type. Rudra builds the prototype/type so the returned
     // declarator carries resolved data for the caller to commit upstream.
     if decl.has_property(CParse::F_EXTERN) {
         let mut pieces = PrototypePieces::default();
@@ -3002,7 +3002,7 @@ pub fn parse_c(
             return Err("Did not parse a prototype".to_string());
         }
         // The TypeCode for this prototype can be minted via
-        // `get_type_code_pieces` once Rugra's fspec PrototypePieces is bridged;
+        // `get_type_code_pieces` once Rudra's fspec PrototypePieces is bridged;
         // for now the pieces are computed and discarded, matching the parse
         // half of parse_C.
     } else {
@@ -3053,7 +3053,7 @@ pub fn parse_toseparator_from(text: &str) -> (String, usize) {
 
 // Ghidra: grammar.cc:3257 parse_machaddr
 /// Parse a machine address from a `&str`. Faithful to `parse_machaddr`. This
-/// Rugra port targets the same textual formats:
+/// Rudra port targets the same textual formats:
 ///   * `[space,offset]` / `[space,offset,size]`
 ///   * `{ joined }` (the join space — represented as `Address(0)` here)
 ///   * shortcut-prefixed offsets like `0x1234` or `ram:1234`
@@ -3104,7 +3104,7 @@ pub fn parse_machaddr(text: &str) -> Option<(Address, i32, usize)> {
             return None;
         }
         i += 1; // consume ']'
-        let _ = space_name; // Rugra's single-space model ignores the name
+        let _ = space_name; // Rudra's single-space model ignores the name
         let offset_val = parse_address_offset(&offset_str)?;
         let oversize = standard_size_for(&offset_str);
         let default_size = if size == -1 { oversize } else { size };
@@ -3154,7 +3154,7 @@ fn parse_address_offset(tok: &str) -> Option<u64> {
 }
 
 // RUDRA-GLUE: estimate the "standard size" from a textual offset. The C++
-// version returns the byte-width reported by `Address::read`; Rugra has no
+// version returns the byte-width reported by `Address::read`; Rudra has no
 // AddrSpaceManager here, so we infer 4/8 bytes from the magnitude.
 fn standard_size_for(tok: &str) -> i32 {
     let val = parse_address_offset(tok).unwrap_or(0);

@@ -41,7 +41,7 @@ The locked differential fixture
 `tools/run_funcproto_effect_model_oracle.sh` compares these observations
 against Ghidra 12.0.4 commit
 `e40ed13014025f82488b1f8f7bca566894ac376b`. Its Rust side is built from a
-recorded Rugra HEAD archive with only `src/fspec.rs` overlaid, so concurrent
+recorded Rudra HEAD archive with only `src/fspec.rs` overlaid, so concurrent
 workspace source changes cannot enter the comparand. The covered slice is
 `MATCH`; the module remains L2 because compiler-spec/loader attachment,
 `ProtoStore` parity, likely-trash/injection copy state, and downstream
@@ -185,7 +185,7 @@ Create a new call specification
 faithful observable port of `FuncCallSpecs::setFuncdata` (fspec.cc:4949-4960):
 the entry address is taken from the callee and a non-empty display name
 replaces `prototype.name`. Ghidra additionally keeps the callee `Funcdata*`
-(and throws `LowlevelError` on a double set); Rugra has no per-callee Funcdata
+(and throws `LowlevelError` on a double set); Rudra has no per-callee Funcdata
 objects, so the front-end boundary (`FlowInfo::queryCall`, flow.cc:660-669 —
 driven by the driver's symbol/signature tables) hands the observable
 (name, entry) pair directly, and re-association overwrites instead of
@@ -195,7 +195,7 @@ consolidated into this signature.
 ### `pub fn set_callee_proto(&mut self, proto: Arc<FuncProto>)` / `pub fn callee_proto(&self) -> Option<&Arc<FuncProto>>`
 
 (`CALLSPEC-COPY-0001`, 2026-09-27) The callee's own recovered prototype —
-Rugra's observable slice of Ghidra's `FuncCallSpecs::fd` (fspec.hh:1649, set
+Rudra's observable slice of Ghidra's `FuncCallSpecs::fd` (fspec.hh:1649, set
 by `setFuncdata` at flow time) as consumed by `ActionDefaultParams::apply`
 (coreaction.cc:2321-2324 `Funcdata *otherfunc = fc->getFuncdata()` +
 `otherfunc->getFuncProto()`). The driver's queryCall boundary stores the
@@ -214,12 +214,12 @@ assigns model, extrapop, the whole flag word, a clone of the parameter store
 FuncCallSpecs-level state (op, entry address, trial containers) stays out,
 exactly as in the oracle where `FuncCallSpecs` does not override the
 base-class `copy`. The callsite's own name survives (Ghidra's FuncProto base
-has no name member; the wrapper restores the callsite spelling over Rugra's
+has no name member; the wrapper restores the callsite spelling over Rudra's
 glue name field). Bilateral fixture: `tests/oracle/callspec_copy_1204.*`
 (MATCH, 25 records byte-identical; the lane row/commit said 24 — MB24
 erratum: true counts COPY=8/COPY_LOCKEDMISMATCH=7/NOFUNC=6 plus 4 singles).
 Latent gaps annotated in the source doc (CR-CALLSPEC O3): the oracle also
-copies `likelytrash` (fspec.cc:3802) and `injectid` (fspec.cc:3803); Rugra
+copies `likelytrash` (fspec.cc:3802) and `injectid` (fspec.cc:3803); Rudra
 has no inject-id field (INJECT-0001 stub) and `copy_from` does not yet carry
 the `likelytrash` field — dormant while the COPY arm is canon-unreachable.
 
@@ -229,7 +229,7 @@ the `likelytrash` field — dormant while the COPY arm is canon-unreachable.
 its name too — the mirror of `ParameterSymbol::setTypeLock`
 (fspec.cc:3047-3057: `attrs = typelock; if (!sym->isNameUndefined())
 attrs |= namelock`), the behavior the scope-backed stores behind every
-platform-locked prototype exhibit. Rugra's flat parameter vector is the
+platform-locked prototype exhibit. Rudra's flat parameter vector is the
 projection of that symbol-backed store, so `set_input_lock(true)` sets
 `NAME_LOCKED` on non-empty-named params (unnamed `param_N` stand-ins gain
 nothing). The oracle's `ParameterBasic::setTypeLock` (fspec.cc:2925) has no
@@ -547,13 +547,13 @@ return、双寄存器 join、错误路径与 endian 边界也不在本 fixture �
   `FuncCallSpecs : public FuncProto`（fspec.hh:1645）的继承解析——非空本地
   effect 列表完整覆盖，空列表委托 `FuncProto::has_effect`（fspec.cc:4234，
   即 PROTO-EFFECT-MODEL-0001 的 ProtoModelFull 查询）。modelless 的
-  FuncProto 在 Ghidra 是无效状态（解引用即错）；Rugra 生产侧在
+  FuncProto 在 Ghidra 是无效状态（解引用即错）；Rudra 生产侧在
   FUNCPROTO-MODEL-BIND-0001 落地前保守返回 `unknown_effect`（guardCalls
   因此建 INDIRECT，不会欠保护）。
 - `characterize_as_output`/`characterize_as_input_param` 改为委托
   `FuncProto::characterize_as_{output,input_param}`（fspec.cc:4336/4289 新增
   端口）——修复 HERITAGE-DRIVER 审计指出的 output 塌缩到 input
-  characterization 的问题。locked-param/output 分支因 Rugra
+  characterization 的问题。locked-param/output 分支因 Rudra
   `ProtoParameter.address` 无空间身份降级到 model 分支（ADDRESS-0001 移除）。
 - `is_auto_killed_by_call` 委托 `FuncProto::is_auto_killed_by_call`
   （fspec.cc:4609：model output 的 autoKilledByCall 粘滞位或 locked output），
@@ -598,7 +598,7 @@ Ghidra 行为），`Architecture::decode_proto_spec`/`decode_default_proto_spec`
 - `characterize_as_output` 锁定分支（fspec.cc:4339-4353）逐行落地：
   TYPE_VOID 门 + cc:4346 `justifiedContain`（端序按存储空间路由）+
   cc:4351 `containedBy`。锁定但无记录存储时降级 model 分支（Ghidra 锁定
-  分支为终态；no-storage 是 Rugra 过渡不可达态，保持生产行为不变）。
+  分支为终态；no-storage 是 Rudra 过渡不可达态，保持生产行为不变）。
 - `get_biggest_contained_output` 锁定分支（fspec.cc:4495-4506）同构落地
   （cc:4500 containedBy + `base != op2.base` 空间等值检查）。
 - 新 helper `contained_by_range`（address.cc:110-118 `Address::containedBy`
@@ -631,7 +631,7 @@ Ghidra 行为），`Architecture::decode_proto_spec`/`decode_default_proto_spec`
 - `print_model_in_decl()` 原实现 `!is_model_unknown()` 是字符串哨兵简化——
   model 绑定后会把 `__stdcall` 打进所有声明（golden 为 0 处）。修复为
   fspec.hh:1395 的 `model->printInDecl()` 委托：`setDefaultModel` 将旧默认
-  置 true、新默认置 false（architecture.cc:326-329，Rugra `set_default_model`
+  置 true、新默认置 false（architecture.cc:326-329，Rudra `set_default_model`
   已实现同一翻转），别名 clone（copy-ctor `isPrinted=true` 不继承，
   fspec.cc:2360-2366）保持打印。modelless（PLT 锁定路径）保持 false，
   `is_model_unknown` 哨兵语义（"Unknown calling convention" golden warning）
@@ -684,7 +684,7 @@ Ghidra 行为），`Architecture::decode_proto_spec`/`decode_default_proto_spec`
 - **`FuncCallSpecs` 补继承面委托访问器** `is_no_return`/`set_no_return`/
   `is_inline`/`set_inline`/`copy_flow_effects`：Ghidra 的
   `class FuncCallSpecs : public FuncProto`（fspec.hh:1645）经继承直接暴露
-  fspec.hh:1434/1439/1411/1417 与 fspec.cc:3806；Rugra 组合持有 prototype，
+  fspec.hh:1434/1439/1411/1417 与 fspec.cc:3806；Rudra 组合持有 prototype，
   以委托等价暴露。flow.rs 的消费侧接线（`FuncCallSpecsExt` stub 退役、
   `query_call` 补 `copy_flow_effects` 调用、`truncate_indirect_jump` 的
   `set_no_return(true)`）为段(b)（flow 租约释放后）。
@@ -902,7 +902,7 @@ FSPEC-POSSIBLEPARAM-JOIN-0006 的 metadata residual 登记）：
 新增 `FuncProto::locked_output_storage`（coreaction.cc:4637-4648 的
 outparam getAddress/getSize 支撑）：解析类型锁定返回值的存储为
 `(space, offset, size)`。Ghidra 的 `FuncProto::getOutput()` 携带已解析
-ProtoParameter（锁定签名时地址由模型输出指派固定）；Rugra FuncProto 只保存
+ProtoParameter（锁定签名时地址由模型输出指派固定）；Rudra FuncProto 只保存
 返回数据类型，故按需跑同一指派：`ProtoModel::assignParameterStorage` 的输出
 半（fspec.cc:2429-2440），再把指派 offset 映射回所属输出 ParamEntry 恢复
 空间标识（ParameterPieces.addr 在过渡 Address 模型中无空间）。void/不可
@@ -946,7 +946,7 @@ INDIRECT 降至 ~5460，mainloop repeatapply 收敛轮数 37+ → 1）。
 
 ## 2026-08-25（ACTIONDW-COPYDEF-MARKING-0001）：FuncProto::possible_input_param + ProtoModelFull::possible_input_param
 
-- **`FuncProto::possible_input_param(addr_offset, size, addr_space)`**（fspec.cc:4366-4387）：`!isDotdotdot` 时先过 `void_input_locked` 门（→false），再遍历锁定参数 `justifiedContain(param_size, addr, size, false)==0 → true`、`locktest` 后无命中 →false；否则落到 model。锁定参数环与仓内兄弟移植 `characterize_as_input_param`（fspec.rs:410）同一降级口径：Rugra `ProtoParameter` 存无空间 `Address` 且无独立 size，锁定环 inert；protorecovery 阶段（本方法唯一调用方 ActionDirectWrite cc:1368）`numParams()==0`，控制流与 oracle 的 num==0 路径完全一致。modelless FuncProto 是 Ghidra 不存在的状态，保守返回 false。
+- **`FuncProto::possible_input_param(addr_offset, size, addr_space)`**（fspec.cc:4366-4387）：`!isDotdotdot` 时先过 `void_input_locked` 门（→false），再遍历锁定参数 `justifiedContain(param_size, addr, size, false)==0 → true`、`locktest` 后无命中 →false；否则落到 model。锁定参数环与仓内兄弟移植 `characterize_as_input_param`（fspec.rs:410）同一降级口径：Rudra `ProtoParameter` 存无空间 `Address` 且无独立 size，锁定环 inert；protorecovery 阶段（本方法唯一调用方 ActionDirectWrite cc:1368）`numParams()==0`，控制流与 oracle 的 num==0 路径完全一致。modelless FuncProto 是 Ghidra 不存在的状态，保守返回 false。
 - **`ProtoModelFull::possible_input_param(loc_space, loc, size)`**（fspec.hh:883 内联）：`input->possibleParam(loc,size)` 一行委托。
 
 ## 2026-08-26（TRI2-CALLOUT-ASSIGN-0001）：build_output_from_trials 签名对齐 vector<Varnode*> trialvn
@@ -1031,7 +1031,7 @@ fspec.hh:310-317/1653-1654：
 存在且逐个 type-locked。Oracle 的顺序是：先检查 `voidinputlock`；若无参数
 返回 false；否则只检查首参数的 `isTypeLocked()`。`setInputLock(true)` 在
 无参数时设置 `voidinputlock`（fspec.cc:3921-3929），有参数时逐项设置
-type-lock。Rugra 现已通过 `prototype.is_input_locked()` 对齐该门与首参检查；
+type-lock。Rudra 现已通过 `prototype.is_input_locked()` 对齐该门与首参检查；
 空参数、void 锁定与多参数首参锁定均纳入域语义。
 
 ## 2026-08-28：FuncLink input 数据面限定证据
@@ -1064,7 +1064,7 @@ ModelRules 或 Architecture-owned Address identity；`fspec` 保持 L2。
   的 firstOnly 过滤（cc:1649）跳过 RDX → 全部 markNoUse →
   `buildOutputFromTrials`（fspec.cc:5770-5860）在
   `getNumTrials()==0` 早退，CALL out=- 保持、const0 试探 INDIRECT 存活。
-  Rugra 侧 `initialize` 钉死空规则分支（`use_fillin_fallback=true` 强制
+  Rudra 侧 `initialize` 钉死空规则分支（`use_fillin_fallback=true` 强制
   legacy）→ `fillin_map_fallback(active,false)` 的 firstOnly=false 让
   非-first 的 RDX entry 参选 → lone RDX 试探被 markUsed → 输出直连 +
   DELAY_SLOT 销毁（ordinal 164 分歧形态）。
@@ -1107,18 +1107,18 @@ ModelRules 或 Architecture-owned Address identity；`fspec` 保持 L2。
   cc:1454，调用点索引延迟到循环外统一回写避免借用交叉）与
   `analyze_extra_pop`（StackSolver 解出的 INDIRECT 变量按
   `soln-soln2` 写回，cc:302-307）。Ghidra 的 clone 携带面
-  （fspec.cc:4971）在 Rugra 无 FuncCallSpecs 克隆路径，无对应物。
+  （fspec.cc:4971）在 Rudra 无 FuncCallSpecs 克隆路径，无对应物。
 
 ## 2026-09-23（BOOMATTR lane）：FuncProto 自函数参数恢复三件套 + updateInputNoTypes
 
 - `FuncProto::resolve_model()`（fspec.cc:3767-3776 镜像）：null model 早退 +
-  非 merged 模型早退——Rugra 的 `ProtoModelFull` 恒为具体模型，merged 分支
+  非 merged 模型早退——Rudra 的 `ProtoModelFull` 恒为具体模型，merged 分支
   （`ProtoModelMerged::selectModel`）不可达，保留完整签名面供 merged 支持
   落地时接通。
 - `FuncProto::derive_input_map(&mut ParamActive)`（fspec.hh:1494-1495 inline
   `model->deriveInputMap(active)` = fspec.hh:791-792 `input->fillinMap(active)`）：
   与 `FuncCallSpecs::derive_input_map` 同一 dispatch；modelless FuncProto 是
-  Ghidra 的非法状态（解引用即 fault），Rugra 生产侧由
+  Ghidra 的非法状态（解引用即 fault），Rudra 生产侧由
   `ActionInputPrototype` 的 setScope-fallback glue 先绑模型，防御性 no-op 兜底。
 - `FuncProto::unjustified_input_param(space,offset,size,res)`（fspec.cc:4426-4453）：
   锁定参数 justifiedContain 环（ ADDRESS-0001 退化同
@@ -1127,7 +1127,7 @@ ModelRules 或 Architecture-owned Address identity；`fspec` 保持 L2。
   模型 `unjustifiedContainer` 尾（fspec.rs:6946 已有移植首次接通到
   FuncProto 侧）。
 - `FuncProto::update_input_types`：空类型折叠补齐——Ghidra high 类型永不为
-  null（最少是尺寸派生 TYPE_UNKNOWN），Rugra `Option::None` 折叠为
+  null（最少是尺寸派生 TYPE_UNKNOWN），Rudra `Option::None` 折叠为
   shared_default 工厂的 unknown base（对应 updateInputNoTypes 的
   fspec.cc:4118 factory 调用）；参数命名折叠为 `param_<count+1>`
   （ProtoStoreSymbol 的 ScopeInternal 符号在 commit 时按 category
@@ -1157,7 +1157,7 @@ ModelRules 或 Architecture-owned Address identity；`fspec` 保持 L2。
   `ProtoStoreSymbol`（`FuncProto::setScope`，fspec.cc:3879-3885；
   `funcdata.cc:69` 以 `baseaddr + -1` 构造 restricted_usepoint），其
   `setInput`（fspec.cc:3147-3214）把 function_parameter category 符号装进
-  ScopeLocal。Rugra 的 FuncProto 只持平铺 `parameters` store，该副作用由
+  ScopeLocal。Rudra 的 FuncProto 只持平铺 `parameters` store，该副作用由
   调用方（coreaction `ActionInputPrototype`）注入的闭包折叠执行；两函数
   本体（used-trial 走查、persist 臂、mark 清理、`update_this_pointer`）
   不变。回调签名 `&mut dyn FnMut` 保持单调用方（ActionInputPrototype）
@@ -1179,7 +1179,7 @@ fspec.cc:4142 的 `store->clearOutput()` 是**无条件 void 输出**（ProtoSto
 此前委托 `clear_unlocked_output`（仅清锁标志）保留了陈旧 return_type——af6c5ee2
 Evidence 断言了未实现的行为（机制 D 红旗，CR29 件④子项①）。修正为该臂直接复位
 return_type=void 基类型。另登记 PROTOSTORE-SIZELOCK-UPGRADE-0001（locked+
-TYPE_UNKNOWN 态 Ghidra 可经 isSizeTypeLocked 臂升级而 Rugra 合流建模不可达；
+TYPE_UNKNOWN 态 Ghidra 可经 isSizeTypeLocked 臂升级而 Rudra 合流建模不可达；
 含 fspec.rs:1608 合流的解除条件）。
 
 ## 2026-09-25（SPACEFIX lane）：buildInputFromTrials SUBPIECE 输出空间修正（FSPEC-DEALLOC-SPACE-0001）
@@ -1203,7 +1203,7 @@ register 空间。修正为在读锁快照内一并捕获 `vn_r.get_space()`，�
 
 JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
 参数命名缺口）的 fspec 侧数据面补齐——四件落地，零行为变化（无 setter
-调用点/无消费者接线，Rugra 生产侧恒 false = oracle 构造初值）：
+调用点/无消费者接线，Rudra 生产侧恒 false = oracle 构造初值）：
 
 - `is_bad_jump_table` 字段（fspec.hh:1660 `isbadjumptable`），置于
   `is_stack_output_locked` 之前保持 oracle 字段序（1658-1661:
@@ -1212,7 +1212,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
 - `set_bad_jump_table(bool)` / `bad_jump_table()` 访问器
   （fspec.hh:1701/1702 内联原样）。oracle 生产者 =
   `FlowInfo::truncateIndirectJump` 默认失败臂（flow.cc:754
-  `fc->setBadJumpTable(true)`，Rugra 侧 flow.rs 截断臂仍 TODO 登记——
+  `fc->setBadJumpTable(true)`，Rudra 侧 flow.rs 截断臂仍 TODO 登记——
   flow 租约不在本 lane 写域）；oracle 消费者 =
   `ActionNameVars::lookForBadJumpTables`（coreaction.cc:2779-2803，按
   `sym->getScope()==localmap && !isNameLocked` 门把 CALLIND in(0) 的符号
@@ -1241,7 +1241,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   （==canon 逐形），curl 727/0/0 与 bank 391/391 不动；但 httpd 总量
   1123→**1175**（main +88 = MERGE-COPYNOISE-DIFFHIGH-0001 吸收缺口的
   新表面：canon 把 killedbycall 栈重载拷贝吸收进命名高变量
-  `strcasecmp(pcVar13,...)`，Rugra 读槽位 `strcasecmp(plVar9[3],...)` +
+  `strcasecmp(pcVar13,...)`，Rudra 读槽位 `strcasecmp(plVar9[3],...)` +
   自赋值店面换形 + 对齐回声）——违反默认脸不回退门，**该锚定臂已回滚
   暂存于车道证据**，解锁条件=MERGE-COPYNOISE 吸收域（merge 相 Cover）
   落地后重放。
@@ -1256,7 +1256,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   先释再锁 callspec 的锁序保持不变）此前产 `Address::new(offset)`——无空间
   legacy 形。oracle 的记录点是 fspec.cc:4934
   `entryaddress = call_op->getIn(0)->getAddr()`：CALL 注解化**前**的 in(0)
-  varnode 完整地址（空间+offset）。Rugra 的 in(0) varnode 只携带 flat
+  varnode 完整地址（空间+offset）。Rudra 的 in(0) varnode 只携带 flat
   `AddressSpace` enum（`loc` 恒 spaceless），故经新增 RUDRA-GLUE 桥
   `entry_address_with_space(space, offset)` 以 ADDRESS-0001 tag 形重建完整
   地址：per-variant stand-in 句柄（thread-local 单例表，携带该 variant 的
@@ -1294,7 +1294,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
 - **ParamUnassignedError**（fspec.hh:63-66）：`assignParameterStorage` 无法
   为某原型位分配存储时抛出；Rust 形态为独立错误类型（String 载荷），
   供 `FuncProto::updateAllTypes`（fspec.cc:4220-4222）的 catch 位模式匹配。
-- **ParameterBasic 旗标面（坍缩注记）**：Rugra 扁平 `ProtoParameter` 即
+- **ParameterBasic 旗标面（坍缩注记）**：Rudra 扁平 `ProtoParameter` 即
   Ghidra `ParameterBasic` 的承载形态（结构文档已有注记）。本批补齐
   `is_name_locked`/`is_size_type_locked`/`is_indirect_storage`/
   `is_name_undefined`/`from_pieces`/`set_type_lock`（含 TYPE_UNKNOWN 时
@@ -1393,7 +1393,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   改名/改型）；`clear_input`（去类目+移除+重编号）、`clear_all_inputs`、
   `get_num_inputs`、`get_input`、`set_output`/`clear_output`/`get_output`、
   `duplicate`（=clone，inparam 缓存惰性重建）、`encode_noop`（cc:3293 注释
-  语义）、`decode_refuses`。Rugra 适配注记：add_symbol 走 type_name 形 +
+  语义）、`decode_refuses`。Rudra 适配注记：add_symbol 走 type_name 形 +
   dtype Arc 直挂；discoverScope 的多 scope usepoint 纪律为 ADDRESS-0001 期
   残差（单函数 Scope 全拥 category-0，restricted_usepoint 恒为操作形）。
 - **encode_internal_store（cc:3421-3462）**：`<internallist>` 序列化逐字
@@ -1457,7 +1457,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
 - 测试修正两笔：compare_by_entry_address 测试经 set_funcdata 建条目（ctor
   只记 op 地址）；resolver extent 查询点 0x202（0x204 在 4B 域外）。
 - fixture 元数据重钉（fspec_rs/crate tree），runner 端到端复验 PASS
-  （ghidra=rugra=df4b4fbd…，25 行字节全等）；全部门禁在最终态复跑：
+  （ghidra=rudra=df4b4fbd…，25 行字节全等）；全部门禁在最终态复跑：
   cargo test --lib 1758/0、canon curl+httpd vs 基线 0/0 行差、
   镜面四面 PASS、bank 391/391、annotations/refs OK。
 
@@ -1465,7 +1465,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
 
 以锁定 oracle `Ghidra 12.0.4`（commit `e40ed13014025f82488b1f8f7bca566894ac376b`）
 亲读 `fspec.cc:5005-5027/5150-5190/5201-5329/5408-5431/5443-5472/5485-5509` 与
-`fspec.hh:1544-1545` 后落地（TRIGFACE 测绘票：oracle fspec 两触发点在 Rugra
+`fspec.hh:1544-1545` 后落地（TRIGFACE 测绘票：oracle fspec 两触发点在 Rudra
 生产不可达——ActionDeindirect 部分重实现，永不 pending）：
 
 - **`FuncProto` 补 `is_override` 旗标**（fspec.hh:1357 `is_override=0x1000`、
@@ -1476,7 +1476,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   （fspec.cc:5462）据此跳过已 override 站点的 late restriction。
 - **`FuncCallSpecs::deindirect` 生产化**（fspec.cc:5443-5472 逐句）：签名改为
   `(owner: &Arc<RwLock<FuncCallSpecs>>, fd, call_op, entry, display_name,
-  &FuncProto) -> bool`——Rugra 无 per-callee Funcdata（flow.rs queryCall 确立的
+  &FuncProto) -> bool`——Rudra 无 per-callee Funcdata（flow.rs queryCall 确立的
   前端边界），生产调用方 `ActionDeindirect` 交 oracle `newfd` 三元观测片
   （getAddress/getDisplayName/getFuncProto）。语义链：entry/name 采纳 →
   typed annotation 重写 in(0) → CALLIND→CALL → `insertIndirectOverride` →
@@ -1485,7 +1485,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   铸造需在读锁间读更新后的 entry）。旧 hook 形态与 `DeindirectOutcome` 枚举
   （零调用方死代码）随之退役。
 - **`FuncCallSpecs::force_set` 生产化**（fspec.cc:5485-5509 逐句）：
-  proto override 登记（Rugra `Override` 尚不存储 proto 本体，CALLSPEC-0001
+  proto override 登记（Rudra `Override` 尚不存储 proto 本体，CALLSPEC-0001
   seam——重启重应用面维持未接线）→ lateRestriction commit/重启二择 → 无论结果
   `setInputLock(true)` + 双 error 旗标采纳。
 - **`commit_new_inputs` 补 `stackref` 读取**（fspec.cc:5154 `getSpacebaseRelative()`
@@ -1504,7 +1504,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
 - **`deindirect` 名字段分离恢复**：Ghidra 的 `name` 挂在 FuncCallSpecs
   （fspec.hh:1645）——`FuncProto::copy`（fspec.cc:3789-3804）只拷
   model/extrapop/flags/store/effectlist/likelytrash/injectid，**从不触碰名**，
-  故 lateRestriction 的 copy 不会扰动 cc:5447 采纳的 display name。Rugra 的
+  故 lateRestriction 的 copy 不会扰动 cc:5447 采纳的 display name。Rudra 的
   FuncProto 内嵌 name 字段，copy_from 会连带覆盖——deindirect 在
   lateRestriction 之后（commit 与 restart 两路）重新断言 display name 以镜像
   字段分离（双侧 fixture const_hit 案例钉死：copy 后名保持 target_const）。
@@ -1514,7 +1514,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   覆盖三臂全路径——**6/8 双侧逐字节一致**（const_hit/const_miss/align_strip
   （funcptr_align=2 双移位剥编码位）/copy_chain/override_site（isOverride
   早退无重启）/funcptr_force（forceSet 锁+commit arity 折叠））；**2 案
-  MISMATCH 残差如实登记**：norestart_gate（db callee noreturn 位——Rugra 该
+  MISMATCH 残差如实登记**：norestart_gate（db callee noreturn 位——Rudra 该
   观测片走 flow 期 callee_func_protos 通道,deindirect 时点不可见,语料 0
   触达）、extref（Scope 图不存 per-symbol refaddr——检测可达、referral 解析
   落空=oracle newfd==0 形态,语料 0 触达）。metadata
@@ -1569,8 +1569,8 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   `out isPrecisLo`（double.cc:3263）命中，经 `SplitVarnode::findCreateWhole`
   （double.cc:527 `newUniqueOut` PIECE）重建 unique 空间 16B 逻辑整值——
   即 RulePieceStructure 随后标记为 partial root 的 PIECE16 族（vmprintf 侧
-  事件级验证：Rugra 终态 piece=110/piece16=101/partialroot=101 与 oracle
-  census 完全一致，修复前 Rugra 终态 PIECE16=0）。
+  事件级验证：Rudra 终态 piece=110/piece16=101/partialroot=101 与 oracle
+  census 完全一致，修复前 Rudra 终态 PIECE16=0）。
 - `findPreexistingWhole` 的接线延期（MIGW-FSPEC-0004）保持不变，仍属
   FSPEC-OUTPUTJOIN-0001 剩余域。
 ## 2026-09-30：op 链迭代面机械迁移（PERF-ARENA-FLIP-0001 (b)）

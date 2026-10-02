@@ -114,7 +114,7 @@ impl PcodeOpRaw {
     // RUDRA-GLUE: set_opcode — mutator for the raw-layer FlowOverride
     // transport of `Funcdata::overrideFlow` (funcdata_op.cc:991-1020
     // opSetOpcode table). Ghidra mutates the dead PcodeOp in place before
-    // block formation; Rugra's injection path rewrites the raw op before
+    // block formation; Rudra's injection path rewrites the raw op before
     // `inject_raw_ops` phase-1 creates the PcodeOp, which needs this
     // setter (the builder API only covers whole-op construction).
     pub fn set_opcode(&mut self, opcode: i32) {

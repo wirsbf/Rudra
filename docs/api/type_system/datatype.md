@@ -56,7 +56,7 @@ field 指针时，oracle 比较 FIELD 的 pointee 与 `parent`（指针相等即
 
 ## 模块说明
 
-Rugra 的数据类型系统，对应 Ghidra 的 `Datatype` 类层次
+Rudra 的数据类型系统，对应 Ghidra 的 `Datatype` 类层次
 （`TypeBase`/`TypePointer`/`TypeArray`/`TypeStruct`/`TypeUnion`/`TypeEnum`/`TypeCode`/`TypeSpacebase`）。
 采用 `enum Datatype` + 携带各自 `TypeBase` 的变体表示。
 
@@ -73,11 +73,11 @@ Rugra 的数据类型系统，对应 Ghidra 的 `Datatype` 类层次
   `tests/oracle/typeunion_resolveflow_1204`（34 records 双侧逐字节 MATCH，
   slack.* 六格中三格为 stub 形态不可达）。
 - `TypeStruct::score_single_component` 的 CALL 臂（type.cc:1913-1925）从
-  过期降级（"Rugra does not yet thread FuncCallSpecs"）补全为忠实移植：
+  过期降级（"Rudra does not yet thread FuncCallSpecs"）补全为忠实移植：
   `fd.get_call_specs_of_op`（funcdata.cc:484-496）→ `slot >= 1 &&
   isInputLocked` 取 `getParam(slot-1)`（ProtoStoreInternal::getInput 越界
   null 守卫 fspec.cc:3372-3377 的 Option 镜像）/ `slot < 0 &&
-  isOutputLocked` 取输出参数型（Rugra FuncProto 的 `return_type` 承载）→
+  isOutputLocked` 取输出参数型（Rudra FuncProto 的 `return_type` 承载）→
   与 `parent` 的 `Datatype*` 指针恒等比较 → -1。B2：同 fixture 的
   `box.call.lock/default/output` 三格（真实 FuncCallSpecs + 锁定参数/输出，
   经 `__stdcall` 模型 setPieces 保型实证）。
@@ -100,7 +100,7 @@ behavior:
   observable in the packed protocol, so the glue is not codec `MATCH`.
 - `address_to_byte_int` and `byte_to_address_int` are anchored to
   `space.hh:532/541`; they are source mappings only and still depend on
-  Rugra's incomplete address-space metadata.
+  Rudra's incomplete address-space metadata.
 - `covering_mask` is anchored to `address.cc:800 coveringmask`; a locked
   runtime boundary fixture, including the high-bit case, is still absent.
 - `cmp_u64` is Rust glue extracted from repeated inline id comparisons in the
@@ -125,7 +125,7 @@ TypePointer、`:457` TypeArray 的枚举派发移植）本身与具体类型名�
 `Scope::build_variable_name`（database.cc:2434）产出的本地变量前缀家族从
 `xVar`/`axVar`/`pxVar` 变为 golden 的 `uVar`/`auVar`/`puVar`。Ghidra 侧同理：
 standalone SLEIGH 架构（sleigh_arch.cc:229 的 `xunknown*`）产出 `xVar` 家族，
-headless/数据组织路径产出 `uVar` 家族；Rugra 选择对齐后者（E2E 差分门禁目标）。
+headless/数据组织路径产出 `uVar` 家族；Rudra 选择对齐后者（E2E 差分门禁目标）。
 见 `typefactory.md` 2026-08-15 节。
 
 ## 2026-06-26 新增原语（解锁 varmap.cc 移植）
@@ -203,7 +203,7 @@ stored metatype 是 `TYPE_UINT`，submeta 是 `SUB_UINT_PARTIALENUM`，并保留
   观察到的路径，`RulePtrsubUndo` (ruleaction.cc:7138) 与 `ActionSetCasts`
   (coreaction.cc:2748) 两个消费门禁因此读到同一结果。
   miss（无 container）时 Ghidra 返回 `getBase(1,TYPE_UNKNOWN)` + newoff 0，
-  Rugra 类型层没有 TypeFactory 句柄，返回 `(None, 0)` —— 已由
+  Rudra 类型层没有 TypeFactory 句柄，返回 `(None, 0)` —— 已由
   `tests/oracle/type_spacebase_subtype_1204` 真实 oracle 固定为
   `TYPE-SPACEBASE-MISSFALLBACK-0001`（7/10 记录 MATCH，3 条 miss 记录 MISMATCH）。
 - 其他: 返回 `(None, off)`。Pointer truncate、带 factory 的 TypeCode 仍是已登记 residual。
@@ -238,12 +238,12 @@ varmap `RangeHint::preferred` 用其选择更具体的类型。
 
 ## 2026-08-20：DATATYPE-TYPEORDER-0001
 
-旧实现直接比较 Rugra 私有 enum 序（`Unknown=0`），把 UNKNOWN 错排在
+旧实现直接比较 Rudra 私有 enum 序（`Unknown=0`），把 UNKNOWN 错排在
 PTR/INT/UINT 前；同时浅 compare 错把名字当 tie-break、同 metatype 尺寸方向也反了。
 本轮按锁定 `type.cc/.hh` 恢复：
 
 - `SubMetatype` 以 `#[repr(i32)]` 完整镜像 Ghidra `sub_metatype` 的 0..23
-  数值与特异性顺序；`get_submeta()` 返回该类型，避免再把 Rugra 私有
+  数值与特异性顺序；`get_submeta()` 返回该类型，避免再把 Rudra 私有
   `TypeMetatype` discriminant 当传播次序。
 - `get_submeta()` 映射 `Datatype::base2sub`，并覆盖 INT/UINT 的 enum、char、unicode
   特化以及 `TypePointer::calcSubmeta` 的 incomplete/multi-field struct、union 和
@@ -273,11 +273,11 @@ PTR/INT/UINT 前；同时浅 compare 错把名字当 tie-break、同 metatype �
 
 真 oracle 证据为 `tests/oracle/datatype_type_order_1204.{cc,rs,metadata.json}` 与
 `tools/run_datatype_type_order_oracle.sh`：182 条固定记录中 datatype 投影 174 MATCH、
-8 MISMATCH（6 个 TypeFactory 接线 + 2 个 same-kind space 表示差异）；oracle/Rugra stdout
+8 MISMATCH（6 个 TypeFactory 接线 + 2 个 same-kind space 表示差异）；oracle/Rudra stdout
 SHA-256 分别为
 `4bc6b452023ac5c7a6b3e9ff3038c5c848ef222f1f5ffa856aedb545659ad1e5` /
 `85775338934840a3e7f6265a10e6fd1d34af0fd49d0a267b0363ad262d9c3cdd`。fixture 使用
-x86:LE:64:default/gcc、固定 curl/spec Git 输入和隔离 Rugra 基线 overlay。
+x86:LE:64:default/gcc、固定 curl/spec Git 输入和隔离 Rudra 基线 overlay。
 
 2026-08-23 residual 矩阵补齐（零未解释差异，`datatype.rs` 本轮无需改动）：
 
@@ -324,7 +324,7 @@ stored-alignSize、Union base dispatch 与 PartialStruct 深层成功/失败边�
 
 ### 2026-07-01：is_char_print / is_piece_structured（解锁 RulePtrsubCharConstant/RulePieceStructure/Rule2Comp2Sub）
 - `is_char_print()`（type.hh:218）— 检查 CHARTYPE|UTF16|UTF32|OPAQUE_STRUCT flag。
-- `is_piece_structured()`（type.hh:929-935）— Struct|Union|Array 语义判断（Ghidra 用 metatype<=TYPE_ARRAY，Rugra 枚举值不同故用 matches!）。
+- `is_piece_structured()`（type.hh:929-935）— Struct|Union|Array 语义判断（Ghidra 用 metatype<=TYPE_ARRAY，Rudra 枚举值不同故用 matches!）。
 
 ### 2026-08-18：TYPEUNION-CACHE-READSIDE-0001——find_truncation (op,slot) 参数化 + Union 臂解析缓存读侧接线
 - `find_truncation(off, sz, op, slot, resolutions) -> Option<(TypeField, newoff)>`（type.cc:160 base / :1624 TypeStruct / :2185 TypeUnion / :2440 TypePartialUnion）——签名扩展为 Ghidra 虚函数的参数形态（`op`/`slot` + 缓存通道）：
@@ -342,7 +342,7 @@ stored-alignSize、Union base dispatch 与 PartialStruct 深层成功/失败边�
 
 ### 2026-07-01（续）：needs_resolution/find_resolve/is_enum_type/get_stripped/equate + type_flags 对齐
 - needs_resolution()（type.hh:231）、find_resolve()（type.cc:586）、is_enum_type()（type.hh:219）、has_stripped()（type.hh:229）。
-- mark_equate/mark_un_equate/is_equated（Rugra 私有 EQUATED 位，Ghidra 对应 EquateSymbol）。
+- mark_equate/mark_un_equate/is_equated（Rudra 私有 EQUATED 位，Ghidra 对应 EquateSymbol）。
 - type_flags 补齐 CHARTYPE/ENUMTYPE/UTF16/UTF32/HAS_STRIPPED/IS_PTRREL/TYPE_INCOMPLETE/NEEDS_RESOLUTION。
 
 ## 2026-07-22 新增 P0：TypePartialStruct / TypePartialEnum / TypePartialUnion + TypeSpacebase 结构补齐（非完整对齐）
@@ -396,7 +396,7 @@ union 切片，解析延迟到流分析阶段（`needs_resolution` 恒真）。
   重构后的 scope 发布进句柄内容。全局 spacebase 恒 None。
 - `get_map()`（type.cc:2935-2945）— 返回 `Option<SpacebaseMap>`（新枚举：
   `Local(RwLockReadGuard<ScopeLocal>)` 或 `Global(&Scope)`）。local-frame
-  判定用 `!localframe.is_null()`（Rugra legacy `Address::new(frame)` 无 space，
+  判定用 `!localframe.is_null()`（Rudra legacy `Address::new(frame)` 无 space，
   `is_invalid()` 对真实函数入口也为真；工厂的 global spacebase 恒 frame 0，
   故以非零偏移为准）。localframe 非零而无句柄读（首趟前/锁中毒）落 None
   → `get_sub_type` 回 oracle 空 ScopeLocal 的 miss 答案，**不**回落全局 scope
@@ -413,7 +413,7 @@ union 切片，解析延迟到流分析阶段（`needs_resolution` 恒真）。
   Ghidra getMap 的全局 scope 查空路径），关闭
   `TYPE-SPACEBASE-MISSFALLBACK-0001`（双侧 fixture
   `tests/oracle/type_spacebase_subtype_1204` 10/10 记录字节一致，
-  ghidra/rugra stdout sha256 相同；下游 `AddTreeState::calc_subtype` 的
+  ghidra/rudra stdout sha256 相同；下游 `AddTreeState::calc_subtype` 的
   TYPE_SPACEBASE 臂因此对 `RSP+const`/pushptr 后形态保持 valid 并产出
   PTRSUB 链，恢复 oppool2 ptrarith 的 spacebase fire——match_url Phase 2
   首分歧 191→317，Lane DG `SB-MATCHURL-ORD191-0001`）。
@@ -464,14 +464,14 @@ core-type 位向指针传播。已改为 `flags & CORETYPE`；工厂核心类型
   `is_constructor`/`isDestructor` and the factory void type; builds the
   `FuncProto`, applies `setConstructor`/`setDestructor`, assigns the
   prototype, and runs `markComplete` unconditionally (also with no
-  `<prototype>` child). Rugra residual: `FuncProto::decode`
+  `<prototype>` child). Rudra residual: `FuncProto::decode`
   (fspec.cc:4675-4839, fspec.rs lease) is not ported, so a present
   `<prototype>` child errors after being consumed — cursor partial state
   preserved (TYPEFACTORY-CODEFLAGS-DECODE-0001).
 
 ### 2026-08-26：TypeSpacebase::getMap 的 findContainer 适配
 - `type.cc:2962-2963` 的 `queryContainer(addr, 1, nullPoint)`：随
-  `Scope::find_container` 签名变化传入空 usepoint（Rugra 的 null
+  `Scope::find_container` 签名变化传入空 usepoint（Rudra 的 null
   usepoint = `Address::new(0)`），语义不变（addrtied 符号空 uselimit
   恒 in-use）。
 
@@ -506,7 +506,7 @@ carrier 的身份修正；完整 TypeCode prototype、null output 和 dependency
 ## 2026-09-24：SPACEBASE 臂 byteToAddress 无符号除镜像（wt/postadsorb，R2）
 
 - `AddrSpace::byteToAddress(uintb val, uint4 ws) { return val/ws; }`
-  （space.hh:522-524）是 **uintb（无符号 64 位）除法**。Rugra 三处
+  （space.hh:522-524）是 **uintb（无符号 64 位）除法**。Rudra 三处
   `off.wrapping_div(wordsize) as u64`（`get_sub_type`/`get_sub_type_in_map`/
   `nearest_arrayed_component_forward_in_map`）原为 i64 有符号除法后再转
   u64——对负栈偏移（如 -0x4e8）在 ws>1 时会得到与 oracle 不同的商
@@ -538,7 +538,7 @@ carrier 的身份修正；完整 TypeCode prototype、null output 和 dependency
 **枚举上报口径注记（CR 裁定核实项）**：oracle `TypeEnum` 构造器把存储
 metatype 无条件归一为 TYPE_INT/TYPE_UINT（type.hh:489-490 三元式，
 `TypePartialEnum` 经 type.cc:2255-2256 同落 TYPE_UINT），故 oracle 枚举
-实例恒 `!isPieceStructured()` → isPrimitiveWhole=true。Rugra 枚举可能存
+实例恒 `!isPieceStructured()` → isPrimitiveWhole=true。Rudra 枚举可能存
 折叠变体 `TypeMetatype::Enum`（oracle 存储空间不存在的上报分歧，另行
 登记域）——但 `is_piece_structured` 显式集同时排除 Enum 与 Int/Uint 两
 形态，两谓词在枚举上均与 oracle 一致，该分歧对本谓词无可观察影响。

@@ -83,7 +83,7 @@
    "consider_conditional_branches": false
   },
   "standalone_producer": "unique-ELF-owner direct-known-entry subset only: defined STT_FUNC entries/bodies plus relocation-derived PLT entries, direct unconditional near iced-x86 references, unique executable PROGBITS containment, fresh-empty override map",
-  "e2e": "curl driver selected-function isolated workers; normal and RUGRA_DISABLE_SHARED_RETURN=1 A/B; full action pipeline and C printer enabled"
+  "e2e": "curl driver selected-function isolated workers; normal and RUDRA_DISABLE_SHARED_RETURN=1 A/B; full action pipeline and C printer enabled"
  },
  "host_toolchain": {
   "gxx": "g++ (GCC) 16.2.1 20260810",

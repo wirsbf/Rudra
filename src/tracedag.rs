@@ -335,7 +335,7 @@ impl<'a> TraceDAG<'a> {
         // flag read (get_in_ref): oracle reads `intothis[i].label` inline
         // (isLoopDAGIn block.hh:345) with a single `bl` pointer — the
         // per-edge re-lock/re-clone of the per-accessor form (12.2M edge
-        // visits on VdbeExec) is Rugra-side constant only.
+        // visits on VdbeExec) is Rudra-side constant only.
         use crate::block::edge_flags::{
             F_BACK_EDGE, F_GOTO_EDGE, F_IRREDUCIBLE_EDGE, F_LOOP_EXIT_EDGE,
         };
@@ -720,15 +720,15 @@ impl<'a> TraceDAG<'a> {
     // Ghidra: blockaction.cc:983 TraceDAG::pushBranches
     /// Main algorithm: push traces forward, marking bad edges as goto.
     pub fn push_branches(&mut self) {
-        let step = std::env::var("RUGRA_GOTOSTEP").is_ok();
-        // RUGRA_IRRED_DBG read once per process (SPEEDPROF-TRACEDAG-CONST-0001):
+        let step = std::env::var("RUDRA_GOTOSTEP").is_ok();
+        // RUDRA_IRRED_DBG read once per process (SPEEDPROF-TRACEDAG-CONST-0001):
         // the four branch sites below fire once per loop EVENT (~1.41M on
         // VdbeExec) and std::env::var takes the global env lock + allocates;
         // a OnceLock bool is the identical observable (env is immutable
         // during the run). Same form as blockaction.rs IRRED_SW.
         static IRRED_SW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
         let irred_dbg = *IRRED_SW
-            .get_or_init(|| std::env::var("RUGRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false));
+            .get_or_init(|| std::env::var("RUDRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false));
         let mut missed: usize = 0;
         let mut current: Option<usize> = self.begin_slot();
         // Ghidra: blockaction.cc:983-1015 TraceDAG::pushBranches — the loop

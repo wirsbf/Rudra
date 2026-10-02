@@ -87,11 +87,11 @@
  "out_of_scope_observations": [
   {
    "id": "curl-main-150-adjudication",
-   "note": "The curl main 150-vs-149 block count is a data-environment property, not a flow-code gap: with the 'Non-Returning Functions - Known' analyzer attribute present (E2E full-analysis golden) both sides stop at the 0x3366 __stack_chk_fail call (149 blocks + warning); with it absent (golden_dump_1204 fixture oracle) both sides fall through into the _start overlap and contain the @339e hlt self-loop (150 blocks). RUGRA_ORACLE_FIXTURE_DATA=1 in examples/curl_decompile.rs reproduces the fixture environment for visit-trace comparisons (main verified 150 blocks, blk#147 self-loop, matching oracle BS-OR block-for-block)."
+   "note": "The curl main 150-vs-149 block count is a data-environment property, not a flow-code gap: with the 'Non-Returning Functions - Known' analyzer attribute present (E2E full-analysis golden) both sides stop at the 0x3366 __stack_chk_fail call (149 blocks + warning); with it absent (golden_dump_1204 fixture oracle) both sides fall through into the _start overlap and contain the @339e hlt self-loop (150 blocks). RUDRA_ORACLE_FIXTURE_DATA=1 in examples/curl_decompile.rs reproduces the fixture environment for visit-trace comparisons (main verified 150 blocks, blk#147 self-loop, matching oracle BS-OR block-for-block)."
   },
   {
    "id": "blockaction-dowhile-seam",
-   "note": "With the 150-block parity restored (RUGRA_ORACLE_FIXTURE_DATA=1 + RUGRA_BS_TRACE=1), main's collapse rule-event sequence matches the oracle through event 53; first divergence at #54 (oracle goto@67 vs Rugra if_goto@67), then the missing dowhile@67/@70 absorption chain (oracle events 56/60). Remaining seam is blockaction domain (w-rc4 lease)."
+   "note": "With the 150-block parity restored (RUDRA_ORACLE_FIXTURE_DATA=1 + RUDRA_BS_TRACE=1), main's collapse rule-event sequence matches the oracle through event 53; first divergence at #54 (oracle goto@67 vs Rugra if_goto@67), then the missing dowhile@67/@70 absorption chain (oracle events 56/60). Remaining seam is blockaction domain (w-rc4 lease)."
   }
  ],
  "projection_status": "MATCH",

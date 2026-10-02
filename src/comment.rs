@@ -472,7 +472,7 @@ impl Subsort {
 ///
 /// Ghidra projects `BlockBasic::contains` through the cover `RangeList`
 /// (`cover.inRange(addr, 1)`, a single `[setInitialRange(beg,end)]` range for
-/// blocks established by `Funcdata::setBasicBlockRange`). Rugra has no block
+/// blocks established by `Funcdata::setBasicBlockRange`). Rudra has no block
 /// cover system, so the range is projected as `[start_addr, last-op addr]`
 /// (`get_stop_addr`), same-space only — mirroring `RangeList::inRange`'s
 /// per-space range lookup. The oracle fixture pins both sides to identical
@@ -503,7 +503,7 @@ pub struct CommentSorter {
     /// Comments for the current function, sorted by block. Models Ghidra's
     /// `map<Subsort,Comment *>` as a sorted vector of (key, comment index).
     commmap: Vec<(Subsort, usize)>,
-    /// The comments themselves (indexed by the commmap values). Rugra clones
+    /// The comments themselves (indexed by the commmap values). Rudra clones
     /// the placed Comment objects out of the (const) database; Ghidra stores
     /// raw pointers into it.
     comments: Vec<Comment>,
@@ -534,7 +534,7 @@ impl CommentSorter {
     }
 
     // RUDRA-GLUE: std::map<Subsort,Comment*>::lower_bound rank projection.
-    // Ghidra's map iterators are node pointers; Rugra models the sorted map
+    // Ghidra's map iterators are node pointers; Rudra models the sorted map
     // as a vector and the iterator as its rank (first entry with key >= key).
     fn lower_bound_rank(&self, key: &Subsort) -> usize {
         self.commmap.partition_point(|(k, _)| *k < *key)
@@ -547,7 +547,7 @@ impl CommentSorter {
     }
 
     // RUDRA-GLUE: PcodeOp::getParent accessor mirroring op.hh's `BlockBasic
-    // *getParent(void)`; Rugra stores the parent as a Weak<dyn FlowBlock>.
+    // *getParent(void)`; Rudra stores the parent as a Weak<dyn FlowBlock>.
     fn op_parent(
         op: &crate::op::PcodeOp,
     ) -> Option<std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>> {

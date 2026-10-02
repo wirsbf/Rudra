@@ -554,7 +554,7 @@ dbcc9cb 集成：守卫交集就地写回、isBoolOutput 分支、常量无 earl
 - `FlowInfo::check_multistage_jumptables`（flow.cc:1408-1417）随之从结构占位升级为
   完整移植：被提升表间接 op 推回 `tablelist`（JUMPTABLE-MULTISTAGE 缺口关闭）。
 - `Funcdata::stage_jump_table` isPartial 分支改走 recover_multistage（此前
-  RUGRA-GAP 注释声称未移植）。
+  RUDRA-GAP 注释声称未移植）。
 
 ## 2026-09-22：JUMPTABLE-TABLEAPI-0001 P0-A — SwitchNorm 表级 API + foldIn* 语义修正
 

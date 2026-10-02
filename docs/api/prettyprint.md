@@ -36,7 +36,7 @@ token 流，断言溢出断行落在该 tokenbreak——标点保留在首行行
 `post_process_output_legacy` 的两个声明注入臂（`backfill_missing_locals` 的前缀猜型
 注入与 `flush_func_remove_unused` 的 `int uVarN;` 补注/未用删除半臂）在 **direct-runner
 （mirror）契约面整体早退**：新增 `EmitNoMarkup::mirror_face_active()`（`OnceLock` 惰性
-探测一次），env 集 = `RUGRA_MIRROR`/`RUGRA_FLOW_MIRROR`/`RUGRA_GEN_MIRROR`，单一来源
+探测一次），env 集 = `RUDRA_MIRROR`/`RUDRA_FLOW_MIRROR`/`RUDRA_GEN_MIRROR`，单一来源
 `type_system::typefactory::direct_runner_tier_active`（MIRROR-ENVS-CANONICAL-0001）。
 两个入口在 mirror 面直接 `return text.to_string()` / `out.extend(func_lines)`，canon 面
 （无 env）行为逐字节不变。
@@ -185,7 +185,7 @@ void 函数会静默产出非法 C（`return pthread_mutex_lock();` 类 gcc erro
 
 路线图 W2 节：W1 计数器实证 **A 队列 9 个 pass 双语料双轮零突变**
 （LAB_ 族 P1/P1b/P2/P3/P4/P5/P16 + Pdl + P-wbfold），按管线**尾部先行**逐个删除。
-每刀门禁：curl/httpd E2E 输出 sha256 与删除前**逐字节一致** + RUGRA_POSTFIX_STATS
+每刀门禁：curl/httpd E2E 输出 sha256 与删除前**逐字节一致** + RUDRA_POSTFIX_STATS
 计数器重跑（被删 pass 字段消失、其余 pass 计数不变，掩蔽检测）。oracle 依据：
 `EmitNoMarkup`（prettyprint.hh:546-594）直写 emitter、`flush`
 （prettyprint.cc:1193-1210）后零扫描、`docFunction`（printc.cc:2655-2666）以
@@ -252,7 +252,7 @@ curl/httpd E2E 输出与 master **sha256 逐字节一致**（`f6e35fcd…` / `52
 - **新增 `PostfixStats` 诊断族**（全部 `// RUDRA-GLUE:`，Ghidra 无对应物——oracle
   `EmitNoMarkup`（prettyprint.hh:542-594）是无缓冲直写 emitter，发射路径以
   `flush`（prettyprint.cc:1194-1213）结束，无任何文本后处理）：
-  - `RUGRA_POSTFIX_STATS` 环境变量设置时，`post_process_output_legacy` 每次调用
+  - `RUDRA_POSTFIX_STATS` 环境变量设置时，`post_process_output_legacy` 每次调用
     向 stderr 输出一行 `[POSTFIX] pid=<pid> inv=<n> rpt=<0|1> fn=<name> lines=<n>
     P1=<d> … P27=<d>`（33 个 pass 的行级突变计数）；未设置时全部插桩点短路
     （不 clone、不比较、不打印），输出字节与未插桩版本完全一致。
@@ -398,7 +398,7 @@ hugehelp -12；5 个函数 +14 行均为内容本已分叉的长表达式折行�
   `AtomicI32::fetch_add(1)` 同样返回旧值——原实现 `fetch_add(1) + 1`
   把 id 整体偏移了 1。count 只用于 begin/end 配对（非 PRETTY_DEBUG
   构建不参与输出字节），修正为语义 1:1。
-- `post_process` 移除 `RUGRA_DBG_NO_P3` 临时旁路（机制 D：`[DBG]`
+- `post_process` 移除 `RUDRA_DBG_NO_P3` 临时旁路（机制 D：`[DBG]`
   临时通道提交前必须删除）。
 - 驱动（examples/curl_decompile.rs）STRCONST-SPANNONOVERLAP：字符串
   Data 严格非重叠注入（run+NUL 跨度内跳过 per-byte DAT、8 字节槽
@@ -486,7 +486,7 @@ Simple emitter that produces plain text with no markup
 
 ### `pub fn debug_count_while(&self) -> (usize, usize)` （2026-06-28 新增，调试用）
 
-返回 `(while_count, do_count)`——原始 output 中 "while" 和 "\ndo " 的出现次数。用于 `RUGRA_LOOP_DEBUG` 诊断跟踪循环渲染。标注 `allow(dead_code)`，无副作用。
+返回 `(while_count, do_count)`——原始 output 中 "while" 和 "\ndo " 的出现次数。用于 `RUDRA_LOOP_DEBUG` 诊断跟踪循环渲染。标注 `allow(dead_code)`，无副作用。
 
 ### `pub fn debug_get_output_ref(&self) -> &str` （2026-06-28 新增，调试用）
 
@@ -804,7 +804,7 @@ PRINTC-UNLINKED-REF-0001 域）保持可编译，是任务要求的 backfill 保
 只有真函数签名（首 token 为类型）能进入注入路径。验收：glob_url 单批注入
 （保留 PRINTC-UNLINKED-REF-0001 兜底语义）；锁定 12.0.4 golden 差分
 numbering 3→**0**、defects 0 不变、Matched 123 不降；11.3.2 回归 golden
-同 0/0。诊断期临时插桩（RUGRA_DUMP_PRE_POSTPROCESS 等五处）已全部移除。
+同 0/0。诊断期临时插桩（RUDRA_DUMP_PRE_POSTPROCESS 等五处）已全部移除。
 
 ### 2026-08-25：PRINTC-SWITCH-EMIT-0001 配套 — switch 语句前缀谓词
 
@@ -1034,7 +1034,7 @@ curl getparameter.constprop.0 的 switch 内 case 0x23/0x35 尾部
 直落下一 case），是该 switch 唯一的真语义损失（≈10 行）。
 
 **根因**（非发射层、非结构层——两层的证据链）：
-- 结构层:RUGRA_BS_DUMP+case 树 dump 证明 case 0x23 的 BlockList 尾部
+- 结构层:RUDRA_BS_DUMP+case 树 dump 证明 case 0x23 的 BlockList 尾部
   `Copy idx=109 @0x42f0`(COPY@42f0 即赋值)在场,CaseOrder chain=-1 正确;
 - 发射层:emit trace 证明语句 token 与 `break;` 全部进入 EmitPrettyPrint 的
   Oppen tokqueue 并经 print_token→low_print 落入 EmitNoMarkup.output
@@ -1102,7 +1102,7 @@ printc.cc:2503-2506；oracle direct-runner golden 同形
    `(*` 且无 `=`/`return` 时抽取括号内标识符（`(*pauVar7)` → `pauVar7`），
    continue 遍历；真 body 语句（含 `=`）仍在上方被拒，非声明形照常 break。
 
-**验收**（fast-release + release 双口径，RUGRA_MIRROR，oracle e40ed130）：
+**验收**（fast-release + release 双口径，RUDRA_MIRROR，oracle e40ed130）：
 httpd **2137/0/16 → 2104/0/0**（三目标函数 326/7→311/0、228/6→217/0、
 219/3→212/0；`--func main` 两态均 TIMEOUT=已知
 HTTPD-MAIN-POSTBLOCKSTRUCT-HANG-0001 不变）；curl 与基**逐字节相同**
@@ -1135,13 +1135,13 @@ ap_get_server_name L21 空 `else {}`。
 
 **根因（双探针钉死）**：printc 侧 else 臂结构/ops 全部健在（sblocks 树
 If[cond BB2, then BB3, else BB4] 与 oracle 同形；BB4 的 CALL/STORE 活、
-非 implied、parent 正确，主 pass 确实走到 emit_statement——RUGRA_FZRAW
+非 implied、parent 正确，主 pass 确实走到 emit_statement——RUDRA_FZRAW
 原始文本层快照实证 else 臂**本已打印**两行：
 `uVar5 = apr_pstrdup(*puVar2,…);` + `*puVar2 + 0xb = uVar5;`）。
 凶手是 P6 单用内联的**声明删除谓词**：`contains(" uVar5;")` 把尾置裸变量的
 使用行（`… = uVar5;`、`return uVar5;`）也判成声明——inline 臂同时删掉
 赋值行与唯一使用行（decl 检查先于 replace_word 且 `continue` 短路），
-双删后 else 臂残空。RUGRA_POSTFIX_STATS 实测该函数 P6=3 突变（31→30 行）。
+双删后 else 臂残空。RUDRA_POSTFIX_STATS 实测该函数 P6=3 突变（31→30 行）。
 
 **修复**：新增 `is_declaration_line(t, var_name)` 判据——`<类型头> uVarN;`
 整行尾匹配 + 类型头字符集仅限 `[A-Za-z0-9_ *]` + 语句关键字黑名单
@@ -1159,7 +1159,7 @@ golden 一致、文本形态仍异（缺括号 STORE 臂拼写=printc 既有骨�
 httpd 门禁面 29 fns **2698/0/0 == 基线恒等**（受影响函数均在门禁面外）；
 curl E2E 与亲父基线**逐字节相同**（P6 谓词变更对 curl 语料零命中）；
 gcc 审计 per-function OK/FAIL 集与基线恒等（101/369，int8 族预存）；
-三投影 next_url/match_url/parseconfig.constprop.0(RUGRA_MIRROR=1)
+三投影 next_url/match_url/parseconfig.constprop.0(RUDRA_MIRROR=1)
 stage_bisect --v1 **MATCH×3**。该修复为 POSTFIX-RETIRE-0001 补偿层内
 误伤封堵，不改变退役路线（P6 整层退役时随之消失）。
 

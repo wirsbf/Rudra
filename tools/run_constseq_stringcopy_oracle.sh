@@ -31,7 +31,7 @@ bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
-cache_root=${RUGRA_CONSTSEQ_STRINGCOPY_CACHE_ROOT:-/dev/shm/rugra-tests/strfold/runner}
+cache_root=${RUDRA_CONSTSEQ_STRINGCOPY_CACHE_ROOT:-/dev/shm/rugra-tests/strfold/runner}
 mkdir -p "$cache_root"
 oracle_tmp=$(mktemp -d "$cache_root/run.XXXXXX")
 cleanup() {

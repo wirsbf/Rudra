@@ -55,7 +55,7 @@ impl Rule for RuleCollapseConstants {
         // cc:3872: vn = data.newVarnode(op->getOut()->getSize(),newval);
         // getConstant wraps the value in a constant-space Address; newVarnode
         // creates the constant Varnode (TYPE_UNKNOWN base + assignHigh) —
-        // fd.new_constant is the Rugra equivalent path.
+        // fd.new_constant is the Rudra equivalent path.
         let size = op_arc
             .read()
             .unwrap()
@@ -459,7 +459,7 @@ impl Rule for RuleZextEliminate {
     // Ghidra: ruleaction.cc:2479 RuleZextEliminate::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> {
         // cc:2482-2484: INT_EQUAL, INT_NOTEQUAL, INT_LESS, INT_LESSEQUAL.
-        // Rugra previously registered only INT_ZEXT and folded same-size
+        // Rudra previously registered only INT_ZEXT and folded same-size
         // zext->COPY, an algorithm Ghidra never runs in this Rule
         // (RULE-BEHAVIORAL-FIVE-0001 M1).
         vec![
@@ -473,7 +473,7 @@ impl Rule for RuleZextEliminate {
 
 // PIPE-POOL-LOCAL-RULES-0001: RuleSextEliminate deleted. The locked 12.0.4
 // oracle (e40ed130) contains no class of this name anywhere in its source
-// tree; it was a Rugra invention registered in oppool1 (铁律 1.4 violation).
+// tree; it was a Rudra invention registered in oppool1 (铁律 1.4 violation).
 
 /// Rule for collapsing same-input binary ops.
 ///
@@ -492,7 +492,7 @@ impl Rule for RuleZextEliminate {
 /// The 2 inputs must be identical (`Arc::ptr_eq`) or constructed identically
 /// (`is_cse_match`). The result is emitted as `COPY(const)` or `COPY(in0)`.
 ///
-/// The previous Rugra implementation did `x + 0 → x` etc. (RuleIdentityEl's
+/// The previous Rudra implementation did `x + 0 → x` etc. (RuleIdentityEl's
 /// job) and never performed the same-input collapse — leaving `x ^ x` intact,
 /// which produced the `switch((iVar1 ^ iVar1))` defect. (Audit: BATCH1 R9.)
 pub struct RuleTrivialArith;
@@ -828,7 +828,7 @@ impl Rule for RuleShiftBitops {
 
     // Ghidra: ruleaction.cc:481 RuleShiftBitops::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> {
-        // cc:484-487: INT_LEFT, INT_RIGHT, SUBPIECE, INT_MULT. Rugra
+        // cc:484-487: INT_LEFT, INT_RIGHT, SUBPIECE, INT_MULT. Rudra
         // previously registered INT_SRIGHT and only folded shift-by-0 → COPY
         // (Ghidra handles that in RuleTrivialShift, ruleaction.cc:3496-3522,
         // not here) — RULE-BEHAVIORAL-FIVE-0001 M4.
@@ -848,7 +848,7 @@ impl Rule for RuleShiftBitops {
 /// operand is the original `V`, the logic op collapses to a `COPY` of the
 /// all-zero (for AND) or all-ones (for OR/XOR) constant.
 ///
-/// Note: Rugra names the bitwise-not opcode `CPUI_INT_NEGATE` (Ghidra's
+/// Note: Rudra names the bitwise-not opcode `CPUI_INT_NEGATE` (Ghidra's
 /// `INT_NEGATE`); Ghidra's `INT_2COMP` (arithmetic negate) is `CPUI_INT_2COMP`.
 pub struct RuleNegateIdentity;
 
@@ -955,7 +955,7 @@ impl Rule for RuleNegateIdentity {
 
     // Ghidra: ruleaction.cc:446 RuleNegateIdentity::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> {
-        // Ghidra INT_NEGATE == Rugra CPUI_INT_NEGATE
+        // Ghidra INT_NEGATE == Rudra CPUI_INT_NEGATE
         vec![OpCode::CPUI_INT_NEGATE]
     }
 }
@@ -1748,7 +1748,7 @@ impl Rule for RuleBoolNegate {
 
     // Ghidra: ruleaction.cc:5505 RuleBoolNegate::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> {
-        // Ghidra BOOL_NEGATE == Rugra BOOL_NOT
+        // Ghidra BOOL_NEGATE == Rudra BOOL_NOT
         vec![OpCode::CPUI_BOOL_NEGATE]
     }
 }
@@ -2147,7 +2147,7 @@ impl Rule for RuleTermOrder {
             OpCode::CPUI_INT_MULT,
             OpCode::CPUI_BOOL_XOR, OpCode::CPUI_BOOL_AND, OpCode::CPUI_BOOL_OR,
             // CARRY/SCARRY and FLOAT_* commutative ops are included in Ghidra;
-            // Rugra may not exercise them yet but listing is harmless.
+            // Rudra may not exercise them yet but listing is harmless.
         ]
     }
 }
@@ -2245,7 +2245,7 @@ impl Rule for RuleShift2Mult {
     // Ghidra: ruleaction.cc:3708 RuleShift2Mult::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> {
         // cc:3711: oplist.push_back(CPUI_INT_LEFT); — INT_LEFT ONLY.
-        // Rugra previously also registered INT_RIGHT, which let the (opcode-
+        // Rudra previously also registered INT_RIGHT, which let the (opcode-
         // blind) applyOp rewrite `V >> c` into `V * 2^c` — a semantic
         // inversion Ghidra never performs (RULE-BEHAVIORAL-FIVE-0001 M5).
         vec![OpCode::CPUI_INT_LEFT]
@@ -3710,7 +3710,7 @@ impl Rule for RuleTestSign {
 /// 12.0.4 tree defines this class (ruleaction.hh:243-250) and compiles its
 /// methods (ruleaction.cc:624/631) but never instantiates it — no
 /// `new RuleEquality` anywhere, and no pool registration in
-/// coreaction.cc's buildUniversalAction. Rugra keeps the 1:1 port of the
+/// coreaction.cc's buildUniversalAction. Rudra keeps the 1:1 port of the
 /// class body (with its unit tests) as unregistered archive code, matching
 /// the oracle's own dead-code state. Literal-body note: the oracle's
 /// applyOp reads `op->code()` AFTER `opSetOpcode(op,CPUI_COPY)`
@@ -5305,7 +5305,7 @@ impl Rule for RuleLeftRight {
         // Ghidra (ruleaction.cc:2029-2031): `Address addr = shiftin->getAddr();`
         // — captured BEFORE the unsets, carrying shiftin's OWN space and
         // offset. Big-endian keeps the most-significant bytes: `addr += isa`.
-        // (Rugra's AddressSpace endianness predicate is the little-endian
+        // (Rudra's AddressSpace endianness predicate is the little-endian
         // enum stub; the x86-64 oracle's spaces are all little-endian.)
         let (shiftin_space, mut newaddr) = {
             let s = shiftin.read().unwrap();
@@ -5317,7 +5317,7 @@ impl Rule for RuleLeftRight {
         fd.op_unset_input(&follow, 0);
         fd.op_unset_output(&leftshift_ref);
         // cc:2034: `addr.renormalize(tsz)` only acts in the join space
-        // (address.cc:191-194, renormalizeJoinAddress); Rugra has no
+        // (address.cc:191-194, renormalizeJoinAddress); Rudra has no
         // JoinRecord store (degraded glue, SPACELESS family precedent).
         let newvn = fd.new_varnode_out_full(tsz, shiftin_space, newaddr, &leftshift_ref);
         fd.op_set_opcode(&leftshift_ref, OpCode::CPUI_SUBPIECE);
@@ -5989,7 +5989,7 @@ impl Rule for RuleAndMask {
         };
 
         // isHeritageKnown — Ghidra returns true for constants and non-free
-        // varnodes. Rugra's constants are "free" (no INPUT/WRITTEN flag) but
+        // varnodes. Rudra's constants are "free" (no INPUT/WRITTEN flag) but
         // are still heritage-known, so we only bail on non-constant free varnodes.
         let replace_is_const = replace_vn.read().unwrap().is_constant();
         let replace_is_free = replace_vn.read().unwrap().is_free();
@@ -7019,7 +7019,7 @@ impl Rule for Rule2Comp2Mult {
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
         // Faithful to Rule2Comp2Mult::applyOp (ruleaction.cc:3987-3995).
-        // Ghidra INT_2COMP maps to Rugra INT_NEG (two's complement).
+        // Ghidra INT_2COMP maps to Rudra INT_NEG (two's complement).
         let in0 = {
             let op = op_arc.read().unwrap();
             if op.opcode != OpCode::CPUI_INT_2COMP {
@@ -7640,7 +7640,7 @@ impl Rule for RuleSubCancel {
         // PcodeOp and RwLock is non-reentrant, so mutating under a live read guard is a
         // permanent futex wait (RULE-SUBCANCEL-RWLOCK-0001; the pre-fix INT_AND branch did
         // exactly that at old :5866-5867). Ghidra ruleaction.cc:5119-5181 is lock-free and
-        // calls data.opSetInput directly after its checks; Rugra mirrors the same
+        // calls data.opSetInput directly after its checks; Rudra mirrors the same
         // check-then-mutate order but must first drop the guards, then mutate.
         let (ext_code, extop, offset, out_size, in_size, far_in_size) = {
             let op = op_arc.read().unwrap();
@@ -8575,7 +8575,7 @@ impl Rule for RuleXorSwap {
 /// Faithful to Ghidra's `RuleEqual2Constant` (ruleaction.cc:5926-5990).
 ///
 /// `(V + c) == d => V == (d - c)` and `(V * -1) == d => V == -d`.
-/// Skips the INT_NEGATE case (Rugra lacks INT_NEGATE opcode).
+/// Skips the INT_NEGATE case (Rudra lacks INT_NEGATE opcode).
 pub struct RuleEqual2Constant;
 
 impl RuleEqual2Constant {
@@ -8998,7 +8998,7 @@ impl Rule for RuleSubCommute {
             };
             let outvn_size = outvn.read().unwrap().get_size();
             if outvn_size > 8 { return Ok(action_status::NO_CHANGE); }
-            // isPrecisLo/Hi check omitted (Rugra has no precis flags; the
+            // isPrecisLo/Hi check omitted (Rudra has no precis flags; the
             // check would return false anyway).
             let base = match op.inrefs.get(0) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
             };
@@ -9219,7 +9219,7 @@ impl Rule for RuleSubCommute {
         // outvn's lone descendant is an INT_ZEXT whose output size equals
         // insize (base size), reject — the form belongs to RuleSubZext.
         // (Pre-existing gap exposed by the rule_subcommute_freevn_1204
-        // fixture's add_free_zext_overlap case: Rugra used to commute here
+        // fixture's add_free_zext_overlap case: Rudra used to commute here
         // where the oracle leaves the SUBPIECE intact.)
         if offset == 0 {
             let outvn_pre = op_arc.read().unwrap().output.as_ref().unwrap().clone();
@@ -9686,7 +9686,7 @@ impl Rule for RuleMultiCollapse {
 
         // PERF-RULEBODY2-0001: clone-free matchlist. The oracle's matchlist
         // (cc:3237, filled at cc:3250-3251) holds raw pointers into
-        // op->getIn(i) — zero-cost copies. The prior Rugra form cloned the
+        // op->getIn(i) — zero-cost copies. The prior Rudra form cloned the
         // whole inrefs Vec (one heap alloc + one Arc round-trip pair per
         // input) on every heritage-known try. Here the initial matchlist is
         // read IN PLACE under the single op guard (same slot order), and
@@ -10225,7 +10225,7 @@ impl Rule for RuleSignForm {
     fn get_name(&self) -> &str { "signform" }
     // Ghidra: ruleaction.cc:8447 RuleSignForm::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> {
-        // cc:8450: SUBPIECE only. Rugra previously dispatched INT_SRIGHT and
+        // cc:8450: SUBPIECE only. Rudra previously dispatched INT_SRIGHT and
         // required the IR to already be `sext(V) s>> c` — a pattern the
         // oracle never matches in this Rule (RULE-BEHAVIORAL-FIVE-0001 M2).
         vec![OpCode::CPUI_SUBPIECE]
@@ -10612,7 +10612,7 @@ impl Rule for RuleSignNearMult {
     fn get_name(&self) -> &str { "signnearmult" }
     // Ghidra: ruleaction.cc:8535 RuleSignNearMult::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> {
-        // cc:8538: INT_AND only. Rugra previously dispatched INT_MULT and
+        // cc:8538: INT_AND only. Rudra previously dispatched INT_MULT and
         // rewrote an already-existing multiply — the oracle's trigger pattern
         // (AND with a `-1<<n` mask) could never fire
         // (RULE-BEHAVIORAL-FIVE-0001 M3).
@@ -10739,7 +10739,7 @@ impl Rule for RuleSubNormal {
             if a.read().unwrap().is_free() { return Ok(action_status::NO_CHANGE); }
             let out_vn = match op.output.as_ref() { Some(o) => o.clone(), None => return Ok(action_status::NO_CHANGE) ,
             };
-            // Skip precis hi/lo (Rugra lacks these flags; always allow).
+            // Skip precis hi/lo (Rudra lacks these flags; always allow).
             let n = sa_vn.read().unwrap().get_offset() as i64;
             let c_vn = match op.inrefs.get(1) { Some(v) => v.clone(), None => return Ok(action_status::NO_CHANGE) ,
             };
@@ -12717,7 +12717,7 @@ impl Rule for RuleRangeMeld {
         let a2 = match a2 { Some(v) => v, None => return Ok(action_status::NO_CHANGE) ,
         };
 
-        // If either sub is a BOOL_NEGATE (CPUI_BOOL_NEGATE in Rugra), do an extra pull back.
+        // If either sub is a BOOL_NEGATE (CPUI_BOOL_NEGATE in Rudra), do an extra pull back.
         let sub1_code = sub1_arc.read().unwrap().opcode;
         let a1 = if sub1_code == OpCode::CPUI_BOOL_NEGATE {
             if !a1.read().unwrap().is_written() { return Ok(action_status::NO_CHANGE); }
@@ -13302,7 +13302,7 @@ impl RulePullsubMulti {
         // SUBPIECE to live in the SAME block as the base's defining op
         // (cc:861 `basevn->getDef()->getParent() != prevop->getParent()`).
         // CANON-LOOPFORM-GETPARENTS-INVERT-0001: this same-block constraint
-        // was previously skipped ("Rugra lacks easy block access here") —
+        // was previously skipped ("Rudra lacks easy block access here") —
         // pullsub then reused a SUBPIECE from a DIFFERENT block (the outer
         // latch's EAX truncation) instead of building a fresh one after the
         // head phi, so the loop-head block never gained the extra statement
@@ -13424,7 +13424,7 @@ impl RulePullsubMulti {
         if is_join {
             // cc:793-795: usetmp = true; findJoin throws
             // LowlevelError("Unlinked join address") on a miss
-            // (translate.cc:746-762). Rugra degradation: the producer
+            // (translate.cc:746-762). Rudra degradation: the producer
             // mints unlinked splitmix64 offsets (see
             // HERITAGE-PJOINS-UNLINKED-0001), so the throw is logged and
             // the subpiece falls back to unique — the oracle's own
@@ -13683,7 +13683,7 @@ impl Rule for RulePullsubMulti {
         // re-resolve through the JoinRecord for the new size; every other
         // space is a no-op (address.cc:191-194). The join-space branch needs
         // AddrSpaceManager::renormalizeJoinAddress (translate.cc:870-916),
-        // which Rugra's Architecture does not yet expose (it carries only
+        // which Rudra's Architecture does not yet expose (it carries only
         // the simplified join_db); registered as
         // RULE-PULLSUBMULTI-JOINRENORM-0001. Register/file/unique spaces —
         // everything this rule's merges produce today — are exact.
@@ -13738,7 +13738,7 @@ impl Rule for RulePullsubMulti {
 /// printed as a subtraction of the negated (small positive) value.
 ///
 /// NOTE: Ghidra consults the constant's read-facing data-type (`TYPE_UINT`,
-/// not char-print, enum/equate name-locks). Rugra consults the fd-aware twin
+/// not char-print, enum/equate name-locks). Rudra consults the fd-aware twin
 /// `vn_type_read_facing` (union map resolution included, ruleaction.cc:7188)
 /// and applies the `TYPE_UINT` / `!isCharPrint()` guards. Factory-backed
 /// constants always carry a type, so their default `TYPE_UNKNOWN` is
@@ -13825,10 +13825,10 @@ impl Rule for RuleAddUnsigned {
 /// least-significant bytes of the shifted value.
 ///
 /// NOTE: The `doesSpecialPrinting` / `isPieceStructured` guards and the
-/// addr-tied overlap check now use Rugra's `does_special_printing()` /
+/// addr-tied overlap check now use Rudra's `does_special_printing()` /
 /// `is_piece_structured()` / `is_addr_tied()`. Ghidra also calls
 /// `data.opMarkSpecialPrint(op)` when the SUBPIECE extracts a structured field;
-/// Rugra has no Funcdata helper, so the rule sets the addlflag bit directly
+/// Rudra has no Funcdata helper, so the rule sets the addlflag bit directly
 /// (matching `op.hh:140` SPECIAL_PRINT). The `outvn->overlap(*a)` term is
 /// unavailable (no Varnode::overlap), so the addr-tied branch is approximated
 /// to the `isAddrTied` portion only (see TODO at the guard site).
@@ -13949,7 +13949,7 @@ impl Rule for RuleSubRight {
         let shiftop = fd.new_op(2, addr);
         fd.op_set_opcode(&shiftop, opc);
         // Ghidra: ct = getBase(a->getSize(), opc==INT_RIGHT?TYPE_UINT:TYPE_INT)
-        // and attaches it via newUnique(size,ct) (ruleaction.cc:7312-7319). Rugra
+        // and attaches it via newUnique(size,ct) (ruleaction.cc:7312-7319). Rudra
         // resolves the base type via Architecture::get_base_type then attaches it
         // with Varnode::update_type.
         let base_meta = if opc == OpCode::CPUI_INT_RIGHT {
@@ -14225,7 +14225,7 @@ impl Rule for RulePtrsubCharConstant {
         } else { return Ok(action_status::NO_CHANGE); };
         // ruleaction.cc:7370-7371: Address symaddr = sbtype->getAddress(
         //   vn1->getOffset(), vn1->getSize(), op->getAddr()); scope =
-        //   sbtype->getMap(). Rugra's spacebase base is 0 (wordsize 1), so
+        //   sbtype->getMap(). Rudra's spacebase base is 0 (wordsize 1), so
         //   symaddr is the raw offset and the scope is the global query
         //   channel's Database.
         let symaddr = crate::address::Address::new(vn1.read().unwrap().get_offset());
@@ -14371,7 +14371,7 @@ impl RuleExtensionPush {
             fd.op_set_opcode(&new_op, opc);
             // buildVarnodeOut: if addr-tied/internal → newUniqueOut; else newVarnodeOut(addr).
             // Ghidra keeps addr-tied varnodes at their storage; otherwise a unique.
-            // Rugra's new_unique_out always makes an internal unique, matching the
+            // Rudra's new_unique_out always makes an internal unique, matching the
             // IPTR_INTERNAL / non-addr-tied common case.
             let new_out = fd.new_unique_out(out_size, &new_op);
             fd.op_set_input(&new_op, in_vn.clone(), 0);
@@ -14683,7 +14683,7 @@ impl Rule for RuleExpandLoad {
             }
         }
         // Modify the LOAD: grow output to elType's size. Ghidra passes elType
-        // to newUnique; Rugra's new_unique takes no type, so we set it here
+        // to newUnique; Rudra's new_unique takes no type, so we set it here
         // (ruleaction.cc:10994 newUnique(elType->getSize(), elType)).
         let new_out = fd.new_unique(el_type.get_size());
         new_out.write().unwrap().update_type(el_type.clone());
@@ -14702,7 +14702,7 @@ impl Rule for RuleExpandLoad {
             // INT/UINT (ruleaction.cc:10919 RuleExpandLoad::applyOp):
             //   if (meta != TYPE_INT && meta != TYPE_UINT)
             //     elType = data.getArch()->types->getBase(elType->getSize(), TYPE_UINT);
-            // Rugra resolves the base type via Architecture::get_base_type;
+            // Rudra resolves the base type via Architecture::get_base_type;
             // if the architecture has no type-table it keeps el_type unchanged.
             let eff_type = if meta != TypeMetatype::Int && meta != TypeMetatype::Uint {
                 fd.get_arch()
@@ -14872,7 +14872,7 @@ impl PieceNode {
 /// `convertZextToPiece` (7543-7572), `findReplaceZext` (7574-7596),
 /// `separateSymbol` (7598-7611), and the `PieceNode` engine (op.cc:801-876).
 ///
-/// The rule is driven by structured data-types. Rugra exposes
+/// The rule is driven by structured data-types. Rudra exposes
 /// `get_type()` / `is_piece_structured()` / `get_sub_type()`, so the
 /// `spanning_range` and `determine_datatype` guards are wired. The piece
 /// reassembly now performs a real transform: for each leaf of the CONCAT tree
@@ -14880,7 +14880,7 @@ impl PieceNode {
 /// `get_sub_type`) and rewires the PIECE input. Internal (non-leaf) Varnodes
 /// that need new storage are replaced in place. Ghidra's
 /// `registerProtoPartialRoot` / `inheritResolution` / `getExactPiece` are not
-/// modelled in Rugra, so those sub-steps are omitted (the proto-partial flag is
+/// modelled in Rudra, so those sub-steps are omitted (the proto-partial flag is
 /// still set on rewritten Varnodes for the merge pass).
 pub struct RulePieceStructure;
 
@@ -14969,7 +14969,7 @@ impl RulePieceStructure {
     /// resolves to a matching-size sub-type, given that type. The op's opcode is
     /// switched to CPUI_PIECE and the zero inserted at slot 0.
     /// `invn->getType()->needsResolution()` → `inheritResolution` (7561-7562) is
-    /// not modelled in Rugra and is skipped.
+    /// not modelled in Rudra and is skipped.
     // Ghidra: ruleaction.cc:7525 RulePieceStructure::convertZextToPiece
     fn convert_zext_to_piece(
         zext: &crate::op::PcodeOpRef,
@@ -15022,7 +15022,7 @@ impl RulePieceStructure {
         fd.op_set_opcode(zext, OpCode::CPUI_PIECE);
         fd.op_insert_input(zext, zerovn, 0);
         // invn->getType()->needsResolution() → inheritResolution: skipped
-        // (no type-resolution state in Rugra).
+        // (no type-resolution state in Rudra).
         true
     }
 
@@ -15181,7 +15181,7 @@ impl Rule for RulePieceStructure {
         // baseAddr = outvn->getAddr() - baseOffset (ruleaction.cc:7644): the
         // subtraction keeps the root's address space, so every relocated
         // leaf/intermediate stays in the root's space (typically unique).
-        // Rugra's split-Address model keeps the space on the varnode, so the
+        // Rudra's split-Address model keeps the space on the varnode, so the
         // root's `AddressSpace` is carried through the arithmetic explicitly
         // (PIECESTRUCT-SPACE-0001: dropping it made relocated legs land in
         // the Register space at unique offsets).
@@ -15200,10 +15200,10 @@ impl Rule for RulePieceStructure {
                 None => continue,
             };
             // addr = baseAddr + node.getTypeOffset(); (renormalize is a no-op
-            // for non-join spaces in Rugra's flat Address model.)
+            // for non-join spaces in Rudra's flat Address model.)
             let addr_off = base_off.wrapping_add(type_offset as u64);
             let addr = crate::address::Address::new(addr_off);
-            // Ghidra compares full Addresses (space + offset); Rugra mirrors
+            // Ghidra compares full Addresses (space + offset); Rudra mirrors
             // that with the enum space carried beside the offset.
             let (vn_space, vn_addr) = {
                 let r = vn.read().unwrap();
@@ -15248,7 +15248,7 @@ impl Rule for RulePieceStructure {
                 }
                 fd.op_set_opcode(&copy_op, OpCode::CPUI_COPY);
                 // cc:7673 (vn->getType()) read before the edge wiring
-                // consumes the Arc (Rugra borrow-order glue; Ghidra reads it
+                // consumes the Arc (Rudra borrow-order glue; Ghidra reads it
                 // after opSetInput with identical value).
                 let vn_inst_type = vn.read().unwrap().get_type();
                 fd.op_set_input(&copy_op, vn, 0);
@@ -15435,11 +15435,11 @@ impl Rule for RulePullsubIndirect {
             crate::address::Address::new(vn_addr + (vn_size as u64 - max_byte as u64 - 1))
         };
         // indir->isIndirectCreation() — Ghidra checks the INDIRECT PcodeOp's
-        //   indirect_creation flag. Rugra exposes is_indirect_creation() on
+        //   indirect_creation flag. Rudra exposes is_indirect_creation() on
         //   Varnode (the INDIRECT's output `vn`) instead; we use that as the
         //   closest available signal.
         // indir->isIndirectCreation() — Ghidra checks the INDIRECT PcodeOp's
-        //   indirect_creation flag. Rugra exposes is_indirect_creation() on
+        //   indirect_creation flag. Rudra exposes is_indirect_creation() on
         //   Varnode (the INDIRECT's output `vn`) instead; we use that as the
         //   closest available signal.
         if vn.read().unwrap().is_indirect_creation() {
@@ -15516,7 +15516,7 @@ impl Rule for RulePullsubIndirect {
 /// COPY/SUBPIECE overlap-collapse via `characterize_overlap`/`contains`,
 /// the `hasNoLocalAlias`/`noIndirectCollapse` guard, the STORE spacebase-guard
 /// branch, and the dead-indop `total_replace`+`op_destroy` path are all now
-/// implemented against Rugra's flag/op APIs.
+/// implemented against Rudra's flag/op APIs.
 pub struct RuleIndirectCollapse;
 
 impl RuleIndirectCollapse {
@@ -15746,7 +15746,7 @@ impl Rule for RuleTransformCpool {
         };
         if let Some(rec) = rec {
             if rec.tag == crate::cpool::cpool_tag::INSTANCE_OF {
-                // data.opMarkCalculatedBool(op); — Rugra exposes is_calculated_bool
+                // data.opMarkCalculatedBool(op); — Rudra exposes is_calculated_bool
                 //   but no setter; we set the flag bit directly.
                 op_arc.write().unwrap().flags |= crate::op::pcodeop_flags::CALCULATED_BOOL;
             } else if rec.tag == crate::cpool::cpool_tag::PRIMITIVE {
@@ -15756,7 +15756,7 @@ impl Rule for RuleTransformCpool {
                 };
                 let cvn = fd.new_constant(sz, rec.value & calc_mask(sz));
                 // Ghidra: cvn->updateType(rec->getType(), true, true)
-                //   (ruleaction.cc:3931). Rugra's CPoolRecord stores only a
+                //   (ruleaction.cc:3931). Rudra's CPoolRecord stores only a
                 //   type-name string; resolve it via the arch's TypeFactory
                 //   (find_by_name, mirroring TypeFactory::resolveByName which
                 //   CPoolRecord::getType uses) and attach with update_type_lock.
@@ -15868,7 +15868,7 @@ impl Rule for RuleSwitchSingle {
         }
         if need_warning {
             // Ghidra (ruleaction.cc:5460-5468) builds an ostringstream and
-            // calls data.warningHeader(s). Rugra's Funcdata::warning_header now
+            // calls data.warningHeader(s). Rudra's Funcdata::warning_header now
             // attaches the warning to the Funcdata (and falls back to eprintln
             // if no commentdb is wired).
             let op_addr = op_arc.read().unwrap().get_addr();
@@ -15886,10 +15886,10 @@ impl Rule for RuleSwitchSingle {
         // data.opSetOpcode(op,CPUI_BRANCH);
         fd.op_set_opcode(&op_ref, OpCode::CPUI_BRANCH);
         // data.opSetInput(op,data.newCodeRef(addr),0);
-        // Rugra Funcdata has no newCodeRef; build the code-ref varnode inline.
+        // Rudra Funcdata has no newCodeRef; build the code-ref varnode inline.
         // newCodeRef(addr) (funcdata_varnode.cc:222-233): a size-1 varnode at
         // `addr` in the (code) address space with the annotation flag set.
-        // Rugra's Address carries no space; the BRANCH target address space is
+        // Rudra's Address carries no space; the BRANCH target address space is
         // the default code space (Ram).
         let coderef = {
             let vn = fd
@@ -15904,7 +15904,7 @@ impl Rule for RuleSwitchSingle {
         // data.removeJumpTable(jt);
         fd.remove_jump_table(&jt_arc);
         // data.getStructure().clear(); — clear cached high-level structure so
-        // the (now collapsed) switch block structures get regenerated. Rugra's
+        // the (now collapsed) switch block structures get regenerated. Rudra's
         // structure_reset() rebuilds dominators/loops and clears sblocks.
         fd.structure_reset();
         Ok(action_status::CHANGE)
@@ -15923,7 +15923,7 @@ impl Rule for RuleSwitchSingle {
 /// alignment bits (per `data.getArch()->funcptr_align`), strip the mask by
 /// converting the INT_AND into a COPY.
 ///
-/// NOTE: Needs `data.getArch()->funcptr_align`. Rugra now exposes `get_arch()`
+/// NOTE: Needs `data.getArch()->funcptr_align`. Rudra now exposes `get_arch()`
 /// and stores `funcptr_align` on Architecture. In a test environment with no
 /// Architecture (or align==0), the rule gracefully no-ops.
 pub struct RuleFuncPtrEncoding;
@@ -16555,7 +16555,7 @@ impl RulePtrsubUndo {
                 let newoff = off.wrapping_mul(wordsize);
                 // type.cc:1127's ptrto->getSubType(newoff,&newoff) is a
                 // VIRTUAL dispatch — TypeSpacebase overrides it (type.cc
-                // :2947-2969, querying the indexed scope). Rugra's borrowed
+                // :2947-2969, querying the indexed scope). Rudra's borrowed
                 // Datatype::get_sub_type cannot expose the scope-owned Arc
                 // through the shared signature, so the spacebase arm
                 // dispatches to the variant override directly.
@@ -16887,7 +16887,7 @@ impl RulePtrsubUndo {
                     fd.op_set_opcode(&cur_ref, OpCode::CPUI_COPY);
                 } else {
                     // Ghidra (ruleaction.cc:7133): data.opUndoPtradd(op, false).
-                    // Rugra's op_undo_ptradd performs the numeric PTRADD→
+                    // Rudra's op_undo_ptradd performs the numeric PTRADD→
                     // INT_ADD/(index*mult) transform with no type-locking,
                     // matching the finalize=false call.
                     fd.op_undo_ptradd(&cur_ref);
@@ -16973,7 +16973,7 @@ impl Rule for RulePtrsubUndo {
 ///
 /// NOTE: The segment definition is resolved via
 /// `fd.get_arch().userops.get_segment_op(space_idx)`. The constant fold uses
-/// `SegmentOp::execute` (userop.cc:218-223; evaluated via Rugra's canonical
+/// `SegmentOp::execute` (userop.cc:218-223; evaluated via Rudra's canonical
 /// `(base << 4) + inner` formula since pcodeinjectlib is not present). The
 /// far-pointer branch is gated by `SegmentOp::has_far_pointer_support()`
 /// (`supportsfarpointer`, userop.hh:269) and uses the contiguous-whole
@@ -17009,7 +17009,7 @@ impl Rule for RuleSegment {
         if !space_id_vn.read().unwrap().is_constant() { return Ok(action_status::NO_CHANGE); }
         let space_idx = space_id_vn.read().unwrap().get_offset() as i32;
         // SegmentOp *segdef = data.getArch()->userops.getSegmentOp(space_idx);
-        // Ghidra throws if null; Rugra conservatively no-ops.
+        // Ghidra throws if null; Rudra conservatively no-ops.
         let segdef = fd
             .get_arch()
             .and_then(|a| a.userops.as_ref())
@@ -17511,7 +17511,7 @@ impl Rule for RulePiecePathology {
                     l.get_addr().clone(), l.get_size(), v.get_addr().clone(), v.get_size(),
                 )
             };
-            // Rugra does not track per-space endianness on Address; we use the
+            // Rudra does not track per-space endianness on Address; we use the
             // little-endian branch (the common case) and fall back to
             // big-endian if the LE result does not match. This matches Ghidra's
             // `addr = isBigEndian ? addr - vn->getSize() : addr + lsb->getSize()`.
@@ -18417,7 +18417,7 @@ impl RuleLoadVarnode {
 ///   base space.hh:505, `SpacebaseSpace` override translate.hh:187).
     ///
     /// `glb` mirrors the oracle's `Architecture *glb` parameter; it is an
-    /// `Option` only because a Rugra `Funcdata` can exist before
+    /// `Option` only because a Rudra `Funcdata` can exist before
     /// `set_arch` (Ghidra always has `glb`). The constant branch never
     /// consults `glb`, matching the oracle; an arch-less caller takes the
     /// miss branch for the input-register case.
@@ -18507,7 +18507,7 @@ impl RuleLoadVarnode {
     ///
     /// `getSpaceFromConst` (varnode.cc) extracts the address space encoded in
     /// a constant-space varnode (the LOAD/STORE space-id operand, slot 0).
-    /// Rugra encodes the space-id as a constant whose value is the space-id, so
+    /// Rudra encodes the space-id as a constant whose value is the space-id, so
     /// we decode it via `AddressSpace::from_id`.
     // Ghidra: ruleaction.cc:4236 RuleLoadVarnode::checkSpacebase
     fn check_spacebase(
@@ -18707,7 +18707,7 @@ impl Rule for RuleStoreVarnode {
         // (varnode.cc:1411-1418): the varnode is created already WRITTEN
         // under its final (space,offset) def keys (no free-form insert
         // followed by an in-place key mutation), then op->setOutput and the
-        // queryProperties step. Rugra's split Address model passes the
+        // queryProperties step. Rudra's split Address model passes the
         // resolved space explicitly instead of routing through the
         // Register-space-only Funcdata::new_varnode_out adapter.
         let new_out = fd
@@ -18781,7 +18781,7 @@ impl Rule for RuleStoreVarnode {
         fd.op_set_opcode(&op_ref, OpCode::CPUI_COPY);
 
         // The isStoreUnmapped / markNotMapped tail (ruleaction.cc:4337-4339)
-        // needs ScopeLocal::markNotMapped, which Rugra does not model.
+        // needs ScopeLocal::markNotMapped, which Rudra does not model.
         // TODO(scopelocal): port markNotMapped once scope-mapping exists.
         Ok(action_status::CHANGE)
     }
@@ -19471,7 +19471,7 @@ impl<'a> AddTreeState<'a> {
         }
     }
 
-    // RUDRA-GLUE: read the formal-relative-pointer state off Rugra's flat
+    // RUDRA-GLUE: read the formal-relative-pointer state off Rudra's flat
     // TypePointer model (base.flags IS_PTRREL + base.pointer_rel) — the
     // ownership twin of Ghidra's `ct->isFormalPointerRel()` virtual plus the
     // `TypePointerRel` accessors. `addr_off` mirrors getAddressOffset()
@@ -19782,7 +19782,7 @@ impl<'a> AddTreeState<'a> {
     /// Ghidra's `TypeSpacebase::getMap` (type.cc:2935-2945) re-resolves this
     /// on EVERY query through the Architecture: the global scope, or — when
     /// `localframe` is valid — the function at `localframe`
-    /// (`queryFunction`) whose live ScopeLocal becomes the map. Rugra cannot
+    /// (`queryFunction`) whose live ScopeLocal becomes the map. Rudra cannot
     /// reach the Funcdata from inside the interned `Arc<Datatype>`, so the
     /// rule query path resolves it from the decompiling function here: this
     /// AddTreeState always belongs to `self.data`, whose entry address IS
@@ -19798,7 +19798,7 @@ impl<'a> AddTreeState<'a> {
         if let Datatype::Spacebase(sb) = bt.as_ref() {
             // Ghidra: `!localframe.isInvalid()` (type.cc:2939) — an invalid
             // Address is the default-constructed (spaceless) one; a real
-            // function entry is never invalid. Rugra's legacy `Address`
+            // function entry is never invalid. Rudra's legacy `Address`
             // carries no space at all (function baseaddrs arrive as
             // spaceless NONZERO offsets), so the observable discrimination
             // is: the global spacebase is the all-zero sentinel frame
@@ -19938,7 +19938,7 @@ impl<'a> AddTreeState<'a> {
 
     /// Faithful to `AddTreeState::calcSubtype` (ruleaction.cc:6270-6355).
     ///
-    /// The final pRelType block (6350-6354) lives at the tail below (Rugra's
+    /// The final pRelType block (6350-6354) lives at the tail below (Rudra's
     /// relative pointer is a flat TypePointer state, see `ptr_rel_state`).
     /// The SPACEBASE/STRUCT arms call `hasMatchingSubType` with
     /// biggestNonMultCoeff as the array hint; the hint path resolves the
@@ -20434,7 +20434,7 @@ impl<'a> AddTreeState<'a> {
 
     /// Faithful to `AddTreeState::buildTree` (ruleaction.cc:6490-6532).
     ///
-    /// The union `inheritResolution` calls are omitted (Rugra has no
+    /// The union `inheritResolution` calls are omitted (Rudra has no
     /// per-edge union resolution); the exceeded-type stamping goes through
     /// `assign_propagated_type` exactly as in Ghidra.
     // Ghidra: ruleaction.cc:6490 AddTreeState::buildTree
@@ -20828,7 +20828,7 @@ pub struct RulePtrFlow {
     /// (`glb->getDefaultDataSpace()->isTruncated()`, ruleaction.cc:9060).
     /// When false, `getOpList` returns no opcodes — the rule stays inert
     /// (Ghidra does the same: "Only stick ourselves into pool if aggressiveness
-    /// is turned on"). Rugra has no truncated address spaces yet, so this
+    /// is turned on"). Rudra has no truncated address spaces yet, so this
     /// defaults to false; the full applyOp logic is ported 1:1 so the rule is
     /// ready when truncation modelling lands.
     has_truncations: bool,
@@ -20837,7 +20837,7 @@ pub struct RulePtrFlow {
 impl RulePtrFlow {
     /// Construct with truncation flag. Faithful to the Ghidra ctor
     /// (ruleaction.cc:9056-9061), which derives `hasTruncations` from
-    /// `glb->getDefaultDataSpace()->isTruncated()`. Rugra's Architecture has no
+    /// `glb->getDefaultDataSpace()->isTruncated()`. Rudra's Architecture has no
     /// `getDefaultDataSpace`/`isTruncated` yet, so we default to false — exactly
     /// matching Ghidra's behaviour for non-truncated architectures.
     // Ghidra: ruleaction.cc:9038 RulePtrFlow::RulePtrFlow
@@ -20945,8 +20945,8 @@ impl RulePtrFlow {
             // cc:9147-9151: the address carries vn's OWN space.
             // addr.isBigEndian() (cc:9148) reads THAT space's endianness —
             // not the pointer-target space's. renormalize is join-space-only
-            // (address.cc:191-194); Rugra has no JoinRecord store (degraded
-            // glue). Rugra's AddressSpace endianness predicate is the
+            // (address.cc:191-194); Rudra has no JoinRecord store (degraded
+            // glue). Rudra's AddressSpace endianness predicate is the
             // little-endian enum stub; the x86-64 oracle's spaces are all LE.
             let addr = vn.read().unwrap().get_addr().clone();
             let addr_val = if vn_space.is_big_endian() {
@@ -21017,7 +21017,7 @@ impl Rule for RulePtrFlow {
                     Some(v) => v.clone(),
                     None => return Ok(0),
                 };
-                // Rugra has no getDefaultCodeSpace; the default code space is the
+                // Rudra has no getDefaultCodeSpace; the default code space is the
                 // RAM space (matches the x86-64 default). Use its addr_size (8).
                 let spc = crate::space::AddressSpace::Ram;
                 let vn_size = vn.read().unwrap().get_size();
@@ -21147,7 +21147,7 @@ mod tests {
     /// CANON-LOOPFORM-GETPARENTS-INVERT-0001 regression lock:
     /// `RulePullsubMulti::findSubpiece` (ruleaction.cc:849-870) only accepts
     /// a previous SUBPIECE that lives in the SAME block as the base's
-    /// defining op (cc:861). Rugra previously skipped this check and reused
+    /// defining op (cc:861). Rudra previously skipped this check and reused
     /// a same-form SUBPIECE from a DIFFERENT block — on the canon httpd
     /// ap_getparents loop head this stole the buildSubpiece placement that
     /// gives the head its third isComplex statement (block.cc:2388),
@@ -21768,7 +21768,7 @@ mod tests {
     #[test]
     fn test_trivial_arith_xor_self_to_zero() {
         // `x ^ x → 0` — the core same-input collapse (Ghidra ruleaction.cc:2413).
-        // This is the defect the rewrite fixes: previously Rugra's RuleTrivialArith
+        // This is the defect the rewrite fixes: previously Rudra's RuleTrivialArith
         // did RuleIdentityEl's job (x+0→x) and never performed this collapse,
         // leaving `x ^ x` intact → `switch((iVar1 ^ iVar1))` defect.
         let rule = RuleTrivialArith::new();
@@ -21854,7 +21854,7 @@ mod tests {
         // shift-by-0: with sa=0 no bitop input's nzm can be shifted away, so
         // the loop at cc:539-548 finds nothing and the rule returns 0. The
         // shift-by-0 -> COPY fold belongs to RuleTrivialShift
-        // (ruleaction.cc:3496-3522). The old Rugra implementation folded it
+        // (ruleaction.cc:3496-3522). The old Rudra implementation folded it
         // here (RULE-BEHAVIORAL-FIVE-0001 M4 negative).
         let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
         let v = make_input_vn(&mut fd, 4, 0x10);
@@ -22127,7 +22127,7 @@ mod tests {
 
     #[test]
     fn test_zext_eliminate_same_size_zext_not_this_rule() {
-        // Old Rugra behavior negative: a same-size INT_ZEXT op itself is
+        // Old Rudra behavior negative: a same-size INT_ZEXT op itself is
         // never dispatched by this Rule (oplist is comparisons only,
         // cc:2479-2485), so the zext->COPY fold Ghidra performs elsewhere
         // (RuleTrivialShift-style COPY collapse is not this Rule's job) must
@@ -22211,7 +22211,7 @@ mod tests {
 
     #[test]
     fn test_sign_form_sright_op_not_dispatched() {
-        // Old Rugra behavior negative: an INT_SRIGHT op (the pattern the old
+        // Old Rudra behavior negative: an INT_SRIGHT op (the pattern the old
         // implementation required) is not in the oplist, so the dispatcher
         // never invokes this Rule on it; a direct applyOp call also rejects
         // because in(1) holds the shift amount, not a SUBPIECE offset — but
@@ -22341,7 +22341,7 @@ mod tests {
 
     #[test]
     fn test_sign_near_mult_mult_form_not_dispatched() {
-        // Old Rugra behavior negative: the already-multiplied form
+        // Old Rudra behavior negative: the already-multiplied form
         // `INT_MULT(V + (V s>>31 >> 28), 16)` is NOT in the oplist (INT_AND
         // only, cc:8538), so the oracle engine never rewrites an existing
         // INT_MULT here.
@@ -22362,7 +22362,7 @@ mod tests {
     #[test]
     fn test_shift2mult_oplist_left_only() {
         // ruleaction.cc:3708-3712: INT_LEFT ONLY — the INT_RIGHT registration
-        // was a Rugra-local bug that rewrote `V >> c` into `V * 2^c`
+        // was a Rudra-local bug that rewrote `V >> c` into `V * 2^c`
         // (RULE-BEHAVIORAL-FIVE-0001 M5).
         let ops = RuleShift2Mult::new().get_opcodes();
         assert_eq!(ops, vec![OpCode::CPUI_INT_LEFT]);
@@ -30006,7 +30006,7 @@ mod tests {
         // Each leaf input (slot 0 = hi, slot 1 = lo) must now read the output of
         // a freshly-inserted CPUI_COPY whose output is at the correct field
         // address: hi (slot 0) → baseAddr+4 = 0x204 (field b); lo (slot 1) →
-        // baseAddr+0 = 0x200 (field a).  (Rugra is little-endian.)
+        // baseAddr+0 = 0x200 (field a).  (Rudra is little-endian.)
         let new_hi = op_arc.read().unwrap().inrefs[0].clone();
         let new_lo = op_arc.read().unwrap().inrefs[1].clone();
         assert_eq!(new_hi.read().unwrap().get_offset(), 0x204);

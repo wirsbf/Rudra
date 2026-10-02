@@ -601,7 +601,7 @@ uintb 模 2^64 算术一致。机制 C：本改动落在 varmap AliasChecker 域
 ## 2026-09-26（F7NAME lane）：NameRecommend 存储与恢复链（HTTPDMAIN-F7-NAMERECOMMEND-0001 机制半）
 
 `ScopeLocal` 补齐 varmap.cc 的名字推荐存储+恢复链（此前 coreaction.rs
-ActionNameVars::apply 的 cc:2984 调用点是 RUGRA-GAP 明文"no name-recommendation
+ActionNameVars::apply 的 cc:2984 调用点是 RUDRA-GAP 明文"no name-recommendation
 store is ported yet"）：
 
 - **`NameRecommend` / `DynamicRecommend` / `TypeRecommend`**（varmap.hh:36/56/74）
@@ -625,7 +625,7 @@ store is ported yet"）：
   `this_ptr`（database.hh:208 dispflags 位）两字段承载恢复契约。
 - **`recover_name_recommendations_for_symbols(fd)`**（varmap.cc:1507-1570）—
   ActionNameVars::apply 在 lookForFuncParamNames 之前调用（coreaction.cc:2984，
-  RUGRA-GAP 关闭）：无效 usepoint 臂=findOverlap+地址相等+符号 addrtied+
+  RUDRA-GAP 关闭）：无效 usepoint 臂=findOverlap+地址相等+符号 addrtied+
   findLinkedVarnode（**无尺寸门**，cc:1518-1527）；有效 usepoint 臂=
   param_usepoint（fd 地址−1）走 findVarnodeInput、否则 findVarnodeWritten
   （vbank.find_vn），符号非 addrtied+首整映射尺寸相等（cc:1540）；命中后

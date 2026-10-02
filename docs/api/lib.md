@@ -21,14 +21,14 @@ FRONTEND-MINIMAL-0001; see `docs/api/frontend.md`).
 
 ## 模块说明 (Module Doc)
 
-`lib.rs` 是 `rugra` 的库入口文件，负责：
+`lib.rs` 是 `rudra` 的库入口文件，负责：
 
 1. 声明和导出当前主线模块
 2. 暴露跨模块共享的基础类型
 3. 通过 `pub use` 提供更方便的库级访问路径
 4. 作为整个反编译分析框架的公共入口层
 
-从当前代码可见结构来看，`rugra` 的主线已经转向：
+从当前代码可见结构来看，`rudra` 的主线已经转向：
 
 - Ghidra 风格核心对象建模
 - `Funcdata` 驱动的函数级分析上下文
@@ -253,7 +253,7 @@ FRONTEND-MINIMAL-0001; see `docs/api/frontend.md`).
 
 ## 当前推荐理解方式
 
-从当前 `lib.rs` 结构看，`rugra` 更适合被理解为：
+从当前 `lib.rs` 结构看，`rudra` 更适合被理解为：
 
 > 一个以 `Funcdata`、`Varnode`、`PcodeOp`、`ActionDatabase`、`PrintC` 等对象为核心组织方式的反编译分析框架入口
 
@@ -389,7 +389,7 @@ FRONTEND-MINIMAL-0001; see `docs/api/frontend.md`).
 1. 它是 **Rudra 当前真实公共模块与核心类型的导出入口**
 2. 它反映的是 **以 Ghidra 风格对象建模为中心的库结构**
 3. 它**不再**支持把旧版注释掉的 `Decompiler` 视为当前主入口
-4. 使用 `rugra` 时，应优先从：
+4. 使用 `rudra` 时，应优先从：
    - `Funcdata`
    - `Address`
    - `Varnode`

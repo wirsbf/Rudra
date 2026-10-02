@@ -6,10 +6,10 @@ if [[ "${BASH_SOURCE[0]}" != "$runner_fd_path" ]]; then
   requested_tmpdir=${TMPDIR:-}
   exec 3<"${BASH_SOURCE[0]}"
   exec /usr/bin/env -i PATH=/usr/bin:/bin \
-    RUGRA_HERITAGE_CALLGUARD_TMPDIR="$requested_tmpdir" \
+    RUDRA_HERITAGE_CALLGUARD_TMPDIR="$requested_tmpdir" \
     /usr/bin/bash "$runner_fd_path" "$@"
 fi
-requested_tmpdir=${RUGRA_HERITAGE_CALLGUARD_TMPDIR:-}
+requested_tmpdir=${RUDRA_HERITAGE_CALLGUARD_TMPDIR:-}
 runner_source=$(/usr/bin/readlink -f "$runner_fd_path")
 if [[ -z "$runner_source" || ! -f "$runner_source" || -L "$runner_source" ]]; then
   echo "immutable runner fd does not resolve to a regular file" >&2

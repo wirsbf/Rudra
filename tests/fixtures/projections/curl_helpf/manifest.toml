@@ -10,7 +10,7 @@ side = "oracle"
 commit = "e40ed13014025f82488b1f8f7bca566894ac376b"
 tag = "Ghidra_12.0.4_build"
 producer_blob = "24a4bec28f2786d0b0f4b23e540c67228519b92f"
-capture_command = "RUGRA_STAGE_PROJECTION_OUT=tests/fixtures/projections/curl_helpf/oracle.projection bash tools/run_stage_projection_oracle.sh curl 3980 helpf"
+capture_command = "RUDRA_STAGE_PROJECTION_OUT=tests/fixtures/projections/curl_helpf/oracle.projection bash tools/run_stage_projection_oracle.sh curl 3980 helpf"
 pin_mode = "bank-sha256"
 date = "2026-09-24"
 
@@ -20,7 +20,7 @@ side = "rugra"
 # (varmap.cc:1332 range-walk port); the fix commit is the series' HEAD.
 driver_commit = "37014110f51bb280b52b3dd889be0d0c324c46e7"
 driver_profile = "fast-release"
-capture_command = "RUGRA_MIRROR=1 RUGRA_STAGE_PROJ=1 RUGRA_STAGE_FUNC=helpf RUGRA_STAGE_PROJ_OUT=tests/fixtures/projections/curl_helpf/rugra.projection cargo run --profile fast-release --example curl_decompile"
+capture_command = "RUDRA_MIRROR=1 RUDRA_STAGE_PROJ=1 RUDRA_STAGE_FUNC=helpf RUDRA_STAGE_PROJ_OUT=tests/fixtures/projections/curl_helpf/rugra.projection cargo run --profile fast-release --example curl_decompile"
 date = "2026-09-24"
 
 [verification]

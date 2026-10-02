@@ -18,7 +18,7 @@
   "commit": "b8485f3e",
   "branch": "wt/unreffix from master b8485f3e (FLOWSET (b) + CSPEC2 (c) both merged)",
   "comparand": "production driver examples/httpd_decompile (zero fixture-side reimplementation; the driver is the pipeline under test)",
-  "bare_mode": "RUGRA_SEEDS=0 RUGRA_SYMDB=0 (direct-runner-equivalent face)",
+  "bare_mode": "RUDRA_SEEDS=0 RUDRA_SYMDB=0 (direct-runner-equivalent face)",
   "default_mode": "MAX_FUNCS=30 default face (canon-comparable)"
  },
  "input_fingerprint": {
@@ -41,7 +41,7 @@
   {
    "id": "scope_rename",
    "oracle": "[SYMDUMP-FINAL] 'UNRECOVERED_JUMPTABLE : u0x00000030:8 code() * : ram: 2da4f-2da4f' (ScopeLocal map tree, renamed symbol at unique-space u0x30 size 8)",
-   "rugra": "[DUMP] sym#1 name=UNRECOVERED_JUMPTABLE start=0x30 size=8 tl=false nl=false dt=Some(\"\") (driver RUGRA_DUMP_FUNC channel)",
+   "rugra": "[DUMP] sym#1 name=UNRECOVERED_JUMPTABLE start=0x30 size=8 tl=false nl=false dt=Some(\"\") (driver RUDRA_DUMP_FUNC channel)",
    "status": "MATCH (name + storage key u0x30:8 identical; type face prints 'code() *' vs empty string in the dump formats - the symbol type itself is the same function pointer)"
   },
   {
@@ -75,8 +75,8 @@
  "runner": {
   "oracle_build": "bash /dev/shm/rugra-tests/unreffix/build_namevars_badjt.sh with FIXTURE=<repo>/tests/oracle/namevars_badjumptable_1204.cc (locked objects + binutils 2.38 BFD)",
   "oracle_run": "namevars_badjumptable_1204 sleigh_specs examples/httpd (env STAGE_DRILL_FUNC/STAGE_DRILL_ADDR optional, defaults are this fixture's target)",
-  "rugra_run_default": "RUGRA_DUMP_FUNC=ap_vhost_iterate_given_conn MAX_FUNCS=30 <built examples/httpd_decompile>",
-  "rugra_run_bare": "add RUGRA_SEEDS=0 RUGRA_SYMDB=0 for the direct-runner-equivalent face",
+  "rugra_run_default": "RUDRA_DUMP_FUNC=ap_vhost_iterate_given_conn MAX_FUNCS=30 <built examples/httpd_decompile>",
+  "rugra_run_bare": "add RUDRA_SEEDS=0 RUDRA_SYMDB=0 for the direct-runner-equivalent face",
   "bank_gate": "tools/verify_projection_bank.sh (391/391 PASS at this lane, tests-only change)"
  },
  "capture": {

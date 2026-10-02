@@ -217,3 +217,4 @@ architecture.cc:635 位置对应物）：`sleigh.user_op_names()` →
 functional 语法），不再是 `CALLOTHER[77]` fallback；earlyJumpTableFail 的
 userop-type 咨询解析真实描述符。canon curl/httpd 语料输出零 CALLOTHER 站点
 （双侧 golden 亲证），名表安装构造性 canon 中性。
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

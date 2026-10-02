@@ -56,12 +56,12 @@
 //!     log it. The logic is as faithful as the available accessors allow; the
 //!     remaining gap is the missing canonical `Varnode::is_zero_extended`
 //!     accessor (varnode.cc:958-970).
-//!   - `TypeMetatype::PartialStruct` has no variant in Rugra's enum
+//!   - `TypeMetatype::PartialStruct` has no variant in Rudra's enum
 //!     (`type_system/datatype.rs`). The `setReplacement` typelock guards
 //!     therefore cannot honour the `!= TYPE_PARTIALSTRUCT` exception: because no
-//!     Rugra type is ever PartialStruct, the exception is vacuously true and the
+//!     Rudra type is ever PartialStruct, the exception is vacuously true and the
 //!     size guard always runs when typelocked. This is 1:1 with Ghidra's logic
-//!     given Rugra's type system; it only diverges if/when PartialStruct types
+//!     given Rudra's type system; it only diverges if/when PartialStruct types
 //!     exist (not yet representable).
 //!   - `Funcdata::op_set_all_input` is not present; the `doReplacement`
 //!     extension_patch case that calls it is emulated with per-slot
@@ -115,7 +115,7 @@ use crate::varnode::Varnode;
 /// (subflow.hh:45-52).
 ///
 /// In Ghidra this is a node holding raw `Varnode*` / `ReplaceOp*` pointers
-/// into `std::list<>`. Rugra stores everything by index into the owning
+/// into `std::list<>`. Rudra stores everything by index into the owning
 /// `SubvariableFlow`'s `newvarlist` / `oplist` vectors, which is the
 /// pointer-stable equivalent.
 #[derive(Debug, Clone)]
@@ -332,7 +332,7 @@ impl SubvariableFlow {
     // Ghidra: subflow.cc:1372 SubvariableFlow::isZeroExtended
     /// Reproduce `Varnode::isZeroExtended(int4 baseSize)` (varnode.cc:958-970).
     ///
-    /// `Varnode::isZeroExtended` is not yet a first-class accessor on Rugra's
+    /// `Varnode::isZeroExtended` is not yet a first-class accessor on Rudra's
     /// `Varnode`, so this static method inlines Ghidra's exact logic using the
     /// available accessors. It is used by the `INT_DIV`/`INT_REM` cases of
     /// `trace_forward`/`trace_backward` (subflow.cc:450-451, subflow.cc:802-803).
@@ -495,14 +495,14 @@ impl SubvariableFlow {
             //       if (vn->getType()->getSize() != flowsize) return 0;
             //   }
             // Varnode::is_type_lock() + get_type() + Datatype::get_metatype() are
-            // now available. Rugra's TypeMetatype has no PartialStruct variant,
+            // now available. Rudra's TypeMetatype has no PartialStruct variant,
             // so `get_metatype() != PartialStruct` is always true here; we still
             // honour the size check when typelocked. `vn_typelock_type_size`
             // holds Some(type_size) when the guard should run, None otherwise.
             let typelock_type_size = if v.is_type_lock() {
                 if let Some(dt) = v.get_type() {
                     // getMetatype() != TYPE_PARTIALSTRUCT is vacuously true (no
-                    // PartialStruct variant in Rugra). So always run size check.
+                    // PartialStruct variant in Rudra). So always run size check.
                     Some(dt.get_size() as i32)
                 } else {
                     // Typelocked but no type resolved: cannot honour the size
@@ -780,7 +780,7 @@ impl SubvariableFlow {
         let mask = self.newvarlist[rvn].mask;
         if !self.returns_traversed {
             // Iterate all RETURN ops in the function. Ghidra uses
-            // fd->beginOp(CPUI_RETURN)/endOp. Rugra filters the live op bank.
+            // fd->beginOp(CPUI_RETURN)/endOp. Rudra filters the live op bank.
             let returns: Vec<Arc<RwLock<PcodeOp>>> = fd
                 .obank
                 .iter_alive()
@@ -790,7 +790,7 @@ impl SubvariableFlow {
             let op_ptr = Arc::as_ptr(op) as usize;
             for retop in &returns {
                 // Ghidra: if (retop->getHaltType() != 0) continue;
-                // Rugra has no getHaltType; skip guard (artificial halts are
+                // Rudra has no getHaltType; skip guard (artificial halts are
                 // rare in this pipeline). Logged at module top.
                 let retvn = match retop.read().unwrap().get_in(slot as usize).cloned() {
                     Some(v) => v,
@@ -1076,7 +1076,7 @@ impl SubvariableFlow {
                     // erases the op from all descend lists, and the opcodes
                     // that are legitimately output-less (STORE/RETURN/
                     // BRANCH*/CBRANCH and output-less CALLs) take other
-                    // switch cases that never read op->getOut(). When Rugra's
+                    // switch cases that never read op->getOut(). When Rudra's
                     // upstream presents such an op anyway, converge on the
                     // failure path every untraceable case takes (return
                     // false) instead of crashing. See TODO
@@ -1204,7 +1204,7 @@ impl SubvariableFlow {
                     }
                     let o = op_arc.read().unwrap();
                     // Varnode::isZeroExtended(flowsize) is not a first-class
-                    // method in Rugra; we reproduce Ghidra's exact logic here
+                    // method in Rudra; we reproduce Ghidra's exact logic here
                     // (varnode.cc:958-970) using get_nz_mask/get_size/is_written/
                     // get_def. See `Self::is_zero_extended` and the module note.
                     let in0_ok = Self::is_zero_extended(&o.get_in(0).unwrap(), self.flowsize as usize);
@@ -1945,7 +1945,7 @@ impl SubvariableFlow {
                     // erases the op from all descend lists, and the opcodes
                     // that are legitimately output-less (STORE/RETURN/
                     // BRANCH*/CBRANCH and output-less CALLs) take other
-                    // switch cases that never read op->getOut(). When Rugra's
+                    // switch cases that never read op->getOut(). When Rudra's
                     // upstream presents such an op anyway, converge on the
                     // failure path every untraceable case takes (return
                     // false) instead of crashing. See TODO
@@ -2480,8 +2480,8 @@ impl SubvariableFlow {
         // Ghidra's getReplacementAddress branches on addr.isBigEndian():
         //   big-endian:    addr + (vn->getSize() - flowsize - sa)
         //   little-endian: addr + sa
-        // Rugra's Address/AddressSpace does not expose isBigEndian() here; we
-        // implement the little-endian path (the common Rugra default) and note
+        // Rudra's Address/AddressSpace does not expose isBigEndian() here; we
+        // implement the little-endian path (the common Rudra default) and note
         // the gap. The big-endian adjustment uses vn_size/flowsize as written.
         let _ = vn_size; // preserved for the documented big-endian formula
         addr.offset(sa)
@@ -2558,7 +2558,7 @@ impl SubvariableFlow {
             if is_input {
                 Self::replace_input(fd, rvn, newvarlist);
             }
-            // fd->newVarnode(flowsize, addr) — Rugra's Address is a scalar
+            // fd->newVarnode(flowsize, addr) — Rudra's Address is a scalar
             // without a space, so the space is taken from the original
             // varnode, matching Ghidra's Address-attached space.
             let nv = fd.vbank.create_with_space(flowsize as usize, space, addr.as_u64());
@@ -2620,7 +2620,7 @@ impl SubvariableFlow {
             }
         }
         // Clear marks on every varnode in the map. Ghidra iterates the
-        // varmap keys (`(*iter).first->clearMark()`). Rugra stored the live
+        // varmap keys (`(*iter).first->clearMark()`). Rudra stored the live
         // Arc for each mapped varnode inside newvarlist[*].vn (constants too),
         // so clearing through those is equivalent.
         for rvn in &self.newvarlist {
@@ -3288,7 +3288,7 @@ impl SplitFlow {
             return self.mgr.get_split(vn.clone(), &self.lane_description).into();
         }
         // Ghidra: if (vn->isTypeLock() && vn->getType()->getMetatype() != TYPE_PARTIALSTRUCT)
-        // Rugra's type system has no TYPE_PARTIALSTRUCT variant, so the
+        // Rudra's type system has no TYPE_PARTIALSTRUCT variant, so the
         // exception is vacuously false: a typelocked Varnode is never splittable
         // (see the "Gaps still open" note on PartialStruct at the module top).
         if vn_rg.is_type_lock() {
@@ -4338,7 +4338,7 @@ impl LaneDivide {
                         // The oracle target getBoundary(bytePos) also feeds a
                         // window-relative offset in global coordinates, so this
                         // corner is reachable for restricted windows
-                        // (skipLanes > 0). Rugra conservatively refuses the
+                        // (skipLanes > 0). Rudra conservatively refuses the
                         // split instead of dereferencing out of bounds; tracked
                         // as LANEDIVIDE-INFRA-RESIDUAL-0001.
                         if lane_index < 0
@@ -4779,7 +4779,7 @@ impl Rule for RuleSplitFlow {
 /// twins (`vn_type_read_facing`/`vn_type_def_facing`, unionresolve.rs) as of
 /// UNIONRESOLVE-PKG-E-0001: the oracle derives the containing Funcdata inside
 /// `TypeUnion::findResolve` (type.cc:2138) and consults `fd->getUnionField`;
-/// Rugra threads the `SplitDatatype::data`/`Funcdata` channel explicitly.
+/// Rudra threads the `SplitDatatype::data`/`Funcdata` channel explicitly.
 /// Remaining structural gap (see module docs): the
 /// `buildInSubpieces`/`buildOutVarnodes`/`buildOutConcats` raw op-DAG shapes
 /// (address-placed outputs, protoPartial PIECE stacks, generateConstants
@@ -4859,7 +4859,7 @@ impl RootPointer {
     /// `tmpPointer->getTypeReadFacing(addOp)`: the oracle's
     /// `TypeUnion::findResolve` derives the Funcdata from
     /// `op->getParent()->getFuncdata()` (type.cc:2138) and consults
-    /// `fd->getUnionField`; Rugra's `PcodeOp` carries no back-pointer, so the
+    /// `fd->getUnionField`; Rudra's `PcodeOp` carries no back-pointer, so the
     /// containing function is threaded through explicitly and the consult
     /// goes through [`crate::unionresolve::vn_type_read_facing`]
     /// (slot 0: `tmpPointer` is `addOp->getIn(0)`).
@@ -5122,7 +5122,7 @@ impl<'a> SplitDatatype<'a> {
     /// `fd` is the RUDRA-GLUE channel for the cc:2914 consult
     /// `loadStore->getIn(1)->getTypeReadFacing(loadStore)` (slot 1): the
     /// oracle derives the Funcdata inside `TypeUnion::findResolve`
-    /// (type.cc:2138); Rugra threads it explicitly into
+    /// (type.cc:2138); Rudra threads it explicitly into
     /// [`crate::unionresolve::vn_type_read_facing`].
     pub fn get_value_datatype(
         fd: &crate::funcdata::Funcdata,
@@ -5327,7 +5327,7 @@ impl<'a> SplitDatatype<'a> {
 
         // Ghidra's function body has no explicit clear: dataTypePieces starts
         // empty on the stack-constructed splitter, and splitStore's LOAD
-        // retry path clears explicitly (cc:2829). Rugra reuses one splitter
+        // retry path clears explicitly (cc:2829). Rudra reuses one splitter
         // across the compat call and the rewrite, so clearing on entry keeps
         // every oracle call path behaviour-equivalent (the oracle never
         // observes stale pieces: splitCopy/splitLoad call compat exactly
@@ -5485,7 +5485,7 @@ impl<'a> SplitDatatype<'a> {
     ///
     /// Structural note: the oracle reads the in/out facing types in
     /// `RuleSplitCopy::applyOp` (cc:2950/2951) and passes them in as
-    /// parameters; Rugra re-reads them inline here with the identical
+    /// parameters; Rudra re-reads them inline here with the identical
     /// consult keys (COPY op, slot 0 / def) — `testCopyConstraints` between
     /// the two reads writes nothing to `fd.union_map`, so the values are
     /// the same and the inline form is kept.
@@ -5653,7 +5653,7 @@ impl<'a> SplitDatatype<'a> {
     /// to `SplitDatatype::buildInSubpieces` (subflow.cc:2497-2519): the
     /// `generateConstants` fold (cc:2500-2501), per-piece SUBPIECE at the
     /// input root's own address + piece offset (`addr.renormalize` is a
-    /// no-op outside join spaces in Rugra's flat offset model), the
+    /// no-op outside join spaces in Rudra's flat offset model), the
     /// big-endian offset mirror (cc:2508-2509), `newConstant(4, off)` as the
     /// shift input (cc:2513), `newVarnodeOut(size, addr, subpiece)` carrying
     /// the input root's SPACE (cc:2514), `updateType(inType)` (cc:2516) and
@@ -5869,7 +5869,7 @@ impl<'a> SplitDatatype<'a> {
             // cc:2483 `baseVal >> (8*off)`: plain constants are at most
             // sizeof(uintb) wide on the oracle side, so 8*off < 64 there by
             // construction (wider values arrive as ZEXT/PIECE and fold via
-            // generateConstants). Rugra can hold >8-byte plain constants
+            // generateConstants). Rudra can hold >8-byte plain constants
             // whose get_offset() carries only the low 8 bytes, so pieces at
             // off >= 8 read the (absent) high bytes as zero instead of
             // panicking on the C++ UB boundary.
@@ -6385,9 +6385,9 @@ impl<'a> SplitDatatype<'a> {
 /// exactly these opcodes in typeop.cc: INT_ADD (1171), INT_SUB (1322),
 /// INT_CARRY (1336), INT_SCARRY (1352), INT_SBORROW (1368), INT_2COMP
 /// (1384), INT_MULT (1621), INT_DIV (1635), INT_SDIV (1655), INT_REM (1675),
-/// INT_SREM (1695), PTRADD (2228), PTRSUB (2304). Rugra's TypeOp registry
+/// INT_SREM (1695), PTRADD (2228), PTRSUB (2304). Rudra's TypeOp registry
 /// (typeop.rs) sets the identical ARITHMETIC_OP set; this closed-set twin
-/// exists because Rugra's PcodeOp does not hold its TypeOp pointer.
+/// exists because Rudra's PcodeOp does not hold its TypeOp pointer.
 fn is_arithmetic_opcode(opc: OpCode) -> bool {
     matches!(
         opc,
@@ -6519,7 +6519,7 @@ impl Rule for RuleSplitCopy {
     fn apply_op(&self, op_arc: &Arc<RwLock<PcodeOp>>, fd: &mut Funcdata) -> Result<i32> {
         // RuleSplitCopy::applyOp (subflow.cc:2947-2962): read in/out
         // data-types and only proceed when one side is
-        // PARTIALSTRUCT/ARRAY/STRUCT. Rugra's TypeMetatype covers all three.
+        // PARTIALSTRUCT/ARRAY/STRUCT. Rudra's TypeMetatype covers all three.
         // cc:2950/2951: in(0) read-facing the COPY at slot 0, out def-facing —
         // both consult fd.union_map via the fd-aware twins.
         use crate::type_system::TypeMetatype;
@@ -6682,7 +6682,7 @@ impl Rule for RuleSplitStore {
 // RUDRA-GLUE: Ghidra reaches the float formats through
 // `fd->getArch()->translate->getFloatFormat(size)` (translate.hh:322,
 // translate.cc:979-989), which returns NULL when no format is registered
-// for the size. Rugra's spec registers exactly IEEE754 single (4) and
+// for the size. Rudra's spec registers exactly IEEE754 single (4) and
 // double (8) — the two sizes `FloatFormat::new` supports — so this helper
 // returns None for every other size the same way getFloatFormat returns
 // NULL, and `SubfloatFlow::new` then skips `setReplacement` (cc:3446-3447).
@@ -8424,7 +8424,7 @@ mod tests {
     }
 
     /// SUBPIECE(PIECE(hi,lo), 0) where lo has the same size as the SUBPIECE
-    /// output (exact match): backtracking selects `lo`. Because Rugra's
+    /// output (exact match): backtracking selects `lo`. Because Rudra's
     /// `isAutoLive()` is always false (matching Ghidra until copy-propagation
     /// marks the flag), the rule takes the `totalReplace(out, vn)` + destroy
     /// branch (subflow.cc:3058-3061). We give `out` a descendant so the

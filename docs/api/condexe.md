@@ -12,7 +12,7 @@ Action 侧四处缺陷修复（condexe.cc:478-503 + cc:23-37 + cc:392 + cc:343�
    `pass - info->delay`，heritage.cc:2779-2788，经 `fd.heritage`
    直读——funcdata.hh:237 内联委派）。空间枚举 =
    `Heritage::build_info_list` 的固定 enum 表（heritage.rs:660，
-   Rugra 对 `glb->numSpaces()` 的现行替身；Overlay/Other 在
+   Rudra 对 `glb->numSpaces()` 的现行替身；Overlay/Other 在
    AddrSpaceManager 可从 Funcdata 到达前不可枚举，SPACE-0001），
    索引为表内位置（`AddrSpace::getIndex` 替身）。
 2. **cc:392 真实接线**：`test_removability` 的无后继 Varnode 门
@@ -151,7 +151,7 @@ postb），并通过把读推入正确路径来保留 MULTIEQUAL 数据流。
 
 ## 已知限制
 
-1. ~~**边顺序适配**~~ **已修复（2026-08-23，CONDEXE-TRUEOUT-0002）**：Rugra CBRANCH
+1. ~~**边顺序适配**~~ **已修复（2026-08-23，CONDEXE-TRUEOUT-0002）**：Rudra CBRANCH
    出边实际为 `[fallthru, branch_target]`（flow.rs:920-928，同 flow.cc:960-967），
    与 Ghidra `[falseOut, trueOut]` 布局相同，无需任何 flip 适配。
    `is_true_out_to` 已删除（其 flip 重映射是多余翻转，`find_init_pre` 现内联
@@ -181,7 +181,7 @@ postb），并通过把读推入正确路径来保留 MULTIEQUAL 数据流。
    unique 地址）；Ghidra 是 `fd->newVarnodeOut(origOutVn->getSize(),
    origOutVn->getAddr(), newOp)` — 保留原输出地址**与其地址空间**。新增私有
    `pullback_new_varnode_out`（funcdata_varnode.cc:104 newVarnodeOut 的逐语句复制：
-   createDef → setOutput → assignHigh → laned → queryProperties），因 Rugra
+   createDef → setOutput → assignHigh → laned → queryProperties），因 Rudra
    `Funcdata::new_varnode_out` 在 split Address 模型下硬编码 Register 空间，
    无法表达 unique 空间原地址（P2 投影即钉死该差异）。
 2. **插入位置（cc:187）**：`op_insert_begin` → `op_insert_end`（funcdata_op.cc:435-446，
@@ -245,8 +245,8 @@ newVarnodeOut 地址保留（condexe.cc:340-349）留待同一后续任务。
    部分变换状态（已 destroy 的 iblock op 保持 destroyed、出错 op 存活、
    removeFromFlowSplit 未执行）。Rust 侧 `ActionGroup::apply` 对 `?` 中止
    （action.rs），语义等价。
-   **RESIDUAL CFG-0001**：Rugra `funcdata.rs remove_from_flow_split` 的 Err
-   消息文本仍是 Rugra 侧文案（"remove_from_flow_split: block must be empty"
+   **RESIDUAL CFG-0001**：Rudra `funcdata.rs remove_from_flow_split` 的 Err
+   消息文本仍是 Rudra 侧文案（"remove_from_flow_split: block must be empty"
    ≠ oracle 逐字文本）且 swap 映射未修——该文件归 CFG-0001 租约，错误路径
    在此只做到调用边界并如实登记。
 
@@ -291,7 +291,7 @@ if fd.has_unreachable_blocks() {
 - **返回值**：oracle `return 0` ↔ `Ok(action_status::NO_CHANGE)`（=0），
   与正常完成路径同值。
 - **计数器**：cc:501 的 `count += numhits` 被短路——numhits 保持 0，
-  Action::count 不更新（Rugra 侧本就无 count 状态，语义空变）。
+  Action::count 不更新（Rudra 侧本就无 count 状态，语义空变）。
 - **oracle 注释**："Conditional execution elimination logic may not work
   with unreachable blocks"。
 

@@ -208,7 +208,7 @@ pub struct ProtoParameter {
     pub data_type: Arc<Datatype>,
     /// Storage location (register, stack offset, etc.)
     pub address: Address,
-    /// Address-space half of Ghidra's complete `Address`. Rugra keeps this
+    /// Address-space half of Ghidra's complete `Address`. Rudra keeps this
     /// beside the legacy offset carrier until ADDRESS-0001 migrates the whole
     /// comparison domain atomically.
     pub address_space: AddressSpace,
@@ -277,7 +277,7 @@ impl ProtoParameter {
     // Ghidra: fspec.hh:1178 ParameterBasic::isNameLocked
     /// Is the parameter name locked? Faithful to `ParameterBasic::
     /// isNameLocked` (fspec.hh:1178): `((flags & ParameterPieces::namelock)
-    /// != 0)`. Rugra's flat `ProtoParameter` carries the same
+    /// != 0)`. Rudra's flat `ProtoParameter` carries the same
     /// `ParameterPieces` flag bits, so the ParameterBasic read projects
     /// directly onto it.
     pub fn is_name_locked(&self) -> bool {
@@ -479,7 +479,7 @@ pub struct FuncProto {
     /// Is the prototype model locked for this prototype? Faithful to the
     /// `modellock` (fspec.hh:1347) flag bit. Set by `set_model_lock` /
     /// `set_pieces`; read by `is_model_locked`. Ghidra folds this into the
-    /// `flags` bitfield; Rugra keeps a dedicated boolean.
+    /// `flags` bitfield; Rudra keeps a dedicated boolean.
     pub model_locked: bool,
     /// Should this function be in-lined during decompilation? Faithful to the
     /// `is_inline` (fspec.hh:1348) flag bit. Read by `is_inline`; set by
@@ -739,7 +739,7 @@ impl FuncProto {
     /// input parameter. Faithful port of `characterizeAsInputParam`
     /// (fspec.cc:4289-4324): the varargs check and the `voidinputlock`
     /// early return are exact; the locked-parameter containment scan is
-    /// degraded to the model branch because Rugra's `ProtoParameter.address`
+    /// degraded to the model branch because Rudra's `ProtoParameter.address`
     /// carries no address-space identity (Ghidra's `Address` does), so a
     /// cross-space offset comparison would produce false containments.
     /// Removal of this degradation is gated on ADDRESS-0001.
@@ -755,7 +755,7 @@ impl FuncProto {
         }
         let Some(model) = self.model.as_ref() else {
             // A modelless FuncProto is an invalid state in Ghidra (the
-            // model dereference would fault). Rugra production hits it
+            // model dereference would fault). Rudra production hits it
             // until FUNCPROTO-MODEL-BIND-0001; no_containment is the
             // conservative projection (no trial, no input insertion).
             return containment::NO_CONTAINMENT;
@@ -770,7 +770,7 @@ impl FuncProto {
     /// `FuncProto::resolveModel` (fspec.cc:3767-3776): a null model returns
     /// immediately; a concrete (non-merged) model returns immediately —
     /// resolution is only meaningful for `ProtoModelMerged`, which selects
-    /// between alternative models based on the active trials. Rugra's
+    /// between alternative models based on the active trials. Rudra's
     /// `ProtoModelFull` is always concrete, so the merged arm is unreachable
     /// (the `selectModel` port is gated on merged-model support).
     pub fn resolve_model(&mut self) {
@@ -778,7 +778,7 @@ impl FuncProto {
         if self.model.is_none() {
             return;
         }
-        // cc:3771 — if (!model->isMerged()) return; — Rugra models are
+        // cc:3771 — if (!model->isMerged()) return; — Rudra models are
         // always concrete; nothing to remark (cc:3775 comment: fillinMap
         // does the trial remarking).
     }
@@ -789,7 +789,7 @@ impl FuncProto {
     /// (fspec.hh:1494-1495 `model->deriveInputMap(active)`, whose ProtoModel
     /// body at fspec.hh:791-792 is `input->fillinMap(active)`) — the same
     /// dispatch `FuncCallSpecs::derive_input_map` uses. A modelless FuncProto
-    /// is an invalid state in Ghidra (the dereference would fault); Rugra
+    /// is an invalid state in Ghidra (the dereference would fault); Rudra
     /// production must bind the model first (the ActionInputPrototype
     /// setScope-fallback glue), so the modelless arm is a defensive no-op.
     pub fn derive_input_map(&mut self, active: &mut crate::fspec::ParamActive) {
@@ -885,7 +885,7 @@ impl FuncProto {
     ///
     /// The locked-parameter loop (fspec.cc:4371-4384) is gated the same way
     /// the in-repo sibling port `characterize_as_input_param` (fspec.rs:410)
-    /// gates it: Rugra's `ProtoParameter` stores a spaceless `Address` and
+    /// gates it: Rudra's `ProtoParameter` stores a spaceless `Address` and
     /// no standalone size, so the per-space `justifiedContain` test cannot
     /// be evaluated without inventing param-space state. With no locked
     /// input parameters recorded (the protorecovery-stage state this method
@@ -905,13 +905,13 @@ impl FuncProto {
             }
             // Ghidra: int4 num = numParams(); if (num > 0) { ... locked
             // justifiedContain loop ... if (locktest) return false; }
-            // — locked-input parameters are unreachable in Rugra's
+            // — locked-input parameters are unreachable in Rudra's
             // FuncProto state today (see doc comment); numParams()==0 falls
             // through to the model like Ghidra's num==0 path.
         }
         // Ghidra: return model->possibleInputParam(addr,size);
         // A modelless FuncProto is an invalid state in Ghidra (the
-        // dereference would fault); Rugra production can still observe it,
+        // dereference would fault); Rudra production can still observe it,
         // and `false` is the conservative projection (do not treat the
         // location as an official input).
         match self.model.as_ref() {
@@ -926,7 +926,7 @@ impl FuncProto {
     /// proto-store storage the locked branch (fspec.cc:4339-4353) runs
     /// exactly — TYPE_VOID gate, then the cc:4346 justifiedContain and
     /// cc:4351 containedBy reads on the outparam's own Address. Without a
-    /// recorded storage (Ghidra always has one; Rugra's known-prototype
+    /// recorded storage (Ghidra always has one; Rudra's known-prototype
     /// paths do not record one yet) the classification degrades to the
     /// model branch — the ADDRESS-0001-gated transitional fallback.
     pub fn characterize_as_output(
@@ -976,7 +976,7 @@ impl FuncProto {
             }
             // Transitional: locked output with no recorded storage —
             // Ghidra's locked branch is terminal (fspec.cc:4353-4354);
-            // the model-branch fallthrough only exists on Rugra's
+            // the model-branch fallthrough only exists on Rudra's
             // no-storage path, which Ghidra cannot reach.
         }
         let Some(model) = self.model.as_ref() else {
@@ -992,7 +992,7 @@ impl FuncProto {
     /// Resolve the storage of the type-locked return value as
     /// `(space, offset, size)`. Ghidra's `FuncProto::getOutput()` carries the
     /// resolved ProtoParameter (address fixed by the model's output
-    /// assignment when the signature was locked); Rugra's FuncProto keeps
+    /// assignment when the signature was locked); Rudra's FuncProto keeps
     /// only the return data-type, so this runs the same assignment on demand:
     /// `ProtoModel::assignParameterStorage`'s output half (fspec.cc:2429-
     /// 2440), then maps the assigned offset back onto the owning output
@@ -1057,7 +1057,7 @@ impl FuncProto {
     /// Find the biggest input-parameter storage entirely contained in the
     /// given range. The varargs and `voidinputlock` early-returns are exact;
     /// the locked-parameter scan degrades to the model branch because
-    /// Rugra's `ProtoParameter.address` carries no space identity (see
+    /// Rudra's `ProtoParameter.address` carries no space identity (see
     /// `characterize_as_input_param`); removal is gated on ADDRESS-0001.
     pub fn get_biggest_contained_input_param(
         &self,
@@ -1116,7 +1116,7 @@ impl FuncProto {
             }
             // Transitional: locked output with no recorded storage —
             // Ghidra's locked branch is terminal (fspec.cc:4506); the
-            // model-branch fallthrough only exists on Rugra's no-storage
+            // model-branch fallthrough only exists on Rudra's no-storage
             // path, which Ghidra cannot reach.
         }
         let Some(model) = self.model.as_ref() else {
@@ -1245,7 +1245,7 @@ impl FuncProto {
                 //   `uint4 attrs = Varnode::typelock;
                 //    if (!sym->isNameUndefined()) attrs |= Varnode::namelock;
                 //    scope->setAttribute(sym,attrs);`
-                // Rugra's flat parameter vector is the projection of that
+                // Rudra's flat parameter vector is the projection of that
                 // symbol-backed store, so the named-parameter namelock
                 // side-effect mirrors here. (The oracle's
                 // ParameterBasic::setTypeLock, fspec.cc:2925, has no such
@@ -1332,7 +1332,7 @@ impl FuncProto {
     }
 
     // Ghidra: fspec.hh:1368 FuncProto::setThisPointer (via flag)
-    /// Toggle whether this prototype has a 'this' pointer. Rugra analogue
+    /// Toggle whether this prototype has a 'this' pointer. Rudra analogue
     /// of the `has_thisptr` flag bit assignment that Ghidra performs in
     /// `setModel` (fspec.cc:3827).
     pub fn set_has_thisptr(&mut self, val: bool) {
@@ -1487,9 +1487,9 @@ impl FuncProto {
     /// FuncCallSpecs. The effect list is NOT part of this operation (it is
     /// copied wholesale only by `FuncProto::copy`, fspec.cc:3801).
     ///
-    /// Rugra's dedicated bool fields make Ghidra's clear-then-OR bit pair
+    /// Rudra's dedicated bool fields make Ghidra's clear-then-OR bit pair
     /// bit-equivalent to a direct assignment. The `injectid = op2.injectid`
-    /// copy is not modeled yet because Rugra's FuncProto has no injection
+    /// copy is not modeled yet because Rudra's FuncProto has no injection
     /// id storage (`set_inject_id` is the INJECT-0001 no-op stub); wiring
     /// that field is owned by INJECT-0001.
     pub fn copy_flow_effects(&mut self, other: &FuncProto) {
@@ -1515,7 +1515,7 @@ impl FuncProto {
     // Ghidra: fspec.cc:4025 FuncProto::setInjectId
     /// Set the injection id for this prototype.
     pub fn set_inject_id(&mut self, _id: i32) {
-        // Rugra: p-code injection is partial. Store for future use.
+        // Rudra: p-code injection is partial. Store for future use.
     }
 
     // Ghidra: fspec.cc:4036 FuncProto::cancelInjectId
@@ -1533,7 +1533,7 @@ impl FuncProto {
     // Ghidra: fspec.cc:3891 FuncProto::setInternal
     /// Set up an internal prototype. Faithful to `setInternal`
     /// (fspec.cc:3891-3898): the output/parameter backing switches to the
-    /// internal store (Rugra models only the store's void output flavor as
+    /// internal store (Rudra models only the store's void output flavor as
     /// `return_type`, PROTOSTORE-SYMBOL-0001 owns the store itself) and the
     /// model is installed only when there is none yet — the exact
     /// `if (model == (ProtoModel *)0) setModel(m)` guard, so a previously
@@ -1588,7 +1588,7 @@ impl FuncProto {
     // Ghidra: fspec.hh:1394 FuncProto::isModelUnknown
     /// Return true if the prototype model is unknown. Faithful to
     /// `FuncProto::isModelUnknown()` (fspec.hh:1394), which delegates to
-    /// `model->isUnknown()`. Rugra represents the model as a string; the
+    /// `model->isUnknown()`. Rudra represents the model as a string; the
     /// "unknown" sentinel (constructor default, fspec.rs:151) maps to Ghidra's
     /// `UnknownModel::isUnknown() == true` (fspec.hh:1031).
     pub fn is_model_unknown(&self) -> bool {
@@ -1604,7 +1604,7 @@ impl FuncProto {
     /// resolved default model is NOT printed in declarations; only models
     /// explicitly marked (e.g. via `<prototype>` decode or the __thiscall
     /// alias clone) print. A modelless prototype (pre-binding legacy
-    /// callers) never reaches Ghidra's print stage; Rugra keeps the
+    /// callers) never reaches Ghidra's print stage; Rudra keeps the
     /// historical false. This guards the `option_convention` branch in
     /// `emit_function_declaration` (printc.cc:2583-2589).
     pub fn print_model_in_decl(&self) -> bool {
@@ -1620,7 +1620,7 @@ impl FuncProto {
     /// varnodes) and append it as a new input parameter. Varnodes already
     /// consumed are skipped via the mark bit, then all marks are cleared.
     ///
-    /// `find_disjoint_cover` is supplied by the caller because Rugra's
+    /// `find_disjoint_cover` is supplied by the caller because Rudra's
     /// `Funcdata::findDisjointCover` is not yet ported; it returns the cover
     /// address and size for a persistent varnode.
     pub fn update_input_types(
@@ -1687,7 +1687,7 @@ impl FuncProto {
             // funcdata.cc:69's baseaddr-1 restricted usepoint), whose
             // setInput (fspec.cc:3147-3183) installs/refreshes the
             // function_parameter category symbol the naming passes read.
-            // Rugra folds that side effect through this callback (the flat
+            // Rudra folds that side effect through this callback (the flat
             // FuncProto store keeps signature printing on `parameters`).
             store_set_input(count, &pieces);
             // The Ghidra hand-off carries the empty name to the proto
@@ -1849,7 +1849,7 @@ impl FuncProto {
     // Ghidra: fspec.cc:3857 FuncProto::getPieces
     /// Copy out the raw pieces of this prototype as stand-alone objects
     /// (model name, names, and data-types). Faithful to `getPieces`
-    /// (fspec.cc:3857-3870). Ghidra returns the `ProtoModel *`; Rugra returns
+    /// (fspec.cc:3857-3870). Ghidra returns the `ProtoModel *`; Rudra returns
     /// the model name (see `get_model_name`). `first_var_arg_slot` is set to
     /// the param count when `is_dotdotdot`, else -1.
     pub fn get_pieces(&self) -> crate::grammar::PrototypePieces {
@@ -1886,7 +1886,7 @@ impl FuncProto {
     ) {
         // ProtoParameter *outparm = getOutput();
         // isSizeTypeLocked → no direct field; derived from output_type_locked
-        // and whether the type carries a size lock. Rugra models a size-locked
+        // and whether the type carries a size lock. Rudra models a size-locked
         // output via output_type_locked == true with a TYPE_UNKNOWN-sized
         // return; for the faithful port we treat output_type_locked as the
         // size-lock signal when no concrete type is set.
@@ -2017,7 +2017,7 @@ impl FuncProto {
     /// (fspec.cc:3879-3885): the store becomes a `ProtoStoreSymbol` over
     /// `(s, startpoint)`, so parameters added during analysis reflect in
     /// the symbol table; the default model takes effect when none is set
-    /// (`if (model == 0) setModel(s->getArch()->defaultfp);`). Rugra's
+    /// (`if (model == 0) setModel(s->getArch()->defaultfp);`). Rudra's
     /// flat `parameters` projection stays in sync through
     /// `set_input_parameter`'s store routing; read-back of the
     /// symbol-backed views goes through `symbol_store()` (the flat
@@ -2167,7 +2167,7 @@ impl FuncProto {
     /// `<inject>`/`<internallist>` children. Lock flags are reconciled and
     /// `update_this_pointer` is called at the end.
     ///
-    /// Rugra's `FuncProto` carries a flat parameter list and a calling-
+    /// Rudra's `FuncProto` carries a flat parameter list and a calling-
     /// convention *name* rather than a `ProtoModel *`. The `model_resolver`
     /// callback maps the decoded model name to whatever the caller uses (e.g.
     /// a `ProtoModelFull`), returning `true` if the model was found.
@@ -2226,7 +2226,7 @@ impl FuncProto {
         }
         let _ = found_model; // model resolution status (caller decides locking).
         if seen_extrapop {
-            // extrapop is stored on the model in Rugra; recorded via the
+            // extrapop is stored on the model in Rudra; recorded via the
             // calling_convention name's model. No-op here for the flat struct.
             let _ = read_extrapop;
         }
@@ -2314,14 +2314,14 @@ impl FuncProto {
                 }
                 "inject" => {
                     decoder.open_element();
-                    // injectString → injectid via pcodeinjectlib; Rugra's
+                    // injectString → injectid via pcodeinjectlib; Rudra's
                     // injection is partial, so we only note the content.
                     let _ = decoder.read_string();
                     decoder.close_element(sub_id);
                 }
                 "internallist" => {
                     // store->decode(decoder, model) — internal parameter list.
-                    // Rugra's flat store does not carry internal params beyond
+                    // Rudra's flat store does not carry internal params beyond
                     // `parameters`; skip the body.
                     let _opened = decoder.open_element();
                     decoder.close_element(_opened);
@@ -2446,7 +2446,7 @@ impl FuncProto {
     ///   - the full effectlist and likelytrash contents.
     pub fn is_compatible(&self, op2: &FuncProto) -> bool {
         // Ghidra: if (!model->isCompatible(op2.model)) return false;
-        // Rugra's models are identified by name; matching by name stands in
+        // Rudra's models are identified by name; matching by name stands in
         // for the ProtoModel pointer/alias check.
         if self.calling_convention != op2.calling_convention {
             // Permit "unknown" to match any non-empty model — Ghidra's
@@ -2458,7 +2458,7 @@ impl FuncProto {
         // Ghidra: if (op2.isOutputLocked()) { if (isOutputLocked()) { ... } }
         if op2.is_output_locked() && self.is_output_locked() {
             // Compare output ProtoParameters. Ghidra: if (*out1 != *out2) return false;
-            // Rugra compares the return data-types by pointer identity (the
+            // Rudra compares the return data-types by pointer identity (the
             // Arc<Datatype> ptr eq is a close analogue of Ghidra's Datatype
             // pointer comparison).
             if !Arc::ptr_eq(&self.return_type, &op2.return_type) {
@@ -2466,7 +2466,7 @@ impl FuncProto {
             }
         }
         // Ghidra: if (extrapop != extrapop_unknown && extrapop != op2.extrapop) return false;
-        // Rugra stores extrapop on the model; we cannot read it from a bare
+        // Rudra stores extrapop on the model; we cannot read it from a bare
         // FuncProto here, so this check is folded into the model-name check
         // above (same model => same extrapop).
         // Ghidra: if (isDotdotdot() != op2.isDotdotdot()) { ... }
@@ -2479,7 +2479,7 @@ impl FuncProto {
             }
         }
         // Ghidra: if (injectid != op2.injectid) return false;
-        // Rugra does not yet store injectid on FuncProto; the default of -1
+        // Rudra does not yet store injectid on FuncProto; the default of -1
         // matches for both sides.
         // Ghidra: if ((flags&(is_inline|no_return)) != (op2.flags&(...))) return false;
         // Ghidra flags: is_inline=0x8, no_return=0x10. A direct boolean
@@ -2545,7 +2545,7 @@ impl FuncProto {
             out.push_str("...");
         }
         out.push_str(") extrapop=");
-        // Rugra does not store extrapop on FuncProto directly; emit the
+        // Rudra does not store extrapop on FuncProto directly; emit the
         // model's extrapop via the placeholder value the model carries.
         // Ghidra: s << dec << extrapop. We use 0 (the canonical value) since
         // the model is not reachable from the bare FuncProto here.
@@ -2758,7 +2758,7 @@ impl FuncProto {
     /// overriding effects and likely-trash, and (for an inject id) the
     /// `<inject>` element. Internal store encoding (the trailing
     /// `store->encode(encoder)`) is delegated to the caller via
-    /// `encode_store` since Rugra's flat parameter list has no separate
+    /// `encode_store` since Rudra's flat parameter list has no separate
     /// ProtoStore.
     pub fn encode(
         &self,
@@ -2794,7 +2794,7 @@ impl FuncProto {
         encoder.write_string(model_attrib, &self.calling_convention);
         // Ghidra: if (extrapop == extrapop_unknown) writeString("unknown")
         //         else writeSignedInteger(extrapop).
-        // Rugra does not store extrapop on FuncProto; we emit "unknown" to
+        // Rudra does not store extrapop on FuncProto; we emit "unknown" to
         // match the model-derived default that Ghidra writes.
         encoder.write_string(extrapop_attrib, "unknown");
         if self.is_dotdotdot {
@@ -2843,7 +2843,7 @@ impl FuncProto {
             model_trash, local_trash,
         );
         // Ghidra: if (injectid >= 0) { <inject content=...> }
-        // Rugra does not store injectid; skip.
+        // Rudra does not store injectid; skip.
         // Ghidra: store->encode(encoder);
         encode_store(encoder);
         encoder.close_element(prototype_elem);
@@ -2863,12 +2863,12 @@ pub struct FuncCallSpecs {
     pub op_addr: Address,
     /// The destination address of the call (if known)
     pub entry_addr: Option<Address>,
-    /// The callee's own recovered prototype — Rugra's observable slice of
+    /// The callee's own recovered prototype — Rudra's observable slice of
     /// Ghidra's `FuncCallSpecs::fd` (fspec.hh:1649, the `Funcdata *` set by
     /// `FuncCallSpecs::setFuncdata` at flow time, fspec.cc:4949) as consumed
     /// by `ActionDefaultParams::apply` (coreaction.cc:2321-2324
     /// `Funcdata *otherfunc = fc->getFuncdata(); ... fc->copy
-    /// (otherfunc->getFuncProto())`). Rugra has no per-callee Funcdata
+    /// (otherfunc->getFuncProto())`). Rudra has no per-callee Funcdata
     /// objects in the library; the driver's queryCall boundary (the
     /// `FlowInfo::queryCall` flow.cc:646-666 slice) stores the callee's own
     /// locked FuncProto Arc here, and the copy channel below carries it
@@ -2946,7 +2946,7 @@ pub const OFFSET_UNKNOWN: i64 = i64::MIN;
 // RUDRA-GLUE: ENTRY_SPACE_STANDINS (ADDRESS-0001 phase-1 bridge; no direct
 // Ghidra counterpart — the oracle's entry address keeps the architecture's
 // own registered `AddrSpace*`, reached here only through the per-variant
-// stand-in because Rugra's historical Varnode carries just the flat
+// stand-in because Rudra's historical Varnode carries just the flat
 // `AddressSpace` enum.) One stand-in handle per flat variant per thread,
 // interned into the Address tag table, so repeated call-spec construction
 // reuses the same allocation (intern_space dedups by identity).
@@ -3113,7 +3113,7 @@ impl FuncCallSpecs {
     // Ghidra: fspec.hh:1434 FuncProto::isNoReturn
     /// Does a function with this prototype never return. Ghidra's
     /// `FuncCallSpecs` exposes this accessor through inheritance
-    /// (`class FuncCallSpecs : public FuncProto`, fspec.hh:1645); Rugra
+    /// (`class FuncCallSpecs : public FuncProto`, fspec.hh:1645); Rudra
     /// composes the prototype instead, so the delegate reproduces the same
     /// inherited surface for call-site consumers such as
     /// `FlowInfo::checkForFlowModification` (flow.cc:641).
@@ -3123,7 +3123,7 @@ impl FuncCallSpecs {
 
     // Ghidra: fspec.hh:1439 FuncProto::setNoReturn
     /// Toggle the no-return setting on this call site's prototype.
-    /// Inherited in Ghidra (fspec.hh:1645); delegated here because Rugra
+    /// Inherited in Ghidra (fspec.hh:1645); delegated here because Rudra
     /// composes `FuncProto`. `FlowInfo::truncateIndirectJump` (flow.cc:747)
     /// calls this on the callspec for the fail_callother jump-table path.
     pub fn set_no_return(&mut self, val: bool) {
@@ -3132,7 +3132,7 @@ impl FuncCallSpecs {
 
     // Ghidra: fspec.hh:1411 FuncProto::isInline
     /// Does this function get in-lined during decompilation. Inherited in
-    /// Ghidra (fspec.hh:1645); delegated here because Rugra composes
+    /// Ghidra (fspec.hh:1645); delegated here because Rudra composes
     /// `FuncProto`. `checkForFlowModification` (flow.cc:639) reads this on
     /// the callspec to queue injection.
     pub fn is_inline(&self) -> bool {
@@ -3141,7 +3141,7 @@ impl FuncCallSpecs {
 
     // Ghidra: fspec.hh:1417 FuncProto::setInline
     /// Toggle the in-line setting for this call site's prototype.
-    /// Inherited in Ghidra (fspec.hh:1645); delegated here because Rugra
+    /// Inherited in Ghidra (fspec.hh:1645); delegated here because Rudra
     /// composes `FuncProto`.
     pub fn set_inline(&mut self, val: bool) {
         self.prototype.set_inline(val)
@@ -3150,7 +3150,7 @@ impl FuncCallSpecs {
     // Ghidra: fspec.cc:3806 FuncProto::copyFlowEffects
     /// Copy the callee's flow-affecting properties (the `is_inline|
     /// no_return` subset) onto this call site's prototype. Inherited in
-    /// Ghidra (fspec.hh:1645); delegated here because Rugra composes
+    /// Ghidra (fspec.hh:1645); delegated here because Rudra composes
     /// `FuncProto`. `FlowInfo::queryCall` (flow.cc:664) drives this to
     /// propagate a callee's noreturn state to the call site — the
     /// `__stack_chk_fail` channel.
@@ -3206,7 +3206,7 @@ impl FuncCallSpecs {
             return self.prototype.has_effect(addr_space, addr_offset, size);
         }
         // Ghidra never observes a modelless FuncProto (the dereference would
-        // fault); Rugra production does until FUNCPROTO-MODEL-BIND-0001.
+        // fault); Rudra production does until FUNCPROTO-MODEL-BIND-0001.
         // unknown_effect is the conservative effect: guardCalls then builds
         // an INDIRECT, which never under-protects the range.
         EffectType::UnknownEffect
@@ -3248,7 +3248,7 @@ impl FuncCallSpecs {
     // Ghidra: fspec.hh:1555 FuncCallSpecs::characterizeAsOutput (inherits FuncProto)
     /// Characterize whether the given range could be/hold the return-value
     /// storage. Faithful delegation to `FuncProto::characterizeAsOutput`
-    /// (fspec.cc:4336-4358) through the C++ base class — Rugra previously
+    /// (fspec.cc:4336-4358) through the C++ base class — Rudra previously
     /// collapsed this onto the input characterization, which the
     /// HERITAGE-DRIVER audit flagged as a guardCalls divergence.
     pub fn characterize_as_output(
@@ -3359,13 +3359,13 @@ impl FuncCallSpecs {
     // Ghidra: fspec.cc:4924 FuncCallSpecs::resolveModel
     /// Resolve the calling-convention model from the active trials. Faithful
     /// to `FuncProto::resolveModel` (fspec.cc:3767-3776). For a non-merged
-    /// model (which Rugra uses), this is a no-op — resolution is only needed
+    /// model (which Rudra uses), this is a no-op — resolution is only needed
     /// for ProtoModelMerged (selecting between alternative models based on
     /// active trials).
     pub fn resolve_model(&mut self) {
-        // Rugra's ProtoModel is always a concrete model (not merged), so
+        // Rudra's ProtoModel is always a concrete model (not merged), so
         // resolveModel is a no-op. Ghidra's ProtoModelMerged::selectModel
-        // picks between alternatives — Rugra doesn't support that yet.
+        // picks between alternatives — Rudra doesn't support that yet.
     }
 
     // Ghidra: fspec.hh:1494 FuncCallSpecs::deriveInputMap
@@ -3648,7 +3648,7 @@ impl FuncCallSpecs {
         // loop (RUDRA-GLUE; see Funcdata::get_call_specs_of_op). Inside one
         // checkInputTrialUse call the call list and every spec's op binding
         // are immutable — Ghidra's plain-pointer resolution is order-free,
-        // and Rugra's memoized resolution returns exactly the uncached
+        // and Rudra's memoized resolution returns exactly the uncached
         // value for every op identity. Cleared on exit, before the caller's
         // opSetInput/newConstant tail can mutate anything the memo saw.
         let _op_spec_memo = crate::funcdata::OpSpecMemoScope::enter();
@@ -3953,9 +3953,9 @@ impl FuncCallSpecs {
     /// observable port of `setFuncdata` (fspec.cc:4949-4960): when the callee
     /// is known, the entry address is taken from it and the display name is
     /// copied (if non-empty). Ghidra additionally keeps the callee
-    /// `Funcdata*` (and throws `LowlevelError` on a double set); Rugra has no
+    /// `Funcdata*` (and throws `LowlevelError` on a double set); Rudra has no
     /// per-callee Funcdata objects — the front-end boundary
-    /// (`FlowInfo::queryCall`, flow.cc:660-669, driven by the Rugra driver's
+    /// (`FlowInfo::queryCall`, flow.cc:660-669, driven by the Rudra driver's
     /// symbol/signature tables) hands the observable (name, entry) pair
     /// directly, and re-association overwrites instead of throwing.
     pub fn set_funcdata(&mut self, display_name: &str, entry: Address) {
@@ -3970,7 +3970,7 @@ impl FuncCallSpecs {
     /// of `ActionDefaultParams`' callee resolution (coreaction.cc:2321-2324
     /// `Funcdata *otherfunc = fc->getFuncdata()` +
     /// `otherfunc->getFuncProto()`). Ghidra keeps the whole callee Funcdata
-    /// pointer and reads its live FuncProto at copy time; Rugra stores the
+    /// pointer and reads its live FuncProto at copy time; Rudra stores the
     /// prototype Arc itself (the driver's queryCall boundary materializes
     /// the callee's locked signature — DWARF/debug-info local or the
     /// generic_clib platform signature — exactly once, before the pipeline).
@@ -4002,13 +4002,13 @@ impl FuncCallSpecs {
     /// `fc->copy` runs the FuncProto member only.
     /// Ghidra's FuncProto base has no name member (the call-site name is
     /// FuncCallSpecs state set by queryCall's setFuncdata), so the callsite
-    /// spelling survives the copy; Rugra's FuncProto carries a name field
+    /// spelling survives the copy; Rudra's FuncProto carries a name field
     /// as glue, and this wrapper restores the callsite's spelling over the
     /// copy to keep that observable faithful.
     ///
     /// Erratum (MB24, CR-CALLSPEC O3/O4 — lane doc overstated the copy):
     /// the oracle's `FuncProto::copy` also assigns `likelytrash`
-    /// (fspec.cc:3802) and `injectid` (fspec.cc:3803). Rugra's
+    /// (fspec.cc:3802) and `injectid` (fspec.cc:3803). Rudra's
     /// `copy_from` has **no call-fixup inject id field to copy** — the
     /// injection id storage is the INJECT-0001 no-op stub (see
     /// `copy_flow_effects` below for the same latent gap) — and the
@@ -4180,12 +4180,12 @@ impl FuncCallSpecs {
         let real_out: std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>> = if let Some(idx) = exact_index {
             let exact = new_output[idx].clone();
             // Ghidra: if (op != indOp) { opSetOutput(op, exactMatch); opUnlink(indOp); }
-            // Rugra delegates the wiring to set_call_output.
+            // Rudra delegates the wiring to set_call_output.
             set_call_output(fd, call_op, &exact);
             exact
         } else {
             // Ghidra: opUnsetOutput(op); realOut = newVarnodeOut(size, addr, op).
-            // Rugra cannot allocate a fresh output varnode generically; the
+            // Rudra cannot allocate a fresh output varnode generically; the
             // caller's set_call_output with the first new_output stands in.
             let first = new_output[0].clone();
             set_call_output(fd, call_op, &first);
@@ -4239,7 +4239,7 @@ impl FuncCallSpecs {
             return (true, t.get_slot());
         }
         // Ghidra: if (startaddr.getSpace()->getType() == IPTR_SPACEBASE) return -1;
-        // Rugra's ProtoParameter does not yet carry a space; we cannot
+        // Rudra's ProtoParameter does not yet carry a space; we cannot
         // distinguish the stack case here. Conservative: report "abort" so
         // the caller treats the transfer as failed and falls back to a full
         // restart, matching Ghidra's behaviour when no stackref is available.
@@ -4348,7 +4348,7 @@ impl FuncCallSpecs {
                 // slot == -1, the stack case.
                 // Ghidra: if (stackref == null) stackref = getSpacebaseRelative();
                 //         if (stackref == null) return false;
-                // Rugra status (FSPECDEIN-TRANSFERLOCKED-STACK-0001, F-A):
+                // Rudra status (FSPECDEIN-TRANSFERLOCKED-STACK-0001, F-A):
                 // `get_spacebase_relative` exists since the FSPECDEIN lane
                 // (commit_new_inputs reads it at its fspec.cc:5154 mirror),
                 // but THIS arm is not wired to it yet — it still takes the
@@ -4528,7 +4528,7 @@ impl FuncCallSpecs {
     /// inputs/outputs in place or flags a restart via
     /// `data.setRestartPending(true)`.
     ///
-    /// Rugra's Funcdata has no per-callee `Funcdata *` at action time (the
+    /// Rudra's Funcdata has no per-callee `Funcdata *` at action time (the
     /// front-end boundary established by `FlowInfo::queryCall`,
     /// flow.cc:660-669): the production caller (`ActionDeindirect`,
     /// coreaction.cc:1219) resolves the callee through the query channels
@@ -4574,7 +4574,7 @@ impl FuncCallSpecs {
         if !newfd_proto.is_no_return() && !newfd_proto.is_inline() {
             // Ghidra: if (isOverride()) return; // Don't use the discovered
             //         function prototype.  FuncCallSpecs inherits this from
-            //         FuncProto (fspec.hh:1645); Rugra reads the embedded
+            //         FuncProto (fspec.hh:1645); Rudra reads the embedded
             //         prototype's flag.
             if owner.read().unwrap().prototype.is_override() {
                 return false;
@@ -4634,7 +4634,7 @@ impl FuncCallSpecs {
                 // outside FuncProto::copy's field set (fspec.cc:3789-3804
                 // copies model/extrapop/flags/store/effectlist/likelytrash/
                 // injectid — never a name), so lateRestriction's copy never
-                // disturbs the display name adopted at cc:5447. Rugra's
+                // disturbs the display name adopted at cc:5447. Rudra's
                 // FuncProto embeds the name, so re-assert it across the
                 // copy to mirror the field separation.
                 {
@@ -4697,7 +4697,7 @@ impl FuncCallSpecs {
     /// entry addresses assigns the run length to every member's
     /// `match_call_count`.
     ///
-    /// Rugra's `FuncCallSpecs` does not yet carry the `matchCallCount` field,
+    /// Rudra's `FuncCallSpecs` does not yet carry the `matchCallCount` field,
     /// so the run lengths are returned as a `Vec<(entry_addr, count)>` keyed by
     /// entry address; callers can apply them as needed.
     pub fn count_matching_calls(
@@ -4800,7 +4800,7 @@ impl FuncCallSpecs {
     // Ghidra: fspec.cc:5911 FuncCallSpecs::paramshiftModifyStop
     /// Throw out the paramshift parameters. Faithful port of
     /// `paramshiftModifyStop` (fspec.cc:5911-5925). Returns `true` if a change
-    /// was made (paramshift > 0 and not already applied). Rugra does not yet
+    /// was made (paramshift > 0 and not already applied). Rudra does not yet
     /// track the `paramshift_applied` flag, so this always performs the
     /// removal when `paramshift > 0`. Op-input rewiring (`data.opRemoveInput`)
     /// is delegated to the caller via `remove_input` since the call op is not
@@ -4813,7 +4813,7 @@ impl FuncCallSpecs {
         if paramshift == 0 { return false; }
         // Ghidra: if (isParamshiftApplied()) return false;
         //         setParamshiftApplied(true);
-        // Rugra does not track the applied flag; we always apply.
+        // Rudra does not track the applied flag; we always apply.
         // Ghidra: if (op->numInput() < paramshift + 1) throw LowlevelError(...);
         // The caller's remove_input is responsible for bounds.
         // Ghidra: for(i=0;i<paramshift;++i) { opRemoveInput(op,1); removeParam(0); }
@@ -5037,7 +5037,7 @@ impl FuncCallSpecs {
     /// Override-manager note: Ghidra's `insertProtoOverride` takes ownership
     /// of a heap `FuncProto` copy and marks it `is_override` (override.cc:130);
     /// on restart `Override::applyPrototype` (flow.cc:714) re-copies that
-    /// stored proto onto the fresh callspec. Rugra's `Override` records the
+    /// stored proto onto the fresh callspec. Rudra's `Override` records the
     /// callpoint but does not yet store the proto itself (CALLSPEC-0001
     /// seam), so the restart re-application of the full proto remains
     /// unwired; this pass's observable (proto override recorded + in-place
@@ -5101,7 +5101,7 @@ impl FuncCallSpecs {
     /// Inject any \e upon-return p-code at \b this call site. Faithful
     /// 1:1 body (fspec.cc:5517-5528): a negative inject id does nothing;
     /// otherwise the payload is fetched from the architecture's injection
-    /// library and inserted right after the callpoint. Rugra has no
+    /// library and inserted right after the callpoint. Rudra has no
     /// `Funcdata::doLiveInject` yet, so the insertion is the caller's
     /// `live_inject` hook (invoked with the payload id, the call address,
     /// and the op), matching the established seam style for this module.
@@ -5254,7 +5254,7 @@ impl FuncCallSpecs {
 // ======================================================================
 // Ghidra's `FspecSpace` is a special address space whose offsets are really
 // (truncated) `FuncCallSpecs *` pointers — used to attach a call spec to a
-// CALL/CALLIND input varnode. Rugra does not model address spaces as runtime
+// CALL/CALLIND input varnode. Rudra does not model address spaces as runtime
 // objects (AddressSpace is an enum), so the three FspecSpace methods that
 // inspect the encoded pointer are exposed here as free helpers that take a
 // borrowed `FuncCallSpecs` directly. Faithful 1:1 ports of:
@@ -5347,7 +5347,7 @@ fn space_name_for_addr(addr: Address) -> String {
 //
 // Ghidra's FuncCallSpecs methods read the CALL op's inputs and Funcdata's
 // op-editing API directly (they are methods on a class holding `op` with
-// full access to `data`). Rugra's `FuncCallSpecs` methods take caller
+// full access to `data`). Rudra's `FuncCallSpecs` methods take caller
 // hooks because the stable-owner `Arc<RwLock<..>>` callspec cannot borrow
 // `Funcdata` while mutated. These free functions are the production
 // adapters the production `deindirect`/`force_set` (this file) pass: they
@@ -5440,7 +5440,7 @@ pub(crate) fn prod_get_return_addr_size(fc: &FuncCallSpecs) -> (Address, i32) {
 
 // RUDRA-GLUE: production adapter for the `opSetOutput(op,exactMatch)` +
 // `opUnlink(indOp)` wiring of `commitNewOutputs` (fspec.cc:5222-5230) and
-// the unset/new-arm (fspec.cc:5233-5235). Rugra's op_set_output performs
+// the unset/new-arm (fspec.cc:5233-5235). Rudra's op_set_output performs
 // the re-link; the exact-match predecessor INDIRECT is unlinked exactly
 // when it is not the CALL itself.
 pub(crate) fn prod_set_call_output(
@@ -5513,7 +5513,7 @@ pub mod param_trial_flags {
 #[derive(Debug, Clone)]
 pub struct ParamTrial {
     flags: u32,
-    /// Address-space component of Ghidra's `Address`. Rugra's transitional
+    /// Address-space component of Ghidra's `Address`. Rudra's transitional
     /// `Address` has an optional full-space tag, while parameter-list code
     /// still uses the coarse enum, so the component is carried beside it.
     space: AddressSpace,
@@ -5524,7 +5524,7 @@ pub struct ParamTrial {
     fixed_position: i32,
     /// Index into the owning `ParamListStandard`'s entry list, or `None` if
     /// no matching entry was found. Stands in for Ghidra's
-    /// `const ParamEntry *entry` pointer (fspec.hh:230). Rugra stores an
+    /// `const ParamEntry *entry` pointer (fspec.hh:230). Rudra stores an
     /// index because Rust trials must be `Clone` without lifetime params.
     entry_index: Option<usize>,
 }
@@ -5680,7 +5680,7 @@ impl ParamTrial {
     /// A trial already bound to a `ParamEntry` cannot be shrunk (Ghidra's
     /// `if (entry != null) return false`).
     ///
-    /// `is_big_endian` is supplied by the caller because Rugra's `ParamTrial`
+    /// `is_big_endian` is supplied by the caller because Rudra's `ParamTrial`
     /// does not carry an address space; in Ghidra the trial's `addr`
     /// delegates to `addr.isBigEndian()`.
     pub fn test_shrink(&self, newaddr: Address, sz: i32, is_big_endian: bool) -> bool {
@@ -5709,7 +5709,7 @@ impl ParamTrial {
     /// 3. Different entries compare by model group id
     ///    (`entry->getGroup()`).
     /// 4. Same group, different entries compare by entry order
-    ///    (`entry < b.entry` on raw pointers). Rugra compares
+    ///    (`entry < b.entry` on raw pointers). Rudra compares
     ///    `entry_index`: Ghidra's entries live in a `std::list` populated
     ///    by successive `push_back` at decode time with no interleaved
     ///    frees, so node allocation order == declaration order == index
@@ -5762,7 +5762,7 @@ impl ParamTrial {
     /// positions are unset (-1). Faithful 1:1 port of `fixedPositionCompare`
     /// (fspec.cc:1920-1933). Returns true if `a` should be ordered before `b`.
     /// The per-trial `operator<` fallback (group, entry, address, size) is
-    /// provided via the `op_less` closure because Rugra's `ParamTrial` does
+    /// provided via the `op_less` closure because Rudra's `ParamTrial` does
     /// not carry the bound `ParamEntry *` needed for a faithful comparison.
     pub fn fixed_position_compare<F>(
         a: &ParamTrial, b: &ParamTrial, op_less: &F,
@@ -6048,7 +6048,7 @@ impl ParamActive {
     ///
     /// `entries` is the owning `ParamListStandard::entry` slice the trial
     /// entry indices refer to (Ghidra dereferences the trial's stored
-    /// `const ParamEntry *`; Rugra's trial stores an index instead).
+    /// `const ParamEntry *`; Rudra's trial stores an index instead).
     ///
     /// Residual: Rust's `sort_by` is stable while Ghidra's `std::sort` is
     /// an unstable introsort, so trials that compare equal under
@@ -6227,7 +6227,7 @@ pub fn string_to_type_class(s: &str) -> TypeClass {
 
 /// A single storage location (space + offset + size). Faithful port of
 /// `struct VarnodeData` (varnode.hh). Local copy in `fspec` (modelrules
-/// has its own). Rugra collapses the space+into a single AddressSpace.
+/// has its own). Rudra collapses the space+into a single AddressSpace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarnodeData {
     pub space: AddressSpace,
@@ -6239,7 +6239,7 @@ impl VarnodeData {
     // Ghidra: pcoderaw.hh:67 VarnodeData::operator<
     /// Total order for VarnodeData lists, 1:1 with the oracle `operator<`
     /// (pcoderaw.hh:67-70): the address space (Ghidra compares the space's
-    /// *index*; Rugra's `AddressSpace` enum order is the fixed space-index
+    /// *index*; Rudra's `AddressSpace` enum order is the fixed space-index
     /// projection used throughout fspec), then the offset ascending, then the
     /// size **descending** — "BIG sizes come first". This is the sort/binar
     /// y_search key for `likelytrash`/`internalstorage` (fspec.cc:2694-2695,
@@ -6252,7 +6252,7 @@ impl VarnodeData {
     }
 
     // RUDRA-GLUE: get_addr (Ghidra's VarnodeData has an `addr` field that
-    // is a constructed Address; Rugra builds it on demand).
+    // is a constructed Address; Rudra builds it on demand).
     pub fn get_addr(&self) -> Address { Address::new(self.offset) }
 }
 
@@ -6573,7 +6573,7 @@ impl ParamEntry {
     fn resolve_join(&mut self, cur_list: &[ParamEntry]) {
         // TODO(ALIGNMENT_ROADMAP): depends on unported
         // AddrSpaceManager::findJoin (space.cc). The join-space manager is
-        // not yet ported; Rugra receives pieces via set_join_pieces.
+        // not yet ported; Rudra receives pieces via set_join_pieces.
         if self.space != AddressSpace::Join {
             self.join = None;
             return;
@@ -6602,7 +6602,7 @@ impl ParamEntry {
 
     // RUDRA-GLUE: set_join_pieces (no direct Ghidra counterpart — Ghidra
     // pulls pieces from `spaceid->getManager()->findJoin(addressbase)`; in
-    // Rugra the caller supplies them since the join-space manager is
+    // Rudra the caller supplies them since the join-space manager is
     // unported).
     pub fn set_join_pieces(&mut self, pieces: Vec<VarnodeData>) {
         self.join = Some(ParamEntryJoin { pieces });
@@ -6617,7 +6617,7 @@ impl ParamEntry {
         let mut overlap_set: Vec<i32> = Vec::new();
         let addr = Address::new(self.address_base);
         for entry in cur_list.iter() {
-            // Rugra's compact Address currently carries only the offset, so
+            // Rudra's compact Address currently carries only the offset, so
             // preserve Ghidra's `spaceid != addr.getSpace()` guard here.
             if entry.space != self.space { continue; }
             if !entry.intersects(addr, self.size) { continue; }
@@ -6964,7 +6964,7 @@ impl ParamEntry {
             space_used = self.size;
             if self.flags & param_entry_flags::SMALLSIZE_FLOATEXT != 0 && sz != self.size {
                 // TODO(ALIGNMENT_ROADMAP): depends on unported
-                // AddrSpaceManager (constructFloatExtensionAddress). Rugra
+                // AddrSpaceManager (constructFloatExtensionAddress). Rudra
                 // leaves the base address; the float-ext join record would
                 // normally be materialized here.
                 return Some(res);
@@ -7013,7 +7013,7 @@ impl ParamEntry {
     }
 
     // RUDRA-GLUE: builder-style setters for the model loader (Ghidra fills
-    // these during `ParamEntry::decode`; Rugra's decoder is unported so the
+    // these during `ParamEntry::decode`; Rudra's decoder is unported so the
     // loader populates them via these accessors).
     pub fn set_space(&mut self, spc: AddressSpace) { self.space = spc; }
     // RUDRA-GLUE: loader field setter; Ghidra assigns addressbase directly
@@ -7151,7 +7151,7 @@ pub enum ParamListKind {
 /// binding the range to the `ParamEntry` (by index into the owning
 /// `ParamListStandard::entry` list) that declared it. Faithful to
 /// `class ParamEntryRange` (fspec.hh:157-193): the rangemap value type
-/// carrying `(first, last, position, entry)`. Rugra stores the entry as an
+/// carrying `(first, last, position, entry)`. Rudra stores the entry as an
 /// index because Rust ownership replaces Ghidra's `ParamEntry *` into a
 /// `std::list` whose allocation order equals declaration order (see the
 /// `ParamTrial::operator<` projection note).
@@ -7254,7 +7254,7 @@ impl ParamEntryRange {
 /// ParamEntryResolver` (fspec.hh:194). Ghidra's generic `rangemap`
 /// (database.hh) keeps intervals in a tree keyed by `(first, subsort)`
 /// whose `find(offset)` returns the sublist of ALL ranges containing the
-/// offset. Rugra's projection keeps the ranges in a `Vec` sorted by
+/// offset. Rudra's projection keeps the ranges in a `Vec` sorted by
 /// `(first, position)` — the same (linetype, subsort) order the rangemap
 /// iterates — and materializes the containing sublist on demand, which is
 /// byte-equivalent for the two operations the decompiler consumes
@@ -7370,7 +7370,7 @@ impl ParameterPieces {
     ///   3. a single surviving piece's address is taken directly;
     ///      otherwise `findAddJoin(pieces, 0)` produces the unified join
     ///      address.
-    /// The `find_add_join` closure carries Rugra's JoinRecordTables + join
+    /// The `find_add_join` closure carries Rudra's JoinRecordTables + join
     /// space handle (Ghidra reads both off the Architecture; the closure
     /// also absorbs the VarnodeData→SpaceVarnodeData space-model
     /// conversion).
@@ -7392,7 +7392,7 @@ impl ParameterPieces {
             std::mem::swap(pieces, &mut reverse);
         }
         // Ghidra: JoinRecord::mergeSequence(pieces,glb->translate);
-        // Rugra's JoinRecord::merge_sequence operates on space::VarnodeData
+        // Rudra's JoinRecord::merge_sequence operates on space::VarnodeData
         // (usize size); the fspec pieces convert field-for-field and back.
         let mut seq: Vec<crate::space::VarnodeData> = pieces
             .iter()
@@ -7992,7 +7992,7 @@ pub struct ParamListStandard {
     stack_entry_index: Option<usize>,
     /// Per-space resolver maps from offset to ParamEntry. Faithful to
     /// `vector<ParamEntryResolver *> resolverMap` (fspec.hh:597), indexed
-    /// by space; Rugra keys by `AddressSpace` instead of Ghidra's
+    /// by space; Rudra keys by `AddressSpace` instead of Ghidra's
     /// `spc->getIndex()` slot.
     resolver_map: Vec<(AddressSpace, ParamEntryResolver)>,
     /// Ghidra: fspec.hh:598 `list<ModelRule> modelRules` — rules to apply
@@ -8286,7 +8286,7 @@ pub fn characterize_as_param(
         // Ghidra: fspec.cc:697 int4 off = testEntry->justifiedContain(
         // loc, size); — the query's space rides on `loc`, so the space
         // guards of fspec.cc:248-283 (per-piece address.cc:133 for joins,
-        // cc:269 for aligned entries) apply; Rugra threads `space`
+        // cc:269 for aligned entries) apply; Rudra threads `space`
         // explicitly (justified_contain_in_space).
         let off = e.justified_contain_in_space(loc, size, space);
         if off == 0 { return containment::CONTAINS_JUSTIFIED; }
@@ -8330,7 +8330,7 @@ pub fn characterize_as_param(
     /// Find the largest parameter entry entirely contained in the range
     /// `[offset, offset+size-1]` of the given space. Faithful port: the
     /// wrapping check (`endLoc < loc`), the containment predicate and the
-    /// strictly-greater size comparison are exact; Rugra scans the ordered
+    /// strictly-greater size comparison are exact; Rudra scans the ordered
     /// entry list instead of Ghidra's per-space resolver map, which visits
     /// the same entry set for these queries.
     pub fn get_biggest_contained_param(
@@ -8413,7 +8413,7 @@ pub fn characterize_as_param(
         status: &mut [i32], res: &mut ParameterPieces,
     ) -> AssignActionResponse {
         // TODO(ALIGNMENT_ROADMAP): depends on unported `ModelRule`
-        // (modelrules.hh). Ghidra iterates `modelRules` first; Rugra goes
+        // (modelrules.hh). Ghidra iterates `modelRules` first; Rudra goes
         // straight to fallback.
         let store = metatype_to_type_class(dt.as_ref());
         self.assign_address_fallback(store, dt, false, status, res)
@@ -8941,7 +8941,7 @@ pub fn characterize_as_param(
     /// registers its `[base, base+size-1]` extent at one position. The
     /// per-space resolver is created on first use (Ghidra's `resolverMap`
     /// grows to the space index and null slots are allocated lazily).
-    /// Rugra additionally keeps the legacy `stack_entry_index` cache so the
+    /// Rudra additionally keeps the legacy `stack_entry_index` cache so the
     /// linear `find_entry` scan used by the live pipeline is unaffected
     /// (resolver-backed queries are opt-in via `resolver_for`).
     pub fn populate_resolver(&mut self) {
@@ -9100,7 +9100,7 @@ pub fn characterize_as_param(
     /// Restore the model from an `<input>` or `<output>` element.
     ///
     /// TODO(ALIGNMENT_ROADMAP): depends on unported `Decoder` attribute/
-    /// element id constants. Rugra exposes the post-decode finalization
+    /// element id constants. Rudra exposes the post-decode finalization
     /// (`resource_start.push(num_group)`, `calc_delay`, `populate_resolver`)
     /// via `finalize_after_decode` so a caller that has manually parsed the
     /// element tree can complete the model.
@@ -9120,7 +9120,7 @@ pub fn characterize_as_param(
     pub fn clone_model(&self) -> ParamListStandard { self.clone() }
 
     // RUDRA-GLUE: setters for the model loader (Ghidra fills these during
-    // `ParamListStandard::decode`; Rugra's decoder is unported).
+    // `ParamListStandard::decode`; Rudra's decoder is unported).
     pub fn set_this_before_ret(&mut self, v: bool) { self.this_before_ret = v; }
     // RUDRA-GLUE: loader/subclass field setter; Ghidra writes the protected
     // autoKilledByCall field directly in decode() and initialize().
@@ -9257,7 +9257,7 @@ impl ParamListStandardOut {
             out_type, proto, -1, &mut status, res.last_mut().unwrap(),
         );
         // Map Ghidra's AssignAction codes (modelrules.hh:264-271) onto the
-        // local enum. Rugra's `AssignActionResponse` collapses the
+        // local enum. Rudra's `AssignActionResponse` collapses the
         // hiddenret_* codes; we treat any non-Fail response as Success and
         // only escalate on Fail.
         let mut response_code = if response == AssignActionResponse::Fail {
@@ -9273,13 +9273,13 @@ impl ParamListStandardOut {
                 | HiddenRetAction::SpecialRegVoid
         ) {
             // Ghidra: AddrSpace *spc = spacebase; fallback to default data space.
-            // Rugra has no TypeFactory pointer plumbing; the pointer size is
+            // Rudra has no TypeFactory pointer plumbing; the pointer size is
             // taken from the out-type, matching `getAddrSize`/`getWordSize` of
             // the model's spacebase when one is present.
             let pointersize = out_type.get_size() as i32;
             let wordsize = 1i32;
             // Ghidra: Datatype *pointertp = typefactory.getTypePointer(...).
-            // Rugra has no `TypeFactory::getTypePointer`; we re-use the
+            // Rudra has no `TypeFactory::getTypePointer`; we re-use the
             // out-type as the pointer's base and let later passes reconcile.
             let pointer_tp: std::sync::Arc<Datatype> = (*out_type).clone();
             if matches!(response_code, HiddenRetAction::SpecialRegVoid) {
@@ -9781,7 +9781,7 @@ impl ParamListOutput {
 /// the merged list is the union of constituent resource lists so initial
 /// data-flow analysis can proceed before the exact model is known;
 /// `assignMap`/`fillinMap` refuse to run (the controlling ProtoModelMerged
-/// picks the real model first). Rugra models the C++ public-base via the
+/// picks the real model first). Rudra models the C++ public-base via the
 /// owned `base: ParamListStandard`.
 #[derive(Debug, Clone)]
 pub struct ParamListMerged {
@@ -9911,7 +9911,7 @@ impl ParamListMerged {
 }
 
 /// Internal enum mirroring Ghidra's `AssignAction` hidden-return codes
-/// (modelrules.hh:264-271). Rugra's `AssignActionResponse` collapses these
+/// (modelrules.hh:264-271). Rudra's `AssignActionResponse` collapses these
 /// into `Fail`/`Success`; `ParamListStandardOut::assign_map` re-expands
 /// them locally to drive the hidden-return escalation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10210,7 +10210,7 @@ impl ProtoModelFull {
             }
         }
         // spc is captured to mirror Ghidra's `AddrSpace *spc`; the bound is
-        // encoded into the inserted Range's space implicitly (Rugra's Range
+        // encoded into the inserted Range's space implicitly (Rudra's Range
         // does not carry a space, matching the existing `RangeList` API).
         let _ = spc;
     }
@@ -10546,7 +10546,7 @@ impl ProtoModelFull {
     /// (fspec.cc:2780-2803). Both lists must be sorted by address. Only
     /// records present in BOTH lists survive; the merged list is rebuilt into
     /// a fresh vector and swapped in. `ProtoModelMerged` itself is not yet
-    /// modelled as a distinct type in Rugra, so the merge is exposed here as
+    /// modelled as a distinct type in Rudra, so the merge is exposed here as
     /// a static helper for callers that fold alternative models together.
     pub fn intersect_effects(effectlist: &mut Vec<EffectRecord>, efflist: &[EffectRecord]) {
         let mut newlist: Vec<EffectRecord> = Vec::new();
@@ -11050,7 +11050,7 @@ fn read_range_child(
 }
 
 // RUDRA-GLUE: parse_space_name / parse_u64 (free helpers used by the decode
-// path above; Rugra's AddressSpace is an enum, so a name string maps to the
+// path above; Rudra's AddressSpace is an enum, so a name string maps to the
 // nearest matching variant).
 fn parse_space_name(s: &str) -> AddressSpace {
     match s {
@@ -11097,7 +11097,7 @@ fn effect_from_u32(raw: u32) -> EffectType {
     }
 }
 
-// RUDRA-GLUE: textual integer adapter for Rugra's string-valued Decoder;
+// RUDRA-GLUE: textual integer adapter for Rudra's string-valued Decoder;
 // Ghidra's VarnodeData/Range decode paths call typed Decoder integer readers
 // directly and have no parse_u64 helper.
 fn parse_u64(s: &str) -> u64 {
@@ -11391,10 +11391,10 @@ impl ProtoModelMerged {
     /// Fold-in an additional prototype model. Faithful 1:1 body of
     /// `foldIn` (fspec.cc:2834-2870):
     ///   - the architecture-identity guard (`model->glb != glb` throw) is
-    ///     absorbed by Rugra's single-`Architecture` table — all models in
+    ///     absorbed by Rudra's single-`Architecture` table — all models in
     ///     one table share `glb` by construction;
     ///   - the `p_standard`/`p_register` input-kind guard passes
-    ///     structurally: Rugra's `ProtoModelFull::input` is the shared
+    ///     structurally: Rudra's `ProtoModelFull::input` is the shared
     ///     `ParamListStandard` owner for both kinds (the register-strategy
     ///     residual is documented at `build_param_list`);
     ///   - FIRST fold: allocate the merged input list + the output list,
@@ -11554,14 +11554,14 @@ pub const SYMBOL_NO_CATEGORY: i32 = -1;
 /// ParameterSymbol : public ProtoParameter` (fspec.hh:1256-1279 +
 /// fspec.cc:2981-3099): every accessor pulls its information off the
 /// backing Symbol; the flat-state methods that ParameterBasic implements
-/// locally forward to Scope/Symbol attribute mutations instead. Rugra's
+/// locally forward to Scope/Symbol attribute mutations instead. Rudra's
 /// projection exposes the (scope, symbol) pair directly instead of the
 /// C++ virtual-interface vtable: `ProtoStoreSymbol` constructs these
 /// on the fly and caches them, exactly as Ghidra does.
 #[derive(Debug, Clone)]
 pub struct ParameterSymbol {
     /// The owning function Scope (Ghidra reaches it via `sym->getScope()`;
-    /// Rugra's `Symbol` carries only `scope_id`).
+    /// Rudra's `Symbol` carries only `scope_id`).
     pub scope: FspecScopeRef,
     /// Backing Symbol for \b this parameter; `None` is the freshly
     /// allocated uninitialized form of `ParameterSymbol(void) { sym = 0; }`
@@ -11688,7 +11688,7 @@ impl ParameterSymbol {
     // Ghidra: fspec.cc:3070 ParameterSymbol::setThisPointer
     /// Toggle the this-pointer property. Ghidra forwards to
     /// `scope->setThisPointer(sym, val)` which is the inline
-    /// `sym->setThisPointer(val)` (database.hh:770); Rugra mutates the
+    /// `sym->setThisPointer(val)` (database.hh:770); Rudra mutates the
     /// Symbol directly through the same `Symbol::set_this_pointer`.
     pub fn set_this_pointer(&self, val: bool) {
         let sym = self.sym.as_ref().expect("ParameterSymbol without backing symbol");
@@ -11869,7 +11869,7 @@ impl ProtoStoreSymbol {
         }
         if res.sym.is_none() {
             // Ghidra: usepoint = discoverScope(...) ?: restricted_usepoint;
-            // Rugra's Scope::discover_scope resolves by scope-id, and the
+            // Rudra's Scope::discover_scope resolves by scope-id, and the
             // single-function Scope owns the whole category-0 range, so the
             // restricted usepoint is the operative form (the multi-scope
             // usepoint discipline is the ADDRESS-0001-era residual).
@@ -11888,7 +11888,7 @@ impl ProtoStoreSymbol {
                 piece_type_size,
             );
             // Ghidra: res->sym = scope->addSymbol(nm,pieces.type,...)
-            // —attach the resolved Datatype (Rugra's add_symbol takes the
+            // —attach the resolved Datatype (Rudra's add_symbol takes the
             // type NAME; the Arc is linked here). The read guard is scoped
             // to the lookup: binding it through the if-let would hold the
             // scope read lock across the set_category write below and
@@ -12130,7 +12130,7 @@ impl ProtoStoreSymbol {
 /// an empty `<addr>`/`<void>` pair), then one `<param>` per input carrying
 /// its optional name and true-valued flag attributes (typelock, namelock,
 /// thisptr, indirectstorage, hiddenretparm), address, and type ref.
-/// Rugra's flat `FuncProto.parameters` vector IS the internal store's
+/// Rudra's flat `FuncProto.parameters` vector IS the internal store's
 /// `inparam`, so callers pass the flat slices (see
 /// `FuncProto::encode`'s `encode_store` closure hook).
 pub fn encode_internal_store(
@@ -13414,7 +13414,7 @@ mod tests {
         assert!(!active2.get_trial(1).is_active(),
                 "stack unref before the active trial still kills it");
     }
-    // ---- MIGW-FSPEC batch regression tests (Rugra-side; oracle claims
+    // ---- MIGW-FSPEC batch regression tests (Rudra-side; oracle claims
     // live in the bilateral fixtures, not here) ----
 
     fn migfspec_exclusion_entry(group: i32, base: u64, size: i32, min_size: i32) -> ParamEntry {
