@@ -9617,10 +9617,23 @@ impl ActionInferTypes {
     // Ghidra: coreaction.cc:5043 ActionInferTypes::writeBack
     fn write_back(&self, fd: &Funcdata, temps: &TempTypes) -> bool {
         let mut changed = false;
+        // coreaction.cc:5043-5059 writeBack: every `ct` the oracle hands to
+        // `vn->updateType(ct)` is a TypeFactory product — the seeds come
+        // from outputTypeLocal/inputTypeLocal (typeop.cc:264 tlst->getBase)
+        // and every propagateType override builds through the factory —
+        // so `type == ct` (varnode.cc:459) is a stable interned-pointer
+        // comparison and settling works. Rudra's temp producers include
+        // factory-free constructors (IntTypes::sized, propagate arms),
+        // which make writeBack report a change on every round for the
+        // identical type and trip the localcount>=7 warning the oracle
+        // never emits (MISC3 sqlite3AddCheckConstraint face). Canonicalizing
+        // at this boundary restores the interned-pointer invariant.
+        let factory = fd.arch.as_ref().and_then(|a| a.types.clone());
         for vn_arc in fd.vbank.loc_tree.iter().map(|v| v.0.clone()) {
             let id = vn_id(&vn_arc.read().unwrap());
 
             if let Some(ct) = temps.get(&id) {
+                let ct = canonicalize_temp_type(ct, factory.as_ref());
                 let mut vn = vn_arc.write().unwrap();
                 if vn.is_annotation() {
                     continue;

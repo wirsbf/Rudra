@@ -3028,6 +3028,27 @@ setTempType）与 `propagate_type_edge` 的 `temps.insert`（cc:5108）。规范
 证据边界：本切片只证明 interned 收敛契约；`ACTION-INFERTYPES-DISPATCH-0001`
 等完整 dispatch 闭包状态不变。
 
+## 2026-10-03：writeBack 边界规范化（MISC3-SETTLE-VARCHURN-0001 第一步）
+
+INFERTYPES-SETTLE-0001 在两个 `temps.insert` choke point
+（`build_localtypes`/`propagate_type_edge`）做规范化，但 temp 系统仍有
+免工厂生产方漏到 `writeBack`（`IntTypes::sized` 的 per-apply 新建
+`TypeBase`、若干 propagate 臂），同名类型跨轮 Arc 不同 → `update_type`
+恒真。MISC3 车道在 `writeBack` 自身加第三 choke point：回写前对每个 `ct`
+过 `canonicalize_temp_type`（coreaction.cc:5043-5059 边界，oracle 语义 =
+所有交给 `vn->updateType` 的 `ct` 都是工厂 intern 产品）。实测
+sqlite3AddCheckConstraint：同名 `Int/long→Int/long` 449 次假 churn 清零。
+
+残余（登记 MISC3-SETTLE-VARCHURN-0001）：剩余 writeBack-true 轮全部是
+`Unknown/undefinedN → 具体` 的**新建 varnode 首次定型**（每轮 ~8 个：
+heritage 重守护 INDIRECT/MULTIEQUAL 输入 + 规则重建常量/寄存器实例；
+oracle TYPEPROP_DEBUG 实测同函数 localcount 轨迹 0,1,2,3,4,4,4,5,5,5 ——
+稳定在 5；Rudra 撞 7 出警告）。oracle 侧 heritage.cc:2706
+`isHeritageKnown` 增量跳过 + INDIRECT 一次性守护（heritage.cc:1183-1185）
+使旧 varnode 携带类型存活；Rudra 侧重建实例从工厂 undefined 起步，每轮
+重新定型。真修在 heritage 增量性域（机制 C 白名单），本切片只修收敛
+比较的工厂不变量。
+
 ## 2026-08-29：类型推断指针构造改匿名（PTRSUB-TYPED-DECL-RESIDUAL-0001）
 
 `make_pointer_type`、`make_ptr` 与 COPY-spacebase 指针臂（TypeOpCopy::
