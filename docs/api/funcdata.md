@@ -3630,3 +3630,46 @@ node-split 的两处边 retarget（funcdata_block.cc:165-167 形——outbl 的
 in-edge point/reverse_index 改写、in_block 的 BlockBasic out-edge retarget）
 在变异守卫内补 `sync_in_edge_shadow`/`sync_out_edge_shadow`（wave 3 边表
 影子写侧, 见 docs/api/block.md EdgeShadow 段）。零读位迁移（本批）。
+
+
+## ACTIVEPARAMb（2026-10-02）参数走查读面合并 + 走查不变量提升
+
+**PERF-ACTIVEPARAM-READMERGE-0001**（activeparam 单极残量 ~3.1s 的行为恒等
+削减——五处纯读面合并/提升,零 walk 形态位移;[APROF]/[SP2PROF] 探针钻定:
+only_op_use 2.05s@12.5M op 访问 + AncestorRealistic 0.76s@5,818 execute +
+ccdu 0.37s@1.62M 调用为主体,全部为 per-visit 锁/升级常数,非算法面）:
+
+- `only_op_use`: ①输出 varnode 的 `is_persist`/`is_mark` 双读合并为单守卫快照
+  （oracle cc:1889/1893 各一次裸字段读;本 walk 内唯一写者是本线程的
+  setMark,isPersist 走查不变,两次加载之间不可变）——顺序保持
+  persist→(res=false,break)→mark 检查;②opmatch 的 opcode+in(0) 提升为
+  走查级单快照（`walk_match_code`/`walk_match_in0`）,供 `opmatch_is_return`
+  与 `check_call_double_use` 的 `match_code`/CALLIND `b` 比较共用——oracle
+  在 cc:1850/1763/1774 每 CALL 访问处重读裸字段,walk 对 op 只读
+  （唯一写=vn/op marks+trial;opSetInput 尾部在 checkInputTrialUse 返回后
+  才跑）,快照值与每次重读恒等。
+- `check_call_double_use`: `op_code`/`match_code`/`match_in0` 改为参数传入
+  ——`op_code` 取调用方 only_op_use 已持有的 op 读守卫（消除同锁递归读,
+  1.62M 次）,`match_code`/`match_in0` 取走查快照（消除每调用 opmatch 重读
+  +CALLIND 臂 in(0) 重读）。值恒等论证同上;`same_op`/`fc`/`matchfc` 解析序
+  与全部早退序未动。
+- `AncestorRealistic::enter_node`: ①`mark`/`written` 对与 unwritten 分支
+  四 flag（input/unaffected/persist/direct_write）合并单守卫读（oracle
+  cc:2040-2051 逐字段裸读;该 vn 的首次写是其后的 mark()）;②opcode 派发与
+  各臂字段读（INDIRECT/SUBPIECE/COPY/PIECE 臂的第二守卫）合并为单
+  `op_def` 守卫（cc:2031-2132;walk 对 op 只读,各臂值与分别重读恒等）;
+  ③COPY 臂 minimal traversal 链步:opcode 测试与 in(0)/in(1) 跟随合并单
+  `nd` 守卫读（cc:2090-2108;链上只读,无 PIECE 时的 break 条件保持原序）。
+
+行为恒等证明链（全部亲测,基=master bc58664c）: VdbeExec --one 1055 双面
+md5 钉值字节恒等（canon 20920e63/mirror 0668b234）+ ACTIONSTATS 双面五值
+恒等（917/302/5,825,839/28,722,524/63,713）+ walk 形态计数器逐值恒等
+（19 次 apply × 8 计数器 base/opt 探针对拍 diff 空——specs=830/trials=23,659/
+oou_calls=19,275/visits=4,911,503/opvisits=12,716,619/ccdu=1,641,551 聚合
+逐值精确相等——探针口径）+ corpus 双面钉值字节恒等（canon 1743cb2f·5,280,382B/
+mirror 9aaf3cfd·5,285,971B,1385/1385）+ canon curl f903372a（124F
+defects=numbering=0）/httpd 3617ecc3（34F 0/0）+ 镜面五面恰钉值
+（curl 11/httpd 0/vsh 0/sq 41/sqlite 180,stale-guard digest 亲验）+
+tests 2045P/0F/5I==基线。性能: activeparam 单极探针口径 3.097s→2.725s
+（−12%,同负载窗,walk 计数不变）;VdbeExec 总量与 corpus wall 在 load 44-64
+共享窗内 A/B 为 wash（−0.3s 量级效应低于 ±1.5s 噪声底,如实记）。

@@ -13633,6 +13633,11 @@ impl Funcdata {
         fl: u32,
         trial: &crate::fspec::ParamTrial,
         match_fc: Option<&crate::fspec::FuncCallSpecs>,
+        op_code: crate::opcodes::OpCode,
+        match_code: crate::opcodes::OpCode,
+        match_in0: Option<
+            &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+        >,
     ) -> bool {
         use crate::opcodes::OpCode as OC;
         // cc:1759: j = op->getSlot(vn); if (j<=0) return false.
@@ -13657,9 +13662,9 @@ impl Funcdata {
             fc_guard.as_deref()
         };
         let matchfc = match_fc;
-        // cc:1763-1781: same-call double-use test.
-        let op_code = op.0.read().unwrap().opcode;
-        let match_code = opmatch.0.read().unwrap().opcode;
+        // cc:1763-1781: same-call double-use test. `op_code`/`match_code`
+        // arrive from the caller's walk-invariant snapshot (Rudra re-read
+        // elision; values identical — the walk is read-only on ops).
         if op_code == match_code {
             let is_direct = match_code == OC::CPUI_CALL;
             let same_target = match (fc, matchfc) {
@@ -13670,9 +13675,11 @@ impl Funcdata {
                         entry.is_some() && entry == match_entry
                     } else {
                         // CALLIND: compare the indirect-call varnode (in(0)).
+                        // `b` comes from the walk-invariant opmatch snapshot.
                         let a = op.0.read().unwrap().get_in(0).cloned();
-                        let b = opmatch.0.read().unwrap().get_in(0).cloned();
-                        match (a, b) { (Some(x), Some(y)) => std::sync::Arc::ptr_eq(&x, &y), _ => false ,
+                        match (&a, &match_in0) {
+                            (Some(x), Some(y)) => std::sync::Arc::ptr_eq(x, y),
+                            _ => false,
                         }
                     }
                 }
@@ -18918,18 +18925,24 @@ impl AncestorRealistic {
             None => return ar_command::POP_FAIL,
         };
         // Truncate traversal on already-visited varnodes (cycle prevention).
-        let (is_mark, is_written) = {
+        // Single read for the mark/written pair plus the unwritten-branch
+        // flag quad (oracle reads the bare fields directly,
+        // funcdata_varnode.cc:2040-2051; none of these flags is written
+        // between the load and its use — this vn's first write, if any, is
+        // the mark() below, which happens only after this block).
+        let (is_mark, is_written, is_input, is_unaffected, is_persist, is_direct_write) = {
             let vn = state_vn.read().unwrap();
-            (vn.is_mark(), vn.is_written())
+            (
+                vn.is_mark(),
+                vn.is_written(),
+                vn.is_input(),
+                vn.is_unaffected(),
+                vn.is_persist(),
+                vn.is_direct_write(),
+            )
         };
         if is_mark { return ar_command::POP_SUCCESS; }
         if !is_written {
-            let (is_input, is_unaffected, is_persist, is_direct_write) = {
-                let vn = state_vn.read().unwrap();
-                (
-                    vn.is_input(), vn.is_unaffected(), vn.is_persist(), vn.is_direct_write(),
-                )
-            };
             if is_input {
                 if is_unaffected { return ar_command::POP_FAIL; }
                 if is_persist { return ar_command::POP_SUCCESS; }
@@ -18948,21 +18961,27 @@ impl AncestorRealistic {
             Some(d) => d,
             None => return ar_command::POP_FAIL,
         };
-        let opcode = { op_def.read().unwrap().opcode };
-        match opcode {
+        // One guard serves the opcode dispatch and the per-arm field reads
+        // below (oracle reads the bare op fields directly,
+        // funcdata_varnode.cc:2031-2132; the walk is read-only on ops, so
+        // the held snapshot equals each arm's separate re-read).
+        let op_def_rg = op_def.read().unwrap();
+        match op_def_rg.opcode {
             OC::CPUI_INDIRECT => {
                 let (is_ind_create, is_ind_store, out_is_return, in0_indirect_zero) = {
-                    let d = op_def.read().unwrap();
-                    let out_is_ret = d
+                    let out_is_ret = op_def_rg
                         .get_out()
                         .map(|v| v.read().unwrap().is_return_address())
                         .unwrap_or(false);
-                    let in0_iz = d
+                    let in0_iz = op_def_rg
                         .get_in(0)
                         .map(|v| v.read().unwrap().is_indirect_zero())
                         .unwrap_or(false);
                     (
-                        d.is_indirect_creation(), d.is_indirect_store(), out_is_ret, in0_iz,
+                        op_def_rg.is_indirect_creation(),
+                        op_def_rg.is_indirect_store(),
+                        out_is_ret,
+                        in0_iz,
                     )
                 };
                 if is_ind_create {
@@ -18989,7 +19008,7 @@ impl AncestorRealistic {
                 let (
                     out_space_is_internal, is_incidental, in0_incidental, out_overlap_in0_eq_in1, new_offset,
                 ) = {
-                    let d = op_def.read().unwrap();
+                    let d = &*op_def_rg;
                     let out_vn = d.get_out().and_then(|v| Some(v.clone()));
                     let in0 = d.get_in(0).and_then(|v| Some(v.clone()));
                     let in1_off = d
@@ -19058,7 +19077,7 @@ impl AncestorRealistic {
             }
             OC::CPUI_COPY => {
                 let (out_space_internal, is_incidental, in0_incidental, out_addr_eq_in0_addr) = {
-                    let d = op_def.read().unwrap();
+                    let d = &*op_def_rg;
                     let out_vn = d.get_out().and_then(|v| Some(v.clone()));
                     let in0 = d.get_in(0).and_then(|v| Some(v.clone()));
                     let out_space = out_vn.as_ref().map(|v| v.read().unwrap().get_space());
@@ -19110,15 +19129,31 @@ impl AncestorRealistic {
                     };
                     match next_def {
                         Some(nd) => {
-                            let next_code = nd.read().unwrap().opcode;
-                            if next_code == OC::CPUI_COPY || next_code == OC::CPUI_SUBPIECE {
-                                cur_vn = nd.read().unwrap().get_in(0).cloned();
-                            } else if next_code == OC::CPUI_PIECE {
-                                // Follow least significant piece.
-                                cur_vn = nd.read().unwrap().get_in(1).cloned();
-                            } else {
+                            // Single read serves the opcode test and the
+                            // in(0)/in(1) follow (oracle reads the bare op
+                            // fields directly, funcdata_varnode.cc:2090-
+                            // 2108; the chain is read-only on ops).
+                            let (next_code, next_vn) = {
+                                let nd_rg = nd.read().unwrap();
+                                let code = nd_rg.opcode;
+                                let vn = if code == OC::CPUI_COPY
+                                    || code == OC::CPUI_SUBPIECE
+                                {
+                                    nd_rg.get_in(0).cloned()
+                                } else if code == OC::CPUI_PIECE {
+                                    nd_rg.get_in(1).cloned()
+                                } else {
+                                    None
+                                };
+                                (code, vn)
+                            };
+                            if next_code != OC::CPUI_COPY
+                                && next_code != OC::CPUI_SUBPIECE
+                                && next_code != OC::CPUI_PIECE
+                            {
                                 break;
                             }
+                            cur_vn = next_vn;
                             cur_op = nd;
                         }
                         None => break,
@@ -19141,7 +19176,7 @@ impl AncestorRealistic {
                 // stateVn is the PIECE output; compare its size to trial size.
                 let state_vn_size = state_vn.read().unwrap().get_size() as i32;
                 let (in1_size, in0_size, state_vn_is_spacebase) = {
-                    let d = op_def.read().unwrap();
+                    let d = &*op_def_rg;
                     let in0 = d.get_in(0).and_then(|v| Some(v.clone()));
                     let in1 = d.get_in(1).and_then(|v| Some(v.clone()));
                     let state_vn_space = state_vn.read().unwrap().get_space();
@@ -19423,13 +19458,32 @@ fn only_op_use(
         vn.set_mark();
     }
     varlist.push(TNode { vn: invn.clone(), flags: main_flags });
+    // Walk-invariant opmatch snapshot shared with checkCallDoubleUse below:
+    // `match_code` (cc:1763 re-reads `opmatch->code()`) and the CALLIND
+    // comparison varnode `opmatch->getIn(0)` (cc:1774). Neither can change
+    // inside one onlyOpUse call (the walk is read-only on ops; the
+    // opSetInput tail runs only after checkInputTrialUse returns).
+    let mut walk_match_code = OC::CPUI_COPY;
+    let mut walk_match_in0: Option<Arc<RwLock<crate::varnode::Varnode>>> = None;
     // Oracle reads `opmatch->code()` (a bare field load, funcdata_varnode.cc
     // :1850) inside the loop. Rudra's read is a RwLock acquisition, and
     // nothing in the walk mutates any op's opcode (the walk is read-only on
     // ops; varnode/op marks and the trial are the only writes, and the
     // opSetInput tail runs only after the walk returns), so hoisting the
     // read out of the loop observes the same value on every iteration.
-    let opmatch_is_return = opmatch.0.read().unwrap().opcode == OC::CPUI_RETURN;
+    let opmatch_is_return = {
+        // Single read serves the whole walk (oracle reads the bare
+        // `opmatch->code()` field per loop iteration, funcdata_varnode.cc
+        // :1850; nothing in the walk mutates any op — the only writes are
+        // varnode/op marks and the trial — and the opSetInput tail runs
+        // only after checkInputTrialUse returns), and the same snapshot
+        // feeds checkCallDoubleUse's `match_code`/CALLIND in(0) compares.
+        let g = opmatch.0.read().unwrap();
+        let code = g.opcode;
+        walk_match_code = code;
+        walk_match_in0 = g.get_in(0).cloned();
+        code == OC::CPUI_RETURN
+    };
     // Reused descendant buffer: oracle iterates `vn->descend` in place
     // (funcdata_varnode.cc:1818); the Rudra form snapshots upgraded Arcs so
     // no vn guard is held across the per-op body. Reusing one buffer across
@@ -19474,6 +19528,10 @@ fn only_op_use(
                 }
                 // cc:1836-1840: possibly legitimate double use at a call.
                 OC::CPUI_CALL | OC::CPUI_CALLIND => {
+                    // opmatch's code/in(0) come from the walk-invariant
+                    // snapshot above; op's code from the already-held guard
+                    // — identical values to ccdu's own re-reads (the walk
+                    // is read-only on ops).
                     if fd.check_call_double_use(
                         opmatch,
                         &crate::op::PcodeOpRef(op_arc.clone()),
@@ -19481,6 +19539,9 @@ fn only_op_use(
                         cur_flags,
                         trial,
                         match_fc,
+                        op_rg.opcode,
+                        walk_match_code,
+                        walk_match_in0.as_ref(),
                     ) {
                         continue;
                     }
@@ -19569,11 +19630,20 @@ fn only_op_use(
             // persist varnode (which is a use).
             if let Some(out) = op_rg.get_out() {
                 let out_clone = out.clone();
-                if out_clone.read().unwrap().is_persist() {
+                // Single read for the persist/mark pair (oracle reads the
+                // bare Varnode once per field; neither flag can change
+                // between the two loads — the only writer in this walk is
+                // this thread's setMark below, and isPersist is walk-
+                // invariant), then one write only when marking.
+                let (persist, marked) = {
+                    let vn = out_clone.read().unwrap();
+                    (vn.is_persist(), vn.is_mark())
+                };
+                if persist {
                     res = false;
                     break;
                 }
-                if !out_clone.read().unwrap().is_mark() {
+                if !marked {
                     out_clone.write().unwrap().set_mark();
                     varlist.push(TNode { vn: out_clone, flags: cur_flags });
                 }
