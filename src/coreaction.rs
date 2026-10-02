@@ -37,7 +37,7 @@ impl Action for ActionHeritage {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; string "heritage" mirrors ctor at coreaction.hh:284
+    // RUDRA-GLUE: Rust Action trait get_name; string "heritage" mirrors ctor at coreaction.hh:284
     fn get_name(&self) -> &str {
         "heritage"
     }
@@ -403,7 +403,7 @@ impl ActionDeadCode {
         }
     }
 
-    // RUGRA-GLUE: Ghidra's PcodeOp::isCallWithoutSpec() (op.hh:177) tests the
+    // RUDRA-GLUE: Ghidra's PcodeOp::isCallWithoutSpec() (op.hh:177) tests the
     // has_callspec flag, which in Ghidra is an exact proxy for "a
     // FuncCallSpecs object is attached": flow.cc:685 FlowInfo::setupCallSpecs
     // creates the FuncCallSpecs and rewrites in(0) in the same breath, and no
@@ -716,13 +716,13 @@ impl Action for ActionDeadCode {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "deadcode" mirrors ctor at coreaction.hh:552
+    // RUDRA-GLUE: Rust Action trait get_name; "deadcode" mirrors ctor at coreaction.hh:552
     fn get_name(&self) -> &str {
         "deadcode"
     }
 }
 
-// RUGRA-GLUE: wraps Varnode::getSpaceFromConst (varnode.hh) for the
+// RUDRA-GLUE: wraps Varnode::getSpaceFromConst (varnode.hh) for the
 // LOAD/STORE space-id operands of searchForSpaceAttribute — same projection
 // double_precis.rs uses (the constant holds a space id; recover via
 // AddressSpace::from_id).
@@ -1349,13 +1349,13 @@ impl Action for ActionConstantPtr {
         self.localcount = 0;
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:1213) into the Rust ActionState accumulator.
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "constantptr" mirrors ctor at coreaction.hh:188
+    // RUDRA-GLUE: Rust Action trait get_name; "constantptr" mirrors ctor at coreaction.hh:188
     fn get_name(&self) -> &str {
         "constantptr"
     }
@@ -1475,7 +1475,7 @@ impl Action for ActionCse {
         }
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "cse" mirrors the historical ActionCse at coreaction.cc:708
+    // RUDRA-GLUE: Rust Action trait get_name; "cse" mirrors the historical ActionCse at coreaction.cc:708
     fn get_name(&self) -> &str {
         "cse"
     }
@@ -2072,13 +2072,13 @@ impl Action for ActionRestructureVarnode {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:2282) into the Rust ActionState accumulator.
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "restructure_varnode" mirrors ctor at coreaction.hh:855 (Action(0,"restructure_varnode",g))
+    // RUDRA-GLUE: Rust Action trait get_name; "restructure_varnode" mirrors ctor at coreaction.hh:855 (Action(0,"restructure_varnode",g))
     fn get_name(&self) -> &str {
         "restructure_varnode"
     }
@@ -2102,7 +2102,7 @@ impl Action for ActionStart {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "start" mirrors ctor at coreaction.hh:36
+    // RUDRA-GLUE: Rust Action trait get_name; "start" mirrors ctor at coreaction.hh:36
     fn get_name(&self) -> &str {
         "start"
     }
@@ -2121,7 +2121,7 @@ impl ActionMergeRequired {
 }
 
 impl Action for ActionMergeRequired {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:364
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:364
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -2137,7 +2137,7 @@ impl Action for ActionMergeRequired {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "mergerequired" mirrors ctor at coreaction.hh:364
+    // RUDRA-GLUE: Rust Action trait get_name; "mergerequired" mirrors ctor at coreaction.hh:364
     fn get_name(&self) -> &str {
         "mergerequired"
     }
@@ -2156,7 +2156,7 @@ impl ActionMergeAdjacent {
 }
 
 impl Action for ActionMergeAdjacent {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:376
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:376
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -2168,7 +2168,7 @@ impl Action for ActionMergeAdjacent {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "mergeadjacent" mirrors ctor at coreaction.hh:376
+    // RUDRA-GLUE: Rust Action trait get_name; "mergeadjacent" mirrors ctor at coreaction.hh:376
     fn get_name(&self) -> &str {
         "mergeadjacent"
     }
@@ -2190,7 +2190,7 @@ impl ActionMergeCopy {
 }
 
 impl Action for ActionMergeCopy {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:387
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:387
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -2203,7 +2203,7 @@ impl Action for ActionMergeCopy {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "mergecopy" mirrors ctor at coreaction.hh:387
+    // RUDRA-GLUE: Rust Action trait get_name; "mergecopy" mirrors ctor at coreaction.hh:387
     fn get_name(&self) -> &str {
         "mergecopy"
     }
@@ -2222,7 +2222,7 @@ impl ActionMergeMultiEntry {
 }
 
 impl Action for ActionMergeMultiEntry {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:398
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:398
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -2234,7 +2234,7 @@ impl Action for ActionMergeMultiEntry {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "mergemultientry" mirrors ctor at coreaction.hh:398
+    // RUDRA-GLUE: Rust Action trait get_name; "mergemultientry" mirrors ctor at coreaction.hh:398
     fn get_name(&self) -> &str {
         "mergemultientry"
     }
@@ -2253,7 +2253,7 @@ impl ActionMergeType {
 }
 
 impl Action for ActionMergeType {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:409
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:409
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -2277,7 +2277,7 @@ impl Action for ActionMergeType {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "mergetype" mirrors ctor at coreaction.hh:409
+    // RUDRA-GLUE: Rust Action trait get_name; "mergetype" mirrors ctor at coreaction.hh:409
     fn get_name(&self) -> &str {
         "mergetype"
     }
@@ -2319,7 +2319,7 @@ impl Action for ActionMergeType {
 
 /// SysV AMD64 argument register offsets in order, consumed by
 /// ActionInferParams' input-register candidate scan.
-// RUGRA-GLUE: Rugra-specific ABI register index for the SysV trial scan
+// RUDRA-GLUE: Rugra-specific ABI register index for the SysV trial scan
 const SYSV_ARG_REGS: [(u64, &str); 6] = [
     (0x38, "rdi"),  // arg0
     (0x30, "rsi"),  // arg1
@@ -2340,14 +2340,14 @@ const SYSV_ARG_REGS: [(u64, &str); 6] = [
 pub struct ActionInferParams;
 
 impl ActionInferParams {
-    // RUGRA-GLUE: Rugra-specific param inference pass; no direct Ghidra Action counterpart
+    // RUDRA-GLUE: Rugra-specific param inference pass; no direct Ghidra Action counterpart
     pub fn new() -> Self {
         Self
     }
 }
 
 impl Action for ActionInferParams {
-    // RUGRA-GLUE: Rugra-specific param inference apply
+    // RUDRA-GLUE: Rugra-specific param inference apply
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         use crate::space::AddressSpace;
         use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
@@ -2622,7 +2622,7 @@ impl Action for ActionInferParams {
         }
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name for Rugra-specific ActionInferParams
+    // RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionInferParams
     fn get_name(&self) -> &str {
         "infer_params"
     }
@@ -2637,14 +2637,14 @@ impl Action for ActionInferParams {
 pub struct ActionTypeInfer;
 
 impl ActionTypeInfer {
-    // RUGRA-GLUE: Rugra-specific whole-function type inference; no direct Ghidra Action counterpart (Ghidra uses ActionInferTypes instead)
+    // RUDRA-GLUE: Rugra-specific whole-function type inference; no direct Ghidra Action counterpart (Ghidra uses ActionInferTypes instead)
     pub fn new() -> Self {
         Self
     }
 }
 
 impl Action for ActionTypeInfer {
-    // RUGRA-GLUE: Rugra-specific whole-function type inference apply
+    // RUDRA-GLUE: Rugra-specific whole-function type inference apply
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
@@ -2927,13 +2927,13 @@ impl Action for ActionTypeInfer {
         }
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name for Rugra-specific ActionTypeInfer
+    // RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionTypeInfer
     fn get_name(&self) -> &str {
         "type_infer"
     }
 }
 
-// RUGRA-GLUE: helper mirroring TypePointer::getPtrTo (type.hh); used by Rugra type inference
+// RUDRA-GLUE: helper mirroring TypePointer::getPtrTo (type.hh); used by Rugra type inference
 fn get_pointed_type(
     ptr_dt: &Arc<crate::type_system::datatype::Datatype>,
 ) -> Option<Arc<crate::type_system::datatype::Datatype>> {
@@ -2944,7 +2944,7 @@ fn get_pointed_type(
     }
 }
 
-// RUGRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh); used by Rugra type inference
+// RUDRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh); used by Rugra type inference
 // Ghidra: type.cc:3867 TypeFactory::getTypePointer(int4,Datatype*,uint4) — the 3-arg
 // overload constructs `TypePointer tmp(s,pt,ws)` with an EMPTY name (only the
 // 4-arg overload at type.cc:3885 attaches a name), so every type-inference
@@ -2990,14 +2990,14 @@ impl Action for ActionUnreachable {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:3461 `count += 1`) into the Rust ActionState
     // accumulator harvested by Action::perform (action.cc:319 calls apply,
     // 327-329 examine the grown member, 361 `return count`).
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "unreachable" mirrors ctor at coreaction.hh:493
+    // RUDRA-GLUE: Rust Action trait get_name; "unreachable" mirrors ctor at coreaction.hh:493
     fn get_name(&self) -> &str { "unreachable" }
 }
 
@@ -3300,9 +3300,9 @@ impl Action for ActionDoNothing {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_repeatapply bit set in ctor at coreaction.hh:504 (Action(rule_repeatapply,"donothing",g))
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_repeatapply bit set in ctor at coreaction.hh:504 (Action(rule_repeatapply,"donothing",g))
     fn get_flags(&self) -> u32 { action_flags::RULE_REPEATAPPLY }
-    // RUGRA-GLUE: Rust Action trait get_name; "donothing" mirrors ctor at coreaction.hh:504
+    // RUDRA-GLUE: Rust Action trait get_name; "donothing" mirrors ctor at coreaction.hh:504
     fn get_name(&self) -> &str { "donothing" }
 }
 
@@ -3409,9 +3409,9 @@ impl Action for ActionRedundBranch {
         // cc:3527: indicate the full rule was applied.
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "redundbranch" mirrors ctor at coreaction.hh:515
+    // RUDRA-GLUE: Rust Action trait get_name; "redundbranch" mirrors ctor at coreaction.hh:515
     fn get_name(&self) -> &str { "redundbranch" }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:3509/3525 `count += 1`) into the ActionState accumulator
     // harvested by Action::perform, same pattern as ActionDeterminedBranch.
     fn take_count_delta(&mut self) -> i32 {
@@ -3514,9 +3514,9 @@ impl Action for ActionDeterminedBranch {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "determinedbranch" mirrors ctor at coreaction.hh:526
+    // RUDRA-GLUE: Rust Action trait get_name; "determinedbranch" mirrors ctor at coreaction.hh:526
     fn get_name(&self) -> &str { "determinedbranch" }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:3546 `count += 1`) into the ActionState accumulator
     // harvested by Action::perform, same pattern as ActionBlockStructure.
     fn take_count_delta(&mut self) -> i32 {
@@ -3535,7 +3535,7 @@ impl ActionHideShadow {
     pub fn new() -> Self { Self }
 }
 impl Action for ActionHideShadow {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:992
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:992
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -3570,7 +3570,7 @@ impl Action for ActionHideShadow {
         let _ = count;
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "hideshadow" mirrors ctor at coreaction.hh:992
+    // RUDRA-GLUE: Rust Action trait get_name; "hideshadow" mirrors ctor at coreaction.hh:992
     fn get_name(&self) -> &str { "hideshadow" }
 }
 
@@ -3630,14 +3630,14 @@ impl Action for ActionSwitchNorm {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:4557/4561 `count += 1`) into the Rust ActionState
     // accumulator harvested by Action::perform (action.cc:319 calls apply,
     // 327-329 examine the grown member, 361 `return count`).
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "switchnorm" mirrors ctor at coreaction.hh:609
+    // RUDRA-GLUE: Rust Action trait get_name; "switchnorm" mirrors ctor at coreaction.hh:609
     fn get_name(&self) -> &str { "switchnorm" }
 }
 
@@ -3666,9 +3666,9 @@ impl Action for ActionNormalizeSetup {
         // model-lock tracking is added.
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:630 (Action(rule_onceperfunc,"normalizesetup",g))
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:630 (Action(rule_onceperfunc,"normalizesetup",g))
     fn get_flags(&self) -> u32 { action_flags::RULE_ONCEPERFUNC }
-    // RUGRA-GLUE: Rust Action trait get_name; "normalizesetup" mirrors ctor at coreaction.hh:630
+    // RUDRA-GLUE: Rust Action trait get_name; "normalizesetup" mirrors ctor at coreaction.hh:630
     fn get_name(&self) -> &str { "normalizesetup" }
 }
 
@@ -4187,7 +4187,7 @@ pub fn for_loop_finalize_printing(fd: &mut Funcdata) {
 }
 
 impl Action for ActionPrototypeWarnings {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1047
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1047
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -4294,7 +4294,7 @@ impl Action for ActionPrototypeWarnings {
         // direct unit tests; nothing in the pipeline calls it.
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "prototypewarnings" mirrors ctor at coreaction.hh:1047
+    // RUDRA-GLUE: Rust Action trait get_name; "prototypewarnings" mirrors ctor at coreaction.hh:1047
     fn get_name(&self) -> &str { "prototypewarnings" }
 }
 
@@ -4830,7 +4830,7 @@ impl ActionMarkExplicit {
     }
 }
 impl Action for ActionMarkExplicit {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:440
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:440
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -4912,14 +4912,14 @@ impl Action for ActionMarkExplicit {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:3252/3262 accumulation) into the Rust ActionState
     // accumulator harvested by Action::perform (action.cc:319 calls apply,
     // 327-329 examine the grown member, 361 `return count`).
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "markexplicit" mirrors ctor at coreaction.hh:427
+    // RUDRA-GLUE: Rust Action trait get_name; "markexplicit" mirrors ctor at coreaction.hh:427
     fn get_name(&self) -> &str { "markexplicit" }
 }
 
@@ -5359,7 +5359,7 @@ impl ActionMarkImplied {
     }
 }
 impl Action for ActionMarkImplied {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:461
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:461
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -5473,14 +5473,14 @@ impl Action for ActionMarkImplied {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:3434 accumulation) into the Rust ActionState
     // accumulator harvested by Action::perform (action.cc:319 calls apply,
     // 327-329 examine the grown member, 361 `return count`).
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "markimplied" mirrors ctor at coreaction.hh:449
+    // RUDRA-GLUE: Rust Action trait get_name; "markimplied" mirrors ctor at coreaction.hh:449
     fn get_name(&self) -> &str { "markimplied" }
 }
 
@@ -5507,7 +5507,7 @@ impl ActionSetCasts {
     /// metain=TYPE_INT; BOOL_* have metain=TYPE_BOOL. Returns None for ops
     /// with no fixed input metatype (LOAD/STORE/CALL/branch etc.), which
     /// Ghidra handles via op-specific getInputCast overrides not ported here.
-    // RUGRA-GLUE: helper mapping OpCode -> TypeMetatype for cast decisions; mirrors OpCode::getMetadata (typeop.cc)
+    // RUDRA-GLUE: helper mapping OpCode -> TypeMetatype for cast decisions; mirrors OpCode::getMetadata (typeop.cc)
     fn input_metatype(opc: OpCode) -> Option<crate::type_system::datatype::TypeMetatype> {
         use crate::type_system::datatype::TypeMetatype;
         match opc {
@@ -6531,7 +6531,7 @@ impl ActionSetCasts {
             .map(|_| reqtype)
     }
 
-    // RUGRA-GLUE: addlflags predicates from the Ghidra TypeOp constructors
+    // RUDRA-GLUE: addlflags predicates from the Ghidra TypeOp constructors
     /// `TypeOp::inheritsSign` (typeop.hh:131): the addlflags bit assigned by
     /// the comparison/arithmetic/logic/shift ctor `addlflags` lines in
     /// typeop.cc (928-1695) and read by markExplicitUnsigned (cast.cc:42).
@@ -6565,7 +6565,7 @@ impl ActionSetCasts {
     /// `TypeOp::inheritsSignFirstParamOnly` (typeop.hh:134,
     /// `inherits_sign_zero`): shifts and INT_REM/INT_SREM only inherit sign
     /// from their first parameter.
-    // RUGRA-GLUE: addlflags predicate mirror of TypeOp::inheritsSignFirstParamOnly (typeop.hh:134)
+    // RUDRA-GLUE: addlflags predicate mirror of TypeOp::inheritsSignFirstParamOnly (typeop.hh:134)
     fn op_inherits_sign_first_param_only(opc: OpCode) -> bool {
         matches!(
             opc,
@@ -6578,7 +6578,7 @@ impl ActionSetCasts {
     }
 
     /// `TypeOp::isShiftOp` (typeop.hh:137, `shift_op`).
-    // RUGRA-GLUE: addlflags predicate mirror of TypeOp::isShiftOp (typeop.hh:137)
+    // RUDRA-GLUE: addlflags predicate mirror of TypeOp::isShiftOp (typeop.hh:137)
     fn op_is_shift(opc: OpCode) -> bool {
         matches!(
             opc,
@@ -6673,7 +6673,7 @@ impl ActionSetCasts {
             if outvn.read().unwrap().is_explicit() {
                 return false;
             }
-            // RUGRA-GLUE: scrutinee read guard lifted to statement scope
+            // RUDRA-GLUE: scrutinee read guard lifted to statement scope
             // (lock-hygiene family: ER ruleaction SubRight / EW castInput /
             // EM3 cover_dirty). An `if let Some(x) = outvn.read().unwrap()
             // .lone_descend()` scrutinee would hold the read guard through
@@ -7596,7 +7596,7 @@ impl ActionSetCasts {
         1 // count += 1
     }
 
-    // RUGRA-GLUE: cc:2570-2571/2578-2579 refresh helper — Varnode::updateType
+    // RUDRA-GLUE: cc:2570-2571/2578-2579 refresh helper — Varnode::updateType
     // calls high->typeDirty() in Ghidra so the following
     // getHighTypeDefFacing() recomputes from the just-written instance type;
     // Rugra's typeDirty is a no-op, so a high still reporting the pre-update
@@ -7843,7 +7843,7 @@ impl ActionSetCasts {
         }
     }
 
-    // RUGRA-GLUE: output_metatype (no Ghidra direct counterpart; derived from
+    // RUDRA-GLUE: output_metatype (no Ghidra direct counterpart; derived from
     // TypeOp::getOutputToken which Rugra lacks)
     /// Determine the output metatype for an opcode (for castOutput). The
     /// metatypes are the TypeOpBinary/TypeOpUnary/TypeOpFunc constructor
@@ -7927,7 +7927,7 @@ impl ActionSetCasts {
     }
 }
 impl Action for ActionSetCasts {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:330
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:330
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -8123,13 +8123,13 @@ impl Action for ActionSetCasts {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: exposes ActionSetCasts inherited count through external ActionState after raw apply returns Ghidra's 0
+    // RUDRA-GLUE: exposes ActionSetCasts inherited count through external ActionState after raw apply returns Ghidra's 0
     fn take_count_delta(&mut self) -> i32 {
         let changes = self.count ;
         self.count = 0 ;
         changes
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "setcasts" mirrors ctor at coreaction.hh:330
+    // RUDRA-GLUE: Rust Action trait get_name; "setcasts" mirrors ctor at coreaction.hh:330
     fn get_name(&self) -> &str { "setcasts" }
 }
 
@@ -8172,7 +8172,7 @@ type TempTypes =
 /// create_index with its size so that distinct overlapping varnodes don't
 /// collide. (Rugra varnodes are uniquely keyed by (loc, size, create_index).)
 #[inline]
-// RUGRA-GLUE: Rugra helper producing a stable u64 key for a Varnode (Rust borrow workaround)
+// RUDRA-GLUE: Rugra helper producing a stable u64 key for a Varnode (Rust borrow workaround)
 fn vn_id(vn: &crate::varnode::Varnode) -> u64 {
     // offset encodes the address+space identity; combine with size & create_index.
     let off = vn.get_offset();
@@ -8237,7 +8237,7 @@ fn merge_min_type_order(
 
 /// Build a pointer type to `base` with the architecture pointer size, using a
 /// fresh factory-free TypePointer. Faithful to `TypeFactory::getTypePointer`.
-// RUGRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh)
+// RUDRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh)
 // Ghidra: type.cc:3867 TypeFactory::getTypePointer(int4,Datatype*,uint4) — the
 // 3-arg overload's `TypePointer tmp(s,pt,ws)` carries an EMPTY name (names
 // attach only via the 4-arg overload, type.cc:3885); see make_pointer_type's
@@ -8729,7 +8729,7 @@ impl ActionInferTypes {
     /// original reaches through the TypeOp's `tlst` member (op.hh:122); the
     /// add-family pointer arms need it to intern the downChain-transformed
     /// types, so they stop the propagation when no factory is available.
-    // RUGRA-GLUE: Rugra driver that folds ActionInferTypes::propagateOneType over the varnode set (coreaction.cc:5400-5405)
+    // RUDRA-GLUE: Rugra driver that folds ActionInferTypes::propagateOneType over the varnode set (coreaction.cc:5400-5405)
     fn propagate_type(
         op: &crate::op::PcodeOp,
         alttype: &std::sync::Arc<crate::type_system::datatype::Datatype>,
@@ -9304,7 +9304,7 @@ impl ActionInferTypes {
     /// The edge SOURCE varnode of a propagateType edge
     /// (coreaction.cc:5080): the op output when `inslot == -1`, else the
     /// input at `inslot`.
-    // RUGRA-GLUE: edge-source accessor mirroring coreaction.cc:5080 invn selection
+    // RUDRA-GLUE: edge-source accessor mirroring coreaction.cc:5080 invn selection
     fn edge_src_varnode(
         op: &crate::op::PcodeOp,
         inslot: i32,
@@ -9318,7 +9318,7 @@ impl ActionInferTypes {
 
     /// The edge DESTINATION varnode of a propagateType edge: the op output
     /// when `outslot == -1`, else the input at `outslot`.
-    // RUGRA-GLUE: edge-destination accessor mirroring propagateTypeEdge outvn selection
+    // RUDRA-GLUE: edge-destination accessor mirroring propagateTypeEdge outvn selection
     fn edge_dest_varnode(
         op: &crate::op::PcodeOp,
         outslot: i32,
@@ -9335,7 +9335,7 @@ impl ActionInferTypes {
     /// TYPE_UNKNOWN), defaultDataSpace->getWordSize())` — the pointer is
     /// sized by the alttype, the pointee is unknown1, and the ram data space
     /// wordsize is 1 (typeop.cc:968-971 and parallels).
-    // RUGRA-GLUE: shared helper for the spacebase rewrap in typeop.cc propagateType overrides
+    // RUDRA-GLUE: shared helper for the spacebase rewrap in typeop.cc propagateType overrides
     fn spacebase_rewrap(
         alttype: &std::sync::Arc<crate::type_system::datatype::Datatype>,
         type_factory: Option<&Arc<RwLock<crate::type_system::typefactory::TypeFactory>>>,
@@ -9445,7 +9445,7 @@ impl ActionInferTypes {
         }
         impl PropagationState {
             // Ghidra: coreaction.cc:5115 PropagationState::PropagationState
-            // RUGRA-GLUE: ctor + first-descendant advance fused; a descendant
+            // RUDRA-GLUE: ctor + first-descendant advance fused; a descendant
             // whose inref slot lookup misses is skipped (the eager form's
             // `continue`), which the live IR never produces.
             fn new(vn: std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>) -> Self {
@@ -9488,7 +9488,7 @@ impl ActionInferTypes {
             /// `op = *iter++` plus the `getSlot` lookup, cc:5119-5127/5146-5152).
             /// Returns (op, numInput, inslot, initial slot): slot is -1 when
             /// the op has an output (the output edge comes first), else 0.
-            // RUGRA-GLUE: borrow-splitting helper fusing the oracle's list-iterator
+            // RUDRA-GLUE: borrow-splitting helper fusing the oracle's list-iterator
             // advance (*iter++) with getSlot and the no-output slot-0 start
             // (cc:5119-5127/5146-5152); Rust needs it as a method to mutate
             // self.descendants' cursor under &mut self.
@@ -10085,7 +10085,7 @@ struct IntTypes {
 }
 
 impl IntTypes {
-    // RUGRA-GLUE: IntTypes helper; size->Datatype lookup mirroring TypeFactory base-type table
+    // RUDRA-GLUE: IntTypes helper; size->Datatype lookup mirroring TypeFactory base-type table
     fn sized(&self, sz: usize) -> std::sync::Arc<crate::type_system::datatype::Datatype> {
         match sz {
             1 => self.int_1.clone(),
@@ -10246,11 +10246,11 @@ impl Action for ActionInferTypes {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "infertypes" mirrors ctor at coreaction.hh:960
+    // RUDRA-GLUE: Rust Action trait get_name; "infertypes" mirrors ctor at coreaction.hh:960
     fn get_name(&self) -> &str { "infertypes" }
 }
 
-// RUGRA-GLUE: seed_global_struct_pointers (no Ghidra counterpart found)
+// RUDRA-GLUE: seed_global_struct_pointers (no Ghidra counterpart found)
 /// Stamp struct-pointer types from `Funcdata::global_struct_ptrs` into the
 /// ActionInferTypes temp-type map. This is Rugra's stand-in for Ghidra's
 /// SymbolEntry→Datatype linkage (database.cc): when the decompiler sees a
@@ -10650,7 +10650,7 @@ impl ActionNameVars {
     }
 }
 impl Action for ActionNameVars {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:482
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:482
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -10860,7 +10860,7 @@ impl Action for ActionNameVars {
         }
         fd.scope = scope_taken;
 
-        // RUGRA-GLUE: symbol→HighVariable name write-back. Ghidra's PrintC
+        // RUDRA-GLUE: symbol→HighVariable name write-back. Ghidra's PrintC
         // resolves every variable name through `high->getSymbol()` /
         // `Symbol::getDisplayName`; Rugra's printc still reads
         // `HighVariable::name`. Mirror the symbol attachment by publishing
@@ -10912,7 +10912,7 @@ impl Action for ActionNameVars {
             }
         }
 
-        // RUGRA-GLUE: refresh the bridged database.rs mirror symbols with
+        // RUDRA-GLUE: refresh the bridged database.rs mirror symbols with
         // the finished names, so any consumer reading a Varnode's mapentry
         // (`vn->getSymbolEntry()->getSymbol()`) sees the same name as the
         // varmap symbol, like Ghidra's single Symbol object would.
@@ -10933,7 +10933,7 @@ impl Action for ActionNameVars {
 
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "namevars" mirrors ctor at coreaction.hh:470
+    // RUDRA-GLUE: Rust Action trait get_name; "namevars" mirrors ctor at coreaction.hh:470
     fn get_name(&self) -> &str { "namevars" }
 }
 
@@ -11148,7 +11148,7 @@ impl Action for ActionVarnodeProps {
         // is for statistics only and does NOT drive repeatapply.
         Ok(0)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "varnodeprops" mirrors ctor at coreaction.hh:222
+    // RUDRA-GLUE: Rust Action trait get_name; "varnodeprops" mirrors ctor at coreaction.hh:222
     fn get_name(&self) -> &str { "varnodeprops" }
 }
 
@@ -11297,7 +11297,7 @@ impl Action for ActionRestrictLocal {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "restrictlocal" mirrors ctor at coreaction.hh:813
+    // RUDRA-GLUE: Rust Action trait get_name; "restrictlocal" mirrors ctor at coreaction.hh:813
     fn get_name(&self) -> &str { "restrictlocal" }
 }
 
@@ -11311,7 +11311,7 @@ impl ActionMultiCse {
 
     /// Resolve a COPY chain: if `vn` is defined by a COPY, return its input.
     /// Otherwise return `vn` itself. Used to allow copy-propagation differences.
-    // RUGRA-GLUE: Rugra helper chasing COPY chains; Ghidra inlines this within ActionMultiCse::processBlock (coreaction.cc:790-810)
+    // RUDRA-GLUE: Rugra helper chasing COPY chains; Ghidra inlines this within ActionMultiCse::processBlock (coreaction.cc:790-810)
     fn resolve_copy(
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
     ) -> std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>> {
@@ -11548,11 +11548,11 @@ impl Action for ActionMultiCse {
         self.count += local_count;
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:873) into the Rust ActionState accumulator
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:873) into the Rust ActionState accumulator
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "multicse" mirrors ctor at coreaction.hh:163
+    // RUDRA-GLUE: Rust Action trait get_name; "multicse" mirrors ctor at coreaction.hh:163
     fn get_name(&self) -> &str { "multicse" }
 }
 
@@ -11780,7 +11780,7 @@ impl Action for ActionDirectWrite {
 
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "directwrite" mirrors ctor at coreaction.hh:243
+    // RUDRA-GLUE: Rust Action trait get_name; "directwrite" mirrors ctor at coreaction.hh:243
     fn get_name(&self) -> &str { "directwrite" }
 }
 
@@ -11871,11 +11871,11 @@ impl Action for ActionConstbase {
         // when COPY ops were inserted: no change counter in this action).
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "constbase" mirrors ctor at coreaction.hh:259
+    // RUDRA-GLUE: Rust Action trait get_name; "constbase" mirrors ctor at coreaction.hh:259
     fn get_name(&self) -> &str { "constbase" }
 }
 
-// RUGRA-GLUE: bank_has_input_intersection (VarnodeBank::hasInputIntersection,
+// RUDRA-GLUE: bank_has_input_intersection (VarnodeBank::hasInputIntersection,
 // varnode.cc:1536-1554, borrowed as a free function to keep the write-set
 // inside the calling action file). Ghidra probes the input-flagged def subset
 // with the query address: the first def at-or-after the address and the one
@@ -11928,7 +11928,7 @@ pub struct ActionInputPrototype;impl ActionInputPrototype {
     pub fn new() -> Self { Self }
 }
 impl Action for ActionInputPrototype {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:894
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:894
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -12174,7 +12174,7 @@ impl Action for ActionInputPrototype {
         fd.clear_dead_varnodes();
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "inputprototype" mirrors ctor at coreaction.hh:892
+    // RUDRA-GLUE: Rust Action trait get_name; "inputprototype" mirrors ctor at coreaction.hh:892
     fn get_name(&self) -> &str { "inputprototype" }
 }
 
@@ -12186,7 +12186,7 @@ impl ActionOutputPrototype {
     pub fn new() -> Self { Self }
 }
 impl Action for ActionOutputPrototype {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:905
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:905
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -12251,7 +12251,7 @@ impl Action for ActionOutputPrototype {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "outputprototype" mirrors ctor at coreaction.hh:903
+    // RUDRA-GLUE: Rust Action trait get_name; "outputprototype" mirrors ctor at coreaction.hh:903
     fn get_name(&self) -> &str { "outputprototype" }
 }
 
@@ -12634,9 +12634,9 @@ impl Action for ActionPrototypeTypes {
 
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:646
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:646
     fn get_flags(&self) -> u32 { action_flags::RULE_ONCEPERFUNC }
-    // RUGRA-GLUE: Rust Action trait get_name; "prototypetypes" mirrors ctor at coreaction.hh:643
+    // RUDRA-GLUE: Rust Action trait get_name; "prototypetypes" mirrors ctor at coreaction.hh:643
     fn get_name(&self) -> &str { "prototypetypes" }
 }
 
@@ -12765,7 +12765,7 @@ impl Action for ActionActiveParam {
         }
         Ok(count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "activeparam" mirrors ctor at coreaction.hh:748
+    // RUDRA-GLUE: Rust Action trait get_name; "activeparam" mirrors ctor at coreaction.hh:748
     fn get_name(&self) -> &str { "activeparam" }
 }
 
@@ -13005,11 +13005,11 @@ impl Action for ActionActiveReturn {
         self.count += local_count;
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:1788) into the Rust ActionState accumulator
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:1788) into the Rust ActionState accumulator
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "activereturn" mirrors ctor at coreaction.hh:761
+    // RUDRA-GLUE: Rust Action trait get_name; "activereturn" mirrors ctor at coreaction.hh:761
     fn get_name(&self) -> &str { "activereturn" }
 }
 
@@ -13116,7 +13116,7 @@ impl Action for ActionDefaultParams {
                     }
                         }
                     }
-                    // RUGRA-GLUE: dual-model seam — keep the simplified
+                    // RUDRA-GLUE: dual-model seam — keep the simplified
                     // type_system model seeded for possible_input_param
                     // consumers (no Ghidra counterpart: one model field).
                     if fc.proto_model.is_none() {
@@ -13129,9 +13129,9 @@ impl Action for ActionDefaultParams {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:661
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:661
     fn get_flags(&self) -> u32 { action_flags::RULE_ONCEPERFUNC }
-    // RUGRA-GLUE: Rust Action trait get_name; "defaultparams" mirrors ctor at coreaction.hh:659
+    // RUDRA-GLUE: Rust Action trait get_name; "defaultparams" mirrors ctor at coreaction.hh:659
     fn get_name(&self) -> &str { "defaultparams" }
 }
 
@@ -13168,7 +13168,7 @@ impl Action for ActionParamDouble {
         let _ = change_count;
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "paramdouble" mirrors ctor at coreaction.hh:730
+    // RUDRA-GLUE: Rust Action trait get_name; "paramdouble" mirrors ctor at coreaction.hh:730
     fn get_name(&self) -> &str { "paramdouble" }
 }
 
@@ -13281,7 +13281,7 @@ impl Action for ActionUnjustifiedParams {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:4826 `count += 1` per adjustInputVarnodes) into the
     // Rust ActionState accumulator harvested by Action::perform
     // (action.rs:338-339 — drives lcount<count → count_apply/repeat).
@@ -13289,7 +13289,7 @@ impl Action for ActionUnjustifiedParams {
         std::mem::take(&mut self.count)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "unjustparams" mirrors ctor at coreaction.hh:920 (Action(0,"unjustparams",g))
+    // RUDRA-GLUE: Rust Action trait get_name; "unjustparams" mirrors ctor at coreaction.hh:920 (Action(0,"unjustparams",g))
     fn get_name(&self) -> &str { "unjustparams" }
 }
 
@@ -13617,7 +13617,7 @@ impl Action for ActionLikelyTrash {
         }
         Ok(action_status::NO_CHANGE) // cc:2169: return 0
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "likelytrash" mirrors ctor at coreaction.hh:833
+    // RUDRA-GLUE: Rust Action trait get_name; "likelytrash" mirrors ctor at coreaction.hh:833
     fn get_name(&self) -> &str { "likelytrash" }
 }
 
@@ -13779,17 +13779,17 @@ impl Action for ActionShadowVar {
         self.count += local_count;
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:945) into the Rust ActionState accumulator
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:945) into the Rust ActionState accumulator
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "shadowvar" mirrors ctor at coreaction.hh:177
+    // RUDRA-GLUE: Rust Action trait get_name; "shadowvar" mirrors ctor at coreaction.hh:177
     fn get_name(&self) -> &str { "shadowvar" }
 }
 
 /// Helper: get the basic-block ops list containing the given op. Returns an
 /// empty Vec if the op is not in any BlockBasic.
-// RUGRA-GLUE: Rugra helper bridging PcodeOpRef -> parent BlockBasic ops list (Ghidra reaches this via PcodeOp::parent)
+// RUDRA-GLUE: Rugra helper bridging PcodeOpRef -> parent BlockBasic ops list (Ghidra reaches this via PcodeOp::parent)
 fn get_block_ops(fd: &Funcdata, op: &crate::op::PcodeOpRef) -> Vec<crate::op::PcodeOpRef> {
     use crate::block::BlockBasic;
     for i in 0..fd.bblocks.get_size() {
@@ -14019,9 +14019,9 @@ impl Action for ActionFuncLink {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:697
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:697
     fn get_flags(&self) -> u32 { action_flags::RULE_ONCEPERFUNC }
-    // RUGRA-GLUE: Rust Action trait get_name; "funclink" mirrors ctor at coreaction.hh:697
+    // RUDRA-GLUE: Rust Action trait get_name; "funclink" mirrors ctor at coreaction.hh:697
     fn get_name(&self) -> &str { "funclink" }
 }
 
@@ -14055,9 +14055,9 @@ impl Action for ActionFuncLinkOutOnly {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:715
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:715
     fn get_flags(&self) -> u32 { action_flags::RULE_ONCEPERFUNC }
-    // RUGRA-GLUE: Rust Action trait get_name; "funclink_outonly" mirrors ctor at coreaction.hh:715 (Action(rule_onceperfunc,"funclink_outonly",g))
+    // RUDRA-GLUE: Rust Action trait get_name; "funclink_outonly" mirrors ctor at coreaction.hh:715 (Action(rule_onceperfunc,"funclink_outonly",g))
     fn get_name(&self) -> &str { "funclink_outonly" }
 }
 
@@ -14229,11 +14229,11 @@ impl Action for ActionDeindirect {
         // Ghidra cc:1279: return 0.
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:1237) into the Rust ActionState accumulator
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:1237) into the Rust ActionState accumulator
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "deindirect" mirrors ctor at coreaction.hh:206
+    // RUDRA-GLUE: Rust Action trait get_name; "deindirect" mirrors ctor at coreaction.hh:206
     fn get_name(&self) -> &str { "deindirect" }
 }
 
@@ -14286,7 +14286,7 @@ impl ActionDeindirect {
     /// preserving the pre-database production conversion set. Returns the
     /// entry address plus the callee display name (oracle:
     /// `newfd->getDisplayName()`).
-    // RUGRA-GLUE: production query channel for queryFunction (coreaction.cc:1251); Rugra has no per-callee Funcdata, so the (entry, name) observable slice is handed back
+    // RUDRA-GLUE: production query channel for queryFunction (coreaction.cc:1251); Rugra has no per-callee Funcdata, so the (entry, name) observable slice is handed back
     fn query_function_prod(
         fd: &Funcdata,
         codeaddr: crate::address::Address,
@@ -14344,7 +14344,7 @@ impl ActionDeindirect {
     /// feed yet: a detected-but-unresolvable reference behaves exactly like
     /// oracle's `newfd == 0` (no conversion, fall through to the typed
     /// arm).
-    // RUGRA-GLUE: production query channel for queryExternalRefFunction (coreaction.cc:1234); refaddr storage residual registered on FSPEC-DEINDIRECT-TRIGGER-0001
+    // RUDRA-GLUE: production query channel for queryExternalRefFunction (coreaction.cc:1234); refaddr storage residual registered on FSPEC-DEINDIRECT-TRIGGER-0001
     fn query_external_ref_function_prod(
         fd: &Funcdata,
         addr: &crate::address::Address,
@@ -14394,7 +14394,7 @@ impl ActionDeindirect {
     /// noreturn/inline/lock gates read identical false. Divergence surface =
     /// callspecs bound to a non-default model (empty on the locked single-
     /// model gcc corpora; registered on FSPEC-DEINDIRECT-TRIGGER-0001).
-    // RUGRA-GLUE: the callee FuncProto observable slice (fspec.cc:5460 newfd->getFuncProto()); model bound per the timing rationale above
+    // RUDRA-GLUE: the callee FuncProto observable slice (fspec.cc:5460 newfd->getFuncProto()); model bound per the timing rationale above
     fn db_default_callee_proto(fd: &Funcdata) -> crate::fspec::FuncProto {
         let mut proto = crate::flow::default_call_spec_proto();
         let evalfp = fd.get_arch().and_then(|arch| {
@@ -14790,7 +14790,7 @@ impl StackSolver {
         }
     }
 
-    // RUGRA-GLUE: find_varnode_index — Ghidra cc:184 用 lower_bound+
+    // RUDRA-GLUE: find_varnode_index — Ghidra cc:184 用 lower_bound+
     // Varnode::comparePointers; Rugra 用线性 Arc 指针匹配(vnlist 小)。
     /// Binary search for a varnode's index in vnlist (Ghidra cc:184
     /// `lower_bound(vnlist, othervn, Varnode::comparePointers)`). Rugra's
@@ -14826,7 +14826,7 @@ impl StackSolver {
     pub fn get_solution(&self, i: usize) -> i32 {
         *self.soln.get(i).unwrap_or(&Self::UNSOLVED)
     }
-    // RUGRA-GLUE: get_missed_variables — Ghidra StackSolver 暴露 missedvariables
+    // RUDRA-GLUE: get_missed_variables — Ghidra StackSolver 暴露 missedvariables
     // 字段 (coreaction.cc:50);Rugra 用访问器。
     /// Number of variables for which we are missing an equation.
     pub fn get_missed_variables(&self) -> i32 {
@@ -14991,7 +14991,7 @@ impl ActionStackPtrFlow {
         }
     }
 
-    // RUGRA-GLUE: fixture view of the protected analysis_finished member (coreaction.hh:91); Ghidra fixtures read the flag through the same test-only access shim
+    // RUDRA-GLUE: fixture view of the protected analysis_finished member (coreaction.hh:91); Ghidra fixtures read the flag through the same test-only access shim
     /// Read the `analysis_finished` state (fixture view of coreaction.hh:91).
     pub fn is_analysis_finished(&self) -> bool {
         self.analysis_finished
@@ -15265,11 +15265,11 @@ impl Action for ActionStackPtrFlow {
     fn reset(&mut self, _fd: &mut Funcdata) {
         self.analysis_finished = false;
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:492) into the Rust ActionState accumulator
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count (coreaction.cc:492) into the Rust ActionState accumulator
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "stackptrflow" mirrors ctor at coreaction.hh:89
+    // RUDRA-GLUE: Rust Action trait get_name; "stackptrflow" mirrors ctor at coreaction.hh:89
     fn get_name(&self) -> &str { "stackptrflow" }
 }
 
@@ -15293,7 +15293,7 @@ impl Action for ActionSpacebase {
         fd.spacebase();
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "spacebase" mirrors ctor at coreaction.hh:272
+    // RUDRA-GLUE: Rust Action trait get_name; "spacebase" mirrors ctor at coreaction.hh:272
     fn get_name(&self) -> &str { "spacebase" }
 }
 
@@ -15323,7 +15323,7 @@ impl Action for ActionSegmentize {
         let _ = change_count;
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "segmentize" mirrors ctor at coreaction.hh:128
+    // RUDRA-GLUE: Rust Action trait get_name; "segmentize" mirrors ctor at coreaction.hh:128
     fn get_name(&self) -> &str { "segmentize" }
 }
 
@@ -15357,9 +15357,9 @@ impl Action for ActionInternalStorage {
         let _ = change_count;
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1060
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1060
     fn get_flags(&self) -> u32 { action_flags::RULE_ONCEPERFUNC }
-    // RUGRA-GLUE: Rust Action trait get_name; "internalstorage" mirrors ctor at coreaction.hh:1058
+    // RUDRA-GLUE: Rust Action trait get_name; "internalstorage" mirrors ctor at coreaction.hh:1058
     fn get_name(&self) -> &str { "internalstorage" }
 }
 
@@ -15464,9 +15464,9 @@ impl Action for ActionExtraPopSetup {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:679
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:679
     fn get_flags(&self) -> u32 { action_flags::RULE_ONCEPERFUNC }
-    // RUGRA-GLUE: Rust Action trait get_name; "extrapopsetup" mirrors ctor at coreaction.hh:676
+    // RUDRA-GLUE: Rust Action trait get_name; "extrapopsetup" mirrors ctor at coreaction.hh:676
     fn get_name(&self) -> &str { "extrapopsetup" }
 }
 
@@ -16613,7 +16613,7 @@ impl Action for ActionConditionalConst {
             Ok(action_status::NO_CHANGE)
         }
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "condconst" mirrors ctor at coreaction.hh:595 (Action(0,"condconst",g))
+    // RUDRA-GLUE: Rust Action trait get_name; "condconst" mirrors ctor at coreaction.hh:595 (Action(0,"condconst",g))
     fn get_name(&self) -> &str { "condconst" }
 }
 
@@ -16704,12 +16704,12 @@ impl Action for ActionDynamicMapping {
         }
         Ok(action_status::NO_CHANGE) // cc:4866: return 0
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:4864) into the Rust ActionState accumulator.
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "dynamicmapping" mirrors ctor at coreaction.hh:1023
+    // RUDRA-GLUE: Rust Action trait get_name; "dynamicmapping" mirrors ctor at coreaction.hh:1023
     fn get_name(&self) -> &str { "dynamicmapping" }
 }
 
@@ -16730,7 +16730,7 @@ impl ActionDynamicSymbols {
     }
 }
 impl Action for ActionDynamicSymbols {
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1036
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1036
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
@@ -16779,12 +16779,12 @@ impl Action for ActionDynamicSymbols {
         }
         Ok(action_status::NO_CHANGE) // cc:4883: return 0
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:4881) into the Rust ActionState accumulator.
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "dynamicsymbols" mirrors ctor at coreaction.hh:1034
+    // RUDRA-GLUE: Rust Action trait get_name; "dynamicsymbols" mirrors ctor at coreaction.hh:1034
     fn get_name(&self) -> &str { "dynamicsymbols" }
 }
 
@@ -16819,12 +16819,12 @@ impl Action for ActionMappedLocalSync {
         }
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:2303) into the Rust ActionState accumulator.
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "mapped_local_sync" mirrors ctor at coreaction.hh:869 (Action(0,"mapped_local_sync",g))
+    // RUDRA-GLUE: Rust Action trait get_name; "mapped_local_sync" mirrors ctor at coreaction.hh:869 (Action(0,"mapped_local_sync",g))
     fn get_name(&self) -> &str { "mapped_local_sync" }
 }
 
@@ -17062,14 +17062,14 @@ impl Action for ActionLaneDivide {
         fd.clear_laned_access_map(); // cc:620
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:578) into the Rust ActionState accumulator.
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:117 (Action(rule_onceperfunc,"lanedivide",g))
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:117 (Action(rule_onceperfunc,"lanedivide",g))
     fn get_flags(&self) -> u32 { action_flags::RULE_ONCEPERFUNC }
-    // RUGRA-GLUE: Rust Action trait get_name; "lanedivide" mirrors ctor at coreaction.hh:113
+    // RUDRA-GLUE: Rust Action trait get_name; "lanedivide" mirrors ctor at coreaction.hh:113
     fn get_name(&self) -> &str { "lanedivide" }
 }
 
@@ -17189,7 +17189,7 @@ fn return_join_address(
     (crate::space::AddressSpace::Join, join_unified_offset(hi, lo))
 }
 
-// RUGRA-GLUE: join_unified_offset — deterministic stand-in for the
+// RUDRA-GLUE: join_unified_offset — deterministic stand-in for the
 // manager-global `joinallocate` counter of AddrSpaceManager::findAddJoin
 // (translate.cc:699-712); residual registered on COREACTION-JOINSPACE-0001.
 /// Unified join-space offset for the piece quadruple (hi first, lo second —
@@ -17211,7 +17211,7 @@ fn join_unified_offset(
     hi: (crate::space::AddressSpace, u64, i32),
     lo: (crate::space::AddressSpace, u64, i32),
 ) -> u64 {
-    // RUGRA-GLUE: splitmix64 finalizer — pure arithmetic mixer with no
+    // RUDRA-GLUE: splitmix64 finalizer — pure arithmetic mixer with no
     // Ghidra counterpart (the oracle's offset comes from the joinallocate
     // counter, not a hash); fully specified for cross-toolchain stability.
     fn mix(mut z: u64) -> u64 {
@@ -17234,7 +17234,7 @@ fn join_unified_offset(
     (acc >> 4) << 4
 }
 impl ActionReturnRecovery {
-    // RUGRA-GLUE: constructor for the Action struct (count field for change tracking).
+    // RUDRA-GLUE: constructor for the Action struct (count field for change tracking).
     pub fn new() -> Self { Self { count: 0 } }
 
     // Ghidra: coreaction.cc:1836 ActionReturnRecovery::buildReturnOutput
@@ -17419,7 +17419,7 @@ impl Action for ActionReturnRecovery {
             let mut active = fd.active_output.take().unwrap();
             let mut ancestor_real = crate::funcdata::AncestorRealistic::new();
             // Activate the per-walk op→callspec resolution memo for the
-            // return trial loop only (RUGRA-GLUE; see
+            // return trial loop only (RUDRA-GLUE; see
             // Funcdata::get_call_specs_of_op): inside this loop the call
             // list and every spec's op binding are immutable, so memoized
             // resolutions equal recomputed ones. The scope closes with the
@@ -17504,13 +17504,13 @@ impl Action for ActionReturnRecovery {
         // cc:1954: apply always returns 0.
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (coreaction.cc:1933/1951) into the Rust ActionState accumulator;
     // apply itself returns 0 exactly like the oracle.
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "returnrecovery" mirrors ctor at coreaction.hh:799
+    // RUDRA-GLUE: Rust Action trait get_name; "returnrecovery" mirrors ctor at coreaction.hh:799
     fn get_name(&self) -> &str { "returnrecovery" }
 }
 
@@ -17537,7 +17537,7 @@ impl Action for ActionNonzeroMask {
         fd.calc_nz_mask();
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "nonzeromask" mirrors ctor at coreaction.hh:295
+    // RUDRA-GLUE: Rust Action trait get_name; "nonzeromask" mirrors ctor at coreaction.hh:295
     fn get_name(&self) -> &str { "nonzeromask" }
 }
 
@@ -17568,7 +17568,7 @@ impl Action for ActionForceGoto {
         // Full: fd.arch.overrides.apply_force_gotos(fd)
         Ok(action_status::NO_CHANGE)
     }
-    // RUGRA-GLUE: Rust Action trait get_name; "forcegoto" mirrors ctor at coreaction.hh:141
+    // RUDRA-GLUE: Rust Action trait get_name; "forcegoto" mirrors ctor at coreaction.hh:141
     fn get_name(&self) -> &str { "forcegoto" }
 }
 
@@ -17614,7 +17614,7 @@ impl Action for ActionStartCleanUp {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "startcleanup" mirrors ctor at coreaction.hh:60
+    // RUDRA-GLUE: Rust Action trait get_name; "startcleanup" mirrors ctor at coreaction.hh:60
     fn get_name(&self) -> &str {
         "startcleanup"
     }
@@ -17656,12 +17656,12 @@ impl Action for ActionStartTypes {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra ActionStartTypes' inherited protected count into ActionState
+    // RUDRA-GLUE: externalizes Ghidra ActionStartTypes' inherited protected count into ActionState
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.count)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "starttypes" mirrors ctor at coreaction.hh:76
+    // RUDRA-GLUE: Rust Action trait get_name; "starttypes" mirrors ctor at coreaction.hh:76
     fn get_name(&self) -> &str {
         "starttypes"
     }
@@ -17689,7 +17689,7 @@ impl Action for ActionStop {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "stop" mirrors ctor at coreaction.hh:48
+    // RUDRA-GLUE: Rust Action trait get_name; "stop" mirrors ctor at coreaction.hh:48
     fn get_name(&self) -> &str {
         "stop"
     }
@@ -17729,12 +17729,12 @@ impl Action for ActionAssignHigh {
         }
     }
 
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:341
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:341
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "assignhigh" mirrors ctor at coreaction.hh:341
+    // RUDRA-GLUE: Rust Action trait get_name; "assignhigh" mirrors ctor at coreaction.hh:341
     fn get_name(&self) -> &str {
         "assignhigh"
     }
@@ -17774,12 +17774,12 @@ impl Action for ActionDominantCopy {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1003
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1003
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "dominantcopy" mirrors ctor at coreaction.hh:1003
+    // RUDRA-GLUE: Rust Action trait get_name; "dominantcopy" mirrors ctor at coreaction.hh:1003
     fn get_name(&self) -> &str {
         "dominantcopy"
     }
@@ -17809,12 +17809,12 @@ impl Action for ActionCopyMarker {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1014
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:1014
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "copymarker" mirrors ctor at coreaction.hh:1014
+    // RUDRA-GLUE: Rust Action trait get_name; "copymarker" mirrors ctor at coreaction.hh:1014
     fn get_name(&self) -> &str {
         "copymarker"
     }
@@ -17841,7 +17841,7 @@ impl ActionMarkIndirectOnly {
     /// `Funcdata::checkIndirectUse` (funcdata_varnode.cc:771-811): a non-
     /// qualifying op anywhere in the transitive closure → false. Uses the
     /// MARK flag for cycle avoidance, mirroring Ghidra's setMark/clearMark.
-    // RUGRA-GLUE: Rugra helper factoring out INDIRECT-only-use predicate used by Funcdata::markIndirectOnly() (invoked from coreaction.hh:358)
+    // RUDRA-GLUE: Rugra helper factoring out INDIRECT-only-use predicate used by Funcdata::markIndirectOnly() (invoked from coreaction.hh:358)
     fn check_indirect_use(
         start: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
     ) -> bool {
@@ -17917,12 +17917,12 @@ impl Action for ActionMarkIndirectOnly {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:352
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:352
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "markindirectonly" mirrors ctor at coreaction.hh:352
+    // RUDRA-GLUE: Rust Action trait get_name; "markindirectonly" mirrors ctor at coreaction.hh:352
     fn get_name(&self) -> &str {
         "markindirectonly"
     }
@@ -17958,12 +17958,12 @@ impl Action for ActionMapGlobals {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:880
+    // RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:880
     fn get_flags(&self) -> u32 {
         action_flags::RULE_ONCEPERFUNC
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "mapglobals" mirrors ctor at coreaction.hh:880
+    // RUDRA-GLUE: Rust Action trait get_name; "mapglobals" mirrors ctor at coreaction.hh:880
     fn get_name(&self) -> &str {
         "mapglobals"
     }
@@ -18378,7 +18378,7 @@ impl ActionPreferComplement {
         true
     }
 
-    // RUGRA-GLUE: structure-tree children accessor (Ghidra BlockGraph::getBlock)
+    // RUDRA-GLUE: structure-tree children accessor (Ghidra BlockGraph::getBlock)
     /// Children of a composite structured block, mirroring the per-class
     /// child sets Ghidra exposes via BlockGraph::getBlock/getSize.
     fn structure_children(
@@ -18477,7 +18477,7 @@ impl Action for ActionPreferComplement {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (incremented at blockaction.cc:2163 inside apply, reset by
     // Action::perform at action.cc:306) into the Rust ActionState
     // accumulator — the same member-count adapter the other struct-count
@@ -18487,7 +18487,7 @@ impl Action for ActionPreferComplement {
         std::mem::take(&mut self.count)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "prefercomplement" mirrors ctor at blockaction.hh:302
+    // RUDRA-GLUE: Rust Action trait get_name; "prefercomplement" mirrors ctor at blockaction.hh:302
     fn get_name(&self) -> &str {
         "prefercomplement"
     }
@@ -18563,7 +18563,7 @@ impl ActionStructureTransform {
         }
     }
 
-    // RUGRA-GLUE: shape gate for the typed auto-name grammar `<base>Var<n>`
+    // RUDRA-GLUE: shape gate for the typed auto-name grammar `<base>Var<n>`
     /// Recognize printc's typed local-variable auto-name shape
     /// (`[a-z]+Var<digits>`, e.g. `lVar11`, `pcVar7`) — the form whose type
     /// prefix agrees with the propagated type and therefore prints verbatim.
@@ -18807,7 +18807,7 @@ impl Action for ActionStructureTransform {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "structuretransform" mirrors ctor at blockaction.hh:272
+    // RUDRA-GLUE: Rust Action trait get_name; "structuretransform" mirrors ctor at blockaction.hh:272
     fn get_name(&self) -> &str {
         "structuretransform"
     }
@@ -18952,7 +18952,7 @@ impl ActionReturnSplit {
 /// mark vec + ancestor-chain bookkeeping). `gotoblocks` mirrors the oracle's
 /// `vec` size for the cc:2285 `gotoblocks.empty()` decision (recorded while
 /// scanning; the selected-edge vector already encodes the same predicate).
-// RUGRA-GLUE: mark-set transport for blockaction.cc:2205 gatherReturnGotos
+// RUDRA-GLUE: mark-set transport for blockaction.cc:2205 gatherReturnGotos
 /// (Ghidra marks live on FlowBlock flags; Rugra composites default the
 /// setMark/clearMark trait to a no-op, so the marks ride the walk instead —
 /// same set/gather/select/clear scope, cc:2213-2306).
@@ -19186,7 +19186,7 @@ impl Action for ActionReturnSplit {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (blockaction.cc:2317 `count += 1` per nodeSplit) into the Rust
     // ActionState accumulator harvested by Action::perform (action.cc:319
     // calls apply, 327-329 examine the grown member, 361 `return count`).
@@ -19194,7 +19194,7 @@ impl Action for ActionReturnSplit {
         std::mem::take(&mut self.count)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "returnsplit" mirrors ctor at blockaction.hh:337
+    // RUDRA-GLUE: Rust Action trait get_name; "returnsplit" mirrors ctor at blockaction.hh:337
     fn get_name(&self) -> &str {
         "returnsplit"
     }
@@ -19323,7 +19323,7 @@ pub(crate) struct ConditionalJoin {
 }
 
 impl ConditionalJoin {
-    // RUGRA-GLUE: default-constructed state mirror (C++ member init)
+    // RUDRA-GLUE: default-constructed state mirror (C++ member init)
     pub(crate) fn new() -> Self {
         Self {
             mergeneed: Vec::new(),
@@ -19343,7 +19343,7 @@ impl ConditionalJoin {
     /// key (blockaction.cc:1898-1906): an existing equivalent key has its
     /// value reset to null; otherwise the entry is inserted in sorted
     /// position.
-    // RUGRA-GLUE: C++ map<MergePair,Varnode*>::operator[] insert-or-reset realized on a sorted Vec (map semantics preserved)
+    // RUDRA-GLUE: C++ map<MergePair,Varnode*>::operator[] insert-or-reset realized on a sorted Vec (map semantics preserved)
     fn mergeneed_set_null(
         &mut self,
         side1: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
@@ -19377,9 +19377,9 @@ impl ConditionalJoin {
     /// state is unreachable when `checkExitBlock` preceded
     /// `cutDownMultiequals` with identical slots (cc:1954-1972 run before
     /// cc:1981-2019 with the same `(in1,in2)`), so `None` here simply skips
-    /// the substitution (RUGRA-GLUE: Rust input Vecs cannot hold a NULL
+    /// the substitution (RUDRA-GLUE: Rust input Vecs cannot hold a NULL
     /// Varnode slot).
-    // RUGRA-GLUE: C++ map<MergePair,Varnode*> lookup realized on a sorted Vec (key = (side1.ci,side2.ci) equivalence)
+    // RUDRA-GLUE: C++ map<MergePair,Varnode*> lookup realized on a sorted Vec (key = (side1.ci,side2.ci) equivalence)
     fn mergeneed_get(
         &self,
         side1: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
@@ -19870,12 +19870,12 @@ impl Action for ActionNodeJoin {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Action trait get_name; "nodejoin" mirrors ctor at blockaction.hh:350
+    // RUDRA-GLUE: Rust Action trait get_name; "nodejoin" mirrors ctor at blockaction.hh:350
     fn get_name(&self) -> &str {
         "nodejoin"
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (incremented at blockaction.cc:2355 inside apply) into the Rust
     // ActionState accumulator — same adapter as ActionConstantPtr et al.
     // Without it the stage projection under-reports nodejoin's result/
@@ -19887,7 +19887,7 @@ impl Action for ActionNodeJoin {
 }
 
 // ---------------------------------------------------------------------------
-// Default decompile pipeline assembly (RUGRA-GLUE, see src/action.rs)
+// Default decompile pipeline assembly (RUDRA-GLUE, see src/action.rs)
 // ---------------------------------------------------------------------------
 //
 // `build_default_pipeline` (action.rs) mirrors Ghidra's
@@ -19926,7 +19926,7 @@ impl Action for ActionNodeJoin {
 //     :5485 (inert under FuncLink) and drops the protorecovery_b pair, per
 //     the wave target head (coreaction.cc:5477-5486).
 // ActionInferParams (mainloop, after StackPtrFlow's former slot) is
-// RUGRA-GLUE with no oracle counterpart — it provides Rugra's parameter
+// RUDRA-GLUE with no oracle counterpart — it provides Rugra's parameter
 // inference until ActionActiveParam/ActionDefaultParams fully cover it.
 //
 // ActionParamShiftStart / ActionParamShiftStop (coreaction.hh:772-793) are
@@ -21996,7 +21996,7 @@ mod tests {
     // mirrors universalAction (coreaction.cc:5462-5738) with every Action
     // at its oracle tree slot. These tests pin the migrated slots.
 
-    // RUGRA-GLUE: test-only recursive tree search over the pipeline (Ghidra
+    // RUDRA-GLUE: test-only recursive tree search over the pipeline (Ghidra
     // walks the same tree in Action::print, action.cc:417-440).
     fn find_group_recursive<'a>(
         node: &'a dyn crate::action::Action,
@@ -23180,7 +23180,7 @@ mod tests {
         use crate::varnode::{varnode_flags, Varnode};
         type VnRef = std::sync::Arc<std::sync::RwLock<Varnode>>;
 
-        // RUGRA-GLUE: test-fixture constant Varnode builder (no Ghidra counterpart)
+        // RUDRA-GLUE: test-fixture constant Varnode builder (no Ghidra counterpart)
         fn const_vn(val: u64) -> VnRef {
             std::sync::Arc::new(std::sync::RwLock::new(Varnode::new_constant(
                 val, 8,
@@ -23188,7 +23188,7 @@ mod tests {
         }
         // Written condition with a defining op; create_index controls the
         // mergeneed map order (MergePair::operator< cc:1898-1906).
-        // RUGRA-GLUE: test-fixture written Varnode + defining op (mirrors oracle driver newUniqueOut/opSetOutput)
+        // RUDRA-GLUE: test-fixture written Varnode + defining op (mirrors oracle driver newUniqueOut/opSetOutput)
         fn written_vn(
             opcode: OpCode,
             inputs: Vec<VnRef>,
@@ -23211,7 +23211,7 @@ mod tests {
             out.write().unwrap().def = Some(std::sync::Arc::downgrade(&def_arc));
             (def_arc, out)
         }
-        // RUGRA-GLUE: test-fixture function-input style Varnode (INPUT flag, explicit createIndex)
+        // RUDRA-GLUE: test-fixture function-input style Varnode (INPUT flag, explicit createIndex)
         fn input_vn(addr: u64, create_index: u32) -> VnRef {
             let v = std::sync::Arc::new(std::sync::RwLock::new(Varnode::new(
                 8,
@@ -23498,7 +23498,7 @@ mod tests {
         type VnRef = std::sync::Arc<std::sync::RwLock<Varnode>>;
         type OpArc = std::sync::Arc<std::sync::RwLock<PcodeOp>>;
 
-        // RUGRA-GLUE: test-fixture constant Varnode builder (no Ghidra counterpart)
+        // RUDRA-GLUE: test-fixture constant Varnode builder (no Ghidra counterpart)
         fn const_vn(val: u64) -> VnRef {
             std::sync::Arc::new(std::sync::RwLock::new(Varnode::new_constant(
                 val, 8,
@@ -23506,7 +23506,7 @@ mod tests {
         }
         // Written condition varnode with a defining op (mirrors
         // Funcdata::newUniqueOut + opSetOutput wiring in the oracle fixture).
-        // RUGRA-GLUE: test-fixture written Varnode + defining op (mirrors the oracle driver's newUniqueOut/opSetOutput setup)
+        // RUDRA-GLUE: test-fixture written Varnode + defining op (mirrors the oracle driver's newUniqueOut/opSetOutput setup)
         fn written_vn(opcode: OpCode, inputs: Vec<VnRef>, seq_ord: u32) -> (OpArc, VnRef) {
             let out = std::sync::Arc::new(std::sync::RwLock::new(Varnode::new(
                 8,
@@ -23526,7 +23526,7 @@ mod tests {
         }
         // Two CBRANCH blocks converging on the same two exits; cond1/cond2
         // are the in(1) conditions, flip1/flip2 set the boolean_flip flag.
-        // RUGRA-GLUE: test-fixture diamond CFG builder (mirrors the oracle driver's block/edge setup)
+        // RUDRA-GLUE: test-fixture diamond CFG builder (mirrors the oracle driver's block/edge setup)
         fn diamond(cond1: VnRef, cond2: VnRef, flip1: bool, flip2: bool) -> Diamond {
             let mut fd = Funcdata::new("f", Address::new(0x1000), 0x40);
             let blocks: Vec<_> = [0x1000u64, 0x2000, 0x3000, 0x4000]
@@ -23569,7 +23569,7 @@ mod tests {
             }
         }
         // Function-input style varnode: written flag off, is_free false.
-        // RUGRA-GLUE: test-fixture function-input style Varnode (INPUT flag)
+        // RUDRA-GLUE: test-fixture function-input style Varnode (INPUT flag)
         fn input_vn(n: u64) -> VnRef {
             let v = std::sync::Arc::new(std::sync::RwLock::new(Varnode::new(
                 8,
@@ -24071,7 +24071,7 @@ mod tests {
 
         // COPY(#5) -> value_vn (implied, written, union-typed); reader
         // RETURN reads it at slot 1 — the `return 5.b` shape.
-        // RUGRA-GLUE: mod-tests fixture builder (COPY→implied vn→RETURN graph);
+        // RUDRA-GLUE: mod-tests fixture builder (COPY→implied vn→RETURN graph);
         // no Ghidra counterpart — mirrors the C++ fixture construction pattern
         // of tests/oracle/printc_checkaddr_impliedfield_1204.cc
         fn build(

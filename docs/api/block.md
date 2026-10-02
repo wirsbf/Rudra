@@ -125,7 +125,7 @@
 
 - **引用形访问器**：FlowBlock trait 新增 `get_out_ref(&self, slot) ->
   Option<&BlockEdge>` / `get_in_ref(&self, slot) -> Option<&BlockEdge>`
-  （RUGRA-GLUE 借用安全 helper；11 个具体类型 impl 各两行）。对应 oracle
+  （RUDRA-GLUE 借用安全 helper；11 个具体类型 impl 各两行）。对应 oracle
   `FlowBlock::getOut/getIn` 的直接 `outofthis[i]`/`intothis[i]` 引用读形态
   （block.hh:301-306）。既有 `get_out`/`get_in` 返回拥有型 `Option<BlockEdge>`
   （含 Arc 克隆）保持不变——collapse 规则 miss 路径（VdbeExec 4M+ 规则试
@@ -146,7 +146,7 @@
 
 ## 2026-09-29：print_tree_dbg 补 InfLoop 臂（Lane SWITCHDISPATCH 诊断完善）
 
-- **缺口**：`print_tree_dbg`（RUGRA-GLUE 结构树调试转储器，`RUGRA_DUMP_FUNC`
+- **缺口**：`print_tree_dbg`（RUDRA-GLUE 结构树调试转储器，`RUGRA_DUMP_FUNC`
   /`RUGRA_TREE1` 的输出后端）此前对 `BlockType::InfLoop` 落入 `other` 兜底臂，
   只打印 `#N InfLoop @addr` 一行而不递归 `body` —— SetCoderProperties/
   GetOptimumFast（MIRROR-GIANTS-SWITCHDISPATCH-0001 双侧钉形）的结构树转储
@@ -1376,7 +1376,7 @@ printHeader、markUnstructured、scopeBreak、nextFlowAfter、flipInPlace、mars
 **验证：** `cargo check` 通过（block.rs / blockaction.rs / coreaction.rs 零错误；
 剩余 4 个 E0308 错误位于 printc.rs / typefactory.rs，属其他并发会话的进行中工作）。
 每个移植方法上方均有 `// Ghidra: block.cc:<行号> <函数名>` 注释；Rust 粘合代码
-标记为 `// RUGRA-GLUE: <reason>`。
+标记为 `// RUDRA-GLUE: <reason>`。
  
  
  
@@ -1443,7 +1443,7 @@ postorder 降序主循环（排除 root 槽位）、first-processed-pred 按 in-
 cc:61-69）建模——finger 走入 VRoot 时落到 rpo[0] 的 postorder 槽
 （cross-root merge 得 idom=rpo[0]），excise 后入口块 immed_dom=null。
 
-**`compute_spanning_rpo`** — RUGRA-GLUE：block.cc:1009-1136 的无副作用
+**`compute_spanning_rpo`** — RUDRA-GLUE：block.cc:1009-1136 的无副作用
 RPO 视图（不重排成员列表），供 fixture 观察使用。
 
 **对齐证据：** `tools/run_block_domroot_1204_oracle.sh` 权威差分（锁定
@@ -1499,7 +1499,7 @@ findIrreducible 标的 f_irreducible 也清掉——重建遍的收敛依赖 cc:
   `set_out_edge_flag_mirrored` 对称。
 - `BlockGraph::clear_edge_flags_mask(fl)` — block.cc:966-978 的通用双半边
   mask 清除（`clear_edge_flags_all` 即其 ~0 特例）。
-- `find_copy_map(y)`（RUGRA-GLUE）— FIND(y) 的 `copymap` Weak 升级读；
+- `find_copy_map(y)`（RUDRA-GLUE）— FIND(y) 的 `copymap` Weak 升级读；
   findSpanningTree 保证 list 内块恒有 copymap（cc:1027/1122），Option 回退
   不可达。
 
@@ -1714,8 +1714,8 @@ oracle：`BlockGoto : BlockGraph`（block.hh:547），`newBlockGoto(bl)`（block
   1353 nextFlowAfter 递归：下一兄弟前叶 / 末子沿父链 / 根为 null），由
   ActionFinalStructure 在 scopeBreak 之后、markUnstructured 之前调用（oracle
   首次求值点）。默认 false 即 oracle 无 parent 臂（cc:2889）。新增
-  `goto_prints_walk_level`/`goto_prints_visit`（RUGRA-GLUE：上述递归的
-  Rust 投影）与 `component_list_dyn`（RUGRA-GLUE：Ghidra 统一 list/getBlock(i)
+  `goto_prints_walk_level`/`goto_prints_visit`（RUDRA-GLUE：上述递归的
+  Rust 投影）与 `component_list_dyn`（RUDRA-GLUE：Ghidra 统一 list/getBlock(i)
   协议在 Rust 类型化字段上的投影，顺序 = 各工厂 identifyInternal 的 nodes 序：
   List[nodes]、If goto 时 [cond]（newBlockIfGoto cc:1799）否则 [cond,tc(,fc)]、
   WhileDo[cond,cl]、DoWhile[condcl]、InfLoop[body]、Condition[b1,b2]、
@@ -1754,7 +1754,7 @@ body_is_dead 门禁 + RC-4 循环形态 + RC-5 条件错接均未修），内容
 
 ### 2026-08-30（BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001）：诊断设施
 
-- `print_tree_dbg`（RUGRA-GLUE，BlockGraph::printTree 的诊断复刻，block.cc:616
+- `print_tree_dbg`（RUDRA-GLUE，BlockGraph::printTree 的诊断复刻，block.cc:616
   printTree 语义）：递归 dump 结构树（索引/类型/front-leaf 地址/BlockGoto 目标
   + goto_type + prints 预计算/if-goto 目标/Switch cases），供 curl/httpd runners
   的 RUGRA_DUMP_FUNC hook 与 examples/blockstruct_tree_dump.rs 使用。
@@ -1852,7 +1852,7 @@ BlockSwitch 补齐 Ghidra ctor/finalizePrinting 语义（block.cc:3485-3601）�
   finalizePrinting 先于任何打印运行）。
 - `BlockGraph::finalize_printing`（block.cc:1364-1371）：子节点递归入口，
   由 ActionFinalStructure 调用（见 docs/api/blockaction.md）。
-- 自由函数 `finalize_printing_block`（RUGRA-GLUE，C++ virtual dispatch 的
+- 自由函数 `finalize_printing_block`（RUDRA-GLUE，C++ virtual dispatch 的
   Rust 形态）：Switch 分支先递归 control+非 goto case+结构化（gototype==0）
   default 臂（= newBlockSwitch 经 identifyInternal 消费的 list 成员，
   cc:3559/1913；goto 臂目标与 gototype!=0 的 default 留在周围图由父图递归
@@ -1873,7 +1873,7 @@ metadata rust_fixture_sha256 重钉（e8f69bfc→81656ef8）。
 
 `finalize_case_labels` 尾部新增 RUGRA_BS_DUMP=1/2 门控的
 `[BLOCKSTRUCT] finalizePrinting case[i] label=0x.. depth= chain= outindex=
-labels=[..]` 逐臂见证输出（RUGRA-GLUE，无 Ghidra 对应物；label 管道结构层
+labels=[..]` 逐臂见证输出（RUDRA-GLUE，无 Ghidra 对应物；label 管道结构层
 验收的观察窗口）。
 
 ## 2026-09-22（续 3）：orderBlocks 顶层排序（BLOCKSTRUCT-ORDERBLOCKS-0001，Lane BV）
@@ -2131,7 +2131,7 @@ x->numdesc、y'->visitcount）原实现同时持 x 与 y' 两个读守卫；y'==
 自身入 reachunder 成员的边——y==x 且 copymap 指向自身，cc:1027/1122）时即
 对同一 RwLock 同线程二次 read()。std 文档标注该形态 "might panic"（Linux
 futex 实现恰好读者可重入故现网安全，属标准库实现依赖）；oracle C++ 裸指针
-无锁，同对象二次读取天然合法。加固=ptr_eq 预判分支（`// RUGRA-GLUE:` 注释
+无锁，同对象二次读取天然合法。加固=ptr_eq 预判分支（`// RUDRA-GLUE:` 注释
 说明锁形态对应关系）：y'==x 臂从单一 x 守卫取双值（对象同一性 ⇒ 值恒等），
 y'!=x 臂保持原双守卫快照。零行为变化机器证明：canon curl/httpd 字节恒等 +
 镜面四面零漂移 + bank 391/391 + 单元锁 `findirreducible_lock_tests`（3 块

@@ -17,7 +17,7 @@ pub struct Range {
 }
 
 impl Range {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Create a new range
     pub fn new(first: Address, last: Address) -> Option<Self> {
         if first.as_u64() <= last.as_u64() {
@@ -27,38 +27,38 @@ impl Range {
         }
     }
 
-    // RUGRA-GLUE: contains (no Ghidra counterpart found)
+    // RUDRA-GLUE: contains (no Ghidra counterpart found)
     /// Check if an address is contained in this range
     pub fn contains(&self, addr: Address) -> bool {
         addr.as_u64() >= self.first.as_u64() && addr.as_u64() <= self.last.as_u64()
     }
 
-    // RUGRA-GLUE: get_first (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_first (no Ghidra counterpart found)
     /// Get the first address
     pub fn get_first(&self) -> Address {
         self.first
     }
 
-    // RUGRA-GLUE: get_last (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_last (no Ghidra counterpart found)
     /// Get the last address
     pub fn get_last(&self) -> Address {
         self.last
     }
 
-    // RUGRA-GLUE: size (no Ghidra counterpart found)
+    // RUDRA-GLUE: size (no Ghidra counterpart found)
     /// Get the size of the range in bytes
     pub fn size(&self) -> u64 {
         self.last.as_u64().saturating_sub(self.first.as_u64()).saturating_add(1)
     }
 
-    // RUGRA-GLUE: overlaps (no Ghidra counterpart found)
+    // RUDRA-GLUE: overlaps (no Ghidra counterpart found)
     /// Check if this range overlaps with another
     pub fn overlaps(&self, other: &Range) -> bool {
         self.first.as_u64() <= other.last.as_u64()
             && other.first.as_u64() <= self.last.as_u64()
     }
 
-    // RUGRA-GLUE: is_adjacent (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_adjacent (no Ghidra counterpart found)
     /// Check if this range is adjacent to another
     pub fn is_adjacent(&self, other: &Range) -> bool {
         self.last.as_u64().saturating_add(1) == other.first.as_u64()
@@ -76,13 +76,13 @@ pub struct RangeList {
 }
 
 impl RangeList {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Create a new empty range list
     pub fn new() -> Self {
         RangeList { ranges: Vec::new() }
     }
 
-    // RUGRA-GLUE: insert_range (no Ghidra counterpart found)
+    // RUDRA-GLUE: insert_range (no Ghidra counterpart found)
     /// Insert a range into the list, merging overlapping ranges
     pub fn insert_range(&mut self, new_range: Range) {
         if self.ranges.is_empty() {
@@ -118,7 +118,7 @@ impl RangeList {
         self.ranges.insert(insert_pos, merged);
     }
 
-    // RUGRA-GLUE: remove_range (no Ghidra counterpart found)
+    // RUDRA-GLUE: remove_range (no Ghidra counterpart found)
     /// Remove a range from the list
     pub fn remove_range(&mut self, to_remove: Range) {
         let mut new_ranges = Vec::new();
@@ -153,25 +153,25 @@ impl RangeList {
         self.ranges = new_ranges;
     }
 
-    // RUGRA-GLUE: in_range (no Ghidra counterpart found)
+    // RUDRA-GLUE: in_range (no Ghidra counterpart found)
     /// Check if an address is in any range in the list
     pub fn in_range(&self, addr: Address) -> bool {
         self.ranges.iter().any(|r| r.contains(addr))
     }
 
-    // RUGRA-GLUE: num_ranges (no Ghidra counterpart found)
+    // RUDRA-GLUE: num_ranges (no Ghidra counterpart found)
     /// Get the number of ranges in the list
     pub fn num_ranges(&self) -> usize {
         self.ranges.len()
     }
 
-    // RUGRA-GLUE: ranges (no Ghidra counterpart found)
+    // RUDRA-GLUE: ranges (no Ghidra counterpart found)
     /// Get all ranges
     pub fn ranges(&self) -> &[Range] {
         &self.ranges
     }
 
-    // RUGRA-GLUE: merge (no Ghidra counterpart found)
+    // RUDRA-GLUE: merge (no Ghidra counterpart found)
     /// Merge another RangeList into this one
     pub fn merge(&mut self, other: &RangeList) {
         for range in &other.ranges {
@@ -179,13 +179,13 @@ impl RangeList {
         }
     }
 
-    // RUGRA-GLUE: is_empty (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_empty (no Ghidra counterpart found)
     /// Check if the list is empty
     pub fn is_empty(&self) -> bool {
         self.ranges.is_empty()
     }
 
-    // RUGRA-GLUE: clear (no Ghidra counterpart found)
+    // RUDRA-GLUE: clear (no Ghidra counterpart found)
     /// Clear all ranges
     pub fn clear(&mut self) {
         self.ranges.clear();
@@ -193,13 +193,13 @@ impl RangeList {
 }
 
 impl Default for RangeList {
-    // RUGRA-GLUE: default (no Ghidra counterpart found)
+    // RUDRA-GLUE: default (no Ghidra counterpart found)
     fn default() -> Self {
         Self::new()
     }
 }
 
-// RUGRA-GLUE: verify_range (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_range (no Ghidra counterpart found)
 /// Verify that a Rugra Range aligns with Ghidra's representation
 pub fn verify_range(
     rugra_range: &Range,
@@ -222,7 +222,7 @@ pub fn verify_range(
     first_match && last_match
 }
 
-// RUGRA-GLUE: verify_range_list (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_range_list (no Ghidra counterpart found)
 /// Verify that a Rugra RangeList aligns with Ghidra's representation
 pub fn verify_range_list(
     rugra_list: &RangeList,
@@ -246,7 +246,7 @@ pub fn verify_range_list(
     true
 }
 
-// RUGRA-GLUE: verify_contains (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_contains (no Ghidra counterpart found)
 /// Verify that contains() function aligns
 pub fn verify_contains(
     rugra_range: &Range,

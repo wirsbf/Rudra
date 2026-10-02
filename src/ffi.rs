@@ -44,7 +44,7 @@ pub const PCODE_COMPARE_INPUT_COUNT_MISMATCH: i32 = 3;
 pub const PCODE_COMPARE_INPUT_MISMATCH: i32 = 4;
 pub const PCODE_COMPARE_MISSING_RUGRA_OP: i32 = 5;
 
-// RUGRA-GLUE: map_ghidra_opcode (no Ghidra counterpart found)
+// RUDRA-GLUE: map_ghidra_opcode (no Ghidra counterpart found)
 /// Map Ghidra OpCode integers to Rugra PcodeOp enum
 /// Values are based on Ghidra's opcodes.hh
 pub fn map_ghidra_opcode(opcode: i32) -> Option<OpCode> {
@@ -154,7 +154,7 @@ pub fn map_ghidra_opcode(opcode: i32) -> Option<OpCode> {
     }
 }
 
-// RUGRA-GLUE: to_ghidra_opcode (no Ghidra counterpart found)
+// RUDRA-GLUE: to_ghidra_opcode (no Ghidra counterpart found)
 /// Convert a Rugra OpCode enum to the corresponding Ghidra integer opcode value.
 ///
 /// This is the inverse of `map_ghidra_opcode`. It is needed by the verification
@@ -239,7 +239,7 @@ pub fn to_ghidra_opcode(op: OpCode) -> Option<i32> {
     }
 }
 
-// RUGRA-GLUE: C ABI scalar dispatcher aggregates many Ghidra OpBehavior evaluators; Ghidra has no single equivalent entry point.
+// RUDRA-GLUE: C ABI scalar dispatcher aggregates many Ghidra OpBehavior evaluators; Ghidra has no single equivalent entry point.
 /// FFI interface for constant folding evaluation
 ///
 /// This adapter covers a subset of Ghidra's distributed
@@ -391,7 +391,7 @@ pub extern "C" fn rugra_evaluate_constant(
     }
 }
 
-// RUGRA-GLUE: exports Cargo package metadata through Rugra's C ABI; Ghidra has no Rugra-version endpoint.
+// RUDRA-GLUE: exports Cargo package metadata through Rugra's C ABI; Ghidra has no Rugra-version endpoint.
 /// Get the version of Rugra as a C string
 #[no_mangle]
 pub extern "C" fn rugra_version() -> *const c_char {
@@ -399,7 +399,7 @@ pub extern "C" fn rugra_version() -> *const c_char {
     VERSION_C.as_ptr() as *const c_char
 }
 
-// RUGRA-GLUE: set_current_program (no Ghidra counterpart found)
+// RUDRA-GLUE: set_current_program (no Ghidra counterpart found)
 /// Set the current program for comparison
 /// This is called by Rugra before starting the comparison with Ghidra
 pub fn set_current_program(program: Funcdata) {
@@ -409,7 +409,7 @@ pub fn set_current_program(program: Funcdata) {
     *lock = Some(program);
 }
 
-// RUGRA-GLUE: initializes Rugra's process-global comparison fixture; Ghidra has no corresponding C test hook.
+// RUDRA-GLUE: initializes Rugra's process-global comparison fixture; Ghidra has no corresponding C test hook.
 /// Initialize a blank program for FFI testing
 #[no_mangle]
 pub extern "C" fn rugra_init_test_program() {
@@ -419,7 +419,7 @@ pub extern "C" fn rugra_init_test_program() {
     *lock = Some(Funcdata::new("test_func", Address::new(0), 0));
 }
 
-// RUGRA-GLUE: builds Rugra test IR from flattened C arguments; Ghidra has no equivalent C fixture builder.
+// RUDRA-GLUE: builds Rugra test IR from flattened C arguments; Ghidra has no equivalent C fixture builder.
 /// Add an operation to the current test program
 /// This allows Python/C++ to simulate Rugra's analysis state for comparison tests
 #[no_mangle]
@@ -460,7 +460,7 @@ pub extern "C" fn rugra_add_test_op(
     }
 }
 
-// RUGRA-GLUE: ignores a foreign buffer pointer and only logs its length; Ghidra has no matching callback.
+// RUDRA-GLUE: ignores a foreign buffer pointer and only logs its length; Ghidra has no matching callback.
 /// Report binary-buffer metadata received from an FFI caller.
 /// The pointer is currently ignored; only the supplied length is logged.
 #[no_mangle]
@@ -469,7 +469,7 @@ pub extern "C" fn rugra_set_binary_data(_ptr: *const u8, len: usize) {
     println!("[RUGRA] Analysis context initialized with {} bytes", len);
 }
 
-// RUGRA-GLUE: logs an externally supplied jump-table observation; it does not implement Ghidra JumpTable::recoverAddresses.
+// RUDRA-GLUE: logs an externally supplied jump-table observation; it does not implement Ghidra JumpTable::recoverAddresses.
 /// Observe and validate a jumptable recovery in Ghidra
 ///
 /// This is used for comparison testing to ensure Rugra's jumptable
@@ -509,7 +509,7 @@ pub extern "C" fn rugra_observe_jumptable(op_addr: u64, table_addr: u64, size: u
     // 100% parity in decompilation output for the 'curl' sample.
 }
 
-// RUGRA-GLUE: space_to_ffi_id (no Ghidra counterpart found)
+// RUDRA-GLUE: space_to_ffi_id (no Ghidra counterpart found)
 /// Convert Rugra AddressSpace to the FFI convention space_id.
 ///
 /// The FFI convention (used by VarnodeFFI) uses:
@@ -527,7 +527,7 @@ fn space_to_ffi_id(space: crate::AddressSpace) -> i32 {
     }
 }
 
-// RUGRA-GLUE: compares flattened foreign P-code with Rugra state; Ghidra has no cross-engine C comparator.
+// RUDRA-GLUE: compares flattened foreign P-code with Rugra state; Ghidra has no cross-engine C comparator.
 /// Compare a P-code operation from Ghidra with Rugra's internal state
 ///
 /// This is the "ultimate comparison" function that verifies if Rugra's
@@ -691,7 +691,7 @@ pub unsafe extern "C" fn rugra_compare_pcode(
     }
 }
 
-// RUGRA-GLUE: logs an external numeric SSA label; Ghidra Varnode has no version field, and this is not Heritage::rename.
+// RUDRA-GLUE: logs an external numeric SSA label; Ghidra Varnode has no version field, and this is not Heritage::rename.
 /// Intercept and compare SSA versioning (Heritage)
 #[no_mangle]
 pub unsafe extern "C" fn rugra_check_varnode_version(vn: *const VarnodeFFI, version: i32) {
@@ -709,7 +709,7 @@ pub unsafe extern "C" fn rugra_check_varnode_version(vn: *const VarnodeFFI, vers
     );
 }
 
-// RUGRA-GLUE: logs a flattened external CFG observation; it does not implement Ghidra FlowBlock algorithms.
+// RUDRA-GLUE: logs a flattened external CFG observation; it does not implement Ghidra FlowBlock algorithms.
 /// Intercept and compare Control Flow Graph structure
 #[no_mangle]
 pub unsafe extern "C" fn rugra_check_block_structure(
@@ -731,7 +731,7 @@ pub unsafe extern "C" fn rugra_check_block_structure(
     }
 }
 
-// RUGRA-GLUE: logs an external action event; it does not implement Ghidra Action::perform.
+// RUDRA-GLUE: logs an external action event; it does not implement Ghidra Action::perform.
 /// Intercept and compare Transformation Actions
 #[no_mangle]
 pub unsafe extern "C" fn rugra_check_action_apply(

@@ -58,7 +58,7 @@ USEROP-VOLATILEWRITE-INPUTLOCAL-0001）：
   元素名/尺寸/wordsize/slot 布局/Arc 同一性/幂等指针恒等）、
   `test_register_builtin_datatype_first_wins_orders`（typed↔按需双向首注胜出）、
   `test_register_builtin_wcsncpy_dataorg_degrade`（DataOrg 无 size-2 宽字符的
-  降级钉死——oracle 该工厂形态会抛 LowlevelError，Rugra 线程降级为
+  降级钉死——oracle 该工厂形态会抛 LowlevelError，Rudra 线程降级为
   metadata-less，与 constseq typed 入口同状态降级一致；活架构不可达）、
   `test_register_builtin_bad_id`、
   `test_volatile_write_input_local_symbol_arm`（正例+四负例：非 slot-2 /

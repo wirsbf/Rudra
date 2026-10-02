@@ -45,7 +45,7 @@ cpp_backend）在 Phase2 双链期并存,门禁全过（op-for-op 698,605 decode
 不在 image 时抛 `DataUnavailError`（message 字节与 C++ 侧逐字节一致——
 op-for-op 57,817 错误对亲证），在 image 内但固定 16-byte fetch 跨过尾部时
 复制有效前缀并补零。首次 decode 或 `instruction_length` 后冻结 image/context
-（`decode_started` → `InvalidState`,镜像退役 shim 行为）。这是 `RUGRA-GLUE`
+（`decode_started` → `InvalidState`,镜像退役 shim 行为）。这是 `RUDRA-GLUE`
 生命周期策略，不是 Ghidra 行为等价结论。包括首次失败后替换 image 再重试
 在内的精确 mutable-loader/cache 语义归 `SLEIGH-0002D`，必须以锁定
 `Sleigh::reset` / `Sleigh::oneInstruction` fixture 判定，不能预设需要重建

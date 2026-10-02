@@ -102,7 +102,7 @@ pub struct DebugGlobalDatabase {
 }
 
 impl DebugGlobalDatabase {
-    // RUGRA-GLUE: reads the same DW_TAG_variable + DW_OP_addr records Ghidra's Java DWARF analyzer turns into Program symbols; native front-end adapter for that boundary
+    // RUDRA-GLUE: reads the same DW_TAG_variable + DW_OP_addr records Ghidra's Java DWARF analyzer turns into Program symbols; native front-end adapter for that boundary
     pub fn parse_elf(bytes: &[u8]) -> Result<Self> {
         // GLIBC-CLIB-FILE-TYPEDOMAIN-0001: warm the archive-FILE type cache
         // before the DWARF walk — its init interns bases and a pointer
@@ -252,22 +252,22 @@ impl DebugGlobalDatabase {
         })
     }
 
-    // RUGRA-GLUE: address-keyed lookup mirroring the Program database query Rugra's driver performs when seeding global types
+    // RUDRA-GLUE: address-keyed lookup mirroring the Program database query Rugra's driver performs when seeding global types
     pub fn get(&self, address: u64) -> Option<&DebugGlobalVariable> {
         self.globals.get(&address)
     }
 
-    // RUGRA-GLUE: deterministic address order for diagnostics around the Program-to-Funcdata import boundary
+    // RUDRA-GLUE: deterministic address order for diagnostics around the Program-to-Funcdata import boundary
     pub fn iter(&self) -> impl Iterator<Item = (&u64, &DebugGlobalVariable)> {
         self.globals.iter()
     }
 
-    // RUGRA-GLUE: count accessor for diagnostics around the Program-to-Funcdata import boundary
+    // RUDRA-GLUE: count accessor for diagnostics around the Program-to-Funcdata import boundary
     pub fn len(&self) -> usize {
         self.globals.len()
     }
 
-    // RUGRA-GLUE: builds Funcdata::global_struct_ptrs entries; each address constant referencing a global gets the C "&global" type (pointer to the variable's declared type, with array decay), which Ghidra derives from its symbol-table Datatype linkage
+    // RUDRA-GLUE: builds Funcdata::global_struct_ptrs entries; each address constant referencing a global gets the C "&global" type (pointer to the variable's declared type, with array decay), which Ghidra derives from its symbol-table Datatype linkage
     pub fn address_pointer_map(&self) -> HashMap<u64, Arc<Datatype>> {
         self.globals
             .values()
@@ -279,7 +279,7 @@ impl DebugGlobalDatabase {
             .collect()
     }
 
-    // RUGRA-GLUE: the DWARF front-end's committed-data-type semantic.
+    // RUDRA-GLUE: the DWARF front-end's committed-data-type semantic.
     /// Ghidra's DWARF analyzer creates Data whose imported data type is
     /// committed (locked memory); the decompiler interface exports that as
     /// ATTRIB_TYPELOCK on the symbol XML, which `Symbol::decodeHeader`
@@ -348,7 +348,7 @@ impl ElfPltImports {
     /// implementation (examples/curl_decompile.rs PLT resolution block;
     /// httpd witnesses: slot 43 = 0x2a6d0 = `apr_app_initialize`,
     /// `.plt` @0x29020, `.plt.got` @0x2a400, `.plt.sec` @0x2a420).
-    // RUGRA-GLUE: reads the same .plt/.plt.sec/.plt.got + relocation records Ghidra's Java ELF/PLT analyzer turns into thunk Function symbols; native front-end adapter for that boundary
+    // RUDRA-GLUE: reads the same .plt/.plt.sec/.plt.got + relocation records Ghidra's Java ELF/PLT analyzer turns into thunk Function symbols; native front-end adapter for that boundary
     pub fn parse_elf(bytes: &[u8]) -> Self {
         let obj = match goblin::Object::parse(bytes) {
             Ok(obj) => obj,
@@ -438,27 +438,27 @@ impl ElfPltImports {
         Self { thunks }
     }
 
-    // RUGRA-GLUE: address-keyed lookup mirroring the Program database query the driver performs when seeding call-target symbols
+    // RUDRA-GLUE: address-keyed lookup mirroring the Program database query the driver performs when seeding call-target symbols
     pub fn get(&self, address: u64) -> Option<&String> {
         self.thunks.get(&address)
     }
 
-    // RUGRA-GLUE: deterministic address order for the driver-side seeding loop
+    // RUDRA-GLUE: deterministic address order for the driver-side seeding loop
     pub fn iter(&self) -> impl Iterator<Item = (&u64, &String)> {
         self.thunks.iter()
     }
 
-    // RUGRA-GLUE: count accessor for import-boundary diagnostics
+    // RUDRA-GLUE: count accessor for import-boundary diagnostics
     pub fn len(&self) -> usize {
         self.thunks.len()
     }
 
-    // RUGRA-GLUE: emptiness accessor for the clippy len-without-is_empty pair
+    // RUDRA-GLUE: emptiness accessor for the clippy len-without-is_empty pair
     pub fn is_empty(&self) -> bool {
         self.thunks.is_empty()
     }
 
-    // RUGRA-GLUE: thunk-membership test used to gate the default FUN_ naming pass (a thunk already carries its import name)
+    // RUDRA-GLUE: thunk-membership test used to gate the default FUN_ naming pass (a thunk already carries its import name)
     pub fn contains(&self, address: u64) -> bool {
         self.thunks.contains_key(&address)
     }
@@ -474,12 +474,12 @@ impl ElfPltImports {
 /// sites through the same fspec chain as named functions
 /// (`PrintC::opCall` printc.cc:601-609); Rugra's driver seeds the name into
 /// its callpoint-symbol stand-in for that table.
-// RUGRA-GLUE: Ghidra's Java SymbolManager owns this default-name policy (outside decompile/cpp); native front-end adapter for the boundary
+// RUDRA-GLUE: Ghidra's Java SymbolManager owns this default-name policy (outside decompile/cpp); native front-end adapter for the boundary
 pub fn analyze_headless_function_symbol_name(vaddr: u64, image_base: u64) -> String {
     format!("FUN_{:08x}", image_base.wrapping_add(vaddr))
 }
 
-// RUGRA-GLUE: index of DWARF named types (struct/union/enum/typedef spellings)
+// RUDRA-GLUE: index of DWARF named types (struct/union/enum/typedef spellings)
 // built at the Program-import boundary. Ghidra's DWARF analyzer populates the
 // program type manager with these names, and the platform signature loader
 // resolves signature base spellings (e.g. `FILE`) against that manager; this
@@ -536,7 +536,7 @@ pub fn parse_type_names(bytes: &[u8]) -> Result<HashMap<String, Arc<Datatype>>> 
     Ok(names)
 }
 
-// RUGRA-GLUE: shared DWARF section loader for the prototype and global importers
+// RUDRA-GLUE: shared DWARF section loader for the prototype and global importers
 fn load_dwarf(bytes: &[u8]) -> Result<Dwarf<DwarfReader>> {    let object = object::File::parse(bytes).context("parsing object for DWARF sections")?;
     let endian = if object.is_little_endian() {
         RunTimeEndian::Little
@@ -554,7 +554,7 @@ fn load_dwarf(bytes: &[u8]) -> Result<Dwarf<DwarfReader>> {    let object = obje
     .context("loading DWARF sections")
 }
 
-// RUGRA-GLUE: extracts a variable's static storage address from DW_AT_location; accepts exactly DW_OP_addr (the form Ghidra's analyzer requires for a global symbol), skipping register/complex expressions deterministically
+// RUDRA-GLUE: extracts a variable's static storage address from DW_AT_location; accepts exactly DW_OP_addr (the form Ghidra's analyzer requires for a global symbol), skipping register/complex expressions deterministically
 fn static_location_address(
     unit: &Unit<DwarfReader>,
     entry: &DebuggingInformationEntry<DwarfReader>,
@@ -576,7 +576,7 @@ fn static_location_address(
     Ok(Some(address))
 }
 
-// RUGRA-GLUE: reads a DWARF boolean attribute accepting the flag and udata
+// RUDRA-GLUE: reads a DWARF boolean attribute accepting the flag and udata
 // forms producers emit for DW_AT_declaration/DW_AT_external; absent means
 // false, matching the Java analyzer's null-vs-present check
 fn attr_flag(
@@ -590,7 +590,7 @@ fn attr_flag(
     })
 }
 
-// RUGRA-GLUE: enumerates R_X86_64_COPY relocation targets with their
+// RUDRA-GLUE: enumerates R_X86_64_COPY relocation targets with their
 // version-stripped object symbol names — the data imports (the
 // stdout/stdin/stderr-class .bss copies) whose declared DWARF type Ghidra's
 // analyzer applies to the locally-defined symbol. The symbol display name
@@ -626,7 +626,7 @@ fn copy_reloc_object_symbols(bytes: &[u8]) -> Vec<(u64, String)> {
     out
 }
 
-// RUGRA-GLUE: the type of an address constant that references a DWARF global; "&global" is a pointer to the variable's declared type, and arrays decay to element pointers per C address-of semantics on the IR
+// RUDRA-GLUE: the type of an address constant that references a DWARF global; "&global" is a pointer to the variable's declared type, and arrays decay to element pointers per C address-of semantics on the IR
 fn global_address_type(global: &DebugGlobalVariable, ptr_size: usize) -> Arc<Datatype> {
     if let Datatype::Array(array) = global.data_type.as_ref() {
         return pointer_type(array.array_of.clone(), ptr_size);
@@ -635,7 +635,7 @@ fn global_address_type(global: &DebugGlobalVariable, ptr_size: usize) -> Arc<Dat
 }
 
 impl DebugPrototypeDatabase {
-    // RUGRA-GLUE: Ghidra's Java DWARF analyzer populates the Program database before the C++ decompiler; this is Rugra's native front-end adapter for that boundary
+    // RUDRA-GLUE: Ghidra's Java DWARF analyzer populates the Program database before the C++ decompiler; this is Rugra's native front-end adapter for that boundary
     pub fn parse_elf(bytes: &[u8]) -> Result<Self> {
         let dwarf = load_dwarf(bytes).context("parsing object for DWARF prototypes")?;
 
@@ -679,22 +679,22 @@ impl DebugPrototypeDatabase {
         Ok(Self { prototypes })
     }
 
-    // RUGRA-GLUE: address-keyed lookup mirrors the Program database query performed before Ghidra constructs Funcdata
+    // RUDRA-GLUE: address-keyed lookup mirrors the Program database query performed before Ghidra constructs Funcdata
     pub fn get(&self, address: u64) -> Option<&DebugPrototype> {
         self.prototypes.get(&address)
     }
 
-    // RUGRA-GLUE: exposes deterministic address order for front-end prototype seeding; Ghidra's Program database iterator is outside decompile/cpp
+    // RUDRA-GLUE: exposes deterministic address order for front-end prototype seeding; Ghidra's Program database iterator is outside decompile/cpp
     pub fn iter(&self) -> impl Iterator<Item = (&u64, &DebugPrototype)> {
         self.prototypes.iter()
     }
 
-    // RUGRA-GLUE: count accessor for diagnostics around the Program-to-Funcdata import boundary
+    // RUDRA-GLUE: count accessor for diagnostics around the Program-to-Funcdata import boundary
     pub fn len(&self) -> usize {
         self.prototypes.len()
     }
 
-    // RUGRA-GLUE: applies a Program-database prototype to Rugra Funcdata before Actions, matching Ghidra's externally locked prototype boundary
+    // RUDRA-GLUE: applies a Program-database prototype to Rugra Funcdata before Actions, matching Ghidra's externally locked prototype boundary
     pub fn apply(&self, fd: &mut Funcdata) -> Result<bool> {
         let Some(debug_proto) = self.get(fd.baseaddr.as_u64()) else {
             return Ok(false);
@@ -724,7 +724,7 @@ impl DebugPrototypeDatabase {
     /// Returns `Ok(None)` when the address has no DWARF definition (import
     /// thunk / non-debug function: the boundary contributes nothing and the
     /// generic_clib import table or active recovery owns the call site).
-    // RUGRA-GLUE: the queryCall -> ActionDefaultParams copy boundary for DWARF-locked callees; Ghidra reaches it via the Program database, Rugra's driver hands it directly
+    // RUDRA-GLUE: the queryCall -> ActionDefaultParams copy boundary for DWARF-locked callees; Ghidra reaches it via the Program database, Rugra's driver hands it directly
     pub fn locked_callsite_proto(
         &self,
         entry: u64,
@@ -736,7 +736,7 @@ impl DebugPrototypeDatabase {
         self.locked_proto(debug_proto, model_carrier).map(Some)
     }
 
-    // RUGRA-GLUE: shared locked-signature builder behind both halves of the
+    // RUDRA-GLUE: shared locked-signature builder behind both halves of the
     // DWARF Program-database boundary (own-function apply + call-site copy);
     // the lock recipe mirrors FuncProto::setPieces (fspec.cc:3843-3852):
     // assigned storage, DW_AT_name-gated NAME_LOCKED bits, input/output/model
@@ -906,7 +906,7 @@ pub struct LibcSignatureTable {
 // init takes the factory write lock briefly (base/pointer interning), and
 // the DWARF walk holds that lock across its unit loop
 // (DebugGlobalDatabase::parse_elf warms it first thing for this reason).
-// RUGRA-GLUE: native front-end adapter for the platform-side type state —
+// RUDRA-GLUE: native front-end adapter for the platform-side type state —
 // Ghidra's generic_clib_64.gdt owns this FILE structure on the Java side
 // and hands it to the decompiler already materialized per locked
 // signature; Rugra builds the same type graph once per process.
@@ -989,7 +989,7 @@ pub(crate) fn clib_file_types(
 }
 
 /// The archive FILE struct (pass to a base-spelling override map).
-// RUGRA-GLUE: accessor over the clib_file_types OnceLock (see above).
+// RUDRA-GLUE: accessor over the clib_file_types OnceLock (see above).
 pub(crate) fn clib_file_struct() -> Arc<Datatype> {
     clib_file_types().0.clone()
 }
@@ -1014,7 +1014,7 @@ pub(crate) fn clib_file_struct() -> Arc<Datatype> {
 // objects; TypeStruct::compare (type.cc:1742-1780) then orders them by
 // object id at equal field/size shape (both derive from the same glibc
 // header, the tie the locked oracle's two stat objects also hold).
-// RUGRA-GLUE: the platform signature loader materializes generic_clib's
+// RUDRA-GLUE: the platform signature loader materializes generic_clib's
 // own stat from the archive data before the decompiler runs (same Java
 // seam as the archive FILE); this OnceLock is Rugra's form of that graph.
 pub(crate) fn clib_stat_types(
@@ -1097,7 +1097,7 @@ pub(crate) fn clib_stat_types(
 }
 
 /// The archive stat struct (pass to a base-spelling override map).
-// RUGRA-GLUE: accessor over the clib_stat_types OnceLock (see above).
+// RUDRA-GLUE: accessor over the clib_stat_types OnceLock (see above).
 pub(crate) fn clib_stat_struct() -> Arc<Datatype> {
     clib_stat_types().0.clone()
 }
@@ -1111,7 +1111,7 @@ pub(crate) fn clib_stat_struct() -> Arc<Datatype> {
 // own struct, never the CU-local DWARF stat (golden :797/:878/:2105 keep
 // the `(stat *)` cast between the two domains; a name-index resolution
 // collapses them to one object and castStandard cc:304 suppresses it).
-// RUGRA-GLUE: the platform signature loader resolves spellings against the
+// RUDRA-GLUE: the platform signature loader resolves spellings against the
 // Program type manager where the archive FILE/stat already live (the Java
 // side never consults the DWARF name index for a generic_clib signature);
 // this map is Rugra's form of that resolution boundary.
@@ -1129,7 +1129,7 @@ fn libc_type_resolution_index(
 
 /// The factory-interned pointer to the archive FILE (the std-stream
 /// globals' domain).
-// RUGRA-GLUE: accessor over the clib_file_types OnceLock (see above).
+// RUDRA-GLUE: accessor over the clib_file_types OnceLock (see above).
 pub(crate) fn clib_file_pointer() -> Arc<Datatype> {
     clib_file_types().1.clone()
 }
@@ -1139,7 +1139,7 @@ pub(crate) fn clib_file_pointer() -> Arc<Datatype> {
 // spelling `_IO_FILE`) with the factory-interned pointer to the archive
 // FILE. Anything else passes through unchanged. Lock-free: the pointer
 // comes from the warmed OnceLock cache, never the factory.
-// RUGRA-GLUE: mirrors the platform DWARF analyzer's symbol-typing seam —
+// RUDRA-GLUE: mirrors the platform DWARF analyzer's symbol-typing seam —
 // extern FILE* declarations resolve their spelling against the Program
 // type manager's archive FILE, while DIE-graph references (parameters,
 // struct fields) keep the CU-local DWARF type.
@@ -1157,7 +1157,7 @@ fn remap_external_clib_file_pointer(dt: Arc<Datatype>) -> Arc<Datatype> {
 
 // GLIBC-CLIB-FILE-TYPEDOMAIN-0001 helper: replace a pointer-to-FILE
 impl Default for LibcSignatureTable {
-    // RUGRA-GLUE: Ghidra draws these from its shipped generic_clib signature
+    // RUDRA-GLUE: Ghidra draws these from its shipped generic_clib signature
     // data on the platform side; Rugra encodes the same public glibc ABI
     // declarations verbatim (the 24 imports the locked curl input references)
     fn default() -> Self {
@@ -1209,7 +1209,7 @@ impl Default for LibcSignatureTable {
 }
 
 impl LibcSignatureTable {
-    // RUGRA-GLUE: bare-load constructor (RUGRA-FLOW-MIRROR-0001 M3). The
+    // RUDRA-GLUE: bare-load constructor (RUGRA-FLOW-MIRROR-0001 M3). The
     // oracle single-function harness loads via BfdArchitecture +
     // readLoaderSymbols only — no Java analyzer, no generic_clib signature
     // data reaches the decompiler — so every lookup misses and call sites
@@ -1221,7 +1221,7 @@ impl LibcSignatureTable {
         }
     }
 
-    // RUGRA-GLUE: address of the Program-database signature lookup the decompiler performs via queryFunction
+    // RUDRA-GLUE: address of the Program-database signature lookup the decompiler performs via queryFunction
     pub fn lookup(&self, name: &str) -> Option<&LibcSignature> {
         self.entries.get(name)
     }
@@ -1239,7 +1239,7 @@ impl LibcSignatureTable {
     /// bound compiler model cannot assign the requested prototype. Scalar
     /// stack spill is represented by that model; aggregate/ModelRule paths
     /// remain outside the current bilateral fixture.
-    // RUGRA-GLUE: generic-clib Program-database adapter; storage/markup state follows ProtoStoreInternal::decode (fspec.cc:3464-3567)
+    // RUDRA-GLUE: generic-clib Program-database adapter; storage/markup state follows ProtoStoreInternal::decode (fspec.cc:3464-3567)
     /// Resolve the platform-side locked signature for an imported callee.
     /// `type_names` is the DWARF named-type index (`parse_type_names`): a
     /// signature base spelling that names a DWARF-known type resolves to that
@@ -1358,7 +1358,7 @@ impl LibcSignatureTable {
     }
 }
 
-// RUGRA-GLUE: splits the comma-separated parameter declaration list the signature data carries; an empty list is a void parameter list
+// RUDRA-GLUE: splits the comma-separated parameter declaration list the signature data carries; an empty list is a void parameter list
 fn split_parameter_list(parameters: &str) -> impl Iterator<Item = &str> {
     parameters
         .split(',')
@@ -1366,7 +1366,7 @@ fn split_parameter_list(parameters: &str) -> impl Iterator<Item = &str> {
         .filter(|declaration| !declaration.is_empty())
 }
 
-// RUGRA-GLUE: splits one "TYPE NAME" parameter declaration; the trailing
+// RUDRA-GLUE: splits one "TYPE NAME" parameter declaration; the trailing
 // identifier run is the name, everything before it (spaces and pointer stars
 // included, e.g. "void *__ptr") is the type text
 fn split_declaration(declaration: &str) -> Result<(&str, &str)> {
@@ -1386,8 +1386,8 @@ fn split_declaration(declaration: &str) -> Result<(&str, &str)> {
     Ok((type_text, name))
 }
 
-// RUGRA-GLUE: parses the signature data's C type spellings into Datatypes; only the metatype/size-bearing forms the 24-entry public libc ABI uses (void, char, int, long, size_t, time_t, ushort and pointer layers). A base spelling that names a DWARF-known type (FILE, stat) resolves to that concrete type through `type_names` — the same type-manager name resolution Ghidra's signature loader performs — and only falls back to an address-sized unknown base when the name is unknown
-// RUGRA-GLUE: resolves one signature base spelling through the Architecture
+// RUDRA-GLUE: parses the signature data's C type spellings into Datatypes; only the metatype/size-bearing forms the 24-entry public libc ABI uses (void, char, int, long, size_t, time_t, ushort and pointer layers). A base spelling that names a DWARF-known type (FILE, stat) resolves to that concrete type through `type_names` — the same type-manager name resolution Ghidra's signature loader performs — and only falls back to an address-sized unknown base when the name is unknown
+// RUDRA-GLUE: resolves one signature base spelling through the Architecture
 // TypeFactory the way Ghidra's signature grammar does (lexer TYPE_NAME rule
 // hits glb->types->findByName, grammar.cc:2989). A factory name-tree hit
 // keeps the core type's identity; a miss interns a named base via
@@ -1422,7 +1422,7 @@ fn factory_named_base(
         })
 }
 
-// RUGRA-GLUE: parses the signature data's C type spellings into Datatypes; only the metatype/size-bearing forms the 24-entry public libc ABI uses (void, char, int, long, size_t, time_t, ushort and pointer layers). A base spelling that names a DWARF-known type (FILE, stat) resolves to that concrete type through `type_names` — the same type-manager name resolution Ghidra's signature loader performs; any OTHER unresolvable base is a parse error, mirroring the two oracle arms (explicit transport size or findByName miss), never a minted address-sized unknown base (BRIDGE1-TYPESEED-PIDT)
+// RUDRA-GLUE: parses the signature data's C type spellings into Datatypes; only the metatype/size-bearing forms the 24-entry public libc ABI uses (void, char, int, long, size_t, time_t, ushort and pointer layers). A base spelling that names a DWARF-known type (FILE, stat) resolves to that concrete type through `type_names` — the same type-manager name resolution Ghidra's signature loader performs; any OTHER unresolvable base is a parse error, mirroring the two oracle arms (explicit transport size or findByName miss), never a minted address-sized unknown base (BRIDGE1-TYPESEED-PIDT)
 // HEADLESS-BRIDGE-V1-TYPESEED extension: the committed-local seed manifest
 // (C1) feeds the canon golden's own declaration spellings here, so the base
 // table now also covers the analyzer-committed bases (undefined/undefinedN,
@@ -1612,7 +1612,7 @@ pub(crate) fn parse_c_type(
     Ok(datatype)
 }
 
-// RUGRA-GLUE: separates trailing pointer stars from the base type name in a C type spelling
+// RUDRA-GLUE: separates trailing pointer stars from the base type name in a C type spelling
 fn split_pointer_depth(type_text: &str) -> (&str, usize) {
     let trimmed = type_text.trim();
     // Strip one trailing '*' at a time, along with any spaces before it, so
@@ -1636,7 +1636,7 @@ fn split_pointer_depth(type_text: &str) -> (&str, usize) {
 }
 
 
-// RUGRA-GLUE: resolves a concrete function entry address from a DWARF DIE before handing the prototype to Funcdata
+// RUDRA-GLUE: resolves a concrete function entry address from a DWARF DIE before handing the prototype to Funcdata
 fn subprogram_address(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -1651,7 +1651,7 @@ fn subprogram_address(
     Ok(ranges.next()?.map(|range| range.begin))
 }
 
-// RUGRA-GLUE: follows DWARF declaration inheritance so optimized definitions consume the same source prototype Ghidra imports into its Program database
+// RUDRA-GLUE: follows DWARF declaration inheritance so optimized definitions consume the same source prototype Ghidra imports into its Program database
 fn canonical_subprogram_offset(
     unit: &Unit<DwarfReader>,
     mut offset: UnitOffset<usize>,
@@ -1668,7 +1668,7 @@ fn canonical_subprogram_offset(
     bail!("DWARF abstract-origin/specification chain exceeds 32 entries")
 }
 
-// RUGRA-GLUE: extracts canonical direct formal-parameter children in DIE order, which is the declaration order preserved by Ghidra's imported prototype
+// RUDRA-GLUE: extracts canonical direct formal-parameter children in DIE order, which is the declaration order preserved by Ghidra's imported prototype
 fn read_prototype_children(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -1714,7 +1714,7 @@ fn read_prototype_children(
     Ok((parameters, is_varargs))
 }
 
-// RUGRA-GLUE: follows optimized formal-parameter abstract origins to recover declaration name/type before FuncProto construction
+// RUDRA-GLUE: follows optimized formal-parameter abstract origins to recover declaration name/type before FuncProto construction
 fn canonical_parameter_offset(
     unit: &Unit<DwarfReader>,
     mut offset: UnitOffset<usize>,
@@ -1729,7 +1729,7 @@ fn canonical_parameter_offset(
     bail!("DWARF formal-parameter abstract-origin chain exceeds 32 entries")
 }
 
-// RUGRA-GLUE: converts a DWARF string attribute into owned front-end state; Ghidra's Program database similarly outlives the DIE reader
+// RUDRA-GLUE: converts a DWARF string attribute into owned front-end state; Ghidra's Program database similarly outlives the DIE reader
 fn entry_string(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -1743,7 +1743,7 @@ fn entry_string(
     Ok(Some(reader.to_string_lossy()?.into_owned()))
 }
 
-// RUGRA-GLUE: normalizes unit-relative and same-unit debug-info references for the native DWARF importer
+// RUDRA-GLUE: normalizes unit-relative and same-unit debug-info references for the native DWARF importer
 fn entry_reference(
     unit: &Unit<DwarfReader>,
     entry: &DebuggingInformationEntry<DwarfReader>,
@@ -1759,7 +1759,7 @@ fn entry_reference(
     })
 }
 
-// RUGRA-GLUE: materializes the DWARF type graph into Rugra Datatype objects at the Program-import boundary; Ghidra performs this in its DWARF/type-manager front end. `visiting` holds the DIE offsets currently being resolved so recursive types (FILE -> struct _IO_FILE -> _chain FILE *) break at the back edge with a shallow named projection, the same way Ghidra's two-phase type manager exposes an already-created type before its members are filled in
+// RUDRA-GLUE: materializes the DWARF type graph into Rugra Datatype objects at the Program-import boundary; Ghidra performs this in its DWARF/type-manager front end. `visiting` holds the DIE offsets currently being resolved so recursive types (FILE -> struct _IO_FILE -> _chain FILE *) break at the back edge with a shallow named projection, the same way Ghidra's two-phase type manager exposes an already-created type before its members are filled in
 fn resolve_type(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -1780,7 +1780,7 @@ fn resolve_type(
     resolved
 }
 
-// RUGRA-GLUE: the field/chain-resolving half of resolve_type, entered with the DIE already pushed on the visiting stack
+// RUDRA-GLUE: the field/chain-resolving half of resolve_type, entered with the DIE already pushed on the visiting stack
 fn resolve_type_inner(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -1882,7 +1882,7 @@ fn resolve_type_inner(
             // the importer's synthesized "anon_<container>_<layout
             // fingerprint>_for_<fields>" name (after the single-inbound-
             // typedef steal, :650-656). The former struct_<offset> spelling
-            // was a RUGRA-GLUE placeholder (DWARF-ANON-TYPENAME-0001);
+            // was a RUDRA-GLUE placeholder (DWARF-ANON-TYPENAME-0001);
             // golden witness `(anon_union_16_3_e2f18bb4_for_content)` casts.
             let type_name = match name {
                 Some(name) => name,
@@ -1945,7 +1945,7 @@ fn resolve_type_inner(
     }
 }
 
-// RUGRA-GLUE: shallow projection of a type DIE that is already being resolved higher in the chain: the type's name/size/metatype without fields or nested chains, breaking recursive type graphs the way Ghidra's two-phase type creation does
+// RUDRA-GLUE: shallow projection of a type DIE that is already being resolved higher in the chain: the type's name/size/metatype without fields or nested chains, breaking recursive type graphs the way Ghidra's two-phase type creation does
 fn shallow_type(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -2066,7 +2066,7 @@ fn shallow_type(
     }
 }
 
-// RUGRA-GLUE: maps DW_AT_encoding to the Rugra metatype the base-type importer assigns
+// RUDRA-GLUE: maps DW_AT_encoding to the Rugra metatype the base-type importer assigns
 fn base_metatype(entry: &DebuggingInformationEntry<DwarfReader>) -> Result<TypeMetatype> {
     let encoding = entry.attr_value(gimli::DW_AT_encoding)?;
     Ok(match encoding {
@@ -2200,7 +2200,7 @@ fn base_alias_encoding_compatible(
     }
 }
 
-// RUGRA-GLUE: materializes the Program database base type selected by the
+// RUDRA-GLUE: materializes the Program database base type selected by the
 // locked Ghidra DWARF analyzer before the C++ decompiler receives it.
 // Resolution order mirrors DWARFDataTypeManager.getBaseType
 // (DWARFDataTypeManager.java:397-449, reached from the base-type DIE at
@@ -2249,7 +2249,7 @@ fn dwarf_base_type(
     Ok(base_type(name, size, metatype))
 }
 
-// RUGRA-GLUE: reads direct DW_TAG_member children (DIE order = declaration order), resolving each member's DW_AT_type and DW_AT_data_member_location exactly as Ghidra's DWARF analyzer builds composite fields
+// RUDRA-GLUE: reads direct DW_TAG_member children (DIE order = declaration order), resolving each member's DW_AT_type and DW_AT_data_member_location exactly as Ghidra's DWARF analyzer builds composite fields
 fn read_composite_fields(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -2293,7 +2293,7 @@ fn read_composite_fields(
     Ok(fields)
 }
 
-// RUGRA-GLUE: decodes DW_AT_data_member_location in the two forms producers emit for composites — a plain constant and DW_OP_plus_uconst — rejecting anything else fail-visibly
+// RUDRA-GLUE: decodes DW_AT_data_member_location in the two forms producers emit for composites — a plain constant and DW_OP_plus_uconst — rejecting anything else fail-visibly
 fn member_location(
     unit: &Unit<DwarfReader>,
     entry: &DebuggingInformationEntry<DwarfReader>,
@@ -2559,7 +2559,7 @@ fn build_dwarf_die_table(dwarf: &Dwarf<DwarfReader>) -> Result<DwarfDieTable> {
     Ok(table)
 }
 
-// RUGRA-GLUE: the getEntryName fallback chain (DWARFProgram.java:590-602) — DW_AT_name,
+// RUDRA-GLUE: the getEntryName fallback chain (DWARFProgram.java:590-602) — DW_AT_name,
 // then DW_AT_linkage_name, then DW_AT_MIPS_linkage_name — as a pure helper over the
 // already-read DW_AT_name value
 fn name_arg_linkage_chain(
@@ -2838,7 +2838,7 @@ fn composite_type_name(
     Ok(dwarf_type_leaf_name(&table, (unit_base, offset.0), 0))
 }
 
-// RUGRA-GLUE: reads direct DW_TAG_enumerator children into the value→name table Ghidra keeps on its enum data types for constant-name rendering
+// RUDRA-GLUE: reads direct DW_TAG_enumerator children into the value→name table Ghidra keeps on its enum data types for constant-name rendering
 fn read_enumerators(
     dwarf: &Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
@@ -2877,7 +2877,7 @@ fn read_enumerators(
     Ok(values)
 }
 
-// RUGRA-GLUE: reads the first DW_TAG_subrange child's element count (DW_AT_count, or DW_AT_upper_bound+1) which is the array length Ghidra's DWARF analyzer assigns
+// RUDRA-GLUE: reads the first DW_TAG_subrange child's element count (DW_AT_count, or DW_AT_upper_bound+1) which is the array length Ghidra's DWARF analyzer assigns
 fn read_array_count(unit: &Unit<DwarfReader>, offset: UnitOffset<usize>) -> Result<usize> {
     let mut cursor = unit.entries_at_offset(offset)?;
     let mut first = true;
@@ -2914,12 +2914,12 @@ fn read_array_count(unit: &Unit<DwarfReader>, offset: UnitOffset<usize>) -> Resu
     Ok(0)
 }
 
-// RUGRA-GLUE: constructs a leaf Datatype from front-end debug metadata before it enters Ghidra-aligned type analysis
+// RUDRA-GLUE: constructs a leaf Datatype from front-end debug metadata before it enters Ghidra-aligned type analysis
 fn base_type(name: String, size: usize, metatype: TypeMetatype) -> Arc<Datatype> {
     intern_named(Arc::new(Datatype::Base(TypeBase::new(name, size, metatype))))
 }
 
-// RUGRA-GLUE: constructs a fielded struct Datatype from DWARF DW_TAG_member children; Ghidra builds the equivalent Structure dataType in its DWARF/type-manager front end
+// RUDRA-GLUE: constructs a fielded struct Datatype from DWARF DW_TAG_member children; Ghidra builds the equivalent Structure dataType in its DWARF/type-manager front end
 fn struct_type(name: String, size: usize, fields: Vec<TypeField>) -> Arc<Datatype> {
     intern_named(Arc::new(Datatype::Struct(TypeStruct {
         base: TypeBase::new(name, size, TypeMetatype::Struct),
@@ -2927,7 +2927,7 @@ fn struct_type(name: String, size: usize, fields: Vec<TypeField>) -> Arc<Datatyp
     })))
 }
 
-// RUGRA-GLUE: constructs a fielded union Datatype from DWARF union members (all at offset 0)
+// RUDRA-GLUE: constructs a fielded union Datatype from DWARF union members (all at offset 0)
 fn union_type(name: String, size: usize, fields: Vec<TypeField>) -> Arc<Datatype> {
     let mut base = TypeBase::new(name, size, TypeMetatype::Union);
     // Ghidra's TypeUnion constructor sets needs_resolution (type.hh:551);
@@ -2948,7 +2948,7 @@ fn union_type(name: String, size: usize, fields: Vec<TypeField>) -> Arc<Datatype
     })))
 }
 
-// RUGRA-GLUE: constructs an enum Datatype with its DWARF enumerator value table for constant-name rendering
+// RUDRA-GLUE: constructs an enum Datatype with its DWARF enumerator value table for constant-name rendering
 fn enum_type(name: String, size: usize, values: BTreeMap<u64, String>) -> Arc<Datatype> {
     let mut base = TypeBase::new(name, size, TypeMetatype::Enum);
     // Ghidra's TypeEnum sets the `enumtype` flag (type.hh:490-494 /
@@ -2963,7 +2963,7 @@ fn enum_type(name: String, size: usize, values: BTreeMap<u64, String>) -> Arc<Da
     })))
 }
 
-// RUGRA-GLUE: DWARF-import type-manager canonicalization. Ghidra's DWARF
+// RUDRA-GLUE: DWARF-import type-manager canonicalization. Ghidra's DWARF
 // analyzer resolves every DIE type through the Architecture's ONE
 // TypeFactory (type.cc findByName/setName interning), so the same-named
 // structure reached from two variables — or from both the globals pass
@@ -3041,12 +3041,12 @@ fn intern_named(candidate: Arc<Datatype>) -> Arc<Datatype> {
     }
 }
 
-// RUGRA-GLUE: materializes a DWARF typedef as the underlying composite/enum renamed to the typedef spelling; Rugra's Datatype enum has no TypeTypedef variant yet (Ghidra type.hh has one), so fields and enumerator names are carried on the renamed type
+// RUDRA-GLUE: materializes a DWARF typedef as the underlying composite/enum renamed to the typedef spelling; Rugra's Datatype enum has no TypeTypedef variant yet (Ghidra type.hh has one), so fields and enumerator names are carried on the renamed type
 fn materialized_alias(name: String, inner: &Datatype) -> Result<Arc<Datatype>> {
     Ok(alias_type(name, inner ))
 }
 
-// RUGRA-GLUE: preserves a DWARF typedef/qualifier spelling by cloning the
+// RUDRA-GLUE: preserves a DWARF typedef/qualifier spelling by cloning the
 // resolved concrete datatype and changing only its name/id/core flag, matching
 // the shape/flag-preserving clone portion of TypeFactory::getTypedef
 // (type.cc:3818-3840). This retains TypeChar's chartype/submeta state and the
@@ -3062,7 +3062,7 @@ fn alias_type(name: String, inner: &Datatype) -> Arc<Datatype> {
     intern_named(Arc::new(alias))
 }
 
-// RUGRA-GLUE: constructs a pointer Datatype from a resolved DWARF pointee at the native debug-import boundary
+// RUDRA-GLUE: constructs a pointer Datatype from a resolved DWARF pointee at the native debug-import boundary
 fn pointer_type(pointee: Arc<Datatype>, size: usize) -> Arc<Datatype> {
     // Ghidra builds DWARF pointer types anonymously (the TypeFactory 3-arg
     // getTypePointer path, type.cc:3867-3875 — DW_AT_name on a pointer
@@ -3076,7 +3076,7 @@ fn pointer_type(pointee: Arc<Datatype>, size: usize) -> Arc<Datatype> {
         .get_type_pointer(size, pointee, 1)
 }
 
-// RUGRA-GLUE: canonical locked-void type used when DW_AT_type is absent on a subprogram or pointer target.
+// RUDRA-GLUE: canonical locked-void type used when DW_AT_type is absent on a subprogram or pointer target.
 // GLIBC-PROTO-PARAMNAME-0001: routed through the canonical shared factory
 // (Ghidra's single `void` core type) so `void *` pointee identity is the
 // factory's, not a per-parse clone.
@@ -3087,7 +3087,7 @@ fn void_type() -> Arc<Datatype> {
         .get_type_void()
 }
 
-// RUGRA-GLUE: fail-visible unknown DWARF type used only when a DIE omits a resolvable type reference
+// RUDRA-GLUE: fail-visible unknown DWARF type used only when a DIE omits a resolvable type reference
 fn unknown_type(size: usize) -> Arc<Datatype> {
     base_type(format!("undefined{size}"), size, TypeMetatype::Unknown)
 }

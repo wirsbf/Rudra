@@ -84,7 +84,7 @@ not yet wired into main.rs; existing linear scan still active).
 ## 2026-08-11：ANN-B 注释 provenance 审计
 
 - Oracle 固定为 Ghidra 12.0.4 commit `e40ed13014025f82488b1f8f7bca566894ac376b`；完整读取 `flow.cc` 与 `flow.hh` 后分类。
-- 为 `FuncCallSpecsExt` 的 8 个 trait 声明和 8 个 Rust 实现补充具体 `RUGRA-GLUE: ANN-B`：这些是 flow-local 适配层，不是 Ghidra `FlowInfo` 函数。缺失的 callspec 状态/身份分别仍由 `CALLSPEC-0001` 与 `INJECT-0001` 跟踪。
+- 为 `FuncCallSpecsExt` 的 8 个 trait 声明和 8 个 Rust 实现补充具体 `RUDRA-GLUE: ANN-B`：这些是 flow-local 适配层，不是 Ghidra `FlowInfo` 函数。缺失的 callspec 状态/身份分别仍由 `CALLSPEC-0001` 与 `INJECT-0001` 跟踪。
 - `address_space_as_u32` 是 Rust `AddressSpace` 到临时注入元组的适配；`find_callspec_for_op` 是 callspec 指针身份尚未落地时的线性扫描回退，二者均无可诚实引用的 Ghidra 函数体。
 - 本轮仅补对齐来源注释，不改行为，也不产生逐函数 oracle `MATCH` 或 L3 证明。
 
@@ -92,7 +92,7 @@ not yet wired into main.rs; existing linear scan still active).
 
 补齐 Ghidra `flow.cc` 中缺失的跳转表（jump-table）分析与基本块生成方法。每个
 移植方法均带 `// Ghidra: flow.cc:<行号> FlowInfo::<函数名>` 注释，Rust 胶水
-标 `// RUGRA-GLUE: <理由>`。
+标 `// RUDRA-GLUE: <理由>`。
 
 ### 新增方法（src/flow.rs，+403 行，778→1181）
 
@@ -109,13 +109,13 @@ not yet wired into main.rs; existing linear scan still active).
 | `connect_basic` | :1021 connectBasic | 按 collectEdges 的原始顺序清空并重放边，保留正反向 slot |
 | `generate_blocks` | :824 generateBlocks | fillinBranchStubs → collectEdges → splitBasic → connectBasic → removeUnreachableBlocks |
 
-辅助方法（`// RUGRA-GLUE`）：
+辅助方法（`// RUDRA-GLUE`）：
 - `target_op_for_branch` — `collect_edges` 的内部适配名，委托完整
   `branch_target`/`target`，包括目标指令无 P-code 时沿 visited 前进的路径
 - `target_op_by_addr` — 地址 → 首个 alive op（Ghidra target() 地址回退循环）
 - `fallthru_op` — 顺序下一个 alive op（Ghidra fallthruOp 的近似）
 
-### 已知缺口（RUGRA-GLUE 标注）
+### 已知缺口（RUDRA-GLUE 标注）
 
 - **partial Funcdata 克隆**（已关闭，JUMPTABLE-PIPELINE-0001）：`recover_jump_tables`
   现构建 `@<fn>@@jump@<addr>` 命名的 partial Funcdata 并共享源函数的
@@ -412,7 +412,7 @@ call 均保留为 CPUI_CALL + callspec）。
   Rugra callspec 无名时 warning 以 entry 地址拼写）；
   否则 inlineSubFunction+`Inlined function`+deleteCallSpec；收尾
   injectlist.clear()。
-- **`fixture_queue_inject`**（RUGRA-GLUE，snapshot() 同类 fixture 观察 API）：
+- **`fixture_queue_inject`**（RUDRA-GLUE，snapshot() 同类 fixture 观察 API）：
   锁定的 x86-64 SLEIGH 声明无 userop，双侧都无法用真实指令发射 CALLOTHER；
   C++ fixture 直写私有 injectlist，Rust fixture 经此钩子镜像。
 
@@ -476,7 +476,7 @@ CALL→BRANCH、callspec 被删，引发 10 级指针链与返回地址常量 st
   切片：入口 + 显示名）；
 - FlowInfo 新增 `resolved_funcdata: BTreeSet<u64>`（按 spec `op_addr` 键控）
   承载"已解析"观察，`check_contained_call` 以集合成员测试实现
-  flow.cc:1367-1368 守卫（RUGRA-GLUE：Rugra FuncCallSpecs 无 per-spec
+  flow.cc:1367-1368 守卫（RUDRA-GLUE：Rugra FuncCallSpecs 无 per-spec
   callee Funcdata 存储，fspec 侧缺口；集合仅在 query_call 写入、
   同一 FlowInfo 生命周期内消费，与 Ghidra spec 内指针同寿）；
 - 扩展 trait `is_inline`/`is_no_return` 从硬编码 false 改为委托
@@ -657,7 +657,7 @@ curl 小范围 A/B 的生产收益是：`hugehelp` callspec/puts `5 -> 6`，
   setBadJumpTable（flow.cc:754）已由
   FLOWSET 车道接线（见 2026-09-25 节），输出消费者归 coreaction 车道。
 - **恒 false stub 清理**：扩展 trait `is_inline`/`is_no_return` 删除（fspec.rs
-  继承面已提供同名 inherent 委托，原实现已被遮蔽为死代码），过时 RUGRA-GLUE
+  继承面已提供同名 inherent 委托，原实现已被遮蔽为死代码），过时 RUDRA-GLUE
   注释一并修正；`test_hard_inline_restrictions` 的
   `let inline_noreturn = false; // TODO` 改为
   `inlinefd.get_func_proto().is_no_return()`（flow.cc:1136，无内部 caller，

@@ -205,7 +205,7 @@ Ghidra `varmap.cc` (1620行) 的 Rust 移植。负责局部变量的栈帧重构
 - `sort_aliases(&mut self)` — `AliasChecker::sortAlias` (varmap.cc:726)，restructureVarnode varmap.cc:1279 调用（checkUnaliasedReturn 的 lower_bound 依赖有序）
 - `has_local_alias(&self, vn)` — `AliasChecker::hasLocalAlias` (varmap.cc:711)；`direction==-1`（正向增长）时返回 false；`!calculated` 时保守 true（Ghidra 此处现场 gatherInternal——Rust 取 &self，管线两条路径均预计算，未计算分支不可达）
 - `derive_boundaries(&mut self, localrange, paramrange, has_model)` — `AliasChecker::deriveBoundaries` (varmap.cc:633-655)：默认 `localExtreme=~0 / localBoundary=0x1000000`（正向增长时 `localExtreme=localBoundary`）；**有模型时** `localBoundary = paramrange 末 range 的 last`（默认负增长模型 = **511**，fspec.cc:2298-2307——此前死区 [511,0x1000000) 内的正偏移加法基不收缩 aliasBoundary，R8 §6.3 证伪"行为等价"后的修复），正向增长改 `paramrange 首 range 的 first` 且 `localExtreme = localBoundary`
-- `boundaries()` — RUGRA-GLUE 观察口：`(localBoundary, localExtreme, aliasBoundary)`（C++ fixture 经 `#define private public` 直读成员）
+- `boundaries()` — RUDRA-GLUE 观察口：`(localBoundary, localExtreme, aliasBoundary)`（C++ fixture 经 `#define private public` 直读成员）
 
 辅助函数：
 - `pub fn gather_offset(vn)` — `AliasChecker::gatherOffset` (varmap.cc:817)，递归求和常量偏移（COPY/ADD/SUB/PTRADD/SEGMENTOP），末尾按字节大小掩码；`VARMAP-GATHEROFFSET-0001` 已按 `address.hh:499` 的 `size >= 8` 钳位语义修复 8-byte 边界，并由锁定 12.0.4 的 7/8-byte 直接状态 fixture 验证。该窄分支的 `MATCH` 不提升整个 `AliasChecker` 模块状态。
@@ -219,7 +219,7 @@ Ghidra `varmap.cc` (1620行) 的 Rust 移植。负责局部变量的栈帧重构
 闭区间 `Vec<(first,last)>` 承载，add_range 的门与 initialize 的端点都从该真值窗口推导：
 - `new(range)` / `new_with_default(range, default_type)` — 构造器（varmap.cc:864-867）：`range` 为
   分析窗口（scope 并集树减 paramrange，由 `ScopeLocal::build_map_state` 按 varmap.cc:1260 组装）
-- `analysis_range()` / `hints()` — RUGRA-GLUE 只读观察口（锁定 fixture 的观察面；C++ 侧经
+- `analysis_range()` / `hints()` — RUDRA-GLUE 只读观察口（锁定 fixture 的观察面；C++ 侧经
   `#define private public` 直读 `range`/`maplist`）
 - `add_range(start, dtype, flags, rt, high_ind)` — `MapState::addRange` (varmap.cc:896)：**2026-09-25
   RANGEHINT-CR-F2** `ct==NULL || ct->getSize()==0` 一律代换 `defaultType` 后**继续**（varmap.cc:899-900；
@@ -233,7 +233,7 @@ Ghidra `varmap.cc` (1620行) 的 Rust 移植。负责局部变量的栈帧重构
 - `add_fixed_type(start, dtype, flags, types)` — `MapState::addFixedType` (varmap.cc:926)。**2026-10-02 PARTSYM partial 剥离分派补齐**（VARMAP-UNAFF-TYPEMAT-0001，详见「当前限制」条的展开）：partial 类型 varnode 不透传自身——PARTIALSTRUCT 按 容器 STRUCT@off0/PARTIAL_ARRAY base 非 unknown 出 open 容器 hint + flags≠0 补 `getBase(partial.size, TYPE_UNKNOWN)` fixed；PARTIALUNION 仅 off==0 open 容器；其余直通 fixed。`types` 参数对应 oracle 签名的 `TypeFactory *types`（varmap.cc:928，仅 flags≠0 补 hint 的 getBase 用）。
 - `gather_varnodes(fd, types)` — `MapState::gatherVarnodes` (varmap.cc:1124)，逐 op-code 分支（INDIRECT/MULTIEQUAL/PIECE/SUBPIECE/COPY/默认），含 same-storage 去重与 `is_read_active`。PIECE 视为两个 COPY（little-endian slot=1，addr+=inFirst.size）；SUBPIECE 用 little-endian `trunc = in1.offset`，`addr = in0.off + trunc` 后与 vn 地址比较。**2026-09-28 PIECE 半值 hint 落址修正（SQLCENSUS-CODESTAR-DOWNCHAIN-0001 根因二，S2R2 车道）**：oracle 的两处 `addFixedType(addr.getOffset(), inXxx->getType())`（varmap.cc:1172/1176）落在**输出地址**与**输出地址+低位尺寸**上（输入地址只用于 same-storage 判定）；Rugra 此前落在输入 varnode 自身地址上——寄存器半值地址不在栈分析窗内被 `window_in_range` 静默丢弃，8 字节槽的高半 hint（如 -0x78 槽的 -0x74@4 字节）永不出现 → RangeHint::merge 的 resType=2 confuse 稳定器（varmap.cc:298-312，oracle 同槽 MERGE 折叠日志亲证：`cur=:8(open) next=uint4:4 res=2` 重置为标量）永不触发 → varmap↔downChain 反馈环每轮 +1 星（sqlite3Select -0x78 槽 xunknown8→uint4\*→…→uint4\*\*\*\*\*\*，GETSUBTYPE 348 查询里 384→指针态、`(code*)` 0/7 星 387 行）。修复后 -0x78 槽 348 次 getSubType 全程恒 xunknown8（=oracle 逐查询恒等），Select 镜面 2257→90
 - `gather_open(fd, types)` — `MapState::gatherOpen` (varmap.cc:1211-1249)：先跑内嵌 checker 的 `gather(fd, grows, false)`（varmap.cc:1214，含 deriveBoundaries），对每个 AddBase 根：指针→pointee，**数组层全下钻**（varmap.cc:1226-1227 `while`——此前单层是缺陷），index 在则 minItems=3；非指针传 `None`（Ghidra 传 NULL，"Do unknown array"，varmap.cc:1230），由 `add_range` 回退默认类型（varmap.cc:896）；随后遍历 `fd.heritage.load_guard`/`store_guard` 走 `add_guard`（varmap.cc:1241-1248）。**checker 现为 MapState 成员**（varmap.hh MapState `AliasChecker checker`），`sort_alias`/`get_alias` 是 restructureVarnode 的消费口（varmap.cc:1279-1284）
-- `set_stack_grows_negative(grows)` — RUGRA-GLUE：Ghidra 由 space 成员的增长位（varmap.cc:700）供 checker.gather 取向；Rugra AddressSpace 无该位，装 scope 的原型派生值
+- `set_stack_grows_negative(grows)` — RUDRA-GLUE：Ghidra 由 space 成员的增长位（varmap.cc:700）供 checker.gather 取向；Rugra AddressSpace 无该位，装 scope 的原型派生值
 - `add_guard(guard, opc, types)` — **2026-08-25 VARMAP-GATHEROPEN-GUARD-0001** `MapState::addGuard` (varmap.cc:1003-1039)：`isValid`（op 活且 opcode 匹配，heritage.hh:169）→ step==0 拒 → 地址输入类型指针下钻数组层 → outSize 匹配/整除 step（整除时假装 outSize 数组）→ 对齐不匹配且 step<=8 时工厂 `getBase(step,TYPE_UNKNOWN)` 重型 → range-locked（`analysis_state==2`）`minItems=(max-min+1)/step-1` 否则 3 → open hint。**R23 followup 5.1 已闭合（2026-08-25 VARMAP-UNIONFACING-READFACING-0001）**：地址输入类型改取 op 版 `get_type_read_facing_op(&op, 1)`（= `getTypeReadFacing(op)`，varnode.cc:639-645，getIn(1) 恒 slot 1），union 指针经 `TypePointer::findResolve`（type.cc:1192-1202，needs_resolution 由 calcSubmeta type.cc:1051-1052 传播）；Rugra 侧 findResolve 目前 identity（varnode.rs `get_type_read_facing_op`），两版同值休眠——双侧 fixture 复跑 sha `3b5e1b65…` 三方同一（编辑后 Rust == R23 pin == oracle 重跑）。**2026-09-25 RANGEHINT 补齐（VARMAP-RANGEHINT-ARRAYELEM-0001）**：oracle 的 Varnode 恒带类型（`newVarnodeOut`/`newUniqueOut`/`newVarnode` 一律装 `getBase(s,TYPE_UNKNOWN)`，funcdata_varnode.cc:107/132/153-154；`getTypeReadFacing` 非联合直接返回 `type`，varnode.cc:639-645），故 varmap.cc:1009-1038 的 `ct` 永不为 null、无 null 早退；Rugra 以 `v_type=None` 建模未定型 varnode，此前 None 直接 `return` 丢 guard hint——现 None 臂代以工厂 `undefined<addr_vn_size>`（正是 oracle 侧 `getIn(1)->getTypeReadFacing` 的返回值），非指针 ct 继续走 outSize/step/对齐检查（与 Ghidra 单流一致）。curl/httpd E2E 逐字节恒等（None 路径在双语料不触发，行为中性）
 - `gather_symbols(scope)` — **2026-08-25** `MapState::gatherSymbols` (varmap.cc:1044-1059)：按 space 的 maptable 列表序回灌每个映射符号（entry 起始偏移、符号类型、typelock→hint 旗标）为 fixed hint——restructureVarnode varmap.cc:1269 的 typelocked 符号回灌
 - `sort_alias()` / `get_alias()` — varmap.cc:1279/1281-1284 的 `state.sortAlias()`/`state.getAlias()`
@@ -308,7 +308,7 @@ Clone 用于 printc 从 `fd.scope` 复用）。
 - `build_default_name(idx, base, vn, fd)` — `Scope::buildDefaultName` (database.cc:1756)：entry 路径由 usepoint 推导 flags、function_parameter 用 catindex+1；vn 分支保留（待 ActionNameVars 接入）
 - `assign_default_names(base)` — **`ScopeInternal::assignDefaultNames`** (database.cc:2850)：nametree 顺序、共享 `int4 base` 计数器、二次运行幂等
 - `set_category(idx, cat, ind)` / `get_category_symbol(cat, ind)` / `get_category_size(cat)` — `ScopeInternal::setCategory`/`getCategorySymbol`/`getCategorySize` (database.cc:2824/2814/2806)
-- `symbols_in_nametree_order()` — RUGRA-GLUE：锁定 fixture 的 nametree 顺序只读观察口
+- `symbols_in_nametree_order()` — RUDRA-GLUE：锁定 fixture 的 nametree 顺序只读观察口
 - `mark_unaliased(aliases)` — `ScopeLocal::markUnaliased` (varmap.cc:1332-1391) 忠实状态机：按 maptable 条目序（per-space rangemap `(first,size,subsort)` 升序）遍历；**跨条目 sticky 状态**（`aliason` 初 false、alias 游标 `i` 单调推进、rangeIter 不回退）；别名消费循环 `alias[i] <= curoff`（:1358-1361）；**range-tree 走查**（:1363-1375，"别名不穿过 unmapped 区域"：范围 `first > curalias && curoff >= first` 或被越过的范围 `last > curalias` 关闭 aliason，`last >= curoff` 时 break 且游标停在当前范围）；0xffff 距离启发式（:1378，**可变更 aliason 对后续条目生效**）；`setAttribute(nolocalalias)` **只置位不清位**（database.cc:2200-2207 |= 语义）；locked-type 阻断（:1381-1390，`glb->alias_block_level` 默认 2=struct+array 阻断，arch_lookup 接入，fixture 无 arch 回退 0）。2026-09-24 PM-HF 车道 oracle 探针实证（helpf：entry -0xf8 与 alias -0x228..-0x220 相距 <0xffff，仅 range-gap 规则可判 unaliased——旧实现按符号独立重算且无 range 走查，判 aliased 致 RuleIndirectCollapse 拒折 6 个 free-阻 INDIRECT，oppool1 count 118 vs 110）
 - `find_symbol(offset)` — 按偏移查找重构后的符号
 
@@ -442,7 +442,7 @@ oracle 证据承担：
   mark_unaliased）全部经 with_maptable 闭包取 `&RangeMap`，零答案差异
   （VdbeExec --one 1055 stdout md5 全等 + sqlite 全语料 1385 函数组装
   输出 cmp 逐字节恒等）。
-- `clear_symbols_wholesale`（RUGRA-GLUE，2026-09-26 GENWIRE）——funcdata
+- `clear_symbols_wholesale`（RUDRA-GLUE，2026-09-26 GENWIRE）——funcdata
   startProcessing/clear 两 seam 的 wholesale-clear 配套（Ghidra
   `localmap->clearUnlocked()` 投影）：symbols + nametree +
   category_lists + mapentry_log **同拍清空**。oracle 侧符号经

@@ -5,7 +5,7 @@
 
 use crate::types::{DataType, StructDef, FieldDef};
 
-// RUGRA-GLUE: verify_datatype (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_datatype (no Ghidra counterpart found)
 /// Verify that a Rugra DataType aligns with Ghidra's representation
 ///
 /// Checks size and metatype compatibility
@@ -51,7 +51,7 @@ pub fn verify_datatype(
     size_match && metatype_match
 }
 
-// RUGRA-GLUE: verify_struct_layout (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_struct_layout (no Ghidra counterpart found)
 /// Verify struct layout alignment
 ///
 /// Checks that field offsets and sizes match between Rugra and Ghidra
@@ -120,7 +120,7 @@ pub fn verify_struct_layout(
     true
 }
 
-// RUGRA-GLUE: verify_field (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_field (no Ghidra counterpart found)
 /// Verify field definition alignment
 pub fn verify_field(
     rugra_field: &FieldDef,
@@ -161,7 +161,7 @@ pub fn verify_field(
     name_match && offset_match && size_match
 }
 
-// RUGRA-GLUE: verify_pointer_type (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_pointer_type (no Ghidra counterpart found)
 /// Verify pointer type alignment
 pub fn verify_pointer_type(
     rugra_type: &DataType,
@@ -187,7 +187,7 @@ pub fn verify_pointer_type(
     }
 }
 
-// RUGRA-GLUE: verify_array_type (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_array_type (no Ghidra counterpart found)
 /// Verify array type alignment
 pub fn verify_array_type(
     rugra_type: &DataType,
@@ -214,7 +214,7 @@ pub fn verify_array_type(
     }
 }
 
-// RUGRA-GLUE: verify_primitive_size (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_primitive_size (no Ghidra counterpart found)
 /// Verify primitive type size alignment
 pub fn verify_primitive_size(rugra_type: &DataType, ghidra_size: usize) -> bool {
     let size_match = rugra_type.size() == ghidra_size;

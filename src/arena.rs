@@ -59,7 +59,7 @@ use std::collections::BTreeMap;
 
 /// Identity + packing contract shared by all arena handle types.
 ///
-/// RUGRA-GLUE: Rust-side container infrastructure — Ghidra has no counterpart
+/// RUDRA-GLUE: Rust-side container infrastructure — Ghidra has no counterpart
 /// (the oracle identifies objects by raw pointer value). The generation
 /// counter mechanizes the oracle's dangling-pointer discipline instead of
 /// relying on "we promise not to look" comments (op.cc:984-987).
@@ -68,30 +68,30 @@ pub trait ArenaId: Copy + Eq + std::fmt::Debug {
     /// slot of every [`Arena`]; no allocation ever returns index 0.
     const SENTINEL: Self;
 
-    // RUGRA-GLUE: constructor from raw parts (used by Arena::insert and by
+    // RUDRA-GLUE: constructor from raw parts (used by Arena::insert and by
     // the W1 iop-constant packing/unpacking that replaces Arc::as_ptr
     // encoding, ARENA_DESIGN §2.5).
     fn from_parts(idx: u32, gen: u32) -> Self;
 
-    // RUGRA-GLUE: slot index accessor (private bookkeeping; never a sort key).
+    // RUDRA-GLUE: slot index accessor (private bookkeeping; never a sort key).
     fn idx(self) -> u32;
 
-    // RUGRA-GLUE: generation accessor (dangling guard).
+    // RUDRA-GLUE: generation accessor (dangling guard).
     fn gen(self) -> u32;
 
-    // RUGRA-GLUE: true for the sentinel handle (index 0).
+    // RUDRA-GLUE: true for the sentinel handle (index 0).
     fn is_sentinel(self) -> bool {
         self.idx() == 0
     }
 
-    // RUGRA-GLUE: pack into a u64 for the iop-constant offset encoding
+    // RUDRA-GLUE: pack into a u64 for the iop-constant offset encoding
     // (ARENA_DESIGN §1.2: "OpId 打包进偏移"; the packed value never reaches
     // C output, exactly like the oracle's PcodeOp* cast, op.hh:249).
     fn to_bits(self) -> u64 {
         ((self.gen() as u64) << 32) | (self.idx() as u64)
     }
 
-    // RUGRA-GLUE: unpack from a u64 (get_op_from_const mirror).
+    // RUDRA-GLUE: unpack from a u64 (get_op_from_const mirror).
     fn from_bits(bits: u64) -> Self {
         Self::from_parts(bits as u32, (bits >> 32) as u32)
     }
@@ -107,22 +107,22 @@ macro_rules! arena_id_type {
         }
 
         impl ArenaId for $name {
-            // RUGRA-GLUE: sentinel handle = reserved slot 0 (ARENA_DESIGN
+            // RUDRA-GLUE: sentinel handle = reserved slot 0 (ARENA_DESIGN
             // §1.2: "哨兵 id=0 保留槽(= std::list end())").
             const SENTINEL: Self = Self { idx: 0, gen: 0 };
 
-            // RUGRA-GLUE: raw-parts constructor (arena-internal + W1 iop
+            // RUDRA-GLUE: raw-parts constructor (arena-internal + W1 iop
             // packing only).
             fn from_parts(idx: u32, gen: u32) -> Self {
                 Self { idx, gen }
             }
 
-            // RUGRA-GLUE: slot index (private bookkeeping).
+            // RUDRA-GLUE: slot index (private bookkeeping).
             fn idx(self) -> u32 {
                 self.idx
             }
 
-            // RUGRA-GLUE: generation (dangling guard).
+            // RUDRA-GLUE: generation (dangling guard).
             fn gen(self) -> u32 {
                 self.gen
             }
@@ -154,7 +154,7 @@ arena_id_type! {
 
 /// One slot of arena storage.
 ///
-/// RUGRA-GLUE: Rust-side storage — the oracle equivalent is the C++ heap
+/// RUDRA-GLUE: Rust-side storage — the oracle equivalent is the C++ heap
 /// allocation itself (`new PcodeOp`, op.cc:944) plus the "deadandgone keeps
 /// the object alive" rule (op.cc:984-999). The `Reserved` variant marks the
 /// sentinel slot 0, which is never allocated and never enters the free list.
@@ -167,7 +167,7 @@ enum Slot<T> {
 /// Free-list terminator ("no next free slot").
 const FREE_END: u32 = u32::MAX;
 
-// RUGRA-GLUE: generic slot storage with generational indices — replaces the
+// RUDRA-GLUE: generic slot storage with generational indices — replaces the
 // oracle's new/delete allocator + dangling-pointer discipline. No iteration
 // API exists on purpose: physical slot order must never be observable
 /// (ARENA_DESIGN §2.4/§8.3).
@@ -181,7 +181,7 @@ pub struct Arena<T, Id: ArenaId> {
 
 impl<T, Id: ArenaId> Arena<T, Id> {
     /// Empty arena with the sentinel slot reserved (index 0).
-    // RUGRA-GLUE: container constructor — no Ghidra counterpart.
+    // RUDRA-GLUE: container constructor — no Ghidra counterpart.
     pub fn new() -> Self {
         let mut arena = Arena {
             slots: Vec::new(),
@@ -196,7 +196,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     }
 
     /// Empty arena with pre-reserved capacity (index 0 reserved).
-    // RUGRA-GLUE: capacity hint — no Ghidra counterpart.
+    // RUDRA-GLUE: capacity hint — no Ghidra counterpart.
     pub fn with_capacity(cap: usize) -> Self {
         let mut arena = Arena {
             slots: Vec::with_capacity(cap + 1),
@@ -217,7 +217,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     /// initialize any embedded [`Links`] fields to [`Links::detached`]
     /// before linking the element into an [`IdList`] (a zeroed `Links`
     /// is already detached, so `Default`-style construction is safe).
-    // RUGRA-GLUE: mirrors `new PcodeOp(...)` at the allocation level
+    // RUDRA-GLUE: mirrors `new PcodeOp(...)` at the allocation level
     /// (op.cc:944) without the C++ heap.
     pub fn insert(&mut self, value: T) -> Id {
         let idx = match self.free_head {
@@ -251,7 +251,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     /// [`IdList`] first (removing a linked element corrupts chains, exactly
     /// as deleting a linked `PcodeOp` without going through
     /// `PcodeOpBank::destroy` does in the oracle).
-    // RUGRA-GLUE: mirrors the reclaim half of the oracle lifecycle; the
+    // RUDRA-GLUE: mirrors the reclaim half of the oracle lifecycle; the
     /// oracle only truly reclaims at bank clear/destruction (op.cc:984-999
     /// keeps deadandgone objects readable).
     pub fn remove(&mut self, id: Id) -> Option<T> {
@@ -279,7 +279,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     /// handle is the mechanized form of the oracle's dangling-pointer guard
     /// — callers treat it as "object gone", never as "silently another
     /// object".
-    // RUGRA-GLUE: id dereference — the oracle counterpart is the raw
+    // RUDRA-GLUE: id dereference — the oracle counterpart is the raw
     // pointer dereference itself.
     pub fn get(&self, id: Id) -> Option<&T> {
         let i = id.idx() as usize;
@@ -292,7 +292,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
         }
     }
 
-    /// RUGRA-GLUE: PERF-DISPATCH-0001 — project the slot's address without
+    /// RUDRA-GLUE: PERF-DISPATCH-0001 — project the slot's address without
     /// touching the slot's cache line (pure pointer arithmetic over the slab
     /// base; the vacancy check is skipped because the caller prefetched from
     /// a live id). The address feeds a non-blocking PREFETCHT0 hint; no Ghidra
@@ -308,7 +308,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     }
 
     /// Resolve `id` to an exclusive reference, or `None` if stale/unknown.
-    // RUGRA-GLUE: id dereference (mutable) — oracle raw pointer write path.
+    // RUDRA-GLUE: id dereference (mutable) — oracle raw pointer write path.
     pub fn get_mut(&mut self, id: Id) -> Option<&mut T> {
         let i = id.idx() as usize;
         if i >= self.slots.len() || self.gens[i] != id.gen() {
@@ -321,7 +321,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     }
 
     /// True if `id` resolves to a live element.
-    // RUGRA-GLUE: handle liveness check — oracle `ptr != (PcodeOp*)0` plus
+    // RUDRA-GLUE: handle liveness check — oracle `ptr != (PcodeOp*)0` plus
     /// discipline; here it is exact.
     pub fn contains(&self, id: Id) -> bool {
         self.get(id).is_some()
@@ -331,13 +331,13 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     ///
     /// This is a *count*, never an ordering: `Arena` deliberately exposes no
     /// iteration over slots (ARENA_DESIGN §2.4/§8.3).
-    // RUGRA-GLUE: size bookkeeping (std::list::size / map::size analogue).
+    // RUDRA-GLUE: size bookkeeping (std::list::size / map::size analogue).
     pub fn len(&self) -> usize {
         self.live as usize
     }
 
     /// True if no live elements.
-    // RUGRA-GLUE: emptiness check.
+    // RUDRA-GLUE: emptiness check.
     pub fn is_empty(&self) -> bool {
         self.live == 0
     }
@@ -350,7 +350,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     /// can never alias old ids. Mirrors `PcodeOpBank::clear` /
     /// `VarnodeBank::clear` being the only point where the oracle truly
     /// reclaims (op.cc deadandgone note, varnode.cc:1250-1330 domain).
-    // RUGRA-GLUE: bulk reclaim — oracle `clear()` + destructor.
+    // RUDRA-GLUE: bulk reclaim — oracle `clear()` + destructor.
     pub fn clear(&mut self) {
         for i in 0..self.slots.len() {
             if matches!(self.slots[i], Slot::Occupied(_)) {
@@ -374,7 +374,7 @@ impl<T, Id: ArenaId> Arena<T, Id> {
 }
 
 impl<T, Id: ArenaId> Default for Arena<T, Id> {
-    // RUGRA-GLUE: Default = new() (clippy::new_without_default).
+    // RUDRA-GLUE: Default = new() (clippy::new_without_default).
     fn default() -> Self {
         Self::new()
     }
@@ -404,14 +404,14 @@ pub struct Links<Id: ArenaId> {
 
 impl<Id: ArenaId> Links<Id> {
     /// Detached state: not in any chain.
-    // RUGRA-GLUE: initial state — the oracle equivalent is the stored
+    // RUDRA-GLUE: initial state — the oracle equivalent is the stored
     // iterator being list end() / uninitialized before first insertion.
     pub const fn detached() -> Self {
         Links { prev: Id::SENTINEL, next: Id::SENTINEL }
     }
 
     /// True if both ends are the sentinel (fresh or unlinked).
-    // RUGRA-GLUE: membership bookkeeping (cheap form; see IdList::contains
+    // RUDRA-GLUE: membership bookkeeping (cheap form; see IdList::contains
     // for the exact member test).
     pub fn is_detached(&self) -> bool {
         self.prev.is_sentinel() && self.next.is_sentinel()
@@ -453,17 +453,17 @@ pub trait Linked {
     type Elem;
     type Id: ArenaId;
 
-    // RUGRA-GLUE: link-field projection accessors (the oracle stores raw
+    // RUDRA-GLUE: link-field projection accessors (the oracle stores raw
     // list iterators; Rust cannot, so the chain threads through fields).
     fn prev(elem: &Self::Elem) -> Self::Id;
 
-    // RUGRA-GLUE: link-field projection accessors.
+    // RUDRA-GLUE: link-field projection accessors.
     fn next(elem: &Self::Elem) -> Self::Id;
 
-    // RUGRA-GLUE: link-field projection accessors.
+    // RUDRA-GLUE: link-field projection accessors.
     fn set_prev(elem: &mut Self::Elem, id: Self::Id);
 
-    // RUGRA-GLUE: link-field projection accessors.
+    // RUDRA-GLUE: link-field projection accessors.
     fn set_next(elem: &mut Self::Elem, id: Self::Id);
 }
 
@@ -488,31 +488,31 @@ pub struct IdList<L: Linked> {
 
 impl<L: Linked> IdList<L> {
     /// Empty chain (head = tail = sentinel).
-    // RUGRA-GLUE: empty std::list construction.
+    // RUDRA-GLUE: empty std::list construction.
     pub const fn new() -> Self {
         IdList { head: L::Id::SENTINEL, tail: L::Id::SENTINEL, len: 0, _pd: PhantomData }
     }
 
     /// Number of elements in the chain.
-    // RUGRA-GLUE: std::list::size().
+    // RUDRA-GLUE: std::list::size().
     pub fn len(&self) -> usize {
         self.len as usize
     }
 
     /// True if the chain is empty.
-    // RUGRA-GLUE: std::list::empty().
+    // RUDRA-GLUE: std::list::empty().
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// First element of the chain, or `None` if empty.
-    // RUGRA-GLUE: begin() != end() probe.
+    // RUDRA-GLUE: begin() != end() probe.
     pub fn head(&self) -> Option<L::Id> {
         if self.head.is_sentinel() { None } else { Some(self.head) }
     }
 
     /// Last element of the chain, or `None` if empty.
-    // RUGRA-GLUE: rbegin() probe / --end().
+    // RUDRA-GLUE: rbegin() probe / --end().
     pub fn tail(&self) -> Option<L::Id> {
         if self.tail.is_sentinel() { None } else { Some(self.tail) }
     }
@@ -527,7 +527,7 @@ impl<L: Linked> IdList<L> {
     /// over the same shared link field is indistinguishable from a member
     /// without walking — same trust level as the oracle's stored iterator;
     /// see the [`Linked`] trait docs for the discipline.
-    // RUGRA-GLUE: stored-iterator validity probe (oracle: `iter != end()`).
+    // RUDRA-GLUE: stored-iterator validity probe (oracle: `iter != end()`).
     pub fn contains(&self, arena: &Arena<L::Elem, L::Id>, id: L::Id) -> bool {
         let Some(elem) = arena.get(id) else { return false };
         let (p, n) = (L::prev(elem), L::next(elem));
@@ -814,7 +814,7 @@ impl<L: Linked> IdList<L> {
 }
 
 impl<L: Linked> Default for IdList<L> {
-    // RUGRA-GLUE: Default = new() (clippy::new_without_default).
+    // RUDRA-GLUE: Default = new() (clippy::new_without_default).
     fn default() -> Self {
         Self::new()
     }
@@ -826,7 +826,7 @@ impl<L: Linked> IdList<L> {
     /// outside the open interior `[first, last)` — `pos == last` is the
     /// legal boundary (the oracle splice-at-enditer no-op), not a
     /// violation.
-    // RUGRA-GLUE: debug invariant walk — the oracle relies on std::list
+    // RUDRA-GLUE: debug invariant walk — the oracle relies on std::list
     // splice preconditions being respected by construction; we check them.
     fn debug_assert_range(
         &self,
@@ -891,7 +891,7 @@ impl<L: Linked> Iterator for IdListIter<'_, L> {
         Some(id)
     }
 
-    // RUGRA-GLUE: size hint (exact for iter(), unbounded for iter_from()).
+    // RUDRA-GLUE: size hint (exact for iter(), unbounded for iter_from()).
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self.remaining {
             Some(n) => (n as usize, Some(n as usize)),
@@ -924,20 +924,20 @@ pub struct SpaceOff {
 
 impl SpaceOff {
     /// The null-space address (sorts before every real address).
-    // RUGRA-GLUE: encoding of Address's null AddrSpace*.
+    // RUDRA-GLUE: encoding of Address's null AddrSpace*.
     pub const fn null() -> Self {
         SpaceOff { space: 0, offset: 0 }
     }
 
     /// True for the null-space projection.
-    // RUGRA-GLUE: Address::isInvalid-style probe (null base).
+    // RUDRA-GLUE: Address::isInvalid-style probe (null base).
     pub const fn is_null(&self) -> bool {
         self.space == 0
     }
 
     /// Projection of a real address: `AddrSpace::getIndex() + 1` (shifted
     /// past the null-space sentinel) with the raw offset.
-    // RUGRA-GLUE: single real-space projection (index+1 shift keeps null
+    // RUDRA-GLUE: single real-space projection (index+1 shift keeps null
     /// first without a discriminant bit).
     pub const fn from_space_index(space_index: u32, offset: u64) -> Self {
         SpaceOff { space: space_index.wrapping_add(1), offset }
@@ -945,7 +945,7 @@ impl SpaceOff {
 
     /// The `(AddrSpace *)~0` upper-sentinel address (sorts after every real
     /// address; used by iop-space style bounds).
-    // RUGRA-GLUE: encoding of the ~0 AddrSpace* sentinel.
+    // RUDRA-GLUE: encoding of the ~0 AddrSpace* sentinel.
     pub const fn upper_sentinel(offset: u64) -> Self {
         SpaceOff { space: u32::MAX, offset }
     }
@@ -979,7 +979,7 @@ pub struct SeqNumKey {
 }
 
 impl SeqNumKey {
-    // RUGRA-GLUE: key constructor (SeqNum POD projection).
+    // RUDRA-GLUE: key constructor (SeqNum POD projection).
     pub const fn new(pc: SpaceOff, uniq: u64) -> Self {
         SeqNumKey { pc, uniq }
     }
@@ -1034,7 +1034,7 @@ impl VnDefState {
     ///
     /// Useful for constructing range bounds (the `beginDef(fl)` overload
     /// family, varnode.hh:401+).
-    // RUGRA-GLUE: numeric rank of the variant ordering (range-scan helper).
+    // RUDRA-GLUE: numeric rank of the variant ordering (range-scan helper).
     pub fn rank(&self) -> u8 {
         match self {
             VnDefState::Input => 0,
@@ -1062,7 +1062,7 @@ pub struct VnLocKey {
 }
 
 impl VnLocKey {
-    // RUGRA-GLUE: key constructor (loc-tree projection).
+    // RUDRA-GLUE: key constructor (loc-tree projection).
     pub const fn new(addr: SpaceOff, size: i32, state: VnDefState) -> Self {
         VnLocKey { addr, size, state }
     }
@@ -1086,7 +1086,7 @@ pub struct VnDefKey {
 }
 
 impl VnDefKey {
-    // RUGRA-GLUE: key constructor (def-tree projection).
+    // RUDRA-GLUE: key constructor (def-tree projection).
     pub const fn new(state: VnDefState, addr: SpaceOff, size: i32) -> Self {
         VnDefKey { state, addr, size }
     }
@@ -1142,7 +1142,7 @@ impl Ord for VnDefKey {
 }
 
 impl PartialOrd for VnDefKey {
-    // RUGRA-GLUE: PartialOrd consistent with the manual Ord above.
+    // RUDRA-GLUE: PartialOrd consistent with the manual Ord above.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }

@@ -6,7 +6,7 @@
 ENHANCEMENT 域（无 Ghidra 对照物）— 本文件为 `docs/api/sailr/mod.md` 的分文件条目；
 模块总览、schema 级联、门禁与 Phase 2 接入缝见该文件。
 
-所有函数均为 `// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr <file> / kuna <file>)` 形态注解。
+所有函数均为 `// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr <file> / kuna <file>)` 形态注解。
 
 ### `structurer.rs`
 

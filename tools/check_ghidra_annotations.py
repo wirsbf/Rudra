@@ -9,8 +9,8 @@ check_ghidra_annotations.py — AGENTS.md 铁律 1.3 执行工具。
 豁免:
   - `#[test]` 标注的函数
   - `#[cfg(test)] mod tests { ... }` 内的所有函数
-  - `fn main` / `fn run`（二进制入口；用 // RUGRA-GLUE: 标注即可豁免）
-  - 显式标注 `// RUGRA-GLUE:` 的函数（构造器/访问器/无 Ghidra 对应的
+  - `fn main` / `fn run`（二进制入口；用 // RUDRA-GLUE: 标注即可豁免）
+  - 显式标注 `// RUDRA-GLUE:` 的函数（构造器/访问器/无 Ghidra 对应的
     Rust 语言结构必需的胶水，如 new/take_emit/get_emit/set_emit，每次
     豁免必须在注释里写明为何 Ghidra 没有对应物）
 
@@ -43,8 +43,8 @@ SRC_DIR = PROJECT_ROOT / "src"
 # Ghidra 注释正则：`// Ghidra:` （允许前导空白和 // 后空格）
 GHIDRA_RE = re.compile(r"//\s*Ghidra:")
 
-# RUGRA-GLUE 豁免标记
-GLUE_RE = re.compile(r"//\s*RUGRA-GLUE:")
+# RUDRA-GLUE 豁免标记
+GLUE_RE = re.compile(r"//\s*RUDRA-GLUE:")
 
 def detect_git_prefix() -> str:
     result = subprocess.run(
@@ -162,7 +162,7 @@ def _find_fn_violation_records(text: str) -> list[tuple[RustFunction, str]]:
         reason = "缺少 `// Ghidra: <file>:<line> <fn>` 对齐注释"
         if record.name in ("main", "run", "default"):
             reason = (
-                f"入口/语言胶水函数 `{record.name}` 缺少 `// RUGRA-GLUE:` "
+                f"入口/语言胶水函数 `{record.name}` 缺少 `// RUDRA-GLUE:` "
                 "标注（说明为何 Ghidra 无对应物）"
             )
         violations.append((record, reason))
@@ -284,12 +284,12 @@ def main():
                 print(f"   ... 还有 {len(vios) - 30} 个")
 
     if total_violations == 0:
-        print(f"✅ 扫描 {file_count} 个 .rs 文件：所有非测试函数都有 Ghidra/RUGRA-GLUE 注释")
+        print(f"✅ 扫描 {file_count} 个 .rs 文件：所有非测试函数都有 Ghidra/RUDRA-GLUE 注释")
         return 0
 
     print(f"\n━━━ 共 {total_violations} 个自创函数（无 Ghidra 对齐注释）━━━")
     print("每个非测试函数上方必须有一行 `// Ghidra: <file>:<line> <ghidraFnName>`，")
-    print("或对真正的语言结构胶水（构造器/访问器）标注 `// RUGRA-GLUE: <理由>`。")
+    print("或对真正的语言结构胶水（构造器/访问器）标注 `// RUDRA-GLUE: <理由>`。")
     print("详见 AGENTS.md 铁律 1.3。")
     return 1
 

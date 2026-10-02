@@ -36,3 +36,4 @@
 构造完整 trial，不再用无空间 tag 的 `Address` 暗示寄存器。测试仍只覆盖当前
 硬编码 x86-64 模型；它不扩大 `ProtoModel` 的生产对齐声明。
 <!-- annotation-pass: 2026-07-04 -->
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

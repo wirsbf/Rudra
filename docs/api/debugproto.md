@@ -459,7 +459,7 @@ it does not prove the importer state or factory-identity closure.
 解析调用目标）与 DWARF 全局变量类型图（`address_pointer_map` 投影，见上文
 `DWARF-TYPE-IMPORT-0001` 段落）。两者均为 front-end 适配层：Ghidra 对应行为
 发生在 Program 数据库与 analyzer 侧，decompile/cpp 内无逐行对应物，因此标注为
-`RUGRA-GLUE` 类桥接，不参与机制 C 核心白名单。端到端效果由
+`RUDRA-GLUE` 类桥接，不参与机制 C 核心白名单。端到端效果由
 `result/curl_cur.c` 对 `tests/golden/ghidra_curl_1204.c` 的差分门禁回归
 （`FUN_0` → `free`/`strdup` 调用解析与全局类型指针化在本 session 达到
 byte-stable）。
@@ -562,7 +562,7 @@ getFuncProto())` 把整份 callee 原型（model + 全部锁位 + 参数 store �
 
 ## parse_type_names：DWARF 命名类型索引（2026-08-26）
 
-`parse_type_names`（RUGRA-GLUE，Program-import 边界）：遍历 DWARF 单元的
+`parse_type_names`（RUDRA-GLUE，Program-import 边界）：遍历 DWARF 单元的
 structure/union/enumeration/typedef/base_type DIE 建立名字→类型索引，供
 `LibcSignatureTable::locked_proto` 解析签名基础拼写（如 `FILE`）。Ghidra 侧
 由 DWARF analyzer 填充 program type manager；重复名首见优先（锁定 curl

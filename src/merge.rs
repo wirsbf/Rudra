@@ -761,7 +761,7 @@ fn local_type_key_eq(a: &LocalTypeKey, b: &LocalTypeKey, nochar_distinct: bool) 
 /// Rugra's merge Actions each construct a local `Merge::new()`
 /// (coreaction.rs applies), so the persistent channels round-trip through
 /// this mount at every Action-facing entry point (`Merge::attach`/
-/// `Merge::detach`). `live_set` is RUGRA-GLUE: the premise channel standing
+/// `Merge::detach`). `live_set` is RUDRA-GLUE: the premise channel standing
 /// in for Ghidra's "iterate the live vbank" — Ghidra's vbank only retains
 /// live varnodes, while Rugra's bank keeps dead leftovers, so the live
 /// premise is captured once (at the first merge Action) and shared.
@@ -773,7 +773,7 @@ pub struct MergePersistentState {
     /// COPY ops inserted to facilitate forced merges; consumed by
     /// `process_copy_trims` in a later Action (Ghidra merge.hh:87).
     copy_trims: Vec<crate::op::PcodeOpRef>,
-    /// RUGRA-GLUE live-varnode premise (Ghidra premise = vbank contents).
+    /// RUDRA-GLUE live-varnode premise (Ghidra premise = vbank contents).
     live_set: std::collections::HashSet<usize>,
     /// Roots of unmapped CONCAT trees (Ghidra merge.hh:88 `protoPartial`).
     /// Populated by `Merge::groupPartials` (merge.cc) and consumed by the
@@ -792,7 +792,7 @@ impl MergePersistentState {
     /// testCache.clear() + copyTrims.clear() + protoPartial.clear() +
     /// stackAffectingOps.clear() (cover.hh:63 expands it to
     /// is_pop=false/opList.clear()/blockStart.clear()); live_set is the
-    /// RUGRA-GLUE premise channel and dies with the same call.
+    /// RUDRA-GLUE premise channel and dies with the same call.
     pub fn clear(&mut self) {
         self.test_cache.clear();
         // merge.cc:1582 stackAffectingOps.clear() -> cover.hh:63
@@ -818,7 +818,7 @@ impl MergePersistentState {
         }
     }
 
-    // RUGRA-GLUE: fixture observability for the persistent channels; the
+    // RUDRA-GLUE: fixture observability for the persistent channels; the
     // locked Ghidra fixture reads the same members via #define private public.
     /// Return (test_cache entries, pending copy_trims, live_set size).
     pub fn channel_sizes(&self) -> (usize, usize, usize) {
@@ -829,7 +829,7 @@ impl MergePersistentState {
         )
     }
 
-    // RUGRA-GLUE: fixture observability for the two channels whose production
+    // RUDRA-GLUE: fixture observability for the two channels whose production
     // population paths are not ported yet (group_partials no-op,
     // StackAffectingOps::populate unported). The clear-lifecycle fixture
     // deposits state here the way an earlier merge Action would, so the
@@ -843,7 +843,7 @@ impl MergePersistentState {
         )
     }
 
-    // RUGRA-GLUE: fixture deposit hooks (same premise as channel_sizes: the
+    // RUDRA-GLUE: fixture deposit hooks (same premise as channel_sizes: the
     // locked C++ fixture writes the private members directly).
     /// Deposit `count` synthetic testCache entries.
     pub fn fixture_deposit_test_cache(&mut self, count: usize) {
@@ -853,7 +853,7 @@ impl MergePersistentState {
         }
     }
 
-    // RUGRA-GLUE: fixture deposit hook (same premise as channel_sizes: the
+    // RUDRA-GLUE: fixture deposit hook (same premise as channel_sizes: the
     // locked C++ fixture writes the private members directly).
     /// Deposit COPY-trim / proto-partial-root / stack-affecting ops.
     pub fn fixture_deposit_channels(
@@ -869,7 +869,7 @@ impl MergePersistentState {
     }
 }
 
-// RUGRA-GLUE: borrowed-read of a high's cover (closure form of
+// RUDRA-GLUE: borrowed-read of a high's cover (closure form of
 // variable.hh:294 HighVariable::getCover for the intersection compute
 // path, INTERSECTCACHE lane 2026-09-29). The oracle's `a->getCover()`
 // (variable.cc:1181) hands out a const reference; the former by-value
@@ -1049,7 +1049,7 @@ pub struct Merge {
     copy_trims: Vec<crate::op::PcodeOpRef>,
     /// Pairwise Cover cache used by the same-type speculative merge pass.
     type_test_cache: MergeTypeIntersectCache,
-    /// RUGRA-GLUE: nesting depth of `attach` on the current call stack.
+    /// RUDRA-GLUE: nesting depth of `attach` on the current call stack.
     /// Only the outermost 0→1 transition takes the channels from the
     /// `Funcdata::merge_state` mount and only the 1→0 transition writes
     /// them back, so nested entry points (merge_all → merge_marker → …)
@@ -1288,7 +1288,7 @@ impl Merge {
         self.detach(fd);
     }
 
-    // RUGRA-GLUE: wholesale post-merge cover sync. The oracle has no such
+    // RUDRA-GLUE: wholesale post-merge cover sync. The oracle has no such
     /// pass — it maintains covers lazily (HighVariable::updateCover
     /// variable.cc:338 via HighIntersectTest::updateHigh variable.cc:1148,
     /// Varnode::getCover varnode.hh:202); Rugra materializes high.cover
@@ -1521,7 +1521,7 @@ impl Merge {
             .unwrap_or_else(|error| panic!("{error}"));
     }
 
-    // RUGRA-GLUE: Result-bearing Rust exception channel for the C++
+    // RUDRA-GLUE: Result-bearing Rust exception channel for the C++
     // LowlevelError exits from mergeRangeMust/groupWith. The legacy Action
     // boundary above still adapts Err to panic until Action supports Result.
     pub fn try_merge_addr_tied(&mut self, fd: &mut Funcdata) -> Result<()> {
@@ -1584,7 +1584,7 @@ impl Merge {
         Ok(())
     }
 
-    // RUGRA-GLUE: Rust's Varnode stores the legacy AddressSpace enum instead
+    // RUDRA-GLUE: Rust's Varnode stores the legacy AddressSpace enum instead
     // of an AddrSpace handle. Map only variants whose locked constructor type
     // is recoverable; unknown Other ids fail closed rather than being guessed.
     fn is_addr_tied_merge_space(space: AddressSpace) -> bool {
@@ -1642,13 +1642,13 @@ impl Merge {
         ranges
     }
 
-    // RUGRA-GLUE: inclusive maxOff arithmetic from VarnodeBank::overlapLoc
+    // RUDRA-GLUE: inclusive maxOff arithmetic from VarnodeBank::overlapLoc
     // (varnode.cc:1789/1808) on the Rust exact-location range projection.
     fn range_last_offset(range: &AddrTiedLocRange) -> u64 {
         range.offset.wrapping_add(range.size.wrapping_sub(1) as u64)
     }
 
-    // RUGRA-GLUE: Rust Option adapter for Ghidra Varnode::getHigh(), whose
+    // RUDRA-GLUE: Rust Option adapter for Ghidra Varnode::getHigh(), whose
     // mergeAddrTied caller runs after Funcdata::setHighLevel.
     fn required_high(vn: &Arc<RwLock<Varnode>>) -> Result<Arc<RwLock<HighVariable>>> {
         vn.read().unwrap().high.clone()
@@ -1746,7 +1746,7 @@ impl Merge {
         Ok(())
     }
 
-    // RUGRA-GLUE: Result-bearing specialization of Merge::merge for the
+    // RUDRA-GLUE: Result-bearing specialization of Merge::merge for the
     // non-speculative mergeRangeMust caller. HighVariable::mergeInternal can
     // throw after speculative merge classes have been formed; keep that exit
     // ordered after the cached cover-intersection test, as in merge.cc:1569
@@ -1800,7 +1800,7 @@ impl Merge {
         Ok(self.merge_highs(high1, high2, false))
     }
 
-    // RUGRA-GLUE: allocate VariablePiece with the Arc/Weak ownership used by
+    // RUDRA-GLUE: allocate VariablePiece with the Arc/Weak ownership used by
     // Rust; Ghidra's VariablePiece ctor uses raw owning/back pointers.
     fn attach_group_piece(high: &Arc<RwLock<HighVariable>>, offset: i32,
                           group: &Arc<RwLock<VariableGroup>>) -> Result<Arc<RwLock<VariablePiece>>> {
@@ -2022,7 +2022,7 @@ impl Merge {
         self.merge_speculative(fd, &h1, &h2, isspeculative)
     }
 
-    // RUGRA-GLUE: merge_test — 快速预检查两个 Varnode 是否可能合并。
+    // RUDRA-GLUE: merge_test — 快速预检查两个 Varnode 是否可能合并。
     /// 这是 mergeTestRequired (merge.cc:102) 的简化子集:只检查 space+size+
     /// const/annotation。Ghidra 的 mergeTestRequired 还检查 typelock 冲突、
     /// addrtied-different-address、input/persist/extrout、protopartial。
@@ -2310,7 +2310,7 @@ impl Merge {
                         // re-pointed at the survivor via
                         // `vn->setHigh(this, vn->getMergeGroup())`. Rugra's
                         // merge_internal delegates the vn.high write to the
-                        // caller (RUGRA-GLUE ownership note above), so the
+                        // caller (RUDRA-GLUE ownership note above), so the
                         // pairs loop must snapshot h2's instances before the
                         // absorption and re-point them after, exactly like
                         // the moved_instances loop at the bottom of
@@ -3049,7 +3049,7 @@ impl Merge {
         self.detach(fd);
     }
 
-    // RUGRA-GLUE: Funcdata::newUnique's assignHigh half (funcdata_varnode.cc:89).
+    // RUDRA-GLUE: Funcdata::newUnique's assignHigh half (funcdata_varnode.cc:89).
     /// Ghidra's `Funcdata::newUnique` assigns a HighVariable to the fresh
     /// unique Varnode immediately (`vbank.createUnique` + `assignHigh`,
     /// funcdata_varnode.cc:88-89). Rugra's `Funcdata::new_unique` leaves the
@@ -3204,7 +3204,7 @@ impl Merge {
     /// other Varnode in `blocksort` (same storage). If so, mark the reader for
     /// snipping. Then call `snip_reads`.
     /// Faithful to `Merge::eliminateIntersect` (merge.cc:489-571).
-    // RUGRA-GLUE: returns the marked-read count (Ghidra's eliminateIntersect
+    // RUDRA-GLUE: returns the marked-read count (Ghidra's eliminateIntersect
     // returns void) so the [UNIFY] diagnostic can print a direct marked=
     // field without re-deriving it; pure diagnostic return, callers ignore
     // it when RUGRA_MERGE_DIAG is unset.
@@ -4855,7 +4855,7 @@ impl Merge {
         changed
     }
 
-    // RUGRA-GLUE: 遍历所有 HighVariable 调 hide_shadows_of。Ghidra 在
+    // RUDRA-GLUE: 遍历所有 HighVariable 调 hide_shadows_of。Ghidra 在
     // ActionHideShadow::apply (coreaction.cc:4831) 内联此遍历；Rugra 的
     // merge_all 也调用此方法，故提取为函数。
     /// Iterate all HighVariables and apply hide_shadows_of to each.
@@ -5413,30 +5413,30 @@ impl BlockVarnode {
     }
 }
 
-// RUGRA-GLUE: trait impls for BlockVarnode ordering — Ghidra uses C++
+// RUDRA-GLUE: trait impls for BlockVarnode ordering — Ghidra uses C++
 // operator< (merge.hh:37) comparing by block_index; Rust requires
 // PartialEq/Eq/PartialOrd/Ord derives for sort().
 impl PartialEq for BlockVarnode {
-    // RUGRA-GLUE: Rust trait method for == (Ghidra has no explicit eq).
+    // RUDRA-GLUE: Rust trait method for == (Ghidra has no explicit eq).
     fn eq(&self, other: &Self) -> bool {
         self.block_index == other.block_index
     }
 }
 impl Eq for BlockVarnode {}
 impl PartialOrd for BlockVarnode {
-    // RUGRA-GLUE: Rust trait method (Ghidra operator< is in Ord::cmp below).
+    // RUDRA-GLUE: Rust trait method (Ghidra operator< is in Ord::cmp below).
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.block_index.cmp(&other.block_index))
     }
 }
 impl Ord for BlockVarnode {
-    // RUGRA-GLUE: corresponds to Ghidra operator< (merge.hh:37) by block_index.
+    // RUDRA-GLUE: corresponds to Ghidra operator< (merge.hh:37) by block_index.
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.block_index.cmp(&other.block_index)
     }
 }
 
-// RUGRA-GLUE: resolve Varnode→(block,order,is_input) for cover queries.
+// RUDRA-GLUE: resolve Varnode→(block,order,is_input) for cover queries.
 // Ghidra inlines this via vn->getDef()->getParent()->getIndex() etc.
 // (merge.cc:452,519). Extracted as a helper for borrow-safety in Rust.
 /// Resolve a Varnode's defining location: (block_index, order, is_input).
@@ -5456,7 +5456,7 @@ fn varnode_def_loc(vn: &Varnode) -> (i32, u32, bool) {
     (block, order, false)
 }
 
-// RUGRA-GLUE: resolve PcodeOp→(block,order) for cover ref-point queries.
+// RUDRA-GLUE: resolve PcodeOp→(block,order) for cover ref-point queries.
 // Ghidra inlines via op->getParent()->getIndex() + SeqNum::getOrder().
 /// Resolve a PcodeOp's location: (block_index, order).
 fn op_loc(op: &crate::op::PcodeOp) -> (i32, u32) {

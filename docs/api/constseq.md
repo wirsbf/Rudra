@@ -33,7 +33,7 @@
 - **form_byte_array(sz, slot, root_off, big_endian)** 忠实签名+语义
   （constseq.cc:108-155）：used 标记 1/2（数据/NUL）、前导连续计数允许单个
   NUL 结尾、count != moveOps.size() 时截断越界 op。替换旧的 COPY-only 低字节
-  简化版；`is_valid_string`/`get_string`（Rugra 本地 helper）删除。
+  简化版；`is_valid_string`/`get_string`（Rudra 本地 helper）删除。
 - **select_string_copy_function(fd)** 忠实化（constseq.cc:161-175）：与工厂
   canonical char/wchar 的 identity 比较（Arc::ptr_eq 直译 C++ 指针等值，回退
   (name,size,char-print flags) 等值），不再按 size 猜 strncpy/wcsncpy。
@@ -151,13 +151,13 @@ behavior must not be counted as oracle `MATCH`:
   `space.hh:541/532`, where Ghidra divides/multiplies by `wordsize`. The current
   `constseq.rs` helpers ignore the supplied word size and return the input.
 - `get_space_from_const` maps to `varnode.hh:426`. Ghidra recovers the encoded
-  `AddrSpace*`; Rugra decodes a flat numeric `SpaceId` and adds a non-constant
+  `AddrSpace*`; Rudra decodes a flat numeric `SpaceId` and adds a non-constant
   fallback absent from the oracle.
 - `calc_ptradd_offset_inner` maps to
   `constseq.cc:604 HeapSequence::calcPtraddOffset`, but inherits the above
   address-unit and space-model gaps.
 - `previous_op_in_block` mapped to `op.cc:344 PcodeOp::previousOp`. ~~Ghidra
-  takes the immediately preceding list iterator in the same block; Rugra scans
+  takes the immediately preceding list iterator in the same block; Rudra scans
   the global alive bank by mutable order.~~ **2026-09-25 STRNCPY lane**: the
   local alivelist-scan helper was deleted; `gather_indirect_pairs` now uses
   `PcodeOp::previous_op_in_block` from op.rs (the faithful OP-PREVIOUSOP

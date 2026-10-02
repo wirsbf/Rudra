@@ -1054,7 +1054,7 @@ autolive_hold/proto_partial 在 oracle 也是裸写，维持内联。
   `rangeutil::sign_extend_size`）；cc:650-654 mask 内 相等/按位取反/取负/
   +1/-1 五种 close 形式（uintb 环绕 = `wrapping_neg/add/sub`）；cc:655 全不
   匹配返回 false。
-- `equate_symbol_registry::{register_value, query_value}`（RUGRA-GLUE）：
+- `equate_symbol_registry::{register_value, query_value}`（RUDRA-GLUE）：
   C++ 侧 EquateSymbol 是 Symbol 子类，`dynamic_cast` 从多态 `Symbol*` 同时
   恢复 equate 身份与 `value` 字段；Rugra `database::Symbol` 无 equate 载荷
   且 `SymbolEntry::symbol` 为具体 `Arc<RwLock<Symbol>>`，故 varnode 域内以
@@ -1375,7 +1375,7 @@ high（varnode.cc:352-361 setFlags / 365-374 clearFlags 的 cc:358-359/371-372
 VarnodeBank::replace cc:1350-1351、makeFree→setDef cc:1322）——存储聚合
 （`HighVariable::getCover` 裸读 internalCover，无惰性更新）的新鲜度完全靠它。
 
-接线（本日）：①新增 `propagate_cover_dirty_to_high(high)`（RUGRA-GLUE 借用安全
+接线（本日）：①新增 `propagate_cover_dirty_to_high(high)`（RUDRA-GLUE 借用安全
 helper：high 写锁置位 COVERDIRTY → 释放 → piece walk，规避
 markExtendCoverDirty 末腿 variable.cc:136 的同锁重入；merge.rs
 `mark_high_cover_dirty` 委托同一实现）；②`set_flags`/`clear_flags` 掩码含

@@ -11,7 +11,7 @@ use rudra::prettyprint::EmitNoMarkup;
 use rudra::printlanguage::PrintLanguage;
 use rudra::address::Address;
 
-// RUGRA-GLUE: main (no Ghidra counterpart found)
+// RUDRA-GLUE: main (no Ghidra counterpart found)
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {

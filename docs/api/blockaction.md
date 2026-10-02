@@ -93,7 +93,7 @@ pred RwLock + 2 vtable + `is_consumed` SipHash）+ cat 1.67s + 其余规则 0.4-
 + env 门控探针 [VDBPROF]）**：sqlite3VdbeExec 单极 159.2s（oracle 8.80s=18.9×）中
 action 相位 157.0s（[PHASE] 通道）, 其中 blockstructure 87.7s → collapse_internal
 86.0s/3522 调（selectGoto 循环 11 次结构重建 × 每次数百轮）→ **refresh_switch_cases
-68.5s/12701 调（45% 采样帧）**。该函数是 RUGRA-GLUE 自创簿记（oracle 无
+68.5s/12701 调（45% 采样帧）**。该函数是 RUDRA-GLUE 自创簿记（oracle 无
 LoopBody::refreshSwitchCases/f_case_body/dominatesIdx——blockaction.hh:88-106 enum 顶
 f_duplicate_block=0x40000）, 调用点在内层 fixpoint 每轮末（旧 2026-06-23
 "interleaved loop 开头先 refresh"时代的残留）, 每调 = compute_dominators 全图迭代
@@ -1329,19 +1329,19 @@ interior-goto 标记。
 - `dedup_edges_all_types` 改为 trait 级 `FlowBlock::dedup(self_arc)` 成对
   协议（block.cc:525）；原 `edges.remove(i)` 单侧去重滑列表不作对侧修正。
 - `identify_internal` 安装后新增 `resync_boundary_reverse_indices`
-  （RUGRA-GLUE 不变量修复）：Ghidra selfIdentify 经 replace*Edge
+  （RUDRA-GLUE 不变量修复）：Ghidra selfIdentify 经 replace*Edge
   （block.cc:160-191, 910-924）在重定向时同步两侧 reverse_index；Rugra
   的 rewrite_* 只翻 e.point，故按指针重结对复合块边界边以恢复
   checkEdges 不变量（一致状态下 no-op），并把 new_block 纳入安装后 dedup。
 
 ### selectGoto exhausted 调试注桩（2026-08-26，TRI2-STRUCT-SELECTGOTO-SELFLOOP-0001）
-- `bs_trace_cfg_sig` + `ActionBlockStructure::apply` pre/post witness（RUGRA-GLUE，
+- `bs_trace_cfg_sig` + `ActionBlockStructure::apply` pre/post witness（RUDRA-GLUE，
   无 Ghidra 对应物，debug-only）：`RUGRA_BS_TRACE=1` 时在每次 blockstructure 施加
   前后打印 bblocks 完整签名（槽位/索引/起始地址/类型/入出边及 GOTO 标记/末位
   CBRANCH 及其 const/val/BOOLEAN_FLIP/块 flags），用于 mainloop 不收敛/CFG 往复
   症状的逐轮夹逼（HTTPD-STRCASECMP-NONCONVERGE-0001 定位中引入：识别出
   DeterminedBranch→remove_branch 空转 reset + if_no_exit 每轮 negate 的乒乓）。
-- `debug_type_name`（RUGRA-GLUE，debug-only）：`bs_trace_cfg_sig` 行内的短类型
+- `debug_type_name`（RUDRA-GLUE，debug-only）：`bs_trace_cfg_sig` 行内的短类型
   标签（downcast 实现；派生 Debug 会递归子块并可能溢出 worker 栈）。
 - 2026-09-27 卫生清理（HYGIENE 微件车道，CR-STRDATA 遗留债）：删除
   `CollapseStructure::debug_dump_graph`（`RUGRA_BS_DUMP=1/2/3` 全图 dump 探针，
@@ -1513,7 +1513,7 @@ no-op（`flags |= (flags & !BIT) == flags`）。
 - **refresh_switch_cases**（blockaction.rs:3489）：Rugra 侧 CASE_BODY 簿记
   （oracle 无 f_case_body/refreshSwitchCases——block.hh:88-106 枚举止于
   f_duplicate_block=0x40000；注释由伪 `// Ghidra: blockaction.hh:46
-  LoopBody::refreshSwitchCases/dominatesIdx` 校准为 RUGRA-GLUE，blockaction.hh:46
+  LoopBody::refreshSwitchCases/dominatesIdx` 校准为 RUDRA-GLUE，blockaction.hh:46
   实为 LoopBody 类声明行）。"Clear CASE_BODY flag on all blocks first" 的清除同样
   写成 OR no-op → 陈旧 CASE_BODY 永不退旗，try_rule_if_no_exit 的
   `CASE_BODY == 0` 守卫过度拒绝合法 while 形成。修复：`b.clear_flags(CASE_BODY)`
@@ -1538,7 +1538,7 @@ refresh_switch_cases 重建点）补 `jump: None, case_order: Vec::new()` 占位
 ## 2026-09-22（续）：label 管道 collapse 接线（try_rule_switch/ActionFinalStructure）
 
 - `CollapseStructure` 新增 `jump_tables` 字段 + `with_jump_tables` builder
-  （RUGRA-GLUE：oracle 经 FlowBlock 的 Funcdata 反查指针，block.cc:637；
+  （RUDRA-GLUE：oracle 经 FlowBlock 的 Funcdata 反查指针，block.cc:637；
   Rugra 复合块无反查，由 ActionBlockStructure::apply 传入 fd.jump_tables）。
 - 新增 `grab_case_order(&self, switch_block, cases, branchind_addr)`
   （grabCaseBasic 的 CaseOrder 记录半部，block.cc:3527-3546 + ctor 3488）：
@@ -1826,7 +1826,7 @@ goto → 下一轮 `try_rule_if_goto` 的 2-out switch 臂再剥一条真 case �
 （glob_set round-3 / glob_word round-2 实测：oracle 剥 1 条后 ifnoexit+cat 收口成
 1-case switch，Rugra 连剥 3 条退化）。
 
-**修复**：新增 `resync_goto_edge_mirrors`（RUGRA-GLUE）——剥离删除后按幸存出边
+**修复**：新增 `resync_goto_edge_mirrors`（RUDRA-GLUE）——剥离删除后按幸存出边
 的 F_GOTO_EDGE 边 label 重导出槽位镜像（`clear_flags` 清位 + 按需 `set_flags`
 置位；set_flags 是 OR 语义 block.hh:155，清位必须走 clear_flags block.hh:156）。
 在 `new_block_multigoto` 两个 remove_edge_blocks 位点（already 臂 + 新包臂防御性）
@@ -1921,7 +1921,7 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
 （my_get_token 2→0 / parseconfig 2→0）、双跑与前置会话产物 md5 恒等。
 
 ### GETLONGEST 车道钻定工件注记（2026-09-28，MIRRORCENSUS-GETLONGESTMATCH-CLONE-0001）
-- `RUGRA_BS_TREES=<prefix>`（RUGRA-GLUE，debug-only）：每次
+- `RUGRA_BS_TREES=<prefix>`（RUDRA-GLUE，debug-only）：每次
   `ActionBlockStructure::apply` 收尾把 `fd.sblocks` 的 print_tree_dbg 树落到
   `<prefix>.<round>` 文件——oracle 侧 bracket-ladder 逐 perform printTree 探针
   的对照面（LANE GETLONGEST 工件 /dev/shm/rugra-tests/getlongest/：o653l.ladder
@@ -1968,7 +1968,7 @@ ap_no2slash 5→0，defects=0 numbering=0）、canon curl 95→91
   的 returnsplit/nodeSplit 链差，见 TODO_BOARD 票行。
 
 ### SELECTGOTO 车道诊断②（2026-09-28，同票续作——round-2→3 窗口钉靶）
-- `RUGRA_BBSIG=1`（RUGRA-GLUE，debug-only）：每次 `ActionBlockStructure::apply`
+- `RUGRA_BBSIG=1`（RUDRA-GLUE，debug-only）：每次 `ActionBlockStructure::apply`
   入口把 `fd.bblocks` 全量 CFG 签名（块地址/出度/目标列表）落到
   `<fn>.bbsig<round>`——oracle 侧 scratch GLM_BBSIG 探针的对照面。本轮用它
   钉死：round1/round2 入口 CFG 双侧恒等，round3 入口首分歧（oracle 多一块

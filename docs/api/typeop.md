@@ -364,7 +364,7 @@ build_localtypes v_type 播种）另行切片。
   Ghidra 基类 `TypeOp::getOutputLocal/getInputLocal`（`typeop.cc:261-275`）：
   `tlst->getBase(op->getOut()/getIn(slot)->getSize(), TYPE_UNKNOWN)`。共享
   helper `base_local_type(factory, size)` 承载该 base 查找（typeop.cc:264/:274），
-  工厂经新 trait 钩子 `local_type_factory()`（RUGRA-GLUE：Ghidra 基类 `tlst` 字段
+  工厂经新 trait 钩子 `local_type_factory()`（RUDRA-GLUE：Ghidra 基类 `tlst` 字段
   的 provider；宏生成的无状态 unit struct 返回 `None`，与"尚未接入 Architecture
   工厂"的实现状态一致）。
 - `TypeOpCall::get_flags` 由 `0` 改为 `typeop.cc:663` 构造函数的
@@ -527,7 +527,7 @@ Core trait representing a P-code operation type
 
 Corresponds to Ghidra's `TypeOp` class
 
-钩子 `local_type_factory()`（RUGRA-GLUE）：Ghidra 基类 `tlst` 字段
+钩子 `local_type_factory()`（RUDRA-GLUE）：Ghidra 基类 `tlst` 字段
 （typeop.cc:233-242）的 provider，默认 `None`；持有构造注入工厂的 impl
 （TypeOpCall/TypeOpBranch/TypeOpBranchind/TypeOpSegment/TypeOpCast 及 M1 后的
 全部宏族/比较族/shift/INSERT/EXTRACT/INT_ADD/COPY struct）覆写它。

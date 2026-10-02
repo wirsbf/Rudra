@@ -56,18 +56,18 @@ pub mod param_entry_flags {
 }
 
 impl ParamEntry {
-    // RUGRA-GLUE: is_exclusion (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_exclusion (no Ghidra counterpart found)
     /// Is this an exclusion entry (holds exactly 1 parameter)?
     pub fn is_exclusion(&self) -> bool { self.alignment == 0 }
 
-    // RUGRA-GLUE: contains (no Ghidra counterpart found)
+    // RUDRA-GLUE: contains (no Ghidra counterpart found)
     /// Does this entry contain the given address range?
     /// Faithful to `ParamEntry::containedBy` (fspec.cc).
     pub fn contains(&self, addr: u64, sz: i32) -> bool {
         addr >= self.base && addr + sz as u64 <= self.base + self.size as u64
     }
 
-    // RUGRA-GLUE: intersects (no Ghidra counterpart found)
+    // RUDRA-GLUE: intersects (no Ghidra counterpart found)
     /// Does this entry intersect the given range?
     pub fn intersects(&self, addr: u64, sz: i32) -> bool {
         addr < self.base + self.size as u64 && addr + sz as u64 > self.base
@@ -99,7 +99,7 @@ pub struct ProtoModel {
 pub const EXTRAPOP_UNKNOWN: i32 = 0x8000;
 
 impl ProtoModel {
-    // RUGRA-GLUE: default_x86_64 (no Ghidra counterpart found)
+    // RUDRA-GLUE: default_x86_64 (no Ghidra counterpart found)
     /// Create the x86-64 System V ABI default model.
     /// Registers: RDI(0x38), RSI(0x30), RDX(0x10), RCX(0x8), R8(0x80), R9(0x88).
     /// Offsets match x86_lift.rs register encoding (RAX=0x0, RCX=0x8, RDX=0x10,
@@ -130,7 +130,7 @@ impl ProtoModel {
         }
     }
 
-    // RUGRA-GLUE: possible_input_param (no Ghidra counterpart found)
+    // RUDRA-GLUE: possible_input_param (no Ghidra counterpart found)
     /// Does the given address/size range look like a possible input parameter?
     /// Faithful to `ParamListStandard::possibleParam` (fspec.cc).
     pub fn possible_input_param(&self, addr: u64, sz: i32, space: AddressSpace) -> bool {
@@ -139,7 +139,7 @@ impl ProtoModel {
         })
     }
 
-    // RUGRA-GLUE: characterize_as_input_param (no Ghidra counterpart found)
+    // RUDRA-GLUE: characterize_as_input_param (no Ghidra counterpart found)
     /// Characterize the given range as a parameter: returns one of
     /// 0=no_containment, 1=contains_unjustified, 2=contains_justified,
     /// 3=contained_by. Faithful to `ParamListStandard::characterizeAsParam`.
@@ -161,7 +161,7 @@ impl ProtoModel {
         0 // no_containment
     }
 
-    // RUGRA-GLUE: check_input_split (no Ghidra counterpart found)
+    // RUDRA-GLUE: check_input_split (no Ghidra counterpart found)
     /// Check if a storage location can be split at splitpoint bytes.
     /// Faithful to `ParamListStandard::checkSplit` (fspec.cc).
     pub fn check_input_split(&self, addr: u64, sz: i32, splitpoint: i32, space: AddressSpace) -> bool {
@@ -171,7 +171,7 @@ impl ProtoModel {
         })
     }
 
-    // RUGRA-GLUE: fillin_input_map (no Ghidra counterpart found)
+    // RUDRA-GLUE: fillin_input_map (no Ghidra counterpart found)
     /// The core parameter-derivation algorithm. Faithful to
     /// `ParamListStandard::fillinMap` (fspec.cc). Given a list of active
     /// trials (sorted by slot), mark each as USED or NOT-USED based on
@@ -217,14 +217,14 @@ impl ProtoModel {
         }
     }
 
-    // RUGRA-GLUE: derive_input_map (no Ghidra counterpart found)
+    // RUDRA-GLUE: derive_input_map (no Ghidra counterpart found)
     /// Derive the input prototype from active trials. Faithful to
     /// `ProtoModel::deriveInputMap` — calls fillinMap.
     pub fn derive_input_map(&self, active: &mut crate::fspec::ParamActive) {
         self.fillin_input_map(active);
     }
 
-    // RUGRA-GLUE: derive_output_map (no Ghidra counterpart found)
+    // RUDRA-GLUE: derive_output_map (no Ghidra counterpart found)
     /// Derive the output prototype from active trials. Faithful to
     /// `ProtoModel::deriveOutputMap` — marks at most 1 output trial as USED.
     pub fn derive_output_map(&self, active: &mut crate::fspec::ParamActive) {

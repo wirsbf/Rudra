@@ -5,7 +5,7 @@
 architecture.hh:205-206 `print`/`printlist` 的 Rust 承接（PRINTC0004 登记的
 options 接线 handover 收口）：
 
-- **`print_registry_key: u64`**（RUGRA-GLUE identity 通道）：本 Architecture
+- **`print_registry_key: u64`**（RUDRA-GLUE identity 通道）：本 Architecture
   printer 注册表条目的键；构造时铸造、不进任何输出。存储本体在
   `printlanguage`（线程局部 identity-keyed 注册表——成因见 printlanguage.md
   同日节：funcdata.rs canonical static 钉死 `Send+Sync` 而 printer 天生

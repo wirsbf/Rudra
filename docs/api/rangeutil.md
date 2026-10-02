@@ -130,7 +130,7 @@ RANGEUTIL-CONSTGEN-0001 +3）。
 - `CircleRange::pull_back(op, usenzmask)`（cc:1022）——2026-09-23 新增（RANGEUTIL-CONSTGEN-0001）：op 级回拉（一元/二元非常量槽位、SUBPIECE nzmask 补救臂 cc:1053-1064、末尾 setNZMask 交集 cc:1075-1082）；**同日（RULEMELD-FIDELITY-RESIDUE-0001 / EZ）签名扩为 `pull_back(op, usenzmask, const_markup: &mut Option<Arc<RwLock<Varnode>>>)`**：cc:1069-1070 的 `constMarkup` 出参落地——二元臂回拉成功且常量携带 SymbolEntry 时写出（最后写者胜、从不清零，镜像 C++ 共享出参语义）；约束族调用方传 `&mut None` 丢弃槽，RuleRangeMeld 传入自己的 markup 并在 cc:1414-1417 消费（`copy_symbol_if_valid`）。
 - `ValueSetEdge`（hh:281）——出边迭代器，预收集后继 id。
 
-**`pub struct ValueSetInput`**（RUGRA-GLUE，**2026-09-23 移除**）——旧的 `iterate`
+**`pub struct ValueSetInput`**（RUDRA-GLUE，**2026-09-23 移除**）——旧的 `iterate`
 输入暂存被 arena 活读替代（见下节）。
 
 ## 2026-09-23：RANGEUTIL-VSEMPTY-0001——求解器填充/迭代主链路实跑
@@ -149,7 +149,7 @@ range，LoadGuard 停在 establish 全窗臂。
   CALL/CALLIND/CALLOTHER/LOAD/NEW/SEGMENTOP/CPOOLREF/FLOAT_*（setFull+root）、
   default（全部输入 newValueSet+mark+入列，annotation 跳过）。同时在扩展时为
   每个 written ValueSet 暂存 `input_ids`/`input_sizes`/`out_size`
-  （RUGRA-GLUE：替代 C++ `op->getIn(i)->getValueSet()` 活链）。
+  （RUDRA-GLUE：替代 C++ `op->getIn(i)->getValueSet()` 活链）。
 - `ValueSetSolver::iterate_node(cur, widener)`（cc:1611-1737）：核心迭代改为
   arena 级活读——输入 range/稳定性/type_code 每次 iterate 从 arena 快照读取
   （与 C++ 活读语义一致，id 稳定）；count==0 → computeTypeCode；MULTIEQUAL
@@ -246,7 +246,7 @@ true_branch_equation`——四块图 CBRANCH 真块 LOAD 读点方程 [0,5)@4 �
 ## 已知基础设施缺口
 - `Varnode::getValueSet()` 反向指针未实现 → solver 用 arena 扫描
   （`find_value_set_by_vn`）替代。
-- `CircleRange::pullBack` 的 `constMarkup` 出参省略（RUGRA-GLUE）：本路径
+- `CircleRange::pullBack` 的 `constMarkup` 出参省略（RUDRA-GLUE）：本路径
   调用方（constraintsFromPath/generateRelativeConstraint）从不读回；
   消费者在 jumptable.cc 与 RuleRangeMeld 的 copySymbolIfValid（域外）。
 - FlowBlock trait 的 mark 方法默认 no-op，仅 BlockBasic/BlockCopy 覆写——

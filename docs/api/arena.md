@@ -100,7 +100,7 @@ detached（全零字段即 detached——`OpId::SENTINEL` 的 idx/gen 都是 0�
 
 `slot_addr`（2026-10-02，PERF-DISPATCH-0001）：只读 `Vec` 头的边界检查 +
 指针算术，不加载槽行（调用方对活跃 id 发 PREFETCHT0 非阻塞提示用）；
-越界/失代返回 `None`。RUGRA-GLUE（oracle 持活 map 迭代器热指针，无对应物）。
+越界/失代返回 `None`。RUDRA-GLUE（oracle 持活 map 迭代器热指针，无对应物）。
 
 ### 3. 侵入式 id 双向链 `IdList<L>` + `Linked`
 

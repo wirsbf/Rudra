@@ -114,7 +114,7 @@ pub const ELEM_TRUNCATE_SPACE: ElementId = ElementId {
     id: 36,
 };
 
-// RUGRA-GLUE: Marshal attribute/element ids used by decode routines but not
+// RUDRA-GLUE: Marshal attribute/element ids used by decode routines but not
 // defined in translate.cc. Ghidra defines these in marshal.cc with globally
 // consistent ids; Rugra reuses the names so decoded streams remain
 // interoperable. The ids here follow Ghidra's marshaling convention.
@@ -164,7 +164,7 @@ impl UnimplError {
 }
 
 impl std::fmt::Display for UnimplError {
-    // RUGRA-GLUE: Display impl (Rust requires Display for error interop;
+    // RUDRA-GLUE: Display impl (Rust requires Display for error interop;
     // Ghidra's LowlevelError base provides what()).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "UnimplError: {}", self.message)
@@ -197,7 +197,7 @@ impl BadDataError {
 }
 
 impl std::fmt::Display for BadDataError {
-    // RUGRA-GLUE: Display impl (Rust requires Display for error interop).
+    // RUDRA-GLUE: Display impl (Rust requires Display for error interop).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "BadDataError: {}", self.message)
     }
@@ -225,7 +225,7 @@ pub struct TruncationTag {
 }
 
 impl TruncationTag {
-    // RUGRA-GLUE: Explicit convenience constructor for Rust callers; Ghidra
+    // RUDRA-GLUE: Explicit convenience constructor for Rust callers; Ghidra
     // relies on TruncationTag's implicit C++ default construction.
     /// Construct an empty tag. Rugra convenience constructor.
     pub fn new() -> Self {
@@ -335,7 +335,7 @@ pub trait PcodeEmit {
     }
 }
 
-// RUGRA-GLUE: decode_pcode_raw (Ghidra delegates to PcodeOpRaw::decode in
+// RUDRA-GLUE: decode_pcode_raw (Ghidra delegates to PcodeOpRaw::decode in
 // pcoderaw.cc; Rugra does not yet port PcodeOpRaw::decode. Kept as a free
 // function rather than a trait method so that `PcodeEmit` stays
 // dyn-compatible/object-safe while decode_op's control flow remains
@@ -629,7 +629,7 @@ impl SpacebaseSpace {
         decoder.close_element(elem_id);
     }
 
-    // RUGRA-GLUE: decode_basic_attributes (Ghidra's AddrSpace::decodeBasicAttributes
+    // RUDRA-GLUE: decode_basic_attributes (Ghidra's AddrSpace::decodeBasicAttributes
     // lives in space.cc, not translate.cc. Rugra ports a minimal inline reader
     // of name/address-size/word-size/delay so SpacebaseSpace::decode can run
     // without the full AddrSpace port.)
@@ -662,7 +662,7 @@ impl SpacebaseSpace {
     }
 }
 
-// RUGRA-GLUE: space_from_name (Ghidra resolves `contain` via the
+// RUDRA-GLUE: space_from_name (Ghidra resolves `contain` via the
 // AddrSpaceManager's name map; Rugra's enum address spaces are finite and
 // named, so a local lookup suffices without requiring a live manager.)
 /// Map a SLEIGH space name to the Rugra [`AddressSpace`] enum. Unknown names
@@ -881,7 +881,7 @@ impl JoinRecord {
     }
 }
 
-// RUGRA-GLUE: varnode_less / is_contiguous (Ghidra defines VarnodeData::operator<
+// RUDRA-GLUE: varnode_less / is_contiguous (Ghidra defines VarnodeData::operator<
 // and VarnodeData::isContiguous in pcoderaw.hh / pcoderaw.cc. Rugra's
 // VarnodeData does not yet provide these, so local helpers carry the intended
 // formulas; the flat AddressSpace model still prevents an equivalence claim.)
@@ -988,7 +988,7 @@ pub struct AddrSpaceManager {
     // Ghidra: translate.hh:220 AddrSpaceManager (SPACE-0001 companion)
     /// Architecture-owned address-space registry: stable
     /// index/type/name/addrsize/wordsize/endian/flags handles for dynamic
-    /// spaces. RUGRA-GLUE: Ghidra has exactly one AddrSpaceManager (the base
+    /// spaces. RUDRA-GLUE: Ghidra has exactly one AddrSpaceManager (the base
     /// of Translate); this legacy enum-based manager keeps its own flat
     /// tables for un-migrated consumers, and this field is the
     /// architecture-owned twin those consumers switch to in ADDRESS-0001.
@@ -997,11 +997,11 @@ pub struct AddrSpaceManager {
     pub space_registry: crate::space::SpaceRegistry,
 }
 
-// RUGRA-GLUE: Debug impl (Ghidra has no Debug formatting; Rugra needs it for
+// RUDRA-GLUE: Debug impl (Ghidra has no Debug formatting; Rugra needs it for
 // diagnostics. The `resolve_list` holds trait objects that have no Debug, so
 // we count resolvers instead of formatting them.)
 impl std::fmt::Debug for AddrSpaceManager {
-    // RUGRA-GLUE: Rust Debug formatting has no Ghidra behavioral counterpart.
+    // RUDRA-GLUE: Rust Debug formatting has no Ghidra behavioral counterpart.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AddrSpaceManager")
             .field("base_list", &self.base_list)
@@ -1562,7 +1562,7 @@ impl AddrSpaceManager {
     /// Validates naming/indexing conventions and routes the space into the
     /// appropriate cached slot (constant/unique/fspec/join/iop/stack).
     pub fn insert_space(&mut self, spc: AddressSpace) {
-        // RUGRA-GLUE: Rugra's enum address spaces collapse Ghidra's
+        // RUDRA-GLUE: Rugra's enum address spaces collapse Ghidra's
         // per-type name validation: each variant already carries its type, so
         // `name_type_mismatch` from translate.cc:355 is always false here and
         // is omitted. The remaining duplicate-name/duplicate-id checks mirror
@@ -1729,7 +1729,7 @@ impl AddrSpaceManager {
     }
 }
 
-// RUGRA-GLUE: space_index_of / addr_mask_for (Ghidra's AddrSpace carries an
+// RUDRA-GLUE: space_index_of / addr_mask_for (Ghidra's AddrSpace carries an
 // `index` field and address-size/word-size; Rugra's enum address spaces have
 // stable indices via space_id() and a fixed address size. These helpers
 // bridge the two representations so AddrSpaceManager methods stay faithful.)
@@ -1741,7 +1741,7 @@ fn space_index_of(spc: AddressSpace) -> i32 {
 
 /// Bit mask for offsets within an address space, mirroring Ghidra's
 /// `AddrSpace::wrapOffset` mask.
-// RUGRA-GLUE: Flat-enum offset-mask bridge; Ghidra calls wrapOffset on the
+// RUDRA-GLUE: Flat-enum offset-mask bridge; Ghidra calls wrapOffset on the
 // concrete AddrSpace descriptor and has no standalone addr_mask_for helper.
 fn addr_mask_for(spc: AddressSpace) -> u64 {
     let addr_bits = (spc.addr_size() * 8) as u32;
@@ -1795,12 +1795,12 @@ pub enum UniqueLayout {
 /// this as composition: implementations own an [`AddrSpaceManager`] and
 /// expose the manager's state via the `manager`/`manager_mut` methods.
 pub trait Translate {
-    // RUGRA-GLUE: manager / manager_mut (Ghidra models Translate as a
+    // RUDRA-GLUE: manager / manager_mut (Ghidra models Translate as a
     // subclass of AddrSpaceManager via inheritance; Rust uses composition.)
     /// Borrow the owned address-space manager. Faithful to the inherited
     /// `AddrSpaceManager` interface.
     fn manager(&self) -> &AddrSpaceManager;
-    // RUGRA-GLUE: Mutable half of the Rust composition adapter; Ghidra exposes
+    // RUDRA-GLUE: Mutable half of the Rust composition adapter; Ghidra exposes
     // AddrSpaceManager state through Translate's public inheritance instead.
     /// Mutably borrow the owned address-space manager.
     fn manager_mut(&mut self) -> &mut AddrSpaceManager;
@@ -1944,7 +1944,7 @@ pub trait Translate {
 // cannot import this module without a cycle.
 // ============================================================================
 impl crate::space::SpaceRegistry {
-    // RUGRA-GLUE: named_attrib_id (Ghidra's ATTRIB_* globals carry both the
+    // RUDRA-GLUE: named_attrib_id (Ghidra's ATTRIB_* globals carry both the
     // name and the id; Rust's const AttributeIds cannot retain the name, and
     // the TreeDecoder's targeted read_*_attr methods resolve by name. The
     // decode paths rebuild the runtime-named twin of the static id.)

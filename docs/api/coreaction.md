@@ -588,7 +588,7 @@ infertypes 派发 40 个 INT_ADD，但当前各 ADD 输出临时类型为 Int �
   （`get_typedef_target(name)`，typefactory.rs，`get_typedef` 建立的 name→stripped
   映射）解析同一链，对 factory-interned 类型与对象身份等价（名字碰撞由
   `get_typedef` 的 find_by_name 检查 panic 拒绝，链无环）。detached Funcdata（无
-  arch factory）保持裸指针比较（RUGRA-GLUE 防御；Ghidra 恒有 factory）。
+  arch factory）保持裸指针比较（RUDRA-GLUE 防御；Ghidra 恒有 factory）。
 - 语义顺序：typedef-of-pointer 在 PTR 下探中丢失别名；typedef pointee 保留下探后
   剥离。typedef 输入下 `cast_output` 的 typelock force 判定（cc:2566）由误真
   （多插 CAST）修正为 Ghidra 的不插。
@@ -2135,7 +2135,7 @@ Funcdata: +create_new_block。BlockBasic: +JOINED_BLOCK flag。
   (`coreaction.cc:1908-1955`) 直接调用当前函数原型的 `deriveOutputMap`，缺口由
   `FSPEC-0001` / `FSPEC-0002` 跟踪。
 
-本轮只补 `RUGRA-GLUE` provenance；实现及 oracle 状态均未改变。
+本轮只补 `RUDRA-GLUE` provenance；实现及 oracle 状态均未改变。
  
  
  
@@ -2201,7 +2201,7 @@ hasName 语义：`if (!high->hasName()) continue` 是 variable.cc:718-747 的
 lookForFuncParamNames（cc:2858-2897：对 namerec 符号做
 `renameSymbol(makeNameUnique(name))`，不再直写 high.name）→ namerec 的
 `buildDefaultName(sym, base, vn)` 循环 → `assignDefaultNames(base)` ——同
-一共享计数器贯穿。RUGRA-GLUE 桥：命名完成后把符号 display_name 发布到
+一共享计数器贯穿。RUDRA-GLUE 桥：命名完成后把符号 display_name 发布到
 `HighVariable::name`（Ghidra 打印侧只读 Symbol::getDisplayName；Rugra
 printc 仍读 high.name，退役归 PRINTC-SYMBOL-DECL-0001）。
 `ActionRestructureVarnode::apply` 安装 x86-64 寄存器名表（translate.hh:380
@@ -2252,7 +2252,7 @@ Architecture/工厂未接线时 fail-closed（不做 finalize 的类型投影）
   per-callee Funcdata，copy 分支不可达）；`fc->insertPcode` 的 callfixup
   注入仍缺（CALLFIXUP 域）。删除旧 "unknown→default" calling_convention
   字符串种子——模型名由 `set_model` 从真实模型取（`__stdcall`）。
-  RUGRA-GLUE：简化 `proto_model`（type_system）种子保留给
+  RUDRA-GLUE：简化 `proto_model`（type_system）种子保留给
   `possible_input_param` 消费者（Ghidra 单 model 字段无双轨）。
   生产效果：callspec `has_effect` 从恒 UnknownEffect 变为 cspec 声明效果，
   guardCalls 的 INDIRECT 风暴（main pass0=13,462）消退。
@@ -3584,7 +3584,7 @@ triallo.getAddress(),triallo.getSize())` 以 **trial 存储地址**（非 varnod
   名（`Architecture::get_register_name` ← sleighbase.cc:144-168）有名即返回该
   分片地址（cc:837-845）；④否则 findAddJoin([hi,lo],0) → **Join 空间**
   unified 偏移（cc:848-859）。
-- `join_unified_offset(hi, lo)`（RUGRA-GLUE）——unified 偏移的无状态
+- `join_unified_offset(hi, lo)`（RUDRA-GLUE）——unified 偏移的无状态
   splitmix64 派生：同分片四元组恒映射同一 join 地址（保留 findAddJoin
   splitset 去重对下游可观察的合并恒等语义——本函数两处触发同偏移实证），
   异分片映射到互异 16 字节对齐槽（translate.cc:708 roundsize 对齐）。**残差**
@@ -4053,7 +4053,7 @@ virtual Action *clone(const ActionGroupList &grouplist) const {
 }
 ```
 
-**裁决（类级 RUGRA-GLUE，一条家族映射，不冒充 62 个独立移植）**：C++ 逐类 clone 样板
+**裁决（类级 RUDRA-GLUE，一条家族映射，不冒充 62 个独立移植）**：C++ 逐类 clone 样板
 只做两件事——组员资格门 + 带组名的重建。Rust 侧等价形态已结构性存在：
 
 - 注册即工厂：`add!(parent, "group", Box::new(ActionX::new()))` →

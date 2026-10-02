@@ -68,55 +68,55 @@ pub mod flow_flags {
 trait FuncCallSpecsExt {
     /// Flow-local adapter for `FuncCallSpecs::getInjectId` (fspec.hh). Returns -1
     /// (Ghidra's "no injection" sentinel) until the id is stored.
-    // RUGRA-GLUE: ANN-B; Rust extension-trait declaration because flow.cc calls FuncCallSpecs::getInjectId directly and has no flow-local interface.
+    // RUDRA-GLUE: ANN-B; Rust extension-trait declaration because flow.cc calls FuncCallSpecs::getInjectId directly and has no flow-local interface.
     fn get_inject_id(&self) -> i32;
     /// Flow-local adapter for `FuncCallSpecs::getOp` (fspec.hh): the exact,
     /// non-owning call-op identity bound when the spec is constructed.
-    // RUGRA-GLUE: ANN-B; Rust extension-trait declaration upgrades the Weak counterpart of Ghidra's direct PcodeOp pointer.
+    // RUDRA-GLUE: ANN-B; Rust extension-trait declaration upgrades the Weak counterpart of Ghidra's direct PcodeOp pointer.
     fn get_op(&self, fd: &Funcdata) -> Option<crate::op::PcodeOpRef>;
     /// Flow-local adapter for `FuncCallSpecs::getName` (fspec.hh): the callee name.
     /// Delegates to `FuncProto::get_name`.
-    // RUGRA-GLUE: ANN-B; Rust extension-trait declaration exposing the nested FuncProto name used where Ghidra inherits the accessor directly.
+    // RUDRA-GLUE: ANN-B; Rust extension-trait declaration exposing the nested FuncProto name used where Ghidra inherits the accessor directly.
     fn get_name(&self) -> &str;
     /// Flow-local adapter for `FuncCallSpecs::setParamshift` (fspec.hh). Delegates to
     /// `FuncProto::param_shift`; leaves state unchanged when `shift == 0`.
-    // RUGRA-GLUE: ANN-B; Rust extension-trait declaration exposing nested FuncProto parameter shifting to flow-local code.
+    // RUDRA-GLUE: ANN-B; Rust extension-trait declaration exposing nested FuncProto parameter shifting to flow-local code.
     fn set_paramshift(&mut self, shift: i32);
     /// Flow-local adapter for `FuncCallSpecs::cancelInjectId` (fspec.hh):
     /// delegates to the injection-state gap tracked by `INJECT-0001`.
-    // RUGRA-GLUE: ANN-B; Rust extension-trait declaration exposing nested FuncProto injection cancellation to flow-local code.
+    // RUDRA-GLUE: ANN-B; Rust extension-trait declaration exposing nested FuncProto injection cancellation to flow-local code.
     fn cancel_inject_id(&mut self);
     /// Flow-local adapter for `FuncCallSpecs::setAddress` (fspec.hh). Clears the entry
     /// address to cancel an indirect override (flow.cc:713).
-    // RUGRA-GLUE: ANN-B; Rust extension-trait declaration representing Ghidra's setAddress(Address()) with Rugra's optional entry address.
+    // RUDRA-GLUE: ANN-B; Rust extension-trait declaration representing Ghidra's setAddress(Address()) with Rugra's optional entry address.
     fn clear_entry_address(&mut self);
 }
 
 impl FuncCallSpecsExt for crate::fspec::FuncCallSpecs {
-    // RUGRA-GLUE: ANN-B; INJECT-0001 compatibility fallback because Rugra FuncCallSpecs has no Ghidra injection-id field.
+    // RUDRA-GLUE: ANN-B; INJECT-0001 compatibility fallback because Rugra FuncCallSpecs has no Ghidra injection-id field.
     fn get_inject_id(&self) -> i32 {
         // TODO(INJECT-0001): depends on FuncCallSpecs storing an inject id. -1 = none.
         -1
     }
-    // RUGRA-GLUE: ANN-B; Rust upgrades the Weak counterpart of Ghidra's direct PcodeOp pointer.
+    // RUDRA-GLUE: ANN-B; Rust upgrades the Weak counterpart of Ghidra's direct PcodeOp pointer.
     fn get_op(&self, fd: &Funcdata) -> Option<crate::op::PcodeOpRef> {
         self.find_call_op(fd)
     }
-    // RUGRA-GLUE: ANN-B; Rust adapter reads the nested FuncProto field because Rugra FuncCallSpecs does not inherit Ghidra's name accessor.
+    // RUDRA-GLUE: ANN-B; Rust adapter reads the nested FuncProto field because Rugra FuncCallSpecs does not inherit Ghidra's name accessor.
     fn get_name(&self) -> &str {
         // FuncProto stores the callee name in a public `name` field; Rugra
         // has no FuncProto::get_name accessor, so we read the field directly.
         self.prototype.name.as_str()
     }
-    // RUGRA-GLUE: ANN-B; Rust adapter forwards flow-local parameter shifting to the nested FuncProto object.
+    // RUDRA-GLUE: ANN-B; Rust adapter forwards flow-local parameter shifting to the nested FuncProto object.
     fn set_paramshift(&mut self, shift: i32) {
         self.prototype.param_shift(shift);
     }
-    // RUGRA-GLUE: ANN-B; INJECT-0001 adapter forwards flow-local injection cancellation to the nested FuncProto object.
+    // RUDRA-GLUE: ANN-B; INJECT-0001 adapter forwards flow-local injection cancellation to the nested FuncProto object.
     fn cancel_inject_id(&mut self) {
         self.prototype.cancel_inject_id();
     }
-    // RUGRA-GLUE: ANN-B; CALLSPEC-0001 adapter encodes flow.cc's setAddress(Address()) as Option::None in Rugra.
+    // RUDRA-GLUE: ANN-B; CALLSPEC-0001 adapter encodes flow.cc's setAddress(Address()) as Option::None in Rugra.
     fn clear_entry_address(&mut self) {
         self.entry_addr = None;
     }
@@ -280,7 +280,7 @@ pub struct FlowInfo<'a> {
     tablelist: Vec<crate::op::PcodeOpRef>,
     /// List of p-code ops that require injection (flow.hh:90 injectlist).
     /// Populated by `check_for_flow_modification` when a call site is inline
-    /// and consumed by `inject_pcode`. RUGRA-GLUE: Ghidra stores `PcodeOp *`;
+    /// and consumed by `inject_pcode`. RUDRA-GLUE: Ghidra stores `PcodeOp *`;
     /// we store `PcodeOpRef`. Entries are nulled after injection (flow.cc:1333).
     injectlist: Vec<Option<crate::op::PcodeOpRef>>,
     /// Instruction count limit (flow.hh:96 insn_max).
@@ -316,7 +316,7 @@ pub struct FlowInfo<'a> {
     /// callee, keyed by the spec's `op_addr` (the CALL instruction address,
     /// one spec per call op).
     ///
-    /// RUGRA-GLUE: Ghidra stores the resolved callee as a `Funcdata *` on
+    /// RUDRA-GLUE: Ghidra stores the resolved callee as a `Funcdata *` on
     /// each FuncCallSpecs (`fspecs.setFuncdata`, flow.cc:662), and
     /// `checkContainedCall` reads it via `fc->getFuncdata()` (flow.cc:1367).
     /// Rugra's `FuncCallSpecs` has no per-spec callee-Funcdata storage
@@ -336,7 +336,7 @@ pub struct FlowInfo<'a> {
     /// callee carries no known flow effects, exactly like a Ghidra
     /// queryFunction miss on the funcp channel.
     ///
-    /// RUGRA-GLUE: Ghidra holds the callee protos inside the symbol
+    /// RUDRA-GLUE: Ghidra holds the callee protos inside the symbol
     /// database's Funcdata objects (marked by the "Non-Returning Functions -
     /// Known" analyzer et al.); Rugra has no per-callee Funcdata at flow
     /// time, so the driver feeds the table through
@@ -416,7 +416,7 @@ impl<'a> FlowInfo<'a> {
         }
     }
 
-    // RUGRA-GLUE: releases FlowInfo's mutable source Funcdata borrow before Funcdata::truncated_flow borrows that source immutably.
+    // RUDRA-GLUE: releases FlowInfo's mutable source Funcdata borrow before Funcdata::truncated_flow borrows that source immutably.
     /// Copy precisely the state read by Ghidra's FlowInfo cloning constructor.
     pub fn truncated_state(&self) -> TruncatedFlowState {
         TruncatedFlowState {
@@ -434,7 +434,7 @@ impl<'a> FlowInfo<'a> {
         }
     }
 
-    // RUGRA-GLUE: no-lifter construction for recover_jump_tables_injected
+    // RUDRA-GLUE: no-lifter construction for recover_jump_tables_injected
     /// Construct the flow controller over a pre-loaded (batch-injected) op
     /// bank: same shape as the truncated clone constructor (`lifter: None`
     /// — no instruction generation happens), with the visited map
@@ -471,7 +471,7 @@ impl<'a> FlowInfo<'a> {
         }
     }
 
-    // RUGRA-GLUE: Rust borrow-boundary helper for funcdata_op.cc:830-837; C++ constructs the stack FlowInfo directly inside Funcdata::truncatedFlow.
+    // RUDRA-GLUE: Rust borrow-boundary helper for funcdata_op.cc:830-837; C++ constructs the stack FlowInfo directly inside Funcdata::truncatedFlow.
     pub(crate) fn finish_truncated_flow(
         fd: &'a mut Funcdata,
         state: &TruncatedFlowState,
@@ -1403,7 +1403,7 @@ impl<'a> FlowInfo<'a> {
         // (the callee carries no known flow effects).
         let callee_proto = self.callee_func_protos.get(&entry_addr.as_u64()).cloned();
         // Record the resolution for check_contained_call's flow.cc:1367
-        // `fd != 0 continue` guard (RUGRA-GLUE: FlowInfo-side set stands in
+        // `fd != 0 continue` guard (RUDRA-GLUE: FlowInfo-side set stands in
         // for the per-spec Funcdata pointer Rugra's FuncCallSpecs lacks).
         if let Some(op_addr) = self
             .fd
@@ -1605,7 +1605,7 @@ impl<'a> FlowInfo<'a> {
     /// flow, and any cloned call/branch op is cross-referenced via
     /// `xref_inlined_branch`.
     ///
-    /// RUGRA-GLUE: Ghidra's clone path needs `data.cloneOp(op, seqnum)` and
+    /// RUDRA-GLUE: Ghidra's clone path needs `data.cloneOp(op, seqnum)` and
     /// `data.newCodeRef(retaddr)`, neither of which is ported. Rugra emits a
     /// TODO and leaves the dead-list clone to a future partial-`Funcdata`
     /// clone implementation (flow_audit.md item 5). The flow-table merge and
@@ -1727,7 +1727,7 @@ impl<'a> FlowInfo<'a> {
     /// (`glb->userops` / `glb->pcodeinjectlib`, userop.hh / pcodeinject.hh).
     /// Returns None when either manager is absent — legacy callers and unit
     /// fixtures construct Funcdata without an Architecture.
-    // RUGRA-GLUE: ARCH-GLUE — Ghidra reaches the managers through the raw
+    // RUDRA-GLUE: ARCH-GLUE — Ghidra reaches the managers through the raw
     // Architecture pointer; Rugra's Funcdata::arch is Option<Arc<..>>.
     fn arch_inject_sources(
         &self,
@@ -1746,7 +1746,7 @@ impl<'a> FlowInfo<'a> {
     /// flow.cc:345-347 and `checkForFlowModification` for inline call sites
     /// at flow.cc:639-640).
     ///
-    /// RUGRA-GLUE: fixture-observation API (same category as `snapshot`).
+    /// RUDRA-GLUE: fixture-observation API (same category as `snapshot`).
     /// The locked x86-64 SLEIGH language declares no user-defined p-code ops,
     /// so no real instruction can emit a CALLOTHER on either side of the
     /// oracle; the Ghidra fixture seeds its private `injectlist` directly and
@@ -2133,7 +2133,7 @@ impl<'a> FlowInfo<'a> {
                                 lib.get_call_fixup_name(inject_id)
                             })
                             .unwrap_or_default();
-                        // RUGRA-GLUE: Rugra's FuncCallSpecs carries no name
+                        // RUDRA-GLUE: Rugra's FuncCallSpecs carries no name
                         // (Ghidra `fc->getName()`); the callspecs here are
                         // created during flow and unnamed until ActionFuncLink.
                         let fc_name = fc_owner
@@ -2332,7 +2332,7 @@ impl<'a> FlowInfo<'a> {
 
     /// The op following `op` in the dead list (Ghidra: `++op->getInsertIter()`
     /// against `obank.endDead()`, flow.cc:1390-1392).
-    // RUGRA-GLUE: the stored ins-link successor IS the stored iterator's
+    // RUDRA-GLUE: the stored ins-link successor IS the stored iterator's
     // ++ form — O(1) via PcodeOpBank::dead_next (op.hh:128).
     fn dead_list_next(&self, op: &crate::op::PcodeOpRef) -> Option<crate::op::PcodeOpRef> {
         self.fd.obank.dead_next(op)
@@ -2341,7 +2341,7 @@ impl<'a> FlowInfo<'a> {
     /// Move the injected op sequence [firstop, lastop] to immediately after
     /// `prev`. Faithful to `PcodeOpBank::moveSequenceDead` (op.cc:1056-1065)
     /// over the flow-time dead-list container.
-    // RUGRA-GLUE: delegates to the bank's id-space splice_after — the
+    // RUDRA-GLUE: delegates to the bank's id-space splice_after — the
     // former flow-local drain/splice adapter duplicated the bank port;
     // the single implementation carries the op.cc:1063 degenerate guard
     // and the pos==last enditer no-op (CR-ARENACORE F1).
@@ -2357,7 +2357,7 @@ impl<'a> FlowInfo<'a> {
     /// Mark COPY ops in the injected range as incidental. Faithful to
     /// `PcodeOpBank::markIncidentalCopy` (op.cc:1071-1083) over the raw
     /// dead-list container (see `move_sequence_flow`).
-    // RUGRA-GLUE: delegates to the bank's bounded ins-link walk (the
+    // RUDRA-GLUE: delegates to the bank's bounded ins-link walk (the
     // former flow-local pointer-range adapter duplicated the bank port).
     fn mark_incidental_copy_flow(
         &mut self,
@@ -2378,7 +2378,7 @@ impl<'a> FlowInfo<'a> {
     ///      (`upper_bound` then one predecessor step, rejecting an
     ///      instruction that does not cover the op's address) and the
     ///      fallthru is the first op of the NEXT instruction via `target`.
-    // RUGRA-GLUE: Ghidra walks a stored list iterator; the id-space stored
+    // RUDRA-GLUE: Ghidra walks a stored list iterator; the id-space stored
     // ins-link gives the successor in O(1) (op.hh:128).
     fn fallthru_op(&self, op: &crate::op::PcodeOpRef) -> Option<crate::op::PcodeOpRef> {
         // The op must be a dead-chain member (the former position scan's
@@ -2763,7 +2763,7 @@ impl<'a> FlowInfo<'a> {
     /// SLEIGH callback `VarnodeData*` identities are deliberately absent:
     /// post-emission Varnode identity is assigned later from the Funcdata
     /// bank Arcs by the consumer.
-    // RUGRA-GLUE: fixture observation API; Ghidra's flow.cc has no snapshot
+    // RUDRA-GLUE: fixture observation API; Ghidra's flow.cc has no snapshot
     // (the oracle fixture reads FlowInfo private fields directly instead).
     pub fn snapshot(&self) -> FlowInfoSnapshot {
         let operations: Vec<FlowOpSnapshot> = self
@@ -2859,7 +2859,7 @@ impl<'a> FlowInfo<'a> {
         }
     }
 
-    // RUGRA-GLUE: 收集 raw/dead BRANCHIND ops（Ghidra 内联在 generateOps 的 tablelist 循环中）。
+    // RUDRA-GLUE: 收集 raw/dead BRANCHIND ops（Ghidra 内联在 generateOps 的 tablelist 循环中）。
     /// Collect all raw BRANCHIND ops (for tablelist processing).
     fn collect_branchinds(&self) -> Vec<crate::op::PcodeOpRef> {
         self.fd
@@ -3391,7 +3391,7 @@ impl<'a> FlowInfo<'a> {
 /// prototype lets `ActionFuncLink::funcLinkOutput`'s else-branch
 /// (coreaction.cc:1571-1572) start active return recovery for unknown
 /// callees.
-// RUGRA-GLUE: Rust needs an owned FuncProto value where C++ default-constructs the base class inline.
+// RUDRA-GLUE: Rust needs an owned FuncProto value where C++ default-constructs the base class inline.
 pub(crate) fn default_call_spec_proto() -> crate::fspec::FuncProto {
     crate::fspec::FuncProto::new(
         String::new(),
@@ -3428,7 +3428,7 @@ pub fn follow_flow(
 /// (flow.cc:663-664); an empty table leaves every call site's
 /// inline/no-return flags untouched (the production data source — the
 /// driver-side known-noreturn name list — is FLOW-NORETURN-DATA-0001).
-// RUGRA-GLUE: Ghidra reaches the callee prototypes through the shared symbol database; Rugra's Funcdata owns no per-callee Funcdata at flow time, so the driver hands the table to the flow entry point.
+// RUDRA-GLUE: Ghidra reaches the callee prototypes through the shared symbol database; Rugra's Funcdata owns no per-callee Funcdata at flow time, so the driver hands the table to the flow entry point.
 pub fn follow_flow_with_callee_protos(
     fd: &mut Funcdata,
     lifter: &mut SleighLifter,
@@ -3474,7 +3474,7 @@ pub fn follow_flow_range(
     // funcdata_op.cc:777-778: `flags |= blocks_generated;
     // switchOverJumpTables(flow);` — map every recovered jump-table address
     // to its switch out-edge slot (JumpTable::switchOver, jumptable.cc:2528)
-    // before the FlowInfo borrow ends. RUGRA-GLUE: associated-function form
+    // before the FlowInfo borrow ends. RUDRA-GLUE: associated-function form
     // (Funcdata is exclusively borrowed by this FlowInfo).
     {
         let fd_shared: &crate::funcdata::Funcdata = &*flow.fd;
@@ -4090,7 +4090,7 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
     Ok(recovered_count)
 }
 
-// ===================== Injection helpers (RUGRA-GLUE) =====================
+// ===================== Injection helpers (RUDRA-GLUE) =====================
 // These free functions bridge gaps between Rugra's current types and the
 // Ghidra flow.cc call paths. They are file-local to flow.rs because this
 // alignment task is constrained to editing src/flow.rs.
@@ -4098,7 +4098,7 @@ pub fn recover_jump_tables_injected(fd: &mut Funcdata) -> crate::error::Result<u
 /// Resolve the stable callspec owner for an exact call op. The typed Weak on
 /// input(0) is the fast path; Funcdata's fallback compares the bound PcodeOp
 /// allocation, never an address or vector index.
-// RUGRA-GLUE: ANN-B; Rust Arc owner form of FuncCallSpecs::getFspecFromConst plus exact PcodeOp fallback.
+// RUDRA-GLUE: ANN-B; Rust Arc owner form of FuncCallSpecs::getFspecFromConst plus exact PcodeOp fallback.
 fn find_callspec_for_op(
     fd: &Funcdata,
     op: &crate::op::PcodeOpRef,

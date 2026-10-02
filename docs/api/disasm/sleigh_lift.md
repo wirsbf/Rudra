@@ -1,7 +1,7 @@
 # sleigh_lift.rs — SLEIGH P-code bridge
 
 `src/disasm/sleigh_lift.rs` converts the owned, dynamic result from
-`SleighCtx::one_instruction` into Rugra `PcodeOpRaw` values. The locked source oracle is
+`SleighCtx::one_instruction` into Rudra `PcodeOpRaw` values. The locked source oracle is
 Ghidra 12.0.4 commit `e40ed13014025f82488b1f8f7bca566894ac376b`, principally
 `Sleigh::oneInstruction` (`sleigh.cc:741`) and the `Translate::oneInstruction`
 contract (`translate.hh:419`).
@@ -49,7 +49,7 @@ configured `SleighLifter` consumed by `FlowInfo`. On locked `examples/curl` / `G
 reachable raw sequence is now 103 ops on both sides; the numeric tuple
 `(address, opcode, input_count, has_output)` agrees for every op. Full raw state remains
 `MISMATCH`: emitted Varnode type/cover flags differ, and direct CALL annotations use
-Rugra's synthetic Iop space because it has no dynamic Fspec address space.
+Rudra's synthetic Iop space because it has no dynamic Fspec address space.
 
 Behavior evidence is produced by:
 
@@ -109,7 +109,7 @@ NDJSON 逐字节相同。
   空间，重映射只影响 CPUID 决策树这类 label 分支，因此 curl/httpd 路径不受
   影响（GetStr 无 intra-instruction label 分支）。
 - `lift_instruction` 语义不变：一次严格 `oneInstruction`，step 与全部 ops 原子
-  返回；shim（sleigh_shim/rugra_sleigh.cpp `RugraPcodeEmit`）只规范化
+  返回；shim（sleigh_shim/rugra_sleigh.cpp `RudraPcodeEmit`）只规范化
   LOAD/STORE 的 space-id 常量偏移，不改分支空间。
 
 真实 `0f a2 c3` 门禁（`tools/run_sleigh_flow_relative_oracle.sh`）：Rust 侧
@@ -130,7 +130,7 @@ pspec 全量、Fspec 动态空间等见 `SLEIGH-0002C/D`、`ADDR-0001`）。
 - `sleigh_raw_ops(code, base)` (free function): linear SLEIGH decode over a byte window —
   driver/test raw-op construction. Ghidra itself has no linear decoder (its only contract
   is flow-following through `Translate::oneInstruction`, flow.cc:421), so this walk is pure
-  Rugra glue: decode each boundary in `[base, base+len)`, and on an undecodable byte skip
+  Rudra glue: decode each boundary in `[base, base+len)`, and on an undecodable byte skip
   one byte with zero ops (the retired iced walk's "Unimplemented" fallback contract). The
   funcdata X86Lifter test sites and the remaining probe drivers consume it.
 

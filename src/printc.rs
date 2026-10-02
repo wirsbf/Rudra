@@ -231,7 +231,7 @@ pub mod optoken {
 /// (`op_arc` = the op being pushed, whose Arc lands in nodepend entries for
 /// the rpn_recurse drain; `read_op` = the oracle's readOp parameter, threaded
 /// by printlanguage.cc:532 and consumed only by op_int_zext/op_int_sext).
-// RUGRA-GLUE: Rust signature transport for the C++
+// RUDRA-GLUE: Rust signature transport for the C++
 //   `push(PrintLanguage*, const PcodeOp*, const PcodeOp*)` parameter triple;
 //   the PcodeOp Arc has no C++ counterpart (RPN nodepend needs an owned
 //   handle where C++ stores bare pointers). Shared by printc.rs's per-op
@@ -303,7 +303,7 @@ pub mod display_format {
     pub const CHAR: u32 = 5;
 }
 
-// RUGRA-GLUE: sanitize_c_ident — RETIRED (STUBLEAK-DOTNAME-SANITIZE-0001).
+// RUDRA-GLUE: sanitize_c_ident — RETIRED (STUBLEAK-DOTNAME-SANITIZE-0001).
 // The oracle emits symbol/function names VERBATIM: the declaration site is
 // `emit->tagFuncName(fd->getDisplayName(),...)` (printc.cc:2592) and call
 // sites resolve through the FuncCallSpecs display name — no C-identifier
@@ -340,7 +340,7 @@ fn escape_char_body(val: u64) -> String {
     }
 }
 
-// RUGRA-GLUE: escape_c_string (no Ghidra counterpart found)
+// RUDRA-GLUE: escape_c_string (no Ghidra counterpart found)
 /// Escape a raw string from the binary into a C string literal.
 /// Converts control characters to their escape sequences:
 /// newline → \n, carriage return → \r, tab → \t, null → \0, etc.
@@ -448,7 +448,7 @@ struct ScopeMapPiece {
 /// scope's entry-creation order; returns the payloads in emulated list
 /// order.
 ///
-/// RUGRA-GLUE: C++ list/multiset iterators are stable across inserts; this
+/// RUDRA-GLUE: C++ list/multiset iterators are stable across inserts; this
 /// emulation tracks pieces by `id` and re-finds Vec positions instead, and
 /// represents the EntrySubsort as `(0,0)` for address-tied entries and
 /// `(1, first-use offset)` otherwise (all local-scope uselimits share the
@@ -1079,7 +1079,7 @@ fn enum_match_text(val: u64, e: &crate::type_system::datatype::TypeEnum) -> Opti
     enum_rep_text(&rep)
 }
 
-// RUGRA-GLUE: the representation-to-text half of pushEnumConstant's match
+// RUDRA-GLUE: the representation-to-text half of pushEnumConstant's match
 // branch — pure string assembly, split out so the shift form (which
 // TypeEnum::getMatches itself never produces — its Representation keeps
 // the ctor's shiftAmount=0, same as type.cc:1370's rep) is still unit-
@@ -1108,7 +1108,7 @@ fn enum_rep_text(rep: &crate::type_system::datatype::EnumRepresentation) -> Opti
     })
 }
 
-// RUGRA-GLUE: escape_c_string (no Ghidra counterpart found)
+// RUDRA-GLUE: escape_c_string (no Ghidra counterpart found)
 
 impl PrintC {
     // Ghidra: printc.cc:123 PrintC::new
@@ -1234,7 +1234,7 @@ impl PrintC {
         self.emit
     }
 
-    // RUGRA-GLUE: set_space_manager (test/driver injection point; Ghidra's
+    // RUDRA-GLUE: set_space_manager (test/driver injection point; Ghidra's
     /// PrintLanguage reaches the AddrSpaceManager through its permanent
     /// `glb` pointer — Architecture IS an AddrSpaceManager in the C++
     /// hierarchy — while Rugra's `Architecture` does not own one yet
@@ -1258,7 +1258,7 @@ impl PrintC {
     // verbatim (migration rule: do not modify printlanguage.rs).
     // ===========================================================================
 
-    // RUGRA-GLUE: build_rpn_token_table
+    // RUDRA-GLUE: build_rpn_token_table
     /// Build the per-instance OpToken slice the RPN free-functions index into.
     /// Indices 0..=9 must agree with the rpn_tok_* constants assigned in new().
     /// Faithful to the static OpToken definitions in printc.cc:25/26/33/34/35/56
@@ -1370,7 +1370,7 @@ impl PrintC {
     /// Enable/disable the RPN emit path in doc_function. When true, blocks are
     /// emitted via emit_block_basic_rpn / emit_expression_rpn; when false
     /// (default), the legacy direct-emit path runs.
-    // RUGRA-GLUE: migration-only runtime switch; Ghidra always uses its RPN printer and exposes no equivalent toggle
+    // RUDRA-GLUE: migration-only runtime switch; Ghidra always uses its RPN printer and exposes no equivalent toggle
     pub fn set_rpn_enabled(&mut self, enabled: bool) {
         self.rpn_enabled = enabled;
     }
@@ -1380,7 +1380,7 @@ impl PrintC {
     /// `rpn_push_partial_symbol`'s findResolve/findTruncation consults and
     /// `opSubpiece`'s union findTruncation arm
     /// (`Funcdata::getUnionField`, funcdata.cc:917-926).
-    // RUGRA-GLUE: extracted from doc_function (which remains the sole pipeline
+    // RUDRA-GLUE: extracted from doc_function (which remains the sole pipeline
     // installer) so op-level fixtures — rendering single PcodeOps via
     // op_subpiece_rpn without a full doc_function run — can install the same
     // snapshot the pipeline printer sees. Ghidra needs no equivalent: its
@@ -1956,7 +1956,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: the defOp->getOpcode()->push(this,defOp,op) dispatch
+    // RUDRA-GLUE: the defOp->getOpcode()->push(this,defOp,op) dispatch
     /// shared by pushImpliedField's two arms (printc.cc:2110/2114) —
     /// the same inline-vs-leaf decision the plain implied branch of
     /// rpn_recurse makes (printlanguage.cc:530-532).
@@ -2030,7 +2030,7 @@ impl PrintC {
         self.rpn_push_atom(&adj_atom);
     }
 
-    // RUGRA-GLUE: rpn_def_inline_reachable (Ghidra counterpart is the total
+    // RUDRA-GLUE: rpn_def_inline_reachable (Ghidra counterpart is the total
     // TypeOp::push virtual dispatch — typeop.cc registers a pusher for every
     // opcode — so Ghidra never needs this predicate; it exists only because
     // Rugra's dispatch_op_rpn match is partial, PRINT-RPN-0001 residual).
@@ -2506,7 +2506,7 @@ impl PrintC {
             })
     }
 
-    // RUGRA-GLUE: make_atom_for_vn (RPN leaf atom construction; mirrors the
+    // RUDRA-GLUE: make_atom_for_vn (RPN leaf atom construction; mirrors the
     /// pushVn leaf paths of printlanguage.cc:221-261 folded into one helper)
     /// - constants become a syntax Atom carrying the literal text; `op` is the
     /// consuming PcodeOp (carried into the Atom for tagging).
@@ -4988,7 +4988,7 @@ impl PrintC {
         format!("{}{}{}", prefix, in_size, out_size)
     }
 
-    // RUGRA-GLUE: rpn_emit_subscript (printlanguage.cc postsurround emit)
+    // RUDRA-GLUE: rpn_emit_subscript (printlanguage.cc postsurround emit)
     /// Emit a subscript `op[atom]` via direct text, matching the legacy
     /// `in0[off]` fallback shape for variable-offset PTRSUB. This is a
     /// text-level helper because the RPN token table does not yet carry a
@@ -5412,7 +5412,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: derive the BlockBasic index for the cc:2684
+    // RUDRA-GLUE: derive the BlockBasic index for the cc:2684
     // setupBlockList(bb) call from the ops themselves. Ghidra's
     // emitBlockBasic receives the BlockBasic directly; Rugra's rpn/legacy
     // statement loops only hold the op slice. CommentSorter::findPosition
@@ -5445,7 +5445,7 @@ impl PrintC {
         })
     }
 
-    // RUGRA-GLUE: per-op parent-block index for the flattened emitBlockBasic
+    // RUDRA-GLUE: per-op parent-block index for the flattened emitBlockBasic
     // comment protocol (Ghidra runs emitBlockBasic per basic block with a
     // fresh setupBlockList window each; printc.cc:2684/2742).
     fn op_parent_block_index(op: &crate::op::PcodeOp) -> Option<i32> {
@@ -5748,7 +5748,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: R50 malformed-condition predicate — the oracle's opCbranch
+    // RUDRA-GLUE: R50 malformed-condition predicate — the oracle's opCbranch
     //   never sees a lost/garbage condition (printc.cc:566 pushes getIn(1)
     //   unconditionally), so Ghidra has no counterpart defense. Shared by
     //   emit_cbranch_condition and the negatetoken fold renderer below so
@@ -5905,7 +5905,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: resolves Ghidra emitLabel's getFrontLeaf()->subBlock(0)->getEntryAddr chain through Rust trait objects
+    // RUDRA-GLUE: resolves Ghidra emitLabel's getFrontLeaf()->subBlock(0)->getEntryAddr chain through Rust trait objects
     fn flow_entry_address(
         block_arc: &std::sync::Arc<
             std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
@@ -5979,7 +5979,7 @@ impl PrintC {
         ))
     }
 
-    // RUGRA-GLUE: transports Ghidra's PrintLanguage::no_branch modifier as an explicit boolean through Rugra's structured-block dispatcher
+    // RUDRA-GLUE: transports Ghidra's PrintLanguage::no_branch modifier as an explicit boolean through Rugra's structured-block dispatcher
     /// Emit a single block's operations, with dead code elimination.
     ///
     /// Skips: COPY ops (folded via copy_map), terminal branches (when skip_terminal),
@@ -6531,7 +6531,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: legacy Rust structure-gap predicate retained for BLOCKSTRUCT-IDENTIFY-BOUNDARY-0001 fallbacks; Ghidra emitBlockIf never suppresses an owned body
+    // RUDRA-GLUE: legacy Rust structure-gap predicate retained for BLOCKSTRUCT-IDENTIFY-BOUNDARY-0001 fallbacks; Ghidra emitBlockIf never suppresses an owned body
     fn is_block_body_empty(
         &self,
         block_arc: &std::sync::Arc<
@@ -6561,7 +6561,7 @@ impl PrintC {
         true
     }
 
-    // RUGRA-GLUE: top-level ownership ledger around Ghidra FlowBlock::emit virtual dispatch (block.hh:221 and subtype overrides)
+    // RUDRA-GLUE: top-level ownership ledger around Ghidra FlowBlock::emit virtual dispatch (block.hh:221 and subtype overrides)
     fn emit_block_structured(
         &mut self,
         block_arc: &std::sync::Arc<
@@ -6578,7 +6578,7 @@ impl PrintC {
         self.emit_flow_block(block_arc, graph, emitted);
     }
 
-    // RUGRA-GLUE: Rust downcast shim for Ghidra FlowBlock::emit virtual dispatch (block.hh:221 and subtype overrides)
+    // RUDRA-GLUE: Rust downcast shim for Ghidra FlowBlock::emit virtual dispatch (block.hh:221 and subtype overrides)
     fn emit_flow_block(
         &mut self,
         block_arc: &std::sync::Arc<
@@ -6807,7 +6807,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: Rust trait-object transport for the FlowBlock::lastOp virtual family (block.hh:239 and subtype overrides)
+    // RUDRA-GLUE: Rust trait-object transport for the FlowBlock::lastOp virtual family (block.hh:239 and subtype overrides)
     fn flow_last_op(
         block_arc: &std::sync::Arc<
             std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
@@ -7616,7 +7616,7 @@ impl PrintC {
         self.pop_mod();
         self.emit.close_paren(")", outer);
     }
-    // RUGRA-GLUE: emit_switch_head_expr — verbatim extraction of the switch
+    // RUDRA-GLUE: emit_switch_head_expr — verbatim extraction of the switch
     // index-expression resolution that emit_structured_switch's header
     // previously carried inline (index_varnode → inline_candidates/value_def_map
     // COPY chase → BRANCHIND in0 → CBRANCH-compare fallback). Pure refactor of
@@ -8156,7 +8156,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: emit_switch_case_body — dispatch shim for FlowBlock::emit
+    // RUDRA-GLUE: emit_switch_case_body — dispatch shim for FlowBlock::emit
     // (block.hh:221). printc.cc:3339-3341 emitBlockSwitch emits a case body
     // via bl2->emit(this): a virtual dispatch on getType() with NO consumed/
     // dead-block guard — the BlockSwitch component owns its case blocks and
@@ -8206,7 +8206,7 @@ impl PrintC {
     }
 
 
-    // RUGRA-GLUE: emit_structured_basic (no Ghidra counterpart found)
+    // RUDRA-GLUE: emit_structured_basic (no Ghidra counterpart found)
     fn emit_structured_basic(
         &mut self,
         block_arc: &std::sync::Arc<std::sync::RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
@@ -8479,7 +8479,7 @@ impl PrintC {
         format!("code_r0x{:0width$x}", display, width = 2 * sz)
     }
 
-    // RUGRA-GLUE: set_code_label_layer (front-end data handoff; no single
+    // RUDRA-GLUE: set_code_label_layer (front-end data handoff; no single
     // Ghidra counterpart — the oracle receives this data through the
     // Architecture's remote-query channel, database_ghidra.cc:308-325)
     /// Install the front-end code-label layer: address → label display
@@ -8494,7 +8494,7 @@ impl PrintC {
         self.code_label_base = base;
     }
 
-    // RUGRA-GLUE: push_goto_target (no Ghidra counterpart found)
+    // RUDRA-GLUE: push_goto_target (no Ghidra counterpart found)
     /// Emit a goto label name. Uses Ghidra-style `code_r0xXXXX` for
     /// intra-function addresses, falls back to symbol lookup for named
     /// symbols. Mirrors PrintC::emitLabel's label-string construction
@@ -8780,7 +8780,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: mark_variable_used (no Ghidra counterpart found)
+    // RUDRA-GLUE: mark_variable_used (no Ghidra counterpart found)
     /// Mark a variable name as used, recording its space, offset, and type
     fn mark_variable_used(
         &mut self, name: String, space: crate::space::AddressSpace, offset: u64, type_name: String,
@@ -8795,7 +8795,7 @@ impl PrintC {
             .insert(name.clone(), (type_name, space, offset));
     }
 
-    // RUGRA-GLUE: mark_varnode_used (no Ghidra counterpart found)
+    // RUDRA-GLUE: mark_varnode_used (no Ghidra counterpart found)
     /// Mark a varnode's display name as used, recording its space, offset, and type
     fn mark_varnode_used(&mut self, name: String, vn: &Varnode) {
         if name.is_empty() { return; }
@@ -8830,7 +8830,7 @@ impl PrintC {
         self.mark_variable_used(name, vn.get_space(), vn.get_offset(), type_name);
     }
 
-    // RUGRA-GLUE: get_varnode_display_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_varnode_display_name (no Ghidra counterpart found)
     /// Get the display name for a varnode without emitting it
     fn get_varnode_display_name(
         &mut self,
@@ -9329,7 +9329,7 @@ impl PrintC {
             symboloff = 0;
         }
         let Some(symt) = sym_type else {
-            // RUGRA-GLUE degradation: oracle Symbols always carry a type;
+            // RUDRA-GLUE degradation: oracle Symbols always carry a type;
             // an untyped Rugra symbol cannot evaluate the 255 bound nor
             // walk fields, so degrade to the pushSymbol form (the
             // pre-fix observable for symbol-backed highs was the plain
@@ -9379,7 +9379,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: get_varnode_display_name_inner (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_varnode_display_name_inner (no Ghidra counterpart found)
     fn get_varnode_display_name_inner(
         &self,
         vn: &Varnode,
@@ -9501,7 +9501,7 @@ impl PrintC {
                 // prettyprint's backfill then injects a second
                 // different-typed declaration for it. The prefix rewrite
                 // stays available ONLY for symbol-less highs (the
-                // RUGRA-GLUE unlinked-name path below), where no
+                // RUDRA-GLUE unlinked-name path below), where no
                 // declaration exists to diverge from.
                 if high.symbol.is_some() {
                     return name.to_string();
@@ -9548,7 +9548,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: find_typed_instance (no Ghidra counterpart found)
+    // RUDRA-GLUE: find_typed_instance (no Ghidra counterpart found)
     /// Check if a name is a raw x86-64 register name
     /// Scan all instances of a HighVariable for one with a meaningful
     /// (non-Unknown, non-undefined) type. ActionTypeInfer assigns types to
@@ -9569,7 +9569,7 @@ impl PrintC {
         None
     }
 
-    // RUGRA-GLUE: vn_type_if_meaningful (no Ghidra counterpart found)
+    // RUDRA-GLUE: vn_type_if_meaningful (no Ghidra counterpart found)
     fn vn_type_if_meaningful(
         vn: &crate::varnode::Varnode,
     ) -> Option<std::sync::Arc<crate::type_system::Datatype>> {
@@ -9606,7 +9606,7 @@ impl PrintC {
             .cloned()
     }
 
-    // RUGRA-GLUE: pointer_type_for (no Ghidra counterpart found)
+    // RUDRA-GLUE: pointer_type_for (no Ghidra counterpart found)
     fn pointer_type_for(
         &self, vn: &crate::varnode::Varnode,
     ) -> Option<std::sync::Arc<crate::type_system::Datatype>> {
@@ -9629,7 +9629,7 @@ impl PrintC {
         None
     }
 
-    // RUGRA-GLUE: make_int_ptr (no Ghidra counterpart found)
+    // RUDRA-GLUE: make_int_ptr (no Ghidra counterpart found)
     fn make_int_ptr(&self) -> Option<std::sync::Arc<crate::type_system::Datatype>> {
         use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
         let int_type = std::sync::Arc::new(Datatype::Base(
@@ -9678,7 +9678,7 @@ impl PrintC {
         base
     }
 
-    // RUGRA-GLUE: size_prefix (no Ghidra counterpart found)
+    // RUDRA-GLUE: size_prefix (no Ghidra counterpart found)
     fn size_prefix(size: usize) -> &'static str {
         match size {
             8 => "lVar",
@@ -9689,7 +9689,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: maybe_apply_type_prefix (no Ghidra counterpart found)
+    // RUDRA-GLUE: maybe_apply_type_prefix (no Ghidra counterpart found)
     fn maybe_apply_type_prefix(
         name: &str, v_type: &Option<std::sync::Arc<crate::type_system::Datatype>>, size: usize,
     ) -> String {
@@ -9762,7 +9762,7 @@ impl PrintC {
         )
     }
 
-    // RUGRA-GLUE: resolve_varnode (no Ghidra counterpart found)
+    // RUDRA-GLUE: resolve_varnode (no Ghidra counterpart found)
     /// Resolve a varnode through the copy propagation map.
     /// If this varnode is the output of a COPY op, return the root source.
     fn resolve_varnode(&self, vn_arc: &Arc<RwLock<Varnode>>) -> Option<Arc<RwLock<Varnode>>> {
@@ -9770,7 +9770,7 @@ impl PrintC {
         self.copy_map.get(&ptr).cloned()
     }
 
-    // RUGRA-GLUE: get_defining_op (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_defining_op (no Ghidra counterpart found)
     /// Get the meaningful defining op for a varnode using the SSA def chain.
     /// Chases through COPY ops to find the non-trivial definition.
     /// This is the SSA-based replacement for ad-hoc map lookups.
@@ -9800,7 +9800,7 @@ impl PrintC {
         None
     }
 
-    // RUGRA-GLUE: is_stack_frame_setup (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_stack_frame_setup (no Ghidra counterpart found)
     /// Check if an op is INT_SUB(RSP, const) — the stack frame setup instruction.
     fn is_stack_frame_setup(&self, op: &PcodeOp) -> bool {
         if op.opcode != OpCode::CPUI_INT_SUB || op.inrefs.len() < 2 {
@@ -9814,7 +9814,7 @@ impl PrintC {
             && in1.get_offset() == self.stack_frame_size
     }
 
-    // RUGRA-GLUE: get_stack_variable_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_stack_variable_name (no Ghidra counterpart found)
     /// Check if an INT_ADD op is RSP + const, and if so, return the stack variable name.
     /// Also handles uVar107 + offset where uVar107 = RSP - frame_size.
     fn get_stack_variable_name(&mut self, op: &PcodeOp) -> Option<String> {
@@ -9905,7 +9905,7 @@ impl PrintC {
         None
     }
 
-    // RUGRA-GLUE: is_complementary_condition (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_complementary_condition (no Ghidra counterpart found)
     /// Check if two condition strings form a tautology when OR'd.
     /// Covers:
     /// - Complementary pairs: "X == Y" / "X != Y", "X < Y" / "X >= Y"
@@ -9944,7 +9944,7 @@ impl PrintC {
         false
     }
 
-    // RUGRA-GLUE: negate_condition_text (no Ghidra counterpart found)
+    // RUDRA-GLUE: negate_condition_text (no Ghidra counterpart found)
     /// Try to negate a comparison expression textually.
     /// E.g., "X == 0" → "X != 0", "X < Y" → "X >= Y"
     /// Returns None if the text doesn't contain a recognized comparison operator.
@@ -9966,7 +9966,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: try_fold_bool_comparison (no Ghidra counterpart found)
+    // RUDRA-GLUE: try_fold_bool_comparison (no Ghidra counterpart found)
     /// Try to fold a BOOL_OR/BOOL_AND of two comparisons into a single comparison.
     /// E.g., `BOOL_OR(INT_EQUAL(A,B), INT_LESS(A,B))` → emits `A <= B`
     /// Returns true if folding succeeded and the expression was emitted.
@@ -10202,7 +10202,7 @@ impl PrintC {
         true
     }
 
-    // RUGRA-GLUE: get_rip_relative_operand (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_rip_relative_operand (no Ghidra counterpart found)
     /// Check if an op is `INT_ADD(RIP, x)` or `INT_ADD(x, RIP)` — a RIP-relative address.
     /// Returns the index of the non-RIP operand if matched.
     /// x86-64 PIC code uses `lea reg, [rip + offset]` which lifts to `INT_ADD(RIP, const)`.
@@ -10225,7 +10225,7 @@ impl PrintC {
         None
     }
 
-    // RUGRA-GLUE: push_input (no Ghidra counterpart found)
+    // RUDRA-GLUE: push_input (no Ghidra counterpart found)
     /// Push an op's input varnode, resolving through the copy chain.
     fn push_input(&mut self, op: &PcodeOp, index: usize) {
         if let Some(in_arc) = op.get_in(index) {
@@ -10277,7 +10277,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: push_output (no Ghidra counterpart found)
+    // RUDRA-GLUE: push_output (no Ghidra counterpart found)
     /// Push an op's output varnode (no resolution needed for outputs).
     fn push_output(&mut self, op: &PcodeOp) {
         if let Some(out_arc) = op.get_out() {
@@ -10287,7 +10287,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: emit_inline_expr (no Ghidra counterpart found)
+    // RUDRA-GLUE: emit_inline_expr (no Ghidra counterpart found)
     /// Emit just the RHS expression of a defining op (for expression inlining).
     /// Emits the operation without the `output = ` prefix.
     fn emit_inline_expr(&mut self, def_op: &PcodeOp) {
@@ -10793,7 +10793,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: emit_block_condition (no Ghidra counterpart found)
+    // RUDRA-GLUE: emit_block_condition (no Ghidra counterpart found)
     /// Emit a condition expression from a block that may be a `BlockCondition`.
     ///
     /// If the block is a `BlockCondition`, recursively emits `(a) && (b)` or `(a) || (b)`.
@@ -10963,7 +10963,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: capture_block_condition (no Ghidra counterpart found)
+    // RUDRA-GLUE: capture_block_condition (no Ghidra counterpart found)
     /// Inner condition-emitter that writes to a throwaway buffer. Used by
     /// `emit_block_condition` to detect empty output.
     fn capture_block_condition(
@@ -10988,7 +10988,7 @@ impl PrintC {
     /// or a compound expression, so callers can choose an lvalue-safe form
     /// (faithful to Ghidra opStore always wrapping the STORE address in a
     /// dereference, printc.cc:500-518).
-    // RUGRA-GLUE: Rust-side helper (capture-emit-swap pattern, mirrors the
+    // RUDRA-GLUE: Rust-side helper (capture-emit-swap pattern, mirrors the
     // existing capture_block_condition at printc.rs:2512). No direct Ghidra
     // counterpart; exists to support the opStore address-wrapping fix.
     fn capture_varnode_text(&mut self, vn: &Varnode) -> String {
@@ -11019,7 +11019,7 @@ impl PrintC {
     /// emit_condition's Case 2). Tolerates optional surrounding parentheses
     /// and leading/trailing whitespace. Does NOT match compound conditions
     /// containing `||`/`&&` (those are left to the BOOL_OR/BOOL_AND path).
-    // RUGRA-GLUE: print-time textual predicate (no Ghidra counterpart;
+    // RUDRA-GLUE: print-time textual predicate (no Ghidra counterpart;
     // Ghidra's SSA recovery never produces self-comparisons).
     fn is_self_comparison(text: &str) -> bool {
         // Strip outer parens and whitespace, e.g. "(local_0 == local_0)".
@@ -11059,7 +11059,7 @@ impl PrintC {
     /// the nested capture/emit swap (same root cause as cast-concat), with
     /// non-cast operands. Such a token is undeclared => gcc error. Used by
     /// emit_block_condition's malformed-condition guard.
-    // RUGRA-GLUE: print-time textual predicate (no Ghidra counterpart;
+    // RUDRA-GLUE: print-time textual predicate (no Ghidra counterpart;
     // Ghidra never produces operator-less binary conditions).
     fn regex_concat_varname(text: &str) -> bool {
         // Scan tokens (maximal [A-Za-z_][A-Za-z0-9_] runs) and check if any
@@ -11100,7 +11100,7 @@ impl PrintC {
     /// inline / push_varnode fallback), but captures the emit and falls back
     /// to a concrete name if resolution produces nothing — faithful to Ghidra
     /// opCall's pushVn which never emits empty (prevents illegal `f(, arg)`).
-    // RUGRA-GLUE: Rust-side arg-text extractor (capture-emit-swap pattern).
+    // RUDRA-GLUE: Rust-side arg-text extractor (capture-emit-swap pattern).
     fn emit_call_arg_text(&mut self, op: &PcodeOp, i: usize) -> String {
         use crate::opcodes::OpCode;
         let vn_arc = match op.get_in(i) { Some(a) => a, None => return "0".to_string() ,
@@ -11237,7 +11237,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: emit_block_condition_inner (no Ghidra counterpart found)
+    // RUDRA-GLUE: emit_block_condition_inner (no Ghidra counterpart found)
     fn emit_block_condition_inner(
         &mut self,
         block_arc: &Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>>,
@@ -11397,7 +11397,7 @@ impl PrintC {
             .unwrap_or(false)
     }
 
-    // RUGRA-GLUE: emit_condition (no Ghidra counterpart found)
+    // RUDRA-GLUE: emit_condition (no Ghidra counterpart found)
     /// Emit a condition expression, inlining comparisons.
     ///
     /// Uses `def_map` to trace the defining op for any varnode (cross-block).
@@ -12247,7 +12247,7 @@ impl PrintLanguage for PrintC {
                 .collect();
             // Helper: check if a varnode's COPY def chain leads to Ram@addr
             // where addr matches a known global. Returns the struct pointer type.
-            // RUGRA-GLUE: print-time COPY-chain type recovery for Rugra's split IR ownership; Ghidra relies on upstream symbol/type propagation and has no nested resolver
+            // RUDRA-GLUE: print-time COPY-chain type recovery for Rugra's split IR ownership; Ghidra relies on upstream symbol/type propagation and has no nested resolver
             fn resolve_global_ptr(
                 vn: &crate::varnode::Varnode,
                 globals: &[(u64, std::sync::Arc<Datatype>)],
@@ -14245,7 +14245,7 @@ impl PrintLanguage for PrintC {
                 // (printlanguage.cc:246-251 pushSymbolDetail sym != null →
                 // printc.cc:1935 pushAtom(sym->getDisplayName())): the
                 // type-prefix rewrite is only legal on the symbol-less
-                // RUGRA-GLUE name path, otherwise the body name (piVarN)
+                // RUDRA-GLUE name path, otherwise the body name (piVarN)
                 // diverges from the scope declaration (int iVarN;) and
                 // prettyprint backfill injects a second different-typed
                 // declaration.
@@ -14988,7 +14988,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: is_code_pointer_dt (print-side projection of
+    // RUDRA-GLUE: is_code_pointer_dt (print-side projection of
     //   ActionSetCasts::castInput's no-cast outcome, coreaction.cc:2655-2671
     //   + cast.cc:300 castStandard identity check)
     /// Whether `dt` is the code-pointer type a CALLIND slot-0 expects —
@@ -16641,7 +16641,7 @@ impl PrintC {
         crate::database::Scope::query_function_addr(&stack, addr)
     }
 
-    // RUGRA-GLUE: translate_is_big_endian (Ghidra reads
+    // RUDRA-GLUE: translate_is_big_endian (Ghidra reads
     /// `glb->translate->isBigEndian()` at printc.cc:1547; the transitional
     /// Rugra Architecture/AddrSpaceManager has no Translate-level endianness
     /// flag, so the default data space's endianness stands in — little-endian
@@ -17188,7 +17188,7 @@ impl PrintC {
         self.emit_comment_group(None);
     }
 
-    // RUGRA-GLUE: flat_goto_target_valid + record_goto_label_pending (the
+    // RUDRA-GLUE: flat_goto_target_valid + record_goto_label_pending (the
     // oracle has one emitter — emitGotoStatement always receives a live
     // FlowBlock — so it needs neither the validation nor the ledger).
     /// Validate a statement-level goto target (CBRANCH/BRANCH in(0)) for the
@@ -17213,7 +17213,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: goto-label pending ledger — the oracle has a single emitter
+    // RUDRA-GLUE: goto-label pending ledger — the oracle has a single emitter
     // whose goto targets are always live structured-tree FlowBlocks labeled
     // via markCopyBlock/emitAnyLabelStatement; Rugra's shared-leaf tree needs
     // this address-keyed ledger to place the same label exactly once.
@@ -17513,7 +17513,7 @@ impl PrintC {
     /// channel, so the failure is logged and the partially-placed sorter
     /// stands — the same log-and-continue projection used by the print
     /// layer's other LowlevelError sites.
-    // RUGRA-GLUE: pub visibility for the fixture (Ghidra performs this
+    // RUDRA-GLUE: pub visibility for the fixture (Ghidra performs this
     // inside protected docFunction; Rust has no protected)
     pub fn setup_function_comments(&mut self, fd: &Funcdata) {
         if let Some(db) = fd.arch.as_ref().and_then(|a| a.commentdb.clone()) {
@@ -17534,7 +17534,7 @@ impl PrintC {
     /// printc.cc:2684 / comment.cc:379-390). Exposed for the
     /// printc_warning oracle fixture, which drives the emitBlockBasic
     /// comment protocol step sequence directly.
-    // RUGRA-GLUE: pub visibility for the fixture (Ghidra performs this
+    // RUDRA-GLUE: pub visibility for the fixture (Ghidra performs this
     // inside protected emitBlockBasic; Rust has no protected)
     pub fn setup_block_comment_list(&mut self, block_index: i32) {
         self.comment_sorter.setup_block_bounds(block_index);
@@ -18122,7 +18122,7 @@ impl PrintC {
         self.emit.end_return_type();
     }
 
-    // RUGRA-GLUE: param_backing_symbol (print-side projection of
+    // RUDRA-GLUE: param_backing_symbol (print-side projection of
     //   ProtoStoreSymbol::getInput, fspec.cc:3244-3255)
     /// Fetch the print-time backing Symbol of prototype input slot `slot`.
     ///
@@ -18151,7 +18151,7 @@ impl PrintC {
         scope.symbols.get(idx)
     }
 
-    // RUGRA-GLUE: param_backing_symbol_for_vn (storage-keyed twin of
+    // RUDRA-GLUE: param_backing_symbol_for_vn (storage-keyed twin of
     //   param_backing_symbol for the leaf-name path)
     /// Fetch the function_parameter-category Symbol whose static storage
     /// whole-covers `vn` (same address space, `start <= offset` and
@@ -18516,7 +18516,7 @@ impl PrintC {
     // emit_var_decl / emit_prototype_inputs / emit_struct_definition /
     // emit_enum_definition above.
 
-    // RUGRA-GLUE: fixture observation surface for the declarator projection
+    // RUDRA-GLUE: fixture observation surface for the declarator projection
     //   of PrintC::pushTypeStart/pushTypeEnd — the C++ oracle fixtures
     //   subclass PrintC (FixturePrintC::renderTypeDecl) to drive the
     //   protected pair around an identifier atom, mirroring emitVarDecl's
@@ -18529,7 +18529,7 @@ impl PrintC {
         self.push_type_end_opt(Some(ct));
     }
 
-    // RUGRA-GLUE: fixture observation surface (start-only variant). The C++
+    // RUDRA-GLUE: fixture observation surface (start-only variant). The C++
     // oracle fixture drives pushTypeStart WITHOUT pushTypeEnd for the
     // proto-less anonymous TypeCode: Ghidra 12.0.4's pushTypeEnd loop never
     // advances `ct` on that shape (printc.cc:337-339 pushes a blank atom but
@@ -18618,7 +18618,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: type_stack_for — Rust borrow adapter pairing with
+    // RUDRA-GLUE: type_stack_for — Rust borrow adapter pairing with
     //   build_type_stack: C++ passes the same `const Datatype*` into
     //   pushTypeStart and out into the typestack vector; Rust's stack owns
     //   Arc handles, so the caller's handle is cloned in and returned by
@@ -18776,7 +18776,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: decl_prefix_ends_with_star — structural form of the join
+    // RUDRA-GLUE: decl_prefix_ends_with_star — structural form of the join
     //   rule above: whether the identifier following the declarator prefix
     //   rendered by push_type_start_opt(noident=true) needs NO additional
     //   blank. With a drilled modifier chain (typestack.len()>1)
@@ -18794,7 +18794,7 @@ impl PrintC {
         Self::type_stack_for(dt).len() > 1
     }
 
-    // RUGRA-GLUE: normalize_pointer_run (format helper for the typestack
+    // RUDRA-GLUE: normalize_pointer_run (format helper for the typestack
     //   render at printc.cc:290-302: base type + type_expr_space + ptr_expr*)
     /// Canonicalize a rendered type name's trailing `*` run so the base type
     /// and the star run are separated by exactly one space (`char**` ->
@@ -18960,7 +18960,7 @@ impl PrintC {
         }
     }
 
-    // RUGRA-GLUE: emit_type_prefix was removed — its single caller
+    // RUDRA-GLUE: emit_type_prefix was removed — its single caller
     //   push_type_start_opt now renders the full declarator stack itself
     //   (buildTypeStack port above); the composed-name shortcut it
     //   implemented is preserved by the named-single-type path there
@@ -19907,7 +19907,7 @@ impl PrintC {
         n
     }
 
-    // RUGRA-GLUE: lowercase AddressSpace name (printc.cc:1942 space->getName)
+    // RUDRA-GLUE: lowercase AddressSpace name (printc.cc:1942 space->getName)
     fn space_name(space: AddressSpace) -> &'static str {
         match space {
             AddressSpace::Ram => "ram",

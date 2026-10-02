@@ -9,7 +9,7 @@
 //!
 //! Every ported function carries a `// Ghidra: options.cc:<line> <symbol>`
 //! comment pointing at the exact upstream definition. Pure Rust glue that
-//! has no Ghidra counterpart is marked `// RUGRA-GLUE: <reason>`.
+//! has no Ghidra counterpart is marked `// RUDRA-GLUE: <reason>`.
 //!
 //! Ghidra reference:
 //! ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/options.{hh,cc}.
@@ -41,7 +41,7 @@ pub fn on_or_off(p: &str) -> bool {
 /// Base trait for options that affect Architecture configuration. Faithful to
 /// `ArchOption` (options.hh:75-95).
 pub trait ArchOption: Send + Sync {
-    // RUGRA-GLUE: name (Rust trait returns a constant; C++ has protected field).
+    // RUDRA-GLUE: name (Rust trait returns a constant; C++ has protected field).
     fn name(&self) -> &str;
     // Ghidra: options.hh:92 ArchOption::apply
     /// Apply the option. Returns the confirmation message; a message
@@ -75,7 +75,7 @@ impl ArchOption for OptionExtraPop {
                 }
             }
         }
-        // RUGRA-GLUE: ProtoModelEntry has no extrapop field; setExtraPop deferred.
+        // RUDRA-GLUE: ProtoModelEntry has no extrapop field; setExtraPop deferred.
         let _ = expop;
         if !p2.is_empty() {
             format!("ExtraPop set for function {p2}")
@@ -184,7 +184,7 @@ impl ArchOption for OptionInline {
     }
     // Ghidra: options.cc:321 OptionInline::apply
     fn apply(&self, _arch: &mut Architecture, p1: &str, p2: &str, _p3: &str) -> String {
-        // RUGRA-GLUE: no queryFunction lookup yet.
+        // RUDRA-GLUE: no queryFunction lookup yet.
         if p1.is_empty() {
             return "Unknown function name: ".to_string();
         }
@@ -233,7 +233,7 @@ impl ArchOption for OptionWarning {
             return "No action/rule specified".to_string();
         }
         let val = p2.is_empty() || on_or_off(p2);
-        // RUGRA-GLUE: allacts.getCurrent()->setWarning not wired.
+        // RUDRA-GLUE: allacts.getCurrent()->setWarning not wired.
         let prop = if val { "on" } else { "off" };
         format!("Warnings for {p1} turned {prop}")
     }
@@ -253,7 +253,7 @@ impl ArchOption for OptionNullPrinting {
     // Ghidra: options.cc:393 OptionNullPrinting::apply
     fn apply(&self, _arch: &mut Architecture, p1: &str, _p2: &str, _p3: &str) -> String {
         let val = on_or_off(p1);
-        // RUGRA-GLUE: no PrintLanguage wired into Architecture yet.
+        // RUDRA-GLUE: no PrintLanguage wired into Architecture yet.
         let prop = if val { "on" } else { "off" };
         format!("Null printing is {prop}")
     }
@@ -273,7 +273,7 @@ impl ArchOption for OptionInPlaceOps {
     // Ghidra: options.cc:408 OptionInPlaceOps::apply
     fn apply(&self, _arch: &mut Architecture, p1: &str, _p2: &str, _p3: &str) -> String {
         let val = on_or_off(p1);
-        // RUGRA-GLUE: print reset isInPlaceOps() not wired.
+        // RUDRA-GLUE: print reset isInPlaceOps() not wired.
         let prop = if val { "on" } else { "off" };
         format!("In-place ops are {prop}")
     }
@@ -347,7 +347,7 @@ impl ArchOption for OptionMaxLineWidth {
             return "Must specify max line width".to_string();
         }
         let _ = parse_uint_any_base(p1);
-        // RUGRA-GLUE: no emitter line width config on Architecture yet.
+        // RUDRA-GLUE: no emitter line width config on Architecture yet.
         format!("Max line width = {p1}")
     }
 }
@@ -509,7 +509,7 @@ impl ArchOption for OptionSetAction {
     }
     // Ghidra: options.cc:631 OptionSetAction::apply
     fn apply(&self, _arch: &mut Architecture, p1: &str, _p2: &str, _p3: &str) -> String {
-        // RUGRA-GLUE: ActionDatabase::resetDefaultsFromAction not wired.
+        // RUDRA-GLUE: ActionDatabase::resetDefaultsFromAction not wired.
         format!("Set global action = {p1}")
     }
 }
@@ -532,7 +532,7 @@ impl ArchOption for OptionCurrentAction {
         if p1.is_empty() {
             return "Bad current action parameter".to_string();
         }
-        // RUGRA-GLUE: ActionDatabase::setCurrent not wired.
+        // RUDRA-GLUE: ActionDatabase::setCurrent not wired.
         format!("Current action = {p1}")
     }
 }
@@ -551,7 +551,7 @@ impl ArchOption for OptionAllowContextSet {
     // Ghidra: options.cc:681 OptionAllowContextSet::apply
     fn apply(&self, _arch: &mut Architecture, p1: &str, _p2: &str, _p3: &str) -> String {
         let val = on_or_off(p1);
-        // RUGRA-GLUE: ContextCache::allowSet not exposed on Architecture yet.
+        // RUDRA-GLUE: ContextCache::allowSet not exposed on Architecture yet.
         let prop = if val { "on" } else { "off" };
         format!("Allow context set is {prop}")
     }
@@ -691,7 +691,7 @@ impl ArchOption for OptionSetLanguage {
     }
     // Ghidra: options.cc:816 OptionSetLanguage::apply
     fn apply(&self, _arch: &mut Architecture, p1: &str, _p2: &str, _p3: &str) -> String {
-        // RUGRA-GLUE: PrintLanguage registry not wired into Architecture.
+        // RUDRA-GLUE: PrintLanguage registry not wired into Architecture.
         format!("Setting printing language: {p1}")
     }
 }
@@ -759,7 +759,7 @@ impl ArchOption for OptionToggleRule {
             return "Must specify rule name".to_string();
         }
         let enable = !(p2 == "off" || p2 == "false");
-        // RUGRA-GLUE: ActionGroup::enableSubRule/disableSubRule not wired.
+        // RUDRA-GLUE: ActionGroup::enableSubRule/disableSubRule not wired.
         let prop = if enable { "enabled" } else { "disabled" };
         format!("Rule {p1} {prop}")
     }
@@ -845,7 +845,7 @@ impl ArchOption for OptionNamespaceStrategy {
         if !valid {
             return format!("Bad namespacestrategy parameter: {p1}");
         }
-        // RUGRA-GLUE: PrintLanguage::setNamespaceStrategy not wired.
+        // RUDRA-GLUE: PrintLanguage::setNamespaceStrategy not wired.
         format!("Namespace strategy = {p1}")
     }
 }
@@ -942,7 +942,7 @@ pub fn get_option_bit(val: &str) -> Result<u32, String> {
     Err(format!("Unknown data-type split option: {val}"))
 }
 
-// RUGRA-GLUE: decomposition of the two toggleAction group switches that
+// RUDRA-GLUE: decomposition of the two toggleAction group switches that
 // OptionSplitDatatypes::apply performs (options.cc:1007-1016) into the
 // (splitcopy, splitpointer) on/off pair. Ghidra writes this as an inline
 // if/else over the configuration bits; the pair is forwarded by apply()
@@ -1013,7 +1013,7 @@ impl ArchOption for OptionNanIgnore {
 /// the inline bit mapping performed in `OptionAliasBlock::apply`
 /// (options.cc:913-928).
 pub fn alias_block_flag(name: &str) -> Option<i32> {
-    // RUGRA-GLUE: Ghidra hashes these to enum values; we mirror the bit
+    // RUDRA-GLUE: Ghidra hashes these to enum values; we mirror the bit
     // layout in src/arch.rs (alias_block_level).
     match name {
         "struct" => Some(1),
@@ -1037,7 +1037,7 @@ pub fn alias_block_flag(name: &str) -> Option<i32> {
     }
 }
 
-// RUGRA-GLUE: parse_int_any_base (C++ uses `istringstream`, which we emulate
+// RUDRA-GLUE: parse_int_any_base (C++ uses `istringstream`, which we emulate
 //   manually because `str::parse` does not support octal, and `from_str_radix`
 //   does not accept `0x`/`0` prefixes with mixed bases).
 //
@@ -1051,13 +1051,13 @@ pub fn parse_int_any_base(s: &str) -> Option<i64> {
     parse_int_any_base_i64(s)
 }
 
-// RUGRA-GLUE: Public unsigned wrapper for Rust's shared any-base parser;
+// RUDRA-GLUE: Public unsigned wrapper for Rust's shared any-base parser;
 // Ghidra repeats std::istringstream extraction at each integer option.
 pub fn parse_uint_any_base(s: &str) -> Option<u64> {
     parse_uint_any_base_u64(s)
 }
 
-// RUGRA-GLUE: Rust helper factoring signed std::istringstream-style parsing;
+// RUDRA-GLUE: Rust helper factoring signed std::istringstream-style parsing;
 // Ghidra performs the equivalent extraction inline in individual apply methods.
 fn parse_int_any_base_i64(s: &str) -> Option<i64> {
     let trimmed = s.trim();
@@ -1088,7 +1088,7 @@ fn parse_int_any_base_i64(s: &str) -> Option<i64> {
     Some(if negative { -(magnitude as i64) } else { magnitude as i64 })
 }
 
-// RUGRA-GLUE: Rust helper factoring unsigned std::istringstream-style parsing;
+// RUDRA-GLUE: Rust helper factoring unsigned std::istringstream-style parsing;
 // Ghidra performs the equivalent extraction inline in individual apply methods.
 fn parse_uint_any_base_u64(s: &str) -> Option<u64> {
     let trimmed = s.trim();
@@ -1110,7 +1110,7 @@ fn parse_uint_any_base_u64(s: &str) -> Option<u64> {
 // Element IDs for the <optionslist> XML format.
 // ===========================================================================
 
-// RUGRA-GLUE: ElementId constants. Ghidra uses a runtime ElementId registry
+// RUDRA-GLUE: ElementId constants. Ghidra uses a runtime ElementId registry
 // (`element.cc`) with names registered in `options.cc` lines 23-63. Rugra
 // defines the numeric IDs as plain constants because the Decoder trait keys
 // off integer IDs (src/marshal.rs:389); the values mirror the locked
@@ -1137,7 +1137,7 @@ pub mod elem_ids {
 /// to the `Architecture`. Rugra stores owned trait objects and clones the
 /// architecture reference on each call instead.
 pub struct OptionDatabase {
-    // RUGRA-GLUE: Ghidra stores pointers; we store Boxes keyed by option name.
+    // RUDRA-GLUE: Ghidra stores pointers; we store Boxes keyed by option name.
     options: HashMap<String, Box<dyn ArchOption>>,
 }
 
@@ -1243,21 +1243,21 @@ impl OptionDatabase {
     }
 
     /// Number of registered options.
-    // RUGRA-GLUE: Rust-only registry introspection; OptionDatabase has no
+    // RUDRA-GLUE: Rust-only registry introspection; OptionDatabase has no
     // matching C++ method.
     pub fn num_options(&self) -> usize {
         self.options.len()
     }
 
     /// Whether an option named `name` is registered.
-    // RUGRA-GLUE: Rust-only registry introspection; OptionDatabase has no
+    // RUDRA-GLUE: Rust-only registry introspection; OptionDatabase has no
     // matching C++ method.
     pub fn has_option(&self, name: &str) -> bool {
         self.options.contains_key(name)
     }
 
     /// Sorted list of registered option names.
-    // RUGRA-GLUE: Rust-only deterministic registry view; OptionDatabase has
+    // RUDRA-GLUE: Rust-only deterministic registry view; OptionDatabase has
     // no matching C++ method.
     pub fn option_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self.options.keys().cloned().collect();
@@ -1282,7 +1282,7 @@ impl OptionDatabase {
         Some(opt.apply(arch, p1, p2, p3))
     }
 
-    // RUGRA-GLUE: try_set is the non-panicking variant for tests; not in
+    // RUDRA-GLUE: try_set is the non-panicking variant for tests; not in
     //   Ghidra's public API.
     pub fn try_set(
         &mut self,
@@ -1312,7 +1312,7 @@ impl OptionDatabase {
         decoder: &mut dyn crate::marshal::Decoder,
     ) -> Result<(), String> {
         // Ghidra: options.cc:165 `uint4 elemId = decoder.openElement();`
-        // RUGRA-GLUE: the element id doubles as the option name in Ghidra's
+        // RUDRA-GLUE: the element id doubles as the option name in Ghidra's
         //   registry; we look the id up via Decoder::element_name and dispatch
         //   by string.
         let elem_id = decoder.open_element();
@@ -1397,7 +1397,7 @@ impl OptionDatabase {
 }
 
 impl Default for OptionDatabase {
-    // RUGRA-GLUE: Rust Default trait adapter delegates to new(); C++ has no
+    // RUDRA-GLUE: Rust Default trait adapter delegates to new(); C++ has no
     // Default trait separate from OptionDatabase::OptionDatabase.
     fn default() -> Self {
         Self::new()

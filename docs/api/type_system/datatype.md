@@ -94,7 +94,7 @@ behavior:
 
 - The `elem::{element,attribute,type_,typeref,field,void_,val,def,off,
   prototype}` helpers and `TypeXmlIdMap::{new,id_for_element,
-  id_for_attribute}` are `RUGRA-GLUE`. Ghidra declares fixed global
+  id_for_attribute}` are `RUDRA-GLUE`. Ghidra declares fixed global
   `AttributeId`/`ElementId` objects and registers them during static
   initialization; it has no per-thread sequential allocator. Numeric ids are
   observable in the packed protocol, so the glue is not codec `MATCH`.
@@ -615,7 +615,7 @@ self）保留不变。PartialUnion 的流内解析一律走 unionresolve.rs 自�
 - **`Datatype::has_warning`**（type.hh:232）：由硬编码 `false` 存根改为
   `(flags & WARNING_ISSUED) != 0`；`type_flags::WARNING_ISSUED = 1<<18`
   （0x20000）补齐。
-- **`Datatype::set_type_name/set_type_id/set_type_flag`**：RUGRA-GLUE
+- **`Datatype::set_type_name/set_type_id/set_type_flag`**：RUDRA-GLUE
   变体无关字段写 seam（Ghidra 从 TypeFactory 方法直接赋公开成员）。
 - `Datatype::find_resolve` 文档修正：删除"override 已加在各 variant 上"
   的不实声明，明确 override 在 unionresolve.rs 自由函数。

@@ -66,3 +66,4 @@ Helper caching the active blob (globalcontext.hh:317).
 - **get_or_create_blob_at_mut**：辅助方法用于 decode 时获取或创建 mutable blob。
 - context.rs XML encode/decode L3 缺口已关闭。
 <!-- annotation-pass: 2026-07-04 -->
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

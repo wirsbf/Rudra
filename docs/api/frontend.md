@@ -3,7 +3,7 @@
 **Status:** 🟢 **FRONTEND-MINIMAL-0001 基础阶段（2026-09-26 交付）**. Pure
 additive front-end module — no locked-tree counterpart exists (Ghidra's ELF
 import/analysis runs in the Java layer, outside the decompile-cpp oracle
-tree), so every function carries a `// RUGRA-GLUE:` annotation with its
+tree), so every function carries a `// RUDRA-GLUE:` annotation with its
 System V ABI spec basis. 13 unit tests, all green; data-level differential
 vs the canon manual seed data recorded below.
 

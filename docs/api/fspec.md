@@ -768,7 +768,7 @@ Ghidra 行为），`Architecture::decode_proto_spec`/`decode_default_proto_spec`
   extent 之上时门控关闭、containedBy 扫描整体跳过、直返
   `no_containment`。join entry 的 `containedBy` 因 spaceid=join 空间恒 false
   （cc:202），Rust 以 `e.space == space` 守卫复刻。线性扫描被窗口化扫描
-  取代；窗口辅助 `registered_extents`（RUGRA-GLUE）。
+  取代；窗口辅助 `registered_extents`（RUDRA-GLUE）。
 - 单元测试：`test_justified_contain_range_one_sided_violations` /
   `test_param_entry_justified_contain` 改钉 LE 端序语义（无 flag Register
   entry 的 0x202/2 → start 距离 2，非 end 距离 4）。
@@ -1257,7 +1257,7 @@ JTEDGE 移交残差（ap_vhost_iterate_given_conn `code *UNRECOVERED_JUMPTABLE`
   legacy 形。oracle 的记录点是 fspec.cc:4934
   `entryaddress = call_op->getIn(0)->getAddr()`：CALL 注解化**前**的 in(0)
   varnode 完整地址（空间+offset）。Rugra 的 in(0) varnode 只携带 flat
-  `AddressSpace` enum（`loc` 恒 spaceless），故经新增 RUGRA-GLUE 桥
+  `AddressSpace` enum（`loc` 恒 spaceless），故经新增 RUDRA-GLUE 桥
   `entry_address_with_space(space, offset)` 以 ADDRESS-0001 tag 形重建完整
   地址：per-variant stand-in 句柄（thread-local 单例表，携带该 variant 的
   name/addrsize/wordsize）+ 原offset。

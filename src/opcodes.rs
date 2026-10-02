@@ -181,7 +181,7 @@ impl OpCode {
         }
     }
 
-    // RUGRA-GLUE: from_i32 (no Ghidra counterpart found)
+    // RUDRA-GLUE: from_i32 (no Ghidra counterpart found)
     /// Convert from raw integer opcode to OpCode enum
     ///
     /// Used by the P-code injection bridge to convert `PcodeOpRaw.opcode`
@@ -264,7 +264,7 @@ impl OpCode {
         }
     }
 
-    // RUGRA-GLUE: is_block_terminator (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_block_terminator (no Ghidra counterpart found)
     /// Check if this opcode is a control flow terminator (ends a basic block)
     pub fn is_block_terminator(&self) -> bool {
         matches!(
@@ -303,7 +303,7 @@ impl OpCode {
         )
     }
 
-    // RUGRA-GLUE: is_commutative_or_pure (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_commutative_or_pure (no Ghidra counterpart found)
     /// Check if this opcode is a deterministic, side-effect-free operation
     /// suitable for CSE (Common Subexpression Elimination).
     ///
@@ -371,13 +371,13 @@ impl OpCode {
 }
 
 impl fmt::Display for OpCode {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
     }
 }
 
-// RUGRA-GLUE: get_booleanflip (no Ghidra counterpart found)
+// RUDRA-GLUE: get_booleanflip (no Ghidra counterpart found)
 /// Get the complementary OpCode for boolean-flip transformations.
 /// Faithful to Ghidra's `get_booleanflip` (opcodes.cc:94-135). For a comparison
 /// opcode, returns the negated opcode; `reorder` is set true when the operands

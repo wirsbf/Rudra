@@ -107,8 +107,8 @@ Ghidra `SplitVarnode` 类的 1:1 移植（~50 方法）。
 
 ## 基础设施缺口（已标注 TODO，未绕过）
 - `*Form` 类（AddForm/SubForm/…, double.cc:1433-3196）——依赖 block 级控制流（dominance、
-  CBRANCH flip），Rugra 缺。`apply_rule_in` 为骨架返回 0；4 Rule + SplitVarnode 核心非 stub。
-- 缺失 Rugra 原语：`newVarnodeIop` / `combineInputVarnodes` / `hasUnreachableBlocks`。
+  CBRANCH flip），Rudra 缺。`apply_rule_in` 为骨架返回 0；4 Rule + SplitVarnode 核心非 stub。
+- 缺失 Rudra 原语：`newVarnodeIop` / `combineInputVarnodes` / `hasUnreachableBlocks`。
 
 ## 测试
 21 单元测试：`adjacent_offsets`（const-const/const-vs-nonconst/INT_ADD-from-common-base）、
@@ -144,7 +144,7 @@ isEntryPoint/getStartBlock/opInsertBegin/constructJoinAddress/newVarnode/combine
    `res = lo/hi->getAddr()`），join 分支走 `constructJoinAddress`
    （translate.cc:817-860：spacebase/stack 与 default-code/ram 在偏移连续时
    保留原空间 cc:827-836，其余落 **join 空间** formal JoinRecord cc:848-859）。
-   Rugra 原 implicit-RAM `new_varnode` 把寄存器/栈 piece 的 whole 伪造成
+   Rudra 原 implicit-RAM `new_varnode` 把寄存器/栈 piece 的 whole 伪造成
    `Ram@offset`（HERITAGE-CROSSSPACE-MERGE 同族垃圾种子）。修复：
    `(newaddr, whole_space)` 二元组 + `new_varnode_in_space(wholesize,
    whole_space, newaddr)`；join 分支的 offset 计算保持既有 degraded glue

@@ -5,7 +5,7 @@
 
 ## 模块说明 (Module Doc)
 
-Error types for Rugra
+Error types for Rudra
 
 This module defines all error types used throughout the decompiler.
 We use `thiserror` for ergonomic error handling.
@@ -21,11 +21,11 @@ We use `thiserror` for ergonomic error handling.
 
 ### `pub type Result<T> = std::result::Result<T, Error>`
 
-Result type alias for Rugra operations
+Result type alias for Rudra operations
 
 ### `pub enum Error`
 
-Main error type for Rugra
+Main error type for Rudra
 
 - `Lowlevel(String)` represents Ghidra's aborting `LowlevelError` category and
   preserves its explanatory message.

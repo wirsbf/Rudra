@@ -374,7 +374,7 @@ identity=1 现均为 MATCH；fixture overall 仍因 Rust-only count bridge `NO_O
 - `overlap_join(offset, size, point_space, point_off, point_skip)`（space.cc:126）：空间指针不等
   恒 -1；距离经 `wrapOffset` 环绕；`>= size` → -1。`ConstantSpace::overlapJoin`（space.cc:364）
   恒 -1；JoinSpace 覆盖需要 join-record 数据库（残差）。
-- `identity_ptr()`（RUGRA-GLUE）：共享记录地址，供 Address/Range 的 Ord 身份 tiebreak，
+- `identity_ptr()`（RUDRA-GLUE）：共享记录地址，供 Address/Range 的 Ord 身份 tiebreak，
   对应 Ghidra 裸指针比较。
 
 Oracle 证据：`tests/oracle/address_space_handle_1204.{cc,rs}`（锁定 12.0.4，7 case 逐字节 MATCH，
@@ -466,9 +466,9 @@ space.rs/op.rs overlay）。IopSpace 形式按上述残差不在本 fixture 内�
   deadcodedelay=delay，末尾 `calcScaleMask`。
 - `decode(decoder)`（space.cc:339 基类）：open → decodeBasicAttributes → close，服务于
   `<space>`/`<space_unique>`/`<space_other>`（三者无 decode 覆盖）。
-- `set_contain(base)`（RUGRA-GLUE setter）：对应 C++ decode 体直接写
+- `set_contain(base)`（RUDRA-GLUE setter）：对应 C++ decode 体直接写
   `SpacebaseSpace::contain`/`OverlaySpace::baseSpace` 私有成员。
-- `EXTERNAL_SPACE_NAME`（"EXTERNAL"）与 `new_external_space(ind, endian)`（RUGRA-GLUE）：
+- `EXTERNAL_SPACE_NAME`（"EXTERNAL"）与 `new_external_space(ind, endian)`（RUDRA-GLUE）：
   12.0.4 decompiler `spacetype` **无** IPTR_EXTERNAL（space.hh:30-38 止于 IPTR_JOIN）、
   packed 协议拒编组 Java TYPE_EXTERNAL（PackedEncode.java:186）。EXTERNAL 工件在 Ghidra
   平台侧：Java `GenericAddressSpace("EXTERNAL", 32, TYPE_EXTERNAL, 0)`（AddressSpace.java:80）
@@ -486,7 +486,7 @@ space.rs/op.rs overlay）。IopSpace 形式按上述残差不在本 fixture 内�
   `Err("Bad 'defaultspace' attribute: X")`）并 `set_default_code_space`。
 - 新增 ATTRIB_NAME(14)/ATTRIB_INDEX(10)/ATTRIB_BASE(89) 常量（marshal.cc:1241/1237、
   space.cc:21）；decode 路径用运行时具名 `AttributeId`（const 版无法保留 name，见
-  `named_attrib_id` RUGRA-GLUE）。
+  `named_attrib_id` RUDRA-GLUE）。
 
 Oracle 证据：`tests/oracle/external_stub_1204.{cc,rs}` + `tools/run_external_stub_oracle.sh`
 （锁定 12.0.4，7 case 逐字节 MATCH：canonical decodeSpaces 注册+defaultspace、overlay 标记
@@ -505,7 +505,7 @@ fspec 空间接通为**真实 registry 空间**（此前 D0 只能以 Iop 地址
   （"iop"，op.cc:24 `IopSpace::NAME`）保留名常量；`insert_space` 的 Fspec 分支
   （translate.cc:373-379）改用常量并**在校验前**接线 `fspec_table` 管理器回链（与 JoinSpace
   的 `manager_join_tables` 同一注入点语义，Ghidra 构造器自带 manager）。
-- `FspecEntry` / `FspecEntryTable`（RUGRA-GLUE）：Ghidra 的 fspec offset **就是**
+- `FspecEntry` / `FspecEntryTable`（RUDRA-GLUE）：Ghidra 的 fspec offset **就是**
   `FuncCallSpecs *`（fspec.hh:344-346），printRaw/encodeAttributes 直接解引用
   （fspec.cc:2125）。Rust 以 registry 侧 offset→(name(fspec.hh:1647),
   entryaddress(fspec.hh:1648)) 侧表等价替代，经 `AddrSpaceInner.fspec_table` Weak 回链
@@ -528,7 +528,7 @@ fspec 空间接通为**真实 registry 空间**（此前 D0 只能以 Iop 地址
   （space.cc:380）、Fspec（fspec.cc:2166 "Should never decode fspec space from
   stream"）、Iop（op.cc:61）、Join（space.cc:646）。
 - `attrib_space()/attrib_offset()/attrib_size()`（marshal.cc:1247/1243/1246 锁定 id
-  20/16/19 的运行时具名 AttributeId；RUGRA-GLUE 模式同 translate.rs/pcodeparse.rs）。
+  20/16/19 的运行时具名 AttributeId；RUDRA-GLUE 模式同 translate.rs/pcodeparse.rs）。
 
 Oracle 证据：`tests/oracle/fspec_space_identity_1204.{cc,rs}` +
 `tools/run_fspec_space_identity_oracle.sh`（锁定 12.0.4，5 case 逐字节 MATCH：注册/查找/
@@ -590,18 +590,18 @@ UB-邻接行为（Rust 在查名点拒绝）。
   `Override::insertDeadcodeDelay`/`hasDeadcodeDelay`（override.cc:79-105）
   与 `Heritage::getInfo`（heritage.hh:257）。Overlay 无实例存储报告 -1
   （语料内无 deadcode/heritage 消费者接受 Overlay，洞不可观测）。
-- `pub fn from_index`（RUGRA-GLUE）：`AddrSpaceManager::getSpace(i)`
+- `pub fn from_index`（RUDRA-GLUE）：`AddrSpaceManager::getSpace(i)`
   （translate.hh:559-561）的逆查替身，`Funcdata::start_processing` 用其把
   `Override::applyDeadCodeDelay` 的索引项解析回空间。索引 5（fspec）无枚举
   变体；`bumpDeadcodeDelay` 的种类门保证 fspec 永远装不上 override，洞
   不可观测。
-- `pub fn spec_space_name`（RUGRA-GLUE）：按索引给空间名
+- `pub fn spec_space_name`（RUDRA-GLUE）：按索引给空间名
   （override.cc:51-56 消息路径用 `getSpace(i)->getName()`；SLEIGH `.sla`
   名为大写 "OTHER"，与 `AddressSpace::name` 的小写 debug 形态不同）。
 
 ## `from_spec_name`（TRUNCSPACE-COREACT2-R2-0001，2026-09-27）
 
-- `pub fn from_spec_name(name: &str) -> Option<AddressSpace>`（RUGRA-GLUE）：
+- `pub fn from_spec_name(name: &str) -> Option<AddressSpace>`（RUDRA-GLUE）：
   `AddrSpaceManager::getSpaceByName`（translate.cc:590-597）的枚举模型反表——
   活跃 translator 空间表中的锁定 spec 名（`spec_space_name` 的逆）解析为枚举
   变体。"fspec" 无枚举变体（fspec 空间经 `SPACEID_*` 句柄到达）、动态/overlay

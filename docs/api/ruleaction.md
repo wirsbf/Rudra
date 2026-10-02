@@ -199,7 +199,7 @@ throw 的忠实断言，断言无罪）。修复一行：`fd.op_unlink(&PcodeOpR
 unset；其余不动（bf3f5064 正控：`Free varnode` panic 0 次，未修基线 3/3 必现，
 见 /dev/shm/rugra-reports/sb-pcrepanic/LANE_REPORT_EJ.md）。
 
-**附带 RUGRA-GLUE（锁卫生，语义无变化）**：lump 臂入口的
+**附带 RUDRA-GLUE（锁卫生，语义无变化）**：lump 臂入口的
 `if let Some(lone) = outvn.read().unwrap().lone_descend()` 的 scrutinee 临时读守卫
 在 Rust ≤2024 语义下活到整个 if-let 体结束，而 `op_unlink → op_unset_output →
 make_free_prevalidated` 会对同一 outvn 取写锁——同线程 RwLock 非重入即死锁
@@ -1939,7 +1939,7 @@ flags 与 oracle 逐字相同（0x1208000=mapped|addrtied|coverdirty），negate
   命中，sizeAddr=byteToAddressInt(size, ct wordsize)）→forward→双 miss 回
   getSubType→单 miss 直取→距离比较（|off|，elSize≠hint 各 +0x1000，tie 取
   backward）。uint8 biggestNonMultCoeff→uint4 形参的 32 位截断保留。
-- `AddTreeState::spacebase_map`（RUGRA-GLUE）：Ghidra
+- `AddTreeState::spacebase_map`（RUDRA-GLUE）：Ghidra
   `TypeSpacebase::getMap`（type.cc:2935-2945）每次查询经 Architecture 动态
   解析 queryFunction(localframe)→fd->getScopeLocal()；Rugra 的 spacebase
   类型内无法触达 Funcdata，故由持 `data: &mut Funcdata` 的 AddTreeState 在
@@ -2061,7 +2061,7 @@ oracle 语义逐行镜像补齐：
 - 插入位置（cc:1127/1130/1133）：替代 MULTIEQUAL 走 `opInsertBegin(sub,
   bl)`（MULTIEQUAL 感知的前导组跳过），统一 op1 走 `opInsertAfter(op1,
   substitute)`；res==0 走 `opInsertBegin(op1, bl)`。无块隶属的扁平单测
-  fixture 保留旧相对插入兜底（RUGRA-GLUE，仅测试可达）。
+  fixture 保留旧相对插入兜底（RUDRA-GLUE，仅测试可达）。
 - 删除非正典的 "substitute 无输出" 兜底——oracle 的 substitute（已有
   MULTIEQUAL 或 CSE op）恒带输出；缺失按契约外处理（NO_CHANGE）。
 - `slot1` 仍在创建前由 `op_get_slot(op1, buf1)` 求值（cc:1114）。

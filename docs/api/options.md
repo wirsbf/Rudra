@@ -42,7 +42,7 @@ Ghidra reference: `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/options.{
   `ParseError` (`OPTIONS-0001`).
 - `parse_int_any_base(s) -> Option<i64>` — replicate `std::istringstream`
   basefield-reset semantics: `0x..`→hex, leading `0`→octal, else decimal.
-  Sign aware. `// RUGRA-GLUE` (no Ghidra counterpart; C++ uses streams).
+  Sign aware. `// RUDRA-GLUE` (no Ghidra counterpart; C++ uses streams).
 - `parse_uint_any_base(s) -> Option<u64>` — unsigned variant.
 - `alias_block_flag(name) -> Option<i32>` — Rugra symbolic token → bit mask.
   This accepts tokens and combinations not present in Ghidra's four-level
@@ -57,7 +57,7 @@ Ghidra reference: `ghidra/Ghidra/Features/Decompiler/src/decompile/cpp/options.{
   splitpointer) on/off pair that `OptionSplitDatatypes::apply` passes to
   `ActionDatabase::toggleAction` (options.cc:1007-1016): both off unless the
   struct or array bit is set; otherwise splitcopy on and splitpointer =
-  pointer bit. `// RUGRA-GLUE` decomposition of Ghidra's inline if/else;
+  pointer bit. `// RUDRA-GLUE` decomposition of Ghidra's inline if/else;
   since OPTIONS-SPLITDATATYPE-WIRING-0003 (2026-08-25) `apply` forwards the
   pair through `arch.allacts.toggle_action(get_current_name(), ...)`
   directly — `getCurrentName()` is snapshotted once because `toggleAction`
@@ -86,9 +86,9 @@ trait resolves element ids to names.
   command. Returns `None` for unknown options, whereas Ghidra throws
   `ParseError` (`OPTIONS-0001`).
 - `try_set(...) -> Result<String, String>` — non-panicking variant
-  (`// RUGRA-GLUE`).
+  (`// RUDRA-GLUE`).
 - `has_option(name) -> bool`, `num_options() -> usize`,
-  `option_names() -> Vec<String>` (`// RUGRA-GLUE`).
+  `option_names() -> Vec<String>` (`// RUDRA-GLUE`).
 - `decode_one(arch, decoder) -> Result<(), String>` — decode one
   `<optionslist>` entry. Faithful to `OptionDatabase::decodeOne`
   (options.cc:163). Linearly scans `ELEM_PARAM1`/`ELEM_PARAM2`/`ELEM_PARAM3`

@@ -15,7 +15,7 @@ pub enum BraceStyle {
     SkipLine,
 }
 
-/// RUGRA-GLUE: identity of one pending-brace install.
+/// RUDRA-GLUE: identity of one pending-brace install.
 /// The oracle identifies a pending print by the address of the caller's
 /// `PendingBrace` stack object (`prettyprint.hh:457 hasPendingPrint` compares
 /// `pendPrint == pend`; `printc.cc:2946` closes only when THAT object's
@@ -32,14 +32,14 @@ pub type BraceId = u64;
 /// This provides a generic interface for "printing" decompiled code,
 /// allowing for different output formats (plain text, XML, HTML with markup, etc.)
 pub trait Emit {
-    // RUGRA-GLUE: print (no Ghidra counterpart found)
+    // RUDRA-GLUE: print (no Ghidra counterpart found)
     /// Emit raw text
     fn print(&mut self, text: &str);
 
-    // RUGRA-GLUE: begin_block (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_block (no Ghidra counterpart found)
     /// Start a new block (e.g., '{')
     fn begin_block(&mut self);
-    // RUGRA-GLUE: end_block (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_block (no Ghidra counterpart found)
     /// End a block (e.g., '}')
     fn end_block(&mut self);
 
@@ -81,20 +81,20 @@ pub trait Emit {
     /// End the invisible printing group identified by `id`.
     fn close_group(&mut self, _id: i32) {}
 
-    // RUGRA-GLUE: begin_function (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_function (no Ghidra counterpart found)
     /// Start a function definition
     fn begin_function(&mut self);
-    // RUGRA-GLUE: end_function (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_function (no Ghidra counterpart found)
     /// End a function definition
     fn end_function(&mut self);
 
-    // RUGRA-GLUE: tag_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_type (no Ghidra counterpart found)
     /// Tag a type name for markup
     fn tag_type(&mut self, text: &str, _id: u64);
-    // RUGRA-GLUE: tag_variable (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_variable (no Ghidra counterpart found)
     /// Tag a variable name for markup
     fn tag_variable(&mut self, text: &str, _id: u64);
-    // RUGRA-GLUE: exact metadata bridge for EmitMarkup::tagVariable (prettyprint.hh:240)
+    // RUDRA-GLUE: exact metadata bridge for EmitMarkup::tagVariable (prettyprint.hh:240)
     /// Emit a variable token with the complete metadata carried by Ghidra's
     /// `tagVariable(name, highlight, vn, op)` call.  Legacy emitters delegate
     /// to their existing text/id path; metadata-aware fixtures and emitters
@@ -110,22 +110,22 @@ pub trait Emit {
         let _ = (highlight, op_id);
         self.tag_variable(text, u64::try_from(varnode_id).unwrap_or(0));
     }
-    // RUGRA-GLUE: tag_op (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_op (no Ghidra counterpart found)
     /// Tag an operator for markup
     fn tag_op(&mut self, text: &str);
-    // RUGRA-GLUE: tag_field (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_field (no Ghidra counterpart found)
     /// Tag a field name for markup
     fn tag_field(&mut self, text: &str, _id: u64);
-    // RUGRA-GLUE: tag_func_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_func_name (no Ghidra counterpart found)
     /// Tag a function name for markup
     fn tag_func_name(&mut self, text: &str, _id: u64);
-    // RUGRA-GLUE: tag_comment (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_comment (no Ghidra counterpart found)
     /// Tag a comment for markup
     fn tag_comment(&mut self, text: &str);
-    // RUGRA-GLUE: tag_label (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_label (no Ghidra counterpart found)
     /// Tag a label for markup
     fn tag_label(&mut self, text: &str);
-    // RUGRA-GLUE: tag_case_label (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_case_label (no Ghidra counterpart found)
     /// Tag a case label for markup
     fn tag_case_label(&mut self, text: &str);
 
@@ -235,35 +235,35 @@ pub trait Emit {
         self.print(brace);
     }
 
-    // RUGRA-GLUE: bump_indent (startIndent indent-bump half, prettyprint.hh:371)
+    // RUDRA-GLUE: bump_indent (startIndent indent-bump half, prettyprint.hh:371)
     /// Start an indent level (indentincrement = 2 spaces per level).
     fn bump_indent(&mut self) {}
 
-    // RUGRA-GLUE: drop_indent (stopIndent indent-drop half, prettyprint.hh:377)
+    // RUDRA-GLUE: drop_indent (stopIndent indent-drop half, prettyprint.hh:377)
     /// End an indent level.
     fn drop_indent(&mut self) {}
 
-    // RUGRA-GLUE: begin_document (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_document (no Ghidra counterpart found)
     // --- Begin/end pairs (Ghidra Emit virtuals, prettyprint.hh:136-231) ---
     // These are no-ops in plain text mode. Markup emitters would emit XML tags.
     fn begin_document(&mut self) {}
-    // RUGRA-GLUE: end_document (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_document (no Ghidra counterpart found)
     fn end_document(&mut self) {}
-    // RUGRA-GLUE: begin_return_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_return_type (no Ghidra counterpart found)
     fn begin_return_type(&mut self) {}
-    // RUGRA-GLUE: end_return_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_return_type (no Ghidra counterpart found)
     fn end_return_type(&mut self) {}
-    // RUGRA-GLUE: begin_var_decl (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_var_decl (no Ghidra counterpart found)
     fn begin_var_decl(&mut self) {}
-    // RUGRA-GLUE: end_var_decl (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_var_decl (no Ghidra counterpart found)
     fn end_var_decl(&mut self) {}
-    // RUGRA-GLUE: begin_statement (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_statement (no Ghidra counterpart found)
     fn begin_statement(&mut self) {}
-    // RUGRA-GLUE: end_statement (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_statement (no Ghidra counterpart found)
     fn end_statement(&mut self) {}
-    // RUGRA-GLUE: begin_func_proto (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_func_proto (no Ghidra counterpart found)
     fn begin_func_proto(&mut self) {}
-    // RUGRA-GLUE: end_func_proto (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_func_proto (no Ghidra counterpart found)
     fn end_func_proto(&mut self) {}
 
     // Ghidra: prettyprint.cc:1134 EmitPrettyPrint::startComment
@@ -303,20 +303,20 @@ pub trait Emit {
     /// this emitter does not enforce a line maximum.
     fn get_max_line_size(&self) -> i32 { -1 }
 
-    // RUGRA-GLUE: emits_markup (no Ghidra counterpart found)
+    // RUDRA-GLUE: emits_markup (no Ghidra counterpart found)
     /// Check if this emitter supports markup
     fn emits_markup(&self) -> bool { false }
 
-    // RUGRA-GLUE: into_any (no Ghidra counterpart found)
+    // RUDRA-GLUE: into_any (no Ghidra counterpart found)
     /// Convert this emitter into a `Box<dyn Any>` for downcasting
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any>;
 
-    // RUGRA-GLUE: as_any_mut (no Ghidra counterpart found)
+    // RUDRA-GLUE: as_any_mut (no Ghidra counterpart found)
     /// Get a mutable reference for downcasting
     fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> { None }
 }
 
-// RUGRA-GLUE: reconcile_int_times_string (no Ghidra counterpart found)
+// RUDRA-GLUE: reconcile_int_times_string (no Ghidra counterpart found)
 /// Reconcile `X * "string"` — int * string-literal is illegal C. Cast the
 /// string literal to (long). Only matches quoted strings, never pointer vars.
 fn reconcile_int_times_string(line: &str) -> String {
@@ -331,7 +331,7 @@ fn reconcile_int_times_string(line: &str) -> String {
     line.to_string()
 }
 
-// RUGRA-GLUE: reconcile_int_minus_pointer (no Ghidra counterpart found)
+// RUDRA-GLUE: reconcile_int_minus_pointer (no Ghidra counterpart found)
 fn reconcile_int_minus_pointer(line: &str) -> String {
     let ptr_prefixes = ["piVar", "pcVar", "psVar", "ppVar", "pvVar"];
     let bytes = line.as_bytes();
@@ -399,7 +399,7 @@ fn reconcile_int_minus_pointer(line: &str) -> String {
 // ============================================================================
 // POSTFIX-RETIRE-0001 W1 / POSTFIX-INSTRUMENT-0001: per-pass mutation counters
 // ============================================================================
-// RUGRA-GLUE: 纯诊断插桩,Ghidra 无对应物(oracle 的 EmitNoMarkup 是无缓冲直写
+// RUDRA-GLUE: 纯诊断插桩,Ghidra 无对应物(oracle 的 EmitNoMarkup 是无缓冲直写
 // emitter,prettyprint.hh:542-594,唯一字段 ostream *s;发射路径以 flush 结束,
 // prettyprint.cc:1194-1213,之后零扫描)。W2 零突变退役的判定基础:设置
 // RUGRA_POSTFIX_STATS 环境变量时,post_process_output_legacy 每次调用向 stderr
@@ -407,7 +407,7 @@ fn reconcile_int_minus_pointer(line: &str) -> String {
 // no-option 短路(不 clone、不比较、不打印),输出字节与未插桩版本完全一致。
 // 语义:计数器只度量、绝不改变管线行为 —— 退役判定以计数=0 为必要证据。
 
-// RUGRA-GLUE: 幸存 pass 名单(管线顺序),见 post_process_output_legacy 内同序插桩
+// RUDRA-GLUE: 幸存 pass 名单(管线顺序),见 post_process_output_legacy 内同序插桩
 const POSTFIX_PASS_NAMES: [&str; 23] = [
     "B1", "P6", "B2", "P7",
     "P8", "P9", "P10", "P11", "P12", "P14", "P15", "P16c",
@@ -415,7 +415,7 @@ const POSTFIX_PASS_NAMES: [&str; 23] = [
     "P25", "P26", "P27",
 ];
 
-// RUGRA-GLUE: pass 索引常量(与 POSTFIX_PASS_NAMES 同序)
+// RUDRA-GLUE: pass 索引常量(与 POSTFIX_PASS_NAMES 同序)
 const PF_B1: usize = 0;
 const PF_P6: usize = 1;
 const PF_B2: usize = 2;
@@ -440,20 +440,20 @@ const PF_P25: usize = 20;
 const PF_P26: usize = 21;
 const PF_P27: usize = 22;
 
-// RUGRA-GLUE: 逐 pass 突变计数器(每次 post_process_output 调用一个实例)
+// RUDRA-GLUE: 逐 pass 突变计数器(每次 post_process_output 调用一个实例)
 struct PostfixStats {
     enabled: bool,
     counts: [u64; POSTFIX_PASS_NAMES.len()],
 }
 
 impl PostfixStats {
-    // RUGRA-GLUE: env 门控,每进程求值一次(RUGRA_POSTFIX_STATS 是否设置)
+    // RUDRA-GLUE: env 门控,每进程求值一次(RUGRA_POSTFIX_STATS 是否设置)
     fn stats_enabled() -> bool {
         static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
         *ENABLED.get_or_init(|| std::env::var_os("RUGRA_POSTFIX_STATS").is_some())
     }
 
-    // RUGRA-GLUE: Rust 结构体构造器(Ghidra 无对应物)
+    // RUDRA-GLUE: Rust 结构体构造器(Ghidra 无对应物)
     fn new() -> Self {
         Self {
             enabled: Self::stats_enabled(),
@@ -461,7 +461,7 @@ impl PostfixStats {
         }
     }
 
-    // RUGRA-GLUE: 站点级计数 —— 首扫循环里 P1/P1b/P2 三 pass 与行复制熔合,
+    // RUDRA-GLUE: 站点级计数 —— 首扫循环里 P1/P1b/P2 三 pass 与行复制熔合,
     // 无法取边界快照,在各自改写点直接累加(每次 bump = 删 1 行或改写 1 行)
     #[inline]
     fn bump(&mut self, pass: usize) {
@@ -470,7 +470,7 @@ impl PostfixStats {
         }
     }
 
-    // RUGRA-GLUE: 惰性快照 —— 统计未启用时返回 None(零 clone 成本)
+    // RUDRA-GLUE: 惰性快照 —— 统计未启用时返回 None(零 clone 成本)
     fn snap<S: AsRef<str>>(lines: &[S]) -> Option<Vec<String>> {
         if Self::stats_enabled() {
             Some(lines.iter().map(|s| s.as_ref().to_string()).collect())
@@ -479,14 +479,14 @@ impl PostfixStats {
         }
     }
 
-    // RUGRA-GLUE: 边界级计数 —— pass 输入快照 vs 输出的行级突变数
+    // RUDRA-GLUE: 边界级计数 —— pass 输入快照 vs 输出的行级突变数
     fn observe(&mut self, pass: usize, before: &Option<Vec<String>>, after: &[String]) {
         if let Some(b) = before {
             self.counts[pass] += postfix_line_mutations(b, after);
         }
     }
 
-    // RUGRA-GLUE: 字符串级计数 —— 尾部外置 helper pass(P22-P27)的 str→str 边界;
+    // RUDRA-GLUE: 字符串级计数 —— 尾部外置 helper pass(P22-P27)的 str→str 边界;
     // 两侧统一用 split('\n')(与 remove_orphan_case_labels 等实现一致),往返
     // 差异相互抵消,只计真实突变
     fn observe_str(&mut self, pass: usize, before: &str, after: &str) {
@@ -498,7 +498,7 @@ impl PostfixStats {
         self.counts[pass] += postfix_line_mutations(&b, &a);
     }
 
-    // RUGRA-GLUE: 每次 post_process_output 调用向 stderr 输出一行 [POSTFIX]
+    // RUDRA-GLUE: 每次 post_process_output 调用向 stderr 输出一行 [POSTFIX]
     // 统计;inv=进程内调用序号,rpt=1 表示本次输入与上次调用的输出相同
     // (双重执行标记;当前生产路径单次执行,rpt 恒 0)。W3 诊断扩展:设置
     // RUGRA_POSTFIX_RAW_DIR 时,把本次输入(=emit 原始输出)与最终输出按
@@ -543,7 +543,7 @@ impl PostfixStats {
     }
 }
 
-// RUGRA-GLUE: 行级突变计数(Ghidra 无对应物)—— 等长输入逐位比较(精确,
+// RUDRA-GLUE: 行级突变计数(Ghidra 无对应物)—— 等长输入逐位比较(精确,
 // 适用于不改行数的改写型 pass);不等长输入先裁公共前后缀,再计中间差异块
 // 行数(删除/插入型)。零突变检测在两种度量下均精确。
 fn postfix_line_mutations<S: AsRef<str>>(before: &[S], after: &[S]) -> u64 {
@@ -568,7 +568,7 @@ fn postfix_line_mutations<S: AsRef<str>>(before: &[S], after: &[S]) -> u64 {
     before.len().max(after.len()) as u64 - p as u64 - s as u64
 }
 
-// RUGRA-GLUE: 输入文本指纹(DefaultHasher,仅用于 rpt 标记的相等性判断)
+// RUDRA-GLUE: 输入文本指纹(DefaultHasher,仅用于 rpt 标记的相等性判断)
 fn postfix_hash(s: &str) -> u64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -577,7 +577,7 @@ fn postfix_hash(s: &str) -> u64 {
     h.finish()
 }
 
-// RUGRA-GLUE: 从函数文本提取函数名(第一个含 '(' 的行的 '(' 前最后一个词 ——
+// RUDRA-GLUE: 从函数文本提取函数名(第一个含 '(' 的行的 '(' 前最后一个词 ——
 // curl 语料每个函数文本带 typedef 前导块,首行是 `typedef unsigned char
 // byte;`,直接取首行会全部误报为 byte;;取首个含括号行可跳过前导块命中签名
 // 行或 `/* ---- addr: name (size) ---- */` 头注释。纯诊断元数据,提取失败
@@ -615,7 +615,7 @@ pub struct EmitNoMarkup {
     /// printc.cc:2900-2902 always takes the cancel+spaces(1) merge —
     /// mirroring the oracle byte-for-byte.
     pending_brace: Option<(BraceId, BraceStyle)>,
-    /// RUGRA-GLUE: monotonically increasing install id (stands in for the
+    /// RUDRA-GLUE: monotonically increasing install id (stands in for the
     /// oracle's PendingBrace stack-object identity, prettyprint.hh:457).
     next_brace_id: BraceId,
 }
@@ -638,7 +638,7 @@ impl EmitNoMarkup {
         }
     }
 
-    // RUGRA-GLUE: RUGRA_LOOP_DEBUG 诊断 helper(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: RUGRA_LOOP_DEBUG 诊断 helper(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Debug helper: count "while" and "\ndo " occurrences in the raw output.
     /// Used by RUGRA_LOOP_DEBUG diagnostics to track loop rendering.
     #[allow(dead_code)]
@@ -648,14 +648,14 @@ impl EmitNoMarkup {
         (w, d)
     }
 
-    // RUGRA-GLUE: RUGRA_LOOP_DEBUG 诊断 helper(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: RUGRA_LOOP_DEBUG 诊断 helper(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Debug helper: borrow the raw output string for diagnostics.
     #[allow(dead_code)]
     pub fn debug_get_output_ref(&self) -> &str {
         &self.output
     }
 
-    // RUGRA-GLUE: 缓冲输出访问器 + 文本后处理挂载点②(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物——oracle EmitNoMarkup 直写 ostream,无 getOutput)
+    // RUDRA-GLUE: 缓冲输出访问器 + 文本后处理挂载点②(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物——oracle EmitNoMarkup 直写 ostream,无 getOutput)
     pub fn get_output(mut self) -> String {
         // Always run post-processing so callers that forget to invoke
         // post_process() still get the normalized output (struct deref rewrite,
@@ -666,7 +666,7 @@ impl EmitNoMarkup {
         self.output
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Post-process the output to eliminate redundant gotos and labels.
     /// P3: Remove `goto LAB_X;` when `LAB_X:` is on the immediately next non-empty line.
     /// Also removes labels that are never referenced by any goto.
@@ -674,7 +674,7 @@ impl EmitNoMarkup {
         self.output = Self::post_process_output(&self.output);
     }
 
-    // RUGRA-GLUE: switch-statement prefix predicate for the legacy text
+    // RUDRA-GLUE: switch-statement prefix predicate for the legacy text
     // passes. The oracle's opBranchind (printc.cc:586-587) emits `switch` +
     // `(` with NO separating space (golden `switch((int)x ...)`), while
     /// older passes matched only the `switch ` form — after PRINTC-SWITCH-
@@ -686,7 +686,7 @@ impl EmitNoMarkup {
         t.starts_with("switch ") || t.starts_with("switch(")
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     pub fn post_process_output(input: &str) -> String {
         // Ghidra's EmitMarkup (prettyprint.cc) does ZERO post-processing.
         // All structure is produced by Action-phase + structured emit.
@@ -697,7 +697,7 @@ impl EmitNoMarkup {
         Self::post_process_output_legacy(input)
     }
 
-    // RUGRA-GLUE: P6 声明行判据(HTTPD-FULLEMPTY-ELSE-0001 residual;Ghidra 无对应物,
+    // RUDRA-GLUE: P6 声明行判据(HTTPD-FULLEMPTY-ELSE-0001 residual;Ghidra 无对应物,
     // 补偿层内部 helper)。声明行 = 纯类型头(`undefined8`、`undefined8 *` 等
     // 标识符/`*`/空格字符组成)+ ` uVarN;` 尾。运算符/括号/逗号/语句关键字
     // (`return` 等)出现即非声明——旧 `contains(" uVarN;")` 谓词把尾置裸变量的
@@ -722,7 +722,7 @@ impl EmitNoMarkup {
         })
     }
 
-    // RUGRA-GLUE: 补偿层内部 helper(POSTFIX-BOOLFOLD-TOKEN-0001;Ghidra 无
+    // RUDRA-GLUE: 补偿层内部 helper(POSTFIX-BOOLFOLD-TOKEN-0001;Ghidra 无
     /// 对应物——pass 3 的 token 边界判据)。Strip every `1 || ` whose `1`
     /// begins a standalone token (preceded by start, `(` or whitespace),
     /// leaving number-token tails (`0x11 || `, `a1 || `) untouched.
@@ -746,13 +746,13 @@ impl EmitNoMarkup {
         out
     }
 
-    // RUGRA-GLUE: UTF-8 scalar length for fold_standalone_one_or's
+    // RUDRA-GLUE: UTF-8 scalar length for fold_standalone_one_or's
     /// char-wise copy (first byte tag: 0xxxxxxx=1, 110=2, 1110=3, 11110=4).
     fn utf8_char_len(b: u8) -> usize {
         if b < 0x80 { 1 } else if b >> 5 == 0b110 { 2 } else if b >> 4 == 0b1110 { 3 } else { 4 }
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物——
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物——
     // oracle 发射路径零后处理:prettyprint.hh:547-594 的 EmitNoMarkup 是无缓冲直写
     // emitter,printc.cc:2665 docFunction 以 flush() 结束,无任何 post-process)。
     // 状态如实记录:本函数是 post_process_output 的唯一实现并被其调用,是**活链**,
@@ -1911,7 +1911,7 @@ impl EmitNoMarkup {
         after_case
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Remove `case N:` and `default:` lines that appear outside any switch
     /// statement. Uses a precise switch-depth tracker that counts `switch (...) {`
     /// openers and their matching `}` closers.
@@ -1970,7 +1970,7 @@ impl EmitNoMarkup {
         out.join("\n")
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Remove assignment lines whose left-hand side is not a valid C lvalue.
     /// Detects patterns like 'IDENT + ... = ' or 'IDENT * ... = ' at the start
     /// of a statement (not inside parens/casts).
@@ -2071,7 +2071,7 @@ impl EmitNoMarkup {
         out.join("\n")
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Detect `IDENT + IDENT` and `IDENT * IDENT` patterns where both operands
     /// are declared as pointer types, and cast the right operand to `(long)`.
     fn fix_pointer_arithmetic(text: &str) -> String {
@@ -2156,7 +2156,7 @@ impl EmitNoMarkup {
         out
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Try to fix one `ptrA <op> ptrB` occurrence in the line. Returns Some(fixed)
     /// if a fix was applied, None otherwise. Scans the entire line (both LHS
     /// cast expressions and RHS).
@@ -2200,7 +2200,7 @@ impl EmitNoMarkup {
         None
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Remove `break;`/`continue;` statements not within any loop or switch.
     /// Uses a pre-scan to mark line ranges that fall inside a loop/switch body
     /// (via brace matching), which is more reliable than a line-level context
@@ -2358,7 +2358,7 @@ impl EmitNoMarkup {
         out.join("\n")
     }
 
-    // RUGRA-GLUE: lazy mirror-face probe gating the two declaration-injection
+    // RUDRA-GLUE: lazy mirror-face probe gating the two declaration-injection
     // arms below (GEN4-SQ-DUPDECL-NUMBERING-0001). Ghidra has no counterpart
     // for the very question: the oracle print path declares every function
     // local exactly once, from the top of the body, via emitLocalVarDecls
@@ -2383,7 +2383,7 @@ impl EmitNoMarkup {
         *MIRROR_FACE.get_or_init(crate::type_system::typefactory::direct_runner_tier_active)
     }
 
-    // RUGRA-GLUE: backfill_missing_locals (no Ghidra counterpart exists)
+    // RUDRA-GLUE: backfill_missing_locals (no Ghidra counterpart exists)
     /// For each function, find `local_XX` identifiers used in the body but not
     /// declared, and insert `int local_XX;` declarations before the first
     /// non-declaration body line. The locked oracle's prettyprint.hh has no
@@ -2754,7 +2754,7 @@ impl EmitNoMarkup {
         out.join("\n")
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Rewrite declarations of variables appearing in `*IDENT` unary dereference
     /// patterns to pointer type, so `*param_N` is legal C.
     fn fix_unary_deref_declarations(text: &str) -> String {
@@ -2899,7 +2899,7 @@ impl EmitNoMarkup {
     }
 
     /// Scans backward through already-emitted lines.
-    // RUGRA-GLUE: signature_opens_function_body (format-layer helper for the
+    // RUDRA-GLUE: signature_opens_function_body (format-layer helper for the
     //   oracle's two-line function-header layout: printc.cc:1590 sets
     //   option_brace_func=skip_line and printc.cc:2655 emits the body `{`
     //   two lines below the declaration, so `sig {` and `sig` + `{` are both
@@ -2933,7 +2933,7 @@ impl EmitNoMarkup {
             .map_or(false, |l| l == "{")
     }
 
-    // RUGRA-GLUE: legacy_never_type_evidence (no Ghidra counterpart; shared
+    // RUDRA-GLUE: legacy_never_type_evidence (no Ghidra counterpart; shared
     //   evidence helper of has_symbol_driven_decls / _walk_parens — see the
     //   PRINTC-LEGACY-DECL-DUP-0001 notes there).
     /// Type spellings ONLY the symbol-driven emitter produces. printc's
@@ -2960,7 +2960,7 @@ impl EmitNoMarkup {
             || type_token.starts_with("__int")
     }
 
-    // RUGRA-GLUE: has_symbol_driven_decls (no Ghidra counterpart — Ghidra's
+    // RUDRA-GLUE: has_symbol_driven_decls (no Ghidra counterpart — Ghidra's
     //   print layer has no declaration passes to bypass: printc.cc:2656
     //   docFunction emits every function-local declaration from Action-phase
     //   symbols via emitLocalVarDecls and nothing else, so "does this text
@@ -3008,7 +3008,7 @@ impl EmitNoMarkup {
         false
     }
 
-    // RUGRA-GLUE: has_symbol_driven_decls_walk_parens (no Ghidra counterpart;
+    // RUDRA-GLUE: has_symbol_driven_decls_walk_parens (no Ghidra counterpart;
     //   same GLUE family as has_symbol_driven_decls above — see
     //   POSTFIX-RETIRE-0001 W0. VARMAP-DUPDECL-EXTRAOUT-0001: the original
     //   detector breaks the decl-block walk at parens-carrying declaration
@@ -3055,7 +3055,7 @@ impl EmitNoMarkup {
         false
     }
 
-    // RUGRA-GLUE: symbol_driven_function_line_mask (no Ghidra counterpart —
+    // RUDRA-GLUE: symbol_driven_function_line_mask (no Ghidra counterpart —
     ///   see has_symbol_driven_decls; this is the whole-text segmentation the
     ///   line-oriented fix_unary_deref_declarations pass needs to skip
     ///   symbol-driven functions without restructuring its rewrite loop).
@@ -3139,7 +3139,7 @@ impl EmitNoMarkup {
         mask
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     /// Remove unused variable declarations from a function's lines
     /// AND add missing declarations for uVarNNN that appear in body but have no declaration
     fn flush_func_remove_unused(func_lines: &[String], out: &mut Vec<String>) {
@@ -3293,20 +3293,20 @@ impl EmitNoMarkup {
         }
     }
 
-    // RUGRA-GLUE: 缓冲 emitter 缩进绘制(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物——oracle tagLine 直写 ostream 缩进空格)
+    // RUDRA-GLUE: 缓冲 emitter 缩进绘制(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物——oracle tagLine 直写 ostream 缩进空格)
     fn do_indent(&mut self) {
         for _ in 0..self.indent {
             self.output.push_str("  ");
         }
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物;P6 词频内联的支撑 helper)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物;P6 词频内联的支撑 helper)
     /// Check if char is a word boundary (not alphanumeric or underscore)
     fn is_word_boundary(c: char) -> bool {
         !c.is_ascii_alphanumeric() && c != '_'
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物;P6 词频内联的支撑 helper)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物;P6 词频内联的支撑 helper)
     /// Count word-boundary-respecting occurrences of `word` in `text`
     fn count_word_occurrences(text: &str, word: &str) -> usize {
         let mut count = 0;
@@ -3326,7 +3326,7 @@ impl EmitNoMarkup {
         count
     }
 
-    // RUGRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物;P6 词频内联的支撑 helper)
+    // RUDRA-GLUE: 文本后处理补偿层(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物;P6 词频内联的支撑 helper)
     /// Replace word-boundary-respecting occurrences of `word` with `replacement`
     fn replace_word(text: &str, word: &str, replacement: &str) -> String {
         let bytes = text.as_bytes();
@@ -3502,22 +3502,22 @@ impl Emit for EmitNoMarkup {
         self.output.push_str(brace);
     }
 
-    // RUGRA-GLUE: bump_indent (startIndent indent-bump half, prettyprint.hh:371)
+    // RUDRA-GLUE: bump_indent (startIndent indent-bump half, prettyprint.hh:371)
     fn bump_indent(&mut self) {
         self.indent += 1;
     }
 
-    // RUGRA-GLUE: drop_indent (stopIndent indent-drop half, prettyprint.hh:377)
+    // RUDRA-GLUE: drop_indent (stopIndent indent-drop half, prettyprint.hh:377)
     fn drop_indent(&mut self) {
         self.indent -= 1;
     }
 
-    // RUGRA-GLUE: Rust Box<dyn Any> downcast 胶水(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: Rust Box<dyn Any> downcast 胶水(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
         self
     }
 
-    // RUGRA-GLUE: Rust Box<dyn Any> downcast 胶水(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
+    // RUDRA-GLUE: Rust Box<dyn Any> downcast 胶水(POSTFIX-RETIRE-0001 W0 登记,Ghidra 无对应物)
     fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
         Some(self)
     }
@@ -3527,48 +3527,48 @@ impl Emit for EmitNoMarkup {
 pub struct NullEmit;
 
 impl NullEmit {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     pub fn new() -> Self {
         NullEmit
     }
 }
 
 impl Emit for NullEmit {
-    // RUGRA-GLUE: print (no Ghidra counterpart found)
+    // RUDRA-GLUE: print (no Ghidra counterpart found)
     fn print(&mut self, _text: &str) {}
-    // RUGRA-GLUE: begin_block (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_block (no Ghidra counterpart found)
     fn begin_block(&mut self) {}
-    // RUGRA-GLUE: end_block (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_block (no Ghidra counterpart found)
     fn end_block(&mut self) {}
-    // RUGRA-GLUE: open_paren (null emitter for the discovery pass)
+    // RUDRA-GLUE: open_paren (null emitter for the discovery pass)
     fn open_paren(&mut self, _paren: &str) -> i32 { 0 }
-    // RUGRA-GLUE: close_paren (null emitter for the discovery pass)
+    // RUDRA-GLUE: close_paren (null emitter for the discovery pass)
     fn close_paren(&mut self, _paren: &str, _id: i32) {}
-    // RUGRA-GLUE: begin_function (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_function (no Ghidra counterpart found)
     fn begin_function(&mut self) {}
-    // RUGRA-GLUE: end_function (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_function (no Ghidra counterpart found)
     fn end_function(&mut self) {}
-    // RUGRA-GLUE: tag_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_type (no Ghidra counterpart found)
     fn tag_type(&mut self, _text: &str, _id: u64) {}
-    // RUGRA-GLUE: tag_variable (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_variable (no Ghidra counterpart found)
     fn tag_variable(&mut self, _text: &str, _id: u64) {}
-    // RUGRA-GLUE: tag_op (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_op (no Ghidra counterpart found)
     fn tag_op(&mut self, _text: &str) {}
-    // RUGRA-GLUE: tag_field (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_field (no Ghidra counterpart found)
     fn tag_field(&mut self, _text: &str, _id: u64) {}
-    // RUGRA-GLUE: tag_line (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_line (no Ghidra counterpart found)
     fn tag_line(&mut self, _indent: i32) {}
-    // RUGRA-GLUE: tag_func_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_func_name (no Ghidra counterpart found)
     fn tag_func_name(&mut self, _text: &str, _id: u64) {}
-    // RUGRA-GLUE: tag_comment (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_comment (no Ghidra counterpart found)
     fn tag_comment(&mut self, _text: &str) {}
-    // RUGRA-GLUE: tag_label (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_label (no Ghidra counterpart found)
     fn tag_label(&mut self, _text: &str) {}
-    // RUGRA-GLUE: tag_case_label (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_case_label (no Ghidra counterpart found)
     fn tag_case_label(&mut self, _text: &str) {}
-    // RUGRA-GLUE: as_any_mut (no Ghidra counterpart found)
+    // RUDRA-GLUE: as_any_mut (no Ghidra counterpart found)
     fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> { None }
-    // RUGRA-GLUE: into_any (no Ghidra counterpart found)
+    // RUDRA-GLUE: into_any (no Ghidra counterpart found)
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> { self }
 }
 
@@ -3580,62 +3580,62 @@ pub struct CaseDetectEmit {
 }
 
 impl CaseDetectEmit {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     pub fn new() -> Self {
         Self { has_case: false }
     }
-    // RUGRA-GLUE: has_case (no Ghidra counterpart found)
+    // RUDRA-GLUE: has_case (no Ghidra counterpart found)
     pub fn has_case(&self) -> bool {
         self.has_case
     }
 }
 
 impl Emit for CaseDetectEmit {
-    // RUGRA-GLUE: print (no Ghidra counterpart found)
+    // RUDRA-GLUE: print (no Ghidra counterpart found)
     fn print(&mut self, text: &str) {
         if text.contains("case ") || text.contains("default:") {
             self.has_case = true;
         }
     }
-    // RUGRA-GLUE: begin_block (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_block (no Ghidra counterpart found)
     fn begin_block(&mut self) {}
-    // RUGRA-GLUE: end_block (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_block (no Ghidra counterpart found)
     fn end_block(&mut self) {}
-    // RUGRA-GLUE: open_paren (case-detect probe emitter)
+    // RUDRA-GLUE: open_paren (case-detect probe emitter)
     fn open_paren(&mut self, _paren: &str) -> i32 { 0 }
-    // RUGRA-GLUE: close_paren (case-detect probe emitter)
+    // RUDRA-GLUE: close_paren (case-detect probe emitter)
     fn close_paren(&mut self, _paren: &str, _id: i32) {}
-    // RUGRA-GLUE: begin_function (no Ghidra counterpart found)
+    // RUDRA-GLUE: begin_function (no Ghidra counterpart found)
     fn begin_function(&mut self) {}
-    // RUGRA-GLUE: end_function (no Ghidra counterpart found)
+    // RUDRA-GLUE: end_function (no Ghidra counterpart found)
     fn end_function(&mut self) {}
-    // RUGRA-GLUE: tag_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_type (no Ghidra counterpart found)
     fn tag_type(&mut self, _text: &str, _id: u64) {}
-    // RUGRA-GLUE: tag_variable (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_variable (no Ghidra counterpart found)
     fn tag_variable(&mut self, text: &str, _id: u64) {
         if text.contains("case ") { self.has_case = true; }
     }
-    // RUGRA-GLUE: tag_op (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_op (no Ghidra counterpart found)
     fn tag_op(&mut self, _text: &str) {}
-    // RUGRA-GLUE: tag_field (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_field (no Ghidra counterpart found)
     fn tag_field(&mut self, _text: &str, _id: u64) {}
-    // RUGRA-GLUE: tag_line (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_line (no Ghidra counterpart found)
     fn tag_line(&mut self, _indent: i32) {}
-    // RUGRA-GLUE: as_any_mut (no Ghidra counterpart found)
+    // RUDRA-GLUE: as_any_mut (no Ghidra counterpart found)
     fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
         Some(self)
     }
-    // RUGRA-GLUE: tag_func_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_func_name (no Ghidra counterpart found)
     fn tag_func_name(&mut self, _text: &str, _id: u64) {}
-    // RUGRA-GLUE: tag_comment (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_comment (no Ghidra counterpart found)
     fn tag_comment(&mut self, _text: &str) {}
-    // RUGRA-GLUE: tag_label (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_label (no Ghidra counterpart found)
     fn tag_label(&mut self, _text: &str) {}
-    // RUGRA-GLUE: tag_case_label (no Ghidra counterpart found)
+    // RUDRA-GLUE: tag_case_label (no Ghidra counterpart found)
     fn tag_case_label(&mut self, _text: &str) {
         self.has_case = true; // Any case_label tag = case label emitted
     }
-    // RUGRA-GLUE: into_any (no Ghidra counterpart found)
+    // RUDRA-GLUE: into_any (no Ghidra counterpart found)
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
         self
     }
@@ -3690,13 +3690,13 @@ pub struct TokenSplit {
 }
 
 impl Default for TagType {
-    // RUGRA-GLUE: TokenSplit must be Default-constructible for the circular
+    // RUDRA-GLUE: TokenSplit must be Default-constructible for the circular
     // queue's spare slots (the oracle default-constructs TokenSplit too).
     fn default() -> Self { TagType::SyntT }
 }
 
 impl Default for PrintClass {
-    // RUGRA-GLUE: TokenSplit must be Default-constructible for the circular
+    // RUDRA-GLUE: TokenSplit must be Default-constructible for the circular
     // queue's spare slots (the oracle default-constructs TokenSplit too).
     fn default() -> Self { PrintClass::Ignore }
 }
@@ -3971,7 +3971,7 @@ pub struct EmitPrettyPrint {
     /// PendingBrace: callback == openBraceIndent(OPEN_CURLY, style)) keyed
     /// by the install's BraceId (the oracle's stack-object identity).
     pending_brace: Option<(BraceId, BraceStyle)>,
-    /// RUGRA-GLUE: fire memory per install — the oracle keeps this in the
+    /// RUDRA-GLUE: fire memory per install — the oracle keeps this in the
     /// caller's `PendingBrace` stack object (`indentId`, printc.hh:347-361:
     /// -1 until the callback runs, >= 0 after), which survives slot
     /// clearing and replacement by a nested install. The Vec entry
@@ -3979,7 +3979,7 @@ pub struct EmitPrettyPrint {
     /// (ctor indentId=-1), flipped by the callback in emit_pending, read by
     /// pending_brace_fired_id (`getIndentId() >= 0`, printc.cc:2946-2948).
     fired_braces: Vec<(BraceId, bool)>,
-    /// RUGRA-GLUE: monotonically increasing install id minting.
+    /// RUDRA-GLUE: monotonically increasing install id minting.
     next_brace_id: BraceId,
     indentstack: Vec<i32>,
     spaceremain: i32,
@@ -3996,7 +3996,7 @@ pub struct EmitPrettyPrint {
 }
 
 impl Default for EmitPrettyPrint {
-    // RUGRA-GLUE: Rust Default trait impl forwarding to EmitPrettyPrint::new
+    // RUDRA-GLUE: Rust Default trait impl forwarding to EmitPrettyPrint::new
     // (Ghidra default-constructs via `new EmitPrettyPrint()`, hh:1068).
     fn default() -> Self { Self::new() }
 }
@@ -4027,7 +4027,7 @@ impl EmitPrettyPrint {
         e
     }
 
-    // RUGRA-GLUE: next_count (TokenSplit::countbase++, prettyprint.hh:677)
+    // RUDRA-GLUE: next_count (TokenSplit::countbase++, prettyprint.hh:677)
     /// C's `countbase++` yields the pre-increment value; `fetch_add`
     /// returns the same previous value (no +1).
     fn next_count(&self) -> i32 {
@@ -4355,7 +4355,7 @@ impl EmitPrettyPrint {
         self.needbreak = false;
     }
 
-    // RUGRA-GLUE: debug_lowlevel_output_ref (test observation channel,
+    // RUDRA-GLUE: debug_lowlevel_output_ref (test observation channel,
     // same family as EmitNoMarkup::debug_get_output_ref)
     /// Read the bytes committed to the low-level stream so far without
     /// consuming the emitter — fixture observation of a live printer.
@@ -4415,7 +4415,7 @@ impl EmitPrettyPrint {
         self.needbreak = false;
     }
 
-    // RUGRA-GLUE: post_process bridge (EmitNoMarkup legacy P3 passes)
+    // RUDRA-GLUE: post_process bridge (EmitNoMarkup legacy P3 passes)
     /// Flush the token queue, then run the low-level EmitNoMarkup legacy
     /// post-processing (redundant-goto/orphan-label cleanup) on the fully
     /// committed byte stream.
@@ -4442,7 +4442,7 @@ impl EmitPrettyPrint {
         }
     }
 
-    // RUGRA-GLUE: take low-level output (EmitNoMarkup::getOutput)
+    // RUDRA-GLUE: take low-level output (EmitNoMarkup::getOutput)
     /// Flush and hand back the final C text, running the low level's
     /// `get_output` post-processing exactly like the plain emitter did.
     pub fn get_output(mut self) -> String {
@@ -4879,12 +4879,12 @@ impl Emit for EmitPrettyPrint {
         self.set_max_line_size(100);
     }
 
-    // RUGRA-GLUE: into_any (downcast support for the driver)
+    // RUDRA-GLUE: into_any (downcast support for the driver)
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
         self
     }
 
-    // RUGRA-GLUE: as_any_mut (downcast support for doc_function)
+    // RUDRA-GLUE: as_any_mut (downcast support for doc_function)
     fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
         Some(self)
     }
@@ -5172,7 +5172,7 @@ mod tests {
         );
     }
 
-    // RUGRA-GLUE: backfill_missing_locals unit tests (legacy text-pass
+    // RUDRA-GLUE: backfill_missing_locals unit tests (legacy text-pass
     // compensation layer; the oracle has no counterpart — Ghidra's
     // emitLocalVarDecls (printc.cc:2260-2279) declares every scope symbol
     // and never re-scans emitted text). These pin the PRINTC-C3-UNNAMED-

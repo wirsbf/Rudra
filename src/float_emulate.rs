@@ -24,7 +24,7 @@
 //! (runner `tools/run_float_fmt_struct_oracle.sh`); value-level int2float /
 //! float2float regression: `tests/oracle/float_int2float_sign_1204`.
 
-// RUGRA-GLUE: float.cc binds the host libm routines through `using
+// RUDRA-GLUE: float.cc binds the host libm routines through `using
 // std::ldexp; using std::frexp;` (float.cc:25-26). Rust std exposes no
 // stable equivalents, so the same host libm symbols the C++ oracle links
 // against are bound here. This matters for parity: ldexp(x, e) scales by
@@ -34,10 +34,10 @@
 // ldexp(2^11, -1085) == 2^-1074, while 2f64.powi(-1085) already flushes
 // to 0). These declarations have no bodies (FFI), hence the glue comment.
 extern "C" {
-    // RUGRA-GLUE: FFI declaration (no body) for the host libm ldexp the
+    // RUDRA-GLUE: FFI declaration (no body) for the host libm ldexp the
     // oracle calls at float.cc:76.
     fn ldexp(x: f64, exp: i32) -> f64;
-    // RUGRA-GLUE: FFI declaration (no body) for the host libm frexp the
+    // RUDRA-GLUE: FFI declaration (no body) for the host libm frexp the
     // oracle calls at float.cc:100.
     fn frexp(x: f64, exp: *mut i32) -> f64;
 }
@@ -810,7 +810,7 @@ impl FloatFormat {
     }
 }
 
-// RUGRA-GLUE: printf_g — the `%.*g` formatting the C++ ostringstream
+// RUDRA-GLUE: printf_g — the `%.*g` formatting the C++ ostringstream
 // performs for `s << double` under the default floatfield
 // (libstdc++ num_put::do_put(double) defers to snprintf "%.*g"). Rust's
 // std::fmt has no %g mode, so the printf algorithm is reproduced:
@@ -864,7 +864,7 @@ fn printf_g(prec: usize, host: f64) -> String {
     }
 }
 
-// RUGRA-GLUE: strip_g_zeros — the %g trailing-zero removal: cut '0's
+// RUDRA-GLUE: strip_g_zeros — the %g trailing-zero removal: cut '0's
 // directly before `keep` (the mantissa end), then a bare trailing '.'.
 fn strip_g_zeros(s: &str, keep: usize) -> String {
     let mut end = keep;

@@ -28,7 +28,7 @@ opcode 索引到哈希翻译值的映射表，将变体合并到同一哈希值�
 逐元素初始化，无运行时开销。
 
 ### `fn translate_opcode(opc: OpCode) -> u32`
-`TRANSTABLE[opc]` 的薄封装（RUGRA-GLUE：边界检查胶水）。零=跳过。
+`TRANSTABLE[opc]` 的薄封装（RUDRA-GLUE：边界检查胶水）。零=跳过。
 
 ## `struct ToOpEdge`
 从 Varnode 到 PcodeOp 的边 (dynamic.hh:32)。`slot == -1` 表示 op 输出。
@@ -138,7 +138,7 @@ gatherOpsAtAddress、所有哈希解码静态方法。
 存在的编译错误，非本移植引入，按约束仅修改 dynamic.rs + 本文档。）
 ## 2026-08-11 ANN-I annotation bootstrap
 
-`DynamicHash::default` 现明确标为 RUGRA-GLUE：Rust `Default` 仅委托给
+`DynamicHash::default` 现明确标为 RUDRA-GLUE：Rust `Default` 仅委托给
 `new()`，而锁定的 dynamic.hh:62 类声明没有显式构造器或 Default 风格方法。
 本次只增加 provenance 注释，没有行为改动、真实 Ghidra fixture 或状态提升；
 模块等级以 `ALIGNMENT_ROADMAP.md` 为准，不据此宣称 L3。

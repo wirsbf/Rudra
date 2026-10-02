@@ -4,7 +4,7 @@
 
 - **状态**: 部分有效（需对照源码）
 
-2026-08-12 ANN-N 仅补 provenance：本模块的 13 个 const helper 属于 Rugra
+2026-08-12 ANN-N 仅补 provenance：本模块的 13 个 const helper 属于 Rudra
 兼容层标量/枚举元数据；锁定 oracle 的 `Address`、`Architecture`、`Datatype`
 及 `HOST_ENDIAN` 没有同语义的独立函数。本次未改变行为或模块状态。
 
@@ -12,7 +12,7 @@
 
 ## 模块说明 (Module Doc)
 
-Core type definitions for Rugra
+Core type definitions for Rudra
 
 This module contains fundamental types used throughout the decompiler,
 including address types, architecture definitions, and basic data types.

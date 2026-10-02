@@ -8,7 +8,7 @@
 （`crate::unionresolve::vn_type_read_facing`/`vn_type_def_facing`，
 unionresolve.rs:1898-1970，consult `fd.union_map`）。oracle 的
 `TypeUnion::findResolve` 从 `op->getParent()->getFuncdata()`（type.cc:2138）取
-包含函数并 consult `fd->getUnionField`；Rugra 的 `PcodeOp` 无反向指针，故
+包含函数并 consult `fd->getUnionField`；Rudra 的 `PcodeOp` 无反向指针，故
 `Funcdata` 通道显式穿参。签名变化：
 
 - `RootPointer::back_up_pointer(fd, implied_base)`（cc:2118 consult
@@ -19,7 +19,7 @@ unionresolve.rs:1898-1970，consult `fd.union_map`）。oracle 的
   consult `loadStore->getIn(1)->getTypeReadFacing(loadStore)`，slot 1；三调用方
   `split_store`/`RuleSplitLoad::apply_op`/`RuleSplitStore::apply_op` 同步）
 - `split_copy` 内联双读（cc:2950/2951 键：COPY op slot 0 / def-facing）——oracle
-  在 `RuleSplitCopy::applyOp` 读取后作参数传入，Rugra 保留内联重读（两次读之间
+  在 `RuleSplitCopy::applyOp` 读取后作参数传入，Rudra 保留内联重读（两次读之间
   `test_copy_constraints` 不写 union_map，语义等价）
 - `split_load`（cc:2772 `outVn->getTypeDefFacing()`，def-facing）
 - `split_store` 双读（cc:2822/2828 `inVn->getTypeReadFacing(storeOp)`，slot 2，
@@ -131,7 +131,7 @@ Architecture 读取 `split_datatype_config`（subflow.cc:2701-2709）。
 二轮稳定）。残留结构缺口：RootPointer::find 多跳回溯/addrTied
 duplicateToTemp、splitStore 的 LOAD 值回溯（cc:2817-2830）、splitLoad 的
 COPY-follow（cc:2761-2769）、oracle buildPointers 的 PTRSUB/PTRADD op
-形状（Rugra stand-in 用 INT_ADD,语义地址等价）。
+形状（Rudra stand-in 用 INT_ADD,语义地址等价）。
 
 ## 2026-08-24：RuleSubvarSext reset 接入 pool virtual-reset seam + 名字对齐
 
@@ -208,7 +208,7 @@ COPY-follow（cc:2761-2769）、oracle buildPointers 的 PTRSUB/PTRADD op
 - `SplitDatatype::split_copy` / `split_load(op, in_type)` / `split_store(op, out_type)` — 拆分重写 (subflow.cc:2717/2756/2808)。`split_copy` 按 cc:2730-2744 分派到四个 builder:
   `generate_constants`(cc:2409-2465, ZEXT/PIECE 扩展精度常量折叠为分片常量并销毁 def op;
   `build_in_constants` cc:2483 的 `baseVal >> (8*off)` 在 oracle 侧因纯常量 ≤8 字节而
-  8*off<64 恒成立, Rugra 对 >8 字节纯常量按缺失高字节读 0(饱和移位), 避免 C++ UB 边界 panic)、
+  8*off<64 恒成立, Rudra 对 >8 字节纯常量按缺失高字节读 0(饱和移位), 避免 C++ UB 边界 panic)、
   `build_in_subpieces`(cc:2497-2519, 非常量输入按 piece offset 建 SUBPIECE, 输出落 root 空间
   `baseAddr+off` 地址并 `updateType(inType)`)、`build_out_varnodes`(cc:2527-2539, 输出分片落
   root 空间地址并 `updateType(outType)`)、`build_out_concats`(cc:2548-2603, root 无读者早退;
@@ -241,8 +241,8 @@ def 复用、INT2FLOAT/FLOAT2FLOAT 源替换、常量 precision 重编码）、`
 - Split 族（2026-08-25 SUBFLOW-ROOTPOINTER-PORT-0001 起）：RootPointer 四方法与
   buildPointers/buildInConstants、splitStore LOAD 值回溯、splitLoad COPY-follow
   已 1:1 移植；残留：`buildInSubpieces`（地址放置输出 + generateConstants
-  折叠，Rugra 用 SUBPIECE stand-in）、`buildOutVarnodes`/`buildOutConcats`
-  （protoPartial PIECE 栈，Rugra 用 unique 输出 + PIECE 栈 stand-in，已带
+  折叠，Rudra 用 SUBPIECE stand-in）、`buildOutVarnodes`/`buildOutConcats`
+  （protoPartial PIECE 栈，Rudra 用 unique 输出 + PIECE 栈 stand-in，已带
   oracle 的 hasNoDescend 早退门）——投影以有效偏移+尺寸对拍
 
 ## 测试
@@ -300,7 +300,7 @@ Ghidra 在 `traceForwardSext`(subflow.cc:883) 仅对 mark-skip 检查带
 `(outvn!=0)` 守卫，随后把裸 `outvn` 指针直接传入 `createLink`(895)，
 `setReplacement`(70) 无 null 检查——即该状态在 Ghidra 一致 IR 下不可达
 （`opDestroy` funcdata_op.cc:213-217 会先擦除 descend 链接；天然无输出的
-STORE/RETURN/BRANCH*/CBRANCH/无输出 CALL 走其它 case）。Rugra 上游仍可能
+STORE/RETURN/BRANCH*/CBRANCH/无输出 CALL 走其它 case）。Rudra 上游仍可能
 出现 alive 无输出 op（见 TODO SUBFLOW-OUTVN-UNWRAP-0001 的上游登记），故
 所有消费 `op->getOut()` 的 case 现按"不可追踪即 abort"收敛：`None` →
 `return false`（与每个 case 的失败路径一致，带 `[ACTION]` stderr 标记），
@@ -329,7 +329,7 @@ NO_ORACLE 如实登记；Rust 侧断言 trace abort + IR 不变）+ 3 plain Some
 
 `do_replacement` 非 push patch 循环头部新增 `debug_assert!(patch.slot >= 0)`
 （CR-SUBFLOWFIX 观察项 1 的防御加固）。oracle 在 subflow.cc:1496/1502 无守卫
-直接消费 `(*piter).slot`；Rugra 侧若 -1 哨兵泄漏（唯一可能路径：
+直接消费 `(*piter).slot`；Rudra 侧若 -1 哨兵泄漏（唯一可能路径：
 `add_extension_patch` 的 `leastsigbit_set(mask)` 兜底在 mask==0 时返回 -1，
 一致态不可达），`patch.slot as usize` 会扩展为 usize::MAX 进入
 `op_set_input` 的槽位填充循环（静默近挂死）或产生巨大 INT_LEFT 常量。
@@ -341,7 +341,7 @@ NO_ORACLE 如实登记；Rust 侧断言 trace abort + IR 不变）+ 3 plain Some
 `SubvariableFlow::getReplaceVarnode`（Ghidra subflow.cc:1316）在
 `useSameAddress` 判定后调用 `fd->setInputVarnode(rvn->replacement)`（cc:1343），
 `replaceInput`（cc:1258）在 totalReplace 后调用 `fd->deleteVarnode(&oldvn)`
-（cc:1264）。旧 Rugra 实现自述 "setInputVarnode is not ported" 而用原生
+（cc:1264）。旧 Rudra 实现自述 "setInputVarnode is not ported" 而用原生
 `set_flags(INPUT)`——产生 oracle 不可能态 **INPUT-without-INSERT**
 （`VarnodeBank::setInput` varnode.cc:1358-1372 的 input⇒xref⇒INSERT 链），
 被 `Heritage::collect` 的 read 分支收下后于 `normalizeReadSize`
@@ -385,7 +385,7 @@ Ghidra `LaneDivide` 类 1:1 移植（LANEDIVIDE-INFRA-0001）：
 逆序 + 常量 lane 拆分）成功投影与 INT_MULT 失败零突变投影；单测 47/47 绿。
 残差 LANEDIVIDE-INFRA-RESIDUAL-0001（UNTESTED：terminator/store/load/shift/
 zext/indirect/restricted-window/typelock 分支；NO_ORACLE：subflow.cc:3942
-`rvn+(laneIndex-skipLanes)` 负索引为 oracle UB，Rugra 保守拒绝并注释），
+`rvn+(laneIndex-skipLanes)` 负索引为 oracle UB，Rudra 保守拒绝并注释），
 登记见 tests/oracle/lanedivide_infra_1204.metadata.json。核心算法白名单
 模块，合并需机制 C 独立复核。
 
@@ -420,7 +420,7 @@ output-locked/output-active guards 与 `addPush`。两者继续保守返回 fals
 
 Phase 2 next_url 镜像态首分歧 ordinal 65（event-ordinal 60，
 `universal:fullloop:mainloop:stackstall:oppool1` apply 轮 4）result/count
-85(oracle) vs 77(rugra) 的根因落地：Rugra `try_call_pull` 在 CALLSPEC-0001
+85(oracle) vs 77(rugra) 的根因落地：Rudra `try_call_pull` 在 CALLSPEC-0001
 D0 下无条件返回 false，凡 4 字节 lane 直达 CALL/CALLIND 参数槽的
 `RuleSubvarZext` 触发全部夭折（窗口内首例：ZEXT `5040:69a` 的 R9 lane 流入
 `505d:131` call free 的 R9D 槽，oracle 创建 `R9D(:803) = u:23d00:4(:11a)` 并
@@ -439,11 +439,11 @@ subflow.cc:208-228 全体语义：slot==0 早退 → 非 aggressive 的
 
 MCENSUS4-CASTSHAPE-RESID-FIVE-0001 的 ②+③ 子域（sqlite uint1-shift 47L + 裸
 cast ~60L，census 口径亲核为 misc-cast 内 98L）双侧钉形后根因收口：代表函数
-sqlite3ErrorMsg 双侧终态 IR 对照（oracle castfuse2_probe .ir vs Rugra
+sqlite3ErrorMsg 双侧终态 IR 对照（oracle castfuse2_probe .ir vs Rudra
 RUGRA_DUMP_FUNC .ops）证明 oracle 的 `RuleSubvarSubpiece` → `SubvariableFlow`
 trace 经 `traceBackward` INT_LEFT/INT_OR 穿透直达 CALL 后由
 `tryCallReturnPush`（subflow.cc:293-317）把 call 输出截断到逻辑子变量
-（`AL(0x000d8035:1fa) = call fsqlite3HexToInt`），而 Rugra 同位 call 输出保持
+（`AL(0x000d8035:1fa) = call fsqlite3HexToInt`），而 Rudra 同位 call 输出保持
 4 字节 EAX——因为 `try_call_return_push` 是 2026-08-24 CALLSPEC-IDENTITY-D0
 遗留的恒 false stub（2026-09-22 注记的“indirect-creation trim 未被当前语料
 触发”经本道证伪：44 个函数 526 行残差由它阻塞）。③ 的主体簇（BtreeCommitPhaseOne
@@ -494,7 +494,7 @@ subvar_zext −2）；v1 投影首分歧由 ordinal 65 后移至 ordinal 159
 `RuleSubfloatConvert::applyOp`（subflow.cc:3489-3507）在 oracle 中构造完整
 `SubfloatFlow` 追踪并**重写数据流**至较小精度（`setReplacement` 的
 `newPiece` + `TransformManager::apply`，subflow.cc:3194-3237）——它从不给
-原较宽 Varnode 重新定类型。Rugra 未移植 transform 层，此前的"pragmatic
+原较宽 Varnode 重新定类型。Rudra 未移植 transform 层，此前的"pragmatic
 minimum"把较小精度 float 类型直接 `update_type` 到较宽 root 上：一方面
 Datatype 尺寸错配，另一方面与 `ActionInferTypes::writeBack`（每轮重推导
 尺寸正确的 interned 类型）永久振荡，把 float 密集函数（myprogress）的

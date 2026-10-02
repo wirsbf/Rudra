@@ -300,7 +300,7 @@ impl InjectPayload {
     /// opened but never closed, matching the Ghidra stream corruption; an
     /// empty parsestring on a non-dynamic payload throws.
     ///
-    /// RUGRA-GLUE: Ghidra's `readString(ATTRIB_CONTENT)` reads the current
+    /// RUDRA-GLUE: Ghidra's `readString(ATTRIB_CONTENT)` reads the current
     /// element's character content (marshal.cc:390-395); Rugra's
     /// `TreeDecoder` cannot surface element content through the `Decoder`
     /// trait, so the content of the `<body>` child is threaded in by the
@@ -513,22 +513,22 @@ pub struct PcodeEmitArray {
 }
 
 impl PcodeEmitArray {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     pub fn new() -> Self {
         Self { ops: Vec::new() }
     }
-    // RUGRA-GLUE: len (no Ghidra counterpart found)
+    // RUDRA-GLUE: len (no Ghidra counterpart found)
     pub fn len(&self) -> usize {
         self.ops.len()
     }
-    // RUGRA-GLUE: is_empty (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_empty (no Ghidra counterpart found)
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty()
     }
 }
 
 impl PcodeEmit for PcodeEmitArray {
-    // RUGRA-GLUE: dump (no Ghidra counterpart found)
+    // RUDRA-GLUE: dump (no Ghidra counterpart found)
     fn dump(
         &mut self,
         addr: u64,
@@ -549,7 +549,7 @@ impl PcodeEmit for PcodeEmitArray {
 /// One resolved p-code op held by the injection cacher. Mirrors
 /// `PcodeData` (sleigh.hh:46-50) as a value type; the label-reference
 /// back-patch target is the `inputs[0]` of a relative-branch op.
-// RUGRA-GLUE: value-type mirror of sleigh.hh:46 PcodeData because Rugra has
+// RUDRA-GLUE: value-type mirror of sleigh.hh:46 PcodeData because Rugra has
 // no pooled VarnodeData arena; resolveRelatives mutates in place instead of
 // through pool pointers.
 struct PcodeDataInject {
@@ -562,7 +562,7 @@ struct PcodeDataInject {
 /// `PcodeCacher::RelativeRecord` (sleigh.hh:70-73): the referenced label id
 /// sits in `inputs[0].offset` of `issued[op_index]`, and
 /// `calling_index` is the issuing op's own index.
-// RUGRA-GLUE: (op_index, calling_index) pair instead of a pool pointer.
+// RUDRA-GLUE: (op_index, calling_index) pair instead of a pool pointer.
 struct RelativeRecordInject {
     op_index: usize,
     calling_index: usize,
@@ -582,7 +582,7 @@ impl InjectPayload {
     ///
     /// The ops are returned as `PcodeOpRaw` records (no SeqNum — the caller's
     /// bank adapter stamps the base address, exactly like `PcodeEmitFd::dump`
-    /// receiving `addr` from `cacher.emit`). RUGRA-GLUE: Ghidra hands a live
+    /// receiving `addr` from `cacher.emit`). RUDRA-GLUE: Ghidra hands a live
     /// `PcodeEmit&` into `inject`; Rust's borrow rules forbid lending
     /// `&mut Funcdata` through `&self`, so the emit step materializes into a
     /// `PcodeEmitArray` first and the bank write happens in the caller
@@ -685,7 +685,7 @@ impl InjectPayload {
 /// Builder state for one template execution. Mirrors the `SleighBuilder`
 /// walk over a `ConstructTpl` (semantics.cc:925-952 `PcodeBuilder::build`)
 /// with the `PcodeCacher` accumulator (sleigh.hh:58) inlined.
-// RUGRA-GLUE: struct-based builder because Rust has no ParserWalker; the
+// RUDRA-GLUE: struct-based builder because Rust has no ParserWalker; the
 // injection-relevant walker state (fixed handles + inject addresses) is
 // carried by value.
 struct InjectBuilder<'c> {
@@ -747,7 +747,7 @@ impl<'c> InjectBuilder<'c> {
         })
     }
 
-    // RUGRA-GLUE: payload_name (source description for error text)
+    // RUDRA-GLUE: payload_name (source description for error text)
     fn payload_name(&self) -> String {
         format!("inject @ {:#x}", self.context.base_addr)
     }
@@ -807,7 +807,7 @@ impl<'c> InjectBuilder<'c> {
             self.fix(&vn_tpl.offset)?
         } else {
             // space.hh:383 AddrSpace::wrapOffset — offsets within the space
-            // bound pass through unchanged. RUGRA-GLUE: Rugra's AddressSpace
+            // bound pass through unchanged. RUDRA-GLUE: Rugra's AddressSpace
             // tag enum carries no `highest` metadata (ADDRESS-0001 family);
             // injection snippet offsets are in-bounds machine/unique
             // offsets, so the pass-through covers the reachable inputs and
@@ -819,7 +819,7 @@ impl<'c> InjectBuilder<'c> {
 
     /// Resolve a ConstTpl to its value in context. Faithful to
     /// `ConstTpl::fix` (semantics.cc:116-179) for the injection-reachable
-    /// const types. RUGRA-GLUE: `j_curspace`/`spaceid` positions where C++
+    /// const types. RUDRA-GLUE: `j_curspace`/`spaceid` positions where C++
     /// yields the AddrSpace heap pointer yield Rugra's stable `space_id()`
     /// tag (only observable in LOAD space-reference constants, where
     /// PcodeEmitFd reads it via getSpaceFromConst).
@@ -838,7 +838,7 @@ impl<'c> InjectBuilder<'c> {
             // inject_sleigh.cc:52 setCalladdr(con.calladdr) feeds getDestAddr.
             ConstTpl::JFlowDest => Ok(self.context.call_addr),
             // ParserContext::getCurSpace()->getAddrSize() — the address size
-            // of the instruction space. RUGRA-GLUE: Rugra's AddressSpace tag
+            // of the instruction space. RUDRA-GLUE: Rugra's AddressSpace tag
             // enum carries no per-space metadata; the SLEIGH x86-64 machine
             // model that Rugra pins defines the default space with 8-byte
             // addresses (ADDRESS-0001 family residual).
@@ -906,7 +906,7 @@ impl<'c> InjectBuilder<'c> {
 
 /// The `PcodeCacher` accumulator state after a build walk: issued ops plus
 /// the label bookkeeping consumed by `resolveRelatives`.
-// RUGRA-GLUE: value bundle mirroring sleigh.hh:58 PcodeCacher fields.
+// RUDRA-GLUE: value bundle mirroring sleigh.hh:58 PcodeCacher fields.
 struct CacherState {
     issued: Vec<PcodeDataInject>,
     label_refs: Vec<RelativeRecordInject>,
@@ -1014,7 +1014,7 @@ impl PcodeInjectLibrary {
         self.injection.get(injectid as usize)
     }
 
-    // RUGRA-GLUE: get_payload (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_payload (no Ghidra counterpart found)
     /// Look a payload up by formal name.  Ghidra resolves names through the
     /// per-type maps; this convenience view scans `injection` in id order
     /// (first match wins) for callers like FlowInfo that hold a payload
@@ -1288,7 +1288,7 @@ impl PcodeInjectLibrary {
     /// leaves the allocated payload in the `injection` vector as an
     /// unregistered orphan (non-transactional, like Ghidra).
     ///
-    /// RUGRA-GLUE: the extra `body_content` parameter carries the current
+    /// RUDRA-GLUE: the extra `body_content` parameter carries the current
     /// payload's `<body>` character content, which Ghidra reads via
     /// `readString(ATTRIB_CONTENT)` but Rugra's `TreeDecoder` cannot
     /// surface through the `Decoder` trait (see `InjectPayload::decode_body`).

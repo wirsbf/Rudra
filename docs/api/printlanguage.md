@@ -67,14 +67,14 @@ Base language printing interface — Reverse Polish Notation (RPN) engine.
 
 对应 Ghidra 的 `printlanguage.hh` / `printlanguage.cc`。本模块移植了共享基类 `PrintLanguage` 的基础设施：RPN token 栈、运算符优先级/括号化算法、Atom/OpToken 数据类型，以及格式化工具。
 
-Rugra 的 `PrintC` 目前为了输出质量直接通过 `Emit` 发射；本模块只提供了部分 Ghidra 基类算法接口：
+Rudra 的 `PrintC` 目前为了输出质量直接通过 `Emit` 发射；本模块只提供了部分 Ghidra 基类算法接口：
 1. 括号化算法（`parentheses()`）可作为 1:1 参考使用。
 2. RPN 数据类型（`OpToken`/`ReversePolish`/`Atom`/`NodePending`）作为 Ghidra 对齐的规范定义存在。
 3. 纯格式化工具可以针对 Ghidra 行为进行单元测试。
 
 ## Ghidra 对应关系
 
-| Ghidra (printlanguage.cc/hh) | Rugra (printlanguage.rs) | 行号 |
+| Ghidra (printlanguage.cc/hh) | Rudra (printlanguage.rs) | 行号 |
 |---|---|---|
 | `PrintLanguage::modifiers` enum | `modifiers` mod (FORCE_HEX..PENDING_BRACE) | hh:144 |
 | `PrintLanguage::tagtype` enum | `TagType` enum | hh:163 |
@@ -142,7 +142,7 @@ Rugra 的 `PrintC` 目前为了输出质量直接通过 `Emit` 发射；本模�
 
 ### 12.0.4 oracle：`PRINT-RPN-0001A`
 
-运行 `tools/run_printlanguage_group_oracle.sh` 会分别执行锁定 Ghidra 与 Rugra，
+运行 `tools/run_printlanguage_group_oracle.sh` 会分别执行锁定 Ghidra 与 Rudra，
 并对 stdout 做无规范化 direct diff。四个已覆盖结果为：
 
 ```text

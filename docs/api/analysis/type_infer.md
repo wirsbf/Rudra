@@ -19,3 +19,4 @@ piVar92=*(int*)(piVar89+0x128) 仍显示 int* —— 变量名在声明阶段生
 
 ### 2026-08-23（VARIABLE-GETTYPE-LAZY-UPDATETYPE-0001 编译适配）
 type_infer.rs 两处 high 类型直写 `high_arc.write().unwrap().v_type = X` 改为 `.v_type.set(X)`（:296 new_type、:380 elem_type）。`HighVariable::v_type` 缓存迁入 `TypeCell` 锁域（Ghidra variable.hh:141 `mutable` 的对应物，详见 docs/api/variable.md）。`.set()` 保持原直写缓存语义（不置脏），行为不变。
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

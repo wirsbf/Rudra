@@ -109,7 +109,7 @@ orchestrates 变换生命周期。
   这是 Ghidra 的虚函数分派点（transform.hh:171；`SubfloatFlow::preserveAddress`
   subflow.cc:3451 覆写返回 `vn->isInput()`）；Rust 用
   `preserve_address_override` 钩子镜像 vtable 槽，`None` 走基类逻辑
-- `set_preserve_address_override(f)` — 安装上述覆写钩子（RUGRA-GLUE）
+- `set_preserve_address_override(f)` — 安装上述覆写钩子（RUDRA-GLUE）
 - `clear_varnode_marks()` — 清除所有占位符 Varnode 的 mark (transform.cc:356)
 - 字段：`preserve_address_override`（pub，虚分派镜像）
 

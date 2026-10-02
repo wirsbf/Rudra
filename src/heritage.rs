@@ -197,7 +197,7 @@ impl LocationMap {
     }
 
     // Ghidra: heritage.cc:33 LocationMap::add
-    // RUGRA-GLUE: adapter for the iterator returned by LocationMap::add.
+    // RUDRA-GLUE: adapter for the iterator returned by LocationMap::add.
     /// Locate the map entry containing `addr`. Ghidra's `LocationMap::add`
     /// returns an iterator to the (possibly merged) entry covering the added
     /// range; the driver then reads `(*liter).first` / `(*liter).second.size`
@@ -255,7 +255,7 @@ pub struct MemRange {
     /// space-carrying Address (heritage.hh:60); Rugra's `Address` is an
     /// offset-only scalar, so the space rides as an explicit field until
     /// ADDRESS-0001 lands.
-    // RUGRA-GLUE: explicit-space mirror of the oracle Address identity.
+    // RUDRA-GLUE: explicit-space mirror of the oracle Address identity.
     pub space: AddressSpace,
 }
 
@@ -280,7 +280,7 @@ impl MemRange {
 }
 
 // Ghidra: heritage.hh:80 TaskList
-// RUGRA-GLUE: derive Debug for the Heritage Debug impl (Ghidra has no such need).
+// RUDRA-GLUE: derive Debug for the Heritage Debug impl (Ghidra has no such need).
 #[derive(Debug)]
 /// A disjoint list of address ranges to be processed in SSA form.
 /// Faithful to `TaskList` (heritage.hh:80-93).
@@ -289,7 +289,7 @@ pub struct TaskList {
 }
 
 impl TaskList {
-    // RUGRA-GLUE: Rust Default constructor for TaskList (Ghidra uses default list ctor)
+    // RUDRA-GLUE: Rust Default constructor for TaskList (Ghidra uses default list ctor)
     pub fn new() -> Self {
         Self { tasklist: Vec::new() ,
         }
@@ -690,7 +690,7 @@ fn space_highest(_spc: AddressSpace) -> u64 {
 /// Corresponds to Ghidra's `Heritage` class
 #[derive(Debug)]
 pub struct Heritage {
-    // RUGRA-GLUE: Ghidra's `Funcdata *fd` (heritage.hh:249) is a non-owning raw
+    // RUDRA-GLUE: Ghidra's `Funcdata *fd` (heritage.hh:249) is a non-owning raw
     // pointer used re-entrantly by every pass helper. Rust cannot store an
     // aliasing mutable handle inside an object that Funcdata itself owns
     // (the former `Weak<RwLock<Funcdata>>` field re-entered the write lock and
@@ -1130,7 +1130,7 @@ impl Heritage {
         }
     }
 
-    // RUGRA-GLUE: Rugra-specific stack-store discovery; no 1:1 Ghidra function.
+    // RUDRA-GLUE: Rugra-specific stack-store discovery; no 1:1 Ghidra function.
     /// Forward-descend the stack-pointer input varnode, mark STOREs whose
     /// pointer reaches it as spacebase users, and materialize stack-space
     /// INDIRECT writes for them. This is Rugra's approximation of the
@@ -1604,7 +1604,7 @@ impl Heritage {
         false
     }
 
-    // RUGRA-GLUE: Rust helper factoring the shared push-or-dead-end tail of
+    // RUDRA-GLUE: Rust helper factoring the shared push-or-dead-end tail of
     // the four discoverIndexedStackPointers switch cases (heritage.cc:1015-
     // 1022 / 1045-1051 / 1057-1063); Ghidra has no separate function.
     // A chain node with at least one live descendant is marked and pushed;
@@ -2791,7 +2791,7 @@ impl Heritage {
     /// map (`Address::cmp` sorts `None` before every `Some(_)` tag);
     /// both sides must migrate to space-tagged keys together at the
     /// ADDRESS-0001 phase-3 merge.
-    // RUGRA-GLUE: static scope-local projection of the oracle's
+    // RUDRA-GLUE: static scope-local projection of the oracle's
     // fd->getScopeLocal()->queryProperties call; Funcdata owns ScopeLocal
     // by value (varmap.rs), not through the Database scope graph.
     pub fn guard_query_properties(
@@ -2958,7 +2958,7 @@ impl Heritage {
     /// (setSymbolProperties) degrades to the entry-derived flags from
     /// [`Heritage::guard_query_properties`] (Rust ScopeLocal carries no
     /// SymbolEntry wiring on this path).
-    // RUGRA-GLUE: bank-created varnodes have no Funcdata::newVarnode wrapper
+    // RUDRA-GLUE: bank-created varnodes have no Funcdata::newVarnode wrapper
     // in Rust; this is its observable flag tail.
     pub fn apply_new_varnode_flags(fd: &Funcdata, vn: &Arc<RwLock<Varnode>>) {
         let (space, offset, size) = {
@@ -3551,7 +3551,7 @@ impl Heritage {
         }
     }
 
-    // RUGRA-GLUE: borrow-splitting helper — applies
+    // RUDRA-GLUE: borrow-splitting helper — applies
     // LoadGuard::establishRange with the solver's ValueSetRead for the
     // guard op's SeqNum (cc:878/884). When the solver holds no read for the
     // op (dead-op skip inside establish_value_sets — Ghidra's raw-pointer
@@ -3569,7 +3569,7 @@ impl Heritage {
         }
     }
 
-    // RUGRA-GLUE: borrow-splitting helper — applies
+    // RUDRA-GLUE: borrow-splitting helper — applies
     // LoadGuard::finalizeRange (cc:893/897); same dead-op fallback as
     // establish_guard_range keeps state 1 with the established range.
     fn finalize_guard_range(solver: &mut crate::rangeutil::ValueSetSolver, guard: &mut LoadGuard) {
@@ -3884,7 +3884,7 @@ impl Heritage {
     ) {
         // cc:1544: container = spc->getContain() — for the enum-space model
         // only the Stack (spacebase) space has a container, which is Ram.
-        // RUGRA-GLUE: enum AddressSpace exposes no getContain; this mirrors
+        // RUDRA-GLUE: enum AddressSpace exposes no getContain; this mirrors
         // the locked x86:LE:64 oracle's contain graph.
         let container: Option<AddressSpace> = match space {
             AddressSpace::Stack => Some(AddressSpace::Ram),
@@ -6252,7 +6252,7 @@ impl Heritage {
         self.merge.clear();
     }
 
-    // RUGRA-GLUE: Rugra-specific dominance-frontier phi placement; Ghidra has no `placeMultiequalsDirect`.
+    // RUDRA-GLUE: Rugra-specific dominance-frontier phi placement; Ghidra has no `placeMultiequalsDirect`.
     /// Insert Phi nodes directly using bank references. NOT the canonical
     /// algorithm: Ghidra's `placeMultiequals` (heritage.cc:2599-2645) derives
     /// merge blocks from the augmented dominator tree, not a dominance
@@ -6374,11 +6374,11 @@ impl Heritage {
         }
     }
 
-    // RUGRA-GLUE: Borrow-safe extraction of one merge-block insertion from Heritage::placeMultiequals (heritage.cc:2631-2642).
+    // RUDRA-GLUE: Borrow-safe extraction of one merge-block insertion from Heritage::placeMultiequals (heritage.cc:2631-2642).
     // (The former `insert_multiequal` Funcdata-bank adapter wrapper was removed with the production direct path in
     // HERITAGE-DRIVER-SWITCH-0001: it had no remaining callers.)
 
-    // RUGRA-GLUE: Borrow-safe extraction of one merge-block insertion from Heritage::placeMultiequals (heritage.cc:2631-2642).
+    // RUDRA-GLUE: Borrow-safe extraction of one merge-block insertion from Heritage::placeMultiequals (heritage.cc:2631-2642).
     fn insert_multiequal_direct(
         &mut self,
         vbank: &mut VarnodeBank,
@@ -6765,7 +6765,7 @@ impl Heritage {
         }
     }
 
-    // RUGRA-GLUE: Direct-bank SSA driver around locked Heritage::rename/renameRecurse; it separates Rust-owned banks and its broader driver differences are documented.
+    // RUDRA-GLUE: Direct-bank SSA driver around locked Heritage::rename/renameRecurse; it separates Rust-owned banks and its broader driver differences are documented.
     /// Perform SSA renaming directly using bank references.
     /// `vbank` is taken by &mut because heritage.cc:2501/2511 calls
     /// `fd->setInputVarnode` and cc:2520/2549 calls `fd->deleteVarnode`,
@@ -6828,7 +6828,7 @@ impl Heritage {
         }
     }
 
-    // RUGRA-GLUE: Borrow-safe adapter that temporarily separates Funcdata::vbank before the iterative renameRecurse adapter below.
+    // RUDRA-GLUE: Borrow-safe adapter that temporarily separates Funcdata::vbank before the iterative renameRecurse adapter below.
     fn visit_rename(
         &mut self,
         fd: &mut Funcdata,

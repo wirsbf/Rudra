@@ -132,7 +132,7 @@ pub struct TraceDAG<'a> {
 }
 
 impl<'a> TraceDAG<'a> {
-    // RUGRA-GLUE: new (constructor; Ghidra TraceDAG::TraceDAG blockaction.cc:951)
+    // RUDRA-GLUE: new (constructor; Ghidra TraceDAG::TraceDAG blockaction.cc:951)
     pub fn new(graph: &'a BlockGraph) -> Self {
         Self {
             graph,
@@ -149,12 +149,12 @@ impl<'a> TraceDAG<'a> {
         }
     }
 
-    // RUGRA-GLUE: add_root (blockaction.hh:177 TraceDAG::addRoot)
+    // RUDRA-GLUE: add_root (blockaction.hh:177 TraceDAG::addRoot)
     pub fn add_root(&mut self, root_idx: i32) {
         self.roots.push(root_idx);
     }
 
-    // RUGRA-GLUE: size_out (block accessor via graph index)
+    // RUDRA-GLUE: size_out (block accessor via graph index)
     fn size_out(&self, idx: i32) -> usize {
         if let Some(b) = self.graph.get_block(idx as usize) {
             b.read().unwrap().size_out()
@@ -163,7 +163,7 @@ impl<'a> TraceDAG<'a> {
         }
     }
 
-    // RUGRA-GLUE: get_out (block accessor via graph index)
+    // RUDRA-GLUE: get_out (block accessor via graph index)
     fn get_out(&self, idx: i32, slot: usize) -> Option<i32> {
         if let Some(b) = self.graph.get_block(idx as usize) {
             let r = b.read().unwrap();
@@ -174,7 +174,7 @@ impl<'a> TraceDAG<'a> {
         }
     }
 
-    // RUGRA-GLUE: size_in (block accessor via graph index)
+    // RUDRA-GLUE: size_in (block accessor via graph index)
     fn size_in(&self, idx: i32) -> usize {
         if let Some(b) = self.graph.get_block(idx as usize) {
             b.read().unwrap().size_in()
@@ -292,13 +292,13 @@ impl<'a> TraceDAG<'a> {
         self.active_count -= 1;
     }
 
-    // RUGRA-GLUE: begin_slot (std::list activetrace.begin() equivalent)
+    // RUDRA-GLUE: begin_slot (std::list activetrace.begin() equivalent)
     /// First occupied slot, or None for an empty list.
     fn begin_slot(&self) -> Option<usize> {
         self.active_slots.iter().position(|s| s.is_some())
     }
 
-    // RUGRA-GLUE: next_slot (std::list iterator++ equivalent)
+    // RUDRA-GLUE: next_slot (std::list iterator++ equivalent)
     /// Next occupied slot strictly after `s`, scanning to the end of the
     /// list; None when the iterator would reach end().
     fn next_slot(&self, s: usize) -> Option<usize> {
@@ -825,7 +825,7 @@ impl<'a> TraceDAG<'a> {
         }
     }
 
-    // RUGRA-GLUE: run (initialize + pushBranches driver)
+    // RUDRA-GLUE: run (initialize + pushBranches driver)
     /// Run the full TraceDAG: initialize, push branches, return likely goto edges.
     pub fn run(mut self) -> Vec<FloatingEdge> {
         self.initialize();
@@ -834,7 +834,7 @@ impl<'a> TraceDAG<'a> {
     }
 }
 
-// RUGRA-GLUE: generate_likely_gotos (Ghidra CollapseStructure::updateLoopBody
+// RUDRA-GLUE: generate_likely_gotos (Ghidra CollapseStructure::updateLoopBody
 // whole-DAG branch, blockaction.cc:1233-1239: roots = every sizeIn==0 block).
 /// Generate likely goto edges for a function's control-flow graph (no loop
 /// restriction). Returns (source, dest) edges to consider as unstructured.

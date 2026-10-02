@@ -56,11 +56,11 @@ pub struct Comment {
     pub emitted: AtomicBool,
 }
 
-// RUGRA-GLUE: field-wise Clone for the AtomicBool `emitted` member (C++'s
+// RUDRA-GLUE: field-wise Clone for the AtomicBool `emitted` member (C++'s
 // implicit copy constructor copies the bool verbatim; AtomicBool has no
 // Clone impl, so the current flag value is re-loaded into the copy).
 impl Clone for Comment {
-    // RUGRA-GLUE: std::clone::Clone trait impl — Rust language structure.
+    // RUDRA-GLUE: std::clone::Clone trait impl — Rust language structure.
     fn clone(&self) -> Self {
         Self {
             type_flags: self.type_flags,
@@ -533,20 +533,20 @@ impl CommentSorter {
         }
     }
 
-    // RUGRA-GLUE: std::map<Subsort,Comment*>::lower_bound rank projection.
+    // RUDRA-GLUE: std::map<Subsort,Comment*>::lower_bound rank projection.
     // Ghidra's map iterators are node pointers; Rugra models the sorted map
     // as a vector and the iterator as its rank (first entry with key >= key).
     fn lower_bound_rank(&self, key: &Subsort) -> usize {
         self.commmap.partition_point(|(k, _)| *k < *key)
     }
 
-    // RUGRA-GLUE: std::map<Subsort,Comment*>::upper_bound rank projection
+    // RUDRA-GLUE: std::map<Subsort,Comment*>::upper_bound rank projection
     // (first entry with key > key).
     fn upper_bound_rank(&self, key: &Subsort) -> usize {
         self.commmap.partition_point(|(k, _)| *k <= *key)
     }
 
-    // RUGRA-GLUE: PcodeOp::getParent accessor mirroring op.hh's `BlockBasic
+    // RUDRA-GLUE: PcodeOp::getParent accessor mirroring op.hh's `BlockBasic
     // *getParent(void)`; Rugra stores the parent as a Weak<dyn FlowBlock>.
     fn op_parent(
         op: &crate::op::PcodeOp,
@@ -757,7 +757,7 @@ impl CommentSorter {
         };
         let op_read = op.0.read().unwrap();
         let Some(parent) = Self::op_parent(&op_read) else {
-            // RUGRA-GLUE: Ghidra dereferences op->getParent() unchecked
+            // RUDRA-GLUE: Ghidra dereferences op->getParent() unchecked
             // (comment.cc:370); every oracle caller passes an op obtained
             // from a block's op list. Guard by leaving the landmark alone.
             return;

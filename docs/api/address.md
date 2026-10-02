@@ -432,7 +432,7 @@ SeqNum 空间化（随 varnode 消费方迁移）。
 形态落地；`Address::read` 仍留 MARSHAL-XML-TEXT-0001）：
 
 - `elem_addr()`（address.cc:25 `ELEM_ADDR = ElementId("addr",11)`）：`<addr>` 元素 id
-  构造器（RUGRA-GLUE 模式同 pcodeparse.rs 的重复声明）。
+  构造器（RUDRA-GLUE 模式同 pcodeparse.rs 的重复声明）。
 - `SpaceAddress::encode(encoder)` / `encode_with_size(encoder, size)`
   （address.hh:469-486）：open `<addr>` → 非空 base 委托空间的
   `encode_attributes`/`encode_attributes_with_size`（space.cc:143/156）→ close；

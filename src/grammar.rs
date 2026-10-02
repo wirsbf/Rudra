@@ -1123,7 +1123,7 @@ impl TypeDeclarator {
 /// `getWordSize()` and calls `glb->types->getTypePointer(addrsize, base,
 /// wordsize)`. Rugra's twin `get_type_pointer_default` reads the default
 /// data-space address size captured on the `TypeFactory` and models the
-/// production default word size as one (RUGRA-GLUE documented on the twin).
+/// production default word size as one (RUDRA-GLUE documented on the twin).
 ///
 /// Decisive semantics: no reference/out parameters; no loops; no counters;
 /// identity/dedup key = the TypeFactory canonical-pointer lookup.
@@ -1189,7 +1189,7 @@ pub fn function_mod_type(
     Some(types.get_type_code_pieces(&fspec_proto))
 }
 
-// RUGRA-GLUE: enum dispatch replacing the C++ virtual
+// RUDRA-GLUE: enum dispatch replacing the C++ virtual
 // `TypeModifier::modType` call sites (grammar.cc:2501 in
 // `TypeDeclarator::buildType` and grammar.cc:2542 in
 // `TypeDeclarator::getPrototype`); the per-class behaviour lives in the
@@ -1245,7 +1245,7 @@ pub fn function_modifier_ctor(declist: Vec<TypeDeclarator>, dotdotdot: bool) -> 
     TypeModifier::Function { params, dotdotdot }
 }
 
-// RUGRA-GLUE: Rugra encoding of the null `TypeDeclarator *` slot that
+// RUDRA-GLUE: Rugra encoding of the null `TypeDeclarator *` slot that
 // grammar.y:180 pushes for the `parameter_list ',' DOTDOTDOT` production
 // (the varargs trailer `newFunc` detects and pops at grammar.cc:2769-2772).
 // Rust cannot store a null in `Vec<TypeDeclarator>`, so the trailer is a
@@ -1407,7 +1407,7 @@ pub struct CParse {
     lineno: i32,
     colno: i32,
     filenum: i32,
-    /// Single-token lookahead cache. RUGRA-GLUE: bison's lexer is pull-based
+    /// Single-token lookahead cache. RUDRA-GLUE: bison's lexer is pull-based
     /// and supports arbitrary lookahead; this single-slot cache implements the
     /// `peek`/`advance` pair used by the hand-written `yyparse`.
     peeked: Option<GrammarToken>,
@@ -1651,7 +1651,7 @@ impl CParse {
     pub fn new_func(&mut self, dec: &mut TypeDeclarator, mut declist: Vec<TypeDeclarator>) {
         let mut dotdotdot = false;
         if let Some(true) = declist.last().map(|d| d.ident.is_empty() && d.mods.is_empty() && d.basetype.is_none() && d.flags == u32::MAX) {
-            // RUGRA-GLUE: Ghidra signals varargs via a `null` slot in the
+            // RUDRA-GLUE: Ghidra signals varargs via a `null` slot in the
             // paramlist (grammar.y:180 pushes it; FunctionModifier ctor at
             // grammar.cc:2419 receives it popped); Rugra encodes that trailer
             // as a sentinel declarator with `flags=u32::MAX`.
@@ -2096,7 +2096,7 @@ impl CParse {
         self.run_parse(doctype)
     }
 
-    // RUGRA-GLUE: typed twin of `parseStream`. The C++ `CParse` reaches its
+    // RUDRA-GLUE: typed twin of `parseStream`. The C++ `CParse` reaches its
     // `TypeFactory` through the `Architecture *glb` captured at
     /// construction; the arch-less Rust construction cannot, so the factory
     /// is threaded per call. Only the `TYPE_NAME` specifier resolution
@@ -2132,7 +2132,7 @@ impl CParse {
         true
     }
 
-    // RUGRA-GLUE: typed twin of `runParse` used by the arch-less entry
+    // RUDRA-GLUE: typed twin of `runParse` used by the arch-less entry
     // points (`parse_type_full` / `parse_protopieces` / `parse_c`). The
     // C++ parser reaches its `TypeFactory` through the `Architecture *glb`
     // captured at construction; Rust threads a mutable factory reference
@@ -2276,7 +2276,7 @@ impl CParse {
         Some(())
     }
 
-    // RUGRA-GLUE: hand-written helper, no direct Ghidra counterpart. The
+    // RUDRA-GLUE: hand-written helper, no direct Ghidra counterpart. The
     // bison grammar's `declarator` / `abstract_declarator` productions
     // (grammar.y:151-153 / 190-194) are reduced here. Modifier push order
     // mirrors bison reduction order exactly: the `direct_declarator`
@@ -2317,7 +2317,7 @@ impl CParse {
         Some(())
     }
 
-    // RUGRA-GLUE: hand-written helper reducing `direct_declarator` /
+    // RUDRA-GLUE: hand-written helper reducing `direct_declarator` /
     // `direct_abstract_declarator` (grammar.y:156-163 / 195-199). The
     // productions are:
     //   `IDENTIFIER` (named core; absent for abstract declarators)
@@ -2456,7 +2456,7 @@ impl CParse {
         Some(())
     }
 
-    // RUGRA-GLUE: hand-written helper for the bison grammar's
+    // RUDRA-GLUE: hand-written helper for the bison grammar's
     // `parameter_declaration` production (grammar.y:186-190):
     //   parameter_declaration:
     //     declaration_specifiers declarator
@@ -2531,7 +2531,7 @@ impl CParse {
         Some(dec)
     }
 
-    // RUGRA-GLUE: hand-written helper reducing `struct_or_union_specifier`
+    // RUDRA-GLUE: hand-written helper reducing `struct_or_union_specifier`
     // and `enum_specifier` (grammar.y:97-116 / 137-143). Consumes the tag
     // keyword; parses the optional identifier and the brace body (or falls
     // back to the `oldStruct`/`oldUnion`/`oldEnum` reference forms), then
@@ -2634,7 +2634,7 @@ impl CParse {
         }
     }
 
-    // RUGRA-GLUE: hand-written helper reducing `struct_declaration_list`
+    // RUDRA-GLUE: hand-written helper reducing `struct_declaration_list`
     // (grammar.y:108-112): a non-empty sequence of `struct_declaration`s,
     /// each `specifier_qualifier_list struct_declarator_list ';'`
     /// (grammar.y:114-122), with the specifier list merged into every
@@ -2728,7 +2728,7 @@ impl CParse {
         Some(all)
     }
 
-    // RUGRA-GLUE: hand-written helper reducing `enumerator_list`
+    // RUDRA-GLUE: hand-written helper reducing `enumerator_list`
     // (grammar.y:144-147): `enumerator (',' enumerator)*` where each
     /// `enumerator` is `IDENTIFIER` or `IDENTIFIER '=' NUMBER`
     /// (grammar.y:149-151) built via `newEnumerator`.
@@ -2789,7 +2789,7 @@ impl CParse {
         Some(list)
     }
 
-    // RUGRA-GLUE: single-token lookahead cache to mirror the bison lexer.
+    // RUDRA-GLUE: single-token lookahead cache to mirror the bison lexer.
     // Returns a clone of the cached token; never consumes input. EOF maps to
     // `None` so the parser can `?`-bail uniformly.
     fn peek_token(&mut self) -> Option<GrammarToken> {
@@ -2807,7 +2807,7 @@ impl CParse {
         self.peeked.clone()
     }
 
-    // RUGRA-GLUE: consume the cached token, if any. Mirrors the implicit
+    // RUDRA-GLUE: consume the cached token, if any. Mirrors the implicit
     // "match and advance" of the bison grammar actions.
     fn advance(&mut self) {
         self.peeked = None;
@@ -3138,7 +3138,7 @@ pub fn parse_machaddr(text: &str) -> Option<(Address, i32, usize)> {
     }
 }
 
-// RUGRA-GLUE: helper that mirrors the C++ `Address::read(token)` behaviour of
+// RUDRA-GLUE: helper that mirrors the C++ `Address::read(token)` behaviour of
 // parsing a hex/decimal offset and returning the "standard size" implied by
 // the number of digits.
 fn parse_address_offset(tok: &str) -> Option<u64> {
@@ -3153,7 +3153,7 @@ fn parse_address_offset(tok: &str) -> Option<u64> {
     }
 }
 
-// RUGRA-GLUE: estimate the "standard size" from a textual offset. The C++
+// RUDRA-GLUE: estimate the "standard size" from a textual offset. The C++
 // version returns the byte-width reported by `Address::read`; Rugra has no
 // AddrSpaceManager here, so we infer 4/8 bytes from the magnitude.
 fn standard_size_for(tok: &str) -> i32 {

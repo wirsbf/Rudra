@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex};
 /// then calls `initialize_all()` to let each extension complete its
 /// integration.
 pub trait CapabilityPoint: Send + Sync {
-    // RUGRA-GLUE: initialize (no Ghidra counterpart found)
+    // RUDRA-GLUE: initialize (no Ghidra counterpart found)
     /// Complete initialization of an extension point. This is implemented by
     /// each extension so it can do specialized integration. Faithful to
     /// `initialize` (capability.hh:49).
@@ -42,14 +42,14 @@ pub struct CapabilityRegistry {
 }
 
 impl Default for CapabilityRegistry {
-    // RUGRA-GLUE: default (no Ghidra counterpart found)
+    // RUDRA-GLUE: default (no Ghidra counterpart found)
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl CapabilityRegistry {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Create an empty registry.
     pub fn new() -> Self {
         Self {
@@ -57,14 +57,14 @@ impl CapabilityRegistry {
         }
     }
 
-    // RUGRA-GLUE: register (no Ghidra counterpart found)
+    // RUDRA-GLUE: register (no Ghidra counterpart found)
     /// Register an extension point. Faithful to the `CapabilityPoint`
     /// constructor behavior (capability.cc:33) which auto-registers.
     pub fn register(&self, point: Arc<dyn CapabilityPoint>) {
         self.points.lock().unwrap().push(point);
     }
 
-    // RUGRA-GLUE: initialize_all (no Ghidra counterpart found)
+    // RUDRA-GLUE: initialize_all (no Ghidra counterpart found)
     /// Give all registered capabilities a chance to initialize. Faithful to
     /// `CapabilityPoint::initializeAll` (capability.cc:40). After calling
     /// `initialize()` on each extension, the list is cleared (matching Ghidra).
@@ -76,13 +76,13 @@ impl CapabilityRegistry {
         points.clear();
     }
 
-    // RUGRA-GLUE: num_points (no Ghidra counterpart found)
+    // RUDRA-GLUE: num_points (no Ghidra counterpart found)
     /// Number of registered extension points.
     pub fn num_points(&self) -> usize {
         self.points.lock().unwrap().len()
     }
 
-    // RUGRA-GLUE: is_empty (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_empty (no Ghidra counterpart found)
     /// Check if the registry is empty.
     pub fn is_empty(&self) -> bool {
         self.points.lock().unwrap().is_empty()
@@ -100,7 +100,7 @@ mod once_cell_shim {
     pub type OnceCell<T> = OnceLock<T>;
 }
 
-// RUGRA-GLUE: global_registry (no Ghidra counterpart found)
+// RUDRA-GLUE: global_registry (no Ghidra counterpart found)
 /// Get the global capability registry, initializing it on first access.
 pub fn global_registry() -> &'static CapabilityRegistry {
     GLOBAL_REGISTRY.get_or_init(|| CapabilityRegistry::new())

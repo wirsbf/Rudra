@@ -26,7 +26,7 @@ use std::sync::{Arc, RwLock};
 /// Memoized per-space maptable view state for [`ScopeLocal`] — see the
 /// `maptable_memo` field. `gen` is the `maptable_gen` the `views` were
 /// built at; any mismatch discards them wholesale.
-// RUGRA-GLUE: memo payload for the oracle's persistent
+// RUDRA-GLUE: memo payload for the oracle's persistent
 // ScopeInternal::maptable (database.hh:810) — pure cache, no oracle
 // counterpart beyond the persistent maptable it emulates.
 #[derive(Default)]
@@ -38,12 +38,12 @@ struct MaptableMemo {
 /// `Mutex` wrapper so `ScopeLocal` stays `Send + Sync` (Funcdata rides in
 /// `Arc<RwLock<Funcdata>>`, signature.rs); `Clone` resets — a clone cannot
 /// carry the non-`Clone` views and rebuilds on first use.
-// RUGRA-GLUE: reset-on-clone memo cell.
+// RUDRA-GLUE: reset-on-clone memo cell.
 #[derive(Default)]
 struct MaptableMemoCell(std::sync::Mutex<MaptableMemo>);
 
 impl Clone for MaptableMemoCell {
-    // RUGRA-GLUE: reset-on-clone (cache cell; the oracle's maptable lives in
+    // RUDRA-GLUE: reset-on-clone (cache cell; the oracle's maptable lives in
     // the scope object itself and needs no clone policy).
     fn clone(&self) -> Self {
         Self::default()
@@ -51,7 +51,7 @@ impl Clone for MaptableMemoCell {
 }
 
 impl std::fmt::Debug for MaptableMemoCell {
-    // RUGRA-GLUE: derive(Debug) requirement of ScopeLocal; opaque payload.
+    // RUDRA-GLUE: derive(Debug) requirement of ScopeLocal; opaque payload.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("MaptableMemoCell")
     }
@@ -700,7 +700,7 @@ impl AliasChecker {
         }
     }
 
-    // RUGRA-GLUE: boundary observation accessor for the locked oracle fixture
+    // RUDRA-GLUE: boundary observation accessor for the locked oracle fixture
     /// `(localBoundary, localExtreme, aliasBoundary)` — the Ghidra fixture
     /// reads these members directly through `#define private public`; the
     /// Rust fixture gets the same read-only view here.
@@ -1041,7 +1041,7 @@ fn func_proto_has_model(fd: &crate::funcdata::Funcdata) -> bool {
     false
 }
 
-// RUGRA-GLUE: window_in_range (RangeList::inRange over the Vec window model)
+// RUDRA-GLUE: window_in_range (RangeList::inRange over the Vec window model)
 /// `RangeList::inRange(addr, size)` (address.cc:468-487) over a sorted,
 /// inclusive `Vec<(first, last)>` window: empty → false; the last range with
 /// `first <= offset` must be in the same space (the Vec carries no space —
@@ -1063,7 +1063,7 @@ fn window_in_range(ranges: &[(u64, u64)], offset: u64, size: u64) -> bool {
     last >= offset.wrapping_add(size).wrapping_sub(1)
 }
 
-// RUGRA-GLUE: get_last_signed_range (RangeList::getLastSignedRange over the Vec model)
+// RUDRA-GLUE: get_last_signed_range (RangeList::getLastSignedRange over the Vec model)
 /// `RangeList::getLastSignedRange` (address.cc:562-583) over a sorted
 /// inclusive `Vec<(first, last)>`: treating high-bit-set offsets as coming
 /// *before* clear-high-bit offsets, return the last/latest contiguous range.
@@ -1167,7 +1167,7 @@ fn parse_name_unique_suffix(bname: &str, nm: &str) -> Option<u32> {
     Some(uniqid)
 }
 
-// RUGRA-GLUE: space_name (AddrSpace::getName for Rugra's space enum)
+// RUDRA-GLUE: space_name (AddrSpace::getName for Rugra's space enum)
 /// Ghidra reads `addr.getSpace()->getName()` (database.cc:2463/2474/2486);
 /// Rugra's `AddressSpace` is an enum with the canonical Ghidra space names.
 pub fn space_name(space: crate::space::AddressSpace) -> &'static str {
@@ -1184,7 +1184,7 @@ pub fn space_name(space: crate::space::AddressSpace) -> &'static str {
     }
 }
 
-// RUGRA-GLUE: addr_space_size (AddrSpace::getAddrSize for Rugra's space enum)
+// RUDRA-GLUE: addr_space_size (AddrSpace::getAddrSize for Rugra's space enum)
 /// Ghidra reads `addr.getSpace()->getAddrSize()` to width the hex offset
 /// (database.cc:2466/2489: `setw(2*addrSize)`); every Rugra space models an
 /// 8-byte address.
@@ -1192,7 +1192,7 @@ fn addr_space_size(_space: crate::space::AddressSpace) -> usize {
     8
 }
 
-// RUGRA-GLUE: capitalized_space_name (spacename[0] = toupper(spacename[0]))
+// RUDRA-GLUE: capitalized_space_name (spacename[0] = toupper(spacename[0]))
 /// Capitalize the space name the way database.cc:2464/2487 does
 /// (`spacename[0] = toupper(spacename[0])`).
 fn capitalized_space_name(space: crate::space::AddressSpace) -> String {
@@ -1343,7 +1343,7 @@ impl MapState {
         }
     }
 
-    // RUGRA-GLUE: direction install for the checker (Ghidra reads the space
+    // RUDRA-GLUE: direction install for the checker (Ghidra reads the space
     // member's growth flag; the Rust MapState stores the scope's value).
     /// Set the stack-growth direction the embedded checker uses when
     /// `gather_open` runs `checker.gather` (varmap.cc:1214/700).
@@ -1351,7 +1351,7 @@ impl MapState {
         self.stack_grows_negative = grows_negative;
     }
 
-    // RUGRA-GLUE: analysis window accessor (Ghidra reads the `range` member
+    // RUDRA-GLUE: analysis window accessor (Ghidra reads the `range` member
     // directly at varmap.cc:902/1067; Rust keeps it private with a read-only
     // probe for the oracle fixture's observation surface).
     /// The analysis window (scope range tree minus param ranges), sorted
@@ -1360,7 +1360,7 @@ impl MapState {
         &self.range
     }
 
-    // RUGRA-GLUE: hints accessor (Ghidra walks `maplist` directly through
+    // RUDRA-GLUE: hints accessor (Ghidra walks `maplist` directly through
     // the MapState iterators at varmap.cc:1080/1299; the Rust fixture needs
     // the same read-only view after initialize's sort).
     /// The collected RangeHints in current (post-initialize: sorted)
@@ -2067,7 +2067,7 @@ pub mod symbol_category {
     pub const FAKE_INPUT: i32 = 3;
 }
 
-// RUGRA-GLUE: SymbolStore — stable-identity symbol arena (database.hh:809
+// RUDRA-GLUE: SymbolStore — stable-identity symbol arena (database.hh:809
 //   ScopeInternal::nametree owns the Symbol objects by POINTER; Rust cannot
 //   hand out stable pointers from a Vec, so this arena hands out stable slot
 //   ids instead — the pointer-identity equivalent PERF-VARMAP-REMOVE-REKEY-0001
@@ -2113,12 +2113,12 @@ pub struct SymbolStore {
 }
 
 impl SymbolStore {
-    // RUGRA-GLUE: container constructor (no Ghidra counterpart)
+    // RUDRA-GLUE: container constructor (no Ghidra counterpart)
     pub fn new() -> Self {
         Self { slots: Vec::new(), live: 0 }
     }
 
-    // RUGRA-GLUE: arena allocation = new heap Symbol* (database.cc:1810)
+    // RUDRA-GLUE: arena allocation = new heap Symbol* (database.cc:1810)
     /// Allocate a fresh stable slot for `sym`, returning its slot id.
     pub fn push(&mut self, sym: LocalSymbol) -> usize {
         let id = self.slots.len();
@@ -2127,55 +2127,55 @@ impl SymbolStore {
         id
     }
 
-    // RUGRA-GLUE: live-slot read (null Symbol* reads as absent)
+    // RUDRA-GLUE: live-slot read (null Symbol* reads as absent)
     pub fn get(&self, idx: usize) -> Option<&LocalSymbol> {
         self.slots.get(idx).and_then(|s| s.as_ref())
     }
 
-    // RUGRA-GLUE: live-slot mutable read
+    // RUDRA-GLUE: live-slot mutable read
     pub fn get_mut(&mut self, idx: usize) -> Option<&mut LocalSymbol> {
         self.slots.get_mut(idx).and_then(|s| s.as_mut())
     }
 
-    // RUGRA-GLUE: pointer-liveness test (stale nametree-entry guard form
+    // RUDRA-GLUE: pointer-liveness test (stale nametree-entry guard form
     //   of the old `idx < symbols.len()` dense bounds check)
     pub fn has(&self, idx: usize) -> bool {
         self.slots.get(idx).is_some_and(|s| s.is_some())
     }
 
-    // RUGRA-GLUE: live count (the Vec::len a compacting store would show)
+    // RUDRA-GLUE: live count (the Vec::len a compacting store would show)
     pub fn len(&self) -> usize {
         self.live
     }
 
-    // RUGRA-GLUE: live emptiness
+    // RUDRA-GLUE: live emptiness
     pub fn is_empty(&self) -> bool {
         self.live == 0
     }
 
-    // RUGRA-GLUE: live iteration in slot-id order (compacted-Vec order)
+    // RUDRA-GLUE: live iteration in slot-id order (compacted-Vec order)
     pub fn iter(&self) -> impl Iterator<Item = &LocalSymbol> {
         self.slots.iter().flatten()
     }
 
-    // RUGRA-GLUE: live mutable iteration in slot-id order
+    // RUDRA-GLUE: live mutable iteration in slot-id order
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut LocalSymbol> {
         self.slots.iter_mut().flatten()
     }
 
-    // RUGRA-GLUE: last live symbol (Vec::last of the compacted view)
+    // RUDRA-GLUE: last live symbol (Vec::last of the compacted view)
     pub fn last(&self) -> Option<&LocalSymbol> {
         self.slots.iter().flatten().next_back()
     }
 
-    // RUGRA-GLUE: wholesale drop (the funcdata startProcessing/clear
+    // RUDRA-GLUE: wholesale drop (the funcdata startProcessing/clear
     //   `scope.symbols.clear()` seam — Ghidra's clearUnlocked projection)
     pub fn clear(&mut self) {
         self.slots.clear();
         self.live = 0;
     }
 
-    // RUGRA-GLUE: tombstone = delete symbol (database.cc:2149) with zero
+    // RUDRA-GLUE: tombstone = delete symbol (database.cc:2149) with zero
     //   re-keying of every other slot (the O(n²) hotspot this container
     //   exists to remove — PERF-VARMAP-REMOVE-REKEY-0001)
     pub(crate) fn remove_slot(&mut self, idx: usize) {
@@ -2184,7 +2184,7 @@ impl SymbolStore {
         }
     }
 
-    // RUGRA-GLUE: slot-aware first-match (Vec::iter().position() returned a
+    // RUDRA-GLUE: slot-aware first-match (Vec::iter().position() returned a
     //   DENSE index; this returns the stable slot id of the same first live
     //   match — the iteration orders coincide for any push/remove history.
     //   Order precision (CR-VARMREKEY F2): this is insertion (slot) order,
@@ -2201,7 +2201,7 @@ impl SymbolStore {
             .position(|s| s.as_ref().is_some_and(&mut pred))
     }
 
-    // RUGRA-GLUE: consuming live walk with slot ids (rebuild seam)
+    // RUDRA-GLUE: consuming live walk with slot ids (rebuild seam)
     pub(crate) fn into_live_slots(self) -> impl Iterator<Item = (usize, LocalSymbol)> {
         self.slots
             .into_iter()
@@ -2210,34 +2210,34 @@ impl SymbolStore {
     }
 }
 
-// RUGRA-GLUE: &store IntoIterator — `for sym in &scope.symbols` yields the
+// RUDRA-GLUE: &store IntoIterator — `for sym in &scope.symbols` yields the
 //   live symbols in slot-id order (the compacted-Vec traversal parity).
 impl<'a> IntoIterator for &'a SymbolStore {
     type Item = &'a LocalSymbol;
     type IntoIter = std::iter::Flatten<std::slice::Iter<'a, Option<LocalSymbol>>>;
-    // RUGRA-GLUE: IntoIterator glue (trait signature, no Ghidra counterpart)
+    // RUDRA-GLUE: IntoIterator glue (trait signature, no Ghidra counterpart)
     fn into_iter(self) -> Self::IntoIter {
         self.slots.iter().flatten()
     }
 }
 
-// RUGRA-GLUE: &mut store IntoIterator — the iter_mut()/for-in mutable pair.
+// RUDRA-GLUE: &mut store IntoIterator — the iter_mut()/for-in mutable pair.
 impl<'a> IntoIterator for &'a mut SymbolStore {
     type Item = &'a mut LocalSymbol;
     type IntoIter = std::iter::Flatten<std::slice::IterMut<'a, Option<LocalSymbol>>>;
-    // RUGRA-GLUE: IntoIterator glue (trait signature, no Ghidra counterpart)
+    // RUDRA-GLUE: IntoIterator glue (trait signature, no Ghidra counterpart)
     fn into_iter(self) -> Self::IntoIter {
         self.slots.iter_mut().flatten()
     }
 }
 
-// RUGRA-GLUE: Vec-parity indexing — a live slot dereferences like the dense
+// RUDRA-GLUE: Vec-parity indexing — a live slot dereferences like the dense
 //   Vec element; a dead/out-of-bounds slot panics loudly instead of silently
 //   aliasing a shifted neighbor (an impossible state for callers holding ids
 //   captured while the symbol was live).
 impl std::ops::Index<usize> for SymbolStore {
     type Output = LocalSymbol;
-    // RUGRA-GLUE: Index glue (operator[], no Ghidra counterpart)
+    // RUDRA-GLUE: Index glue (operator[], no Ghidra counterpart)
     fn index(&self, idx: usize) -> &LocalSymbol {
         self.slots[idx]
             .as_ref()
@@ -2245,9 +2245,9 @@ impl std::ops::Index<usize> for SymbolStore {
     }
 }
 
-// RUGRA-GLUE: mutable indexing (typelock/namelock writes through scope.symbols[idx])
+// RUDRA-GLUE: mutable indexing (typelock/namelock writes through scope.symbols[idx])
 impl std::ops::IndexMut<usize> for SymbolStore {
-    // RUGRA-GLUE: IndexMut glue (operator[]=, no Ghidra counterpart)
+    // RUDRA-GLUE: IndexMut glue (operator[]=, no Ghidra counterpart)
     fn index_mut(&mut self, idx: usize) -> &mut LocalSymbol {
         self.slots[idx]
             .as_mut()
@@ -2385,7 +2385,7 @@ impl LocalSymbol {
     }
 }
 
-// RUGRA-GLUE: canonical Ghidra space indices for the locked x86-64 oracle.
+// RUDRA-GLUE: canonical Ghidra space indices for the locked x86-64 oracle.
 /// Index of an address space in the locked BfdArchitecture
 /// (x86:LE:64:default:gcc). Ghidra assigns indices in space-creation order;
 /// the live oracle prints const=0, unique=2, ram=3, stack=8
@@ -2692,7 +2692,7 @@ pub struct ScopeLocal {
     /// at any later read that still observes generation G. In-place entry
     /// surgery exists only in tests, which call
     /// [`ScopeLocal::invalidate_maptable_views`] after mutating.
-    // RUGRA-GLUE: memoization bookkeeping for the per-space maptable views
+    // RUDRA-GLUE: memoization bookkeeping for the per-space maptable views
     // (the oracle keeps the views themselves persistent, database.hh:810).
     maptable_gen: u64,
     /// Memoized per-space `RangeMap<LocalMapEntry>` views — the Rust form of
@@ -2707,7 +2707,7 @@ pub struct ScopeLocal {
     /// pure function of (`mapentry_log`, space), verified by the
     /// scopelocal_query_1204 removal cases. Clone resets the memo (empty
     /// views, generation 0), so a clone rebuilds on first use.
-    // RUGRA-GLUE: reset-on-clone memo cell (Mutex for Sync; RangeMap is not
+    // RUDRA-GLUE: reset-on-clone memo cell (Mutex for Sync; RangeMap is not
     // Clone, so a clone cannot carry the views).
     maptable_memo: MaptableMemoCell,
     /// Live `Arc<RwLock<database::Symbol>>` handles keyed by stable slot id —
@@ -3379,7 +3379,7 @@ impl ScopeLocal {
         }
     }
 
-    // RUGRA-GLUE: per-query materialization of the space's EntryMap.
+    // RUDRA-GLUE: per-query materialization of the space's EntryMap.
     /// Build `maptable[space]` (database.hh:807) by replaying the static
     /// entry log in insertion order into the oracle-proven `RangeMap`.
     /// Equal-(last,subsort) keys keep insertion order (std::multiset
@@ -3395,7 +3395,7 @@ impl ScopeLocal {
         rangemap
     }
 
-    // RUGRA-GLUE: memoizing accessor for the per-space maptable view.
+    // RUDRA-GLUE: memoizing accessor for the per-space maptable view.
     /// Run `f` with the per-space maptable view — the oracle's persistent
     /// `maptable[spc->getIndex()]` (database.hh:810) consulted in place by
     /// every findContainer/queryProperties query. The view is rebuilt from
@@ -3424,7 +3424,7 @@ impl ScopeLocal {
         f(&memo.views[view].1)
     }
 
-    // RUGRA-GLUE: memo invalidation for the maptable views.
+    // RUDRA-GLUE: memo invalidation for the maptable views.
     /// Invalidate the memoized per-space maptable views. Bumped by every
     /// production mutation of `mapentry_log`; tests performing in-place
     /// entry surgery call this directly after mutating.
@@ -3904,7 +3904,7 @@ impl ScopeLocal {
         match main_result {
             Some(Ok(spc)) => {
                 // The value-model scope space is the `AddressSpace` enum —
-                // map the resolved manager space by name (RUGRA-GLUE: the
+                // map the resolved manager space by name (RUDRA-GLUE: the
                 // enum stand-in for Ghidra's `AddrSpace*` field,
                 // varmap.hh:213; a non-canonical name falls back to
                 // `Other(index)`).
@@ -4092,7 +4092,7 @@ impl ScopeLocal {
         // state.gatherVarnodes(*fd); (varmap.cc:1267)
         state.gather_varnodes(fd, &types);
         // gather_spacebase REMOVED (STACKSLOT-MATERIALIZE root cause):
-        // this RUGRA-GLUE compensation layer synthesized FIXED RangeHints for
+        // this RUDRA-GLUE compensation layer synthesized FIXED RangeHints for
         // every LOAD/STORE whose address "resolved" to an RSP-derived constant
         // offset — double-counting the directly-accessed slots whose stack
         // varnodes gather_varnodes already reports (Rugra's loc_tree carries
@@ -4164,7 +4164,7 @@ impl ScopeLocal {
         }
     }
 
-    // RUGRA-GLUE: wholesale-reset companion for the funcdata
+    // RUDRA-GLUE: wholesale-reset companion for the funcdata
     // startProcessing/clear `scope.symbols.clear()` seam (Ghidra's
     // localmap->clearUnlocked() projection, database.cc:2042-2064). The
     // oracle's clearUnlocked reaches removeSymbol, whose
@@ -4883,7 +4883,7 @@ impl ScopeLocal {
         self.nametree.insert(key, idx);
     }
 
-    // RUGRA-GLUE: memo-invalidation hook for `live_symbols` (CR-OUTSTREAM3
+    // RUDRA-GLUE: memo-invalidation hook for `live_symbols` (CR-OUTSTREAM3
     // condition 1, 2026-09-28). Ghidra has no counterpart: its scope owns
     // ONE heap `Symbol` per mapping (database.hh:809) and hands out the
     // live object, so a late rename or namelock write is inherently
@@ -4981,7 +4981,7 @@ impl ScopeLocal {
             .unwrap_or_default()
     }
 
-    // RUGRA-GLUE: set_arch_lookup (no Ghidra counterpart; Ghidra's
+    // RUDRA-GLUE: set_arch_lookup (no Ghidra counterpart; Ghidra's
     //   ScopeInternal holds the `glb` Architecture pointer from its
     //   constructor (database.hh:688) and the getRegisterName calls in
     //   ScopeInternal::buildVariableName (database.cc:2447/2454/2462/2472/
@@ -4995,7 +4995,7 @@ impl ScopeLocal {
         self.arch_lookup = arch;
     }
 
-    // RUGRA-GLUE: local_range_in_range (RangeList::inRange for the local window)
+    // RUDRA-GLUE: local_range_in_range (RangeList::inRange for the local window)
     /// `RangeList::inRange(addr, 1)` over the prototype's own local window
     /// (`proto_local_range`): does any range contain the single byte at
     /// `offset`? Ghidra consults `fd->getFuncProto().getLocalRange()`
@@ -5534,7 +5534,7 @@ impl ScopeLocal {
         self.build_variable_name(space, addr, usepoint, dtype.as_ref(), base, flags)
     }
 
-    // RUGRA-GLUE: symbols_in_nametree_order (locked naming-fixture observation accessor)
+    // RUDRA-GLUE: symbols_in_nametree_order (locked naming-fixture observation accessor)
     /// Read-only view of the live symbol ids in SymbolNameTree order
     /// (database.hh:373, sorted by name then nameDedup). Production C++
     /// iterates the `nametree` set directly; the locked naming fixture needs

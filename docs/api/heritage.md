@@ -1034,7 +1034,7 @@ visit_rename_impl 从递归改为迭代式（显式 work stack + Enter/Leave 状
 (`heritage.cc:1443-1527`)，其中 address-space 身份由 `Address` 自身携带。Rugra
 当前 `Address` 只有数值 offset，因此该 helper 额外传递 `AddressSpace`，属于
 临时参数适配层；由 `ADDRESS-0001` / `HERITAGE-0001` 跟踪并在 space-aware
-`Address` 与 canonical Heritage 接线完成后移除。本轮只补 `RUGRA-GLUE`
+`Address` 与 canonical Heritage 接线完成后移除。本轮只补 `RUDRA-GLUE`
 provenance，不改变 guard 行为或对齐状态。
  
 

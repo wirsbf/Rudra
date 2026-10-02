@@ -1,6 +1,6 @@
 //! SAILR enhancement layer — the RegionIdentifier port.
 //!
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr/analyses/decompiler/region_identifier.py + graph_region.py / kuna p7_regions kuna_regionid.rs)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr/analyses/decompiler/region_identifier.py + graph_region.py / kuna p7_regions kuna_regionid.rs)
 //!
 //! Port of angr's `RegionIdentifier`: an analysis-only pass that collapses a
 //! *private copy* of a function's control-flow graph into a nested
@@ -41,14 +41,14 @@ use crate::sailr::graph::{
 
 /// Fixpoint iteration cap: `~2*n^2`, computed in 64-bit.  Turns a mis-ported
 /// guard into an error instead of a hang.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions kuna_regionid.rs kuna_guard_cap)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions kuna_regionid.rs kuna_guard_cap)
 fn guard_cap(num_nodes: i32) -> i64 {
     let n = num_nodes as i64;
     2 * n * n + 64
 }
 
 /// One identified region: port of angr's `GraphRegion` (read-only subset).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py GraphRegion / kuna p7_regions kuna_regionid.rs KunaGraphRegion)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py GraphRegion / kuna p7_regions kuna_regionid.rs KunaGraphRegion)
 #[derive(Debug, Clone, Default)]
 pub struct GraphRegion {
     head: Option<RegionNodeId>,
@@ -64,61 +64,61 @@ pub struct GraphRegion {
 }
 
 impl GraphRegion {
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py head property / kuna p7_regions getHead)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py head property / kuna p7_regions getHead)
     /// Entry node (`None` only before the identifier fills it).
     pub fn get_head(&self) -> Option<RegionNodeId> {
         self.head
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getWrapper)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getWrapper)
     /// Wrapper node in the parent graph.
     pub fn get_wrapper(&self) -> Option<RegionNodeId> {
         self.wrapper
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py graph property / kuna p7_regions getGraph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py graph property / kuna p7_regions getGraph)
     /// Internal subgraph.
     pub fn get_graph(&self) -> &RegionGraph {
         &self.graph
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py successors / kuna p7_regions hasSuccessorInfo)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py successors / kuna p7_regions hasSuccessorInfo)
     /// Is successor info present?
     pub fn has_successor_info(&self) -> bool {
         self.has_succs
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py successors / kuna p7_regions getSuccessors)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py successors / kuna p7_regions getSuccessors)
     /// External successors.
     pub fn get_successors(&self) -> &NodeSet {
         &self.successors
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getGraphWithSuccessors)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getGraphWithSuccessors)
     /// Subgraph + frontier.
     pub fn get_graph_with_successors(&self) -> &RegionGraph {
         &self.graph_with_successors
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions hasFullGraph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions hasFullGraph)
     /// Is the full loop graph present? (cyclic regions only)
     pub fn has_full_graph(&self) -> bool {
         self.has_full
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getFullGraph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getFullGraph)
     /// Full loop graph (all edges among loop nodes incl. entries/exits).
     pub fn get_full_graph(&self) -> &RegionGraph {
         &self.full_graph
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py cyclic / kuna p7_regions isCyclic)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py cyclic / kuna p7_regions isCyclic)
     /// Does the region contain a loop?
     pub fn is_cyclic(&self) -> bool {
         self.cyclic
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions hasCyclicAncestor)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions hasCyclicAncestor)
     /// Is some ancestor region cyclic?
     pub fn has_cyclic_ancestor(&self) -> bool {
         self.cyclic_ancestor
@@ -131,7 +131,7 @@ impl GraphRegion {
 /// (recursively resolved through nested regions/multi-nodes), `exits` every
 /// loop-successor block start address (the angr `GraphRegion.successors`
 /// frontier).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py successors + region_identifier.py _refine_loop / kuna p7_regions KunaCyclicLoop)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr graph_region.py successors + region_identifier.py _refine_loop / kuna p7_regions KunaCyclicLoop)
 #[derive(Debug, Clone)]
 pub struct CyclicLoop {
     pub head_addr: u64,
@@ -143,23 +143,23 @@ pub struct CyclicLoop {
 /// `visit_block` fires once per leaf block in deterministic region order
 /// (merged chains expand to their members); `enter_region`/`exit_region`
 /// bracket each nested region.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions KunaRegionVisitor)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions KunaRegionVisitor)
 pub trait RegionVisitor {
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions enterRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions enterRegion)
     /// Called before a region's nodes.
     fn enter_region(&mut self, _region: &GraphRegion) {}
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions exitRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions exitRegion)
     /// Called after a region's nodes.
     fn exit_region(&mut self, _region: &GraphRegion) {}
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions visitBlock)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions visitBlock)
     /// Called for each leaf block: `(external block payload, addr)`.
     fn visit_block(&mut self, block: Option<usize>, addr: u64);
 }
 
 /// The region identification analysis (port of angr's `RegionIdentifier`).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr/analyses/decompiler/region_identifier.py RegionIdentifier / kuna p7_regions KunaRegionIdentifier)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr/analyses/decompiler/region_identifier.py RegionIdentifier / kuna p7_regions KunaRegionIdentifier)
 pub struct RegionIdentifier {
     pool: NodePool,
     region_pool: Vec<GraphRegion>,
@@ -179,14 +179,14 @@ pub struct RegionIdentifier {
 }
 
 impl Default for RegionIdentifier {
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Default boilerplate, no reference counterpart)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Default boilerplate, no reference counterpart)
     fn default() -> Self {
         RegionIdentifier::new()
     }
 }
 
 impl RegionIdentifier {
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py __init__ defaults / kuna p7_regions new)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py __init__ defaults / kuna p7_regions new)
     /// Construct a fresh identifier.
     pub fn new() -> RegionIdentifier {
         RegionIdentifier {
@@ -212,32 +212,32 @@ impl RegionIdentifier {
     // Options / inputs
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py largest_successor_tree_outside_loop option / kuna p7_regions set*)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py largest_successor_tree_outside_loop option / kuna p7_regions set*)
     /// Set option (before compute).
     pub fn set_largest_successor_tree_outside_loop(&mut self, val: bool) {
         self.largest_successor_tree_outside_loop = val;
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py refine_loops_with_single_successor option / kuna p7_regions set*)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py refine_loops_with_single_successor option / kuna p7_regions set*)
     /// Set option (before compute).
     pub fn set_refine_loops_with_single_successor(&mut self, val: bool) {
         self.refine_loops_with_single_successor = val;
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py complete_successors option / kuna p7_regions set*)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py complete_successors option / kuna p7_regions set*)
     /// Set option (before compute).
     pub fn set_complete_successors(&mut self, val: bool) {
         self.complete_successors = val;
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py entry addr / kuna p7_regions setEntryAddr)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py entry addr / kuna p7_regions setEntryAddr)
     /// Set the entry address.
     pub fn set_entry_addr(&mut self, addr: u64) {
         self.has_entry_addr = true;
         self.entry_addr = addr;
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions newNode)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions newNode)
     /// Allocate a pooled node.
     fn new_node(&mut self, kind: NodeKind, addr: u64) -> RegionNodeId {
         let id = self.pool.make(kind, addr, self.next_ident);
@@ -245,7 +245,7 @@ impl RegionIdentifier {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions newRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions newRegion)
     /// Allocate a pooled region.
     fn new_region(&mut self) -> RegionId {
         let id = RegionId(self.region_pool.len() as u32);
@@ -253,13 +253,13 @@ impl RegionIdentifier {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions region)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions region)
     /// Borrow a region payload.
     pub fn region(&self, id: RegionId) -> &GraphRegion {
         &self.region_pool[id.0 as usize]
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions addSyntheticBlock)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions addSyntheticBlock)
     /// Input B: add a synthetic test node.
     pub fn add_synthetic_block(&mut self, addr: u64) -> RegionNodeId {
         let n = self.new_node(NodeKind::Block, addr);
@@ -267,13 +267,13 @@ impl RegionIdentifier {
         n
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions addSyntheticEdge)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions addSyntheticEdge)
     /// Input B: add a synthetic test edge.
     pub fn add_synthetic_edge(&mut self, a: RegionNodeId, b: RegionNodeId) {
         self.work_graph.add_edge(&self.pool, a, b);
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py input graph / kuna p7_regions buildFromBlockGraph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py input graph / kuna p7_regions buildFromBlockGraph)
     ///
     /// Input A seam (the Phase 2 adapter point): build the working graph from
     /// a generic CFG projection — one node per block keyed on its start
@@ -327,7 +327,7 @@ impl RegionIdentifier {
     // Driver
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py analyze / kuna p7_regions compute)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py analyze / kuna p7_regions compute)
     /// Run the analysis; returns the top-level region id.
     pub fn compute(&mut self) -> Result<RegionId> {
         if self.computed {
@@ -351,13 +351,13 @@ impl RegionIdentifier {
         Ok(top)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getTopRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getTopRegion)
     /// Result (None before compute).
     pub fn get_top_region(&self) -> Option<RegionId> {
         self.top_region
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_regions_by_block_addrs / kuna p7_regions getRegionsByBlockAddrs)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_regions_by_block_addrs / kuna p7_regions getRegionsByBlockAddrs)
     /// Flat region lists (each inner vec = one region's leaf block addrs).
     pub fn get_regions_by_block_addrs(&self) -> &[Vec<u64>] {
         &self.regions_by_block_addrs
@@ -367,7 +367,7 @@ impl RegionIdentifier {
     // Connected component / supergraph
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _pick_one_connected_component / kuna p7_regions pickConnectedComponent)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _pick_one_connected_component / kuna p7_regions pickConnectedComponent)
     /// Keep one weakly connected component: the entry component if the entry
     /// address is known, else the largest.
     fn pick_connected_component(&self, g: &mut RegionGraph) {
@@ -437,7 +437,7 @@ impl RegionIdentifier {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _block_ends_with_indirect_jump_or_call / kuna p7_regions endsWithBranchindOrCbranch)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _block_ends_with_indirect_jump_or_call / kuna p7_regions endsWithBranchindOrCbranch)
     /// Does the node (or a multi-node's last member) end with a multi-way
     /// branch?  Read from the precomputed predicate parked by the input seam.
     fn ends_with_branchind_or_cbranch(&self, n: RegionNodeId) -> bool {
@@ -457,7 +457,7 @@ impl RegionIdentifier {
         last_node.ends_with_branchind_or_cbranch()
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _merge_nodes(force_multinode=True) / kuna p7_regions mergeNodes)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _merge_nodes(force_multinode=True) / kuna p7_regions mergeNodes)
     /// Merge `a -> b` into a `Multi` node (always force_multinode — the only
     /// caller is the supergraph).
     fn merge_nodes(
@@ -507,7 +507,7 @@ impl RegionIdentifier {
         Ok(m)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_supergraph / kuna p7_regions makeSupergraph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_supergraph / kuna p7_regions makeSupergraph)
     /// Merge single-out -> single-in chains to a fixpoint.  The entry node is
     /// never merged INTO; a node ending with a multi-way branch is never
     /// merged into either (the switch/cbranch boundary survives).
@@ -555,7 +555,7 @@ impl RegionIdentifier {
     // Node lookup / ordering plumbing
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _get_start_node / kuna p7_regions getStartNode)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _get_start_node / kuna p7_regions getStartNode)
     /// First in-degree-0 node (or entry-addr node).
     fn get_start_node(&self, g: &RegionGraph) -> Result<RegionNodeId> {
         for key in g.node_keys() {
@@ -573,7 +573,7 @@ impl RegionIdentifier {
         Err(anyhow!("sailr regionid: cannot find the start node from the graph"))
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getEntryNode)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions getEntryNode)
     /// Node with the entry address (or None).
     fn get_entry_node(&self, g: &RegionGraph) -> Option<RegionNodeId> {
         if !self.has_entry_addr {
@@ -587,7 +587,7 @@ impl RegionIdentifier {
         None
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions nodeByAddr)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions nodeByAddr)
     /// First node with the given address.
     fn node_by_addr(&self, g: &RegionGraph, addr: u64) -> Result<RegionNodeId> {
         for key in g.node_keys() {
@@ -598,7 +598,7 @@ impl RegionIdentifier {
         Err(anyhow!("sailr regionid: no node with the requested address"))
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py node ordering / kuna p7_regions computeNodeOrder)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py node ordering / kuna p7_regions computeNodeOrder)
     /// Fill `node_order` via quasi-topological sort.
     fn compute_node_order(&mut self, g: &RegionGraph) -> Result<()> {
         let mut sorted: Vec<RegionNodeId> = Vec::new();
@@ -610,7 +610,7 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions orderOf)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions orderOf)
     /// The order pair of a node, or an error if missing.
     fn order_of(&self, n: RegionNodeId) -> Result<(i32, i32)> {
         self.node_order
@@ -619,7 +619,7 @@ impl RegionIdentifier {
             .ok_or_else(|| anyhow!("sailr regionid: node missing from node order"))
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _sort_nodes_by_order / kuna p7_regions sortByNodeOrder)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _sort_nodes_by_order / kuna p7_regions sortByNodeOrder)
     /// Sort by `node_order` (stable).
     fn sort_by_node_order(&self, nodes: &mut [RegionNodeId]) -> Result<()> {
         for &n in nodes.iter() {
@@ -641,7 +641,7 @@ impl RegionIdentifier {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _slice_graph + self-loop hack / kuna p7_regions sliceGraph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _slice_graph + self-loop hack / kuna p7_regions sliceGraph)
     /// `slice_graph` (+ self-loop hack: an infinite self-loop slices to
     /// nothing; keep the body).
     fn slice_graph(
@@ -663,7 +663,7 @@ impl RegionIdentifier {
     // Cyclic phase
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _find_loop_headers / kuna p7_regions findLoopHeaders)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _find_loop_headers / kuna p7_regions findLoopHeaders)
     /// Back-edge targets, in `node_order`.
     fn find_loop_headers(&self, g: &RegionGraph, res: &mut Vec<RegionNodeId>) -> Result<()> {
         let start = self
@@ -683,7 +683,7 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _find_initial_loop_nodes / kuna p7_regions findInitialLoopNodes)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _find_initial_loop_nodes / kuna p7_regions findInitialLoopNodes)
     /// Initial loop nodes: natural-loop slice from `head` to its latches, then
     /// switch-case expansion (a node with >2 non-self successors pulls in
     /// successors whose predecessors all sit inside the slice already).
@@ -769,7 +769,7 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _natural_loop_subgraph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _natural_loop_subgraph)
     ///
     /// The subgraph induced by the natural loop of `head`: head plus every
     /// node on a path from head to a latching node.  Latching nodes are
@@ -825,7 +825,7 @@ impl RegionIdentifier {
         Ok(sub)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _refine_loop / kuna p7_regions refineLoop)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _refine_loop / kuna p7_regions refineLoop)
     /// Refine the loop body/exit split in three stages:
     /// 1. absorb single-in-degree, at-most-single-out exit nodes;
     /// 2. absorb dominated exit candidates whose preds are all in the loop;
@@ -1072,7 +1072,7 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_cyclic_region / kuna p7_regions makeCyclicRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_cyclic_region / kuna p7_regions makeCyclicRegion)
     ///
     /// Identify one cyclic (loop) region at `head`.  Returns `None` when the
     /// loop contains another (still-unstructured) header.
@@ -1183,7 +1183,7 @@ impl RegionIdentifier {
         Ok(Some(region))
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _abstract_cyclic_region / kuna p7_regions abstractCyclicRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _abstract_cyclic_region / kuna p7_regions abstractCyclicRegion)
     /// Build the region payload (subgraph / graph_with_successors / full
     /// graph), collapse the loop nodes out of `g` and splice in the wrapper.
     #[allow(clippy::too_many_arguments)]
@@ -1293,7 +1293,7 @@ impl RegionIdentifier {
         Ok(region_id)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_regions / kuna p7_regions makeRegions)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_regions / kuna p7_regions makeRegions)
     /// Cyclic phase (iteratively find and make loop regions) followed by the
     /// acyclic phase over each cyclic region's body and the residual graph.
     fn make_regions(&mut self, g: &mut RegionGraph) -> Result<RegionId> {
@@ -1455,7 +1455,7 @@ impl RegionIdentifier {
     // Acyclic phase
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _check_region / kuna p7_regions checkRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _check_region / kuna p7_regions checkRegion)
     /// Pure predicate over dominance frontiers: is `start_node..end_node` a
     /// proper single-entry region (no edge enters or leaves the middle)?
     fn check_region(
@@ -1499,7 +1499,7 @@ impl RegionIdentifier {
         Ok(true)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _compute_region / kuna p7_regions computeRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _compute_region / kuna p7_regions computeRegion)
     /// Slice the region: DFS from `node` stopping at the frontier; build the
     /// subgraph and its with-successors extension.  Returns a region id only
     /// when the subgraph has more than one node.
@@ -1570,7 +1570,7 @@ impl RegionIdentifier {
         Ok(None)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _region_in_edges / kuna p7_regions regionInEdges)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _region_in_edges / kuna p7_regions regionInEdges)
     /// In-edges of a region: the in-edges of its head (if still in `g`).
     fn region_in_edges(
         &self,
@@ -1587,7 +1587,7 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _region_out_edges / kuna p7_regions regionOutEdges)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _region_out_edges / kuna p7_regions regionOutEdges)
     /// Member->outside edges re-sourced at the region's wrapper node.
     fn region_out_edges(
         &self,
@@ -1619,7 +1619,7 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _abstract_acyclic_region / kuna p7_regions abstractAcyclicRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _abstract_acyclic_region / kuna p7_regions abstractAcyclicRegion)
     /// Replace a region's member nodes in `g` (and the secondary graph) with
     /// its wrapper, re-pointing in/out edges and frontier edges.
     fn abstract_acyclic_region(
@@ -1699,7 +1699,7 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _update_graph / kuna p7_regions replaceRegionInGraph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _update_graph / kuna p7_regions replaceRegionInGraph)
     /// Replace the region's nodes in the scratch dominator graph (no frontier
     /// edges) with the wrapper.
     fn replace_region_in_graph(
@@ -1728,7 +1728,7 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_acyclic_region / kuna p7_regions makeAcyclicRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_acyclic_region / kuna p7_regions makeAcyclicRegion)
     ///
     /// One round of acyclic region formation over `graph` from `head`:
     /// postdom-climbing over the deterministic postorder, checking candidate
@@ -1908,7 +1908,7 @@ impl RegionIdentifier {
         Ok(region_created)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py l.809-833 graph_with_successors backpatch / kuna p7_regions backpatchSecondary)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py l.809-833 graph_with_successors backpatch / kuna p7_regions backpatchSecondary)
     /// Backpatch a child region's `graph_with_successors` from the parent's
     /// secondary graph.
     fn backpatch_secondary(
@@ -1974,7 +1974,7 @@ impl RegionIdentifier {
     // Outputs
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_regions_by_block_addrs / kuna p7_regions buildRegionsByBlockAddrs)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py _make_regions_by_block_addrs / kuna p7_regions buildRegionsByBlockAddrs)
     /// Flat per-region block-address lists, breadth-first over the region tree.
     fn build_regions_by_block_addrs(&mut self) {
         self.regions_by_block_addrs.clear();
@@ -2022,7 +2022,7 @@ impl RegionIdentifier {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions walkRegionBlocks)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions walkRegionBlocks)
     /// Walk one region: `enter_region`, leaves (chains expand), nested regions,
     /// `exit_region`.
     pub fn walk_region_blocks<V: RegionVisitor>(
@@ -2054,7 +2054,7 @@ impl RegionIdentifier {
         visitor.exit_region(region);
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions walkBlocks)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions walkBlocks)
     /// Walk the whole tree.
     pub fn walk_blocks<V: RegionVisitor>(&self, visitor: &mut V) -> Result<()> {
         let top = self
@@ -2064,13 +2064,13 @@ impl RegionIdentifier {
         Ok(())
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions nodeAddr)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions nodeAddr)
     /// Read a node's address (console/diagnostic surface).
     pub fn node_addr(&self, id: RegionNodeId) -> u64 {
         self.pool.get(id).get_addr()
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions collectLeafAddrs)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions collectLeafAddrs)
     /// Collect every leaf-block start address reachable under `node`,
     /// recursing through multi chains and region wrappers.
     fn collect_leaf_addrs(&self, node: RegionNodeId, out: &mut BTreeSet<u64>) {
@@ -2100,7 +2100,7 @@ impl RegionIdentifier {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py refined loop body + GraphRegion.successors / kuna p7_regions cyclicLoops)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier.py refined loop body + GraphRegion.successors / kuna p7_regions cyclicLoops)
     ///
     /// Expose the identified **cyclic** (loop) regions for the structurer:
     /// for each cyclic region, the loop head's start address, every
@@ -2134,7 +2134,7 @@ impl RegionIdentifier {
         res
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions renderTreeWith)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions renderTreeWith)
     /// Render the nested region tree deterministically (diagnostic surface):
     /// one `region head=0x.. nodes=N [cyclic]` line per region, `block 0x..`
     /// per leaf block, 2-space indent per depth.
@@ -2146,7 +2146,7 @@ impl RegionIdentifier {
         os
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions renderRegion)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions renderRegion)
     /// Recursive helper for [`RegionIdentifier::render_tree`].
     fn render_region(&self, region_id: RegionId, depth: usize, os: &mut String) {
         let region = &self.region_pool[region_id.0 as usize];
@@ -2202,7 +2202,7 @@ mod tests {
     /// Test visitor: collects every leaf block address (in walk order) and,
     /// for each cyclic region, the head address plus the addresses visited
     /// inside it (depth-tracked bucketing into the innermost cyclic region).
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions tests KunaTestCollector)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna p7_regions tests KunaTestCollector)
     #[derive(Default)]
     struct Collector {
         addrs: Vec<u64>,
@@ -2247,7 +2247,7 @@ mod tests {
 
     /// a diamond `1 -> 2 -> {3,4} -> 5 -> 6` (angr
     /// `test_region_identifier_0` shape).
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr test_region_identifier_0 / kuna regionid_diamond0)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr test_region_identifier_0 / kuna regionid_diamond0)
     #[test]
     fn regionid_diamond0() {
         let mut ri = RegionIdentifier::new();
@@ -2294,7 +2294,7 @@ mod tests {
     }
 
     /// Two stacked half-diamonds (angr `test_region_identifier_1` shape).
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr test_region_identifier_1 / kuna regionid_diamond1)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr test_region_identifier_1 / kuna regionid_diamond1)
     #[test]
     fn regionid_diamond1() {
         let mut ri = RegionIdentifier::new();
@@ -2325,7 +2325,7 @@ mod tests {
     }
 
     /// `1 -> 2 -> 3 -> 4` with a back edge `3 -> 2` (loop body `{2,3}`).
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna regionid_loop)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna regionid_loop)
     #[test]
     fn regionid_loop() {
         let mut ri = RegionIdentifier::new();
@@ -2372,7 +2372,7 @@ mod tests {
 
     /// The cyclic_loops projection: loop head/body/exits projected onto
     /// block addresses for the structurer.
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna cyclicLoops projection)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna cyclicLoops projection)
     #[test]
     fn regionid_cyclic_loops_projection() {
         let mut ri = RegionIdentifier::new();
@@ -2396,7 +2396,7 @@ mod tests {
     /// The build_from_cfg seam (the Phase 2 adapter input): a diamond built
     /// over the generic CFG projection behaves identically to the synthetic
     /// input, and the `branchy` predicate parks on the node.
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna build_from_block_graph tests)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna build_from_block_graph tests)
     #[test]
     fn regionid_build_from_cfg_diamond() {
         let blocks: Vec<(u64, usize, bool)> =
@@ -2421,7 +2421,7 @@ mod tests {
 
     /// build_from_cfg rejects a non-empty working graph and an empty block
     /// list, and reports out-of-range edges.
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna build_from_block_graph_rejects_non_empty)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna build_from_block_graph_rejects_non_empty)
     #[test]
     fn regionid_build_from_cfg_validation() {
         let mut ri = RegionIdentifier::new();
@@ -2438,7 +2438,7 @@ mod tests {
 
     /// A multi-exit loop: the refinement absorbs dominated single-out exits
     /// into the body and keeps the structural exit frontier.
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr _refine_loop stage 1-2)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr _refine_loop stage 1-2)
     #[test]
     fn regionid_multi_exit_loop() {
         // 1 -> 2; 2 -> 3 (true); 2 -> 6 (false, exit); 3 -> 4 (true);

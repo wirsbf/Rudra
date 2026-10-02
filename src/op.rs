@@ -296,7 +296,7 @@ impl IopSpace {
     }
 }
 
-// RUGRA-GLUE: process-wide stand-in for Ghidra's NULL input-slot pointer.
+// RUDRA-GLUE: process-wide stand-in for Ghidra's NULL input-slot pointer.
 // Ghidra's `PcodeOp` (op.cc:70-84, `inrefs(s)` vector-of-pointers ctor) and
 // `PcodeOp::setNumInputs` (op.cc:290-296, resize + null every slot) represent
 // an unlinked-but-still-counted slot as `(Varnode *)0`; `Funcdata::opUnsetInput`
@@ -333,7 +333,7 @@ pub struct PcodeOp {
     /// Arena identity handle (PERF-ARENA-FLIP-0001 (a),
     /// ARENA_DESIGN §1.2/§2.5).
     ///
-    /// RUGRA-GLUE: id-space stand-in for the oracle's three stored list
+    /// RUDRA-GLUE: id-space stand-in for the oracle's three stored list
     /// iterators (op.hh:127-129 basiciter/insertiter/codeiter) — here it
     /// names the `PcodeOpTree` slot holding this op's denormalized SeqNum
     /// key copy, and will carry the seven bank chains when the Vec lists
@@ -343,7 +343,7 @@ pub struct PcodeOp {
 }
 
 impl PcodeOp {
-    // RUGRA-GLUE: Rust ctor; Ghidra's PcodeOp constructor is private and only
+    // RUDRA-GLUE: Rust ctor; Ghidra's PcodeOp constructor is private and only
     //   called via PcodeOpBank::create (op.hh:308). Rugra exposes PcodeOp::new
     //   because we don't have the same friend-class relationship to the bank.
     pub fn new(start: SeqNum, opcode: OpCode) -> Self {
@@ -992,7 +992,7 @@ impl PcodeOp {
     // Ghidra: op.cc:376 PcodeOp::printDebug
     // Already implemented above as print_debug()
 
-    // RUGRA-GLUE: borrow-safe resolution of this PcodeOp's `basiciter`
+    // RUDRA-GLUE: borrow-safe resolution of this PcodeOp's `basiciter`
     // equivalent. Ghidra stores a `list<PcodeOp*>::iterator basiciter` inside
     // the op (op.hh:127), set by BlockBasic::insert (block.cc:2266) and used
     // by nextOp/previousOp. Rust cannot hold an iterator into the parent
@@ -1517,7 +1517,7 @@ impl PcodeOp {
 
 /// Comparison for sorting PcodeOps in the bank
 impl PartialEq for PcodeOp {
-    // RUGRA-GLUE: Rust PartialEq impl; Ghidra orders PcodeOps by SeqNum via
+    // RUDRA-GLUE: Rust PartialEq impl; Ghidra orders PcodeOps by SeqNum via
     //   std::map<SeqNum,PcodeOp*> (PcodeOpTree, op.hh:280) and has no
     //   operator== on PcodeOp.
     fn eq(&self, other: &Self) -> bool {
@@ -1528,14 +1528,14 @@ impl PartialEq for PcodeOp {
 impl Eq for PcodeOp {}
 
 impl PartialOrd for PcodeOp {
-    // RUGRA-GLUE: delegates to Ord (see below).
+    // RUDRA-GLUE: delegates to Ord (see below).
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for PcodeOp {
-    // RUGRA-GLUE: Rust Ord impl mirroring Ghidra's SeqNum ordering used by
+    // RUDRA-GLUE: Rust Ord impl mirroring Ghidra's SeqNum ordering used by
     //   PcodeOpTree (op.hh:280 std::map<SeqNum,PcodeOp*>).
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.start.cmp(&other.start)
@@ -1547,7 +1547,7 @@ impl Ord for PcodeOp {
 pub struct PcodeOpRef(pub Arc<RwLock<PcodeOp>>);
 
 impl PartialEq for PcodeOpRef {
-    // RUGRA-GLUE: Rust PartialEq impl for the Arc wrapper; Ghidra has no
+    // RUDRA-GLUE: Rust PartialEq impl for the Arc wrapper; Ghidra has no
     //   equivalent (uses raw PcodeOp* pointers).
     fn eq(&self, other: &Self) -> bool {
         if Arc::ptr_eq(&self.0, &other.0) { return true; }
@@ -1558,14 +1558,14 @@ impl PartialEq for PcodeOpRef {
 impl Eq for PcodeOpRef {}
 
 impl PartialOrd for PcodeOpRef {
-    // RUGRA-GLUE: delegates to Ord (see below).
+    // RUDRA-GLUE: delegates to Ord (see below).
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for PcodeOpRef {
-    // RUGRA-GLUE: Rust Ord impl for the Arc wrapper; delegates to the inner
+    // RUDRA-GLUE: Rust Ord impl for the Arc wrapper; delegates to the inner
     //   PcodeOp Ord (SeqNum ordering).
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if Arc::ptr_eq(&self.0, &other.0) { return std::cmp::Ordering::Equal; }
@@ -1663,7 +1663,7 @@ pub struct PcodeOpTree {
     /// op.cc:984-999 — and are reclaimed only by `clear`).
     arena: Arena<OpCell, OpId>,
     inner: BTreeMap<SeqNumKey, OpId>,
-    /// RUGRA-GLUE: monotonic mutation counter over `inner` (bumped by
+    /// RUDRA-GLUE: monotonic mutation counter over `inner` (bumped by
     /// insert/remove/clear) — the id-space memoization guard for
     /// ActionPool's early strict-successor computation
     /// (PERF-DISPATCH-0001). Pure Rust memo infrastructure; the oracle
@@ -1673,7 +1673,7 @@ pub struct PcodeOpTree {
 }
 
 /// One arena slot of the op tree.
-// RUGRA-GLUE: id-space stored-iterator cell — the oracle equivalent is the
+// RUDRA-GLUE: id-space stored-iterator cell — the oracle equivalent is the
 // std::map node itself plus the op's stable pointer identity.
 pub struct OpCell {
     op: PcodeOpRef,
@@ -1716,7 +1716,7 @@ pub struct OpCell {
     code_next: OpId,
 }
 
-// RUGRA-GLUE: link-field projection for the insert chain (the single
+// RUDRA-GLUE: link-field projection for the insert chain (the single
 // oracle `insertiter`, op.hh:128, id-space form: one prev/next pair shared
 // by the dead/alive/deadandgone chains — an op is in exactly one at a time,
 // ARENA_DESIGN §1.2 freeze contract in arena.rs `Linked` docs).
@@ -1725,25 +1725,25 @@ pub struct InsLink;
 impl Linked for InsLink {
     type Elem = OpCell;
     type Id = OpId;
-    // RUGRA-GLUE: link-field accessors (stored iterator read).
+    // RUDRA-GLUE: link-field accessors (stored iterator read).
     fn prev(t: &OpCell) -> OpId {
         t.ins_prev
     }
-    // RUGRA-GLUE: link-field accessors (stored iterator read).
+    // RUDRA-GLUE: link-field accessors (stored iterator read).
     fn next(t: &OpCell) -> OpId {
         t.ins_next
     }
-    // RUGRA-GLUE: link-field accessors (chain surgery write).
+    // RUDRA-GLUE: link-field accessors (chain surgery write).
     fn set_prev(t: &mut OpCell, id: OpId) {
         t.ins_prev = id;
     }
-    // RUGRA-GLUE: link-field accessors (chain surgery write).
+    // RUDRA-GLUE: link-field accessors (chain surgery write).
     fn set_next(t: &mut OpCell, id: OpId) {
         t.ins_next = id;
     }
 }
 
-// RUGRA-GLUE: link-field projection for the opcode chain (the single oracle
+// RUDRA-GLUE: link-field projection for the opcode chain (the single oracle
 // `codeiter`, op.hh:129, id-space form: shared by
 // storelist/loadlist/returnlist/useroplist — an op is in at most one).
 /// Marker type projecting [`OpCell`]'s opcode-chain link pair.
@@ -1751,26 +1751,26 @@ pub struct CodeLink;
 impl Linked for CodeLink {
     type Elem = OpCell;
     type Id = OpId;
-    // RUGRA-GLUE: link-field accessors (stored iterator read).
+    // RUDRA-GLUE: link-field accessors (stored iterator read).
     fn prev(t: &OpCell) -> OpId {
         t.code_prev
     }
-    // RUGRA-GLUE: link-field accessors (stored iterator read).
+    // RUDRA-GLUE: link-field accessors (stored iterator read).
     fn next(t: &OpCell) -> OpId {
         t.code_next
     }
-    // RUGRA-GLUE: link-field accessors (chain surgery write).
+    // RUDRA-GLUE: link-field accessors (chain surgery write).
     fn set_prev(t: &mut OpCell, id: OpId) {
         t.code_prev = id;
     }
-    // RUGRA-GLUE: link-field accessors (chain surgery write).
+    // RUDRA-GLUE: link-field accessors (chain surgery write).
     fn set_next(t: &mut OpCell, id: OpId) {
         t.code_next = id;
     }
 }
 
 impl PcodeOpTree {
-    // RUGRA-GLUE: Rust ctor; Ghidra constructs PcodeOpTree as a plain
+    // RUDRA-GLUE: Rust ctor; Ghidra constructs PcodeOpTree as a plain
     //   member (op.hh:290, default map ctor).
     pub fn new() -> Self {
         Self {
@@ -1780,7 +1780,7 @@ impl PcodeOpTree {
         }
     }
 
-    // RUGRA-GLUE: memo-guard read for PERF-DISPATCH-0001 — the version the
+    // RUDRA-GLUE: memo-guard read for PERF-DISPATCH-0001 — the version the
     //   ActionPool cursor saw when it computed a strict successor; an equal
     //   read proves `inner` is unchanged, so the memoized successor equals a
     //   fresh range search.
@@ -1789,7 +1789,7 @@ impl PcodeOpTree {
         self.version
     }
 
-    // RUGRA-GLUE: PERF-DISPATCH-0001 — the successor cell's address for the
+    // RUDRA-GLUE: PERF-DISPATCH-0001 — the successor cell's address for the
     //   dispatch loop's non-blocking prefetch hint (pure address projection;
     //   no Ghidra counterpart).
     /// Address of `id`'s slot without touching the slot line.
@@ -1797,7 +1797,7 @@ impl PcodeOpTree {
         self.arena.slot_addr(id)
     }
 
-    // RUGRA-GLUE: stored-iterator dead read — `op->isDead()` (op.hh:173)
+    // RUDRA-GLUE: stored-iterator dead read — `op->isDead()` (op.hh:173)
     //   resolved through the cell's denormalized shadow, no lock (see the
     //   OpCell::dead field doc for the write sites).
     /// The op's current dead bit, read lock-free from the arena cell.
@@ -1805,7 +1805,7 @@ impl PcodeOpTree {
         self.arena.get(id).map(|cell| cell.dead)
     }
 
-    // RUGRA-GLUE: POD key projection of a SeqNum — one short read lock per
+    // RUDRA-GLUE: POD key projection of a SeqNum — one short read lock per
     // call. SpaceOff mirrors Address::operator< (null base first, then
     // registry index, then offset; ARENA_DESIGN §2 single projection site).
     fn key_from_seq(seq: &SeqNum) -> SeqNumKey {
@@ -1815,7 +1815,7 @@ impl PcodeOpTree {
         )
     }
 
-    // RUGRA-GLUE: snapshot of the op's SeqNum key (op.hh:280 map key;
+    // RUDRA-GLUE: snapshot of the op's SeqNum key (op.hh:280 map key;
     //   ordering address.hh:154).
     fn key_of(op: &PcodeOpRef) -> SeqNumKey {
         Self::key_from_seq(&op.0.read().unwrap().start)
@@ -1906,7 +1906,7 @@ impl PcodeOpTree {
         removed
     }
 
-    // RUGRA-GLUE: BTreeSet<PcodeOpRef>::contains surface. Ord-equality
+    // RUDRA-GLUE: BTreeSet<PcodeOpRef>::contains surface. Ord-equality
     //   against the stored element reduces to the SeqNum key being present
     //   (same result the keyed map reports).
     pub fn contains(&self, op: &PcodeOpRef) -> bool {
@@ -1920,7 +1920,7 @@ impl PcodeOpTree {
         self.version = self.version.wrapping_add(1);
     }
 
-    // RUGRA-GLUE: size surface shared by BTreeSet/BTreeMap (op.cc:1194
+    // RUDRA-GLUE: size surface shared by BTreeSet/BTreeMap (op.cc:1194
     //   clear() observes the same cardinality).
     pub fn len(&self) -> usize {
         self.inner.len()
@@ -1939,7 +1939,7 @@ impl PcodeOpTree {
         PcodeOpTreeIter { arena: &self.arena, ids: self.inner.values() }
     }
 
-    // RUGRA-GLUE: translates a PcodeOpRef range bound to its SeqNumKey
+    // RUDRA-GLUE: translates a PcodeOpRef range bound to its SeqNumKey
     //   bound (one read lock per bound), so the tree descent itself runs on
     //   plain key compares with no locks.
     fn translate_bound(bound: std::ops::Bound<&PcodeOpRef>) -> std::ops::Bound<SeqNumKey> {
@@ -1992,13 +1992,13 @@ impl PcodeOpTree {
         }
     }
 
-    // RUGRA-GLUE: resolve an OpId to its stored handle (the W1(b) god-object
+    // RUDRA-GLUE: resolve an OpId to its stored handle (the W1(b) god-object
     //   read API's underlying lookup; P1 pattern of ARENA_DESIGN §3.2).
     pub fn get_by_id(&self, id: OpId) -> Option<&PcodeOpRef> {
         self.arena.get(id).map(|cell| &cell.op)
     }
 
-    // RUGRA-GLUE: id-space cursor support for ActionPool::op_state — the
+    // RUDRA-GLUE: id-space cursor support for ActionPool::op_state — the
     //   oracle retains a live `PcodeOpTree::const_iterator` (action.hh:265
     //   op_state) whose begin/`++` are O(1) pointer walks. The id-space
     //   reconstruction reads the CURRENT cell's denormalized seq_key
@@ -2015,7 +2015,7 @@ impl PcodeOpTree {
         self.inner.values().next().copied()
     }
 
-    // RUGRA-GLUE: strict-successor reconstruction (same RUGRA-GLUE family
+    // RUDRA-GLUE: strict-successor reconstruction (same RUDRA-GLUE family
     //   as first_id above — the retained iterator's ++ in id space).
     /// Strict-successor id of `cur` in SeqNum order (the `++` of the
     /// oracle's retained map iterator); `None` at endOpAll.
@@ -2028,7 +2028,7 @@ impl PcodeOpTree {
             .map(|(_, &id)| id)
     }
 
-    // RUGRA-GLUE: stored-iterator opcode read — `op->code()` (op.hh:233)
+    // RUDRA-GLUE: stored-iterator opcode read — `op->code()` (op.hh:233)
     //   resolved through the cell's denormalized shadow, no lock. The
     //   shadow is maintained at the field's only mutation sites (see the
     //   OpCell::opcode field doc).
@@ -2037,7 +2037,7 @@ impl PcodeOpTree {
         self.arena.get(id).map(|cell| cell.opcode)
     }
 
-    // RUGRA-GLUE: shared-borrow arena accessor — the bank chains live in
+    // RUDRA-GLUE: shared-borrow arena accessor — the bank chains live in
     //   arena cells, so PcodeOpBank iteration/navigation needs this (the
     //   oracle chains dereference the PcodeOp* directly; id-space chains
     //   resolve through the one arena both structures share, ARENA_DESIGN
@@ -2046,14 +2046,14 @@ impl PcodeOpTree {
         &self.arena
     }
 
-    // RUGRA-GLUE: exclusive-borrow arena accessor for chain surgery
+    // RUDRA-GLUE: exclusive-borrow arena accessor for chain surgery
     //   (PcodeOpBank splits its optree/list field borrows — ARENA_DESIGN
     //   §3.2 P3).
     pub(crate) fn arena_mut(&mut self) -> &mut Arena<OpCell, OpId> {
         &mut self.arena
     }
 
-    // RUGRA-GLUE: slot a foreign op into the arena WITHOUT entering the
+    // RUDRA-GLUE: slot a foreign op into the arena WITHOUT entering the
     //   SeqNum map — the bank-API replacement for the legacy test
     //   fixtures' bare `alivelist.push(PcodeOpRef(raw_arc))` bypasses.
     //   The op becomes chain-linkable while the optree map (and every
@@ -2085,7 +2085,7 @@ impl PcodeOpTree {
     }
 }
 
-// RUGRA-GLUE: named value iterators — the BTreeMap::Values / ::Range
+// RUDRA-GLUE: named value iterators — the BTreeMap::Values / ::Range
 // surface without exposing OpId or the cell type in any public signature.
 /// Forward iterator over [`PcodeOpTree`] values, in SeqNum order.
 pub struct PcodeOpTreeIter<'a> {
@@ -2094,14 +2094,14 @@ pub struct PcodeOpTreeIter<'a> {
 }
 impl<'a> Iterator for PcodeOpTreeIter<'a> {
     type Item = &'a PcodeOpRef;
-    // RUGRA-GLUE: trait plumbing (advance follows the map value then
+    // RUDRA-GLUE: trait plumbing (advance follows the map value then
     // resolves the arena cell).
     fn next(&mut self) -> Option<Self::Item> {
         self.ids
             .next()
             .and_then(|id| self.arena.get(*id).map(|cell| &cell.op))
     }
-    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    // RUDRA-GLUE: trait plumbing (size hint pass-through).
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.ids.size_hint()
     }
@@ -2115,21 +2115,21 @@ pub struct PcodeOpTreeRange<'a> {
 
 impl<'a> Iterator for PcodeOpTreeRange<'a> {
     type Item = &'a PcodeOpRef;
-    // RUGRA-GLUE: trait plumbing (advance follows the map value then
+    // RUDRA-GLUE: trait plumbing (advance follows the map value then
     // resolves the arena cell).
     fn next(&mut self) -> Option<Self::Item> {
         self.ids
             .next()
             .and_then(|(_, id)| self.arena.get(*id).map(|cell| &cell.op))
     }
-    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    // RUDRA-GLUE: trait plumbing (size hint pass-through).
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.ids.size_hint()
     }
 }
 
 impl Default for PcodeOpTree {
-    // RUGRA-GLUE: Default = new() (clippy::new_without_default).
+    // RUDRA-GLUE: Default = new() (clippy::new_without_default).
     fn default() -> Self {
         Self::new()
     }
@@ -2140,7 +2140,7 @@ impl Default for PcodeOpTree {
 // ---------------------------------------------------------------------------
 
 /// Which embedded link pair a chain walk follows.
-// RUGRA-GLUE: the two stored iterator pairs (op.hh:128 insertiter vs
+// RUDRA-GLUE: the two stored iterator pairs (op.hh:128 insertiter vs
 // op.hh:129 codeiter) select the chain family; the specific chain within
 /// a family is fixed by the start node (its members thread one pair).
 #[derive(Clone, Copy)]
@@ -2162,22 +2162,22 @@ pub struct OpChainIter<'a> {
 }
 
 impl<'a> OpChainIter<'a> {
-    // RUGRA-GLUE: constructor over the insert-link family.
+    // RUDRA-GLUE: constructor over the insert-link family.
     fn ins(arena: &'a Arena<OpCell, OpId>, head: OpId) -> Self {
         OpChainIter { arena, kind: ChainKind::Ins, cur: head }
     }
 
-    // RUGRA-GLUE: constructor over the code-link family.
+    // RUDRA-GLUE: constructor over the code-link family.
     fn code(arena: &'a Arena<OpCell, OpId>, head: OpId) -> Self {
         OpChainIter { arena, kind: ChainKind::Code, cur: head }
     }
 
-    // RUGRA-GLUE: empty walk (the former `[].iter()` end-sentinel stub).
+    // RUDRA-GLUE: empty walk (the former `[].iter()` end-sentinel stub).
     pub(crate) fn empty(arena: &'a Arena<OpCell, OpId>) -> Self {
         OpChainIter { arena, kind: ChainKind::Ins, cur: OpId::SENTINEL }
     }
 
-    // RUGRA-GLUE: continue the walk from a raw member id (marker form).
+    // RUDRA-GLUE: continue the walk from a raw member id (marker form).
     /// Iterate the insert-chain from `start` (inclusive) to the chain
     /// tail; the sentinel yields nothing.
     pub fn from_id(arena: &'a Arena<OpCell, OpId>, start: OpId) -> Self {
@@ -2206,7 +2206,7 @@ impl<'a> Iterator for OpChainIter<'a> {
 
 impl std::iter::FusedIterator for OpChainIter<'_> {}
 
-// RUGRA-GLUE: id-yielding companion of [`OpChainIter`] — the same stored-link
+// RUDRA-GLUE: id-yielding companion of [`OpChainIter`] — the same stored-link
 //   walk handing out the member [`OpId`] instead of the `&PcodeOpRef`
 //   (PERF-ARENA-FLIP-0001 (c) P1 read-mode: Action/Rule worksets collect
 //   plain Copy ids with no handle clone and no lock, and resolve elements
@@ -2218,12 +2218,12 @@ pub struct OpChainIdIter<'a> {
 }
 
 impl<'a> OpChainIdIter<'a> {
-    // RUGRA-GLUE: constructor over the insert-link family.
+    // RUDRA-GLUE: constructor over the insert-link family.
     fn ins(arena: &'a Arena<OpCell, OpId>, head: OpId) -> Self {
         OpChainIdIter { arena, kind: ChainKind::Ins, cur: head }
     }
 
-    // RUGRA-GLUE: constructor over the code-link family.
+    // RUDRA-GLUE: constructor over the code-link family.
     fn code(arena: &'a Arena<OpCell, OpId>, head: OpId) -> Self {
         OpChainIdIter { arena, kind: ChainKind::Code, cur: head }
     }
@@ -2250,22 +2250,22 @@ impl<'a> Iterator for OpChainIdIter<'a> {
 
 impl std::iter::FusedIterator for OpChainIdIter<'_> {}
 
-// RUGRA-GLUE: set-shaped Debug (the former derive printed the keyed map;
+// RUDRA-GLUE: set-shaped Debug (the former derive printed the keyed map;
 // consumers only ever see the element sequence).
 impl std::fmt::Debug for PcodeOpTree {
-    // RUGRA-GLUE: trait impl (Debug formatting; no Ghidra counterpart).
+    // RUDRA-GLUE: trait impl (Debug formatting; no Ghidra counterpart).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_set().entries(self.iter()).finish()
     }
 }
 
-// RUGRA-GLUE: IntoIterator on &PcodeOpTree so `for op in &bank.optree`
+// RUDRA-GLUE: IntoIterator on &PcodeOpTree so `for op in &bank.optree`
 //   keeps the keyed-map surface at every existing call site
 //   (heritage/merge/funcdata/comment/flow/ffi/align/examples).
 impl<'a> IntoIterator for &'a PcodeOpTree {
     type Item = &'a PcodeOpRef;
     type IntoIter = PcodeOpTreeIter<'a>;
-    // RUGRA-GLUE: trait-impl forwarder to iter().
+    // RUDRA-GLUE: trait-impl forwarder to iter().
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
@@ -2314,11 +2314,11 @@ pub struct PcodeOpBank {
     uniqid: u32,
 }
 
-// RUGRA-GLUE: set-shaped Debug (chain lengths only — IdList has no element
+// RUDRA-GLUE: set-shaped Debug (chain lengths only — IdList has no element
 //   iteration without the arena, and debug formatting must not become an
 //   API that exposes slot order).
 impl std::fmt::Debug for PcodeOpBank {
-    // RUGRA-GLUE: trait impl (Debug formatting; no Ghidra counterpart).
+    // RUDRA-GLUE: trait impl (Debug formatting; no Ghidra counterpart).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PcodeOpBank")
             .field("optree", &self.optree)
@@ -2349,7 +2349,7 @@ impl PcodeOpBank {
         }
     }
 
-    // RUGRA-GLUE: stored-iterator resolution — the op's own id is the
+    // RUDRA-GLUE: stored-iterator resolution — the op's own id is the
     //   oracle's stored `insertiter`/`codeiter` carrier (op.hh:127-129).
     //   Bank-created ops are always slotted (create inserts the optree
     //   cell first); adopt_alive_op slots foreign handles. Returns None
@@ -2361,7 +2361,7 @@ impl PcodeOpBank {
         Some(id)
     }
 
-    // RUGRA-GLUE: slot-of with adopt fallback — marks/moves on a foreign
+    // RUDRA-GLUE: slot-of with adopt fallback — marks/moves on a foreign
     //   (unslotted) handle first give it a cell, then link it, matching
     //   the former Vec behavior where mark_alive/mark_dead pushed any
     //   passed op into the target list.
@@ -2910,7 +2910,7 @@ impl PcodeOpBank {
         OpChainIter::ins(self.optree.arena(), self.deadlist.head().unwrap_or(OpId::SENTINEL))
     }
 
-    // RUGRA-GLUE: id-yielding alive-chain walk (PERF-ARENA-FLIP-0001 (c)
+    // RUDRA-GLUE: id-yielding alive-chain walk (PERF-ARENA-FLIP-0001 (c)
     //   workset collect form — chain order, zero locks, zero clones).
     /// Iterate the alive chain as plain [`OpId`]s in exact chain order.
     pub fn iter_alive_ids(&self) -> OpChainIdIter<'_> {
@@ -2920,7 +2920,7 @@ impl PcodeOpBank {
         )
     }
 
-    // RUGRA-GLUE: id-yielding LOAD-chain walk (workset collect form).
+    // RUDRA-GLUE: id-yielding LOAD-chain walk (workset collect form).
     /// Iterate the LOAD chain as plain [`OpId`]s in chain order.
     pub fn iter_load_ids(&self) -> OpChainIdIter<'_> {
         OpChainIdIter::code(
@@ -2929,7 +2929,7 @@ impl PcodeOpBank {
         )
     }
 
-    // RUGRA-GLUE: id-yielding RETURN-chain walk (workset collect form).
+    // RUDRA-GLUE: id-yielding RETURN-chain walk (workset collect form).
     /// Iterate the RETURN chain as plain [`OpId`]s in chain order.
     pub fn iter_return_ids(&self) -> OpChainIdIter<'_> {
         OpChainIdIter::code(
@@ -2938,7 +2938,7 @@ impl PcodeOpBank {
         )
     }
 
-    // RUGRA-GLUE: marker-form dead walk — flow.cc:240 deleteRemainingOps
+    // RUDRA-GLUE: marker-form dead walk — flow.cc:240 deleteRemainingOps
     //   walks `oiter` (a stored dead-list iterator) to `endDead()`; the
     //   id-space marker is the last surviving op's id.
     /// Iterate the dead chain from `marker`'s successor (or the head when
@@ -3024,7 +3024,7 @@ impl PcodeOpBank {
         self.optree.get_by_id(tail).cloned()
     }
 
-    // RUGRA-GLUE: raw id forms of the head/tail probes — flow-time boundary
+    // RUDRA-GLUE: raw id forms of the head/tail probes — flow-time boundary
     //   markers are `Option<OpId>` (the oracle's stored list iterators,
     //   flow.cc:407 `oiter`), so the marker helpers below need ids, not
     //   resolved handles.
@@ -3034,19 +3034,19 @@ impl PcodeOpBank {
     }
 
     /// Raw id of the dead chain tail.
-    // RUGRA-GLUE: raw-handle probe (the id form of the tail walk above).
+    // RUDRA-GLUE: raw-handle probe (the id form of the tail walk above).
     pub fn dead_tail_id(&self) -> Option<OpId> {
         self.deadlist.tail()
     }
 
     /// Resolve a raw id to its stored handle (guarded stale-id lookup).
-    // RUGRA-GLUE: id dereference — the oracle counterpart is the raw
+    // RUDRA-GLUE: id dereference — the oracle counterpart is the raw
     // pointer dereference itself (P1 read form, ARENA_DESIGN §3.2).
     pub fn op_by_id(&self, id: OpId) -> Option<&PcodeOpRef> {
         self.optree.get_by_id(id)
     }
 
-    // RUGRA-GLUE: bank-level stored-iterator dead read (delegates to the
+    // RUDRA-GLUE: bank-level stored-iterator dead read (delegates to the
     //   PcodeOpTree cell shadow; the pool dispatch's per-visit entry form,
     //   PERF-DISPATCH-0001).
     /// The op's current dead bit, read lock-free from the arena cell — the
@@ -3055,14 +3055,14 @@ impl PcodeOpBank {
         self.optree.dead_by_id(id)
     }
 
-    // RUGRA-GLUE: bank-level memo-guard read (delegates to the tree's
+    // RUDRA-GLUE: bank-level memo-guard read (delegates to the tree's
     //   mutation counter; PERF-DISPATCH-0001).
     /// The optree mutation version the ActionPool cursor memoizes.
     pub fn optree_version(&self) -> u64 {
         self.optree.version()
     }
 
-    // RUGRA-GLUE: bank-level stored-iterator opcode read (delegates to the
+    // RUDRA-GLUE: bank-level stored-iterator opcode read (delegates to the
     //   PcodeOpTree cell shadow; the pool dispatch's per-try re-read form,
     //   PERF-ARENA-FLIP-0001 (c)).
     /// The op's current opcode, read lock-free from the arena cell — the
@@ -3071,7 +3071,7 @@ impl PcodeOpBank {
         self.optree.opcode_by_id(id)
     }
 
-    // RUGRA-GLUE: boundary-marker resolution — the id-space form of
+    // RUDRA-GLUE: boundary-marker resolution — the id-space form of
     //   "the ops from position N to the end" (flow.cc:240 deleteRemainingOps
     //   walks `oiter` to `endDead()`; flow.cc:407/466 record the pre-lift
     //   tail and advance from it). `None` marker + non-empty chain = the
@@ -3096,12 +3096,12 @@ impl PcodeOpBank {
     }
 
     /// True when `op` is a member of the alive chain.
-    // RUGRA-GLUE: stored-iterator validity probe (oracle: `iter != end()`).
+    // RUDRA-GLUE: stored-iterator validity probe (oracle: `iter != end()`).
     pub fn in_alive(&self, op: &PcodeOpRef) -> bool {
         self.slot_of(op).is_some_and(|id| self.alivelist.contains(self.optree.arena(), id))
     }
 
-    // RUGRA-GLUE: legacy flat-bank positional adapters (funcdata
+    // RUDRA-GLUE: legacy flat-bank positional adapters (funcdata
     //   op_insert_before/op_insert_after GLUE branches) — chain-surgery
     //   forms of the former Vec::insert at a member's position. Each is a
     //   guarded no-op when the anchor is not an alive member (the former
@@ -3124,7 +3124,7 @@ impl PcodeOpBank {
     /// Insert `op` into the alive chain immediately after the member
     /// `previous` (the former alivelist positional insert at
     /// previous's index + 1). `op` must be slotted and unlinked.
-    // RUGRA-GLUE: legacy flat-bank positional insert, chain form.
+    // RUDRA-GLUE: legacy flat-bank positional insert, chain form.
     pub fn alive_insert_after(&mut self, op: &PcodeOpRef, previous: &PcodeOpRef) {
         let (Some(id), Some(prev_id)) = (self.slot_of(op), self.slot_of(previous)) else {
             return;
@@ -3137,7 +3137,7 @@ impl PcodeOpBank {
         alivelist.insert_after(&mut optree.arena_mut(), prev_id, id);
     }
 
-    // RUGRA-GLUE: alive-chain tail push for the slotted-but-unlinked legacy
+    // RUDRA-GLUE: alive-chain tail push for the slotted-but-unlinked legacy
     //   state (the former `alivelist.insert(len, op)` fallthrough).
     /// Link the slotted, unlinked `op` at the alive chain tail.
     pub fn alive_push_back(&mut self, op: &PcodeOpRef) {
@@ -3161,7 +3161,7 @@ impl PcodeOpBank {
         self.optree.get_by_id(prev).cloned()
     }
 
-    // RUGRA-GLUE: legacy flat-bank detach — the former
+    // RUDRA-GLUE: legacy flat-bank detach — the former
     //   `alivelist.retain(|x| !ptr_eq(x, op))` no-op-or-remove shape on the
     //   parentless-fixture paths (funcdata op_uninsert GLUE branch). Chain
     //   form: unlink when an alive member, otherwise nothing (a flag-less
@@ -3176,7 +3176,7 @@ impl PcodeOpBank {
         alivelist.unlink(&mut optree.arena_mut(), id);
     }
 
-    // RUGRA-GLUE: cold positional bridge — the former `deadlist[index]` on
+    // RUDRA-GLUE: cold positional bridge — the former `deadlist[index]` on
     //   paths where an index is still the natural currency (do_live_inject's
     //   historically index-driven walk). Walks from the head; strict form
     //   panics past the tail exactly like the former Vec index.
@@ -3187,7 +3187,7 @@ impl PcodeOpBank {
     }
 
     /// Raw id of the dead-chain member at `index` (0-based), or `None`.
-    // RUGRA-GLUE: positional bridge (chain walk from the head).
+    // RUDRA-GLUE: positional bridge (chain walk from the head).
     pub fn dead_id_at(&self, index: usize) -> Option<OpId> {
         let mut cur = self.deadlist.head()?;
         for _ in 0..index {
@@ -3202,14 +3202,14 @@ impl PcodeOpBank {
 
     /// The dead-chain member at `index`, panicking past the tail (the
     /// former `deadlist[index]` out-of-bounds panic).
-    // RUGRA-GLUE: positional bridge, strict form (Vec index panic parity).
+    // RUDRA-GLUE: positional bridge, strict form (Vec index panic parity).
     pub fn dead_at_strict(&self, index: usize) -> PcodeOpRef {
         self.dead_at(index).unwrap_or_else(|| {
             panic!("deadlist index {} out of bounds: len is {}", index, self.deadlist.len())
         })
     }
 
-    // RUGRA-GLUE: bank-API replacement for the legacy test fixtures' bare
+    // RUDRA-GLUE: bank-API replacement for the legacy test fixtures' bare
     //   `alivelist.push(PcodeOpRef(raw_arc))` list bypasses
     //   (PERF-ARENA-FLIP-0001 (b) task ③). Slots the foreign handle into
     //   the bank arena WITHOUT entering the SeqNum map (the optree map and
@@ -3238,7 +3238,7 @@ impl PcodeOpBank {
 }
 
 impl Default for PcodeOpBank {
-    // RUGRA-GLUE: Rust Default impl; Ghidra has no Default concept but the
+    // RUDRA-GLUE: Rust Default impl; Ghidra has no Default concept but the
     //   PcodeOpBank() ctor (op.hh:304) is the equivalent zero-initializer.
     fn default() -> Self {
         Self::new()

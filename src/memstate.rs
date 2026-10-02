@@ -30,7 +30,7 @@ use crate::space::AddressSpace;
 /// references `HOST_ENDIAN` directly in getPage/setPage/MemoryImage::find).
 const HOST_ENDIAN: u32 = 0;
 
-// RUGRA-GLUE: byte_swap (no direct Ghidra counterpart in this codebase).
+// RUDRA-GLUE: byte_swap (no direct Ghidra counterpart in this codebase).
 // Ghidra's memstate.cc calls a global `byte_swap(val, size)` helper defined
 // elsewhere (platform/address code). We provide an equivalent inline.
 /// Reverse the low `size` bytes of `val`. Equivalent to Ghidra's
@@ -458,7 +458,7 @@ impl MemoryBank {
         }
     }
 
-    // RUGRA-GLUE: clear (no direct Ghidra counterpart; MemState management
+    // RUDRA-GLUE: clear (no direct Ghidra counterpart; MemState management
     // of overlay pages is Ghidra's domain, but rugra exposes this for tests
     // and for the emulator's reset path).
     /// Clear all stored words.
@@ -507,7 +507,7 @@ impl MemoryImage {
     /// `MemoryImage::insert` (memstate.hh:98-99), which throws
     /// `LowlevelError("Writing to read-only MemoryBank")`.
     pub fn insert(&mut self, _addr: u64, _val: u64) {
-        // RUGRA-GLUE: panic mirrors the C++ throw LowlevelError.
+        // RUDRA-GLUE: panic mirrors the C++ throw LowlevelError.
         panic!("Writing to read-only MemoryBank");
     }
 
@@ -785,7 +785,7 @@ impl MemoryPageOverlay {
         page[skip..skip + size].copy_from_slice(val);
     }
 
-    // RUGRA-GLUE: is_page_overlayed / num_pages / read / write / get_value /
+    // RUDRA-GLUE: is_page_overlayed / num_pages / read / write / get_value /
     // set_value / get_word_size / get_page_size / get_space (no direct Ghidra
     // counterparts at this level; convenience helpers used by tests and by
     // rugra's emulator which addresses memory by raw offset rather than by
@@ -798,7 +798,7 @@ impl MemoryPageOverlay {
     }
 
     /// Get the number of overlayed pages.
-    // RUGRA-GLUE: Exposes the Rust overlay-cache cardinality; Ghidra MemoryPageOverlay has no public page-count method.
+    // RUDRA-GLUE: Exposes the Rust overlay-cache cardinality; Ghidra MemoryPageOverlay has no public page-count method.
     pub fn num_pages(&self) -> usize {
         self.page.len()
     }
@@ -1069,7 +1069,7 @@ impl MemoryHashOverlay {
     pub fn insert(&mut self, addr: u64, val: u64) {
         let size = self.address.len();
         if size == 0 {
-            // RUGRA-GLUE: guard against a zero-capacity table (Ghidra would
+            // RUDRA-GLUE: guard against a zero-capacity table (Ghidra would
             // likewise throw on the first iteration). Match C++ behaviour.
             panic!("Memory state hash_table is full");
         }
@@ -1096,7 +1096,7 @@ impl MemoryHashOverlay {
     pub fn find(&self, addr: u64) -> u64 {
         let size = self.address.len();
         if size == 0 {
-            // RUGRA-GLUE: empty table always misses.
+            // RUDRA-GLUE: empty table always misses.
             return match self.underlie.as_ref() {
                 None => 0,
                 Some(under) => under.find(addr),
@@ -1118,7 +1118,7 @@ impl MemoryHashOverlay {
         }
     }
 
-    // RUGRA-GLUE: get_value / set_value / get_word_size / get_page_size /
+    // RUDRA-GLUE: get_value / set_value / get_word_size / get_page_size /
     // get_space (no direct Ghidra counterparts at this level; convenience
     // accessors so the hash overlay can be used uniformly with the other
     // banks by the emulator and tests).
@@ -1259,7 +1259,7 @@ impl MemoryHashOverlay {
 // appropriately-backed bank for a space)
 // ============================================================================
 
-// RUGRA-GLUE: construct_memory_bank (no single Ghidra counterpart; Ghidra's
+// RUDRA-GLUE: construct_memory_bank (no single Ghidra counterpart; Ghidra's
 // Architecture wires up MemoryImage / overlays via the LoadImage during
 // initialisation in architecture.cc. Rugra exposes a single factory used by
 // the emulator to build a default bank for a space).
@@ -1287,7 +1287,7 @@ pub struct MemState {
 }
 
 impl MemState {
-    // RUGRA-GLUE: new (Ghidra's MemoryState constructor takes a Translate*;
+    // RUDRA-GLUE: new (Ghidra's MemoryState constructor takes a Translate*;
     // rugra's Translate equivalent is not wired into MemState yet, so the
     // constructor is parameter-less for now. The named-register
     // `setValue`/`getValue` (memstate.cc:684-702) are therefore exposed via
@@ -1309,7 +1309,7 @@ impl MemState {
         self.banks.insert(name, bank);
     }
 
-    // RUGRA-GLUE: set_bank (compat alias for setMemoryBank keyed by name).
+    // RUDRA-GLUE: set_bank (compat alias for setMemoryBank keyed by name).
     /// Register a memory bank for an address space under an explicit name.
     pub fn set_bank(&mut self, space_name: String, bank: MemoryBank) {
         self.banks.insert(space_name, bank);
@@ -1323,12 +1323,12 @@ impl MemState {
         self.banks.get(space_name)
     }
 
-    // RUGRA-GLUE: get_bank_mut (mutable counterpart to getMemoryBank).
+    // RUDRA-GLUE: get_bank_mut (mutable counterpart to getMemoryBank).
     pub fn get_bank_mut(&mut self, space_name: &str) -> Option<&mut MemoryBank> {
         self.banks.get_mut(space_name)
     }
 
-    // RUGRA-GLUE: get_bank (compat alias for getMemoryBank).
+    // RUDRA-GLUE: get_bank (compat alias for getMemoryBank).
     pub fn get_bank(&self, space_name: &str) -> Option<&MemoryBank> {
         self.banks.get(space_name)
     }
@@ -1357,7 +1357,7 @@ impl MemState {
         self.banks.get(space_name).map(|bank| bank.get_value(offset, size))
     }
 
-    // RUGRA-GLUE: set_register_value / get_register_value (compat for the
+    // RUDRA-GLUE: set_register_value / get_register_value (compat for the
     // named-register `setValue(const string&,...)` / `getValue(const string&,...)`
     // overloads in memstate.cc:684-702; those resolve a register name to a
     // varnode via the Translate object, which rugra does not yet wire here).
@@ -1365,7 +1365,7 @@ impl MemState {
     /// `MemoryState::setValue(const string &nm,uintb cval)` (memstate.cc:684-689).
     pub fn set_register_value(&mut self, reg_name: &str, val: u64) {
         if let Some(bank) = self.banks.get_mut("register") {
-            // RUGRA-GLUE: without a Translate lookup we hash the name into an
+            // RUDRA-GLUE: without a Translate lookup we hash the name into an
             // offset within the register bank; the emulator proper keys its
             // register file by (space, offset) tuples instead.
             let offset = hash_register_name(reg_name);
@@ -1404,13 +1404,13 @@ impl MemState {
 }
 
 impl Default for MemState {
-    // RUGRA-GLUE: Rust Default delegates to MemState::new; C++ MemoryState has no Default-trait entry point.
+    // RUDRA-GLUE: Rust Default delegates to MemState::new; C++ MemoryState has no Default-trait entry point.
     fn default() -> Self {
         Self::new()
     }
 }
 
-// RUGRA-GLUE: hash_register_name (no Ghidra counterpart; rugra's
+// RUDRA-GLUE: hash_register_name (no Ghidra counterpart; rugra's
 // named-register API lacks a Translate object to resolve names, so we hash
 // the name into a stable register-bank offset as a placeholder).
 fn hash_register_name(name: &str) -> u64 {

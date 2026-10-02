@@ -97,7 +97,7 @@ pub struct ParameterPieces {
     pub flags: u32,
 }
 
-// RUGRA-GLUE: ParameterPieces::indirectstorage (modelrules.hh references this
+// RUDRA-GLUE: ParameterPieces::indirectstorage (modelrules.hh references this
 // constant by name via `ParameterPieces::indirectstorage`).
 /// Flag: parameter holds an indirect/hidden pointer to the real storage.
 /// Faithful to `ParameterPieces::indirectstorage = 1` (fspec.hh:458).
@@ -137,12 +137,12 @@ pub struct VarnodeData {
     pub size: i32,
 }
 
-// RUGRA-GLUE: Default for VarnodeData (no Ghidra counterpart — Ghidra has no
+// RUDRA-GLUE: Default for VarnodeData (no Ghidra counterpart — Ghidra has no
 // default ctor for VarnodeData; Rust needs one for ergonomic construction in
 // the assign-address bodies. Picks the `Ram` address space as the neutral
 // default, matching the most common non-register destination.)
 impl Default for VarnodeData {
-    // RUGRA-GLUE: default (no Ghidra counterpart — Ghidra VarnodeData has no
+    // RUDRA-GLUE: default (no Ghidra counterpart — Ghidra VarnodeData has no
     // default ctor; Rust needs one for ergonomic construction).
     fn default() -> Self {
         Self { space: AddressSpace::Ram, offset: 0, size: 0 }
@@ -150,7 +150,7 @@ impl Default for VarnodeData {
 }
 
 impl VarnodeData {
-    // RUGRA-GLUE: getAddr (no Ghidra counterpart found — thin helper for the
+    // RUDRA-GLUE: getAddr (no Ghidra counterpart found — thin helper for the
     // single-space Address model).
     /// Build the (single-space) Address of this VarnodeData.
     pub fn get_addr(&self) -> Address {
@@ -242,7 +242,7 @@ pub struct Primitive {
 }
 
 impl Primitive {
-    // RUGRA-GLUE: Primitive constructor (modelrules.hh:72) — trivial field
+    // RUDRA-GLUE: Primitive constructor (modelrules.hh:72) — trivial field
     // initializer, not a separate Ghidra function body.
     /// Construct from `(dt, offset)`. Mirrors `Primitive(Datatype *d,int4 off)`.
     pub fn new(dt: Arc<Datatype>, offset: i64) -> Self {
@@ -554,7 +554,7 @@ impl PrimitiveExtractor {
         Self::new_raw(&Arc::new(dt.clone_ref()), union_illegal, offset, max)
     }
 
-    // RUGRA-GLUE: internal constructor (modelrules.cc:242 body shared by
+    // RUDRA-GLUE: internal constructor (modelrules.cc:242 body shared by
     // public ctor and handleUnion recursion, which holds `Arc<Datatype>`).
     /// Same body as `PrimitiveExtractor::PrimitiveExtractor` but accepts an
     /// `Arc<Datatype>` so `handleUnion` can recurse without re-cloning.
@@ -607,7 +607,7 @@ impl PrimitiveExtractor {
 }
 
 impl Datatype {
-    // RUGRA-GLUE: Datatype::clone_ref (no Ghidra counterpart — Rust-only helper
+    // RUDRA-GLUE: Datatype::clone_ref (no Ghidra counterpart — Rust-only helper
     // to obtain an owned clone of a `&Datatype` as `Datatype`; Ghidra copies
     // via C++ copy semantics / pointer aliasing, here we need a value to wrap
     // in Arc).
@@ -632,7 +632,7 @@ impl Datatype {
 /// returned as `Box<dyn DatatypeFilter>`; `virtual bool filter(Datatype*)`
 /// and `virtual void decode(Decoder&)` map to trait methods.
 pub trait DatatypeFilter: Send + Sync {
-    // RUGRA-GLUE: clone (modelrules.hh:102) — Rust uses boxed trait objects
+    // RUDRA-GLUE: clone (modelrules.hh:102) — Rust uses boxed trait objects
     // instead of C++ `virtual clone()`.
     /// Make a copy of \b this filter (Ghidra: `virtual clone()`).
     fn clone_box(&self) -> Box<dyn DatatypeFilter>;
@@ -798,7 +798,7 @@ impl SizeRestrictedFilter {
 }
 
 impl Default for SizeRestrictedFilter {
-    // RUGRA-GLUE: Default impl (mirrors the no-arg ctor at modelrules.hh:130).
+    // RUDRA-GLUE: Default impl (mirrors the no-arg ctor at modelrules.hh:130).
     fn default() -> Self {
         Self::new()
     }
@@ -999,7 +999,7 @@ impl DatatypeFilter for HomogeneousAggregate {
 ///
 /// Faithful port of `class QualifierFilter` (modelrules.hh:172-193).
 pub trait QualifierFilter: Send + Sync {
-    // RUGRA-GLUE: clone (modelrules.hh:179) — Rust boxed trait object.
+    // RUDRA-GLUE: clone (modelrules.hh:179) — Rust boxed trait object.
     /// Make a copy of \b this qualifier.
     fn clone_box(&self) -> Box<dyn QualifierFilter>;
 
@@ -1111,7 +1111,7 @@ impl VarargsFilter {
 }
 
 impl Default for VarargsFilter {
-    // RUGRA-GLUE: Default impl (mirrors the no-arg ctor at modelrules.hh:224).
+    // RUDRA-GLUE: Default impl (mirrors the no-arg ctor at modelrules.hh:224).
     fn default() -> Self {
         Self::new()
     }
@@ -1201,7 +1201,7 @@ impl DatatypeMatchFilter {
 }
 
 impl Default for DatatypeMatchFilter {
-    // RUGRA-GLUE: Default impl (mirrors the no-arg ctor at modelrules.hh:251).
+    // RUDRA-GLUE: Default impl (mirrors the no-arg ctor at modelrules.hh:251).
     fn default() -> Self {
         Self::new()
     }
@@ -1253,7 +1253,7 @@ impl QualifierFilter for DatatypeMatchFilter {
 /// anonymous response-code enum (modelrules.hh:264-271) is lifted into the
 /// public [`AssignResponse`] enum above.
 pub trait AssignAction: Send + Sync {
-    // RUGRA-GLUE: assign (modelrules.hh:276) — Rust boxed trait object clone.
+    // RUDRA-GLUE: assign (modelrules.hh:276) — Rust boxed trait object clone.
     /// Make a copy of \b this action. `new_resource` is the new resource
     /// object that will own the clone.
     fn clone_box(&self, new_resource: &'static ParamListStandard) -> Box<dyn AssignAction>;
@@ -1370,7 +1370,7 @@ pub fn justify_pieces(
     pieces[pos].size -= offset;
 }
 
-// RUGRA-GLUE: AssignActionStaticExt (no Ghidra counterpart — Rust-only
+// RUDRA-GLUE: AssignActionStaticExt (no Ghidra counterpart — Rust-only
 // extension trait so call sites can keep writing `AssignAction::justify_pieces`
 // even though `justify_pieces` is a free function for object safety).
 /// Static-method namespace for `AssignAction`, mirroring the Ghidra
@@ -1378,7 +1378,7 @@ pub fn justify_pieces(
 /// functions that cannot live on the object-safe trait itself.
 pub trait AssignActionStaticExt {
     /// Re-export of the free function [`justify_pieces`].
-    // RUGRA-GLUE: AssignActionStaticExt::justify_pieces (trait dispatch shim;
+    // RUDRA-GLUE: AssignActionStaticExt::justify_pieces (trait dispatch shim;
     // the actual algorithm is the free fn justify_pieces below, q.v. for the
     // Ghidra alignment note).
     fn justify_pieces(
@@ -1391,7 +1391,7 @@ pub trait AssignActionStaticExt {
 }
 
 impl AssignActionStaticExt for dyn AssignAction {
-    // RUGRA-GLUE: <dyn AssignAction>::justify_pieces (delegates to the free
+    // RUDRA-GLUE: <dyn AssignAction>::justify_pieces (delegates to the free
     // fn justify_pieces; see that fn for the Ghidra alignment note).
     fn justify_pieces(
         pieces: &mut [VarnodeData],
@@ -2709,7 +2709,7 @@ impl ModelRule {
 }
 
 impl Default for ModelRule {
-    // RUGRA-GLUE: Default impl (mirrors the no-arg ctor at modelrules.hh:544).
+    // RUDRA-GLUE: Default impl (mirrors the no-arg ctor at modelrules.hh:544).
     fn default() -> Self {
         Self::new()
     }
@@ -2726,13 +2726,13 @@ mod tests {
         primitive_alignment, TypeArray, TypeBase, TypeField, TypePointer, TypeStruct,
     };
 
-    // RUGRA-GLUE: helper to build a primitive Int base type (no Ghidra
+    // RUDRA-GLUE: helper to build a primitive Int base type (no Ghidra
     // counterpart — test-only fixture).
     fn int_dt(size: usize) -> Datatype {
         Datatype::Base(TypeBase::new("int".into(), size, TypeMetatype::Int))
     }
 
-    // RUGRA-GLUE: helper to build a Float base type.
+    // RUDRA-GLUE: helper to build a Float base type.
     fn float_dt(size: usize) -> Datatype {
         Datatype::Base(TypeBase::new("float".into(), size, TypeMetatype::Float))
     }

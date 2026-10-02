@@ -1,4 +1,4 @@
-# `bin/rugra.rs` — current Rugra CLI
+# `bin/rugra.rs` — current Rudra CLI
 
 Source: `src/bin/rugra.rs`.
 

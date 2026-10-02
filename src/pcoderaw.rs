@@ -30,7 +30,7 @@ pub struct VarnodeRaw {
 }
 
 impl VarnodeRaw {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Create a new raw varnode
     pub fn new(space: AddressSpace, offset: u64, size: usize) -> Self {
         VarnodeRaw {
@@ -40,7 +40,7 @@ impl VarnodeRaw {
         }
     }
 
-    // RUGRA-GLUE: to_varnode_data (no Ghidra counterpart found)
+    // RUDRA-GLUE: to_varnode_data (no Ghidra counterpart found)
     /// Convert to VarnodeData
     pub fn to_varnode_data(&self) -> VarnodeData {
         VarnodeData::new(self.space, self.offset, self.size)
@@ -48,7 +48,7 @@ impl VarnodeRaw {
 }
 
 impl fmt::Display for VarnodeRaw {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:0x{:x}:{}", self.space, self.offset, self.size)
     }
@@ -111,7 +111,7 @@ impl PcodeOpRaw {
         self.opcode
     }
 
-    // RUGRA-GLUE: set_opcode — mutator for the raw-layer FlowOverride
+    // RUDRA-GLUE: set_opcode — mutator for the raw-layer FlowOverride
     // transport of `Funcdata::overrideFlow` (funcdata_op.cc:991-1020
     // opSetOpcode table). Ghidra mutates the dead PcodeOp in place before
     // block formation; Rugra's injection path rewrites the raw op before
@@ -285,7 +285,7 @@ pub struct PcodeOpRawBuilder {
 }
 
 impl PcodeOpRawBuilder {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Create a new builder
     pub fn new(opcode: i32) -> Self {
         PcodeOpRawBuilder {
@@ -293,35 +293,35 @@ impl PcodeOpRawBuilder {
         }
     }
 
-    // RUGRA-GLUE: output (no Ghidra counterpart found)
+    // RUDRA-GLUE: output (no Ghidra counterpart found)
     /// Set output
     pub fn output(mut self, space: AddressSpace, offset: u64, size: usize) -> Self {
         self.op.set_output(VarnodeRaw::new(space, offset, size));
         self
     }
 
-    // RUGRA-GLUE: input (no Ghidra counterpart found)
+    // RUDRA-GLUE: input (no Ghidra counterpart found)
     /// Add input
     pub fn input(mut self, space: AddressSpace, offset: u64, size: usize) -> Self {
         self.op.add_input(VarnodeRaw::new(space, offset, size));
         self
     }
 
-    // RUGRA-GLUE: seq_num (no Ghidra counterpart found)
+    // RUDRA-GLUE: seq_num (no Ghidra counterpart found)
     /// Set sequence number
     pub fn seq_num(mut self, addr: Address, order: u32) -> Self {
         self.op.set_seq_num(SeqNum::new(addr, order));
         self
     }
 
-    // RUGRA-GLUE: behavior (no Ghidra counterpart found)
+    // RUDRA-GLUE: behavior (no Ghidra counterpart found)
     /// Set behavior
     pub fn behavior(mut self, behavior: u32) -> Self {
         self.op.set_behavior(behavior);
         self
     }
 
-    // RUGRA-GLUE: build (no Ghidra counterpart found)
+    // RUDRA-GLUE: build (no Ghidra counterpart found)
     /// Build the PcodeOpRaw
     pub fn build(self) -> PcodeOpRaw {
         self.op

@@ -312,7 +312,7 @@ pub fn assign_string_data(
     data.is_truncated = num_chars >= maximum_chars;
 }
 
-// RUGRA-GLUE: address_bigend (Ghidra's `addr.isBigEndian()` at
+// RUDRA-GLUE: address_bigend (Ghidra's `addr.isBigEndian()` at
 // address.hh:298/445 reads the address's AddrSpace; the transitional legacy
 // `Address` carries an optional interned space, and spaceless addresses have
 // no Ghidra counterpart — little-endian is the documented default.)
@@ -484,7 +484,7 @@ impl StringManager {
         }
     }
 
-    // RUGRA-GLUE: set_string_data_client (driver/environment injection
+    // RUDRA-GLUE: set_string_data_client (driver/environment injection
     // point; the C++ counterpart is the sout/sin pipe itself —
     // ArchitectureGhidra::getStringData writes COMMAND_GETSTRINGDATA to
     // the Java process, ghidra_arch.cc:783-795, and the process is fixed
@@ -510,7 +510,7 @@ impl StringManager {
         self.string_map.write().unwrap().clear();
     }
 
-    // RUGRA-GLUE: get_maximum_chars (accessor for the protected
+    // RUDRA-GLUE: get_maximum_chars (accessor for the protected
     // `maximumChars` member, stringmanage.hh:49; Ghidra has no public getter;
     // Rugra consumers such as the internal-string registration path read it
     // through the shared handle)
@@ -519,7 +519,7 @@ impl StringManager {
         self.maximum_chars
     }
 
-    // RUGRA-GLUE: num_strings (test/fixture observation helper; the C++
+    // RUDRA-GLUE: num_strings (test/fixture observation helper; the C++
     // bilateral fixture exposes `stringMap.size()` through a subclass of the
     // protected member. Ghidra has no public counterpart.)
     /// Number of cached entries, positive and negative alike.
@@ -527,7 +527,7 @@ impl StringManager {
         self.string_map.read().unwrap().len()
     }
 
-    // RUGRA-GLUE: has_entry (test/fixture observation helper proving the
+    // RUDRA-GLUE: has_entry (test/fixture observation helper proving the
     // negative cache: stringmanage.cc:437 allocates the map entry before the
     // read, so failed queries must leave an entry behind. The C++ fixture
     // observes `stringMap.find(addr) != end()` through a subclass.)
@@ -563,7 +563,7 @@ impl StringManager {
         !buffer.is_empty()
     }
 
-    // RUGRA-GLUE: insert_string_data (direct cache mutation for the
+    // RUDRA-GLUE: insert_string_data (direct cache mutation for the
     // internal-string path and pre-seeded test managers; stands in for
     // writing `stringMap[addr]` directly, which Ghidra performs from inside
     // its own subclass methods)
@@ -598,14 +598,14 @@ impl StringManager {
             }
         }
         let Some(backend) = &self.backend else {
-            // RUGRA-GLUE: reader-less base manager — the stand-in for
+            // RUDRA-GLUE: reader-less base manager — the stand-in for
             // Ghidra's abstract virtual. Nothing was read, so a miss is not a
             // measured negative: no entry is occupied (cache-only lookup,
             // preserving the legacy base-class observable behavior).
             *is_trunc = false;
             return Vec::new();
         };
-        // RUGRA-GLUE: re-check under the write guard — Ghidra is
+        // RUDRA-GLUE: re-check under the write guard — Ghidra is
         // single-threaded so its single find() suffices; Rust must re-observe
         // the map after upgrading the lock.
         let mut map = self.string_map.write().unwrap();
@@ -705,7 +705,7 @@ impl StringManager {
     /// mode (in which case the already-occupied map entry stays empty). The
     /// caller performs the map insertion while holding its own write guard
     /// (Ghidra writes the entry in-place from the same frame;
-    /// RUGRA-GLUE: Rust's non-reentrant RwLock requires the reader itself to
+    /// RUDRA-GLUE: Rust's non-reentrant RwLock requires the reader itself to
     /// stay lock-free).
     fn read_terminated_unicode(
         &self,
@@ -745,7 +745,7 @@ impl StringManager {
                 charsize as usize,
             );
             if found_terminator || got < amount {
-                // RUGRA-GLUE: a short read means the loader channel provided
+                // RUDRA-GLUE: a short read means the loader channel provided
                 // fewer bytes than requested; Ghidra's loadFill contract
                 // always fills exactly `amount` bytes or throws, so treat a
                 // short final chunk as the image end (no further blocks).
@@ -797,7 +797,7 @@ impl StringManager {
     /// with [`Self::calc_internal_hash`], and cached at the constant-space
     /// address of the hash; returns the hash (or 0 on illegal encoding).
     ///
-    /// RUGRA-GLUE: Ghidra's key is `getConstant(hash)`; Rugra's transitional
+    /// RUDRA-GLUE: Ghidra's key is `getConstant(hash)`; Rugra's transitional
     /// constant-space address is the spaceless `Address::new(hash)`
     /// (translate.rs `AddrSpaceManager::get_constant`).
     pub fn register_internal_string_data(
@@ -843,7 +843,7 @@ impl StringManager {
         let map = self.string_map.read().unwrap();
         for (addr, data) in map.iter() {
             encoder.open_element(&str_elem);
-            // Address. RUGRA-GLUE: Rugra's transitional encoder records the
+            // Address. RUDRA-GLUE: Rugra's transitional encoder records the
             // offset (and the interned space tag id) rather than Ghidra's
             // `<addr space="name" offset=.../>` form; space-name restore
             // needs the architecture space registry (XML fidelity is an

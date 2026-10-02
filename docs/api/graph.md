@@ -58,12 +58,12 @@ Convenience wrapper around `dump_dataflow_graph` that returns a `String`.
 
 ### `pub fn dump_controlflow_graph_string(name: &str, graph: &BlockGraph) -> String`
 
-RUGRA-GLUE：Ghidra 通过 `ostream` 接收结果；此函数只新建 `String` sink 并
+RUDRA-GLUE：Ghidra 通过 `ostream` 接收结果；此函数只新建 `String` sink 并
 原样转发给 `dump_controlflow_graph`。
 
 ### `pub fn dump_dom_graph_string(name: &str, graph: &BlockGraph) -> String`
 
-RUGRA-GLUE：Ghidra 通过 `ostream` 接收结果；此函数只新建 `String` sink 并
+RUDRA-GLUE：Ghidra 通过 `ostream` 接收结果；此函数只新建 `String` sink 并
 原样转发给 `dump_dom_graph`。
 
 ## 内部辅助函数 (Private Helpers)
@@ -87,8 +87,8 @@ RUGRA-GLUE：Ghidra 通过 `ostream` 接收结果；此函数只新建 `String` 
 | `dump_dom_edges`           | :363 `dump_dom_edges`       | 所有支配边                             |
 | `dump_block_attributes`    | :378 `dump_block_attributes`| `DefineAttribute`/`SetKeyAttribute` 声明 |
 | `dump_block_properties`    | :412 `dump_block_properties`| AutomaticArrangement/VertexColors 等偏好 |
-| `is_fspec_space`           | (RUGRA-GLUE)                | `IPTR_FSPEC` 占位：Rugra 未建模 Fspec 空间，恒返回 `false` |
-| `block_stop_addr`          | (RUGRA-GLUE)                | `FlowBlock::getStop()` 近似：`BlockBasic` 用真实 stop，否则用 start |
+| `is_fspec_space`           | (RUDRA-GLUE)                | `IPTR_FSPEC` 占位：Rugra 未建模 Fspec 空间，恒返回 `false` |
+| `block_stop_addr`          | (RUDRA-GLUE)                | `FlowBlock::getStop()` 近似：`BlockBasic` 用真实 stop，否则用 start |
 
 ## 类型映射 (Mapping Notes)
 

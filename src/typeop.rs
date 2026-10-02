@@ -35,7 +35,7 @@ pub mod typeop_flags {
 }
 
 // ---------------------------------------------------------------------------
-// RUGRA-GLUE: PrintC recovery helper for `TypeOp::push` dispatch.
+// RUDRA-GLUE: PrintC recovery helper for `TypeOp::push` dispatch.
 //
 // Ghidra models per-opcode printing as virtual `TypeOp*::push(lng, op, readOp)`
 // methods (typeop.hh:170) that each call a single `PrintLanguage` virtual such
@@ -60,7 +60,7 @@ pub mod typeop_flags {
 /// Returns `None` for any `PrintLanguage` implementation other than `PrintC`.
 /// This is the Rust equivalent of the implicit C++ up-cast from
 /// `PrintLanguage*` to `PrintC*` that Ghidra relies on inside `TypeOp*::push`.
-// RUGRA-GLUE: enabled by `PrintLanguage: Any` (printlanguage.rs); used by the
+// RUDRA-GLUE: enabled by `PrintLanguage: Any` (printlanguage.rs); used by the
 //   per-opcode `push` dispatchers below to reach PrintC-specific emitters.
 fn as_printc_mut(lng: &mut dyn PrintLanguage) -> Option<&mut PrintC> {
     // Up-cast `&mut dyn PrintLanguage` to `&mut dyn Any` (valid because
@@ -141,7 +141,7 @@ pub fn comparison_input_cast(
 /// `CastStrategy::setTypeFactory` sets `promoteSize = tlst->getSizeOfInt()`
 /// (cast.cc:27). Rugra's trait objects reach the factory through
 /// `local_type_factory`, so the strategy is rebuilt per call from it.
-// RUGRA-GLUE: strategy construction mirror of CastStrategy::setTypeFactory
+// RUDRA-GLUE: strategy construction mirror of CastStrategy::setTypeFactory
 //   (cast.cc:27); detached fixtures without a factory fall back to the
 //   x86-64 int size 4.
 fn factory_cast_strategy(
@@ -754,7 +754,7 @@ pub trait TypeOp {
     /// hook instead. `None` leaves the local-type defaults below without a
     /// factory to query (mirroring an op whose Rugra impl has not yet been
     /// wired to its Architecture TypeFactory).
-    // RUGRA-GLUE: base-class `tlst` field access as a trait provider hook;
+    // RUDRA-GLUE: base-class `tlst` field access as a trait provider hook;
     //   impls that hold the constructor-injected factory override it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         None
@@ -872,7 +872,7 @@ pub trait TypeOp {
     /// Helper: the metatype assigned to an op's output for printing/token
     /// purposes. Mirrors Ghidra's per-opcode `metaout` metatype. Default
     /// `None` lets the caller fall back to the output varnode's own type.
-    // RUGRA-GLUE: Rust trait accessor for the per-subclass `metaout` field
+    // RUDRA-GLUE: Rust trait accessor for the per-subclass `metaout` field
     //   cached by Ghidra's TypeOpBinary/TypeOpUnary/TypeOpFunc constructors
     //   (typeop.hh:205 / :222 / :239). Ghidra has no virtual getOutputMetatype
     //   method; the field is read directly by getOutputLocal (typeop.cc:326
@@ -922,7 +922,7 @@ impl TypeOp for TypeOpBinary {
         format!("{} = {} {} {}", out, in0, self.get_name(), in1)
     }
 
-    // RUGRA-GLUE: generic binary push dispatch; Ghidra's TypeOpBinary does not
+    // RUDRA-GLUE: generic binary push dispatch; Ghidra's TypeOpBinary does not
     //   override push (pure virtual at typeop.hh:170), each concrete subclass
     //   provides its own `lng->opXxx(op)`.
     fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
@@ -964,7 +964,7 @@ impl TypeOp for TypeOpUnary {
         format!("{} = {} {}", out, self.get_name(), in0)
     }
 
-    // RUGRA-GLUE: generic unary push dispatch; Ghidra's TypeOpUnary does not
+    // RUDRA-GLUE: generic unary push dispatch; Ghidra's TypeOpUnary does not
     //   override push (pure virtual at typeop.hh:170), each concrete subclass
     //   provides its own `lng->opXxx(op)`.
     fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
@@ -991,7 +991,7 @@ macro_rules! binary_op_ext {
         }
 
         impl $struct_name {
-            // RUGRA-GLUE: stores the base-class `tlst` field every Ghidra
+            // RUDRA-GLUE: stores the base-class `tlst` field every Ghidra
             //   TypeOp subclass constructor receives (typeop.cc:233-242); the
             //   per-subclass constructor line is cited at the registration
             //   site in TypeOpManager::new.
@@ -1029,12 +1029,12 @@ macro_rules! binary_op_ext {
                     .unwrap_or_else(|| "_".to_string());
                 format!("{} = {} {} {}", out, in0, $symbol, in1)
             }
-            // RUGRA-GLUE: macro-generated generic binary push; per-subclass push
+            // RUDRA-GLUE: macro-generated generic binary push; per-subclass push
             //   is inlined in typeop.hh (e.g. TypeOpIntSub::push at :451).
             fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
                 lng.op_binary(op);
             }
-            // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+            // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
             //   constructor-registered metaout below resolves through it.
             fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
                 Some(&self.type_factory)
@@ -1081,7 +1081,7 @@ macro_rules! unary_op {
         }
 
         impl $struct_name {
-            // RUGRA-GLUE: stores the base-class `tlst` field every Ghidra
+            // RUDRA-GLUE: stores the base-class `tlst` field every Ghidra
             //   TypeOp subclass constructor receives (typeop.cc:233-242); the
             //   per-subclass constructor line is cited at the registration
             //   site in TypeOpManager::new.
@@ -1115,12 +1115,12 @@ macro_rules! unary_op {
                     .unwrap_or_else(|| "_".to_string());
                 format!("{} = {}{}", out, $symbol, in0)
             }
-            // RUGRA-GLUE: macro-generated generic unary push; per-subclass push
+            // RUDRA-GLUE: macro-generated generic unary push; per-subclass push
             //   is inlined in typeop.hh (e.g. TypeOpIntNegate::push at :491).
             fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
                 lng.op_unary(op);
             }
-            // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+            // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
             //   constructor-registered metaout below resolves through it.
             fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
                 Some(&self.type_factory)
@@ -1162,7 +1162,7 @@ macro_rules! functional_unary_op_ext {
         }
 
         impl $struct_name {
-            // RUGRA-GLUE: stores the base-class `tlst` field every Ghidra
+            // RUDRA-GLUE: stores the base-class `tlst` field every Ghidra
             //   TypeOp subclass constructor receives (typeop.cc:233-242); the
             //   per-subclass constructor line is cited at the registration
             //   site in TypeOpManager::new.
@@ -1196,12 +1196,12 @@ macro_rules! functional_unary_op_ext {
                     .unwrap_or_else(|| "_".to_string());
                 format!("{} = {}({})", out, $func, in0)
             }
-            // RUGRA-GLUE: macro-generated generic functional push; per-subclass
+            // RUDRA-GLUE: macro-generated generic functional push; per-subclass
             //   push is inlined in typeop.hh (e.g. TypeOpIntCarry::push at :459).
             fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
                 lng.op_unary(op);
             }
-            // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+            // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
             //   constructor-registered metaout below resolves through it.
             fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
                 Some(&self.type_factory)
@@ -1247,7 +1247,7 @@ macro_rules! functional_binary_op_ext {
         }
 
         impl $struct_name {
-            // RUGRA-GLUE: stores the base-class `tlst` field every Ghidra
+            // RUDRA-GLUE: stores the base-class `tlst` field every Ghidra
             //   TypeOp subclass constructor receives (typeop.cc:233-242); the
             //   per-subclass constructor line is cited at the registration
             //   site in TypeOpManager::new.
@@ -1285,12 +1285,12 @@ macro_rules! functional_binary_op_ext {
                     .unwrap_or_else(|| "_".to_string());
                 format!("{} = {}({}, {})", out, $func, in0, in1)
             }
-            // RUGRA-GLUE: macro-generated generic functional push; per-subclass
+            // RUDRA-GLUE: macro-generated generic functional push; per-subclass
             //   push is inlined in typeop.hh (e.g. TypeOpIntScarry::push at :467).
             fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
                 lng.op_binary(op);
             }
-            // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+            // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
             //   constructor-registered metaout below resolves through it.
             fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
                 Some(&self.type_factory)
@@ -1363,7 +1363,7 @@ impl TypeOp for TypeOpCopy {
         lng.op_copy(op);
     }
 
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); COPY has no
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); COPY has no
     //   get*Local override in Ghidra, so the trait defaults below resolve
     //   through this factory.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
@@ -1715,7 +1715,7 @@ pub fn propagate_from_pointer(
     None
 }
 
-// RUGRA-GLUE: Rust slot-to-Varnode adapter for Ghidra's invn/outvn propagateType parameters.
+// RUDRA-GLUE: Rust slot-to-Varnode adapter for Ghidra's invn/outvn propagateType parameters.
 fn attached_varnode_size(op: &PcodeOp, slot: i32) -> Option<usize> {
     if slot < 0 {
         op.get_out()
@@ -2008,7 +2008,7 @@ pub struct TypeOpIntLeft {
 }
 
 impl TypeOpIntLeft {
-    // RUGRA-GLUE: stores the base-class `tlst` field the Ghidra constructor
+    // RUDRA-GLUE: stores the base-class `tlst` field the Ghidra constructor
     //   receives (typeop.cc:1502).
     pub fn new(type_factory: Arc<RwLock<TypeFactory>>) -> Self {
         Self { type_factory }
@@ -2051,7 +2051,7 @@ impl TypeOp for TypeOpIntLeft {
     fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
         lng.op_binary(op);
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242).
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242).
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
     }
@@ -2094,7 +2094,7 @@ pub struct TypeOpIntRight {
 }
 
 impl TypeOpIntRight {
-    // RUGRA-GLUE: stores the base-class `tlst` field the Ghidra constructor
+    // RUDRA-GLUE: stores the base-class `tlst` field the Ghidra constructor
     //   receives (typeop.cc:1527).
     pub fn new(type_factory: Arc<RwLock<TypeFactory>>) -> Self {
         Self { type_factory }
@@ -2136,7 +2136,7 @@ impl TypeOp for TypeOpIntRight {
     fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
         lng.op_binary(op);
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242).
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242).
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
     }
@@ -2199,7 +2199,7 @@ pub struct TypeOpIntSright {
 }
 
 impl TypeOpIntSright {
-    // RUGRA-GLUE: stores the base-class `tlst` field the Ghidra constructor
+    // RUDRA-GLUE: stores the base-class `tlst` field the Ghidra constructor
     //   receives (typeop.cc:1567).
     pub fn new(type_factory: Arc<RwLock<TypeFactory>>) -> Self {
         Self { type_factory }
@@ -2241,7 +2241,7 @@ impl TypeOp for TypeOpIntSright {
     fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
         lng.op_binary(op);
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242).
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242).
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
     }
@@ -2837,7 +2837,7 @@ impl TypeOp for TypeOpBranch {
     fn get_flags(&self) -> u32 {
         0
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); BRANCH has
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); BRANCH has
     //   no get*Local override in Ghidra (typeop.hh:253-263), so the trait
     //   defaults below resolve through this factory.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
@@ -2881,7 +2881,7 @@ impl TypeOp for TypeOpCbranch {
     fn get_flags(&self) -> u32 {
         0
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
     //   getInputLocal override below resolves through it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -2958,7 +2958,7 @@ impl TypeOp for TypeOpBranchind {
     fn get_flags(&self) -> u32 {
         0
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242);
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242);
     //   BRANCHIND has no get*Local override in Ghidra.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -3021,7 +3021,7 @@ impl TypeOp for TypeOpCall {
         lng.op_call(op);
     }
 
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242). TypeOpCall
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242). TypeOpCall
     //   holds the constructor-injected Architecture TypeFactory, so the
     //   trait-local defaults (get_output_local) and the fallback below share
     //   exactly the factory Ghidra's TypeOp base would have used.
@@ -3208,7 +3208,7 @@ impl TypeOp for TypeOpCallind {
         format!("call [{}]", in0)
     }
 
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242).
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242).
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
     }
@@ -3336,7 +3336,7 @@ impl TypeOp for TypeOpPtradd {
     fn get_opcode(&self) -> OpCode {
         OpCode::CPUI_PTRADD
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
     //   getInputLocal/getOutputLocal INT bases and the base getInputCast
     //   fallback (cc:2265) resolve through it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
@@ -3447,7 +3447,7 @@ impl TypeOp for TypeOpPtrsub {
     fn get_opcode(&self) -> OpCode {
         OpCode::CPUI_PTRSUB
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
     //   getInputLocal/getOutputLocal INT bases resolve through it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -3709,7 +3709,7 @@ impl TypeOp for TypeOpIndirect {
     fn get_flags(&self) -> u32 {
         0
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
     //   getInputLocal override below resolves through it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -3893,7 +3893,7 @@ impl TypeOp for TypeOpSegment {
     fn get_flags(&self) -> u32 {
         0
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242);
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242);
     //   SEGMENTOP has no live get*Local override in Ghidra
     //   (typeop.hh:852-853 commented out).
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
@@ -4077,7 +4077,7 @@ impl TypeOp for TypeOpCallother {
     fn get_flags(&self) -> u32 {
         0
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
     //   getInputLocal fallback below resolves through it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -4209,7 +4209,7 @@ impl TypeOpCallother {
 /// link today, so this returns `None` until the architecture wiring lands; the
 /// caller then falls back to the `CALLOTHER[...]` form, exactly as Ghidra does
 /// when the index is unregistered.
-// RUGRA-GLUE: indirection for the (not-yet-wired) PcodeOp -> UserOpManage edge
+// RUDRA-GLUE: indirection for the (not-yet-wired) PcodeOp -> UserOpManage edge
 //   used by typeop.cc:837 TypeOpCallother::getOperatorName.
 fn callother_userop_name(_op: &PcodeOp, _index: i32) -> Option<String> {
     None
@@ -4262,7 +4262,7 @@ impl TypeOp for TypeOpCast {
     fn get_flags(&self) -> u32 {
         0
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); CAST has no
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); CAST has no
     //   get*Local override in Ghidra (typeop.hh:804-811).
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -4375,7 +4375,7 @@ impl TypeOp for TypeOpInsert {
             None => lng.op_binary(op),
         }
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
     //   constructor-registered metaout/metain below resolve through it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -4459,7 +4459,7 @@ impl TypeOp for TypeOpExtract {
             None => lng.op_binary(op),
         }
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
     //   constructor-registered metaout/metain below resolve through it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -4525,11 +4525,11 @@ macro_rules! compare_op_common {
                 .unwrap_or_else(|| "_".to_string());
             format!("{} = {} {} {}", out, in0, $symbol, in1)
         }
-        // RUGRA-GLUE: macro-generated generic binary push for comparison ops.
+        // RUDRA-GLUE: macro-generated generic binary push for comparison ops.
         fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
             lng.op_binary(op);
         }
-        // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+        // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
         //   constructor-registered metaout/metain below resolve through it.
         fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
             Some(&self.type_factory)
@@ -4561,7 +4561,7 @@ macro_rules! compare_op_impl {
         }
 
         impl $struct_name {
-            // RUGRA-GLUE: stores the base-class `tlst` field every Ghidra
+            // RUDRA-GLUE: stores the base-class `tlst` field every Ghidra
             //   TypeOp subclass constructor receives (typeop.cc:233-242); the
             //   per-subclass constructor line is cited at the registration
             //   site below.
@@ -4574,7 +4574,7 @@ macro_rules! compare_op_impl {
             compare_op_common!($struct_name, $opcode, $name, $flags, $symbol, $metain);
 
             /// A comparison's output is boolean.
-            // RUGRA-GLUE: exposes the per-subclass `metaout` field
+            // RUDRA-GLUE: exposes the per-subclass `metaout` field
             //   (typeop.hh:205 TYPE_BOOL set by TypeOpBinary ctor).
             fn get_output_metatype(&self) -> Option<TypeMetatype> {
                 Some(TypeMetatype::Bool)
@@ -4643,7 +4643,7 @@ macro_rules! signed_compare_op_impl {
         }
 
         impl $struct_name {
-            // RUGRA-GLUE: stores the base-class `tlst` field every Ghidra
+            // RUDRA-GLUE: stores the base-class `tlst` field every Ghidra
             //   TypeOp subclass constructor receives (typeop.cc:233-242); the
             //   per-subclass constructor line is cited at the registration
             //   site below.
@@ -4656,7 +4656,7 @@ macro_rules! signed_compare_op_impl {
             compare_op_common!($struct_name, $opcode, $name, $flags, $symbol, $metain);
 
             /// A signed comparison's output is boolean.
-            // RUGRA-GLUE: exposes the per-subclass `metaout` field
+            // RUDRA-GLUE: exposes the per-subclass `metaout` field
             //   (typeop.hh:205 TYPE_BOOL set by TypeOpBinary ctor).
             fn get_output_metatype(&self) -> Option<TypeMetatype> {
                 Some(TypeMetatype::Bool)
@@ -4796,7 +4796,7 @@ impl TypeOp for TypeOpIntAdd {
     fn push(&self, lng: &mut dyn PrintLanguage, op: &PcodeOp) {
         lng.op_binary(op);
     }
-    // RUGRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
+    // RUDRA-GLUE: base-class `tlst` provider (typeop.cc:233-242); the
     //   constructor-registered metaout/metain below resolve through it.
     fn local_type_factory(&self) -> Option<&Arc<RwLock<TypeFactory>>> {
         Some(&self.type_factory)
@@ -5162,7 +5162,7 @@ pub struct TypeOpManager {
 }
 
 impl TypeOpManager {
-    // RUGRA-GLUE: Rust manager ctor; mirrors Ghidra's
+    // RUDRA-GLUE: Rust manager ctor; mirrors Ghidra's
     //   `TypeOp::registerInstructions(inst, tlst, trans)` (typeop.cc:24),
     //   which allocates and registers one TypeOp subclass per op-code into the
     //   `inst` vector. Rugra stores them in `Self::ops` keyed by OpCode.
@@ -5275,7 +5275,7 @@ impl TypeOpManager {
         Self { ops }
     }
 
-    // RUGRA-GLUE: Rust accessor for the opcode→TypeOp table; in Ghidra the
+    // RUDRA-GLUE: Rust accessor for the opcode→TypeOp table; in Ghidra the
     //   table is `vector<TypeOp*> inst` indexed by OpCode and held by
     //   TypeFactory (typeop.hh:186 registerInstructions). Lookups go through
     //   PcodeOp::getOpcode (op.hh:232) → TypeOp*.
@@ -5874,7 +5874,7 @@ pub fn push_lzcount(lng: &mut dyn PrintLanguage, op_arc: &OpArcRef, op: &PcodeOp
 /// STORE, CALL, CALLIND, CALLOTHER, RETURN, CBRANCH, CAST, PTRSUB — plus
 /// the empty push bodies MULTIEQUAL/INDIRECT which printc.hh:331-332
 /// defines as `{}`, carried by dispatch_op_rpn's no-op fallthrough).
-// RUGRA-GLUE: Ghidra dispatches through the TypeOp* inst table held by the
+// RUDRA-GLUE: Ghidra dispatches through the TypeOp* inst table held by the
 //   TypeFactory; PrintC has no Architecture/TypeFactory plumbing to reach
 //   constructed instances, and no push body reads instance state, so the
 //   table is a static per-opcode match to the free per-op routes above.
@@ -5998,11 +5998,11 @@ pub fn push_opcode_rpn(
 
 impl crate::op::PcodeOp {
     /// Push this operation to a language printer
-    // RUGRA-GLUE: convenience wrapper that dispatches by opcode; in Ghidra the
+    // RUDRA-GLUE: convenience wrapper that dispatches by opcode; in Ghidra the
     //   per-op push lives on the TypeOp subclass (typeop.hh:170 push), and
     //   PcodeOp has no push method of its own (it forwards via opcode->push).
     pub fn push(&self, lng: &mut dyn PrintLanguage) {
-        // RUGRA-GLUE: this wrapper mirrors the per-opcode `TypeOp*::push`
+        // RUDRA-GLUE: this wrapper mirrors the per-opcode `TypeOp*::push`
         //   routing defined above (and in Ghidra typeop.hh:261..). The opcodes
         //   whose PrintC emitter is an inherent method on `PrintC`
         //   (`op_callind`, `op_ptrsub`, `op_callother`, `op_new`, `op_insert`,

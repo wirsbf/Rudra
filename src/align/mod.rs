@@ -21,7 +21,7 @@ pub mod varnode;
 
 /// Helper trait for objects that can be cross-verified with Ghidra
 pub trait AlignmentCheck {
-    // RUGRA-GLUE: check_alignment (no Ghidra counterpart found)
+    // RUDRA-GLUE: check_alignment (no Ghidra counterpart found)
     /// Verify that this object is aligned with its Ghidra counterpart
     fn check_alignment(&self) -> bool;
 }

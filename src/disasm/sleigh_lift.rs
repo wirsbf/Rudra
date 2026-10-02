@@ -6,17 +6,17 @@ use crate::sleigh_ffi::{
     PcodeOpC, SleighCtx, SleighDecodeError, SleighErrorKind, VarnodeC,
 };
 
-// RUGRA-GLUE: set_sla_path
+// RUDRA-GLUE: set_sla_path
 pub fn set_sla_path(path: &str) {
     crate::sleigh_ffi::set_sla_path(path);
 }
 
-// RUGRA-GLUE: map_space
+// RUDRA-GLUE: map_space
 fn map_space(space_idx: i32) -> AddressSpace {
     AddressSpace::from_id(space_idx as u8)
 }
 
-// RUGRA-GLUE: map_vn
+// RUDRA-GLUE: map_vn
 fn map_vn(vn: &VarnodeC) -> VarnodeRaw {
     VarnodeRaw::new(map_space(vn.space), vn.offset, vn.size as usize)
 }
@@ -26,7 +26,7 @@ pub struct SleighLifter {
 }
 
 impl SleighLifter {
-    // RUGRA-GLUE: new
+    // RUDRA-GLUE: new
     pub fn new() -> Self {
         Self {
             ctx: SleighCtx::new(),
@@ -58,7 +58,7 @@ impl SleighLifter {
         Self { ctx: Some(ctx) }
     }
 
-    // RUGRA-GLUE: configure one owned SLEIGH translator before following a function
+    // RUDRA-GLUE: configure one owned SLEIGH translator before following a function
     pub fn configure_x86_64(
         &mut self,
         image: &[u8],
@@ -72,7 +72,7 @@ impl SleighLifter {
         ctx.try_set_image(image, image_base)
     }
 
-    // RUGRA-GLUE: SLEIGH printAssembly mnemonic probe (translate.hh:442),
+    // RUDRA-GLUE: SLEIGH printAssembly mnemonic probe (translate.hh:442),
     // SleighCtx::assembly_mnemonic passthrough. Driver disassembly listings
     // (debug_cfg / debug_my_fwrite) print it per decode boundary; the canon
     // drivers use the same probe internally via lift_instruction_skip_nops.
@@ -82,7 +82,7 @@ impl SleighLifter {
             .and_then(|ctx| ctx.assembly_mnemonic(address))
     }
 
-    // RUGRA-GLUE: atomically consume Sleigh::oneInstruction step and emitted ops
+    // RUDRA-GLUE: atomically consume Sleigh::oneInstruction step and emitted ops
     pub fn lift_instruction(
         &mut self,
         address: u64,
@@ -106,7 +106,7 @@ impl SleighLifter {
         Ok((step, ops))
     }
 
-    // RUGRA-GLUE: lift one instruction, dropping the ops of no-effect
+    // RUDRA-GLUE: lift one instruction, dropping the ops of no-effect
     // padding classified as NOP by the .sla's own constructor table
     // (SLEIGH-RUSTIFY-PHASE3-0001). The :NOP rm32 constructors carry
     // empty templates but their rm operands' attached address semantics
@@ -132,7 +132,7 @@ impl SleighLifter {
         Ok((step, ops))
     }
 
-    // RUGRA-GLUE: construct the typed failure used when the C++ engine could not be created
+    // RUDRA-GLUE: construct the typed failure used when the C++ engine could not be created
     fn unavailable_error() -> SleighDecodeError {
         SleighDecodeError {
             kind: SleighErrorKind::Bridge,
@@ -141,7 +141,7 @@ impl SleighLifter {
         }
     }
 
-    // RUGRA-GLUE: lift_function
+    // RUDRA-GLUE: lift_function
     pub fn lift_function(func_code: &[u8], func_base: u64, inst_offsets: &[(u64, usize)]) -> Vec<(u64, Vec<PcodeOpRaw>)> {
         let mut lifter = Self::new();
         if lifter.configure_x86_64(func_code, func_base).is_err() {
@@ -195,7 +195,7 @@ impl SleighLifter {
         raw
     }
 
-    // RUGRA-GLUE: lift_from_func
+    // RUDRA-GLUE: lift_from_func
     pub fn lift_from_func(func_code: &[u8], func_base: u64, addr: u64) -> Vec<PcodeOpRaw> {
         let mut lifter = Self::new();
         if lifter.configure_x86_64(func_code, func_base).is_err() {
@@ -209,7 +209,7 @@ impl SleighLifter {
 
 }
 
-// RUGRA-GLUE: linear SLEIGH decode over a byte window (driver/test raw-op
+// RUDRA-GLUE: linear SLEIGH decode over a byte window (driver/test raw-op
 // construction). Ghidra itself has no linear decoder — its only contract is
 // flow-following through Translate::oneInstruction (flow.cc:421) — so this
 // walk is pure Rugra glue: decode each boundary in [base, base+len), and on
@@ -237,7 +237,7 @@ pub fn sleigh_raw_ops(code: &[u8], base: u64) -> Vec<PcodeOpRaw> {
     ops
 }
 
-// RUGRA-GLUE: canon-contract linear walk — sleigh_raw_ops with the httpd
+// RUDRA-GLUE: canon-contract linear walk — sleigh_raw_ops with the httpd
 // driver's lift_instruction_skip_nops padding filter (SLEIGH-RUSTIFY-
 // PHASE3-0001). Function windows cut at symbol size can include trailing
 // alignment padding; the engine emits operand pcode for multi-byte `:NOP`

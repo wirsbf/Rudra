@@ -40,7 +40,7 @@ impl Action for ActionBlockStructure {
             return Ok(action_status::NO_CHANGE);
         }
 
-        // RUGRA-GLUE: env-gated (RUGRA_BS_TRACE=1) CFG signature dumper for
+        // RUDRA-GLUE: env-gated (RUGRA_BS_TRACE=1) CFG signature dumper for
         // mainloop non-convergence triage; no Ghidra counterpart (debug-only).
         if std::env::var("RUGRA_BS_TRACE")
             .map(|v| v == "1")
@@ -113,7 +113,7 @@ impl Action for ActionBlockStructure {
             }
         }
 
-        // RUGRA-GLUE: post-collapse witness for the RUGRA_BS_TRACE dumper.
+        // RUDRA-GLUE: post-collapse witness for the RUGRA_BS_TRACE dumper.
         if std::env::var("RUGRA_BS_TRACE")
             .map(|v| v == "1")
             .unwrap_or(false)
@@ -122,7 +122,7 @@ impl Action for ActionBlockStructure {
             eprintln!("[BSTRACE] {} post  {}", fd.name, sig);
         }
 
-        // RUGRA-GLUE: env-gated (RUGRA_BS_TREES=<prefix>) per-round
+        // RUDRA-GLUE: env-gated (RUGRA_BS_TREES=<prefix>) per-round
         // structured-tree dump — the counterpart of the oracle ladder
         // probe's per-perform printTree (diagnostic only, no pipeline
         // effect). One file per blockstructure application, ordered by a
@@ -145,7 +145,7 @@ impl Action for ActionBlockStructure {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (blockaction.cc:2181 `count += collapse.getChangeCount()`) into the
     // Rust ActionState accumulator harvested by Action::perform.
     fn take_count_delta(&mut self) -> i32 {
@@ -158,7 +158,7 @@ impl Action for ActionBlockStructure {
     }
 }
 
-// RUGRA-GLUE: env-gated (RUGRA_BS_TRACE=1) CFG signature helper for
+// RUDRA-GLUE: env-gated (RUGRA_BS_TRACE=1) CFG signature helper for
 // mainloop non-convergence triage; no Ghidra counterpart (debug-only).
 fn bs_trace_cfg_sig(graph: &BlockGraph) -> String {
     let mut sig = format!("bbsize={}", graph.get_size());
@@ -215,7 +215,7 @@ fn bs_trace_cfg_sig(graph: &BlockGraph) -> String {
     sig
 }
 
-// RUGRA-GLUE: short type tag for the env-gated RUGRA_BS_TRACE CFG signature
+// RUDRA-GLUE: short type tag for the env-gated RUGRA_BS_TRACE CFG signature
 // dumper (downcast-based; the derived Debug impls recurse into children and can
 // overflow the worker stack). Debug-only helper, no Ghidra counterpart.
 fn debug_type_name(b: &dyn FlowBlock) -> String {
@@ -381,7 +381,7 @@ pub(crate) fn rewrite_in_edges_to_idx(
 /// clause's exit retarget onto the shared merge block, which must end with
 /// exactly one in-edge from the composite so ruleBlockCat can chain it).
 ///
-/// RUGRA-GLUE guard discipline: the oracle's eliminateInDups/eliminateOutDups
+/// RUDRA-GLUE guard discipline: the oracle's eliminateInDups/eliminateOutDups
 /// (block.cc:447-501) perform each duplicate's PAIRED half-deletes
 /// synchronously — `halfDeleteInEdge(i)` here plus `bl->halfDeleteOutEdge(rev)`
 /// on the peer — over raw pointers with no locking. The former port ran the
@@ -632,7 +632,7 @@ fn eliminate_dup_pairs(
     }
 }
 
-// RUGRA-GLUE: 不变量修复 helper（Ghidra 无此独立函数——selfIdentify 经
+// RUDRA-GLUE: 不变量修复 helper（Ghidra 无此独立函数——selfIdentify 经
 // replaceOutEdge/replaceInEdge（block.cc:160-191, 910-924）在重定向时同步
 // 两侧 reverse_index；Rugra 的 rewrite_out/in_edges_to_idx 只翻 e.point，
 // 故按指针重结对复合块边界边以恢复 checkEdges() 不变量 block.cc:545-570，
@@ -1590,7 +1590,7 @@ pub fn clear_marks(body: &[i32], graph: &BlockGraph) {
 /// `BlockWhileDo`, and `BlockList` nodes.
 pub struct CollapseStructure<'a> {
     graph: &'a mut BlockGraph,
-    /// RUGRA-GLUE: internal fixpoint progress; Ghidra rules return bool instead
+    /// RUDRA-GLUE: internal fixpoint progress; Ghidra rules return bool instead
     /// of exposing a separate structural-mutation counter.
     structure_change_count: i32,
     /// Ghidra `CollapseStructure::dataflow_changecount`: only real condition
@@ -1650,7 +1650,7 @@ pub struct CollapseStructure<'a> {
 }
 
 impl<'a> CollapseStructure<'a> {
-    // RUGRA-GLUE: owning-graph bank handle for edge-endpoint resolution
+    // RUDRA-GLUE: owning-graph bank handle for edge-endpoint resolution
     // (BlockEdge.point is the bank id form; ARENA_DESIGN §1.5 value flip).
     fn graph_bank(&self) -> &crate::block::BlockBank {
         &self.graph.bank
@@ -1680,7 +1680,7 @@ impl<'a> CollapseStructure<'a> {
         }
     }
 
-    // RUGRA-GLUE: builder supplying Funcdata::jump_tables for the BlockSwitch
+    // RUDRA-GLUE: builder supplying Funcdata::jump_tables for the BlockSwitch
     // ctor lookup (Ghidra reaches them through the FlowBlock Funcdata
     // back-pointer, block.cc:637; Rugra composites carry none).
     /// Attach the function's jumptables so new BlockSwitch components can
@@ -1726,7 +1726,7 @@ impl<'a> CollapseStructure<'a> {
             if std::time::Instant::now() > deadline {
                 break;
             }
-            // RUGRA-GLUE: per-pass bank adoption sweep. Composite installs
+            // RUDRA-GLUE: per-pass bank adoption sweep. Composite installs
             // enter the graph by Vec slot assignment (identify_internal and
             // the factory rewrites), which bypasses add_block; adopting every
             // current Vec member keeps their bank cells + identity-map entries
@@ -1951,7 +1951,7 @@ impl<'a> CollapseStructure<'a> {
         self.order_loop_bodies();
         // cc:1886: collapseConditions (fixpoint ruleBlockOr).
         self.collapse_conditions();
-        // RUGRA-GLUE: bank adoption sweep for composites installed by
+        // RUDRA-GLUE: bank adoption sweep for composites installed by
         // order_loop_bodies/collapse_conditions before the first pass (the
         // per-pass sweep inside collapse_internal covers everything after).
         for bl in &self.graph.blocks {
@@ -2914,7 +2914,7 @@ impl<'a> CollapseStructure<'a> {
         b.is_goto_out(slot) // BlockBasic block-level mirror flags
     }
 
-    // RUGRA-GLUE: Ghidra's goto mark lives on the edge label itself
+    // RUDRA-GLUE: Ghidra's goto mark lives on the edge label itself
     // (outofthis[i].label, written by setGotoBranch block.cc:305-313), so
     // removeEdge (block.cc:1469-1481) removes the mark together with the
     // edge and the surviving edges' marks are untouched. Rugra ADDITIONALLY
@@ -3290,7 +3290,7 @@ impl<'a> CollapseStructure<'a> {
         self.run_order_loop_bodies_pipeline(size);
     }
 
-    // RUGRA-GLUE: Rust helper splitting Ghidra CollapseStructure::orderLoopBodies (blockaction.cc:1148)
+    // RUDRA-GLUE: Rust helper splitting Ghidra CollapseStructure::orderLoopBodies (blockaction.cc:1148)
     /// Run the full Ghidra LoopBody analysis pipeline on the detected
     /// back-edges. Faithful to `CollapseStructure::orderLoopBodies`
     /// (blockaction.cc:1148-1188).
@@ -3879,7 +3879,7 @@ impl<'a> CollapseStructure<'a> {
         }
     }
 
-    // RUGRA-GLUE: dominator lookup over the structuring graph's block
+    // RUDRA-GLUE: dominator lookup over the structuring graph's block
     // indices; Ghidra has no LoopBody::dominatesIdx (blockaction.hh:46 is
     // the LoopBody class decl with no such member) — Rugra computes
     // idoms locally to back refresh_switch_cases case-body detection.
@@ -3903,7 +3903,7 @@ impl<'a> CollapseStructure<'a> {
         false
     }
 
-    // RUGRA-GLUE: interleaved-rule case-body bookkeeping; Ghidra has no
+    // RUDRA-GLUE: interleaved-rule case-body bookkeeping; Ghidra has no
     // LoopBody::refreshSwitchCases and no f_case_body flag (block.hh:88-106
     // enum tops out at f_duplicate_block=0x40000) — this tracks Rugra's
     // switch_case_indices so interleaved rules avoid pulling case labels
@@ -5201,7 +5201,7 @@ impl<'a> CollapseStructure<'a> {
         // list of the underlying BlockBasic per try with the result unused —
         // deleted; Ghidra's rule is purely topological, cc:1378-1408.)
         let cond_idx = b.get_index();
-        // RUGRA-GLUE: bank-view guard reads — the self-loop checks and the
+        // RUDRA-GLUE: bank-view guard reads — the self-loop checks and the
         // two target indices resolve through the edge twins' shadows (one
         // bank read guard for all four reads; no peer RwLock, no vtable).
         // Unresolved twins (bare fixtures) fall back to the guard read,
@@ -5359,7 +5359,7 @@ impl<'a> CollapseStructure<'a> {
             return false;
         }
         let cond_idx = b.get_index();
-        // RUGRA-GLUE: bank-view self-loop checks (edge twins' index
+        // RUDRA-GLUE: bank-view self-loop checks (edge twins' index
         // shadows; unresolved twins fall back to the guard read).
             let self_loop = (0..2).any(|slot| {
                 b.get_out_ref(slot).map_or(false, |e| {
@@ -5751,7 +5751,7 @@ impl<'a> CollapseStructure<'a> {
             }
             // cc:1729: removeEdge(ret,targetbl);
             self.graph.remove_edge_blocks(&block, &targetbl);
-            // RUGRA-GLUE: the peeled edge carried the goto mark on its
+            // RUDRA-GLUE: the peeled edge carried the goto mark on its
             // label (removed with the edge, as in the oracle); the
             // slot-indexed block mirrors must be re-derived or the edge
             // that shifts into the vacated slot inherits a false goto.
@@ -5798,7 +5798,7 @@ impl<'a> CollapseStructure<'a> {
         // f_switch_out (selfIdentify cc:925-926), keeping the multigoto a
         // switch block for ruleBlockSwitch (cc:1652).
         self.identify_internal(&mg_block, &[idx], i);
-        // RUGRA-GLUE: keep any enclosing BlockSwitch's case references live
+        // RUDRA-GLUE: keep any enclosing BlockSwitch's case references live
         // across the slot replacement (same glue as try_rule_goto /
         // try_rule_if_goto; Ghidra needs none — its caseblocks hold
         // FlowBlock pointers that survive identifyInternal).
@@ -5824,7 +5824,7 @@ impl<'a> CollapseStructure<'a> {
             // cc:1746: removeEdge(ret,targetbl); — remove the structured edge
             // to the goto target (bilateral, block.cc:1469-1481).
             self.graph.remove_edge_blocks(&mg_block, &targetbl);
-            // RUGRA-GLUE: keep the slot-indexed goto mirrors consistent with
+            // RUDRA-GLUE: keep the slot-indexed goto mirrors consistent with
             // the surviving edge labels after the peel removal (the fresh
             // wrap starts mirror-free; this is defensive parity with the
             // already-multigoto path above).
@@ -6003,7 +6003,7 @@ impl<'a> CollapseStructure<'a> {
         // cc:1526-1528: `if (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl)
         // return false; if (bl->isInteriorGotoTarget()) return false;`
         let cond_idx_pre = b.get_index();
-        // RUGRA-GLUE: bank-view self-loop checks (edge twins' index
+        // RUDRA-GLUE: bank-view self-loop checks (edge twins' index
         // shadows; unresolved twins fall back to the guard read).
             let self_loop = (0..2).any(|slot| {
                 b.get_out_ref(slot).map_or(false, |e| {
@@ -6142,7 +6142,7 @@ impl<'a> CollapseStructure<'a> {
         }
 
         let cond_idx = b.get_index();
-        // RUGRA-GLUE: bank-view guard — one read guard for the slot scan;
+        // RUDRA-GLUE: bank-view guard — one read guard for the slot scan;
         // the target is only compared here (oracle getOut, block.hh:301).
         // Unresolved twins fall back to the guard read. Scoped so the view
         // drops before the &mut self fire path.
@@ -7301,7 +7301,7 @@ impl<'a> CollapseStructure<'a> {
     /// (`jump = ind->getJumptable()`, block.cc:3488 via FlowBlock::
     /// getJumptable block.cc:630-639: the BRANCHIND last-op looked up
     /// against Funcdata's tables by op address). The multigoto goto-arm
-    /// (cc:3548-3553) is appended by the caller. RUGRA-GLUE: method on
+    /// (cc:3548-3553) is appended by the caller. RUDRA-GLUE: method on
     /// CollapseStructure because the jumptables live on Funcdata, which the
     /// oracle reaches through its FlowBlock back-pointer. pub for the
     /// bilateral blockstruct_switch_label_1204 fixture (the only Rust-visible
@@ -7469,7 +7469,7 @@ impl<'a> CollapseStructure<'a> {
         (jump, order, default_order)
     }
 
-    // RUGRA-GLUE: index bookkeeping for Rugra's separate-default storage
+    // RUDRA-GLUE: index bookkeeping for Rugra's separate-default storage
     // shape — no single Ghidra counterpart function. The oracle's
     // grabCaseBasic appends the multigoto re-added cases AFTER every
     // cs-collected member (block.cc:3548-3553 lands after the chain-fill
@@ -8102,7 +8102,7 @@ impl<'a> CollapseStructure<'a> {
         }
     }
 
-    // RUGRA-GLUE: collapse_bool_conditions (superseded; was self-invented duplicate of ruleBlockOr)
+    // RUDRA-GLUE: collapse_bool_conditions (superseded; was self-invented duplicate of ruleBlockOr)
     /// DEPRECATED (B8): this was a hand-rolled duplicate of Ghidra's
     /// ruleBlockOr (blockaction.cc:1321) implemented via raw edge inspection
     /// and deferred replacement collection. It is now superseded by
@@ -9419,7 +9419,7 @@ impl Action for ActionFinalStructure {
             }
         }
 
-        // RUGRA-GLUE: retire post-terminator ops. The oracle action has no
+        // RUDRA-GLUE: retire post-terminator ops. The oracle action has no
         // counterpart here (blockaction.cc:2186-2197 only runs the five graph
         // calls); in Ghidra such ops never exist in the first place — a
         // BlockBasic's op list ends at its terminator (blocks are split at
@@ -9530,7 +9530,7 @@ impl Action for ActionNormalizeBranches {
             blk.clone()
         };
 
-        // RUGRA-GLUE: child enumeration for the composite kinds the walk
+        // RUDRA-GLUE: child enumeration for the composite kinds the walk
         // descends (Ghidra's t_copy/t_basic skip, blockaction.cc:2158). Rust
         // trait objects do not virtual-dispatch subBlock for these kinds, so
         // downcast per type — the same enumeration is_structured_child uses.

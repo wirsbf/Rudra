@@ -7,14 +7,14 @@
 
 Varnode alignment verification logic.
 
-This module ensures that Rugra's Varnode representation matches Ghidra's
+This module ensures that Rudra's Varnode representation matches Ghidra's
 internal Varnode class as defined in `varnode.hh`.
 
 ## 导出的公共 API (Public API)
 
 ### `pub fn verify_varnode(rugra_vn: &Varnode, ghidra_vn: &VarnodeFFI) -> bool`
 
-Verify that a Rugra Varnode aligns with Ghidra's FFI representation.
+Verify that a Rudra Varnode aligns with Ghidra's FFI representation.
 
 This checks space, offset, and size parity.
 

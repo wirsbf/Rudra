@@ -15,7 +15,7 @@ comparison testing ("对拍").
 
 锁定 oracle 为 Ghidra 12.0.4 commit
 `e40ed13014025f82488b1f8f7bca566894ac376b`。本轮为 10 个导出的
-`extern "C"` / `unsafe extern "C"` 函数补充了逐入口 `RUGRA-GLUE`
+`extern "C"` / `unsafe extern "C"` 函数补充了逐入口 `RUDRA-GLUE`
 来源说明：这些函数是 Rugra 的 C/Python 对拍 ABI，不是 Ghidra 的一对一算法函数。
 
 - `rugra_evaluate_constant` 聚合桥接多个

@@ -125,7 +125,7 @@ pub struct ContextBlob {
 }
 
 impl ContextBlob {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct an empty blob of the given word size.
     pub fn new(size: usize) -> Self {
         Self {
@@ -134,7 +134,7 @@ impl ContextBlob {
         }
     }
 
-    // RUGRA-GLUE: reset (no Ghidra counterpart found)
+    // RUDRA-GLUE: reset (no Ghidra counterpart found)
     /// Resize the blob, preserving old values. Faithful to `reset`.
     pub fn reset(&mut self, size: usize) {
         self.array.resize(size, 0);
@@ -145,43 +145,43 @@ impl ContextBlob {
 /// An interface to a database of disassembly/decompiler context information.
 /// Faithful to `ContextDatabase` (globalcontext.hh:118).
 pub trait ContextDatabase: Send + Sync {
-    // RUGRA-GLUE: get_context (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_context (no Ghidra counterpart found)
     /// Retrieve the context blob of values associated with a given address.
     /// Faithful to `getContext`.
     fn get_context(&self, addr: Address) -> &[ContextWord];
 
-    // RUGRA-GLUE: get_tracked_set (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_tracked_set (no Ghidra counterpart found)
     /// Get the set of tracked register values associated with the given
     /// address. Faithful to `getTrackedSet`.
     fn get_tracked_set(&self, addr: Address) -> &TrackedSet;
 
-    // RUGRA-GLUE: create_set (no Ghidra counterpart found)
+    // RUDRA-GLUE: create_set (no Ghidra counterpart found)
     /// Create a tracked register set valid over the given range. Faithful to
     /// `createSet`.
     fn create_set(&mut self, addr1: Address, addr2: Address) -> &mut TrackedSet;
 
-    // RUGRA-GLUE: get_tracked_default (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_tracked_default (no Ghidra counterpart found)
     /// Get the default tracked set. Faithful to `getTrackedDefault`.
     fn get_tracked_default(&self) -> &TrackedSet;
 
-    // RUGRA-GLUE: get_default_value (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_default_value (no Ghidra counterpart found)
     /// Get the default context blob. Faithful to `getDefaultValue`.
     fn get_default_value(&self) -> &[ContextWord];
 
-    // RUGRA-GLUE: get_default_value_mut (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_default_value_mut (no Ghidra counterpart found)
     /// Get the default context blob (mutable). Faithful to `getDefaultValue`.
     fn get_default_value_mut(&mut self) -> &mut [ContextWord];
 
-    // RUGRA-GLUE: register_variable (no Ghidra counterpart found)
+    // RUDRA-GLUE: register_variable (no Ghidra counterpart found)
     /// Register a new named context variable. Faithful to `registerVariable`.
     fn register_variable(&mut self, nm: &str, sbit: i32, ebit: i32);
 
-    // RUGRA-GLUE: get_context_size (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_context_size (no Ghidra counterpart found)
     /// Retrieve the number of words in a context blob. Faithful to
     /// `getContextSize`.
     fn get_context_size(&self) -> usize;
 
-    // RUGRA-GLUE: get_tracked_value (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_tracked_value (no Ghidra counterpart found)
     /// Query the tracked value of a register at a given point. Faithful to
     /// `getTrackedValue` (globalcontext.hh:256).
     fn get_tracked_value(&self, offset: u64, size: u32, point: Address) -> u64 {

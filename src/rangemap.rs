@@ -34,18 +34,18 @@ use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 /// (`rangemap.hh:50-55`).  Custom Rust sub-sort types express that contract
 /// explicitly through this trait.
 pub trait RangeSubsort: Ord + Clone {
-    // RUGRA-GLUE: Rust trait spelling of rangemap.hh's subsorttype(false) contract.
+    // RUDRA-GLUE: Rust trait spelling of rangemap.hh's subsorttype(false) contract.
     fn minimum() -> Self;
 
-    // RUGRA-GLUE: Rust trait spelling of rangemap.hh's subsorttype(true) contract.
+    // RUDRA-GLUE: Rust trait spelling of rangemap.hh's subsorttype(true) contract.
     fn maximum() -> Self;
 }
 
 impl RangeSubsort for () {
-    // RUGRA-GLUE: Unit is the Rust analogue of ScopeMapper::NullSubsort.
+    // RUDRA-GLUE: Unit is the Rust analogue of ScopeMapper::NullSubsort.
     fn minimum() -> Self {}
 
-    // RUGRA-GLUE: Unit is the Rust analogue of ScopeMapper::NullSubsort.
+    // RUDRA-GLUE: Unit is the Rust analogue of ScopeMapper::NullSubsort.
     fn maximum() -> Self {}
 }
 
@@ -53,10 +53,10 @@ macro_rules! impl_numeric_range_subsort {
     ($($ty:ty),+ $(,)?) => {
         $(
             impl RangeSubsort for $ty {
-                // RUGRA-GLUE: Primitive convenience implementation for a Rust record sub-sort.
+                // RUDRA-GLUE: Primitive convenience implementation for a Rust record sub-sort.
                 fn minimum() -> Self { <$ty>::MIN }
 
-                // RUGRA-GLUE: Primitive convenience implementation for a Rust record sub-sort.
+                // RUDRA-GLUE: Primitive convenience implementation for a Rust record sub-sort.
                 fn maximum() -> Self { <$ty>::MAX }
             }
         )+
@@ -71,15 +71,15 @@ impl_numeric_range_subsort!(u8, u16, u32, u64, u128, usize);
 pub trait RangeRecord {
     type Subsort: RangeSubsort;
 
-    // RUGRA-GLUE: first (no Ghidra counterpart found)
+    // RUDRA-GLUE: first (no Ghidra counterpart found)
     /// The start of the record's range.
     fn first(&self) -> u64;
 
-    // RUGRA-GLUE: last (no Ghidra counterpart found)
+    // RUDRA-GLUE: last (no Ghidra counterpart found)
     /// The end of the record's range (inclusive).
     fn last(&self) -> u64;
 
-    // RUGRA-GLUE: Rust trait spelling of recordtype::getSubsort required by rangemap.hh:36.
+    // RUDRA-GLUE: Rust trait spelling of recordtype::getSubsort required by rangemap.hh:36.
     /// Return the value used to order records sharing one refined partition.
     fn subsort(&self) -> Self::Subsort;
 }
@@ -115,7 +115,7 @@ impl<'a, R> Iterator for RangeMapIter<'a, R> {
         self.inner.next()
     }
 
-    // RUGRA-GLUE: size_hint forwards the owned reference-vector iterator metadata.
+    // RUDRA-GLUE: size_hint forwards the owned reference-vector iterator metadata.
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
@@ -129,7 +129,7 @@ impl<R> DoubleEndedIterator for RangeMapIter<'_, R> {
 }
 
 impl<R> ExactSizeIterator for RangeMapIter<'_, R> {
-    // RUGRA-GLUE: ExactSizeIterator exposure for the materialized iterator domain.
+    // RUDRA-GLUE: ExactSizeIterator exposure for the materialized iterator domain.
     fn len(&self) -> usize {
         self.inner.len()
     }
@@ -168,7 +168,7 @@ struct RangeTree<S: RangeSubsort> {
 }
 
 impl<S: RangeSubsort> Default for RangeTree<S> {
-    // RUGRA-GLUE: constructs the Rust backing store for std::multiset<AddrRange>.
+    // RUDRA-GLUE: constructs the Rust backing store for std::multiset<AddrRange>.
     fn default() -> Self {
         Self {
             buckets: BTreeMap::new(),
@@ -177,7 +177,7 @@ impl<S: RangeSubsort> Default for RangeTree<S> {
 }
 
 impl<S: RangeSubsort> RangeTree<S> {
-    // RUGRA-GLUE: materializes multiset order while retaining equivalent-element order.
+    // RUDRA-GLUE: materializes multiset order while retaining equivalent-element order.
     fn ordered_parts(&self) -> Vec<SubRange<S>> {
         self.buckets
             .values()
@@ -185,7 +185,7 @@ impl<S: RangeSubsort> RangeTree<S> {
             .collect()
     }
 
-    // RUGRA-GLUE: rebuilds exact comparator-equivalence buckets after mutation.
+    // RUDRA-GLUE: rebuilds exact comparator-equivalence buckets after mutation.
     fn replace_ordered_parts(&mut self, parts: Vec<SubRange<S>>) {
         self.buckets.clear();
         for part in parts {
@@ -197,7 +197,7 @@ impl<S: RangeSubsort> RangeTree<S> {
         }
     }
 
-    // RUGRA-GLUE: exposes immutable flattened multiset positions to Rust cursors.
+    // RUDRA-GLUE: exposes immutable flattened multiset positions to Rust cursors.
     fn ordered_part_refs(&self) -> Vec<&SubRange<S>> {
         self.buckets
             .values()
@@ -220,14 +220,14 @@ pub struct RangeMap<R: RangeRecord> {
 }
 
 impl<R: RangeRecord> Default for RangeMap<R> {
-    // RUGRA-GLUE: default (no Ghidra counterpart found)
+    // RUDRA-GLUE: default (no Ghidra counterpart found)
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl<R: RangeRecord> RangeMap<R> {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Create an empty range map.
     pub fn new() -> Self {
         Self {
@@ -252,30 +252,30 @@ impl<R: RangeRecord> RangeMap<R> {
         self.records.clear();
     }
 
-    // RUGRA-GLUE: len (no Ghidra counterpart found)
+    // RUDRA-GLUE: len (no Ghidra counterpart found)
     /// Number of records.
     pub fn len(&self) -> usize {
         self.records.len()
     }
 
-    // RUGRA-GLUE: comparison helper implementing AddrRange::operator< without an artificial tie-break.
+    // RUDRA-GLUE: comparison helper implementing AddrRange::operator< without an artificial tie-break.
     fn compare_part_to_key(part: &SubRange<R::Subsort>, key: &RangeKey<R::Subsort>) -> Ordering {
         part.last
             .cmp(&key.last)
             .then_with(|| part.subsort.cmp(&key.subsort))
     }
 
-    // RUGRA-GLUE: std::multiset::lower_bound adapter over an ordered mutation snapshot.
+    // RUDRA-GLUE: std::multiset::lower_bound adapter over an ordered mutation snapshot.
     fn lower_bound(parts: &[SubRange<R::Subsort>], key: &RangeKey<R::Subsort>) -> usize {
         parts.partition_point(|part| Self::compare_part_to_key(part, key) == Ordering::Less)
     }
 
-    // RUGRA-GLUE: std::multiset::upper_bound adapter over an ordered mutation snapshot.
+    // RUDRA-GLUE: std::multiset::upper_bound adapter over an ordered mutation snapshot.
     fn upper_bound(parts: &[SubRange<R::Subsort>], key: &RangeKey<R::Subsort>) -> usize {
         parts.partition_point(|part| Self::compare_part_to_key(part, key) != Ordering::Greater)
     }
 
-    // RUGRA-GLUE: allocates internal identity needed to preserve C++ iterator identity across Vec snapshots.
+    // RUDRA-GLUE: allocates internal identity needed to preserve C++ iterator identity across Vec snapshots.
     fn allocate_part(
         &mut self,
         first: u64,
@@ -298,7 +298,7 @@ impl<R: RangeRecord> RangeMap<R> {
         }
     }
 
-    // RUGRA-GLUE: finds a stable internal iterator after multiset insertion.
+    // RUDRA-GLUE: finds a stable internal iterator after multiset insertion.
     fn index_of_serial(parts: &[SubRange<R::Subsort>], serial: u64) -> usize {
         parts
             .iter()
@@ -306,7 +306,7 @@ impl<R: RangeRecord> RangeMap<R> {
             .expect("internal rangemap iterator must remain present")
     }
 
-    // RUGRA-GLUE: exact std::multiset hinted insertion, including insertion before an equivalent hint.
+    // RUDRA-GLUE: exact std::multiset hinted insertion, including insertion before an equivalent hint.
     fn insert_hinted(
         parts: &mut Vec<SubRange<R::Subsort>>,
         hint_serial: u64,
@@ -334,7 +334,7 @@ impl<R: RangeRecord> RangeMap<R> {
         Self::index_of_serial(parts, hint_serial)
     }
 
-    // RUGRA-GLUE: std::multiset::insert places an unhinted equivalent after existing equivalents.
+    // RUDRA-GLUE: std::multiset::insert places an unhinted equivalent after existing equivalents.
     fn insert_unhinted(parts: &mut Vec<SubRange<R::Subsort>>, part: SubRange<R::Subsort>) {
         let key = RangeKey {
             last: part.last,
@@ -553,7 +553,7 @@ impl<R: RangeRecord> RangeMap<R> {
         self.erase(id)
     }
 
-    // RUGRA-GLUE: resolves stable PartIterator identity after non-invalidating tree mutations.
+    // RUDRA-GLUE: resolves stable PartIterator identity after non-invalidating tree mutations.
     fn resolve_cursor(&self, cursor: RangeMapCursor) -> Option<usize> {
         if cursor.owner_generation != self.owner_generation {
             return None;
@@ -565,7 +565,7 @@ impl<R: RangeRecord> RangeMap<R> {
         }
     }
 
-    // RUGRA-GLUE: constructs a stable Rust cursor from a current multiset ordinal.
+    // RUDRA-GLUE: constructs a stable Rust cursor from a current multiset ordinal.
     fn cursor_for_position(
         &self,
         parts: &[&SubRange<R::Subsort>],
@@ -577,7 +577,7 @@ impl<R: RangeRecord> RangeMap<R> {
         }
     }
 
-    // RUGRA-GLUE: safe validity observation for C++ iterator-invalidating operations.
+    // RUDRA-GLUE: safe validity observation for C++ iterator-invalidating operations.
     /// Return whether a cursor still denotes a live part or this map's end.
     pub fn cursor_is_valid(&self, cursor: RangeMapCursor) -> bool {
         self.resolve_cursor(cursor).is_some()
@@ -613,7 +613,7 @@ impl<R: RangeRecord> RangeMap<R> {
         Some(self.cursor_for_position(&parts, position - 1))
     }
 
-    // RUGRA-GLUE: resolves stable record identity to a Rust reference.
+    // RUDRA-GLUE: resolves stable record identity to a Rust reference.
     fn record_by_id(&self, id: RangeMapId) -> &R {
         &self
             .records
@@ -623,7 +623,7 @@ impl<R: RangeRecord> RangeMap<R> {
             .value
     }
 
-    // RUGRA-GLUE: materializes a Rust iterator from the opaque PartIterator index domain.
+    // RUDRA-GLUE: materializes a Rust iterator from the opaque PartIterator index domain.
     fn iterator_for_bounds(&self, start: usize, end: usize) -> RangeMapIter<'_, R> {
         let parts = self.tree.ordered_part_refs();
         let end = end.min(parts.len());
@@ -719,7 +719,7 @@ impl<R: RangeRecord> RangeMap<R> {
         self.cursor_for_position(&parts, iter)
     }
 
-    // RUGRA-GLUE: Rust range adapter for two Ghidra PartIterator cursors.
+    // RUDRA-GLUE: Rust range adapter for two Ghidra PartIterator cursors.
     /// Iterate between two cursors returned by this map.
     pub fn iter_between(&self, begin: RangeMapCursor, end: RangeMapCursor) -> RangeMapIter<'_, R> {
         let Some(begin) = self.resolve_cursor(begin) else {
@@ -745,13 +745,13 @@ impl<R: RangeRecord> RangeMap<R> {
         None
     }
 
-    // RUGRA-GLUE: compatibility collector over Ghidra rangemap::find.
+    // RUDRA-GLUE: compatibility collector over Ghidra rangemap::find.
     /// Collect all sub-range records intersecting `point`.
     pub fn find_at_point(&self, point: u64) -> Vec<&R> {
         self.find(point).collect()
     }
 
-    // RUGRA-GLUE: Scope-style smallest-container query retained for existing Rust consumers.
+    // RUDRA-GLUE: Scope-style smallest-container query retained for existing Rust consumers.
     /// Find the smallest containing record for [point, size).
     /// Used by Scope::findContainer.
     pub fn find_container(&self, point: u64, size: u64) -> Option<&R> {
@@ -803,7 +803,7 @@ pub struct PartMap<V: Clone> {
 }
 
 impl<V: Clone> PartMap<V> {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct with a default value.
     pub fn new(default_value: V) -> Self {
         Self {
@@ -812,7 +812,7 @@ impl<V: Clone> PartMap<V> {
         }
     }
 
-    // RUGRA-GLUE: get_value (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_value (no Ghidra counterpart found)
     /// Get the value at a point. Faithful to `getValue` (partmap.hh:82).
     /// Looks up the first split point <= pnt.
     pub fn get_value(&self, pnt: u64) -> &V {
@@ -822,7 +822,7 @@ impl<V: Clone> PartMap<V> {
         }
     }
 
-    // RUGRA-GLUE: get_value_mut (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_value_mut (no Ghidra counterpart found)
     /// Get a mutable reference to the value at a point.
     pub fn get_value_mut(&mut self, pnt: u64) -> &mut V {
         // We need to handle the borrow checker carefully.
@@ -845,7 +845,7 @@ impl<V: Clone> PartMap<V> {
         }
     }
 
-    // RUGRA-GLUE: split (no Ghidra counterpart found)
+    // RUDRA-GLUE: split (no Ghidra counterpart found)
     /// Introduce a new split point. Faithful to `split` (partmap.hh:117).
     /// Copies the current value at pnt into the new partition.
     pub fn split(&mut self, pnt: u64) -> &mut V {
@@ -860,7 +860,7 @@ impl<V: Clone> PartMap<V> {
         self.database.entry(pnt).or_insert(val)
     }
 
-    // RUGRA-GLUE: clear_range (no Ghidra counterpart found)
+    // RUDRA-GLUE: clear_range (no Ghidra counterpart found)
     /// Clear split points in a range. Faithful to `clearRange`
     /// (partmap.hh:144).
     /// Splits at pnt1 and pnt2, then removes all split points in between.
@@ -881,37 +881,37 @@ impl<V: Clone> PartMap<V> {
         }
     }
 
-    // RUGRA-GLUE: default_value (no Ghidra counterpart found)
+    // RUDRA-GLUE: default_value (no Ghidra counterpart found)
     /// Get the default value. Faithful to `defaultValue`.
     pub fn default_value(&self) -> &V {
         &self.default_value
     }
 
-    // RUGRA-GLUE: default_value_mut (no Ghidra counterpart found)
+    // RUDRA-GLUE: default_value_mut (no Ghidra counterpart found)
     /// Get a mutable reference to the default value.
     pub fn default_value_mut(&mut self) -> &mut V {
         &mut self.default_value
     }
 
-    // RUGRA-GLUE: clear (no Ghidra counterpart found)
+    // RUDRA-GLUE: clear (no Ghidra counterpart found)
     /// Clear all split points. Faithful to `clear`.
     pub fn clear(&mut self) {
         self.database.clear();
     }
 
-    // RUGRA-GLUE: is_empty (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_empty (no Ghidra counterpart found)
     /// Is the partition map empty of split points? Faithful to `empty`.
     pub fn is_empty(&self) -> bool {
         self.database.is_empty()
     }
 
-    // RUGRA-GLUE: num_splits (no Ghidra counterpart found)
+    // RUDRA-GLUE: num_splits (no Ghidra counterpart found)
     /// Number of split points.
     pub fn num_splits(&self) -> usize {
         self.database.len()
     }
 
-    // RUGRA-GLUE: bounds (no Ghidra counterpart found)
+    // RUDRA-GLUE: bounds (no Ghidra counterpart found)
     /// Get the value and bounds at a point. Faithful to `bounds`
     /// (partmap.hh:172). Returns (value, before, after, valid_code):
     /// - 0 = both bounds apply
@@ -937,7 +937,7 @@ impl<V: Clone> PartMap<V> {
         }
     }
 
-    // RUGRA-GLUE: splits (no Ghidra counterpart found)
+    // RUDRA-GLUE: splits (no Ghidra counterpart found)
     /// Iterate over all split points.
     pub fn splits(&self) -> impl Iterator<Item = (&u64, &V)> {
         self.database.iter()

@@ -87,7 +87,7 @@ pub type VnArc = Arc<RwLock<Varnode>>;
 /// Shared PcodeOp handle (`PcodeOp *` in Ghidra).
 pub type OpArc = Arc<RwLock<PcodeOp>>;
 
-// RUGRA-GLUE: bit-flag accessor wrapping Varnode::isPrecisLo (varnode.hh, not in double.cc)
+// RUDRA-GLUE: bit-flag accessor wrapping Varnode::isPrecisLo (varnode.hh, not in double.cc)
 // ---------------------------------------------------------------------------
 // Precis flag helpers. Ghidra exposes `setPrecisLo`/`isPrecisLo` (and the hi
 // variants) on Varnode; Rugra stores these in `varnode_flags::PRECISLO`/`PRECISHI`
@@ -98,23 +98,23 @@ pub type OpArc = Arc<RwLock<PcodeOp>>;
 fn is_precis_lo(vn: &Varnode) -> bool {
     (vn.flags & varnode_flags::PRECISLO) != 0
 }
-// RUGRA-GLUE: bit-flag accessor wrapping Varnode::isPrecisHi (varnode.hh, not in double.cc)
+// RUDRA-GLUE: bit-flag accessor wrapping Varnode::isPrecisHi (varnode.hh, not in double.cc)
 #[inline]
 fn is_precis_hi(vn: &Varnode) -> bool {
     (vn.flags & varnode_flags::PRECISHI) != 0
 }
-// RUGRA-GLUE: bit-flag mutator wrapping Varnode::setPrecisLo (varnode.hh, not in double.cc)
+// RUDRA-GLUE: bit-flag mutator wrapping Varnode::setPrecisLo (varnode.hh, not in double.cc)
 #[inline]
 fn set_precis_lo(vn: &mut Varnode) {
     vn.flags |= varnode_flags::PRECISLO;
 }
-// RUGRA-GLUE: bit-flag mutator wrapping Varnode::setPrecisHi (varnode.hh, not in double.cc)
+// RUDRA-GLUE: bit-flag mutator wrapping Varnode::setPrecisHi (varnode.hh, not in double.cc)
 #[inline]
 fn set_precis_hi(vn: &mut Varnode) {
     vn.flags |= varnode_flags::PRECISHI;
 }
 
-// RUGRA-GLUE: wraps Varnode::getSpaceFromConst (varnode.hh, not in double.cc); used by double.cc LOAD/STORE space-id recovery
+// RUDRA-GLUE: wraps Varnode::getSpaceFromConst (varnode.hh, not in double.cc); used by double.cc LOAD/STORE space-id recovery
 /// Read the address-space a LOAD/STORE space-id constant operand encodes.
 ///
 /// Ghidra stores the target address space in `op->getIn(0)` as a special
@@ -161,7 +161,7 @@ pub struct SplitVarnode {
 }
 
 impl Default for SplitVarnode {
-    // RUGRA-GLUE: Rust Default trait impl for SplitVarnode; Ghidra uses SplitVarnode(void) aggregate init (double.hh:44)
+    // RUDRA-GLUE: Rust Default trait impl for SplitVarnode; Ghidra uses SplitVarnode(void) aggregate init (double.hh:44)
     fn default() -> Self {
         Self::new()
     }
@@ -2184,7 +2184,7 @@ impl SplitVarnode {
         0
     }
 
-    // RUGRA-GLUE: Rust value-copy helper mirroring C++ implicit copy semantics for SplitVarnode (no explicit Ghidra fn)
+    // RUDRA-GLUE: Rust value-copy helper mirroring C++ implicit copy semantics for SplitVarnode (no explicit Ghidra fn)
     /// Clone the shared-state fields of this SplitVarnode (wholeList/findCopies
     /// build copies by value). Mirrors C++ value-copy semantics.
     fn clone_split(&self) -> SplitVarnode {
@@ -2218,7 +2218,7 @@ impl SplitVarnode {
 // only a `PcodeOp*`, not `Funcdata&`) stay faithful.
 // ===========================================================================
 
-// RUGRA-GLUE: wraps PcodeOp::getSlot (op.hh:166); standalone form so verify() methods match Ghidra signature
+// RUDRA-GLUE: wraps PcodeOp::getSlot (op.hh:166); standalone form so verify() methods match Ghidra signature
 /// `PcodeOp::getSlot(vn)` — find the input slot holding `vn`, or -1.
 /// Faithful to Ghidra op.hh:166 / op.cc. Standalone (no Funcdata) so the
 /// `verify()` methods, which take only a `PcodeOp *`, remain faithful.
@@ -2232,13 +2232,13 @@ fn vn_slot_of(op: &OpArc, vn: &VnArc) -> i32 {
     -1
 }
 
-// RUGRA-GLUE: wraps Varnode::loneDescend (varnode.hh) for OpArc ergonomics
+// RUDRA-GLUE: wraps Varnode::loneDescend (varnode.hh) for OpArc ergonomics
 /// `Varnode::loneDescend()` wrapped for `OpArc` ergonomics.
 fn lone_descend(vn: &VnArc) -> Option<OpArc> {
     vn.read().unwrap().lone_descend()
 }
 
-// RUGRA-GLUE: wraps BlockBasic::lastOp (block.hh) for dyn FlowBlock trait objects
+// RUDRA-GLUE: wraps BlockBasic::lastOp (block.hh) for dyn FlowBlock trait objects
 /// `FlowBlock::lastOp()` for the erased `dyn FlowBlock`. Ghidra's
 /// `BlockBasic::lastOp()` returns the terminal op; Rugra's `last_op` is only on
 /// the concrete `BlockBasic` struct, not the trait, so we implement it via the
@@ -2282,7 +2282,7 @@ pub struct AddForm {
 }
 
 impl AddForm {
-    // RUGRA-GLUE: AddForm default ctor (double.hh:102; no explicit ctor, fields uninitialized, filled by verify)
+    // RUDRA-GLUE: AddForm default ctor (double.hh:102; no explicit ctor, fields uninitialized, filled by verify)
     /// Construct an uninitialized AddForm (C++ class fields are unset).
     pub fn new() -> Self {
         AddForm {
@@ -2734,7 +2734,7 @@ pub struct SubForm {
 }
 
 impl SubForm {
-    // RUGRA-GLUE: SubForm default ctor (double.hh:119; no explicit ctor, fields filled by verify)
+    // RUDRA-GLUE: SubForm default ctor (double.hh:119; no explicit ctor, fields filled by verify)
     pub fn new() -> Self {
         SubForm {
             in_sv: SplitVarnode::new(),
@@ -3030,7 +3030,7 @@ pub struct LogicalForm {
 }
 
 impl LogicalForm {
-    // RUGRA-GLUE: LogicalForm default ctor (double.hh:135; no explicit ctor, fields filled by verify)
+    // RUDRA-GLUE: LogicalForm default ctor (double.hh:135; no explicit ctor, fields filled by verify)
     pub fn new() -> Self {
         LogicalForm {
             in_sv: SplitVarnode::new(),
@@ -3286,7 +3286,7 @@ pub struct Equal1Form {
 }
 
 impl Equal1Form {
-    // RUGRA-GLUE: Equal1Form default ctor (double.hh:148; no explicit ctor, fields filled by applyRule)
+    // RUDRA-GLUE: Equal1Form default ctor (double.hh:148; no explicit ctor, fields filled by applyRule)
     pub fn new() -> Self {
         Equal1Form {
             in1: SplitVarnode::new(),
@@ -3489,7 +3489,7 @@ pub struct Equal2Form {
 }
 
 impl Equal2Form {
-    // RUGRA-GLUE: Equal2Form default ctor (double.hh:161; no explicit ctor, fields filled by applyRule)
+    // RUDRA-GLUE: Equal2Form default ctor (double.hh:161; no explicit ctor, fields filled by applyRule)
     pub fn new() -> Self {
         Equal2Form {
             in_sv: SplitVarnode::new(),
@@ -3652,7 +3652,7 @@ pub struct Equal3Form {
 }
 
 impl Equal3Form {
-    // RUGRA-GLUE: Equal3Form default ctor (double.hh:171; no explicit ctor, fields filled by verify)
+    // RUDRA-GLUE: Equal3Form default ctor (double.hh:171; no explicit ctor, fields filled by verify)
     pub fn new() -> Self {
         Equal3Form {
             in_sv: SplitVarnode::new(),
@@ -3770,7 +3770,7 @@ pub struct LessConstForm {
 }
 
 impl LessConstForm {
-    // RUGRA-GLUE: LessConstForm default ctor (double.hh:218; no explicit ctor, fields filled by applyRule)
+    // RUDRA-GLUE: LessConstForm default ctor (double.hh:218; no explicit ctor, fields filled by applyRule)
     pub fn new() -> Self {
         LessConstForm {
             in_sv: SplitVarnode::new(),
@@ -3906,7 +3906,7 @@ pub struct ShiftForm {
 }
 
 impl ShiftForm {
-    // RUGRA-GLUE: ShiftForm default ctor (double.hh:228; no explicit ctor, fields filled by verifyLeft/verifyRight)
+    // RUDRA-GLUE: ShiftForm default ctor (double.hh:228; no explicit ctor, fields filled by verifyLeft/verifyRight)
     pub fn new() -> Self {
         ShiftForm {
             in_sv: SplitVarnode::new(),
@@ -4321,7 +4321,7 @@ pub struct MultForm {
 }
 
 impl MultForm {
-    // RUGRA-GLUE: MultForm default ctor (double.hh:248; no explicit ctor, fields filled by verify)
+    // RUDRA-GLUE: MultForm default ctor (double.hh:248; no explicit ctor, fields filled by verify)
     pub fn new() -> Self {
         MultForm {
             in_sv: SplitVarnode::new(),
@@ -4902,7 +4902,7 @@ pub struct PhiForm {
 }
 
 impl PhiForm {
-    // RUGRA-GLUE: PhiForm default ctor (double.hh:274; no explicit ctor, fields filled by verify)
+    // RUDRA-GLUE: PhiForm default ctor (double.hh:274; no explicit ctor, fields filled by verify)
     pub fn new() -> Self {
         PhiForm {
             in_sv: SplitVarnode::new(),
@@ -5034,7 +5034,7 @@ pub struct IndirectForm {
 }
 
 impl IndirectForm {
-    // RUGRA-GLUE: IndirectForm default ctor (double.hh:287; no explicit ctor, fields filled by verify)
+    // RUDRA-GLUE: IndirectForm default ctor (double.hh:287; no explicit ctor, fields filled by verify)
     pub fn new() -> Self {
         IndirectForm {
             in_sv: SplitVarnode::new(),
@@ -5179,7 +5179,7 @@ pub struct CopyForceForm {
 }
 
 impl CopyForceForm {
-    // RUGRA-GLUE: CopyForceForm default ctor (double.hh:303; no explicit ctor, fields filled by verify)
+    // RUDRA-GLUE: CopyForceForm default ctor (double.hh:303; no explicit ctor, fields filled by verify)
     pub fn new() -> Self {
         CopyForceForm {
             in_sv: SplitVarnode::new(),
@@ -5401,7 +5401,7 @@ pub struct LessThreeWay {
 }
 
 impl LessThreeWay {
-    // RUGRA-GLUE: LessThreeWay default ctor (double.hh:182; no explicit ctor, fields filled by verify/mapBlocks)
+    // RUDRA-GLUE: LessThreeWay default ctor (double.hh:182; no explicit ctor, fields filled by verify/mapBlocks)
     pub fn new() -> Self {
         LessThreeWay {
             in_sv: SplitVarnode::new(),
@@ -6161,12 +6161,12 @@ impl LessThreeWay {
 /// Helper trait so ported Form classes can mutate a cloned SplitVarnode while
 /// the originals stay usable. This mirrors C++ pass-by-reference semantics.
 trait CloneMut {
-    // RUGRA-GLUE: Rust trait decl for mutable-clone helper (mirrors C++ pass-by-reference semantics, no Ghidra fn)
+    // RUDRA-GLUE: Rust trait decl for mutable-clone helper (mirrors C++ pass-by-reference semantics, no Ghidra fn)
     fn clone_mut(&self) -> SplitVarnode;
 }
 
 impl CloneMut for SplitVarnode {
-    // RUGRA-GLUE: Rust trait impl for mutable-clone helper (mirrors C++ pass-by-reference semantics, no Ghidra fn)
+    // RUDRA-GLUE: Rust trait impl for mutable-clone helper (mirrors C++ pass-by-reference semantics, no Ghidra fn)
     fn clone_mut(&self) -> SplitVarnode {
         SplitVarnode {
             lo: self.lo.clone(),
@@ -6184,7 +6184,7 @@ impl CloneMut for SplitVarnode {
 // Local helpers for the static-ish methods that take/return Option<VnArc>.
 // ---------------------------------------------------------------------------
 
-// RUGRA-GLUE: Option-friendly pointer equality for VnArc (Rust Arc plumbing, no Ghidra fn)
+// RUDRA-GLUE: Option-friendly pointer equality for VnArc (Rust Arc plumbing, no Ghidra fn)
 /// `Option`-friendly pointer equality against a borrowed `&VnArc`.
 fn arc_eq_option(opt: Option<&VnArc>, target: &VnArc) -> bool {
     match opt {
@@ -6247,7 +6247,7 @@ fn is_addr_tied_contiguous(lo: &VnArc, hi: &VnArc) -> Option<Address> {
 
 // Block-related helpers. Ghidra uses BlockBasic*; Rugra uses Option<Arc<...>>.
 
-// RUGRA-GLUE: wraps PcodeOp::getParent (op.hh) returning Option<BlockArc> for weak-ref upgrade
+// RUDRA-GLUE: wraps PcodeOp::getParent (op.hh) returning Option<BlockArc> for weak-ref upgrade
 /// Get the parent block of an op as `Option<BlockArc>`.
 fn parent_block(op: &OpArc) -> Option<BlockArc> {
     op.read()
@@ -6257,7 +6257,7 @@ fn parent_block(op: &OpArc) -> Option<BlockArc> {
         .and_then(|w| w.upgrade())
 }
 
-// RUGRA-GLUE: wraps FlowBlock::getImmedDom (block.hh) for curbl->getImmedDom() loops in double.cc
+// RUDRA-GLUE: wraps FlowBlock::getImmedDom (block.hh) for curbl->getImmedDom() loops in double.cc
 /// Step to the immediate dominator (FlowBlock::getImmedDom), faithul to
 /// double.cc's `curbl = curbl->getImmedDom()` loops.
 fn step_immed_dom(bl: &Option<BlockArc>) -> Option<BlockArc> {
@@ -6267,7 +6267,7 @@ fn step_immed_dom(bl: &Option<BlockArc>) -> Option<BlockArc> {
     immed.upgrade()
 }
 
-// RUGRA-GLUE: pointer-equality on erased Option<BlockArc> (Rust Arc plumbing, no Ghidra fn)
+// RUDRA-GLUE: pointer-equality on erased Option<BlockArc> (Rust Arc plumbing, no Ghidra fn)
 /// Equality on the erased `Option<BlockArc>` form.
 fn same_block(a: &Option<BlockArc>, b: &Option<BlockArc>) -> bool {
     match (a, b) {
@@ -6277,13 +6277,13 @@ fn same_block(a: &Option<BlockArc>, b: &Option<BlockArc>) -> bool {
     }
 }
 
-// RUGRA-GLUE: wraps PcodeOp::getSeqNum().getOrder() (op.hh) for op ordering comparisons
+// RUDRA-GLUE: wraps PcodeOp::getSeqNum().getOrder() (op.hh) for op ordering comparisons
 /// `op->getSeqNum().getOrder()`.
 fn order_of(op: &OpArc) -> u32 {
     op.read().unwrap().get_seq_num().get_order()
 }
 
-// RUGRA-GLUE: combines Funcdata::opSetOpcode + opSetAllInput (double.cc arms
+// RUDRA-GLUE: combines Funcdata::opSetOpcode + opSetAllInput (double.cc arms
 // always issue this pair back to back: :598-599/:607-608/:613-614/:636-637/
 // :645-646/:651-652)
 /// Set opcode and all inputs of an op. Delegates the input replacement to
@@ -6338,7 +6338,7 @@ pub struct SplitDatatype {
 }
 
 impl SplitDatatype {
-    // RUGRA-GLUE: SplitDatatype ctor; Ghidra's SplitDatatype lives in subflow.hh (not double.cc), placeholder hook
+    // RUDRA-GLUE: SplitDatatype ctor; Ghidra's SplitDatatype lives in subflow.hh (not double.cc), placeholder hook
     /// Construct a split datatype for a whole of the given byte size. The two
     /// pieces are always equal halves (matching the "exactly half" invariant
     /// used by `RuleDoubleIn::attemptMarking`, double.cc:3228).
@@ -6350,13 +6350,13 @@ impl SplitDatatype {
         }
     }
 
-    // RUGRA-GLUE: SplitDatatype accessor; type lives in subflow.hh (not double.cc), placeholder hook
+    // RUDRA-GLUE: SplitDatatype accessor; type lives in subflow.hh (not double.cc), placeholder hook
     /// The most-significant piece offset (in bytes) within the whole.
     pub fn hi_offset(&self) -> usize {
         self.piece_size
     }
 
-    // RUGRA-GLUE: SplitDatatype accessor; type lives in subflow.hh (not double.cc), placeholder hook
+    // RUDRA-GLUE: SplitDatatype accessor; type lives in subflow.hh (not double.cc), placeholder hook
     /// The least-significant piece offset (in bytes) within the whole (always 0).
     pub fn lo_offset(&self) -> usize {
         0
@@ -6512,7 +6512,7 @@ impl Rule for RuleDoubleIn {
         Ok(NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Rule trait name accessor; Ghidra Rule::getName inherited, name set in RuleDoubleIn ctor (double.hh:324)
+    // RUDRA-GLUE: Rust Rule trait name accessor; Ghidra Rule::getName inherited, name set in RuleDoubleIn ctor (double.hh:324)
     fn get_name(&self) -> &str {
         "doublein"
     }
@@ -6640,7 +6640,7 @@ impl Rule for RuleDoubleOut {
         }
     }
 
-    // RUGRA-GLUE: Rust Rule trait name accessor; Ghidra Rule::getName inherited, name set in RuleDoubleOut ctor (double.hh:338)
+    // RUDRA-GLUE: Rust Rule trait name accessor; Ghidra Rule::getName inherited, name set in RuleDoubleOut ctor (double.hh:338)
     fn get_name(&self) -> &str {
         "doubleout"
     }
@@ -6902,7 +6902,7 @@ impl Rule for RuleDoubleLoad {
         Ok(CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Rule trait name accessor; Ghidra Rule::getName inherited, name set in RuleDoubleLoad ctor (double.hh:350)
+    // RUDRA-GLUE: Rust Rule trait name accessor; Ghidra Rule::getName inherited, name set in RuleDoubleLoad ctor (double.hh:350)
     fn get_name(&self) -> &str {
         "doubleload"
     }
@@ -7149,7 +7149,7 @@ impl Rule for RuleDoubleStore {
         Ok(NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Rule trait name accessor; Ghidra Rule::getName inherited, name set in RuleDoubleStore ctor (double.hh:363)
+    // RUDRA-GLUE: Rust Rule trait name accessor; Ghidra Rule::getName inherited, name set in RuleDoubleStore ctor (double.hh:363)
     fn get_name(&self) -> &str {
         "doublestore"
     }
@@ -7168,7 +7168,7 @@ impl Rule for RuleDoubleStore {
 // so we enumerate the categorization faithfully (see typeop.cc / opcodes.hh).
 // ---------------------------------------------------------------------------
 
-// RUGRA-GLUE: wraps TypeOp::isArithmeticOp (typeop.hh, not double.cc); opcode categorization
+// RUDRA-GLUE: wraps TypeOp::isArithmeticOp (typeop.hh, not double.cc); opcode categorization
 /// `TypeOp::isArithmeticOp()` — opcodes whose result is an arithmetic function
 /// of integer operands. (typeop.hh / typeop.cc) Enumerated explicitly against
 /// Rugra's `OpCode` variants.
@@ -7207,7 +7207,7 @@ fn is_arithmetic_op(opc: OpCode) -> bool {
     )
 }
 
-// RUGRA-GLUE: wraps TypeOp::isFloatingPointOp (typeop.hh, not double.cc); opcode categorization
+// RUDRA-GLUE: wraps TypeOp::isFloatingPointOp (typeop.hh, not double.cc); opcode categorization
 /// `TypeOp::isFloatingPointOp()` — opcodes operating on floating-point values.
 /// (typeop.hh / typeop.cc) Enumerated explicitly against Rugra's `OpCode`
 /// variants. NOTE: Rugra's enum currently omits `CPUI_FLOAT_ZEXT`/`SEXT`
@@ -7238,7 +7238,7 @@ fn is_floating_point_op(opc: OpCode) -> bool {
     )
 }
 
-// RUGRA-GLUE: wraps Funcdata::newVarnodeSpace (funcdata.hh:286, not double.cc); space-id constant creation
+// RUDRA-GLUE: wraps Funcdata::newVarnodeSpace (funcdata.hh:286, not double.cc); space-id constant creation
 /// Create the space-id Varnode for a LOAD/STORE's first input.
 /// Faithful to Ghidra `Funcdata::newVarnodeSpace(spc)` (funcdata.hh:286),
 /// which the header documents as "create a constant Varnode referring to an

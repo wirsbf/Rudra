@@ -111,7 +111,7 @@ impl ResolvedUnion {
         Self { resolve, base_type, field_num: fld_num, lock: false }
     }
 
-    // RUGRA-GLUE: Stringly-typed constructor for callers that only have a
+    // RUDRA-GLUE: Stringly-typed constructor for callers that only have a
     //   type name and cannot readily produce an Arc<Datatype>. Not present in
     //   Ghidra; included so existing Rugra call-sites keep compiling.
     pub fn new_self(parent_name: &str) -> Self {
@@ -119,7 +119,7 @@ impl ResolvedUnion {
         Self::new(parent)
     }
 
-    // RUGRA-GLUE: Stringly-typed field constructor. See `new_self`.
+    // RUDRA-GLUE: Stringly-typed field constructor. See `new_self`.
     pub fn new_field(parent_name: &str, field_name: &str, fld_num: i32) -> Self {
         let parent = name_placeholder(parent_name);
         let base_type = parent.clone();
@@ -146,10 +146,10 @@ impl ResolvedUnion {
     /// Set whether this resolution is locked. Faithful to `setLock`.
     pub fn set_lock(&mut self, val: bool) { self.lock = val; }
 
-    // RUGRA-GLUE: name-based view of `resolve`. See `new_self`.
+    // RUDRA-GLUE: name-based view of `resolve`. See `new_self`.
     pub fn get_datatype_name(&self) -> &str { self.resolve.get_name() }
 
-    // RUGRA-GLUE: name-based view of `baseType`. See `new_self`.
+    // RUDRA-GLUE: name-based view of `baseType`. See `new_self`.
     pub fn get_base_name(&self) -> &str { self.base_type.get_name() }
 }
 
@@ -194,7 +194,7 @@ impl ResolveEdge {
         Self { type_id, op_time, encoding }
     }
 
-    // RUGRA-GLUE: Component-wise constructor for tests/edge cases that already
+    // RUDRA-GLUE: Component-wise constructor for tests/edge cases that already
     //   hold the resolved fields. Mirrors the Ghidra struct layout directly.
     pub fn from_components(type_id: u64, op_time: u32, slot: i32, is_pointer: bool) -> Self {
         let encoding = if is_pointer { slot + 0x1000 } else { slot };
@@ -299,20 +299,20 @@ impl VisitMark {
         Self { vn_key: Arc::as_ptr(vn) as usize, index }
     }
 
-    // RUGRA-GLUE: Component-wise constructor for the legacy tests.
+    // RUDRA-GLUE: Component-wise constructor for the legacy tests.
     pub fn from_id(vn_id: u64, index: i32) -> Self {
         Self { vn_key: vn_id as usize, index }
     }
 }
 
 impl PartialEq for VisitMark {
-    // RUGRA-GLUE: Rust Ord requires PartialEq; Ghidra defines only the
+    // RUDRA-GLUE: Rust Ord requires PartialEq; Ghidra defines only the
     // component-wise VisitMark::operator< ordering at unionresolve.hh:130.
     fn eq(&self, other: &Self) -> bool { self.vn_key == other.vn_key && self.index == other.index }
 }
 impl Eq for VisitMark {}
 impl PartialOrd for VisitMark {
-    // RUGRA-GLUE: Rust Ord requires PartialOrd; this delegates to cmp(), which
+    // RUDRA-GLUE: Rust Ord requires PartialOrd; this delegates to cmp(), which
     // implements Ghidra's VisitMark::operator< key order (vn, then index).
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
 }
@@ -534,7 +534,7 @@ impl<'t> ScoreUnionFields<'t> {
         s
     }
 
-    // RUGRA-GLUE: Minimal constructor for the legacy string-based tests and
+    // RUDRA-GLUE: Minimal constructor for the legacy string-based tests and
     //   for callers that build the scores/fields vectors by hand.
     pub fn with_field_names(parent_name: &str, field_names: &[String]) -> Self {
         let parent = name_placeholder(parent_name);
@@ -551,7 +551,7 @@ impl<'t> ScoreUnionFields<'t> {
         }
     }
 
-    // RUGRA-GLUE: Construct an empty scorer holding just an initial result.
+    // RUDRA-GLUE: Construct an empty scorer holding just an initial result.
     fn empty(typegrp: Arc<RwLock<TypeFactory>>, result: ResolvedUnion) -> Self {
         Self {
             typegrp, fd: None, scores: Vec::new(), fields: Vec::new(),
@@ -565,10 +565,10 @@ impl<'t> ScoreUnionFields<'t> {
     /// Get the resulting best field resolution. Faithful to `getResult`.
     pub fn get_result(&self) -> &ResolvedUnion { &self.result }
 
-    // RUGRA-GLUE: number of slots (whole union + N fields).
+    // RUDRA-GLUE: number of slots (whole union + N fields).
     pub fn num_fields(&self) -> usize { self.fields.len() }
 
-    // RUGRA-GLUE: add to scores[index].
+    // RUDRA-GLUE: add to scores[index].
     pub fn add_score(&mut self, index: usize, score: i32) {
         if index < self.scores.len() { self.scores[index] += score; }
     }
@@ -1485,7 +1485,7 @@ impl<'t> ScoreUnionFields<'t> {
         self.scores[trial.score_index as usize] += score;
     }
 
-    // RUGRA-GLUE: Legacy entry-point kept for the old Funcdata-scanning test
+    // RUDRA-GLUE: Legacy entry-point kept for the old Funcdata-scanning test
     //   path. The real Ghidra entry is the `new(...)` constructor above.
     pub fn run_on_func(&mut self, fd: &crate::funcdata::Funcdata) {
         for op_ref in fd.obank.iter_alive() {
@@ -1976,7 +1976,7 @@ pub fn vn_high_type_def_facing(
 // Free helpers — porting Ghidra inline / virtual dispatch used by the scorer
 // ===========================================================================
 
-// RUGRA-GLUE: free-function form of ScoreUnionFields::testSimpleCases, used
+// RUDRA-GLUE: free-function form of ScoreUnionFields::testSimpleCases, used
 //   by the `new` constructor before `self` exists (cc:993).
 /// Identify cases where the union should not be resolved to a field.
 /// Faithful to `ScoreUnionFields::testSimpleCases` (unionresolve.cc:119-137).
@@ -1984,7 +1984,7 @@ fn test_simple_cases(op: &PcodeOp, in_slot: i32, parent: &Datatype) -> bool {
     ScoreUnionFields::score_simple_cases_inner(op, in_slot, parent)
 }
 
-// RUGRA-GLUE: `ScoreUnionFields::scoreTruncation` free-function form taking
+// RUDRA-GLUE: `ScoreUnionFields::scoreTruncation` free-function form taking
 //   the scores slice directly, for use during construction.
 /// Score an implied truncation, returning the recurse-type if any.
 /// Faithful to `ScoreUnionFields::scoreTruncation` (unionresolve.cc:843-879).
@@ -2026,7 +2026,7 @@ fn score_truncation_inplace(
     ct
 }
 
-// RUGRA-GLUE: Datatype::numDepend / getDepend aggregator. Mirrors Ghidra's
+// RUDRA-GLUE: Datatype::numDepend / getDepend aggregator. Mirrors Ghidra's
 //   per-variant virtual dispatch.
 /// Number of dependency sub-types. Faithful to `Datatype::numDepend`.
 fn num_depend(dt: &Datatype) -> usize {
@@ -2038,7 +2038,7 @@ fn num_depend(dt: &Datatype) -> usize {
     }
 }
 
-// RUGRA-GLUE: `Datatype::getDepend(i)` aggregator.
+// RUDRA-GLUE: `Datatype::getDepend(i)` aggregator.
 /// Get the i-th dependency sub-type. Faithful to `Datatype::getDepend`.
 /// Public for the pipeline wiring (coreaction.cc:2441
 /// `inType->getDepend(inResolve)` in tryResolutionAdjustment).
@@ -2055,46 +2055,46 @@ pub fn get_depend(dt: &Datatype, i: usize) -> Arc<Datatype> {
     }
 }
 
-// RUGRA-GLUE: equivalent of `parent->getDepend(fldNum)` used by the
+// RUDRA-GLUE: equivalent of `parent->getDepend(fldNum)` used by the
 //   ResolvedUnion field constructor (cc:53,57).
 /// Get the i-th dependency sub-type as a borrowed reference.
 fn depend_at(dt: &Datatype, i: usize) -> Arc<Datatype> { get_depend(dt, i) }
 
-// RUGRA-GLUE: Datatype pointer helpers.
+// RUDRA-GLUE: Datatype pointer helpers.
 /// Borrow the pointee of a pointer type, or the type itself if not a pointer.
 fn pointee_of(dt: &Datatype) -> &Datatype {
     match dt { Datatype::Pointer(p) => p.ptr_to.as_ref(), _ => dt }
 }
 
-// RUGRA-GLUE: Rust enum downcast for repeated TypePointer::getPtrTo uses;
+// RUDRA-GLUE: Rust enum downcast for repeated TypePointer::getPtrTo uses;
 // Ghidra performs checked TYPE_PTR casts inline and has no such free helper.
 /// `Some(pointee)` if `dt` is a pointer, else `None`.
 fn pointer_pointee(dt: &Datatype) -> Option<&Datatype> {
     match dt { Datatype::Pointer(p) => Some(p.ptr_to.as_ref()), _ => None }
 }
 
-// RUGRA-GLUE: Rust enum downcast replacing Ghidra's inline TypeUnion pointer
+// RUDRA-GLUE: Rust enum downcast replacing Ghidra's inline TypeUnion pointer
 // casts; unionresolve.cc declares no standalone asUnion helper.
 /// `Some(&TypeUnion)` for union types.
 fn as_union(dt: &Datatype) -> Option<&TypeUnion> {
     match dt { Datatype::Union(u) => Some(u), _ => None }
 }
 
-// RUGRA-GLUE: Arc ownership helper for inline TypePointer::getPtrTo operations
+// RUDRA-GLUE: Arc ownership helper for inline TypePointer::getPtrTo operations
 // such as unionresolve.cc:30 and :70; Ghidra returns borrowed raw pointers.
 /// Strip one pointer layer, returning a cloned Arc for ownership.
 fn strip_pointer_layer(dt: &Arc<Datatype>) -> Arc<Datatype> {
     match dt.as_ref() { Datatype::Pointer(p) => p.ptr_to.clone(), _ => dt.clone() }
 }
 
-// RUGRA-GLUE: Rust enum helper for the conditional getWordSize expression at
+// RUDRA-GLUE: Rust enum helper for the conditional getWordSize expression at
 // unionresolve.cc:995; Ghidra has no standalone pointeeWordSize function.
 /// Word size of a pointer type (0 if not a pointer).
 fn pointee_word_size(dt: &Datatype) -> usize {
     match dt { Datatype::Pointer(p) => p.wordsize, _ => 0 }
 }
 
-// RUGRA-GLUE: Return the (field list, field count) for a union-typed parent.
+// RUDRA-GLUE: Return the (field list, field count) for a union-typed parent.
 fn union_field_list(dt: &Datatype) -> (Vec<TypeField>, usize) {
     match dt {
         Datatype::Union(u) => { let count = u.fields.len(); (u.fields.clone(), count) }
@@ -2119,7 +2119,7 @@ fn get_type_pointer_strip_array(
     typegrp.get_type_pointer(size, pt, wordsize)
 }
 
-// RUGRA-GLUE: Ghidra `bit_transitions(val,size)` (address.cc). Counts the
+// RUDRA-GLUE: Ghidra `bit_transitions(val,size)` (address.cc). Counts the
 //   number of 0->1 and 1->0 bit transitions in the bottom `size*8` bits.
 fn bit_transition_count(val: u64, size: usize) -> u32 {
     let bits = (size as u32).saturating_mul(8);
@@ -2133,13 +2133,13 @@ fn bit_transition_count(val: u64, size: usize) -> u32 {
     transitions
 }
 
-// RUGRA-GLUE: Construct a placeholder Datatype for the legacy string ctors.
+// RUDRA-GLUE: Construct a placeholder Datatype for the legacy string ctors.
 fn name_placeholder(name: &str) -> Arc<Datatype> {
     Arc::new(Datatype::Base(crate::type_system::datatype::TypeBase::new(
         name.to_string(), 0, TypeMetatype::Unknown)))
 }
 
-// RUGRA-GLUE: A distinct empty placeholder for score slots that Ghidra leaves
+// RUDRA-GLUE: A distinct empty placeholder for score slots that Ghidra leaves
 //   as `(Datatype *)0`.
 fn empty_placeholder() -> Datatype {
     Datatype::Base(crate::type_system::datatype::TypeBase::new(

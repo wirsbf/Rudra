@@ -13,7 +13,7 @@ use crate::database::{Symbol, SymbolEntry, SymbolCategory};
 use crate::opcodes::OpCode;
 use std::sync::{Arc, RwLock};
 
-// RUGRA-GLUE: Ghidra declares `type` `mutable` (variable.hh:141) precisely so
+// RUDRA-GLUE: Ghidra declares `type` `mutable` (variable.hh:141) precisely so
 // the const getters `getType` (variable.hh:174) and `isTypeLock`
 // (variable.hh:222) can run the lazy `updateType()` re-derivation
 // (variable.cc:400-416) through a const `this` (C++ logical constness). Rust
@@ -34,19 +34,19 @@ use std::sync::{Arc, RwLock};
 pub struct TypeCell(pub RwLock<Arc<Datatype>>);
 
 impl TypeCell {
-    // RUGRA-GLUE: constructor for the Rust lock-domain stand-in of Ghidra's
+    // RUDRA-GLUE: constructor for the Rust lock-domain stand-in of Ghidra's
     // `mutable Datatype *type` (variable.hh:141); Ghidra has no wrapper type.
     /// Wrap an initial cached type.
     pub fn new(v: Arc<Datatype>) -> Self {
         TypeCell(RwLock::new(v))
     }
-    // RUGRA-GLUE: shared read of the lock-domain cache (Ghidra reads the
+    // RUDRA-GLUE: shared read of the lock-domain cache (Ghidra reads the
     // `mutable` member directly through const `this`).
     /// Read the cached type (usable from `&self`).
     pub fn get(&self) -> Arc<Datatype> {
         self.0.read().unwrap().clone()
     }
-    // RUGRA-GLUE: shared write of the lock-domain cache (Ghidra assigns the
+    // RUDRA-GLUE: shared write of the lock-domain cache (Ghidra assigns the
     // `mutable` member through const `this`, e.g. variable.cc:410/319).
     /// Swap the cached type (usable from `&self`, C++ `mutable` write).
     pub fn set(&self, v: Arc<Datatype>) {
@@ -54,7 +54,7 @@ impl TypeCell {
     }
 }
 
-// RUGRA-GLUE: Anonymous enum of dirtiness bits from HighVariable (variable.hh:119-131).
+// RUDRA-GLUE: Anonymous enum of dirtiness bits from HighVariable (variable.hh:119-131).
 // In Ghidra these are private enum constants on the class; Rust exposes them as
 // a `pub mod` of `u32` consts so callers (Merge, printCover, etc.) can test bits.
 /// Dirtiness / status bits for a `HighVariable`.
@@ -230,7 +230,7 @@ impl HighVariable {
         };
         let entry_arc = match entry_arc {
             Some(e) => e,
-            None => return, // RUGRA-GLUE: Ghidra's caller guarantees non-null; guard for safety.
+            None => return, // RUDRA-GLUE: Ghidra's caller guarantees non-null; guard for safety.
         };
         let entry = entry_arc.read().unwrap();
         let entry_symbol = entry.get_symbol();
@@ -241,7 +241,7 @@ impl HighVariable {
             {
                 // Ghidra throws LowlevelError here; Rugra logs and keeps the
                 // existing symbol (the dirty branch would overwrite anyway).
-                // RUGRA-GLUE: cannot panic across FFI boundaries in tests.
+                // RUDRA-GLUE: cannot panic across FFI boundaries in tests.
                 eprintln!(
                     "warning: Symbols assigned to the same variable (variable.cc:251)"
                 );
@@ -284,7 +284,7 @@ impl HighVariable {
         }
         drop(vn_g);
 
-        // Faithful to variable.cc:272-274. RUGRA-GLUE: Rugra's TypeMetatype has
+        // Faithful to variable.cc:272-274. RUDRA-GLUE: Rugra's TypeMetatype has
         // no TYPE_PARTIALUNION, so this branch never fires; we keep it as a
         // structural guard for the day the metatype is added.
         // Faithful to variable.cc:272-273: a partial-union cached type must
@@ -311,7 +311,7 @@ impl HighVariable {
     pub fn transfer_piece(&mut self, tv2: &mut HighVariable) {
         if let Some(piece) = tv2.piece.take() {
             // Re-point the piece's owning HighVariable to this.
-            // RUGRA-GLUE: Ghidra uses raw `piece->setHigh(this)`; Rugra's
+            // RUDRA-GLUE: Ghidra uses raw `piece->setHigh(this)`; Rugra's
             // VariablePiece holds a Weak<RwLock<HighVariable>> back-reference,
             // which we cannot re-point without an Arc to `this`. We carry the
             // piece over and inherit tv2's intersect/extend-cover dirty bits.
@@ -748,7 +748,7 @@ impl HighVariable {
     /// neither has a piece, only this lacks one, only hi2 lacks one, both have
     /// pieces (merge the groups).
     pub fn group_with(&mut self, off: i32, hi2: &mut HighVariable) {
-        // RUGRA-GLUE: Ghidra allocates `new VariablePiece(h, offset, grp)` and
+        // RUDRA-GLUE: Ghidra allocates `new VariablePiece(h, offset, grp)` and
         // ties ownership via raw pointers. Rugra uses Arc<RwLock<VariablePiece>>
         // and an Weak<RwLock<HighVariable>> back-ref inside the piece, which we
         // cannot synthesise without an existing Arc to `this`. This method is
@@ -828,7 +828,7 @@ impl HighVariable {
     pub fn establish_group_symbol_offset(&self) {
         let piece_arc = match &self.piece {
             Some(p) => p.clone(),
-            None => return, // RUGRA-GLUE: Ghidra's caller guarantees a piece.
+            None => return, // RUDRA-GLUE: Ghidra's caller guarantees a piece.
         };
         let group_arc = {
             let piece = piece_arc.read().unwrap();
@@ -878,7 +878,7 @@ impl HighVariable {
             for vn_arc in &tv2.instances {
                 let mut vn = vn_arc.write().unwrap();
                 vn.mergegroup = vn.mergegroup.saturating_add(num_merge_classes as i16);
-                // RUGRA-GLUE: Ghidra calls vn->setHigh(this, ...). Rugra's
+                // RUDRA-GLUE: Ghidra calls vn->setHigh(this, ...). Rugra's
                 // HighVariable ownership is via Arc<RwLock<HighVariable>> set
                 // by funcdata/merge, so the caller re-points vn.high after merge.
             }
@@ -922,7 +922,7 @@ impl HighVariable {
         }
         self.instances = merged;
         tv2.instances.clear(); // Faithful to variable.cc:658.
-        // RUGRA-GLUE: the oracle DELETES tv2 after mergeInternal (the
+        // RUDRA-GLUE: the oracle DELETES tv2 after mergeInternal (the
         // caller in merge.cc destroys it), so no oracle code can observe
         // tv2's member list or its caches afterwards. Rust keeps the
         // retired shell object (varnode high pointers are rewired to
@@ -1018,7 +1018,7 @@ impl HighVariable {
                 return false;
             }
             // Faithful to variable.cc:734-735: !isIndirectOnly clears indirectonly.
-            // RUGRA-GLUE: Varnode has the INDIRECTONLY flag but no is_indirect_only()
+            // RUDRA-GLUE: Varnode has the INDIRECTONLY flag but no is_indirect_only()
             // method; inline the flag check (varnode_flags::INDIRECTONLY).
             let is_indirect_only = (vn.flags & varnode_flags::INDIRECTONLY) != 0;
             if !is_indirect_only {
@@ -1026,7 +1026,7 @@ impl HighVariable {
             }
         }
         // Faithful to variable.cc:737-745: unaffected special-case.
-        // RUGRA-GLUE: is_unaffected() reads the cached flags bit (&self).
+        // RUDRA-GLUE: is_unaffected() reads the cached flags bit (&self).
         if self.is_unaffected() {
             if !self.is_input() {
                 return false; // variable.cc:738
@@ -1046,7 +1046,7 @@ impl HighVariable {
         true
     }
 
-    // RUGRA-GLUE: Static slice helper for has_name's shared-borrow path; Ghidra
+    // RUDRA-GLUE: Static slice helper for has_name's shared-borrow path; Ghidra
     // calls the throwing HighVariable::getInputVarnode member at variable.cc:740.
     /// Helper: find the first input member Varnode (static, no &mut self).
     fn find_input_varnode(
@@ -1070,7 +1070,7 @@ impl HighVariable {
                 return Some(inst.clone()); // Faithful to variable.cc:758-759.
             }
         }
-        None // RUGRA-GLUE: Ghidra throws LowlevelError (variable.cc:761).
+        None // RUDRA-GLUE: Ghidra throws LowlevelError (variable.cc:761).
     }
 
     // Ghidra: variable.cc:767 HighVariable::getInputVarnode
@@ -1083,7 +1083,7 @@ impl HighVariable {
                 return Some(inst.clone()); // Faithful to variable.cc:770-771.
             }
         }
-        None // RUGRA-GLUE: Ghidra throws LowlevelError (variable.cc:773).
+        None // RUDRA-GLUE: Ghidra throws LowlevelError (variable.cc:773).
     }
 
     // Ghidra: variable.cc:778 HighVariable::printInfo
@@ -1142,7 +1142,7 @@ impl HighVariable {
     /// until explicit Varnodes are encountered; marks and collects their
     /// HighVariables. Returns a bitset: 1=call, 2=LOAD.
     ///
-    /// RUGRA-GLUE: the full traversal walks PcodeOp inputs via node.slot; Rugra
+    /// RUDRA-GLUE: the full traversal walks PcodeOp inputs via node.slot; Rugra
     /// has the pieces (PcodeOp::num_input/get_in, Varnode::is_explicit) and the
     /// algorithm is ported verbatim below using a local stack of (op_arc, slot).
     pub fn mark_expression(
@@ -1156,7 +1156,7 @@ impl HighVariable {
         };
         let high_arc = match high_arc {
             Some(h) => h,
-            None => return 0, // RUGRA-GLUE: defensive; Ghidra assumes a HighVariable.
+            None => return 0, // RUDRA-GLUE: defensive; Ghidra assumes a HighVariable.
         };
         // Faithful to variable.cc:876-877: high->setMark(); highList.push_back(high).
         high_arc.write().unwrap().set_mark();
@@ -1256,7 +1256,7 @@ impl HighVariable {
             .or_else(|| self.instances.first().cloned());
         let vn_arc = match vn_arc {
             Some(v) => v,
-            None => return String::new(), // RUGRA-GLUE: no members -> empty.
+            None => return String::new(), // RUDRA-GLUE: no members -> empty.
         };
         let rep_ref = vn_arc.read().unwrap().create_index;
         let mut s = String::new();
@@ -1278,7 +1278,7 @@ impl HighVariable {
             if matches!(cat, SymbolCategory::FunctionParameter) {
                 "param"
             } else {
-                "local" // RUGRA-GLUE: no scope->isGlobal() check; default local.
+                "local" // RUDRA-GLUE: no scope->isGlobal() check; default local.
             }
         } else {
             "other"
@@ -1498,7 +1498,7 @@ impl HighVariable {
 
     // Ghidra: variable.hh:294-300 HighVariable::getCover
     /// Get the cover: internal, unless part of a group (then the piece's cover).
-    /// RUGRA-GLUE: Ghidra returns piece->getCover() by ref; Rugra cannot return
+    /// RUDRA-GLUE: Ghidra returns piece->getCover() by ref; Rugra cannot return
     /// a &Cover borrowed from under the piece's RwLock, so we return the
     /// internal cover as the closest stable reference.
     pub fn get_cover(&self) -> &Cover {
@@ -1507,14 +1507,14 @@ impl HighVariable {
 
     // --- Legacy Rugra convenience methods kept for existing call-sites. -----
 
-    // RUGRA-GLUE: Legacy direct-name accessor; Ghidra HighVariable derives its
+    // RUDRA-GLUE: Legacy direct-name accessor; Ghidra HighVariable derives its
     // name through Symbol/nameRepresentative and has no stored-name accessor.
     /// Get the name string (Rugra convenience).
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
-    // RUGRA-GLUE: Legacy direct-name mutator; Ghidra changes the attached Symbol
+    // RUDRA-GLUE: Legacy direct-name mutator; Ghidra changes the attached Symbol
     // rather than storing a String on HighVariable.
     /// Set the name string and lock it (Rugra convenience).
     pub fn set_name(&mut self, name: String) {
@@ -1562,14 +1562,14 @@ impl HighVariable {
         self.v_type.get()
     }
 
-    // RUGRA-GLUE: Legacy cached-type override; Ghidra HighVariable exposes
+    // RUDRA-GLUE: Legacy cached-type override; Ghidra HighVariable exposes
     /// getType/updateType/finalizeDatatype but no public setType method.
     /// Set the data type directly on the cache.
     pub fn set_type(&mut self, v_type: Arc<Datatype>) {
         self.v_type.set(v_type);
     }
 
-    // RUGRA-GLUE: Legacy membership mutator; Ghidra adds members only through
+    // RUDRA-GLUE: Legacy membership mutator; Ghidra adds members only through
     // construction/merge and has no public HighVariable::addInstance method.
     /// Add a varnode instance.
     ///
@@ -1608,14 +1608,14 @@ impl HighVariable {
     /// dirty it derives the typelock answer from the representative (what
     /// `updateType` would refresh into `flags`, variable.cc:413-415),
     /// closing the former "shared-ref callers see a stale bit" caveat.
-    // RUGRA-GLUE: backward-compat alias (variable.hh:222) for shared-ref callers.
+    // RUDRA-GLUE: backward-compat alias (variable.hh:222) for shared-ref callers.
     pub fn is_type_locked(&self) -> bool {
         self.is_type_lock()
     }
 
     /// Remove a varnode instance by index. Kept for callers (merge.rs:1793).
     /// Faithful to the body of `remove` (variable.cc:515) restricted to an index.
-    // RUGRA-GLUE: backward-compat alias for the existing merge.rs call-site.
+    // RUDRA-GLUE: backward-compat alias for the existing merge.rs call-site.
     pub fn remove_instance(&mut self, index: usize) {
         if index < self.instances.len() {
             self.instances.remove(index);
@@ -1667,12 +1667,12 @@ impl VariableGroup {
     /// `addPiece` (variable.cc:43-52). Sets the piece's group, inserts (throws
     /// on duplicate), and grows `size` to cover the piece.
     pub fn add_piece(&mut self, piece: Arc<RwLock<VariablePiece>>) {
-        // RUGRA-GLUE: Ghidra sets piece->group = this via raw pointer; Rugra
+        // RUDRA-GLUE: Ghidra sets piece->group = this via raw pointer; Rugra
         // stores an Arc<RwLock<VariableGroup>> on the piece, set by caller.
         // Faithful to variable.cc:47-48: throw on duplicate insert. Rugra uses
         // ptr-equality to detect a duplicate piece.
         if self.pieces.iter().any(|p| Arc::ptr_eq(p, &piece)) {
-            // RUGRA-GLUE: Ghidra throws LowlevelError; log instead.
+            // RUDRA-GLUE: Ghidra throws LowlevelError; log instead.
             eprintln!("warning: Duplicate VariablePiece (variable.cc:48)");
             return;
         }
@@ -1770,7 +1770,7 @@ impl VariableGroup {
 }
 
 impl Default for VariableGroup {
-    // RUGRA-GLUE: Default impl (Rust trait glue; Ghidra has default ctor)
+    // RUDRA-GLUE: Default impl (Rust trait glue; Ghidra has default ctor)
     fn default() -> Self {
         Self::new()
     }
@@ -1827,7 +1827,7 @@ impl VariablePiece {
         self.high.clone()
     }
 
-    // RUGRA-GLUE: Clones the Arc owning a VariableGroup; Ghidra's getGroup at
+    // RUDRA-GLUE: Clones the Arc owning a VariableGroup; Ghidra's getGroup at
     // variable.hh:83 returns a borrowed raw pointer and needs no ownership clone.
     /// Get the group Arc (Rugra helper used where Ghidra returns a raw group ptr).
     pub fn get_group_arc(&self) -> Option<Arc<RwLock<VariableGroup>>> {
@@ -1884,7 +1884,7 @@ impl VariablePiece {
         }
     }
 
-    // RUGRA-GLUE: Arc<RwLock> entry point for the mapped markIntersectionDirty;
+    // RUDRA-GLUE: Arc<RwLock> entry point for the mapped markIntersectionDirty;
     // Ghidra's const member at variable.cc:119 needs no explicit lock wrapper.
     /// Read-lock variant of mark_intersection_dirty for use from HighVariable
     /// methods that hold `&self.piece` via clone (avoids re-borrowing).
@@ -1923,7 +1923,7 @@ impl VariablePiece {
         }
     }
 
-    // RUGRA-GLUE: Arc<RwLock> entry point for the mapped markExtendCoverDirty;
+    // RUDRA-GLUE: Arc<RwLock> entry point for the mapped markExtendCoverDirty;
     // Ghidra's const member at variable.cc:128 needs no explicit lock wrapper.
     /// Read-lock variant of mark_extend_cover_dirty.
     pub fn mark_extend_cover_dirty_read(piece_arc: &Arc<RwLock<VariablePiece>>) {
@@ -1989,7 +1989,7 @@ impl VariablePiece {
         }
     }
 
-    // RUGRA-GLUE: Arc<RwLock> entry point for the mapped updateIntersections;
+    // RUDRA-GLUE: Arc<RwLock> entry point for the mapped updateIntersections;
     // Ghidra's const member at variable.cc:140 mutates mutable fields directly.
     /// Read-lock entry point for update_intersections used from HighVariable.
     pub fn update_intersections_read(piece_arc: &Arc<RwLock<VariablePiece>>) {
@@ -2027,7 +2027,7 @@ impl VariablePiece {
         owner.highflags &= !high_internal_flags::EXTENDCOVERDIRTY;
     }
 
-    // RUGRA-GLUE: Splits VariablePiece::updateCover across owner and piece locks;
+    // RUDRA-GLUE: Splits VariablePiece::updateCover across owner and piece locks;
     // Ghidra's const member at variable.cc:160 follows raw owner pointers.
     /// Read-lock entry point for update_cover used from HighVariable::update_cover.
     /// Snapshot the piece's intersection list under a read lock, then merge.

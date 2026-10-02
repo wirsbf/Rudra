@@ -472,7 +472,7 @@ pub struct AttributeId {
 impl AttributeId {
     /// Construct a const placeholder with the numeric id.
     /// The name cannot be retained by this const initializer.
-    // RUGRA-GLUE: Const placeholder; unlike Ghidra's constructor, it cannot retain the name or register globally.
+    // RUDRA-GLUE: Const placeholder; unlike Ghidra's constructor, it cannot retain the name or register globally.
     pub const fn new_static(nm: &'static str, id: u32) -> Self {
         Self {
             name: String::new(), // Will be set at runtime; const can't allocate.
@@ -575,7 +575,7 @@ fn initialize_element_ids(tables: &mut IdTables) {
     }
 }
 
-// RUGRA-GLUE: Combines the two Ghidra global lookup tables behind Rust's OnceLock.
+// RUDRA-GLUE: Combines the two Ghidra global lookup tables behind Rust's OnceLock.
 fn build_id_tables() -> IdTables {
     let mut tables = IdTables::default();
     initialize_attribute_ids(&mut tables);
@@ -583,7 +583,7 @@ fn build_id_tables() -> IdTables {
     tables
 }
 
-// RUGRA-GLUE: Rust process-wide access to Ghidra's two static lookup tables.
+// RUDRA-GLUE: Rust process-wide access to Ghidra's two static lookup tables.
 fn id_tables() -> &'static IdTables {
     ID_TABLES.get_or_init(build_id_tables)
 }
@@ -597,28 +597,28 @@ fn id_tables() -> &'static IdTables {
 pub struct IdRegistry;
 
 impl IdRegistry {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Access the fixed process-wide registry.
     pub fn new() -> Self {
         Self::initialize();
         Self
     }
 
-    // RUGRA-GLUE: One Rust entry point invokes both Ghidra initialize methods.
+    // RUDRA-GLUE: One Rust entry point invokes both Ghidra initialize methods.
     /// Initialize the process-wide tables. Repeated calls preserve the exact
     /// same table and have no observable mutation.
     pub fn initialize() {
         let _ = id_tables();
     }
 
-    // RUGRA-GLUE: register_attribute (no Ghidra counterpart found)
+    // RUDRA-GLUE: register_attribute (no Ghidra counterpart found)
     /// Compatibility lookup for callers that formerly registered names.
     /// Unknown input returns `ATTRIB_UNKNOWN`; no id is allocated.
     pub fn register_attribute(&mut self, nm: &str) -> u32 {
         self.find_attribute(nm)
     }
 
-    // RUGRA-GLUE: register_attribute_with_id (no Ghidra counterpart found)
+    // RUDRA-GLUE: register_attribute_with_id (no Ghidra counterpart found)
     /// Compatibility validation hook. Returns whether the pair is part of the
     /// locked table; runtime input can never mutate the process table.
     pub fn register_attribute_with_id(&mut self, nm: &str, id: u32) -> bool {
@@ -645,20 +645,20 @@ impl IdRegistry {
             .unwrap_or(ATTRIB_UNKNOWN)
     }
 
-    // RUGRA-GLUE: attribute_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: attribute_name (no Ghidra counterpart found)
     /// Look up an attribute name by id.
     pub fn attribute_name(&self, id: u32) -> Option<&str> {
         id_tables().attr_by_id.get(&id).copied()
     }
 
-    // RUGRA-GLUE: register_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: register_element (no Ghidra counterpart found)
     /// Compatibility lookup for callers that formerly registered names.
     /// Unknown input returns `ELEM_UNKNOWN`; no id is allocated.
     pub fn register_element(&mut self, nm: &str) -> u32 {
         self.find_element(nm)
     }
 
-    // RUGRA-GLUE: register_element_with_id (no Ghidra counterpart found)
+    // RUDRA-GLUE: register_element_with_id (no Ghidra counterpart found)
     /// Compatibility validation hook. Returns whether the pair is part of the
     /// locked table; runtime input can never mutate the process table.
     pub fn register_element_with_id(&mut self, nm: &str, id: u32) -> bool {
@@ -685,7 +685,7 @@ impl IdRegistry {
             .unwrap_or(ELEM_UNKNOWN)
     }
 
-    // RUGRA-GLUE: element_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: element_name (no Ghidra counterpart found)
     /// Look up an element name by id.
     pub fn element_name(&self, id: u32) -> Option<&str> {
         id_tables().elem_by_id.get(&id).copied()
@@ -710,7 +710,7 @@ pub struct Element {
 }
 
 impl Element {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct an empty element.
     pub fn new() -> Self {
         Self {
@@ -722,50 +722,50 @@ impl Element {
         }
     }
 
-    // RUGRA-GLUE: set_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_name (no Ghidra counterpart found)
     /// Set the local name of the element. Faithful to `setName`.
     pub fn set_name(&mut self, nm: &str) {
         self.name = nm.to_string();
     }
 
-    // RUGRA-GLUE: add_content (no Ghidra counterpart found)
+    // RUDRA-GLUE: add_content (no Ghidra counterpart found)
     /// Append character content. Faithful to `addContent`.
     pub fn add_content(&mut self, s: &str) {
         self.content.push_str(s);
     }
 
-    // RUGRA-GLUE: add_child (no Ghidra counterpart found)
+    // RUDRA-GLUE: add_child (no Ghidra counterpart found)
     /// Add a child element. Faithful to `addChild`.
     pub fn add_child(&mut self, child: Arc<RwLock<Element>>) {
         self.children.push(child);
     }
 
-    // RUGRA-GLUE: add_attribute (no Ghidra counterpart found)
+    // RUDRA-GLUE: add_attribute (no Ghidra counterpart found)
     /// Add a name/value attribute pair. Faithful to `addAttribute`.
     pub fn add_attribute(&mut self, nm: &str, vl: &str) {
         self.attr_names.push(nm.to_string());
         self.attr_values.push(vl.to_string());
     }
 
-    // RUGRA-GLUE: get_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_name (no Ghidra counterpart found)
     /// Get the local name. Faithful to `getName`.
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
-    // RUGRA-GLUE: get_content (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_content (no Ghidra counterpart found)
     /// Get the character content. Faithful to `getContent`.
     pub fn get_content(&self) -> &str {
         &self.content
     }
 
-    // RUGRA-GLUE: get_children (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_children (no Ghidra counterpart found)
     /// Get the child elements. Faithful to `getChildren`.
     pub fn get_children(&self) -> &[Arc<RwLock<Element>>] {
         &self.children
     }
 
-    // RUGRA-GLUE: get_attribute_value (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_attribute_value (no Ghidra counterpart found)
     /// Get an attribute value by name. Returns None if not found. Faithful to
     /// `getAttributeValue` (which throws; we return Option).
     pub fn get_attribute_value(&self, nm: &str) -> Option<&str> {
@@ -777,19 +777,19 @@ impl Element {
         None
     }
 
-    // RUGRA-GLUE: get_num_attributes (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_num_attributes (no Ghidra counterpart found)
     /// Get the number of attributes. Faithful to `getNumAttributes`.
     pub fn get_num_attributes(&self) -> usize {
         self.attr_names.len()
     }
 
-    // RUGRA-GLUE: get_attribute_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_attribute_name (no Ghidra counterpart found)
     /// Get the name of the i-th attribute. Faithful to `getAttributeName`.
     pub fn get_attribute_name(&self, i: usize) -> &str {
         &self.attr_names[i]
     }
 
-    // RUGRA-GLUE: get_attribute_value_at (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_attribute_value_at (no Ghidra counterpart found)
     /// Get the value of the i-th attribute. Faithful to `getAttributeValue(i)`.
     pub fn get_attribute_value_at(&self, i: usize) -> &str {
         &self.attr_values[i]
@@ -797,7 +797,7 @@ impl Element {
 }
 
 impl Default for Element {
-    // RUGRA-GLUE: default (no Ghidra counterpart found)
+    // RUDRA-GLUE: default (no Ghidra counterpart found)
     fn default() -> Self {
         Self::new()
     }
@@ -812,19 +812,19 @@ pub struct Document {
 }
 
 impl Document {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct an empty document.
     pub fn new() -> Self {
         Self { root: None }
     }
 
-    // RUGRA-GLUE: get_root (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_root (no Ghidra counterpart found)
     /// Get the root element. Faithful to `getRoot`.
     pub fn get_root(&self) -> Option<&Arc<RwLock<Element>>> {
         self.root.as_ref()
     }
 
-    // RUGRA-GLUE: set_root (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_root (no Ghidra counterpart found)
     /// Set the root element.
     pub fn set_root(&mut self, root: Arc<RwLock<Element>>) {
         self.root = Some(root);
@@ -1289,7 +1289,7 @@ fn convert_char_ref(text: &str) -> i32 {
     val
 }
 
-// RUGRA-GLUE: push_reference_char（对应 xml.cc:1610/1628/1790 语法动作里的
+// RUDRA-GLUE: push_reference_char（对应 xml.cc:1610/1628/1790 语法动作里的
 // `*lvalue += (yyvsp[0].i)` —— C++ 经 string::operator+=(char) 截断为单字节；
 // Rust String 侧以 UTF-8 编码同一低字节，ASCII 域 byte-exact，>=0x80 为已登记残余）
 /// Append a converted reference character the way `string::operator+=(char)`
@@ -1341,7 +1341,7 @@ pub struct DecoderError {
 }
 
 impl DecoderError {
-    // RUGRA-GLUE: constructor mirroring DecoderError(const string &s)
+    // RUDRA-GLUE: constructor mirroring DecoderError(const string &s)
     /// Construct with the explanatory string.
     pub fn new(s: impl Into<String>) -> Self {
         Self { explain: s.into() }
@@ -1349,7 +1349,7 @@ impl DecoderError {
 }
 
 impl std::fmt::Display for DecoderError {
-    // RUGRA-GLUE: Display for the error type (C++ has no Display)
+    // RUDRA-GLUE: Display for the error type (C++ has no Display)
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.explain)
     }
@@ -1357,7 +1357,7 @@ impl std::fmt::Display for DecoderError {
 
 impl std::error::Error for DecoderError {}
 
-// RUGRA-GLUE: is_ws_token（xml.y:143-148 whitespace/S 产生式的 token 分类，
+// RUDRA-GLUE: is_ws_token（xml.y:143-148 whitespace/S 产生式的 token 分类，
 /// scanner 在 SingleMode 逐字符产出空白 token，scanSName 把前导空白物化为 ' '）
 /// Is the token a single XML whitespace character token?
 fn is_ws_token(tok: i32) -> bool {
@@ -1428,7 +1428,7 @@ impl<'a> XmlTreeParser<'a> {
         self.tok_valid = true;
     }
 
-    // RUGRA-GLUE: deferred lookahead read mirroring bison default reductions
+    // RUDRA-GLUE: deferred lookahead read mirroring bison default reductions
     /// Read the lookahead token only if none is pending. Bison performs
     /// default reductions without reading a lookahead; deferring the read
     /// here keeps every scanner mode switch ahead of the next token read.
@@ -1438,13 +1438,13 @@ impl<'a> XmlTreeParser<'a> {
         }
     }
 
-    // RUGRA-GLUE: shift bookkeeping (bison consumes the lookahead on shift)
+    // RUDRA-GLUE: shift bookkeeping (bison consumes the lookahead on shift)
     /// Consume the current token; the next read is deferred until `ensure`.
     fn shift(&mut self) {
         self.tok_valid = false;
     }
 
-    // RUGRA-GLUE: yyerror("syntax error") for the locked non-verbose build
+    // RUDRA-GLUE: yyerror("syntax error") for the locked non-verbose build
     /// Record the bison syntax error message on the handler.
     fn syntax_error(&self) -> String {
         SYNTAX_ERROR.to_string()
@@ -1559,7 +1559,7 @@ impl<'a> XmlTreeParser<'a> {
         Ok(())
     }
 
-    // RUGRA-GLUE: shared Misc* tail of the prolog productions (xml.y:166-174)
+    // RUDRA-GLUE: shared Misc* tail of the prolog productions (xml.y:166-174)
     /// `prologpre: prologpre Misc` continuation loop: Misc entries followed
     /// by the (always failing) doctypedecl opportunity.
     fn prolog_misc_loop(&mut self) -> Result<(), String> {
@@ -2018,7 +2018,7 @@ impl<'a> XmlTreeParser<'a> {
         }
     }
 
-    // RUGRA-GLUE: document assembly from the TreeHandler root element
+    // RUDRA-GLUE: document assembly from the TreeHandler root element
     /// Extract the built document: the grammar admits exactly one root
     /// element, which becomes the `Document` root (Ghidra's `Document` is
     /// itself the `Element` whose first child is the root, xml.hh:215-219).
@@ -2058,7 +2058,7 @@ pub struct DocumentStorage {
 }
 
 impl DocumentStorage {
-    // RUGRA-GLUE: Default construction (C++ default-constructs members)
+    // RUDRA-GLUE: Default construction (C++ default-constructs members)
     /// Construct an empty container.
     pub fn new() -> Self {
         Self::default()
@@ -2107,7 +2107,7 @@ impl DocumentStorage {
         self.tagmap.get(nm)
     }
 
-    // RUGRA-GLUE: doclist_len (Ghidra keeps doclist private with no accessor;
+    // RUDRA-GLUE: doclist_len (Ghidra keeps doclist private with no accessor;
     // exposed so fixtures can assert the null-slot partial state invariant)
     /// The number of document slots, including null slots left by failed
     /// parses. Ghidra's `doclist` is private and unobservable through its
@@ -2120,25 +2120,25 @@ impl DocumentStorage {
 /// A class for writing structured data to a stream. Faithful to `Encoder`
 /// (marshal.hh). This trait mirrors the virtual methods of Ghidra's Encoder.
 pub trait Encoder {
-    // RUGRA-GLUE: open_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: open_element (no Ghidra counterpart found)
     /// Open a new element with the given id.
     fn open_element(&mut self, elem_id: &ElementId);
-    // RUGRA-GLUE: close_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: close_element (no Ghidra counterpart found)
     /// Close the current element.
     fn close_element(&mut self, elem_id: &ElementId);
-    // RUGRA-GLUE: write_bool (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_bool (no Ghidra counterpart found)
     /// Write a boolean attribute.
     fn write_bool(&mut self, attrib_id: &AttributeId, val: bool);
-    // RUGRA-GLUE: write_signed_integer (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_signed_integer (no Ghidra counterpart found)
     /// Write a signed integer attribute.
     fn write_signed_integer(&mut self, attrib_id: &AttributeId, val: i64);
-    // RUGRA-GLUE: write_unsigned_integer (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_unsigned_integer (no Ghidra counterpart found)
     /// Write an unsigned integer attribute.
     fn write_unsigned_integer(&mut self, attrib_id: &AttributeId, val: u64);
-    // RUGRA-GLUE: write_string (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_string (no Ghidra counterpart found)
     /// Write a string attribute.
     fn write_string(&mut self, attrib_id: &AttributeId, val: &str);
-    // RUGRA-GLUE: write_string_indexed (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_string_indexed (no Ghidra counterpart found)
     /// Write an indexed string attribute.
     fn write_string_indexed(&mut self, attrib_id: &AttributeId, index: u32, val: &str);
     // Ghidra: marshal.hh:368 Encoder::writeSpace (pure virtual)
@@ -2156,44 +2156,44 @@ pub trait Encoder {
 /// (marshal.hh:99). The document is traversed depth-first via `open_element`/
 /// `close_element`, with attributes read via `read_*`.
 pub trait Decoder {
-    // RUGRA-GLUE: peek_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: peek_element (no Ghidra counterpart found)
     /// Peek at the next child element id without traversing in. Returns 0 if
     /// none. Faithful to `peekElement`.
     fn peek_element(&self) -> u32;
 
-    // RUGRA-GLUE: open_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: open_element (no Ghidra counterpart found)
     /// Open (traverse into) the next child element. Returns the element id.
     /// Faithful to `openElement`.
     fn open_element(&mut self) -> u32;
 
-    // RUGRA-GLUE: open_element_matching (no Ghidra counterpart found)
+    // RUDRA-GLUE: open_element_matching (no Ghidra counterpart found)
     /// Open the next child element, which must match the given id.
     fn open_element_matching(&mut self, elem_id: &ElementId) -> u32;
 
-    // RUGRA-GLUE: close_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: close_element (no Ghidra counterpart found)
     /// Close the current element. Faithful to `closeElement`.
     fn close_element(&mut self, id: u32);
 
-    // RUGRA-GLUE: close_element_skipping (no Ghidra counterpart found)
+    // RUDRA-GLUE: close_element_skipping (no Ghidra counterpart found)
     /// Close the current element, skipping unread children. Faithful to
     /// `closeElementSkipping`.
     fn close_element_skipping(&mut self, id: u32);
 
-    // RUGRA-GLUE: next_attribute_id (no Ghidra counterpart found)
+    // RUDRA-GLUE: next_attribute_id (no Ghidra counterpart found)
     /// Get the next attribute id for the current element. Returns 0 when done.
     fn next_attribute_id(&mut self) -> u32;
 
-    // RUGRA-GLUE: attribute_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: attribute_name (no Ghidra counterpart found)
     /// Look up the name of an attribute id. Returns None if the id is not
     /// registered. This allows decode implementations to dispatch on attribute
     /// names without holding a separate registry reference.
     fn attribute_name(&self, id: u32) -> Option<String>;
 
-    // RUGRA-GLUE: element_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: element_name (no Ghidra counterpart found)
     /// Look up the name of an element id. Returns None if not registered.
     fn element_name(&self, id: u32) -> Option<String>;
 
-    // RUGRA-GLUE: rewind_attributes (no Ghidra counterpart found)
+    // RUDRA-GLUE: rewind_attributes (no Ghidra counterpart found)
     /// Reset attribute traversal. Faithful to `rewindAttributes`.
     fn rewind_attributes(&mut self);
 
@@ -2245,27 +2245,27 @@ pub trait Decoder {
     /// scans by name exactly as the C++ does before reading).
     fn read_bool_attr(&mut self, attrib_id: &AttributeId) -> bool;
 
-    // RUGRA-GLUE: read_signed_integer (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_signed_integer (no Ghidra counterpart found)
     /// Read the current attribute as a signed integer.
     fn read_signed_integer(&mut self) -> i64;
 
-    // RUGRA-GLUE: read_signed_integer_attr (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_signed_integer_attr (no Ghidra counterpart found)
     /// Read a specific attribute as a signed integer.
     fn read_signed_integer_attr(&mut self, attrib_id: &AttributeId) -> i64;
 
-    // RUGRA-GLUE: read_unsigned_integer (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_unsigned_integer (no Ghidra counterpart found)
     /// Read the current attribute as an unsigned integer.
     fn read_unsigned_integer(&mut self) -> u64;
 
-    // RUGRA-GLUE: read_unsigned_integer_attr (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_unsigned_integer_attr (no Ghidra counterpart found)
     /// Read a specific attribute as an unsigned integer.
     fn read_unsigned_integer_attr(&mut self, attrib_id: &AttributeId) -> u64;
 
-    // RUGRA-GLUE: read_string (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_string (no Ghidra counterpart found)
     /// Read the current attribute as a string.
     fn read_string(&mut self) -> String;
 
-    // RUGRA-GLUE: read_string_attr (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_string_attr (no Ghidra counterpart found)
     /// Read a specific attribute as a string.
     fn read_string_attr(&mut self, attrib_id: &AttributeId) -> String;
 }
@@ -2283,7 +2283,7 @@ pub struct TreeEncoder {
 }
 
 impl TreeEncoder {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct given a registry.
     pub fn new(registry: Arc<RwLock<IdRegistry>>) -> Self {
         Self {
@@ -2293,13 +2293,13 @@ impl TreeEncoder {
         }
     }
 
-    // RUGRA-GLUE: into_document (no Ghidra counterpart found)
+    // RUDRA-GLUE: into_document (no Ghidra counterpart found)
     /// Consume the encoder and return the built document.
     pub fn into_document(self) -> Document {
         Document { root: self.root }
     }
 
-    // RUGRA-GLUE: root (no Ghidra counterpart found)
+    // RUDRA-GLUE: root (no Ghidra counterpart found)
     /// Get the root element.
     pub fn root(&self) -> Option<Arc<RwLock<Element>>> {
         self.root.clone()
@@ -2307,7 +2307,7 @@ impl TreeEncoder {
 }
 
 impl Encoder for TreeEncoder {
-    // RUGRA-GLUE: open_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: open_element (no Ghidra counterpart found)
     fn open_element(&mut self, elem_id: &ElementId) {
         let mut elem = Element::new();
         elem.set_name(&elem_id.name);
@@ -2320,12 +2320,12 @@ impl Encoder for TreeEncoder {
         self.stack.push(elem_arc);
     }
 
-    // RUGRA-GLUE: close_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: close_element (no Ghidra counterpart found)
     fn close_element(&mut self, _elem_id: &ElementId) {
         self.stack.pop();
     }
 
-    // RUGRA-GLUE: write_bool (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_bool (no Ghidra counterpart found)
     fn write_bool(&mut self, attrib_id: &AttributeId, val: bool) {
         if let Some(cur) = self.stack.last() {
             cur.write().unwrap().add_attribute(
@@ -2335,7 +2335,7 @@ impl Encoder for TreeEncoder {
         }
     }
 
-    // RUGRA-GLUE: write_signed_integer (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_signed_integer (no Ghidra counterpart found)
     fn write_signed_integer(&mut self, attrib_id: &AttributeId, val: i64) {
         if let Some(cur) = self.stack.last() {
             cur.write()
@@ -2344,7 +2344,7 @@ impl Encoder for TreeEncoder {
         }
     }
 
-    // RUGRA-GLUE: write_unsigned_integer (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_unsigned_integer (no Ghidra counterpart found)
     fn write_unsigned_integer(&mut self, attrib_id: &AttributeId, val: u64) {
         if let Some(cur) = self.stack.last() {
             cur.write()
@@ -2353,7 +2353,7 @@ impl Encoder for TreeEncoder {
         }
     }
 
-    // RUGRA-GLUE: write_string (no Ghidra counterpart found)
+    // RUDRA-GLUE: write_string (no Ghidra counterpart found)
     fn write_string(&mut self, attrib_id: &AttributeId, val: &str) {
         if let Some(cur) = self.stack.last() {
             cur.write().unwrap().add_attribute(&attrib_id.name, val);
@@ -2482,7 +2482,7 @@ pub struct TreeDecoder {
 }
 
 impl TreeDecoder {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct given a document root and registry.
     pub fn new(root: Arc<RwLock<Element>>, registry: Arc<RwLock<IdRegistry>>) -> Self {
         Self {
@@ -2492,7 +2492,7 @@ impl TreeDecoder {
         }
     }
 
-    // RUGRA-GLUE: from_document (no Ghidra counterpart found)
+    // RUDRA-GLUE: from_document (no Ghidra counterpart found)
     /// Construct from a document.
     pub fn from_document(doc: &Document, registry: Arc<RwLock<IdRegistry>>) -> Self {
         Self::new(
@@ -2503,7 +2503,7 @@ impl TreeDecoder {
 }
 
 impl Decoder for TreeDecoder {
-    // RUGRA-GLUE: peek_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: peek_element (no Ghidra counterpart found)
     fn peek_element(&self) -> u32 {
         let Some((elem, child_idx, _)) = self.stack.last() else {
             // At the document level: peek the root.
@@ -2525,7 +2525,7 @@ impl Decoder for TreeDecoder {
         }
     }
 
-    // RUGRA-GLUE: open_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: open_element (no Ghidra counterpart found)
     fn open_element(&mut self) -> u32 {
         // If at document level with no stack, push the root.
         if self.stack.is_empty() {
@@ -2559,7 +2559,7 @@ impl Decoder for TreeDecoder {
         id
     }
 
-    // RUGRA-GLUE: open_element_matching (no Ghidra counterpart found)
+    // RUDRA-GLUE: open_element_matching (no Ghidra counterpart found)
     fn open_element_matching(&mut self, elem_id: &ElementId) -> u32 {
         let id = self.open_element();
         if id != elem_id.id {
@@ -2569,17 +2569,17 @@ impl Decoder for TreeDecoder {
         id
     }
 
-    // RUGRA-GLUE: close_element (no Ghidra counterpart found)
+    // RUDRA-GLUE: close_element (no Ghidra counterpart found)
     fn close_element(&mut self, _id: u32) {
         self.stack.pop();
     }
 
-    // RUGRA-GLUE: close_element_skipping (no Ghidra counterpart found)
+    // RUDRA-GLUE: close_element_skipping (no Ghidra counterpart found)
     fn close_element_skipping(&mut self, _id: u32) {
         self.stack.pop();
     }
 
-    // RUGRA-GLUE: next_attribute_id (no Ghidra counterpart found)
+    // RUDRA-GLUE: next_attribute_id (no Ghidra counterpart found)
     fn next_attribute_id(&mut self) -> u32 {
         let Some((elem, _, attr_idx)) = self.stack.last().cloned() else {
             return 0;
@@ -2598,7 +2598,7 @@ impl Decoder for TreeDecoder {
         }
     }
 
-    // RUGRA-GLUE: rewind_attributes (no Ghidra counterpart found)
+    // RUDRA-GLUE: rewind_attributes (no Ghidra counterpart found)
     fn rewind_attributes(&mut self) {
         if let Some(last) = self.stack.last_mut() {
             last.2 = 0;
@@ -2668,7 +2668,7 @@ impl Decoder for TreeDecoder {
         }
     }
 
-    // RUGRA-GLUE: attribute_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: attribute_name (no Ghidra counterpart found)
     fn attribute_name(&self, id: u32) -> Option<String> {
         self.registry
             .read()
@@ -2677,7 +2677,7 @@ impl Decoder for TreeDecoder {
             .map(|s| s.to_string())
     }
 
-    // RUGRA-GLUE: element_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: element_name (no Ghidra counterpart found)
     fn element_name(&self, id: u32) -> Option<String> {
         self.registry
             .read()
@@ -2795,7 +2795,7 @@ impl Decoder for TreeDecoder {
             .unwrap_or(0)
     }
 
-    // RUGRA-GLUE: read_string (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_string (no Ghidra counterpart found)
     fn read_string(&mut self) -> String {
         let Some((elem, _, attr_idx)) = self.stack.last().cloned() else {
             return String::new();
@@ -2807,7 +2807,7 @@ impl Decoder for TreeDecoder {
         String::new()
     }
 
-    // RUGRA-GLUE: read_string_attr (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_string_attr (no Ghidra counterpart found)
     fn read_string_attr(&mut self, attrib_id: &AttributeId) -> String {
         let Some((elem, _, _)) = self.stack.last() else {
             return String::new();

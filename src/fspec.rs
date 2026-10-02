@@ -179,7 +179,7 @@ impl PartialEq for EffectRecord {
 pub struct ParamUnassignedError(pub String);
 
 impl std::fmt::Display for ParamUnassignedError {
-    // RUGRA-GLUE: Display for the anyhow-style error surface; Ghidra carries
+    // RUDRA-GLUE: Display for the anyhow-style error surface; Ghidra carries
     // the message inside the LowlevelError base class.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "ParamUnassignedError: {}", self.0)
@@ -229,7 +229,7 @@ impl ProtoParameter {
         }
     }
 
-    // RUGRA-GLUE: complete-storage constructor for the current split
+    // RUDRA-GLUE: complete-storage constructor for the current split
     // `(AddressSpace, Address)` representation of Ghidra's single Address.
     pub fn new_in_space(
         name: String,
@@ -241,7 +241,7 @@ impl ProtoParameter {
     }
 
     // Ghidra: fspec.hh:1088 ProtoParameter::getAddress
-    // RUGRA-GLUE: address-space projection paired with the legacy offset.
+    // RUDRA-GLUE: address-space projection paired with the legacy offset.
     pub fn get_address_space(&self) -> AddressSpace { self.address_space }
 
     // Ghidra: fspec.hh:1100 ProtoParameter::isThisPointer
@@ -623,7 +623,7 @@ impl FuncProto {
             .has_effect(addr_space, addr_offset, size)
     }
 
-    // RUGRA-GLUE: non-panicking form of FuncProto::hasEffect for input
+    // RUDRA-GLUE: non-panicking form of FuncProto::hasEffect for input
     /// registration (Funcdata::setInputVarnode tail, funcdata_varnode.cc:365).
     /// A FuncProto with neither a prototype-local effect list nor a bound
     /// model has no Ghidra counterpart — Ghidra's model pointer is always
@@ -667,7 +667,7 @@ impl FuncProto {
             .unwrap_or(0)
     }
 
-    // RUGRA-GLUE: read accessor for the resolved model Arc (Ghidra's public
+    // RUDRA-GLUE: read accessor for the resolved model Arc (Ghidra's public
     // `getModel()` returns the ProtoModel pointer; deriveOutputMap callers
     // need the shared object).
     /// Resolved prototype model, if one was set via `setModel`.
@@ -702,7 +702,7 @@ impl FuncProto {
         self.error_output_param = val;
     }
 
-    // RUGRA-GLUE: projection of the flat output state (return_type +
+    // RUDRA-GLUE: projection of the flat output state (return_type +
     // output_storage) into the ProtoParameter view Ghidra reads through
     // `store->getOutput()` — used by the FuncCallSpecs locked-output mover.
     pub(crate) fn output_param_view(&self) -> ProtoParameter {
@@ -1168,7 +1168,7 @@ impl FuncProto {
         self.auto_killed_by_call || self.output_type_locked
     }
 
-    // RUGRA-GLUE: exposes Ghidra's shared `ProtoModel *` identity for the
+    // RUDRA-GLUE: exposes Ghidra's shared `ProtoModel *` identity for the
     // locked differential fixture without leaking the stored Arc.
     pub fn shares_model_with(&self, other: &FuncProto) -> bool {
         match (&self.model, &other.model) {
@@ -1177,7 +1177,7 @@ impl FuncProto {
         }
     }
 
-    // RUGRA-GLUE: construct a clean callee prototype that shares only the
+    // RUDRA-GLUE: construct a clean callee prototype that shares only the
     // bound ProtoModel with a carrier. Ghidra obtains the callee's own
     // FuncProto from queryFunction; it never clones caller parameters,
     // effects, or flow flags into the callee.
@@ -2036,7 +2036,7 @@ impl FuncProto {
 
     /// The installed symbol-backed store, if `set_scope` ran (the
     /// ProtoStoreSymbol face of the prototype's parameter storage).
-    // RUGRA-GLUE: accessor for the optional store field (Ghidra reaches
+    // RUDRA-GLUE: accessor for the optional store field (Ghidra reaches
     // the store through the protected `store` pointer).
     pub fn symbol_store(&self) -> Option<&ProtoStoreSymbol> {
         self.symbol_store.as_ref()
@@ -2943,7 +2943,7 @@ pub struct FuncCallSpecs {
 /// `FuncCallSpecs::offset_unknown` (fspec.hh:1641).
 pub const OFFSET_UNKNOWN: i64 = i64::MIN;
 
-// RUGRA-GLUE: ENTRY_SPACE_STANDINS (ADDRESS-0001 phase-1 bridge; no direct
+// RUDRA-GLUE: ENTRY_SPACE_STANDINS (ADDRESS-0001 phase-1 bridge; no direct
 // Ghidra counterpart — the oracle's entry address keeps the architecture's
 // own registered `AddrSpace*`, reached here only through the per-variant
 // stand-in because Rugra's historical Varnode carries just the flat
@@ -2956,7 +2956,7 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-// RUGRA-GLUE: entry_address_with_space (ADDRESS-0001 phase-1 bridge for the
+// RUDRA-GLUE: entry_address_with_space (ADDRESS-0001 phase-1 bridge for the
 // fspec.cc:4934 record point; the Ghidra form is the inline
 // `Address(AddrSpace*, uintb)` constructor at address.hh:270.)
 /// Build the entry address the way fspec.cc:4934 stores it: the offset plus
@@ -3645,7 +3645,7 @@ impl FuncCallSpecs {
         // checkCallDoubleUse's match spec at the call sites below.
         let num_trials = self.active_input.get_num_trials();
         // Activate the per-walk op→callspec resolution memo for the trial
-        // loop (RUGRA-GLUE; see Funcdata::get_call_specs_of_op). Inside one
+        // loop (RUDRA-GLUE; see Funcdata::get_call_specs_of_op). Inside one
         // checkInputTrialUse call the call list and every spec's op binding
         // are immutable — Ghidra's plain-pointer resolution is order-free,
         // and Rugra's memoized resolution returns exactly the uncached
@@ -5328,7 +5328,7 @@ pub fn fspec_print_raw(fc: &FuncCallSpecs, out: &mut String) {
     }
 }
 
-// RUGRA-GLUE: space_name_for_addr — the oracle reads
+// RUDRA-GLUE: space_name_for_addr — the oracle reads
 // `fc->getEntryAddress().getSpace()->getName()` (fspec.cc:2132-2133
 // `writeSpace`). An entry address carrying a registry tag (the
 // fspec.cc:4934 record-point form) reports its stand-in's name; the
@@ -5354,7 +5354,7 @@ fn space_name_for_addr(addr: Address) -> String {
 // are the direct translation of what the Ghidra methods inline.
 // ======================================================================
 
-// RUGRA-GLUE: production adapter for the inline `op->getIn(slot)` reads in
+// RUDRA-GLUE: production adapter for the inline `op->getIn(slot)` reads in
 // `FuncCallSpecs::transferLockedInput` (fspec.cc:5103/5110) and the CALL
 // input reads of `lateRestriction` callers.
 pub(crate) fn prod_get_call_in(
@@ -5426,7 +5426,7 @@ pub(crate) fn prod_build_param(
     newout
 }
 
-// RUGRA-GLUE: production adapter for the `param->getAddress()` /
+// RUDRA-GLUE: production adapter for the `param->getAddress()` /
 // `param->getSize()` reads of `commitNewOutputs` (fspec.cc:5208-5210) —
 // the callspec's locked output parameter storage.
 pub(crate) fn prod_get_return_addr_size(fc: &FuncCallSpecs) -> (Address, i32) {
@@ -5438,7 +5438,7 @@ pub(crate) fn prod_get_return_addr_size(fc: &FuncCallSpecs) -> (Address, i32) {
     (addr, fc.prototype.return_type.get_size() as i32)
 }
 
-// RUGRA-GLUE: production adapter for the `opSetOutput(op,exactMatch)` +
+// RUDRA-GLUE: production adapter for the `opSetOutput(op,exactMatch)` +
 // `opUnlink(indOp)` wiring of `commitNewOutputs` (fspec.cc:5222-5230) and
 // the unset/new-arm (fspec.cc:5233-5235). Rugra's op_set_output performs
 // the re-link; the exact-match predecessor INDIRECT is unlinked exactly
@@ -5470,7 +5470,7 @@ pub(crate) fn prod_set_call_output(
     }
 }
 
-// RUGRA-GLUE: production adapter for the SUBPIECE truncation arm of
+// RUDRA-GLUE: production adapter for the SUBPIECE truncation arm of
 // `commitNewOutputs` (fspec.cc:5244-5259): the smaller intersecting output
 // becomes a SUBPIECE of the real output at the byte `overlap`.
 pub(crate) fn prod_truncate_output(
@@ -5530,7 +5530,7 @@ pub struct ParamTrial {
 }
 
 impl ParamTrial {
-    // RUGRA-GLUE: compatibility constructor for legacy spaceless Address
+    // RUDRA-GLUE: compatibility constructor for legacy spaceless Address
     // callers; production parameter trials use `new_in_space`.
     pub fn new(addr: Address, sz: i32, sl: i32) -> Self {
         Self::new_in_space(AddressSpace::Register, addr, sz, sl)
@@ -5543,7 +5543,7 @@ impl ParamTrial {
             entry_index: None,
         }
     }
-    // RUGRA-GLUE: coarse-space projection of Ghidra's complete Address;
+    // RUDRA-GLUE: coarse-space projection of Ghidra's complete Address;
     // Ghidra reads `getAddress().getSpace()` directly (fspec.hh:236).
     /// Return the address-space component of the trial storage address.
     pub fn get_space(&self) -> AddressSpace { self.space }
@@ -5569,7 +5569,7 @@ impl ParamTrial {
     }
     // Ghidra: fspec.hh:210 ParamTrial::getOffset
     pub fn get_offset(&self) -> i32 { self.offset }
-    // RUGRA-GLUE: expose the packed flags for differential-fixture
+    // RUDRA-GLUE: expose the packed flags for differential-fixture
     // serialization; Ghidra exposes the same state through flag predicates.
     pub fn get_flags(&self) -> u32 { self.flags }
     // Ghidra: fspec.hh:230 ParamTrial::setEntry
@@ -5580,7 +5580,7 @@ impl ParamTrial {
         self.entry_index = Some(entry_index);
         self.offset = off;
     }
-    // RUGRA-GLUE: Rust Option representation of Ghidra's
+    // RUDRA-GLUE: Rust Option representation of Ghidra's
     // `setEntry((const ParamEntry *)0, 0)` calls.
     /// Detach this trial from its ParamEntry and reset its entry offset.
     pub fn clear_entry(&mut self) {
@@ -5594,7 +5594,7 @@ impl ParamTrial {
     pub fn get_entry_index(&self) -> Option<usize> { self.entry_index }
     // Ghidra: fspec.hh:210 ParamTrial::setFixedPosition
     pub fn set_fixed_position(&mut self, pos: i32) { self.fixed_position = pos; }
-    // RUGRA-GLUE: read-only projection of ParamTrial::fixedPosition for
+    // RUDRA-GLUE: read-only projection of ParamTrial::fixedPosition for
     // differential fixtures; Ghidra's production algorithms compare the
     // same private field through fixedPositionCompare (fspec.cc:1920).
     pub fn get_fixed_position(&self) -> i32 { self.fixed_position }
@@ -5859,7 +5859,7 @@ impl ParamActive {
     }
     // Ghidra: fspec.cc:1936 ParamActive::getSlotBase
     pub fn get_slot_base(&self) -> i32 { self.slotbase }
-    // RUGRA-GLUE: read-only projection of ParamActive::stackplaceholder for
+    // RUDRA-GLUE: read-only projection of ParamActive::stackplaceholder for
     // complete differential-fixture observation of placeholder slot state.
     pub fn get_stack_placeholder_slot(&self) -> i32 { self.stackplaceholder }
     // Ghidra: fspec.cc:1936 ParamActive::setSlotBase
@@ -5893,7 +5893,7 @@ impl ParamActive {
     /// Mark all trials as fully checked. Faithful to `markFullyChecked`.
     pub fn mark_fully_checked(&mut self) { self.isfullychecked = true; }
 
-    // RUGRA-GLUE: deterministic projection from Address's tagged AddrSpace
+    // RUDRA-GLUE: deterministic projection from Address's tagged AddrSpace
     // into the transitional coarse AddressSpace enum. Ghidra stores the
     // AddrSpace pointer directly in Address. No name-based inference occurs.
     pub(crate) fn space_from_tagged_address(addr: Address) -> Option<AddressSpace> {
@@ -5934,7 +5934,7 @@ impl ParamActive {
         true
     }
 
-    // RUGRA-GLUE: explicit coarse-space bridge for production callers whose
+    // RUDRA-GLUE: explicit coarse-space bridge for production callers whose
     // legacy Address has no tag; the registration semantics are Ghidra's
     // ParamActive::registerTrial (fspec.cc:1963-1975).
     /// Add a trial at the complete storage address. The assigned slot is the
@@ -5959,7 +5959,7 @@ impl ParamActive {
         self.which_trial_in_space(space, addr, sz)
     }
 
-    // RUGRA-GLUE: explicit coarse-space bridge for callers whose legacy
+    // RUDRA-GLUE: explicit coarse-space bridge for callers whose legacy
     // Address has no tag; comparison follows fspec.cc:1982-1991.
     /// Return the first trial overlapping either end of the complete query
     /// range in the same address space.
@@ -6210,7 +6210,7 @@ pub enum TypeClass {
 
 /// Translate the `<pentry>` `metatype=` attribute string to a TypeClass.
 /// Faithful to the inline parser in `ParamEntry::decode` (fspec.cc:511-543).
-/// RUGRA-GLUE: standalone helper (Ghidra inlines this in decode()).
+/// RUDRA-GLUE: standalone helper (Ghidra inlines this in decode()).
 pub fn string_to_type_class(s: &str) -> TypeClass {
     match s {
         "float" => TypeClass::Float,
@@ -6251,13 +6251,13 @@ impl VarnodeData {
             .then(b.size.cmp(&a.size))
     }
 
-    // RUGRA-GLUE: get_addr (Ghidra's VarnodeData has an `addr` field that
+    // RUDRA-GLUE: get_addr (Ghidra's VarnodeData has an `addr` field that
     // is a constructed Address; Rugra builds it on demand).
     pub fn get_addr(&self) -> Address { Address::new(self.offset) }
 }
 
 impl Default for VarnodeData {
-    // RUGRA-GLUE: Rust Default supplies initialized fields for the local
+    // RUDRA-GLUE: Rust Default supplies initialized fields for the local
     // VarnodeData representation; Ghidra's VarnodeData is a C++ aggregate
     // with no corresponding default() member.
     fn default() -> Self {
@@ -6335,7 +6335,7 @@ impl ParamEntry {
     }
 
     // Ghidra: fspec.hh:125 ParamEntry::ParamEntry
-    // RUGRA-GLUE: constructor for use with decode (fspec.hh:125 pushes the
+    // RUDRA-GLUE: constructor for use with decode (fspec.hh:125 pushes the
     // first group; decode() fills the rest).
     pub fn new(grp: i32) -> Self {
         Self {
@@ -6352,7 +6352,7 @@ impl ParamEntry {
         }
     }
 
-    // RUGRA-GLUE: fixture construction for a single non-join exclusion
+    // RUDRA-GLUE: fixture construction for a single non-join exclusion
     // register/stack entry, mirroring the field state a decoded
     // `<pentry><addr space=... offset=... size=.../></pentry>` produces
     // (alignment == size collapses to 0 = exclusion in fspec.cc decode).
@@ -6600,7 +6600,7 @@ impl ParamEntry {
         self.flags |= param_entry_flags::OVERLAPPING;
     }
 
-    // RUGRA-GLUE: set_join_pieces (no direct Ghidra counterpart — Ghidra
+    // RUDRA-GLUE: set_join_pieces (no direct Ghidra counterpart — Ghidra
     // pulls pieces from `spaceid->getManager()->findJoin(addressbase)`; in
     // Rugra the caller supplies them since the join-space manager is
     // unported).
@@ -7012,14 +7012,14 @@ impl ParamEntry {
         Err("<pentry> tags within a group must be distinguished by size or type".to_string())
     }
 
-    // RUGRA-GLUE: builder-style setters for the model loader (Ghidra fills
+    // RUDRA-GLUE: builder-style setters for the model loader (Ghidra fills
     // these during `ParamEntry::decode`; Rugra's decoder is unported so the
     // loader populates them via these accessors).
     pub fn set_space(&mut self, spc: AddressSpace) { self.space = spc; }
-    // RUGRA-GLUE: loader field setter; Ghidra assigns addressbase directly
+    // RUDRA-GLUE: loader field setter; Ghidra assigns addressbase directly
     // inside ParamEntry::decode and exposes no setBase member.
     pub fn set_base(&mut self, base: u64) { self.address_base = base; }
-    // RUGRA-GLUE: loader field setter; Ghidra assigns size/minsize and derives
+    // RUDRA-GLUE: loader field setter; Ghidra assigns size/minsize and derives
     // numslots atomically inside ParamEntry::decode, with no setSizes member.
     pub fn set_sizes(&mut self, size: i32, min_size: i32) {
         self.size = size;
@@ -7030,7 +7030,7 @@ impl ParamEntry {
     }
     /// Set the alignment. If `alignment == size`, normalized to 0 (exclusion
     /// entry) per `ParamEntry::decode` (fspec.cc:547-548).
-    // RUGRA-GLUE: staged-loader setter; Ghidra reads and normalizes alignment
+    // RUDRA-GLUE: staged-loader setter; Ghidra reads and normalizes alignment
     // inside ParamEntry::decode and exposes no setAlignment member.
     pub fn set_alignment(&mut self, alignment: i32) {
         self.alignment = alignment;
@@ -7041,17 +7041,17 @@ impl ParamEntry {
             self.num_slots = 1;
         }
     }
-    // RUGRA-GLUE: loader field setter; Ghidra assigns the private type field
+    // RUDRA-GLUE: loader field setter; Ghidra assigns the private type field
     // from ParamEntry::decode and exposes no setTypeClass member.
     pub fn set_type_class(&mut self, ty: TypeClass) { self.type_storage = ty; }
 
-    // RUGRA-GLUE: flags_mut (private field accessor so parse_pentry can
+    // RUDRA-GLUE: flags_mut (private field accessor so parse_pentry can
     // mirror fspec.cc:565-573 reverse_stack/is_grouped adjustments without
     // exposing flags as a public mutable field).
     pub fn flags_mut(&mut self) -> &mut u32 { &mut self.flags }
 }
 
-// RUGRA-GLUE: justified_contain_range (free helper — mirrors Ghidra's
+// RUDRA-GLUE: justified_contain_range (free helper — mirrors Ghidra's
 // inline `Address::justifiedContain` (address.cc:131-141) used by
 // `ParamEntry::justifiedContain` and its join-piece walk. Public because
 // heritage's call-guard helpers (guardCallOverlappingInput,
@@ -7091,7 +7091,7 @@ pub fn justified_contain_range(
     }
 }
 
-// RUGRA-GLUE: contained_by_range (free helper — mirrors Ghidra's inline
+// RUDRA-GLUE: contained_by_range (free helper — mirrors Ghidra's inline
 // `Address::containedBy` (address.cc:110-118) used by the locked-output
 // branches of `FuncProto::characterizeAsOutput` (fspec.cc:4351) and
 // `FuncProto::getBiggestContainedOutput` (fspec.cc:4500). Same
@@ -7116,7 +7116,7 @@ pub fn contained_by_range(base: u64, sz2: i32, addr: u64, sz: i32) -> bool {
 // ParamListStandard (fspec.hh:589-646 / fspec.cc:597-1517)
 // ======================================================================
 
-// RUGRA-GLUE: registered_extents — the address ranges `populateResolver`
+// RUDRA-GLUE: registered_extents — the address ranges `populateResolver`
 // (fspec.cc:1191-1216) enters into a space's ParamEntryResolver for the
 // given entry: the entry's own [base, base+size-1] extent for plain
 // entries, or one [offset, offset+size-1] range per join piece (in the
@@ -7219,7 +7219,7 @@ impl SubsortPosition {
 }
 
 impl Default for SubsortPosition {
-    // RUGRA-GLUE: Rust Default mirrors the rangemap no-arg constructor.
+    // RUDRA-GLUE: Rust Default mirrors the rangemap no-arg constructor.
     fn default() -> Self { Self::new() }
 }
 
@@ -7268,7 +7268,7 @@ pub struct ParamEntryResolver {
 }
 
 impl ParamEntryResolver {
-    // RUGRA-GLUE: owning constructor; Ghidra allocates the resolver with
+    // RUDRA-GLUE: owning constructor; Ghidra allocates the resolver with
     // `new ParamEntryResolver()` inside addResolverRange (fspec.cc:1183).
     pub fn new() -> Self { Self { ranges: Vec::new() } }
 
@@ -7295,7 +7295,7 @@ impl ParamEntryResolver {
             .collect()
     }
 
-    // RUGRA-GLUE: probe backing the `iterpair.first != resolver->end()`
+    // RUDRA-GLUE: probe backing the `iterpair.first != resolver->end()`
     // gate (fspec.cc:708): after the containing sublist is consumed the
     // rangemap iterator points at the next range in order, so the gate is
     /// true exactly when some registered range starts above `offset`.
@@ -7304,15 +7304,15 @@ impl ParamEntryResolver {
     }
 
     /// Number of registered ranges (diagnostic/fixture surface).
-    // RUGRA-GLUE: fixture/diagnostic surface over the resolver storage; the
+    // RUDRA-GLUE: fixture/diagnostic surface over the resolver storage; the
     // rangemap exposes size through its iterator pair interface instead.
     pub fn len(&self) -> usize { self.ranges.len() }
 
     /// Registered ranges in `(first, position)` order (fixture surface).
-    // RUGRA-GLUE: fixture/diagnostic surface over the resolver storage.
+    // RUDRA-GLUE: fixture/diagnostic surface over the resolver storage.
     pub fn ranges(&self) -> &[ParamEntryRange] { &self.ranges }
 
-    // RUGRA-GLUE: clippy-idiomatic emptiness predicate for len().
+    // RUDRA-GLUE: clippy-idiomatic emptiness predicate for len().
     pub fn is_empty(&self) -> bool { self.ranges.is_empty() }
 }
 
@@ -7342,7 +7342,7 @@ pub const HIDDEN_RET_PARM: u32 = 2;
 pub const INDIRECT_STORAGE_PIECE: u32 = 4;
 
 impl Default for ParameterPieces {
-    // RUGRA-GLUE: Rust Default initializes the local Option-based aggregate;
+    // RUDRA-GLUE: Rust Default initializes the local Option-based aggregate;
     // Ghidra's ParameterPieces aggregate has no default() member.
     fn default() -> Self {
         Self { space: AddressSpace::Ram, addr: Address::new(0), ty: None, flags: 0 }
@@ -8002,14 +8002,14 @@ pub struct ParamListStandard {
 }
 
 impl Default for ParamListStandard {
-    // RUGRA-GLUE: Rust Default trait bridge delegates to new(); Ghidra has the
+    // RUDRA-GLUE: Rust Default trait bridge delegates to new(); Ghidra has the
     // ParamListStandard constructor but no language-level default() member.
     fn default() -> Self { Self::new() }
 }
 
 impl ParamListStandard {
     // Ghidra: fspec.hh:617 ParamListStandard::ParamListStandard()
-    // RUGRA-GLUE: default constructor for use with decode().
+    // RUDRA-GLUE: default constructor for use with decode().
     pub fn new() -> Self {
         Self {
             num_group: 0,
@@ -8166,14 +8166,14 @@ impl ParamListStandard {
     pub fn is_auto_killed_by_call(&self) -> bool { self.auto_killed_by_call }
     // Ghidra: fspec.hh:620 ParamListStandard::getEntry
     pub fn get_entry(&self) -> &[ParamEntry] { &self.entry }
-    // RUGRA-GLUE: private-field accessors for the owned-ParamListStandard
+    // RUDRA-GLUE: private-field accessors for the owned-ParamListStandard
     // shapes (ParamListMerged::foldIn reads and rewrites the entry list and
     // spacebase exactly as the C++ subclass does through inheritance).
     pub(crate) fn is_entry_empty(&self) -> bool { self.entry.is_empty() }
-    // RUGRA-GLUE: private-field accessors for the owned-ParamListStandard
+    // RUDRA-GLUE: private-field accessors for the owned-ParamListStandard
     // shapes (see is_entry_empty).
     pub(crate) fn entries_mut(&mut self) -> &mut Vec<ParamEntry> { &mut self.entry }
-    // RUGRA-GLUE: private-field accessors for the owned-ParamListStandard
+    // RUDRA-GLUE: private-field accessors for the owned-ParamListStandard
     // shapes (see is_entry_empty); also the staging setter the bilateral
     // fixtures use to mirror a decoded stack-based list.
     pub fn set_space_base(&mut self, spc: Option<AddressSpace>) { self.space_base = spc; }
@@ -9007,7 +9007,7 @@ pub fn characterize_as_param(
         self.resolver_map.push((spc, resolver));
     }
 
-    // RUGRA-GLUE: space-keyed lookup standing in for Ghidra's
+    // RUDRA-GLUE: space-keyed lookup standing in for Ghidra's
     // `resolverMap[spc->getIndex()]` array index (the resolver map is
     /// consulted by resolver-backed queries; a space with no registered
     /// extent yields `None`, mirroring the null resolver slot).
@@ -9115,30 +9115,30 @@ pub fn characterize_as_param(
     }
 
     // Ghidra: fspec.hh:645 ParamListStandard::clone
-    // RUGRA-GLUE: clone (Rust uses Clone derive; named accessor matching
+    // RUDRA-GLUE: clone (Rust uses Clone derive; named accessor matching
     // Ghidra's virtual clone()).
     pub fn clone_model(&self) -> ParamListStandard { self.clone() }
 
-    // RUGRA-GLUE: setters for the model loader (Ghidra fills these during
+    // RUDRA-GLUE: setters for the model loader (Ghidra fills these during
     // `ParamListStandard::decode`; Rugra's decoder is unported).
     pub fn set_this_before_ret(&mut self, v: bool) { self.this_before_ret = v; }
-    // RUGRA-GLUE: loader/subclass field setter; Ghidra writes the protected
+    // RUDRA-GLUE: loader/subclass field setter; Ghidra writes the protected
     // autoKilledByCall field directly in decode() and initialize().
     pub fn set_auto_killed_by_call(&mut self, v: bool) { self.auto_killed_by_call = v; }
-    // RUGRA-GLUE: inheritance bridge; Ghidra subclasses read protected
+    // RUDRA-GLUE: inheritance bridge; Ghidra subclasses read protected
     // ParamListStandard::numgroup directly and expose no getNumGroup member.
     pub fn get_num_group(&self) -> i32 { self.num_group }
 
     /// Set the number of resource groups (used by the output-list decoders
     /// and `assign_map` to size the per-group status vector).
-    // RUGRA-GLUE: loader field setter; Ghidra updates protected numgroup
+    // RUDRA-GLUE: loader field setter; Ghidra updates protected numgroup
     // directly while parsing entries and exposes no setNumGroup member.
     pub fn set_num_group(&mut self, v: i32) { self.num_group = v; }
 
     /// Mutable access to the entry list. Used by `ParamListStandardOut` to
     /// run the fallback fillin algorithm, which mirrors Ghidra's
     /// `list<ParamEntry>` iteration over `entry`.
-    // RUGRA-GLUE: inheritance bridge; Ghidra subclasses access the protected
+    // RUDRA-GLUE: inheritance bridge; Ghidra subclasses access the protected
     // entry list directly and provide only a const getEntry() accessor.
     pub fn entry_mut(&mut self) -> &mut Vec<ParamEntry> { &mut self.entry }
 }
@@ -9170,7 +9170,7 @@ pub struct ParamListStandardOut {
 }
 
 impl Default for ParamListStandardOut {
-    // RUGRA-GLUE: Rust Default trait bridge delegates to new(); Ghidra has the
+    // RUDRA-GLUE: Rust Default trait bridge delegates to new(); Ghidra has the
     // ParamListStandardOut constructor but no default() member.
     fn default() -> Self { Self::new() }
 }
@@ -9564,7 +9564,7 @@ pub struct ParamListRegisterOut {
 }
 
 impl Default for ParamListRegisterOut {
-    // RUGRA-GLUE: Rust Default trait bridge delegates to new(); Ghidra has the
+    // RUDRA-GLUE: Rust Default trait bridge delegates to new(); Ghidra has the
     // ParamListRegisterOut constructor but no default() member.
     fn default() -> Self { Self::new() }
 }
@@ -9640,24 +9640,24 @@ pub enum ParamListOutput {
 }
 
 impl Default for ParamListOutput {
-    // RUGRA-GLUE: Rust enum default for Ghidra's owning `ParamList *output`.
+    // RUDRA-GLUE: Rust enum default for Ghidra's owning `ParamList *output`.
     fn default() -> Self { Self::standard() }
 }
 
 impl ParamListOutput {
-    // RUGRA-GLUE: owning enum constructor corresponding to
+    // RUDRA-GLUE: owning enum constructor corresponding to
     // `new ParamListStandardOut()` in ProtoModel::buildParamList.
     pub fn standard() -> Self {
         Self::Standard(ParamListStandardOut::new())
     }
 
-    // RUGRA-GLUE: owning enum constructor corresponding to
+    // RUDRA-GLUE: owning enum constructor corresponding to
     // `new ParamListRegisterOut()` in ProtoModel::buildParamList.
     pub fn register() -> Self {
         Self::Register(ParamListRegisterOut::new())
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for virtual ParamList::getType.
+    // RUDRA-GLUE: Rust enum dispatch for virtual ParamList::getType.
     pub fn get_type(&self) -> ParamListKind {
         match self {
             Self::Standard(list) => list.get_type(),
@@ -9665,7 +9665,7 @@ impl ParamListOutput {
         }
     }
 
-    // RUGRA-GLUE: Rust enum projection of the shared
+    // RUDRA-GLUE: Rust enum projection of the shared
     // ParamListStandardOut base class.
     fn standard_out(&self) -> &ParamListStandardOut {
         match self {
@@ -9674,7 +9674,7 @@ impl ParamListOutput {
         }
     }
 
-    // RUGRA-GLUE: mutable Rust enum projection of the shared
+    // RUDRA-GLUE: mutable Rust enum projection of the shared
     // ParamListStandardOut base class.
     fn standard_out_mut(&mut self) -> &mut ParamListStandardOut {
         match self {
@@ -9683,7 +9683,7 @@ impl ParamListOutput {
         }
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for inherited
+    // RUDRA-GLUE: Rust enum dispatch for inherited
     // ParamListStandard::characterizeAsParam.
     pub fn characterize_as_param(
         &self,
@@ -9694,7 +9694,7 @@ impl ParamListOutput {
         self.standard_out().base.characterize_as_param(space, offset, size)
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for inherited
+    // RUDRA-GLUE: Rust enum dispatch for inherited
     // ParamListStandard::getBiggestContainedParam.
     pub fn get_biggest_contained_param(
         &self,
@@ -9707,13 +9707,13 @@ impl ParamListOutput {
             .get_biggest_contained_param(space, offset, size)
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for inherited
+    // RUDRA-GLUE: Rust enum dispatch for inherited
     // ParamListStandard::isAutoKilledByCall.
     pub fn is_auto_killed_by_call(&self) -> bool {
         self.standard_out().is_auto_killed_by_call()
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for virtual ParamList::assignMap.
+    // RUDRA-GLUE: Rust enum dispatch for virtual ParamList::assignMap.
     pub fn assign_map(
         &self,
         proto: &PrototypePieces,
@@ -9726,17 +9726,17 @@ impl ParamListOutput {
         }
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for virtual ParamList::fillinMap.
+    // RUDRA-GLUE: Rust enum dispatch for virtual ParamList::fillinMap.
     pub fn fillin_map(&self, active: &mut ParamActive) {
         self.standard_out().fillin_map(active);
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for virtual ParamList::possibleParam.
+    // RUDRA-GLUE: Rust enum dispatch for virtual ParamList::possibleParam.
     pub fn possible_param(&self, space: AddressSpace, loc: Address, size: i32) -> bool {
         self.standard_out().possible_param(space, loc, size)
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for virtual ParamList::decode.
+    // RUDRA-GLUE: Rust enum dispatch for virtual ParamList::decode.
     pub fn decode(
         &mut self,
         decoder: &mut dyn crate::marshal::Decoder,
@@ -9748,19 +9748,19 @@ impl ParamListOutput {
             .decode(decoder, effectlist, normalstack, register_resolver)
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for inherited
+    // RUDRA-GLUE: Rust enum dispatch for inherited
     // ParamListStandard::getEntry.
     pub fn get_entry(&self) -> &[ParamEntry] {
         self.standard_out().get_entry()
     }
 
-    // RUGRA-GLUE: Rust enum dispatch for inherited
+    // RUDRA-GLUE: Rust enum dispatch for inherited
     // ParamListStandard::getMaxDelay (fspec.hh:642).
     pub fn get_max_delay(&self) -> i32 {
         self.standard_out().base.get_max_delay()
     }
 
-    // RUGRA-GLUE: clone of the ParamListStandardOut face for
+    // RUDRA-GLUE: clone of the ParamListStandardOut face for
     // ProtoModelMerged::foldIn (Ghidra slices `*(ParamListStandardOut
     // *)model->output` through inheritance — both output variants share the
     // ParamListStandardOut base).
@@ -9768,7 +9768,7 @@ impl ParamListOutput {
         self.standard_out().clone()
     }
 
-    // RUGRA-GLUE: owning constructor over a staged ParamListStandardOut
+    // RUDRA-GLUE: owning constructor over a staged ParamListStandardOut
     // (the bilateral fixtures build the output list the same way the C++
     // fixture stages its fields).
     pub fn standard_with_base(out: ParamListStandardOut) -> Self {
@@ -9792,7 +9792,7 @@ pub struct ParamListMerged {
 
 impl Default for ParamListMerged {
     // Ghidra: fspec.hh:714 ParamListMerged::ParamListMerged()
-    // RUGRA-GLUE: Default bridge for the decode() constructor form.
+    // RUDRA-GLUE: Default bridge for the decode() constructor form.
     fn default() -> Self { Self::new() }
 }
 
@@ -10308,7 +10308,7 @@ impl ProtoModelFull {
     /// Helper: true if `self` is an alias copy of `parent` (same name-pattern
     /// and field set, modulo `hasThis`). Stands in for Ghidra's pointer
     /// identity check `compatModel == op2`.
-    // RUGRA-GLUE: Rust-side alias predicate because ProtoModelFull does not
+    // RUDRA-GLUE: Rust-side alias predicate because ProtoModelFull does not
     // retain Ghidra's ProtoModel* identity; Ghidra performs these pointer
     // comparisons inline in ProtoModel::isCompatible (fspec.cc:2406).
     fn is_alias_of(&self, parent: &ProtoModelFull) -> bool {
@@ -10395,7 +10395,7 @@ impl ProtoModelFull {
         self.output.possible_param(space, Address::new(offset), size)
     }
 
-    // RUGRA-GLUE: declaration-order view of the concrete output ParamList;
+    // RUDRA-GLUE: declaration-order view of the concrete output ParamList;
     // Ghidra consumers iterate the protected ParamListStandard::entry list.
     /// Iterate output resource entries in compiler-spec declaration order.
     pub fn output_entries(&self) -> &[ParamEntry] {
@@ -10967,7 +10967,7 @@ impl ProtoModelFull {
 /// `assign_parameter_storage` to flag the `this` input.
 pub const THIS_POINTER_PIECE: u32 = 1;
 
-// RUGRA-GLUE: read_varnode_data_attrs (free helper — parses the space/offset/
+// RUDRA-GLUE: read_varnode_data_attrs (free helper — parses the space/offset/
 // size attributes that Ghidra reads via VarnodeData::decode for the
 // <unaffected>/<killedbycall>/<returnaddress>/<likelytrash> children).
 fn read_varnode_data_attrs_resolved(
@@ -11007,7 +11007,7 @@ fn read_varnode_data_attrs_resolved(
     Ok((space, offset, size))
 }
 
-// RUGRA-GLUE: compatibility adapter for legacy decode callers that only use
+// RUDRA-GLUE: compatibility adapter for legacy decode callers that only use
 // explicit space/offset/size address elements and have no Translate catalog.
 fn read_varnode_data_attrs(decoder: &mut dyn crate::marshal::Decoder) -> (AddressSpace, u64, i32) {
     let no_register = |_name: &str| None;
@@ -11018,7 +11018,7 @@ fn read_varnode_data_attrs(decoder: &mut dyn crate::marshal::Decoder) -> (Addres
     ))
 }
 
-// RUGRA-GLUE: read_range_child (free helper — parses a <range> child of
+// RUDRA-GLUE: read_range_child (free helper — parses a <range> child of
 // <localrange>/<paramrange> into a Rust `Range`).
 fn read_range_child(
     decoder: &mut dyn crate::marshal::Decoder,
@@ -11049,7 +11049,7 @@ fn read_range_child(
     }
 }
 
-// RUGRA-GLUE: parse_space_name / parse_u64 (free helpers used by the decode
+// RUDRA-GLUE: parse_space_name / parse_u64 (free helpers used by the decode
 // path above; Rugra's AddressSpace is an enum, so a name string maps to the
 // nearest matching variant).
 fn parse_space_name(s: &str) -> AddressSpace {
@@ -11066,7 +11066,7 @@ fn parse_space_name(s: &str) -> AddressSpace {
     }
 }
 
-// RUGRA-GLUE: space_name — inverse of parse_space_name, used by
+// RUDRA-GLUE: space_name — inverse of parse_space_name, used by
 // EffectRecord::encode to serialise the address space as a string attribute.
 /// Return the canonical XML name for an address space. Mirrors the
 /// `AddrSpace::getName` lookup Ghidra performs inside
@@ -11085,7 +11085,7 @@ fn space_name(s: AddressSpace) -> &'static str {
     }
 }
 
-// RUGRA-GLUE: effect_from_u32 — bridges the raw u32 returned by the legacy
+// RUDRA-GLUE: effect_from_u32 — bridges the raw u32 returned by the legacy
 // `FuncCallSpecs::has_effect` (which mirrors Ghidra's `uint4` return type)
 // back into the typed `EffectType` enum used by the faithful ports above.
 fn effect_from_u32(raw: u32) -> EffectType {
@@ -11097,7 +11097,7 @@ fn effect_from_u32(raw: u32) -> EffectType {
     }
 }
 
-// RUGRA-GLUE: textual integer adapter for Rugra's string-valued Decoder;
+// RUDRA-GLUE: textual integer adapter for Rugra's string-valued Decoder;
 // Ghidra's VarnodeData/Range decode paths call typed Decoder integer readers
 // directly and have no parse_u64 helper.
 fn parse_u64(s: &str) -> u64 {
@@ -11108,7 +11108,7 @@ fn parse_u64(s: &str) -> u64 {
     }
 }
 
-// RUGRA-GLUE: metatype_to_type_class (free helper — Ghidra's
+// RUDRA-GLUE: metatype_to_type_class (free helper — Ghidra's
 // `metatype2typeclass` is defined in type.cc and not yet ported).
 /// Map a data-type's metatype to its storage class. Faithful to
 /// `metatype2typeclass` (type.hh:153). TODO(ALIGNMENT_ROADMAP): depends on
@@ -11121,13 +11121,13 @@ fn metatype_to_type_class(dt: &Datatype) -> TypeClass {
     }
 }
 
-// RUGRA-GLUE: is_contiguous (free helper — mirrors `Address::isContiguous`,
+// RUDRA-GLUE: is_contiguous (free helper — mirrors `Address::isContiguous`,
 // address.cc, used only by `ParamListStandard::check_join`).
 fn is_contiguous(hi_addr: Address, hi_size: i32, lo_addr: Address, _lo_size: i32) -> bool {
     hi_addr.as_u64() + hi_size as u64 == lo_addr.as_u64()
 }
 
-// RUGRA-GLUE: overlaps_range — mirrors the observable
+// RUDRA-GLUE: overlaps_range — mirrors the observable
 // `Address::overlap(0, record, size)` result for the ordered call sites in
 // `ProtoModelFull::lookup_effect` and `lookup_record`. Their upper-bound
 // predecessor choice guarantees the candidate start is not after the probe
@@ -11208,7 +11208,7 @@ impl Ord for ScoreProtoModelEntry {
 }
 
 impl PartialEq for ScoreProtoModelEntry {
-    // RUGRA-GLUE: PartialEq derived from the Ord key (slot), matching the
+    // RUDRA-GLUE: PartialEq derived from the Ord key (slot), matching the
     /// C++ operator< equivalence class.
     fn eq(&self, other: &Self) -> bool { self.slot == other.slot }
 }
@@ -11491,7 +11491,7 @@ impl ProtoModelMerged {
 }
 
 impl Default for ProtoModelMerged {
-    // RUGRA-GLUE: Default bridge for the no-arg constructor form.
+    // RUDRA-GLUE: Default bridge for the no-arg constructor form.
     fn default() -> Self { Self::new() }
 }
 
@@ -11536,12 +11536,12 @@ impl UnknownProtoModel {
 
 /// Shared owner handle for a function `Scope` (the Rust stand-in for
 /// Ghidra's raw `Scope *` in the ProtoStoreSymbol family).
-// RUGRA-GLUE: ownership handle type for the symbol-backed store family.
+// RUDRA-GLUE: ownership handle type for the symbol-backed store family.
 pub type FspecScopeRef = std::sync::Arc<std::sync::RwLock<crate::database::Scope>>;
 
 /// Shared owner handle for a `Symbol` (the Rust stand-in for Ghidra's raw
 /// `Symbol *`).
-// RUGRA-GLUE: ownership handle type for the symbol-backed store family.
+// RUDRA-GLUE: ownership handle type for the symbol-backed store family.
 pub type FspecSymbolRef = std::sync::Arc<std::sync::RwLock<crate::database::Symbol>>;
 
 /// `Symbol::function_parameter` category id (database.hh Symbol category 0

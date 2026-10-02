@@ -6,7 +6,7 @@
 use crate::Address;
 use crate::{SeqNum, AddressSpace};
 
-// RUGRA-GLUE: verify_address (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_address (no Ghidra counterpart found)
 /// Verify that a Rugra Address aligns with Ghidra's representation.
 ///
 /// Ghidra Addresses consist of an AddressSpace and an offset.
@@ -38,7 +38,7 @@ pub fn verify_address(
     offset_match
 }
 
-// RUGRA-GLUE: verify_seqnum (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_seqnum (no Ghidra counterpart found)
 /// Verify that a Rugra SeqNum aligns with Ghidra's representation.
 ///
 /// Ghidra SeqNum includes an Address and a 'time' or 'order' index
@@ -61,7 +61,7 @@ pub fn verify_seqnum(
     addr_match && order_match
 }
 
-// RUGRA-GLUE: map_ghidra_space (no Ghidra counterpart found)
+// RUDRA-GLUE: map_ghidra_space (no Ghidra counterpart found)
 /// Helper to convert Ghidra space ID to Rugra AddressSpace for verification
 pub fn map_ghidra_space(space_id: i32) -> AddressSpace {
     match space_id {

@@ -37,7 +37,7 @@ use crate::op::{PcodeOp, PcodeOpRef};
 use crate::block::{BlockBasic, FlowBlock};
 use crate::varnode::Varnode;
 
-// RUGRA-GLUE: opref (no Ghidra counterpart found)
+// RUDRA-GLUE: opref (no Ghidra counterpart found)
 /// Wrap a bare `Arc<RwLock<PcodeOp>>` into a `PcodeOpRef` for calling the
 /// Funcdata op-editing API (which takes `&PcodeOpRef`). This clones only the
 /// Arc, not the underlying op.
@@ -45,7 +45,7 @@ fn opref(a: &Arc<RwLock<PcodeOp>>) -> PcodeOpRef {
     PcodeOpRef(a.clone())
 }
 
-// RUGRA-GLUE: structural-invariant error (no Ghidra counterpart path)
+// RUDRA-GLUE: structural-invariant error (no Ghidra counterpart path)
 /// Ghidra's condexe data-flow rewrite dereferences pointers unconditionally
 /// (`op->getIn(0)`, `vn->getDef()`, `op->getOut()`, `iblock->getImmedDom()`,
 /// condexe.cc:166/172/181/202/274/325) — for IR that passed `verify()` those
@@ -214,7 +214,7 @@ impl<'a> ConditionalExecution<'a> {
         }
     }
 
-    // RUGRA-GLUE: graph helpers adapted to Rugra's dynamic-dispatch blocks
+    // RUDRA-GLUE: graph helpers adapted to Rugra's dynamic-dispatch blocks
     // (Ghidra accesses BlockBasic members directly; `lastOp` maps to
     // BlockBasic::lastOp, block.hh:490).
     // ------------------------------------------------------------------
@@ -238,7 +238,7 @@ impl<'a> ConditionalExecution<'a> {
         arc.read().unwrap().get_ops().last().cloned().map(|r| r.0)
     }
 
-    // RUGRA-GLUE: iterator over all ops of a block (Ghidra iterates
+    // RUDRA-GLUE: iterator over all ops of a block (Ghidra iterates
     /// `bl->beginOp()..endOp()` inline at each call site).
     fn ops(arc: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Vec<Arc<RwLock<PcodeOp>>> {
         arc.read().unwrap().get_ops().into_iter().map(|r| r.0).collect()
@@ -677,7 +677,7 @@ impl<'a> ConditionalExecution<'a> {
         vn
     }
 
-    // RUGRA-GLUE: immediate-dominator lookup (Ghidra calls
+    // RUDRA-GLUE: immediate-dominator lookup (Ghidra calls
     // FlowBlock::getImmedDom, block.hh:162, inline).
     fn immed_dom_of(&self, b: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         b.read().unwrap().get_immed_dom().and_then(|w| w.upgrade())
@@ -1008,7 +1008,7 @@ impl<'a> ConditionalExecution<'a> {
         Ok(())
     }
 
-    // RUGRA-GLUE: fixture observability for CONDEXE-TRUEOUT-0002; the locked
+    // RUDRA-GLUE: fixture observability for CONDEXE-TRUEOUT-0002; the locked
     // Ghidra fixture reads the same private members and calls the same private
     // stages through #define private public (tests/oracle/condexe_trueout_1204.cc).
     /// Set iblock/prea_inslot and run `findInitPre` in isolation, returning
@@ -1025,7 +1025,7 @@ impl<'a> ConditionalExecution<'a> {
         (ok, self.init2a_true)
     }
 
-    // RUGRA-GLUE: fixture observability (see fixture_find_init_pre).
+    // RUDRA-GLUE: fixture observability (see fixture_find_init_pre).
     /// Set iblock/cbranch and run the full `verify` stage in isolation,
     /// returning (ok, init2a_true, camethruposta_slot, posta, postb).
     /// Mirrors condexe.cc:402-428 driven directly.
@@ -1047,7 +1047,7 @@ impl<'a> ConditionalExecution<'a> {
         )
     }
 
-    // RUGRA-GLUE: fixture observability for CONDEXE-PULLBACK-0005; the locked
+    // RUDRA-GLUE: fixture observability for CONDEXE-PULLBACK-0005; the locked
     // Ghidra fixture drives the same private stages through
     // #define private public (tests/oracle/condexe_pullback_1204.cc).
     /// Set iblock and run `pullbackOp` in isolation, returning the new
@@ -1068,7 +1068,7 @@ impl<'a> ConditionalExecution<'a> {
         self.pullback_op(&op.0, inbranch).ok()
     }
 
-    // RUGRA-GLUE: fixture observability (see fixture_pullback_op).
+    // RUDRA-GLUE: fixture observability (see fixture_pullback_op).
     /// Set iblock and run `testOpRead` in isolation. Mirrors condexe.cc:107-142
     /// driven directly (the pullback admission gate, including the
     /// INT_ADD/PTRSUB constant-input-1 rejection at cc:126-128).
@@ -1082,7 +1082,7 @@ impl<'a> ConditionalExecution<'a> {
         Self::test_op_read(&vn, &readop.0, &ib)
     }
 
-    // RUGRA-GLUE: fixture observability for CONDEXE-SUCCESS-STATE-0001; the
+    // RUDRA-GLUE: fixture observability for CONDEXE-SUCCESS-STATE-0001; the
     // locked Ghidra fixture constructs ConditionalExecution directly (the
     // constructor is public, condexe.hh:124) and reads `heritageyes` through
     // #define private public (tests/oracle/condexe_success_state_1204.cc).
@@ -1094,7 +1094,7 @@ impl<'a> ConditionalExecution<'a> {
         Self::build_heritage_array(fd)
     }
 
-    // RUGRA-GLUE: fixture observability (see fixture_heritage_array).
+    // RUDRA-GLUE: fixture observability (see fixture_heritage_array).
     /// The space labels for [`Self::fixture_heritage_array`]'s slots, so the
     /// external fixture can project `name=value` pairs instead of raw
     /// indices (Rugra's CONDEXE_SPACE_LIST order need not match the oracle
@@ -1572,7 +1572,7 @@ impl RuleOrPredicate {
     // Ghidra: condexe.hh:172 RuleOrPredicate::new
     pub fn new() -> Self { Self }
 
-    // RUGRA-GLUE: fixture observability for CONDEXE-TRUEOUT-0002; the locked
+    // RUDRA-GLUE: fixture observability for CONDEXE-TRUEOUT-0002; the locked
     // Ghidra fixture builds MultiPredicate (a private nested struct,
     // condexe.hh:174) directly and calls discoverPathIsTrue through
     // `#define private public` (tests/oracle/condexe_trueout_1204.cc).
@@ -1848,7 +1848,7 @@ impl Action for ActionConditionalExe {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: externalizes Ghidra's inherited protected Action::count
+    // RUDRA-GLUE: externalizes Ghidra's inherited protected Action::count
     // (condexe.cc:501 `count += numhits`) into the Rust ActionState
     // accumulator, harvested by Action::perform (action.rs) exactly like
     // coreaction.rs's multicse/restructure_varnote (coreaction.cc:873/2282).

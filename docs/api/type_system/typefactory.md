@@ -12,7 +12,7 @@
 - `typedefs` 名字索引与 `get_typedef_target(name)` 保留为 debug/test 可达性
   helper（Ghidra 无名字键访问器——type.cc:3850 是 `getTypePointerStripArray`；
   生产消费点一律走 `Datatype::get_typedef` 通道），注解从失实的
-  `Ghidra: type.cc:3850` 更正为 RUGRA-GLUE。
+  `Ghidra: type.cc:3850` 更正为 RUDRA-GLUE。
 - 消费点接线（cast.cc:325-328 / printc.cc:390-393 / typeop.cc:2337-2340
   剥离环）见 `docs/api/type_system/cast.md`、`docs/api/printc.md`、
   `docs/api/coreaction.md` 同日条目。
@@ -148,7 +148,7 @@ MIRROR-ENVS-CANONICAL-0001），故 `new` 在这些进程中构造 Standalone �
 
 ### `pub fn direct_runner_tier_active() -> bool`
 
-进程级档位探针（RUGRA-GLUE，Ghidra 以架构子类选择 buildCoreTypes 而非
+进程级档位探针（RUDRA-GLUE，Ghidra 以架构子类选择 buildCoreTypes 而非
 环境）：`RUGRA_MIRROR`/`RUGRA_FLOW_MIRROR`/`RUGRA_GEN_MIRROR` 任一在进程
 环境中即本进程运行 direct-runner（独立 SLEIGH）oracle 契约。当前消费方 =
 `TypeFactory::new` 的表档位选择。（printc.rs 的 typedef 前言**不**消费此
@@ -648,7 +648,7 @@ get_type_void/char/unicode、get_type_union+set_union_fields、get_type_enum+set
   `getDepend(i)` for `i in 0..numDepend()`, then pushes `ct`. Cycle-break via
   insert-second-check on a `HashSet<usize>` (Arc pointer identity, mirroring
   Ghidra's DatatypeSet pointer-identity semantics).
-- `depends_of(ct)` — RUGRA-GLUE aggregator of Ghidra's per-variant
+- `depends_of(ct)` — RUDRA-GLUE aggregator of Ghidra's per-variant
   `Datatype::numDepend` + `Datatype::getDepend` virtual dispatch table
   (type.hh:261 base; overrides 422 Pointer, 455 Array, 526 Struct, 555 Union,
   629 Code). C++ uses virtual dispatch; Rust matches on the Datatype enum.
@@ -773,7 +773,7 @@ return-only snapshots:
   data space, far-pointer `alt_pointer`, default map, enum defaults).
   Because Rugra's factory has no `glb` Architecture handle yet, the
   `glb->getStackSpace()/getDefaultDataSpace()/getSegmentOp()/getDefaultSize()`
-  lookups are passed in as `SizeArchInputs` (RUGRA-GLUE).
+  lookups are passed in as `SizeArchInputs` (RUDRA-GLUE).
 - New readers `get_alignment(u32) -> Result<i32, String>` (type.cc:3296;
   verbatim `LowlevelError("TypeFactory alignment map not initialized")`
   text, last-entry fallback for sizes at/beyond the map end) and
@@ -812,7 +812,7 @@ RangeHint / symbol unknown type now resolves through a `TypeFactory`.
 - `TypeFactory::concretize` now routes its TYPE_CODE→unknown substitution
   through `get_base(1, TYPE_UNKNOWN)` (`type.cc:4147`) instead of minting a
   fresh `undefined1` object; repeated calls return the same factory `Arc`,
-  and the RUGRA-GLUE `deconcretize` inverse still recognizes the core
+  and the RUDRA-GLUE `deconcretize` inverse still recognizes the core
   `undefined1` spelling.
 - Residual: Ghidra's `ScopeLocal::createEntry` wraps multi-element symbols
   via `glb->types->getTypeArray` (`varmap.cc:625`); Rust has no

@@ -93,7 +93,7 @@ FlowInfo 兼容视图（id 序首匹配）。旧 `register_payload`/`name_to_id`
   （每个注入 op 都带 baseaddr）→ `Vec<PcodeOpRaw>`。`fix`/`fix_space` 覆盖
   JStart/JNext/JNext2/JFlowRef/JFlowDest/JCurSpace(Size)/JRelative/SpaceId/
   Handle{v_space,v_offset,v_size,v_offset_plus（const 时 `>>8*(plus>>16)`）}。
-  RUGRA-GLUE：JFlowRef/JNext2 在注入上下文未设置（ParserContext 默认
+  RUDRA-GLUE：JFlowRef/JNext2 在注入上下文未设置（ParserContext 默认
   Address 偏移 0）；JCurSpaceSize 固定 8（x86-64 机型，ADDRESS-0001 族残差）；
   非 const/unique 空间不做 wrapOffset 归约（AddressSpace 标签枚举无 highest）。
 - **emit 桥**：inject 产物经 `Funcdata::inject_raw_ops_single`（= `PcodeEmitFd::dump`

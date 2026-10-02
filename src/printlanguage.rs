@@ -204,7 +204,7 @@ pub struct OpToken {
 }
 
 impl OpToken {
-    // RUGRA-GLUE: OpToken constructors (Ghidra uses aggregate init in printc.cc)
+    // RUDRA-GLUE: OpToken constructors (Ghidra uses aggregate init in printc.cc)
     /// Construct a binary operator token. Faithful to the aggregate-init form
     /// used in printc.cc (e.g. `OpToken { print1:"+", stage:2, precedence:50,
     /// associative:true, type:binary, spacing:1, bump:0, negate:-1 }`).
@@ -229,7 +229,7 @@ impl OpToken {
         }
     }
 
-    // RUGRA-GLUE: unary_prefix (Ghidra uses aggregate init in printc.cc, not named ctors)
+    // RUDRA-GLUE: unary_prefix (Ghidra uses aggregate init in printc.cc, not named ctors)
     /// Construct a unary-prefix operator token (stage=1).
     pub fn unary_prefix(
         print1: &str,
@@ -249,7 +249,7 @@ impl OpToken {
         }
     }
 
-    // RUGRA-GLUE: postsurround (Ghidra uses aggregate init in printc.cc, not named ctors)
+    // RUDRA-GLUE: postsurround (Ghidra uses aggregate init in printc.cc, not named ctors)
     /// Construct a postsurround token (e.g. function call `(`...`)`,
     /// array index `[`...`]`). `print1` opens, `print2` closes, stage=2.
     pub fn postsurround(
@@ -272,7 +272,7 @@ impl OpToken {
         }
     }
 
-    // RUGRA-GLUE: presurround (Ghidra uses aggregate init in printc.cc, not named ctors)
+    // RUDRA-GLUE: presurround (Ghidra uses aggregate init in printc.cc, not named ctors)
     /// Construct a presurround token (e.g. cast `(type)`...``). stage=2.
     pub fn presurround(
         print1: &str,
@@ -292,7 +292,7 @@ impl OpToken {
         }
     }
 
-    // RUGRA-GLUE: space (Ghidra uses aggregate init in printc.cc, not named ctors)
+    // RUDRA-GLUE: space (Ghidra uses aggregate init in printc.cc, not named ctors)
     /// Construct a space token (no printed operator, just spacing). stage=2.
     pub fn space(precedence: i32, spacing: i32, bump: i32) -> Self {
         Self {
@@ -308,7 +308,7 @@ impl OpToken {
         }
     }
 
-    // RUGRA-GLUE: hidden_function (Ghidra uses aggregate init in printc.cc, not named ctors)
+    // RUDRA-GLUE: hidden_function (Ghidra uses aggregate init in printc.cc, not named ctors)
     /// Construct a hidden-function token (never prints). stage=2.
     pub fn hidden_function() -> Self {
         Self {
@@ -368,7 +368,7 @@ pub struct ReversePolish {
 /// Ghidra's `NodePending` struct (printlanguage.hh:195-203). Holds an implied
 /// Varnode, the single operator consuming it, and printing modifications.
 ///
-/// RUGRA-GLUE: Ghidra stores raw `const Varnode *vn` / `const PcodeOp *op`
+/// RUDRA-GLUE: Ghidra stores raw `const Varnode *vn` / `const PcodeOp *op`
 /// pointers; Rust's ownership model forbids that, so we store
 /// `Arc<RwLock<Varnode>>` / `Arc<RwLock<PcodeOp>>`. The earlier `vn_index` /
 /// `op_index: i64` fields were unused (no backing arena), so this is a strict
@@ -387,7 +387,7 @@ pub struct NodePending {
 }
 
 impl NodePending {
-    // RUGRA-GLUE: NodePending::new (matches the inline Ghidra constructor at hh:201)
+    // RUDRA-GLUE: NodePending::new (matches the inline Ghidra constructor at hh:201)
     /// Construct a pending data-flow node. Faithful to the inline constructor
     /// `NodePending(const Varnode *v, const PcodeOp *o, uint4 m)` at
     /// printlanguage.hh:201-202.
@@ -446,7 +446,7 @@ pub enum AtomPayload {
     IntValue(u64),
 }
 
-// RUGRA-GLUE: Atom constructors (match the 7 inline Ghidra constructors at hh:224-257)
+// RUDRA-GLUE: Atom constructors (match the 7 inline Ghidra constructors at hh:224-257)
 impl Atom {
     // Ghidra: printlanguage.hh:224 Atom(nm, t, hl)
     /// Construct a token with no associated data-flow annotations. Faithful
@@ -964,7 +964,7 @@ pub fn format_binary(val: u64) -> String {
     s
 }
 
-// RUGRA-GLUE: most_sig_bit_set (mirrors Ghidra's mostsigbit_set helper)
+// RUDRA-GLUE: most_sig_bit_set (mirrors Ghidra's mostsigbit_set helper)
 /// Return the index of the most-significant set bit, or -1 if val==0.
 /// Mirrors Ghidra's `mostsigbit_set(uintb)` utility used by `formatBinary`.
 fn most_sig_bit_set(val: u64) -> i32 {
@@ -1218,7 +1218,7 @@ pub fn rpn_emit_op(
     }
 }
 
-// RUGRA-GLUE: emit_spaces superseded by Emit::spaces (prettyprint.cc:46)
+// RUDRA-GLUE: emit_spaces superseded by Emit::spaces (prettyprint.cc:46)
 /// Kept for the parity callers above that have not migrated; forwards to
 /// the emitter's `spaces` (tokenbreak in the pretty printer, plain spaces
 /// otherwise). The `bump` now travels with the call.
@@ -1322,7 +1322,7 @@ pub fn rpn_recurse(
 /// `PrintLanguage::pushVn` (printlanguage.cc:197-211). Appends to `nodepend`;
 /// callers must push inputs in reverse order for efficiency.
 ///
-/// RUGRA-GLUE: stores the actual `Arc<Varnode>` + `Arc<PcodeOp>` rather than
+/// RUDRA-GLUE: stores the actual `Arc<Varnode>` + `Arc<PcodeOp>` rather than
 /// i64 indices (no backing arena exists), so `recurse()` can dispatch directly
 /// off the captured arcs.
 pub fn rpn_push_vn(
@@ -1452,11 +1452,11 @@ pub const CLOSE_PAREN: &str = ")";
 /// above (`rpn_push_op`, `rpn_push_atom`, `parentheses`, etc.) and the data
 /// types (`OpToken`, `Atom`, `ReversePolish`, `NodePending`).
 ///
-/// RUGRA-GLUE: This trait exists because Rugra's `PrintC` pre-dates the RPN
+/// RUDRA-GLUE: This trait exists because Rugra's `PrintC` pre-dates the RPN
 /// engine port and emits directly. Ghidra's `PrintLanguage` is an abstract
 /// base class; the methods here are the subset `PrintC` currently overrides.
 ///
-/// RUGRA-GLUE: `PrintLanguage` is declared a sub-trait of `std::any::Any` so
+/// RUDRA-GLUE: `PrintLanguage` is declared a sub-trait of `std::any::Any` so
 /// that per-opcode `TypeOp::push` dispatchers in `typeop.rs` can recover the
 /// concrete `PrintC` (`crate::printc::PrintC`) behind a `&mut dyn PrintLanguage`
 /// and route to `PrintC`-specific emitters (`op_callind`, `op_ptrsub`,
@@ -1467,22 +1467,22 @@ pub const CLOSE_PAREN: &str = ")";
 /// equivalent of that C++ down-cast. `PrintC` is `'static`, so it implements
 /// `Any` automatically with no change to `printc.rs`.
 pub trait PrintLanguage: Any {
-    // RUGRA-GLUE: get_emit (PrintC direct-emit accessor, no Ghidra base method)
+    // RUDRA-GLUE: get_emit (PrintC direct-emit accessor, no Ghidra base method)
     /// Get the underlying token emitter.
     fn get_emit(&mut self) -> &mut dyn Emit;
-    // RUGRA-GLUE: set_emit (PrintC direct-emit accessor, no Ghidra base method)
+    // RUDRA-GLUE: set_emit (PrintC direct-emit accessor, no Ghidra base method)
     /// Set the underlying token emitter.
     fn set_emit(&mut self, emit: Box<dyn Emit>);
     // Ghidra: printlanguage.hh:496 PrintLanguage::docFunction
     /// Emit a full function.
     fn doc_function(&mut self, fd: &crate::funcdata::Funcdata);
-    // RUGRA-GLUE: doc_all_proto (PrintC prototype emit, no single Ghidra base method)
+    // RUDRA-GLUE: doc_all_proto (PrintC prototype emit, no single Ghidra base method)
     /// Emit a function prototype.
     fn doc_all_proto(&mut self, proto: &crate::fspec::FuncProto);
-    // RUGRA-GLUE: doc_variable_decl (PrintC var decl emit, no single Ghidra base method)
+    // RUDRA-GLUE: doc_variable_decl (PrintC var decl emit, no single Ghidra base method)
     /// Emit a variable declaration.
     fn doc_variable_decl(&mut self, vn: &crate::varnode::Varnode);
-    // RUGRA-GLUE: doc_statement (PrintC statement emit, no single Ghidra base method)
+    // RUDRA-GLUE: doc_statement (PrintC statement emit, no single Ghidra base method)
     /// Emit a statement.
     fn doc_statement(&mut self, op: &crate::op::PcodeOp);
 
@@ -1514,7 +1514,7 @@ pub trait PrintLanguage: Any {
     // of Ghidra's `const Datatype*`), so the virtual's parameter takes the
     // Arc form.
     fn push_type(&mut self, dt: &std::sync::Arc<crate::type_system::Datatype>);
-    // RUGRA-GLUE: push_varnode (PrintC direct-emit, wraps pushVnExplicit cc:218)
+    // RUDRA-GLUE: push_varnode (PrintC direct-emit, wraps pushVnExplicit cc:218)
     fn push_varnode(&mut self, vn: &crate::varnode::Varnode, _op: Option<&crate::op::PcodeOp>);
 
     // Ghidra: printlanguage.cc:671 PrintLanguage::resetDefaults
@@ -1564,7 +1564,7 @@ struct PrintlistState {
 }
 
 thread_local! {
-    // RUGRA-GLUE: thread-local registry keyed by architecture identity.
+    // RUDRA-GLUE: thread-local registry keyed by architecture identity.
     // The oracle stores the printer pointers INSIDE the Architecture
     // object (architecture.hh:206); Rugra cannot: the canonical-Factory
     // static in funcdata.rs pins `Architecture: Send + Sync`, while every

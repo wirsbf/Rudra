@@ -7,7 +7,7 @@
 
 Range and RangeList alignment verification logic.
 
-This module ensures that Rugra's address range representation matches Ghidra's
+This module ensures that Rudra's address range representation matches Ghidra's
 internal Range and RangeList classes as defined in `address.hh`.
 
 ## 导出的公共 API (Public API)
@@ -90,11 +90,11 @@ Clear all ranges
 
 ### `pub fn verify_range(`
 
-Verify that a Rugra Range aligns with Ghidra's representation
+Verify that a Rudra Range aligns with Ghidra's representation
 
 ### `pub fn verify_range_list(`
 
-Verify that a Rugra RangeList aligns with Ghidra's representation
+Verify that a Rudra RangeList aligns with Ghidra's representation
 
 ### `pub fn verify_contains(`
 

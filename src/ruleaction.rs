@@ -5621,7 +5621,7 @@ impl Rule for RuleCollectTerms {
         Ok(action_status::CHANGE)
     }
 
-    // RUGRA-GLUE: Rust Rule trait exposes the name separately; Ghidra passes it to the inline constructor at ruleaction.hh:105.
+    // RUDRA-GLUE: Rust Rule trait exposes the name separately; Ghidra passes it to the inline constructor at ruleaction.hh:105.
     fn get_name(&self) -> &str { "collect_terms" }
     // Ghidra: ruleaction.cc:101 RuleCollectTerms::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> { vec![OpCode::CPUI_INT_ADD] }
@@ -6726,7 +6726,7 @@ impl Rule for RulePushMulti {
                     // insert (MULTIEQUAL-aware leading-group skip), not an
                     // insert relative to the destroyed op. Flat-bank unit
                     // fixtures without block membership keep the legacy
-                    // relative insert (RUGRA-GLUE).
+                    // relative insert (RUDRA-GLUE).
                     match &bl {
                         Some(bl) => fd.op_insert_begin(&new_op, bl),
                         None => fd.op_insert_before(&new_op, &op_ref),
@@ -6750,7 +6750,7 @@ impl Rule for RulePushMulti {
         } else {
             // res == 0: inputs are identical, just move op1 to the merge block
             // (cc:1133 opInsertBegin(op1, bl)); flat-bank fixtures keep the
-            // legacy relative insert (RUGRA-GLUE).
+            // legacy relative insert (RUDRA-GLUE).
             match &bl {
                 Some(bl) => fd.op_insert_begin(&op1_ref, bl),
                 None => fd.op_insert_before(&op1_ref, &op_ref),
@@ -9969,7 +9969,7 @@ impl Rule for RuleMultiCollapse {
         Ok(action_status::NO_CHANGE)
     }
 
-    // RUGRA-GLUE: Rule trait exposes the inline constructor name separately.
+    // RUDRA-GLUE: Rule trait exposes the inline constructor name separately.
     fn get_name(&self) -> &str { "multicollapse" }
     // Ghidra: ruleaction.cc:3228 RuleMultiCollapse::getOpList
     fn get_opcodes(&self) -> Vec<OpCode> { vec![OpCode::CPUI_MULTIEQUAL] }
@@ -12867,7 +12867,7 @@ impl Rule for RuleRangeMeld {
     fn get_opcodes(&self) -> Vec<OpCode> { vec![OpCode::CPUI_BOOL_OR, OpCode::CPUI_BOOL_AND] }
 }
 
-// RUGRA-GLUE: the former simplified `pull_back_op` wrapper (which dropped
+// RUDRA-GLUE: the former simplified `pull_back_op` wrapper (which dropped
 // constMarkup, the SUBPIECE nzmask salvage arm and the usenzmask tail) was
 // removed — RuleRangeMeld now calls the canonical
 // `CircleRange::pull_back(op, usenzmask, &mut markup)` directly
@@ -13904,7 +13904,7 @@ impl Rule for RuleSubRight {
         let mut working_op_ref = crate::op::PcodeOpRef(op_arc.clone());
         // Search for lone right shift descendant and lump it in.
         let mut lumped = false;
-        // RUGRA-GLUE (lock hygiene): the lone_descend read guard must be
+        // RUDRA-GLUE (lock hygiene): the lone_descend read guard must be
         // hoisted out of the if-let scrutinee — a scrutinee temporary would
         // stay alive through the whole body, and the lump arm's
         // op_unlink → opUnsetOutput → make_free write-locks this same outvn,
@@ -19471,7 +19471,7 @@ impl<'a> AddTreeState<'a> {
         }
     }
 
-    // RUGRA-GLUE: read the formal-relative-pointer state off Rugra's flat
+    // RUDRA-GLUE: read the formal-relative-pointer state off Rugra's flat
     // TypePointer model (base.flags IS_PTRREL + base.pointer_rel) — the
     // ownership twin of Ghidra's `ct->isFormalPointerRel()` virtual plus the
     // `TypePointerRel` accessors. `addr_off` mirrors getAddressOffset()
@@ -19518,7 +19518,7 @@ impl<'a> AddTreeState<'a> {
         None
     }
 
-    // RUGRA-GLUE: Ghidra ctor 6038-6041 — size = variableLength ? 0 :
+    // RUDRA-GLUE: Ghidra ctor 6038-6041 — size = variableLength ? 0 :
     // byteToAddressInt(baseType->getAlignSize(), ct->getWordSize()).
     fn size_of_base(bt: &crate::type_system::datatype::Datatype, wordsize: i64) -> i64 {
         if bt.is_variable_length() {
@@ -19528,13 +19528,13 @@ impl<'a> AddTreeState<'a> {
         }
     }
 
-    // RUGRA-GLUE: Ghidra ctor 6049-6050 — isDegenerate = baseType->getAlignSize()
+    // RUDRA-GLUE: Ghidra ctor 6049-6050 — isDegenerate = baseType->getAlignSize()
     // <= unitsize && > 0, unitsize = addressToByteInt(1, ct->getWordSize()) == wordsize.
     fn is_degenerate_of(bt: &crate::type_system::datatype::Datatype, wordsize: i64) -> bool {
         (bt.get_align_size() as i64) <= wordsize && bt.get_align_size() > 0
     }
 
-    // RUGRA-GLUE: combined (base, size, isDegenerate) derivation used by the
+    // RUDRA-GLUE: combined (base, size, isDegenerate) derivation used by the
     // rel form, where Ghidra reassigns baseType before the 6038-6050 block.
     fn derive_base_geometry(
         bt: &std::sync::Arc<crate::type_system::datatype::Datatype>, wordsize: i64,
@@ -19777,7 +19777,7 @@ impl<'a> AddTreeState<'a> {
         false // At least one side contains multiples.
     }
 
-    // RUGRA-GLUE: live getMap projection for the TypeSpacebase query path.
+    // RUDRA-GLUE: live getMap projection for the TypeSpacebase query path.
     /// Resolve the [`SpacebaseMap`] a TypeSpacebase query must run against —
     /// Ghidra's `TypeSpacebase::getMap` (type.cc:2935-2945) re-resolves this
     /// on EVERY query through the Architecture: the global scope, or — when
@@ -20101,7 +20101,7 @@ impl<'a> AddTreeState<'a> {
         }
     }
 
-    // RUGRA-GLUE: ct->getWordSize() read for the relative-pointer helpers —
+    // RUDRA-GLUE: ct->getWordSize() read for the relative-pointer helpers —
     // Ghidra reads it off the `ct` TypePointer field (ruleaction.hh:48).
     fn rel_wordsize(&self) -> usize {
         self.ct
@@ -20786,13 +20786,13 @@ fn sign_extend_u64(value: u64, bits: usize) -> i64 {
 }
 
 /// Signed remainder faithful to Ghidra's `intb % size`.
-// RUGRA-GLUE: numeric helper for Ghidra intb arithmetic
+// RUDRA-GLUE: numeric helper for Ghidra intb arithmetic
 fn signed_rem(a: i64, size: i64) -> i64 {
     if size == 0 { a } else { a % size }
 }
 
 /// Signed division faithful to Ghidra's `intb / size`.
-// RUGRA-GLUE: numeric helper for Ghidra intb arithmetic
+// RUDRA-GLUE: numeric helper for Ghidra intb arithmetic
 fn signed_div(a: i64, size: i64) -> i64 {
     if size == 0 { 0 } else { a / size }
 }
@@ -28259,7 +28259,7 @@ mod tests {
             base: TypeBase::new("spacebase".into(), 0, TypeMetatype::Spacebase),
             address: Address::new(0),
             fd: None,
-            // RUGRA-GLUE: spaceid/localframe/scope added by the TypeSpacebase
+            // RUDRA-GLUE: spaceid/localframe/scope added by the TypeSpacebase
             // alignment pass (type.cc:2935 getMap/getSubType/getAddress). These
             // tests exercise the chartype fast-path and do not need a scope, so
             // the global-spacebase defaults (no space, invalid localframe, no
@@ -28334,7 +28334,7 @@ mod tests {
             base: TypeBase::new("spacebase".into(), 0, TypeMetatype::Spacebase),
             address: Address::new(0),
             fd: None,
-            // RUGRA-GLUE: spaceid/localframe/scope added by the TypeSpacebase
+            // RUDRA-GLUE: spaceid/localframe/scope added by the TypeSpacebase
             // alignment pass (type.cc:2935 getMap/getSubType/getAddress). These
             // tests exercise the chartype fast-path and do not need a scope, so
             // the global-spacebase defaults (no space, invalid localframe, no
@@ -30460,7 +30460,7 @@ mod tests {
         assert_eq!(state.nonmultsum, 4);
     }
 
-    // RUGRA-GLUE: test module helper (Rust-native fixture builder)
+    // RUDRA-GLUE: test module helper (Rust-native fixture builder)
     /// vnterm for check_mult_term: written by a COPY (not INT_ADD) so the
     /// distribute path (cc:6138-6143) is skipped and the vncoeff
     /// accumulator at cc:6145 runs; not free (WRITTEN set).
@@ -30482,7 +30482,7 @@ mod tests {
         vnterm
     }
 
-    // RUGRA-GLUE: test module helper (Rust-native fixture builder)
+    // RUDRA-GLUE: test module helper (Rust-native fixture builder)
     /// Shared fixture: an AddTreeState over an 8-byte pointer to a
     /// VARIABLE-LENGTH base type, so `size == 0` (cc:6038). That is what
     /// structurally lets |sval| exceed the cc:6134 `val >= size` bail (the

@@ -16,7 +16,7 @@
 声明）。默认脸仍是忠实 `blockaction` 移植，其对齐纪律不受影响。Phase 2 双脸缝
 设计见 `docs/alignment_docs/SAILR_INTEGRATION_DESIGN_2026-09-26.md`。
 
-所有函数均为 `// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no
+所有函数均为 `// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no
 Ghidra counterpart; ref: angr <file> / kuna <file>)` 形态注解（ENHANCEMENT
 域，逐函数 oracle 对齐纪律不适用；门禁 = 默认脸中性 + 算法正确性单测）。
 

@@ -314,7 +314,7 @@ Rugra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` �
 > trait 声明为 `Action: Send + Sync`（`Rule` 同）。Ghidra 的反编译器对象
 > 全部存活于单线程，这是 Rust 侧 glue：`Architecture` 通过
 > `Arc<RwLock<ActionDatabase>>` 内嵌 allacts（architecture.hh:212）后，
-> trait 对象必须跨线程共享（RUGRA-GLUE 注释见 src/action.rs）。
+> trait 对象必须跨线程共享（RUDRA-GLUE 注释见 src/action.rs）。
 
 ### 角色
 它表示一个**面向函数级上下文的分析或变换步骤**。  
@@ -1084,7 +1084,7 @@ printc emit_block_structured 拆分 7 个 per-arm helpers。mainloop repeatapply
 
 ## 2026-08-15：PIPE-MERGETYPE-ORDER-0001 — cleanup 后动作序列对齐 coreaction.cc:5714-5738
 
-### `pub fn build_default_pipeline() -> ActionRestartGroup`（新增，RUGRA-GLUE）
+### `pub fn build_default_pipeline() -> ActionRestartGroup`（新增，RUDRA-GLUE）
 
 `set_default_actions` 的完整树构造抽为自由函数 `build_default_pipeline`，
 `set_default_actions` 仅注册其结果。行为不变；这是单一构造来源（ordered-action
@@ -1124,7 +1124,7 @@ prefercomplement(:5714) → structuretransform(:5715) → normalizebranches(:571
   apply 不增 count；域外租约，登记跟进 TODO）。
 - E2E：curl 22/24 → **24/24**（0 PANICKED/TIMEOUT），输出与基线逐字节相同。
 
-### 新增只读/编排 API（RUGRA-GLUE）
+### 新增只读/编排 API（RUDRA-GLUE）
 
 - `ActionGroup::{child_names, perform_child}`、
   `ActionRestartGroup::{child_names, perform_child, child_state}`：
@@ -1393,11 +1393,11 @@ bump register，见 heritage.md）。真实重启环（clearAnalysis + in-Funcda
    （coreaction.hh:41-43），`fd.clear()` 已清 processing_started 守卫，
    环内再调会双入 LowlevelError 守卫（funcdata.cc:153-154）。
 4. **status_start + 游标复位**（action.cc:581 + action.cc:508-509）：
-   `group.reset_apply_cursor()`（RUGRA-GLUE：组合模型绕过
+   `group.reset_apply_cursor()`（RUDRA-GLUE：组合模型绕过
    perform/prepare_apply 的 status 基游标复位）+ 外置 group_state 的
    `STATUS_START`。
 
-新增公开面（全部 RUGRA-GLUE，无 Ghidra 对应物——oracle 经
+新增公开面（全部 RUDRA-GLUE，无 Ghidra 对应物——oracle 经
 `Funcdata::getArch()` 直达 Architecture 持有的 loader）：
 
 - `pub type RestartFlowCallback`：驱动边界回调类型。

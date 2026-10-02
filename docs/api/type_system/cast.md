@@ -14,7 +14,7 @@ look-alike 负控）。
 ## 2026-08-30：arithmetic_output_standard（PTRSUB-SWITCH-CAST-RESIDUAL-0001 step 5）
 
 新增 `pub fn arithmetic_output_standard(op, tlst)`（cast.cc:394
-`CastStrategyC::arithmeticOutputStandard` 逐行投影；RUGRA-GLUE：自由函数传入
+`CastStrategyC::arithmeticOutputStandard` 逐行投影；RUDRA-GLUE：自由函数传入
 TypeFactory——Rugra 的 CastStrategyC 无 `tlst` 成员）：in0 high read-facing 起步，
 BOOL 降为同尺寸 base int 且不参与竞争；后续输入 `type_order < 0`（更早=更大/更
 specific：同尺寸 uint 优先于 int、大尺寸优先、指针优先于基型）时替换。消费方：

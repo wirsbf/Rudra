@@ -24,7 +24,7 @@ Output: JSON on stdout with {"hookSpecificOutput":{"hookEventName":"PreToolUse",
 Bypass rules (do NOT block):
   - file not under src/*.rs          (only Rust source gated)
   - test fns (#[test] / cfg(test))   (no Ghidra counterpart)
-  - fns with NO // Ghidra: annotation but a // RUGRA-GLUE: marker
+  - fns with NO // Ghidra: annotation but a // RUDRA-GLUE: marker
   - edits that don't fall inside any fn body (e.g. top-level use/docs)
   - first-time creation of a fn whose annotation is being added in THIS edit
   - ZCODE_ALIGN_GATE=0 in env (escape hatch, log it)
@@ -75,7 +75,7 @@ GHIDRA_RE = re.compile(r"//\s*Ghidra:\s*([A-Za-z0-9_./-]+\.(?:cc|hh|h|c))\s*:(\d
 # Inline reference: any `// ... <file>.<ext>:<digits> ...` inside a comment,
 # covering `(coreaction.cc:4886)`, `coreaction.cc:4886`, `(varnode.hh:235)` etc.
 GHIDRA_INLINE_RE = re.compile(r"([A-Za-z0-9_]+\.(?:cc|hh|h|c))\s*[:#]\s*(\d+)")
-GLUE_RE = re.compile(r"//\s*RUGRA-GLUE:")
+GLUE_RE = re.compile(r"//\s*RUDRA-GLUE:")
 def log(msg: str) -> None:
     try:
         with open(LOG, "a", encoding="utf-8") as f:
@@ -152,7 +152,7 @@ def _fn_annotation(
       2. The fn BODY, for the first `// ... Ghidra: ... (<file>:<line>)` or
          `// Ghidra: ... <file>:<line> ...` reference — covers the common
          inline-comment style used across this codebase (302 distinct refs).
-      3. An explicit `// RUGRA-GLUE:` marker above -> None (exempt).
+      3. An explicit `// RUDRA-GLUE:` marker above -> None (exempt).
 
     Returns (ghidra_file, ghidra_line, rest) or None.
     """

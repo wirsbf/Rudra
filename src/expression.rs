@@ -88,26 +88,26 @@ mod term_scratch {
 
     const POOL_CAP: usize = 4;
 
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take/give pair (pure
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take/give pair (pure
     // Rust storage reuse; no Ghidra counterpart — the oracle's vectors
     // allocate per call, which is exactly the cost this removes).
     pub fn take_terms() -> Vec<AdditiveEdge> {
         TERMS.with(|p| p.borrow_mut().pop()).unwrap_or_default()
     }
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
     pub fn take_sorters() -> Vec<usize> {
         SORTERS.with(|p| p.borrow_mut().pop()).unwrap_or_default()
     }
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
     pub fn take_keys() -> Vec<TermSortKey> {
         KEYS.with(|p| p.borrow_mut().pop()).unwrap_or_default()
     }
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch-pool take (storage-only)
     pub fn take_opstacks() -> Vec<(Arc<RwLock<PcodeOp>>, Option<Arc<RwLock<PcodeOp>>>)> {
         OPSTACKS.with(|p| p.borrow_mut().pop()).unwrap_or_default()
     }
 
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
     pub fn give_terms(v: Vec<AdditiveEdge>) {
         if v.capacity() > 0 {
             TERMS.with(|p| {
@@ -118,7 +118,7 @@ mod term_scratch {
             });
         }
     }
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
     pub fn give_sorters(v: Vec<usize>) {
         if v.capacity() > 0 {
             SORTERS.with(|p| {
@@ -129,7 +129,7 @@ mod term_scratch {
             });
         }
     }
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
     pub fn give_keys(v: Vec<TermSortKey>) {
         if v.capacity() > 0 {
             KEYS.with(|p| {
@@ -140,7 +140,7 @@ mod term_scratch {
             });
         }
     }
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch-pool give (storage-only)
     pub fn give_opstacks(v: Vec<(Arc<RwLock<PcodeOp>>, Option<Arc<RwLock<PcodeOp>>>)>) {
         if v.capacity() > 0 {
             OPSTACKS.with(|p| {
@@ -335,7 +335,7 @@ impl TermOrder {
         });
     }
 
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 scratch return — returns the four
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 scratch return — returns the four
     // buffers (after clear) to the thread-local pools. The clear() calls
     // drop exactly the Arc handles the owned Vecs used to drop at the same
     // statement-end moment, so the observable destruction order is
@@ -364,7 +364,7 @@ impl TermOrder {
 }
 
 impl Drop for TermOrder {
-    // RUGRA-GLUE: PERF-RULEBODY2-0001 pooled-buffer recycle (no Ghidra
+    // RUDRA-GLUE: PERF-RULEBODY2-0001 pooled-buffer recycle (no Ghidra
     // counterpart; storage-only).
     fn drop(&mut self) {
         self.return_scratch();

@@ -98,13 +98,13 @@ pub enum SymbolType {
     Other(u8),
 }
 
-// RUGRA-GLUE: ELF spec enum decoder (Ghidra's Java ElfSymbol.getType carries the
+// RUDRA-GLUE: ELF spec enum decoder (Ghidra's Java ElfSymbol.getType carries the
 // same STT_* set; the locked decompile-cpp oracle tree has no ELF parser — its
 // Program arrives pre-populated by the Java loader). System V ABI 4.1, ch. 4,
 // "Symbol Table": symbol type occupies the low nibble of st_info.
 impl SymbolType {
     /// Decodes the `st_info` low nibble into a symbol type.
-    // RUGRA-GLUE: STT_* nibble decoder (spec-cited Java-layer equivalent; no
+    // RUDRA-GLUE: STT_* nibble decoder (spec-cited Java-layer equivalent; no
     // locked-tree counterpart).
     pub fn from_info(info: u8) -> SymbolType {
         match info & 0xf {
@@ -136,13 +136,13 @@ pub enum SymbolBinding {
     Other(u8),
 }
 
-// RUGRA-GLUE: ELF spec enum decoder (Ghidra's Java ElfSymbol.getBind carries the
+// RUDRA-GLUE: ELF spec enum decoder (Ghidra's Java ElfSymbol.getBind carries the
 // same STB_* set; the locked decompile-cpp oracle tree has no ELF parser).
 // System V ABI 4.1, ch. 4, "Symbol Table": symbol binding occupies the high
 // nibble of st_info.
 impl SymbolBinding {
     /// Decodes the `st_info` high nibble into a binding.
-    // RUGRA-GLUE: STB_* nibble decoder (spec-cited Java-layer equivalent; no
+    // RUDRA-GLUE: STB_* nibble decoder (spec-cited Java-layer equivalent; no
     // locked-tree counterpart).
     pub fn from_info(info: u8) -> SymbolBinding {
         match info >> 4 {
@@ -201,48 +201,48 @@ pub struct SymbolImport {
     symbols: Vec<ElfSymbol>,
 }
 
-// RUGRA-GLUE: deterministic-order accessor set for the front-end symbol store
+// RUDRA-GLUE: deterministic-order accessor set for the front-end symbol store
 // (Ghidra's Java SymbolManager owns the Program-side store; the locked
 // decompile-cpp oracle tree receives symbols through its transport and has no
 // ELF import layer).
 impl SymbolImport {
     /// Number of imported symbols.
-    // RUGRA-GLUE: store-size accessor (Rust collection idiom; no locked-tree
+    // RUDRA-GLUE: store-size accessor (Rust collection idiom; no locked-tree
     // counterpart).
     pub fn len(&self) -> usize {
         self.symbols.len()
     }
 
     /// Whether the import is empty (stripped binary with no `.dynsym`).
-    // RUGRA-GLUE: emptiness accessor paired with len (clippy convention; no
+    // RUDRA-GLUE: emptiness accessor paired with len (clippy convention; no
     // locked-tree counterpart).
     pub fn is_empty(&self) -> bool {
         self.symbols.is_empty()
     }
 
     /// All symbols in import order (`.symtab` then `.dynsym`, table order).
-    // RUGRA-GLUE: slice accessor for the import-order store (no locked-tree
+    // RUDRA-GLUE: slice accessor for the import-order store (no locked-tree
     // counterpart).
     pub fn symbols(&self) -> &[ElfSymbol] {
         &self.symbols
     }
 
     /// Defined symbols only (exports: `st_shndx != SHN_UNDEF`).
-    // RUGRA-GLUE: exports filter — the defined/import classification of the
+    // RUDRA-GLUE: exports filter — the defined/import classification of the
     // System V ABI "Symbol Table" (st_shndx semantics); Java-layer equivalent.
     pub fn exports(&self) -> impl Iterator<Item = &ElfSymbol> {
         self.symbols.iter().filter(|symbol| symbol.defined)
     }
 
     /// Undefined symbols only (imports: `st_shndx == SHN_UNDEF`).
-    // RUGRA-GLUE: imports filter — the undefined half of the System V ABI
+    // RUDRA-GLUE: imports filter — the undefined half of the System V ABI
     // st_shndx classification; Java-layer equivalent.
     pub fn imports(&self) -> impl Iterator<Item = &ElfSymbol> {
         self.symbols.iter().filter(|symbol| !symbol.defined)
     }
 
     /// Defined `STT_FUNC` symbols — the non-stripped function universe.
-    // RUGRA-GLUE: STT_FUNC filter feeding function discovery (the
+    // RUDRA-GLUE: STT_FUNC filter feeding function discovery (the
     // addFunctionsFromSymbolTable symbol class; System V ABI STT_FUNC = 2).
     pub fn function_symbols(&self) -> impl Iterator<Item = &ElfSymbol> {
         self.symbols
@@ -251,7 +251,7 @@ impl SymbolImport {
     }
 
     /// First symbol registered at `address` (`.symtab` wins over `.dynsym`).
-    // RUGRA-GLUE: address-keyed lookup mirroring the Program symbol query the
+    // RUDRA-GLUE: address-keyed lookup mirroring the Program symbol query the
     // driver performs when naming call targets (Java SymbolManager lookup).
     pub fn lookup_address(&self, address: u64) -> Option<&ElfSymbol> {
         self.symbols.iter().find(|symbol| symbol.address == address)
@@ -323,14 +323,14 @@ pub struct MemorySegment {
     pub executable: bool,
 }
 
-// RUGRA-GLUE: PT_LOAD range helpers matching the canon driver's manual
+// RUDRA-GLUE: PT_LOAD range helpers matching the canon driver's manual
 // add_range loops (examples/*_decompile.rs walk the same program headers);
 // Ghidra's Java ElfProgramBuilder owns the Program-side memory blocks — the
 // locked decompile-cpp oracle tree receives them via BfdArchitecture's loader.
 impl MemorySegment {
     /// Read-only classification (`PF_R` set, `PF_W` clear) — the driver's
     /// read-only property-range filter.
-    // RUGRA-GLUE: PF_R/PF_W classification (System V ABI "Program Header"
+    // RUDRA-GLUE: PF_R/PF_W classification (System V ABI "Program Header"
     // p_flags; the driver's readonly range filter form).
     pub fn read_only(&self) -> bool {
         self.readable && !self.writable
@@ -339,7 +339,7 @@ impl MemorySegment {
     /// The `(first, last)` inclusive address pair of the segment — the exact
     /// form the driver's `add_range` loop builds (`first = p_vaddr`,
     /// `last = p_vaddr + p_memsz - 1`).
-    // RUGRA-GLUE: add_range bounds form (the driver's manual loop shape;
+    // RUDRA-GLUE: add_range bounds form (the driver's manual loop shape;
     // System V ABI p_vaddr/p_memsz semantics).
     pub fn range_bounds(&self) -> Option<(u64, u64)> {
         if self.memsz == 0 {
@@ -376,7 +376,7 @@ pub struct FrontendSeed {
 /// Only `_Z`-prefixed names are attempted (the Itanium ABI mangling prefix;
 /// the same gate Ghidra's demangler analyzer applies). Returns `None` for
 /// non-mangled names and for mangled names that fail to parse.
-// RUGRA-GLUE: Ghidra's Java DemanglerAnalyzer (DemanglerCmd) performs this
+// RUDRA-GLUE: Ghidra's Java DemanglerAnalyzer (DemanglerCmd) performs this
 // rename on the Program's symbols before the decompiler runs — the locked
 // decompile-cpp oracle tree has no demangler. Itanium C++ ABI §5 (Mangled
 // names): external names begin "_Z" followed by the encoding.
@@ -388,7 +388,7 @@ pub fn demangle(name: &str) -> Option<String> {
     symbol.demangle().ok()
 }
 
-// RUGRA-GLUE: the demangler rename applied on the symbol import path — the
+// RUDRA-GLUE: the demangler rename applied on the symbol import path — the
 // DemanglerAnalyzer equivalent that swaps a mangled symbol's display name for
 // its demangled spelling while preserving the raw form.
 fn demangled_symbol_name(raw: &str) -> (String, Option<String>) {
@@ -410,7 +410,7 @@ fn demangled_symbol_name(raw: &str) -> (String, Option<String>) {
 /// holds no name). Names are demangled on the way in when mangled. GNU
 /// version tags (`@GLIBC_...`) live in `.gnu.version`, not in the strtab
 /// names, and stay with the driver-side EXTERNAL-block channel.
-// RUGRA-GLUE: Ghidra's Java ElfProgramBuilder.addSymbols walks the same two
+// RUDRA-GLUE: Ghidra's Java ElfProgramBuilder.addSymbols walks the same two
 // tables into the Program's symbol manager; the locked decompile-cpp oracle
 // tree has no ELF parser (its Program arrives pre-populated). System V ABI
 // 4.1, ch. 4, "Symbol Table" (Elf64_Sym: st_name, st_info, st_other, st_shndx,
@@ -451,7 +451,7 @@ pub fn import_symbols(bytes: &[u8]) -> Result<SymbolImport> {
     Ok(SymbolImport { symbols })
 }
 
-// RUGRA-GLUE: one Elf64_Sym row → ElfSymbol (the field mapping Ghidra's Java
+// RUDRA-GLUE: one Elf64_Sym row → ElfSymbol (the field mapping Ghidra's Java
 // ElfSymbol performs); empty-name entries carry no importable identity and are
 // skipped. System V ABI 4.1, ch. 4, "Symbol Table".
 fn elf_symbol_from(
@@ -494,7 +494,7 @@ fn elf_symbol_from(
 /// seeds a function named `"entry"`. Sizes keep `st_size` when non-zero;
 /// size-0 symbols take the working next-entry bound capped by the owning
 /// executable section's end. The result is sorted by entry address.
-// RUGRA-GLUE: Ghidra's Java ElfProgramBuilder.addFunctionsFromSymbolTable +
+// RUDRA-GLUE: Ghidra's Java ElfProgramBuilder.addFunctionsFromSymbolTable +
 // the entry-point analyzer own this discovery; the locked decompile-cpp
 // oracle tree has no function-creation layer (it consumes the Program's
 // function universe). System V ABI 4.1, ch. 4: "e_entry" (ELF header) and
@@ -583,7 +583,7 @@ pub fn discover_functions(bytes: &[u8]) -> Result<Vec<FunctionSeed>> {
 
 /// Executable section ranges `(start, end)` — every `SHF_EXECINSTR` section
 /// with a non-zero size, in section-header order.
-// RUGRA-GLUE: executable-extent helper for the discovery pass (Ghidra's Java
+// RUDRA-GLUE: executable-extent helper for the discovery pass (Ghidra's Java
 // importer validates symbol addresses against executable memory blocks);
 // System V ABI 4.1, ch. 4, "Section Header": SHF_EXECINSTR (0x4).
 fn executable_section_ranges(elf: &Elf) -> Vec<(u64, u64)> {
@@ -601,7 +601,7 @@ fn executable_section_ranges(elf: &Elf) -> Vec<(u64, u64)> {
 /// section extent; same-section size-0 symbols take the gap to the next seed.
 /// The bound is a working extent — the oracle's flow-derived body sizes are a
 /// decompile-time product this module does not reproduce.
-// RUGRA-GLUE: the canon driver's discovery layer applies the same working
+// RUDRA-GLUE: the canon driver's discovery layer applies the same working
 /// bound rule (its comment: "a working bound, not Ghidra's flow-derived
 /// body"); Ghidra's Java side derives real body extents by disassembly.
 fn fill_working_bounds(seeds: &mut [FunctionSeed], exec_ranges: &[(u64, u64)]) {
@@ -642,7 +642,7 @@ fn fill_working_bounds(seeds: &mut [FunctionSeed], exec_ranges: &[(u64, u64)]) {
 /// This is the add_range source set: the loader maps exactly these segments
 /// at their virtual addresses, so the global scope's ownership ranges and the
 /// read-only property ranges both derive from this list.
-// RUGRA-GLUE: Ghidra's Java ElfProgramBuilder allocates the Program's memory
+// RUDRA-GLUE: Ghidra's Java ElfProgramBuilder allocates the Program's memory
 /// blocks from the same program headers; the locked decompile-cpp oracle tree
 /// receives them through BfdArchitecture's loader (every PT_LOAD mapped).
 // System V ABI 4.1, ch. 4, "Program Header" (Elf64_Phdr: p_type, p_flags,
@@ -671,7 +671,7 @@ pub fn derive_memory_map(bytes: &[u8]) -> Result<Vec<MemorySegment>> {
 
 /// Builds the complete front-end seed for one binary: symbol import, function
 /// discovery, memory map, and the raw entry point.
-// RUGRA-GLUE: aggregate of the three import channels above — the single call
+// RUDRA-GLUE: aggregate of the three import channels above — the single call
 // a future driver uses instead of its manual seeding loops (Ghidra's Java
 // loader/analyzer stack performs the equivalent population before the
 // decompiler runs).
@@ -688,7 +688,7 @@ pub fn build_seed(bytes: &[u8]) -> Result<FrontendSeed> {
     })
 }
 
-// RUGRA-GLUE: test convenience — reads a canon fixture binary relative to the
+// RUDRA-GLUE: test convenience — reads a canon fixture binary relative to the
 // crate manifest (canon binaries are repo-tracked test inputs).
 #[cfg(test)]
 fn fixture_bytes(relative: &str) -> Vec<u8> {
@@ -696,7 +696,7 @@ fn fixture_bytes(relative: &str) -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|err| panic!("read {}: {}", path.display(), err))
 }
 
-// RUGRA-GLUE: test convenience — the locked-oracle provenance ledger for one
+// RUDRA-GLUE: test convenience — the locked-oracle provenance ledger for one
 // canon corpus (the manual seed data the differential compares against).
 #[cfg(test)]
 fn provenance_functions(name: &str) -> Vec<(u64, String, u64)> {

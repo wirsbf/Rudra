@@ -29,7 +29,7 @@ Ghidra has two concrete managers, both `maximumChars=2048`:
 
 正典 golden（`tests/golden/ghidra_curl_1204.c` hugehelp：NUL 在 3354–10329 字节
 处的字符串以 2048 字符 `/* TRUNCATED STRING LITERAL */` 字面量出现）证明 oracle 走
-`GhidraStringManager` 契约。Rugra 生产 manager（`new_ghidra_contract`，
+`GhidraStringManager` 契约。Rudra 生产 manager（`new_ghidra_contract`，
 `Architecture::build_string_manager` 安装）按此契约实现并显式声明；native
 2048 界行为由 `new_unicode` 保留并由同一双侧 fixture 锁定。
 
@@ -60,7 +60,7 @@ undefined1\* PTRSUB 在 isString 查询（:7375）**之前**被拦截，string m
 （字符串起始引用经 charPrint 门后折叠为字面量）与 print 侧
 `pushPtrCharConstant`（printc.cc:1698）消费。
 
-Rugra 侧新增（src/stringmanage.rs）：
+Rudra 侧新增（src/stringmanage.rs）：
 
 - `trait StringDataClient: Send + Sync` — 环境半边（Java 进程的替身）：
   `get_string_data(addr, charsize, max_bytes) -> Option<(Vec<u8>, bool)>`。

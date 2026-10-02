@@ -128,13 +128,13 @@ POPCOUNT/LZCOUNT。`get(opc)` 查表，`len()` 返回已注册条目数。
 ### 辅助类型/函数
 
 - `pub struct EvaluationError` — 对应 `opbehavior.hh:30`，除零 / 超范围时使用。
-- `pub fn float_format(size) -> Option<&'static FloatFormat>` — RUGRA-GLUE：
+- `pub fn float_format(size) -> Option<&'static FloatFormat>` — RUDRA-GLUE：
   替代 Ghidra 的 `Translate::getFloatFormat(size)`，返回静态 IEEE754
   single(4)/double(8) `FloatFormat`。float 子类经此路由到 `float_emulate`。
 
 ## 内部辅助函数
 
-- `mask_bits(bits)` — 位宽 mask（RUGRA-GLUE，无 Ghidra 对应）。
+- `mask_bits(bits)` — 位宽 mask（RUDRA-GLUE，无 Ghidra 对应）。
 - `sign_extend_to_i64(val, in_size)` — 对齐 `sign_extend(val, sizein*8-1)`
   （address.hh:555）。
 - `uintb_negate(val, size_bytes)` — 对齐 `uintb_negate`（address.cc:654）。
@@ -177,13 +177,13 @@ POPCOUNT/LZCOUNT。`get(opc)` 查表，`len()` 返回已注册条目数。
 
 ### ANN-H 注释 bootstrap（2026-08-11）
 
-- 为 36 个缺失 marker 的 Rust `Display`、宏模板、trait 元数据适配及 registry helper 补充具体 `RUGRA-GLUE` 说明；这些函数在 Ghidra 中没有单一同签名对应物。
+- 为 36 个缺失 marker 的 Rust `Display`、宏模板、trait 元数据适配及 registry helper 补充具体 `RUDRA-GLUE` 说明；这些函数在 Ghidra 中没有单一同签名对应物。
 - 仅补注释，不改变行为；既有越界引用留待后续串行处理。未生成函数级 oracle fixture，因此不声明 `MATCH` 或提升模块等级。
 
 ### ANN-K const constructor 注释 bootstrap（2026-08-12）
 
 - 为 expanded scanner 识别出的 42 个 `const fn new` 补齐直属 marker：40 个具体 behavior constructor 映射到锁定 oracle 的内联 constructor 起始行。
-- 其余 2 个 float 宏模板使用具体 `RUGRA-GLUE`，因为一个 Rust 源级函数模板会分别生成多种类型，不能绑定到单一 Ghidra constructor。三个显式 Rust float unit constructor仍映射真实 Ghidra constructor；它们省略了 Ghidra 必需并保存的 `Translate *`，属于已知行为缺口，而不是“无对应物”的胶水。
+- 其余 2 个 float 宏模板使用具体 `RUDRA-GLUE`，因为一个 Rust 源级函数模板会分别生成多种类型，不能绑定到单一 Ghidra constructor。三个显式 Rust float unit constructor仍映射真实 Ghidra constructor；它们省略了 Ghidra 必需并保存的 `Translate *`，属于已知行为缺口，而不是“无对应物”的胶水。
 - 此轮仅补注释，不改变对象构造或求值行为；未生成函数级 oracle fixture，因此不声明 `MATCH` 或提升模块等级。
 
 

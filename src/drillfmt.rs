@@ -30,7 +30,7 @@
 //!     constructors and `getOperatorName` overrides (typeop.cc; the same
 //!     names are registered in Rugra's src/typeop.rs).
 //!
-//! RUGRA-GLUE: no single Ghidra counterpart — this is a formatting-only
+//! RUDRA-GLUE: no single Ghidra counterpart — this is a formatting-only
 //! projection of the primitives above, owned by the drill emitter.
 
 use crate::arch::Architecture;
@@ -91,7 +91,7 @@ fn print_raw_offset(addr_size: usize, offset: u64) -> String {
 }
 
 /// space address sizes: ram/stack 8, register 8, unique 4, const 0.
-// RUGRA-GLUE: per-space getAddrSize() table; Rugra AddressSpace carries no address-size field.
+// RUDRA-GLUE: per-space getAddrSize() table; Rugra AddressSpace carries no address-size field.
 fn space_addr_size(space: AddressSpace) -> usize {
     match space {
         AddressSpace::Ram | AddressSpace::Stack | AddressSpace::Register => 8,
@@ -116,7 +116,7 @@ pub struct DrillFmt {
 }
 
 impl DrillFmt {
-    // RUGRA-GLUE: register symbol lookup combining
+    // RUDRA-GLUE: register symbol lookup combining
     // SleighBase::getRegisterName (sleighbase.cc:147-167) and
     // Translate::getRegister — returns (name, point.offset, point.size) so
     // the caller can render the `+off` sub-register suffix of
@@ -235,7 +235,7 @@ impl DrillFmt {
         s
     }
 
-    // RUGRA-GLUE: Arc<RwLock<Varnode>> adapter over Varnode::printRaw (varnode.cc:741); Ghidra passes raw pointers.
+    // RUDRA-GLUE: Arc<RwLock<Varnode>> adapter over Varnode::printRaw (varnode.cc:741); Ghidra passes raw pointers.
     fn vn_of(&self, vn: &std::sync::Arc<RwLock<Varnode>>) -> String {
         let guard = vn.read().unwrap();
         let def = guard.get_def();
@@ -425,7 +425,7 @@ impl DrillFmt {
     }
 }
 
-// RUGRA-GLUE: LOAD/STORE print the target space NAME from the constant in
+// RUDRA-GLUE: LOAD/STORE print the target space NAME from the constant in
 // input 0 (typeop.cc:462-475 `getSpaceFromConst`). Rugra encodes the same
 // constant space id; map it back to the name. If input 0 is not (yet) a
 // constant the oracle would dereference garbage, so the drill prints the
@@ -443,7 +443,7 @@ fn load_store_space_name(op: &PcodeOp, inputs: &[String]) -> String {
     "?space".to_string()
 }
 
-// RUGRA-GLUE: CALL input 0 is the call-target encoding. Ghidra renders it
+// RUDRA-GLUE: CALL input 0 is the call-target encoding. Ghidra renders it
 // through FspecSpace::printRaw as the callee's NAME (ffunc_<addr> for
 // symbol-less functions); Rugra has no fspec space, so the drill uses the
 // ffunc_<addr> form derived from the constant. Named callees differ from
@@ -460,7 +460,7 @@ fn call_target_raw(fmt: &DrillFmt, op: &PcodeOp, inputs: &[String]) -> String {
     inputs.first().cloned().unwrap_or_default()
 }
 
-// RUGRA-GLUE: branch destination (typeop.cc:583-629): with an unambiguous
+// RUDRA-GLUE: branch destination (typeop.cc:583-629): with an unambiguous
 // out edge the destination is the out block's printShortHeader
 // (`Block_<index>:<start>`), else the raw input varnode. Rugra block
 // indices live on the BlockBasic; fall back to the varnode form when the
@@ -485,7 +485,7 @@ fn branch_dest_raw(op: &PcodeOp, inputs: &[String]) -> String {
     inputs.first().cloned().unwrap_or_default()
 }
 
-// RUGRA-GLUE: opcode-class table for the TypeOpBinary::printRaw structure (typeop.cc:335); Rugra has no flags query on the table.
+// RUDRA-GLUE: opcode-class table for the TypeOpBinary::printRaw structure (typeop.cc:335); Rugra has no flags query on the table.
 fn is_binary(opc: OpCode) -> bool {
     matches!(
         opc,
@@ -525,7 +525,7 @@ fn is_binary(opc: OpCode) -> bool {
     )
 }
 
-// RUGRA-GLUE: opcode-class table for the TypeOpUnary::printRaw structure (typeop.cc:357).
+// RUDRA-GLUE: opcode-class table for the TypeOpUnary::printRaw structure (typeop.cc:357).
 fn is_unary(opc: OpCode) -> bool {
     matches!(
         opc,
@@ -552,7 +552,7 @@ fn is_unary(opc: OpCode) -> bool {
 /// printRaw operator names: Ghidra constructor names plus the
 /// `getOperatorName` overrides (typeop.cc; identical strings are
 /// registered in Rugra's src/typeop.rs binary_op!/unary_op! tables).
-// RUGRA-GLUE: static getOperatorName table (typeop.cc constructors + overrides; same strings as src/typeop.rs registrations).
+// RUDRA-GLUE: static getOperatorName table (typeop.cc constructors + overrides; same strings as src/typeop.rs registrations).
 fn operator_name(opc: OpCode) -> &'static str {
     match opc {
         OpCode::CPUI_INT_ADD => "+",

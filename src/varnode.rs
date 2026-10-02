@@ -30,14 +30,14 @@ use crate::variable::HighVariable;
 /// `Translate::getUniqueStart(Translate::ANALYSIS)` returns this tag directly.
 const ANALYSIS_UNIQUE_START: u64 = 0x1000_0000;
 
-// RUGRA-GLUE: Rugra represents address spaces as an enum rather than unique
+// RUDRA-GLUE: Rugra represents address spaces as an enum rather than unique
 // AddrSpace objects.  Compare the Ghidra-compatible numeric index first, then
 // use the enum order only to keep Eq/Ord total for invalid duplicate-id values.
 fn compare_address_spaces(a: AddressSpace, b: AddressSpace) -> std::cmp::Ordering {
     a.space_id().cmp(&b.space_id()).then_with(|| a.cmp(&b))
 }
 
-// RUGRA-GLUE: Default-type resolution standing in for Ghidra's
+// RUDRA-GLUE: Default-type resolution standing in for Ghidra's
 // caller-supplied `Datatype *ct`. Ghidra's `VarnodeBank::create(s,m,ct)`
 // (varnode.cc:1250) never mints a type itself — every Funcdata `newVarnode*`
 // caller passes `glb->types->getBase(s,TYPE_UNKNOWN)` from the Architecture
@@ -63,7 +63,7 @@ pub(crate) fn default_unknown_type(
         .expect("TypeFactory::get_base always produces an unknown base type")
 }
 
-// RUGRA-GLUE: the two `PcodeOp::outputTypeLocal/inputTypeLocal` forwarders
+// RUDRA-GLUE: the two `PcodeOp::outputTypeLocal/inputTypeLocal` forwarders
 //   (op.hh:251-252) dispatch through `opcode->getOutputLocal/getInputLocal` —
 //   the Architecture-owned TypeOp virtual table. Rugra PcodeOp holds no
 //   TypeOp pointer, and several current `src/typeop.rs` trait impls in the
@@ -608,7 +608,7 @@ pub struct Varnode {
     pub v_type: Option<Arc<Datatype>>,
     /// Ops that read this varnode
     pub descend: Vec<Weak<RwLock<PcodeOp>>>,
-    /// RUGRA-GLUE (PERF-VARNODE-DESCEND-SHADOW-0001): inline live-descendant
+    /// RUDRA-GLUE (PERF-VARNODE-DESCEND-SHADOW-0001): inline live-descendant
     /// shadow for `descend`, restoring the oracle's O(1) `descend.empty()`
     /// (varnode.hh:286 `hasNoDescend`). Ghidra's descend is a raw-pointer
     /// `std::list<PcodeOp*>` (varnode.hh:149) whose entries are erased by
@@ -678,7 +678,7 @@ pub struct Varnode {
     pub nzm: u64,
     /// Arena identity handle (PERF-ARENA-FLIP-0001 (a), ARENA_DESIGN §1.3).
     ///
-    /// RUGRA-GLUE: id-space stand-in for Ghidra's `lociter`/`defiter`
+    /// RUDRA-GLUE: id-space stand-in for Ghidra's `lociter`/`defiter`
     /// (varnode.hh:147-148) — the stored tree iterators that let the oracle
     /// erase a Varnode from its trees by stored position, never by a
     /// recomputed comparison key. Here the handle names the VarnodeBank slot
@@ -688,7 +688,7 @@ pub struct Varnode {
     pub(crate) vn_id: Option<VnId>,
 }
 
-// RUGRA-GLUE: borrow-safety helper materializing BOTH notification arms of
+// RUDRA-GLUE: borrow-safety helper materializing BOTH notification arms of
 // Varnode::setFlags (varnode.cc:356-360) and Varnode::clearFlags
 // (varnode.cc:369-373) — as a free function taking the Arc, so `&mut self`
 // Varnode mutation methods can fire them:
@@ -780,13 +780,13 @@ impl Varnode {
         }
     }
 
-    // RUGRA-GLUE: Rust cannot safely encode a FuncCallSpecs pointer in an
+    // RUDRA-GLUE: Rust cannot safely encode a FuncCallSpecs pointer in an
     // address integer, so the FSPEC annotation carries a typed Weak handle.
     pub fn bind_call_spec(&mut self, call_spec: &Arc<RwLock<crate::fspec::FuncCallSpecs>>) {
         self.call_spec = Some(Arc::downgrade(call_spec));
     }
 
-    // RUGRA-GLUE: Typed recovery of Ghidra's FuncCallSpecs::getFspecFromConst.
+    // RUDRA-GLUE: Typed recovery of Ghidra's FuncCallSpecs::getFspecFromConst.
     pub fn get_call_spec(&self) -> Option<Arc<RwLock<crate::fspec::FuncCallSpecs>>> {
         self.call_spec.as_ref().and_then(Weak::upgrade)
     }
@@ -1275,7 +1275,7 @@ impl Varnode {
     pub fn is_marked(&self) -> bool {
         (self.flags & varnode_flags::MARK) != 0
     }
-    // RUGRA-GLUE: clear_marks (Rust helper for clearing marks on multiple
+    // RUDRA-GLUE: clear_marks (Rust helper for clearing marks on multiple
     // Varnodes; Ghidra clears inline in collectReachable/flowToAlternatePath)
     /// Clear mark on multiple Varnodes (helper for collectReachable cleanup).
     pub fn clear_marks(vns: &[Arc<RwLock<Varnode>>]) {
@@ -1568,7 +1568,7 @@ impl Varnode {
         self.addlflags &= !addl_flags::STOP_UP_PROPAGATION;
     }
 
-    // RUGRA-GLUE: identity handle for `PcodeOp::getSlot(this)`-style pointer
+    // RUDRA-GLUE: identity handle for `PcodeOp::getSlot(this)`-style pointer
     //   comparisons. Ghidra compares raw `Varnode*` pointers (op.hh:166);
     //   Rugra varnodes live in `Arc<RwLock<Varnode>>` allocations whose weak
     //   self reference is installed by `VarnodeBank::allocate` (varnode.rs).
@@ -2955,7 +2955,7 @@ impl Varnode {
         live
     }
 
-    // RUGRA-GLUE: PERF-VARNODE-DESCEND-SHADOW-0001 — re-derive the
+    // RUDRA-GLUE: PERF-VARNODE-DESCEND-SHADOW-0001 — re-derive the
     // live/len shadow from the actual Vec content. Only reached when the
     // fields are stale, i.e. a test fixture mutated `descend` directly
     // (raw `descend.push`); production mutation paths keep both exact.
@@ -3118,7 +3118,7 @@ impl std::cmp::Ord for Varnode {
 pub struct VarnodeLocRef(pub Arc<RwLock<Varnode>>);
 
 impl PartialEq for VarnodeLocRef {
-    // RUGRA-GLUE: eq (no Ghidra counterpart found)
+    // RUDRA-GLUE: eq (no Ghidra counterpart found)
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == std::cmp::Ordering::Equal
     }
@@ -3127,14 +3127,14 @@ impl PartialEq for VarnodeLocRef {
 impl Eq for VarnodeLocRef {}
 
 impl PartialOrd for VarnodeLocRef {
-    // RUGRA-GLUE: partial_cmp (no Ghidra counterpart found)
+    // RUDRA-GLUE: partial_cmp (no Ghidra counterpart found)
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for VarnodeLocRef {
-    // RUGRA-GLUE: cmp (no Ghidra counterpart found)
+    // RUDRA-GLUE: cmp (no Ghidra counterpart found)
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if Arc::ptr_eq(&self.0, &other.0) {
             return std::cmp::Ordering::Equal;
@@ -3193,7 +3193,7 @@ impl Ord for VarnodeLocRef {
 pub struct VarnodeDefRef(pub Arc<RwLock<Varnode>>);
 
 impl PartialEq for VarnodeDefRef {
-    // RUGRA-GLUE: eq (no Ghidra counterpart found)
+    // RUDRA-GLUE: eq (no Ghidra counterpart found)
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == std::cmp::Ordering::Equal
     }
@@ -3202,7 +3202,7 @@ impl PartialEq for VarnodeDefRef {
 impl Eq for VarnodeDefRef {}
 
 impl PartialOrd for VarnodeDefRef {
-    // RUGRA-GLUE: partial_cmp (no Ghidra counterpart found)
+    // RUDRA-GLUE: partial_cmp (no Ghidra counterpart found)
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
@@ -3273,7 +3273,7 @@ pub struct VarnodeData {
 }
 
 impl VarnodeData {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     pub fn new(space: AddressSpace, offset: u64, size: usize) -> Self {
         Self {
             space,
@@ -3284,7 +3284,7 @@ impl VarnodeData {
 }
 
 impl From<&Varnode> for VarnodeData {
-    // RUGRA-GLUE: from (no Ghidra counterpart found)
+    // RUDRA-GLUE: from (no Ghidra counterpart found)
     fn from(vn: &Varnode) -> Self {
         VarnodeData {
             space: vn.get_space(),
@@ -3331,7 +3331,7 @@ const ADDRESSSPACE_VARIANT_COUNT: u32 = 9;
 /// 2^20 - 1).
 const VN_LOC_TAG_STRIDE: u32 = 1 << 20;
 
-// RUGRA-GLUE: enum-discriminant projection — Ghidra's varnode comparators
+// RUDRA-GLUE: enum-discriminant projection — Ghidra's varnode comparators
 // compare raw `AddrSpace*` pointers (interned, unique per space); Rugra's
 // AddressSpace is a Copy enum, and `compare_address_spaces` orders by
 // `space_id()` first with the enum order as the total-order tiebreak. This
@@ -3350,7 +3350,7 @@ fn address_space_discriminant(space: AddressSpace) -> u32 {
     }
 }
 
-// RUGRA-GLUE: (space_id, discriminant) → single u32. Bijective because the
+// RUDRA-GLUE: (space_id, discriminant) → single u32. Bijective because the
 // discriminant is below ADDRESSSPACE_VARIANT_COUNT; the lexicographic
 // (space_id, discriminant) order equals `compare_address_spaces`
 // (varnode.rs, mirror of the oracle's interned-pointer order).
@@ -3359,7 +3359,7 @@ fn address_space_code(space: AddressSpace) -> u32 {
         + address_space_discriminant(space)
 }
 
-// RUGRA-GLUE: Address → SpaceOff projection for SeqNum keys
+// RUDRA-GLUE: Address → SpaceOff projection for SeqNum keys
 // (ARENA_DESIGN §2: one projection function). Mirrors `Address::operator<`
 // (address.hh:375): null base sorts first, real spaces by registry index,
 // offset last. Used for the def-op SeqNum projection inside `VnDefState`.
@@ -3374,7 +3374,7 @@ pub(crate) fn space_off_of_address(addr: &Address) -> SpaceOff {
     }
 }
 
-// RUGRA-GLUE: (address_space, loc) → SpaceOff for the loc/def tree keys.
+// RUDRA-GLUE: (address_space, loc) → SpaceOff for the loc/def tree keys.
 // Ordering matches the `Varnode{Loc,Def}Ref` comparators field-for-field:
 // `compare_address_spaces(vn.address_space)` then `vn.loc` (space tag then
 // offset, address.rs Address Ord).
@@ -3394,7 +3394,7 @@ fn vn_space_off(vn_space: AddressSpace, loc: &Address) -> SpaceOff {
     SpaceOff { space, offset: loc.as_u64() }
 }
 
-// RUGRA-GLUE: definition-state projection — the varnode half of the
+// RUDRA-GLUE: definition-state projection — the varnode half of the
 // varnode.cc:34-79 comparators, de-normalized into the frozen
 // `VnDefState` POD (src/arena.rs, W0 order-locked). The `input`(0x08)/
 // `written`(0x10) masks are varnode.hh:82-83.
@@ -3411,7 +3411,7 @@ pub(crate) fn vn_def_state(vn: &Varnode) -> VnDefState {
     VnDefState::from_flags(vn.flags, def_seq, vn.create_index)
 }
 
-// RUGRA-GLUE: loc-tree key projection (single construction site,
+// RUDRA-GLUE: loc-tree key projection (single construction site,
 // ARENA_DESIGN §5 R2 discipline). Field order equals
 // VarnodeCompareLocDef (varnode.cc:34-53): address (space then offset),
 // size, definition state with the (f-1) free-last ranking.
@@ -3423,7 +3423,7 @@ pub(crate) fn vn_loc_key(vn: &Varnode) -> VnLocKey {
     )
 }
 
-// RUGRA-GLUE: def-tree key projection. Field order equals
+// RUDRA-GLUE: def-tree key projection. Field order equals
 // VarnodeCompareDefLoc (varnode.cc:60-79), transcribed by the manual
 // `Ord for VnDefKey` (src/arena.rs, W0 differential-tested).
 pub(crate) fn vn_def_key(vn: &Varnode) -> VnDefKey {
@@ -3437,7 +3437,7 @@ pub(crate) fn vn_def_key(vn: &Varnode) -> VnDefKey {
 /// Arena cell — the denormalized key copies that play the oracle's stored
 /// `lociter`/`defiter` (varnode.hh:147-148).
 ///
-/// RUGRA-GLUE: id-space stored-iterator. The oracle keeps two tree
+/// RUDRA-GLUE: id-space stored-iterator. The oracle keeps two tree
 /// iterators inside each Varnode; Rust cannot store borrows, so the bank
 /// keeps this cell per bank-allocated Varnode (`Varnode::vn_id` points
 /// here) holding the keys the Varnode was last inserted under. Erase uses
@@ -3464,17 +3464,17 @@ pub struct VarnodeLocSet {
 }
 
 impl VarnodeLocSet {
-    // RUGRA-GLUE: empty-set ctor (member init form).
+    // RUDRA-GLUE: empty-set ctor (member init form).
     pub fn new() -> Self {
         VarnodeLocSet { inner: BTreeMap::new() }
     }
 
-    // RUGRA-GLUE: live-state key of one element (probe construction).
+    // RUDRA-GLUE: live-state key of one element (probe construction).
     fn key_of(v: &VarnodeLocRef) -> VnLocKey {
         vn_loc_key(&v.0.read().unwrap())
     }
 
-    // RUGRA-GLUE: bound translation for `range` (probe → key).
+    // RUDRA-GLUE: bound translation for `range` (probe → key).
     fn key_bound(bound: std::ops::Bound<&VarnodeLocRef>) -> std::ops::Bound<VnLocKey> {
         match bound {
             std::ops::Bound::Included(p) => std::ops::Bound::Included(Self::key_of(p)),
@@ -3512,7 +3512,7 @@ impl VarnodeLocSet {
 
     /// Remove by live probe key, returning the removed element if the key
     /// was present (`BTreeSet::take`).
-    // RUGRA-GLUE: take-by-live-key half of the legacy identity erase.
+    // RUDRA-GLUE: take-by-live-key half of the legacy identity erase.
     pub fn take(&mut self, v: &VarnodeLocRef) -> Option<VarnodeLocRef> {
         self.inner.remove(&Self::key_of(v))
     }
@@ -3526,13 +3526,13 @@ impl VarnodeLocSet {
     }
 
     /// Restore an element taken by mistake in the legacy path.
-    // RUGRA-GLUE: re-insert half of the take-mismatch restore.
+    // RUDRA-GLUE: re-insert half of the take-mismatch restore.
     pub fn insert_raw(&mut self, key: VnLocKey, v: VarnodeLocRef) {
         self.inner.insert(key, v);
     }
 
     /// Recompute the live key of `v` (for cell bookkeeping).
-    // RUGRA-GLUE: key copy refresh at the erase+reinsert sites.
+    // RUDRA-GLUE: key copy refresh at the erase+reinsert sites.
     pub fn live_key(&self, v: &VarnodeLocRef) -> VnLocKey {
         Self::key_of(v)
     }
@@ -3552,25 +3552,25 @@ impl VarnodeLocSet {
     }
 
     /// Membership by live probe key (`BTreeSet::contains`).
-    // RUGRA-GLUE: contains surface kept for the bank's own tests.
+    // RUDRA-GLUE: contains surface kept for the bank's own tests.
     pub fn contains(&self, v: &VarnodeLocRef) -> bool {
         self.inner.contains_key(&Self::key_of(v))
     }
 
     /// Retain elements passing the predicate (identity-scan fallback).
-    // RUGRA-GLUE: whole-tree retain (BTreeSet::retain surface).
+    // RUDRA-GLUE: whole-tree retain (BTreeSet::retain surface).
     pub fn retain(&mut self, mut f: impl FnMut(&VarnodeLocRef) -> bool) {
         self.inner.retain(|_, v| f(v));
     }
 
     /// Element count (`set::size`).
-    // RUGRA-GLUE: size surface.
+    // RUDRA-GLUE: size surface.
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
     /// Emptiness (`set::empty`).
-    // RUGRA-GLUE: empty surface.
+    // RUDRA-GLUE: empty surface.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -3583,7 +3583,7 @@ impl VarnodeLocSet {
 }
 
 impl Default for VarnodeLocSet {
-    // RUGRA-GLUE: Default = new().
+    // RUDRA-GLUE: Default = new().
     fn default() -> Self {
         Self::new()
     }
@@ -3592,14 +3592,14 @@ impl Default for VarnodeLocSet {
 impl<'a> IntoIterator for &'a VarnodeLocSet {
     type Item = &'a VarnodeLocRef;
     type IntoIter = VarnodeLocIter<'a>;
-    // RUGRA-GLUE: `for vn in &bank.loc_tree` keeps the BTreeSet surface.
+    // RUDRA-GLUE: `for vn in &bank.loc_tree` keeps the BTreeSet surface.
     fn into_iter(self) -> Self::IntoIter {
         VarnodeLocIter { inner: self.inner.values() }
     }
 }
 
 impl std::fmt::Debug for VarnodeLocSet {
-    // RUGRA-GLUE: set-shaped Debug (BTreeSet prints a set of elements).
+    // RUDRA-GLUE: set-shaped Debug (BTreeSet prints a set of elements).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_set().entries(self.inner.values()).finish()
     }
@@ -3616,17 +3616,17 @@ pub struct VarnodeDefSet {
 }
 
 impl VarnodeDefSet {
-    // RUGRA-GLUE: empty-set ctor.
+    // RUDRA-GLUE: empty-set ctor.
     pub fn new() -> Self {
         VarnodeDefSet { inner: BTreeMap::new() }
     }
 
-    // RUGRA-GLUE: live-state key of one element (probe construction).
+    // RUDRA-GLUE: live-state key of one element (probe construction).
     fn key_of(v: &VarnodeDefRef) -> VnDefKey {
         vn_def_key(&v.0.read().unwrap())
     }
 
-    // RUGRA-GLUE: bound translation for `range`.
+    // RUDRA-GLUE: bound translation for `range`.
     fn key_bound(bound: std::ops::Bound<&VarnodeDefRef>) -> std::ops::Bound<VnDefKey> {
         match bound {
             std::ops::Bound::Included(p) => std::ops::Bound::Included(Self::key_of(p)),
@@ -3642,7 +3642,7 @@ impl VarnodeDefSet {
     }
 
     /// Exact-key get.
-    // RUGRA-GLUE: set::find surface.
+    // RUDRA-GLUE: set::find surface.
     pub fn get(&self, v: &VarnodeDefRef) -> Option<&VarnodeDefRef> {
         self.inner.get(&Self::key_of(v))
     }
@@ -3661,7 +3661,7 @@ impl VarnodeDefSet {
     }
 
     /// Remove by live probe key (`BTreeSet::take`).
-    // RUGRA-GLUE: take-by-live-key half of the legacy identity erase.
+    // RUDRA-GLUE: take-by-live-key half of the legacy identity erase.
     pub fn take(&mut self, v: &VarnodeDefRef) -> Option<VarnodeDefRef> {
         self.inner.remove(&Self::key_of(v))
     }
@@ -3674,13 +3674,13 @@ impl VarnodeDefSet {
     }
 
     /// Restore an element taken by mistake in the legacy path.
-    // RUGRA-GLUE: re-insert half of the take-mismatch restore.
+    // RUDRA-GLUE: re-insert half of the take-mismatch restore.
     pub fn insert_raw(&mut self, key: VnDefKey, v: VarnodeDefRef) {
         self.inner.insert(key, v);
     }
 
     /// Recompute the live key of `v` (for cell bookkeeping).
-    // RUGRA-GLUE: key copy refresh at the erase+reinsert sites.
+    // RUDRA-GLUE: key copy refresh at the erase+reinsert sites.
     pub fn live_key(&self, v: &VarnodeDefRef) -> VnDefKey {
         Self::key_of(v)
     }
@@ -3699,25 +3699,25 @@ impl VarnodeDefSet {
     }
 
     /// Membership by live probe key.
-    // RUGRA-GLUE: contains surface.
+    // RUDRA-GLUE: contains surface.
     pub fn contains(&self, v: &VarnodeDefRef) -> bool {
         self.inner.contains_key(&Self::key_of(v))
     }
 
     /// Retain elements passing the predicate.
-    // RUGRA-GLUE: whole-tree retain.
+    // RUDRA-GLUE: whole-tree retain.
     pub fn retain(&mut self, mut f: impl FnMut(&VarnodeDefRef) -> bool) {
         self.inner.retain(|_, v| f(v));
     }
 
     /// Element count.
-    // RUGRA-GLUE: size surface.
+    // RUDRA-GLUE: size surface.
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
     /// Emptiness.
-    // RUGRA-GLUE: empty surface.
+    // RUDRA-GLUE: empty surface.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -3730,7 +3730,7 @@ impl VarnodeDefSet {
 }
 
 impl Default for VarnodeDefSet {
-    // RUGRA-GLUE: Default = new().
+    // RUDRA-GLUE: Default = new().
     fn default() -> Self {
         Self::new()
     }
@@ -3739,20 +3739,20 @@ impl Default for VarnodeDefSet {
 impl<'a> IntoIterator for &'a VarnodeDefSet {
     type Item = &'a VarnodeDefRef;
     type IntoIter = VarnodeDefIter<'a>;
-    // RUGRA-GLUE: `for vn in &bank.def_tree` keeps the BTreeSet surface.
+    // RUDRA-GLUE: `for vn in &bank.def_tree` keeps the BTreeSet surface.
     fn into_iter(self) -> Self::IntoIter {
         VarnodeDefIter { inner: self.inner.values() }
     }
 }
 
 impl std::fmt::Debug for VarnodeDefSet {
-    // RUGRA-GLUE: set-shaped Debug.
+    // RUDRA-GLUE: set-shaped Debug.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_set().entries(self.inner.values()).finish()
     }
 }
 
-// RUGRA-GLUE: named value iterators for the two bridge sets — the
+// RUDRA-GLUE: named value iterators for the two bridge sets — the
 // BTreeSet surface (forward + double-ended) without exposing the POD key
 // type in any public signature.
 /// Forward iterator over [`VarnodeLocSet`] values, in loc-tree order.
@@ -3762,18 +3762,18 @@ pub struct VarnodeLocIter<'a> {
 
 impl<'a> Iterator for VarnodeLocIter<'a> {
     type Item = &'a VarnodeLocRef;
-    // RUGRA-GLUE: trait plumbing (forward iterator advance).
+    // RUDRA-GLUE: trait plumbing (forward iterator advance).
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
-    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    // RUDRA-GLUE: trait plumbing (size hint pass-through).
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
 }
 
 impl DoubleEndedIterator for VarnodeLocIter<'_> {
-    // RUGRA-GLUE: trait plumbing (reverse iterator advance).
+    // RUDRA-GLUE: trait plumbing (reverse iterator advance).
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner.next_back()
     }
@@ -3786,18 +3786,18 @@ pub struct VarnodeLocRange<'a> {
 
 impl<'a> Iterator for VarnodeLocRange<'a> {
     type Item = &'a VarnodeLocRef;
-    // RUGRA-GLUE: trait plumbing (forward iterator advance).
+    // RUDRA-GLUE: trait plumbing (forward iterator advance).
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|(_, v)| v)
     }
-    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    // RUDRA-GLUE: trait plumbing (size hint pass-through).
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
 }
 
 impl DoubleEndedIterator for VarnodeLocRange<'_> {
-    // RUGRA-GLUE: trait plumbing (reverse iterator advance).
+    // RUDRA-GLUE: trait plumbing (reverse iterator advance).
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner.next_back().map(|(_, v)| v)
     }
@@ -3810,18 +3810,18 @@ pub struct VarnodeDefIter<'a> {
 
 impl<'a> Iterator for VarnodeDefIter<'a> {
     type Item = &'a VarnodeDefRef;
-    // RUGRA-GLUE: trait plumbing (forward iterator advance).
+    // RUDRA-GLUE: trait plumbing (forward iterator advance).
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
-    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    // RUDRA-GLUE: trait plumbing (size hint pass-through).
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
 }
 
 impl DoubleEndedIterator for VarnodeDefIter<'_> {
-    // RUGRA-GLUE: trait plumbing (reverse iterator advance).
+    // RUDRA-GLUE: trait plumbing (reverse iterator advance).
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner.next_back()
     }
@@ -3834,18 +3834,18 @@ pub struct VarnodeDefRange<'a> {
 
 impl<'a> Iterator for VarnodeDefRange<'a> {
     type Item = &'a VarnodeDefRef;
-    // RUGRA-GLUE: trait plumbing (forward iterator advance).
+    // RUDRA-GLUE: trait plumbing (forward iterator advance).
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|(_, v)| v)
     }
-    // RUGRA-GLUE: trait plumbing (size hint pass-through).
+    // RUDRA-GLUE: trait plumbing (size hint pass-through).
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
 }
 
 impl DoubleEndedIterator for VarnodeDefRange<'_> {
-    // RUGRA-GLUE: trait plumbing (reverse iterator advance).
+    // RUDRA-GLUE: trait plumbing (reverse iterator advance).
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner.next_back().map(|(_, v)| v)
     }
@@ -3880,11 +3880,11 @@ pub struct VarnodeBank {
     type_factory: Option<Arc<RwLock<crate::type_system::typefactory::TypeFactory>>>,
 }
 
-// RUGRA-GLUE: fmt (no Ghidra counterpart found)
+// RUDRA-GLUE: fmt (no Ghidra counterpart found)
 /// Manual Debug impl: the injected factory handle has no Debug surface;
 /// report only its presence, matching the derive that preceded it.
 impl std::fmt::Debug for VarnodeBank {
-    // RUGRA-GLUE: std::fmt::Debug trait impl; Ghidra has no Debug output.
+    // RUDRA-GLUE: std::fmt::Debug trait impl; Ghidra has no Debug output.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VarnodeBank")
             .field("loc_tree", &self.loc_tree)
@@ -3911,7 +3911,7 @@ impl VarnodeBank {
         }
     }
 
-    // RUGRA-GLUE: set_type_factory (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_type_factory (no Ghidra counterpart found)
     /// Inject the owning Architecture's TypeFactory handle. Ghidra threads
     /// `glb->types` through every `Funcdata::newVarnode*` →
     /// `VarnodeBank::create(s,m,ct)` call (funcdata_varnode.cc:69 et al.,
@@ -3925,7 +3925,7 @@ impl VarnodeBank {
         self.type_factory = Some(tf);
     }
 
-    // RUGRA-GLUE: type_factory_handle (no Ghidra counterpart found)
+    // RUDRA-GLUE: type_factory_handle (no Ghidra counterpart found)
     /// The injected Architecture TypeFactory handle, if any.
     pub fn type_factory_handle(
         &self,
@@ -3933,7 +3933,7 @@ impl VarnodeBank {
         self.type_factory.clone()
     }
 
-    // RUGRA-GLUE: shared Rust allocation half of VarnodeBank::create and
+    // RUDRA-GLUE: shared Rust allocation half of VarnodeBank::create and
     // createDef; Ghidra performs these field assignments inline. Also
     // allocates the arena cell carrying this Varnode's denormalized
     // tree-key copies (stored-iterator form, ARENA_DESIGN §1.3,
@@ -3968,7 +3968,7 @@ impl VarnodeBank {
         result
     }
 
-    // RUGRA-GLUE: refresh the stored key copies of a bank-owned Varnode at
+    // RUDRA-GLUE: refresh the stored key copies of a bank-owned Varnode at
     // an insert site — the write half of the stored-iterator discipline
     // (keys are recomputed only at the oracle's erase+reinsert sites).
     fn refresh_cell_keys(&mut self, vn: &Arc<RwLock<Varnode>>) {
@@ -3982,7 +3982,7 @@ impl VarnodeBank {
         cell.def_key = def_key;
     }
 
-    // RUGRA-GLUE: resolve a varnode arena handle to its stored ref (the
+    // RUDRA-GLUE: resolve a varnode arena handle to its stored ref (the
     // PERF-ARENA-FLIP-0001 (a) god-object read API's underlying lookup,
     // ARENA_DESIGN §3.2 P1; the oracle counterpart is the raw Varnode*
     // itself).
@@ -3990,7 +3990,7 @@ impl VarnodeBank {
         self.vn_arena.get(id).map(|cell| &cell.vn)
     }
 
-    // RUGRA-GLUE: insertion half shared by Rugra's implicit-RAM and explicit
+    // RUDRA-GLUE: insertion half shared by Rugra's implicit-RAM and explicit
     // address-space forms of Ghidra VarnodeBank::create.
     fn insert_free(&mut self, vn: Varnode) -> Arc<RwLock<Varnode>> {
         let rc = self.allocate(vn);
@@ -4104,7 +4104,7 @@ impl VarnodeBank {
         vn
     }
 
-    // RUGRA-GLUE: Arc-identity ownership check corresponding to Ghidra's
+    // RUDRA-GLUE: Arc-identity ownership check corresponding to Ghidra's
     // stored lociter. Scan by identity because Funcdata::destroyVarnode clears
     // `def` before VarnodeBank::destroy, so the live Rust comparison key may
     // no longer match the node's original tree position.
@@ -4114,14 +4114,14 @@ impl VarnodeBank {
             .any(|entry| Arc::ptr_eq(&entry.0, vn))
     }
 
-    // RUGRA-GLUE: definition-tree equivalent of Ghidra's stored defiter.
+    // RUDRA-GLUE: definition-tree equivalent of Ghidra's stored defiter.
     fn owns_def_ref(&self, vn: &Arc<RwLock<Varnode>>) -> bool {
         self.def_tree
             .iter()
             .any(|entry| Arc::ptr_eq(&entry.0, vn))
     }
 
-    // RUGRA-GLUE: Rust analogue of Ghidra's `loc_tree.erase(vn->lociter)`
+    // RUDRA-GLUE: Rust analogue of Ghidra's `loc_tree.erase(vn->lociter)`
     // (varnode.cc:1319). Ghidra stores the tree iterator inside the Varnode,
     // so erasure removes THE OBJECT at its stored position and never
     // recomputes the comparison key. The arena cell (PERF-ARENA-FLIP-0001
@@ -4163,7 +4163,7 @@ impl VarnodeBank {
         before != self.loc_tree.len()
     }
 
-    // RUGRA-GLUE: def_tree twin of `erase_loc_identity`, emulating Ghidra's
+    // RUDRA-GLUE: def_tree twin of `erase_loc_identity`, emulating Ghidra's
     // `def_tree.erase(vn->defiter)` (varnode.cc:1320).
     fn erase_def_identity(&mut self, vn: &Arc<RwLock<Varnode>>) -> bool {
         // Stored-iterator primary path (see erase_loc_identity).
@@ -4189,7 +4189,7 @@ impl VarnodeBank {
         before != self.def_tree.len()
     }
 
-    // RUGRA-GLUE: shared checked/unchecked transition for Ghidra
+    // RUDRA-GLUE: shared checked/unchecked transition for Ghidra
     // VarnodeBank::setInput after its precondition checks.
     fn transition_input(&mut self, vn: Arc<RwLock<Varnode>>) -> Arc<RwLock<Varnode>> {
         // Ghidra setInput erases via the stored lociter/defiter
@@ -4206,7 +4206,7 @@ impl VarnodeBank {
         self.xref(vn)
     }
 
-    // RUGRA-GLUE: shared checked/unchecked transition for Ghidra
+    // RUDRA-GLUE: shared checked/unchecked transition for Ghidra
     // VarnodeBank::setDef after its precondition checks.
     fn transition_def(
         &mut self,
@@ -4356,7 +4356,7 @@ impl VarnodeBank {
         Ok(self.xref(vn))
     }
 
-    // RUGRA-GLUE: internal non-fallible entry for callers that have just
+    // RUDRA-GLUE: internal non-fallible entry for callers that have just
     // allocated a bank-owned, non-constant free Varnode.
     pub(crate) fn set_input_prevalidated(
         &mut self,
@@ -4407,7 +4407,7 @@ impl VarnodeBank {
         }
     }
 
-    // RUGRA-GLUE: internal non-fallible entry for callers that have just
+    // RUDRA-GLUE: internal non-fallible entry for callers that have just
     // allocated a bank-owned, non-constant free Varnode.
     pub(crate) fn set_def_prevalidated(
         &mut self,
@@ -4449,7 +4449,7 @@ impl VarnodeBank {
         Ok(())
     }
 
-    // RUGRA-GLUE: internal non-fallible entry for callers that have already
+    // RUDRA-GLUE: internal non-fallible entry for callers that have already
     // detached the defining op and every descendant under a Ghidra-equivalent
     // guard. Debug builds revalidate both integration and Arc ownership.
     pub(crate) fn destroy_varnode_prevalidated(&mut self, vn: &Arc<RwLock<Varnode>>) {
@@ -4565,7 +4565,7 @@ impl VarnodeBank {
         Ok(())
     }
 
-    // RUGRA-GLUE: internal entry for a bank iterator's current Varnode. The
+    // RUDRA-GLUE: internal entry for a bank iterator's current Varnode. The
     // iterator establishes Arc ownership; debug builds preserve that proof.
     pub(crate) fn make_free_prevalidated(&mut self, vn: &Arc<RwLock<Varnode>>) {
         debug_assert!(
@@ -4904,7 +4904,7 @@ impl Default for VarnodeBank {
 
 /// Walk forward along COPY defs from `vn`, returning true if `target` (by
 /// pointer identity) appears anywhere along the chain. Faithful to the
-// RUGRA-GLUE: 沿 COPY 链逐步比较指针身份。Ghidra 用裸指针 while 循环
+// RUDRA-GLUE: 沿 COPY 链逐步比较指针身份。Ghidra 用裸指针 while 循环
 // (varnode.cc:1010,1030)；Rugra 需 clone Arc + 释放 guard 逐层展开。
 /// `while(vn->isWritten() && vn->getDef()->code()==CPUI_COPY) { vn=...; if(vn==t) return true; }`
 /// pattern in findSubpieceShadow/findPieceShadow (varnode.cc:1010,1030).
@@ -4957,7 +4957,7 @@ fn copy_chain_hits(vn: &Varnode, target: &Varnode) -> bool {
 /// non-COPY-defined Varnode. Returns (def_op_arc, is_constant_terminal).
 /// Actually, to avoid lifetime issues, we return the source Varnode's def
 /// op Arc so the caller can inspect its opcode/inputs.
-// RUGRA-GLUE: 透传 COPY 链到终端 def op（非 COPY 定义或 unwritten）。
+// RUDRA-GLUE: 透传 COPY 链到终端 def op（非 COPY 定义或 unwritten）。
 // Ghidra 内联 while 循环；Rugra 提取为函数以避免跨层 RwLockReadGuard 冲突。
 /// Returns None if vn is not written.
 fn copy_chain_source_def(
@@ -5279,7 +5279,7 @@ pub fn find_contiguous_whole(vn1: &Varnode) -> Option<Arc<RwLock<Varnode>>> {
 }
 
 // Ghidra: varnode.cc:510 Varnode::copySymbolIfValid / database.hh:302 EquateSymbol
-// RUGRA-GLUE: equate-symbol identity registry.
+// RUDRA-GLUE: equate-symbol identity registry.
 /// In the C++ oracle, `EquateSymbol` is a `Symbol` subtype, so
 /// `dynamic_cast<EquateSymbol*>(mapEntry->getSymbol())` (varnode.cc:516)
 /// recovers both the equate-ness and the `uintb value` field
@@ -5304,21 +5304,21 @@ pub mod equate_symbol_registry {
 
     use crate::database::Symbol;
 
-    // RUGRA-GLUE: once-cell accessor for the process-global registry map
+    // RUDRA-GLUE: once-cell accessor for the process-global registry map
     // (pure Rust language structure; Ghidra has no counterpart).
     fn table() -> &'static Mutex<HashMap<usize, u64>> {
         static TABLE: OnceLock<Mutex<HashMap<usize, u64>>> = OnceLock::new();
         TABLE.get_or_init(|| Mutex::new(HashMap::new()))
     }
 
-    // RUGRA-GLUE: registry key = symbol Arc allocation address (identity of
+    // RUDRA-GLUE: registry key = symbol Arc allocation address (identity of
     // the referenced Symbol object, mirroring the C++ pointer identity the
     // dynamic_cast would operate on).
     fn key_of(symbol: &Arc<RwLock<Symbol>>) -> usize {
         Arc::as_ptr(symbol) as usize
     }
 
-    // RUGRA-GLUE: register_equate_symbol_value (no Ghidra counterpart)
+    // RUDRA-GLUE: register_equate_symbol_value (no Ghidra counterpart)
     /// Record that `symbol` is an equate carrying `value` — the Rust
     /// equivalent of the C++ `Symbol*` actually pointing at an
     /// `EquateSymbol(value)` object for later `dynamic_cast`s.
@@ -5326,7 +5326,7 @@ pub mod equate_symbol_registry {
         table().lock().unwrap().insert(key_of(symbol), value);
     }
 
-    // RUGRA-GLUE: query_equate_symbol_value (models dynamic_cast<EquateSymbol*>)
+    // RUDRA-GLUE: query_equate_symbol_value (models dynamic_cast<EquateSymbol*>)
     /// Return the equate value of `symbol`, or `None` when the symbol is not
     /// an equate (the `dynamic_cast<EquateSymbol*>` yielding null,
     /// varnode.cc:516-518).

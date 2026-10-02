@@ -20,7 +20,7 @@ use std::sync::Arc;
 /// competitors). Faithful to `CastStrategyC::arithmeticOutputStandard`
 /// (cast.cc:394-409); Ghidra reaches it through the TypeOp getOutputToken
 /// overrides (typeop.cc:1175/1326/1388/1402/1416/1449/1482/1625).
-// RUGRA-GLUE: free function instead of a CastStrategyC method — Rugra's
+// RUDRA-GLUE: free function instead of a CastStrategyC method — Rugra's
 // CastStrategyC carries no TypeFactory member (tlst), so the factory is
 // passed in by the caller.
 pub fn arithmetic_output_standard(
@@ -62,7 +62,7 @@ pub fn arithmetic_output_standard(
     Some(res1)
 }
 
-// RUGRA-GLUE: base_type_for (no Ghidra counterpart found)
+// RUDRA-GLUE: base_type_for (no Ghidra counterpart found)
 /// Build a base integer/unsigned type for a given size and metatype.
 /// Faithful to Ghidra `TypeFactory::getBase(size, metatype)` (type.cc) for
 /// the integer cases: size 1→char/byte, 2→short, 4→int, 8→long (signed) /
@@ -93,15 +93,15 @@ pub fn base_type_for(size: usize, meta: TypeMetatype) -> Arc<Datatype> {
 ///
 /// Corresponds to Ghidra's `CastStrategy` class.
 pub trait CastStrategy {
-    // RUGRA-GLUE: is_cast_implied (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_cast_implied (no Ghidra counterpart found)
     /// Decide if an explicit cast is required between two types
     fn is_cast_implied(&self, out_type: &Datatype, in_type: &Datatype) -> bool;
 
-    // RUGRA-GLUE: cast_standard (no Ghidra counterpart found)
+    // RUDRA-GLUE: cast_standard (no Ghidra counterpart found)
     /// Get the type of a constant, given a specific size and output requirement
     fn cast_standard(&self, out_type: &Datatype, in_type: &Datatype) -> Option<Arc<Datatype>>;
 
-    // RUGRA-GLUE: check_int_promotion_for_extension (no Ghidra counterpart found)
+    // RUDRA-GLUE: check_int_promotion_for_extension (no Ghidra counterpart found)
     /// Determine if an integer promotion is required for an extension
     fn check_int_promotion_for_extension(&self, op_type: &Datatype) -> bool;
 
@@ -119,12 +119,12 @@ pub struct CastStrategyC {
 }
 
 impl CastStrategyC {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     pub fn new(promote_size: usize) -> Self {
         Self { promote_size }
     }
 
-    // RUGRA-GLUE: get_promote_size (Ghidra reads the protected field directly)
+    // RUDRA-GLUE: get_promote_size (Ghidra reads the protected field directly)
     /// Size of the `int` data-type (size that integers get promoted to).
     ///
     /// Ghidra `CastStrategy::promoteSize` (cast.hh:57) is a protected field
@@ -322,14 +322,14 @@ impl CastStrategyC {
         true
     }
 
-    // RUGRA-GLUE: is_char_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_char_type (no Ghidra counterpart found)
     /// Check if the type is a character type
     pub fn is_char_type(&self, dt: &Datatype) -> bool {
         // In Rugra, this would check the CHARTYPE flag in TypeBase
         (dt.get_flags() & crate::type_system::datatype::type_flags::CHARTYPE) != 0
     }
 
-    // RUGRA-GLUE: is_enum_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_enum_type (no Ghidra counterpart found)
     /// Check if the type is an enumeration type
     pub fn is_enum_type(&self, dt: &Datatype) -> bool {
         matches!(dt.get_metatype(), TypeMetatype::Enum)
@@ -428,7 +428,7 @@ impl CastStrategyC {
 }
 
 impl CastStrategy for CastStrategyC {
-    // RUGRA-GLUE: is_cast_implied (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_cast_implied (no Ghidra counterpart found)
     fn is_cast_implied(&self, out_type: &Datatype, in_type: &Datatype) -> bool {
         if Arc::ptr_eq(&Arc::new(out_type.clone()), &Arc::new(in_type.clone())) {
             return true;
@@ -529,7 +529,7 @@ fn findadd_equal(a: &Arc<Datatype>, b: &Arc<Datatype>) -> bool {
 }
 
 impl CastStrategyC {
-    // RUGRA-GLUE: cast_standard_full (no Ghidra counterpart found)
+    // RUDRA-GLUE: cast_standard_full (no Ghidra counterpart found)
     /// Faithful 1:1 port of Ghidra `CastStrategyC::castStandard`
     /// (cast.cc:300-392). Determines whether an explicit cast is required
     /// when a varnode of `curtype` feeds an op expecting `reqtype`.

@@ -56,7 +56,7 @@ impl ParamRank {
     /// Worst possible rank.
     pub const WORST: Self = Self(7);
 
-    // RUGRA-GLUE: as_i32 (no Ghidra counterpart found)
+    // RUDRA-GLUE: as_i32 (no Ghidra counterpart found)
     /// Get the numeric measure. Faithful to `getMeasure`.
     pub fn as_i32(&self) -> i32 {
         self.0
@@ -64,7 +64,7 @@ impl ParamRank {
 }
 
 impl PartialEq for ParamRank {
-    // RUGRA-GLUE: eq (no Ghidra counterpart found)
+    // RUDRA-GLUE: eq (no Ghidra counterpart found)
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -73,14 +73,14 @@ impl PartialEq for ParamRank {
 impl Eq for ParamRank {}
 
 impl PartialOrd for ParamRank {
-    // RUGRA-GLUE: partial_cmp (no Ghidra counterpart found)
+    // RUDRA-GLUE: partial_cmp (no Ghidra counterpart found)
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.0.cmp(&other.0))
     }
 }
 
 impl Ord for ParamRank {
-    // RUGRA-GLUE: cmp (no Ghidra counterpart found)
+    // RUDRA-GLUE: cmp (no Ghidra counterpart found)
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
     }
@@ -349,14 +349,14 @@ pub struct ParamIdAnalysis {
 }
 
 impl Default for ParamIdAnalysis {
-    // RUGRA-GLUE: default (no Ghidra counterpart found)
+    // RUDRA-GLUE: default (no Ghidra counterpart found)
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl ParamIdAnalysis {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct an empty analysis.
     pub fn new() -> Self {
         Self {
@@ -365,31 +365,31 @@ impl ParamIdAnalysis {
         }
     }
 
-    // RUGRA-GLUE: add_input (no Ghidra counterpart found)
+    // RUDRA-GLUE: add_input (no Ghidra counterpart found)
     /// Add an input parameter measure.
     pub fn add_input(&mut self, pm: ParamMeasure) {
         self.input_measures.push(pm);
     }
 
-    // RUGRA-GLUE: add_output (no Ghidra counterpart found)
+    // RUDRA-GLUE: add_output (no Ghidra counterpart found)
     /// Add an output parameter measure.
     pub fn add_output(&mut self, pm: ParamMeasure) {
         self.output_measures.push(pm);
     }
 
-    // RUGRA-GLUE: num_inputs (no Ghidra counterpart found)
+    // RUDRA-GLUE: num_inputs (no Ghidra counterpart found)
     /// Number of input measures.
     pub fn num_inputs(&self) -> usize {
         self.input_measures.len()
     }
 
-    // RUGRA-GLUE: num_outputs (no Ghidra counterpart found)
+    // RUDRA-GLUE: num_outputs (no Ghidra counterpart found)
     /// Number of output measures.
     pub fn num_outputs(&self) -> usize {
         self.output_measures.len()
     }
 
-    // RUGRA-GLUE: save_pretty (no Ghidra counterpart found)
+    // RUDRA-GLUE: save_pretty (no Ghidra counterpart found)
     /// Get a pretty-printed description of all measures. Faithful to
     /// `savePretty` (paramid.cc:264).
     pub fn save_pretty(&self) -> String {
@@ -412,7 +412,7 @@ impl ParamIdAnalysis {
         s
     }
 
-    // RUGRA-GLUE: analyze (no Ghidra counterpart found)
+    // RUDRA-GLUE: analyze (no Ghidra counterpart found)
     /// Analyze a function's parameters using data-flow classification.
     /// Faithful to `ParamIDAnalysis` constructor (paramid.cc:186).
     ///

@@ -8,19 +8,19 @@ use crate::error::Result;
 use crate::funcdata::Funcdata;
 use std::sync::Arc;
 
-// RUGRA-GLUE: Rust type-erased constructor retained at an Action registration slot so a filtered clone can construct the same concrete leaf without widening every concrete Action's write-set
+// RUDRA-GLUE: Rust type-erased constructor retained at an Action registration slot so a filtered clone can construct the same concrete leaf without widening every concrete Action's write-set
 type ActionFactory = Arc<dyn Fn() -> Box<dyn Action> + Send + Sync>;
-// RUGRA-GLUE: Rust type-erased constructor retained at a Rule registration slot so ActionPool::clone can honor Ghidra's fresh-instance Rule::clone contract
+// RUDRA-GLUE: Rust type-erased constructor retained at a Rule registration slot so ActionPool::clone can honor Ghidra's fresh-instance Rule::clone contract
 type RuleFactory = Arc<dyn Fn() -> Box<dyn Rule> + Send + Sync>;
 
-// RUGRA-GLUE: keeps each concrete Rule constructor at its locked coreaction.cc registration slot while storing a reusable fresh-instance factory
+// RUDRA-GLUE: keeps each concrete Rule constructor at its locked coreaction.cc registration slot while storing a reusable fresh-instance factory
 macro_rules! register_rule {
     ($pool:expr, $group:expr, $rule:expr) => {
         $pool.add_rule_factory_in_group($group, || $rule);
     };
 }
 
-// RUGRA-GLUE: ACTIONLOOP-RESTART-0001 env-gated dispatch-loop observation
+// RUDRA-GLUE: ACTIONLOOP-RESTART-0001 env-gated dispatch-loop observation
 // counters (RUGRA_ACTION_STATS=1; stderr only, default off). Event
 // accounting of the Action-dispatch/restart cycle — the per-restart
 // amplification the ticket asks to quantify: perform() invocations,
@@ -50,13 +50,13 @@ mod action_stats {
         restarts: AtomicU64::new(0),
     };
 
-    // RUGRA-GLUE: ACTIONLOOP-RESTART-0001 observation gate (no Ghidra counterpart; the counted events mirror Rule::count_tests)
+    // RUDRA-GLUE: ACTIONLOOP-RESTART-0001 observation gate (no Ghidra counterpart; the counted events mirror Rule::count_tests)
     fn enabled() -> bool {
         static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
         *ENABLED.get_or_init(|| std::env::var("RUGRA_ACTION_STATS").is_ok_and(|v| v == "1"))
     }
 
-    // RUGRA-GLUE: ACTIONLOOP-RESTART-0001 relaxed counter step (no Ghidra counterpart)
+    // RUDRA-GLUE: ACTIONLOOP-RESTART-0001 relaxed counter step (no Ghidra counterpart)
     pub fn bump(counter: &AtomicU64) {
         if enabled() {
             counter.fetch_add(1, Ordering::Relaxed);
@@ -66,7 +66,7 @@ mod action_stats {
     /// One stderr line per restart-group boundary (restart cycle or final
     /// completion) with the cumulative event totals — the per-restart
     /// repeated-work profile (SPEEDPROF-ACTIONLOOP-RESTART-0001 task ①).
-    // RUGRA-GLUE: ACTIONLOOP-RESTART-0001 per-restart-boundary stderr report (no Ghidra counterpart)
+    // RUDRA-GLUE: ACTIONLOOP-RESTART-0001 per-restart-boundary stderr report (no Ghidra counterpart)
     pub fn boundary_line(fn_name: &str, curstart: i32) {
         if !enabled() {
             return;
@@ -153,9 +153,9 @@ pub enum RuleTargetMutation {
 /// State management: Ghidra's Action carries `status`/`flags`/`count` fields
 /// that drive the `perform()` state machine (repeatapply/onceperfunc). Rugra
 /// mirrors this via `ActionState`, stored alongside each Action in its container.
-// RUGRA-GLUE: Send + Sync supertrait (Ghidra's decompiler objects live on one thread; Architecture embeds the ActionDatabase, so the Rust Arc<RwLock> embedding needs the bounds)
+// RUDRA-GLUE: Send + Sync supertrait (Ghidra's decompiler objects live on one thread; Architecture embeds the ActionDatabase, so the Rust Arc<RwLock> embedding needs the bounds)
 pub trait Action: Send + Sync {
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Perform the action's work on the given function data.
     ///
     /// # Returns
@@ -163,7 +163,7 @@ pub trait Action: Send + Sync {
     /// partial completion (breakpoint).
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32>;
 
-    // RUGRA-GLUE: gives container Actions access to their externalized Ghidra Action base fields while preserving the public apply signature
+    // RUDRA-GLUE: gives container Actions access to their externalized Ghidra Action base fields while preserving the public apply signature
     /// Apply with the companion executor state visible. Leaf actions use the
     /// ordinary `apply`; ActionGroup uses this to check its own breakpoint at
     /// the exact child-completion boundary.
@@ -171,11 +171,11 @@ pub trait Action: Send + Sync {
         self.apply(fd)
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Get the name of the action
     fn get_name(&self) -> &str;
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Reset derived action state for a new function. The Rust container or
     /// root entry resets the companion `ActionState` to `STATUS_START` and
     /// clears only the warning-issued flag; Ghidra does not clear count/stats
@@ -200,7 +200,7 @@ pub trait Action: Send + Sync {
         }
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Get the rule flags (repeatapply / onceperfunc / etc). Default: 0
     /// (single-pass). Containers override to return their group's flags.
     fn get_flags(&self) -> u32 { 0 }
@@ -213,39 +213,39 @@ pub trait Action: Send + Sync {
         None
     }
 
-    // RUGRA-GLUE: exposes changes accumulated in a Rust container while preserving Ghidra's apply return convention
+    // RUDRA-GLUE: exposes changes accumulated in a Rust container while preserving Ghidra's apply return convention
     /// Return and clear changes accumulated independently of `apply()`'s
     /// control-flow return code. Ghidra stores these in `Action::count`.
     fn take_count_delta(&mut self) -> i32 { 0 }
 
-    // RUGRA-GLUE: passes the external Rust ActionState status to derived actions whose Ghidra base-class status is directly visible
+    // RUDRA-GLUE: passes the external Rust ActionState status to derived actions whose Ghidra base-class status is directly visible
     /// Prepare one `apply()` attempt for the current executor status.
     fn prepare_apply(&mut self, _status: u32) {}
 
-    // RUGRA-GLUE: read-only restart-round view for tooling/emitters; mirrors
+    // RUDRA-GLUE: read-only restart-round view for tooling/emitters; mirrors
     // the protected ActionRestartGroup::curstart field read that the locked
     // C++ oracle fixtures perform (same protected-field access pattern).
     // Default 0 for every non-restart Action.
     fn fixture_curstart(&self) -> i32 { 0 }
 
-    // RUGRA-GLUE: fixture-only nested tree view; Ghidra exposes the same nesting via Action::print (action.cc:417-440)
+    // RUDRA-GLUE: fixture-only nested tree view; Ghidra exposes the same nesting via Action::print (action.cc:417-440)
     /// Read-only downcast for tree-walking fixtures: returns the container
     /// view if this Action is an ActionGroup/ActionRestartGroup.
     fn as_action_group(&self) -> Option<&ActionGroup> { None }
 
-    // RUGRA-GLUE: fixture-only mutable container view for subtree-driving fixtures
+    // RUDRA-GLUE: fixture-only mutable container view for subtree-driving fixtures
     /// Mutable downcast mirroring `as_action_group`.
     fn as_action_group_mut(&mut self) -> Option<&mut ActionGroup> { None }
 
-    // RUGRA-GLUE: fixture-only pool view; Ghidra holds the same class identity via the virtual ActionPool (action.hh:262)
+    // RUDRA-GLUE: fixture-only pool view; Ghidra holds the same class identity via the virtual ActionPool (action.hh:262)
     /// Read-only downcast for tree-walking fixtures: returns the pool view
     /// if this Action is an ActionPool.
     fn as_action_pool(&self) -> Option<&ActionPool> { None }
 
-    // RUGRA-GLUE: fixture/debug mutable pool view paired with as_action_pool
+    // RUDRA-GLUE: fixture/debug mutable pool view paired with as_action_pool
     fn as_action_pool_mut(&mut self) -> Option<&mut ActionPool> { None }
 
-    // RUGRA-GLUE: mutable restart-group view for the driver's restart-flow
+    // RUDRA-GLUE: mutable restart-group view for the driver's restart-flow
     // callback installation — the driver owns the loader/lifter bridge that
     // stands in for the Architecture-owned followFlow of the oracle restart
     // cycle (PIPE-RESTART-0001)
@@ -460,7 +460,7 @@ pub struct ActionState {
 }
 
 impl ActionState {
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn new(flags: u32) -> Self {
         Self {
             status: status_flags::STATUS_START,
@@ -473,7 +473,7 @@ impl ActionState {
         }
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Resolve effective flags.
     pub fn get_flags_val(&self) -> u32 {
         self.flags
@@ -550,9 +550,9 @@ impl ActionState {
 ///
 /// Corresponds to Ghidra's `Rule` class. A rule typically targets a specific
 /// P-code opcode and performs a local simplification or optimization.
-// RUGRA-GLUE: Send + Sync supertrait (Ghidra's Rule objects live on one thread; ActionPool trees sit inside Architecture's ActionDatabase, so the Rust Arc<RwLock> embedding needs the bounds)
+// RUDRA-GLUE: Send + Sync supertrait (Ghidra's Rule objects live on one thread; ActionPool trees sit inside Architecture's ActionDatabase, so the Rust Arc<RwLock> embedding needs the bounds)
 pub trait Rule: Send + Sync {
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Apply the rule to a specific operation
     ///
     /// # Returns
@@ -561,15 +561,15 @@ pub trait Rule: Send + Sync {
         &self, op: &std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32>;
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Get the name of the rule
     fn get_name(&self) -> &str;
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Get the opcodes this rule applies to
     fn get_opcodes(&self) -> Vec<crate::opcodes::OpCode>;
 
-    // RUGRA-GLUE: externalized Ghidra Rule base flags; concrete Rules override only when their constructor passes non-zero flags
+    // RUDRA-GLUE: externalized Ghidra Rule base flags; concrete Rules override only when their constructor passes non-zero flags
     fn get_flags(&self) -> u32 { 0 }
 
     // Ghidra: action.hh:236 Rule *clone(const ActionGroupList &grouplist) const
@@ -585,9 +585,9 @@ pub trait Rule: Send + Sync {
     /// the equivalent ActionPool registration-slot group.
     fn get_group(&self) -> &str { "" }
 
-    // RUGRA-GLUE: read-only fixture projection of Ghidra Rule inherited state (action.hh:220-225)
+    // RUDRA-GLUE: read-only fixture projection of Ghidra Rule inherited state (action.hh:220-225)
     fn get_rule_flags(&self) -> u32 { 0 }
-    // RUGRA-GLUE: read-only fixture projection of Ghidra Rule inherited state (action.hh:221)
+    // RUDRA-GLUE: read-only fixture projection of Ghidra Rule inherited state (action.hh:221)
     fn get_breakpoint(&self) -> u32 { 0 }
     // Ghidra: action.hh:217 Rule::getNumTests
     fn get_num_tests(&self) -> u32 { 0 }
@@ -599,7 +599,7 @@ pub trait Rule: Send + Sync {
     /// warning-given bit in the companion RuleState before this call.
     fn reset(&mut self, _fd: &mut Funcdata) {}
 
-    // RUGRA-GLUE: virtual-reset seam preserving whether a derived Ghidra Rule override invokes Rule::reset
+    // RUDRA-GLUE: virtual-reset seam preserving whether a derived Ghidra Rule override invokes Rule::reset
     /// Reset this Rule for a new function. Derived Rules whose locked-oracle
     /// override deliberately omits `Rule::reset` override this method and
     /// leave the companion warning-given bit untouched.
@@ -623,7 +623,7 @@ pub struct RuleState {
 }
 
 impl RuleState {
-    // RUGRA-GLUE: companion-state constructor for Ghidra Rule's base constructor
+    // RUDRA-GLUE: companion-state constructor for Ghidra Rule's base constructor
     pub fn new(flags: u32) -> Self {
         Self {
             flags,
@@ -715,7 +715,7 @@ pub struct ActionGroup {
     child_states: Vec<ActionState>,
     /// Ghidra: basegroup member of each child Action (action.hh:88). Ghidra
     /// stores the group inside every Action instance; Rugra records it at
-    /// the registration slot in the parent (RUGRA-GLUE: per-instance storage
+    /// the registration slot in the parent (RUDRA-GLUE: per-instance storage
     /// would require touching Action classes owned by other write-sets).
     /// Observably identical for the default tree: every instance is
     /// registered exactly once at one fixed slot (coreaction.cc:5462-5738).
@@ -740,12 +740,12 @@ fn next_specify_term(specify: &str) -> (&str, &str) {
 }
 
 impl ActionGroup {
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn new(name: &str) -> Self {
         Self::with_flags(name, 0)
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Create with explicit rule flags (e.g. rule_repeatapply for fullloop).
     pub fn with_flags(name: &str, flags: u32) -> Self {
         Self {
@@ -760,19 +760,19 @@ impl ActionGroup {
         }
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn add_action(&mut self, action: Box<dyn Action>) {
         self.push_action(action, "", None);
     }
 
-    // RUGRA-GLUE: registration-site group record mirroring the basegroup string passed to each Ghidra Action ctor (coreaction.cc:5477-5738)
+    // RUDRA-GLUE: registration-site group record mirroring the basegroup string passed to each Ghidra Action ctor (coreaction.cc:5477-5738)
     /// Add a child together with the basegroup string its Ghidra ctor
     /// receives at this registration slot (`new ActionX(group)`).
     pub fn add_action_in_group(&mut self, action: Box<dyn Action>, group: &str) {
         self.push_action(action, group, None);
     }
 
-    // RUGRA-GLUE: captures the concrete Rust constructor at the Ghidra addAction registration site so leaf Action::clone can remain write-set-local
+    // RUDRA-GLUE: captures the concrete Rust constructor at the Ghidra addAction registration site so leaf Action::clone can remain write-set-local
     pub fn add_action_factory_in_group<F>(&mut self, group: &str, factory: F)
     where
         F: Fn() -> Box<dyn Action> + Send + Sync + 'static,
@@ -782,7 +782,7 @@ impl ActionGroup {
         self.push_action(action, group, Some(factory));
     }
 
-    // RUGRA-GLUE: single registration path keeping Action/list/state/group/factory vectors in lock-step
+    // RUDRA-GLUE: single registration path keeping Action/list/state/group/factory vectors in lock-step
     fn push_action(
         &mut self,
         action: Box<dyn Action>,
@@ -821,43 +821,43 @@ impl ActionGroup {
         result
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn get_name_str(&self) -> &str { &self.name }
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn num_actions(&self) -> usize { self.actions.len() }
-    // RUGRA-GLUE: read-only fixture/debug view of Ghidra ActionGroup's protected iterator
+    // RUDRA-GLUE: read-only fixture/debug view of Ghidra ActionGroup's protected iterator
     pub fn current_index(&self) -> usize { self.state }
-    // RUGRA-GLUE: resets the inherited ActionGroup iterator after a restart
+    // RUDRA-GLUE: resets the inherited ActionGroup iterator after a restart
     // cycle — ActionRestartGroup::apply drives the embedded group's
     // apply_children directly, bypassing perform/prepare_apply's
     // status-based cursor re-initialization (action.cc:508-509
     // `if (status != status_mid) state = list.begin()`).
     pub fn reset_apply_cursor(&mut self) { self.state = 0; }
-    // RUGRA-GLUE: read-only fixture/debug view of a child Action's externalized executor state
+    // RUDRA-GLUE: read-only fixture/debug view of a child Action's externalized executor state
     pub fn child_state(&self, index: usize) -> Option<&ActionState> {
         self.child_states.get(index)
     }
-    // RUGRA-GLUE: mutable fixture projection of Ghidra's inherited per-child Action fields
+    // RUDRA-GLUE: mutable fixture projection of Ghidra's inherited per-child Action fields
     pub fn child_state_mut(&mut self, index: usize) -> Option<&mut ActionState> {
         self.child_states.get_mut(index)
     }
-    // RUGRA-GLUE: read-only ordered fixture view of Ghidra ActionGroup::list (action.hh:145); Ghidra prints the same sequence via Action::print (action.cc:417-440)
+    // RUDRA-GLUE: read-only ordered fixture view of Ghidra ActionGroup::list (action.hh:145); Ghidra prints the same sequence via Action::print (action.cc:417-440)
     pub fn child_names(&self) -> Vec<&str> {
         self.actions.iter().map(|a| a.get_name()).collect()
     }
-    // RUGRA-GLUE: fixture-only read-only child view for tree-walking tests (Ghidra iterates the same protected list in Action::print)
+    // RUDRA-GLUE: fixture-only read-only child view for tree-walking tests (Ghidra iterates the same protected list in Action::print)
     pub fn child_actions(&self) -> &[Box<dyn Action>] {
         &self.actions
     }
-    // RUGRA-GLUE: fixture-only mutable child view for driving one subtree through the exact perform() sequence (Ghidra's ActionGroup::apply drives the same protected list)
+    // RUDRA-GLUE: fixture-only mutable child view for driving one subtree through the exact perform() sequence (Ghidra's ActionGroup::apply drives the same protected list)
     pub fn child_actions_mut(&mut self) -> &mut [Box<dyn Action>] {
         &mut self.actions
     }
-    // RUGRA-GLUE: registration-site basegroup view for tree-walking fixtures (Ghidra Action::getGroup, action.hh:109)
+    // RUDRA-GLUE: registration-site basegroup view for tree-walking fixtures (Ghidra Action::getGroup, action.hh:109)
     pub fn child_group(&self, index: usize) -> &str {
         &self.child_groups[index]
     }
-    // RUGRA-GLUE: fixture executor view — drives child `index` through the exact perform() call ActionGroup::apply makes (src/action.rs ActionGroup::apply line above); Ghidra's ActionGroup::apply drives Action::perform the same way (action.cc:511-527)
+    // RUDRA-GLUE: fixture executor view — drives child `index` through the exact perform() call ActionGroup::apply makes (src/action.rs ActionGroup::apply line above); Ghidra's ActionGroup::apply drives Action::perform the same way (action.cc:511-527)
     pub fn perform_child(
         &mut self,
         index: usize,
@@ -1066,21 +1066,21 @@ impl Action for ActionGroup {
         self.apply_children(fd, None)
     }
 
-    // RUGRA-GLUE: exposes the inherited Action base state needed by ActionGroup::apply's checkActionBreak call
+    // RUDRA-GLUE: exposes the inherited Action base state needed by ActionGroup::apply's checkActionBreak call
     fn apply_with_state(&mut self, fd: &mut Funcdata, state: &mut ActionState) -> Result<i32> {
         self.apply_children(fd, Some(state))
     }
 
-    // RUGRA-GLUE: mirrors ActionGroup::apply reading its inherited Action::status before initializing the protected iterator
+    // RUDRA-GLUE: mirrors ActionGroup::apply reading its inherited Action::status before initializing the protected iterator
     fn prepare_apply(&mut self, status: u32) {
         if status != status_flags::STATUS_MID {
             self.state = 0;
         }
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     fn get_name(&self) -> &str { &self.name }
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     fn get_flags(&self) -> u32 { self.flags }
 
     // Ghidra: action.cc:391 Action *ActionGroup::clone(const ActionGroupList &grouplist) const
@@ -1089,12 +1089,12 @@ impl Action for ActionGroup {
             .map(|group| Box::new(group) as Box<dyn Action>)
     }
 
-    // RUGRA-GLUE: fixture-only nested tree view (see Action::as_action_group)
+    // RUDRA-GLUE: fixture-only nested tree view (see Action::as_action_group)
     fn as_action_group(&self) -> Option<&ActionGroup> { Some(self) }
-    // RUGRA-GLUE: fixture-only mutable nested tree view for subtree-driving fixtures (Ghidra reaches the same list via protected ActionGroup::list)
+    // RUDRA-GLUE: fixture-only mutable nested tree view for subtree-driving fixtures (Ghidra reaches the same list via protected ActionGroup::list)
     fn as_action_group_mut(&mut self) -> Option<&mut ActionGroup> { Some(self) }
 
-    // RUGRA-GLUE: externalizes Ghidra ActionGroup's inherited `count` member
+    // RUDRA-GLUE: externalizes Ghidra ActionGroup's inherited `count` member
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.pending_count)
     }
@@ -1117,7 +1117,7 @@ impl Action for ActionGroup {
 /// registered gap), so the driver installs this callback — the Rust
 /// equivalent of the Architecture-owned followFlow — on the derived root it
 /// is about to perform.
-// RUGRA-GLUE: driver-side seam for the Architecture-owned loader/lifter half of the oracle restart cycle (PIPE-RESTART-0001)
+// RUDRA-GLUE: driver-side seam for the Architecture-owned loader/lifter half of the oracle restart cycle (PIPE-RESTART-0001)
 pub type RestartFlowCallback =
     std::sync::Arc<dyn Fn(&mut Funcdata) -> crate::error::Result<()> + Send + Sync>;
 
@@ -1161,17 +1161,17 @@ impl ActionRestartGroup {
         }
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn add_action(&mut self, action: Box<dyn Action>) {
         self.group.add_action(action);
     }
 
-    // RUGRA-GLUE: registration-site group record passthrough (see ActionGroup::add_action_in_group)
+    // RUDRA-GLUE: registration-site group record passthrough (see ActionGroup::add_action_in_group)
     pub fn add_action_in_group(&mut self, action: Box<dyn Action>, group: &str) {
         self.group.add_action_in_group(action, group);
     }
 
-    // RUGRA-GLUE: registration-factory passthrough to the embedded ActionGroup
+    // RUDRA-GLUE: registration-factory passthrough to the embedded ActionGroup
     pub fn add_action_factory_in_group<F>(&mut self, group: &str, factory: F)
     where
         F: Fn() -> Box<dyn Action> + Send + Sync + 'static,
@@ -1179,22 +1179,22 @@ impl ActionRestartGroup {
         self.group.add_action_factory_in_group(group, factory);
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn num_actions(&self) -> usize {
         self.group.num_actions()
     }
 
-    // RUGRA-GLUE: registration-site basegroup view passthrough (Ghidra Action::getGroup, action.hh:109)
+    // RUDRA-GLUE: registration-site basegroup view passthrough (Ghidra Action::getGroup, action.hh:109)
     pub fn child_group(&self, index: usize) -> &str {
         self.group.child_group(index)
     }
 
-    // RUGRA-GLUE: read-only ordered fixture view through to the embedded ActionGroup's children (Ghidra ActionRestartGroup inherits ActionGroup::list)
+    // RUDRA-GLUE: read-only ordered fixture view through to the embedded ActionGroup's children (Ghidra ActionRestartGroup inherits ActionGroup::list)
     pub fn child_names(&self) -> Vec<&str> {
         self.group.child_names()
     }
 
-    // RUGRA-GLUE: fixture executor view — drives child `index` of the embedded group exactly as ActionRestartGroup::apply would
+    // RUDRA-GLUE: fixture executor view — drives child `index` of the embedded group exactly as ActionRestartGroup::apply would
     pub fn perform_child(
         &mut self,
         index: usize,
@@ -1202,12 +1202,12 @@ impl ActionRestartGroup {
         self.group.perform_child(index, fd)
     }
 
-    // RUGRA-GLUE: read-only fixture/debug view of a child Action's externalized executor state
+    // RUDRA-GLUE: read-only fixture/debug view of a child Action's externalized executor state
     pub fn child_state(&self, index: usize) -> Option<&ActionState> {
         self.group.child_state(index)
     }
 
-    // RUGRA-GLUE: mutable fixture projection passthrough for inherited per-child Action fields
+    // RUDRA-GLUE: mutable fixture projection passthrough for inherited per-child Action fields
     pub fn child_state_mut(&mut self, index: usize) -> Option<&mut ActionState> {
         self.group.child_state_mut(index)
     }
@@ -1221,7 +1221,7 @@ impl ActionRestartGroup {
             curstart: 0,
             flags: self.flags,
             pending_count: 0,
-            // RUGRA-GLUE: the restart-flow callback is driver state, not
+            // RUDRA-GLUE: the restart-flow callback is driver state, not
             // tree state — the oracle's clone builds a fresh object and the
             // Architecture reaches its loader through Funcdata::getArch();
             // the driver installs the callback on the derived root it will
@@ -1230,7 +1230,7 @@ impl ActionRestartGroup {
         })
     }
 
-    // RUGRA-GLUE: driver-side installation point for the restart-cycle flow
+    // RUDRA-GLUE: driver-side installation point for the restart-cycle flow
     // regeneration callback (see the `restart_flow` field and
     // [`RestartFlowCallback`]). Install on the derived root that will
     // actually run — the production driver's "decompile" clone — before
@@ -1239,7 +1239,7 @@ impl ActionRestartGroup {
         self.restart_flow = Some(callback);
     }
 
-    // RUGRA-GLUE: fixture-only observation accessor (the locked C++ fixture reads the protected curstart field via its private/protected access hack)
+    // RUDRA-GLUE: fixture-only observation accessor (the locked C++ fixture reads the protected curstart field via its private/protected access hack)
     #[doc(hidden)]
     pub fn fixture_curstart(&self) -> i32 {
         self.curstart
@@ -1370,16 +1370,16 @@ impl Action for ActionRestartGroup {
         self.apply_restart(fd, None)
     }
 
-    // RUGRA-GLUE: forwards the externalized inherited Action base state into the embedded group (Ghidra's ActionRestartGroup inherits ActionGroup::apply's child-boundary checkActionBreak, action.cc:517)
+    // RUDRA-GLUE: forwards the externalized inherited Action base state into the embedded group (Ghidra's ActionRestartGroup inherits ActionGroup::apply's child-boundary checkActionBreak, action.cc:517)
     fn apply_with_state(&mut self, fd: &mut Funcdata, state: &mut ActionState) -> Result<i32> {
         self.apply_restart(fd, Some(state))
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     fn get_name(&self) -> &str {
         &self.name
     }
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     fn get_flags(&self) -> u32 {
         self.flags
     }
@@ -1388,19 +1388,19 @@ impl Action for ActionRestartGroup {
         self.clone_restart_group(grouplist)
             .map(|group| Box::new(group) as Box<dyn Action>)
     }
-    // RUGRA-GLUE: shares the external restart-group executor status with its embedded Rust ActionGroup
+    // RUDRA-GLUE: shares the external restart-group executor status with its embedded Rust ActionGroup
     fn prepare_apply(&mut self, status: u32) {
         self.group.prepare_apply(status);
     }
-    // RUGRA-GLUE: fixture-only nested tree view (see Action::as_action_group)
+    // RUDRA-GLUE: fixture-only nested tree view (see Action::as_action_group)
     fn as_action_group(&self) -> Option<&ActionGroup> { Some(&self.group) }
-    // RUGRA-GLUE: fixture-only mutable nested tree view for subtree-driving fixtures (Ghidra ActionRestartGroup inherits ActionGroup::list)
+    // RUDRA-GLUE: fixture-only mutable nested tree view for subtree-driving fixtures (Ghidra ActionRestartGroup inherits ActionGroup::list)
     fn as_action_group_mut(&mut self) -> Option<&mut ActionGroup> { Some(&mut self.group) }
-    // RUGRA-GLUE: mutable restart-group view for the driver's restart-flow callback installation (see Action::as_restart_group_mut)
+    // RUDRA-GLUE: mutable restart-group view for the driver's restart-flow callback installation (see Action::as_restart_group_mut)
     fn as_restart_group_mut(&mut self) -> Option<&mut ActionRestartGroup> { Some(self) }
-    // RUGRA-GLUE: trait-level read-only passthrough of the protected curstart for the stage-projection emitter (see Action::fixture_curstart)
+    // RUDRA-GLUE: trait-level read-only passthrough of the protected curstart for the stage-projection emitter (see Action::fixture_curstart)
     fn fixture_curstart(&self) -> i32 { self.curstart }
-    // RUGRA-GLUE: externalizes Ghidra ActionRestartGroup's inherited `count` member
+    // RUDRA-GLUE: externalizes Ghidra ActionRestartGroup's inherited `count` member
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.pending_count)
     }
@@ -1452,12 +1452,12 @@ pub struct ActionPool {
 }
 
 impl ActionPool {
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn new(name: &str) -> Self {
         Self::with_flags(name, action_flags::RULE_REPEATAPPLY)
     }
 
-    // RUGRA-GLUE: explicit ActionPool constructor flags mirroring ActionPool(uint4,const string&) in action.hh:269
+    // RUDRA-GLUE: explicit ActionPool constructor flags mirroring ActionPool(uint4,const string&) in action.hh:269
     pub fn with_flags(name: &str, flags: u32) -> Self {
         Self {
             name: name.to_string(),
@@ -1476,7 +1476,7 @@ impl ActionPool {
         }
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     /// Register a Rule. Faithful to `ActionPool::addRule` — the rule's
     /// opcodes are indexed for fast per-op dispatch.
     pub fn add_rule(&mut self, rule: Box<dyn Rule>) {
@@ -1484,7 +1484,7 @@ impl ActionPool {
         self.push_rule(rule, &group, None);
     }
 
-    // RUGRA-GLUE: captures the concrete Rust constructor at the Ghidra addRule registration site so Rule::clone remains fresh without editing concrete Rule modules
+    // RUDRA-GLUE: captures the concrete Rust constructor at the Ghidra addRule registration site so Rule::clone remains fresh without editing concrete Rule modules
     pub fn add_rule_factory_in_group<F>(&mut self, group: &str, factory: F)
     where
         F: Fn() -> Box<dyn Rule> + Send + Sync + 'static,
@@ -1533,7 +1533,7 @@ impl ActionPool {
         result
     }
 
-    // RUGRA-GLUE: fixture-only rule registration view (pool purity fixture
+    // RUDRA-GLUE: fixture-only rule registration view (pool purity fixture
     // tests/oracle/pool_purity_1204; the Ghidra fixture reads the same
     // sequence through the public virtual ActionPool::print, action.cc:
     // 753-775, which iterates allrules in registration order). No dispatch
@@ -1543,7 +1543,7 @@ impl ActionPool {
     // Ghidra: action.hh:216 const string &Rule::getGroup(void) const
     pub fn rule_group(&self, index: usize) -> &str { &self.rule_groups[index] }
 
-    // RUGRA-GLUE: ordered fixture projection of ActionPool::perop[opcode], whose list entries are appended by addRule (action.cc:740-751)
+    // RUDRA-GLUE: ordered fixture projection of ActionPool::perop[opcode], whose list entries are appended by addRule (action.cc:740-751)
     pub fn rule_names_for_opcode(&self, opcode: crate::opcodes::OpCode) -> Vec<&str> {
         self.per_op[opcode as i32 as usize]
             .iter()
@@ -1551,18 +1551,18 @@ impl ActionPool {
             .collect()
     }
 
-    // RUGRA-GLUE: read-only view of the externalized Ghidra Rule base fields
+    // RUDRA-GLUE: read-only view of the externalized Ghidra Rule base fields
     pub fn rule_state(&self, index: usize) -> Option<&RuleState> {
         self.rule_states.get(index)
     }
 
-    // RUGRA-GLUE: fixture-only mutable view of the externalized Ghidra Rule base fields (the locked C++ fixture writes the same fields directly under its private/protected access hack)
+    // RUDRA-GLUE: fixture-only mutable view of the externalized Ghidra Rule base fields (the locked C++ fixture writes the same fields directly under its private/protected access hack)
     #[doc(hidden)]
     pub fn rule_state_mut(&mut self, index: usize) -> Option<&mut RuleState> {
         self.rule_states.get_mut(index)
     }
 
-    // RUGRA-GLUE: read-only breakpoint-resume cursor used by the locked fixture
+    // RUDRA-GLUE: read-only breakpoint-resume cursor used by the locked fixture
     pub fn resume_state(&self, fd: &Funcdata) -> (Option<crate::address::SeqNum>, usize) {
         (
             self.op_state
@@ -1637,12 +1637,12 @@ impl ActionPool {
         }
     }
 
-    // RUGRA-GLUE: Rust cursor reconstruction for Ghidra's retained PcodeOpTree::const_iterator
+    // RUDRA-GLUE: Rust cursor reconstruction for Ghidra's retained PcodeOpTree::const_iterator
     fn first_op(fd: &Funcdata) -> Option<crate::arena::OpId> {
         fd.obank.optree.first_id()
     }
 
-    // RUGRA-GLUE: strict-successor reconstruction for Ghidra's op_state++
+    // RUDRA-GLUE: strict-successor reconstruction for Ghidra's op_state++
     // iterator mutation. ACTIONLOOP-RESTART-0001 established the strict-key
     // range successor as the `++` of the oracle's live map iterator.
     // PERF-ARENA-FLIP-0001 (c): the cursor holds the current OpId, so the
@@ -1653,7 +1653,7 @@ impl ActionPool {
         fd.obank.optree.next_id_after(current)
     }
 
-    // RUGRA-GLUE: advances the externalized PcodeOpTree iterator without
+    // RUDRA-GLUE: advances the externalized PcodeOpTree iterator without
     // holding a Rust borrow across Rule mutation. ACTIONLOOP-RESTART-0001:
     // the current element is an OpId (Copy) — the successor search reads
     // only the cell's stored key.
@@ -1888,14 +1888,14 @@ impl Action for ActionPool {
         self.apply_from_status(fd, status_flags::STATUS_START)
     }
 
-    // RUGRA-GLUE: makes ActionPool::apply observe the externalized inherited status for exact breakpoint resume
+    // RUDRA-GLUE: makes ActionPool::apply observe the externalized inherited status for exact breakpoint resume
     fn apply_with_state(&mut self, fd: &mut Funcdata, state: &mut ActionState) -> Result<i32> {
         self.apply_from_status(fd, state.status)
     }
 
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     fn get_name(&self) -> &str { &self.name }
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     fn get_flags(&self) -> u32 { self.flags }
 
     // Ghidra: action.cc:899 Action *ActionPool::clone(const ActionGroupList &grouplist) const
@@ -1904,12 +1904,12 @@ impl Action for ActionPool {
             .map(|pool| Box::new(pool) as Box<dyn Action>)
     }
 
-    // RUGRA-GLUE: fixture-only pool view (see Action::as_action_pool)
+    // RUDRA-GLUE: fixture-only pool view (see Action::as_action_pool)
     fn as_action_pool(&self) -> Option<&ActionPool> { Some(self) }
-    // RUGRA-GLUE: fixture/debug mutable pool view (see Action::as_action_pool_mut)
+    // RUDRA-GLUE: fixture/debug mutable pool view (see Action::as_action_pool_mut)
     fn as_action_pool_mut(&mut self) -> Option<&mut ActionPool> { Some(self) }
 
-    // RUGRA-GLUE: externalizes ActionPool's inherited count while apply preserves Ghidra's zero control-flow return
+    // RUDRA-GLUE: externalizes ActionPool's inherited count while apply preserves Ghidra's zero control-flow return
     fn take_count_delta(&mut self) -> i32 {
         std::mem::take(&mut self.pending_count)
     }
@@ -1922,7 +1922,7 @@ impl Action for ActionPool {
     }
 }
 
-// RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+// RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
 /// Build the oppool1 `ActionPool` mirroring Ghidra's `actprop`
 /// (coreaction.cc:5511-5649). Pool name is "oppool1" exactly as
 /// `new ActionPool(Action::rule_repeatapply,"oppool1")` (:5511).
@@ -2121,7 +2121,7 @@ pub fn build_oppool1() -> ActionPool {
     pool
 }
 
-// RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+// RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
 /// Build the cleanup `ActionPool` mirroring Ghidra's `actcleanup`
 /// (coreaction.cc:5694-5710). Runs AFTER the main simplify pool so that
 /// canonical forms produced by oppool1 (e.g. INT_MULT(x,-1) from
@@ -2185,7 +2185,7 @@ pub struct ActionGroupList {
 }
 
 impl ActionGroupList {
-    // RUGRA-GLUE: static-member constructor (Ghidra fills the same set via ActionDatabase::setGroup's argv, action.cc:1059-1070; addToGroup/removeFromGroup mutate it with runtime strings, action.cc:1090-1109)
+    // RUDRA-GLUE: static-member constructor (Ghidra fills the same set via ActionDatabase::setGroup's argv, action.cc:1059-1070; addToGroup/removeFromGroup mutate it with runtime strings, action.cc:1090-1109)
     pub fn from_members(members: &[&'static str]) -> Self {
         Self {
             groups: members.iter().map(|m| m.to_string()).collect(),
@@ -2197,7 +2197,7 @@ impl ActionGroupList {
         self.groups.contains(nm)
     }
 
-    // RUGRA-GLUE: read-only fixture view of the private set in sorted order (the C++ fixtures read ActionGroupList::list through their private-access hack; std::set<string> and BTreeSet<String> iterate in the same lexicographic order)
+    // RUDRA-GLUE: read-only fixture view of the private set in sorted order (the C++ fixtures read ActionGroupList::list through their private-access hack; std::set<string> and BTreeSet<String> iterate in the same lexicographic order)
     pub fn member_names(&self) -> Vec<&str> {
         self.groups.iter().map(|s| s.as_str()).collect()
     }
@@ -2264,7 +2264,7 @@ pub struct ActionDatabase {
     /// Ghidra `isDefaultGroups` (action.hh:303).
     is_default_groups: bool,
 }
-// RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+// RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
 /// Build the oppool2 `ActionPool` mirroring Ghidra's `actprop2`
 /// (coreaction.cc:5662-5671). These are type-recovery / stack-variable Rules
 /// that run after oppool1 within the main loop.
@@ -2308,7 +2308,7 @@ impl ActionDatabase {
         }
     }
 
-    // RUGRA-GLUE: legacy pub registration under the Action's own name (Ghidra registers roots by explicit key only)
+    // RUDRA-GLUE: legacy pub registration under the Action's own name (Ghidra registers roots by explicit key only)
     pub fn register_action(&mut self, action: Box<dyn Action>) {
         let nm = action.get_name().to_string();
         self.register_action_named(&nm, Some(action));
@@ -2319,25 +2319,25 @@ impl ActionDatabase {
         self.actionmap.iter().position(|(key, _)| key == nm)
     }
 
-    // RUGRA-GLUE: pub lookup mirroring Ghidra getAction's throw as None
+    // RUDRA-GLUE: pub lookup mirroring Ghidra getAction's throw as None
     pub fn get_action(&self, name: &str) -> Option<&dyn Action> {
         self.action_index(name)
             .and_then(|idx| self.actionmap[idx].1.as_deref())
     }
 
-    // RUGRA-GLUE: pub mutable lookup mirroring Ghidra getAction's throw as None
+    // RUDRA-GLUE: pub mutable lookup mirroring Ghidra getAction's throw as None
     pub fn get_action_mut(&mut self, name: &str) -> Option<&mut (dyn Action + '_)> {
         let idx = self.action_index(name)?;
         let action = self.actionmap[idx].1.as_mut()?;
         Some(action.as_mut())
     }
 
-    // RUGRA-GLUE: distinguishes Ghidra actionmap's cached null clone from an absent map key for fixtures and callers avoiding getCurrent on null
+    // RUDRA-GLUE: distinguishes Ghidra actionmap's cached null clone from an absent map key for fixtures and callers avoiding getCurrent on null
     pub fn has_action_entry(&self, name: &str) -> bool {
         self.action_index(name).is_some()
     }
 
-    // RUGRA-GLUE: read-only fixture view of the registry size (the C++ fixtures read actionmap.size() through their private-access hack)
+    // RUDRA-GLUE: read-only fixture view of the registry size (the C++ fixtures read actionmap.size() through their private-access hack)
     pub fn actionmap_size(&self) -> usize {
         self.actionmap.len()
     }
@@ -2469,7 +2469,7 @@ impl ActionDatabase {
         curgrp.groups.remove(basegrp)
     }
 
-    // RUGRA-GLUE: get-or-insert view of Ghidra map<string,ActionGroupList>::operator[] (action.cc:1094/1107); kept private like the raw index it stands in for
+    // RUDRA-GLUE: get-or-insert view of Ghidra map<string,ActionGroupList>::operator[] (action.cc:1094/1107); kept private like the raw index it stands in for
     fn groupmap_entry(&mut self, grp: &str) -> &mut ActionGroupList {
         if let Some(idx) = self.groupmap.iter().position(|(key, _)| key == grp) {
             &mut self.groupmap[idx].1
@@ -2522,7 +2522,7 @@ impl ActionDatabase {
         }
     }
 
-    // RUGRA-GLUE: Rust ownership adapter for Ghidra's Architecture current Action pointer followed by Action::reset and Action::perform
+    // RUDRA-GLUE: Rust ownership adapter for Ghidra's Architecture current Action pointer followed by Action::reset and Action::perform
     /// Reset and perform one registered root action.
     pub fn perform_action(
         &mut self,
@@ -2541,7 +2541,7 @@ impl ActionDatabase {
         action.perform(fd, &mut state).map(Some)
     }
 
-    // RUGRA-GLUE: driver-side installation of the restart-cycle flow
+    // RUDRA-GLUE: driver-side installation of the restart-cycle flow
     // regeneration callback (PIPE-RESTART-0001) on a registered root —
     // the production driver's derived "decompile" clone. Ghidra's restart
     // cycle reaches the Architecture-owned loader through
@@ -2567,7 +2567,7 @@ impl ActionDatabase {
         }
     }
 
-    // RUGRA-GLUE: mirrors the production driver (ghidra_process.cc:310 allacts.getCurrent()->perform(fd)); the former name is kept for the legacy callers
+    // RUDRA-GLUE: mirrors the production driver (ghidra_process.cc:310 allacts.getCurrent()->perform(fd)); the former name is kept for the legacy callers
     /// Perform the current root Action (after a per-root reset) on the
     /// given function data.
     pub fn apply_all(&mut self, fd: &mut crate::funcdata::Funcdata) -> crate::error::Result<i32> {
@@ -2582,7 +2582,7 @@ impl ActionDatabase {
         action.perform(fd, &mut state)
     }
 
-    // RUGRA-GLUE: production entry mirroring Architecture::buildAction (architecture.cc:582-591: allacts.universalAction(this); allacts.resetDefaults();)
+    // RUDRA-GLUE: production entry mirroring Architecture::buildAction (architecture.cc:582-591: allacts.universalAction(this); allacts.resetDefaults();)
     /// Set up the default decompiler actions: build the raw universal tree,
     /// then derive the default "decompile" root through `resetDefaults`.
     pub fn set_default_actions(&mut self) {
@@ -2603,7 +2603,7 @@ impl ActionDatabase {
 /// Rule-level filtering is performed by each ActionPool clone from the exact
 /// group and constructor retained at its locked registration slot.
 pub fn universal_action(grouplist: Option<&ActionGroupList>) -> Option<ActionRestartGroup> {
-    // RUGRA-GLUE: retain the concrete constructor and basegroup at each
+    // RUDRA-GLUE: retain the concrete constructor and basegroup at each
     // addAction slot; selective construction happens only through clone.
     macro_rules! add {
         ($parent:expr, $group:expr, $action:expr) => {
@@ -2873,7 +2873,7 @@ pub fn universal_action(grouplist: Option<&ActionGroupList>) -> Option<ActionRes
     Some(universal)
 }
 
-// RUGRA-GLUE: derived default root — mirrors ActionDatabase::resetDefaults + setCurrent("decompile") for callers that only need the tree
+// RUDRA-GLUE: derived default root — mirrors ActionDatabase::resetDefaults + setCurrent("decompile") for callers that only need the tree
 /// Build the derived default "decompile" pipeline root (the tree that
 /// `ActionDatabase::set_default_actions` registers as the current root).
 pub fn build_default_pipeline() -> ActionRestartGroup {
@@ -2889,17 +2889,17 @@ pub fn build_default_pipeline() -> ActionRestartGroup {
 pub struct ActionTypePropagate;
 
 impl ActionTypePropagate {
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     pub fn new() -> Self { Self }
 }
 
 impl Action for ActionTypePropagate {
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         crate::analysis::type_infer::propagate_types(fd);
         Ok(0)
     }
-    // RUGRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
+    // RUDRA-GLUE: src/action.rs helper (no direct Ghidra counterpart)
     fn get_name(&self) -> &str { "typepropagate" }
 }
 

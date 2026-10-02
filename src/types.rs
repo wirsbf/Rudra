@@ -15,30 +15,30 @@ pub struct Address(u64);
 
 impl Address {
     /// Create a new address
-    // RUGRA-GLUE: Legacy scalar compatibility type; Ghidra Address stores both an AddrSpace pointer and an offset.
+    // RUDRA-GLUE: Legacy scalar compatibility type; Ghidra Address stores both an AddrSpace pointer and an offset.
     pub const fn new(addr: u64) -> Self {
         Address(addr)
     }
 
     /// Get the raw address value
-    // RUGRA-GLUE: Accessor for the legacy scalar compatibility type, which has no separate Ghidra counterpart.
+    // RUDRA-GLUE: Accessor for the legacy scalar compatibility type, which has no separate Ghidra counterpart.
     pub const fn as_u64(&self) -> u64 {
         self.0
     }
 
-    // RUGRA-GLUE: offset (no Ghidra counterpart found)
+    // RUDRA-GLUE: offset (no Ghidra counterpart found)
     /// Add an offset to the address
     pub fn offset(&self, offset: i64) -> Self {
         Address((self.0 as i64 + offset) as u64)
     }
 
-    // RUGRA-GLUE: is_null (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_null (no Ghidra counterpart found)
     /// Check if address is null (0x0)
     pub fn is_null(&self) -> bool {
         self.0 == 0
     }
 
-    // RUGRA-GLUE: is_aligned (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_aligned (no Ghidra counterpart found)
     /// Check if address is aligned to the given boundary
     pub fn is_aligned(&self, alignment: u64) -> bool {
         self.0 % alignment == 0
@@ -46,35 +46,35 @@ impl Address {
 }
 
 impl fmt::Display for Address {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{:x}", self.0)
     }
 }
 
 impl fmt::LowerHex for Address {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:x}", self.0)
     }
 }
 
 impl fmt::UpperHex for Address {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:X}", self.0)
     }
 }
 
 impl From<u64> for Address {
-    // RUGRA-GLUE: from (no Ghidra counterpart found)
+    // RUDRA-GLUE: from (no Ghidra counterpart found)
     fn from(addr: u64) -> Self {
         Address(addr)
     }
 }
 
 impl From<Address> for u64 {
-    // RUGRA-GLUE: from (no Ghidra counterpart found)
+    // RUDRA-GLUE: from (no Ghidra counterpart found)
     fn from(addr: Address) -> Self {
         addr.0
     }
@@ -107,7 +107,7 @@ pub enum Architecture {
 
 impl Architecture {
     /// Get the pointer size in bytes for this architecture
-    // RUGRA-GLUE: Hard-coded target-enum metadata; Ghidra derives pointer size from configured spaces and type data.
+    // RUDRA-GLUE: Hard-coded target-enum metadata; Ghidra derives pointer size from configured spaces and type data.
     pub const fn pointer_size(&self) -> usize {
         match self {
             Architecture::X86 => 4,
@@ -124,19 +124,19 @@ impl Architecture {
     }
 
     /// Get the pointer size in bits for this architecture
-    // RUGRA-GLUE: Rust convenience conversion over pointer_size; Ghidra has no equivalent target-enum helper.
+    // RUDRA-GLUE: Rust convenience conversion over pointer_size; Ghidra has no equivalent target-enum helper.
     pub const fn pointer_bits(&self) -> usize {
         self.pointer_size() * 8
     }
 
     /// Check if this is a 64-bit architecture
-    // RUGRA-GLUE: Predicate over a compatibility enum; Ghidra Architecture is a configured subsystem manager.
+    // RUDRA-GLUE: Predicate over a compatibility enum; Ghidra Architecture is a configured subsystem manager.
     pub const fn is_64bit(&self) -> bool {
         self.pointer_size() == 8
     }
 
     /// Get the register count (approximate)
-    // RUGRA-GLUE: Approximate metadata; Ghidra obtains its register inventory from the active Translate/specification.
+    // RUDRA-GLUE: Approximate metadata; Ghidra obtains its register inventory from the active Translate/specification.
     pub const fn register_count(&self) -> usize {
         match self {
             Architecture::X86 => 8,
@@ -150,7 +150,7 @@ impl Architecture {
     }
 
     /// Get architecture name as string
-    // RUGRA-GLUE: Compatibility-enum label; Ghidra uses configured architecture and language identifiers.
+    // RUDRA-GLUE: Compatibility-enum label; Ghidra uses configured architecture and language identifiers.
     pub const fn name(&self) -> &'static str {
         match self {
             Architecture::X86 => "x86",
@@ -217,7 +217,7 @@ pub enum TypeKind {
 
 impl TypeKind {
     /// Get the size in bytes of this type (if fixed-size)
-    // RUGRA-GLUE: Coarse enum metadata; Ghidra Datatype stores size per instance instead of using this fixed table.
+    // RUDRA-GLUE: Coarse enum metadata; Ghidra Datatype stores size per instance instead of using this fixed table.
     pub const fn size_bytes(&self) -> Option<usize> {
         match self {
             TypeKind::Void => Some(0),
@@ -233,7 +233,7 @@ impl TypeKind {
     }
 
     /// Check if this is an integer type
-    // RUGRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra classifies per-instance Datatype metatypes.
+    // RUDRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra classifies per-instance Datatype metatypes.
     pub const fn is_integer(&self) -> bool {
         matches!(
             self,
@@ -249,7 +249,7 @@ impl TypeKind {
     }
 
     /// Check if this is a signed integer type
-    // RUGRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra represents signedness through Datatype metatypes.
+    // RUDRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra represents signedness through Datatype metatypes.
     pub const fn is_signed(&self) -> bool {
         matches!(
             self,
@@ -258,20 +258,20 @@ impl TypeKind {
     }
 
     /// Check if this is a floating point type
-    // RUGRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra tests a Datatype's stored metatype.
+    // RUDRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra tests a Datatype's stored metatype.
     pub const fn is_float(&self) -> bool {
         matches!(self, TypeKind::Float32 | TypeKind::Float64)
     }
 
     /// Check if this is a pointer type
-    // RUGRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra uses Datatype subclasses and stored metatypes.
+    // RUDRA-GLUE: Predicate over Rugra's coarse TypeKind enum; Ghidra uses Datatype subclasses and stored metatypes.
     pub const fn is_pointer(&self) -> bool {
         matches!(self, TypeKind::Pointer)
     }
 }
 
 impl fmt::Display for TypeKind {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
             TypeKind::Void => "void",
@@ -317,7 +317,7 @@ pub enum CallingConvention {
 }
 
 impl fmt::Display for CallingConvention {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
             CallingConvention::C => "cdecl",
@@ -343,7 +343,7 @@ pub enum Endianness {
 
 impl Endianness {
     /// Get the native endianness of the current system
-    // RUGRA-GLUE: Rust target_cfg wrapper; Ghidra exposes host endianness through HOST_ENDIAN, not a function.
+    // RUDRA-GLUE: Rust target_cfg wrapper; Ghidra exposes host endianness through HOST_ENDIAN, not a function.
     pub const fn native() -> Self {
         #[cfg(target_endian = "little")]
         return Endianness::Little;
@@ -353,7 +353,7 @@ impl Endianness {
 }
 
 impl fmt::Display for Endianness {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Endianness::Little => write!(f, "little"),
@@ -465,7 +465,7 @@ pub enum DataType {
 }
 
 impl DataType {
-    // RUGRA-GLUE: size (no Ghidra counterpart found)
+    // RUDRA-GLUE: size (no Ghidra counterpart found)
     /// Get the size of the type in bytes
     pub fn size(&self) -> usize {
         match self {
@@ -480,25 +480,25 @@ impl DataType {
         }
     }
 
-    // RUGRA-GLUE: is_unknown (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_unknown (no Ghidra counterpart found)
     /// Check if this is an unknown type
     pub fn is_unknown(&self) -> bool {
         matches!(self, DataType::Unknown(_))
     }
 
-    // RUGRA-GLUE: is_pointer (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_pointer (no Ghidra counterpart found)
     /// Check if this is a pointer type
     pub fn is_pointer(&self) -> bool {
         matches!(self, DataType::Pointer(_, _))
     }
 
-    // RUGRA-GLUE: is_integer (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_integer (no Ghidra counterpart found)
     /// Check if this is an integer type
     pub fn is_integer(&self) -> bool {
         matches!(self, DataType::Int(_, _))
     }
 
-    // RUGRA-GLUE: meet (no Ghidra counterpart found)
+    // RUDRA-GLUE: meet (no Ghidra counterpart found)
     /// The "meet" operation in the type lattice.
     /// Combines two types into their greatest lower bound.
     pub fn meet(&self, other: &DataType) -> DataType {
@@ -558,7 +558,7 @@ pub struct FieldDef {
 }
 
 impl StructDef {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Create a new empty struct definition
     pub fn new(name: String) -> Self {
         StructDef {
@@ -567,7 +567,7 @@ impl StructDef {
         }
     }
 
-    // RUGRA-GLUE: add_field (no Ghidra counterpart found)
+    // RUDRA-GLUE: add_field (no Ghidra counterpart found)
     /// Add a field to the struct
     pub fn add_field(&mut self, name: String, data_type: DataType, offset: usize) {
         self.fields.push(FieldDef { name, data_type, offset });
@@ -575,7 +575,7 @@ impl StructDef {
         self.fields.sort_by_key(|f| f.offset);
     }
 
-    // RUGRA-GLUE: size (no Ghidra counterpart found)
+    // RUDRA-GLUE: size (no Ghidra counterpart found)
     /// Get the total size of the struct
     pub fn size(&self) -> usize {
         self.fields.iter()
@@ -585,7 +585,7 @@ impl StructDef {
     }
 }
 
-// RUGRA-GLUE: parse_type_string (no Ghidra counterpart found)
+// RUDRA-GLUE: parse_type_string (no Ghidra counterpart found)
 /// Parse a C-style type string into a DataType
 pub fn parse_type_string(s: &str, size: usize) -> DataType {
     let s = s.trim();

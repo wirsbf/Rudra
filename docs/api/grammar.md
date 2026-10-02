@@ -156,7 +156,7 @@ Document type requested from the parser (grammar.hh:217): `Declaration`,
   (type.cc:3635-3640) the lenient twin read, so the resolved `Arc` is
   identical.
 - `CParse::newFunc`'s varargs trailer is encoded as a sentinel declarator with
-  `flags == u32::MAX` (Rugra-private; flagged `RUGRA-GLUE`), since Rust cannot
+  `flags == u32::MAX` (Rugra-private; flagged `RUDRA-GLUE`), since Rust cannot
   store a `null` slot in `Vec<TypeDeclarator>`.
 
 ## L3 gaps

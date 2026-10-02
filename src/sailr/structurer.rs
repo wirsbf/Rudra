@@ -1,6 +1,6 @@
 //! SAILR enhancement layer — the pattern-based structurer.
 //!
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr/analyses/decompiler/structuring/{phoenix,sailr,recursive_structurer}.py / kuna p8_structure region_structurer.rs)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr/analyses/decompiler/structuring/{phoenix,sailr,recursive_structurer}.py / kuna p8_structure region_structurer.rs)
 //!
 //! Port of the SAILR/Phoenix schema family onto a self-contained working
 //! graph: the compiler-degradation pattern matchers that recover source-level
@@ -53,7 +53,7 @@ use crate::sailr::graph::{
 /// structurally a `While` whose body ends in the induction update; the
 /// `init`/`iterate` hooks on [`StructuredNode::WhileDo`] are the Phase 2
 /// dataflow seam that upgrades the classification.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr StructuredLoopNode sort + Ghidra BlockWhileDo initialize/iterate ops)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr StructuredLoopNode sort + Ghidra BlockWhileDo initialize/iterate ops)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoopKind {
     While,
@@ -62,7 +62,7 @@ pub enum LoopKind {
 }
 
 /// Kind of a recovered unstructured jump.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr BreakNode/ContinueNode/Goto / Ghidra f_break_goto,f_continue_goto,f_goto_goto)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr BreakNode/ContinueNode/Goto / Ghidra f_break_goto,f_continue_goto,f_goto_goto)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GotoKind {
     Plain,
@@ -74,7 +74,7 @@ pub enum GotoKind {
 /// terminal condition (by address + external payload); `invert` is the
 /// accumulated negation parity.  `And`/`Or` compose per
 /// `BlockGraph::newBlockCondition`.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1780 newBlockCondition opcode choice / angr condition-processor edge conditions)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1780 newBlockCondition opcode choice / angr condition-processor edge conditions)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CondExpr {
     /// A single block's terminal condition (`invert` = printed `!`).
@@ -84,7 +84,7 @@ pub enum CondExpr {
 }
 
 /// Leaf of a [`CondExpr`].
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra PcodeOp boolean_flip deferred flip / kuna pending_flips)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra PcodeOp boolean_flip deferred flip / kuna pending_flips)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CondLeaf {
     /// Address of the block whose terminal branch provides the condition.
@@ -96,7 +96,7 @@ pub struct CondLeaf {
 }
 
 impl CondExpr {
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:3023 BlockCondition::negateCondition (De Morgan distribution + opcode flip))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:3023 BlockCondition::negateCondition (De Morgan distribution + opcode flip))
     /// Negate in place: flip the operator (And <-> Or) and distribute the
     /// NOT to both sides (each leaf flips its parity).
     pub fn negate(&mut self) {
@@ -110,7 +110,7 @@ impl CondExpr {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: helper mirroring the recursive distribution without re-flipping inner operators)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: helper mirroring the recursive distribution without re-flipping inner operators)
     /// Flip every leaf parity below this node (no operator flips).
     fn negate_leafwise(&mut self) {
         match self {
@@ -122,7 +122,7 @@ impl CondExpr {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:3029 opc = (opc==BOOL_AND) ? BOOL_OR : BOOL_AND)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:3029 opc = (opc==BOOL_AND) ? BOOL_OR : BOOL_AND)
     /// Flip the top-level operator (And <-> Or) without touching operands.
     fn swap_op(cond: &mut CondExpr) {
         let old = std::mem::replace(
@@ -138,7 +138,7 @@ impl CondExpr {
 }
 
 /// One switch case: target address, default flag, and the folded case body.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra CaseOrder / angr SwitchCase)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra CaseOrder / angr SwitchCase)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwitchCase {
     pub target_addr: u64,
@@ -150,7 +150,7 @@ pub struct SwitchCase {
 /// corresponding `block.rs` block kind.  Condition-bearing nodes reference
 /// the branching block by address/external payload in their [`CondExpr`]
 /// leaves (statement recovery by reference is the print-side seam).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr StructuredNode hierarchy / Ghidra block.hh BlockType family)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr StructuredNode hierarchy / Ghidra block.hh BlockType family)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuredNode {
     /// A leaf basic block (`addr` + external payload; `invert` = negation
@@ -224,7 +224,7 @@ pub enum StructuredNode {
 }
 
 impl StructuredNode {
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockList::negateCondition recursing to last block)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockList::negateCondition recursing to last block)
     /// Negate the condition this node computes, if it is a condition-bearing
     /// node (Block leaf flips parity; Seq recurses to its last member;
     /// Condition De-Morgans).  Returns whether anything changed.
@@ -254,7 +254,7 @@ impl StructuredNode {
 /// Per-block facts the structurer needs (the Phase 2 adapter precomputes
 /// these over `bblocks`, exactly the way `ActionBlockStructure` precomputes
 /// `is_complex`/`is_switch_out` for `CollapseStructure`).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs compute_switch_maps/compute_complex_blocks precomputation shape)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs compute_switch_maps/compute_complex_blocks precomputation shape)
 #[derive(Debug, Clone, Default)]
 pub struct CfgBlock {
     /// Start address (deterministic ordering key).
@@ -273,7 +273,7 @@ pub struct CfgBlock {
 /// One input CFG edge.  Out-edge order within a block is the input list
 /// order; for a binary branch, the first edge is the FALSE/fall-through edge
 /// and the second is the TRUE edge (Ghidra's out[0]/out[1] convention).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockEdge out0=false/out1=true convention)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockEdge out0=false/out1=true convention)
 #[derive(Debug, Clone)]
 pub struct CfgEdge {
     pub src: usize,
@@ -282,16 +282,16 @@ pub struct CfgEdge {
     pub default_edge: bool,
 }
 
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: CfgEdge with non-default edge default)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: CfgEdge with non-default edge default)
 impl CfgEdge {
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: constructor convenience for non-default edges)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: constructor convenience for non-default edges)
     pub fn new(src: usize, dst: usize) -> CfgEdge {
         CfgEdge { src, dst, default_edge: false }
     }
 }
 
 /// The structurer input: a CFG projection with per-block facts.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs input precomputation over Funcdata)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs input precomputation over Funcdata)
 #[derive(Debug, Clone, Default)]
 pub struct SailrInput {
     pub blocks: Vec<CfgBlock>,
@@ -305,14 +305,14 @@ pub struct SailrInput {
 //
 
 /// Id of a working block in the structurer's arena.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock arena / kuna BlockId)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock arena / kuna BlockId)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SId(pub u32);
 
 /// One out-edge of a working block (the `BlockEdge` analog: destination and
 /// edge flags; the in-edge lists are addressed by source id, so no reverse
 /// index bookkeeping is needed).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.hh BlockEdge {point,label})
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.hh BlockEdge {point,label})
 #[derive(Debug, Clone)]
 struct SOut {
     dst: SId,
@@ -325,7 +325,7 @@ struct SOut {
 }
 
 /// One in-edge of a working block.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockEdge reverse view)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockEdge reverse view)
 #[derive(Debug, Clone)]
 struct SIn {
     src: SId,
@@ -334,7 +334,7 @@ struct SIn {
 }
 
 /// A working block: a live structuring component carrying the folded payload.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock + BlockGraph list / kuna FlowBlock arena)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock + BlockGraph list / kuna FlowBlock arena)
 #[derive(Debug, Clone)]
 struct SBlock {
     addr: u64,
@@ -352,19 +352,19 @@ struct SBlock {
 /// Round cap on structuring rounds: `2*n^2 + 64` (hang-guard turning a
 /// mis-port into a clean failure — every schema application removes at least
 /// one component or edge).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs round_cap)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs round_cap)
 fn round_cap(num_nodes: i32) -> i64 {
     let n = num_nodes as i64;
     2 * n * n + 64
 }
 
 /// SAILR H2 post-dominator caps (angr `SAILRStructurer` defaults).
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr sailr.py postdom_max_edges/postdom_max_graph_size)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr sailr.py postdom_max_edges/postdom_max_graph_size)
 const POSTDOM_MAX_EDGES: i32 = 10;
 const POSTDOM_MAX_GRAPH_SIZE: i32 = 50;
 
 /// A candidate edge for virtualization: `src --edge--> dst`.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs Edge)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs Edge)
 #[derive(Debug, Clone)]
 struct VEdge {
     src: SId,
@@ -373,7 +373,7 @@ struct VEdge {
 }
 
 /// Outcome of the loop refinement on one head.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs LoopRefineOutcome)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer.rs LoopRefineOutcome)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LoopRefineOutcome {
     /// At least one secondary edge was virtualized — progress.
@@ -385,7 +385,7 @@ enum LoopRefineOutcome {
 }
 
 /// The SAILR pattern structurer.
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py PhoenixStructurer._analyze + sailr.py SAILRStructurer / kuna RegionStructurer)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py PhoenixStructurer._analyze + sailr.py SAILRStructurer / kuna RegionStructurer)
 pub struct Structurer {
     arena: Vec<SBlock>,
     /// Live top-level components, in list order (Ghidra's BlockGraph list).
@@ -402,7 +402,7 @@ pub struct Structurer {
 }
 
 impl Structurer {
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna RegionStructurer::new + seeding)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna RegionStructurer::new + seeding)
     /// Seed the working graph from the input projection: one leaf block per
     /// input block (edges in input order, out[0]=false/out[1]=true), back
     /// edges marked by a deterministic DFS from the entry.
@@ -461,7 +461,7 @@ impl Structurer {
         Ok(st)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra structure_loops back-edge marking / angr loop_heads)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra structure_loops back-edge marking / angr loop_heads)
     /// Mark back edges with a deterministic DFS from the entry (children
     /// visited in destination-address order).
     fn mark_back_edges(&mut self) {
@@ -497,7 +497,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra f_back_edge flag on both BlockEdge ends)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra f_back_edge flag on both BlockEdge ends)
     /// Flag every `src -> dst` edge (both ends) as a back edge.
     fn mark_edge_back(&mut self, src: SId, dst: SId) {
         for o in self.arena[src.0 as usize].succs.iter_mut() {
@@ -512,7 +512,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: region-graph get_sorted_succs ordering)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: region-graph get_sorted_succs ordering)
     /// Successor ids of a block in destination-address order.
     fn sorted_succ_ids(&self, n: SId) -> Vec<SId> {
         let mut v: Vec<SId> = self.arena[n.0 as usize].succs.iter().map(|o| o.dst).collect();
@@ -520,7 +520,7 @@ impl Structurer {
         v
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna with_loop_refine + RegionIdentifier::cyclic_loops)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna with_loop_refine + RegionIdentifier::cyclic_loops)
     /// Attach the region identifier's cyclic-loop projection (RI-grounded
     /// loop-body/exit refinement input; optional).
     pub fn with_cyclic_loops(
@@ -535,84 +535,84 @@ impl Structurer {
     // Accessors
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockGraph::getSize)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockGraph::getSize)
     /// Number of live top-level components.
     fn size(&self) -> i32 {
         self.list.len() as i32
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockGraph::getBlock)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra BlockGraph::getBlock)
     /// The i-th live component.
     fn component(&self, i: i32) -> SId {
         self.list[i as usize]
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::sizeOut)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::sizeOut)
     fn size_out(&self, b: SId) -> usize {
         self.arena[b.0 as usize].succs.len()
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::sizeIn)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::sizeIn)
     fn size_in(&self, b: SId) -> usize {
         self.arena[b.0 as usize].preds.len()
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::getOut)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::getOut)
     fn get_out(&self, b: SId, i: usize) -> SId {
         self.arena[b.0 as usize].succs[i].dst
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::getIn)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::getIn)
     fn get_in(&self, b: SId, i: usize) -> SId {
         self.arena[b.0 as usize].preds[i].src
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isGotoOut)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isGotoOut)
     fn is_goto_out(&self, b: SId, i: usize) -> bool {
         self.arena[b.0 as usize].succs[i].goto
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isGotoIn)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isGotoIn)
     fn is_goto_in(&self, b: SId, i: usize) -> bool {
         self.arena[b.0 as usize].preds[i].goto
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isBackEdgeOut)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isBackEdgeOut)
     fn is_back_edge_out(&self, b: SId, i: usize) -> bool {
         self.arena[b.0 as usize].succs[i].back
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isBackEdgeIn)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isBackEdgeIn)
     fn is_back_edge_in(&self, b: SId, i: usize) -> bool {
         self.arena[b.0 as usize].preds[i].back
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isDefaultBranch)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isDefaultBranch)
     fn is_default_branch(&self, b: SId, i: usize) -> bool {
         self.arena[b.0 as usize].succs[i].default_sw
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isSwitchOut)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isSwitchOut)
     fn is_switch_out(&self, b: SId) -> bool {
         self.arena[b.0 as usize].switch
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isInteriorGotoTarget)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::isInteriorGotoTarget)
     fn is_interior_goto_target(&self, b: SId) -> bool {
         self.arena[b.0 as usize].preds.iter().any(|p| p.goto)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::index)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::index)
     fn get_index(&self, b: SId) -> i32 {
         self.arena[b.0 as usize].index
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock front address)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock front address)
     fn addr_of(&self, b: SId) -> u64 {
         self.arena[b.0 as usize].addr
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna is_complex (block.hh:254/549/649 override set))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna is_complex (block.hh:254/549/649 override set))
     /// `FlowBlock::isComplex`: everything is complex except a BlockCopy of
     /// a non-complex BlockBasic and a BlockCondition (which delegates to
     /// its first sub-block).
@@ -638,7 +638,7 @@ impl Structurer {
     // Graph surgery
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:218 FlowBlock::swapEdges)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:218 FlowBlock::swapEdges)
     /// Swap the two out-edges of a binary block (negateCondition topology
     /// half).  In-edge lists are source-addressed, so no reverse-index
     /// repair is needed.
@@ -646,7 +646,7 @@ impl Structurer {
         self.arena[b.0 as usize].succs.swap(0, 1);
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:294 negateCondition family (Basic/List/Condition overrides))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:294 negateCondition family (Basic/List/Condition overrides))
     /// The negateCondition port: payload half (leaf flip / De Morgan /
     /// list-last recursion) + topology swap when `top`.
     fn negate_condition(&mut self, b: SId, top: bool) -> bool {
@@ -657,7 +657,7 @@ impl Structurer {
         changed
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:307 FlowBlock::setGotoBranch)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:307 FlowBlock::setGotoBranch)
     /// Mark an out-edge as an unstructured goto (flags both ends).
     fn set_goto_branch(&mut self, b: SId, i: usize) {
         let dst = self.arena[b.0 as usize].succs[i].dst;
@@ -669,7 +669,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::addEdge)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::addEdge)
     /// Add (or flag-merge) the edge `src -> dst`.
     fn link(&mut self, src: SId, dst: SId, goto: bool, back: bool, dflt: bool) {
         if let Some(oi) = self.arena[src.0 as usize].succs.iter().position(|o| o.dst == dst) {
@@ -691,7 +691,7 @@ impl Structurer {
         self.arena[dst.0 as usize].preds.push(SIn { src, goto, back });
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::removeEdge)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra FlowBlock::removeEdge)
     /// Remove the edge `src -> dst` if present.
     fn unlink(&mut self, src: SId, dst: SId) {
         if let Some(pos) = self.arena[src.0 as usize].succs.iter().position(|o| o.dst == dst) {
@@ -702,7 +702,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:895 BlockGraph::selfIdentify + dedup + :940 identifyInternal + :880 forceOutputNum + :1204 forceFalseEdge)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:895 BlockGraph::selfIdentify + dedup + :940 identifyInternal + :880 forceOutputNum + :1204 forceFalseEdge)
     ///
     /// Collapse `members` into a fresh composite block: the composite
     /// inherits in-edges from outside the set and out-edges to outside the
@@ -789,7 +789,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:880 forceOutputNum (self back-edges) + :1204 forceFalseEdge)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:880 forceOutputNum (self back-edges) + :1204 forceFalseEdge)
     /// Ensure the composite has two out-edges and that out[0] targets
     /// `false_dst`.
     fn force_binary(&mut self, b: SId, false_dst: SId) {
@@ -801,7 +801,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna cond_expr (front-leaf condition resolution through BlockCopy/BlockCondition/BlockList))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna cond_expr (front-leaf condition resolution through BlockCopy/BlockCondition/BlockList))
     /// The condition expression of a condition-bearing working block (Leaf ->
     /// its leaf; Condition -> its cond; Seq -> recurse to the last member).
     fn cond_expr(&self, b: SId) -> Option<CondExpr> {
@@ -827,7 +827,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1780 newBlockCondition)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1780 newBlockCondition)
     /// Fold `bl` + `orblock` into a composite condition node: `Or` iff
     /// `orblock` sits on `bl`'s false out, else `And`; the composite's false
     /// out is `orblock`'s current out[0].
@@ -847,7 +847,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: cond_expr with structural fallback to the block's own leaf)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: cond_expr with structural fallback to the block's own leaf)
     /// A block's condition (its extracted cond, or its own leaf).
     fn leaf_cond_of(&self, b: SId) -> CondExpr {
         self.cond_expr(b).unwrap_or(CondExpr::Leaf(CondLeaf {
@@ -857,7 +857,7 @@ impl Structurer {
         }))
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1825 newBlockIf)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1825 newBlockIf)
     /// Fold `cond + tc` into an if node (single out-edge: the after path).
     fn new_block_if(&mut self, cond: SId, tc: SId) -> SId {
         let c = self.leaf_cond_of(cond);
@@ -874,7 +874,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1843 newBlockIfElse)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1843 newBlockIfElse)
     /// Fold `cond + tc + fc` into an if-else node (single out-edge).
     fn new_block_if_else(&mut self, cond: SId, tc: SId, fc: SId) -> SId {
         let c = self.leaf_cond_of(cond);
@@ -893,7 +893,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra ruleBlockIf/ruleBlockIfElse `gotoEndBlock` (the reconvergence target))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra ruleBlockIf/ruleBlockIfElse `gotoEndBlock` (the reconvergence target))
     /// The reconvergence target of an if/if-else fold: the clause exit.
     fn next_after_if(&self, cond: SId, tc: SId) -> Option<SId> {
         if self.size_out(tc) == 1 && self.get_out(tc, 0) != cond {
@@ -903,7 +903,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockGoto forceOutputNum(0) + newBlockIf forceOutputNum(1) semantics)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockGoto forceOutputNum(0) + newBlockIf forceOutputNum(1) semantics)
     /// Reduce the composite to the retained out-edge — a plain goto block is
     /// TERMINAL (no out edges survive the wrap: the goto lives in the
     /// payload, and a residual flagged edge would re-trigger the wrap
@@ -942,7 +942,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1861 newBlockWhileDo)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1861 newBlockWhileDo)
     /// Fold `cond + cl` into a while-do loop node (single out-edge: the loop
     /// exit).
     fn new_block_while_do(&mut self, cond: SId, cl: SId, exit_addrs: BTreeSet<u64>) -> SId {
@@ -965,7 +965,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockWhileDo forceOutputNum(1) (loop exit is the single out))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockWhileDo forceOutputNum(1) (loop exit is the single out))
     /// The loop composite's exit target: the out-edge that is not a self or
     /// back edge into the folded loop.
     fn loop_exit_target(&self, id: SId) -> Option<SId> {
@@ -974,7 +974,7 @@ impl Structurer {
             .find(|&d| d != id)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1877 newBlockDoWhile (cond block carries body + trailing test))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.cc:1877 newBlockDoWhile (cond block carries body + trailing test))
     /// Fold the self-testing `cond` block into a do-while loop node; the
     /// block's payload becomes the loop body (its trailing test is the cond).
     fn new_block_do_while(&mut self, cond: SId, exit_addrs: BTreeSet<u64>) -> SId {
@@ -993,7 +993,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockInfLoop)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockInfLoop)
     /// Fold the self-looping `body` block into an inf-loop node.
     fn new_block_inf_loop(&mut self, body: SId, head_addr: u64, exit_addrs: BTreeSet<u64>) -> SId {
         let body_payload = self.take_payload(body);
@@ -1008,7 +1008,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockList / ruleBlockCat)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockList / ruleBlockCat)
     /// Fold a chain of blocks into a sequence node.
     fn new_block_list(&mut self, nodes: &[SId]) -> SId {
         let payloads: Vec<StructuredNode> = nodes.iter().map(|&n| self.take_payload(n)).collect();
@@ -1017,7 +1017,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockSwitch / ruleBlockSwitch + CaseOrder)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockSwitch / ruleBlockSwitch + CaseOrder)
     /// Fold a switch head + its case bodies into a switch node.  The
     /// composite keeps any non-case out-edges (the exit / continue back
     /// edges).
@@ -1052,7 +1052,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockGoto / newBlockIfGoto / newBlockMultiGoto)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra newBlockGoto / newBlockIfGoto / newBlockMultiGoto)
     /// Wrap `bl`'s goto out-edge into a goto node: a plain trailing goto for
     /// single-out blocks, an if-goto for binary blocks (true edge is the
     /// goto, false edge is kept as the structural exit).
@@ -1096,7 +1096,7 @@ impl Structurer {
         id
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: cond_expr Seq-last resolution mirrored on a detached payload)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: cond_expr Seq-last resolution mirrored on a detached payload)
     /// The cond of the last condition-bearing member of a detached Seq
     /// payload.
     fn seq_last_cond(&self, payload: &StructuredNode) -> CondExpr {
@@ -1118,7 +1118,7 @@ impl Structurer {
         CondExpr::Leaf(CondLeaf { addr: 0, external: None, invert: false })
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: mem::replace helper for payload handoff into composites)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: mem::replace helper for payload handoff into composites)
     /// Take a block's payload (replacing it with a placeholder) so a fold can
     /// move it into the composite.
     fn take_payload(&mut self, b: SId) -> StructuredNode {
@@ -1132,7 +1132,7 @@ impl Structurer {
     // Driver
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py _analyze / kuna RegionStructurer::structure)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py _analyze / kuna RegionStructurer::structure)
     ///
     /// Drive the schema cascade to a single root.  Returns `Some(root)` on
     /// success, `None` if the graph could not be collapsed (the caller falls
@@ -1196,7 +1196,7 @@ impl Structurer {
         Ok(None)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra multi-top-level goto graph form / angr goto-target termination)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra multi-top-level goto graph form / angr goto-target termination)
     ///
     /// Is every live component other than the entry a goto-target island
     /// (no structural in-edge from the live set)?  Such residuals are exactly
@@ -1219,7 +1219,7 @@ impl Structurer {
     // (a1) short-circuit conditions — the &&/|| diamond fold
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:2770 _match_acyclic_short_circuit_conditions / Ghidra blockaction.cc:1321 ruleBlockOr / kuna match_acyclic_short_circuit_conditions)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:2770 _match_acyclic_short_circuit_conditions / Ghidra blockaction.cc:1321 ruleBlockOr / kuna match_acyclic_short_circuit_conditions)
     /// Fold cascading short-circuit conditions into a single composite
     /// condition node (`&&`/`||` diamonds the compiler lowers to branch
     /// pairs).
@@ -1234,7 +1234,7 @@ impl Structurer {
         Ok(false)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc:1321-1372 ruleBlockOr (verbatim structural guards))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc:1321-1372 ruleBlockOr (verbatim structural guards))
     ///
     /// The fold: `bl` and its successor `orblock` are both binary
     /// conditions; `orblock` is single-in, non-complex (a bare branch), and
@@ -1314,7 +1314,7 @@ impl Structurer {
     // (a0) switch-case recovery
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:1433 _match_acyclic_switch_cases + :2014 _address_computed / Ghidra blockaction.cc:1649 ruleBlockSwitch / kuna match_acyclic_switch_cases)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:1433 _match_acyclic_switch_cases + :2014 _address_computed / Ghidra blockaction.cc:1649 ruleBlockSwitch / kuna match_acyclic_switch_cases)
     /// Find a structured switch region and fold it into a switch node.
     fn match_switch_cases(&mut self) -> Result<bool> {
         let any_switch = self.list.iter().any(|&s| self.is_switch_out(s));
@@ -1331,7 +1331,7 @@ impl Structurer {
         Ok(false)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc:1649 ruleBlockSwitch (case/exit topology) + :1607 checkSwitchSkips + kuna is_continue_case)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc:1649 ruleBlockSwitch (case/exit topology) + :1607 checkSwitchSkips + kuna is_continue_case)
     ///
     /// The fold: a switch head whose cases each have a single in-edge from
     /// the head and at most one out-edge to a common exit block.  A case
@@ -1457,7 +1457,7 @@ impl Structurer {
         Ok(true)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc:1607 checkSwitchSkips)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc:1607 checkSwitchSkips)
     /// Convert any non-default switch edge that skips straight to the exit
     /// into a goto.  Returns `false` (and marks the gotos) when such skip
     /// edges exist alongside a default that does not go to the exit — the
@@ -1499,7 +1499,7 @@ impl Structurer {
     // (a) sequence chains
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:2562 _match_acyclic_sequence / Ghidra ruleBlockCat / kuna match_acyclic_sequence)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:2562 _match_acyclic_sequence / Ghidra ruleBlockCat / kuna match_acyclic_sequence)
     /// Find a chain of single-pred/single-succ components and collapse it
     /// into a sequence.
     fn match_sequence(&mut self) -> Result<bool> {
@@ -1514,13 +1514,13 @@ impl Structurer {
         Ok(false)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.hh:336 isDecisionOut (f_irreducible|f_back_edge|f_goto_edge))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra block.hh:336 isDecisionOut (f_irreducible|f_back_edge|f_goto_edge))
     /// `isDecisionOut`: a structured, non-back, non-goto edge.
     fn is_decision_out(&self, b: SId, i: usize) -> bool {
         !self.is_goto_out(b, i) && !self.is_back_edge_out(b, i)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc ruleBlockCat (start + extension guards, isDecisionOut))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc ruleBlockCat (start + extension guards, isDecisionOut))
     /// If `bl` starts a foldable single-in/single-out sequence chain, return
     /// the chain (>= 2 blocks); else `None`.
     fn sequence_chain_from(&self, bl: SId) -> Option<Vec<SId>> {
@@ -1575,7 +1575,7 @@ impl Structurer {
     // (a2) if / if-else
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:2599 _match_acyclic_ite / Ghidra ruleBlockIfElse+ruleBlockIf / kuna match_acyclic_ite)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:2599 _match_acyclic_ite / Ghidra ruleBlockIfElse+ruleBlockIf / kuna match_acyclic_ite)
     /// Fold a 2-out condition whose true/false clauses reconverge into an
     /// if-else, or whose true clause exits to the false successor into an
     /// if-then.
@@ -1593,7 +1593,7 @@ impl Structurer {
         Ok(false)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc ruleBlockIfElse (structural guards, verbatim))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra blockaction.cc ruleBlockIfElse (structural guards, verbatim))
     /// If/else: a 2-out condition whose true and false clauses each have a
     /// single in-edge and a single out-edge, both exiting to the same block.
     fn try_if_else(&mut self, bl: SId) -> Result<bool> {
@@ -1629,7 +1629,7 @@ impl Structurer {
         Ok(true)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra ruleBlockIf i==1 arm / kuna try_if_then_true_clause)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra ruleBlockIf i==1 arm / kuna try_if_then_true_clause)
     /// If-then (true-clause only): the true clause is single-in/single-out
     /// and exits to the false successor (the after-if path).  The
     /// false-clause arm needs a condition flip and is left to the virtualize
@@ -1664,7 +1664,7 @@ impl Structurer {
     // (a3) cyclic schemas — loop recovery by rotation pattern
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:310 _analyze_cyclic + :329 _match_cyclic_schemas / kuna match_cyclic_schemas)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py:310 _analyze_cyclic + :329 _match_cyclic_schemas / kuna match_cyclic_schemas)
     ///
     /// Find a natural loop and either fold it (inf-loop / do-while /
     /// while-do, innermost-first) or refine it (mark secondary exits/latches
@@ -1697,7 +1697,7 @@ impl Structurer {
         Ok(false)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna collect_loop_heads (live components with an f_back_edge in))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna collect_loop_heads (live components with an f_back_edge in))
     /// Every live component reached by a back-edge (a loop head), in
     /// component order.
     fn collect_loop_heads(&self) -> Vec<SId> {
@@ -1714,7 +1714,7 @@ impl Structurer {
         heads
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna order_loop_heads_innermost_first (depth-ordered loopbody analog))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna order_loop_heads_innermost_first (depth-ordered loopbody analog))
     /// Order loop heads innermost-first: a head whose natural-loop body
     /// contains no other live loop head sorts first (stable by descending
     /// index within a class).
@@ -1733,7 +1733,7 @@ impl Structurer {
         keyed.into_iter().map(|(_, _, h)| h).collect()
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: classic natural-loop walk (latches + dominated predecessors) / kuna natural_loop_body)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: classic natural-loop walk (latches + dominated predecessors) / kuna natural_loop_body)
     /// The natural-loop body of `head`: seed with the latches (back-edge
     /// sources into `head`), then walk predecessors dominated by `head`.
     fn natural_loop_body(&self, head: SId) -> Vec<SId> {
@@ -1768,7 +1768,7 @@ impl Structurer {
         body
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna build_component_graph (component snapshot for dominators))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna build_component_graph (component snapshot for dominators))
     /// Immediate dominators over the live-component snapshot graph, rooted at
     /// a synthetic head reaching every entry component.
     fn component_dominators(&self) -> BTreeMap<SId, SId> {
@@ -1788,7 +1788,7 @@ impl Structurer {
         idom
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr utils.graph.dominates)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr utils.graph.dominates)
     /// Does `dominator` dominate `node` under the component idom map?
     fn idom_dominates(idom: &BTreeMap<SId, SId>, dominator: SId, node: SId) -> bool {
         let mut n: Option<SId> = Some(node);
@@ -1804,7 +1804,7 @@ impl Structurer {
         false
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra ruleBlockWhileDo/ruleBlockDoWhile/ruleBlockInfLoop / angr phoenix _match_cyclic_{while,dowhile,natural_loop} / kuna try_fold_loop)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra ruleBlockWhileDo/ruleBlockDoWhile/ruleBlockInfLoop / angr phoenix _match_cyclic_{while,dowhile,natural_loop} / kuna try_fold_loop)
     ///
     /// Fold a loop already in a clean structural shape (inside-out):
     ///   * **inf-loop** — a 1-out block whose single edge self-loops
@@ -1890,7 +1890,7 @@ impl Structurer {
         Ok(false)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna loop_exit_addrs via RI successor frontier / structural fallback)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna loop_exit_addrs via RI successor frontier / structural fallback)
     /// The addresses of the loop's structural exits: with an RI projection
     /// for this head, its successor frontier; else every out-edge target of
     /// body components leaving the natural-loop body (the kept structural
@@ -1923,7 +1923,7 @@ impl Structurer {
         exits
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier _refine_loop_successors_to_guarded_successors + _refine_cyclic_core / kuna refine_loop_edges)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr region_identifier _refine_loop_successors_to_guarded_successors + _refine_cyclic_core / kuna refine_loop_edges)
     ///
     /// Refine a not-yet-foldable loop by virtualizing its *secondary*
     /// control edges to gotos: keep ONE structural exit (the normal exit —
@@ -2115,7 +2115,7 @@ impl Structurer {
         })
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna choose_normal_exit_grounded + choose_normal_exit)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna choose_normal_exit_grounded + choose_normal_exit)
     /// Choose the loop's normal exit target: RI-grounded lowest frontier
     /// address with a live edge; else the most-targeted destination, ties by
     /// earliest index.
@@ -2145,7 +2145,7 @@ impl Structurer {
         self.choose_normal_exit(exit_edges)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr _refine_cyclic_core successor pick / kuna choose_normal_exit)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr _refine_cyclic_core successor pick / kuna choose_normal_exit)
     /// Most-targeted exit destination, ties by earliest component index.
     fn choose_normal_exit(&self, exit_edges: &[(SId, usize, SId)]) -> Option<SId> {
         if exit_edges.is_empty() {
@@ -2170,7 +2170,7 @@ impl Structurer {
         best
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna choose_structural_exit)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna choose_structural_exit)
     /// Pick the single exit edge to keep structural: prefer an exit straight
     /// off the head to the normal exit; else the earliest by
     /// `(src index, dst index)`.
@@ -2203,7 +2203,7 @@ impl Structurer {
         best.map(|(s, e, _)| (s, e))
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna head_extra_entries)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna head_extra_entries)
     /// Count the head's *extra* entries: non-back-edge in-edges from outside
     /// the body that are not gotos (one preheader entry is normal).
     fn head_extra_entries(&self, head: SId, in_body: &BTreeSet<SId>) -> i32 {
@@ -2224,7 +2224,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna head_extra_entry_edges)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna head_extra_entry_edges)
     /// The head's extra (abnormal) entry edges, keeping the lowest-index
     /// predecessor as the structural preheader.
     fn head_extra_entry_edges(&self, head: SId, in_body: &BTreeSet<SId>) -> Vec<(SId, usize)> {
@@ -2260,7 +2260,7 @@ impl Structurer {
     // (b) wrap already-marked goto edges
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra ruleBlockGoto / kuna rule_block_goto)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: Ghidra ruleBlockGoto / kuna rule_block_goto)
     /// If any component has an out-edge already flagged goto (by a prior
     /// virtualization round), wrap it into a goto node (plain trailing goto,
     /// if-goto when the true edge is the goto, or an inline case-goto on a
@@ -2310,7 +2310,7 @@ impl Structurer {
     // (c) last resort — edge virtualization with SAILR ordering
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py _last_resort_refinement + sailr.py _order_virtualizable_edges / kuna virtualize_one_edge)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr phoenix.py _last_resort_refinement + sailr.py _order_virtualizable_edges / kuna virtualize_one_edge)
     ///
     /// Pick the "best" remaining structured edge and mark it a goto.
     /// Candidates: structured (non-goto) out-edges of live components,
@@ -2341,7 +2341,7 @@ impl Structurer {
         Ok(true)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr sailr.py _order_virtualizable_edges + phoenix.py _last_resort_refinement bucketing / kuna order_virtualizable_edges_sailr)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr sailr.py _order_virtualizable_edges + phoenix.py _last_resort_refinement bucketing / kuna order_virtualizable_edges_sailr)
     /// The SAILR ordering: dominance-tier the candidates over the component
     /// snapshot (crossing / secondary; `other` edges are never chosen), then
     /// order within the bucket by H1/H2/H3 + base.
@@ -2377,7 +2377,7 @@ impl Structurer {
         self.sailr_order_within_bucket(&pool, &graph, &id_of, &bucket)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr sailr.py H1->H2->H3->_chick_order_edges / kuna sailr_order_within_bucket)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr sailr.py H1->H2->H3->_chick_order_edges / kuna sailr_order_within_bucket)
     /// H1 (sibling count) -> H2 (post-dom count, capped) -> H3 (return edge)
     /// -> base (post-order node_seq, in/out degrees, addresses).
     fn sailr_order_within_bucket<'e>(
@@ -2456,7 +2456,7 @@ impl Structurer {
         sorted[0]
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr sailr.py H2 postdom count / kuna sailr_h2_postdom)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr sailr.py H2 postdom count / kuna sailr_h2_postdom)
     /// H2: for each candidate edge, remove it, recompute post-dominators over
     /// the snapshot, and count strict post-dominator relationships; keep the
     /// edges whose removal yields the MOST post-dominators.
@@ -2524,7 +2524,7 @@ impl Structurer {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr _chick_order_edges node_seq / kuna order_virtualizable_edges (flat fallback))
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr _chick_order_edges node_seq / kuna order_virtualizable_edges (flat fallback))
     /// The flat fallback ordering (H1 + H3 + address keys), used when no
     /// crossing/secondary bucket exists.
     fn order_virtualizable_edges_flat<'e>(&self, edges: &'e [VEdge]) -> &'e VEdge {
@@ -2566,7 +2566,7 @@ impl Structurer {
         best[0]
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna build_component_graph)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna build_component_graph)
     /// The live-component snapshot as a region graph (nodes = components,
     /// edges = every component out-edge, synthetic head reaching all
     /// entries).
@@ -2606,7 +2606,7 @@ impl Structurer {
         (pool, graph, head, id_of)
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna compute_node_seq)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna compute_node_seq)
     /// Post-order node_seq over the snapshot graph (the base tiebreak):
     /// larger for nodes earlier in post-order (closer to the head).
     fn compute_node_seq(
@@ -2649,7 +2649,7 @@ impl Structurer {
     // Post-pass: break/continue classification
     //
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr _rewrite_conditional_jumps_to_breaks + _rewrite_jumps_to_continues / Ghidra scopeBreak)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr _rewrite_conditional_jumps_to_breaks + _rewrite_jumps_to_continues / Ghidra scopeBreak)
     ///
     /// Classify the plain gotos inside the recovered tree against the open
     /// loop scopes: a goto targeting a loop's exit address (innermost first)
@@ -2706,7 +2706,7 @@ impl Structurer {
     }
 }
 
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr utils.graph.dominates on an idom map)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: angr utils.graph.dominates on an idom map)
 /// Does `dominator` dominate `node` under a raw idom map over RegionNodeIds?
 fn dominates_lookup(
     idom: &BTreeMap<RegionNodeId, RegionNodeId>,
@@ -2732,7 +2732,7 @@ mod tests {
 
     /// Test helper: build a `SailrInput` from `(addr, complex)` blocks and
     /// `(src, dst)` edge pairs, tracking the entry index.
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer test seeding)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: kuna region_structurer test seeding)
     struct In {
         input: SailrInput,
     }
@@ -3252,7 +3252,7 @@ mod tests {
     // helpers
     // ------------------------------------------------------------------
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
     fn block_addr(n: &StructuredNode) -> u64 {
         match n {
             StructuredNode::Block { addr, .. } => *addr,
@@ -3260,7 +3260,7 @@ mod tests {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
     fn leaf_addr(c: &CondExpr) -> u64 {
         match c {
             CondExpr::Leaf(l) => l.addr,
@@ -3268,7 +3268,7 @@ mod tests {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
     fn leaf_invert(c: &CondExpr) -> bool {
         match c {
             CondExpr::Leaf(l) => l.invert,
@@ -3276,7 +3276,7 @@ mod tests {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
     fn has_condition(n: &StructuredNode) -> bool {
         match n {
             StructuredNode::Condition { .. } => true,
@@ -3295,7 +3295,7 @@ mod tests {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
     fn has_loop(n: &StructuredNode) -> bool {
         match n {
             StructuredNode::WhileDo { body, .. } => true || has_loop(body),
@@ -3309,7 +3309,7 @@ mod tests {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
     fn has_switch(n: &StructuredNode) -> bool {
         match n {
             StructuredNode::Switch { cases, .. } => true || cases.iter().any(|c| has_switch(&c.body)),
@@ -3323,7 +3323,7 @@ mod tests {
         }
     }
 
-    // RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
+    // RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: test helper)
     fn count_gotos(n: &StructuredNode, kind: GotoKind, count: &mut i32) {
         match n {
             StructuredNode::Goto { kind: k, .. } => {

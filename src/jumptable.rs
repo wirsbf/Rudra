@@ -53,7 +53,7 @@ pub enum JumpTableRecoveryError {
 }
 
 impl JumpTableRecoveryError {
-    // RUGRA-GLUE: Rust typed-exception discriminator; Ghidra stageJumpTable uses distinct catch clauses (funcdata_block.cc:539-544)
+    // RUDRA-GLUE: Rust typed-exception discriminator; Ghidra stageJumpTable uses distinct catch clauses (funcdata_block.cc:539-544)
     /// Map this exception channel to Ghidra's recovery status enum.
     pub fn recovery_mode(&self) -> RecoveryMode {
         match self {
@@ -62,7 +62,7 @@ impl JumpTableRecoveryError {
         }
     }
 
-    // RUGRA-GLUE: Rust accessor for the explanatory string carried by Ghidra LowlevelError/JumptableThunkError
+    // RUDRA-GLUE: Rust accessor for the explanatory string carried by Ghidra LowlevelError/JumptableThunkError
     /// Return the exact explanatory text carried by the error.
     pub fn message(&self) -> &str {
         match self {
@@ -72,7 +72,7 @@ impl JumpTableRecoveryError {
 }
 
 impl std::fmt::Display for JumpTableRecoveryError {
-    // RUGRA-GLUE: Rust Display trait for Ghidra's exception explain string
+    // RUDRA-GLUE: Rust Display trait for Ghidra's exception explain string
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.message())
     }
@@ -108,13 +108,13 @@ impl LoadTable {
         Self { addr, size, num }
     }
 
-    // RUGRA-GLUE: reproduce the address-only std::sort implementation used by
+    // RUDRA-GLUE: reproduce the address-only std::sort implementation used by
     // the locked GCC 16.2.1/libstdc++ oracle; C++ does not specify equivalent-key order
     fn address_less(left: &LoadTable, right: &LoadTable) -> bool {
         left.addr < right.addr
     }
 
-    // RUGRA-GLUE: libstdc++ 16 bits/stl_algo.h __unguarded_linear_insert for
+    // RUDRA-GLUE: libstdc++ 16 bits/stl_algo.h __unguarded_linear_insert for
     // the address-only LoadTable comparator used by jumptable.cc:87
     fn libstdcxx_unguarded_linear_insert(table: &mut [LoadTable], mut last: usize) {
         let value = table[last].clone();
@@ -129,7 +129,7 @@ impl LoadTable {
         table[last] = value;
     }
 
-    // RUGRA-GLUE: libstdc++ 16 bits/stl_algo.h __insertion_sort for the
+    // RUDRA-GLUE: libstdc++ 16 bits/stl_algo.h __insertion_sort for the
     // address-only LoadTable comparator used by jumptable.cc:87
     fn libstdcxx_insertion_sort(table: &mut [LoadTable], first: usize, last: usize) {
         if first == last {
@@ -148,7 +148,7 @@ impl LoadTable {
         }
     }
 
-    // RUGRA-GLUE: libstdc++ 16 bits/stl_heap.h __adjust_heap/__push_heap for
+    // RUDRA-GLUE: libstdc++ 16 bits/stl_heap.h __adjust_heap/__push_heap for
     // the address-only LoadTable comparator used by jumptable.cc:87
     fn libstdcxx_adjust_heap(
         table: &mut [LoadTable],
@@ -186,7 +186,7 @@ impl LoadTable {
         table[first + hole] = value;
     }
 
-    // RUGRA-GLUE: libstdc++ 16 bits/stl_algo.h __partial_sort(first,last,last)
+    // RUDRA-GLUE: libstdc++ 16 bits/stl_algo.h __partial_sort(first,last,last)
     // and bits/stl_heap.h heap helpers used at introsort's depth limit
     fn libstdcxx_heap_sort(table: &mut [LoadTable], first: usize, last: usize) {
         let len = last - first;
@@ -219,7 +219,7 @@ impl LoadTable {
         }
     }
 
-    // RUGRA-GLUE: locked GCC 16.2.1 libstdc++ std::sort implementation for
+    // RUDRA-GLUE: locked GCC 16.2.1 libstdc++ std::sort implementation for
     // LoadTable's address-only operator<; exact equivalent-key order is B2-observable
     fn sort_by_address_libstdcxx_16(table: &mut [LoadTable]) {
         const INSERTION_SORT_THRESHOLD: usize = 16;
@@ -1104,14 +1104,14 @@ pub trait JumpValues: Send + Sync {
     /// Clone this iterator into a boxed trait object.
     fn clone_boxed(&self) -> Box<dyn JumpValues>;
 
-    // RUGRA-GLUE: trait object downcast helper — Ghidra 直接用 `JumpValues*`
+    // RUDRA-GLUE: trait object downcast helper — Ghidra 直接用 `JumpValues*`
     // 指针,需要具体类型时用 dynamic_cast 或虚方法。Rugra 用 trait object,
     /// 需要这个辅助方法在 Box<dyn JumpValues> 持有的是 JumpValuesRange 时
     /// 返回其克隆,否则 None。JumpBasic::find_smallest_normal 用它把 jrange
     /// 从 trait object 取出当 JumpValuesRange 改(基本模型一定是 Range)。
     fn clone_boxed_any_range(&self) -> Option<JumpValuesRange>;
 
-    // RUGRA-GLUE: mut borrow of the JumpValuesRange base — Ghidra 的
+    // RUDRA-GLUE: mut borrow of the JumpValuesRange base — Ghidra 的
     /// `findSmallestNormal` 直接在既有 `jrange` 对象上调继承的
     /// `setRange/setStartVn/setStartOp`(jumptable.cc:1171-1192),
     /// 对 `JumpValuesRangeDefault` 同样作用于同一对象的基类字段
@@ -1142,13 +1142,13 @@ pub struct JumpValuesRange {
     pub curval: AtomicU64,
 }
 
-// RUGRA-GLUE: impl Clone for JumpValuesRange — Ghidra 的 JumpValuesRange 是
+// RUDRA-GLUE: impl Clone for JumpValuesRange — Ghidra 的 JumpValuesRange 是
 // C++ 可拷贝类，拷贝语义由 `JumpValues *JumpValuesRange::clone(void) const`
 // (jumptable.cc:317) 提供，拷贝所有字段。Rugra 因 curval 用 AtomicU64（非
 // Clone）必须手写 Clone impl；行为等价于 Ghidra 的拷贝构造（逐字段拷贝，
 // Atomic 取当前快照值）。
 impl Clone for JumpValuesRange {
-    // RUGRA-GLUE: 手写 Clone（AtomicU64 非 Clone）— Ghidra 等价：JumpValuesRange::clone (jumptable.cc:317)
+    // RUDRA-GLUE: 手写 Clone（AtomicU64 非 Clone）— Ghidra 等价：JumpValuesRange::clone (jumptable.cc:317)
     fn clone(&self) -> Self {
         Self {
             range: self.range.clone(),
@@ -1160,7 +1160,7 @@ impl Clone for JumpValuesRange {
 }
 
 impl Default for JumpValuesRange {
-    // RUGRA-GLUE: Rust Default trait impl for JumpValuesRange; Ghidra uses field init (jumptable.hh:188)
+    // RUDRA-GLUE: Rust Default trait impl for JumpValuesRange; Ghidra uses field init (jumptable.hh:188)
     fn default() -> Self {
         Self {
             range: CircleRange::empty(),
@@ -1262,12 +1262,12 @@ impl JumpValues for JumpValuesRange {
         Box::new(self.clone())
     }
 
-    // RUGRA-GLUE: trait object downcast helper
+    // RUDRA-GLUE: trait object downcast helper
     fn clone_boxed_any_range(&self) -> Option<JumpValuesRange> {
         Some(self.clone())
     }
 
-    // RUGRA-GLUE: 见 JumpValues::as_range_base_mut — 具体类型即基类本身。
+    // RUDRA-GLUE: 见 JumpValues::as_range_base_mut — 具体类型即基类本身。
     fn as_range_base_mut(&mut self) -> &mut JumpValuesRange {
         self
     }
@@ -1296,11 +1296,11 @@ pub struct JumpValuesRangeDefault {
     pub lastvalue: AtomicBool,
 }
 
-// RUGRA-GLUE: impl Clone for JumpValuesRangeDefault — 同 JumpValuesRange，
+// RUDRA-GLUE: impl Clone for JumpValuesRangeDefault — 同 JumpValuesRange，
 // Ghidra 由 `JumpValues *JumpValuesRangeDefault::clone(void) const`
 // (jumptable.cc:378) 提供。Rugra 因 lastvalue 用 AtomicBool 必须手写。
 impl Clone for JumpValuesRangeDefault {
-    // RUGRA-GLUE: 手写 Clone（AtomicBool 非 Clone）— Ghidra 等价：JumpValuesRangeDefault::clone (jumptable.cc:378)
+    // RUDRA-GLUE: 手写 Clone（AtomicBool 非 Clone）— Ghidra 等价：JumpValuesRangeDefault::clone (jumptable.cc:378)
     fn clone(&self) -> Self {
         Self {
             base: self.base.clone(),
@@ -1312,11 +1312,11 @@ impl Clone for JumpValuesRangeDefault {
     }
 }
 
-// RUGRA-GLUE: impl Default for JumpValuesRangeDefault — Ghidra 由 ctor
+// RUDRA-GLUE: impl Default for JumpValuesRangeDefault — Ghidra 由 ctor
 // `JumpValuesRangeDefault(JumpTable *jt)` (jumptable.hh:214) 构造,Rugra
 // 用 Default trait 等价。
 impl Default for JumpValuesRangeDefault {
-    // RUGRA-GLUE: fn default — Default trait glue (Ghidra ctor jumptable.hh:214)
+    // RUDRA-GLUE: fn default — Default trait glue (Ghidra ctor jumptable.hh:214)
     fn default() -> Self {
         Self {
             base: JumpValuesRange::default(),
@@ -1355,7 +1355,7 @@ impl JumpValuesRangeDefault {
 }
 
 impl JumpValues for JumpValuesRangeDefault {
-    // RUGRA-GLUE: inherited from JumpValuesRange in Ghidra (jumptable.cc:262); Rust requires explicit trait impl
+    // RUDRA-GLUE: inherited from JumpValuesRange in Ghidra (jumptable.cc:262); Rust requires explicit trait impl
     fn truncate(&mut self, nm: usize) {
         self.base.truncate(nm);
     }
@@ -1404,7 +1404,7 @@ impl JumpValues for JumpValuesRangeDefault {
         true
     }
 
-    // RUGRA-GLUE: inherited from JumpValuesRange in Ghidra (jumptable.cc:299); Rust requires explicit trait impl
+    // RUDRA-GLUE: inherited from JumpValuesRange in Ghidra (jumptable.cc:299); Rust requires explicit trait impl
     fn get_value(&self) -> u64 {
         self.base.curval.load(Ordering::Relaxed)
     }
@@ -1437,13 +1437,13 @@ impl JumpValues for JumpValuesRangeDefault {
         Box::new(self.clone())
     }
 
-    // RUGRA-GLUE: trait object downcast helper — JumpValuesRangeDefault 不能
+    // RUDRA-GLUE: trait object downcast helper — JumpValuesRangeDefault 不能
     // 退化为 JumpValuesRange(它是不同的子类),返回 None。
     fn clone_boxed_any_range(&self) -> Option<JumpValuesRange> {
         None
     }
 
-    // RUGRA-GLUE: 见 JumpValues::as_range_base_mut — C++ 继承字段在 `base`。
+    // RUDRA-GLUE: 见 JumpValues::as_range_base_mut — C++ 继承字段在 `base`。
     fn as_range_base_mut(&mut self) -> &mut JumpValuesRange {
         &mut self.base
     }
@@ -1462,7 +1462,7 @@ pub struct NormMax {
 }
 
 impl Default for NormMax {
-    // RUGRA-GLUE: Rust Default trait impl for NormMax; Ghidra uses fields on JumpTable (jumptable.hh:572)
+    // RUDRA-GLUE: Rust Default trait impl for NormMax; Ghidra uses fields on JumpTable (jumptable.hh:572)
     fn default() -> Self {
         Self {
             addsub: 1,
@@ -1476,7 +1476,7 @@ impl Default for NormMax {
 ///
 /// Parent-table facts consumed by jump-model recovery.
 ///
-/// RUGRA-GLUE: Ghidra models read `jt->isPartial()` (jumptable.cc:1052, the
+/// RUDRA-GLUE: Ghidra models read `jt->isPartial()` (jumptable.cc:1052, the
 /// analyzeGuards NZMASK channel) and `jt->getIndirectOp()` (jumptable.cc:1083,
 /// the sibling-BRANCHIND identity channel) through their parent `JumpTable*`
 /// member while `JumpTable::recoverModel` runs on the table. In Rust the whole
@@ -1592,7 +1592,7 @@ pub trait JumpModel: Send + Sync {
     /// are parentless — see `JumpParentFacts` — so the parameter is gone.)
     fn clone_model(&self) -> Box<dyn JumpModel>;
 
-    // RUGRA-GLUE: trait-object downcast helper — Ghidra callers hold the
+    // RUDRA-GLUE: trait-object downcast helper — Ghidra callers hold the
     /// concrete `JumpModel*` subtype via `dynamic_cast` (e.g. console and
     /// test code reading `JumpBasic::selectguards`); Rust needs an `Any`
     /// escape hatch on the trait object to do the same.
@@ -1620,7 +1620,7 @@ impl JumpModelTrivial {
 }
 
 impl JumpModel for JumpModelTrivial {
-    // RUGRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
+    // RUDRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -2692,7 +2692,7 @@ impl JumpBasic {
             let bl_rg = switchbl.read().unwrap();
             match bl_rg.as_any().downcast_ref::<crate::block::BlockBasic>() {
                 Some(bb) => bb.no_intervening_statement(),
-                // RUGRA-GLUE: in Ghidra the BRANCHIND parent is always a
+                // RUDRA-GLUE: in Ghidra the BRANCHIND parent is always a
                 // BlockBasic (PcodeOps only live in basic blocks); a non-basic
                 // parent here is a structural invariant break, refuse to fold.
                 None => false,
@@ -2738,7 +2738,7 @@ impl JumpBasic {
 }
 
 impl JumpModel for JumpBasic {
-    // RUGRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
+    // RUDRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -3549,7 +3549,7 @@ impl JumpBasic2 {
 }
 
 impl JumpModel for JumpBasic2 {
-    // RUGRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
+    // RUDRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -3820,7 +3820,7 @@ impl JumpBasicOverride {
 }
 
 impl JumpModel for JumpBasicOverride {
-    // RUGRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
+    // RUDRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -3989,7 +3989,7 @@ impl JumpAssisted {
 }
 
 impl JumpModel for JumpAssisted {
-    // RUGRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
+    // RUDRA-GLUE: JumpModel::as_any downcast hook (see trait docs).
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -4265,7 +4265,7 @@ pub struct JumpTable {
 }
 
 impl std::fmt::Debug for JumpTable {
-    // RUGRA-GLUE: Rust Debug trait impl for JumpTable; no Ghidra counterpart (Ghidra uses encode/decode for serialization)
+    // RUDRA-GLUE: Rust Debug trait impl for JumpTable; no Ghidra counterpart (Ghidra uses encode/decode for serialization)
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("JumpTable")
             .field("opaddress", &self.opaddress)
@@ -4902,7 +4902,7 @@ impl JumpTable {
         Ok(())
     }
 
-    // RUGRA-GLUE: bool compatibility adapter for callers not yet migrated to JumpTableRecoveryError
+    // RUDRA-GLUE: bool compatibility adapter for callers not yet migrated to JumpTableRecoveryError
     /// Compatibility adapter for legacy Rugra callers. New code should use
     /// [`recover_addresses_classified`](Self::recover_addresses_classified)
     /// so thunk and ordinary low-level failures remain distinguishable.
@@ -5127,7 +5127,7 @@ impl JumpTable {
             message: "Trivial addresstable and switch block size do not match".to_string(),
         };
         let Some(indirect) = self.indirect.clone() else {
-            // RUGRA-GLUE: Ghidra dereferences indirect->getParent() directly;
+            // RUDRA-GLUE: Ghidra dereferences indirect->getParent() directly;
             // an unlinked indirect cannot be validated, report the same
             // LowlevelError as the size mismatch path.
             return Err(size_mismatch);
@@ -5251,7 +5251,7 @@ impl JumpTable {
             }
         } else {
             // cc:2727-2733: no model — fall back to a trivial model built
-            // from the current out-edges. RUGRA-GLUE: JumpModelTrivial is
+            // from the current out-edges. RUDRA-GLUE: JumpModelTrivial is
             // parentless (all methods use their parameters), mirroring
             // `new JumpModelTrivial(this)` without the pointer.
             if let Some(indirect) = self.indirect.clone() {
@@ -5277,7 +5277,7 @@ impl JumpTable {
                 self.trivial_switch_over()?;
                 trivial.build_labels(fd, &self.addresstable, &mut self.label, &trivial);
             }
-            // RUGRA-GLUE: a missing indirect (never linked by stageJumpTable)
+            // RUDRA-GLUE: a missing indirect (never linked by stageJumpTable)
             // is unrepresentable in Ghidra — dereferencing null would abort.
             // Skip label building; clearSavedModel below still runs (cc:2734).
         }
@@ -5289,7 +5289,7 @@ impl JumpTable {
     /// Hide any guard code for \b this switch.
     /// Faithful to the inline `{ return jmodel->foldInGuards(fd,this); }`.
     pub fn fold_in_guards(&mut self, fd: &mut crate::funcdata::Funcdata) -> bool {
-        // RUGRA-GLUE: Ghidra's inline jmodel->foldInGuards(fd,this) aliases
+        // RUDRA-GLUE: Ghidra's inline jmodel->foldInGuards(fd,this) aliases
         // the model and the table; Rust cannot hold &mut self.jmodel and
         // &mut self at once, so the model is temporarily taken out and put
         // back. No foldInGuards implementation reads jump.jmodel.
@@ -5352,7 +5352,7 @@ pub enum EmulateFailure {
 }
 
 impl EmulateFailure {
-    // RUGRA-GLUE: Rust conversion into the typed stageJumpTable channel;
+    // RUDRA-GLUE: Rust conversion into the typed stageJumpTable channel;
     // Ghidra 靠 DataUnavailError 继承 LowlevelError 落进同一 catch。
     fn into_recovery_error(self) -> JumpTableRecoveryError {
         match self {
@@ -5894,7 +5894,7 @@ impl<'fd> EmulateFunction<'fd> {
     }
 }
 
-// RUGRA-GLUE: wraps Varnode::getSpaceFromConst (varnode.hh:426, not in
+// RUDRA-GLUE: wraps Varnode::getSpaceFromConst (varnode.hh:426, not in
 // jumptable.cc); LOAD 的 space-id 常量解码,与 constseq.rs/double_precis.rs
 // 的同名 helper 同语义(常量的 offset 即 SpaceId)。
 fn get_space_from_const_vn(vn: &Arc<RwLock<Varnode>>) -> crate::space::AddressSpace {
@@ -5906,7 +5906,7 @@ fn get_space_from_const_vn(vn: &Arc<RwLock<Varnode>>) -> crate::space::AddressSp
     }
 }
 
-// RUGRA-GLUE: Rust typed entry point wiring JumpTable recovery; Ghidra does this inline in Funcdata::stageJumpTable (funcdata_block.cc:491)
+// RUDRA-GLUE: Rust typed entry point wiring JumpTable recovery; Ghidra does this inline in Funcdata::stageJumpTable (funcdata_block.cc:491)
 /// Attempt to recover a single [`JumpTable`] while preserving the typed
 /// Ghidra exception channel.
 pub fn try_recover_classified(
@@ -5920,7 +5920,7 @@ pub fn try_recover_classified(
     Ok(jt)
 }
 
-// RUGRA-GLUE: Option compatibility adapter for flow/funcdata callers not yet migrated to typed stageJumpTable recovery
+// RUDRA-GLUE: Option compatibility adapter for flow/funcdata callers not yet migrated to typed stageJumpTable recovery
 /// Attempt to recover a single [`JumpTable`] for the BRANCHIND op `indop`.
 ///
 /// This is the Rust analogue of Ghidra's
@@ -5941,7 +5941,7 @@ pub fn try_recover(
     try_recover_classified(indop, fd).ok()
 }
 
-// RUGRA-GLUE: Rust per-BRANCHIND loop; Ghidra drives this from flow tracing (flow.cc/subflow.cc), not jumptable.cc
+// RUDRA-GLUE: Rust per-BRANCHIND loop; Ghidra drives this from flow tracing (flow.cc/subflow.cc), not jumptable.cc
 /// Recover jump-tables for every BRANCHIND in `fd` and attach the successful
 /// ones to `fd.jump_tables`.
 ///

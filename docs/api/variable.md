@@ -51,7 +51,7 @@ Inherited Varnode property flag aliases (numeric values from `varnode_flags`):
 
 ## `pub struct TypeCell`
 
-RUGRA-GLUE lock domain for the `mutable Datatype *type` cache
+RUDRA-GLUE lock domain for the `mutable Datatype *type` cache
 (variable.hh:141): `RwLock<Arc<Datatype>>` keeps `HighVariable` `Send + Sync`
 while letting the const `getType` (variable.hh:174) swap the cache through
 `&self` — the Rust counterpart of C++ logical constness. `get()` clones the
@@ -329,7 +329,7 @@ the inline Ghidra accessors at variable.hh:174, :179, :180, and :196;
 `get_type` now carries the lazy `updateType()` trigger of variable.hh:174
 (see Data Types above).
 `get_name`, `set_name`, `set_type`, and `add_instance` are legacy
-RUGRA-GLUE APIs: Ghidra derives names through Symbol state, derives/finalizes
+RUDRA-GLUE APIs: Ghidra derives names through Symbol state, derives/finalizes
 types through dedicated methods, and changes membership through construction
 or merge rather than these direct field mutators.
 
@@ -437,6 +437,6 @@ all 11 high_internal_flags constants.
 - 2026-08-11 (`ANN-I`): provenance-only annotation bootstrap for 14 functions.
   Four direct inline mappings now cite variable.hh:174/:179/:180/:196; the ten
   remaining legacy, ownership, and `Arc<RwLock>` entry points are explicitly
-  classified as RUGRA-GLUE. No behavior changed, no oracle fixture was added,
+  classified as RUDRA-GLUE. No behavior changed, no oracle fixture was added,
   and the module status is not promoted; `ALIGNMENT_ROADMAP.md` remains
   authoritative.

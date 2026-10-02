@@ -49,7 +49,7 @@ pub enum VerifyResult {
 }
 
 impl VerifyResult {
-    // RUGRA-GLUE: is_match (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_match (no Ghidra counterpart found)
     pub fn is_match(&self) -> bool {
         matches!(self, VerifyResult::Match)
     }
@@ -66,7 +66,7 @@ pub struct VerifyStats {
 }
 
 impl VerifyStats {
-    // RUGRA-GLUE: record (no Ghidra counterpart found)
+    // RUDRA-GLUE: record (no Ghidra counterpart found)
     pub fn record(&mut self, result: &VerifyResult) {
         self.total_tests += 1;
         match result {
@@ -77,7 +77,7 @@ impl VerifyStats {
         }
     }
 
-    // RUGRA-GLUE: success_rate (no Ghidra counterpart found)
+    // RUDRA-GLUE: success_rate (no Ghidra counterpart found)
     pub fn success_rate(&self) -> f64 {
         if self.total_tests == 0 {
             0.0
@@ -88,7 +88,7 @@ impl VerifyStats {
 }
 
 impl fmt::Display for VerifyStats {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "=== Verification Statistics ===")?;
         writeln!(f, "Total Tests:    {}", self.total_tests)?;
@@ -124,7 +124,7 @@ pub struct MismatchRecord {
 }
 
 impl RuntimeVerifier {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     pub fn new() -> Self {
         RuntimeVerifier {
             stats: Mutex::new(VerifyStats::default()),
@@ -132,7 +132,7 @@ impl RuntimeVerifier {
         }
     }
 
-    // RUGRA-GLUE: verify_constant_eval (no Ghidra counterpart found)
+    // RUDRA-GLUE: verify_constant_eval (no Ghidra counterpart found)
     /// Verify constant folding/evaluation
     ///
     /// Calls both Rugra's and Ghidra's constant evaluation and compares results
@@ -198,7 +198,7 @@ impl RuntimeVerifier {
         result
     }
 
-    // RUGRA-GLUE: verify_pcode_generation (no Ghidra counterpart found)
+    // RUDRA-GLUE: verify_pcode_generation (no Ghidra counterpart found)
     /// Verify P-code generation for a single instruction
     ///
     /// This requires Ghidra to be loaded with the same binary
@@ -362,7 +362,7 @@ impl RuntimeVerifier {
         result
     }
 
-    // RUGRA-GLUE: verify_ssa_versions (no Ghidra counterpart found)
+    // RUDRA-GLUE: verify_ssa_versions (no Ghidra counterpart found)
     /// Verify SSA construction
     ///
     /// This is critical - SSA version numbers must match exactly
@@ -428,7 +428,7 @@ impl RuntimeVerifier {
         result
     }
 
-    // RUGRA-GLUE: verify_cfg_structure (no Ghidra counterpart found)
+    // RUDRA-GLUE: verify_cfg_structure (no Ghidra counterpart found)
     /// Verify control flow graph structure
     pub fn verify_cfg_structure(
         &self,
@@ -504,25 +504,25 @@ impl RuntimeVerifier {
         result
     }
 
-    // RUGRA-GLUE: record_mismatch (no Ghidra counterpart found)
+    // RUDRA-GLUE: record_mismatch (no Ghidra counterpart found)
     /// Record a mismatch for later analysis
     fn record_mismatch(&self, record: MismatchRecord) {
         self.mismatches.lock().unwrap().push(record);
     }
 
-    // RUGRA-GLUE: get_stats (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_stats (no Ghidra counterpart found)
     /// Get current statistics
     pub fn get_stats(&self) -> VerifyStats {
         self.stats.lock().unwrap().clone()
     }
 
-    // RUGRA-GLUE: get_mismatches (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_mismatches (no Ghidra counterpart found)
     /// Get all mismatch records
     pub fn get_mismatches(&self) -> Vec<MismatchRecord> {
         self.mismatches.lock().unwrap().clone()
     }
 
-    // RUGRA-GLUE: generate_report (no Ghidra counterpart found)
+    // RUDRA-GLUE: generate_report (no Ghidra counterpart found)
     /// Generate a detailed report
     pub fn generate_report(&self) -> String {
         let mut report = String::new();
@@ -546,7 +546,7 @@ impl RuntimeVerifier {
         report
     }
 
-    // RUGRA-GLUE: reset (no Ghidra counterpart found)
+    // RUDRA-GLUE: reset (no Ghidra counterpart found)
     /// Reset all statistics and records
     pub fn reset(&self) {
         *self.stats.lock().unwrap() = VerifyStats::default();
@@ -554,7 +554,7 @@ impl RuntimeVerifier {
     }
 }
 
-// RUGRA-GLUE: describe_pcode_compare_status (no Ghidra counterpart found)
+// RUDRA-GLUE: describe_pcode_compare_status (no Ghidra counterpart found)
 fn describe_pcode_compare_status(result: &PcodeCompareResultFFI) -> &'static str {
     match result.status {
         PCODE_COMPARE_MATCH => "match",
@@ -568,7 +568,7 @@ fn describe_pcode_compare_status(result: &PcodeCompareResultFFI) -> &'static str
 }
 
 impl Default for RuntimeVerifier {
-    // RUGRA-GLUE: default (no Ghidra counterpart found)
+    // RUDRA-GLUE: default (no Ghidra counterpart found)
     fn default() -> Self {
         Self::new()
     }
@@ -578,7 +578,7 @@ impl Default for RuntimeVerifier {
 static GLOBAL_VERIFIER: std::sync::LazyLock<RuntimeVerifier> =
     std::sync::LazyLock::new(RuntimeVerifier::new);
 
-// RUGRA-GLUE: global_verifier (no Ghidra counterpart found)
+// RUDRA-GLUE: global_verifier (no Ghidra counterpart found)
 /// Get the global runtime verifier
 pub fn global_verifier() -> &'static RuntimeVerifier {
     &GLOBAL_VERIFIER

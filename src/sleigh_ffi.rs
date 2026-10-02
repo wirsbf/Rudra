@@ -16,7 +16,7 @@ pub struct VarnodeC {
 }
 
 impl Default for VarnodeC {
-    // RUGRA-GLUE: Rust DTO default used only for an absent engine PcodeEmit output
+    // RUDRA-GLUE: Rust DTO default used only for an absent engine PcodeEmit output
     fn default() -> Self {
         Self {
             space: 0,
@@ -63,7 +63,7 @@ pub enum SleighErrorKind {
 }
 
 impl SleighErrorKind {
-    // RUGRA-GLUE: decode the fixed-width error discriminant used by the C ABI
+    // RUDRA-GLUE: decode the fixed-width error discriminant used by the C ABI
     // and the Rust engine alike (sleigh_shim RugraSleighErrorKind values 1-11)
     fn from_raw(value: u32) -> Option<Self> {
         match value {
@@ -93,7 +93,7 @@ pub struct SleighDecodeError {
 }
 
 impl SleighDecodeError {
-    // RUGRA-GLUE: construct a Rust-side validation failure at an engine boundary
+    // RUDRA-GLUE: construct a Rust-side validation failure at an engine boundary
     fn bridge(message: impl Into<Vec<u8>>) -> Self {
         Self {
             kind: SleighErrorKind::Bridge,
@@ -102,14 +102,14 @@ impl SleighDecodeError {
         }
     }
 
-    // RUGRA-GLUE: lossy display helper that preserves exact bytes in `message`
+    // RUDRA-GLUE: lossy display helper that preserves exact bytes in `message`
     pub fn message_lossy(&self) -> String {
         String::from_utf8_lossy(&self.message).into_owned()
     }
 }
 
 impl fmt::Display for SleighDecodeError {
-    // RUGRA-GLUE: Rust Error presentation for a typed engine error record
+    // RUDRA-GLUE: Rust Error presentation for a typed engine error record
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
@@ -129,7 +129,7 @@ impl std::error::Error for SleighDecodeError {}
 // ---------------------------------------------------------------------------
 // Engine table snapshot cache (SPEEDPROF-SLEIGH-SNAPSHOT-0001)
 // ---------------------------------------------------------------------------
-// RUGRA-GLUE: a per-machine content-addressed cache of the decoded SLEIGH
+// RUDRA-GLUE: a per-machine content-addressed cache of the decoded SLEIGH
 // table, so the per-function hermetic child processes stop re-paying the
 // ~0.09s packed `.sla` decode in every exec. The oracle has no counterpart
 // (its golden generator cold-decodes in every child too); this is a Rugra
@@ -171,12 +171,12 @@ mod sleigh_snapshot {
     const SNAPSHOT_VERSION: u32 = 2;
     pub const HEADER_LEN: usize = 36;
 
-    // RUGRA-GLUE: FNV-1a-64 (the stale-guard's digest convention; public
+    // RUDRA-GLUE: FNV-1a-64 (the stale-guard's digest convention; public
     // 64-bit variant).
     const FNV1A_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
     const FNV1A_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-    // RUGRA-GLUE: digest helper (no oracle counterpart — cache plumbing).
+    // RUDRA-GLUE: digest helper (no oracle counterpart — cache plumbing).
     fn fnv1a64(bytes: &[u8]) -> u64 {
         let mut state = FNV1A_OFFSET_BASIS;
         for &byte in bytes {
@@ -186,29 +186,29 @@ mod sleigh_snapshot {
         state
     }
 
-    // RUGRA-GLUE: parse RUGRA_SLEIGH_SNAPSHOT once ("0" disables).
+    // RUDRA-GLUE: parse RUGRA_SLEIGH_SNAPSHOT once ("0" disables).
     pub fn enabled() -> bool {
         !matches!(std::env::var("RUGRA_SLEIGH_SNAPSHOT"), Ok(value) if value == "0")
     }
 
-    // RUGRA-GLUE: parse RUGRA_SLEIGH_SNAPSHOT_REPORT once.
+    // RUDRA-GLUE: parse RUGRA_SLEIGH_SNAPSHOT_REPORT once.
     pub fn report_enabled() -> bool {
         std::env::var_os("RUGRA_SLEIGH_SNAPSHOT_REPORT").is_some()
     }
 
-    // RUGRA-GLUE: env-gated stderr observation channel (cache plumbing).
+    // RUDRA-GLUE: env-gated stderr observation channel (cache plumbing).
     fn report(line: String) {
         if report_enabled() {
             eprintln!("[SNAP] {line}");
         }
     }
 
-    // RUGRA-GLUE: report-line surface for callers outside this module.
+    // RUDRA-GLUE: report-line surface for callers outside this module.
     pub fn report_line(line: String) {
         report(line);
     }
 
-    // RUGRA-GLUE: resolve the cache dir (env override, else /dev/shm — the
+    // RUDRA-GLUE: resolve the cache dir (env override, else /dev/shm — the
     // machine's designated cross-process scratch).
     fn cache_dir() -> Option<PathBuf> {
         if let Some(dir) = std::env::var_os("RUGRA_SLEIGH_SNAPSHOT_DIR") {
@@ -217,7 +217,7 @@ mod sleigh_snapshot {
         Some(PathBuf::from("/dev/shm/rugra-sleigh-snapshots"))
     }
 
-    // RUGRA-GLUE: content-addressed cache file name (cache plumbing).
+    // RUDRA-GLUE: content-addressed cache file name (cache plumbing).
     fn snapshot_path(sla_digest: u64, build_digest: u64) -> Option<PathBuf> {
         let dir = cache_dir()?;
         Some(dir.join(format!(
@@ -225,14 +225,14 @@ mod sleigh_snapshot {
         )))
     }
 
-    // RUGRA-GLUE: hex-parse the u64 build digest embedded by kuna-sleigh's
+    // RUDRA-GLUE: hex-parse the u64 build digest embedded by kuna-sleigh's
     // build script (0 when absent — fail-open to a still-unique-enough key
     // combined with the .sla digest; the build script always emits it).
     fn build_digest() -> u64 {
         u64::from_str_radix(kuna_sleigh::BUILD_DIGEST, 16).unwrap_or(0)
     }
 
-    // RUGRA-GLUE: frame + write one snapshot atomically (tmp file + rename).
+    // RUDRA-GLUE: frame + write one snapshot atomically (tmp file + rename).
     pub fn store(sla_bytes: &[u8], payload: &[u8]) {
         let started = Instant::now();
         let sla_digest = fnv1a64(sla_bytes);
@@ -275,7 +275,7 @@ mod sleigh_snapshot {
         }
     }
 
-    // RUGRA-GLUE: load a cached snapshot for `sla_bytes`. Returns the framed
+    // RUDRA-GLUE: load a cached snapshot for `sla_bytes`. Returns the framed
     // file bytes (payload at [HEADER_LEN..]) so the caller can decode
     // in-place with zero copies. Every failure is a miss (the caller
     // cold-builds); the payload needs no digest of its own — the write is
@@ -328,10 +328,10 @@ mod sleigh_snapshot {
 // 1777P/0F, bank 391/391, perf same order with an -11% E2E wall win.)
 // ---------------------------------------------------------------------------
 
-// RUGRA-GLUE: process-wide Rust configuration for the default SLEIGH asset path
+// RUDRA-GLUE: process-wide Rust configuration for the default SLEIGH asset path
 static SLA_PATH: OnceLock<std::path::PathBuf> = OnceLock::new();
 
-// RUGRA-GLUE: PERF-DUAL-SLEIGH-INIT-0001 observability — process-wide count
+// RUDRA-GLUE: PERF-DUAL-SLEIGH-INIT-0001 observability — process-wide count
 // of full `.sla` deserializations (successful engine constructions). The
 // oracle instantiates one Sleigh translator per languageindex and reuses it
 // (sleigh_arch.cc:174 SleighArchitecture::buildTranslator, backed by the
@@ -343,17 +343,17 @@ static SLA_PATH: OnceLock<std::path::PathBuf> = OnceLock::new();
 // load-count gate (RUGRA_SLEIGH_LOAD_REPORT=1); expected value is 1.
 static ENGINE_LOADS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-// RUGRA-GLUE: read the PERF-DUAL-SLEIGH-INIT-0001 engine-load counter
+// RUDRA-GLUE: read the PERF-DUAL-SLEIGH-INIT-0001 engine-load counter
 pub fn engine_load_count() -> usize {
     ENGINE_LOADS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-// RUGRA-GLUE: configure the default `.sla` location before the first context is made
+// RUDRA-GLUE: configure the default `.sla` location before the first context is made
 pub fn set_sla_path(path: &str) {
     let _ = SLA_PATH.set(std::path::PathBuf::from(path));
 }
 
-// RUGRA-GLUE: resolve the configured `.sla` path for the engine constructor
+// RUDRA-GLUE: resolve the configured `.sla` path for the engine constructor
 fn resolve_sla_path() -> Option<std::path::PathBuf> {
     let default_path = std::path::PathBuf::from("sleigh_specs/x86-64.sla");
     let path = SLA_PATH.get().unwrap_or(&default_path);
@@ -366,7 +366,7 @@ pub struct SleighCtx {
 }
 
 unsafe impl Send for SleighCtx {
-    // RUGRA-GLUE: single-thread lifecycle contract inherited from the retired
+    // RUDRA-GLUE: single-thread lifecycle contract inherited from the retired
     // C++ handle: a context is created, used, and dropped on one thread (the
     // C++ SLEIGH object graph was never thread-safe either). The kuna engine
     // holds `Rc` state with the identical constraint; no rugra caller moves a
@@ -375,7 +375,7 @@ unsafe impl Send for SleighCtx {
 }
 
 impl SleighCtx {
-    // RUGRA-GLUE: create the Rust SLEIGH engine from the configured .sla
+    // RUDRA-GLUE: create the Rust SLEIGH engine from the configured .sla
     pub fn new() -> Option<Self> {
         let sla_path = resolve_sla_path()?;
         Some(Self {
@@ -383,27 +383,27 @@ impl SleighCtx {
         })
     }
 
-    // RUGRA-GLUE: deep-copy an image into the engine before decoding starts
+    // RUDRA-GLUE: deep-copy an image into the engine before decoding starts
     pub fn try_set_image(&mut self, bytes: &[u8], base_addr: u64) -> Result<(), SleighDecodeError> {
         self.backend.try_set_image(bytes, base_addr)
     }
 
-    // RUGRA-GLUE: compatibility wrapper retained for existing lifter callers until SLEIGH-0002D
+    // RUDRA-GLUE: compatibility wrapper retained for existing lifter callers until SLEIGH-0002D
     pub fn set_image(&mut self, bytes: &[u8], base_addr: u64) {
         let _ = self.try_set_image(bytes, base_addr);
     }
 
-    // RUGRA-GLUE: set a context default before decoding starts, preserving typed failures
+    // RUDRA-GLUE: set a context default before decoding starts, preserving typed failures
     pub fn try_set_context(&mut self, name: &str, value: i32) -> Result<(), SleighDecodeError> {
         self.backend.try_set_context(name, value)
     }
 
-    // RUGRA-GLUE: compatibility wrapper retained for the temporary pspec scanner
+    // RUDRA-GLUE: compatibility wrapper retained for the temporary pspec scanner
     pub fn set_context(&mut self, name: &str, value: i32) {
         let _ = self.try_set_context(name, value);
     }
 
-    // RUGRA-GLUE: temporary SLEIGH-0002C/MISMATCH pspec scanner; it does not model
+    // RUDRA-GLUE: temporary SLEIGH-0002C/MISMATCH pspec scanner; it does not model
     // ContextInternal ranges, masks, tracked registers, or child ordering.
     pub fn load_pspec(&mut self, pspec_path: &str) {
         let xml = match std::fs::read_to_string(pspec_path) {
@@ -419,7 +419,7 @@ impl SleighCtx {
         }
     }
 
-    // RUGRA-GLUE: safe oneInstruction boundary preserving step, zero-op success,
+    // RUDRA-GLUE: safe oneInstruction boundary preserving step, zero-op success,
     // ordered dynamic operands, aliases, and typed engine exceptions
     pub fn one_instruction(
         &mut self,
@@ -428,7 +428,7 @@ impl SleighCtx {
         self.backend.one_instruction(offset)
     }
 
-    // RUGRA-GLUE: compatibility bridge that still folds typed errors to an empty
+    // RUDRA-GLUE: compatibility bridge that still folds typed errors to an empty
     // vector for legacy lifter callers; SLEIGH-0002D removes this ambiguity
     pub fn decode(&mut self, offset: u64) -> Vec<PcodeOpC> {
         self.one_instruction(offset)
@@ -436,7 +436,7 @@ impl SleighCtx {
             .unwrap_or_default()
     }
 
-    // RUGRA-GLUE: SLEIGH printAssembly mnemonic probe (translate.hh:442).
+    // RUDRA-GLUE: SLEIGH printAssembly mnemonic probe (translate.hh:442).
     // Linear driver walks use this to drop no-effect padding ops by the
     // .sla's own constructor classification (see the backend mirror for
     // the full rationale).
@@ -444,7 +444,7 @@ impl SleighCtx {
         self.backend.assembly_mnemonic(offset)
     }
 
-    // RUGRA-GLUE: legacy length-only wrapper retained until callers consume the
+    // RUDRA-GLUE: legacy length-only wrapper retained until callers consume the
     // atomic `one_instruction` result in SLEIGH-0002D; &mut because the engine
     // freezes image/context here (decode_started, mirroring the retired
     // rugra_sleigh.cpp:500 behavior)
@@ -452,29 +452,29 @@ impl SleighCtx {
         self.backend.instruction_length(offset)
     }
 
-    // RUGRA-GLUE: query the number of address spaces exposed by the translator
+    // RUDRA-GLUE: query the number of address spaces exposed by the translator
     pub fn num_spaces(&self) -> usize {
         self.backend.num_spaces()
     }
 
-    // RUGRA-GLUE: Translate::getUserOpNames — the .sla's user-defined p-code
+    // RUDRA-GLUE: Translate::getUserOpNames — the .sla's user-defined p-code
     // op names in CALLOTHER-index order (the data `UserOpManage::initialize`,
     // userop.cc:392-403, registers as UnspecializedPcodeOps).
     pub fn user_op_names(&self) -> Vec<Vec<u8>> {
         self.backend.user_op_names()
     }
 
-    // RUGRA-GLUE: copy one space catalog entry from the translator
+    // RUDRA-GLUE: copy one space catalog entry from the translator
     pub fn space_info(&self, index: usize) -> Option<(i32, String)> {
         self.backend.space_info(index)
     }
 
-    // RUGRA-GLUE: query the number of registers exposed by the translator
+    // RUDRA-GLUE: query the number of registers exposed by the translator
     pub fn num_registers(&self) -> usize {
         self.backend.num_registers()
     }
 
-    // RUGRA-GLUE: copy one register catalog entry from the translator
+    // RUDRA-GLUE: copy one register catalog entry from the translator
     pub fn register_info(&self, index: usize) -> Option<(String, i32, u64, i32)> {
         self.backend.register_info(index)
     }
@@ -506,7 +506,7 @@ mod rust_backend {
         base_addr: u64,
     }
 
-    // RUGRA-GLUE: `RugraLoadImage` equivalent (sleigh_shim/rugra_sleigh.cpp:88-137):
+    // RUDRA-GLUE: `RugraLoadImage` equivalent (sleigh_shim/rugra_sleigh.cpp:88-137):
     // owns one contiguous byte image; `load_fill` mirrors its exact
     // wrap-subtraction bounds check, partial-copy, and zero-fill semantics.
     struct SharedLoadImage {
@@ -514,12 +514,12 @@ mod rust_backend {
     }
 
     impl LoadImage for SharedLoadImage {
-        // RUGRA-GLUE: mirror of `RugraLoadImage::getArchType`'s sibling name accessor
+        // RUDRA-GLUE: mirror of `RugraLoadImage::getArchType`'s sibling name accessor
         fn get_file_name(&self) -> &str {
             "rugra"
         }
 
-        // RUGRA-GLUE: mirror of RugraLoadImage::loadFill (rugra_sleigh.cpp:108-133):
+        // RUDRA-GLUE: mirror of RugraLoadImage::loadFill (rugra_sleigh.cpp:108-133):
         // unsigned `start - base_addr` modulo wrap (RawLoadImage behavior the shim
         // preserves), DataUnavailError message text identical, `min(requested,
         // available)` copy then zero-fill of the remainder.
@@ -544,22 +544,22 @@ mod rust_backend {
             Ok(())
         }
 
-        // RUGRA-GLUE: mirror of RugraLoadImage::getArchType (rugra_sleigh.cpp:135)
+        // RUDRA-GLUE: mirror of RugraLoadImage::getArchType (rugra_sleigh.cpp:135)
         fn get_arch_type(&self) -> Vec<u8> {
             b"rugra".to_vec()
         }
 
-        // RUGRA-GLUE: mirror of RugraLoadImage::adjustVma (rugra_sleigh.cpp:136 no-op)
+        // RUDRA-GLUE: mirror of RugraLoadImage::adjustVma (rugra_sleigh.cpp:136 no-op)
         fn adjust_vma(&mut self, _adjust: i64) {}
     }
 
-    // RUGRA-GLUE: kuna stores the manager index in the LOAD/STORE space-id
+    // RUDRA-GLUE: kuna stores the manager index in the LOAD/STORE space-id
     // constant (kuna-sleigh sleigh.rs `spaceid_const`, LOSS-015) where the C++
     // runtime stored the `AddrSpace*` pointer value; both shims normalize the
     // wire value to the space index, so the wire bytes agree.
     const SIZEOF_SPACE: u32 = 8;
 
-    // RUGRA-GLUE: `RugraPcodeEmit` equivalent (sleigh_shim/rugra_sleigh.cpp:154-244).
+    // RUDRA-GLUE: `RugraPcodeEmit` equivalent (sleigh_shim/rugra_sleigh.cpp:154-244).
     // Identity is keyed by the address of each emitted varnode: the kuna engine
     // emits `&pool[range]` slices after the whole instruction is built
     // (one_instruction -> PcodeCacher::emit, mirroring sleigh.cc:776
@@ -577,7 +577,7 @@ mod rust_backend {
     }
 
     impl RustPcodeCollector {
-        // RUGRA-GLUE: mirror of RugraPcodeEmit's constructor space table setup
+        // RUDRA-GLUE: mirror of RugraPcodeEmit's constructor space table setup
         fn new(engine: &Sleigh) -> Self {
             let manager = engine.manager_rc();
             let const_space_index = manager
@@ -595,7 +595,7 @@ mod rust_backend {
             }
         }
 
-        // RUGRA-GLUE: kuna PcodeEmit::dump cannot fail, so impossible-emission
+        // RUDRA-GLUE: kuna PcodeEmit::dump cannot fail, so impossible-emission
         // failures (the C++ emitter threw LowlevelError out of oneInstruction)
         // park here and surface after the decode call returns.
         fn fail_lowlevel(&mut self, message: &str) {
@@ -608,7 +608,7 @@ mod rust_backend {
             }
         }
 
-        // RUGRA-GLUE: mirror of RugraPcodeEmit::requireSpaceIndex; kuna's
+        // RUDRA-GLUE: mirror of RugraPcodeEmit::requireSpaceIndex; kuna's
         // `Option<Rc<AddrSpace>>` carries the manager index directly.
         fn require_space_index(&mut self, space: Option<&Rc<kuna_base::space::AddrSpace>>) -> i32 {
             match space {
@@ -620,7 +620,7 @@ mod rust_backend {
             }
         }
 
-        // RUGRA-GLUE: mirror of RugraPcodeEmit::identityFor over pool slot addresses
+        // RUDRA-GLUE: mirror of RugraPcodeEmit::identityFor over pool slot addresses
         fn identity_for(&mut self, varnode: &VarnodeData) -> u64 {
             let key = std::ptr::from_ref(varnode) as usize;
             if let Some(existing) = self.identities.get(&key) {
@@ -632,7 +632,7 @@ mod rust_backend {
             identity
         }
 
-        // RUGRA-GLUE: mirror of RugraPcodeEmit::copyVarnode (rugra_sleigh.cpp:181-205);
+        // RUDRA-GLUE: mirror of RugraPcodeEmit::copyVarnode (rugra_sleigh.cpp:181-205);
         // LOAD/STORE input 0 is normalized to the target space index on the wire.
         fn copy_varnode(
             &mut self,
@@ -677,14 +677,14 @@ mod rust_backend {
             copied
         }
 
-        // RUGRA-GLUE: consume the collected wire ops in emission order
+        // RUDRA-GLUE: consume the collected wire ops in emission order
         fn into_ops(self) -> Vec<PcodeOpC> {
             self.ops
         }
     }
 
     impl PcodeEmit for RustPcodeCollector {
-        // RUGRA-GLUE: mirror of RugraPcodeEmit::dump (rugra_sleigh.cpp:222-243)
+        // RUDRA-GLUE: mirror of RugraPcodeEmit::dump (rugra_sleigh.cpp:222-243)
         fn dump(
             &mut self,
             addr: &Address,
@@ -721,7 +721,7 @@ mod rust_backend {
     }
 
     impl RustSleighEngine {
-        // RUGRA-GLUE: mirror of rugra_sleigh_create (rugra_sleigh.cpp:325-348):
+        // RUDRA-GLUE: mirror of rugra_sleigh_create (rugra_sleigh.cpp:325-348):
         // construct Sleigh(loader, ContextInternal), then initialize from the
         // .sla file; any failure maps to None exactly like the C++ catch-all.
         // SPEEDPROF-SLEIGH-SNAPSHOT-0001: initialization first tries the
@@ -787,7 +787,7 @@ mod rust_backend {
             })
         }
 
-        // RUGRA-GLUE: one bare Sleigh construction (loader + context db) with
+        // RUDRA-GLUE: one bare Sleigh construction (loader + context db) with
         // its shared image state — the shape rugra_sleigh_create wraps. The
         // image Rc is threaded out so `try_set_image` keeps swapping bytes in
         // place inside the loader (the C++ shim mutates its own member the
@@ -804,7 +804,7 @@ mod rust_backend {
             )
         }
 
-        // RUGRA-GLUE: mirror of rugra_sleigh_set_image (rugra_sleigh.cpp:350-372):
+        // RUDRA-GLUE: mirror of rugra_sleigh_set_image (rugra_sleigh.cpp:350-372):
         // the decode_started guard is InvalidState; a zero-length image is the
         // same "empty vector" state the C++ setBytes produced.
         pub(crate) fn try_set_image(
@@ -825,7 +825,7 @@ mod rust_backend {
             Ok(())
         }
 
-        // RUGRA-GLUE: mirror of rugra_sleigh_set_context (rugra_sleigh.cpp:374-396):
+        // RUDRA-GLUE: mirror of rugra_sleigh_set_context (rugra_sleigh.cpp:374-396):
         // ContextInternal::setVariableDefault with the decode_started guard.
         pub(crate) fn try_set_context(
             &mut self,
@@ -844,7 +844,7 @@ mod rust_backend {
                 .map_err(map_kuna_error)
         }
 
-        // RUGRA-GLUE: mirror of rugra_sleigh_decode (rugra_sleigh.cpp:398-417):
+        // RUDRA-GLUE: mirror of rugra_sleigh_decode (rugra_sleigh.cpp:398-417):
         // decode at Address(defaultCodeSpace, offset) through the collector,
         // surfacing a deferred emitter failure over a successful decode.
         pub(crate) fn one_instruction(
@@ -874,7 +874,7 @@ mod rust_backend {
             }
         }
 
-        // RUGRA-GLUE: SLEIGH printAssembly mnemonic probe (translate.hh:442
+        // RUDRA-GLUE: SLEIGH printAssembly mnemonic probe (translate.hh:442
         // Translate::printAssembly / sleigh.cc:722 Sleigh::printAssembly).
         // The linear driver walks consume this to classify no-effect padding
         // by the .sla's own constructor table (the :NOP rm32 constructors of
@@ -902,7 +902,7 @@ mod rust_backend {
             Some(mnemonic)
         }
 
-        // RUGRA-GLUE: mirror of rugra_sleigh_instruction_length (rugra_sleigh.cpp:496-507):
+        // RUDRA-GLUE: mirror of rugra_sleigh_instruction_length (rugra_sleigh.cpp:496-507):
         // the C++ shim sets decode_started here too (the parse tree cache is
         // consulted), so a later set_image/set_context returns InvalidState;
         // any decode failure folds to None exactly like the C++ catch -> -1.
@@ -921,12 +921,12 @@ mod rust_backend {
             }
         }
 
-        // RUGRA-GLUE: mirror of rugra_sleigh_num_spaces over the kuna manager
+        // RUDRA-GLUE: mirror of rugra_sleigh_num_spaces over the kuna manager
         pub(crate) fn num_spaces(&self) -> usize {
             usize::try_from(self.sleigh.manager_rc().num_spaces()).unwrap_or(0)
         }
 
-        // RUGRA-GLUE: mirror of rugra_sleigh_space_info (spacetype ordinals
+        // RUDRA-GLUE: mirror of rugra_sleigh_space_info (spacetype ordinals
         // match space.hh IPTR_* on both sides)
         pub(crate) fn space_info(&self, index: usize) -> Option<(i32, String)> {
             let index = i32::try_from(index).ok()?;
@@ -935,14 +935,14 @@ mod rust_backend {
             Some((space.get_type() as i32, space.get_name().to_string()))
         }
 
-        // RUGRA-GLUE: mirror of rugra_sleigh_num_registers over the kuna register
+        // RUDRA-GLUE: mirror of rugra_sleigh_num_registers over the kuna register
         // cross-reference (BTreeMap ordered by VarnodeData::operator< like the
         // C++ std::map the shim copied out of)
         pub(crate) fn num_registers(&self) -> usize {
             self.sleigh.base().get_all_registers().len()
         }
 
-        // RUGRA-GLUE: mirror of rugra_sleigh_register_info (same map order)
+        // RUDRA-GLUE: mirror of rugra_sleigh_register_info (same map order)
         pub(crate) fn register_info(&self, index: usize) -> Option<(String, i32, u64, i32)> {
             let registers = self.sleigh.base().get_all_registers();
             let storage = registers.keys().nth(index)?;
@@ -957,7 +957,7 @@ mod rust_backend {
             ))
         }
 
-        // RUGRA-GLUE: Translate::getUserOpNames pass-through. C++
+        // RUDRA-GLUE: Translate::getUserOpNames pass-through. C++
         // `SleighBase::getUserOpNames` (sleighbase.cc) copies the .sla's
         // `userop` name list in CALLOTHER-index order; kuna's
         // `SleighBase::get_user_op_names` returns the same `&[Vec<u8>]`
@@ -967,7 +967,7 @@ mod rust_backend {
         }
     }
 
-    // RUGRA-GLUE: mirror of captureCurrentException (rugra_sleigh.cpp:296-319).
+    // RUDRA-GLUE: mirror of captureCurrentException (rugra_sleigh.cpp:296-319).
     // The C++ catch order maps: UnimplError(1) -> BadDataError(2) ->
     // DataUnavailError(3) -> SleighError(4) -> LowlevelError(5) ->
     // DecoderError(6) -> bad_alloc(11) -> std::exception(7) -> unknown(8).
@@ -1007,7 +1007,7 @@ mod rust_backend {
 }
 
 
-// RUGRA-GLUE: temporary SLEIGH-0002C/MISMATCH string scanner. Ghidra uses
+// RUDRA-GLUE: temporary SLEIGH-0002C/MISMATCH string scanner. Ghidra uses
 // Document/Element plus ContextInternal::decodeFromSpec and preserves ranges,
 // explicit masks, tracked registers, and child order; this helper does not.
 fn simple_xml_find(xml: &str, tag: &str) -> Vec<String> {
@@ -1026,7 +1026,7 @@ fn simple_xml_find(xml: &str, tag: &str) -> Vec<String> {
     results
 }
 
-// RUGRA-GLUE: temporary SLEIGH-0002C/MISMATCH attribute scanner over a raw tag
+// RUDRA-GLUE: temporary SLEIGH-0002C/MISMATCH attribute scanner over a raw tag
 fn get_attr(tag: &str, attribute: &str) -> Option<String> {
     let needle = format!("{attribute}=\"");
     let start = tag.find(&needle)? + needle.len();

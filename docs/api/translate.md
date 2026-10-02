@@ -58,7 +58,7 @@ instruction is valid but cannot be represented in pcode.
 - `instruction_length: i32` — byte length of the offending instruction.
 - `pub fn new(message: impl Into<String>, length: i32) -> Self`
   — Ghidra: translate.hh:59 `UnimplError::UnimplError`.
-- Implements `std::fmt::Display` and `std::error::Error` (RUGRA-GLUE for
+- Implements `std::fmt::Display` and `std::error::Error` (RUDRA-GLUE for
   Rust error interop; Ghidra inherits `LowlevelError::what()`).
 
 #### `pub struct BadDataError`
@@ -106,7 +106,7 @@ The trait is **object-safe** (`dyn PcodeEmit` is usable) because the
 PcodeOpRaw decode helper is a free function rather than a trait method:
 
 - `pub fn decode_pcode_raw(decoder, isize, vars, outvar, has_output) -> OpCode`
-  — RUGRA-GLUE placeholder returning `CPUI_COPY`. A full port of
+  — RUDRA-GLUE placeholder returning `CPUI_COPY`. A full port of
   `PcodeOpRaw::decode` (pcoderaw.cc) will replace it.
 
 ### AssemblyEmit (translate.hh:120)
@@ -223,7 +223,7 @@ translate.hh:448-561):
 - `parse_address_simple(val)` — translate.cc:923.
 - `set_default_code_space(index)` — translate.cc:309.
 - `set_default_data_space(index)` — translate.cc:323.
-- `insert_space(spc)` — translate.cc:352 (RUGRA-GLUE: the
+- `insert_space(spc)` — translate.cc:352 (RUDRA-GLUE: the
   `name_type_mismatch` branch is dropped because Rugra's enum variants
   carry their type; duplicate-name / duplicate-id checks remain).
 - `resolve_constant(spc, val, sz, point, full_encoding)` — translate.cc:628.
@@ -245,7 +245,7 @@ The processor translation engine. In Ghidra this inherits from
 `AddrSpaceManager`; Rugra uses composition (`manager`/`manager_mut`).
 
 - `fn manager(&self) -> &AddrSpaceManager` / `fn manager_mut(&mut self)`
-  — RUGRA-GLUE for the inherited base.
+  — RUDRA-GLUE for the inherited base.
 - `fn is_big_endian(&self) -> bool` — translate.hh:586.
 - `fn get_alignment(&self) -> i32` — translate.hh:596.
 - `fn get_unique_base(&self) -> u32` — translate.hh:603.
@@ -286,7 +286,7 @@ The processor translation engine. In Ghidra this inherits from
 `crate::marshal::DocumentStorage` — the 1:1 twin of Ghidra's
 `DocumentStorage` (`xml.hh:258-291`, `xml.cc:2435-2478`) with
 `parse_document` / `open_document` / `register_tag` / `get_tag` (see
-`docs/api/marshal.md`). The former local RUGRA-GLUE trait stub
+`docs/api/marshal.md`). The former local RUDRA-GLUE trait stub
 (`next_document(&mut self) -> Option<String>`, which had no Ghidra
 counterpart — Ghidra exposes no `nextDocument`) was removed on 2026-08-16.
 Behavior is pinned by the `translate_docstore_1204` oracle fixture: the
@@ -375,7 +375,7 @@ the formal behavior status is `NO_ORACLE`.
     先 `insert_space(new ConstantSpace)`；`<spaces defaultspace=...>` 属性逐子 decode+insert；
     末尾按名字查 default space（缺失 `Err("Bad 'defaultspace' attribute: X")`）并
     `set_default_code_space(index)`。insert/setDefault 的 LowlevelError 原样向外传。
-  - `named_attrib_id(id, name)`（RUGRA-GLUE）：const `AttributeId` 不能保留 name，而
+  - `named_attrib_id(id, name)`（RUDRA-GLUE）：const `AttributeId` 不能保留 name，而
     TreeDecoder 的 `read_*_attr` 按 name 定位；decode 路径重建运行时具名 twin。
 - Oracle 证据：`tests/oracle/external_stub_1204.{cc,rs}` + `tools/run_external_stub_oracle.sh`
   （锁定 12.0.4，7 case 逐字节 MATCH）。EXTERNAL 工件语义考证（12.0.4 无 IPTR_EXTERNAL；

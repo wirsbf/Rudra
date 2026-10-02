@@ -1152,7 +1152,7 @@ PcodeOpRaw
 - （2026-09-22，SB-ORD159-NULLSLOT-0001）`set_num_inputs` 忠实化：cc:290-296 的
   "All slots, regardless of the total being increased or decreased, are set to
   null"——先 clear 再以共享 null 哨兵 resize 到 `num`（旧实现增长时 panic，
-  且缩减时保留旧槽）。新增 `pub fn null_slot_sentinel()`（RUGRA-GLUE）：
+  且缩减时保留旧槽）。新增 `pub fn null_slot_sentinel()`（RUDRA-GLUE）：
   Ghidra NULL input-slot 指针 `(Varnode*)0` 的进程级共享替身（脱离 bank、
   size-0、无 descendant、无 create-index）；单一实例保证两个 NULL 槽之间
   `Arc::ptr_eq` 为 true，对应 Ghidra `inrefs[i] == vn` 指针相等语义
@@ -1353,7 +1353,7 @@ ActionPool 派发的 memo 守卫（见 action.md 2026-10-02 节）：同 version
   （经 `Arena::slot_addr`，不触槽行），供派发循环对后继槽行发 PREFETCHT0。
 - `PcodeOpBank::is_dead_of/ optree_version`——bank 级转发。
 
-RUGRA-GLUE（version/addr 投影无 oracle 对应物：oracle 的 `op_state++` 是
+RUDRA-GLUE（version/addr 投影无 oracle 对应物：oracle 的 `op_state++` 是
 活 map 迭代器 O(1) 指针步进 action.hh:265；isDead 影子=存储迭代器读形态）。
 
 

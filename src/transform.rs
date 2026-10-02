@@ -659,7 +659,7 @@ pub struct TransformManager {
     pub new_varnodes: Vec<TransformVar>,
     /// Storage for PcodeOp placeholder nodes.
     pub new_ops: Vec<TransformOp>,
-    /// RUGRA-GLUE: Ghidra's `preserveAddress` is virtual (transform.hh:171)
+    /// RUDRA-GLUE: Ghidra's `preserveAddress` is virtual (transform.hh:171)
     /// and overridden by subclasses (e.g. `SubfloatFlow::preserveAddress`,
     /// subflow.cc:3451, which returns `vn->isInput()`). Rust has no
     /// inheritance, so this optional override hook plays the role of the
@@ -668,7 +668,7 @@ pub struct TransformManager {
     pub preserve_address_override: Option<fn(&Varnode, i32, i32) -> bool>,
 }
 
-// RUGRA-GLUE: Ghidra's NULL input-slot pointer, shared process-wide via
+// RUDRA-GLUE: Ghidra's NULL input-slot pointer, shared process-wide via
 // crate::op::null_slot_sentinel (one instance keeps `Arc::ptr_eq` between two
 // NULL slots `true`, matching Ghidra's pointer equality inrefs[i] == vn,
 // op.hh:166 getSlot). Ghidra's `PcodeOp` ctor (op.cc:71) pre-sizes `inrefs` to
@@ -743,7 +743,7 @@ impl TransformManager {
         vn_rg.space() != AddressSpace::Unique
     }
 
-    // RUGRA-GLUE: setter for the virtual-dispatch hook documented on
+    // RUDRA-GLUE: setter for the virtual-dispatch hook documented on
     // `preserve_address_override` (Ghidra reaches the same effect by
     /// subclassing TransformManager; Rust mirrors the vtable slot).
     pub fn set_preserve_address_override(&mut self, f: fn(&Varnode, i32, i32) -> bool) {

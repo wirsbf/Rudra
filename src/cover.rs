@@ -113,7 +113,7 @@ impl CoverEndpoint {
 /// target PcodeOp with `Arc::as_ptr` — the same legacy OPBANK-0001 encoding
 /// `Funcdata::get_op_from_const` decodes; typed `call_spec` annotations are
 /// excluded exactly like that function's guard.
-// RUGRA-GLUE: pointer-decode helper for the Iop constant without Funcdata
+// RUDRA-GLUE: pointer-decode helper for the Iop constant without Funcdata
 fn indirect_target_order(op: &crate::op::PcodeOp) -> Option<u32> {
     let iop_vn = op.get_in(1)?;
     let (space, offset, typed) = {
@@ -440,7 +440,7 @@ impl CoverBlock {
 
     // Ghidra: cover.cc:59 CoverBlock::intersect
     /// Intersect another cover block with this one
-    // RUGRA-GLUE: Rust-side destructive set-intersection helper; Ghidra's
+    // RUDRA-GLUE: Rust-side destructive set-intersection helper; Ghidra's
     // `CoverBlock::intersect` is the const characterization above and has no
     // mutating form. Defined for one-piece operands only; two-piece inputs
     /// are outside this helper's contract (no production caller passes them).
@@ -465,27 +465,27 @@ impl CoverBlock {
 /// `map<int4,CoverBlock>`, cover.hh:109 — used by the cold entry points)
 /// and the transient dense `RebuildScratch` used by `Cover::rebuild`
 /// (see its doc comment for the equivalence argument).
-// RUGRA-GLUE: table abstraction for the dense rebuild scratch (Ghidra has
+// RUDRA-GLUE: table abstraction for the dense rebuild scratch (Ghidra has
 // a single map form; the scratch is a pure representation flip with
 /// identical key/value semantics).
 trait CoverWriteTable {
     /// `cover[idx]` with `map::operator[]` default-insert semantics
     /// (cover.hh:109 + cover.cc:530/573's `cover[bl->getIndex()]`).
-    // RUGRA-GLUE: table abstraction for the two map representations
+    // RUDRA-GLUE: table abstraction for the two map representations
     // (Ghidra has one map form; operator[] is inline at each site).
     fn entry_or_default(&mut self, idx: i32) -> &mut CoverBlock;
     /// `cover.clear()` (cover.hh:113, called from addDefPoint cover.cc:506).
-    // RUGRA-GLUE: table abstraction (Ghidra calls map::clear inline).
+    // RUDRA-GLUE: table abstraction (Ghidra calls map::clear inline).
     fn clear_table(&mut self);
 }
 
 impl CoverWriteTable for BTreeMap<i32, CoverBlock> {
-    // RUGRA-GLUE: persistent-map arm — literal map::operator[]/map::clear.
+    // RUDRA-GLUE: persistent-map arm — literal map::operator[]/map::clear.
     #[inline]
     fn entry_or_default(&mut self, idx: i32) -> &mut CoverBlock {
         self.entry(idx).or_insert_with(CoverBlock::new)
     }
-    // RUGRA-GLUE: persistent-map arm of cover.clear().
+    // RUDRA-GLUE: persistent-map arm of cover.clear().
     #[inline]
     fn clear_table(&mut self) {
         self.clear();
@@ -524,7 +524,7 @@ impl CoverWriteTable for BTreeMap<i32, CoverBlock> {
 /// assigned at graph build), but `decode_header`/reverse-post-order windows
 /// store -1 transiently (block.cc:1023-1030); those land in the `neg` side
 /// map so no reachable input can panic or over-resize the dense vector.
-// RUGRA-GLUE: dense transient table (Ghidra rebuilds its map in place; the
+// RUDRA-GLUE: dense transient table (Ghidra rebuilds its map in place; the
 // flip is a Rust-side representation change with identical semantics).
 struct RebuildScratch {
     slots: Vec<Option<CoverBlock>>,
@@ -538,7 +538,7 @@ struct RebuildScratch {
 }
 
 impl RebuildScratch {
-    // RUGRA-GLUE: scratch constructor (no Ghidra counterpart — the
+    // RUDRA-GLUE: scratch constructor (no Ghidra counterpart — the
     // oracle's map plays both roles).
     fn new() -> Self {
         Self {
@@ -550,7 +550,7 @@ impl RebuildScratch {
 
     /// Copy every present entry into `out` in ascending index order,
     /// leaving the slot vector all-`None` (tracked via `slots_clean`).
-    // RUGRA-GLUE: copy-out step (no Ghidra counterpart — the oracle
+    // RUDRA-GLUE: copy-out step (no Ghidra counterpart — the oracle
     /// builds its one map in place; this bridges scratch → persistent).
     fn copy_out(&mut self, out: &mut BTreeMap<i32, CoverBlock>) {
         out.clear();
@@ -567,7 +567,7 @@ impl RebuildScratch {
 }
 
 impl CoverWriteTable for RebuildScratch {
-    // RUGRA-GLUE: dense-table arm of operator[] (bounds check + Option
+    // RUDRA-GLUE: dense-table arm of operator[] (bounds check + Option
     // slot insert replaces the RB-tree walk).
     #[inline]
     fn entry_or_default(&mut self, idx: i32) -> &mut CoverBlock {
@@ -580,7 +580,7 @@ impl CoverWriteTable for RebuildScratch {
         }
         self.slots[i].get_or_insert_with(CoverBlock::new)
     }
-    // RUGRA-GLUE: dense-table arm of cover.clear() — reset walk skipped
+    // RUDRA-GLUE: dense-table arm of cover.clear() — reset walk skipped
     // when the copy-out already left every slot None (slots_clean).
     fn clear_table(&mut self) {
         if !self.slots_clean {
@@ -595,7 +595,7 @@ impl CoverWriteTable for RebuildScratch {
 
 thread_local! {
     /// One dense rebuild scratch per decompile thread; see `RebuildScratch`.
-    // RUGRA-GLUE: thread-local scratch reuse across rebuilds
+    // RUDRA-GLUE: thread-local scratch reuse across rebuilds
     static REBUILD_SCRATCH: std::cell::RefCell<RebuildScratch> =
         std::cell::RefCell::new(RebuildScratch::new());
 }
@@ -910,7 +910,7 @@ impl Cover {
     /// Used by `rebuild`/`add_ref_point_full` to bridge PcodeOp -> block index
     /// for the order-based cover API. (Ghidra inlines this as
     /// `op->getParent()->getIndex()`.)
-    // RUGRA-GLUE: Rust ownership adapter; Ghidra keeps a PcodeOp pointer and
+    // RUDRA-GLUE: Rust ownership adapter; Ghidra keeps a PcodeOp pointer and
     // calls op->getParent()->getIndex() inline, so it has no standalone helper.
     fn block_index_of_op(op: &crate::op::PcodeOp) -> Option<i32> {
         let parent = op.parent.as_ref()?.upgrade()?;
@@ -934,7 +934,7 @@ impl Cover {
     /// Table-generic core of `Cover::addDefPoint` (cover.cc:501-519): the
     /// same algorithm on either the persistent map or the dense rebuild
     /// scratch (`CoverWriteTable`).
-    // RUGRA-GLUE: table-generic core for the dense rebuild scratch flip
+    // RUDRA-GLUE: table-generic core for the dense rebuild scratch flip
     fn add_def_point_tbl<T: CoverWriteTable>(
         def: Option<&std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
         is_input: bool,
@@ -990,7 +990,7 @@ impl Cover {
     /// scratch (`CoverWriteTable`). Only the target table differs — the
     /// guard sequence, endpoint bookkeeping and root selection are
     /// verbatim the persistent-map body.
-    // RUGRA-GLUE: table-generic core for the dense rebuild scratch flip
+    // RUDRA-GLUE: table-generic core for the dense rebuild scratch flip
     fn add_ref_point_tbl<T: CoverWriteTable>(
         op_arc: &std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>,
         root: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
@@ -1134,7 +1134,7 @@ impl Cover {
     /// targets) in ascending in-edge slot order. Mirrors Ghidra's
     /// `bl->getIn(j)` loop used by `Cover::addRefPoint`/`addRefRecurse`.
     /// Ids are `Copy`, so no handles are cloned out of the guard.
-    // RUGRA-GLUE: Rust lock-release snapshot helper; Ghidra walks FlowBlock
+    // RUDRA-GLUE: Rust lock-release snapshot helper; Ghidra walks FlowBlock
     // incoming raw pointers inline in Cover::addRefPoint/addRefRecurse.
     fn collect_predecessor_ids(
         rg: &std::sync::RwLockReadGuard<'_, dyn crate::block::FlowBlock + Send + Sync>,
@@ -1153,7 +1153,7 @@ impl Cover {
     /// op into `scratch` (the dense rebuild table). Extracted unchanged
     /// from the pre-flip rebuild body — only the addRefPoint target table
     /// is a parameter.
-    // RUGRA-GLUE: worklist extraction for the dense rebuild scratch flip
+    // RUDRA-GLUE: worklist extraction for the dense rebuild scratch flip
     fn rebuild_worklist(
         &self,
         root: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
@@ -1258,7 +1258,7 @@ impl Cover {
         );
     }
 
-    // RUGRA-GLUE: lock-release adapter for Cover::rebuild; Ghidra's raw
+    // RUDRA-GLUE: lock-release adapter for Cover::rebuild; Ghidra's raw
     // Varnode pointer needs no snapshot when updateCover is called through a
     // mutable Rust RwLock guard.
 
@@ -1344,7 +1344,7 @@ impl Cover {
     ///    No mutation can intervene inside one expansion closure (the
     ///    single-threaded-per-Funcdata premise of `update_cover_locked`),
     ///    so ids stay resolvable and the view's epoch check cannot fire.
-    // RUGRA-GLUE: explicit id-stack worklist replaces the oracle's literal
+    // RUDRA-GLUE: explicit id-stack worklist replaces the oracle's literal
     // recursion: giant-function CFG cones make the no-op re-entry frames
     // (DAG edge multiplicity) the dominant cost, and the id form keeps a
     // re-entry at one atomic index read plus one map lookup.
@@ -1362,7 +1362,7 @@ impl Cover {
     /// rebuild scratch (`CoverWriteTable`). The hot per-frame map touch
     /// (`cover[bl->getIndex()]`, cover.cc:530) becomes a direct slot index
     /// on the scratch instantiation.
-    // RUGRA-GLUE: table-generic core for the dense rebuild scratch flip
+    // RUDRA-GLUE: table-generic core for the dense rebuild scratch flip
     fn expand_roots_tbl<T: CoverWriteTable>(
         bank: &crate::block::BlockBank,
         roots: &mut Vec<crate::arena::BlockId>,
@@ -1432,7 +1432,7 @@ impl Cover {
     }
 }
 
-// RUGRA-GLUE: stack-push form of the predecessor walk for the iterative
+// RUDRA-GLUE: stack-push form of the predecessor walk for the iterative
 // addRefRecurse expansion (Ghidra's `bl->getIn(j)` loop, cover.cc:535-536):
 // pushes each in-edge's bank id (Copy) onto `stack` in DESCENDING slot
 // order under ONE edge-table lock — the identical BlockId sequence the
@@ -1454,7 +1454,7 @@ fn push_predecessor_ids(
 
 impl fmt::Display for CoverBlock {
     // Ghidra: cover.cc:188 CoverBlock::print
-    // RUGRA-GLUE: Ghidra prints the raw SeqNum of a real-op endpoint; the
+    // RUDRA-GLUE: Ghidra prints the raw SeqNum of a real-op endpoint; the
     // projection model only keeps the order, so real ops print their decimal
     // order. Sentinel classification (begin/end) matches print's branches.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1555,7 +1555,7 @@ pub trait PcodeOpSetImpl: std::fmt::Debug {
 }
 
 impl std::fmt::Debug for PcodeOpSet {
-    // RUGRA-GLUE: Rust Debug-trait implementation; Ghidra has no corresponding
+    // RUDRA-GLUE: Rust Debug-trait implementation; Ghidra has no corresponding
     // PcodeOpSet debug formatter (Cover::print is a different API).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let n = self.op_list.read().unwrap().len();
@@ -1696,7 +1696,7 @@ impl PcodeOpSet {
 
     /// Number of ops currently in the set. (Ghidra uses `opList.size()`;
     /// Rugra exposes this as a method since `op_list` is private.)
-    // RUGRA-GLUE: Rust visibility adapter for private RwLock storage; Ghidra
+    // RUDRA-GLUE: Rust visibility adapter for private RwLock storage; Ghidra
     // accesses PcodeOpSet::opList directly and has no getNumOps method.
     pub fn get_num_ops(&self) -> usize {
         self.op_list.read().unwrap().len()
@@ -1704,7 +1704,7 @@ impl PcodeOpSet {
 
     /// Get the i-th op in the sorted set. (Ghidra indexes `opList[i]`
     /// directly; Rugra exposes a method since `op_list` is private.)
-    // RUGRA-GLUE: Rust visibility/ownership adapter returning an Arc clone;
+    // RUDRA-GLUE: Rust visibility/ownership adapter returning an Arc clone;
     // Ghidra indexes the protected opList vector directly.
     pub fn get_op(&self, i: usize) -> Option<OpArc> {
         self.op_list.read().unwrap().get(i).cloned()
@@ -1712,7 +1712,7 @@ impl PcodeOpSet {
 
     /// Read-only access to the op list snapshot. Used by `Cover::intersect`
     /// (cover.cc:342) to walk the set.
-    // RUGRA-GLUE: Rust lock-release snapshot for private RwLock storage;
+    // RUDRA-GLUE: Rust lock-release snapshot for private RwLock storage;
     // Ghidra's friend Cover reads PcodeOpSet::opList directly.
     pub fn op_list_snapshot(&self) -> Vec<OpArc> {
         self.op_list.read().unwrap().clone()
@@ -1720,7 +1720,7 @@ impl PcodeOpSet {
 
     /// Read-only access to the block-start index snapshot. Used by
     /// `Cover::intersect` (cover.cc:342) to delimit ops per block.
-    // RUGRA-GLUE: Rust lock-release snapshot for private RwLock storage;
+    // RUDRA-GLUE: Rust lock-release snapshot for private RwLock storage;
     // Ghidra's friend Cover reads PcodeOpSet::blockStart directly.
     pub fn block_start_snapshot(&self) -> Vec<i32> {
         self.block_start.read().unwrap().clone()
@@ -1733,10 +1733,10 @@ impl PcodeOpSet {
 struct NoOpOwner;
 
 impl PcodeOpSetImpl for NoOpOwner {
-    // RUGRA-GLUE: Borrow-checker placeholder used only during mem::replace;
+    // RUDRA-GLUE: Borrow-checker placeholder used only during mem::replace;
     // Ghidra virtual dispatch never installs a temporary owner object.
     fn populate(&self, _set: &mut PcodeOpSet) {}
-    // RUGRA-GLUE: Borrow-checker placeholder used only during mem::replace;
+    // RUDRA-GLUE: Borrow-checker placeholder used only during mem::replace;
     // Ghidra virtual dispatch never invokes a temporary affectsTest method.
     fn affects_test(&self, _op: &crate::op::PcodeOp, _vn: &crate::varnode::Varnode) -> bool {
         false

@@ -31,13 +31,13 @@ const ELEM_CPOOLREC_ID: u32 = 110;
 const ELEM_REF_ID: u32 = 111;
 const ELEM_TOKEN_ID: u32 = 112;
 
-// RUGRA-GLUE: Rust materializes Ghidra's process-global AttributeId objects
+// RUDRA-GLUE: Rust materializes Ghidra's process-global AttributeId objects
 // at call sites because AttributeId owns its name String.
 fn attrib(name: &str, id: u32) -> AttributeId {
     AttributeId::new(name, id)
 }
 
-// RUGRA-GLUE: Rust materializes Ghidra's process-global ElementId objects at
+// RUDRA-GLUE: Rust materializes Ghidra's process-global ElementId objects at
 // call sites because ElementId owns its name String.
 fn elem(name: &str, id: u32) -> ElementId {
     ElementId::new(name, id)
@@ -147,14 +147,14 @@ impl CPoolRecord {
         self.data_type.as_ref()
     }
 
-    // RUGRA-GLUE: Compatibility display accessor for legacy Rugra printers;
+    // RUDRA-GLUE: Compatibility display accessor for legacy Rugra printers;
     // Ghidra callers use getType()->getName().
     /// Get the compatibility display name derived from the canonical type.
     pub fn get_type_name(&self) -> &str {
         &self.type_name
     }
 
-    // RUGRA-GLUE: Rust keeps the Arc and its compatibility display name in
+    // RUDRA-GLUE: Rust keeps the Arc and its compatibility display name in
     // sync; Ghidra assigns the raw Datatype pointer directly as a friend.
     /// Install a factory-owned canonical data-type.
     pub fn set_type(&mut self, data_type: Arc<Datatype>) {
@@ -180,7 +180,7 @@ impl CPoolRecord {
         (self.flags & cpool_flags::IS_DESTRUCTOR) != 0
     }
 
-    // RUGRA-GLUE: Named Rust helper for the branch chain in
+    // RUDRA-GLUE: Named Rust helper for the branch chain in
     // CPoolRecord::encode (cpool.cc:36-51).
     /// Convert a tag to its string name for encoding. Faithful to the
     /// encode logic (cpool.cc:36-51).
@@ -197,7 +197,7 @@ impl CPoolRecord {
         }
     }
 
-    // RUGRA-GLUE: Named Rust helper for the branch chain in
+    // RUDRA-GLUE: Named Rust helper for the branch chain in
     // CPoolRecord::decode (cpool.cc:99-115).
     /// Convert a string name to a tag for decoding. Faithful to the decode
     /// logic (cpool.cc:99-115).
@@ -501,14 +501,14 @@ pub struct ConstantPoolInternal {
 }
 
 impl Default for ConstantPoolInternal {
-    // RUGRA-GLUE: Rust Default delegates to the empty C++ map state.
+    // RUDRA-GLUE: Rust Default delegates to the empty C++ map state.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl ConstantPoolInternal {
-    // RUGRA-GLUE: Rust constructor for the implicitly default-constructed
+    // RUDRA-GLUE: Rust constructor for the implicitly default-constructed
     // ConstantPoolInternal::cpoolMap.
     /// Construct an empty constant pool.
     pub fn new() -> Self {
@@ -517,13 +517,13 @@ impl ConstantPoolInternal {
         }
     }
 
-    // RUGRA-GLUE: Read-only map-size accessor for tests and diagnostics.
+    // RUDRA-GLUE: Read-only map-size accessor for tests and diagnostics.
     /// Number of records in the pool.
     pub fn num_records(&self) -> usize {
         self.cpool_map.len()
     }
 
-    // RUGRA-GLUE: Read-only iterator exposing the C++ map's native ordering.
+    // RUDRA-GLUE: Read-only iterator exposing the C++ map's native ordering.
     /// Iterate over all (reference, record) pairs.
     pub fn records(&self) -> impl Iterator<Item = (&CheapSorter, &CPoolRecord)> {
         self.cpool_map.iter()
@@ -610,7 +610,7 @@ mod tests {
     use crate::type_system::datatype::TypeMetatype;
     use std::sync::RwLock;
 
-    // RUGRA-GLUE: test-only fixture registering a plain 4-byte INT core type
+    // RUDRA-GLUE: test-only fixture registering a plain 4-byte INT core type
     // via the faithful set_core_type_result twin. Ghidra test bootstrap has no
     // counterpart (the oracle fixture registers core types through the
     // architecture's TypeFactory directly); a conflicting registration is a

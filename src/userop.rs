@@ -827,7 +827,7 @@ impl UserOpManage {
         self.get_op(index as i32).map(|op| op.name.as_str())
     }
 
-    // RUGRA-GLUE: name-list convenience for `initialize_builtins` (the
+    // RUDRA-GLUE: name-list convenience for `initialize_builtins` (the
     //   oracle `UserOpManage::initialize`, userop.cc:392-403, registers every
     //   user defined p-code op presented by the Architecture as
     //   UnspecializedPcodeOp; this pre-registers the six well-known names in

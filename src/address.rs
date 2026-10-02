@@ -48,7 +48,7 @@ pub struct Address {
     space: Option<SpaceTag>,
 }
 
-// RUGRA-GLUE: SpaceTag (ADDRESS-0001 phase-1 transitional adapter; Ghidra
+// RUDRA-GLUE: SpaceTag (ADDRESS-0001 phase-1 transitional adapter; Ghidra
 // stores a raw `AddrSpace *base` which cannot keep the legacy `Address`
 // `Copy`. The tag is a copyable intern-table slot; the table keeps a strong
 // handle so the space's allocation — and therefore its `identity_ptr` — can
@@ -57,7 +57,7 @@ pub struct Address {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SpaceTag(NonZeroU32);
 
-// RUGRA-GLUE: SPACE_TAG_TABLE (Ghidra's `base` is an architecture-owned
+// RUDRA-GLUE: SPACE_TAG_TABLE (Ghidra's `base` is an architecture-owned
 // pointer that needs no side table; Rust cannot store a pointer and stay
 // `Copy`, so the tag resolves through this address.rs-owned table. The
 // table is thread-local because the `AddrSpace` handle is an
@@ -72,7 +72,7 @@ thread_local! {
         std::cell::RefCell::new(Vec::new());
 }
 
-// RUGRA-GLUE: intern_space (no Ghidra counterpart; ADDRESS-0001 bridge)
+// RUDRA-GLUE: intern_space (no Ghidra counterpart; ADDRESS-0001 bridge)
 /// Return the (stable, thread-scoped) tag for a space handle, interning it
 /// on first sight. Two tags are equal iff they came from the same
 /// `AddrSpace` allocation (Ghidra's pointer identity). The table holds a
@@ -93,7 +93,7 @@ fn intern_space(spc: &AddrSpace) -> SpaceTag {
     })
 }
 
-// RUGRA-GLUE: resolve_space_tag (no Ghidra counterpart; ADDRESS-0001 bridge)
+// RUDRA-GLUE: resolve_space_tag (no Ghidra counterpart; ADDRESS-0001 bridge)
 /// Resolve a tag back to its space handle. Panics for tags not issued on
 /// this thread (see `SPACE_TAG_TABLE`'s thread-scope contract).
 fn resolve_space_tag(tag: SpaceTag) -> AddrSpace {
@@ -108,7 +108,7 @@ fn resolve_space_tag(tag: SpaceTag) -> AddrSpace {
 
 impl Address {
     /// Create a new address
-    // RUGRA-GLUE: Scalar-address constructor; Ghidra also requires an AddrSpace, which this form omits (None = legacy spaceless).
+    // RUDRA-GLUE: Scalar-address constructor; Ghidra also requires an AddrSpace, which this form omits (None = legacy spaceless).
     pub const fn new(addr: u64) -> Self {
         Address {
             offset: addr,
@@ -116,7 +116,7 @@ impl Address {
         }
     }
 
-    // RUGRA-GLUE: with_space (ADDRESS-0001 phase-1 bridge; the Ghidra form is
+    // RUDRA-GLUE: with_space (ADDRESS-0001 phase-1 bridge; the Ghidra form is
     // the inline `Address(AddrSpace *id,uintb off)` at address.hh:270.)
     /// Create an address carrying a space handle, like Ghidra's basic
     /// `Address(AddrSpace*, uintb)` constructor. The space is interned into
@@ -128,7 +128,7 @@ impl Address {
         }
     }
 
-    // RUGRA-GLUE: get_space (Ghidra's address.hh:323 returns the raw `base`
+    // RUDRA-GLUE: get_space (Ghidra's address.hh:323 returns the raw `base`
     // pointer, NULL if invalid; the tag table resolution is the Rust form.)
     /// The address space handle, or `None` for a legacy spaceless address
     /// (Ghidra's null `base`).
@@ -136,7 +136,7 @@ impl Address {
         self.space.map(resolve_space_tag)
     }
 
-    // RUGRA-GLUE: from_space_address (ADDRESS-0001 phase-1 bridge between the
+    // RUDRA-GLUE: from_space_address (ADDRESS-0001 phase-1 bridge between the
     // space-carrying `SpaceAddress` and this transitional type.)
     /// Cross the bridge from [`SpaceAddress`]: a real space becomes a tagged
     /// address, a null base becomes the legacy spaceless form. The
@@ -152,7 +152,7 @@ impl Address {
         }
     }
 
-    // RUGRA-GLUE: to_space_address (ADDRESS-0001 phase-1 bridge; `None`
+    // RUDRA-GLUE: to_space_address (ADDRESS-0001 phase-1 bridge; `None`
     // maps to `SpaceAddress::from_offset`'s null-base invalid form.)
     /// Cross the bridge to [`SpaceAddress`]: a tagged space carries over,
     /// `None` becomes the null-base (invalid) address with the same offset.
@@ -258,7 +258,7 @@ impl Address {
     }
 }
 
-// RUGRA-GLUE: PartialEq for Address (Ghidra compares the raw `base` pointers
+// RUDRA-GLUE: PartialEq for Address (Ghidra compares the raw `base` pointers
 // then offsets inline in address.hh:356-358; the intern tag is the pointer
 // identity, and `None` — Ghidra's null base — equals only `None`.)
 impl PartialEq for Address {
@@ -269,7 +269,7 @@ impl PartialEq for Address {
 }
 impl Eq for Address {}
 
-// RUGRA-GLUE: Ord for Address (Ghidra has operator< only, address.hh:375-393;
+// RUDRA-GLUE: Ord for Address (Ghidra has operator< only, address.hh:375-393;
 // Rust needs a total order for sorted containers, built from the same branch
 // ladder.)
 impl Ord for Address {
@@ -315,10 +315,10 @@ impl PartialOrd for Address {
     }
 }
 
-// RUGRA-GLUE: Hash for Address (Ghidra has no hash for Address; the key must
+// RUDRA-GLUE: Hash for Address (Ghidra has no hash for Address; the key must
 // agree with PartialEq: intern tag identity then offset.)
 impl Hash for Address {
-    // RUGRA-GLUE: fn hash — trait method required by Rust std Hash; delegates
+    // RUDRA-GLUE: fn hash — trait method required by Rust std Hash; delegates
     // to the space tag then offset, mirroring the PartialEq ordering above.
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.space.hash(state);
@@ -398,7 +398,7 @@ impl SeqNum {
         }
     }
 
-    // RUGRA-GLUE: convenience constructor for the next immutable creation id;
+    // RUDRA-GLUE: convenience constructor for the next immutable creation id;
     // Ghidra increments PcodeOpBank::uniqid inline in op.cc:944.
     /// Get the next creation identity at the same address.
     pub fn next(&self) -> Self {
@@ -455,7 +455,7 @@ impl SeqNum {
 }
 
 impl PartialEq for SeqNum {
-    // RUGRA-GLUE: Rust Eq must agree with Ord for BTree/Hash keys. Ghidra's
+    // RUDRA-GLUE: Rust Eq must agree with Ord for BTree/Hash keys. Ghidra's
     // operator== is time-only; callers needing that semantic use
     // `same_identity`, while ordered keys use `(Address,time)` as operator<.
     fn eq(&self, other: &Self) -> bool {
@@ -482,7 +482,7 @@ impl Ord for SeqNum {
 }
 
 impl Hash for SeqNum {
-    // RUGRA-GLUE: Rust Hash must use the same immutable identity as Eq/Ord;
+    // RUDRA-GLUE: Rust Hash must use the same immutable identity as Eq/Ord;
     // Ghidra's SeqNum keys are ordered by address.hh:154 operator<.
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.addr.hash(state);
@@ -907,7 +907,7 @@ impl fmt::Display for RangeList {
 // VARNODE-0001/FUNCDATA waves). `SpaceAddress::from_offset` is the bridge.
 // ============================================================================
 
-// RUGRA-GLUE: SpaceBase (Ghidra stores a raw `AddrSpace *base` that is either
+// RUDRA-GLUE: SpaceBase (Ghidra stores a raw `AddrSpace *base` that is either
 // null, the extremal pseudo-pointer `~((uintp)0)` from the m_maximal
 // constructor, or a real space; Rust needs an explicit tagged enum because
 // dereferencing a pseudo-pointer is not expressible safely.)
@@ -976,7 +976,7 @@ impl SpaceAddress {
         }
     }
 
-    // RUGRA-GLUE: from_offset (bridge for the legacy offset-only `Address`;
+    // RUDRA-GLUE: from_offset (bridge for the legacy offset-only `Address`;
     // Ghidra has no offset-without-space address — this is deliberately an
     /// invalid address per address.hh:285.)
     /// Wrap a bare legacy offset. The result carries no space, so
@@ -988,7 +988,7 @@ impl SpaceAddress {
         }
     }
 
-    // RUGRA-GLUE: same_base (Ghidra compares the raw `base` pointers inline
+    // RUDRA-GLUE: same_base (Ghidra compares the raw `base` pointers inline
     // in operator==/containedBy/justifiedContain/overlap/isContiguous.)
     /// Pointer-identity test of the two `base` slots (both null counts as
     /// equal, mirroring C++ null == null).
@@ -1220,7 +1220,7 @@ impl SpaceAddress {
         false
     }
 
-    // RUGRA-GLUE: expect_space (Ghidra's inline accessors dereference `base`
+    // RUDRA-GLUE: expect_space (Ghidra's inline accessors dereference `base`
     // directly; Rust returns a clear error instead of null-dereferencing.)
     /// Borrow the real space or panic like Ghidra's null dereference.
     fn expect_space(&self, what: &str) -> &AddrSpace {
@@ -1336,7 +1336,7 @@ impl SpaceAddress {
     }
 }
 
-// RUGRA-GLUE: PartialEq for SpaceAddress (Ghidra compares `base` pointers
+// RUDRA-GLUE: PartialEq for SpaceAddress (Ghidra compares `base` pointers
 // then offsets inline in address.hh:356-358.)
 impl PartialEq for SpaceAddress {
     // Ghidra: address.hh:356 Address::operator==
@@ -1346,7 +1346,7 @@ impl PartialEq for SpaceAddress {
 }
 impl Eq for SpaceAddress {}
 
-// RUGRA-GLUE: Ord for SpaceAddress (Ghidra has operator< and operator<= only;
+// RUDRA-GLUE: Ord for SpaceAddress (Ghidra has operator< and operator<= only;
 // Rust needs a total order for sorted containers, built from the same
 // branch ladder as address.hh:375-393.)
 impl Ord for SpaceAddress {
@@ -1390,10 +1390,10 @@ impl PartialOrd for SpaceAddress {
     }
 }
 
-// RUGRA-GLUE: Hash for SpaceAddress (Ghidra has no hash; the handle-based
+// RUDRA-GLUE: Hash for SpaceAddress (Ghidra has no hash; the handle-based
 // identity must agree with PartialEq: base identity then offset.)
 impl Hash for SpaceAddress {
-    // RUGRA-GLUE: hash (Ghidra has no Hash for Address; consistent with
+    // RUDRA-GLUE: hash (Ghidra has no Hash for Address; consistent with
     // operator== so hash containers key the same pairs.)
     fn hash<H: Hasher>(&self, state: &mut H) {
         match &self.base {
@@ -1561,7 +1561,7 @@ impl SpaceRange {
     }
 }
 
-// RUGRA-GLUE: PartialEq/Ord for SpaceRange (Ghidra sorts Ranges with
+// RUDRA-GLUE: PartialEq/Ord for SpaceRange (Ghidra sorts Ranges with
 // operator< only, address.hh:202-205; std::set dedups on it, so Rust models
 // equality as order-equivalence: same space index and same first offset.)
 impl PartialEq for SpaceRange {
@@ -1649,7 +1649,7 @@ impl SpaceRangeList {
         self.tree.last()
     }
 
-    // RUGRA-GLUE: upper_bound_pos (Ghidra uses std::set::upper_bound on
+    // RUDRA-GLUE: upper_bound_pos (Ghidra uses std::set::upper_bound on
     // Range(spc,off,off); Rust binary-searches the sorted Vec by the same
     // (index, first) key.)
     /// Index of the first range strictly greater than `Range(spc, off, off)`.
@@ -1677,7 +1677,7 @@ impl SpaceRangeList {
         lo
     }
 
-    // RUGRA-GLUE: insert_sorted (Ghidra's tree.insert keeps the existing
+    // RUDRA-GLUE: insert_sorted (Ghidra's tree.insert keeps the existing
     // element for an equivalent key; the Vec insert mirrors that no-op.)
     /// Insert keeping (index, first) sort order; an equivalent key leaves
     /// the existing range in place, exactly like std::set::insert.

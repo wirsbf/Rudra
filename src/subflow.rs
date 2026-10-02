@@ -3193,7 +3193,7 @@ impl RuleSubvarSext {
         Self { isaggressive: false }
     }
 
-    // RUGRA-GLUE: fixture-only observation accessor (the locked C++ fixture reads the protected isaggressive field via its private/protected access hack)
+    // RUDRA-GLUE: fixture-only observation accessor (the locked C++ fixture reads the protected isaggressive field via its private/protected access hack)
     #[doc(hidden)]
     pub fn fixture_is_aggressive(&self) -> bool {
         self.isaggressive
@@ -4855,7 +4855,7 @@ impl RootPointer {
     /// `None` read-facing result rejects exactly like the oracle's non-ptr
     /// metatype check (cc:2119-2120).
     ///
-    /// `fd` is the RUGRA-GLUE channel for the cc:2118 consult
+    /// `fd` is the RUDRA-GLUE channel for the cc:2118 consult
     /// `tmpPointer->getTypeReadFacing(addOp)`: the oracle's
     /// `TypeUnion::findResolve` derives the Funcdata from
     /// `op->getParent()->getFuncdata()` (type.cc:2138) and consults
@@ -4953,7 +4953,7 @@ impl RootPointer {
     /// nested struct/array pointers that have a lone descendant, accumulating
     /// the offset in `base_offset`.
     ///
-    /// `fd` is the RUGRA-GLUE channel for the cc:2157 consult
+    /// `fd` is the RUDRA-GLUE channel for the cc:2157 consult
     /// `pointer->getTypeReadFacing(op)` (slot 1: `pointer` is the LOAD/STORE
     /// `in(1)`) and for the `backUpPointer` hops — see the channel note on
     /// [`Self::back_up_pointer`].
@@ -5119,7 +5119,7 @@ impl<'a> SplitDatatype<'a> {
     /// can produce `TypePartialStruct`/`TypePartialUnion`/`TypePartialEnum`
     /// pieces. Returns `None` when no splittable interpretation exists.
     ///
-    /// `fd` is the RUGRA-GLUE channel for the cc:2914 consult
+    /// `fd` is the RUDRA-GLUE channel for the cc:2914 consult
     /// `loadStore->getIn(1)->getTypeReadFacing(loadStore)` (slot 1): the
     /// oracle derives the Funcdata inside `TypeUnion::findResolve`
     /// (type.cc:2138); Rugra threads it explicitly into
@@ -6679,7 +6679,7 @@ impl Rule for RuleSplitStore {
 // (subflow.hh:379-406, subflow.cc:3070-3481)
 // =====================================================================
 
-// RUGRA-GLUE: Ghidra reaches the float formats through
+// RUDRA-GLUE: Ghidra reaches the float formats through
 // `fd->getArch()->translate->getFloatFormat(size)` (translate.hh:322,
 // translate.cc:979-989), which returns NULL when no format is registered
 // for the size. Rugra's spec registers exactly IEEE754 single (4) and
@@ -6694,7 +6694,7 @@ fn subfloat_float_format(size: usize) -> Option<crate::float_emulate::FloatForma
     }
 }
 
-// RUGRA-GLUE: virtual-dispatch hook for `SubfloatFlow::preserveAddress`
+// RUDRA-GLUE: virtual-dispatch hook for `SubfloatFlow::preserveAddress`
 // (subflow.cc:3451-3455), installed via
 // `TransformManager::set_preserve_address_override`. The base-class
 // implementation (transform.cc:348) is replaced wholesale by the override,

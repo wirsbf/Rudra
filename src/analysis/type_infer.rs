@@ -12,7 +12,7 @@ use crate::opcodes::OpCode;
 use crate::space::AddressSpace;
 use crate::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer, TypeStruct};
 
-// RUGRA-GLUE: propagate_types (no Ghidra counterpart found)
+// RUDRA-GLUE: propagate_types (no Ghidra counterpart found)
 /// Run type propagation. Faithful to Ghidra ActionInferTypes::apply
 /// (coreaction.cc:5374-5416): multi-round iterative propagation until
 /// convergence (or max 7 rounds).
@@ -134,7 +134,7 @@ pub fn propagate_types(fd: &mut Funcdata) {
     }
 }
 
-// RUGRA-GLUE: propagate_one_round (no Ghidra counterpart found)
+// RUDRA-GLUE: propagate_one_round (no Ghidra counterpart found)
 /// One round of iterative type propagation. Returns true if any type changed.
 /// Faithful to Ghidra ActionInferTypes: buildLocaltypes + propagateOneType + writeBack.
 fn propagate_one_round(fd: &mut Funcdata) -> bool {
@@ -303,7 +303,7 @@ fn propagate_one_round(fd: &mut Funcdata) -> bool {
     changed
 }
 
-// RUGRA-GLUE: propagate_load_output_types (no Ghidra counterpart found)
+// RUDRA-GLUE: propagate_load_output_types (no Ghidra counterpart found)
 /// Propagate LOAD output types from pointer inputs.
 /// Faithful to Ghidra's TypeOp::propagateFromPointer (typeop.cc:206).
 fn propagate_load_output_types(fd: &mut Funcdata) {

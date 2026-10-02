@@ -115,7 +115,7 @@ pub const TRANSTABLE: [u32; 75] = {
     t
 };
 
-// RUGRA-GLUE: translate_opcode is a thin accessor over the `transtable`
+// RUDRA-GLUE: translate_opcode is a thin accessor over the `transtable`
 //   constant array. Ghidra indexes the C++ array directly
 //   (`transtable[op->code()]`); Rust wraps the indexing because `OpCode`
 //   has no `as usize` that is guaranteed in range without a repr.
@@ -915,7 +915,7 @@ impl DynamicHash {
                     None => continue,
                 };
                 if isnotattached {
-                    // RUGRA-GLUE: scrutinee read guard lifted to statement
+                    // RUDRA-GLUE: scrutinee read guard lifted to statement
                     // scope (lock-hygiene family: ER ruleaction SubRight /
                     // EW castInput / EM3 cover_dirty). An `if let Some(x) =
                     // vn.read().unwrap().lone_descend()` scrutinee would hold
@@ -944,7 +944,7 @@ impl DynamicHash {
             } else if (slot as usize) < op.read().unwrap().num_input() {
                 let vn = op.read().unwrap().get_in(slot as usize).cloned().unwrap();
                 if isnotattached {
-                    // RUGRA-GLUE: same scrutinee-guard lift as the slot<0
+                    // RUDRA-GLUE: same scrutinee-guard lift as the slot<0
                     // arm above; read order unchanged (dynamic.cc:677 getDef
                     // read, then cc:678/679 opcode + getIn(0)).
                     let def = vn.read().unwrap().get_def();
@@ -1048,7 +1048,7 @@ impl DynamicHash {
 }
 
 impl Default for DynamicHash {
-    // RUGRA-GLUE: Rust Default delegates to new(); Ghidra's DynamicHash class
+    // RUDRA-GLUE: Rust Default delegates to new(); Ghidra's DynamicHash class
     // (dynamic.hh:62) declares no explicit constructor or Default-style method.
     fn default() -> Self {
         Self::new()

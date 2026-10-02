@@ -7,14 +7,14 @@
 
 DataType alignment verification logic.
 
-This module ensures that Rugra's type system matches Ghidra's
+This module ensures that Rudra's type system matches Ghidra's
 internal Datatype representation as defined in `type.hh`.
 
 ## 导出的公共 API (Public API)
 
 ### `pub fn verify_datatype(`
 
-Verify that a Rugra DataType aligns with Ghidra's representation
+Verify that a Rudra DataType aligns with Ghidra's representation
 
 Checks size and metatype compatibility
 
@@ -22,7 +22,7 @@ Checks size and metatype compatibility
 
 Verify struct layout alignment
 
-Checks that field offsets and sizes match between Rugra and Ghidra
+Checks that field offsets and sizes match between Rudra and Ghidra
 
 ### `pub fn verify_field(`
 

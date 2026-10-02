@@ -108,7 +108,7 @@ eight-way placement ladder (header-at-entry, PcodeOpTree lower-bound
 containment, previous-op `0xffffffff` tail, migrated backupOp, op-less
 `(0,0)`, `displayUnplaced` salvage, excised drop, dead-op error);
 `BlockBasic::contains` is projected from `[start_addr,
-initial_range stop]` (`set_initial_range`, block.cc:2625) because Rugra has
+initial_range stop]` (`set_initial_range`, block.cc:2625) because Rudra has
 no block cover RangeList (block.hh:476 residual). Since 0d2252d removed the
 last-op fallback in `get_stop_addr`, manually constructed blocks must
 install the cover explicitly — the same legal state the C++ fixture builds
@@ -118,7 +118,7 @@ fallback anywhere in `getStop` (block.cc:2328-2335 returns an invalid
 
 ## Codec evidence and residual
 
-`COMMENT-WARNING-CODEC-0001` runs paired Ghidra/Rugra fixtures against oracle
+`COMMENT-WARNING-CODEC-0001` runs paired Ghidra/Rudra fixtures against oracle
 commit `e40ed13014025f82488b1f8f7bca566894ac376b`. The byte-compared projection
 covers:
 
@@ -131,7 +131,7 @@ covers:
 
 Projection status is `MATCH`. Overall status remains `MISMATCH`: Ghidra's
 `Address::decode` obtains the architecture-owned space through the decoder's
-`AddrSpaceManager`; Rugra's current `Decoder` trait exposes no equivalent.
+`AddrSpaceManager`; Rudra's current `Decoder` trait exposes no equivalent.
 The Rust decoder therefore validates and consumes the encoded space name but
 can only return the legacy offset-only `Address`. Unknown space-name rejection
 and exact address-space identity remain with `ADDRESS-0001` and
@@ -173,7 +173,7 @@ and exact address-space identity remain with `ADDRESS-0001` and
   （pin-base 8d59b77 + src/comment.rs、src/block.rs overlay，schema-2
   metadata；2026-08-25 BLOCK-STOPADDR-FIXTURE-REGRESSION-0001 重钉后双侧
   在本机重跑通过：锁定 Ghidra 12.0.4 (e40ed130) 归档重建 + 宿主工具链）——
-  锁定 Ghidra 12.0.4 (e40ed130) 与 Rugra 的 38 行交错消费投影
+  锁定 Ghidra 12.0.4 (e40ed130) 与 Rudra 的 38 行交错消费投影
   **byte-identical**：header basic/unplaced 两轮、三个块的
   setupBlockList→setupOpList(op…)→setupOpList(NULL) 交错行走、
   0xffffffff 块尾放置、迁移 backupOp、空块 0 排空、tp 掩码外的 USER1
@@ -181,9 +181,9 @@ and exact address-space identity remain with `ADDRESS-0001` and
   死 op 错误文本、无 op 函数 (0,0) 放置。
 - **残差（绑定 `COMMENT-SORTER-ITERATORS-0001`）**：
   1. `BlockBasic::contains` 用 `[start_addr, set_initial_range 端点]` 投影
-     Ghidra 的 cover RangeList（Rugra 无块 cover 系统，block.hh:476）；
+     Ghidra 的 cover RangeList（Rudra 无块 cover 系统，block.hh:476）；
      fixture 两侧把块范围钉到相同边界（C++ `setBasicBlockRange` /
-     Rugra `set_initial_range`），管线中块 cover 终值 == 末指令地址，故
+     Rudra `set_initial_range`），管线中块 cover 终值 == 末指令地址，故
      等价，但形式化等价未证；无 range 存量块的 `start_addr` 回退与
      Ghidra invalid-`Address()` 语义的差异归 `BLOCKBASIC-COVER-0001`。
   2. CommentSorter 持有 Comment 克隆而非数据库指针：setupFunctionList 的

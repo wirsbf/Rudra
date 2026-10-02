@@ -11,7 +11,7 @@
 // (examples/common/stale_guard_hash.rs): relative POSIX paths, NUL, u64-LE
 // length, bytes, over FNV-1a-64 with a domain-separation prefix.
 //
-// RUGRA-GLUE: build/verification infrastructure — the locked Ghidra oracle
+// RUDRA-GLUE: build/verification infrastructure — the locked Ghidra oracle
 // has no counterpart for build-script plumbing; the guarded decompiler
 // pipeline is untouched by this module.
 

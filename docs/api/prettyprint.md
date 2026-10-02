@@ -27,7 +27,7 @@ token 流，断言溢出断行落在该 tokenbreak——标点保留在首行行
 - `get_max_line_size`（hh:409 基虚返回 -1；`EmitPrettyPrint` 覆写 hh:1109 返回
   `maxlinesize`）。
 
-另增 `EmitPrettyPrint::debug_lowlevel_output_ref`（RUGRA-GLUE 观测通道，
+另增 `EmitPrettyPrint::debug_lowlevel_output_ref`（RUDRA-GLUE 观测通道，
 `EmitNoMarkup::debug_get_output_ref` 同族）：不消费 emitter 读 lowlevel 已提交
 字节——活体 printer 的 fixture 观测面（printc_printlist_wiring_1204 render 通道）。
 
@@ -122,7 +122,7 @@ printc.cc:3164-3193 `emitLabel` 经 queryCodeLabel 命中打印全限定拼写�
 
 ## 2026-09-22：WARN-EMIT2 R4 — 签名启发式排除比较运算符（glob_range 重复声明 0→6→0）
 
-`backfill_missing_locals`（RUGRA-GLUE，无 oracle 对应）的签名形状启发式第四次
+`backfill_missing_locals`（RUDRA-GLUE，无 oracle 对应）的签名形状启发式第四次
 误命中：HERITAGE-PROMOTE-SYMBOLTAIL-0001 使 gp/glob 家族出现多行 if 条件续行
 `iVar5 < *(int *)((int *)&((URLPattern *)(uVar4 + 0x50) + iVar8)->content + 4))) {`
 ——不以 `(` 开头（绕过 R3）、无分号（绕过 MAIN-IVAR4-DUP）、含 `(` 且含
@@ -249,7 +249,7 @@ flush 结尾——这些文本 pass 在 Ghidra 无对应物，删除即向 oracl
 curl/httpd E2E 输出与 master **sha256 逐字节一致**（`f6e35fcd…` / `5200602a…`），
 `cargo test --lib` 17 失败全部为 funcdata 预存项。
 
-- **新增 `PostfixStats` 诊断族**（全部 `// RUGRA-GLUE:`，Ghidra 无对应物——oracle
+- **新增 `PostfixStats` 诊断族**（全部 `// RUDRA-GLUE:`，Ghidra 无对应物——oracle
   `EmitNoMarkup`（prettyprint.hh:542-594）是无缓冲直写 emitter，发射路径以
   `flush`（prettyprint.cc:1194-1213）结束，无任何文本后处理）：
   - `RUGRA_POSTFIX_STATS` 环境变量设置时，`post_process_output_legacy` 每次调用
@@ -298,7 +298,7 @@ EmitNoMarkup::<方法>` 注解（锁定 oracle 的 `EmitNoMarkup`（hh:547-594�
   （B4）改为直接消费 pass 18。
 - **伪造 `// Ghidra:` 注解改正（机制 D 红旗清除，20 处）**：锁定 oracle 的
   `EmitNoMarkup`（prettyprint.hh:547-594）只有 `Emit` 虚方法族，以下注解
-  引用了 oracle 根本不存在的方法，全部改标 `// RUGRA-GLUE:`（登记
+  引用了 oracle 根本不存在的方法，全部改标 `// RUDRA-GLUE:`（登记
   POSTFIX-RETIRE-0001 W0）：路线图点名的 16 处中，`rewriteStructDeref`/
   `canonicalizeStructDeref` 2 处随死函数删除，`postProcess`/
   `postProcessOutput`/`removeOrphanCaseLabels`/`removeIllegalLvalueAssignments`/
@@ -308,14 +308,14 @@ EmitNoMarkup::<方法>` 注解（锁定 oracle 的 `EmitNoMarkup`（hh:547-594�
   另有 8 处同准则伪造注解一并处置（`recoverStructFieldsAnon`/
   `tryConvertPtrAdd` 随死函数删除；`debugCountWhile`/`debugGetOutputRef`/
   `getOutput`/`intoAny`/`asAnyMut` 5 处改标；`hasEnclosingLoopCtx` 是悬空
-  残留行——真函数在 :3478 一带本就有 RUGRA-GLUE 注解——直接删除）。
+  残留行——真函数在 :3478 一带本就有 RUDRA-GLUE 注解——直接删除）。
   保留的 15 处 hh:547 注解（print/beginBlock/tagLine 等虚方法 + default/new
   →构造器 hh:550）均为 oracle 真实方法，不动。
 - **`post_process_output_legacy` 误导标记清除**：其顶部
   "**DEAD CODE** — Do NOT call / 已被空操作替代 / `#[allow(dead_code)]`"
   注释是 2026-07-04 一次被放弃的退役尝试（改空操作→gcc 审计 23/24→5/24→
   回退）留下的脚手架，与事实矛盾——它是 `post_process_output` 的唯一实现
-  并被其调用，是活链。改为如实状态注释 + RUGRA-GLUE 登记（oracle 发射
+  并被其调用，是活链。改为如实状态注释 + RUDRA-GLUE 登记（oracle 发射
   路径零后处理的证据链：hh:547-594 无缓冲直写 emitter + printc.cc:2665
   docFunction 以 flush() 结束），`#[allow(dead_code)]` 一并移除（函数可达，
   属性本就无效）。退役仍按路线图 W1-WT 顺序推进。
@@ -745,13 +745,13 @@ undeclared，SetHTTPrequest 新增 FAIL）；旁路两个合成 pass、保留 ba
 且 numbering 同为 0——后者使缺符号函数（符号块外的 uVar_<offset> 引用，
 PRINTC-UNLINKED-REF-0001 域）保持可编译，是任务要求的 backfill 保留语义。
 
-- 新增 `has_symbol_driven_decls()`（RUGRA-GLUE）：保守判据 = 函数声明块
+- 新增 `has_symbol_driven_decls()`（RUDRA-GLUE）：保守判据 = 函数声明块
   非空且至少一行声明呈现 ①类型 token 以 `undefined` 开头
   （undefined1/2/4/8 核心类型拼写，legacy pass 只合成
   int/long/`char *`/float/double）或 ②名字 token 以 `in_` 开头
   （in_RAX/in_ram_*/in_register_* 寄存器/内存符号名）。两种拼写只能由
   `emit_local_var_decls` 产出。
-- 新增 `symbol_driven_function_line_mask()`（RUGRA-GLUE）：整文本按
+- 新增 `symbol_driven_function_line_mask()`（RUDRA-GLUE）：整文本按
   `signature_opens_function_body` 分段（前缀集含 `undefinedN` 返回型），
   为 `fix_unary_deref_declarations` 的行级重写提供函数归属掩码。
   分段边界修正（MAIN-ARGC-PROTO）：skip_line 布局下签名行自身无花括号
@@ -808,7 +808,7 @@ numbering 3→**0**、defects 0 不变、Matched 123 不降；11.3.2 回归 gold
 
 ### 2026-08-25：PRINTC-SWITCH-EMIT-0001 配套 — switch 语句前缀谓词
 
-`is_switch_stmt_prefix`（RUGRA-GLUE）：oracle 的 opBranchind
+`is_switch_stmt_prefix`（RUDRA-GLUE）：oracle 的 opBranchind
 （printc.cc:586-587）发射无空格的 `switch(`（golden `switch((int)x…)`
 佐证），而 legacy 文本后处理的 5 处前缀检查只认 `switch `/`switch (`
 形态——printc 对齐该字节后，`remove_orphan_case_labels` 会把
@@ -886,7 +886,7 @@ progressbarinit/hugehelp 等函数的提取体在两次输出中逐字节相同�
 不是短名的使用。同时修正函数注解：`Ghidra: prettyprint.hh:547
 EmitNoMarkup::backfillMissingLocals` 为误引（锁定 oracle 的
 prettyprint.hh:547 是 EmitNoMarkup 类声明，oracle 无任何 backfill
-文本 pass），改为 `RUGRA-GLUE` 并记录保留理由（PRINTC-UNLINKED-REF-0001
+文本 pass），改为 `RUDRA-GLUE` 并记录保留理由（PRINTC-UNLINKED-REF-0001
 未链接引用域的可编译性兜底，该域关闭时退役）。
 
 验收：curl E2E 幻影声明 18→0；真未链接引用（glob_set piVar1、
@@ -1114,7 +1114,7 @@ HTTPD-MAIN-POSTBLOCKSTRUCT-HANG-0001 不变）；curl 与基**逐字节相同**
 
 ## 2026-09-23（CHAINFIX lane EY2）：legacy_never_type_evidence 证据集扩宽
 
-- 新增 `legacy_never_type_evidence()`（RUGRA-GLUE，`has_symbol_driven_decls`
+- 新增 `legacy_never_type_evidence()`（RUDRA-GLUE，`has_symbol_driven_decls`
   / `_walk_parens` 共用判据 helper）：原 `undefined*` 前缀之外补入
   `uint*`/`int1`/`int2`/`int8`/`ushort`/`ulong`/`longlong`/`__int*_t`——
   均为符号驱动发射器独有拼写（printc.cc:2260-2279 core-type dtype 逐字

@@ -155,7 +155,7 @@ Rust 的 `FunctionalEqualityResult::pairs` 表示这些已写入的 raw
 - **深层比较**：两者都必须 written，定义 op 必须相同 opcode、相同输入数、非 marker、非 call。LOAD 需要相同指令地址。PTRADD 检查 slot 2（元素大小）。
 - **交换律**：对可交换运算符（INT_ADD/INT_MULT/INT_XOR/INT_AND/INT_OR），尝试翻转输入对匹配。
 - 用于 `RulePushMulti`、`RuleMultiCollapse`、`ActionMultiCse` 和 `Funcdata` CSE
-  检测；锁定 Ghidra 的 `ConditionalJoin::findDups` 也调用该函数，当前 Rugra 尚无等价
+  检测；锁定 Ghidra 的 `ConditionalJoin::findDups` 也调用该函数，当前 Rudra 尚无等价
   调用闭包，因此模块不能据此升级 L3。
 
 测试：expression::tests 新增 5 个（same_pointer/constants_equal/constants_unequal/different_sizes/free_varnodes）。

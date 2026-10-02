@@ -29,7 +29,7 @@
 ## 2026-08-11：ANN-B 注释 provenance 审计
 
 - Oracle 固定为 Ghidra 12.0.4 commit `e40ed13014025f82488b1f8f7bca566894ac376b`；完整读取 `callgraph.cc` 与 `callgraph.hh` 后分类。
-- `elem_node` 与 `elem_edge` 是 Rust marshal API 的按需 `ElementId` 构造器；Ghidra 对应物是全局 `ElementId` 对象，不是函数，因此标为具体 `RUGRA-GLUE: ANN-B`，没有伪造函数映射。
+- `elem_node` 与 `elem_edge` 是 Rust marshal API 的按需 `ElementId` 构造器；Ghidra 对应物是全局 `ElementId` 对象，不是函数，因此标为具体 `RUDRA-GLUE: ANN-B`，没有伪造函数映射。
 - 本轮仅补对齐来源注释，不改行为，也不新增 oracle `MATCH` 或 L3 证明。
 
 ## 2026-06-26（续）：callgraph.rs 完善实现

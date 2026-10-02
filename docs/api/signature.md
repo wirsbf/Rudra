@@ -14,7 +14,7 @@ function signatures to identify standard library calls.
 This module is a faithful 1:1 port of `signature.hh` / `signature.cc`. Every
 ported function carries a `// Ghidra: signature.cc:<line> <name>` comment
 pointing at the exact Ghidra source line; pure Rust glue (arena indices,
-`Mutex` settings, disjoint-borrow helpers) is marked `// RUGRA-GLUE: <reason>`.
+`Mutex` settings, disjoint-borrow helpers) is marked `// RUDRA-GLUE: <reason>`.
 
 2026-08-12 ANN-N 仅补 provenance：为 scanner 先前遗漏的两个 const holder
 构造器补充具体 Rust-glue 注释；本次未改变行为或模块状态。
@@ -121,7 +121,7 @@ inheritance).
 - `hashword` verified as `uint8` (64-bit); `Signature::sig` kept as `uint4`
   (32-bit) per `signature.hh:51`.
 - Every ported function annotated `// Ghidra: signature.cc:<line> <name>`.
-- Pure Rust glue marked `// RUGRA-GLUE: <reason>`.
+- Pure Rust glue marked `// RUDRA-GLUE: <reason>`.
 - No simplified implementations: iterative graph hashing, dominator-tree noise
   removal, all three feature types, and both free functions ported faithfully.
 - Magic constants preserved verbatim (`0xbafabaca`, `0x78abbf`, `0xfeedface`,

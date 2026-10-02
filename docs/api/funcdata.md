@@ -185,7 +185,7 @@ varmap/符号层既有缺口的表现面，随 VARGROUP-ABSORB-0001 §4-4 符号
 
 ## 2026-09-24：TypeSpacebase 活跃局部 scope 发布通道（VARMAP-STACKBOUNDARY-0001）
 
-- `Funcdata::publish_scope_to_spacebase`（RUGRA-GLUE，无 oracle 单函数对应物；
+- `Funcdata::publish_scope_to_spacebase`（RUDRA-GLUE，无 oracle 单函数对应物；
   行为对应 Ghidra `TypeSpacebase::getMap` type.cc:2935-2945 的动态解析语义）：
   每趟 ScopeLocal 图变异后（`ActionRestructureVarnode::apply` 内、
   `fd.scope = Some(scope)` 之后）调用——经 Architecture 的 TypeFactory 取
@@ -698,7 +698,7 @@ pass 0→1→2→3）不可能死锁。
 
 #### HERITAGE-DRIVER-SWITCH-0001 状态（2026-08-16）
 Ghidra 没有 `runHeritageDirect` 对应物（此前注释引用的 funcdata.cc:34 实为
-`setSelfRef`，属误引，已更正为 RUGRA-GLUE）。自生产路径切换后，本入口
+`setSelfRef`，属误引，已更正为 RUDRA-GLUE）。自生产路径切换后，本入口
 **绕过** canonical `Heritage::heritage`（heritage.cc:2663-2758）的
 ADT/guard/refinement 阶段，只服务 example 侧 prototype 估计 helper（在
 丢弃型 Funcdata 上）与 crate 内测试；不得在主管线调用。
@@ -2225,7 +2225,7 @@ false，split_uses / op_unlink / op_destroy / op_unset_input 无 input-flag 分�
 `bblocks.structureLoops(rootlist)` → `bblocks.calcForwardDominator(rootlist)`
 → `rootlist.len()>1` 置 unreachable → 死 jumptable 消灭循环（jumpvec 保序、
 `warning_header` 先于 drop、isDead 经 PcodeOp 读锁）→ `sblocks.clear()` →
-`heritage.force_restructure()`。RUGRA-GLUE 尾部补
+`heritage.force_restructure()`。RUDRA-GLUE 尾部补
 `build_dom_depth/build_dom_subtree/calc_dom_frontier` 缓存刷新（Ghidra 的
 dom depth 是 Heritage::buildADT 局部计算 heritage.cc:2338，Rugra 为
 per-block 缓存；不触碰 oracle 可观测状态）。LowlevelError 通道按项目既有
@@ -2299,7 +2299,7 @@ Rugra 防御性视为 alive，生产不可达已注释）。
 ### Funcdata::pcode_op_nz_mask_local → PcodeOp::get_nz_mask_local（op.cc:547，FUNCDATA-CALCNZM-0002 合并）
 - **完整 oracle switch（op.cc:547-771）已迁至 `PcodeOp::get_nz_mask_local`（src/op.rs）**：比较/布尔 → 1；COPY/ZEXT 传播；SEXT sign_extend；XOR/OR/AND；LEFT/RIGHT（含 >8 字节扩展精度分支 cc:612-630）；SRIGHT（符号位已知 0 分支 cc:639-644）；**INT_DIV**（cc:648-659，coveringmask(val) >> mostsigbit_set(常量分母)——sc6 y/64 根因修复）；INT_REM（cc:660-663）；POPCOUNT/LZCOUNT（cc:664-672）；SUBPIECE（含扩展精度 cc:673-692）；PIECE（cc:693-698）；INT_MULT（cc:699-731）；INT_ADD（进位 cc:732-739）；MULTIEQUAL（cliploop 裁剪 cc:740-757）；CALL/CALLIND/CPOOLREF isCalculatedBool→1（cc:758-765）；default→fullmask。
 - **输入 NZM 读取直接访问存储字段 `nzm`**（oracle varnode.hh:231 `getNZMask() { return nzm; }`）。Rugra 的 `Varnode::get_nz_mask()`（varnode.rs）是 calcNZMask 接线前的保守近似（常量→offset、其余→calc_mask），不能用于传播——残差 TODO FUNCDATA-CALCNZM-0003。
-- funcdata.rs 内的暂存副本 `Funcdata::pcode_op_nz_mask_local` 已删除（值等价迁移）；`calc_nz_mask` 的 phase-1（cc:874）与 phase-2（cc:919）调用点直接调用 `PcodeOp::get_nz_mask_local`。原 funcdata.rs 侧 RUGRA-GLUE（op.rs 租约限制）随之解除，TODO FUNCDATA-CALCNZM-0002 的 op.rs divergent 旧版（忽略 cliploop、缺 DIV/REM/POPCOUNT/LZCOUNT/MULT/CALL 臂、输入 mask 走保守近似）已被完整 switch 替换。
+- funcdata.rs 内的暂存副本 `Funcdata::pcode_op_nz_mask_local` 已删除（值等价迁移）；`calc_nz_mask` 的 phase-1（cc:874）与 phase-2（cc:919）调用点直接调用 `PcodeOp::get_nz_mask_local`。原 funcdata.rs 侧 RUDRA-GLUE（op.rs 租约限制）随之解除，TODO FUNCDATA-CALCNZM-0002 的 op.rs divergent 旧版（忽略 cliploop、缺 DIV/REM/POPCOUNT/LZCOUNT/MULT/CALL 臂、输入 mask 走保守近似）已被完整 switch 替换。
 - 原始 `>>`/`<<` 位点（oracle 未加保护处）用 `wrapping_shr/wrapping_shl` 镜像 x86-64 移位计数掩码语义；oracle 经 `pcode_right/pcode_left`（address.hh:505-517）保护的位点按其语义（sa>=64 → 0）。
 
 ### 主管线接线核实（FUNCDATA-CALCNZM-0001）
@@ -2526,7 +2526,7 @@ MERGE-CLEAR-LIFECYCLE-0001（上文）记录的 `funcdata::` 2 个预存在失�
 （P0 BLOCKED）审计已明确处置边界，本提交仅为落地该审计结论：
 
 - 两测试驱动的是 Rugra-local `ActionTypeInfer` / `ActionInferParams`
-  胶水 Action（`src/coreaction.rs`，标注 RUGRA-GLUE，无 Ghidra 对应物；
+  胶水 Action（`src/coreaction.rs`，标注 RUDRA-GLUE，无 Ghidra 对应物；
   真实推断是 `ActionInferTypes`），其断言编码的是前规范 `v_type=None`
   表示。
 - 规范不变量：`VarnodeBank::create` 的 `ct` 参数 "must not be NULL"
@@ -2924,7 +2924,7 @@ funcdata_varnode.cc:269-292 的 OPACTION_DEBUG 钩子位;守卫先行、变更�
 
 - `switch_over_jump_tables(fd: &Funcdata, flow: &FlowInfo)`（关联函数形态）：
   遍历 `fd.jump_tables` 逐表 `jt.write().switch_over(flow)`。原 `&mut self` stub
-  （RUGRA-GAP 注释、零调用者）删除。RUGRA-GLUE：flow 跟随期唯一 `&mut Funcdata`
+  （RUGRA-GAP 注释、零调用者）删除。RUDRA-GLUE：flow 跟随期唯一 `&mut Funcdata`
   由 `FlowInfo` 持有，oracle 的成员函数形态无法同时借用两侧，故取共享引用 +
   `Arc<RwLock<JumpTable>>` 写锁内变更（与 Ghidra 经 jumpvec 指针改写一致）。
   错误经 `Error::Lowlevel` 传播（followFlow 同语义）。
@@ -3036,7 +3036,7 @@ funcdata` 批（单线程）17 failed==master 逐字（branch 40 passed 含新�
   `display>>32==0 → 4`、`display>>48==0 → 6` 收缩（space.cc:210-215）；
   wordsize>1 的 `+cut` 分支对 ram（wordsize=1）不可达，未移植。
 - 新增 `display_image_base: u64` 字段 + `set_display_image_base` setter
-  （`// RUGRA-GLUE` 传输层）：oracle 的 Funcdata 地址本身就是 analyzeHeadless
+  （`// RUDRA-GLUE` 传输层）：oracle 的 Funcdata 地址本身就是 analyzeHeadless
   装载地址，而 Rugra 管线跑 ELF 相对偏移（ADDRESS-0001），代码标签层
   （`PrintC::code_label_base`）由驱动在显示期加 0x100000 基址差。警告文本中
   嵌地址的三族（"Removing unreachable block" funcdata_block.cc:374 /
@@ -3068,7 +3068,7 @@ funcdata` 批（单线程）17 failed==master 逐字（branch 40 passed 含新�
   block1=4、block2=12）;
 - `test_xor_eax_eax_input_identity`：11→**13**（ret 1→3）。
 
-ret 3-op 形=RUGRA-GLUE RET-OP3-0001 锁定 sla `:RET` 模板（RIP=LOAD(ram[RSP])；
+ret 3-op 形=RUDRA-GLUE RET-OP3-0001 锁定 sla `:RET` 模板（RIP=LOAD(ram[RSP])；
 RSP=INT_ADD(RSP,8)；RETURN[RIP]），x86_lift.rs 已有 oracle 探针证据。生产代码
 零改动（本文件改动全部位于 `#[cfg(test)]`）。
 
@@ -3371,7 +3371,7 @@ false）；`enable/disable_jt_callback`（hh:593/594，fn 指针形态）、
 短路逐条对齐）、`debug_print_range`（cc:1100-1118，返回字符串、sink 归调用方）。
 `Funcdata::clear` 补 cc:90 `clean_up_index=0` 与 cc:110 `opactdbg_count=0` 复位。
 既有 `drillobserve.rs` 全局 recorder 与该 Funcdata 成员面并存（前者是 stage-drill
-传输层 RUGRA-GLUE，后者是 hh 声明的成员 1:1）。
+传输层 RUDRA-GLUE，后者是 hh 声明的成员 1:1）。
 
 **打印面（3 defs）**：`print_raw`（cc:209-225；空块分支逐行 `seqnum:\t<opRaw>`，
 SeqNum 文本为 address.cc:32-38 形式 `seqnum_text` = `AddrSpace::printRaw`

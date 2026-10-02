@@ -19,7 +19,7 @@
 //! Everything is gated on RUGRA_STAGE_DRILL=1: with the env unset every
 //! entry point is a no-op and the pipeline behaves byte-identically.
 //!
-//! RUGRA-GLUE: no single Ghidra counterpart — observation-only recorder
+//! RUDRA-GLUE: no single Ghidra counterpart — observation-only recorder
 //! mirroring the primitives above; nothing it produces is fed back into
 //! the pipeline.
 
@@ -38,7 +38,7 @@ struct Recorder {
 }
 
 impl Default for Recorder {
-    // RUGRA-GLUE: Default impl re-initializing recorder scratch state (no Ghidra counterpart; the C++ fields reset in Funcdata ctor funcdata.cc:74-81).
+    // RUDRA-GLUE: Default impl re-initializing recorder scratch state (no Ghidra counterpart; the C++ fields reset in Funcdata ctor funcdata.cc:74-81).
     fn default() -> Self {
         Self {
             active: false,
@@ -65,7 +65,7 @@ thread_local! {
 
 /// Record the pointer identity of an iop-referenced op (called from
 /// Funcdata::new_varnode_iop).
-// RUGRA-GLUE: pointer->op registry for iop varnode printing; Ghidra dereferences `(uintb)(uintp)op` directly in IopSpace::printRaw (op.cc:44), Rust cannot.
+// RUDRA-GLUE: pointer->op registry for iop varnode printing; Ghidra dereferences `(uintb)(uintp)op` directly in IopSpace::printRaw (op.cc:44), Rust cannot.
 pub fn register_iop(ptr: usize, op: &std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>) {
     if !is_enabled() {
         return;
@@ -78,7 +78,7 @@ pub fn register_iop(ptr: usize, op: &std::sync::Arc<std::sync::RwLock<crate::op:
 /// Resolve an iop varnode offset back to the referenced op's SeqNum raw
 /// text (op.cc:41-47 non-branch form). Returns None when the entry is
 /// gone (the referenced op was destroyed).
-// RUGRA-GLUE: registry lookup backing the IopSpace::printRaw non-branch form (op.cc:41-47).
+// RUDRA-GLUE: registry lookup backing the IopSpace::printRaw non-branch form (op.cc:41-47).
 pub fn resolve_iop_seq(ptr: u64) -> Option<String> {
     if !is_enabled() {
         return None;
@@ -97,14 +97,14 @@ pub fn resolve_iop_seq(ptr: u64) -> Option<String> {
 static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 /// RUGRA_STAGE_DRILL gate, evaluated once per process.
-// RUGRA-GLUE: process env gate standing in for the OPACTION_DEBUG compile-time switch (types.h:82-97); no runtime Ghidra counterpart.
+// RUDRA-GLUE: process env gate standing in for the OPACTION_DEBUG compile-time switch (types.h:82-97); no runtime Ghidra counterpart.
 pub fn is_enabled() -> bool {
     *ENABLED.get_or_init(|| std::env::var("RUGRA_STAGE_DRILL").is_ok())
 }
 
 /// Bind the formatter's Architecture and reset all recorder state. Called
 /// once by the drill driver before the run.
-// RUGRA-GLUE: driver-side recorder initialization; Ghidra wires debug state in the Funcdata ctor (funcdata.cc:74-81) + debugEnable (funcdata.hh:600-603).
+// RUDRA-GLUE: driver-side recorder initialization; Ghidra wires debug state in the Funcdata ctor (funcdata.cc:74-81) + debugEnable (funcdata.hh:600-603).
 pub fn start(arch: Arc<Architecture>) {
     if !is_enabled() {
         return;
@@ -218,7 +218,7 @@ pub fn flush(leaf_name: &str) -> bool {
 
 /// Drain completed application blocks (consumed by the drill driver after
 /// each pipeline pause).
-// RUGRA-GLUE: sink-side block collection; Ghidra flushes straight into the Architecture debug stream (funcdata.cc:1056 glb->printDebug).
+// RUDRA-GLUE: sink-side block collection; Ghidra flushes straight into the Architecture debug stream (funcdata.cc:1056 glb->printDebug).
 pub fn drain() -> Vec<String> {
     if !is_enabled() {
         return Vec::new();
@@ -227,7 +227,7 @@ pub fn drain() -> Vec<String> {
 }
 
 /// Current native-count value (diagnostics).
-// RUGRA-GLUE: read-only opactdbg_count accessor mirror (funcdata.hh:590 field; no public getter in Ghidra).
+// RUDRA-GLUE: read-only opactdbg_count accessor mirror (funcdata.hh:590 field; no public getter in Ghidra).
 pub fn count() -> u64 {
     if !is_enabled() {
         return 0;

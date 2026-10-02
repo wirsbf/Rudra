@@ -353,7 +353,7 @@ A jump-table execution model (jumptable.hh:243).
 - `fold_in_guards(fd, jump) -> bool`,
 - `sanity_check(fd, indop, addresstable, loadpoints, loadcounts) -> bool`,
 - `clone_model() -> Box<dyn JumpModel>`, `clear()`.
-- `as_any() -> &dyn Any` (RUGRA-GLUE，Ghidra 侧对应物是调用方对
+- `as_any() -> &dyn Any` (RUDRA-GLUE，Ghidra 侧对应物是调用方对
   `JumpModel*` 做 `dynamic_cast<JumpBasic*>` 读 `selectguards`；Rust trait
   object 需要 `Any` 出口，五个模型实现均返回 `self`)。
 
@@ -616,7 +616,7 @@ noInterveningStatement 见 docs/api/block.md。
   `jt->getIndirectOp()`）：改用 `JumpParentFacts::indirect` 真实 indirect op
   ——同 switch 的兄弟边守卫继续收集，只有别的 switch 才 break。
 
-设计（`JumpParentFacts`，RUGRA-GLUE）：恢复全程在表自身 RwLock 写锁下
+设计（`JumpParentFacts`，RUDRA-GLUE）：恢复全程在表自身 RwLock 写锁下
 （stageJumpTable/ActionSwitchNorm 均经 `Arc::write()` 进入），模型内锁真父
 Arc=同线程重入死锁;模型存强 Arc=与 `JumpTable::jmodel` 成环泄漏;故
 `JumpTable::recover_model` 在 `&mut self` 上直接快照 `partial_table` 与

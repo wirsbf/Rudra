@@ -24,34 +24,34 @@ use crate::AddressSpace;
 // Ghidra: type.cc — element names used by the encode/decode methods.
 pub mod elem {
     use super::{AttributeId, ElementId, TYPE_XML_IDS};
-    // RUGRA-GLUE: Runtime ElementId-by-name adapter; Ghidra uses fixed global
+    // RUDRA-GLUE: Runtime ElementId-by-name adapter; Ghidra uses fixed global
     // ELEM_* objects and has no per-call element constructor.
     pub fn element(name: &str) -> ElementId {
         let id = TYPE_XML_IDS.with(|m| m.borrow_mut().id_for_element(name));
         ElementId { name: name.to_string(), id }
     }
-    // RUGRA-GLUE: Runtime AttributeId-by-name adapter; Ghidra uses fixed global
+    // RUDRA-GLUE: Runtime AttributeId-by-name adapter; Ghidra uses fixed global
     // ATTRIB_* objects and has no per-call attribute constructor.
     pub fn attribute(name: &str) -> AttributeId {
         let id = TYPE_XML_IDS.with(|m| m.borrow_mut().id_for_attribute(name));
         AttributeId { name: name.to_string(), id }
     }
     // Convenience constructors for the names that appear in type.cc.
-    // RUGRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_TYPE global.
+    // RUDRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_TYPE global.
     pub fn type_() -> ElementId { element("type") }
-    // RUGRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_TYPEREF global.
+    // RUDRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_TYPEREF global.
     pub fn typeref() -> ElementId { element("typeref") }
-    // RUGRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_FIELD global.
+    // RUDRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_FIELD global.
     pub fn field() -> ElementId { element("field") }
-    // RUGRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_VOID global.
+    // RUDRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_VOID global.
     pub fn void_() -> ElementId { element("void") }
-    // RUGRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_VAL global.
+    // RUDRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_VAL global.
     pub fn val() -> ElementId { element("val") }
-    // RUGRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_DEF global.
+    // RUDRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_DEF global.
     pub fn def() -> ElementId { element("def") }
-    // RUGRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_OFF global.
+    // RUDRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_OFF global.
     pub fn off() -> ElementId { element("off") }
-    // RUGRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_PROTOTYPE global.
+    // RUDRA-GLUE: Named Rust wrapper for Ghidra's fixed ELEM_PROTOTYPE global.
     pub fn prototype() -> ElementId { element("prototype") }
 }
 
@@ -79,7 +79,7 @@ pub(crate) struct TypeXmlIdMap {
 }
 
 impl TypeXmlIdMap {
-    // RUGRA-GLUE: Per-thread dynamic registry constructor; Ghidra registers
+    // RUDRA-GLUE: Per-thread dynamic registry constructor; Ghidra registers
     // fixed AttributeId/ElementId globals during static initialization.
     fn new() -> Self {
         let mut m = Self {
@@ -112,7 +112,7 @@ impl TypeXmlIdMap {
         m
     }
 
-    // RUGRA-GLUE: Dynamic fallback allocation for Tree codec names; Ghidra's
+    // RUDRA-GLUE: Dynamic fallback allocation for Tree codec names; Ghidra's
     // fixed ElementId table has no id_for_element operation.
     fn id_for_element(&mut self, name: &str) -> u32 {
         if let Some(&id) = self.elems.get(name) {
@@ -124,7 +124,7 @@ impl TypeXmlIdMap {
         id
     }
 
-    // RUGRA-GLUE: Dynamic fallback allocation for Tree codec names; Ghidra's
+    // RUDRA-GLUE: Dynamic fallback allocation for Tree codec names; Ghidra's
     // fixed AttributeId table has no id_for_attribute operation.
     fn id_for_attribute(&mut self, name: &str) -> u32 {
         if let Some(&id) = self.attrs.get(name) {
@@ -561,7 +561,7 @@ pub enum Datatype {
 
 impl Datatype {
 
-    // RUGRA-GLUE: Rust enum projection of Ghidra's common Datatype base fields.
+    // RUDRA-GLUE: Rust enum projection of Ghidra's common Datatype base fields.
     pub(crate) fn base_record(&self) -> &TypeBase {
         match self {
             Datatype::Void(base) | Datatype::Base(base) => base,
@@ -578,7 +578,7 @@ impl Datatype {
         }
     }
 
-    // RUGRA-GLUE: Mutable Rust enum projection used by TypeFactory, which is
+    // RUDRA-GLUE: Mutable Rust enum projection used by TypeFactory, which is
     // a `friend class` mutating Datatype layout fields in Ghidra (type.hh:187).
     pub(crate) fn base_record_mut(&mut self) -> &mut TypeBase {
         match self {
@@ -596,7 +596,7 @@ impl Datatype {
         }
     }
 
-    // RUGRA-GLUE: type_equal (no Ghidra counterpart found)
+    // RUDRA-GLUE: type_equal (no Ghidra counterpart found)
     /// Structural equality standing in for Ghidra's interned TypeFactory
     /// pointer comparison (`tokenct == outHighType`, coreaction.cc:2544):
     /// identical canonical types are the same factory object there. Base
@@ -900,7 +900,7 @@ impl Datatype {
         }
     }
 
-    // RUGRA-GLUE: Arc-preserving Rust ownership twin of the virtual
+    // RUDRA-GLUE: Arc-preserving Rust ownership twin of the virtual
     // Datatype::getSubType dispatch rooted at type.cc:174.
     /// Arc-preserving virtual `getSubType` dispatch. Since
     /// [`Self::get_sub_type`] itself returns the canonical factory/scope-owned
@@ -1204,7 +1204,7 @@ impl Datatype {
         }
     }
 
-    // RUGRA-GLUE: Compatibility alias for the pre-alignment Rust API; virtual
+    // RUDRA-GLUE: Compatibility alias for the pre-alignment Rust API; virtual
     // dispatch now lives in `compare_at_level`/`compare`.
     pub fn compare_deep(&self, other: &Datatype, level: i32) -> i32 {
         self.compare_at_level(other, level)
@@ -1240,7 +1240,7 @@ impl Datatype {
         }
     }
 
-    // RUGRA-GLUE: Arc-preserving ownership twin of virtual getStripped
+    // RUDRA-GLUE: Arc-preserving ownership twin of virtual getStripped
     // (type.cc:561 and overrides in type.hh:586/607/635/683).
     /// Return the canonical stripped object advertised by a concrete virtual
     /// subclass. Ordinary typedefs do not strip merely because they have a
@@ -1744,7 +1744,7 @@ impl Datatype {
         *f &= !bits;
     }
 
-    // RUGRA-GLUE: field-write helpers for the factory's in-place mutation
+    // RUDRA-GLUE: field-write helpers for the factory's in-place mutation
     // paths (Ghidra assigns `name`/`displayName`/`id`/`flags` members
     // directly from TypeFactory methods such as setName (type.cc:3451-3454)
     // and insertWarning (type.cc:3755); Rust needs variant-agnostic
@@ -1770,7 +1770,7 @@ impl Datatype {
         *display = n.to_string();
     }
 
-    // RUGRA-GLUE: id member write (Ghidra assigns `id` directly from
+    // RUDRA-GLUE: id member write (Ghidra assigns `id` directly from
     // TypeFactory::setName, type.cc:3453-3454).
     /// Set the data-type id (type.hh:190 `id` member write).
     pub fn set_type_id(&mut self, id: u64) {
@@ -1790,7 +1790,7 @@ impl Datatype {
         }
     }
 
-    // RUGRA-GLUE: flags member OR-write (Ghidra assigns `flags` directly
+    // RUDRA-GLUE: flags member OR-write (Ghidra assigns `flags` directly
     // from TypeFactory::insertWarning, type.cc:3755).
     /// OR the given flags into the variant's `TypeBase.flags` (public seam
     /// over `set_flags_mut` for the factory's flag writes).
@@ -3411,7 +3411,7 @@ fn datatype_compare_base(
 
 /// Three-way compare of two `u64` ids returning -1/0/1. Used by the
 /// `level < 0` fallback in subclass `compare` overrides (type.cc:1765 etc.).
-// RUGRA-GLUE: Shared scalar helper extracted from repeated inline id comparisons
+// RUDRA-GLUE: Shared scalar helper extracted from repeated inline id comparisons
 // in Ghidra's TypePointer/Array/Struct/Union/Code compare methods.
 fn cmp_u64(a: u64, b: u64) -> i32 {
     if a < b {
@@ -4298,7 +4298,7 @@ pub struct ArrayedComponent {
 }
 
 impl ArrayedComponent {
-    // RUGRA-GLUE: null-walk answer object; Ghidra returns a null Datatype*
+    // RUDRA-GLUE: null-walk answer object; Ghidra returns a null Datatype*
     // and leaves the out-params untouched.
     fn miss() -> Self {
         Self { dtype: None, newoff: 0, elsize: 0 }
@@ -4332,7 +4332,7 @@ pub enum SpacebaseMap<'a> {
 /// One `queryContainer` answer for the ScopeLocal leg: the symbol's type plus
 /// the `SymbolEntry` placement facts the walks read (`getAddr`, `getOffset`,
 /// `getSize`, `getSymbol()->getType()`).
-// RUGRA-GLUE: value bundle of Ghidra's SymbolEntry* answer fields the
+// RUDRA-GLUE: value bundle of Ghidra's SymbolEntry* answer fields the
 // TypeSpacebase walks consume.
 struct MapContainerHit {
     dtype: Arc<Datatype>,
@@ -4424,7 +4424,7 @@ fn nearest_lower_bound(s: &TypeStruct, off: i64) -> i64 {
 
 /// Array base element size of an `Array` data-type:
 /// `((TypeArray *)t)->getBase()->getAlignSize()`.
-// RUGRA-GLUE: shared accessor for the TypeArray base alignment the three
+// RUDRA-GLUE: shared accessor for the TypeArray base alignment the three
 // nearestArrayedComponent overrides read.
 fn arrayed_element_size(dt: &Datatype) -> i64 {
     if let Datatype::Array(a) = dt {
@@ -4602,7 +4602,7 @@ pub struct TypeSpacebase {
 }
 
 impl TypeSpacebase {
-    // RUGRA-GLUE: default fields for callers that build a spacebase without
+    // RUDRA-GLUE: default fields for callers that build a spacebase without
     // the full Architecture wiring (matches Ghidra's decode-only constructor
     /// `TypeSpacebase(Architecture *g)` which leaves spaceid null). Produces
     /// a global spacebase at address 0 with no scope attached.
@@ -4620,7 +4620,7 @@ impl TypeSpacebase {
 
     /// Sentinel for "no localframe" / global spacebase. Matches Ghidra's
     /// `Address::isInvalid()` (address.hh) as used by `getMap`/`getAddress`.
-    // RUGRA-GLUE: TypeSpacebase-local predicate extracted from Ghidra's direct
+    // RUDRA-GLUE: TypeSpacebase-local predicate extracted from Ghidra's direct
     // localframe.isInvalid() calls; there is no TypeSpacebase::isInvalid method.
     pub fn is_invalid(&self) -> bool {
         self.localframe.is_invalid()

@@ -386,7 +386,7 @@ FRONTEND-MINIMAL-0001; see `docs/api/frontend.md`).
 
 当前 `lib.rs` 的最准确文档结论是：
 
-1. 它是 **Rugra 当前真实公共模块与核心类型的导出入口**
+1. 它是 **Rudra 当前真实公共模块与核心类型的导出入口**
 2. 它反映的是 **以 Ghidra 风格对象建模为中心的库结构**
 3. 它**不再**支持把旧版注释掉的 `Decompiler` 视为当前主入口
 4. 使用 `rugra` 时，应优先从：

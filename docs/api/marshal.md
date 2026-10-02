@@ -196,7 +196,7 @@ close/open error behavior remain registered residuals.
 - `parse_document(&[u8]) -> Result<&Document, DecoderError>`：先追加 null slot
   再解析（失败时保留 null slot 的部分状态）。
 - `open_document(filename)`、`register_tag`（同名覆盖）、`get_tag`。
-- `doclist_len()` 为 RUGRA-GLUE 观察访问器（Ghidra doclist 私有无 API）。
+- `doclist_len()` 为 RUDRA-GLUE 观察访问器（Ghidra doclist 私有无 API）。
 
 ### `xml_tree(&[u8]) -> Result<Document, DecoderError>`（xml.cc:2480）
 
@@ -237,7 +237,7 @@ close/open error behavior remain registered residuals.
 0）。现按 marshal.cc:296-330/353-381 语义实现 `cpp_stream_unsigned`/
 `cpp_stream_signed`（前导空白跳过、可选符号、`0x`/`0X` hex、前导 `0`
 八进制、最长合法前缀、无数字→0=流失败初值、溢出饱和），四个函数标注
-改为 `// Ghidra: marshal.cc:<line> XmlDecode::read…`（原 RUGRA-GLUE 注释
+改为 `// Ghidra: marshal.cc:<line> XmlDecode::read…`（原 RUDRA-GLUE 注释
 不实）。新增单元测试 `test_cpp_stream_integer_bases`。
 
 # 2026-08-24：packed 特殊空间编解码 + Join piece 编解码（MARSHAL-XML-TEXT-0001）

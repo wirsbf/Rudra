@@ -167,7 +167,7 @@ postb），并通过把读推入正确路径来保留 MULTIEQUAL 数据流。
    `cond ? val : 0` 谓词模式，故 apply 返回 NO_CHANGE（正确行为）。算法正确性由
    单元测试守护。
 
-**fixture 可观测胶水（RUGRA-GLUE，2026-08-23）**：`ConditionalExecution::fixture_find_init_pre`
+**fixture 可观测胶水（RUDRA-GLUE，2026-08-23）**：`ConditionalExecution::fixture_find_init_pre`
 / `fixture_verify`、`RuleOrPredicate::fixture_discover_path_is_true` —
 供 locked oracle fixture（tests/oracle/condexe_trueout_1204）在隔离状态下驱动
 私有阶段并观察 init2a_true / camethruposta_slot / zero_path_is_true；Ghidra 侧经
@@ -223,7 +223,7 @@ newVarnodeOut 地址保留（condexe.cc:340-349）留待同一后续任务。
      旧代码此处静默 `None`。
    - Ghidra 中不可达的空指针路径（`op->getIn(0)`/`getDef()`/`getOut()`/
      `getImmedDom()` 解引用，oracle 里是 UB 崩溃而非 LowlevelError）映射为
-     `structural()` 助手产生的 `Error::Generic`（RUGRA-GLUE，消息明确标注
+     `structural()` 助手产生的 `Error::Generic`（RUDRA-GLUE，消息明确标注
      "no oracle counterpart"），与 oracle 可达错误严格区分。
 2. **do_replacement 死循环消灭**：oracle 的循环不变量是每轮恰好移除一个后继
    （iblock 内 `opUnsetInput`，否则 `opSetInput`，cc:333/352），resolve 链要么

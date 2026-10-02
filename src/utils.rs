@@ -7,7 +7,7 @@
 
 /// Bit manipulation utilities
 pub mod bits {
-    // RUGRA-GLUE: extract (no Ghidra counterpart found)
+    // RUDRA-GLUE: extract (no Ghidra counterpart found)
     /// Extract a bit range from a value
     ///
     /// # Arguments
@@ -28,7 +28,7 @@ pub mod bits {
         (value >> start) & mask
     }
 
-    // RUGRA-GLUE: insert (no Ghidra counterpart found)
+    // RUDRA-GLUE: insert (no Ghidra counterpart found)
     /// Set a bit range in a value
     ///
     /// # Arguments
@@ -42,7 +42,7 @@ pub mod bits {
         (value & !mask) | ((bits << start) & mask)
     }
 
-    // RUGRA-GLUE: sign_extend (no Ghidra counterpart found)
+    // RUDRA-GLUE: sign_extend (no Ghidra counterpart found)
     /// Sign-extend a value
     ///
     /// # Arguments
@@ -54,31 +54,31 @@ pub mod bits {
         ((value << shift) as i64) >> shift
     }
 
-    // RUGRA-GLUE: popcount (no Ghidra counterpart found)
+    // RUDRA-GLUE: popcount (no Ghidra counterpart found)
     /// Count the number of set bits (population count)
     pub fn popcount(value: u64) -> u32 {
         value.count_ones()
     }
 
-    // RUGRA-GLUE: leading_zeros (no Ghidra counterpart found)
+    // RUDRA-GLUE: leading_zeros (no Ghidra counterpart found)
     /// Count leading zeros
     pub fn leading_zeros(value: u64) -> u32 {
         value.leading_zeros()
     }
 
-    // RUGRA-GLUE: trailing_zeros (no Ghidra counterpart found)
+    // RUDRA-GLUE: trailing_zeros (no Ghidra counterpart found)
     /// Count trailing zeros
     pub fn trailing_zeros(value: u64) -> u32 {
         value.trailing_zeros()
     }
 
-    // RUGRA-GLUE: is_power_of_two (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_power_of_two (no Ghidra counterpart found)
     /// Check if a value is a power of 2
     pub fn is_power_of_two(value: u64) -> bool {
         value != 0 && (value & (value - 1)) == 0
     }
 
-    // RUGRA-GLUE: next_power_of_two (no Ghidra counterpart found)
+    // RUDRA-GLUE: next_power_of_two (no Ghidra counterpart found)
     /// Get the next power of 2 greater than or equal to the value
     pub fn next_power_of_two(value: u64) -> u64 {
         if value == 0 {
@@ -93,7 +93,7 @@ pub mod bits {
 pub mod format {
     use crate::Address;
 
-    // RUGRA-GLUE: hex_bytes (no Ghidra counterpart found)
+    // RUDRA-GLUE: hex_bytes (no Ghidra counterpart found)
     /// Format a byte slice as a hexadecimal string
     pub fn hex_bytes(bytes: &[u8]) -> String {
         bytes
@@ -103,13 +103,13 @@ pub mod format {
             .join(" ")
     }
 
-    // RUGRA-GLUE: format_address (no Ghidra counterpart found)
+    // RUDRA-GLUE: format_address (no Ghidra counterpart found)
     /// Format an address with padding
     pub fn format_address(addr: Address, width: usize) -> String {
         format!("{:0width$x}", addr.as_u64(), width = width)
     }
 
-    // RUGRA-GLUE: escape_c_string (no Ghidra counterpart found)
+    // RUDRA-GLUE: escape_c_string (no Ghidra counterpart found)
     /// Escape a string for C output
     pub fn escape_c_string(s: &str) -> String {
         let mut result = String::with_capacity(s.len());
@@ -130,7 +130,7 @@ pub mod format {
         result
     }
 
-    // RUGRA-GLUE: make_c_identifier (no Ghidra counterpart found)
+    // RUDRA-GLUE: make_c_identifier (no Ghidra counterpart found)
     /// Generate a valid C identifier from a string
     pub fn make_c_identifier(s: &str) -> String {
         let mut result = String::new();
@@ -156,7 +156,7 @@ pub mod graph {
     use std::collections::{HashMap, HashSet, VecDeque};
     use std::hash::Hash;
 
-    // RUGRA-GLUE: compute_dominators (no Ghidra counterpart found)
+    // RUDRA-GLUE: compute_dominators (no Ghidra counterpart found)
     /// Compute dominators using the iterative algorithm
     ///
     /// Returns a map from each node to its immediate dominator
@@ -254,7 +254,7 @@ pub mod graph {
         idom
     }
 
-    // RUGRA-GLUE: topological_sort (no Ghidra counterpart found)
+    // RUDRA-GLUE: topological_sort (no Ghidra counterpart found)
     /// Perform topological sort on a directed acyclic graph
     pub fn topological_sort<T>(nodes: &[T], edges: &HashMap<T, Vec<T>>) -> Option<Vec<T>>
     where
@@ -310,7 +310,7 @@ pub mod graph {
 pub mod memory {
     use crate::{Error, Result};
 
-    // RUGRA-GLUE: read_u64 (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_u64 (no Ghidra counterpart found)
     /// Read a value from bytes with the given endianness
     pub fn read_u64(bytes: &[u8], offset: usize, size: usize, little_endian: bool) -> Result<u64> {
         if offset + size > bytes.len() {
@@ -338,19 +338,19 @@ pub mod memory {
         Ok(result)
     }
 
-    // RUGRA-GLUE: align_up (no Ghidra counterpart found)
+    // RUDRA-GLUE: align_up (no Ghidra counterpart found)
     /// Align a value up to the given alignment
     pub fn align_up(value: u64, alignment: u64) -> u64 {
         (value + alignment - 1) & !(alignment - 1)
     }
 
-    // RUGRA-GLUE: align_down (no Ghidra counterpart found)
+    // RUDRA-GLUE: align_down (no Ghidra counterpart found)
     /// Align a value down to the given alignment
     pub fn align_down(value: u64, alignment: u64) -> u64 {
         value & !(alignment - 1)
     }
 
-    // RUGRA-GLUE: is_aligned (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_aligned (no Ghidra counterpart found)
     /// Check if a value is aligned
     pub fn is_aligned(value: u64, alignment: u64) -> bool {
         value & (alignment - 1) == 0
@@ -362,7 +362,7 @@ pub mod collections {
     use std::collections::HashMap;
     use std::hash::Hash;
 
-    // RUGRA-GLUE: hash_map_with_capacity (no Ghidra counterpart found)
+    // RUDRA-GLUE: hash_map_with_capacity (no Ghidra counterpart found)
     /// Create a HashMap with initial capacity
     pub fn hash_map_with_capacity<K, V>(capacity: usize) -> HashMap<K, V>
     where
@@ -371,7 +371,7 @@ pub mod collections {
         HashMap::with_capacity(capacity)
     }
 
-    // RUGRA-GLUE: group_by (no Ghidra counterpart found)
+    // RUDRA-GLUE: group_by (no Ghidra counterpart found)
     /// Group items by a key function
     pub fn group_by<T, K, F>(items: Vec<T>, key_fn: F) -> HashMap<K, Vec<T>>
     where

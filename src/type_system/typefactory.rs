@@ -172,7 +172,7 @@ pub enum CoreTypeFlavor {
 static CANONICAL_UNKNOWN_BASE_1: std::sync::OnceLock<std::sync::Arc<Datatype>> =
     std::sync::OnceLock::new();
 
-// RUGRA-GLUE: thread-local stand-in for the oracle's `glb->types`
+// RUDRA-GLUE: thread-local stand-in for the oracle's `glb->types`
 // ownership resolution (architecture.hh:197). Ghidra's engine always
 // reaches the factory THROUGH the owning Architecture; Rugra's handle-less
 // call sites (39 `shared_default` references) resolve through this
@@ -195,7 +195,7 @@ thread_local! {
 }
 
 impl TypeFactory {
-    // RUGRA-GLUE: publication half of the `glb->types` ownership mirror
+    // RUDRA-GLUE: publication half of the `glb->types` ownership mirror
     // (oracle builds the factory INTO the Architecture: sleigh_arch.cc:201
     // `types = new TypeFactory(this);`; Rugra drivers install the handle
     // via `Architecture::set_types`, which calls this).
@@ -225,7 +225,7 @@ impl TypeFactory {
             .ok();
     }
 
-    // RUGRA-GLUE: teardown half of the `glb->types` ownership mirror
+    // RUDRA-GLUE: teardown half of the `glb->types` ownership mirror
     // (architecture.cc:211-212 `delete types;` runs in ~Architecture).
     /// Clear the thread's current-Architecture entry if it still points at
     /// `factory` (identity compared). A no-op when another Architecture
@@ -244,7 +244,7 @@ impl TypeFactory {
             .ok();
     }
 
-    // RUGRA-GLUE: query half of the `glb->types` ownership mirror.
+    // RUDRA-GLUE: query half of the `glb->types` ownership mirror.
     /// The thread's current-Architecture factory, if one is published.
     pub(crate) fn current_arch_factory() -> Option<Arc<RwLock<TypeFactory>>> {
         CURRENT_ARCH_TYPES
@@ -253,7 +253,7 @@ impl TypeFactory {
     }
 }
 
-// RUGRA-GLUE: process-tier probe standing in for Ghidra's architecture-class
+// RUDRA-GLUE: process-tier probe standing in for Ghidra's architecture-class
 // selection of the core-type table. The oracle has two harness faces:
 // SleighArchitecture::buildCoreTypes (sleigh_arch.cc:204-238) installs the
 // console/standalone table (`xunknownN`/`int4`/`uint1`/`code`) when the
@@ -275,7 +275,7 @@ pub fn direct_runner_tier_active() -> bool {
 }
 
 impl TypeFactory {
-    // RUGRA-GLUE: Combines TypeFactory construction (type.cc:3106) with the
+    // RUDRA-GLUE: Combines TypeFactory construction (type.cc:3106) with the
     // standalone SLEIGH fallback bootstrap (sleigh_arch.cc:204).
     /// Create a new TypeFactory and initialize core types
     ///
@@ -293,7 +293,7 @@ impl TypeFactory {
     /// Construct with an explicit core-unknown registration flavor; the
     /// standalone flavor mirrors SleighArchitecture::buildCoreTypes
     /// (sleigh_arch.cc:229-232) for oracle-driven fixtures.
-    // RUGRA-GLUE: Rust construction split of the two Ghidra registration
+    // RUDRA-GLUE: Rust construction split of the two Ghidra registration
     // sites (ghidra_arch.cc:349 dataorg / sleigh_arch.cc:204 standalone);
     // Ghidra picks the site by architecture subclass instead of a param.
     pub fn new_flavor(ptr_size: usize, flavor: CoreTypeFlavor) -> Self {
@@ -382,14 +382,14 @@ impl TypeFactory {
         factory
     }
 
-    // RUGRA-GLUE: default compiler-supplied core-type bootstrap used before
+    // RUDRA-GLUE: default compiler-supplied core-type bootstrap used before
     // Architecture ownership is wired into every TypeFactory constructor.
     /// Initialize the fundamental core types
     fn init_core_types(&mut self) {
         self.init_core_types_flavor(CoreTypeFlavor::DataOrg);
     }
 
-    // RUGRA-GLUE: Rust enum dispatcher for Ghidra's architecture-subclass
+    // RUDRA-GLUE: Rust enum dispatcher for Ghidra's architecture-subclass
     // virtual buildCoreTypes selection.
     /// Bootstrap core types from the selected Architecture source.
     fn init_core_types_flavor(&mut self, flavor: CoreTypeFlavor) {
@@ -400,7 +400,7 @@ impl TypeFactory {
         }
     }
 
-    // RUGRA-GLUE: Architecture-owned bridge for the virtual buildCoreTypes
+    // RUDRA-GLUE: Architecture-owned bridge for the virtual buildCoreTypes
     // hook; Ghidra selects the subclass implementation instead of an enum.
     /// Build core types after processor/compiler configuration has populated
     /// the raw factory's data-organization state.
@@ -408,7 +408,7 @@ impl TypeFactory {
         self.init_core_types_flavor(flavor);
     }
 
-    // RUGRA-GLUE: local projection of the headless Java client's
+    // RUDRA-GLUE: local projection of the headless Java client's
     // `<coretypes>` stream (the canon-golden contract). Ghidra's C++ side
     // receives this from PcodeDataTypeManager.encodeCoreTypes
     // (PcodeDataTypeManager.java:1238-1256, built by generateCoreTypes
@@ -580,7 +580,7 @@ impl TypeFactory {
         self.install_core_type_table(TYPES);
     }
 
-    // RUGRA-GLUE: fallible Rust constructor bridge for the explicit
+    // RUDRA-GLUE: fallible Rust constructor bridge for the explicit
     // setCoreType sequences in both Ghidra buildCoreTypes functions.
     fn install_core_type_table(&mut self, registrations: &[(&str, usize, TypeMetatype, bool)]) {
         for &(name, size, metatype, is_character) in registrations {
@@ -591,7 +591,7 @@ impl TypeFactory {
         self.cache_core_types();
     }
 
-    // RUGRA-GLUE: Rust-owned Arc insertion used by the architecture bootstrap;
+    // RUDRA-GLUE: Rust-owned Arc insertion used by the architecture bootstrap;
     // Ghidra performs the same flag mutation in setCoreType (type.cc:3178)
     // and ordered-tree insertion in findAdd (type.cc:3412).
     /// Internal helper to register a core type
@@ -649,7 +649,7 @@ impl TypeFactory {
         datatype.get_submeta() as i32 as u8
     }
 
-    // RUGRA-GLUE: Tuple projection of DatatypeCompare::operator()
+    // RUDRA-GLUE: Tuple projection of DatatypeCompare::operator()
     // (type.hh:308) and the covered concrete compareDependency functions.
     fn type_tree_key(datatype: &Datatype) -> TypeTreeKey {
         let (dependency, offset, parent, wordsize, space_rank, space_id) = match datatype {
@@ -832,7 +832,7 @@ impl TypeFactory {
         )
     }
 
-    // RUGRA-GLUE: the `&self`-twin form of the type.cc:3652-3657 oversize-base
+    // RUDRA-GLUE: the `&self`-twin form of the type.cc:3652-3657 oversize-base
     // array conversion (mirror of `get_array_result`, type.cc:3902-3908, for
     /// the unknown1 family): build/find the unnamed array of `element` in
     /// `base_type_tree` under the same structural key `find_add` uses, so
@@ -1049,7 +1049,7 @@ impl TypeFactory {
     /// This slice projects the complete dependency key for TypeArray and the
     /// three partial variants. Other container comparators remain on the
     /// registered TYPE-0001 residual.
-    // RUGRA-GLUE: DWARF/type-manager import boundary — Ghidra's DWARF
+    // RUDRA-GLUE: DWARF/type-manager import boundary — Ghidra's DWARF
     // analyzer registers every imported type through the architecture's
     // single factory (the type.cc:3412 findAdd path below), which is what
     // makes cross-reference type identity hold; this pub(crate) wrapper
@@ -1208,14 +1208,14 @@ impl TypeFactory {
         }
     }
 
-    // RUGRA-GLUE: compatibility name for the default-space pointer factory;
+    // RUDRA-GLUE: compatibility name for the default-space pointer factory;
     // Ghidra callers invoke TypeFactory::getTypePointer directly.
     /// Get or create a canonical pointer using Rugra's default-space geometry.
     pub fn get_ptr(&mut self, ptr_to: Arc<Datatype>) -> Arc<Datatype> {
         self.get_type_pointer_default(ptr_to)
     }
 
-    // RUGRA-GLUE: PointerModifier receives Architecture in Ghidra, while the
+    // RUDRA-GLUE: PointerModifier receives Architecture in Ghidra, while the
     // Rust parser owns only TypeFactory. `ptr_size` is the default data-space
     // address size supplied when this factory is constructed; Rugra's current
     // AddressSpace enum models the production default word size as one.
@@ -1225,7 +1225,7 @@ impl TypeFactory {
             .unwrap_or_else(|message| panic!("LowlevelError: {message}"))
     }
 
-    // RUGRA-GLUE: Result-returning Rust twin of getTypeArray so getBase can
+    // RUDRA-GLUE: Result-returning Rust twin of getTypeArray so getBase can
     // preserve its LowlevelError channel instead of converting it to panic.
     fn get_array_result(
         &mut self,
@@ -1442,7 +1442,7 @@ impl TypeFactory {
         Some(result)
     }
 
-    // RUGRA-GLUE: Ghidra exposes no numTypes method; this counts the union of
+    // RUDRA-GLUE: Ghidra exposes no numTypes method; this counts the union of
     // its structural `tree` (type.hh:772) and Rust's named cross-reference.
     /// Get the number of types currently managed
     pub fn num_types(&self) -> usize {
@@ -1524,7 +1524,7 @@ impl TypeFactory {
         deporder.push(ct.clone());
     }
 
-    // RUGRA-GLUE: depends_of — Rust aggregator of Ghidra's per-variant
+    // RUDRA-GLUE: depends_of — Rust aggregator of Ghidra's per-variant
     //   `Datatype::numDepend` + `Datatype::getDepend` virtual dispatch table
     //   (type.hh:261 base virtual; overrides at type.hh:422 Pointer, 455 Array,
     //   526 Struct, 555 Union, 629 Code). C++ uses virtual dispatch on the
@@ -1681,7 +1681,7 @@ impl TypeFactory {
         dt
     }
 
-    // RUGRA-GLUE: shared-reference twin of [`Self::get_type_void_result`]
+    // RUDRA-GLUE: shared-reference twin of [`Self::get_type_void_result`]
     /// for callers holding `&TypeFactory`. Every production factory
     /// bootstraps the void core type, so the cache/name lookup always
     /// resolves; the raw-constructor creation path is the `_result` variant.
@@ -1759,7 +1759,7 @@ impl TypeFactory {
         self.find_add(Datatype::Base(base), false)
     }
 
-    // RUGRA-GLUE: size-keyed convenience wrapper over
+    // RUDRA-GLUE: size-keyed convenience wrapper over
     /// [`Self::get_type_unicode_named`] with the historical canonical name
     /// (wchar2/wchar4). Ghidra has no size-only getTypeUnicode; the
     /// name-carrying port above is the faithful entry.
@@ -2182,7 +2182,7 @@ impl TypeFactory {
         )
     }
 
-    // RUGRA-GLUE: legacy flat-map twin of [`Self::get_type_enum_result`]
+    // RUDRA-GLUE: legacy flat-map twin of [`Self::get_type_enum_result`]
     /// kept for grammar.rs (its file is under another lease): dedupes by
     /// name and creates a 4-byte signed stub, which matches the oracle only
     /// for factories whose `enumsize`/`enumtype` were configured as 4/signed.
@@ -2501,7 +2501,7 @@ impl TypeFactory {
         spaceid: Option<AddressSpace>,
         frame: Address,
     ) -> Arc<Datatype> {
-        // RUGRA-GLUE dedup: Ghidra canonicalizes spacebases through the
+        // RUDRA-GLUE dedup: Ghidra canonicalizes spacebases through the
         // compare-sorted tree in findAdd (type.cc:3996 via
         // TypeSpacebase::compareDependency type.cc:3045-3055 — base, then
         // spaceid, then localframe); Rugra's factory is a name-keyed
@@ -2588,7 +2588,7 @@ impl TypeFactory {
         dt
     }
 
-    // RUGRA-GLUE: set_spacebase_scope_source (no Ghidra counterpart; Ghidra
+    // RUDRA-GLUE: set_spacebase_scope_source (no Ghidra counterpart; Ghidra
     // resolves the map dynamically through the Architecture on every
     // TypeSpacebase::getMap call, Rugra snapshots it at construction).
     /// Register the Database whose global scope new spacebase types resolve
@@ -2601,7 +2601,7 @@ impl TypeFactory {
         self.symboltab = db;
     }
 
-    // RUGRA-GLUE: legacy named relative-pointer convenience. It predates the
+    // RUDRA-GLUE: legacy named relative-pointer convenience. It predates the
     // parent-pointer overload below and keeps the historical side-table API;
     // Ghidra's formal overload at type.cc:4036 also requires size, wordsize,
     // and name, so this three-argument signature has no direct counterpart.
@@ -2656,7 +2656,7 @@ impl TypeFactory {
             .unwrap_or_else(|message| panic!("LowlevelError: {message}"))
     }
 
-    // RUGRA-GLUE: Result-returning Rust twin of getTypePointer so callers
+    // RUDRA-GLUE: Result-returning Rust twin of getTypePointer so callers
     // that already expose LowlevelError can preserve that channel.
     fn get_type_pointer_result(
         &mut self,
@@ -2796,7 +2796,7 @@ impl TypeFactory {
             return self.down_chain(ptr, &parent, offset, off, par, par_off, allow_array_wrap);
         }
         if (pointer.base.flags & type_flags::IS_PTRREL) != 0 {
-            // RUGRA-GLUE: legacy named relative pointers keep parent/offset
+            // RUDRA-GLUE: legacy named relative pointers keep parent/offset
             // only in the factory side table; the dispatcher consults it so
             // both Rust representations of TypePointerRel take the override.
             if let Some(relative) = self.rel_pointers.get(&pointer.base.name) {
@@ -3107,7 +3107,7 @@ impl TypeFactory {
         dt
     }
 
-    // RUGRA-GLUE: get_typedef_target (Rugra-side name index)
+    // RUDRA-GLUE: get_typedef_target (Rugra-side name index)
     /// Look up the typedef target (the stripped form) for a typedef name in
     /// the factory's `typedefs` index. Ghidra has no name-keyed accessor —
     /// type.cc:3850 is `getTypePointerStripArray`, and the only oracle
@@ -3259,7 +3259,7 @@ impl TypeFactory {
         arc
     }
 
-    // RUGRA-GLUE: process-canonical fallback tier of the oracle's
+    // RUDRA-GLUE: process-canonical fallback tier of the oracle's
     // per-Architecture `glb->types` resolution (architecture.hh:197).
     /// The process-wide fallback factory (pre-architecture contexts only).
     /// Construction recipe is frozen: any change here must keep the
@@ -3563,7 +3563,7 @@ impl TypeFactory {
         Ok(self.promote_core(&ct))
     }
 
-    // RUGRA-GLUE: Arc-returning thin assertion layer around
+    // RUDRA-GLUE: Arc-returning thin assertion layer around
     /// [`Self::set_core_type_result`]. TYPEFACTORY-LEGACY-CALLER-MIGRATION-0001
     /// status: every in-lease caller (cpool.rs test fixture, merge.rs test,
     /// typefactory tests) is migrated to the faithful Result twin, which
@@ -4993,7 +4993,7 @@ impl TypeFactory {
         })
     }
 
-    // RUGRA-GLUE: channel-replacing define mutation shared by the
+    // RUDRA-GLUE: channel-replacing define mutation shared by the
     /// setPrototype/setFields wrappers (`set_prototype_define`,
     /// `resolve_incomplete_typedefs`). Ghidra mutates the container object
     /// in place (tree.erase / mutate / tree.insert of the same pointer);
@@ -5342,7 +5342,7 @@ pub struct DataOrganizationSizes {
     pub size_of_wchar: i32,
 }
 
-// RUGRA-GLUE: Architecture-handle lookups of TypeFactory::setupSizes
+// RUDRA-GLUE: Architecture-handle lookups of TypeFactory::setupSizes
 /// The architecture-derived inputs `TypeFactory::setup_sizes` reads from
 /// `glb` in Ghidra (type.cc:3142-3167). Rugra's `TypeFactory` has no
 /// Architecture handle yet, so callers provide the same observations:
@@ -5407,7 +5407,7 @@ mod tests {
     use super::*;
     use std::sync::RwLock;
 
-    // RUGRA-GLUE: fixture-local XML element builder mirroring the oracle
+    // RUDRA-GLUE: fixture-local XML element builder mirroring the oracle
     // fixture's decode strings (tests have no Ghidra counterpart).
     fn xml_elem(name: &str, attrs: &[(&str, &str)]) -> std::sync::Arc<RwLock<Element>> {
         let mut el = Element::new();

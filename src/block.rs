@@ -9,7 +9,7 @@ use crate::op::PcodeOpRef;
 use crate::opcodes::OpCode;
 use std::sync::{Arc, OnceLock, RwLock, Weak};
 
-// RUGRA-GLUE: PERF-ARENA-FLIP-0001 (f) env-gated bank-read observation
+// RUDRA-GLUE: PERF-ARENA-FLIP-0001 (f) env-gated bank-read observation
 // counters (RUGRA_BANKSTATS=1; stderr only, default off). Event accounting
 // of the per-read bank resolution surface the (e)-segment handoff ①
 // attributes ~1.1s to (~57M reads x ~20ns/lock): which API each read flows
@@ -46,13 +46,13 @@ pub mod bank_stats {
         shadow_writes: AtomicU64::new(0),
     };
 
-    // RUGRA-GLUE: observation gate (same pattern as action.rs ACTIONSTATS)
+    // RUDRA-GLUE: observation gate (same pattern as action.rs ACTIONSTATS)
     fn enabled() -> bool {
         static ENABLED: OnceLock<bool> = OnceLock::new();
         *ENABLED.get_or_init(|| std::env::var("RUGRA_BANKSTATS").is_ok_and(|v| v == "1"))
     }
 
-    // RUGRA-GLUE: relaxed counter step
+    // RUDRA-GLUE: relaxed counter step
     pub fn bump(counter: &AtomicU64) {
         if enabled() {
             counter.fetch_add(1, Ordering::Relaxed);
@@ -61,7 +61,7 @@ pub mod bank_stats {
 
     /// One stderr line with the cumulative totals (called at bank drop or
     /// process end by the examples via `block::bank_stats::report()`).
-    // RUGRA-GLUE: stderr report (no Ghidra counterpart)
+    // RUDRA-GLUE: stderr report (no Ghidra counterpart)
     pub fn report() {
         if !enabled() {
             return;
@@ -312,7 +312,7 @@ pub fn front_leaf_start_addr(
     }
 }
 
-// RUGRA-GLUE: diagnostic front-leaf address for BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001
+// RUDRA-GLUE: diagnostic front-leaf address for BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001
 /// Debug helper: the front leaf's start address after descending BlockCopy
 /// wrappers into the wrapped original (composites carry no start of their
 /// own; BlockCopy inherits the null default). Used by the collapse trace
@@ -346,7 +346,7 @@ pub fn dbg_front_leaf_start_addr(
     }
 }
 
-// RUGRA-GLUE: diagnostic tree dumper for BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001
+// RUDRA-GLUE: diagnostic tree dumper for BLOCKSTRUCT-COLLAPSE-RESIDUAL-0001
 /// Debug-only replica of the `FlowBlock::printTree` recursion (block.cc:616)
 /// covering every composite Rugra defines (Ghidra's virtual printTree does
 /// this via the virtual dispatch): node index, type, front-leaf address, and
@@ -358,7 +358,7 @@ pub fn print_tree_dbg(
     depth: usize,
     out: &mut String,
 ) {
-    // RUGRA-GLUE: debug address stringifier for the tree dumper above
+    // RUDRA-GLUE: debug address stringifier for the tree dumper above
     fn addr_of(bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> String {
         let a = dbg_front_leaf_start_addr(bl);
         if a == 0 {
@@ -757,7 +757,7 @@ pub fn next_flow_after_successors(
     }
 }
 
-// RUGRA-GLUE: per-block step of the tree-wide gotoPrints evaluation.
+// RUDRA-GLUE: per-block step of the tree-wide gotoPrints evaluation.
 /// A `BlockGoto` evaluates block.cc:2884-2888 here:
 /// `gotobl = getGotoTarget()->getFrontLeaf(); nextbl = <successor>;
 /// return gotobl != nextbl` (pointer identity; None vs None compares equal,
@@ -901,19 +901,19 @@ pub mod edge_flags {
 ///
 /// Corresponds to Ghidra's `FlowBlock` base class
 pub trait FlowBlock: std::fmt::Debug + Send + Sync {
-    // RUGRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
+    // RUDRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
     fn as_any(&self) -> &dyn std::any::Any;
-    // RUGRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
+    // RUDRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     // Ghidra: block.hh:160 FlowBlock::getIndex
     fn get_index(&self) -> i32;
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private; set by buildCopy/orderBlocks)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private; set by buildCopy/orderBlocks)
     fn set_index(&mut self, i: i32);
     // Ghidra: block.hh:184 FlowBlock::getType
     fn get_type(&self) -> BlockType;
     // Ghidra: block.hh:165 FlowBlock::getFlags
     fn get_flags(&self) -> u32;
-    // RUGRA-GLUE: mutable flags accessor backing the defaulted
+    // RUDRA-GLUE: mutable flags accessor backing the defaulted
     // set/clear pair below (each concrete type stores `flags`).
     fn flags_mut(&mut self) -> &mut u32;
     // Ghidra: block.hh:155 FlowBlock::setFlag
@@ -940,7 +940,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
 
     /// Number of out-edges excluding goto-marked edges.
     /// GOTO_EDGE_0 marks out[0] as goto, GOTO_EDGE_1 marks out[1].
-    // RUGRA-GLUE: Rugra helper for goto-aware out-edge counting (Ghidra uses raw sizeOut + edge flags)
+    // RUDRA-GLUE: Rugra helper for goto-aware out-edge counting (Ghidra uses raw sizeOut + edge flags)
     fn effective_size_out(&self) -> usize {
         let total = self.size_out();
         let flags = self.get_flags();
@@ -955,7 +955,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     }
 
     /// Get the i-th non-goto out-edge (skipping goto-marked edges).
-    // RUGRA-GLUE: Rugra helper for goto-aware out-edge access (no direct Ghidra counterpart)
+    // RUDRA-GLUE: Rugra helper for goto-aware out-edge access (no direct Ghidra counterpart)
     fn effective_get_out(&self, slot: usize) -> Option<BlockEdge> {
         let flags = self.get_flags();
         let total = self.size_out();
@@ -979,18 +979,18 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     // Ghidra: block.hh:301 FlowBlock::getOut
     fn get_out(&self, slot: usize) -> Option<BlockEdge>;
 
-    // RUGRA-GLUE: borrow-safety helper mirroring Ghidra's direct
+    // RUDRA-GLUE: borrow-safety helper mirroring Ghidra's direct
     // `outofthis[i]` reference access (block.hh:301). get_out returns an
     // owned BlockEdge (Arc clone per call); the collapse-rule miss paths call
     // it tens of millions of times per giant function just to read
     // `.flags`/`.point`, so this reference form removes the refcount
     // round-trip while preserving identical reads.
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge>;
-    // RUGRA-GLUE: incoming half of the reference accessors above
+    // RUDRA-GLUE: incoming half of the reference accessors above
     // (Ghidra `intothis[i]`, block.hh:304).
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge>;
 
-    // RUGRA-GLUE: mutable edge-vector accessors shared by every FlowBlock
+    // RUDRA-GLUE: mutable edge-vector accessors shared by every FlowBlock
     // subtype. Ghidra's FlowBlock base class owns outofthis/intothis
     // (block.hh:124-127), so edge-label writes (setOutEdgeFlag block.cc:240,
     // setGotoBranch block.cc:305) apply to EVERY block kind — structured
@@ -1001,10 +1001,10 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     // goto marks vanished between rounds, so TraceDAG re-proposed the same
     // edge forever).
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge>;
-    // RUGRA-GLUE: incoming half of the shared edge-vector accessors above.
+    // RUDRA-GLUE: incoming half of the shared edge-vector accessors above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge>;
 
-    // RUGRA-GLUE: owner-bank back-pointer (oracle pattern:
+    // RUDRA-GLUE: owner-bank back-pointer (oracle pattern:
     // `BlockBasic::data` funcdata back-pointer, block.hh:464 — the oracle's
     // edge endpoints are raw pointers needing no resolution context; the
     // id form resolves through the OWNING graph's bank, which every
@@ -1012,10 +1012,10 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     // via `claim`; bare unregistered fixtures keep `None` and cannot take
     // part in edge surgery.
     fn set_owner_bank(&mut self, _bank: Option<&BlockBank>);
-    // RUGRA-GLUE: resolve the owning bank handle (None = unregistered).
+    // RUDRA-GLUE: resolve the owning bank handle (None = unregistered).
     fn owner_bank(&self) -> Option<BlockBank>;
 
-    // RUGRA-GLUE: `self.owner_bank()` for edge-surgery call sites — the
+    // RUDRA-GLUE: `self.owner_bank()` for edge-surgery call sites — the
     // panicking form (production blocks are registered by construction;
     // a miss is an invariant violation, not a control-flow case).
     fn bank(&self) -> BlockBank {
@@ -1492,20 +1492,20 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     fn get_copy_map(&self) -> Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>> {
         None
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::copymap is private at
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::copymap is private at
     // block.hh:123; findSpanningTree assigns it via direct field access)
     fn set_copy_map(&mut self, _m: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>) {}
     /// Number of descendants of this block in the spanning tree (+1). Ghidra
     /// `numdesc` (block.hh:126) is a private field with no accessor; it is
     /// written directly by findSpanningTree (block.cc:1073/1084). Unset blocks
     /// return -1 (Ghidra leaves the field uninitialized until discovery).
-    // RUGRA-GLUE: Rust accessor for Ghidra FlowBlock::numdesc (block.hh:126,
+    // RUDRA-GLUE: Rust accessor for Ghidra FlowBlock::numdesc (block.hh:126,
     // private field, no Ghidra accessor; default marks "unset" instead of the
     /// uninitialized C++ value)
     fn get_num_desc(&self) -> i32 {
         -1
     }
-    // RUGRA-GLUE: Rust mutator for Ghidra FlowBlock::numdesc (block.hh:126,
+    // RUDRA-GLUE: Rust mutator for Ghidra FlowBlock::numdesc (block.hh:126,
     // private field written directly by findSpanningTree block.cc:1073/1098)
     fn set_num_desc(&mut self, _n: i32) {}
 
@@ -1528,18 +1528,18 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         self.sync_bank_shadows();
         self.sync_in_edge_shadow();
     }
-    // RUGRA-GLUE: Rust edge-construction helper (Ghidra manages outofthis via friend addInEdge)
+    // RUDRA-GLUE: Rust edge-construction helper (Ghidra manages outofthis via friend addInEdge)
     fn add_out_edge(&mut self, edge: BlockEdge) {
         self.out_edges_mut().push(edge);
         self.sync_bank_shadows();
         self.sync_out_edge_shadow();
     }
 
-    // RUGRA-GLUE: owning-bank slot stamp (set by `BlockBank::claim` at
+    // RUDRA-GLUE: owning-bank slot stamp (set by `BlockBank::claim` at
     // registration; SENTINEL = unregistered). Pairs with `owner_bank` to
     // give shadow maintenance its write target without an identity lookup.
     fn set_bank_slot(&mut self, slot: BlockId);
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered).
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered).
     fn bank_slot(&self) -> BlockId;
 
     /// Push the block's current `sizeIn`/`sizeOut`/`flags`
@@ -1548,7 +1548,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     /// blocks (bare fixtures). The values are the same fields the trait
     /// getters read, so a shadow read through a bank view always equals
     /// the deep read — the debug_assert in the view readers pins this.
-    // RUGRA-GLUE: (g) guard-shadow maintenance
+    // RUDRA-GLUE: (g) guard-shadow maintenance
     fn sync_bank_shadows(&mut self) {
         let slot = self.bank_slot();
         if slot == BlockId::SENTINEL {
@@ -1571,14 +1571,14 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     /// the WHOLE vector (all fields), any earlier unsynced field write on
     /// the same block is repaired here — only field writes with no later
     /// choke on that block before a read need their own sync site.
-    // RUGRA-GLUE: (wave 3) edge-shadow maintenance (block.hh:127-128)
+    // RUDRA-GLUE: (wave 3) edge-shadow maintenance (block.hh:127-128)
     fn sync_edge_shadows(&mut self) {
         self.sync_out_edge_shadow();
         self.sync_in_edge_shadow();
     }
 
     /// Out-half of the edge-shadow refresh (see `sync_edge_shadows`).
-    // RUGRA-GLUE: (wave 3) edge-shadow maintenance, out half
+    // RUDRA-GLUE: (wave 3) edge-shadow maintenance, out half
     fn sync_out_edge_shadow(&mut self) {
         let slot = self.bank_slot();
         if slot == BlockId::SENTINEL {
@@ -1590,7 +1590,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     }
 
     /// In-half of the edge-shadow refresh (see `sync_edge_shadows`).
-    // RUGRA-GLUE: (wave 3) edge-shadow maintenance, in half
+    // RUDRA-GLUE: (wave 3) edge-shadow maintenance, in half
     fn sync_in_edge_shadow(&mut self) {
         let slot = self.bank_slot();
         if slot == BlockId::SENTINEL {
@@ -1601,7 +1601,7 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
         }
     }
 
-    // RUGRA-GLUE: Rust helper returning Vec<PcodeOpRef> (Ghidra BlockBasic exposes begin/end iterators)
+    // RUDRA-GLUE: Rust helper returning Vec<PcodeOpRef> (Ghidra BlockBasic exposes begin/end iterators)
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         Vec::new()
     }
@@ -1634,29 +1634,29 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
     fn get_immed_dom(&self) -> Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>> {
         None
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::immed_dom is private; set by buildDomTree as friend)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::immed_dom is private; set by buildDomTree as friend)
     fn set_immed_dom(&mut self, _dom: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>) {}
-    // RUGRA-GLUE: Rugra-only dom-depth field (Ghidra computes depth via buildDomDepth into separate vec)
+    // RUDRA-GLUE: Rugra-only dom-depth field (Ghidra computes depth via buildDomDepth into separate vec)
     fn get_dom_depth(&self) -> i32 {
         -1
     }
-    // RUGRA-GLUE: Rust mutator for dom_depth (Ghidra has no dom-depth field on FlowBlock)
+    // RUDRA-GLUE: Rust mutator for dom_depth (Ghidra has no dom-depth field on FlowBlock)
     fn set_dom_depth(&mut self, _depth: i32) {}
-    // RUGRA-GLUE: Rugra-only dom-children field (Ghidra returns dom tree via buildDomTree(child) external vec)
+    // RUDRA-GLUE: Rugra-only dom-children field (Ghidra returns dom tree via buildDomTree(child) external vec)
     fn get_dom_children(&self) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         Vec::new()
     }
-    // RUGRA-GLUE: Rust mutator for dom_children (Ghidra builds dom tree externally in BlockGraph::buildDomTree)
+    // RUDRA-GLUE: Rust mutator for dom_children (Ghidra builds dom tree externally in BlockGraph::buildDomTree)
     fn add_dom_child(&mut self, _child: Arc<RwLock<dyn FlowBlock + Send + Sync>>) {}
-    // RUGRA-GLUE: Rust mutator for dom_children (Ghidra has no dom-children field on FlowBlock)
+    // RUDRA-GLUE: Rust mutator for dom_children (Ghidra has no dom-children field on FlowBlock)
     fn clear_dom_children(&mut self) {}
-    // RUGRA-GLUE: Rugra-only dom-frontier field (Ghidra has no dom-frontier field on FlowBlock)
+    // RUDRA-GLUE: Rugra-only dom-frontier field (Ghidra has no dom-frontier field on FlowBlock)
     fn get_dom_frontier(&self) -> std::collections::HashSet<i32> {
         std::collections::HashSet::new()
     }
-    // RUGRA-GLUE: Rust mutator for dom_frontier (Ghidra has no dom-frontier field on FlowBlock)
+    // RUDRA-GLUE: Rust mutator for dom_frontier (Ghidra has no dom-frontier field on FlowBlock)
     fn add_to_dom_frontier(&mut self, _idx: i32) {}
-    // RUGRA-GLUE: Rust mutator for dom_frontier (Ghidra has no dom-frontier field on FlowBlock)
+    // RUDRA-GLUE: Rust mutator for dom_frontier (Ghidra has no dom-frontier field on FlowBlock)
     fn clear_dom_frontier(&mut self) {}
 
     /// Reverse-index of the given incoming edge slot — i.e. the index of
@@ -2273,7 +2273,7 @@ pub fn find_condition(
 /// the raw pointer directly at block.cc:1161/1173). The `Option` fallback
 /// to `y` itself is unreachable on the oracle path (copymap is always set
 /// for blocks in `list`).
-// RUGRA-GLUE: FIND(y) read of Ghidra FlowBlock::copymap (block.hh:123 raw
+// RUDRA-GLUE: FIND(y) read of Ghidra FlowBlock::copymap (block.hh:123 raw
 // pointer dereference at block.cc:1161/1173; Rust Weak upgrade with
 // unreachable self fallback)
 fn find_copy_map(
@@ -2412,11 +2412,11 @@ pub fn set_default_switch_mirrored(
 pub struct BlockBasic {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     /// List of operations in this block
     pub ops: Vec<PcodeOpRef>,
@@ -2428,7 +2428,7 @@ pub struct BlockBasic {
     pub parent: Option<Weak<RwLock<BlockGraph>>>,
     /// Weak self handle used to reproduce virtual methods that return
     /// `this` (`getExitLeaf` and `getSplitPoint`) through a trait object.
-    // RUGRA-GLUE: Rust self-reference for Ghidra methods returning `this`
+    // RUDRA-GLUE: Rust self-reference for Ghidra methods returning `this`
     pub self_ref: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>,
     /// Block flags
     pub flags: u32,
@@ -2597,7 +2597,7 @@ impl BlockBasic {
     /// performing a CALL or STORE causes the method to return \b false.
     /// Faithful to `noInterveningStatement` (block.cc:2712-2747).
     pub fn no_intervening_statement(&self) -> bool {
-        // RUGRA-GLUE: Ghidra compares `op->getParent() != this` by C++ pointer
+        // RUDRA-GLUE: Ghidra compares `op->getParent() != this` by C++ pointer
         // identity. Rugra blocks live behind Arc<RwLock<dyn FlowBlock>>;
         // ops' parents and this block's self_ref are weak refs to the same Arc
         // (set together by BlockGraph::add_block, block.rs:2792-2800), so
@@ -2792,31 +2792,31 @@ impl BlockBasic {
 }
 
 impl FlowBlock for BlockBasic {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
+    // RUDRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
+    // RUDRA-GLUE: Rust trait-object downcast glue (no Ghidra counterpart)
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -2824,7 +2824,7 @@ impl FlowBlock for BlockBasic {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
@@ -2836,7 +2836,7 @@ impl FlowBlock for BlockBasic {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -2860,26 +2860,26 @@ impl FlowBlock for BlockBasic {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
 
-    // RUGRA-GLUE: Rust helper (Ghidra BlockBasic exposes op list via begin/end iterators)
+    // RUDRA-GLUE: Rust helper (Ghidra BlockBasic exposes op list via begin/end iterators)
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         self.ops.clone()
     }
@@ -3081,39 +3081,39 @@ impl FlowBlock for BlockBasic {
     fn get_immed_dom(&self) -> Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.immed_dom.clone()
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::immed_dom is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::immed_dom is private)
     fn set_immed_dom(&mut self, dom: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>) {
         self.immed_dom = dom;
     }
-    // RUGRA-GLUE: Rugra-only dom_depth field
+    // RUDRA-GLUE: Rugra-only dom_depth field
     fn get_dom_depth(&self) -> i32 {
         self.dom_depth
     }
-    // RUGRA-GLUE: Rust mutator for dom_depth
+    // RUDRA-GLUE: Rust mutator for dom_depth
     fn set_dom_depth(&mut self, depth: i32) {
         self.dom_depth = depth;
     }
-    // RUGRA-GLUE: Rugra-only dom_children field
+    // RUDRA-GLUE: Rugra-only dom_children field
     fn get_dom_children(&self) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.dom_children.clone()
     }
-    // RUGRA-GLUE: Rust mutator for dom_children
+    // RUDRA-GLUE: Rust mutator for dom_children
     fn add_dom_child(&mut self, child: Arc<RwLock<dyn FlowBlock + Send + Sync>>) {
         self.dom_children.push(child);
     }
-    // RUGRA-GLUE: Rust mutator for dom_children
+    // RUDRA-GLUE: Rust mutator for dom_children
     fn clear_dom_children(&mut self) {
         self.dom_children.clear();
     }
-    // RUGRA-GLUE: Rugra-only dom_frontier field
+    // RUDRA-GLUE: Rugra-only dom_frontier field
     fn get_dom_frontier(&self) -> std::collections::HashSet<i32> {
         self.dom_frontier.clone()
     }
-    // RUGRA-GLUE: Rust mutator for dom_frontier
+    // RUDRA-GLUE: Rust mutator for dom_frontier
     fn add_to_dom_frontier(&mut self, idx: i32) {
         self.dom_frontier.insert(idx);
     }
-    // RUGRA-GLUE: Rust mutator for dom_frontier
+    // RUDRA-GLUE: Rust mutator for dom_frontier
     fn clear_dom_frontier(&mut self) {
         self.dom_frontier.clear();
     }
@@ -3150,16 +3150,16 @@ impl FlowBlock for BlockBasic {
     fn get_copy_map(&self) -> Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.copy_map.clone()
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::copymap is private at
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::copymap is private at
     // block.hh:123; findSpanningTree assigns it via direct field access)
     fn set_copy_map(&mut self, m: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>) {
         self.copy_map = m;
     }
-    // RUGRA-GLUE: Rust accessor for Ghidra FlowBlock::numdesc (block.hh:126)
+    // RUDRA-GLUE: Rust accessor for Ghidra FlowBlock::numdesc (block.hh:126)
     fn get_num_desc(&self) -> i32 {
         self.num_desc
     }
-    // RUGRA-GLUE: Rust mutator for Ghidra FlowBlock::numdesc (block.hh:126)
+    // RUDRA-GLUE: Rust mutator for Ghidra FlowBlock::numdesc (block.hh:126)
     fn set_num_desc(&mut self, n: i32) {
         self.num_desc = n;
     }
@@ -3282,7 +3282,7 @@ impl FlowBlock for BlockBasic {
     }
 }
 
-// RUGRA-GLUE: Rust trait-object field mutation for Ghidra's direct
+// RUDRA-GLUE: Rust trait-object field mutation for Ghidra's direct
 // FlowBlock::intothis/outofthis access in halfDeleteInEdge/halfDeleteOutEdge.
 fn decrement_reciprocal_reverse_index(block: &mut dyn FlowBlock, incoming_half: bool, slot: usize) {
     let block_index = block.get_index();
@@ -3391,7 +3391,7 @@ impl BlockBasic {
         self.half_delete_out_edge(out_slot);
     }
 
-    // RUGRA-GLUE: Rust helper clearing both edge lists (Ghidra clears via BlockGraph::clear block.cc:1239)
+    // RUDRA-GLUE: Rust helper clearing both edge lists (Ghidra clears via BlockGraph::clear block.cc:1239)
     pub fn clear_edges(&mut self) {
         self.incoming.clear();
         self.outgoing.clear();
@@ -3400,12 +3400,12 @@ impl BlockBasic {
         self.sync_edge_shadows();
     }
 
-    // RUGRA-GLUE: Rust accessor for outgoing edge slice (Ghidra exposes outofthis via getOut/sizeOut)
+    // RUDRA-GLUE: Rust accessor for outgoing edge slice (Ghidra exposes outofthis via getOut/sizeOut)
     pub fn get_outgoing(&self) -> &[BlockEdge] {
         &self.outgoing
     }
 
-    // RUGRA-GLUE: Rust accessor for incoming edge slice (Ghidra exposes intothis via getIn/sizeIn)
+    // RUDRA-GLUE: Rust accessor for incoming edge slice (Ghidra exposes intothis via getIn/sizeIn)
     pub fn get_incoming(&self) -> &[BlockEdge] {
         &self.incoming
     }
@@ -3435,7 +3435,7 @@ pub struct BlockEdge {
 }
 
 impl BlockEdge {
-    // RUGRA-GLUE: Rust constructor for BlockEdge (Ghidra BlockEdge is a
+    // RUDRA-GLUE: Rust constructor for BlockEdge (Ghidra BlockEdge is a
     // struct, edges built via addInEdge). The caller supplies the bank id
     // of the point (`graph.bank.registered_id_of(&arc)` — an identity-map
     // lookup that never touches the block's own RwLock, so self-loop
@@ -3449,17 +3449,17 @@ impl BlockEdge {
         }
     }
 
-    // RUGRA-GLUE: Rust accessor for f_break_edge flag (Ghidra checks label & f_break_edge inline)
+    // RUDRA-GLUE: Rust accessor for f_break_edge flag (Ghidra checks label & f_break_edge inline)
     pub fn is_break(&self) -> bool {
         self.flags & edge_flags::F_BREAK_EDGE != 0
     }
 
-    // RUGRA-GLUE: Rust accessor for f_continue_edge flag (Ghidra checks label inline)
+    // RUDRA-GLUE: Rust accessor for f_continue_edge flag (Ghidra checks label inline)
     pub fn is_continue(&self) -> bool {
         self.flags & edge_flags::F_CONTINUE_EDGE != 0
     }
 
-    // RUGRA-GLUE: Rust accessor for f_goto_edge flag (Ghidra checks label & f_goto_edge inline)
+    // RUDRA-GLUE: Rust accessor for f_goto_edge flag (Ghidra checks label & f_goto_edge inline)
     pub fn is_goto(&self) -> bool {
         self.flags & edge_flags::F_GOTO_EDGE != 0
     }
@@ -3470,7 +3470,7 @@ impl BlockEdge {
 pub struct BlockRef(pub Arc<RwLock<dyn FlowBlock + Send + Sync>>);
 
 impl PartialEq for BlockRef {
-    // RUGRA-GLUE: Rust PartialEq for BlockRef (Ghidra compares FlowBlock* directly)
+    // RUDRA-GLUE: Rust PartialEq for BlockRef (Ghidra compares FlowBlock* directly)
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
@@ -3495,7 +3495,7 @@ impl PartialEq for BlockRef {
 /// behind a handle today (Rugra's `BlockGraph` is not a FlowBlock;
 /// Ghidra's `newBlock()` plain factory has no Rugra caller) so the
 /// enum↔`BlockType` maps stay total over the oracle's 13-value face.
-// RUGRA-GLUE: block-kind enum (block.hh:77-80 block_type closed set;
+// RUDRA-GLUE: block-kind enum (block.hh:77-80 block_type closed set;
 // storage form — Ghidra's counterpart is the C++ vtable face itself)
 #[derive(Clone, Debug)]
 pub enum BlockKind {
@@ -3532,7 +3532,7 @@ impl BlockKind {
     /// Stamp the runtime kind (the single vtable dispatch per
     /// registration; the oracle equivalent is the C++ object's own
     /// vtable, consulted once when the pointer is banked).
-    // RUGRA-GLUE: registration-time variant selection
+    // RUDRA-GLUE: registration-time variant selection
     pub fn from_dyn(bt: BlockType, arc: Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Self {
         match bt {
             BlockType::Basic => Self::Basic(arc),
@@ -3554,7 +3554,7 @@ impl BlockKind {
     /// `FlowBlock::getType` projection of the variant (discriminant match,
     /// no block lock, no vtable — the value was stamped at registration
     /// from the same `get_type()` call the pre-flip table stored).
-    // RUGRA-GLUE: discriminant → block.hh:184 getType projection
+    // RUDRA-GLUE: discriminant → block.hh:184 getType projection
     pub fn btype(&self) -> BlockType {
         match self {
             Self::Basic(_) => BlockType::Basic,
@@ -3574,7 +3574,7 @@ impl BlockKind {
     }
 
     /// The block handle (the identity every consumer-visible API returns).
-    // RUGRA-GLUE: variant payload access
+    // RUDRA-GLUE: variant payload access
     pub fn arc(&self) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         match self {
             Self::Basic(a)
@@ -3594,7 +3594,7 @@ impl BlockKind {
     }
 
     /// Borrow the handle without a clone (internal truth-check reads).
-    // RUGRA-GLUE: variant payload access, borrowed form
+    // RUDRA-GLUE: variant payload access, borrowed form
     fn arc_ref(&self) -> &Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         match self {
             Self::Basic(a)
@@ -3616,7 +3616,7 @@ impl BlockKind {
     /// Arc-identity key (the `ids` map key form — `Arc::as_ptr` of the
     /// same handle the pre-flip table stored, so identity semantics are
     /// bit-identical).
-    // RUGRA-GLUE: identity key (ids map)
+    // RUDRA-GLUE: identity key (ids map)
     fn ptr_key(&self) -> usize {
         Arc::as_ptr(self.arc_ref()) as *const () as usize
     }
@@ -3631,7 +3631,7 @@ impl BlockKind {
 /// set_index trait method itself stays the field writer; the graph helper
 /// adds the shadow write), so a bank read `bank.cell(id).index()` always
 /// equals `get_index()` on the block.
-// RUGRA-GLUE: block bank cell (storage-iterator shadow form;
+// RUDRA-GLUE: block bank cell (storage-iterator shadow form;
 // PERF-BLOCKSTORAGE-FLIP-0001 wave 1 — BlockKind enum storage)
 pub struct BlockCell {
     /// The kind-stamped block handle (identity + deep access).
@@ -3685,7 +3685,7 @@ pub struct BlockCell {
 /// back-pointers to their owning bank — the oracle's `BlockBasic::data`
 /// funcdata-back-pointer pattern, block.hh:464 — so edge endpoints resolve
 /// without threading a bank parameter through every edge-surgery call).
-// RUGRA-GLUE: block bank (ARENA_DESIGN §1.4 BlockArena; COW-Arc snapshot
+// RUDRA-GLUE: block bank (ARENA_DESIGN §1.4 BlockArena; COW-Arc snapshot
 // form replaces the arena.rs Arena as the bank's storage — arena.rs itself
 // stays frozen, W0 contract untouched)
 #[derive(Clone)]
@@ -3719,7 +3719,7 @@ pub(crate) struct BlockBankShared {
 /// The published half of the bank: everything immutable-per-generation
 /// lives in `table` (copy-on-write), everything mutated in place lives in
 /// the shared `cells` allocation.
-// RUGRA-GLUE: COW-Arc bank state (one lock guards the pair)
+// RUDRA-GLUE: COW-Arc bank state (one lock guards the pair)
 struct BankState {
     table: std::sync::Arc<BankTable>,
     cells: std::sync::Arc<Vec<BankShadowCell>>,
@@ -3729,7 +3729,7 @@ struct BankState {
 /// for the reserved sentinel slot 0; live and zombie slots stay `Some`
 /// until `clear` (PERF-BLOCKSTORAGE-FLIP-0001 wave 1: the BlockKind enum
 /// slot replaces the arcs+btypes pair — one tag, one payload).
-// RUGRA-GLUE: COW-Arc slot table (arena.rs Arena minting parity — see
+// RUDRA-GLUE: COW-Arc slot table (arena.rs Arena minting parity — see
 /// BlockBank type doc)
 #[derive(Clone)]
 struct BankTable {
@@ -3741,7 +3741,7 @@ struct BankTable {
 }
 
 impl BankTable {
-    // RUGRA-GLUE: sentinel-slot reserved table constructor (arena.rs
+    // RUDRA-GLUE: sentinel-slot reserved table constructor (arena.rs
     // Arena::new parity — the frozen Arena reserves slot index 0; the COW
     // table keeps the same reserved layout)
     fn reserved() -> Self {
@@ -3761,7 +3761,7 @@ impl BankTable {
 /// diet, so serving them from the cell removes the peer RwLock deep-read
 /// from guard checks (the ~10M face the (f) report attributed to the
 /// block-storage domain).
-// RUGRA-GLUE: shared shadow cell (block.hh:124 index; block.hh:165/312-313
+// RUDRA-GLUE: shared shadow cell (block.hh:124 index; block.hh:165/312-313
 /// size/flags join in the (g) guard-shadow step)
 struct BankShadowCell {
     index: std::sync::atomic::AtomicI32,
@@ -3771,7 +3771,7 @@ struct BankShadowCell {
 }
 
 impl Clone for BankShadowCell {
-    // RUGRA-GLUE: publish-time value copy (Arc::make_mut requires Clone;
+    // RUDRA-GLUE: publish-time value copy (Arc::make_mut requires Clone;
     // AtomicI32 is not Clone — copy by plain Relaxed load; values exact)
     fn clone(&self) -> Self {
         BankShadowCell {
@@ -3792,7 +3792,7 @@ impl Clone for BankShadowCell {
 }
 
 impl BankShadowCell {
-    // RUGRA-GLUE: reserved-slot constructor (sentinel slot 0 / post-clear
+    // RUDRA-GLUE: reserved-slot constructor (sentinel slot 0 / post-clear
     // reset — zeroed shadows, never read: slot_ok rejects idx 0)
     fn sentinel() -> Self {
         BankShadowCell {
@@ -3819,7 +3819,7 @@ impl BankShadowCell {
 /// state → edges, never reversed): reads are copy-out of a `BlockEdge`
 /// (plain-Copy), writes are `clone_from` (reuses the existing Vec
 /// allocation, so steady-state maintenance is a tens-of-bytes memcpy).
-// RUGRA-GLUE: edge shadow cell (block.hh:127-128 vector mirror;
+// RUDRA-GLUE: edge shadow cell (block.hh:127-128 vector mirror;
 // PERF-BLOCKSTORAGE-FLIP-0001 wave 3)
 #[derive(Default)]
 struct EdgeShadowCell {
@@ -3830,7 +3830,7 @@ struct EdgeShadowCell {
 }
 
 impl EdgeShadowCell {
-    // RUGRA-GLUE: reserved-slot constructor (sentinel slot 0 / post-clear
+    // RUDRA-GLUE: reserved-slot constructor (sentinel slot 0 / post-clear
     // reset — empty vectors, never read: slot_ok rejects idx 0)
     fn sentinel() -> Self {
         EdgeShadowCell::default()
@@ -3838,7 +3838,7 @@ impl EdgeShadowCell {
 }
 
 impl std::fmt::Debug for BlockBank {
-    // RUGRA-GLUE: debug form (slot count only; slot order must never be
+    // RUDRA-GLUE: debug form (slot count only; slot order must never be
     // observable, ARENA_DESIGN §2.4/§8.3)
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let slots = {
@@ -3849,12 +3849,12 @@ impl std::fmt::Debug for BlockBank {
     }
 }
 
-// RUGRA-GLUE: weak back-link handed to registered blocks (upgrade gives the
+// RUDRA-GLUE: weak back-link handed to registered blocks (upgrade gives the
 // owning bank handle; dangles only after the owning graph is dropped).
 pub type BlockBankLink = std::sync::Weak<BlockBankShared>;
 
 impl BlockBank {
-    // RUGRA-GLUE: bank constructor (fresh tables, sentinel slot 0 reserved)
+    // RUDRA-GLUE: bank constructor (fresh tables, sentinel slot 0 reserved)
     pub fn new() -> Self {
         Self {
             sh: std::sync::Arc::new(BlockBankShared {
@@ -3871,7 +3871,7 @@ impl BlockBank {
 
     /// A weak back-link for registered blocks (`set_owner_bank`). Upgrades
     /// only while the owning graph lives.
-    // RUGRA-GLUE: owner-bank back-pointer source
+    // RUDRA-GLUE: owner-bank back-pointer source
     pub fn link(&self) -> BlockBankLink {
         std::sync::Arc::downgrade(&self.sh)
     }
@@ -3881,7 +3881,7 @@ impl BlockBank {
     /// membership is the flip's core invariant: edges resolve in the
     /// owner's bank, so a second registration would strand bank-A ids
     /// behind a bank-B owner).
-    // RUGRA-GLUE: owner-bank assignment (guarded)
+    // RUDRA-GLUE: owner-bank assignment (guarded)
     pub fn claim(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, slot: BlockId) {
         let mut g = bl.write().unwrap();
         match g.owner_bank() {
@@ -3903,7 +3903,7 @@ impl BlockBank {
         }
     }
 
-    // RUGRA-GLUE: bank insert (add_block write path); registers the Arc
+    // RUDRA-GLUE: bank insert (add_block write path); registers the Arc
     // identity so `id_of` resolves without a block lock, and claims block
     // ownership (owner-bank back-pointer). No block guard may be held by
     // callers (`claim` takes the block's write lock). Publish side of the
@@ -3950,7 +3950,7 @@ impl BlockBank {
     /// (identify_internal's `blocks[install_idx] = new_block`), which never
     /// passes through `add_block`. Same cell/identity bookkeeping so edge
     /// twins pointing at the composite resolve.
-    // RUGRA-GLUE: composite adoption (block.cc:905-928 selfIdentify install)
+    // RUDRA-GLUE: composite adoption (block.cc:905-928 selfIdentify install)
     pub fn adopt(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) {
         if self.id_of(bl).is_some() {
             return; // already registered (idempotent)
@@ -3979,7 +3979,7 @@ impl BlockBank {
     /// calls adopt on every graph member every fullchange pass; the
     /// per-call `id_of` lock was ~25M acquisitions on the giant function).
     /// Same semantics: only unregistered blocks get cells.
-    // RUGRA-GLUE: bulk composite adoption (sweep form of adopt)
+    // RUDRA-GLUE: bulk composite adoption (sweep form of adopt)
     pub fn adopt_bulk(&self, blocks: &[Arc<RwLock<dyn FlowBlock + Send + Sync>>]) {
         // Collect the unregistered under one read lock.
         let fresh: Vec<&Arc<RwLock<dyn FlowBlock + Send + Sync>>> = {
@@ -4014,7 +4014,7 @@ impl BlockBank {
     }
     /// The bank id of `bl`, or `None` if it is not registered here (bare
     /// fixtures / foreign-graph handles). Never locks `bl` itself.
-    // RUGRA-GLUE: handle→id (oracle: the pointer IS the identity)
+    // RUDRA-GLUE: handle→id (oracle: the pointer IS the identity)
     pub fn id_of(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> Option<BlockId> {
         bank_stats::bump(&bank_stats::STATS.id_lookups);
         let key = Arc::as_ptr(bl) as *const () as usize;
@@ -4022,14 +4022,14 @@ impl BlockBank {
     }
 
     /// The bank id of `bl`, or `BlockId::SENTINEL` when unregistered.
-    // RUGRA-GLUE: SENTINEL form for twin stamping
+    // RUDRA-GLUE: SENTINEL form for twin stamping
     pub fn registered_id_of(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> BlockId {
         self.id_of(bl).unwrap_or(BlockId::SENTINEL)
     }
 
     /// Peer `index` shadow read (block.hh:160 getIndex without the block
     /// lock/vtable). Callers must know `id` came from this bank.
-    // RUGRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
+    // RUDRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
     pub fn index_of(&self, id: BlockId) -> Option<i32> {
         bank_stats::bump(&bank_stats::STATS.read_index);
         // Direct one-lock path (no snapshot construction — the per-read
@@ -4046,7 +4046,7 @@ impl BlockBank {
 
     /// Peer `block_type` shadow read (block.hh:184 getType without the
     /// block lock/vtable).
-    // RUGRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
+    // RUDRA-GLUE: hot shadow read (fresh-snapshot form; hot callers use hold())
     pub fn btype_of(&self, id: BlockId) -> Option<BlockType> {
         bank_stats::bump(&bank_stats::STATS.read_btype);
         let st = self.sh.state.read().unwrap();
@@ -4058,7 +4058,7 @@ impl BlockBank {
     }
 
     /// Resolve `id` back to the block handle (clone of the bank's Arc).
-    // RUGRA-GLUE: id→handle resolution (fresh-snapshot form; hot callers use hold())
+    // RUDRA-GLUE: id→handle resolution (fresh-snapshot form; hot callers use hold())
     pub fn arc_of(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         bank_stats::bump(&bank_stats::STATS.read_arc);
         let st = self.sh.state.read().unwrap();
@@ -4075,7 +4075,7 @@ impl BlockBank {
     /// bank, so a miss is an invariant violation (stale id after `clear`,
     /// cross-bank resolution, or an unregistered fixture), not a normal
     /// control-flow case.
-    // RUGRA-GLUE: id→handle resolution, panicking form (fresh-snapshot form)
+    // RUDRA-GLUE: id→handle resolution, panicking form (fresh-snapshot form)
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         match self.arc_of(id) {
             Some(a) => a,
@@ -4086,7 +4086,7 @@ impl BlockBank {
     /// Peer `index` shadow read, panicking form (see `expect_arc` for the
     /// invariant). Equivalent to `arc_of(id).read().unwrap().get_index()`
     /// with the lock/vtable round-trip removed ((d)-segment shadow).
-    // RUGRA-GLUE: hot shadow read, panicking form (fresh-snapshot form)
+    // RUDRA-GLUE: hot shadow read, panicking form (fresh-snapshot form)
     pub fn expect_index(&self, id: BlockId) -> i32 {
         match self.index_of(id) {
             Some(v) => v,
@@ -4096,7 +4096,7 @@ impl BlockBank {
 
     /// Peer `sizeIn` shadow read (block.hh:313 without the block
     /// lock/vtable), fresh-snapshot form; hot callers use `hold()`.
-    // RUGRA-GLUE: guard-shadow read (fresh-snapshot form)
+    // RUDRA-GLUE: guard-shadow read (fresh-snapshot form)
     pub fn expect_size_in(&self, id: BlockId) -> usize {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
@@ -4109,7 +4109,7 @@ impl BlockBank {
     }
 
     /// Peer `sizeOut` shadow read (block.hh:312), fresh-snapshot form.
-    // RUGRA-GLUE: guard-shadow read (fresh-snapshot form)
+    // RUDRA-GLUE: guard-shadow read (fresh-snapshot form)
     pub fn expect_size_out(&self, id: BlockId) -> usize {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
@@ -4122,7 +4122,7 @@ impl BlockBank {
     }
 
     /// Peer `flags` shadow read (block.hh:165), fresh-snapshot form.
-    // RUGRA-GLUE: guard-shadow read (fresh-snapshot form)
+    // RUDRA-GLUE: guard-shadow read (fresh-snapshot form)
     pub fn expect_flags(&self, id: BlockId) -> u32 {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
@@ -4141,7 +4141,7 @@ impl BlockBank {
     /// cells predate the current allocation is already invalidated by the
     /// publish that replaced it, and a view sharing this allocation sees
     /// the store (atomics).
-    // RUGRA-GLUE: shadow maintenance
+    // RUDRA-GLUE: shadow maintenance
     pub(crate) fn set_index_shadow(&self, id: BlockId, index: i32) {
         bank_stats::bump(&bank_stats::STATS.shadow_writes);
         let st = self.sh.state.read().unwrap();
@@ -4162,7 +4162,7 @@ impl BlockBank {
     /// funnels through). Same in-place discipline as `set_index_shadow`:
     /// no epoch bump (views sharing this allocation see the store via
     /// atomics; views from an earlier allocation are already invalid).
-    // RUGRA-GLUE: shadow maintenance (block.hh:165/312-313)
+    // RUDRA-GLUE: shadow maintenance (block.hh:165/312-313)
     pub fn set_block_shadows(&self, id: BlockId, size_in: u32, size_out: u32, flags: u32) {
         bank_stats::bump(&bank_stats::STATS.shadow_writes);
         let st = self.sh.state.read().unwrap();
@@ -4189,7 +4189,7 @@ impl BlockBank {
     /// mutations; `clone_from` reuses the slot's existing allocation.
     /// Bumps `shadow_writes` once per call (the same accounting the
     /// size/flags chokes use).
-    // RUGRA-GLUE: edge-shadow maintenance (wave 3; block.hh:128 mirror)
+    // RUDRA-GLUE: edge-shadow maintenance (wave 3; block.hh:128 mirror)
     pub fn set_out_edge_shadow(&self, id: BlockId, edges: &[BlockEdge]) {
         bank_stats::bump(&bank_stats::STATS.shadow_writes);
         let st = self.sh.state.read().unwrap();
@@ -4209,7 +4209,7 @@ impl BlockBank {
 
     /// Edge-shadow write, in half (mirror refresh of `intothis`,
     /// block.hh:127). See `set_out_edge_shadow` for the discipline.
-    // RUGRA-GLUE: edge-shadow maintenance (wave 3; block.hh:127 mirror)
+    // RUDRA-GLUE: edge-shadow maintenance (wave 3; block.hh:127 mirror)
     pub fn set_in_edge_shadow(&self, id: BlockId, edges: &[BlockEdge]) {
         bank_stats::bump(&bank_stats::STATS.shadow_writes);
         let st = self.sh.state.read().unwrap();
@@ -4232,7 +4232,7 @@ impl BlockBank {
     /// plain Copy value, no peer RwLock, no vtable. `None` mirrors the
     /// slot being out of range (the oracle's UB slot would be a caller
     /// bug; Rugra's `get_out` is Option-shaped and so is this).
-    // RUGRA-GLUE: edge-shadow read (wave 3; block.hh:301 direct form)
+    // RUDRA-GLUE: edge-shadow read (wave 3; block.hh:301 direct form)
     pub fn expect_out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
@@ -4245,7 +4245,7 @@ impl BlockBank {
     }
 
     /// `FlowBlock::getIn` shadow (block.hh:304 — inline `intothis[i]`).
-    // RUGRA-GLUE: edge-shadow read (wave 3; block.hh:304 direct form)
+    // RUDRA-GLUE: edge-shadow read (wave 3; block.hh:304 direct form)
     pub fn expect_in_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         let st = self.sh.state.read().unwrap();
         let i = id.idx() as usize;
@@ -4261,7 +4261,7 @@ impl BlockBank {
     /// cluster form (e.g. a clause walk reading several edges of one
     /// block): the guard is released before returning, so the closure
     /// must not call back into edge-mutating code.
-    // RUGRA-GLUE: edge-shadow bulk read (wave 3)
+    // RUDRA-GLUE: edge-shadow bulk read (wave 3)
     pub fn with_out_edges<R>(
         &self,
         id: BlockId,
@@ -4279,7 +4279,7 @@ impl BlockBank {
 
     /// Whole in-vector view under ONE edge-table lock (see
     /// `with_out_edges`).
-    // RUGRA-GLUE: edge-shadow bulk read (wave 3)
+    // RUDRA-GLUE: edge-shadow bulk read (wave 3)
     pub fn with_in_edges<R>(
         &self,
         id: BlockId,
@@ -4300,7 +4300,7 @@ impl BlockBank {
     /// arrays to the sentinel — post-clear inserts reuse slot indexes
     /// ascending with the bumped generations, byte-identical to the
     /// `arena.rs::Arena::clear` + insert sequence.
-    // RUGRA-GLUE: bulk reclaim (oracle graph clear/destructor)
+    // RUDRA-GLUE: bulk reclaim (oracle graph clear/destructor)
     pub fn clear(&self) {
         bank_stats::bump(&bank_stats::STATS.publishes);
         {
@@ -4332,7 +4332,7 @@ impl BlockBank {
     /// mutation (`insert`/`clear`/`adopt` invalidate it and the next
     /// read panics, the read-phase discipline the guard form enforced by
     /// deadlock).
-    // RUGRA-GLUE: hot-path snapshot view (miss-floor elimination surface)
+    // RUDRA-GLUE: hot-path snapshot view (miss-floor elimination surface)
     pub fn hold(&self) -> BlockBankView {
         bank_stats::bump(&bank_stats::STATS.view_holds);
         let (table, cells, epoch0) = {
@@ -4356,7 +4356,7 @@ impl BlockBank {
 /// Reads return `None` for SENTINEL/stale ids (bare fixtures keep
 /// SENTINEL twins) — callers fall back to the block guard path there,
 /// keeping reads byte-identical.
-// RUGRA-GLUE: hot-path snapshot view
+// RUDRA-GLUE: hot-path snapshot view
 pub struct BlockBankView {
     sh: std::sync::Arc<BlockBankShared>,
     table: std::sync::Arc<BankTable>,
@@ -4365,7 +4365,7 @@ pub struct BlockBankView {
 }
 
 impl BlockBankView {
-    // RUGRA-GLUE: post-read epoch validation — a publish since this
+    // RUDRA-GLUE: post-read epoch validation — a publish since this
     // snapshot's hold means the read may have raced a mutation; fail
     // loudly instead of returning pre-mutation state (the guard-view
     // form deadlocked on the same violation).
@@ -4377,7 +4377,7 @@ impl BlockBankView {
         }
     }
 
-    // RUGRA-GLUE: generation-checked slot index (arena.rs Arena::get
+    // RUDRA-GLUE: generation-checked slot index (arena.rs Arena::get
     // parity: idx 0 reserved, bounds, gen compare)
     fn slot_ok(&self, id: BlockId) -> Option<usize> {
         let i = id.idx() as usize;
@@ -4388,7 +4388,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::index` shadow (block.hh:160).
-    // RUGRA-GLUE: shadow read
+    // RUDRA-GLUE: shadow read
     pub fn index(&self, id: BlockId) -> Option<i32> {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = self.slot_ok(id).and_then(|i| {
@@ -4401,7 +4401,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::getType` shadow (block.hh:184).
-    // RUGRA-GLUE: shadow read
+    // RUDRA-GLUE: shadow read
     pub fn btype(&self, id: BlockId) -> Option<BlockType> {
         bank_stats::bump(&bank_stats::STATS.view_btype);
         let v = self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(BlockKind::btype));
@@ -4410,7 +4410,7 @@ impl BlockBankView {
     }
 
     /// Resolve to the block handle (Arc clone).
-    // RUGRA-GLUE: id→handle
+    // RUDRA-GLUE: id→handle
     pub fn arc(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         bank_stats::bump(&bank_stats::STATS.view_arc);
         let v = self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc()));
@@ -4420,7 +4420,7 @@ impl BlockBankView {
 
     /// Resolve to the block handle, panicking on stale/foreign ids (see
     /// `BlockBank::expect_arc`).
-    // RUGRA-GLUE: id→handle, panicking form
+    // RUDRA-GLUE: id→handle, panicking form
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         bank_stats::bump(&bank_stats::STATS.view_arc);
         let v = match self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc())) {
@@ -4432,7 +4432,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::index` shadow, panicking form.
-    // RUGRA-GLUE: shadow read, panicking form
+    // RUDRA-GLUE: shadow read, panicking form
     pub fn expect_index(&self, id: BlockId) -> i32 {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = match self.slot_ok(id).and_then(|i| {
@@ -4456,7 +4456,7 @@ impl BlockBankView {
     // ====================================================================
 
     /// `FlowBlock::sizeIn` shadow (block.hh:313), Option form.
-    // RUGRA-GLUE: guard-shadow read
+    // RUDRA-GLUE: guard-shadow read
     pub fn size_in(&self, id: BlockId) -> Option<usize> {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = self.slot_ok(id).and_then(|i| {
@@ -4475,7 +4475,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::sizeOut` shadow (block.hh:312), Option form.
-    // RUGRA-GLUE: guard-shadow read
+    // RUDRA-GLUE: guard-shadow read
     pub fn size_out(&self, id: BlockId) -> Option<usize> {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = self.slot_ok(id).and_then(|i| {
@@ -4494,7 +4494,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::getFlags` shadow (block.hh:165), Option form.
-    // RUGRA-GLUE: guard-shadow read
+    // RUDRA-GLUE: guard-shadow read
     pub fn flags(&self, id: BlockId) -> Option<u32> {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = self.slot_ok(id).and_then(|i| {
@@ -4513,7 +4513,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::sizeIn` shadow, panicking form (see `expect_arc`).
-    // RUGRA-GLUE: guard-shadow read, panicking form
+    // RUDRA-GLUE: guard-shadow read, panicking form
     pub fn expect_size_in(&self, id: BlockId) -> usize {
         match self.size_in(id) {
             Some(v) => v,
@@ -4522,7 +4522,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::sizeOut` shadow, panicking form.
-    // RUGRA-GLUE: guard-shadow read, panicking form
+    // RUDRA-GLUE: guard-shadow read, panicking form
     pub fn expect_size_out(&self, id: BlockId) -> usize {
         match self.size_out(id) {
             Some(v) => v,
@@ -4531,7 +4531,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::getFlags` shadow, panicking form.
-    // RUGRA-GLUE: guard-shadow read, panicking form
+    // RUDRA-GLUE: guard-shadow read, panicking form
     pub fn expect_flags(&self, id: BlockId) -> u32 {
         match self.flags(id) {
             Some(v) => v,
@@ -4543,7 +4543,7 @@ impl BlockBankView {
     /// inline `outofthis[i]` load in the oracle; wave 3 serves it from the
     /// bank without the peer RwLock or vtable). Same None-for-out-of-range
     /// shape as `FlowBlock::get_out`; debug builds probe shadow == truth.
-    // RUGRA-GLUE: edge-shadow read (wave 3; block.hh:301 direct form)
+    // RUDRA-GLUE: edge-shadow read (wave 3; block.hh:301 direct form)
     pub fn out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         let i = self.slot_ok(id)?;
         let v = {
@@ -4560,7 +4560,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::getOut` edge-shadow read, panicking-id form.
-    // RUGRA-GLUE: edge-shadow read, panicking-id form (wave 3)
+    // RUDRA-GLUE: edge-shadow read, panicking-id form (wave 3)
     pub fn expect_out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         match self.out_edge(id, slot) {
             Some(v) => Some(v),
@@ -4573,7 +4573,7 @@ impl BlockBankView {
 
     /// `FlowBlock::getIn` edge-shadow read (block.hh:304 — inline
     /// `intothis[i]`); see `out_edge`.
-    // RUGRA-GLUE: edge-shadow read (wave 3; block.hh:304 direct form)
+    // RUDRA-GLUE: edge-shadow read (wave 3; block.hh:304 direct form)
     pub fn in_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         let i = self.slot_ok(id)?;
         let v = {
@@ -4590,7 +4590,7 @@ impl BlockBankView {
     }
 
     /// `FlowBlock::getIn` edge-shadow read, panicking-id form.
-    // RUGRA-GLUE: edge-shadow read, panicking-id form (wave 3)
+    // RUDRA-GLUE: edge-shadow read, panicking-id form (wave 3)
     pub fn expect_in_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         match self.in_edge(id, slot) {
             Some(v) => Some(v),
@@ -4603,7 +4603,7 @@ impl BlockBankView {
 
     /// Whole out-vector read under one edge-table lock (multi-read
     /// clusters; the guard is released before returning).
-    // RUGRA-GLUE: edge-shadow bulk read (wave 3)
+    // RUDRA-GLUE: edge-shadow bulk read (wave 3)
     pub fn with_out_edges<R>(
         &self,
         id: BlockId,
@@ -4620,7 +4620,7 @@ impl BlockBankView {
 
     /// Whole in-vector read under one edge-table lock (see
     /// `with_out_edges`).
-    // RUGRA-GLUE: edge-shadow bulk read (wave 3)
+    // RUDRA-GLUE: edge-shadow bulk read (wave 3)
     pub fn with_in_edges<R>(
         &self,
         id: BlockId,
@@ -4643,14 +4643,14 @@ impl BlockBankView {
 pub struct BlockGraph {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     pub blocks: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
     /// The block bank of this graph (ARENA_DESIGN §1.4: `block_arena`
     /// shared-by-graph storage; every `add_block`/`adopt` registers a cell
     /// and claims the block's owner-bank back-pointer, giving `BlockEdge::
     /// point` its id-space identity).
-    // RUGRA-GLUE: block bank (per-graph; edges resolve within one graph)
+    // RUDRA-GLUE: block bank (per-graph; edges resolve within one graph)
     pub bank: BlockBank,
     pub incoming: Vec<BlockEdge>,
     pub outgoing: Vec<BlockEdge>,
@@ -4676,7 +4676,7 @@ pub struct BlockGraph {
     /// via `resolve_to_graph_level`, and rule sweeps use map membership
     /// (`is_consumed`) in place of Ghidra's incremental list compaction
     /// (block.cc:953-960).
-    // RUGRA-GLUE: identity-keyed hash map (Ghidra has no map here — blocks
+    // RUDRA-GLUE: identity-keyed hash map (Ghidra has no map here — blocks
     // are removed from the list on identifyInternal, block.cc:953-960; Rugra
     // keeps stable slots and records absorption instead). FxHashMap: the
     // is_consumed membership test runs per rule-try/per in-edge in the
@@ -4688,7 +4688,7 @@ pub struct BlockGraph {
 }
 
 impl BlockGraph {
-    // RUGRA-GLUE: Rust BlockGraph constructor (Ghidra BlockGraph is constructed implicitly by Funcdata)
+    // RUDRA-GLUE: Rust BlockGraph constructor (Ghidra BlockGraph is constructed implicitly by Funcdata)
     pub fn new() -> Self {
         Self {
             index: -1,
@@ -4711,7 +4711,7 @@ impl BlockGraph {
         if self.blocks.is_empty() || block_index < self.index {
             self.index = block_index;
         }
-        // RUGRA-GLUE: bank registration (ARENA_DESIGN §1.4). The cell
+        // RUDRA-GLUE: bank registration (ARENA_DESIGN §1.4). The cell
         // snapshots the hot shadows (btype immutable; index mirrored) and
         // the Arc-identity map entry gives `id_of` — BlockEdge twins and id
         // equality have their id-space identity. Slot stays occupied even
@@ -4740,7 +4740,7 @@ impl BlockGraph {
             let mut block = bl.write().unwrap();
             if let Some(basic) = block.as_any_mut().downcast_mut::<BlockBasic>() {
                 basic.self_ref = Some(self_weak.clone());
-                // RUGRA-GLUE: Rust callers can populate a BlockBasic before
+                // RUDRA-GLUE: Rust callers can populate a BlockBasic before
                 // inserting it into the graph. Complete the invariant that
                 // Ghidra establishes in BlockBasic::insert (block.cc:2266)
                 // once the block Arc identity becomes available.
@@ -4891,12 +4891,12 @@ impl BlockGraph {
         }
     }
 
-    // RUGRA-GLUE: Rust accessor (Ghidra uses list.size() inline)
+    // RUDRA-GLUE: Rust accessor (Ghidra uses list.size() inline)
     pub fn get_size(&self) -> usize {
         self.blocks.len()
     }
 
-    // RUGRA-GLUE: bare-fixture registration (tests): install the block list
+    // RUDRA-GLUE: bare-fixture registration (tests): install the block list
     // AND adopt every entry into the bank so BlockEdge::new-minted ids
     // resolve. Mirrors production add_block/adopt without the BlockBasic
     // self_ref/op-parent wiring (the fixtures pre-date that wiring).
@@ -4907,13 +4907,13 @@ impl BlockGraph {
         }
     }
 
-    // RUGRA-GLUE: fixture edge constructor — BlockEdge::new form for tests
+    // RUDRA-GLUE: fixture edge constructor — BlockEdge::new form for tests
     // holding the peer Arc (id minted through the graph's bank).
     pub fn fixture_edge(&self, to: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, rev: i32) -> BlockEdge {
         BlockEdge::new(self.bank.registered_id_of(to), rev)
     }
 
-    // RUGRA-GLUE: Rust accessor (Ghidra uses list[i] inline)
+    // RUDRA-GLUE: Rust accessor (Ghidra uses list[i] inline)
     pub fn get_block(&self, i: usize) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.blocks.get(i).cloned()
     }
@@ -4928,7 +4928,7 @@ impl BlockGraph {
     /// transitively further if C was itself absorbed later). The chain always
     /// terminates at a live top-level block because only live blocks can be
     /// re-absorbed.
-    // RUGRA-GLUE: parent-chain walk over the absorbed_into map (Ghidra: block.hh:78 FlowBlock::parent)
+    // RUDRA-GLUE: parent-chain walk over the absorbed_into map (Ghidra: block.hh:78 FlowBlock::parent)
     pub fn resolve_to_graph_level(&self, idx: i32) -> i32 {
         let mut cur = idx;
         // Bound the walk by the map size: each step must make progress, and
@@ -5328,7 +5328,7 @@ impl BlockGraph {
                         None => continue,
                     };
                     let yprime = find_copy_map(&y); // cc:1173: y' = FIND(y)
-                    // RUGRA-GLUE: cc:1174 dereferences x and yprime as raw
+                    // RUDRA-GLUE: cc:1174 dereferences x and yprime as raw
                     // pointers — when y' == x (the loop head's own edge into
                     // a reachunder member: y == x and copymap still points
                     // at itself, cc:1027/1122) C++ reads the same object
@@ -5715,7 +5715,7 @@ impl BlockGraph {
     /// root, cc:3409-3411). Mirrors Ghidra's BLOCKCONSISTENT_DEBUG
     /// philosophy at sweep time; release builds compile it out and the
     /// sweeps stay byte-identical to the oracle's unguarded recursion.
-    // RUGRA-GLUE: debug-only ownership invariant walk — Ghidra's counterpart
+    // RUDRA-GLUE: debug-only ownership invariant walk — Ghidra's counterpart
     // is the compile-time BLOCKCONSISTENT_DEBUG #ifdef ownership check at the
     // collapse site (block.cc:945-948), not a runtime tree walk; Rugra's Arc
     // model without a `parent` invariant needs the walk to assert the same.
@@ -5771,7 +5771,7 @@ impl BlockGraph {
     /// Sweep-entry wrapper: validate the roots over the oracle walk shape
     /// before the `final_transform_block` and `finalize_printing_block`
     /// recursions (see `debug_assert_component_tree_unique`).
-    // RUGRA-GLUE: entry wrapper for the debug-only ownership invariant walk
+    // RUDRA-GLUE: entry wrapper for the debug-only ownership invariant walk
     // (no Ghidra counterpart — see debug_assert_component_tree_unique).
     #[cfg(debug_assertions)]
     fn debug_assert_structure_tree_unique(
@@ -5875,7 +5875,7 @@ impl BlockGraph {
         front_leaf(&nextbl)
     }
 
-    // RUGRA-GLUE: Ghidra's uniform BlockGraph::list / getBlock(i) component
+    // RUDRA-GLUE: Ghidra's uniform BlockGraph::list / getBlock(i) component
     // protocol (block.hh:365-380, factories block.cc:1758-1918), projected
     // onto Rugra's typed composite fields. Order matches the -nodes- vector
     // each factory passes to identifyInternal: BlockList [nodes in order],
@@ -6094,7 +6094,7 @@ impl BlockGraph {
     /// context (find_spanning_tree / order_blocks / identify_internal /
     /// build_copy). The marshaling `decode_header_trait` form has no graph
     /// and no callers; its set_index stays field-only (noted there).
-    // RUGRA-GLUE: shadow-maintained set_index (bank single-choke writer)
+    // RUDRA-GLUE: shadow-maintained set_index (bank single-choke writer)
     pub fn set_block_index(&self, bl: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, i: i32) {
         bl.write().unwrap().set_index(i);
         if let Some(id) = self.bank.id_of(bl) {
@@ -6202,7 +6202,7 @@ impl BlockGraph {
     /// `self.blocks`. Used by `build_dom_tree`, which must not reorder the
     /// shared component vector mid-pipeline (see the binding note on
     /// `calc_forward_dominator`).
-    // RUGRA-GLUE: explicit-RPO entry sharing the calcForwardDominator core (oracle reads list)
+    // RUDRA-GLUE: explicit-RPO entry sharing the calcForwardDominator core (oracle reads list)
     pub fn calc_forward_dominator_on(
         &self,
         rpo: &[Arc<RwLock<dyn FlowBlock + Send + Sync>>],
@@ -6501,7 +6501,7 @@ impl BlockGraph {
     /// f_irreducible labels is the findIrreducible rebuild loop inside
     /// structureLoops, block.cc:2204-2209), and visitcount/numdesc/copymap
     /// are not stored on the blocks.
-    // RUGRA-GLUE: side-effect-free RPO+rootlist mirror of findSpanningTree (block.cc:1009) for position-indexed graphs
+    // RUDRA-GLUE: side-effect-free RPO+rootlist mirror of findSpanningTree (block.cc:1009) for position-indexed graphs
     fn compute_spanning_rpo(
         &self,
     ) -> (
@@ -6754,7 +6754,7 @@ impl BlockGraph {
     /// gets an empty dominance frontier, no MULTIEQUAL (phi) is placed for the
     /// loop-carried flag varnode, and the CBRANCH condition read is left
     /// unresolved (root cause of the `while(local_0==local_0)` dead-loop).
-    // RUGRA-GLUE: Rugra-only dom-frontier calculation (Ghidra has no dom-frontier field on FlowBlock)
+    // RUDRA-GLUE: Rugra-only dom-frontier calculation (Ghidra has no dom-frontier field on FlowBlock)
     pub fn calc_dom_frontier(&mut self) {
         for i in 0..self.blocks.len() {
             let b_ref = self.blocks[i].clone();
@@ -6844,7 +6844,7 @@ impl BlockGraph {
     /// covering every block. Previously this accessor DFS'd the entry
     /// candidates in vector order, letting a trailing orphan block steal
     /// RPO[0] (HTTPD-ADDDESCEND-THROW-0001 root cause).
-    // RUGRA-GLUE: Rugra RPO calculation (Ghidra uses findSpanningTree + orderBlocks block.cc:1009)
+    // RUDRA-GLUE: Rugra RPO calculation (Ghidra uses findSpanningTree + orderBlocks block.cc:1009)
     pub fn calc_rpo(&self) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.compute_spanning_rpo().0
     }
@@ -7034,7 +7034,7 @@ impl BlockGraph {
 /// over its component children. `BlockMultiGoto`'s wrapped copy is a
 /// dispatch leaf (newBlockMultiGoto nodes=[bl], block.cc:1734-1738), so
 /// the no-entry walk matches the oracle.
-// RUGRA-GLUE: free-function form of the C++ virtual dispatch; Rugra
+// RUDRA-GLUE: free-function form of the C++ virtual dispatch; Rugra
 // composites implement FlowBlock individually instead of subclassing one
 // BlockGraph vtable. `fd` threads the Funcdata the WhileDo override needs
 // (block.cc:3403 `BlockWhileDo::finalizePrinting(Funcdata&)`).
@@ -7097,7 +7097,7 @@ pub fn finalize_printing_block(
 impl Eq for BlockRef {}
 
 impl PartialOrd for BlockRef {
-    // RUGRA-GLUE: Rust PartialOrd for BlockRef (Ghidra sorts FlowBlock* via
+    // RUDRA-GLUE: Rust PartialOrd for BlockRef (Ghidra sorts FlowBlock* via
     // compareBlockIndex block.hh:893 — the pure index `<` used by Varnode
     // def-block ordering; NOT compareFinalOrder, which adds entry-first /
     // RETURN-last keys and lives in compare_final_order below)
@@ -7107,7 +7107,7 @@ impl PartialOrd for BlockRef {
 }
 
 impl Ord for BlockRef {
-    // RUGRA-GLUE: Rust Ord for BlockRef (Ghidra compareBlockIndex block.hh:893:
+    // RUDRA-GLUE: Rust Ord for BlockRef (Ghidra compareBlockIndex block.hh:893:
     // `bl1->getIndex() < bl2->getIndex()` — see PartialOrd note above)
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let a = self.0.read().unwrap();
@@ -7194,16 +7194,16 @@ pub fn compare_final_order(
 pub struct BlockCopy {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub flags: u32,
     pub parent: Option<Weak<RwLock<BlockGraph>>>,
     /// Weak self handle for virtual methods returning `this`.
-    // RUGRA-GLUE: Rust self-reference for Ghidra methods returning `this`
+    // RUDRA-GLUE: Rust self-reference for Ghidra methods returning `this`
     pub self_ref: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>,
     /// The live FlowBlock mirrored by this copy. Ghidra deliberately accepts
     /// any FlowBlock here, not only BlockBasic.
@@ -7216,40 +7216,40 @@ pub struct BlockCopy {
     pub visit_count: i32,
     pub num_desc: i32,
     /// Rugra's derived dominator caches; rebuilt on the copied graph.
-    // RUGRA-GLUE: Rust caches for Ghidra's external dominator vectors
+    // RUDRA-GLUE: Rust caches for Ghidra's external dominator vectors
     pub dom_depth: i32,
-    // RUGRA-GLUE: Rust caches for Ghidra's external dominator vectors
+    // RUDRA-GLUE: Rust caches for Ghidra's external dominator vectors
     pub dom_children: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
-    // RUGRA-GLUE: Rust caches for Ghidra's external dominator vectors
+    // RUDRA-GLUE: Rust caches for Ghidra's external dominator vectors
     pub dom_frontier: std::collections::HashSet<i32>,
 }
 
 impl FlowBlock for BlockCopy {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -7257,7 +7257,7 @@ impl FlowBlock for BlockCopy {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
@@ -7269,7 +7269,7 @@ impl FlowBlock for BlockCopy {
     fn get_type(&self) -> BlockType {
         BlockType::Copy
     }
-    // RUGRA-GLUE: Rust whole-op-list view for Ghidra BlockCopy firstOp/lastOp delegation
+    // RUDRA-GLUE: Rust whole-op-list view for Ghidra BlockCopy firstOp/lastOp delegation
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         self.original.read().unwrap().get_ops()
     }
@@ -7299,7 +7299,7 @@ impl FlowBlock for BlockCopy {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -7320,21 +7320,21 @@ impl FlowBlock for BlockCopy {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -7347,7 +7347,7 @@ impl FlowBlock for BlockCopy {
     fn get_immed_dom(&self) -> Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.immed_dom.clone()
     }
-    // RUGRA-GLUE: Rust mutator for Ghidra FlowBlock::immed_dom
+    // RUDRA-GLUE: Rust mutator for Ghidra FlowBlock::immed_dom
     fn set_immed_dom(&mut self, dom: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>) {
         self.immed_dom = dom;
     }
@@ -7355,7 +7355,7 @@ impl FlowBlock for BlockCopy {
     fn get_copy_map(&self) -> Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.copy_map.clone()
     }
-    // RUGRA-GLUE: Rust mutator for Ghidra FlowBlock::copymap
+    // RUDRA-GLUE: Rust mutator for Ghidra FlowBlock::copymap
     fn set_copy_map(&mut self, map: Option<Weak<RwLock<dyn FlowBlock + Send + Sync>>>) {
         self.copy_map = map;
     }
@@ -7367,43 +7367,43 @@ impl FlowBlock for BlockCopy {
     fn set_visit_count(&mut self, count: i32) {
         self.visit_count = count;
     }
-    // RUGRA-GLUE: Rust accessor for Ghidra FlowBlock::numdesc
+    // RUDRA-GLUE: Rust accessor for Ghidra FlowBlock::numdesc
     fn get_num_desc(&self) -> i32 {
         self.num_desc
     }
-    // RUGRA-GLUE: Rust mutator for Ghidra FlowBlock::numdesc
+    // RUDRA-GLUE: Rust mutator for Ghidra FlowBlock::numdesc
     fn set_num_desc(&mut self, count: i32) {
         self.num_desc = count;
     }
-    // RUGRA-GLUE: Rugra-only dom-depth cache
+    // RUDRA-GLUE: Rugra-only dom-depth cache
     fn get_dom_depth(&self) -> i32 {
         self.dom_depth
     }
-    // RUGRA-GLUE: Rugra-only dom-depth cache mutator
+    // RUDRA-GLUE: Rugra-only dom-depth cache mutator
     fn set_dom_depth(&mut self, depth: i32) {
         self.dom_depth = depth;
     }
-    // RUGRA-GLUE: Rugra-only dominator-child cache
+    // RUDRA-GLUE: Rugra-only dominator-child cache
     fn get_dom_children(&self) -> Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         self.dom_children.clone()
     }
-    // RUGRA-GLUE: Rugra-only dominator-child cache mutator
+    // RUDRA-GLUE: Rugra-only dominator-child cache mutator
     fn add_dom_child(&mut self, child: Arc<RwLock<dyn FlowBlock + Send + Sync>>) {
         self.dom_children.push(child);
     }
-    // RUGRA-GLUE: Rugra-only dominator-child cache reset
+    // RUDRA-GLUE: Rugra-only dominator-child cache reset
     fn clear_dom_children(&mut self) {
         self.dom_children.clear();
     }
-    // RUGRA-GLUE: Rugra-only dominance-frontier cache
+    // RUDRA-GLUE: Rugra-only dominance-frontier cache
     fn get_dom_frontier(&self) -> std::collections::HashSet<i32> {
         self.dom_frontier.clone()
     }
-    // RUGRA-GLUE: Rugra-only dominance-frontier cache mutator
+    // RUDRA-GLUE: Rugra-only dominance-frontier cache mutator
     fn add_to_dom_frontier(&mut self, index: i32) {
         self.dom_frontier.insert(index);
     }
-    // RUGRA-GLUE: Rugra-only dominance-frontier cache reset
+    // RUDRA-GLUE: Rugra-only dominance-frontier cache reset
     fn clear_dom_frontier(&mut self) {
         self.dom_frontier.clear();
     }
@@ -7511,7 +7511,7 @@ impl FlowBlock for BlockCopy {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockCopy virtual overrides)
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockCopy virtual overrides)
 impl BlockCopy {
     /// Ghidra `BlockCopy::printHeader` (block.cc:2835-2840): prints
     /// `"Basic(copy) block "` followed by the FlowBlock header.
@@ -7551,11 +7551,11 @@ impl BlockCopy {
 pub struct BlockGoto {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub flags: u32,
     pub parent: Option<Weak<RwLock<BlockGraph>>>,
@@ -7608,31 +7608,31 @@ pub struct BlockGoto {
 }
 
 impl FlowBlock for BlockGoto {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -7640,7 +7640,7 @@ impl FlowBlock for BlockGoto {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
@@ -7652,7 +7652,7 @@ impl FlowBlock for BlockGoto {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -7673,21 +7673,21 @@ impl FlowBlock for BlockGoto {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -7696,7 +7696,7 @@ impl FlowBlock for BlockGoto {
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
-    // RUGRA-GLUE: Rust helper (Ghidra has no getOps; BlockGoto : BlockGraph
+    // RUDRA-GLUE: Rust helper (Ghidra has no getOps; BlockGoto : BlockGraph
     // emits via the virtual chain `getBlock(0)->emit(this)` — printc.cc:2771 —
     // and BlockGraph::firstOp/lastOp delegate to getBlock(0) (block.cc:1330-
     // 1333). The flatten projection of that delegation is the wrapped block's
@@ -7772,7 +7772,7 @@ impl FlowBlock for BlockGoto {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockGoto virtual overrides)
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockGoto virtual overrides)
 impl BlockGoto {
     /// Ghidra `BlockGoto::getGotoTarget` (block.hh:552, inline): return the
     /// target block of the unstructured goto.
@@ -7916,11 +7916,11 @@ impl BlockGoto {
 pub struct BlockMultiGoto {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub flags: u32,
     pub parent: Option<Weak<RwLock<BlockGraph>>>,
@@ -7948,31 +7948,31 @@ pub struct BlockMultiGoto {
 }
 
 impl FlowBlock for BlockMultiGoto {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -7980,7 +7980,7 @@ impl FlowBlock for BlockMultiGoto {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
@@ -7992,7 +7992,7 @@ impl FlowBlock for BlockMultiGoto {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -8013,21 +8013,21 @@ impl FlowBlock for BlockMultiGoto {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -8109,7 +8109,7 @@ impl FlowBlock for BlockMultiGoto {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as
 // BlockMultiGoto virtual overrides / inline class methods)
 impl BlockMultiGoto {
     /// Ghidra `BlockMultiGoto::setDefaultGoto` (block.hh:578, inline): mark
@@ -8179,11 +8179,11 @@ impl BlockMultiGoto {
 pub struct BlockIf {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub condition: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub if_body: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
@@ -8208,27 +8208,27 @@ pub struct BlockIf {
 }
 
 impl FlowBlock for BlockIf {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -8236,11 +8236,11 @@ impl FlowBlock for BlockIf {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -8260,7 +8260,7 @@ impl FlowBlock for BlockIf {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -8281,21 +8281,21 @@ impl FlowBlock for BlockIf {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -8308,7 +8308,7 @@ impl FlowBlock for BlockIf {
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
-    // RUGRA-GLUE: Rust helper (Ghidra has no getOps; the flatten projection
+    // RUDRA-GLUE: Rust helper (Ghidra has no getOps; the flatten projection
     // of BlockIf's component list). Ghidra's factories hold exactly
     // [cond] for an if-goto (newBlockIfGoto block.cc:1799-1810 — the body
     // stays external as the out-edge, and Rugra's if_body is a placeholder
@@ -8376,7 +8376,7 @@ impl FlowBlock for BlockIf {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockIf virtual overrides)
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockIf virtual overrides)
 impl BlockIf {
     /// Ghidra `BlockIf::setGotoTarget` (block.hh:663, inline): mark the target
     /// of the unstructured edge for an if-goto block.
@@ -8534,11 +8534,11 @@ impl BlockIf {
 pub struct BlockWhileDo {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub condition: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub body: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
@@ -8576,27 +8576,27 @@ pub struct BlockWhileDo {
 }
 
 impl FlowBlock for BlockWhileDo {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -8604,11 +8604,11 @@ impl FlowBlock for BlockWhileDo {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -8620,7 +8620,7 @@ impl FlowBlock for BlockWhileDo {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -8641,21 +8641,21 @@ impl FlowBlock for BlockWhileDo {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -8668,7 +8668,7 @@ impl FlowBlock for BlockWhileDo {
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
-    // RUGRA-GLUE: Rust helper (Ghidra has no getOps; the flatten projection
+    // RUDRA-GLUE: Rust helper (Ghidra has no getOps; the flatten projection
     // of BlockWhileDo's component list). newBlockWhileDo passes
     // nodes=[cond, cl] to identifyInternal (block.cc:1858-1865), so the
     // flatten is condition ops followed by body ops — the emit order
@@ -8700,7 +8700,7 @@ impl FlowBlock for BlockWhileDo {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockWhileDo virtual overrides)
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockWhileDo virtual overrides)
 impl BlockWhileDo {
     /// Ghidra `BlockWhileDo::getInitializeOp` (block.hh:703, inline): root of
     /// the for-loop initializer statement, or null. Rugra stores the rendered
@@ -8803,7 +8803,7 @@ impl BlockWhileDo {
 type DynBlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
 /// Is `op` a member of `blk`'s op list (Arc identity)?
-// RUGRA-GLUE: Ghidra compares `defOp->getParent() != head` pointers; Rugra
+// RUDRA-GLUE: Ghidra compares `defOp->getParent() != head` pointers; Rugra
 /// op->parent weak links are the primary channel, with the block's op-list as
 /// a belt-and-suspenders fallback for ops whose parent link is not wired.
 fn op_lives_in_block(op: &Arc<RwLock<crate::op::PcodeOp>>, blk: &DynBlockArc) -> bool {
@@ -8817,7 +8817,7 @@ fn op_lives_in_block(op: &Arc<RwLock<crate::op::PcodeOp>>, blk: &DynBlockArc) ->
 }
 
 /// Upgrade `op`'s parent block Arc (None when the weak link is absent).
-// RUGRA-GLUE: Rust borrow helper for Ghidra's raw `op->getParent()` pointer
+// RUDRA-GLUE: Rust borrow helper for Ghidra's raw `op->getParent()` pointer
 // read (op.hh:190 PcodeOp::getParent) — the weak-link upgrade has no oracle
 // counterpart to cite as a function definition.
 fn op_parent(op: &Arc<RwLock<crate::op::PcodeOp>>) -> Option<DynBlockArc> {
@@ -9420,11 +9420,11 @@ pub fn for_loop_final_transform(fd: &mut crate::funcdata::Funcdata) {
 pub struct BlockDoWhile {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub condition: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     // Do-While loops logically have the condition at the end which evaluates the body that it's fused with.
@@ -9435,27 +9435,27 @@ pub struct BlockDoWhile {
 }
 
 impl FlowBlock for BlockDoWhile {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -9463,11 +9463,11 @@ impl FlowBlock for BlockDoWhile {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -9479,7 +9479,7 @@ impl FlowBlock for BlockDoWhile {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -9500,21 +9500,21 @@ impl FlowBlock for BlockDoWhile {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -9527,7 +9527,7 @@ impl FlowBlock for BlockDoWhile {
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
-    // RUGRA-GLUE: Rust helper (Ghidra has no getOps; structured blocks delegate emit to components)
+    // RUDRA-GLUE: Rust helper (Ghidra has no getOps; structured blocks delegate emit to components)
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         self.condition.read().unwrap().get_ops()
     }
@@ -9550,7 +9550,7 @@ impl FlowBlock for BlockDoWhile {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockDoWhile virtual overrides)
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockDoWhile virtual overrides)
 impl BlockDoWhile {
     /// Ghidra `BlockDoWhile::markLabelBumpUp` (block.cc:3426-3432): do-while
     /// loops "steal" their lower blocks' labels — the label for the body
@@ -9606,11 +9606,11 @@ impl BlockDoWhile {
 pub struct BlockInfLoop {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     /// The loop body block (the self-looping block collapsed into this node).
     pub body: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
@@ -9621,27 +9621,27 @@ pub struct BlockInfLoop {
 }
 
 impl FlowBlock for BlockInfLoop {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -9649,11 +9649,11 @@ impl FlowBlock for BlockInfLoop {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -9665,7 +9665,7 @@ impl FlowBlock for BlockInfLoop {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -9686,21 +9686,21 @@ impl FlowBlock for BlockInfLoop {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -9713,7 +9713,7 @@ impl FlowBlock for BlockInfLoop {
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
-    // RUGRA-GLUE: Rust helper (structured blocks delegate ops to components)
+    // RUDRA-GLUE: Rust helper (structured blocks delegate ops to components)
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         self.body.read().unwrap().get_ops()
     }
@@ -9736,7 +9736,7 @@ impl FlowBlock for BlockInfLoop {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockInfLoop virtual overrides)
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockInfLoop virtual overrides)
 impl BlockInfLoop {
     /// Ghidra `BlockInfLoop::markLabelBumpUp` (block.cc:3454-3460): infinite
     /// loops "steal" their lower blocks' labels — the label for the body
@@ -9792,11 +9792,11 @@ impl BlockInfLoop {
 pub struct BlockList {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub children: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
     pub incoming: Vec<BlockEdge>,
@@ -9880,11 +9880,11 @@ impl BlockList {
         format!("List block {}", self.index)
     }
 
-    /// RUGRA-GLUE: outgoing-edge swap helper (mirrors FlowBlock::negateCondition's
+    /// RUDRA-GLUE: outgoing-edge swap helper (mirrors FlowBlock::negateCondition's
     /// edge-flip step, used by BlockList::negateCondition above). Exposed as a
     /// separate inherent method so callers can flip the edges without negating
     /// the last child's condition.
-    // RUGRA-GLUE: outgoing swap helper (Ghidra folds this into FlowBlock::negateCondition block.cc:227-233)
+    // RUDRA-GLUE: outgoing swap helper (Ghidra folds this into FlowBlock::negateCondition block.cc:227-233)
     pub fn outgoing_swap(&mut self) {
         if self.outgoing.len() >= 2 {
             self.outgoing.swap(0, 1);
@@ -9893,27 +9893,27 @@ impl BlockList {
 }
 
 impl FlowBlock for BlockList {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -9921,11 +9921,11 @@ impl FlowBlock for BlockList {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -9953,7 +9953,7 @@ impl FlowBlock for BlockList {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -9974,21 +9974,21 @@ impl FlowBlock for BlockList {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -10004,7 +10004,7 @@ impl FlowBlock for BlockList {
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
-    // RUGRA-GLUE: Rust helper (Ghidra has no getOps; structured blocks delegate emit to components)
+    // RUDRA-GLUE: Rust helper (Ghidra has no getOps; structured blocks delegate emit to components)
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         // Concatenate ops from all children in order
         let mut all_ops = Vec::new();
@@ -10102,11 +10102,11 @@ pub enum BoolOp {
 pub struct BlockCondition {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub op_type: BoolOp,
     /// First condition block (block A — the outer condition).
@@ -10120,27 +10120,27 @@ pub struct BlockCondition {
 }
 
 impl FlowBlock for BlockCondition {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -10148,11 +10148,11 @@ impl FlowBlock for BlockCondition {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -10172,7 +10172,7 @@ impl FlowBlock for BlockCondition {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -10193,21 +10193,21 @@ impl FlowBlock for BlockCondition {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -10220,7 +10220,7 @@ impl FlowBlock for BlockCondition {
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
-    // RUGRA-GLUE: Rust helper (Ghidra has no getOps; structured blocks delegate emit to components)
+    // RUDRA-GLUE: Rust helper (Ghidra has no getOps; structured blocks delegate emit to components)
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         // Concatenate ops from both condition blocks
         let mut ops = self.first.read().unwrap().get_ops();
@@ -10267,7 +10267,7 @@ impl FlowBlock for BlockCondition {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockCondition virtual overrides)
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockCondition virtual overrides)
 impl BlockCondition {
     /// Ghidra `BlockCondition::getOpcode` (block.hh:625, inline): the boolean
     /// operation (BOOL_AND / BOOL_OR). Rugra returns the `BoolOp` enum.
@@ -10406,7 +10406,7 @@ pub struct CaseOrder {
 }
 
 impl CaseOrder {
-    // RUGRA-GLUE: aggregate form of BlockSwitch::addCase's field-by-field
+    // RUDRA-GLUE: aggregate form of BlockSwitch::addCase's field-by-field
     // initialization (block.cc:3498-3505: emplace_back + label=0/depth=0/
     // chain=-1), so parallel-array bookkeeping cannot drop a field.
     /// Construct the placeholder record `addCase` builds before its
@@ -10430,11 +10430,11 @@ impl CaseOrder {
 pub struct BlockSwitch {
     pub index: i32,
     /// Owning block bank back-link (see `FlowBlock::set_owner_bank`).
-    // RUGRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
+    // RUDRA-GLUE: owner-bank back-pointer (Weak: dangles iff graph dropped)
     pub(crate) owner_bank: BlockBankLink,
     /// Owning-bank slot stamp ((g) guard-shadow write target;
     /// SENTINEL = unregistered bare fixture).
-    // RUGRA-GLUE: slot stamp (BlockBank::claim)
+    // RUDRA-GLUE: slot stamp (BlockBank::claim)
     pub(crate) bank_slot: BlockId,
     pub control: Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     pub cases: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>>,
@@ -10554,27 +10554,27 @@ pub struct BlockSwitch {
 }
 
 impl FlowBlock for BlockSwitch {
-    // RUGRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
+    // RUDRA-GLUE: owner-bank back-pointer storage (FlowBlock::set_owner_bank)
     fn set_owner_bank(&mut self, bank: Option<&BlockBank>) {
         self.owner_bank = match bank {
             Some(b) => b.link(),
             None => std::sync::Weak::new(),
         };
     }
-    // RUGRA-GLUE: owner-bank back-pointer resolution (None once the owning
+    // RUDRA-GLUE: owner-bank back-pointer resolution (None once the owning
     // graph is dropped or for unregistered bare fixtures)
     fn owner_bank(&self) -> Option<BlockBank> {
         self.owner_bank.upgrade().map(|sh| BlockBank { sh })
     }
-    // RUGRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
+    // RUDRA-GLUE: slot stamp set (BlockBank::claim; pairs with set_owner_bank)
     fn set_bank_slot(&mut self, slot: BlockId) {
         self.bank_slot = slot;
     }
-    // RUGRA-GLUE: slot stamp read (SENTINEL = unregistered)
+    // RUDRA-GLUE: slot stamp read (SENTINEL = unregistered)
     fn bank_slot(&self) -> BlockId {
         self.bank_slot
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -10582,11 +10582,11 @@ impl FlowBlock for BlockSwitch {
     fn get_index(&self) -> i32 {
         self.index
     }
-    // RUGRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
+    // RUDRA-GLUE: Rust mutator (Ghidra FlowBlock::index is private)
     fn set_index(&mut self, i: i32) {
         self.index = i;
     }
-    // RUGRA-GLUE: Rust trait-object downcast glue
+    // RUDRA-GLUE: Rust trait-object downcast glue
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -10598,7 +10598,7 @@ impl FlowBlock for BlockSwitch {
     fn get_flags(&self) -> u32 {
         self.flags
     }
-    // RUGRA-GLUE: flags accessor backing the defaulted set/clear pair
+    // RUDRA-GLUE: flags accessor backing the defaulted set/clear pair
     // (field writer; the (g) guard-shadow sync rides the defaults)
     fn flags_mut(&mut self) -> &mut u32 {
         &mut self.flags
@@ -10619,21 +10619,21 @@ impl FlowBlock for BlockSwitch {
     fn get_out(&self, slot: usize) -> Option<BlockEdge> {
         self.outgoing.get(slot).cloned()
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:301 direct outofthis[i] read)
     fn get_out_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.outgoing.get(slot)
     }
-    // RUGRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
+    // RUDRA-GLUE: reference accessor (oracle block.hh:304 direct intothis[i] read)
     fn get_in_ref(&self, slot: usize) -> Option<&BlockEdge> {
         self.incoming.get(slot)
     }
 
-    // RUGRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
+    // RUDRA-GLUE: shared edge-vector accessors (Ghidra FlowBlock base class
     // owns outofthis/intothis for every subtype, block.hh:124-127)
     fn out_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.outgoing
     }
-    // RUGRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
+    // RUDRA-GLUE: in-edge half of the shared edge-vector accessor pair above.
     fn in_edges_mut(&mut self) -> &mut Vec<BlockEdge> {
         &mut self.incoming
     }
@@ -10646,7 +10646,7 @@ impl FlowBlock for BlockSwitch {
     fn get_parent(&self) -> Option<Arc<RwLock<BlockGraph>>> {
         self.parent.as_ref().and_then(|p| p.upgrade())
     }
-    // RUGRA-GLUE: Rust helper (Ghidra has no getOps; structured blocks delegate emit to components)
+    // RUDRA-GLUE: Rust helper (Ghidra has no getOps; structured blocks delegate emit to components)
     fn get_ops(&self) -> Vec<PcodeOpRef> {
         self.control.read().unwrap().get_ops()
     }
@@ -10693,7 +10693,7 @@ impl FlowBlock for BlockSwitch {
     }
 }
 
-// RUGRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockSwitch virtual overrides)
+// RUDRA-GLUE: Rust inherent-impl block (Ghidra inlines these as BlockSwitch virtual overrides)
 impl BlockSwitch {
     /// Ghidra `BlockSwitch::getSwitchBlock` (block.hh:772, inline): the root
     /// switch component (getBlock(0)). Rugra returns the `control` block.
@@ -10955,7 +10955,7 @@ impl BlockSwitch {
                 }
             }
         }
-        // RUGRA-GLUE: env-gated (RUGRA_BS_DUMP=1) structural witness for the
+        // RUDRA-GLUE: env-gated (RUGRA_BS_DUMP=1) structural witness for the
         // label pipeline (no Ghidra counterpart; debug-only) — prints the
         // finalized CaseOrder records per switch.
         if std::env::var("RUGRA_BS_DUMP")
@@ -12272,7 +12272,7 @@ mod switch_default_construct_pos_tests {
 mod bank_cow_tests {
     use super::*;
 
-    // RUGRA-GLUE: mint-parity harness — the COW bank must mint the exact
+    // RUDRA-GLUE: mint-parity harness — the COW bank must mint the exact
     // BlockId sequence the frozen arena.rs Arena minted for the same
     // insert/clear operation sequence (edge twins and id equality depend
     // on the values).

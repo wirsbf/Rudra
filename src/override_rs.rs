@@ -49,7 +49,7 @@ pub struct FlowOverrideRecord {
 }
 
 impl FlowOverride {
-    // RUGRA-GLUE: to_string (no Ghidra counterpart found)
+    // RUDRA-GLUE: to_string (no Ghidra counterpart found)
     /// Convert a flow-override type to its string name. Faithful to
     /// `Override::typeToString` (override.cc:405).
     pub fn to_string(self) -> &'static str {
@@ -62,7 +62,7 @@ impl FlowOverride {
         }
     }
 
-    // RUGRA-GLUE: from_string (no Ghidra counterpart found)
+    // RUDRA-GLUE: from_string (no Ghidra counterpart found)
     /// Convert a string name to a flow-override type. Faithful to
     /// `Override::stringToType` (override.cc:421).
     pub fn from_string(nm: &str) -> Self {

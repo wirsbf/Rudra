@@ -119,7 +119,7 @@ two/two。返回 0 无相交 / 1 仅边界接触 / 2 区间相交。
 
 ### `pub fn intersect(&mut self, other: &CoverBlock)`
 
-RUGRA-GLUE：Rust 侧破坏性区间交助手（Ghidra 无此形态）；仅 one-piece 输入
+RUDRA-GLUE：Rust 侧破坏性区间交助手（Ghidra 无此形态）；仅 one-piece 输入
 在契约内。
 
 ### `pub fn get_u_index(op: &PcodeOp) -> u32`
@@ -168,7 +168,7 @@ Varnode 定义点包含刻画（cover.cc:441-462）：0/1/2/3。
 
 #### `pub fn intersect(&mut self, other: &Cover)`
 
-RUGRA-GLUE：破坏性集合交（无 Ghidra 对应）。
+RUDRA-GLUE：破坏性集合交（无 Ghidra 对应）。
 
 #### `pub fn intersects(&self, other: &Cover) -> bool`
 

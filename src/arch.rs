@@ -146,7 +146,7 @@ pub struct TrackedSetMap {
 }
 
 impl TrackedSetMap {
-    // RUGRA-GLUE: new (C++ aggregate construction of partmap)
+    // RUDRA-GLUE: new (C++ aggregate construction of partmap)
     /// Construct an empty partition map (empty `defaultvalue`).
     pub fn new() -> Self {
         Self {
@@ -209,7 +209,7 @@ impl TrackedSetMap {
     }
 }
 
-// RUGRA-GLUE: find_body_content (Ghidra reads it via readString(ATTRIB_CONTENT))
+// RUDRA-GLUE: find_body_content (Ghidra reads it via readString(ATTRIB_CONTENT))
 /// Extract the character content of the `<body>` child under the LAST
 /// p-code element (`pcode`/`case_pcode`/`addr_pcode`/`default_pcode`/
 /// `size_pcode`) of the given element subtree.  With multiple `<pcode>`
@@ -264,11 +264,11 @@ pub const MINOR_VERSION: u32 = 1;
 /// Each extension implements `build_architecture()` as the formal entry point
 /// for the bootstrapping process.
 pub trait ArchitectureCapability: Send + Sync {
-    // RUGRA-GLUE: name (no Ghidra counterpart found)
+    // RUDRA-GLUE: name (no Ghidra counterpart found)
     /// Get the capability identifier.
     fn name(&self) -> &str;
 
-    // RUGRA-GLUE: build_architecture (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_architecture (no Ghidra counterpart found)
     /// Build an Architecture given a raw file or data. Faithful to
     /// `buildArchitecture`. Returns `Ok(())` on success; the built architecture
     /// is stored externally.
@@ -278,12 +278,12 @@ pub trait ArchitectureCapability: Send + Sync {
         target: &str,
     ) -> Result<Box<dyn ArchitectureBuilder>, String>;
 
-    // RUGRA-GLUE: is_file_match (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_file_match (no Ghidra counterpart found)
     /// Determine if this extension can handle this file. Faithful to
     /// `isFileMatch`.
     fn is_file_match(&self, filename: &str) -> bool;
 
-    // RUGRA-GLUE: is_xml_match (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_xml_match (no Ghidra counterpart found)
     /// Determine if this extension can handle this XML document. Faithful to
     /// `isXmlMatch`.
     fn is_xml_match(&self, doc: &str) -> bool;
@@ -293,26 +293,26 @@ pub trait ArchitectureCapability: Send + Sync {
 /// providing the virtual factory hooks for sub-components. Faithful to the
 /// protected virtual methods of `Architecture` (architecture.hh:264-348).
 pub trait ArchitectureBuilder: Send + Sync {
-    // RUGRA-GLUE: build_database (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_database (no Ghidra counterpart found)
     /// Build the database and global scope. Faithful to `buildDatabase`.
     fn build_database(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_translator (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_translator (no Ghidra counterpart found)
     /// Build the Translator object. Faithful to `buildTranslator`.
     fn build_translator(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_loader (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_loader (no Ghidra counterpart found)
     /// Build the LoadImage object and load the executable image. Faithful to
     /// `buildLoader`.
     fn build_loader(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_pcode_inject_library (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_pcode_inject_library (no Ghidra counterpart found)
     /// Build the injection library. Faithful to `buildPcodeInjectLibrary`.
     fn build_pcode_inject_library(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_typegrp (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_typegrp (no Ghidra counterpart found)
     /// Build the data-type factory/container. Faithful to `buildTypegrp`.
     fn build_typegrp(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_core_types (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_core_types (no Ghidra counterpart found)
     /// Add core primitive data-types. Faithful to `buildCoreTypes`.
     fn build_core_types(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_comment_db (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_comment_db (no Ghidra counterpart found)
     /// Build the comment database. Faithful to `buildCommentDB`.
     fn build_comment_db(&mut self) -> Result<(), String>;
     // Ghidra: architecture.hh:308 Architecture::buildStringManager
@@ -321,22 +321,22 @@ pub trait ArchitectureBuilder: Send + Sync {
     /// `Architecture::init`, architecture.cc:1401). Concrete overrides:
     /// sleigh_arch.cc:247-251 and ghidra_arch.cc:365-369.
     fn build_string_manager(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_constant_pool (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_constant_pool (no Ghidra counterpart found)
     /// Build the constant pool. Faithful to `buildConstantPool`.
     fn build_constant_pool(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_context (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_context (no Ghidra counterpart found)
     /// Build the Context database. Faithful to `buildContext`.
     fn build_context(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_symbols (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_symbols (no Ghidra counterpart found)
     /// Build any symbols from spec files. Faithful to `buildSymbols`.
     fn build_symbols(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: build_spec_file (no Ghidra counterpart found)
+    // RUDRA-GLUE: build_spec_file (no Ghidra counterpart found)
     /// Load any relevant specification files. Faithful to `buildSpecFile`.
     fn build_spec_file(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: modify_spaces (no Ghidra counterpart found)
+    // RUDRA-GLUE: modify_spaces (no Ghidra counterpart found)
     /// Modify address spaces as required. Faithful to `modifySpaces`.
     fn modify_spaces(&mut self) -> Result<(), String>;
-    // RUGRA-GLUE: resolve_architecture (no Ghidra counterpart found)
+    // RUDRA-GLUE: resolve_architecture (no Ghidra counterpart found)
     /// Figure out the processor and compiler. Faithful to `resolveArchitecture`.
     fn resolve_architecture(&mut self) -> Result<(), String>;
 }
@@ -349,14 +349,14 @@ pub struct CapabilityRegistry {
 }
 
 impl Default for CapabilityRegistry {
-    // RUGRA-GLUE: default (no Ghidra counterpart found)
+    // RUDRA-GLUE: default (no Ghidra counterpart found)
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl CapabilityRegistry {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Create an empty registry.
     pub fn new() -> Self {
         Self {
@@ -364,13 +364,13 @@ impl CapabilityRegistry {
         }
     }
 
-    // RUGRA-GLUE: register (no Ghidra counterpart found)
+    // RUDRA-GLUE: register (no Ghidra counterpart found)
     /// Register a new capability.
     pub fn register(&mut self, cap: Box<dyn ArchitectureCapability>) {
         self.capabilities.push(cap);
     }
 
-    // RUGRA-GLUE: find_capability_for_file (no Ghidra counterpart found)
+    // RUDRA-GLUE: find_capability_for_file (no Ghidra counterpart found)
     /// Find an extension to process a file. Faithful to
     /// `ArchitectureCapability::findCapability(filename)` (architecture.cc:92).
     pub fn find_capability_for_file(&self, filename: &str) -> Option<&dyn ArchitectureCapability> {
@@ -380,7 +380,7 @@ impl CapabilityRegistry {
             .map(|c| c.as_ref())
     }
 
-    // RUGRA-GLUE: find_capability_for_xml (no Ghidra counterpart found)
+    // RUDRA-GLUE: find_capability_for_xml (no Ghidra counterpart found)
     /// Find an extension to process an XML document. Faithful to
     /// `ArchitectureCapability::findCapability(Document*)` (architecture.cc:106).
     pub fn find_capability_for_xml(&self, doc: &str) -> Option<&dyn ArchitectureCapability> {
@@ -390,7 +390,7 @@ impl CapabilityRegistry {
             .map(|c| c.as_ref())
     }
 
-    // RUGRA-GLUE: get_capability (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_capability (no Ghidra counterpart found)
     /// Get a capability by name. Faithful to `getCapability` (architecture.cc:120).
     pub fn get_capability(&self, name: &str) -> Option<&dyn ArchitectureCapability> {
         self.capabilities
@@ -399,7 +399,7 @@ impl CapabilityRegistry {
             .map(|c| c.as_ref())
     }
 
-    // RUGRA-GLUE: sort_capabilities (no Ghidra counterpart found)
+    // RUDRA-GLUE: sort_capabilities (no Ghidra counterpart found)
     /// Sort extensions so the "raw" architecture comes last. Faithful to
     /// `sortCapabilities` (architecture.cc:134).
     pub fn sort_capabilities(&mut self) {
@@ -409,13 +409,13 @@ impl CapabilityRegistry {
         }
     }
 
-    // RUGRA-GLUE: major_version (no Ghidra counterpart found)
+    // RUDRA-GLUE: major_version (no Ghidra counterpart found)
     /// Get the major decompiler version. Faithful to `getMajorVersion`.
     pub fn major_version() -> u32 {
         MAJOR_VERSION
     }
 
-    // RUGRA-GLUE: minor_version (no Ghidra counterpart found)
+    // RUDRA-GLUE: minor_version (no Ghidra counterpart found)
     /// Get the minor decompiler version. Faithful to `getMinorVersion`.
     pub fn minor_version() -> u32 {
         MINOR_VERSION
@@ -671,14 +671,14 @@ pub struct Architecture {
 // Manual Debug impl (the `loader` field is `Arc<dyn LoadImage>` without a
 // Debug bound, so we cannot derive). Print just the archid for diagnostics.
 impl std::fmt::Debug for Architecture {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Architecture").field("archid", &self.archid).finish()
     }
 }
 
 impl Default for Architecture {
-    // RUGRA-GLUE: default (no Ghidra counterpart found)
+    // RUDRA-GLUE: default (no Ghidra counterpart found)
     fn default() -> Self {
         Self::new()
     }
@@ -695,7 +695,7 @@ impl Default for Architecture {
 /// Architecture's stale factory. A different Architecture's publication is
 /// left untouched (its ownership supersedes ours).
 impl Drop for Architecture {
-    // RUGRA-GLUE: drop (destructor side of the ownership mirror; the
+    // RUDRA-GLUE: drop (destructor side of the ownership mirror; the
     // Rust-side field teardown follows automatically)
     fn drop(&mut self) {
         if let Some(factory) = &self.types {
@@ -708,7 +708,7 @@ impl Drop for Architecture {
     }
 }
 
-// RUGRA-GLUE: print_registry_key minting (identity channel for the
+// RUDRA-GLUE: print_registry_key minting (identity channel for the
 // architecture.hh:206 printlist storage mirror — allocator-independent,
 // never part of any output).
 fn next_print_registry_key() -> u64 {
@@ -717,7 +717,7 @@ fn next_print_registry_key() -> u64 {
 }
 
 impl Architecture {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct an uninitialized Architecture. Faithful to `Architecture()`
     /// (architecture.cc:150).
     pub fn new() -> Self {
@@ -802,7 +802,7 @@ impl Architecture {
         arch
     }
 
-    // RUGRA-GLUE: reset_defaults_internal (no Ghidra counterpart found)
+    // RUDRA-GLUE: reset_defaults_internal (no Ghidra counterpart found)
     /// Reset default values for options specific to Architecture. Faithful to
     /// `resetDefaultsInternal` (architecture.cc:1416).
     pub fn reset_defaults_internal(&mut self) {
@@ -824,7 +824,7 @@ impl Architecture {
         self.max_jumptable_size = 1024;
     }
 
-    // RUGRA-GLUE: reset_defaults (no Ghidra counterpart found)
+    // RUDRA-GLUE: reset_defaults (no Ghidra counterpart found)
     /// Reset defaults values for options owned by this Architecture. Faithful
     /// to `resetDefaults` (architecture.cc:1438).
     pub fn reset_defaults(&mut self) {
@@ -1063,7 +1063,7 @@ impl Architecture {
             .unwrap_or_default()
     }
 
-    // RUGRA-GLUE: set_register_xref (no Ghidra counterpart; Ghidra fills
+    // RUDRA-GLUE: set_register_xref (no Ghidra counterpart; Ghidra fills
     //   varnode_xref during SleighBase::buildXrefs (sleighbase.cc:79-96)
     //   from the live symbol table, Rugra snapshots the shim's
     //   getAllRegisters enumeration at driver time).
@@ -2696,7 +2696,7 @@ impl Architecture {
         Ok(report)
     }
 
-    // RUGRA-GLUE: ensure_userops (Ghidra's userops member always exists)
+    // RUDRA-GLUE: ensure_userops (Ghidra's userops member always exists)
     /// Install an empty userop manager if none is attached, mirroring the
     /// always-present `Architecture::userops` member (userops.initialize
     /// runs earlier in restoreFromSpec, architecture.cc:635).
@@ -2708,7 +2708,7 @@ impl Architecture {
         }
     }
 
-    // RUGRA-GLUE: ensure_pcodeinjectlib (Ghidra's buildPcodeInjectLibrary)
+    // RUDRA-GLUE: ensure_pcodeinjectlib (Ghidra's buildPcodeInjectLibrary)
     /// Install a fresh injection library with the given unique base if
     /// none is attached, mirroring `buildPcodeInjectLibrary` +
     /// `PcodeInjectLibrarySleigh(g)` (architecture.cc:638,
@@ -2750,7 +2750,7 @@ impl Architecture {
         Ok(())
     }
 
-    // RUGRA-GLUE: high_ptr_possible (no Ghidra counterpart found)
+    // RUDRA-GLUE: high_ptr_possible (no Ghidra counterpart found)
     /// Are pointers possible to the given location? Faithful to
     /// `highPtrPossible` (architecture.hh:408). Without AddrSpace type info we
     /// conservatively check the nohighptr range list.
@@ -2769,14 +2769,14 @@ impl Architecture {
         true
     }
 
-    // RUGRA-GLUE: add_no_high_ptr (no Ghidra counterpart found)
+    // RUDRA-GLUE: add_no_high_ptr (no Ghidra counterpart found)
     /// Add a new region where pointers do not exist. Faithful to `addNoHighPtr`
     /// (architecture.cc:576).
     pub fn add_no_high_ptr(&mut self, rng: Range) {
         self.nohighptr.insert_range(rng);
     }
 
-    // RUGRA-GLUE: globalify (no Ghidra counterpart found)
+    // RUDRA-GLUE: globalify (no Ghidra counterpart found)
     /// Mark all spaces as global. Faithful to `globalify` (architecture.cc:437).
     /// Without AddrSpaceManager, this is a no-op placeholder; the global flag is
     /// a property of spaces owned externally.
@@ -2805,7 +2805,7 @@ impl Architecture {
         }
     }
 
-    // RUGRA-GLUE: decode_flow_override (no Ghidra counterpart found)
+    // RUDRA-GLUE: decode_flow_override (no Ghidra counterpart found)
     /// Decode flow overrides from a stream. Faithful to
     /// `decodeFlowOverride` (architecture.hh:239). The actual XML parse is an
     /// L3 gap; this is the application entry point.
@@ -2813,7 +2813,7 @@ impl Architecture {
         // L3 gap: XML decode of <flowoverridelist>.
     }
 
-    // RUGRA-GLUE: get_description (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_description (no Ghidra counterpart found)
     /// Get a string describing this architecture. Faithful to
     /// `getDescription` (architecture.hh:244).
     pub fn get_description(&self) -> &str {
@@ -2827,7 +2827,7 @@ impl Architecture {
         eprintln!("{message}");
     }
 
-    // RUGRA-GLUE: init (no Ghidra counterpart found)
+    // RUDRA-GLUE: init (no Ghidra counterpart found)
     /// Load the image and configure architecture. Faithful to
     /// `Architecture::init` (architecture.hh:221). This method orchestrates
     /// the initialization by calling the virtual factory hooks.
@@ -2856,14 +2856,14 @@ impl Architecture {
         Ok(())
     }
 
-    // RUGRA-GLUE: clear_analysis (no Ghidra counterpart found)
+    // RUDRA-GLUE: clear_analysis (no Ghidra counterpart found)
     /// Clear analysis specific to a function. Faithful to `clearAnalysis`
     /// (architecture.hh:232).
     pub fn clear_analysis(&self) {
         // Full: fd.clear() + commentdb.clearType. Requires Funcdata.
     }
 
-    // RUGRA-GLUE: read_loader_symbols (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_loader_symbols (no Ghidra counterpart found)
     /// Read symbols from loader into database. Faithful to
     /// `readLoaderSymbols` (architecture.hh:233).
     pub fn read_loader_symbols(&mut self, _delim: &str) {
@@ -2874,7 +2874,7 @@ impl Architecture {
         self.loadersymbols_parsed = true;
     }
 
-    // RUGRA-GLUE: encode (no Ghidra counterpart found)
+    // RUDRA-GLUE: encode (no Ghidra counterpart found)
     /// Encode this architecture to a stream. Faithful to
     /// `Architecture::encode` (architecture.hh:251).
     pub fn encode(&self, encoder: &mut dyn crate::marshal::Encoder) {
@@ -2888,25 +2888,25 @@ impl Architecture {
 
     // ---- Sub-component setters (virtual factory hook equivalents) ----
 
-    // RUGRA-GLUE: set_symboltab (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_symboltab (no Ghidra counterpart found)
     /// Set the symbol table (Database). Replaces `buildDatabase`.
     pub fn set_symboltab(&mut self, db: std::sync::Arc<std::sync::RwLock<crate::database::Database>>) {
         self.symboltab = Some(db);
     }
 
-    // RUGRA-GLUE: set_loader (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_loader (no Ghidra counterpart found)
     /// Set the load image. Replaces `buildLoader`.
     pub fn set_loader(&mut self, loader: std::sync::Arc<dyn crate::loadimage::LoadImage>) {
         self.loader = Some(loader);
     }
 
-    // RUGRA-GLUE: set_commentdb (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_commentdb (no Ghidra counterpart found)
     /// Set the comment database. Replaces `buildCommentDB`.
     pub fn set_commentdb(&mut self, db: std::sync::Arc<std::sync::RwLock<crate::comment::CommentDatabaseInternal>>) {
         self.commentdb = Some(db);
     }
 
-    // RUGRA-GLUE: set_string_manager (test/driver injection point; Ghidra
+    // RUDRA-GLUE: set_string_manager (test/driver injection point; Ghidra
     // only assigns `stringManager` from its own buildStringManager factory,
     // architecture.cc:1401 — Rugra keeps the external setter for pre-seeded
     // test managers and until the driver pipeline owns the loader lifecycle)
@@ -2946,25 +2946,25 @@ impl Architecture {
         self.string_manager = Some(std::sync::Arc::new(std::sync::RwLock::new(manager)));
     }
 
-    // RUGRA-GLUE: set_cpool (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_cpool (no Ghidra counterpart found)
     /// Set the constant pool. Replaces `buildConstantPool`.
     pub fn set_cpool(&mut self, cp: std::sync::Arc<std::sync::RwLock<crate::cpool::ConstantPoolInternal>>) {
         self.cpool = Some(cp);
     }
 
-    // RUGRA-GLUE: set_context_db (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_context_db (no Ghidra counterpart found)
     /// Set the context database. Replaces `buildContext`.
     pub fn set_context_db(&mut self, ctx: std::sync::Arc<std::sync::RwLock<crate::context::ContextInternal>>) {
         self.context_db = Some(ctx);
     }
 
-    // RUGRA-GLUE: set_options_db (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_options_db (no Ghidra counterpart found)
     /// Set the options database. Replaces the OptionDatabase constructor.
     pub fn set_options_db(&mut self, opts: std::sync::Arc<std::sync::RwLock<crate::options::OptionDatabase>>) {
         self.options_db = Some(opts);
     }
 
-    // RUGRA-GLUE: set_types (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_types (no Ghidra counterpart found)
     /// Set the TypeFactory instance. Replaces `buildTypegrp`.
     ///
     /// TF-SINGLETON-WIRING-0001 step 1: this is the Rugra moment the
@@ -3013,13 +3013,13 @@ impl Architecture {
         fresh
     }
 
-    // RUGRA-GLUE: set_userops (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_userops (no Ghidra counterpart found)
     /// Set the userop manager.
     pub fn set_userops(&mut self, uo: std::sync::Arc<std::sync::RwLock<crate::userop::UserOpManage>>) {
         self.userops = Some(uo);
     }
 
-    // RUGRA-GLUE: get_base_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_base_type (no Ghidra counterpart found)
     /// Get a base type of `size`/`metatype` from the TypeFactory, if set.
     /// Faithful to `TypeFactory::getBase` via Architecture.
     pub fn get_base_type(&self, size: usize, m: crate::type_system::datatype::TypeMetatype) -> Option<std::sync::Arc<crate::type_system::datatype::Datatype>> {
@@ -3109,13 +3109,13 @@ impl Architecture {
         ))
     }
 
-    // RUGRA-GLUE: set_split_records (no Ghidra counterpart found)
+    // RUDRA-GLUE: set_split_records (no Ghidra counterpart found)
     /// Set the prefer-split records. Replaces `decodePreferSplit`.
     pub fn set_split_records(&mut self, records: Vec<crate::prefersplit::PreferSplitRecord>) {
         self.split_records = records;
     }
 
-    // RUGRA-GLUE: configuration adapter for Architecture::decodeRegisterData
+    // RUDRA-GLUE: configuration adapter for Architecture::decodeRegisterData
     // (architecture.cc:929); the production decoder builds the same unique,
     // whole-size-ordered vector by accumulating a size-indexed maskList.
     /// Replace the laned-register records while restoring the ordering and

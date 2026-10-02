@@ -50,7 +50,7 @@ pub struct Binary {
 }
 
 impl Binary {
-    // RUGRA-GLUE: parse (no Ghidra counterpart found)
+    // RUDRA-GLUE: parse (no Ghidra counterpart found)
     /// Parse a binary file from raw bytes
     ///
     /// # Arguments
@@ -71,25 +71,25 @@ impl Binary {
         }
     }
 
-    // RUGRA-GLUE: entry_point (no Ghidra counterpart found)
+    // RUDRA-GLUE: entry_point (no Ghidra counterpart found)
     /// Get the entry point address
     pub fn entry_point(&self) -> Address {
         self.entry_point
     }
 
-    // RUGRA-GLUE: format (no Ghidra counterpart found)
+    // RUDRA-GLUE: format (no Ghidra counterpart found)
     /// Get the binary format
     pub fn format(&self) -> BinaryFormat {
         self.format
     }
 
-    // RUGRA-GLUE: architecture (no Ghidra counterpart found)
+    // RUDRA-GLUE: architecture (no Ghidra counterpart found)
     /// Get the target architecture
     pub fn architecture(&self) -> Architecture {
         self.architecture
     }
 
-    // RUGRA-GLUE: get_functions (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_functions (no Ghidra counterpart found)
     /// Get list of function addresses
     ///
     /// # Returns
@@ -99,13 +99,13 @@ impl Binary {
         self.functions.keys().cloned().collect()
     }
 
-    // RUGRA-GLUE: get_function_name (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_function_name (no Ghidra counterpart found)
     /// Get function name by address
     pub fn get_function_name(&self, addr: Address) -> Option<&String> {
         self.functions.get(&addr)
     }
 
-    // RUGRA-GLUE: read_string_at (no Ghidra counterpart found)
+    // RUDRA-GLUE: read_string_at (no Ghidra counterpart found)
     /// Read a null-terminated string from the binary at the given address
     pub fn read_string_at(&self, addr: Address) -> Option<String> {
         // Simple heuristic: address maps directly to offset for now
@@ -142,7 +142,7 @@ impl Binary {
         None
     }
 
-    // RUGRA-GLUE: parse_elf (no Ghidra counterpart found)
+    // RUDRA-GLUE: parse_elf (no Ghidra counterpart found)
     // Private parsing methods
 
     fn parse_elf(data: &[u8], elf: goblin::elf::Elf) -> Result<Self> {
@@ -225,7 +225,7 @@ impl Binary {
         })
     }
 
-    // RUGRA-GLUE: parse_pe (no Ghidra counterpart found)
+    // RUDRA-GLUE: parse_pe (no Ghidra counterpart found)
     fn parse_pe(data: &[u8], pe: goblin::pe::PE) -> Result<Self> {
         let architecture = match pe.header.coff_header.machine {
             goblin::pe::header::COFF_MACHINE_X86_64 => Architecture::X86_64,
@@ -262,7 +262,7 @@ impl Binary {
         })
     }
 
-    // RUGRA-GLUE: parse_macho (no Ghidra counterpart found)
+    // RUDRA-GLUE: parse_macho (no Ghidra counterpart found)
     fn parse_macho(data: &[u8], _mach: goblin::mach::Mach) -> Result<Self> {
         // TODO: Implement Mach-O parsing
         Ok(Binary {

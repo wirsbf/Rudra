@@ -126,7 +126,7 @@ check_open 使用简化近似（size_in <= edgelump），select_bad_edge 选第�
 2026-08-30 条目），此自由函数仅作独立 helper 保留。
 
 ### SELECTGOTO 车道诊断（2026-09-28，MIRRORCENSUS-GETLONGESTMATCH-CLONE-0001 续作）
-- `RUGRA_GOTOSTEP=1`（RUGRA-GLUE，debug-only）：`push_branches` 每步倾印
+- `RUGRA_GOTOSTEP=1`（RUDRA-GLUE，debug-only）：`push_branches` 每步倾印
   `[RSTEP] act/miss/cur=(bottom,dest)` + BADPICK/RETIRE/OPEN 动作行——oracle
   侧 scratch [OSTEP] 探针的对照面；`update_loop_body` 无环臂的根收集同步
   倾印 `[RROOT]`。默认关闭，管线行为零变化。本轮用它+oracle [OROOT] 钉死

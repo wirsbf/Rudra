@@ -1,6 +1,6 @@
 //! # sailr — the SAILR enhancement layer (compiler-aware structuring)
 //!
-// RUGRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: USENIX 2024 SAILR paper (mahaloz) — angr/analyses/decompiler/structuring + region_identifier.py / kuna p7_regions+p8_structure)
+// RUDRA-GLUE: SAILR enhancement layer (enhanced-track, no Ghidra counterpart; ref: USENIX 2024 SAILR paper (mahaloz) — angr/analyses/decompiler/structuring + region_identifier.py / kuna p7_regions+p8_structure)
 //!
 //! **ENHANCEMENT domain — no Ghidra counterpart.**  This module ports the
 //! SAILR family of structuring algorithms (RegionIdentifier region

@@ -80,7 +80,7 @@ In-memory implementation (cpool.hh:165).
   primitive default, canonical type identity, `instance_of` storage, misses,
   reference projection/order, duplicate rejection, clear-and-recreate, full
   packed bytes, and two exception partial-state paths.
-- Its runner builds a complete archive of Rugra base commit `128a127`, mounts
+- Its runner builds a complete archive of Rudra base commit `128a127`, mounts
   the Ghidra C++ tree from the locked oracle commit, and overlays only the
   hash-checked `src/cpool.rs`. Both fixture sources are copied outside the
   workspace before compilation; live TypeFactory/Datatype/UserOp sources are
@@ -89,14 +89,14 @@ In-memory implementation (cpool.hh:165).
 Known residuals:
 
 - When constructor/destructor flags are present, Ghidra calls
-  `TypeFactory::decodeTypeWithCodeFlags`; Rugra currently calls the generic
+  `TypeFactory::decodeTypeWithCodeFlags`; Rudra currently calls the generic
   canonical decoder and cannot inject those flags into `TypeCode`. This is an
   explicit fixture `MISMATCH` owned by `TYPEFACTORY-CODEFLAGS-DECODE-0001`.
 - `Datatype::encode_ref` still uses its private dynamic ID table, so the
   enclosing cpool fields match but complete packed bytes differ from locked
   IDs. This remains under `MARSHAL-ID-0001` / `MARSHAL-PACKED-0001`; the
   fixture preserves the raw differing bytes and performs no normalization.
-- Ghidra streams `uint1` byte data as a padded raw character. Rugra matches
+- Ghidra streams `uint1` byte data as a padded raw character. Rudra matches
   this byte-for-byte for the fixture's `0x00..0x10` domain; arbitrary
   `>=0x80` byte strings remain constrained by the current UTF-8 `Encoder`
   interface and are not claimed as `MATCH`.
@@ -105,6 +105,6 @@ Known residuals:
   `set_core_type_result` twin (panicking with the oracle LowlevelError text,
   the exact throw semantics of type.cc:3178) instead of the legacy
   `set_core_type` Arc wrapper. Fixture behavior is unchanged; the runner's
-  Rugra snapshot base is re-pinned to 71971b2 (whose TypeFactory provides the
+  Rudra snapshot base is re-pinned to 71971b2 (whose TypeFactory provides the
   Result twins) with comparand hashes re-recorded.
 <!-- annotation-pass: 2026-07-04 -->

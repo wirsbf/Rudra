@@ -211,7 +211,7 @@ A manager for symbol scopes for a whole executable. Faithful to `Database`
   addresses alone would silently reorder the map (`Address::cmp` sorts
   `None` before every `Some(_)` tag); both sides must migrate to
   space-tagged keys together at the ADDRESS-0001 phase-3 merge.
-- `AddMapContext` — RUGRA-GLUE carrier for the two `glb->symboltab` lookups
+- `AddMapContext` — RUDRA-GLUE carrier for the two `glb->symboltab` lookups
   `Scope::addMap` needs: the flagbase property at an address
   (`getProperty`, database.cc:1153) and the global-scope discovery-range
   test (`glbScope->inScope`, database.cc:1138).
@@ -229,7 +229,7 @@ A manager for symbol scopes for a whole executable. Faithful to `Database`
     element, returning the parent scope id.
   - `decode_scope(decoder, new_scope_id)` (database.cc:3375) — registers and
     fills out a single Scope from a `<scope>` (or wrapping) element.
-  - `attach_scope_by_id(scope_id, parent_id)` — RUGRA-GLUE helper mirroring
+  - `attach_scope_by_id(scope_id, parent_id)` — RUDRA-GLUE helper mirroring
     `attachScope` (database.cc:3381) for `decode_scope`.
   - `decode_scope_path(decoder)` (database.cc:3398) — decodes a namespace
     path (`<val>` children) and ensures each namespace exists.
@@ -344,12 +344,12 @@ database.cc, closing the last XML gap:
 - `decode` enhanced: reads `scopeidbyname`, property change-points with
   `offset`/`val`, and resolves each `<scope>`'s parent via `parse_parent_tag`.
 - `parse_parent_tag` (database.cc:3300), `decode_scope` (database.cc:3375),
-  `attach_scope_by_id` (RUGRA-GLUE for `attachScope`, database.cc:3381),
+  `attach_scope_by_id` (RUDRA-GLUE for `attachScope`, database.cc:3381),
   `decode_scope_path` (database.cc:3398).
 - `id_by_name` field added to the struct + wired through `new`.
 
 Each ported function carries a `// Ghidra: database.cc:<line> <func>` comment
-(84 alignment comments total). The one RUGRA-GLUE method
+(84 alignment comments total). The one RUDRA-GLUE method
 (`attach_scope_by_id`) is marked accordingly.
 
 Tests: 26 database tests pass (`cargo test --lib database::`), including the
@@ -479,7 +479,7 @@ equate-pipeline 测试随 VARNODE-COPYSYMBOL-HIGHBRANCH-0001 的关联函数签�
   （legacy spaceless Address 即 is_invalid）恒 false；否则
   `uselimit.in_range(usepoint)`。旧"空 uselimit = 全程有效"读法与 cc:118-119
   矛盾——空 uselimit 的 entry 只因 addMap 的 addrtied 折叠才有效。
-- `SymbolEntry::same_storage_identity(other)`（RUGRA-GLUE）：C++
+- `SymbolEntry::same_storage_identity(other)`（RUDRA-GLUE）：C++
   `SymbolEntry*` 指针比较的稳定恒等代理（symbol Arc ptr_eq + addr + offset +
   size + hash），供 varnode.cc:415 `mapentry != entry` 使用。
 - `Scope::add_symbol_mapped`（database.cc:1530 addSymbol 形态）与
@@ -649,7 +649,7 @@ Ghidra 的 `glb->types->getBase(size,TYPE_UNKNOWN)` 经 TypeFactory 核心类型
 ArchitectureGhidra 回退表（ghidra_arch.cc:349-352）产出 `undefinedN`，未注册尺寸
 产出**无名** TypeBase（type.cc:3631 findAdd 规范化路径）。硬编码任一名字都在另一
 环境错误。收敛为**工厂参数形态**：两函数签名增加
-`types: &crate::type_system::typefactory::TypeFactory`（RUGRA-GLUE：C++ 经
+`types: &crate::type_system::typefactory::TypeFactory`（RUDRA-GLUE：C++ 经
 `scope->getArch()->types` 取工厂，Rust 值模型 Scope 无 arch 句柄），调用生产
 `TypeFactory::get_base`（type.cc:3631 的既有移植）。fixture 侧
 `TypeFactory::new_flavor(8, CoreTypeFlavor::Standalone)` 镜像 oracle 的

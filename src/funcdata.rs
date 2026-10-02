@@ -389,7 +389,7 @@ impl Ord for LanedStorage {
 
 /// One analyzer-committed stack local harvested from the canonical golden's
 /// declaration layer (C1 TYPE-SEED-LOCAL, HEADLESS-BRIDGE-V1-TYPESEED).
-/// RUGRA-GLUE: the `<localdb>` `<mapsym>` payload of the headless transport
+/// RUDRA-GLUE: the `<localdb>` `<mapsym>` payload of the headless transport
 /// (funcdata.cc:804-810 -> database.cc:1564 Scope::addMapSym): stack offset
 /// (negative = below the frame base), the committed name (`local_c8`), and
 /// the C type spelling (`long[4]`, `undefined8 *`) that
@@ -495,7 +495,7 @@ pub struct Funcdata {
     /// `ActionSetCasts::apply` (coreaction.cc:2728).
     pub cast_phase_index: u32,
 
-    // RUGRA-GLUE: display_image_base (RESIDMAP-PRINTBATCH-0001 transport; no
+    // RUDRA-GLUE: display_image_base (RESIDMAP-PRINTBATCH-0001 transport; no
     // single Ghidra counterpart — the oracle's Funcdata Addresses ARE the
     // loaded analyzeHeadless addresses, while Rugra's pipeline runs on
     // ELF-relative offsets (ADDRESS-0001) and the drivers add the image-base
@@ -571,7 +571,7 @@ pub struct Funcdata {
     /// Corresponds to Ghidra's `Funcdata::getScopeLocal()`.
     pub scope: Option<crate::varmap::ScopeLocal>,
     /// Committed-local seeds carried from the driver's C1 TYPE-SEED-LOCAL
-    /// manifest (HEADLESS-BRIDGE-V1-TYPESEED). RUGRA-GLUE: models the
+    /// manifest (HEADLESS-BRIDGE-V1-TYPESEED). RUDRA-GLUE: models the
     /// `<localdb>` transport channel of `Funcdata::decode`
     /// (funcdata.cc:804-810: `<localdb>` -> `Database::decodeScope` ->
     /// `ScopeInternal::decode` installs the analyzer-committed symbols
@@ -585,14 +585,14 @@ pub struct Funcdata {
     /// default — the default path stays byte-identical to the bare load.
     pub committed_locals: Vec<CommittedLocal>,
     /// HighVariable → ScopeLocal symbol index association (keyed by the
-    /// HighVariable's Arc pointer). RUGRA-GLUE: models `HighVariable::symbol`
+    /// HighVariable's Arc pointer). RUDRA-GLUE: models `HighVariable::symbol`
     /// (variable.hh:161-176) for the varmap `ScopeLocal` symbol model — the
     /// faithful database.rs `Symbol` graph is not yet wired into the
     /// linkSymbol path, so the Funcdata keeps this side table instead of a
     /// field on HighVariable (variable.rs is outside this change's lease).
     pub high_symbols: HashMap<usize, usize>,
     /// ScopeLocal symbol index → bridged database.rs `SymbolEntry`
-    /// (identity-stable per symbol). RUGRA-GLUE: `Varnode::setSymbolEntry`
+    /// (identity-stable per symbol). RUDRA-GLUE: `Varnode::setSymbolEntry`
     /// and the faithful `HighVariable::set_symbol` (variable.rs:180, porting
     /// variable.cc:245-275 incl. the symboloffset four-branch computation)
     /// consume the database.rs `SymbolEntry` model, so each varmap symbol
@@ -670,7 +670,7 @@ pub struct Funcdata {
     pub stack_grows_negative: bool,
 }
 
-// RUGRA-GLUE: canonical default Architecture shared by every Funcdata
+// RUDRA-GLUE: canonical default Architecture shared by every Funcdata
 // constructed without a caller-owned one. Ghidra's Funcdata constructor
 // takes its Architecture unconditionally from the Scope
 // (`glb = scope->getArch()`, funcdata.cc:48; `Scope::getArch` is the
@@ -747,7 +747,7 @@ pub fn compare_cse_hash(
     a.0 < b.0
 }
 
-// RUGRA-GLUE: per-walk op→callspec resolution memo for
+// RUDRA-GLUE: per-walk op→callspec resolution memo for
 // `Funcdata::get_call_specs_of_op` (see the comment inside that method).
 // Active only inside an `OpSpecMemoScope` opened by the parameter-recovery
 // walks; `None` = inactive.
@@ -758,14 +758,14 @@ thread_local! {
 }
 
 /// RAII scope activating the op→callspec resolution memo for the enclosed
-/// parameter-recovery walk (RUGRA-GLUE; no Ghidra counterpart — Ghidra
+/// parameter-recovery walk (RUDRA-GLUE; no Ghidra counterpart — Ghidra
 /// resolves specs with bare pointer reads, funcdata.cc:484-497). Dropping
 /// the guard clears the memo, so no cached resolution can outlive the walk
 /// that produced it.
 pub(crate) struct OpSpecMemoScope;
 
 impl OpSpecMemoScope {
-    // RUGRA-GLUE: RAII enter (memo 域激活——纯 Rust 生命周期胶水,无 Ghidra 对应物)
+    // RUDRA-GLUE: RAII enter (memo 域激活——纯 Rust 生命周期胶水,无 Ghidra 对应物)
     pub(crate) fn enter() -> Self {
         OP_SPEC_MEMO.with(|m| {
             *m.borrow_mut() = Some(std::collections::HashMap::new());
@@ -774,9 +774,9 @@ impl OpSpecMemoScope {
     }
 }
 
-// RUGRA-GLUE: Drop 清域 (RAII 退出胶水——保证缓存解析不越出产生它的走查)
+// RUDRA-GLUE: Drop 清域 (RAII 退出胶水——保证缓存解析不越出产生它的走查)
 impl Drop for OpSpecMemoScope {
-    // RUGRA-GLUE: fn drop 本体 (RAII 退出胶水,无 Ghidra 对应物)
+    // RUDRA-GLUE: fn drop 本体 (RAII 退出胶水,无 Ghidra 对应物)
     fn drop(&mut self) {
         OP_SPEC_MEMO.with(|m| {
             *m.borrow_mut() = None;
@@ -994,7 +994,7 @@ impl Funcdata {
         vn
     }
 
-    // RUGRA-GLUE: explicit-space adapter for Ghidra's Address-valued
+    // RUDRA-GLUE: explicit-space adapter for Ghidra's Address-valued
     // Funcdata::newVarnode; ADDRESS-0001 keeps space and offset split across
     // Rugra until the entire comparison domain migrates atomically.
     pub(crate) fn new_varnode_in_space(
@@ -1190,7 +1190,7 @@ impl Funcdata {
         promoted
     }
 
-    // RUGRA-GLUE: fallible Rust adapter around the checked portion of
+    // RUDRA-GLUE: fallible Rust adapter around the checked portion of
     // Ghidra Funcdata::setInputVarnode (funcdata_varnode.cc:340-373).
     fn set_input_varnode_checked(
         &mut self,
@@ -1452,7 +1452,7 @@ impl Funcdata {
         format!("0x{:0width$x}", display, width = 2 * sz)
     }
 
-    // RUGRA-GLUE: set_display_image_base (RESIDMAP-PRINTBATCH-0001; driver
+    // RUDRA-GLUE: set_display_image_base (RESIDMAP-PRINTBATCH-0001; driver
     // handoff for print_raw_code_addr — canon analyzeHeadless drivers install
     /// 0x100000, ELF-relative harness paths keep the default 0).
     pub fn set_display_image_base(&mut self, base: u64) {
@@ -1485,7 +1485,7 @@ impl Funcdata {
     pub fn get_arch(&self) -> Option<&Arc<crate::arch::Architecture>> {
         self.arch.as_ref()
     }
-    // RUGRA-GLUE: Rust ownership seam for the Architecture reference Ghidra's
+    // RUDRA-GLUE: Rust ownership seam for the Architecture reference Ghidra's
     // Funcdata constructor obtains from its Scope (`glb = scope->getArch()`,
     // funcdata.cc:48). Rugra's Funcdata has no constructor-time Scope yet
     // (FUNCDATA-LOCALSCOPE-OWNERSHIP-0001), so `set_arch` is the moment `glb`
@@ -1588,7 +1588,7 @@ impl Funcdata {
         self.heritage = heritage;
     }
 
-    // RUGRA-GLUE: legacy direct heritage entry; Ghidra has no runHeritageDirect.
+    // RUDRA-GLUE: legacy direct heritage entry; Ghidra has no runHeritageDirect.
     /// Run the OFF-PRODUCTION direct SSA pass (`place_multiequals_direct` +
     /// `rename_direct`) against separated banks. Since
     /// HERITAGE-DRIVER-SWITCH-0001 the production pipeline drives the
@@ -1822,7 +1822,7 @@ impl Funcdata {
                 vn.write().unwrap().set_symbol_entry(entry_arc);
                 if let Some(high) = vn.read().unwrap().get_high().cloned() {
                     high.write().unwrap().set_symbol(vn);
-                    // RUGRA-GLUE: publish the symbol's display name onto the
+                    // RUDRA-GLUE: publish the symbol's display name onto the
                     // high the way the namevars write-back bridge does for
                     // ScopeLocal symbols (Ghidra resolves the name through
                     // high->getSymbol() at print; Rugra's printc reads
@@ -2169,7 +2169,7 @@ impl Funcdata {
         &self,
         op: &crate::op::PcodeOpRef,
     ) -> Option<Arc<RwLock<crate::fspec::FuncCallSpecs>>> {
-        // Per-walk resolution memo (RUGRA-GLUE). Ghidra's fast path is a
+        // Per-walk resolution memo (RUDRA-GLUE). Ghidra's fast path is a
         // constant-space pointer read (funcdata.cc:486-487) and its fallback
         // is a bare-pointer scan (funcdata.cc:489-490); Rugra's form pays a
         // lock + Weak upgrade per spec per resolution. During the parameter
@@ -2279,14 +2279,14 @@ impl Funcdata {
         self.callspecs.len() - 1
     }
 
-    // RUGRA-GLUE: Preserve Ghidra's setup order when an annotation must be
+    // RUDRA-GLUE: Preserve Ghidra's setup order when an annotation must be
     // installed before the stable owner is inserted into qlst.
     pub fn add_call_specs_owner(&mut self, fc: Arc<RwLock<crate::fspec::FuncCallSpecs>>) -> usize {
         self.callspecs.push(fc);
         self.callspecs.len() - 1
     }
 
-    // RUGRA-GLUE: Borrow-safe access to the stable owner handle used when
+    // RUDRA-GLUE: Borrow-safe access to the stable owner handle used when
     // constructing a typed FSPEC annotation.
     pub fn get_call_specs_owner(
         &self,
@@ -2311,7 +2311,7 @@ impl Funcdata {
     // These mirror Ghidra's Funcdata methods used by the rule/action transforms
     // to construct and edit P-code during analysis.
 
-    // RUGRA-GLUE: Funcdata allocation adapter; PcodeOpBank::create currently
+    // RUDRA-GLUE: Funcdata allocation adapter; PcodeOpBank::create currently
     // cannot represent Ghidra's nullable input slots or null opcode, so only
     // the dead/alive lifecycle is enforced here (OP-INSERT-0001 MISMATCH).
     /// Allocate a new PcodeOp associated with `pc` and place it on the dead
@@ -3393,7 +3393,7 @@ impl Funcdata {
         // (maxdepth = -1), so the next Heritage pass rebuilds the augmented
         // dominator tree from the CFG re-established above.
         self.heritage.force_restructure();
-        // RUGRA-GLUE: refresh Rugra's per-block dominator caches (dom depth,
+        // RUDRA-GLUE: refresh Rugra's per-block dominator caches (dom depth,
         // subtree children, dominance frontiers) that other passes read
         // directly off FlowBlock; the immed_dom set written by
         // calc_forward_dominator is the oracle-observable state.
@@ -3882,7 +3882,7 @@ impl Funcdata {
         self.structure_reset();
     }
 
-    // RUGRA-GLUE: public exposure of `CloneBlockOps::cloneExpression`
+    // RUDRA-GLUE: public exposure of `CloneBlockOps::cloneExpression`
     // (funcdata.hh:646; impl funcdata_block.cc:1024-1040). Ghidra declares the
     // whole CloneBlockOps class public in funcdata.hh and RuleConditionalMove
     // instantiates it directly (ruleaction.cc:9334-9335
@@ -4626,7 +4626,7 @@ impl Funcdata {
             .as_ref()
             .and_then(std::sync::Weak::upgrade);
         let Some(parent) = parent else {
-            // RUGRA-GLUE: Legacy Rule unit fixtures construct an alive, parentless
+            // RUDRA-GLUE: Legacy Rule unit fixtures construct an alive, parentless
             // flat op bank, which is outside Ghidra's opInsertBefore precondition.
             // Preserve their former flat-list behavior until those fixtures acquire
             // real BlockBasic membership; this branch is not oracle-equivalent.
@@ -4820,7 +4820,7 @@ impl Funcdata {
         }
     }
 
-    // RUGRA-GLUE: 1-arg compat shim over Funcdata::opUndoPtradd
+    // RUDRA-GLUE: 1-arg compat shim over Funcdata::opUndoPtradd
     /// Ghidra's RulePtraddUndo/RulePtrsubUndo call `opUndoPtradd(op,false)`
     /// (ruleaction.cc:6925, ruleaction.cc:7115). ruleaction.rs is outside
     /// this change's write-set, so its single-argument calls delegate to the
@@ -4969,7 +4969,7 @@ impl Funcdata {
     /// mapentry attach for type-locked symbols) on a hit, else folding
     /// `setFlags(vflags & ~typelock)` — and no setActiveHeritage is done
     /// here (guardCalls cc:1523 does it after construction).
-    // RUGRA-GLUE: split entry because Rugra Address lacks space identity; the
+    // RUDRA-GLUE: split entry because Rugra Address lacks space identity; the
     // legacy Unique-space entry keeps out-of-write-set callers compiling.
     pub fn new_indirect_creation_in_space(
         &mut self,
@@ -5092,7 +5092,7 @@ impl Funcdata {
             .and_then(std::sync::Weak::upgrade)
             .is_none()
         {
-            // RUGRA-GLUE: Legacy Rule unit fixtures construct an alive, parentless
+            // RUDRA-GLUE: Legacy Rule unit fixtures construct an alive, parentless
             // flat op bank, which is outside Ghidra's opInsertAfter precondition.
             // Preserve their former flat-list behavior until those fixtures acquire
             // real BlockBasic membership; this branch is not oracle-equivalent.
@@ -5166,7 +5166,7 @@ impl Funcdata {
             .as_ref()
             .and_then(std::sync::Weak::upgrade);
         let Some(parent) = parent else {
-            // RUGRA-GLUE: Preserve the former flat-bank detach behavior for
+            // RUDRA-GLUE: Preserve the former flat-bank detach behavior for
             // parentless legacy fixtures. Valid Ghidra-domain ops take the block
             // path below and transition to the dead list atomically.
             self.obank.unlink_alive_if_member(op);
@@ -5747,20 +5747,20 @@ impl Funcdata {
     // oracle's god-object precedent — every cross-mutation goes through
     // Funcdata).
     /// Resolve an op arena handle to its stored ref (P1 read form).
-    // RUGRA-GLUE: id dereference — the oracle counterpart is the raw
+    // RUDRA-GLUE: id dereference — the oracle counterpart is the raw
     // pointer dereference itself (op.hh:63 PcodeOp*).
     pub fn op_by_id(&self, id: crate::arena::OpId) -> Option<&crate::op::PcodeOpRef> {
         self.obank.optree.get_by_id(id)
     }
 
     /// The arena handle of a bank-inserted op, if any.
-    // RUGRA-GLUE: handle extraction (raw-pointer identity counterpart).
+    // RUDRA-GLUE: handle extraction (raw-pointer identity counterpart).
     pub fn op_id_of(&self, op: &crate::op::PcodeOpRef) -> Option<crate::arena::OpId> {
         op.0.read().unwrap().op_id
     }
 
     /// Resolve a varnode arena handle to its stored ref (P1 read form).
-    // RUGRA-GLUE: id dereference (varnode.hh:73 Varnode*).
+    // RUDRA-GLUE: id dereference (varnode.hh:73 Varnode*).
     pub fn vn_by_id(
         &self,
         id: crate::arena::VnId,
@@ -5769,7 +5769,7 @@ impl Funcdata {
     }
 
     /// The arena handle of a bank-allocated varnode, if any.
-    // RUGRA-GLUE: handle extraction (raw-pointer identity counterpart).
+    // RUDRA-GLUE: handle extraction (raw-pointer identity counterpart).
     pub fn vn_id_of(&self, vn: &Arc<RwLock<crate::varnode::Varnode>>) -> Option<crate::arena::VnId> {
         vn.read().unwrap().vn_id
     }
@@ -6170,7 +6170,7 @@ impl Funcdata {
     /// clones the callee's jumptables and converts the CALL to a BRANCH
     /// (cc:892-911). Uniq ids swap across the boundary at both ends
     /// (cc:858, cc:913). Returns 0 (EZ), 1 (hard), -1 (not successful).
-    /// RUGRA-GLUE: the SLEIGH lifter threads through as an explicit
+    /// RUDRA-GLUE: the SLEIGH lifter threads through as an explicit
     /// parameter (Ghidra reaches it through the Architecture), and the
     /// `FlowInfo::inlineEZClone` clone core is currently a structural
     /// placeholder in flow.rs (FUNCDATA-INFLOW-DEP-0001), so the EZ path
@@ -6916,9 +6916,9 @@ impl Funcdata {
         dyn_idx
     }
 
-    // RUGRA-GLUE: attach_symbol_to_vn (vn->setSymbolEntry + high->setSymbol)
+    // RUDRA-GLUE: attach_symbol_to_vn (vn->setSymbolEntry + high->setSymbol)
     /// Attach a ScopeLocal symbol to a Varnode the way
-    // RUGRA-GLUE: symbol_entry_for (bridge varmap symbol → database entry)
+    // RUDRA-GLUE: symbol_entry_for (bridge varmap symbol → database entry)
     /// Build (or fetch the identity-stable cached) database.rs `SymbolEntry`
     /// mirroring the varmap `ScopeLocal` symbol at `entry_idx`: static maps
     /// carry (offset address, size, single-address uselimit when the varmap
@@ -6972,7 +6972,7 @@ impl Funcdata {
         Some(entry_arc)
     }
 
-    // RUGRA-GLUE: attach_symbol_to_vn (vn->setSymbolEntry + high->setSymbol)
+    // RUDRA-GLUE: attach_symbol_to_vn (vn->setSymbolEntry + high->setSymbol)
     /// Attach a ScopeLocal symbol to a Varnode the way
     /// `Varnode::setSymbolEntry` (varnode.cc:429-439) does — mapentry plus
     /// mapped/namelock flags — and then run the faithful
@@ -7480,7 +7480,7 @@ impl Funcdata {
         vn
     }
 
-    // RUGRA-GLUE: TypeSpacebase live-map publish — the Rust ownership seam
+    // RUDRA-GLUE: TypeSpacebase live-map publish — the Rust ownership seam
     // standing in for Ghidra's dynamic getMap resolution (type.cc:2935-2945:
     // every `TypeSpacebase::getSubType` re-resolves
     // `queryFunction(localframe)->fd->getScopeLocal()` and therefore observes
@@ -7834,7 +7834,7 @@ impl Funcdata {
         }
     }
 
-    // RUGRA-GLUE: opSetInput-after-insertInput pair for spacebaseConstant
+    // RUDRA-GLUE: opSetInput-after-insertInput pair for spacebaseConstant
     // (funcdata.cc:382's insertInput(1) followed by the opSetInput sites at
     // cc:410/431/456). Ghidra pushes a NULL slot and fills it later; Rust's
     // inrefs cannot hold NULL, so a fresh slot takes the real varnode
@@ -8605,7 +8605,7 @@ impl Funcdata {
     }
 
     /// Build basic blocks from ALL alive ops (called after flow tracking completes).
-    // RUGRA-GLUE: 从全部 alive ops 构建 CFG（FlowInfo 流追踪后调用）。
+    // RUDRA-GLUE: 从全部 alive ops 构建 CFG（FlowInfo 流追踪后调用）。
     pub fn build_blocks_from_alive(&mut self) {
         let op_refs: Vec<PcodeOpRef> = self
             .obank
@@ -8763,12 +8763,12 @@ impl Funcdata {
         out
     }
 
-    // RUGRA-GLUE: Batch raw-P-code adapter around Ghidra's PcodeEmitFd::dump conversion and Funcdata bank insertion APIs.
+    // RUDRA-GLUE: Batch raw-P-code adapter around Ghidra's PcodeEmitFd::dump conversion and Funcdata bank insertion APIs.
     pub fn inject_raw_ops(&mut self, raw_ops: &[PcodeOpRaw]) {
         self.inject_raw_ops_with_uniq(raw_ops, None);
     }
 
-    // RUGRA-GLUE: the linear-transport inject entry CANON-DECLORDER-
+    // RUDRA-GLUE: the linear-transport inject entry CANON-DECLORDER-
     // TRANSPORT-0001 drives. Ghidra's op-creation times ARE the FlowInfo
     // walk order (the lift runs inside processInstruction, flow.cc:421;
     // PcodeOpBank::create mints `SeqNum(pc, uniqid++)`, op.cc:941-948), and
@@ -11583,7 +11583,7 @@ impl Funcdata {
     /// `Funcdata::switchOverJumpTables` (funcdata_block.cc:678-685), called at
     /// the end of `followFlow` (funcdata_op.cc:777-778).
     ///
-    /// RUGRA-GLUE: associated-function form taking the `Funcdata` by shared
+    /// RUDRA-GLUE: associated-function form taking the `Funcdata` by shared
     /// reference — the only `&mut Funcdata` during flow following is owned by
     /// the `FlowInfo`, so the oracle's member form cannot borrow both. Each
     /// table is still mutated through its `Arc<RwLock<JumpTable>>`, exactly
@@ -12037,7 +12037,7 @@ impl Funcdata {
 
     /// Find a jump-table whose op-address matches `op`, returning a cloned
     /// Arc (mutable-self counterpart to [`find_jump_table`](Self::find_jump_table)).
-    // RUGRA-GLUE: Rust ownership form of the existing find_jump_table mapping;
+    // RUDRA-GLUE: Rust ownership form of the existing find_jump_table mapping;
     // Ghidra returns one raw JumpTable pointer and has no Arc-cloning helper.
     fn find_jump_table_arc(
         &self,
@@ -12054,7 +12054,7 @@ impl Funcdata {
     /// `glb->loader->loadFill(buf, size, addr)` to Rugra's
     /// `LoadImage::load_fill(size, addr) -> Result<Vec<u8>, DataUnavailError>`.
     /// Returns `None` if the image has no data at `addr`.
-    // RUGRA-GLUE: Rust Result/buffer adapter around LoadImage::load_fill;
+    // RUDRA-GLUE: Rust Result/buffer adapter around LoadImage::load_fill;
     // Ghidra fills the caller's buffer directly and has no Funcdata helper.
     fn load_fill(&self, size: usize, addr: Address) -> Option<Vec<u8>> {
         let arch = self.arch.as_ref()?;
@@ -12068,7 +12068,7 @@ impl Funcdata {
     /// model, so this always returns `EXTRAPOP_UNKNOWN_FULL` — which forces
     /// [`fillin_extrapop`](Self::fillin_extrapop) to attempt byte-level
     /// recovery rather than short-circuiting.
-    // RUGRA-GLUE: Adapter for the unported FuncProto extrapop field; Ghidra
+    // RUDRA-GLUE: Adapter for the unported FuncProto extrapop field; Ghidra
     // calls funcp.getExtraPop() directly and has no Funcdata wrapper.
     fn funcp_extrapop(&self) -> i32 {
         crate::fspec::EXTRAPOP_UNKNOWN_FULL
@@ -12085,7 +12085,7 @@ impl Funcdata {
     /// Get the user-op type for CALLOTHER id `id`. Adapts Ghidra's
     /// `glb->userops.getOp(id)->getType()`. Returns `Unspecialized` if the
     /// architecture or user-op table is unavailable.
-    // RUGRA-GLUE: Rust Option/lock adapter for the inline user-op lookup in
+    // RUDRA-GLUE: Rust Option/lock adapter for the inline user-op lookup in
     // Funcdata::earlyJumpTableFail; Ghidra has no Funcdata::useropType helper.
     fn userop_type(&self, id: usize) -> crate::userop::UserOpType {
         use crate::userop::UserOpType;
@@ -14346,7 +14346,7 @@ mod tests {
         static ref FFI_TEST_LOCK: Mutex<()> = Mutex::new(());
     }
 
-    // RUGRA-GLUE: test-only poison-immune acquisition of FFI_TEST_LOCK
+    // RUDRA-GLUE: test-only poison-immune acquisition of FFI_TEST_LOCK
     // (TESTLIB-STATE-CONTAMINATION-0001). Ghidra has no test-harness
     // counterpart. Previously every holder acquired with `.lock().unwrap()`,
     // so one genuine assertion panic inside a holder (the observed trigger:
@@ -18676,7 +18676,7 @@ mod tests {
 
 }
 
-// RUGRA-GLUE: 在出边列表中查找指向目标块的索引。Ghidra 用 FlowBlock::getOutIndex
+// RUDRA-GLUE: 在出边列表中查找指向目标块的索引。Ghidra 用 FlowBlock::getOutIndex
 // (block.hh:317)；Rugra 内联为文件级函数（需 downcast 到 BlockBasic/BlockGraph）。
 /// Find the index of the outgoing edge pointing to `target` in `src`.
 fn find_out_index(
@@ -18774,7 +18774,7 @@ impl ArState {
     // Ghidra: funcdata.hh:673 AncestorRealistic::State::State(PcodeOp*,int4)
     /// Constructor given a Varnode read: `op=o; slot=s; flags=0; offset=0`.
     /// Faithful to `State(PcodeOp *o,int4 s)` (funcdata.hh:673-680).
-    // RUGRA-GLUE: named constructor — Ghidra inlines this member init at
+    // RUDRA-GLUE: named constructor — Ghidra inlines this member init at
     // each State construction site; Rust uses a named ctor for the same
     // four-field initialization.
     fn new(op: std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>, slot: i32) -> Self {
@@ -18840,7 +18840,7 @@ impl AncestorRealistic {
         self.marked_vn.push(vn.clone());
         vn.write().unwrap().set_mark();
     }
-    // RUGRA-GLUE: AncestorRealistic::new constructor (no Ghidra counterpart — Ghidra uses stack allocation)
+    // RUDRA-GLUE: AncestorRealistic::new constructor (no Ghidra counterpart — Ghidra uses stack allocation)
     /// Construct an empty ancestor-realistic checker.
     pub fn new() -> Self {
         Self {
@@ -19790,7 +19790,7 @@ struct CloneBlockOps {
 }
 
 impl CloneBlockOps {
-    // RUGRA-GLUE: Rust 构造器（Ghidra CloneBlockOps 用 C++ 构造函数 + data 引用初始化）。
+    // RUDRA-GLUE: Rust 构造器（Ghidra CloneBlockOps 用 C++ 构造函数 + data 引用初始化）。
     fn new() -> Self {
         Self {
             clone_list: Vec::new(),
@@ -19928,7 +19928,7 @@ impl CloneBlockOps {
     /// `LowlevelError("No expression to clone")` (cc:1035-1036), then the
     /// inputs are patched with inedge=0 (cc:1037) and the output Varnode of
     /// the LAST cloned op returns (cc:1038-1039).
-    /// RUGRA-GLUE: Ghidra's ClonePair helper (funcdata.hh:632-635) is
+    /// RUDRA-GLUE: Ghidra's ClonePair helper (funcdata.hh:632-635) is
     /// absorbed by the `(clone_op, orig_op)` tuple in `clone_list` — the
     /// tuple IS the pair, built at the same push site as the C++ ctor.
     fn clone_expression(

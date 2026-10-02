@@ -7,7 +7,7 @@ Rust implementation corresponding to Ghidra's `unionresolve.hh` /
 The typed implementation uses
 `Arc<Datatype>` / `Arc<RwLock<PcodeOp>>` / `Arc<RwLock<Varnode>>` threading
 in place of Ghidra's raw `Datatype*` / `PcodeOp*` / `Varnode*` API, but the
-documented RUGRA-GLUE gaps and absence of a locked-oracle `MATCH` fixture
+documented RUDRA-GLUE gaps and absence of a locked-oracle `MATCH` fixture
 preclude an L3 claim.
 
 Ghidra reference:
@@ -23,7 +23,7 @@ Holds `Arc<Datatype>` for `resolve` and `base_type`.
   (cc:40); the pointer-parent arm interns via `TypeFactory::get_type_pointer`
   (type.cc:3867), callers hold a factory write guard.
 - `new_self(parent_name)`, `new_field(parent_name, field_name, fld_num)` —
-  RUGRA-GLUE string ctors for legacy callers.
+  RUDRA-GLUE string ctors for legacy callers.
 - `get_datatype()`, `get_base()`, `get_field_num()`, `is_locked()`,
   `set_lock(val)`.
 
@@ -31,7 +31,7 @@ Holds `Arc<Datatype>` for `resolve` and `base_type`.
 A data-flow edge for resolved types (unionresolve.hh:60).
 - `new(parent: &Datatype, op: &PcodeOp, slot)` — typed ctor (cc:64).
   Pointer encoding `+0x1000` (cc:71).
-- `from_components(type_id, op_time, slot, is_pointer)` — RUGRA-GLUE.
+- `from_components(type_id, op_time, slot, is_pointer)` — RUDRA-GLUE.
 - Implements `Ord` exactly as `ResolveEdge::operator<`, keying by
   `(type_id, encoding, immutable op_time)`; block-order renumbering cannot
   invalidate an edge key.
@@ -56,7 +56,7 @@ Constructors (all run the scoring loop internally):
 - `new(typegrp, parent_type, op, slot)` — primary edge ctor (cc:990).
 - `new_for_subpiece(typegrp, union_type, offset, op)` — SUBPIECE (cc:1050).
 - `new_for_implied_trunc(typegrp, union_type, offset, op, slot)` (cc:1083).
-- `with_field_names(parent_name, field_names)` — RUGRA-GLUE for tests.
+- `with_field_names(parent_name, field_names)` — RUDRA-GLUE for tests.
 - `get_result() -> &ResolvedUnion`, `num_fields()`, `add_score(index, score)`.
 - `compute_best_index()` — pick highest-scoring field (cc:945).
 - `run_on_func(fd)` — legacy Funcdata-scanning entry.
@@ -82,7 +82,7 @@ Constructors (all run the scoring loop internally):
 - `run_one_level(last_pass)` (cc:931).
 - `run_passes()` — multi-pass loop (cc:963).
 
-## Free helpers (RUGRA-GLUE)
+## Free helpers (RUDRA-GLUE)
 - `num_depend(dt)`, `get_depend(dt, i)`, `depend_at(dt, i)` — Datatype virtual
   dispatch aggregator.
 - `pointee_of`, `pointer_pointee`, `as_union`, `strip_pointer_layer`,
@@ -94,7 +94,7 @@ Constructors (all run the scoring loop internally):
 ## Constants (unionresolve.cc:79-81)
 - `THRESHOLD = 256`, `MAX_PASSES = 6`, `MAX_TRIALS = 1024`.
 
-## RUGRA-GLUE gaps
+## RUDRA-GLUE gaps
 - `scoreParameter` / `scoreReturnType` need Funcdata handle via
   `op->getParent()->getFuncdata()`; typed ctor lacks it, uses unlocked fallback.
 - `TypePointer::downChain` not ported; INT_ADD constant-offset path approximated.
@@ -117,7 +117,7 @@ Constructors (all run the scoring loop internally):
 ## 2026-08-11 ANN-I annotation bootstrap
 
 The six previously unannotated helpers are now explicitly classified as
-RUGRA-GLUE. `VisitMark::{eq,partial_cmp}` satisfy Rust trait requirements around
+RUDRA-GLUE. `VisitMark::{eq,partial_cmp}` satisfy Rust trait requirements around
 the canonical `Ord::cmp` mapping to unionresolve.hh:130; the four pointer/union
 helpers replace repeated C++ casts and raw-pointer borrows with Rust enum
 downcasts or `Arc` ownership. No behavior changed and no status was promoted.

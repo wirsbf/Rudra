@@ -257,7 +257,7 @@ pub struct MemoryLoadImage {
 }
 
 impl MemoryLoadImage {
-    // RUGRA-GLUE: new (no Ghidra counterpart found)
+    // RUDRA-GLUE: new (no Ghidra counterpart found)
     /// Construct from byte data at a base address.
     pub fn new(data: Vec<u8>, base_addr: u64, arch_type: &str) -> Self {
         Self {
@@ -269,12 +269,12 @@ impl MemoryLoadImage {
 }
 
 impl LoadImage for MemoryLoadImage {
-    // RUGRA-GLUE: get_filename (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_filename (no Ghidra counterpart found)
     fn get_filename(&self) -> &str {
         "<memory>"
     }
 
-    // RUGRA-GLUE: load_fill (no Ghidra counterpart found)
+    // RUDRA-GLUE: load_fill (no Ghidra counterpart found)
     fn load_fill(&self, size: usize, addr: Address) -> Result<Vec<u8>, DataUnavailError> {
         let offset = addr.as_u64().saturating_sub(self.base_addr);
         if offset as usize + size > self.data.len() {
@@ -287,12 +287,12 @@ impl LoadImage for MemoryLoadImage {
         Ok(self.data[offset as usize..offset as usize + size].to_vec())
     }
 
-    // RUGRA-GLUE: get_arch_type (no Ghidra counterpart found)
+    // RUDRA-GLUE: get_arch_type (no Ghidra counterpart found)
     fn get_arch_type(&self) -> String {
         self.arch_type.clone()
     }
 
-    // RUGRA-GLUE: adjust_vma (no Ghidra counterpart found)
+    // RUDRA-GLUE: adjust_vma (no Ghidra counterpart found)
     fn adjust_vma(&mut self, adjust: i64) {
         self.base_addr = (self.base_addr as i64 + adjust) as u64;
     }

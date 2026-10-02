@@ -48,7 +48,7 @@ use crate::opcodes::OpCode;
 use crate::space::AddressSpace;
 use crate::varnode::Varnode;
 
-// RUGRA-GLUE: IPTR_FSPEC is not modeled in Rugra (space.rs has no Fspec variant).
+// RUDRA-GLUE: IPTR_FSPEC is not modeled in Rugra (space.rs has no Fspec variant).
 // Ghidra's `graph.cc` skips varnodes whose space type is `IPTR_FSPEC` (function
 // specs) or `IPTR_IOP` (op-reference slots). Rugra models IOP via
 // `AddressSpace::is_iop()` but has no Fspec variant; this helper returns
@@ -167,7 +167,7 @@ fn print_op_vertex(op: &PcodeOp, s: &mut dyn Write) {
     let _ = writeln!(s);
 }
 
-// RUGRA-GLUE: Rust helper to compute the per-op varnode-input slice window
+// RUDRA-GLUE: Rust helper to compute the per-op varnode-input slice window
 // that Ghidra encodes as the `start`/`stop` locals in
 // `dump_varnode_vertex` (graph.cc:89-103), `print_edges` (graph.cc:150-164),
 // and `dump_varnode_vertex`'s clear loop. Returning a `(start, stop)` tuple
@@ -459,7 +459,7 @@ pub fn dump_dataflow_graph(data: &Funcdata, s: &mut dyn Write) {
     dump_edges(data, s);
 }
 
-// RUGRA-GLUE: Approximation of Ghidra `FlowBlock::getStop()`. In Ghidra,
+// RUDRA-GLUE: Approximation of Ghidra `FlowBlock::getStop()`. In Ghidra,
 // `FlowBlock::getStop()` is virtual and only `BlockBasic` provides a real
 // implementation (block.cc); the base method throws a low-level error.
 // Rugra's `FlowBlock` trait does not expose a stop address, so we downcast
@@ -783,7 +783,7 @@ pub fn dump_dom_graph(name: &str, graph: &BlockGraph, s: &mut dyn Write) {
     dump_dom_edges(graph, s, falsenode);
 }
 
-// RUGRA-GLUE: convenience wrappers that write into a fresh `String`. Ghidra
+// RUDRA-GLUE: convenience wrappers that write into a fresh `String`. Ghidra
 // callers pass an `ostream`; Rust callers more often want a `String`, so we
 // provide thin adapters that forward to the `Write`-sink variants. These are
 // not 1:1 with any single Ghidra function (they replace the ostream usage
@@ -796,7 +796,7 @@ pub fn dump_dataflow_graph_string(data: &Funcdata) -> String {
 }
 
 /// Convenience wrapper around [`dump_controlflow_graph`] that returns a `String`.
-// RUGRA-GLUE: Rust String-return adapter for Ghidra's ostream-based
+// RUDRA-GLUE: Rust String-return adapter for Ghidra's ostream-based
 // dump_controlflow_graph; it only allocates a sink and forwards unchanged.
 pub fn dump_controlflow_graph_string(name: &str, graph: &BlockGraph) -> String {
     let mut out = String::new();
@@ -805,7 +805,7 @@ pub fn dump_controlflow_graph_string(name: &str, graph: &BlockGraph) -> String {
 }
 
 /// Convenience wrapper around [`dump_dom_graph`] that returns a `String`.
-// RUGRA-GLUE: Rust String-return adapter for Ghidra's ostream-based
+// RUDRA-GLUE: Rust String-return adapter for Ghidra's ostream-based
 // dump_dom_graph; it only allocates a sink and forwards unchanged.
 pub fn dump_dom_graph_string(name: &str, graph: &BlockGraph) -> String {
     let mut out = String::new();
@@ -817,7 +817,7 @@ pub fn dump_dom_graph_string(name: &str, graph: &BlockGraph) -> String {
 mod tests {
     use super::*;
 
-    // RUGRA-GLUE: smoke test of the Renoir command text. We don't build a
+    // RUDRA-GLUE: smoke test of the Renoir command text. We don't build a
     // full Funcdata/BlockGraph here; instead we sanity-check that the
     // helper functions emit the expected leading tokens and that the
     // attribute/property blocks render verbatim.

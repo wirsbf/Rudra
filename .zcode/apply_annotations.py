@@ -86,7 +86,7 @@ def main() -> int:
         while k >= 0:
             s = lines[k].strip()
             if s.startswith("//"):
-                if "Ghidra:" in s or "RUGRA-GLUE:" in s:
+                if "Ghidra:" in s or "RUDRA-GLUE:" in s:
                     has_ghidra = True
                 block_top = k
                 k -= 1

@@ -23,11 +23,11 @@ Prefixes match Ghidra's `CPUI_` naming convention.
 annotation op — 保持 bit pattern，仅标注 metatype/size 变更。ActionSetCasts
 在 P-code 层插入，print 层渲染 cast 语法。`CPUI_MAX` 相应 73→74。
 
-**待对齐的命名缺口**（Rugra 改名 vs Ghidra 规范名，205 处引用待重命名）：
+**待对齐的命名缺口**（Rudra 改名 vs Ghidra 规范名，205 处引用待重命名）：
 - `CPUI_BOOL_NOT` ← Ghidra `CPUI_BOOL_NEGATE` (opcodes.hh:81)
 - `CPUI_INT_NEG` ← Ghidra `CPUI_INT_2COMP` (opcodes.hh:67)
 - `CPUI_INT_NOT` ← Ghidra `CPUI_INT_NEGATE` (opcodes.hh:68)
-- `CPUI_TRUNC`：Ghidra opcodes.hh 无此 op（Rugra 多出）
+- `CPUI_TRUNC`：Ghidra opcodes.hh 无此 op（Rudra 多出）
 
 ### `pub fn name(&self) -> &'static str`
 
@@ -77,7 +77,7 @@ SSA-internal ops (MULTIEQUAL, INDIRECT).
 比较 op 的互补翻转表（Ghidra opcodes.cc:94-135）：
 - `INT_EQUAL ↔ INT_NOTEQUAL`（reorder=false）
 - `INT_LESS ↔ INT_LESSEQUAL`、`INT_SLESS ↔ INT_SLESSEQUAL`（reorder=true，需换序）
-- `BOOL_NOT → COPY`（reorder=false）。注：Rugra `CPUI_BOOL_NOT` == Ghidra `BOOL_NEGATE`。
+- `BOOL_NOT → COPY`（reorder=false）。注：Rudra `CPUI_BOOL_NOT` == Ghidra `BOOL_NEGATE`。
 - `FLOAT_EQUAL ↔ FLOAT_NOTEQUAL`、`FLOAT_LESS ↔ FLOAT_LESSEQUAL`
 非可翻 op 返回 `CPUI_MAX`。用于 RuleBoolNegate。
 2026-06-27: opcode 改名对齐 Ghidra 规范名 — BOOL_NOT->BOOL_NEGATE / INT_NEG->INT_2COMP / INT_NOT->INT_NEGATE (opcodes.hh:67/68/81)。纯重命名，行为不变。
@@ -109,4 +109,4 @@ printc opFunc 兜底（printc.cc:430 用 TypeOp::getOperatorName——float 六�
 TypeOp 名即表拼写 typeop.cc:1840-1937，本修使其一致；MULTIEQUAL/INDIRECT/
 PTRADD/PTRSUB 有专用 emitter，兜底不可达）。相邻残差（另行登记）：
 typeop.rs 宏的 TypeOp nametext 面（getOperatorName，float 六成员拼写同此分歧，
-Rugra 侧无消费者）不在本票写域。
+Rudra 侧无消费者）不在本票写域。

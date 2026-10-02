@@ -6,7 +6,7 @@
 `merge_highs` (Some,Some) piece 级联的**对内** `merge_internal`（variable.cc:703-709
 成对吸收）原先不再指向被吸收 high 的实例。oracle 的 `HighVariable::mergeInternal`
 （variable.cc:648-654）自身对每个 tv2 实例执行 `vn->setHigh(this, vn->getMergeGroup())`；
-Rugra 的 `merge_internal` 把 `vn.high` 写权留给调用方（RUGRA-GLUE 所有权注记），
+Rugra 的 `merge_internal` 把 `vn.high` 写权留给调用方（RUDRA-GLUE 所有权注记），
 merge_highs 尾部的 moved_instances 循环只覆盖非 SS 臂（SS 臂 early return true）。
 
 **后果链（vmprintf@sqlite 实测）**：级联 detached 的 op2 侧 high 以
@@ -601,7 +601,7 @@ LowlevelError（"Trying speculatively merge variables in separate groups"
 实例再指向（STACKSLOT2, 2026-09-29）**：variable.cc:648-654 的
 mergeInternal 非 speculative 臂对每个 tv2 实例执行
 `vn->setHigh(this, vn->getMergeGroup())`——Rugra 的 `merge_internal`
-把 `vn.high` 写权留给调用方（RUGRA-GLUE 所有权注记），对内循环原先不
+把 `vn.high` 写权留给调用方（RUDRA-GLUE 所有权注记），对内循环原先不
 再指向，吸收后的 Varnode 仍指 piece 已分离的幽灵 high →
 ActionCopyMarker 的 PIECE/SUBPIECE 同组臂永不命中 → join CONCAT88 链以
 裸 unique 临时符号打印（[LIT] 族）。修复 = 对内 `merge_internal` 前快照
@@ -617,7 +617,7 @@ mergecopy unique-input required merge **119/224 → 202/224**（oracle
 CONCAT 输入 slot 91-104）。回归锁 =
 `test_merge_highs_both_pieces_runs_group_cascade`。
 
-### `wire_unique_high`（私有，RUGRA-GLUE）
+### `wire_unique_high`（私有，RUDRA-GLUE）
 
 Ghidra `Funcdata::newUnique` 立即为新 unique Varnode 调 `assignHigh`
 （funcdata_varnode.cc:88-89）；Rugra `new_unique` 不分配 High，故
@@ -814,7 +814,7 @@ main 的 0x30d6 梯：嵌套 4+4+16 重组 `CONCAT164/CONCAT204` 语句（43 处
 
 - `MergePersistentState`（pub struct）：跨 Action 持久通道挂载——
   `test_cache`（merge.hh:86 HighIntersectTest）、`copy_trims`（merge.hh:87）、
-  `live_set`（RUGRA-GLUE 存活前提，对应 Ghidra "vbank 只含存活 varnode"）。
+  `live_set`（RUDRA-GLUE 存活前提，对应 Ghidra "vbank 只含存活 varnode"）。
   `clear()` 对齐 merge.cc:1580-1587；`channel_sizes()` 供 fixture 观测。
 - `Merge::attach(&mut self, fd)` / `detach(&mut self, fd)`：Action 级入口在
   进入时从 `Funcdata::merge_state` 取回通道、退出时写回（coreaction.rs 每个
@@ -958,7 +958,7 @@ main 的 0x30d6 梯：嵌套 4+4+16 重组 `CONCAT164/CONCAT204` 语句（43 处
   variable.cc:702-711**（merge_groups 成对级联 + markIntersectionDirty，
   MERGE-COPYTRIMS-CACHE-0001 S1W2 wave-3；mergecopy unique-input
   119/224→202/224 对 oracle 202/222）。
-- RUGRA-GLUE `wire_unique_high`：补 Ghidra newUnique 的 assignHigh 半边
+- RUDRA-GLUE `wire_unique_high`：补 Ghidra newUnique 的 assignHigh 半边
   （funcdata_varnode.cc:89），修 trim unique 无 High 导致的静默 no-op 与
   mergeOp phase-2 过度剪枝（funcdata.rs latent 缺口另行登记）。
 - fixture `merge_gates_1204`（4 case 14 行）+ runner：14/14 双侧字节一致
@@ -992,7 +992,7 @@ merge.hh:83）删除：Ghidra 的 merge 序列（coreaction.cc:5718-5729）没�
   StackAffectingOps 的 opList/is_pop 镜像；`StackAffectingOps::populate`
   未移植）。`clear()` 现清 testCache/copyTrims/live_set(GLUE)/protoPartial/
   stackAffectingOps+is_pop 全部通道。
-- 新增 RUGRA-GLUE fixture 观测/存入钩子：`channel_sizes_extended()` 与
+- 新增 RUDRA-GLUE fixture 观测/存入钩子：`channel_sizes_extended()` 与
   `fixture_deposit_test_cache()`/`fixture_deposit_channels()`（与既有
   `channel_sizes()` 同一前提：锁定 C++ fixture 经 #define private/class
   struct 直接读成员）。

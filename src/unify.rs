@@ -41,7 +41,7 @@ type VnArc = Arc<RwLock<Varnode>>;
 
 /// `max(a,b)` helper standing in for the C++ ternary used in `maxnum`
 /// computations throughout unify.hh.
-// RUGRA-GLUE: free helper replacing C++ ternary max(a,b) used in maxnum computations
+// RUDRA-GLUE: free helper replacing C++ ternary max(a,b) used in maxnum computations
 fn imax(a: usize, b: usize) -> usize {
     if a > b { a } else { b }
 }
@@ -97,7 +97,7 @@ pub struct UnifyDatatype {
 
 impl Default for UnifyDatatype {
     /// Ghidra's default constructor sets `type = op_type` (unify.hh:39).
-    // RUGRA-GLUE: Rust Default trait impl; Ghidra uses default-constructed UnifyDatatype inline (unify.hh:39)
+    // RUDRA-GLUE: Rust Default trait impl; Ghidra uses default-constructed UnifyDatatype inline (unify.hh:39)
     fn default() -> Self {
         Self { kind: DatatypeKind::OpType, op: None, vn: None, cn: 0, bl: None }
     }
@@ -442,7 +442,7 @@ impl Clone for ConstantExpression {
 }
 
 impl std::fmt::Debug for ConstantExpression {
-    // RUGRA-GLUE: Rust Debug impl for ConstantExpression; Ghidra uses print() instead
+    // RUDRA-GLUE: Rust Debug impl for ConstantExpression; Ghidra uses print() instead
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConstantExpression").field("opc", &self.opc).finish()
     }
@@ -508,7 +508,7 @@ impl RHSConstant for ConstantExpression {
 /// Returns `(operator_string, is_function_form)` for the CPrinter.
 /// Faithful to the switch in `ConstantExpression::writeExpression`
 /// (unify.cc:289-374).
-// RUGRA-GLUE: free helper used by ConstantExpression::writeExpression (unify.cc:284-375) for C-operator lookup
+// RUDRA-GLUE: free helper used by ConstantExpression::writeExpression (unify.cc:284-375) for C-operator lookup
 fn operator_syntax(opc: OpCode) -> (&'static str, bool) {
     match opc {
         OpCode::CPUI_INT_ADD => (" + ", false),
@@ -537,7 +537,7 @@ fn operator_syntax(opc: OpCode) -> (&'static str, bool) {
 /// Ghidra's `Varnode::isHeritageKnown` (varnode.hh):
 /// `(flags & (insert|constant|annotation)) != 0`. Replicated locally because
 /// rugra's `Varnode` does not yet expose this accessor.
-// RUGRA-GLUE: free helper mirroring varnode.hh isHeritageKnown flag check
+// RUDRA-GLUE: free helper mirroring varnode.hh isHeritageKnown flag check
 fn is_heritage_known(vn: &Varnode) -> bool {
     let mask = varnode_flags::INSERT | varnode_flags::CONSTANT | varnode_flags::ANNOTATION;
     (vn.flags & mask) != 0
@@ -712,7 +712,7 @@ pub trait UnifyConstraint: Send + Sync {
 
 /// Helper: copy `uniqid`/`maxnum` from another constraint. Faithful to
 /// `UnifyConstraint::copyid` (unify.hh:206).
-// RUGRA-GLUE: free helper copying (uniqid,maxnum) between constraints (replaces Ghidra UnifyConstraint::copyid)
+// RUDRA-GLUE: free helper copying (uniqid,maxnum) between constraints (replaces Ghidra UnifyConstraint::copyid)
 fn copy_ids(tu: &mut usize, tm: &mut usize, src: &dyn UnifyConstraint) {
     *tu = src.uniqid(); *tm = src.maxnum();
 }
@@ -1639,7 +1639,7 @@ impl UnifyConstraint for ConstraintLoneDescend {
 /// Find the input-slot index holding varnode `vn` on op `op` (pointer
 /// identity). Stands in for Ghidra's `PcodeOp::getSlot(Varnode*)` which
 /// rugra's `PcodeOp` does not yet expose.
-// RUGRA-GLUE: free helper standing in for PcodeOp::getSlot(Varnode*) (op.hh) not yet exposed on rugra PcodeOp
+// RUDRA-GLUE: free helper standing in for PcodeOp::getSlot(Varnode*) (op.hh) not yet exposed on rugra PcodeOp
 fn find_input_slot(op: &PcodeOp, vn: &VnArc) -> Option<usize> {
     for (i, input) in op.inrefs.iter().enumerate() {
         if Arc::ptr_eq(input, vn) { return Some(i); }
@@ -1785,7 +1785,7 @@ impl Clone for ConstraintGroup {
 }
 
 impl std::fmt::Debug for ConstraintGroup {
-    // RUGRA-GLUE: Rust Debug impl for ConstraintGroup; Ghidra uses print() instead
+    // RUDRA-GLUE: Rust Debug impl for ConstraintGroup; Ghidra uses print() instead
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConstraintGroup")
             .field("uniqid", &self.uniqid)
@@ -1796,7 +1796,7 @@ impl std::fmt::Debug for ConstraintGroup {
 }
 
 impl Default for ConstraintGroup {
-    // RUGRA-GLUE: Rust Default delegates to new(); Ghidra has no Default trait,
+    // RUDRA-GLUE: Rust Default delegates to new(); Ghidra has no Default trait,
     // and its constructor at unify.cc:974 sets maxnum=-1 rather than Rust's 0.
     fn default() -> Self {
         Self::new()
@@ -1957,7 +1957,7 @@ impl Clone for ConstraintOr {
 }
 
 impl std::fmt::Debug for ConstraintOr {
-    // RUGRA-GLUE: Rust Debug impl for ConstraintOr; Ghidra uses print() instead
+    // RUDRA-GLUE: Rust Debug impl for ConstraintOr; Ghidra uses print() instead
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConstraintOr")
             .field("uniqid", &self.uniqid)
@@ -2455,7 +2455,7 @@ impl UnifyState {
     pub fn data(&self, slot: usize) -> &UnifyDatatype { &self.storemap[slot] }
 
     /// Mutably borrow a slot value (for setters).
-    // RUGRA-GLUE: Rust mut accessor for storemap slot; complements UnifyState::data(int4) (unify.hh:618) on the mutable path
+    // RUDRA-GLUE: Rust mut accessor for storemap slot; complements UnifyState::data(int4) (unify.hh:618) on the mutable path
     pub fn data_mut(&mut self, slot: usize) -> &mut UnifyDatatype { &mut self.storemap[slot] }
 
     /// Funcdata accessor (for action constraints). Faithful to `getFunction`
@@ -2464,7 +2464,7 @@ impl UnifyState {
     pub fn get_function(&self) -> Option<&Arc<RwLock<Funcdata>>> { self.fd.as_ref() }
 
     /// Clone the Funcdata Arc out of the state.
-    // RUGRA-GLUE: Rust Arc-cloning accessor for the Funcdata field; complements getFunction (unify.hh:620)
+    // RUDRA-GLUE: Rust Arc-cloning accessor for the Funcdata field; complements getFunction (unify.hh:620)
     pub fn get_function_cloned(&self) -> Option<Arc<RwLock<Funcdata>>> { self.fd.clone() }
 
     /// Faithful to `setFunction` (unify.hh:622).
@@ -2505,7 +2505,7 @@ impl UnifyState {
     pub fn descend_initialize(&mut self, id: usize, vn: &Varnode) {
         if let TraverseConstraint::Descend(t) = &mut self.traverselist[id] { t.initialize(vn); }
     }
-    // RUGRA-GLUE: Rust helper to reset TraverseDescendState (no direct Ghidra counterpart; Ghidra re-creates iterator)
+    // RUDRA-GLUE: Rust helper to reset TraverseDescendState (no direct Ghidra counterpart; Ghidra re-creates iterator)
     pub fn descend_initialize_empty(&mut self, id: usize) {
         if let TraverseConstraint::Descend(t) = &mut self.traverselist[id] {
             t.onestep = false; t.descend_list.clear(); t.index = 0;
@@ -2559,7 +2559,7 @@ pub struct UnifyCPrinter {
 }
 
 impl Default for UnifyCPrinter {
-    // RUGRA-GLUE: Rust Default trait impl; Ghidra uses default-constructed UnifyDatatype inline (unify.hh:39)
+    // RUDRA-GLUE: Rust Default trait impl; Ghidra uses default-constructed UnifyDatatype inline (unify.hh:39)
     fn default() -> Self {
         // unify.hh:640
         Self {
@@ -2725,16 +2725,16 @@ pub struct RuleMatcher { group: ConstraintGroup }
 
 impl RuleMatcher {
     /// Build a matcher from a constraint tree. `assign_ids` is applied here.
-    // RUGRA-GLUE: Rust constructor for RuleMatcher; Ghidra uses inline constructor
+    // RUDRA-GLUE: Rust constructor for RuleMatcher; Ghidra uses inline constructor
     pub fn new(mut group: ConstraintGroup) -> Self { group.assign_ids(); Self { group } }
 
     /// Borrow the underlying group.
-    // RUGRA-GLUE: Rust convenience method on RuleMatcher; Ghidra has no RuleMatcher class (drives inline)
+    // RUDRA-GLUE: Rust convenience method on RuleMatcher; Ghidra has no RuleMatcher class (drives inline)
     pub fn group(&self) -> &ConstraintGroup { &self.group }
 
     /// Run the matcher with `op` bound to slot `root_slot`. Returns whether at
     /// least one match exists.
-    // RUGRA-GLUE: Rust convenience method on RuleMatcher; Ghidra has no RuleMatcher class (drives inline)
+    // RUDRA-GLUE: Rust convenience method on RuleMatcher; Ghidra has no RuleMatcher class (drives inline)
     pub fn matches(&self, root_slot: usize, op: OpArc) -> bool {
         let mut state = UnifyState::new(&self.group);
         state.initialize_op(root_slot, op);
@@ -2744,7 +2744,7 @@ impl RuleMatcher {
     /// Enumerate up to `limit` distinct matches, calling `f` for each. The
     /// callback receives the state immediately after a match (so bound slots
     /// are readable). Stops early if `f` returns false.
-    // RUGRA-GLUE: Rust convenience method on RuleMatcher; Ghidra has no RuleMatcher class (drives inline)
+    // RUDRA-GLUE: Rust convenience method on RuleMatcher; Ghidra has no RuleMatcher class (drives inline)
     pub fn enumerate<F: FnMut(&UnifyState) -> bool>(
         &self, root_slot: usize, op: OpArc, limit: usize, mut f: F,
     ) -> usize {

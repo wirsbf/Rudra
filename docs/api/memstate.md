@@ -27,7 +27,7 @@ Ghidra 把 `MemoryBank` 建模为带两个纯虚方法（`insert`/`find`）与�
 - `get_value(offset, size)` — `getValue`（memstate.cc:252），按字重建并 `calc_mask(size)` 截断
 - `set_chunk(offset, val)` / `get_chunk(offset, size)` — `setChunk`/`getChunk`（memstate.cc:302/335），按页切片
 - `construct_value(ptr, bigendian)` / `deconstruct_value(val, size, bigendian, out)` — 静态编解码（memstate.cc:27/53）
-- `clear()` — RUGRA-GLUE 辅助
+- `clear()` — RUDRA-GLUE 辅助
 
 ### `pub struct MemoryImage`（对应 Ghidra `MemoryImage`, memstate.hh:95）
 只读 LoadImage 后端银行。
@@ -45,8 +45,8 @@ Ghidra 把 `MemoryBank` 建模为带两个纯虚方法（`insert`/`find`）与�
 - `find(addr)` — 缺页时转发 underlie 或返回 0（memstate.cc:450）
 - `get_page(addr, skip, size)` — 缺页转发 underlie 或填 0（memstate.cc:476）
 - `set_page(addr, val, skip, size)` — 部分写时先从 underlie 填页（memstate.cc:502）
-- `read/write/get_value/set_value` — RUGRA-GLUE：经由忠实 `get_page`/`set_page`/`find`/`insert` 的便利包装
-- `is_page_overlayed` / `num_pages` — RUGRA-GLUE 辅助
+- `read/write/get_value/set_value` — RUDRA-GLUE：经由忠实 `get_page`/`set_page`/`find`/`insert` 的便利包装
+- `is_page_overlayed` / `num_pages` — RUDRA-GLUE 辅助
 
 ### `pub struct MemoryHashOverlay`（对应 Ghidra `MemoryHashOverlay`, memstate.hh:130）
 哈希表覆盖银行。`0xBADBEEF` 哨兵、`collideskip=1023`、`alignshift=log2(ws)` 全部 1:1 复刻。
@@ -56,18 +56,18 @@ Ghidra 把 `MemoryBank` 建模为带两个纯虚方法（`insert`/`find`）与�
 - `get_value` / `set_value` — 继承的 `getValue`/`setValue` 委托
 
 ### `pub fn construct_memory_bank(space, wordsize, pagesize)`
-RUGRA-GLUE 工厂：为某空间构造默认 `MemoryBank`。Ghidra 在 `Architecture` 初始化时按需构造 MemoryImage / Overlay；rugra 暴露单一入口。
+RUDRA-GLUE 工厂：为某空间构造默认 `MemoryBank`。Ghidra 在 `Architecture` 初始化时按需构造 MemoryImage / Overlay；rugra 暴露单一入口。
 
 ### `pub struct MemState`（对应 Ghidra `MemoryState`, memstate.hh:150）
 跨地址空间的内存管理。
-- `new()` — RUGRA-GLUE（Ghidra 构造器接收 `Translate*`；rugra 暂未接入）
+- `new()` — RUDRA-GLUE（Ghidra 构造器接收 `Translate*`；rugra 暂未接入）
 - `set_memory_bank(bank)` — `setMemoryBank`（memstate.cc:620），按 `space.name()` 索引
 - `get_memory_bank(space_name)` — `getMemoryBank`（memstate.cc:636）
 - `set_value(space, off, size, val)` — `setValue(AddrSpace*,...)`（memstate.cc:652）
 - `get_value(space, off, size)` — `getValue(AddrSpace*,...)`（memstate.cc:668），含 IPTR_CONSTANT 快路径
 - `get_chunk` / `set_chunk` — `getChunk`/`setChunk`（memstate.cc:712/729）
-- `set_register_value(name, val)` / `get_register_value(name)` — RUGRA-GLUE：对应命名寄存器重载（memstate.cc:684/697），缺少 `Translate` 时按 FNV-1a 哈希名到偏移
-- `set_bank` / `get_bank` / `get_bank_mut` — RUGRA-GLUE 兼容别名（供 `emulate.rs` 使用）
+- `set_register_value(name, val)` / `get_register_value(name)` — RUDRA-GLUE：对应命名寄存器重载（memstate.cc:684/697），缺少 `Translate` 时按 FNV-1a 哈希名到偏移
+- `set_bank` / `get_bank` / `get_bank_mut` — RUDRA-GLUE 兼容别名（供 `emulate.rs` 使用）
 
 ## 端序与字大小
 
@@ -120,6 +120,6 @@ oracle-as-written 分歧）须先记 ALIGNMENT_ROADMAP 再动。当前双侧主�
   `memstate.cc` / `memstate.hh` were reread in full.
 - `cargo check --lib`：**0 错误**（在 `src/memstate.rs` 上；其他模块的预存编译错误与本任务无关）
 - `cargo test --lib memstate`：**20 passed; 0 failed**
-- 每个移植方法上方有 `// Ghidra: memstate.cc:<行号> <函数名>` 注释；Rust 胶水标 `// RUGRA-GLUE: <理由>`
+- 每个移植方法上方有 `// Ghidra: memstate.cc:<行号> <函数名>` 注释；Rust 胶水标 `// RUDRA-GLUE: <理由>`
 - 行号锚点对照 Ghidra `memstate.cc`：constructValue=27、deconstructValue=53、构造器=75、getPage=93、setPage=136、setValue=182、getValue=252、setChunk=302、getChunk=335、MemoryImage::find=365、getPage=386、构造器=407、PageOverlay::insert=419/find=450/getPage=476/setPage=502/构造器=533、HashOverlay::insert=551/find=575/构造器=602、MemoryState::setMemoryBank=620/getMemoryBank=636/setValue=652/getValue=668/setValue(named)=684/getValue(named)=697/getChunk=712/setChunk=729
 <!-- annotation-pass: 2026-07-22 -->

@@ -13,12 +13,12 @@
 // examples/common/stale_guard_hash.rs (single source of truth — the
 // build-time and run-time algorithms cannot drift apart).
 
-// RUGRA-GLUE: build infrastructure — the locked Ghidra oracle has no
+// RUDRA-GLUE: build infrastructure — the locked Ghidra oracle has no
 // counterpart for build-script plumbing; the guarded decompiler pipeline is
 // untouched (guard is silent on success, driver-side only).
 include!("examples/common/stale_guard_hash.rs");
 
-// RUGRA-GLUE: emit the domain digest + rerun triggers. When any watched
+// RUDRA-GLUE: emit the domain digest + rerun triggers. When any watched
 // input changes the digest changes, which re-compiles the package units
 // that consume the env var (the examples); when nothing changes the output
 // is byte-identical and cargo skips everything, so steady-state builds see

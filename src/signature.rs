@@ -70,28 +70,28 @@ pub static ELEM_VARSIG: LazyElem = LazyElem::new("varsig", 269);
 /// A const-fn holder for an AttributeId. Rust statics cannot run the
 /// AttributeId::new constructor (which allocates a String), so we store the
 /// (name, id) pair and materialize an AttributeId on demand.
-// RUGRA-GLUE: stand-in for Ghidra's static-initialized AttributeId objects.
+// RUDRA-GLUE: stand-in for Ghidra's static-initialized AttributeId objects.
 pub struct LazyAttrib {
     name: &'static str,
     id: u32,
 }
 impl LazyAttrib {
-    // RUGRA-GLUE: Const holder constructor because Ghidra's static AttributeId objects call an allocating constructor directly.
+    // RUDRA-GLUE: Const holder constructor because Ghidra's static AttributeId objects call an allocating constructor directly.
     pub const fn new(name: &'static str, id: u32) -> Self { Self { name, id } }
-    // RUGRA-GLUE: Materializes an AttributeId on demand because Rust statics cannot run its allocating constructor.
+    // RUDRA-GLUE: Materializes an AttributeId on demand because Rust statics cannot run its allocating constructor.
     pub fn get(&self) -> AttributeId { AttributeId::new(self.name, self.id) }
 }
 
 /// A const-fn holder for an ElementId. See `LazyAttrib`.
-// RUGRA-GLUE: stand-in for Ghidra's static-initialized ElementId objects.
+// RUDRA-GLUE: stand-in for Ghidra's static-initialized ElementId objects.
 pub struct LazyElem {
     name: &'static str,
     id: u32,
 }
 impl LazyElem {
-    // RUGRA-GLUE: Const holder constructor because Ghidra's static ElementId objects call an allocating constructor directly.
+    // RUDRA-GLUE: Const holder constructor because Ghidra's static ElementId objects call an allocating constructor directly.
     pub const fn new(name: &'static str, id: u32) -> Self { Self { name, id } }
-    // RUGRA-GLUE: Materializes an ElementId on demand because Rust statics cannot run its allocating constructor.
+    // RUDRA-GLUE: Materializes an ElementId on demand because Rust statics cannot run its allocating constructor.
     pub fn get(&self) -> ElementId { ElementId::new(self.name, self.id) }
 }
 
@@ -206,7 +206,7 @@ impl Signature {
 // Ghidra: signature.hh:183 VarnodeSignature
 pub struct VarnodeSignature {
     /// The base feature data.
-    // RUGRA-GLUE: Rust composes rather than inheriting from Signature.
+    // RUDRA-GLUE: Rust composes rather than inheriting from Signature.
     pub base: Signature,
     /// The root Varnode.
     // Ghidra: signature.hh:184 vn
@@ -235,7 +235,7 @@ impl VarnodeSignature {
         // Rugra Varnode/PcodeOp do not yet implement encode() (L3 gap), so we
         // emit a textual origin via ATTRIB_INDEX carrying the create index as a
         // stable identifier, preserving the feature-comparison semantics.
-        // RUGRA-GLUE: origin encoding (Ghidra vn->encode / op->encode are L3 gaps).
+        // RUDRA-GLUE: origin encoding (Ghidra vn->encode / op->encode are L3 gaps).
         let ci = self.vn.read().unwrap().get_create_index();
         encoder.write_unsigned_integer(&ATTRIB_INDEX.get(), ci as u64);
         encoder.close_element(&ELEM_VARSIG.get());
@@ -260,7 +260,7 @@ pub struct BlockSignature {
     /// The root basic block. Faithful to `bl` (signature.hh:198).
     pub block_index: i32,
     /// The block start address.
-    // RUGRA-GLUE: address carried for encoding (Ghidra bl->getStart().encode).
+    // RUDRA-GLUE: address carried for encoding (Ghidra bl->getStart().encode).
     pub start_addr: Address,
     /// (Form 2) The first operation in sequence, or None for form 1.
     /// Faithful to `op1` (signature.hh:199).
@@ -294,15 +294,15 @@ impl BlockSignature {
     pub fn encode(&self, encoder: &mut dyn Encoder) {
         encoder.open_element(&ELEM_BLOCKSIG.get());
         encoder.write_unsigned_integer(&ATTRIB_HASH.get(), self.get_hash() as u64);
-        // Ghidra: bl->getIndex() (signed). RUGRA-GLUE: block index carried on the
+        // Ghidra: bl->getIndex() (signed). RUDRA-GLUE: block index carried on the
         // feature because Rust features do not hold a back-pointer to BlockBasic.
         encoder.write_signed_integer(&ATTRIB_INDEX.get(), self.block_index as i64);
         // Ghidra emits bl->getStart().encode(encoder). Rugra Address has no
-        // encode(); emit the offset instead. RUGRA-GLUE: address encoding.
+        // encode(); emit the offset instead. RUDRA-GLUE: address encoding.
         encoder.write_unsigned_integer(&ATTRIB_OFFSET.get(), self.start_addr.as_u64());
         // Ghidra: if (op2 != 0) op2->encode(encoder); if (op1 != 0) op1->encode(encoder);
         // Rugra PcodeOp lacks encode(); emit opcodes as a stable stand-in.
-        // RUGRA-GLUE: op encode is an L3 gap; emit opcode as identifier.
+        // RUDRA-GLUE: op encode is an L3 gap; emit opcode as identifier.
         if let Some(op2) = &self.op2 {
             let code = op2.0.read().unwrap().get_opcode() as u64;
             encoder.write_unsigned_integer(&ATTRIB_VAL.get(), code);
@@ -359,7 +359,7 @@ impl CopySignature {
 /// An enum holding any emitted feature type. Rust replaces Ghidra virtual
 /// `Signature *` polymorphism with an enum so the manager can own all features
 /// in a single vector.
-// RUGRA-GLUE: Rust enum replaces Ghidra Signature virtual hierarchy.
+// RUDRA-GLUE: Rust enum replaces Ghidra Signature virtual hierarchy.
 pub enum SignatureFeature {
     Plain(Signature),
     Varnode(VarnodeSignature),
@@ -416,14 +416,14 @@ pub mod entry_flags {
 /// `SignatureEntry *` pointers with arena indices because Rust forbids the
 /// shared mutable aliasing that Ghidra relies on (entries reference each other
 /// via `shadow`).
-// RUGRA-GLUE: arena index replaces Ghidra SignatureEntry* aliasing.
+// RUDRA-GLUE: arena index replaces Ghidra SignatureEntry* aliasing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct VnIdx(pub usize);
 
 impl VnIdx {
-    // RUGRA-GLUE: Constructs the typed Rust arena index that replaces a raw Ghidra SignatureEntry pointer.
+    // RUDRA-GLUE: Constructs the typed Rust arena index that replaces a raw Ghidra SignatureEntry pointer.
     pub fn from_raw(i: usize) -> Self { VnIdx(i) }
-    // RUGRA-GLUE: Exposes the vector slot behind the typed arena index; Ghidra dereferences SignatureEntry pointers directly.
+    // RUDRA-GLUE: Exposes the vector slot behind the typed arena index; Ghidra dereferences SignatureEntry pointers directly.
     pub fn raw(self) -> usize { self.0 }
 }
 
@@ -456,7 +456,7 @@ pub struct SignatureEntry {
     pub shadow: Option<VnIdx>,
     /// The Varnode create-index this entry was built for. Used by the
     /// map_to_entry lookup.
-    // RUGRA-GLUE: stored so the SignatureGraph can build a create_index -> VnIdx map.
+    // RUDRA-GLUE: stored so the SignatureGraph can build a create_index -> VnIdx map.
     pub create_index: i32,
 }
 
@@ -464,7 +464,7 @@ pub struct SignatureEntry {
 /// `map<int4,SignatureEntry *> sigmap`. Rust owns the entries by value and
 /// exposes index-based access so that entries can reference each other (via
 /// `shadow`) without violating the aliasing rules.
-// RUGRA-GLUE: arena owns SignatureEntry values (Ghidra uses map<int4,SignatureEntry*>).
+// RUDRA-GLUE: arena owns SignatureEntry values (Ghidra uses map<int4,SignatureEntry*>).
 pub struct SignatureGraph {
     /// All entries, in insertion order. Real Varnode-rooted entries come
     /// first; virtual nodes (the noise-graph root) are pushed afterwards.
@@ -476,21 +476,21 @@ pub struct SignatureGraph {
 
 impl SignatureGraph {
     /// Construct an empty graph.
-    // RUGRA-GLUE: default (Ghidra sigmap starts empty).
+    // RUDRA-GLUE: default (Ghidra sigmap starts empty).
     pub fn new() -> Self {
         Self { entries: Vec::new(), create_to_slot: HashMap::new() }
     }
 
     /// Number of entries.
-    // RUGRA-GLUE: Reports the Rust arena length; Ghidra queries the sigmap container directly.
+    // RUDRA-GLUE: Reports the Rust arena length; Ghidra queries the sigmap container directly.
     pub fn len(&self) -> usize { self.entries.len() }
 
     /// Iterate over entries immutably.
-    // RUGRA-GLUE: Exposes slice iteration over the Rust-owned arena in place of direct Ghidra sigmap traversal.
+    // RUDRA-GLUE: Exposes slice iteration over the Rust-owned arena in place of direct Ghidra sigmap traversal.
     pub fn iter(&self) -> std::slice::Iter<'_, SignatureEntry> { self.entries.iter() }
 
     /// Iterate over entries mutably.
-    // RUGRA-GLUE: Exposes mutable slice iteration required by Rust ownership; Ghidra mutates pointer-valued sigmap entries directly.
+    // RUDRA-GLUE: Exposes mutable slice iteration required by Rust ownership; Ghidra mutates pointer-valued sigmap entries directly.
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, SignatureEntry> {
         self.entries.iter_mut()
     }
@@ -516,17 +516,17 @@ impl SignatureGraph {
     }
 
     /// Immutable access to an entry by index.
-    // RUGRA-GLUE: Resolves a Rust arena index to a shared reference; Ghidra uses a SignatureEntry pointer directly.
+    // RUDRA-GLUE: Resolves a Rust arena index to a shared reference; Ghidra uses a SignatureEntry pointer directly.
     pub fn entry(&self, idx: VnIdx) -> &SignatureEntry { &self.entries[idx.0] }
 
     /// Mutable access to an entry by index.
-    // RUGRA-GLUE: Resolves a Rust arena index to an exclusive reference; Ghidra mutates through a SignatureEntry pointer.
+    // RUDRA-GLUE: Resolves a Rust arena index to an exclusive reference; Ghidra mutates through a SignatureEntry pointer.
     pub fn entry_mut(&mut self, idx: VnIdx) -> &mut SignatureEntry { &mut self.entries[idx.0] }
 
     /// Add a root entry for a Varnode, registering it in the lookup map.
     /// Mirrors the body of `GraphSigManager::setCurrentFunction`
     /// (signature.cc:972-973).
-    // RUGRA-GLUE: drives signature.cc:972 GraphSigManager::setCurrentFunction (insert).
+    // RUDRA-GLUE: drives signature.cc:972 GraphSigManager::setCurrentFunction (insert).
     pub fn push_root(&mut self, entry: SignatureEntry) {
         let ci = entry.create_index;
         let slot = self.entries.len();
@@ -536,7 +536,7 @@ impl SignatureGraph {
 
     /// Add a virtual entry (no backing Varnode). Mirrors
     /// `SignatureEntry(int4 ind)` usage in `removeNoise` (signature.cc:484).
-    // RUGRA-GLUE: drives signature.cc:484 removeNoise virtual root.
+    // RUDRA-GLUE: drives signature.cc:484 removeNoise virtual root.
     pub fn push_virtual(&mut self, entry: SignatureEntry) -> VnIdx {
         let slot = self.entries.len();
         self.entries.push(entry);
@@ -545,7 +545,7 @@ impl SignatureGraph {
 }
 
 impl Default for SignatureGraph {
-    // RUGRA-GLUE: Rust Default delegates to SignatureGraph::new; C++ has no Default-trait entry point.
+    // RUDRA-GLUE: Rust Default delegates to SignatureGraph::new; C++ has no Default-trait entry point.
     fn default() -> Self { Self::new() }
 }
 
@@ -984,7 +984,7 @@ impl SignatureGraph {
     /// Run `calculateShadow` on every entry. This helper exists so the per-entry
     /// lookup of `create_to_slot` (immut) can coexist with the `entries` mut
     /// borrow within one method body, satisfying Rust's disjoint-field borrow.
-    // RUGRA-GLUE: drives signature.cc:983-984 GraphSigManager::setCurrentFunction.
+    // RUDRA-GLUE: drives signature.cc:983-984 GraphSigManager::setCurrentFunction.
     pub fn calculate_shadows_all(&mut self) {
         let create_to_slot = &self.create_to_slot;
         for i in 0..self.entries.len() {
@@ -1005,7 +1005,7 @@ impl SignatureGraph {
     /// `SignatureGraph` so the disjoint borrow of entries (mut target /
     /// immut neighbours) is visible within one method body, which the borrow
     /// checker requires.
-    // RUGRA-GLUE: drives signature.cc:1025-1036 GraphSigManager::signatureIterate.
+    // RUDRA-GLUE: drives signature.cc:1025-1036 GraphSigManager::signatureIterate.
     pub fn apply_hash_in_round(&mut self, work: &[(VnIdx, Vec<VnIdx>)]) {
         // Two-phase: read all neighbour hashes immutably, then write targets.
         // This avoids holding a &mut to an entry while reading its neighbours.
@@ -1040,7 +1040,7 @@ impl SignatureEntry {
     /// Varnode to its arena index. This decouples the `&mut self` write from the
     /// `&graph` read, which is needed because Rust cannot split `self` from the
     /// containing `SignatureGraph` across a method call boundary.
-    // RUGRA-GLUE: closure-based shadow lookup (Ghidra uses a const map ref).
+    // RUDRA-GLUE: closure-based shadow lookup (Ghidra uses a const map ref).
     pub fn calculate_shadow_via<F>(&mut self, map_fn: F)
     where
         F: Fn(&Arc<RwLock<Varnode>>) -> VnIdx,
@@ -1330,11 +1330,11 @@ impl SignatureEntry {
 pub struct BlockSignatureEntry {
     /// The root basic block. Faithful to `bl` (signature.hh:168). Stored as a
     /// block index because Rust trait objects cannot be cheaply copied.
-    // RUGRA-GLUE: block index replaces Ghidra BlockBasic*.
+    // RUDRA-GLUE: block index replaces Ghidra BlockBasic*.
     pub block_index: i32,
     /// Number of incoming edges (cached at construction for hashIn's
     /// reverse-index lookups).
-    // RUGRA-GLUE: cached from bl->sizeIn() so hashIn does not need the block.
+    // RUDRA-GLUE: cached from bl->sizeIn() so hashIn does not need the block.
     pub size_in: i32,
     /// Current and previous hash. Faithful to `hashword hash[2]`
     /// (signature.hh:169).
@@ -1371,7 +1371,7 @@ impl BlockSignatureEntry {
     pub fn get_hash(&self) -> u64 { self.hash[0] }
 
     /// Get the underlying basic block index.
-    // RUGRA-GLUE: accessor (Ghidra returns BlockBasic*).
+    // RUDRA-GLUE: accessor (Ghidra returns BlockBasic*).
     pub fn get_block(&self) -> i32 { self.block_index }
 }
 
@@ -1382,7 +1382,7 @@ impl BlockSignatureEntry {
 /// Signature settings, shared across all managers. Faithful to the static
 /// `uint4 SigManager::settings` (signature.hh:234). Rust uses a Mutex-protected
 /// static because mutable statics are unsafe.
-// RUGRA-GLUE: Mutex<Option<u32>> replaces Ghidra mutable static (user must set).
+// RUDRA-GLUE: Mutex<Option<u32>> replaces Ghidra mutable static (user must set).
 static SIG_SETTINGS: std::sync::Mutex<Option<u32>> = std::sync::Mutex::new(None);
 
 /// Holds the settings static accessors. Faithful to `SigManager::settings`
@@ -1529,7 +1529,7 @@ impl SigManager {
 }
 
 impl Default for SigManager {
-    // RUGRA-GLUE: Rust Default delegates to SigManager::new; C++ has no Default-trait entry point.
+    // RUDRA-GLUE: Rust Default delegates to SigManager::new; C++ has no Default-trait entry point.
     fn default() -> Self { Self::new() }
 }
 
@@ -1542,7 +1542,7 @@ impl Default for SigManager {
 // Ghidra: signature.hh:265 GraphSigManager
 pub struct GraphSigManager {
     /// The base manager state.
-    // RUGRA-GLUE: Rust composes rather than inherits from SigManager.
+    // RUDRA-GLUE: Rust composes rather than inherits from SigManager.
     pub base: SigManager,
     /// Current settings to use for signature generation. Faithful to `sigmods`
     /// (signature.hh:277).
@@ -2040,7 +2040,7 @@ impl GraphSigManager {
 }
 
 impl Default for GraphSigManager {
-    // RUGRA-GLUE: Rust Default delegates to GraphSigManager::new; C++ has no Default-trait entry point.
+    // RUDRA-GLUE: Rust Default delegates to GraphSigManager::new; C++ has no Default-trait entry point.
     fn default() -> Self { Self::new() }
 }
 
@@ -2109,7 +2109,7 @@ pub fn simple_signature(fd: &Arc<RwLock<Funcdata>>, encoder: &mut dyn Encoder) {
                 encoder.open_element(&ELEM_CALL.get());
                 // signature.cc:1125: writeSpace(ATTRIB_SPACE, addr.getSpace()).
                 // Rugra has a single address space, so we emit only the offset.
-                // RUGRA-GLUE: single-space model omits writeSpace.
+                // RUDRA-GLUE: single-space model omits writeSpace.
                 encoder.write_unsigned_integer(&ATTRIB_OFFSET.get(), addr.as_u64());
                 encoder.close_element(&ELEM_CALL.get());
             }

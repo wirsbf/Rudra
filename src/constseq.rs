@@ -458,7 +458,7 @@ impl StringSequence {
         // cc:200-211: walk down from the Symbol's type to the character
         // type, tracking the last array layer and its offset.
         let Some(parent) = sym_type else {
-            // RUGRA-GLUE: Rugra's ScopeLocal symbols may carry no type;
+            // RUDRA-GLUE: Rugra's ScopeLocal symbols may carry no type;
             // Ghidra's Symbol always has one (TYPE_UNDEF at minimum), so the
             // walk below would simply fail to reach ct.
             return seq;

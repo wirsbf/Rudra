@@ -7,7 +7,7 @@ use crate::varnode::Varnode;
 use crate::AddressSpace;
 use crate::ffi::VarnodeFFI;
 
-// RUGRA-GLUE: verify_varnode (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_varnode (no Ghidra counterpart found)
 /// Verify that a Rugra Varnode aligns with Ghidra's FFI representation.
 ///
 /// This checks space, offset, and size parity.
@@ -47,7 +47,7 @@ pub fn verify_varnode(rugra_vn: &Varnode, ghidra_vn: &VarnodeFFI) -> bool {
     space_match && offset_match && size_match
 }
 
-// RUGRA-GLUE: verify_varnode_list (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_varnode_list (no Ghidra counterpart found)
 /// Verify a list of Varnodes (typically P-code operation inputs)
 pub fn verify_varnode_list(rugra_list: &[Varnode], ghidra_list: &[VarnodeFFI]) -> bool {
     if rugra_list.len() != ghidra_list.len() {

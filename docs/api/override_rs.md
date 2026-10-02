@@ -92,3 +92,4 @@ standalone curl driver 只生成地址驱动的唯一 ELF owner/direct-known-ent
 不扩展 `Override` 本身的语义。`flow_sharedreturn_process_1204` metadata/runner 将完整
 Program producer 分支记为 `UNTESTED`，并因 callspec 指针身份残差保持 overall
 `MISMATCH`；本文早期的模块级 L3 表述不能覆盖这些新接入的生产行为。
+<!-- rename-pass: 2026-10-02 rugra→rudra identity sweep; this module doc carried no prior-name tokens -->

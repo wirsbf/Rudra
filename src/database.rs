@@ -24,7 +24,7 @@ use std::sync::{Arc, RwLock, Weak};
 /// internal and discarded on decode.
 pub const ID_BASE: u64 = 0x4000_0000_0000_0000;
 
-// RUGRA-GLUE: format helper reproducing `RangeList::printBounds`
+// RUDRA-GLUE: format helper reproducing `RangeList::printBounds`
 // (address.cc:588-600) from the public plain-RangeList API for
 // `SymbolEntry::print_entry` / `Scope::print_bounds`: `all` when empty,
 // else one `<space>: <first>-<last>` line per range (the space prefix
@@ -131,7 +131,7 @@ impl ScopeRangeTree {
         ScopeRangeTree { tree: Vec::new() }
     }
 
-    // RUGRA-GLUE: upper_bound_pos (std::set::upper_bound realized as a
+    // RUDRA-GLUE: upper_bound_pos (std::set::upper_bound realized as a
     // binary search over the sorted Vec by the (index, first) key).
     /// Index of the first range strictly greater than
     /// `Range(spc, off, off)`.
@@ -155,7 +155,7 @@ impl ScopeRangeTree {
         lo
     }
 
-    // RUGRA-GLUE: insert_sorted (std::set::insert keeps the existing node
+    // RUDRA-GLUE: insert_sorted (std::set::insert keeps the existing node
     /// for an equivalent key; the Vec insert mirrors that no-op).
     // CR-CSPECGLOBAL finding ② (2026-09-26, applied at MERGEBATCH17): the
     // dedup below compares the FULL ScopeRange, but std::set dedups on the
@@ -306,7 +306,7 @@ impl ScopeRangeTree {
     }
 }
 
-// RUGRA-GLUE: spec-space-name → IR-space-enum resolver (the inverse of
+// RUDRA-GLUE: spec-space-name → IR-space-enum resolver (the inverse of
 // `AddressSpace::spec_space_name`), standing in for
 // `Decoder::readSpace`'s `getSpaceByName` (marshal.cc) at the rangelist
 // decode site: the Database decode flow carries no `SpaceRegistry`, so
@@ -323,7 +323,7 @@ fn space_by_spec_name(name: &str) -> Option<crate::space::AddressSpace> {
     None
 }
 
-// RUGRA-GLUE: C++ `istringstream(s) >> uint8` (database.cc:1328-1331, with
+// RUDRA-GLUE: C++ `istringstream(s) >> uint8` (database.cc:1328-1331, with
 // dec/hex/oct unset) for `Scope::resolveScope`'s decimal-id branch: skip
 // leading whitespace, consume leading decimal digits, saturate at
 // u64::MAX on overflow, and yield 0 when no digits were consumed.
@@ -347,7 +347,7 @@ fn parse_istream_u64(s: &str) -> u64 {
     value
 }
 
-// RUGRA-GLUE: byte-wise `std::string::find(delim, mark)` for the
+// RUDRA-GLUE: byte-wise `std::string::find(delim, mark)` for the
 // delimiter walks of `Database::resolveScopeFromSymbolName` /
 // `findCreateScopeFromSymbolName` — the first occurrence of `delim` in
 // `haystack` at or after `from`.
@@ -443,7 +443,7 @@ pub struct EntrySubsort {
 }
 
 impl EntrySubsort {
-    // RUGRA-GLUE: component-wise constructor — Ghidra builds the subsort
+    // RUDRA-GLUE: component-wise constructor — Ghidra builds the subsort
     // from an `Address` (database.hh:112-113 `addr.getSpace()->getIndex()`
     // + `addr.getOffset()`); the legacy database model splits the address
     // into (space index, offset) parts at the caller.
@@ -498,12 +498,12 @@ impl EntrySubsort {
 pub struct CategoryList(Vec<Option<Weak<RwLock<Symbol>>>>);
 
 impl CategoryList {
-    // RUGRA-GLUE: Rust wrapper preserving vector<Symbol *> null-slot/index semantics.
+    // RUDRA-GLUE: Rust wrapper preserving vector<Symbol *> null-slot/index semantics.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    // RUGRA-GLUE: Rust Option models a nullable Symbol * category slot.
+    // RUDRA-GLUE: Rust Option models a nullable Symbol * category slot.
     pub fn get(&self, index: usize) -> Option<Arc<RwLock<Symbol>>> {
         self.0
             .get(index)
@@ -511,26 +511,26 @@ impl CategoryList {
             .and_then(Weak::upgrade)
     }
 
-    // RUGRA-GLUE: Upgrade non-owning category slots while the name tree owns each Symbol.
+    // RUDRA-GLUE: Upgrade non-owning category slots while the name tree owns each Symbol.
     fn iter(&self) -> impl Iterator<Item = Arc<RwLock<Symbol>>> + '_ {
         self.0
             .iter()
             .filter_map(|slot| slot.as_ref().and_then(Weak::upgrade))
     }
 
-    // RUGRA-GLUE: Mutable access to the exact nullable slot named by Symbol::catindex.
+    // RUDRA-GLUE: Mutable access to the exact nullable slot named by Symbol::catindex.
     fn get_mut(&mut self, index: usize) -> Option<&mut Option<Weak<RwLock<Symbol>>>> {
         self.0.get_mut(index)
     }
 
-    // RUGRA-GLUE: Extend vector<Symbol *> with NULL slots through an inclusive index.
+    // RUDRA-GLUE: Extend vector<Symbol *> with NULL slots through an inclusive index.
     fn resize_for_index(&mut self, index: usize) {
         if self.0.len() <= index {
             self.0.resize_with(index + 1, || None);
         }
     }
 
-    // RUGRA-GLUE: Remove only trailing NULL slots, preserving interior category holes.
+    // RUDRA-GLUE: Remove only trailing NULL slots, preserving interior category holes.
     fn trim_trailing_nulls(&mut self) {
         while self.0.last().is_some_and(Option::is_none) {
             self.0.pop();
@@ -761,7 +761,7 @@ impl SymbolEntry {
         out
     }
 
-    // RUGRA-GLUE: stable identity predicate standing in for the C++
+    // RUDRA-GLUE: stable identity predicate standing in for the C++
     // `SymbolEntry*` pointer comparison (varnode.cc:415 `mapentry != entry`
     // inside Varnode::setSymbolProperties). Rugra's Database hands out
     /// cloned entries wrapped in fresh Arcs
@@ -1810,7 +1810,7 @@ impl LabSymbol {
     /// table, ghidra_arch.cc:349) follows the caller's factory exactly as
     /// the C++ follows `scope->getArch()->types`. The value model has no
     /// architecture handle, so the factory enters as a parameter
-    /// (RUGRA-GLUE signature adaptation). The value model keeps the
+    /// (RUDRA-GLUE signature adaptation). The value model keeps the
     /// `"label"` type-name tag (the subclass discriminator used by
     /// `Scope::find_code_label`) alongside the resolved placeholder dtype.
     pub fn build_type(&mut self, types: &crate::type_system::typefactory::TypeFactory) {
@@ -1829,7 +1829,7 @@ impl LabSymbol {
     /// Construct given the name and address. Faithful to the constructor
     /// (database.cc:736-742): `buildType()` then the name/display-name
     /// assignment, in that order. The factory parameter feeds
-    /// `buildType`'s `getBase(1,TYPE_UNKNOWN)` (RUGRA-GLUE: the C++ pulls
+    /// `buildType`'s `getBase(1,TYPE_UNKNOWN)` (RUDRA-GLUE: the C++ pulls
     /// it from `scope->getArch()->types`).
     pub fn new(
         scope_id: u64,
@@ -1848,7 +1848,7 @@ impl LabSymbol {
     // Ghidra: database.cc:745 LabSymbol::LabSymbol(Scope *)
     /// Constructor for use with decode (no name/type yet). Faithful to
     /// `LabSymbol(Scope *sc)` (database.cc:745-749): `buildType()` only.
-    /// The factory parameter feeds `buildType` (RUGRA-GLUE: the C++ pulls
+    /// The factory parameter feeds `buildType` (RUDRA-GLUE: the C++ pulls
     /// it from `scope->getArch()->types`).
     pub fn new_decode(
         scope_id: u64,
@@ -2159,7 +2159,7 @@ impl UnionFacetSymbol {
     }
 }
 
-// RUGRA-GLUE: AddMapContext (Ghidra's Scope reads `glb->symboltab` through
+// RUDRA-GLUE: AddMapContext (Ghidra's Scope reads `glb->symboltab` through
 // its Architecture handle inside Scope::addMap — database.cc:1136/1153;
 // Rugra's Scope is Architecture-less, so the Database side passes the two
 // lookups in one context struct. `None` models a standalone scope.)
@@ -2224,12 +2224,12 @@ pub struct Scope {
     pub children: Vec<u64>,
 }
 
-// RUGRA-GLUE: manual Clone (the Mutex-guarded index is not Clone): the
+// RUDRA-GLUE: manual Clone (the Mutex-guarded index is not Clone): the
 // copy re-derives a fresh (dirty) maptable index that rebuilds from
 // `entries` on first query — observably identical to the C++ copy, whose
 // rangemap is re-populated entry-by-entry.
 impl Clone for Scope {
-    // RUGRA-GLUE: trait-impl method (see the impl-block note above): the
+    // RUDRA-GLUE: trait-impl method (see the impl-block note above): the
     // field copy plus a fresh dirty addr_index.
     fn clone(&self) -> Self {
         Self {
@@ -2249,7 +2249,7 @@ impl Clone for Scope {
     }
 }
 
-// RUGRA-GLUE: the sorted-address index backing Scope::find_container's
+// RUDRA-GLUE: the sorted-address index backing Scope::find_container's
 // binary-search containment query — ScopeInternal's per-space `maptable`
 // rangemap (database.hh:877-878) realized as `(addr, insertion seq)`
 // sorted entry indices plus a parallel prefix-max-end array. Rebuilt
@@ -2290,7 +2290,7 @@ impl Scope {
         &self.name
     }
 
-    // RUGRA-GLUE: addr_sorted index maintenance (ScopeInternal's maptable
+    // RUDRA-GLUE: addr_sorted index maintenance (ScopeInternal's maptable
     // rangemap is maintained incrementally on insert in C++; the Rust port
     // marks the index dirty at every entry push/retain/clear site and
     // rebuilds it lazily at the next find_container query — O(1) per
@@ -2333,7 +2333,7 @@ impl Scope {
         self.rangetree.insert_range(spc, first, last);
     }
 
-    // RUGRA-GLUE: ram-space delegate of `addRange` for the legacy
+    // RUDRA-GLUE: ram-space delegate of `addRange` for the legacy
     /// spaceless-`Range` callers (driver PT_LOAD seeding, cptr fixtures);
     /// every existing caller's ranges are default-data-space (RAM)
     /// offsets, so binding `spc = Ram` is the same call the C++ makes.
@@ -2358,7 +2358,7 @@ impl Scope {
         self.rangetree.remove_range(spc, first, last);
     }
 
-    // RUGRA-GLUE: ram-space delegate of `removeRange` (same binding as
+    // RUDRA-GLUE: ram-space delegate of `removeRange` (same binding as
     /// `add_range` above).
     pub fn remove_range(&mut self, rng: Range) {
         self.rangetree.remove_range(
@@ -2377,7 +2377,7 @@ impl Scope {
         self.rangetree.in_range(spc, offset, size)
     }
 
-    // RUGRA-GLUE: ram-space delegate of `inScope` for the legacy
+    // RUDRA-GLUE: ram-space delegate of `inScope` for the legacy
     /// spaceless-`Address` query channel (the Funcdata Database channel
     /// only admits default-data-space varnodes, so the RAM binding is the
     /// space every live query carries).
@@ -3396,7 +3396,7 @@ impl Scope {
     /// ghidra_arch.cc:349-352; nameless for sizes no table registers — the
     /// C++ getBase canonicalizes an unnamed TypeBase there). The value model
     /// has no `glb` handle, so the factory enters as a parameter
-    /// (RUGRA-GLUE signature adaptation).
+    /// (RUDRA-GLUE signature adaptation).
     pub fn reset_size_lock_type(
         &mut self,
         symbol_id: u64,
@@ -3610,7 +3610,7 @@ impl Scope {
         out
     }
 
-    // RUGRA-GLUE: space grouping key for print_entries (the C++
+    // RUDRA-GLUE: space grouping key for print_entries (the C++
     // maptable is indexed directly by AddrSpace::getIndex, database.hh
     // 877-878; the flat entry vector re-derives the same grouping).
     fn space_sort_key(&self, entry_idx: usize) -> i32 {
@@ -3620,7 +3620,7 @@ impl Scope {
             .map_or(i32::MAX, |spc| spc.get_index())
     }
 
-    // RUGRA-GLUE: the AddrRange `(last, subsort)` list key for the
+    // RUDRA-GLUE: the AddrRange `(last, subsort)` list key for the
     // print_entries splice replay (rangemap.hh:88-91 +
     /// database.cc:97-109).
     fn entry_range_key(&self, entry_idx: usize) -> (u64, (i32, u64)) {
@@ -4072,7 +4072,7 @@ impl Scope {
         let sym_arc = Arc::new(RwLock::new(sym));
         self.symbols.insert(id, sym_arc.clone());
         if sub_name == "equatesymbol" {
-            // RUGRA-GLUE (database.cc:1572 new EquateSymbol(owner)): the
+            // RUDRA-GLUE (database.cc:1572 new EquateSymbol(owner)): the
             // decoded C++ object is an EquateSymbol; the registry entry on
             // the registered Arc stands in for that subtype identity.
             crate::varnode::equate_symbol_registry::register_value(
@@ -4319,7 +4319,7 @@ impl Scope {
             .find_container(addr, 1, addr)
             .map(|idx| self.entries[idx].symbol.read().unwrap().symbol_id);
         // database.cc:1675 — new LabSymbol(owner, nm). The factory feeds the
-        // ctor's buildType getBase(1,TYPE_UNKNOWN) (RUGRA-GLUE: the C++
+        // ctor's buildType getBase(1,TYPE_UNKNOWN) (RUDRA-GLUE: the C++
         // LabSymbol pulls it from scope->getArch()->types).
         let id = self.allocate_id();
         let mut sym = Symbol::new(self.unique_id, nm, "label");
@@ -4456,7 +4456,7 @@ impl Scope {
         sym.category = SymbolCategory::Equate; // cc:628 category = equate.
         let sym_arc = Arc::new(RwLock::new(sym));
         self.symbols.insert(id, sym_arc.clone());
-        // RUGRA-GLUE (database.cc:624 object identity): in C++ the registered
+        // RUDRA-GLUE (database.cc:624 object identity): in C++ the registered
         // object IS an EquateSymbol carrying `value`; the registry entry on
         // this Arc is the Rust stand-in for that subtype payload.
         crate::varnode::equate_symbol_registry::register_value(&sym_arc, value);
@@ -4980,7 +4980,7 @@ pub struct PartMap {
 }
 
 impl PartMap {
-    // RUGRA-GLUE: debug-only key-form guard (FLAGBASE-CR-F2; no Ghidra
+    // RUDRA-GLUE: debug-only key-form guard (FLAGBASE-CR-F2; no Ghidra
     // counterpart — the oracle's flagbase is `partmap<Address,uint4>`
     // over space-qualified keys by construction, database.hh:921).
     /// Rugra's flagbase runs on the legacy SPACELESS `Address` form on
@@ -5902,7 +5902,7 @@ impl Database {
         self.fill_resolve(scope_id);
     }
 
-    // RUGRA-GLUE: ram-space delegate of `Database::addRange` for the
+    // RUDRA-GLUE: ram-space delegate of `Database::addRange` for the
     /// legacy spaceless-`Range` callers (driver PT_LOAD/whole-ram
     /// seeding, fixtures) — every existing caller's ranges are RAM
     /// offsets, so binding `spc = Ram` is the same call the C++ makes.
@@ -6136,7 +6136,7 @@ impl Database {
         }
     }
 
-    // RUGRA-GLUE: spaced `getProperty` (the flagbase partitions are
+    // RUDRA-GLUE: spaced `getProperty` (the flagbase partitions are
     /// Address-keyed in the oracle — space index then offset, partmap.hh
     /// ordering via address.hh:375); Rugra's flagbase is the legacy
     /// spaceless partmap over RAM offsets, so a non-RAM probe reads the
@@ -6150,7 +6150,7 @@ impl Database {
     }
 
 
-    // RUGRA-GLUE: parent-chain materializer (Ghidra's scopes carry
+    // RUDRA-GLUE: parent-chain materializer (Ghidra's scopes carry
     // `parent` pointers followed by stackContainer et al.; Rugra's Scopes
     // are Database-owned values, so the chain is walked here from
     // `parent_id` — the observable walk order is identical).
@@ -6633,7 +6633,7 @@ impl Database {
         new_scope_id
     }
 
-    // RUGRA-GLUE: Database::attach_scope_by_id (helper for decodeScope)
+    // RUDRA-GLUE: Database::attach_scope_by_id (helper for decodeScope)
     /// Attach a pre-allocated scope id under a parent, mirroring the
     /// `attachScope(newScope, parentScope)` call at database.cc:3381. The scope
     /// must already exist in the map (created by the caller).

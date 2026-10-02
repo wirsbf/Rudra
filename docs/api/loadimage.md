@@ -46,6 +46,6 @@ Simple raw binary load image (loadimage.hh:98). Reads bytes from file data.
 
 ### `MemoryLoadImage`
 In-memory load image backed by a byte buffer. Useful for testing and the
-existing Rugra binary-parsing pipeline.
+existing Rudra binary-parsing pipeline.
 - `new(data, base_addr, arch_type)`.
 <!-- annotation-pass: 2026-07-04 -->

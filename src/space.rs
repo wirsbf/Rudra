@@ -68,7 +68,7 @@ pub enum AddressSpace {
 }
 
 impl AddressSpace {
-    // RUGRA-GLUE: space_id (no Ghidra counterpart found)
+    // RUDRA-GLUE: space_id (no Ghidra counterpart found)
     /// Get the space ID
     pub fn space_id(&self) -> SpaceId {
         match self {
@@ -99,31 +99,31 @@ impl AddressSpace {
         }
     }
 
-    // RUGRA-GLUE: is_register
+    // RUDRA-GLUE: is_register
     /// Check if this is a register space
     pub fn is_register(&self) -> bool {
         matches!(self, AddressSpace::Register)
     }
 
-    // RUGRA-GLUE: is_unique (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_unique (no Ghidra counterpart found)
     /// Check if this is a temporary/unique space
     pub fn is_unique(&self) -> bool {
         matches!(self, AddressSpace::Unique)
     }
 
-    // RUGRA-GLUE: is_const (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_const (no Ghidra counterpart found)
     /// Check if this is a constant space
     pub fn is_const(&self) -> bool {
         matches!(self, AddressSpace::Const)
     }
 
-    // RUGRA-GLUE: is_ram (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_ram (no Ghidra counterpart found)
     /// Check if this is RAM space
     pub fn is_ram(&self) -> bool {
         matches!(self, AddressSpace::Ram)
     }
 
-    // RUGRA-GLUE: is_stack (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_stack (no Ghidra counterpart found)
     /// Check if this is stack space
     pub fn is_stack(&self) -> bool {
         matches!(self, AddressSpace::Stack)
@@ -216,7 +216,7 @@ impl AddressSpace {
         }
     }
 
-    // RUGRA-GLUE: inverse of `AddressSpace::get_index` over the locked
+    // RUDRA-GLUE: inverse of `AddressSpace::get_index` over the locked
     /// x86-64 corpus space table (same provenance as `get_index` above) —
     /// stands in for `AddrSpaceManager::getSpace(i)`
     /// (translate.hh:559-561), which Rugra's `Architecture` does not own
@@ -240,7 +240,7 @@ impl AddressSpace {
         }
     }
 
-    // RUGRA-GLUE: locked x86-64 corpus space-name table indexed by
+    // RUDRA-GLUE: locked x86-64 corpus space-name table indexed by
     /// `AddrSpace::getIndex` — stands in for
     /// `AddrSpaceManager::getSpace(i)->getName()` (override.cc:51-56's
     /// message path). Same provenance as `get_index`: the live translator
@@ -312,7 +312,7 @@ impl AddressSpace {
         matches!(self, AddressSpace::Iop)
     }
 
-    // RUGRA-GLUE: is_big_endian (no Ghidra counterpart found)
+    // RUDRA-GLUE: is_big_endian (no Ghidra counterpart found)
     /// Check if this is a big-endian space
     pub fn is_big_endian(&self) -> bool {
         // Default to false, can be overridden per architecture
@@ -367,7 +367,7 @@ impl AddressSpace {
         }
     }
 
-    // RUGRA-GLUE: name (no Ghidra counterpart found)
+    // RUDRA-GLUE: name (no Ghidra counterpart found)
     /// Get the name of this space
     pub fn name(&self) -> &'static str {
         match self {
@@ -385,7 +385,7 @@ impl AddressSpace {
 }
 
 impl fmt::Display for AddressSpace {
-    // RUGRA-GLUE: fmt (no Ghidra counterpart found)
+    // RUDRA-GLUE: fmt (no Ghidra counterpart found)
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AddressSpace::Ram => write!(f, "ram"),
@@ -569,7 +569,7 @@ pub struct JoinDatabase {
 }
 
 impl JoinDatabase {
-    // RUGRA-GLUE: Rust Default ctor (Ghidra uses AddrSpaceManager's vector)
+    // RUDRA-GLUE: Rust Default ctor (Ghidra uses AddrSpaceManager's vector)
     pub fn new() -> Self {
         Self {
             records: Vec::new(),
@@ -711,11 +711,11 @@ pub mod manager_join {
         }
     }
 
-    // RUGRA-GLUE: PartialEq derived from less_than (Ghidra has no
+    // RUDRA-GLUE: PartialEq derived from less_than (Ghidra has no
     // JoinRecord::operator==; the splitset dedup treats records as equal
     // when neither is less than the other, which is exactly this).
     impl PartialEq for JoinRecord {
-        // RUGRA-GLUE: trait method head for the impl above.
+        // RUDRA-GLUE: trait method head for the impl above.
         fn eq(&self, other: &Self) -> bool {
             !self.less_than(other) && !other.less_than(self)
         }
@@ -861,7 +861,7 @@ pub mod manager_join {
         }
     }
 
-    // RUGRA-GLUE: rec_less_than_as_ordering — TotalOrder adapter around
+    // RUDRA-GLUE: rec_less_than_as_ordering — TotalOrder adapter around
     // JoinRecord::operator< for binary_search_by; Ghidra's std::set uses
     // the same operator for its red-black tree ordering.
     fn rec_less_than_as_ordering(a: &JoinRecord, b: &JoinRecord) -> std::cmp::Ordering {
@@ -875,7 +875,7 @@ pub mod manager_join {
     }
 }
 
-// RUGRA-GLUE: fspec_space — Ghidra's FspecSpace stores a `FuncCallSpecs *`
+// RUDRA-GLUE: fspec_space — Ghidra's FspecSpace stores a `FuncCallSpecs *`
 // as the address OFFSET (fspec.hh:344-346: "the offset is the actual value
 // of the pointer"); printRaw/encodeAttributes dereference that pointer
 // (fspec.cc:2125 `FuncCallSpecs *fc = (FuncCallSpecs *)(uintp)offset`). Rust
@@ -900,7 +900,7 @@ pub struct FspecEntry {
     pub entry: Option<(AddrSpace, u64)>,
 }
 
-// RUGRA-GLUE: FspecEntryTable (Ghidra needs no table — the C++ offset IS a
+// RUDRA-GLUE: FspecEntryTable (Ghidra needs no table — the C++ offset IS a
 // dereferenceable pointer; this Vec-backed map is the Rust stand-in.)
 /// Registry-side offset→entry map backing fspec-space dereferences.
 #[derive(Debug, Default)]
@@ -909,13 +909,13 @@ pub struct FspecEntryTable {
 }
 
 impl FspecEntryTable {
-    // RUGRA-GLUE: resolve (Ghidra dereferences `(FuncCallSpecs *)(uintp)offset`.)
+    // RUDRA-GLUE: resolve (Ghidra dereferences `(FuncCallSpecs *)(uintp)offset`.)
     /// The entry stored for `offset`, if any.
     pub fn resolve(&self, offset: u64) -> Option<&FspecEntry> {
         self.entries.get(&offset)
     }
 
-    // RUGRA-GLUE: register (Ghidra registers implicitly by allocating the
+    // RUDRA-GLUE: register (Ghidra registers implicitly by allocating the
     // FuncCallSpecs on the heap whose address becomes the offset.)
     /// Associate `offset` with a call-spec view.
     pub fn register(&mut self, offset: u64, name: &str, entry: Option<(AddrSpace, u64)>) {
@@ -1163,7 +1163,7 @@ pub enum SpaceType {
     Join = 6,
 }
 
-// RUGRA-GLUE: space_flags (Ghidra models these as the anonymous enum inside
+// RUDRA-GLUE: space_flags (Ghidra models these as the anonymous enum inside
 // class AddrSpace, space.hh:85-98; Rust needs a free-standing const module
 // because the record below is not a class namespace.)
 /// Address-space attribute flags. Values are the `AddrSpace` enum constants
@@ -1195,7 +1195,7 @@ pub mod space_flags {
     pub const HAS_NEARPOINTERS: u32 = 0x800;
 }
 
-// RUGRA-GLUE: reserved space-name/index constants (Ghidra declares these as
+// RUDRA-GLUE: reserved space-name/index constants (Ghidra declares these as
 // static members `ConstantSpace::NAME` etc.; Rust uses free consts so the
 /// handle type below stays a plain data carrier.)
 // Ghidra: space.cc:347 ConstantSpace::NAME
@@ -1216,7 +1216,7 @@ pub const FSPEC_SPACE_NAME: &str = "fspec";
 // Ghidra: op.cc:24 IopSpace::NAME
 /// Reserved name for the \b iop space (op.cc:24).
 pub const IOP_SPACE_NAME: &str = "iop";
-// RUGRA-GLUE: reserved EXTERNAL space-name constant (Ghidra declares it on
+// RUDRA-GLUE: reserved EXTERNAL space-name constant (Ghidra declares it on
 // the platform side — Java `AddressSpace.EXTERNAL_SPACE` =
 // `new GenericAddressSpace("EXTERNAL", 32, TYPE_EXTERNAL, 0)`,
 // AddressSpace.java:76-81 — while the locked 12.0.4 decompiler oracle has
@@ -1230,7 +1230,7 @@ pub const IOP_SPACE_NAME: &str = "iop";
 /// AddressSpace.java:80).
 pub const EXTERNAL_SPACE_NAME: &str = "EXTERNAL";
 
-// RUGRA-GLUE: calc_mask (Ghidra's helper lives in address.hh/address.cc,
+// RUDRA-GLUE: calc_mask (Ghidra's helper lives in address.hh/address.cc,
 // outside space.cc; ported here because calcScaleMask depends on it.)
 /// Mask covering `size` bytes, faithful to `calc_mask` (address.hh:499) with
 /// the 8-byte `uintb` table `uintbmasks` (address.cc:633): sizes are clamped
@@ -1250,7 +1250,7 @@ pub fn calc_mask(size: i32) -> u64 {
     UINTBMASKS[if (size as u32) < 8 { size as usize } else { 8 }]
 }
 
-// RUGRA-GLUE: attrib_space/attrib_offset/attrib_size — Ghidra declares the
+// RUDRA-GLUE: attrib_space/attrib_offset/attrib_size — Ghidra declares the
 // marshal attribute ids once in marshal.cc's global table (ATTRIB_SPACE
 // marshal.cc:1247, ATTRIB_OFFSET marshal.cc:1243, ATTRIB_SIZE
 // marshal.cc:1246); Rust has no global constructor table, so the locked
@@ -1288,7 +1288,7 @@ pub fn attrib_piece() -> crate::marshal::AttributeId {
 /// Maximum number of pieces that can be marshaled in one join address.
 pub const MAX_PIECES: usize = 64;
 
-// RUGRA-GLUE: SpaceVarnodeData (Ghidra's VarnodeData in translate.hh carries
+// RUDRA-GLUE: SpaceVarnodeData (Ghidra's VarnodeData in translate.hh carries
 // an `AddrSpace *`; the legacy enum-based `VarnodeData` above cannot express
 // that, so the registry uses this handle-based twin until ADDRESS-0001
 // unifies them.)
@@ -1304,7 +1304,7 @@ pub struct SpaceVarnodeData {
 }
 
 impl PartialEq for SpaceVarnodeData {
-    // RUGRA-GLUE: Ghidra compares VarnodeData members with default
+    // RUDRA-GLUE: Ghidra compares VarnodeData members with default
     // operator== (space pointer identity, offset, size).
     fn eq(&self, other: &Self) -> bool {
         self.space == other.space && self.offset == other.offset && self.size == other.size
@@ -1312,7 +1312,7 @@ impl PartialEq for SpaceVarnodeData {
 }
 impl Eq for SpaceVarnodeData {}
 
-// RUGRA-GLUE: SpacebaseState (Ghidra keeps these as private fields of the
+// RUDRA-GLUE: SpacebaseState (Ghidra keeps these as private fields of the
 // SpacebaseSpace subclass, translate.hh:173-178; the Rust record flattens the
 // subclass state into an Option so one handle type covers all spaces.)
 /// Base-register state carried only by `IPTR_SPACEBASE` spaces.
@@ -1330,7 +1330,7 @@ struct SpacebaseState {
     base_orig: SpaceVarnodeData,
 }
 
-// RUGRA-GLUE: AddrSpaceInner (Ghidra keeps this state directly in the
+// RUDRA-GLUE: AddrSpaceInner (Ghidra keeps this state directly in the
 // AddrSpace class, space.hh:99-116 + the derived-class fields; Rust hides it
 // behind a shared handle so two managers can reference one space like
 // Ghidra's raw pointers with refcounting.)
@@ -2247,7 +2247,7 @@ impl AddrSpace {
         Ok(rec.get_unified().offset)
     }
 
-    // RUGRA-GLUE: set_contain (Ghidra's derived decode bodies write the
+    // RUDRA-GLUE: set_contain (Ghidra's derived decode bodies write the
     // private `SpacebaseSpace::contain` / `OverlaySpace::baseSpace` member
     // directly; Rust needs a setter on the shared record.)
     /// Attach the containing space (`translate.cc:131 contain` /
@@ -2273,7 +2273,7 @@ impl AddrSpace {
         state.contain = Some(base.clone());
     }
 
-    // RUGRA-GLUE: new_external_space (the locked 12.0.4 decompiler oracle has
+    // RUDRA-GLUE: new_external_space (the locked 12.0.4 decompiler oracle has
     // no ExternalSpace: `spacetype` (space.hh:30-38) stops at IPTR_JOIN, the
     // C++ side never registers a space named EXTERNAL, and the packed
     // protocol refuses to marshal it — PackedEncode.writeSpace throws
@@ -2354,7 +2354,7 @@ impl AddrSpace {
         self.0.borrow_mut().flags &= !fl;
     }
 
-    // RUGRA-GLUE: set_manager_join_tables — Ghidra's AddrSpace receives its
+    // RUDRA-GLUE: set_manager_join_tables — Ghidra's AddrSpace receives its
     // `AddrSpaceManager *manage` backlink in the constructor (space.hh:118);
     // Rugra's constructors take no manager, so the registry wires the
     // join-record half (the only half any space method reads) when it
@@ -2365,7 +2365,7 @@ impl AddrSpace {
         self.0.borrow_mut().manager_join_tables = Some(Rc::downgrade(tables));
     }
 
-    // RUGRA-GLUE: set_fspec_table — same association point as
+    // RUDRA-GLUE: set_fspec_table — same association point as
     /// `set_manager_join_tables` above, for the fspec half of the
     /// `AddrSpace::manage` backlink (`FspecSpace::printRaw`/
     /// `encodeAttributes` dereference the offset pointer, fspec.cc:2125).
@@ -2374,7 +2374,7 @@ impl AddrSpace {
         self.0.borrow_mut().fspec_table = Some(Rc::downgrade(tables));
     }
 
-    // RUGRA-GLUE: get_fspec_table — the read side of the fspec half.
+    // RUDRA-GLUE: get_fspec_table — the read side of the fspec half.
     /// `None` for spaces that were never inserted into a registry.
     fn get_fspec_table(&self) -> Option<Rc<RefCell<FspecEntryTable>>> {
         self.0
@@ -2384,7 +2384,7 @@ impl AddrSpace {
             .and_then(|w| w.upgrade())
     }
 
-    // RUGRA-GLUE: get_manager_join_tables — the read side of the
+    // RUDRA-GLUE: get_manager_join_tables — the read side of the
     /// `AddrSpace::manage` join half. `None` for spaces that were never
     /// inserted into a registry.
     fn get_manager_join_tables(&self) -> Option<Rc<RefCell<manager_join::JoinRecordTables>>> {
@@ -2467,14 +2467,14 @@ impl AddrSpace {
         self.0.borrow().shortcut
     }
 
-    // RUGRA-GLUE: set_shortcut (Ghidra mutates the private `shortcut` field
+    // RUDRA-GLUE: set_shortcut (Ghidra mutates the private `shortcut` field
     // directly from AddrSpaceManager::assignShortcut; Rust needs a setter.)
     /// Assign the shortcut character (manager use only).
     fn set_shortcut(&self, sc: char) {
         self.0.borrow_mut().shortcut = sc;
     }
 
-    // RUGRA-GLUE: refcount (Ghidra's `refcount` field is private with no
+    // RUDRA-GLUE: refcount (Ghidra's `refcount` field is private with no
     // getter; exposed read-only so the oracle fixture can observe it like the
     // C++ fixture reads it through #define private public.)
     /// Number of managers using this space.
@@ -2482,7 +2482,7 @@ impl AddrSpace {
         self.0.borrow().refcount
     }
 
-    // RUGRA-GLUE: identity_ptr (Ghidra compares raw AddrSpace pointers in
+    // RUDRA-GLUE: identity_ptr (Ghidra compares raw AddrSpace pointers in
     // ordered containers; the handle exposes the shared-record address so
     // other types can build deterministic identity tiebreaks without
     // reaching into the private Rc.)
@@ -2492,7 +2492,7 @@ impl AddrSpace {
         Rc::as_ptr(&self.0) as usize
     }
 
-    // RUGRA-GLUE: increment_refcount (Ghidra does `spc->refcount += 1` inside
+    // RUDRA-GLUE: increment_refcount (Ghidra does `spc->refcount += 1` inside
     // AddrSpaceManager::insertSpace on the success path only.)
     /// Register one more manager reference to this space.
     fn increment_refcount(&self) {
@@ -2601,7 +2601,7 @@ impl AddrSpace {
         }
     }
 
-    // RUGRA-GLUE: spacebase_state (Ghidra's subclass fields are accessed
+    // RUDRA-GLUE: spacebase_state (Ghidra's subclass fields are accessed
     // directly by SpacebaseSpace methods; Rust reads them through the
     // flattened Option.)
     /// Borrow a snapshot of the spacebase state, if this is a virtual space.
@@ -2673,7 +2673,7 @@ impl AddrSpace {
     ) -> Result<(), String> {
         let mut inner = self.0.borrow_mut();
         let Some(state) = inner.spacebase.as_mut() else {
-            // RUGRA-GLUE: Ghidra reaches this method only through
+            // RUDRA-GLUE: Ghidra reaches this method only through
             // SpacebaseSpace; a non-virtual space here is a caller bug.
             return Err(format!(
                 "No base register specified for space: {}",
@@ -2902,11 +2902,11 @@ impl AddrSpace {
     }
 }
 
-// RUGRA-GLUE: PartialEq/Eq/Hash for AddrSpace (Ghidra compares AddrSpace
+// RUDRA-GLUE: PartialEq/Eq/Hash for AddrSpace (Ghidra compares AddrSpace
 // pointers, e.g. `this != pointSpace` in overlapJoin and `vData.space ==
 // pointSpace`; Rust expresses pointer identity through Rc equality.)
 impl PartialEq for AddrSpace {
-    // RUGRA-GLUE: eq (Ghidra never defines operator== for AddrSpace; it
+    // RUDRA-GLUE: eq (Ghidra never defines operator== for AddrSpace; it
     // compares raw AddrSpace pointers, e.g. space.cc:129 `this != pointSpace`.
     // Rust models that pointer identity via Rc::ptr_eq on the shared record.)
     fn eq(&self, other: &Self) -> bool {
@@ -2915,10 +2915,10 @@ impl PartialEq for AddrSpace {
 }
 impl Eq for AddrSpace {}
 
-// RUGRA-GLUE: Hash for AddrSpace (Ghidra spaces are used as pointer keys; the
+// RUDRA-GLUE: Hash for AddrSpace (Ghidra spaces are used as pointer keys; the
 // handle hashes by identity to stay consistent with PartialEq.)
 impl std::hash::Hash for AddrSpace {
-    // RUGRA-GLUE: hash (Ghidra hashes nothing here — spaces key C++ maps by
+    // RUDRA-GLUE: hash (Ghidra hashes nothing here — spaces key C++ maps by
     // raw pointer; the handle hashes by Rc address to stay consistent with
     // the ptr-equality PartialEq above.)
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -2926,9 +2926,9 @@ impl std::hash::Hash for AddrSpace {
     }
 }
 
-// RUGRA-GLUE: Debug for AddrSpace (diagnostics only; Ghidra has no Debug.)
+// RUDRA-GLUE: Debug for AddrSpace (diagnostics only; Ghidra has no Debug.)
 impl std::fmt::Debug for AddrSpace {
-    // RUGRA-GLUE: fmt (Rust Debug formatting has no Ghidra behavioral
+    // RUDRA-GLUE: fmt (Rust Debug formatting has no Ghidra behavioral
     // counterpart; diagnostics only.)
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let inner = self.0.borrow();
@@ -2939,7 +2939,7 @@ impl std::fmt::Debug for AddrSpace {
     }
 }
 
-// RUGRA-GLUE: SpaceRegistry (Ghidra's AddrSpaceManager, translate.hh:220;
+// RUDRA-GLUE: SpaceRegistry (Ghidra's AddrSpaceManager, translate.hh:220;
 // renamed because translate.rs already hosts the legacy enum-based
 // AddrSpaceManager until consumers migrate in ADDRESS-0001. The resolver and
 // join-record halves (resolvelist/splitset/splitlist, translate.hh:222/234/235)
@@ -2993,7 +2993,7 @@ pub struct SpaceRegistry {
     /// handle alone. Shared (not a plain field) precisely because the
     /// spaces hold weak links into it.
     join_tables: Rc<RefCell<manager_join::JoinRecordTables>>,
-    // RUGRA-GLUE: fspec_tables (the fspec half of Ghidra's
+    // RUDRA-GLUE: fspec_tables (the fspec half of Ghidra's
     // `AddrSpace::manage` backlink: C++ fspec offsets ARE FuncCallSpecs
     // pointers that printRaw/encodeAttributes dereference, fspec.cc:2125;
     // Rust resolves them through this shared table instead.)
@@ -3103,7 +3103,7 @@ impl SpaceRegistry {
             }
         }
 
-        // RUGRA-GLUE: Ghidra indexes baselist with a possibly-negative int4
+        // RUDRA-GLUE: Ghidra indexes baselist with a possibly-negative int4
         // (undefined behavior); Rust guards the conversion because Vec
         // indexing requires usize.
         let idx = usize::try_from(spc.get_index())
@@ -3237,7 +3237,7 @@ impl SpaceRegistry {
         self.fspec_space.clone()
     }
 
-    // RUGRA-GLUE: register_fspec_entry — Ghidra needs no registration: a
+    // RUDRA-GLUE: register_fspec_entry — Ghidra needs no registration: a
     /// C++ fspec offset IS a live `FuncCallSpecs *` whose members
     /// printRaw/encodeAttributes read (fspec.cc:2125). The Rust registry
     /// mirrors that dereference through its fspec-entry table; TYPEOP-FSPEC-
@@ -4044,7 +4044,7 @@ mod tests {
         assert_eq!(ram.get_minimum_ptr_size(), 4);
     }
 
-    // RUGRA-GLUE: test helper building the fixture-shaped registry (const=0,
+    // RUDRA-GLUE: test helper building the fixture-shaped registry (const=0,
     // unique=2, ram=3, register=4, join=6, iop=7) like the locked oracle
     // fixture space_printraw_special_1204.
     fn special_printraw_registry() -> (SpaceRegistry, AddrSpace, AddrSpace) {
@@ -4067,7 +4067,7 @@ mod tests {
         (m, ram, reg)
     }
 
-    // RUGRA-GLUE: panic payload extraction (panic!("literal") payloads are
+    // RUDRA-GLUE: panic payload extraction (panic!("literal") payloads are
     // &str; panic!("{}", x) payloads are String).
     fn panic_message(e: Box<dyn std::any::Any + Send>) -> String {
         if let Some(s) = e.downcast_ref::<&str>() {

@@ -10,7 +10,7 @@ use crate::ffi::VarnodeFFI;
 use crate::align::address::verify_seqnum;
 use crate::align::varnode::verify_varnode;
 
-// RUGRA-GLUE: verify_opcode (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_opcode (no Ghidra counterpart found)
 /// Verify that a Rugra OpCode matches a Ghidra opcode
 ///
 /// Note: `ghidra_opcode` uses Ghidra's numbering scheme (from opcodes.hh),
@@ -38,7 +38,7 @@ pub fn verify_opcode(rugra_op: OpCode, ghidra_opcode: i32) -> bool {
     }
 }
 
-// RUGRA-GLUE: verify_operation (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_operation (no Ghidra counterpart found)
 /// Verify that a complete PcodeOperation aligns with Ghidra's representation
 ///
 /// This checks:
@@ -106,7 +106,7 @@ pub fn verify_operation(
     opcode_match && seqnum_match && input_count_match && inputs_match && output_match
 }
 
-// RUGRA-GLUE: verify_inputs (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_inputs (no Ghidra counterpart found)
 /// Verify input list alignment
 pub fn verify_inputs(rugra_inputs: &[Varnode], ghidra_inputs: &[VarnodeFFI]) -> bool {
     if rugra_inputs.len() != ghidra_inputs.len() {
@@ -123,7 +123,7 @@ pub fn verify_inputs(rugra_inputs: &[Varnode], ghidra_inputs: &[VarnodeFFI]) -> 
         .all(|(r, g)| verify_varnode(r, g))
 }
 
-// RUGRA-GLUE: verify_output (no Ghidra counterpart found)
+// RUDRA-GLUE: verify_output (no Ghidra counterpart found)
 /// Verify output alignment
 pub fn verify_output(rugra_output: Option<&Varnode>, ghidra_output: Option<&VarnodeFFI>) -> bool {
     match (rugra_output, ghidra_output) {

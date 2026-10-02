@@ -7,14 +7,14 @@
 
 PcodeOp and PcodeOperation alignment verification logic.
 
-This module ensures that Rugra's P-code operations match Ghidra's
+This module ensures that Rudra's P-code operations match Ghidra's
 internal PcodeOp representation as defined in `op.hh`.
 
 ## 导出的公共 API (Public API)
 
 ### `pub fn verify_opcode(rugra_op: OpCode, ghidra_opcode: i32) -> bool`
 
-Verify that a Rugra OpCode matches a Ghidra opcode
+Verify that a Rudra OpCode matches a Ghidra opcode
 
 ### `pub fn verify_operation(`
 

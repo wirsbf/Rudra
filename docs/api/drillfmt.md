@@ -1,6 +1,6 @@
 # drillfmt
 
-> 对应 `src/drillfmt.rs`。RUGRA-GLUE 模块:Ghidra 无单一对应物;这是
+> 对应 `src/drillfmt.rs`。RUDRA-GLUE 模块:Ghidra 无单一对应物;这是
 > stage-bisect v2 drill 发射器(Lane AA)专用的 oracle 原文格式化层,把
 > Rugra IR 渲染成 Ghidra console debug 原语的精确文本拼写,只读、不回灌
 > 管线。激活条件:`RUGRA_STAGE_DRILL=1`(经 `drillobserve::is_enabled`)。

@@ -63,8 +63,8 @@ RHS 常量构造（Named/Absolute/NZMask/Consumed/Offset/IsConstant）。
 - 六个 RHS 常量构造器映射到 unify.hh:90/:99/:108/:117/:126/:135；三个
   Dummy 构造器映射到 unify.hh:226/:238/:250。Dummy 的 Rust 实现额外把
   `uniqid` 初始化为 0，而 Ghidra 留待 `setId` 写入；这是映射函数的既有状态差异，
-  不能以 `RUGRA-GLUE` 隐藏。
-- `ConstraintGroup::default` 标为 RUGRA-GLUE。Ghidra 没有 Rust `Default`
+  不能以 `RUDRA-GLUE` 隐藏。
+- `ConstraintGroup::default` 标为 RUDRA-GLUE。Ghidra 没有 Rust `Default`
   trait，并且 unify.cc:974 构造器把 `maxnum` 初始化为 -1，而当前 Rust
   `ConstraintGroup::new()` 使用 0。这是既有行为差异，本轮未修改。
 - 只有 `ConstraintGroup::default` 是 Rust trait glue。本轮只做注释和单行函数格式

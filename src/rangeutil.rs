@@ -748,7 +748,7 @@ impl CircleRange {
     ///   salvage gated on `usenzmask && val == 0` plus
     ///   `out->getSize() < (mostsigbit_set(nzmask)+8)/8`; final nzmask
     ///   intersect only when `setNZMask` reports a valid range.
-    // RUGRA-GLUE: the C++ `Varnode **constMarkup` out param is mirrored as
+    // RUDRA-GLUE: the C++ `Varnode **constMarkup` out param is mirrored as
     // `const_markup: &mut Option<Arc<RwLock<Varnode>>>`. Ghidra writes it
     // only when the constant carries a SymbolEntry (cc:1069-1070); it is
     // never cleared, so successive pull-backs keep the last symbol-carrying
@@ -2200,13 +2200,13 @@ pub struct Equation {
     pub range: CircleRange,
 }
 
-// RUGRA-GLUE: Rust constructor mirroring the inline Equation ctor in C++
+// RUDRA-GLUE: Rust constructor mirroring the inline Equation ctor in C++
 // (rangeutil.hh:127). Ghidra has no separate Equation::Equation definition
 // file line beyond the in-class inline.
 impl Equation {
     /// Construct an equation for `slot` with characteristic `type_code` and
     /// the given constraint `range`. Mirrors the C++ inline constructor.
-    // RUGRA-GLUE: Rust constructor mirroring the inline Equation ctor in C++
+    // RUDRA-GLUE: Rust constructor mirroring the inline Equation ctor in C++
     // (rangeutil.hh:127). Ghidra has no separate Equation::Equation definition
     // file line beyond the in-class inline.
     pub fn new(slot: i32, type_code: i32, range: CircleRange) -> Self {
@@ -2250,20 +2250,20 @@ pub struct ValueSet {
     pub part_head: Option<usize>,
     /// Next ValueSet (arena id) in the iteration order.
     pub next: Option<VsId>,
-    /// RUGRA-GLUE: input ValueSet arena ids for the defining op, staged at
+    /// RUDRA-GLUE: input ValueSet arena ids for the defining op, staged at
     /// establish time. Ghidra reads them live during `iterate` via
     /// `op->getIn(i)->getValueSet()`; the ids are stable so the ranges are
     /// read live from the solver arena each iteration.
     pub input_ids: Vec<VsId>,
-    /// RUGRA-GLUE: input varnode sizes (C++ `inSet1->vn->getSize()`), staged
+    /// RUDRA-GLUE: input varnode sizes (C++ `inSet1->vn->getSize()`), staged
     /// at establish time alongside `input_ids`.
     pub input_sizes: Vec<usize>,
-    /// RUGRA-GLUE: output varnode size (C++ `vn->getSize()`).
+    /// RUDRA-GLUE: output varnode size (C++ `vn->getSize()`).
     pub out_size: usize,
 }
 
 impl ValueSet {
-    // RUGRA-GLUE: default ValueSet (Ghidra default-constructs via list emplace).
+    // RUDRA-GLUE: default ValueSet (Ghidra default-constructs via list emplace).
     /// Construct an empty ValueSet. Mirrors the C++ default-constructed
     /// `ValueSet` produced by `valueNodes.emplace_back()` (rangeutil.cc:1956).
     pub fn new() -> Self {
@@ -2550,7 +2550,7 @@ pub struct ValueSetRead {
 }
 
 impl ValueSetRead {
-    // RUGRA-GLUE: default constructor (Ghidra default-constructs members).
+    // RUDRA-GLUE: default constructor (Ghidra default-constructs members).
     /// Construct an empty ValueSetRead.
     pub fn new() -> Self {
         ValueSetRead {
@@ -2764,7 +2764,7 @@ impl WidenerNone {
     }
 
     /// Constructor specifying the freeze iteration.
-    // RUGRA-GLUE: Rust convenience ctor; Ghidra's WidenerNone only has the
+    // RUDRA-GLUE: Rust convenience ctor; Ghidra's WidenerNone only has the
     /// default ctor (freezeIteration=3, rangeutil.hh:257). Exposed for tests.
     pub fn with_iteration(freeze: i32) -> Self {
         WidenerNone { freeze_iteration: freeze }
@@ -2831,7 +2831,7 @@ pub struct ValueSetSolver {
 }
 
 impl ValueSetSolver {
-    // RUGRA-GLUE: default constructor (Ghidra default-constructs all fields).
+    // RUDRA-GLUE: default constructor (Ghidra default-constructs all fields).
     /// Construct an empty solver.
     pub fn new() -> Self {
         ValueSetSolver {
@@ -2894,7 +2894,7 @@ impl ValueSetSolver {
 
     /// Arena-aware form of `partitionPrepend(vertex, part)` that also writes
     /// the node's `next` field. This is the actual port of rangeutil.hh:389.
-    // RUGRA-GLUE: arena-indexed variant of partitionPrepend (rangeutil.hh:389)
+    // RUDRA-GLUE: arena-indexed variant of partitionPrepend (rangeutil.hh:389)
     // because Rust cannot mutate a ValueSet through a Partition pointer; the
     // arena + VsId replaces the C++ `ValueSet *next` intrusive linkage.
     fn partition_prepend_vertex_in_arena(
@@ -3414,7 +3414,7 @@ impl ValueSetSolver {
     /// the solver arena. Ghidra resolves this via the Varnode→ValueSet
     /// back-pointer (`vn->getValueSet()`); Rugra searches the arena by
     /// Varnode identity.
-    // RUGRA-GLUE: stands in for C++ `op->getIn(slot)->getValueSet()`, which
+    // RUDRA-GLUE: stands in for C++ `op->getIn(slot)->getValueSet()`, which
     // needs the unported Varnode→ValueSet back-pointer; arena scan instead.
     fn resolve_read_source(&self, vsr: &ValueSetRead) -> Option<ValueSet> {
         let op_arc = vsr.op.as_ref()?;
@@ -3492,7 +3492,7 @@ impl ValueSetSolver {
     /// Find the arena id of the ValueSet attached to `vn`, if any. Ghidra
     /// resolves this via `vn->getValueSet()`; Rugra scans the arena by
     /// Varnode identity.
-    // RUGRA-GLUE: stands in for unported `Varnode::getValueSet()` back-pointer;
+    // RUDRA-GLUE: stands in for unported `Varnode::getValueSet()` back-pointer;
     // linear scan over the arena by Arc identity.
     fn find_value_set_by_vn(&self, vn: &Arc<RwLock<Varnode>>) -> Option<VsId> {
         for (i, vs) in self.value_nodes.iter().enumerate() {
@@ -4246,7 +4246,7 @@ impl ValueSetSolver {
                     expand_inputs = true;
                 }
             }
-            // RUGRA-GLUE input wiring: stage the defining op's input ValueSet
+            // RUDRA-GLUE input wiring: stage the defining op's input ValueSet
             // ids (C++ reads them live via op->getIn(i)->getValueSet() in
             // ValueSet::iterate). All inputs are in the system at this point.
             if expand_inputs {

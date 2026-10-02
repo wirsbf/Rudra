@@ -214,7 +214,7 @@ identifiers"）含唯一一处排序违规：索引 8 `"||"`（0x7C,0x7C）先�
 （miss → 返回 STRING），因此 `"||"` 与 `"abs"` **双双 miss**：pcode snippet
 里 `a || b` 与 `abs(x)` 无法用作关键字（降级为标识符 token）。
 
-Rugra `PCODE_IDENTS` **逐字节镜像表序**（含该违规对），`find_identifier`
+Rudra `PCODE_IDENTS` **逐字节镜像表序**（含该违规对），`find_identifier`
 同二分算法 ⇒ 同样的双 miss，行为与 oracle 等价。**表序禁改**（"好心排序"
 会制造分歧）；回归锁 = `test_find_identifier_canonical_double_miss`
 （断言 `find_identifier("||") == None && find_identifier("abs") == None`）。
@@ -245,7 +245,7 @@ Element/attribute constructors and recursive-descent token helpers are marked
 as Rust glue because Ghidra uses file-scope IDs and generated Bison machinery.
 ANN-O likewise marks `PcodeTokenKind::as_token_id`,
 `PcodeTokenKind::from_token_id`, and `unary_prec` as Rust glue: Ghidra exposes
-raw generated token constants and Bison parse tables, while Rugra needs typed
+raw generated token constants and Bison parse tables, while Rudra needs typed
 const conversions and a numeric Pratt-parser precedence floor. These
 annotations do not change parser behavior or alignment status.
 Known wire-ID, decoder/space-registry, and parser-lifecycle differences remain
@@ -292,7 +292,7 @@ owned by `MARSHAL-ID-0001`, `MARSHAL-PACKED-0001`, `SPACE-0001`, and
   inst_start/inst_next/inst_next2 是每个 SLEIGH 语言必然序列化的预定义符号
   （slgh_compile.cc:1986-1991；`SymbolTable::purge` default 臂放行），经
   `sleigh->findSymbol` 命中并映射为 JUMPSYM（pcodeparse.cc:3223-3252）。
-  Rugra 无 SLEIGH 引擎，语言符号经 `SleighSymbolLookup` Host hook 注入，
+  Rudra 无 SLEIGH 引擎，语言符号经 `SleighSymbolLookup` Host hook 注入，
   组合器把该语言不变量分层到任意内层 lookup 之上（inner 优先）。
 - 新 fixture `tests/oracle/jumpdest_instsym_1204.{cc,rs}` + runner
   `tools/run_jumpdest_instsym_oracle.sh`：裸 SLEIGH 引擎（x86-64.sla，即
@@ -344,7 +344,7 @@ ram/OTHER/stack ABSENT）+ SNIP 77（空间种子/语句/表达式/词法/错误
   pcodeerror；约 20 处自定义 Expected/Unexpected 文本改为该常量）。
 - g11 新增 `hard_error` 通道镜像 `SleighError` 逃逸：buildTruncatedVarnode
   越界（cc:580 throw）与 force_size 局部温度尺寸冲突（cc:129/137）在 C++
-  中异常直接穿透 parseStream（errorcount 不动、result 不设）；Rugra 以
+  中异常直接穿透 parseStream（errorcount 不动、result 不设）；Rudra 以
   `get_hard_error()` 观察（fixture EXC 记录）。
 - g12 语句边界 `refresh_lookahead_symbol()`：递归下降预取的 lookahead 在
   上一语句符号表突变（newOutput/newLocalDefinition/defineLabel）后重新解析
