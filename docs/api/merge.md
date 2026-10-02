@@ -584,6 +584,20 @@ INDIRECT 本身（:871-877）并重合并，失败打 `[MERGE]` stderr 日志（
 `merge_highs`，不经过 `merge_speculative`）；speculative 类语义由
 `u.mergeGroup += numMergeClasses`（variable.cc:640-646）观察。
 
+### `build_dominant_copy` 的 bCover 惰性重建（私有）
+
+对齐 merge.cc:1194 `bCover.merge(*vn->getCover())`：`Varnode::getCover()`
+（varnode.hh:202）先经 `Varnode::updateCover`（varnode.cc:233-241）把
+coverdirty 实例的 Cover **重建**再返回——`updateCover` 注释明言"only called
+by the Merge class which knows when to call it properly"，本 bCover 循环正是
+该 Merge 侧读者。Rudra 旧码直接读存储 Cover，漏掉惰性重建：前一组
+buildDominantCopy 的 `totalReplace`+`opDestroy`（及一切 opSetInput/setDef）
+只置 coverdirty 不立即重建，陈旧 Cover 仍枚举替换前的读者路径，把 arm 块
+（21-25）灌进 bCover，令 `bCover.intersect(aCover)>1` 可移除 COPY 判定翻转
+（UNAFFCALL-FTS3-DOMCOPY-0001：sqlite3Fts3DeferredTokenList RDI 组
+count=0 abort，oracle 同位 count=2 双臂收敛到新 dominant COPY）。修复 =
+合并前逐实例 `Varnode::update_cover_locked`（varnode.cc:233-241 镜像）。
+
 ### `merge_highs` 的 (Some,Some) piece 臂（私有）
 
 对齐说明：oracle variable.cc:699-711。speculative 双 piece 合并抛
