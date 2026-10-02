@@ -1,5 +1,30 @@
 # `funcdata.rs` API Reference
 
+## 2026-10-03：SETTLE2 — `replace_lessequal` 补 `copySymbol` 类型传承（Lane SETTLE2 / MISC3-SETTLE-VARCHURN-0001）
+
+`replace_lessequal`（`Funcdata::replaceLessequal`，funcdata_op.cc:1029-1065）
+的 `V <= c => V < c±1` 改写补上 oracle cc:1059-1060 的
+`newvn->copySymbol(vn)`——新常量从源常量**传承数据类型（及任何 Symbol 标
+记）**（`Varnode::copy_symbol_arc`，varnode.cc:493-505 完整移植，含
+high/typeDirty 记账）。此前 Rudra 只 `new_constant + op_set_input`，重建常量
+从工厂 undefined 起步，下一轮 `ActionInferTypes::writeBack` 首次定型
+（undefinedN→具体）向 localcount 报一次幻影"变化"；RuleIntLessEqual 在管线
+尾段的两轮迟到改写（R9/R12，探针台账）各贡献一个 singleton 轮，把
+sqlite3AddCheckConstraint 的 localcount 轨迹推到 7（0,1,2,3,4,4,4,5,6,6,7），
+触发 R-only `/* WARNING: Type propagation algorithm not settling */`（oracle
+轨迹 0,1,2,3,4,4,4,5,5,5 稳定 5）。补 copySymbol 后轨迹与 oracle 精确同形，
+警告消失；全语料字节归因：canon/mirror corpus 各恰 -1 行（警告行），其余
+152k+ 行零位移；canon curl f903372a/httpd 3617ecc3/VdbeExec b3f5b487/606dd8c0
+钉值恒等。**根因翻案注记**：MISC3 票面原判"heritage 增量性/INDIRECT 守护
+生命周期"为真修域——本道双侧钻定（Rudra 探针轨迹 + oracle wbchange 直方图
+亲测 828 事件）**证伪**：Rudra heritage 增量性（globaldisjoint 持久 + prev==2
+is_heritage_known 跳过 + addIndirects=newAddresses 一次性守护 + 重启
+fd.clear() 全擦除）与 oracle 逐点一致，两轮 guard 扫 = 一次合法重启；迟到
+churn 真源是 replace_lessequal 重建常量缺类型传承。oracle 侧同点核对：
+`buildVarnodeOutput`（funcdata_block.cc:985-1000）clone 输出同样从
+newVarnodeOut（undefined）起步——两侧 clone/join/MULTIEQUAL 输入输出的首
+轮定型 churn 是共有基线（oracle 轨迹的 4 个真轮 + 1 个迟到真轮），非缺陷。
+
 ## 2026-10-02：DECLB1-JOINLEG-0001 — `link_symbol` 的 join piece 腿解析（Lane DECLB1）
 
 `Funcdata::link_symbol` 的 cc:1177 建符号路径在 `vn_space == Join` 时经

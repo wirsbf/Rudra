@@ -4550,7 +4550,7 @@ impl Funcdata {
     /// `V <= c => V < c+1`. Faithful to `Funcdata::replaceLessequal`
     /// (funcdata_op.cc:1029-1065).
     pub fn replace_lessequal(&mut self, op: &crate::op::PcodeOpRef) -> bool {
-        let (i, diff, val, size, is_signed) = {
+        let (i, diff, val, size, is_signed, src_vn) = {
             let o = op.0.read().unwrap();
             let (vn_idx, diff) = if o
                 .inrefs
@@ -4569,7 +4569,7 @@ impl Funcdata {
             let val = vn.read().unwrap().get_offset();
             let size = vn.read().unwrap().get_size();
             (
-                vn_idx, diff, val, size, o.opcode == OpCode::CPUI_INT_SLESSEQUAL,
+                vn_idx, diff, val, size, o.opcode == OpCode::CPUI_INT_SLESSEQUAL, vn,
             )
         };
         let mask = if size >= 8 { u64::MAX } else { (1u64 << (size * 8)) - 1 };
@@ -4586,6 +4586,16 @@ impl Funcdata {
         }
         let res = (val as i64 + diff) as u64 & mask;
         let newconst = self.new_constant(size, res);
+        // cc:1059-1060: newvn->copySymbol(vn) — preserve the source
+        // constant's data-type (and any Symbol info) on the rewritten
+        // constant. Without this the fresh constant starts factory
+        // undefined and the next ActionInferTypes::writeBack first-types
+        // it (undefinedN->concrete), reporting a phantom "change" that
+        // feeds the localcount>=7 not-settling warning — the oracle's
+        // settled Varnode object carries its type, so updateType's
+        // pointer-equal comparison (varnode.cc:459) returns false.
+        // (MISC3-SETTLE-VARCHURN-0001.)
+        crate::varnode::Varnode::copy_symbol_arc(&newconst, &src_vn.read().unwrap());
         self.op_set_input(op, newconst, i);
         true
     }
