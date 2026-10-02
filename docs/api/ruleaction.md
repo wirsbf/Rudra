@@ -2493,3 +2493,45 @@ WalOpen 7→0,A/B census 逐函数零回退）;wrap-only 37→15（残 15 全为
 mirror 位移逐字节归因=12 函数全落本根（含 canon 独见 Int64ToText
 `-0x40a→-10`/VdbeMakeReady `-0x1700000018→-0x18`/SorterRewind
 `-0xf00000010→-0x10`）,1373 函数零触碰。
+
+## 2026-10-02：RuleSubZext 常量尺寸继承 + RuleSubRight addr-tied 守卫精化（READINODE3）
+
+**车道**: READINODE3（镜面道,read_inode_3 残 44 收口;基=master 72c118da[MB67]）。
+
+### ① `RuleSubZext::apply_op` 首臂移位常量尺寸（ruleaction.cc:5062）
+
+`zext(SUBPIECE(V, off))` → `V >> off*8 [& mask]` 改写中,oracle 的移位常量尺寸
+取自 SUBPIECE 偏移常量本身（`data.newConstant(constvn->getSize(), rightVal)`,
+constvn = subop->getIn(1)）。Rugra 旧码硬编码 `new_constant(4, right_val)`——
+read_inode_3 LE 分支的 `SUB81(load8, #0x2)`（偏移常量 8 字节,全局影子合并产物）
+经本规则后产出 8 字节宽 `V >> #0x10`,而 BE 分支 subzext 第二臂（cc:5092 忠实
+保尺寸）产出 4 字节 `V >> #0x10:4`——两移位常量尺寸不等使
+`functionalEqualityLevel0` 的 size-first 检查（expression.cc:407-408）判 -1,
+oracle 的 push_multi 拒绝合并;Rugra 侧两常量同为 4 字节 → 判 1 → push_multi
+触发,把分支内两移位折叠成 `phi(load_LE, load_BE) >> 0x10`,打印面
+`uVar34 = xStack_78` 往返 + Var5/Var6↔iVar4/uVar6 编号移位 +
+`(uVar34 >> 0x10 & 0xff)` use-site 重移位全链（38 行）。修复 = 元组块同址
+捕获 `trunc_const_sz`（so.inrefs[1] 尺寸,变异前读,与 oracle cc:5058 的
+constvn 读取点等序）并传入 `new_constant`。
+
+### ② `RuleSubRight::apply_op` addr-tied 守卫（ruleaction.cc:7283-7286）
+
+oracle 仅在 `outvn->overlap(*a) == c`（Varnode::overlap,varnode.cc:177-189:
+outvn 的 LSB 落在 a 存储范围第 c 字节——精确件形,留给 ActionCopyMarker 转
+marker）时提前返回;Rugra 旧码对"双方 addr-tied"一律保守返回,导致
+`uRam156ab2 = SUB81(uRam156a70,2)`（outvn @0x156ab2 与 a @0x156a70 同空
+间不相交,overlap=-1≠2）不触发 `sub(V,c) → sub(V>>c*8, 0)` 改写,打印面
+留 `SUB81(V,2)` 函数形而 golden 为 `(uint1)(V >> 0x10)`（6 行,③域
+READINODE2-SUB8X-PRINTSHAPE-0001 主体）。修复 = 用既有
+`Varnode::overlap_addr`（LE/BE 忠实孪生,varnode.cc:219-226 算术）实现
+overlap 判等,仅精确件形提前返回。
+
+**单测**（ruleaction.rs tests）: `test_rule_subzext_right_const_inherits_offset_const_size`
+（8 字节偏移常量 → 8 字节移位常量 + AND 掩码尺寸/值双断言 + 4 字字节反臂）、
+`test_rule_subright_addrtied_disjoint_still_fires`（不相交 addr-tied 对照常改写
++ 新 INT_RIGHT 读原值/常量 16 双断言）、
+`test_rule_subright_addrtied_exact_piece_held`（a+4 精确件形 → NO_CHANGE,
+op 不动）。
+
+**验收**: sq 镜面 read_inode_3 44→0（skeleton identical,函数体逐字节==golden）;
+五面/红线/corpus 见车道终报 LANE_READINODE3_2026-10-02.md。

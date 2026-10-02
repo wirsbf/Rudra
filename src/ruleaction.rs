@@ -3122,7 +3122,7 @@ impl Rule for RuleSubZext {
             }
         }
         // in0 must be defined by a SUBPIECE; base size == op output size.
-        let (basevn, trunc_offset, sub_size, subop_arc) = {
+        let (basevn, trunc_offset, trunc_const_sz, sub_size, subop_arc) = {
             let op = op_arc.read().unwrap();
             let out_size = op
                 .output
@@ -3144,18 +3144,21 @@ impl Rule for RuleSubZext {
             if subop_arc.read().unwrap().opcode != OpCode::CPUI_SUBPIECE {
                 return Ok(action_status::NO_CHANGE);
             }
-            let (basevn, trunc_offset) = {
+            let (basevn, trunc_offset, trunc_const_sz) = {
                 let so = subop_arc.read().unwrap();
                 let basevn = match so.inrefs.get(0) {
                     Some(v) => v.clone(),
                     None => return Ok(action_status::NO_CHANGE),
                 };
-                let trunc_offset = so
+                let (trunc_offset, trunc_const_sz) = so
                     .inrefs
                     .get(1)
-                    .map(|v| v.read().unwrap().get_offset())
-                    .unwrap_or(0);
-                (basevn, trunc_offset)
+                    .map(|v| {
+                        let c = v.read().unwrap();
+                        (c.get_offset(), c.get_size())
+                    })
+                    .unwrap_or((0, 4));
+                (basevn, trunc_offset, trunc_const_sz)
             };
             if basevn.read().unwrap().is_free() {
                 return Ok(action_status::NO_CHANGE);
@@ -3167,7 +3170,7 @@ impl Rule for RuleSubZext {
                 return Ok(action_status::NO_CHANGE);
             }
             (
-                basevn, trunc_offset, {
+                basevn, trunc_offset, trunc_const_sz, {
                 let s = subvn.read().unwrap();
                 s.get_size()
             }, subop_arc,
@@ -3191,7 +3194,10 @@ impl Rule for RuleSubZext {
             fd.op_set_input(&follow, newvn.clone(), 0);
             fd.op_set_opcode(&sub_ref, OpCode::CPUI_INT_RIGHT);
             let right_val = trunc_offset * 8;
-            let right_const = fd.new_constant(4, right_val);
+            // cc:5062: newConstant(constvn->getSize(), rightVal) — the new
+            // shift constant keeps the SUBPIECE offset constant's size (read
+            // before the rewrite; nothing mutates subop's in(1) in between).
+            let right_const = fd.new_constant(trunc_const_sz, right_val);
             fd.op_set_input(&sub_ref, right_const, 1);
             fd.op_set_output(&sub_ref, newvn);
         } else {
@@ -13877,12 +13883,21 @@ impl Rule for RuleSubRight {
         };
         if c == 0 { return Ok(action_status::NO_CHANGE); } // SUBPIECE is not least sig
         // Ghidra: if (outvn->isAddrTied() && a->isAddrTied())
-        //   { if (outvn->overlap(*a) == c) return 0; } (7283-7286). Rugra has no
-        //   Varnode::overlap, so the overlap test is omitted (TODO(varnode)):
-        //   when both inputs are addr-tied we conservatively leave the op alone
-        //   so ActionCopyMarker can convert it, matching Ghidra's intent.
+        //   { if (outvn->overlap(*a) == c) return 0; } (7283-7286) — the
+        // overlap test is Varnode::overlap (varnode.cc:177-189).
         if outvn.read().unwrap().is_addr_tied() && a.read().unwrap().is_addr_tied() {
-            return Ok(action_status::NO_CHANGE); // Leave for ActionCopyMarker
+            // cc:7283-7286: only the exact-piece form (outvn's LSB sits at
+            // byte c of a's storage, Varnode::overlap varnode.cc:177-189)
+            // is left for ActionCopyMarker; other addr-tied pairs proceed.
+            // overlap_addr is the faithful LE/BE twin of the underlying
+            // Address::overlap arithmetic (varnode.cc:219-226).
+            let over = {
+                let a_r = a.read().unwrap();
+                outvn.read().unwrap().overlap_addr(a_r.loc, a_r.get_size())
+            };
+            if over == c {
+                return Ok(action_status::NO_CHANGE); // Leave for ActionCopyMarker
+            }
         }
         let mut opc = OpCode::CPUI_INT_RIGHT; // Default shift type
         let mut d = c * 8; // Convert to bit shift
@@ -27750,6 +27765,179 @@ mod tests {
         let rule = RuleSubRight::new();
         let result = rule.apply_op(&op_arc, &mut fd).unwrap();
         assert_eq!(result, action_status::NO_CHANGE);
+    }
+
+    /// RuleSubRight addr-tied guard (ruleaction.cc:7283-7286): the early
+    /// return fires ONLY for the exact-piece form — outvn's LSB sits at byte
+    /// c of a's storage (`outvn->overlap(*a) == c`, Varnode::overlap
+    /// varnode.cc:177-189). A disjoint addr-tied pair (outvn elsewhere in
+    /// the same space, e.g. the read_inode_3 globals 0x156ab2 vs 0x156a70)
+    /// must fall through to the transform, matching Ghidra; the old port
+    /// returned unconditionally for every addr-tied pair (READINODE3
+    /// SUB8x residual root).
+    #[test]
+    fn test_rule_subright_addrtied_disjoint_still_fires() {
+        let mut fd = Funcdata::new("test_subright_addrtied", Address::new(0x1000), 0x10);
+        // a: 8-byte RAM varnode at 0x156a70, addr-tied (insert + addrtied).
+        let a = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Ram, 0x156a70);
+        a.write().unwrap().set_flags(crate::varnode::varnode_flags::ADDRTIED);
+        let a = fd.vbank.set_input(a).unwrap();
+        // SUBPIECE(a, 2) → outvn: 1-byte RAM varnode at 0x156ab2, addr-tied
+        // (the mapped global write side of `uRam156ab2 = SUB81(uRam156a70,2)`).
+        let sub_op = fd.new_op(2, Address::new(0x1000));
+        fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
+        let outvn = fd.new_unique_out(1, &sub_op);
+        {
+            let mut o = outvn.write().unwrap();
+            o.address_space = crate::space::AddressSpace::Ram;
+            o.loc = crate::address::Address::new(0x156ab2);
+            o.set_flags(crate::varnode::varnode_flags::ADDRTIED);
+        }
+        fd.op_set_input(&sub_op, a.clone(), 0);
+        let c2 = fd.new_constant(4, 2);
+        fd.op_set_input(&sub_op, c2, 1);
+        fd.obank.adopt_alive_op(sub_op.clone());
+
+        let rule = RuleSubRight::new();
+        let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
+        assert_eq!(
+            result, action_status::CHANGE,
+            "disjoint addr-tied pair (overlap -1 != c) must transform"
+        );
+        // The SUBPIECE became least-sig, reading a fresh INT_RIGHT shift of a.
+        let shift_out = {
+            let sub = sub_op.0.read().unwrap();
+            assert_eq!(sub.inrefs[1].read().unwrap().get_offset(), 0);
+            sub.inrefs[0].clone()
+        };
+        // get_def() already upgrades the Weak to an Arc.
+        let shift_def = shift_out
+            .read()
+            .unwrap()
+            .get_def()
+            .expect("in(0) must now be the new shift output");
+        let sd = shift_def.read().unwrap();
+        assert_eq!(sd.opcode, OpCode::CPUI_INT_RIGHT);
+        assert!(Arc::ptr_eq(&sd.inrefs[0], &a));
+        assert_eq!(sd.inrefs[1].read().unwrap().get_offset(), 16); // c*8
+    }
+
+    /// RuleSubRight addr-tied guard, exact-piece arm: outvn sits exactly at
+    /// byte c of a's storage → overlap == c → leave for ActionCopyMarker
+    /// (ruleaction.cc:7285-7286), op unchanged.
+    #[test]
+    fn test_rule_subright_addrtied_exact_piece_held() {
+        let mut fd = Funcdata::new("test_subright_exact", Address::new(0x1000), 0x10);
+        // a: 8-byte stack-slot varnode at 0xffffff80 (-0x80), addr-tied.
+        let a = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Ram, 0xffffff80);
+        a.write().unwrap().set_flags(crate::varnode::varnode_flags::ADDRTIED);
+        let a = fd.vbank.set_input(a).unwrap();
+        // SUBPIECE(a, 4) → outvn at a+4 (overlap == 4 == c) → early return.
+        let sub_op = fd.new_op(2, Address::new(0x1000));
+        fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
+        let outvn = fd.new_unique_out(2, &sub_op);
+        {
+            let mut o = outvn.write().unwrap();
+            o.address_space = crate::space::AddressSpace::Ram;
+            o.loc = crate::address::Address::new(0xffffff84);
+            o.set_flags(crate::varnode::varnode_flags::ADDRTIED);
+        }
+        fd.op_set_input(&sub_op, a, 0);
+        let c4 = fd.new_constant(4, 4);
+        fd.op_set_input(&sub_op, c4, 1);
+        fd.obank.adopt_alive_op(sub_op.clone());
+
+        let rule = RuleSubRight::new();
+        let result = rule.apply_op(&sub_op.0, &mut fd).unwrap();
+        assert_eq!(
+            result, action_status::NO_CHANGE,
+            "exact-piece addr-tied form must be left for ActionCopyMarker"
+        );
+        // Op untouched: still SUBPIECE(a, 4).
+        let sub = sub_op.0.read().unwrap();
+        assert_eq!(sub.opcode, OpCode::CPUI_SUBPIECE);
+        assert_eq!(sub.inrefs[1].read().unwrap().get_offset(), 4);
+    }
+
+    /// RuleSubZext first arm (ruleaction.cc:5055-5063): the converted
+    /// INT_RIGHT constant keeps the SUBPIECE offset constant's SIZE
+    /// (`newConstant(constvn->getSize(), rightVal)`) — an 8-byte offset
+    /// const yields an 8-byte shift const. The old port hardcoded size 4,
+    /// which let functionalEqualityLevel0's size-first check (expression.cc
+    /// 407-408) match a 4-byte shift against this 8-byte shift and fire
+    /// push_multi where the oracle rejects (READINODE3 shift-position root).
+    #[test]
+    fn test_rule_subzext_right_const_inherits_offset_const_size() {
+        let mut fd = Funcdata::new("test_subzext_constsize", Address::new(0x1000), 0x10);
+        // basevn: 8-byte input; ZEXT(SUB81(base, 2)) with an 8-BYTE offset
+        // const (the global-shadow SUBPIECE form from read_inode_3:0x11aaa).
+        let base = fd
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x300);
+        let base = fd.vbank.set_input(base).unwrap();
+        let sub_op = fd.new_op(2, Address::new(0x1000));
+        fd.op_set_opcode(&sub_op, OpCode::CPUI_SUBPIECE);
+        let sub_out = fd.new_unique_out(1, &sub_op);
+        fd.op_set_input(&sub_op, base, 0);
+        let off2_8b = fd.new_constant(8, 2); // 8-byte offset const
+        fd.op_set_input(&sub_op, off2_8b, 1);
+        fd.obank.adopt_alive_op(sub_op.clone());
+        let zext = fd.new_op(1, Address::new(0x1001));
+        fd.op_set_opcode(&zext, OpCode::CPUI_INT_ZEXT);
+        let zext_out = fd.new_unique_out(8, &zext);
+        fd.op_set_input(&zext, sub_out, 0);
+        fd.obank.adopt_alive_op(zext.clone());
+
+        let rule = RuleSubZext::new();
+        let result = rule.apply_op(&zext.0, &mut fd).unwrap();
+        assert_eq!(result, action_status::CHANGE);
+        {
+            let s = sub_op.0.read().unwrap();
+            assert_eq!(s.opcode, OpCode::CPUI_INT_RIGHT);
+            assert_eq!(s.inrefs[1].read().unwrap().get_offset(), 16); // 2*8
+            assert_eq!(
+                s.inrefs[1].read().unwrap().get_size(),
+                8,
+                "shift const must inherit the 8-byte offset-const size (cc:5062)"
+            );
+        }
+        {
+            let z = zext.0.read().unwrap();
+            assert_eq!(z.opcode, OpCode::CPUI_INT_AND);
+            assert_eq!(z.inrefs[1].read().unwrap().get_offset(), 0xff); // mask(1)
+            assert_eq!(z.inrefs[1].read().unwrap().get_size(), 8); // basevn size
+            assert!(Arc::ptr_eq(&z.output.as_ref().unwrap(), &zext_out));
+        }
+        // Counter-arm: a 4-byte offset const keeps a 4-byte shift const
+        // (size is derived, never hardcoded either way).
+        let mut fd2 = Funcdata::new("test_subzext_constsize4", Address::new(0x1000), 0x10);
+        let base2 = fd2
+            .vbank
+            .create_with_space(8, crate::space::AddressSpace::Register, 0x300);
+        let base2 = fd2.vbank.set_input(base2).unwrap();
+        let sub_op2 = fd2.new_op(2, Address::new(0x1000));
+        fd2.op_set_opcode(&sub_op2, OpCode::CPUI_SUBPIECE);
+        let sub_out2 = fd2.new_unique_out(1, &sub_op2);
+        fd2.op_set_input(&sub_op2, base2, 0);
+        let off2_4b = fd2.new_constant(4, 2); // 4-byte offset const
+        fd2.op_set_input(&sub_op2, off2_4b, 1);
+        fd2.obank.adopt_alive_op(sub_op2.clone());
+        let zext2 = fd2.new_op(1, Address::new(0x1001));
+        fd2.op_set_opcode(&zext2, OpCode::CPUI_INT_ZEXT);
+        fd2.new_unique_out(8, &zext2);
+        fd2.op_set_input(&zext2, sub_out2, 0);
+        fd2.obank.adopt_alive_op(zext2.clone());
+        let result2 = RuleSubZext::new().apply_op(&zext2.0, &mut fd2).unwrap();
+        assert_eq!(result2, action_status::CHANGE);
+        assert_eq!(
+            sub_op2.0.read().unwrap().inrefs[1].read().unwrap().get_size(),
+            4,
+            "4-byte offset const must yield a 4-byte shift const"
+        );
     }
 
     /// RuleUnsigned2Float must NOT fire on a bare FLOAT_INT2FLOAT of a register

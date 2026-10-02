@@ -356,8 +356,33 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
-sq	87	810	DIVBREAK-RATCHET-REPIN-0001	divbreak-joint	2026-10-02
+sq	41	810	READINODE3-RATCHET-REPIN-0001	readinode3-joint	2026-10-02
 sqlite	250	1385	PARTSYM-RATCHET-REPIN-0001	partsym-joint	2026-10-02
+# READINODE3-RATCHET-REPIN-0001 @ readinode3 pre-commit joint tree, base 72c118da
+# [MB67] (2026-10-02, forced relink stale-guard digest=c4709885a8b2db50 files=155,
+# five-face --jobs 5 --no-cache cold round gateB):
+# ① sq 87→41 (−46 = READINODE3 two-rule burn: read_inode_3 44→0 — function body
+#    byte-identical to golden (SUBZEXT const-size 38-line shift-position family +
+#    SUBRIGHT addr-tied disjoint 6-line SUB8x family both closed); read_super
+#    3→1 [SUB82×2 burned by the RuleSubRight exact-piece guard; residual 1 =
+#    duplicate-goto line, pre-existing blockaction-domain tail]; per-function
+#    A/B snapA independent build: exactly 2 functions move, 808 identical, zero
+#    regressions). matched 810/810, defects=numbering=0.
+# ② sqlite 250 identical at skeleton level — NOT re-pinned (P9 double-space is a
+#    byte-level form: prettyprint P9 collapse scoping restores oracle-legitimate
+#    `  ` runs in array-cast type names [printc.cc:73 spacing=1 + cc:76
+#    postsurround adjacent stacking]; skeleton normalization is blind to it).
+#    curl 11 / httpd 0 / vsh 0 rows stay.
+# ③ Canon faces red line held: curl b7773087 byte-identical (0/0/0·124F);
+#    httpd 54f9b02c→cf316540 re-pin per MB52 form-level precedent — exactly 2
+#    sites `(undefined1  [16])` double-space restored, each byte-identical to
+#    the golden line form (0/0/0·34F). Corpus pin group re-pinned with full byte
+#    attribution: canon b6d76445·5,280,252B / mirror d526070e·5,285,841B
+#    (+325B/+325B = 317 lines + 8 two-site lines, ALL P9 double-space forms;
+#    73/1157 · 73/1175 functions touched, function sets identical; A-state
+#    reproduced old pins aca1ed85/413e5a86 exact); VdbeExec canon 20920e63 /
+#    mirror 0668b234 (39 lines each, double-space forms only, zero others).
+#    tests 2045P/0F/5I (=2040 + readinode3 5 new).
 # MB67 joint re-pin (PARTSYM-RATCHET-REPIN-0001 joint form, 2026-10-02,
 # MB67 merge of wt/partsym 19a922a4 [single commit, base abfb3d15/MB64 —
 # pre-MB65/66] onto master 3498c67b [MB66b, rows sq 87 / sqlite 267 =
