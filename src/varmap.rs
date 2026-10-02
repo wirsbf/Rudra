@@ -2329,6 +2329,17 @@ pub struct LocalSymbol {
     /// qp_scope_symbol_victim construction-order case). Accumulates across
     /// the symbol's mappings (`|=` per addMap, like the C++ flags word).
     pub property_flags: u32,
+    /// Join-piece storage legs of this symbol — the per-piece SymbolEntrys
+    /// `Scope::addMap` installs for a join-address mapping
+    /// (database.cc:1156-1177: `addMapInternal(entry.symbol, exfl,
+    /// vdat.getAddr(), off, vdat.size, entry.uselimit)` per piece, taken in
+    /// endian order — little-endian takes the least-significant piece
+    /// first). Each element is (piece space, piece offset, piece size),
+    /// pushed in that install order; empty for every non-join symbol.
+    /// Rudra models the unified join entry as the LocalSymbol itself and
+    /// these legs as the piece entries other consumers (the rangemap
+    /// splice-order replay in printc's emitScopeVarDecls) walk over.
+    pub join_pieces: Vec<(crate::space::AddressSpace, u64, i32)>,
     /// Ghidra Symbol::symbolId (database.hh:184): the database id of the
     /// original Symbol a name recommendation came from. `ScopeLocal::
     /// recoverNameRecommendationsForSymbols` writes it back onto the
@@ -2371,6 +2382,7 @@ impl LocalSymbol {
             hash: 0,
             persist: false,
             property_flags: 0,
+            join_pieces: Vec::new(),
             symbol_id: 0,
             this_ptr: false,
         }

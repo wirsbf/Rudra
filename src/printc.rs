@@ -8688,6 +8688,16 @@ impl PrintC {
         // contiguous in creation order (e.g. ap_fini_vhost_config's stack
         // entries at creation indexes 0-6 and 30).
         let mut grouped: Vec<(i32, Vec<(u64, u64, (u32, u64), usize)>)> = Vec::new();
+        // Piece-leg payload base: join-piece entries join their piece
+        // space's rangemap sequence (database.cc:1173 addMapInternal per
+        // piece) but never emit — `emitScopeVarDecls` skips them at
+        // cc:2539 (`if (entry->isPiece()) continue;`). Each leg gets a
+        // DISTINCT payload (`PIECE_BASE + k`) because the splice replay
+        // positions records by payload identity (`list.position(owner)`);
+        // a shared sentinel would splice later legs before the first leg's
+        // node instead of their own anchor.
+        const PIECE_BASE: usize = usize::MAX / 2;
+        let mut piece_k = 0usize;
         for (i, s) in statics.iter().enumerate() {
             let rank = local_maptable_space_rank(s.space);
             let a = s.start;
@@ -8702,6 +8712,28 @@ impl PrintC {
                 Some((_, v)) => v.push((a, b, sub, i)),
                 None => grouped.push((rank, vec![(a, b, sub, i)])),
             }
+            // Ghidra: database.cc:1126 Scope::addMap (join-piece legs at
+            // cc:1156-1177) — a
+            // join-address mapping installs one extra SymbolEntry per join
+            // record piece in the piece's OWN space rangemap
+            // (`addMapInternal(entry.symbol, exfl, vdat.getAddr(), off,
+            // vdat.size, entry.uselimit)`, cc:1163-1174), installed in the
+            // same addMap call (same creation slot as the unified entry)
+            // and sharing its uselimit (hence this symbol's subsort). The
+            // legs' refined sub-range keys anchor later splices in the
+            // piece space — e.g. sqlite3Pragma's xVar15 slots between the
+            // axVar46/axVar47 RAX legs — so the replay must walk them.
+            for (pspace, poffset, psize) in s.join_pieces.iter().copied() {
+                let prank = local_maptable_space_rank(pspace);
+                let pa = poffset;
+                let pb = poffset + psize as u64 - 1;
+                let payload = PIECE_BASE + piece_k;
+                piece_k += 1;
+                match grouped.iter_mut().find(|(r, _)| *r == prank) {
+                    Some((_, v)) => v.push((pa, pb, sub, payload)),
+                    None => grouped.push((prank, vec![(pa, pb, sub, payload)])),
+                }
+            }
         }
         // maptable vector order = address space index order
         // (database.cc:1952 maptable.resize + ScopeInternal::begin walk).
@@ -8711,6 +8743,11 @@ impl PrintC {
             order.extend(scope_rangemap_list_order(entries));
         }
         for si in order {
+            // cc:2539: if (entry->isPiece()) continue; — the join-piece
+            // legs joined the replay above but never emit a declaration.
+            if si >= PIECE_BASE {
+                continue;
+            }
             let sym = statics[si];
             // cc:2541: if (sym->getCategory() != cat) continue; (cat<0 here)
             if sym.category != cat {
@@ -20895,6 +20932,50 @@ mod tests {
             (0u64, 3u64, (1u32, 3u64), 2),  // N
         ];
         assert_eq!(scope_rangemap_list_order(&entries), vec![0, 2, 1]);
+    }
+
+    #[test]
+    fn test_scope_rangemap_list_order_join_leg_anchors() {
+        // sqlite3Pragma register@0 block with the axVar47/axVar46 join
+        // legs (database.cc:1156-1177 piece SymbolEntrys, installed with
+        // the join symbols' own subsorts before the register wave) feeding
+        // xVar15's splice: xVar15 (0..3, usepoint 0xad67a) lower-bounds on
+        // axVar47's split [1..3] piece (key (3, 0xad8c2)) and lands between
+        // the two legs; puVar18 then splices ahead of axVar46's (7,
+        // 0xad612) piece. Traced against the locked oracle's addMapInternal
+        // sequence (B1MAP probe, 2026-10-02): params, leg47(0,7)+leg47(0x10),
+        // leg46(0,7)+leg46(0x10), then the 1/4/8-byte register entries.
+        let s = |up: u64| (1u32, up);
+        let entries = vec![
+            (0x38, 0x3f, s(0xad3bf), 0),  // param_1
+            (0x30, 0x37, s(0xad3bf), 1),  // param_2
+            (0x10, 0x17, s(0xad3bf), 2),  // param_3
+            (0x08, 0x0f, s(0xad3bf), 3),  // param_4
+            (0x80, 0x83, s(0xad3bf), 4),  // param_5
+            (0x00, 0x07, s(0xad8c2), 5),  // axVar47 leg @RAX  (piece)
+            (0x10, 0x17, s(0xad8c2), 6),  // axVar47 leg @RDX  (piece)
+            (0x00, 0x07, s(0xad612), 7),  // axVar46 leg @RAX  (piece)
+            (0x10, 0x17, s(0xad612), 8),  // axVar46 leg @RDX  (piece)
+            (0x00, 0x00, s(0xadc80), 9),  // cVar9
+            (0x00, 0x00, s(0xae775), 10), // xVar10
+            (0x00, 0x00, s(0xb036a), 11), // uVar11
+            (0x00, 0x03, s(0xad42e), 12), // uVar12
+            (0x00, 0x03, s(0xad4d0), 13), // iVar13
+            (0x00, 0x03, s(0xad533), 14), // uVar14
+            (0x00, 0x03, s(0xad67a), 15), // xVar15
+            (0x00, 0x03, s(0xafb33), 16), // xVar16
+            (0x00, 0x03, s(0xafd33), 17), // xVar17
+            (0x00, 0x07, s(0xad3fc), 18), // puVar18
+            (0x00, 0x07, s(0xadb7c), 19), // iVar19
+            (0x00, 0x07, s(0xadbb9), 20), // xVar20
+        ];
+        assert_eq!(
+            scope_rangemap_list_order(&entries),
+            // cVar9..uVar14 run ahead of the axVar46 leg; xVar15 slots
+            // between the two (0,7) legs; puVar18 splices ahead of the
+            // axVar46 leg; the wave tail appends.
+            vec![9, 10, 11, 12, 13, 14, 16, 17, 18, 7, 15, 5, 19, 20, 3, 2, 8, 6, 1, 0, 4]
+        );
     }
 
     #[test]

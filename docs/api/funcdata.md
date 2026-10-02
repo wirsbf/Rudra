@@ -1,5 +1,18 @@
 # `funcdata.rs` API Reference
 
+## 2026-10-02：DECLB1-JOINLEG-0001 — `link_symbol` 的 join piece 腿解析（Lane DECLB1）
+
+`Funcdata::link_symbol` 的 cc:1177 建符号路径在 `vn_space == Join` 时经
+`Architecture::join_db` 的 `find_join(vn_offset)` 取 join 记录，按 oracle
+addMap 臂的 LE 序（database.cc:1163-1164，记录 most-significant-first 反向遍
+历——最不重要腿先装）把 `(piece 空间, 偏移, 尺寸)` 列表写进新符号的
+`LocalSymbol::join_pieces`。无 Architecture 或记录缺失（状态less 回退路径铸造
+的未注册 join 地址）时保持空表——行为退回旧形。这些腿建模 addMap 为 join 映
+射安装的 per-piece SymbolEntry，由 printc 的 emitScopeVarDecls 拼接序回放消
+费（见 varmap/printc 同批条目）。测试：printc 侧
+`test_scope_rangemap_list_order_join_leg_anchors` + 镜面 sqlite 面 trio 逐字
+节归零对账。
+
 ## 2026-09-30：(g) 守卫影子随行（Lane ARENAFLIP-g 步骤 2）
 - insert_op 的 SWITCH_OUT 直写改 `set_flags`；块构造字面量增 `bank_slot`
   初始化。值语义不变。

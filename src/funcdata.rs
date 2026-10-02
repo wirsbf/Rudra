@@ -1900,6 +1900,58 @@ impl Funcdata {
                     .add_symbol(
                     vn_space, "", Some(ct), vn_offset, up);
                 sym = Some(idx);
+                // Ghidra: database.cc:1126 Scope::addMap (join-piece legs
+                // at cc:1156-1177)
+                // — `addSymbol` on a join address routes through
+                // `addMapPoint` -> `addMap`, whose join arm
+                // (database.cc:1156-1177) installs one extra SymbolEntry
+                // per join-record piece (`addMapInternal(entry.symbol,
+                // exfl, vdat.getAddr(), off, vdat.size, entry.uselimit)`).
+                // Those piece entries land in the pieces' own address-space
+                // rangemaps (register for the x86-64 RAX+RDX return joins)
+                // and participate in the splice order other scopes observe.
+                if vn_space == crate::space::AddressSpace::Join {
+                    let pieces = self
+                        .get_arch()
+                        .as_ref()
+                        .and_then(|arch| {
+                            let join_db = arch
+                                .join_db
+                                .read()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner());
+                            join_db.find_join(vn_offset).map(|rec| {
+                                // cc:1163-1164: pieces taken in endian
+                                // order — little-endian walks the record
+                                // (most-significant-first) back-to-front,
+                                // so the least-significant leg installs
+                                // first with symbol-offset 0.
+                                let num = rec.pieces.len();
+                                (0..num)
+                                    .map(|j| {
+                                        let i = if rec
+                                            .unified
+                                            .space
+                                            .is_big_endian()
+                                        {
+                                            j
+                                        } else {
+                                            num - 1 - j
+                                        };
+                                        let vdat = &rec.pieces[i];
+                                        (
+                                            vdat.space,
+                                            vdat.offset,
+                                            vdat.size as i32,
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                        })
+                        .unwrap_or_default();
+                    if !pieces.is_empty() {
+                        self.scope.as_mut()?.symbols[idx].join_pieces = pieces;
+                    }
+                }
                 // cc:1178-1179: sym = entry->getSymbol(); vn->setSymbolEntry(entry)
                 // — varnode.cc:429-439 flags + high->setSymbol (variable.cc:
                 // 245-275 symboloffset) through the shared attach helper.

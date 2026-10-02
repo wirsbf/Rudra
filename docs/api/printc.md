@@ -1,5 +1,41 @@
 # `printc.rs` API Reference
 
+## 2026-10-02：DECLB1-JOINLEG-0001 — join 符号的寄存器 piece 腿参与 emitScopeVarDecls 拼接序回放（Lane DECLB1）
+**现象**：sqlite 镜面 trio（sqlite3Pragma/sqlite3_mprintf/sqlite3_vmprintf）各 2 行
+decl 换位：`xunknown4 xVar15;` Rudra 发射在 xVar16 之前、oracle 在 puVar18 与
+iVar19 之间。DECLB12 根钉曾推断"entry (0,3)→(0,7) 尺寸差"；本道 oracle B1MAP
+创建序探针（锁版 12.0.4 direct-runner，addMapInternal 逐调用 trace）**翻案**：
+双侧 entry 键恒等（register@0 (0,3)/sz4/usepoint 0xad67a），差异纯在拼接锚。
+
+**根因（oracle 亲读 + 探针）**：`Scope::addMap` 的 join 地址臂
+（database.cc:1156-1177）给每个 join 记录 piece 安装一条额外 SymbolEntry 到
+piece 自己的空间 rangemap（`addMapInternal(entry.symbol, exfl, vdat.getAddr(),
+off, vdat.size, entry.uselimit)`）——这些腿与 join 符号同 sub-sort、且经
+linkProtoPartial 驱动的早期 join 创建先于寄存器波进入树。rangemap 拼接序
+（rangemap.hh:242-245）按**细化子区间键** `(refined_last, owner_subsort)` 取
+lower_bound：xVar15 的 (3, 0xad67a) 恰命中 axVar47 腿分裂出的 `[1..3]` piece
+键 (3, 0xad8c2)，落在 axVar46/axVar47 两腿之间；puVar18 随后拼到 axVar46 的
+(7, 0xad612) piece 之前。Rudra 的 varmap::ScopeLocal 只把 join 符号建在 join
+空间组、**无寄存器 piece 腿**，回放树缺 (3, ss47)/(7, ss46) 锚——xVar15 拼到
+x16 之前。
+
+**修法**：`emit_scope_local_var_decls` 分组循环为带 `join_pieces` 的符号向
+piece 空间组（按 `local_maptable_space_rank`）追加 `(pa, pb, 同 sub-sort,
+PIECE_BASE+k)` 腿元组（创建序跟随 join 符号槽位）；每腿 payload 唯一
+（`PIECE_BASE+k`，共享哨兵会令 `list.position(owner)` 命中首腿错锚——本道
+首轮实测翻车形态）；发射循环 `si >= PIECE_BASE` 跳过（cc:2539 isPiece 跳过
+的对应）。配套：varmap.rs `LocalSymbol::join_pieces` 字段 + funcdata.rs
+`link_symbol` 在 Join 空间创建时经 `Architecture::join_db.find_join` 解析腿
+（LE 序取 piece，cc:1163-1164）。新增单测
+`test_scope_rangemap_list_order_join_leg_anchors`（pragma 寄存器组 21 entry
+oracle 键复刻，断言 x15 落两腿之间）。
+
+**验证**：镜面五面 sqlite 115→**109**（恰 trio −2×3，其余 23 差函数字节稳定，
+defects=numbering=0，matched 1385/1385）；curl 11/httpd 0/vsh 0/sq 41 恒等；
+canon 双语素 f903372a/3617ecc3 字节恒等；corpus 钉组 VdbeExec
+b3f5b487/6068dd8c0 恒等、canon/mirror 双面恰同 3 函数 ±0 字节纯换序
+（a1d60f4f→d165bea4 / 851402bf→67824234）；tests 2047P。
+
 ## 2026-10-02：CLONESURG-CLONELABEL-ANCHOR-0001 — 标签锚定叶优先：pending/backpatch 臂让位 `f_unstructured_targ` 锚定叶（Lane CLONESURG）
 **现象**：sqlite 镜面 ExprIsConstant×5 克隆族（5 函数 ×16 行）里的标号换位子形
 （2 行/函数 ×5）：Rudra 在 return-1 位点（共享尾声 0x3b232 的 nodeSplit 副本，
