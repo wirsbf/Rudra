@@ -255,6 +255,17 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # 保持;CR-FTS3DOMCOPY D 裁定注记: corpus 钉组真值链=可复现链（MB78 ced48470/1466ee4b
 # → MB79 e3822667/50c15616 → MB80 6427a459/c46d0fe8 → MB81 df204662/62f74d43 →
 # 本道联合新钉;CONDMERGE 车道行 3f32b73a/1ce87062 系分支树误记,联合树以实测为准）。
+# 2026-10-03 MISC2 车道重钉（MISC2-F12-PARAMTYPE-REPIN-0001）: fspec 参数/返回类型盖章
+# 从 trial Varnode 自身类型改为 HighVariable 代表类型（oracle fspec.cc:4069/4076/4149/
+# 4159 vn->getHigh()->getType()——typelock 优先+typeOrderBool 最特异,variable.cc:377-416
+# 惰性 typedirty 重推导;Rudra 旧实现误读 trial Varnode 自身类型,输入 trial 常为未写
+# 寄存器/栈输入,自身类型停在尺寸默认基类型而合并写实例携带传播具体类型）——sqlite
+# 车道树实测 28→26（=28−2 精确,sqlite3Reindex 第 4 参声明 `xunknown1 *param_4` ==
+# golden 逐字节,函数体已恒等;其余 26 残差函数零回归——逐函数 ✗ 清单 diff 恰一行
+# Reindex 出列亲证）。修复 commit 48878b6d（fspec.rs 四臂统一 high 代表查找+
+# docs/api/fspec.md）;F12 函数族与 MB79/80/81/82 已燃族不相交,加性合成实测兑现。
+# canon 红线 f903372a/3617ecc3 保持;镜面五面 0/0/0/35/26 全 PASS。
+sqlite	26	1385	MISC2-F12-PARAMTYPE-REPIN-0001	wt-misc2	2026-10-03
 sqlite	28	1385	FTS3DOMCOPY-MB82-JOINT-REPIN-0001	mb82-joint	2026-10-02
 sqlite	31	1385	MISC24-MB81-JOINT-REPIN-0001	mb81-joint	2026-10-02
 curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02
