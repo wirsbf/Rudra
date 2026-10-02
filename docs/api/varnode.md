@@ -1542,3 +1542,14 @@ coreaction `cast_output` 新 CALLOTHER token 臂（docs/api/coreaction.md 同日
   `stack:18446744073709551424:4(free)` → `s0xffffffffffffff40`（见
   docs/api/heritage.md 同日条目）；sqlite 镜面 config/test_control 两函数
   6 行残差清零（字节级与 golden 恒等）。
+
+### 2026-10-03：print_raw_no_markup_arch 回退臂接注册表孪生（VNPRINT-JOINIOP 收口）
+- 回退臂（varnode.cc:728-732）从委托无参 `print_raw_no_markup` 改为内联
+  oracle 形：shortcut 字符（cc:729）+ `loc.printRaw` 经
+  `AddressSpace::print_raw_offset_arch`（cc:731 的空间虚派发——join
+  （space.cc:590）/iop（op.cc:41）注册表绑定形自此在 varnode 级联中可达）
+  + `expect = getDefaultSize()` = 8（x86-64，cc:730）。
+- `None` trans 退化态与无参孪生同观测（孪生内部回退基类形）；
+  heritage.rs 调用点（cc:2739 警告头）零改动。
+- 单测两例：join varnode 全形 `j{0x00000010,0x00000000}`（含 expect=8）；
+  iop varnode 注册表 miss 的生产回退形 `i0x00007f00`。

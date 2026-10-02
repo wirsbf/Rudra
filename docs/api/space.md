@@ -639,3 +639,28 @@ UB-邻接行为（Rust 在查名点拒绝）。
   裁剪）。join（space.cc:590）/iop（op.cc:41）注册表绑定形以基类形代位
   （MISC24-VNPRINT-JOINIOP-0001 残票：legacy 枚举不携带 SpaceRegistry 数据）。
 - 消费者：`Varnode::print_raw_no_markup`（varnode.cc:711-734 port）。
+
+### 2026-10-03：print_raw_offset_arch 注册表感知孪生（VNPRINT-JOINIOP 收口）
+- 新增 `AddressSpace::print_raw_offset_arch(offset, arch: Option<&Architecture>)`：
+  Ghidra `AddrSpace` 持 manager 反向指针（space.hh:118 `getManager()`），
+  其虚 `printRaw` 因此够得到 join 注册表与 iop 的 op 指针身份；legacy 枚举
+  两者皆无，arch 参数显式传同一注册表。分臂语义：
+  - **Join**（space.cc:590-609）：`arch.join_db.find_join(offset)` 精确匹配，
+    miss → `panic!("Unlinked join address")` == oracle `findJoin` 的
+    LowlevelError throw（translate.cc:761）。分片按注册序打印，每片前逗号
+    （i==0 除外，space.cc:600-601），每片经自身空间派发（本孪生递归 ==
+    `vdat.space->printRaw(s,vdat.offset)`，space.cc:602）；`szsum` 累加全部
+    片尺寸但仅在 num==1 分支被覆写为 unified（逻辑）尺寸后才打印
+    （space.cc:604-606）——多片累加为 oracle 死累加，照抄未"优化"。
+  - **Iop**（op.cc:41-59）：offset 为被引用 op 的指针身份，经
+    `drillobserve::resolve_iop_printraw`（drill iop 注册表）解析——非分支印
+    SeqNum，分支印 `code_<shortcut><start>`；注册表 miss（生产 drill env 未
+    设 → 注册表空，或被引用 op 已销毁 = oracle 悬空解引用臂）确定性回退
+    基类形。
+  - 其余空间与 `None` arch（Ghidra JoinSpace ctor 恒持 manager，space.cc:446
+    ——不可表达的退化态）→ 基类 `print_raw_offset` 投影。
+- `print_raw_offset` 参数无函不变（join/iop 臂以基类形代位的 MISC24 残票
+  MISC24-VNPRINT-JOINIOP-0001 就此收口：代位形仅存于无 manager 退化态）。
+- 消费者：`Varnode::print_raw_no_markup_arch` 回退臂（varnode.cc:728-732）；
+  单测 `join_db_tests` 四例（多片逗号形/单片 logicalsize 覆写/未链接
+  panic==throw/无 arch 退化）。
