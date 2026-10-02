@@ -1132,6 +1132,15 @@ ModelRules 或 Architecture-owned Address identity；`fspec` 保持 L2。
   fspec.cc:4118 factory 调用）；参数命名折叠为 `param_<count+1>`
   （ProtoStoreSymbol 的 ScopeInternal 符号在 commit 时按 category
   function_parameter + catindex 默认命名，database.cc:2481）。
+- `FuncProto::update_input_types` / `update_output_types` 的类型来源
+  （2026-10-03，Lane MISC2/F12）：fspec.cc:4069/4076/4149/4159 四处
+  `vn->getHigh()->getType()` 现按 oracle 取 HighVariable 代表类型
+  （typelock 优先，其次 typeOrderBool 最特异，variable.cc:377-416 惰性
+  typedirty 重推导），不再误读 trial Varnode 自身类型（输入 trial 常为
+  未写寄存器/栈输入，自身类型停留在尺寸默认基类型，而合并的写实例携带
+  传播得到的具体类型——参数声明必须盖章后者）。无 high 链接的 arena 边
+  角折叠为 Varnode 自身类型（oracle varnode.cc:88-94 在该状态抛
+  LowlevelError，isHighOn() 调用上下文中不可达）。
 - `FuncProto::update_input_no_types`（fspec.cc:4097-4128 全量镜像）：
   与 update_input_types 同 used-trial 走查，仅用尺寸——persist 臂用
   varnode 自身 (addr,size) 作 findDisjointCover stand-in（同

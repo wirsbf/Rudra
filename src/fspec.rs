@@ -1649,18 +1649,36 @@ impl FuncProto {
             let mut pieces = ParameterPieces::default();
             let (addr, ty) = {
                 let vn_r = vn.read().unwrap();
+                // cc:4069/4076: pieces.type = vn->getHigh()->getType() — the
+                // HighVariable representative type (typelock preferred, then
+                // most specific via typeOrderBool, variable.cc:377-416), NOT
+                // the trial Varnode's own type. The input trial is typically
+                // the unwritten register/stack input whose own type stays the
+                // size-default base, while merged written instances carry the
+                // propagated concrete type the declaration must stamp.
+                // Rudra's HighVariable::get_type performs the same lazy
+                // typedirty re-derivation as variable.hh's updateType path.
+                let high_type = match vn_r.get_high() {
+                    Some(h) => Some(h.read().unwrap().get_type()),
+                    // varnode.cc:88-94 getHigh() throws on a missing high; in
+                    // the isHighOn() call context (cc:4750) every non-annotation
+                    // Varnode has one. The None arm is the arena edge where the
+                    // high link is not yet established — folded to the
+                    // Varnode's own type (deterministic no-op for the corpus).
+                    None => vn_r.get_type(),
+                };
                 if vn_r.is_persist() {
                     // Ghidra: pieces.addr = data.findDisjointCover(vn, sz)
                     let (cover_addr, sz) = find_disjoint_cover(&vn);
                     let ty = if sz as usize == vn_r.get_size() {
-                        vn_r.get_type()
+                        high_type
                     } else {
                         None // Ghidra: getBase(sz, TYPE_UNKNOWN) — filled below.
                     };
                     (cover_addr, ty)
                 } else {
                     // pieces.addr = trial.getAddress(); pieces.type = vn->getHigh()->getType()
-                    (trial.get_address(), vn_r.get_type())
+                    (trial.get_address(), high_type)
                 }
             };
             pieces.addr = addr;
@@ -1920,7 +1938,12 @@ impl FuncProto {
             let vn0 = triallist[0].read().unwrap();
             if *vn0.get_addr() == out_addr && vn0.get_size() as i32 == out_size {
                 // outparm->overrideSizeLockType(triallist[0]->getHigh()->getType())
-                if let Some(t) = vn0.get_type() {
+                // (fspec.cc:4149) — high representative type, same lookup as
+                // the cc:4069/4076 input-side arms.
+                if let Some(t) = match vn0.get_high() {
+                    Some(h) => Some(h.read().unwrap().get_type()),
+                    None => vn0.get_type(),
+                } {
                     self.return_type = t;
                 }
             }
@@ -1940,14 +1963,20 @@ impl FuncProto {
             let vn0 = triallist[0].read().unwrap();
             pieces.addr = *vn0.get_addr();
             // Ghidra: pieces.type = triallist[0]->getHigh()->getType()
-            // (fspec.cc:4155) — the HIGH type is never null because every
-            // untyped Varnode is created with getBase(size,TYPE_UNKNOWN)
-            // (Funcdata::newVarnode/newUnique/newConstant,
-            // funcdata_varnode.cc:83/148/…), so an unconstrained return
-            // value types as `undefined<N>`. Fold Rust's None to the same
-            // unknown base (the convention of the input-side port at
-            // fspec.cc:4118's updateInputNoTypes fold).
-            pieces.ty = Some(match vn0.get_type() {
+            // (fspec.cc:4159) — the HIGH representative type (variable.cc:
+            // 377-416), not the Varnode's own type; the oracle's high type
+            // is never null because every untyped Varnode is created with
+            // getBase(size,TYPE_UNKNOWN) (Funcdata::newVarnode/newUnique/
+            // newConstant, funcdata_varnode.cc:83/148/…), so an unconstrained
+            // return value types as `undefined<N>`. Fold Rust's None (no high
+            // link or no own type) to the same unknown base (the convention
+            // of the input-side port at fspec.cc:4118's updateInputNoTypes
+            // fold).
+            let out_high_type = match vn0.get_high() {
+                Some(h) => Some(h.read().unwrap().get_type()),
+                None => vn0.get_type(),
+            };
+            pieces.ty = Some(match out_high_type {
                 Some(t) => t,
                 None => {
                     let size = vn0.get_size();

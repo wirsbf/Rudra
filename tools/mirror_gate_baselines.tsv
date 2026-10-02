@@ -255,6 +255,20 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # 保持;CR-FTS3DOMCOPY D 裁定注记: corpus 钉组真值链=可复现链（MB78 ced48470/1466ee4b
 # → MB79 e3822667/50c15616 → MB80 6427a459/c46d0fe8 → MB81 df204662/62f74d43 →
 # 本道联合新钉;CONDMERGE 车道行 3f32b73a/1ce87062 系分支树误记,联合树以实测为准）。
+# 2026-10-03 MB86 联合注记（MISC2-MB86-JOINT-REPIN-0001 联合树兑现）: misc2 并入
+# master[MB85 后 908f77d0] 联合树实测 sqlite 8（=10−2 精确——fspec 四臂 high 代表类型源
+# 修复的 sqlite3Reindex 单函数族与 MB85 后残 10 的已燃族[MB79 F1 三重奏/MB80 Wal 两函数/
+# MB81 config+test_control/MB82 Fts3DeferredTokenList/MB85 结构尾 11 函数族]全部不相交,
+# 加性合成实测兑现;残 8=WindowCodeStep 5+Select 2+AddCheckConstraint 1 全 misc-tail 族
+# [TAILCENSUS 序五备靶,域深票移交]）;commit 前联合树强制重链 1m07s（stale-guard
+# digest=6951c2738cf28744 files=155——联合树新指纹,自 MB85 c079d1ab352e49cb 的预期位移
+# [fspec.rs 四臂类型源入联合树]）+五面 --no-cache --jobs 5 冷测 curl 0/0·httpd 0/0·vsh 0/0·
+# sq 0/0·sqlite 8/10（master STRUCTAIL-MB85 基线下全 PASS,defects=0 numbering=0,matched
+# 满额 74/29/71/810/1385）;车道注记块内 sqlite 26 系车道基 21d8f9a4[MB82]口径,联合树以
+# master MB85 值 sqlite 10 为基——车道 26 陈旧行按 MB77-85 先例由本联合行取代（车道注记块
+# 逐字保留）;重钉后冷复跑 sqlite 8/8 恰钉值（首行命中 MISC2-MB86-JOINT-REPIN-0001,
+# 确定性）+tsv --self-test PASS。
+sqlite	8	1385	MISC2-MB86-JOINT-REPIN-0001	mb86-joint	2026-10-03
 # 2026-10-03 STRUCTAIL 车道重钉（STRUCTAIL-REPIN-0001）: 结构尾清扫（TAILCENSUS 备靶
 # 序四 TC-F4+F9+F13 族）——公共根因=RUDRA-GLUE 文本补偿层四 pass 误吞 oracle-真发射
 # （发射层 pre-pass 输出==golden 逐字节,post_process_output_legacy 层吃掉）: P10 死区
@@ -285,6 +299,16 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # 联合行取代（车道注记块逐字保留）;重钉后冷复跑 sq 0/0+sqlite 10/10 恰钉值（首行命中
 # STRUCTAIL-MB85-JOINT-REPIN-0001,确定性）。
 sqlite	10	1385	STRUCTAIL-MB85-JOINT-REPIN-0001	mb85-joint	2026-10-03
+# 2026-10-03 MISC2 车道重钉（MISC2-F12-PARAMTYPE-REPIN-0001）: fspec 参数/返回类型盖章
+# 从 trial Varnode 自身类型改为 HighVariable 代表类型（oracle fspec.cc:4069/4076/4149/
+# 4159 vn->getHigh()->getType()——typelock 优先+typeOrderBool 最特异,variable.cc:377-416
+# 惰性 typedirty 重推导;Rudra 旧实现误读 trial Varnode 自身类型,输入 trial 常为未写
+# 寄存器/栈输入,自身类型停在尺寸默认基类型而合并写实例携带传播具体类型）——sqlite
+# 车道树实测 28→26（=28−2 精确,sqlite3Reindex 第 4 参声明 `xunknown1 *param_4` ==
+# golden 逐字节,函数体已恒等;其余 26 残差函数零回归——逐函数 ✗ 清单 diff 恰一行
+# Reindex 出列亲证）。修复 commit 48878b6d（fspec.rs 四臂统一 high 代表查找+
+# docs/api/fspec.md）;F12 函数族与 MB79/80/81/82 已燃族不相交,加性合成实测兑现。
+# canon 红线 f903372a/3617ecc3 保持;镜面五面 0/0/0/35/26 全 PASS。
 sqlite	28	1385	FTS3DOMCOPY-MB82-JOINT-REPIN-0001	mb82-joint	2026-10-02
 sqlite	31	1385	MISC24-MB81-JOINT-REPIN-0001	mb81-joint	2026-10-02
 curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02
