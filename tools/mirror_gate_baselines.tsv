@@ -357,7 +357,16 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
 sq	41	810	READINODE3-RATCHET-REPIN-0001	readinode3-joint	2026-10-02
-sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
+# 2026-10-02 DECLB12 重钉（DECLB12-RATCHET-REPIN-0001, @wt/declb12 = 624e5a6a +
+# RuleExtensionPush duplicateNeed buildVarnodeOut 修复态 fresh 实测）: sqlite ceiling
+# 180→172 收紧（−8）——恰 DECL-B2-SEXTTYPE-0001 两函数 Dequote/DequoteExpr（各 4 行:
+# DECL 2+OPNAME 2）归零,函数体逐字节==golden;其余 32 差函数零漂移（census 复算 36→34
+# 差函数,DECL-CHURN 20→16/OPNAME-LEAK 26→22）;curl 11/httpd 0/vsh 0/sq 41 四面恒等
+# 未动。canon 红线 curl f903372a/httpd 3617ecc3 字节恒等;VdbeExec 双钉
+# 20920e63/0668b234 恒等;corpus 位移恰 2 函数（mirror/canon 各 +30/−30,pre-fix revert
+# 构建 md5==旧钉 9aaf3cfd/1743cb2f 精确——基线忠实亲证）。tests 2046P=2045+1 新测。
+# DECL-B1-DECLMOVE-0001 残票 8 行（vmprintf/mprintf/Pragma/changeset_invert）保持 OPEN。
+sqlite	172	1385	DECLB12-RATCHET-REPIN-0001	declb12	2026-10-02
 # MB68 joint re-pin (ROUND3-BBLOCK-MERGE-REPIN-0001 joint form, 2026-10-02,
 # MB68 merge of wt/round3 93e7da85 [single commit, base 2a3da1ae/TRACEDAG
 # tip — pre-MB64/65/66/67] onto master 72c118da [MB67, rows sq 87 /

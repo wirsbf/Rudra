@@ -14330,10 +14330,12 @@ impl RuleExtensionPush {
     // Ghidra: ruleaction.cc:7423 RuleExtensionPush
     pub fn new() -> Self { Self }
 
-    /// Faithful to `RulePushPtr::duplicateNeed` (ruleaction.cc:6827-6855) plus
-    /// `buildVarnodeOut` (ruleaction.cc:6783-6790). Duplicate the single-input
-    /// extension op so each descendant gets its own copy, then destroy the
-    /// original. We assume the op is INT_ZEXT/INT_SEXT (one input).
+    /// Faithful to `RulePushPtr::duplicateNeed` (ruleaction.cc:6809-6844)
+    /// — the shared helper RuleExtensionPush invokes at cc:7451 — plus
+    /// `buildVarnodeOut` (ruleaction.cc:6765-6771). Duplicate the
+    /// single-input extension op so each descendant gets its own copy, then
+    /// destroy the original. We assume the op is INT_ZEXT/INT_SEXT (one
+    /// input).
     // Ghidra: ruleaction.cc:6809 RulePushPtr::duplicateNeed
     fn duplicate_need(op: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata) {
         let op_ref = crate::op::PcodeOpRef(op.clone());
@@ -14369,11 +14371,40 @@ impl RuleExtensionPush {
             // newOp(num, op->getAddr()); opSetOpcode; build output.
             let new_op = fd.new_op(num, op_addr);
             fd.op_set_opcode(&new_op, opc);
-            // buildVarnodeOut: if addr-tied/internal → newUniqueOut; else newVarnodeOut(addr).
-            // Ghidra keeps addr-tied varnodes at their storage; otherwise a unique.
-            // Rudra's new_unique_out always makes an internal unique, matching the
-            // IPTR_INTERNAL / non-addr-tied common case.
-            let new_out = fd.new_unique_out(out_size, &new_op);
+            // buildVarnodeOut (ruleaction.cc:6765-6771): if the original
+            // output is addr-tied or internal-space (unique) → newUniqueOut;
+            // ELSE newVarnodeOut(size, vn->getAddr(), op) — the duplicate
+            // KEEPS the original storage, e.g. a register-space extension
+            // result (movsxd) stays at its register instead of being pushed
+            // into a unique temp. DECLB12: the previous unconditional
+            // new_unique_out destroyed the register def, so the surviving
+            // sext output became a unique-space high — ActionNameVars then
+            // linked it as a Register-less xunknownN local (B2: Dequote/
+            // DequoteExpr `xVarN = SEXT..(iVarM)` vs oracle
+            // `int8 iVarN = (int8)iVarM`).
+            let new_out = {
+                let (addrtied, space, offset) = {
+                    let o = out_vn.read().unwrap();
+                    (o.is_addr_tied(), o.get_space(), o.get_offset())
+                };
+                if addrtied || space.is_unique() {
+                    fd.new_unique_out(out_size, &new_op)
+                } else {
+                    fd.new_varnode_out_full(
+                        out_size,
+                        space,
+                        crate::address::Address::new(offset),
+                        &new_op,
+                    )
+                }
+            };
+            // cc:6816: newOut->updateType(outVn->getType()) — the duplicate
+            // inherits the original output's current type (e.g. int8 from
+            // TypeOpIntSext's metaout TYPE_INT typerecovery), which keeps the
+            // implied copy printing as a cast instead of a functional SEXT.
+            if let Some(ct) = out_vn.read().unwrap().get_type() {
+                new_out.write().unwrap().update_type(ct);
+            }
             fd.op_set_input(&new_op, in_vn.clone(), 0);
             if num > 1 {
                 if let Some(in1) = op.read().unwrap().inrefs.get(1).cloned() {
@@ -30652,6 +30683,137 @@ mod tests {
         let c2 = fd.new_constant(4, 4);
         let (outer, _) = build_op(&mut fd, OpCode::CPUI_INT_DIV, &[mid, c2], 4);
         assert_eq!(RuleDivChain::new().apply_op(&outer.0, &mut fd).unwrap(), 0);
+    }
+
+    // DECL-B2-SEXTTYPE-0001 lock: RuleExtensionPush duplicates must keep the
+    // original storage for register-space extension outputs.
+    // RulePushPtr::buildVarnodeOut (ruleaction.cc:6765-6771):
+    // `vn->isAddrTied() || vn->getSpace()->getType() == IPTR_INTERNAL` →
+    // newUniqueOut, ELSE newVarnodeOut(size, vn->getAddr(), op); and
+    // duplicateNeed cc:6816 `newOut->updateType(outVn->getType())`.
+    // Regression shape: sqlite3Dequote `movslq %eax,%rsi` — the duplicated
+    // sext outputs must stay at the register so ActionNameVars links the
+    // register high (`int8 iVar3 = (int8)iVar1`), not a unique-space
+    // xunknown local (`xVar1 = SEXT48(iVar2)`).
+    #[test]
+    fn test_rule_ext_push_preserves_register_storage() {
+        use crate::block::BlockBasic;
+        use crate::space::AddressSpace;
+        let mut fd = Funcdata::new("t", Address::new(0x1000), 0x10);
+        let b0: Arc<RwLock<dyn crate::block::FlowBlock + Send + Sync>> =
+            Arc::new(RwLock::new(BlockBasic::new(0, Address::new(0x1000))));
+        fd.bblocks.add_block(b0.clone());
+
+        // EAX-like base: 4B @ register 0, DEFINED by a COPY (a free varnode
+        // may hold only one descendant); the extra COPY reader gives it a
+        // second descendant so the cc:7446 in(0)->loneDescend() guard does
+        // not fire.
+        let arg_eax = fd.vbank.create_with_space(4, AddressSpace::Register, 0x200);
+        let eax = fd.vbank.create_with_space(4, AddressSpace::Register, 0x0);
+        let def_eax = fd.new_op(1, Address::new(0x1000));
+        fd.op_set_opcode(&def_eax, OpCode::CPUI_COPY);
+        fd.op_set_input(&def_eax, arg_eax, 0);
+        fd.op_set_output(&def_eax, eax.clone());
+        fd.op_insert_end(&def_eax, &b0);
+        let other = fd.new_op(1, Address::new(0x1000));
+        fd.op_set_opcode(&other, OpCode::CPUI_COPY);
+        fd.op_set_input(&other, eax.clone(), 0);
+        let other_out = fd.new_unique_out(4, &other);
+        let _ = other_out;
+        fd.op_insert_end(&other, &b0);
+
+        // RSI = sext(EAX) — 8B register output at 0x30 (movslq form). The
+        // output carries its typerecovery type (TypeOpIntSext metaout =
+        // TYPE_INT → int8) like the real pipeline state at cleanup time.
+        let sext = fd.new_op(1, Address::new(0x1000));
+        fd.op_set_opcode(&sext, OpCode::CPUI_INT_SEXT);
+        fd.op_set_input(&sext, eax.clone(), 0);
+        let rsi = fd.vbank.create_with_space(8, AddressSpace::Register, 0x30);
+        let int8 = Arc::new(crate::type_system::datatype::Datatype::Base(
+            crate::type_system::datatype::TypeBase::new(
+                "int8".to_string(),
+                8,
+                crate::type_system::datatype::TypeMetatype::Int,
+            ),
+        ));
+        rsi.write().unwrap().update_type(int8.clone());
+        fd.op_set_output(&sext, rsi.clone());
+        fd.op_insert_end(&sext, &b0);
+
+        // Descendant 1: PTRADD reading rsi (ptrcount = 1). The base pointer
+        // gets a COPY def (a free varnode may have only one descendant).
+        let arg = fd.vbank.create_with_space(8, AddressSpace::Register, 0x200);
+        let ptr = fd.vbank.create_with_space(8, AddressSpace::Register, 0x100);
+        let def_ptr = fd.new_op(1, Address::new(0x1000));
+        fd.op_set_opcode(&def_ptr, OpCode::CPUI_COPY);
+        fd.op_set_input(&def_ptr, arg, 0);
+        fd.op_set_output(&def_ptr, ptr.clone());
+        fd.op_insert_end(&def_ptr, &b0);
+        let p1 = fd.new_op(3, Address::new(0x1000));
+        fd.op_set_opcode(&p1, OpCode::CPUI_PTRADD);
+        fd.op_set_input(&p1, ptr.clone(), 0);
+        fd.op_set_input(&p1, rsi.clone(), 1);
+        let c1 = fd.new_constant(4, 1);
+        fd.op_set_input(&p1, c1, 2);
+        fd.op_insert_end(&p1, &b0);
+
+        // Descendant 2: INT_ADD(rsi,#1) whose output feeds a lone PTRADD
+        // (addcount = 1).
+        let a1 = fd.new_op(2, Address::new(0x1000));
+        fd.op_set_opcode(&a1, OpCode::CPUI_INT_ADD);
+        fd.op_set_input(&a1, rsi.clone(), 0);
+        let cone = fd.new_constant(8, 1);
+        fd.op_set_input(&a1, cone, 1);
+        let a1out = fd.vbank.create_with_space(8, AddressSpace::Register, 0x108);
+        fd.op_set_output(&a1, a1out.clone());
+        fd.op_insert_end(&a1, &b0);
+        let p2 = fd.new_op(3, Address::new(0x1000));
+        fd.op_set_opcode(&p2, OpCode::CPUI_PTRADD);
+        fd.op_set_input(&p2, ptr.clone(), 0);
+        fd.op_set_input(&p2, a1out.clone(), 1);
+        let c1b = fd.new_constant(4, 1);
+        fd.op_set_input(&p2, c1b, 2);
+        fd.op_insert_end(&p2, &b0);
+
+        let rule = RuleExtensionPush::new();
+        let rc = rule.apply_op(&sext.0, &mut fd).unwrap();
+        assert_eq!(rc, action_status::CHANGE);
+
+        // Both descendants now read their OWN duplicate; the duplicate
+        // outputs PRESERVE the register storage (Register/0x30, 8 bytes) —
+        // buildVarnodeOut's newVarnodeOut arm — and are written by SEXT ops.
+        for (label, op_ref, slot) in [("p1", &p1, 1usize), ("a1", &a1, 0usize)] {
+            let dup_in = {
+                let o = op_ref.0.read().unwrap();
+                o.inrefs[slot].clone()
+            };
+            assert!(
+                !Arc::ptr_eq(&dup_in, &rsi),
+                "{label} must read its own duplicate, not the original out"
+            );
+            let (space, offset, size) = {
+                let v = dup_in.read().unwrap();
+                (v.get_space(), v.get_offset(), v.get_size())
+            };
+            assert_eq!(space, AddressSpace::Register, "{label} storage space");
+            assert_eq!(offset, 0x30, "{label} storage offset (RSI)");
+            assert_eq!(size, 8, "{label} storage size");
+            let def_opc = {
+                let v = dup_in.read().unwrap();
+                assert!(v.is_written(), "{label} duplicate must be written");
+                v.get_def()
+                    .map(|d| d.read().unwrap().opcode)
+                    .expect("def op")
+            };
+            assert_eq!(def_opc, OpCode::CPUI_INT_SEXT, "{label} definer opcode");
+        }
+        // cc:6816: the duplicates inherit the original output's type.
+        let dup_a1 = a1.0.read().unwrap().inrefs[0].clone();
+        let dup_type = dup_a1.read().unwrap().get_type();
+        let inherited = dup_type
+            .map(|t| t.get_size() == 8 && t.get_name() == "int8")
+            .unwrap_or(false);
+        assert!(inherited, "duplicate output must inherit outVn's type");
     }
 }
 
