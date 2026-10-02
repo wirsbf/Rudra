@@ -356,8 +356,38 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
-sq	95	810	SLOTMERGE-RATCHET-REPIN-0001	slotmerge	2026-10-02
-sqlite	383	1385	SLOTMERGE-RATCHET-REPIN-0001	slotmerge	2026-10-02
+sq	89	810	DIVBREAK-RATCHET-REPIN-0001	divbreak	2026-10-02
+sqlite	341	1385	DIVBREAK-RATCHET-REPIN-0001	divbreak	2026-10-02
+# DIVBREAK-RATCHET-REPIN-0001 (2026-10-02, wt/divbreak @ fix commit, base
+# 56cf6970 [MB63], forced relink, gate --jobs 5 --no-cache cold round,
+# stale-guard content probe digest=652e35757d9d0f1c files=155):
+# ① sqlite 383→341 (−42 = RuleAddMultCollapse constant-weld mask restore:
+#    both fold arms (ruleaction.cc:4133 spacebase + cc:4154 main) now route
+#    through evaluateBinary whose OpBehaviorIntAdd/IntMult mask the result
+#    to calc_mask(sizeout) (opbehavior.cc:290-295/:492-497) — was raw
+#    64-bit wrapping arithmetic, producing oversized size-N constants the C
+#    printer renders as phantom high-bit literals; per-function A/B census
+#    ledger exact: BtreePayload×4 4→0 each + ExprCodeFactorable 3→0 +
+#    str_vappendf 14→11 + Select 20→16 + WhereCodeOneLoopStart 9→0 +
+#    WalOpen 7→0, zero regressions; wrap-only sub-family 37→15, residual 15
+#    all numbering-length driven [probe-proven: oracle walk+emitter fed
+#    Rugra's token content reproduces Rugra's bytes exactly]). matched
+#    1385/1385, defects=numbering=0.
+# ② sq 95→89 (−6 = same root on the sasquatch face: LzmaDecoder arithfold
+#    trio 2→0 each [LzmaDecoderCode / LzmaDecoderCodeReal /
+#    _ZN9NCompress5NLZMA8CDecoder8CodeSpecEj — the G `V*LIT|V+1U` vs R
+#    `V*LIT|V*LIT+1U` census family]). matched 810/810, defects=numbering=0.
+# ③ curl 13 / httpd 2 / vsh 0 identical, not re-pinned (MB41/MB41/MB39 rows
+#    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
+#    (md5 b7773087 / 54f9b02c exact — zero-state preserved, no re-pin
+#    needed). Corpus pins: VdbeExec mirror 840c4fb2 3/3 + VdbeExec canon
+#    0d97ca97 2/2 held (no VdbeExec sites); corpus canon 64a390ec→37759a09
+#    ·5,279,919B (−229B) / corpus mirror db5617ef→0838fd4b·5,285,509B
+#    (−224B, ==gate sqlite-face mirror.c same md5, cross-self-consistent)
+#    — full byte attribution: 12 functions only (the 10 face-ledger family
+#    + canon-only-visible Int64ToText/VdbeMakeReady/VdbeSorterRewind
+#    phantom-literal sites), 1373 functions byte-untouched, zero
+#    regressions.
 # FLOAT8-RATCHET-REPIN-0001 (2026-10-02, wt/float8 @ fix commit, base
 # c69d9c60 [MB58], forced relink after test additions [fast-release --examples
 # 57s], gate --jobs 5 two rounds — gate1 fix-only tree digest=557b315e +

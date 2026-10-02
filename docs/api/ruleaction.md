@@ -2448,3 +2448,48 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## DIVBREAK（2026-10-02）RuleAddMultCollapse 常量焊接 calc_mask 恢复
+
+**WRAPEMIT-DIVBREAK-0001 真根（谱系第七次翻案）**: census v4 把 sqlite 面
+wrap-only 37 行预判为 printc.rs emit 断点序（Oppen 组结构）域。双侧钻证伪：
+
+1. **镜面探针（oracle_probe4.cc / probe4.rs）**: 用 ProbeLang 驱动真
+   PrintLanguage RPN 机器（pushOp/pushAtom/recurse + PrintC OpToken 表
+   cc:23-77）重放 AddOp4 语句——oracle 侧逐字节复现 golden（含逗号前断列
+   `,0,xVar29,...` 与 `);` 独立行）;Rugra 侧同 push 序列喂 rpn_push_op/
+   rpn_push_atom+EmitPrettyPrint——**输出==oracle 输出==golden**。换
+   Rugra 实名（xVar12/xVar32,+1 字符）后**输出==Rugra 镜面实况字节**。
+   ⇒ walk+emitter 逐位恒等,断行差异 100% 由 token 内容长度差驱动。
+2. **真实管线 emit 流捕获**（env 门控 EmitLog 装饰器,交付前撤净）: Rugra
+   真实 token 流与 oracle 推导流结构恒等（7 comma 组嵌套/postsurround
+   spaces(0,10)/checkstring 零宽断点全对齐）。
+3. **逐位点归因**: 37 行 = 26 行幻影常量拼写差（`-0x100000005` vs `-5`、
+   `-0x6300000064` vs `-100`、`-0x708` vs `-8`、`* 0xfffffffe00000001`
+   G 侧吸收）+ 11 行变元编号长度差（恰在 100 列边界 ±1/±3 字符触发断行
+   位移）——**零行 printc 断点逻辑残差**。
+
+**真根**: `RuleAddMultCollapse` 两处焊接臂（spacebase 臂 + 主折叠臂）用裸
+64 位 wrapping 算术合并常量,oracle 经 `op->getOpcode()->evaluateBinary`
+（ruleaction.cc:4133/:4154）虚派发落到 `OpBehaviorIntAdd::evaluateBinary`
+`(in1+in2) & calc_mask(sizeout)`（opbehavior.cc:290-295）与
+`OpBehaviorIntMult::evaluateBinary` `(in1*in2) & calc_mask(sizeout)`
+（opbehavior.cc:492-497）——**掩码是决定性语义**。缺失时 size-N 常量对
+的和可越过宽度（0xffffffff + 0xfffffffc = 0x1fffffffb,33 位）,存入 size-4
+varnode 违反宽度不变量,printc 的 calc_mask 符号翻转（printc.cc:1313-1320
+`flip = val ^ mask; val = flip+1`）将其渲染为幻影高位字面量
+`-0x100000005`。
+
+**修复**: 两臂改调 `crate::opbehavior::evaluate_binary(opc, size, size, v0,
+v1)`（INT_ADD/INT_MULT 恒 Some,None 臂不可达——oracle 同点无异常路径）。
+BtreePayload 四克隆 → golden 形 `+ -5 +` 且断行位 `/` 后==golden 逐字节。
+
+**验收**: canon curl 0/0/0·124/124 + httpd 0/0/0·34/34 保持,双 md5 钉
+b7773087/54f9b02c 字节恒等零位移;镜面五面 13/2/0/**89**/**341** PASS
+（sq −6 = LzmaDecoder 算术折叠三克隆 2→0×3;sqlite −42 = BtreePayload×4
++ExprCodeFactorable+str_vappendf−3+Select−4+WhereCodeOneLoopStart 9→0+
+WalOpen 7→0,A/B census 逐函数零回退）;wrap-only 37→15（残 15 全为编号
+长度域）;tests 2039P==基线;corpus 钉组 VdbeExec 双钉保持,corpus canon/
+mirror 位移逐字节归因=12 函数全落本根（含 canon 独见 Int64ToText
+`-0x40a→-10`/VdbeMakeReady `-0x1700000018→-0x18`/SorterRewind
+`-0xf00000010→-0x10`）,1373 函数零触碰。

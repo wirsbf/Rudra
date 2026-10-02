@@ -1367,11 +1367,25 @@ impl Rule for RuleAddMultCollapse {
                         continue;
                     }
                 }
-                // cc:4143-4150: fold c[0]+c[1], carrying symbol markup.
+                // cc:4133: uintb val = op->getOpcode()->evaluateBinary(
+                //     c[0]->getSize(),c[0]->getSize(),c[0]->getOffset(),
+                //     c[1]->getOffset());
+                // The virtual dispatch lands on OpBehaviorIntAdd for this
+                // arm (opc==CPUI_INT_ADD guard at cc:4116), whose
+                // evaluateBinary masks the sum to calc_mask(sizeout)
+                // (opbehavior.cc:290-295) — the mask is decisive: without
+                // it two size-N constants sum into an oversized value that
+                // printc's calc_mask sign-flip renders as a phantom
+                // high-bit constant (the DIVBREAK -0x100000005 family).
                 let size = c0.read().unwrap().get_size();
                 let v0 = c0.read().unwrap().get_offset();
                 let v1 = base_c1.read().unwrap().get_offset();
-                let val = v0.wrapping_add(v1);
+                let val = match crate::opbehavior::evaluate_binary(opc, size, size, v0, v1) {
+                    Some(v) => v,
+                    // Unreachable for INT_ADD (evaluateBinary for ADD
+                    // never throws in the oracle; no markNoCollapse path).
+                    None => continue,
+                };
                 let newvn = fd.new_constant(size, val);
                 if c0.read().unwrap().get_symbol_entry().is_some() {
                     crate::varnode::Varnode::copy_symbol_if_valid(&newvn, &c0.read().unwrap());
@@ -1409,13 +1423,27 @@ impl Rule for RuleAddMultCollapse {
         }
 
         // Fold: val = c[0] <opc> c[1].
+        // cc:4154: uintb val = op->getOpcode()->evaluateBinary(
+        //     c[0]->getSize(),c[0]->getSize(),c[0]->getOffset(),
+        //     c[1]->getOffset());
+        // Virtual dispatch on the op's opcode: OpBehaviorIntAdd masks the
+        // sum with calc_mask(sizeout) (opbehavior.cc:290-295) and
+        // OpBehaviorIntMult masks the product the same way
+        // (opbehavior.cc:492-497). The mask is decisive for byte-exact
+        // constant varnodes: raw 64-bit wrapping arithmetic lets the sum
+        // exceed the varnode width (e.g. 0xffffffff + 0xfffffffc =
+        // 0x1fffffffb on a size-4 constant), which the C printer's
+        // calc_mask sign-flip then renders as a phantom constant like
+        // -0x100000005 (DIVBREAK family root cause).
         let size = c0.read().unwrap().get_size();
         let v0 = c0.read().unwrap().get_offset();
         let v1 = c1.read().unwrap().get_offset();
-        let val = match opc {
-            OpCode::CPUI_INT_ADD => v0.wrapping_add(v1),
-            OpCode::CPUI_INT_MULT => v0.wrapping_mul(v1),
-            _ => return Ok(action_status::NO_CHANGE),
+        let val = match crate::opbehavior::evaluate_binary(opc, size, size, v0, v1) {
+            Some(v) => v,
+            // Unreachable: opc is INT_ADD or INT_MULT (guard above), and
+            // neither OpBehaviorIntAdd::evaluateBinary nor
+            // OpBehaviorIntMult::evaluateBinary can throw.
+            None => return Ok(action_status::NO_CHANGE),
         };
         let new_const = fd.new_constant(size, val);
 
