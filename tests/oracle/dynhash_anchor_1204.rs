@@ -1,4 +1,4 @@
-// DYNHASH-UNIQUE-ANCHOR-0001: Rugra comparand for the locked Ghidra
+// DYNHASH-UNIQUE-ANCHOR-0001: Rudra comparand for the locked Ghidra
 // 12.0.4 dynamic-hash unique-anchor oracle (tests/oracle/
 // dynhash_anchor_1204.cc).
 //

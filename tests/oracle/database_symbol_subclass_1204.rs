@@ -1,5 +1,5 @@
 /*
- * Rugra comparand for DATABASE-SYMBOL-SUBCLASS-FIXTURE-0001
+ * Rudra comparand for DATABASE-SYMBOL-SUBCLASS-FIXTURE-0001
  * (MIGW1-DATABASE-0005 phase 2, second fixture), the bilateral twin of
  * tests/oracle/database_symbol_subclass_1204.cc.
  *

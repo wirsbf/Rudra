@@ -1,4 +1,4 @@
-// HERITAGE-FLAGFREE-SSA-0001: Rugra comparand for the locked Ghidra 12.0.4
+// HERITAGE-FLAGFREE-SSA-0001: Rudra comparand for the locked Ghidra 12.0.4
 // SLEIGH BOOL flag/byte free-read SSA-ification oracle. Mirrors
 // tests/oracle/heritage_flagfree_1204.cc case for case: the same synthetic
 // CFG/def-use graphs are built through the production Funcdata APIs, one
@@ -221,7 +221,7 @@ impl Graph {
     /// Whole-bank free-with-descendant census over the register and unique
     /// spaces (annotation/constant excepted) — the varnode.cc:334-336 throw
     /// precondition. Ghidra's whole-bank beginLoc() walk spans every space;
-    /// Rugra's Address carries no space identity, so the census enumerates
+    /// Rudra's Address carries no space identity, so the census enumerates
     /// the two spaces this fixture populates (register + unique; const/ram
     /// reads here are constants and branch-target constants, which are
     /// heritage-known).

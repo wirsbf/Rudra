@@ -4,7 +4,7 @@
 //   PrintC::checkAddressOfCast (printc.cc:376-418)
 //   PrintC::pushImpliedField  (printc.cc:2085-2116)
 // driven through the REAL emitExpression port (printc.cc:2465-2494 —
-// Rugra's pub emit_expression_rpn twin: assignment push + dispatch +
+// Rudra's pub emit_expression_rpn twin: assignment push + dispatch +
 // rpn_recurse drain):
 //   cast.ptrsub_positive       — PTRSUB-def arm positive -> "ca = &sp->x"
 //   cast.dtnonptr_reject       — dt1 int (cc:382-383) -> "(int4 (*)[4])ib"
@@ -111,7 +111,7 @@ fn alt_union() -> Arc<Datatype> {
 
 /// fixture_inner { long x } — single field fills the whole struct, so
 /// the REAL TypeFactory::setFields sets needs_resolution (type.cc:
-/// 1569-1871); Rugra's factory does not set it yet
+/// 1569-1871); Rudra's factory does not set it yet
 /// (TYPEFACTORY-NEEDSRES-SINGLEFIELD-0001), so the flag is applied
 /// manually exactly as the subpiece fixture does.
 fn inner_struct() -> Arc<Datatype> {
@@ -240,7 +240,7 @@ fn drain(printer: PrintC) -> String {
         .get_output()
 }
 
-/// The emitExpression twin (printc.cc:2465-2494) — Rugra's pub
+/// The emitExpression twin (printc.cc:2465-2494) — Rudra's pub
 /// emit_expression_rpn: out-assignment push + TypeOp dispatch + the
 /// rpn_recurse drain that routes implied+has_implied_field vns into
 /// pushImpliedField (printlanguage.cc:527-529).

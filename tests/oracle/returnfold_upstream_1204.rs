@@ -1,4 +1,4 @@
-// RETURNFOLD-GAPA-UPSTREAM-0001 Rugra comparand — the e2e return-value fold
+// RETURNFOLD-GAPA-UPSTREAM-0001 Rudra comparand — the e2e return-value fold
 // chain (ActionMarkExplicit::baseExplicit multi-instance rule coreaction.cc
 // :3020-3021 + multipleInteraction/processMultiplier cc:3091/3166 +
 // ActionMarkImplied count cc:3434 + PrintC implied inlining: printc.cc:754
@@ -222,7 +222,7 @@ fn main() {
         let t2 = f.make_copy_assign(&mut fd, &b2, 3);
         f.make_return(&mut fd, &b2, &t2);
         fd.set_high_level();
-        // HighVariable::merge(variable.cc:675) — Rugra's merge_internal does
+        // HighVariable::merge(variable.cc:675) — Rudra's merge_internal does
         // not re-point member vn.high (ownership glue note), so the caller
         // re-points t2 at the surviving high exactly as setHigh would.
         let h1 = t1.read().unwrap().high.clone().expect("t1 high");
@@ -261,7 +261,7 @@ fn main() {
     }
 
     println!("case_new_constructor|status=UNTESTED|note=checkNewToConstructor (cc:3205-3235, CPUI_NEW + CALLIND special print) not driven; needs NEW call machinery");
-    println!("case_addrtied_branches|status=UNTESTED|note=baseExplicit addr-tied SUBPIECE/ZEXT/PIECE sub-branches (cc:3022-3049) need addrtied varnodes + PieceNode/partialroot infra (MERGE-ADDRTIED-CLOSURE-0001; Rugra PcodeOp::partialroot flag absent)");
-    println!("case_cover_crossing|status=UNTESTED|note=checkImpliedCover LOAD/STORE/CALL crossing (cc:3384-3412) not driven; Rugra block-level approximations stand (is_possible_alias reserved)");
-    println!("case_marking_order|status=UNTESTED|note=Rugra MarkImplied iterates loc order flat vs Ghidra DFS post-order cc:3430-3451; flags and total count argued equal, not pinned by this fixture");
+    println!("case_addrtied_branches|status=UNTESTED|note=baseExplicit addr-tied SUBPIECE/ZEXT/PIECE sub-branches (cc:3022-3049) need addrtied varnodes + PieceNode/partialroot infra (MERGE-ADDRTIED-CLOSURE-0001; Rudra PcodeOp::partialroot flag absent)");
+    println!("case_cover_crossing|status=UNTESTED|note=checkImpliedCover LOAD/STORE/CALL crossing (cc:3384-3412) not driven; Rudra block-level approximations stand (is_possible_alias reserved)");
+    println!("case_marking_order|status=UNTESTED|note=Rudra MarkImplied iterates loc order flat vs Ghidra DFS post-order cc:3430-3451; flags and total count argued equal, not pinned by this fixture");
 }

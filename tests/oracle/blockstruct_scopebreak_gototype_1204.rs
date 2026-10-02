@@ -1,4 +1,4 @@
-//! BLOCKACTION-SCOPEBREAK-GOTOTYPE-0001: Rugra comparand for the locked
+//! BLOCKACTION-SCOPEBREAK-GOTOTYPE-0001: Rudra comparand for the locked
 //! Ghidra 12.0.4 scopeBreak goto_type oracle (block.hh:88-91; block.cc:
 //! 1270-1288 BlockGraph::scopeBreak, 2866-2874 BlockGoto::scopeBreak,
 //! 2856-2864 BlockGoto::markUnstructured, 3075-3084 BlockIf::scopeBreak,
@@ -25,7 +25,7 @@
 //! `goto X; X:` text defect was a printc label-anchoring bug instead
 //! (GOTO-LABEL-UNPRINTED-0001 discovery ledger), fixed separately.
 //!
-//! Lines are sorted before printing: Rugra installs composites at the
+//! Lines are sorted before printing: Rudra installs composites at the
 //! consumed slot while the oracle appends to the parent list, so tree
 //! ORDER is a registered normalization on both sides — the per-goto facts
 //! (form, body/target node types, gototype, target front-leaf marking)
@@ -110,7 +110,7 @@ impl Graph {
         // blockaction.cc's own entry state: structureLoops labels the
         // graph (spanning tree + loop/goto edge labels, block.cc:2197-
         // 2215) BEFORE CollapseStructure runs (the .cc comparand calls the
-        // same pair; Rugra's collapse_all re-runs orderLoopBodies
+        // same pair; Rudra's collapse_all re-runs orderLoopBodies
         // internally on the labeled graph, mirroring collapseInternal).
         let mut rootlist: Vec<BlockRef> = Vec::new();
         if let Err(e) = self.graph.structure_loops(&mut rootlist) {
@@ -121,7 +121,7 @@ impl Graph {
         collapse.collapse_all();
 
         // ActionFinalStructure tail: scopeBreak (cc:2193), then the
-        // gotoPrints transport (blockaction.rs:7254 — Rugra evaluates the
+        // gotoPrints transport (blockaction.rs:7254 — Rudra evaluates the
         // lazy cc:2881-2890 comparison tree-wide here), then
         // markUnstructured (cc:2194).
         self.graph.scope_break(-1, -1);
@@ -219,7 +219,7 @@ fn observe(bl: &BlockRef) -> String {
 }
 
 /// Target node type name + front-leaf f_unstructured_targ bit (the leaf
-/// markCopyBlock writes, block.cc:1236; Rugra's mark_unstructured marks the
+/// markCopyBlock writes, block.cc:1236; Rudra's mark_unstructured marks the
 /// same front leaf via mark_front_leaf).
 fn target_facts(t: &BlockRef) -> (String, u32) {
     let tr = t.read().unwrap();
@@ -300,7 +300,7 @@ fn main() {
     }
     // Case 4 "forward_exit_goto": a plain goto skipping over one block in a
     // straight-line region. The oracle structures it away entirely
-    // (gotos=0); Rugra must match the count.
+    // (gotos=0); Rudra must match the count.
     {
         let mut g = Graph::new(0xf000);
         let b0 = g.make_block();

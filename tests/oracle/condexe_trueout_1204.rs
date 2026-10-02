@@ -1,4 +1,4 @@
-//! CONDEXE-TRUEOUT-0002 Rugra comparand — get_true_out/get_false_out purely
+//! CONDEXE-TRUEOUT-0002 Rudra comparand — get_true_out/get_false_out purely
 //! positional semantics and their condexe consumers, mirroring
 //! tests/oracle/condexe_trueout_1204.cc case for case against the locked
 //! Ghidra 12.0.4 oracle. Records: helper/helper_neg (H1-H4), findinit

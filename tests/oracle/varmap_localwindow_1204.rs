@@ -1,4 +1,4 @@
-// VARMAP-LOCALWINDOW-0001: Rugra comparand for the locked Ghidra 12.0.4
+// VARMAP-LOCALWINDOW-0001: Rudra comparand for the locked Ghidra 12.0.4
 // authoritative local-window oracle.  Mirrors
 // tests/oracle/varmap_localwindow_1204.cc case for case: the same default
 // prototype windows (negative-growth 8-byte stack), the same synthetic
@@ -79,7 +79,7 @@ impl LocalWindowScope {
         self.fd.op_set_output(&op, vn);
     }
 
-    /// The gatherOpen shape: an input stack-pointer Varnode (Rugra's RSP is
+    /// The gatherOpen shape: an input stack-pointer Varnode (Rudra's RSP is
     /// the Register-space input at offset 0x20), an INT_SUB by `delta` whose
     /// result is typed as a pointer to `pt`, and a non-additive consumer
     /// marking the additive root (AliasChecker::gatherAdditiveBase).

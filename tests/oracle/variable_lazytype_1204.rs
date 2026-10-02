@@ -1,10 +1,10 @@
-//! VARIABLE-GETTYPE-LAZY-UPDATETYPE-0001: Rugra side of the locked 12.0.4
+//! VARIABLE-GETTYPE-LAZY-UPDATETYPE-0001: Rudra side of the locked 12.0.4
 //! oracle fixture for the lazy `updateType()` trigger inside
 //! `HighVariable::getType` (variable.hh:174) and the const `isTypeLock`
 //! re-derivation (variable.hh:222).
 //!
 //! Mirrors `variable_lazytype_1204.cc` case-for-case (same names, same
-//! observation format) against the pinned rugra source with the live
+//! observation format) against the pinned rudra source with the live
 //! src/variable.rs + compile-required adaptation overlay
 //! (src/analysis/type_infer.rs, src/coreaction.rs, src/merge.rs):
 //!   lt_*: see the .cc header for the per-case field sets.

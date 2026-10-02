@@ -1,14 +1,14 @@
-//! RULE-BEHAVIORAL-FIVE-0001: Rugra side of the locked 12.0.4 oracle
+//! RULE-BEHAVIORAL-FIVE-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for the five behavioral rules.
 //!
 //! Mirrors `rule_behavioral_1204.cc` case-for-case (same names, same
-//! observation format) against the pinned rugra source:
+//! observation format) against the pinned rudra source:
 //!   case=<name>|apply=<0/1>|opcode=<n>|inputs=<n>|in0=<tok>|in1=<tok>|
 //!   in0def=<int>|defin1=<tok>
 //!
 //! Dispatch is ActionPool-equivalent: apply_op is invoked only when the op's
 //! opcode is in the rule's `get_opcodes()`; the negative dispatch cases pin
-//! the opcode sets the oracle refuses (and the old Rugra registrations
+//! the opcode sets the oracle refuses (and the old Rudra registrations
 //! transformed).
 
 use std::sync::atomic::{AtomicU32, Ordering};

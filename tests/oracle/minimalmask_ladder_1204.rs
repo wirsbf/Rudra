@@ -1,4 +1,4 @@
-// MINIMALMASK-LADDER-CONSUMERS-0001: Rugra side of the locked Ghidra 12.0.4
+// MINIMALMASK-LADDER-CONSUMERS-0001: Rudra side of the locked Ghidra 12.0.4
 // minimalmask bilateral fixture. Mirrors minimalmask_ladder_1204.cc case for
 // case, driving the production code only:
 //

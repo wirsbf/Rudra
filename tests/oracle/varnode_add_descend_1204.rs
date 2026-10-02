@@ -15,7 +15,7 @@ use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
 use rudra::varnode::{varnode_flags, VarnodeBank};
 
 fn catch_add_descend_error(vn: &Arc<RwLock<rudra::varnode::Varnode>>, op: &Arc<RwLock<PcodeOp>>) -> String {
-    // The C++ side catches LowlevelError; Rugra's counterpart channel is a
+    // The C++ side catches LowlevelError; Rudra's counterpart channel is a
     // panic with the identical message text. Silence the default hook so the
     // runner's empty-stderr contract holds, then extract the payload.
     let previous_hook = std::panic::take_hook();

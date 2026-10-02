@@ -1,4 +1,4 @@
-// ADDRESS-SPACE-HANDLE-1204: Rugra comparand for the locked Ghidra 12.0.4
+// ADDRESS-SPACE-HANDLE-1204: Rudra comparand for the locked Ghidra 12.0.4
 // space-aware Address/Range/RangeList oracle (address.hh/address.cc).
 // Mirrors tests/oracle/address_space_handle_1204.cc case for case through
 // the ADDRESS-0001 handle types (SpaceAddress/SpaceRange/SpaceRangeList)

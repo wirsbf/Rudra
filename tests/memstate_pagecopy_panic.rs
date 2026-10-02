@@ -16,7 +16,7 @@
 //! oracle's observable behavior on this input is a silent heap
 //! out-of-bounds access (undefined behavior), NOT any defined output.
 //!
-//! Rugra: `memstate.rs get_page/set_page` mirror the same dead trim
+//! Rudra: `memstate.rs get_page/set_page` mirror the same dead trim
 //! (`if startalign < addr`, memstate.rs:164/:202), but the carrier is a
 //! `Vec<u8>`/slice, so the same over-copy manifests as a Rust slice-range
 //! panic ("range end index N out of range for slice of length M") in EVERY
@@ -34,7 +34,7 @@
 //! only with a roadmap entry.
 //!
 //! Reachability note: `get_chunk/set_chunk` currently have ZERO production
-//! callers in Rugra (src/ + examples/; MemState consumers use the word-level
+//! callers in Rudra (src/ + examples/; MemState consumers use the word-level
 //! get_value/set_value API), and in the oracle the default page path is
 //! reachable only through banks that do not override getPage/setPage
 //! (MemoryHashOverlay, memstate.hh:130-141 — emulation/standalone face; the
@@ -43,7 +43,7 @@
 //! ticket: do NOT introduce production get_chunk/set_chunk callers while
 //! this adjudication stands.
 //! Cross-check evidence: docs/alignment_audit/KUNA_UB_CROSSCHECK_2026-09-26.md
-//! (K5) and /dev/shm/rugra-reports/LANE_KUNAUB2_2026-09-26.md.
+//! (K5) and /dev/shm/rudra-reports/LANE_KUNAUB2_2026-09-26.md.
 
 use rudra::memstate::MemoryBank;
 use rudra::space::AddressSpace;

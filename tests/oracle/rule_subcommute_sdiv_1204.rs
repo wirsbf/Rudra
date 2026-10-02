@@ -1,4 +1,4 @@
-//! RULE-SUBCOMMUTE-SDIV-0001: Rugra side of the locked 12.0.4 oracle
+//! RULE-SUBCOMMUTE-SDIV-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for the RuleSubCommute INT_SDIV/INT_SREM arm
 //! (ruleaction.cc:4570-4602 + cancelExtensions cc:4483-4512 +
 //! shortenExtension cc:4463-4472).
@@ -49,7 +49,7 @@ fn print_op_line(op: &rudra::op::PcodeOpRef) {
     let addr = g.get_addr().to_space_address().get_offset();
     let mut line = format!("  op={}@0x{:x}|nin={}", g.opcode as i32, addr, g.num_input());
     // Ghidra's destroyed/mislinked slots read as null (op.cc:98 clearInput);
-    // Rugra's shared null_slot_sentinel is the same observable — render as `_`.
+    // Rudra's shared null_slot_sentinel is the same observable — render as `_`.
     let in0 = g.get_in(0).filter(|v| {
         !std::sync::Arc::ptr_eq(*v, &rudra::op::null_slot_sentinel())
     });

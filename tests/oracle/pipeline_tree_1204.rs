@@ -1,7 +1,7 @@
 //! PIPE-DERIVED-TREE-0001 Rust comparand for the derived default pipeline
 //! tree.
 //!
-//! Walks Rugra's real default action database — the production entry
+//! Walks Rudra's real default action database — the production entry
 //! `ActionDatabase::set_default_actions` (universalAction + resetDefaults,
 //! architecture.cc:582-591) followed by `get_current` (action.hh:313) — and
 //! prints the identical depth-first observation the locked Ghidra fixture

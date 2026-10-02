@@ -1,4 +1,4 @@
-// PRINTC-FORMAT-0001: Rugra comparand for the locked Ghidra 12.0.4
+// PRINTC-FORMAT-0001: Rudra comparand for the locked Ghidra 12.0.4
 // PrintC::docFunction pure-format oracle (function-header brace layout,
 // parameter join spacing, comma spacing, body indent policy).
 //
@@ -79,7 +79,7 @@ fn render(
     }
 
     let mut printer = PrintC::new(Box::new(EmitNoMarkup::new()));
-    // docFunction sequence (printc.cc:2641-2676). Rugra's full doc_function
+    // docFunction sequence (printc.cc:2641-2676). Rudra's full doc_function
     // drives the two-pass pipeline with naming/typedef side effects, so the
     // fixture issues the same production emission calls directly.
     // printc.cc:2653 emit->tagLine() — the leading function break.

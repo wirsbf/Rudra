@@ -1,4 +1,4 @@
-// SPACE-REGISTRY-1204: Rugra comparand for the locked Ghidra 12.0.4
+// SPACE-REGISTRY-1204: Rudra comparand for the locked Ghidra 12.0.4
 // architecture-owned AddrSpace registry oracle (AddrSpaceManager core).
 // Mirrors tests/oracle/space_registry_1204.cc case for case: the same space
 // lifecycle is driven through the translate bridge (AddrSpaceManager::

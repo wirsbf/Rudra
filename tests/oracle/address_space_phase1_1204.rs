@@ -1,7 +1,7 @@
-// ADDRESS-SPACE-PHASE1-1204: Rugra comparand for the locked Ghidra 12.0.4
+// ADDRESS-SPACE-PHASE1-1204: Rudra comparand for the locked Ghidra 12.0.4
 // ADDRESS-0001 phase-1 legacy-Address space bridge oracle
 // (address.hh/address.cc). Mirrors tests/oracle/address_space_phase1_1204.cc
-// case for case: the None fallback (Rugra's legacy spaceless `Address::new`,
+// case for case: the None fallback (Rudra's legacy spaceless `Address::new`,
 // modelled by the C++ null base with an explicit offset) keeps offset-only
 // ordering/equality; the None-to-tagged meeting rules follow Ghidra's
 // null-base rules; tagged addresses order by space index then offset, carry

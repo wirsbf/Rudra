@@ -1,4 +1,4 @@
-// B3-COREACTION-CONSTANTPTR-0001 (a1): Rugra comparand for the locked
+// B3-COREACTION-CONSTANTPTR-0001 (a1): Rudra comparand for the locked
 // Ghidra 12.0.4 Funcdata symbol query channel oracle.
 //
 // Mirrors tests/oracle/cptr_query_channel_1204.cc record-for-record. Each
@@ -6,7 +6,7 @@
 // production Database paths (add_symbol_mapped / add_range / remove_range
 // / set_property_range / attach_scope) and issues the same queries through
 // the Funcdata channel (query_container_parent_scope /
-// query_properties_parent_scope / query_name_parent_scope) — the Rugra
+// query_properties_parent_scope / query_name_parent_scope) — the Rudra
 // equivalent of the C++ `data.getScopeLocal()->getParent()` call sites
 // (coreaction.cc:1151, funcdata_varnode.cc:1207). Record formats are
 // byte-identical to the C++ fixture.
@@ -31,7 +31,7 @@
 // hand-built Database/Funcdata emits the same literals. The
 // `parent_is_global=1` field is the C++-observed fact that the local
 // scope's parent IS the global scope — the documented contract behind the
-// Rugra channel's global-scope query point.
+// Rudra channel's global-scope query point.
 
 use std::sync::{Arc, RwLock};
 

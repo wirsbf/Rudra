@@ -1,4 +1,4 @@
-//! TYPE-SPACEBASE-SUBTYPE-DISPATCH-0001 Rugra comparand for locked
+//! TYPE-SPACEBASE-SUBTYPE-DISPATCH-0001 Rudra comparand for locked
 //! Ghidra 12.0.4 (e40ed130). Mirrors the observation records of
 //! `type_spacebase_subtype_1204.cc`: `Datatype::get_sub_type` virtual
 //! dispatch on a global `TypeSpacebase` (symbol hit / mid-symbol / miss /

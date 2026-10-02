@@ -1,4 +1,4 @@
-// RETURNFOLD-GAPA-PROTOTYPES-0001 Rugra comparand — the output-locked
+// RETURNFOLD-GAPA-PROTOTYPES-0001 Rudra comparand — the output-locked
 // direct-attach branch of ActionPrototypeTypes::apply (coreaction.cc:4637-
 // 4649) driven through the production ActionPrototypeTypes::apply. Case
 // matrix mirrors tests/oracle/returnfold_gapa_1204.cc byte for byte:
@@ -174,7 +174,7 @@ fn main() {
     // ---------------- Scenario A: output-locked int ----------------
     // C++ parity: setInternal + setPieces{model, outtype=int4} fills the
     // output ProtoParameter (type int4, storage register:0x0 from the model
-    // output entry) and locks output+model. Rugra's flat FuncProto holds the
+    // output entry) and locks output+model. Rudra's flat FuncProto holds the
     // locked return type; the apply-side port derives the storage from the
     // model output entry (ANN-F glue, FSPEC-0001/FSPEC-0002).
     let mut fd_a = Funcdata::new("gapa", Address::new(0x60000), 0x100);
@@ -296,7 +296,7 @@ fn main() {
         );
     }
 
-    println!("case_model_glue|status=UNTESTED|note=Rugra derives the locked output storage from ProtoModel::default_x86_64 output entry (ANN-F glue, FSPEC-0001/FSPEC-0002) because the flat FuncProto has no output ProtoParameter; fixture pins only the observable address/space identity (RETURNFOLD-GAPA-PROTOTYPES-0001)");
+    println!("case_model_glue|status=UNTESTED|note=Rudra derives the locked output storage from ProtoModel::default_x86_64 output entry (ANN-F glue, FSPEC-0001/FSPEC-0002) because the flat FuncProto has no output ProtoParameter; fixture pins only the observable address/space identity (RETURNFOLD-GAPA-PROTOTYPES-0001)");
     println!("case_multi_output|status=UNTESTED|note=model output list with >1 entry (multi-register return storage) not projected; default x86-64 model has exactly one output entry on both sides");
     println!("case_e2e_fold|status=UNTESTED|note=end-to-end return-value fold (MarkExplicit/MarkImplied/PrintC) needs GAP-D and print-stage fixtures; IR-level attach only here (RETURNFOLD upstream chain)");
 }

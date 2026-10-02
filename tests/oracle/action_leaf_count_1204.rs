@@ -1,7 +1,7 @@
 //! PIPE-ACTION-COUNT-0001A Rust comparand for real coreaction leaves.
 //!
 //! InstrumentedAction only counts virtual calls and forwards the complete
-//! Action interface.  Executor state is Rugra's public ActionState companion;
+//! Action interface.  Executor state is Rudra's public ActionState companion;
 //! the actions under test are the production coreaction implementations.
 
 use rudra::action::{action_flags, status_flags, Action, ActionGroup, ActionState};

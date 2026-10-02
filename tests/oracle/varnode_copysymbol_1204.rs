@@ -1,8 +1,8 @@
-//! VARNODE-COPYSYMBOL-EQUATE-0001: Rugra side of the locked 12.0.4 oracle
+//! VARNODE-COPYSYMBOL-EQUATE-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for `Varnode::copySymbolIfValid` + `EquateSymbol::isValueClose`.
 //!
 //! Mirrors `varnode_copysymbol_1204.cc` case-for-case (same names, same
-//! observation format) against the pinned rugra source:
+//! observation format) against the pinned rudra source:
 //!   vc_*: case|value|op2|size|close
 //!   cs_*: case|dst_offset|dst_size|src_symbol|dst_symbol|dst_namelock|
 //!         dst_typelock|dst_mapped
@@ -29,14 +29,14 @@ use rudra::varnode::{equate_symbol_registry, varnode_flags, Varnode};
 static CASE_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 fn next_addr() -> u64 {
-    // Ghidra's SeqNum keeps ops distinct at the same address; Rugra assigns
+    // Ghidra's SeqNum keeps ops distinct at the same address; Rudra assigns
     // distinct addresses to keep new_op bookkeeping deterministic.
     0x5000 + CASE_COUNTER.fetch_add(1, Ordering::SeqCst) as u64
 }
 
 // Mirror of the C++ attachEquate: Scope::addEquateSymbol (database.cc:1712)
 // builds an EquateSymbol whose dynamic whole-map SymbolEntry is attached via
-// Varnode::setSymbolEntry (varnode.cc:429).  Rugra's database::Symbol has no
+// Varnode::setSymbolEntry (varnode.cc:429).  Rudra's database::Symbol has no
 // equate payload, so the registry records the value the C++ subtype would
 // carry.
 fn attach_equate(vn: &Arc<RwLock<Varnode>>, value: u64, size: i32) {

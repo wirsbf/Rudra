@@ -1,4 +1,4 @@
-//! CONDEXE-SUCCESS-STATE-0001 Rugra comparand — the ConditionalExecution
+//! CONDEXE-SUCCESS-STATE-0001 Rudra comparand — the ConditionalExecution
 //! success channel (condexe.cc:23-37 buildHeritageArray, condexe.cc:392 the
 //! heritageyes gate, condexe.cc:339-349 the space-preserving RETURN
 //! replacement, condexe.cc:478-503 live BlockGraph traversal and
@@ -71,7 +71,7 @@ impl Fixture {
 
     /// Written varnode at an explicit address: the fixture's own IR-builder
     /// leg, mirroring the C++ fixture's `fd.newVarnodeOut(size,
-    /// Address(space, offset), op)` (Rugra's `create_def_with_space` does
+    /// Address(space, offset), op)` (Rudra's `create_def_with_space` does
     /// not set the op's output field, so it is set here exactly like the
     /// oracle's newVarnodeOut does).
     fn make_out(
@@ -170,7 +170,7 @@ impl Fixture {
 fn run_heritage_case(case_id: &str, pass: i32) {
     let mut fd = Funcdata::new(case_id, Address::new(0x60000), 0x100);
     // The C++ fixture calls fd.heritage.buildInfoList() and drives the pass
-    // counter (heritage.cc:218-224, cc:2664-2672); Rugra mirrors both.
+    // counter (heritage.cc:218-224, cc:2664-2672); Rudra mirrors both.
     fd.heritage.build_info_list();
     fd.heritage.pass = pass;
     let names = ConditionalExecution::fixture_heritage_space_names();

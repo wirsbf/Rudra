@@ -1,13 +1,13 @@
-// MAIN-RC2-BLOCKGOTO-WRAPPED-0001: Rugra comparand for the locked Ghidra
+// MAIN-RC2-BLOCKGOTO-WRAPPED-0001: Rudra comparand for the locked Ghidra
 // 12.0.4 BlockGoto lifecycle oracle (block.hh:547-565, block.cc:1702-1713
 // newBlockGoto / 2856-2916 markUnstructured+scopeBreak+gotoPrints). Mirrors
 // tests/oracle/blockstruct_blockgoto_wrapped_1204.cc case for case: the same
 // synthetic graphs are built through the production BlockGraph APIs, driven
 // through CollapseStructure::collapse_all (the production ruleBlockGoto
 // path), then the ActionFinalStructure tail (scopeBreak(-1,-1) +
-// [Rugra-only transport] compute_goto_prints) runs, and every tree-resident
+// [Rudra-only transport] compute_goto_prints) runs, and every tree-resident
 // BlockGoto prints its observation line. Lines are sorted before printing:
-// Rugra installs composites at the consumed slot while the oracle appends to
+// Rudra installs composites at the consumed slot while the oracle appends to
 // the parent list (block.cc:953-960 + cc:874), so top-level ORDER is a
 // registered normalization on both sides — the per-goto facts (wrapped
 // component identity/type, gototarget index/type, gototype, gotoPrints,
@@ -101,7 +101,7 @@ impl Graph {
         collapse.collapse_all();
 
         // ActionFinalStructure tail (blockaction.cc:2193): scopeBreak first;
-        // Rugra then evaluates the gotoPrints comparison tree-wide (the
+        // Rudra then evaluates the gotoPrints comparison tree-wide (the
         // oracle computes it lazily per gotoPrints() call below).
         self.graph.scope_break(-1, -1);
         self.graph.compute_goto_prints();

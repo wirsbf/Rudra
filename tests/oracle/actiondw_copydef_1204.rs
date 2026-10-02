@@ -539,7 +539,7 @@ fn run_param_inputs(fd: Funcdata) -> Funcdata {
     // NOTE: the spacebase flag is planted on r11 rather than the real RSP
     // (register 0x20) because Ghidra's Funcdata::setInputVarnode tail
     // (funcdata_varnode.cc:365-367) derives `unaffected` from the model
-    // effectlist for RSP — a bank-level input-state derivation Rugra has
+    // effectlist for RSP — a bank-level input-state derivation Rudra has
     // not ported.  ActionDirectWrite reads only the flag (cc:1364), so
     // planting it on a register whose input state is otherwise identical on
     // both sides keeps the fixture a strict same-input comparison.

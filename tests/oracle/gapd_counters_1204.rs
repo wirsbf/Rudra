@@ -1,4 +1,4 @@
-// GAPD-COUNTERS-1204: Rugra comparand for the locked Ghidra 12.0.4 counter
+// GAPD-COUNTERS-1204: Rudra comparand for the locked Ghidra 12.0.4 counter
 // oracle (coreaction.cc:3020-3021 / 3434 + action.cc:362).  Mirrors
 // tests/oracle/gapd_counters_1204.cc: the real default pipeline root is
 // built through `build_default_pipeline` (the single construction path

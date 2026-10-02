@@ -123,7 +123,7 @@ fn fixture_union() -> Arc<Datatype> {
 
 /// fixture_inner { long x } — single field fills the whole struct. The flag
 /// is set MANUALLY here to mirror the REAL TypeFactory::setFields behaviour
-/// (type.cc:1569-1871); Rugra's own TypeFactory::set_fields does not yet set
+/// (type.cc:1569-1871); Rudra's own TypeFactory::set_fields does not yet set
 /// it (TYPEFACTORY-NEEDSRES-SINGLEFIELD-0001).
 fn fixture_inner() -> Arc<Datatype> {
     let int8 = Arc::new(Datatype::Base(TypeBase::new(
@@ -427,7 +427,7 @@ fn run_piece_sweep() {
     println!("piece.array={}", arr2.is_piece_structured() as u8);
     println!("piece.partialstruct={}", partial_struct.is_piece_structured() as u8);
     println!("piece.partialunion={}", partial_union.is_piece_structured() as u8);
-    // Rugra keeps TypeMetatype::Enum on enum types where Ghidra's TypeEnum
+    // Rudra keeps TypeMetatype::Enum on enum types where Ghidra's TypeEnum
     // ctor normalizes to TYPE_UINT/TYPE_INT (type.hh:489-494) — both sides
     // observe false for is_piece_structured.
     println!("piece.enum={}", en.is_piece_structured() as u8);

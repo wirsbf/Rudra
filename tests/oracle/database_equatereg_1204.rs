@@ -1,10 +1,10 @@
-//! DATABASE-EQUATE-VALUE-REGISTRY-0001: Rugra side of the locked 12.0.4
+//! DATABASE-EQUATE-VALUE-REGISTRY-0001: Rudra side of the locked 12.0.4
 //! oracle fixture for `Scope::addEquateSymbol` (database.cc:1712-1724) +
 //! the EquateSymbol constructor state (database.cc:624-631) through the
 //! addSymbolInternal category registration (database.cc:1827-1836).
 //!
 //! Mirrors `database_equatereg_1204.cc` case-for-case (same names, same
-//! observation format) against the pinned rugra source:
+//! observation format) against the pinned rudra source:
 //!   er_single/er_dup: case|cat|catindex|cat_size|is_equate|value|
 //!                     id_nonzero|dyn_delta
 //!   er_dup_ids:       case|ids_differ
@@ -107,7 +107,7 @@ fn run_local_scope(global: &Scope, local: &mut Scope) {
 // Section 4: a pipeline-created equate reaching copy_symbol_if_valid.  The
 // C++ fixture attaches through the public Funcdata::remapDynamicVarnode
 // (funcdata_varnode.cc:1120-1126) which stores the symbol's dynamic whole
-// map on the varnode; Rugra's database-side route is the same whole map
+// map on the varnode; Rudra's database-side route is the same whole map
 // (dynamic_entries) via Varnode::set_symbol_entry.
 fn run_pipe(local: &mut Scope) {
     for (name, value, src_const, dst_const) in [

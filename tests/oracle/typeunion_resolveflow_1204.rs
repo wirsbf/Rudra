@@ -1,5 +1,5 @@
 // WORKPKG-UNMAP-TYPEUNION-0003 / CURLCANON-UNIONSTORE-ARBITRATION-0001:
-// Rugra comparand for the locked Ghidra 12.0.4 union-store arbitration
+// Rudra comparand for the locked Ghidra 12.0.4 union-store arbitration
 // oracle (tests/oracle/typeunion_resolveflow_1204.cc), record for record.
 //
 // Mirrors the C++ fixture's object graph: the same fixture types (built

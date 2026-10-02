@@ -1,10 +1,10 @@
-//! PLTSTUB-WARNLOSS-0001 seeding-layer bilateral oracle projection (Rugra
+//! PLTSTUB-WARNLOSS-0001 seeding-layer bilateral oracle projection (Rudra
 //! comparand).
 //!
 //! Mirrors `debugproto_unknown_model_1204.cc` case for case.  The Ghidra side
 //! builds the locked platform signatures through the oracle's own
 //! composition (`createUnknownModel` + `FuncProto::setPieces`); this side
-//! builds them through Rugra's native front-end adapters —
+//! builds them through Rudra's native front-end adapters —
 //! `LibcSignatureTable::locked_proto` for the generic_clib entries and
 //! `DebugPrototypeDatabase::apply` for the DWARF entries — and then runs the
 //! same `ActionPrototypeWarnings` port, reading the filed warning headers

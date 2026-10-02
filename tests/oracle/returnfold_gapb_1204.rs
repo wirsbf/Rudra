@@ -1,4 +1,4 @@
-// RETURNFOLD-GAPB-CONDCONST-0001 Rugra comparand — the CPUI_RETURN special
+// RETURNFOLD-GAPB-CONDCONST-0001 Rudra comparand — the CPUI_RETURN special
 // case of ActionConditionalConst::propagateConstant (coreaction.cc:4439-4448:
 // copyBeforeRet COPY insertion) driven through the production
 // ActionConditionalConst::apply + find_const_compare path. Case matrix
@@ -98,7 +98,7 @@ impl Fixture {
 
     /// Written varnode at an explicit address: fixture IR-builder leg
     /// mirroring the C++ fixture's `fd.newVarnodeOut(size,
-    /// Address(space, offset), op)` (Rugra's `create_def_with_space` does
+    /// Address(space, offset), op)` (Rudra's `create_def_with_space` does
     /// not set the op's output field, so it is set here exactly like the
     /// oracle's newVarnodeOut does).
     fn make_out(
@@ -284,7 +284,7 @@ fn main() {
     let mut fd = Funcdata::new("gapb", Address::new(0x60000), 0x100);
     // Input parity with the C++ fixture: build the heritage info list before
     // apply (the C++ numHeritagePasses dereferences getInfo() unconditionally;
-    // Rugra's num_heritage_passes reads the pass counter, but the Funcdata
+    // Rudra's num_heritage_passes reads the pass counter, but the Funcdata
     // state must match). pass=0 -> use_multiequal=false on both sides.
     fd.heritage.build_info_list();
     let mut f = Fixture::new();
@@ -372,7 +372,7 @@ fn main() {
     action.reset(&mut fd);
     // Per-apply count zeroing mirrors the C++ fixture's CountProbe::zeroCount
     // (Ghidra zeroes count in Action::perform at status_start, action.cc:306,
-    // which the direct apply() calls bypass; Rugra's apply zeroes its count
+    // which the direct apply() calls bypass; Rudra's apply zeroes its count
     // internally — accumulator reset-point asymmetry recorded as
     // CONDCONST-APPLY-RETURN-0001).
     action.count = 0;
@@ -465,7 +465,7 @@ fn main() {
         Fixture::ops_of(&b3),
     );
 
-    println!("case_apply_return|status=UNTESTED|note=Ghidra apply returns 0 unconditionally (cc:4545) while Rugra returns count>0; apply return value not projected (CONDCONST-APPLY-RETURN-0001)");
+    println!("case_apply_return|status=UNTESTED|note=Ghidra apply returns 0 unconditionally (cc:4545) while Rudra returns count>0; apply return value not projected (CONDCONST-APPLY-RETURN-0001)");
     println!("case_phi_arm|status=UNTESTED|note=MULTIEQUAL phi replacement arm (handlePhiNodes) not exercised; use_multiequal=false on both sides here (CONDCONST-MULTIEQUAL-GUARD-0001)");
     println!("case_implied_bool|status=UNTESTED|note=implied-boolean points require boolVn without lone descendant; fixture boolVn t is read only by its CBRANCH (CONDCONST-IMPLIEDBOOL-0001)");
     println!("case_print_fold|status=UNTESTED|note=return 10 print folding needs MarkExplicit/MarkImplied/PrintC downstream (RETURNFOLD upstream GAP-A/GAP-D); IR-level only here");

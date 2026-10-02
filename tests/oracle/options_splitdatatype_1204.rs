@@ -1,4 +1,4 @@
-// OPTIONS-SPLITDATATYPE-SEMANTICS-0001: current-Rugra comparand for the
+// OPTIONS-SPLITDATATYPE-SEMANTICS-0001: current-Rudra comparand for the
 // locked Ghidra 12.0.4 OptionSplitDatatypes option semantics.
 //
 // Code under observation (src/options.rs against options.cc/options.hh):
@@ -17,7 +17,7 @@
 //     order, and an option error propagates out of decode as Err.
 //
 // The oracle reads live "decompile" root group membership from
-// allacts.getGroup(allacts.getCurrentName()). Rugra's Architecture does not
+// allacts.getGroup(allacts.getCurrentName()). Rudra's Architecture does not
 // own an ActionDatabase yet, so this fixture carries the same group-membership
 // state with the exact transition rules toggleAction obeys: both groups are
 // members after the default root derivation (default_groups::DECOMPILE,
@@ -95,7 +95,7 @@ fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<Element>> {
 }
 
 // The locked XML form carries parameter values as element text content
-// (<param1>pointer</param1>); Rugra's TreeDecoder reads ATTRIB_CONTENT as
+// (<param1>pointer</param1>); Rudra's TreeDecoder reads ATTRIB_CONTENT as
 // the synthetic "XMLcontent" attribute (marshal.rs id table, the same
 // encoding the packed wire format uses), so the fixture tree mirrors each
 // text value onto that attribute.
@@ -149,7 +149,7 @@ fn main() {
     // ---- Default state (architecture.cc:1430-1431) ----
     emit_config(&arch, "default");
     // The default current root Action name (coreaction.cc:5424
-    // setGroup("decompile", ...)); Rugra's ActionDatabase is not yet owned
+    // setGroup("decompile", ...)); Rudra's ActionDatabase is not yet owned
     // by Architecture, so the locked default name is observed directly.
     println!("default.current_name=decompile");
     emit_groups(groups, "default");

@@ -3,7 +3,7 @@
 //! generateOps hasInject wiring flow.cc:794-795/819-820).
 //!
 //! Mirrors the C++ construction exactly: the real SLEIGH lift over the
-//! fixture .text, a per-case CALLOTHER-fixup payload compiled by Rugra's
+//! fixture .text, a per-case CALLOTHER-fixup payload compiled by Rudra's
 //! snippet compiler, an InjectedUserOp descriptor, a synthetic CALLOTHER at
 //! the probe entry (const index + const operand + ram:0x40 output +
 //! startbasic flag), a seeded injectlist (via the documented
@@ -31,7 +31,7 @@ type DynBlock = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 /// under that index is queued by `xref_control_flow`'s CALLOTHER arm on its
 /// own and expanded by `generate_ops`' `hasInject` gate (flow.cc:344-348 /
 /// 794-795). The seeded cases install synthetic userops beyond the engine's
-/// userop-name table (Rugra's UserOpManage has no SLEIGH-driven initialize,
+/// userop-name table (Rudra's UserOpManage has no SLEIGH-driven initialize,
 /// so the fixture registers the descriptor directly; Ghidra's fixture uses
 /// explicit-instantiation access to UserOpManage::registerOp).
 const CASES: [(&str, &str, i32, &str); 3] = [
@@ -112,7 +112,7 @@ fn varnode_token(
             let space = varnode.get_space();
             if space == AddressSpace::Const && space_ref {
                 // A LOAD/STORE space reference is encoded as a constant
-                // (Ghidra: an AddrSpace heap pointer; Rugra: the stable
+                // (Ghidra: an AddrSpace heap pointer; Rudra: the stable
                 // SPACEID_* index); project the referenced space name,
                 // like the flow_containedcall_1204 fixture.
                 let referenced = AddressSpace::from_id(varnode.get_offset() as u8);

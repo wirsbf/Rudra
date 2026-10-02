@@ -52,7 +52,7 @@ impl Fixture {
     /// Written stack-space varnode: COPY(const) at pc. Created before the
     /// scope symbols so the creation-time properties probe finds nothing.
     /// The initial type is the fixture-level stand-in for Ghidra's factory
-    /// unknown type (named "xunknown{size}"); Rugra's canonical factory
+    /// unknown type (named "xunknown{size}"); Rudra's canonical factory
     /// names it "undefined{size}" — a pre-existing TypeFactory naming
     /// divergence outside this fixture's contract, normalized here so the
     /// type-projection records stay byte-comparable.

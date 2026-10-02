@@ -1,4 +1,4 @@
-//! FUNCDATA-NODESPLIT-SPACE-0001 Rugra comparand — Funcdata::node_split /
+//! FUNCDATA-NODESPLIT-SPACE-0001 Rudra comparand — Funcdata::node_split /
 //! CloneBlockOps::build_varnode_output full-address clone semantics,
 //! mirroring tests/oracle/funcdata_nodesplit_space_1204.cc case for case
 //! against the locked Ghidra 12.0.4 oracle. Records: blocks/clone/orig

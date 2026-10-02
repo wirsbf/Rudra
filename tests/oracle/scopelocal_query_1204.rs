@@ -137,7 +137,7 @@ fn main() {
     scope.space = AddressSpace::Stack;
     let ram = ghidra_space_index(&AddressSpace::Ram);
 
-    // setup: space indices of Rugra's canonical model.
+    // setup: space indices of Rudra's canonical model.
     println!(
         "case=setup|const_index={}|ram_index={}|stack_index={}|unique_index={}",
         ghidra_space_index(&AddressSpace::Const),

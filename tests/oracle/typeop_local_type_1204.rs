@@ -1,4 +1,4 @@
-// TYPEOP-LOCALTYPE-DISPATCH-0001: current-Rugra comparand for the locked
+// TYPEOP-LOCALTYPE-DISPATCH-0001: current-Rudra comparand for the locked
 // Ghidra TypeOpCall::getInputLocal fixture.
 //
 // This deliberately exercises the production TypeOpCall trait method.  The
@@ -146,7 +146,7 @@ fn ghidra_metatype(metatype: TypeMetatype) -> i32 {
 /// `TypeOpCall::get_input_local` can return (TypeBase and TypePointer):
 /// type.cc:139-146 prints the name or `unkbyte<size>` for every non-pointer
 /// type (including structs), and type.cc:910-916 appends `" *"` for pointers
-/// with no spaceid suffix.  The Rugra `Datatype::print_raw` struct/array
+/// with no spaceid suffix.  The Rudra `Datatype::print_raw` struct/array
 /// spellings diverge from this oracle projection, so the fixture emits the
 /// locked printRaw semantics directly.
 fn ghidra_print_raw(datatype: &Datatype) -> String {

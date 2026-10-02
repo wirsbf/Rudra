@@ -1,4 +1,4 @@
-// COMMENT-WARNING-CODEC-0001: Rugra comparand for the locked Ghidra 12.0.4
+// COMMENT-WARNING-CODEC-0001: Rudra comparand for the locked Ghidra 12.0.4
 // Comment and CommentDatabaseInternal codec/order/dedup/filter oracle.
 
 use std::error::Error;

@@ -1,4 +1,4 @@
-// COVER-TWOPIECE-RESIDUAL-0001: Rugra comparand for the locked Ghidra 12.0.4
+// COVER-TWOPIECE-RESIDUAL-0001: Rudra comparand for the locked Ghidra 12.0.4
 // CoverBlock two-piece (wrap-around) oracle.  Mirrors
 // tests/oracle/cover_twopiece_1204.cc case for case: Part A drives
 // CoverBlock construct/merge/contain/boundary/intersect across every

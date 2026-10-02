@@ -3,7 +3,7 @@
 //
 // Mirrors tests/oracle/scope_find_overlap_1204.cc record-for-record: each
 // case installs the same static/dynamic symbols on a hand-built ScopeLocal
-// (Rugra's LocalSymbol models one SymbolEntry per Symbol) and issues the
+// (Rudra's LocalSymbol models one SymbolEntry per Symbol) and issues the
 // same findOverlap queries through
 // rudra::funcdata::scope_local_find_overlap — the ScopeInternal::findOverlap
 // analogue consumed by Funcdata::sync_varnodes_with_symbols.

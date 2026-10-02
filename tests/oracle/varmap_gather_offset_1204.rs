@@ -134,7 +134,7 @@ fn attach(
 fn constant(value: u64, size: usize, datatype: &Arc<Datatype>) -> Arc<RwLock<Varnode>> {
     let mut varnode = Varnode::new_constant(value, size);
     // Fixture input adapter: construct the exact Ghidra Varnode constructor
-    // state independently of Rugra's separately tracked VARNODE-INIT wave.
+    // state independently of Rudra's separately tracked VARNODE-INIT wave.
     varnode.consumed = u64::MAX;
     varnode.nzm = value;
     varnode.v_type = Some(datatype.clone());

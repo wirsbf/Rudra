@@ -1,4 +1,4 @@
-//! Rugra twin of `tests/oracle/constseq_stringcopy_1204.cc`.
+//! Rudra twin of `tests/oracle/constseq_stringcopy_1204.cc`.
 //!
 //! WORKPKG-UNMAP-STRFOLD-0006 / CONSTSEQ-STRINGCOPY-0001: drives the real
 //! `RuleStringCopy::applyOp` (constseq.cc:954) over the same eight-case

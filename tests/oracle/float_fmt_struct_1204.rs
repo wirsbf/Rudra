@@ -1,4 +1,4 @@
-// FLOAT-FMT-STRUCT-0001: Rugra comparand for the locked Ghidra 12.0.4
+// FLOAT-FMT-STRUCT-0001: Rudra comparand for the locked Ghidra 12.0.4
 // FloatFormat structural oracle (top-aligned fractional code convention +
 // createFloat/extractExpSig bit ladders).
 //

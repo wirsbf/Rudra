@@ -1,4 +1,4 @@
-// VARMAP-GATHEROPEN-GUARD-0001: Rugra comparand for the locked Ghidra 12.0.4
+// VARMAP-GATHEROPEN-GUARD-0001: Rudra comparand for the locked Ghidra 12.0.4
 // authoritative gatherOpen/guard oracle.  Mirrors
 // tests/oracle/varmap_gatheropen_guard_1204.cc case for case: the same
 // default prototype windows (negative-growth 8-byte stack), the same guarded
@@ -94,7 +94,7 @@ impl GatherOpenScope {
         vn
     }
 
-    /// The input stack-pointer Varnode (Rugra's RSP is the Register-space
+    /// The input stack-pointer Varnode (Rudra's RSP is the Register-space
     /// input at offset 0x20).
     fn spacebase_input(&mut self) -> std::sync::Arc<RwLock<rudra::varnode::Varnode>> {
         let sp = self

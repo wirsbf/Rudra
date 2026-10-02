@@ -247,7 +247,7 @@ fn run_case(fd: &mut Funcdata, f: &mut Fixture, case_id: &str, fx_in_then: bool)
     println!("intersect|case={case_id}|pair=fX_phiout|char={}", cover_pair_char(&fx, &phi_out));
 
     // ActionMergeRequired (coreaction.hh:369): mergeAddrTied; groupPartials;
-    // mergeMarker. Rugra's mergeOp phase-3 skip-on-failure mirrors the
+    // mergeMarker. Rudra's mergeOp phase-3 skip-on-failure mirrors the
     // observable IR artifacts the Ghidra fixture records after its
     // LowlevelError catch (trims + trimOpOutput are already applied).
     {

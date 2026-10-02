@@ -160,7 +160,7 @@ fn main() {
         // The oracle fixture calls OptionCommentStyle::apply directly;
         // this drives the same production apply body, echoing the
         // LowlevelError's `explain` (no "LowlevelError: " prefix — that
-        // prefix is Rugra's exception-channel convention inside apply's
+        // prefix is Rudra's exception-channel convention inside apply's
         // return string) for the byte parity.
         let (threw, msg) = apply_option(&option, &mut arch, style);
         println!("case=route.{tag}|threw={threw}|msg={msg}|text={}", render(&handle));
@@ -184,7 +184,7 @@ fn main() {
 // the unit test; the fixture pins the apply body itself, same as the
 // oracle fixture's direct `option.apply(&arch, ...)`). Returns the threw
 // flag plus the message as the oracle fixture echoes it (LowlevelError
-// explain without Rugra's prefix convention).
+// explain without Rudra's prefix convention).
 fn apply_option(
     option: &OptionCommentStyle,
     arch: &mut Architecture,

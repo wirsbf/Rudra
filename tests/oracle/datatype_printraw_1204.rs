@@ -1,5 +1,5 @@
 /*
- * Rugra comparand for DATATYPE-PRINTRAW-0001, the bilateral twin of
+ * Rudra comparand for DATATYPE-PRINTRAW-0001, the bilateral twin of
  * tests/oracle/datatype_printraw_1204.cc.
  *
  * Exercises src/type_system/datatype.rs print_raw under the same

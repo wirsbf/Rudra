@@ -1,5 +1,5 @@
 /*
- * Rugra comparand for DATABASE-RESID7-FIXTURE-0001
+ * Rudra comparand for DATABASE-RESID7-FIXTURE-0001
  * (MIGW1-DATABASE-0005 residual-seven closure lane, wt/database7).
  *
  * Mirrors tests/oracle/database_resid7_1204.cc case for case through the

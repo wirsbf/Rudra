@@ -1,4 +1,4 @@
-//! Rugra comparand for ADDRESS-PHASE2-CLOSURE-0001.
+//! Rudra comparand for ADDRESS-PHASE2-CLOSURE-0001.
 //!
 //! This intentionally uses only public, production-reachable APIs.  In
 //! particular it does not recreate FlowInfo::newAddress outside FlowInfo;

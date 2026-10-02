@@ -1,4 +1,4 @@
-// MERGE-CLEAR-LIFECYCLE-0001: Rugra comparand for the locked Ghidra 12.0.4
+// MERGE-CLEAR-LIFECYCLE-0001: Rudra comparand for the locked Ghidra 12.0.4
 // Funcdata::clear lifecycle oracle.  Mirrors
 // tests/oracle/merge_clear_lifecycle_1204.cc domain for domain: one Funcdata
 // carrying every persistent-state domain Funcdata::clear (funcdata.cc:84-112)
@@ -8,15 +8,15 @@
 // byte-identical to the locked oracle except the two registered MISMATCH
 // domains (overall_status=MISMATCH):
 //   - localmap after-clear line: Ghidra keeps the typelock+namelock symbol
-//     (database.cc:2042-2064 clearUnlocked); Rugra's wholesale
+//     (database.cc:2042-2064 clearUnlocked); Rudra's wholesale
 //     `scope.symbols.clear()` model drops it (varmap nametree is
 //     index-addressed; a faithful retain needs a varmap.rs-side
 //     clearUnlocked) — MERGE-CLEAR-LIFECYCLE-RESIDUAL-0001.
 //   - funcproto after-clear line: Ghidra zeroes returnBytesConsumed
-//     (fspec.cc:4012); Rugra's fspec.rs clear_unlocked_output is a
+//     (fspec.cc:4012); Rudra's fspec.rs clear_unlocked_output is a
 //     simplification that leaves it — MERGE-CLEAR-LIFECYCLE-RESIDUAL-0001.
 //
-// clean_up_index / cast_phase_index are not projected: Rugra has no fields
+// clean_up_index / cast_phase_index are not projected: Rudra has no fields
 // (coreaction.rs startCleanUp/ActionSetCasts markers are faithful no-ops) —
 // coverage entry UNTESTED under the same residual.
 

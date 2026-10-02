@@ -1,4 +1,4 @@
-// WORKPKG-UNMAP-PARSEADJ-0015: current-Rugra comparand for the locked Ghidra
+// WORKPKG-UNMAP-PARSEADJ-0015: current-Rudra comparand for the locked Ghidra
 // C-declaration parser whole-face fixture (grammar_parse_face_1204.cc).
 //
 // Every case drives the recursive-descent CParse through the same public
@@ -9,9 +9,9 @@
 // printRaw normalisation (registered known-delta, see the fixture metadata):
 // the oracle's `TypeFactory::getTypeCode(PrototypePieces)` creates anonymous
 // code types and dedups structurally, so `TypeCode::printRaw` prints
-// "funcptr()"; Rugra's `get_type_code_pieces` mints a synthetic dedup name
+// "funcptr()"; Rudra's `get_type_code_pieces` mints a synthetic dedup name
 // ("funcptr(int4)(int4,int8)"). The synthetic name is a registry key, not a
-// parse-tree fact (RUGRA-GLUE documented on the twin), so code-type names
+// parse-tree fact (RUDRA-GLUE documented on the twin), so code-type names
 // starting with "funcptr" normalise to the oracle anonymous form here.
 
 use rudra::grammar::{parse_protopieces, parse_type_full, DocType};
@@ -133,7 +133,7 @@ fn run_parse_protopieces(id: &str, text: &str, factory: &mut TypeFactory) {
             emit_type_fields(&format!("{tag}.out"), &pieces.out_type);
             // The oracle's getModel falls back to glb->defaultfp; the
             // x86-64-gcc compiler spec names its default prototype model
-            // "__stdcall". Rugra's grammar edge has no ProtoModel registry
+            // "__stdcall". Rudra's grammar edge has no ProtoModel registry
             // reachable (pieces.model stays None), so the comparand prints
             // the compiler spec's default-model name directly (registered
             // carrier gap in the fixture metadata).

@@ -1,4 +1,4 @@
-//! DATATYPE-TYPEORDER-0001 Rugra comparand for locked Ghidra 12.0.4.
+//! DATATYPE-TYPEORDER-0001 Rudra comparand for locked Ghidra 12.0.4.
 
 use rudra::fspec::{ProtoModelFull, ProtoParameter};
 use rudra::space::{space_flags, AddrSpace, SpaceType};
@@ -1119,7 +1119,7 @@ fn main() {
     );
 
     // same-kind AddrSpace identity: two raw IPTR_PROCESSOR spaces sharing an
-    // index cannot be distinguished by pointer identity in Rugra's enum model.
+    // index cannot be distinguished by pointer identity in Rudra's enum model.
     let dup_space_a = AddrSpace::new_space(
         SpaceType::Processor,
         "dup_a",

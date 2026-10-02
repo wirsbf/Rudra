@@ -1,4 +1,4 @@
-//! CONDEXE-ERROR-0006 Rugra comparand — the ConditionalExecution error
+//! CONDEXE-ERROR-0006 Rudra comparand — the ConditionalExecution error
 //! channel (condexe.cc:242-262 resolveIblockRead, condexe.cc:291-315
 //! getReplacementRead, condexe.cc:320-357 doReplacement, condexe.cc:457-476
 //! execute, condexe.cc:478-503 ActionConditionalExe::apply), mirroring
@@ -56,7 +56,7 @@ impl Fixture {
 
     /// Written varnode at an explicit address: the fixture's own IR-builder
     /// leg, mirroring the C++ fixture's `fd.newVarnodeOut(size,
-    /// Address(space, offset), op)` (Rugra's `create_def_with_space` does
+    /// Address(space, offset), op)` (Rudra's `create_def_with_space` does
     /// not set the op's output field, so it is set here exactly like the
     /// oracle's newVarnodeOut does).
     fn make_out(
@@ -215,7 +215,7 @@ fn run_error_case(case_id: &str, reader_dom_ib: bool) {
         Ok(r) => println!("ret|case={case_id}|apply={r}|msg=none"),
         Err(e) => {
             // The C++ side catches LowlevelError; only Error::Lowlevel maps
-            // to kind=lowlevel so a Rugra-internal error would surface as a
+            // to kind=lowlevel so a Rudra-internal error would surface as a
             // projection difference instead of passing silently.
             let kind = if matches!(e, Error::Lowlevel(_)) { "lowlevel" } else { "internal" };
             println!("err|case={case_id}|kind={kind}|msg={e}");

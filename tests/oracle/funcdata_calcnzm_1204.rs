@@ -1,4 +1,4 @@
-//! FUNCDATA-CALCNZM-0001 Rugra comparand: Funcdata::calc_nz_mask
+//! FUNCDATA-CALCNZM-0001 Rudra comparand: Funcdata::calc_nz_mask
 //! (funcdata_varnode.cc:856-926) bilateral fixture against the locked
 //! Ghidra 12.0.4 oracle. Mirrors tests/oracle/funcdata_calcnzm_1204.cc
 //! scenario-for-scenario; every printed value must byte-match the oracle.
@@ -58,7 +58,7 @@ fn run_init() {
     let edi = fd.set_input_varnode(edi);
     fd.op_set_input(&cp_r, edi, 0);
     // Spacebase input: nzm = calc_mask(8) & ~0xff (cc:892-894), marked by
-    // Funcdata::spacebase at Rugra's configured stack pointer (Register@0x20,
+    // Funcdata::spacebase at Rudra's configured stack pointer (Register@0x20,
     // the x86-64 default; the C++ twin marks Register@0 — only the nzm value
     // is observed, which is identical).
     let (cp_s, out_s) = new_output_op(&mut fd, &block, OpCode::CPUI_COPY, 0x5012, 1, 8, false);

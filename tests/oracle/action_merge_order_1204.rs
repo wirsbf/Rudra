@@ -1,4 +1,4 @@
-// PIPE-MERGETYPE-ORDER-0001: Rugra comparand for the locked Ghidra 12.0.4
+// PIPE-MERGETYPE-ORDER-0001: Rudra comparand for the locked Ghidra 12.0.4
 // post-cleanup action order oracle (coreaction.cc:5712-5738).  Mirrors
 // tests/oracle/action_merge_order_1204.cc: the real default pipeline root is
 // built through `build_default_pipeline` (the single construction path behind

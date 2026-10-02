@@ -1,4 +1,4 @@
-//! RULEACTION-RS0-RELGATE-0001: Rugra side of the locked 12.0.4 oracle
+//! RULEACTION-RS0-RELGATE-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for `RuleStructOffset0::applyOp`'s formal relative-pointer branch
 //! (ruleaction.cc:6695-6725).
 //!

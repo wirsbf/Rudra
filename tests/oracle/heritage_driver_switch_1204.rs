@@ -1,4 +1,4 @@
-// HERITAGE-DRIVER-SWITCH-0001: Rugra comparand for the locked Ghidra 12.0.4
+// HERITAGE-DRIVER-SWITCH-0001: Rudra comparand for the locked Ghidra 12.0.4
 // ActionHeritage -> Funcdata::opHeritage -> Heritage::heritage production
 // driver oracle. Mirrors tests/oracle/heritage_driver_switch_1204.cc case
 // for case: the same synthetic CFG/def-use graphs are built through the
@@ -201,7 +201,7 @@ impl Graph {
     }
 
     /// Heritage::heritagePass (heritage.hh:325): pass when the (space,offset)
-    /// was entered into the disjoint cover, or -1. Rugra's LocationMap keys
+    /// was entered into the disjoint cover, or -1. Rudra's LocationMap keys
     /// by (space, offset) — the space identity this TODO landed.
     fn heritage_pass_of(&self, space: AddressSpace, offset: u64) -> i32 {
         self.fd

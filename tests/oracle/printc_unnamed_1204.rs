@@ -1,4 +1,4 @@
-// PRINTC-UNLINKED-REF-FAMILY slice C: Rugra comparand for the locked
+// PRINTC-UNLINKED-REF-FAMILY slice C: Rudra comparand for the locked
 // Ghidra 12.0.4 printc_unnamed_1204 oracle (A35 audit section 5).
 //
 // Mirrors tests/oracle/printc_unnamed_1204.cc case for case and record for
@@ -20,7 +20,7 @@
 //     statement becomes when the high carries no symbol.  Ghidra's
 //     pushSymbolDetail sym==0 arm prints the space name + printRaw of the
 //     HIGH NAME REPRESENTATIVE address (printc.cc:1938-1945); current
-//     Rugra prints `uVar_<current-instance-offset>` (printc.rs
+//     Rudra prints `uVar_<current-instance-offset>` (printc.rs
 //     get_varnode_display_name_inner / push_varnode Unique arms).  The
 //     expected divergence is the gap evidence this fixture locks — the
 //     runner registers it per line, never excises it.
@@ -98,7 +98,7 @@ impl Fixture {
         // The Rust analogue of the C++ Funcdata ctor's ScopeLocal: the
         // production bootstrap that installs the local scope (register
         // catalog included).  The C++ fixture's Funcdata carries this from
-        // its ctor; Rugra's flat Funcdata gets it here.
+        // its ctor; Rudra's flat Funcdata gets it here.
         ActionRestructureVarnode::new().apply(&mut fd).unwrap();
         if stack_window {
             // The local window the C++ GetStr Funcdata's localmap holds

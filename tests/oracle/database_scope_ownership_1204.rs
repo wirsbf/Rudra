@@ -1,5 +1,5 @@
 /*
- * Rugra capability projection for DATABASE-SCOPE-OWNERSHIP-FIXTURE-0001.
+ * Rudra capability projection for DATABASE-SCOPE-OWNERSHIP-FIXTURE-0001.
  *
  * This intentionally does not construct a parallel Scope/FunctionSymbol
  * shadow graph.  It does exercise the real Database::find_create_scope API,
@@ -108,7 +108,7 @@ fn main() {
     let function = Funcdata::new("fixture_function", Address::new(0x7e12_0400), 0);
 
     println!(
-        "case=rugra_constructor_state|architecture_symboltab_present={}|funcdata_arch_present={}|funcdata_local_scope_present={}",
+        "case=rudra_constructor_state|architecture_symboltab_present={}|funcdata_arch_present={}|funcdata_local_scope_present={}",
         u8::from(architecture.symboltab.is_some()),
         u8::from(function.arch.is_some()),
         u8::from(function.scope.is_some()),

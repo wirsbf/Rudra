@@ -4,7 +4,7 @@
 // stdout equality is the MATCH gate (runner tools/run_printc_singleton_
 // emission_oracle.sh).
 //
-// Rugra-side notes: push_float runs through the default FloatFormats the
+// Rudra-side notes: push_float runs through the default FloatFormats the
 // oracle's Translate registers (translate.cc:962-970 setDefaultFloatFormats);
 // the comment-style delimiters render through emit_line_comment (the
 // printlanguage.cc:589 port); genericFunctionName takes the ram-space dims

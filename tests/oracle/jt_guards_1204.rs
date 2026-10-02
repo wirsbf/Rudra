@@ -1,4 +1,4 @@
-//! JT-GUARDS-1204 (JUMPTABLE-GUARDS-0001) Rugra comparand.
+//! JT-GUARDS-1204 (JUMPTABLE-GUARDS-0001) Rudra comparand.
 //!
 //! Mirrors tests/oracle/jt_guards_1204.cc: observes JumpBasic::analyze_guards
 //! (jumptable.cc:1046-1112), checkUnrolledGuard via the sizeIn>1 walk-back

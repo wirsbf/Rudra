@@ -428,7 +428,7 @@ fn main() -> Result<(), String> {
             image_sha256: "9e076ceaf246b6003d9c2680a2b4cf0bffd069805902b0b5edeebf49039fe4bd",
             base: IMAGE_BASE,
             offset: IMAGE_BASE,
-            setup: "RUGRA-GLUE owned copy; caller mutates 90 to 06 then releases source",
+            setup: "RUDRA-GLUE owned copy; caller mutates 90 to 06 then releases source",
             source_after_hex: Some("06"),
         };
         let observation = observe(&mut engine, input.offset);

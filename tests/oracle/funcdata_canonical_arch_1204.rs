@@ -1,11 +1,11 @@
-//! FUNCDATA-CANONICAL-ARCH-0001: Rugra mirror of the locked Ghidra 12.0.4
+//! FUNCDATA-CANONICAL-ARCH-0001: Rudra mirror of the locked Ghidra 12.0.4
 //! Funcdata constructor-invariant fixture
 //! (`tests/oracle/funcdata_canonical_arch_1204.cc`).  `Funcdata::new`
 //! binds the canonical default Architecture (the stand-in for the oracle's
-//! unconditional `glb = scope->getArch()`, funcdata.cc:48, until Rugra's
+//! unconditional `glb = scope->getArch()`, funcdata.cc:48, until Rudra's
 //! constructor grows a Scope parameter — FUNCDATA-LOCALSCOPE-OWNERSHIP-0001).
 //! The printed lines must match the C++ oracle stdout byte-for-byte;
-//! Rugra-only tails (min_laned_size field equality, set_arch override) are
+//! Rudra-only tails (min_laned_size field equality, set_arch override) are
 //! in-binary assertions so the diffed projections stay symmetric.
 use std::sync::Arc;
 
@@ -21,7 +21,7 @@ fn main() {
         .expect("Funcdata::new binds canonical Architecture")
         .clone();
     // funcdata.cc:49 `minLanedSize = glb->getMinimumLanedRegisterSize();`
-    // — Rugra-only assertion: the field itself carries the source value.
+    // — Rudra-only assertion: the field itself carries the source value.
     assert_eq!(
         fd.min_laned_size,
         arch.get_minimum_laned_register_size() as u32
@@ -49,7 +49,7 @@ fn main() {
     );
     println!("case=share arch_identity_shared={}", shared as u8);
 
-    // Rugra-only override tail (not printed; the curl/httpd runner path):
+    // Rudra-only override tail (not printed; the curl/httpd runner path):
     // set_arch replaces the canonical binding and rebinds the ctor tail,
     // and a caller-supplied config is what SplitDatatype observes then.
     let mut custom = Architecture::new();

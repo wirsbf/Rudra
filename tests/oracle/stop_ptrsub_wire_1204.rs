@@ -1,5 +1,5 @@
 /* STOP-PTRSUB-WIRE-0001: ActionInferTypes STOP seal + PTRSUB downChain wiring
- * (Rugra comparand). Mirrors tests/oracle/stop_ptrsub_wire_1204.cc case for
+ * (Rudra comparand). Mirrors tests/oracle/stop_ptrsub_wire_1204.cc case for
  * case; see that file for the graph design commentary.
  */
 use std::sync::{Arc, RwLock};

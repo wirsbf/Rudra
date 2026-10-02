@@ -1,4 +1,4 @@
-//! FUNCDATA-PUSHMULTIEQUALS-0001 Rugra comparand.
+//! FUNCDATA-PUSHMULTIEQUALS-0001 Rudra comparand.
 //!
 //! Mirrors `tests/oracle/funcdata_pushmultiequals_1204.cc` scenario for
 //! scenario: three hand-built block graphs sharing the cc:84 shape drive

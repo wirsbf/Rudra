@@ -1,4 +1,4 @@
-// B3-COREACTION-CONSTANTPTR-0001 (b): Rugra comparand for the locked
+// B3-COREACTION-CONSTANTPTR-0001 (b): Rudra comparand for the locked
 // Ghidra 12.0.4 ActionConstantPtr::apply oracle.
 //
 // Mirrors tests/oracle/cptr_b_1204.cc record-for-record: the same symbol/

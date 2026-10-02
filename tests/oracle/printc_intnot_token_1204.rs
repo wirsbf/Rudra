@@ -1,4 +1,4 @@
-// PRINTC-INTNOT-TOKEN-0001: Rugra comparand for the locked Ghidra 12.0.4
+// PRINTC-INTNOT-TOKEN-0001: Rudra comparand for the locked Ghidra 12.0.4
 // PrintC unary-prefix operator token-order oracle
 // (GLOBWORD-C4-INTNOT-TOKEN-0001).
 //

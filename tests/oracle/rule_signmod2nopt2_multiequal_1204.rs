@@ -1,4 +1,4 @@
-//! RULE-SIGNMOD2NOPT2-ME-0001: Rugra side of the locked 12.0.4 oracle
+//! RULE-SIGNMOD2NOPT2-ME-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for RuleSignMod2nOpt2::applyOp's MULTIEQUAL path —
 //! `checkMultiequalForm` (ruleaction.cc:8941-8985) — the
 //! `V = (V s< 0) ? V + 2^n-1 : V` adjusted-dividend recognition

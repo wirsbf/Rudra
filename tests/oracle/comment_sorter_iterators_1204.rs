@@ -1,4 +1,4 @@
-// COMMENT-SORTER-ITERATORS-0001: Rugra comparand for the locked Ghidra 12.0.4
+// COMMENT-SORTER-ITERATORS-0001: Rudra comparand for the locked Ghidra 12.0.4
 // CommentSorter shared-iterator oracle (setupBlockList/setupOpList/setupHeader
 // + findPosition + setupFunctionList + hasNext/getNext interleaving).
 //

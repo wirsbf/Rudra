@@ -1,5 +1,5 @@
 /*
- * Rugra comparand for DATABASE-SCOPE-TREE-FIXTURE-0001
+ * Rudra comparand for DATABASE-SCOPE-TREE-FIXTURE-0001
  * (MIGW1-DATABASE-0005 phase 2), the bilateral twin of
  * tests/oracle/database_scope_tree_1204.cc.
  *

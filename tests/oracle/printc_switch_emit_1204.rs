@@ -1,4 +1,4 @@
-// PRINTC-SWITCH-EMIT-0001: Rugra side of the locked Ghidra 12.0.4
+// PRINTC-SWITCH-EMIT-0001: Rudra side of the locked Ghidra 12.0.4
 // PrintC::emitBlockSwitch + emitSwitchCase bilateral fixture
 // (printc.cc:3313-3353 / 3129-3158). Mirrors printc_switch_emit_1204.cc:
 // hand-built BlockSwitch (control block + case blocks + case_values +

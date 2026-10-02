@@ -1,4 +1,4 @@
-// FSPEC-SPACELESS-REM-1204: Rugra comparand for the locked Ghidra
+// FSPEC-SPACELESS-REM-1204: Rudra comparand for the locked Ghidra
 // 12.0.4 oracle (FSPEC-SPACELESS-REMAINDER). Mirrors
 // tests/oracle/fspec_spaceless_rem_1204.cc case for case:
 //  - uc_plain_cross_space / uc_join_reachable:

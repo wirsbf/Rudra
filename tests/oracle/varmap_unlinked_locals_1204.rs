@@ -1,4 +1,4 @@
-// PRINTC-UNLINKED-REF-0001: Rugra comparand for the locked Ghidra 12.0.4
+// PRINTC-UNLINKED-REF-0001: Rudra comparand for the locked Ghidra 12.0.4
 // local-entry oracle.  Mirrors tests/oracle/varmap_unlinked_locals_1204.cc
 // case for case: the same ActionNameVars judgment chain (HighVariable::
 // has_name -> Funcdata::link_symbol -> the coreaction.cc:2988-2997 naming
@@ -57,7 +57,7 @@ impl CaseFunc {
         let mut fd = Funcdata::new(name, Address::new(BASE), 0x20);
         // The C++ Funcdata ctor (funcdata.cc:69) builds the ScopeLocal
         // localmap and installs the local window from the prototype model's
-        // local range.  Rugra's flat Funcdata has no ctor-side scope; the
+        // local range.  Rudra's flat Funcdata has no ctor-side scope; the
         // ActionRestructureVarnode production route installs it, so the
         // fixture mirrors the same post-restructure state here.
         let mut scope = ScopeLocal::new();

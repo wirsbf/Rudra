@@ -1,4 +1,4 @@
-// FSPEC-POSSIBLEPARAM-1204: Rugra comparand for the locked Ghidra
+// FSPEC-POSSIBLEPARAM-1204: Rudra comparand for the locked Ghidra
 // 12.0.4 oracle (FSPEC-POSSIBLEPARAM-JOIN-0006, A46 residual 3).
 // Mirrors tests/oracle/fspec_possibleparam_1204.cc case for case:
 //  - plain_out_entries: ParamListStandardOut::possible_param iterates

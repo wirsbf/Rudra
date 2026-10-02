@@ -1,4 +1,4 @@
-// SUBFLOW-OUTVN-UNWRAP-0001: Rugra comparand for the locked Ghidra 12.0.4
+// SUBFLOW-OUTVN-UNWRAP-0001: Rudra comparand for the locked Ghidra 12.0.4
 // SubvariableFlow::traceForwardSext / traceForward createLink outvn oracle.
 // Mirrors tests/oracle/subflow_outvn_1204.cc case for case: the same
 // sub-variable data-flows are built through the production Funcdata APIs and

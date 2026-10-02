@@ -1,4 +1,4 @@
-// FSPEC-FINDENTRY-1204: Rugra comparand for the locked Ghidra 12.0.4
+// FSPEC-FINDENTRY-1204: Rudra comparand for the locked Ghidra 12.0.4
 // oracle (FSPEC-FINDENTRY-GATE-0005 + the join coverage of
 // FSPEC-RESOLVER-JOIN-WINDOW-0004). Mirrors
 // tests/oracle/fspec_findentry_1204.cc case for case:

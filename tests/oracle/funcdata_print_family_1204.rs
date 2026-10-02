@@ -64,7 +64,7 @@ fn main() {
 
     // case=print_local_range: the fresh-ctor window (the oracle Funcdata
     // ctor runs resetLocalWindow over the default model, fspec.cc:2278/2303;
-    // Rugra requires the explicit install — FUNCDATA-LOCALSCOPE-OWNERSHIP
+    // Rudra requires the explicit install — FUNCDATA-LOCALSCOPE-OWNERSHIP
     // -0001) then the same explicit stack window.
     {
         let mut scope = ScopeLocal::new();

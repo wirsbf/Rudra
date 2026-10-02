@@ -1,4 +1,4 @@
-//! Rugra twin of `tests/oracle/coreaction_constptr_registerspace_1204.cc`.
+//! Rudra twin of `tests/oracle/coreaction_constptr_registerspace_1204.cc`.
 //!
 //! HTTPDMAIN-F4-WEBTYPE-0001: pins the register-space filter of
 //! `Architecture::cacheAddrSpaceProperties` (architecture.cc:680) — the

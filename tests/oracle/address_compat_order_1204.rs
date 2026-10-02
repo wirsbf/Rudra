@@ -1,4 +1,4 @@
-// ADDRESS-COMPAT-ORDER-1204: Rugra comparand for the locked Ghidra 12.0.4
+// ADDRESS-COMPAT-ORDER-1204: Rudra comparand for the locked Ghidra 12.0.4
 // ordering oracle of the ADDRESS-0001 phase-1 legacy-Address space bridge
 // (address.hh/address.cc). Mirrors tests/oracle/address_compat_order_1204.cc
 // case for case: the oracle's null-`base` `m_minimal` address is minted as

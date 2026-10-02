@@ -1,4 +1,4 @@
-//! PARSEADJ-PARSEFACE-PCODE-0001: current-Rugra comparand for the locked
+//! PARSEADJ-PARSEFACE-PCODE-0001: current-Rudra comparand for the locked
 //! Ghidra 12.0.4 pcode-snippet parser whole-face fixture
 //! (pcode_snippet_face_1204.cc).  Compiles the same case matrix through
 //! `PcodeSnippet` and prints the identical records byte for byte.
@@ -6,7 +6,7 @@
 //! ## Language-side host
 //!
 //! The C++ fixture boots a real `SleighBase` on the production x86-64.sla;
-//! Rugra links no SLEIGH engine, so the language symbol table arrives
+//! Rudra links no SLEIGH engine, so the language symbol table arrives
 //! through the `SleighSymbolLookup` hook exactly like production callers
 //! install it (`set_sleigh_lookup`).  `FaceLanguage` mirrors the
 //! x86-64.sla facts the locked-oracle fixture itself observes in its SYM

@@ -1,4 +1,4 @@
-// MERGE-OVERLAPLOC-FLAGUNION-1204: Rugra comparand for the locked Ghidra
+// MERGE-OVERLAPLOC-FLAGUNION-1204: Rudra comparand for the locked Ghidra
 // 12.0.4 overlapLoc flag-union gate oracle (varnode.cc:1791-1819 +
 // merge.cc:629). Mirrors tests/oracle/merge_overlaploc_1204.cc: the real
 // default pipeline root is built through `build_default_pipeline` (the

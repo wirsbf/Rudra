@@ -1,4 +1,4 @@
-// Rugra comparand for VARMAP-DECODEWRAP-0001 (handed over from
+// Rudra comparand for VARMAP-DECODEWRAP-0001 (handed over from
 // MIGW1-DATABASE-0005 phase 3, ruling R5).
 //
 // Mirrors tests/oracle/varmap_decodewrap_1204.cc case for case through the

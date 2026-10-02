@@ -1,5 +1,5 @@
 /*
- * Rugra comparand: CALL in(0) coderef survives ActionDeadCode +
+ * Rudra comparand: CALL in(0) coderef survives ActionDeadCode +
  * ActionVarnodeProps (COREACTION-CALLIN0-CLOBBER-0001).
  *
  * Mirrors the curl E2E inject path (examples/curl_decompile.rs: lift ->
@@ -7,7 +7,7 @@
  * flows (my_fwrite @0x3460, size 0x62), then runs ActionDeadCode::apply
  * followed by ActionVarnodeProps::apply with heritage pass = 1 — the
  * second-mainloop state in which the clobber fired end-to-end (DECOMPILE
- * prefix 18->19 bisect, w-push88 handoff) and the state Rugra's pass>0 gate
+ * prefix 18->19 bisect, w-push88 handoff) and the state Rudra's pass>0 gate
  * in ActionVarnodeProps exposes. Projects the same sorted control-flow
  * target observables as the oracle fixture.
  *
@@ -28,7 +28,7 @@ use rudra::opcodes::OpCode;
 
 /// One control-flow target projection line, sortable by (kind, target) —
 /// bank insertion order differs between the flow-driven oracle builder and
-/// the inject-driven Rugra builder.
+/// the inject-driven Rudra builder.
 struct Line {
     kind: &'static str,
     target: u64,
@@ -39,7 +39,7 @@ struct Line {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 {
-        eprintln!("usage: coreaction_callin0_clobber_1204_rugra CURL_BINARY");
+        eprintln!("usage: coreaction_callin0_clobber_1204_rudra CURL_BINARY");
         std::process::exit(2);
     }
     let buffer = std::fs::read(&args[1]).expect("read curl binary");
@@ -83,7 +83,7 @@ fn main() {
         .unwrap()
         .set_self_ref(std::sync::Arc::downgrade(&fd_arc));
 
-    // Second-mainloop state: heritage pass 1 opens Rugra's pass>0 gate in
+    // Second-mainloop state: heritage pass 1 opens Rudra's pass>0 gate in
     // ActionVarnodeProps — the exact state the E2E prefix bisect fired in.
     // The oracle fixture runs the same two actions after followFlow, where
     // Ghidra's VarnodeProps has no pass gate (cc:1282-1342).

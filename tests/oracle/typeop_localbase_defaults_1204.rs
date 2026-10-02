@@ -1,4 +1,4 @@
-// TYPEOP-LOCALBASE-DEFAULTS-0001: current-Rugra comparand for the locked
+// TYPEOP-LOCALBASE-DEFAULTS-0001: current-Rudra comparand for the locked
 // Ghidra TypeOp base-class getOutputLocal/getInputLocal defaults and the
 // TypeOpCall constructor opflags.
 //
@@ -236,7 +236,7 @@ fn emit_output_case(
 /// type as getBase(size, metain/metaout) with UINT (ZEXT) / INT (SEXT)
 /// (typeop.cc:1115/:1141 constructors driving TypeOpFunc::get*Local at
 /// typeop.cc:365/:371); the fixture pins the post-PRINTC-CAST-OPNAME-0001-M1
-/// state where the Rugra macro family resolves through the constructor-
+/// state where the Rudra macro family resolves through the constructor-
 /// registered metatype pair instead of echoing the opposite varnode's v_type.
 fn emit_metatype_case(
     name: &str,

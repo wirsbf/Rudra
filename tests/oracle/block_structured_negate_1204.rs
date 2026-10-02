@@ -1,4 +1,4 @@
-// BLOCK-STRUCTURED-NEGATE-0001: Rugra comparand for the locked Ghidra
+// BLOCK-STRUCTURED-NEGATE-0001: Rudra comparand for the locked Ghidra
 // 12.0.4 FlowBlock/BlockList/BlockCondition negateCondition fixture.
 //
 // This mirrors block_structured_negate_1204.cc case-for-case and emits the

@@ -1,4 +1,4 @@
-// GOTO-PRINTS-NEXTFLOWAFTER-ARMS-0001: Rugra side of the locked Ghidra
+// GOTO-PRINTS-NEXTFLOWAFTER-ARMS-0001: Rudra side of the locked Ghidra
 // 12.0.4 nextFlowAfter bilateral fixture. Mirrors
 // goto_prints_nextflowafter_1204.cc case for case: the same hand-built
 // copy-level trees (BlockCopy leaves so front_leaf is non-null and the
@@ -241,7 +241,7 @@ impl Fixture {
         };
         // Oracle cs[0] descent for the multigoto gotoedge variant: the
         // oracle's collectAll walks into the BlockSwitch's absorbed
-        // component list, whose cs[0] entry IS the BlockMultiGoto (Rugra
+        // component list, whose cs[0] entry IS the BlockMultiGoto (Rudra
         // keeps it as `control`, outside the walked cases). Its successor
         // is the arm-① null of block.cc:3642-3643, so it is visited with
         // succ=None; the multigoto arm (block.cc:2931-2936) is null for

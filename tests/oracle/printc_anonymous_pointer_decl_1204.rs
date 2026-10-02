@@ -276,7 +276,7 @@ fn run_anon_code() {
 fn main() {
     // The C++ side reuses ONE Funcdata across the four decls cases with
     // fd.clear() before each; the Rust side mirrors with a fresh Fixture
-    // per case (Rugra's Funcdata has no clear(); the C++ clear() resets
+    // per case (Rudra's Funcdata has no clear(); the C++ clear() resets
     // exactly the per-case state a fresh construction starts from).
     let mut fixture = Fixture::new();
     run_anon_ptr_char(&mut fixture);

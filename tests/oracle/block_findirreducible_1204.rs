@@ -1,4 +1,4 @@
-// BLOCK-FINDIRREDUCIBLE-0001: Rugra comparand for the locked Ghidra 12.0.4
+// BLOCK-FINDIRREDUCIBLE-0001: Rudra comparand for the locked Ghidra 12.0.4
 // BlockGraph::findIrreducible (block.cc:1147-1199) oracle.  Mirrors
 // tests/oracle/block_findirreducible_1204.cc case for case: the same
 // synthetic control-flow graphs are built through the production BlockGraph
@@ -17,7 +17,7 @@ fn flags_text(label: u32) -> String {
     let mut out = String::new();
     if label & ef::F_GOTO_EDGE != 0 { out.push('g'); }
     if label & ef::F_LOOP_EDGE != 0 { out.push('l'); }
-    // Rugra's F_DEFAULTSWITCH_EDGE shares bit 7 with F_TREE_EDGE
+    // Rudra's F_DEFAULTSWITCH_EDGE shares bit 7 with F_TREE_EDGE
     // (pre-existing edge_flags collision). Within this projection bit 7 can
     // only be a tree label: findSpanningTree wipes every edge label at the
     // start of each pass and neither pass ever sets default-switch labels.

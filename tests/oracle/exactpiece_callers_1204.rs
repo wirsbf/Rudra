@@ -17,7 +17,7 @@
 // metatype+size grammar as the C++ side.
 //
 // Structural mapping notes (registered in the metadata):
-//   * Rugra HighVariable::new requires a seed Arc where the C++ constructor
+//   * Rudra HighVariable::new requires a seed Arc where the C++ constructor
 //     starts with a null type; both sides observe before/after identity, so
 //     the null cases project "unchanged" bits instead of a null shape.
 //   * Varnodes are created via VarnodeBank::create_with_space before any
@@ -358,7 +358,7 @@ fn main() {
         FinalizeCase { id: "finalize_unknown", sym: sym_fin_undef.clone(), offset: 0, vn_index: 4, expected: None },
     ];
     for c in &fin_cases {
-        // C++ `new HighVariable(vn)` starts with a null type; Rugra's glue
+        // C++ `new HighVariable(vn)` starts with a null type; Rudra's glue
         // constructor requires a seed, so the null/unknown cases project
         // before/after identity against the seed.
         let mut high = HighVariable::new(uint4.clone());

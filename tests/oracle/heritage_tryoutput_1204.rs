@@ -1,4 +1,4 @@
-// HERITAGE-TRYOUTPUT-STACKGUARD-CONTAINS: Rugra comparand for the locked
+// HERITAGE-TRYOUTPUT-STACKGUARD-CONTAINS: Rudra comparand for the locked
 // Ghidra 12.0.4 oracle. Mirrors tests/oracle/heritage_tryoutput_1204.cc
 // case for case:
 //  - stack_output_contains_full: the production

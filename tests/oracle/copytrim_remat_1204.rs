@@ -1,4 +1,4 @@
-// COPYTRIM-REMAT-0001: Rugra comparand for the locked Ghidra 12.0.4
+// COPYTRIM-REMAT-0001: Rudra comparand for the locked Ghidra 12.0.4
 // copy-trim re-materialization oracle (tests/oracle/copytrim_remat_1204.cc).
 //
 // KUNABUGS-COPYTRIM-REMAT-0001 (CASTFUSE-A root-cause candidate ③):

@@ -1,7 +1,7 @@
 //! Rust counterpart of the locked Ghidra 12.0.4 callspec identity fixture.
 //!
 //! The C++ side stores qlst owners as raw pointers and embeds an FSPEC-space
-//! pointer in CALL input(0).  Rugra stores stable `Arc` owners in qlst and
+//! pointer in CALL input(0).  Rudra stores stable `Arc` owners in qlst and
 //! typed `Weak` reverse edges in the operation and annotation.  The printed
 //! projection observes identities and owner membership without printing
 //! allocation addresses.

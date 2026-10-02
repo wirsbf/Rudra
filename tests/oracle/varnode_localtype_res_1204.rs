@@ -1,4 +1,4 @@
-// VARNODE-LOCALTYPE-RESOLUTION-0001: current-Rugra comparand for the locked
+// VARNODE-LOCALTYPE-RESOLUTION-0001: current-Rudra comparand for the locked
 // Ghidra Varnode::getLocalType (varnode.cc:900-936) oracle projection,
 // including the def-side stop_type_propagation early return and the
 // "NULL local type" LowlevelError channel.

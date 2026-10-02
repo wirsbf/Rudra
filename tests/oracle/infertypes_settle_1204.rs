@@ -6,7 +6,7 @@
 // LOAD/STORE pointer propagation edges. Applies ActionInferTypes eight times
 // and prints the byte-comparable per-round type table with Arc-identity
 // stability against the previous round — the settle observable the oracle
-// gets from TypeFactory-interned Datatypes and that Rugra gets from
+// gets from TypeFactory-interned Datatypes and that Rudra gets from
 // canonicalize_temp_type routing every temp type through the factory.
 //
 // Rust-only regression guard (not printed, no oracle counterpart): the

@@ -1,4 +1,4 @@
-// VARMAP-NAMING-0001: Rugra comparand for the locked Ghidra 12.0.4
+// VARMAP-NAMING-0001: Rudra comparand for the locked Ghidra 12.0.4
 // authoritative default-naming oracle.  Mirrors
 // tests/oracle/varmap_naming_1204.cc case for case: the same ScopeLocal
 // states (local windows, parameter boundaries, register table, categories)

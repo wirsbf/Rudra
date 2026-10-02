@@ -1,4 +1,4 @@
-// MERGE-FORCEMERGE-PANIC-0001: Rugra comparand for the locked Ghidra
+// MERGE-FORCEMERGE-PANIC-0001: Rudra comparand for the locked Ghidra
 // 12.0.4 merge action survival oracle (coreaction.cc:5717-5727 /
 // coreaction.hh:414).  Mirrors tests/oracle/merge_forcepanic_1204.cc: the
 // real default pipeline root is built through `build_default_pipeline`

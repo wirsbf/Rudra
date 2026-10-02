@@ -1,4 +1,4 @@
-// TYPEOP-CALLOTHER-USEROP-CLOSURE-0001: current-Rugra comparand for the
+// TYPEOP-CALLOTHER-USEROP-CLOSURE-0001: current-Rudra comparand for the
 // locked Ghidra 12.0.4 PcodeOp -> TypeOpCallother -> UserOpManage caller
 // closure oracle (typeop.cc:855-873), including the TypeOp base canonical
 // TYPE_UNKNOWN fallback for metadata-less descriptors and DatatypeUserOp's

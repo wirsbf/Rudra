@@ -484,7 +484,7 @@ fn run_func_eq_skiplist_def_preserved() {
 // RULE-MULTICOLLAPSE-ABORT-0001 case: the abort shape. A MULTIEQUAL whose
 // branches are two DISTINCT same-valued constant objects makes the locked
 // oracle dereference null at ruleaction.cc:3306 (observed as SIGSEGV by the
-// forked C++ fixture). Rugra must NOT abort here: constant-value identity
+// forked C++ fixture). Rudra must NOT abort here: constant-value identity
 // is the level-0 equality proof (expression.cc:409-412), so the collapse
 // proceeds on the absolute path exactly as Ghidra's cc:3279/cc:3334 does
 // for an identical constant object (mirrors rule_multi_collapse_abort_1204.cc

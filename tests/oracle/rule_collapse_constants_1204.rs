@@ -1,13 +1,13 @@
-//! RULE-COLLAPSECONSTANTS-0001: Rugra side of the locked 12.0.4 oracle
+//! RULE-COLLAPSECONSTANTS-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for RuleCollapseConstants.
 //!
 //! Mirrors `rule_collapse_constants_1204.cc` case-for-case (same names, same
-//! observation format) against the pinned `wt/rulefound` rugra source:
+//! observation format) against the pinned `wt/rulefound` rudra source:
 //!   case=<name>|apply=<rc>|opcode=<n>|inputs=<n>|in0_const|in0_size|
 //!   in0_offset|in0_symbol|out_size|apply2
 //!
 //! The equate cases attach a `SymbolEntry` to the constant input via
-//! `Varnode::set_symbol_entry` (Rugra's public route; Ghidra's fixture uses
+//! `Varnode::set_symbol_entry` (Rudra's public route; Ghidra's fixture uses
 //! Scope::addEquateSymbol + Funcdata::remapDynamicVarnode) so the
 //! markedInput -> collapseConstantSymbol path is observable on both sides.
 
@@ -29,7 +29,7 @@ use rudra::varnode::Varnode;
 static CASE_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 fn next_addr() -> u64 {
-    // Ghidra's SeqNum keeps ops distinct at the same address; Rugra assigns
+    // Ghidra's SeqNum keeps ops distinct at the same address; Rudra assigns
     // distinct addresses to keep new_op bookkeeping deterministic.
     0x5000 + CASE_COUNTER.fetch_add(1, Ordering::SeqCst) as u64
 }
@@ -102,7 +102,7 @@ fn run() {
     fd.bblocks.add_block(block.clone());
 
     // Base Rule::getOpList (action.cc:706-713) — the class does not override
-    // it; Rugra enumerates the 72 live opcodes (slots 0/45 unassignable).
+    // it; Rudra enumerates the 72 live opcodes (slots 0/45 unassignable).
     let rule = RuleCollapseConstants::new();
     println!(
         "case=oplist_probe|apply=_|opcode=_|inputs=_|in0_const=_|in0_size=_|in0_offset=_|in0_symbol=_|out_size=_|apply2=_|oplist_live={}",

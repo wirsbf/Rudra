@@ -1,4 +1,4 @@
-// VARMAP-FAKEINPUT-0001: Rugra comparand for the locked Ghidra 12.0.4
+// VARMAP-FAKEINPUT-0001: Rudra comparand for the locked Ghidra 12.0.4
 // authoritative ScopeLocal::fakeInputSymbols oracle.  Mirrors
 // tests/oracle/scope_fake_input_symbols_1204.cc case for case: the same
 // input Varnode sets (created through the production VarnodeBank

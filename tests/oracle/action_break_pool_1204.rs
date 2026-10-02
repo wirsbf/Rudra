@@ -1,7 +1,7 @@
 //! ACTION-EXECUTOR-BREAKPOOL-0001 Rust comparand.
 //!
 //! Scripted leaves and Rules supply only deterministic changes. The observed
-//! state transitions are Rugra's production Action/Group/Pool executor.
+//! state transitions are Rudra's production Action/Group/Pool executor.
 
 use rudra::action::{
     break_flags, rule_flags, Action, ActionGroup, ActionGroupList, ActionPool, ActionRestartGroup,

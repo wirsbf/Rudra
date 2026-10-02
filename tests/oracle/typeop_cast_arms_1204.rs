@@ -1,4 +1,4 @@
-// WORKPKG-UNMAP-TYPEOP-0001: current-Rugra comparand for the locked Ghidra
+// WORKPKG-UNMAP-TYPEOP-0001: current-Rudra comparand for the locked Ghidra
 // getInputCast/getOutputToken virtual-dispatch arms fixture
 // (typeop_cast_arms_1204.cc).
 //

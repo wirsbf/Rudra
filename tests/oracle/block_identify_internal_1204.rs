@@ -9,7 +9,7 @@
 // merge, flag propagation, internal-edge retention.
 //
 // Top-level positions are normalized to sorted membership: Ghidra appends
-// the composite at the list end (block.cc:1695), Rugra installs it at the
+// the composite at the list end (block.cc:1695), Rudra installs it at the
 // first component's slot — the registered model divergence outside this
 // fixture's covered projection.  All other observations are raw.
 
@@ -157,7 +157,7 @@ impl Names {
     }
 
     /// Children of the composite in -nodes- order (Ghidra BlockGraph::list,
-    /// block.hh:359; Rugra's BlockList.children holds the same Arc nodes).
+    /// block.hh:359; Rudra's BlockList.children holds the same Arc nodes).
     fn children(&self, composite: &BlockRef) -> Vec<BlockRef> {
         let g = composite.read().unwrap();
         g.as_any()

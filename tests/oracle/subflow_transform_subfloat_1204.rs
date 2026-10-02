@@ -1,4 +1,4 @@
-//! SUBFLOAT-TRANSFORM-RESIDUAL-0001 Rugra comparand.
+//! SUBFLOAT-TRANSFORM-RESIDUAL-0001 Rudra comparand.
 //!
 //! Drives the real `RuleSubfloatConvert::applyOp` (rudra::subflow) — the
 //! full SubfloatFlow trace + TransformManager::apply — mirroring the

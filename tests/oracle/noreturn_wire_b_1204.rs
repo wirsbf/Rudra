@@ -93,7 +93,7 @@ fn input0_token(op: &PcodeOp, base: u64) -> String {
         rudra::space::AddressSpace::Const => {
             if op.opcode == OpCode::CPUI_LOAD || op.opcode == OpCode::CPUI_STORE {
                 // Space reference encoded as a constant: Ghidra's value is a
-                // per-run heap pointer, Rugra's a stable SPACEID_* index;
+                // per-run heap pointer, Rudra's a stable SPACEID_* index;
                 // project the referenced space name instead (same
                 // normalization as flow_tailcall_overtrace_1204).
                 let space = rudra::space::AddressSpace::from_id(varnode.get_offset() as u8);
@@ -126,7 +126,7 @@ fn spec_line(index: usize, fc: &FuncCallSpecs, base: u64, with_name: bool, with_
     };
     // The truncate case projects neither name nor hasmodel: a Ghidra
     // CALLIND spec's name is address-derived and its noParams arm binds a
-    // model, while Rugra seeds the spec from the caller's funcp (name) and
+    // model, while Rudra seeds the spec from the caller's funcp (name) and
     // keeps the arm as CALLSPEC-0001 (no model).
     let name = if with_name {
         format!(" name={}", fc.prototype.name)
@@ -252,7 +252,7 @@ fn observe_truncate(address: u64) -> Result<(), Box<dyn Error>> {
         if let Some(fc) = fd.get_call_specs(i) {
             // hasModel is deliberately NOT projected here: the C++ side's
             // noParams arm (flow.cc:757-762) binds glb->defaultfp through
-            // setInternal; Rugra keeps that arm as CALLSPEC-0001.
+            // setInternal; Rudra keeps that arm as CALLSPEC-0001.
             println!("{}", spec_line(i, &fc, base, false, false));
         }
     }

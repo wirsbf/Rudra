@@ -220,7 +220,7 @@ fn make_registry() -> Arc<RwLock<IdRegistry>> {
 fn main() {
     let registry = make_registry();
 
-    // setup: space indices of Rugra's canonical model (the locked
+    // setup: space indices of Rudra's canonical model (the locked
     // BfdArchitecture prints const=0, unique=2, ram=3, stack=8).
     println!(
         "case=setup|const_index={}|ram_index={}|stack_index={}|unique_index={}",

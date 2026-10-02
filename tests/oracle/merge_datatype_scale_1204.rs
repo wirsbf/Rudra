@@ -1,4 +1,4 @@
-//! MERGE-DATATYPE-SCALE-0001 Rugra comparand for full-loc MergeType.
+//! MERGE-DATATYPE-SCALE-0001 Rudra comparand for full-loc MergeType.
 
 use rudra::address::Address;
 use rudra::block::{BlockBasic, FlowBlock};

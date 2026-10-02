@@ -1,4 +1,4 @@
-// PRINTC-WARNING-COMMENT-0001: Rugra comparand for the locked Ghidra 12.0.4
+// PRINTC-WARNING-COMMENT-0001: Rudra comparand for the locked Ghidra 12.0.4
 // PrintC warning-comment emission oracle (setupFunctionList ->
 // emitCommentFuncHeader / setupBlockList -> emitCommentGroup per statement
 // -> emitCommentGroup(NULL) tail -> emitLineComment delimiters + absolute
@@ -98,7 +98,7 @@ fn main() {
         let mut graph = BlockGraph::new();
         let bb: BlockRef = Arc::new(RwLock::new(BlockBasic::new(0, addr(0x8000))));
         graph.add_block(bb.clone());
-        // Rugra has no block cover: range projects as [start_addr, last-op
+        // Rudra has no block cover: range projects as [start_addr, last-op
         // addr]; the C++ side pins setBasicBlockRange to the same bounds.
         let _ = new_op(&mut fd, 0x8000, &bb);
         let _ = new_op(&mut fd, 0x8004, &bb);

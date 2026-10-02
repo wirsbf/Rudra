@@ -1,4 +1,4 @@
-// PRINTC-STRUCTEMIT-MAIN-IVAR4-DUP-0001: Rugra side of the locked Ghidra
+// PRINTC-STRUCTEMIT-MAIN-IVAR4-DUP-0001: Rudra side of the locked Ghidra
 // 12.0.4 PrintC::emitBlockIf PendingBrace bilateral fixture (printc.cc:
 // 2878-2948 + prettyprint.hh:102/443-457/1129-1137). Mirrors
 // printc_pending_brace_emit_1204.cc case for case: hand-built 3-component

@@ -1,4 +1,4 @@
-// MERGE-PERSISTENT-STATE-0001: Rugra comparand for the locked Ghidra 12.0.4
+// MERGE-PERSISTENT-STATE-0001: Rudra comparand for the locked Ghidra 12.0.4
 // persistent Merge oracle.  Mirrors tests/oracle/merge_persistent_1204.cc
 // case for case: the same synthetic def-use/CFG graphs are built through the
 // production Funcdata APIs and the merge-family Action sequence runs exactly

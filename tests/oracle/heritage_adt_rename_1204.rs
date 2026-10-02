@@ -1,4 +1,4 @@
-// HERITAGE-ADT-RENAME-0001: Rugra comparand for the locked Ghidra 12.0.4
+// HERITAGE-ADT-RENAME-0001: Rudra comparand for the locked Ghidra 12.0.4
 // placeMultiequals/rename per-object phi oracle. Mirrors
 // tests/oracle/heritage_adt_rename_1204.cc case for case: the same
 // synthetic CFG/def-use graphs are built through the production Funcdata
@@ -103,7 +103,7 @@ impl Graph {
     // BlockBasic::getStart() returns the null Address (block.cc:2319-2326)
     // and the MULTIEQUAL ops created by placeMultiequals carry null-pc
     // SeqNums sorting first in the op tree. The Rust mirror passes
-    // start_addr = Address(0) (Rugra's Address is offset-only).
+    // start_addr = Address(0) (Rudra's Address is offset-only).
     fn make_block(&mut self, index: i32) -> BlockRef {
         let block: BlockRef = Arc::new(std::sync::RwLock::new(BlockBasic::new(
             index,

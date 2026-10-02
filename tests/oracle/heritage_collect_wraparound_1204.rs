@@ -1,4 +1,4 @@
-// HERITAGE-COLLECT-WRAPAROUND-0001: Rugra comparand for the locked Ghidra
+// HERITAGE-COLLECT-WRAPAROUND-0001: Rudra comparand for the locked Ghidra
 // 12.0.4 Heritage::collect end-address wraparound clamp oracle
 // (heritage.cc:317-320). Mirrors tests/oracle/heritage_collect_wraparound_
 // 1204.cc case for case: the same synthetic single-block graphs (a 2-byte

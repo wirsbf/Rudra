@@ -1,4 +1,4 @@
-// HERITAGE-OWNERSHIP-0001: Rugra comparand for the locked Ghidra 12.0.4
+// HERITAGE-OWNERSHIP-0001: Rudra comparand for the locked Ghidra 12.0.4
 // Funcdata::opHeritage / Heritage::heritage ownership-boundary oracle.
 // Mirrors tests/oracle/heritage_ownership_1204.cc case for case: the same
 // synthetic CFG/def-use graphs are built through the production Funcdata
@@ -159,7 +159,7 @@ impl Graph {
     /// (funcdata.cc:150-167) runs structureReset (loop structure + forward
     /// dominators) and builds the Heritage info list (funcdata.cc:166)
     /// before the first ActionHeritage pass. The synthetic-graph fixture
-    /// applies the same two steps: Rugra's dominator producer is
+    /// applies the same two steps: Rudra's dominator producer is
     /// `BlockGraph::build_dom_tree`, and `build_info_list` is the direct
     /// buildInfoList port.
     fn prepare_structure(&mut self) {

@@ -1,4 +1,4 @@
-// FSPEC-SCORE-MERGED-1204: Rugra comparand for the locked Ghidra 12.0.4
+// FSPEC-SCORE-MERGED-1204: Rudra comparand for the locked Ghidra 12.0.4
 // oracle (MIGW-FSPEC wave). Mirrors tests/oracle/fspec_score_merged_1204.cc
 // observation for observation:
 //  - score_penalty_walk: ScoreProtoModel::do_score penalty walk (hole 16 /

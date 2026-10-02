@@ -1,4 +1,4 @@
-//! PRINTLANGUAGE-ATOM-METADATA-0001 Rugra comparand.
+//! PRINTLANGUAGE-ATOM-METADATA-0001 Rudra comparand.
 //!
 //! The IDs below are fixture creation-order identities corresponding to the
 //! native-pointer normalization performed by the locked C++ oracle.

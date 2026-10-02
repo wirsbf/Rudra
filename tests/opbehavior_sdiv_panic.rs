@@ -19,7 +19,7 @@
 //! divide-by-zero EvaluationError only — a hardware fault is not a C++
 //! exception, so no handler engages and the process is killed.
 //!
-//! Rugra: all four division sites (safe free functions opbehavior.rs
+//! Rudra: all four division sites (safe free functions opbehavior.rs
 //! CPUI_INT_SDIV / CPUI_INT_SREM arms, and the `OpBehavior` trait impls)
 //! likewise guard only `in2 == 0` and then perform the native `i64`
 //! division/remainder, which is defined in Rust to panic on the
@@ -29,10 +29,10 @@
 //! form to the oracle's SIGFPE for a normal run — both terminate the
 //! process — so the panic is KEPT (option (a)); converting it to a
 //! LowlevelError/opMarkNoCollapse soft failure would be a deliberate
-//! divergence (oracle dies, Rugra survives) and was rejected.
+//! divergence (oracle dies, Rudra survives) and was rejected.
 //!
 //! Deployment boundary note: under service-style `catch_unwind` wrappers a
-//! Rugra panic is catchable while the oracle's SIGFPE is not. The oracle
+//! Rudra panic is catchable while the oracle's SIGFPE is not. The oracle
 //! has no serviced form, so this is a deployment boundary, not an
 //! alignment defect.
 //!
@@ -40,20 +40,20 @@
 //! - oracle: sdiv_srem.c (-O0, f_sdiv/f_srem) decompiled through the full
 //!   universal action pipeline -> killed by SIGFPE, rc 136, no golden C
 //!   output producible (both functions).
-//! - Rugra: at the time of this lane the E2E panic is MASKED by an
+//! - Rudra: at the time of this lane the E2E panic is MASKED by an
 //!   upstream fold gap — RuleSubCommute's INT_SDIV/INT_SREM commute case
 //!   (the oracle rewrite `SUB168(SDIV16(SEXT816(a),SEXT816(b)),0)` ->
-//!   `SDIV8(a,b)`, ruleaction.cc:4574-4601) is deferred in Rugra
+//!   `SDIV8(a,b)`, ruleaction.cc:4574-4601) is deferred in Rudra
 //!   (ruleaction.rs "INT_SDIV / INT_SREM deferred"), so the trap input
 //!   never reaches the fold on the gen face. Bilateral non-trap proof of
 //!   the gap: g_div `100/-7` -> oracle prints folded constant
-//!   `0xfffffffffffffff2`, Rugra prints `SUB168(SEXT816(100) /
+//!   `0xfffffffffffffff2`, Rudra prints `SUB168(SEXT816(100) /
 //!   SEXT816(-7),0)`. Registered as
 //!   RULEACTION-SUBCOMMUTE-SDIV-SEXT16-0001; these two unit tests are the
 //!   direct-trigger crash-form lock for the four division sites
 //!   themselves.
-//! Evidence archive: /dev/shm/rugra-tests/kunasdiv/ (see
-//! /dev/shm/rugra-reports/LANE_KUNASDIV_2026-09-26.md).
+//! Evidence archive: /dev/shm/rudra-tests/kunasdiv/ (see
+//! /dev/shm/rudra-reports/LANE_KUNASDIV_2026-09-26.md).
 
 /// INT_SDIV constant folding on (INT64_MIN, -1), sizein=8: must panic
 /// ("attempt to divide with overflow") — mirroring the oracle's SIGFPE

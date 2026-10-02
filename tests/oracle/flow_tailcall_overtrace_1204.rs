@@ -7,9 +7,9 @@
 //! the analogue of Ghidra's Architecture::commentdb), the block graph and
 //! every op in bank order with its address delta. Address spelling inside
 //! the PIC warning text is projected to a base-relative delta on both sides
-//! (Rugra's legacy flow Address has no space tag; ADDRESS-0001).
+//! (Rudra's legacy flow Address has no space tag; ADDRESS-0001).
 //!
-//! The symbol seed (the queryFunction equivalent) is Rugra's driver-seeded
+//! The symbol seed (the queryFunction equivalent) is Rudra's driver-seeded
 //! `Funcdata::symbol_table`: the same front-end boundary the curl driver's
 //! CALLSPEC-DRIVER-0001 wiring established for `FlowInfo::queryCall`
 //! (flow.cc:660).
@@ -117,7 +117,7 @@ fn input0_token(op: &rudra::op::PcodeOp, base: u64) -> String {
     let varnode = input.read().expect("varnode read lock");
     match varnode.get_space() {
         // Ghidra stores the call-spec annotation in the Fspec space
-        // (IPTR_FSPEC). Rugra's pointer-shaped Iop annotation carries a typed,
+        // (IPTR_FSPEC). Rudra's pointer-shaped Iop annotation carries a typed,
         // non-owning Weak handle to the Funcdata-owned Arc; this fixture only
         // projects the two space encodings to one token and does not claim an
         // identity proof from either the token or numeric offset.
@@ -127,7 +127,7 @@ fn input0_token(op: &rudra::op::PcodeOp, base: u64) -> String {
                 || op.opcode == rudra::opcodes::OpCode::CPUI_STORE
             {
                 // Space reference encoded as a constant: Ghidra's value is a
-                // per-run heap pointer, Rugra's a stable SPACEID_* index;
+                // per-run heap pointer, Rudra's a stable SPACEID_* index;
                 // project the referenced space name instead.
                 let space = AddressSpace::from_id(varnode.get_offset() as u8);
                 return format!("spc:{}", space_name(space));
@@ -146,7 +146,7 @@ fn spec_line(index: usize, fc: &FuncCallSpecs, base: u64) -> String {
     };
     // Ghidra projects fc->getName(): the ctor-derived name until queryCall's
     // setFuncdata (fspec.cc:4957-4958) copies the resolved callee's display
-    // name. Rugra's query_call runs the same set_funcdata copy, so surviving
+    // name. Rudra's query_call runs the same set_funcdata copy, so surviving
     // specs print the same resolved names on both sides.
     format!(
         "spec={} op_delta={} entry={} name={}",
@@ -176,7 +176,7 @@ fn observe(
     fd.set_arch(Arc::new(arch));
     // Ghidra's BfdArchitecture.readLoaderSymbols("::") populates the symbol
     // database that FlowInfo::queryCall's queryFunction (flow.cc:660) reads.
-    // Rugra's front-end equivalent is the driver-seeded symbol table.
+    // Rudra's front-end equivalent is the driver-seeded symbol table.
     for (sym_addr, sym_name) in symbols {
         fd.add_symbol(*sym_addr, sym_name.to_string());
     }
@@ -255,7 +255,7 @@ fn observe(
     }
 
     // Ghidra iterates fd->beginOpAll()/endOpAll() = the PcodeOpTree ordered
-    // by SeqNum (address, then time) — not creation order. Rugra's obank
+    // by SeqNum (address, then time) — not creation order. Rudra's obank
     // optree is the same BTreeSet with the same SeqNum ordering. The address
     // delta makes the visited pollution observable: ops addressed inside the
     // tail-jumped callee body appear with positive deltas beyond the

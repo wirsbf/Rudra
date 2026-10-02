@@ -1,4 +1,4 @@
-//! BLOCK-FINALIZE-DEFAULT-RECURSE-0001: Rugra comparand for the locked
+//! BLOCK-FINALIZE-DEFAULT-RECURSE-0001: Rudra comparand for the locked
 //! Ghidra 12.0.4 finalizePrinting-recursion oracle over a switch default
 //! arm (block.cc:3556-3559 BlockSwitch::finalizePrinting ->
 //! block.cc:1364-1371 BlockGraph::finalizePrinting ->
@@ -14,7 +14,7 @@
 //! ActionFinalStructure head). The observation is the same sorted fact
 //! lines: structure tree node facts + per-block op notPrinted flags.
 //!
-//! THE DEFECT THIS FIXTURE LOCKS: Rugra's finalize_printing_block Switch
+//! THE DEFECT THIS FIXTURE LOCKS: Rudra's finalize_printing_block Switch
 //! arm used to walk control + gototype==0 cases only, skipping the
 //! default_case slot — the WhileDo inside the default arm never ran
 //! BlockWhileDo::finalizePrinting, so its iterate statement (INT_ADD)
@@ -31,7 +31,7 @@
 //! newBlockWhileDo component install (blockaction.cc:1526-1546 ->
 //! block.cc:1856-1868; Rust CollapseStructure::identify_internal over a
 //! BlockWhileDo), then ruleBlockSwitch's full production install
-//! (Rugra CollapseStructure::try_rule_switch — grab_case_order +
+//! (Rudra CollapseStructure::try_rule_switch — grab_case_order +
 //! identify_internal + case reference update, blockaction.cc:1714-1721 /
 //! block.cc:1904-1919). finalize_printing_graph itself runs unmodified.
 //!
@@ -40,7 +40,7 @@
 //!     structure_loops -> find_spanning_tree clears ALL edge flags
 //!     (block.cc:1047 clearEdgeFlags(~0)), so the default-edge mark must
 //!     land after the reset, like production.
-//!   - Copies resolve through the original->copy mirror (Rugra: scan
+//!   - Copies resolve through the original->copy mirror (Rudra: scan
 //!     sblocks for BlockCopy.original identity) — structure_loops
 //!     reordered the list into reverse post order, so positional indices
 //!     are NOT creation indices.
@@ -86,7 +86,7 @@ fn type_name(bt: BlockType) -> &'static str {
 }
 
 /// Oracle get_opname rendering: Ghidra 12 renamed MULTIEQUAL to BUILD
-/// (typeop.cc:1945 TypeOpMulti); Rugra's opcode table keeps the P-code
+/// (typeop.cc:1945 TypeOpMulti); Rudra's opcode table keeps the P-code
 /// spelling — normalized here (registered in the fixture metadata).
 fn op_name(opc: OpCode) -> &'static str {
     match opc {
@@ -107,7 +107,7 @@ fn op_not_printed(op: &rudra::op::PcodeOpRef) -> u32 {
 }
 
 fn children_of(bl: &BlockRef) -> Vec<BlockRef> {
-    // The C++ walk recurses getBlock(i) over BlockGraph members. Rugra's
+    // The C++ walk recurses getBlock(i) over BlockGraph members. Rudra's
     // parallel model: Switch = control + cases + default_case (the
     // members identify_internal consumed); WhileDo = condition + body;
     // BlockList/If/... via component_list_dyn; copies are leaves.
@@ -158,7 +158,7 @@ fn collect_tree_lines(bl: &BlockRef, lines: &mut Vec<String>) {
                 children_of(bl).iter().map(|c| type_name(c.read().unwrap().get_type())).collect();
             member_types.sort_unstable();
             // The oracle keeps the default as an ordinary CaseOrder member
-            // (caseblocks entry tagged isdefault, block.cc:3515); Rugra's
+            // (caseblocks entry tagged isdefault, block.cc:3515); Rudra's
             // separate default slot contributes the same counts.
             let default_present = sw.default_case.is_some();
             let caseblocks = sw.case_order.len() + usize::from(default_present);
@@ -274,7 +274,7 @@ fn main() {
     fd.bblocks.add_edge(bb[3].clone(), bb[2].clone()); // b3 out0: back edge (b2 in1)
 
     // bb[0] carries SWITCH_OUT automatically when the BRANCHIND lands
-    // (BlockBasic::insert, block.cc:2394-2396; Rugra funcdata op insert
+    // (BlockBasic::insert, block.cc:2394-2396; Rudra funcdata op insert
     // mirrors). The jumptable-recovery stand-in is the registered table:
     let jt = Arc::new(RwLock::new(JumpTable::new(Address::new(0x60004))));
     jt.write().unwrap().set_indirect_op(ind_op.0.clone());

@@ -7,7 +7,7 @@
 //! two byte for byte.
 //!
 //! Rust mapping notes (documented divergences, none observable in this
-//! projection): Rugra's `Funcdata::new` has no constructor-time Scope
+//! projection): Rudra's `Funcdata::new` has no constructor-time Scope
 //! (FUNCDATA-LOCALSCOPE-OWNERSHIP-0001), so the named-ctor binding chain
 //! `Funcdata::Funcdata -> funcp.setScope -> setModel(defaultfp)`
 //! (funcdata.cc:48-69, fspec.cc:3879-3884) is ported onto
@@ -355,7 +355,7 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
-// RUGRA-GLUE: fixture-local canonical void type, the same construction
+// RUDRA-GLUE: fixture-local canonical void type, the same construction
 // Funcdata::new uses for its default FuncProto return type (funcdata.rs).
 fn void_type() -> std::sync::Arc<rudra::type_system::datatype::Datatype> {
     std::sync::Arc::new(rudra::type_system::datatype::Datatype::Void(

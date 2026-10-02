@@ -1,4 +1,4 @@
-// PRINTC-NESTED-DOWHILE-EMIT-0001: Rugra side of the locked Ghidra 12.0.4
+// PRINTC-NESTED-DOWHILE-EMIT-0001: Rudra side of the locked Ghidra 12.0.4
 // PrintC::emitBlockDoWhile body-emission + emitBlockGoto wrapped-emission
 // bilateral fixture (printc.cc:3081-3083 body dispatch; printc.cc:2771
 // wrapped dispatch; while tail cc:3088-3093). Mirrors

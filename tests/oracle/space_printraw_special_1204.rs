@@ -13,7 +13,7 @@
 // "Unlinked join address" panic on an offset with no record.
 //
 // The IopSpace::printRaw form is not exercised (SPACE-IOP-PRINTRAW-0001
-// residual: Rugra's legacy SeqNum.addr and BlockBasic::start_addr carry no
+// residual: Rudra's legacy SeqNum.addr and BlockBasic::start_addr carry no
 // space handle, so the pc/block-start printRaw cannot be derived; blocked
 // by ADDRESS-0001).
 
@@ -23,7 +23,7 @@ fn print_join_raw(join: &AddrSpace, off: u64) {
     println!("  join off=0x{:x} -> {}", off, join.print_raw(off));
 }
 
-// RUGRA-GLUE: panic payload extraction (panic!("literal") payloads are
+// RUDRA-GLUE: panic payload extraction (panic!("literal") payloads are
 // &str; panic!("{}", x) payloads are String).
 fn panic_message(e: Box<dyn std::any::Any + Send>) -> String {
     if let Some(s) = e.downcast_ref::<&str>() {
@@ -119,7 +119,7 @@ fn main() {
     println!("case=join_allocation");
     {
         // The allocation counter is private on both sides (Ghidra: field;
-        // Rugra: inside the shared tables), so the sequence is locked
+        // Rudra: inside the shared tables), so the sequence is locked
         // through the observable offsets: records A-D printed 0x0, 0x10,
         // 0x20, 0x30 in case 1; a fresh 5th record allocates 0x40 (each
         // allocation rounds the counter up to a multiple of 16,

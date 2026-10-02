@@ -1,4 +1,4 @@
-//! JT-CALCRANGE-1204 (JUMPTABLE-CALCRANGE-0001) Rugra comparand.
+//! JT-CALCRANGE-1204 (JUMPTABLE-CALCRANGE-0001) Rudra comparand.
 //!
 //! Mirrors tests/oracle/jt_calcrange_1204.cc: observes
 //! JumpBasic::calc_range (jumptable.cc:1120-1156),
@@ -20,7 +20,7 @@ type Block = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 type Var = Arc<RwLock<Varnode>>;
 type Op = Arc<RwLock<rudra::op::PcodeOp>>;
 
-/// Mirrors Ghidra's PcodeOp::mark bit as tracked by Rugra's jumptable
+/// Mirrors Ghidra's PcodeOp::mark bit as tracked by Rudra's jumptable
 /// module (MARK_FLAG in src/jumptable.rs).
 const MARK_FLAG: u32 = 1;
 

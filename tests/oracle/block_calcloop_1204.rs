@@ -1,4 +1,4 @@
-// BLOCK-CALCLOOP-0001: Rugra comparand for the locked Ghidra 12.0.4
+// BLOCK-CALCLOOP-0001: Rudra comparand for the locked Ghidra 12.0.4
 // BlockGraph::calcLoop (block.cc:2104-2147) oracle.  Mirrors
 // tests/oracle/block_calcloop_1204.cc case for case: the same synthetic
 // control-flow graphs are built through the production BlockGraph APIs
@@ -18,7 +18,7 @@ fn flags_text(label: u32) -> String {
     let mut out = String::new();
     if label & ef::F_GOTO_EDGE != 0 { out.push('g'); }
     if label & ef::F_LOOP_EDGE != 0 { out.push('l'); }
-    // Rugra's F_DEFAULTSWITCH_EDGE shares bit 7 with F_TREE_EDGE
+    // Rudra's F_DEFAULTSWITCH_EDGE shares bit 7 with F_TREE_EDGE
     // (pre-existing edge_flags collision). Within this projection bit 7 can
     // only be a tree label: the spanning tree wipes every edge label at the
     // start of each pass and no pass here sets default-switch labels.

@@ -14,7 +14,7 @@
 //     oracle fixture reads the raw `high` field, and this side reads the
 //     `high: Option` field — identical observation channel.
 //   * copySymbol's cc:500-504 high leg lives in the Varnode::copySymbol body
-//     in Ghidra (varnode.cc:500-504); Rugra keeps the leg at the call site
+//     in Ghidra (varnode.cc:500-504); Rudra keeps the leg at the call site
 //     (funcdata.rs op_set_input house pattern, VARNODE-COPYSYMBOL-FIELDS-0001),
 //     so the copysymbol_dirty case runs copy_symbol + the call-site leg.
 use std::sync::{Arc, RwLock};
@@ -157,7 +157,7 @@ fn main() {
     println!("dedup_high:{}", dedup_ok as u8);
 
     // --- E: copySymbol typedirty re-arm + symbol guard (varnode.cc:500-504)
-    // Rugra keeps cc:500-504 at the call site (op_set_input house pattern),
+    // Rudra keeps cc:500-504 at the call site (op_set_input house pattern),
     // so this side runs copy_symbol + that leg.
     let h_arc = dedup_vn.read().unwrap().high.clone().expect("high after dedup");
     {

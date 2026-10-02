@@ -1,4 +1,4 @@
-// BLOCKSTRUCT-GOTOCASCADE-CONDSTMT-0001: Rugra comparand for the locked
+// BLOCKSTRUCT-GOTOCASCADE-CONDSTMT-0001: Rudra comparand for the locked
 // Ghidra 12.0.4 CollapseStructure::collapseAll oracle (blockaction.cc:1877-
 // 1893). Mirrors tests/oracle/blockstruct_goto_cascade_1204.cc case for
 // case: the same synthetic graphs are built through the production
@@ -158,7 +158,7 @@ impl Graph {
     // Recursive structure-tree projection mirroring the C++ dumpTree: child
     // order is the factory node order ({cond,clause} for if/whiledo, {b1,b2}
     // for conditions, list order for lists). BlockGoto children are NOT
-    // dumped: Rugra's newBlockGoto wraps the block in place (documented
+    // dumped: Rudra's newBlockGoto wraps the block in place (documented
     // normalization on both sides).
     fn dump_tree(&self, bl: &BlockRef, toplist: &[BlockRef], depth: usize) {
         let r = bl.read().unwrap();

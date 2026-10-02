@@ -1,4 +1,4 @@
-// FSPEC-ENDIAN-RESOLVER-1204: Rugra comparand for the locked Ghidra
+// FSPEC-ENDIAN-RESOLVER-1204: Rudra comparand for the locked Ghidra
 // 12.0.4 oracle (FSPEC-JUSTIFIED-ENDIAN-0002 +
 // FSPEC-CHARACTERIZE-RESOLVER-GATE-0003). Mirrors
 // tests/oracle/fspec_endian_resolver_1204.cc case for case:

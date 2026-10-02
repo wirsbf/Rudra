@@ -1,4 +1,4 @@
-// STRINGMANAGER-CORE-JAVACONTRACT-0001 Rugra comparand for the locked
+// STRINGMANAGER-CORE-JAVACONTRACT-0001 Rudra comparand for the locked
 // Ghidra 12.0.4 StringManager core. Mirrors the C++ fixture
 // tests/oracle/stringmanager_core_1204.cc record-for-record: the native
 // 1:1 StringManagerUnicode reader (2048-byte search clamp) and the declared

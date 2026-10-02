@@ -1,4 +1,4 @@
-//! JT-THUNK-CLASSIFY-1204 (JUMPTABLE-THUNK-CLASSIFY-0001) Rugra comparand.
+//! JT-THUNK-CLASSIFY-1204 (JUMPTABLE-THUNK-CLASSIFY-0001) Rudra comparand.
 //!
 //! Mirrors `tests/oracle/jt_thunk_classify_1204.cc` case for case against the
 //! locked Ghidra 12.0.4 oracle.  The fixture observes the strict single-target

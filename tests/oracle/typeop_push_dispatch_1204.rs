@@ -1,4 +1,4 @@
-// MIGW1-TYPEOP-PUSH-0002: Rugra comparand for the locked Ghidra 12.0.4
+// MIGW1-TYPEOP-PUSH-0002: Rudra comparand for the locked Ghidra 12.0.4
 // per-op TypeOp::push dispatch oracle (W-2026-09-26-MIGW1-TYPEOP-0002).
 //
 // Mirrors tests/oracle/typeop_push_dispatch_1204.cc case-for-case: every
@@ -85,7 +85,7 @@ fn implied_out(unique_off: u64, size: usize, dt: Arc<Datatype>) -> VnRef {
     high.name = String::new();
     vn.high = Some(Arc::new(RwLock::new(high)));
     // WRITTEN mirrors the C++ def-presence form of isWritten()
-    // (varnode.hh: getDef() != 0) — Rugra transports it as a flag, and
+    // (varnode.hh: getDef() != 0) — Rudra transports it as a flag, and
     // check_print_negation's is_written gate (printc.cc:2391) reads it.
     vn.set_flags(varnode_flags::IMPLIED | varnode_flags::WRITTEN);
     Arc::new(RwLock::new(vn))

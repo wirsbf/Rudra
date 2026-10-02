@@ -3,7 +3,7 @@
 //!
 //! Locked oracle: Ghidra_12.0.4_build e40ed13014025f82488b1f8f7bca566894ac376b.
 //!
-//! Mirrors `translate_docstore_1204.cc` record for record. Rugra has no
+//! Mirrors `translate_docstore_1204.cc` record for record. Rudra has no
 //! production Translate engine yet, so this fixture defines a local probe
 //! implementor of `rudra::translate::Translate` whose `initialize` mirrors
 //! the DocumentStorage consumption prologue of `Sleigh::initialize`

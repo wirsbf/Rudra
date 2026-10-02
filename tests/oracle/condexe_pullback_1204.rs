@@ -1,4 +1,4 @@
-//! CONDEXE-PULLBACK-0005 Rugra comparand — ConditionalExecution::pullbackOp
+//! CONDEXE-PULLBACK-0005 Rudra comparand — ConditionalExecution::pullbackOp
 //! (condexe.cc:160-190) storage/insert-position semantics and its
 //! testOpRead admission gate (condexe.cc:107-142), mirroring
 //! tests/oracle/condexe_pullback_1204.cc case for case against the locked
@@ -53,7 +53,7 @@ impl Fixture {
     /// leg, mirroring the C++ fixture's `fd.newVarnodeOut(size,
     /// Address(space, offset), op)` minus the assignHigh/laned/queryProperties
     /// legs (no-ops on a fresh Funcdata: highlevel off, no laned specs, empty
-    /// local map). Funcdata::new_varnode_out cannot be used because Rugra's
+    /// local map). Funcdata::new_varnode_out cannot be used because Rudra's
     /// split Address model pins Register there; the fixture must build
     /// unique-space originals exactly like the oracle side.
     fn make_out(

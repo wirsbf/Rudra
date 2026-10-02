@@ -1,4 +1,4 @@
-// FSPEC-PHASE0-1204: Rugra comparand for the locked Ghidra 12.0.4 fspec
+// FSPEC-PHASE0-1204: Rudra comparand for the locked Ghidra 12.0.4 fspec
 // Phase-0 oracle (FSPEC-SPACEFILTER-0002 + FSPEC-TRIALCMP-0003). Mirrors
 // tests/oracle/fspec_phase0_1204.cc case for case:
 //  - find_entry resolves only entries whose space equals the query space
@@ -15,7 +15,7 @@
 // Trial addresses are minted through the SpaceRegistry (register/stack) so
 // the comparator orders real spaces exactly like Ghidra's tagged Addresses.
 // Slot observations are deltas (Ghidra slots are 1-based, fspec.cc:4062;
-// Rugra's coupled consumers are 0-based — outside the covered projection).
+// Rudra's coupled consumers are 0-based — outside the covered projection).
 
 use rudra::address::Address;
 use rudra::fspec::param_entry_flags;

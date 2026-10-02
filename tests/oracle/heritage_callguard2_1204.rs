@@ -1,4 +1,4 @@
-// HERITAGE-CALLGUARD-0001 (follow-up, base=current HEAD): Rugra comparand
+// HERITAGE-CALLGUARD-0001 (follow-up, base=current HEAD): Rudra comparand
 // for the locked Ghidra 12.0.4 production-entry call-guard oracle. Mirrors
 // tests/oracle/heritage_callguard2_1204.cc case for case: the same
 // synthetic call graphs and prototype model are built through the
@@ -13,7 +13,7 @@
 // Projected-away divergence (registered, inherited from the first fixture):
 // Ghidra's guard() derives `fl` from ScopeLocal::queryProperties — stack
 // locals get Varnode::addrtied, which sets ADDRFORCE on unknown-effect
-// guard outputs. Rugra's canonical path has no ScopeLocal yet (varmap
+// guard outputs. Rudra's canonical path has no ScopeLocal yet (varmap
 // family), so the af flag is omitted from BOTH comparands' projections.
 
 use std::sync::Arc;
@@ -236,7 +236,7 @@ impl Graph {
 
     // Production FuncProtos always carry a backing store by the time
     // guardCalls runs; the C++ comparand installs a ProtoStoreInternal
-    // with a void output, which leaves the prototype unlocked. Rugra's
+    // with a void output, which leaves the prototype unlocked. Rudra's
     // FuncProto has no store, and its characterization goes straight to
     // the model branch — the same effective state.
     fn add_spec(&mut self, call_op: &OpRef, model: Arc<ProtoModelFull>) {

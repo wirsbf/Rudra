@@ -1,4 +1,4 @@
-// VARMAP-DYNAMICSYM-0001: Rugra comparand for the locked Ghidra 12.0.4
+// VARMAP-DYNAMICSYM-0001: Rudra comparand for the locked Ghidra 12.0.4
 // dynamic-symbolization oracle (tests/oracle/varmap_dynamicsym_1204.cc).
 // Mirrors the C++ fixture case for case: each case builds the same
 // SSA-shaped body (register-space temporaries written by p-code ops at

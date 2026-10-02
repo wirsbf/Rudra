@@ -1,7 +1,7 @@
 //! PIPE-0000 Rust comparand for the locked Action executor fixture.
 //!
 //! ScriptedAction supplies only deterministic `apply()` observations.  The
-//! state machine under test is Rugra's public `Action::perform` and
+//! state machine under test is Rudra's public `Action::perform` and
 //! `ActionGroup` API.
 
 use rudra::action::{action_flags, status_flags, Action, ActionGroup, ActionState};
@@ -108,7 +108,7 @@ impl Action for ScriptedAction {
 }
 
 fn reset_action(action: &mut dyn Action, state: &mut ActionState, fd: &mut Funcdata) {
-    // Rugra keeps Ghidra's inherited Action fields in the public ActionState
+    // Rudra keeps Ghidra's inherited Action fields in the public ActionState
     // companion, so the caller applies Action::reset's status/flag mutation.
     state.status = status_flags::STATUS_START;
     state.flags &= !action_flags::RULE_WARNINGS_GIVEN;

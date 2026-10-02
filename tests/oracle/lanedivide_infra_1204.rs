@@ -1,4 +1,4 @@
-//! LANEDIVIDE-INFRA-0001 Rugra comparand.
+//! LANEDIVIDE-INFRA-0001 Rudra comparand.
 
 use rudra::address::Address;
 use rudra::arch::Architecture;
@@ -21,7 +21,7 @@ struct GraphProjection {
     op_index: HashMap<usize, usize>,
     vars: Vec<Arc<RwLock<Varnode>>>,
     var_index: HashMap<usize, usize>,
-    /// Constants naming a space for a LOAD/STORE (SpaceId encoded in Rugra,
+    /// Constants naming a space for a LOAD/STORE (SpaceId encoded in Rudra,
     /// AddrSpace pointer in the oracle; observed as the resolved index).
     spaceid_constants: std::collections::HashSet<usize>,
 }

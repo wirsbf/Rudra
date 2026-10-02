@@ -1,4 +1,4 @@
-// MAIN-RC3-STRUCTURED-EMIT-0001: Rugra side of the locked Ghidra 12.0.4
+// MAIN-RC3-STRUCTURED-EMIT-0001: Rudra side of the locked Ghidra 12.0.4
 // PrintC::emitBlockWhileDo body-emission bilateral fixture (printc.cc:
 // 3061-3062 body dispatch; emitForLoop cc:2994-2995 body; overflow arm
 // cc:3017-3044). Mirrors printc_whiledo_body_emit_1204.cc case for case:

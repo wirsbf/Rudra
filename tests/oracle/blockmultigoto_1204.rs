@@ -1,4 +1,4 @@
-// BLOCKSTRUCT-MULTIGOTO-0001: Rugra comparand for the locked Ghidra 12.0.4
+// BLOCKSTRUCT-MULTIGOTO-0001: Rudra comparand for the locked Ghidra 12.0.4
 // BlockMultiGoto oracle (block.hh:573-593, block.cc:1720-1753
 // newBlockMultiGoto / 2918-2951 scopeBreak; blockaction.cc:1456-1458
 // ruleBlockGoto isSwitchOut arm). Mirrors blockmultigoto_1204.cc case for

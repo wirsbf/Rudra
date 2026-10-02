@@ -1,4 +1,4 @@
-//! RULE-SUBCOMMUTE-CANCELEXT-0001: Rugra side of the locked 12.0.4 oracle
+//! RULE-SUBCOMMUTE-CANCELEXT-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for `RuleSubCommute::cancelExtensions` (ruleaction.cc:4483-4512)
 //! via the INT_DIV/INT_REM (ZEXT, cc:4542-4568) and INT_SDIV/INT_SREM
 //! (SEXT, cc:4570-4602) arms (WORKPKG-UNMAP-RULEADJ-0013; closes

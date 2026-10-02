@@ -1,4 +1,4 @@
-//! RULE-BOOLEANDEDUP-ISMATCH-0001: Rugra side of the locked 12.0.4 oracle
+//! RULE-BOOLEANDEDUP-ISMATCH-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for `RuleBooleanDedup::applyOp` pairing/flipped-form semantics —
 //! `isMatch` (ruleaction.cc:2817-2831 -> BooleanMatch::evaluate,
 //! expression.cc:111-216), WORKPKG-UNMAP-RULEADJ-0013.

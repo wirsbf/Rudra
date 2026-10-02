@@ -1,4 +1,4 @@
-// WORKPKG-UNMAP-TYPEUNION-0003: Rugra comparand for the locked Ghidra
+// WORKPKG-UNMAP-TYPEUNION-0003: Rudra comparand for the locked Ghidra
 // 12.0.4 TypeFactory recalcPointerSubmeta / setName / warnings /
 // getTypePointerWithSpace / destroyType / setFields-flags family plus the
 // type.cc free functions string2typeclass / metatype2typeclass

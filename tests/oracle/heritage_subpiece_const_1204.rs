@@ -1,4 +1,4 @@
-// HERITAGE-SUBPIECE-CONST-1204: Rugra comparand for the locked Ghidra
+// HERITAGE-SUBPIECE-CONST-1204: Rudra comparand for the locked Ghidra
 // 12.0.4 oracle (HERITAGE-GUARD-SUBPIECE-CONST-0001). Mirrors
 // tests/oracle/heritage_subpiece_const_1204.cc case for case:
 //  - stack_guard_full: the production Heritage::guard_output_overlap_stack
@@ -121,7 +121,7 @@ fn run_guard_case(index: usize, g: SgGeom) {
             inputs.push_str(&vn_descriptor(o.get_in(slot)));
         }
         // Opcode number, not name: mirrors the C++ oracle (Ghidra's
-        // get_opname(CPUI_INDIRECT) prints "DELAY_SLOT" while Rugra's
+        // get_opname(CPUI_INDIRECT) prints "DELAY_SLOT" while Rudra's
         // name() prints "INDIRECT"; the numeric codes are identical).
         println!(
             "  op{pos} {} in=[{inputs}] out={}",

@@ -1,4 +1,4 @@
-// HERITAGE-CALLGUARD-0001: Rugra comparand for the locked Ghidra 12.0.4
+// HERITAGE-CALLGUARD-0001: Rudra comparand for the locked Ghidra 12.0.4
 // ActionHeritage -> Funcdata::opHeritage -> Heritage::heritage call-guard
 // oracle (guardCalls / newIndirectOp / newIndirectCreation). Mirrors
 // tests/oracle/heritage_callguard_1204.cc case for case: the same synthetic
@@ -10,7 +10,7 @@
 //
 // Projected-away divergence (registered): Ghidra's guard() derives `fl`
 // from ScopeLocal::queryProperties — stack-local ranges get Varnode::
-// addrtied, which sets ADDRFORCE on unknown-effect guard outputs. Rugra's
+// addrtied, which sets ADDRFORCE on unknown-effect guard outputs. Rudra's
 // canonical path has no ScopeLocal yet (varmap family), so the `af` flag
 // is omitted from BOTH comparands' projections; see metadata coverage
 // `scope_fl_properties: UNTESTED`.
@@ -220,7 +220,7 @@ impl Graph {
 
     // Production FuncProtos always carry a backing store by the time
     // guardCalls runs; the C++ comparand installs a ProtoStoreInternal
-    // with a void output, which leaves the prototype unlocked. Rugra's
+    // with a void output, which leaves the prototype unlocked. Rudra's
     // FuncProto has no store, and its characterization goes straight to
     // the model branch — the same effective state.
     fn add_spec(&mut self, call_op: &OpRef, model: Arc<ProtoModelFull>) -> usize {
@@ -288,7 +288,7 @@ impl Graph {
         }
     }
 
-    // Production pre-state: Rugra's dominator producer plus the Heritage
+    // Production pre-state: Rudra's dominator producer plus the Heritage
     // info list (buildInfoList, funcdata.cc:166).
     fn prepare_structure(&mut self) {
         self.fd.bblocks.build_dom_tree();
@@ -360,7 +360,7 @@ impl Graph {
     }
 
     // Project registered trials for every callspec plus the call op input
-    // count. The C++ comparand prints the trial space name; Rugra's
+    // count. The C++ comparand prints the trial space name; Rudra's
     // ParamTrial stores the offset-only Address, so the space comes from
     // the trial's guarded range space in this fixture (register trials in
     // output_input_trials, none elsewhere).

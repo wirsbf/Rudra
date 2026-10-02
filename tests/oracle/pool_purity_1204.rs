@@ -1,7 +1,7 @@
 //! PIPE-POOL-LOCAL-RULES-0001 Rust comparand for the pool registration
 //! purity oracle.
 //!
-//! Walks Rugra's real default action database — the production entry
+//! Walks Rudra's real default action database — the production entry
 //! `ActionDatabase::set_default_actions` (universalAction + resetDefaults,
 //! architecture.cc:582-591) — and prints the identical projection the
 //! locked Ghidra fixture emits, for both roots:
@@ -18,7 +18,7 @@
 //! Every ActionPool node prints one `pool` line with its ':'-joined tree
 //! path, name and rule count, followed by one `rule` line per registered
 //! rule in REGISTRATION ORDER with pool name, index and the rule's
-//! diagnostic name normalized by deleting '_' (Rugra names rules in
+//! diagnostic name normalized by deleting '_' (Rudra names rules in
 //! snake_case, the oracle mostly does not; the projection is injective on
 //! both sides' name sets).  No sorting, no deduplication: the sequence
 //! itself is the observable.

@@ -1,4 +1,4 @@
-//! Rugra twin of `tests/oracle/rule_store_varnode_spacebase_1204.cc`.
+//! Rudra twin of `tests/oracle/rule_store_varnode_spacebase_1204.cc`.
 //!
 //! PRINTC-INPUTREG-DEADSTORE-0001: drives `RuleStoreVarnode` / `RuleLoadVarnode`
 //! (ruleaction.cc:4277/4319) over the same spacebase-chain case family as the

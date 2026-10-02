@@ -1,4 +1,4 @@
-//! RULEACTION-CLONEBLOCKOPS-0001: Rugra side of the locked 12.0.4 oracle
+//! RULEACTION-CLONEBLOCKOPS-0001: Rudra side of the locked 12.0.4 oracle
 //! fixture for `RuleConditionalMove::constructBool` (ruleaction.cc:9328-9341)
 //! driving the compareOp sort (ruleaction.hh:1433) and
 //! `CloneBlockOps::cloneExpression` (funcdata_block.cc:1024-1040) on the

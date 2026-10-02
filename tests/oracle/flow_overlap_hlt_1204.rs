@@ -83,7 +83,7 @@ fn input0_token(op: &PcodeOp, base: u64) -> String {
         rudra::space::AddressSpace::Const => {
             if op.opcode == OpCode::CPUI_LOAD || op.opcode == OpCode::CPUI_STORE {
                 // Space reference encoded as a constant: Ghidra's value is a
-                // per-run heap pointer, Rugra's a stable SPACEID_* index;
+                // per-run heap pointer, Rudra's a stable SPACEID_* index;
                 // project the referenced space name instead (same
                 // normalization as flow_tailcall_overtrace_1204).
                 let space = rudra::space::AddressSpace::from_id(varnode.get_offset() as u8);

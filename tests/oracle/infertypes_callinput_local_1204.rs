@@ -1,5 +1,5 @@
 // INFERTYPES-CALLINPUT-LOCAL-0001 (TYPEOP-LOCALTYPE-DISPATCH-0001 D2):
-// current-Rugra comparand for the locked Ghidra CALL/CALLIND input
+// current-Rudra comparand for the locked Ghidra CALL/CALLIND input
 // local-type seeding oracle (ActionInferTypes::buildLocaltypes via the
 // TypeOp local dispatch). Case matrix mirrors
 // tests/oracle/infertypes_callinput_local_1204.cc byte for byte.

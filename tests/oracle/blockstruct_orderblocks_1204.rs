@@ -1,4 +1,4 @@
-// BLOCKSTRUCT-ORDERBLOCKS-0001: Rugra comparand for the locked Ghidra
+// BLOCKSTRUCT-ORDERBLOCKS-0001: Rudra comparand for the locked Ghidra
 // 12.0.4 BlockGraph::orderBlocks (block.hh:430-431) /
 // FlowBlock::compareFinalOrder (block.cc:709-730) oracle. Mirrors
 // tests/oracle/blockstruct_orderblocks_1204.cc case for case: the same

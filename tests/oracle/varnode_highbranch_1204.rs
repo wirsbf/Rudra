@@ -1,11 +1,11 @@
-//! VARNODE-COPYSYMBOL-HIGHBRANCH-0001: Rugra side of the locked 12.0.4
+//! VARNODE-COPYSYMBOL-HIGHBRANCH-0001: Rudra side of the locked 12.0.4
 //! oracle fixture for the high!=0 bookkeeping half of
 //! `Varnode::copySymbol` (varnode.cc:500-504) and its wiring through
 //! `Varnode::copySymbolIfValid` (varnode.cc:510-522) +
 //! `PcodeOp::collapseConstantSymbol` (op.cc:503-540).
 //!
 //! Mirrors `varnode_highbranch_1204.cc` case-for-case (same names, same
-//! observation format) against the pinned rugra source with the live
+//! observation format) against the pinned rudra source with the live
 //! src/varnode.rs + src/op.rs overlay:
 //!   hb_*: case|has_high|dirty_before|tl_before|hmeta_before|dirty_after|
 //!         tl_after|hmeta_after|hsym|hoff|dst_tl|dst_nl|dst_mapentry
@@ -40,7 +40,7 @@ fn meta_token(meta: TypeMetatype) -> &'static str {
 // Mirror of the C++ makeEquateSrc: Scope::addEquateSymbol
 // (database.cc:1712-1724, dynamic size-1 whole map) attached via
 // Varnode::setSymbolEntry (varnode.cc:429), plus the int4 typelock
-// (varnode.cc:474-489 updateType(ct,true,false)). Rugra's database::Symbol
+// (varnode.cc:474-489 updateType(ct,true,false)). Rudra's database::Symbol
 // has no equate payload, so the registry records the value the C++ subtype
 // would carry.
 fn make_equate_src(fd: &mut Funcdata, val: u64, int4: Arc<Datatype>) -> Arc<RwLock<Varnode>> {

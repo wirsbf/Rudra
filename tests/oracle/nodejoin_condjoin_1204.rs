@@ -1,4 +1,4 @@
-// NODEJOIN-F2/F3/F4/F5: Rugra comparand for the locked Ghidra 12.0.4
+// NODEJOIN-F2/F3/F4/F5: Rudra comparand for the locked Ghidra 12.0.4
 // ConditionalJoin behavior oracle (blockaction.cc:1912-2102, 2326-2364).
 // Mirrors tests/oracle/nodejoin_condjoin_1204.cc case for case: drives
 // ActionNodeJoin::apply over the same synthetic diamond CFGs and prints the
@@ -42,7 +42,7 @@ struct Fixture {
 }
 
 impl Fixture {
-    // RUGRA-GLUE: fixture block mirror of BlockGraph::newBlockBasic + attach
+    // RUDRA-GLUE: fixture block mirror of BlockGraph::newBlockBasic + attach
     fn mk_block(&mut self, off: u64) -> BlockRef {
         let b = Arc::new(RwLock::new(BlockBasic::new(
             self.next_index,
@@ -55,7 +55,7 @@ impl Fixture {
     fn mk_const(&mut self, val: u64) -> VnRef {
         self.fd.new_constant(8, val)
     }
-    // RUGRA-GLUE: fixture mirror of Funcdata::newOp/opSetOpcode/newUniqueOut/
+    // RUDRA-GLUE: fixture mirror of Funcdata::newOp/opSetOpcode/newUniqueOut/
     // opSetInput/opInsertEnd (identical call order to the C++ driver)
     fn mk_written(
         &mut self,

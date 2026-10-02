@@ -207,7 +207,7 @@ fn main() {
             "case=def_iters|all={all}|inputs={inputs}|written={written}|frees={frees}|at_addr={at_addr}"
         );
         // beginDef(written, addr) is the illegal combination: the oracle
-        // throws LowlevelError (varnode.cc:1913-1914); Rugra panics with
+        // throws LowlevelError (varnode.cc:1913-1914); Rudra panics with
         // the same message (catch mirrors the C++ try/catch).
         let previous_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(|_| {}));

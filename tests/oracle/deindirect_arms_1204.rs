@@ -12,7 +12,7 @@
 //!     detection runs but the referral cannot resolve, exactly like
 //!     oracle's `newfd == 0` (no conversion);
 //!   - norestart_gate: per-callee noreturn lives in the flow-time
-//!     callee-proto channel only; the db-function observable slice Rugra
+//!     callee-proto channel only; the db-function observable slice Rudra
 //!     mints at deindirect time cannot carry it yet.
 
 use std::sync::{Arc, RwLock};
@@ -162,7 +162,7 @@ fn main() {
 
     // ---- case norestart_gate: fspec.cc:5461 noreturn callee -> restart.
     //      Production residual: the per-callee noreturn bit rides the
-    //      flow-time callee-proto channel; the db observable slice Rugra
+    //      flow-time callee-proto channel; the db observable slice Rudra
     //      mints here cannot carry it (registered on the ticket).
     {
         let mut action = ActionDeindirect::new();

@@ -1,4 +1,4 @@
-//! DYNAMIC-GATHEROPS-ALIVE-0001 Rugra comparand.
+//! DYNAMIC-GATHEROPS-ALIVE-0001 Rudra comparand.
 //!
 //! The fixture mirrors the locked Ghidra lifecycle: explicit SeqNum creation
 //! starts dead, op_insert_end transitions selected ops alive, and the target

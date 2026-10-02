@@ -1,4 +1,4 @@
-//! TRANSFORM-MULTIEQUAL-INSERT-0001 Rugra comparand.
+//! TRANSFORM-MULTIEQUAL-INSERT-0001 Rudra comparand.
 
 use rudra::address::Address;
 use rudra::block::FlowBlock;

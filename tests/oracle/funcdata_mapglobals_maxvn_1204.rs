@@ -1,4 +1,4 @@
-//! FUNCDATA-MAPGLOBALS-MAXVN-0001 Rugra comparand: `Funcdata::map_globals`
+//! FUNCDATA-MAPGLOBALS-MAXVN-0001 Rudra comparand: `Funcdata::map_globals`
 //! group maxvn carrying (funcdata_varnode.cc:1653-1719) against the locked
 //! Ghidra 12.0.4 oracle. Mirrors tests/oracle/funcdata_mapglobals_maxvn_1204.cc
 //! case by case; every printed value must byte-match the oracle.
@@ -13,8 +13,8 @@
 //!   * The fixture pins `persist|addrtied` and the forced `v_type` directly
 //!     on written varnodes (production derives them from the localmap
 //!     queryProperties channel in `Funcdata::newVarnodeOut`, a registered
-//!     Rugra gap); the C++ twin does the same through test-only access.
-//!   * The global-scope query channel is the Database (Rugra models the
+//!     Rudra gap); the C++ twin does the same through test-only access.
+//!   * The global-scope query channel is the Database (Rudra models the
 //!     global scope as the query point; the C++ twin queries through the
 //!     ScopeLocal whose parent walk reaches the same entries).
 //!   * Core unknowns are named `undefinedN` on this side (data-organization
@@ -86,7 +86,7 @@ fn main() {
 
     // Written persist varnode at (addr,size) with a forced Datatype — the
     // same construction as the C++ twin's make_persist_out. The varnode is
-    // created directly in the ram space (Rugra's new_varnode_out maps a
+    // created directly in the ram space (Rudra's new_varnode_out maps a
     // spaceless Address into the register space, which would take the
     // legacy proxy arm instead of the RAM query channel mapGlobals uses);
     // the HighVariable attaches during the set_high_level sweep below,

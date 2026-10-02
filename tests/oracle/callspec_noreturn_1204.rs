@@ -23,7 +23,7 @@ use rudra::op::{PcodeOp, PcodeOpRef};
 use rudra::opcodes::OpCode;
 use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
-// RUGRA-GLUE: fixture-local canonical void type, the same construction the
+// RUDRA-GLUE: fixture-local canonical void type, the same construction the
 // funcproto_lock_1204 comparand uses (C++ reads arch.types->getTypeVoid()).
 fn void_type() -> Arc<Datatype> {
     Arc::new(Datatype::Void(TypeBase::new(

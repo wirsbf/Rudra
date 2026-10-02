@@ -1,4 +1,4 @@
-// BLOCKSTRUCT-NORETURN-DEADREGION-0001: Rugra comparand for the locked
+// BLOCKSTRUCT-NORETURN-DEADREGION-0001: Rudra comparand for the locked
 // Ghidra 12.0.4 CollapseStructure::collapseAll dead-region oracle
 // (blockaction.cc:1877-1893). Mirrors tests/oracle/blockstruct_deadregion_
 // 1204.cc case for case: the same synthetic graphs (halt sinks inside and
@@ -96,7 +96,7 @@ impl Graph {
         if r.get_type() == BlockType::If {
             if let Some(bif) = r.as_any().downcast_ref::<rudra::block::BlockIf>() {
                 if bif.goto_target.is_some() {
-                    // The C++ side prints the resolved target name; Rugra's
+                    // The C++ side prints the resolved target name; Rudra's
                     // BlockIf keeps the Arc, resolve via index scan.
                     let target = bif.goto_target.clone().unwrap();
                     print!(" gototarget={}", self.name_of(&target, toplist));

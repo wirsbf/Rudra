@@ -1,4 +1,4 @@
-// FLOAT-OPINT2FLOAT-SIGN-0001: Rugra comparand for the locked Ghidra 12.0.4
+// FLOAT-OPINT2FLOAT-SIGN-0001: Rudra comparand for the locked Ghidra 12.0.4
 // FloatFormat::opInt2Float / opFloat2Float oracle.
 //
 // Mirrors tests/oracle/float_int2float_sign_1204.cc case-for-case with the

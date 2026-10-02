@@ -1,4 +1,4 @@
-//! MERGE-ADDRTIED-GATES-0001 Rugra comparand.
+//! MERGE-ADDRTIED-GATES-0001 Rudra comparand.
 //!
 //! Every case builds live P-code through `Funcdata`/`VarnodeBank`, invokes
 //! `Funcdata::set_high_level`, then runs the production `Merge::merge_addr_tied`

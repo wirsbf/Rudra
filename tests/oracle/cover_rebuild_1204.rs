@@ -1,4 +1,4 @@
-// COVER-REBUILD-SELFLOCK-0001: Rugra comparand for the locked Ghidra 12.0.4
+// COVER-REBUILD-SELFLOCK-0001: Rudra comparand for the locked Ghidra 12.0.4
 // Varnode::updateCover / Cover::rebuild oracle.  Mirrors
 // tests/oracle/cover_rebuild_1204.cc case for case: the same synthetic
 // def-use/CFG graphs are built through the production Funcdata APIs and the

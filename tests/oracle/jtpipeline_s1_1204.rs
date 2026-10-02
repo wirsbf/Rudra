@@ -1,4 +1,4 @@
-//! JT-PIPELINE-S1-1204 (JUMPTABLE-PIPELINE-0001 segment 1) Rugra comparand.
+//! JT-PIPELINE-S1-1204 (JUMPTABLE-PIPELINE-0001 segment 1) Rudra comparand.
 //!
 //! Mirrors tests/oracle/jtpipeline_s1_1204.cc case-for-case: model
 //! selection chain (override → Assisted → Basic → Basic2, no Trivial),
@@ -242,7 +242,7 @@ fn scenario_load(out: &mut String, lab: &mut Lab, label: &str, base: u64) {
     lab.input(&addp, &lbase, 1);
     let ld = lab.op(&g, OpCode::CPUI_LOAD, 2);
     let lv = lab.out(&ld, 1);
-    // Rugra encodes the LOAD space-id as a SpaceId constant (Ram = 3);
+    // Rudra encodes the LOAD space-id as a SpaceId constant (Ram = 3);
     // Ghidra encodes the AddrSpace pointer (varnode.hh:426) — same ram space.
     let lspc = lab.cnst(1, rudra::space::AddressSpace::Ram.space_id() as u64);
     lab.input(&ld, &lspc, 0);

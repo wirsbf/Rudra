@@ -1,4 +1,4 @@
-//! TYPINGPX-PXNAME-0001 Rugra comparand: `Funcdata::map_globals`
+//! TYPINGPX-PXNAME-0001 Rudra comparand: `Funcdata::map_globals`
 //! discovery-arm naming with POINTER-typed highs (funcdata_varnode.cc:
 //! 1653-1719 + database.cc:2434-2518 persist arm + type.hh:424/457/273
 //! printNameBase recursion) against the locked Ghidra 12.0.4 oracle.
@@ -17,10 +17,10 @@
 //!     written varnodes (production derives them from the localmap
 //!     queryProperties channel, a registered Rugda gap); identical flag
 //!     state both sides.
-//!   * Pointer types are constructed via `TypePointer::new` (Rugra's
+//!   * Pointer types are constructed via `TypePointer::new` (Rudra's
 //!     mirror of `getTypePointer`'s `TypePointer(s,pt,ws)` constructor
 //!     form, type.hh:412) and the array via the factory's
-//!     `get_type_array` (Rugra's getTypeArray interned form).
+//!     `get_type_array` (Rudra's getTypeArray interned form).
 //!   * The unknown cores are the shared factory's xunknownN entries, so
 //!     the name base is the golden's 'x' character.
 use std::sync::{Arc, RwLock};

@@ -1,4 +1,4 @@
-//! BLOCKSTRUCT-MARKLABELBUMPUP-0001: Rugra comparand for the locked
+//! BLOCKSTRUCT-MARKLABELBUMPUP-0001: Rudra comparand for the locked
 //! Ghidra 12.0.4 markLabelBumpUp oracle (block.cc:1258-1268
 //! BlockGraph::markLabelBumpUp; loop overrides block.cc:3316-3322 /
 //! 3426-3432 / 3454-3460; call site blockaction.cc:2195

@@ -1,4 +1,4 @@
-// BLOCKACTION-DOWHILE-ABSORB-0001: Rugra comparand for the locked Ghidra
+// BLOCKACTION-DOWHILE-ABSORB-0001: Rudra comparand for the locked Ghidra
 // 12.0.4 CollapseStructure::collapseAll oracle (blockaction.cc:1877-1893).
 // Mirrors tests/oracle/blockstruct_dowhile_absorb_1204.cc case for case:
 // the same synthetic graphs are built through the production BlockGraph
@@ -69,7 +69,7 @@ impl Graph {
     }
 
     fn make_block(&mut self) -> BlockRef {
-        // Unique index AND address per block: Rugra's collapse model keys
+        // Unique index AND address per block: Rudra's collapse model keys
         // block identity on FlowBlock::get_index() (Ghidra uses parent
         // pointers), and loop discovery keys on addresses — all-zero
         // indices/addresses make every self-loop test vacuously true.
@@ -109,7 +109,7 @@ impl Graph {
         let mut rootlist: Vec<BlockRef> = Vec::new();
         let _ = self.graph.structure_loops(&mut rootlist);
         // clearVisitCount (cc:2181) is folded into order_loop_bodies on the
-        // Rugra side (see collapse_all_5step cc:1879-1884 note).
+        // Rudra side (see collapse_all_5step cc:1879-1884 note).
 
         // CollapseStructure::collapseAll via the public 5-step driver.
         let mut collapse = rudra::blockaction::CollapseStructure::new(
@@ -170,7 +170,7 @@ impl Graph {
 
     // Recursive structure-tree projection mirroring the C++ dumpTree: child
     // order is the factory node order. BlockGoto children are NOT dumped
-    // (Rugra's newBlockGoto wraps in place — documented normalization on
+    // (Rudra's newBlockGoto wraps in place — documented normalization on
     // both sides).
     fn dump_tree(&self, bl: &BlockRef, toplist: &[BlockRef], depth: usize) {
         let r = bl.read().unwrap();
@@ -203,7 +203,7 @@ impl Graph {
                     // IfGoto normalization: newBlockIfGoto (block.cc:1799-
                     // 1816) installs ONLY the condition in the composite
                     // (nodes={cond}); the body stays external as the single
-                    // structured out-edge. Rugra's BlockIf keeps a
+                    // structured out-edge. Rudra's BlockIf keeps a
                     // non-Option if_body placeholder (= the condition
                     // itself) for the if-goto wrap — do not dump it (same
                     // spirit as the BlockGoto children normalization).

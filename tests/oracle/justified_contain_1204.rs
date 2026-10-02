@@ -1,4 +1,4 @@
-// JUSTIFIED-CONTAIN-1204: Rugra comparand for the locked Ghidra 12.0.4
+// JUSTIFIED-CONTAIN-1204: Rudra comparand for the locked Ghidra 12.0.4
 // justified-containment oracle (FSPEC-JUSTIFIED-CONTAIN-0001). Mirrors
 // tests/oracle/justified_contain_1204.cc case for case:
 //  - Address::justifiedContain (address.cc:131-141) polarity: EITHER side

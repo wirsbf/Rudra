@@ -65,7 +65,7 @@ fn build_registry() -> SpaceRegistry {
     m
 }
 
-// RUGRA-GLUE: panic payload extraction (the space module signals its
+// RUDRA-GLUE: panic payload extraction (the space module signals its
 // LowlevelError equivalents as string panics).
 fn panic_message(e: Box<dyn std::any::Any + Send>) -> String {
     if let Some(s) = e.downcast_ref::<&str>() {
@@ -430,7 +430,7 @@ fn main() {
         println!("{}", out);
     }
 
-    // RUGRA-GLUE: keep the fspec entry table reachable for the Debug
+    // RUDRA-GLUE: keep the fspec entry table reachable for the Debug
     // formatting of the registry in future slices; a no-op read today.
     let _ = FspecEntryTable::default();
     let _ = attrib_offset();

@@ -1,4 +1,4 @@
-// PRINTC-PTRCONST-DAT-SYMBOL-0001 Rugra comparand for the locked Ghidra
+// PRINTC-PTRCONST-DAT-SYMBOL-0001 Rudra comparand for the locked Ghidra
 // 12.0.4 PrintC::pushConstant -> pushPtrCharConstant path. Mirrors the C++
 // fixture tests/oracle/printc_ptrconst_1204.cc record-for-record: the
 // Architecture-owned Java-contract StringManager (fd.arch.string_manager),

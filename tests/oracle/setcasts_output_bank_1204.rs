@@ -1,4 +1,4 @@
-// VARNODE-BANK-KEY-LIVE-0001: Rugra comparand for the locked Ghidra 12.0.4
+// VARNODE-BANK-KEY-LIVE-0001: Rudra comparand for the locked Ghidra 12.0.4
 // VarnodeBank::makeFree / setInput / setDef / xref key-lifecycle oracle.
 // Mirrors tests/oracle/setcasts_output_bank_1204.cc case for case: the same
 // def-use graphs are built through the production Funcdata APIs and the
@@ -266,7 +266,7 @@ fn main() {
         let loc0 = g.loc_text();
         let def0 = g.def_text();
         {
-            // Hand-built wiring exactly like Rugra's unit-test fixtures:
+            // Hand-built wiring exactly like Rudra's unit-test fixtures:
             // the op's output slot and the Varnode's def/written
             // classification are assigned IN PLACE (the Varnode::setDef
             // analogue of varnode.cc:394-401), bypassing

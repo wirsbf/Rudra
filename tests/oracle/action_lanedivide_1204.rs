@@ -1,4 +1,4 @@
-//! ACTION-LANEDIVIDE-0001 Rugra comparand.
+//! ACTION-LANEDIVIDE-0001 Rudra comparand.
 //!
 //! Drives the real `ActionLaneDivide` (rudra::coreaction) through the
 //! public `Action::perform` state machine, mirroring the locked-oracle

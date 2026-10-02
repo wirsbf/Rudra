@@ -244,7 +244,7 @@ impl Fixture {
         let vn_guard = vn.read().unwrap();
         match vn_guard.get_type() {
             // Ghidra's Varnode constructor assigns a sized TYPE_UNKNOWN
-            // default (glb->types->getBase(sz, TYPE_UNKNOWN)); Rugra leaves
+            // default (glb->types->getBase(sz, TYPE_UNKNOWN)); Rudra leaves
             // v_type absent, which is the same observation.
             None => format!("unknown:{}", vn_guard.get_size()),
             Some(ct) => {

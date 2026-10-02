@@ -160,7 +160,7 @@ impl Graph {
 
     // Production FuncProtos always carry a backing ProtoStore by the time
     // guardCalls runs; the C++ comparand installs a ProtoStoreInternal with
-    // a void output.  Rugra's FuncProto has no store, and its
+    // a void output.  Rudra's FuncProto has no store, and its
     // characterization goes straight to the model branch — the same
     // effective state.
     fn add_spec(&mut self, call_op: &OpRef, model: Arc<ProtoModelFull>) -> usize {
