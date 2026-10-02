@@ -2557,3 +2557,35 @@ CONCAT88(xStack_b0,axVar52);`）不成形，打印退化为 `axStack_b8 = axVar5
 oracle 行为链：cc:7651-7663 "地址已正确"臂对 leaf 只在 separateSymbol 为
 真时才落到 COPY 插入；栈 root addr-tied ⟹ cc:7585 直接 return false ⟹
 跳过 COPY 只标 proto_partial。
+## 2026-10-02：RuleDivOpt::calc_divisor maxx 移植缺陷修复（DECLBFORM）
+
+**车道**: DECLBFORM（镜面道,DECLFAM 移交 B-form 残差钻取;基=master 624e5a6a[MB70]）。
+
+### `RuleDivOpt::calc_divisor` 的 maxx 上界（ruleaction.cc:8169-8170）
+
+oracle:
+```cpp
+uint8 maxx = (xsize == 64) ? 0 : ((uint8)1) << xsize;
+maxx -= 1;			// Maximum possible x value
+```
+`uint8` 是 64 位无符号,xsize==64 时 `0 - 1` **良定义回绕**到
+`0xffffffffffffffff`（= 2^64-1,本意即 maxx）。Rudra 旧移植:
+```rust
+let maxx = if xsize == 64 { 0u128 } else { 1u128 << xsize };
+let maxx = maxx - 1;
+```
+`0u128 - 1` 在 debug 构建直接 panic（subtract with overflow）;fast-release
+构建回绕到 `u128::MAX`——随后 `if tmp > maxx { return q_final }` 永不可达,
+`calc_divisor` 对 **一切 xsize==64（全宽 64 位被除数——除法乘法编码的最常见
+形态）恒返 0**,RuleDivOpt 整体失效。打印面表现为 join 空间 16 字节数组符号
+（`xunknown1 axVarN [16]` + `SUB168(V * ZEXT816(LIT),8) >> N`）残留,而 golden
+折成 `V / LIT`。修复 = 显式构造 `u64::MAX as u128`（xsize==64 臂）与
+`(1u128 << xsize) - 1`（else 臂）——与 oracle 的 64 位回绕值逐位相等。
+
+**单测**: `test_rule_div_opt_zext_const_16byte_chain`（sqlite3RowSetInit 实测 IR
+链复刻:zext(x):16 * zext(#0xaaaa..ab):16 → SUBPIECE(,8) → >>4 → CHANGE,
+op 变 INT_DIV,除数常量恰 0x18）。
+
+**验收**: sqlite 镜面 180→154（RowSetInit/str_vappendf/Int64ToText/
+ValueFromExpr 四函数归零,函数体==golden）;canon f903372a/3617ecc3 字节恒等;
+见车道终报 LANE_DECLBFORM_2026-10-02.md。

@@ -11549,8 +11549,18 @@ impl RuleDivOpt {
             r_final = r;
         }
         // Check: x * (q-r) < 2^n
-        let maxx = if xsize == 64 { 0u128 } else { 1u128 << xsize };
-        let maxx = maxx - 1; // Maximum possible x value.
+        // Oracle cc:8169-8170: `uint8 maxx = (xsize == 64) ? 0 : ((uint8)1)
+        // << xsize; maxx -= 1;` — uint8 is 64-bit, so the xsize==64 zero
+        // wraps to 0xffffffffffffffff (= 2^64-1, the intended max x). The
+        // Rust port must build that value explicitly: `0u128 - 1` would
+        // panic in debug and wrap to u128::MAX in release, which makes
+        // `tmp > maxx` unreachable and silently disables every xsize==64
+        // (full 64-bit dividend) division-by-multiplication fold.
+        let maxx: u128 = if xsize == 64 {
+            u64::MAX as u128
+        } else {
+            (1u128 << xsize) - 1
+        };
         diff += q_final - r_final;
         if diff == 0 { return q_final as u64; }
         let tmp = power / diff;
@@ -26698,6 +26708,86 @@ mod tests {
         let o = outer.read().unwrap();
         assert_eq!(o.opcode, OpCode::CPUI_FLOAT_LESSEQUAL);
         assert!(Arc::ptr_eq(&o.inrefs[0], &v));
+    }
+
+    /// DECLBFORM: replicate the sqlite3RowSetInit 16-byte chain
+    /// zext(x) * zext(const) -> SUBPIECE(,8) -> >>4. calcDivisor's oracle
+    /// `uint8 maxx = (xsize==64)?0:1<<xsize; maxx -= 1;` wraps to 2^64-1;
+    /// the port must build that value explicitly (u128 0-1 is u128::MAX,
+    /// which made `tmp > maxx` unreachable and disabled every xsize==64
+    /// fold). The full 64-bit dividend (xsize==64) is the common case.
+    #[test]
+    fn test_rule_div_opt_zext_const_16byte_chain() {
+        let mut fd = Funcdata::new("test_divopt16", Address::new(0x1000), 0x100);
+        // dividend x: 8-byte written varnode (full nzmask -> xsize 64)
+        let cx = fd.vbank.create_constant(8, 0x1234);
+        let sub_op = fd.new_op(2, Address::new(0x1000));
+        fd.op_set_opcode(&sub_op, OpCode::CPUI_INT_ADD);
+        let x = fd.new_unique_out(8, &sub_op);
+        let c38 = fd.new_constant(8, 0xffffffffffffffc8);
+        fd.op_set_input(&sub_op, cx.clone(), 0);
+        fd.op_set_input(&sub_op, c38, 1);
+        fd.obank.adopt_alive_op(sub_op);
+        // zext40:16 = zext x
+        let zext40 = fd.new_op(1, Address::new(0x1010));
+        fd.op_set_opcode(&zext40, OpCode::CPUI_INT_ZEXT);
+        let z40out = fd.new_unique_out(16, &zext40);
+        fd.op_set_input(&zext40, x.clone(), 0);
+        fd.obank.adopt_alive_op(zext40.clone());
+        // zext41:16 = zext #0xaaaaaaaaaaaaaaab
+        let zext41 = fd.new_op(1, Address::new(0x1011));
+        fd.op_set_opcode(&zext41, OpCode::CPUI_INT_ZEXT);
+        let z41out = fd.new_unique_out(16, &zext41);
+        let cmag = fd.new_constant(8, 0xaaaaaaaaaaaaaaab);
+        fd.op_set_input(&zext41, cmag, 0);
+        fd.obank.adopt_alive_op(zext41);
+        // mult42:16 = z40out * z41out
+        let mult42 = fd.new_op(2, Address::new(0x1012));
+        fd.op_set_opcode(&mult42, OpCode::CPUI_INT_MULT);
+        let mout = fd.new_unique_out(16, &mult42);
+        fd.op_set_input(&mult42, z40out, 0);
+        fd.op_set_input(&mult42, z41out, 1);
+        fd.obank.adopt_alive_op(mult42);
+        // sub67:8 = SUBPIECE(mout, 8)
+        let sub67 = fd.new_op(2, Address::new(0x1013));
+        fd.op_set_opcode(&sub67, OpCode::CPUI_SUBPIECE);
+        let sout = fd.new_unique_out(8, &sub67);
+        let c8 = fd.new_constant(4, 8);
+        fd.op_set_input(&sub67, mout, 0);
+        fd.op_set_input(&sub67, c8, 1);
+        fd.obank.adopt_alive_op(sub67);
+        // right83:8 = sout >> 4
+        let right83 = fd.new_op(2, Address::new(0x1014));
+        fd.op_set_opcode(&right83, OpCode::CPUI_INT_RIGHT);
+        fd.new_unique_out(8, &right83);
+        let c4 = fd.new_constant(4, 4);
+        fd.op_set_input(&right83, sout, 0);
+        fd.op_set_input(&right83, c4, 1);
+        fd.obank.adopt_alive_op(right83.clone());
+
+        let rule = RuleDivOpt::new();
+        let result = rule.apply_op(&right83.0, &mut fd).unwrap();
+        assert_eq!(result, action_status::CHANGE);
+        // The 68-bit encoding of divide-by-0x18 folds to INT_DIV with the
+        // constant divisor 24 (ruleaction.cc:8263-8355 unsigned arm).
+        let (opcode, in1_const) = {
+            let r = right83.0.read().unwrap();
+            let c = r
+                .get_in(1)
+                .map(|v| v.read().unwrap().is_constant())
+                .unwrap_or(false);
+            (r.opcode, c)
+        };
+        assert_eq!(opcode, OpCode::CPUI_INT_DIV);
+        assert!(in1_const, "divisor input must be the constant 24");
+        let divisor = right83
+            .0
+            .read()
+            .unwrap()
+            .get_in(1)
+            .map(|v| v.read().unwrap().get_offset())
+            .unwrap_or(0);
+        assert_eq!(divisor, 0x18);
     }
 
     /// RuleDivOpt::find_form should reject a bare INT_RIGHT whose input is
