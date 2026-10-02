@@ -1,5 +1,37 @@
 # `coreaction.rs` API Reference
 
+## 2026-10-02：ActionConditionalConst 隐含布尔路径 flip 值修正（GOF29-CONDCONST-FLIP-0001 / lane GOF29）
+
+- **缺口**（sq GetOptimumFast 29 行——LOOPSHAPE 4 + CMP-ORIENT 4 + SWITCH-GOTO 21）：
+  `apply` 的隐含布尔路径（coreaction.cc:4537-4541）旧移植在 flip 时**同时**交换
+  槽位（`if flip_edge { (1, 0) } else { (0, 1) }`）与取反值（`flip?1:0` /
+  `flip?0:1`）——两者相消使 flipEdge 恒 no-op：任何经 `negateCondition`
+  （ruleBlockIfNoExit/WhileDo/Goto 在 blockstructure 塌缩中调用，
+  BlockBasic::negateCondition = flipFlag(boolean_flip)+flipFlag(fallthru_true)+
+  swapEdges，block.cc:2351-2361）取反过的 CBRANCH，其两条出边上传播的常量
+  **极性整体反转**。oracle 语义（block.hh:299-300 + coreaction.cc:4539-4540）：
+  `getFalseOut()=out[0]`、`getTrueOut()=out[1]` 是**纯数组槽位**，不随 flip 调整；
+  flip 只折进值（false 边得 `flipEdge?1:0`，true 边得 `flipEdge?0:1`）。
+- **症状链**（双侧 stage-drill 逐帧对拍钉死）：sasquatch GetOptimumFast
+  `je 0x3b55a`@0x3b464（`cmp %edx,%eax`，ZF≡equal）在 R0 blockstructure 中被
+  negateCondition 翻转后，Rudra condconst 在 fallthrough 0x3b46a 路径上把
+  `!ZF` 折成 `!#0x1`（ZF≡1 equal——错；oracle 同帧折 `!#0x0`——对）→
+  `CF||ZF`→`#0`→ActionDeterminedBranch 删 0x3b46a→0x3b495 边 → TraceDAG
+  likelygoto 选择序改变（R1 pick#2 起 0x3b551 vs 0x3b41d）→ blockstructure
+  多出一轮 mid-mainloop 重跑（4 vs oracle 3 轮）→ 终态 `do{}while(true)`
+  InfLoop 吞尾 + mega-OR break 合并，而非 oracle 的 `while(true)` WhileDo
+  (overflow) + 尾外置 + if-goto 链（printc.cc:3019-3041 overflow 形态）。
+- **修复**：`apply` 隐含布尔路径改为 oracle 逐字形——false 点固定
+  `bl_out[0]/rev[0]/dom[0]` 值 `flip?1:0`，true 点固定 `bl_out[1]/rev[1]/dom[1]`
+  值 `flip?0:1`，删除槽位交换。`find_const_compare` 无此缺陷（constEdge 计算
+  正确）未动。
+- **验证**：GetOptimumFast 函数体==golden 逐字节（190/190 行零 diff）；
+  镜面五面 sq 35→6（−29 恰本函数全燃；残余 multiply_overflow 4[CAST-SHAPE] +
+  read_super 1[SUB8X] + GetLongestMatch 1[OTHER] 均预存）其余四面恒等；
+  canon 双语素 curl f903372a/httpd 3617ecc3 字节恒等；tests 2049P；
+  corpus 双面 ==MB80 钉组零位移（canon 6427a459/mirror c46d0fe8）；
+  VdbeExec b3f5b487/606dd8c0 恒等。
+
 ## 2026-10-02：input_metatype 补 FLOAT 族条目 + FLOAT_INT2FLOAT 专属臂（MCENSUS6-FLOAT8-SETCASTS-0001 / lane FLOAT8）
 
 - **缺口**（census v4 float8-cast 族 24 行）：`input_metatype` 无 FLOAT 族条目——

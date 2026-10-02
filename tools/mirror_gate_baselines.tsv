@@ -387,6 +387,24 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
+# 2026-10-02 MB84 联合注记（GOF29-MB84-JOINT-REPIN-0001 联合树兑现）: gof29 并入
+# master[MB83 后 a0aa0172] 联合树实测 sq 2（=31−29 精确——GetOptimumFast 单函数族
+# 与 MB83 已燃 multiply_overflow 族及 MB75 selectdup sq read_xattrs 族全部不相交,
+# 加性合成实测兑现;残余 2 = read_super 1[READINODE2 SUB8X]+GetLongestMatch 1[OTHER]
+# 全预存）;commit 前联合树强制重链（53.31s,stale-guard digest=843270ba45c85445
+# files=155——联合树新指纹,自 MB83 1fe13ccdb2d7f5c4 的预期位移[condconst flip
+# 修复入联合树]）+sq 面 --no-cache 冷测 2/31（master F5SQ-RETJOIN 基线下 PASS,
+# defects=0 numbering=0 matched 810/810）+curl 面 0/0 冷测 PASS（74/74,
+# CURLCODEPTR-REPIN-0001 保持）;车道注记块内 sq 6/sqlite 37 系车道基
+# ec53722d[MB80]口径,联合树以 master MB83 值 sq 31/sqlite 28 为基——车道 6 陈旧行
+# 按 MB77-83 先例由本联合行取代（车道注记块逐字保留）;重钉后冷复跑 2/2 恰钉值
+# （首行命中 GOF29-MB84-JOINT-REPIN-0001,确定性）。
+# GOF29-SQ-RATCHET-REPIN-0001 (2026-10-02): sq 35→6 — condconst implied-boolean flip
+# fix (GOF29-CONDCONST-FLIP-0001) burns GetOptimumFast 29→0; residual 6 =
+# multiply_overflow 4 (MISC24) + read_super 1 (READINODE2 SUB8X) +
+# GetLongestMatch 1 (OTHER). Supersedes sq 35 SELECTDUP-MB75-JOINT-REPIN-0001
+# (mb75-joint, 2026-10-02) history line.
+sq	2	810	GOF29-MB84-JOINT-REPIN-0001	mb84-joint	2026-10-02
 # F5SQ re-pin (F5SQ-RETJOIN-REPIN-0001, 2026-10-02, wt/f5sq): joint measured
 # sq 35-4=31 — ActionReturnRecovery::buildReturnOutput 两分片 join 槽位收敛修复
 # (coreaction.cc:1863-1864 pop_back+back()=newwhole 移植缺陷: pop 后 push 而非
