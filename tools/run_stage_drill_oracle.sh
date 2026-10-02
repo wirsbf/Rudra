@@ -90,8 +90,8 @@ bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
-if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
-  bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+if [[ -z "$bfd_include" && -f /tmp/rudra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
+  bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 fi
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" ]]; then
   echo "binutils 2.38 bfd.h not found; set RUDRA_BFD_INCLUDE" >&2
@@ -202,7 +202,7 @@ if metadata.get("host_compiler") != compiler:
 PY
 
 bash "$build_script"
-drill_bin=${RUDRA_DRILL_WORKROOT:-/dev/shm/rugra-tests/sb-drill/build}/stage_drill_1204
+drill_bin=${RUDRA_DRILL_WORKROOT:-/dev/shm/rudra-tests/sb-drill/build}/stage_drill_1204
 if [[ ! -x "$drill_bin" ]]; then
   echo "drill binary not found after build: $drill_bin" >&2
   exit 1
@@ -230,10 +230,10 @@ if ! command -v setarch >/dev/null 2>&1; then
   exit 1
 fi
 
-oracle_tmp=$(mktemp -d /tmp/rugra-stage-drill-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-stage-drill-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-stage-drill-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-stage-drill-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -317,7 +317,7 @@ PY
 then
   # A drift must be investigable: preserve the offending stdout (and the
   # @DONE stats it produced) before the EXIT trap wipes the scratch dir.
-  drift_dir=/dev/shm/rugra-tests/sb-drill/drift
+  drift_dir=/dev/shm/rudra-tests/sb-drill/drift
   mkdir -p "$drift_dir"
   drift_tag=$(date +%Y%m%d_%H%M%S)
   cp "$oracle_tmp/stage_drill.stdout" "$drift_dir/${corpus}.${func}.${drift_tag}.drill"
@@ -327,12 +327,12 @@ then
   exit 1
 fi
 
-if [[ -d /dev/shm/rugra-tests/sb-drill ]]; then
+if [[ -d /dev/shm/rudra-tests/sb-drill ]]; then
   if [[ "$mode" == "default" ]]; then
-    cp "$oracle_tmp/stage_drill.stdout" /dev/shm/rugra-tests/sb-drill/next_url.oracle.drill
+    cp "$oracle_tmp/stage_drill.stdout" /dev/shm/rudra-tests/sb-drill/next_url.oracle.drill
   else
     cp "$oracle_tmp/stage_drill.stdout" \
-      "/dev/shm/rugra-tests/sb-drill/${corpus}.${func}.oracle.drill"
+      "/dev/shm/rudra-tests/sb-drill/${corpus}.${func}.oracle.drill"
   fi
 fi
 printf 'stage_drill_1204: raw oracle capture verified (%s %s @%s)\n' \

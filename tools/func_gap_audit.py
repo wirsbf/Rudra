@@ -6,7 +6,7 @@ Criterion (user-specified, 2026-07-02): given identical binary input,
 the decompiled C output must be EXACTLY identical (token-level), NOT
 "semantically equivalent". This tool measures that.
 
-For each function present in BOTH Rugra output and Ghidra golden output:
+For each function present in BOTH Rudra output and Ghidra golden output:
   1. Normalize (strip comments, collapse whitespace, drop the `/* addr: */` header).
   2. Compare normalized token streams.
   3. Classify the difference.
@@ -22,15 +22,15 @@ import argparse
 import difflib
 from pathlib import Path
 
-# Rugra "pseudo-functions" that are actually fragments of a real Ghidra function.
+# Rudra "pseudo-functions" that are actually fragments of a real Ghidra function.
 # These are CFG/cloning bugs (a function's basic blocks emitted as a separate fn).
 PSEUDO_SUFFIXES = ("_part_0", "_constprop_0", "_constprop_1")
-# Map a Rugra pseudo-name back to its real Ghidra parent function.
-def real_name(rugra_fn):
+# Map a Rudra pseudo-name back to its real Ghidra parent function.
+def real_name(rudra_fn):
     for suf in PSEUDO_SUFFIXES:
-        if rugra_fn.endswith(suf):
-            return rugra_fn[: -len(suf)]
-    return rugra_fn
+        if rudra_fn.endswith(suf):
+            return rudra_fn[: -len(suf)]
+    return rudra_fn
 
 
 def split_functions(text):
@@ -85,12 +85,12 @@ def normalize(body):
     return body
 
 
-def diff_kind(rugra_norm, ghidra_norm):
+def diff_kind(rudra_norm, ghidra_norm):
     """High-level classification of WHY they differ (after exact match fails)."""
     reasons = []
-    r, g = rugra_norm, ghidra_norm
+    r, g = rudra_norm, ghidra_norm
 
-    # placeholder names leaking in Rugra
+    # placeholder names leaking in Rudra
     if re.search(r"\bparam_\d+", r) and not re.search(r"\bparam_\d+", g):
         reasons.append("param_N placeholder (var naming)")
     if re.search(r"\bStackX_\d+", r) and not re.search(r"\bStackX_\d+", g):
@@ -102,7 +102,7 @@ def diff_kind(rugra_norm, ghidra_norm):
         rc, gc = r.count(kw), g.count(kw)
         if rc != gc and (rc > 0 or gc > 0):
             reasons.append(f"{kw} count {rc} vs {gc}")
-    # empty / malformed statements (Rugra-specific garbage)
+    # empty / malformed statements (Rudra-specific garbage)
     if re.search(r"if *\(\) *goto", r):
         reasons.append("if()goto; syntax error")
     if re.search(r"if *\(\)", r):
@@ -123,20 +123,20 @@ def main():
     ap.add_argument("--report", help="write a markdown report to this path")
     args = ap.parse_args()
 
-    rugra_txt = Path(args.rugra).read_text(encoding="utf-8", errors="replace")
+    rudra_txt = Path(args.rudra).read_text(encoding="utf-8", errors="replace")
     ghidra_txt = Path(args.ghidra).read_text(encoding="utf-8", errors="replace")
-    R = split_functions(rugra_txt)
+    R = split_functions(rudra_txt)
     G = split_functions(ghidra_txt)
 
     if args.func:
         fn = args.func
         if fn not in R:
-            print(f"[!] {fn} not in Rugra output", file=sys.stderr)
+            print(f"[!] {fn} not in Rudra output", file=sys.stderr)
         if fn not in G:
             print(f"[!] {fn} not in Ghidra golden", file=sys.stderr)
         r = normalize(R.get(fn, ""))
         g = normalize(G.get(fn, ""))
-        print(f"=== {fn}: Rugra ({len(R.get(fn,''))}B raw) vs Ghidra ({len(G.get(fn,''))}B raw) ===")
+        print(f"=== {fn}: Rudra ({len(R.get(fn,''))}B raw) vs Ghidra ({len(G.get(fn,''))}B raw) ===")
         print(f"normalized EXACT match: {r == g}")
         if r != g:
             print("diff reasons:", diff_kind(r, g))
@@ -146,17 +146,17 @@ def main():
                 fromfile="ghidra", tofile="rugra", lineterm=""
             ):
                 print(line)
-            print("\n--- Rugra normalized (first 600 chars) ---")
+            print("\n--- Rudra normalized (first 600 chars) ---")
             print(r[:600])
         return
 
-    # Build pairing: for each Rugra fn, find its Ghidra counterpart (real_name).
-    rugra_fns = list(R.keys())
+    # Build pairing: for each Rudra fn, find its Ghidra counterpart (real_name).
+    rudra_fns = list(R.keys())
     ghidra_fns = set(G.keys())
 
-    rows = []  # (rugra_fn, ghidra_fn, status, reasons, rsize, gsize)
-    unpaired_rugra = []
-    for rfn in rugra_fns:
+    rows = []  # (rudra_fn, ghidra_fn, status, reasons, rsize, gsize)
+    unpaired_rudra = []
+    for rfn in rudra_fns:
         gfn = real_name(rfn)
         if gfn in G:
             r = normalize(R[rfn])
@@ -165,35 +165,35 @@ def main():
             reasons = [] if r == g else diff_kind(r, g)
             rows.append((rfn, gfn, status, reasons, len(R[rfn]), len(G[gfn])))
         else:
-            unpaired_rugra.append(rfn)
+            unpaired_rudra.append(rfn)
 
-    # Ghidra user functions Rugra is MISSING entirely
-    rugra_real = {real_name(f) for f in rugra_fns}
+    # Ghidra user functions Rudra is MISSING entirely
+    rudra_real = {real_name(f) for f in rudra_fns}
     # crude filter: Ghidra golden includes library stubs; flag missing USER fns by
     # absence of underscore prefix patterns — but keep all for the report.
-    missing_in_rugra = [g for g in ghidra_fns if real_name(g) not in rugra_real and g not in rugra_real]
+    missing_in_rudra = [g for g in ghidra_fns if real_name(g) not in rudra_real and g not in rudra_real]
 
     exact = [row for row in rows if row[2] == "EXACT"]
     diff = [row for row in rows if row[2] == "DIFF"]
 
     out = []
     out.append(f"# Per-function STRICT output gap audit\n")
-    out.append(f"**Rugra**: `{args.rugra}`  |  **Ghidra golden**: `{args.ghidra}`\n")
+    out.append(f"**Rudra**: `{args.rudra}`  |  **Ghidra golden**: `{args.ghidra}`\n")
     out.append(f"**Criterion**: token-level EXACT match after comment/whitespace normalization (NOT semantic equivalence).\n")
     out.append(f"\n## Summary\n")
     out.append(f"| metric | value |")
     out.append(f"|---|---|")
-    out.append(f"| Rugra functions | {len(rugra_fns)} |")
+    out.append(f"| Rudra functions | {len(rudra_fns)} |")
     out.append(f"| Ghidra functions | {len(ghidra_fns)} |")
     out.append(f"| Paired (in both) | {len(rows)} |")
     out.append(f"| **EXACT match** | **{len(exact)}** |")
     out.append(f"| DIFF | {len(diff)} |")
-    out.append(f"| Rugra unpaired (pseudo/extra) | {len(unpaired_rugra)} |")
-    out.append(f"| In Ghidra, missing from Rugra | {len(missing_in_rugra)} |")
+    out.append(f"| Rudra unpaired (pseudo/extra) | {len(unpaired_rudra)} |")
+    out.append(f"| In Ghidra, missing from Rudra | {len(missing_in_rudra)} |")
 
     out.append(f"\n## EXACT matches ({len(exact)})\n")
     if exact:
-        out.append("| Rugra fn | Ghidra fn | size |")
+        out.append("| Rudra fn | Ghidra fn | size |")
         out.append("|---|---|---|")
         for rfn, gfn, _, _, rs, gs in exact:
             out.append(f"| `{rfn}` | `{gfn}` | {rs}B |")
@@ -201,22 +201,22 @@ def main():
         out.append("_(none)_")
 
     out.append(f"\n## DIFF ({len(diff)}) — needs alignment\n")
-    out.append("| Rugra fn | Ghidra fn | rugra/ghidra size | diff reasons |")
+    out.append("| Rudra fn | Ghidra fn | rudra/ghidra size | diff reasons |")
     out.append("|---|---|---|---|")
     for rfn, gfn, _, reasons, rs, gs in diff:
         out.append(f"| `{rfn}` | `{gfn}` | {rs}/{gs} | {', '.join(reasons)} |")
 
-    if unpaired_rugra:
-        out.append(f"\n## Rugra pseudo/extra functions (no direct Ghidra pair)\n")
-        for f in unpaired_rugra:
+    if unpaired_rudra:
+        out.append(f"\n## Rudra pseudo/extra functions (no direct Ghidra pair)\n")
+        for f in unpaired_rudra:
             mapped = real_name(f)
             note = f"→ fragment of `{mapped}`" if mapped != f else "(extra fn)"
             out.append(f"- `{f}` {note}")
 
-    if missing_in_rugra:
-        out.append(f"\n## Ghidra functions absent from Rugra output ({len(missing_in_rugra)})\n")
+    if missing_in_rudra:
+        out.append(f"\n## Ghidra functions absent from Rudra output ({len(missing_in_rudra)})\n")
         out.append("_(includes library stubs; USER fns = the real gap)_\n")
-        for f in sorted(missing_in_rugra):
+        for f in sorted(missing_in_rudra):
             out.append(f"- `{f}`")
 
     report = "\n".join(out)

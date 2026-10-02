@@ -4,7 +4,7 @@
 # Builds the locked Ghidra 12.0.4 oracle fixture (BlockGraph::newBlockList →
 # identifyInternal + selfIdentify + dedup, block.cc:940-963/895-931/525-539,
 # on synthetic plain FlowBlock graphs) against the oracle cpp tree, builds the
-# Rugra comparand (CollapseStructure::identify_internal) against the crate
+# Rudra comparand (CollapseStructure::identify_internal) against the crate
 # rlib, runs both, and diffs the complete raw state projection: top-level
 # membership, composite children order, parent ownership, raw flags (no
 # f_dead on components), boundary edge slots/labels/reverse indices, peer
@@ -23,7 +23,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 cpp_fixture="$repo_root/tests/oracle/block_identify_internal_1204.cc"
 rust_fixture="$repo_root/tests/oracle/block_identify_internal_1204.rs"
 metadata="$repo_root/tests/oracle/block_identify_internal_1204.metadata.json"
-bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rudra-ghidra-bfd-2.38}"
 
 mode=full
 case "${1:-}" in
@@ -70,8 +70,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 pairs = {
     "cpp_fixture_sha256": pathlib.Path(sys.argv[2]),
     "rust_fixture_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_block_rs_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_blockaction_rs_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_block_rs_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_blockaction_rs_sha256": pathlib.Path(sys.argv[5]),
 }
 for key, path in pairs.items():
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -91,10 +91,10 @@ if [[ "$mode" == validate ]]; then
   exit 0
 fi
 
-oracle_tmp=$(mktemp -d /tmp/rugra-block-identify-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-block-identify-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-block-identify-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-block-identify-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -123,24 +123,24 @@ fi
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
-native_archive=$(find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f | head -n1)
+native_archive=$(find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f | head -n1)
 if [[ -z "$native_archive" ]]; then
   echo "cargo build did not produce the native sleigh archive" >&2
   exit 1
 fi
 native_dir=$(dirname "$native_archive")
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  -L "native=$native_dir" --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
-  "$rust_fixture" -o "$oracle_tmp/block_identify_internal_rugra"
+  -L "native=$native_dir" --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  "$rust_fixture" -o "$oracle_tmp/block_identify_internal_rudra"
 
 "$oracle_tmp/block_identify_internal_1204" >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
-"$oracle_tmp/block_identify_internal_rugra" >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+"$oracle_tmp/block_identify_internal_rudra" >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
 expected_stdout=$(python3 -I -S -c \
   'import json,sys; print(json.load(open(sys.argv[1]))["oracle_stdout_sha256"])' \
@@ -156,13 +156,13 @@ if [[ -s "$oracle_tmp/ghidra.stderr" ]]; then
   cat "$oracle_tmp/ghidra.stderr" >&2
   exit 1
 fi
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture emitted diagnostics" >&2
-  cat "$oracle_tmp/rugra.stderr" >&2
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture emitted diagnostics" >&2
+  cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
-if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
     >"$oracle_tmp/bilateral.diff"; then
   cat "$oracle_tmp/ghidra.stdout"
   printf 'block_identify_internal_1204: MATCH stdout_sha256=%s\n' "$ghidra_stdout_sha"

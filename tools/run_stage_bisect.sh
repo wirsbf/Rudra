@@ -2,7 +2,7 @@
 set -u
 
 if [ "$#" -ne 2 ]; then
-    printf 'usage: %s <oracle.proj> <rugra.proj>\n' "$0" >&2
+    printf 'usage: %s <oracle.proj> <rudra.proj>\n' "$0" >&2
     exit 2
 fi
 

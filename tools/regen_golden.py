@@ -30,10 +30,10 @@ from datetime import datetime
 from pathlib import Path
 
 # Default search list for analyzeHeadless. The 12.1 source repo at
-# D:/ghidra/rugra/ghidra is NOT built and cannot run headless, so this is only
+# D:/ghidra/rudra/ghidra is NOT built and cannot run headless, so this is only
 # a fallback — pass --ghidra explicitly when a real distribution is installed.
 DEFAULT_GHIDRA_CANDIDATES = [
-    r"D:/ghidra/rugra/ghidra/Ghidra/RuntimeScripts/Windows/support/analyzeHeadless.bat",
+    r"D:/ghidra/rudra/ghidra/Ghidra/RuntimeScripts/Windows/support/analyzeHeadless.bat",
     r"C:/ghidra/support/analyzeHeadless.bat",
     r"D:/ghidra/support/analyzeHeadless.bat",
 ]

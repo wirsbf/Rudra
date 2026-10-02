@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-struct_recover.py — 从 Rugra 反编译输出中恢复 struct 字段访问。
+struct_recover.py — 从 Rudra 反编译输出中恢复 struct 字段访问。
 
 1. 扫描所有 *(long *)(var + 0xN) 模式，按变量分组
 2. 只保留被 ≥2 个不同小偏移（<256B）访问的变量（保守启发式）

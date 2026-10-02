@@ -7,12 +7,12 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
-rugra_base_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
-rugra_cargo_toml_blob=f3d9fa9d3ba45eb2f6f5b736c6cd581820c0f341
-rugra_cargo_lock_blob=c1eef0a52f44f92d77b02f3e48b5d6781ec4bd94
-rugra_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
+rudra_base_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
+rudra_cargo_toml_blob=f3d9fa9d3ba45eb2f6f5b736c6cd581820c0f341
+rudra_cargo_lock_blob=c1eef0a52f44f92d77b02f3e48b5d6781ec4bd94
+rudra_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
 spec_input_commit=87aaef2262c85f4e6ffba488881fa4c1c8c2930f
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/flow_sharedreturn_process_1204.metadata.json"
@@ -22,11 +22,11 @@ program_metadata="$repo_root/tests/oracle/program_flow_metadata_1204.metadata.js
 ghidra_golden="$repo_root/tests/golden/ghidra_curl_1204.c"
 compare_tool="$repo_root/tools/compare_ghidra.py"
 runner="$repo_root/tools/run_flow_sharedreturn_process_oracle.sh"
-cargo_lock=/tmp/rugra-cargo-build.lock
-cargo_target=${RUDRA_FLOW_SHAREDRETURN_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-target}
-cargo_tmp=${RUDRA_FLOW_SHAREDRETURN_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-tmp}
-bfd_include=${RUDRA_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
-bfd_library=${RUDRA_BFD_LIBRARY:-/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
+cargo_lock=/tmp/rudra-cargo-build.lock
+cargo_target=${RUDRA_FLOW_SHAREDRETURN_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-flow-sharedreturn-target}
+cargo_tmp=${RUDRA_FLOW_SHAREDRETURN_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-flow-sharedreturn-tmp}
+bfd_include=${RUDRA_BFD_INCLUDE:-/tmp/rudra-ghidra-bfd-2.38/usr/include}
+bfd_library=${RUDRA_BFD_LIBRARY:-/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
 
 overlay_paths=(
   examples/curl_decompile.rs
@@ -41,7 +41,7 @@ overlay_paths=(
   src/varnode.rs
 )
 
-run_cache=${RUDRA_FLOW_SHAREDRETURN_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-sharedreturn-1204}
+run_cache=${RUDRA_FLOW_SHAREDRETURN_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-flow-sharedreturn-1204}
 /usr/bin/mkdir -p "$run_cache" "$cargo_tmp"
 oracle_tmp=$(mktemp -d "$run_cache/run.XXXXXX")
 link_tmp=$(mktemp -d "$cargo_tmp/rust-fixture.XXXXXX")
@@ -101,13 +101,13 @@ if ! git -C "$ghidra_root" diff --cached --quiet -- \
   exit 1
 fi
 
-if [[ "$(git -C "$repo_root" rev-parse "${rugra_base_commit}^{commit}")" != "$rugra_base_commit" || \
-      "$(git -C "$repo_root" rev-parse "${rugra_base_commit}^{tree}")" != "$rugra_base_tree" || \
-      "$(git -C "$repo_root" rev-parse "${rugra_base_commit}:src")" != "$rugra_base_src_tree" || \
-      "$(git -C "$repo_root" rev-parse "${rugra_base_commit}:Cargo.toml")" != "$rugra_cargo_toml_blob" || \
-      "$(git -C "$repo_root" rev-parse "${rugra_base_commit}:Cargo.lock")" != "$rugra_cargo_lock_blob" || \
-      "$(git -C "$repo_root" rev-parse "${rugra_base_commit}:build.rs")" != "$rugra_build_rs_blob" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+if [[ "$(git -C "$repo_root" rev-parse "${rudra_base_commit}^{commit}")" != "$rudra_base_commit" || \
+      "$(git -C "$repo_root" rev-parse "${rudra_base_commit}^{tree}")" != "$rudra_base_tree" || \
+      "$(git -C "$repo_root" rev-parse "${rudra_base_commit}:src")" != "$rudra_base_src_tree" || \
+      "$(git -C "$repo_root" rev-parse "${rudra_base_commit}:Cargo.toml")" != "$rudra_cargo_toml_blob" || \
+      "$(git -C "$repo_root" rev-parse "${rudra_base_commit}:Cargo.lock")" != "$rudra_cargo_lock_blob" || \
+      "$(git -C "$repo_root" rev-parse "${rudra_base_commit}:build.rs")" != "$rudra_build_rs_blob" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -115,13 +115,13 @@ snapshot_root="$oracle_tmp/workspace"
 mkdir -p "$snapshot_root/tests/oracle" "$snapshot_root/tests/golden" \
   "$snapshot_root/tools" "$snapshot_root/examples" "$snapshot_root/sleigh_specs"
 git -C "$repo_root" archive --format=tar \
-  --output="$oracle_tmp/rugra-source.tar" "$rugra_base_commit" \
+  --output="$oracle_tmp/rudra-source.tar" "$rudra_base_commit" \
   Cargo.toml Cargo.lock build.rs README.md benches/decompile_bench.rs \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
   tests/oracle/program_flow_metadata_1204.metadata.json \
   tests/golden/ghidra_curl_1204.c tools/compare_ghidra.py \
   examples/curl src sleigh_shim crates
-tar -xf "$oracle_tmp/rugra-source.tar" -C "$snapshot_root"
+tar -xf "$oracle_tmp/rudra-source.tar" -C "$snapshot_root"
 for relative in "${overlay_paths[@]}"; do
   cp "$repo_root/$relative" "$snapshot_root/$relative"
 done
@@ -145,8 +145,8 @@ python3 -I -S - "$repo_root" "$ghidra_root" "$snapshot_root" "$metadata" \
   "$cpp_fixture" "$rust_fixture" "$program_metadata" "$ghidra_golden" \
   "$compare_tool" "$runner_sha" "$oracle_commit" "$oracle_tag" \
   "$oracle_cpp_tree" "$oracle_language_tree" "$oracle_makefile_blob" \
-  "$rugra_base_commit" "$rugra_base_tree" "$rugra_base_src_tree" \
-  "$rugra_cargo_toml_blob" "$rugra_cargo_lock_blob" "$rugra_build_rs_blob" \
+  "$rudra_base_commit" "$rudra_base_tree" "$rudra_base_src_tree" \
+  "$rudra_cargo_toml_blob" "$rudra_cargo_lock_blob" "$rudra_build_rs_blob" \
   "$spec_input_commit" "$bfd_include/bfd.h" "$bfd_library" \
   "${overlay_paths[@]}" <<'PY'
 import hashlib
@@ -376,9 +376,9 @@ g++ -std=c++11 -O0 -fno-pie -no-pie -Wl,--build-id=none \
   --manifest-path "$snapshot_root/Cargo.toml" --lib --example curl_decompile
 TMPDIR="$cargo_tmp" rustc --edition=2021 -O \
   -L "dependency=$cargo_target/debug/deps" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   "$snapshot_root/tests/oracle/flow_sharedreturn_process_1204.rs" \
-  -o "$link_tmp/flow_sharedreturn_rugra"
+  -o "$link_tmp/flow_sharedreturn_rudra"
 
 objcopy --dump-section .text="$oracle_tmp/curl.text" "$snapshot_root/examples/curl"
 curl_text_base=$(readelf -WS "$snapshot_root/examples/curl" | \
@@ -394,18 +394,18 @@ LD_LIBRARY_PATH="$(dirname "$bfd_library")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   "$snapshot_root/sleigh_specs" "$snapshot_root/examples/curl" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_exit=$?
-"$link_tmp/flow_sharedreturn_rugra" "$oracle_tmp/curl.text" "$curl_text_base" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_exit=$?
-diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+"$link_tmp/flow_sharedreturn_rudra" "$oracle_tmp/curl.text" "$curl_text_base" \
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_exit=$?
+diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
   >"$oracle_tmp/raw.diff"
 raw_diff_exit=$?
 set -e
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/raw.diff" "$oracle_tmp/curl.text" \
-  "$ghidra_exit" "$rugra_exit" "$raw_diff_exit" <<'PY'
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/raw.diff" "$oracle_tmp/curl.text" \
+  "$ghidra_exit" "$rudra_exit" "$raw_diff_exit" <<'PY'
 import difflib
 import hashlib
 import json
@@ -414,7 +414,7 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-rugra = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
+rudra = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
 raw_diff = pathlib.Path(sys.argv[4]).read_bytes()
 
 def sha(data):
@@ -423,7 +423,7 @@ def sha(data):
 expected = metadata["expected_results"]
 observed = {
     "ghidra_stdout_sha256": sha(ghidra.encode()),
-    "rugra_stdout_sha256": sha(rugra.encode()),
+    "rudra_stdout_sha256": sha(rudra.encode()),
     "raw_diff_sha256": sha(raw_diff),
 }
 for key, actual in observed.items():
@@ -431,7 +431,7 @@ for key, actual in observed.items():
         raise SystemExit(f"{key} mismatch: expected={expected[key]} actual={actual}")
 for label, actual in (
     ("ghidra exit", int(sys.argv[6])),
-    ("rugra exit", int(sys.argv[7])),
+    ("rudra exit", int(sys.argv[7])),
 ):
     if actual != 0:
         raise SystemExit(f"{label} nonzero: {actual}")
@@ -442,7 +442,7 @@ if curl_text_sha != metadata["machine_input_sha256"]["curl_text"]:
     raise SystemExit(f"curl .text mismatch: {curl_text_sha}")
 
 normalized_diff = list(difflib.unified_diff(
-    ghidra.splitlines(), rugra.splitlines()
+    ghidra.splitlines(), rudra.splitlines()
 ))
 normalized_exit = 1 if normalized_diff else 0
 if normalized_exit != expected["normalized_diff_exit_code"]:
@@ -463,13 +463,13 @@ if len(changed) != 6 or any(
 if sum("site_space=ram" in line for line in changed) != 3 or \
    sum("site_space=null" in line for line in changed) != 3:
     raise SystemExit("address-space mismatch projection is incomplete")
-for label, output in (("Ghidra", ghidra), ("Rugra", rugra)):
+for label, output in (("Ghidra", ghidra), ("Rudra", rudra)):
     if output.count("callspec_binding=pointer_identity callspec_same_op=1") != 2:
         raise SystemExit(f"{label} callspec pointer identity observations missing")
     if "callspec_binding=address_lookup" in output:
         raise SystemExit(f"{label} retained obsolete address-only callspec evidence")
 if ghidra.count("callspec_binding=none binding_resolves=0") != 1 or \
-   rugra.count("callspec_binding=none binding_resolves=0") != 1:
+   rudra.count("callspec_binding=none binding_resolves=0") != 1:
     raise SystemExit("negative callspec representation mismatch")
 case_order = [
     line.split("=", 1)[1].split()[0]
@@ -480,10 +480,10 @@ if case_order != ["hugehelp", "progressbarinit", "myprogress"]:
 PY
 
 curl_example="$cargo_target/debug/examples/curl_decompile"
-(cd "$snapshot_root" && "$curl_example" --rugra-selected-function \
+(cd "$snapshot_root" && "$curl_example" --rudra-selected-function \
   hugehelp progressbarinit >"$oracle_tmp/enabled.c" 2>"$oracle_tmp/enabled.err")
 (cd "$snapshot_root" && RUDRA_DISABLE_SHARED_RETURN=1 \
-  "$curl_example" --rugra-selected-function hugehelp progressbarinit \
+  "$curl_example" --rudra-selected-function hugehelp progressbarinit \
   >"$oracle_tmp/disabled.c" 2>"$oracle_tmp/disabled.err")
 python3 "$snapshot_root/tools/compare_ghidra.py" "$oracle_tmp/enabled.c" \
   "$snapshot_root/tests/golden/ghidra_curl_1204.c" --func hugehelp -v \
@@ -564,8 +564,8 @@ for warning in (
     if warning not in disabled_err:
         raise SystemExit(f"disabled OOB evidence missing: {warning}")
 for output in compare_outputs:
-    if "Total Rugra defects: 0" not in output or \
-       "Total Rugra numbering issues: 0" not in output:
+    if "Total Rudra defects: 0" not in output or \
+       "Total Rudra numbering issues: 0" not in output:
         raise SystemExit("compare_ghidra defects/numbering regression")
 print("flow_sharedreturn_process_1204: selected numeric/op and exact callspec identity projection MATCH; address-space MISMATCH (expected)")
 print("flow_sharedreturn_process_1204: curl A/B puts 5->6, free 0->1; six metadata records")

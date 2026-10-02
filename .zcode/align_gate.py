@@ -55,7 +55,7 @@ import time
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
-ROOT = Path(__file__).resolve().parents[1]          # .../rugra
+ROOT = Path(__file__).resolve().parents[1]          # .../rudra
 sys.path.insert(0, str(ROOT / "tools"))
 
 from rust_fn_scanner import RustFunction, functions_overlapping

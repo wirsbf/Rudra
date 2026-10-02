@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-audit_syntax.py — 用 gcc -fsyntax-only 逐函数检查 Rugra 反编译输出的 C 语法正确性。
+audit_syntax.py — 用 gcc -fsyntax-only 逐函数检查 Rudra 反编译输出的 C 语法正确性。
 
 一个能"对齐 Ghidra"的反编译输出，最低门槛是自身 C 语法合法（Ghidra 输出一定能过编译）。
 本脚本把每个函数包成独立 .c 文件，补上类型/外部函数桩，跑 gcc 语法检查，统计错误。
@@ -50,7 +50,7 @@ int FUN_0002a710(); int FUN_0002b430(); int FUN_0002ae60();
 /* Ghidra base type vocabulary (AUDIT-SYNTAX-SKIPLINE-0001): the locked 12.0.4
  * golden relies on Ghidra's implicit type environment instead of inline
  * typedefs. Lines here whose name is re-declared by the audited file's own
- * inline preamble are dropped per function (see _declared_names), so Rugra
+ * inline preamble are dropped per function (see _declared_names), so Rudra
  * output that emits its own typedefs keeps its own spelling. */
 typedef unsigned char byte;
 typedef unsigned short ushort;
@@ -82,7 +82,7 @@ extern void *stdout;
 
 # Convention-stubbed globals: Ghidra names memory-slot pointer globals PTR_*
 # and raw data globals DAT_*; the golden has no extern section for them, so we
-# declare every such token found in the audited text (Rugra output declares
+# declare every such token found in the audited text (Rudra output declares
 # its own globals inline, and those inline lines are deduped per function).
 _PTR_GLOBAL_RE = re.compile(r"\b((?:PTR|DAT)_\w+)\b")
 
@@ -229,8 +229,8 @@ def audit_one(text: str, label: str):
             )
             if r.returncode != 0:
                 # Classify errors; ignore 'conflicting types' since those come
-                # from our extern stubs (int f()) disagreeing with Rugra's
-                # inferred signature, not from Rugra's own output.
+                # from our extern stubs (int f()) disagreeing with Rudra's
+                # inferred signature, not from Rudra's own output.
                 stub_conflict = False
                 real_errors = []
                 for line in r.stderr.splitlines():

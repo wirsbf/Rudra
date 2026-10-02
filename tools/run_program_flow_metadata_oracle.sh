@@ -14,7 +14,7 @@ release_asset=ghidra_12.0.4_PUBLIC_20260303.zip
 release_sha256=c3b458661d69e26e203d739c0c82d143cc8a4a29d9e571f099c2cf4bda62a120
 release_page_url="https://github.com/NationalSecurityAgency/ghidra/releases/tag/$oracle_tag"
 release_url="https://github.com/NationalSecurityAgency/ghidra/releases/download/$oracle_tag/$release_asset"
-cache_root=${RUDRA_PROGRAM_FLOW_GHIDRA_CACHE:-/tmp/rugra-program-flow-ghidra-1204}
+cache_root=${RUDRA_PROGRAM_FLOW_GHIDRA_CACHE:-/tmp/rudra-program-flow-ghidra-1204}
 release_zip="$cache_root/$release_asset"
 update_expected=0
 
@@ -58,14 +58,14 @@ done
 runtime_tmp_root=${RUDRA_PROGRAM_FLOW_RUNTIME_TMP:-/var/tmp}
 [[ -d "$runtime_tmp_root" && -w "$runtime_tmp_root" ]] || \
   die "runtime temp root is not writable: $runtime_tmp_root"
-fixture_tmp=$(mktemp -d "$runtime_tmp_root/rugra-program-flow-metadata-1204.XXXXXX")
+fixture_tmp=$(mktemp -d "$runtime_tmp_root/rudra-program-flow-metadata-1204.XXXXXX")
 cleanup() {
   if [[ ${RUDRA_KEEP_TMP:-0} == 1 ]]; then
     echo "preserving fixture temp directory: $fixture_tmp" >&2
     return
   fi
   case "$fixture_tmp" in
-    "$runtime_tmp_root"/rugra-program-flow-metadata-1204.??????) rm -rf -- "$fixture_tmp" ;;
+    "$runtime_tmp_root"/rudra-program-flow-metadata-1204.??????) rm -rf -- "$fixture_tmp" ;;
     *) echo "refusing unsafe cleanup target: $fixture_tmp" >&2 ;;
   esac
 }

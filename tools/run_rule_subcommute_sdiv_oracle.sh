@@ -6,10 +6,10 @@
 #               stdout archived at tests/oracle/rule_subcommute_sdiv_1204.oracle.out
 #               (sha-pinned below); trap modes take SIGFPE rc 136 (form record
 #               in the metadata, no golden — KUNAUB-SDIV-0001 ruling (a)).
-# Rugra side  : current worktree lib (cargo build --lib) + the mirrored
+# Rudra side  : current worktree lib (cargo build --lib) + the mirrored
 #               tests/oracle/rule_subcommute_sdiv_1204.rs.
 # Comparand   : normal mode = byte-compare vs the archived oracle record;
-#               trap modes = form assertions (Rugra rc 101 + the exact
+#               trap modes = form assertions (Rudra rc 101 + the exact
 #               opbehavior panic messages; oracle re-verified live only under
 #               RUDRA_SUBCOMMUTE_ORACLE_RUN=1).
 set -euo pipefail
@@ -39,16 +39,16 @@ done
 [[ $(sha256sum "$oracle_record" | cut -d' ' -f1) == "$oracle_record_sha256" ]] \
   || die "archived oracle record drifted"
 
-workdir=$(mktemp -d "${TMPDIR:-/tmp}/rugra-subcommute-sdiv.XXXXXX")
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/rudra-subcommute-sdiv.XXXXXX")
 trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # ---- oracle comparand (archive or live) -----------------------------------
 oracle_out="$workdir/oracle_normal.out"
 if [[ ${RUDRA_SUBCOMMUTE_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUDRA_SUBCOMMUTE_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-subcommute-1204}
+  cache_root=${RUDRA_SUBCOMMUTE_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-subcommute-1204}
   runner="$cache_root/rule_subcommute_sdiv_1204_cpp"
   if [[ ! -x $runner ]]; then
-    bfd_include=${RUDRA_SUBCOMMUTE_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+    bfd_include=${RUDRA_SUBCOMMUTE_BFD_INCLUDE:-/tmp/rudra-ghidra-bfd-2.38/usr/include}
     [[ -d $bfd_include ]] || die "BFD include tree missing: $bfd_include (see AGENTS.md oracle env note)"
     mkdir -p "$cache_root/x"
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \
@@ -76,46 +76,46 @@ else
   oracle_source=archive
 fi
 
-# ---- Rugra side -----------------------------------------------------------
+# ---- Rudra side -----------------------------------------------------------
 target_dir=${CARGO_TARGET_DIR:-$repo_root/target}
 (cd "$repo_root" && CARGO_TARGET_DIR="$target_dir" cargo build --offline --locked --quiet --lib)
 rustc --edition=2021 "$fixture_rs" \
-  --extern rugra="$target_dir/debug/librugra.rlib" \
+  --extern rudra="$target_dir/debug/librudra.rlib" \
   -L "dependency=$target_dir/debug/deps" \
   -o "$workdir/rule_subcommute_sdiv_1204_rust"
 
 "$workdir/rule_subcommute_sdiv_1204_rust" normal \
-  > "$workdir/rugra_normal.out" 2> "$workdir/rugra_normal.err"
-[[ -s "$workdir/rugra_normal.err" ]] && die "rugra normal stderr non-empty"
+  > "$workdir/rudra_normal.out" 2> "$workdir/rudra_normal.err"
+[[ -s "$workdir/rudra_normal.err" ]] && die "rudra normal stderr non-empty"
 
 # ---- compare: normal mode golden diff --------------------------------------
-if cmp -s "$oracle_out" "$workdir/rugra_normal.out"; then
+if cmp -s "$oracle_out" "$workdir/rudra_normal.out"; then
   echo "rule_subcommute_sdiv_1204[normal]: MATCH (byte-identical, 16/16 cases)"
 else
   echo "rule_subcommute_sdiv_1204[normal]: MISMATCH"
-  diff -u --label ghidra --label rugra "$oracle_out" "$workdir/rugra_normal.out" | head -40 >&2
+  diff -u --label ghidra --label rudra "$oracle_out" "$workdir/rudra_normal.out" | head -40 >&2
   exit 1
 fi
 
 # ---- trap modes: crash-form comparison (no golden, KUNASDIV precedent) ----
 set +e
 "$workdir/rule_subcommute_sdiv_1204_rust" trap_sdiv \
-  > "$workdir/rugra_trap_sdiv.out" 2> "$workdir/rugra_trap_sdiv.err"
+  > "$workdir/rudra_trap_sdiv.out" 2> "$workdir/rudra_trap_sdiv.err"
 trap_sdiv_rc=$?
 "$workdir/rule_subcommute_sdiv_1204_rust" trap_srem \
-  > "$workdir/rugra_trap_srem.out" 2> "$workdir/rugra_trap_srem.err"
+  > "$workdir/rudra_trap_srem.out" 2> "$workdir/rudra_trap_srem.err"
 trap_srem_rc=$?
 set -e
 
 [[ $trap_sdiv_rc -eq 101 ]] || die "trap_sdiv: expected Rust panic rc=101, got $trap_sdiv_rc"
-grep -q "attempt to divide with overflow" "$workdir/rugra_trap_sdiv.err" \
+grep -q "attempt to divide with overflow" "$workdir/rudra_trap_sdiv.err" \
   || die "trap_sdiv: panic form drift (missing 'attempt to divide with overflow')"
-[[ -s "$workdir/rugra_trap_sdiv.out" ]] && die "trap_sdiv: stdout must be empty (crash before output)"
+[[ -s "$workdir/rudra_trap_sdiv.out" ]] && die "trap_sdiv: stdout must be empty (crash before output)"
 [[ $trap_srem_rc -eq 101 ]] || die "trap_srem: expected Rust panic rc=101, got $trap_srem_rc"
-grep -q "attempt to calculate the remainder with overflow" "$workdir/rugra_trap_srem.err" \
+grep -q "attempt to calculate the remainder with overflow" "$workdir/rudra_trap_srem.err" \
   || die "trap_srem: panic form drift (missing 'attempt to calculate the remainder with overflow')"
-[[ -s "$workdir/rugra_trap_srem.out" ]] && die "trap_srem: stdout must be empty"
+[[ -s "$workdir/rudra_trap_srem.out" ]] && die "trap_srem: stdout must be empty"
 
-echo "rule_subcommute_sdiv_1204[trap_sdiv]: FORM-LOCKED (Rugra panic rc=101 'attempt to divide with overflow' vs oracle SIGFPE rc=136 — KUNAUB-SDIV-0001 ruling (a))"
-echo "rule_subcommute_sdiv_1204[trap_srem]: FORM-LOCKED (Rugra panic rc=101 'attempt to calculate the remainder with overflow' vs oracle SIGFPE rc=136)"
+echo "rule_subcommute_sdiv_1204[trap_sdiv]: FORM-LOCKED (Rudra panic rc=101 'attempt to divide with overflow' vs oracle SIGFPE rc=136 — KUNAUB-SDIV-0001 ruling (a))"
+echo "rule_subcommute_sdiv_1204[trap_srem]: FORM-LOCKED (Rudra panic rc=101 'attempt to calculate the remainder with overflow' vs oracle SIGFPE rc=136)"
 echo "rule_subcommute_sdiv_1204: PASS (oracle source: $oracle_source)"

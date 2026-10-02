@@ -41,8 +41,8 @@ ghidra_root="$repo_root/ghidra"
 live_metadata="$repo_root/tests/oracle/address_phase2_closure_1204.metadata.json"
 live_cpp_fixture="$repo_root/tests/oracle/address_phase2_closure_1204.cc"
 live_rust_fixture="$repo_root/tests/oracle/address_phase2_closure_1204.rs"
-cargo_target=/tmp/rugra-target-address-phase2
-cargo_lock=/tmp/rugra-cargo-build.lock
+cargo_target=/tmp/rudra-target-address-phase2
+cargo_lock=/tmp/rudra-cargo-build.lock
 
 host_git_bin=$(/usr/bin/readlink -f /usr/bin/git)
 host_python_bin=$(/usr/bin/readlink -f /usr/bin/python3)
@@ -99,14 +99,14 @@ actual_pinned_commit=$(git_clean -C "$repo_root" rev-parse "$pinned_base^{commit
 actual_pinned_tree=$(git_clean -C "$repo_root" rev-parse "$pinned_base^{tree}")
 if [[ "$actual_pinned_commit" != "$pinned_base" || \
       "$actual_pinned_tree" != "$pinned_tree" ]]; then
-  echo "pinned Rugra commit/tree identity mismatch" >&2
+  echo "pinned Rudra commit/tree identity mismatch" >&2
   exit 1
 fi
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-address-phase2-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-address-phase2-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-address-phase2-1204.??????)
+    /tmp/rudra-address-phase2-1204.??????)
       /usr/bin/rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe temporary cleanup target: $oracle_tmp" >&2; return 1 ;;
   esac
@@ -121,8 +121,8 @@ snapshot="$oracle_tmp/workspace"
   "$snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile" \
   "$oracle_tmp/ghidra-source"
 git_clean -C "$repo_root" archive --format=tar \
-  --output="$oracle_tmp/rugra-source.tar" "$pinned_base"
-/usr/bin/tar -xf "$oracle_tmp/rugra-source.tar" -C "$snapshot"
+  --output="$oracle_tmp/rudra-source.tar" "$pinned_base"
+/usr/bin/tar -xf "$oracle_tmp/rudra-source.tar" -C "$snapshot"
 git_clean -C "$ghidra_root" archive --format=tar \
   --output="$oracle_tmp/ghidra-source.tar" "$oracle_commit" \
   Ghidra/Features/Decompiler/src/decompile/cpp
@@ -235,15 +235,15 @@ require("runner fd snapshot", file_hashes["runner_sha256"], runner_snapshot_sha)
 
 required_source_paths = {
     "Cargo.lock", "Cargo.toml", "build.rs",
-    "sleigh_shim/rugra_sleigh.cpp", "src/address.rs", "src/block.rs",
+    "sleigh_shim/rudra_sleigh.cpp", "src/address.rs", "src/block.rs",
     "src/disasm/sleigh_lift.rs", "src/flow.rs", "src/funcdata.rs",
     "src/op.rs", "src/space.rs",
 }
 source_blobs = metadata["comparand"]["source_blobs"]
-require("Rugra source blob path set", set(source_blobs), required_source_paths)
+require("Rudra source blob path set", set(source_blobs), required_source_paths)
 for relative, expected_blob in source_blobs.items():
     actual = git_rev(repo, f"{pinned_base}:{relative}")
-    require(f"Rugra source blob {relative}", actual, expected_blob)
+    require(f"Rudra source blob {relative}", actual, expected_blob)
 
 cpp_prefix = "Ghidra/Features/Decompiler/src/decompile/cpp/"
 for relative, expected_blob in metadata["oracle"]["source_blobs"].items():
@@ -282,7 +282,7 @@ for field in ("path", "sha256", "git_blob_oid"):
 
 expected_keys = {
     "ghidra_stdout_sha256", "ghidra_stderr_sha256",
-    "rugra_stdout_sha256", "rugra_stderr_sha256", "unified_diff_sha256",
+    "rudra_stdout_sha256", "rudra_stderr_sha256", "unified_diff_sha256",
 }
 require("expected output key set", set(metadata["expected"]), expected_keys)
 for key, value in metadata["expected"].items():
@@ -325,7 +325,7 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C TMPDIR="$oracle_tmp" \
   exit 1
 fi
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_objcopy_bin" \
-  --dump-section ".rugra_input=$oracle_tmp/input.bin" \
+  --dump-section ".rudra_input=$oracle_tmp/input.bin" \
   "$oracle_tmp/address_phase2_closure_cpp"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
   "$oracle_tmp/input.bin" <<'PY'
@@ -365,14 +365,14 @@ if ! (
   exit 1
 fi
 
-rugra_rlib="$cargo_target/debug/librugra.rlib"
+rudra_rlib="$cargo_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$cargo_target/debug/build" -path '*/out/librugra_sleigh.a' \
+  /usr/bin/find "$cargo_target/debug/build" -path '*/out/librudra_sleigh.a' \
     -type f | /usr/bin/sort
 )
-if [[ ! -f "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
-  echo "Cargo did not produce exactly one Rugra rlib/native archive" >&2
+if [[ ! -f "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+  echo "Cargo did not produce exactly one Rudra rlib/native archive" >&2
   /usr/bin/printf '%s\n' "${native_archives[@]}" >&2
   exit 1
 fi
@@ -380,8 +380,8 @@ native_dir=$(/usr/bin/dirname "${native_archives[0]}")
 if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   TMPDIR="$oracle_tmp" "$host_rustc_bin" --edition=2021 -O \
   -C linker-features=-lld -L "dependency=$cargo_target/debug/deps" \
-  -L "native=$native_dir" --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  -L "native=$native_dir" --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/address_phase2_closure_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -389,22 +389,22 @@ if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   exit 1
 fi
 
-rugra_status=0
+rudra_status=0
 (
   builtin cd "$snapshot"
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 TMPDIR="$oracle_tmp" \
     "$oracle_tmp/address_phase2_closure_rust"
-) >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr" || rugra_status=$?
-if [[ "$rugra_status" -ne 0 ]]; then
-  echo "Rugra comparand failed: $rugra_status" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+) >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr" || rudra_status=$?
+if [[ "$rudra_status" -ne 0 ]]; then
+  echo "Rudra comparand failed: $rudra_status" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
 diff_status=0
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/diff \
-  --label ghidra --label rugra -u "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" >"$oracle_tmp/output.diff" || diff_status=$?
+  --label ghidra --label rudra -u "$oracle_tmp/ghidra.stdout" \
+  "$oracle_tmp/rudra.stdout" >"$oracle_tmp/output.diff" || diff_status=$?
 if [[ "$diff_status" -ne 1 ]]; then
   echo "unexpected comparand diff status: $diff_status" >&2
   exit 1
@@ -412,7 +412,7 @@ fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
   "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/ghidra.stderr" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/rugra.stderr" \
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/rudra.stderr" \
   "$oracle_tmp/output.diff" <<'PY'
 import hashlib
 import json
@@ -423,8 +423,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 paths = {
     "ghidra_stdout_sha256": pathlib.Path(sys.argv[2]),
     "ghidra_stderr_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_stdout_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_stderr_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_stdout_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_stderr_sha256": pathlib.Path(sys.argv[5]),
     "unified_diff_sha256": pathlib.Path(sys.argv[6]),
 }
 for key, path in paths.items():
@@ -434,12 +434,12 @@ for key, path in paths.items():
         raise SystemExit(f"{key} mismatch: expected={expected} actual={actual}")
 
 ghidra = paths["ghidra_stdout_sha256"].read_text(encoding="utf-8").splitlines()
-rugra = paths["rugra_stdout_sha256"].read_text(encoding="utf-8").splitlines()
+rudra = paths["rudra_stdout_sha256"].read_text(encoding="utf-8").splitlines()
 
 def selected(lines, prefix):
     return [line for line in lines if line.startswith(prefix)]
 
-for side, lines in (("ghidra", ghidra), ("rugra", rugra)):
+for side, lines in (("ghidra", ghidra), ("rugra", rudra)):
     if len(selected(lines, "record=header ")) != 1:
         raise SystemExit(f"{side}: missing unique header")
     if len(selected(lines, "record=coverage ")) != 1:
@@ -462,10 +462,10 @@ mismatch_prefixes = [
     "case=flow_stack record=exception ",
 ]
 for prefix in mismatch_prefixes:
-    if selected(ghidra, prefix) == selected(rugra, prefix):
+    if selected(ghidra, prefix) == selected(rudra, prefix):
         raise SystemExit(f"registered MISMATCH disappeared for {prefix!r}")
 
-coverage = selected(rugra, "record=coverage ")[0]
+coverage = selected(rudra, "record=coverage ")[0]
 if "combined_cross_space_visited=UNTESTED" not in coverage:
     raise SystemExit("combined cross-space visited residual was not retained")
 PY

@@ -9,7 +9,7 @@
 
 ## 可复现快速构建
 
-`rugra_build.py` 是 Cargo 的受控入口。它默认使用 `--locked --offline`、
+`rudra_build.py` 是 Cargo 的受控入口。它默认使用 `--locked --offline`、
 固定 locale/timezone、记录工具链和输入指纹，并使用全部可用 CPU。若系统安装了
 `sccache`，脚本同时缓存 Rust 与 C/C++；只有 `ccache` 时仅缓存 C/C++；两者都没有时
 安全回退到直接编译。`cc` build dependency 的 `parallel` feature 会让 22 个 SLEIGH
@@ -17,16 +17,16 @@
 
 ```bash
 # 日常快速语义检查（默认 fast-release）
-python3 tools/rugra_build.py check --all-targets --report /tmp/rugra-build.json
+python3 tools/rudra_build.py check --all-targets --report /tmp/rudra-build.json
 
 # 快速可运行产物
-python3 tools/rugra_build.py build --all-targets
+python3 tools/rudra_build.py build --all-targets
 
 # 最终发布构建仍使用原来的 fat-LTO release profile
-python3 tools/rugra_build.py build --profile release
+python3 tools/rudra_build.py build --profile release
 
 # 查看将执行的受控命令和环境，不启动编译
-python3 tools/rugra_build.py check --dry-run
+python3 tools/rudra_build.py check --dry-run
 ```
 
 `fast-release` 只用于反馈速度；它不替代最终 `release` 门禁，也不改变锁定 oracle
@@ -55,7 +55,7 @@ python3 tools/select_fixtures.py --path src/sleigh_ffi.rs --pretty
 
 ## 四级门禁
 
-`rugra_gate.py` 把相同事实源组合成四个延迟层级，并为每条命令记录输入 hash、
+`rudra_gate.py` 把相同事实源组合成四个延迟层级，并为每条命令记录输入 hash、
 工具输出 hash、耗时、timeout 和 exit 状态：
 
 | 层级 | 目标 | 主要内容 |
@@ -66,13 +66,13 @@ python3 tools/select_fixtures.py --path src/sleigh_ffi.rs --pretty
 | `nightly` | 冷闭包 | wave + fresh-target canonical release 全目标构建 |
 
 ```bash
-python3 tools/rugra_gate.py edit --report /tmp/rugra-edit-gate.json
-python3 tools/rugra_gate.py commit --staged --report /tmp/rugra-commit-gate.json
-python3 tools/rugra_gate.py wave --report /tmp/rugra-wave-gate.json
-python3 tools/rugra_gate.py nightly --report /tmp/rugra-nightly-gate.json
+python3 tools/rudra_gate.py edit --report /tmp/rudra-edit-gate.json
+python3 tools/rudra_gate.py commit --staged --report /tmp/rudra-commit-gate.json
+python3 tools/rudra_gate.py wave --report /tmp/rudra-wave-gate.json
+python3 tools/rudra_gate.py nightly --report /tmp/rudra-nightly-gate.json
 
 # 只查看命令和 fixture 选择，不执行
-python3 tools/rugra_gate.py commit --staged --dry-run
+python3 tools/rudra_gate.py commit --staged --dry-run
 ```
 
 `commit` 以上层级遇到 fixture coverage gap 会在运行前返回 2。`wave`/`nightly`
@@ -111,7 +111,7 @@ python3 tools/oracle_cache.py capture \
   -- tools/run_decompress_oracle.sh
 ```
 
-默认缓存位于 `.rugra-cache/oracle/`，不进入 Git。`store`/`verify`/`restore` 可用于
+默认缓存位于 `.rudra-cache/oracle/`，不进入 Git。`store`/`verify`/`restore` 可用于
 阶段快照；restore 目标必须不存在，恢复文件为只读，避免把缓存对象当工作副本修改。
 
 ## Pipeline stage 首差异
@@ -123,10 +123,10 @@ python3 tools/oracle_cache.py capture \
 ```bash
 python3 tools/stage_diff.py snapshot \
   --metadata tests/oracle/sleigh_decode_1204.metadata.json \
-  --producer rugra --stage lift=/tmp/rugra-lift.json --stage ssa=/tmp/rugra-ssa.json \
-  --output /tmp/rugra-stages.json
+  --producer rudra --stage lift=/tmp/rudra-lift.json --stage ssa=/tmp/rudra-ssa.json \
+  --output /tmp/rudra-stages.json
 
-python3 tools/stage_diff.py compare /tmp/ghidra-stages.json /tmp/rugra-stages.json --pretty
+python3 tools/stage_diff.py compare /tmp/ghidra-stages.json /tmp/rudra-stages.json --pretty
 ```
 
 `compare` 返回 0 表示所有阶段原始 hash 相同，1 表示找到差异，2 表示 manifest/provenance
@@ -185,7 +185,7 @@ sha256/环境/输入指纹）逐字段匹配后热启动 memo 续跑；schema 1 
   `expected_stdout_sha256`、`expected_statement_stdout_sha256` 与
   `expected_observation_sha256`；`raw_diff`、tool、runner、golden、input 或自造相似
   key 都不算输出 pin。使用 side-qualified pin 时，则白名单路径内
-  Ghidra/Rugra 两侧都必须存在且为精确 64-hex，任一侧缺失仍是 `SINGLE_SIDE_MATCH`。
+  Ghidra/Rudra 两侧都必须存在且为精确 64-hex，任一侧缺失仍是 `SINGLE_SIDE_MATCH`。
 - `schema`：内置 draft-07 子集校验器（不依赖 jsonschema）。
 - `lint [--strict]`：doctor + schema 合并检查（前向兼容 ENFORCE-0001）。
 - `migration-status [--strict] [--json]`：只读汇总 doctor、schema、registry/metadata
@@ -298,7 +298,7 @@ python3 tools/check_determinism.py --self-test        # sed 注入假漂移自�
 ```
 
 - **All 模式**：`curl_decompile`（无参全量）stdout sha256 全部相等 + 退出码 0。
-- **compare 模式**：`--rugra-timeout-isolation-compare-function <fn>`（默认 main）
+- **compare 模式**：`--rudra-timeout-isolation-compare-function <fn>`（默认 main）
   不得报 `isolated output changed`，退出码 0，stdout sha256 相等。
 - **失败报告**：两 run 的 sha256/字节数/输出文件路径 + 首个差异行（行号与两侧
   内容）；输出文件保留在临时目录供 forensics，成功才清理。退出码 0/1/2
@@ -326,7 +326,7 @@ curl 输出同样 0/112。修复后：
 - **桩环境**：STUB_HEADERS 增 Ghidra 基础 typedef（byte/ushort/uint/ulong/
   undefinedN/code 等 + 不透明 FILE/stat/EVP_PKEY_CTX）、stdarg.h、PTR_/DAT_
   约定全局 extern；与被审文件自带 inline typedef/extern 同名时逐函数去重，
-  Rugra 自产声明保持自身拼写。
+  Rudra 自产声明保持自身拼写。
 - **验证**：`tests/golden/ghidra_curl_1204.c` 0/116 → **104/124 OK**（20 个残余
   FAIL 均为 golden 固有的非 C 构造：`::` 域限定/`processEntry _start` 双词名/
   `stack0x…` 槽名/`._0_4_` 位选择器，及需要 DWARF 布局的域结构体成员访问
@@ -335,11 +335,11 @@ curl 输出同样 0/112。修复后：
 
 ## Pipeline stage 投影首分歧二分（2026-08-23，`PIPE-STAGE-BISECT-0001`）
 
-`stage_bisect.py` 消费**逐 Action/Rule 应用的修改投影**（Ghidra 侧/Rugra 侧各一份，
+`stage_bisect.py` 消费**逐 Action/Rule 应用的修改投影**（Ghidra 侧/Rudra 侧各一份，
 由 `tools/stage_bisect_projection.cc` 骨架描述的 fixture harness 产出），定位两侧
 第一个分歧边界，并把缺陷归因到**某 Action/Rule 的某一轮应用**（阶段路径 + restart
 轮次 + repeatapply pass + 计数器状态），比 `stage_diff.py` 的整阶段 artifact hash
-再细一级。RUGRA-GLUE：oracle 无对应物，工具只读投影，不改任何管线语义。
+再细一级。RUDRA-GLUE：oracle 无对应物，工具只读投影，不改任何管线语义。
 
 投影格式（每行一项，`--format` 可打印）：
 
@@ -363,13 +363,13 @@ META side=ghidra commit=e40ed130... func=FUN_00401000 arch=x86:LE:64:default
 
 ```bash
 # 定位首分歧（human 可读，含上下文与归因建议）
-python3 tools/stage_bisect.py /tmp/ghidra.proj /tmp/rugra.proj
+python3 tools/stage_bisect.py /tmp/ghidra.proj /tmp/rudra.proj
 
 # 机读报告
-python3 tools/stage_bisect.py /tmp/ghidra.proj /tmp/rugra.proj --json
+python3 tools/stage_bisect.py /tmp/ghidra.proj /tmp/rudra.proj --json
 
 # triage 辅助：屏蔽 unique 空间 id（仅用于缩小范围，不能当对齐证据）
-python3 tools/stage_bisect.py /tmp/ghidra.proj /tmp/rugra.proj --relax-unique
+python3 tools/stage_bisect.py /tmp/ghidra.proj /tmp/rudra.proj --relax-unique
 
 # 打印 Ghidra 侧投影收集 harness 骨架（含 -DOPACTION_DEBUG 构建/链接命令模板）
 python3 tools/stage_bisect.py --emit-harness
@@ -389,13 +389,13 @@ apply 内；`BEFORE_DIVERGENCE` → 缺陷更早，回退到报告的 last good 
 `drill_diff.py` 消费**v2 drill 文件**（stage-bisect 的下钻层：每个 `@BEGIN <seq>
 <path>` 应用括号包裹一次 Action/Rule 应用的原生 before/after printDebug 记录流，
 `DEBUG <n>: <name>` 头 + `<seqnum>: <before>` / 三空格前缀 `<seqnum>: <after>` 严格
-成对，`**` 为 dead op 标记，文件尾 `@DONE` 统计行）。RUGRA-GLUE：oracle 无对应物，
+成对，`**` 为 dead op 标记，文件尾 `@DONE` 统计行）。RUDRA-GLUE：oracle 无对应物，
 纯消费端只读工具，不改任何管线语义；原生观测机制同 `stage_bisect.py` 头注
 （funcdata.cc:1010-1052 / op.cc:374-384 / address.cc:32-37）。
 
 四层输出（自动化 Lane AL 的人工归因流程）：
 
-1. **路径层**：按 action path 聚合应用块，报告 shared / oracle-only / rugra-only
+1. **路径层**：按 action path 聚合应用块，报告 shared / oracle-only / rudra-only
    路径清单与每路径应用计数差（按 |delta| 排序）。
 2. **首记录分歧**：全局记录行流（剥 DEBUG 头，文件序）的公共前缀长度 + 首个不同
    记录的两侧原文、行号与所属应用块；一侧为另一侧前缀时报 LENGTH 分歧。
@@ -411,24 +411,24 @@ META 行仅作 provenance 提示（oracle_commit/arch/cspec 等），不参与�
 
 ```bash
 # 人工可读报告（--top N 控制计数差/普查显示条数）
-python3 tools/drill_diff.py next_url.oracle.drill next_url.rugra.drill
+python3 tools/drill_diff.py next_url.oracle.drill next_url.rudra.drill
 
 # 机读报告
-python3 tools/drill_diff.py next_url.oracle.drill next_url.rugra.drill --json
+python3 tools/drill_diff.py next_url.oracle.drill next_url.rudra.drill --json
 
 # 驱动脚本（退出码同 stage_bisect 惯例：0 一致 / 1 有差异 / 2 用法或格式错误）
-bash tools/run_drill_bisect.sh <oracle.drill> <rugra.drill>
+bash tools/run_drill_bisect.sh <oracle.drill> <rudra.drill>
 
 # 自测（8 个合成场景：一致/路径层/首分歧/前缀长度/五类分类/@DONE/格式错误/退出码）
 python3 tools/drill_diff.py --selftest
 ```
 
-真实语料验证（next_url，oracle 1293 块/1019 记录 vs rugra 1550/1122）：路径层
+真实语料验证（next_url，oracle 1293 块/1019 记录 vs rudra 1550/1122）：路径层
 shared=103 / oracle-only=2（`oppool2:loadvarnode`、`oppool1:subvar_subpiece`）/
-rugra-only=13（top `mainloop:unreachable` x24），计数差 top = earlyremoval
+rudra-only=13（top `mainloop:unreachable` x24），计数差 top = earlyremoval
 368→399、ptrarith 4→28、propagatecopy 278→299、termorder 5→21、boolnegate
 17→30；首分歧 = 公共前缀 2 行后 `universal:extrapopsetup`（应用 4）oracle
-`0x505d:2ce` vs rugra `0x50ce:2ce` —— 与 Lane AL 的 ATTRIBUTION_V2.md / M2 采样
+`0x505d:2ce` vs rudra `0x50ce:2ce` —— 与 Lane AL 的 ATTRIBUTION_V2.md / M2 采样
 报告逐项一致。
 
 ## result/ 产物刷新约定（2026-08-23）

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Corpus-marker gate for Rugra library production code (AUDIT-CORPUS-MARKERS-GATE-0001).
+"""Corpus-marker gate for Rudra library production code (AUDIT-CORPUS-MARKERS-GATE-0001).
 
-Rugra's library (src/) must contain ZERO per-corpus special-casing: no
+Rudra's library (src/) must contain ZERO per-corpus special-casing: no
 function-name arity/type tables keyed on curl/httpd-internal symbols, no
 binary-name branches, no corpus hex addresses. The 2026-06-23 bootstrap
 tables (known_param_count / known_param_types in coreaction.rs, expelled

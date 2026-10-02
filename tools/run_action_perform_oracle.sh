@@ -39,14 +39,14 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_input_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
+rudra_input_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/action_perform_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/action_perform_1204.cc"
 rust_fixture="$repo_root/tests/oracle/action_perform_1204.rs"
 spec_root="$repo_root/sleigh_specs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
@@ -114,19 +114,19 @@ fi
 actual_repo_root=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" rev-parse --show-toplevel)
 if [[ "$actual_repo_root" != "$repo_root" ]]; then
-  echo "unexpected Rugra repository root: $actual_repo_root" >&2
+  echo "unexpected Rudra repository root: $actual_repo_root" >&2
   exit 1
 fi
 resolved_input_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_input_commit^{commit}")
-if [[ "$resolved_input_commit" != "$rugra_input_commit" ]]; then
-  echo "pinned Rugra input commit mismatch: $resolved_input_commit" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_input_commit^{commit}")
+if [[ "$resolved_input_commit" != "$rudra_input_commit" ]]; then
+  echo "pinned Rudra input commit mismatch: $resolved_input_commit" >&2
   exit 1
 fi
 binary_blob_oid=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_input_commit:examples/curl")
-if [[ "$binary_blob_oid" != "$rugra_input_blob" ]]; then
-  echo "pinned Rugra input blob mismatch: $binary_blob_oid" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_input_commit:examples/curl")
+if [[ "$binary_blob_oid" != "$rudra_input_blob" ]]; then
+  echo "pinned Rudra input blob mismatch: $binary_blob_oid" >&2
   exit 1
 fi
 binary_blob_type=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
@@ -134,7 +134,7 @@ binary_blob_type=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYST
 binary_blob_size=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" cat-file -s "$binary_blob_oid")
 if [[ "$binary_blob_type" != blob ]]; then
-  echo "Rugra $rugra_input_commit:examples/curl is not a Git blob" >&2
+  echo "Rudra $rudra_input_commit:examples/curl is not a Git blob" >&2
   exit 1
 fi
 
@@ -148,9 +148,9 @@ host_cargo=$(/usr/bin/env -i HOME="$HOME" RUSTUP_HOME="$HOME/.rustup" \
   "$host_cargo_bin" --version)
 host_platform=$(/usr/bin/uname -srm)
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-action-perform-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-action-perform-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-action-perform-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-action-perform-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2
     return 1
   fi
@@ -176,7 +176,7 @@ binary="$oracle_tmp/input/curl"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$repo_root" "$snapshot_root" "$cargo_home" \
   "$HOME/.cargo/registry/cache" "$metadata" "$cpp_fixture" "$rust_fixture" \
-  "$runner" "$runner_snapshot_sha" "$binary" "$rugra_input_commit" \
+  "$runner" "$runner_snapshot_sha" "$binary" "$rudra_input_commit" \
   "$binary_blob_oid" "$binary_blob_size" "$bfd_include" "$bfd_library" \
   "$oracle_tag" "$oracle_commit" "$oracle_cpp_tree" "$oracle_language_tree" \
   "$oracle_makefile_blob" "$host_cxx" "$host_cxx_target" "$host_rustc" \
@@ -203,7 +203,7 @@ import tarfile
     runner_raw,
     runner_snapshot_sha,
     binary_raw,
-    rugra_input_commit,
+    rudra_input_commit,
     binary_blob_oid,
     binary_blob_size,
     bfd_include_raw,
@@ -279,7 +279,7 @@ crate_files = [
 ] + source_files("src") + source_files("sleigh_shim")
 crate_files = sorted(set(crate_files), key=lambda path: path.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-action-lib-snapshot-v1\0")
+crate_hasher.update(b"rudra-action-lib-snapshot-v1\0")
 crate_bytes = {}
 for relative in crate_files:
     data = snapshot_file(relative)
@@ -376,9 +376,9 @@ for key in ("sla", "binary"):
 require_equal(
     "binary Git source ref",
     assets["binary"]["source_ref"],
-    f"{rugra_input_commit}:examples/curl",
+    f"{rudra_input_commit}:examples/curl",
 )
-require_equal("binary source repository commit", assets["binary"]["source_repository_commit"], rugra_input_commit)
+require_equal("binary source repository commit", assets["binary"]["source_repository_commit"], rudra_input_commit)
 require_equal("binary Git blob OID", assets["binary"]["git_blob_oid"], binary_blob_oid)
 require_equal("binary Git blob size", assets["binary"]["size"], int(binary_blob_size))
 require_equal(
@@ -430,7 +430,7 @@ require_equal(
 require_equal(
     "crate snapshot scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-action-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents",
+    "sha256 of rudra-action-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents",
 )
 for key, actual in observed_hashes.items():
     reject_pending(comparand[key], f"comparand.{key}")
@@ -462,7 +462,7 @@ require_equal(
     manifest["binary"],
     {
         "path": assets["binary"]["path"],
-        "source_repository_commit": rugra_input_commit,
+        "source_repository_commit": rudra_input_commit,
         "git_blob_oid": binary_blob_oid,
         "sha256": assets["binary"]["sha256"],
         "size": assets["binary"]["size"],
@@ -667,17 +667,17 @@ if ! (
   cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce $rugra_rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce $rudra_rlib" >&2
   exit 1
 fi
 native_archives=()
 while IFS= read -r archive; do
   native_archives+=("$archive")
-done < <(find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f)
+done < <(find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f)
 if [[ "${#native_archives[@]}" -ne 1 ]]; then
-  echo "expected one Cargo-built librugra_sleigh.a, found ${#native_archives[@]}" >&2
+  echo "expected one Cargo-built librudra_sleigh.a, found ${#native_archives[@]}" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -685,8 +685,8 @@ if ! /usr/bin/env -i HOME="$HOME" RUSTUP_HOME="$HOME/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/action_perform_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   cat "$oracle_tmp/rustc.stdout" >&2
@@ -699,9 +699,9 @@ fi
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/action_perform_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'

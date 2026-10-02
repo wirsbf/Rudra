@@ -7,13 +7,13 @@
 #               tests/oracle/switchout_ruleswitchsingle_1204.oracle.{out,err}
 #               (sha-pinned below). Live oracle re-verification under
 #               RUDRA_SWITCHOUT_ORACLE_RUN=1 (see AGENTS.md oracle env note).
-# Rugra side  : current worktree fast-release gen_decompile driver over the
+# Rudra side  : current worktree fast-release gen_decompile driver over the
 #               banked single-target dispatch ELF (mirror arm), function
 #               single_target_switch located by name via --list (index-stable
 #               against future discovery-order changes), stdout compared to
 #               the banked tests/oracle/switchout_ruleswitchsingle_1204.rudra.c.
 # Comparand   : C body (from `int4 single_target_switch` to EOF) byte-equal
-#               oracle-vs-rugra; warning-comment line byte-equal; oracle
+#               oracle-vs-rudra; warning-comment line byte-equal; oracle
 #               stderr [BLOCKFLAGS]/[JT-REMAIN] are the direct observables of
 #               funcdata_block.cc:73-76 (flag cleared, table gone).
 # Fixture     : hand-written .S keeps the 8 statically-identical table
@@ -44,7 +44,7 @@ fixture_cc_sha256=04a4b994081a64c24419d02bf7605b400fa7d6ab8a0993fa85fc36b67f1289
 fixture_elf_sha256=dda2b61364f689538ce5ffe7c79f1ffc493d8b232684461a39c7967aad6efafd
 oracle_out_sha256=2a920d4487514bcd3dad87fad5e6330f64ad65a10123004d18dbbc762ea55f87
 oracle_err_sha256=d770faa770bccf106df521be04e0150c6cd051b44f03db69d7ee55ef16f3a3bb
-rugra_record_sha256=4568eccb8f3739d1711dfcdcb06a0fbcf9b01e839ace083fdab2eb01a8aec1bf
+rudra_record_sha256=4568eccb8f3739d1711dfcdcb06a0fbcf9b01e839ace083fdab2eb01a8aec1bf
 prefix_record_sha256=8c275dd8d4136f3ad1fb81c4f7f4f8d096b9682509b441b7504f8f634705910e
 
 die() { echo "run_switchout_ruleswitchsingle_1204: FAIL: $*" >&2; exit 1; }
@@ -62,10 +62,10 @@ check_sha "$fixture_cc"     "$fixture_cc_sha256"
 check_sha "$fixture_elf"    "$fixture_elf_sha256"
 check_sha "$oracle_out"     "$oracle_out_sha256"
 check_sha "$oracle_err"     "$oracle_err_sha256"
-check_sha "$rudra_record"   "$rugra_record_sha256"
+check_sha "$rudra_record"   "$rudra_record_sha256"
 check_sha "$prefix_record"  "$prefix_record_sha256"
 
-workdir=$(mktemp -d "${TMPDIR:-/tmp}/rugra-switchout.XXXXXX")
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/rudra-switchout.XXXXXX")
 trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # Optional source-rebuild verification (toolchain-sensitive; never replaces
@@ -80,10 +80,10 @@ fi
 # ---- oracle comparand (archive or live) -----------------------------------
 live_oracle_err="$workdir/oracle_stderr.err"
 if [[ ${RUDRA_SWITCHOUT_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUDRA_SWITCHOUT_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-switchout-1204}
+  cache_root=${RUDRA_SWITCHOUT_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-switchout-1204}
   runner="$cache_root/switchout_ruleswitchsingle_1204_cpp"
   if [[ ! -x $runner ]]; then
-    bfd_include=${RUDRA_SWITCHOUT_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+    bfd_include=${RUDRA_SWITCHOUT_BFD_INCLUDE:-/tmp/rudra-ghidra-bfd-2.38/usr/include}
     [[ -d $bfd_include ]] || die "BFD include tree missing: $bfd_include (see AGENTS.md oracle env note)"
     mkdir -p "$cache_root/x"
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \
@@ -116,7 +116,7 @@ else
   oracle_source=archive
 fi
 
-# ---- Rugra side -----------------------------------------------------------
+# ---- Rudra side -----------------------------------------------------------
 bin_dir=${RUDRA_SWITCHOUT_BIN_DIR:-$repo_root/target/fast-release/examples}
 gen_bin="$bin_dir/gen_decompile"
 [[ -x $gen_bin ]] || die "gen_decompile missing under $bin_dir (build --profile fast-release --lib --examples)"
@@ -127,26 +127,26 @@ index=$(sed -n 's/^\[GEN\] *\([0-9]*\) 0x *401166 *4 single_target_switch$/\1/p'
 [[ -n $index ]] || die "single_target_switch @0x401166 not discovered; listing: $list_out"
 
 RUDRA_GEN_MIRROR=1 RUDRA_GEN_TIMEOUT_SECS=120 "$gen_bin" "$fixture_elf" --one "$index" \
-  > "$workdir/rugra.out" 2> "$workdir/rugra.err" \
+  > "$workdir/rudra.out" 2> "$workdir/rudra.err" \
   || die "driver --one $index failed"
 
 # Full-driver stdout vs the banked merged-tree record (byte-exact).
-cmp -s "$rudra_record" "$workdir/rugra.out" \
-  || die "rugra driver stdout drifted from banked .rugra.c (behavior change on this fixture!)"
+cmp -s "$rudra_record" "$workdir/rudra.out" \
+  || die "rudra driver stdout drifted from banked .rudra.c (behavior change on this fixture!)"
 
 # ---- decisive bilateral comparands ----------------------------------------
-# 1. C body byte-equality oracle-vs-rugra (from the signature line to EOF).
+# 1. C body byte-equality oracle-vs-rudra (from the signature line to EOF).
 sed -n '/^int4 single_target_switch/,$p' "$oracle_out" > "$workdir/oracle_body"
-sed -n '/^int4 single_target_switch/,$p' "$workdir/rugra.out"  > "$workdir/rugra_body"
-cmp -s "$workdir/oracle_body" "$workdir/rugra_body" \
-  || die "C body mismatch oracle-vs-rugra"
+sed -n '/^int4 single_target_switch/,$p' "$workdir/rudra.out"  > "$workdir/rudra_body"
+cmp -s "$workdir/oracle_body" "$workdir/rudra_body" \
+  || die "C body mismatch oracle-vs-rudra"
 
 # 2. The RuleSwitchSingle warning renders identically (modulo the 0x0040117a
 #    address formatting difference the oracle header uses).
 grep -q 'Switch with 1 destination removed at 0x0040117a : 8 cases all go to same destination' "$oracle_out" \
   || die "oracle record lost the warning line (re-pin!)"
-grep -q 'Switch with 1 destination removed at 0x40117a: 8 cases all go to same destination' "$workdir/rugra.out" \
-  || die "rugra output lost the warning line (RuleSwitchSingle no longer firing?)"
+grep -q 'Switch with 1 destination removed at 0x40117a: 8 cases all go to same destination' "$workdir/rudra.out" \
+  || die "rudra output lost the warning line (RuleSwitchSingle no longer firing?)"
 
 # 3. Oracle stderr observables: flag cleared + table gone (funcdata_block.cc:76).
 grep -q '\[BLOCKFLAGS\] i=0 start=0x40116a flags=0x200 switch_out=0' "$live_oracle_err" \
@@ -157,9 +157,9 @@ grep -q '\[JT-REMAIN\] count=0' "$live_oracle_err" \
 # 4. Discriminating power: the banked pre-fix excerpt must NOT match the
 #    current output (it is the degenerate switch skeleton the missing clear
 #    produced) — the fixture stays able to detect the regression.
-if cmp -s "$prefix_record" "$workdir/rugra.out"; then
+if cmp -s "$prefix_record" "$workdir/rudra.out"; then
   die "current output == pre-fix prefix record (SWITCHOUT regression: clear side dead?)"
 fi
 
 echo "switchout_ruleswitchsingle_1204[normal]: MATCH (C body byte-identical; flag cleared; table removed; pre-fix skeleton excluded)"
-echo "switchout_ruleswitchsingle_1204: PASS (oracle source: $oracle_source; rugra index=$index)"
+echo "switchout_ruleswitchsingle_1204: PASS (oracle source: $oracle_source; rudra index=$index)"

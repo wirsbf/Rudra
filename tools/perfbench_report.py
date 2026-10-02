@@ -71,7 +71,7 @@ def main() -> int:
               f"sys={med['sys']:6.1f} load1m={load_txt}")
 
     print("-" * 100)
-    print("head-to-head ratios (rugra / oracle), CPU(user+sys) primary:")
+    print("head-to-head ratios (rudra / oracle), CPU(user+sys) primary:")
     for (tier, binary), sides in sorted(pairs.items()):
         if "oracle" not in sides or "rugra" not in sides:
             continue
@@ -82,7 +82,7 @@ def main() -> int:
         per_fn_r = cpu_r / r["n"]
         print(f"{tier:10s} {DISPLAY.get(binary, binary)[:28]:28s} "
               f"cpu_ratio={cpu_r / cpu_o:5.2f}x  "
-              f"per_fn: oracle={per_fn_o * 1000:6.0f}ms rugra={per_fn_r * 1000:6.0f}ms  "
+              f"per_fn: oracle={per_fn_o * 1000:6.0f}ms rudra={per_fn_r * 1000:6.0f}ms  "
               f"wall_ratio={r['wall'] / o['wall']:5.2f}x")
     return 0
 

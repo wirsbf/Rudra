@@ -5,7 +5,7 @@
 # nextFlowAfter virtual dispatch behind BlockGoto::gotoPrints: FlowBlock
 # base block.hh:884 + the 10 .cc overrides at block.cc:1335/2899/2931/
 # 3053/3127/3341/3448/3476/3639) against the oracle cpp tree, builds the
-# Rugra comparand against the crate rlib, runs both, and diffs the shared
+# Rudra comparand against the crate rlib, runs both, and diffs the shared
 # (sorted) per-(composite,component) dispatch + per-goto prints projection.
 set -euo pipefail
 
@@ -17,7 +17,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 cpp_fixture="$repo_root/tests/oracle/goto_prints_nextflowafter_1204.cc"
 rust_fixture="$repo_root/tests/oracle/goto_prints_nextflowafter_1204.rs"
 metadata="$repo_root/tests/oracle/goto_prints_nextflowafter_1204.metadata.json"
-bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rudra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -47,8 +47,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 pairs = {
     "cpp_fixture_sha256": pathlib.Path(sys.argv[2]),
     "rust_fixture_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_block_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_coreaction_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_block_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_coreaction_sha256": pathlib.Path(sys.argv[5]),
 }
 for key, path in pairs.items():
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -58,10 +58,10 @@ for key, path in pairs.items():
         )
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-goto-prints-nfa-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-goto-prints-nfa-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-goto-prints-nfa-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-goto-prints-nfa-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -83,19 +83,19 @@ g++ -std=c++11 -O2 -I"$cpp_root" -I"$bfd_root/usr/include" \
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/goto_prints_nextflowafter_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/goto_prints_nextflowafter_rudra"
 
 "$oracle_tmp/goto_prints_nextflowafter_1204" >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
-"$oracle_tmp/goto_prints_nextflowafter_rugra" >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+"$oracle_tmp/goto_prints_nextflowafter_rudra" >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
-if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
     >"$oracle_tmp/bilateral.diff"; then
   cat "$oracle_tmp/ghidra.stdout"
   printf 'goto_prints_nextflowafter_1204: MATCH\n'

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Rugra's tiered, impact-aware validation gates with JSON evidence."""
+"""Run Rudra's tiered, impact-aware validation gates with JSON evidence."""
 
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ def checks_for_tier(
     edit.append(
         Check(
             "fast-check-lib",
-            [python, "tools/rugra_build.py", "check", "--cache", "auto"],
+            [python, "tools/rudra_build.py", "check", "--cache", "auto"],
             600,
             "build",
         )
@@ -117,7 +117,7 @@ def checks_for_tier(
         Check("ledger-check", [python, "tools/generate_function_ledger.py", "--check"], 180),
         Check(
             "fast-check-all",
-            [python, "tools/rugra_build.py", "check", "--all-targets", "--cache", "auto"],
+            [python, "tools/rudra_build.py", "check", "--all-targets", "--cache", "auto"],
             900,
             "build",
         ),
@@ -162,7 +162,7 @@ def checks_for_tier(
             "cold-release-all",
             [
                 python,
-                "tools/rugra_build.py",
+                "tools/rudra_build.py",
                 "build",
                 "--profile",
                 "release",
@@ -409,7 +409,7 @@ def self_test() -> int:
         False,
     )
     assert timeout["return_code"] == 124 and timeout["timed_out"]
-    print("rugra_gate: self-test OK")
+    print("rudra_gate: self-test OK")
     return 0
 
 
@@ -454,7 +454,7 @@ def main(argv: list[str]) -> int:
                 )
             )
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
-        print(f"rugra_gate: {error}", file=sys.stderr)
+        print(f"rudra_gate: {error}", file=sys.stderr)
         return 1
 
     report: dict[str, object] = {
@@ -491,7 +491,7 @@ def main(argv: list[str]) -> int:
     try:
         tree_hash = working_tree_fingerprint(root)
     except RuntimeError as error:
-        print(f"rugra_gate: {error}", file=sys.stderr)
+        print(f"rudra_gate: {error}", file=sys.stderr)
         return 1
     environment = dict(os.environ)
     environment.update({"CARGO_NET_OFFLINE": "true", "LC_ALL": "C", "TZ": "UTC"})
@@ -507,7 +507,7 @@ def main(argv: list[str]) -> int:
     report["status"] = "FAIL" if failed else "PASS"
     if args.report:
         atomic_json(args.report.resolve(), report)
-    print(f"rugra_gate: {report['status']} tier={args.tier} checks={len(report['checks'])}")
+    print(f"rudra_gate: {report['status']} tier={args.tier} checks={len(report['checks'])}")
     return 1 if failed else 0
 
 

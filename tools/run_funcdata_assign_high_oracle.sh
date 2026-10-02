@@ -93,9 +93,9 @@ host_cargo=$(/usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" 
   "$host_cargo_bin" --version)
 host_platform=$(/usr/bin/uname -srm)
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-funcdata-assignhigh-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-funcdata-assignhigh-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-funcdata-assignhigh-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-funcdata-assignhigh-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2
     return 1
   fi
@@ -187,7 +187,7 @@ crate_files = [
 ] + source_files("src") + source_files("sleigh_shim")
 crate_files = sorted(set(crate_files), key=lambda path: path.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-funcdata-assignhigh-lib-snapshot-v1\0")
+crate_hasher.update(b"rudra-funcdata-assignhigh-lib-snapshot-v1\0")
 crate_bytes = {}
 for relative in crate_files:
     data = snapshot_file(relative)
@@ -254,7 +254,7 @@ require_equal(
 )
 require_equal(
     "crate snapshot scheme", comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-funcdata-assignhigh-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents",
+    "sha256 of rudra-funcdata-assignhigh-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents",
 )
 for key, actual in observed_hashes.items():
     reject_pending(comparand[key], f"comparand.{key}")
@@ -449,17 +449,17 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce $rugra_rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce $rudra_rlib" >&2
   exit 1
 fi
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
 if [[ "${#native_archives[@]}" -ne 1 ]]; then
-  echo "expected one Cargo-built librugra_sleigh.a, found ${#native_archives[@]}" >&2
+  echo "expected one Cargo-built librudra_sleigh.a, found ${#native_archives[@]}" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -467,8 +467,8 @@ if ! /usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/funcdata_assign_high_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -484,19 +484,19 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
 fi
 if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/funcdata_assign_high_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"; then
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"; then
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-if [[ -s "$oracle_tmp/ghidra.stderr" || -s "$oracle_tmp/rugra.stderr" ]]; then
+if [[ -s "$oracle_tmp/ghidra.stderr" || -s "$oracle_tmp/rudra.stderr" ]]; then
   echo "fixture runtime stderr must be empty" >&2
   /usr/bin/cat "$oracle_tmp/ghidra.stderr" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 set +e
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
   >"$oracle_tmp/direct.diff"
 diff_status=$?
 set -e
@@ -507,7 +507,7 @@ if [[ "$diff_status" -ne 0 ]]; then
 fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
-  - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+  - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
   "$oracle_tmp/direct.diff" <<'PY'
 import hashlib
 import json
@@ -516,13 +516,13 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_stdout = pathlib.Path(sys.argv[2]).read_bytes()
-rugra_stdout = pathlib.Path(sys.argv[3]).read_bytes()
+rudra_stdout = pathlib.Path(sys.argv[3]).read_bytes()
 direct_diff = pathlib.Path(sys.argv[4]).read_text(encoding="utf-8")
 ghidra_lines = ghidra_stdout.decode("utf-8").splitlines()
-rugra_lines = rugra_stdout.decode("utf-8").splitlines()
-if len(ghidra_lines) != 20 or len(rugra_lines) != 20:
+rudra_lines = rudra_stdout.decode("utf-8").splitlines()
+if len(ghidra_lines) != 20 or len(rudra_lines) != 20:
     raise SystemExit(
-        f"expected 20 observation lines, found Ghidra={len(ghidra_lines)} Rugra={len(rugra_lines)}"
+        f"expected 20 observation lines, found Ghidra={len(ghidra_lines)} Rudra={len(rudra_lines)}"
     )
 required_lines = [
     "off_constant:0",
@@ -548,14 +548,14 @@ required_lines = [
 ]
 if ghidra_lines != required_lines:
     raise SystemExit(f"Ghidra observations are not the exact pinned lines: {ghidra_lines!r}")
-if rugra_lines != required_lines:
-    raise SystemExit(f"Rugra observations are not the exact pinned lines: {rugra_lines!r}")
+if rudra_lines != required_lines:
+    raise SystemExit(f"Rudra observations are not the exact pinned lines: {rudra_lines!r}")
 if direct_diff != "":
     print(direct_diff, file=sys.stderr)
     raise SystemExit("direct diff is not empty")
 for label, stdout, expected in (
     ("Ghidra", ghidra_stdout, metadata["expected_ghidra_stdout_sha256"]),
-    ("Rugra", rugra_stdout, metadata["expected_rugra_stdout_sha256"]),
+    ("Rudra", rudra_stdout, metadata["expected_rudra_stdout_sha256"]),
 ):
     actual = hashlib.sha256(stdout).hexdigest()
     if actual != expected:

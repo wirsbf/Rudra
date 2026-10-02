@@ -5,7 +5,7 @@ umask 077
 # Bilateral MATCH gate for PTRSUB-TYPED-DECL-RESIDUAL-0001: PrintC
 # declarator projection (buildTypeStack/pushTypeStart/pushTypeEnd/
 # pushPrototypeInputs/genericTypeName, printc.cc:143/264/313/169/3373).
-# A successful run rebuilds the locked Ghidra 12.0.4 oracle and the Rugra
+# A successful run rebuilds the locked Ghidra 12.0.4 oracle and the Rudra
 # snapshot from HEAD, runs both fixtures, and requires all 18 records to be
 # byte-identical (overall=MATCH).  The fixture architecture is
 # self-contained (no BFD, no sleigh spec root, no external binary).
@@ -120,7 +120,7 @@ cleanup() {
   fi
 }
 trap cleanup EXIT HUP INT TERM
-/usr/bin/mkdir -p "$run_root/tmp" "$run_root/oracle" "$run_root/rugra" \
+/usr/bin/mkdir -p "$run_root/tmp" "$run_root/oracle" "$run_root/rudra" \
   "$run_root/evidence/tests/oracle"
 
 # Freeze every mutable input before validating any content.
@@ -172,7 +172,7 @@ for relative, expected in meta["comparand"]["fixture_sha256"].items():
     require(f"fixture {relative}", sha(evidence / relative), expected)
 exp = meta["expected_results"]
 require("record count", exp["record_count"], 18)
-require("raw diff labels", exp.get("raw_diff_labels"), ["ghidra.stdout", "rugra.stdout"])
+require("raw diff labels", exp.get("raw_diff_labels"), ["ghidra.stdout", "rudra.stdout"])
 require("exit codes", exp["exit_codes"], {"ghidra": 0, "rugra": 0})
 manifest = meta["input_manifest"]
 fingerprinted = {
@@ -299,7 +299,7 @@ if [[ "$mode" == ghidra-only ]]; then
   exit 0
 fi
 
-snapshot="$run_root/rugra"
+snapshot="$run_root/rudra"
 git_clean -C "$repo_root" archive HEAD | /usr/bin/tar -xf - -C "$snapshot"
 /usr/bin/mkdir -p "$snapshot/tests/oracle" \
   "$snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
@@ -320,10 +320,10 @@ exec 9>"$cargo_target/.build.lock"
 
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$cargo_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$cargo_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
 if [[ ${#native_archives[@]} -ne 1 ]]; then
-  echo "Rugra native archive build output mismatch" >&2
+  echo "Rudra native archive build output mismatch" >&2
   /usr/bin/cat "$run_root/cargo.stdout" "$run_root/cargo.stderr" >&2
   exit 1
 fi
@@ -332,9 +332,9 @@ native_dir=$(/usr/bin/dirname "${native_archives[0]}")
 /usr/bin/env -i PATH=/usr/bin:/bin HOME="$user_home" LC_ALL=C TMPDIR="$run_root/tmp" \
   /usr/bin/timeout 300 "$host_rustc" --edition=2021 -C opt-level=0 \
   "$snapshot/tests/oracle/printc_anonymous_pointer_decl_1204.rs" \
-  --extern "rugra=$cargo_target/debug/librugra.rlib" \
+  --extern "rudra=$cargo_target/debug/librudra.rlib" \
   -L "dependency=$cargo_target/debug/deps" -L "native=$native_dir" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   -o "$run_root/printc_anon_ptr_rust" \
   >"$run_root/rustc.stdout" 2>"$run_root/rustc.stderr"
 "$host_flock" -u 9
@@ -346,21 +346,21 @@ fi
 for run in 1 2; do
   /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/timeout 60 \
     "$run_root/printc_anon_ptr_rust" \
-    >"$run_root/rugra.$run.stdout" 2>"$run_root/rugra.$run.stderr"
+    >"$run_root/rudra.$run.stdout" 2>"$run_root/rudra.$run.stderr"
 done
-if ! /usr/bin/cmp -s "$run_root/rugra.1.stdout" "$run_root/rugra.2.stdout" || \
-   ! /usr/bin/cmp -s "$run_root/rugra.1.stderr" "$run_root/rugra.2.stderr"; then
-  echo "Rugra fixture output is nondeterministic" >&2
+if ! /usr/bin/cmp -s "$run_root/rudra.1.stdout" "$run_root/rudra.2.stdout" || \
+   ! /usr/bin/cmp -s "$run_root/rudra.1.stderr" "$run_root/rudra.2.stderr"; then
+  echo "Rudra fixture output is nondeterministic" >&2
   exit 1
 fi
 
-/usr/bin/diff -u --label ghidra.stdout --label rugra.stdout \
-  "$run_root/ghidra.1.stdout" "$run_root/rugra.1.stdout" >"$run_root/raw.diff" || true
+/usr/bin/diff -u --label ghidra.stdout --label rudra.stdout \
+  "$run_root/ghidra.1.stdout" "$run_root/rudra.1.stdout" >"$run_root/raw.diff" || true
 
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C "$host_python" -I -S - \
   "$metadata" "$run_root/ghidra.1.stdout" \
-  "$run_root/ghidra.1.stderr" "$run_root/rugra.1.stdout" \
-  "$run_root/rugra.1.stderr" "$run_root/raw.diff" <<'PY'
+  "$run_root/ghidra.1.stderr" "$run_root/rudra.1.stdout" \
+  "$run_root/rudra.1.stderr" "$run_root/raw.diff" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -374,8 +374,8 @@ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 checks = {
     "ghidra stdout": (sha(gout), exp["ghidra_stdout_sha256"]),
     "ghidra stderr": (sha(gerr), exp["ghidra_stderr_sha256"]),
-    "rugra stdout": (sha(rout), exp["rugra_stdout_sha256"]),
-    "rugra stderr": (sha(rerr), exp["rugra_stderr_sha256"]),
+    "rudra stdout": (sha(rout), exp["rudra_stdout_sha256"]),
+    "rudra stderr": (sha(rerr), exp["rudra_stderr_sha256"]),
 }
 for label, (actual, expected) in checks.items():
     if actual != expected:

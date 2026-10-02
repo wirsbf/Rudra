@@ -44,10 +44,10 @@ REQUIRED_SECTIONS = [
 ]
 INVALID_EVIDENCE = re.compile(r'(^|\W)(TODO|TBD|N/?A|UNKNOWN)($|\W)|未核对|待核对|占位', re.I)
 GHIDRA_LINE = re.compile(r'^Ghidra:\s+\S+\.(?:cc|hh):\d+\s+\S.*$', re.MULTILINE)
-# AGENTS.md 机制 A 模板是 `Rugra: <file>:<line> <对应函数>`，未限定 src/；
+# AGENTS.md 机制 A 模板是 `Rudra: <file>:<line> <对应函数>`，未限定 src/；
 # 仓库内 Ghidra 语义的 Rust 代码还包括 examples/ 驱动（如 curl_decompile.rs
 # 的 oracle 语义 port），因此接受 src/ 与 examples/ 两种路径形态。
-RUDRA_LINE = re.compile(r'^Rugra:\s+(?:src|examples)/\S+\.rs:\d+\s+\S.*$', re.MULTILINE)
+RUDRA_LINE = re.compile(r'^Rudra:\s+(?:src|examples)/\S+\.rs:\d+\s+\S.*$', re.MULTILINE)
 CHECKLIST_ITEMS = ('引用参数', '遍历顺序', '计数器', '排序键')
 
 
@@ -71,7 +71,7 @@ def validate_evidence_block(block: str) -> tuple[bool, str]:
     if not GHIDRA_LINE.search(block):
         return False, '缺少 `Ghidra: <file>:<line> <完整签名>` 行。'
     if not RUDRA_LINE.search(block):
-        return False, '缺少 `Rugra: src/<file>.rs:<line> <对应函数>` 或 `Rugra: examples/<file>.rs:<line> <对应函数>` 行。'
+        return False, '缺少 `Rudra: src/<file>.rs:<line> <对应函数>` 或 `Rudra: examples/<file>.rs:<line> <对应函数>` 行。'
 
     for label, pattern in REQUIRED_SECTIONS:
         match = pattern.search(block)
@@ -126,10 +126,10 @@ def check_message(msg: str) -> tuple[bool, str]:
 
 
 def self_test() -> int:
-    valid = '''align: port Foo\n\n## Alignment Evidence\nGhidra: foo.cc:10 void Foo::bar(int4 &out)\n  关键决定性语义（四类，逐条核对）:\n  - 引用/输出参数: out 由引用写回并跨调用共享。\n  - 循环边界/遍历顺序: 顺序遍历 vector 的 begin() 到 end()。\n  - 计数器/累加器: count 初值 0，在成功写出后递增。\n  - 排序/比较键: 不排序，保留 vector 插入顺序。\nRugra: src/foo.rs:20 fn bar\n  - 使用 &mut 输出并保持相同更新时机。\n四类决定性语义核对: [x]引用参数 [x]遍历顺序 [x]计数器 [x]排序键\n'''
+    valid = '''align: port Foo\n\n## Alignment Evidence\nGhidra: foo.cc:10 void Foo::bar(int4 &out)\n  关键决定性语义（四类，逐条核对）:\n  - 引用/输出参数: out 由引用写回并跨调用共享。\n  - 循环边界/遍历顺序: 顺序遍历 vector 的 begin() 到 end()。\n  - 计数器/累加器: count 初值 0，在成功写出后递增。\n  - 排序/比较键: 不排序，保留 vector 插入顺序。\nRudra: src/foo.rs:20 fn bar\n  - 使用 &mut 输出并保持相同更新时机。\n四类决定性语义核对: [x]引用参数 [x]遍历顺序 [x]计数器 [x]排序键\n'''
     three_of_four = valid.replace(' [x]排序键', '')
     negative = valid.replace('out 由引用写回并跨调用共享。', '未核对')
-    examples_path = valid.replace('Rugra: src/foo.rs:20 fn bar', 'Rugra: examples/curl_decompile.rs:948 fn check_characters_utf8')
+    examples_path = valid.replace('Rudra: src/foo.rs:20 fn bar', 'Rudra: examples/curl_decompile.rs:948 fn check_characters_utf8')
     cases = [
         ('ordinary commit', True),
         ('align: port Foo', False),

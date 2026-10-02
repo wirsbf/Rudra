@@ -3,7 +3,7 @@
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler library from the pinned
 # ghidra/ checkout, compiles the C++ fixture against it (real oracle),
-# builds the Rugra crate (live working tree) and the Rust fixture, runs
+# builds the Rudra crate (live working tree) and the Rust fixture, runs
 # both, and requires the 59 stdout records to be byte-identical:
 #   schema line + 58 cases locking one observable render for every routed
 #   TypeOp::push entry (typeop.hh:359..912) through the production
@@ -76,10 +76,10 @@ for key, path in (
         )
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-typeop-push-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-typeop-push-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-typeop-push-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-typeop-push-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -97,19 +97,19 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --quiet --manifest-path "$repo_root/Cargo.toml" --lib
 rustc --edition=2021 -O \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
-  --extern "rugra=$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern "rudra=$oracle_tmp/cargo-target/debug/librudra.rlib" \
   "$rust_fixture" -o "$oracle_tmp/typeop_push_rust"
 
 "$oracle_tmp/typeop_push_cpp" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/typeop_push_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 rust_status=$?
 if [[ "$ghidra_status" != 0 || "$rust_status" != 0 ]]; then
-  echo "fixture exit codes: ghidra=$ghidra_status rugra=$rust_status" >&2
+  echo "fixture exit codes: ghidra=$ghidra_status rudra=$rust_status" >&2
   tail -5 "$oracle_tmp/ghidra.stderr" >&2
-  tail -5 "$oracle_tmp/rugra.stderr" >&2
+  tail -5 "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 if [[ -s "$oracle_tmp/ghidra.stderr" ]]; then
@@ -117,13 +117,13 @@ if [[ -s "$oracle_tmp/ghidra.stderr" ]]; then
   cat "$oracle_tmp/ghidra.stderr" >&2
   exit 1
 fi
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "rugra fixture stderr is not empty" >&2
-  cat "$oracle_tmp/rugra.stderr" >&2
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "rudra fixture stderr is not empty" >&2
+  cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 cat "$oracle_tmp/ghidra.stdout"
 
 python3 - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'

@@ -112,7 +112,7 @@ if [[ -n "$(git_clean -C "$ghidra_root" status --porcelain --untracked-files=no 
 fi
 if [[ "$(git_clean -C "$repo_root" rev-parse "$base_commit^{tree}")" != "$base_tree" || \
       "$(git_clean -C "$repo_root" rev-parse "$base_commit:src")" != "$base_src_tree" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -125,7 +125,7 @@ cleanup() {
   fi
 }
 trap cleanup EXIT HUP INT TERM
-/usr/bin/mkdir -p "$run_root/tmp" "$run_root/oracle" "$run_root/rugra" \
+/usr/bin/mkdir -p "$run_root/tmp" "$run_root/oracle" "$run_root/rudra" \
   "$run_root/evidence/src/type_system" "$run_root/evidence/tests/oracle"
 
 # Freeze every mutable input before validating any content.  The validator,
@@ -172,9 +172,9 @@ require("oracle commit", meta["oracle"]["commit"], "e40ed13014025f82488b1f8f7bca
 require("oracle tag", meta["oracle"]["tag"], "Ghidra_12.0.4_build")
 require("oracle cpp tree", meta["oracle"]["decompiler_cpp_tree"], "b02e230a539c65de14e50f357d0ba834d8184f4f")
 require("oracle Makefile blob", meta["oracle"]["decompiler_makefile_blob"], "ca0719fa5f17aabd14c52f40ed8b030f54d2aac6")
-require("Rugra base commit", meta["comparand"]["rust_base_commit"], "7e91aef6aa28cbf0a77b9812858c276cafa7fbd3")
-require("Rugra base tree", meta["comparand"]["rust_base_tree"], "fd155bc4dd996000d3012c2d49f7244c3a6308ec")
-require("Rugra base src tree", meta["comparand"]["rust_base_src_tree"], "c6a2eb0fb690ff9ac693d12d6ea45b606bc713ae")
+require("Rudra base commit", meta["comparand"]["rust_base_commit"], "7e91aef6aa28cbf0a77b9812858c276cafa7fbd3")
+require("Rudra base tree", meta["comparand"]["rust_base_tree"], "fd155bc4dd996000d3012c2d49f7244c3a6308ec")
+require("Rudra base src tree", meta["comparand"]["rust_base_src_tree"], "c6a2eb0fb690ff9ac693d12d6ea45b606bc713ae")
 require("runner hash", sha(runner), meta["comparand"]["runner_sha256"])
 expected_overlays = [
     "src/coreaction.rs",
@@ -207,7 +207,7 @@ expected_order = [
 ]
 require("record count", meta["expected_results"]["record_count"], 24)
 require("record order", meta["expected_results"]["record_order"], expected_order)
-require("raw diff labels", meta["expected_results"]["raw_diff_labels"], ["ghidra.stdout", "rugra.stdout"])
+require("raw diff labels", meta["expected_results"]["raw_diff_labels"], ["ghidra.stdout", "rudra.stdout"])
 require("stdout bytes", meta["expected_results"]["stdout_bytes_each"], 3740)
 require("raw diff bytes", meta["expected_results"]["raw_diff_bytes"], 0)
 require("exit codes", meta["expected_results"]["exit_codes"], {
@@ -373,7 +373,7 @@ if [[ "$mode" == ghidra-only ]]; then
   exit 0
 fi
 
-snapshot="$run_root/rugra"
+snapshot="$run_root/rudra"
 git_clean -C "$repo_root" archive "$base_commit" | /usr/bin/tar -xf - -C "$snapshot"
 for relative in src/coreaction.rs src/space.rs src/type_system/cast.rs src/type_system/typefactory.rs src/typeop.rs src/varnode.rs; do
   /usr/bin/cp -- "$run_root/evidence/$relative" "$snapshot/$relative"
@@ -412,7 +412,7 @@ exec 9>"$cargo_target/.build.lock"
 /usr/bin/env -i PATH=/usr/bin:/bin HOME="$user_home" LC_ALL=C TMPDIR="$run_root/tmp" \
   "$host_rustc" --edition=2021 -C opt-level=0 -C overflow-checks=yes \
   "$snapshot/tests/oracle/ptrsub_output_token_1204.rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L dependency="$cargo_target/debug/deps" -o "$run_root/ptrsub_rust" \
   >"$run_root/rustc.stdout" 2>"$run_root/rustc.stderr"
 "$host_flock" -u 9
@@ -420,17 +420,17 @@ exec 9>"$cargo_target/.build.lock"
 for run in 1 2; do
   /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/timeout 60 \
     "$run_root/ptrsub_rust" \
-    >"$run_root/rugra.$run.stdout" 2>"$run_root/rugra.$run.stderr"
+    >"$run_root/rudra.$run.stdout" 2>"$run_root/rudra.$run.stderr"
 done
-if ! /usr/bin/cmp -s "$run_root/rugra.1.stdout" "$run_root/rugra.2.stdout" || \
-   ! /usr/bin/cmp -s "$run_root/rugra.1.stderr" "$run_root/rugra.2.stderr"; then
-  echo "Rugra fixture output is nondeterministic" >&2
+if ! /usr/bin/cmp -s "$run_root/rudra.1.stdout" "$run_root/rudra.2.stdout" || \
+   ! /usr/bin/cmp -s "$run_root/rudra.1.stderr" "$run_root/rudra.2.stderr"; then
+  echo "Rudra fixture output is nondeterministic" >&2
   exit 1
 fi
 
 set +e
-/usr/bin/diff -u --label ghidra.stdout --label rugra.stdout \
-  "$run_root/ghidra.1.stdout" "$run_root/rugra.1.stdout" >"$run_root/raw.diff"
+/usr/bin/diff -u --label ghidra.stdout --label rudra.stdout \
+  "$run_root/ghidra.1.stdout" "$run_root/rudra.1.stdout" >"$run_root/raw.diff"
 diff_rc=$?
 set -e
 if [[ $diff_rc -ne 0 ]]; then
@@ -441,8 +441,8 @@ fi
 
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C "$host_python" -I -S - \
   "$metadata" "$run_root/ghidra.1.stdout" \
-  "$run_root/ghidra.1.stderr" "$run_root/rugra.1.stdout" \
-  "$run_root/rugra.1.stderr" "$run_root/raw.diff" <<'PY'
+  "$run_root/ghidra.1.stderr" "$run_root/rudra.1.stdout" \
+  "$run_root/rudra.1.stderr" "$run_root/raw.diff" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -456,8 +456,8 @@ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 checks = {
     "ghidra stdout": (sha(gout), exp["ghidra_stdout_sha256"]),
     "ghidra stderr": (sha(gerr), exp["ghidra_stderr_sha256"]),
-    "rugra stdout": (sha(rout), exp["rugra_stdout_sha256"]),
-    "rugra stderr": (sha(rerr), exp["rugra_stderr_sha256"]),
+    "rudra stdout": (sha(rout), exp["rudra_stdout_sha256"]),
+    "rudra stderr": (sha(rerr), exp["rudra_stderr_sha256"]),
     "raw diff": (sha(rawdiff), exp["raw_diff_sha256"]),
 }
 for label, (actual, expected) in checks.items():
@@ -542,7 +542,7 @@ def parse(path, side):
     return records
 
 grecords = parse(gout, "Ghidra")
-rrecords = parse(rout, "Rugra")
+rrecords = parse(rout, "Rudra")
 expected_factory_core = (
     "count:6;order:int8,int4,xunknown8,xunknown4,xunknown2,xunknown1;"
     "sizes:4,8,1,2,8,0;align:0,1,2,2,4,4,4,4,8;types:"
@@ -553,7 +553,7 @@ expected_factory_core = (
     "int4:4:int:0xc000fe2ec290219f:4:4:0x1:cache1,"
     "int8:8:int:0xc000fe2ec2902193:8:8:0x1:cache1"
 )
-for side, records in (("Ghidra", grecords), ("Rugra", rrecords)):
+for side, records in (("Ghidra", grecords), ("Rudra", rrecords)):
     exact0 = dict(records[6][1])
     if exact0.get("factory_core") != expected_factory_core:
         raise SystemExit(f"{side}: factory bootstrap observation drift")
@@ -583,9 +583,9 @@ projection_checks = {
     "scale": (b"".join(glines_raw[1:6]), exp["scale_projection_sha256"]),
     "direct": (b"".join(glines_raw[6:20]), exp["direct_projection_sha256"]),
     "Ghidra action": (b"".join(glines_raw[20:22]), exp["ghidra_action_projection_sha256"]),
-    "Rugra action": (b"".join(rlines_raw[20:22]), exp["rugra_action_projection_sha256"]),
+    "Rudra action": (b"".join(rlines_raw[20:22]), exp["rudra_action_projection_sha256"]),
     "Ghidra infer": (b"".join(glines_raw[22:24]), exp["ghidra_infer_projection_sha256"]),
-    "Rugra infer": (b"".join(rlines_raw[22:24]), exp["rugra_infer_projection_sha256"]),
+    "Rudra infer": (b"".join(rlines_raw[22:24]), exp["rudra_infer_projection_sha256"]),
 }
 for label, (payload, expected) in projection_checks.items():
     if hashlib.sha256(payload).hexdigest() != expected:

@@ -21,7 +21,7 @@ oracle_tag=Ghidra_12.0.4_build
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/stackslot_fold_1204.metadata.json"
 ghidra_excerpt="$repo_root/tests/oracle/stackslot_fold_1204.ghidra.c"
-rugra_excerpt="$repo_root/tests/oracle/stackslot_fold_1204.rudra.c"
+rudra_excerpt="$repo_root/tests/oracle/stackslot_fold_1204.rudra.c"
 golden="$repo_root/tests/golden/ghidra_httpd_1204.c"
 golden_provenance="$repo_root/tests/golden/ghidra_httpd_1204.provenance.json"
 
@@ -31,7 +31,7 @@ if [[ "$actual_commit" != "$oracle_commit" || "$tag_commit" != "$oracle_commit" 
   echo "locked Ghidra oracle mismatch" >&2
   exit 1
 fi
-for path in "$ghidra_excerpt" "$rugra_excerpt" "$golden" "$golden_provenance" \
+for path in "$ghidra_excerpt" "$rudra_excerpt" "$golden" "$golden_provenance" \
   "$repo_root/examples/httpd" "$repo_root/examples/stackfold_dbg.rs"; do
   if [[ ! -f "$path" ]]; then
     echo "missing comparand asset: $path" >&2
@@ -39,7 +39,7 @@ for path in "$ghidra_excerpt" "$rugra_excerpt" "$golden" "$golden_provenance" \
   fi
 done
 
-python3 -I -S - "$metadata" "$ghidra_excerpt" "$rugra_excerpt" "$golden" \
+python3 -I -S - "$metadata" "$ghidra_excerpt" "$rudra_excerpt" "$golden" \
   "$golden_provenance" "$oracle_commit" "$oracle_tag" <<'PY'
 import hashlib
 import json
@@ -49,7 +49,7 @@ import sys
 (
     metadata_name,
     ghidra_excerpt_name,
-    rugra_excerpt_name,
+    rudra_excerpt_name,
     golden_name,
     golden_provenance_name,
     oracle_commit,
@@ -67,7 +67,7 @@ def digest(path: pathlib.Path) -> str:
 
 expected = {
     "ghidra_excerpt_sha256": digest(pathlib.Path(ghidra_excerpt_name)),
-    "rugra_excerpt_sha256": digest(pathlib.Path(rugra_excerpt_name)),
+    "rudra_excerpt_sha256": digest(pathlib.Path(rudra_excerpt_name)),
     "golden_sha256": digest(pathlib.Path(golden_name)),
     "golden_provenance_sha256": digest(pathlib.Path(golden_provenance_name)),
 }
@@ -88,10 +88,10 @@ PY
 # staging.
 stage_root="${RUDRA_FIXTURE_STAGE:-${XDG_CACHE_HOME:-$HOME/.cache}}"
 mkdir -p "$stage_root"
-oracle_tmp=$(mktemp -d "$stage_root/rugra-stackslot-fold-1204.XXXXXX")
+oracle_tmp=$(mktemp -d "$stage_root/rudra-stackslot-fold-1204.XXXXXX")
 cleanup() {
   case "$oracle_tmp" in
-    "$stage_root"/rugra-stackslot-fold-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    "$stage_root"/rudra-stackslot-fold-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }

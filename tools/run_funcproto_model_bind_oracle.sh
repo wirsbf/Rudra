@@ -69,20 +69,20 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=92daed300bcce3c4d855b311cf9667ba21eb475a
-rugra_base_tree=6aea6d3b5b1421170d1bdc5a766c9568483a66af
-rugra_base_src_tree=367bb531746f630fe4de5fddc0365c2c2f27eeda
-rugra_base_sleigh_shim_tree=c7729d9d1554dc62c486bcd7d58fdbf44bebb97d
-rugra_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
-rugra_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
-rugra_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
-rugra_readme_blob=97198a893828d15c44f12e66960652b96c3e1b87
-rugra_bench_blob=774d71f38a85a0ef777aaeb5be658f212bc254d2
-rugra_decompress_example_blob=0f080362908a89815777b64e3ce83c90e19e074c
-rugra_funcproto_lock_example_blob=2676a485769ad4d0f376012a185be80dc2dfd1bf
+rudra_base_commit=92daed300bcce3c4d855b311cf9667ba21eb475a
+rudra_base_tree=6aea6d3b5b1421170d1bdc5a766c9568483a66af
+rudra_base_src_tree=367bb531746f630fe4de5fddc0365c2c2f27eeda
+rudra_base_sleigh_shim_tree=c7729d9d1554dc62c486bcd7d58fdbf44bebb97d
+rudra_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
+rudra_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
+rudra_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_readme_blob=97198a893828d15c44f12e66960652b96c3e1b87
+rudra_bench_blob=774d71f38a85a0ef777aaeb5be658f212bc254d2
+rudra_decompress_example_blob=0f080362908a89815777b64e3ce83c90e19e074c
+rudra_funcproto_lock_example_blob=2676a485769ad4d0f376012a185be80dc2dfd1bf
 ghidra_root="$repo_root/ghidra"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 bfd_runtime=$(/usr/bin/dirname "$bfd_library")
 bfd_header_sha256=c8c9c20823ebd8d427d9f91dd642b82b263fca2245a8ef4eb34f0de0cde25702
 bfd_library_sha256=f9ca64d035c483bbfac32ca550074c20398ae2f0bb84dd989059dadb9cea8a1e
@@ -132,43 +132,43 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
 fi
 
 actual_base_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
 actual_base_src_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:src")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:src")
 actual_base_sleigh_shim_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:sleigh_shim")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:sleigh_shim")
 actual_cargo_toml_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:Cargo.toml")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:Cargo.toml")
 actual_cargo_lock_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:Cargo.lock")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:Cargo.lock")
 actual_build_rs_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:build.rs")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:build.rs")
 actual_readme_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:README.md")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:README.md")
 actual_bench_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:benches/decompile_bench.rs")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:benches/decompile_bench.rs")
 actual_decompress_example_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:tests/oracle/decompress_1204.rs")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:tests/oracle/decompress_1204.rs")
 actual_funcproto_lock_example_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit:tests/oracle/funcproto_lock_1204.rs")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || \
-      "$actual_base_tree" != "$rugra_base_tree" || \
-      "$actual_base_src_tree" != "$rugra_base_src_tree" || \
-      "$actual_base_sleigh_shim_tree" != "$rugra_base_sleigh_shim_tree" || \
-      "$actual_cargo_toml_blob" != "$rugra_cargo_toml_blob" || \
-      "$actual_cargo_lock_blob" != "$rugra_cargo_lock_blob" || \
-      "$actual_build_rs_blob" != "$rugra_build_rs_blob" || \
-      "$actual_readme_blob" != "$rugra_readme_blob" || \
-      "$actual_bench_blob" != "$rugra_bench_blob" || \
-      "$actual_decompress_example_blob" != "$rugra_decompress_example_blob" || \
-      "$actual_funcproto_lock_example_blob" != "$rugra_funcproto_lock_example_blob" ]]; then
-  echo "locked Rugra base tree mismatch" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit:tests/oracle/funcproto_lock_1204.rs")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || \
+      "$actual_base_tree" != "$rudra_base_tree" || \
+      "$actual_base_src_tree" != "$rudra_base_src_tree" || \
+      "$actual_base_sleigh_shim_tree" != "$rudra_base_sleigh_shim_tree" || \
+      "$actual_cargo_toml_blob" != "$rudra_cargo_toml_blob" || \
+      "$actual_cargo_lock_blob" != "$rudra_cargo_lock_blob" || \
+      "$actual_build_rs_blob" != "$rudra_build_rs_blob" || \
+      "$actual_readme_blob" != "$rudra_readme_blob" || \
+      "$actual_bench_blob" != "$rudra_bench_blob" || \
+      "$actual_decompress_example_blob" != "$rudra_decompress_example_blob" || \
+      "$actual_funcproto_lock_example_blob" != "$rudra_funcproto_lock_example_blob" ]]; then
+  echo "locked Rudra base tree mismatch" >&2
   exit 1
 fi
 
-oracle_tmp_parent="$user_home/.cache/rugra-funcproto-model-bind-1204"
+oracle_tmp_parent="$user_home/.cache/rudra-funcproto-model-bind-1204"
 /usr/bin/mkdir -p "$oracle_tmp_parent"
 oracle_tmp=$(/usr/bin/mktemp -d "$oracle_tmp_parent/run.XXXXXX")
 cleanup() {
@@ -210,7 +210,7 @@ base_archive_paths=(
   sleigh_shim
 )
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" archive "$rugra_base_commit" \
+  "$host_git_bin" -C "$repo_root" archive "$rudra_base_commit" \
   "${base_archive_paths[@]}" | \
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar -xf - -C "$snapshot_root"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
@@ -223,12 +223,12 @@ oracle_cpp="$oracle_source/Ghidra/Features/Decompiler/src/decompile/cpp"
 for path in sleigh_specs/x86.ldefs sleigh_specs/x86-64.pspec \
   sleigh_specs/x86-64-gcc.cspec sleigh_specs/x86-64.sla; do
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-    "$host_git_bin" -C "$repo_root" show "$rugra_base_commit:$path" \
+    "$host_git_bin" -C "$repo_root" show "$rudra_base_commit:$path" \
     > "$spec_root/${path##*/}"
 done
 binary="$oracle_tmp/curl"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" show "$rugra_base_commit:examples/curl" > "$binary"
+  "$host_git_bin" -C "$repo_root" show "$rudra_base_commit:examples/curl" > "$binary"
 /usr/bin/chmod 0700 "$binary"
 
 # The complete D0 callspec source closure.  Keeping this list exact prevents a
@@ -262,11 +262,11 @@ mkdir -p "$snapshot_root/ghidra/Ghidra/Features/Decompiler/src/decompile"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$snapshot_root" "$cargo_home" "$registry_cache" \
   "$runner_sha" "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
-  "$rugra_base_src_tree" "$rugra_base_sleigh_shim_tree" \
-  "$rugra_cargo_toml_blob" "$rugra_cargo_lock_blob" "$rugra_build_rs_blob" \
-  "$rugra_readme_blob" "$rugra_bench_blob" "$rugra_decompress_example_blob" \
-  "$rugra_funcproto_lock_example_blob" \
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
+  "$rudra_base_src_tree" "$rudra_base_sleigh_shim_tree" \
+  "$rudra_cargo_toml_blob" "$rudra_cargo_lock_blob" "$rudra_build_rs_blob" \
+  "$rudra_readme_blob" "$rudra_bench_blob" "$rudra_decompress_example_blob" \
+  "$rudra_funcproto_lock_example_blob" \
   "$host_git_bin" "$host_python_bin" "$host_cxx_bin" "$host_rustc_bin" "$host_cargo_bin" \
   "$host_cc_bin" "$host_ar_bin" "$host_make_bin" \
   "$user_home" "$validate_only" "$bfd_include/bfd.h" "$bfd_library" \
@@ -640,17 +640,17 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a regular librugra.rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a regular librudra.rlib" >&2
   exit 1
 fi
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
 if [[ "${#native_archives[@]}" -ne 1 ]]; then
-  echo "expected one Cargo-built librugra_sleigh.a, found ${#native_archives[@]}" >&2
+  echo "expected one Cargo-built librudra_sleigh.a, found ${#native_archives[@]}" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -677,8 +677,8 @@ if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   TMPDIR="$build_tmp" \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/funcproto_model_bind_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -701,25 +701,25 @@ if [[ -s "$oracle_tmp/ghidra.stderr" ]]; then
   exit 1
 fi
 
-rugra_status=0
+rudra_status=0
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/funcproto_model_bind_1204_rust" \
   "$spec_root/x86-64-gcc.cspec" "$spec_root/x86-64.sla" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr" || rugra_status=$?
-if [[ "$rugra_status" -ne 0 ]]; then
-  echo "Rugra funcproto-model-bind fixture failed with exit code $rugra_status" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
-  exit "$rugra_status"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr" || rudra_status=$?
+if [[ "$rudra_status" -ne 0 ]]; then
+  echo "Rudra funcproto-model-bind fixture failed with exit code $rudra_status" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
+  exit "$rudra_status"
 fi
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra funcproto-model-bind fixture produced unexpected stderr" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra funcproto-model-bind fixture produced unexpected stderr" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
 diff_status=0
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
   >"$oracle_tmp/runtime.diff" 2>"$oracle_tmp/diff.stderr" || diff_status=$?
 if [[ "$diff_status" -ne 0 ]]; then
   echo "funcproto-model-bind byte comparison failed with exit code $diff_status" >&2
@@ -735,15 +735,15 @@ fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$snapshot_root/tests/oracle/funcproto_model_bind_1204.metadata.json" \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
 import sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
-if ghidra != rugra:
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
+if ghidra != rudra:
     raise SystemExit("byte comparison unexpectedly diverged after diff succeeded")
 if not ghidra.endswith(b"\n"):
     raise SystemExit("fixture output lacks final newline")

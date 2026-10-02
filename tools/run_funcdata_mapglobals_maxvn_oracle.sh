@@ -10,7 +10,7 @@ set -euo pipefail
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler from the pinned source
 # archive (no instrumentation: the fixture uses test-only access defines,
-# cf. varnode_copy_symbol_1204), builds the Rugra crate from the working
+# cf. varnode_copy_symbol_1204), builds the Rudra crate from the working
 # tree, compiles both fixtures, runs them, and requires byte-identical
 # stdout. The 6 records cover:
 #   - a_maxvn_type: discovery-arm addSymbol takes the MAX varnode's
@@ -46,10 +46,10 @@ cargo_target=/home/wirs/.cache/mapglobals-target
 cargo_tmp=/home/wirs/.cache/mapglobals-fixture-tmp
 mkdir -p "$cargo_target" "$cargo_tmp"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-mapglobals-maxvn-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-mapglobals-maxvn-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-mapglobals-maxvn-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-mapglobals-maxvn-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -119,7 +119,7 @@ env -i PATH=/usr/bin:/bin LC_ALL=C TMPDIR="$cargo_tmp" \
   -o "$oracle_tmp/funcdata_mapglobals_maxvn_1204_cpp"
 
 env -i PATH=/usr/bin:/bin HOME="$HOME" LC_ALL=C \
-  flock -x /tmp/rugra-cargo-build.lock \
+  flock -x /tmp/rudra-cargo-build.lock \
   env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$cargo_target" \
   TMPDIR="$cargo_tmp" \
   timeout 600 cargo build --offline --locked --quiet \
@@ -127,7 +127,7 @@ env -i PATH=/usr/bin:/bin HOME="$HOME" LC_ALL=C \
 env -i PATH=/usr/bin:/bin TMPDIR="$cargo_tmp" \
   rustc --edition=2021 -C opt-level=0 \
   "$snapshot_root/tests/oracle/funcdata_mapglobals_maxvn_1204.rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L dependency="$cargo_target/debug/deps" \
   -o "$oracle_tmp/funcdata_mapglobals_maxvn_1204_rust"
 
@@ -138,28 +138,28 @@ env -i PATH=/usr/bin:/bin LC_ALL=C \
 ghidra_status=$?
 env -i PATH=/usr/bin:/bin LC_ALL=C \
   "$oracle_tmp/funcdata_mapglobals_maxvn_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff"
 diff_status=$?
 set -e
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/rugra.stderr" \
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/rudra.stderr" \
   "$oracle_tmp/ghidra.stderr" \
-  "$ghidra_status" "$rugra_status" "$diff_status" <<'PY'
+  "$ghidra_status" "$rudra_status" "$diff_status" <<'PY'
 import json, pathlib, sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-rugra = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
+rudra = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
 stderr = pathlib.Path(sys.argv[4]).read_text(encoding="utf-8")
 ghidra_stderr = pathlib.Path(sys.argv[5]).read_text(encoding="utf-8")
-ghidra_status, rugra_status, diff_status = (int(v) for v in sys.argv[6:9])
+ghidra_status, rudra_status, diff_status = (int(v) for v in sys.argv[6:9])
 if ghidra_status != 0:
     raise SystemExit(f"locked Ghidra fixture exited {ghidra_status}: {ghidra_stderr[:400]}")
-if rugra_status != 0:
-    raise SystemExit(f"Rugra fixture exited {rugra_status} (stderr: {stderr[:400]})")
+if rudra_status != 0:
+    raise SystemExit(f"Rudra fixture exited {rudra_status} (stderr: {stderr[:400]})")
 if diff_status != 0:
     raise SystemExit("bilateral stdout mismatch")
 records = ghidra.splitlines()

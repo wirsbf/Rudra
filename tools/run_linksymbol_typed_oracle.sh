@@ -2,7 +2,7 @@
 # Immutable FUNCDATA-LINKSYMBOL-TYPED-0001 oracle runner (cover_rebuild mode).
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler from the pinned source
-# archive, rebuilds the Rugra crate from the pinned base commit plus the
+# archive, rebuilds the Rudra crate from the pinned base commit plus the
 # funcdata.rs/coreaction.rs/varmap.rs/merge.rs overlays, compiles both
 # fixtures, runs them, and classifies every output record.  Every record
 # must be byte-identical: the two cases cover the typed register-temporary
@@ -17,8 +17,8 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/linksymbol_typed_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/linksymbol_typed_1204.cc"
@@ -31,14 +31,14 @@ doc_funcdata="$repo_root/docs/api/funcdata.md"
 doc_coreaction="$repo_root/docs/api/coreaction.md"
 doc_varmap="$repo_root/docs/api/varmap.md"
 doc_merge="$repo_root/docs/api/merge.md"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
-oracle_tmp=$(mktemp -d /tmp/rugra-linksymbol-typed-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-linksymbol-typed-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-linksymbol-typed-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-linksymbol-typed-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -76,11 +76,11 @@ if ! git -C "$ghidra_root" diff --quiet -- \
   exit 1
 fi
 
-resolved_base_commit=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
-resolved_base_tree=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$resolved_base_commit" != "$rugra_base_commit" || \
-      "$resolved_base_tree" != "$rugra_base_tree" ]]; then
-  echo "pinned Rugra base commit/tree mismatch" >&2
+resolved_base_commit=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
+resolved_base_tree=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$resolved_base_commit" != "$rudra_base_commit" || \
+      "$resolved_base_tree" != "$rudra_base_tree" ]]; then
+  echo "pinned Rudra base commit/tree mismatch" >&2
   exit 1
 fi
 
@@ -89,7 +89,7 @@ runner_sha=$(sha256sum "${BASH_SOURCE[0]}" | awk '{print $1}')
 python3 -I -S - "$repo_root" "$oracle_tmp" "$metadata" "$cpp_fixture" \
   "$rust_fixture" "$funcdata_rs" "$coreaction_rs" "$varmap_rs" "$merge_rs" \
   "$doc_funcdata" "$doc_coreaction" "$doc_varmap" "$doc_merge" \
-  "$runner_sha" "$rugra_base_commit" \
+  "$runner_sha" "$rudra_base_commit" \
   "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" "$oracle_language_tree" \
   "$oracle_makefile_blob" "$bfd_header" "$bfd_library" <<'PY'
 import hashlib
@@ -113,7 +113,7 @@ import sys
     doc_varmap_raw,
     doc_merge_raw,
     runner_sha,
-    rugra_base_commit,
+    rudra_base_commit,
     oracle_commit,
     oracle_tag,
     cpp_tree,
@@ -142,13 +142,13 @@ def git_blob(spec):
 def base_source_files(directory):
     listing = subprocess.check_output(
         ["git", "-C", str(repo_root), "ls-tree", "-r", "--name-only",
-         rugra_base_commit, "--", directory],
+         rudra_base_commit, "--", directory],
         text=True,
     ).splitlines()
     return [pathlib.Path(line) for line in listing if line]
 
 def base_file(relative):
-    return git_blob(f"{rugra_base_commit}:{relative.as_posix()}")
+    return git_blob(f"{rudra_base_commit}:{relative.as_posix()}")
 
 def live_file(relative):
     source = repo_root / relative
@@ -173,8 +173,8 @@ crate_files = [
 ] + base_source_files("src") + base_source_files("sleigh_shim")
 crate_files = sorted(set(crate_files), key=lambda item: item.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-linksymbol-typed-base-overlay-v1\0")
-crate_hasher.update(rugra_base_commit.encode())
+crate_hasher.update(b"rudra-linksymbol-typed-base-overlay-v1\0")
+crate_hasher.update(rudra_base_commit.encode())
 for relative in crate_files:
     data = live_file(relative) if relative in overlay_files else base_file(relative)
     destination = snapshot / relative
@@ -212,7 +212,7 @@ require("oracle tag", oracle["tag"], oracle_tag)
 require("oracle cpp tree", oracle["decompiler_cpp_tree"], cpp_tree)
 require("oracle language tree", oracle["x86_language_tree"], language_tree)
 require("oracle Makefile blob", oracle["decompiler_makefile_blob"], makefile_blob)
-require("base commit", metadata["rugra_base_commit"], rugra_base_commit)
+require("base commit", metadata["rugra_base_commit"], rudra_base_commit)
 
 comparand = metadata["comparand"]
 observed = {
@@ -228,7 +228,7 @@ observed = {
 require(
     "crate hash scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-linksymbol-typed-base-overlay-v1 plus base commit and sorted length-prefixed paths and contents",
+    "sha256 of rudra-linksymbol-typed-base-overlay-v1 plus base commit and sorted length-prefixed paths and contents",
 )
 for key, actual in observed.items():
     require(key, actual, comparand[key])
@@ -247,7 +247,7 @@ canonical = json.dumps(
 ).encode("utf-8")
 require("input manifest sha256", sha256(canonical), manifest["sha256"])
 
-binary_spec = f"{rugra_base_commit}:examples/curl"
+binary_spec = f"{rudra_base_commit}:examples/curl"
 binary = git_blob(binary_spec)
 for key, relative in (
     ("sla", "sleigh_specs/x86-64.sla"),
@@ -255,7 +255,7 @@ for key, relative in (
     ("compiler_spec", "sleigh_specs/x86-64-gcc.cspec"),
     ("language_definitions", "sleigh_specs/x86.ldefs"),
 ):
-    data = git_blob(f"{rugra_base_commit}:{relative}")
+    data = git_blob(f"{rudra_base_commit}:{relative}")
     destination = snapshot / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
@@ -300,7 +300,7 @@ g++ -std=c++11 -O2 -Wall -Wno-sign-compare \
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --offline --locked --quiet --manifest-path "$oracle_tmp/workspace/Cargo.toml" --lib
 rustc --edition=2021 "$oracle_tmp/workspace/tests/oracle/linksymbol_typed_1204.rs" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/linksymbol_typed_1204_rust"
 
@@ -311,12 +311,12 @@ cd "$oracle_tmp/workspace"
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/linksymbol_typed_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
 cd - >/dev/null
 set -e
 
-python3 -I -S - "$oracle_tmp" "$metadata" "$ghidra_status" "$rugra_status" <<'PY'
+python3 -I -S - "$oracle_tmp" "$metadata" "$ghidra_status" "$rudra_status" <<'PY'
 import json
 import pathlib
 import sys
@@ -324,10 +324,10 @@ import sys
 oracle_tmp = pathlib.Path(sys.argv[1])
 metadata = json.loads(pathlib.Path(sys.argv[2]).read_bytes())
 ghidra_status = int(sys.argv[3])
-rugra_status = int(sys.argv[4])
+rudra_status = int(sys.argv[4])
 
 ghidra_lines = (oracle_tmp / "ghidra.stdout").read_text().splitlines()
-rugra_lines = (oracle_tmp / "rugra.stdout").read_text().splitlines()
+rudra_lines = (oracle_tmp / "rudra.stdout").read_text().splitlines()
 
 def record(line):
     fields = {}
@@ -337,9 +337,9 @@ def record(line):
             fields[key] = value
     return fields
 
-if len(ghidra_lines) != len(rugra_lines):
+if len(ghidra_lines) != len(rudra_lines):
     raise SystemExit(
-        f"record count differs: ghidra={len(ghidra_lines)} rugra={len(rugra_lines)}"
+        f"record count differs: ghidra={len(ghidra_lines)} rudra={len(rudra_lines)}"
     )
 
 expected_records = []
@@ -348,7 +348,7 @@ for case in metadata["input_manifest"]["cases"]:
     expected_records.append((case["id"], "after"))
 
 verdicts = []
-for index, (ghidra_line, rust_line) in enumerate(zip(ghidra_lines, rugra_lines)):
+for index, (ghidra_line, rust_line) in enumerate(zip(ghidra_lines, rudra_lines)):
     ghidra_record = record(ghidra_line)
     rust_record = record(rust_line)
     expected_case, expected_stage = expected_records[index]
@@ -363,17 +363,17 @@ for index, (ghidra_line, rust_line) in enumerate(zip(ghidra_lines, rugra_lines))
         continue
     raise SystemExit(
         f"unexpected record difference at {expected_case}/{expected_stage}:\n"
-        f"ghidra: {ghidra_line[:400]}\nrugra:  {rust_line[:400]}"
+        f"ghidra: {ghidra_line[:400]}\nrudra:  {rust_line[:400]}"
     )
 
 ghidra_stderr = (oracle_tmp / "ghidra.stderr").read_text()
-rugra_stderr = (oracle_tmp / "rugra.stderr").read_text()
+rudra_stderr = (oracle_tmp / "rudra.stderr").read_text()
 if ghidra_status != 0:
     raise SystemExit(f"ghidra fixture exited {ghidra_status}")
-if rugra_status != 0:
-    raise SystemExit(f"rugra fixture exited {rugra_status}")
-if rugra_stderr.strip():
-    raise SystemExit("rugra fixture stderr is not empty")
+if rudra_status != 0:
+    raise SystemExit(f"rudra fixture exited {rudra_status}")
+if rudra_stderr.strip():
+    raise SystemExit("rudra fixture stderr is not empty")
 
 print("record verdicts:")
 for case_id, stage, verdict, note in verdicts:

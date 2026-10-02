@@ -1,4 +1,4 @@
-// RUGRA-GLUE: no oracle counterpart. Ghidra has no "projection file" writer;
+// RUDRA-GLUE: no oracle counterpart. Ghidra has no "projection file" writer;
 // everything here is a fixture-harness skeleton that WRAPS the locked oracle
 // (Ghidra 12.0.4, commit e40ed13014025f82488b1f8f7bca566894ac376b) purely to
 // OBSERVE it, and to emit the line format consumed by tools/stage_bisect.py.
@@ -17,7 +17,7 @@
 // decompilation run: every PcodeOp that an Action/Rule application modified,
 // as a before/after printDebug pair, plus stage boundary markers with counter
 // state. tools/stage_bisect.py compares a Ghidra-side projection against a
-// Rugra-side projection and reports the FIRST divergence boundary addressed
+// Rudra-side projection and reports the FIRST divergence boundary addressed
 // by stage path + restart round + repeatapply pass + counters
 // (PIPELINE_STAGES_1204.md section 4 requires exactly this tuple).
 //
@@ -144,10 +144,10 @@
 //   recording `-DOPACTION_DEBUG` as a build flag — a fixture built with a
 //   debug switch MUST record it or it is NO_ORACLE for gate purposes.)
 //
-// [6] Rugra-side emitter contract
+// [6] Rudra-side emitter contract
 //
-//   The Rugra side emits the SAME format from a driver-layer wrapper around
-//   its own action tree (RUGRA-GLUE: pure observation, outside the aligned
+//   The Rudra side emits the SAME format from a driver-layer wrapper around
+//   its own action tree (RUDRA-GLUE: pure observation, outside the aligned
 //   perform() semantics; PIPELINE_STAGES_1204.md section 5 rules apply).
 //   Requirements for byte-comparable projections:
 //     - same traversal order as the oracle tree (universal head 8 -> fullloop
@@ -161,9 +161,9 @@
 //
 //     # 1. collect both sides (same function input, same arch/options):
 //     /tmp/stage_projection_ghidra <fixture binary> > /tmp/ghidra.proj
-//     rugra driver wrapper <same fixture>             > /tmp/rugra.proj
+//     rudra driver wrapper <same fixture>             > /tmp/rudra.proj
 //     # 2. locate the first divergence boundary:
-//     python3 tools/stage_bisect.py /tmp/ghidra.proj /tmp/rugra.proj
+//     python3 tools/stage_bisect.py /tmp/ghidra.proj /tmp/rudra.proj
 //     #    -> kind, stage path, restart round, per-group passes, counters,
 //     #       before/after pair, last good boundary
 //     # 3. BEFORE_DIVERGENCE: rerun with a wider trace range or bisect back

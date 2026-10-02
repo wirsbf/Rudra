@@ -6,7 +6,7 @@
 # (mapped|addrtied|persist). Builds the locked Ghidra 12.0.4 oracle
 # libdecomp from the repo's ghidra checkout (must sit at e40ed130), runs
 # the C++ fixture against the pinned curl blob, runs the Rust fixture
-# against this tree's librugra, and diffs the two byte for byte.
+# against this tree's librudra, and diffs the two byte for byte.
 #
 # The formal immutable-runner pin ceremony (base commit/tree, per-file
 # sha256 comparands, fixture_registry.json row) is performed by root at
@@ -18,9 +18,9 @@ set -euo pipefail
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
-work="${1:-$(mktemp -d /tmp/rugra-cspec-global-db.XXXXXX)}"
+work="${1:-$(mktemp -d /tmp/rudra-cspec-global-db.XXXXXX)}"
 
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 [[ -f "$bfd_include/bfd.h" && -f "$bfd_library" ]] || {
   echo "BFD headers/library missing (oracle env rebuilt needed): $bfd_include" >&2
@@ -52,23 +52,23 @@ done
 "$work/global_db_cpp" "$work/specs" "$repo_root/examples/curl" \
   >"$work/ghidra.stdout" 2>"$work/ghidra.stderr"
 
-# ---- Rust side: this tree's librugra + the fixture.
+# ---- Rust side: this tree's librudra + the fixture.
 # SLEIGH-RUSTIFY-PHASE2 (applied at MERGEBATCH17): the C++ shim
-# (librugra_sleigh.a) is retired — librugra embeds the vendored kuna-sleigh
+# (librudra_sleigh.a) is retired — librudra embeds the vendored kuna-sleigh
 # engine, so the fixture links pure-Rust (same form as the no-shim runner
 # family, e.g. run_rule_subcommute_sdiv_oracle.sh).
 cargo_target="${CARGO_TARGET_DIR:-$repo_root/target}"
 cargo build --profile fast-release --lib >/dev/null
-rlib=$(ls -t "$cargo_target"/fast-release/deps/librugra-*.rlib | head -1)
+rlib=$(ls -t "$cargo_target"/fast-release/deps/librudra-*.rlib | head -1)
 rustc --edition=2021 -O \
   -L "dependency=$cargo_target/fast-release/deps" \
-  --extern "rugra=$rlib" \
+  --extern "rudra=$rlib" \
   "$repo_root/tests/oracle/cspec_global_db_1204.rs" -o "$work/global_db_rust"
 "$work/global_db_rust" "$repo_root/sleigh_specs/x86-64-gcc.cspec" \
   "$repo_root/sleigh_specs/x86-64.sla" \
-  >"$work/rugra.stdout" 2>"$work/rugra.stderr"
+  >"$work/rudra.stdout" 2>"$work/rudra.stderr"
 
-if diff -u "$work/ghidra.stdout" "$work/rugra.stdout"; then
+if diff -u "$work/ghidra.stdout" "$work/rudra.stdout"; then
   echo "CSPEC-GLOBAL-DB-0001: MATCH (bilateral byte-identical)"
 else
   echo "CSPEC-GLOBAL-DB-0001: MISMATCH" >&2

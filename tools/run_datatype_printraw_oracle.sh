@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Immutable runner for DATATYPE-PRINTRAW-0001 (lane DATATYPEPR).  The
-# Ghidra oracle, Rugra base commit, leased type_system/datatype.rs, both
+# Ghidra oracle, Rudra base commit, leased type_system/datatype.rs, both
 # fixture sources, spec assets, the pinned curl blob, and the BFD closure
 # are all identity-checked before either comparand executes; the
 # bilateral stdout must be byte-identical and match the registered hash.
@@ -18,7 +18,7 @@ rust_fixture="$repo_root/tests/oracle/datatype_printraw_1204.rs"
 runner="$repo_root/tools/run_datatype_printraw_oracle.sh"
 datatype_rs="$repo_root/src/type_system/datatype.rs"
 datatype_doc="$repo_root/docs/api/type_system/datatype.md"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 for required in "$metadata" "$cpp_fixture" "$rust_fixture" "$runner" \
@@ -120,7 +120,7 @@ actual_base_tree = subprocess.check_output(
     ["git", "-C", repo_raw, "rev-parse", f"{base_commit}^{{tree}}"], text=True
 ).strip()
 if actual_base_commit != base_commit or actual_base_tree != base_tree:
-    raise SystemExit("pinned Rugra base commit/tree mismatch")
+    raise SystemExit("pinned Rudra base commit/tree mismatch")
 
 assets = metadata["assets"]
 for key, relative in (
@@ -147,18 +147,18 @@ if bfd["library_sha256"] != sha256(bfd["library_path"]):
     raise SystemExit("BFD library hash mismatch")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-datatype-printraw-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-datatype-printraw-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-datatype-printraw-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-datatype-printraw-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2; return 1 ;;
   esac
 }
 trap cleanup EXIT HUP INT TERM
 
 ghidra_snapshot="$oracle_tmp/ghidra"
-rugra_snapshot="$oracle_tmp/rugra"
-mkdir -p "$ghidra_snapshot" "$rugra_snapshot"
+rudra_snapshot="$oracle_tmp/rudra"
+mkdir -p "$ghidra_snapshot" "$rudra_snapshot"
 git -C "$ghidra_root" archive "$oracle_commit" "$oracle_cpp_path" | \
   tar -x -C "$ghidra_snapshot"
 cpp_snapshot="$ghidra_snapshot/$oracle_cpp_path"
@@ -197,33 +197,33 @@ fi
 # the fixture as a crate bin, so the proof compiles the production module
 # in its real dependency closure while excluding unrelated live edits.
 git -C "$repo_root" archive "$(python3 -I -S -c \
-  "import json,sys;print(json.load(open('$metadata'))['comparand']['rugra_base_commit'])")" \
-  | tar -x -C "$rugra_snapshot"
-cp "$datatype_rs" "$rugra_snapshot/src/type_system/datatype.rs"
-mkdir -p "$rugra_snapshot/src/bin"
-cp "$rust_fixture" "$rugra_snapshot/src/bin/datatype_printraw_1204.rs"
-mkdir -p "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
+  "import json,sys;print(json.load(open('$metadata'))['comparand']['rudra_base_commit'])")" \
+  | tar -x -C "$rudra_snapshot"
+cp "$datatype_rs" "$rudra_snapshot/src/type_system/datatype.rs"
+mkdir -p "$rudra_snapshot/src/bin"
+cp "$rust_fixture" "$rudra_snapshot/src/bin/datatype_printraw_1204.rs"
+mkdir -p "$rudra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
 cp -a "$cpp_snapshot" \
-  "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
+  "$rudra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --offline --locked --quiet \
-  --manifest-path "$rugra_snapshot/Cargo.toml" \
+  --manifest-path "$rudra_snapshot/Cargo.toml" \
   --bin datatype_printraw_1204
-rugra_status=0
+rudra_status=0
 "$oracle_tmp/cargo-target/debug/datatype_printraw_1204" \
-  > "$oracle_tmp/rugra.stdout" 2> "$oracle_tmp/rugra.stderr" \
-  || rugra_status=$?
-if [[ "$rugra_status" -ne 0 ]]; then
-  echo "rugra comparand exited $rugra_status" >&2
-  cat "$oracle_tmp/rugra.stderr" >&2
+  > "$oracle_tmp/rudra.stdout" 2> "$oracle_tmp/rudra.stderr" \
+  || rudra_status=$?
+if [[ "$rudra_status" -ne 0 ]]; then
+  echo "rudra comparand exited $rudra_status" >&2
+  cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
-diff -u --label ghidra-12.0.4 --label rugra-pinned \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u --label ghidra-12.0.4 --label rudra-pinned \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
-python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -240,4 +240,4 @@ for label, path in (
 PY
 
 cat "$oracle_tmp/ghidra.stdout"
-printf 'datatype_printraw_1204: covered_oracle=MATCH rugra=MATCH overall=MATCH\n'
+printf 'datatype_printraw_1204: covered_oracle=MATCH rudra=MATCH overall=MATCH\n'

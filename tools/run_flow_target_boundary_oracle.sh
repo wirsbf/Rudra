@@ -10,7 +10,7 @@ spec_root="$repo_root/sleigh_specs"
 cpp_fixture="$repo_root/tests/oracle/flow_target_boundary_1204.cc"
 rust_fixture="$repo_root/tests/oracle/flow_target_boundary_1204.rs"
 metadata="$repo_root/tests/oracle/flow_target_boundary_1204.metadata.json"
-rugra_fixture_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_fixture_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
 curl_blob_oid=4e26a362f92ac1961bab63000215a84b4d7212dd
 curl_blob_type=blob
 curl_blob_size=162544
@@ -35,8 +35,8 @@ bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
-if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
-  bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+if [[ -z "$bfd_include" && -f /tmp/rudra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
+  bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 fi
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" ]]; then
   echo "binutils 2.38 bfd.h not found; set RUDRA_BFD_INCLUDE" >&2
@@ -49,7 +49,7 @@ if [[ ! -f "$bfd_library" ]]; then
 fi
 
 python3 -I -S - "$metadata" "$cpp_fixture" "$rust_fixture" "$repo_root" \
-  "$rugra_fixture_commit" "$curl_blob_oid" "$curl_blob_type" \
+  "$rudra_fixture_commit" "$curl_blob_oid" "$curl_blob_type" \
   "$curl_blob_size" "$curl_binary_sha256" "$cpp_root" \
   "$repo_root/src/flow.rs" "$oracle_commit" "$oracle_tag" <<'PY'
 import hashlib
@@ -63,13 +63,13 @@ import sys
     cpp_fixture_name,
     rust_fixture_name,
     repo_root_name,
-    rugra_fixture_commit,
+    rudra_fixture_commit,
     curl_blob_oid,
     curl_blob_type,
     curl_blob_size,
     curl_binary_sha256,
     cpp_root_name,
-    rugra_flow_name,
+    rudra_flow_name,
     oracle_commit,
     oracle_tag,
 ) = sys.argv[1:]
@@ -96,7 +96,7 @@ if metadata["input_fingerprint"] != "sha256:" + hashlib.sha256(input_bytes).hexd
 comparands = {
     "cpp_fixture": cpp_fixture_name,
     "rust_fixture": rust_fixture_name,
-    "rugra_flow": rugra_flow_name,
+    "rugra_flow": rudra_flow_name,
     "ghidra_flow_cc": pathlib.Path(cpp_root_name) / "flow.cc",
     "ghidra_flow_hh": pathlib.Path(cpp_root_name) / "flow.hh",
     "ghidra_block_cc": pathlib.Path(cpp_root_name) / "block.cc",
@@ -110,7 +110,7 @@ for key, path in comparands.items():
 
 getstr_input = next(case for case in metadata["input"]["cases"] if case["name"] == "GetStr")
 expected_provenance = {
-    "repository_commit": rugra_fixture_commit,
+    "repository_commit": rudra_fixture_commit,
     "git_blob_oid": curl_blob_oid,
     "git_object_type": curl_blob_type,
     "git_object_size": curl_blob_size,
@@ -121,7 +121,7 @@ for key, expected in expected_provenance.items():
         raise SystemExit(f"curl provenance metadata mismatch for {key}")
 
 resolved_oid = subprocess.check_output(
-    ["git", "-C", repo_root_name, "rev-parse", f"{rugra_fixture_commit}:examples/curl"],
+    ["git", "-C", repo_root_name, "rev-parse", f"{rudra_fixture_commit}:examples/curl"],
     text=True,
 ).strip()
 if resolved_oid != curl_blob_oid:
@@ -151,10 +151,10 @@ if metadata["host_rustc"] != rustc:
     raise SystemExit(f"host rustc mismatch: {rustc}")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-flow-target-boundary-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-flow-target-boundary-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-flow-target-boundary-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-flow-target-boundary-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -199,15 +199,15 @@ fi
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/flow_target_boundary_rugra"
-"$oracle_tmp/flow_target_boundary_rugra" \
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/flow_target_boundary_rudra"
+"$oracle_tmp/flow_target_boundary_rudra" \
   "$oracle_tmp/fixture.text" "$fixture_text_base" "$probe_addr" "$probe_size" \
   "$oracle_tmp/curl.text" "$curl_text_base" "$getstr_addr" "$getstr_size" \
-  >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I -S - "$metadata" "$oracle_tmp/fixture.text" \
   "$oracle_tmp/curl.text" "$oracle_tmp/ghidra.stdout" <<'PY'

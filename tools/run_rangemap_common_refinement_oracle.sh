@@ -2,7 +2,7 @@
 # Immutable RANGEMAP-COMMON-REFINEMENT-0001 oracle runner.
 #
 # Compiles the template fixture against rangemap.hh from the locked Ghidra
-# 12.0.4 commit, builds Rugra from a pinned clean repository snapshot with
+# 12.0.4 commit, builds Rudra from a pinned clean repository snapshot with
 # only the reviewed rangemap.rs candidate overlaid, and requires byte-identical
 # stdout for all common-refinement, sub-sort, iterator, and erase cases.
 set -euo pipefail
@@ -10,7 +10,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
-rugra_base_commit=8012627083360e0111506dc70d891552383a8c65
+rudra_base_commit=8012627083360e0111506dc70d891552383a8c65
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/rangemap_common_refinement_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/rangemap_common_refinement_1204.cc"
@@ -18,10 +18,10 @@ rust_fixture="$repo_root/tests/oracle/rangemap_common_refinement_1204.rs"
 rangemap_source="$repo_root/src/rangemap.rs"
 api_document="$repo_root/docs/api/rangemap.md"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-rangemap-common-refinement-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-rangemap-common-refinement-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-rangemap-common-refinement-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-rangemap-common-refinement-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -47,19 +47,19 @@ if ! git -C "$ghidra_root" diff --quiet -- \
   exit 1
 fi
 
-rugra_workspace="$oracle_tmp/rugra-workspace"
-mkdir -p "$rugra_workspace"
-git -C "$repo_root" archive "$rugra_base_commit" -- \
+rudra_workspace="$oracle_tmp/rudra-workspace"
+mkdir -p "$rudra_workspace"
+git -C "$repo_root" archive "$rudra_base_commit" -- \
   Cargo.toml Cargo.lock build.rs README.md src sleigh_shim benches \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
-  | tar -x -C "$rugra_workspace"
-cp "$rangemap_source" "$rugra_workspace/src/rangemap.rs"
+  | tar -x -C "$rudra_workspace"
+cp "$rangemap_source" "$rudra_workspace/src/rangemap.rs"
 
-mkdir -p "$rugra_workspace/ghidra"
+mkdir -p "$rudra_workspace/ghidra"
 git -C "$ghidra_root" archive "$oracle_commit" -- \
   Ghidra/Features/Decompiler/src/decompile/cpp \
-  | tar -x -C "$rugra_workspace/ghidra"
-snapshot_cpp_root="$rugra_workspace/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
+  | tar -x -C "$rudra_workspace/ghidra"
+snapshot_cpp_root="$rudra_workspace/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 
 python3 -I -S - "$metadata" "$cpp_fixture" "$rust_fixture" \
   "$rangemap_source" "$api_document" "${BASH_SOURCE[0]}" <<'PY'
@@ -100,24 +100,24 @@ g++ -std=c++11 -O2 -Wall -Wextra -Wno-deprecated-copy -pedantic \
 
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --offline --locked --quiet \
-  --manifest-path "$rugra_workspace/Cargo.toml" --lib
+  --manifest-path "$rudra_workspace/Cargo.toml" --lib
 rustc --edition=2021 "$rust_fixture" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/rangemap_common_refinement_1204_rust"
 
 "$oracle_tmp/rangemap_common_refinement_1204_cpp" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 "$oracle_tmp/rangemap_common_refinement_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
 test -s "$oracle_tmp/ghidra.stdout"
-test -s "$oracle_tmp/rugra.stdout"
+test -s "$oracle_tmp/rudra.stdout"
 test "$(wc -l < "$oracle_tmp/ghidra.stdout")" -eq 43
-test "$(wc -l < "$oracle_tmp/rugra.stdout")" -eq 43
+test "$(wc -l < "$oracle_tmp/rudra.stdout")" -eq 43
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" <<'PY'
+  "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -125,18 +125,18 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
 expected = metadata["expected_stdout_sha256"]
 actual = hashlib.sha256(ghidra).hexdigest()
 if actual != expected:
     raise SystemExit(f"oracle stdout hash mismatch: metadata={expected} actual={actual}")
-if ghidra != rugra:
+if ghidra != rudra:
     ghidra_lines = ghidra.decode().splitlines()
-    rugra_lines = rugra.decode().splitlines()
-    for index, (left, right) in enumerate(zip(ghidra_lines, rugra_lines)):
+    rudra_lines = rudra.decode().splitlines()
+    for index, (left, right) in enumerate(zip(ghidra_lines, rudra_lines)):
         if left != right:
             raise SystemExit(
-                f"record {index} differs:\n  ghidra: {left}\n  rugra:  {right}"
+                f"record {index} differs:\n  ghidra: {left}\n  rudra:  {right}"
             )
     raise SystemExit("record counts differ")
 PY

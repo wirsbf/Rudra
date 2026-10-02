@@ -68,8 +68,8 @@ if [[ "$(realpath "$oracle_zlib")" != "$(realpath "$rust_zlib")" ]]; then
 fi
 
 "$oracle_tmp/decompress_1204" >"$oracle_tmp/ghidra.stdout"
-"$rust_binary" >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+"$rust_binary" >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 cat "$oracle_tmp/ghidra.stdout"
 
 oracle_output=$(<"$oracle_tmp/ghidra.stdout")

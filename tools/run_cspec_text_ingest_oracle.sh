@@ -64,10 +64,10 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=1f65b9d76c2e7e5214257c98d82791c2150a8989
-rugra_base_tree=e33b9f272fa6513bb417f39653d1ccd7bd9b464f
+rudra_base_commit=1f65b9d76c2e7e5214257c98d82791c2150a8989
+rudra_base_tree=e33b9f272fa6513bb417f39653d1ccd7bd9b464f
 ghidra_root="$repo_root/ghidra"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 metadata="$repo_root/tests/oracle/cspec_text_ingest_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/cspec_text_ingest_1204.cc"
@@ -109,16 +109,16 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
 fi
 
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "locked Rugra base tree mismatch" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "locked Rudra base tree mismatch" >&2
   exit 1
 fi
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-cspec-text-ingest-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-cspec-text-ingest-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-cspec-text-ingest-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-cspec-text-ingest-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -133,7 +133,7 @@ oracle_source="$oracle_tmp/oracle-source"
 spec_root="$oracle_tmp/specs"
 mkdir -p "$snapshot_root" "$oracle_source" "$spec_root"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" archive "$rugra_base_commit" | \
+  "$host_git_bin" -C "$repo_root" archive "$rudra_base_commit" | \
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar -xf - -C "$snapshot_root"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$ghidra_root" archive "$oracle_commit" \
@@ -145,12 +145,12 @@ oracle_cpp="$oracle_source/Ghidra/Features/Decompiler/src/decompile/cpp"
 for path in sleigh_specs/x86.ldefs sleigh_specs/x86-64.pspec \
   sleigh_specs/x86-64-gcc.cspec sleigh_specs/x86-64.sla; do
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-    "$host_git_bin" -C "$repo_root" show "$rugra_base_commit:$path" \
+    "$host_git_bin" -C "$repo_root" show "$rudra_base_commit:$path" \
     > "$spec_root/${path##*/}"
 done
 binary="$oracle_tmp/curl"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" show "$rugra_base_commit:examples/curl" > "$binary"
+  "$host_git_bin" -C "$repo_root" show "$rudra_base_commit:examples/curl" > "$binary"
 /usr/bin/chmod 0700 "$binary"
 
 # Owned-file overlays (the four CSPEC slices + fixtures + docs).
@@ -182,7 +182,7 @@ mkdir -p "$snapshot_root/ghidra/Ghidra/Features/Decompiler/src/decompile"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$snapshot_root" "$cargo_home" "$registry_cache" \
   "$runner_sha" "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
   "$host_git_bin" "$host_python_bin" "$host_cxx_bin" "$host_rustc_bin" "$host_cargo_bin" \
   "$host_cc_bin" "$host_ar_bin" "$host_make_bin" "$rust_toolchain" \
   "$user_home" <<'PY'
@@ -448,17 +448,17 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a regular librugra.rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a regular librudra.rlib" >&2
   exit 1
 fi
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
 if [[ "${#native_archives[@]}" -ne 1 ]]; then
-  echo "expected one Cargo-built librugra_sleigh.a, found ${#native_archives[@]}" >&2
+  echo "expected one Cargo-built librudra_sleigh.a, found ${#native_archives[@]}" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -484,8 +484,8 @@ if ! /usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/cspec_text_ingest_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -499,21 +499,21 @@ fi
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/cspec_text_ingest_1204_rust" \
   "$spec_root/x86-64-gcc.cspec" "$spec_root/x86-64.sla" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$snapshot_root/tests/oracle/cspec_text_ingest_1204.metadata.json" \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
 import sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
-if ghidra != rugra:
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
+if ghidra != rudra:
     raise SystemExit("byte comparison unexpectedly diverged after diff succeeded")
 if not ghidra.endswith(b"\n"):
     raise SystemExit("fixture output lacks final newline")

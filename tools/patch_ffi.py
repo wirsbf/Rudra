@@ -1,7 +1,7 @@
 """
 patch_ffi_opcode_map.py — 修复 ffi.rs 中 map_ghidra_opcode 使其与 Ghidra opcodes.hh 严格 1:1 对齐
 """
-path = r"d:\ghidra\rugra\src\ffi.rs"
+path = r"d:\ghidra\rudra\src\ffi.rs"
 with open(path, "r", encoding="utf-8") as f:
     content = f.read()
 
@@ -161,7 +161,7 @@ NEW_MAP = """fn map_ghidra_opcode(opcode: i32) -> Option<OpCode> {
         63 => Some(OpCode::CPUI_SUBPIECE),
 
         // === Type / Pointer ===
-        // 64 => CPUI_CAST (Rugra 暂无此变体)
+        // 64 => CPUI_CAST (Rudra 暂无此变体)
         65 => Some(OpCode::CPUI_PTRADD),
         66 => Some(OpCode::CPUI_PTRSUB),
         67 => Some(OpCode::CPUI_SEGMENTOP),

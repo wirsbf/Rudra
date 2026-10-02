@@ -1,4 +1,4 @@
-"""Fix remaining 108 violations: apply RUGRA-GLUE to Rust-specific files and
+"""Fix remaining 108 violations: apply RUDRA-GLUE to Rust-specific files and
 re-match float_emulate/heritage with better heuristics."""
 import json
 import subprocess

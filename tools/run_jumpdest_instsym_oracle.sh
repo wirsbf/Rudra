@@ -6,7 +6,7 @@ set -euo pipefail
 # inst_dest/inst_ref).  Builds the locked Ghidra 12.0.4 oracle (bare
 # SLEIGH engine on the production x86-64.sla, the same
 # `const SleighBase *` handle PcodeInjectLibrarySleigh::parseInject
-# hands to PcodeSnippet) and the Rugra snippet compiler
+# hands to PcodeSnippet) and the Rudra snippet compiler
 # (PcodeSnippet + PredefinedJumpSymbols), compiles the same ten
 # JUMPSYM snippets on both sides, and diffs the ConstructTpl XML
 # projections byte for byte.
@@ -102,10 +102,10 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   exit 1
 fi
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-jumpdest-instsym-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-jumpdest-instsym-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-jumpdest-instsym-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-jumpdest-instsym-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -143,9 +143,9 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib=$(ls -t "$repo_root/target/release/deps/librugra"*.rlib | /usr/bin/head -1)
-if [[ -z "$rugra_rlib" || ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a librugra.rlib" >&2
+rudra_rlib=$(ls -t "$repo_root/target/release/deps/librudra"*.rlib | /usr/bin/head -1)
+if [[ -z "$rudra_rlib" || ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a librudra.rlib" >&2
   exit 1
 fi
 
@@ -163,7 +163,7 @@ fi
 if ! /usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" \
   RUSTUP_TOOLCHAIN=nightly-x86_64-unknown-linux-gnu PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
-  -L "$repo_root/target/release/deps" --extern "rugra=$rugra_rlib" \
+  -L "$repo_root/target/release/deps" --extern "rudra=$rudra_rlib" \
   "$rust_fixture" -o "$oracle_tmp/jumpdest_instsym_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -176,12 +176,12 @@ fi
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/jumpdest_instsym_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
-  - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+  - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
   "$cpp_fixture" "$rust_fixture" "$runner_sha" "$oracle_commit" "$oracle_tag" \
   "$oracle_cpp_tree" "$oracle_makefile_blob" <<'PY'
 import hashlib
@@ -190,12 +190,12 @@ import pathlib
 import sys
 
 (
-    metadata_raw, ghidra_raw, rugra_raw, cpp_fixture_raw, rust_fixture_raw,
+    metadata_raw, ghidra_raw, rudra_raw, cpp_fixture_raw, rust_fixture_raw,
     runner_sha, oracle_commit, oracle_tag, cpp_tree, makefile_blob,
 ) = sys.argv[1:]
 metadata = json.loads(pathlib.Path(metadata_raw).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(ghidra_raw).read_bytes()
-rugra = pathlib.Path(rugra_raw).read_bytes()
+rudra = pathlib.Path(rudra_raw).read_bytes()
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
@@ -223,7 +223,7 @@ require("oracle commit", oracle["commit"], oracle_commit)
 require("oracle cpp tree", oracle["decompiler_cpp_tree"], cpp_tree)
 require("oracle Makefile blob", oracle["decompiler_makefile_blob"], makefile_blob)
 
-if ghidra != rugra:
+if ghidra != rudra:
     raise SystemExit("byte comparison unexpectedly diverged after diff succeeded")
 if not ghidra.endswith(b"\n"):
     raise SystemExit("fixture output lacks final newline")

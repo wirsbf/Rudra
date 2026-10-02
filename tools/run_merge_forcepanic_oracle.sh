@@ -12,10 +12,10 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
-rugra_base_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
-rugra_base_coreaction_blob=e5fb0a75534d714556206c765e6cc075cf3bd8c3
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
+rudra_base_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
+rudra_base_coreaction_blob=e5fb0a75534d714556206c765e6cc075cf3bd8c3
 
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/merge_forcepanic_1204.metadata.json"
@@ -49,15 +49,15 @@ if ! git -C "$ghidra_root" diff --quiet -- \
 fi
 
 for binding in \
-  "$rugra_base_commit^{commit}:$rugra_base_commit" \
-  "$rugra_base_commit^{tree}:$rugra_base_tree" \
-  "$rugra_base_commit:src:$rugra_base_src_tree" \
-  "$rugra_base_commit:src/coreaction.rs:$rugra_base_coreaction_blob"; do
+  "$rudra_base_commit^{commit}:$rudra_base_commit" \
+  "$rudra_base_commit^{tree}:$rudra_base_tree" \
+  "$rudra_base_commit:src:$rudra_base_src_tree" \
+  "$rudra_base_commit:src/coreaction.rs:$rudra_base_coreaction_blob"; do
   expression=${binding%:*}
   expected=${binding##*:}
   actual=$(git -C "$repo_root" rev-parse "$expression")
   if [[ "$actual" != "$expected" ]]; then
-    echo "pinned Rugra base identity mismatch: $expression" >&2
+    echo "pinned Rudra base identity mismatch: $expression" >&2
     exit 1
   fi
 done
@@ -103,10 +103,10 @@ require("input manifest sha", hashlib.sha256(canonical).hexdigest(),
         data["input_manifest"]["sha256"])
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-merge-forcepanic-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-merge-forcepanic-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-merge-forcepanic-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-merge-forcepanic-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -115,11 +115,11 @@ trap cleanup EXIT HUP INT TERM
 snapshot="$oracle_tmp/workspace"
 mkdir -p "$snapshot/tests/oracle" \
   "$snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
-git -C "$repo_root" archive --format=tar --output="$oracle_tmp/rugra.tar" \
-  "$rugra_base_commit" Cargo.toml Cargo.lock build.rs README.md \
+git -C "$repo_root" archive --format=tar --output="$oracle_tmp/rudra.tar" \
+  "$rudra_base_commit" Cargo.toml Cargo.lock build.rs README.md \
   benches/decompile_bench.rs tests/oracle/decompress_1204.rs \
   tests/oracle/funcproto_lock_1204.rs src sleigh_shim crates
-tar -xf "$oracle_tmp/rugra.tar" -C "$snapshot"
+tar -xf "$oracle_tmp/rudra.tar" -C "$snapshot"
 cp "$rust_fixture" "$snapshot/tests/oracle/merge_forcepanic_1204.rs"
 
 git -C "$ghidra_root" archive --format=tar --output="$oracle_tmp/ghidra.tar" \
@@ -140,11 +140,11 @@ g++ -std=c++11 -O2 -Wall -Wno-sign-compare -m64 \
   -Wl,--whole-archive "$oracle_cpp/libdecomp.a" -Wl,--no-whole-archive -lz \
   -o "$oracle_tmp/merge_forcepanic_cpp"
 
-flock /tmp/rugra-cargo-build.lock -c \
-  "CARGO_TARGET_DIR=/tmp/rugra-target-merge-forcepanic cargo build --offline --locked --quiet --manifest-path '$snapshot/Cargo.toml' --lib"
+flock /tmp/rudra-cargo-build.lock -c \
+  "CARGO_TARGET_DIR=/tmp/rudra-target-merge-forcepanic cargo build --offline --locked --quiet --manifest-path '$snapshot/Cargo.toml' --lib"
 rustc --edition=2021 -O \
-  -L dependency=/tmp/rugra-target-merge-forcepanic/debug/deps \
-  --extern rugra=/tmp/rugra-target-merge-forcepanic/debug/librugra.rlib \
+  -L dependency=/tmp/rudra-target-merge-forcepanic/debug/deps \
+  --extern rudra=/tmp/rudra-target-merge-forcepanic/debug/librudra.rlib \
   "$snapshot/tests/oracle/merge_forcepanic_1204.rs" \
   -o "$oracle_tmp/merge_forcepanic_rust"
 
@@ -153,13 +153,13 @@ set +e
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/merge_forcepanic_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
 set -e
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" "$ghidra_status" "$rugra_status" \
-  "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stderr" <<'PY'
+  "$oracle_tmp/rudra.stdout" "$ghidra_status" "$rudra_status" \
+  "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stderr" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -167,17 +167,17 @@ import sys
 
 data = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_stdout = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-rugra_stdout = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
+rudra_stdout = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
 ghidra_status = int(sys.argv[4])
-rugra_status = int(sys.argv[5])
+rudra_status = int(sys.argv[5])
 ghidra_stderr = pathlib.Path(sys.argv[6]).read_text(encoding="utf-8")
-rugra_stderr = pathlib.Path(sys.argv[7]).read_text(encoding="utf-8")
+rudra_stderr = pathlib.Path(sys.argv[7]).read_text(encoding="utf-8")
 
-if ghidra_status != 0 or rugra_status != 0:
+if ghidra_status != 0 or rudra_status != 0:
     raise SystemExit(
-        f"fixture exit codes must be 0: ghidra={ghidra_status} rugra={rugra_status}"
+        f"fixture exit codes must be 0: ghidra={ghidra_status} rudra={rudra_status}"
     )
-if ghidra_stderr or rugra_stderr:
+if ghidra_stderr or rudra_stderr:
     raise SystemExit("fixture stderr must be empty")
 
 def line_sha(text):
@@ -186,11 +186,11 @@ def line_sha(text):
 expected = data["expected_stdout"]
 if line_sha(ghidra_stdout) != expected["ghidra_stdout_sha256"]:
     raise SystemExit("ghidra stdout hash mismatch")
-if line_sha(rugra_stdout) != expected["rugra_stdout_sha256"]:
-    raise SystemExit("rugra stdout hash mismatch")
+if line_sha(rudra_stdout) != expected["rudra_stdout_sha256"]:
+    raise SystemExit("rudra stdout hash mismatch")
 
 glines = ghidra_stdout.splitlines()
-rlines = rugra_stdout.splitlines()
+rlines = rudra_stdout.splitlines()
 if len(glines) != len(rlines):
     raise SystemExit("stdout line-count mismatch")
 registered = data["registered_divergence_lines"]
@@ -201,15 +201,15 @@ for index, (gl, rl) in enumerate(zip(glines, rlines)):
     if gl not in registered:
         raise SystemExit(f"unregistered divergence on line {index + 1}: {gl!r}")
     entry = registered[gl]
-    if line_sha(rl) != entry["rugra_line_sha256"]:
-        raise SystemExit(f"registered divergence rugra line drifted: {gl!r}")
+    if line_sha(rl) != entry["rudra_line_sha256"]:
+        raise SystemExit(f"registered divergence rudra line drifted: {gl!r}")
     mismatches.append((gl, entry["reason"]))
 for gl, reason in mismatches:
     print(f"registered MISMATCH: {gl} ({reason})")
 
 verdicts = [line for line in rlines if line.startswith("verdict=")]
 if verdicts != ["verdict=PIPELINE-OK"]:
-    raise SystemExit(f"rugra verdict must be PIPELINE-OK: {verdicts!r}")
+    raise SystemExit(f"rudra verdict must be PIPELINE-OK: {verdicts!r}")
 mergetype = [line for line in rlines if line.startswith("act=mergetype|")]
 if not mergetype or mergetype[0] != "act=mergetype|res=0|exc=none":
     raise SystemExit(f"mergetype must complete without panic: {mergetype!r}")

@@ -97,10 +97,10 @@ if metadata["host"]["rustc"] != rustc:
     raise SystemExit("host rustc mismatch")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-printc-whiledo-body-emit-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-printc-whiledo-body-emit-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-printc-whiledo-body-emit-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-printc-whiledo-body-emit-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -116,29 +116,29 @@ g++ -std=c++11 -O2 -I"$cpp_root" \
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/printc_whiledo_body_emit_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/printc_whiledo_body_emit_rudra"
 
 "$oracle_tmp/printc_whiledo_body_emit_1204" >"$oracle_tmp/ghidra.statement"
-"$oracle_tmp/printc_whiledo_body_emit_rugra" >"$oracle_tmp/rugra.statement"
-diff -u "$oracle_tmp/ghidra.statement" "$oracle_tmp/rugra.statement"
+"$oracle_tmp/printc_whiledo_body_emit_rudra" >"$oracle_tmp/rudra.statement"
+diff -u "$oracle_tmp/ghidra.statement" "$oracle_tmp/rudra.statement"
 
 "$oracle_tmp/printc_whiledo_body_emit_1204" --raw >"$oracle_tmp/ghidra.raw"
-"$oracle_tmp/printc_whiledo_body_emit_rugra" --raw >"$oracle_tmp/rugra.raw"
-if ! cmp -s "$oracle_tmp/ghidra.raw" "$oracle_tmp/rugra.raw"; then
+"$oracle_tmp/printc_whiledo_body_emit_rudra" --raw >"$oracle_tmp/rudra.raw"
+if ! cmp -s "$oracle_tmp/ghidra.raw" "$oracle_tmp/rudra.raw"; then
   echo "raw PrintC whiledo body output mismatch; both layers must MATCH" >&2
-  diff -u "$oracle_tmp/ghidra.raw" "$oracle_tmp/rugra.raw" >&2 || true
+  diff -u "$oracle_tmp/ghidra.raw" "$oracle_tmp/rudra.raw" >&2 || true
   exit 1
 fi
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.statement" \
-  "$oracle_tmp/ghidra.raw" "$oracle_tmp/rugra.raw" <<'PY'
+  "$oracle_tmp/ghidra.raw" "$oracle_tmp/rudra.raw" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -148,7 +148,7 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 observed = {
     "expected_statement_stdout_sha256": pathlib.Path(sys.argv[2]),
     "expected_ghidra_raw_sha256": pathlib.Path(sys.argv[3]),
-    "expected_rugra_raw_sha256": pathlib.Path(sys.argv[4]),
+    "expected_rudra_raw_sha256": pathlib.Path(sys.argv[4]),
 }
 for key, path in observed.items():
     actual = hashlib.sha256(path.read_bytes()).hexdigest()

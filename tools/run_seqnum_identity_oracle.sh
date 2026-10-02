@@ -32,14 +32,14 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_input_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
+rudra_input_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/seqnum_identity_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/seqnum_identity_1204.cc"
 rust_fixture="$repo_root/tests/oracle/seqnum_identity_1204.rs"
 spec_root="$repo_root/sleigh_specs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
@@ -103,14 +103,14 @@ if [[ -n "$locked_dirty" ]]; then
 fi
 
 resolved_input_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_input_commit^{commit}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_input_commit^{commit}")
 binary_blob_oid=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_input_commit:examples/curl")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_input_commit:examples/curl")
 binary_blob_size=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" cat-file -s "$binary_blob_oid")
-if [[ "$resolved_input_commit" != "$rugra_input_commit" || \
-      "$binary_blob_oid" != "$rugra_input_blob" ]]; then
-  echo "pinned Rugra binary commit/blob identity mismatch" >&2
+if [[ "$resolved_input_commit" != "$rudra_input_commit" || \
+      "$binary_blob_oid" != "$rudra_input_blob" ]]; then
+  echo "pinned Rudra binary commit/blob identity mismatch" >&2
   exit 1
 fi
 
@@ -124,9 +124,9 @@ host_cargo=$(/usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" 
   "$host_cargo_bin" --version)
 host_platform=$(/usr/bin/uname -srm)
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-seqnum-identity-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-seqnum-identity-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-seqnum-identity-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-seqnum-identity-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2
     return 1
   fi
@@ -155,7 +155,7 @@ binary="$oracle_tmp/input/curl"
   "$registry_cache" "$metadata" "$cpp_fixture" "$rust_fixture" \
   "$runner" "$runner_snapshot_sha" "$oracle_tag" "$oracle_commit" \
   "$oracle_cpp_tree" "$oracle_language_tree" "$oracle_makefile_blob" \
-  "$binary" "$rugra_input_commit" "$binary_blob_oid" "$binary_blob_size" \
+  "$binary" "$rudra_input_commit" "$binary_blob_oid" "$binary_blob_size" \
   "$bfd_include" "$bfd_library" "$host_cxx" "$host_cxx_target" \
   "$host_rustc" "$host_cargo" "$host_platform" "$host_cxx_bin" \
   "$host_cargo_bin" "$host_rustc_bin" "$host_cc_bin" "$host_ar_bin" \
@@ -228,7 +228,7 @@ crate_files = [
 ] + source_files("src") + source_files("sleigh_shim")
 crate_files = sorted(set(crate_files), key=lambda path: path.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-seqnum-identity-lib-snapshot-v1\0")
+crate_hasher.update(b"rudra-seqnum-identity-lib-snapshot-v1\0")
 crate_bytes = {}
 for relative in crate_files:
     data = snapshot_file(relative)
@@ -367,7 +367,7 @@ require_equal(
 )
 require_equal(
     "crate snapshot scheme", comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-seqnum-identity-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents",
+    "sha256 of rudra-seqnum-identity-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents",
 )
 for key, actual in observed_hashes.items():
     reject_pending(comparand[key], f"comparand.{key}")
@@ -572,17 +572,17 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce $rugra_rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce $rudra_rlib" >&2
   exit 1
 fi
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
 if [[ "${#native_archives[@]}" -ne 1 ]]; then
-  echo "expected one Cargo-built librugra_sleigh.a, found ${#native_archives[@]}" >&2
+  echo "expected one Cargo-built librudra_sleigh.a, found ${#native_archives[@]}" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -590,8 +590,8 @@ if ! /usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/seqnum_identity_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -607,21 +607,21 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
 fi
 if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/seqnum_identity_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"; then
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"; then
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture runtime stderr must be empty" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture runtime stderr must be empty" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/ghidra.stderr" \
-  "$oracle_tmp/rugra.stdout" "$runner_fd_path" <<'PY'
+  "$oracle_tmp/rudra.stdout" "$runner_fd_path" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -630,18 +630,18 @@ import sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_stdout = pathlib.Path(sys.argv[2]).read_bytes()
 ghidra_stderr = pathlib.Path(sys.argv[3]).read_bytes()
-rugra_stdout = pathlib.Path(sys.argv[4]).read_bytes()
+rudra_stdout = pathlib.Path(sys.argv[4]).read_bytes()
 runner_bytes = pathlib.Path(sys.argv[5]).read_bytes()
 ghidra_lines = ghidra_stdout.decode("utf-8").splitlines()
-rugra_lines = rugra_stdout.decode("utf-8").splitlines()
+rudra_lines = rudra_stdout.decode("utf-8").splitlines()
 expected_lines = [
     "time_order=0:4294967251,1:4218271365", "identity=1,1",
     "cross_address=1,1", "lookup=1,1", "varnode_lookup=1,1",
     "optree_prefix=0,1,2", "order_relation=0", "graph_time=1,1",
     "resolve_order=0,1", "compare_name=0,1", "destroy_identity=1,1",
 ]
-if ghidra_lines != expected_lines or rugra_lines != expected_lines:
-    raise SystemExit(f"unexpected SeqNum observation lines: Ghidra={ghidra_lines!r} Rugra={rugra_lines!r}")
+if ghidra_lines != expected_lines or rudra_lines != expected_lines:
+    raise SystemExit(f"unexpected SeqNum observation lines: Ghidra={ghidra_lines!r} Rudra={rudra_lines!r}")
 for label, data, key in (
     ("stdout", ghidra_stdout, "expected_stdout_sha256"),
     ("Ghidra stderr", ghidra_stderr, "expected_ghidra_stderr_sha256"),

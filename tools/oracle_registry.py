@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Oracle fixture registry doctor, schema gate, and deterministic migration planner.
 
-TODO ORACLE-REGISTRY-0001 (P0). RUGRA-GLUE: this tool has no Ghidra counterpart;
+TODO ORACLE-REGISTRY-0001 (P0). RUDRA-GLUE: this tool has no Ghidra counterpart;
 it is repo bookkeeping glue around the locked-oracle fixture corpus.
 
 Subcommands
@@ -425,7 +425,7 @@ def _load_ledger_generator():
     if inserted:
         sys.path.insert(0, module_dir)
     try:
-        spec = importlib.util.spec_from_file_location("_rugra_function_ledger", module_path)
+        spec = importlib.util.spec_from_file_location("_rudra_function_ledger", module_path)
         if spec is None or spec.loader is None:
             raise HarnessError("cannot load generate_function_ledger.py")
         module = importlib.util.module_from_spec(spec)
@@ -665,7 +665,7 @@ def _verify_continuity_git(
         raise HarnessError(f"continuity baseline ledger JSON is malformed: {exc}") from exc
     baseline_rust = baseline_ledger.get("rugra_functions")
     if not isinstance(baseline_rust, list):
-        raise HarnessError("continuity baseline ledger rugra_functions is not an array")
+        raise HarnessError("continuity baseline ledger rudra_functions is not an array")
     if (len(baseline_rust) != baseline["rust_function_records"]
             or _rust_projection_sha256(baseline_rust) != baseline["rust_projection_sha256"]):
         raise HarnessError("continuity baseline Rust projection count/hash mismatch")
@@ -731,7 +731,7 @@ def _verify_continuity_git(
     fresh_rust = _scan_current_rust(root, generator)
     current_rust = ledger.get("rugra_functions")
     if not isinstance(current_rust, list):
-        raise HarnessError("current ledger rugra_functions is not an array")
+        raise HarnessError("current ledger rudra_functions is not an array")
     if _rust_projection(fresh_rust) != _rust_projection(current_rust):
         raise HarnessError("continuity current ledger projection differs from fresh src scan")
     if (len(fresh_rust) != checkpoint["rust_function_records"]
@@ -1665,7 +1665,7 @@ def metadata_has_expected_pin(doc) -> bool:
 
     Legacy fixtures use one common ``expected_stdout_sha256`` for the output
     both sides must produce; this remains valid.  Once side-qualified output
-    keys are present, however, at least one Ghidra/Rugra pair is mandatory.
+    keys are present, however, at least one Ghidra/Rudra pair is mandatory.
     Paired pins may live at the top level or in a nested object such as
     ``expected_results``.
     """
@@ -1682,13 +1682,13 @@ def metadata_has_expected_pin(doc) -> bool:
     if isinstance(expected_results, dict):
         for kind in output_kinds:
             ghidra_key = f"ghidra_{kind}_sha256"
-            rugra_key = f"rugra_{kind}_sha256"
+            rudra_key = f"rudra_{kind}_sha256"
             ghidra_present = ghidra_key in expected_results
-            rugra_present = rugra_key in expected_results
-            if ghidra_present or rugra_present:
+            rudra_present = rudra_key in expected_results
+            if ghidra_present or rudra_present:
                 side_declared = True
                 if (valid_hash(expected_results.get(ghidra_key))
-                        and valid_hash(expected_results.get(rugra_key))):
+                        and valid_hash(expected_results.get(rudra_key))):
                     complete_pairs += 1
                 else:
                     all_declared_pairs_valid = False
@@ -1699,12 +1699,12 @@ def metadata_has_expected_pin(doc) -> bool:
     for container in paired_containers:
         for kind in output_kinds:
             ghidra_key = f"expected_ghidra_{kind}_sha256"
-            rugra_key = f"expected_rugra_{kind}_sha256"
+            rudra_key = f"expected_rudra_{kind}_sha256"
             ghidra_present = ghidra_key in container
-            rugra_present = rugra_key in container
-            if ghidra_present or rugra_present:
+            rudra_present = rudra_key in container
+            if ghidra_present or rudra_present:
                 side_declared = True
-                if valid_hash(container.get(ghidra_key)) and valid_hash(container.get(rugra_key)):
+                if valid_hash(container.get(ghidra_key)) and valid_hash(container.get(rudra_key)):
                     complete_pairs += 1
                 else:
                     all_declared_pairs_valid = False
@@ -2028,7 +2028,7 @@ def doctor(root: str) -> dict:
             if token == "MATCH":
                 pins = []
                 if not metadata_has_expected_pin(doc):
-                    pins.append("no paired Ghidra/Rugra output sha256 pins")
+                    pins.append("no paired Ghidra/Rudra output sha256 pins")
                 if not metadata_has_input_hash(doc):
                     pins.append("no input hash pin")
                 if not isinstance(doc.get("comparand"), dict):
@@ -2636,7 +2636,7 @@ def base_metadata(fixture_id: str, commit: str) -> dict:
         },
         "expected_results": {
             "ghidra_stdout_sha256": "4" * 64,
-            "rugra_stdout_sha256": "4" * 64,
+            "rudra_stdout_sha256": "4" * 64,
         },
         "overall_status": "MATCH (synthetic complete projection)",
         "coverage": {"case_one": "MATCH"},
@@ -2794,11 +2794,11 @@ def self_test() -> int:
                })
                and metadata_has_expected_pin({"expected_results": {
                    "ghidra_stdout_sha256": "2" * 64,
-                   "rugra_stdout_sha256": "2" * 64,
+                   "rudra_stdout_sha256": "2" * 64,
                }})
                and metadata_has_expected_pin({"comparand": {
                    "expected_ghidra_stdout_sha256": "2" * 64,
-                   "expected_rugra_stdout_sha256": "2" * 64,
+                   "expected_rudra_stdout_sha256": "2" * 64,
                }})
                and not metadata_has_expected_pin({"expected_stdout_sha256": "short"})
                and not metadata_has_expected_pin({
@@ -2812,16 +2812,16 @@ def self_test() -> int:
                }})
                and not metadata_has_expected_pin({"expected_results": {
                    "ghidra_stdout_sha256": "2" * 64,
-                   "rugra_stdout_sha256": "2" * 64,
+                   "rudra_stdout_sha256": "2" * 64,
                    "ghidra_raw_sha256": "3" * 64,
                }})
                and not metadata_has_expected_pin({
                    "expected_results": {
                        "ghidra_stdout_sha256": "2" * 64,
-                       "rugra_stdout_sha256": "2" * 64,
+                       "rudra_stdout_sha256": "2" * 64,
                    },
                    "expected_ghidra_raw_sha256": "short",
-                   "expected_rugra_raw_sha256": "3" * 64,
+                   "expected_rudra_raw_sha256": "3" * 64,
                }))
 
         residual_probe = {
@@ -2883,14 +2883,14 @@ def self_test() -> int:
 
         # 2. one-sided fake MATCH (only the Ghidra output is pinned)
         def mutate(doc):
-            del doc["expected_results"]["rugra_stdout_sha256"]
+            del doc["expected_results"]["rudra_stdout_sha256"]
         rewrite_json(os.path.join(root, "tests/oracle/demo_a_1204.metadata.json"), mutate)
         report = doctor(root)
         expect("one-sided fake MATCH rejected", "SINGLE_SIDE_MATCH" in codes(report),
                detail=json.dumps(report["issues"][:3]))
         rewrite_json(os.path.join(root, "tests/oracle/demo_a_1204.metadata.json"),
                      lambda doc: doc["expected_results"].update(
-                         {"rugra_stdout_sha256": "4" * 64}))
+                         {"rudra_stdout_sha256": "4" * 64}))
 
         # 2b. nested coverage status with a parenthesized explanation
         def mutate_residuals(doc):

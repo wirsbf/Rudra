@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# RUGRA-GLUE: no oracle counterpart. This tool is a pure consumer of v2
+# RUDRA-GLUE: no oracle counterpart. This tool is a pure consumer of v2
 # drill files (stage-bisect "down-zoom" artifacts) produced by fixture
 # harnesses around the locked oracle (Ghidra 12.0.4, commit
-# e40ed13014025f82488b1f8f7bca566894ac376b) and around the Rugra driver
+# e40ed13014025f82488b1f8f7bca566894ac376b) and around the Rudra driver
 # layer. It changes no pipeline semantics, produces no IR, and injects no
 # state; per docs/alignment_docs/PIPELINE_STAGES_1204.md section 5 such
 # tooling must live outside the perform() tree. The observation format it
@@ -18,7 +18,7 @@
 #   - varnode.cc:705-756     Varnode raw text: space shortcut, ":size"
 #     suffix only when size != translate default, "#value" constants.
 #
-# The drill generator (examples side, both Ghidra and Rugra) wraps the
+# The drill generator (examples side, both Ghidra and Rudra) wraps the
 # native per-application stream in @BEGIN/@END application brackets and a
 # @DONE statistics trailer (see /dev/shm notes in DRILL_DESIGN.md; META
 # records oracle commit / arch / cspec / build flags for provenance).
@@ -54,7 +54,7 @@ before @END).
 Comparison layers:
 
   1. Path layer      -- application blocks aggregated by action path:
-                        shared / oracle-only / rugra-only path sets and
+                        shared / oracle-only / rudra-only path sets and
                         per-path application-count deltas (the "which
                         actions fire and how often" view).
   2. First record divergence -- global record-line stream (DEBUG headers
@@ -385,15 +385,15 @@ def ident_tokens(text: str) -> Counter:
     return Counter(IDENT_RE.findall(HEX_RE.sub("H", text)))
 
 
-def classify_pair(oracle_text: str, rugra_text: str) -> str:
+def classify_pair(oracle_text: str, rudra_text: str) -> str:
     """First-match classification of one differing record-line pair."""
-    if is_dead(oracle_text) != is_dead(rugra_text):
+    if is_dead(oracle_text) != is_dead(rudra_text):
         return "dead_marker"
-    if mask_uniq(oracle_text) == mask_uniq(rugra_text):
+    if mask_uniq(oracle_text) == mask_uniq(rudra_text):
         return "seqnum_drift"
-    if mask_const_width(oracle_text) == mask_const_width(rugra_text):
+    if mask_const_width(oracle_text) == mask_const_width(rudra_text):
         return "const_width"
-    if ident_tokens(oracle_text) != ident_tokens(rugra_text):
+    if ident_tokens(oracle_text) != ident_tokens(rudra_text):
         return "opcode_name"
     return "other"
 
@@ -431,13 +431,13 @@ def compare_paths(left: Drill, right: Drill) -> dict:
         key=lambda item: (-abs(item["delta"]), item["path"]))
     return {
         "oracle_blocks": len(left.blocks),
-        "rugra_blocks": len(right.blocks),
+        "rudra_blocks": len(right.blocks),
         "oracle_record_blocks": len(left.record_blocks()),
-        "rugra_record_blocks": len(right.record_blocks()),
+        "rudra_record_blocks": len(right.record_blocks()),
         "shared_paths": len(shared),
         "oracle_only": {path: left_counts[path]
                         for path in sorted(set(left_counts) - shared)},
-        "rugra_only": {path: right_counts[path]
+        "rudra_only": {path: right_counts[path]
                        for path in sorted(set(right_counts) - shared)},
         "count_deltas": count_deltas,
         "shared_equal_counts": sum(1 for path in shared
@@ -532,7 +532,7 @@ def compare_classification(left: Drill, right: Drill, max_examples: int = 3,
                             "seq": left_block.seq,
                             "phase": phase,
                             "oracle_text": left_text[:truncate],
-                            "rugra_text": right_text[:truncate],
+                            "rudra_text": right_text[:truncate],
                         })
     return stats
 
@@ -575,7 +575,7 @@ def compare_const_census(left: Drill, right: Drill) -> dict:
     return {
         "oracle_explicit_width": left_explicit,
         "oracle_bare": left_bare,
-        "rugra_explicit_width": right_explicit,
+        "rudra_explicit_width": right_explicit,
         "rugra_bare": right_bare,
         "differing_forms": forms,
     }
@@ -588,10 +588,10 @@ def compare_done(left: Drill, right: Drill) -> dict:
         if left.done[key] != right.done[key])
     return {
         "oracle_kv": dict(left.done),
-        "rugra_kv": dict(right.done),
+        "rudra_kv": dict(right.done),
         "differing": differing,
         "oracle_only_keys": sorted(set(left.done) - set(right.done)),
-        "rugra_only_keys": sorted(set(right.done) - set(left.done)),
+        "rudra_only_keys": sorted(set(right.done) - set(left.done)),
     }
 
 
@@ -604,11 +604,11 @@ def build_report(left: Drill, right: Drill, max_examples: int = 3) -> dict:
     done_layer = compare_done(left, right)
 
     path_differs = bool(path_layer["oracle_only"] or
-                        path_layer["rugra_only"] or
+                        path_layer["rudra_only"] or
                         path_layer["count_deltas"])
     done_differs = bool(done_layer["differing"] or
                         done_layer["oracle_only_keys"] or
-                        done_layer["rugra_only_keys"])
+                        done_layer["rudra_only_keys"])
     classification_differs = bool(classification["differing_line_pairs"] or
                                   classification["unpaired_block_occurrences"]
                                   or classification["unpaired_op_records"])
@@ -653,24 +653,24 @@ def human_report(report: dict, top: int = 10) -> str:
     path_layer = report["path_layer"]
     lines.append(
         f"blocks: oracle={path_layer['oracle_blocks']} "
-        f"({path_layer['oracle_record_blocks']} with records), rugra="
-        f"{path_layer['rugra_blocks']} "
-        f"({path_layer['rugra_record_blocks']} with records)")
+        f"({path_layer['oracle_record_blocks']} with records), rudra="
+        f"{path_layer['rudra_blocks']} "
+        f"({path_layer['rudra_record_blocks']} with records)")
     lines.append(
         f"shared paths={path_layer['shared_paths']} "
         f"({path_layer['shared_equal_counts']} with equal counts), "
         f"oracle-only={len(path_layer['oracle_only'])}, "
-        f"rugra-only={len(path_layer['rugra_only'])}")
+        f"rudra-only={len(path_layer['rudra_only'])}")
     for path, count in path_layer["oracle_only"].items():
         lines.append(f"  oracle-only: {path} x{count}")
-    for path, count in path_layer["rugra_only"].items():
-        lines.append(f"  rugra-only:  {path} x{count}")
+    for path, count in path_layer["rudra_only"].items():
+        lines.append(f"  rudra-only:  {path} x{count}")
     deltas = path_layer["count_deltas"]
     lines.append(f"shared paths with count delta: {len(deltas)} "
                  f"(top {min(top, len(deltas))} by |delta|)")
     for item in deltas[:top]:
         lines.append(
-            f"  {item['path']}: {item['oracle']} -> {item['rugra']} "
+            f"  {item['path']}: {item['oracle']} -> {item['rudra']} "
             f"({item['delta']:+d})")
 
     lines.append("== [2] first record divergence (global stream order) ==")
@@ -716,14 +716,14 @@ def human_report(report: dict, top: int = 10) -> str:
     lines.append(
         f"  const width-form census (whole file, informational): oracle "
         f"explicit={census['oracle_explicit_width']} bare="
-        f"{census['oracle_bare']}, rugra explicit="
-        f"{census['rugra_explicit_width']} bare={census['rugra_bare']}; "
+        f"{census['oracle_bare']}, rudra explicit="
+        f"{census['rudra_explicit_width']} bare={census['rudra_bare']}; "
         f"differing forms={len(census['differing_forms'])} "
         f"(top {min(top, len(census['differing_forms']))} by |delta|)")
     for form in census["differing_forms"][:top]:
         lines.append(
             f"    {form['form']}: oracle={form['oracle']} "
-            f"rugra={form['rugra']} ({form['delta']:+d})")
+            f"rudra={form['rudra']} ({form['delta']:+d})")
     for category in ("dead_marker", "seqnum_drift", "const_width",
                      "opcode_name", "other"):
         for example in stats["examples"][category]:
@@ -731,22 +731,22 @@ def human_report(report: dict, top: int = 10) -> str:
                 f"  {category} [{example['path']} #{example['occurrence']} "
                 f"seq={example['seq']} {example['phase']}]")
             lines.append(f"    oracle: {clip(example['oracle_text'])}")
-            lines.append(f"    rugra:  {clip(example['rugra_text'])}")
+            lines.append(f"    rudra:  {clip(example['rudra_text'])}")
 
     lines.append("== [4] @DONE statistics ==")
     done = report["done"]
     if not (done["differing"] or done["oracle_only_keys"]
-            or done["rugra_only_keys"]):
+            or done["rudra_only_keys"]):
         lines.append("  identical: " + " ".join(
             f"{key}={value}" for key, value in sorted(done["oracle_kv"].items())))
     else:
-        keys = sorted(set(done["oracle_kv"]) | set(done["rugra_kv"]))
+        keys = sorted(set(done["oracle_kv"]) | set(done["rudra_kv"]))
         for key in keys:
             oracle_value = done["oracle_kv"].get(key, "<missing>")
-            rugra_value = done["rugra_kv"].get(key, "<missing>")
-            marker = "  =" if oracle_value == rugra_value else "  !"
+            rudra_value = done["rudra_kv"].get(key, "<missing>")
+            marker = "  =" if oracle_value == rudra_value else "  !"
             lines.append(f" {marker} {key}: oracle={oracle_value} "
-                         f"rugra={rugra_value}")
+                         f"rudra={rudra_value}")
 
     meta = report["meta"]
     if meta["differing_keys"] or meta["left_only_keys"] or \
@@ -832,7 +832,7 @@ def load_drill_from(text: str, name: str) -> Drill:
 
 
 def scenario_path_layer():
-    """oracle-only path, rugra-only path, shared count delta (next_url form)."""
+    """oracle-only path, rudra-only path, shared count delta (next_url form)."""
     oracle_blocks = [
         (1, "universal:start", None, True),
         (2, "universal:constbase",
@@ -845,26 +845,26 @@ def scenario_path_layer():
         (5, "oppool1:earlyremoval",
          [("0x3100:8: **", "0x3100:8: RBX(0x3100:8) = #0x2:8")], False),
     ]
-    rugra_blocks = [
+    rudra_blocks = [
         (1, "universal:start", None, True),
         (2, "universal:constbase",
          [("0x1000:1: **", "0x1000:1: DF(0x1000:1) = #0x0:1")], False),
-        (3, "mainloop:unreachable", None, True),  # rugra-only
+        (3, "mainloop:unreachable", None, True),  # rudra-only
         (4, "oppool1:earlyremoval",
          [("0x3000:7: **", "0x3000:7: RAX(0x3000:7) = #0x1:8")], False),
     ]
     left = load_drill_from(
         make_drill("oracle", oracle_blocks, {"applications": "5"}), "o.drill")
     right = load_drill_from(
-        make_drill("rugra", rugra_blocks, {"applications": "4"}), "r.drill")
+        make_drill("rugra", rudra_blocks, {"applications": "4"}), "r.drill")
     report = build_report(left, right)
     layer = report["path_layer"]
     check(layer["shared_paths"] == 3,
           f"expected 3 shared paths, got {layer['shared_paths']}")
     check(list(layer["oracle_only"]) == ["oppool2:loadvarnode"],
           "oracle-only set mismatch")
-    check(list(layer["rugra_only"]) == ["mainloop:unreachable"],
-          "rugra-only set mismatch")
+    check(list(layer["rudra_only"]) == ["mainloop:unreachable"],
+          "rudra-only set mismatch")
     check(len(layer["count_deltas"]) == 1 and
           layer["count_deltas"][0]["path"] == "oppool1:earlyremoval" and
           layer["count_deltas"][0]["oracle"] == 2 and
@@ -892,7 +892,7 @@ def scenario_first_divergence():
         (3, "universal:defaultparams", None, True),
         block(4, "universal:extrapopsetup", "505d"),
     ]
-    rugra_blocks = [
+    rudra_blocks = [
         (1, "universal:start", None, True),
         (2, "universal:constbase",
          [("0x4ff4:2cd: **",
@@ -903,7 +903,7 @@ def scenario_first_divergence():
     left = load_drill_from(
         make_drill("oracle", oracle_blocks, {"records": "3"}), "o.drill")
     right = load_drill_from(
-        make_drill("rugra", rugra_blocks, {"records": "3"}), "r.drill")
+        make_drill("rugra", rudra_blocks, {"records": "3"}), "r.drill")
     report = build_report(left, right)
     divergence = report["first_divergence"]
     check(divergence is not None, "divergence expected")
@@ -918,7 +918,7 @@ def scenario_first_divergence():
     check(divergence["oracle"]["text"] == "0x505d:2ce: **",
           "oracle first differing text")
     check(divergence["rugra"]["text"] == "0x50ce:2ce: **",
-          "rugra first differing text")
+          "rudra first differing text")
 
 
 def scenario_prefix_length():
@@ -932,26 +932,26 @@ def scenario_prefix_length():
             ("0x5000:5ae: **", "0x5000:5ae: RBX(0x5000:5ae) = #0x1:4"),
         ], False),
     ]
-    rugra_blocks = [oracle_blocks[0]]
+    rudra_blocks = [oracle_blocks[0]]
     left = load_drill_from(
         make_drill("oracle", oracle_blocks, {"records": "2"}), "o.drill")
     right = load_drill_from(
-        make_drill("rugra", rugra_blocks, {"records": "1"}), "r.drill")
+        make_drill("rugra", rudra_blocks, {"records": "1"}), "r.drill")
     report = build_report(left, right)
     divergence = report["first_divergence"]
     check(divergence is not None and divergence["kind"] == KIND_LENGTH,
           "length divergence expected")
     check(divergence["first_extra"]["side"] == "oracle",
-          "oracle stream continues beyond rugra")
+          "oracle stream continues beyond rudra")
     check(divergence["common_prefix_lines"] == 2, "2 common lines")
 
 
 def scenario_classification():
-    """One paired block with one oracle/rugra pair per classification
+    """One paired block with one oracle/rudra pair per classification
     category; before and after phases each contribute one count."""
     live = "0x10:5: RAX(0x10:5) = #0x8:8"
     pairs = [
-        # dead_marker: oracle op dead ("**") in both phases, rugra live
+        # dead_marker: oracle op dead ("**") in both phases, rudra live
         ("0x10:5: **", "0x10:5: **", live, live),
         # seqnum_drift: same pcs, different uniq counters everywhere
         ("0x20:5ad: RAX(0x20:5ad) = SUB84(0x20:5ad,RBX(0x30:2),#0x0:4)",
@@ -996,9 +996,9 @@ def scenario_classification():
           "census: oracle #0x0 bare form x1 (before line only)")
     check(census_map["#0x0:4"]["oracle"] == 1
           and census_map["#0x0:4"]["rugra"] == 2,
-          "census: #0x0:4 forms (seqnum-pair before both sides, plus rugra "
+          "census: #0x0:4 forms (seqnum-pair before both sides, plus rudra "
           "width-pair before)")
-    check(census["oracle_bare"] > 0 and census["rugra_explicit_width"] > 0,
+    check(census["oracle_bare"] > 0 and census["rudra_explicit_width"] > 0,
           "census aggregate counters populated")
 
 
@@ -1019,7 +1019,7 @@ def scenario_done_stats():
     check(done["differing"] == ["applications", "nodes", "perform_calls"],
           "differing done keys")
     check(done["oracle_only_keys"] == ["final_return"],
-          "final_return missing on rugra side")
+          "final_return missing on rudra side")
     check(report["differences"], "done stats differences flag report")
 
 
@@ -1116,13 +1116,13 @@ def main(argv=None) -> int:
             "path-level application alignment, first record divergence, "
             "record content classification, and @DONE statistics. Pure "
             "consumer of drill files; changes no pipeline semantics "
-            "(RUGRA-GLUE)."
+            "(RUDRA-GLUE)."
         ),
     )
     parser.add_argument(
         "left", nargs="?", help="left drill file (typically oracle side)")
     parser.add_argument(
-        "right", nargs="?", help="right drill file (typically rugra side)")
+        "right", nargs="?", help="right drill file (typically rudra side)")
     parser.add_argument(
         "--json", action="store_true",
         help="emit a machine-readable JSON report")

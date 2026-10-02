@@ -7,24 +7,24 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_input_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
+rudra_input_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/rule_propcopy_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/rule_propcopy_1204.cc"
 rust_fixture="$repo_root/tests/oracle/rule_propcopy_1204.rs"
 runner="$repo_root/tools/run_rule_propcopy_oracle.sh"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 # The fixture binary resolves libbfd-2.38-system.so through the runtime
 # linker, so the deb-unpack lib directory must be on LD_LIBRARY_PATH.
-export LD_LIBRARY_PATH="/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-rule-propcopy-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-rule-propcopy-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-rule-propcopy-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-rule-propcopy-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -60,29 +60,29 @@ if ! git -C "$ghidra_root" diff --quiet -- \
   exit 1
 fi
 
-resolved_input_commit=$(git -C "$repo_root" rev-parse "$rugra_input_commit^{commit}")
+resolved_input_commit=$(git -C "$repo_root" rev-parse "$rudra_input_commit^{commit}")
 resolved_input_blob=$(git -C "$repo_root" rev-parse \
-  "$rugra_input_commit:examples/curl")
+  "$rudra_input_commit:examples/curl")
 input_blob_type=$(git -C "$repo_root" cat-file -t "$resolved_input_blob")
 input_blob_size=$(git -C "$repo_root" cat-file -s "$resolved_input_blob")
-if [[ "$resolved_input_commit" != "$rugra_input_commit" || \
-      "$resolved_input_blob" != "$rugra_input_blob" || \
+if [[ "$resolved_input_commit" != "$rudra_input_commit" || \
+      "$resolved_input_blob" != "$rudra_input_blob" || \
       "$input_blob_type" != blob ]]; then
-  echo "pinned Rugra input Git object mismatch" >&2
+  echo "pinned Rudra input Git object mismatch" >&2
   exit 1
 fi
 
 snapshot_root="$oracle_tmp/workspace"
 mkdir -p "$snapshot_root" "$oracle_tmp/input"
 oracle_binary="$oracle_tmp/input/curl"
-git -C "$repo_root" cat-file blob "$rugra_input_blob" >"$oracle_binary"
+git -C "$repo_root" cat-file blob "$rudra_input_blob" >"$oracle_binary"
 runner_sha=$(sha256sum "$runner" | awk '{print $1}')
 
 python3 -I -S - "$repo_root" "$snapshot_root" "$metadata" "$cpp_fixture" \
   "$rust_fixture" "$runner" "$runner_sha" "$oracle_binary" \
   "$input_blob_size" "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" \
-  "$oracle_language_tree" "$oracle_makefile_blob" "$rugra_input_commit" \
-  "$rugra_input_blob" "$bfd_header" "$bfd_library" <<'PY'
+  "$oracle_language_tree" "$oracle_makefile_blob" "$rudra_input_commit" \
+  "$rudra_input_blob" "$bfd_header" "$bfd_library" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -171,7 +171,7 @@ crate_files = [
 ] + source_files("src") + source_files("sleigh_shim")
 crate_files = sorted(set(crate_files), key=lambda value: value.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-rule-propcopy-lib-snapshot-v1\0")
+crate_hasher.update(b"rudra-rule-propcopy-lib-snapshot-v1\0")
 crate_bytes = {}
 for relative in crate_files:
     data = snapshot_file(relative)
@@ -303,7 +303,7 @@ observed = {
 require(
     "crate hash scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-rule-propcopy-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents",
+    "sha256 of rudra-rule-propcopy-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents",
 )
 for key, actual in observed.items():
     reject_pending(f"comparand.{key}", comparand[key])
@@ -377,15 +377,15 @@ g++ -std=c++11 -O2 -Wall -Wno-sign-compare \
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --offline --locked --quiet --manifest-path "$snapshot_root/Cargo.toml" --lib
 rustc --edition=2021 "$snapshot_root/tests/oracle/rule_propcopy_1204.rs" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/rule_propcopy_1204_rust"
 
 "$oracle_tmp/rule_propcopy_1204_cpp" \
   "$snapshot_root/sleigh_specs" "$snapshot_root/examples/curl" \
   >"$oracle_tmp/ghidra.stdout"
-"$oracle_tmp/rule_propcopy_1204_rust" >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+"$oracle_tmp/rule_propcopy_1204_rust" >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I -S - "$snapshot_root/tests/oracle/rule_propcopy_1204.metadata.json" \
   "$oracle_tmp/ghidra.stdout" <<'PY'

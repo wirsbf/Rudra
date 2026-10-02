@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # JUSTIFIED-CONTAIN-1204 oracle runner (pin-base schema2): rebuilds the
-# locked Ghidra 12.0.4 decompiler and the pinned Rugra base plus the
+# locked Ghidra 12.0.4 decompiler and the pinned Rudra base plus the
 # candidate src/fspec.rs overlay in an isolated snapshot, runs both
 # fixtures byte-for-byte, and verifies every comparand hash in the
 # metadata. Covered projection: Address::justifiedContain one-sided
@@ -54,8 +54,8 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=7b1da21a3a874598423a4b6b941eb2209545fc15
-rugra_base_tree=9b825d99ad55d7b41e5e509beb2c266497d4645e
+rudra_base_commit=7b1da21a3a874598423a4b6b941eb2209545fc15
+rudra_base_tree=9b825d99ad55d7b41e5e509beb2c266497d4645e
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/justified_contain_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/justified_contain_1204.cc"
@@ -117,12 +117,12 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
 fi
 
 actual_base_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || \
-      "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || \
+      "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -136,9 +136,9 @@ host_cargo=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_cargo_bin" --version)
 host_platform=$(/usr/bin/uname -srm)
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-justified-contain-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-justified-contain-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-justified-contain-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-justified-contain-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2
     return 1
   fi
@@ -173,7 +173,7 @@ owned_files=(
   "$fspec_rs" "$fspec_doc" \
   "$runner_fd_path" "$runner_snapshot_sha" \
   "$oracle_tag" "$oracle_commit" "$oracle_cpp_tree" "$oracle_makefile_blob" \
-  "$rugra_base_commit" "$rugra_base_tree" "$host_cxx" "$host_cxx_target" \
+  "$rudra_base_commit" "$rudra_base_tree" "$host_cxx" "$host_cxx_target" \
   "$host_rustc" "$host_cargo" "$host_platform" "$host_cxx_bin" \
   "$host_cc_bin" "$host_ar_bin" "$host_make_bin" "$host_python_bin" \
   "$host_git_bin" "$host_cargo_bin" "$host_rustc_bin" <<'PY'
@@ -189,7 +189,7 @@ import sys
     metadata_raw, cpp_raw, rust_raw, fspec_raw,
     fspec_doc_raw,
     runner_fd_raw, runner_snapshot_sha, oracle_tag, oracle_commit,
-    cpp_tree, makefile_blob, rugra_base_commit, rugra_base_tree,
+    cpp_tree, makefile_blob, rudra_base_commit, rudra_base_tree,
     host_cxx, host_cxx_target, host_rustc, host_cargo, host_platform,
     host_cxx_bin, host_cc_bin, host_ar_bin, host_make_bin,
     host_python_bin, host_git_bin, host_cargo_bin, host_rustc_bin,
@@ -232,7 +232,7 @@ def reject_pending(value, path="metadata"):
 def base_source_files(directory):
     raw = subprocess.check_output([
         host_git_bin, "-C", str(repo), "ls-tree", "-r", "--name-only", "-z",
-        rugra_base_commit, "--", directory,
+        rudra_base_commit, "--", directory,
     ])
     return sorted(
         (pathlib.Path(item.decode()) for item in raw.split(b"\0") if item),
@@ -240,7 +240,7 @@ def base_source_files(directory):
     )
 
 def base_file(relative):
-    spec = f"{rugra_base_commit}:{relative.as_posix()}"
+    spec = f"{rudra_base_commit}:{relative.as_posix()}"
     require(
         f"base object type {relative}",
         subprocess.check_output(
@@ -273,8 +273,8 @@ crate_files = [
 ] + base_source_files("src") + base_source_files("sleigh_shim")
 crate_files = sorted(set(crate_files), key=lambda item: item.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-justified-contain-base-overlay-v1\0")
-crate_hasher.update(rugra_base_commit.encode())
+crate_hasher.update(b"rudra-justified-contain-base-overlay-v1\0")
+crate_hasher.update(rudra_base_commit.encode())
 crate_bytes = {}
 for relative in crate_files:
     data = live_file(relative) if relative in overlay_files else base_file(relative)
@@ -319,8 +319,8 @@ for label, actual, expected in (
     ("oracle commit", oracle["commit"], oracle_commit),
     ("oracle cpp tree", oracle["decompiler_cpp_tree"], cpp_tree),
     ("oracle Makefile blob", oracle["decompiler_makefile_blob"], makefile_blob),
-    ("Rugra base commit", metadata["comparand"]["rugra_base_commit"], rugra_base_commit),
-    ("Rugra base tree", metadata["comparand"]["rugra_base_tree"], rugra_base_tree),
+    ("Rudra base commit", metadata["comparand"]["rugra_base_commit"], rudra_base_commit),
+    ("Rudra base tree", metadata["comparand"]["rugra_base_tree"], rudra_base_tree),
 ):
     require(label, actual, expected)
 
@@ -339,7 +339,7 @@ observed_hashes = {
 require(
     "crate snapshot scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-justified-contain-base-overlay-v1 plus base commit and sorted length-prefixed paths and contents",
+    "sha256 of rudra-justified-contain-base-overlay-v1 plus base commit and sorted length-prefixed paths and contents",
 )
 for key, actual in observed_hashes.items():
     require(key, actual, comparand[key])
@@ -416,7 +416,7 @@ for block in package_blocks:
 require("locked registry package count", len(registry_packages), metadata["build"]["registry_packages"])
 
 registry_hasher = hashlib.sha256()
-registry_hasher.update(b"rugra-justified-contain-registry-lock-v1\0")
+registry_hasher.update(b"rudra-justified-contain-registry-lock-v1\0")
 for name, version, checksum in registry_packages:
     record = f"{name}\0{version}\0{checksum}".encode()
     registry_hasher.update(len(record).to_bytes(8, "big"))
@@ -502,7 +502,7 @@ if $ghidra_only; then
   exit 0
 fi
 
-fixture_target=/tmp/rugra-target-fspec-writer/justified-contain
+fixture_target=/tmp/rudra-target-fspec-writer/justified-contain
 /usr/bin/mkdir -p "$fixture_target"
 for cargo_config in \
   "$snapshot_root/.cargo/config" "$snapshot_root/.cargo/config.toml" \
@@ -514,17 +514,17 @@ for cargo_config in \
     exit 1
   fi
 done
-if ! /usr/bin/flock /tmp/rugra-cargo-build.lock -c \
+if ! /usr/bin/flock /tmp/rudra-cargo-build.lock -c \
   "CARGO_HOME='$cargo_home' CARGO_TARGET_DIR='$fixture_target' CARGO_NET_OFFLINE=true CXX='$host_cxx_bin' CC='$host_cc_bin' AR='$host_ar_bin' RUSTC='$host_rustc_bin' '$host_cargo_bin' build --offline --locked --quiet --manifest-path '$snapshot_root/Cargo.toml' --lib" \
   >"$oracle_tmp/cargo.stdout" 2>"$oracle_tmp/cargo.stderr"; then
   /usr/bin/cat "$oracle_tmp/cargo.stdout" >&2
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archive=$(/usr/bin/find "$fixture_target/debug/build" \
-  -path '*/out/librugra_sleigh.a' -type f -print -quit)
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" || \
+  -path '*/out/librudra_sleigh.a' -type f -print -quit)
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" || \
       -z "$native_archive" || ! -f "$native_archive" ]]; then
   echo "fresh Rust link inputs are missing" >&2
   exit 1
@@ -539,7 +539,7 @@ rust_binary="$oracle_tmp/justified_contain_1204_rust"
 if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
     -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-    --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+    --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
     -l dylib=stdc++ -l dylib=m "$snapshot_rust" -o "$rust_binary" \
     >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -555,15 +555,15 @@ fi
 
 set +e
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 "$rust_binary" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-/usr/bin/diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+/usr/bin/diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff"
 diff_status=$?
 set -e
-if [[ "$rugra_status" -ne 0 || -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture failed or emitted runtime diagnostics" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+if [[ "$rudra_status" -ne 0 || -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture failed or emitted runtime diagnostics" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 if [[ "$diff_status" -ne 0 ]]; then
@@ -572,8 +572,8 @@ if [[ "$diff_status" -ne 0 ]]; then
 fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
-  "$snapshot_metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
-  "$oracle_tmp/raw.diff" "$ghidra_status" "$rugra_status" "$diff_status" <<'PY'
+  "$snapshot_metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
+  "$oracle_tmp/raw.diff" "$ghidra_status" "$rudra_status" "$diff_status" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -581,12 +581,12 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
 raw_diff = pathlib.Path(sys.argv[4]).read_bytes()
 expected = metadata["expected_results"]
 for label, data, key in (
     ("Ghidra", ghidra, "ghidra_stdout_sha256"),
-    ("Rugra", rugra, "rugra_stdout_sha256"),
+    ("Rudra", rudra, "rudra_stdout_sha256"),
 ):
     actual = hashlib.sha256(data).hexdigest()
     if actual != expected[key]:
@@ -595,7 +595,7 @@ if raw_diff:
     raise SystemExit("byte-equal outputs unexpectedly produced a non-empty diff")
 for label, status in (
     ("Ghidra", int(sys.argv[5])),
-    ("Rugra", int(sys.argv[6])),
+    ("Rudra", int(sys.argv[6])),
     ("raw diff", int(sys.argv[7])),
 ):
     if status != expected["exit_code"]:

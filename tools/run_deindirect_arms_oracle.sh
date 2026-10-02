@@ -11,7 +11,7 @@ set -euo pipefail
 # Rebuilds the locked Ghidra 12.0.4 decompiler from the pinned source
 # archive (adding two read-only fixture accessors: Funcdata::
 # fixtureAddToCallList over the private qlst, Varnode::fixtureSetExternRef
-# over the protected setFlags), builds the Rugra crate from the working
+# over the protected setFlags), builds the Rudra crate from the working
 # tree, compiles both fixtures, runs them, and diffs stdout.
 #
 # Known production-channel residuals (documented MISMATCH coverage on the
@@ -31,17 +31,17 @@ ghidra_root="$repo_root/ghidra"
 cpp_fixture="$repo_root/tests/oracle/deindirect_arms_1204.cc"
 rust_fixture="$repo_root/tests/oracle/deindirect_arms_1204.rs"
 runner="$repo_root/tools/run_deindirect_arms_oracle.sh"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
-cargo_target=${RUDRA_DEINDIRECT_TARGET_DIR:-/dev/shm/rugra-targets/fspecdein-fixture}
-cargo_tmp=${RUDRA_DEINDIRECT_TMP_DIR:-/dev/shm/rugra-tests/fspecdein/fixture-tmp}
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+cargo_target=${RUDRA_DEINDIRECT_TARGET_DIR:-/dev/shm/rudra-targets/fspecdein-fixture}
+cargo_tmp=${RUDRA_DEINDIRECT_TMP_DIR:-/dev/shm/rudra-tests/fspecdein/fixture-tmp}
 mkdir -p "$cargo_target" "$cargo_tmp"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-deindirect-arms-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-deindirect-arms-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-deindirect-arms-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-deindirect-arms-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -146,7 +146,7 @@ env -i PATH=/usr/bin:/bin LC_ALL=C TMPDIR="$cargo_tmp" \
   "$bfd_library" -lz -o "$oracle_tmp/deindirect_arms_cpp"
 
 env -i PATH="$PATH" HOME="$HOME" LC_ALL=C \
-  flock -x /tmp/rugra-cargo-build.lock \
+  flock -x /tmp/rudra-cargo-build.lock \
   env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$cargo_target" \
   TMPDIR="$cargo_tmp" \
   timeout 600 cargo build --offline --locked --quiet \
@@ -154,7 +154,7 @@ env -i PATH="$PATH" HOME="$HOME" LC_ALL=C \
 env -i PATH="$PATH" TMPDIR="$cargo_tmp" \
   rustc --edition=2021 -C opt-level=0 \
   "$snapshot_root/tests/oracle/deindirect_arms_1204.rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L dependency="$cargo_target/debug/deps" \
   -o "$oracle_tmp/deindirect_arms_rust"
 
@@ -163,27 +163,27 @@ set +e
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/deindirect_arms_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
 set -e
 
 echo "== ghidra stdout =="
 cat "$oracle_tmp/ghidra.stdout"
 echo "== ghidra stderr =="
 cat "$oracle_tmp/ghidra.stderr"
-echo "== rugra stdout =="
-cat "$oracle_tmp/rugra.stdout"
-echo "== rugra stderr =="
-cat "$oracle_tmp/rugra.stderr"
-echo "== exit codes: ghidra=$ghidra_status rust=$rugra_status"
+echo "== rudra stdout =="
+cat "$oracle_tmp/rudra.stdout"
+echo "== rudra stderr =="
+cat "$oracle_tmp/rudra.stderr"
+echo "== exit codes: ghidra=$ghidra_status rust=$rudra_status"
 
-if [[ "$ghidra_status" -ne 0 || "$rugra_status" -ne 0 ]]; then
+if [[ "$ghidra_status" -ne 0 || "$rudra_status" -ne 0 ]]; then
   echo "fixture process failed" >&2
   exit 1
 fi
 
-diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" || {
+diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" || {
     echo "bilateral diff (see above): known residuals = extref refaddr channel," \
          "norestart_gate per-callee noreturn channel — full parity otherwise" >&2
     exit 3

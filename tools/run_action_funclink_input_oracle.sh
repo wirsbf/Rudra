@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Locked bilateral gate for GETSTR-FUNCLINK-SPACE-0001.  The Ghidra side is
-# rebuilt from tag Ghidra_12.0.4_build.  The Rugra side is a pinned base plus
+# rebuilt from tag Ghidra_12.0.4_build.  The Rudra side is a pinned base plus
 # the exact live source closure owned by this repair, so unrelated dirty files
 # and ambient build products cannot enter either comparand.
 
@@ -38,15 +38,15 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=356fafc786bce7835e669f571e93d66797e7a069
-rugra_base_tree=5caa8e4fc60e50a1185e3e3e4763bcaf002dc930
+rudra_base_commit=356fafc786bce7835e669f571e93d66797e7a069
+rudra_base_tree=5caa8e4fc60e50a1185e3e3e4763bcaf002dc930
 
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/action_funclink_input_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/action_funclink_input_1204.cc"
 rust_fixture="$repo_root/tests/oracle/action_funclink_input_1204.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 bfd_runtime=$(/usr/bin/dirname "$bfd_library")
 
 spec_files=(
@@ -123,12 +123,12 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
 fi
 
 actual_base_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git" -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
+  "$host_git" -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || \
-      "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+  "$host_git" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || \
+      "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -136,7 +136,7 @@ runner_sha=$(/usr/bin/sha256sum "$runner_fd" | /usr/bin/awk '{print $1}')
 "$host_python" -I -S - "$repo_root" "$metadata" "$cpp_fixture" \
   "$rust_fixture" "$runner_fd" "$runner_sha" "$bfd_include/bfd.h" \
   "$bfd_library" "$oracle_tag" "$oracle_commit" "$oracle_cpp_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
   "${spec_files[@]}" -- "${overlay_files[@]}" <<'PY'
 import hashlib
 import json
@@ -172,8 +172,8 @@ require("oracle commit", oracle["commit"], oracle_commit)
 require("oracle cpp tree", oracle["cpp_tree"], cpp_tree)
 require("oracle Makefile blob", oracle["makefile_blob"], makefile_blob)
 base = metadata["rugra_base"]
-require("Rugra base commit", base["commit"], base_commit)
-require("Rugra base tree", base["tree"], base_tree)
+require("Rudra base commit", base["commit"], base_commit)
+require("Rudra base tree", base["tree"], base_tree)
 
 pins = metadata["sha256"]
 checks = {
@@ -209,7 +209,7 @@ if [[ "$mode" == validate ]]; then
 fi
 
 user_home=$(/usr/bin/getent passwd "$(/usr/bin/id -u)" | /usr/bin/awk -F: 'NR == 1 {print $6}')
-cache_parent="$user_home/.cache/rugra-action-funclink-input-1204"
+cache_parent="$user_home/.cache/rudra-action-funclink-input-1204"
 /usr/bin/mkdir -p "$cache_parent"
 work=$(/usr/bin/mktemp -d "$cache_parent/run.XXXXXX")
 cleanup() {
@@ -244,7 +244,7 @@ base_paths=(
   src sleigh_shim
 )
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git" -C "$repo_root" archive "$rugra_base_commit" \
+  "$host_git" -C "$repo_root" archive "$rudra_base_commit" \
   "${base_paths[@]}" | /usr/bin/tar -xf - -C "$snapshot"
 for relative in "${overlay_files[@]}"; do
   /usr/bin/install -D -m 0644 "$repo_root/$relative" "$snapshot/$relative"
@@ -332,13 +332,13 @@ if ! (
   /usr/bin/cat "$work/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
-if [[ ! -f "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
-  echo "Rugra library/native archive build output mismatch" >&2
+if [[ ! -f "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+  echo "Rudra library/native archive build output mismatch" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -346,7 +346,7 @@ rust_binary="$work/action_funclink_input_1204_rust"
 if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   TMPDIR="$build_tmp" "$host_rustc" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m \
   "$snapshot/tests/oracle/action_funclink_input_1204.rs" \
   -o "$rust_binary" >"$work/rustc.stdout" 2>"$work/rustc.stderr"; then
@@ -355,18 +355,18 @@ if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   exit 1
 fi
 
-rugra_status=0
+rudra_status=0
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$rust_binary" \
   "$spec_root/x86-64-gcc.cspec" "$spec_root/x86-64.sla" \
-  >"$work/rugra.stdout" 2>"$work/rugra.stderr" || rugra_status=$?
-if [[ "$rugra_status" -ne 0 || -s "$work/rugra.stderr" ]]; then
-  echo "Rugra ActionFuncLink fixture failed: exit=$rugra_status" >&2
-  /usr/bin/cat "$work/rugra.stderr" >&2
+  >"$work/rudra.stdout" 2>"$work/rudra.stderr" || rudra_status=$?
+if [[ "$rudra_status" -ne 0 || -s "$work/rudra.stderr" ]]; then
+  echo "Rudra ActionFuncLink fixture failed: exit=$rudra_status" >&2
+  /usr/bin/cat "$work/rudra.stderr" >&2
   exit 1
 fi
 
 diff_status=0
-/usr/bin/diff -u "$work/ghidra.stdout" "$work/rugra.stdout" \
+/usr/bin/diff -u "$work/ghidra.stdout" "$work/rudra.stdout" \
   >"$work/runtime.diff" || diff_status=$?
 if [[ "$diff_status" -ne 0 ]]; then
   echo "ActionFuncLink byte comparison failed" >&2
@@ -375,12 +375,12 @@ if [[ "$diff_status" -ne 0 ]]; then
 fi
 
 "$host_python" -I -S - "$metadata" "$work/ghidra.stdout" \
-  "$work/rugra.stdout" <<'PY'
+  "$work/rudra.stdout" <<'PY'
 import hashlib, json, pathlib, sys
 m = json.loads(pathlib.Path(sys.argv[1]).read_text())
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
-if ghidra != rugra:
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
+if ghidra != rudra:
     raise SystemExit("byte diff unexpectedly diverged")
 capture = m["capture"]
 if len(ghidra) != capture["bytes"] or len(ghidra.splitlines()) != capture["records"]:

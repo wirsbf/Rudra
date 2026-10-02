@@ -47,7 +47,7 @@ validate_oracle_tmp_root
 
 remove_oracle_tmp() {
   case "$oracle_tmp" in
-    "$oracle_tmp_root"/rugra-jt-thunk-1204.??????) ;;
+    "$oracle_tmp_root"/rudra-jt-thunk-1204.??????) ;;
     *)
       echo "refusing unsafe temporary cleanup target: $oracle_tmp" >&2
       return 1
@@ -79,13 +79,13 @@ cleanup() {
   set +e
   if [[ "$status" -ne 0 ]]; then
     failure_log=$(/usr/bin/mktemp \
-      "$oracle_tmp_root/rugra-jt-thunk-run-failure.XXXXXX.log")
+      "$oracle_tmp_root/rudra-jt-thunk-run-failure.XXXXXX.log")
     if [[ -n "$failure_log" ]]; then
       {
         printf 'runner_exit=%s\n' "$status"
         for log in make.stdout make.stderr cxx.stdout cxx.stderr cargo.stdout \
           cargo.stderr rustc.stdout rustc.stderr ghidra.stdout ghidra.stderr \
-          rugra.stdout rugra.stderr raw.diff; do
+          rudra.stdout rudra.stderr raw.diff; do
           if [[ -f "$oracle_tmp/$log" ]]; then
             printf '\n[%s]\n' "$log"
             /usr/bin/cat "$oracle_tmp/$log"
@@ -101,7 +101,7 @@ cleanup() {
     evidence_bundle="$oracle_tmp_root/jt-thunk-classify-evidence-$candidate_commit"
     if /usr/bin/mkdir -p "$evidence_bundle"; then
       for evidence_file in run-record.txt ghidra.stdout ghidra.stderr \
-        rugra.stdout rugra.stderr raw.diff focused-results.txt \
+        rudra.stdout rudra.stderr raw.diff focused-results.txt \
         comparands.before comparands.after \
         comparand-binaries.before comparand-binaries.final \
         cargo-artifacts.before cargo-artifacts.final \
@@ -136,7 +136,7 @@ if [[ ${1:-} == --captured-evidence-stage ]]; then
   candidate_tree=$5
   candidate_blob_oids=("${@:6}")
   set --
-  if [[ "$oracle_tmp" != "$oracle_tmp_root"/rugra-jt-thunk-1204.?????? || \
+  if [[ "$oracle_tmp" != "$oracle_tmp_root"/rudra-jt-thunk-1204.?????? || \
         ! -d "$oracle_tmp" || -L "$oracle_tmp" ]]; then
     echo "invalid captured-evidence temporary directory" >&2
     exit 1
@@ -174,14 +174,14 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
 oracle_cpp_archive_sha=503b60e0fcde80c38abfeb8161fe37d5d83ded16bc9783b53ddd759c053389e4
-rugra_source_commit=8d3a5561f259420d00ec3ecb54e766b206f89331
-rugra_source_tree=c8ee095912b9d56b80c38d72f0bea447ebc998c4
-rugra_source_src_tree=004b20c8ed6da74cf6457a4386570bae4801bc78
-rugra_jumptable_blob=64c824f03f41040696c9c6242f05e83a23e1ef55
-rugra_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
-rugra_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
-rugra_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
-rugra_base_archive_sha=8751c496049f739e279963365409b299fb0c697d3575bc7bd0c4e150e2d6bc3f
+rudra_source_commit=8d3a5561f259420d00ec3ecb54e766b206f89331
+rudra_source_tree=c8ee095912b9d56b80c38d72f0bea447ebc998c4
+rudra_source_src_tree=004b20c8ed6da74cf6457a4386570bae4801bc78
+rudra_jumptable_blob=64c824f03f41040696c9c6242f05e83a23e1ef55
+rudra_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
+rudra_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
+rudra_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_base_archive_sha=8751c496049f739e279963365409b299fb0c697d3575bc7bd0c4e150e2d6bc3f
 
 cxx_path=/usr/bin/g++
 cxx_version='g++ (GCC) 16.2.1 20260810'
@@ -504,7 +504,7 @@ if ! $captured_stage; then
   trap 'forward_or_defer_signal INT' INT
   trap 'forward_or_defer_signal QUIT' QUIT
   trap 'forward_or_defer_signal TERM' TERM
-  oracle_tmp=$(/usr/bin/mktemp -d "$oracle_tmp_root/rugra-jt-thunk-1204.XXXXXX")
+  oracle_tmp=$(/usr/bin/mktemp -d "$oracle_tmp_root/rudra-jt-thunk-1204.XXXXXX")
   if [[ -n "$pending_signal" ]]; then
     signal_exit_status "$pending_signal"
     exit "$requested_exit_status"
@@ -901,18 +901,18 @@ if [[ -n "$oracle_dirty" ]]; then
 fi
 
 for binding in \
-  "$rugra_source_commit^{commit}|$rugra_source_commit" \
-  "$rugra_source_commit^{tree}|$rugra_source_tree" \
-  "$rugra_source_commit:src|$rugra_source_src_tree" \
-  "$rugra_source_commit:src/jumptable.rs|$rugra_jumptable_blob" \
-  "$rugra_source_commit:Cargo.toml|$rugra_cargo_toml_blob" \
-  "$rugra_source_commit:Cargo.lock|$rugra_cargo_lock_blob" \
-  "$rugra_source_commit:build.rs|$rugra_build_rs_blob"; do
+  "$rudra_source_commit^{commit}|$rudra_source_commit" \
+  "$rudra_source_commit^{tree}|$rudra_source_tree" \
+  "$rudra_source_commit:src|$rudra_source_src_tree" \
+  "$rudra_source_commit:src/jumptable.rs|$rudra_jumptable_blob" \
+  "$rudra_source_commit:Cargo.toml|$rudra_cargo_toml_blob" \
+  "$rudra_source_commit:Cargo.lock|$rudra_cargo_lock_blob" \
+  "$rudra_source_commit:build.rs|$rudra_build_rs_blob"; do
   expression=${binding%%|*}
   expected=${binding#*|}
   actual=$(git_clean -C "$repo_root" rev-parse "$expression")
   if [[ "$actual" != "$expected" ]]; then
-    echo "pinned Rugra source identity mismatch: $expression" >&2
+    echo "pinned Rudra source identity mismatch: $expression" >&2
     exit 1
   fi
 done
@@ -925,25 +925,25 @@ cargo_archive_cache="$task_user_home/.cargo/registry/cache"
 /usr/bin/mkdir -p "$snapshot" "$snapshot/tests/oracle" "$snapshot/docs/api" \
   "$snapshot/tools" "$oracle_source" "$cargo_home"
 
-base_archive="$oracle_tmp/rugra-source.tar"
+base_archive="$oracle_tmp/rudra-source.tar"
 # tar.umask is pinned so archive member modes are exactly the Git tree modes
 # (100644 -> 644, 100755 -> 755) regardless of the invoking shell's umask;
 # materialization then verifies the extraction against the tree itself.
 git_clean -c tar.umask=0022 -C "$repo_root" archive --format=tar \
   --output="$base_archive" \
-  "$rugra_source_commit" Cargo.toml Cargo.lock build.rs README.md \
+  "$rudra_source_commit" Cargo.toml Cargo.lock build.rs README.md \
   benches/decompile_bench.rs tests/doc_sync.rs \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
   src sleigh_shim
 if [[ "$(/usr/bin/sha256sum "$base_archive" | /usr/bin/awk '{print $1}')" != \
-      "$rugra_base_archive_sha" ]]; then
-  echo "pinned Rugra base archive mismatch" >&2
+      "$rudra_base_archive_sha" ]]; then
+  echo "pinned Rudra base archive mismatch" >&2
   exit 1
 fi
 /usr/bin/chmod a-w "$base_archive"
 /usr/bin/tar --same-permissions -xf "$base_archive" -C "$snapshot"
-verify_git_materialization "$repo_root" "$rugra_source_commit" "$snapshot" \
-  rugra-base Cargo.toml Cargo.lock build.rs README.md \
+verify_git_materialization "$repo_root" "$rudra_source_commit" "$snapshot" \
+  rudra-base Cargo.toml Cargo.lock build.rs README.md \
   benches/decompile_bench.rs tests/doc_sync.rs \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
   src sleigh_shim
@@ -1181,9 +1181,9 @@ runner="${snapshot_owned_paths[5]}"
   "$metadata" "$cpp_fixture" "$rust_fixture" "$jumptable_overlay" \
   "$api_document" "$runner" "$runner_snapshot_blob" "$oracle_commit" \
   "$oracle_tag" "$oracle_cpp_tree" "$oracle_makefile_blob" \
-  "$oracle_cpp_archive_sha" "$rugra_source_commit" "$rugra_source_tree" \
-  "$rugra_source_src_tree" "$rugra_jumptable_blob" "$rugra_cargo_toml_blob" \
-  "$rugra_cargo_lock_blob" "$rugra_build_rs_blob" "$rugra_base_archive_sha" \
+  "$oracle_cpp_archive_sha" "$rudra_source_commit" "$rudra_source_tree" \
+  "$rudra_source_src_tree" "$rudra_jumptable_blob" "$rudra_cargo_toml_blob" \
+  "$rudra_cargo_lock_blob" "$rudra_build_rs_blob" "$rudra_base_archive_sha" \
   "$cxx_path" "$cxx_version" "$cxx_sha" "$cc_path" "$cc_sha" \
   "$ar_path" "$ar_sha" "$make_path" "$make_sha" "$flock_path" "$flock_sha" \
   "$setsid_path" "$setsid_sha" "$env_path" "$env_sha" \
@@ -1445,12 +1445,12 @@ require("case count", len(manifest["cases"]), 25)
 require("Ghidra expected provenance", metadata["expected_results_provenance"]["ghidra"],
         "OBSERVED_LOCKED_CPP_25_CASE_OUTPUT")
 if runner_preexec:
-    require("Rugra expected provenance", metadata["expected_results_provenance"]["rugra"],
+    require("Rudra expected provenance", metadata["expected_results_provenance"]["rugra"],
             "PROSPECTIVE_CURRENT_CANDIDATE_EXPECTATION_NOT_YET_EXECUTED")
     require("diff expected provenance", metadata["expected_results_provenance"]["diff"],
             "PROSPECTIVE_ZERO_DIFF_EXPECTATION_NOT_YET_EXECUTED")
 else:
-    require("Rugra observed provenance", metadata["expected_results_provenance"]["rugra"],
+    require("Rudra observed provenance", metadata["expected_results_provenance"]["rugra"],
             "OBSERVED_CURRENT_CANDIDATE_25_CASE_OUTPUT")
     require("diff observed provenance", metadata["expected_results_provenance"]["diff"],
             "OBSERVED_ZERO_DIFF_25_CASE_BILATERAL")
@@ -1645,7 +1645,7 @@ cargo_command="/usr/bin/env -i PATH='$clean_path' LC_ALL=C.UTF-8 TMPDIR='$oracle
 cargo_status=0
 (
   builtin cd "$snapshot"
-  "$flock_path" /tmp/rugra-cargo-build.lock -c "$cargo_command"
+  "$flock_path" /tmp/rudra-cargo-build.lock -c "$cargo_command"
 ) >"$oracle_tmp/cargo.stdout" 2>"$oracle_tmp/cargo.stderr" || cargo_status=$?
 if [[ "$cargo_status" -ne 0 ]]; then
   echo "Cargo failed with exit code $cargo_status" >&2
@@ -1717,7 +1717,7 @@ fi
 while IFS= read -r -d '' candidate; do
   candidate_parent=${candidate%/*}
   case "${candidate_parent##*/}" in
-    rugra-*) printf '%s\n' "$candidate" >>"$root_output_list" ;;
+    rudra-*) printf '%s\n' "$candidate" >>"$root_output_list" ;;
   esac
 done <"$root_output_candidates"
 /usr/bin/sort -o "$root_output_list" "$root_output_list"
@@ -1726,7 +1726,7 @@ while IFS= read -r root_output; do
   [[ -n "$root_output" ]] && root_outputs+=("$root_output")
 done <"$root_output_list"
 if [[ ${#root_outputs[@]} -ne 1 || -L "${root_outputs[0]:-}" ]]; then
-  echo "expected one regular run-local Rugra root-output, found ${#root_outputs[@]}" >&2
+  echo "expected one regular run-local Rudra root-output, found ${#root_outputs[@]}" >&2
   /usr/bin/printf '%s\n' "${root_outputs[@]}" >&2
   exit 1
 fi
@@ -1740,9 +1740,9 @@ if [[ "$cargo_target_real" != "$cargo_target" || \
       "$build_root_real" != "$cargo_target_real/debug/build" || \
       -z "$root_output_parent_real" || \
       "${root_output_parent_real%/*}" != "$build_root_real" || \
-      ! "${root_output_parent_real##*/}" =~ ^rugra-[0-9a-f]+$ || \
+      ! "${root_output_parent_real##*/}" =~ ^rudra-[0-9a-f]+$ || \
       "$root_output" != "$root_output_parent/root-output" ]]; then
-  echo "root-output parent is not one exact run-local Rugra build directory" >&2
+  echo "root-output parent is not one exact run-local Rudra build directory" >&2
   exit 1
 fi
 native_output=$(<"$root_output")
@@ -1754,30 +1754,30 @@ if [[ "$native_output" != "$root_output_parent/out" || \
   exit 1
 fi
 native_output=$native_output_real
-native_archive="$native_output/librugra_sleigh.a"
+native_archive="$native_output/librudra_sleigh.a"
 
-rlib_candidates="$oracle_tmp/rugra-rlibs.list"
+rlib_candidates="$oracle_tmp/rudra-rlibs.list"
 if ! /usr/bin/find "$cargo_target/debug/deps" -maxdepth 1 -type f \
-    -name 'librugra-*.rlib' -print0 >"$rlib_candidates"; then
-  echo "could not enumerate run-local Rugra rlibs" >&2
+    -name 'librudra-*.rlib' -print0 >"$rlib_candidates"; then
+  echo "could not enumerate run-local Rudra rlibs" >&2
   exit 1
 fi
 /usr/bin/sort -z -o "$rlib_candidates" "$rlib_candidates"
-rugra_rlibs=()
-while IFS= read -r -d '' rlib; do rugra_rlibs+=("$rlib"); done <"$rlib_candidates"
-if [[ ${#rugra_rlibs[@]} -ne 1 || ! -f "$native_archive" || \
-      -L "$native_archive" || -L "${rugra_rlibs[0]:-}" ]]; then
-  echo "expected one regular current Rugra rlib/native archive" >&2
-  /usr/bin/printf '%s\n' "${rugra_rlibs[@]}" "$native_archive" >&2
+rudra_rlibs=()
+while IFS= read -r -d '' rlib; do rudra_rlibs+=("$rlib"); done <"$rlib_candidates"
+if [[ ${#rudra_rlibs[@]} -ne 1 || ! -f "$native_archive" || \
+      -L "$native_archive" || -L "${rudra_rlibs[0]:-}" ]]; then
+  echo "expected one regular current Rudra rlib/native archive" >&2
+  /usr/bin/printf '%s\n' "${rudra_rlibs[@]}" "$native_archive" >&2
   exit 1
 fi
-rugra_rlib=$(/usr/bin/readlink -f "${rugra_rlibs[0]}")
+rudra_rlib=$(/usr/bin/readlink -f "${rudra_rlibs[0]}")
 native_archive_real=$(/usr/bin/readlink -f "$native_archive")
 deps_root_real=$(/usr/bin/readlink -f "$cargo_target/debug/deps")
-if [[ "$native_archive_real" != "$native_output/librugra_sleigh.a" || \
-      "${rugra_rlib%/*}" != "$deps_root_real" || \
-      ! "${rugra_rlib##*/}" =~ ^librugra-[0-9a-f]+\.rlib$ ]]; then
-  echo "Rugra artifacts escaped their exact run-local directories" >&2
+if [[ "$native_archive_real" != "$native_output/librudra_sleigh.a" || \
+      "${rudra_rlib%/*}" != "$deps_root_real" || \
+      ! "${rudra_rlib##*/}" =~ ^librudra-[0-9a-f]+\.rlib$ ]]; then
+  echo "Rudra artifacts escaped their exact run-local directories" >&2
   exit 1
 fi
 native_archive=$native_archive_real
@@ -1812,7 +1812,7 @@ for label, raw_root in (("deps", sys.argv[1]), ("native", sys.argv[2])):
 PY
 }
 artifact_input_state >"$oracle_tmp/direct-rustc-inputs.before"
-/usr/bin/sha256sum "$native_archive" "$rugra_rlib" \
+/usr/bin/sha256sum "$native_archive" "$rudra_rlib" \
   >"$oracle_tmp/cargo-artifacts.before"
 native_sha=$(/usr/bin/awk 'NR == 1 { print $1 }' "$oracle_tmp/cargo-artifacts.before")
 rlib_sha=$(/usr/bin/awk 'NR == 2 { print $1 }' "$oracle_tmp/cargo-artifacts.before")
@@ -1821,14 +1821,14 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C TMPDIR="$oracle_tmp_root" \
     "$rustc_path" \
     --edition=2021 -O -C "linker=$cc_path" \
   -L "dependency=$cargo_target/debug/deps" -L "native=$native_output" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m "$rust_fixture" \
   -o "$oracle_tmp/jt_thunk_classify_1204_rust" >"$oracle_tmp/rustc.stdout" \
   2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" "$oracle_tmp/rustc.stderr" >&2
   exit 1
 fi
-/usr/bin/sha256sum "$native_archive" "$rugra_rlib" \
+/usr/bin/sha256sum "$native_archive" "$rudra_rlib" \
   >"$oracle_tmp/cargo-artifacts.after"
 /usr/bin/cmp --silent "$oracle_tmp/cargo-artifacts.before" \
   "$oracle_tmp/cargo-artifacts.after"
@@ -1851,18 +1851,18 @@ ghidra_status=0
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C LD_PRELOAD="$libstdcpp_path:$zlib_path" \
   "$oracle_tmp/jt_thunk_classify_1204_cpp" >"$oracle_tmp/ghidra.stdout" \
   2>"$oracle_tmp/ghidra.stderr" || ghidra_status=$?
-rugra_status=0
+rudra_status=0
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C LD_PRELOAD="$libstdcpp_path:$zlib_path" \
-  "$oracle_tmp/jt_thunk_classify_1204_rust" >"$oracle_tmp/rugra.stdout" \
-  2>"$oracle_tmp/rugra.stderr" || rugra_status=$?
+  "$oracle_tmp/jt_thunk_classify_1204_rust" >"$oracle_tmp/rudra.stdout" \
+  2>"$oracle_tmp/rudra.stderr" || rudra_status=$?
 diff_status=0
-/usr/bin/diff -u --label ghidra --label rugra "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff" || diff_status=$?
+/usr/bin/diff -u --label ghidra --label rudra "$oracle_tmp/ghidra.stdout" \
+  "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff" || diff_status=$?
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$python_path" -I -S - \
   "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/ghidra.stderr" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/rugra.stderr" \
-  "$oracle_tmp/raw.diff" "$ghidra_status" "$rugra_status" "$diff_status" <<'PY'
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/rudra.stderr" \
+  "$oracle_tmp/raw.diff" "$ghidra_status" "$rudra_status" "$diff_status" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -1872,8 +1872,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 paths = {
     "ghidra_stdout_sha256": pathlib.Path(sys.argv[2]),
     "ghidra_stderr_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_stdout_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_stderr_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_stdout_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_stderr_sha256": pathlib.Path(sys.argv[5]),
     "raw_diff_sha256": pathlib.Path(sys.argv[6]),
 }
 for key, path in paths.items():
@@ -1890,11 +1890,11 @@ for key, actual in (
     if actual != expected:
         raise SystemExit(f"{key} mismatch: expected={expected} actual={actual}")
 PY
-if [[ "$ghidra_status" -ne 0 || "$rugra_status" -ne 0 || \
+if [[ "$ghidra_status" -ne 0 || "$rudra_status" -ne 0 || \
       "$diff_status" -ne 0 || -s "$oracle_tmp/ghidra.stderr" || \
-      -s "$oracle_tmp/rugra.stderr" ]]; then
+      -s "$oracle_tmp/rudra.stderr" ]]; then
   echo "bilateral fixture failed or emitted diagnostics" >&2
-  /usr/bin/cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stderr" \
+  /usr/bin/cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stderr" \
     "$oracle_tmp/raw.diff" >&2
   exit 1
 fi
@@ -1996,7 +1996,7 @@ if changed_modes or new_dirs != expected_new_dirs:
 PY
 verify_libdecomp_archive
 if [[ "$(/usr/bin/sha256sum "$base_archive" | /usr/bin/awk '{print $1}')" != \
-      "$rugra_base_archive_sha" || \
+      "$rudra_base_archive_sha" || \
       "$(/usr/bin/sha256sum "$oracle_archive" | /usr/bin/awk '{print $1}')" != \
       "$oracle_cpp_archive_sha" ]]; then
   echo "immutable source archive drifted" >&2
@@ -2004,7 +2004,7 @@ if [[ "$(/usr/bin/sha256sum "$base_archive" | /usr/bin/awk '{print $1}')" != \
 fi
 toolchain_state >"$oracle_tmp/toolchain.after"
 /usr/bin/cmp --silent "$oracle_tmp/toolchain.before" "$oracle_tmp/toolchain.after"
-/usr/bin/sha256sum "$native_archive" "$rugra_rlib" \
+/usr/bin/sha256sum "$native_archive" "$rudra_rlib" \
   >"$oracle_tmp/cargo-artifacts.final"
 /usr/bin/cmp --silent "$oracle_tmp/cargo-artifacts.before" \
   "$oracle_tmp/cargo-artifacts.final"

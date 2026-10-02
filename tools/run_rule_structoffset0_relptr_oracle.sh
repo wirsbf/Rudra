@@ -7,7 +7,7 @@
 #               tests/oracle/rule_structoffset0_relptr_1204.oracle.out
 #               (sha-pinned below). Live oracle re-verification under
 #               RUDRA_RULEADJ2_ORACLE_RUN=1 (see AGENTS.md oracle env note).
-# Rugra side  : current worktree lib (cargo build --lib) + the mirrored
+# Rudra side  : current worktree lib (cargo build --lib) + the mirrored
 #               tests/oracle/rule_structoffset0_relptr_1204.rs.
 # Comparand   : normal mode = byte-compare vs the archived oracle record.
 set -euo pipefail
@@ -35,16 +35,16 @@ done
 [[ $(sha256sum "$oracle_record" | cut -d' ' -f1) == "$oracle_record_sha256" ]] \
   || die "archived oracle record drifted"
 
-workdir=$(mktemp -d "${TMPDIR:-/tmp}/rugra-rs0rel.XXXXXX")
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/rudra-rs0rel.XXXXXX")
 trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # ---- oracle comparand (archive or live) -----------------------------------
 oracle_out="$workdir/oracle_normal.out"
 if [[ ${RUDRA_RULEADJ2_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUDRA_RULEADJ2_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-subcommute-1204}
+  cache_root=${RUDRA_RULEADJ2_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-subcommute-1204}
   runner="$cache_root/rule_structoffset0_relptr_1204_cpp"
   if [[ ! -x $runner ]]; then
-    bfd_include=${RUDRA_RULEADJ2_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+    bfd_include=${RUDRA_RULEADJ2_BFD_INCLUDE:-/tmp/rudra-ghidra-bfd-2.38/usr/include}
     [[ -d $bfd_include ]] || die "BFD include tree missing: $bfd_include (see AGENTS.md oracle env note)"
     [[ -d $cache_root/x ]] || mkdir -p "$cache_root/x"
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \
@@ -77,24 +77,24 @@ else
   oracle_source=archive
 fi
 
-# ---- Rugra side -----------------------------------------------------------
+# ---- Rudra side -----------------------------------------------------------
 target_dir=${CARGO_TARGET_DIR:-$repo_root/target}
 (cd "$repo_root" && CARGO_TARGET_DIR="$target_dir" cargo build --offline --locked --quiet --lib)
 rustc --edition=2021 "$fixture_rs" \
-  --extern rugra="$target_dir/debug/librugra.rlib" \
+  --extern rudra="$target_dir/debug/librudra.rlib" \
   -L "dependency=$target_dir/debug/deps" \
   -o "$workdir/rule_structoffset0_relptr_1204_rust"
 
 "$workdir/rule_structoffset0_relptr_1204_rust" normal \
-  > "$workdir/rugra_normal.out" 2> "$workdir/rugra_normal.err"
-[[ -s "$workdir/rugra_normal.err" ]] && die "rugra normal stderr non-empty"
+  > "$workdir/rudra_normal.out" 2> "$workdir/rudra_normal.err"
+[[ -s "$workdir/rudra_normal.err" ]] && die "rudra normal stderr non-empty"
 
 # ---- compare: normal mode golden diff --------------------------------------
-if cmp -s "$oracle_out" "$workdir/rugra_normal.out"; then
+if cmp -s "$oracle_out" "$workdir/rudra_normal.out"; then
   echo "rule_structoffset0_relptr_1204[normal]: MATCH (byte-identical, 7/7 cases)"
 else
   echo "rule_structoffset0_relptr_1204[normal]: MISMATCH"
-  diff -u --label ghidra --label rugra "$oracle_out" "$workdir/rugra_normal.out" | head -40 >&2
+  diff -u --label ghidra --label rudra "$oracle_out" "$workdir/rudra_normal.out" | head -40 >&2
   exit 1
 fi
 echo "rule_structoffset0_relptr_1204: PASS (oracle source: $oracle_source)"

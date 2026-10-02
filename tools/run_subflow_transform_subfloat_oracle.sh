@@ -41,10 +41,10 @@ for key, path in (("cpp_fixture_sha256", cpp_path), ("rust_fixture_sha256", rust
         raise SystemExit(f"{key} mismatch: metadata={metadata[key]} actual={actual}")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-subflow-transform-subfloat-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-subflow-transform-subfloat-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-subflow-transform-subfloat-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-subflow-transform-subfloat-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -60,15 +60,15 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
 "$oracle_tmp/subflow_transform_subfloat_1204_cpp" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 "$oracle_tmp/cargo-target/debug/examples/subflow_transform_subfloat_1204_oracle" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
-if [[ -s "$oracle_tmp/ghidra.stderr" || -s "$oracle_tmp/rugra.stderr" ]]; then
+if [[ -s "$oracle_tmp/ghidra.stderr" || -s "$oracle_tmp/rudra.stderr" ]]; then
   echo "fixture stderr must be empty" >&2
-  cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stderr" >&2
+  cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

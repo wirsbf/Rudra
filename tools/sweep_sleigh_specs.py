@@ -25,7 +25,7 @@ Usage:
   python3 tools/sweep_sleigh_specs.py [--ghidra-dir DIR] [--workdir DIR]
       [--jobs N] [--md OUT.md] [--json OUT.json] [--slacomp-bin PATH]
 
-Defaults: workdir /dev/shm/rugra-tests/sleighp1/sweep, md/json written into
+Defaults: workdir /dev/shm/rudra-tests/sleighp1/sweep, md/json written into
 the workdir. The oracle sleigh_opt is rebuilt from the locked tree via
 `git archive` (bypassing the sparse checkout) every run; slacomp is built
 from the vendored crates unless --slacomp-bin is given.
@@ -88,7 +88,7 @@ def compile_one(compiler, spec: Path, out: Path):
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--ghidra-dir", default=None)
-    ap.add_argument("--workdir", default="/dev/shm/rugra-tests/sleighp1/sweep")
+    ap.add_argument("--workdir", default="/dev/shm/rudra-tests/sleighp1/sweep")
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--md", default=None)
     ap.add_argument("--json", default=None)

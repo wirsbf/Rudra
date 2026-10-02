@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-check_determinism.py — Rugra 反编译输出确定性双跑门禁（DETERMINISM-GATE-CI-0006）。
+check_determinism.py — Rudra 反编译输出确定性双跑门禁（DETERMINISM-GATE-CI-0006）。
 
 背景（RUN-NONDETERM-0001）：std HashMap 随机种子曾使 heritage phi 放置序逐次漂移，
 All 模式 6/6 次输出互异。NONDETERM-DOMFRONT-0001 根修后需要一道 CI 门禁把此类
@@ -9,7 +9,7 @@ All 模式 6/6 次输出互异。NONDETERM-DOMFRONT-0001 根修后需要一道 C
 门禁内容：
   1. All 模式：`curl_decompile`（无参）跑 --runs 次（默认 2），stdout 的 sha256
      必须全部相等，且每次进程退出码为 0。
-  2. compare 模式：`--rugra-timeout-isolation-compare-function <fn>`（默认 main）
+  2. compare 模式：`--rudra-timeout-isolation-compare-function <fn>`（默认 main）
      跑 --runs 次，不得报 "isolated output changed"，退出码必须为 0。
   3. 失败时打印两次运行的 sha256、字节数与首个差异行（含行号与两侧内容），
      并保留两个输出文件供 forensics（成功时才清理临时目录）。
@@ -36,7 +36,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE_NAME = "curl_decompile"
 EXAMPLE_BIN = REPO_ROOT / "target" / "release" / "examples" / EXAMPLE_NAME
-COMPARE_ARG = "--rugra-timeout-isolation-compare-function"
+COMPARE_ARG = "--rudra-timeout-isolation-compare-function"
 ISOLATED_CHANGED_MARKER = "isolated output changed"
 DEFAULT_RUNS = 2
 DEFAULT_TIMEOUT = 900  # 单次全量 All 跑实测 ~110s，留足余量
@@ -208,7 +208,7 @@ def build_example() -> bool:
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Rugra double-run determinism gate (DETERMINISM-GATE-CI-0006)"
+        description="Rudra double-run determinism gate (DETERMINISM-GATE-CI-0006)"
     )
     ap.add_argument("--mode", choices=["all", "compare", "both"], default="both")
     ap.add_argument("--runs", type=int, default=DEFAULT_RUNS,
@@ -229,7 +229,7 @@ def main():
     if not args.no_build and not build_example():
         sys.exit(2)
 
-    outdir = Path(tempfile.mkdtemp(prefix="rugra-determinism-"))
+    outdir = Path(tempfile.mkdtemp(prefix="rudra-determinism-"))
     ok = False
     try:
         binary = snapshot_binary(outdir)

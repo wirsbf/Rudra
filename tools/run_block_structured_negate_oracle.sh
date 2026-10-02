@@ -39,8 +39,8 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=7e91aef6aa28cbf0a77b9812858c276cafa7fbd3
-rugra_base_tree=fd155bc4dd996000d3012c2d49f7244c3a6308ec
+rudra_base_commit=7e91aef6aa28cbf0a77b9812858c276cafa7fbd3
+rudra_base_tree=fd155bc4dd996000d3012c2d49f7244c3a6308ec
 
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/block_structured_negate_1204.metadata.json"
@@ -104,13 +104,13 @@ fi
 
 actual_base_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   GIT_CONFIG_NOSYSTEM=1 "$host_git" -C "$repo_root" \
-  rev-parse "$rugra_base_commit^{commit}")
+  rev-parse "$rudra_base_commit^{commit}")
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   GIT_CONFIG_NOSYSTEM=1 "$host_git" -C "$repo_root" \
-  rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || \
-      "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+  rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || \
+      "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -128,8 +128,8 @@ host_cargo_version=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$host_python" -I -S - "$repo_root" "$metadata" "$cpp_fixture" \
   "$rust_fixture" "$block_rs" "$blockaction_rs" "$runner_fd_path" \
   "$runner_fd_sha" "$ghidra_root" "$oracle_tag" "$oracle_commit" \
-  "$oracle_cpp_tree" "$oracle_makefile_blob" "$rugra_base_commit" \
-  "$rugra_base_tree" "$host_cxx_version" "$host_cxx_target" \
+  "$oracle_cpp_tree" "$oracle_makefile_blob" "$rudra_base_commit" \
+  "$rudra_base_tree" "$host_cxx_version" "$host_cxx_target" \
   "$host_rustc_version" "$host_cargo_version" <<'PY'
 import hashlib
 import json
@@ -205,7 +205,7 @@ source_files = sorted(
     key=lambda p: p.relative_to(repo).as_posix(),
 )
 h = hashlib.sha256()
-h.update(b"rugra-block-structured-negate-full-src-overlay-v1\0")
+h.update(b"rudra-block-structured-negate-full-src-overlay-v1\0")
 for path in source_files:
     rel = path.relative_to(repo).as_posix().encode("utf-8")
     data = path.read_bytes()
@@ -214,8 +214,8 @@ for path in source_files:
 overlay = metadata["rugra_source"]["overlay"]
 require("overlay file count", len(source_files), overlay["file_count"])
 require("overlay tree", h.hexdigest(), overlay["tree_sha256"])
-require("Rugra base commit", metadata["rugra_source"]["base_commit"], base_commit)
-require("Rugra base tree", metadata["rugra_source"]["base_tree"], base_tree)
+require("Rudra base commit", metadata["rugra_source"]["base_commit"], base_commit)
+require("Rudra base tree", metadata["rugra_source"]["base_tree"], base_tree)
 
 require("host C++", host_cxx, metadata["host"]["cxx"])
 require("host C++ target", host_cxx_target, metadata["host"]["cxx_target"])
@@ -319,12 +319,12 @@ if [[ "$mode" == ghidra ]]; then
   exit 0
 fi
 
-snapshot="$run_tmp/rugra-snapshot"
+snapshot="$run_tmp/rudra-snapshot"
 /usr/bin/mkdir -p "$snapshot"
-base_archive="$run_tmp/rugra-base.tar"
+base_archive="$run_tmp/rudra-base.tar"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git" -C "$repo_root" archive --format=tar --output="$base_archive" \
-  "$rugra_base_commit" Cargo.toml Cargo.lock build.rs README.md \
+  "$rudra_base_commit" Cargo.toml Cargo.lock build.rs README.md \
   benches/decompile_bench.rs tests/oracle/decompress_1204.rs \
   tests/oracle/funcproto_lock_1204.rs sleigh_shim
 "$host_tar" -xf "$base_archive" -C "$snapshot"
@@ -343,7 +343,7 @@ files = sorted(
     key=lambda p: p.relative_to(snapshot).as_posix(),
 )
 h = hashlib.sha256()
-h.update(b"rugra-block-structured-negate-full-src-overlay-v1\0")
+h.update(b"rudra-block-structured-negate-full-src-overlay-v1\0")
 for path in files:
     rel = path.relative_to(snapshot).as_posix().encode("utf-8")
     data = path.read_bytes()
@@ -389,12 +389,12 @@ if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   exit 1
 fi
 
-rugra_rlib="$cargo_target/debug/librugra.rlib"
+rudra_rlib="$cargo_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$cargo_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$cargo_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" || \
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" || \
       "${#native_archives[@]}" -ne 1 ]]; then
   echo "missing or ambiguous fresh Rust link inputs" >&2
   exit 1
@@ -403,8 +403,8 @@ native_dir=$(/usr/bin/dirname "${native_archives[0]}")
 rust_binary="$run_tmp/block_structured_negate_rust"
 if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 TMPDIR="$run_tmp" \
   "$host_rustc" --edition=2021 -O -L "dependency=$cargo_target/debug/deps" \
-  -L "native=$native_dir" --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  -L "native=$native_dir" --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$rust_binary" \
   >"$run_tmp/rustc.stdout" 2>"$run_tmp/rustc.stderr"; then
   /usr/bin/cat "$run_tmp/rustc.stdout" >&2
@@ -420,15 +420,15 @@ fi
 
 set +e
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 "$rust_binary" \
-  >"$run_tmp/rugra.stdout" 2>"$run_tmp/rugra.stderr"
-rugra_status=$?
-/usr/bin/diff -u --label ghidra --label rugra "$run_tmp/ghidra.stdout" \
-  "$run_tmp/rugra.stdout" >"$run_tmp/raw.diff"
+  >"$run_tmp/rudra.stdout" 2>"$run_tmp/rudra.stderr"
+rudra_status=$?
+/usr/bin/diff -u --label ghidra --label rudra "$run_tmp/ghidra.stdout" \
+  "$run_tmp/rudra.stdout" >"$run_tmp/raw.diff"
 diff_status=$?
 set -e
-if [[ "$rugra_status" -ne 0 ]]; then
-  echo "Rugra fixture failed" >&2
-  /usr/bin/cat "$run_tmp/rugra.stderr" >&2
+if [[ "$rudra_status" -ne 0 ]]; then
+  echo "Rudra fixture failed" >&2
+  /usr/bin/cat "$run_tmp/rudra.stderr" >&2
   exit 1
 fi
 if [[ "$diff_status" -ne 0 ]]; then
@@ -436,17 +436,17 @@ if [[ "$diff_status" -ne 0 ]]; then
   exit 1
 fi
 
-rugra_stdout_sha=$(/usr/bin/sha256sum "$run_tmp/rugra.stdout" | \
+rudra_stdout_sha=$(/usr/bin/sha256sum "$run_tmp/rudra.stdout" | \
   /usr/bin/awk '{print $1}')
-rugra_stderr_sha=$(/usr/bin/sha256sum "$run_tmp/rugra.stderr" | \
+rudra_stderr_sha=$(/usr/bin/sha256sum "$run_tmp/rudra.stderr" | \
   /usr/bin/awk '{print $1}')
-expected_rugra_stderr=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
+expected_rudra_stderr=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$host_python" -I -S -c \
-  'import json,sys; print(json.load(open(sys.argv[1]))["expected_rugra_stderr_sha256"])' \
+  'import json,sys; print(json.load(open(sys.argv[1]))["expected_rudra_stderr_sha256"])' \
   "$metadata")
-if [[ "$rugra_stdout_sha" != "$expected_stdout" || \
-      "$rugra_stderr_sha" != "$expected_rugra_stderr" ]]; then
-  echo "Rugra output hash mismatch: stdout=$rugra_stdout_sha stderr=$rugra_stderr_sha" >&2
+if [[ "$rudra_stdout_sha" != "$expected_stdout" || \
+      "$rudra_stderr_sha" != "$expected_rudra_stderr" ]]; then
+  echo "Rudra output hash mismatch: stdout=$rudra_stdout_sha stderr=$rudra_stderr_sha" >&2
   exit 1
 fi
 
@@ -457,4 +457,4 @@ if ! /usr/bin/cmp -s "$run_tmp/owned.before" "$run_tmp/owned.after"; then
 fi
 
 /usr/bin/cat "$run_tmp/ghidra.stdout"
-echo "block_structured_negate_1204: scoped=MATCH full=MISMATCH residual=RUDRA_DIAGNOSTIC_STDERR stdout_sha256=$ghidra_stdout_sha rugra_stderr_sha256=$rugra_stderr_sha"
+echo "block_structured_negate_1204: scoped=MATCH full=MISMATCH residual=RUDRA_DIAGNOSTIC_STDERR stdout_sha256=$ghidra_stdout_sha rudra_stderr_sha256=$rudra_stderr_sha"

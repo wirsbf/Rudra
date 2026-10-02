@@ -17,7 +17,7 @@ import sys
 import os
 from pathlib import Path
 
-# 项目子目录根——rugra 源代码所在位置
+# 项目子目录根——rudra 源代码所在位置
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 DOC_DIR = PROJECT_ROOT / "docs" / "api"
@@ -26,7 +26,7 @@ DOC_DIR = PROJECT_ROOT / "docs" / "api"
 def detect_git_prefix() -> str:
     """
     检测当前项目目录相对于 git 仓库根的前缀。
-    例如 git root 是 D:/ghidra，项目在 D:/ghidra/rugra，则返回 "rugra/"。
+    例如 git root 是 D:/ghidra，项目在 D:/ghidra/rudra，则返回 "rudra/"。
     """
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
@@ -41,7 +41,7 @@ def detect_git_prefix() -> str:
         return ""
 
 
-GIT_PREFIX = detect_git_prefix()  # e.g. "rugra/"
+GIT_PREFIX = detect_git_prefix()  # e.g. "rudra/"
 
 
 def rs_to_doc_path(rs_rel: str) -> Path:

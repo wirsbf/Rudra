@@ -50,7 +50,7 @@ Thumbs.db
 /result/
 
 # Content-addressed oracle outputs and pipeline snapshots (regenerable)
-/.rugra-cache/
+/.rudra-cache/
 
 # Agent/tooling scratch dirs (session-local)
 .sisyphus/

@@ -73,18 +73,18 @@ g++ -std=c++11 -O2 -I"$cpp_root" \
 
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" cargo build --quiet --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/printc_display_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/printc_display_rudra"
 
 "$oracle_tmp/printc_display_1204" >"$oracle_tmp/ghidra.stdout"
-"$oracle_tmp/printc_display_rugra" >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+"$oracle_tmp/printc_display_rudra" >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 cat "$oracle_tmp/ghidra.stdout"
 
 python3 - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Immutable runner for DATABASE-SCOPE-OWNERSHIP-FIXTURE-0001.  The Ghidra
-# oracle, Rugra source, binary/spec inputs, fixtures, toolchain, and BFD input
+# oracle, Rudra source, binary/spec inputs, fixtures, toolchain, and BFD input
 # closure are all pinned and checked before either comparand executes.
 runner_fd_path="/proc/$$/fd/3"
 if [[ "${BASH_SOURCE[0]}" != "$runner_fd_path" ]]; then
@@ -37,20 +37,20 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_source_commit=2be910a2513a9a049eb8bad0bd0a7c13a566bd6a
-rugra_source_tree=4810d810e0f1932537cd849a634ce51f19f067d9
-rugra_source_src_tree=004b20c8ed6da74cf6457a4386570bae4801bc78
-rugra_source_sleigh_shim_tree=c7729d9d1554dc62c486bcd7d58fdbf44bebb97d
-rugra_source_arch_blob=cd3fd77747d6377e14f2e672956ddfbc9ff17877
-rugra_source_database_blob=840e08ae133f285857b0b5ab2a19839976f96c0e
-rugra_source_funcdata_blob=9800c38b1c1bb37d9c2c28841151e0ad2bf9c148
-rugra_source_varmap_blob=af7630a51fb0912a494c87fbb34d2a8c513584d5
-rugra_source_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
-rugra_source_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
-rugra_source_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
-rugra_input_commit=34a3febff160031c265cfbd841a94022c68c2c19
-rugra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
-rugra_source_paths=(
+rudra_source_commit=2be910a2513a9a049eb8bad0bd0a7c13a566bd6a
+rudra_source_tree=4810d810e0f1932537cd849a634ce51f19f067d9
+rudra_source_src_tree=004b20c8ed6da74cf6457a4386570bae4801bc78
+rudra_source_sleigh_shim_tree=c7729d9d1554dc62c486bcd7d58fdbf44bebb97d
+rudra_source_arch_blob=cd3fd77747d6377e14f2e672956ddfbc9ff17877
+rudra_source_database_blob=840e08ae133f285857b0b5ab2a19839976f96c0e
+rudra_source_funcdata_blob=9800c38b1c1bb37d9c2c28841151e0ad2bf9c148
+rudra_source_varmap_blob=af7630a51fb0912a494c87fbb34d2a8c513584d5
+rudra_source_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
+rudra_source_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
+rudra_source_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_input_commit=34a3febff160031c265cfbd841a94022c68c2c19
+rudra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
+rudra_source_paths=(
   Cargo.toml
   Cargo.lock
   build.rs
@@ -66,8 +66,8 @@ ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/database_scope_ownership_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/database_scope_ownership_1204.cc"
 rust_fixture="$repo_root/tests/oracle/database_scope_ownership_1204.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 host_cxx_bin=$(/usr/bin/readlink -f /usr/bin/g++)
 host_cc_bin=$(/usr/bin/readlink -f /usr/bin/gcc)
@@ -128,31 +128,31 @@ if [[ -n "$locked_dirty" ]]; then
 fi
 
 for binding in \
-  "$rugra_source_commit^{commit}|$rugra_source_commit" \
-  "$rugra_source_commit^{tree}|$rugra_source_tree" \
-  "$rugra_source_commit:src|$rugra_source_src_tree" \
-  "$rugra_source_commit:sleigh_shim|$rugra_source_sleigh_shim_tree" \
-  "$rugra_source_commit:src/arch.rs|$rugra_source_arch_blob" \
-  "$rugra_source_commit:src/database.rs|$rugra_source_database_blob" \
-  "$rugra_source_commit:src/funcdata.rs|$rugra_source_funcdata_blob" \
-  "$rugra_source_commit:src/varmap.rs|$rugra_source_varmap_blob" \
-  "$rugra_source_commit:Cargo.toml|$rugra_source_cargo_toml_blob" \
-  "$rugra_source_commit:Cargo.lock|$rugra_source_cargo_lock_blob" \
-  "$rugra_source_commit:build.rs|$rugra_source_build_rs_blob"; do
+  "$rudra_source_commit^{commit}|$rudra_source_commit" \
+  "$rudra_source_commit^{tree}|$rudra_source_tree" \
+  "$rudra_source_commit:src|$rudra_source_src_tree" \
+  "$rudra_source_commit:sleigh_shim|$rudra_source_sleigh_shim_tree" \
+  "$rudra_source_commit:src/arch.rs|$rudra_source_arch_blob" \
+  "$rudra_source_commit:src/database.rs|$rudra_source_database_blob" \
+  "$rudra_source_commit:src/funcdata.rs|$rudra_source_funcdata_blob" \
+  "$rudra_source_commit:src/varmap.rs|$rudra_source_varmap_blob" \
+  "$rudra_source_commit:Cargo.toml|$rudra_source_cargo_toml_blob" \
+  "$rudra_source_commit:Cargo.lock|$rudra_source_cargo_lock_blob" \
+  "$rudra_source_commit:build.rs|$rudra_source_build_rs_blob"; do
   expression=${binding%%|*}
   expected=${binding#*|}
   actual=$(git_clean -C "$repo_root" rev-parse "$expression")
   if [[ "$actual" != "$expected" ]]; then
-    echo "pinned Rugra identity mismatch: $expression" >&2
+    echo "pinned Rudra identity mismatch: $expression" >&2
     exit 1
   fi
 done
-input_commit=$(git_clean -C "$repo_root" rev-parse "$rugra_input_commit^{commit}")
+input_commit=$(git_clean -C "$repo_root" rev-parse "$rudra_input_commit^{commit}")
 input_blob=$(git_clean -C "$repo_root" rev-parse \
-  "$rugra_input_commit:examples/curl")
+  "$rudra_input_commit:examples/curl")
 input_size=$(git_clean -C "$repo_root" cat-file -s "$input_blob")
-if [[ "$input_commit" != "$rugra_input_commit" || \
-      "$input_blob" != "$rugra_input_blob" ]]; then
+if [[ "$input_commit" != "$rudra_input_commit" || \
+      "$input_blob" != "$rudra_input_blob" ]]; then
   echo "pinned input commit/blob identity mismatch" >&2
   exit 1
 fi
@@ -167,10 +167,10 @@ host_cargo=$(/usr/bin/env -i HOME="$HOME" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_cargo_bin" --version)
 host_platform=$(/usr/bin/uname -srm)
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-database-scope-ownership-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-database-scope-ownership-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-database-scope-ownership-1204.??????)
+    /tmp/rudra-database-scope-ownership-1204.??????)
       /usr/bin/rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2; return 1 ;;
   esac
@@ -185,9 +185,9 @@ mkdir -p "$snapshot" "$snapshot/tests/oracle" "$snapshot/tools" \
   "$snapshot/sleigh_specs" "$snapshot/examples" "$snapshot/external/include" \
   "$oracle_tmp/ghidra-source"
 git_clean -C "$repo_root" archive --format=tar \
-  --output="$oracle_tmp/rugra-source.tar" "$rugra_source_commit" \
-  "${rugra_source_paths[@]}"
-/usr/bin/tar -xf "$oracle_tmp/rugra-source.tar" -C "$snapshot"
+  --output="$oracle_tmp/rudra-source.tar" "$rudra_source_commit" \
+  "${rudra_source_paths[@]}"
+/usr/bin/tar -xf "$oracle_tmp/rudra-source.tar" -C "$snapshot"
 git_clean -C "$ghidra_root" archive --format=tar "$oracle_commit" \
   Ghidra/Features/Decompiler/src/decompile/cpp | \
   /usr/bin/tar -xf - -C "$oracle_tmp/ghidra-source"
@@ -201,9 +201,9 @@ cp "$rust_fixture" "$snapshot/tests/oracle/database_scope_ownership_1204.rs"
 cp "$runner_fd_path" "$snapshot/tools/run_database_scope_ownership_oracle.sh"
 for asset in x86-64.sla x86-64.pspec x86-64-gcc.cspec x86.ldefs; do
   git_clean -C "$repo_root" cat-file blob \
-    "$rugra_input_commit:sleigh_specs/$asset" >"$snapshot/sleigh_specs/$asset"
+    "$rudra_input_commit:sleigh_specs/$asset" >"$snapshot/sleigh_specs/$asset"
 done
-git_clean -C "$repo_root" cat-file blob "$rugra_input_blob" \
+git_clean -C "$repo_root" cat-file blob "$rudra_input_blob" \
   >"$snapshot/examples/curl"
 for header in "$bfd_include"/*; do
   if [[ ! -f "$header" || -L "$header" ]]; then
@@ -217,13 +217,13 @@ cp "$bfd_library" "$snapshot/external/libbfd-2.38-system.so"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
   "$repo_root" "$snapshot" "$metadata" "$cpp_fixture" "$rust_fixture" \
   "$runner_snapshot_sha" "$oracle_tag" "$oracle_commit" "$oracle_cpp_tree" \
-  "$oracle_language_tree" "$oracle_makefile_blob" "$rugra_source_commit" \
-  "$rugra_source_tree" "$rugra_source_src_tree" \
-  "$rugra_source_sleigh_shim_tree" "$rugra_source_arch_blob" \
-  "$rugra_source_database_blob" "$rugra_source_funcdata_blob" \
-  "$rugra_source_varmap_blob" "$rugra_source_cargo_toml_blob" \
-  "$rugra_source_cargo_lock_blob" "$rugra_source_build_rs_blob" \
-  "$rugra_input_commit" "$rugra_input_blob" "$input_size" \
+  "$oracle_language_tree" "$oracle_makefile_blob" "$rudra_source_commit" \
+  "$rudra_source_tree" "$rudra_source_src_tree" \
+  "$rudra_source_sleigh_shim_tree" "$rudra_source_arch_blob" \
+  "$rudra_source_database_blob" "$rudra_source_funcdata_blob" \
+  "$rudra_source_varmap_blob" "$rudra_source_cargo_toml_blob" \
+  "$rudra_source_cargo_lock_blob" "$rudra_source_build_rs_blob" \
+  "$rudra_input_commit" "$rudra_input_blob" "$input_size" \
   "$host_cxx" "$host_cxx_target" "$host_rustc" "$host_cargo" \
   "$host_platform" "$host_cxx_bin" "$host_cargo_bin" "$host_rustc_bin" \
   "$host_cc_bin" "$host_ar_bin" "$host_make_bin" "$host_python_bin" \
@@ -442,11 +442,11 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_cxx_bin" \
   exit 1
 fi
 
-fixture_target=${RUDRA_DB_SCOPE_TARGET_DIR:-/tmp/rugra-target-db-scope-fixture}
+fixture_target=${RUDRA_DB_SCOPE_TARGET_DIR:-/tmp/rudra-target-db-scope-fixture}
 mkdir -p "$fixture_target"
 if ! (
   cd "$snapshot"
-  "$host_flock_bin" /tmp/rugra-cargo-build.lock \
+  "$host_flock_bin" /tmp/rudra-cargo-build.lock \
   /usr/bin/env -i HOME="$HOME" PATH="$clean_path" LC_ALL=C.UTF-8 \
     CARGO_HOME="$HOME/.cargo" CARGO_TARGET_DIR="$fixture_target" \
     CARGO_NET_OFFLINE=true CXX="$host_cxx_bin" CC="$host_cc_bin" \
@@ -458,14 +458,14 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' \
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' \
     -type f | /usr/bin/sort
 )
-if [[ ! -f "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
-  echo "Cargo build did not produce exactly one Rugra rlib/native archive" >&2
+if [[ ! -f "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+  echo "Cargo build did not produce exactly one Rudra rlib/native archive" >&2
   printf '%s\n' "${native_archives[@]}" >&2
   exit 1
 fi
@@ -473,7 +473,7 @@ native_dir=$(/usr/bin/dirname "${native_archives[0]}")
 if ! /usr/bin/env -i HOME="$HOME" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m \
   "$snapshot/tests/oracle/database_scope_ownership_1204.rs" \
   -o "$oracle_tmp/database_scope_ownership_1204_rust" \
@@ -488,24 +488,24 @@ LD_LIBRARY_PATH="$snapshot/external" \
   "$oracle_tmp/database_scope_ownership_1204_cpp" \
   "$snapshot/sleigh_specs" "$snapshot/examples/curl" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr" || ghidra_status=$?
-rugra_status=0
+rudra_status=0
 "$oracle_tmp/database_scope_ownership_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr" || rugra_status=$?
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr" || rudra_status=$?
 diff_status=0
-/usr/bin/diff -u --label ghidra-12.0.4 --label rugra-pinned \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+/usr/bin/diff -u --label ghidra-12.0.4 --label rudra-pinned \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
   >"$oracle_tmp/ownership.diff" || diff_status=$?
-if [[ "$ghidra_status" -ne 0 || "$rugra_status" -ne 0 || "$diff_status" -ne 1 ]]; then
-  echo "unexpected comparand exit: ghidra=$ghidra_status rugra=$rugra_status diff=$diff_status" >&2
-  /usr/bin/cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stderr" >&2
+if [[ "$ghidra_status" -ne 0 || "$rudra_status" -ne 0 || "$diff_status" -ne 1 ]]; then
+  echo "unexpected comparand exit: ghidra=$ghidra_status rudra=$rudra_status diff=$diff_status" >&2
+  /usr/bin/cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
   "$snapshot/tests/oracle/database_scope_ownership_1204.metadata.json" \
   "$oracle_tmp/ghidra.stdout" "$oracle_tmp/ghidra.stderr" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/rugra.stderr" \
-  "$oracle_tmp/ownership.diff" "$ghidra_status" "$rugra_status" \
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/rudra.stderr" \
+  "$oracle_tmp/ownership.diff" "$ghidra_status" "$rudra_status" \
   "$diff_status" <<'PY'
 import hashlib
 import json
@@ -516,8 +516,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 paths = {
     "ghidra_stdout_sha256": pathlib.Path(sys.argv[2]),
     "ghidra_stderr_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_stdout_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_stderr_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_stdout_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_stderr_sha256": pathlib.Path(sys.argv[5]),
     "raw_diff_sha256": pathlib.Path(sys.argv[6]),
 }
 
@@ -585,15 +585,15 @@ def records(path):
     return parsed
 
 ghidra = records(paths["ghidra_stdout_sha256"])
-rugra = records(paths["rugra_stdout_sha256"])
+rudra = records(paths["rudra_stdout_sha256"])
 if len(ghidra) != expected["ghidra_record_count"]:
     raise SystemExit("Ghidra record count drifted")
-if len(rugra) != expected["rugra_record_count"]:
-    raise SystemExit("Rugra record count drifted")
+if len(rudra) != expected["rugra_record_count"]:
+    raise SystemExit("Rudra record count drifted")
 if [record["case"] for record in ghidra] != expected["ghidra_case_order"]:
     raise SystemExit("Ghidra case order drifted")
-if [record["case"] for record in rugra] != expected["rugra_case_order"]:
-    raise SystemExit("Rugra case order drifted")
+if [record["case"] for record in rudra] != expected["rugra_case_order"]:
+    raise SystemExit("Rudra case order drifted")
 
 by_case = {record["case"]: record for record in ghidra}
 for key in (
@@ -604,7 +604,7 @@ for key in (
         raise SystemExit(f"build_database.{key} is not true")
 for side, case in (
     ("Ghidra", by_case["find_create_scope"]),
-    ("Rugra", {record["case"]: record for record in rugra}["find_create_scope"]),
+    ("Rudra", {record["case"]: record for record in rudra}["find_create_scope"]),
 ):
     for key in (
         "id_matches", "resolver_key_present", "repeat_key_same",
@@ -617,7 +617,7 @@ for side, case in (
     if case["parent_child_count"] != "1":
         raise SystemExit(f"{side} find_create_scope.parent_child_count drifted")
 ghidra_find = by_case["find_create_scope"]
-rugra_find = {record["case"]: record for record in rugra}["find_create_scope"]
+rudra_find = {record["case"]: record for record in rudra}["find_create_scope"]
 for key, expected_value in (
     ("return_class", "pointer"),
     ("resolver_return_alias", "1"),
@@ -646,8 +646,8 @@ for key, expected_value in (
     ("next_scope_id_after_create", "302252035"),
     ("next_scope_id_after_repeat", "302252035"),
 ):
-    if rugra_find[key] != expected_value:
-        raise SystemExit(f"Rugra find_create_scope.{key} drifted")
+    if rudra_find[key] != expected_value:
+        raise SystemExit(f"Rudra find_create_scope.{key} drifted")
 for key in (
     "symbol_scope_alias", "function_cached_alias", "function_symbol_backref",
     "function_arch_alias", "local_resolver_alias", "local_parent_alias",
@@ -674,14 +674,14 @@ for key in ("local_resolver_gone", "local_child_gone", "function_mapping_gone"):
 if by_case["architecture_destroy"]["events"] != "dtor:exit_ns>dtor:sentinel:local_present=0":
     raise SystemExit("architecture destructor order drifted")
 
-rugra_by_case = {record["case"]: record for record in rugra}
-constructor = rugra_by_case["rugra_constructor_state"]
+rudra_by_case = {record["case"]: record for record in rudra}
+constructor = rudra_by_case["rugra_constructor_state"]
 if any(constructor[key] != "0" for key in (
     "architecture_symboltab_present", "funcdata_arch_present",
     "funcdata_local_scope_present",
 )):
-    raise SystemExit("Rugra missing-capability constructor prestate drifted")
-missing = rugra_by_case["missing_capability"]
+    raise SystemExit("Rudra missing-capability constructor prestate drifted")
+missing = rudra_by_case["missing_capability"]
 if "explicit_scope_id_attach" in missing:
     raise SystemExit("find_create_scope exists; explicit-id attach must not be reported missing")
 for key in (
@@ -689,14 +689,14 @@ for key in (
     "caller_owned_scope_failure_contract",
 ):
     if missing.get(key) != "missing":
-        raise SystemExit(f"Rugra missing capability {key} drifted")
-if rugra_by_case["overall"]["status"] != "MISMATCH":
-    raise SystemExit("Rugra overall status must remain MISMATCH")
-if paths["ghidra_stderr_sha256"].read_bytes() or paths["rugra_stderr_sha256"].read_bytes():
+        raise SystemExit(f"Rudra missing capability {key} drifted")
+if rudra_by_case["overall"]["status"] != "MISMATCH":
+    raise SystemExit("Rudra overall status must remain MISMATCH")
+if paths["ghidra_stderr_sha256"].read_bytes() or paths["rudra_stderr_sha256"].read_bytes():
     raise SystemExit("comparand stderr must remain empty")
 PY
 
 /usr/bin/cat "$oracle_tmp/ghidra.stdout"
-/usr/bin/cat "$oracle_tmp/rugra.stdout"
+/usr/bin/cat "$oracle_tmp/rudra.stdout"
 /usr/bin/cat "$oracle_tmp/ownership.diff"
-echo "database_scope_ownership_1204: covered_oracle=MATCH rugra_capability=MISMATCH overall=MISMATCH"
+echo "database_scope_ownership_1204: covered_oracle=MATCH rudra_capability=MISMATCH overall=MISMATCH"

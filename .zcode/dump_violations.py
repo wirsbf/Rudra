@@ -1,7 +1,7 @@
 import json
-data = json.load(open('D:/ghidra/rugra/result/violations_structured.json', encoding='utf-8'))
+data = json.load(open('D:/ghidra/rudra/result/violations_structured.json', encoding='utf-8'))
 ca = data['src/coreaction.rs']
-with open('D:/ghidra/rugra/.zcode/coreaction_violations.txt', 'w', encoding='utf-8') as f:
+with open('D:/ghidra/rudra/.zcode/coreaction_violations.txt', 'w', encoding='utf-8') as f:
     for v in ca:
         f.write(f"{v['line']}\t{v['fn']}\n")
 print('wrote', len(ca), 'violations')

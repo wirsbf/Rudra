@@ -4,7 +4,7 @@ umask 077
 
 # Immutable bilateral runner for ACTION-INFERTYPES-PTRWIDTH-0001.
 # The caller supplies the full candidate commit OID.  All evidence files and
-# the Rugra overlay are materialized from that object before this script
+# the Rudra overlay are materialized from that object before this script
 # re-executes itself from the captured runner blob.
 runner_fd_path="/proc/$$/fd/3"
 if [[ "${BASH_SOURCE[0]}" != "$runner_fd_path" ]]; then
@@ -155,7 +155,7 @@ fi
 actual_base_tree=$(git_clean -C "$repo_root" rev-parse --verify "$base_commit^{tree}")
 actual_base_src_tree=$(git_clean -C "$repo_root" rev-parse --verify "$base_commit:src")
 if [[ "$actual_base_tree" != "$base_tree" || "$actual_base_src_tree" != "$base_src_tree" ]]; then
-  echo "pinned Rugra base tree identity mismatch" >&2
+  echo "pinned Rudra base tree identity mismatch" >&2
   exit 1
 fi
 for binding in \
@@ -167,7 +167,7 @@ for binding in \
   expression=${binding%%|*}
   expected=${binding#*|}
   if [[ "$(git_clean -C "$repo_root" rev-parse --verify "$expression")" != "$expected" ]]; then
-    echo "pinned Rugra base blob mismatch: $expression" >&2
+    echo "pinned Rudra base blob mismatch: $expression" >&2
     exit 1
   fi
 done
@@ -267,7 +267,7 @@ export HOME
 
 cleanup() {
   case "${run_root:-}" in
-    "$cache_root"/rugra-action-infertypes-ptrwidth.??????)
+    "$cache_root"/rudra-action-infertypes-ptrwidth.??????)
       if [[ -e "$run_root" || -L "$run_root" ]]; then
         if [[ ! -d "$run_root" || -L "$run_root" ]]; then
           echo "refusing unsafe cleanup target: $run_root" >&2
@@ -282,7 +282,7 @@ cleanup() {
 }
 
 if ! $captured_stage; then
-  run_root=$(/usr/bin/mktemp -d "$cache_root/rugra-action-infertypes-ptrwidth.XXXXXX")
+  run_root=$(/usr/bin/mktemp -d "$cache_root/rudra-action-infertypes-ptrwidth.XXXXXX")
   trap cleanup EXIT
   trap 'exit 129' HUP
   trap 'exit 130' INT
@@ -320,7 +320,7 @@ if ! $captured_stage; then
 fi
 
 case "$run_root" in
-  "$cache_root"/rugra-action-infertypes-ptrwidth.??????) ;;
+  "$cache_root"/rudra-action-infertypes-ptrwidth.??????) ;;
   *) echo "captured stage received unsafe run root" >&2; exit 1 ;;
 esac
 if [[ ! -d "$run_root" || -L "$run_root" || \
@@ -344,14 +344,14 @@ if ! /usr/bin/cmp --silent "$runner_fd_path" "$snapshot_runner"; then
   exit 1
 fi
 
-snapshot="$run_root/rugra"
+snapshot="$run_root/rudra"
 oracle_source="$run_root/ghidra-source"
 tool_tmp="$run_root/tmp"
 cargo_target="$run_root/cargo-target"
 /usr/bin/mkdir -p "$snapshot" "$oracle_source" "$tool_tmp" "$cargo_target"
-git_clean -C "$repo_root" archive --format=tar --output="$run_root/rugra-base.tar" \
+git_clean -C "$repo_root" archive --format=tar --output="$run_root/rudra-base.tar" \
   "$base_commit"
-/usr/bin/tar -xf "$run_root/rugra-base.tar" -C "$snapshot"
+/usr/bin/tar -xf "$run_root/rudra-base.tar" -C "$snapshot"
 git_clean -C "$repo_root" cat-file blob "${candidate_blob_oids[0]}" \
   >"$snapshot/src/coreaction.rs"
 git_clean -C "$ghidra_root" archive --format=tar --output="$run_root/ghidra-cpp.tar" \
@@ -481,7 +481,7 @@ for relative, expected in comparand["overlay_sha256"].items():
 require("runner sha metadata", comparand["runner_sha256"], runner_sha)
 require("runner sha bytes", sha(regular(evidence / "tools/run_action_infertypes_ptrwidth_oracle.sh")), runner_sha)
 require("source policy", comparand["source_policy"],
-        "An externally supplied full candidate commit OID anchors the exact six-file diff. The runner materializes every evidence file from candidate Git blobs, archives the pinned Rugra base, overlays only candidate src/coreaction.rs, and executes only run-private snapshots with pre/post Git-object readback.")
+        "An externally supplied full candidate commit OID anchors the exact six-file diff. The runner materializes every evidence file from candidate Git blobs, archives the pinned Rudra base, overlays only candidate src/coreaction.rs, and executes only run-private snapshots with pre/post Git-object readback.")
 
 candidate = m["candidate_evidence"]
 require("candidate evidence", candidate, {
@@ -564,7 +564,7 @@ require("build environment", m["build_environment"], {
     "PATH": "/usr/bin:/bin",
     "cargo_incremental": False,
     "cargo_jobs": 2,
-    "cargo_lock": "/tmp/rugra-cargo-build.lock",
+    "cargo_lock": "/tmp/rudra-cargo-build.lock",
     "cargo_mode": "--frozen --locked --offline --lib",
     "rustflags": "-Awarnings",
     "temp_policy": "private home-backed run root and TMPDIR",
@@ -603,7 +603,7 @@ fi
 cargo_status=0
 (
   builtin cd "$snapshot"
-  "$host_flock_bin" /tmp/rugra-cargo-build.lock \
+  "$host_flock_bin" /tmp/rudra-cargo-build.lock \
     /usr/bin/env -i HOME="$HOME" PATH="$clean_path" LC_ALL=C.UTF-8 \
       CARGO_HOME="$HOME/.cargo" CARGO_TARGET_DIR="$cargo_target" \
       CARGO_NET_OFFLINE=true CARGO_INCREMENTAL=0 RUSTFLAGS=-Awarnings \
@@ -618,14 +618,14 @@ if [[ "$cargo_status" -ne 0 ]]; then
   exit 1
 fi
 
-rugra_rlib="$cargo_target/debug/librugra.rlib"
+rudra_rlib="$cargo_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$cargo_target/debug/build" -path '*/out/librugra_sleigh.a' \
+  /usr/bin/find "$cargo_target/debug/build" -path '*/out/librudra_sleigh.a' \
     -type f -print | /usr/bin/sort
 )
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" || ${#native_archives[@]} -ne 1 ]]; then
-  echo "Cargo build did not produce exactly one Rugra rlib/native archive" >&2
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" || ${#native_archives[@]} -ne 1 ]]; then
+  echo "Cargo build did not produce exactly one Rudra rlib/native archive" >&2
   /usr/bin/printf '%s\n' "${native_archives[@]}" >&2
   exit 1
 fi
@@ -634,7 +634,7 @@ if ! /usr/bin/env -i HOME="$HOME" PATH="$clean_path" LC_ALL=C.UTF-8 \
   TMPDIR="$tool_tmp" RUSTFLAGS=-Awarnings \
   "$host_rustc_bin" --edition=2021 -O -Awarnings \
   -L "dependency=$cargo_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m \
   "$evidence/tests/oracle/action_infertypes_ptrwidth_1204.rs" \
   -o "$run_root/action_infertypes_rust" \
@@ -647,21 +647,21 @@ ghidra_status=0
 /usr/bin/env -i HOME="$HOME" PATH="$clean_path" LC_ALL=C \
   "$run_root/action_infertypes_cpp" \
   >"$run_root/ghidra.stdout" 2>"$run_root/ghidra.stderr" || ghidra_status=$?
-rugra_status=0
+rudra_status=0
 /usr/bin/env -i HOME="$HOME" PATH="$clean_path" LC_ALL=C \
   "$run_root/action_infertypes_rust" \
-  >"$run_root/rugra.stdout" 2>"$run_root/rugra.stderr" || rugra_status=$?
+  >"$run_root/rudra.stdout" 2>"$run_root/rudra.stderr" || rudra_status=$?
 diff_status=0
-/usr/bin/diff -u --label ghidra-12.0.4 --label rugra-candidate \
-  "$run_root/ghidra.stdout" "$run_root/rugra.stdout" \
+/usr/bin/diff -u --label ghidra-12.0.4 --label rudra-candidate \
+  "$run_root/ghidra.stdout" "$run_root/rudra.stdout" \
   >"$run_root/raw.diff" || diff_status=$?
 
 # Validate exact output bytes and the six-token selected projection.
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
   "$evidence/tests/oracle/action_infertypes_ptrwidth_1204.metadata.json" \
   "$run_root/ghidra.stdout" "$run_root/ghidra.stderr" \
-  "$run_root/rugra.stdout" "$run_root/rugra.stderr" "$run_root/raw.diff" \
-  "$ghidra_status" "$rugra_status" "$diff_status" <<'PY'
+  "$run_root/rudra.stdout" "$run_root/rudra.stderr" "$run_root/raw.diff" \
+  "$ghidra_status" "$rudra_status" "$diff_status" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -683,14 +683,14 @@ gerr = pathlib.Path(gerr_raw).read_bytes()
 rerr = pathlib.Path(rerr_raw).read_bytes()
 raw_diff = pathlib.Path(diff_raw).read_bytes()
 require(int(gs) == m["expected_exit_code"]["ghidra"], "unexpected Ghidra exit")
-require(int(rs) == m["expected_exit_code"]["rugra"], "unexpected Rugra exit")
+require(int(rs) == m["expected_exit_code"]["rugra"], "unexpected Rudra exit")
 require(int(ds) == m["expected_exit_code"]["raw_diff"], "unexpected raw diff exit")
 require(sha(gout) == m["expected_stdout_sha256"]["ghidra"], "Ghidra stdout drift")
-require(sha(rout) == m["expected_stdout_sha256"]["rugra"], "Rugra stdout drift")
+require(sha(rout) == m["expected_stdout_sha256"]["rugra"], "Rudra stdout drift")
 require(sha(gerr) == m["expected_stderr_sha256"]["ghidra"] and not gerr,
         "Ghidra stderr must remain empty")
 require(sha(rerr) == m["expected_stderr_sha256"]["rugra"] and not rerr,
-        "Rugra stderr must remain empty")
+        "Rudra stderr must remain empty")
 require(sha(raw_diff) == m["expected_raw_diff_sha256"], "raw diff drift")
 
 expected = [
@@ -770,7 +770,7 @@ fi
   "candidate_tree=$candidate_tree" \
   "candidate_blobs=${candidate_blob_oids[*]}" \
   "ghidra_stdout_sha256=$(/usr/bin/sha256sum "$run_root/ghidra.stdout" | /usr/bin/awk '{print $1}')" \
-  "rugra_stdout_sha256=$(/usr/bin/sha256sum "$run_root/rugra.stdout" | /usr/bin/awk '{print $1}')" \
+  "rudra_stdout_sha256=$(/usr/bin/sha256sum "$run_root/rudra.stdout" | /usr/bin/awk '{print $1}')" \
   "raw_diff_sha256=$(/usr/bin/sha256sum "$run_root/raw.diff" | /usr/bin/awk '{print $1}')" \
   "comparand_stderr=empty" \
   "cargo=$host_cargo" \

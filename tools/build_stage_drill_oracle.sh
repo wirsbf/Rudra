@@ -14,11 +14,11 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 ghidra_root="$repo_root/ghidra"
 fixture="$repo_root/tests/oracle/stage_drill_1204.cc"
-workroot=${RUDRA_DRILL_WORKROOT:-/dev/shm/rugra-tests/sb-drill/build}
+workroot=${RUDRA_DRILL_WORKROOT:-/dev/shm/rudra-tests/sb-drill/build}
 mkdir -p "$workroot"
 
 # BFD for the BfdArchitecture loader (binutils 2.38).
-bfd_include=${RUDRA_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
+bfd_include=${RUDRA_BFD_INCLUDE:-/tmp/rudra-ghidra-bfd-2.38/usr/include}
 bfd_library=${RUDRA_BFD_LIBRARY:-/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
 if [[ ! -f "$bfd_include/bfd.h" || ! -f "$bfd_library" ]]; then
   echo "binutils 2.38 BFD not found (include=$bfd_include lib=$bfd_library)" >&2

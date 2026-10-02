@@ -15,10 +15,10 @@ metadata="$repo_root/tests/oracle/funcdata_op_insert_input_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/funcdata_op_insert_input_1204.cc"
 rust_fixture="$repo_root/tests/oracle/funcdata_op_insert_input_1204.rs"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-funcdata-opii-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-funcdata-opii-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-funcdata-opii-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-funcdata-opii-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -75,21 +75,21 @@ g++ -std=c++11 -O2 -Wall -Wno-sign-compare -m64 -I"$cpp_root" \
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
 rustc --edition=2021 "$rust_fixture" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/funcdata_op_insert_input_1204_rust"
 
 "$oracle_tmp/funcdata_op_insert_input_1204_cpp" >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
-"$oracle_tmp/funcdata_op_insert_input_1204_rust" >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-if [[ -s "$oracle_tmp/ghidra.stderr" || -s "$oracle_tmp/rugra.stderr" ]]; then
+"$oracle_tmp/funcdata_op_insert_input_1204_rust" >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+if [[ -s "$oracle_tmp/ghidra.stderr" || -s "$oracle_tmp/rudra.stderr" ]]; then
   echo "fixture runtime stderr must be empty" >&2
   cat "$oracle_tmp/ghidra.stderr" >&2
-  cat "$oracle_tmp/rugra.stderr" >&2
+  cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
-python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib

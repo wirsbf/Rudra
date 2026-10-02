@@ -28,16 +28,16 @@ export HOME
 
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
-rugra_base_commit=8c223a9623d6833319564776c35c5d4c50b17b95
+rudra_base_commit=8c223a9623d6833319564776c35c5d4c50b17b95
 ghidra_root="$repo_root/ghidra"
 metadata_live="$repo_root/tests/oracle/merge_addrtied_gates_1204.metadata.json"
 cache_root="$HOME/.cache"
 /usr/bin/mkdir -p "$cache_root"
-run_tmp=$(/usr/bin/mktemp -d "$cache_root/rugra-merge-addrtied-gates.XXXXXX")
+run_tmp=$(/usr/bin/mktemp -d "$cache_root/rudra-merge-addrtied-gates.XXXXXX")
 /usr/bin/mkdir -p "$run_tmp/tmp"
 cleanup() {
   case "$run_tmp" in
-    "$cache_root"/rugra-merge-addrtied-gates.??????)
+    "$cache_root"/rudra-merge-addrtied-gates.??????)
       /usr/bin/rm -rf -- "$run_tmp"
       ;;
     *)
@@ -89,7 +89,7 @@ fi
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/python3 -I -S - \
   "$metadata" "$cpp_fixture" "$rust_fixture" "$merge_source" "$runner_fd_path" \
   "$runner_sha" "$repo_root" "$ghidra_root" "$oracle_commit" "$oracle_tag" \
-  "$rugra_base_commit" <<'PY'
+  "$rudra_base_commit" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -102,7 +102,7 @@ metadata = json.loads(pathlib.Path(metadata_name).read_text(encoding="utf-8"))
 if metadata["oracle"]["commit"] != oracle_commit or metadata["oracle"]["tag"] != oracle_tag:
     raise SystemExit("metadata oracle identity mismatch")
 if metadata["rugra"]["base_commit"] != base_commit:
-    raise SystemExit("metadata Rugra base mismatch")
+    raise SystemExit("metadata Rudra base mismatch")
 if metadata["overall_status"] != "MISMATCH":
     raise SystemExit("mergeAddrTied must remain MISMATCH while residuals are open")
 if metadata["coverage"]["covered_projection"] != "MATCH":
@@ -135,12 +135,12 @@ git = "/usr/bin/git"
 base_tree = subprocess.check_output([git, "-C", str(repo), "rev-parse",
     f"{base_commit}^{{tree}}"], text=True).strip()
 if base_tree != metadata["rugra"]["base_tree"]:
-    raise SystemExit("Rugra base tree mismatch")
+    raise SystemExit("Rudra base tree mismatch")
 for path, expected in metadata["rugra"]["base_blobs"].items():
     actual = subprocess.check_output([git, "-C", str(repo), "rev-parse",
         f"{base_commit}:{path}"], text=True).strip()
     if actual != expected:
-        raise SystemExit(f"Rugra base blob mismatch: {path}")
+        raise SystemExit(f"Rudra base blob mismatch: {path}")
 cpp_tree = subprocess.check_output([git, "-C", str(ghidra), "rev-parse",
     f"{oracle_commit}:Ghidra/Features/Decompiler/src/decompile/cpp"], text=True).strip()
 if cpp_tree != metadata["oracle"]["decompiler_cpp_tree"]:
@@ -162,21 +162,21 @@ if versions != metadata["toolchain"]["versions"]:
 PY
 
 # Recreate both codebases from immutable Git objects. Only the leased
-# candidate src/merge.rs is overlaid on the pinned Rugra base.
-/usr/bin/mkdir -p "$run_tmp/ghidra" "$run_tmp/rugra"
+# candidate src/merge.rs is overlaid on the pinned Rudra base.
+/usr/bin/mkdir -p "$run_tmp/ghidra" "$run_tmp/rudra"
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   /usr/bin/git -C "$ghidra_root" archive --format=tar "$oracle_commit" -- \
   Ghidra/Features/Decompiler/src/decompile/cpp | \
   /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/tar -x -C "$run_tmp/ghidra"
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  /usr/bin/git -C "$repo_root" archive --format=tar "$rugra_base_commit" -- \
+  /usr/bin/git -C "$repo_root" archive --format=tar "$rudra_base_commit" -- \
   Cargo.toml Cargo.lock build.rs README.md src sleigh_shim benches \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs | \
-  /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/tar -x -C "$run_tmp/rugra"
-/usr/bin/cp -- "$merge_source" "$run_tmp/rugra/src/merge.rs"
-/usr/bin/mkdir -p "$run_tmp/rugra/ghidra/Ghidra/Features/Decompiler/src/decompile"
+  /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/tar -x -C "$run_tmp/rudra"
+/usr/bin/cp -- "$merge_source" "$run_tmp/rudra/src/merge.rs"
+/usr/bin/mkdir -p "$run_tmp/rudra/ghidra/Ghidra/Features/Decompiler/src/decompile"
 /usr/bin/ln -s "$run_tmp/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp" \
-  "$run_tmp/rugra/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
+  "$run_tmp/rudra/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 oracle_cpp="$run_tmp/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C TMPDIR="$run_tmp/tmp" \
@@ -190,20 +190,20 @@ oracle_cpp="$run_tmp/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 
 # The Cargo build is the only step holding the shared lock. The runner,
 # Ghidra build, rustc fixture link, executions, and validation are not locked.
-/usr/bin/flock -x /tmp/rugra-cargo-build.lock \
+/usr/bin/flock -x /tmp/rudra-cargo-build.lock \
   /usr/bin/env -i HOME="$HOME" PATH=/usr/bin:/bin LC_ALL=C.UTF-8 \
   TMPDIR="$run_tmp/tmp" \
   CARGO_INCREMENTAL=0 CARGO_NET_OFFLINE=true \
   CARGO_TARGET_DIR="$run_tmp/cargo-target" CXX=/usr/bin/g++ CC=/usr/bin/gcc \
   AR=/usr/bin/ar RUSTC=/usr/bin/rustc \
   /usr/bin/cargo build --offline --locked --quiet --lib \
-  --manifest-path "$run_tmp/rugra/Cargo.toml"
+  --manifest-path "$run_tmp/rudra/Cargo.toml"
 
-rugra_rlib="$run_tmp/cargo-target/debug/librugra.rlib"
+rudra_rlib="$run_tmp/cargo-target/debug/librudra.rlib"
 native_archive=$(/usr/bin/find "$run_tmp/cargo-target/debug/build" \
-  -path '*/out/librugra_sleigh.a' -print -quit)
-if [[ ! -f "$rugra_rlib" || ! -f "$native_archive" ]]; then
-  echo "isolated Rugra build did not produce required libraries" >&2
+  -path '*/out/librudra_sleigh.a' -print -quit)
+if [[ ! -f "$rudra_rlib" || ! -f "$native_archive" ]]; then
+  echo "isolated Rudra build did not produce required libraries" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "$native_archive")
@@ -211,18 +211,18 @@ native_dir=$(/usr/bin/dirname "$native_archive")
   TMPDIR="$run_tmp/tmp" \
   /usr/bin/rustc --edition=2021 -O \
   -L "dependency=$run_tmp/cargo-target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m "$rust_fixture" -o "$run_tmp/merge_addrtied_rust"
 
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C "$run_tmp/merge_addrtied_cpp" \
   >"$run_tmp/ghidra.stdout" 2>"$run_tmp/ghidra.stderr"
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C "$run_tmp/merge_addrtied_rust" \
-  >"$run_tmp/rugra.stdout" 2>"$run_tmp/rugra.stderr"
+  >"$run_tmp/rudra.stdout" 2>"$run_tmp/rudra.stderr"
 test ! -s "$run_tmp/ghidra.stderr"
-test ! -s "$run_tmp/rugra.stderr"
+test ! -s "$run_tmp/rudra.stderr"
 
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/python3 -I -S - \
-  "$metadata" "$run_tmp/ghidra.stdout" "$run_tmp/rugra.stdout" <<'PY'
+  "$metadata" "$run_tmp/ghidra.stdout" "$run_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -230,15 +230,15 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
-if len(ghidra.splitlines()) != 8 or len(rugra.splitlines()) != 8:
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
+if len(ghidra.splitlines()) != 8 or len(rudra.splitlines()) != 8:
     raise SystemExit("fixture must emit exactly 8 lines per side")
-for side, payload in (("ghidra", ghidra), ("rugra", rugra)):
+for side, payload in (("ghidra", ghidra), ("rugra", rudra)):
     actual = hashlib.sha256(payload).hexdigest()
     expected = metadata["comparand"][f"expected_{side}_stdout_sha256"]
     if actual != expected:
         raise SystemExit(f"{side} stdout fingerprint drift: {actual}")
-if ghidra != rugra:
+if ghidra != rudra:
     raise SystemExit("covered projection is not byte-identical")
 text = ghidra.decode("utf-8")
 required = (

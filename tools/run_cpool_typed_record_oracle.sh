@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Locked CPOOL-TYPED-RECORD-0001 bilateral oracle runner.
 #
-# Rugra is materialized from one committed base archive. The only live source
+# Rudra is materialized from one committed base archive. The only live source
 # overlaid into that snapshot is this task's owned src/cpool.rs. Both fixture
 # sources are copied outside the repository and snapshot before compilation.
 set -euo pipefail
@@ -9,7 +9,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/cpool_typed_record_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/cpool_typed_record_1204.cc"
@@ -17,7 +17,7 @@ rust_fixture="$repo_root/tests/oracle/cpool_typed_record_1204.rs"
 cpool_source="$repo_root/src/cpool.rs"
 api_document="$repo_root/docs/api/cpool.md"
 runner="$repo_root/tools/run_cpool_typed_record_oracle.sh"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 for required in "$metadata" "$cpp_fixture" "$rust_fixture" \
@@ -43,27 +43,27 @@ if ! git -C "$ghidra_root" diff --quiet -- \
   echo "locked Ghidra decompiler source is dirty" >&2
   exit 1
 fi
-git -C "$repo_root" cat-file -e "$rugra_base_commit^{commit}"
+git -C "$repo_root" cat-file -e "$rudra_base_commit^{commit}"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-cpool-typed-record-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-cpool-typed-record-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-cpool-typed-record-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-cpool-typed-record-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
 trap cleanup EXIT HUP INT TERM
 
-rugra_snapshot="$oracle_tmp/rugra"
+rudra_snapshot="$oracle_tmp/rudra"
 oracle_archive="$oracle_tmp/oracle"
 fixture_dir="$oracle_tmp/fixtures"
-mkdir -p "$rugra_snapshot" "$oracle_archive" "$fixture_dir"
+mkdir -p "$rudra_snapshot" "$oracle_archive" "$fixture_dir"
 
-# Materialize the complete committed Rugra tree. No live source directory is
+# Materialize the complete committed Rudra tree. No live source directory is
 # copied. The sole source overlay is cpool.rs, whose hash is checked below.
-git -C "$repo_root" archive --format=tar "$rugra_base_commit" \
-  | tar -xf - -C "$rugra_snapshot"
-cp -- "$cpool_source" "$rugra_snapshot/src/cpool.rs"
+git -C "$repo_root" archive --format=tar "$rudra_base_commit" \
+  | tar -xf - -C "$rudra_snapshot"
+cp -- "$cpool_source" "$rudra_snapshot/src/cpool.rs"
 
 # Materialize the locked oracle C++ subtree from the Git object, not from live
 # files. Mount it where build.rs expects the Ghidra source tree.
@@ -71,9 +71,9 @@ git -C "$ghidra_root" archive --format=tar "$oracle_commit" -- \
   Ghidra/Features/Decompiler/src/decompile/cpp \
   | tar -xf - -C "$oracle_archive"
 snapshot_cpp="$oracle_archive/Ghidra/Features/Decompiler/src/decompile/cpp"
-mkdir -p "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
+mkdir -p "$rudra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
 ln -s "$snapshot_cpp" \
-  "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
+  "$rudra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 
 # Fixtures are compiled only from workspace-external copies.
 cp -- "$cpp_fixture" "$fixture_dir/cpool_typed_record_1204.cc"
@@ -84,8 +84,8 @@ snapshot_rust_fixture="$fixture_dir/cpool_typed_record_1204.rs"
 python3 -I -S - \
   "$metadata" "$cpp_fixture" "$rust_fixture" "$snapshot_cpp_fixture" \
   "$snapshot_rust_fixture" "$cpool_source" "$api_document" "$runner" \
-  "$rugra_snapshot" "$ghidra_root" "$oracle_commit" "$oracle_tag" \
-  "$rugra_base_commit" <<'PY'
+  "$rudra_snapshot" "$ghidra_root" "$oracle_commit" "$oracle_tag" \
+  "$rudra_base_commit" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -95,7 +95,7 @@ import sys
 (
     metadata_name, cpp_name, rust_name, copied_cpp_name, copied_rust_name,
     cpool_name, docs_name, runner_name, snapshot_name, ghidra_root_name,
-    oracle_commit, oracle_tag, rugra_base_commit,
+    oracle_commit, oracle_tag, rudra_base_commit,
 ) = sys.argv[1:]
 metadata = json.loads(pathlib.Path(metadata_name).read_text(encoding="utf-8"))
 snapshot = pathlib.Path(snapshot_name)
@@ -110,8 +110,8 @@ if metadata.get("overall_status") != "MISMATCH: (B2 canonicalization)":
     raise SystemExit("overall_status must be MISMATCH")
 if not metadata.get("status_note"):
     raise SystemExit("status_note must be non-empty")
-if metadata.get("rugra_base_commit") != rugra_base_commit:
-    raise SystemExit("metadata Rugra base mismatch")
+if metadata.get("rugra_base_commit") != rudra_base_commit:
+    raise SystemExit("metadata Rudra base mismatch")
 if metadata.get("oracle", {}).get("tag") != oracle_tag or \
         metadata.get("oracle", {}).get("commit") != oracle_commit:
     raise SystemExit("metadata oracle mismatch")
@@ -190,7 +190,7 @@ for key, path in paths.items():
         raise SystemExit(f"{key} mismatch: metadata={comparand.get(key)} actual={actual}")
 base_cpool = subprocess.check_output([
     "git", "-C", str(pathlib.Path(runner_name).parents[1]), "show",
-    f"{rugra_base_commit}:src/cpool.rs",
+    f"{rudra_base_commit}:src/cpool.rs",
 ])
 if comparand.get("base_cpool_rs_sha256") != hashlib.sha256(base_cpool).hexdigest():
     raise SystemExit("base cpool hash mismatch")
@@ -230,7 +230,7 @@ g++ -std=c++11 -O2 -Wall -Wno-sign-compare \
 export CARGO_NET_OFFLINE=true
 export CARGO_TARGET_DIR="$oracle_tmp/cargo-target"
 if ! cargo test --offline --locked --quiet \
-    --manifest-path "$rugra_snapshot/Cargo.toml" \
+    --manifest-path "$rudra_snapshot/Cargo.toml" \
     --lib cpool::tests \
     >"$oracle_tmp/cpool-tests.stdout" 2>"$oracle_tmp/cpool-tests.stderr"; then
   tail -80 "$oracle_tmp/cpool-tests.stderr" >&2
@@ -238,34 +238,34 @@ if ! cargo test --offline --locked --quiet \
 fi
 grep -Fq '15 passed; 0 failed' "$oracle_tmp/cpool-tests.stdout"
 cargo build --offline --locked --quiet \
-  --manifest-path "$rugra_snapshot/Cargo.toml" --lib \
+  --manifest-path "$rudra_snapshot/Cargo.toml" --lib \
   >"$oracle_tmp/cargo-build.stdout" 2>"$oracle_tmp/cargo-build.stderr"
 rustc --edition=2021 -O \
   -L "dependency=$CARGO_TARGET_DIR/debug/deps" \
-  --extern "rugra=$CARGO_TARGET_DIR/debug/librugra.rlib" \
+  --extern "rudra=$CARGO_TARGET_DIR/debug/librudra.rlib" \
   "$snapshot_rust_fixture" -o "$oracle_tmp/cpool_typed_record_rust"
 
 set +e
 "$oracle_tmp/cpool_typed_record_cpp" \
-  "$rugra_snapshot/sleigh_specs" "$rugra_snapshot/examples/curl" \
+  "$rudra_snapshot/sleigh_specs" "$rudra_snapshot/examples/curl" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/cpool_typed_record_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
 set -e
 if [[ "$ghidra_status" -ne 0 || -s "$oracle_tmp/ghidra.stderr" ]]; then
   echo "Ghidra fixture failed or emitted diagnostics" >&2
   tail -20 "$oracle_tmp/ghidra.stderr" >&2
   exit 1
 fi
-if [[ "$rugra_status" -ne 0 || -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture failed or emitted diagnostics" >&2
-  tail -20 "$oracle_tmp/rugra.stderr" >&2
+if [[ "$rudra_status" -ne 0 || -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture failed or emitted diagnostics" >&2
+  tail -20 "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
-python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import difflib
 import hashlib
 import json
@@ -274,21 +274,21 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_bytes = pathlib.Path(sys.argv[2]).read_bytes()
-rugra_bytes = pathlib.Path(sys.argv[3]).read_bytes()
+rudra_bytes = pathlib.Path(sys.argv[3]).read_bytes()
 comparand = metadata["comparand"]
 for key, payload in (
     ("expected_ghidra_stdout_sha256", ghidra_bytes),
-    ("expected_rugra_stdout_sha256", rugra_bytes),
+    ("expected_rudra_stdout_sha256", rudra_bytes),
 ):
     actual = hashlib.sha256(payload).hexdigest()
     if comparand.get(key) != actual:
         raise SystemExit(f"{key} mismatch: metadata={comparand.get(key)} actual={actual}")
 
 ghidra_lines = ghidra_bytes.splitlines(keepends=True)
-rugra_lines = rugra_bytes.splitlines(keepends=True)
-if len(ghidra_lines) != 18 or len(rugra_lines) != 18:
+rudra_lines = rudra_bytes.splitlines(keepends=True)
+if len(ghidra_lines) != 18 or len(rudra_lines) != 18:
     raise SystemExit(
-        f"unexpected record count: ghidra={len(ghidra_lines)} rugra={len(rugra_lines)}"
+        f"unexpected record count: ghidra={len(ghidra_lines)} rudra={len(rudra_lines)}"
     )
 
 def partition(lines):
@@ -297,34 +297,34 @@ def partition(lines):
     return covered, residual
 
 ghidra_covered, ghidra_residual = partition(ghidra_lines)
-rugra_covered, rugra_residual = partition(rugra_lines)
-if ghidra_covered != rugra_covered:
+rudra_covered, rudra_residual = partition(rudra_lines)
+if ghidra_covered != rudra_covered:
     diff = b"".join(difflib.diff_bytes(
-        difflib.unified_diff, ghidra_covered, rugra_covered,
-        fromfile=b"ghidra.covered", tofile=b"rugra.covered",
+        difflib.unified_diff, ghidra_covered, rudra_covered,
+        fromfile=b"ghidra.covered", tofile=b"rudra.covered",
     )).decode("utf-8", errors="replace")
     raise SystemExit("covered projection mismatch:\n" + diff)
 if len(ghidra_covered) != 16:
     raise SystemExit("covered projection count drifted")
-if len(ghidra_residual) != 2 or len(rugra_residual) != 2:
+if len(ghidra_residual) != 2 or len(rudra_residual) != 2:
     raise SystemExit("residual record count drifted")
-if ghidra_residual[0] == rugra_residual[0]:
+if ghidra_residual[0] == rudra_residual[0]:
     raise SystemExit("registered packed-wire mismatch disappeared")
 
 expected_ghidra_codeflags = (
     b"codeflags|status=ERROR|error=Bad size for type |record_ctor=1|record_dtor=1|"
     b"type_null=1|prototype=0|proto_ctor=0|proto_dtor=0\n"
 )
-expected_rugra_codeflags = (
-    b"codeflags|status=ERROR|error=Rugra gap: FuncProto::decode (fspec.cc:4675) "
+expected_rudra_codeflags = (
+    b"codeflags|status=ERROR|error=Rudra gap: FuncProto::decode (fspec.cc:4675) "
     b"not ported; <prototype> child rejected (TYPEFACTORY-CODEFLAGS-DECODE-0001 "
     b"residual)|record_ctor=1|record_dtor=1|type_null=1|"
     b"prototype=0|proto_ctor=0|proto_dtor=0\n"
 )
 if ghidra_residual[1] != expected_ghidra_codeflags:
     raise SystemExit("Ghidra codeflags observation drifted")
-if rugra_residual[1] != expected_rugra_codeflags:
-    raise SystemExit("Rugra codeflags observation drifted")
+if rudra_residual[1] != expected_rudra_codeflags:
+    raise SystemExit("Rudra codeflags observation drifted")
 
 print("records=18")
 print("cpool_tests=15/15")

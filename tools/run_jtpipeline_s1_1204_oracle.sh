@@ -12,25 +12,25 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-# Rugra base: the branch commit that carries the segment-1 jumptable.rs.
+# Rudra base: the branch commit that carries the segment-1 jumptable.rs.
 # Repinned whenever the jumptable overlay or fixtures change (三件套:
 # runner shell vars + metadata comparand sha256 + overlays).
-rugra_source_commit=185f0e9d151d37ea6014505a29d1e4ddb8cd04d3
-rugra_source_tree=ea3321031a9cc86987863ba5191baf497d138480
-rugra_source_src_tree=c2c37a8cbbba8bd2b824b041a901089e5a1d5994
-rugra_source_jumptable_blob=a9cb66bb99679d9547d510b01247afe018d73be6
-rugra_source_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
-rugra_source_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
-rugra_source_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
-rugra_input_commit=34a3febff160031c265cfbd841a94022c68c2c19
-rugra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
+rudra_source_commit=185f0e9d151d37ea6014505a29d1e4ddb8cd04d3
+rudra_source_tree=ea3321031a9cc86987863ba5191baf497d138480
+rudra_source_src_tree=c2c37a8cbbba8bd2b824b041a901089e5a1d5994
+rudra_source_jumptable_blob=a9cb66bb99679d9547d510b01247afe018d73be6
+rudra_source_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
+rudra_source_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
+rudra_source_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_input_commit=34a3febff160031c265cfbd841a94022c68c2c19
+rudra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/jtpipeline_s1_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/jtpipeline_s1_1204.cc"
 rust_fixture="$repo_root/tests/oracle/jtpipeline_s1_1204.rs"
 rust_overlay="$repo_root/src/jumptable.rs"
 runner="$repo_root/tools/run_jtpipeline_s1_1204_oracle.sh"
-bfd_root=/tmp/rugra-ghidra-bfd-2.38
+bfd_root=/tmp/rudra-ghidra-bfd-2.38
 bfd_include="$bfd_root/usr/include"
 bfd_library="$bfd_root/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so"
 staging_root=/home/wirs/.cache/a22-jtp-tmp
@@ -40,10 +40,10 @@ if [[ ! -d "$staging_root" || -L "$staging_root" ]] || \
   echo "staging root must be a real user-owned 0700 directory: $staging_root" >&2
   exit 1
 fi
-oracle_tmp=$(mktemp -d "$staging_root/rugra-jtp-s1-1204.XXXXXX")
+oracle_tmp=$(mktemp -d "$staging_root/rudra-jtp-s1-1204.XXXXXX")
 cleanup() {
   case "$oracle_tmp" in
-    "$staging_root"/rugra-jtp-s1-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    "$staging_root"/rudra-jtp-s1-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -80,39 +80,39 @@ if ! git -C "$ghidra_root" diff --quiet -- \
 fi
 
 for binding in \
-  "$rugra_source_commit^{commit}:$rugra_source_commit" \
-  "$rugra_source_commit^{tree}:$rugra_source_tree" \
-  "$rugra_source_commit:src:$rugra_source_src_tree" \
-  "$rugra_source_commit:src/jumptable.rs:$rugra_source_jumptable_blob" \
-  "$rugra_source_commit:Cargo.toml:$rugra_source_cargo_toml_blob" \
-  "$rugra_source_commit:Cargo.lock:$rugra_source_cargo_lock_blob" \
-  "$rugra_source_commit:build.rs:$rugra_source_build_rs_blob"; do
+  "$rudra_source_commit^{commit}:$rudra_source_commit" \
+  "$rudra_source_commit^{tree}:$rudra_source_tree" \
+  "$rudra_source_commit:src:$rudra_source_src_tree" \
+  "$rudra_source_commit:src/jumptable.rs:$rudra_source_jumptable_blob" \
+  "$rudra_source_commit:Cargo.toml:$rudra_source_cargo_toml_blob" \
+  "$rudra_source_commit:Cargo.lock:$rudra_source_cargo_lock_blob" \
+  "$rudra_source_commit:build.rs:$rudra_source_build_rs_blob"; do
   expression=${binding%:*}
   expected=${binding##*:}
   actual=$(git -C "$repo_root" rev-parse "$expression")
   if [[ "$actual" != "$expected" ]]; then
-    echo "pinned Rugra source identity mismatch: $expression" >&2
+    echo "pinned Rudra source identity mismatch: $expression" >&2
     exit 1
   fi
 done
 
-resolved_input_commit=$(git -C "$repo_root" rev-parse "$rugra_input_commit^{commit}")
-resolved_input_blob=$(git -C "$repo_root" rev-parse "$rugra_input_commit:examples/curl")
+resolved_input_commit=$(git -C "$repo_root" rev-parse "$rudra_input_commit^{commit}")
+resolved_input_blob=$(git -C "$repo_root" rev-parse "$rudra_input_commit:examples/curl")
 input_blob_size=$(git -C "$repo_root" cat-file -s "$resolved_input_blob")
-if [[ "$resolved_input_commit" != "$rugra_input_commit" || \
-      "$resolved_input_blob" != "$rugra_input_blob" ]]; then
-  echo "pinned Rugra input Git object mismatch" >&2
+if [[ "$resolved_input_commit" != "$rudra_input_commit" || \
+      "$resolved_input_blob" != "$rudra_input_blob" ]]; then
+  echo "pinned Rudra input Git object mismatch" >&2
   exit 1
 fi
 
 snapshot_root="$oracle_tmp/workspace"
 mkdir -p "$snapshot_root/tests/oracle" "$snapshot_root/tools" "$snapshot_root/examples"
 git -C "$repo_root" archive --format=tar \
-  --output="$oracle_tmp/rugra-source.tar" "$rugra_source_commit" \
+  --output="$oracle_tmp/rudra-source.tar" "$rudra_source_commit" \
   Cargo.toml Cargo.lock build.rs README.md benches/decompile_bench.rs \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
   src sleigh_shim
-tar -xf "$oracle_tmp/rugra-source.tar" -C "$snapshot_root"
+tar -xf "$oracle_tmp/rudra-source.tar" -C "$snapshot_root"
 cp "$rust_overlay" "$snapshot_root/src/jumptable.rs"
 # rangeutil.rs carries the segment-1 companion fixes (CircleRange::next /
 # getSize uintb-wraparound semantics, rangeutil.cc:179/256) that the
@@ -123,21 +123,21 @@ cp "$cpp_fixture" "$snapshot_root/tests/oracle/jtpipeline_s1_1204.cc"
 cp "$rust_fixture" "$snapshot_root/tests/oracle/jtpipeline_s1_1204.rs"
 cp "$metadata" "$snapshot_root/tests/oracle/jtpipeline_s1_1204.metadata.json"
 cp "$runner" "$snapshot_root/tools/run_jtpipeline_s1_1204_oracle.sh"
-git -C "$repo_root" cat-file blob "$rugra_input_blob" >"$snapshot_root/examples/curl"
+git -C "$repo_root" cat-file blob "$rudra_input_blob" >"$snapshot_root/examples/curl"
 for asset in sleigh_specs/x86-64.sla sleigh_specs/x86-64.pspec \
   sleigh_specs/x86-64-gcc.cspec sleigh_specs/x86.ldefs; do
   mkdir -p "$snapshot_root/$(dirname "$asset")"
-  git -C "$repo_root" cat-file blob "$rugra_input_commit:$asset" >"$snapshot_root/$asset"
+  git -C "$repo_root" cat-file blob "$rudra_input_commit:$asset" >"$snapshot_root/$asset"
 done
 
 runner_sha=$(sha256sum "$runner" | awk '{print $1}')
 python3 -I -S - "$repo_root" "$snapshot_root" "$metadata" "$cpp_fixture" \
   "$rust_fixture" "$rust_overlay" "$rust_rangeutil_overlay" "$runner_sha" "$input_blob_size" \
   "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" "$oracle_language_tree" \
-  "$oracle_makefile_blob" "$rugra_source_commit" "$rugra_source_tree" \
-  "$rugra_source_src_tree" "$rugra_source_jumptable_blob" \
-  "$rugra_source_cargo_toml_blob" "$rugra_source_cargo_lock_blob" \
-  "$rugra_source_build_rs_blob" "$rugra_input_commit" "$rugra_input_blob" \
+  "$oracle_makefile_blob" "$rudra_source_commit" "$rudra_source_tree" \
+  "$rudra_source_src_tree" "$rudra_source_jumptable_blob" \
+  "$rudra_source_cargo_toml_blob" "$rudra_source_cargo_lock_blob" \
+  "$rudra_source_build_rs_blob" "$rudra_input_commit" "$rudra_input_blob" \
   "$bfd_include/bfd.h" "$bfd_library" <<'PY'
 import hashlib
 import json
@@ -362,7 +362,7 @@ g++ -std=c++11 -O2 -Wall -Wno-sign-compare \
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --offline --locked --quiet --manifest-path "$snapshot_root/Cargo.toml" --lib
 rustc --edition=2021 "$snapshot_root/tests/oracle/jtpipeline_s1_1204.rs" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/jtpipeline_s1_1204_rust"
 
@@ -374,17 +374,17 @@ LD_LIBRARY_PATH="$bfd_root/usr/lib/x86_64-linux-gnu" \
 ghidra_status=$?
 "$oracle_tmp/jtpipeline_s1_1204_rust" \
   "$snapshot_root/examples/curl" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff"
 diff_status=$?
 set -e
 
 python3 -I -S - "$snapshot_root/tests/oracle/jtpipeline_s1_1204.metadata.json" \
   "$oracle_tmp/ghidra.stdout" "$oracle_tmp/ghidra.stderr" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/rugra.stderr" \
-  "$oracle_tmp/raw.diff" "$ghidra_status" "$rugra_status" "$diff_status" <<'PY'
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/rudra.stderr" \
+  "$oracle_tmp/raw.diff" "$ghidra_status" "$rudra_status" "$diff_status" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -394,8 +394,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 paths = {
     "ghidra_stdout_sha256": pathlib.Path(sys.argv[2]),
     "ghidra_stderr_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_stdout_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_stderr_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_stdout_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_stderr_sha256": pathlib.Path(sys.argv[5]),
     "raw_diff_sha256": pathlib.Path(sys.argv[6]),
 }
 for key, path in paths.items():
@@ -417,22 +417,22 @@ if [record.split("|", 1)[0] for record in records] != [
     "pipeline_env_note",
 ]:
     raise SystemExit(f"observation order mismatch: {records}")
-if paths["ghidra_stderr_sha256"].stat().st_size != 0 or paths["rugra_stderr_sha256"].stat().st_size != 0:
+if paths["ghidra_stderr_sha256"].stat().st_size != 0 or paths["rudra_stderr_sha256"].stat().st_size != 0:
     raise SystemExit("fixture stderr must be empty")
 
 # Every differing output line must be explained by a known_diff prefix bound
 # to a registered residual TODO id; any unexplained difference fails.
 known = metadata["known_diffs"]
 ghidra_lines = paths["ghidra_stdout_sha256"].read_text(encoding="utf-8").splitlines()
-rugra_lines = paths["rugra_stdout_sha256"].read_text(encoding="utf-8").splitlines()
+rudra_lines = paths["rudra_stdout_sha256"].read_text(encoding="utf-8").splitlines()
 explained = set()
 for entry in known:
     prefix = entry["expect_line_prefix"]
-    for lines in (ghidra_lines, rugra_lines):
+    for lines in (ghidra_lines, rudra_lines):
         if any(line.startswith(prefix) for line in lines):
             explained.add(prefix)
-for ghidra_line, rugra_line in zip(ghidra_lines, rugra_lines):
-    if ghidra_line != rugra_line:
+for ghidra_line, rudra_line in zip(ghidra_lines, rudra_lines):
+    if ghidra_line != rudra_line:
         prefix = ghidra_line.split("|", 1)[0] + "|"
         if prefix not in explained:
             raise SystemExit(f"unexplained difference at {prefix!r}")

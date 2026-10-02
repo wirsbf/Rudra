@@ -1,4 +1,4 @@
-"""Batch-apply annotation mappings to all Rugra src/*.rs files."""
+"""Batch-apply annotation mappings to all Rudra src/*.rs files."""
 import json
 import subprocess
 import sys

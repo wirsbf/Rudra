@@ -39,12 +39,12 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=7e91aef6aa28cbf0a77b9812858c276cafa7fbd3
-rugra_base_tree=fd155bc4dd996000d3012c2d49f7244c3a6308ec
-rugra_base_src_tree=c6a2eb0fb690ff9ac693d12d6ea45b606bc713ae
-rugra_base_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
-rugra_base_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
-rugra_base_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_base_commit=7e91aef6aa28cbf0a77b9812858c276cafa7fbd3
+rudra_base_tree=fd155bc4dd996000d3012c2d49f7244c3a6308ec
+rudra_base_src_tree=c6a2eb0fb690ff9ac693d12d6ea45b606bc713ae
+rudra_base_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
+rudra_base_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
+rudra_base_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
 input_commit=34a3febff160031c265cfbd841a94022c68c2c19
 input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
 
@@ -56,9 +56,9 @@ ruleaction_overlay="$repo_root/src/ruleaction.rs"
 heritage_overlay="$repo_root/src/heritage.rs"
 space_overlay="$repo_root/src/space.rs"
 varnode_overlay="$repo_root/src/varnode.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 host_cxx=/usr/bin/g++
 host_cc=/usr/bin/gcc
@@ -118,18 +118,18 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
 fi
 
 for binding in \
-  "$rugra_base_commit^{commit}:$rugra_base_commit" \
-  "$rugra_base_commit^{tree}:$rugra_base_tree" \
-  "$rugra_base_commit:src:$rugra_base_src_tree" \
-  "$rugra_base_commit:Cargo.toml:$rugra_base_cargo_toml_blob" \
-  "$rugra_base_commit:Cargo.lock:$rugra_base_cargo_lock_blob" \
-  "$rugra_base_commit:build.rs:$rugra_base_build_rs_blob"; do
+  "$rudra_base_commit^{commit}:$rudra_base_commit" \
+  "$rudra_base_commit^{tree}:$rudra_base_tree" \
+  "$rudra_base_commit:src:$rudra_base_src_tree" \
+  "$rudra_base_commit:Cargo.toml:$rudra_base_cargo_toml_blob" \
+  "$rudra_base_commit:Cargo.lock:$rudra_base_cargo_lock_blob" \
+  "$rudra_base_commit:build.rs:$rudra_base_build_rs_blob"; do
   expression=${binding%:*}
   expected=${binding##*:}
   actual=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
     "$host_git" -C "$repo_root" rev-parse "$expression")
   if [[ "$actual" != "$expected" ]]; then
-    echo "pinned Rugra base mismatch: $expression" >&2
+    echo "pinned Rudra base mismatch: $expression" >&2
     exit 1
   fi
 done
@@ -150,9 +150,9 @@ runner_sha=$(/usr/bin/sha256sum "$runner_fd" | /usr/bin/awk '{print $1}')
   "$rust_fixture" "$runner_fd" "$runner_sha" "$ruleaction_overlay" \
   "$heritage_overlay" "$space_overlay" "$varnode_overlay" "$mode" \
   "$oracle_tag" "$oracle_commit" "$oracle_cpp_tree" "$oracle_language_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
-  "$rugra_base_src_tree" "$rugra_base_cargo_toml_blob" \
-  "$rugra_base_cargo_lock_blob" "$rugra_base_build_rs_blob" \
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
+  "$rudra_base_src_tree" "$rudra_base_cargo_toml_blob" \
+  "$rudra_base_cargo_lock_blob" "$rudra_base_build_rs_blob" \
   "$input_commit" "$input_blob" "$bfd_header" "$bfd_library" \
   "$host_cxx" "$host_rustc" "$host_cargo" <<'PYVALIDATE'
 import hashlib
@@ -295,7 +295,7 @@ if [[ -z "$user_home" || ! -d "$user_home" ]]; then
   echo "could not resolve user home" >&2
   exit 1
 fi
-cache_parent="$user_home/.cache/rugra-rule-earlyremoval-1204"
+cache_parent="$user_home/.cache/rudra-rule-earlyremoval-1204"
 /usr/bin/mkdir -p "$cache_parent"
 exec 9>"$cache_parent/runner.lock"
 if ! /usr/bin/flock -n 9; then
@@ -319,9 +319,9 @@ snapshot="$work/workspace"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git" -C "$repo_root" archive --format=tar \
-  --output="$work/rugra-base.tar" "$rugra_base_commit" \
+  --output="$work/rudra-base.tar" "$rudra_base_commit" \
   Cargo.toml Cargo.lock build.rs README.md src sleigh_shim benches
-/usr/bin/tar -xf "$work/rugra-base.tar" -C "$snapshot"
+/usr/bin/tar -xf "$work/rudra-base.tar" -C "$snapshot"
 /usr/bin/cp -- "$ruleaction_overlay" "$snapshot/src/ruleaction.rs"
 /usr/bin/cp -- "$heritage_overlay" "$snapshot/src/heritage.rs"
 /usr/bin/cp -- "$space_overlay" "$snapshot/src/space.rs"
@@ -412,7 +412,7 @@ jobs=$(/usr/bin/getconf _NPROCESSORS_ONLN 2>/dev/null || /usr/bin/printf '1')
 # The main writer explicitly selected the repository default target cache.
 # Serialize Cargo mutation; the locked C++ build and comparisons do not hold
 # this global lane.
-cargo_lock=/tmp/rugra-cargo-build.lock
+cargo_lock=/tmp/rudra-cargo-build.lock
 /usr/bin/flock "$cargo_lock" /usr/bin/env -i \
   HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 TMPDIR="$work/tmp" \
   CARGO_HOME="$user_home/.cargo" CARGO_TARGET_DIR="$repo_root/target" \
@@ -420,19 +420,19 @@ cargo_lock=/tmp/rugra-cargo-build.lock
   AR="$host_ar" RUSTC="$host_rustc" RUSTFLAGS=-Awarnings \
   "$host_cargo" build --offline --locked --quiet \
   --manifest-path "$snapshot/Cargo.toml" --lib
-rugra_rlib="$repo_root/target/debug/librugra.rlib"
+rudra_rlib="$repo_root/target/debug/librudra.rlib"
 native_archive=$(/usr/bin/find "$repo_root/target/debug/build" \
-  -path '*/out/librugra_sleigh.a' -type f -printf '%T@ %p\n' | \
+  -path '*/out/librudra_sleigh.a' -type f -printf '%T@ %p\n' | \
   /usr/bin/sort -nr | /usr/bin/head -1 | /usr/bin/cut -d' ' -f2-)
-if [[ ! -f "$rugra_rlib" || -z "$native_archive" || ! -f "$native_archive" ]]; then
-  echo "Rugra build did not produce required libraries" >&2
+if [[ ! -f "$rudra_rlib" || -z "$native_archive" || ! -f "$native_archive" ]]; then
+  echo "Rudra build did not produce required libraries" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "$native_archive")
 /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   TMPDIR="$work/tmp" "$host_rustc" --edition=2021 -O -Awarnings \
   -L "dependency=$repo_root/target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m "$rust_fixture" \
   -o "$work/rule_earlyremoval_rust"
 
@@ -445,10 +445,10 @@ set +e
 ghidra_status=$?
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$host_timeout" --signal=TERM --kill-after=2s 30s \
-  "$work/rule_earlyremoval_rust" >"$work/rugra.stdout" 2>"$work/rugra.stderr"
-rugra_status=$?
-"$host_python" -I -S - "$work/ghidra.stdout" "$work/rugra.stdout" \
-  "$work/ghidra.covered" "$work/rugra.covered" <<'PYCOVER'
+  "$work/rule_earlyremoval_rust" >"$work/rudra.stdout" 2>"$work/rudra.stderr"
+rudra_status=$?
+"$host_python" -I -S - "$work/ghidra.stdout" "$work/rudra.stdout" \
+  "$work/ghidra.covered" "$work/rudra.covered" <<'PYCOVER'
 import pathlib
 import sys
 
@@ -463,18 +463,18 @@ for source_raw, covered_raw in ((sys.argv[1], sys.argv[3]),
         "\n".join(covered) + "\n", encoding="utf-8"
     )
 PYCOVER
-/usr/bin/diff -u --label ghidra-covered --label rugra-covered \
-  "$work/ghidra.covered" "$work/rugra.covered" >"$work/covered.diff"
+/usr/bin/diff -u --label ghidra-covered --label rudra-covered \
+  "$work/ghidra.covered" "$work/rudra.covered" >"$work/covered.diff"
 covered_status=$?
-/usr/bin/diff -u --label ghidra --label rugra \
-  "$work/ghidra.stdout" "$work/rugra.stdout" >"$work/raw.diff"
+/usr/bin/diff -u --label ghidra --label rudra \
+  "$work/ghidra.stdout" "$work/rudra.stdout" >"$work/raw.diff"
 raw_status=$?
 set -e
 
 "$host_python" -I -S - "$metadata" "$mode" \
-  "$work/ghidra.stdout" "$work/ghidra.stderr" "$work/rugra.stdout" \
-  "$work/rugra.stderr" "$work/ghidra.covered" "$work/rugra.covered" \
-  "$work/covered.diff" "$work/raw.diff" "$ghidra_status" "$rugra_status" \
+  "$work/ghidra.stdout" "$work/ghidra.stderr" "$work/rudra.stdout" \
+  "$work/rudra.stderr" "$work/ghidra.covered" "$work/rudra.covered" \
+  "$work/covered.diff" "$work/raw.diff" "$ghidra_status" "$rudra_status" \
   "$covered_status" "$raw_status" <<'PYVERDICT'
 import hashlib
 import json
@@ -485,8 +485,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 capture = sys.argv[2] == "capture"
 keys = [
     "ghidra_stdout_sha256", "ghidra_stderr_sha256",
-    "rugra_stdout_sha256", "rugra_stderr_sha256",
-    "ghidra_covered_sha256", "rugra_covered_sha256",
+    "rudra_stdout_sha256", "rudra_stderr_sha256",
+    "ghidra_covered_sha256", "rudra_covered_sha256",
     "covered_diff_sha256", "raw_diff_sha256",
 ]
 paths = [pathlib.Path(value) for value in sys.argv[3:11]]

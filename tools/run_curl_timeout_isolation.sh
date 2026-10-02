@@ -11,7 +11,7 @@ for required_command in cargo rustc timeout pgrep ps sha256sum awk grep sed env 
     fi
 done
 
-workspace=$(mktemp -d "${TMPDIR:-/tmp}/rugra-timeout-isolation.XXXXXX")
+workspace=$(mktemp -d "${TMPDIR:-/tmp}/rudra-timeout-isolation.XXXXXX")
 active_pid=''
 active_pgid=''
 cleanup() {
@@ -194,12 +194,12 @@ if [[ ! -r "$snapshot/examples/curl" ]]; then
     exit 1
 fi
 
-probe_token="rugra_timeout_${BASHPID}"
+probe_token="rudra_timeout_${BASHPID}"
 deadline_token="$probe_token.deadline"
 disconnect_token="$probe_token.disconnect"
 probe_stdout="$workspace/probe.stdout"
 probe_stderr="$workspace/probe.stderr"
-if ! run_guarded 45s "$snapshot" "$driver" --rugra-timeout-isolation-self-test "$probe_token" \
+if ! run_guarded 45s "$snapshot" "$driver" --rudra-timeout-isolation-self-test "$probe_token" \
     >"$probe_stdout" 2>"$probe_stderr"
 then
     printf 'timeout isolation: guarded fault-injection probe failed or timed out\n' >&2
@@ -233,7 +233,7 @@ then
     exit 1
 fi
 
-if residual_pids=$(pgrep -f -- "--rugra-curl-function-worker --probe-label $probe_token"); then
+if residual_pids=$(pgrep -f -- "--rudra-curl-function-worker --probe-label $probe_token"); then
     printf 'timeout isolation: residual worker found for token %s\n' "$probe_token" >&2
     printf '%s\n' "$residual_pids" >&2
     ps -eo pid,ppid,pgid,stat,args | grep -F -- "$probe_token" >&2 || true
@@ -245,7 +245,7 @@ else
         exit 1
     fi
 fi
-if residual_pids=$(pgrep -f -- "--rugra-timeout-descendant-probe $probe_token"); then
+if residual_pids=$(pgrep -f -- "--rudra-timeout-descendant-probe $probe_token"); then
     printf 'timeout isolation: residual descendant found for token %s\n' "$probe_token" >&2
     printf '%s\n' "$residual_pids" >&2
     ps -eo pid,ppid,pgid,stat,args | grep -F -- "$probe_token" >&2 || true
@@ -260,7 +260,7 @@ fi
 
 compare_stdout="$workspace/compare.stdout"
 compare_stderr="$workspace/compare.stderr"
-if ! run_guarded 5m "$snapshot" "$driver" --rugra-timeout-isolation-compare-function \
+if ! run_guarded 5m "$snapshot" "$driver" --rudra-timeout-isolation-compare-function \
     main_init main_free \
     >"$compare_stdout" 2>"$compare_stderr"
 then

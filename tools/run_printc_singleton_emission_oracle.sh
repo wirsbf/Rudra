@@ -20,7 +20,7 @@ cpp_fixture="$repo_root/tests/oracle/printc_singleton_emission_1204.cc"
 rust_fixture="$repo_root/tests/oracle/printc_singleton_emission_1204.rs"
 metadata="$repo_root/tests/oracle/printc_singleton_emission_1204.metadata.json"
 spec_root="$repo_root/sleigh_specs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
@@ -81,15 +81,15 @@ if [[ ! -f "$bfd_library" ]]; then
   exit 1
 fi
 
-# Pinned Rugra input (the curl blob the action_perform runner established).
-rugra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
-rugra_input_commit=34a3febff160031c265cfbd841a94022c68c2c19
+# Pinned Rudra input (the curl blob the action_perform runner established).
+rudra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
+rudra_input_commit=34a3febff160031c265cfbd841a94022c68c2c19
 
 clean_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 binary_blob_oid=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  git -C "$repo_root" rev-parse "$rugra_input_commit:examples/curl")
-if [[ "$binary_blob_oid" != "$rugra_input_blob" ]]; then
-  echo "pinned Rugra input blob mismatch: $binary_blob_oid" >&2
+  git -C "$repo_root" rev-parse "$rudra_input_commit:examples/curl")
+if [[ "$binary_blob_oid" != "$rudra_input_blob" ]]; then
+  echo "pinned Rudra input blob mismatch: $binary_blob_oid" >&2
   exit 1
 fi
 
@@ -109,24 +109,24 @@ g++ -std=c++11 -O2 -I"$cpp_root" -I"$bfd_include" \
   "$cpp_root/libdecomp.a" "$bfd_library" -lz \
   -o "$oracle_tmp/printc_singleton_emission_1204"
 
-git -C "$repo_root" cat-file blob "$rugra_input_blob" >"$oracle_tmp/input_curl_blob"
+git -C "$repo_root" cat-file blob "$rudra_input_blob" >"$oracle_tmp/input_curl_blob"
 
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" cargo build --quiet --lib --profile fast-release
-rugra_rlib="$fixture_target/fast-release/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/fast-release/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/fast-release/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/printc_singleton_emission_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/printc_singleton_emission_rudra"
 
 "$oracle_tmp/printc_singleton_emission_1204" "$spec_root" "$oracle_tmp/input_curl_blob" \
   >"$oracle_tmp/ghidra.stdout"
-"$oracle_tmp/printc_singleton_emission_rugra" >"$oracle_tmp/rugra.stdout"
+"$oracle_tmp/printc_singleton_emission_rudra" >"$oracle_tmp/rudra.stdout"
 
-if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"; then
+if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"; then
   cat "$oracle_tmp/ghidra.stdout"
 else
   echo "printc_singleton_emission_1204: MISMATCH (see diff above)" >&2

@@ -24,7 +24,7 @@ fixture_cc="$repo_root/tests/oracle/pcode_snippet_face_1204.cc"
 fixture_rs="$repo_root/tests/oracle/pcode_snippet_face_1204.rs"
 spec_dir="$repo_root/sleigh_specs"
 
-workroot=${RUDRA_PCODE_SNIPPET_FACE_WORKROOT:-/dev/shm/rugra-tests/pcodeface/runner}
+workroot=${RUDRA_PCODE_SNIPPET_FACE_WORKROOT:-/dev/shm/rudra-tests/pcodeface/runner}
 mkdir -p "$workroot"
 
 for required in "$fixture_cc" "$fixture_rs" "$spec_dir/x86-64.sla"; do
@@ -57,29 +57,29 @@ fi
   > "$workroot/oracle_out.txt" 2> "$workroot/oracle_err.txt"
 oracle_status=$?
 
-# --- Rugra side (current tree) ---------------------------------------------
+# --- Rudra side (current tree) ---------------------------------------------
 cargo_target=${CARGO_TARGET_DIR:-$workroot/target}
 cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
 rustc --edition=2021 -C opt-level=0 "$fixture_rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L dependency="$cargo_target/debug/deps" \
-  -o "$workroot/pcode_snippet_face_rugra"
-"$workroot/pcode_snippet_face_rugra" \
-  > "$workroot/rugra_out.txt" 2> "$workroot/rugra_err.txt"
-rugra_status=$?
+  -o "$workroot/pcode_snippet_face_rudra"
+"$workroot/pcode_snippet_face_rudra" \
+  > "$workroot/rudra_out.txt" 2> "$workroot/rudra_err.txt"
+rudra_status=$?
 
-echo "oracle_exit=$oracle_status rugra_exit=$rugra_status"
-if [[ "$oracle_status" != 0 || "$rugra_status" != 0 ]]; then
+echo "oracle_exit=$oracle_status rudra_exit=$rudra_status"
+if [[ "$oracle_status" != 0 || "$rudra_status" != 0 ]]; then
   echo "fixture side failed" >&2
   tail -5 "$workroot/oracle_err.txt" >&2 || true
-  tail -5 "$workroot/rugra_err.txt" >&2 || true
+  tail -5 "$workroot/rudra_err.txt" >&2 || true
   exit 1
 fi
-if diff -q "$workroot/oracle_out.txt" "$workroot/rugra_out.txt" >/dev/null; then
+if diff -q "$workroot/oracle_out.txt" "$workroot/rudra_out.txt" >/dev/null; then
   oracle_sha=$(sha256sum "$workroot/oracle_out.txt" | awk '{print $1}')
   echo "BILATERAL MATCH: $oracle_sha ($(wc -l < "$workroot/oracle_out.txt") records)"
   exit 0
 fi
 echo "BILATERAL MISMATCH" >&2
-diff "$workroot/oracle_out.txt" "$workroot/rugra_out.txt" | head -80 >&2
+diff "$workroot/oracle_out.txt" "$workroot/rudra_out.txt" | head -80 >&2
 exit 1

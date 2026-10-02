@@ -37,7 +37,7 @@ metadata="$repo_root/tests/oracle/sleigh_flow_relative_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/sleigh_flow_relative_1204.cc"
 rust_fixture="$repo_root/tests/oracle/sleigh_flow_relative_1204.rs"
 spec_root="$repo_root/sleigh_specs"
-# Rugra crate comparand base: the git commit this fixture was produced
+# Rudra crate comparand base: the git commit this fixture was produced
 # against (with its tree hash pinned in metadata), plus the three leased
 # source files overlaid from the working tree. Concurrent agents' uncommitted
 # changes to other src files must never enter this comparand.
@@ -106,9 +106,9 @@ host_cargo=$(/usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" 
   "$host_cargo_bin" --version)
 host_platform=$(/usr/bin/uname -srm)
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-sleigh-flow-relative-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-sleigh-flow-relative-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-sleigh-flow-relative-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-sleigh-flow-relative-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2
     return 1
   fi
@@ -186,7 +186,7 @@ def sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 def read_pinned(relative):
-    """Read one file from the pinned Rugra base commit via git."""
+    """Read one file from the pinned Rudra base commit via git."""
     object_spec = f"{pinned_base}:{relative}"
     return subprocess.check_output(
         [host_git_bin, "-C", str(repo_root), "show", object_spec]
@@ -241,7 +241,7 @@ for match in re.finditer(r'(?m)^\s*path\s*=\s*"([^"]+)"\s*$', pinned_manifest):
         crate_files.append(declared)
 crate_files = sorted(set(crate_files), key=lambda path: path.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-sleigh-flow-relative-lib-snapshot-v1\0")
+crate_hasher.update(b"rudra-sleigh-flow-relative-lib-snapshot-v1\0")
 crate_bytes = {}
 for relative in crate_files:
     data = snapshot_crate_file(relative)
@@ -365,7 +365,7 @@ require_equal(
 )
 require_equal(
     "crate snapshot scheme", comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-sleigh-flow-relative-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents from the pinned base commit with the leased SLEIGH-FLOW-REL-0001 overlay files taken from the working tree",
+    "sha256 of rudra-sleigh-flow-relative-lib-snapshot-v1 plus sorted length-prefixed relative paths and contents from the pinned base commit with the leased SLEIGH-FLOW-REL-0001 overlay files taken from the working tree",
 )
 for key, actual in observed_hashes.items():
     reject_pending(comparand[key], f"comparand.{key}")
@@ -557,7 +557,7 @@ fi
 
 raw_image="$oracle_tmp/0fa2c3.bin"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_objcopy_bin" \
-  --dump-section ".rugra_input=$raw_image" \
+  --dump-section ".rudra_input=$raw_image" \
   "$oracle_tmp/sleigh_flow_relative_1204_cpp"
 if [[ ! -f "$raw_image" || -L "$raw_image" ]]; then
   echo "failed to extract the locked raw input section" >&2
@@ -602,17 +602,17 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce $rugra_rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce $rudra_rlib" >&2
   exit 1
 fi
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
 if [[ "${#native_archives[@]}" -ne 1 ]]; then
-  echo "expected one Cargo-built librugra_sleigh.a, found ${#native_archives[@]}" >&2
+  echo "expected one Cargo-built librudra_sleigh.a, found ${#native_archives[@]}" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -620,8 +620,8 @@ if ! /usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/sleigh_flow_relative_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -636,13 +636,13 @@ fi
     >"$oracle_tmp/ghidra.stdout"
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
     "$oracle_tmp/sleigh_flow_relative_1204_rust" "$sla" "$raw_image" \
-    >"$oracle_tmp/rugra.stdout"
+    >"$oracle_tmp/rudra.stdout"
 )
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
-  - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+  - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -651,8 +651,8 @@ from collections import Counter
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_stdout = pathlib.Path(sys.argv[2]).read_bytes()
-rugra_stdout = pathlib.Path(sys.argv[3]).read_bytes()
-if ghidra_stdout != rugra_stdout:
+rudra_stdout = pathlib.Path(sys.argv[3]).read_bytes()
+if ghidra_stdout != rudra_stdout:
     raise SystemExit("byte comparison unexpectedly diverged after diff succeeded")
 if not ghidra_stdout.endswith(b"\n"):
     raise SystemExit("NDJSON output lacks the required final newline")

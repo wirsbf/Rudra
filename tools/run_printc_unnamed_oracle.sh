@@ -4,12 +4,12 @@
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler from the pinned oracle
 # commit, links the C++ fixture against the binutils-2.38 BFD environment,
-# rebuilds the Rugra crate from the pinned base commit with the live
+# rebuilds the Rudra crate from the pinned base commit with the live
 # src/printc.rs overlay (slice B1: the unnamed-location fallback address
 # source unified to the high's name representative, printlanguage.cc:244;
 # slice A: the fallback token form unified to PrintC::pushUnnamedLocation,
 # printc.cc:1938-1945 — space name + AddrSpace::printRaw, space.cc:206-222,
-# merging the three divergent Rugra space ladders), compiles both
+# merging the three divergent Rudra space ladders), compiles both
 # fixtures, runs them, and classifies every stdout line:
 #
 #   - a line pair that byte-matches is COVERED;
@@ -31,9 +31,9 @@
 #
 # The observation surface is never narrowed to go green.
 #
-# Build discipline: /tmp/rugra-cargo-build.lock serializes Cargo, the
-# CARGO_TARGET_DIR is the dedicated /tmp/rugra-target-printc-unnamed symlink
-# to ~/.cache/rugra-target-printc-unnamed, and every build/compile step runs
+# Build discipline: /tmp/rudra-cargo-build.lock serializes Cargo, the
+# CARGO_TARGET_DIR is the dedicated /tmp/rudra-target-printc-unnamed symlink
+# to ~/.cache/rudra-target-printc-unnamed, and every build/compile step runs
 # under timeout 600.
 set -euo pipefail
 
@@ -44,23 +44,23 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_base_tree=bf4483327d91dca85f3dd8377255326fb05704a7
-rugra_base_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_tree=bf4483327d91dca85f3dd8377255326fb05704a7
+rudra_base_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
 
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/printc_unnamed_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/printc_unnamed_1204.cc"
 rust_fixture="$repo_root/tests/oracle/printc_unnamed_1204.rs"
 
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
-bfd_rpath=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_rpath=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu
 
-cargo_lock=/tmp/rugra-cargo-build.lock
-cargo_target=/tmp/rugra-target-printc-unnamed
-cargo_storage="$HOME/.cache/rugra-target-printc-unnamed"
+cargo_lock=/tmp/rudra-cargo-build.lock
+cargo_target=/tmp/rudra-target-printc-unnamed
+cargo_storage="$HOME/.cache/rudra-target-printc-unnamed"
 if [[ -L "$cargo_storage" || ( -e "$cargo_storage" && ! -d "$cargo_storage" ) ]]; then
   echo "Cargo backing path must be a real directory: $cargo_storage" >&2
   exit 1
@@ -82,7 +82,7 @@ fi
 
 # Serialize concurrent invocations of this runner (they share the stable
 # comparand workspace below).
-exec 9>/tmp/rugra-printc-unnamed-runner.lock
+exec 9>/tmp/rudra-printc-unnamed-runner.lock
 if ! flock -n 9; then
   echo "another printc_unnamed_1204 runner is active" >&2
   exit 1
@@ -93,7 +93,7 @@ fi
 # workspace path under the user's cache instead; it is wiped and re-extracted
 # from the pinned commit each run, so its content stays immutable while the
 # fingerprints stay warm.
-rugra_snapshot="$user_home/.cache/rugra-printc-unnamed-workspace"
+rudra_snapshot="$user_home/.cache/rudra-printc-unnamed-workspace"
 
 for path in "$metadata" "$cpp_fixture" "$rust_fixture" "$0" "$bfd_header" "$bfd_library"; do
   if [[ ! -f "$path" || -L "$path" ]]; then
@@ -121,19 +121,19 @@ if [[ -n "$(git -C "$ghidra_root" status --porcelain -- \
   echo "locked Ghidra decompiler/x86 tree is dirty" >&2
   exit 1
 fi
-if [[ "$(git -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")" != "$rugra_base_commit" || \
-      "$(git -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")" != "$rugra_base_tree" || \
-      "$(git -C "$repo_root" rev-parse "$rugra_base_commit:src")" != "$rugra_base_src_tree" ]]; then
-  echo "pinned Rugra source identity mismatch" >&2
+if [[ "$(git -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")" != "$rudra_base_commit" || \
+      "$(git -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")" != "$rudra_base_tree" || \
+      "$(git -C "$repo_root" rev-parse "$rudra_base_commit:src")" != "$rudra_base_src_tree" ]]; then
+  echo "pinned Rudra source identity mismatch" >&2
   exit 1
 fi
 
 runner_sha=$(sha256sum "$0" | awk '{print $1}')
 
-oracle_tmp=$(mktemp -d /tmp/rugra-printc-unnamed-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-printc-unnamed-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-printc-unnamed-1204.??????)
+    /tmp/rudra-printc-unnamed-1204.??????)
       [[ ! -e "$oracle_tmp" || ( -d "$oracle_tmp" && ! -L "$oracle_tmp" ) ]] || return 1
       rm -rf --one-file-system "$oracle_tmp"
       ;;
@@ -147,8 +147,8 @@ sha256sum "${owned[@]}" >"$oracle_tmp/owned.before"
 
 # --- pre-flight: metadata pins, asset blobs, crate tree hash -------------
 mkdir -p "$oracle_tmp/source" "$oracle_tmp/overlay"
-rm -rf --one-file-system "$rugra_snapshot"
-mkdir -p "$rugra_snapshot"
+rm -rf --one-file-system "$rudra_snapshot"
+mkdir -p "$rudra_snapshot"
 cp -- "$cpp_fixture" "$oracle_tmp/overlay/printc_unnamed_1204.cc"
 cp -- "$rust_fixture" "$oracle_tmp/overlay/printc_unnamed_1204.rs"
 cpp_fixture_snapshot="$oracle_tmp/overlay/printc_unnamed_1204.cc"
@@ -159,47 +159,47 @@ git -C "$ghidra_root" archive --format=tar "$oracle_commit" \
   tar -xf - -C "$oracle_tmp/source"
 oracle_cpp="$oracle_tmp/source/Ghidra/Features/Decompiler/src/decompile/cpp"
 
-git -C "$repo_root" archive --format=tar "$rugra_base_commit" \
+git -C "$repo_root" archive --format=tar "$rudra_base_commit" \
   Cargo.toml Cargo.lock README.md build.rs src sleigh_shim \
   benches/decompile_bench.rs tests/oracle/decompress_1204.rs \
   tests/oracle/funcproto_lock_1204.rs | \
-  tar -xf - -C "$rugra_snapshot"
+  tar -xf - -C "$rudra_snapshot"
 # Slice B1+A overlay: the live src/printc.rs replaces the base version in
 # the snapshot (the comparand under test).  The python pre-flight pins its
 # exact sha256 through metadata["comparand"]["overlays"].
-cp -- "$repo_root/src/printc.rs" "$rugra_snapshot/src/printc.rs"
-mkdir -p "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile" \
-  "$rugra_snapshot/sleigh_specs" "$rugra_snapshot/tests/oracle" \
-  "$rugra_snapshot/examples"
-ln -s "$oracle_cpp" "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
-cp -- "$cpp_fixture_snapshot" "$rugra_snapshot/tests/oracle/printc_unnamed_1204.cc"
-cp -- "$rust_fixture_snapshot" "$rugra_snapshot/tests/oracle/printc_unnamed_1204.rs"
-cp -- "$metadata" "$rugra_snapshot/tests/oracle/printc_unnamed_1204.metadata.json"
+cp -- "$repo_root/src/printc.rs" "$rudra_snapshot/src/printc.rs"
+mkdir -p "$rudra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile" \
+  "$rudra_snapshot/sleigh_specs" "$rudra_snapshot/tests/oracle" \
+  "$rudra_snapshot/examples"
+ln -s "$oracle_cpp" "$rudra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
+cp -- "$cpp_fixture_snapshot" "$rudra_snapshot/tests/oracle/printc_unnamed_1204.cc"
+cp -- "$rust_fixture_snapshot" "$rudra_snapshot/tests/oracle/printc_unnamed_1204.rs"
+cp -- "$metadata" "$rudra_snapshot/tests/oracle/printc_unnamed_1204.metadata.json"
 for spec in x86-64.sla x86-64.pspec x86-64-gcc.cspec x86.ldefs; do
-  git -C "$repo_root" cat-file blob "$rugra_base_commit:sleigh_specs/$spec" \
-    >"$rugra_snapshot/sleigh_specs/$spec"
+  git -C "$repo_root" cat-file blob "$rudra_base_commit:sleigh_specs/$spec" \
+    >"$rudra_snapshot/sleigh_specs/$spec"
 done
-git -C "$repo_root" cat-file blob "$rugra_base_commit:examples/curl" \
-  >"$rugra_snapshot/examples/curl"
+git -C "$repo_root" cat-file blob "$rudra_base_commit:examples/curl" \
+  >"$rudra_snapshot/examples/curl"
 
-python3 -I -S - "$repo_root" "$ghidra_root" "$rugra_snapshot" "$metadata" \
+python3 -I -S - "$repo_root" "$ghidra_root" "$rudra_snapshot" "$metadata" \
   "$cpp_fixture_snapshot" "$rust_fixture_snapshot" "$runner_sha" "$oracle_tag" \
   "$oracle_commit" "$oracle_cpp_tree" "$oracle_language_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
-  "$rugra_base_src_tree" "$bfd_header" "$bfd_library" <<'PY'
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
+  "$rudra_base_src_tree" "$bfd_header" "$bfd_library" <<'PY'
 import hashlib
 import json
 import pathlib
 import subprocess
 import sys
 
-(repo_raw, ghidra_raw, rugra_raw, metadata_raw, cpp_raw, rust_raw,
+(repo_raw, ghidra_raw, rudra_raw, metadata_raw, cpp_raw, rust_raw,
  runner_sha, oracle_tag, oracle_commit, cpp_tree, language_tree,
  makefile_blob, base_commit, base_tree, base_src_tree,
  bfd_header_raw, bfd_library_raw) = sys.argv[1:]
 repo = pathlib.Path(repo_raw).resolve()
 ghidra_repo = pathlib.Path(ghidra_raw).resolve()
-rugra = pathlib.Path(rugra_raw).resolve()
+rudra = pathlib.Path(rudra_raw).resolve()
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
@@ -238,9 +238,9 @@ require("oracle language tree", oracle["x86_language_tree"], language_tree)
 require("oracle Makefile blob", oracle["decompiler_makefile_blob"], makefile_blob)
 
 comparand = metadata["comparand"]
-require("Rugra base commit", comparand["rugra_base_commit"], base_commit)
-require("Rugra base tree", comparand["rugra_base_tree"], base_tree)
-require("Rugra base src tree", comparand["rugra_base_src_tree"], base_src_tree)
+require("Rudra base commit", comparand["rugra_base_commit"], base_commit)
+require("Rudra base tree", comparand["rugra_base_tree"], base_tree)
+require("Rudra base src tree", comparand["rugra_base_src_tree"], base_src_tree)
 require("C++ fixture hash", sha(pathlib.Path(cpp_raw).read_bytes()), comparand["cpp_fixture_sha256"])
 require("Rust fixture hash", sha(pathlib.Path(rust_raw).read_bytes()), comparand["rust_fixture_sha256"])
 require("runner hash", runner_sha, comparand["runner_sha256"])
@@ -260,7 +260,7 @@ if overlay_live.is_symlink() or not overlay_live.is_file():
 require("overlay live sha256", sha(overlay_live.read_bytes()), overlays[0]["sha256"])
 require(
     "overlay snapshot sha256",
-    sha((rugra / "src/printc.rs").read_bytes()),
+    sha((rudra / "src/printc.rs").read_bytes()),
     overlays[0]["sha256"],
 )
 
@@ -276,10 +276,10 @@ paths = sorted(
     key=lambda path: path.as_posix(),
 )
 hasher = hashlib.sha256()
-hasher.update(b"rugra-printc-unnamed-base-overlay-b1-v1\0")
+hasher.update(b"rudra-printc-unnamed-base-overlay-b1-v1\0")
 hasher.update(base_commit.encode())
 for relative in paths:
-    source = rugra / relative
+    source = rudra / relative
     if source.is_symlink() or not source.is_file():
         raise SystemExit(f"crate input is not a regular file: {relative}")
     data = source.read_bytes()
@@ -291,7 +291,7 @@ for relative in paths:
 require(
     "crate hash scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-printc-unnamed-base-overlay-b1-v1 plus base commit and sorted length-prefixed Cargo.toml/Cargo.lock/README.md/build.rs/src/sleigh_shim/benches/decompile_bench.rs/tests/oracle/{decompress_1204.rs,funcproto_lock_1204.rs} paths and bytes at rugra_base_commit with src/printc.rs overlaid from the live tree (slice A: unnamed-location fallback token form unified to PrintC::pushUnnamedLocation, printc.cc:1938-1945, on top of slice B1's name-representative address source, printlanguage.cc:244)",
+    "sha256 of rudra-printc-unnamed-base-overlay-b1-v1 plus base commit and sorted length-prefixed Cargo.toml/Cargo.lock/README.md/build.rs/src/sleigh_shim/benches/decompile_bench.rs/tests/oracle/{decompress_1204.rs,funcproto_lock_1204.rs} paths and bytes at rudra_base_commit with src/printc.rs overlaid from the live tree (slice A: unnamed-location fallback token form unified to PrintC::pushUnnamedLocation, printc.cc:1938-1945, on top of slice B1's name-representative address source, printlanguage.cc:244)",
 )
 require("checkpoint crate hash", hasher.hexdigest(), comparand["rust_crate_tree_sha256"])
 
@@ -303,7 +303,7 @@ for key, relative in (
     ("language_definitions", "sleigh_specs/x86.ldefs"),
 ):
     asset = metadata["build"]["assets"][key]
-    data = (rugra / relative).read_bytes()
+    data = (rudra / relative).read_bytes()
     require(f"{key} git blob", git_output(repo, "rev-parse", f"{base_commit}:{relative}"), asset["git_blob"])
     require(f"{key} sha256", sha(data), asset["sha256"])
 bfd = metadata["build"]["assets"]["bfd"]
@@ -367,20 +367,20 @@ if ! timeout 600 g++ -std=c++11 -O2 -Wall -Wno-sign-compare -m64 \
   exit 1
 fi
 
-# --- build the Rugra comparand --------------------------------------------
+# --- build the Rudra comparand --------------------------------------------
 if ! flock "$cargo_lock" -c \
-    "CARGO_TARGET_DIR='$cargo_target' timeout 600 cargo build --offline --locked --quiet --lib --manifest-path '$rugra_snapshot/Cargo.toml'" \
+    "CARGO_TARGET_DIR='$cargo_target' timeout 600 cargo build --offline --locked --quiet --lib --manifest-path '$rudra_snapshot/Cargo.toml'" \
     >"$oracle_tmp/cargo.stdout" 2>"$oracle_tmp/cargo.stderr"; then
   cat "$oracle_tmp/cargo.stdout" "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$cargo_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a regular Rugra rlib at $rugra_rlib" >&2
+rudra_rlib="$cargo_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a regular Rudra rlib at $rudra_rlib" >&2
   exit 1
 fi
 if ! timeout 600 rustc --edition=2021 -O "$rust_fixture_snapshot" \
-    --extern "rugra=$rugra_rlib" \
+    --extern "rudra=$rudra_rlib" \
     -L "dependency=$cargo_target/debug/deps" \
     -o "$oracle_tmp/printc_unnamed_1204_rust" \
     >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
@@ -394,21 +394,21 @@ timeout 60s env LD_LIBRARY_PATH="$bfd_rpath" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 timeout 60s "$oracle_tmp/printc_unnamed_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-if [[ "$ghidra_status" -ne 0 || "$rugra_status" -ne 0 ]]; then
-  echo "fixture exit mismatch: ghidra=$ghidra_status rugra=$rugra_status" >&2
-  cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stderr" >&2
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+if [[ "$ghidra_status" -ne 0 || "$rudra_status" -ne 0 ]]; then
+  echo "fixture exit mismatch: ghidra=$ghidra_status rudra=$rudra_status" >&2
+  cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-if grep -qv '^WARNING: ' "$oracle_tmp/ghidra.stderr" || [[ -s "$oracle_tmp/rugra.stderr" ]]; then
+if grep -qv '^WARNING: ' "$oracle_tmp/ghidra.stderr" || [[ -s "$oracle_tmp/rudra.stderr" ]]; then
   echo "fixture stderr must be empty (Ghidra WARNING lines excepted)" >&2
-  cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stderr" >&2
+  cat "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
 # --- classification gate ---------------------------------------------------
-gate_summary=$(python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+gate_summary=$(python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -416,7 +416,7 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8").splitlines()
-rugra = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8").splitlines()
+rudra = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8").splitlines()
 
 def sha(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -426,12 +426,12 @@ envelope = (
     "schema=1|fixture=PRINTC-UNLINKED-REF-FAMILY|slice=C"
     "|oracle=e40ed13014025f82488b1f8f7bca566894ac376b"
 )
-if len(ghidra) != expected["lines"] or len(rugra) != expected["lines"]:
+if len(ghidra) != expected["lines"] or len(rudra) != expected["lines"]:
     raise SystemExit(
-        f"line-count drift: ghidra={len(ghidra)} rugra={len(rugra)}"
+        f"line-count drift: ghidra={len(ghidra)} rudra={len(rudra)}"
         f" expected={expected['lines']}"
     )
-if ghidra[0] != envelope or rugra[0] != envelope:
+if ghidra[0] != envelope or rudra[0] != envelope:
     raise SystemExit("envelope mismatch")
 
 case_order = metadata["case_order"]
@@ -449,7 +449,7 @@ registered = {
     for key, record in metadata["registered_divergence_lines"].items()
 }
 covered = 0
-for index, (gline, rline) in enumerate(zip(ghidra, rugra), start=1):
+for index, (gline, rline) in enumerate(zip(ghidra, rudra), start=1):
     if gline == rline:
         covered += 1
         if index in registered:
@@ -463,25 +463,25 @@ for index, (gline, rline) in enumerate(zip(ghidra, rugra), start=1):
     if record is None:
         raise SystemExit(
             f"UNREGISTERED divergence at line {index}:\n"
-            f"  ghidra: {gline}\n  rugra:  {rline}"
+            f"  ghidra: {gline}\n  rudra:  {rline}"
         )
     if record["ghidra"] != gline or sha(gline) != record["ghidra_sha256"]:
         raise SystemExit(
             f"registered ghidra side drifted at line {index}:\n"
             f"  registered: {record['ghidra']}\n  actual:      {gline}"
         )
-    if record["rugra"] != rline or sha(rline) != record["rugra_sha256"]:
+    if record["rugra"] != rline or sha(rline) != record["rudra_sha256"]:
         raise SystemExit(
-            f"registered rugra side drifted at line {index}:\n"
-            f"  registered: {record['rugra']}\n  actual:      {rline}"
+            f"registered rudra side drifted at line {index}:\n"
+            f"  registered: {record['rudra']}\n  actual:      {rline}"
         )
 
 ghidra_bytes = pathlib.Path(sys.argv[2]).read_bytes()
-rugra_bytes = pathlib.Path(sys.argv[3]).read_bytes()
+rudra_bytes = pathlib.Path(sys.argv[3]).read_bytes()
 if hashlib.sha256(ghidra_bytes).hexdigest() != expected["ghidra_stdout_sha256"]:
     raise SystemExit("ghidra full-stdout hash drift")
-if hashlib.sha256(rugra_bytes).hexdigest() != expected["rugra_stdout_sha256"]:
-    raise SystemExit("rugra full-stdout hash drift")
+if hashlib.sha256(rudra_bytes).hexdigest() != expected["rudra_stdout_sha256"]:
+    raise SystemExit("rudra full-stdout hash drift")
 
 total = expected["lines"]
 mismatches = len(registered)
@@ -490,7 +490,7 @@ for index in sorted(registered):
     record = registered[index]
     print(f"  line {index}: [{record['domain'].split(';')[0].strip()}]")
     print(f"    ghidra: {record['ghidra']}")
-    print(f"    rugra:  {record['rugra']}")
+    print(f"    rudra:  {record['rudra']}")
 if covered + mismatches != total:
     raise SystemExit("classification accounting mismatch")
 PY

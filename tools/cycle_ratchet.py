@@ -502,7 +502,7 @@ FROZEN_EDGES = {
 
 # SCC 内边分类账本（HHMIRROR E1-E16 家族归属;报告/维护用,不参与机器判定——
 # 机器判定只看 FROZEN_EDGES 键成员资格）。
-# 形态类: a=可解(下沉/浮动) b=伪影 c=真互持/锁死 glue=RUGRA-GLUE 偏离
+# 形态类: a=可解(下沉/浮动) b=伪影 c=真互持/锁死 glue=RUDRA-GLUE 偏离
 PAIR_TAGS: dict[str, tuple[str, str, str]] = {
     # --- E7 (c) op↔varnode↔variable↔block 互持字段组（.hh 前置声明隐形边） ---
     "op->varnode":       ("E7",    "c", "PcodeOp.output/inrefs ↔ Varnode.def/descend 互持"),
@@ -600,7 +600,7 @@ PAIR_TAGS: dict[str, tuple[str, str, str]] = {
     "arch->type_system": ("E16-1", "c", "Architecture.types: TypeFactory（3-环闭包边）"),
     "type_system->fspec": ("E16-2", "c", "TypeCode.proto: FuncProto（type.hh:696）"),
     "fspec->type_system": ("E16-2", "c", "FuncCallSpecs.proto_model: ProtoModel（2-环闭包边;另有 Datatype 字段族）"),
-    # --- RUGRA-GLUE 偏离（HHMIRROR §2 尾注/§3） ---
+    # --- RUDRA-GLUE 偏离（HHMIRROR §2 尾注/§3） ---
     "varnode->fspec":   ("GLUE", "glue", "Varnode.call_spec: Weak<FuncCallSpecs>（Ghidra 编码在 IPTR_FSPEC 整数,varnode L7 < fspec L12 倒置）"),
     "unionresolve->funcdata": ("GLUE", "glue", "ScoreUnionFields.fd: &Funcdata（Ghidra 从 op->getParent()->getFuncdata() 派生,Rust 穿参）"),
 }

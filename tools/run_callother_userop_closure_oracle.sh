@@ -1,7 +1,7 @@
 #!/usr/bin/env -S -i PATH=/usr/bin:/bin /usr/bin/bash
 set -euo pipefail
 
-# TYPEOP-CALLOTHER-USEROP-CLOSURE-0001 locked Ghidra 12.0.4/Rugra bilateral
+# TYPEOP-CALLOTHER-USEROP-CLOSURE-0001 locked Ghidra 12.0.4/Rudra bilateral
 # runner. The Rust side is built from the frozen production commit
 # (5cba7550, TypeOpCallother get*Local CALLOTHER arm + userops parameter
 # thread) via a complete git archive, never from the live crate; no source
@@ -49,7 +49,7 @@ if [[ ! -d "$cache_parent" || -L "$cache_parent" ]]; then
   echo "cache parent is not a real directory: $cache_parent" >&2
   exit 1
 fi
-cache_root="$cache_parent/rugra-callother-closure-1204"
+cache_root="$cache_parent/rudra-callother-closure-1204"
 # Task TYPEOP-LOCALTYPE-CALLOTHER-0001 (A52) dedicated Cargo dirs: every
 # Cargo invocation below is serialized on the shared build flock and uses
 # these isolated, pre-created directories (never /tmp or a shared target).
@@ -100,17 +100,17 @@ oracle_varnode_cc_blob=a04614c582a1fd987d615dcec4a8b47d3501f95f
 oracle_typeop_cc_blob=5197e3eefd185ed39c58e65af0687d605e34ec5e
 oracle_type_cc_blob=962c525b7f9c6a901d84d6396de245a0bf6e5d60
 oracle_userop_cc_blob=9fe8b78d03cbeac63b02bd424261fb1404ddc8f5
-rugra_base_commit=5cba75501abab7b7f17e81dd8ae1dc45dc5e209a
-rugra_base_tree=518475282f4c9630acbab4fea6b178563acb45f6
-rugra_base_src_tree=928e4e186961f5462144de1f5def8854c281fe52
-rugra_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
-rugra_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
-rugra_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
-rugra_binary_blob=76d9343ea3add321aa4134856323663b36365807
-rugra_expected_records=72
-rugra_expected_bytes=2495
-rugra_expected_stdout_sha256=45d97341b96c72c59681c0c4dd010ae308602c05b8f5041bc3b9ead59ccb114f
-rugra_expected_stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+rudra_base_commit=5cba75501abab7b7f17e81dd8ae1dc45dc5e209a
+rudra_base_tree=518475282f4c9630acbab4fea6b178563acb45f6
+rudra_base_src_tree=928e4e186961f5462144de1f5def8854c281fe52
+rudra_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
+rudra_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
+rudra_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_binary_blob=76d9343ea3add321aa4134856323663b36365807
+rudra_expected_records=72
+rudra_expected_bytes=2495
+rudra_expected_stdout_sha256=45d97341b96c72c59681c0c4dd010ae308602c05b8f5041bc3b9ead59ccb114f
+rudra_expected_stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 bilateral_expected_diff_exit_code=0
 bilateral_expected_diff_records=0
 bilateral_expected_diff_bytes=0
@@ -119,8 +119,8 @@ ghidra_root="$repo_root/ghidra"
 metadata_live="$repo_root/tests/oracle/callother_userop_closure_1204.metadata.json"
 cpp_fixture_live="$repo_root/tests/oracle/callother_userop_closure_1204.cc"
 rust_fixture_live="$repo_root/tests/oracle/callother_userop_closure_1204.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 bfd_library_dir=$(/usr/bin/dirname "$bfd_library")
 
 # Snapshot model: the frozen production commit already carries the
@@ -201,20 +201,20 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
 fi
 
 if [[ "$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-      "$host_git_bin" -C "$repo_root" rev-parse "${rugra_base_commit}^{commit}")" != "$rugra_base_commit" || \
+      "$host_git_bin" -C "$repo_root" rev-parse "${rudra_base_commit}^{commit}")" != "$rudra_base_commit" || \
       "$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-      "$host_git_bin" -C "$repo_root" rev-parse "${rugra_base_commit}^{tree}")" != "$rugra_base_tree" || \
+      "$host_git_bin" -C "$repo_root" rev-parse "${rudra_base_commit}^{tree}")" != "$rudra_base_tree" || \
       "$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-      "$host_git_bin" -C "$repo_root" rev-parse "${rugra_base_commit}:src")" != "$rugra_base_src_tree" || \
+      "$host_git_bin" -C "$repo_root" rev-parse "${rudra_base_commit}:src")" != "$rudra_base_src_tree" || \
       "$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-      "$host_git_bin" -C "$repo_root" rev-parse "${rugra_base_commit}:Cargo.toml")" != "$rugra_cargo_toml_blob" || \
+      "$host_git_bin" -C "$repo_root" rev-parse "${rudra_base_commit}:Cargo.toml")" != "$rudra_cargo_toml_blob" || \
       "$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-      "$host_git_bin" -C "$repo_root" rev-parse "${rugra_base_commit}:Cargo.lock")" != "$rugra_cargo_lock_blob" || \
+      "$host_git_bin" -C "$repo_root" rev-parse "${rudra_base_commit}:Cargo.lock")" != "$rudra_cargo_lock_blob" || \
       "$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-      "$host_git_bin" -C "$repo_root" rev-parse "${rugra_base_commit}:build.rs")" != "$rugra_build_rs_blob" || \
+      "$host_git_bin" -C "$repo_root" rev-parse "${rudra_base_commit}:build.rs")" != "$rudra_build_rs_blob" || \
       "$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-      "$host_git_bin" -C "$repo_root" rev-parse "${rugra_base_commit}:examples/curl")" != "$rugra_binary_blob" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+      "$host_git_bin" -C "$repo_root" rev-parse "${rudra_base_commit}:examples/curl")" != "$rudra_binary_blob" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -222,9 +222,9 @@ snapshot_root="$run_root/workspace"
 /usr/bin/mkdir -p "$snapshot_root/tests/oracle"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" archive --format=tar \
-  --output="$run_root/rugra-base.tar" "$rugra_base_commit" \
+  --output="$run_root/rudra-base.tar" "$rudra_base_commit" \
   "${archive_paths[@]}"
-/usr/bin/tar -xf "$run_root/rugra-base.tar" -C "$snapshot_root"
+/usr/bin/tar -xf "$run_root/rudra-base.tar" -C "$snapshot_root"
 for relative in "${overlay_paths[@]}"; do
   /usr/bin/cp "$repo_root/$relative" "$snapshot_root/$relative"
 done
@@ -242,10 +242,10 @@ verify_owned_inputs() {
     - "$repo_root" "$snapshot_root" "$metadata_live" "$cpp_fixture_live" \
     "$rust_fixture_live" "$runner_sha" "$oracle_commit" "$oracle_tag" \
     "$oracle_cpp_tree" "$oracle_makefile_blob" "$oracle_userop_cc_blob" \
-    "$rugra_base_commit" "$rugra_base_tree" "$rugra_base_src_tree" "$rugra_cargo_toml_blob" \
-    "$rugra_cargo_lock_blob" "$rugra_build_rs_blob" "$rugra_binary_blob" \
-    "$rugra_expected_records" "$rugra_expected_bytes" \
-    "$rugra_expected_stdout_sha256" "$rugra_expected_stderr_sha256" \
+    "$rudra_base_commit" "$rudra_base_tree" "$rudra_base_src_tree" "$rudra_cargo_toml_blob" \
+    "$rudra_cargo_lock_blob" "$rudra_build_rs_blob" "$rudra_binary_blob" \
+    "$rudra_expected_records" "$rudra_expected_bytes" \
+    "$rudra_expected_stdout_sha256" "$rudra_expected_stderr_sha256" \
     "$bilateral_expected_diff_exit_code" "$bilateral_expected_diff_records" \
     "$bilateral_expected_diff_bytes" "$bilateral_expected_diff_sha256" \
     "$bfd_include/bfd.h" "$bfd_library" "${overlay_paths[@]}" <<'PY'
@@ -259,8 +259,8 @@ import sys
     repo_raw, snapshot_raw, metadata_raw, cpp_raw, rust_raw, runner_sha,
     oracle_commit, oracle_tag, cpp_tree, makefile_blob, userop_cc_blob,
     base_commit, base_tree, base_src_tree, cargo_toml_blob, cargo_lock_blob, build_rs_blob,
-    binary_blob, rugra_records, rugra_bytes, rugra_stdout_sha,
-    rugra_stderr_sha, bilateral_diff_exit_code, bilateral_diff_records,
+    binary_blob, rudra_records, rudra_bytes, rudra_stdout_sha,
+    rudra_stderr_sha, bilateral_diff_exit_code, bilateral_diff_records,
     bilateral_diff_bytes, bilateral_diff_sha, bfd_header_raw, bfd_library_raw,
     *overlay_paths,
 ) = sys.argv[1:]
@@ -279,9 +279,9 @@ require("metadata schema", metadata["schema_version"], 1)
 require("fixture id", metadata["fixture_id"], "TYPEOP-CALLOTHER-USEROP-CLOSURE-0001")
 require("overall status", metadata["overall_status"], "MATCH")
 require("oracle capture status", metadata["covered_projection"]["oracle_capture"]["status"], "ORACLE_CAPTURED")
-require("Rugra execution status", metadata["covered_projection"]["rugra_execution"]["status"], "EXECUTED")
+require("Rudra execution status", metadata["covered_projection"]["rugra_execution"]["status"], "EXECUTED")
 require("bilateral status", metadata["covered_projection"]["bilateral_comparison"]["status"], "MATCH")
-require("Rugra build status", metadata["build"]["rugra_build_status"], "EXECUTED")
+require("Rudra build status", metadata["build"]["rugra_build_status"], "EXECUTED")
 require("Cargo invocation evidence", metadata["build"]["cargo_invoked"], True)
 require("oracle commit", metadata["oracle"]["commit"], oracle_commit)
 require("oracle tag", metadata["oracle"]["tag"], oracle_tag)
@@ -339,12 +339,12 @@ require("paired Ghidra records", paired["ghidra"]["records"], metadata["locked_c
 require("paired Ghidra bytes", paired["ghidra"]["bytes"], metadata["locked_capture"]["bytes"])
 require("paired Ghidra stdout", paired["ghidra"]["stdout_sha256"], metadata["locked_capture"]["stdout_sha256"])
 require("paired Ghidra stderr", paired["ghidra"]["stderr_sha256"], metadata["locked_capture"]["stderr_sha256"])
-require("paired Rugra status", paired["rugra"]["status"], "EXECUTED")
-require("paired Rugra runs", paired["rugra"]["deterministic_runs"], 2)
-require("paired Rugra records", paired["rugra"]["records"], int(rugra_records))
-require("paired Rugra bytes", paired["rugra"]["bytes"], int(rugra_bytes))
-require("paired Rugra stdout", paired["rugra"]["stdout_sha256"], rugra_stdout_sha)
-require("paired Rugra stderr", paired["rugra"]["stderr_sha256"], rugra_stderr_sha)
+require("paired Rudra status", paired["rugra"]["status"], "EXECUTED")
+require("paired Rudra runs", paired["rugra"]["deterministic_runs"], 2)
+require("paired Rudra records", paired["rugra"]["records"], int(rudra_records))
+require("paired Rudra bytes", paired["rugra"]["bytes"], int(rudra_bytes))
+require("paired Rudra stdout", paired["rugra"]["stdout_sha256"], rudra_stdout_sha)
+require("paired Rudra stderr", paired["rugra"]["stderr_sha256"], rudra_stderr_sha)
 require("bilateral expected status", paired["bilateral"]["status"], "MATCH")
 require("bilateral diff exit code", paired["bilateral"]["diff_exit_code"], int(bilateral_diff_exit_code))
 require("bilateral diff records", paired["bilateral"]["records"], int(bilateral_diff_records))
@@ -424,7 +424,7 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C TMPDIR="$cache_root/tmp" \
   exit 1
 fi
 
-if ! /usr/bin/flock -x /tmp/rugra-cargo-build.lock \
+if ! /usr/bin/flock -x /tmp/rudra-cargo-build.lock \
   /usr/bin/env -i PATH="$clean_path" HOME="$user_home" LC_ALL=C \
   CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$cargo_target" \
   TMPDIR="$cargo_tmp" "$host_cargo_bin" build --offline --locked --quiet \
@@ -437,7 +437,7 @@ fi
 if ! /usr/bin/env -i PATH="$clean_path" HOME="$user_home" LC_ALL=C \
   TMPDIR="$cargo_tmp" "$host_rustc_bin" --edition=2021 -C opt-level=0 \
   "$snapshot_root/tests/oracle/callother_userop_closure_1204.rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L dependency="$cargo_target/debug/deps" \
   -o "$run_root/callother_userop_closure_1204_rust" \
   >"$run_root/rustc.stdout" 2>"$run_root/rustc.stderr"; then
@@ -452,22 +452,22 @@ for run in 1 2; do
     >"$run_root/ghidra.$run.stdout" 2>"$run_root/ghidra.$run.stderr"
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
     "$run_root/callother_userop_closure_1204_rust" \
-    >"$run_root/rugra.$run.stdout" 2>"$run_root/rugra.$run.stderr"
+    >"$run_root/rudra.$run.stdout" 2>"$run_root/rudra.$run.stderr"
 done
 if ! /usr/bin/cmp -s "$run_root/ghidra.1.stdout" "$run_root/ghidra.2.stdout" || \
    ! /usr/bin/cmp -s "$run_root/ghidra.1.stderr" "$run_root/ghidra.2.stderr"; then
   echo "locked Ghidra repeated runs diverged" >&2
   exit 1
 fi
-if ! /usr/bin/cmp -s "$run_root/rugra.1.stdout" "$run_root/rugra.2.stdout" || \
-   ! /usr/bin/cmp -s "$run_root/rugra.1.stderr" "$run_root/rugra.2.stderr"; then
-  echo "locked Rugra repeated runs diverged" >&2
+if ! /usr/bin/cmp -s "$run_root/rudra.1.stdout" "$run_root/rudra.2.stdout" || \
+   ! /usr/bin/cmp -s "$run_root/rudra.1.stderr" "$run_root/rudra.2.stderr"; then
+  echo "locked Rudra repeated runs diverged" >&2
   exit 1
 fi
 
 set +e
-/usr/bin/diff -u --label ghidra --label rugra \
-  "$run_root/ghidra.1.stdout" "$run_root/rugra.1.stdout" \
+/usr/bin/diff -u --label ghidra --label rudra \
+  "$run_root/ghidra.1.stdout" "$run_root/rudra.1.stdout" \
   >"$run_root/bilateral.diff"
 diff_rc=$?
 set -e
@@ -481,8 +481,8 @@ fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$metadata_live" "$run_root/ghidra.1.stdout" \
-  "$run_root/ghidra.1.stderr" "$run_root/rugra.1.stdout" \
-  "$run_root/rugra.1.stderr" "$run_root/bilateral.diff" "$diff_rc" <<'PY'
+  "$run_root/ghidra.1.stderr" "$run_root/rudra.1.stdout" \
+  "$run_root/rudra.1.stderr" "$run_root/bilateral.diff" "$diff_rc" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -491,8 +491,8 @@ import sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_stdout = pathlib.Path(sys.argv[2]).read_bytes()
 ghidra_stderr = pathlib.Path(sys.argv[3]).read_bytes()
-rugra_stdout = pathlib.Path(sys.argv[4]).read_bytes()
-rugra_stderr = pathlib.Path(sys.argv[5]).read_bytes()
+rudra_stdout = pathlib.Path(sys.argv[4]).read_bytes()
+rudra_stderr = pathlib.Path(sys.argv[5]).read_bytes()
 raw_diff = pathlib.Path(sys.argv[6]).read_bytes()
 diff_rc = int(sys.argv[7])
 capture = metadata["locked_capture"]
@@ -505,24 +505,24 @@ def require(label, actual, expected):
     if actual != expected:
         raise SystemExit(f"{label} mismatch: expected={expected!r} actual={actual!r}")
 
-if not ghidra_stdout.endswith(b"\n") or not rugra_stdout.endswith(b"\n"):
+if not ghidra_stdout.endswith(b"\n") or not rudra_stdout.endswith(b"\n"):
     raise SystemExit("bilateral stdout lacks a final newline")
 require("oracle records", len(ghidra_stdout.decode("utf-8").splitlines()), capture["records"])
 require("oracle bytes", len(ghidra_stdout), capture["bytes"])
 require("oracle stdout hash", sha(ghidra_stdout), capture["stdout_sha256"])
 require("oracle stderr hash", sha(ghidra_stderr), capture["stderr_sha256"])
-require("Rugra records", len(rugra_stdout.decode("utf-8").splitlines()), paired["rugra"]["records"])
-require("Rugra bytes", len(rugra_stdout), paired["rugra"]["bytes"])
-require("Rugra stdout hash", sha(rugra_stdout), paired["rugra"]["stdout_sha256"])
-require("Rugra stderr hash", sha(rugra_stderr), paired["rugra"]["stderr_sha256"])
+require("Rudra records", len(rudra_stdout.decode("utf-8").splitlines()), paired["rugra"]["records"])
+require("Rudra bytes", len(rudra_stdout), paired["rugra"]["bytes"])
+require("Rudra stdout hash", sha(rudra_stdout), paired["rugra"]["stdout_sha256"])
+require("Rudra stderr hash", sha(rudra_stderr), paired["rugra"]["stderr_sha256"])
 require("bilateral diff status", diff_rc, paired["bilateral"]["diff_exit_code"])
 require("bilateral diff records", len(raw_diff.decode("utf-8").splitlines()), paired["bilateral"]["records"])
 require("bilateral diff bytes", len(raw_diff), paired["bilateral"]["bytes"])
 require("bilateral diff hash", sha(raw_diff), paired["bilateral"]["diff_sha256"])
 if ghidra_stderr:
     raise SystemExit("locked oracle unexpectedly wrote stderr")
-if rugra_stderr:
-    raise SystemExit("Rugra fixture unexpectedly wrote stderr")
+if rudra_stderr:
+    raise SystemExit("Rudra fixture unexpectedly wrote stderr")
 
 status = "MATCH" if diff_rc == 0 else "MISMATCH"
 require("bilateral result status", status, paired["bilateral"]["status"])
@@ -533,11 +533,11 @@ print(
 )
 print(f"oracle_stderr_sha256={sha(ghidra_stderr)}")
 print(
-    f"rugra_records={len(rugra_stdout.decode('utf-8').splitlines())} "
-    f"rugra_bytes={len(rugra_stdout)} "
-    f"rugra_stdout_sha256={sha(rugra_stdout)}"
+    f"rudra_records={len(rudra_stdout.decode('utf-8').splitlines())} "
+    f"rudra_bytes={len(rudra_stdout)} "
+    f"rudra_stdout_sha256={sha(rudra_stdout)}"
 )
-print(f"rugra_stderr_sha256={sha(rugra_stderr)}")
+print(f"rudra_stderr_sha256={sha(rudra_stderr)}")
 print(
     f"bilateral_diff_records={len(raw_diff.decode('utf-8').splitlines())} "
     f"bilateral_diff_bytes={len(raw_diff)} "
@@ -545,7 +545,7 @@ print(
 )
 print(
     "callother_userop_closure_1204: oracle_status=ORACLE_CAPTURED "
-    f"rugra_status=EXECUTED bilateral_status={status} overall_status={status}"
+    f"rudra_status=EXECUTED bilateral_status={status} overall_status={status}"
 )
 PY
 

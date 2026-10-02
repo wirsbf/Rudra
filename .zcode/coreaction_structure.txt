@@ -294,7 +294,7 @@
 5549:    fn apply(&mut self, _fd: &mut Funcdata) -> Result<i32> {
 5552:    fn get_name(&self) -> &str { "lanedivide" }
 5564:pub struct ActionReturnRecovery { pub count: i32 }
-5566:    // RUGRA-GLUE: constructor for the Action struct (count field for change tracking).
+5566:    // RUDRA-GLUE: constructor for the Action struct (count field for change tracking).
 5567:    pub fn new() -> Self { Self { count: 0 } }
 5570:    fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
 5634:    fn get_name(&self) -> &str { "returnrecovery" }
@@ -351,7 +351,7 @@
 6054:    fn get_flags(&self) -> u32 {
 6058:    fn get_name(&self) -> &str {
 6064:// These operate on the structured control-flow tree / basic-block graph and
-6067:// because Rugra's staged structurer assumes block indices are stable and a
+6067:// because Rudra's staged structurer assumes block indices are stable and a
 6068:// mid-pipeline block edit would push it out of bounds. The structs exist so
 6072:/// Normalize symmetric structured control-flow (e.g. swap if/else arms).
 6075:/// `apply` (blockaction.cc:2140-2167) walks the structure tree breadth-first
@@ -361,7 +361,7 @@
 6118:    fn flip_comparison(op_ref: &crate::op::PcodeOpRef) -> bool {
 6149:    fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
 6150:        // Ghidra (blockaction.cc:2140-2167): BFS over the structure tree;
-6158:        // Rugra port: walk the structured blocks (skipping t_copy / t_basic,
+6158:        // Rudra port: walk the structured blocks (skipping t_copy / t_basic,
 6171:        // Empty structure 鈫?nothing to do (blockaction.cc:2145).
 6245:    fn get_name(&self) -> &str {
 6250:/// Final transform of structured control-flow (while鈫抐or loop setup).
@@ -369,7 +369,7 @@
 6273:    pub count: i32,
 6277:    pub fn new() -> Self {
 6283:    fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
-6291:        // Rugra port: walk the structured blocks; for each WhileDo loop,
+6291:        // Rudra port: walk the structured blocks; for each WhileDo loop,
 6300:        // Empty structure 鈫?nothing to do.
 6525:    fn get_name(&self) -> &str {
 6526:        "structuretransform"
@@ -399,7 +399,7 @@
 7058:        let mut action = ActionRestructureVarnode::new();
 7059:        assert_eq!(action.get_name(), "restructureVarnode");
 7063:    // ---- G5: structural cleanup Action apply() tests ----
-7066:    // because Rugra's staged structurer isn't designed around block removal,
+7066:    // because Rudra's staged structurer isn't designed around block removal,
 7070:    fn test_action_unreachable_name() {
 7076:    fn test_action_donothing_name() {
 7082:    fn test_action_redundbranch_name() {

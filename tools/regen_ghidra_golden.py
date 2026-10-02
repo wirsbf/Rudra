@@ -59,7 +59,7 @@ ARCHITECTURE = "x86:LE:64:default"
 COMPILER_SPEC = "gcc"
 
 DEFAULT_HEADLESS = Path(
-    "/tmp/rugra-ghidra-1204-headless/dist/ghidra_12.0.4_DEV/support/analyzeHeadless"
+    "/tmp/rudra-ghidra-1204-headless/dist/ghidra_12.0.4_DEV/support/analyzeHeadless"
 )
 
 EXPECTED_ASSET_SHA256 = {
@@ -107,7 +107,7 @@ TARGETS = {
 
 BFD_INCLUDE_CANDIDATES = [
     os.environ.get("RUDRA_BFD_INCLUDE", ""),
-    "/tmp/rugra-ghidra-bfd-2.38/usr/include",
+    "/tmp/rudra-ghidra-bfd-2.38/usr/include",
     "/usr/include",
 ]
 BFD_LIBRARY_CANDIDATES = [
@@ -717,7 +717,7 @@ def regenerate_headless(target, args, env_info, headless_info):
         raise RuntimeError(
             f"{target} input sha256={binary_sha}; expected {cfg['expected_input_sha256']}")
 
-    workdir = Path(tempfile.mkdtemp(prefix=f"rugra-golden-headless-{target}-"))
+    workdir = Path(tempfile.mkdtemp(prefix=f"rudra-golden-headless-{target}-"))
     try:
         out_path = workdir / "headless-out.c"
         done_line, elapsed, _ = run_headless_import(
@@ -1058,7 +1058,7 @@ def run_direct_runner_cross_check(target, args, env_info, headless_blocks=None):
     compare against the canonical headless blocks when provided."""
     cfg = TARGETS[target]
     binary = cfg["binary"]
-    workdir = Path(tempfile.mkdtemp(prefix=f"rugra-golden-direct-{target}-"))
+    workdir = Path(tempfile.mkdtemp(prefix=f"rudra-golden-direct-{target}-"))
     try:
         runner, build_info = build_runner(workdir, env_info)
         spec_root = Path(env_info["spec_root"])

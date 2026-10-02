@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproducible, cache-aware Cargo entry point for Rugra development."""
+"""Reproducible, cache-aware Cargo entry point for Rudra development."""
 
 from __future__ import annotations
 
@@ -143,12 +143,12 @@ def controlled_environment(
     rust_flags: list[str] = []
     c_flags: list[str] = []
     if remap_paths:
-        rust_flags.append(f"--remap-path-prefix={root}=/rugra")
+        rust_flags.append(f"--remap-path-prefix={root}=/rudra")
         if os.name != "nt":
             c_flags.extend(
                 [
-                    f"-ffile-prefix-map={root}=/rugra",
-                    f"-fdebug-prefix-map={root}=/rugra",
+                    f"-ffile-prefix-map={root}=/rudra",
+                    f"-fdebug-prefix-map={root}=/rudra",
                 ]
             )
     if rust_flags:
@@ -227,7 +227,7 @@ def self_test() -> int:
         pass
     else:
         raise AssertionError("missing requested cache must fail")
-    print("rugra_build: self-test OK")
+    print("rudra_build: self-test OK")
     return 0
 
 
@@ -279,7 +279,7 @@ def main(argv: list[str]) -> int:
     temporary_target: tempfile.TemporaryDirectory[str] | None = None
     target_dir = args.target_dir.resolve() if args.target_dir else None
     if args.fresh_target:
-        temporary_target = tempfile.TemporaryDirectory(prefix="rugra-build-")
+        temporary_target = tempfile.TemporaryDirectory(prefix="rudra-build-")
         target_dir = Path(temporary_target.name)
     env = controlled_environment(
         root,

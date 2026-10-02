@@ -30,16 +30,16 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=1b859f2f554feab23ab2a1ac6c8b06206aa8a0ec
-rugra_base_tree=e716bfd12949b9ee2142926b2bedfca54ef6f68c
+rudra_base_commit=1b859f2f554feab23ab2a1ac6c8b06206aa8a0ec
+rudra_base_tree=e716bfd12949b9ee2142926b2bedfca54ef6f68c
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/action_pool_clone_filter_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/action_pool_clone_filter_1204.cc"
 rust_fixture="$repo_root/tests/oracle/action_pool_clone_filter_1204.rs"
 action_rs="$repo_root/src/action.rs"
 action_doc="$repo_root/docs/api/action.md"
-cargo_lock=/tmp/rugra-cargo-build.lock
-cargo_target=/tmp/rugra-target-actionpool-clone-filter
+cargo_lock=/tmp/rudra-cargo-build.lock
+cargo_target=/tmp/rudra-target-actionpool-clone-filter
 
 user_home=$(/usr/bin/getent passwd "$(/usr/bin/id -u)" | /usr/bin/awk -F: 'NR == 1 { print $6 }')
 host_cxx_bin=$(/usr/bin/readlink -f /usr/bin/g++)
@@ -77,11 +77,11 @@ makefile_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=
   "$host_git_bin" -C "$ghidra_root" rev-parse \
   "$oracle_commit:Ghidra/Features/Decompiler/src/decompile/cpp/Makefile")
 base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
 if [[ "$actual_commit" != "$oracle_commit" || "$tag_commit" != "$oracle_commit" || \
       "$cpp_tree" != "$oracle_cpp_tree" || "$makefile_blob" != "$oracle_makefile_blob" || \
-      "$base_tree" != "$rugra_base_tree" ]]; then
-  echo "locked oracle or pinned Rugra base identity mismatch" >&2
+      "$base_tree" != "$rudra_base_tree" ]]; then
+  echo "locked oracle or pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
@@ -102,7 +102,7 @@ host_platform=$(/usr/bin/uname -srm)
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
   "$metadata" "$cpp_fixture" "$rust_fixture" "$action_rs" "$action_doc" \
   "$runner_fd_path" "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
   "$host_cxx" "$host_rustc" "$host_cargo" "$host_platform" <<'PY'
 import hashlib, json, pathlib, sys
 (metadata_name, cpp_name, rust_name, action_name, doc_name, runner_name,
@@ -120,7 +120,7 @@ if metadata["oracle"] != {"tag": oracle_tag, "commit": oracle_commit,
     raise SystemExit("oracle metadata mismatch")
 comparand = metadata["comparand"]
 if comparand["rugra_base_commit"] != base_commit or comparand["rugra_base_tree"] != base_tree:
-    raise SystemExit("Rugra base metadata mismatch")
+    raise SystemExit("Rudra base metadata mismatch")
 canonical = json.dumps(metadata["input"], sort_keys=True, separators=(",", ":"),
                        ensure_ascii=False).encode()
 if metadata["input_fingerprint"] != "sha256:" + hashlib.sha256(canonical).hexdigest():
@@ -138,9 +138,9 @@ if comparand["host"] != {"cxx": host_cxx, "rustc": host_rustc,
     raise SystemExit("host metadata mismatch")
 PY
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-actionpool-clone-filter-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-actionpool-clone-filter-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-actionpool-clone-filter-1204.?????? || \
+  if [[ "$oracle_tmp" != /tmp/rudra-actionpool-clone-filter-1204.?????? || \
         ! -d "$oracle_tmp" || -L "$oracle_tmp" ]]; then
     echo "refusing unexpected cleanup path: $oracle_tmp" >&2
     return 1
@@ -154,7 +154,7 @@ trap 'exit 143' TERM
 owned=("$cpp_fixture" "$rust_fixture" "$action_rs" "$action_doc" "$metadata" "$runner")
 /usr/bin/sha256sum "${owned[@]}" >"$oracle_tmp/owned.before"
 
-/usr/bin/mkdir -p "$oracle_tmp/source" "$oracle_tmp/rugra"
+/usr/bin/mkdir -p "$oracle_tmp/source" "$oracle_tmp/rudra"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$ghidra_root" archive --format=tar \
   --output="$oracle_tmp/ghidra-cpp.tar" "$oracle_commit" \
@@ -188,20 +188,20 @@ fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" archive --format=tar \
-  --output="$oracle_tmp/rugra-base.tar" "$rugra_base_commit"
+  --output="$oracle_tmp/rudra-base.tar" "$rudra_base_commit"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar \
-  -xf "$oracle_tmp/rugra-base.tar" -C "$oracle_tmp/rugra"
-/usr/bin/cp -- "$action_rs" "$oracle_tmp/rugra/src/action.rs"
-/usr/bin/mkdir -p "$oracle_tmp/rugra/src/bin"
+  -xf "$oracle_tmp/rudra-base.tar" -C "$oracle_tmp/rudra"
+/usr/bin/cp -- "$action_rs" "$oracle_tmp/rudra/src/action.rs"
+/usr/bin/mkdir -p "$oracle_tmp/rudra/src/bin"
 /usr/bin/cp -- "$rust_fixture" \
-  "$oracle_tmp/rugra/src/bin/action_pool_clone_filter_1204_fixture.rs"
-/usr/bin/ln -s "$ghidra_root" "$oracle_tmp/rugra/ghidra"
+  "$oracle_tmp/rudra/src/bin/action_pool_clone_filter_1204_fixture.rs"
+/usr/bin/ln -s "$ghidra_root" "$oracle_tmp/rudra/ghidra"
 
 /usr/bin/flock "$cargo_lock" /usr/bin/env -i HOME="$user_home" \
   PATH="$clean_path" LC_ALL=C.UTF-8 CARGO_HOME="$user_home/.cargo" \
   CARGO_TARGET_DIR="$cargo_target" CARGO_INCREMENTAL=0 \
   "$host_cargo_bin" run --quiet --offline --locked \
-  --manifest-path "$oracle_tmp/rugra/Cargo.toml" \
+  --manifest-path "$oracle_tmp/rudra/Cargo.toml" \
   --bin action_pool_clone_filter_1204_fixture >"$oracle_tmp/rust.stdout"
 if ! /usr/bin/cmp -s "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rust.stdout"; then
   /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rust.stdout" >&2 || true

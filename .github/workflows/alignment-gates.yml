@@ -11,7 +11,7 @@ jobs:
   locked-oracle-gates:
     runs-on: ubuntu-22.04
     steps:
-      - name: Check out Rugra
+      - name: Check out Rudra
         uses: actions/checkout@v4
 
       - name: Check out locked Ghidra oracle
@@ -60,7 +60,7 @@ jobs:
   mirror-gate:
     runs-on: ubuntu-22.04
     steps:
-      - name: Check out Rugra
+      - name: Check out Rudra
         uses: actions/checkout@v4
 
       # build.rs:29 hard-requires the locked SLEIGH C++ tree; without this

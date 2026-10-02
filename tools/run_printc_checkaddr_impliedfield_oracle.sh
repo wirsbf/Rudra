@@ -3,7 +3,7 @@
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler library from the pinned
 # ghidra/ checkout, compiles the C++ fixture against it (real oracle),
-# builds the Rugra crate (live working tree) and the Rust fixture, runs
+# builds the Rudra crate (live working tree) and the Rust fixture, runs
 # both, and requires the 10 stdout records to be byte-identical:
 #   cast.*     — PrintC::checkAddressOfCast (printc.cc:376-418) observed
 #                through the REAL emitExpression over hand-built CAST
@@ -25,7 +25,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 metadata="$repo_root/tests/oracle/printc_checkaddr_impliedfield_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/printc_checkaddr_impliedfield_1204.cc"
 rust_fixture="$repo_root/tests/oracle/printc_checkaddr_impliedfield_1204.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 for required in "$metadata" "$cpp_fixture" "$rust_fixture" \
@@ -120,21 +120,21 @@ g++ -std=c++11 -O2 -I"$cpp_root" -I"$bfd_include" \
 
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" cargo build --quiet --lib --profile fast-release
-rugra_rlib="$fixture_target/fast-release/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/fast-release/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 TMPDIR="$oracle_tmp" rustc --edition=2021 -O \
   -L "dependency=$fixture_target/fast-release/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/printc_checkaddr_impliedfield_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/printc_checkaddr_impliedfield_rudra"
 
 "$oracle_tmp/printc_checkaddr_impliedfield_1204" "$repo_root/sleigh_specs" \
   "$repo_root/examples/curl" 2>/dev/null >"$oracle_tmp/ghidra.stdout"
-"$oracle_tmp/printc_checkaddr_impliedfield_rugra" >"$oracle_tmp/rugra.stdout"
+"$oracle_tmp/printc_checkaddr_impliedfield_rudra" >"$oracle_tmp/rudra.stdout"
 
-if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"; then
+if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"; then
   cat "$oracle_tmp/ghidra.stdout"
 else
   echo "printc_checkaddr_impliedfield_1204: MISMATCH (see diff above)" >&2

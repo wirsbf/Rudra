@@ -101,10 +101,10 @@ if metadata["host_rustc"] != rustc:
     raise SystemExit("host rustc mismatch")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-printc-blockgraph-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-printc-blockgraph-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-printc-blockgraph-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-printc-blockgraph-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -120,18 +120,18 @@ g++ -std=c++11 -O2 -I"$cpp_root" \
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/printc_blockgraph_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/printc_blockgraph_rudra"
 
 "$oracle_tmp/printc_blockgraph_1204" >"$oracle_tmp/ghidra.stdout"
-"$oracle_tmp/printc_blockgraph_rugra" >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+"$oracle_tmp/printc_blockgraph_rudra" >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

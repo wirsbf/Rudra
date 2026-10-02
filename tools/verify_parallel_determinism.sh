@@ -93,9 +93,9 @@ corpus_skip() {
 # 构建（或复用）parallel_decompile 二进制。
 # ---------------------------------------------------------------------------
 if [[ -z "$BIN_DIR" ]]; then
-    BIN_DIR="/dev/shm/rugra-targets/phaseland/fast-release/examples"
+    BIN_DIR="/dev/shm/rudra-targets/phaseland/fast-release/examples"
     echo "[GATE] building parallel_decompile (fast-release)..."
-    if ! (cd "$REPO_ROOT" && CARGO_TARGET_DIR=/dev/shm/rugra-targets/phaseland \
+    if ! (cd "$REPO_ROOT" && CARGO_TARGET_DIR=/dev/shm/rudra-targets/phaseland \
         cargo build --profile fast-release --example parallel_decompile >/dev/null 2>&1); then
         echo "[GATE] FAIL: build failed"
         exit 2
@@ -107,7 +107,7 @@ if [[ ! -x "$DRIVER" ]]; then
     exit 2
 fi
 
-WORK_ROOT="/dev/shm/rugra-tests/phaseland/determinism"
+WORK_ROOT="/dev/shm/rudra-tests/phaseland/determinism"
 mkdir -p "$WORK_ROOT"
 # NOTE: the per-run wipe happens per-corpus inside run_face (a global wipe
 # here would destroy --keep-dir evidence of other faces from earlier runs).

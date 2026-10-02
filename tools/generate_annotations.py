@@ -1,10 +1,10 @@
-"""Generate Ghidra annotation mappings for Rugra src/*.rs files.
+"""Generate Ghidra annotation mappings for Rudra src/*.rs files.
 
 For each violating fn, find the enclosing struct/impl and derive the Ghidra
 counterpart name (e.g. RuleXxx::applyOp). Then search the corresponding
 Ghidra .cc file for that pattern and record the line number.
 
-Outputs one JSON file per Rugra source file under result/anno_mappings/.
+Outputs one JSON file per Rudra source file under result/anno_mappings/.
 """
 from __future__ import annotations
 import json
@@ -17,7 +17,7 @@ GHIDRA_CPP = ROOT / "ghidra" / "Ghidra" / "Features" / "Decompiler" / "src" / "d
 OUT_DIR = ROOT / "result" / "anno_mappings"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Mapping from Rugra src file to (primary_ghidra_file, secondary_ghidra_files)
+# Mapping from Rudra src file to (primary_ghidra_file, secondary_ghidra_files)
 RS_TO_GHIDRA = {
     "src/ruleaction.rs": (["ruleaction.cc"], ["ruleaction.hh"]),
     "src/coreaction.rs": (["coreaction.cc"], ["coreaction.hh"]),
@@ -83,7 +83,7 @@ RS_TO_GHIDRA = {
     "src/opcodes.rs": (["opcodes.cc"], ["opcodes.hh"]),
     "src/ffi.rs": ([], []),  # Rust-specific
     "src/lib.rs": ([], []),
-    "src/bin/rugra.rs": ([], []),
+    "src/bin/rudra.rs": ([], []),
     "src/disasm/mod.rs": ([], []),
     "src/binary/mod.rs": ([], []),
     "src/type_system/datatype.rs": (["type.cc"], ["type.hh"]),
@@ -199,13 +199,13 @@ def process_file(rs_rel: str, violations: list[dict]) -> list[dict]:
 
     ghidra_cfg = RS_TO_GHIDRA.get(rs_rel)
     if not ghidra_cfg:
-        # No Ghidra counterpart — all RUGRA-GLUE
+        # No Ghidra counterpart — all RUDRA-GLUE
         return [
             {
                 "rust_line": v["line"],
                 "rust_fn": v["fn"],
                 "kind": "glue",
-                "annotation": f"// RUGRA-GLUE: {rs_rel} helper (no direct Ghidra counterpart)",
+                "annotation": f"// RUDRA-GLUE: {rs_rel} helper (no direct Ghidra counterpart)",
             }
             for v in violations
         ]
@@ -230,7 +230,7 @@ def process_file(rs_rel: str, violations: list[dict]) -> list[dict]:
         if idx < 0 or idx >= len(rs_lines):
             mappings.append({
                 "rust_line": rl, "rust_fn": rust_fn, "kind": "glue",
-                "annotation": f"// RUGRA-GLUE: {rust_fn} (line out of range)",
+                "annotation": f"// RUDRA-GLUE: {rust_fn} (line out of range)",
             })
             glue_count += 1
             continue
@@ -262,7 +262,7 @@ def process_file(rs_rel: str, violations: list[dict]) -> list[dict]:
             else:
                 mappings.append({
                     "rust_line": rl, "rust_fn": rust_fn, "kind": "glue",
-                    "annotation": f"// RUGRA-GLUE: {rust_fn} (no Ghidra counterpart found)",
+                    "annotation": f"// RUDRA-GLUE: {rust_fn} (no Ghidra counterpart found)",
                 })
                 glue_count += 1
 
@@ -284,7 +284,7 @@ def main():
         total_found += found
         total_glue += glue
         print(f"{rs_rel:<50} {found:>4} ghidra  {glue:>4} glue  →  {out_path.name}")
-    print(f"\nTOTAL: {total_found} ghidra annotations, {total_glue} RUGRA-GLUE")
+    print(f"\nTOTAL: {total_found} ghidra annotations, {total_glue} RUDRA-GLUE")
 
 
 if __name__ == "__main__":

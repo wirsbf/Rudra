@@ -4,13 +4,13 @@
 # Builds the locked Ghidra 12.0.4 oracle fixture (BlockGraph::finalizePrinting
 # recursion over a switch DEFAULT arm carrying a while-do: block.cc:3556-3559
 # -> 1364-1371 -> BlockWhileDo::finalizePrinting 3403-3424) against the oracle
-# cpp tree, builds the Rugra comparand against the crate rlib, runs both, and
+# cpp tree, builds the Rudra comparand against the crate rlib, runs both, and
 # diffs the shared sorted observation (structure-tree fact lines + per-block
 # op notPrinted flags).
 #
 # Decisive observable: the default arm's WhileDo for-extraction runs through
 # the switch's finalize recursion — `op blk2#0 INT_ADD notprinted=1`
-# (block.cc:3422 opMarkNonPrinting). Pre-fix Rugra printed 0 (the finalize
+# (block.cc:3422 opMarkNonPrinting). Pre-fix Rudra printed 0 (the finalize
 # dispatch skipped the default_case slot).
 #
 # Fixture shape note: the tree is installed through the production factories
@@ -29,7 +29,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 cpp_fixture="$repo_root/tests/oracle/blockstruct_switch_default_whiledo_1204.cc"
 rust_fixture="$repo_root/tests/oracle/blockstruct_switch_default_whiledo_1204.rs"
 metadata="$repo_root/tests/oracle/blockstruct_switch_default_whiledo_1204.metadata.json"
-bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rudra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -59,7 +59,7 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 pairs = {
     "cpp_fixture_sha256": pathlib.Path(sys.argv[2]),
     "rust_fixture_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_block_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_block_sha256": pathlib.Path(sys.argv[4]),
 }
 for key, path in pairs.items():
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -72,10 +72,10 @@ PY
 # TMPDIR override: the Rust comparand's debug build needs several GB and
 # /tmp is a quota-limited tmpfs on this host; allow redirecting to /home.
 scratch_dir="${TMPDIR:-/tmp}"
-oracle_tmp=$(mktemp -d "$scratch_dir/rugra-blockstruct-swdefwd-1204.XXXXXX")
+oracle_tmp=$(mktemp -d "$scratch_dir/rudra-blockstruct-swdefwd-1204.XXXXXX")
 cleanup() {
   case "$oracle_tmp" in
-    "$scratch_dir"/rugra-blockstruct-swdefwd-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    "$scratch_dir"/rudra-blockstruct-swdefwd-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -101,19 +101,19 @@ g++ -std=c++11 -O2 -I"$cpp_root" -I"$bfd_root/usr/include" \
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition 2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/blockstruct_switch_default_whiledo_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/blockstruct_switch_default_whiledo_rudra"
 
 "$oracle_tmp/blockstruct_switch_default_whiledo_1204" >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
-"$oracle_tmp/blockstruct_switch_default_whiledo_rugra" >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+"$oracle_tmp/blockstruct_switch_default_whiledo_rudra" >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
-if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
     >"$oracle_tmp/bilateral.diff"; then
   cat "$oracle_tmp/ghidra.stdout"
   printf 'blockstruct_switch_default_whiledo_1204: MATCH\n'

@@ -14,9 +14,9 @@
 #   3. COPY-death parity   — both sides destroy the named-local COPY via
 #                            RuleEarlyRemoval late in the run
 #   4. web survival        — oracle ALIVE (registered MISMATCH on the canon
-#                            face: rugra+typeseed DEAD, bound to
+#                            face: rudra+typeseed DEAD, bound to
 #                            HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001);
-#                            rugra bare face (RUDRA_SEEDS=0) must be ALIVE
+#                            rudra bare face (RUDRA_SEEDS=0) must be ALIVE
 #                            (library-side chain oracle-faithful)
 #   5. output face pins    — sha256 drift alarms for the three artifacts
 #
@@ -29,14 +29,14 @@
 set -euo pipefail
 
 repo_root=$(builtin cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-work=/dev/shm/rugra-tests/retaddr
+work=/dev/shm/rudra-tests/retaddr
 mkdir -p "$work"
 
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 expected_oracle_drill_sha=4e0aac505419f280bb48e82c45492d1260ba028b0eabc2db729bc0d6ebba32f1
-expected_rugra_drill_sha=7857da1216e35dd253df1b5c1b9e598fa3383b8fc1828b6ad0f1152cbb3a3f7c
-expected_rugra_canon_sha=6154826afaf6ea8b0431c026f8b9829e0098fe95f1929fd41e05d331c2bffbec
-expected_rugra_bare_sha=589411d06761e1c98251268993800adc690d5573570c58d52b37f6088f504c7f
+expected_rudra_drill_sha=7857da1216e35dd253df1b5c1b9e598fa3383b8fc1828b6ad0f1152cbb3a3f7c
+expected_rudra_canon_sha=6154826afaf6ea8b0431c026f8b9829e0098fe95f1929fd41e05d331c2bffbec
+expected_rudra_bare_sha=589411d06761e1c98251268993800adc690d5573570c58d52b37f6088f504c7f
 
 fail=0
 note() { echo "[RETADDR-GATE] $*"; }
@@ -56,40 +56,40 @@ note "capturing oracle stage drill (httpd main @0x2b820)..."
 bash "$repo_root/tools/run_stage_drill_oracle.sh" httpd 0x2b820 main > "$work/gate_oracle_runner.log" 2>&1 || {
   echo "oracle stage drill runner failed:" >&2; cat "$work/gate_oracle_runner.log" >&2; exit 2;
 }
-oracle_drill=/dev/shm/rugra-tests/sb-drill/httpd.main.oracle.drill
+oracle_drill=/dev/shm/rudra-tests/sb-drill/httpd.main.oracle.drill
 [[ -f "$oracle_drill" ]] || { echo "oracle drill artifact missing: $oracle_drill" >&2; exit 2; }
 oracle_sha=$(sha256sum "$oracle_drill" | awk '{print $1}')
 [[ "$oracle_sha" == "$expected_oracle_drill_sha" ]] || bad "oracle drill sha $oracle_sha != pin $expected_oracle_drill_sha (oracle-side drift)"
 
-# ---------- 2. rugra canon drill + canon/bare outputs ----------
+# ---------- 2. rudra canon drill + canon/bare outputs ----------
 bin_dir=${CARGO_TARGET_DIR:-$repo_root/target}/fast-release/examples
 httpd_bin="$bin_dir/httpd_decompile"
 [[ -x "$httpd_bin" ]] || { echo "build first: CARGO_TARGET_DIR=<dir> cargo build --profile fast-release --examples" >&2; exit 2; }
 
-note "capturing rugra canon drill..."
+note "capturing rudra canon drill..."
 ( cd "$repo_root" && RUDRA_STAGE_DRILL=1 RUDRA_STAGE_FUNC=main \
-    RUDRA_STAGE_DRILL_OUT="$work/gate_rugra_drill.txt" "$httpd_bin" > /dev/null 2>/dev/null ) \
-  || { echo "rugra drill run failed" >&2; exit 2; }
-rugra_sha=$(sha256sum "$work/gate_rugra_drill.txt" | awk '{print $1}')
-[[ "$rugra_sha" == "$expected_rugra_drill_sha" ]] || bad "rugra drill sha $rugra_sha != pin $expected_rugra_drill_sha (canon-face pipeline drift)"
+    RUDRA_STAGE_DRILL_OUT="$work/gate_rudra_drill.txt" "$httpd_bin" > /dev/null 2>/dev/null ) \
+  || { echo "rudra drill run failed" >&2; exit 2; }
+rudra_sha=$(sha256sum "$work/gate_rudra_drill.txt" | awk '{print $1}')
+[[ "$rudra_sha" == "$expected_rudra_drill_sha" ]] || bad "rudra drill sha $rudra_sha != pin $expected_rudra_drill_sha (canon-face pipeline drift)"
 
-note "capturing rugra canon output..."
-( cd "$repo_root" && "$httpd_bin" > "$work/gate_rugra_canon.c" 2>/dev/null ) \
-  || { echo "rugra canon run failed" >&2; exit 2; }
-canon_sha=$(sha256sum "$work/gate_rugra_canon.c" | awk '{print $1}')
-[[ "$canon_sha" == "$expected_rugra_canon_sha" ]] || bad "rugra canon output sha $canon_sha != pin $expected_rugra_canon_sha"
+note "capturing rudra canon output..."
+( cd "$repo_root" && "$httpd_bin" > "$work/gate_rudra_canon.c" 2>/dev/null ) \
+  || { echo "rudra canon run failed" >&2; exit 2; }
+canon_sha=$(sha256sum "$work/gate_rudra_canon.c" | awk '{print $1}')
+[[ "$canon_sha" == "$expected_rudra_canon_sha" ]] || bad "rudra canon output sha $canon_sha != pin $expected_rudra_canon_sha"
 
-note "capturing rugra bare face (RUDRA_SEEDS=0)..."
-( cd "$repo_root" && RUDRA_SEEDS=0 "$httpd_bin" > "$work/gate_rugra_bare.c" 2>/dev/null ) \
-  || { echo "rugra bare run failed" >&2; exit 2; }
-bare_sha=$(sha256sum "$work/gate_rugra_bare.c" | awk '{print $1}')
-[[ "$bare_sha" == "$expected_rugra_bare_sha" ]] || bad "rugra bare output sha $bare_sha != pin $expected_rugra_bare_sha"
+note "capturing rudra bare face (RUDRA_SEEDS=0)..."
+( cd "$repo_root" && RUDRA_SEEDS=0 "$httpd_bin" > "$work/gate_rudra_bare.c" 2>/dev/null ) \
+  || { echo "rudra bare run failed" >&2; exit 2; }
+bare_sha=$(sha256sum "$work/gate_rudra_bare.c" | awk '{print $1}')
+[[ "$bare_sha" == "$expected_rudra_bare_sha" ]] || bad "rudra bare output sha $bare_sha != pin $expected_rudra_bare_sha"
 
 # ---------- 3. invariants ----------
-py_fail=$(python3 - "$oracle_drill" "$work/gate_rugra_drill.txt" "$work/gate_rugra_canon.c" "$work/gate_rugra_bare.c" "$repo_root" <<'PYEOF'
+py_fail=$(python3 - "$oracle_drill" "$work/gate_rudra_drill.txt" "$work/gate_rudra_canon.c" "$work/gate_rudra_bare.c" "$repo_root" <<'PYEOF'
 import re, sys
 
-oracle_d, rugra_d, rugra_canon, rugra_bare, repo = sys.argv[1:6]
+oracle_d, rudra_d, rudra_canon, rudra_bare, repo = sys.argv[1:6]
 problems = []
 
 def count(path, pat):
@@ -116,15 +116,15 @@ def extract_main_decl_and_stmt(path):
 
 # invariant 1: pass-count parity
 o_h = count(oracle_d, r'^@BEGIN \d+ universal:fullloop:mainloop:heritage')
-r_h = count(rugra_d, r'^@BEGIN \d+ universal:fullloop:mainloop:heritage')
+r_h = count(rudra_d, r'^@BEGIN \d+ universal:fullloop:mainloop:heritage')
 o_h_empty = count(oracle_d, r'^@BEGIN \d+ universal:fullloop:mainloop:heritage empty')
-r_h_empty = count(rugra_d, r'^@BEGIN \d+ universal:fullloop:mainloop:heritage empty')
+r_h_empty = count(rudra_d, r'^@BEGIN \d+ universal:fullloop:mainloop:heritage empty')
 o_dc = count(oracle_d, r'^@END \d+ universal:fullloop:mainloop:deadcode')
-r_dc = count(rugra_d, r'^@END \d+ universal:fullloop:mainloop:deadcode')
+r_dc = count(rudra_d, r'^@END \d+ universal:fullloop:mainloop:deadcode')
 o_r = count(oracle_d, r'@RESTART')
-r_r = count(rugra_d, r'@RESTART')
-print(f"heritage applications: oracle={o_h} (empty {o_h_empty}) rugra={r_h} (empty {r_h_empty}); "
-      f"mainloop:deadcode applications: oracle={o_dc} rugra={r_dc}; restarts {o_r}/{r_r}")
+r_r = count(rudra_d, r'@RESTART')
+print(f"heritage applications: oracle={o_h} (empty {o_h_empty}) rudra={r_h} (empty {r_h_empty}); "
+      f"mainloop:deadcode applications: oracle={o_dc} rudra={r_dc}; restarts {o_r}/{r_r}")
 if (o_h, o_h_empty, o_dc, o_r) != (r_h, r_h_empty, r_dc, r_r):
     problems.append(f"pass-count parity broken: heritage ({o_h},{o_h_empty}) vs ({r_h},{r_h_empty}), "
                     f"deadcode {o_dc} vs {r_dc}, restarts {o_r} vs {r_r}")
@@ -136,19 +136,19 @@ if o_h != 7 or o_h_empty != 5 or o_dc != 7 or o_r != 0:
 #  oracle-identical id form :35 / u0x23e00(:31); the pre-arbitration ids
 #  :32 / u0x1068 recorded the DEAD-web state)
 o_conv = count(oracle_d, r's0xffffffffffffffc0\(0x0002b85a:35\) = u0x00023e00')
-r_conv = count(rugra_d, r's0xffffffffffffffc0\(0x0012b85a:35\) = u0x00023e00')
-print(f"storevarnode conversion: oracle={o_conv} rugra={r_conv}")
+r_conv = count(rudra_d, r's0xffffffffffffffc0\(0x0012b85a:35\) = u0x00023e00')
+print(f"storevarnode conversion: oracle={o_conv} rudra={r_conv}")
 if not (o_conv >= 1 and r_conv >= 1):
     problems.append("RuleStoreVarnode canary conversion missing on a side "
-                    f"(oracle={o_conv}, rugra={r_conv})")
+                    f"(oracle={o_conv}, rudra={r_conv})")
 
 # invariant 3: canary COPY destroyed by earlyremoval on both sides
 o_copy_death = count(oracle_d, r'0x0002b85a:35: s0xffffffffffffffc0\(0x0002b85a:35\) = u0x00023e00[^\n]*\n\s+0x0002b85a:35: \*\*')
-r_copy_death = count(rugra_d, r'0x0012b85a:35: s0xffffffffffffffc0\(0x0012b85a:35\) = u0x00023e00[^\n]*\n\s+0x0012b85a:35: \*\*')
-print(f"canary COPY earlyremoval death: oracle={o_copy_death} rugra={r_copy_death}")
+r_copy_death = count(rudra_d, r'0x0012b85a:35: s0xffffffffffffffc0\(0x0012b85a:35\) = u0x00023e00[^\n]*\n\s+0x0012b85a:35: \*\*')
+print(f"canary COPY earlyremoval death: oracle={o_copy_death} rudra={r_copy_death}")
 if not (o_copy_death >= 1 and r_copy_death >= 1):
     problems.append("canary COPY earlyremoval death missing on a side "
-                    f"(oracle={o_copy_death}, rugra={r_copy_death})")
+                    f"(oracle={o_copy_death}, rudra={r_copy_death})")
 
 # invariant 4a: oracle LOAD survives (no destruction record for the canary LOAD)
 o_load_death = count(oracle_d, r'0x0002b851:31: u0x00023e00[^\n]*\n\s+0x0002b851:31: \*\*')
@@ -156,29 +156,29 @@ print(f"oracle canary LOAD destruction records: {o_load_death}")
 if o_load_death != 0:
     problems.append(f"oracle canary LOAD destroyed ({o_load_death}) - oracle boundary moved; re-read heritage/ruleaction chain")
 
-# invariant 4b: rugra canon LOAD survives too (repinned MATCH arm:
+# invariant 4b: rudra canon LOAD survives too (repinned MATCH arm:
 # HTTPDMAIN-TYPESEED-LOCK-ARBITRATION-0001 landed 2026-09-27 - the canon
 # face keeps the web ALIVE; a NEW destruction record means the arbitration
 # regressed, a missing one is the expected state)
-r_load_death = count(rugra_d, r'0x0012b851:31: u0x00023e00[^\n]*\n\s+0x0012b851:31: \*\*')
-print(f"rugra canon canary LOAD destruction records: {r_load_death} (expected 0 - MATCH arm)")
+r_load_death = count(rudra_d, r'0x0012b851:31: u0x00023e00[^\n]*\n\s+0x0012b851:31: \*\*')
+print(f"rudra canon canary LOAD destruction records: {r_load_death} (expected 0 - MATCH arm)")
 if r_load_death != 0:
-    problems.append("rugra canon canary LOAD destroyed again - TYPESEED-LOCK-ARBITRATION regressed (web must stay ALIVE)")
+    problems.append("rudra canon canary LOAD destroyed again - TYPESEED-LOCK-ARBITRATION regressed (web must stay ALIVE)")
 
 # invariant 4c: both faces keep the statement (golden parity on canon,
 # library-chain faithfulness on bare)
-bare_decl, bare_stmt = extract_main_decl_and_stmt(rugra_bare)
-canon_decl, canon_stmt = extract_main_decl_and_stmt(rugra_canon)
+bare_decl, bare_stmt = extract_main_decl_and_stmt(rudra_bare)
+canon_decl, canon_stmt = extract_main_decl_and_stmt(rudra_canon)
 golden = open(f"{repo}/tests/golden/ghidra_httpd_1204.c", errors='replace').read()
 g_decl = 'long in_FS_OFFSET;' in golden
 g_stmt = 'local_40 = *(undefined8 *)(in_FS_OFFSET + 0x28);' in golden
-print(f"canary statement: golden={g_stmt} rugra_canon={canon_stmt} rugra_bare={bare_stmt}")
+print(f"canary statement: golden={g_stmt} rudra_canon={canon_stmt} rudra_bare={bare_stmt}")
 if not g_stmt:
     problems.append("canon golden no longer carries the canary statement - golden drift")
 if bare_stmt is not True:
-    problems.append(f"rugra bare face lost the canary statement ({bare_stmt}) - library-side chain regressed (this is the oracle-faithful arm)")
+    problems.append(f"rudra bare face lost the canary statement ({bare_stmt}) - library-side chain regressed (this is the oracle-faithful arm)")
 if canon_stmt is not True:
-    problems.append("rugra canon face lost the canary statement - web-death regression (TYPESEED-LOCK-ARBITRATION must keep it ALIVE)")
+    problems.append("rudra canon face lost the canary statement - web-death regression (TYPESEED-LOCK-ARBITRATION must keep it ALIVE)")
 
 sys.exit(1 if problems else 0)
 PYEOF

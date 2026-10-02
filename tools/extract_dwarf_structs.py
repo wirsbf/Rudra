@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 extract_dwarf_structs.py — 从 ELF 的 DWARF debug_info 中提取 struct 定义，
-生成 C struct 定义（用于注入 Rugra 的反编译输出）。
+生成 C struct 定义（用于注入 Rudra 的反编译输出）。
 
 用法:
     python tools/extract_dwarf_structs.py examples/curl > result/curl_structs.h

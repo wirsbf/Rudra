@@ -4,7 +4,7 @@ set -euo pipefail
 # PLTSTUB-WARNLOSS-0001 seeding-layer bilateral oracle runner
 # (debugproto_unknown_model_1204).  Compiles the locked Ghidra 12.0.4 oracle
 # fixture against the standalone decompiler archive plus the production
-# x86-64-gcc.cspec/sla spec set, builds the Rugra comparand example, runs
+# x86-64-gcc.cspec/sla spec set, builds the Rudra comparand example, runs
 # both on identical inputs (BfdArchitecture spec dir + the locked curl
 # fixture binary for the DWARF half), and diffs the boundary projections
 # byte for byte.  Template: tools/run_varmap_dupdecl_oracle.sh (extended
@@ -26,8 +26,8 @@ rust_fixture="$repo_root/tests/oracle/debugproto_unknown_model_1204.rs"
 metadata="$repo_root/tests/oracle/debugproto_unknown_model_1204.metadata.json"
 runner="$repo_root/tools/run_debugproto_unknown_model_oracle.sh"
 curl_fixture="$repo_root/examples/curl"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 bfd_runtime=$(dirname "$bfd_library")
 spec_files=(
   sleigh_specs/x86.ldefs
@@ -110,7 +110,7 @@ g++ -std=c++11 -O1 -I"$bfd_include" -I"$cpp_root" "$cpp_fixture" \
 
 # Persistent cargo target on the user's home cache (see the salvage note in
 # the header); override with RUDRA_DEBUGPROTO_TARGET_DIR.
-fixture_target=${RUDRA_DEBUGPROTO_TARGET_DIR:-${HOME}/.cache/rugra-debugproto-target}
+fixture_target=${RUDRA_DEBUGPROTO_TARGET_DIR:-${HOME}/.cache/rudra-debugproto-target}
 mkdir -p "$fixture_target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --manifest-path "$repo_root/Cargo.toml" --locked --offline --quiet \
@@ -121,19 +121,19 @@ LD_LIBRARY_PATH="$bfd_runtime" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 "$fixture_target/debug/examples/debugproto_unknown_model_1204_oracle" \
   "$spec_root/x86-64-gcc.cspec" "$spec_root/x86-64.sla" "$oracle_tmp/curl" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
 if [[ -s "$oracle_tmp/ghidra.stderr" ]]; then
   echo "Ghidra oracle produced unexpected stderr" >&2
   cat "$oracle_tmp/ghidra.stderr" >&2
   exit 1
 fi
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture produced unexpected stderr" >&2
-  cat "$oracle_tmp/rugra.stderr" >&2
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture produced unexpected stderr" >&2
+  cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

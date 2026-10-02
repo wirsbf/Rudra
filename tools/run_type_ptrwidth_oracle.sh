@@ -10,8 +10,8 @@ cpp_path=Ghidra/Features/Decompiler/src/decompile/cpp
 metadata="$repo_root/tests/oracle/type_ptrwidth_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/type_ptrwidth_1204.cc"
 rust_fixture="$repo_root/tests/oracle/type_ptrwidth_1204.rs"
-target_dir=${RUDRA_TYPE_PTRWIDTH_TARGET_DIR:-/home/wirs/.cache/rugra-type-ptrwidth-target}
-runner_tmp_parent=/home/wirs/.cache/rugra-type-ptrwidth-runner
+target_dir=${RUDRA_TYPE_PTRWIDTH_TARGET_DIR:-/home/wirs/.cache/rudra-type-ptrwidth-target}
+runner_tmp_parent=/home/wirs/.cache/rudra-type-ptrwidth-runner
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 actual_tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -62,7 +62,7 @@ PY
 mkdir -p "$runner_tmp_parent" "$target_dir"
 tmpdir=$(mktemp -d "$runner_tmp_parent/run.XXXXXX")
 tool_tmp="$tmpdir/tool-tmp"
-rust_binary="$tmpdir/rugra-fixture"
+rust_binary="$tmpdir/rudra-fixture"
 mkdir -p "$tool_tmp"
 cleanup() {
   case "$tmpdir" in
@@ -82,33 +82,33 @@ env TMPDIR="$tool_tmp" g++ -std=c++11 -O2 -I"$oracle_cpp" "$cpp_fixture" \
   -o "$tmpdir/ghidra_fixture"
 "$tmpdir/ghidra_fixture" >"$tmpdir/ghidra.out"
 
-if ! flock /tmp/rugra-cargo-build.lock env CARGO_INCREMENTAL=0 TMPDIR="$tool_tmp" \
+if ! flock /tmp/rudra-cargo-build.lock env CARGO_INCREMENTAL=0 TMPDIR="$tool_tmp" \
   CARGO_TARGET_DIR="$target_dir" cargo build --manifest-path "$repo_root/Cargo.toml" \
   --lib --quiet >"$tmpdir/cargo.log" 2>&1; then
   cat "$tmpdir/cargo.log" >&2
   exit 1
 fi
-rlib="$target_dir/debug/librugra.rlib"
+rlib="$target_dir/debug/librudra.rlib"
 if [[ ! -f "$rlib" ]]; then
-  echo "could not locate built Rugra rlib" >&2
+  echo "could not locate built Rudra rlib" >&2
   exit 1
 fi
-env TMPDIR="$tool_tmp" rustc --edition=2021 "$rust_fixture" --extern "rugra=$rlib" \
+env TMPDIR="$tool_tmp" rustc --edition=2021 "$rust_fixture" --extern "rudra=$rlib" \
   -L "dependency=$target_dir/debug/deps" -o "$rust_binary"
-"$rust_binary" >"$tmpdir/rugra.out"
+"$rust_binary" >"$tmpdir/rudra.out"
 
 ghidra_stdout_sha=$(sha256sum "$tmpdir/ghidra.out" | awk '{print $1}')
-rugra_stdout_sha=$(sha256sum "$tmpdir/rugra.out" | awk '{print $1}')
-read -r expected_ghidra_sha expected_rugra_sha < <(python3 -c \
+rudra_stdout_sha=$(sha256sum "$tmpdir/rudra.out" | awk '{print $1}')
+read -r expected_ghidra_sha expected_rudra_sha < <(python3 -c \
   'import json,sys; e=json.load(open(sys.argv[1]))["expected_stdout_sha256"]; print(e["ghidra"], e["rugra"])' \
   "$metadata")
 if [[ "$ghidra_stdout_sha" != "$expected_ghidra_sha" || \
-      "$rugra_stdout_sha" != "$expected_rugra_sha" ]]; then
-  echo "paired stdout hash mismatch: ghidra=$ghidra_stdout_sha rugra=$rugra_stdout_sha" >&2
+      "$rudra_stdout_sha" != "$expected_rudra_sha" ]]; then
+  echo "paired stdout hash mismatch: ghidra=$ghidra_stdout_sha rudra=$rudra_stdout_sha" >&2
   exit 1
 fi
-if ! cmp -s "$tmpdir/ghidra.out" "$tmpdir/rugra.out"; then
-  diff -u "$tmpdir/ghidra.out" "$tmpdir/rugra.out" >&2 || true
+if ! cmp -s "$tmpdir/ghidra.out" "$tmpdir/rudra.out"; then
+  diff -u "$tmpdir/ghidra.out" "$tmpdir/rudra.out" >&2 || true
   exit 1
 fi
 

@@ -53,8 +53,8 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
 
 "$oracle_tmp/varmap_dupdecl_1204" >"$oracle_tmp/ghidra.stdout"
 "$oracle_tmp/cargo-target/debug/examples/varmap_dupdecl_1204_oracle" \
-  >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

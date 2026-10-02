@@ -8,7 +8,7 @@
 #               (sha-pinned below). Live oracle re-capture only under
 #               RUDRA_STORELOADFWD_ORACLE_RUN=1 (rebuilds libdecomp.a from
 #               the locked tree and re-verifies the archived record hash).
-# Rugra side  : current worktree lib (cargo build --lib) + the mirrored
+# Rudra side  : current worktree lib (cargo build --lib) + the mirrored
 #               tests/oracle/heritage_storeload_fwd_1204.rs.
 # Comparand   : byte-compare of both stdouts against the archived record;
 #               stderr must be empty on both sides; the metadata's
@@ -40,13 +40,13 @@ done
 [[ $(sha256sum "$oracle_record" | cut -d' ' -f1) == "$oracle_record_sha256" ]] \
   || die "archived oracle record drifted"
 
-workdir=$(mktemp -d "${TMPDIR:-/tmp}/rugra-storeload-fwd.XXXXXX")
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/rudra-storeload-fwd.XXXXXX")
 trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 # ---- oracle comparand (archive or live) -----------------------------------
 oracle_out="$workdir/oracle.stdout"
 if [[ ${RUDRA_STORELOADFWD_ORACLE_RUN:-0} == 1 ]]; then
-  cache_root=${RUDRA_STORELOADFWD_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-storeload-fwd-1204}
+  cache_root=${RUDRA_STORELOADFWD_CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-storeload-fwd-1204}
   runner="$cache_root/heritage_storeload_fwd_1204_cpp"
   if [[ ! -x $runner ]]; then
     [[ $(git -C "$repo_root/ghidra" rev-parse HEAD) == "$oracle_commit" ]] \
@@ -77,30 +77,30 @@ else
   oracle_source=archive
 fi
 
-# ---- Rugra side -----------------------------------------------------------
+# ---- Rudra side -----------------------------------------------------------
 target_dir=${CARGO_TARGET_DIR:-$repo_root/target}
 (cd "$repo_root" && CARGO_TARGET_DIR="$target_dir" cargo build --offline --locked --quiet --lib)
 rustc --edition=2021 -O "$fixture_rs" \
-  --extern "rugra=$target_dir/debug/librugra.rlib" \
+  --extern "rudra=$target_dir/debug/librudra.rlib" \
   -L "dependency=$target_dir/debug/deps" \
   -o "$workdir/heritage_storeload_fwd_1204_rust"
 
 timeout 60s "$workdir/heritage_storeload_fwd_1204_rust" \
-  > "$workdir/rugra.stdout" 2> "$workdir/rugra.err"
-[[ $? -eq 0 ]] || die "rugra fixture run failed"
-[[ -s "$workdir/rugra.err" ]] && die "rugra fixture stderr non-empty"
+  > "$workdir/rudra.stdout" 2> "$workdir/rudra.err"
+[[ $? -eq 0 ]] || die "rudra fixture run failed"
+[[ -s "$workdir/rudra.err" ]] && die "rudra fixture stderr non-empty"
 
 # ---- compare: byte-identical against the archived record ------------------
-if cmp -s "$oracle_out" "$workdir/rugra.stdout"; then
+if cmp -s "$oracle_out" "$workdir/rudra.stdout"; then
   echo "heritage_storeload_fwd_1204: MATCH (byte-identical, 13 lines, oracle=$oracle_source)"
 else
   echo "heritage_storeload_fwd_1204: MISMATCH" >&2
-  diff -u --label ghidra --label rugra "$oracle_out" "$workdir/rugra.stdout" | head -40 >&2
+  diff -u --label ghidra --label rudra "$oracle_out" "$workdir/rudra.stdout" | head -40 >&2
   exit 1
 fi
 
 # ---- metadata expectations -------------------------------------------------
-python3 - "$metadata" "$workdir/rugra.stdout" <<'PY'
+python3 - "$metadata" "$workdir/rudra.stdout" <<'PY'
 import hashlib, json, pathlib, sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 data = pathlib.Path(sys.argv[2]).read_bytes()

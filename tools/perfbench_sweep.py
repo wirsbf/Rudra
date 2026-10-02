@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """perfbench_sweep.py — PERF-BENCH lane measurement driver (2026-09-26).
 
-Rugra vs locked-oracle Ghidra 12.0.4 decompile-speed sweep on identical
+Rudra vs locked-oracle Ghidra 12.0.4 decompile-speed sweep on identical
 inputs and an identical process model.  Pure measurement: no src changes,
 no pipeline semantics; this tool only times existing drivers.
 
@@ -11,18 +11,18 @@ oracle : tools/regen_ghidra_golden.py golden_dump_1204 fixture built from the
          locked cpp tree (commit e40ed130, tree b02e230a) — BfdArchitecture
          bare face, full universal action, PrintC docFunction (the B2/direct-
          runner tier infra).
-rugra  : examples/gen_decompile (bare face mirroring golden_dump_1204.cc
+rudra  : examples/gen_decompile (bare face mirroring golden_dump_1204.cc
          discovery 1:1) or the canon drivers examples/curl_decompile /
          examples/httpd_decompile (canon tier, richer input face).
 
 Modes
 -----
-hermetic : per-function isolated child process — oracle `one` mode vs rugra
+hermetic : per-function isolated child process — oracle `one` mode vs rudra
            `gen_decompile --one`.  Both sides pay per-child process start +
            spec load + binary ingestion + decompile.  This is the same
            process model the goldens/canon sweeps use (fair head-to-head).
 allmode  : oracle `all` mode, single process, all functions, one
-           Architecture (oracle engine-only throughput context; rugra has no
+           Architecture (oracle engine-only throughput context; rudra has no
            in-process multi-function driver, so this row is oracle-side
            context, never a head-to-head cell).
 canon    : full canon-driver run (curl_decompile/httpd_decompile All mode)
@@ -38,9 +38,9 @@ drives repeats; this tool appends one JSON record per invocation to
 
 Usage (run from the repo root):
   python3 tools/perfbench_sweep.py hermetic --side oracle \
-      --runner /dev/shm/rugra-tests/perfbench/runner-work/golden_dump_1204 \
+      --runner /dev/shm/rudra-tests/perfbench/runner-work/golden_dump_1204 \
       --binary /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 --indices all \
-      --record-file /dev/shm/rugra-tests/perfbench/sweeps.jsonl
+      --record-file /dev/shm/rudra-tests/perfbench/sweeps.jsonl
 """
 
 from __future__ import annotations
@@ -120,14 +120,14 @@ def list_oracle(runner: str, spec_root: str, binary: str) -> list[dict]:
         out.unlink(missing_ok=True)
 
 
-def list_rugra(runner: str, binary: str) -> int:
+def list_rudra(runner: str, binary: str) -> int:
     proc = subprocess.run(
         [runner, binary, "--list"],
         cwd=str(REPO_ROOT), capture_output=True, timeout=900,
     )
     if proc.returncode != 0:
         raise RuntimeError(
-            f"rugra --list failed rc={proc.returncode}: "
+            f"rudra --list failed rc={proc.returncode}: "
             f"{proc.stderr.decode(errors='replace')[-800:]}")
     # stderr lines look like: "[GEN]  12 0x   25a0   123 name"
     count = 0
@@ -144,7 +144,7 @@ def sweep_hermetic(args) -> dict:
         functions = list_oracle(args.runner, spec_root, binary)
         count = len(functions)
     else:
-        count = list_rugra(args.runner, binary)
+        count = list_rudra(args.runner, binary)
         functions = None
 
     indices: list[int]
@@ -232,7 +232,7 @@ def sweep_time_v(argv: list[str], label: dict, timeout: float) -> dict:
     load_before = load_snapshot()
     started = time.monotonic()
     proc = subprocess.run(
-        ["/usr/bin/time", "-v", "-o", "/dev/shm/rugra-tests/perfbench/_timev.tmp"] + argv,
+        ["/usr/bin/time", "-v", "-o", "/dev/shm/rudra-tests/perfbench/_timev.tmp"] + argv,
         cwd=str(REPO_ROOT),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -241,7 +241,7 @@ def sweep_time_v(argv: list[str], label: dict, timeout: float) -> dict:
     wall = time.monotonic() - started
     load_after = load_snapshot()
     fields = parse_timev_fields(
-        Path("/dev/shm/rugra-tests/perfbench/_timev.tmp").read_text())
+        Path("/dev/shm/rudra-tests/perfbench/_timev.tmp").read_text())
 
     def seconds(name: str) -> float:
         text = ""
@@ -340,13 +340,13 @@ def main() -> int:
     canon.add_argument("--record-file", required=True)
 
     args = parser.parse_args()
-    Path("/dev/shm/rugra-tests/perfbench").mkdir(parents=True, exist_ok=True)
+    Path("/dev/shm/rudra-tests/perfbench").mkdir(parents=True, exist_ok=True)
 
     if args.command == "hermetic":
         record = sweep_hermetic(args)
     elif args.command == "allmode":
         spec_root = str((REPO_ROOT / args.spec_root).resolve())
-        out_dir = Path("/dev/shm/rugra-tests/perfbench/allmode-out")
+        out_dir = Path("/dev/shm/rudra-tests/perfbench/allmode-out")
         out_dir.mkdir(parents=True, exist_ok=True)
         argv = [args.runner, "all", spec_root, args.binary, str(out_dir)]
         record = sweep_time_v(

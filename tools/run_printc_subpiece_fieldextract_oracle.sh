@@ -3,7 +3,7 @@
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler library from the pinned
 # ghidra/ checkout, compiles the C++ fixture against it (real oracle), builds
-# the Rugra crate (live working tree, consuming the printc/cast/datatype
+# the Rudra crate (live working tree, consuming the printc/cast/datatype
 # WIP) and the Rust fixture, runs both, and requires the 31 stdout records
 # to be byte-identical:
 #   piece.*  — Datatype::isPieceStructured sweep incl. the TypeEnum ctor
@@ -22,7 +22,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 metadata="$repo_root/tests/oracle/printc_subpiece_fieldextract_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/printc_subpiece_fieldextract_1204.cc"
 rust_fixture="$repo_root/tests/oracle/printc_subpiece_fieldextract_1204.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 for required in "$metadata" "$cpp_fixture" "$rust_fixture" \
@@ -72,10 +72,10 @@ for key, path in (
         )
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-printc-subpiece-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-printc-subpiece-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-printc-subpiece-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-printc-subpiece-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -97,7 +97,7 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --quiet --manifest-path "$repo_root/Cargo.toml" --lib
 rustc --edition=2021 -O \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
-  --extern "rugra=$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern "rudra=$oracle_tmp/cargo-target/debug/librudra.rlib" \
   "$rust_fixture" -o "$oracle_tmp/printc_subpiece_rust"
 
 "$oracle_tmp/printc_subpiece_cpp" \
@@ -105,20 +105,20 @@ rustc --edition=2021 -O \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/printc_subpiece_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-if [[ "$ghidra_status" != 0 || "$rugra_status" != 0 ]]; then
-  echo "fixture exit codes: ghidra=$ghidra_status rugra=$rugra_status" >&2
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+if [[ "$ghidra_status" != 0 || "$rudra_status" != 0 ]]; then
+  echo "fixture exit codes: ghidra=$ghidra_status rudra=$rudra_status" >&2
   tail -3 "$oracle_tmp/ghidra.stderr" >&2
-  tail -3 "$oracle_tmp/rugra.stderr" >&2
+  tail -3 "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "rugra fixture stderr is not empty" >&2
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "rudra fixture stderr is not empty" >&2
   exit 1
 fi
 
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

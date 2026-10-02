@@ -29,7 +29,7 @@
 # run in capture mode (the address carries no name identity to pin a
 # "functions" key on; the bank manifest is the pin of record) and the META
 # func_name field is left unvalidated here: the fixture derives it via
-# Architecture::nameFunction, the rugra driver carries the ledger spelling,
+# Architecture::nameFunction, the rudra driver carries the ledger spelling,
 # and the bisect treats func_name as advisory (the same contract as the
 # BFD/DWARF constprop spelling differences).
 #
@@ -114,11 +114,11 @@ binary="$repo_root/examples/$corpus"
 spec_root="$repo_root/sleigh_specs"
 analysis_options=default
 if [[ "$mode" == "default" ]]; then
-  projection_out=${RUDRA_STAGE_PROJECTION_OUT:-/dev/shm/rugra-tests/sb-oracle/next_url.oracle.projection}
+  projection_out=${RUDRA_STAGE_PROJECTION_OUT:-/dev/shm/rudra-tests/sb-oracle/next_url.oracle.projection}
 elif [[ "$mode" == "address" ]]; then
-  projection_out=${RUDRA_STAGE_PROJECTION_OUT:-/dev/shm/rugra-tests/sb-oracle/${corpus}.addr${entry_norm}.oracle.projection}
+  projection_out=${RUDRA_STAGE_PROJECTION_OUT:-/dev/shm/rudra-tests/sb-oracle/${corpus}.addr${entry_norm}.oracle.projection}
 else
-  projection_out=${RUDRA_STAGE_PROJECTION_OUT:-/dev/shm/rugra-tests/sb-oracle/${corpus}.${func}.oracle.projection}
+  projection_out=${RUDRA_STAGE_PROJECTION_OUT:-/dev/shm/rudra-tests/sb-oracle/${corpus}.${func}.oracle.projection}
 fi
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
@@ -142,8 +142,8 @@ bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
-if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
-  bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+if [[ -z "$bfd_include" && -f /tmp/rudra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
+  bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 fi
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" ]]; then
   echo "binutils 2.38 bfd.h not found; set RUDRA_BFD_INCLUDE" >&2
@@ -252,10 +252,10 @@ if metadata.get("host_compiler") != compiler:
     raise SystemExit(f"host compiler mismatch: {compiler}")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-stage-projection-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-stage-projection-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-stage-projection-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-stage-projection-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -444,7 +444,7 @@ fields = {
 }
 if mode == "address":
     # Address-only target: the fixture derives the name via
-    # Architecture::nameFunction while the rugra driver carries the ledger
+    # Architecture::nameFunction while the rudra driver carries the ledger
     # spelling, so func_name is advisory-only here (the same bisect
     # contract as the constprop BFD/DWARF spellings); every identity key
     # (func_entry above, binary, oracle pins) stays validated.
@@ -602,7 +602,7 @@ PY
 then
   # A drift must be investigable: preserve the offending projection (and
   # the stderr it produced) before the EXIT trap wipes the scratch dir.
-  drift_dir=/dev/shm/rugra-tests/sb-oracle/drift
+  drift_dir=/dev/shm/rudra-tests/sb-oracle/drift
   mkdir -p "$drift_dir"
   drift_tag=$(date +%Y%m%d_%H%M%S)
   drift_tag_name=${func}

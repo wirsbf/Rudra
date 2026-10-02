@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-compare_ghidra.py — Rugra vs Ghidra 反编译输出的多维度结构化对比。
+compare_ghidra.py — Rudra vs Ghidra 反编译输出的多维度结构化对比。
 
 替代旧的 if/while 计数对比（计数相同 ≠ 结构对齐，且检测不到真实缺陷）。
 本工具做两类对比:
 
   1. 归一化结构骨架 diff (normalize_skeleton)
      把变量名/字面量归一化为占位符后, 比较控制流骨架。屏蔽命名差异, 露出:
-       - 空 else {} 块 (Rugra CFG 不完整的典型症状)
-       - 丢失的函数调用 (如 strdup/fwrite 在 Rugra 输出里缺失)
+       - 空 else {} 块 (Rudra CFG 不完整的典型症状)
+       - 丢失的函数调用 (如 strdup/fwrite 在 Rudra 输出里缺失)
        - 寄存器泄漏 (RAX_1738/EAX_1743 等, Ghidra 不会泄漏)
        - 真实结构差异 (循环拆分、goto vs return)
 
   2. 变量名编号连续性检查 (check_numbering_continuity)
-     不比较 Rugra iVar1 == Ghidra iVar1 (两套坐标系不重叠: Rugra=StackX_N,
+     不比较 Rudra iVar1 == Ghidra iVar1 (两套坐标系不重叠: Rudra=StackX_N,
      Ghidra=类型化连续编号), 只验证 "单一共享计数器" 这一不变量: Ghidra
      buildVariableName 用单一共享 int4 base, 所有前缀共用, 故函数内所有声明
      变量的编号集合应近似稠密且 max(num) ≈ 声明总数。直接检测 181538f 类 bug
@@ -21,11 +21,11 @@ compare_ghidra.py — Rugra vs Ghidra 反编译输出的多维度结构化对比
      只统计声明行 (`  <type> <name>;`), 不统计表达式中的使用。
 
 为什么不用计数: 计数是极度有损投影。for↔while 等价变换时计数不同但结构对齐;
-Rugra 空 else{} + 调用丢失时计数可能凑巧相同但结构完全不对齐。
+Rudra 空 else{} + 调用丢失时计数可能凑巧相同但结构完全不对齐。
 
 用法:
     python tools/compare_ghidra.py result/curl_cur.c result/ghidra_curl_ref.c
-    python tools/compare_ghidra.py <rugra.c> <ghidra.c> [--base 0xOFFSET] \\
+    python tools/compare_ghidra.py <rudra.c> <ghidra.c> [--base 0xOFFSET] \\
         [--func NAME] [--mode skeleton|numbering|all]
 """
 import argparse
@@ -42,7 +42,7 @@ from pathlib import Path
 HEADER_RE = re.compile(
     r'/\* ---- 0x([0-9a-f]+): (\S+) \((\d+) bytes\) ---- \*/'
 )
-# GCC 优化后缀, Rugra 保留而 Ghidra 剥离
+# GCC 优化后缀, Rudra 保留而 Ghidra 剥离
 GCC_SUFFIX_RE = re.compile(r'\.(?:constprop|part|isra|llvm)\.[0-9]+')
 
 
@@ -74,10 +74,10 @@ def strip_gcc_suffix(name):
     return GCC_SUFFIX_RE.sub('', name)
 
 
-def match_functions(rugra_funcs, ghidra_funcs, base_offset=0x100000):
+def match_functions(rudra_funcs, ghidra_funcs, base_offset=0x100000):
     """
-    匹配 Rugra 和 Ghidra 函数。优先用归一化地址, 备选函数名 (先精确名, 再 strip 后缀)。
-    返回 [(addr, rugra_name, rugra_body, ghidra_name, ghidra_body)]。
+    匹配 Rudra 和 Ghidra 函数。优先用归一化地址, 备选函数名 (先精确名, 再 strip 后缀)。
+    返回 [(addr, rudra_name, rudra_body, ghidra_name, ghidra_body)]。
 
     同名函数配对语义 (MCENSUS3-COMPARE-MISPAIR-CURL-0001):
       1. 地址探测链 (最强信号, 四探针代数不变, 见下);
@@ -87,8 +87,8 @@ def match_functions(rugra_funcs, ghidra_funcs, base_offset=0x100000):
       3. strip 后缀兜底配对 (跨边改名场景), 同样取首个未消费者。
     不变量: 每个 golden 函数至多被消费一次 (one-consumption)。旧版 by_name 是
     last-wins 字典, 双胞胎名 (strip 后同 key) 会双配到后出现的那个 golden,
-    另一个 golden (如 golden SetHTTPrequest.part.0, 与 rugra 同名函数恒等)
-    从未被比较, 同时给先到的 rugra 函数制造幻影 diff 行 (curl 镜面 6 行伪差)。
+    另一个 golden (如 golden SetHTTPrequest.part.0, 与 rudra 同名函数恒等)
+    从未被比较, 同时给先到的 rudra 函数制造幻影 diff 行 (curl 镜面 6 行伪差)。
     """
     by_addr = {}
     by_exact = {}
@@ -111,14 +111,14 @@ def match_functions(rugra_funcs, ghidra_funcs, base_offset=0x100000):
             used_keys.add(probe_key)
         return g
 
-    for addr, name, size, body in rugra_funcs:
+    for addr, name, size, body in rudra_funcs:
         # Probe algebra (base = base_offset, keys stored as golden_addr - base):
-        #   G1 golden image-based / R2 rugra base-0  -> probe 1 (addr == key)
-        #   G1 golden image-based / R1 rugra image  -> probe 2 (addr-base == key)
-        #   G2 golden base-0     / R2 rugra base-0  -> probe 2 (both negative keys)
-        #   G2 golden base-0     / R1 rugra image  -> probe 4 (addr-2*base == key),
+        #   G1 golden image-based / R2 rudra base-0  -> probe 1 (addr == key)
+        #   G1 golden image-based / R1 rudra image  -> probe 2 (addr-base == key)
+        #   G2 golden base-0     / R2 rudra base-0  -> probe 2 (both negative keys)
+        #   G2 golden base-0     / R1 rudra image  -> probe 4 (addr-2*base == key),
         #     the direct-runner mirror convention pair (golden headers base-0,
-        #     Rugra mirror headers image-based). NB: with --base 0 (the official
+        #     Rudra mirror headers image-based). NB: with --base 0 (the official
         #     mirror-gate invocation) all four probes collapse to probe 1, so
         #     the G2/R1 pair resolves via the name path below — which is why
         #     the name path must carry the same one-consumption + exact-name
@@ -149,7 +149,7 @@ def match_functions(rugra_funcs, ghidra_funcs, base_offset=0x100000):
 # 规范化: 剥离格式噪音, 归一化为结构骨架
 # ---------------------------------------------------------------------------
 
-# Rugra 独有噪音
+# Rudra 独有噪音
 RUDRA_TYPEDEF_RE = re.compile(r'^\s*typedef\b.*;$', re.MULTILINE)
 RUDRA_EXTERN_RE = re.compile(r'^\s*extern\b.*;$', re.MULTILINE)
 RUDRA_BANNER_RE = re.compile(r'^===.*===\s*$', re.MULTILINE)
@@ -180,7 +180,7 @@ STR_LIT_RE = re.compile(r'"[^"]*"')
 
 
 def strip_noise(body, side):
-    """剥离格式噪音, 返回干净函数体。side='rugra'|'ghidra'。"""
+    """剥离格式噪音, 返回干净函数体。side='rudra'|'ghidra'。"""
     s = body
     s = RUDRA_TYPEDEF_RE.sub('', s)
     s = RUDRA_EXTERN_RE.sub('', s)
@@ -201,7 +201,7 @@ def normalize_skeleton(body):
     输出每行一个骨架 token, 供行级 diff。
     屏蔽命名差异, 露出空else/调用缺失/结构差异。
     """
-    s = strip_noise(body, 'rugra')
+    s = strip_noise(body, 'rudra')
     # 顺序: 先字符串(避免 hex 被部分匹配), 再 hex, 再十进制
     s = STR_LIT_RE.sub('"LIT"', s)
     s = HEX_LIT_RE.sub('LIT', s)
@@ -264,7 +264,7 @@ def check_numbering_continuity(body):
     Ghidra 正确输出也误报 995 个问题。
 
     检测的不变量 (181538f 类 per-prefix 计数 bug 的真实特征):
-      - 重复声明: 同一全名 (prefix+num) 在一个函数里被声明两次 (Rugra/Ghidra
+      - 重复声明: 同一全名 (prefix+num) 在一个函数里被声明两次 (Rudra/Ghidra
         正常都不该出现, 单变量只声明一次)。
       - 共享计数器: Ghidra buildVariableName 用单一共享 `int4 base`
         (database.cc:2850 assignDefaultNames), 所有前缀共用一个从 1 单调递增的
@@ -274,7 +274,7 @@ def check_numbering_continuity(body):
         声明数 >= 5 且 max(num) < 声明数 * 0.6 时报告 per_prefix_counter。
 
     不再检查 "per-prefix 文本序单调/无大跳号": 该启发式被声明字母序输出
-    (Rugra BTreeMap) 干扰, 对正确编号也误报 (如 bVar27,bVar30,bVar4 在字母序
+    (Rudra BTreeMap) 干扰, 对正确编号也误报 (如 bVar27,bVar30,bVar4 在字母序
     下非单调, 但底层共享计数器完全正确)。共享计数器不变量更直接抓 181538f。
 
     返回 [{'prefix':..., 'type':..., 'detail':...}, ...]
@@ -317,11 +317,11 @@ def check_numbering_continuity(body):
 
 
 # ---------------------------------------------------------------------------
-# 结构缺陷检测 (Rugra 特有)
+# 结构缺陷检测 (Rudra 特有)
 # ---------------------------------------------------------------------------
 
 def detect_defects(body):
-    """检测 Rugra 特有的结构缺陷。返回缺陷描述列表。"""
+    """检测 Rudra 特有的结构缺陷。返回缺陷描述列表。"""
     defects = []
     # 空 else {} 块
     for m in EMPTY_BLOCK_RE.finditer(body):
@@ -340,7 +340,7 @@ def detect_defects(body):
 # 主对比逻辑
 # ---------------------------------------------------------------------------
 
-def diff_function(rugra_body, ghidra_body, mode='all'):
+def diff_function(rudra_body, ghidra_body, mode='all'):
     """
     对比单个函数, 返回结构化结果 dict。
     mode: 'skeleton' | 'numbering' | 'all'
@@ -348,19 +348,19 @@ def diff_function(rugra_body, ghidra_body, mode='all'):
     result = {'skeleton_diff': [], 'numbering': {}, 'defects': []}
 
     if mode in ('skeleton', 'all'):
-        r_sk = normalize_skeleton(rugra_body)
+        r_sk = normalize_skeleton(rudra_body)
         g_sk = normalize_skeleton(ghidra_body)
         diff = list(difflib.unified_diff(
-            g_sk, r_sk, fromfile='ghidra', tofile='rugra', lineterm='', n=1,
+            g_sk, r_sk, fromfile='ghidra', tofile='rudra', lineterm='', n=1,
         ))
         result['skeleton_diff'] = diff
 
     if mode in ('numbering', 'all'):
-        result['numbering']['rugra'] = check_numbering_continuity(rugra_body)
+        result['numbering']['rudra'] = check_numbering_continuity(rudra_body)
         result['numbering']['ghidra'] = check_numbering_continuity(ghidra_body)
 
     if mode in ('skeleton', 'all'):
-        result['defects'] = detect_defects(rugra_body)
+        result['defects'] = detect_defects(rudra_body)
 
     return result
 
@@ -390,7 +390,7 @@ def format_result(addr, rname, gname, res, verbose=False):
 
     # 编号连续性
     numbering = res.get('numbering', {})
-    for side in ('rugra', 'ghidra'):
+    for side in ('rudra', 'ghidra'):
         issues = numbering.get(side, [])
         if issues:
             lines.append(f'[Numbering:{side}] {len(issues)} issues')
@@ -404,8 +404,8 @@ def format_result(addr, rname, gname, res, verbose=False):
 
 def main():
     ap = argparse.ArgumentParser(
-        description='Rugra vs Ghidra 多维度结构化对比 (替代 if/while 计数)')
-    ap.add_argument('rugra_c', help='Rugra 反编译输出 .c')
+        description='Rudra vs Ghidra 多维度结构化对比 (替代 if/while 计数)')
+    ap.add_argument('rudra_c', help='Rudra 反编译输出 .c')
     ap.add_argument('ghidra_c', help='Ghidra 反编译输出 .c')
     ap.add_argument('--base', default='0x100000', help='地址基址偏移 (hex)')
     ap.add_argument('--func', default=None, help='只对比指定函数名')
@@ -418,14 +418,14 @@ def main():
     args = ap.parse_args()
 
     base = int(args.base, 16)
-    rugra_text = Path(args.rugra_c).read_text(encoding='utf-8', errors='replace')
+    rudra_text = Path(args.rudra_c).read_text(encoding='utf-8', errors='replace')
     ghidra_text = Path(args.ghidra_c).read_text(encoding='utf-8', errors='replace')
 
-    rugra_funcs = parse_functions(rugra_text)
+    rudra_funcs = parse_functions(rudra_text)
     ghidra_funcs = parse_functions(ghidra_text)
-    matched = match_functions(rugra_funcs, ghidra_funcs, base)
+    matched = match_functions(rudra_funcs, ghidra_funcs, base)
 
-    print(f'Rugra functions: {len(rugra_funcs)}')
+    print(f'Rudra functions: {len(rudra_funcs)}')
     print(f'Ghidra functions: {len(ghidra_funcs)}')
     print(f'Matched: {len(matched)}\n')
 
@@ -445,7 +445,7 @@ def main():
         n_diff = sum(1 for l in res.get('skeleton_diff', [])
                      if l.startswith(('+', '-')) and not l.startswith(('+++', '---')))
         n_def = len(res.get('defects', []))
-        n_num = len(res.get('numbering', {}).get('rugra', []))
+        n_num = len(res.get('numbering', {}).get('rudra', []))
         total_skeleton_diff += n_diff
         total_defects += n_def
         total_numbering += n_num
@@ -462,9 +462,9 @@ def main():
 
     print(f'\n{"="*60}')
     print(f'Total skeleton diff lines: {total_skeleton_diff}')
-    print(f'Total Rugra defects: {total_defects} '
+    print(f'Total Rudra defects: {total_defects} '
           f'(in {funcs_with_defects}/{len(matched)} functions)')
-    print(f'Total Rugra numbering issues: {total_numbering}')
+    print(f'Total Rudra numbering issues: {total_numbering}')
     print(f'\nNOTE: skeleton diff > 0 不一定是对齐缺陷 (for↔while 等价变换).')
     print(f'      判定口径 (MSTRUCT 2026-09-25): 对 canon/headless golden (桥接层富化),')
     print(f'      for↔while 拆分等形态差可为 HEAD 伪差; 对 direct-runner mirror golden')

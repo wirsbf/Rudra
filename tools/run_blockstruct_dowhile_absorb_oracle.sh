@@ -3,7 +3,7 @@
 #
 # Builds the locked Ghidra 12.0.4 oracle fixture (CollapseStructure::
 # collapseAll newBlockList force-step semantics on synthetic FlowBlock
-# graphs) against the oracle cpp tree, builds the Rugra comparand against
+# graphs) against the oracle cpp tree, builds the Rudra comparand against
 # the crate rlib, runs both, and diffs the shared projection.
 set -euo pipefail
 
@@ -15,7 +15,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 cpp_fixture="$repo_root/tests/oracle/blockstruct_dowhile_absorb_1204.cc"
 rust_fixture="$repo_root/tests/oracle/blockstruct_dowhile_absorb_1204.rs"
 metadata="$repo_root/tests/oracle/blockstruct_dowhile_absorb_1204.metadata.json"
-bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rudra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -45,8 +45,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 pairs = {
     "cpp_fixture_sha256": pathlib.Path(sys.argv[2]),
     "rust_fixture_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_blockaction_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_tracedag_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_blockaction_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_tracedag_sha256": pathlib.Path(sys.argv[5]),
 }
 for key, path in pairs.items():
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -57,17 +57,17 @@ for key, path in pairs.items():
 PY
 
 # Stage under the user's home cache (persistent NVMe) rather than /tmp: the
-# fixture links the full debug librugra rlib, and the shared /tmp tmpfs
+# fixture links the full debug librudra rlib, and the shared /tmp tmpfs
 # user quota can EDQUOT/SIGBUS the linker mid-write. 2026-09-26: default
 # moved off the branch-era author home /home/wirs (absent on this machine,
 # mkdir failed) to $HOME; override with RUDRA_DOWHILE_STAGE_ROOT (salvage
 # of wt/sb-fixturehyg 69a8f690, SALVAGE-BRANAUDIT-FIXTUREHYG-PINENV-0001).
 stage_root=${RUDRA_DOWHILE_STAGE_ROOT:-${HOME}/.cache}
 mkdir -p "$stage_root"
-oracle_tmp=$(mktemp -d "$stage_root/rugra-blockstruct-dowhile-1204.XXXXXX")
+oracle_tmp=$(mktemp -d "$stage_root/rudra-blockstruct-dowhile-1204.XXXXXX")
 cleanup() {
   case "$oracle_tmp" in
-    "$stage_root"/rugra-blockstruct-dowhile-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    "$stage_root"/rudra-blockstruct-dowhile-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -90,19 +90,19 @@ g++ -std=c++11 -O2 -I"$cpp_root" -I"$bfd_root/usr/include" \
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/blockstruct_dowhile_absorb_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/blockstruct_dowhile_absorb_rudra"
 
 "$oracle_tmp/blockstruct_dowhile_absorb_1204" >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
-"$oracle_tmp/blockstruct_dowhile_absorb_rugra" >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+"$oracle_tmp/blockstruct_dowhile_absorb_rudra" >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
-if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
     >"$oracle_tmp/bilateral.diff"; then
   cat "$oracle_tmp/ghidra.stdout"
   printf 'blockstruct_dowhile_absorb_1204: MATCH\n'

@@ -118,7 +118,7 @@ cleanup() {
   fi
 }
 trap cleanup EXIT HUP INT TERM
-/usr/bin/mkdir -p "$run_root/tmp" "$run_root/oracle" "$run_root/rugra" \
+/usr/bin/mkdir -p "$run_root/tmp" "$run_root/oracle" "$run_root/rudra" \
   "$run_root/evidence/tests/oracle"
 
 # Freeze every mutable input before validating any content.
@@ -169,7 +169,7 @@ require("fixture set", sorted(meta["comparand"]["fixture_sha256"]), sorted(expec
 for relative, expected in meta["comparand"]["fixture_sha256"].items():
     require(f"fixture {relative}", sha(evidence / relative), expected)
 require("record count", meta["expected_results"]["record_count"], 21)
-require("raw diff labels", meta["expected_results"]["raw_diff_labels"], ["ghidra.stdout", "rugra.stdout"])
+require("raw diff labels", meta["expected_results"]["raw_diff_labels"], ["ghidra.stdout", "rudra.stdout"])
 require("exit codes", meta["expected_results"]["exit_codes"], {
     "ghidra": 0, "rugra": 0,
 })
@@ -263,7 +263,7 @@ if [[ "$mode" == ghidra-only ]]; then
   exit 0
 fi
 
-snapshot="$run_root/rugra"
+snapshot="$run_root/rudra"
 git_clean -C "$repo_root" archive HEAD | /usr/bin/tar -xf - -C "$snapshot"
 /usr/bin/mkdir -p "$snapshot/tests/oracle" \
   "$snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
@@ -285,7 +285,7 @@ exec 9>"$cargo_target/.build.lock"
 /usr/bin/env -i PATH=/usr/bin:/bin HOME="$user_home" LC_ALL=C TMPDIR="$run_root/tmp" \
   "$host_rustc" --edition=2021 -C opt-level=0 -C overflow-checks=yes \
   "$snapshot/tests/oracle/ptrsub_switch_cast_1204.rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L dependency="$cargo_target/debug/deps" -o "$run_root/ptrsub_sw_rust" \
   >"$run_root/rustc.stdout" 2>"$run_root/rustc.stderr"
 "$host_flock" -u 9
@@ -297,21 +297,21 @@ fi
 for run in 1 2; do
   /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/timeout 60 \
     "$run_root/ptrsub_sw_rust" \
-    >"$run_root/rugra.$run.stdout" 2>"$run_root/rugra.$run.stderr"
+    >"$run_root/rudra.$run.stdout" 2>"$run_root/rudra.$run.stderr"
 done
-if ! /usr/bin/cmp -s "$run_root/rugra.1.stdout" "$run_root/rugra.2.stdout" || \
-   ! /usr/bin/cmp -s "$run_root/rugra.1.stderr" "$run_root/rugra.2.stderr"; then
-  echo "Rugra fixture output is nondeterministic" >&2
+if ! /usr/bin/cmp -s "$run_root/rudra.1.stdout" "$run_root/rudra.2.stdout" || \
+   ! /usr/bin/cmp -s "$run_root/rudra.1.stderr" "$run_root/rudra.2.stderr"; then
+  echo "Rudra fixture output is nondeterministic" >&2
   exit 1
 fi
 
-/usr/bin/diff -u --label ghidra.stdout --label rugra.stdout \
-  "$run_root/ghidra.1.stdout" "$run_root/rugra.1.stdout" >"$run_root/raw.diff" || true
+/usr/bin/diff -u --label ghidra.stdout --label rudra.stdout \
+  "$run_root/ghidra.1.stdout" "$run_root/rudra.1.stdout" >"$run_root/raw.diff" || true
 
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C "$host_python" -I -S - \
   "$metadata" "$run_root/ghidra.1.stdout" \
-  "$run_root/ghidra.1.stderr" "$run_root/rugra.1.stdout" \
-  "$run_root/rugra.1.stderr" "$run_root/raw.diff" <<'PY'
+  "$run_root/ghidra.1.stderr" "$run_root/rudra.1.stdout" \
+  "$run_root/rudra.1.stderr" "$run_root/raw.diff" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -325,8 +325,8 @@ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 checks = {
     "ghidra stdout": (sha(gout), exp["ghidra_stdout_sha256"]),
     "ghidra stderr": (sha(gerr), exp["ghidra_stderr_sha256"]),
-    "rugra stdout": (sha(rout), exp["rugra_stdout_sha256"]),
-    "rugra stderr": (sha(rerr), exp["rugra_stderr_sha256"]),
+    "rudra stdout": (sha(rout), exp["rudra_stdout_sha256"]),
+    "rudra stderr": (sha(rerr), exp["rudra_stderr_sha256"]),
     "raw diff": (sha(rawdiff), exp["raw_diff_sha256"]),
 }
 for label, (actual, expected) in checks.items():
@@ -348,7 +348,7 @@ def record_identity(line):
 if [record_identity(line) for line in rlines] != [record_identity(line) for line in glines]:
     raise SystemExit("record case/stage order drift")
 
-# Every changed rugra record must be covered by a registered known
+# Every changed rudra record must be covered by a registered known
 # difference keyed on its record identity.
 known = {entry["record"]: entry for entry in meta["known_raw_differences"]}
 changed = set()

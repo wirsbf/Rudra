@@ -31,7 +31,7 @@ clean_path=/usr/bin:/bin
 rust_toolchain=nightly-x86_64-unknown-linux-gnu
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
 ghidra_root="$repo_root/ghidra"
 host_cxx_bin=$(/usr/bin/readlink -f /usr/bin/g++)
 host_cc_bin=$(/usr/bin/readlink -f /usr/bin/gcc)
@@ -50,10 +50,10 @@ for required_tool in "$host_cxx_bin" "$host_cc_bin" "$host_ar_bin" \
   fi
 done
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-merge-persistent-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-merge-persistent-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-merge-persistent-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-merge-persistent-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -105,24 +105,24 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   exit 1
 fi
 
-# Freeze both sides: rebuild Ghidra from the locked commit, and build Rugra
+# Freeze both sides: rebuild Ghidra from the locked commit, and build Rudra
 # from the pinned base commit with only the owned merge.rs candidate overlaid
 # (funcdata.rs comes verbatim from the base: the mount is committed there).
-/usr/bin/mkdir -p "$oracle_tmp/ghidra" "$oracle_tmp/rugra"
+/usr/bin/mkdir -p "$oracle_tmp/ghidra" "$oracle_tmp/rudra"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$ghidra_root" archive --format=tar "$oracle_commit" -- \
   Ghidra/Features/Decompiler/src/decompile/cpp | \
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar -x -C "$oracle_tmp/ghidra"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" archive --format=tar "$rugra_base_commit" -- \
+  "$host_git_bin" -C "$repo_root" archive --format=tar "$rudra_base_commit" -- \
   Cargo.toml Cargo.lock build.rs README.md src sleigh_shim benches \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
-  | /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar -x -C "$oracle_tmp/rugra"
-/usr/bin/cp -- "$merge_source" "$oracle_tmp/rugra/src/merge.rs"
+  | /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar -x -C "$oracle_tmp/rudra"
+/usr/bin/cp -- "$merge_source" "$oracle_tmp/rudra/src/merge.rs"
 
-/usr/bin/mkdir -p "$oracle_tmp/rugra/ghidra/Ghidra/Features/Decompiler/src/decompile"
+/usr/bin/mkdir -p "$oracle_tmp/rudra/ghidra/Ghidra/Features/Decompiler/src/decompile"
 /usr/bin/ln -s "$oracle_tmp/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp" \
-  "$oracle_tmp/rugra/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
+  "$oracle_tmp/rudra/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 oracle_cpp="$oracle_tmp/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 cargo_home="$oracle_tmp/cargo-home"
 registry_cache="$HOME/.cargo/registry/cache"
@@ -130,11 +130,11 @@ registry_cache="$HOME/.cargo/registry/cache"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
   "$metadata" "$cpp_fixture" "$rust_fixture" "$merge_source" \
   "$runner_fd_path" "$runner_snapshot_sha" "$ghidra_root" "$oracle_commit" \
-  "$oracle_tag" "$rugra_base_commit" "$oracle_tmp/candidate/Cargo.toml" \
+  "$oracle_tag" "$rudra_base_commit" "$oracle_tmp/candidate/Cargo.toml" \
   "$oracle_tmp/candidate/Cargo.lock" "$oracle_tmp/candidate/build.rs" \
   "$host_cxx_bin" "$host_cargo_bin" "$host_rustc_bin" "$host_make_bin" "$host_git_bin" \
   "$host_python_bin" \
-  "$oracle_tmp/rugra" "$cargo_home" "$registry_cache" <<'PY'
+  "$oracle_tmp/rudra" "$cargo_home" "$registry_cache" <<'PY'
 import hashlib
 import io
 import json
@@ -147,15 +147,15 @@ import tarfile
 (
     metadata_name, cpp_name, rust_name, source_name, runner_name,
     runner_snapshot_sha, ghidra_root_name, oracle_commit, oracle_tag,
-    rugra_base_commit, cargo_toml_name, cargo_lock_name, build_rs_name,
+    rudra_base_commit, cargo_toml_name, cargo_lock_name, build_rs_name,
     host_cxx_bin, host_cargo_bin, host_rustc_bin, host_make_bin, host_git_bin,
     host_python_bin, snapshot_name, cargo_home_name, registry_cache_name,
 ) = sys.argv[1:]
 metadata = json.loads(pathlib.Path(metadata_name).read_text(encoding="utf-8"))
 if metadata["oracle"]["tag"] != oracle_tag or metadata["oracle"]["commit"] != oracle_commit:
     raise SystemExit("metadata oracle mismatch")
-if metadata["rugra_base_commit"] != rugra_base_commit:
-    raise SystemExit("metadata Rugra base commit mismatch")
+if metadata["rugra_base_commit"] != rudra_base_commit:
+    raise SystemExit("metadata Rudra base commit mismatch")
 if metadata["overall_status"] != "MISMATCH: (B2 canonicalization)":
     raise SystemExit("fixture must remain MISMATCH overall until registered residuals close")
 if metadata.get("projection_status") != "MATCH":
@@ -326,8 +326,8 @@ jobs=$(/usr/bin/getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')
   -o "$oracle_tmp/merge_persistent_cpp"
 
 fixture_target="$oracle_tmp/cargo-target"
-for cargo_config in "$oracle_tmp/rugra/.cargo/config" \
-  "$oracle_tmp/rugra/.cargo/config.toml" "$oracle_tmp/.cargo/config" \
+for cargo_config in "$oracle_tmp/rudra/.cargo/config" \
+  "$oracle_tmp/rudra/.cargo/config.toml" "$oracle_tmp/.cargo/config" \
   "$oracle_tmp/.cargo/config.toml" /tmp/.cargo/config /tmp/.cargo/config.toml \
   /.cargo/config /.cargo/config.toml; do
   if [[ -e "$cargo_config" ]]; then
@@ -341,35 +341,35 @@ done
   CARGO_NET_OFFLINE=true CXX="$host_cxx_bin" CC="$host_cc_bin" \
   AR="$host_ar_bin" RUSTC="$host_rustc_bin" \
   "$host_cargo_bin" build --offline --locked --quiet \
-    --manifest-path "$oracle_tmp/rugra/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+    --manifest-path "$oracle_tmp/rudra/Cargo.toml" --lib
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archive=$(/usr/bin/find "$fixture_target/debug/build" \
-  -path '*/out/librugra_sleigh.a' -print -quit)
-if [[ ! -f "$rugra_rlib" || ! -f "$native_archive" ]]; then
-  echo "isolated Rugra build did not produce required libraries" >&2
+  -path '*/out/librudra_sleigh.a' -print -quit)
+if [[ ! -f "$rudra_rlib" || ! -f "$native_archive" ]]; then
+  echo "isolated Rudra build did not produce required libraries" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "$native_archive")
 /usr/bin/env -i HOME="$HOME" RUSTUP_HOME="$HOME/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  -L "native=$native_dir" --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  -L "native=$native_dir" --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/merge_persistent_rust"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/merge_persistent_cpp" >"$oracle_tmp/ghidra.stdout" \
   2>"$oracle_tmp/ghidra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  "$oracle_tmp/merge_persistent_rust" >"$oracle_tmp/rugra.stdout" \
-  2>"$oracle_tmp/rugra.stderr"
+  "$oracle_tmp/merge_persistent_rust" >"$oracle_tmp/rudra.stdout" \
+  2>"$oracle_tmp/rudra.stderr"
 test ! -s "$oracle_tmp/ghidra.stderr"
-test ! -s "$oracle_tmp/rugra.stderr"
+test ! -s "$oracle_tmp/rudra.stderr"
 test "$(wc -l < "$oracle_tmp/ghidra.stdout")" -eq 29
-test "$(wc -l < "$oracle_tmp/rugra.stdout")" -eq 29
+test "$(wc -l < "$oracle_tmp/rudra.stdout")" -eq 29
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
-  "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PYVERDICT'
+  "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PYVERDICT'
 import hashlib
 import json
 import pathlib
@@ -377,22 +377,22 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_out = pathlib.Path(sys.argv[2]).read_bytes()
-rugra_out = pathlib.Path(sys.argv[3]).read_bytes()
+rudra_out = pathlib.Path(sys.argv[3]).read_bytes()
 ghidra_sha = hashlib.sha256(ghidra_out).hexdigest()
-rugra_sha = hashlib.sha256(rugra_out).hexdigest()
+rudra_sha = hashlib.sha256(rudra_out).hexdigest()
 if ghidra_sha != metadata["comparand"]["expected_ghidra_stdout_sha256"]:
     raise SystemExit(f"oracle stdout fingerprint drift: {ghidra_sha}")
-if rugra_sha != metadata["comparand"]["expected_rugra_stdout_sha256"]:
-    raise SystemExit(f"Rugra stdout fingerprint drift: {rugra_sha}")
+if rudra_sha != metadata["comparand"]["expected_rudra_stdout_sha256"]:
+    raise SystemExit(f"Rudra stdout fingerprint drift: {rudra_sha}")
 
 ghidra_lines = ghidra_out.decode().splitlines()
-rugra_lines = rugra_out.decode().splitlines()
-match_lines = sum(1 for g, r in zip(ghidra_lines, rugra_lines) if g == r)
+rudra_lines = rudra_out.decode().splitlines()
+match_lines = sum(1 for g, r in zip(ghidra_lines, rudra_lines) if g == r)
 print(f"covered_projection={match_lines}/29 lines byte-identical")
-for g, r in zip(ghidra_lines, rugra_lines):
+for g, r in zip(ghidra_lines, rudra_lines):
     if g != r:
         print(f"MISMATCH ghidra: {g}")
-        print(f"MISMATCH rugra:  {r}")
+        print(f"MISMATCH rudra:  {r}")
 if match_lines != 29:
     raise SystemExit("fixture regression: projection no longer 29/29")
 PYVERDICT

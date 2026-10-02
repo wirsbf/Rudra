@@ -9,7 +9,7 @@ set -euo pipefail
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler from the pinned source
 # archive (adding one read-only fixture accessor: Funcdata::
-# fixtureAddToCallList over the private qlst), builds the Rugra crate from
+# fixtureAddToCallList over the private qlst), builds the Rudra crate from
 # the working tree, compiles both fixtures, runs them, and requires
 # byte-identical stdout. The 23 records cover:
 #   - w_7180/w_99a8/w_c1d8: the invalid-UTF-8 hugehelp alias shapes —
@@ -40,9 +40,9 @@ cpp_fixture="$repo_root/tests/oracle/cptr_b_1204.cc"
 rust_fixture="$repo_root/tests/oracle/cptr_b_1204.rs"
 doc_coreaction="$repo_root/docs/api/coreaction.md"
 runner="$repo_root/tools/run_cptr_b_oracle.sh"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 bfd_library_dir=$(dirname "$bfd_library")
 # Task-dedicated Cargo dirs: every Cargo invocation below is serialized on
 # the shared build flock and uses these isolated, pre-created directories.
@@ -50,10 +50,10 @@ cargo_target=/home/wirs/.cache/b3-cptrb-fixture-target
 cargo_tmp=/home/wirs/.cache/b3-cptrb-fixture-tmp
 mkdir -p "$cargo_target" "$cargo_tmp"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-cptr-b-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-cptr-b-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-cptr-b-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-cptr-b-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -161,7 +161,7 @@ env -i PATH=/usr/bin:/bin LC_ALL=C TMPDIR="$cargo_tmp" \
   "$bfd_library" -lz -o "$oracle_tmp/cptr_b_1204_cpp"
 
 env -i PATH=/usr/bin:/bin HOME="$HOME" LC_ALL=C \
-  flock -x /tmp/rugra-cargo-build.lock \
+  flock -x /tmp/rudra-cargo-build.lock \
   env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$cargo_target" \
   TMPDIR="$cargo_tmp" \
   timeout 600 cargo build --offline --locked --quiet \
@@ -169,7 +169,7 @@ env -i PATH=/usr/bin:/bin HOME="$HOME" LC_ALL=C \
 env -i PATH=/usr/bin:/bin TMPDIR="$cargo_tmp" \
   rustc --edition=2021 -C opt-level=0 \
   "$snapshot_root/tests/oracle/cptr_b_1204.rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L dependency="$cargo_target/debug/deps" \
   -o "$oracle_tmp/cptr_b_1204_rust"
 
@@ -181,26 +181,26 @@ env -i PATH=/usr/bin:/bin LC_ALL=C LD_LIBRARY_PATH="$bfd_library_dir" \
 ghidra_status=$?
 env -i PATH=/usr/bin:/bin LC_ALL=C \
   "$oracle_tmp/cptr_b_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff"
 diff_status=$?
 set -e
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/rugra.stderr" \
-  "$ghidra_status" "$rugra_status" "$diff_status" <<'PY'
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/rudra.stderr" \
+  "$ghidra_status" "$rudra_status" "$diff_status" <<'PY'
 import json, pathlib, sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-rugra = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
+rudra = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
 stderr = pathlib.Path(sys.argv[4]).read_text(encoding="utf-8")
-ghidra_status, rugra_status, diff_status = (int(v) for v in sys.argv[5:8])
+ghidra_status, rudra_status, diff_status = (int(v) for v in sys.argv[5:8])
 if ghidra_status != 0:
     raise SystemExit(f"locked Ghidra fixture exited {ghidra_status}")
-if rugra_status != 0:
-    raise SystemExit(f"Rugra fixture exited {rugra_status} (stderr: {stderr[:400]})")
+if rudra_status != 0:
+    raise SystemExit(f"Rudra fixture exited {rudra_status} (stderr: {stderr[:400]})")
 if diff_status != 0:
     raise SystemExit("bilateral stdout mismatch")
 records = ghidra.splitlines()

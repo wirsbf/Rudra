@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 rename_vars.py — 从 DWARF debug_info 提取函数局部变量名，
-将 Rugra 输出中的 lVarN/piVarN/local_N 匿名变量替换为源代码变量名。
+将 Rudra 输出中的 lVarN/piVarN/local_N 匿名变量替换为源代码变量名。
 
 映射策略：
 1. 从 DWARF 提取每个函数的 DW_TAG_variable 的 DW_AT_name + DW_OP_fbreg 偏移
-2. Rugra 的 local_XX 对应栈帧偏移（通常 local_XX 的 XX 是 DWARF fbreg 的负偏移的十六进制）
+2. Rudra 的 local_XX 对应栈帧偏移（通常 local_XX 的 XX 是 DWARF fbreg 的负偏移的十六进制）
 3. 直接在输出文本中替换 local_XX → 源代码变量名
 
 用法:
@@ -94,7 +94,7 @@ def rename_in_output(text: str, func_vars: dict) -> str:
                        norm_name.split('_')[0] if '_' in norm_name else norm_name]:
                 if fn in func_vars:
                     for fbreg_off, var_name in func_vars[fn].items():
-                        # Rugra's local_XX uses hex of the absolute offset
+                        # Rudra's local_XX uses hex of the absolute offset
                         # DWARF fbreg is relative to frame base (usually -RBP or -RSP)
                         # local_XX where XX = abs(fbreg) in hex
                         local_name = f"local_{abs(fbreg_off):x}"

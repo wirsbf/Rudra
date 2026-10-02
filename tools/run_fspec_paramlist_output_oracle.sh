@@ -2,16 +2,16 @@
 set -euo pipefail
 
 # FSPEC-PARAMLIST-OUTPUT-DISPATCH-0001 locked differential runner.
-# It rebuilds the Ghidra 12.0.4 oracle, constructs the pinned Rugra
+# It rebuilds the Ghidra 12.0.4 oracle, constructs the pinned Rudra
 # base-plus-overlay snapshot, and verifies the pinned, complete serialized
 # outputs independently.  The production cspec's join_dual_class ModelRule
-# is intentionally not normalized away: the locked oracle and Rugra are
+# is intentionally not normalized away: the locked oracle and Rudra are
 # expected to differ until a separately reviewed ModelRule atom lands.
 
 runner_fd_path="/proc/$$/fd/3"
 if [[ "${BASH_SOURCE[0]}" != "$runner_fd_path" ]]; then
-  bfd_include_arg=${RUDRA_BFD_INCLUDE:-/tmp/rugra-ghidra-bfd-2.38/usr/include}
-  bfd_library_arg=${RUDRA_BFD_LIBRARY:-/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
+  bfd_include_arg=${RUDRA_BFD_INCLUDE:-/tmp/rudra-ghidra-bfd-2.38/usr/include}
+  bfd_library_arg=${RUDRA_BFD_LIBRARY:-/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
   exec 3<"${BASH_SOURCE[0]}"
   exec /usr/bin/env -i PATH=/usr/bin:/bin \
     RUDRA_BFD_INCLUDE="$bfd_include_arg" \
@@ -116,24 +116,24 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   exit 1
 fi
 
-rugra_base_commit=$($host_python -I -c \
+rudra_base_commit=$($host_python -I -c \
   'import json,sys; print(json.load(open(sys.argv[1]))["comparand"]["rugra_base_commit"])' \
   "$metadata")
-rugra_base_tree=$($host_python -I -c \
+rudra_base_tree=$($host_python -I -c \
   'import json,sys; print(json.load(open(sys.argv[1]))["comparand"]["rugra_base_tree"])' \
   "$metadata")
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "pinned Rugra base tree mismatch" >&2
+  "$host_git" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "pinned Rudra base tree mismatch" >&2
   exit 1
 fi
 
 owned_files=("$fspec_rs" "$fspec_doc" "$cpp_fixture" "$rust_fixture" "$metadata" "$runner")
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-fspec-paramlist-output-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-fspec-paramlist-output-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-fspec-paramlist-output-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-fspec-paramlist-output-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -214,12 +214,12 @@ if actual_manifest != document["input_manifest"]["sha256"]:
     raise SystemExit("input manifest hash mismatch")
 PY
 
-snapshot="$oracle_tmp/rugra"
+snapshot="$oracle_tmp/rudra"
 oracle_source="$oracle_tmp/oracle"
 spec_root="$oracle_tmp/specs"
 /usr/bin/mkdir -p "$snapshot" "$oracle_source" "$spec_root"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git" -C "$repo_root" archive "$rugra_base_commit" | \
+  "$host_git" -C "$repo_root" archive "$rudra_base_commit" | \
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar -xf - -C "$snapshot"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git" -C "$ghidra_root" archive "$oracle_commit" \
@@ -245,15 +245,15 @@ done
 for relative in sleigh_specs/x86.ldefs sleigh_specs/x86-64.pspec \
   sleigh_specs/x86-64-gcc.cspec sleigh_specs/x86-64.sla; do
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-    "$host_git" -C "$repo_root" show "$rugra_base_commit:$relative" \
+    "$host_git" -C "$repo_root" show "$rudra_base_commit:$relative" \
     >"$spec_root/${relative##*/}"
 done
 binary="$oracle_tmp/curl"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git" -C "$repo_root" show "$rugra_base_commit:examples/curl" >"$binary"
+  "$host_git" -C "$repo_root" show "$rudra_base_commit:examples/curl" >"$binary"
 /usr/bin/chmod 0700 "$binary"
 
-$host_python -I - "$metadata" "$repo_root" "$rugra_base_commit" \
+$host_python -I - "$metadata" "$repo_root" "$rudra_base_commit" \
   "$spec_root" "$binary" "$snapshot" <<'PY'
 import hashlib
 import json
@@ -362,32 +362,32 @@ fi
 
 fixture_target=/home/wirs/.cache/a55-fspecpin-target/fspec-paramlist-output
 /usr/bin/mkdir -p "$fixture_target"
-if ! /usr/bin/flock /tmp/rugra-cargo-build.lock -c \
+if ! /usr/bin/flock /tmp/rudra-cargo-build.lock -c \
   "CARGO_HOME='$user_home/.cargo' CARGO_TARGET_DIR='$fixture_target' CARGO_NET_OFFLINE=true CXX='$host_cxx' CC='$host_cc' AR='$host_ar' RUSTC='$host_rustc' '$host_cargo' build --manifest-path '$snapshot/Cargo.toml' --lib --locked --offline --quiet" \
   >"$oracle_tmp/cargo.stdout" 2>"$oracle_tmp/cargo.stderr"; then
   /usr/bin/cat "$oracle_tmp/cargo.stdout" >&2
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rlib="$fixture_target/debug/librugra.rlib"
+rlib="$fixture_target/debug/librudra.rlib"
 native_archive=$(/usr/bin/find "$fixture_target/debug/build" \
-  -path '*/out/librugra_sleigh.a' -type f -print -quit)
+  -path '*/out/librudra_sleigh.a' -type f -print -quit)
 if [[ ! -f "$rlib" || -z "$native_archive" || ! -f "$native_archive" ]]; then
-  echo "fresh Rugra link inputs are missing" >&2
+  echo "fresh Rudra link inputs are missing" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "$native_archive")
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$host_rustc" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m "$rust_fixture" \
   -o "$oracle_tmp/fspec_paramlist_output_1204_rust"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/fspec_paramlist_output_1204_rust" \
   "$spec_root/x86-64-gcc.cspec" "$spec_root/x86-64.sla" \
-  >"$oracle_tmp/rugra.stdout"
-if /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+  >"$oracle_tmp/rudra.stdout"
+if /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
      >"$oracle_tmp/observations.diff"; then
   echo "declared MISMATCH unexpectedly became byte-identical" >&2
   exit 1
@@ -400,7 +400,7 @@ else
 fi
 
 $host_python -I - "$metadata" "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/observations.diff" <<'PY'
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/observations.diff" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -408,33 +408,33 @@ import sys
 
 document = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
 diff = pathlib.Path(sys.argv[4]).read_bytes()
 expected = document["expected_results"]
-rugra_sha = hashlib.sha256(rugra).hexdigest()
-if rugra_sha != expected["rugra_stdout_sha256"]:
+rudra_sha = hashlib.sha256(rudra).hexdigest()
+if rudra_sha != expected["rudra_stdout_sha256"]:
     raise SystemExit(
-        "Rugra stdout hash mismatch: "
-        f"expected={expected['rugra_stdout_sha256']} actual={rugra_sha}"
+        "Rudra stdout hash mismatch: "
+        f"expected={expected['rudra_stdout_sha256']} actual={rudra_sha}"
     )
-if expected["ghidra_stdout_sha256"] == expected["rugra_stdout_sha256"]:
+if expected["ghidra_stdout_sha256"] == expected["rudra_stdout_sha256"]:
     raise SystemExit("metadata does not declare distinct side observations")
 if hashlib.sha256(ghidra).hexdigest() != expected["ghidra_stdout_sha256"]:
     raise SystemExit("Ghidra stdout changed between runner stages")
-if not rugra.startswith(b"SCHEMA|1\nORACLE|e40ed13014025f82488b1f8f7bca566894ac376b\n"):
-    raise SystemExit("invalid Rugra fixture envelope")
-if not rugra.endswith(b"DONE\n"):
-    raise SystemExit("incomplete Rugra fixture output")
-if b"OUTPUT_STATE|auto_killed_by_call=1\n" not in rugra:
-    raise SystemExit("Rugra ModelRule residual observation changed")
-if len(rugra.splitlines()) != expected["stdout_lines"]:
-    raise SystemExit("Rugra stdout line count mismatch")
+if not rudra.startswith(b"SCHEMA|1\nORACLE|e40ed13014025f82488b1f8f7bca566894ac376b\n"):
+    raise SystemExit("invalid Rudra fixture envelope")
+if not rudra.endswith(b"DONE\n"):
+    raise SystemExit("incomplete Rudra fixture output")
+if b"OUTPUT_STATE|auto_killed_by_call=1\n" not in rudra:
+    raise SystemExit("Rudra ModelRule residual observation changed")
+if len(rudra.splitlines()) != expected["stdout_lines"]:
+    raise SystemExit("Rudra stdout line count mismatch")
 if not diff:
     raise SystemExit("declared MISMATCH produced an empty diff")
 
 case_order = [case["id"] for case in document["input_manifest"]["cases"]
               if "active" in case]
-for side, payload in (("Ghidra", ghidra), ("Rugra", rugra)):
+for side, payload in (("Ghidra", ghidra), ("Rudra", rudra)):
     actual = [line.removeprefix(b"CASE|").decode("ascii")
               for line in payload.splitlines() if line.startswith(b"CASE|")]
     if actual != case_order:
@@ -444,5 +444,5 @@ PY
 /usr/bin/sha256sum "${owned_files[@]}" >"$oracle_tmp/owned.after"
 /usr/bin/diff -u "$oracle_tmp/owned.before" "$oracle_tmp/owned.after"
 /usr/bin/cmp -s "$runner_fd_path" "$runner"
-/usr/bin/cat "$oracle_tmp/rugra.stdout"
+/usr/bin/cat "$oracle_tmp/rudra.stdout"
 /usr/bin/printf '%s\n' 'fspec_paramlist_output_1204: DECLARED_MISMATCH_REPRODUCED covered=MISMATCH overall=MISMATCH'

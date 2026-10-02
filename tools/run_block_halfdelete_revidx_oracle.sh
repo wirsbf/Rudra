@@ -33,16 +33,16 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=8d917bfe76fa53a0ead09b43e4ce1eddd1c90ce5
-rugra_base_tree=6d1749977d38e63d6540a80917379b9777b1f94c
+rudra_base_commit=8d917bfe76fa53a0ead09b43e4ce1eddd1c90ce5
+rudra_base_tree=6d1749977d38e63d6540a80917379b9777b1f94c
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/block_halfdelete_revidx_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/block_halfdelete_revidx_1204.cc"
 rust_fixture="$repo_root/tests/oracle/block_halfdelete_revidx_1204.rs"
 block_rs="$repo_root/src/block.rs"
 block_doc="$repo_root/docs/api/block.md"
-cargo_target=/tmp/rugra-target-block-halfdelete
-cargo_lock=/tmp/rugra-cargo-build.lock
+cargo_target=/tmp/rudra-target-block-halfdelete
+cargo_lock=/tmp/rudra-cargo-build.lock
 
 user_home=$(/usr/bin/getent passwd "$(/usr/bin/id -u)" | /usr/bin/awk -F: 'NR == 1 { print $6 }')
 if [[ -z "$user_home" || ! -d "$user_home" ]]; then
@@ -89,12 +89,12 @@ if [[ "$actual_commit" != "$oracle_commit" || "$tag_commit" != "$oracle_commit" 
   exit 1
 fi
 actual_base_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || \
-      "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || \
+      "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
@@ -117,7 +117,7 @@ host_platform=$(/usr/bin/uname -srm)
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
   "$metadata" "$cpp_fixture" "$rust_fixture" "$block_rs" "$block_doc" \
   "$runner_fd_path" "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
   "$host_cxx" "$host_rustc" "$host_cargo" "$host_platform" <<'PY'
 import hashlib
 import json
@@ -126,8 +126,8 @@ import sys
 
 (
     metadata_name, cpp_name, rust_name, block_name, doc_name, runner_name,
-    oracle_commit, oracle_tag, cpp_tree, makefile_blob, rugra_base_commit,
-    rugra_base_tree, host_cxx, host_rustc, host_cargo, host_platform,
+    oracle_commit, oracle_tag, cpp_tree, makefile_blob, rudra_base_commit,
+    rudra_base_tree, host_cxx, host_rustc, host_cargo, host_platform,
 ) = sys.argv[1:]
 metadata = json.loads(pathlib.Path(metadata_name).read_text(encoding="utf-8"))
 
@@ -144,10 +144,10 @@ if metadata["covered_projection_status"] != "MATCH":
     raise SystemExit("covered projection is not MATCH")
 if not metadata["overall_status"].startswith("MATCH:"):
     raise SystemExit("overall status is not MATCH")
-if metadata["comparand"].get("rugra_base_commit") != rugra_base_commit:
-    raise SystemExit("Rugra base commit metadata mismatch")
-if metadata["comparand"].get("rugra_base_tree") != rugra_base_tree:
-    raise SystemExit("Rugra base tree metadata mismatch")
+if metadata["comparand"].get("rugra_base_commit") != rudra_base_commit:
+    raise SystemExit("Rudra base commit metadata mismatch")
+if metadata["comparand"].get("rugra_base_tree") != rudra_base_tree:
+    raise SystemExit("Rudra base tree metadata mismatch")
 
 canonical_input = json.dumps(
     metadata["input"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -180,9 +180,9 @@ if expected_host != actual_host:
     raise SystemExit(f"host identity mismatch: {actual_host}")
 PY
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-block-halfdelete-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-block-halfdelete-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-block-halfdelete-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-block-halfdelete-1204.?????? ]]; then
     echo "refusing unexpected cleanup path: $oracle_tmp" >&2
     return 1
   fi
@@ -202,14 +202,14 @@ trap 'exit 143' TERM
 owned=("$cpp_fixture" "$rust_fixture" "$block_rs" "$block_doc" "$metadata" "$runner")
 /usr/bin/sha256sum "${owned[@]}" >"$oracle_tmp/owned.before"
 
-/usr/bin/mkdir -p "$oracle_tmp/rugra"
+/usr/bin/mkdir -p "$oracle_tmp/rudra"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" archive --format=tar \
-  --output="$oracle_tmp/rugra-base.tar" "$rugra_base_commit"
+  --output="$oracle_tmp/rudra-base.tar" "$rudra_base_commit"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar \
-  -xf "$oracle_tmp/rugra-base.tar" -C "$oracle_tmp/rugra"
-/usr/bin/cp -- "$block_rs" "$oracle_tmp/rugra/src/block.rs"
-/usr/bin/ln -s "$ghidra_root" "$oracle_tmp/rugra/ghidra"
+  -xf "$oracle_tmp/rudra-base.tar" -C "$oracle_tmp/rudra"
+/usr/bin/cp -- "$block_rs" "$oracle_tmp/rudra/src/block.rs"
+/usr/bin/ln -s "$ghidra_root" "$oracle_tmp/rudra/ghidra"
 
 /usr/bin/mkdir -p "$oracle_tmp/source"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
@@ -269,23 +269,23 @@ if ! /usr/bin/flock "$cargo_lock" /usr/bin/env -i \
   HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   CARGO_TARGET_DIR="$cargo_target" CARGO_INCREMENTAL=0 \
   "$host_cargo_bin" build --offline --locked --quiet \
-  --manifest-path "$oracle_tmp/rugra/Cargo.toml" --lib \
+  --manifest-path "$oracle_tmp/rudra/Cargo.toml" --lib \
   >"$oracle_tmp/cargo.stdout" 2>"$oracle_tmp/cargo.stderr"; then
   /usr/bin/cat "$oracle_tmp/cargo.stdout" >&2
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$cargo_target/debug/librugra.rlib"
+rudra_rlib="$cargo_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do
   build_output="$(/usr/bin/dirname "$(/usr/bin/dirname "$archive")")/output"
   if [[ -f "$build_output" ]] && /usr/bin/grep -Fqx \
-    "cargo:rerun-if-changed=$oracle_tmp/rugra/sleigh_shim" "$build_output"; then
+    "cargo:rerun-if-changed=$oracle_tmp/rudra/sleigh_shim" "$build_output"; then
     native_archives+=("$archive")
   fi
 done < <(/usr/bin/find "$cargo_target/debug/build" \
-  -path '*/out/librugra_sleigh.a' -type f)
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+  -path '*/out/librudra_sleigh.a' -type f)
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
   echo "missing or ambiguous Rust link inputs" >&2
   exit 1
 fi
@@ -294,7 +294,7 @@ rust_binary="$oracle_tmp/block_halfdelete_revidx_1204_rust"
 if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$cargo_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m "$rust_fixture" -o "$rust_binary" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -302,14 +302,14 @@ if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   exit 1
 fi
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 "$rust_binary" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture emitted runtime diagnostics" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture emitted runtime diagnostics" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-if ! /usr/bin/diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"; then
+if ! /usr/bin/diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"; then
   exit 1
 fi
 

@@ -6,12 +6,12 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=4356e6d5ea31a47859961355794ccfec1cb738bb
-rugra_base_tree=$(git -C "$repo_root" rev-parse "${rugra_base_commit}^{tree}")
-rugra_base_src_tree=$(git -C "$repo_root" rev-parse "${rugra_base_commit}:src")
-rugra_cargo_toml_blob=$(git -C "$repo_root" rev-parse "${rugra_base_commit}:Cargo.toml")
-rugra_cargo_lock_blob=$(git -C "$repo_root" rev-parse "${rugra_base_commit}:Cargo.lock")
-rugra_build_rs_blob=$(git -C "$repo_root" rev-parse "${rugra_base_commit}:build.rs")
+rudra_base_commit=4356e6d5ea31a47859961355794ccfec1cb738bb
+rudra_base_tree=$(git -C "$repo_root" rev-parse "${rudra_base_commit}^{tree}")
+rudra_base_src_tree=$(git -C "$repo_root" rev-parse "${rudra_base_commit}:src")
+rudra_cargo_toml_blob=$(git -C "$repo_root" rev-parse "${rudra_base_commit}:Cargo.toml")
+rudra_cargo_lock_blob=$(git -C "$repo_root" rev-parse "${rudra_base_commit}:Cargo.lock")
+rudra_build_rs_blob=$(git -C "$repo_root" rev-parse "${rudra_base_commit}:build.rs")
 ghidra_root="$repo_root/ghidra"
 cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 spec_root="$repo_root/sleigh_specs"
@@ -20,14 +20,14 @@ cpp_fixture="$repo_root/tests/oracle/flow_overlap_hlt_1204.cc"
 rust_fixture="$repo_root/tests/oracle/flow_overlap_hlt_1204.rs"
 runner="$repo_root/tools/run_flow_overlap_hlt_oracle.sh"
 
-# No src overlays: the seam adjudication found Rugra's flow code already
+# No src overlays: the seam adjudication found Rudra's flow code already
 # matches the locked oracle in both data environments (unmarked fall-through
 # AND analyzer-marked halt); the fixture pins that parity without src edits.
 overlay_paths=()
 
-run_cache=${RUDRA_FLOW_OVERLAP_HLT_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-overlap-hlt-1204}
-cargo_target=${RUDRA_FLOW_OVERLAP_HLT_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-overlap-hlt-target}
-cargo_tmp=${RUDRA_FLOW_OVERLAP_HLT_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rugra-flow-overlap-hlt-tmp}
+run_cache=${RUDRA_FLOW_OVERLAP_HLT_RUN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-flow-overlap-hlt-1204}
+cargo_target=${RUDRA_FLOW_OVERLAP_HLT_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-flow-overlap-hlt-target}
+cargo_tmp=${RUDRA_FLOW_OVERLAP_HLT_TMP_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rudra-flow-overlap-hlt-tmp}
 mkdir -p "$run_cache" "$cargo_target" "$cargo_tmp"
 oracle_tmp=$(mktemp -d "$run_cache/run.XXXXXX")
 cleanup() {
@@ -84,7 +84,7 @@ bfd_header_sha256=c8c9c20823ebd8d427d9f91dd642b82b263fca2245a8ef4eb34f0de0cde257
 bfd_library_sha256=f9ca64d035c483bbfac32ca550074c20398ae2f0bb84dd989059dadb9cea8a1e
 bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" ]]; then
-  for candidate in /tmp/rugra-ghidra-bfd-2.38/usr/include /usr/include; do
+  for candidate in /tmp/rudra-ghidra-bfd-2.38/usr/include /usr/include; do
     if [[ -f "$candidate/bfd.h" ]] && \
         [[ "$(sha256sum "$candidate/bfd.h" | awk '{print $1}')" == "$bfd_header_sha256" ]]; then
       bfd_include=$candidate
@@ -95,7 +95,7 @@ fi
 bfd_library=${RUDRA_BFD_LIBRARY:-}
 if [[ -z "$bfd_library" ]]; then
   for candidate in \
-    /tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \
+    /tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \
     /usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so; do
     if [[ -f "$candidate" ]] && \
         [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$bfd_library_sha256" ]]; then
@@ -114,9 +114,9 @@ runner_sha=$(sha256sum "$runner" | awk '{print $1}')
 python3 -I -S - "$repo_root" "$metadata" "$cpp_fixture" "$rust_fixture" \
   "$runner_sha" \
   "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
-  "$rugra_base_src_tree" "$rugra_cargo_toml_blob" \
-  "$rugra_cargo_lock_blob" "$rugra_build_rs_blob" \
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
+  "$rudra_base_src_tree" "$rudra_cargo_toml_blob" \
+  "$rudra_cargo_lock_blob" "$rudra_build_rs_blob" \
   "${overlay_paths[@]}" <<'PY'
 import hashlib
 import json
@@ -309,14 +309,14 @@ if [[ -z "$fixture_text_base" || -z "$plain_callee_sym" || -z "$marked_callee_sy
   exit 1
 fi
 
-# ---- Rugra side: pinned base snapshot (no src overlays) --------------------
+# ---- Rudra side: pinned base snapshot (no src overlays) --------------------
 snapshot_root="$oracle_tmp/workspace"
 mkdir -p "$snapshot_root/tests/oracle" "$snapshot_root/tools"
 git -C "$repo_root" archive --format=tar \
-  --output="$oracle_tmp/rugra-source.tar" "$rugra_base_commit" \
+  --output="$oracle_tmp/rudra-source.tar" "$rudra_base_commit" \
   Cargo.toml Cargo.lock build.rs README.md benches/decompile_bench.rs \
   src sleigh_shim
-tar -xf "$oracle_tmp/rugra-source.tar" -C "$snapshot_root"
+tar -xf "$oracle_tmp/rudra-source.tar" -C "$snapshot_root"
 for relative in "${overlay_paths[@]}"; do
   cp "$repo_root/$relative" "$snapshot_root/$relative"
 done
@@ -330,7 +330,7 @@ if [[ -e "$snapshot_root/ghidra" || -L "$snapshot_root/ghidra" ]]; then
 fi
 ln -s "$ghidra_root" "$snapshot_root/ghidra"
 
-if ! /usr/bin/flock -x /tmp/rugra-flow-overlap-hlt-cargo.lock env \
+if ! /usr/bin/flock -x /tmp/rudra-flow-overlap-hlt-cargo.lock env \
   CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$cargo_target" TMPDIR="$cargo_tmp" \
   timeout 600 cargo build --offline --locked --quiet \
   --manifest-path "$snapshot_root/Cargo.toml" --lib; then
@@ -338,7 +338,7 @@ if ! /usr/bin/flock -x /tmp/rugra-flow-overlap-hlt-cargo.lock env \
 fi
 TMPDIR="$cargo_tmp" rustc --edition=2021 -O \
   "$snapshot_root/tests/oracle/flow_overlap_hlt_1204.rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L "dependency=$cargo_target/debug/deps" \
   -o "$oracle_tmp/flow_overlap_hlt_rust"
 
@@ -351,21 +351,21 @@ TMPDIR="$cargo_tmp" rustc --edition=2021 -O \
     "$plain_user_addr" "$plain_user_size" \
     "$marked_user_addr" "$marked_user_size" \
     "$plain_callee_sym" "$marked_callee_sym" \
-    >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+    >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 )
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture produced unexpected stderr" >&2
-  cat "$oracle_tmp/rugra.stderr" >&2
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture produced unexpected stderr" >&2
+  cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
 set +e
-diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff"
+diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff"
 diff_status=$?
 set -e
 
-python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
   "$oracle_tmp/raw.diff" "$diff_status" <<'PY'
 import hashlib
 import json
@@ -374,13 +374,13 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_stdout = pathlib.Path(sys.argv[2]).read_bytes()
-rugra_stdout = pathlib.Path(sys.argv[3]).read_bytes()
+rudra_stdout = pathlib.Path(sys.argv[3]).read_bytes()
 raw_diff = pathlib.Path(sys.argv[4]).read_bytes()
 diff_status = int(sys.argv[5])
 expected = metadata["expected_results"]
 for key, actual in (
     ("ghidra_stdout_sha256", hashlib.sha256(ghidra_stdout).hexdigest()),
-    ("rugra_stdout_sha256", hashlib.sha256(rugra_stdout).hexdigest()),
+    ("rudra_stdout_sha256", hashlib.sha256(rudra_stdout).hexdigest()),
     ("raw_diff_sha256", hashlib.sha256(raw_diff).hexdigest()),
 ):
     if actual != expected[key]:

@@ -40,20 +40,20 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_source_commit=8ac3f7f0283beed06e7c33c0ff36b7a161232d06
+rudra_source_commit=8ac3f7f0283beed06e7c33c0ff36b7a161232d06
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/dynhash_anchor_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/dynhash_anchor_1204.cc"
 rust_fixture="$repo_root/tests/oracle/dynhash_anchor_1204.rs"
 runner="$repo_root/tools/run_dynhash_anchor_oracle.sh"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
-oracle_tmp=$(mktemp -d /tmp/rugra-dynhash-anchor-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-dynhash-anchor-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-dynhash-anchor-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-dynhash-anchor-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -92,7 +92,7 @@ fi
 runner_sha=$(sha256sum "$runner" | awk '{print $1}')
 
 python3 -I -S - "$repo_root" "$oracle_tmp" "$metadata" "$cpp_fixture" \
-  "$rust_fixture" "$runner_sha" "$rugra_source_commit" \
+  "$rust_fixture" "$runner_sha" "$rudra_source_commit" \
   "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" "$oracle_language_tree" \
   "$oracle_makefile_blob" "$bfd_header" "$bfd_library" <<'PY'
 import hashlib
@@ -108,7 +108,7 @@ import sys
     cpp_fixture_raw,
     rust_fixture_raw,
     runner_sha,
-    rugra_source_commit,
+    rudra_source_commit,
     oracle_commit,
     oracle_tag,
     cpp_tree,
@@ -134,11 +134,11 @@ def git_blob(spec):
         ["git", "-C", str(repo_root), "cat-file", "blob", spec]
     )
 
-# --- snapshot the pinned Rugra crate closure -------------------------------
+# --- snapshot the pinned Rudra crate closure -------------------------------
 def base_source_files(directory):
     listing = subprocess.check_output(
         ["git", "-C", str(repo_root), "ls-tree", "-r", "--name-only",
-         rugra_source_commit, "--", directory],
+         rudra_source_commit, "--", directory],
         text=True,
     ).splitlines()
     return [pathlib.Path(line) for line in listing if line]
@@ -150,10 +150,10 @@ crate_files = [
   + base_source_files("benches")
 crate_files = sorted(set(crate_files), key=lambda item: item.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-dynhash-anchor-base-v1\0")
-crate_hasher.update(rugra_source_commit.encode())
+crate_hasher.update(b"rudra-dynhash-anchor-base-v1\0")
+crate_hasher.update(rudra_source_commit.encode())
 for relative in crate_files:
-    data = git_blob(f"{rugra_source_commit}:{relative.as_posix()}")
+    data = git_blob(f"{rudra_source_commit}:{relative.as_posix()}")
     destination = snapshot / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
@@ -207,7 +207,7 @@ for label, actual, expected in (
 require("architecture", metadata["architecture"], "x86:LE:64:default")
 require("compiler id", metadata["compiler_spec"]["id"], "gcc")
 source = metadata["rugra_source"]
-require("source commit", source["base_commit"], rugra_source_commit)
+require("source commit", source["base_commit"], rudra_source_commit)
 for relative, key in (
     ("src/dynamic.rs", "base_dynamic_blob"),
     ("Cargo.toml", "cargo_toml_blob"),
@@ -215,7 +215,7 @@ for relative, key in (
 ):
     oid = subprocess.check_output(
         ["git", "-C", str(repo_root), "rev-parse",
-         f"{rugra_source_commit}:{relative}"], text=True
+         f"{rudra_source_commit}:{relative}"], text=True
     ).strip()
     require(f"source {key}", source[key], oid)
 
@@ -229,7 +229,7 @@ observed = {
 require(
     "crate hash scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-dynhash-anchor-base-v1 plus base commit and sorted length-prefixed paths and contents",
+    "sha256 of rudra-dynhash-anchor-base-v1 plus base commit and sorted length-prefixed paths and contents",
 )
 for key, actual in observed.items():
     require(key, actual, comparand[key])
@@ -248,14 +248,14 @@ canonical = json.dumps(
 ).encode("utf-8")
 require("input manifest sha256", sha256(canonical), manifest["sha256"])
 
-binary = git_blob(f"{rugra_source_commit}:examples/curl")
+binary = git_blob(f"{rudra_source_commit}:examples/curl")
 for key, relative in (
     ("sla", "sleigh_specs/x86-64.sla"),
     ("processor_spec", "sleigh_specs/x86-64.pspec"),
     ("compiler_spec", "sleigh_specs/x86-64-gcc.cspec"),
     ("language_definitions", "sleigh_specs/x86.ldefs"),
 ):
-    data = git_blob(f"{rugra_source_commit}:{relative}")
+    data = git_blob(f"{rudra_source_commit}:{relative}")
     destination = snapshot / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
@@ -328,7 +328,7 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   nice -n 10 cargo build --offline --locked --quiet \
   --manifest-path "$oracle_tmp/workspace/Cargo.toml" --lib
 rustc --edition=2021 "$oracle_tmp/workspace/tests/oracle/dynhash_anchor_1204.rs" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/dynhash_anchor_1204_rust"
 
@@ -339,12 +339,12 @@ cd "$oracle_tmp/workspace"
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/dynhash_anchor_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
 cd - >/dev/null
 set -e
 
-python3 -I -S - "$metadata" "$oracle_tmp" "$ghidra_status" "$rugra_status" <<'PY'
+python3 -I -S - "$metadata" "$oracle_tmp" "$ghidra_status" "$rudra_status" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -353,36 +353,36 @@ import sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_bytes())
 oracle_tmp = pathlib.Path(sys.argv[2])
 ghidra_status = int(sys.argv[3])
-rugra_status = int(sys.argv[4])
+rudra_status = int(sys.argv[4])
 
 expected = metadata["expected_results"]
 for key, name in (
     ("ghidra_stdout_sha256", "ghidra.stdout"),
     ("ghidra_stderr_sha256", "ghidra.stderr"),
-    ("rugra_stdout_sha256", "rugra.stdout"),
-    ("rugra_stderr_sha256", "rugra.stderr"),
+    ("rudra_stdout_sha256", "rudra.stdout"),
+    ("rudra_stderr_sha256", "rudra.stderr"),
 ):
     actual = hashlib.sha256((oracle_tmp / name).read_bytes()).hexdigest()
     if actual != expected[key]:
         raise SystemExit(f"{key} mismatch: expected={expected[key]} actual={actual}")
 for key, actual in (
     ("ghidra_exit_code", ghidra_status),
-    ("rugra_exit_code", rugra_status),
+    ("rugra_exit_code", rudra_status),
     ("diff_exit_code", 0 if
-        (oracle_tmp / "ghidra.stdout").read_bytes() == (oracle_tmp / "rugra.stdout").read_bytes()
+        (oracle_tmp / "ghidra.stdout").read_bytes() == (oracle_tmp / "rudra.stdout").read_bytes()
         else 1),
 ):
     if actual != expected[key]:
         raise SystemExit(f"{key} mismatch")
 
 ghidra_lines = (oracle_tmp / "ghidra.stdout").read_text().splitlines()
-rugra_lines = (oracle_tmp / "rugra.stdout").read_text().splitlines()
+rudra_lines = (oracle_tmp / "rudra.stdout").read_text().splitlines()
 if len(ghidra_lines) != expected["record_count"]:
     raise SystemExit(
         f"ghidra record count mismatch: {len(ghidra_lines)} != {expected['record_count']}")
-if len(rugra_lines) != expected["record_count"]:
+if len(rudra_lines) != expected["record_count"]:
     raise SystemExit(
-        f"rugra record count mismatch: {len(rugra_lines)} != {expected['record_count']}")
+        f"rudra record count mismatch: {len(rudra_lines)} != {expected['record_count']}")
 
 # Observation order must follow the manifest case order exactly.
 expected_case_order = [case["id"] for case in metadata["input_manifest"]["cases"]]
@@ -397,21 +397,21 @@ def case_order(lines):
     return seen
 if case_order(ghidra_lines) != expected_case_order:
     raise SystemExit(f"ghidra case order drift: {case_order(ghidra_lines)}")
-if case_order(rugra_lines) != expected_case_order:
-    raise SystemExit(f"rugra case order drift: {case_order(rugra_lines)}")
+if case_order(rudra_lines) != expected_case_order:
+    raise SystemExit(f"rudra case order drift: {case_order(rudra_lines)}")
 
 # Divergence budget: ZERO (fixture minted after the fix).  Any differing
 # line pair is unexplained drift.
 diff_lines = [
     (g, r)
-    for g, r in zip(ghidra_lines, rugra_lines)
+    for g, r in zip(ghidra_lines, rudra_lines)
     if g != r
 ]
 if len(diff_lines) != expected["divergence_line_count"]:
     raise SystemExit(
         f"divergence budget exceeded: {len(diff_lines)} != "
         f"{expected['divergence_line_count']} (unexplained drift)")
-if (oracle_tmp / "rugra.stderr").stat().st_size != 0:
+if (oracle_tmp / "rudra.stderr").stat().st_size != 0:
     raise SystemExit("Rust fixture stderr must be empty")
 
 print("record verdicts:")

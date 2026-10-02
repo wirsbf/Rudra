@@ -14,7 +14,7 @@ runner="$repo_root/tools/run_funcproto_effect_model_oracle.sh"
 fspec_rs="$repo_root/src/fspec.rs"
 spec_root="$repo_root/sleigh_specs"
 binary="$repo_root/examples/curl"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 ghidra_only=false
 
@@ -44,15 +44,15 @@ if [[ -n "$(git -C "$ghidra_root" status --porcelain --untracked-files=no -- Ghi
   exit 1
 fi
 
-rugra_base_commit=$(python3 -I -c \
+rudra_base_commit=$(python3 -I -c \
   'import json,sys; print(json.load(open(sys.argv[1]))["comparand"]["rugra_base_commit"])' \
   "$metadata")
-rugra_base_tree=$(python3 -I -c \
+rudra_base_tree=$(python3 -I -c \
   'import json,sys; print(json.load(open(sys.argv[1]))["comparand"]["rugra_base_tree"])' \
   "$metadata")
-actual_rugra_base_tree=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_rugra_base_tree" != "$rugra_base_tree" ]]; then
-  echo "locked Rugra base tree mismatch" >&2
+actual_rudra_base_tree=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_rudra_base_tree" != "$rudra_base_tree" ]]; then
+  echo "locked Rudra base tree mismatch" >&2
   exit 1
 fi
 
@@ -148,26 +148,26 @@ if [[ "$actual_archive_sha" != "$expected_archive_sha" ]]; then
   exit 1
 fi
 
-oracle_tmp=$(mktemp -d /tmp/rugra-funcproto-effect-model-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-funcproto-effect-model-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-funcproto-effect-model-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-funcproto-effect-model-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2 ;;
   esac
 }
 trap cleanup EXIT HUP INT TERM
 
-rugra_overlay="$oracle_tmp/rugra-overlay"
-mkdir "$rugra_overlay"
-git -C "$repo_root" archive "$rugra_base_commit" | tar -x -C "$rugra_overlay"
-cp "$fspec_rs" "$rugra_overlay/src/fspec.rs"
-mkdir -p "$rugra_overlay/ghidra"
+rudra_overlay="$oracle_tmp/rudra-overlay"
+mkdir "$rudra_overlay"
+git -C "$repo_root" archive "$rudra_base_commit" | tar -x -C "$rudra_overlay"
+cp "$fspec_rs" "$rudra_overlay/src/fspec.rs"
+mkdir -p "$rudra_overlay/ghidra"
 git -C "$ghidra_root" archive "$oracle_commit" \
-  Ghidra/Features/Decompiler/src/decompile/cpp | tar -x -C "$rugra_overlay/ghidra"
+  Ghidra/Features/Decompiler/src/decompile/cpp | tar -x -C "$rudra_overlay/ghidra"
 
-python3 -I - "$metadata" "$rugra_overlay/Cargo.toml" \
-  "$rugra_overlay/Cargo.lock" "$rugra_overlay/build.rs" \
-  "$rugra_overlay/src/fspec.rs" <<'PY'
+python3 -I - "$metadata" "$rudra_overlay/Cargo.toml" \
+  "$rudra_overlay/Cargo.lock" "$rudra_overlay/build.rs" \
+  "$rudra_overlay/src/fspec.rs" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -235,7 +235,7 @@ if $ghidra_only; then
 fi
 
 if ! CARGO_TARGET_DIR="$oracle_tmp/cargo-target" cargo build \
-  --manifest-path "$rugra_overlay/Cargo.toml" --lib --locked --offline --quiet \
+  --manifest-path "$rudra_overlay/Cargo.toml" --lib --locked --offline --quiet \
   >"$oracle_tmp/cargo.stdout" 2>"$oracle_tmp/cargo.stderr"; then
   cat "$oracle_tmp/cargo.stdout" >&2
   cat "$oracle_tmp/cargo.stderr" >&2
@@ -243,19 +243,19 @@ if ! CARGO_TARGET_DIR="$oracle_tmp/cargo-target" cargo build \
 fi
 cargo_target="$oracle_tmp/cargo-target"
 set +o pipefail
-rlib=$(ls -t "$cargo_target"/debug/deps/librugra-*.rlib | head -1)
-native_archive=$(ls -t "$cargo_target"/debug/build/rugra-*/out/librugra_sleigh.a | head -1)
+rlib=$(ls -t "$cargo_target"/debug/deps/librudra-*.rlib | head -1)
+native_archive=$(ls -t "$cargo_target"/debug/build/rudra-*/out/librudra_sleigh.a | head -1)
 set -o pipefail
 if [[ ! -f "$rlib" || ! -f "$native_archive" ]]; then
-  echo "missing freshly built Rugra link inputs" >&2
+  echo "missing freshly built Rudra link inputs" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$cargo_target/debug/deps" \
-  -L "native=$(dirname "$native_archive")" --extern "rugra=$rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  -L "native=$(dirname "$native_archive")" --extern "rudra=$rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/funcproto_effect_model_1204_rust"
 
-"$oracle_tmp/funcproto_effect_model_1204_rust" >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+"$oracle_tmp/funcproto_effect_model_1204_rust" >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 cat "$oracle_tmp/ghidra.stdout"
 printf 'funcproto_effect_model_1204: MATCH\n'

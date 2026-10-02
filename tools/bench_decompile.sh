@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bench_decompile.sh — PERF-BENCH reproducible same-scope decompile-speed
-# benchmark: Rugra (release) vs locked-oracle Ghidra 12.0.4 direct runner
+# benchmark: Rudra (release) vs locked-oracle Ghidra 12.0.4 direct runner
 # (e40ed130), same inputs, same process model.
 #
 # See docs/alignment_docs/PERF_BENCH_2026-09-26.md for the full protocol and
@@ -15,11 +15,11 @@
 #
 # Fair head-to-head (P1A): both sides run the canon golden protocol —
 # per-function hermetic child process (oracle golden_dump_1204 "one" mode vs
-# rugra gen_decompile "--one"), 12 concurrent workers, per-function 20 s cap,
+# rudra gen_decompile "--one"), 12 concurrent workers, per-function 20 s cap,
 # identical function indices (discovery counts are asserted equal first).
 #   oracle side : tools/regen_ghidra_golden.py fixture (git-archive of the
 #                 locked cpp tree -> libdecomp.a -> golden_dump_1204)
-#   rugra side  : examples/gen_decompile (bare face mirroring the fixture's
+#   rudra side  : examples/gen_decompile (bare face mirroring the fixture's
 #                 discovery 1:1 — static+dynamic FUNC symbols + PLT
 #                 JUMP_SLOT stubs, (offset,name) order)
 #
@@ -36,8 +36,8 @@
 #   bash tools/bench_decompile.sh [--skip-build] [--corpora curl,httpd,sqlite,llvm]
 #
 # Environment:
-#   BENCH_WORK     scratch dir (default /dev/shm/rugra-tests/perfbench)
-#   CARGO_TARGET_DIR  release build dir (default /dev/shm/rugra-targets/perfbench)
+#   BENCH_WORK     scratch dir (default /dev/shm/rudra-tests/perfbench)
+#   CARGO_TARGET_DIR  release build dir (default /dev/shm/rudra-targets/perfbench)
 #   REPEATS        repeats per configuration (default 3)
 
 set -euo pipefail
@@ -45,8 +45,8 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
-BENCH_WORK=${BENCH_WORK:-/dev/shm/rugra-tests/perfbench}
-export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-/dev/shm/rugra-targets/perfbench}
+BENCH_WORK=${BENCH_WORK:-/dev/shm/rudra-tests/perfbench}
+export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-/dev/shm/rudra-targets/perfbench}
 REPEATS=${REPEATS:-3}
 WORKERS=${WORKERS:-12}
 CAP=${CAP:-20}
@@ -87,7 +87,7 @@ indices_for() {
 }
 
 if [[ $SKIP_BUILD == false ]]; then
-  echo "[bench] building rugra release examples (fresh target dir)"
+  echo "[bench] building rudra release examples (fresh target dir)"
   cargo build --release --example gen_decompile \
     --example curl_decompile --example httpd_decompile
   echo "[bench] building locked-oracle direct runner"
@@ -96,7 +96,7 @@ import sys
 sys.path.insert(0, "tools")
 import regen_ghidra_golden as regen
 env = regen.preflight()
-runner, info = regen.build_runner("/dev/shm/rugra-tests/perfbench/runner-work", env)
+runner, info = regen.build_runner("/dev/shm/rudra-tests/perfbench/runner-work", env)
 print("[bench] oracle runner:", runner)
 PY
 fi
@@ -114,7 +114,7 @@ for corpus in ${CORPORA//,/ }; do
     --indices 0 --workers 1 --timeout 20 --record-file "$REC.tmp" >/dev/null
   oc=$(python3 -c "import json;print(json.loads(open('$REC.tmp').read().splitlines()[-1])['function_count'])")
   rc=$("$GEN" "$bin" --list 2>&1 | grep "functions discovered" | awk '{print $2}')
-  [[ "$oc" == "$rc" ]] || { echo "DISCOVERY MISMATCH $corpus oracle=$oc rugra=$rc" >&2; exit 1; }
+  [[ "$oc" == "$rc" ]] || { echo "DISCOVERY MISMATCH $corpus oracle=$oc rudra=$rc" >&2; exit 1; }
   echo "  $corpus: $oc functions (match)"
 done
 
@@ -124,7 +124,7 @@ for rep in $(seq 1 "$REPEATS"); do
     bin=$(binary_for "$corpus"); idx=$(indices_for "$corpus")
     python3 "$SW" hermetic --side oracle --runner "$RUNNER" --binary "$bin" \
       --indices "$idx" --workers "$WORKERS" --timeout "$CAP" --record-file "$REC"
-    python3 "$SW" hermetic --side rugra --runner "$GEN" --binary "$bin" \
+    python3 "$SW" hermetic --side rudra --runner "$GEN" --binary "$bin" \
       --indices "$idx" --workers "$WORKERS" --timeout "$CAP" --record-file "$REC"
   done
 done

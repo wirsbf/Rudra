@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Rugra's locked-Ghidra function ledger and dependency inventories.
+"""Generate Rudra's locked-Ghidra function ledger and dependency inventories.
 
 The generated files are observations, not alignment claims.  In particular,
 an exact source annotation proves provenance only; behavior remains UNTESTED
@@ -58,7 +58,7 @@ EXPECTED_COUNTS = {
 GHIDRA_MARKER_RE = re.compile(
     r"//\s*Ghidra:\s*(?P<file>[A-Za-z0-9_.-]+\.(?:cc|hh)):(?P<line>\d+)(?:\s+(?P<label>.*?))?\s*$"
 )
-GLUE_MARKER_RE = re.compile(r"//\s*RUGRA-GLUE:\s*(?P<reason>.*?)\s*$")
+GLUE_MARKER_RE = re.compile(r"//\s*RUDRA-GLUE:\s*(?P<reason>.*?)\s*$")
 CPP_ASSIGN_RE = re.compile(r"(?<![A-Za-z0-9_])(?P<name>[A-Z][A-Z0-9_]{2,})\s*=\s*(?P<value>[^,;/}]+)")
 CPP_ID_RE = re.compile(
     r"\b(?P<kind>AttributeId|ElementId)\s+(?P<name>[A-Z][A-Z0-9_]+)\s*\([^,]+,\s*(?P<value>[^)]+)\)"
@@ -412,7 +412,7 @@ def parser_cross_check(cpp: Path, ghidra: list[dict[str, object]]) -> dict[str, 
 # bison-generated translation units.  Their yy* definitions are the LALR(1)
 # table driver plus its debug/error print skeleton expanded from the
 # grammar.y / pcodeparse.y templates, with no hand-written action semantics;
-# Rugra replaces the whole face with hand-written recursive-descent drivers,
+# Rudra replaces the whole face with hand-written recursive-descent drivers,
 # so the equivalence unit is a whole-parser fixture, never a per-function
 # claim.  The pinned (file, line) whitelist below dispositions every unmapped
 # definition in the four bison files; no name matching is performed.  When a
@@ -462,7 +462,7 @@ UNMAPPED_DISPOSITION_CLASS_NOTES = {
     ),
     "drop_absorbed": (
         "destructor absorbed by Rust ownership (Arc + Vec drop); no separate "
-        "Rugra function is expected (GENERATOR_ABSORBED section 4)"
+        "Rudra function is expected (GENERATOR_ABSORBED section 4)"
     ),
     "unlinked_relink": (
         "implemented in Rust but not linked by a // Ghidra annotation yet "
@@ -1463,12 +1463,12 @@ def ledger_document(
             "ghidra_ids_with_guard_disambiguator": sum(
                 1 for entry in ghidra if entry.get("id_disambiguator")
             ),
-            "rugra_function_records": len(rust),
-            "rugra_production_functions": len(production),
-            "rugra_test_functions": len(rust) - len(production),
-            "rugra_declarations": sum(bool(entry["is_declaration"]) for entry in rust),
-            "rugra_glue_functions": sum(entry["annotation_kind"] == "glue" for entry in production),
-            "rugra_unresolved_or_missing": sum(
+            "rudra_function_records": len(rust),
+            "rudra_production_functions": len(production),
+            "rudra_test_functions": len(rust) - len(production),
+            "rudra_declarations": sum(bool(entry["is_declaration"]) for entry in rust),
+            "rudra_glue_functions": sum(entry["annotation_kind"] == "glue" for entry in production),
+            "rudra_unresolved_or_missing": sum(
                 entry["behavior_status"] == "NO_ORACLE" for entry in production
             ),
         },
@@ -1508,8 +1508,8 @@ def markdown_summary(ledger: dict[str, object]) -> str:
         f"- Declaration references: {summary['declaration_reference_count']}",
         f"- Raw Ctags function records: {summary['raw_function_records']}",
         f"- Ghidra IDs carrying a guard disambiguator: {summary['ghidra_ids_with_guard_disambiguator']}",
-        f"- Rugra functions: {summary['rugra_function_records']}",
-        f"  ({summary['rugra_production_functions']} production + {summary['rugra_test_functions']} test)",
+        f"- Rudra functions: {summary['rudra_function_records']}",
+        f"  ({summary['rudra_production_functions']} production + {summary['rudra_test_functions']} test)",
         f"- Exact definition-start mappings: {summary['ghidra_records_with_exact_rust_mapping']}",
         f"- Body-line references requiring audit: {summary['ghidra_records_with_body_reference']}",
         "",
@@ -1689,7 +1689,7 @@ REKEY_TOMBSTONE_COUNT = 47
 # free-leg sentinel fd base - 1, 3a10c583 opUndoPtradd finalize, d251532e
 # ActionSetCasts PTRADD/PTRSUB preflight, ad65b957 arithmeticOutputStandard
 # family tokens, 13884cc7 castOutput/castInput arms, c6cd3630 setcasts
-# tests, 32f44c30 addlflags RUGRA-GLUE annotations).  Unlike the sixth
+# tests, 32f44c30 addlflags RUDRA-GLUE annotations).  Unlike the sixth
 # window the checkpoint is pinned to the anchor itself: the branch tip was
 # already contained in master, so the mandated --no-ff merge tree equals
 # master tip and no later commit carries the window src; the HEAD:src
@@ -8050,7 +8050,7 @@ CONTINUITY_REVIEWED_TOMBSTONES: tuple[dict[str, str], ...] = (
         "commit": "10ea407df05d4f92cbd71ffe4df20aac70b5afb8",
         "parent_blob": "9e2caa708db715036ac2abda12f8d33317935dfb",
         "child_blob": "505d7a3bfd57ae00f5f6171f66576c56dd494a0e",
-        "reason": "type_name_ends_with_star: deleted pure-delegation Rust wrapper (RUGRA-GLUE marked, body was one call to datatype_name_ends_with_star); its join-spacing role succeeded to decl_prefix_ends_with_star (10ea407d)",
+        "reason": "type_name_ends_with_star: deleted pure-delegation Rust wrapper (RUDRA-GLUE marked, body was one call to datatype_name_ends_with_star); its join-spacing role succeeded to decl_prefix_ends_with_star (10ea407d)",
     },
     {
         "base_id": "RG-F-6d0b423a6eb30f204ebc",
@@ -10155,7 +10155,7 @@ def _load_worktree_ledger(root: Path) -> dict[str, object]:
     except json.JSONDecodeError as error:
         raise MigrationHarnessError(f"current ledger JSON is malformed: {error}") from error
     if not isinstance(document, dict) or not isinstance(document.get("rugra_functions"), list):
-        raise MigrationHarnessError("current ledger rugra_functions must be an array")
+        raise MigrationHarnessError("current ledger rudra_functions must be an array")
     return document
 
 
@@ -11692,8 +11692,8 @@ fn after_macros() {}
     with tempfile.TemporaryDirectory() as tmp:
         repo = Path(tmp)
         command_output(["git", "init", "-q", "."], repo)
-        command_output(["git", "config", "user.email", "self-test@rugra"], repo)
-        command_output(["git", "config", "user.name", "rugra self-test"], repo)
+        command_output(["git", "config", "user.email", "self-test@rudra"], repo)
+        command_output(["git", "config", "user.name", "rudra self-test"], repo)
         relative = "src/main.rs"
         (repo / "src").mkdir()
         (repo / relative).write_text(v1, encoding="utf-8")
@@ -12055,8 +12055,8 @@ fn after_macros() {}
     with tempfile.TemporaryDirectory() as tmp:
         repo = Path(tmp)
         command_output(["git", "init", "-q", "."], repo)
-        command_output(["git", "config", "user.email", "self-test@rugra"], repo)
-        command_output(["git", "config", "user.name", "rugra self-test"], repo)
+        command_output(["git", "config", "user.email", "self-test@rudra"], repo)
+        command_output(["git", "config", "user.name", "rudra self-test"], repo)
         (repo / "src").mkdir()
         (repo / "docs/alignment_audit").mkdir(parents=True)
         source_text = "fn source() {}\n"
@@ -12451,7 +12451,7 @@ def main(argv: list[str]) -> int:
     action = "verified" if args.check else "generated"
     print(
         f"generate_function_ledger: {action} definitions={ledger['summary']['behavior_definition_denominator']} "
-        f"raw={ledger['summary']['raw_function_records']} rust={ledger['summary']['rugra_function_records']}"
+        f"raw={ledger['summary']['raw_function_records']} rust={ledger['summary']['rudra_function_records']}"
     )
     return 0
 

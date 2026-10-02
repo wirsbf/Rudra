@@ -161,7 +161,7 @@ watch_parent() {
   trap cleanup_watched EXIT
   trap '' HUP INT TERM
   trap 'exit 0' USR1
-  watched_tmp=$(/usr/bin/mktemp -d /tmp/rugra-sleigh-decode-1204.XXXXXX)
+  watched_tmp=$(/usr/bin/mktemp -d /tmp/rudra-sleigh-decode-1204.XXXXXX)
   printf '%s\n' "$watched_tmp"
   while kill -0 "$runner_pid" 2>/dev/null; do
     sleep 1
@@ -169,7 +169,7 @@ watch_parent() {
 }
 remove_owned_tmp() {
   local path=$1
-  if [[ "$path" != /tmp/rugra-sleigh-decode-1204.?????? ]]; then
+  if [[ "$path" != /tmp/rudra-sleigh-decode-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $path" >&2
     return 1
   fi
@@ -313,7 +313,7 @@ crate_files = [
 ]
 crate_files = sorted(set(crate_files), key=lambda path: path.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-crate-snapshot-v1\0")
+crate_hasher.update(b"rudra-crate-snapshot-v1\0")
 crate_bytes = {}
 for relative in crate_files:
     data = snapshot_file(relative)
@@ -383,7 +383,7 @@ observed_hashes = {
     "cpp_fixture_sha256": sha256_bytes(special_bytes["tests/oracle/sleigh_decode_1204.cc"]),
     "rust_fixture_sha256": sha256_bytes(special_bytes["tests/oracle/sleigh_decode_1204.rs"]),
     "runner_sha256": runner_snapshot_sha,
-    "shim_sha256": sha256_bytes(crate_bytes["sleigh_shim/rugra_sleigh.cpp"]),
+    "shim_sha256": sha256_bytes(crate_bytes["sleigh_shim/rudra_sleigh.cpp"]),
     "rust_sleigh_ffi_sha256": sha256_bytes(crate_bytes["src/sleigh_ffi.rs"]),
     "rust_opcodes_sha256": sha256_bytes(crate_bytes["src/opcodes.rs"]),
     "build_rs_sha256": sha256_bytes(crate_bytes["build.rs"]),
@@ -399,7 +399,7 @@ require_equal(
 require_equal(
     "crate snapshot scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-crate-snapshot-v1 plus sorted length-prefixed relative paths and contents",
+    "sha256 of rudra-crate-snapshot-v1 plus sorted length-prefixed relative paths and contents",
 )
 require_equal("repo Cargo config inputs", comparand["repo_cargo_config_files"], [])
 if (repo_root / ".cargo").exists():
@@ -646,18 +646,18 @@ done
     "$host_cargo_bin" build --quiet --locked --offline --lib \
       --manifest-path "$snapshot_root/Cargo.toml"
 )
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce $rugra_rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce $rudra_rlib" >&2
   exit 1
 fi
 
 native_archives=()
 while IFS= read -r archive; do
   native_archives+=("$archive")
-done < <(find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f)
+done < <(find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f)
 if [[ "${#native_archives[@]}" -ne 1 ]]; then
-  echo "expected one Cargo-built librugra_sleigh.a, found ${#native_archives[@]}" >&2
+  echo "expected one Cargo-built librudra_sleigh.a, found ${#native_archives[@]}" >&2
   exit 1
 fi
 native_dir=$(dirname "${native_archives[0]}")
@@ -667,16 +667,16 @@ native_dir=$(dirname "${native_archives[0]}")
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" \
   -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/sleigh_decode_1204_rust"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/sleigh_decode_1204_cpp" "$sla" >"$oracle_tmp/ghidra.stdout"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  "$oracle_tmp/sleigh_decode_1204_rust" "$sla" >"$oracle_tmp/rugra.stdout"
+  "$oracle_tmp/sleigh_decode_1204_rust" "$sla" >"$oracle_tmp/rudra.stdout"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'

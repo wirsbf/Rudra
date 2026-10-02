@@ -15,24 +15,24 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_source_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_source_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
-rugra_source_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
-rugra_source_funcdata_blob=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_source_op_blob=d5e4c5f972d06844084bf19a505434fd24be3894
-rugra_source_cargo_toml_blob=f3d9fa9d3ba45eb2f6f5b736c6cd581820c0f341
-rugra_source_cargo_lock_blob=c1eef0a52f44f92d77b02f3e48b5d6781ec4bd94
-rugra_source_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_source_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_source_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
+rudra_source_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
+rudra_source_funcdata_blob=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_source_op_blob=d5e4c5f972d06844084bf19a505434fd24be3894
+rudra_source_cargo_toml_blob=f3d9fa9d3ba45eb2f6f5b736c6cd581820c0f341
+rudra_source_cargo_lock_blob=c1eef0a52f44f92d77b02f3e48b5d6781ec4bd94
+rudra_source_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/funcdata_calcnzm_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/funcdata_calcnzm_1204.cc"
 rust_fixture="$repo_root/tests/oracle/funcdata_calcnzm_1204.rs"
 runner="$repo_root/tools/run_funcdata_calcnzm_oracle.sh"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-funcdata-calcnzm-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-funcdata-calcnzm-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-funcdata-calcnzm-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-funcdata-calcnzm-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -64,19 +64,19 @@ if ! git -C "$ghidra_root" diff --quiet -- \
 fi
 
 for binding in \
-  "$rugra_source_commit^{commit}:$rugra_source_commit" \
-  "$rugra_source_commit^{tree}:$rugra_source_tree" \
-  "$rugra_source_commit:src:$rugra_source_src_tree" \
-  "$rugra_source_commit:src/funcdata.rs:$rugra_source_funcdata_blob" \
-  "$rugra_source_commit:src/op.rs:$rugra_source_op_blob" \
-  "$rugra_source_commit:Cargo.toml:$rugra_source_cargo_toml_blob" \
-  "$rugra_source_commit:Cargo.lock:$rugra_source_cargo_lock_blob" \
-  "$rugra_source_commit:build.rs:$rugra_source_build_rs_blob"; do
+  "$rudra_source_commit^{commit}:$rudra_source_commit" \
+  "$rudra_source_commit^{tree}:$rudra_source_tree" \
+  "$rudra_source_commit:src:$rudra_source_src_tree" \
+  "$rudra_source_commit:src/funcdata.rs:$rudra_source_funcdata_blob" \
+  "$rudra_source_commit:src/op.rs:$rudra_source_op_blob" \
+  "$rudra_source_commit:Cargo.toml:$rudra_source_cargo_toml_blob" \
+  "$rudra_source_commit:Cargo.lock:$rudra_source_cargo_lock_blob" \
+  "$rudra_source_commit:build.rs:$rudra_source_build_rs_blob"; do
   expression=${binding%:*}
   expected=${binding##*:}
   actual=$(git -C "$repo_root" rev-parse "$expression")
   if [[ "$actual" != "$expected" ]]; then
-    echo "pinned Rugra source identity mismatch: $expression" >&2
+    echo "pinned Rudra source identity mismatch: $expression" >&2
     exit 1
   fi
 done
@@ -84,10 +84,10 @@ done
 runner_sha=$(sha256sum "$runner" | awk '{print $1}')
 python3 -I -S - "$repo_root" "$metadata" "$cpp_fixture" "$rust_fixture" \
   "$runner_sha" "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" \
-  "$oracle_makefile_blob" "$rugra_source_commit" "$rugra_source_tree" \
-  "$rugra_source_src_tree" "$rugra_source_funcdata_blob" \
-  "$rugra_source_cargo_toml_blob" "$rugra_source_cargo_lock_blob" \
-  "$rugra_source_build_rs_blob" "$rugra_source_op_blob" <<'PY'
+  "$oracle_makefile_blob" "$rudra_source_commit" "$rudra_source_tree" \
+  "$rudra_source_src_tree" "$rudra_source_funcdata_blob" \
+  "$rudra_source_cargo_toml_blob" "$rudra_source_cargo_lock_blob" \
+  "$rudra_source_build_rs_blob" "$rudra_source_op_blob" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -204,12 +204,12 @@ for branch in residual:
     if not branch.get("detail"):
         raise SystemExit(f"residual {branch['todo_id']} has no detail")
 expected = metadata["expected_results"]
-for key in ("ghidra_stdout_sha256", "rugra_stdout_sha256",
-            "ghidra_stderr_sha256", "rugra_stderr_sha256", "raw_diff_sha256"):
+for key in ("ghidra_stdout_sha256", "rudra_stdout_sha256",
+            "ghidra_stderr_sha256", "rudra_stderr_sha256", "raw_diff_sha256"):
     if not isinstance(expected.get(key), str):
         raise SystemExit(f"expected_results.{key} missing")
 require("ghidra exit code", expected["ghidra_exit_code"], 0)
-require("rugra exit code", expected["rugra_exit_code"], 0)
+require("rudra exit code", expected["rugra_exit_code"], 0)
 require("diff exit code", expected["diff_exit_code"], 0)
 require("observation prefixes", expected["observation_prefixes"],
         ["init", "andcopy", "piece", "div", "loopor", "loopand"])
@@ -223,16 +223,16 @@ mkdir -p "$oracle_tmp/source"
 tar -xf "$oracle_tmp/ghidra-cpp.tar" -C "$oracle_tmp/source"
 oracle_cpp="$oracle_tmp/source/Ghidra/Features/Decompiler/src/decompile/cpp"
 
-# --- Snapshot the pinned Rugra source and overlay the current fixture files.
+# --- Snapshot the pinned Rudra source and overlay the current fixture files.
 snapshot_root="$oracle_tmp/workspace"
 mkdir -p "$snapshot_root/tests/oracle" "$snapshot_root/tools" \
   "$snapshot_root/benches"
 git -C "$repo_root" archive --format=tar \
-  --output="$oracle_tmp/rugra-source.tar" "$rugra_source_commit" \
+  --output="$oracle_tmp/rudra-source.tar" "$rudra_source_commit" \
   Cargo.toml Cargo.lock build.rs README.md benches/decompile_bench.rs \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
   src sleigh_shim crates
-tar -xf "$oracle_tmp/rugra-source.tar" -C "$snapshot_root"
+tar -xf "$oracle_tmp/rudra-source.tar" -C "$snapshot_root"
 cp "$cpp_fixture" "$snapshot_root/tests/oracle/funcdata_calcnzm_1204.cc"
 cp "$rust_fixture" "$snapshot_root/tests/oracle/funcdata_calcnzm_1204.rs"
 cp "$metadata" "$snapshot_root/tests/oracle/funcdata_calcnzm_1204.metadata.json"
@@ -255,7 +255,7 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   nice -n 10 cargo build --offline --locked --quiet \
   --manifest-path "$snapshot_root/Cargo.toml" --lib
 rustc --edition=2021 "$snapshot_root/tests/oracle/funcdata_calcnzm_1204.rs" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/funcdata_calcnzm_1204_rust"
 
@@ -264,17 +264,17 @@ set +e
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/funcdata_calcnzm_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff"
 diff_status=$?
 set -e
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stdout" \
-  "$oracle_tmp/rugra.stderr" "$oracle_tmp/raw.diff" \
-  "$ghidra_status" "$rugra_status" "$diff_status" <<'PY'
+  "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stdout" \
+  "$oracle_tmp/rudra.stderr" "$oracle_tmp/raw.diff" \
+  "$ghidra_status" "$rudra_status" "$diff_status" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -284,8 +284,8 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 paths = {
     "ghidra_stdout_sha256": pathlib.Path(sys.argv[2]),
     "ghidra_stderr_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_stdout_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_stderr_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_stdout_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_stderr_sha256": pathlib.Path(sys.argv[5]),
     "raw_diff_sha256": pathlib.Path(sys.argv[6]),
 }
 for key, path in paths.items():
@@ -305,7 +305,7 @@ prefixes = [record.split("|", 1)[0] for record in records]
 if prefixes != metadata["expected_results"]["observation_prefixes"]:
     raise SystemExit(f"observation order mismatch: {prefixes}")
 if paths["ghidra_stderr_sha256"].stat().st_size != 0 or \
-   paths["rugra_stderr_sha256"].stat().st_size != 0:
+   paths["rudra_stderr_sha256"].stat().st_size != 0:
     raise SystemExit("fixture stderr must be empty")
 PY
 

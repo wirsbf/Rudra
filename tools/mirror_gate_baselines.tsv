@@ -220,7 +220,7 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # (-116 exact, stacked on the 6187 MB33 base; lane measured 8361 on its 8477 fork base — merged
 # tree s2r2-inclusive re-measured 6071). Both faces = genreadonly driver readonly-range install +
 # BFD non-alloc overlay (MIRRORCENSUS-GEN-READONLY-STRFOLD-0001): PrintC::pushPtrCharConstant
-# isReadOnly gate now opens; strfold `= "` sites rugra==golden byte-identical (sqlite 42==42,
+# isReadOnly gate now opens; strfold `= "` sites rudra==golden byte-identical (sqlite 42==42,
 # sq 9==9). curl 21/httpd 36/vsh 2 identical, not re-pinned (MB32/MB31/MB30 rows stay).
 # canon: curl 54->42/httpd 36->34 (displayrebase UNK label transport, INT_TO_PTR family full
 # amount; md5 4503f498->8dafa799 / c3b4706c->2fbf13b1, canon not in tsv — recorded in the MB34
@@ -451,7 +451,7 @@ sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
 #    str_vappendf 14→11 + Select 20→16 + WhereCodeOneLoopStart 9→0 +
 #    WalOpen 7→0, zero regressions; wrap-only sub-family 37→15, residual 15
 #    all numbering-length driven [probe-proven: oracle walk+emitter fed
-#    Rugra's token content reproduces Rugra's bytes exactly]). matched
+#    Rudra's token content reproduces Rudra's bytes exactly]). matched
 #    1385/1385, defects=numbering=0.
 # ② sq 95→89 (−6 = same root on the sasquatch face: LzmaDecoder arithfold
 #    trio 2→0 each [LzmaDecoderCode / LzmaDecoderCodeReal /
@@ -492,7 +492,7 @@ sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
 # escaping `xunknown1 (*)[16]` stack pointer), whose restructure size
 # extension (varmap.cc:1314-1315) then spans both 8-byte halves -> the
 # oracle's ONE `xunknown1 axStack_f8 [16]` symbol with ._0_8_/._8_8_ slice
-# entries. Rugra passed partials through as fixed 8-byte hints -> two
+# entries. Rudra passed partials through as fixed 8-byte hints -> two
 # `BADTYPE Stack_f8/Stack_f0` split symbols (PartialStruct metatype hits
 # genericTypeName's default arm), a forced `(xunknown1 (*) [16])&Stack_f8`
 # cast, and the open-hint extension killed. Fix = faithful partial-stripping
@@ -647,7 +647,7 @@ sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
 # ① **vsh 2→0 — SECOND PERFECT FACE** (gen face corpus-wide zero skeleton; ACTORDER
 #    spacebase scope wiring burned the last vsh (code*) station).
 # ② sq 1609→726 (−883): ACTORDER (code*) family full convergence on the current pins
-#    — corpus (code*) count rugra 131 == golden 131 EXACT (lane own-base claim was
+#    — corpus (code*) count rudra 131 == golden 131 EXACT (lane own-base claim was
 #    2724→1845 −879 on the pre-MB36 pins; current-pin measurement authoritative,
 #    单向改善重钉). B2: sqlite3Select fn-level skeleton 24 defects=0 numbering=0,
 #    (code*) 225==golden 225.
@@ -775,7 +775,7 @@ sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
 # ① curl ceiling 52→65 抬升——回归向,+13 残差已登记 PRINTC-UNTYPEDCONST-CURLMIRROR-
 #    RESIDUAL-0001（bisect first-bad=ba632c40 UNTYPEDCONST;5 站点函数名→hex:
 #    my_fwrite/myprogress/main/__libc_csu_init/__libc_csu_fini;golden 经 typed
-#    code-pointer pushPtrCodeConstant 印名,Rugra 镜面常量未定型;canon 面不受影响
+#    code-pointer pushPtrCodeConstant 印名,Rudra 镜面常量未定型;canon 面不受影响
 #    110/0/0;SIGWRAP 4c4d61c7=52 亲证清白）。修复路径=GEN-CONSTPTR-ANALYSISDB-0001
 #    家族 typed 通道,禁止过宽查询复活。
 # ② sq ceiling 4205→3377 收紧（−828;defects=numbering=0,matched 810/810 ok）——

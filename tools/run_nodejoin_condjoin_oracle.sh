@@ -4,7 +4,7 @@ set -euo pipefail
 # NODEJOIN-F2/F3/F4/F5: locked Ghidra 12.0.4 ConditionalJoin differential
 # runner. Builds the pristine oracle cpp tree, compiles the C++ driver
 # (tests/oracle/nodejoin_condjoin_1204.cc) and the Rust mirror
-# (tests/oracle/nodejoin_condjoin_1204.rs) against the built rugra lib,
+# (tests/oracle/nodejoin_condjoin_1204.rs) against the built rudra lib,
 # runs both over the same nine synthetic diamond cases and requires
 # byte-identical stdout projections.
 
@@ -107,7 +107,7 @@ if [[ "$validate_only" == true ]]; then
   exit 0
 fi
 
-oracle_tmp=${NODEJOIN_ORACLE_TMP:-/tmp/rugra-nodejoin-condjoin-oracle}
+oracle_tmp=${NODEJOIN_ORACLE_TMP:-/tmp/rudra-nodejoin-condjoin-oracle}
 mkdir -p "$oracle_tmp"
 cpp_dir="$oracle_tmp/cpp"
 if [[ ! -f "$cpp_dir/libdecomp.a" || "$cpp_dir/libdecomp.a" -ot \
@@ -138,11 +138,11 @@ g++ -std=c++11 -O1 -w -m64 \
   -Wl,--whole-archive "$cpp_dir/libdecomp.a" -Wl,--no-whole-archive -lz \
   -o "$oracle_tmp/nodejoin_condjoin_cpp"
 
-flock /tmp/rugra-cargo-build.lock -c \
-  "CARGO_TARGET_DIR='$oracle_tmp/rugra-target' cargo build --offline --locked --quiet --profile fast-release --lib --manifest-path '$repo_root/Cargo.toml'"
+flock /tmp/rudra-cargo-build.lock -c \
+  "CARGO_TARGET_DIR='$oracle_tmp/rudra-target' cargo build --offline --locked --quiet --profile fast-release --lib --manifest-path '$repo_root/Cargo.toml'"
 rustc --edition=2021 -O \
-  -L dependency="$oracle_tmp/rugra-target/fast-release/deps" \
-  --extern rugra="$oracle_tmp/rugra-target/fast-release/librugra.rlib" \
+  -L dependency="$oracle_tmp/rudra-target/fast-release/deps" \
+  --extern rudra="$oracle_tmp/rudra-target/fast-release/librudra.rlib" \
   "$rust_fixture" \
   -o "$oracle_tmp/nodejoin_condjoin_rust"
 
@@ -151,18 +151,18 @@ set +e
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/nodejoin_condjoin_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-cmp -s "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+cmp -s "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 stdout_cmp=$?
 set -e
 
-echo "ghidra_exit=$ghidra_status rugra_exit=$rugra_status stdout_cmp=$stdout_cmp"
-sha256sum "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" | sed 's|'"$oracle_tmp"'/||'
-if [[ "$ghidra_status" -eq 0 && "$rugra_status" -eq 0 && "$stdout_cmp" -eq 0 ]]; then
+echo "ghidra_exit=$ghidra_status rudra_exit=$rudra_status stdout_cmp=$stdout_cmp"
+sha256sum "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" | sed 's|'"$oracle_tmp"'/||'
+if [[ "$ghidra_status" -eq 0 && "$rudra_status" -eq 0 && "$stdout_cmp" -eq 0 ]]; then
   echo "MATCH: nodejoin_condjoin_1204 (byte-identical projections)"
   exit 0
 fi
 echo "MISMATCH: nodejoin_condjoin_1204" >&2
-diff "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" | head -40 >&2
+diff "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" | head -40 >&2
 exit 1

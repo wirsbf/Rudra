@@ -31,7 +31,7 @@ bfd_header_sha256=c8c9c20823ebd8d427d9f91dd642b82b263fca2245a8ef4eb34f0de0cde257
 bfd_library_sha256=f9ca64d035c483bbfac32ca550074c20398ae2f0bb84dd989059dadb9cea8a1e
 bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" ]]; then
-  for candidate in /tmp/rugra-ghidra-bfd-2.38/usr/include /usr/include; do
+  for candidate in /tmp/rudra-ghidra-bfd-2.38/usr/include /usr/include; do
     if [[ -f "$candidate/bfd.h" ]] && \
         [[ "$(sha256sum "$candidate/bfd.h" | awk '{print $1}')" == "$bfd_header_sha256" ]]; then
       bfd_include=$candidate
@@ -42,7 +42,7 @@ fi
 bfd_library=${RUDRA_BFD_LIBRARY:-}
 if [[ -z "$bfd_library" ]]; then
   for candidate in \
-      /tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \
+      /tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so \
       /usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so; do
     if [[ -f "$candidate" ]] && \
         [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$bfd_library_sha256" ]]; then
@@ -101,10 +101,10 @@ for key, path in comparands.items():
         raise SystemExit(f"comparand mismatch for {key}: {actual}")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-flow-tailcall-overtrace-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-flow-tailcall-overtrace-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-flow-tailcall-overtrace-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-flow-tailcall-overtrace-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -158,9 +158,9 @@ fi
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
   -o "$oracle_tmp/flow_tailcall_overtrace_rust"
 # Run from the repo root: the SLEIGH translator resolves its x86-64.pspec
 # relative to the process working directory.
@@ -171,9 +171,9 @@ rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
     "$user_addr" "$callee_addr" \
     "$user_addr" "$user_size" \
     "$offcut_addr" "$offcut_size" \
-    >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+    >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 )
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

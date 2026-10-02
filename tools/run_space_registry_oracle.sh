@@ -41,8 +41,8 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_base_tree=1eefc862588182cf503ea45a4fa060141688ce1f
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_tree=1eefc862588182cf503ea45a4fa060141688ce1f
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/space_registry_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/space_registry_1204.cc"
@@ -106,12 +106,12 @@ if ! /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
 fi
 
 actual_base_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || \
-      "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || \
+      "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -127,9 +127,9 @@ host_cargo=$(/usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" 
   "$host_cargo_bin" --version)
 host_platform=$(/usr/bin/uname -srm)
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-space-registry-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-space-registry-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-space-registry-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-space-registry-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2
     return 1
   fi
@@ -166,7 +166,7 @@ owned_files=(
   "$space_rs" "$translate_rs" "$space_doc" "$translate_doc" \
   "$runner_fd_path" "$runner_snapshot_sha" \
   "$oracle_tag" "$oracle_commit" "$oracle_cpp_tree" "$oracle_makefile_blob" \
-  "$rugra_base_commit" "$rugra_base_tree" "$host_cxx" "$host_cxx_target" \
+  "$rudra_base_commit" "$rudra_base_tree" "$host_cxx" "$host_cxx_target" \
   "$host_rustc" "$host_cargo" "$host_platform" "$host_cxx_bin" \
   "$host_cc_bin" "$host_ar_bin" "$host_make_bin" "$host_python_bin" \
   "$host_git_bin" "$host_cargo_bin" "$host_rustc_bin" "$rust_toolchain" <<'PY'
@@ -184,7 +184,7 @@ import tarfile
     metadata_raw, cpp_raw, rust_raw, space_raw, translate_raw,
     space_doc_raw, translate_doc_raw,
     runner_fd_raw, runner_snapshot_sha, oracle_tag, oracle_commit,
-    cpp_tree, makefile_blob, rugra_base_commit, rugra_base_tree,
+    cpp_tree, makefile_blob, rudra_base_commit, rudra_base_tree,
     host_cxx, host_cxx_target, host_rustc, host_cargo, host_platform,
     host_cxx_bin, host_cc_bin, host_ar_bin, host_make_bin,
     host_python_bin, host_git_bin, host_cargo_bin, host_rustc_bin,
@@ -230,7 +230,7 @@ def reject_pending(value, path="metadata"):
 def base_source_files(directory):
     raw = subprocess.check_output([
         host_git_bin, "-C", str(repo), "ls-tree", "-r", "--name-only", "-z",
-        rugra_base_commit, "--", directory,
+        rudra_base_commit, "--", directory,
     ])
     return sorted(
         (pathlib.Path(item.decode()) for item in raw.split(b"\0") if item),
@@ -238,7 +238,7 @@ def base_source_files(directory):
     )
 
 def base_file(relative):
-    spec = f"{rugra_base_commit}:{relative.as_posix()}"
+    spec = f"{rudra_base_commit}:{relative.as_posix()}"
     require(
         f"base object type {relative}",
         subprocess.check_output(
@@ -271,8 +271,8 @@ crate_files = [
 ] + base_source_files("src") + base_source_files("sleigh_shim")
 crate_files = sorted(set(crate_files), key=lambda item: item.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-space-registry-base-overlay-v1\0")
-crate_hasher.update(rugra_base_commit.encode())
+crate_hasher.update(b"rudra-space-registry-base-overlay-v1\0")
+crate_hasher.update(rudra_base_commit.encode())
 crate_bytes = {}
 for relative in crate_files:
     data = live_file(relative) if relative in overlay_files else base_file(relative)
@@ -323,8 +323,8 @@ for label, actual, expected in (
     ("oracle commit", oracle["commit"], oracle_commit),
     ("oracle cpp tree", oracle["decompiler_cpp_tree"], cpp_tree),
     ("oracle Makefile blob", oracle["decompiler_makefile_blob"], makefile_blob),
-    ("Rugra base commit", metadata["comparand"]["rugra_base_commit"], rugra_base_commit),
-    ("Rugra base tree", metadata["comparand"]["rugra_base_tree"], rugra_base_tree),
+    ("Rudra base commit", metadata["comparand"]["rugra_base_commit"], rudra_base_commit),
+    ("Rudra base tree", metadata["comparand"]["rugra_base_tree"], rudra_base_tree),
 ):
     require(label, actual, expected)
 
@@ -345,7 +345,7 @@ observed_hashes = {
 require(
     "crate snapshot scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-space-registry-base-overlay-v1 plus base commit and sorted length-prefixed paths and contents",
+    "sha256 of rudra-space-registry-base-overlay-v1 plus base commit and sorted length-prefixed paths and contents",
 )
 for key, actual in observed_hashes.items():
     require(key, actual, comparand[key])
@@ -428,7 +428,7 @@ for block in package_blocks:
 require("locked registry package count", len(registry_packages), metadata["build"]["registry_packages"])
 
 registry_hasher = hashlib.sha256()
-registry_hasher.update(b"rugra-space-registry-registry-lock-v1\0")
+registry_hasher.update(b"rudra-space-registry-registry-lock-v1\0")
 for name, version, checksum in registry_packages:
     record = f"{name}\0{version}\0{checksum}".encode()
     registry_hasher.update(len(record).to_bytes(8, "big"))
@@ -611,12 +611,12 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do
   native_archives+=("$archive")
-done < <(/usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f)
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+done < <(/usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f)
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
   echo "missing or ambiguous fresh Rust link inputs" >&2
   exit 1
 fi
@@ -632,7 +632,7 @@ if ! /usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
     -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-    --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+    --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
     -l dylib=stdc++ -l dylib=m "$snapshot_rust" -o "$rust_binary" \
     >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -648,15 +648,15 @@ fi
 
 set +e
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 "$rust_binary" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-/usr/bin/diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+/usr/bin/diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff"
 diff_status=$?
 set -e
-if [[ "$rugra_status" -ne 0 || -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture failed or emitted runtime diagnostics" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+if [[ "$rudra_status" -ne 0 || -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture failed or emitted runtime diagnostics" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 if [[ "$diff_status" -ne 0 ]]; then
@@ -665,8 +665,8 @@ if [[ "$diff_status" -ne 0 ]]; then
 fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S - \
-  "$snapshot_metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
-  "$oracle_tmp/raw.diff" "$ghidra_status" "$rugra_status" "$diff_status" <<'PY'
+  "$snapshot_metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
+  "$oracle_tmp/raw.diff" "$ghidra_status" "$rudra_status" "$diff_status" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -674,10 +674,10 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
 raw_diff = pathlib.Path(sys.argv[4]).read_bytes()
 expected_sha = metadata["expected_stdout_sha256"]
-for label, data in (("Ghidra", ghidra), ("Rugra", rugra)):
+for label, data in (("Ghidra", ghidra), ("Rudra", rudra)):
     actual = hashlib.sha256(data).hexdigest()
     if actual != expected_sha:
         raise SystemExit(f"{label} stdout mismatch: expected={expected_sha} actual={actual}")
@@ -685,7 +685,7 @@ if raw_diff:
     raise SystemExit("byte-equal outputs unexpectedly produced a non-empty diff")
 for label, status in (
     ("Ghidra", int(sys.argv[5])),
-    ("Rugra", int(sys.argv[6])),
+    ("Rudra", int(sys.argv[6])),
     ("raw diff", int(sys.argv[7])),
 ):
     if status != metadata["expected_exit_code"]:
@@ -719,7 +719,7 @@ fi
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_python_bin" -I -S - "$repo_root" "$runner_fd_path" \
-  "$host_git_bin" "$rugra_base_commit" <<'PY'
+  "$host_git_bin" "$rudra_base_commit" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -729,7 +729,7 @@ import sys
 repo = pathlib.Path(sys.argv[1]).resolve()
 runner_fd = pathlib.Path(sys.argv[2])
 host_git = sys.argv[3]
-rugra_base_commit = sys.argv[4]
+rudra_base_commit = sys.argv[4]
 metadata = json.loads(
     (repo / "tests/oracle/space_registry_1204.metadata.json").read_text(encoding="utf-8")
 )
@@ -775,19 +775,19 @@ relative_files = [pathlib.Path(path) for path in (
 for directory in ("src", "sleigh_shim"):
     raw = subprocess.check_output([
         host_git, "-C", str(repo), "ls-tree", "-r", "--name-only", "-z",
-        rugra_base_commit, "--", directory,
+        rudra_base_commit, "--", directory,
     ])
     relative_files.extend(
         pathlib.Path(item.decode()) for item in raw.split(b"\0") if item
     )
 hasher = hashlib.sha256()
-hasher.update(b"rugra-space-registry-base-overlay-v1\0")
-hasher.update(rugra_base_commit.encode())
+hasher.update(b"rudra-space-registry-base-overlay-v1\0")
+hasher.update(rudra_base_commit.encode())
 for relative in sorted(set(relative_files), key=lambda item: item.as_posix()):
     if relative.as_posix() in overlay_files:
         data = (repo / relative).read_bytes()
     else:
-        spec = f"{rugra_base_commit}:{relative.as_posix()}"
+        spec = f"{rudra_base_commit}:{relative.as_posix()}"
         require(
             f"base object type {relative}",
             subprocess.check_output(

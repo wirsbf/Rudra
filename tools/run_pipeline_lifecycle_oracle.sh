@@ -29,8 +29,8 @@ bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
-if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
-  bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+if [[ -z "$bfd_include" && -f /tmp/rudra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
+  bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 fi
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" ]]; then
   echo "binutils 2.38 bfd.h not found; set RUDRA_BFD_INCLUDE" >&2
@@ -115,10 +115,10 @@ if metadata.get("host_rustc") != rustc:
     raise SystemExit(f"host rustc mismatch: {rustc}")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-pipeline-lifecycle-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-pipeline-lifecycle-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-pipeline-lifecycle-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-pipeline-lifecycle-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -145,25 +145,25 @@ if ! CARGO_TARGET_DIR="$fixture_target" \
   cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/pipeline_lifecycle_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/pipeline_lifecycle_rudra"
 
 if ! "$oracle_tmp/pipeline_lifecycle_1204" "$spec_root" "$binary" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"; then
   cat "$oracle_tmp/ghidra.stderr" >&2
   exit 1
 fi
-"$oracle_tmp/pipeline_lifecycle_rugra" >"$oracle_tmp/rugra.stdout"
+"$oracle_tmp/pipeline_lifecycle_rudra" >"$oracle_tmp/rudra.stdout"
 
 diff_status=0
-diff -u --label ghidra-12.0.4 --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+diff -u --label ghidra-12.0.4 --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
   >"$oracle_tmp/lifecycle.diff" || diff_status=$?
 if [[ "$diff_status" -ne 1 ]]; then
   echo "expected the registered complete-lifecycle mismatch, diff status=$diff_status" >&2
@@ -171,7 +171,7 @@ if [[ "$diff_status" -ne 1 ]]; then
 fi
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" \
-  "$oracle_tmp/rugra.stdout" "$oracle_tmp/lifecycle.diff" <<'PY'
+  "$oracle_tmp/rudra.stdout" "$oracle_tmp/lifecycle.diff" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -200,19 +200,19 @@ def parse(path):
     return result
 
 ghidra = parse(paths["ghidra"])
-rugra = parse(paths["rugra"])
+rudra = parse(paths["rugra"])
 for scalar in ("start_return", "stop_dead_before", "stop_return"):
-    if ghidra[scalar] != rugra[scalar]:
+    if ghidra[scalar] != rudra[scalar]:
         raise SystemExit(f"wrapper scalar mismatch: {scalar}")
 flow_fields = {"alive", "ops", "varnodes", "blocks", "calls"}
 for label in ("before_start", "after_start", "after_stop"):
     for key, value in ghidra[label].items():
         if key in flow_fields:
             continue
-        if rugra[label].get(key) != value:
+        if rudra[label].get(key) != value:
             raise SystemExit(f"wrapper/lifecycle field mismatch: {label}.{key}")
 if not any(
-    ghidra[label][key] != rugra[label][key]
+    ghidra[label][key] != rudra[label][key]
     for label in ("after_start", "after_stop")
     for key in flow_fields
 ):

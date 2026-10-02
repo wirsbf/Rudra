@@ -12,7 +12,7 @@ def run():
     monitor = ConsoleTaskMonitor()
 
     # Output file path
-    output_path = r"D:\ghidra\rugra\ghidra_curl.c"
+    output_path = r"D:\ghidra\rudra\ghidra_curl.c"
 
     print("Exporting decompiled code to: " + output_path)
 

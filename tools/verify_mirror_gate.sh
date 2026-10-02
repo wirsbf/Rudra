@@ -49,7 +49,7 @@
 #     只缓存 PASS 轮: FAIL 轮永远全量重跑（诊断新鲜性；不缓存瞬时噪声）。
 #     陈旧守卫(a/b)每轮照常先行——缓存只跳过 face 执行，不跳过守卫；
 #     键含二进制内容 digest，与 stale-guard 天然协同（无键碰撞面）。
-#   缓存目录: ${RUDRA_GATE_CACHE_DIR:-/tmp/rugra-gate-cache}（默认上限 40 条，
+#   缓存目录: ${RUDRA_GATE_CACHE_DIR:-/tmp/rudra-gate-cache}（默认上限 40 条，
 #   LRU 按 mtime 淘汰，只删除匹配 <corpus>-<64hex> 的条目目录）。
 #   禁用: --no-cache 或 RUDRA_GATE_CACHE=0。
 
@@ -73,7 +73,7 @@ PAR_JOBS=1
 # --no-cache / RUDRA_GATE_CACHE=0 disables).
 CACHE_ON=1
 [[ "${RUDRA_GATE_CACHE:-1}" == "0" ]] && CACHE_ON=0
-CACHE_ROOT="${RUDRA_GATE_CACHE_DIR:-/tmp/rugra-gate-cache}"
+CACHE_ROOT="${RUDRA_GATE_CACHE_DIR:-/tmp/rudra-gate-cache}"
 CACHE_SCHEMA="v1"   # bump on any change to verdict/artifact/cache semantics
 
 while [[ $# -gt 0 ]]; do
@@ -97,8 +97,8 @@ parse_compare() {
     local out="$1"
     MATCHED=$(sed -n 's/^Matched: \([0-9]*\)$/\1/p' "$out" | head -1)
     SKELETON=$(sed -n 's/^Total skeleton diff lines: \([0-9]*\)$/\1/p' "$out" | head -1)
-    DEFECTS=$(sed -n 's/^Total Rugra defects: \([0-9]*\).*/\1/p' "$out" | head -1)
-    NUMBERING=$(sed -n 's/^Total Rugra numbering issues: \([0-9]*\)$/\1/p' "$out" | head -1)
+    DEFECTS=$(sed -n 's/^Total Rudra defects: \([0-9]*\).*/\1/p' "$out" | head -1)
+    NUMBERING=$(sed -n 's/^Total Rudra numbering issues: \([0-9]*\)$/\1/p' "$out" | head -1)
     MATCHED="${MATCHED:-0}"; SKELETON="${SKELETON:-999999}"
     DEFECTS="${DEFECTS:-999999}"; NUMBERING="${NUMBERING:-999999}"
 }
@@ -398,15 +398,15 @@ PY
 
 # ---------- 自检模式（无二进制：只验证解析与判定逻辑） ----------
 if [[ "$SELF_TEST" == 1 ]]; then
-    tmp=$(mktemp -d "${TMPDIR:-/tmp}/rugra-mgate.XXXXXX")
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/rudra-mgate.XXXXXX")
     cat > "$tmp/compare.txt" <<EOF
-Rugra functions: 76
+Rudra functions: 76
 Ghidra functions: 74
 Matched: 74
 
 Total skeleton diff lines: 259
-Total Rugra defects: 0 (in 0/74 functions)
-Total Rugra numbering issues: 0
+Total Rudra defects: 0 (in 0/74 functions)
+Total Rudra numbering issues: 0
 EOF
     parse_compare "$tmp/compare.txt"
     [[ "$MATCHED" == "74" && "$SKELETON" == "259" && "$DEFECTS" == "0" && "$NUMBERING" == "0" ]] \
@@ -421,7 +421,7 @@ EOF
     read_baseline no-such-corpus && { echo "SELF-TEST FAIL: bogus corpus row"; exit 1; } || true
 
     # ---- digest 缓存自检（GATE-DIGEST-CACHE-0001，无需真实二进制） ----
-    sbin=$(mktemp -d "${TMPDIR:-/tmp}/rugra-mgate-sb.XXXXXX")
+    sbin=$(mktemp -d "${TMPDIR:-/tmp}/rudra-mgate-sb.XXXXXX")
     printf 'fake-driver-v1\n' > "$sbin/curl_decompile"
     chmod +x "$sbin/curl_decompile"
     printf 'fake-golden-a\n' > "$tmp/golden.a"
@@ -508,9 +508,9 @@ no example binaries in $BIN_DIR — build first:
 EOF
     exit 2
 fi
-WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/rugra-mirror-gate.XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/rudra-mirror-gate.XXXXXX")
 
-# GATE-DIGEST-CACHE-0001: digest 缓存目录（默认 /tmp/rugra-gate-cache，env 可改）。
+# GATE-DIGEST-CACHE-0001: digest 缓存目录（默认 /tmp/rudra-gate-cache，env 可改）。
 if [[ "$CACHE_ON" == 1 ]]; then
     mkdir -p "$CACHE_ROOT" 2>/dev/null \
         || { echo "MIRROR-GATE: WARN — cache dir $CACHE_ROOT unusable, continuing uncached" >&2; CACHE_ON=0; }

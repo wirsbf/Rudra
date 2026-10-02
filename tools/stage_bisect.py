@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# RUGRA-GLUE: no oracle counterpart. This tool is a pure consumer of stage
+# RUDRA-GLUE: no oracle counterpart. This tool is a pure consumer of stage
 # projection files produced by fixture harnesses around the locked oracle
 # (Ghidra 12.0.4, commit e40ed13014025f82488b1f8f7bca566894ac376b) and around
-# the Rugra driver layer. It changes no pipeline semantics, produces no IR, and
+# the Rudra driver layer. It changes no pipeline semantics, produces no IR, and
 # injects no state; per docs/alignment_docs/PIPELINE_STAGES_1204.md section 5
 # such tooling must live outside the perform() tree and must never be required
 # for semantic equivalence. The native observation mechanisms it consumes are:
@@ -231,9 +231,9 @@ V1_OPCODE_ENUM_NAMES = (
 # Provenance / equality assertion: the tuple above was extracted verbatim
 # from the locked oracle (ghidra @ e40ed13014025f82488b1f8f7bca566894ac376b,
 # pristine `git show HEAD:...opcodes.cc`, working tree clean) with
-#   /dev/shm/rugra-tests/sb-bisect/extract_opcode_names.py
+#   /dev/shm/rudra-tests/sb-bisect/extract_opcode_names.py
 #     <ghidra>/Ghidra/Features/Decompiler/src/decompile/cpp/opcodes.cc
-#     > /dev/shm/rugra-tests/sb-bisect/opcode_names.txt   # -> count=74
+#     > /dev/shm/rudra-tests/sb-bisect/opcode_names.txt   # -> count=74
 # and verified equal (order-sensitive, 74/74) against the embedded tuple:
 #   [l.strip() for l in open("opcode_names.txt") if l.strip()]
 #     == list(V1_OPCODE_ENUM_NAMES)  -> EQUAL (2026-09-22, lane R3)
@@ -363,7 +363,7 @@ def _validate_v1_meta(meta, line_no):
     if missing:
         raise FormatError(f"line {line_no}: META missing fields: {', '.join(missing)}")
     if meta["side"] not in ("oracle", "rugra"):
-        raise FormatError(f"line {line_no}: META side must be oracle or rugra")
+        raise FormatError(f"line {line_no}: META side must be oracle or rudra")
     if not V1_SHA256_RE.fullmatch(meta["binary_sha256"]):
         raise FormatError(f"line {line_no}: META binary_sha256 is not a SHA-256")
     if not V1_HEX_RE.fullmatch(meta["func_entry"]):
@@ -605,7 +605,7 @@ def _v1_context_diff(left_ops, right_ops, index, context=3):
         left_lines,
         right_lines,
         fromfile="oracle op-lines",
-        tofile="rugra op-lines",
+        tofile="rudra op-lines",
         n=context,
         lineterm="",
     ))
@@ -727,14 +727,14 @@ def human_v1_report(report, context=3):
     if report["kind"] == V1_KIND_META:
         for key, diff in sorted(report.get("meta_diff", {}).items()):
             lines.append(
-                f"meta {key}: oracle={diff['left']!r} rugra={diff['right']!r}"
+                f"meta {key}: oracle={diff['left']!r} rudra={diff['right']!r}"
             )
         lines.append(f"attribution: {report['attribution']}")
         return "\n".join(lines)
     stage = report["stage"]
-    lines.append(f"round: oracle={stage['round']['left']} rugra={stage['round']['right']}")
-    lines.append(f"stage ordinal: oracle={stage['ordinal']['left']} rugra={stage['ordinal']['right']}")
-    lines.append(f"tree-path: oracle={stage['tree_path']['left']} rugra={stage['tree_path']['right']}")
+    lines.append(f"round: oracle={stage['round']['left']} rudra={stage['round']['right']}")
+    lines.append(f"stage ordinal: oracle={stage['ordinal']['left']} rudra={stage['ordinal']['right']}")
+    lines.append(f"tree-path: oracle={stage['tree_path']['left']} rudra={stage['tree_path']['right']}")
     if report["kind"] == V1_KIND_RESULT:
         lines.append(f"result/count: {report['end']['differing']}")
     elif report["kind"] == V1_KIND_OP:
@@ -1372,7 +1372,7 @@ def scenario_after_divergence():
         ]
         + MAINLOOP_TAIL
     )
-    right = make_projection(right_lines, "rugra.proj")
+    right = make_projection(right_lines, "rudra.proj")
     report = compare_projections(left, right)
     check(report["kind"] == KIND_AFTER, f"expected AFTER, got {report['kind']}")
     # COMMON_PREFIX[0] is the META line (not a stream item); the @BEGIN for
@@ -1499,7 +1499,7 @@ def scenario_boundary_divergence():
             "changes=3 tests=6 apply=2",
             "2 universal:ActionMappedLocalSync a|b",
         ],
-        "rugra.proj",
+        "rudra.proj",
     )
     report = compare_projections(left, right)
     check(
@@ -1528,7 +1528,7 @@ def scenario_length_divergence():
 def scenario_match():
     lines = COMMON_PREFIX + MAINLOOP_TAIL
     left = make_projection(lines, "ghidra.proj")
-    right = make_projection(lines, "rugra.proj")
+    right = make_projection(lines, "rudra.proj")
     report = compare_projections(left, right)
     check(report["kind"] == KIND_MATCH, f"expected MATCH, got {report['kind']}")
     return report
@@ -1602,7 +1602,7 @@ def scenario_restart_derivation():
     )
     right = make_projection(
         [
-            "META side=rugra func=F",
+            "META side=rudra func=F",
             "@BEGIN universal:fullloop:mainloop",
             "@END universal:fullloop:mainloop changes=1",
             "@RESTART 1",
@@ -1633,7 +1633,7 @@ def scenario_relax_unique():
     left = make_projection(base)
     right = make_projection(
         [
-            "META side=rugra func=F",
+            "META side=rudra func=F",
             "0 p:q:RuleX 0041: (COPY,3) uni10 = uni20|0041: (COPY,3) uni10 = uni2a",
         ]
     )
@@ -1650,7 +1650,7 @@ def scenario_relax_unique():
     )
     right2 = make_projection(
         [
-            "META side=rugra func=F",
+            "META side=rudra func=F",
             "0 p:q:RuleX (COPY,3) uni10 = uni20|(LOAD,3) uni10 = uni20",
         ]
     )
@@ -1777,7 +1777,7 @@ def v1_base_stages():
 def scenario_v1_match():
     stages = v1_base_stages()
     left = make_v1_projection(make_v1_lines(stages, "oracle"), "oracle-v1")
-    right = make_v1_projection(make_v1_lines(stages, "rugra"), "rugra-v1")
+    right = make_v1_projection(make_v1_lines(stages, "rugra"), "rudra-v1")
     report = compare_v1_projections(left, right)
     check(report["kind"] == V1_KIND_MATCH, "v1 identical snapshots must match")
     return report
@@ -1788,7 +1788,7 @@ def scenario_v1_stage_count():
     right_stages = left_stages + [{"seq": 2, "path": "universal:fullloop:child", "ops": []}]
     report = compare_v1_projections(
         make_v1_projection(make_v1_lines(left_stages), "oracle-v1"),
-        make_v1_projection(make_v1_lines(right_stages, "rugra"), "rugra-v1"),
+        make_v1_projection(make_v1_lines(right_stages, "rugra"), "rudra-v1"),
     )
     check(report["kind"] == V1_KIND_STAGE, "stage count must be a sequence divergence")
     check(report["stage"]["ordinal"]["right"] == 2, "missing stage ordinal must be reported")
@@ -1801,7 +1801,7 @@ def scenario_v1_op_content():
     right[0] = dict(right[0], ops=v1_ops(constant="0x9"))
     report = compare_v1_projections(
         make_v1_projection(make_v1_lines(left), "oracle-v1"),
-        make_v1_projection(make_v1_lines(right, "rugra"), "rugra-v1"),
+        make_v1_projection(make_v1_lines(right, "rugra"), "rudra-v1"),
     )
     check(report["kind"] == V1_KIND_OP and report["op_index"] == 3, "constant op diff missing")
     check(any(line.startswith("@@") for line in report["unified_diff"]), "unified context missing")
@@ -1814,7 +1814,7 @@ def scenario_v1_opcode_name():
     right[0] = dict(right[0], ops=v1_ops(opcode="COPY_ALT"))
     report = compare_v1_projections(
         make_v1_projection(make_v1_lines(left), "oracle-v1"),
-        make_v1_projection(make_v1_lines(right, "rugra"), "rugra-v1"),
+        make_v1_projection(make_v1_lines(right, "rugra"), "rudra-v1"),
     )
     check(report["kind"] == V1_KIND_OP and report["op_index"] == 2, "opcode diff missing")
     return report
@@ -1842,7 +1842,7 @@ def scenario_v1_result_count():
     right = [dict(left[0], count=2)]
     report = compare_v1_projections(
         make_v1_projection(make_v1_lines(left), "oracle-v1"),
-        make_v1_projection(make_v1_lines(right, "rugra"), "rugra-v1"),
+        make_v1_projection(make_v1_lines(right, "rugra"), "rudra-v1"),
     )
     check(report["kind"] == V1_KIND_RESULT, "count mismatch must be result/count divergence")
     return report
@@ -1855,7 +1855,7 @@ def scenario_v1_restart_interleaving():
         {"seq": 3, "path": "universal:fullloop:child", "ops": v1_ops()[2:3]},
     ]
     left = make_v1_projection(make_v1_lines(stages), "oracle-v1")
-    right = make_v1_projection(make_v1_lines(stages, "rugra"), "rugra-v1")
+    right = make_v1_projection(make_v1_lines(stages, "rugra"), "rudra-v1")
     report = compare_v1_projections(left, right)
     check(report["kind"] == V1_KIND_MATCH, "interleaved group/restart sequence must match")
     check(left.stages[2].round == 1, "curstart must be attached as zero-based round")
@@ -1886,8 +1886,8 @@ def scenario_v1_nested_interleaving():
 
     left = make_v1_projection(V1_META + nested_lines(), "oracle-nested")
     right = make_v1_projection(
-        [line.replace("side=oracle", "side=rugra") for line in V1_META + nested_lines()],
-        "rugra-nested",
+        [line.replace("side=oracle", "side=rudra") for line in V1_META + nested_lines()],
+        "rudra-nested",
     )
     check(
         [stage.seq for stage in left.stages] == [2, 1],
@@ -1907,9 +1907,9 @@ def scenario_v1_nested_interleaving():
     # A divergence inside the child is reported at the child stage (the first
     # completed stage), proving the comparator works on completion order.
     bad = make_v1_projection(
-        [line.replace("side=oracle", "side=rugra")
+        [line.replace("side=oracle", "side=rudra")
          for line in V1_META + nested_lines(result_child="1")],
-        "rugra-nested-bad",
+        "rudra-nested-bad",
     )
     diverged = compare_v1_projections(left, bad)
     check(
@@ -2091,7 +2091,7 @@ def scenario_v1_restart_open_root():
     check(left.stages[0].round == 1, "stage opened after @RESTART must carry round 1")
     check(left.stages[1].round == 0, "root frame keeps the round it was opened in")
     right = make_v1_projection(
-        [line.replace("side=oracle", "side=rugra") for line in lines],
+        [line.replace("side=oracle", "side=rudra") for line in lines],
         "restart-open-root",
     )
     report = compare_v1_projections(left, right)
@@ -2118,7 +2118,7 @@ def scenario_v1_converged_compat():
     left = make_v1_projection(lines, "conv-v1")
     check(len(left.converged) == 1, "top-level @CONVERGED must be retained for compat")
     right = make_v1_projection(
-        [line.replace("side=oracle", "side=rugra") for line in lines], "conv-v1"
+        [line.replace("side=oracle", "side=rudra") for line in lines], "conv-v1"
     )
     report = compare_v1_projections(left, right)
     check(report["kind"] == V1_KIND_MATCH, "compat @CONVERGED must not affect compare")
@@ -2143,7 +2143,7 @@ def scenario_v1_op_count_divergence():
     right[0] = dict(right[0], ops=v1_ops()[:4], tests=5)
     report = compare_v1_projections(
         make_v1_projection(make_v1_lines(left), "oracle-v1"),
-        make_v1_projection(make_v1_lines(right, "rugra"), "rugra-v1"),
+        make_v1_projection(make_v1_lines(right, "rugra"), "rudra-v1"),
     )
     check(
         report["kind"] == V1_KIND_OP,
@@ -2217,7 +2217,7 @@ def scenario_v1_enum_opcodes_and_pointer_descriptors():
         ]
 
     left = make_v1_projection(lines("oracle"), "oracle-v12")
-    right = make_v1_projection(lines("rugra"), "rugra-v12")
+    right = make_v1_projection(lines("rugra"), "rudra-v12")
     parsed = left.stages[0].ops
     check([op.opcode for op in parsed[:6]]
           == ["COPY", "INT_SUB", "INT_EQUAL", "CAST", "INT_ZEXT", "SUBPIECE"],
@@ -2330,7 +2330,7 @@ def scenario_v1_identity_mismatch():
     ]
     advisory = [line.replace("unique_base=0x1000", "unique_base=0x2000") for line in advisory]
     advisory_right = make_v1_projection(
-        make_v1_lines(stages, "rugra", meta=advisory), "rugra-v1"
+        make_v1_lines(stages, "rugra", meta=advisory), "rudra-v1"
     )
     report = compare_v1_projections(left, advisory_right)
     check(
@@ -2346,7 +2346,7 @@ def scenario_v1_identity_mismatch():
     wrong_binary = [line.replace("a" * 64, "b" * 64) for line in V1_META]
     mismatch = compare_v1_projections(
         left,
-        make_v1_projection(make_v1_lines(stages, "rugra", meta=wrong_binary), "rugra-v1"),
+        make_v1_projection(make_v1_lines(stages, "rugra", meta=wrong_binary), "rudra-v1"),
     )
     check(
         mismatch["kind"] == V1_KIND_META,
@@ -2370,7 +2370,7 @@ def scenario_v1_identity_mismatch():
                 [{"seq": 1, "path": "universal:other", "ops": []}], "rugra",
                 meta=other_entry,
             ),
-            "rugra-v1",
+            "rudra-v1",
         ),
     )
     check(
@@ -2463,16 +2463,16 @@ def main(argv=None):
         prog="stage_bisect.py",
         description=(
             "Locate the first divergence boundary between two pipeline stage "
-            "projections (Ghidra-side vs Rugra-side OPACTION_DEBUG-derived "
+            "projections (Ghidra-side vs Rudra-side OPACTION_DEBUG-derived "
             "traces). Pure consumer of projections; changes no pipeline "
-            "semantics (RUGRA-GLUE)."
+            "semantics (RUDRA-GLUE)."
         ),
     )
     parser.add_argument(
         "left", nargs="?", help="left projection file (typically Ghidra side)"
     )
     parser.add_argument(
-        "right", nargs="?", help="right projection file (typically Rugra side)"
+        "right", nargs="?", help="right projection file (typically Rudra side)"
     )
     parser.add_argument(
         "--json", action="store_true", help="emit a machine-readable JSON report"

@@ -5,7 +5,7 @@ set -euo pipefail
 # Architecture-binding parity (glb = scope->getArch(), funcdata.cc:48).
 # Compiles the locked Ghidra 12.0.4 oracle fixture (real BfdArchitecture
 # chain on the production x86-64 SLEIGH/BFD spec set, the same path as the
-# arch_context_tracked fixture) and the worktree Rugra rlib (Funcdata::new
+# arch_context_tracked fixture) and the worktree Rudra rlib (Funcdata::new
 # binds the canonical default Architecture), runs both
 # funcdata_canonical_arch_1204 fixtures and diffs the three diffed
 # projections (arch_nonnull / space_name / arch_identity_shared) byte for
@@ -21,8 +21,8 @@ oracle_archive="$oracle_cpp/libdecomp.a"
 cpp_fixture="$repo_root/tests/oracle/funcdata_canonical_arch_1204.cc"
 rust_fixture="$repo_root/tests/oracle/funcdata_canonical_arch_1204.rs"
 metadata="$repo_root/tests/oracle/funcdata_canonical_arch_1204.metadata.json"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -90,10 +90,10 @@ PY
 # fill it mid-write.
 stage_root=/home/wirs/.cache
 mkdir -p "$stage_root"
-oracle_tmp=$(mktemp -d "$stage_root/rugra-funcdata-canonical-arch-1204.XXXXXX")
+oracle_tmp=$(mktemp -d "$stage_root/rudra-funcdata-canonical-arch-1204.XXXXXX")
 cleanup() {
   case "$oracle_tmp" in
-    "$stage_root"/rugra-funcdata-canonical-arch-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    "$stage_root"/rudra-funcdata-canonical-arch-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -119,26 +119,26 @@ g++ -std=c++11 -O2 -m64 \
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/funcdata_canonical_arch_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/funcdata_canonical_arch_rudra"
 
 # The oracle fixture boots BfdArchitecture over its own executable
 # (argv[0]); the diffed projections depend only on the spec set, never on
 # the host binary's symbol table.
-bfd_runtime=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu
+bfd_runtime=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu
 LD_LIBRARY_PATH="$bfd_runtime${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
   "$oracle_tmp/funcdata_canonical_arch_1204_cpp" "$spec_root" \
   >"$oracle_tmp/ghidra.stdout"
-"$oracle_tmp/funcdata_canonical_arch_rugra" >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+"$oracle_tmp/funcdata_canonical_arch_rudra" >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
-python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib

@@ -63,33 +63,33 @@ A = {
     596: "// Ghidra: coreaction.hh:409 ActionMergeType (constructor mirror)",
     602: "// Ghidra: coreaction.hh:414 ActionMergeType::apply",
     608: "// RUDRA-GLUE: Rust Action trait get_name; \"mergetype\" mirrors ctor at coreaction.hh:409",
-    # --- ActionSimplify (Rugra-specific; no Ghidra counterpart) ---
-    623: "// RUDRA-GLUE: Rugra-specific peephole simplifier; no single Ghidra Action counterpart (Ghidra folds these via Rule pool in ruleaction.cc)",
-    629: "// RUDRA-GLUE: Rugra-specific peephole simplifier apply; no single Ghidra counterpart",
-    747: "// RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionSimplify",
-    # --- ActionCopyPropagate (Rugra-specific) ---
-    759: "// RUDRA-GLUE: Rugra-specific copy-propagation pass; no direct Ghidra Action counterpart",
-    765: "// RUDRA-GLUE: Rugra-specific copy-propagation apply",
-    859: "// RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionCopyPropagate",
-    # --- ActionCallParams helpers + struct (Rugra-specific) ---
-    886: "// RUDRA-GLUE: Rugra-specific ABI table (SysV known-callee param count); no Ghidra counterpart (Ghidra uses FuncProto lock instead)",
-    960: "// RUDRA-GLUE: Rugra-specific ABI table (SysV known-callee param types)",
-    985: "// RUDRA-GLUE: Rugra-specific ABI table (known-callee predicate)",
-    1009: "// RUDRA-GLUE: Rugra-specific ABI table (known-callee return type)",
-    1048: "// RUDRA-GLUE: Rugra-specific param fill-in pass; no direct Ghidra Action counterpart",
-    1054: "// RUDRA-GLUE: Rugra-specific param fill-in apply",
-    1281: "// RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionCallParams",
-    # --- ActionInferParams (Rugra-specific) ---
-    1297: "// RUDRA-GLUE: Rugra-specific param inference pass; no direct Ghidra Action counterpart",
-    1303: "// RUDRA-GLUE: Rugra-specific param inference apply",
-    1607: "// RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionInferParams",
-    # --- ActionTypeInfer (Rugra-specific) ---
-    1621: "// RUDRA-GLUE: Rugra-specific whole-function type inference; no direct Ghidra Action counterpart (Ghidra uses ActionInferTypes instead)",
-    1627: "// RUDRA-GLUE: Rugra-specific whole-function type inference apply",
-    1897: "// RUDRA-GLUE: Rust Action trait get_name for Rugra-specific ActionTypeInfer",
+    # --- ActionSimplify (Rudra-specific; no Ghidra counterpart) ---
+    623: "// RUDRA-GLUE: Rudra-specific peephole simplifier; no single Ghidra Action counterpart (Ghidra folds these via Rule pool in ruleaction.cc)",
+    629: "// RUDRA-GLUE: Rudra-specific peephole simplifier apply; no single Ghidra counterpart",
+    747: "// RUDRA-GLUE: Rust Action trait get_name for Rudra-specific ActionSimplify",
+    # --- ActionCopyPropagate (Rudra-specific) ---
+    759: "// RUDRA-GLUE: Rudra-specific copy-propagation pass; no direct Ghidra Action counterpart",
+    765: "// RUDRA-GLUE: Rudra-specific copy-propagation apply",
+    859: "// RUDRA-GLUE: Rust Action trait get_name for Rudra-specific ActionCopyPropagate",
+    # --- ActionCallParams helpers + struct (Rudra-specific) ---
+    886: "// RUDRA-GLUE: Rudra-specific ABI table (SysV known-callee param count); no Ghidra counterpart (Ghidra uses FuncProto lock instead)",
+    960: "// RUDRA-GLUE: Rudra-specific ABI table (SysV known-callee param types)",
+    985: "// RUDRA-GLUE: Rudra-specific ABI table (known-callee predicate)",
+    1009: "// RUDRA-GLUE: Rudra-specific ABI table (known-callee return type)",
+    1048: "// RUDRA-GLUE: Rudra-specific param fill-in pass; no direct Ghidra Action counterpart",
+    1054: "// RUDRA-GLUE: Rudra-specific param fill-in apply",
+    1281: "// RUDRA-GLUE: Rust Action trait get_name for Rudra-specific ActionCallParams",
+    # --- ActionInferParams (Rudra-specific) ---
+    1297: "// RUDRA-GLUE: Rudra-specific param inference pass; no direct Ghidra Action counterpart",
+    1303: "// RUDRA-GLUE: Rudra-specific param inference apply",
+    1607: "// RUDRA-GLUE: Rust Action trait get_name for Rudra-specific ActionInferParams",
+    # --- ActionTypeInfer (Rudra-specific) ---
+    1621: "// RUDRA-GLUE: Rudra-specific whole-function type inference; no direct Ghidra Action counterpart (Ghidra uses ActionInferTypes instead)",
+    1627: "// RUDRA-GLUE: Rudra-specific whole-function type inference apply",
+    1897: "// RUDRA-GLUE: Rust Action trait get_name for Rudra-specific ActionTypeInfer",
     # --- type helpers ---
-    1902: "// RUDRA-GLUE: helper mirroring TypePointer::getPtrTo (type.hh); used by Rugra type inference",
-    1910: "// RUDRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh); used by Rugra type inference",
+    1902: "// RUDRA-GLUE: helper mirroring TypePointer::getPtrTo (type.hh); used by Rudra type inference",
+    1910: "// RUDRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh); used by Rudra type inference",
     # --- ActionUnreachable ---
     1931: "// Ghidra: coreaction.hh:493 ActionUnreachable (constructor mirror)",
     1934: "// Ghidra: coreaction.cc:3457 ActionUnreachable::apply",
@@ -141,11 +141,11 @@ A = {
     2791: "// RUDRA-GLUE: Rust Action trait get_name; \"setcasts\" mirrors ctor at coreaction.hh:330",
     # --- ActionInferTypes ---
     2812: "// Ghidra: coreaction.hh:960 ActionInferTypes (constructor mirror)",
-    2826: "// RUDRA-GLUE: Rugra helper producing a stable u64 key for a Varnode (Rust borrow workaround)",
+    2826: "// RUDRA-GLUE: Rudra helper producing a stable u64 key for a Varnode (Rust borrow workaround)",
     2836: "// RUDRA-GLUE: helper mirroring TypeFactory::getTypePointer (type.hh)",
     2850: "// RUDRA-GLUE: helper mirroring TypePointer::getPtrTo (type.hh)",
     2992: "// Ghidra: coreaction.cc:5074 ActionInferTypes::propagateTypeEdge",
-    3069: "// RUDRA-GLUE: Rugra driver that folds ActionInferTypes::propagateOneType over the varnode set (coreaction.cc:5400-5405)",
+    3069: "// RUDRA-GLUE: Rudra driver that folds ActionInferTypes::propagateOneType over the varnode set (coreaction.cc:5400-5405)",
     3219: "// Ghidra: coreaction.cc:5172 ActionInferTypes::propagateOneType",
     3345: "// Ghidra: coreaction.cc:5043 ActionInferTypes::writeBack",
     3368: "// Ghidra: coreaction.cc:5342 ActionInferTypes::propagateAcrossReturns",
@@ -166,7 +166,7 @@ A = {
     3746: "// RUDRA-GLUE: Rust Action trait get_name; \"restrictlocal\" mirrors ctor at coreaction.hh:813",
     # --- ActionMultiCse ---
     3753: "// Ghidra: coreaction.hh:163 ActionMultiCse (constructor mirror)",
-    3757: "// RUDRA-GLUE: Rugra helper chasing COPY chains; Ghidra inlines this within ActionMultiCse::processBlock (coreaction.cc:790-810)",
+    3757: "// RUDRA-GLUE: Rudra helper chasing COPY chains; Ghidra inlines this within ActionMultiCse::processBlock (coreaction.cc:790-810)",
     3783: "// Ghidra: coreaction.cc:741 ActionMultiCse::preferredOutput",
     3824: "// Ghidra: coreaction.cc:777 ActionMultiCse::findMatch",
     3878: "// Ghidra: coreaction.cc:822 ActionMultiCse::processBlock",
@@ -221,7 +221,7 @@ A = {
     4604: "// Ghidra: coreaction.cc:892 ActionShadowVar::apply",
     4737: "// RUDRA-GLUE: Rust Action trait get_name; \"shadowvar\" mirrors ctor at coreaction.hh:177",
     # --- free helper ---
-    4742: "// RUDRA-GLUE: Rugra helper bridging PcodeOpRef -> parent BlockBasic ops list (Ghidra reaches this via PcodeOp::parent)",
+    4742: "// RUDRA-GLUE: Rudra helper bridging PcodeOpRef -> parent BlockBasic ops list (Ghidra reaches this via PcodeOp::parent)",
     # --- ActionFuncLink ---
     4768: "// Ghidra: coreaction.hh:697 ActionFuncLink (constructor mirror)",
     4866: "// Ghidra: coreaction.cc:1474 ActionFuncLink::funcLinkInput",
@@ -236,8 +236,8 @@ A = {
     5042: "// Ghidra: coreaction.hh:206 ActionDeindirect (constructor mirror)",
     5045: "// Ghidra: coreaction.cc:1219 ActionDeindirect::apply",
     5108: "// RUDRA-GLUE: Rust Action trait get_name; \"deindirect\" mirrors ctor at coreaction.hh:206",
-    5116: "// RUDRA-GLUE: Rugra helper factoring out the CALLIND input(0) COPY-chain chase inlined at coreaction.cc:1231-1232",
-    5135: "// RUDRA-GLUE: Rugra helper factoring out COPY-chain -> constant chase used by ActionDeindirect",
+    5116: "// RUDRA-GLUE: Rudra helper factoring out the CALLIND input(0) COPY-chain chase inlined at coreaction.cc:1231-1232",
+    5135: "// RUDRA-GLUE: Rudra helper factoring out COPY-chain -> constant chase used by ActionDeindirect",
     # --- ActionStackPtrFlow ---
     5168: "// Ghidra: coreaction.hh:89 ActionStackPtrFlow (constructor mirror)",
     5172: "// Ghidra: coreaction.cc:329 ActionStackPtrFlow::isStackRelative",
@@ -322,7 +322,7 @@ A = {
     5891: "// RUDRA-GLUE: Rust Action trait get_name; \"copymarker\" mirrors ctor at coreaction.hh:1014",
     # --- ActionMarkIndirectOnly ---
     5907: "// Ghidra: coreaction.hh:352 ActionMarkIndirectOnly (constructor mirror)",
-    5916: "// RUDRA-GLUE: Rugra helper factoring out INDIRECT-only-use predicate used by Funcdata::markIndirectOnly() (invoked from coreaction.hh:358)",
+    5916: "// RUDRA-GLUE: Rudra helper factoring out INDIRECT-only-use predicate used by Funcdata::markIndirectOnly() (invoked from coreaction.hh:358)",
     5960: "// Ghidra: coreaction.hh:357 ActionMarkIndirectOnly::apply",
     5985: "// RUDRA-GLUE: Rust Action trait get_flags; mirrors rule_onceperfunc bit set in ctor at coreaction.hh:352",
     5989: "// RUDRA-GLUE: Rust Action trait get_name; \"markindirectonly\" mirrors ctor at coreaction.hh:352",
@@ -333,7 +333,7 @@ A = {
     6058: "// RUDRA-GLUE: Rust Action trait get_name; \"mapglobals\" mirrors ctor at coreaction.hh:880",
     # --- ActionPreferComplement (blockaction) ---
     6102: "// Ghidra: blockaction.hh:300 ActionPreferComplement (constructor mirror)",
-    6118: "// RUDRA-GLUE: Rugra helper factoring out comparison-complement flip logic inlined in ActionPreferComplement::apply (blockaction.cc:2140-2167)",
+    6118: "// RUDRA-GLUE: Rudra helper factoring out comparison-complement flip logic inlined in ActionPreferComplement::apply (blockaction.cc:2140-2167)",
     6149: "// Ghidra: blockaction.cc:2140 ActionPreferComplement::apply",
     6245: "// RUDRA-GLUE: Rust Action trait get_name; \"prefercomplement\" mirrors ctor at blockaction.hh:302",
     # --- ActionStructureTransform (blockaction) ---
@@ -350,7 +350,7 @@ A = {
     6761: "// Ghidra: blockaction.cc:2326 ActionNodeJoin::apply",
     6942: "// RUDRA-GLUE: Rust Action trait get_name; \"nodejoin\" mirrors ctor at blockaction.hh:350",
     # --- pipeline builder ---
-    6978: "// RUDRA-GLUE: Rugra pipeline builder; mirrors ActionDatabase::buildDefaultGroups (coreaction.cc:5419) but returns a Vec<Box<dyn Action>> for Rust ownership",
+    6978: "// RUDRA-GLUE: Rudra pipeline builder; mirrors ActionDatabase::buildDefaultGroups (coreaction.cc:5419) but returns a Vec<Box<dyn Action>> for Rust ownership",
 }
 
 

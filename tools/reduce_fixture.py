@@ -917,7 +917,7 @@ def self_test() -> int:
     assert extract_signature(b"") == (None, None, None)
     assert extract_signature(b'{"other": 1}') == (None, None, None)
     assert extract_signature(b"not json at all") == (None, None, None)
-    with tempfile.TemporaryDirectory(prefix="rugra-reducer-test-") as raw_temp:
+    with tempfile.TemporaryDirectory(prefix="rudra-reducer-test-") as raw_temp:
         temp = Path(raw_temp)
         helper = temp / "predicate.py"
         helper.write_text(
@@ -1294,7 +1294,7 @@ def main(argv: list[str]) -> int:
         log_path = trace_path.with_name(trace_path.name + ".eval.jsonl")
         resumed_section: dict[str, Any] | None = None
         started = time.monotonic()
-        with tempfile.TemporaryDirectory(prefix="rugra-reducer-") as raw_temp:
+        with tempfile.TemporaryDirectory(prefix="rudra-reducer-") as raw_temp:
             runner = PredicateRunner(
                 root,
                 predicate,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# PRINTC-PTRCONST-DAT-SYMBOL-0001 locked Ghidra 12.0.4/Rugra bilateral
+# PRINTC-PTRCONST-DAT-SYMBOL-0001 locked Ghidra 12.0.4/Rudra bilateral
 # runner. The C++ side drives the REAL PrintC::pushConstant ->
 # pushPtrCharConstant -> printCharacterConstant chain (printc.cc:1744/1698/
 # 1534) and the TYPE_SPACEBASE arm of PrintC::opPtrsub (printc.cc:1057-1097)
@@ -69,7 +69,7 @@ ghidra = pathlib.Path(ghidra_name)
 if metadata["oracle"]["commit"] != oracle_commit:
     raise SystemExit("metadata oracle commit does not match runner")
 if metadata["rugra_baseline"]["commit"] != baseline_commit:
-    raise SystemExit("metadata Rugra baseline does not match runner")
+    raise SystemExit("metadata Rudra baseline does not match runner")
 
 def git_rev_parse(directory: pathlib.Path, revision: str) -> str:
     return subprocess.check_output(
@@ -94,7 +94,7 @@ baseline_revisions = {
 for key, revision in baseline_revisions.items():
     actual = git_rev_parse(repo, revision)
     if metadata["rugra_baseline"][key] != actual:
-        raise SystemExit(f"baseline {key} mismatch: metadata={metadata['rugra_baseline'][key]} actual={actual}")
+        raise SystemExit(f"baseline {key} mismatch: metadata={metadata['rudra_baseline'][key]} actual={actual}")
 
 actual_fingerprint = "sha256:" + hashlib.sha256(metadata["input"].encode("utf-8")).hexdigest()
 if metadata["input_fingerprint"] != actual_fingerprint:
@@ -120,7 +120,7 @@ if metadata["host_rustc"] != rustc:
 PY
 
 mkdir -p /home/wirs/.cache
-oracle_tmp=$(mktemp -d /home/wirs/.cache/rugra-printc-ptrconst.XXXXXX)
+oracle_tmp=$(mktemp -d /home/wirs/.cache/rudra-printc-ptrconst.XXXXXX)
 trap 'rm -rf "$oracle_tmp"' EXIT
 
 jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')
@@ -132,28 +132,28 @@ g++ -std=c++11 -O2 -w -I"$cpp_root" \
 # Only the Cargo subprocess holds the shared build lock. The oracle compiler,
 # rustc fixture link, and repeatability/differential runs remain outside it.
 fixture_target=${CARGO_TARGET_DIR:-/home/wirs/.cache/a24-printc-target}
-flock /tmp/rugra-cargo-build.lock \
+flock /tmp/rudra-cargo-build.lock \
   env CARGO_TARGET_DIR="$fixture_target" CARGO_INCREMENTAL=0 \
   cargo build --quiet --lib --manifest-path "$repo_root/Cargo.toml"
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce $rugra_rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce $rudra_rlib" >&2
   exit 1
 fi
 TMPDIR="$oracle_tmp" rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/printc_ptrconst_rugra"
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/printc_ptrconst_rudra"
 
 "$oracle_tmp/printc_ptrconst_1204" >"$oracle_tmp/ghidra.first"
 "$oracle_tmp/printc_ptrconst_1204" >"$oracle_tmp/ghidra.second"
-"$oracle_tmp/printc_ptrconst_rugra" >"$oracle_tmp/rugra.first"
-"$oracle_tmp/printc_ptrconst_rugra" >"$oracle_tmp/rugra.second"
+"$oracle_tmp/printc_ptrconst_rudra" >"$oracle_tmp/rudra.first"
+"$oracle_tmp/printc_ptrconst_rudra" >"$oracle_tmp/rudra.second"
 diff -u "$oracle_tmp/ghidra.first" "$oracle_tmp/ghidra.second"
-diff -u "$oracle_tmp/rugra.first" "$oracle_tmp/rugra.second"
-diff -u "$oracle_tmp/ghidra.first" "$oracle_tmp/rugra.first"
+diff -u "$oracle_tmp/rudra.first" "$oracle_tmp/rudra.second"
+diff -u "$oracle_tmp/ghidra.first" "$oracle_tmp/rudra.first"
 cat "$oracle_tmp/ghidra.first"
 
-python3 - "$metadata" "$oracle_tmp/ghidra.first" "$oracle_tmp/rugra.first" <<'PY'
+python3 - "$metadata" "$oracle_tmp/ghidra.first" "$oracle_tmp/rudra.first" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -162,7 +162,7 @@ import sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 for side, path, key in (
     ("ghidra", pathlib.Path(sys.argv[2]), "ghidra_expected_stdout_sha256"),
-    ("rugra", pathlib.Path(sys.argv[3]), "rugra_expected_stdout_sha256"),
+    ("rugra", pathlib.Path(sys.argv[3]), "rudra_expected_stdout_sha256"),
 ):
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
     if metadata[key] != actual:

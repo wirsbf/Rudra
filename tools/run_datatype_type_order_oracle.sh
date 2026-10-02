@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DATATYPE-TYPEORDER-0001 locked Ghidra/Rugra differential runner.
+# DATATYPE-TYPEORDER-0001 locked Ghidra/Rudra differential runner.
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -7,16 +7,16 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
-rugra_datatype_base_blob=f766badaff4a4b2761edaa4e4ff0f138ba86679b
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
+rudra_datatype_base_blob=f766badaff4a4b2761edaa4e4ff0f138ba86679b
 ghidra_root="$repo_root/ghidra"
 cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 metadata="$repo_root/tests/oracle/datatype_type_order_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/datatype_type_order_1204.cc"
 rust_fixture="$repo_root/tests/oracle/datatype_type_order_1204.rs"
 datatype_source="$repo_root/src/type_system/datatype.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 for required in "$metadata" "$cpp_fixture" "$rust_fixture" "$datatype_source" \
@@ -46,20 +46,20 @@ if ! git -C "$ghidra_root" diff --quiet -- \
   exit 1
 fi
 
-actual_base_commit=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
-actual_base_tree=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
+actual_base_commit=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
+actual_base_tree=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
 actual_datatype_blob=$(git -C "$repo_root" rev-parse \
-  "$rugra_base_commit:src/type_system/datatype.rs")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || \
-      "$actual_base_tree" != "$rugra_base_tree" || \
-      "$actual_datatype_blob" != "$rugra_datatype_base_blob" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+  "$rudra_base_commit:src/type_system/datatype.rs")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || \
+      "$actual_base_tree" != "$rudra_base_tree" || \
+      "$actual_datatype_blob" != "$rudra_datatype_base_blob" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
 python3 - "$metadata" "$cpp_fixture" "$rust_fixture" "$datatype_source" \
   "$oracle_tag" "$oracle_commit" "$oracle_cpp_tree" "$oracle_makefile_blob" \
-  "$rugra_base_commit" "$rugra_base_tree" "$rugra_datatype_base_blob" <<'PY'
+  "$rudra_base_commit" "$rudra_base_tree" "$rudra_datatype_base_blob" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -74,8 +74,8 @@ import sys
     oracle_commit,
     cpp_tree,
     makefile_blob,
-    rugra_base_commit,
-    rugra_base_tree,
+    rudra_base_commit,
+    rudra_base_tree,
     datatype_base_blob,
 ) = sys.argv[1:]
 
@@ -158,8 +158,8 @@ if oracle != expected_oracle:
 
 comparand = metadata["comparand"]
 expected_base = {
-    "rust_base_commit": rugra_base_commit,
-    "rust_base_tree": rugra_base_tree,
+    "rust_base_commit": rudra_base_commit,
+    "rust_base_tree": rudra_base_tree,
     "datatype_base_blob": datatype_base_blob,
 }
 for key, value in expected_base.items():
@@ -191,18 +191,18 @@ if metadata["projection_status"] != "MATCH" or metadata["overall_status"] != "MI
     raise SystemExit("fixture metadata status is not projection MATCH / overall MISMATCH")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-datatype-type-order-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-datatype-type-order-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-datatype-type-order-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-datatype-type-order-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
 trap cleanup EXIT HUP INT TERM
 
-snapshot_root="$oracle_tmp/rugra"
+snapshot_root="$oracle_tmp/rudra"
 mkdir -p "$snapshot_root/ghidra"
-git -C "$repo_root" archive --format=tar "$rugra_base_commit" \
+git -C "$repo_root" archive --format=tar "$rudra_base_commit" \
   Cargo.toml Cargo.lock build.rs README.md benches/decompile_bench.rs \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
   src sleigh_shim examples/curl sleigh_specs/x86-64.sla \
@@ -246,16 +246,16 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" RUSTFLAGS="-Awarnings" \
   --manifest-path "$snapshot_root/Cargo.toml" --lib
 rustc --edition=2021 -O \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
-  --extern "rugra=$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern "rudra=$oracle_tmp/cargo-target/debug/librudra.rlib" \
   "$snapshot_root/tests/oracle/datatype_type_order_1204.rs" \
   -o "$oracle_tmp/datatype_type_order_rust"
 
 "$oracle_tmp/datatype_type_order_cpp" \
   "$snapshot_root/sleigh_specs" "$snapshot_root/examples/curl" \
   >"$oracle_tmp/ghidra.stdout"
-"$oracle_tmp/datatype_type_order_rust" >"$oracle_tmp/rugra.stdout"
+"$oracle_tmp/datatype_type_order_rust" >"$oracle_tmp/rudra.stdout"
 
-python3 - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+python3 - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -263,13 +263,13 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra_output = pathlib.Path(sys.argv[2]).read_bytes()
-rugra_output = pathlib.Path(sys.argv[3]).read_bytes()
+rudra_output = pathlib.Path(sys.argv[3]).read_bytes()
 ghidra_sha = hashlib.sha256(ghidra_output).hexdigest()
-rugra_sha = hashlib.sha256(rugra_output).hexdigest()
+rudra_sha = hashlib.sha256(rudra_output).hexdigest()
 if metadata["expected_ghidra_stdout_sha256"] != ghidra_sha:
     raise SystemExit(f"Ghidra stdout hash mismatch: {ghidra_sha}")
-if metadata["expected_rugra_stdout_sha256"] != rugra_sha:
-    raise SystemExit(f"Rugra stdout hash mismatch: {rugra_sha}")
+if metadata["expected_rudra_stdout_sha256"] != rudra_sha:
+    raise SystemExit(f"Rudra stdout hash mismatch: {rudra_sha}")
 
 def parse(raw, side):
     result = {}
@@ -283,14 +283,14 @@ def parse(raw, side):
     return result
 
 ghidra = parse(ghidra_output, "Ghidra")
-rugra = parse(rugra_output, "Rugra")
-if set(ghidra) != set(rugra):
-    raise SystemExit("Ghidra/Rugra observation keys differ")
+rudra = parse(rudra_output, "Rudra")
+if set(ghidra) != set(rudra):
+    raise SystemExit("Ghidra/Rudra observation keys differ")
 expected_mismatches = metadata["expected_mismatches"]
 actual_mismatches = {}
 for key in sorted(ghidra):
-    if ghidra[key] != rugra[key]:
-        actual_mismatches[key] = {"ghidra": ghidra[key], "rugra": rugra[key]}
+    if ghidra[key] != rudra[key]:
+        actual_mismatches[key] = {"ghidra": ghidra[key], "rugra": rudra[key]}
 declared_mismatches = {
     key: {"ghidra": value["ghidra"], "rugra": value["rugra"]}
     for key, value in expected_mismatches.items()
@@ -306,6 +306,6 @@ if records != expected_records:
 print(f"records={records}")
 print(f"matched={records-len(actual_mismatches)} mismatched={len(actual_mismatches)}")
 print(f"ghidra_stdout_sha256={ghidra_sha}")
-print(f"rugra_stdout_sha256={rugra_sha}")
+print(f"rudra_stdout_sha256={rudra_sha}")
 PY
 printf 'datatype_type_order_1204: projection_status=MATCH overall_status=MISMATCH\n'

@@ -16,7 +16,7 @@
 # No root/system installation is required; every artifact lives in the work dir.
 #
 # Environment overrides:
-#   RUDRA_HEADLESS_WORKDIR  build directory (default /tmp/rugra-ghidra-1204-headless)
+#   RUDRA_HEADLESS_WORKDIR  build directory (default /tmp/rudra-ghidra-1204-headless)
 #   RUDRA_JDK21_HOME        reuse an existing JDK >= 21 instead of downloading one
 #   RUDRA_GRADLE_BIN        reuse an existing Gradle >= 8.5 instead of downloading one
 #   RUDRA_GRADLE_VERSION    portable Gradle version to fetch (default 8.14.3)
@@ -36,7 +36,7 @@ unset LD_PRELOAD
 
 LOCKED_ORACLE=e40ed13014025f82488b1f8f7bca566894ac376b
 ORACLE_TAG=Ghidra_12.0.4_build
-WORKDIR=${RUDRA_HEADLESS_WORKDIR:-/tmp/rugra-ghidra-1204-headless}
+WORKDIR=${RUDRA_HEADLESS_WORKDIR:-/tmp/rudra-ghidra-1204-headless}
 GRADLE_VERSION=${RUDRA_GRADLE_VERSION:-8.14.3}
 GRADLE_WORKERS=${RUDRA_GRADLE_WORKERS:-32}
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)

@@ -63,7 +63,7 @@ language_tree=$(git -C "$ghidra_repo" rev-parse \
 [ "$language_tree" = "$EXPECTED_LANGUAGE_TREE" ] || \
     die "x86 language tree=$language_tree; expected $EXPECTED_LANGUAGE_TREE"
 
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/rugra-x86-64-sla.XXXXXX")
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/rudra-x86-64-sla.XXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
 source_archive="$work_dir/locked-source.tar"

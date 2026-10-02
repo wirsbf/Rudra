@@ -17,12 +17,12 @@ ghidra_root="$repo_root/ghidra"
 cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 fixture_cc="$repo_root/tests/oracle/grammar_parse_face_1204.cc"
 fixture_rs="$repo_root/tests/oracle/grammar_parse_face_1204.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 spec_dir="$repo_root/sleigh_specs"
 binary="$repo_root/examples/curl"
 
-workroot=${RUDRA_GRAMMAR_PARSE_FACE_WORKROOT:-/dev/shm/rugra-tests/parseadj/runner}
+workroot=${RUDRA_GRAMMAR_PARSE_FACE_WORKROOT:-/dev/shm/rudra-tests/parseadj/runner}
 mkdir -p "$workroot"
 
 for required in "$fixture_cc" "$fixture_rs" \
@@ -64,29 +64,29 @@ fi
   > "$workroot/oracle_out.txt" 2> "$workroot/oracle_err.txt"
 oracle_status=$?
 
-# --- Rugra side (current tree) ---------------------------------------------
+# --- Rudra side (current tree) ---------------------------------------------
 cargo_target=${CARGO_TARGET_DIR:-$workroot/target}
 cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
 rustc --edition=2021 -C opt-level=0 "$fixture_rs" \
-  --extern rugra="$cargo_target/debug/librugra.rlib" \
+  --extern rudra="$cargo_target/debug/librudra.rlib" \
   -L dependency="$cargo_target/debug/deps" \
-  -o "$workroot/grammar_parse_face_rugra"
-"$workroot/grammar_parse_face_rugra" \
-  > "$workroot/rugra_out.txt" 2> "$workroot/rugra_err.txt"
-rugra_status=$?
+  -o "$workroot/grammar_parse_face_rudra"
+"$workroot/grammar_parse_face_rudra" \
+  > "$workroot/rudra_out.txt" 2> "$workroot/rudra_err.txt"
+rudra_status=$?
 
-echo "oracle_exit=$oracle_status rugra_exit=$rugra_status"
-if [[ "$oracle_status" != 0 || "$rugra_status" != 0 ]]; then
+echo "oracle_exit=$oracle_status rudra_exit=$rudra_status"
+if [[ "$oracle_status" != 0 || "$rudra_status" != 0 ]]; then
   echo "fixture side failed" >&2
   tail -5 "$workroot/oracle_err.txt" >&2 || true
-  tail -5 "$workroot/rugra_err.txt" >&2 || true
+  tail -5 "$workroot/rudra_err.txt" >&2 || true
   exit 1
 fi
-if diff -q "$workroot/oracle_out.txt" "$workroot/rugra_out.txt" >/dev/null; then
+if diff -q "$workroot/oracle_out.txt" "$workroot/rudra_out.txt" >/dev/null; then
   oracle_sha=$(sha256sum "$workroot/oracle_out.txt" | awk '{print $1}')
   echo "BILATERAL MATCH: $oracle_sha ($(wc -l < "$workroot/oracle_out.txt") records)"
   exit 0
 fi
 echo "BILATERAL MISMATCH" >&2
-diff "$workroot/oracle_out.txt" "$workroot/rugra_out.txt" | head -60 >&2
+diff "$workroot/oracle_out.txt" "$workroot/rudra_out.txt" | head -60 >&2
 exit 1

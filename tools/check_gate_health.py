@@ -68,7 +68,7 @@ def main() -> int:
         text = hook.read_text(encoding="utf-8", errors="replace")
         if "python3" not in text:
             failures.append(f"hook does not invoke python3: {relative}")
-        if '$REPO_ROOT/rugra/' in text:
+        if '$REPO_ROOT/rudra/' in text or '$REPO_ROOT/rugra/' in text:
             failures.append(f"hook contains stale nested-repo path: {relative}")
         hook_text[relative] = text
 

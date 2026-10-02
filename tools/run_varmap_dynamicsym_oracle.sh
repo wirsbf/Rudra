@@ -2,7 +2,7 @@
 # Immutable VARMAP-DYNAMICSYM-0001 oracle runner (varmap_dynamicsym_1204).
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler from the pinned source
-# archive, rebuilds the Rugra crate from the pinned base commit (the
+# archive, rebuilds the Rudra crate from the pinned base commit (the
 # projection runs against the committed base; no source overlays), compiles
 # both fixtures, runs them, and requires byte-identical stdout.  The 12
 # records (6 cases x before/after) cover:
@@ -32,21 +32,21 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_source_commit=ae1a28e30eb97e09062d5b64a220c7682f527735
+rudra_source_commit=ae1a28e30eb97e09062d5b64a220c7682f527735
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/varmap_dynamicsym_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/varmap_dynamicsym_1204.cc"
 rust_fixture="$repo_root/tests/oracle/varmap_dynamicsym_1204.rs"
 doc_varmap="$repo_root/docs/api/varmap.md"
 runner="$repo_root/tools/run_varmap_dynamicsym_oracle.sh"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
-oracle_tmp=$(mktemp -d /tmp/rugra-varmap-dynamicsym-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-varmap-dynamicsym-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-varmap-dynamicsym-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-varmap-dynamicsym-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -85,7 +85,7 @@ fi
 runner_sha=$(sha256sum "$runner" | awk '{print $1}')
 
 python3 -I -S - "$repo_root" "$oracle_tmp" "$metadata" "$cpp_fixture" \
-  "$rust_fixture" "$doc_varmap" "$runner_sha" "$rugra_source_commit" \
+  "$rust_fixture" "$doc_varmap" "$runner_sha" "$rudra_source_commit" \
   "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" "$oracle_language_tree" \
   "$oracle_makefile_blob" "$bfd_header" "$bfd_library" <<'PY'
 import hashlib
@@ -102,7 +102,7 @@ import sys
     rust_fixture_raw,
     doc_varmap_raw,
     runner_sha,
-    rugra_source_commit,
+    rudra_source_commit,
     oracle_commit,
     oracle_tag,
     cpp_tree,
@@ -131,7 +131,7 @@ def git_blob(spec):
 def base_source_files(directory):
     listing = subprocess.check_output(
         ["git", "-C", str(repo_root), "ls-tree", "-r", "--name-only",
-         rugra_source_commit, "--", directory],
+         rudra_source_commit, "--", directory],
         text=True,
     ).splitlines()
     return [pathlib.Path(line) for line in listing if line]
@@ -147,10 +147,10 @@ crate_files = [
 ] + base_source_files("src") + base_source_files("sleigh_shim")
 crate_files = sorted(set(crate_files), key=lambda item: item.as_posix())
 crate_hasher = hashlib.sha256()
-crate_hasher.update(b"rugra-varmap-dynamicsym-base-v1\0")
-crate_hasher.update(rugra_source_commit.encode())
+crate_hasher.update(b"rudra-varmap-dynamicsym-base-v1\0")
+crate_hasher.update(rudra_source_commit.encode())
 for relative in crate_files:
-    data = git_blob(f"{rugra_source_commit}:{relative.as_posix()}")
+    data = git_blob(f"{rudra_source_commit}:{relative.as_posix()}")
     destination = snapshot / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
@@ -205,7 +205,7 @@ for label, actual, expected in (
 require("architecture", metadata["architecture"], "x86:LE:64:default")
 require("compiler id", metadata["compiler_spec"]["id"], "gcc")
 source = metadata["rugra_source"]
-require("source commit", source["base_commit"], rugra_source_commit)
+require("source commit", source["base_commit"], rudra_source_commit)
 for relative, key in (
     ("src/varmap.rs", "base_varmap_blob"),
     ("Cargo.toml", "cargo_toml_blob"),
@@ -214,7 +214,7 @@ for relative, key in (
 ):
     oid = subprocess.check_output(
         ["git", "-C", str(repo_root), "rev-parse",
-         f"{rugra_source_commit}:{relative}"], text=True
+         f"{rudra_source_commit}:{relative}"], text=True
     ).strip()
     require(f"source {key}", source[key], oid)
 
@@ -229,7 +229,7 @@ observed = {
 require(
     "crate hash scheme",
     comparand["rust_crate_tree_hash_scheme"],
-    "sha256 of rugra-varmap-dynamicsym-base-v1 plus base commit and sorted length-prefixed paths and contents",
+    "sha256 of rudra-varmap-dynamicsym-base-v1 plus base commit and sorted length-prefixed paths and contents",
 )
 for key, actual in observed.items():
     require(key, actual, comparand[key])
@@ -248,14 +248,14 @@ canonical = json.dumps(
 ).encode("utf-8")
 require("input manifest sha256", sha256(canonical), manifest["sha256"])
 
-binary = git_blob(f"{rugra_source_commit}:examples/curl")
+binary = git_blob(f"{rudra_source_commit}:examples/curl")
 for key, relative in (
     ("sla", "sleigh_specs/x86-64.sla"),
     ("processor_spec", "sleigh_specs/x86-64.pspec"),
     ("compiler_spec", "sleigh_specs/x86-64-gcc.cspec"),
     ("language_definitions", "sleigh_specs/x86.ldefs"),
 ):
-    data = git_blob(f"{rugra_source_commit}:{relative}")
+    data = git_blob(f"{rudra_source_commit}:{relative}")
     destination = snapshot / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
@@ -337,7 +337,7 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   nice -n 10 cargo build --offline --locked --quiet \
   --manifest-path "$oracle_tmp/workspace/Cargo.toml" --lib
 rustc --edition=2021 "$oracle_tmp/workspace/tests/oracle/varmap_dynamicsym_1204.rs" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/varmap_dynamicsym_1204_rust"
 
@@ -348,12 +348,12 @@ cd "$oracle_tmp/workspace"
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/varmap_dynamicsym_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
 cd - >/dev/null
 set -e
 
-python3 -I -S - "$metadata" "$oracle_tmp" "$ghidra_status" "$rugra_status" <<'PY'
+python3 -I -S - "$metadata" "$oracle_tmp" "$ghidra_status" "$rudra_status" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -362,13 +362,13 @@ import sys
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_bytes())
 oracle_tmp = pathlib.Path(sys.argv[2])
 ghidra_status = int(sys.argv[3])
-rugra_status = int(sys.argv[4])
+rudra_status = int(sys.argv[4])
 
 for key, name in (
     ("ghidra_stdout_sha256", "ghidra.stdout"),
     ("ghidra_stderr_sha256", "ghidra.stderr"),
-    ("rugra_stdout_sha256", "rugra.stdout"),
-    ("rugra_stderr_sha256", "rugra.stderr"),
+    ("rudra_stdout_sha256", "rudra.stdout"),
+    ("rudra_stderr_sha256", "rudra.stderr"),
 ):
     actual = hashlib.sha256((oracle_tmp / name).read_bytes()).hexdigest()
     expected = metadata["expected_results"][key]
@@ -376,9 +376,9 @@ for key, name in (
         raise SystemExit(f"{key} mismatch: expected={expected} actual={actual}")
 for key, actual in (
     ("ghidra_exit_code", ghidra_status),
-    ("rugra_exit_code", rugra_status),
+    ("rugra_exit_code", rudra_status),
     ("diff_exit_code", 0 if
-        (oracle_tmp / "ghidra.stdout").read_bytes() == (oracle_tmp / "rugra.stdout").read_bytes()
+        (oracle_tmp / "ghidra.stdout").read_bytes() == (oracle_tmp / "rudra.stdout").read_bytes()
         else 1),
 ):
     if actual != metadata["expected_results"][key]:
@@ -404,7 +404,7 @@ for index, line in enumerate(ghidra_lines):
             f"{fields.get('case')}/{fields.get('stage')} expected "
             f"{expected_case}/{expected_stage}"
         )
-if (oracle_tmp / "rugra.stderr").stat().st_size != 0:
+if (oracle_tmp / "rudra.stderr").stat().st_size != 0:
     raise SystemExit("Rust fixture stderr must be empty")
 
 print("record verdicts:")

@@ -3,7 +3,7 @@
 #
 # Builds the locked Ghidra 12.0.4 oracle fixture (ActionInferTypes STOP seal
 # + PTRSUB downChain wiring on a ProgressData graph) against the oracle cpp
-# tree, builds the Rugra comparand against the crate rlib, runs both, and
+# tree, builds the Rudra comparand against the crate rlib, runs both, and
 # diffs the shared normalized projection. Any diff line is a MISMATCH against
 # the registered residual set (see
 # tests/oracle/stop_ptrsub_wire_1204.metadata.json).
@@ -17,7 +17,7 @@ cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 cpp_fixture="$repo_root/tests/oracle/stop_ptrsub_wire_1204.cc"
 rust_fixture="$repo_root/tests/oracle/stop_ptrsub_wire_1204.rs"
 metadata="$repo_root/tests/oracle/stop_ptrsub_wire_1204.metadata.json"
-bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rudra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -48,9 +48,9 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 pairs = {
     "cpp_fixture_sha256": pathlib.Path(sys.argv[2]),
     "rust_fixture_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_coreaction_sha256": pathlib.Path(sys.argv[4]),
-    "rugra_typeop_sha256": pathlib.Path(sys.argv[5]),
-    "rugra_printc_sha256": pathlib.Path(sys.argv[6]),
+    "rudra_coreaction_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_typeop_sha256": pathlib.Path(sys.argv[5]),
+    "rudra_printc_sha256": pathlib.Path(sys.argv[6]),
 }
 for key, path in pairs.items():
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -60,10 +60,10 @@ for key, path in pairs.items():
         )
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-stop-ptrsub-wire.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-stop-ptrsub-wire.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-stop-ptrsub-wire.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-stop-ptrsub-wire.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -90,28 +90,28 @@ LD_LIBRARY_PATH="$bfd_runtime" \
   timeout 120 "$oracle_tmp/stop_wire_cpp" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 
-# ---- Rugra comparand side --------------------------------------------------
-fixture_target=${RUDRA_STOPWIRE_TARGET_DIR:-/home/wirs/.cache/rugra-stop-wire-target}
+# ---- Rudra comparand side --------------------------------------------------
+fixture_target=${RUDRA_STOPWIRE_TARGET_DIR:-/home/wirs/.cache/rudra-stop-wire-target}
 tool_tmp=$fixture_target/tmp
 mkdir -p "$fixture_target" "$tool_tmp"
 TMPDIR="$tool_tmp" CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rlib=$(ls -t "$fixture_target/debug/deps/librugra-"*.rlib 2>/dev/null | head -1 || true)
+rlib=$(ls -t "$fixture_target/debug/deps/librudra-"*.rlib 2>/dev/null | head -1 || true)
 if [[ -z "$rlib" ]]; then
-  rlib=$(ls -t "$fixture_target/debug/librugra.rlib" 2>/dev/null | head -1 || true)
+  rlib=$(ls -t "$fixture_target/debug/librudra.rlib" 2>/dev/null | head -1 || true)
 fi
 if [[ -z "$rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
-TMPDIR="$tool_tmp" rustc --edition=2021 -O --extern "rugra=$rlib" \
+TMPDIR="$tool_tmp" rustc --edition=2021 -O --extern "rudra=$rlib" \
   -L "dependency=$fixture_target/debug/deps" \
   -o "$oracle_tmp/stop_wire_rs" "$rust_fixture"
 TMPDIR="$tool_tmp" timeout 120 "$oracle_tmp/stop_wire_rs" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
 # ---- Diff ------------------------------------------------------------------
-if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
     >"$oracle_tmp/diff.txt"; then
   echo "stop_ptrsub_wire_1204: MATCH (0 diff lines)"
   exit 0

@@ -50,12 +50,12 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=7e91aef6aa28cbf0a77b9812858c276cafa7fbd3
-rugra_base_tree=fd155bc4dd996000d3012c2d49f7244c3a6308ec
-rugra_base_src_tree=c6a2eb0fb690ff9ac693d12d6ea45b606bc713ae
-rugra_base_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
-rugra_base_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
-rugra_base_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_base_commit=7e91aef6aa28cbf0a77b9812858c276cafa7fbd3
+rudra_base_tree=fd155bc4dd996000d3012c2d49f7244c3a6308ec
+rudra_base_src_tree=c6a2eb0fb690ff9ac693d12d6ea45b606bc713ae
+rudra_base_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
+rudra_base_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
+rudra_base_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
 
 metadata_live="$repo_root/tests/oracle/printlanguage_atom_metadata_1204.metadata.json"
 cpp_fixture_live="$repo_root/tests/oracle/printlanguage_atom_metadata_1204.cc"
@@ -122,12 +122,12 @@ if [[ -n "$(git_clean -C "$ghidra_root" status --porcelain --untracked-files=no 
   echo "locked Ghidra decompiler source tree is dirty" >&2
   exit 1
 fi
-if [[ "$(git_clean -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")" != "$rugra_base_tree" || \
-      "$(git_clean -C "$repo_root" rev-parse "$rugra_base_commit:src")" != "$rugra_base_src_tree" || \
-      "$(git_clean -C "$repo_root" rev-parse "$rugra_base_commit:Cargo.toml")" != "$rugra_base_cargo_toml_blob" || \
-      "$(git_clean -C "$repo_root" rev-parse "$rugra_base_commit:Cargo.lock")" != "$rugra_base_cargo_lock_blob" || \
-      "$(git_clean -C "$repo_root" rev-parse "$rugra_base_commit:build.rs")" != "$rugra_base_build_rs_blob" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+if [[ "$(git_clean -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")" != "$rudra_base_tree" || \
+      "$(git_clean -C "$repo_root" rev-parse "$rudra_base_commit:src")" != "$rudra_base_src_tree" || \
+      "$(git_clean -C "$repo_root" rev-parse "$rudra_base_commit:Cargo.toml")" != "$rudra_base_cargo_toml_blob" || \
+      "$(git_clean -C "$repo_root" rev-parse "$rudra_base_commit:Cargo.lock")" != "$rudra_base_cargo_lock_blob" || \
+      "$(git_clean -C "$repo_root" rev-parse "$rudra_base_commit:build.rs")" != "$rudra_base_build_rs_blob" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -159,7 +159,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 /usr/bin/mkdir -p "$run_root/evidence/src" \
   "$run_root/evidence/tests/oracle" "$run_root/oracle" \
-  "$run_root/rugra" "$run_root/tmp"
+  "$run_root/rudra" "$run_root/tmp"
 
 # Freeze every mutable input before content validation.  Validation, builds,
 # comparisons, and post-run rehashes consume only this private capture.
@@ -219,9 +219,9 @@ require("architecture", meta["architecture"], "language-independent PrintLanguag
 require("compiler spec", meta["compiler_spec"], "none")
 
 source = meta["rugra_source"]
-require("Rugra base commit", source["base_commit"], "7e91aef6aa28cbf0a77b9812858c276cafa7fbd3")
-require("Rugra base tree", source["base_tree"], "fd155bc4dd996000d3012c2d49f7244c3a6308ec")
-require("Rugra base src tree", source["base_src_tree"], "c6a2eb0fb690ff9ac693d12d6ea45b606bc713ae")
+require("Rudra base commit", source["base_commit"], "7e91aef6aa28cbf0a77b9812858c276cafa7fbd3")
+require("Rudra base tree", source["base_tree"], "fd155bc4dd996000d3012c2d49f7244c3a6308ec")
+require("Rudra base src tree", source["base_src_tree"], "c6a2eb0fb690ff9ac693d12d6ea45b606bc713ae")
 require("Cargo.toml blob", source["base_cargo_toml_blob"], "f15ed7d02b38aef3c21a564641344a156855b632")
 require("Cargo.lock blob", source["base_cargo_lock_blob"], "9736a3c5619f7fd188abd9609d0dccd20ef06607")
 require("build.rs blob", source["base_build_rs_blob"], "a0c81c8521547efebbb463a640ecec69d83ed4c5")
@@ -275,7 +275,7 @@ if [[ -z "$user_home" || ! -d "$user_home" ]]; then
   echo "unable to resolve user home" >&2
   exit 1
 fi
-cache_parent="$user_home/.cache/rugra-printlanguage-atom-metadata-1204"
+cache_parent="$user_home/.cache/rudra-printlanguage-atom-metadata-1204"
 /usr/bin/mkdir -p "$cache_parent"
 exec 9>"$cache_parent/runner.lock"
 if ! "$host_flock" -n 9; then
@@ -303,8 +303,8 @@ fi
   -o "$run_root/ghidra_fixture" \
   >"$run_root/cxx.stdout" 2>"$run_root/cxx.stderr"
 
-snapshot="$run_root/rugra"
-git_clean -C "$repo_root" archive "$rugra_base_commit" | \
+snapshot="$run_root/rudra"
+git_clean -C "$repo_root" archive "$rudra_base_commit" | \
   /usr/bin/tar -xf - -C "$snapshot"
 /usr/bin/cp -- "$run_root/evidence/src/prettyprint.rs" "$snapshot/src/prettyprint.rs"
 /usr/bin/cp -- "$run_root/evidence/src/printlanguage.rs" "$snapshot/src/printlanguage.rs"
@@ -328,24 +328,24 @@ if ! (
   exit 1
 fi
 
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
   /usr/bin/find "$fixture_target/debug/build" \
-    -path '*/out/librugra_sleigh.a' -type f
+    -path '*/out/librudra_sleigh.a' -type f
 )
-if [[ ! -f "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
-  echo "Rugra library/native archive build output mismatch" >&2
+if [[ ! -f "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+  echo "Rudra library/native archive build output mismatch" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
 /usr/bin/env -i HOME="$user_home" PATH=/usr/bin:/bin LC_ALL=C.UTF-8 \
   TMPDIR="$run_root/tmp" /usr/bin/timeout 600 "$host_rustc" \
   --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  -L "native=$native_dir" --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  -L "native=$native_dir" --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$snapshot/tests/oracle/printlanguage_atom_metadata_1204.rs" \
-  -o "$run_root/rugra_fixture" \
+  -o "$run_root/rudra_fixture" \
   >"$run_root/rustc.stdout" 2>"$run_root/rustc.stderr"
 
 for run in 1 2; do
@@ -353,10 +353,10 @@ for run in 1 2; do
     "$run_root/ghidra_fixture" \
     >"$run_root/ghidra.$run.stdout" 2>"$run_root/ghidra.$run.stderr"
   /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/bin/timeout 60 \
-    "$run_root/rugra_fixture" \
-    >"$run_root/rugra.$run.stdout" 2>"$run_root/rugra.$run.stderr"
+    "$run_root/rudra_fixture" \
+    >"$run_root/rudra.$run.stdout" 2>"$run_root/rudra.$run.stderr"
 done
-for side in ghidra rugra; do
+for side in ghidra rudra; do
   if ! /usr/bin/cmp -s "$run_root/$side.1.stdout" "$run_root/$side.2.stdout" || \
      ! /usr/bin/cmp -s "$run_root/$side.1.stderr" "$run_root/$side.2.stderr"; then
     echo "$side fixture output is nondeterministic" >&2
@@ -368,14 +368,14 @@ for side in ghidra rugra; do
     exit 1
   fi
 done
-if ! /usr/bin/cmp -s "$run_root/ghidra.1.stdout" "$run_root/rugra.1.stdout"; then
+if ! /usr/bin/cmp -s "$run_root/ghidra.1.stdout" "$run_root/rudra.1.stdout"; then
   echo "Atom metadata bilateral byte comparison failed" >&2
-  /usr/bin/diff -u "$run_root/ghidra.1.stdout" "$run_root/rugra.1.stdout" >&2 || true
+  /usr/bin/diff -u "$run_root/ghidra.1.stdout" "$run_root/rudra.1.stdout" >&2 || true
   exit 1
 fi
 
 /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C "$host_python" -I -S - \
-  "$metadata" "$run_root/ghidra.1.stdout" "$run_root/rugra.1.stdout" \
+  "$metadata" "$run_root/ghidra.1.stdout" "$run_root/rudra.1.stdout" \
   "$run_root/evidence" <<'PY'
 import hashlib
 import json
@@ -384,13 +384,13 @@ import sys
 
 meta = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
 evidence = pathlib.Path(sys.argv[4])
 expected = meta["expected_results"]
 sha_bytes = lambda data: hashlib.sha256(data).hexdigest()
 sha_file = lambda path: sha_bytes(path.read_bytes())
 
-if ghidra != rugra:
+if ghidra != rudra:
     raise SystemExit("byte comparison unexpectedly diverged")
 if len(ghidra) != expected["stdout_bytes_each"]:
     raise SystemExit("stdout byte count mismatch")

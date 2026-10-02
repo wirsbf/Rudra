@@ -258,7 +258,7 @@ DWARF_HARVEST_RULE = (
 # through the shared TypeFactory name tree (glb->types->findByName mirror,
 # grammar.cc:2989; the factory is populated by the driver's unconditional
 # parse_type_names DWARF import). Locked-oracle pre-validation
-# (stage_seed_diag, /dev/shm/rugra-tests/c3next): the struct seed set
+# (stage_seed_diag, /dev/shm/rudra-tests/c3next): the struct seed set
 # reproduces canon's committed declaration layer (URLGlob *urls; OutStruct
 # outs/heads; ProgressData progressbar; stat fileinfo; stat statbuf;
 # LongShort aliases [50]; Configurable *local_5b8; HttpPost *local_5a8;
@@ -282,7 +282,7 @@ STRUCT_HARVEST_RULE = (
     "canon-decl adoption for struct-pointer bases; KNOWN_BASES domain "
     "excluded (C1/C2 manifests); slot ownership first-DIE-claim; oracle "
     "prevalidation stage_seed_diag witness in "
-    "/dev/shm/rugra-tests/c3next (seed_*.xml + oracle_*_seeded.c)"
+    "/dev/shm/rudra-tests/c3next (seed_*.xml + oracle_*_seeded.c)"
 )
 
 # canon synthesized stack-name forms with the offset embedded in the name
@@ -296,8 +296,8 @@ STACK_NAME = re.compile(r"^[A-Za-z]*[Ss]tack_([0-9a-f]{1,6})$")
 # verdict's transport: canon's `long *` subscript family in httpd main /
 # ap_fini / ap_vhost comes from the analyzeHeadless Decompiler Parameter ID
 # analyzer committing locked prototypes to CALLED functions — oracle-flip
-# evidence /dev/shm/rugra-reports/LANE_SHAPEFIX_2026-09-25.md, harness
-# /dev/shm/rugra-tests/shapefix/stage_shape_diag.cc). The golden's own
+# evidence /dev/shm/rudra-reports/LANE_SHAPEFIX_2026-09-25.md, harness
+# /dev/shm/rudra-tests/shapefix/stage_shape_diag.cc). The golden's own
 # callee headers are NOT the harvest source: Parameter ID's final committed
 # self-signature can disagree with the call-site state main was decompiled
 # against (canon prints ap_setup_prelinked_modules's own header as
@@ -1476,7 +1476,7 @@ CMT_HARVEST_RULE = (
 # Curl corpus calibrations: raw DWARF anchor -> (live-op anchor, reason).
 # Each target is the first live op of the statement canon anchors the
 # block before; CMTFILL lane oracle evidence (stage_cmt_diag @ e40ed130,
-# /dev/shm/rugra-reports/LANE_CMTFILL_2026-09-25.md).
+# /dev/shm/rudra-reports/LANE_CMTFILL_2026-09-25.md).
 CMT_CALIBRATIONS_CURL = {
     0x3720: (0x3729, "my_get_token INT_EQUAL if((line==0)&&..): entry prologue dead-coded"),
     0x3840: (0x3850, "my_get_line PTRSUB buf-alias (5 live ops; oracle placement identical to the entry anchor)"),
@@ -1656,7 +1656,7 @@ def collect_cmt_anchor_groups(binary):
 # public install surface — no src/ dependency on this lane):
 #   - BASE targets install through the factory's canonical core spellings
 #     (the DWARFDataTypeManager initBaseDataTypes alias table, mirrored
-#     in Rugra's standard_base_alias debugproto.rs:1776 — "long unsigned
+#     in Rudra's standard_base_alias debugproto.rs:1776 — "long unsigned
 #     int"->"ulong" etc.). Core-spelling identity is what makes the
 #     master-side name-table twin of isOpIdentical (coreaction.rs:6602,
 #     the one live strip loop pre-MB22) strip size_t-family clones onto
@@ -1684,7 +1684,7 @@ TYPEDEF_HARVEST_RULE = (
     "decl-block declarators, intersected with the typedef name set), "
     "chain-closed over typedef-of-typedef targets; base targets mapped "
     "through the DWARFDataTypeManager initBaseDataTypes alias table "
-    "(Rugra standard_base_alias mirror) to the factory's canonical core "
+    "(Rudra standard_base_alias mirror) to the factory's canonical core "
     "spellings with (size, metatype); dependency-ordered emission; "
     "composite/enum/array targets deferred to the MB22 joint-debug "
     "install (index-aware; get_typedef's same-name throw type.cc:3825 "

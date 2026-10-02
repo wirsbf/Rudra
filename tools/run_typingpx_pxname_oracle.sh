@@ -6,7 +6,7 @@
 # driven by the RECURSIVE TypePointer::printNameBase (type.hh:424).
 # Builds the locked Ghidra 12.0.4 oracle libdecomp from the repo's ghidra
 # checkout (must sit at e40ed130), runs the C++ fixture, runs the Rust
-# fixture against this tree's librugra, and diffs the two byte for byte.
+# fixture against this tree's librudra, and diffs the two byte for byte.
 #
 # The formal immutable-runner pin ceremony (base commit/tree, per-file
 # sha256 comparands, fixture_registry.json row) is performed by root at
@@ -18,7 +18,7 @@ set -euo pipefail
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
-work="${1:-$(mktemp -d /tmp/rugra-typingpx-pxname.XXXXXX)}"
+work="${1:-$(mktemp -d /tmp/rudra-typingpx-pxname.XXXXXX)}"
 
 oracle_commit=$(git -C "$repo_root/ghidra" rev-parse HEAD)
 [[ "$oracle_commit" == "e40ed13014025f82488b1f8f7bca566894ac376b" ]] || {
@@ -44,29 +44,29 @@ g++ -std=c++11 -O2 -w -m64 -I"$cpp" \
 
 "$work/pxname_cpp" >"$work/ghidra.stdout" 2>"$work/ghidra.stderr"
 
-# ---- Rust side: this tree's librugra + the fixture.
+# ---- Rust side: this tree's librudra + the fixture.
 # Same form as the no-shim runner family (run_cspec_global_db_oracle.sh):
-# librugra embeds the vendored engine, the fixture links pure-Rust.
+# librudra embeds the vendored engine, the fixture links pure-Rust.
 cargo_target="${CARGO_TARGET_DIR:-$repo_root/target}"
 cargo build --profile fast-release --lib >/dev/null
-rlib=$(ls -t "$cargo_target"/fast-release/deps/librugra-*.rlib | head -1)
+rlib=$(ls -t "$cargo_target"/fast-release/deps/librudra-*.rlib | head -1)
 rustc --edition=2021 -O \
   -L "dependency=$cargo_target/fast-release/deps" \
-  --extern "rugra=$rlib" \
+  --extern "rudra=$rlib" \
   "$repo_root/tests/oracle/typingpx_pxname_1204.rs" -o "$work/pxname_rust"
 # The direct-runner (standalone SLEIGH) core-type contract: the C++ twin
 # registers the sleigh_arch.cc:204-238 table (xunknownN/int8/code), so the
 # Rust side must select the same tier (typefactory flavor switch;
 # MIRROR-ENVS-CANONICAL-0001) — the headless data-org flavor spells its
 # cores undefinedN/long and the first-character family would differ.
-RUDRA_MIRROR=1 "$work/pxname_rust" >"$work/rugra.stdout" 2>"$work/rugra.stderr"
+RUDRA_MIRROR=1 "$work/pxname_rust" >"$work/rudra.stdout" 2>"$work/rudra.stderr"
 
 echo "=== ghidra stdout ==="
 cat "$work/ghidra.stdout"
-echo "=== rugra stdout ==="
-cat "$work/rugra.stdout"
+echo "=== rudra stdout ==="
+cat "$work/rudra.stdout"
 
-if diff -u "$work/ghidra.stdout" "$work/rugra.stdout"; then
+if diff -u "$work/ghidra.stdout" "$work/rudra.stdout"; then
   echo "TYPINGPX-PXNAME-0001: MATCH (bilateral byte-identical)"
 else
   echo "TYPINGPX-PXNAME-0001: MISMATCH" >&2

@@ -1,10 +1,10 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================="
-Write-Host "   Rugra FFI Alignment Verification Suite  "
+Write-Host "   Rudra FFI Alignment Verification Suite  "
 Write-Host "========================================="
 
-Write-Host "`n[1/3] Compiling Rugra DLL..."
+Write-Host "`n[1/3] Compiling Rudra DLL..."
 cargo build --features ffi-test
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Cargo build failed"

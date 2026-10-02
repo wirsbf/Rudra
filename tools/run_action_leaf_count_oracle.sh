@@ -34,17 +34,17 @@ oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_language_tree=84265e1e6fe7ac9725367b57fb861253e4915984
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_input_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
-rugra_source_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_source_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
-rugra_source_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
-rugra_source_sleigh_shim_tree=c7729d9d1554dc62c486bcd7d58fdbf44bebb97d
-rugra_source_coreaction_blob=e5fb0a75534d714556206c765e6cc075cf3bd8c3
-rugra_source_cargo_toml_blob=f3d9fa9d3ba45eb2f6f5b736c6cd581820c0f341
-rugra_source_cargo_lock_blob=c1eef0a52f44f92d77b02f3e48b5d6781ec4bd94
-rugra_source_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
-rugra_source_paths=(
+rudra_input_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_input_blob=4e26a362f92ac1961bab63000215a84b4d7212dd
+rudra_source_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_source_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
+rudra_source_src_tree=2f252f03a1542c5e3aee261b4000b9614541390e
+rudra_source_sleigh_shim_tree=c7729d9d1554dc62c486bcd7d58fdbf44bebb97d
+rudra_source_coreaction_blob=e5fb0a75534d714556206c765e6cc075cf3bd8c3
+rudra_source_cargo_toml_blob=f3d9fa9d3ba45eb2f6f5b736c6cd581820c0f341
+rudra_source_cargo_lock_blob=c1eef0a52f44f92d77b02f3e48b5d6781ec4bd94
+rudra_source_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_source_paths=(
   Cargo.toml
   Cargo.lock
   build.rs
@@ -59,7 +59,7 @@ ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/action_leaf_count_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/action_leaf_count_1204.cc"
 rust_fixture="$repo_root/tests/oracle/action_leaf_count_1204.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_header="$bfd_include/bfd.h"
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
@@ -124,47 +124,47 @@ fi
 actual_repo_root=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" rev-parse --show-toplevel)
 if [[ "$actual_repo_root" != "$repo_root" ]]; then
-  echo "unexpected Rugra repository root: $actual_repo_root" >&2
+  echo "unexpected Rudra repository root: $actual_repo_root" >&2
   exit 1
 fi
 resolved_source_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_source_commit^{commit}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_source_commit^{commit}")
 actual_source_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_source_commit^{tree}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_source_commit^{tree}")
 actual_source_src_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_source_commit:src")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_source_commit:src")
 actual_source_sleigh_shim_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_source_commit:sleigh_shim")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_source_commit:sleigh_shim")
 actual_source_coreaction_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_source_commit:src/coreaction.rs")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_source_commit:src/coreaction.rs")
 actual_source_cargo_toml_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_source_commit:Cargo.toml")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_source_commit:Cargo.toml")
 actual_source_cargo_lock_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_source_commit:Cargo.lock")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_source_commit:Cargo.lock")
 actual_source_build_rs_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_source_commit:build.rs")
-if [[ "$resolved_source_commit" != "$rugra_source_commit" || \
-      "$actual_source_tree" != "$rugra_source_tree" || \
-      "$actual_source_src_tree" != "$rugra_source_src_tree" || \
-      "$actual_source_sleigh_shim_tree" != "$rugra_source_sleigh_shim_tree" || \
-      "$actual_source_coreaction_blob" != "$rugra_source_coreaction_blob" || \
-      "$actual_source_cargo_toml_blob" != "$rugra_source_cargo_toml_blob" || \
-      "$actual_source_cargo_lock_blob" != "$rugra_source_cargo_lock_blob" || \
-      "$actual_source_build_rs_blob" != "$rugra_source_build_rs_blob" ]]; then
-  echo "pinned Rugra source commit/tree/blob identity mismatch" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_source_commit:build.rs")
+if [[ "$resolved_source_commit" != "$rudra_source_commit" || \
+      "$actual_source_tree" != "$rudra_source_tree" || \
+      "$actual_source_src_tree" != "$rudra_source_src_tree" || \
+      "$actual_source_sleigh_shim_tree" != "$rudra_source_sleigh_shim_tree" || \
+      "$actual_source_coreaction_blob" != "$rudra_source_coreaction_blob" || \
+      "$actual_source_cargo_toml_blob" != "$rudra_source_cargo_toml_blob" || \
+      "$actual_source_cargo_lock_blob" != "$rudra_source_cargo_lock_blob" || \
+      "$actual_source_build_rs_blob" != "$rudra_source_build_rs_blob" ]]; then
+  echo "pinned Rudra source commit/tree/blob identity mismatch" >&2
   exit 1
 fi
 resolved_input_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_input_commit^{commit}")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_input_commit^{commit}")
 binary_blob_oid=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_input_commit:examples/curl")
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_input_commit:examples/curl")
 binary_blob_type=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" cat-file -t "$binary_blob_oid")
 binary_blob_size=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" cat-file -s "$binary_blob_oid")
-if [[ "$resolved_input_commit" != "$rugra_input_commit" || \
-      "$binary_blob_oid" != "$rugra_input_blob" || "$binary_blob_type" != blob ]]; then
-  echo "pinned Rugra binary commit/blob identity mismatch" >&2
+if [[ "$resolved_input_commit" != "$rudra_input_commit" || \
+      "$binary_blob_oid" != "$rudra_input_blob" || "$binary_blob_type" != blob ]]; then
+  echo "pinned Rudra binary commit/blob identity mismatch" >&2
   exit 1
 fi
 
@@ -178,9 +178,9 @@ host_cargo=$(/usr/bin/env -i HOME="$HOME" RUSTUP_HOME="$HOME/.rustup" \
   "$host_cargo_bin" --version)
 host_platform=$(/usr/bin/uname -srm)
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-action-leaf-count-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-action-leaf-count-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-action-leaf-count-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-action-leaf-count-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2
     return 1
   fi
@@ -202,10 +202,10 @@ registry_cache="$HOME/.cargo/registry/cache"
 mkdir -p "$oracle_tmp/input" "$snapshot_root"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" archive --format=tar \
-    --output="$oracle_tmp/rugra-source.tar" "$rugra_source_commit" \
-    "${rugra_source_paths[@]}"
+    --output="$oracle_tmp/rudra-source.tar" "$rudra_source_commit" \
+    "${rudra_source_paths[@]}"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/tar -xf "$oracle_tmp/rugra-source.tar" -C "$snapshot_root"
+  /usr/bin/tar -xf "$oracle_tmp/rudra-source.tar" -C "$snapshot_root"
 binary="$oracle_tmp/input/curl"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$repo_root" cat-file blob "$binary_blob_oid" >"$binary"
@@ -213,17 +213,17 @@ binary="$oracle_tmp/input/curl"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$repo_root" "$snapshot_root" "$cargo_home" "$registry_cache" \
   "$metadata" "$cpp_fixture" "$rust_fixture" "$runner" \
-  "$runner_snapshot_sha" "$binary" "$rugra_input_commit" "$binary_blob_oid" \
+  "$runner_snapshot_sha" "$binary" "$rudra_input_commit" "$binary_blob_oid" \
   "$binary_blob_size" "$bfd_include" "$bfd_library" "$oracle_tag" \
   "$oracle_commit" "$oracle_cpp_tree" "$oracle_language_tree" \
   "$oracle_makefile_blob" "$host_cxx" "$host_cxx_target" "$host_rustc" \
   "$host_cargo" "$host_platform" "$host_cxx_bin" "$host_cargo_bin" \
   "$host_rustc_bin" "$host_cc_bin" "$host_ar_bin" "$host_make_bin" \
   "$host_python_bin" "$host_git_bin" "$rust_toolchain" \
-  "$rugra_source_commit" "$rugra_source_tree" "$rugra_source_src_tree" \
-  "$rugra_source_sleigh_shim_tree" "$rugra_source_coreaction_blob" \
-  "$rugra_source_cargo_toml_blob" "$rugra_source_cargo_lock_blob" \
-  "$rugra_source_build_rs_blob" <<'PY'
+  "$rudra_source_commit" "$rudra_source_tree" "$rudra_source_src_tree" \
+  "$rudra_source_sleigh_shim_tree" "$rudra_source_coreaction_blob" \
+  "$rudra_source_cargo_toml_blob" "$rudra_source_cargo_lock_blob" \
+  "$rudra_source_build_rs_blob" <<'PY'
 import hashlib
 import io
 import json
@@ -289,29 +289,29 @@ archive_paths = [
 archive_files = []
 for path in snapshot.rglob("*"):
     if path.is_symlink():
-        raise SystemExit(f"pinned Rugra archive rejects symlink: {path}")
+        raise SystemExit(f"pinned Rudra archive rejects symlink: {path}")
     if path.is_file():
         relative = path.relative_to(snapshot)
         key = relative.as_posix()
         if not any(key == root or key.startswith(root + "/") for root in archive_paths):
-            raise SystemExit(f"file outside explicit Rugra source closure: {key}")
+            raise SystemExit(f"file outside explicit Rudra source closure: {key}")
         archive_files.append(relative)
 archive_files.sort(key=lambda item: item.as_posix())
 if not archive_files:
-    raise SystemExit("pinned Rugra archive is empty")
+    raise SystemExit("pinned Rudra archive is empty")
 for required in (
     "Cargo.toml", "Cargo.lock", "build.rs", "README.md",
     "benches/decompile_bench.rs", "tests/oracle/decompress_1204.rs",
     "tests/oracle/funcproto_lock_1204.rs", "src/lib.rs", "src/coreaction.rs",
-    "sleigh_shim/rugra_sleigh.cpp",
+    "sleigh_shim/rudra_sleigh.cpp",
 ):
     path = snapshot / required
     if path.is_symlink() or not path.is_file():
-        raise SystemExit(f"pinned Rugra closure is missing regular file: {required}")
+        raise SystemExit(f"pinned Rudra closure is missing regular file: {required}")
 
 base_bytes = {}
 base_hasher = hashlib.sha256()
-base_hasher.update(b"rugra-action-leaf-base-closure-v1\0")
+base_hasher.update(b"rudra-action-leaf-base-closure-v1\0")
 for relative in archive_files:
     data = (snapshot / relative).read_bytes()
     key = relative.as_posix()
@@ -334,42 +334,42 @@ special = {path: live_file(path) for path in special_paths}
 metadata = json.loads(special["tests/oracle/action_leaf_count_1204.metadata.json"])
 
 source = metadata["rugra_source"]
-require("Rugra source commit", source["commit"], source_commit)
-require("Rugra source tree", source["tree"], source_tree)
-require("Rugra src tree", source["src_tree"], source_src_tree)
-require("Rugra sleigh_shim tree", source["sleigh_shim_tree"], source_sleigh_shim_tree)
-require("Rugra base coreaction blob", source["base_coreaction_blob"], source_coreaction_blob)
-require("Rugra Cargo.toml blob", source["cargo_toml_blob"], source_cargo_toml_blob)
-require("Rugra Cargo.lock blob", source["cargo_lock_blob"], source_cargo_lock_blob)
-require("Rugra build.rs blob", source["build_rs_blob"], source_build_rs_blob)
-require("Rugra archive paths", source["archive_paths"], archive_paths)
+require("Rudra source commit", source["commit"], source_commit)
+require("Rudra source tree", source["tree"], source_tree)
+require("Rudra src tree", source["src_tree"], source_src_tree)
+require("Rudra sleigh_shim tree", source["sleigh_shim_tree"], source_sleigh_shim_tree)
+require("Rudra base coreaction blob", source["base_coreaction_blob"], source_coreaction_blob)
+require("Rudra Cargo.toml blob", source["cargo_toml_blob"], source_cargo_toml_blob)
+require("Rudra Cargo.lock blob", source["cargo_lock_blob"], source_cargo_lock_blob)
+require("Rudra build.rs blob", source["build_rs_blob"], source_build_rs_blob)
+require("Rudra archive paths", source["archive_paths"], archive_paths)
 require(
-    "Rugra archive policy",
+    "Rudra archive policy",
     source["archive_policy"],
     "Extract only the explicit dependency closure from the pinned commit; never read live crate files and never require runtime HEAD equality",
 )
 require(
-    "Rugra base closure hash scheme",
+    "Rudra base closure hash scheme",
     source["base_closure_hash_scheme"],
-    "sha256 of rugra-action-leaf-base-closure-v1 plus sorted length-prefixed relative paths and pinned archive contents",
+    "sha256 of rudra-action-leaf-base-closure-v1 plus sorted length-prefixed relative paths and pinned archive contents",
 )
-reject_pending(source["base_closure_sha256"], "rugra_source.base_closure_sha256")
-require("Rugra base closure", source["base_closure_sha256"], base_hasher.hexdigest())
-require("Rugra base coreaction sha256", source["base_coreaction_sha256"], sha(base_bytes["src/coreaction.rs"]))
+reject_pending(source["base_closure_sha256"], "rudra_source.base_closure_sha256")
+require("Rudra base closure", source["base_closure_sha256"], base_hasher.hexdigest())
+require("Rudra base coreaction sha256", source["base_coreaction_sha256"], sha(base_bytes["src/coreaction.rs"]))
 
 overlay = source["overlay"]
-require("Rugra overlay path", overlay["path"], "src/coreaction.rs")
+require("Rudra overlay path", overlay["path"], "src/coreaction.rs")
 require(
-    "Rugra overlay policy",
+    "Rudra overlay policy",
     overlay["policy"],
     "The sole live library-source input; hash before replacing the pinned archive's src/coreaction.rs",
 )
 overlay_path = repo / overlay["path"]
 if overlay_path.is_symlink() or not overlay_path.is_file():
-    raise SystemExit(f"Rugra overlay is not a regular file: {overlay_path}")
+    raise SystemExit(f"Rudra overlay is not a regular file: {overlay_path}")
 overlay_bytes = overlay_path.read_bytes()
-reject_pending(overlay["sha256"], "rugra_source.overlay.sha256")
-require("Rugra coreaction overlay", overlay["sha256"], sha(overlay_bytes))
+reject_pending(overlay["sha256"], "rudra_source.overlay.sha256")
+require("Rudra coreaction overlay", overlay["sha256"], sha(overlay_bytes))
 (snapshot / overlay["path"]).write_bytes(overlay_bytes)
 
 binary_source = pathlib.Path(binary_raw)
@@ -653,13 +653,13 @@ if ! (
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
-if [[ ! -f "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
-  echo "isolated Cargo build did not produce one Rugra library/native archive" >&2
+if [[ ! -f "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+  echo "isolated Cargo build did not produce one Rudra library/native archive" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -667,7 +667,7 @@ if ! /usr/bin/env -i HOME="$HOME" RUSTUP_HOME="$HOME/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m "$rust_fixture" \
   -o "$oracle_tmp/action_leaf_count_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
@@ -681,9 +681,9 @@ fi
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/action_leaf_count_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'

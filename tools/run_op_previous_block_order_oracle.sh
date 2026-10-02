@@ -11,10 +11,10 @@ cpp_fixture="$repo_root/tests/oracle/op_previous_block_order_1204.cc"
 rust_fixture="$repo_root/tests/oracle/op_previous_block_order_1204.rs"
 spec_root="$repo_root/sleigh_specs"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-op-prev-block-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-op-prev-block-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-op-prev-block-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-op-prev-block-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -43,8 +43,8 @@ bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
-if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
-  bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+if [[ -z "$bfd_include" && -f /tmp/rudra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
+  bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 fi
 bfd_library=${RUDRA_BFD_LIBRARY:-/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so}
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" || ! -f "$bfd_library" ]]; then
@@ -96,13 +96,13 @@ g++ -std=c++11 -O2 -I"$bfd_include" -I"$cpp_root" \
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
 rustc --edition=2021 "$rust_fixture" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/op_previous_block_order_1204_rust"
 
 "$oracle_tmp/op_previous_block_order_1204_cpp" "$spec_root" "$oracle_binary" >"$oracle_tmp/ghidra.stdout"
-"$oracle_tmp/op_previous_block_order_1204_rust" >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+"$oracle_tmp/op_previous_block_order_1204_rust" >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

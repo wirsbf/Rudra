@@ -20,24 +20,24 @@ class VarnodeFFI(ctypes.Structure):
     ]
 
 def run_test():
-    print("Rugra P-code Structural Comparison Test")
+    print("Rudra P-code Structural Comparison Test")
     print("=" * 50)
 
     # Load DLL
     script_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.dirname(script_dir)
-    dll_path_release = os.path.join(root_dir, "target", "release", "rugra.dll")
-    dll_path_debug = os.path.join(root_dir, "target", "debug", "rugra.dll")
+    dll_path_release = os.path.join(root_dir, "target", "release", "rudra.dll")
+    dll_path_debug = os.path.join(root_dir, "target", "debug", "rudra.dll")
 
     if os.path.exists(dll_path_release):
         dll_path = dll_path_release
     elif os.path.exists(dll_path_debug):
         dll_path = dll_path_debug
     else:
-        print(f"Error: Could not find rugra.dll in target/release or target/debug")
+        print(f"Error: Could not find rudra.dll in target/release or target/debug")
         return
 
-    print(f"Loading Rugra library from: {dll_path}")
+    print(f"Loading Rudra library from: {dll_path}")
     try:
         lib = ctypes.CDLL(dll_path)
     except Exception as e:
@@ -45,12 +45,12 @@ def run_test():
         return
 
     # Check for symbols (optional but helpful)
-    if not hasattr(lib, "rugra_compare_pcode"):
-        print("Error: rugra_compare_pcode not found in DLL. Did you run 'cargo build' after editing ffi.rs?")
+    if not hasattr(lib, "rudra_compare_pcode"):
+        print("Error: rudra_compare_pcode not found in DLL. Did you run 'cargo build' after editing ffi.rs?")
         return
 
     # Configure signatures
-    lib.rugra_compare_pcode.argtypes = [
+    lib.rudra_compare_pcode.argtypes = [
         ctypes.c_uint64,               # op_addr
         ctypes.c_int32,                # opcode
         ctypes.POINTER(VarnodeFFI),    # out_vn
@@ -58,7 +58,7 @@ def run_test():
         ctypes.c_int32                 # input_count
     ]
 
-    lib.rugra_add_test_op.argtypes = [
+    lib.rudra_add_test_op.argtypes = [
         ctypes.c_uint64, # addr
         ctypes.c_int32,  # opcode
         ctypes.c_int32,  # out_space
@@ -67,34 +67,34 @@ def run_test():
     ]
 
     # --- Setup Test State ---
-    print("[Step 1] Initializing Rugra test program...")
-    lib.rugra_init_test_program()
+    print("[Step 1] Initializing Rudra test program...")
+    lib.rudra_init_test_program()
 
-    # Add an expected op in Rugra: 0x401000: RAX = INT_ADD(...)
-    lib.rugra_add_test_op(0x401000, CPUI_INT_ADD, SPACE_REGISTER, 0, 8)
+    # Add an expected op in Rudra: 0x401000: RAX = INT_ADD(...)
+    lib.rudra_add_test_op(0x401000, CPUI_INT_ADD, SPACE_REGISTER, 0, 8)
 
     # Add another op: 0x401008: RBX = COPY(...)
-    lib.rugra_add_test_op(0x401008, CPUI_COPY, SPACE_REGISTER, 8, 8)
+    lib.rudra_add_test_op(0x401008, CPUI_COPY, SPACE_REGISTER, 8, 8)
 
     print("[Step 2] Simulating Ghidra data feeding...")
 
     # Case 1: Exact Match (0x401000)
     print("\nCase A: Perfect Match (Expect NO diff output)")
     out_vn = VarnodeFFI(SPACE_REGISTER, 0, 8) # RAX
-    lib.rugra_compare_pcode(0x401000, CPUI_INT_ADD, ctypes.byref(out_vn), None, 0)
+    lib.rudra_compare_pcode(0x401000, CPUI_INT_ADD, ctypes.byref(out_vn), None, 0)
 
     # Case 2: Opcode Mismatch
     print("\nCase B: Opcode Mismatch (Expect DIFF)")
-    lib.rugra_compare_pcode(0x401000, CPUI_INT_SUB, ctypes.byref(out_vn), None, 0)
+    lib.rudra_compare_pcode(0x401000, CPUI_INT_SUB, ctypes.byref(out_vn), None, 0)
 
     # Case 3: Output Variable Mismatch
     print("\nCase C: Output Variable Mismatch (Expect DIFF)")
     wrong_out = VarnodeFFI(SPACE_REGISTER, 0x100, 8) # Wrong register offset
-    lib.rugra_compare_pcode(0x401008, CPUI_COPY, ctypes.byref(wrong_out), None, 0)
+    lib.rudra_compare_pcode(0x401008, CPUI_COPY, ctypes.byref(wrong_out), None, 0)
 
-    # Case 4: Missing Op in Rugra
-    print("\nCase D: Missing Instruction in Rugra (Expect DIFF)")
-    lib.rugra_compare_pcode(0x402000, CPUI_INT_XOR, None, None, 0)
+    # Case 4: Missing Op in Rudra
+    print("\nCase D: Missing Instruction in Rudra (Expect DIFF)")
+    lib.rudra_compare_pcode(0x402000, CPUI_INT_XOR, None, None, 0)
 
     print("\n" + "=" * 50)
     print("Test complete. Check console for [RUDRA DIFF] logs.")

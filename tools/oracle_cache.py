@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Content-addressed, fail-closed cache for Rugra oracle artifacts.
+"""Content-addressed, fail-closed cache for Rudra oracle artifacts.
 
 Captured commands execute under exactly the environment recorded in the
 provenance (``Popen(env=...)`` is the declared snapshot; undeclared ambient
@@ -659,7 +659,7 @@ def capture(args: argparse.Namespace, root: Path, command: list[str]) -> int:
         raise CacheError(
             "provenance drifted while the command executed, refusing to store"
         )
-    with tempfile.TemporaryDirectory(prefix="rugra-oracle-capture-") as raw_temp:
+    with tempfile.TemporaryDirectory(prefix="rudra-oracle-capture-") as raw_temp:
         temp = Path(raw_temp)
         stdout_path = temp / "stdout.bin"
         stderr_path = temp / "stderr.bin"
@@ -700,7 +700,7 @@ def add_provenance_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--tool", action="append", default=[], metavar="LABEL=PATH")
     parser.add_argument("--comparand", action="append", default=[], metavar="LABEL=PATH")
     parser.add_argument("--context", action="append", default=[], metavar="KEY=VALUE")
-    parser.add_argument("--cache-dir", type=Path, default=Path(".rugra-cache/oracle"))
+    parser.add_argument("--cache-dir", type=Path, default=Path(".rudra-cache/oracle"))
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -726,7 +726,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def self_test() -> int:
     root = Path(__file__).resolve().parent.parent
     python = sys.executable
-    with tempfile.TemporaryDirectory(prefix="rugra-oracle-cache-test-") as raw_temp:
+    with tempfile.TemporaryDirectory(prefix="rudra-oracle-cache-test-") as raw_temp:
         temp = Path(raw_temp)
         metadata = temp / "metadata.json"
         metadata.write_text(
@@ -828,26 +828,26 @@ def self_test() -> int:
         assert resolve_executable("no-such-binary-1204", {"PATH": "/usr/bin"}, root) is None
         bin_dir = temp / "probebin"
         bin_dir.mkdir()
-        probe = bin_dir / "rugra-cache-probe"
+        probe = bin_dir / "rudra-cache-probe"
         probe.write_text("#!/bin/sh\necho v1\n", encoding="utf-8")
         probe.chmod(0o755)
         try:
             os.environ["PATH"] = f"{bin_dir}{os.pathsep}{original_path}"
             probe_args = argparse.Namespace(**{**vars(args), "env": []})
             probe_key_v1 = provenance_key(
-                build_provenance(probe_args, root, ["rugra-cache-probe"])
+                build_provenance(probe_args, root, ["rudra-cache-probe"])
             )
             # same PATH directory, different executable content -> new key
             probe.write_text("#!/bin/sh\necho v2\n", encoding="utf-8")
             probe.chmod(0o755)
             assert (
-                provenance_key(build_provenance(probe_args, root, ["rugra-cache-probe"]))
+                provenance_key(build_provenance(probe_args, root, ["rudra-cache-probe"]))
                 != probe_key_v1
             )
             # outside the declared PATH the probe must be invisible
             os.environ["PATH"] = original_path
             try:
-                build_provenance(probe_args, root, ["rugra-cache-probe"])
+                build_provenance(probe_args, root, ["rudra-cache-probe"])
             except CacheError as error:
                 assert "executable not found" in str(error)
             else:

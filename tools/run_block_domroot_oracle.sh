@@ -3,7 +3,7 @@
 #
 # Compiles tests/oracle/block_domroot_1204.cc against the LOCKED Ghidra
 # 12.0.4 oracle (exported fresh from the locked commit, libdecomp.a rebuilt
-# in a temp dir), runs it, then builds the current Rugra crate and runs
+# in a temp dir), runs it, then builds the current Rudra crate and runs
 # tests/oracle/block_domroot_1204.rs, and byte-diffs the two stdouts.
 # Fixture hashes and the expected stdout sha256 are pinned in
 # tests/oracle/block_domroot_1204.metadata.json.
@@ -128,9 +128,9 @@ if [[ "$actual_cpp_sha" != "$expected_cpp_sha" || \
   exit 1
 fi
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-block-domroot-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-block-domroot-1204.XXXXXX)
 cleanup() {
-  if [[ "$oracle_tmp" != /tmp/rugra-block-domroot-1204.?????? ]]; then
+  if [[ "$oracle_tmp" != /tmp/rudra-block-domroot-1204.?????? ]]; then
     echo "refusing to remove unexpected temporary path: $oracle_tmp" >&2
     return 1
   fi
@@ -204,7 +204,7 @@ if [[ "$ghidra_only" == true ]]; then
   exit 0
 fi
 
-# --- build the Rugra crate + compile the Rust fixture ----------------------
+# --- build the Rudra crate + compile the Rust fixture ----------------------
 toolchain_bin=$(/usr/bin/dirname "$host_cargo_bin")
 toolchain_path="$clean_path:$toolchain_bin"
 fixture_target="$oracle_tmp/cargo-target"
@@ -218,12 +218,12 @@ if ! /usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" \
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do
   native_archives+=("$archive")
-done < <(/usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f)
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+done < <(/usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f)
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
   echo "missing or ambiguous fresh Rust link inputs" >&2
   exit 1
 fi
@@ -234,7 +234,7 @@ if ! /usr/bin/env -i HOME="$user_home" RUSTUP_HOME="$user_home/.rustup" \
   RUSTUP_TOOLCHAIN="$rust_toolchain" PATH="$clean_path" LC_ALL=C.UTF-8 \
   "$host_rustc_bin" --edition=2021 -O \
     -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-    --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+    --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
     -l dylib=stdc++ -l dylib=m "$rust_fixture" -o "$rust_binary" \
     >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -250,15 +250,15 @@ fi
 
 set +e
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C.UTF-8 "$rust_binary" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-/usr/bin/diff -u --label ghidra --label rugra \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" >"$oracle_tmp/raw.diff"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+/usr/bin/diff -u --label ghidra --label rudra \
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" >"$oracle_tmp/raw.diff"
 diff_status=$?
 set -e
-if [[ "$rugra_status" -ne 0 || -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture failed or emitted runtime diagnostics" >&2
-  /usr/bin/cat "$oracle_tmp/rugra.stderr" >&2
+if [[ "$rudra_status" -ne 0 || -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture failed or emitted runtime diagnostics" >&2
+  /usr/bin/cat "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 if [[ "$diff_status" -ne 0 ]]; then

@@ -37,8 +37,8 @@ if ! git -C "$ghidra_root" diff --quiet -- \
 fi
 
 bfd_include=${RUDRA_BFD_INCLUDE:-}
-if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
-  bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+if [[ -z "$bfd_include" && -f /tmp/rudra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
+  bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 fi
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
@@ -52,8 +52,8 @@ if [[ -z "$bfd_library" && -f /usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so ]]
   bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 fi
 if [[ -z "$bfd_library" && \
-      -f /tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so ]]; then
-  bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+      -f /tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so ]]; then
+  bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 fi
 if [[ ! -f "$bfd_library" ]]; then
   echo "binutils 2.38 BFD library not found: $bfd_library" >&2
@@ -203,13 +203,13 @@ print(digest.hexdigest())
 PY
 }
 
-rugra_source_before=$(source_tree_hash)
+rudra_source_before=$(source_tree_hash)
 user_home=$(getent passwd "$(id -u)" | awk -F: 'NR == 1 {print $6}')
 if [[ -z "$user_home" || ! -d "$user_home" ]]; then
   echo "could not resolve user home" >&2
   exit 1
 fi
-cache_parent="$user_home/.cache/rugra-getstr-pipeline-1204"
+cache_parent="$user_home/.cache/rudra-getstr-pipeline-1204"
 mkdir -p "$cache_parent"
 oracle_tmp=$(mktemp -d "$cache_parent/run.XXXXXX")
 cleanup() {
@@ -220,10 +220,10 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-mkdir -p "$oracle_tmp/ghidra" "$oracle_tmp/rugra" "$oracle_tmp/rugra-repeat"
+mkdir -p "$oracle_tmp/ghidra" "$oracle_tmp/rudra" "$oracle_tmp/rudra-repeat"
 mkdir -m 0700 "$oracle_tmp/build-tmp"
 export TMPDIR="$oracle_tmp/build-tmp"
-mkdir -p "$output_root/ghidra" "$output_root/rugra" "$output_root/rugra-repeat"
+mkdir -p "$output_root/ghidra" "$output_root/rudra" "$output_root/rudra-repeat"
 jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')
 make --silent -C "$cpp_root" -j "$jobs" EXTRA= libdecomp.a
 cp "$cpp_fixture" "$oracle_tmp/fixture.cc"
@@ -242,22 +242,22 @@ fixture_target="$cache_parent/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --release --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" \
   --example getstr_stage_snapshot
-rugra_fixture="$fixture_target/release/examples/getstr_stage_snapshot"
-if [[ ! -x "$rugra_fixture" ]]; then
+rudra_fixture="$fixture_target/release/examples/getstr_stage_snapshot"
+if [[ ! -x "$rudra_fixture" ]]; then
   echo "cargo did not produce the GetStr snapshot example" >&2
   exit 1
 fi
 
 "$oracle_tmp/getstr_pipeline_1204" "$spec_root" "$binary" "$oracle_tmp/ghidra"
-"$rugra_fixture" "$binary" "$oracle_tmp/rugra"
-"$rugra_fixture" "$binary" "$oracle_tmp/rugra-repeat"
-rugra_source_after=$(source_tree_hash)
-if [[ "$rugra_source_before" != "$rugra_source_after" ]]; then
-  echo "Rugra source tree changed while the fixture was running" >&2
+"$rudra_fixture" "$binary" "$oracle_tmp/rudra"
+"$rudra_fixture" "$binary" "$oracle_tmp/rudra-repeat"
+rudra_source_after=$(source_tree_hash)
+if [[ "$rudra_source_before" != "$rudra_source_after" ]]; then
+  echo "Rudra source tree changed while the fixture was running" >&2
   exit 1
 fi
 
-python3 -I -S - "$oracle_tmp/ghidra" "$oracle_tmp/rugra" "$oracle_tmp/rugra-repeat" <<'PY'
+python3 -I -S - "$oracle_tmp/ghidra" "$oracle_tmp/rudra" "$oracle_tmp/rudra-repeat" <<'PY'
 import json
 import pathlib
 import sys
@@ -288,15 +288,15 @@ PY
 
 for stage in 00_raw_pcode 01_cfg 02_heritage_ssa 03_action_ir 04_structure 05_c; do
   cp "$oracle_tmp/ghidra/$stage.json" "$output_root/ghidra/$stage.json"
-  cp "$oracle_tmp/rugra/$stage.json" "$output_root/rugra/$stage.json"
-  cp "$oracle_tmp/rugra-repeat/$stage.json" "$output_root/rugra-repeat/$stage.json"
+  cp "$oracle_tmp/rudra/$stage.json" "$output_root/rudra/$stage.json"
+  cp "$oracle_tmp/rudra-repeat/$stage.json" "$output_root/rudra-repeat/$stage.json"
 done
 
 common_context=(
   --context "binary_sha256=$(sha256sum "$binary" | awk '{print $1}')"
   --context "function=GetStr@0x36d0+74"
-  --context "rugra_commit=$(git -C "$repo_root" rev-parse HEAD)"
-  --context "rugra_src_tree=$rugra_source_before"
+  --context "rudra_commit=$(git -C "$repo_root" rev-parse HEAD)"
+  --context "rudra_src_tree=$rudra_source_before"
 )
 common_stages=(
   --stage "00_raw_pcode=$output_root/ghidra/00_raw_pcode.json"
@@ -311,20 +311,20 @@ python3 "$stage_diff" snapshot --metadata "$metadata" --producer ghidra-12.0.4 \
   --output "$output_root/ghidra.manifest.json"
 
 common_stages=(
-  --stage "00_raw_pcode=$output_root/rugra/00_raw_pcode.json"
-  --stage "01_cfg=$output_root/rugra/01_cfg.json"
-  --stage "02_heritage_ssa=$output_root/rugra/02_heritage_ssa.json"
-  --stage "03_action_ir=$output_root/rugra/03_action_ir.json"
-  --stage "04_structure=$output_root/rugra/04_structure.json"
-  --stage "05_c=$output_root/rugra/05_c.json"
+  --stage "00_raw_pcode=$output_root/rudra/00_raw_pcode.json"
+  --stage "01_cfg=$output_root/rudra/01_cfg.json"
+  --stage "02_heritage_ssa=$output_root/rudra/02_heritage_ssa.json"
+  --stage "03_action_ir=$output_root/rudra/03_action_ir.json"
+  --stage "04_structure=$output_root/rudra/04_structure.json"
+  --stage "05_c=$output_root/rudra/05_c.json"
 )
-python3 "$stage_diff" snapshot --metadata "$metadata" --producer rugra \
+python3 "$stage_diff" snapshot --metadata "$metadata" --producer rudra \
   "${common_context[@]}" "${common_stages[@]}" \
-  --output "$output_root/rugra.manifest.json"
+  --output "$output_root/rudra.manifest.json"
 
 set +e
 python3 "$stage_diff" compare "$output_root/ghidra.manifest.json" \
-  "$output_root/rugra.manifest.json" --pretty --report "$output_root/stage-manifest-diff.json"
+  "$output_root/rudra.manifest.json" --pretty --report "$output_root/stage-manifest-diff.json"
 manifest_status=$?
 set -e
 if [[ $manifest_status -ne 1 ]]; then
@@ -383,7 +383,7 @@ def first_difference(left, right, path="$", left_label="ghidra", right_label="ru
         left_keys = set(left)
         right_keys = set(right)
         if left_keys != right_keys:
-            return {"path": path, "kind": "keys", "ghidra_only": sorted(left_keys-right_keys), "rugra_only": sorted(right_keys-left_keys)}
+            return {"path": path, "kind": "keys", "ghidra_only": sorted(left_keys-right_keys), "rudra_only": sorted(right_keys-left_keys)}
         for key in sorted(left_keys):
             result = first_difference(left[key], right[key], f"{path}.{key}", left_label, right_label)
             if result is not None:
@@ -542,9 +542,9 @@ if first != {
     raise SystemExit(f"first pipeline difference changed: {first}")
 
 ghidra_ops = documents["ghidra"]["00_raw_pcode"]["ops"]
-rugra_ops = documents["rugra"]["00_raw_pcode"]["ops"]
+rudra_ops = documents["rugra"]["00_raw_pcode"]["ops"]
 substantive = None
-for index, (left, right) in enumerate(zip(ghidra_ops, rugra_ops)):
+for index, (left, right) in enumerate(zip(ghidra_ops, rudra_ops)):
     left_key = (left["address"]["offset"], left["opcode"], len(left["inputs"]))
     right_key = (right["address"]["offset"], right["opcode"], len(right["inputs"]))
     if left_key != right_key:
@@ -570,7 +570,7 @@ def varnode_location(document, varnode_id):
     }
 
 storage_difference = None
-for index, (left, right) in enumerate(zip(ghidra_ops, rugra_ops)):
+for index, (left, right) in enumerate(zip(ghidra_ops, rudra_ops)):
     left_storage = {
         "output": varnode_location(documents["ghidra"]["00_raw_pcode"], left["output"]),
         "inputs": [
@@ -629,7 +629,7 @@ else:
 repeat_documents = {}
 repeat_report = []
 for stage in stage_names:
-    path = root / "rugra-repeat" / f"{stage}.json"
+    path = root / "rudra-repeat" / f"{stage}.json"
     repeat = json.loads(path.read_text(encoding="utf-8"))
     repeat_documents[stage] = repeat
     difference = first_difference(
@@ -647,7 +647,7 @@ first_repeat_difference = next(
     (item for item in repeat_report if item["first_difference"] is not None), None
 )
 if first_repeat_difference is not None:
-    raise SystemExit(f"Rugra layered snapshot is unexpectedly nondeterministic: {first_repeat_difference}")
+    raise SystemExit(f"Rudra layered snapshot is unexpectedly nondeterministic: {first_repeat_difference}")
 
 manifest_diff = json.loads((root / "stage-manifest-diff.json").read_text(encoding="utf-8"))
 comparison = {
@@ -668,7 +668,7 @@ comparison = {
     "first_varnode_state_difference": varnode_state_difference,
     "focused_projections": focused_projection_report,
     "stages": stage_report,
-    "rugra_determinism": {
+    "rudra_determinism": {
         "state": "STABLE_TWO_RUNS",
         "first_difference": first_repeat_difference,
         "runs": repeat_report,
@@ -682,8 +682,8 @@ comparison = {
     encoding="utf-8",
 )
 (root / "ghidra.c").write_text(documents["ghidra"]["05_c"]["text"], encoding="utf-8")
-(root / "rugra.c").write_text(documents["rugra"]["05_c"]["text"], encoding="utf-8")
-(root / "rugra-repeat.c").write_text(
+(root / "rudra.c").write_text(documents["rugra"]["05_c"]["text"], encoding="utf-8")
+(root / "rudra-repeat.c").write_text(
     repeat_documents["05_c"]["text"], encoding="utf-8"
 )
 
@@ -693,7 +693,7 @@ summary = [
     "- Oracle: Ghidra 12.0.4 `e40ed13014025f82488b1f8f7bca566894ac376b`",
     "- Input: `examples/curl`, `GetStr` at `0x36d0`, 74 bytes",
     "- Overall: `MISMATCH`",
-    f"- First difference: `{stage_names[0]}` `{first['path']}` = {first['ghidra']} vs {first['rugra']}",
+    f"- First difference: `{stage_names[0]}` `{first['path']}` = {first['ghidra']} vs {first['rudra']}",
     f"- Numeric op signature sequence: `MATCH` ({len(ghidra_ops)} ops)",
     f"- First op-storage difference: index {storage_difference['index']}",
     f"- Storage diagnosis: {storage_difference['diagnosis']}",
@@ -702,10 +702,10 @@ summary = [
         if varnode_state_difference is not None
         else "- First Varnode-state difference: none across 272 ordered raw nodes"
     ),
-    f"- Rugra repeatability: {comparison['rugra_determinism']['state']}",
+    f"- Rudra repeatability: {comparison['rudra_determinism']['state']}",
     "- Focused char read-facing/token projection: `MATCH` (overall remains `MISMATCH`)",
     "",
-    "| Stage | Ghidra | Rugra | First structural difference |",
+    "| Stage | Ghidra | Rudra | First structural difference |",
     "|---|---:|---:|---|",
 ]
 for item in stage_report:
@@ -715,4 +715,4 @@ for item in stage_report:
 (root / "README.md").write_text("\n".join(summary) + "\n", encoding="utf-8")
 PY
 
-printf 'getstr_pipeline_1204: overall=MISMATCH; focused char read-facing/token=MATCH; reachable raw signature MATCH 103 ops; raw Varnode flags/types MATCH 272 nodes; first storage diff=CALL fspec; Rugra two-run snapshot stable; artifacts=%s\n' "$output_root"
+printf 'getstr_pipeline_1204: overall=MISMATCH; focused char read-facing/token=MATCH; reachable raw signature MATCH 103 ops; raw Varnode flags/types MATCH 272 nodes; first storage diff=CALL fspec; Rudra two-run snapshot stable; artifacts=%s\n' "$output_root"

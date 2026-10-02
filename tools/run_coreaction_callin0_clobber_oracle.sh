@@ -5,7 +5,7 @@
 # ActionDeadCode::apply + ActionVarnodeProps::apply after the natural flow —
 # coreaction.cc:3840-3857 markConsumedParameters "In all cases the first
 # operand is fully consumed", coreaction.cc:1282-1342 ActionVarnodeProps
-# totalReplaceConstant branch) against the oracle cpp tree, builds the Rugra
+# totalReplaceConstant branch) against the oracle cpp tree, builds the Rudra
 # comparand against the crate rlib (inject-path shape, heritage pass 1),
 # runs both on examples/curl my_fwrite @0x3460, and diffs the per-target
 # projection.
@@ -28,7 +28,7 @@ rust_fixture="$repo_root/tests/oracle/coreaction_callin0_clobber_1204.rs"
 metadata="$repo_root/tests/oracle/coreaction_callin0_clobber_1204.metadata.json"
 curl_binary="$repo_root/examples/curl"
 spec_root="$repo_root/sleigh_specs"
-bfd_root="${RUDRA_BFD_ROOT:-/tmp/rugra-ghidra-bfd-2.38}"
+bfd_root="${RUDRA_BFD_ROOT:-/tmp/rudra-ghidra-bfd-2.38}"
 
 actual_commit=$(git -C "$ghidra_root" rev-parse HEAD)
 tag_commit=$(git -C "$ghidra_root" rev-parse "refs/tags/$oracle_tag^{commit}")
@@ -62,7 +62,7 @@ metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 pairs = {
     "cpp_fixture_sha256": pathlib.Path(sys.argv[2]),
     "rust_fixture_sha256": pathlib.Path(sys.argv[3]),
-    "rugra_coreaction_sha256": pathlib.Path(sys.argv[4]),
+    "rudra_coreaction_sha256": pathlib.Path(sys.argv[4]),
 }
 for key, path in pairs.items():
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -75,10 +75,10 @@ PY
 # TMPDIR override: the Rust comparand's debug build needs several GB and
 # /tmp is a quota-limited tmpfs on this host; allow redirecting to /home.
 scratch_dir="${TMPDIR:-/tmp}"
-oracle_tmp=$(mktemp -d "$scratch_dir/rugra-coreaction-callin0-1204.XXXXXX")
+oracle_tmp=$(mktemp -d "$scratch_dir/rudra-coreaction-callin0-1204.XXXXXX")
 cleanup() {
   case "$oracle_tmp" in
-    "$scratch_dir"/rugra-coreaction-callin0-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    "$scratch_dir"/rudra-coreaction-callin0-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -104,9 +104,9 @@ g++ -std=c++11 -O2 -I"$cpp_root" -I"$bfd_root/usr/include" \
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a Rugra rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a Rudra rlib" >&2
   exit 1
 fi
 goblin_rlib=$(ls "$fixture_target"/debug/deps/libgoblin-*.rlib | head -n 1)
@@ -115,15 +115,15 @@ if [[ -z "$goblin_rlib" ]]; then
   exit 1
 fi
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" --extern "goblin=$goblin_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/coreaction_callin0_clobber_1204_rugra"
+  --extern "rudra=$rudra_rlib" --extern "goblin=$goblin_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/coreaction_callin0_clobber_1204_rudra"
 
 "$oracle_tmp/coreaction_callin0_clobber_1204" "$spec_root" "$curl_binary" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
-"$oracle_tmp/coreaction_callin0_clobber_1204_rugra" "$curl_binary" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+"$oracle_tmp/coreaction_callin0_clobber_1204_rudra" "$curl_binary" \
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
-if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
+if diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
     >"$oracle_tmp/bilateral.diff"; then
   cat "$oracle_tmp/ghidra.stdout"
   printf 'coreaction_callin0_clobber_1204: MATCH\n'

@@ -2,7 +2,7 @@
 # Immutable SPACE-PRINTRAW-SPECIAL-0001 oracle runner (space_printraw_special_1204).
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler from the pinned source
-# archive, builds the Rugra crate from the pinned base commit plus the
+# archive, builds the Rudra crate from the pinned base commit plus the
 # src/space.rs and src/op.rs overlays, compiles both fixtures, runs them,
 # and requires byte-identical stdout.  The 11 lines lock
 # JoinSpace::printRaw (space.cc:590-609) through the manager join halves —
@@ -20,7 +20,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/space_printraw_special_1204.metadata.json"
 cpp_fixture="$repo_root/tests/oracle/space_printraw_special_1204.cc"
@@ -30,10 +30,10 @@ op_rs="$repo_root/src/op.rs"
 doc_space="$repo_root/docs/api/space.md"
 doc_op="$repo_root/docs/api/op.md"
 
-oracle_tmp=$(mktemp -d /tmp/rugra-space-printraw-special.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-space-printraw-special.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-space-printraw-special.??????) rm -rf "$oracle_tmp" ;;
+    /tmp/rudra-space-printraw-special.??????) rm -rf "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -68,19 +68,19 @@ done
 # Build the Rust comparand from an immutable repository snapshot with only
 # the reviewed space.rs/op.rs candidates overlaid, so concurrent worktree
 # writers cannot enter the fixture's crate closure.
-rugra_workspace="$oracle_tmp/rugra-workspace"
-mkdir -p "$rugra_workspace"
-git -C "$repo_root" archive "$rugra_base_commit" -- \
+rudra_workspace="$oracle_tmp/rudra-workspace"
+mkdir -p "$rudra_workspace"
+git -C "$repo_root" archive "$rudra_base_commit" -- \
   Cargo.toml Cargo.lock build.rs README.md src sleigh_shim crates benches \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
-  | tar -x -C "$rugra_workspace"
-cp "$space_rs" "$rugra_workspace/src/space.rs"
-cp "$op_rs" "$rugra_workspace/src/op.rs"
-mkdir -p "$rugra_workspace/ghidra"
+  | tar -x -C "$rudra_workspace"
+cp "$space_rs" "$rudra_workspace/src/space.rs"
+cp "$op_rs" "$rudra_workspace/src/op.rs"
+mkdir -p "$rudra_workspace/ghidra"
 git -C "$ghidra_root" archive "$oracle_commit" -- \
   Ghidra/Features/Decompiler/src/decompile/cpp \
-  | tar -x -C "$rugra_workspace/ghidra"
-snapshot_cpp_root="$rugra_workspace/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
+  | tar -x -C "$rudra_workspace/ghidra"
+snapshot_cpp_root="$rudra_workspace/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 
 python3 -I -S - "$metadata" "$cpp_fixture" "$rust_fixture" \
   "$space_rs" "$op_rs" "$doc_space" "$doc_op" \
@@ -133,25 +133,25 @@ g++ -std=c++11 -O2 -Wall -Wno-sign-compare -m64 \
   -o "$oracle_tmp/space_printraw_special_1204_cpp"
 
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
-  cargo build --offline --locked --quiet --manifest-path "$rugra_workspace/Cargo.toml" --lib
+  cargo build --offline --locked --quiet --manifest-path "$rudra_workspace/Cargo.toml" --lib
 rustc --edition=2021 "$rust_fixture" \
-  --extern rugra="$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern rudra="$oracle_tmp/cargo-target/debug/librudra.rlib" \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
   -o "$oracle_tmp/space_printraw_special_1204_rust"
 
 "$oracle_tmp/space_printraw_special_1204_cpp" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 "$oracle_tmp/space_printraw_special_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 
 test -s "$oracle_tmp/ghidra.stdout"
-test -s "$oracle_tmp/rugra.stdout"
+test -s "$oracle_tmp/rudra.stdout"
 test "$(wc -l < "$oracle_tmp/ghidra.stdout")" -eq 11
-test "$(wc -l < "$oracle_tmp/rugra.stdout")" -eq 11
+test "$(wc -l < "$oracle_tmp/rudra.stdout")" -eq 11
 test ! -s "$oracle_tmp/ghidra.stderr"
-test ! -s "$oracle_tmp/rugra.stderr"
+test ! -s "$oracle_tmp/rudra.stderr"
 
-python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" <<'PY'
+python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -159,24 +159,24 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
 expected = metadata["expected_stdout_sha256"]
 if hashlib.sha256(ghidra).hexdigest() != expected:
     raise SystemExit(
         f"oracle stdout hash mismatch: metadata={expected} "
         f"actual={hashlib.sha256(ghidra).hexdigest()}"
     )
-if ghidra != rugra:
+if ghidra != rudra:
     ghidra_lines = ghidra.decode().splitlines()
-    rugra_lines = rugra.decode().splitlines()
-    if len(ghidra_lines) != len(rugra_lines):
+    rudra_lines = rudra.decode().splitlines()
+    if len(ghidra_lines) != len(rudra_lines):
         raise SystemExit(
-            f"record count differs: ghidra={len(ghidra_lines)} rugra={len(rugra_lines)}"
+            f"record count differs: ghidra={len(ghidra_lines)} rudra={len(rudra_lines)}"
         )
-    for index, (left, right) in enumerate(zip(ghidra_lines, rugra_lines)):
+    for index, (left, right) in enumerate(zip(ghidra_lines, rudra_lines)):
         if left != right:
             raise SystemExit(
-                f"record {index} differs:\n  ghidra: {left}\n  rugra:  {right}"
+                f"record {index} differs:\n  ghidra: {left}\n  rudra:  {right}"
             )
     raise SystemExit("outputs differ")
 PY

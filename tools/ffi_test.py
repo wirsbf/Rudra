@@ -1,5 +1,5 @@
 """
-ffi_test.py — Rugra FFI 常量求值全覆盖验证套件
+ffi_test.py — Rudra FFI 常量求值全覆盖验证套件
 严格按照 Ghidra opcodes.hh 编号，覆盖所有整数算术/位运算/比较/扩展操作
 """
 import ctypes
@@ -9,7 +9,7 @@ import sys
 # === DLL 加载 ===
 script_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(script_dir)
-dll_path = os.path.join(root_dir, "target", "debug", "rugra.dll")
+dll_path = os.path.join(root_dir, "target", "debug", "rudra.dll")
 
 if not os.path.exists(dll_path):
     print(f"错误: 找不到 {dll_path}")
@@ -23,7 +23,7 @@ except Exception as e:
     sys.exit(1)
 
 # === 函数签名 ===
-lib.rugra_evaluate_constant.argtypes = [
+lib.rudra_evaluate_constant.argtypes = [
     ctypes.c_int32,  # opcode
     ctypes.c_size_t, # size_out
     ctypes.c_uint64, # val1
@@ -32,8 +32,8 @@ lib.rugra_evaluate_constant.argtypes = [
     ctypes.c_size_t, # size2
     ctypes.c_bool    # has_val2
 ]
-lib.rugra_evaluate_constant.restype = ctypes.c_uint64
-lib.rugra_version.restype = ctypes.c_char_p
+lib.rudra_evaluate_constant.restype = ctypes.c_uint64
+lib.rudra_version.restype = ctypes.c_char_p
 
 # === Ghidra opcodes.hh 编号（权威标准）===
 CPUI_INT_EQUAL       = 11
@@ -46,7 +46,7 @@ CPUI_INT_ZEXT        = 17
 CPUI_INT_SEXT        = 18
 CPUI_INT_ADD         = 19
 CPUI_INT_SUB         = 20
-# 21 = CARRY, 22 = SCARRY, 23 = SBORROW (目前 Rugra 未实现求值)
+# 21 = CARRY, 22 = SCARRY, 23 = SBORROW (目前 Rudra 未实现求值)
 CPUI_INT_2COMP       = 24   # twos complement = NEG
 CPUI_INT_NEGATE      = 25   # bitwise NOT = ~
 CPUI_INT_XOR         = 26
@@ -62,10 +62,10 @@ CPUI_INT_REM         = 35
 CPUI_INT_SREM        = 36
 
 def eval_const(opcode, size_out, v1, s1, v2=0, s2=0, has_v2=True):
-    return lib.rugra_evaluate_constant(opcode, size_out, v1, s1, v2, s2, has_v2)
+    return lib.rudra_evaluate_constant(opcode, size_out, v1, s1, v2, s2, has_v2)
 
 def run_tests():
-    print(f"Rugra 版本: {lib.rugra_version().decode()}")
+    print(f"Rudra 版本: {lib.rudra_version().decode()}")
     print("=" * 70)
     print(f"{'测试项':<30} | {'结果':<18} | {'状态'}")
     print("-" * 70)

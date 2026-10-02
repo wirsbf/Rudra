@@ -15,7 +15,7 @@
 #                                  gated on opactdbg_on)
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler (oracle commit pinned below,
-# identity-verified against the ghidra/ checkout), builds the Rugra crate
+# identity-verified against the ghidra/ checkout), builds the Rudra crate
 # from the working tree, compiles both fixture sides, runs them, and
 # requires byte-identical stdout. The oracle library build is cached per
 # (source tree, build flags) under the XDG cache dir and reused across
@@ -72,11 +72,11 @@ if ! git -C "$ghidra_root" diff --quiet -- \
 fi
 
 # --- work + cache dirs ----------------------------------------------------
-cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/rugra-funcdata-family-oracle"
-work=$(mktemp -d "${TMPDIR:-/tmp}/rugra-funcdata-family.XXXXXX")
+cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/rudra-funcdata-family-oracle"
+work=$(mktemp -d "${TMPDIR:-/tmp}/rudra-funcdata-family.XXXXXX")
 cleanup() {
   case "$work" in
-    "${TMPDIR:-/tmp}"/rugra-funcdata-family.??????) rm -rf -- "$work" ;;
+    "${TMPDIR:-/tmp}"/rudra-funcdata-family.??????) rm -rf -- "$work" ;;
     *) echo "refusing unsafe cleanup target: $work" >&2 ;;
   esac
 }
@@ -112,28 +112,28 @@ g++ -std=c++11 $extra_cxxflags -O1 -Wall -Wno-sign-compare -m64 \
 CARGO_TARGET_DIR="$cache_root/target" cargo build --quiet --lib \
   --manifest-path "$repo_root/Cargo.toml"
 rustc --edition=2021 -O "$rust_fixture" \
-  --extern "rugra=$cache_root/target/debug/librugra.rlib" \
+  --extern "rudra=$cache_root/target/debug/librudra.rlib" \
   -L "dependency=$cache_root/target/debug/deps" \
   -o "$work/${name}_rust"
 
 # --- run + byte compare ----------------------------------------------------
 "$work/${name}_cpp" > "$work/${name}.ghidra.out" 2> "$work/${name}.ghidra.err" \
   || echo "cpp exit $?" >> "$work/${name}.ghidra.err"
-"$work/${name}_rust" > "$work/${name}.rugra.out" 2> "$work/${name}.rugra.err" \
-  || echo "rust exit $?" >> "$work/${name}.rugra.err"
+"$work/${name}_rust" > "$work/${name}.rudra.out" 2> "$work/${name}.rudra.err" \
+  || echo "rust exit $?" >> "$work/${name}.rudra.err"
 
-if diff -u "$work/${name}.ghidra.out" "$work/${name}.rugra.out"; then
+if diff -u "$work/${name}.ghidra.out" "$work/${name}.rudra.out"; then
   echo "STDOUT MATCH (${name})"
 else
   echo "^^ stdout mismatch (${name})" >&2
   sed -n '1,20p' "$work/${name}.ghidra.err" >&2 || true
-  sed -n '1,20p' "$work/${name}.rugra.err" >&2 || true
+  sed -n '1,20p' "$work/${name}.rudra.err" >&2 || true
   exit 1
 fi
-if [[ -s "$work/${name}.ghidra.err" || -s "$work/${name}.rugra.err" ]]; then
+if [[ -s "$work/${name}.ghidra.err" || -s "$work/${name}.rudra.err" ]]; then
   echo "stderr non-empty (${name})" >&2
   cat "$work/${name}.ghidra.err" >&2
-  cat "$work/${name}.rugra.err" >&2
+  cat "$work/${name}.rudra.err" >&2
   exit 1
 fi
-sha256sum "$work/${name}.ghidra.out" "$work/${name}.rugra.out"
+sha256sum "$work/${name}.ghidra.out" "$work/${name}.rudra.out"

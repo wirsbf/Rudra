@@ -1,8 +1,8 @@
 #!/usr/bin/env -S -i PATH=/usr/bin:/bin /usr/bin/bash
 set -euo pipefail
 
-# USEROP-LOCALTYPE-METADATA-0001 locked Ghidra/Rugra differential runner.
-# The Rust comparand is a complete git archive of the pinned Rugra base with
+# USEROP-LOCALTYPE-METADATA-0001 locked Ghidra/Rudra differential runner.
+# The Rust comparand is a complete git archive of the pinned Rudra base with
 # exactly one production overlay: src/userop.rs. No other live Rust source is
 # read or copied into the build.
 
@@ -73,15 +73,15 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=a29f5b76079b95acd52b176456c1f52772c511e7
-rugra_base_tree=6438abb6a421296eff5b8c74ffff7f3b88363dcf
+rudra_base_commit=a29f5b76079b95acd52b176456c1f52772c511e7
+rudra_base_tree=6438abb6a421296eff5b8c74ffff7f3b88363dcf
 ghidra_root="$repo_root/ghidra"
 metadata_live="$repo_root/tests/oracle/userop_localtype_metadata_1204.metadata.json"
 cpp_fixture_live="$repo_root/tests/oracle/userop_localtype_metadata_1204.cc"
 rust_fixture_live="$repo_root/tests/oracle/userop_localtype_metadata_1204.rs"
 userop_source_live="$repo_root/src/userop.rs"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
-bfd_library=/tmp/rugra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
+bfd_library=/tmp/rudra-ghidra-bfd-2.38/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 bfd_library_dir=$(/usr/bin/dirname "$bfd_library")
 registry_cache="$user_home/.cargo/registry/cache"
 
@@ -110,9 +110,9 @@ if [[ "$actual_commit" != "$oracle_commit" || "$tag_commit" != "$oracle_commit" 
   exit 1
 fi
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "locked Rugra base tree mismatch" >&2
+  "$host_git_bin" -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "locked Rudra base tree mismatch" >&2
   exit 1
 fi
 
@@ -120,7 +120,7 @@ verify_owned_inputs() {
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
     - "$metadata_live" "$cpp_fixture_live" "$rust_fixture_live" \
     "$userop_source_live" "$runner_sha" "$oracle_commit" "$oracle_tag" \
-    "$rugra_base_commit" "$rugra_base_tree" <<'PY'
+    "$rudra_base_commit" "$rudra_base_tree" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -162,10 +162,10 @@ PY
 
 verify_owned_inputs
 
-oracle_tmp=$(/usr/bin/mktemp -d /tmp/rugra-userop-localtype-metadata-1204.XXXXXX)
+oracle_tmp=$(/usr/bin/mktemp -d /tmp/rudra-userop-localtype-metadata-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-userop-localtype-metadata-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-userop-localtype-metadata-1204.??????) /usr/bin/rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -181,7 +181,7 @@ cargo_home="$oracle_tmp/cargo-home"
 /usr/bin/mkdir -p "$snapshot_root" "$fixture_root" "$oracle_source"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git_bin" -C "$repo_root" archive "$rugra_base_commit" | \
+  "$host_git_bin" -C "$repo_root" archive "$rudra_base_commit" | \
   /usr/bin/env -i PATH="$clean_path" LC_ALL=C /usr/bin/tar -xf - -C "$snapshot_root"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
   "$host_git_bin" -C "$ghidra_root" archive "$oracle_commit" \
@@ -213,7 +213,7 @@ done
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$snapshot_root" "$fixture_root" "$cargo_home" "$registry_cache" \
   "$runner_sha" "$oracle_commit" "$oracle_tag" "$oracle_cpp_tree" \
-  "$oracle_makefile_blob" "$rugra_base_commit" "$rugra_base_tree" \
+  "$oracle_makefile_blob" "$rudra_base_commit" "$rudra_base_tree" \
   "$host_git_bin" "$host_python_bin" "$host_cxx_bin" "$host_rustc_bin" \
   "$host_cargo_bin" "$host_cc_bin" "$host_ar_bin" "$host_make_bin" \
   "$rust_toolchain" "$bfd_include/bfd.h" "$bfd_library" <<'PY'
@@ -422,7 +422,7 @@ for cargo_config in \
     exit 1
   fi
 done
-if ! /usr/bin/flock -x /tmp/rugra-cargo-build.lock \
+if ! /usr/bin/flock -x /tmp/rudra-cargo-build.lock \
   /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
     TMPDIR="$cargo_tmp" CARGO_INCREMENTAL=0 \
     CARGO_HOME="$cargo_home" CARGO_TARGET_DIR="$fixture_target" \
@@ -435,17 +435,17 @@ if ! /usr/bin/flock -x /tmp/rugra-cargo-build.lock \
   /usr/bin/cat "$oracle_tmp/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
-if [[ ! -f "$rugra_rlib" || -L "$rugra_rlib" ]]; then
-  echo "cargo build did not produce a regular librugra.rlib" >&2
+rudra_rlib="$fixture_target/debug/librudra.rlib"
+if [[ ! -f "$rudra_rlib" || -L "$rudra_rlib" ]]; then
+  echo "cargo build did not produce a regular librudra.rlib" >&2
   exit 1
 fi
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
-  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librugra_sleigh.a' -type f
+  /usr/bin/find "$fixture_target/debug/build" -path '*/out/librudra_sleigh.a' -type f
 )
 if [[ "${#native_archives[@]}" -ne 1 ]]; then
-  echo "expected one Cargo-built librugra_sleigh.a, found ${#native_archives[@]}" >&2
+  echo "expected one Cargo-built librudra_sleigh.a, found ${#native_archives[@]}" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -469,8 +469,8 @@ if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   TMPDIR="$cargo_tmp" \
   "$host_rustc_bin" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" \
-  -l static=rugra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
+  --extern "rudra=$rudra_rlib" \
+  -l static=rudra_sleigh -l dylib=z -l dylib=stdc++ -l dylib=m \
   "$rust_fixture" -o "$oracle_tmp/userop_localtype_metadata_1204_rust" \
   >"$oracle_tmp/rustc.stdout" 2>"$oracle_tmp/rustc.stderr"; then
   /usr/bin/cat "$oracle_tmp/rustc.stdout" >&2
@@ -483,16 +483,16 @@ fi
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   "$oracle_tmp/userop_localtype_metadata_1204_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C \
-  /usr/bin/diff -u "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stderr"
+  /usr/bin/diff -u "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stderr"
 
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$host_python_bin" -I -S \
   - "$fixture_root/userop_localtype_metadata_1204.metadata.json" \
-  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout" \
-  "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rugra.stderr" <<'PY'
+  "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout" \
+  "$oracle_tmp/ghidra.stderr" "$oracle_tmp/rudra.stderr" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -500,10 +500,10 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
 ghidra_stderr = pathlib.Path(sys.argv[4]).read_bytes()
-rugra_stderr = pathlib.Path(sys.argv[5]).read_bytes()
-if ghidra != rugra or ghidra_stderr != rugra_stderr:
+rudra_stderr = pathlib.Path(sys.argv[5]).read_bytes()
+if ghidra != rudra or ghidra_stderr != rudra_stderr:
     raise SystemExit("byte comparison unexpectedly diverged after diff succeeded")
 if not ghidra.endswith(b"\n"):
     raise SystemExit("fixture output lacks final newline")

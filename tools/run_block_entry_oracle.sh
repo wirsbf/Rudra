@@ -30,8 +30,8 @@ bfd_include=${RUDRA_BFD_INCLUDE:-}
 if [[ -z "$bfd_include" && -f /usr/include/bfd.h ]]; then
   bfd_include=/usr/include
 fi
-if [[ -z "$bfd_include" && -f /tmp/rugra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
-  bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+if [[ -z "$bfd_include" && -f /tmp/rudra-ghidra-bfd-2.38/usr/include/bfd.h ]]; then
+  bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 fi
 if [[ -z "$bfd_include" || ! -f "$bfd_include/bfd.h" ]]; then
   echo "binutils 2.38 bfd.h not found; set RUDRA_BFD_INCLUDE" >&2
@@ -56,7 +56,7 @@ import sys
     cpp_fixture_name,
     rust_fixture_name,
     cpp_root_name,
-    rugra_flow_name,
+    rudra_flow_name,
     oracle_commit,
     oracle_tag,
 ) = sys.argv[1:]
@@ -82,7 +82,7 @@ if metadata["input_fingerprint"] != "sha256:" + hashlib.sha256(input_bytes).hexd
 comparands = {
     "cpp_fixture": cpp_fixture_name,
     "rust_fixture": rust_fixture_name,
-    "rugra_flow": rugra_flow_name,
+    "rugra_flow": rudra_flow_name,
     "ghidra_flow_cc": pathlib.Path(cpp_root_name) / "flow.cc",
     "ghidra_flow_hh": pathlib.Path(cpp_root_name) / "flow.hh",
     "ghidra_block_cc": pathlib.Path(cpp_root_name) / "block.cc",
@@ -102,10 +102,10 @@ if metadata["host_rustc"] != rustc:
     raise SystemExit(f"host rustc mismatch: {rustc}")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-block-entry-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-block-entry-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-block-entry-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-block-entry-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
@@ -140,14 +140,14 @@ fi
 fixture_target="$oracle_tmp/cargo-target"
 CARGO_TARGET_DIR="$fixture_target" \
   cargo build --offline --locked --quiet --manifest-path "$repo_root/Cargo.toml" --lib
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 rustc --edition=2021 -O -L "dependency=$fixture_target/debug/deps" \
-  --extern "rugra=$rugra_rlib" "$rust_fixture" \
-  -o "$oracle_tmp/block_entry_rugra"
-"$oracle_tmp/block_entry_rugra" "$oracle_tmp/text.bin" "$text_base" \
+  --extern "rudra=$rudra_rlib" "$rust_fixture" \
+  -o "$oracle_tmp/block_entry_rudra"
+"$oracle_tmp/block_entry_rudra" "$oracle_tmp/text.bin" "$text_base" \
   "$ret_addr" "$ret_size" "$loop_addr" "$loop_size" \
-  >"$oracle_tmp/rugra.stdout"
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+  >"$oracle_tmp/rudra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I -S - "$metadata" "$oracle_tmp/text.bin" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

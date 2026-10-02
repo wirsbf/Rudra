@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Locked bilateral gate for BLOCK-BUILDCOPY-STATE-0001.  The oracle is
-# rebuilt from Ghidra 12.0.4 commit e40ed130.  Rugra is materialized from a
+# rebuilt from Ghidra 12.0.4 commit e40ed130.  Rudra is materialized from a
 # pinned base and overlays the two production files under test plus the
 # hash-pinned Funcdata build-closure required by their current API.
 
@@ -38,12 +38,12 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=a5362afcfcccc25d87e4853552440d4fad619d1b
-rugra_base_tree=4b1174a8fdd53c5835f304ac5bab0732ea81713c
-rugra_base_src_tree=bcd7c6846e4c34834265f3999a326389adbc4882
-rugra_base_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
-rugra_base_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
-rugra_base_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
+rudra_base_commit=a5362afcfcccc25d87e4853552440d4fad619d1b
+rudra_base_tree=4b1174a8fdd53c5835f304ac5bab0732ea81713c
+rudra_base_src_tree=bcd7c6846e4c34834265f3999a326389adbc4882
+rudra_base_cargo_toml_blob=f15ed7d02b38aef3c21a564641344a156855b632
+rudra_base_cargo_lock_blob=9736a3c5619f7fd188abd9609d0dccd20ef06607
+rudra_base_build_rs_blob=a0c81c8521547efebbb463a640ecec69d83ed4c5
 
 ghidra_root="$repo_root/ghidra"
 metadata="$repo_root/tests/oracle/block_buildcopy_1204.metadata.json"
@@ -104,29 +104,29 @@ fi
 
 actual_base_commit=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   GIT_CONFIG_NOSYSTEM=1 "$host_git" -C "$repo_root" \
-  rev-parse "$rugra_base_commit^{commit}")
+  rev-parse "$rudra_base_commit^{commit}")
 actual_base_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   GIT_CONFIG_NOSYSTEM=1 "$host_git" -C "$repo_root" \
-  rev-parse "$rugra_base_commit^{tree}")
+  rev-parse "$rudra_base_commit^{tree}")
 actual_base_src_tree=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   GIT_CONFIG_NOSYSTEM=1 "$host_git" -C "$repo_root" \
-  rev-parse "$rugra_base_commit:src")
+  rev-parse "$rudra_base_commit:src")
 actual_base_cargo_toml_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   GIT_CONFIG_NOSYSTEM=1 "$host_git" -C "$repo_root" \
-  rev-parse "$rugra_base_commit:Cargo.toml")
+  rev-parse "$rudra_base_commit:Cargo.toml")
 actual_base_cargo_lock_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   GIT_CONFIG_NOSYSTEM=1 "$host_git" -C "$repo_root" \
-  rev-parse "$rugra_base_commit:Cargo.lock")
+  rev-parse "$rudra_base_commit:Cargo.lock")
 actual_base_build_rs_blob=$(/usr/bin/env -i PATH="$clean_path" LC_ALL=C \
   GIT_CONFIG_NOSYSTEM=1 "$host_git" -C "$repo_root" \
-  rev-parse "$rugra_base_commit:build.rs")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || \
-      "$actual_base_tree" != "$rugra_base_tree" || \
-      "$actual_base_src_tree" != "$rugra_base_src_tree" || \
-      "$actual_base_cargo_toml_blob" != "$rugra_base_cargo_toml_blob" || \
-      "$actual_base_cargo_lock_blob" != "$rugra_base_cargo_lock_blob" || \
-      "$actual_base_build_rs_blob" != "$rugra_base_build_rs_blob" ]]; then
-  echo "pinned Rugra base identity mismatch" >&2
+  rev-parse "$rudra_base_commit:build.rs")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || \
+      "$actual_base_tree" != "$rudra_base_tree" || \
+      "$actual_base_src_tree" != "$rudra_base_src_tree" || \
+      "$actual_base_cargo_toml_blob" != "$rudra_base_cargo_toml_blob" || \
+      "$actual_base_cargo_lock_blob" != "$rudra_base_cargo_lock_blob" || \
+      "$actual_base_build_rs_blob" != "$rudra_base_build_rs_blob" ]]; then
+  echo "pinned Rudra base identity mismatch" >&2
   exit 1
 fi
 
@@ -135,9 +135,9 @@ runner_sha=$(/usr/bin/sha256sum "$runner_fd" | /usr/bin/awk '{print $1}')
   "$runner_fd" "$runner_sha" "$block_overlay" "$blockaction_overlay" \
   "$funcdata_overlay" \
   "$oracle_tag" "$oracle_commit" "$oracle_cpp_tree" "$oracle_makefile_blob" \
-  "$rugra_base_commit" "$rugra_base_tree" "$rugra_base_src_tree" \
-  "$rugra_base_cargo_toml_blob" "$rugra_base_cargo_lock_blob" \
-  "$rugra_base_build_rs_blob" "$host_cxx" "$host_rustc" "$host_cargo" <<'PY'
+  "$rudra_base_commit" "$rudra_base_tree" "$rudra_base_src_tree" \
+  "$rudra_base_cargo_toml_blob" "$rudra_base_cargo_lock_blob" \
+  "$rudra_base_build_rs_blob" "$host_cxx" "$host_rustc" "$host_cargo" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -230,7 +230,7 @@ if [[ -z "$user_home" || ! -d "$user_home" ]]; then
   echo "could not resolve user home" >&2
   exit 1
 fi
-cache_parent="$user_home/.cache/rugra-block-buildcopy-1204"
+cache_parent="$user_home/.cache/rudra-block-buildcopy-1204"
 /usr/bin/mkdir -p "$cache_parent"
 exec 9>"$cache_parent/runner.lock"
 if ! /usr/bin/flock -n 9; then
@@ -238,7 +238,7 @@ if ! /usr/bin/flock -n 9; then
   exit 1
 fi
 work=$(/usr/bin/mktemp -d "$cache_parent/run.XXXXXX")
-snapshot="$work/rugra"
+snapshot="$work/rudra"
 cleanup() {
   case "$work" in
     "$cache_parent"/run.??????) /usr/bin/rm -rf -- "$work" ;;
@@ -261,7 +261,7 @@ base_paths=(
   src sleigh_shim
 )
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C GIT_CONFIG_NOSYSTEM=1 \
-  "$host_git" -C "$repo_root" archive "$rugra_base_commit" \
+  "$host_git" -C "$repo_root" archive "$rudra_base_commit" \
   "${base_paths[@]}" | /usr/bin/tar -xf - -C "$snapshot"
 /usr/bin/install -m 0644 "$block_overlay" "$snapshot/src/block.rs"
 /usr/bin/install -m 0644 "$blockaction_overlay" "$snapshot/src/blockaction.rs"
@@ -325,14 +325,14 @@ if ! (
   /usr/bin/cat "$work/cargo.stdout" "$work/cargo.stderr" >&2
   exit 1
 fi
-rugra_rlib="$fixture_target/debug/librugra.rlib"
+rudra_rlib="$fixture_target/debug/librudra.rlib"
 native_archives=()
 while IFS= read -r archive; do native_archives+=("$archive"); done < <(
   /usr/bin/find "$fixture_target/debug/build" \
-    -path '*/out/librugra_sleigh.a' -type f
+    -path '*/out/librudra_sleigh.a' -type f
 )
-if [[ ! -f "$rugra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
-  echo "Rugra library/native archive build output mismatch" >&2
+if [[ ! -f "$rudra_rlib" || "${#native_archives[@]}" -ne 1 ]]; then
+  echo "Rudra library/native archive build output mismatch" >&2
   exit 1
 fi
 native_dir=$(/usr/bin/dirname "${native_archives[0]}")
@@ -340,7 +340,7 @@ rust_binary="$work/block_buildcopy_1204_rust"
 if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   TMPDIR="$work/build-tmp" "$host_rustc" --edition=2021 -O \
   -L "dependency=$fixture_target/debug/deps" -L "native=$native_dir" \
-  --extern "rugra=$rugra_rlib" -l static=rugra_sleigh -l dylib=z \
+  --extern "rudra=$rudra_rlib" -l static=rudra_sleigh -l dylib=z \
   -l dylib=stdc++ -l dylib=m \
   "$snapshot/tests/oracle/block_buildcopy_1204.rs" -o "$rust_binary" \
   >"$work/rustc.stdout" 2>"$work/rustc.stderr"; then
@@ -348,17 +348,17 @@ if ! /usr/bin/env -i HOME="$user_home" PATH="$clean_path" LC_ALL=C.UTF-8 \
   exit 1
 fi
 
-rugra_status=0
+rudra_status=0
 /usr/bin/env -i PATH="$clean_path" LC_ALL=C "$rust_binary" \
-  >"$work/rugra.stdout" 2>"$work/rugra.stderr" || rugra_status=$?
-if [[ "$rugra_status" -ne 0 || -s "$work/rugra.stderr" ]]; then
-  echo "Rugra fixture execution failed: status=$rugra_status" >&2
-  /usr/bin/cat "$work/rugra.stderr" >&2
+  >"$work/rudra.stdout" 2>"$work/rudra.stderr" || rudra_status=$?
+if [[ "$rudra_status" -ne 0 || -s "$work/rudra.stderr" ]]; then
+  echo "Rudra fixture execution failed: status=$rudra_status" >&2
+  /usr/bin/cat "$work/rudra.stderr" >&2
   exit 1
 fi
 
 diff_status=0
-/usr/bin/diff -u "$work/ghidra.stdout" "$work/rugra.stdout" \
+/usr/bin/diff -u "$work/ghidra.stdout" "$work/rudra.stdout" \
   >"$work/runtime.diff" || diff_status=$?
 if [[ "$diff_status" -ne 0 ]]; then
   echo "BlockGraph::buildCopy byte comparison failed" >&2
@@ -367,7 +367,7 @@ if [[ "$diff_status" -ne 0 ]]; then
 fi
 
 "$host_python" -I -S - "$metadata" "$work/ghidra.stdout" \
-  "$work/rugra.stdout" <<'PY'
+  "$work/rudra.stdout" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -375,8 +375,8 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 ghidra = pathlib.Path(sys.argv[2]).read_bytes()
-rugra = pathlib.Path(sys.argv[3]).read_bytes()
-if ghidra != rugra:
+rudra = pathlib.Path(sys.argv[3]).read_bytes()
+if ghidra != rudra:
     raise SystemExit("byte diff unexpectedly diverged")
 capture = metadata["capture"]
 if len(ghidra) != capture["bytes"] or len(ghidra.splitlines()) != capture["records"]:

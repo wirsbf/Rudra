@@ -4,8 +4,8 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
 ghidra_root="$repo_root/ghidra"
 oracle_cpp_path=Ghidra/Features/Decompiler/src/decompile/cpp
 metadata="$repo_root/tests/oracle/scope_category_1204.metadata.json"
@@ -35,16 +35,16 @@ if [[ -n "$(git -C "$ghidra_root" status --porcelain -- \
   exit 1
 fi
 
-actual_base_commit=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
-actual_base_tree=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
-if [[ "$actual_base_commit" != "$rugra_base_commit" || "$actual_base_tree" != "$rugra_base_tree" ]]; then
-  echo "pinned Rugra base commit/tree mismatch" >&2
+actual_base_commit=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
+actual_base_tree=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
+if [[ "$actual_base_commit" != "$rudra_base_commit" || "$actual_base_tree" != "$rudra_base_tree" ]]; then
+  echo "pinned Rudra base commit/tree mismatch" >&2
   exit 1
 fi
 
 python3 -I -S - "$metadata" "$cpp_fixture" "$rust_fixture" "$runner" \
   "$database_rs" "$database_doc" "$repo_root" "$ghidra_root" \
-  "$oracle_commit" "$oracle_tag" "$rugra_base_commit" "$rugra_base_tree" <<'PY'
+  "$oracle_commit" "$oracle_tag" "$rudra_base_commit" "$rudra_base_tree" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -104,9 +104,9 @@ for key, path in expected_files.items():
         raise SystemExit(f"comparand mismatch for {key}: {actual}")
 
 if comparand.get("rugra_base_commit") != base_commit:
-    raise SystemExit("metadata Rugra base commit mismatch")
+    raise SystemExit("metadata Rudra base commit mismatch")
 if comparand.get("rugra_base_tree") != base_tree:
-    raise SystemExit("metadata Rugra base tree mismatch")
+    raise SystemExit("metadata Rudra base tree mismatch")
 
 ghidra_root = pathlib.Path(ghidra_raw)
 for key, relative in (
@@ -132,18 +132,18 @@ for key, actual in host.items():
         raise SystemExit(f"host comparand mismatch for {key}: {actual}")
 PY
 
-oracle_tmp=$(mktemp -d /tmp/rugra-scope-category-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-scope-category-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-scope-category-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-scope-category-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2; return 1 ;;
   esac
 }
 trap cleanup EXIT HUP INT TERM
 
 ghidra_snapshot="$oracle_tmp/ghidra"
-rugra_snapshot="$oracle_tmp/rugra"
-mkdir -p "$ghidra_snapshot" "$rugra_snapshot"
+rudra_snapshot="$oracle_tmp/rudra"
+mkdir -p "$ghidra_snapshot" "$rudra_snapshot"
 git -C "$ghidra_root" archive "$oracle_commit" "$oracle_cpp_path" | \
   tar -x -C "$ghidra_snapshot"
 cpp_snapshot="$ghidra_snapshot/$oracle_cpp_path"
@@ -161,20 +161,20 @@ g++ -std=c++11 -O2 -I"$cpp_snapshot" \
 # leased database.rs.  This prevents unrelated concurrent workspace edits from
 # entering the proof while still compiling the production module in its real
 # crate dependency closure.
-git -C "$repo_root" archive "$rugra_base_commit" | tar -x -C "$rugra_snapshot"
-cp "$database_rs" "$rugra_snapshot/src/database.rs"
-mkdir -p "$rugra_snapshot/src/bin"
-cp "$rust_fixture" "$rugra_snapshot/src/bin/scope_category_1204.rs"
-mkdir -p "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
+git -C "$repo_root" archive "$rudra_base_commit" | tar -x -C "$rudra_snapshot"
+cp "$database_rs" "$rudra_snapshot/src/database.rs"
+mkdir -p "$rudra_snapshot/src/bin"
+cp "$rust_fixture" "$rudra_snapshot/src/bin/scope_category_1204.rs"
+mkdir -p "$rudra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile"
 cp -a "$cpp_snapshot" \
-  "$rugra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
+  "$rudra_snapshot/ghidra/Ghidra/Features/Decompiler/src/decompile/cpp"
 
 CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
-  cargo build --offline --locked --quiet --manifest-path "$rugra_snapshot/Cargo.toml" \
+  cargo build --offline --locked --quiet --manifest-path "$rudra_snapshot/Cargo.toml" \
   --bin scope_category_1204
-"$oracle_tmp/cargo-target/debug/scope_category_1204" >"$oracle_tmp/rugra.stdout"
+"$oracle_tmp/cargo-target/debug/scope_category_1204" >"$oracle_tmp/rudra.stdout"
 
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 
 python3 -I -S - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'
 import hashlib

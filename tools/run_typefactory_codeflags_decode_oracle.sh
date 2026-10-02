@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# TYPEFACTORY-CODEFLAGS-DECODE-0001 locked Ghidra/Rugra differential runner
+# TYPEFACTORY-CODEFLAGS-DECODE-0001 locked Ghidra/Rudra differential runner
 # (typefactory_codeflags_decode_1204): TypeFactory::decodeTypeWithCodeFlags
 # (type.cc:4193-4212), the decodeCode stub/compare/define chain
 # (type.cc:4401-4429, 2903-2931), and the XmlDecode cursor partial state of
 # every error path.
 #
 # Rebuilds the locked Ghidra 12.0.4 decompiler from the pinned source tree,
-# builds the Rugra crate from the pinned base commit plus the two hash
+# builds the Rudra crate from the pinned base commit plus the two hash
 # verified live overlays (src/type_system/typefactory.rs and
 # src/type_system/datatype.rs), compiles both fixtures, runs them, and
 # requires byte-identical stdout. The 89 records cover:
@@ -35,10 +35,10 @@ oracle_commit=e40ed13014025f82488b1f8f7bca566894ac376b
 oracle_tag=Ghidra_12.0.4_build
 oracle_cpp_tree=b02e230a539c65de14e50f357d0ba834d8184f4f
 oracle_makefile_blob=ca0719fa5f17aabd14c52f40ed8b030f54d2aac6
-rugra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
-rugra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
-rugra_typefactory_base_blob=c7f80d486e3393b4722dc5654a082421046c8c09
-rugra_datatype_base_blob=03980bc2f8b7fabb4af486018c2a68a85f763dc0
+rudra_base_commit=895f69d0baebeb67db7ae27cc1ba676b8fcb4f5d
+rudra_base_tree=ace2e9c5fddf79050ad9f8fe2bd2de6aa954cc03
+rudra_typefactory_base_blob=c7f80d486e3393b4722dc5654a082421046c8c09
+rudra_datatype_base_blob=03980bc2f8b7fabb4af486018c2a68a85f763dc0
 ghidra_root="$repo_root/ghidra"
 cpp_root="$ghidra_root/Ghidra/Features/Decompiler/src/decompile/cpp"
 metadata="$repo_root/tests/oracle/typefactory_codeflags_decode_1204.metadata.json"
@@ -51,7 +51,7 @@ doc_datatype="$repo_root/docs/api/type_system/datatype.md"
 runner="$repo_root/tools/run_typefactory_codeflags_decode_oracle.sh"
 spec_root="$repo_root/sleigh_specs"
 binary="$repo_root/examples/curl"
-bfd_include=/tmp/rugra-ghidra-bfd-2.38/usr/include
+bfd_include=/tmp/rudra-ghidra-bfd-2.38/usr/include
 bfd_library=/usr/lib/x86_64-linux-gnu/libbfd-2.38-system.so
 
 for required in "$metadata" "$cpp_fixture" "$rust_fixture" \
@@ -87,17 +87,17 @@ if [[ "$actual_cpp_tree" != "$oracle_cpp_tree" || \
   exit 1
 fi
 
-resolved_base_commit=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{commit}")
-resolved_base_tree=$(git -C "$repo_root" rev-parse "$rugra_base_commit^{tree}")
+resolved_base_commit=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{commit}")
+resolved_base_tree=$(git -C "$repo_root" rev-parse "$rudra_base_commit^{tree}")
 resolved_typefactory_blob=$(git -C "$repo_root" rev-parse \
-  "$rugra_base_commit:src/type_system/typefactory.rs")
+  "$rudra_base_commit:src/type_system/typefactory.rs")
 resolved_datatype_blob=$(git -C "$repo_root" rev-parse \
-  "$rugra_base_commit:src/type_system/datatype.rs")
-if [[ "$resolved_base_commit" != "$rugra_base_commit" || \
-      "$resolved_base_tree" != "$rugra_base_tree" || \
-      "$resolved_typefactory_blob" != "$rugra_typefactory_base_blob" || \
-      "$resolved_datatype_blob" != "$rugra_datatype_base_blob" ]]; then
-  echo "pinned Rugra source identity mismatch" >&2
+  "$rudra_base_commit:src/type_system/datatype.rs")
+if [[ "$resolved_base_commit" != "$rudra_base_commit" || \
+      "$resolved_base_tree" != "$rudra_base_tree" || \
+      "$resolved_typefactory_blob" != "$rudra_typefactory_base_blob" || \
+      "$resolved_datatype_blob" != "$rudra_datatype_base_blob" ]]; then
+  echo "pinned Rudra source identity mismatch" >&2
   exit 1
 fi
 
@@ -165,18 +165,18 @@ PY
 
 verify_inputs
 
-oracle_tmp=$(mktemp -d /tmp/rugra-typefactory-codeflags-1204.XXXXXX)
+oracle_tmp=$(mktemp -d /tmp/rudra-typefactory-codeflags-1204.XXXXXX)
 cleanup() {
   case "$oracle_tmp" in
-    /tmp/rugra-typefactory-codeflags-1204.??????) rm -rf -- "$oracle_tmp" ;;
+    /tmp/rudra-typefactory-codeflags-1204.??????) rm -rf -- "$oracle_tmp" ;;
     *) echo "refusing unsafe cleanup target: $oracle_tmp" >&2 ;;
   esac
 }
 trap cleanup EXIT HUP INT TERM
 
-snapshot_root="$oracle_tmp/rugra"
+snapshot_root="$oracle_tmp/rudra"
 mkdir -p "$snapshot_root"
-git -C "$repo_root" archive --format=tar "$rugra_base_commit" \
+git -C "$repo_root" archive --format=tar "$rudra_base_commit" \
   Cargo.toml Cargo.lock build.rs README.md benches/decompile_bench.rs \
   tests/oracle/decompress_1204.rs tests/oracle/funcproto_lock_1204.rs \
   src sleigh_shim | tar -xf - -C "$snapshot_root"
@@ -200,28 +200,28 @@ CARGO_TARGET_DIR="$oracle_tmp/cargo-target" \
   cargo build --quiet --locked --offline --manifest-path "$snapshot_root/Cargo.toml" --lib
 rustc --edition=2021 -O \
   -L "dependency=$oracle_tmp/cargo-target/debug/deps" \
-  --extern "rugra=$oracle_tmp/cargo-target/debug/librugra.rlib" \
+  --extern "rudra=$oracle_tmp/cargo-target/debug/librudra.rlib" \
   "$rust_fixture" -o "$oracle_tmp/typefactory_codeflags_decode_rust"
 
 "$oracle_tmp/typefactory_codeflags_decode_cpp" "$spec_root" "$binary" \
   >"$oracle_tmp/ghidra.stdout" 2>"$oracle_tmp/ghidra.stderr"
 ghidra_status=$?
 "$oracle_tmp/typefactory_codeflags_decode_rust" \
-  >"$oracle_tmp/rugra.stdout" 2>"$oracle_tmp/rugra.stderr"
-rugra_status=$?
-if [[ "$ghidra_status" != 0 || "$rugra_status" != 0 ]]; then
-  echo "fixture exit codes: ghidra=$ghidra_status rugra=$rugra_status" >&2
+  >"$oracle_tmp/rudra.stdout" 2>"$oracle_tmp/rudra.stderr"
+rudra_status=$?
+if [[ "$ghidra_status" != 0 || "$rudra_status" != 0 ]]; then
+  echo "fixture exit codes: ghidra=$ghidra_status rudra=$rudra_status" >&2
   tail -5 "$oracle_tmp/ghidra.stderr" >&2
-  tail -5 "$oracle_tmp/rugra.stderr" >&2
+  tail -5 "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
-if [[ -s "$oracle_tmp/rugra.stderr" ]]; then
-  echo "Rugra fixture stderr is not empty" >&2
-  tail -5 "$oracle_tmp/rugra.stderr" >&2
+if [[ -s "$oracle_tmp/rudra.stderr" ]]; then
+  echo "Rudra fixture stderr is not empty" >&2
+  tail -5 "$oracle_tmp/rudra.stderr" >&2
   exit 1
 fi
 
-diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rugra.stdout"
+diff -u "$oracle_tmp/ghidra.stdout" "$oracle_tmp/rudra.stdout"
 verify_inputs
 
 python3 - "$metadata" "$oracle_tmp/ghidra.stdout" <<'PY'

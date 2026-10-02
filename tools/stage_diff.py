@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create and compare ordered Rugra/Ghidra pipeline-stage manifests."""
+"""Create and compare ordered Rudra/Ghidra pipeline-stage manifests."""
 
 from __future__ import annotations
 
@@ -302,7 +302,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def self_test() -> int:
-    with tempfile.TemporaryDirectory(prefix="rugra-stage-diff-test-") as raw_temp:
+    with tempfile.TemporaryDirectory(prefix="rudra-stage-diff-test-") as raw_temp:
         temp = Path(raw_temp)
         provenance = {
             "oracle_commit": LOCKED_ORACLE,
