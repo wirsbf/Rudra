@@ -1522,3 +1522,23 @@ coreaction `cast_output` 新 CALLOTHER token 臂（docs/api/coreaction.md 同日
 - 回归锁 `test_find_subpiece_shadow_constant_terminal`：常量链正例
   （0>>32 & mask(4)==0）、非零移位负例（0x1122334455667788 高 4 字节
   截断不等）、whole 链非常量终点负例、leastByte=0 移位零路径。
+
+### 2026-10-02：printRawNoMarkup 忠实化 + Translate 感知孪生（MISC24 F10 根修）
+- `print_raw_no_markup`（varnode.cc:711-734）从 `space:offset`（十进制、无
+  shortcut）stub 改为 oracle 形：space shortcut 字符（`s`/`u`/`#`/`%`/`r`
+  等，translate.cc:524-553 assignShortcut 默认表经 `AddressSpace::shortcut`
+  投影）+ `AddrSpace::printRaw(offset)`（space.cc:206 零填充 hex，
+  >>32/>>48 前导零裁剪；constant/other 空间无填充覆盖）。
+- 新增 `print_raw_no_markup_arch(trans: Option<&Architecture>)`：完整 port，
+  register-name 分支武装——`trans->getRegisterName`（sleighbase.cc:144-168
+  port `Architecture::get_register_name`）命中时经 `register_xref` 反查
+  （`SleighBase::getRegister` name→FixedVarnode 可观察等价，sleighbase.cc:133-
+  142）取 point.size 与 `name+off` 子寄存器后缀（varnode.cc:721-727，
+  `+off` 为 uintb 无符号十进制）。`None`/空名退 shortcut 分支 = 空寄存器
+  表 Translate 的 oracle 行为。
+- 下游：`print_raw`（varnode.cc:741）随之以 `expect != size` 追加 `:size`
+  ——语义不变，基底变 oracle 形。
+- 效果：heritage "Heritage AFTER dead removal" 警告位置串
+  `stack:18446744073709551424:4(free)` → `s0xffffffffffffff40`（见
+  docs/api/heritage.md 同日条目）；sqlite 镜面 config/test_control 两函数
+  6 行残差清零（字节级与 golden 恒等）。

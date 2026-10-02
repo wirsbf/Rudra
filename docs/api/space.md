@@ -626,3 +626,16 @@ UB-邻接行为（Rust 在查名点拒绝）。
   ghidra 12.0.4 e40ed130）：oracle 的 RDX:RAX 双 trial 输出 join whole
   位于 join:0x0（首个 findAddJoin 分配），16 字节粒度推进；修复后
   Rudra 的 11 处 CALL join 全部 dedup 到同一 join:0x0 地址。
+
+### 2026-10-02：AddressSpace 枚举 shortcut/print_raw_offset 投影（MISC24 F10 配套）
+- `AddressSpace::shortcut()`（translate.cc:524-553 `assignShortcut` 默认表
+  的枚举投影）：Ram→`'r'`（processor 空间名首字符）、Register→`'%'`
+  （名 "register"）、Stack→`'s'`（IPTR_SPACEBASE）、Unique→`'u'`、
+  Const→`'#'`、Join→`'j'`、Iop→`'i'`（Rudra 将 fspec 并入 Iop，其独立
+  shortcut 为 `'f'`）、Overlay/Other→`'x'`（default）。
+- `AddressSpace::print_raw_offset(offset)`（space.cc:206 基类 printRaw 的
+  静态投影）：Const/Other 走无填充 `0x{:x}`（space.cc:371/409 覆盖）；其余
+  走 addrSize=8/wordsize=1 基类形（`>>32==0`→8 位、`>>48==0`→12 位零填充
+  裁剪）。join（space.cc:590）/iop（op.cc:41）注册表绑定形以基类形代位
+  （MISC24-VNPRINT-JOINIOP-0001 残票：legacy 枚举不携带 SpaceRegistry 数据）。
+- 消费者：`Varnode::print_raw_no_markup`（varnode.cc:711-734 port）。

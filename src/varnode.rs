@@ -971,16 +971,63 @@ impl Varnode {
     // Ghidra: varnode.cc:711 Varnode::printRawNoMarkup
     /// Print varnode location without markup (for debugging).
     /// Returns the "expected" size (register size or default).
-    /// Faithful to `printRawNoMarkup` (varnode.cc:711-734).
+    /// Faithful to `printRawNoMarkup` (varnode.cc:711-734): register-name
+    /// branch via the Architecture's `SleighBase::getRegisterName` +
+    /// `SleighBase::getRegister` projections (sleighbase.cc:144/133), else
+    /// the space shortcut character followed by the address's `printRaw`
+    /// (address.hh:305 → AddrSpace::printRaw, space.cc:206). The
+    /// parameterless form has no Translate to consult (Rudra's AddrSpace
+    /// carries no back-pointer — see space.rs translate notes), so it
+    /// degenerates to the no-register shortcut branch exactly like a
+    /// Translate with an empty register catalog.
     pub fn print_raw_no_markup(&self) -> (String, usize) {
-        // cc:719: try register name
-        // Rudra doesn't have Translate::getRegisterName; use space+offset.
-        let space_name = self.address_space.name();
-        let offset = self.loc.as_u64();
-        let s = format!("{}:{}", space_name, offset);
+        // cc:728-732 (register lookup unavailable): shortcut + printRaw
+        let mut s = String::new();
+        s.push(self.address_space.shortcut());
+        s.push_str(&self.address_space.print_raw_offset(self.loc.as_u64()));
         // cc:730: expect = trans->getDefaultSize()
-        let expect = 8; // x86-64 default
+        let expect = 8; // x86-64 default (Translate::getDefaultSize)
         (s, expect)
+    }
+
+    // Ghidra: varnode.cc:711 Varnode::printRawNoMarkup (Translate-aware twin)
+    /// The full `printRawNoMarkup` port with the register-name branch
+    /// armed: `trans->getRegisterName(spc, loc.getOffset(), size)`
+    /// (varnode.cc:719) is answered by
+    /// [`Architecture::get_register_name`] (sleighbase.cc:144-168 port),
+    /// and a hit re-resolves the register's canonical varnode via a
+    /// reverse walk of the same `register_xref` table the drivers install
+    /// (the `SleighBase::getRegister(name)` → `sym->getFixedVarnode()`
+    /// observable, sleighbase.cc:133-142) for `point.size` and the
+    /// `name+off` sub-register suffix (varnode.cc:721-727).
+    pub fn print_raw_no_markup_arch(
+        &self,
+        trans: Option<&crate::arch::Architecture>,
+    ) -> (String, usize) {
+        // cc:719: name = trans->getRegisterName(spc, loc.getOffset(), size)
+        if let Some(arch) = trans {
+            let name = arch.get_register_name(self.get_space(), self.loc.as_u64(), self.size as i32);
+            if !name.is_empty() {
+                // cc:721: const VarnodeData &point(trans->getRegister(name));
+                if let Some(((_, point_off, neg_point_size), _)) = arch
+                    .register_xref
+                    .iter()
+                    .find(|(_, registered_name)| registered_name.as_str() == name)
+                {
+                    // cc:722-727: off = loc.getOffset()-point.offset;
+                    //   s << name; expect = point.size;
+                    //   if (off != 0) s << '+' << dec << off;   (uintb, unsigned)
+                    let off = self.loc.as_u64().wrapping_sub(*point_off);
+                    let mut s = name;
+                    if off != 0 {
+                        s.push_str(&format!("+{}", off));
+                    }
+                    return (s, (-(*neg_point_size)) as usize);
+                }
+            }
+        }
+        // cc:728-732: s << loc.getShortcut(); loc.printRaw(s);
+        self.print_raw_no_markup()
     }
 
     // Ghidra: varnode.cc:741 Varnode::printRaw
