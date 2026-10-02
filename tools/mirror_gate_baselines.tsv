@@ -402,6 +402,7 @@ sq	35	810	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # (115->109 at lane base scale) superseded by this joint row; note
 # block kept verbatim below. curl 11/httpd 0/vsh 0/sq 35 rows stay;
 # canon byte pins f903372a/3617ecc3 exact.
+sqlite	45	1385	CONDMERGE-MB79-JOINT-REPIN-0001	mb79-joint	2026-10-02
 sqlite	72	1385	DECLB1-MB77-JOINT-REPIN-0001	mb77-joint	2026-10-02
 sqlite	78	1385	DECLB3-MB76-JOINT-REPIN-0001	mb76-joint	2026-10-02
 # DECLB3 lane re-pin (DECLB3-RATCHET-REPIN-0001, 2026-10-02,
@@ -432,6 +433,41 @@ sqlite	78	1385	DECLB3-MB76-JOINT-REPIN-0001	mb76-joint	2026-10-02
 # defects=0 numbering=0 matched=1385/1385). curl 11/httpd 0/vsh 0/
 # sq 41 rows stay; canon byte pins f903372a/3617ecc3 exact.
 sqlite	94	1385	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
+# CONDMERGE ratchet re-pin (COND-MERGE-RATCHET-REPIN-0001, 2026-10-02,
+# lane wt/condmerge, base 13169c40/MB75, sqlite 94 = SELECTDUP-MB75-
+# JOINT-REPIN-0001): sqlite 94->67 (-27 exact) = TC-F1 COND-MERGE
+# family burn in sqlite3Pragma/sqlite3_vmprintf/sqlite3_mprintf — root
+# fix src/block.rs FlowBlock trait is_goto_in/is_goto_out default now
+# reads the edge label (Ghidra block.hh:346-347 non-virtual semantics;
+# composites previously returned hard false, so ruleBlockOr merged a
+# BlockCondition whose inherited arm carried f_irreducible). Residual
+# 2 lines x3 in the same trio = TC-IF-B1 decl-move family (in-flight
+# DECLB1/MB77 domain, out of lane scope). Per-function accounting:
+# 94-27=67 arithmetic exact; all other 32 diff functions byte-identical.
+# sq GetOptimumFast 29 NOT burned (same-root hypothesis falsified —
+# registered COND-MERGE-GOF-SEPARATE-ROOT-0001); sq 35/curl 11/httpd 0/
+# vsh 0 rows stay; canon byte pins f903372a/3617ecc3 exact; VdbeExec
+# mirror b3f5b487 / canon 606dd8c0 byte-exact; corpus joint new pins
+# canon 1ce87062 (+56B) / mirror 3f32b73a (+56B), attribution = exactly
+# the F1 trio (vmprintf +6/-4, mprintf +6/-4, Pragma +3/-2), other
+# 1382 functions and prefix byte-identical both faces.
+# MB79 joint re-pin (CONDMERGE-MB79-JOINT-REPIN-0001, 2026-10-02, merge
+# of wt/condmerge 2d585f1f [single commit, base 13169c40/MB75] onto
+# master ce7ae00b [MB78, sqlite 72 = DECLB1-MB77-JOINT-REPIN-0001]):
+# joint measured sqlite 72-27=45 — the goto-guard family burn composed
+# onto the master-current state. Per-function synthesis: master trio
+# 7/10/10 is now PURE goto-guard (the TC-IF-B1 decl-move 2x3 residual
+# the lane saw at its MB75 base was already burned by MB77 declb1, so
+# master's trio carries no decl-move remainder); the condmerge fix
+# burns the full 7+10+10=27 and the trio (sqlite3Pragma/sqlite3_mprintf/
+# sqlite3_vmprintf) goes to ZERO on the joint tree. Measured pre-commit
+# cold run (--no-cache, read_baseline first-row hit): skeleton=45
+# defects=0 numbering=0 matched=1385/1385. The lane-context 67 row
+# (branch-base 94-27 with 2x3 decl-move residual still present) is
+# superseded by this joint row; its note block kept verbatim above.
+# curl 0 (CURLCODEPTR-REPIN-0001 held, precold joint run 0/0 74/74)/
+# httpd 0/vsh 0/sq 35 rows stay; canon byte pins f903372a/3617ecc3
+# exact. Stale-guard digest 49ea0051f5041a25 files=155 (joint tree).
 # MB72 joint re-pin (DECLBFORM-MB72-JOINT-REPIN-0001, 2026-10-02,
 # merge of wt/declbform 6707648a [single commit, base 624e5a6a/MB70]
 # onto master 95c7d720 [MB71, sqlite 141 = VDBEPRINT-RATCHET-REPIN-

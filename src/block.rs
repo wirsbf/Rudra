@@ -1784,13 +1784,28 @@ pub trait FlowBlock: std::fmt::Debug + Send + Sync {
 
     /// Is the i-th incoming edge a goto/irreducible edge? (Ghidra `isGotoIn`.)
     // Ghidra: block.hh:346 FlowBlock::isGotoIn
-    fn is_goto_in(&self, _i: usize) -> bool {
-        false
+    // `((intothis[i].label & (f_irreducible|f_goto_edge))!=0)` — a
+    // NON-virtual read of the edge label, so it holds for every block
+    // type, composites included (BlockCondition/BlockIf/...). The previous
+    // hard `false` default hid inherited unstructured labels on composite
+    // out/in edges: after a ruleBlockOr AND-merge, the fresh BlockCondition
+    // inherits the consumed member's edge label (identifyInternal's
+    // replaceInEdge/replaceOutEdge carry the label verbatim, block.cc:172/
+    // :188), and downstream ruleBlockOr must refuse further merging on
+    // that goto/irreducible arm — CONDMERGE TC-F1 root cause.
+    fn is_goto_in(&self, i: usize) -> bool {
+        self.get_in(i)
+            .map(|e| (e.flags & (edge_flags::F_GOTO_EDGE | edge_flags::F_IRREDUCIBLE_EDGE)) != 0)
+            .unwrap_or(false)
     }
     /// Is the i-th outgoing edge a goto/irreducible edge? (Ghidra `isGotoOut`.)
     // Ghidra: block.hh:347 FlowBlock::isGotoOut
-    fn is_goto_out(&self, _i: usize) -> bool {
-        false
+    // `((outofthis[i].label & (f_irreducible|f_goto_edge))!=0)` — same
+    // non-virtual edge-label read; see is_goto_in note above.
+    fn is_goto_out(&self, i: usize) -> bool {
+        self.get_out(i)
+            .map(|e| (e.flags & (edge_flags::F_GOTO_EDGE | edge_flags::F_IRREDUCIBLE_EDGE)) != 0)
+            .unwrap_or(false)
     }
 
     // Ghidra: block.hh:336 FlowBlock::isInteriorGotoTarget

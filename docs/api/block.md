@@ -1221,6 +1221,7 @@ BlockGraph 新增：
 - `is_mark`/`set_mark`/`clear_mark`（block.hh:286-288）
 - `get_visit_count`/`set_visit_count`（block.hh visit count）
 - `is_goto_in(i)`/`is_goto_out(i)`（block.hh:346-347）——**2026-06-29 修复**：`BlockBasic::is_goto_out` 此前只查边级 `F_GOTO_EDGE`，但 TraceDAG 把 goto 标在 block 级 `GOTO_EDGE_0/1` 上。修复后同时查边级和 block 级标志，使 ruleBlockWhileDo 能正确识别 break 边。
+- `is_goto_in(i)`/`is_goto_out(i)` trait 默认实现——**2026-10-02 CONDMERGE TC-F1 修复**：Ghidra 的 `isGotoIn`/`isGotoOut` 是 FlowBlock 上的**非虚 inline**（`label & (f_irreducible|f_goto_edge)`），对包括 BlockCondition 在内的**所有块类型**生效。Rudra 此前的 trait 默认硬编码 `false`，只依赖 BlockBasic/BlockCopy 的覆盖——复合块（BlockCondition/BlockIf/BlockList/…）的继承边 label 完全不可见。后果：`ruleBlockOr` AND 合并产生的新 BlockCondition 经 identifyInternal 继承了被消费成员边上的 `f_irreducible`（replaceInEdge/replaceOutEdge 原样携带 label，block.cc:172/:188），oracle 在后续 `isGotoOut(0)` 守卫据此拒绝进一步 OR 合并（sqlite3Pragma golden 双 if-goto 形），Rudra 却放行 → mega-OR `((A&&B)||(T=CALL(V),T==LIT))` 缺陷（镜面 sqlite/sq 两面 COND-MERGE 族 56 行）。修复：trait 默认改为 `get_in/get_out(i).flags & (F_GOTO_EDGE|F_IRREDUCIBLE_EDGE)` 的边 label 读法；BlockBasic/BlockCopy 覆盖保持不变（其 block 级 GOTO_EDGE_0/1 通道是 Rudra 特有标记，为严格超集）。
 - `set_loop_exit(i)`/`clear_loop_exit(i)`（block.hh:294-295）
 - `remove_in_edge_from(exclude_indices)`（block.cc:1469 忠实移植）——从块的 incoming 列表中移除 index 匹配的前驱边。对应 Ghidra `BlockGraph::removeEdge(begin, end)`，是 newBlockGoto/newBlockIfGoto "消费" goto 边的机制（使 goto 源对 target 的 sizeIn 不可见）。2026-06-29 新增，当前未被调用（ruleBlockGoto 消费实验因 Rudra 非对称边追踪导致图损坏，已回退；保留为未来对称边图工作的基础设施）。
 
