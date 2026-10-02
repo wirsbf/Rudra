@@ -402,6 +402,20 @@ sq	35	810	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # (115->109 at lane base scale) superseded by this joint row; note
 # block kept verbatim below. curl 11/httpd 0/vsh 0/sq 35 rows stay;
 # canon byte pins f903372a/3617ecc3 exact.
+# FTS3DOMCOPY-REPIN-0001 (2026-10-02, wt/fts3domcopy lane, base 6956453f/MB79):
+# sqlite 45->42 (-3 exact = the UNAFFCALL-FTS3-DOMCOPY-0001 residual family,
+# sqlite3Fts3DeferredTokenList unaff_RBP/piVar12/13 shuffle lines) —
+# Merge::buildDominantCopy bCover loop now lazily rebuilds coverdirty
+# instance covers before merging (getCover()/updateCover semantics,
+# varnode.hh:202 / varnode.cc:233-241), so the RDI trim-COPY group converges
+# onto the new dominant COPY exactly like the locked oracle instead of
+# aborting (count<=1 -> opDestroy). B2: Fts3DeferredTokenList function body
+# now skeleton=0 defects=0 numbering=0 vs ghidra_sqlite_1204.direct-runner.c.
+# Corpus A/B (base rebuild vs fix, --jobs 12 both faces): exactly 1 function
+# changed per face (4 hunks, net -31B), 1384 functions byte-identical.
+# curl 0/httpd 0/vsh 0/sq 35 rows stay; canon byte pins f903372a/3617ecc3
+# exact; VdbeExec mirror b3f5b487/canon 606dd8c0 exact; tests 2048P.
+sqlite	42	1385	FTS3DOMCOPY-REPIN-0001	fts3domcopy	2026-10-02
 sqlite	45	1385	CONDMERGE-MB79-JOINT-REPIN-0001	mb79-joint	2026-10-02
 sqlite	72	1385	DECLB1-MB77-JOINT-REPIN-0001	mb77-joint	2026-10-02
 sqlite	78	1385	DECLB3-MB76-JOINT-REPIN-0001	mb76-joint	2026-10-02

@@ -4096,6 +4096,21 @@ impl Merge {
                     }
                 };
                 if skip { continue; }
+                // Ghidra: bCover.merge(*vn->getCover()) — getCover lazily
+                // rebuilds dirty covers before returning them (varnode.hh:202
+                // → Varnode::updateCover, varnode.cc:233-241). Reading the
+                // stored cover raw would merge a stale map: an earlier
+                // group's totalReplace/opDestroy (or any opSetInput/setDef)
+                // sets coverdirty without an immediate rebuild, and this
+                // bCover loop is exactly the "Merge class knows when to
+                // call it properly" reader (varnode.cc:230-232). The stale
+                // map still names the pre-replacement reader paths, which
+                // here bloated bCover with the arm blocks and flipped the
+                // bCover.intersect(aCover)>1 removable-COPY test
+                // (UNAFFCALL-FTS3-DOMCOPY-0001: sqlite3Fts3DeferredTokenList
+                // RDI group aborted where the oracle converged both arms
+                // onto the new dominant COPY).
+                Varnode::update_cover_locked(&vn_arc);
                 let vn = vn_arc.read().unwrap();
                 if let Some(c) = &vn.cover {
                     b_cover.merge(c);
