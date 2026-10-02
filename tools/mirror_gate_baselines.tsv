@@ -226,6 +226,22 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # amount; md5 4503f498->8dafa799 / c3b4706c->2fbf13b1, canon not in tsv — recorded in the MB34
 # report). Forced relink before measurement (digest 19db58af files=103, binaries newer than all
 # three merge commits). tests 1963P/0F/5I = 1963+0 (all three lanes add zero tests).
+# 2026-10-02 MISC24 车道重钉（MISC24-F10-REPIN-0001）: TC-F10 WARNING-ADDR-FORMAT 收口——
+# heritage dead-removal 警告位置串忠实化（printRawNoMarkup + AddrSpace::printRaw 投影，
+# varnode/space/heritage 三件，commit 4a1dbd72）后 sqlite 72→66 实测（config 3 + test_control 3
+# 字节级归零 golden，defects=0 numbering=0 matched 1385/1385）；canon 红线 f903372a/3617ecc3 保持。
+# 其余 misc 族（F5/F8/F11/F12，10 行）域深票移交，未计入本钉——首行=66。
+# 2026-10-02 MB81 联合重钉（MISC24-MB81-JOINT-REPIN-0001）: misc24 并入 master[MB80 后
+# c4d63e89] 联合树实测 sqlite 37→31（=37−6 精确——config 3+test_control 3 双函数族与
+# MB79 F1 goto-guard 三重奏/MB80 unaffcall Wal 两函数族及此前已燃族全部不相交,加性合成
+# 实测兑现）;commit 前联合树强制重链（1m09s,stale-guard digest=7dc0c07f7c06996e
+# files=155——联合树新指纹）+sqlite 面 --no-cache 冷测 31/37（MB80 基线下 PASS,defects=0
+# numbering=0 matched 1385/1385）+curl 面 0/0 冷测 PASS;车道 MISC24-F10-REPIN-0001 sqlite 66
+# 陈旧行[车道基 ce7ae00b 口径 72−6]按 MB77/MB79/MB80 先例由本联合行取代（车道注记块
+# 逐字保留）;重钉后冷复跑 31/31 恰钉值（首行命中,确定性）。canon 红线
+# f903372a/3617ecc3 保持。CR-MISC24 N1 台账勘误一并兑现: 联合树实测 digest 以本注记
+# 7dc0c07f7c06996e 为准（车道台账 f600ca37 系誊抄旧 gate 日志行,见 CR §5-N1）。
+sqlite	31	1385	MISC24-MB81-JOINT-REPIN-0001	mb81-joint	2026-10-02
 curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02
 httpd	0	29	DECLFAM-RATCHET-REPIN-0001	declfam	2026-10-02
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29

@@ -105,6 +105,56 @@ impl AddressSpace {
         matches!(self, AddressSpace::Register)
     }
 
+    // Ghidra: translate.cc:524-553 AddrSpaceManager::assignShortcut (defaults)
+    /// The shortcut character for this space, as `assignShortcut` selects
+    /// it when the spec does not pin one: `'#'` constant, `'%'` for the
+    /// processor space named "register", first name character for other
+    /// processor spaces (`'r'` for "ram"), `'s'` spacebase (stack),
+    /// `'u'` unique/internal, `'j'` join, `'i'` iop, `'x'` default.
+    /// Rudra merges Ghidra's IPTR_FSPEC into `Iop` (see the Varnode
+    /// constructor note), whose own shortcut would be `'f'`.
+    pub fn shortcut(&self) -> char {
+        match self {
+            AddressSpace::Ram => 'r',
+            AddressSpace::Register => '%',
+            AddressSpace::Stack => 's',
+            AddressSpace::Unique => 'u',
+            AddressSpace::Const => '#',
+            AddressSpace::Join => 'j',
+            AddressSpace::Iop => 'i',
+            AddressSpace::Overlay | AddressSpace::Other(_) => 'x',
+        }
+    }
+
+    // Ghidra: space.cc:206 AddrSpace::printRaw (static per-space projection)
+    /// The `Address::printRaw` (address.hh:305) text for `offset` in this
+    /// space: the base `AddrSpace::printRaw` padded form (space.cc:206-222,
+    /// addrSize 8 / wordsize 1 on the x86-64 mirror targets) for
+    /// ram/register/stack/unique/overlay, the unpadded overrides for
+    /// constant (space.cc:371) and other (space.cc:409). The registry-bound
+    /// join (space.cc:590) and iop (op.cc:41) overrides need
+    /// `SpaceRegistry` data the legacy enum does not carry; the base form
+    /// stands in there (MISC24-VNPRINT-JOINIOP-0001 residual).
+    pub fn print_raw_offset(&self, offset: u64) -> String {
+        match self {
+            // Ghidra: space.cc:372 ConstantSpace::printRaw
+            AddressSpace::Const => format!("0x{:x}", offset),
+            // Ghidra: space.cc:410 OtherSpace::printRaw
+            AddressSpace::Other(_) => format!("0x{:x}", offset),
+            // Ghidra: space.cc:206 AddrSpace::printRaw, address_size = 8,
+            // wordsize = 1 (byte_to_address is the identity).
+            _ => {
+                let mut sz: u32 = 8;
+                if (offset >> 32) == 0 {
+                    sz = 4; // Don't print a bunch of zeroes at front
+                } else if (offset >> 48) == 0 {
+                    sz = 6;
+                }
+                format!("0x{:0width$x}", offset, width = (2 * sz) as usize)
+            }
+        }
+    }
+
     // RUDRA-GLUE: is_unique (no Ghidra counterpart found)
     /// Check if this is a temporary/unique space
     pub fn is_unique(&self) -> bool {

@@ -6044,16 +6044,44 @@ impl Heritage {
                     self.infolist[i].warning_issued = true;
                     let mut errmsg = String::from("Heritage AFTER dead removal. Example location: ");
                     let warn_ref = warnvn.expect("needwarning implies warnvn");
-                    errmsg.push_str(&warn_ref.read().unwrap().print_raw());
+                    // cc:2739: warnvn->printRawNoMarkup(errmsg) — the
+                    // register-or-shortcut form (varnode.cc:711-734), NOT
+                    // printRaw: no :size suffix, no (i)/(free)/seqnum
+                    // markup. The Translate for the register-name branch
+                    // is fd's Architecture (Ghidra: spc->getTrans()).
+                    let arch_opt = fd.get_arch().cloned();
+                    let (vn_text, _) = warn_ref
+                        .read()
+                        .unwrap()
+                        .print_raw_no_markup_arch(arch_opt.as_deref());
+                    errmsg.push_str(&vn_text);
                     if !warn_ref.read().unwrap().has_no_descend() {
+                        // cc:2741-2744: errmsg << " : ";
+                        // warnop->getAddr().printRaw(errmsg) —
+                        // address.hh:305 → AddrSpace::printRaw
+                        // (space.cc:206): zero-padded 2*addrSize hex with
+                        // the >>32/>>48 leading-zero trim, NOT {:#x}. A
+                        // tagged legacy address crosses to the
+                        // SpaceAddress print; a spaceless one (the op-bank
+                        // norm) is a code address — the ram form.
                         let warnop = warn_ref
                             .read()
                             .unwrap()
                             .descend_iter()
                             .next()
-                            .map(|op| op.read().unwrap().get_addr().as_u64());
-                        if let Some(addr) = warnop {
-                            errmsg.push_str(&format!(" : {addr:#x}"));
+                            .map(|op| {
+                                let addr = op.read().unwrap().get_addr();
+                                let sa = addr.to_space_address();
+                                if sa.is_invalid() {
+                                    crate::space::AddressSpace::Ram
+                                        .print_raw_offset(addr.as_u64())
+                                } else {
+                                    sa.print_raw()
+                                }
+                            });
+                        if let Some(addr_text) = warnop {
+                            errmsg.push_str(" : ");
+                            errmsg.push_str(&addr_text);
                         }
                     }
                     fd.warning_header(&errmsg);

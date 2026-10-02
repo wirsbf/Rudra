@@ -1772,3 +1772,18 @@ nio_insbef 3.7µs=op_insert_before 的 block_ops position 线性扫描[oracle
 stored basiciter O(1)]）、delete_varnode 1.06µs、create_with_space 1.24µs、
 op_insert_begin 4.0µs（Vec::insert 位移+order 塌缩 set_order 重编号）——
 funcdata/varnode 创建层结构域。
+
+### 2026-10-02：dead-removal 警告位置串忠实化（MISC24 F10，sqlite 镜面 −6）
+- `Heritage::heritage` 内 cc:2734-2747 警告头三处对齐：
+  1. cc:2739 `warnvn->printRawNoMarkup(errmsg)`——此前误用 `print_raw()`
+     （带 `:size`/`(i)`/`(free)`/seqnum 标记），改为
+     `print_raw_no_markup_arch(fd.get_arch())`（register-name/shortcut 形）。
+  2. cc:2743 `warnop->getAddr().printRaw(errmsg)`——此前 `{:#x}` 无填充，
+     改为 `AddrSpace::printRaw` 形（space.cc:206，`0x00094b31` 8 位零填充；
+     tagged legacy Address 走 SpaceAddress 桥，spaceless 走 RAM 投影）。
+  3. 行长随之回落阈值内，R 侧两行断行形态消失。
+- 双侧字节级核对（sqlite 镜面 vs ghidra_sqlite_1204.direct-runner.c）：
+  `/* WARNING: Heritage AFTER dead removal. Example location:
+  s0xffffffffffffff40 : 0x00094b31 */` 与 `…0x000961e2` 两处逐字节恒等；
+  sqlite3_config(3) + sqlite3_test_control(3) 残差清零，sqlite 镜面
+  72→66，defects/numbering 保持 0/0。
