@@ -360,10 +360,25 @@ impl HighVariable {
                 return;
             }
         }
-        // Faithful to variable.cc:319: type = type->getStripped(). Rudra's
-        // get_stripped returns &Datatype; we clone into a fresh Arc.
-        let stripped: Arc<Datatype> = Arc::new(cur.get_stripped().clone());
-        self.v_type.set(stripped);
+        // Ghidra: variable.cc:319: `type = type->getStripped();` — a POINTER
+        // assignment of the factory-interned stripped form (TypePartialStruct
+        // etc. hold the interned `stripped` field, type.hh:592). Rudra must
+        // route through the Arc-preserving `get_stripped_arc` twin so the
+        // stripped result keeps pointer identity with the canonical factory
+        // base type. The previous `Arc::new(get_stripped().clone())` minted a
+        // fresh allocation per call, so HighVariables whose type went through
+        // stripping compared unequal (by Arc::ptr_eq) to the interned base in
+        // every Datatype* pointer-equality site — mergeByDatatype grouping
+        // (merge.cc:386 `ct == high->getType()`), mergeTestRequired's
+        // typelock pair and mergeTestAdjacent's same-type gate (merge.cc:196)
+        // — fragmenting same-type merge groups (DECL-B3-HIGHMERGE-0001:
+        // sqlite3Select stack-slot load COPYs excluded from the xunknown4
+        // group, +3 xunknown4 symbols). `None` means `getStripped()` returns
+        // \b this (no external stripped form): the oracle assignment is a
+        // self-assignment, so keeping the current Arc is identity-faithful.
+        if let Some(stripped) = Datatype::get_stripped_arc(&cur) {
+            self.v_type.set(stripped);
+        }
     }
 
     // Ghidra: variable.cc:324 HighVariable::updateInternalCover

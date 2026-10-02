@@ -370,6 +370,38 @@ sq	35	810	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # SELECTDUP-RATCHET-REPIN-0001 (141->128 / 41->35 at lane base scale)
 # superseded by these joint rows. curl 11/httpd 0/vsh 0 rows stay; canon
 # byte pins f903372a/3617ecc3 exact.
+# MB76 joint re-pin (DECLB3-MB76-JOINT-REPIN-0001, 2026-10-02,
+# merge of wt/declb3 7fbb72f1 [single commit, base be755f6e/MB74 —
+# pre-MB75, merge-base witnessed] onto master 13169c40 [MB75,
+# sqlite 94 = SELECTDUP-MB75-JOINT-REPIN-0001, sq 35 same row]):
+# joint measured sqlite 94-16=78 — the declb3 function family
+# (HighVariable::strip_type Arc-identity fix: sqlite3Select 16->2 +
+# sqlite3changeset_invert 2->0, changeset_invert_strm skeleton-
+# identical) is disjoint from the selectdup family (MB75, -13),
+# vdbeprint six (MB71, -39), declbform four (MB72, -26) and declb12
+# two (MB74, -8) families; additive composition measured on the
+# joint tree (pre-commit cold run). Lane form DECLB3-RATCHET-
+# REPIN-0001 (107->91 at lane base scale) superseded by this joint
+# row. curl 11/httpd 0/vsh 0/sq 35 rows stay; canon byte pins
+# f903372a/3617ecc3 exact.
+sqlite	78	1385	DECLB3-MB76-JOINT-REPIN-0001	mb76-joint	2026-10-02
+# DECLB3 lane re-pin (DECLB3-RATCHET-REPIN-0001, 2026-10-02,
+# strip_type Arc-identity fix in src/variable.rs, lane wt/declb3
+# base be755f6e/MB74): sqlite 107-16=91 — per-function accounting:
+# sqlite3Select 16->2 (the B3 +3 xunknown4 decls and the full
+# renumbering cascade burned; xVar9/xVar12 slot-read merges now
+# golden-aligned line-for-line; remaining 2 lines = pre-existing
+# cond-shape family, NOT the merge domain) + sqlite3changeset_invert
+# 2->0 (bonus burn: the B1-family changeset_invert symbol-set delta
+# resolved by the same identity fix) + sqlite3changeset_invert_strm
+# skeleton-identical both sides (byte-level symbol-reuse convergence
+# only, xVar23/21 -> shared xVar14); the other 21 differing
+# functions zero drift (corpus mirror attribution: exactly 3
+# functions touched, 1382 byte-identical). curl 11/httpd 0/vsh 0/
+# sq 41 rows stay; canon byte pins f903372a/3617ecc3 exact;
+# VdbeExec mirror/canon b3f5b487/606dd8c0 exact; corpus pins shift
+# attributed (mirror 79c4cc0c->87a3f85d, canon 6640fcf0->3cb07c6c,
+# both exactly the 3 functions above).
 # MB74 joint re-pin (DECLB12-MB74-JOINT-REPIN-0001, 2026-10-02,
 # merge of wt/declb12 0ac6c556 [single commit, base 624e5a6a/MB70]
 # onto master aefbe6a9 [MB73, sqlite 115 = DECLBFORM-MB72-JOINT-

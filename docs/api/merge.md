@@ -658,6 +658,23 @@ block/copy-shadow/partial-shadow/piece、缓存迁移复用、speculative 各拒
 Cover-block/null-def comparator 层级和大量 eligible High 的规模路径仍为
 `UNTESTED`；它们不会因窄 projection 的零差分而升级。
 
+**2026-10-02（DECLB3 / DECL-B3-HIGHMERGE-0001）类型指针身份的输入前提修复**：
+分组只认 `Arc::ptr_eq` 是对 merge.cc:386 `ct == high->getType()`（`Datatype*`
+指针相等）的忠实移植，但该语义成立的前提是 `HighVariable::strip_type`
+（variable.cc:319 `type = type->getStripped()`）产出的 stripped 形态是
+工厂 interned 单例指针。Rudra 此前在 `src/variable.rs strip_type` 用
+`Arc::new(get_stripped().clone())` 每次 mint 新 Arc，导致一切经过 stripping
+的 High（stack 数组槽位 partial 类型、load COPY 输出等）与 canonical base
+类型在 `merge_by_datatype` 分组、`merge_test_required` typelock 对、
+`merge_test_adjacent` same-type 门三处指针比较中判不等——同型组碎片化，
+sqlite3Select 的 3 个栈槽读 COPY 被排除出 xunknown4 组（+3 `xunknown4`
+符号+全函数重编号级联）。修复=`strip_type` 改走 Arc-preserving
+`Datatype::get_stripped_arc`（保持与 oracle 指针赋值恒等的身份语义）；
+merge.rs 本体无需改动（分组/比较逻辑本已忠实，缺陷在类型身份生产侧）。
+镜面证据：sqlite3Select skeleton 16→2（剩 2 行为既有 cond-shape 族非本域），
+`xVar9 = axStack_c0._0_4_`/`xVar9 = axStack_c0._4_4_`/`xVar12 =
+axStack_d0._4_4_` 三行与 golden 行号逐位对齐，decl 块恒等。
+
 ### `pub struct BlockVarnode`
 
 Represents a varnode within a specific block for merging purposes
