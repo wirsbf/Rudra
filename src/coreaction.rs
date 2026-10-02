@@ -16570,32 +16570,39 @@ impl Action for ActionConditionalConst {
             // resolved on the current baseline (curl/httpd E2E + next_url/
             // match_url/parseconfig projections all stable with it on).
             if bool_vn.read().unwrap().lone_descend().is_none() {
-                // Need the false/true out-blocks. Ghidra uses getFalseOut/getTrueOut
-                // which account for the boolean flip. bl_out is indexed [0,1] =
-                // [getOut(0), getOut(1)]. Rudra's CBRANCH edges are
-                // [branch(taken), fallthru]; with flip, taken/true semantics swap.
-                // Match Ghidra: falseOut = getOut(flip ? 1 : 0)... but Rudra's
-                // get_false_out/get_true_out helpers already encode this. Use them
-                // via the block trait to stay consistent with the rest of Rudra.
-                let (false_out_idx, true_out_idx) = if flip_edge { (1, 0) } else { (0, 1) };
-                // cc:4539: push bool=flip?1:0 down false out, rev index 0.
-                if let Some(false_bl) = bl_out[false_out_idx].clone() {
+                // cc:4537-4541: implied-boolean constants — bool=0 down the
+                // FALSE branch, bool=1 down the TRUE branch, with the flip
+                // folded into the VALUES. Ghidra's getFalseOut()/getTrueOut()
+                // are PURE out-array positions (block.hh:299-300:
+                // false=out[0], true=out[1]) and do NOT account for the
+                // boolean flip; the flip lives in the value expressions
+                // (`flipEdge ? 1 : 0` down false / `flipEdge ? 0 : 1` down
+                // true, coreaction.cc:4539-4540). The former port ALSO
+                // swapped the slots on flip, which cancelled the value swap
+                // and made flipEdge a no-op — on any cbranch negated by
+                // negateCondition (ruleBlockIfNoExit/WhileDo/Goto during
+                // blockstructure) the propagated constants came out
+                // inverted, e.g. sq GetOptimumFast's je@0x3b464 whose
+                // fallthrough 0x3b46a got ZF≡1 (equal) instead of ZF≡0,
+                // folding the ja condition to #0 and removing the
+                // 0x3b46a→0x3b495 edge via determinedbranch
+                // (GOF29-CONDCONST-FLIP-0001).
+                if let Some(false_bl) = bl_out[0].clone() {
                     points.push(ConstPoint::from_value(
                         bool_vn.clone(),
                         if flip_edge { 1 } else { 0 },
                         false_bl.read().unwrap().get_index(),
-                        bl_out_rev_index[false_out_idx],
-                        block_dom[false_out_idx],
+                        bl_out_rev_index[0],
+                        block_dom[0],
                     ));
                 }
-                // cc:4540: push bool=flip?0:1 down true out, rev index 1.
-                if let Some(true_bl) = bl_out[true_out_idx].clone() {
+                if let Some(true_bl) = bl_out[1].clone() {
                     points.push(ConstPoint::from_value(
                         bool_vn.clone(),
                         if flip_edge { 0 } else { 1 },
                         true_bl.read().unwrap().get_index(),
-                        bl_out_rev_index[true_out_idx],
-                        block_dom[true_out_idx],
+                        bl_out_rev_index[1],
+                        block_dom[1],
                     ));
                 }
             }
