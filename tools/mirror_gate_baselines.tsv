@@ -255,6 +255,19 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # 保持;CR-FTS3DOMCOPY D 裁定注记: corpus 钉组真值链=可复现链（MB78 ced48470/1466ee4b
 # → MB79 e3822667/50c15616 → MB80 6427a459/c46d0fe8 → MB81 df204662/62f74d43 →
 # 本道联合新钉;CONDMERGE 车道行 3f32b73a/1ce87062 系分支树误记,联合树以实测为准）。
+# 2026-10-03 MB87 联合注记（F5PRINT-MB87-JOINT-REPIN-0001 联合树兑现）: f5print 并入
+# master[MB86 后 7dc3bd70] 联合树实测 sqlite 6（=8−2 精确——fold_standalone_one_or 括组首
+# token 边界收紧收口的 sqlite3Select 单函数族恰为 MB86 残 8 中 Select 2 的全部[CR-F5PRINT
+# 注记③核算兑现],与残存 WindowCodeStep 5[F8]+AddCheckConstraint 1[F11] 不相交,加性合成实测
+# 兑现;残 6=WindowCodeStep 5+AddCheckConstraint 1 全 misc-tail 族[TAILCENSUS 备靶,域深票移交]）
+# ;commit 前联合树强制重链 1m02s（stale-guard digest=92e957a85edbc0ed files=155——联合树新指纹,
+# 自 MB86 6951c2738cf28744 的预期位移[prettyprint.rs P9 折叠边界收紧入联合树]）+五面 --no-cache
+# --jobs 5 冷测 curl 0/0·httpd 0/0·vsh 0/0·sq 0/0·sqlite 6/8（master MISC2-MB86 基线下全 PASS,
+# defects=0 numbering=0,matched 满额 74/29/71/810/1385——第四完美面四面零位保持+sqlite 恰预期 6）
+# ;车道注记块内 sqlite 26 系车道基 a0aa0172[MB83]口径 28−2,联合树以 master MB86 值 sqlite 8 为基
+# ——车道 26 陈旧行按 MB77-86 先例由联合行取代（车道注记块逐字保留）;重钉后冷复跑 sqlite 6/6
+# 恰钉值（首行命中 F5PRINT-MB87-JOINT-REPIN-0001,确定性）+tsv --self-test PASS。
+sqlite	6	1385	F5PRINT-MB87-JOINT-REPIN-0001	mb87-joint	2026-10-03
 # 2026-10-03 MB86 联合注记（MISC2-MB86-JOINT-REPIN-0001 联合树兑现）: misc2 并入
 # master[MB85 后 908f77d0] 联合树实测 sqlite 8（=10−2 精确——fspec 四臂 high 代表类型源
 # 修复的 sqlite3Reindex 单函数族与 MB85 后残 10 的已燃族[MB79 F1 三重奏/MB80 Wal 两函数/
@@ -309,6 +322,14 @@ sqlite	10	1385	STRUCTAIL-MB85-JOINT-REPIN-0001	mb85-joint	2026-10-03
 # Reindex 出列亲证）。修复 commit 48878b6d（fspec.rs 四臂统一 high 代表查找+
 # docs/api/fspec.md）;F12 函数族与 MB79/80/81/82 已燃族不相交,加性合成实测兑现。
 # canon 红线 f903372a/3617ecc3 保持;镜面五面 0/0/0/35/26 全 PASS。
+# F5PRINT-BOOLFOLD-REPIN-0001 (wt/f5print, 2026-10-03): MISC24-F5-BOOLCOERCE-0001
+# 收口 sqlite 28→26——根因=POSTFIX P9 `1 || ` tautology-fold 的操作数边界
+# (F5-BOOLFOLD-OPERAND-0001): `== 1 ||` 的常量操作数被当独立恒真守卫折叠,
+# 改写 oracle 合法条件为破坏真值的 `== (...)`(golden sqlite:98785 逐字节)。
+# 修复=边界收紧到括组首 token;逐函数对账: sqlite3Select 出列(唯一变动),
+# 其余 14 差异函数零回归;canon f903372a/3617ecc3 + curl/httpd/vsh/sq 四面
+# 零位移;VdbeExec b3f5b487/606dd8c0 恒等;corpus mirror dbe6f683→c07d7901/
+# canon 1fa47be4→411eba59 各恰 1 行(+5B,F5 位点,逆编辑复得旧钉双证)。
 sqlite	28	1385	FTS3DOMCOPY-MB82-JOINT-REPIN-0001	mb82-joint	2026-10-02
 sqlite	31	1385	MISC24-MB81-JOINT-REPIN-0001	mb81-joint	2026-10-02
 curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02

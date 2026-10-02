@@ -724,15 +724,35 @@ impl EmitNoMarkup {
 
     // RUDRA-GLUE: 补偿层内部 helper(POSTFIX-BOOLFOLD-TOKEN-0001;Ghidra 无
     /// 对应物——pass 3 的 token 边界判据)。Strip every `1 || ` whose `1`
-    /// begins a standalone token (preceded by start, `(` or whitespace),
-    /// leaving number-token tails (`0x11 || `, `a1 || `) untouched.
+    /// begins a standalone token, leaving number-token tails (`0x11 || `,
+    /// `a1 || `) untouched.
+    ///
+    /// F5-BOOLFOLD-OPERAND-0001 (F5PRINT lane, 2026-10-03): the boundary is
+    /// the FIRST TOKEN OF A PARENTHESIZED GROUP — walk whitespace back from
+    /// the `1` and require the previous non-space byte to be `(` (or line
+    /// start). The pre-fix boundary (immediate predecessor in `{'(',' ','\t'}`)
+    /// accepted any whitespace, so a comparison's constant operand
+    /// (`X == 1 || Y`, oracle golden sqlite:98785 `*(uint4 *)pcVar43 == 1 ||`
+    /// ...) was folded away as if it were a standalone always-true guard,
+    /// silently rewriting the emitted condition into the truth-value-breaking
+    /// `X == (Y)` (a `== 1 || (B != 0)` guard vs `== (B != 0)` differ at
+    /// X=1,Y=0). The oracle's emission path has ZERO post-processing
+    /// (EmitNoMarkup is an unbuffered direct-write emitter,
+    /// prettyprint.hh:542-594; docFunction ends at flush, printc.cc:2665),
+    /// and its golden keeps `== 1 || ` verbatim — an operator operand must
+    /// never be folded regardless of the compensation layer's future
+    /// retirement (POSTFIX-RETIRE-0001).
     fn fold_standalone_one_or(line: &str) -> String {
         let bytes = line.as_bytes();
         let mut out = String::with_capacity(line.len());
         let mut i = 0usize;
         while i < bytes.len() {
             if bytes[i] == b'1' && line[i..].starts_with("1 || ") {
-                let boundary_ok = i == 0 || matches!(bytes[i - 1], b'(' | b' ' | b'\t');
+                let mut j = i;
+                while j > 0 && matches!(bytes[j - 1], b' ' | b'\t') {
+                    j -= 1;
+                }
+                let boundary_ok = j == 0 || bytes[j - 1] == b'(';
                 if boundary_ok {
                     i += "1 || ".len();
                     continue;
@@ -4976,6 +4996,49 @@ impl Emit for EmitPrettyPrint {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// F5-BOOLFOLD-OPERAND-0001 (F5PRINT lane, 2026-10-03): the `1 || `
+    /// tautology fold must treat a comparison's constant OPERAND as data,
+    /// never as a standalone always-true guard. The pre-fix boundary
+    /// (immediate predecessor byte in `{'(',' ','\t'}`) accepted plain
+    /// whitespace, so `X == 1 || Y` (oracle golden sqlite:98785) folded to
+    /// the truth-value-breaking `X == (Y)`. The fix requires the `1` to be
+    /// the first token of a parenthesized group.
+    #[test]
+    fn one_or_fold_spares_comparison_operand() {
+        // The F5 site verbatim (sqlite3Select golden 98785 shape): the `1`
+        // follows `== ` — an operand, must survive byte-intact.
+        let f5 = "          if ((iVar21 == 0) && ((*(uint4 *)pcVar43 == 1 || (((uint1)pcVar43[0xb4] & 10) != 0)))) {\n";
+        let out = EmitNoMarkup::post_process_output(f5);
+        assert!(
+            out.contains("pcVar43 == 1 || "),
+            "comparison constant operand must not fold: {out:?}"
+        );
+        // Other operator-operand positions stay intact too.
+        assert_eq!(
+            EmitNoMarkup::post_process_output("  if (x != 1 || y) {\n").trim_end(),
+            "  if (x != 1 || y) {"
+        );
+        assert_eq!(
+            EmitNoMarkup::post_process_output("  if (0 < x && 1 || y) {\n").trim_end(),
+            "  if (0 < x && 1 || y) {"
+        );
+        // Identifier tails were already spared (POSTFIX-BOOLFOLD-TOKEN-0001)
+        // and remain so.
+        assert_eq!(
+            EmitNoMarkup::post_process_output("  if (bVar31 || x) {\n").trim_end(),
+            "  if (bVar31 || x) {"
+        );
+        // The compensation's original target — a standalone constant-true
+        // guard as the first token of a parenthesized condition — still
+        // folds to `if (1)`, which the next pass unwraps.
+        let taut = "  if (1 || x) {\n    y;\n  }\n";
+        let out_taut = EmitNoMarkup::post_process_output(taut);
+        assert!(
+            !out_taut.contains("1 ||"),
+            "standalone paren-first `1 ||` must still fold: {out_taut:?}"
+        );
+    }
 
     /// READINODE3: the P9 double-space collapse is scoped to lines the
     /// "+N - N" cancellation actually rewrote — oracle-legitimate `  ` runs

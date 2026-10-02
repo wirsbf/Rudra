@@ -1258,6 +1258,27 @@ operator）。诱因：for 头超行宽折行后，续行形如
 判据加固模式。canon httpd 293→277（−16 含本门 −8 行回灌）。
 
 
+### 2026-10-03 — F5-BOOLFOLD-OPERAND-0001（F5PRINT 车道：`1 || ` 折叠的操作数边界）
+
+- **根因（F5-BOOLCOERCE 残票收口,根因翻案第十四例）**：POSTFIX pass3 的
+  `fold_standalone_one_or` 边界判据（前行字节 ∈ {行首, `(`, 空白}）接受任意
+  空白——比较常量操作数 `X == 1 || Y`（golden sqlite:98785
+  `*(uint4 *)pcVar43 == 1 || …`，oracle 合法发射、零后处理直写）被当独立
+  恒真守卫剥除，改写为破坏真值的 `X == (Y)`（X=1,Y=0 时两式不等价）。
+  五轮探针链（emit 层 revpol/nodepend 恒清零 + EmitNoMarkup 逐点 len 追踪
+  len=46 已含 `1 ||`）证明 printc 发射正确、丢失发生在 get_output 的
+  post-process 文本层。
+- **修复**：边界收紧为**括组首 token**——从 `1` 回溯跳过空白后要求前行
+  非空字节为 `(`（或行首）。`if (1 || x)` 补偿目标保留折叠；`== 1 ||`、
+  `!= 1 ||`、`< 1 ||`、`return 1 ||` 等操作数位置一律不触。
+- **效果**：sqlite 镜面 28→26（sqlite3Select 出列,唯一变动,其余 14 差异
+  函数零回归）；canon curl f903372a/httpd 3617ecc3 字节恒等；curl/httpd/
+  vsh/sq 四面零位移；VdbeExec b3f5b487/606dd8c0 恒等；corpus mirror
+  dbe6f683→c07d7901 / canon 1fa47be4→411eba59 各恰 1 行（+5B,F5 位点,
+  逆编辑复得旧钉双证）。新增回归测试
+  `one_or_fold_spares_comparison_operand`（2050P）。
+
+
 ### 2026-09-26 — POSTFIX-BOOLFOLD-TOKEN-0001（MIGW1-TYPEOP-0002 fixture 暴露）
 
 - 补偿层 pass3 `"1 || " → always true` 的朴素 `replacen` 命中数字 token 尾：
