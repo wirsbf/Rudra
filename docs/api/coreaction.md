@@ -1,5 +1,28 @@
 # `coreaction.rs` API Reference
 
+## 2026-10-03：ActionDeadCode 分配器去物化三件（PERF-ALLOCFLOOR-0001 / lane ALLOCFLOOR）
+
+- **缺口**（分配画像——ActionDeadCode 家族占 VdbeExec 小分配事件 ~5.3%）:
+  ①`apply` 每次调用把**全部** varnode 克隆进 `all_varnodes` Vec（一次大堆
+  缓冲 + 每 varnode 一对 Arc 原子加减；VdbeExec 30 次 apply）再派生 spaces；
+  ②`alive_ops` 全量克隆 alive op 表 + 每 op `inrefs.clone()`/`output.clone()`
+  元组；③`fd.callspecs.clone()` 整表克隆后才迭代。oracle `apply`
+  （coreaction.cc:3925-4019）全程 loc-tree/alive-list/callspecs **原位迭代**，
+  `op->getIn(i)` 直读，零物化。`propagate_consumed`（cc:3576-3665）同缺陷：
+  入口元组克隆 inrefs+output。
+- **修复**: ①清 consume 循环与 spaces 派生均 loc_tree 原位（spaces 仍
+  collect→sort→dedup 同序，仅去 Arc 克隆）；②alive 循环改 `iter_alive()`
+  原位 + 单读守卫横跨臂体借用 `&op_rg.inrefs`/`op_rg.output.as_ref()`
+  （守卫只跨 vn 写锁与只读 fd 查询，无 op 写锁）；③callspecs 共享借用直迭。
+  `propagate_consumed` 持守卫原位读；INDIRECT 臂对间接目标 op 的
+  INDIRECT_SOURCE 标志**写**延迟到守卫释放后执行（同旗值、单线程走查无
+  交错读者——语句位平移不可观测）。
+- **验证**: VdbeExec 双面 md5 恒等钉值 + ACTIONSTATS 五值恒等 + 全语料
+  base==opt 字节恒等（双面 1385/1385）+ 镜面五面恰钉值（0/0/0/0/8）+
+  canon curl/httpd 恰钉值（f903372a/3617ecc3，124/124+34/34 全 ✓）+
+  tests 2049P。性能: VdbeExec 单极配对 8 对中位 29.96→29.39s（−1.9%）；
+  malloc 事件 23.08M→20.85M（−9.6%）。
+
 ## 2026-10-02：ActionConditionalConst 隐含布尔路径 flip 值修正（GOF29-CONDCONST-FLIP-0001 / lane GOF29）
 
 - **缺口**（sq GetOptimumFast 29 行——LOOPSHAPE 4 + CMP-ORIENT 4 + SWITCH-GOTO 21）：

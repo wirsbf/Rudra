@@ -1288,7 +1288,13 @@ impl PcodeOp {
             Some(o) => o.read().unwrap().get_size(),
             None => return u64::MAX,
         };
-        let inputs = self.inrefs.clone();
+        // PERF-ALLOCFLOOR-0001: read inrefs in place. The oracle reads
+        // `getIn(i)` (raw pointer copies, zero allocation) throughout
+        // getNZMaskLocal (op.cc:556-768); the prior Rust form cloned the
+        // whole inrefs Vec (one heap alloc + one Arc round-trip pair per
+        // input) on every call. All accesses below are shared borrows of
+        // `self`, so the clone was pure allocator churn.
+        let inputs = &self.inrefs;
         let parent = self.parent.clone();
         let fullmask = crate::address::calc_mask(out_size); // op.cc:554
         let in_nzm = |i: usize| -> u64 {
