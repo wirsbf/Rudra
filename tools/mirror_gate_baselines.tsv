@@ -357,7 +357,21 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
 sq	41	810	READINODE3-RATCHET-REPIN-0001	readinode3-joint	2026-10-02
-sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
+# DECLBFORM joint re-pin (DECLBFORM-RATCHET-REPIN-0001, 2026-10-02,
+# lane base 624e5a6a [MB70, sqlite 180 = ROUND3-BBLOCK-MERGE-REPIN-0001
+# joint form]): sqlite 180->154 (-26 exact) = RuleDivOpt::calcDivisor
+# maxx port defect (ruleaction.rs, oracle cc:8169-8170 builds uint8
+# 2^64-1 via the 0-1 wrap; the u128 port made `tmp > maxx` unreachable,
+# disabling EVERY xsize==64 division-by-multiplication fold). Census
+# per-function A/B: sqlite3RowSetInit 5->0 + sqlite3_str_vappendf 11->0
+# + sqlite3Int64ToText 5->0 + sqlite3ValueFromExpr 5->0 (all four now
+# byte-identical to golden bodies); every other differing function
+# unchanged (32 fns with diff, zero new sites). Remaining B-form rows
+# re-registered: DECL-B1-DECLMOVE (vmprintf/mprintf/Pragma/changeset_
+# invert emission-position moves), DECL-B2-SEXTTYPE (Dequote family
+# SEXT-output type), DECL-B3-HIGHMERGE (sqlite3Select). curl 11/httpd 0/
+# vsh 0/sq 41 rows stay; canon byte pins f903372a/3617ecc3 exact.
+sqlite	154	1385	DECLBFORM-RATCHET-REPIN-0001	declbform-joint	2026-10-02
 # MB68 joint re-pin (ROUND3-BBLOCK-MERGE-REPIN-0001 joint form, 2026-10-02,
 # MB68 merge of wt/round3 93e7da85 [single commit, base 2a3da1ae/TRACEDAG
 # tip — pre-MB64/65/66/67] onto master 72c118da [MB67, rows sq 87 /
