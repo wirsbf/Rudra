@@ -23499,7 +23499,6 @@ mod tests {
                     != 0
             })
             .count();
-        eprintln!("[F5PROBE] count={} joined_blocks={}", a.count, joined_count);
         assert_eq!(a.count, 2, "join block must itself be revisited and re-joined");
         assert_eq!(joined_count, 2, "two JOINED_BLOCK blocks (J1 and J2)");
     }
