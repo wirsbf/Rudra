@@ -356,7 +356,20 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
-sq	41	810	READINODE3-RATCHET-REPIN-0001	readinode3-joint	2026-10-02
+sq	35	810	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
+# MB75 joint re-pin (SELECTDUP-MB75-JOINT-REPIN-0001, 2026-10-02,
+# merge of wt/selectdup 0d3ef0a9 [single commit, base 95c7d720/MB71]
+# onto master be755f6e [MB74, sqlite 107 = DECLB12-MB74-JOINT-REPIN-0001,
+# sq 41 = READINODE3-RATCHET-REPIN-0001]): joint measured sqlite 107-13=94
+# and sq 41-6=35 — the selectdup function family (sqlite3SelectDup 13 rows
+# + sq read_xattrs_from_disk 6 rows, ActionMultiCse process_block scan
+# failure-arm fix, oracle coreaction.cc:846-850 continue-on-findMatch-
+# failure) is disjoint from the vdbeprint six (MB71, -39), declbform four
+# (MB72, -26) and declb12 two (MB74, -8) families; additive composition
+# measured on the joint tree (pre-commit cold run). Lane form
+# SELECTDUP-RATCHET-REPIN-0001 (141->128 / 41->35 at lane base scale)
+# superseded by these joint rows. curl 11/httpd 0/vsh 0 rows stay; canon
+# byte pins f903372a/3617ecc3 exact.
 # MB74 joint re-pin (DECLB12-MB74-JOINT-REPIN-0001, 2026-10-02,
 # merge of wt/declb12 0ac6c556 [single commit, base 624e5a6a/MB70]
 # onto master aefbe6a9 [MB73, sqlite 115 = DECLBFORM-MB72-JOINT-
@@ -367,7 +380,7 @@ sq	41	810	READINODE3-RATCHET-REPIN-0001	readinode3-joint	2026-10-02
 # on the joint tree (measured pre-commit, cold run, skeleton=107
 # defects=0 numbering=0 matched=1385/1385). curl 11/httpd 0/vsh 0/
 # sq 41 rows stay; canon byte pins f903372a/3617ecc3 exact.
-sqlite	107	1385	DECLB12-MB74-JOINT-REPIN-0001	mb74-joint	2026-10-02
+sqlite	94	1385	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # MB72 joint re-pin (DECLBFORM-MB72-JOINT-REPIN-0001, 2026-10-02,
 # merge of wt/declbform 6707648a [single commit, base 624e5a6a/MB70]
 # onto master 95c7d720 [MB71, sqlite 141 = VDBEPRINT-RATCHET-REPIN-
@@ -867,3 +880,18 @@ sqlite	107	1385	DECLB12-MB74-JOINT-REPIN-0001	mb74-joint	2026-10-02
 #   BtreeCopyFile 2→0/PExpr 2→0）,零函数残差上升,族外科零扰动。
 #   curl 11/httpd 0/vsh 0/sq 41 四面恰钉值恒等（本道零位点）。
 #   VdbeExec 函数体与 golden 逐字节恒等（mirror 侧 diff=0 亲证）。
+
+# 2026-10-02 SELECTDUP 棘轮重钉（SELECTDUP-RATCHET-REPIN-0001, root 授权形态, wt/selectdup）:
+#   sqlite ceiling 141→128（−13）+ sq 41→35（−6）, floor 不动（1385/810 满额保持）。
+#   根因 = src/coreaction.rs ActionMultiCse::process_block 的 early-break 移植缺陷:
+#   Rudra 在首个 marked input 的 findMatch 失败时 break 出整个块扫描（oracle
+#   coreaction.cc:846-850 失败继续扫剩余 input 与后续 op）。sqlite3SelectDup 的
+#   shadow-ME@0x41520 与 RAX-phi@0x41520 共享 input shadow@0x4151b:1356 且 COPY
+#   解析后功能等价（{shadow@4151b, #0} 两臂）,oracle multicse 消冗后 shadow-ME
+#   死亡→mergerequired 免 trim→return 直读符号 `(char *****)ppppcStack_80`;
+#   Rudra 缺该消冗→mergerequired P2 cover-restrict 全槽 trim→3×中间 copy
+#   `pppppcVar6 = (char *****)ppppcStack_80` + return Var 形（SelectDup 13 行
+#   liveness-copy 族全量）。修复后 SelectDup 双语素 0 diff（census 家族烧尽）,
+#   sq read_xattrs_from_disk 6→0 同根因; 其余 1384(sqlite)/810(sq) 函数字节恒等
+#   （corpus 双面 70 hunks 全落 SelectDup 单函数,亲证）。canon curl f903372a/
+#   httpd 3617ecc3 + VdbeExec mirror b3f5b487/canon 606dd8c0 四钉字节恒等。
