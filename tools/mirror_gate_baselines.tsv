@@ -267,6 +267,24 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # ;车道注记块内 sqlite 26 系车道基 a0aa0172[MB83]口径 28−2,联合树以 master MB86 值 sqlite 8 为基
 # ——车道 26 陈旧行按 MB77-86 先例由联合行取代（车道注记块逐字保留）;重钉后冷复跑 sqlite 6/6
 # 恰钉值（首行命中 F5PRINT-MB87-JOINT-REPIN-0001,确定性）+tsv --self-test PASS。
+# 2026-10-03 MB91 联合注记（SETTLE2-MB91-JOINT-REPIN-0001 联合树兑现）: settle2 并入
+# master[MB90 后 9695a53a] 联合树实测 sqlite 6→5（−1 精确——MISC3-SETTLE-VARCHURN-0001
+# 真修落地: replace_lessequal 重建常量在 new_constant 与 op_set_input 之间补 copy_symbol_arc
+# 源类型印记[oracle funcdata_op.cc:1059-1060 copySymbol 同位同序],AddCheckConstraint 1 行
+# 残差出列,settle 警告终局消除;与残存 WindowCodeStep 5[F8,WCS 道 MB92 待并]不相交,加性合成
+# 实测兑现;残 5=WindowCodeStep 5 全 misc-tail 族）;commit 前联合树强制重链 1m01s（stale-guard
+# digest=7ce9582af51c40fa files=155——联合树指纹==车道树指纹[master 自分支基未动]）+五面
+# --jobs 5 实测 curl 0/74·httpd 0/29·vsh 0/71·sq 0/810·sqlite 5/1385 全 PASS defects=0
+# numbering=0（master F5PRINT-MB87 基线 6 下改善 PASS;逐函数对账: 全语料唯一 skeleton diff
+# 函数=sqlite3WindowCodeStep 5 行,AddCheckConstraint diff=0 出列亲证）;B2 亲跑 --one 220 双模式
+# 警告 grep=0（canon a8128975==车道 FIX==CR 独立复现三验;vs BASE delta 恰警告行 15d14）;
+# canon 红线 f903372a/3617ecc3 字节恒等;VdbeExec --one 1055 双模式×3 轮 b3f5b487/606dd8c0
+# 恒等;corpus 联合新钉 canon c103e81a·5,279,643B/mirror aade5615·5,285,271B（vs BASE
+# 1892f2b2/29071349 delta 双面恰 1 行=警告行,canon@16415/mirror@16419,−55B/−55B=54 字符+LF
+# 算术闭合,152k+ 行零漂移;CR-SETTLE2 独立快照恰值复现）——corpus 四元钉组更新为
+# [b3f5b487/606dd8c0/c103e81a/aade5615];tests 2061P;重钉后冷复跑（--no-cache）sqlite 5/5
+# 恰钉值（首行命中 SETTLE2-MB91-JOINT-REPIN-0001,确定性）+tsv --self-test PASS。
+sqlite	5	1385	SETTLE2-MB91-JOINT-REPIN-0001	mb91-joint	2026-10-03
 sqlite	6	1385	F5PRINT-MB87-JOINT-REPIN-0001	mb87-joint	2026-10-03
 # 2026-10-03 MB86 联合注记（MISC2-MB86-JOINT-REPIN-0001 联合树兑现）: misc2 并入
 # master[MB85 后 908f77d0] 联合树实测 sqlite 8（=10−2 精确——fspec 四臂 high 代表类型源
