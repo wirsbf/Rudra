@@ -380,7 +380,25 @@ sq	35	810	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # on the joint tree (measured pre-commit, cold run, skeleton=107
 # defects=0 numbering=0 matched=1385/1385). curl 11/httpd 0/vsh 0/
 # sq 41 rows stay; canon byte pins f903372a/3617ecc3 exact.
-sqlite	94	1385	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
+sqlite	67	1385	COND-MERGE-RATCHET-REPIN-0001	condmerge	2026-10-02
+# CONDMERGE ratchet re-pin (COND-MERGE-RATCHET-REPIN-0001, 2026-10-02,
+# lane wt/condmerge, base 13169c40/MB75, sqlite 94 = SELECTDUP-MB75-
+# JOINT-REPIN-0001): sqlite 94->67 (-27 exact) = TC-F1 COND-MERGE
+# family burn in sqlite3Pragma/sqlite3_vmprintf/sqlite3_mprintf — root
+# fix src/block.rs FlowBlock trait is_goto_in/is_goto_out default now
+# reads the edge label (Ghidra block.hh:346-347 non-virtual semantics;
+# composites previously returned hard false, so ruleBlockOr merged a
+# BlockCondition whose inherited arm carried f_irreducible). Residual
+# 2 lines x3 in the same trio = TC-IF-B1 decl-move family (in-flight
+# DECLB1/MB77 domain, out of lane scope). Per-function accounting:
+# 94-27=67 arithmetic exact; all other 32 diff functions byte-identical.
+# sq GetOptimumFast 29 NOT burned (same-root hypothesis falsified —
+# registered COND-MERGE-GOF-SEPARATE-ROOT-0001); sq 35/curl 11/httpd 0/
+# vsh 0 rows stay; canon byte pins f903372a/3617ecc3 exact; VdbeExec
+# mirror b3f5b487 / canon 606dd8c0 byte-exact; corpus joint new pins
+# canon 1ce87062 (+56B) / mirror 3f32b73a (+56B), attribution = exactly
+# the F1 trio (vmprintf +6/-4, mprintf +6/-4, Pragma +3/-2), other
+# 1382 functions and prefix byte-identical both faces.
 # MB72 joint re-pin (DECLBFORM-MB72-JOINT-REPIN-0001, 2026-10-02,
 # merge of wt/declbform 6707648a [single commit, base 624e5a6a/MB70]
 # onto master 95c7d720 [MB71, sqlite 141 = VDBEPRINT-RATCHET-REPIN-
