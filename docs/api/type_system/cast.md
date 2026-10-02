@@ -203,3 +203,30 @@ coreaction.rs 的 ActionSetCasts::cast_input 新移植的 getInputCast 覆写臂
 Sext 的 checkIntPromotionForExtension、TypeOpIntDiv/Sdiv/Rem/Srem 的同族门）
 直接消费该扩展码，与 CastStrategyC 自家 checkIntPromotionForCompare_op 同一
 访问层级。语义零改动（纯可见性）。
+
+
+## 2026-10-02：findadd_equal 补 Array 臂（CAST-ANONARRAY-IDENTITY-0001，Lane VDBEPRINT）
+
+`findadd_equal` 新增 `(Array, Array)` 匹配臂：**submeta 相等 ∧ 总尺寸相等 ∧
+元素递归 findadd_equal**，与既有 Base 臂同一"驻留或结构"容差；其余变体仍
+保持 Arc 身份（oracle 指针比较）。
+
+Oracle 依据（机制 E 亲读，type.cc:1225-1231）：`TypeArray::
+compareDependency` 的键 = submeta → 元素**对象指针** → 总尺寸。
+findAdd 的匿名树探针（type.cc:3427-3430）以该键去重，故 oracle 内两个
+xunknown1[12] 只能是同一个驻留对象——cast.cc:302 `curtype == reqtype`
+指针短路对它们恒成立，`castStandard` 返回 NULL，**ActionSetCasts 对数组到
+同数组永不插 cast**。
+
+Rudra 侧症状（sqlite3VdbeExec --one 1055 双侧 record 差分亲证）：树的
+COPY 输出 def-facing 高类型与输入 read-facing 高类型各持一个**结构全同但
+Arc 不同**的匿名 `xunknown1[12]`（CASTINS 探针：ct/cur Debug 全同、id 均
+0 非驻留），`castInput`（coreaction.cc:2655-2720 的 TypeOpCopy::
+getInputCast 臂）与 `castOutput`（cc:2540-2618）相继各插一个 CAST——
+打印面即 `(xunknown1  [12])(xunknown1  [12])V` **双重 cast 形**（8 位点/
+16 行，golden 全部裸 `V._0_12_ = V;`）。修复后 8 位点全燃，函数体与 golden
+逐字节恒等。
+
+边界保持：尺寸不同或元素不等（含 typedef 名差异）的两数组仍判不等，
+oracle 会印的数组→异数组 cast（走 cast.cc switch 的 default 臂 break 后
+返回 reqtype）原样保留。

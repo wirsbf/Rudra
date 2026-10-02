@@ -524,6 +524,30 @@ fn findadd_equal(a: &Arc<Datatype>, b: &Arc<Datatype>) -> bool {
         (Datatype::Base(x), Datatype::Base(y)) => {
             x.name == y.name && x.size == y.size && a.get_submeta() == b.get_submeta()
         }
+        // TypeArray::compareDependency (type.cc:1225-1231): submeta, then
+        // the element OBJECT pointers, then size. In the oracle every
+        // anonymous array rides the findAdd interning invariant, so two
+        // xunknown1[12] met anywhere in one function are the same
+        // interned Datatype and cast.cc:302's `curtype == reqtype`
+        // short-circuits to no-cast. Rudra's pipeline can hold two
+        // structurally equal anonymous arrays at distinct Arcs (observed
+        // in sqlite3VdbeExec: piecestructure's COPY out-high vs its input
+        // read-facing high both carried distinct non-interned
+        // xunknown1[12] objects, so ActionSetCasts::castInput/castOutput
+        // stacked two casts the oracle never inserts — the mirror
+        // `(xunknown1  [12])(xunknown1  [12])V` double-cast family,
+        // CAST-ANONARRAY-IDENTITY-0001). Mirror the interned-equality
+        // decision structurally: submeta equal, size equal, elements
+        // findadd-equal (recursive, same interned-or-not tolerance as the
+        // Base arm above). Array→array casts the oracle DOES print
+        // (different size or different element type) keep their cast —
+        // both arms of this compare fail there exactly as the interned
+        // pointer compare would.
+        (Datatype::Array(x), Datatype::Array(y)) => {
+            a.get_submeta() == b.get_submeta()
+                && x.base.size == y.base.size
+                && findadd_equal(&x.array_of, &y.array_of)
+        }
         _ => false,
     }
 }

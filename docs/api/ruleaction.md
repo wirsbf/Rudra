@@ -2535,3 +2535,25 @@ op 不动）。
 
 **验收**: sq 镜面 read_inode_3 44→0（skeleton identical,函数体逐字节==golden）;
 五面/红线/corpus 见车道终报 LANE_READINODE3_2026-10-02.md。
+
+
+## 2026-10-02：RulePieceStructure::separate_symbol 空符号对补齐（RULE-PIECESTRUCT-SEPSYM-NULLPAIR-0001，Lane VDBEPRINT）
+
+`separate_symbol` 首行判据从 `(Some,Some) => ptr 不等; _ => true` 修正为
+**(None,None) => false**（仅混合 Some/None 判不等）。oracle
+`ruleaction.cc:7583` 是裸指针比较 `root->getSymbolEntry() !=
+leaf->getSymbolEntry()`——两个 NULL **不是**不相等，判据落空后继续走
+addr-tied 检查。
+
+症状链（sqlite3VdbeExec --one 1055 亲证）：case 0x7e 位点 piecestructure
+对 CONCAT88 树的高字节叶（root=栈 16B @-0xb8 addr-tied、leaf=SUB168 出
+@-0xb0，双双侧无符号）旧实现误判"不同符号"→ 对**地址已经正确**的叶仍插
+`COPY(s0x…50, s0x…50)` 自拷贝 → 打印面多出 `xStack_b0 = xStack_b0;` 且
+CONCAT 树叶链被拆断 → 16B CONCAT store（golden `_axStack_b8 =
+CONCAT88(xStack_b0,axVar52);`）不成形，打印退化为 `axStack_b8 = axVar52;`
++ case 0x26 的 raw `stack0xffffffffffffff4c = axVar24;` 12B 裸写（CONCAT124
+位点同理）。修复后三形态全部与 golden 逐字节对齐，VdbeExec 函数体残 21→0。
+
+oracle 行为链：cc:7651-7663 "地址已正确"臂对 leaf 只在 separateSymbol 为
+真时才落到 COPY 插入；栈 root addr-tied ⟹ cc:7585 直接 return false ⟹
+跳过 COPY 只标 proto_partial。

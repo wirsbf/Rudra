@@ -15077,8 +15077,19 @@ impl RulePieceStructure {
     ) -> bool {
         let root_entry = root.read().unwrap().get_symbol_entry();
         let leaf_entry = leaf.read().unwrap().get_symbol_entry();
+        // ruleaction.cc:7583: `root->getSymbolEntry() != leaf->getSymbolEntry()`
+        // — a raw pointer compare: two NULL entries are NOT different (the
+        // walk continues to the addr-tied check). The former `_ => true`
+        // arm treated (None,None) as different, so piecestructure inserted
+        // the leaf COPY for every unsymbolized pair — printing
+        // `xStack_b0 = xStack_b0;` self-copies the oracle never emits
+        // (oracle root is stack addr-tied → separateSymbol=false → the
+        // "already has correct address" arm skips the COPY, cc:7651-7663).
+        // Only a mixed Some/None pair is unequal in the oracle (NULL !=
+        // entry).
         let differ = match (&root_entry, &leaf_entry) {
             (Some(r), Some(l)) => !std::sync::Arc::ptr_eq(r, l),
+            (None, None) => false,
             _ => true,
         };
         if differ {

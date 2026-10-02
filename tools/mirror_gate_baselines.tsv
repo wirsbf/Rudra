@@ -357,7 +357,7 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
 sq	41	810	READINODE3-RATCHET-REPIN-0001	readinode3-joint	2026-10-02
-sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
+sqlite	141	1385	VDBEPRINT-RATCHET-REPIN-0001	vdbeprint	2026-10-02
 # MB68 joint re-pin (ROUND3-BBLOCK-MERGE-REPIN-0001 joint form, 2026-10-02,
 # MB68 merge of wt/round3 93e7da85 [single commit, base 2a3da1ae/TRACEDAG
 # tip — pre-MB64/65/66/67] onto master 72c118da [MB67, rows sq 87 /
@@ -810,3 +810,18 @@ sqlite	180	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3-joint	2026-10-02
 #    ==1947+3 逐道闭合。B2 抽查 3/3: Pragma 簇恰 6 位点 switch((uint1)puVarNN[1])
 #    （puVar19/26/27,编号残差=ZDB-RING 票）/WindowCompare 整函数 0/0/0/CodeSpec
 #    CONCAT31 语句链 `iVar9 = CONCAT31(Var4,xVar7);` 在场+全局 2==golden。result/ 已回流。
+# 2026-10-02 VDBEPRINT-RATCHET-REPIN-0001 注记（wt/vdbeprint, 基 bc58664c）:
+#   sqlite ceiling 180→141（−39）——三根全燃（Lane VDBEPRINT）:
+#   ① CAST-ANONARRAY-IDENTITY-0001（type_system/cast.rs findadd_equal Array 臂）
+#     燃 sqlite3VdbeExec 双重 cast 8 位点中的 7 位点骨架行 + BtreeCopyFile 2
+#     + ExprAnd/PExpr 部分——匿名数组结构等价恢复 oracle findAdd 驻留判定;
+#   ② RULE-PIECESTRUCT-SEPSYM-NULLPAIR-0001（ruleaction.rs separate_symbol
+#     (None,None) 判不等修正）燃 VdbeExec 残余 5 行（CONCAT124/CONCAT88 store
+#     复原 + raw 12B 裸写/自拷贝消除）;
+#   ③ PRINTC-PTRSUB-DEREFORDER-0001（printc.rs PTRSUB 数组值臂 pushOp(subscript)
+#     先行 + 整数原子）燃 sqlite3ResolveExprListNames 4 + ExprAlloc 6。
+#   逐函数 A/B 对账（master 钉 9aaf3cfd mirror 侧, join 全 1385 函数）:
+#   六函数全归零（VdbeExec 21→0/ExprAlloc 6→0/ExprAnd 4→0/RELN 4→0/
+#   BtreeCopyFile 2→0/PExpr 2→0）,零函数残差上升,族外科零扰动。
+#   curl 11/httpd 0/vsh 0/sq 41 四面恰钉值恒等（本道零位点）。
+#   VdbeExec 函数体与 golden 逐字节恒等（mirror 侧 diff=0 亲证）。
