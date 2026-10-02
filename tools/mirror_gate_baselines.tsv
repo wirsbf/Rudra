@@ -226,6 +226,12 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # amount; md5 4503f498->8dafa799 / c3b4706c->2fbf13b1, canon not in tsv — recorded in the MB34
 # report). Forced relink before measurement (digest 19db58af files=103, binaries newer than all
 # three merge commits). tests 1963P/0F/5I = 1963+0 (all three lanes add zero tests).
+# 2026-10-02 MISC24 车道重钉（MISC24-F10-REPIN-0001）: TC-F10 WARNING-ADDR-FORMAT 收口——
+# heritage dead-removal 警告位置串忠实化（printRawNoMarkup + AddrSpace::printRaw 投影，
+# varnode/space/heritage 三件，commit 4a1dbd72）后 sqlite 72→66 实测（config 3 + test_control 3
+# 字节级归零 golden，defects=0 numbering=0 matched 1385/1385）；canon 红线 f903372a/3617ecc3 保持。
+# 其余 misc 族（F5/F8/F11/F12，10 行）域深票移交，未计入本钉——首行=66。
+sqlite	66	1385	MISC24-F10-REPIN-0001	misc24	2026-10-02
 curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02
 httpd	0	29	DECLFAM-RATCHET-REPIN-0001	declfam	2026-10-02
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
