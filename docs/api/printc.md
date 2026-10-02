@@ -1113,8 +1113,17 @@ printc.cc:2260/2518/2497）：
   （ActionRestructureVarnode 构建、ActionNameVars 命名完成的 ScopeLocal）。
   打印期不重构、不重命名、不重编号；无 scope 则无声明（无兜底）。
 - **遍历序**（emitScopeVarDecls cc:2535-2572）：先地址 map 后 dynamic
-  列表。地址序 = 空间序（`local_maptable_space_rank` 复现 x86-64
-  maptable 序 Unique<Register<Stack，`grouped.sort_by_key` 对齐
+  列表。地址序 = 空间序（`local_maptable_space_rank` 直接返回
+  `AddressSpace::get_index()`——database.cc:1952 maptable 向量按空间索引
+  扩容、MapIterator 按向量序拼接 per-space EntryMap；锁定 x86-64 索引序
+  const=0/other=1/unique=2/ram=3/register=4/fspec=5/iop=6/join=7/stack=8
+  （restoreFromSpec architecture.cc:624-644：copySpaces(.sla)→fspec→iop→
+  join→parseCompilerConfig 的 stack），局部声明块即
+  Unique<Register<Join<Stack——DECLFAM 车道钉死：join 空间符号（16 字节
+  恢复局部，如 sqlite axVar73[16]）印在寄存器组与首个栈声明之间，
+  golden sqlite3VdbeExec `fVar72; axVar73[16]; cStack_160;` 亲证；旧
+  Unique<Register<Stack、Join 落栈后的三桶近似使 join 符号垫底，构成
+  DECL-CHURN 被动族 109 行中的 82 行主形），`grouped.sort_by_key` 对齐
   database.cc:1952 的 maptable 空间索引序）× 每空间
   `std::list<SymbolEntry>` 的 **rangemap 插入拼接序**——MapIterator
   解引用的是 per-space `begin_list()` 列表（database.hh:379-401/
@@ -2086,8 +2095,9 @@ model is not present in Rugra's print layer):
   `emit_scope_local_var_decls`（cc:2518-2575，cat>=0 类别分支对局部声明
   不可达，cc:2535-2572 全 map 遍历 + dynamic 列表）、
   `emit_local_symbol_decl`/`emit_local_symbol_decl_statement`
-  （cc:2497-2516）。排序键 =（`local_maptable_space_rank` 空间序
-  Unique<Register<Stack，起始偏移，usepoint——None 最先，等价 addrtied 的
+  （cc:2497-2516）。排序键 =（`local_maptable_space_rank` 空间索引序
+  Unique(2)<Register(4)<Join(7)<Stack(8)——DECLFAM 车道改真索引，见
+  2026-10-02 条目；起始偏移，usepoint——None 最先，等价 addrtied 的
   最小 EntrySubsort）；`snapshot_local_scope` 暴露 doc_function 的
   scope 快照入口。
 - **删除**：`compact_name_for`（及其全部调用点）、`preallocate_register_compact_names`、
@@ -4265,3 +4275,38 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## 2026-10-02（Lane DECLFAM）：local_maptable_space_rank 改真空间索引（join 符号声明位）
+
+**根因（DECL-CHURN 被动族 109 行的主形 82 行）**：`local_maptable_space_rank`
+旧实现是三桶近似 `Unique→0 / Register→1 / Stack→2 / 其余→3`，把 **Join 空间
+符号垫到栈组之后**。census v4 逐函数钻取钉死被动形态：35 个函数的
+`xunknown1 VarN [16]`（16 字节恢复局部，print 时 space=Join, start=0x0,
+size=16, addrtied=false）在 Rugra 声明块**垫底**（stack 组后），golden 印在
+**寄存器组与首个栈声明之间**。oracle 侧决定链：`emitScopeVarDecls`
+（printc.cc:2535-2553）走 `MapIterator` = `maptable` 向量按空间索引拼接
+per-space EntryMap（database.cc:1889-1919 begin / 1952 maptable.resize），
+`Address::operator<`（address.hh:375-393）以 `getIndex()` 为首键；锁定
+x86-64 空间索引序由 `Architecture::restoreFromSpec`（architecture.cc:624-644）
+钉死：copySpaces(.sla) → fspec → iop → **join** → parseCompilerConfig 的
+**stack**，即 const=0/other=1/unique=2/ram=3/register=4/fspec=5/iop=6/
+**join=7/stack=8**——Join(7) 严格介于 Register(4) 与 Stack(8) 之间。双侧
+亲证：golden sqlite3AffinityType `bVar21; axVar22[16]; pxStack_90;`、
+golden sqlite3VdbeExec `fVar72; axVar73[16]; cStack_160;`（位置 72→73→74），
+Rugra 修复前 axVar22/axVar73 均垫底（worktree 探针 SYM 表 space=Join
+直接观测）。注意 varmap.rs `ghidra_space_index` 的 Join=9/Iop=10 为另一张
+未行使表（其注释自认只有 ram 参与 uselimit），与 restoreFromSpec 创建序
+矛盾；本修复取 space.rs `get_index`（= 创建序算术）为准。
+
+**修复**：`local_maptable_space_rank` 改为直接返回
+`AddressSpace::get_index()`（i32），`grouped` 元组类型 u8→i32。Overlay
+（-1 哨兵）按裸索引排最前——x86-64 无 overlay 空间，ScopeLocal 符号永不
+驻留，不可观测。
+
+**残差（同族非本根）**：DECL-CHURN 另有 R-only 16 行（Rugra 多出的
+`xunknown4/xunknown8 Var` 符号，如 InitCallback 的 xVar12——重编号级联）
+与 G-only 11 行（golden 多出的 Stack_ 符号），属 varmap 部分符号租约
+（VARMAP-UNAFF-TYPEMAT-0001 域），不在 printc 排序层。
+
+**验证**：sqlite3AffinityType 修复后与 golden 逐字节 MATCH（typedef
+preamble 外零差异）；五面镜像门禁/canon 红线/census 复算见车道终报。
