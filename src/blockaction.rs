@@ -2783,7 +2783,7 @@ impl<'a> CollapseStructure<'a> {
                         let src_addr = self
                             .graph
                             .get_block(startbl_idx as usize)
-                            .map(|b| crate::block::front_leaf(&b).map(|l| l.read().unwrap().get_start_addr().as_u64()).unwrap_or(0))
+                            .map(|b| crate::block::dbg_front_leaf_start_addr(&b))
                             .unwrap_or(0);
                         eprintln!(
                             "[SELECTGOTO] {} mark goto: block #{} @ {:#x} outedge={} -> #{}",
@@ -5045,7 +5045,7 @@ impl<'a> CollapseStructure<'a> {
             if bt != crate::block::BlockType::Switch {
                 continue;
             }
-            let (sw_fields) = {
+            let holds_case = {
                 let b = block.read().unwrap();
                 let sw = match b.as_any().downcast_ref::<BlockSwitch>() {
                     Some(s) => s,
@@ -5059,66 +5059,44 @@ impl<'a> CollapseStructure<'a> {
                     .default_case
                     .as_ref()
                     .map_or(false, |d| d.read().unwrap().get_index() == old_idx);
-                if !in_cases && !in_default {
-                    continue;
-                }
-                (
-                    sw.index,
-                    sw.control.clone(),
-                    sw.cases.clone(),
-                    sw.default_case.clone(),
-                    sw.case_gototypes.clone(),
-                    sw.default_gototype,
-                    sw.case_isexit.clone(),
-                    sw.default_isexit,
-                    sw.case_values.clone(),
-                    sw.index_varnode.clone(),
-                    sw.jump.clone(),
-                    sw.case_order.clone(),
-                    sw.default_order.clone(),
-                )
+                in_cases || in_default
             };
-            // Rebuild with updated references
-            let mut new_cases = Vec::new();
-            for case in &sw_fields.2 {
-                if case.read().unwrap().get_index() == old_idx {
-                    new_cases.push(new_block.clone());
-                } else {
-                    new_cases.push(case.clone());
-                }
+            if !holds_case {
+                continue;
             }
-            let new_default = sw_fields.3.as_ref().map(|d| {
-                if d.read().unwrap().get_index() == old_idx {
-                    new_block.clone()
-                } else {
-                    d.clone()
+            // Swap the case reference IN PLACE. The oracle never rebuilds a
+            // composite when a case body is re-wrapped: its caseblocks hold
+            // FlowBlock pointers that stay valid across identifyInternal
+            // (block.cc:940-963 never touches sibling composites), and the
+            // enclosing BlockSwitch keeps its own boundary edges, flags and
+            // metadata untouched. The previous whole-struct rebuild here
+            // re-created the switch with `incoming: Vec::new()` /
+            // `outgoing: Vec::new()` / `flags: 0`, destroying the
+            // composite's boundary out-edges - FloatingEdge::get_current_edge
+            // (blockaction.cc:27-38) then failed to re-resolve a still-live
+            // (switch->exit) record against the graph (selectGoto silently
+            // skipped the entry: oracle record #43 (21->39) on
+            // sqlite3ExprIsConstant), and the slot swap also discarded the
+            // graph.blocks[i] Arc identity that peers' edge halves point at.
+            // In-place mutation keeps the Arc, its bank id, its boundary
+            // edges and its flags: only the case/default pointer moves.
+            {
+                let mut w = block.write().unwrap();
+                if let Some(sw) = w.as_any_mut().downcast_mut::<BlockSwitch>() {
+                    for c in sw.cases.iter_mut() {
+                        if c.read().unwrap().get_index() == old_idx {
+                            *c = new_block.clone();
+                        }
+                    }
+                    if let Some(d) = sw.default_case.as_mut() {
+                        if d.read().unwrap().get_index() == old_idx {
+                            *d = new_block.clone();
+                        }
+                    }
                 }
-            });
-            let new_sw: Arc<RwLock<dyn FlowBlock + Send + Sync>> =
-                Arc::new(RwLock::new(BlockSwitch {
-                    owner_bank: std::sync::Weak::new(),
-                    bank_slot: <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL,
-                    index: sw_fields.0,
-                    control: sw_fields.1,
-                    cases: new_cases,
-                    default_case: new_default,
-                    case_gototypes: sw_fields.4,
-                    default_gototype: sw_fields.5,
-                    case_isexit: sw_fields.6,
-                    default_isexit: sw_fields.7,
-                    jump: sw_fields.10,
-                    case_order: sw_fields.11,
-                    default_label: None,
-                    default_order: sw_fields.12,
-                    case_values: sw_fields.8,
-                    index_varnode: sw_fields.9,
-                    incoming: Vec::new(),
-                    outgoing: Vec::new(),
-                    parent: None,
-                    flags: 0,
-                }));
-                        self.graph.bank.adopt(&new_sw);
-            self.graph.blocks[i] = new_sw;
+                // Case-reference swap only - no edge-length or index change,
+                // so the bank/edge shadow invariants are unaffected.
+            }
             eprintln!(
                 "[COLLAPSE] {} updated BlockSwitch case {} → BlockIf",
                 self.name, old_idx

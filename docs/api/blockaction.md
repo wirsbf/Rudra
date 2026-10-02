@@ -1,5 +1,30 @@
 # `blockaction.rs` API Reference
 
+## 2026-10-02：update_switch_case_reference 原地换引（Lane TRACEDAG，CMPDIR-TRACEDAG-GOTOEMIT-0001 承接）
+- `update_switch_case_reference`（case 体被再包裹时保持外层 BlockSwitch 的
+  case/default 引用存活）由"整结构重建 + `graph.blocks[i] = new_sw` 换槽"改为
+  **原地指针交换**：旧实现在重建字面量里写 `incoming: Vec::new()` /
+  `outgoing: Vec::new()` / `flags: 0`，把复合块的边界出边（含 switch 的
+  exit 边）整体摧毁，且丢弃了 peers 边半指向的 `graph.blocks[i]` Arc 身份。
+  后果链（双侧事件级亲证，sqlite3ExprIsConstant --one 345）：FloatingEdge::
+  get_current_edge（blockaction.cc:27-38 指针式父链 + getOutIndex）无法再把
+  仍然存活的 (switch→exit) 记录解析回图——selectGoto 静默跳过 oracle 记录
+  #43 `(21→39)`，随后 REGEN 产出幻影 `(0→39)` 记录、reciprocal-slot -1 警告、
+  selectGoto 耗尽（cc:1275 LowlevelError 位点）三类图腐坏。oracle 在 case 体
+  被再包裹时从不重建复合块——caseblocks 持 FlowBlock 指针跨 identifyInternal
+  存活（block.cc:940-963 不触碰兄弟复合块），边界边/flags/元数据不动。
+  修复后 pick 序列与 oracle 前缀全等 42→63/74 条（#43 起恢复逐条解析），
+  三类图腐坏症状全灭。**输出 A/B（base 6296b52e vs fixed）**：sqlite/sq/vsh
+  三面 gen_decompile 字节恒等；canon curl b7773087/httpd 54f9b02c 红线保持；
+  镜面五面 13/2/0/95/383 恰钉值；tests 2039P。残 70 行族未消——终局轮分歧
+  已钻到更深层（round≥3 基本块合并族：Rugra round-3 图 slot26=
+  `ty=Copy szout=5 front=3b201`——cbranch 块与 3-way 派发块并成单个 5 出边
+  基本块，oracle 双侧分立 [3b201]+[3b208]；3b277/3b27e 同形）——flow/
+  dataflow 层独立缺陷，登记 TRACEDAG-ROUND3-BBLOCK-MERGE-0001。
+- 同 commit：`select_goto` 的 RUGRA_TRACE_SELECTGOTO 永久探针 src_addr 打印
+  从失效的 `front_leaf().get_start_addr()`（恒 0x0）换为
+  `dbg_front_leaf_start_addr`（穿 BlockCopy 链），诊断输出修复，无行为影响。
+
 ## 2026-10-01：守卫读消费迁移（Lane ARENAFLIP-g 步骤 3）
 - `clip_extra_roots`（in-body 扫描 sizeIn 守卫）、`try_rule_cat`（入口
   pred sizeOut / 首链 sizeIn+SWITCH_OUT / 链行走 next index+sizeIn+flags，
