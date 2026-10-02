@@ -384,6 +384,25 @@ sq	35	810	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # REPIN-0001 (107->91 at lane base scale) superseded by this joint
 # row. curl 11/httpd 0/vsh 0/sq 35 rows stay; canon byte pins
 # f903372a/3617ecc3 exact.
+# MB77 joint re-pin (DECLB1-MB77-JOINT-REPIN-0001, 2026-10-02,
+# merge of wt/declb1 075e6d55 [single commit, base aefbe6a9/MB73 —
+# pre-MB75, merge-base witnessed] onto master 2a4484af [MB76,
+# sqlite 78 = DECLB3-MB76-JOINT-REPIN-0001, sq 35 same row]):
+# joint measured sqlite 78-6=72 — the declb1 trio family
+# (join-symbol register piece legs fed into the emitScopeVarDecls
+# rangemap splice replay: sqlite3Pragma 9->7, sqlite3_mprintf 12->10,
+# sqlite3_vmprintf 12->10, each -2 = the relocated xVar15 decl pair
+# now byte-equal to golden) is disjoint from the declb3 family
+# (MB76, -16), selectdup family (MB75, -13), vdbeprint six (MB71,
+# -39), declbform four (MB72, -26) and declb12 two (MB74, -8)
+# families; additive composition measured on the joint tree
+# (pre-commit cold run, --no-cache: skeleton=72 defects=0
+# numbering=0 matched=1385/1385 health ok, read_baseline hit
+# DECLB1-MB77-JOINT-REPIN-0001). Lane form DECLB1-JOINLEG-REPIN-0001
+# (115->109 at lane base scale) superseded by this joint row; note
+# block kept verbatim below. curl 11/httpd 0/vsh 0/sq 35 rows stay;
+# canon byte pins f903372a/3617ecc3 exact.
+sqlite	72	1385	DECLB1-MB77-JOINT-REPIN-0001	mb77-joint	2026-10-02
 sqlite	78	1385	DECLB3-MB76-JOINT-REPIN-0001	mb76-joint	2026-10-02
 # DECLB3 lane re-pin (DECLB3-RATCHET-REPIN-0001, 2026-10-02,
 # strip_type Arc-identity fix in src/variable.rs, lane wt/declb3
@@ -422,6 +441,25 @@ sqlite	94	1385	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # six-function family (MB71, -39); additive composition verified on
 # the joint tree (measured in-gate, cold run). curl 11/httpd 0/vsh 0/
 # sq 41 rows stay; canon byte pins f903372a/3617ecc3 exact.
+# DECLB1 joint re-pin (DECLB1-JOINLEG-REPIN-0001, 2026-10-02, lane
+# wt/declb1 base aefbe6a9/MB73): sqlite 115-6=109 — the B1 xVar15
+# decl-move family closed by feeding the join symbols' register-space
+# piece entries (oracle database.cc:1156-1177 addMap join-piece legs,
+# installed with the join symbol's own subsort ahead of the register
+# wave via the linkProtoPartial-driven early join creation) into the
+# emitScopeVarDecls rangemap splice replay. Per-function attribution
+# (in-gate cold round, commit-final binary): sqlite3Pragma 9->7,
+# sqlite3_mprintf 12->10, sqlite3_vmprintf 12->10 — each -2 = the
+# relocated decl line pair now byte-equal to golden; the other 23 diff
+# functions byte-stable, zero new sites, defects=numbering=0,
+# matched 1385/1385. Oracle ground truth: B1MAP creation-sequence probe
+# on the locked 12.0.4 direct runner (xVar15 entry key (0,3)/sz4/up
+# 0xad67a identical both sides; the slot divergence was splice-anchor
+# only). curl 11/httpd 0/vsh 0/sq 41 rows stay; canon byte pins
+# f903372a/3617ecc3 exact. Corpus pin group: VdbeExec mirror
+# b3f5b487/canon 606dd8c0 held; corpus canon a1d60f4f->d165bea4 and
+# mirror 851402bf->67824234 (both 0-byte pure reorder, exactly the
+# same three functions, both faces).
 # DECLBFORM joint re-pin (DECLBFORM-RATCHET-REPIN-0001, 2026-10-02,
 # lane base 624e5a6a [MB70, sqlite 180 = ROUND3-BBLOCK-MERGE-REPIN-0001
 # joint form]): sqlite 180->154 (-26 exact) = RuleDivOpt::calcDivisor

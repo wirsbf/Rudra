@@ -1,3 +1,17 @@
+## 2026-10-02：DECLB1-JOINLEG-0001 — `LocalSymbol::join_pieces` 字段（Lane DECLB1）
+
+`LocalSymbol` 新增 `pub join_pieces: Vec<(AddressSpace, u64, i32)>`：建模
+`Scope::addMap` join 地址臂（database.cc:1156-1177）为 join 映射逐 piece 安装的
+额外 SymbolEntry（`addMapInternal(entry.symbol, exfl, vdat.getAddr(), off,
+vdat.size, entry.uselimit)`，LE 序最不重要腿先装、符号内偏移 0 起累加）。元素为
+(piece 空间, piece 偏移, piece 尺寸)，按安装序推入；非 join 符号恒空。生产写入
+点：`Funcdata::link_symbol` 在 Join 空间创建时经 `Architecture::join_db`
+`find_join` 解析（coreaction return_join_address 的 construct_join_address 注册
+表）。消费点：printc `emit_scope_local_var_decls` 的拼接序回放（这些腿与统一
+entry 同 sub-sort 参与 piece 空间 rangemap 的 lower_bound 锚——sqlite3Pragma
+xVar15 槽位的决定性输入）。测试：printc 侧
+`test_scope_rangemap_list_order_join_leg_anchors`。
+
 ## 2026-09-28：live_symbols memo 失效钩（OUTSTREAM-MEMO-INVALIDATION-0001，CR-OUTSTREAM3 条件 1）
 
 `ScopeLocal::invalidate_live_symbol(idx)`：rename/namelock 写点（两个
