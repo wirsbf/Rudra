@@ -1327,6 +1327,36 @@ SeqNum 守卫+Arc 克隆（5.6M 次）改走槽读；Action 工作集 filter
 （RETURN/INT_ADD 扫描）走影子读。
 
 
+## 2026-10-02：OpCell dead 影子 + optree version 计数器 + 派发读/地址 API（PERF-DISPATCH-0001）
+
+**OpCell dead 影子**（同 `seq_key`/`opcode` 的第三项反规范化）：槽元新增
+`dead: bool` 副本——`op->isDead()`（op.hh:173，oracle 内联位掩码测试）的
+id 空间读形态。维护位点 = DEAD 位全部生产写点（grep 亲证，与 opcode 影子
+同纪律）：`PcodeOpTree::insert`/`slot_only` 入槽时随守卫快照（`create_seq`
+cc:966-967 的出生置位发生在 Arc 包装/入槽前，快照必然命中）；`mark_alive`/
+`mark_dead`（op.hh:313/314 choke points，cc:1021/1031）在写 flag 的同语句
+位同步更新影子。cfg(test) fixture 的 `flags =` 整字赋值不经 bank 入槽，无
+cell 即无影子失同步面。派发面读点（`action.cc:829` 入口判定、`:846` 命中
+后复核）经 `PcodeOpBank::is_dead_of(OpId)` 槽读，取代 PcodeOp RwLock 往返。
+
+**optree version 计数器**：`PcodeOpTree.version: u64` 单调计数，`inner`
+（`BTreeMap<SeqNumKey, OpId>`）的插入/删除/clear 全位点 bump（`insert` 仅
+Vacant 臂、`remove` 两个删除位、`clear`；remove 内部先删后回插的错键自愈
+路径 bump 一次=保守误报，只触发 fresh 搜索回退，语义安全）。用途 =
+ActionPool 派发的 memo 守卫（见 action.md 2026-10-02 节）：同 version ⇒
+`inner` 未变 ⇒ 预算的严格后继 === 尾推进的 fresh 搜索结果（同树同键）。
+读 API `PcodeOpBank::optree_version()`。
+
+**新读/地址 API**：
+- `PcodeOpTree::dead_by_id(OpId) -> Option<bool>`——槽影子读（op.hh:173 等价）。
+- `PcodeOpTree::cell_hint_addr(OpId) -> Option<*const u8>`——槽纯地址投影
+  （经 `Arena::slot_addr`，不触槽行），供派发循环对后继槽行发 PREFETCHT0。
+- `PcodeOpBank::is_dead_of/ optree_version`——bank 级转发。
+
+RUGRA-GLUE（version/addr 投影无 oracle 对应物：oracle 的 `op_state++` 是
+活 map 迭代器 O(1) 指针步进 action.hh:265；isDead 影子=存储迭代器读形态）。
+
+
 ## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
 
 **PERF-ARENA-FLIP-0001 (e) 段**: `BlockEdge.point` 由 `Arc<RwLock<dyn FlowBlock>>`

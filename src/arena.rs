@@ -292,6 +292,21 @@ impl<T, Id: ArenaId> Arena<T, Id> {
         }
     }
 
+    /// RUGRA-GLUE: PERF-DISPATCH-0001 — project the slot's address without
+    /// touching the slot's cache line (pure pointer arithmetic over the slab
+    /// base; the vacancy check is skipped because the caller prefetched from
+    /// a live id). The address feeds a non-blocking PREFETCHT0 hint; no Ghidra
+    /// counterpart (the oracle walks live map nodes with hot iterators).
+    pub fn slot_addr(&self, id: Id) -> Option<*const u8> {
+        let i = id.idx() as usize;
+        if i >= self.slots.len() {
+            return None;
+        }
+        // Borrow + cast is pure address arithmetic: no slot-line load (the
+        // bounds check reads the Vec header only).
+        Some(&self.slots[i] as *const Slot<T> as *const u8)
+    }
+
     /// Resolve `id` to an exclusive reference, or `None` if stale/unknown.
     // RUGRA-GLUE: id dereference (mutable) — oracle raw pointer write path.
     pub fn get_mut(&mut self, id: Id) -> Option<&mut T> {

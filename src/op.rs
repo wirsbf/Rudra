@@ -1663,6 +1663,13 @@ pub struct PcodeOpTree {
     /// op.cc:984-999 — and are reclaimed only by `clear`).
     arena: Arena<OpCell, OpId>,
     inner: BTreeMap<SeqNumKey, OpId>,
+    /// RUGRA-GLUE: monotonic mutation counter over `inner` (bumped by
+    /// insert/remove/clear) — the id-space memoization guard for
+    /// ActionPool's early strict-successor computation
+    /// (PERF-DISPATCH-0001). Pure Rust memo infrastructure; the oracle
+    /// needs no equivalent because its live `op_state` iterator makes
+    /// `++` an O(1) pointer walk (action.hh:265).
+    version: u64,
 }
 
 /// One arena slot of the op tree.
@@ -1685,6 +1692,20 @@ pub struct OpCell {
     /// (action.cc:846/853-857, 27.7M tries on the VdbeExec pole) resolves
     /// through this lock-free cell read instead of an RwLock round-trip.
     opcode: OpCode,
+    /// Denormalized copy of the DEAD bit of `PcodeOp::flags` — the
+    /// stored-iterator read form of `op->isDead()` (op.hh:173, a flag
+    /// mask test inlined in the oracle). Maintained at exactly the
+    /// mutation sites of the source bit: `PcodeOpTree::insert` snapshots
+    /// it at slot time (the bit exists from construction — ops are born
+    /// dead via createSeq cc:966-967 or alive via the bank create paths)
+    /// and `PcodeOpBank::mark_alive`/`mark_dead` (the op.hh:313/314
+    /// choke points) update it in the same statement that writes the
+    /// flag (grepped: no other production site writes the DEAD bit).
+    /// PERF-DISPATCH-0001: ActionPool::processOp's per-visit entry read
+    /// (action.cc:829) and post-hit re-read (:846) resolve through this
+    /// lock-free cell read instead of an RwLock round-trip on the
+    /// PcodeOp allocation.
+    dead: bool,
     // ---- op.hh:127-129 stored list iterators → id-space intrusive links
     // (ARENA_DESIGN §1.2). The insertiter pair (op.hh:128) threads the op
     // through whichever of deadlist/alivelist/deadandgone holds it; the
@@ -1755,7 +1776,33 @@ impl PcodeOpTree {
         Self {
             arena: Arena::new(),
             inner: BTreeMap::new(),
+            version: 0,
         }
+    }
+
+    // RUGRA-GLUE: memo-guard read for PERF-DISPATCH-0001 — the version the
+    //   ActionPool cursor saw when it computed a strict successor; an equal
+    //   read proves `inner` is unchanged, so the memoized successor equals a
+    //   fresh range search.
+    /// Current `inner` mutation counter (insert/remove/clear bump it).
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
+    // RUGRA-GLUE: PERF-DISPATCH-0001 — the successor cell's address for the
+    //   dispatch loop's non-blocking prefetch hint (pure address projection;
+    //   no Ghidra counterpart).
+    /// Address of `id`'s slot without touching the slot line.
+    pub fn cell_hint_addr(&self, id: OpId) -> Option<*const u8> {
+        self.arena.slot_addr(id)
+    }
+
+    // RUGRA-GLUE: stored-iterator dead read — `op->isDead()` (op.hh:173)
+    //   resolved through the cell's denormalized shadow, no lock (see the
+    //   OpCell::dead field doc for the write sites).
+    /// The op's current dead bit, read lock-free from the arena cell.
+    pub fn dead_by_id(&self, id: OpId) -> Option<bool> {
+        self.arena.get(id).map(|cell| cell.dead)
     }
 
     // RUGRA-GLUE: POD key projection of a SeqNum — one short read lock per
@@ -1785,9 +1832,14 @@ impl PcodeOpTree {
         // separately). The guard is bound to its own statement and dropped
         // before the writes below — holding a read guard into a same-thread
         // write is a guaranteed RwLock deadlock.
-        let (seq_key, existing_id, opc) = {
+        let (seq_key, existing_id, opc, dead) = {
             let o = op.0.read().unwrap();
-            (Self::key_from_seq(&o.start), o.op_id, o.opcode)
+            (
+                Self::key_from_seq(&o.start),
+                o.op_id,
+                o.opcode,
+                (o.flags & crate::op::pcodeop_flags::DEAD) != 0,
+            )
         };
         // Slot the op (reuse its cell on re-insert; the SeqNum is
         // immutable so the key copy never drifts). Fresh cells enter the
@@ -1798,6 +1850,7 @@ impl PcodeOpTree {
             if let Some(cell) = self.arena.get_mut(id) {
                 cell.seq_key = seq_key;
                 cell.opcode = opc;
+                cell.dead = dead;
             }
             id
         } else {
@@ -1805,6 +1858,7 @@ impl PcodeOpTree {
                 op: op.clone(),
                 seq_key,
                 opcode: opc,
+                dead,
                 ins_prev: OpId::SENTINEL,
                 ins_next: OpId::SENTINEL,
                 code_prev: OpId::SENTINEL,
@@ -1817,6 +1871,7 @@ impl PcodeOpTree {
             std::collections::btree_map::Entry::Occupied(_) => false,
             std::collections::btree_map::Entry::Vacant(slot) => {
                 slot.insert(id);
+                self.version = self.version.wrapping_add(1);
                 true
             }
         }
@@ -1833,6 +1888,7 @@ impl PcodeOpTree {
             if let Some(cell) = self.arena.get(id) {
                 let stored_key = cell.seq_key;
                 if let Some(rid) = self.inner.remove(&stored_key) {
+                    self.version = self.version.wrapping_add(1);
                     if rid == id {
                         return true;
                     }
@@ -1843,7 +1899,11 @@ impl PcodeOpTree {
                 }
             }
         }
-        self.inner.remove(&Self::key_of(op)).is_some()
+        let removed = self.inner.remove(&Self::key_of(op)).is_some();
+        if removed {
+            self.version = self.version.wrapping_add(1);
+        }
+        removed
     }
 
     // RUGRA-GLUE: BTreeSet<PcodeOpRef>::contains surface. Ord-equality
@@ -1857,6 +1917,7 @@ impl PcodeOpTree {
     pub fn clear(&mut self) {
         self.inner.clear();
         self.arena.clear();
+        self.version = self.version.wrapping_add(1);
     }
 
     // RUGRA-GLUE: size surface shared by BTreeSet/BTreeMap (op.cc:1194
@@ -2000,9 +2061,9 @@ impl PcodeOpTree {
     //   exactly as the bare push left it. Idempotent: a re-slot of an
     //   already-slotted op returns its existing handle.
     pub(crate) fn slot_only(&mut self, op: &PcodeOpRef) -> OpId {
-        let (existing, opc, seq_key) = {
+        let (existing, opc, seq_key, dead) = {
             let o = op.0.read().unwrap();
-            (o.op_id, o.opcode, Self::key_from_seq(&o.start))
+            (o.op_id, o.opcode, Self::key_from_seq(&o.start), (o.flags & crate::op::pcodeop_flags::DEAD) != 0)
         };
         if let Some(id) = existing {
             if self.arena.contains(id) {
@@ -2013,6 +2074,7 @@ impl PcodeOpTree {
             op: op.clone(),
             seq_key,
             opcode: opc,
+            dead,
             ins_prev: OpId::SENTINEL,
             ins_next: OpId::SENTINEL,
             code_prev: OpId::SENTINEL,
@@ -2388,6 +2450,12 @@ impl PcodeOpBank {
             return;
         }
         op.0.write().unwrap().flags &= !pcodeop_flags::DEAD;
+        // PERF-DISPATCH-0001: keep the cell's denormalized dead shadow in
+        // the same statement as the flag write (see OpCell::dead doc).
+        let id = self.slot_of_or_adopt(&op);
+        if let Some(cell) = self.optree.arena_mut().get_mut(id) {
+            cell.dead = false;
+        }
         // Ghidra op.cc:1017-1022 markAlive: deadlist.erase(op->insertiter)
         // is O(1) via the stored insertiter (op.cc:1019), then
         // alivelist.insert(end). The id-space link pair IS the stored
@@ -2398,7 +2466,6 @@ impl PcodeOpBank {
         // pass raw, never-linked ops): the oracle's erase happens through
         // the op's OWN stored iterator, which such an op does not have —
         // the former retain was a no-op there, and the guard is too.
-        let id = self.slot_of_or_adopt(&op);
         let Self { optree, deadlist, alivelist, .. } = self;
         if deadlist.contains(optree.arena(), id) {
             deadlist.unlink(&mut optree.arena_mut(), id);
@@ -2412,11 +2479,16 @@ impl PcodeOpBank {
             return;
         }
         op.0.write().unwrap().flags |= pcodeop_flags::DEAD;
+        // PERF-DISPATCH-0001: keep the cell's denormalized dead shadow in
+        // the same statement as the flag write (see OpCell::dead doc).
+        let id = self.slot_of_or_adopt(&op);
+        if let Some(cell) = self.optree.arena_mut().get_mut(id) {
+            cell.dead = true;
+        }
         // Ghidra op.cc:1028-1034 markDead: alivelist.erase(op->insertiter)
         // is O(1) via the stored insertiter (op.cc:1030), then
         // deadlist.insert(end). Same stored-iterator surgery as mark_alive
         // (membership guard: see mark_alive).
-        let id = self.slot_of_or_adopt(&op);
         let Self { optree, deadlist, alivelist, .. } = self;
         if alivelist.contains(optree.arena(), id) {
             alivelist.unlink(&mut optree.arena_mut(), id);
@@ -2972,6 +3044,22 @@ impl PcodeOpBank {
     // pointer dereference itself (P1 read form, ARENA_DESIGN §3.2).
     pub fn op_by_id(&self, id: OpId) -> Option<&PcodeOpRef> {
         self.optree.get_by_id(id)
+    }
+
+    // RUGRA-GLUE: bank-level stored-iterator dead read (delegates to the
+    //   PcodeOpTree cell shadow; the pool dispatch's per-visit entry form,
+    //   PERF-DISPATCH-0001).
+    /// The op's current dead bit, read lock-free from the arena cell — the
+    /// `op->isDead()` (op.hh:173) equivalent for id-holding callers.
+    pub fn is_dead_of(&self, id: OpId) -> Option<bool> {
+        self.optree.dead_by_id(id)
+    }
+
+    // RUGRA-GLUE: bank-level memo-guard read (delegates to the tree's
+    //   mutation counter; PERF-DISPATCH-0001).
+    /// The optree mutation version the ActionPool cursor memoizes.
+    pub fn optree_version(&self) -> u64 {
+        self.optree.version()
     }
 
     // RUGRA-GLUE: bank-level stored-iterator opcode read (delegates to the

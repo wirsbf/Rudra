@@ -83,6 +83,8 @@ impl<T, Id: ArenaId> Arena<T, Id> {
     pub fn remove(&mut self, id: Id) -> Option<T>; // O(1)；gen+1；见红线 3
     pub fn get(&self, id: Id) -> Option<&T>;    // bounds + gen 比较（~1-2ns）
     pub fn get_mut(&mut self, id: Id) -> Option<&mut T>;
+    pub fn slot_addr(&self, id: Id) -> Option<*const u8>; // 纯地址投影（PERF-DISPATCH-0001；
+                                                 // 不触槽缓存行，供 PREFETCHT0 提示）
     pub fn contains(&self, id: Id) -> bool;
     pub fn len(&self) -> usize;                 // 活跃计数，非序
     pub fn is_empty(&self) -> bool;
@@ -95,6 +97,10 @@ impl<T, Id: ArenaId> Default for Arena<T, Id>
 detached（全零字段即 detached——`OpId::SENTINEL` 的 idx/gen 都是 0）。
 `remove` 前必须先从所有链 unlink（删一个仍在链上的元素 = 链损坏，同 oracle
 绕过 `PcodeOpBank::destroy` 直接 delete 的后果）。
+
+`slot_addr`（2026-10-02，PERF-DISPATCH-0001）：只读 `Vec` 头的边界检查 +
+指针算术，不加载槽行（调用方对活跃 id 发 PREFETCHT0 非阻塞提示用）；
+越界/失代返回 `None`。RUGRA-GLUE（oracle 持活 map 迭代器热指针，无对应物）。
 
 ### 3. 侵入式 id 双向链 `IdList<L>` + `Linked`
 

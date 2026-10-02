@@ -1486,8 +1486,9 @@ SeqNum 经 bank 解引用读取；fixture 调用点同 commit 机械改写）。
 
 派发复读（`processOp` cc:846/853-857）：命中/未命中路径的
 `opc != op->code()` 复读改走 `PcodeOpBank::opcode_of`（OpCell opcode
-影子，锁自由）；入口 isDead 判定与命中路径 isDead 复核保持守卫读
-（DEAD 位无影子）。RULE-POOL 派发残差三件（advance 键下降、miss 复读
+影子，锁自由）；入口 isDead 判定与命中路径 isDead 复核当时保持守卫读
+（DEAD 位当时无影子；后由 PERF-DISPATCH-0001 死位影子收口，见
+2026-10-02 节）。RULE-POOL 派发残差三件（advance 键下降、miss 复读
 27.7M 锁、per-visit 常数）中前两件由此收口。
 
 
@@ -1501,3 +1502,35 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+
+## 2026-10-02（DISPATCH）：processOp 派发三件套（PERF-DISPATCH-0001）
+
+oppool 派发面（W2REMEASURE 勘定 VdbeExec 极 2.61s、语料级派发残量）的
+三项恒等收敛，全部作用于 `ActionPool::process_op`（action.cc:822-875）的
+派发路径，规则体零触碰：
+
+1. **isDead 死位影子读**：入口判定（cc:829 `if (op->isDead())`）与命中后
+   复核（cc:846）改走 `PcodeOpBank::is_dead_of(op_id)`（OpCell `dead`
+   影子，写点纪律见 op.md 2026-10-02 节）——去掉派发路径上的 PcodeOp
+   RwLock 往返（VdbeExec 极 5.83M 访问 ×2 读点）。
+2. **早算后继 memo + optree version 守卫**：oracle 的 `op_state++`
+   （cc:871/830，活 map 迭代器 O(1)）在 Rugra id 空间 = 每次推进一次
+   BTreeMap range 搜索（~73ns × 5.2M 推进）。现为规则循环**前**预算
+   `next_op_after(op_id)`（此时游标自身槽行正热），尾推进在
+   `optree_version()` 未变时直接复用（同 version ⇒ inner 未变 ⇒ 同树
+   同键 ⇒ 严格后继同值，构造即恒等）；任何插入/删除/clear bump version
+   回退 fresh 搜索（ACTIONLOOP-RESTART-0001 原形，含 hit 路径
+   totalReplace/死删除的守卫语义）。空 per-opcode 桶跳过 memo（无规则体
+   时间可掩藏预取，尾搜索反正必付）。
+3. **PREFETCHT0 + drill 门提升**：后继槽行地址投影（`cell_hint_addr`，
+   纯指针算术）发非阻塞 T0 提示（miss 延迟落在规则体下而非下一次访问
+   的关键路径；x86_64 门外 no-op）；per-try 的 `drillobserve` activate/
+   flush 双门统一提升为循环外单次 `is_enabled()` 布尔（env 中途不可变，
+   OnceLock 同值——与 oracle `#ifdef OPACTION_DEBUG` 编译期消除同形）。
+   附带：`rule_states[rule_index]` 的 is_disabled/count_tests 访问合并为
+   单借用。
+
+**行为恒等面**（详证链见车道终报 LANE_DISPATCH_2026-10-02）：
+VdbeExec 双面 md5 恰钉值 + ACTIONSTATS 五值逐值恒等（双二进制）+ 语料
+assembled 双面字节恒等 + canon 双 md5 + 镜面五面恰钉值 + tests 基线。
