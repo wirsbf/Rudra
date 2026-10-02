@@ -1407,10 +1407,84 @@ impl MapState {
     }
 
     // Ghidra: varmap.cc:926 MapState::addFixedType
-    /// Add a fixed type reference from a varnode.
-    /// Corresponds to MapState::addFixedType (varmap.cc:926).
-    pub fn add_fixed_type(&mut self, start: u64, dtype: Option<Arc<Datatype>>, flags: u32) {
-        self.add_range(start, dtype, flags, RangeType::Fixed, -1);
+    /// Add a fixed type reference from a varnode — the partial-type
+    /// stripping dispatcher. Faithful to `MapState::addFixedType`
+    /// (varmap.cc:926-956): a TYPE_PARTIALSTRUCT varnode does NOT produce a
+    /// fixed hint of its own — its container is consulted instead (open
+    /// reference for a struct at offset 0, or the array's base element when
+    /// not unknown), and only a constant-COPY partial additionally emits a
+    /// fixed `getBase(size, TYPE_UNKNOWN)` hint; a TYPE_PARTIALUNION
+    /// varnode emits only the offset-0 open container reference (and
+    /// NOTHING at a nonzero offset); every other metatype passes straight
+    /// through as a fixed hint. This stripping is what lets an open
+    /// gatherOpen hint (e.g. an escaping `xunknown1 (*)[16]` stack pointer)
+    /// extend over slots whose only direct accesses are partial-typed —
+    /// the oracle's `xunknown1 axStack_f8 [16]` symbol form
+    /// (VARMAP-UNAFF-TYPEMAT-0001 / PARTSYM drill).
+    pub fn add_fixed_type(
+        &mut self,
+        start: u64,
+        dtype: Option<Arc<Datatype>>,
+        flags: u32,
+        types: &Arc<RwLock<crate::type_system::typefactory::TypeFactory>>,
+    ) {
+        match dtype.as_deref() {
+            // if (ct->getMetatype() == TYPE_PARTIALSTRUCT) { ... }
+            // (varmap.cc:929-945) — the Rust variant match is the
+            // metatype dispatch: TypePartialStruct's base metatype is
+            // PartialStruct by construction (type.cc:2331).
+            Some(Datatype::PartialStruct(tps)) => {
+                // ct = tps->getParent();
+                let parent = tps.container.clone();
+                // if (ct->getMetatype() == TYPE_STRUCT && tps->getOffset()
+                //     == 0) addRange(start,ct,0,open,-1); (varmap.cc:932-934)
+                if parent.get_metatype() == TypeMetatype::Struct && tps.offset == 0 {
+                    self.add_range(start, Some(parent), 0, RangeType::Open, -1);
+                }
+                // else if (ct->getMetatype() == TYPE_ARRAY) { ct = base;
+                //   if (ct->getMetatype() != TYPE_UNKNOWN)
+                //     addRange(start,ct,0,open,-1); } (varmap.cc:935-939)
+                else if parent.get_metatype() == TypeMetatype::Array {
+                    let base = match parent.as_ref() {
+                        Datatype::Array(a) => a.array_of.clone(),
+                        _ => parent.clone(),
+                    };
+                    if base.get_metatype() != TypeMetatype::Unknown {
+                        self.add_range(start, Some(base), 0, RangeType::Open, -1);
+                    }
+                }
+                // if (flags != 0) { ct = types->getBase(tps->getSize(),
+                //   TYPE_UNKNOWN); addRange(start,ct,flags,fixed,-1); }
+                // (varmap.cc:941-944) — the partial's OWN size.
+                if flags != 0 {
+                    let ct = types
+                        .read()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .get_base(tps.base.size, TypeMetatype::Unknown);
+                    self.add_range(start, ct, flags, RangeType::Fixed, -1);
+                }
+            }
+            // else if (ct->getMetatype() == TYPE_PARTIALUNION) { if
+            // (tpu->getOffset() == 0) { ct = parentUnion; addRange(start,
+            // ct,0,open,-1); } } (varmap.cc:946-952) — no fixed fallback
+            // for any offset.
+            Some(Datatype::PartialUnion(tpu)) => {
+                if tpu.offset == 0 {
+                    self.add_range(
+                        start,
+                        Some(tpu.container.clone()),
+                        0,
+                        RangeType::Open,
+                        -1,
+                    );
+                }
+            }
+            // else addRange(start,ct,flags,RangeHint::fixed,-1);
+            // (varmap.cc:953-955)
+            _ => {
+                self.add_range(start, dtype, flags, RangeType::Fixed, -1);
+            }
+        }
     }
 
     // Ghidra: varmap.cc:864 MapState::hintCount
@@ -1487,7 +1561,11 @@ impl MapState {
     // Ghidra: varmap.cc:1124 MapState::gatherVarnodes
     /// Gather varnodes from the function's vbank.
     /// Faithful to `MapState::gatherVarnodes` (varmap.cc:1124).
-    pub fn gather_varnodes(&mut self, fd: &crate::funcdata::Funcdata) {
+    pub fn gather_varnodes(
+        &mut self,
+        fd: &crate::funcdata::Funcdata,
+        types: &Arc<RwLock<crate::type_system::typefactory::TypeFactory>>,
+    ) {
         for vn_arc in &fd.vbank.loc_tree {
             let vn = vn_arc.0.read().unwrap();
             if vn.is_free() {
@@ -1504,7 +1582,7 @@ impl MapState {
                 // Unwritten (input) varnode.
                 drop(vn);
                 if Self::is_read_active(&vn_arc.0) {
-                    self.add_fixed_type(offset, dtype, 0);
+                    self.add_fixed_type(offset, dtype, 0, types);
                 }
                 continue;
             }
@@ -1528,7 +1606,7 @@ impl MapState {
                         None => false,
                     };
                     if !same_addr || Self::is_read_active(&vn_arc.0) {
-                        self.add_fixed_type(offset, dtype, 0);
+                        self.add_fixed_type(offset, dtype, 0, types);
                     }
                 }
                 OpCode::CPUI_MULTIEQUAL => {
@@ -1545,7 +1623,7 @@ impl MapState {
                     }
                     drop(def_op);
                     if !same_all || Self::is_read_active(&vn_arc.0) {
-                        self.add_fixed_type(offset, dtype, 0);
+                        self.add_fixed_type(offset, dtype, 0, types);
                     }
                 }
                 OpCode::CPUI_COPY => {
@@ -1556,7 +1634,7 @@ impl MapState {
                         .unwrap_or(false);
                     drop(def_op);
                     let flags = if is_const { range_flags::COPY_CONSTANT } else { 0 };
-                    self.add_fixed_type(offset, dtype, flags);
+                    self.add_fixed_type(offset, dtype, flags, types);
                 }
                 OpCode::CPUI_PIECE => {
                     // cc:1165-1179: treat PIECE as two COPYs.
@@ -1578,7 +1656,7 @@ impl MapState {
                             && iv.get_offset() == offset;
                         drop(iv);
                         if !same_addr1 {
-                            self.add_fixed_type(offset, iv_dtype, 0);
+                            self.add_fixed_type(offset, iv_dtype, 0, types);
                         }
                         // cc:1173: addr = addr + inFirst->getSize()
                         let addr2 = offset.wrapping_add(iv_size);
@@ -1594,12 +1672,12 @@ impl MapState {
                                 && iv2.get_offset() == addr2;
                             drop(iv2);
                             if !same_addr2 {
-                                self.add_fixed_type(addr2, iv2_dtype, 0);
+                                self.add_fixed_type(addr2, iv2_dtype, 0, types);
                             }
                         }
                     }
                     if Self::is_read_active(&vn_arc.0) {
-                        self.add_fixed_type(offset, dtype, 0);
+                        self.add_fixed_type(offset, dtype, 0, types);
                     }
                 }
                 OpCode::CPUI_SUBPIECE => {
@@ -1623,13 +1701,13 @@ impl MapState {
                         let same_addr = iv_space == crate::space::AddressSpace::Stack
                             && addr_off == offset;
                         if !same_addr || Self::is_read_active(&vn_arc.0) {
-                            self.add_fixed_type(offset, dtype, 0);
+                            self.add_fixed_type(offset, dtype, 0, types);
                         }
                     }
                 }
                 _ => {
                     drop(def_op);
-                    self.add_fixed_type(offset, dtype, 0);
+                    self.add_fixed_type(offset, dtype, 0, types);
                 }
             }
         }
@@ -4012,7 +4090,7 @@ impl ScopeLocal {
         let mut state = self.build_map_state(fd, &types);
         state.set_stack_grows_negative(self.stack_grows_negative);
         // state.gatherVarnodes(*fd); (varmap.cc:1267)
-        state.gather_varnodes(fd);
+        state.gather_varnodes(fd, &types);
         // gather_spacebase REMOVED (STACKSLOT-MATERIALIZE root cause):
         // this RUGRA-GLUE compensation layer synthesized FIXED RangeHints for
         // every LOAD/STORE whose address "resolved" to an RSP-derived constant
@@ -7629,7 +7707,8 @@ mod tests {
 
         let mut state = MapState::new_with_default(
             vec![(0x40, 0x48)], int_dt(1, TypeMetatype::Unknown));
-        state.gather_varnodes(&fd);
+        let tf = crate::type_system::typefactory::TypeFactory::shared_default();
+        state.gather_varnodes(&fd, &tf);
         // Output not read-active and halves not same-storage: exactly the
         // two half-value hints, at the OUTPUT-derived addresses.
         let got: Vec<(u64, String)> = state
@@ -7653,5 +7732,137 @@ mod tests {
             assert_eq!(h.range_type, RangeType::Fixed);
             assert_eq!(h.flags, 0);
         }
+    }
+
+    /// MapState::addFixedType partial-type stripping (varmap.cc:926-956) —
+    /// the PARTSYM drill shape (VARMAP-UNAFF-TYPEMAT-0001). A
+    /// TYPE_PARTIALSTRUCT varnode contributes NO fixed hint of its own:
+    /// · array-of-unknown container ⇒ NOTHING at all (the slot is left to
+    ///   gatherOpen's open hint, which then extends across it — the
+    ///   oracle's `xunknown1 axStack_f8 [16]` form);
+    /// · struct container at offset 0 ⇒ one OPEN container hint;
+    /// · non-zero offset ⇒ nothing UNLESS flags≠0 (constant COPY), which
+    ///   adds a fixed getBase(size,TYPE_UNKNOWN) hint;
+    /// · array with KNOWN base ⇒ open hint of the base element type.
+    /// A TYPE_PARTIALUNION varnode emits only the offset-0 open container
+    /// reference (no fixed fallback for any offset).
+    #[test]
+    fn test_add_fixed_type_partial_stripping() {
+        use crate::space::AddressSpace;
+        use crate::type_system::datatype::{TypeArray, TypeBase, TypePartialStruct, TypePartialUnion};
+
+        let tf = crate::type_system::typefactory::TypeFactory::shared_default();
+        let arr16 = Arc::new(Datatype::Array(TypeArray {
+            base: TypeBase::new(String::new(), 16, TypeMetatype::Array),
+            array_of: named_dt("xunknown1", 1, TypeMetatype::Unknown),
+            num_elements: 16,
+        }));
+        // partial(xunknown1[16], off=8, sz=8) — the ResolveExprListNames f0 slot
+        let partial_arr_unknown = Arc::new(Datatype::PartialStruct(TypePartialStruct::new(
+            arr16.clone(),
+            8,
+            8,
+            None,
+        )));
+        // partial(struct{...}, off=0, sz=8) — struct container at offset 0
+        let a_struct = Arc::new(Datatype::Struct(crate::type_system::datatype::TypeStruct {
+            base: TypeBase::new("astruct".into(), 16, TypeMetatype::Struct),
+            fields: Vec::new(),
+        }));
+        let partial_struct0 = Arc::new(Datatype::PartialStruct(TypePartialStruct::new(
+            a_struct.clone(),
+            0,
+            8,
+            None,
+        )));
+        // partial(xunknown4[2], off=4, sz=4) — array with KNOWN base
+        let arr2 = Arc::new(Datatype::Array(TypeArray {
+            base: TypeBase::new(String::new(), 8, TypeMetatype::Array),
+            array_of: named_dt("xunknown4", 4, TypeMetatype::Unknown),
+            num_elements: 2,
+        }));
+        // (base unknown ⇒ no hint; use int base for the known-base arm)
+        let arr2int = Arc::new(Datatype::Array(TypeArray {
+            base: TypeBase::new(String::new(), 8, TypeMetatype::Array),
+            array_of: named_dt("int4", 4, TypeMetatype::Int),
+            num_elements: 2,
+        }));
+        let partial_arr_known = Arc::new(Datatype::PartialStruct(TypePartialStruct::new(
+            arr2int.clone(),
+            4,
+            4,
+            None,
+        )));
+        // partial(union, off=8, sz=8) and partial(union, off=0, sz=8)
+        let a_union = Arc::new(Datatype::Union(crate::type_system::datatype::TypeUnion {
+            base: TypeBase::new("aunion".into(), 8, TypeMetatype::Union),
+            fields: Vec::new(),
+        }));
+        let partial_union8 = Arc::new(Datatype::PartialUnion(TypePartialUnion::new(
+            a_union.clone(),
+            8,
+            4,
+            None,
+        )));
+        let partial_union0 = Arc::new(Datatype::PartialUnion(TypePartialUnion::new(
+            a_union.clone(),
+            0,
+            4,
+            None,
+        )));
+
+        let mut s = MapState::new_with_default(
+            vec![(0x20, 0x60)],
+            int_dt(1, TypeMetatype::Unknown),
+        );
+
+        // ① array-of-unknown container, flags=0 ⇒ NOTHING (varmap.cc:935-939
+        //    guard rejects the unknown base; no other addRange fires).
+        s.add_fixed_type(0x20, Some(partial_arr_unknown.clone()), 0, &tf);
+        assert!(s.maplist.is_empty(), "array-of-unknown partial must add no hint");
+
+        // ② same partial with copy_constant flags ⇒ exactly ONE fixed
+        //    getBase(8,TYPE_UNKNOWN) hint (varmap.cc:941-944).
+        s.add_fixed_type(
+            0x20,
+            Some(partial_arr_unknown),
+            range_flags::COPY_CONSTANT,
+            &tf,
+        );
+        assert_eq!(s.maplist.len(), 1);
+        assert_eq!(s.maplist[0].range_type, RangeType::Fixed);
+        assert_eq!(s.maplist[0].size, 8);
+        assert_eq!(s.maplist[0].flags, range_flags::COPY_CONSTANT);
+        assert_eq!(s.maplist[0].dtype.as_ref().unwrap().get_metatype(), TypeMetatype::Unknown);
+
+        // ③ struct container at offset 0 ⇒ ONE OPEN container hint
+        //    (varmap.cc:932-934); flags≠0 would ALSO add the fixed unknown.
+        s.add_fixed_type(0x30, Some(partial_struct0), 0, &tf);
+        assert_eq!(s.maplist.len(), 2);
+        assert_eq!(s.maplist[1].range_type, RangeType::Open);
+        assert_eq!(s.maplist[1].dtype.as_ref().unwrap().get_name(), "astruct");
+        assert_eq!(s.maplist[1].flags, 0);
+
+        // ④ array with KNOWN base ⇒ open hint of the base element
+        //    (varmap.cc:935-939).
+        s.add_fixed_type(0x40, Some(partial_arr_known), 0, &tf);
+        assert_eq!(s.maplist.len(), 3);
+        assert_eq!(s.maplist[2].range_type, RangeType::Open);
+        assert_eq!(s.maplist[2].dtype.as_ref().unwrap().get_name(), "int4");
+        let _ = arr2;
+
+        // ⑤ partial union at offset 8 ⇒ NOTHING; at offset 0 ⇒ open
+        //    container reference (varmap.cc:946-952).
+        s.add_fixed_type(0x50, Some(partial_union8), 0, &tf);
+        assert_eq!(s.maplist.len(), 3, "nonzero-offset partial union adds no hint");
+        s.add_fixed_type(0x50, Some(partial_union0), 0, &tf);
+        assert_eq!(s.maplist.len(), 4);
+        assert_eq!(s.maplist[3].range_type, RangeType::Open);
+        assert_eq!(s.maplist[3].dtype.as_ref().unwrap().get_name(), "aunion");
+
+        // ⑥ ordinary (non-partial) type ⇒ plain fixed hint (varmap.cc:953).
+        s.add_fixed_type(0x58, Some(named_dt("xunknown8", 8, TypeMetatype::Unknown)), 0, &tf);
+        assert_eq!(s.maplist.len(), 5);
+        assert_eq!(s.maplist[4].range_type, RangeType::Fixed);
     }
 }
