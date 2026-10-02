@@ -226,7 +226,7 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # amount; md5 4503f498->8dafa799 / c3b4706c->2fbf13b1, canon not in tsv — recorded in the MB34
 # report). Forced relink before measurement (digest 19db58af files=103, binaries newer than all
 # three merge commits). tests 1963P/0F/5I = 1963+0 (all three lanes add zero tests).
-curl	11	74	DECLFAM-RATCHET-REPIN-0001	declfam	2026-10-02
+curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02
 httpd	0	29	DECLFAM-RATCHET-REPIN-0001	declfam	2026-10-02
 vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 # MB48-RATCHET-REPIN-0001 (2026-09-29, joint tree @ 87f3ac97 after 4-branch
@@ -927,3 +927,29 @@ sqlite	94	1385	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 #   sq read_xattrs_from_disk 6→0 同根因; 其余 1384(sqlite)/810(sq) 函数字节恒等
 #   （corpus 双面 70 hunks 全落 SelectDup 单函数,亲证）。canon curl f903372a/
 #   httpd 3617ecc3 + VdbeExec mirror b3f5b487/canon 606dd8c0 四钉字节恒等。
+# 2026-10-02 CURLCODEPTR 重钉（CURLCODEPTR-REPIN-0001, wt/curlcodeptr 基=29b52550[MB76 后],
+# 车道快照 fresh 实测,--jobs 5 全 PASS defects=numbering=0 GATE_RC=0,stale-guard
+# digest=ba215cd6cc34010c files=155 OK——bin-dir=车道 target 强制重链后跑）:
+# ① curl ceiling 11→0 收紧（−11 全额,= 第三完美面继 vsh/httpd;matched 74/74 保持 floor）。
+#    足迹全量 = PRINTC-UNTYPEDCONST-CURLMIRROR-RESIDUAL-0001（TC-F2 9 行: main 6+
+#    _start 3——5 符号位点 my_fwrite/myprogress/main/__libc_csu_init/__libc_csu_fini
+#    golden 印名 vs Rudra hex）+ MCENSUS3-CURLDRIVER-NONALLOC-STRFOLD-0001（TC-F3 2 行:
+#    glob_set `"~20.04.2) 9.4.0"` vs `(char *)0x1b`）——两票同车道收口 DONE。
+#    修复=驱动环境层三件（src 零触及,非核心算法白名单域,机制 B 门禁 PASS）:
+#    (a) readLoaderSymbols 镜像——.symtab STT_FUNC 集（BSF_FUNCTION 门,
+#    loadimage_bfd.cc:181-192）装进分析期 bare DB 全局 scope（add_function(addr,name,1),
+#    architecture.cc:346-359 镜像）→ ActionConstantPtr queryContainer（coreaction.cc:1151）
+#    → spacebaseConstant（funcdata.cc:360）PTRSUB 改写 → op_ptrsub TYPE_SPACEBASE 臂
+#    （printc.cc:1057-1097）印裸名——oracle bare 装载契约 decompile 前注册函数符号的真
+#    通道,Rudra 此前只在 print-only 换装 DB 装（queryFunction 通道要求叶已定型,裸常量
+#    进不去）;STT_FUNC 门刻意收紧（every-loader-symbol 宽集保持 print-only——OBJECT
+#    符号装 action 侧=ORD185 over-fire 形）。print 换装跳过已装地址（单符号表防双条目）。
+#    (b) SEC_READONLY 全段认领（loadimage_bfd.cc:286-301 getReadonly 镜像,!SHF_WRITE→
+#    SEC_RDONLY 无 ALLOC 要求）——.comment [0,0x2a] 使 isReadOnly(0x1b) 过门。
+#    (c) overlay_bfd_nonalloc_sections（gen claim-cursor 形逐字移植——curl 带 7 个
+#    .debug_* vma0 段与 .text 相交,盲拷必腐码）铺 .comment 字节进 loader 镜像——
+#    pushPtrCharConstant（printc.cc:1698-1719）字符串读取有字节可服务。
+# ② httpd 0/29·vsh 0/71·sq 35/810·sqlite 78/1385 四面零回退（MB76 钉值恒等）。
+# ③ canon 双语素红线保持: curl f903372a 124/124 0/0/0 + httpd 3617ecc3 34/34 0/0/0
+#    （canon 路不进任何新门,字节恒等亲证——canon analyzeHeadless 只映 LOAD 段,overlay
+#    与函数符号装表全程 mirror-bare-load 门内）。tests 2047P 基线保持。

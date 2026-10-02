@@ -3242,11 +3242,136 @@ fn worker_memory_image_bytes(elf: &goblin::elf::Elf, buffer: &[u8]) -> Vec<u8> {
 fn worker_memory_load_image(
     elf: &goblin::elf::Elf, buffer: &[u8],
 ) -> rudra::loadimage::RawLoadImage {
+    let mut image = worker_memory_image_bytes(elf, buffer);
+    // CURLCODEPTR-0001 (byte-service half, F3): LoadImageBfd::loadFill is
+    // a SECTION-chain service, not a PT_LOAD service — under the bare-BFD
+    // mirror contract the loader must also serve the exposed non-ALLOC
+    // section bytes at their VMAs (curl's .comment at vma 0 is where the
+    // golden's glob_set `"~20.04.2) 9.4.0"` literal reads from). MIRROR
+    // ONLY: the canon analyzeHeadless face maps LOAD segments alone and
+    // its golden prints the bare constant — the canon image stays the
+    // PT_LOAD form (see overlay_bfd_nonalloc_sections below).
+    if mirror_bare_load_enabled() {
+        overlay_bfd_nonalloc_sections(elf, buffer, &mut image);
+    }
     rudra::loadimage::RawLoadImage::from_bytes(
         "curl",
         curl_image_base(), // F2B: native analyzeHeadless base (0 under any mirror gate)
-        worker_memory_image_bytes(elf, buffer),
+        image,
     )
+}
+
+// CURLCODEPTR-0001: the claim-cursor section-chain overlay
+// (MIRRORCENSUS-GEN-READONLY-STRFOLD-0001 / FSTRFOLDUP-STRFOLD-COMMENTRO-
+// 0001 precedents; gen_decompile.rs form, verbatim logic). LoadImageBfd::
+// loadFill (loadimage_bfd.cc:124-179) serves any queried address from the
+// FIRST bfd-chain section whose [vma, vma+size) contains it — non-ALLOC
+// sections included. curl carries .comment (SHT_PROGBITS, vma 0, size
+// 0x2b, flags MS) plus seven .debug_* PROGBITS sections (all vma 0, sizes
+// up to 0x52ba), and BFD keeps every one in the chain with SEC_READONLY
+// (bfd/elf.c _bfd_elf_make_section_from_shdr maps !SHF_WRITE ->
+// SEC_READONLY with NO SHF_ALLOC requirement — FSTRFOLDUP probe-verified
+// against the real BFD 2.38). The oracle's string fold of the char*
+// constant 0x1b (pushPtrCharConstant printc.cc:1698-1719 ->
+// StringManagerUnicode::getStringData stringmanage.cc:459 loadFill)
+// reads .comment bytes there — the FIRST claimant at [0,0x2b), because
+// no ALLOC section starts below .interp's 0x318. This overlay reproduces
+// the chain service exactly: sections are visited in section-table order
+// (= bfd chain order) and each writes its file bytes ONLY to addresses no
+// earlier chain section claims — ALLOC sections merely claim (their
+// bytes are already exact in the PT_LOAD image; curl's .debug_info at
+// vma 0 size 0x5710 OVERLAPS .text [0x25a0,0x5475), and findSection
+// serves .text there because .text precedes the debug sections in the
+// chain — a blind copy would corrupt code bytes exactly like the sq
+// first-iteration accident the gen lane recorded). BFD-absorbed sections
+// (SHT_SYMTAB / the .strtab / e_shstrndx) never enter bfd's chain and
+// are skipped here the same way; NOBITS sections have no file bytes to
+// copy (they still claim their interval — .bss zeros stay zeros).
+fn overlay_bfd_nonalloc_sections(
+    elf: &goblin::elf::Elf,
+    buffer: &[u8],
+    image: &mut [u8],
+) {
+    use goblin::elf::section_header::{SHT_NOBITS, SHT_STRTAB, SHT_SYMTAB, SHF_ALLOC};
+    let shstrndx = elf.header.e_shstrndx as usize;
+    // bfd chain membership, in chain order: every section except the
+    // BFD-internal absorbed set and zero-size entries.
+    let chain: Vec<usize> = elf
+        .section_headers
+        .iter()
+        .enumerate()
+        .filter(|&(index, header)| {
+            header.sh_size != 0
+                && index != shstrndx
+                && header.sh_type != SHT_SYMTAB
+                && !(header.sh_type == SHT_STRTAB
+                    && elf.shdr_strtab.get_at(header.sh_name) == Some(".strtab"))
+        })
+        .map(|(index, _)| index)
+        .collect();
+    // Claimed intervals, sorted by start (overlaps possible — the walk
+    // below advances a cursor so an overlapping earlier claim only ever
+    // shrinks what a later section may write).
+    let mut claimed: Vec<(usize, usize)> = Vec::new();
+    for index in chain {
+        let header = &elf.section_headers[index];
+        let alloc = (header.sh_flags & SHF_ALLOC as u64) != 0;
+        let start = header.sh_addr as usize;
+        let end = start.saturating_add(header.sh_size as usize);
+        if !alloc && header.sh_type != SHT_NOBITS {
+            // Serve this section's bytes on the sub-intervals of
+            // [start, end) that no earlier chain section claims —
+            // findSection's first-match-wins, restricted to writes.
+            let mut cursor = start;
+            for &(c_start, c_end) in &claimed {
+                if c_start >= end {
+                    break;
+                }
+                if c_end > cursor {
+                    let dst_lo = cursor;
+                    let dst_hi = c_start.min(end);
+                    if dst_lo < dst_hi {
+                        overlay_copy(header, buffer, image, start, dst_lo, dst_hi);
+                    }
+                }
+                cursor = cursor.max(c_end);
+                if cursor >= end {
+                    break;
+                }
+            }
+            if cursor < end {
+                overlay_copy(header, buffer, image, start, cursor, end);
+            }
+        }
+        // Claim the whole interval for later sections.
+        if let Some(position) = claimed.iter().position(|&(c_start, _)| c_start > start) {
+            claimed.insert(position, (start, end));
+        } else {
+            claimed.push((start, end));
+        }
+    }
+}
+
+// Copy [dst_lo, dst_hi) of section `header` (file bytes at sh_offset +
+// (dst - sh_addr)) into the image, clipped to the image bounds.
+fn overlay_copy(
+    header: &goblin::elf::section_header::SectionHeader,
+    buffer: &[u8],
+    image: &mut [u8],
+    section_start: usize,
+    dst_lo: usize,
+    dst_hi: usize,
+) {
+    let src_lo = header.sh_offset as usize + (dst_lo - section_start);
+    let src_hi = src_lo + (dst_hi - dst_lo);
+    let Some(src) = buffer.get(src_lo..src_hi) else {
+        return;
+    };
+    if dst_lo >= image.len() {
+        return;
+    }
+    let dst_end = dst_hi.min(image.len());
+    image[dst_lo..dst_end].copy_from_slice(&src[..dst_end - dst_lo]);
 }
 
 fn external_block_base(elf: &goblin::elf::Elf) -> u64 {
@@ -6413,6 +6538,37 @@ fn decompile_request(
         && !mirror_bundle_enabled()
         && !mirror_flow_enabled()
         && !mirror_bare_load_enabled();
+    // CURLCODEPTR-0001 (F2, action-symbol half): the readLoaderSymbols
+    // mirror set — the BFD loader symbol walk the oracle's bare
+    // BfdArchitecture registers BEFORE the universal action
+    // (architecture.cc:346-359 readLoaderSymbols -> LoadImageBfd::
+    // advanceToNextSymbol loadimage_bfd.cc:181-192 BSF_FUNCTION gate ->
+    // scope->addFunction). STT_FUNC .symtab entries only (goblin
+    // is_function; the mirror print layer's "every loader symbol" set is
+    // deliberately BROADER and stays print-only — data OBJECT symbols are
+    // not LoadImageFunc records, and installing them action-side is the
+    // ORD185 over-fire shape the bare DB must not reproduce). Sorted and
+    // address-deduped exactly like the print layer's builder so both
+    // walks agree on the (address, name) projection. Under the gate
+    // img_base == 0, so these are raw st_values.
+    let bare_loader_fn_symbols: Vec<(u64, String)> = if mirror_bare_load_enabled() {
+        let mut entries: Vec<(u64, String)> = elf
+            .syms
+            .iter()
+            .filter(|sym| sym.is_function() && sym.st_value != 0 && !sym.is_import())
+            .filter_map(|sym| {
+                elf.strtab
+                    .get_at(sym.st_name)
+                    .filter(|name| !name.is_empty())
+                    .map(|name| (sym.st_value + img_base, name.to_string()))
+            })
+            .collect();
+        entries.sort_by_key(|(address, _)| *address);
+        entries.dedup_by_key(|(address, _)| *address);
+        entries
+    } else {
+        Vec::new()
+    };
     let program_db: Option<std::sync::Arc<std::sync::RwLock<rudra::database::Database>>> =
         if mirror_bare_load_enabled() {
             // ORD185-CONSTANTPTR-BAREDB (RUGRA-FLOW-MIRROR-0001 / bare-load
@@ -6440,7 +6596,7 @@ fn decompile_request(
             // slot2, 0x149b0 COPY slot0, 0x17680 COPY/CALLIND — DAT char
             // arrays + glob_buffer char[4096]) where the oracle fired 0.
             eprintln!(
-                "[PREPASS] {} bare-load: program-DB data-symbol layers disabled (loader-readonly range only)",
+                "[PREPASS] {} bare-load: program-DB data-symbol layers disabled (loader readonly ranges + loader function symbols only)",
                 target.name
             );
             let db_arc = std::sync::Arc::new(std::sync::RwLock::new(
@@ -6465,6 +6621,96 @@ fn decompile_request(
                             rudra::database::symbol_flags::READONLY,
                             rng);
                     }
+                }
+                // CURLCODEPTR-0001 (F3, readonly half): the full
+                // LoadImageBfd::getReadonly mirror (loadimage_bfd.cc:
+                // 286-301 — every SEC_READONLY section's [vma, vma+size)
+                // joins the property ranges). BFD's ELF backend maps
+                // !SHF_WRITE -> SEC_READONLY with NO SHF_ALLOC requirement,
+                // so the non-ALLOC vma-0 sections claim too: .comment
+                // [0,0x2a] is what makes the oracle's pushPtrCharConstant
+                // isReadOnly gate (printc.cc:1709, via Scope::isReadOnly
+                // database.cc:1796 -> queryProperties -> flagbase) pass for
+                // the glob_set char* constant 0x1b and fold the
+                // `"~20.04.2) 9.4.0"` literal. BFD-absorbed sections
+                // (SHT_SYMTAB, the .strtab, e_shstrndx) are not in bfd's
+                // chain and are excluded identically (httpd/gen precedent
+                // form). The ALLOC !WRITE ranges (.interp/.note*/.rela*/
+                // .init/.plt*/.text/.fini/.rodata/.eh_frame*) are
+                // oracle-present too — union semantics, so the .rodata
+                // span install above is subsumed and stays for shape
+                // continuity. No code varnode or writable data range is
+                // touched (.data/.got/.bss carry SHF_WRITE).
+                {
+                    use goblin::elf::section_header::{SHT_STRTAB, SHT_SYMTAB, SHF_WRITE};
+                    let shstrndx = elf.header.e_shstrndx as usize;
+                    let mut bare_ro_ranges = 0usize;
+                    for (index, header) in elf.section_headers.iter().enumerate() {
+                        if header.sh_size == 0
+                            || (header.sh_flags & SHF_WRITE as u64) != 0
+                            || index == shstrndx
+                        {
+                            continue;
+                        }
+                        if header.sh_type == SHT_SYMTAB {
+                            continue; // bfd-internal (symtab): not in the chain
+                        }
+                        if header.sh_type == SHT_STRTAB
+                            && elf.shdr_strtab.get_at(header.sh_name) == Some(".strtab")
+                        {
+                            continue; // bfd-internal (the symtab's strtab)
+                        }
+                        let first = Address::new(header.sh_addr + img_base);
+                        let last = Address::new(header.sh_addr + img_base + header.sh_size - 1);
+                        if let Some(range) = rudra::address::Range::new(first, last) {
+                            db.set_property_range(
+                                rudra::database::symbol_flags::READONLY,
+                                range,
+                            );
+                            bare_ro_ranges += 1;
+                        }
+                    }
+                    eprintln!(
+                        "[PREPASS] {} CURLCODEPTR bare-load readonly: {} SEC_READONLY section ranges (getReadonly mirror)",
+                        target.name,
+                        bare_ro_ranges
+                    );
+                }
+                // CURLCODEPTR-0001 (F2, symbol half): readLoaderSymbols —
+                // install the loader's STT_FUNC set as FunctionSymbols in
+                // the ACTION-time bare DB (consume size 1 =
+                // glb->min_funcsymbol_size). With the entries
+                // channel-present, ActionConstantPtr's isPointer ->
+                // queryContainer (coreaction.cc:1151) resolves the
+                // code-address call/callind constants (my_fwrite 0x3460 /
+                // myprogress 0x34d0 / main 0x25a0 / __libc_csu_init
+                // 0x5400 / __libc_csu_fini 0x5470) and Funcdata::
+                // spacebaseConstant (funcdata.cc:360) rewrites them as
+                // PTRSUB(#0x0[spacebase typelock], off) — the print then
+                // resolves through op_ptrsub's TYPE_SPACEBASE arm
+                // (printc.cc:1057-1097) printing the bare function name,
+                // exactly the oracle's golden channel for
+                // `curl_easy_setopt(V,0x4e2b,my_fwrite)` /
+                // `(*pcRam...)(main,...,__libc_csu_init,...)`. The
+                // spacebase scope source installed at the worker build
+                // (tf.set_spacebase_scope_source) already points at this
+                // Database, so TypeSpacebase::getSubType sees the code
+                // types and ActionSetCasts keeps its spacebase
+                // short-circuit (no forced anonymous-Code CAST) — the same
+                // PREGFREE contract the canon SYMDB layer runs under.
+                {
+                    let mut bare_fn_symbols = 0usize;
+                    if let Some(scope) = db.get_global_scope_mut() {
+                        for &(entry_addr, ref entry_name) in &bare_loader_fn_symbols {
+                            scope.add_function(Address::new(entry_addr), entry_name, 1);
+                            bare_fn_symbols += 1;
+                        }
+                    }
+                    eprintln!(
+                        "[PREPASS] {} CURLCODEPTR bare-load loader symbols: {} readLoaderSymbols FunctionSymbols action-side (STT_FUNC)",
+                        target.name,
+                        bare_fn_symbols
+                    );
                 }
             }
             Some(db_arc)
@@ -8081,11 +8327,23 @@ fn decompile_request(
             None => rudra::database::Database::new(false),
         };
         let mut code_entries: std::collections::HashSet<u64> = std::collections::HashSet::new();
+        // CURLCODEPTR-0001: under the bare-load mirror the clone already
+        // carries the readLoaderSymbols FunctionSymbols (action-side
+        // install above) with identical (address, name) pairs — re-adding
+        // would mint duplicate SymbolEntries in the same scope. The oracle
+        // has ONE symbol table; skip the overlap so the swap only adds the
+        // print-set surplus (the non-STT_FUNC loader symbols the print
+        // channel's historical broad set carries).
+        let bare_installed: std::collections::HashSet<u64> =
+            bare_loader_fn_symbols.iter().map(|(address, _)| *address).collect();
         {
             let db_scope = print_symbol_db
                 .get_global_scope_mut()
                 .ok_or_else(|| "print symbol DB has no global scope".to_string())?;
             for (entry_addr, entry_name) in &request.fn_symbol_entries {
+                if bare_installed.contains(entry_addr) {
+                    continue; // already installed action-side (readLoaderSymbols mirror)
+                }
                 db_scope.add_function(Address::new(*entry_addr), entry_name, 1);
                 code_entries.insert(*entry_addr);
             }
