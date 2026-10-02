@@ -2727,16 +2727,20 @@ impl Merge {
         root_offset: i32,
         out: &mut Vec<(Arc<RwLock<crate::varnode::Varnode>>, i32)>,
     ) {
-        let (big, inputs) = {
-            let r = root.read().unwrap();
-            let o = op.0.read().unwrap();
-            (r.get_space().is_big_endian(), o.inrefs.clone())
-        };
-        if inputs.len() < 2 { return; }
-        let sizes = [inputs[0].read().unwrap().get_size() as i32, inputs[1].read().unwrap().get_size() as i32];
+        // PERF-ALLOCFLOOR-0001: op.cc:868-870 reads `op->getIn(i)` (and the
+        // cross-slot `op->getIn(1-i)->getSize()`) fresh per slot — per-slot
+        // short guards and single handle clones replace the whole input-Vec
+        // clone; the recursion below takes its own guards on the nested op.
+        let big = root.read().unwrap().get_space().is_big_endian();
+        let num_input = op.0.read().unwrap().inrefs.len();
+        if num_input < 2 { return; }
+        let sizes = [
+            op.0.read().unwrap().inrefs[0].read().unwrap().get_size() as i32,
+            op.0.read().unwrap().inrefs[1].read().unwrap().get_size() as i32,
+        ];
         for slot in 0..2 {
             let offset = if big == (slot == 1) { base_offset + sizes[1 - slot] } else { base_offset };
-            let piece = inputs[slot].clone();
+            let piece = op.0.read().unwrap().inrefs[slot].clone();
             // Ghidra op.cc:871-874: bool res = isLeaf(rootVn,vn,offset-rootOffset);
             // stack.emplace_back(op,i,offset,res); if (!res) gatherPieces(...).
             let is_leaf = Self::piece_is_leaf(root, &piece, offset - root_offset);
@@ -4337,9 +4341,9 @@ impl Merge {
         // factory it reads.
         let nochar_distinct = Self::factory_nochar_distinct(fd);
 
-        // Gather (op, out, inputs) for every alive non-call op with a
+        // Gather (op, out) for every alive non-call op with a
         // cover-eligible output.
-        let adjacent_pairs: Vec<(crate::op::PcodeOpRef, Arc<RwLock<Varnode>>, Vec<Arc<RwLock<Varnode>>>)> = fd
+        let adjacent_pairs: Vec<(crate::op::PcodeOpRef, Arc<RwLock<Varnode>>)> = fd
             .obank
             .iter_alive()
             .filter_map(|op_ref| {
@@ -4356,21 +4360,23 @@ impl Merge {
                 if !out_basic {
                     return None;
                 }
-                // Re-read for inputs.
-                let op = op_ref.0.read().unwrap();
-                let ins: Vec<_> = op.inrefs.clone();
-                drop(op);
-                Some((crate::op::PcodeOpRef(op_ref.0.clone()), out, ins))
+                Some((crate::op::PcodeOpRef(op_ref.0.clone()), out))
             })
             .collect();
 
-        for (op_ref, out_vn, in_vns) in adjacent_pairs {
+        for (op_ref, out_vn) in adjacent_pairs {
             let out_size = out_vn.read().unwrap().size;
             // Ghidra merge.cc:998-999: high_out = vn1->getHigh(); the
             // mergeTestAdjacent gate below needs the HighVariable.
             let high_out = out_vn.read().unwrap().high.clone();
             let Some(high_out) = high_out else { continue };
-            for (slot_index, in_vn) in in_vns.into_iter().enumerate() {
+            // PERF-ALLOCFLOOR-0001: merge.cc:1000-1002 reads `op->numInput()`
+            // and `op->getIn(i)` FRESH per slot inside the merge loop (pointer
+            // reads on the live op) — per-slot short guard and single handle
+            // clone replace the pre-collected input-Vec snapshot.
+            let num_input = op_ref.0.read().unwrap().inrefs.len();
+            for slot_index in 0..num_input {
+                let in_vn = op_ref.0.read().unwrap().inrefs[slot_index].clone();
                 let (in_basic, in_size, in_written_or_input) = {
                     let v = in_vn.read().unwrap();
                     let basic = Self::merge_test_basic(&v);
