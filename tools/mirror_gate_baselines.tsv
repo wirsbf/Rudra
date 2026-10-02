@@ -357,7 +357,15 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
 sq	95	810	SLOTMERGE-RATCHET-REPIN-0001	slotmerge	2026-10-02
-sqlite	383	1385	SLOTMERGE-RATCHET-REPIN-0001	slotmerge	2026-10-02
+sqlite	313	1385	ROUND3-BBLOCK-MERGE-REPIN-0001	round3	2026-10-02
+# ROUND3-BBLOCK-MERGE-REPIN-0001 (2026-10-02, wt/round3 @ fix commit, base
+# 2a3da1ae [TRACEDAG tip], forced relink --examples, gate --no-cache):
+# 383→313 = −70 = TRACEDAG-ROUND3-BBLOCK-MERGE-0001's five-clone family
+# (sqlite3ExprIsConstant×5, 14/clone: const-direction 9 + tail-shape 5)
+# burned by the switch-default construction-index fix (caseblocks merged
+# order for pre-finalizePrinting nextFlowAfter consumers). curl 13/httpd 2/
+# vsh 0/sq 95 identical (rows stay); canon b7773087/54f9b02c byte-held;
+# VdbeExec mirror 840c4fb2 byte-held; tests 2039P/0F/5I == base.
 # FLOAT8-RATCHET-REPIN-0001 (2026-10-02, wt/float8 @ fix commit, base
 # c69d9c60 [MB58], forced relink after test additions [fast-release --examples
 # 57s], gate --jobs 5 two rounds — gate1 fix-only tree digest=557b315e +

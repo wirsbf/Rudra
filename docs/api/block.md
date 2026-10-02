@@ -2262,6 +2262,38 @@ Rugra 保守降级不变原行为）。
 ④`label_rank_arm_unchanged_post_finalize` — default_label 置位后 label-rank
 臂接管（print 期相位,cc:3591 排序后语义）,构造序臂不介入。
 
+### 2026-10-02 补（ROUND3-BBLOCK-MERGE — 剥离 goto default 的构造位记录）
+
+`switch_default_construct_pos` 的出边 rank 启发式只对 **grab 期** default 成立
+（出边扫描序 = rank）。当 default 是 **t_multigoto 臂剥落的 goto 边**
+（cc:3548-3553 追加序）时,oracle 的 caseblocks 位 = 剥离追加位
+（regular cases 之后、按 BlockMultiGoto gotoedges 剥离序）,出边 rank 重建给出
+错误位置。
+
+**症状链**（sqlite3ExprIsConstant,TRACEDAG-ROUND3-BBLOCK-MERGE-0001 钻证）:
+3b201-switch 的 default 边（→3b232 return hub）在 round 4 被标 goto 剥离;
+oracle caseblocks = `[3b2c0,3b240,3b298,3b232(default,gt=1),3b254]`（default
+追加位 index 3）;Rugra 启发式给 0 → `next_flow_after_successors` 的 merged 序
+错位 → 3b298 goto case 的 `gotoPrints`（cc:2881-2890 gotobl!=nextbl）翻 true →
+gatherReturnGotos 误选 3b2a9 入边 → ReturnSplit round-B 多拆 1 份（Rugra 5 vs
+oracle 4）→ hub 入度 4→3 + 私有 dup → 终局轮 TraceDAG REGEN 缺 (3b2a1,hub)
+两记录 → 3b320 子句未 goto 包裹 → IFELSE@3b298 第 4 次发射 →
+prefer_complement 极性级联（五克隆 ×14 行族）。
+
+**修复**（src/block.rs + src/blockaction.rs）:
+
+1. **`BlockSwitch::default_construct_index`（新字段,Option<usize>）**:default
+   在 oracle 构造序 caseblocks 中的精确位,在两个分流点现场记录——
+   `try_rule_switch` regular 扫描臂（cc:3515 扫描位 = 当时的 cases.len()）与
+   multigoto 追加臂（cc:3548-3553 追加位 = 当时 cases.len()）;`collapse_switches`
+   旧路径同样记录。bare fixture 字面量为 None（启发式仍为回退）。
+2. **`switch_default_construct_pos`**:`default_construct_index` 存在时直接采用
+   （clamp 到 cases.len()）,否则走原启发式（grab 期坐标重建仍精确）。
+
+**验证**:五面镜面 sqlite 383→313（−70 = 五克隆 ×14 全燃）,curl 13/httpd 2/
+vsh 0/sq 95 恰钉值;canon b7773087/54f9b02c 字节保持;VdbeExec mirror 840c4fb2
+字节保持;tests 2039P。
+
 
 ## ARENAFLIP-e（2026-09-30）BlockEdge.point 值化翻转表示层变更
 

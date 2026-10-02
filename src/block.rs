@@ -537,10 +537,20 @@ pub fn graph_sibling_successors(
 /// (cases.len(), the previous behavior) whenever the recorded coordinates
 /// are incomplete — the oracle cannot express that shape (addCase throws
 /// LowlevelError on detached coords, cc:3507-3508).
+/// When the default was diverted through the t_multigoto arm — a peeled
+/// goto edge that `isDefaultBranch` tags — the oracle position is the
+/// PEEK-ORDER append index recorded at the diversion site
+/// (`default_construct_index`), not the out-edge rank: cc:3548-3553
+/// appends the multigoto's goto targets in peel order and the default is
+/// one of those pushes. The recorded index is authoritative whenever
+/// present.
 // pub for the bilateral gather default-position fixture — the oracle side
 // walks caseblocks directly; this is the Rust reconstruction of the
 // construction-order rank from the recorded basic-graph out-edge indices.
 pub fn switch_default_construct_pos(sw: &BlockSwitch) -> usize {
+    if let Some(idx) = sw.default_construct_index {
+        return idx.min(sw.cases.len());
+    }
     let Some(def_order) = &sw.default_order else {
         return sw.cases.len();
     };
@@ -10513,6 +10523,28 @@ pub struct BlockSwitch {
     /// merged sort. None when there is no default or its basic-graph
     /// coordinates did not resolve (legacy placement).
     pub default_order: Option<CaseOrder>,
+    /// The default's CONSTRUCTION-order index in the oracle's `caseblocks`
+    /// vector, captured at the `grabCaseBasic` diversion site: cc:3529-
+    /// 3533 appends regular cases in dispatch out-edge scan order, then
+    /// the t_multigoto arm (cc:3548-3553) appends the peeled goto-edge
+    /// targets in BlockMultiGoto peel order — the default is one of those
+    /// `addCase` pushes whenever it is diverted, so its caseblocks index
+    /// is exactly the number of pushes that preceded it. Needed by the
+    /// pre-`finalizePrinting` consumers (`ActionReturnSplit`'s
+    /// gatherReturnGotos → BlockGoto::gotoPrints →
+    /// BlockSwitch::nextFlowAfter, block.cc:3639-3661): the oracle reads
+    /// caseblocks directly at that phase, so the merged order Rugra
+    /// rebuilds must place the default at this index — the out-edge rank
+    /// heuristic (`switch_default_construct_pos`) reconstructs the grab-
+    /// time arm but is WRONG for a peeled-goto default, whose oracle
+    /// position follows the multigoto peel order (sqlite3ExprIsConstant
+    /// round-4 switch: oracle caseblocks [3b2c0,3b240,3b298,3b232-hub
+    /// (default, gt=1),3b254] vs heuristic position 0 — the misplacement
+    /// flipped gotoPrints for the 3b298 goto case, spurring an extra
+    /// ReturnSplit nodeSplit of the 3b2a9 edge). None when the default
+    /// was never diverted through grabCaseBasic (bare fixtures) — the
+    /// heuristic then remains the fallback.
+    pub default_construct_index: Option<usize>,
     pub case_values: Vec<Vec<u64>>,
     pub index_varnode: Option<Arc<RwLock<crate::varnode::Varnode>>>,
     pub incoming: Vec<BlockEdge>,
@@ -11348,6 +11380,7 @@ mod finalize_visited_tests {
             case_order: Vec::new(),
             default_label: None,
             default_order: None,
+            default_construct_index: None,
             case_values: Vec::new(),
             index_varnode: None,
             incoming: Vec::new(),
@@ -12099,6 +12132,7 @@ mod switch_default_construct_pos_tests {
             case_order: outindexes.into_iter().map(order).collect(),
             default_label: None,
             default_order: default_outindex.map(order),
+            default_construct_index: None,
             case_values: Vec::new(),
             index_varnode: None,
             incoming: Vec::new(),

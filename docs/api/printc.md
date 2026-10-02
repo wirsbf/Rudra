@@ -4265,3 +4265,11 @@ index_of,btype_of}` + `BlockBankView` 同形）;`Arc::ptr_eq(&e.point, x)` 改�
 id 相等（同 bank 域内）;`e.point.clone()` 改为 `bank.expect_arc(e.point)`。
 行为恒等证明链: canon curl `4ab1db2a`+httpd `7d5b9e7c` 字节恒等 +
 tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence）。
+
+## 2026-10-02 补（ROUND3-BBLOCK-MERGE — 测试 fixture 字段随迁）
+
+`BlockSwitch` 新增 `default_construct_index: Option<usize>`（block.rs,oracle
+grabCaseBasic addCase 构造位的分流点现场记录,详见 block.md/blockaction.md 的
+2026-10-02 节）后,本文件 `mod tests` 内的 `BlockSwitch` 字面量 fixture 补
+`default_construct_index: None` 一行（无行为面——test-only 字段初始化,
+printc 消费路径零改动;print 期 def_pos 仍走 default_label 相位）。

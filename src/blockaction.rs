@@ -6902,6 +6902,10 @@ impl<'a> CollapseStructure<'a> {
         });
         let mut cases: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = Vec::new();
         let mut default_case: Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = None;
+        // cc:3515 addCase isdefault: the default's construction-order index
+        // in the oracle's caseblocks, recorded at whichever diversion site
+        // pushes it (regular scan or the t_multigoto peel arm).
+        let mut default_construct_index: Option<usize> = None;
         // cc:3513-3514 (addCase): isexit = (bl->sizeOut() == 1) for gt==0
         // cases — captured HERE, before identify_internal consumes the case
         // blocks (selfIdentify's replaceInEdge half-deletes their external
@@ -6955,6 +6959,12 @@ impl<'a> CollapseStructure<'a> {
             if is_default_edge {
                 default_case = Some(curbl);
                 default_isexit = isexit_flag;
+                // cc:3515 addCase isdefault: the oracle pushes the default
+                // as an ordinary caseblocks member HERE, at the scan
+                // position — record that construction index (the
+                // pre-finalizePrinting consumers' merged order must place
+                // the default exactly here).
+                default_construct_index = Some(cases.len());
                 continue;
             }
             case_isexit.push(isexit_flag);
@@ -7013,6 +7023,7 @@ impl<'a> CollapseStructure<'a> {
                 // (see the collection loop above).
                 case_isexit,
                 default_isexit,
+                default_construct_index,
                 jump,
                 case_order,
                 default_label: None,
@@ -7114,6 +7125,13 @@ impl<'a> CollapseStructure<'a> {
                         sw_ref.default_gototype = crate::block::goto_type::GOTO_GOTO;
                         // cc:3512: gt != 0 → isexit = false.
                         sw_ref.default_isexit = false;
+                        // cc:3548-3553 append order: the oracle pushes this
+                        // peeled-goto default into caseblocks at the CURRENT
+                        // append position (regular cases + the preceding
+                        // multigoto goto pushes). Record it — the out-edge
+                        // rank heuristic cannot reconstruct the peel order
+                        // (TRACEDAG-ROUND3-BBLOCK-MERGE-0001 root).
+                        sw_ref.default_construct_index = Some(sw_ref.cases.len());
                     } else {
                         sw_ref.cases.push(target);
                         sw_ref
@@ -8243,6 +8261,9 @@ impl<'a> CollapseStructure<'a> {
             let mut cases = Vec::new();
             let mut case_values = Vec::new();
             let mut default_case: Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = None;
+            // cc:3515 addCase isdefault: the default's construction-order
+            // caseblocks index, recorded at the diversion site.
+            let mut default_construct_index: Option<usize> = None;
             // cc:3513-3514 (addCase): isexit = (bl->sizeOut() == 1) for gt==0
             // cases — captured at collection time in the same form as the
             // rule path (try_rule_switch's loop). RETIRED-WITH-CAPTURE
@@ -8278,6 +8299,10 @@ impl<'a> CollapseStructure<'a> {
                     if is_default_edge {
                         default_case = Some(self.graph_bank().expect_arc(edge.point));
                         default_isexit = isexit_flag;
+                        // cc:3515 addCase isdefault: construction-order
+                        // index of this default in the oracle caseblocks
+                        // (the out-edge scan position).
+                        default_construct_index = Some(cases.len());
                         continue;
                     }
                     case_isexit.push(isexit_flag);
@@ -8310,6 +8335,7 @@ impl<'a> CollapseStructure<'a> {
                     // time (see the collection loop above).
                     case_isexit,
                     default_isexit,
+                    default_construct_index,
                     jump,
                     case_order,
                 default_label: None,
@@ -8618,6 +8644,7 @@ impl<'a> CollapseStructure<'a> {
                     case_order: Vec::new(),
                     default_label: None,
                     default_order: None,
+                    default_construct_index: None,
                     case_values: case_vals,
                     index_varnode,
                     incoming: Vec::new(),
@@ -8822,6 +8849,7 @@ impl<'a> CollapseStructure<'a> {
                         case_order: jo,
                         default_label: None,
                         default_order: jdo,
+                        default_construct_index: None,
                         case_values: cv,
                         index_varnode: iv,
                         incoming: Vec::new(),
