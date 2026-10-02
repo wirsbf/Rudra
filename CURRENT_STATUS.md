@@ -1,8 +1,158 @@
-**日期**: 2026-10-01（STATUSREFRESH 大刷新——arena campaign W1 里程碑 + canon 零态全程保持 + 速度总账 −80.6% 入档；2026-09-29 及更早为历史快照族）
+**日期**: 2026-10-02（STATUSREFRESHb 大刷新——项目改名 Rudra + MB56~MB70 十五合并批 + RENAME 全量数字；2026-10-01 及更早为历史快照族）
 **版本**: 0.1.0
-**状态**: 🟡 **核心库持续开发中；canon 双语料零残差态保持 + 镜面五面棘轮全 PASS + arena W1 落地（核心域 unsafe=0·锁面 −90.3%）；锁定 oracle 逐函数差分流水线运转中；全局完成度未证明**
+**状态**: 🟡 **核心库持续开发中（项目已全量改名 **Rudra**）；canon 双语料零残差态保持（新形态 md5 双钉）+ 镜面五面残差 232（八道燃烧 −335 精确对账）+ VdbeExec 单极 −12.3% 入档；锁定 oracle 逐函数差分流水线运转中；全局完成度未证明**
 
-## 2026-10-01 STATUSREFRESH 大刷新（当前事实源；master `4b1a4bbe` = origin，MB51 收官态）
+## 2026-10-02 STATUSREFRESHb 大刷新（当前事实源；master `bc58664c` = origin，MB70+RENAME 收官态）
+
+> 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB56~MB70 十五合并批 +
+> RENAME 全序列）+ 各批终报（`/dev/shm/rudra-reports/LANE_MERGEBATCH{56..70}_*`）+ 镜面燃烧族
+> 终报（LANE_{MARKIMPLIED2,FLOAT8,DESCENDSHADOW,CLONESURG,FINDDUP,SLOTMERGE,CMPDIR,DECLFAM,
+> TRACEDAG,DIVBREAK,PARTSYM,ROUND3,READINODE3,DISPATCH}_*）+ CR 判决链（CR_*_2026-10-02，
+> 26 份判决文件全 APPROVE）+ RENAME 执行道（LANE_RENAME_RUDRA + RENAME_PLAN_RUDRA）。本节为
+> docs-only 汇编，数字与在案证据一致，**未跑新门禁**；口径不确定处逐条标注。本道=STATUSREFRESH
+> 前道 socket 瞬态死亡的净重跑（前道零残留）。
+
+### 里程碑⓪ 项目全量改名 Rugra→Rudra（RENAME 7-commit；身份事实源）
+
+用户指令全量改名，MB70 干净窗口落地（执行基线 `628e33bb`，终态 **`bc58664c` = origin**）。
+七层原子 commit：`375b6ab1`（Cargo+文件名：包名/bin/examples/crate path `rugra::`→`rudra::`
+303 文件）→`6d6c7d04`（GLUE 标记 RUGRA-GLUE→**RUDRA-GLUE** 92 src 文件+双检查器同 commit）→
+`3a7f0e1c`（env 契约 **RUGRA_*→RUDRA_* 182 变量/493 文件**+build.rs 三侧；有意保留
+RUGRA-FLOW-MIRROR-0001 票引与 SNAPSHOT_MAGIC `RUGRASNP`）→`ba93b2ed`（fixture bank 391×
+rugra.projection→rudra.projection git mv+3 摘录 .rudra.c md5 恒等）→`655ff74e`（tools/zcode/
+shm 约定 312 文件）→`828d0ad2`（活文档+身份：根 8 文档+RUDRA_GHIDRA_MAPPING/RUDRA_MASTER_ROADMAP
+改名）→`bc58664c`（tests 注释散文残余 179 文件）。
+
+**行为零变红线全守**：canon 双面函数级全零（新形态 md5 见里程碑②——banner 身份词 1 行差
+form-level 重钉，MB52 先例）；golden **17/17 md5 hold 0 drift**（PRESERVE 硬红线）；bank
+391/391；corpus 四钉零位移；tests 2045P 精确；三门禁+gate health 绿；`cargo build --release`
+3m25s rc=0。/dev/shm 物理迁移：B 组 18 条目回收 ~35G+7 停摆 worktree 迁 rudra-worktrees+4
+反向软链。**待办（唯一悬挂项）**：GitHub 侧用户尚未改名（`ls-remote Rudra.git` = not
+found）→ push 经旧 URL 两轮成功；用户改名后需 `git remote set-url origin
+git@github.com:wirsbf/Rudra.git`。新约定：`RUDRA-GLUE` 标记/rudra-* 路径。
+
+### 里程碑① 镜面五面残差 567→232（session 累计 −335；八道燃烧谱系逐道精确对账）
+
+全链逐批对账（每行=MB 收官联合树实测，恰钉值验证全 PASS，defects=numbering=0 五面恒零）：
+
+| 批次 | 镜面五面（curl/httpd/vsh/sq/sqlite） | 总残差 | 本步燃烧（车道+归因） |
+|---|---|---|---|
+| MB55（session 前夜基线） | 13/2/0/140/461 | 616 | —（W2 重测+census v4 定谱） |
+| MB56（双支） | 13/2/0/124/428 | 567 | **−49**：READINODE2 transfer 接线根（sq −16/sqlite −33 棘轮） |
+| MB57~59（四速度道+markimplied2） | 13/2/0/124/428 | 567 | 行为恒等批（速度收割，镜面零位移） |
+| MB60（float8） | 13/2/0/117/406 | 538 | **−29**：FLOAT8（sqlite −22 族全燃+sq −7 progress_bar 整函数归零） |
+| MB61（descendshadow） | 13/2/0/117/406 | 538 | 行为恒等批 |
+| MB62（clonesurg+finddup） | 13/2/0/117/396 | 528 | **−10**：CLONESURG（sqlite 克隆五函数 16→14+悬空 goto 消灭） |
+| MB63（slotmerge） | 13/2/0/95/383 | 493 | **−35**：SLOTMERGE（sq −22/sqlite −13，copy shadow 常量终点） |
+| MB64（declfam+cmpdir） | **11/0/0**/93/309 | 413 | **−80**：DECLFAM（sqlite −74 DECL-CHURN 102→28+curl −2/httpd −2/sq −2——**httpd 第三完美面** 29/29 全 diff=0 亲证） |
+| MB65（tracedag） | 11/0/0/93/309 | 413 | 行为恒等批 |
+| MB66（divbreak） | 11/0/0/87/267 | 365 | **−48**：DIVBREAK（sq −6/sqlite −42，RuleAddMultCollapse 掩码） |
+| MB67（partsym） | 11/0/0/87/250 | 348 | **−17**：PARTSYM（sqlite ResolveExprListNames BADTYPE→typed 八 hunks） |
+| MB68（round3） | 11/0/0/87/180 | 278 | **−70**：ROUND3（sqlite 五克隆整族归零，[Skeleton] identical ×5） |
+| MB69（readinode3） | 11/0/0/**41**/**180** | **232** | **−46**：READINODE3（sq read_inode_3 44→0 函数体 942L==golden 逐字节） |
+| MB70（dispatch）+RENAME | 11/0/0/41/180 | **232** | 行为恒等批+改名 banner 形态位移（骨架归一化不可见） |
+
+> 对账注记：八道燃烧 −29/−10/−35/−80/−48/−70/−17/−46 **恰和=−335**（567→232 精确闭合）；
+> 连同 MB56 的 −49，session 窗口全量 616→232=−384。DECLFAM 车道终报口径 −80（528→448）；
+> 波次账本 MB64 行"总残差 404"系笔误（11+0+0+93+309=413，后续批次链 413−48=365 与 MB66
+> 恒等验证吻合）。sq 41 残差结构（CR-READINODE3 亲算）= 4+1[read_super]+6[xattrs]+1+29。
+> 完美面现值三张：vsh 71/71、httpd 29/29（MB64 起）、sqlite 单函数级 read_inode_3 等
+> 函数体逐字节==golden 族持续扩容。
+
+### 里程碑② canon 双语料零残差保持（新形态 md5 双钉；banner 身份词 form-level 重钉）
+
+curl/httpd canon 面 skeleton/defects/numbering = **0/0/0·124F/34F** 保持（vs
+`tests/golden/ghidra_{curl,httpd}_1204.c`，全函数 diff=0）。输出形态两度 form-level 重钉
+（均归因闭环非行为漂移）：①MB69 READINODE3 P9 双空格复原（httpd 恰 2 位点，
+`cf316540`）；②RENAME banner 身份词 Rugra→Rudra（curl `b7773087`→**`f903372a`**·96,626B
+——恰 1 行差余 96,622 字节恒等；httpd `cf316540`→**`3617ecc3`**·62,697B=P9 2 位点+banner）。
+result/ 已回流（curl_cur.c == f903372a）。
+
+### 里程碑③ 速度（VdbeExec 单极 31.82→27.90s=−12.3%；八速度道；vs oracle 双口径）
+
+| 口径 | session 起 | 现值 | 变化 | vs oracle |
+|---|---|---|---|---|
+| VdbeExec mirror user 中位（--one 1055，轻窗配对） | 31.82s（MB55 钉@load19-23） | **27.90s**（MB70@load9-15，六轮恰 2 md5==双钉） | **−12.3%** | **3.1×（原锚 8.80s）/4.1×（配对 6.74s@load14-19）** |
+| corpus wall（--jobs 32，正常窗） | 34.09s（MB55@load~24） | **~31s**（31.28-31.77 带内@load19-45） | −6~−9% | **1.8×（原锚 17.77s）/2.4×（配对 13.0s@load15-18）** |
+| per-child 固定底 | 0.10s 级 | 0.10s 级 | — | oracle-par（FIXEDFLOOR 判决=对齐成本非可修常数） |
+
+八速度道（全部行为恒等伴随——ACTIONSTATS 双二进制计数恒等/corpus md5 恒等）：HERITAGE2
+（−0.62s）/INFERTYPES2（−1.95s）/RULEBODY2（−1.57s）三道 MB57 联合落地（VdbeExec 29.94s@轻窗
+=较 MB55 钉 −6%）→NAMEVARS2（MB58，干净中位 −4.7%~corpus 同窗 −7.7%）→MARKIMPLIED2（MB59，
+−1.18s 高载窗不可复现、方向 O 2/3 对胜如实记）→DESCENDSHADOW（单极 −1.55s 方向复现）→
+FINDDUP（−0.12s 中位 8/10 负向；view_arc 2,416,961→154,023=−93.6% 残量面）→DISPATCH（oppool1
+派发组件 −6.0~−7.5%、visit_pre −33%/advance −78%；聚合幅度构建特异 −2.4~−7.5% 跨构建区间，
+PREFETCH 净赚保留）。诚实口径：争用窗读数（MB66 31.68s@load32-45/MB67 33.33s@load60-111）
+如实记录不进中位账；速度结论以同窗配对为准。
+
+### 现值总表（@ master `bc58664c` = origin；MB70+RENAME 收官态，全部溯源终报）
+
+| 门禁 | 数字 | 说明 |
+|---|---|---|
+| canon curl | **0/0/0**·124/124 全函数 diff=0 | 新形态 md5 `f903372a`·96,626B（banner 1 行差 form-level 重钉，归因闭环） |
+| canon httpd | **0/0/0**·34/34 全函数 diff=0 | 新形态 md5 `3617ecc3`·62,697B（P9 2 位点+banner） |
+| 镜面五面 | curl **11**/74 · httpd **0**/29[完美面] · vsh **0**/71[完美面] · sq **41**/810 · sqlite **180**/1385，全 PASS | defects=numbering=0 五面；session −335（八道对账见里程碑①）；RUDRA_MIRROR/RUDRA_GEN_MIRROR 改名后真实生效亲证 |
+| corpus 钉组（四钉，字节级） | VdbeExec mirror **0668b234** / canon 谱 **20920e63**；corpus canon **1743cb2f**·5,280,382B / mirror **9aaf3cfd**·5,285,971B | RENAME 零位移亲证（MB69 钉组穿越改名恒等） |
+| cargo test --lib | **2045P / 0F / 5I** | 2028[MB55]→2045（+17 逐道对账：MB56 +3/MB59 +1/MB60 +2/MB62 +4/MB63 +1/MB67 +1/MB69 +5） |
+| 投影银行（B2 钉板） | **391/391 MATCH** | rugra.projection→rudra.projection git mv 后终树复跑 OK；3 摘录 .rudra.c md5 恒等 |
+| 速度 | VdbeExec mirror user 27.90s@轻窗；corpus wall ~31s@正常窗 | 见里程碑③双口径 |
+| 三门禁+gate health+.sla+环棘轮 | annotations 101 文件/refs --all --strict/markers 0 violation/gate health OK[oracle=e40ed130]/四 sha==钉值/SCC 24==24 | 全绿（MB70+RENAME 双轮亲跑） |
+| CI（alignment-gates） | 两 job 形态见 2026-10-01 节 | 本刷新 docs-only 未跑（纪律：不跑门禁） |
+
+### 本 session 车道账（MB56~MB70 十五合并批 + RENAME；≈25 车道）
+
+- **十五合并批**（MB56~MB70，20 条交付支，全部 merge --no-ff+CR 块逐字嵌入/组块披露）：
+  MB56 双支（BLOCKFLIPW3+READINODE2）→MB57 三支（HERITAGE2/INFERTYPES2/RULEBODY2）→MB58
+  （NAMEVARS2）→MB59（MARKIMPLIED2）→MB60（FLOAT8）→MB61（DESCENDSHADOW+CR 条件兑现）→
+  MB62 双支（CLONESURG+FINDDUP）→MB63（SLOTMERGE）→MB64 双支（DECLFAM+CMPDIR docs-only）→
+  MB65（TRACEDAG）→MB66（DIVBREAK 复活道净重跑——前道 socket 死于合并前零残留）→MB67
+  （PARTSYM）→MB68（ROUND3）→MB69（READINODE3+CR D-1 行号兑现）→MB70（DISPATCH）。
+- **RENAME**：RENAMEPREP 筹备道（执行地图 242 行，七类清单+golden 17 文件 md5 基线表+env
+  230 变量矩阵）→RENAME 执行道 7-commit（里程碑⓪）。
+- **CR 判决**：session 内 19 份机制 C 独立复核判决**全部 APPROVE、零 REJECT**（含条件式
+  APPROVE 2 起——CR-DESCENDSHADOW 条件 MB61 批内兑现/CR-READINODE3 D-1 行号 MB69 兑现）；
+  2026-10-01/02 两日 26 份判决文件全 APPROVE。
+- **根因翻案谱系**：census v4 票面修复域预判被双侧钻证证伪**七连**——READINODE→ruleaction/
+  STACKSLOT→merge/READINODE2→transform/FLOAT8→typeop[ActionSetCasts]/CLONESURG→printc/
+  SLOTMERGE→varnode/DECLFAM→printc（DIVBREAK 报告自计第七次翻案至 ruleaction）；
+  **PARTSYM 首次兑现**（预判 varmap=钻定 varmap，六连翻案后首例预判即真）。
+- **在飞（改名窗口后 3 并发续满）**：VDBEPRINT（镜面）、ACTIVEPARAM（速度）、STATUSREFRESHb
+  （本道）。
+
+### 剩余残差地图（232 的族分解；速度剩余；票面全部在案）
+
+| 族 | 行数 | 状态/票 |
+|---|---|---|
+| SelectDup（sqlite） | 13 | census v4 长尾族在案 |
+| VDBEPRINT（VdbeExec 21+拼写 4） | 25 | **在飞**（printc 双重 cast/raw stack 印形；printc 域已清） |
+| DECLFAM B 形 R-only | 15 | varmap 部分符号租约域（VARMAP-UNAFF-TYPEMAT-0001 既有票，census 序⑦） |
+| SUB168/ZEXT816 除法成语（四克隆） | 16 | MCENSUS6-DIVIDIOM-SUB168-0001（P2，drill-first） |
+| read_xattrs | 6 | 异根待续钻（READINODE3 注记，SLOTMERGE 域外） |
+| read_super | 1 | 预存 duplicate-goto 行（blockaction 域旧尾） |
+| CBRANCH slot-1 TYPE_BOOL | 1 | FLOAT8 道登记 OPEN（cc:614-615 未钉形） |
+| 长尾（含 curl 11 等零散族） | ~155 | census v4 归零路径 v4 表在案 |
+| 速度剩余 | — | ACTIVEPARAM（~1s 残量，**在飞**）/per-child 分配器地板=oracle-par（FIXEDFLOOR 判决，非可修常数） |
+
+### 可靠性评估（诚实计量）
+
+1. **证据强度分层**：canon 零态=函数体字节级恒等（新形态 md5 双钉+1 行 banner 差归因闭环）；
+   镜面=单向棘轮+恰钉值逐批验证+每批联合树实测重钉（tsv 冲突按实测解）；速度=同窗配对 A/B
+   +ACTIONSTATS 计数恒等伴随。三者均为语料级差分证据。
+2. **CR 体系**：session 19 份判决全 APPROVE 零 REJECT；两起条件式 APPROVE 的绑定条件均在
+   后续 MB 批内兑现闭环（DESCENDSHADOW F1 契约整改/READINODE3 D-1 行号更正）。各 CR 独立
+   构建复跑+oracle 亲读，非采信车道声明。
+3. **覆盖边界**：canon 零态覆盖 curl+httpd 158 函数；镜面覆盖五面（1385/810/71/74/29）；
+   **全局完成度仍未证明**——权威判定=9494 分母逐函数 oracle 行为门禁（FUNCTION_MAP 账本，
+   默认 UNTESTED，仅锁定 fixture 同输入/同输出可升 MATCH）。canon/镜面残差收敛、速度增益
+   与改名行为零变**不构成模块或项目 L3 声明**。
+4. **口径纪律**：速度中位仅取同窗轻窗配对（31.82@19-23 vs 27.90@9-15）；争用窗读数如实
+   记录不进账；vs oracle 双口径（原锚/配对）并列不可混；canon md5 沿 banner 重钉后新形态，
+   与 pre-rename 值不可直比（函数级 0/0/0 门禁不受影响）。
+5. **已知未清项**：镜面残差 232（族分解见上表，VDBEPRINT 在飞）；速度 ACTIVEPARAM 在飞；
+   GitHub remote URL 待用户改名后 set-url（唯一改名悬挂项）；MB64 波次账本行总残差笔误
+   （404→413，本节已按链式对账更正）。
+
+## 2026-10-01 STATUSREFRESH 大刷新（历史——MB51 收官态快照；数字被 2026-10-02 节取代）
 
 > 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB44~MB51 全序列）+
 > 各 MB 终报（`/dev/shm/rudra-reports/LANE_MERGEBATCH4{4..9}_*` / `LANE_MERGEBATCH5{0a,0b,1}_*`）+
