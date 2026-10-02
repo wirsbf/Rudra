@@ -357,7 +357,7 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
 sq	93	810	DECLFAM-RATCHET-REPIN-0001	declfam-joint	2026-10-02
-sqlite	309	1385	DECLFAM-RATCHET-REPIN-0001	declfam-joint	2026-10-02
+sqlite	292	1385	PARTSYM-RATCHET-REPIN-0001	partsym	2026-10-02
 # MB64 joint re-pin (DECLFAM-RATCHET-REPIN-0001 joint form, 2026-10-02,
 # MB64 merge of wt/declfam a1259273 [base fe84ed97/MB62] onto master
 # 56cf6970 [MB63, rows sq 95 / sqlite 383 = SLOTMERGE-RATCHET-REPIN-0001
@@ -368,6 +368,37 @@ sqlite	309	1385	DECLFAM-RATCHET-REPIN-0001	declfam-joint	2026-10-02
 # confirmed in the merge commit Differential block). curl 13-2=11 and
 # httpd 2-2=0 are lane-own direct (master rows untouched since fe84ed97,
 # so the lane measurements land uncomposed); vsh 0 row stays MB39.
+# PARTSYM-RATCHET-REPIN-0001 (2026-10-02, wt/partsym @ fix commit, base
+# abfb3d15 [MB64], forced relink after probe withdrawal, gate --jobs 5
+# --no-cache cold round, stale-guard content probe digest=7ca1b20f7b7fa304
+# files=155):
+# sqlite 309->292 (-17 = the varmap partial-symbol family's surgical head,
+# exactly sqlite3ResolveExprListNames 21->4, every other differing function
+# byte-identical: 47 others held). Root cause (bilateral oracle drill, both
+# sides pinned): MapState::addFixedType (varmap.cc:926-956) strips
+# TYPE_PARTIALSTRUCT/PARTIALUNION varnodes — a partial(xunknown1[16], off=0/8)
+# stack varnode whose container is an array-of-unknown contributes NO hint
+# at all, leaving the slot to gatherOpen's open xunknown1 hint (from the
+# escaping `xunknown1 (*)[16]` stack pointer), whose restructure size
+# extension (varmap.cc:1314-1315) then spans both 8-byte halves -> the
+# oracle's ONE `xunknown1 axStack_f8 [16]` symbol with ._0_8_/._8_8_ slice
+# entries. Rugra passed partials through as fixed 8-byte hints -> two
+# `BADTYPE Stack_f8/Stack_f0` split symbols (PartialStruct metatype hits
+# genericTypeName's default arm), a forced `(xunknown1 (*) [16])&Stack_f8`
+# cast, and the open-hint extension killed. Fix = faithful partial-stripping
+# dispatcher in src/varmap.rs add_fixed_type (+types param threaded through
+# gather_varnodes), six-arm unit test. Corpus pin group: mirror
+# c629e5f7->7ffdc2f0 AND canon 051f391a->8d69d0b0 (5,280,148B->5,280,156B,
+# +8B = 8 ins/9 del) — both faces the SAME single function
+# (sqlite3ResolveExprListNames), the same 8 hunks, all BADTYPE->typed-symbol
+# conversions (canon spells `undefined1 auStack_f8 [16]` / `undefined8
+# uStack_70`, mirror `xunknown1 axStack_f8 [16]` / `xunknown8 xStack_70`),
+# zero non-symbol hunks; VdbeExec mirror 7e312fe6 / canon 6f1c38b1 byte-held
+# (no partial sites); canon curl b7773087 / httpd 54f9b02c byte-held. Remaining 4 lines in
+# ResolveExprListNames = printc-domain spelling shapes (double-space
+# `xunknown1  [16]` cast + `[0]*V` vs `(*V)[0]` deref form) — outside the
+# varmap lease, handed to the printc emission lease. curl 11/httpd 0/vsh
+# 0/sq 93 rows held exact (no partial-symbol sites on those faces).
 # DECLFAM-RATCHET-REPIN-0001 (2026-10-02, wt/declfam @ fix commit, base
 # fe84ed97 [MB62], forced relink, gate --jobs 5 --no-cache cold round,
 # stale-guard content probe digest=692ec37e54dd861d files=155):
