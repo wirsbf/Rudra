@@ -255,6 +255,15 @@ corpus	ceiling	floor	todo_id	pinned_commit	measured_at
 # 保持;CR-FTS3DOMCOPY D 裁定注记: corpus 钉组真值链=可复现链（MB78 ced48470/1466ee4b
 # → MB79 e3822667/50c15616 → MB80 6427a459/c46d0fe8 → MB81 df204662/62f74d43 →
 # 本道联合新钉;CONDMERGE 车道行 3f32b73a/1ce87062 系分支树误记,联合树以实测为准）。
+# F5PRINT-BOOLFOLD-REPIN-0001 (wt/f5print, 2026-10-03): MISC24-F5-BOOLCOERCE-0001
+# 收口 sqlite 28→26——根因=POSTFIX P9 `1 || ` tautology-fold 的操作数边界
+# (F5-BOOLFOLD-OPERAND-0001): `== 1 ||` 的常量操作数被当独立恒真守卫折叠,
+# 改写 oracle 合法条件为破坏真值的 `== (...)`(golden sqlite:98785 逐字节)。
+# 修复=边界收紧到括组首 token;逐函数对账: sqlite3Select 出列(唯一变动),
+# 其余 14 差异函数零回归;canon f903372a/3617ecc3 + curl/httpd/vsh/sq 四面
+# 零位移;VdbeExec b3f5b487/606dd8c0 恒等;corpus mirror dbe6f683→c07d7901/
+# canon 1fa47be4→411eba59 各恰 1 行(+5B,F5 位点,逆编辑复得旧钉双证)。
+sqlite	26	1385	F5PRINT-BOOLFOLD-REPIN-0001	f5print	2026-10-03
 sqlite	28	1385	FTS3DOMCOPY-MB82-JOINT-REPIN-0001	mb82-joint	2026-10-02
 sqlite	31	1385	MISC24-MB81-JOINT-REPIN-0001	mb81-joint	2026-10-02
 curl	0	74	CURLCODEPTR-REPIN-0001	curlcodeptr	2026-10-02
