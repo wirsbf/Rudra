@@ -1067,14 +1067,21 @@ impl TypeFactory {
         mut candidate: Datatype,
         enforce_alignment: bool,
     ) -> Result<Arc<Datatype>, String> {
-        let name = candidate.get_name().to_string();
+        // PERF-ALLOCFLOOR-0001: the oracle reads `ct.name` in place
+        // (type.cc:3417-3425 findByIdLocal(ct.name,ct.id), zero copy);
+        // C++ SSO keeps ≤15-char type names allocation-free, while the
+        // prior Rust form paid an unconditional heap String per call —
+        // get_base_named is on the per-op/per-varnode hot path. The name
+        // is borrowed here; the insert path (rare: new type only)
+        // re-derives it from the interned Arc.
+        let name = candidate.get_name();
         let candidate_id = candidate.get_id();
         if !name.is_empty() {
             // type.cc:3417-3425
             if candidate_id == 0 {
                 return Err(format!("Datatype must have a valid id: {name}"));
             }
-            if let Some(existing) = self.types.get(&name) {
+            if let Some(existing) = self.types.get(name) {
                 if existing.get_id() == candidate_id {
                     // Use the concrete virtual compareDependency projection
                     // for every dependency-bearing variant covered by the
@@ -1149,8 +1156,11 @@ impl TypeFactory {
         tree.insert(tree_key, arc.clone());
         // The tree borrow ends here; the name cross-reference follows.
         // type.cc:3404-3405: nametree gets named (id != 0) entries.
-        if !name.is_empty() {
-            self.types.insert(name, arc.clone());
+        // PERF-ALLOCFLOOR-0001: the borrowed `name` ended at the candidate
+        // move above; re-derive from the interned Arc (same bytes) and pay
+        // the String only on the rare new-type insert path.
+        if !arc.get_name().is_empty() {
+            self.types.insert(arc.get_name().to_string(), arc.clone());
         }
         Ok(arc)
     }

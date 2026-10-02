@@ -2,6 +2,19 @@
 
 **源代码路径**: `src/op.rs`
 
+## 2026-10-03：get_nz_mask_local 原位读输入（PERF-ALLOCFLOOR-0001 / lane ALLOCFLOOR）
+
+- **缺口**（分配画像）: `PcodeOp::get_nz_mask_local(cliploop)` 旧移植在入口
+  `let inputs = self.inrefs.clone();` 克隆整条输入 Vec——每次调用一次堆分配
+  + 每输入一对 Arc 原子加减；VdbeExec 单极走查计数 ~1M 次调用。oracle
+  `getNZMaskLocal`（op.cc:547-768）全程 `getIn(i)` 裸指针读，零分配。
+- **修复**: `let inputs = &self.inrefs;` 原位共享借用——`&self` 方法体内所有
+  闭包（in_nzm/in_const/in_size）与 MULTIEQUAL 臂的 is_empty/len 访问均为
+  共享读，克隆纯属 Rust 侧分配器 churn。
+- **验证**: VdbeExec 双面 md5 恒等钉值（b3f5b487/606dd8c0）+ ACTIONSTATS
+  五值恒等（917/302/5,825,780/28,722,406/63,713）+ 全语料 base==opt 字节
+  恒等（canon/mirror 双面）+ 镜面五面恰钉值 + tests 2049P。
+
 ## 文档状态
 
 - **状态**: 已核对（当前有效）

@@ -101,10 +101,22 @@ impl ActionDeadCode {
             values
         };
         let Some(def) = def else { return };
-        let (opc, inputs, output) = {
-            let op_rg = def.read().unwrap();
-            (op_rg.opcode, op_rg.inrefs.clone(), op_rg.output.clone())
-        };
+        // PERF-ALLOCFLOOR-0001: hold the single op read guard across the
+        // opcode dispatch and read inputs in place — the oracle form
+        // (coreaction.cc:3589-3665 reads `op->getIn(slot)` directly, zero
+        // allocation). The prior Rust form cloned the whole inrefs Vec (one
+        // heap alloc + one Arc round-trip pair per input) on every
+        // propagation step. The guard covers only vn-write locks
+        // (pushConsumed) and read locks on the indirect target op; the
+        // INDIRECT arm's flag WRITE on that target is deferred past the
+        // guard drop (same flag value, no interleaving reader on this
+        // single-threaded walk), so no op write-lock is ever taken while
+        // `def` is read-locked.
+        let mut indirect_flag: Option<crate::op::PcodeOpRef> = None;
+        let op_rg = def.read().unwrap();
+        let opc = op_rg.opcode;
+        let inputs = &op_rg.inrefs;
+        let output = op_rg.output.as_ref();
         let push = |slot: usize,
                     val: u64,
                     worklist: &mut Vec<
@@ -192,10 +204,10 @@ impl ActionDeadCode {
                                     if let Some(copy_out) = ind_out {
                                         Self::push_consumed(u64::MAX, &copy_out, worklist);
                                     }
-                                    indop.0.write().unwrap().flags |= crate::op::pcodeop_flags::INDIRECT_SOURCE;
+                                    indirect_flag = Some(indop.clone());
                                 }
                             } else {
-                                indop.0.write().unwrap().flags |= crate::op::pcodeop_flags::INDIRECT_SOURCE;
+                                indirect_flag = Some(indop.clone());
                             }
                         }
                     }
@@ -215,7 +227,7 @@ impl ActionDeadCode {
                 push(1, outc, worklist);
             }
             OpCode::CPUI_MULTIEQUAL => {
-                for input in &inputs {
+                for input in inputs {
                     Self::push_consumed(outc, input, worklist);
                 }
             }
@@ -357,10 +369,17 @@ impl ActionDeadCode {
             }
             _ => {
                 let a = if outc == 0 { 0 } else { u64::MAX };
-                for input in &inputs {
+                for input in inputs {
                     Self::push_consumed(a, input, worklist);
                 }
             }
+        }
+        // PERF-ALLOCFLOOR-0001 (deferred from the INDIRECT arm): the flag
+        // write runs after the def guard drops; nothing reads the flag
+        // between the original write position and here on this walk.
+        drop(op_rg);
+        if let Some(indop) = indirect_flag {
+            indop.0.write().unwrap().flags |= crate::op::pcodeop_flags::INDIRECT_SOURCE;
         }
     }
 
@@ -532,15 +551,19 @@ impl Action for ActionDeadCode {
     // Ghidra: coreaction.cc:3925 ActionDeadCode::apply
     fn apply(&mut self, fd: &mut Funcdata) -> Result<i32> {
         use crate::space::{AddressSpace, SPACEID_OTHER};
-        let all_varnodes = fd
+        // PERF-ALLOCFLOOR-0001: the oracle clears consume flags by walking
+        // the loc-tree in place (coreaction.cc:3939-3946, `for(viter=
+        // data.beginLoc();...)`) — no materialization. The prior Rust form
+        // collected a full Vec of cloned Varnode Arcs (one large heap
+        // buffer + one Arc round-trip pair per varnode) on every apply
+        // (30 applies on VdbeExec). Visit order is identical (same
+        // loc-tree order; the space set keeps the same collect-then-sort-
+        // dedup sequence, only without the Arc clones).
+        let mut spaces = fd
             .vbank
             .loc_tree
             .iter()
-            .map(|entry| entry.0.clone())
-            .collect::<Vec<_>>();
-        let mut spaces = all_varnodes
-            .iter()
-            .map(|vn| vn.read().unwrap().get_space())
+            .map(|entry| entry.0.read().unwrap().get_space())
             .collect::<Vec<_>>();
         spaces.sort_by_key(|space| (space.space_id(), *space));
         spaces.dedup();
@@ -550,8 +573,8 @@ impl Action for ActionDeadCode {
             )
         };
 
-        for vn in &all_varnodes {
-            let mut vn_rg = vn.write().unwrap();
+        for entry in fd.vbank.loc_tree.iter() {
+            let mut vn_rg = entry.0.write().unwrap();
             vn_rg.clear_consume_list();
             vn_rg.clear_consume_vacuous();
             vn_rg.set_consume(0);
@@ -572,11 +595,18 @@ impl Action for ActionDeadCode {
         }
 
         let return_consume = Self::gather_consumed_return(fd);
-        let alive_ops = fd.obank.iter_alive().cloned().collect::<Vec<_>>();
-        for op_ref in &alive_ops {
+        // PERF-ALLOCFLOOR-0001: the oracle walks the alive list in place
+        // (coreaction.cc:3962, `for(iter=data.beginOpAlive();...)`) reading
+        // `op->getIn(i)` / `op->getOut()` directly — zero allocation. The
+        // prior Rust form cloned the whole alive-op list (one heap buffer +
+        // one Arc pair per op) plus each op's inrefs Vec and output Arc.
+        // The single read guard below spans pushes only (vn locks) and
+        // read-only fd queries (find_jump_table / op_has_attached_spec);
+        // no op write-lock is taken while it is held.
+        for op_ref in fd.obank.iter_alive() {
             op_ref.0.write().unwrap().flags &= !crate::op::pcodeop_flags::INDIRECT_SOURCE;
+            let op_rg = op_ref.0.read().unwrap();
             let (is_call, is_call_without_spec, is_assignment, hold_output, opcode, inputs, output) = {
-                let op_rg = op_ref.0.read().unwrap();
                 (
                     op_rg.is_call(),
                     (op_rg.flags & (crate::op::pcodeop_flags::CALL | crate::op::pcodeop_flags::HAS_CALLSPEC))
@@ -584,13 +614,13 @@ impl Action for ActionDeadCode {
                     op_rg.is_assignment(),
                     (op_rg.addlflags & crate::op::op_addl_flags::HOLD_OUTPUT) != 0,
                     op_rg.opcode,
-                    op_rg.inrefs.clone(),
-                    op_rg.output.clone(),
+                    &op_rg.inrefs,
+                    op_rg.output.as_ref(),
                 )
             };
             if is_call {
                 if is_call_without_spec {
-                    for input in &inputs {
+                    for input in inputs {
                         Self::push_consumed(u64::MAX, input, &mut worklist);
                     }
                 } else if !Self::op_has_attached_callspec(fd, op_ref) {
@@ -617,7 +647,7 @@ impl Action for ActionDeadCode {
                 }
                 if !is_assignment { continue; }
                 if hold_output {
-                    if let Some(output) = &output {
+                    if let Some(output) = output {
                         Self::push_consumed(u64::MAX, output, &mut worklist);
                     }
                 }
@@ -638,13 +668,13 @@ impl Action for ActionDeadCode {
                         Self::push_consumed(mask, input, &mut worklist);
                     }
                 } else {
-                    for input in &inputs {
+                    for input in inputs {
                         Self::push_consumed(u64::MAX, input, &mut worklist);
                     }
                 }
                 continue;
             } else {
-                for input in &inputs {
+                for input in inputs {
                     if input.read().unwrap().is_auto_live() {
                         Self::push_consumed(u64::MAX, input, &mut worklist);
                     }
@@ -652,13 +682,15 @@ impl Action for ActionDeadCode {
             }
             if let Some(output) = output {
                 if output.read().unwrap().is_auto_live() {
-                    Self::push_consumed(u64::MAX, &output, &mut worklist);
+                    Self::push_consumed(u64::MAX, output, &mut worklist);
                 }
             }
         }
 
-        let call_specs = fd.callspecs.clone();
-        for call_spec in &call_specs {
+        // PERF-ALLOCFLOOR-0001: the oracle iterates the call-specs vector
+        // in place (coreaction.cc:4013-4014); mark_consumed_parameters
+        // takes Funcdata by shared reference, so the clone was pure churn.
+        for call_spec in &fd.callspecs {
             let call_spec = call_spec.read().unwrap();
             Self::mark_consumed_parameters(fd, &call_spec, &mut worklist);
         }

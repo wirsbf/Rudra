@@ -1,5 +1,18 @@
 ﻿# `type_system/typefactory.rs` API Reference
 
+## 2026-10-03：find_add 名字探针零拷贝（PERF-ALLOCFLOOR-0001 / lane ALLOCFLOOR）
+
+- **缺口**（分配画像——TypeFactory 家族占 VdbeExec 小分配事件 ~7.7%）:
+  `find_add` 入口 `candidate.get_name().to_string()` 无条件堆分配一个名字
+  String（7-9B，C++ SSO 下 oracle 是零分配——type.cc:3417-3425 直接用
+  `ct.name` 探 findByIdLocal）。`get_base_named` 在每 op/varnode 取基类型
+  的热路径上，字符串开销成对出现（候选构造一次 + find_add 探针一次）。
+- **修复**: 探针路径借用 `candidate.get_name()`（&str，BTreeMap<String,_>
+  经 Borrow<str> 直接 get）；仅罕见的新类型插入路径在 `Arc::new(candidate)`
+  移动后从 interned Arc 重derive 名字并支付一次 String（同字节）。
+- **验证**: VdbeExec 双面 md5 恒等钉值 + ACTIONSTATS 五值恒等 + 全语料
+  base==opt 字节恒等 + 镜面五面恰钉值 + tests 2049P；x104 尺寸类事件
+  137,524→135,204。
 ## 2026-09-27：get_typedef per-type 通道（Lane TYPEDEFIMM，wt/typedefimm）
 
 `get_typedef`（type.cc:3818-3840）补齐 oracle 的 per-Datatype 通道语义：
