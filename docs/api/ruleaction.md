@@ -1495,7 +1495,13 @@ identity、mark、def-use、alive/dead bank、基本块顺序和 `Funcdata::opDe
 - `RuleFloatSignCleanup`(10789) — floatSignManipulation 1:1；TYPE_FLOAT 硬门精确对齐（ruleaction.cc:10774 `getMetatype() != TYPE_FLOAT → return 0`——未定型 varnode 默认 `getBase(s,TYPE_UNKNOWN)`（funcdata_varnode.cc:107/132），非 float 即不改写；2026-09-29 CASTSHAPE 车道移除 Rust 侧 size∈{4,8} 启发式放行，sqlite 镜面 CAST-SHAPE ABS 族 58 站点全量复原 `& 0x7fffffff`/`^ 0x8000000000000000` 形）
 - `RuleExpandLoad`(10937) — helpers(checkAndComparison/modifyAndComparison) 1:1；applyOp 标 TODO（需 pointer datatype）
 - `RulePtrsubCharConstant`(7372) — pushConstFurther helper 1:1；applyOp 标 TODO（需 TYPE_SPACEBASE/Scope/stringManager）
-- `RuleExtensionPush`(7435) — descendant-count guard 1:1；duplicateNeed 标 TODO
+- `RuleExtensionPush`(7435) — descendant-count guard 1:1；duplicateNeed 全量忠实（DECLB12/DECL-B2-SEXTTYPE-0001 修复：
+  `RulePushPtr::duplicateNeed`(6809) 经 cc:7451 共享调用——`buildVarnodeOut`(6765-6771)
+  对非 addrtied 非 internal（register-space）输出走 `newVarnodeOut(size, vn->getAddr(), op)`
+  保留原存储，而非无条件 unique temp；cc:6816 `newOut->updateType(outVn->getType())` 类型继承。
+  修复前 `movslq %eax,%rsi` 类 sext 被 push 成 unique temp → ActionNameVars 挂成无寄存器
+  xunknown 局部（B2: sqlite3Dequote/DequoteExpr `xVar1 = SEXT48(iVar2)` vs oracle
+  `int8 iVar3 = (int8)iVar1`）；修复后两函数体逐字节==golden，sqlite 镜面 180→172）
 - `RulePieceStructure`(7625) — helpers(determineDatatype/spanningRange/convertZextToPiece) 1:1；applyOp 全量(setPartialRoot cc:7642 → storage walk → 叶 COPY/非叶换存储 + setProtoPartial →
   `!anyAddrTied` 时 `registerProtoPartialRoot(outvn)` cc:7697-7698, 注册入 Funcdata 挂载的
   MergePersistentState 供 ActionMergeRequired groupPartials 分组; SB-IMPLIEDWAVE-0001)
