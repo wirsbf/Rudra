@@ -9243,12 +9243,14 @@ impl Rule for RuleSubCommute {
         // SUBPIECE inside (cc:4633-4649).
         let num_inputs = longform_arc.read().unwrap().inrefs.len();
         let outvn = op_arc.read().unwrap().output.as_ref().unwrap().clone();
-        let inputs_snapshot: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
-            longform_arc.read().unwrap().inrefs.clone();
+        // PERF-ALLOCFLOOR-0001: cc:4634 reads `longform->getIn(i)` fresh per
+        // slot while cc:4640/4646's opSetInput writes the same slots —
+        // per-slot short guard and single handle clone instead of a whole
+        // input-Vec snapshot (the loop body write-locks longform).
         let mut last_in: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = None;
         let mut new_vn: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = None;
         for i in 0..num_inputs {
-            let vn = inputs_snapshot[i].clone();
+            let vn = longform_arc.read().unwrap().inrefs[i].clone();
             if i as i32 != j {
                 let dup = last_in
                     .as_ref()
@@ -9741,10 +9743,19 @@ impl Rule for RuleMultiCollapse {
             Some(o) => o.clone(),
             None => return Ok(action_status::NO_CHANGE),
         };
+        // PERF-ALLOCFLOOR-0001: capacity reservation placed after the
+        // heritage-known precheck so early returns stay allocation-free.
+        // The oracle's stack vectors (cc:3237) grow by push_back from empty;
+        // the reservation removes the Rust growth-realloc ladder while the
+        // element order and final contents are unchanged (skiplist holds the
+        // output plus one entry per expanded MULTIEQUAL; expanded holds the
+        // appended inputs — both bounded by the matchlist size in practice).
+        let base_len = op_guard.inrefs.len();
+        skiplist.reserve(1 + base_len);
+        expanded.reserve(base_len.max(1));
         out_vn.write().unwrap().set_mark();
         skiplist.push(out_vn);
 
-        let base_len = op_guard.inrefs.len();
         let mut j = 0usize;
         let mut success = true;
         while j < base_len + expanded.len() {
@@ -9885,6 +9896,9 @@ impl Rule for RuleMultiCollapse {
                     // cc:3304-3331: find the earliest same-block use, then
                     // search CSE through only the template's first
                     // non-constant input.
+                    // PERF-ALLOCFLOOR-0001: cc:3306 earliestUse
+                    // (block.cc:2778-2795) streams the descend list with no
+                    // intermediate container — same here (no Vec collect).
                     let parent = def_ref
                         .0
                         .read()
@@ -9897,9 +9911,9 @@ impl Rule for RuleMultiCollapse {
                             "RuleMultiCollapse operation has no parent block".to_string(),
                         )
                         })?;
-                    let descendants: Vec<_> = copyr.read().unwrap().descend_iter().collect();
-                    let earliest = descendants
-                        .into_iter()
+                    let copyr_rg = copyr.read().unwrap();
+                    let earliest = copyr_rg
+                        .descend_iter()
                         .filter(|candidate| {
                             candidate
                                 .read()
@@ -9912,19 +9926,30 @@ impl Rule for RuleMultiCollapse {
                         })
                         .map(crate::op::PcodeOpRef)
                         .min_by_key(|candidate| candidate.0.read().unwrap().get_seq_num().order);
+                    drop(copyr_rg);
                     let source_op = defining_branch.read().unwrap().get_def().ok_or_else(|| {
                         crate::error::Error::Lowlevel(
                             "RuleMultiCollapse functional branch has no definition".to_string(),
                         )
                     })?;
                     let source_ref = crate::op::PcodeOpRef(source_op);
-                    let (source_opcode, source_inputs) = {
+                    // PERF-ALLOCFLOOR-0001: cc:3316-3323 scans the source
+                    // inputs in place under one guard and clones only the
+                    // first non-constant handle (the sole input cseFindInBlock
+                    // receives); the full parms vector is materialized only
+                    // on the cc:3325-3327 else path, exactly where the
+                    // oracle builds `vector<Varnode *> parms` from the LIVE
+                    // op (cc:3325-3327, read after the read-only CSE search).
+                    let first_nonconst_input = {
                         let source = source_ref.0.read().unwrap();
-                        (source.opcode, source.inrefs.clone())
+                        source
+                            .inrefs
+                            .iter()
+                            .find(|input| !input.read().unwrap().is_constant())
+                            .cloned()
                     };
-                    let substitute = source_inputs
-                        .iter()
-                        .find(|input| !input.read().unwrap().is_constant())
+                    let substitute = first_nonconst_input
+                        .as_ref()
                         .and_then(|input| {
                             fd.cse_find_in_block(
                             &source_ref, input, Some(&parent), earliest.as_ref())
@@ -9942,6 +9967,10 @@ impl Rule for RuleMultiCollapse {
                         fd.total_replace(copyr, substitute_out);
                         fd.op_destroy(&def_ref);
                     } else {
+                        let (source_opcode, source_inputs) = {
+                            let source = source_ref.0.read().unwrap();
+                            (source.opcode, source.inrefs.clone())
+                        };
                         let needs_reinsert = def_ref.0.read().unwrap().opcode
                             == OpCode::CPUI_MULTIEQUAL;
                         fd.op_set_all_input(&def_ref, &source_inputs);
@@ -17710,16 +17739,20 @@ impl RuleConditionalMove {
             use crate::op::pcodeop_flags;
             // PERF-ACTIONPOOL-ITER-0001: one op guard covers the oracle's
             // per-iteration raw reads (cc:9303 getEvalType, cc:9305
-            // numInput, cc:9308 getIn(i)) — the input handles snapshot once
-            // instead of re-locking the op per slot.
-            let inputs: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> = {
+            // numInput, cc:9308 getIn(i)).
+            // PERF-ALLOCFLOOR-0001: cc:9308 `op->getIn(i)` is a fresh
+            // per-slot pointer read — per-slot short guard and single handle
+            // clone replace the whole input-Vec snapshot (the body's
+            // loneDescend/def walks read other ops).
+            let num_input = {
                 let o = op.read().unwrap();
                 if o.get_eval_type() == crate::op::pcodeop_flags::SPECIAL {
                     return false;
                 }
-                o.inrefs.clone()
+                o.inrefs.len()
             };
-            for in0 in &inputs {
+            for i in 0..num_input {
+                let in0 = op.read().unwrap().inrefs[i].clone();
                 let in0_rg = in0.read().unwrap();
                 if in0_rg.is_free() && !in0_rg.is_constant() { return false; }
                 if in0_rg.is_written() {
