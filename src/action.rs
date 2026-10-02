@@ -1685,7 +1685,14 @@ impl ActionPool {
         // Single read of the entry state the oracle reads as isDead
         // (action.cc:829); the initial `opc = op->code()` (:835) resolves
         // lock-free through the cell's denormalized opcode shadow.
-        let is_dead = op_arc.read().unwrap().is_dead();
+        // PERF-DISPATCH-0001: the isDead test resolves through the cell's
+        // dead shadow too (same statement family as the flag write sites
+        // — see OpCell::dead in op.rs), taking the PcodeOp lock word off
+        // the per-visit dispatch path.
+        let is_dead = fd
+            .obank
+            .is_dead_of(op_id)
+            .expect("processOp cursor cell vanished");
         if is_dead {
             self.advance_op_state(fd, op_id);
             fd.obank.destroy(crate::op::PcodeOpRef(op_arc));
@@ -1696,6 +1703,50 @@ impl ActionPool {
             .obank
             .opcode_of(op_id)
             .expect("processOp cursor cell vanished");
+        // PERF-DISPATCH-0001: early strict-successor computation with a
+        // tree-version memo + warming reads. The oracle's `op_state++`
+        // (action.cc:871/830) is an O(1) walk of its live map iterator;
+        // the id-space reconstruction pays a fresh BTreeMap range search
+        // per advance (~73ns measured on the VdbeExec pole, 5.2M advances).
+        // Here the successor is computed once BEFORE the rule loop (where
+        // the cursor's own cell is hot), the successor's cell line is
+        // warmed by a non-blocking PREFETCHT0 hint (the miss latency lands
+        // under the rule bodies instead of the next visit's critical
+        // path), and the tail advance reuses the memoized value
+        // when the optree version proves no insert/remove happened in
+        // between — the same tree state yields the same strict successor
+        // by construction, and any mutation (hit path totalReplace, dead
+        // removal) bumps the version and falls back to the fresh search.
+        // Empty per-opcode buckets skip both: no rule time to hide the
+        // warming under, and the tail search is then unavoidable anyway.
+        let memo: Option<(u64, Option<crate::arena::OpId>)> =
+            if self.per_op[opcode as i32 as usize].is_empty() {
+                None
+            } else {
+                let ver = fd.obank.optree_version();
+                let next = Self::next_op_after(fd, op_id);
+                // Non-blocking PREFETCHT0 of the successor's cell line
+                // (address projection only — the line is not read here).
+                // Unlike the discarded-load form (which stalls the dispatch
+                // thread on the fill), the hint issues and the miss lands
+                // under the rule bodies.
+                #[cfg(target_arch = "x86_64")]
+                if let Some(nid) = next {
+                    if let Some(addr) = fd.obank.optree.cell_hint_addr(nid) {
+                        unsafe {
+                            std::arch::x86_64::_mm_prefetch(
+                                addr as *const i8,
+                                std::arch::x86_64::_MM_HINT_T0,
+                            )
+                        };
+                    }
+                }
+                Some((ver, next))
+            };
+        // PERF-OPPOOL-0001/DISPATCH-0001: the drill gate is hoisted out of
+        // the per-try loop; the env cannot change mid-run, so the hoisted
+        // bool equals every per-try is_enabled() load.
+        let drill_on = crate::drillobserve::is_enabled();
 
         loop {
             // perop[opc] array dispatch (action.cc:836-837) — the
@@ -1709,9 +1760,6 @@ impl ActionPool {
                 break;
             };
             self.rule_index += 1;
-            if self.rule_states[rule_index].is_disabled() {
-                continue;
-            }
 
             // OPACTION_DEBUG-equivalent drill pair (action.cc:839-845):
             // activate before each rule application, flush under the rule's
@@ -1719,12 +1767,20 @@ impl ActionPool {
             // a no-op via the active-flag reset, as in the oracle.
             // PERF-OPPOOL-0001: the flush call site guards on the same env
             // gate so the per-try vtable name fetch is skipped when the
-            // drill is off (flush itself no-ops then; its bool is discarded).
-            crate::drillobserve::activate();
+            // drill is off (flush itself no-ops then; its bool is
+            // discarded). PERF-DISPATCH-0001: both gates consult the
+            // hoisted `drill_on` bool (identical OnceLock value).
+            let state = &mut self.rule_states[rule_index];
+            if state.is_disabled() {
+                continue;
+            }
+            if drill_on {
+                crate::drillobserve::activate();
+            }
             action_stats::bump(&action_stats::STATS.rule_tries);
-            self.rule_states[rule_index].count_tests += 1;
+            state.count_tests += 1;
             let result = self.rules[rule_index].apply_op(&op_arc, fd)?;
-            if crate::drillobserve::is_enabled() {
+            if drill_on {
                 crate::drillobserve::flush(self.rules[rule_index].get_name());
             }
             if result > 0 {
@@ -1742,10 +1798,14 @@ impl ActionPool {
                     return Ok(-1);
                 }
                 // cc:846 `if (op->isDead()) break;` — the flag read stays a
-                // guarded read (the DEAD bit has no cell shadow); the
-                // follow-up `opc != op->code()` (:847-849) is the lock-free
-                // shadow read.
-                let now_dead = op_arc.read().unwrap().is_dead();
+                // guarded read; PERF-DISPATCH-0001 resolves it through the
+                // cell's dead shadow (same write-site discipline as the
+                // entry read). The follow-up `opc != op->code()` (:847-849)
+                // is the lock-free shadow read.
+                let now_dead = fd
+                    .obank
+                    .is_dead_of(op_id)
+                    .expect("processOp cursor cell vanished");
                 if now_dead {
                     break;
                 }
@@ -1782,7 +1842,14 @@ impl ActionPool {
             }
         }
 
-        self.advance_op_state(fd, op_id);
+        // PERF-DISPATCH-0001: memo-guarded advance — reuse the pre-loop
+        // strict successor when the optree version proves no insert/remove
+        // ran during the rule loop; otherwise the fresh range search (the
+        // ACTIONLOOP-RESTART-0001 strict-successor form).
+        self.op_state = match memo {
+            Some((ver, ref next)) if fd.obank.optree_version() == ver => *next,
+            _ => Self::next_op_after(fd, op_id),
+        };
         self.rule_index = 0;
         Ok(0)
     }
