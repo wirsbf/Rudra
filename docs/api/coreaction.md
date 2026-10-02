@@ -4759,3 +4759,4 @@ F5SQ-RETCOPY-JOINSPACE-0001）。
 35→31（恰本函数 4 行,其余 3 差函数值恒等零回归）;sqlite 31→31 ✗ 表逐字节
 恒等零位移;canon curl f903372a/httpd 3617ecc3 + VdbeExec b3f5b487/606dd8c0
 钉组恒等;tests 2049P。
+- 2026-10-03: 测试内残留 F5PROBE eprintln 清除（f5sq/MB83 遗留探针标签;仅测试 stderr 行,断言不动,零行为影响——root 卫生清理）
