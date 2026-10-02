@@ -4150,6 +4150,18 @@ impl PrintC {
                             });
                         } else {
                             // cc:1125-1141: EMIT ( )[0] / (* )[0].
+                            // printc.cc:1128-1129/1135-1136: pushOp(&subscript)
+                            // comes FIRST — the subscript is the outer
+                            // postsurround group, and its presence on revpol
+                            // is what makes `parentheses()` (printlanguage.cc:
+                            // 295-303 postsurround arm, prec 66 > 62) wrap the
+                            // !flex dereference in explicit parens: `(*V)[0]`.
+                            // The former port pushed only the dereference and
+                            // raw-emitted "[0]" after the pending operand, so
+                            // the bracket text landed before the RPN ever
+                            // resolved the deref group — `[0]*V`
+                            // (PRINTC-PTRSUB-DEREFORDER-0001).
+                            self.rpn_push_op(self.rpn_tok_subscript);
                             if !flex {
                                 self.rpn_push_op(self.rpn_tok_dereference);
                             }
@@ -4163,7 +4175,18 @@ impl PrintC {
                             } else {
                                 m
                             });
-                            self.emit.print("[0]");
+                            // cc:1132-1133/1140-1141: push_integer(0,4,false,
+                            // syntax,(Varnode*)0,op) — the integer ATOM inside
+                            // the subscript; its push drains the pending in0,
+                            // emits the deref group, then drives the subscript
+                            // counters (visited 1 → `[`, visited 2 → `]`).
+                            let zero_atom = crate::printlanguage::Atom::with_op(
+                                "0",
+                                crate::printlanguage::TagType::Syntax,
+                                crate::printlanguage::SyntaxHighlight::ConstColor,
+                                0,
+                            );
+                            self.rpn_push_atom(&zero_atom);
                         }
                         return;
                     }

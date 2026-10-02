@@ -4333,3 +4333,26 @@ pushType 的合法字节：`type_expr_space`（spacing=1,printc.cc:73）后接
 b7773087,canon httpd 重钉 cf316540（恰 2 位点复原,行形态==golden,
 0/0/0 双面）;corpus/VdbeExec 位移全为该双空格形（车道终报逐字节归因）。
 
+
+
+## 2026-10-02：PTRSUB 数组值臂 `(*V)[0]` 解引用序修复（PRINTC-PTRSUB-DEREFORDER-0001，Lane VDBEPRINT）
+
+op_cptrsub 的 TYPE_ARRAY + valueon 臂（printc.cc:1125-1141 `EMIT ( )[0] /
+(* )[0]`）改为忠实推序：**pushOp(subscript) 先行**（外层 postsurround
+组），!flex 再 pushOp(dereference)，随后 pushVn(in0)，最后
+push_integer(0,...) 以**整数原子**入栈（Atom("0", syntax, const_color)）。
+
+旧缺陷：只推 dereference、随后裸 `emit.print("[0]")`——in0 挂在 nodepend
+上延迟分派，deref 组未解析时 `[0]` 文本先落盘，印成 **`[0]*V`**（应为
+`(*V)[0]`）。sqlite3ResolveExprListNames 两位点亲证（`(*unaff_R13)[0] ==
+';'` / `(*paxVar9)[0] == 'p'`），修复后函数体与 golden 逐字节恒等（残
+4→0）。
+
+RPN 机制依据（printlanguage.cc:129-187/274-310 亲读）：subscript 先入
+revpol 后，`parentheses()` 的 postsurround 臂（stage≠1 时 precedence 66 >
+62）给后入的 unary_prefix dereference 加显式括号——`(*V)` 的括号正是由
+该引擎决策产生；整数原子 push 触发 nodepend 分派 → deref 组解析 →
+subscript 计数（visited 1 → `[`、visited 2 → `]`）。flex 臂（cc:1128-1133
+`EMIT ( )[0]`）同推序共享修复。struct/spacebase 两臂的尾随 `[0]` 仍为裸
+打印（当前语料字节等价，语料外 group 嵌套差异为已登记卫生项，见 TODO
+PRINTC-ARRAYVALUE-RAWBRACKET-0001）。
