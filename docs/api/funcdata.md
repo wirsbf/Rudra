@@ -3713,3 +3713,16 @@ defects=numbering=0）/httpd 3617ecc3（34F 0/0）+ 镜面五面恰钉值
 tests 2045P/0F/5I==基线。性能: activeparam 单极探针口径 3.097s→2.725s
 （−12%,同负载窗,walk 计数不变）;VdbeExec 总量与 corpus wall 在 load 44-64
 共享窗内 A/B 为 wash（−0.3s 量级效应低于 ±1.5s 噪声底,如实记）。
+
+## 2026-10-03：inrefs 直读形态（PERF-ALLOCFLOOR-0001 session 2 簇①）
+
+- `op_destroy_recursive`（funcdata_op.cc:228-247）——内层输入走查逐槽短守卫 +
+  单句柄克隆（oracle cc:237-238 每槽 `op->getIn(i)`）。
+- `block_remove_internal` 拼接臂（funcdata_block.cc:284-286）——逐 j 短守卫读
+  `deadop->getIn(j)`（oracle 每次迭代新鲜读，op 与 deadop 不同块互不相等）。
+- `op_destroy_raw`（funcdata_op.cc:253-261）——逐槽短守卫（cc:256-257）。
+- `split_uses`（funcdata_varnode.cc:1540-1567）——复制循环内逐槽读
+  `op->getIn(i)`（cc:1559-1560），不再预快照整 Vec；def op 守卫不跨
+  opInsertBefore/opSetInput。
+- `cse_elimination` 共同块臂（funcdata_op.cc:1378-1383）——逐槽新鲜读
+  `op1->getIn(i)`（oracle 即为活读），快照元组去 inrefs。

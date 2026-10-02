@@ -998,7 +998,11 @@ impl SubvariableFlow {
         if count == 1 {
             return first_slot as i32;
         }
-        let inrefs = op.read().unwrap().inrefs.clone();
+        // PERF-ALLOCFLOOR-0001: op.cc:103-104 reads `inrefs[i]` in place under
+        // the const method — hold the read guard and scan by reference instead
+        // of cloning the whole input Vec.
+        let op_rg = op.read().unwrap();
+        let inrefs = &op_rg.inrefs;
         let mut recount = 1;
         for i in (first_slot + 1)..inrefs.len() {
             if Arc::ptr_eq(&inrefs[i], vn) {
@@ -3912,9 +3916,15 @@ impl LaneDivide {
         num_lanes: i32,
         skip_lanes: i32,
     ) -> bool {
-        let inputs = op.0.read().unwrap().inrefs.clone();
-        let mut input_sets = Vec::with_capacity(inputs.len());
-        for input in inputs {
+        // PERF-ALLOCFLOOR-0001: subflow.cc:3659-3662 reads `op->getIn(i)`
+        // fresh per slot (pointer copy) — mirror with a per-slot short guard
+        // and single-handle clone instead of cloning the whole input Vec.
+        // `setReplacement` never mutates the MULTIEQUAL's input list, and the
+        // loop bound is fixed before the loop (numInput stable).
+        let num_input = op.0.read().unwrap().inrefs.len();
+        let mut input_sets = Vec::with_capacity(num_input);
+        for i in 0..num_input {
+            let input = op.0.read().unwrap().inrefs[i].clone();
             let Some(input_vars) = self.set_replacement(&input, num_lanes, skip_lanes) else {
                 return false;
             };
@@ -7327,7 +7337,11 @@ fn subfloat_get_repeat_slot(
     if count == 1 {
         return first_slot as i32;
     }
-    let inrefs = op.read().unwrap().inrefs.clone();
+    // PERF-ALLOCFLOOR-0001: op.cc:103-104 reads `inrefs[i]` in place under the
+    // const method — hold the read guard and scan by reference instead of
+    // cloning the whole input Vec.
+    let op_rg = op.read().unwrap();
+    let inrefs = &op_rg.inrefs;
     let mut recount = 1;
     for i in (first_slot + 1)..inrefs.len() {
         if Arc::ptr_eq(&inrefs[i], vn) {

@@ -66,6 +66,17 @@ multiplicity and the hinted/unhinted insertion positions observed in Ghidra;
 - `find_at_point()` and `find_container()` are Rust compatibility adapters over
   the exact partition iterator.
 
+Query-path form (PERF-ALLOCFLOOR-0001): `find`/`find_with_subsort` and every
+cursor/overlap query mirror the oracle's lazy `std::multiset` iterator pair
+(`rangemap.hh:330-346`) — `RangeMapIter` walks the bucket multiset lazily in
+both directions with bucket-wise skipping and resolves records through an
+O(1) `record_index` side table (the oracle's AddrRange carries the record
+list iterator directly, `rangemap.hh:60-62`). No query materializes a
+flattened part `Vec` or a window record `Vec`; `insert`/`erase` maintain the
+side index alongside the record list. Flattened partition-point arithmetic
+is exact because the search predicates are uniform within a
+comparator-equivalence bucket (they depend only on the bucket key).
+
 Behavior evidence:
 
 - `tests/oracle/rangemap_common_refinement_1204.{cc,rs,metadata.json}`
@@ -91,3 +102,13 @@ Partition map from linear space to values (partmap.hh:49).
   `num_splits()`, `splits()`.
 <!-- annotation-pass: 2026-07-04 -->
 <!-- rename-pass: 2026-10-02 rudra→rudra identity sweep; this module doc carried no prior-name tokens -->
+
+## 2026-10-03：查询路径零物化（PERF-ALLOCFLOOR-0001 session 2 簇③）
+
+oracle `find`/`find(point,sub1,sub2)`（rangemap.hh:330-369）返回 multiset 迭代器对——
+零分配、原位树走查。Rust 旧形每次查询物化两层 Vec（全桶 `Vec<&SubRange>` + 窗口
+`Vec<&R>`）且 `record_by_id` 对 `records` 线性扫描（oracle 的 AddrRange 直接携带
+record list 迭代器，rangemap.hh:60-62，无此成本）。现形：`RangeMapIter` 双向惰性
+桶走查（桶级跳过），`record_index: HashMap<RangeMapId, usize>` 侧表 O(1) 解引用，
+insert/erase/clear 同步维护。扁平 partition_point 算术精确等价（谓词只依赖桶键，
+桶内比较等价元素谓词值一致）。公共 API 与迭代序零变化；rangemap 23 测试全绿。

@@ -575,3 +575,12 @@ fixture 引出 `src/op.rs PcodeOp::get_repeat_slot` 缺 op.cc:101 的
 API（`iter_alive()/iter_dead()/iter_store()...` 与 `.cloned().collect()`），
 迭代序与语义恒等（链序=原 Vec 序=oracle 列表序）；测试面裸
 `alivelist.push` 改 `adopt_alive_op`（bank API，单链不变量保持）。
+
+## 2026-10-03：inrefs 直读形态（PERF-ALLOCFLOOR-0001 session 2 簇①）
+
+- `subvar_get_repeat_slot` / `subfloat_get_repeat_slot`（op.cc:93-111
+  getRepeatSlot）——扫描段在单次 op 读守卫下就地迭代 `&inrefs`，替换整 Vec 克隆
+  （oracle cc:103-104 常量方法内直读 `inrefs[i]`）。
+- `LaneDivide::build_multiequal`（subflow.cc:3654-3671）——逐槽短守卫 + 单句柄
+  克隆（oracle cc:3660 每槽 `op->getIn(i)` 指针拷贝），setReplacement 只读不改
+  MULTIEQUAL 输入表。访问序与 oracle 相同。
