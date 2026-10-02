@@ -11,14 +11,14 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::merge::Merge;
-use rugra::op::{pcodeop_flags, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::merge::Merge;
+use rudra::op::{pcodeop_flags, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;

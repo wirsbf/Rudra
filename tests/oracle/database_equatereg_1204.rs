@@ -19,9 +19,9 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::database::{display_flags, Scope};
-use rugra::varnode::{equate_symbol_registry, Varnode};
+use rudra::address::Address;
+use rudra::database::{display_flags, Scope};
+use rudra::varnode::{equate_symbol_registry, Varnode};
 
 // Mirror of the C++ observeAdded (database_equatereg_1204.cc): the
 // category/value state of one addEquateSymbol result plus the scope's

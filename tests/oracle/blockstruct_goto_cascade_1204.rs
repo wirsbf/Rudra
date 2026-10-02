@@ -9,8 +9,8 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::block::{
     edge_flags as ef, block_flags as bf, BlockBasic, BlockCondition, BlockDoWhile, BlockGraph,
     BlockIf, BlockInfLoop, BlockList, BlockType, BlockWhileDo, FlowBlock,
 };
@@ -98,7 +98,7 @@ impl Graph {
         // entry state (structure_loops labels) is established inside
         // order_loop_bodies exactly as the oracle's run() does via
         // structureLoops.
-        let mut collapse = rugra::blockaction::CollapseStructure::new(
+        let mut collapse = rudra::blockaction::CollapseStructure::new(
             &mut self.graph,
             case_name,
         );

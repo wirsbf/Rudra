@@ -22,13 +22,13 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::fspec::ProtoModelFull;
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::space::{space_flags, AddrSpace, AddressSpace, SpaceRegistry, SpaceType};
-use rugra::varmap::ScopeLocal;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::fspec::ProtoModelFull;
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::space::{space_flags, AddrSpace, AddressSpace, SpaceRegistry, SpaceType};
+use rudra::varmap::ScopeLocal;
 
 /// The fixture space registry: other (index 1) + ram (index 3) + the
 /// 8-byte negative-growth stack (index 5) — the resolve domain of
@@ -107,7 +107,7 @@ fn run_decode_case(
     attrs: &[(&str, &str)],
     fd: &Funcdata,
 ) -> (String, ScopeLocal) {
-    use rugra::marshal::Decoder as _;
+    use rudra::marshal::Decoder as _;
     let mut scope = ScopeLocal::new();
     // The wrapper element open state Database::decodeScope hands the
     // override (database.cc:3378-3385).

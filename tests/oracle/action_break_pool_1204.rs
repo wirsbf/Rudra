@@ -3,16 +3,16 @@
 //! Scripted leaves and Rules supply only deterministic changes. The observed
 //! state transitions are Rugra's production Action/Group/Pool executor.
 
-use rugra::action::{
+use rudra::action::{
     break_flags, rule_flags, Action, ActionGroup, ActionGroupList, ActionPool, ActionRestartGroup,
     ActionState, Rule, RuleState, build_default_pipeline, default_groups, universal_action,
 };
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
@@ -60,7 +60,7 @@ impl ScriptAction {
 }
 
 impl Action for ScriptAction {
-    fn apply(&mut self, _fd: &mut Funcdata) -> rugra::Result<i32> {
+    fn apply(&mut self, _fd: &mut Funcdata) -> rudra::Result<i32> {
         if let Some(trace) = &self.trace {
             trace.borrow_mut().push(self.name.clone());
         }
@@ -113,15 +113,15 @@ fn print_action_state(
     );
 }
 
-fn run_leaf(fd: &mut Funcdata) -> rugra::Result<()> {
+fn run_leaf(fd: &mut Funcdata) -> rudra::Result<()> {
     let mut leaf = ScriptAction::new(
-        rugra::action::action_flags::RULE_REPEATAPPLY,
+        rudra::action::action_flags::RULE_REPEATAPPLY,
         "leaf",
         vec![Step { changes: 2, result: 0 }, Step { changes: 0, result: 0 }],
         None,
     );
     let probe = leaf.handle();
-    let mut state = ActionState::new(rugra::action::action_flags::RULE_REPEATAPPLY);
+    let mut state = ActionState::new(rudra::action::action_flags::RULE_REPEATAPPLY);
     leaf.reset_for_function(fd, &mut state);
     leaf.set_warning(&mut state, true, "leaf");
     leaf.set_break_point(
@@ -148,7 +148,7 @@ fn run_leaf(fd: &mut Funcdata) -> rugra::Result<()> {
     Ok(())
 }
 
-fn run_group(fd: &mut Funcdata) -> rugra::Result<()> {
+fn run_group(fd: &mut Funcdata) -> rudra::Result<()> {
     let trace = Rc::new(RefCell::new(Vec::<String>::new()));
     let first = ScriptAction::new(
         0,
@@ -228,7 +228,7 @@ impl Rule for LookupRule {
         &self,
         _op: &Arc<RwLock<PcodeOp>>,
         _fd: &mut Funcdata,
-    ) -> rugra::Result<i32> {
+    ) -> rudra::Result<i32> {
         Ok(0)
     }
     fn get_name(&self) -> &str {
@@ -326,7 +326,7 @@ impl Rule for LiveRule {
         &self,
         op: &Arc<RwLock<PcodeOp>>,
         fd: &mut Funcdata,
-    ) -> rugra::Result<i32> {
+    ) -> rudra::Result<i32> {
         let address = op.read().unwrap().get_addr().as_u64();
         self.probe
             .borrow_mut()
@@ -434,7 +434,7 @@ fn print_pool_event(
     );
 }
 
-fn run_pool(fd: &mut Funcdata) -> rugra::Result<()> {
+fn run_pool(fd: &mut Funcdata) -> rudra::Result<()> {
     let block: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
         BlockBasic::new(0, Address::new(0x800)),
     ));
@@ -523,7 +523,7 @@ impl Rule for ResetRule {
         &self,
         _op: &Arc<RwLock<PcodeOp>>,
         _fd: &mut Funcdata,
-    ) -> rugra::Result<i32> {
+    ) -> rudra::Result<i32> {
         self.probe.borrow_mut().calls += 1;
         Ok(1)
     }
@@ -544,7 +544,7 @@ impl Rule for ResetRule {
     }
 }
 
-fn run_virtual_reset() -> rugra::Result<()> {
+fn run_virtual_reset() -> rudra::Result<()> {
     let mut fd = Funcdata::new("virtual_reset", Address::new(0x5000), 0x20);
     let block: Arc<RwLock<dyn FlowBlock + Send + Sync>> = Arc::new(RwLock::new(
         BlockBasic::new(0, Address::new(0x5000)),
@@ -608,14 +608,14 @@ fn run_virtual_reset() -> rugra::Result<()> {
 // omits Rule::reset (subflow.cc:1742-1746, double.cc:3198-3202), driven
 // through the real ActionPool reset dispatch plus a rule-level probe for
 // RuleSubvarSext's derived field.
-fn run_production_reset_seam() -> rugra::Result<()> {
+fn run_production_reset_seam() -> rudra::Result<()> {
     let mut arch = Architecture::new();
     arch.aggressive_ext_trim = true;
     let mut fd = Funcdata::new("seam", Address::new(0x6000), 0x10);
     fd.set_arch(Arc::new(arch));
     let mut pool = ActionPool::with_flags("seam_pool", 0);
-    pool.add_rule(Box::new(rugra::subflow::RuleSubvarSext::new()));
-    pool.add_rule(Box::new(rugra::double_precis::RuleDoubleIn::new()));
+    pool.add_rule(Box::new(rudra::subflow::RuleSubvarSext::new()));
+    pool.add_rule(Box::new(rudra::double_precis::RuleDoubleIn::new()));
     let mut state = ActionState::new(0);
     pool.set_warning(&mut state, true, "seam_pool:subvar_sext");
     pool.set_warning(&mut state, true, "seam_pool:doublein");
@@ -627,7 +627,7 @@ fn run_production_reset_seam() -> rugra::Result<()> {
     let din_flags = pool.rule_state(1).unwrap().flags;
 
     // Rule-level probe mirroring the oracle's direct derived reset.
-    let mut probe = rugra::subflow::RuleSubvarSext::new();
+    let mut probe = rudra::subflow::RuleSubvarSext::new();
     let mut probe_state = RuleState::new(0);
     probe_state.flags |= rule_flags::WARNINGS_GIVEN;
     probe.reset_for_function(&mut fd, &mut probe_state);
@@ -642,7 +642,7 @@ fn run_production_reset_seam() -> rugra::Result<()> {
 
 // ActionRestartGroup forwards its inherited Action base fields into the
 // embedded ActionGroup child boundary (action.cc:517/560).
-fn run_restart_break() -> rugra::Result<()> {
+fn run_restart_break() -> rudra::Result<()> {
     let mut fd = Funcdata::new("restart_break", Address::new(0x7000), 0x10);
     fd.set_arch(Arc::new(Architecture::new()));
     let child = ScriptAction::new(0, "maker", vec![Step { changes: 3, result: 0 }], None);
@@ -709,7 +709,7 @@ fn run_derived_trees() {
     walk_action(&register, 0);
 }
 
-fn main() -> rugra::Result<()> {
+fn main() -> rudra::Result<()> {
     println!(
         "schema=1|fixture=ACTION-EXECUTOR-BREAKPOOL-0001|oracle=e40ed13014025f82488b1f8f7bca566894ac376b"
     );

@@ -8,19 +8,19 @@ use std::io::{self, Write};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::coreaction::ActionInferTypes;
-use rugra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::{CoreTypeFlavor, SizeArchInputs, TypeFactory};
-use rugra::typeop::{TypeOp, TypeOpCall, TypeOpCallind};
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::coreaction::ActionInferTypes;
+use rudra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::{CoreTypeFlavor, SizeArchInputs, TypeFactory};
+use rudra::typeop::{TypeOp, TypeOpCall, TypeOpCallind};
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
@@ -30,8 +30,8 @@ type VarnodeRef = Arc<RwLock<Varnode>>;
 fn element(
     name: &str,
     attributes: &[(&str, &str)],
-) -> Arc<RwLock<rugra::marshal::Element>> {
-    let mut node = rugra::marshal::Element::new();
+) -> Arc<RwLock<rudra::marshal::Element>> {
+    let mut node = rudra::marshal::Element::new();
     node.set_name(name);
     for (key, value) in attributes {
         node.add_attribute(key, value);
@@ -145,7 +145,7 @@ fn descendant_order(labels: &[(PcodeOpRef, &str)], source: &VarnodeRef) -> Strin
         .join(",")
 }
 
-fn block_order(labels: &[(PcodeOpRef, &str)], block: &Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>) -> String {
+fn block_order(labels: &[(PcodeOpRef, &str)], block: &Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>) -> String {
     block
         .read()
         .unwrap()
@@ -261,8 +261,8 @@ fn main() {
         }
         let organization = element("data_organization", &[]);
         organization.write().unwrap().add_child(alignment_map);
-        let registry = Arc::new(RwLock::new(rugra::marshal::IdRegistry::new()));
-        let mut organization_decoder = rugra::marshal::TreeDecoder::new(organization, registry);
+        let registry = Arc::new(RwLock::new(rudra::marshal::IdRegistry::new()));
+        let mut organization_decoder = rudra::marshal::TreeDecoder::new(organization, registry);
         factory.decode_data_organization(&mut organization_decoder);
         factory.setup_sizes(&SizeArchInputs {
             stack_spacebase_size: Some(8),

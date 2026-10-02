@@ -14,16 +14,16 @@
 //! CALLSPEC-DRIVER-0001 wiring established for `FlowInfo::queryCall`
 //! (flow.cc:660).
 
-use rugra::address::Address;
-use rugra::block::{block_flags, FlowBlock};
-use rugra::comment::comment_type;
-use rugra::comment::CommentDatabaseInternal;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::flow::follow_flow;
-use rugra::fspec::FuncCallSpecs;
-use rugra::funcdata::Funcdata;
-use rugra::op::pcodeop_flags;
-use rugra::space::AddressSpace;
+use rudra::address::Address;
+use rudra::block::{block_flags, FlowBlock};
+use rudra::comment::comment_type;
+use rudra::comment::CommentDatabaseInternal;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::flow::follow_flow;
+use rudra::fspec::FuncCallSpecs;
+use rudra::funcdata::Funcdata;
+use rudra::op::pcodeop_flags;
+use rudra::space::AddressSpace;
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -110,7 +110,7 @@ fn space_name(space: AddressSpace) -> String {
     .to_string()
 }
 
-fn input0_token(op: &rugra::op::PcodeOp, base: u64) -> String {
+fn input0_token(op: &rudra::op::PcodeOp, base: u64) -> String {
     let Some(input) = op.inrefs.first() else {
         return "none".to_string();
     };
@@ -123,8 +123,8 @@ fn input0_token(op: &rugra::op::PcodeOp, base: u64) -> String {
         // identity proof from either the token or numeric offset.
         AddressSpace::Iop => "callspec".to_string(),
         AddressSpace::Const => {
-            if op.opcode == rugra::opcodes::OpCode::CPUI_LOAD
-                || op.opcode == rugra::opcodes::OpCode::CPUI_STORE
+            if op.opcode == rudra::opcodes::OpCode::CPUI_LOAD
+                || op.opcode == rudra::opcodes::OpCode::CPUI_STORE
             {
                 // Space reference encoded as a constant: Ghidra's value is a
                 // per-run heap pointer, Rugra's a stable SPACEID_* index;
@@ -170,7 +170,7 @@ fn observe(
     let mut fd = Funcdata::new(name, Address::new(address), size as i32);
     // Ghidra's Funcdata writes warnings into Architecture::commentdb; attach
     // the shared in-memory database the same way before following flow.
-    let mut arch = rugra::arch::Architecture::new();
+    let mut arch = rudra::arch::Architecture::new();
     let db = Arc::new(RwLock::new(CommentDatabaseInternal::new()));
     arch.set_commentdb(db.clone());
     fd.set_arch(Arc::new(arch));
@@ -193,7 +193,7 @@ fn observe(
 
     {
         let db_ref = db.read().expect("commentdb read lock");
-        let comments: Vec<&rugra::comment::Comment> =
+        let comments: Vec<&rudra::comment::Comment> =
             db_ref.comments_for_function(Address::new(base)).collect();
         for (index, comment) in comments.iter().enumerate() {
             let ty = comment.get_type();
@@ -238,7 +238,7 @@ fn observe(
                 block.get_start_addr().as_u64(),
                 block
                     .as_any()
-                    .downcast_ref::<rugra::block::BlockBasic>()
+                    .downcast_ref::<rudra::block::BlockBasic>()
                     .map(|basic| basic.get_stop_addr().as_u64())
                     .unwrap_or(0),
             )

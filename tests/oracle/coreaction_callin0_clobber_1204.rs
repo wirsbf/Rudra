@@ -19,12 +19,12 @@
  * cannot totalReplaceConstant the coderef to const:0 (the FUN_0 clobber).
  */
 
-use rugra::action::Action;
-use rugra::address::{calc_mask, Address};
-use rugra::coreaction::{ActionDeadCode, ActionDefaultParams, ActionVarnodeProps};
-use rugra::disasm::{Disassembler as _, X86Lifter, X86_64Disassembler};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
+use rudra::action::Action;
+use rudra::address::{calc_mask, Address};
+use rudra::coreaction::{ActionDeadCode, ActionDefaultParams, ActionVarnodeProps};
+use rudra::disasm::{Disassembler as _, X86Lifter, X86_64Disassembler};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
 
 /// One control-flow target projection line, sortable by (kind, target) —
 /// bank insertion order differs between the flow-driven oracle builder and
@@ -70,7 +70,7 @@ fn main() {
     for inst in &instructions {
         let mut ops = lifter.lift(inst);
         for op in &mut ops {
-            op.set_seq_num(rugra::address::SeqNum::new(inst.address, 0));
+            op.set_seq_num(rudra::address::SeqNum::new(inst.address, 0));
         }
         raw_ops.extend(ops);
     }

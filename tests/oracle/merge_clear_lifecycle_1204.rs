@@ -22,17 +22,17 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::fspec::{FuncCallSpecs, FuncProto, ParamActive};
-use rugra::funcdata::{funcdata_flags, Funcdata, LanedStorage};
-use rugra::jumptable::{JumpBasicOverride, JumpTable};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase};
-use rugra::type_system::TypeMetatype;
-use rugra::unionresolve::{ResolveEdge, ResolvedUnion};
-use rugra::varmap::{LocalSymbol, ScopeLocal};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::fspec::{FuncCallSpecs, FuncProto, ParamActive};
+use rudra::funcdata::{funcdata_flags, Funcdata, LanedStorage};
+use rudra::jumptable::{JumpBasicOverride, JumpTable};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase};
+use rudra::type_system::TypeMetatype;
+use rudra::unionresolve::{ResolveEdge, ResolvedUnion};
+use rudra::varmap::{LocalSymbol, ScopeLocal};
 
 fn int4() -> Arc<Datatype> {
     Arc::new(Datatype::Base(TypeBase::new(
@@ -66,8 +66,8 @@ fn main() {
     // mirrors the Ghidra ctor's minLanedSize assignment (funcdata.cc:49), so
     // the 4-byte register varnodes auto-enter lanedMap exactly like the C++
     // side (checkForLanedRegister, funcdata_varnode.cc:298).
-    let mut arch = rugra::arch::Architecture::new();
-    let lane_record = Arc::new(rugra::transform::LanedRegister::with_sizes(4, 0xa));
+    let mut arch = rudra::arch::Architecture::new();
+    let lane_record = Arc::new(rudra::transform::LanedRegister::with_sizes(4, 0xa));
     arch.lane_records.push(lane_record.clone());
     fd.set_arch(Arc::new(arch));
 

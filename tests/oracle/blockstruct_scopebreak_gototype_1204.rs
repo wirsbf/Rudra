@@ -35,11 +35,11 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::block::{
     BlockBasic, BlockGoto, BlockIf, BlockGraph, BlockType, FlowBlock, block_flags,
 };
-use rugra::blockaction::CollapseStructure;
+use rudra::blockaction::CollapseStructure;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -230,7 +230,7 @@ fn target_facts(t: &BlockRef) -> (String, u32) {
 }
 
 fn front_leaf_flag(t: &BlockRef) -> u32 {
-    match rugra::block::front_leaf(t) {
+    match rudra::block::front_leaf(t) {
         Some(leaf) => {
             let l = leaf.read().unwrap();
             if (l.get_flags() & block_flags::UNSTRUCTURED_TARG) != 0 {

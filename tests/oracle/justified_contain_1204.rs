@@ -4,7 +4,7 @@
 //  - Address::justifiedContain (address.cc:131-141) polarity: EITHER side
 //    poking out independently returns -1 (equal-start-bigger, low overlap
 //    flush at entry end, superset, high poke). The spaceless helper
-//    rugra::fspec::justified_contain_range selects the branch by the
+//    rudra::fspec::justified_contain_range selects the branch by the
 //    space endianness and force_left exactly like Ghidra's
 //    `base->isBigEndian() && !forceleft` (address.cc:138; re-pinned by
 //    FSPEC-JUSTIFIED-ENDIAN-0002): view=start rows call
@@ -25,10 +25,10 @@
 //    contains_unjustified(1), contained_by(3), no_containment(0), with
 //    query starts kept inside the entry extent (resolver gating).
 
-use rugra::address::Address;
-use rugra::fspec::param_entry_flags;
-use rugra::fspec::{justified_contain_range, ParamEntry, ParamListStandard, TypeClass};
-use rugra::space::AddressSpace;
+use rudra::address::Address;
+use rudra::fspec::param_entry_flags;
+use rudra::fspec::{justified_contain_range, ParamEntry, ParamListStandard, TypeClass};
+use rudra::space::AddressSpace;
 
 // staged-loader entry builder (the pub equivalent of the C++ fixture's
 // direct field writes; same pattern as the fspec_phase0 fixture).

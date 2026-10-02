@@ -11,9 +11,9 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::TypeFactory;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::TypeFactory;
 
 fn metatype_number(metatype: TypeMetatype) -> i32 {
     match metatype {
@@ -39,7 +39,7 @@ fn emit_type(key: &str, datatype: &Arc<Datatype>) {
     println!("{key}.core={}", if datatype.is_coretype() { 1 } else { 0 });
     println!(
         "{key}.char={}",
-        if datatype.get_flags() & rugra::type_system::datatype::type_flags::CHARTYPE != 0 {
+        if datatype.get_flags() & rudra::type_system::datatype::type_flags::CHARTYPE != 0 {
             1
         } else {
             0

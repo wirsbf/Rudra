@@ -5,9 +5,9 @@
   "ghidra::Address::justifiedContain(int4, const Address &, int4, bool) const address.cc:131",
   "ghidra::ParamEntry::justifiedContain(const Address &, int4) const fspec.cc:248",
   "ghidra::ParamListStandard::characterizeAsParam(const Address &, int4) const fspec.cc:682",
-  "rugra::fspec::justified_contain_range src/fspec.rs (RUGRA-GLUE mirror of address.cc:131-141)",
-  "rugra::fspec::ParamEntry::justified_contain src/fspec.rs (fspec.cc:248-283)",
-  "rugra::fspec::ParamListStandard::characterize_as_param src/fspec.rs (fspec.cc:682-719)"
+  "rudra::fspec::justified_contain_range src/fspec.rs (RUGRA-GLUE mirror of address.cc:131-141)",
+  "rudra::fspec::ParamEntry::justified_contain src/fspec.rs (fspec.cc:248-283)",
+  "rudra::fspec::ParamListStandard::characterize_as_param src/fspec.rs (fspec.cc:682-719)"
  ],
  "overall_status": "UNTESTED: (B2 canonicalization)",
  "status_detail": "The three-case covered projection byte-matches Ghidra 12.0.4's Address::justifiedContain one-sided-violation polarity and branch arithmetic (LE/BE x forceleft over 17 geometries including 1/4/8/cross-4 size boundaries), the ParamEntry alignment==0 wrapper, and the characterizeAsParam three-way classification. Re-pinned after FSPEC-JUSTIFIED-ENDIAN-0002 threaded the space endianness through justified_contain_range: view=start rows now exercise force_left=false on a little-endian space (the defect route), and the be=1 rows pin the BE arithmetic through the helper because the transitional enum AddressSpace cannot stage a BE ParamEntry. Overall remains UNTESTED because the space-mismatch base check and resolver-gated foreign-start characterize queries are not exercised by this fixture (both are covered by the successor fixture fspec_endian_resolver_1204).",

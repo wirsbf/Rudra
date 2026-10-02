@@ -105,7 +105,7 @@ FRONTEND-MINIMAL-0001; see `docs/api/frontend.md`).
 
 **用途**：
 - 统一库内部与外部调用的错误返回风格
-- 让上层调用者可以直接使用 `rugra::Result`
+- 让上层调用者可以直接使用 `rudra::Result`
 
 ---
 

@@ -19,14 +19,14 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleSubCommute;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleSubCommute;
+use rudra::varnode::Varnode;
 
 type VnRef = Arc<RwLock<Varnode>>;
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
@@ -47,11 +47,11 @@ fn vn_class(vn: Option<&VnRef>) -> char {
     }
 }
 
-fn print_op_line(op: &rugra::op::PcodeOpRef) {
+fn print_op_line(op: &rudra::op::PcodeOpRef) {
     let g = op.0.read().unwrap();
     let addr = g.get_addr().to_space_address().get_offset();
     let mut line = format!("  op={}@0x{:x}|nin={}", g.opcode as i32, addr, g.num_input());
-    let sentinel = rugra::op::null_slot_sentinel();
+    let sentinel = rudra::op::null_slot_sentinel();
     for i in 0..2 {
         let vn = g.get_in(i).filter(|v| !Arc::ptr_eq(*v, &sentinel));
         match vn {
@@ -114,7 +114,7 @@ fn dump_keep_lines(fd: &Funcdata, keeps: &[VnRef], tags: &[&str], lo: u64, hi: u
 }
 
 struct CaseBuilt {
-    sub_op: rugra::op::PcodeOpRef,
+    sub_op: rudra::op::PcodeOpRef,
     keeps: Vec<VnRef>,
     tags: Vec<&'static str>,
 }
@@ -145,7 +145,7 @@ fn cancel_ext_case(
     let vals: [u64; 2] = [0x33, 0x55];
     let sizes = [asz, bsz];
     let mut ins: Vec<VnRef> = Vec::new();
-    let mut writers: Vec<rugra::op::PcodeOpRef> = Vec::new();
+    let mut writers: Vec<rudra::op::PcodeOpRef> = Vec::new();
     for slot in 0..2 {
         let writer = fd.new_op(1, Address::new(base + 0x10 + 0x8 * slot as u64));
         fd.op_set_opcode(&writer, OpCode::CPUI_COPY);

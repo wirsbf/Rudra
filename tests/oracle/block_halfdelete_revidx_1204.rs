@@ -1,6 +1,6 @@
 // BLOCK-HALFDELETE-REVIDX-0001 Rust comparand for locked Ghidra 12.0.4.
-use rugra::address::Address;
-use rugra::block::{BlockBasic, BlockEdge, BlockGraph, FlowBlock};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, BlockEdge, BlockGraph, FlowBlock};
 use std::sync::{Arc, RwLock};
 
 type BlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;

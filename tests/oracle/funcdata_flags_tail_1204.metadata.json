@@ -10,10 +10,10 @@
   "ghidra::Database::setPropertyRange database.cc:3220",
   "ghidra::Funcdata::opSetInput funcdata_op.cc:104",
   "ghidra::Varnode::addDescend varnode.cc:330",
-  "rugra::Funcdata::new_indirect_op src/funcdata.rs:3423",
-  "rugra::Funcdata::new_indirect_creation_in_space src/funcdata.rs:3624",
-  "rugra::Heritage::apply_new_varnode_flags src/heritage.rs:2252",
-  "rugra::Heritage::guard_query_properties src/heritage.rs:2152"
+  "rudra::Funcdata::new_indirect_op src/funcdata.rs:3423",
+  "rudra::Funcdata::new_indirect_creation_in_space src/funcdata.rs:3624",
+  "rudra::Heritage::apply_new_varnode_flags src/heritage.rs:2252",
+  "rudra::Heritage::guard_query_properties src/heritage.rs:2152"
  ],
  "overall_status": "MISMATCH: all six fixture projections byte-match locked Ghidra 12.0.4 through direct Funcdata::newIndirectOp/newIndirectCreation constructor calls \u2014 the newVarnode/newVarnodeOut property tail (funcdata_varnode.cc:148-165/104-127) is now observable on the INDIRECT in/out varnodes: mapped|addrtied inside the ScopeLocal stack window, persist inside a Database property band (non-retroactively), creation possibleout both halves, a no-property unique control, and the free-varnode second-opSetInput pre-exception state. Conservative mismatch stands for the module closure: the guard_query_properties projection's registered residuals (HERITAGE-GUARD-FLSYMBOL-TIEBREAK-0001: min-size tie-break, use-limited entry eligibility, mapScope, parent-scope symbol visibility, usepoint parameter) and the BE domain (HERITAGE-BE-OVERLAP) remain untested by this corpus.",
  "covered_projection_status": "MATCH",
@@ -132,7 +132,7 @@
  },
  "observation_schema": {
   "format": "Six fixed-order UTF-8 case lines, final newline, no envelope",
-  "flags": "raw varnode.hh flag words in hex (bit layout mirrored verbatim in rugra::varnode::varnode_flags)",
+  "flags": "raw varnode.hh flag words in hex (bit layout mirrored verbatim in rudra::varnode::varnode_flags)",
   "op_projection": "get_opname opcode names (CPUI_INDIRECT prints DELAY_SLOT per the opcodes.cc:26/45 name-table alias), indirect_creation/indirect_store op-flag booleans",
   "state": "free/written predicates, descend counts, offsets/sizes, per-constructor numVarnodes delta, block op order, caught error text"
  },

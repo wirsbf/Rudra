@@ -19,7 +19,7 @@
 //! Snippet temporaries start at unique offset 0 (PcodeSnippet default
 //! tempbase, pcodeparse.y:681) matching the C++ side.
 
-use rugra::pcodeparse::{
+use rudra::pcodeparse::{
     ConstTpl, ConstructTpl, OpTpl, PcodeSnippet, PredefinedJumpSymbols, SleighSymbol,
     SleighSymbolLookup, SleightSymbolKind, VarnodeTpl,
 };
@@ -40,13 +40,13 @@ fn symbol_type_ordinal(sym: &SleighSymbol) -> Option<i32> {
         SleightSymbolKind::Varnode(_) => Some(6),
         SleightSymbolKind::Operand(_, _) => Some(8),
         SleightSymbolKind::JumpTarget(kind) => match kind {
-            rugra::pcodeparse::JumpTargetKind::InstStart => Some(9),
-            rugra::pcodeparse::JumpTargetKind::InstNext => Some(10),
-            rugra::pcodeparse::JumpTargetKind::InstNext2 => Some(11),
+            rudra::pcodeparse::JumpTargetKind::InstStart => Some(9),
+            rudra::pcodeparse::JumpTargetKind::InstNext => Some(10),
+            rudra::pcodeparse::JumpTargetKind::InstNext2 => Some(11),
             // flowdest_symbol=19, flowref_symbol=20 (language lookup never
             // returns these: they are snippet-local only).
-            rugra::pcodeparse::JumpTargetKind::InstDest => Some(19),
-            rugra::pcodeparse::JumpTargetKind::InstRef => Some(20),
+            rudra::pcodeparse::JumpTargetKind::InstDest => Some(19),
+            rudra::pcodeparse::JumpTargetKind::InstRef => Some(20),
         },
         // epsilon_symbol=17, label_symbol=18 — not reachable through the
         // language wrapper.
@@ -122,12 +122,12 @@ fn write_const_tpl(writer: &mut TplWriter, ct: &ConstTpl) {
             // ConstTpl::encode handle case (semantics.cc:309-316): val =
             // handle index, s = select, plus only for v_offset_plus.
             let s = match select {
-                rugra::pcodeparse::HandleSelect::Space => 0,
-                rugra::pcodeparse::HandleSelect::Offset => 1,
-                rugra::pcodeparse::HandleSelect::Size => 2,
-                rugra::pcodeparse::HandleSelect::OffsetPlus => 3,
+                rudra::pcodeparse::HandleSelect::Space => 0,
+                rudra::pcodeparse::HandleSelect::Offset => 1,
+                rudra::pcodeparse::HandleSelect::Size => 2,
+                rudra::pcodeparse::HandleSelect::OffsetPlus => 3,
             };
-            if matches!(select, rugra::pcodeparse::HandleSelect::OffsetPlus) {
+            if matches!(select, rudra::pcodeparse::HandleSelect::OffsetPlus) {
                 (
                     "const_handle",
                     vec![
@@ -148,15 +148,15 @@ fn write_const_tpl(writer: &mut TplWriter, ct: &ConstTpl) {
             _ => unreachable!(),
         };
         let spc_name = match spc {
-            rugra::space::AddressSpace::Const => "const",
-            rugra::space::AddressSpace::Unique => "unique",
-            rugra::space::AddressSpace::Ram => "ram",
-            rugra::space::AddressSpace::Register => "register",
-            rugra::space::AddressSpace::Stack => "stack",
-            rugra::space::AddressSpace::Iop => "iop",
-            rugra::space::AddressSpace::Join => "join",
-            rugra::space::AddressSpace::Other(_) => "OTHER",
-            rugra::space::AddressSpace::Overlay => "OTHER",
+            rudra::space::AddressSpace::Const => "const",
+            rudra::space::AddressSpace::Unique => "unique",
+            rudra::space::AddressSpace::Ram => "ram",
+            rudra::space::AddressSpace::Register => "register",
+            rudra::space::AddressSpace::Stack => "stack",
+            rudra::space::AddressSpace::Iop => "iop",
+            rudra::space::AddressSpace::Join => "join",
+            rudra::space::AddressSpace::Other(_) => "OTHER",
+            rudra::space::AddressSpace::Overlay => "OTHER",
         };
         writer.begin(name, &[("space", spc_name.to_string())]);
     } else {

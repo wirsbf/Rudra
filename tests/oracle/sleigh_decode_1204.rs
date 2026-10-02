@@ -1,5 +1,5 @@
-use rugra::opcodes::OpCode;
-use rugra::sleigh_ffi::{
+use rudra::opcodes::OpCode;
+use rudra::sleigh_ffi::{
     set_sla_path, DecodedInstruction, PcodeOpC, SleighCtx, SleighDecodeError, SleighErrorKind,
     VarnodeC,
 };

@@ -17,12 +17,12 @@ use goblin::Object;
 use std::collections::HashMap;
 use std::fs;
 
-use rugra::action::ActionDatabase;
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::printc::PrintC;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printlanguage::PrintLanguage;
+use rudra::action::ActionDatabase;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::printc::PrintC;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printlanguage::PrintLanguage;
 
 /// Resolve a target specifier (name or hex address) to (vaddr, size, file_offset).
 /// name lookup scans syms + dynsyms; addr parse accepts 0x.. or bare hex.
@@ -213,7 +213,7 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
     // SLEIGH-RUSTIFY-PHASE3-0001: canon-contract linear walk (padding NOP
     // filter) — the retired iced lift + per-op SeqNum stamping is now the
     // shared SLEIGH walk (lift_instruction stamps SeqNum(addr, 0) itself).
-    let raw_ops = rugra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code_bytes, target_addr);
+    let raw_ops = rudra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code_bytes, target_addr);
 
     // Build Funcdata, run full pipeline.
     let mut fd = Funcdata::new(&func_name, Address::new(target_addr), func_size as i32);
@@ -232,7 +232,7 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
     // locked cspec's data_organization (architecture.cc:1269) +
     // setupSizes (:1350).
     {
-        let mut arch = rugra::arch::Architecture::new();
+        let mut arch = rudra::arch::Architecture::new();
         // HTTPD-DRIVER-ARCH-INIT-0001 (single-function leg): install the
         // Architecture::init items the curl worker builds
         // (curl_decompile.rs:1877-1900) — archid, register_xref, commentdb —
@@ -241,7 +241,7 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
         // getAllRegisters -> varnode_xref (sleighbase.cc:182-186), the table
         // Architecture::get_register_name (sleighbase.cc:144-168) walks for
         // ScopeLocal::buildVariableName's register queries.
-        let sleigh = rugra::sleigh_ffi::SleighCtx::new()
+        let sleigh = rudra::sleigh_ffi::SleighCtx::new()
             .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
         let mut register_xref: Vec<(i32, u64, i32, String)> = Vec::new();
         for index in 0..sleigh.num_registers() {
@@ -264,11 +264,11 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
         // stored header comments — the comment channel every oracle run
         // uses.
         arch.set_commentdb(std::sync::Arc::new(std::sync::RwLock::new(
-            rugra::comment::CommentDatabaseInternal::new(),
+            rudra::comment::CommentDatabaseInternal::new(),
         )));
         let cspec_bytes = fs::read("sleigh_specs/x86-64-gcc.cspec")
             .map_err(|e| format!("unable to read compiler spec: {e}"))?;
-        let mut store = rugra::marshal::DocumentStorage::new();
+        let mut store = rudra::marshal::DocumentStorage::new();
         let doc = store
             .parse_document(&cspec_bytes)
             .map_err(|e| format!("compiler spec parse failed: {e}"))?;
@@ -289,13 +289,13 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
             })
             .cloned()
             .ok_or_else(|| "compiler spec has no data_organization".to_string())?;
-        let mut types = rugra::type_system::typefactory::TypeFactory::new(8);
+        let mut types = rudra::type_system::typefactory::TypeFactory::new(8);
         let registry = std::sync::Arc::new(std::sync::RwLock::new(
-            rugra::marshal::IdRegistry::new(),
+            rudra::marshal::IdRegistry::new(),
         ));
-        let mut decoder = rugra::marshal::TreeDecoder::new(data_org, registry);
+        let mut decoder = rudra::marshal::TreeDecoder::new(data_org, registry);
         types.decode_data_organization(&mut decoder);
-        types.setup_sizes(&rugra::type_system::typefactory::SizeArchInputs {
+        types.setup_sizes(&rudra::type_system::typefactory::SizeArchInputs {
             stack_spacebase_size: Some(8),
             default_data_space_addr_size: 8,
             default_size: 8,

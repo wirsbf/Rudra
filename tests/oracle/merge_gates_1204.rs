@@ -24,14 +24,14 @@
 
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::merge::Merge;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::merge::Merge;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type BlockRef = Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<std::sync::RwLock<Varnode>>;
@@ -285,7 +285,7 @@ fn run_mergerequired(graph: &mut Graph) {
     merge.merge_marker(&mut graph.fd);
 }
 
-fn set_type_lock(vn: &VnRef, dtype: Arc<rugra::type_system::datatype::Datatype>) {
+fn set_type_lock(vn: &VnRef, dtype: Arc<rudra::type_system::datatype::Datatype>) {
     // C++ Varnode::updateType(ct, /*locktype=*/true, /*locksize=*/true).
     let mut w = vn.write().unwrap();
     w.v_type = Some(dtype);
@@ -352,11 +352,11 @@ fn run_dominant_copy() {
     g.set_dom(&b2, &b0);
     g.set_dom(&b3, &b0);
 
-    let ct_int = Arc::new(rugra::type_system::Datatype::Base(
-        rugra::type_system::TypeBase::new("int4".to_string(), 4, rugra::type_system::TypeMetatype::Int),
+    let ct_int = Arc::new(rudra::type_system::Datatype::Base(
+        rudra::type_system::TypeBase::new("int4".to_string(), 4, rudra::type_system::TypeMetatype::Int),
     ));
-    let ct_uint = Arc::new(rugra::type_system::Datatype::Base(
-        rugra::type_system::TypeBase::new("uint4".to_string(), 4, rugra::type_system::TypeMetatype::Uint),
+    let ct_uint = Arc::new(rudra::type_system::Datatype::Base(
+        rudra::type_system::TypeBase::new("uint4".to_string(), 4, rudra::type_system::TypeMetatype::Uint),
     ));
 
     let op1 = g.make_op(OpCode::CPUI_COPY, 1);
@@ -399,8 +399,8 @@ fn run_dominant_copy() {
 
 // -------------------------------------------------------------------------
 fn run_multientry_gate() {
-    use rugra::address::RangeList;
-    use rugra::database::{Symbol, SymbolEntry};
+    use rudra::address::RangeList;
+    use rudra::database::{Symbol, SymbolEntry};
 
     let mut g = Graph::new("multientry_gate", 0x7600);
     let b0 = g.make_block(0);
@@ -409,19 +409,19 @@ fn run_multientry_gate() {
     // stores the text (Ghidra writes into glb->commentdb, funcdata.cc:143)
     // instead of falling back to stderr.
     let arch = {
-        let mut a = rugra::arch::Architecture::new();
+        let mut a = rudra::arch::Architecture::new();
         a.commentdb = Some(Arc::new(std::sync::RwLock::new(
-            rugra::comment::CommentDatabaseInternal::new(),
+            rudra::comment::CommentDatabaseInternal::new(),
         )));
         Arc::new(a)
     };
     g.fd.set_arch(arch.clone());
 
-    let ct_int = Arc::new(rugra::type_system::Datatype::Base(
-        rugra::type_system::TypeBase::new("int8".to_string(), 8, rugra::type_system::TypeMetatype::Int),
+    let ct_int = Arc::new(rudra::type_system::Datatype::Base(
+        rudra::type_system::TypeBase::new("int8".to_string(), 8, rudra::type_system::TypeMetatype::Int),
     ));
-    let ct_uint = Arc::new(rugra::type_system::Datatype::Base(
-        rugra::type_system::TypeBase::new("uint8".to_string(), 8, rugra::type_system::TypeMetatype::Uint),
+    let ct_uint = Arc::new(rudra::type_system::Datatype::Base(
+        rudra::type_system::TypeBase::new("uint8".to_string(), 8, rudra::type_system::TypeMetatype::Uint),
     ));
 
     let op1 = g.make_op(OpCode::CPUI_LOAD, 2);
@@ -478,7 +478,7 @@ fn run_multientry_gate() {
         merge.merge_multi_entry(&mut g.fd);
     }
     let merge_problems =
-        (sym.read().unwrap().dispflags & rugra::database::display_flags::MERGE_PROBLEMS) != 0;
+        (sym.read().unwrap().dispflags & rudra::database::display_flags::MERGE_PROBLEMS) != 0;
     let unmerged_m2 = vns[1]
         .read()
         .unwrap()
@@ -491,7 +491,7 @@ fn run_multientry_gate() {
         let mut texts: Vec<String> = Vec::new();
         if let Some(cdb) = &a.commentdb {
             for c in cdb.read().unwrap().all_comments() {
-                if c.get_type() == rugra::comment::comment_type::WARNINGHEADER {
+                if c.get_type() == rudra::comment::comment_type::WARNINGHEADER {
                     texts.push(c.get_text().to_string());
                 }
             }
@@ -509,7 +509,7 @@ fn run_multientry_gate() {
 
 // -------------------------------------------------------------------------
 fn run_cross_space_order() {
-    use rugra::variable::HighVariable;
+    use rudra::variable::HighVariable;
 
     let mut g = Graph::new("cross_space_order", 0x7700);
     let b0 = g.make_block(0);

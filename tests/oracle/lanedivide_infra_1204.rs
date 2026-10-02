@@ -1,15 +1,15 @@
 //! LANEDIVIDE-INFRA-0001 Rugra comparand.
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::subflow::LaneDivide;
-use rugra::transform::{LaneDescription, LanedRegister};
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::subflow::LaneDivide;
+use rudra::transform::{LaneDescription, LanedRegister};
+use rudra::varnode::Varnode;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::{Arc, RwLock};
@@ -78,7 +78,7 @@ impl GraphProjection {
             .map_or_else(|| "x".to_string(), |index| format!("v{index}"))
     }
 
-    fn op_name(&self, op: Option<&Arc<RwLock<rugra::op::PcodeOp>>>) -> String {
+    fn op_name(&self, op: Option<&Arc<RwLock<rudra::op::PcodeOp>>>) -> String {
         let Some(op) = op else {
             return "_".to_string();
         };
@@ -145,7 +145,7 @@ impl GraphProjection {
                     write!(
                         output,
                         ":s{}",
-                        AddressSpace::from_id(varnode.get_offset() as rugra::space::SpaceId)
+                        AddressSpace::from_id(varnode.get_offset() as rudra::space::SpaceId)
                             .space_id()
                     )
                     .unwrap();
@@ -457,7 +457,7 @@ fn run_subpiece_terminator(architecture: &Arc<Architecture>) {
 }
 
 fn run_store(architecture: &Arc<Architecture>) {
-    let ram_index = rugra::space::SPACEID_RAM as u64;
+    let ram_index = rudra::space::SPACEID_RAM as u64;
     let (mut fd, block) = new_function("glob_set", 0x4bc0, architecture);
     let (copy, root) = new_output_op(&mut fd, &block, OpCode::CPUI_COPY, 0x8100, 1, 4, false);
     let value = fd.new_constant(4, 0x1122_3344);
@@ -510,7 +510,7 @@ fn run_store(architecture: &Arc<Architecture>) {
 }
 
 fn run_load(architecture: &Arc<Architecture>) {
-    let ram_index = rugra::space::SPACEID_RAM as u64;
+    let ram_index = rudra::space::SPACEID_RAM as u64;
     let (mut fd, block) = new_function("glob_url", 0x4f70, architecture);
     let (load, root) = new_output_op(&mut fd, &block, OpCode::CPUI_LOAD, 0x8200, 2, 4, false);
     let space_input = fd.new_varnode_space(AddressSpace::Ram);
@@ -745,13 +745,13 @@ fn run_typelock(architecture: &Arc<Architecture>) {
     let int_type = types
         .read()
         .unwrap()
-        .get_base(4, rugra::type_system::datatype::TypeMetatype::Int)
+        .get_base(4, rudra::type_system::datatype::TypeMetatype::Int)
         .expect("int4 base type");
     let struct_type = types.write().unwrap().create_struct("lanepair");
     let uint_type = types
         .read()
         .unwrap()
-        .get_base(1, rugra::type_system::datatype::TypeMetatype::Uint)
+        .get_base(1, rudra::type_system::datatype::TypeMetatype::Uint)
         .expect("uint1 base type");
     let array_type = types.write().unwrap().get_array(uint_type, 4);
 

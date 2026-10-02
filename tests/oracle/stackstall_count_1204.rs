@@ -10,17 +10,17 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{
+use rudra::action::{
     action_flags, build_default_pipeline, status_flags, Action, ActionGroup,
     ActionRestartGroup,
 };
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<RwLock<Varnode>>;
@@ -77,7 +77,7 @@ impl Graph {
     fn unique_out(&mut self, name: &'static str, size: usize, op: &OpRef) -> VnRef {
         let vn = self
             .fd
-            .new_unique_out(size, &rugra::op::PcodeOpRef(op.clone()));
+            .new_unique_out(size, &rudra::op::PcodeOpRef(op.clone()));
         self.vns.push((vn.clone(), name));
         vn
     }
@@ -90,7 +90,7 @@ impl Graph {
             .vbank
             .create_with_space(size, AddressSpace::Register, regoffset);
         self.fd
-            .op_set_output(&rugra::op::PcodeOpRef(op.clone()), vn.clone());
+            .op_set_output(&rudra::op::PcodeOpRef(op.clone()), vn.clone());
         self.vns.push((vn.clone(), name));
         vn
     }
@@ -111,7 +111,7 @@ impl Graph {
 
     fn set_input(&mut self, op: &OpRef, vn: &VnRef, slot: usize) {
         self.fd.op_insert_input(
-            &rugra::op::PcodeOpRef(op.clone()),
+            &rudra::op::PcodeOpRef(op.clone()),
             vn.clone(),
             slot,
         );
@@ -119,7 +119,7 @@ impl Graph {
 
     fn insert_end(&mut self, op: &OpRef, block: &BlockRef) {
         self.fd
-            .op_insert_end(&rugra::op::PcodeOpRef(op.clone()), block);
+            .op_insert_end(&rudra::op::PcodeOpRef(op.clone()), block);
     }
 
     fn ir_text(&self) -> String {

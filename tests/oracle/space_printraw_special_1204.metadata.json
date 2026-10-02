@@ -18,7 +18,7 @@
  "architecture": "locked synthetic LE 64-bit fixture architecture: const=0, unique=2, ram=3, register=4, ws2=5 (addrsize 4, wordsize 2), join=6, iop=7 (x86-64-shaped ram/register sizes); heap-allocated spaces owned by ~AddrSpaceManager (translate.cc:492-502)",
  "compiler_spec": "none: JoinSpace::printRaw / AddrSpaceManager::findAddJoin / findJoin are pure space-manager methods; no Funcdata, P-code, or cspec input",
  "analysis_options": {
-  "api": "Direct JoinSpace::printRaw via rugra::space::AddrSpace::print_raw dispatch and findAddJoin/findJoin via rugra::space::SpaceRegistry (the registry-side manager_join tables, translate.hh:233-235 placement); no ActionGroup or other Action runs",
+  "api": "Direct JoinSpace::printRaw via rudra::space::AddrSpace::print_raw dispatch and findAddJoin/findJoin via rudra::space::SpaceRegistry (the registry-side manager_join tables, translate.hh:233-235 placement); no ActionGroup or other Action runs",
   "debug_macros": "OPACTION_DEBUG and CPUI_DEBUG are absent",
   "error_injection": "none",
   "normalization": "No Ghidra/Rugra behavior difference is normalized or removed. Both sides print the join offset unpadded lowercase hex and the printRaw result string verbatim (including the brace/comma pieces form, the ':logicalsize' float-extension suffix, the wordsize-2 '+cut' suffix inside the braces, and the 'Unlinked join address' throw text). The dedup line prints offset identity on the Rust side where Ghidra prints JoinRecord pointer identity \u2014 equivalent because unified offsets are unique per record (monotonic allocation plus splitset dedup).",

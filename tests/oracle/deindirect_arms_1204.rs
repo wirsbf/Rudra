@@ -17,17 +17,17 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::action::Action;
-use rugra::coreaction::ActionDeindirect;
-use rugra::database::Database;
-use rugra::funcdata::Funcdata;
-use rugra::fspec::{FuncCallSpecs, FuncProto};
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeCode, TypeMetatype, TypePointer};
-use rugra::varnode::varnode_flags;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::action::Action;
+use rudra::coreaction::ActionDeindirect;
+use rudra::database::Database;
+use rudra::funcdata::Funcdata;
+use rudra::fspec::{FuncCallSpecs, FuncProto};
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeCode, TypeMetatype, TypePointer};
+use rudra::varnode::varnode_flags;
 
 fn void_type() -> Arc<Datatype> {
     Arc::new(Datatype::Void(TypeBase::new(
@@ -195,7 +195,7 @@ fn main() {
         let site = make_site(&mut fd, 0x500070);
         let exvn = fd
             .vbank
-            .create_with_space(8, rugra::space::AddressSpace::Ram, 0x60005000);
+            .create_with_space(8, rudra::space::AddressSpace::Ram, 0x60005000);
         exvn.write().unwrap().flags |= varnode_flags::PERSIST | varnode_flags::EXTERNREF;
         fd.op_set_input(&site.op, exvn, 0);
         let restart_before = fd.restart_pending;
@@ -210,7 +210,7 @@ fn main() {
         let site = make_site(&mut fd, 0x500080);
         let fpvn = fd
             .vbank
-            .create_with_space(8, rugra::space::AddressSpace::Ram, 0x60007000);
+            .create_with_space(8, rudra::space::AddressSpace::Ram, 0x60007000);
         let mut fp = FuncProto::new(String::new(), void_type());
         fp.set_internal(None, void_type());
         let mut tc = TypeCode::new();

@@ -23,17 +23,17 @@
 //! trait on a real Funcdata with the sites registered via
 //! `Funcdata::add_call_specs`.
 
-use rugra::address::Address;
-use rugra::arch::{Architecture, SpecQuery};
-use rugra::coreaction::ActionDefaultParams;
-use rugra::action::Action as _;
-use rugra::fspec::{FuncCallSpecs, FuncProto, VarnodeData};
-use rugra::funcdata::Funcdata;
-use rugra::marshal::DocumentStorage;
-use rugra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
-use rugra::sleigh_ffi::{set_sla_path, SleighCtx};
-use rugra::space::AddressSpace;
-use rugra::userop::{UserOpManage, UserOpType};
+use rudra::address::Address;
+use rudra::arch::{Architecture, SpecQuery};
+use rudra::coreaction::ActionDefaultParams;
+use rudra::action::Action as _;
+use rudra::fspec::{FuncCallSpecs, FuncProto, VarnodeData};
+use rudra::funcdata::Funcdata;
+use rudra::marshal::DocumentStorage;
+use rudra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
+use rudra::sleigh_ffi::{set_sla_path, SleighCtx};
+use rudra::space::AddressSpace;
+use rudra::userop::{UserOpManage, UserOpType};
 
 use std::collections::BTreeMap;
 use std::env;
@@ -77,8 +77,8 @@ fn space_name_of(spc: AddressSpace) -> &'static str {
 
 /// Ghidra's `type_metatype` numeric values (type.hh:79-98) — the projection
 /// prints the oracle's discriminants, not Rust's private enum ordering.
-fn ghidra_metatype(meta: rugra::type_system::datatype::TypeMetatype) -> i32 {
-    use rugra::type_system::datatype::TypeMetatype;
+fn ghidra_metatype(meta: rudra::type_system::datatype::TypeMetatype) -> i32 {
+    use rudra::type_system::datatype::TypeMetatype;
     match meta {
         TypeMetatype::Void => 17,
         TypeMetatype::Spacebase => 16,
@@ -136,7 +136,7 @@ impl SleighSymbolLookup for Host {
     fn find_symbol(&self, name: &str) -> Option<SleighSymbol> {
         self.registers.get(name).map(|vd| SleighSymbol {
             name: name.to_string(),
-            kind: SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: vd.space,
                 offset: vd.offset,
                 size: vd.size.max(0) as usize,
@@ -145,8 +145,8 @@ impl SleighSymbolLookup for Host {
     }
 }
 
-fn void_type() -> Arc<rugra::type_system::datatype::Datatype> {
-    rugra::type_system::TypeFactory::shared_default()
+fn void_type() -> Arc<rudra::type_system::datatype::Datatype> {
+    rudra::type_system::TypeFactory::shared_default()
         .read()
         .unwrap()
         .get_type_void()
@@ -156,16 +156,16 @@ fn void_type() -> Arc<rugra::type_system::datatype::Datatype> {
 /// `setPieces` channel (fspec.cc:3843-3852 lock tail).
 fn locked_callee_proto(
     name: &str,
-    default_model: &Arc<rugra::fspec::ProtoModelFull>,
-    out_type: Arc<rugra::type_system::datatype::Datatype>,
-    in_types: Vec<Arc<rugra::type_system::datatype::Datatype>>,
+    default_model: &Arc<rudra::fspec::ProtoModelFull>,
+    out_type: Arc<rudra::type_system::datatype::Datatype>,
+    in_types: Vec<Arc<rudra::type_system::datatype::Datatype>>,
     in_names: Vec<&str>,
 ) -> FuncProto {
     let mut proto = FuncProto::new(name.to_string(), out_type.clone());
     // pieces.model = 0 keeps the constructor-bound default model
     // (the oracle callee Funcdata binds defaultfp through setScope).
     proto.set_model(Some(default_model.clone()));
-    let pieces = rugra::grammar::PrototypePieces {
+    let pieces = rudra::grammar::PrototypePieces {
         model: None,
         name: name.to_string(),
         out_type: Some(out_type),
@@ -181,9 +181,9 @@ fn print_callsite_state(
     out: &mut String,
     tag: &str,
     fc: &FuncCallSpecs,
-    default_model: &Arc<rugra::fspec::ProtoModelFull>,
+    default_model: &Arc<rudra::fspec::ProtoModelFull>,
 ) {
-    use rugra::type_system::datatype::Datatype;
+    use rudra::type_system::datatype::Datatype;
     out.push_str(&format!("{}_NUMPARAMS|{}\n", tag, fc.prototype.num_params()));
     for (i, param) in fc.prototype.parameters.iter().enumerate() {
         out.push_str(&format!(
@@ -233,8 +233,8 @@ fn print_callsite_state(
 /// The anonymous-pointer spelling the oracle prints: `getTypePointer(s,pt,ws)`
 /// leaves the name EMPTY (type.hh:836, the grammar.cc:2402-2411 declarator
 /// path) — exactly like the C++ fixture's `param->getType()->getName()`.
-fn type_display_name(t: &Arc<rugra::type_system::datatype::Datatype>) -> String {
-    use rugra::type_system::datatype::Datatype;
+fn type_display_name(t: &Arc<rudra::type_system::datatype::Datatype>) -> String {
+    use rudra::type_system::datatype::Datatype;
     match t.as_ref() {
         Datatype::Void(b) | Datatype::Base(b) => b.name.clone(),
         Datatype::Pointer(p) => p.base.name.clone(),
@@ -290,7 +290,7 @@ fn run() -> Result<(), String> {
 
     let mut arch = Architecture::new();
     arch.archid = "x86:LE:64:default".to_string();
-    let mut inject_lib = rugra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
+    let mut inject_lib = rudra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
     inject_lib.set_sleigh_lookup(host.clone());
     arch.pcodeinjectlib = Some(Arc::new(RwLock::new(inject_lib)));
     let mut userops = UserOpManage::new();
@@ -312,7 +312,7 @@ fn run() -> Result<(), String> {
     // input list (char*, struct FILE*) through the shared factory interning
     // paths (getTypeChar, get_type_pointer_default — the anonymous-pointer
     // declarator form, grammar.cc:2402-2411).
-    let factory = rugra::type_system::TypeFactory::shared_default();
+    let factory = rudra::type_system::TypeFactory::shared_default();
     let chartype = factory
         .read()
         .unwrap()
@@ -324,12 +324,12 @@ fn run() -> Result<(), String> {
     // interning API, so the fixture materializes the same empty shape
     // directly (name FILE, size 0, no fields — only pointer-hood matters
     // for storage assignment).
-    let filestruct = Arc::new(rugra::type_system::datatype::Datatype::Struct(
-        rugra::type_system::datatype::TypeStruct {
-            base: rugra::type_system::datatype::TypeBase::new(
+    let filestruct = Arc::new(rudra::type_system::datatype::Datatype::Struct(
+        rudra::type_system::datatype::TypeStruct {
+            base: rudra::type_system::datatype::TypeBase::new(
                 "FILE".to_string(),
                 0,
-                rugra::type_system::datatype::TypeMetatype::Struct,
+                rudra::type_system::datatype::TypeMetatype::Struct,
             ),
             fields: Vec::new(),
         },

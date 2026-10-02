@@ -9,14 +9,14 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
 
 fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<Element>> {
     let mut element = Element::new();
@@ -170,7 +170,7 @@ fn wire_compare_reader(
     fd: &mut Funcdata,
     opcode: OpCode,
     op_addr: u64,
-    vn: &Arc<RwLock<rugra::varnode::Varnode>>,
+    vn: &Arc<RwLock<rudra::varnode::Varnode>>,
     other_off: u64,
 ) {
     let other = fd.new_varnode(4, Address::new(other_off));
@@ -188,7 +188,7 @@ fn wire_call_reader(
     param_name: &str,
     param_type: Arc<Datatype>,
     void_type: Arc<Datatype>,
-    vn: &Arc<RwLock<rugra::varnode::Varnode>>,
+    vn: &Arc<RwLock<rudra::varnode::Varnode>>,
 ) {
     let op = fd.new_op(2, Address::new(op_addr));
     fd.op_set_opcode(&op, OpCode::CPUI_CALL);
@@ -224,8 +224,8 @@ fn wire_call_def(
     op_addr: u64,
     output_name: &str,
     output_type: Arc<Datatype>,
-    out: &Arc<RwLock<rugra::varnode::Varnode>>,
-) -> Arc<RwLock<rugra::fspec::FuncCallSpecs>> {
+    out: &Arc<RwLock<rudra::varnode::Varnode>>,
+) -> Arc<RwLock<rudra::fspec::FuncCallSpecs>> {
     let op = fd.new_op(1, Address::new(op_addr));
     fd.op_set_opcode(&op, OpCode::CPUI_CALL);
     let mut prototype = FuncProto::new(output_name.to_string(), output_type.clone());
@@ -310,7 +310,7 @@ fn main() {
         fd.op_set_input(&op, offset, 1);
         fd.op_set_output(&op, out.clone());
         op.0.write().unwrap().addlflags |=
-            rugra::op::op_addl_flags::STOP_TYPE_PROPAGATION;
+            rudra::op::op_addl_flags::STOP_TYPE_PROPAGATION;
         wire_compare_reader(&mut fd, OpCode::CPUI_INT_LESS, 0x500118, &out, 0x311);
 
         let mut blockup = false;

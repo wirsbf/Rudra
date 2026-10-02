@@ -10,9 +10,9 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::marshal::{Decoder, Element, IdRegistry, TreeDecoder};
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::TypeFactory;
+use rudra::marshal::{Decoder, Element, IdRegistry, TreeDecoder};
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::TypeFactory;
 
 fn metatype_number(metatype: TypeMetatype) -> i32 {
     match metatype {
@@ -129,11 +129,11 @@ fn emit_code_type(key: &str, dt: &Arc<Datatype>) {
     println!("{key}.meta={}", metatype_number(dt.get_metatype()));
     println!(
         "{key}.incomplete={}",
-        (dt.get_flags() & rugra::type_system::datatype::type_flags::TYPE_INCOMPLETE != 0) as i32
+        (dt.get_flags() & rudra::type_system::datatype::type_flags::TYPE_INCOMPLETE != 0) as i32
     );
     println!(
         "{key}.varlength={}",
-        (dt.get_flags() & rugra::type_system::datatype::type_flags::VARLENGTH != 0) as i32
+        (dt.get_flags() & rudra::type_system::datatype::type_flags::VARLENGTH != 0) as i32
     );
     let proto_present = match dt.as_ref() {
         Datatype::Code(c) => c.proto.is_some(),

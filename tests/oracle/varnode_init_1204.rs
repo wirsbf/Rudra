@@ -1,13 +1,13 @@
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, SeqNum};
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::TypeMetatype;
-use rugra::varnode::{varnode_flags, Varnode, VarnodeBank};
+use rudra::address::{Address, SeqNum};
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::TypeMetatype;
+use rudra::varnode::{varnode_flags, Varnode, VarnodeBank};
 
 fn dump_varnode(label: &str, vn: &Varnode) {
     let datatype = vn.get_type().expect("VarnodeBank must attach a datatype");
@@ -281,9 +281,9 @@ fn main() {
     // unknown types byte-match the oracle projections.
     let mut bank = VarnodeBank::new();
     bank.set_type_factory(std::sync::Arc::new(std::sync::RwLock::new(
-        rugra::type_system::typefactory::TypeFactory::new_flavor(
+        rudra::type_system::typefactory::TypeFactory::new_flavor(
             8,
-            rugra::type_system::typefactory::CoreTypeFlavor::Standalone,
+            rudra::type_system::typefactory::CoreTypeFlavor::Standalone,
         ),
     )));
     let defop = Arc::new(RwLock::new(PcodeOp::new(
@@ -469,9 +469,9 @@ fn main() {
 
     let mut order_bank = VarnodeBank::new();
     order_bank.set_type_factory(std::sync::Arc::new(std::sync::RwLock::new(
-        rugra::type_system::typefactory::TypeFactory::new_flavor(
+        rudra::type_system::typefactory::TypeFactory::new_flavor(
             8,
-            rugra::type_system::typefactory::CoreTypeFlavor::Standalone,
+            rudra::type_system::typefactory::CoreTypeFlavor::Standalone,
         ),
     )));
     let order_op = Arc::new(RwLock::new(PcodeOp::new(

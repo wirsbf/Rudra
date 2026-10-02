@@ -16,17 +16,17 @@
 //      `else`, spaces(1) merges the `if` onto the statement's line, and
 //      no deferred close.
 
-use rugra::address::{Address, SeqNum};
-use rugra::block::{BlockBasic, BlockGraph, BlockIf};
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::{Emit, EmitNoMarkup, EmitPrettyPrint};
-use rugra::printc::PrintC;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::{Address, SeqNum};
+use rudra::block::{BlockBasic, BlockGraph, BlockIf};
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::{Emit, EmitNoMarkup, EmitPrettyPrint};
+use rudra::printc::PrintC;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 use std::sync::{Arc, RwLock};
 
-type BlockArc = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type BlockArc = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 
 fn const_varnode(size: usize, value: u64) -> Arc<RwLock<Varnode>> {
     Arc::new(RwLock::new(Varnode::new_with_space(size, AddressSpace::Const, value)))

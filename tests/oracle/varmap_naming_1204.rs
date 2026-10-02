@@ -10,11 +10,11 @@
 
 use std::sync::Arc;
 
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{TypeArray, TypeBase, TypePointer};
-use rugra::type_system::{Datatype, TypeMetatype};
-use rugra::varmap::{symbol_category, ScopeLocal};
-use rugra::varnode::varnode_flags;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{TypeArray, TypeBase, TypePointer};
+use rudra::type_system::{Datatype, TypeMetatype};
+use rudra::varmap::{symbol_category, ScopeLocal};
+use rudra::varnode::varnode_flags;
 
 struct NamingScope {
     scope: ScopeLocal,

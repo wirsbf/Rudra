@@ -5,22 +5,22 @@
 //!
 //! Mirrors `translate_docstore_1204.cc` record for record. Rugra has no
 //! production Translate engine yet, so this fixture defines a local probe
-//! implementor of `rugra::translate::Translate` whose `initialize` mirrors
+//! implementor of `rudra::translate::Translate` whose `initialize` mirrors
 //! the DocumentStorage consumption prologue of `Sleigh::initialize`
 //! (sleigh.cc:558-565): `getTag("sleigh")` miss panics with the exact
 //! LowlevelError message, and a registered `<sleigh>` element's content is
 //! used as the .sla path whose failed open surfaces verbatim in the panic
-//! message. The unified concrete `rugra::marshal::DocumentStorage`
+//! message. The unified concrete `rudra::marshal::DocumentStorage`
 //! (xml.cc:2435-2478) is the store type, exactly like the C++
 //! `initialize(DocumentStorage &store)` parameter (translate.hh:332).
 //! Panics stand in for LowlevelError per the translate.rs convention; the
 //! runner diffs both outputs byte for byte.
 
-use rugra::address::Address;
-use rugra::float_emulate::FloatFormat;
-use rugra::marshal::DocumentStorage;
-use rugra::space::{AddressSpace, VarnodeData};
-use rugra::translate::{AddrSpaceManager, AssemblyEmit, PcodeEmit, Translate};
+use rudra::address::Address;
+use rudra::float_emulate::FloatFormat;
+use rudra::marshal::DocumentStorage;
+use rudra::space::{AddressSpace, VarnodeData};
+use rudra::translate::{AddrSpaceManager, AssemblyEmit, PcodeEmit, Translate};
 use std::collections::HashMap;
 
 /// Fixture-local probe engine. Only `initialize` carries observable

@@ -11,15 +11,15 @@
 //! unique-space inject base `0x364420` (= 0x200 + the .sla unique base).
 //! Registers and their varnodes come from the real .sla via SleighCtx.
 
-use rugra::arch::{Architecture, SpecQuery};
-use rugra::fspec::VarnodeData;
-use rugra::marshal::{DocumentStorage, Element, IdRegistry, TreeDecoder};
-use rugra::pcodeparse::{
+use rudra::arch::{Architecture, SpecQuery};
+use rudra::fspec::VarnodeData;
+use rudra::marshal::{DocumentStorage, Element, IdRegistry, TreeDecoder};
+use rudra::pcodeparse::{
     ConstructTpl, ConstTpl, SleighSymbol, SleighSymbolLookup, SleightSymbolKind, VarnodeTpl,
 };
-use rugra::sleigh_ffi::{set_sla_path, SleighCtx};
-use rugra::space::AddressSpace;
-use rugra::userop::{UserOpManage, UserOpType};
+use rudra::sleigh_ffi::{set_sla_path, SleighCtx};
+use rudra::space::AddressSpace;
+use rudra::userop::{UserOpManage, UserOpType};
 
 use std::collections::BTreeMap;
 use std::env;
@@ -115,7 +115,7 @@ impl SleighSymbolLookup for Host {
     fn find_symbol(&self, name: &str) -> Option<SleighSymbol> {
         self.registers.get(name).map(|vd| SleighSymbol {
             name: name.to_string(),
-            kind: SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: vd.space,
                 offset: vd.offset,
                 size: vd.size.max(0) as usize,
@@ -219,12 +219,12 @@ fn write_const_tpl(writer: &mut TplWriter, ct: &ConstTpl) {
             // ConstTpl::encode handle case (semantics.cc): val = handle
             // index, s = select, plus only for v_offset_plus.
             let s = match select {
-                rugra::pcodeparse::HandleSelect::Space => 0,
-                rugra::pcodeparse::HandleSelect::Offset => 1,
-                rugra::pcodeparse::HandleSelect::Size => 2,
-                rugra::pcodeparse::HandleSelect::OffsetPlus => 3,
+                rudra::pcodeparse::HandleSelect::Space => 0,
+                rudra::pcodeparse::HandleSelect::Offset => 1,
+                rudra::pcodeparse::HandleSelect::Size => 2,
+                rudra::pcodeparse::HandleSelect::OffsetPlus => 3,
             };
-            if matches!(select, rugra::pcodeparse::HandleSelect::OffsetPlus) {
+            if matches!(select, rudra::pcodeparse::HandleSelect::OffsetPlus) {
                 writer.begin(
                     "const_handle",
                     &[
@@ -294,7 +294,7 @@ fn escape_newlines(value: &str) -> String {
     value.replace('\n', "\\n")
 }
 
-fn count_library_payloads(lib: &rugra::pcodeinject::PcodeInjectLibrary) -> usize {
+fn count_library_payloads(lib: &rudra::pcodeinject::PcodeInjectLibrary) -> usize {
     let mut total = 0usize;
     for id in 0..4096i32 {
         let present = !lib.get_call_fixup_name(id).is_empty()
@@ -371,7 +371,7 @@ fn run() -> Result<(), String> {
     // seeded with the locked x86-64 "segment" user op (index 0).
     let mut arch = Architecture::new();
     arch.archid = "x86:LE:64:default".to_string();
-    let mut inject_lib = rugra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
+    let mut inject_lib = rudra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
     inject_lib.set_sleigh_lookup(host.clone());
     let inject_arc = Arc::new(RwLock::new(inject_lib));
     arch.pcodeinjectlib = Some(inject_arc.clone());
@@ -432,7 +432,7 @@ fn run() -> Result<(), String> {
         let mut count = 0usize;
         let mut first = "NONE".to_string();
         for fx in model.effect_iter() {
-            if !matches!(fx.get_type(), rugra::fspec::EffectType::ReturnAddress) {
+            if !matches!(fx.get_type(), rudra::fspec::EffectType::ReturnAddress) {
                 continue;
             }
             if count == 0 {
@@ -518,7 +518,7 @@ fn run() -> Result<(), String> {
             out.push_str(&format!(
                 "CALLOTHER_RESIDUE_ID|{}\n",
                 shown.get_payload_id(
-                    rugra::pcodeinject::InjectPayloadType::CallOtherFixup,
+                    rudra::pcodeinject::InjectPayloadType::CallOtherFixup,
                     "zz_compile_fail"
                 )
             ));
@@ -547,7 +547,7 @@ fn run() -> Result<(), String> {
             out.push_str(&format!(
                 "CALLOTHER_RESIDUE_ID2|{}\n",
                 shown.get_payload_id(
-                    rugra::pcodeinject::InjectPayloadType::CallOtherFixup,
+                    rudra::pcodeinject::InjectPayloadType::CallOtherFixup,
                     "zz_unknown_target"
                 )
             ));
@@ -597,7 +597,7 @@ fn run() -> Result<(), String> {
         // Architecture::decodeVolatile (architecture.cc:884) opens the
         // element before the attribute decode.
         let elem_id = {
-            use rugra::marshal::Decoder as _;
+            use rudra::marshal::Decoder as _;
             decoder.open_element()
         };
         let message = userops
@@ -605,23 +605,23 @@ fn run() -> Result<(), String> {
             .err()
             .unwrap_or_else(|| "NO_ERROR".to_string());
         {
-            use rugra::marshal::Decoder as _;
+            use rudra::marshal::Decoder as _;
             decoder.close_element(elem_id);
         }
         out.push_str(&format!("VOLATILE1|{}\n", message));
         let read_name = userops
-            .get_op(rugra::userop::BUILTIN_VOLATILE_READ as i32)
+            .get_op(rudra::userop::BUILTIN_VOLATILE_READ as i32)
             .map(|op| op.name.clone())
             .unwrap_or_else(|| "null".to_string());
         let write_name = userops
-            .get_op(rugra::userop::BUILTIN_VOLATILE_WRITE as i32)
+            .get_op(rudra::userop::BUILTIN_VOLATILE_WRITE as i32)
             .map(|op| op.name.clone())
             .unwrap_or_else(|| "null".to_string());
         out.push_str(&format!("VOLATILE_NAMES|{}|{}\n", read_name, write_name));
         let probe = "<volatile inputop=\"zz_read2\" outputop=\"zz_write2\"/>";
         let (_, mut decoder) = decode_synthetic(probe)?;
         let elem_id = {
-            use rugra::marshal::Decoder as _;
+            use rudra::marshal::Decoder as _;
             decoder.open_element()
         };
         let message = userops
@@ -629,7 +629,7 @@ fn run() -> Result<(), String> {
             .err()
             .unwrap_or_else(|| "NO_ERROR".to_string());
         {
-            use rugra::marshal::Decoder as _;
+            use rudra::marshal::Decoder as _;
             decoder.close_element(elem_id);
         }
         out.push_str(&format!("VOLATILE2|{}\n", message));
@@ -649,7 +649,7 @@ fn run() -> Result<(), String> {
             lib.decode_inject(
                 &source,
                 "",
-                rugra::pcodeinject::InjectPayloadType::CallFixup,
+                rudra::pcodeinject::InjectPayloadType::CallFixup,
                 &mut decoder,
                 body.as_deref(),
             )
@@ -661,7 +661,7 @@ fn run() -> Result<(), String> {
         out.push_str(&format!(
             "CALLFIXUP_PARAMNAME_ID|{}\n",
             shown.get_payload_id(
-                rugra::pcodeinject::InjectPayloadType::CallFixup,
+                rudra::pcodeinject::InjectPayloadType::CallFixup,
                 "zz_param_name"
             )
         ));
@@ -701,7 +701,7 @@ fn run() -> Result<(), String> {
         store2.register_tag(&root2);
         let mut arch2 = Architecture::new();
         arch2.archid = arch.archid.clone();
-        let mut lib2 = rugra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
+        let mut lib2 = rudra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
         lib2.set_sleigh_lookup(host.clone());
         arch2.pcodeinjectlib = Some(std::sync::Arc::new(std::sync::RwLock::new(lib2)));
         arch2.userops = Some(std::sync::Arc::new(std::sync::RwLock::new({
@@ -752,7 +752,7 @@ fn run() -> Result<(), String> {
         store3.register_tag(&root3);
         let mut arch3 = Architecture::new();
         arch3.archid = arch.archid.clone();
-        let mut lib3 = rugra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
+        let mut lib3 = rudra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
         lib3.set_sleigh_lookup(host.clone());
         arch3.pcodeinjectlib = Some(std::sync::Arc::new(std::sync::RwLock::new(lib3)));
         arch3.userops = Some(std::sync::Arc::new(std::sync::RwLock::new(UserOpManage::new())));

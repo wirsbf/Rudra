@@ -25,15 +25,15 @@
 //!     the name base is the golden's 'x' character.
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::database::Database;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeMetatype, TypePointer};
-use rugra::type_system::typefactory::TypeFactory;
-use rugra::varmap::ScopeLocal;
-use rugra::varnode::varnode_flags;
+use rudra::address::Address;
+use rudra::database::Database;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeMetatype, TypePointer};
+use rudra::type_system::typefactory::TypeFactory;
+use rudra::varmap::ScopeLocal;
+use rudra::varnode::varnode_flags;
 
 fn metaname(meta: TypeMetatype) -> &'static str {
     use TypeMetatype::*;
@@ -63,11 +63,11 @@ fn main() {
     // The channel: Database with a global scope (fresh — no symbols yet,
     // ranges seeded after varnode creation exactly like the C++ twin) and
     // a comment db so warningHeader is observable instead of stderr noise.
-    let mut arch = rugra::arch::Architecture::new();
+    let mut arch = rudra::arch::Architecture::new();
     let db_arc = Arc::new(RwLock::new(Database::new(false)));
     arch.set_symboltab(db_arc.clone());
     arch.commentdb = Some(Arc::new(RwLock::new(
-        rugra::comment::CommentDatabaseInternal::new(),
+        rudra::comment::CommentDatabaseInternal::new(),
     )));
 
     let mut fd = Funcdata::new("pxname", Address::new(0x5000), 0x100);
@@ -104,7 +104,7 @@ fn main() {
 
     let mut pc = 0x5010u64;
     let mut make_persist_out = |fd: &mut Funcdata,
-                                block: &Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+                                block: &Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
                                 addr: u64,
                                 ct: Arc<Datatype>| {
         let op = fd.new_op(1, Address::new(pc));
@@ -134,7 +134,7 @@ fn main() {
     {
         let mut db = db_arc.write().unwrap();
         let global = db.global_scope_id;
-        if let Some(rng) = rugra::address::Range::new(Address::new(0), Address::new(u64::MAX)) {
+        if let Some(rng) = rudra::address::Range::new(Address::new(0), Address::new(u64::MAX)) {
             db.add_range(global, rng);
         }
     }

@@ -26,21 +26,21 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::{Address, RangeList};
-use rugra::arch::Architecture;
-use rugra::database::{Symbol, SymbolEntry};
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RulePieceStructure;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeField, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::variable::{high_internal_flags, HighVariable};
+use rudra::action::Rule;
+use rudra::address::{Address, RangeList};
+use rudra::arch::Architecture;
+use rudra::database::{Symbol, SymbolEntry};
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RulePieceStructure;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeField, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::variable::{high_internal_flags, HighVariable};
 
 type Dt = Arc<Datatype>;
-type Vn = Arc<RwLock<rugra::varnode::Varnode>>;
+type Vn = Arc<RwLock<rudra::varnode::Varnode>>;
 
 fn elem_node(name: &str, attrs: &[(&str, &str)]) -> Arc<RwLock<Element>> {
     let mut el = Element::new();
@@ -208,7 +208,7 @@ fn main() {
 
     let mut fd = Funcdata::new("fixture", Address::new(0x1000), 0x100);
     fd.arch = Some(arch_arc.clone());
-    fd.scope = Some(rugra::varmap::ScopeLocal::new());
+    fd.scope = Some(rudra::varmap::ScopeLocal::new());
 
     // All Varnodes are created BEFORE any symbol is mapped (mirrors the C++
     // fixture ordering; newVarnode against an empty scope sets no flags).
@@ -389,7 +389,7 @@ fn main() {
     {
         let scope = fd.scope.as_mut().expect("scope");
         let mut push = |name: &str, start: u64, size: i32, dtype: &Dt| {
-            let mut s = rugra::varmap::LocalSymbol::new(name, start, size, Some(dtype.clone()), -1);
+            let mut s = rudra::varmap::LocalSymbol::new(name, start, size, Some(dtype.clone()), -1);
             s.typelock = true;
             scope.symbols.push(s);
         };
@@ -424,9 +424,9 @@ fn main() {
         let (mapped, addrtied, typelock) = {
             let v = vn.read().unwrap();
             (
-                (v.flags & rugra::varnode::varnode_flags::MAPPED) != 0,
-                (v.flags & rugra::varnode::varnode_flags::ADDRTIED) != 0,
-                (v.flags & rugra::varnode::varnode_flags::TYPELOCK) != 0,
+                (v.flags & rudra::varnode::varnode_flags::MAPPED) != 0,
+                (v.flags & rudra::varnode::varnode_flags::ADDRTIED) != 0,
+                (v.flags & rudra::varnode::varnode_flags::TYPELOCK) != 0,
             )
         };
         println!(
@@ -449,7 +449,7 @@ fn main() {
     // COPY that reads each leaf next to its original reader.
     fn written_unique(
         fd: &mut Funcdata,
-        block: &Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+        block: &Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
         size: usize,
         offset: u64,
         op_addr: u64,

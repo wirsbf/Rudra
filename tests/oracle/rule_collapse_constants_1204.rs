@@ -14,17 +14,17 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::address::RangeList;
-use rugra::database::SymbolEntry;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleCollapseConstants;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::address::RangeList;
+use rudra::database::SymbolEntry;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleCollapseConstants;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 static CASE_COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -41,7 +41,7 @@ fn make_op(
     values: &[u64],
     sizes: &[usize],
     output_size: usize,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let op = fd.new_op(values.len(), Address::new(next_addr()));
     fd.op_set_opcode(&op, opcode);
     for (slot, (&val, &sz)) in values.iter().zip(sizes.iter()).enumerate() {
@@ -53,7 +53,7 @@ fn make_op(
     op
 }
 
-fn observe(name: &str, op: &rugra::op::PcodeOpRef, fd: &mut Funcdata) {
+fn observe(name: &str, op: &rudra::op::PcodeOpRef, fd: &mut Funcdata) {
     let rule = RuleCollapseConstants::new();
     let first = rule.apply_op(&op.0, fd).expect("first apply_op");
     let second = rule.apply_op(&op.0, fd).expect("second apply_op");
@@ -85,7 +85,7 @@ fn observe(name: &str, op: &rugra::op::PcodeOpRef, fd: &mut Funcdata) {
 }
 
 fn attach_equate(vn: &Arc<RwLock<Varnode>>, _value: u64, size: i32) {
-    let symbol = Arc::new(RwLock::new(rugra::database::Symbol::new(
+    let symbol = Arc::new(RwLock::new(rudra::database::Symbol::new(
         0, "FIXTURE_EQ", "equ",
     )));
     let entry = SymbolEntry::new_dynamic(symbol, 0, 1, 0, size, RangeList::default());

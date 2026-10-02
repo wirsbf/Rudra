@@ -8,21 +8,21 @@
 //! fixture; message-embedded addresses are normalized to <A> on both
 //! sides.
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::funcdata::Funcdata;
-use rugra::jumptable::{
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::funcdata::Funcdata;
+use rudra::jumptable::{
     EmulateFunction, JumpTable, JumpTableRecoveryError, PcodeOpNode, PathMeld,
 };
-use rugra::loadimage::RawLoadImage;
-use rugra::opcodes::OpCode;
-use rugra::varnode::Varnode;
+use rudra::loadimage::RawLoadImage;
+use rudra::opcodes::OpCode;
+use rudra::varnode::Varnode;
 use std::fmt::Write as _;
 use std::sync::{Arc, RwLock};
 
-type Block = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type Block = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 type Var = Arc<RwLock<Varnode>>;
-type Op = Arc<RwLock<rugra::op::PcodeOp>>;
+type Op = Arc<RwLock<rudra::op::PcodeOp>>;
 
 struct Lab {
     fd: Funcdata,
@@ -60,11 +60,11 @@ impl Lab {
         op.0.clone()
     }
     fn out(&mut self, op: &Op, size: usize) -> Var {
-        let opref = rugra::op::PcodeOpRef(op.clone());
+        let opref = rudra::op::PcodeOpRef(op.clone());
         self.fd.new_unique_out(size, &opref)
     }
     fn input(&mut self, op: &Op, vn: &Var, slot: usize) {
-        let opref = rugra::op::PcodeOpRef(op.clone());
+        let opref = rudra::op::PcodeOpRef(op.clone());
         self.fd.op_set_input(&opref, vn.clone(), slot);
     }
     fn set_input(&mut self, vn: &Var) {
@@ -244,7 +244,7 @@ fn scenario_load(out: &mut String, lab: &mut Lab, label: &str, base: u64) {
     let lv = lab.out(&ld, 1);
     // Rugra encodes the LOAD space-id as a SpaceId constant (Ram = 3);
     // Ghidra encodes the AddrSpace pointer (varnode.hh:426) — same ram space.
-    let lspc = lab.cnst(1, rugra::space::AddressSpace::Ram.space_id() as u64);
+    let lspc = lab.cnst(1, rudra::space::AddressSpace::Ram.space_id() as u64);
     lab.input(&ld, &lspc, 0);
     lab.input(&ld, &ptr, 1);
     let zx = lab.op(&g, OpCode::CPUI_INT_ZEXT, 1);

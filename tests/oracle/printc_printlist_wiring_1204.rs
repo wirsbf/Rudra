@@ -21,12 +21,12 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{Action, ActionDatabase, ActionGroupList, ActionRestartGroup};
-use rugra::arch::Architecture;
-use rugra::options::{ArchOption, OptionCommentStyle, OptionDatabase};
-use rugra::prettyprint::{Emit, EmitPrettyPrint};
-use rugra::printc::PrintC;
-use rugra::printlanguage::{self, PrintLanguage as _};
+use rudra::action::{Action, ActionDatabase, ActionGroupList, ActionRestartGroup};
+use rudra::arch::Architecture;
+use rudra::options::{ArchOption, OptionCommentStyle, OptionDatabase};
+use rudra::prettyprint::{Emit, EmitPrettyPrint};
+use rudra::printc::PrintC;
+use rudra::printlanguage::{self, PrintLanguage as _};
 
 // The inherited flags word carries this leaf's construction ordinal (same
 // allocator-independent identity convention as the oracle fixture's
@@ -51,7 +51,7 @@ impl ScriptAction {
 }
 
 impl Action for ScriptAction {
-    fn apply(&mut self, _fd: &mut rugra::funcdata::Funcdata) -> rugra::Result<i32> {
+    fn apply(&mut self, _fd: &mut rudra::funcdata::Funcdata) -> rudra::Result<i32> {
         Ok(0)
     }
     fn get_name(&self) -> &str {
@@ -119,7 +119,7 @@ fn main() {
     // allacts half of Architecture::reset_defaults finds its root.
     let mut universal = ActionRestartGroup::new(
         "universal",
-        rugra::action::action_flags::RULE_ONCEPERFUNC,
+        rudra::action::action_flags::RULE_ONCEPERFUNC,
         1,
     );
     universal.add_action_in_group(

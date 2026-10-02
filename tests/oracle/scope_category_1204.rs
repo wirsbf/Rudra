@@ -1,4 +1,4 @@
-use rugra::database::{Scope, Symbol, SymbolCategory};
+use rudra::database::{Scope, Symbol, SymbolCategory};
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock, Weak};
 

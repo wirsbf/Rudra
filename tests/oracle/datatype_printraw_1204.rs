@@ -34,9 +34,9 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{
+use rudra::address::Address;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{
     type_flags, Datatype, TypeArray, TypeBase, TypeCode, TypeEnum, TypeMetatype, TypePartialEnum,
     TypePartialStruct, TypePartialUnion, TypePointer, TypeSpacebase, TypeStruct, TypeUnion,
 };

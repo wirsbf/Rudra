@@ -6,15 +6,15 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::addl_flags;
-use rugra::varnode::varnode_flags;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::addl_flags;
+use rudra::varnode::varnode_flags;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;
@@ -256,7 +256,7 @@ fn run_case(case_id: &str, inedge: usize, full: bool, baseaddr: u64) {
     let snap = {
         let ops = {
             let rg = b.read().unwrap();
-            match rg.as_any().downcast_ref::<rugra::block::BlockBasic>() {
+            match rg.as_any().downcast_ref::<rudra::block::BlockBasic>() {
                 Some(bb) => bb.get_ops(),
                 None => Vec::new(),
             }
@@ -300,7 +300,7 @@ fn run_case(case_id: &str, inedge: usize, full: bool, baseaddr: u64) {
     // Clone projections.
     let clone_ops = {
         let rg = bprime.read().unwrap();
-        match rg.as_any().downcast_ref::<rugra::block::BlockBasic>() {
+        match rg.as_any().downcast_ref::<rudra::block::BlockBasic>() {
             Some(bb) => bb.get_ops(),
             None => Vec::new(),
         }
@@ -344,7 +344,7 @@ fn run_case(case_id: &str, inedge: usize, full: bool, baseaddr: u64) {
     // Original-block projections after the split.
     let post_ops = {
         let rg = b.read().unwrap();
-        match rg.as_any().downcast_ref::<rugra::block::BlockBasic>() {
+        match rg.as_any().downcast_ref::<rudra::block::BlockBasic>() {
             Some(bb) => bb.get_ops(),
             None => Vec::new(),
         }
@@ -367,7 +367,7 @@ fn run_case(case_id: &str, inedge: usize, full: bool, baseaddr: u64) {
 
 fn block_op_count(blk: &BlockRef) -> usize {
     let rg = blk.read().unwrap();
-    match rg.as_any().downcast_ref::<rugra::block::BlockBasic>() {
+    match rg.as_any().downcast_ref::<rudra::block::BlockBasic>() {
         Some(bb) => bb.get_ops().len(),
         None => 0,
     }

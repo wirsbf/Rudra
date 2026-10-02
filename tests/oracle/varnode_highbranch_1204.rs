@@ -17,17 +17,17 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::{Address, RangeList};
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::database::{Symbol, SymbolEntry};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleCollapseConstants;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varnode::{equate_symbol_registry, varnode_flags, Varnode};
-use rugra::variable::high_internal_flags;
+use rudra::action::Rule;
+use rudra::address::{Address, RangeList};
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::database::{Symbol, SymbolEntry};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleCollapseConstants;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varnode::{equate_symbol_registry, varnode_flags, Varnode};
+use rudra::variable::high_internal_flags;
 
 fn meta_token(meta: TypeMetatype) -> &'static str {
     match meta {

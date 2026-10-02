@@ -10,8 +10,8 @@
 // inputs); the C++ side observes the real BfdArchitecture::init chain, and
 // the byte diff pins both to the same state.
 
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
 
 use std::env;
 use std::fmt::Write as _;

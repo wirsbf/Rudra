@@ -6,19 +6,19 @@
 //! JumpBasic::mark_model (jumptable.cc:1254-1267) on synthetic guard CFGs.
 //! Output format is byte-identical to the C++ fixture.
 
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::jumptable::{JumpBasic, JumpModel, JumpTable};
-use rugra::opcodes::OpCode;
-use rugra::rangeutil::CircleRange;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::jumptable::{JumpBasic, JumpModel, JumpTable};
+use rudra::opcodes::OpCode;
+use rudra::rangeutil::CircleRange;
+use rudra::varnode::Varnode;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::sync::{Arc, RwLock};
 
-type Block = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type Block = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 type Var = Arc<RwLock<Varnode>>;
-type Op = Arc<RwLock<rugra::op::PcodeOp>>;
+type Op = Arc<RwLock<rudra::op::PcodeOp>>;
 
 /// Mirrors Ghidra's PcodeOp::mark bit as tracked by Rugra's jumptable
 /// module (MARK_FLAG in src/jumptable.rs).
@@ -70,13 +70,13 @@ impl Lab {
         arc
     }
     fn out(&mut self, name: &str, op: &Op, size: usize) -> Var {
-        let opref = rugra::op::PcodeOpRef(op.clone());
+        let opref = rudra::op::PcodeOpRef(op.clone());
         let vn = self.fd.new_unique_out(size, &opref);
         self.var_name.insert(Arc::as_ptr(&vn) as usize, name.to_string());
         vn
     }
     fn input(&mut self, op: &Op, vn: &Var, slot: usize) {
-        let opref = rugra::op::PcodeOpRef(op.clone());
+        let opref = rudra::op::PcodeOpRef(op.clone());
         self.fd.op_set_input(&opref, vn.clone(), slot);
     }
     fn set_input(&mut self, vn: &Var) {
@@ -120,7 +120,7 @@ impl Lab {
     }
 }
 
-fn dump_guards(lab: &Lab, s: &mut String, guards: &[rugra::jumptable::GuardRecord]) {
+fn dump_guards(lab: &Lab, s: &mut String, guards: &[rudra::jumptable::GuardRecord]) {
     let _ = write!(s, "|count={}", guards.len());
     for (i, g) in guards.iter().enumerate() {
         let _ = write!(

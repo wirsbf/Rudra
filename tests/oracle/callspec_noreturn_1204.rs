@@ -16,12 +16,12 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, SeqNum};
-use rugra::fspec::{FuncCallSpecs, FuncProto};
-use rugra::marshal::{xml_tree, AttributeId, Decoder, ElementId, IdRegistry, TreeDecoder, TreeEncoder};
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::address::{Address, SeqNum};
+use rudra::fspec::{FuncCallSpecs, FuncProto};
+use rudra::marshal::{xml_tree, AttributeId, Decoder, ElementId, IdRegistry, TreeDecoder, TreeEncoder};
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
 // RUGRA-GLUE: fixture-local canonical void type, the same construction the
 // funcproto_lock_1204 comparand uses (C++ reads arch.types->getTypeVoid()).
@@ -166,12 +166,12 @@ fn encode_has_noreturn(proto: &FuncProto) -> bool {
         &space_attrib,
         &offset_attrib,
         &size_attrib,
-        rugra::space::AddressSpace::Ram,
+        rudra::space::AddressSpace::Ram,
         0,
         1,
         &[],
         &[],
-        &|_, _, _| rugra::fspec::EffectType::UnknownEffect,
+        &|_, _, _| rudra::fspec::EffectType::UnknownEffect,
         &|_| {},
     );
     let doc = enc.into_document();

@@ -2,16 +2,16 @@
 //! OPTIONS-SPLITDATATYPE-WIRING-0003).
 //!
 //! Calls the production `OptionSplitDatatypes::apply`
-//! (`rugra::options::OptionSplitDatatypes`) directly: the configuration
+//! (`rudra::options::OptionSplitDatatypes`) directly: the configuration
 //! bits, partial-assignment error ordering, return string, and the
 //! internal `allacts` forwarding (options.cc:1007-1016) — the two
 //! `ActionDatabase::toggle_action` calls on the current root — all run
 //! inside the production body. No hand-written expected output is
 //! embedded.
 
-use rugra::action::{Action, ActionDatabase, ActionGroup, ActionGroupList, ActionRestartGroup};
-use rugra::arch::Architecture;
-use rugra::options::ArchOption;
+use rudra::action::{Action, ActionDatabase, ActionGroup, ActionGroupList, ActionRestartGroup};
+use rudra::arch::Architecture;
+use rudra::options::ArchOption;
 
 // The inherited flags word carries this leaf's construction ordinal (a
 // monotonically increasing counter) solely as an allocator-independent
@@ -38,7 +38,7 @@ impl ScriptAction {
 }
 
 impl Action for ScriptAction {
-    fn apply(&mut self, _fd: &mut rugra::funcdata::Funcdata) -> rugra::Result<i32> {
+    fn apply(&mut self, _fd: &mut rudra::funcdata::Funcdata) -> rudra::Result<i32> {
         Ok(0)
     }
     fn get_name(&self) -> &str {
@@ -92,7 +92,7 @@ fn apply_case(arch: &mut Architecture, p1: &str, p2: &str, p3: &str) -> (bool, S
     // `OptionSplitDatatypes::apply`. Since that wiring, the comparand is a
     // single production call, mirroring the oracle fixture's
     // `option.apply(&arch, ...)` entrypoint.
-    let result = rugra::options::OptionSplitDatatypes.apply(arch, p1, p2, p3);
+    let result = rudra::options::OptionSplitDatatypes.apply(arch, p1, p2, p3);
     match result.strip_prefix("LowlevelError: ") {
         Some(message) => (true, message.to_string()),
         None => (false, result),
@@ -113,7 +113,7 @@ fn main() {
     // Synthetic universal root: head leaves + nested body group holding the
     // split-relevant leaves at their registration slots (mirrors the oracle
     // fixture's universal construction).
-    let mut universal = ActionRestartGroup::new("universal", rugra::action::action_flags::RULE_ONCEPERFUNC, 1);
+    let mut universal = ActionRestartGroup::new("universal", rudra::action::action_flags::RULE_ONCEPERFUNC, 1);
     universal.add_action_in_group(Box::new(ScriptAction::new("base", "start")), "base");
     universal.add_action_in_group(Box::new(ScriptAction::new("base", "stop")), "base");
     let mut body = ActionGroup::new("body");

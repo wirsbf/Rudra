@@ -9,10 +9,10 @@
 //! in-binary assertions so the diffed projections stay symmetric.
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::funcdata::Funcdata;
-use rugra::subflow::SplitDatatype;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::funcdata::Funcdata;
+use rudra::subflow::SplitDatatype;
 
 fn main() {
     let mut fd = Funcdata::new("f", Address::new(0x1000), 0x10);

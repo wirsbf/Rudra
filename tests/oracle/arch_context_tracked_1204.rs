@@ -14,10 +14,10 @@
 // to the same tracked-set state (probes through Architecture::get_tracked_set
 // vs ContextDatabase::getTrackedSet).
 
-use rugra::arch::{Architecture, SpecQuery};
-use rugra::fspec::VarnodeData as FspecVarnodeData;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::space::AddressSpace;
+use rudra::arch::{Architecture, SpecQuery};
+use rudra::fspec::VarnodeData as FspecVarnodeData;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::space::AddressSpace;
 
 use std::env;
 use std::collections::{HashMap, HashSet};
@@ -272,8 +272,8 @@ struct TrackedSpecHost {
 
 impl TrackedSpecHost {
     fn from_spec_dir(spec_dir: &str) -> Result<Self, String> {
-        rugra::sleigh_ffi::set_sla_path(&format!("{spec_dir}/x86-64.sla"));
-        let sleigh = rugra::sleigh_ffi::SleighCtx::new()
+        rudra::sleigh_ffi::set_sla_path(&format!("{spec_dir}/x86-64.sla"));
+        let sleigh = rudra::sleigh_ffi::SleighCtx::new()
             .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
         let mut registers = HashMap::new();
         let mut space_ids = HashSet::new();
@@ -339,7 +339,7 @@ fn decode_context_xml(arch: &mut Architecture, host: &TrackedSpecHost, xml: &str
     arch.decode_context_data(&mut decoder, host)
 }
 
-fn write_tracked_entry(out: &mut String, tracked: &rugra::arch::TrackedRegister) {
+fn write_tracked_entry(out: &mut String, tracked: &rudra::arch::TrackedRegister) {
     write!(
         out,
         "{{\"space\":\"{}\",\"off\":\"{:#x}\",\"size\":{},\"val\":{}}}",

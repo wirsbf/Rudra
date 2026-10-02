@@ -12,14 +12,14 @@
 
 use std::sync::Arc;
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::coreaction::{ActionNameVars, ActionRestructureVarnode};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::coreaction::{ActionNameVars, ActionRestructureVarnode};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
+use rudra::varnode::{varnode_flags, Varnode};
 
 type VarnodeRef = Arc<std::sync::RwLock<Varnode>>;
 

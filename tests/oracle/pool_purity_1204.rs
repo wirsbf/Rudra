@@ -23,7 +23,7 @@
 //! both sides' name sets).  No sorting, no deduplication: the sequence
 //! itself is the observable.
 
-use rugra::action::{Action, ActionDatabase};
+use rudra::action::{Action, ActionDatabase};
 
 fn normalize_name(nm: &str) -> String {
     nm.chars().filter(|c| *c != '_').collect()

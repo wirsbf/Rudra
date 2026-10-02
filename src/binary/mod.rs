@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! use rugra::binary::Binary;
+//! use rudra::binary::Binary;
 //!
 //! # fn main() -> anyhow::Result<()> {
 //! let data = std::fs::read("program.exe")?;

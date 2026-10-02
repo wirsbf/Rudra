@@ -16,17 +16,17 @@ use std::io::{self, Write};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::coreaction::ActionPrototypeTypes;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::coreaction::ActionPrototypeTypes;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varnode::Varnode;
 
-type BlockRef = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type BlockRef = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
 fn space_name(spc: AddressSpace) -> &'static str {
@@ -198,11 +198,11 @@ fn main() {
     let r_d = f_a.make_return_at(&mut fd_a, &a4, None); // 0x60028
     {
         let mut h = r_h.0.write().unwrap();
-        h.flags |= rugra::op::pcodeop_flags::HALT; // cc:4643 skip marker
+        h.flags |= rudra::op::pcodeop_flags::HALT; // cc:4643 skip marker
     }
     {
         let mut d = r_d.0.write().unwrap();
-        d.flags |= rugra::op::pcodeop_flags::DEAD; // cc:4642 skip marker
+        d.flags |= rudra::op::pcodeop_flags::DEAD; // cc:4642 skip marker
     }
     f_a.edge(&mut fd_a, &a0, &a1);
     f_a.edge(&mut fd_a, &a0, &a2);

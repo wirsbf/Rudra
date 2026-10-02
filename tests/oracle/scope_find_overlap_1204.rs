@@ -5,7 +5,7 @@
 // case installs the same static/dynamic symbols on a hand-built ScopeLocal
 // (Rugra's LocalSymbol models one SymbolEntry per Symbol) and issues the
 // same findOverlap queries through
-// rugra::funcdata::scope_local_find_overlap — the ScopeInternal::findOverlap
+// rudra::funcdata::scope_local_find_overlap — the ScopeInternal::findOverlap
 // analogue consumed by Funcdata::sync_varnodes_with_symbols.
 //
 // Case semantics (see the .cc header for the full rationale):
@@ -18,9 +18,9 @@
 //   dynamic_null            dynamic symbols are invisible to findOverlap.
 //   dynamic_no_shadow       static symbol answers with "dyn" present.
 
-use rugra::funcdata::scope_local_find_overlap;
-use rugra::space::AddressSpace;
-use rugra::varmap::{symbol_category, LocalSymbol, ScopeLocal};
+use rudra::funcdata::scope_local_find_overlap;
+use rudra::space::AddressSpace;
+use rudra::varmap::{symbol_category, LocalSymbol, ScopeLocal};
 
 fn static_symbol(name: &str, start: u64, size: i32, usepoint: Option<u64>) -> LocalSymbol {
     let mut sym = LocalSymbol::new(name, start, size, None, symbol_category::NO_CATEGORY);

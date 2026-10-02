@@ -21,8 +21,8 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, BlockGoto, BlockGraph, BlockType, FlowBlock};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, BlockGoto, BlockGraph, BlockType, FlowBlock};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -97,7 +97,7 @@ impl Graph {
         // ruleBlockGoto fires inside, wrapping goto-marked single-out
         // blocks in BlockGoto.
         let mut collapse =
-            rugra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
+            rudra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
         collapse.collapse_all();
 
         // ActionFinalStructure tail (blockaction.cc:2193): scopeBreak first;
@@ -169,7 +169,7 @@ fn collect_gotos(bl: &BlockRef, out: &mut Vec<BlockRef>, depth: usize) {
     if bl.read().unwrap().get_type() == BlockType::Goto {
         out.push(bl.clone());
     }
-    for child in rugra::block::BlockGraph::component_list_dyn(bl) {
+    for child in rudra::block::BlockGraph::component_list_dyn(bl) {
         collect_gotos(&child, out, depth + 1);
     }
 }

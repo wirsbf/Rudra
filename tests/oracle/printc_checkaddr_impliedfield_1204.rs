@@ -36,21 +36,21 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, RangeList, SeqNum};
-use rugra::database::{Symbol, SymbolEntry};
-use rugra::funcdata::Funcdata;
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{
+use rudra::address::{Address, RangeList, SeqNum};
+use rudra::database::{Symbol, SymbolEntry};
+use rudra::funcdata::Funcdata;
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{
     Datatype, TypeArray, TypeBase, TypeField, TypeMetatype, TypePointer, TypeStruct, TypeUnion,
     type_flags,
 };
-use rugra::unionresolve::ResolvedUnion;
-use rugra::variable::HighVariable;
-use rugra::varnode::{Varnode, addl_flags, varnode_flags};
+use rudra::unionresolve::ResolvedUnion;
+use rudra::variable::HighVariable;
+use rudra::varnode::{Varnode, addl_flags, varnode_flags};
 
 type VnRef = Arc<RwLock<Varnode>>;
 type OpRef = Arc<RwLock<PcodeOp>>;

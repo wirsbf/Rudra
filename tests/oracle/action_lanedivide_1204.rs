@@ -1,20 +1,20 @@
 //! ACTION-LANEDIVIDE-0001 Rugra comparand.
 //!
-//! Drives the real `ActionLaneDivide` (rugra::coreaction) through the
+//! Drives the real `ActionLaneDivide` (rudra::coreaction) through the
 //! public `Action::perform` state machine, mirroring the locked-oracle
 //! C++ fixture observation for observation.
 
-use rugra::action::{Action, ActionState, action_flags};
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::FlowBlock;
-use rugra::coreaction::ActionLaneDivide;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::transform::LanedRegister;
-use rugra::varnode::Varnode;
+use rudra::action::{Action, ActionState, action_flags};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::FlowBlock;
+use rudra::coreaction::ActionLaneDivide;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::transform::LanedRegister;
+use rudra::varnode::Varnode;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::{Arc, RwLock};
@@ -74,7 +74,7 @@ impl GraphProjection {
             .map_or_else(|| "x".to_string(), |index| format!("v{index}"))
     }
 
-    fn op_name(&self, op: Option<&Arc<RwLock<rugra::op::PcodeOp>>>) -> String {
+    fn op_name(&self, op: Option<&Arc<RwLock<rudra::op::PcodeOp>>>) -> String {
         let Some(op) = op else {
             return "_".to_string();
         };

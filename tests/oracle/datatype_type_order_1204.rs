@@ -1,14 +1,14 @@
 //! DATATYPE-TYPEORDER-0001 Rugra comparand for locked Ghidra 12.0.4.
 
-use rugra::fspec::{ProtoModelFull, ProtoParameter};
-use rugra::space::{space_flags, AddrSpace, SpaceType};
-use rugra::type_system::datatype::{
+use rudra::fspec::{ProtoModelFull, ProtoParameter};
+use rudra::space::{space_flags, AddrSpace, SpaceType};
+use rudra::type_system::datatype::{
     type_flags, Datatype, TypeArray, TypeBase, TypeCode, TypeEnum, TypeField, TypeMetatype,
     TypePartialEnum, TypePartialStruct, TypePartialUnion, TypePointer, TypeSpacebase,
     TypeStruct, TypeUnion,
 };
-use rugra::type_system::typefactory::TypeFactory;
-use rugra::{Address, AddressSpace, FuncProto};
+use rudra::type_system::typefactory::TypeFactory;
+use rudra::{Address, AddressSpace, FuncProto};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

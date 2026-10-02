@@ -28,19 +28,19 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::database::Symbol;
-use rugra::op::{op_addl_flags, PcodeOp};
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{
+use rudra::address::Address;
+use rudra::database::Symbol;
+use rudra::op::{op_addl_flags, PcodeOp};
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{
     Datatype, TypeArray, TypeBase, TypeMetatype, TypePartialEnum, TypePartialStruct,
     TypePartialUnion, TypePointer, TypeStruct, TypeUnion,
 };
-use rugra::variable::HighVariable;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::variable::HighVariable;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type VnRef = Arc<RwLock<Varnode>>;
 
@@ -57,12 +57,12 @@ fn fixture_pair() -> Arc<Datatype> {
     Arc::new(Datatype::Struct(TypeStruct {
         base: TypeBase::new("fixture_pair".to_string(), 8, TypeMetatype::Struct),
         fields: vec![
-            rugra::type_system::datatype::TypeField {
+            rudra::type_system::datatype::TypeField {
                 name: "lo".to_string(),
                 offset: 0,
                 type_ptr: int4(),
             },
-            rugra::type_system::datatype::TypeField {
+            rudra::type_system::datatype::TypeField {
                 name: "hi".to_string(),
                 offset: 4,
                 type_ptr: int4(),
@@ -83,12 +83,12 @@ fn fixture_arr() -> Arc<Datatype> {
     Arc::new(Datatype::Struct(TypeStruct {
         base: TypeBase::new("fixture_arr".to_string(), 12, TypeMetatype::Struct),
         fields: vec![
-            rugra::type_system::datatype::TypeField {
+            rudra::type_system::datatype::TypeField {
                 name: "arr".to_string(),
                 offset: 0,
                 type_ptr: arr2,
             },
-            rugra::type_system::datatype::TypeField {
+            rudra::type_system::datatype::TypeField {
                 name: "tail".to_string(),
                 offset: 8,
                 type_ptr: int4(),
@@ -103,16 +103,16 @@ fn fixture_union() -> Arc<Datatype> {
     // flag drives the artificial SUBPIECE slot 1 (printc.cc:858) and blocks
     // the pushPartialSymbol loop-top whole-type break (printc.cc:1962).
     let mut base = TypeBase::new("fixture_alt".to_string(), 4, TypeMetatype::Union);
-    base.flags |= rugra::type_system::datatype::type_flags::NEEDS_RESOLUTION;
+    base.flags |= rudra::type_system::datatype::type_flags::NEEDS_RESOLUTION;
     Arc::new(Datatype::Union(TypeUnion {
         base,
         fields: vec![
-            rugra::type_system::datatype::TypeField {
+            rudra::type_system::datatype::TypeField {
                 name: "a".to_string(),
                 offset: 0,
                 type_ptr: int4(),
             },
-            rugra::type_system::datatype::TypeField {
+            rudra::type_system::datatype::TypeField {
                 name: "b".to_string(),
                 offset: 0,
                 type_ptr: uint4(),
@@ -132,10 +132,10 @@ fn fixture_inner() -> Arc<Datatype> {
         TypeMetatype::Int,
     )));
     let mut base = TypeBase::new("fixture_inner".to_string(), 8, TypeMetatype::Struct);
-    base.flags |= rugra::type_system::datatype::type_flags::NEEDS_RESOLUTION;
+    base.flags |= rudra::type_system::datatype::type_flags::NEEDS_RESOLUTION;
     Arc::new(Datatype::Struct(TypeStruct {
         base,
-        fields: vec![rugra::type_system::datatype::TypeField {
+        fields: vec![rudra::type_system::datatype::TypeField {
             name: "x".to_string(),
             offset: 0,
             type_ptr: int8,
@@ -154,12 +154,12 @@ fn fixture_outer() -> Arc<Datatype> {
     Arc::new(Datatype::Struct(TypeStruct {
         base: TypeBase::new("fixture_outer".to_string(), 16, TypeMetatype::Struct),
         fields: vec![
-            rugra::type_system::datatype::TypeField {
+            rudra::type_system::datatype::TypeField {
                 name: "in".to_string(),
                 offset: 0,
                 type_ptr: fixture_inner(),
             },
-            rugra::type_system::datatype::TypeField {
+            rudra::type_system::datatype::TypeField {
                 name: "tail".to_string(),
                 offset: 8,
                 type_ptr: int8,
@@ -242,7 +242,7 @@ fn subpiece_op(
     out.high = Some(Arc::new(RwLock::new(out_high)));
     let out = Arc::new(RwLock::new(out));
     let mut op = PcodeOp::new(
-        rugra::address::SeqNum::new(Address::new(pc), time),
+        rudra::address::SeqNum::new(Address::new(pc), time),
         OpCode::CPUI_SUBPIECE,
     );
     op.inrefs.push(vn.clone());
@@ -270,7 +270,7 @@ fn render(op_arc: &Arc<RwLock<PcodeOp>>) -> String {
 /// same doc_function channel the pipeline printer uses.
 fn render_with_resolutions(
     op_arc: &Arc<RwLock<PcodeOp>>,
-    fd: &rugra::funcdata::Funcdata,
+    fd: &rudra::funcdata::Funcdata,
 ) -> String {
     let mut printer = PrintC::new(Box::new(EmitNoMarkup::new()));
     printer.snapshot_union_resolutions(fd);
@@ -293,13 +293,13 @@ fn render_with_resolutions(
 /// altUnion, fieldNum = 1, lock = false), which the struct-literal below
 /// reproduces.
 fn run_union_cache_arms() {
-    use rugra::op::PcodeOpRef;
-    use rugra::unionresolve::ResolvedUnion;
+    use rudra::op::PcodeOpRef;
+    use rudra::unionresolve::ResolvedUnion;
 
     // One Funcdata accumulates the cache entries exactly as the C++ fixture's
     // single GetStr Funcdata does; the distinct SeqNum times keep the
     // ResolveEdge keys apart.
-    let mut fd = rugra::funcdata::Funcdata::new("GetStr", Address::new(0x36d0), 0);
+    let mut fd = rudra::funcdata::Funcdata::new("GetStr", Address::new(0x36d0), 0);
 
     let field_b_of = |union_dt: &Arc<Datatype>| -> Arc<Datatype> {
         match union_dt.as_ref() {

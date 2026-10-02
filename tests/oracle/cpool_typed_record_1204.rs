@@ -5,12 +5,12 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::cpool::{cpool_tag, CPoolRecord, ConstantPool, ConstantPoolInternal};
-use rugra::marshal::{
+use rudra::cpool::{cpool_tag, CPoolRecord, ConstantPool, ConstantPoolInternal};
+use rudra::marshal::{
     AttributeId, ElementId, Encoder, IdRegistry, PackedEncode, TreeDecoder, TreeEncoder,
 };
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::TypeFactory;
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::TypeFactory;
 
 fn attrib(name: &str, id: u32) -> AttributeId {
     AttributeId::new(name, id)

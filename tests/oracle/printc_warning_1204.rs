@@ -12,15 +12,15 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, BlockGraph, FlowBlock};
-use rugra::comment::CommentDatabaseInternal;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::space::{space_flags, AddrSpace, SpaceType};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, BlockGraph, FlowBlock};
+use rudra::comment::CommentDatabaseInternal;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::space::{space_flags, AddrSpace, SpaceType};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -49,7 +49,7 @@ fn fixture_arch() -> Arc<Architecture> {
     Arc::new(arch)
 }
 
-fn new_op(fd: &mut Funcdata, off: u64, bb: &BlockRef) -> rugra::op::PcodeOpRef {
+fn new_op(fd: &mut Funcdata, off: u64, bb: &BlockRef) -> rudra::op::PcodeOpRef {
     let op = fd.new_op(0, Address::with_space(&ram_space(), off));
     fd.op_set_opcode(&op, OpCode::CPUI_COPY);
     fd.op_insert_end(&op, bb);

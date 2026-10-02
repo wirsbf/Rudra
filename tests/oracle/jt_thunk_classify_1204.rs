@@ -8,17 +8,17 @@
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::FlowBlock;
-use rugra::comment::CommentDatabaseInternal;
-use rugra::funcdata::Funcdata;
-use rugra::jumptable::{JumpModel, JumpTable, JumpTableRecoveryError, LoadTable, RecoveryMode};
-use rugra::marshal::{xml_tree, IdRegistry, TreeDecoder};
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::space::{AddrSpace, AddressSpace, SpaceType};
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::FlowBlock;
+use rudra::comment::CommentDatabaseInternal;
+use rudra::funcdata::Funcdata;
+use rudra::jumptable::{JumpModel, JumpTable, JumpTableRecoveryError, LoadTable, RecoveryMode};
+use rudra::marshal::{xml_tree, IdRegistry, TreeDecoder};
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::space::{AddrSpace, AddressSpace, SpaceType};
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -269,7 +269,7 @@ fn add_guard(
         fd.op_set_input(&op, target, 0);
         fd.op_set_input(&op, condition, 1);
         if flip {
-            op.0.write().unwrap().flags |= rugra::op::pcodeop_flags::BOOLEAN_FLIP;
+            op.0.write().unwrap().flags |= rudra::op::pcodeop_flags::BOOLEAN_FLIP;
         }
         fd.op_insert_end(&op, &guard);
     } else {
@@ -291,7 +291,7 @@ fn build_indirect(
     code: &AddrSpace,
     reach: ReachVariant,
     op_offset: u64,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let switch_block: BlockRef = fd.create_new_block();
     match reach {
         ReachVariant::None => {}

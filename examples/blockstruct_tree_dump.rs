@@ -12,13 +12,13 @@ use goblin::Object;
 use std::collections::HashMap;
 use std::fs;
 
-use rugra::action::ActionDatabase;
-use rugra::address::Address;
-use rugra::block::{BlockGraph, BlockType, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::printc::PrintC;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printlanguage::PrintLanguage;
+use rudra::action::ActionDatabase;
+use rudra::address::Address;
+use rudra::block::{BlockGraph, BlockType, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::printc::PrintC;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printlanguage::PrintLanguage;
 
 type DynBlock = std::sync::Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -158,7 +158,7 @@ fn addr_of(bl: &DynBlock) -> String {
         for _ in 0..8 {
             let next = {
                 let rg = cur.read().unwrap();
-                if let Some(copy) = rg.as_any().downcast_ref::<rugra::block::BlockCopy>() {
+                if let Some(copy) = rg.as_any().downcast_ref::<rudra::block::BlockCopy>() {
                     Some(copy.original.clone())
                 } else {
                     None
@@ -172,7 +172,7 @@ fn addr_of(bl: &DynBlock) -> String {
         cur
     };
     let mut cur = descend_copies(bl.clone());
-    if let Some(leaf) = rugra::block::front_leaf(&cur) {
+    if let Some(leaf) = rudra::block::front_leaf(&cur) {
         cur = descend_copies(leaf);
     }
     let s = cur.read().unwrap().get_start_addr();
@@ -197,7 +197,7 @@ fn dump_node(bl: &DynBlock, depth: usize, out: &mut String) {
                 .map(|g| g.blocks.clone())
                 .or_else(|| {
                     rg.as_any()
-                        .downcast_ref::<rugra::block::BlockList>()
+                        .downcast_ref::<rudra::block::BlockList>()
                         .map(|l| l.children.clone())
                 })
                 .unwrap_or_default();
@@ -207,7 +207,7 @@ fn dump_node(bl: &DynBlock, depth: usize, out: &mut String) {
             }
         }
         BlockType::If => {
-            if let Some(bif) = rg.as_any().downcast_ref::<rugra::block::BlockIf>() {
+            if let Some(bif) = rg.as_any().downcast_ref::<rudra::block::BlockIf>() {
                 if let Some(gt) = &bif.goto_target {
                     out.push_str(&format!(
                         "{}#{} IFGOTO cond=#{} target={}({}) goto_type={} prints?\n",
@@ -237,7 +237,7 @@ fn dump_node(bl: &DynBlock, depth: usize, out: &mut String) {
             }
         }
         BlockType::Goto => {
-            if let Some(g) = rg.as_any().downcast_ref::<rugra::block::BlockGoto>() {
+            if let Some(g) = rg.as_any().downcast_ref::<rudra::block::BlockGoto>() {
                 let tgt = g
                     .target_dyn
                     .as_ref()
@@ -257,7 +257,7 @@ fn dump_node(bl: &DynBlock, depth: usize, out: &mut String) {
             }
         }
         BlockType::DoWhile => {
-            if let Some(dw) = rg.as_any().downcast_ref::<rugra::block::BlockDoWhile>() {
+            if let Some(dw) = rg.as_any().downcast_ref::<rudra::block::BlockDoWhile>() {
                 out.push_str(&format!(
                     "{}#{} DoWhile cond=#{}\n",
                     indent,
@@ -268,7 +268,7 @@ fn dump_node(bl: &DynBlock, depth: usize, out: &mut String) {
             }
         }
         BlockType::WhileDo => {
-            if let Some(wd) = rg.as_any().downcast_ref::<rugra::block::BlockWhileDo>() {
+            if let Some(wd) = rg.as_any().downcast_ref::<rudra::block::BlockWhileDo>() {
                 out.push_str(&format!(
                     "{}#{} WhileDo cond=#{} body=#{}\n",
                     indent,
@@ -281,7 +281,7 @@ fn dump_node(bl: &DynBlock, depth: usize, out: &mut String) {
             }
         }
         BlockType::Switch => {
-            if let Some(sw) = rg.as_any().downcast_ref::<rugra::block::BlockSwitch>() {
+            if let Some(sw) = rg.as_any().downcast_ref::<rudra::block::BlockSwitch>() {
                 out.push_str(&format!(
                     "{}#{} Switch control=#{} numcases={}\n",
                     indent,
@@ -350,7 +350,7 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
 
     // SLEIGH-RUSTIFY-PHASE3-0001: canon-contract linear walk (padding NOP
     // filter); lift_instruction stamps SeqNum(addr, 0) itself.
-    let raw_ops = rugra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code_bytes, target_addr);
+    let raw_ops = rudra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code_bytes, target_addr);
 
     // FUNCPROTO-MODEL-BIND-0001: the pipeline's call-effect actions read
     // FuncProto::effect_iter, which delegates to the Architecture's default
@@ -358,8 +358,8 @@ fn run_main(binary_path: &str, target_spec: &str) -> Result<(), String> {
     // Funcdata::set_arch (fspec.cc:3884 model-binding tail). Build the
     // minimal Architecture with the shared default model here so the
     // decompile pipeline runs without the effect_iter panic.
-    let model = rugra::fspec::ProtoModelFull::new(None, 8);
-    let mut arch = rugra::arch::Architecture::new();
+    let model = rudra::fspec::ProtoModelFull::new(None, 8);
+    let mut arch = rudra::arch::Architecture::new();
     arch.defaultfp = Some(std::sync::Arc::new(model));
     let mut fd = Funcdata::new(&func_name, Address::new(target_addr), func_size as i32);
     fd.set_arch(std::sync::Arc::new(arch));

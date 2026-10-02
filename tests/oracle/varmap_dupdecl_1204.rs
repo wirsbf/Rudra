@@ -10,10 +10,10 @@
 // invariant.
 use std::sync::{Arc, RwLock};
 
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::TypeMetatype;
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
-use rugra::varmap::ScopeLocal;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::TypeMetatype;
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::varmap::ScopeLocal;
 
 fn main() {
     println!(

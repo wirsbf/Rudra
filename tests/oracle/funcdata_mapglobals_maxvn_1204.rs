@@ -29,18 +29,18 @@
 //!     8-byte start type and flip inconsistentuse/warningHeader.
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::comment::comment_type;
-use rugra::database::Database;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::TypeMetatype;
-use rugra::type_system::typefactory::TypeFactory;
-use rugra::varmap::ScopeLocal;
-use rugra::varnode::varnode_flags;
+use rudra::address::Address;
+use rudra::comment::comment_type;
+use rudra::database::Database;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::TypeMetatype;
+use rudra::type_system::typefactory::TypeFactory;
+use rudra::varmap::ScopeLocal;
+use rudra::varnode::varnode_flags;
 
-fn forced_type(size: usize, meta: TypeMetatype) -> Arc<rugra::type_system::datatype::Datatype> {
+fn forced_type(size: usize, meta: TypeMetatype) -> Arc<rudra::type_system::datatype::Datatype> {
     TypeFactory::shared_default()
         .read()
         .unwrap()
@@ -72,11 +72,11 @@ fn main() {
     // The channel: Database with a global scope (fresh — no symbols yet,
     // ranges seeded after varnode creation exactly like the C++ twin) and
     // a comment db so warningHeader is observable instead of stderr noise.
-    let mut arch = rugra::arch::Architecture::new();
+    let mut arch = rudra::arch::Architecture::new();
     let db_arc = Arc::new(RwLock::new(Database::new(false)));
     arch.set_symboltab(db_arc.clone());
     arch.commentdb = Some(Arc::new(RwLock::new(
-        rugra::comment::CommentDatabaseInternal::new(),
+        rudra::comment::CommentDatabaseInternal::new(),
     )));
 
     let mut fd = Funcdata::new("mapglobals", Address::new(0x5000), 0x100);
@@ -93,7 +93,7 @@ fn main() {
     // exactly like the C++ twin (highlevel_on is clear at creation).
     let mut pc = 0x5010u64;
     let mut make_persist_out = |fd: &mut Funcdata,
-                                block: &Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+                                block: &Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
                                 size: usize,
                                 addr: u64,
                                 tsize: usize,
@@ -135,7 +135,7 @@ fn main() {
     {
         let mut db = db_arc.write().unwrap();
         let global = db.global_scope_id;
-        if let Some(rng) = rugra::address::Range::new(Address::new(0), Address::new(u64::MAX)) {
+        if let Some(rng) = rudra::address::Range::new(Address::new(0), Address::new(u64::MAX)) {
             db.add_range(global, rng);
         }
         let seed_type = forced_type(4, TypeMetatype::Uint);

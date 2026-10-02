@@ -8,14 +8,14 @@
 
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::cover::{Cover, CoverBlock, CoverEndpoint};
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::cover::{Cover, CoverBlock, CoverEndpoint};
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<std::sync::RwLock<Varnode>>;
@@ -92,7 +92,7 @@ impl Graph {
 
     fn unique_out(&mut self, size: usize, op: &OpRef) -> VnRef {
         self.fd
-            .new_unique_out(size, &rugra::op::PcodeOpRef(op.clone()))
+            .new_unique_out(size, &rudra::op::PcodeOpRef(op.clone()))
     }
 
     fn constant(&mut self, size: usize, value: u64) -> VnRef {
@@ -109,7 +109,7 @@ impl Graph {
 
     fn set_input(&mut self, op: &OpRef, vn: &VnRef, slot: usize) {
         self.fd.op_insert_input(
-            &rugra::op::PcodeOpRef(op.clone()),
+            &rudra::op::PcodeOpRef(op.clone()),
             vn.clone(),
             slot,
         );
@@ -117,7 +117,7 @@ impl Graph {
 
     fn insert_end(&mut self, op: &OpRef, block: &BlockRef) {
         self.fd
-            .op_insert_end(&rugra::op::PcodeOpRef(op.clone()), block);
+            .op_insert_end(&rudra::op::PcodeOpRef(op.clone()), block);
     }
 
     fn orders(&self) -> String {

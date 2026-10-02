@@ -14,18 +14,18 @@
 // (coreaction.cc:5390-5392) for this graph.
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::coreaction::ActionInferTypes;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::coreaction::ActionInferTypes;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{
     metatype2string, Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct,
 };
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
-use rugra::varnode::Varnode;
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 

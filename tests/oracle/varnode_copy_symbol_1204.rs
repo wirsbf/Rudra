@@ -8,14 +8,14 @@
 // pointer, the mapentry, and exactly the typelock|namelock flag bits.
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, RangeList};
-use rugra::database::{symbol_flags, Symbol, SymbolEntry};
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::TypeMetatype;
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::{Address, RangeList};
+use rudra::database::{symbol_flags, Symbol, SymbolEntry};
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::TypeMetatype;
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::varnode::{varnode_flags, Varnode};
 
 type VnRef = Arc<RwLock<Varnode>>;
 
@@ -27,8 +27,8 @@ fn meta_token(meta: TypeMetatype) -> &'static str {
     }
 }
 
-fn type_same(a: &Option<Arc<rugra::type_system::datatype::Datatype>>,
-             b: &Option<Arc<rugra::type_system::datatype::Datatype>>) -> usize {
+fn type_same(a: &Option<Arc<rudra::type_system::datatype::Datatype>>,
+             b: &Option<Arc<rudra::type_system::datatype::Datatype>>) -> usize {
     match (a, b) {
         (Some(x), Some(y)) => usize::from(Arc::ptr_eq(x, y)),
         (None, None) => 1,

@@ -1,23 +1,23 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
 
 // Fixture mirroring op_previous_block_order_1204.cc: PcodeOp::previousOp
 // (op.cc:344) and PcodeOp::nextOp (op.cc:323) must follow the parent block's
 // op-list order (basiciter), never the alivelist mark-alive append order.
 struct Fixture {
     fd: Funcdata,
-    b1: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
-    b2: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
-    b3: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
-    b4: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
-    b5: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
-    b6: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
-    b7: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+    b1: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
+    b2: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
+    b3: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
+    b4: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
+    b5: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
+    b6: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
+    b7: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
     probe_order: Vec<PcodeOpRef>,
     names: HashMap<usize, &'static str>,
 }
@@ -68,7 +68,7 @@ impl Fixture {
             .join(",")
     }
 
-    fn block_order(&self, block: &Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>) -> String {
+    fn block_order(&self, block: &Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>) -> String {
         self.order(&block.read().unwrap().get_ops())
     }
 

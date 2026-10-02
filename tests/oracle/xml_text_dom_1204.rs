@@ -2,15 +2,15 @@
 //!
 //! Locked oracle: Ghidra_12.0.4_build e40ed13014025f82488b1f8f7bca566894ac376b.
 //! Mirrors `xml_text_dom_1204.cc` record for record: parse the same XML byte
-//! inputs through `rugra::marshal::{xml_tree, DocumentStorage}` and print the
+//! inputs through `rudra::marshal::{xml_tree, DocumentStorage}` and print the
 //! same canonical DOM / DocumentStorage / error projection. The runner diffs
 //! both outputs byte for byte.
 
-use rugra::marshal::{xml_tree, DocumentStorage};
+use rudra::marshal::{xml_tree, DocumentStorage};
 use std::io::Write;
 use std::sync::{Arc, RwLock};
 
-use rugra::marshal::Element;
+use rudra::marshal::Element;
 
 fn dump_element(out: &mut dyn Write, el: &Arc<RwLock<Element>>, depth: usize) {
     let el = el.read().unwrap();

@@ -15,8 +15,8 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::block::{
     edge_flags as ef, block_flags as bf, BlockBasic, BlockCondition, BlockDoWhile, BlockGraph,
     BlockIf, BlockInfLoop, BlockList, BlockType, BlockWhileDo, FlowBlock,
 };
@@ -112,7 +112,7 @@ impl Graph {
         // Rugra side (see collapse_all_5step cc:1879-1884 note).
 
         // CollapseStructure::collapseAll via the public 5-step driver.
-        let mut collapse = rugra::blockaction::CollapseStructure::new(
+        let mut collapse = rudra::blockaction::CollapseStructure::new(
             &mut self.graph,
             case_name,
         );

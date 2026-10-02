@@ -8,13 +8,13 @@
 
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type BlockRef = Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<std::sync::RwLock<Varnode>>;

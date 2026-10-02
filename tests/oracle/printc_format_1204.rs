@@ -10,15 +10,15 @@
 // skip_line), local-var decls (none in these cases), emitBlockGraph (flat),
 // closeBraceIndent(CLOSE_CURLY), trailing tagLine.
 
-use rugra::address::{Address, SeqNum};
-use rugra::block::BlockBasic;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::printc::PrintC;
-use rugra::printlanguage::PrintLanguage;
-use rugra::prettyprint::{BraceStyle, EmitNoMarkup};
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
+use rudra::address::{Address, SeqNum};
+use rudra::block::BlockBasic;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::printc::PrintC;
+use rudra::printlanguage::PrintLanguage;
+use rudra::prettyprint::{BraceStyle, EmitNoMarkup};
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
 use std::sync::{Arc, RwLock};
 
 fn base_type(name: &str, size: usize, metatype: TypeMetatype) -> Arc<Datatype> {
@@ -60,7 +60,7 @@ fn render(
         types_by_name(ret)
     };
     for (slot, (pname, ptype)) in params.iter().enumerate() {
-        fd.funcp.parameters.push(rugra::fspec::ProtoParameter {
+        fd.funcp.parameters.push(rudra::fspec::ProtoParameter {
             name: pname.to_string(),
             data_type: types_by_name(ptype),
             address: Address::new(8 * (slot as u64 + 1)),
@@ -72,7 +72,7 @@ fn render(
     if with_return {
         let mut op = PcodeOp::new(SeqNum::new(Address::new(0x1000), 0), OpCode::CPUI_RETURN);
         op.set_opcode_flags(OpCode::CPUI_RETURN);
-        let op_arc: rugra::op::PcodeOpRef = rugra::op::PcodeOpRef(Arc::new(RwLock::new(op)));
+        let op_arc: rudra::op::PcodeOpRef = rudra::op::PcodeOpRef(Arc::new(RwLock::new(op)));
         let mut block = BlockBasic::new(0, Address::new(0x1000));
         block.ops.push(op_arc);
         fd.bblocks.add_block(Arc::new(RwLock::new(block)));

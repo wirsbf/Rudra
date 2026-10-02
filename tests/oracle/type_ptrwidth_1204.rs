@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use rugra::address::{Address, SeqNum};
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::{Datatype, TypeMetatype, TypePointer};
-use rugra::type_system::TypeBase;
-use rugra::typeop::{TypeOp, TypeOpLoad, TypeOpStore};
-use rugra::varnode::Varnode;
+use rudra::address::{Address, SeqNum};
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::{Datatype, TypeMetatype, TypePointer};
+use rudra::type_system::TypeBase;
+use rudra::typeop::{TypeOp, TypeOpLoad, TypeOpStore};
+use rudra::varnode::Varnode;
 use std::sync::RwLock;
 
 fn pointer_to(pointee: Arc<Datatype>) -> Arc<Datatype> {
@@ -110,7 +110,7 @@ fn main() {
     spacebase_output
         .write()
         .unwrap()
-        .set_flags(rugra::varnode::varnode_flags::SPACEBASE);
+        .set_flags(rudra::varnode::varnode_flags::SPACEBASE);
     spacebase_load.output = Some(spacebase_output);
     let load_spacebase = TypeOpLoad.propagate_type(&int4_type, &spacebase_load, -1, 1);
 

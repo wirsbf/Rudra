@@ -23,15 +23,15 @@ use std::collections::HashMap;
 use std::process::ExitCode;
 use std::sync::{Arc, RwLock};
 
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::jumptable::{
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::jumptable::{
     JumpBasic, JumpBasic2, JumpBasicOverride, JumpModelTrivial, JumpTable,
     NO_LABEL,
 };
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::varnode::Varnode;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;
@@ -57,8 +57,8 @@ impl Fixture {
         fd.bblocks.add_edge(from.clone(), to.clone());
     }
 
-    fn alloc_pc(&mut self) -> rugra::address::Address {
-        let a = rugra::address::Address::new(self.next_pc);
+    fn alloc_pc(&mut self) -> rudra::address::Address {
+        let a = rudra::address::Address::new(self.next_pc);
         self.next_pc += 8;
         a
     }
@@ -72,7 +72,7 @@ impl Fixture {
     ) -> VarnodeRef {
         let vn = fd
             .vbank
-            .create_def_with_space(size, rugra::space::AddressSpace::Unique, offset, &op.0);
+            .create_def_with_space(size, rudra::space::AddressSpace::Unique, offset, &op.0);
         op.0.write().unwrap().output = Some(vn.clone());
         vn
     }
@@ -172,7 +172,7 @@ fn model_kind(jt: &JumpTable) -> String {
     if any.downcast_ref::<JumpBasicOverride>().is_some() {
         return "override".to_string();
     }
-    if any.downcast_ref::<rugra::jumptable::JumpAssisted>().is_some() {
+    if any.downcast_ref::<rudra::jumptable::JumpAssisted>().is_some() {
         return "assisted".to_string();
     }
     if any.downcast_ref::<JumpModelTrivial>().is_some() {
@@ -182,7 +182,7 @@ fn model_kind(jt: &JumpTable) -> String {
 }
 
 /// Guard records of the active model (JumpBasic2 keeps them on `base`).
-fn guards_of(jt: &JumpTable) -> Option<&Vec<rugra::jumptable::GuardRecord>> {
+fn guards_of(jt: &JumpTable) -> Option<&Vec<rudra::jumptable::GuardRecord>> {
     let m = jt.jmodel.as_ref()?;
     let any = m.as_any();
     if let Some(m2) = any.downcast_ref::<JumpBasic2>() {
@@ -229,7 +229,7 @@ fn dump_tail(id: &str, jt: &JumpTable) {
 /// M1 — multistage partial-table channel.
 fn run_m1() {
     let id = "M1";
-    let mut fd = Funcdata::new("jt_parentfacts_M1", rugra::address::Address::new(0x60000), 0x100);
+    let mut fd = Funcdata::new("jt_parentfacts_M1", rudra::address::Address::new(0x60000), 0x100);
     let mut f = Fixture::new();
 
     let b_entry = f.make_block(&mut fd);
@@ -243,7 +243,7 @@ fn run_m1() {
     f.edge(&mut fd, &b_sw, &b_out);
     f.edge(&mut fd, &b_def, &b_out);
 
-    let w = fd.new_varnode(4, rugra::address::Address::new(0x800));
+    let w = fd.new_varnode(4, rudra::address::Address::new(0x800));
     f.name_vn(&w, "w");
     let cp0 = f.make_op1(&mut fd, &b_g, OpCode::CPUI_COPY, &w, 0x808, 4);
     let w2 = cp0.0.read().unwrap().output.clone().unwrap();
@@ -327,7 +327,7 @@ fn run_p(same_sib: bool) {
     let id = if same_sib { "P1" } else { "P0" };
     let mut fd = Funcdata::new(
         &format!("jt_parentfacts_{id}"),
-        rugra::address::Address::new(0x60000),
+        rudra::address::Address::new(0x60000),
         0x100,
     );
     let mut f = Fixture::new();
@@ -364,7 +364,7 @@ fn run_p(same_sib: bool) {
 
     println!("case|id={id}");
 
-    let x = fd.new_varnode(4, rugra::address::Address::new(0x800));
+    let x = fd.new_varnode(4, rudra::address::Address::new(0x800));
     f.name_vn(&x, "x");
 
     let cd_home = if same_sib { &b_g2 } else { &b_def2 };
@@ -379,7 +379,7 @@ fn run_p(same_sib: bool) {
     if !same_sib {
         let alt_op = fd.new_op(1, f.alloc_pc());
         fd.op_set_opcode(&alt_op, OpCode::CPUI_BRANCHIND);
-        let altv = fd.new_varnode(4, rugra::address::Address::new(0x860));
+        let altv = fd.new_varnode(4, rudra::address::Address::new(0x860));
         fd.op_set_input(&alt_op, altv, 0);
         fd.op_insert_end(&alt_op, &b_alt);
     }

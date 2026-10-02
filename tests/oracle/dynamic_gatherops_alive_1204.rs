@@ -4,17 +4,17 @@
 //! starts dead, op_insert_end transitions selected ops alive, and the target
 //! address retains one dead op between two alive ops in SeqNum order.
 
-use rugra::address::{Address, SeqNum};
-use rugra::dynamic::DynamicHash;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
+use rudra::address::{Address, SeqNum};
+use rudra::dynamic::DynamicHash;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 struct Fixture {
     fd: Funcdata,
-    block: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+    block: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
     names: HashMap<usize, &'static str>,
 }
 
@@ -38,11 +38,11 @@ impl Fixture {
         op
     }
 
-    fn name(&self, op: &Arc<std::sync::RwLock<rugra::op::PcodeOp>>) -> &'static str {
+    fn name(&self, op: &Arc<std::sync::RwLock<rudra::op::PcodeOp>>) -> &'static str {
         self.names[&(Arc::as_ptr(op) as usize)]
     }
 
-    fn pointer_order(&self, ops: &[Arc<std::sync::RwLock<rugra::op::PcodeOp>>]) -> String {
+    fn pointer_order(&self, ops: &[Arc<std::sync::RwLock<rudra::op::PcodeOp>>]) -> String {
         ops.iter()
             .map(|op| self.name(op))
             .collect::<Vec<_>>()

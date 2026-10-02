@@ -5,21 +5,21 @@
 //! Rugra Action replay because Rugra's Action tree has no observation hook yet.
 
 use goblin::Object;
-use rugra::action::{Action, ActionDatabase};
-use rugra::address::Address;
-use rugra::block::{
+use rudra::action::{Action, ActionDatabase};
+use rudra::address::Address;
+use rudra::block::{
     edge_flags, type_to_name, BlockCondition, BlockCopy, BlockDoWhile, BlockGraph, BlockIf,
     BlockInfLoop, BlockList, BlockSwitch, BlockWhileDo, FlowBlock,
 };
-use rugra::coreaction::ActionHeritage;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::printlanguage::PrintLanguage;
-use rugra::type_system::datatype::metatype2string;
-use rugra::varnode::Varnode;
+use rudra::coreaction::ActionHeritage;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::printlanguage::PrintLanguage;
+use rudra::type_system::datatype::metatype2string;
+use rudra::varnode::Varnode;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
@@ -89,7 +89,7 @@ impl SnapshotIds {
         self.varnodes.push(varnode);
     }
 
-    fn op_id(&self, op: &Arc<RwLock<rugra::op::PcodeOp>>) -> i64 {
+    fn op_id(&self, op: &Arc<RwLock<rudra::op::PcodeOp>>) -> i64 {
         self.op_ids
             .get(&(Arc::as_ptr(op) as usize))
             .copied()
@@ -104,7 +104,7 @@ impl SnapshotIds {
     }
 }
 
-fn address_value(space: rugra::space::AddressSpace, offset: u64) -> Value {
+fn address_value(space: rudra::space::AddressSpace, offset: u64) -> Value {
     json!({
         "space": space.space_id(),
         "space_name": space.name(),
@@ -146,7 +146,7 @@ fn op_values(ids: &SnapshotIds, include_high_read_types: bool) -> Vec<Value> {
                 .collect::<Vec<_>>();
             json!({
                 "id": index,
-                "address": address_value(rugra::space::AddressSpace::Ram, op.start.addr.as_u64()),
+                "address": address_value(rudra::space::AddressSpace::Ram, op.start.addr.as_u64()),
                 // Rugra currently collapses Ghidra SeqNum::uniq/time and mutable order.
                 // Recording the same field twice exposes this structural mismatch.
                 "time": op.start.order,
@@ -215,18 +215,18 @@ fn varnode_values(fd: &Funcdata, ids: &SnapshotIds) -> Vec<Value> {
                     let op = op.read().expect("PcodeOp space-input read lock");
                     matches!(
                         op.opcode,
-                        rugra::opcodes::OpCode::CPUI_LOAD | rugra::opcodes::OpCode::CPUI_STORE
+                        rudra::opcodes::OpCode::CPUI_LOAD | rudra::opcodes::OpCode::CPUI_STORE
                     ) && op
                         .inrefs
                         .first()
                         .is_some_and(|input| Arc::ptr_eq(input, varnode_ref))
                 });
             let space_reference = is_space_reference.then_some(raw_offset);
-            let call_target = (address_space == rugra::space::AddressSpace::Iop)
+            let call_target = (address_space == rudra::space::AddressSpace::Iop)
                 .then(|| {
                     descend_ops.iter().find_map(|op| {
                         let operation = op.read().expect("PcodeOp call-spec read lock");
-                        let is_target = operation.opcode == rugra::opcodes::OpCode::CPUI_CALL
+                        let is_target = operation.opcode == rudra::opcodes::OpCode::CPUI_CALL
                             && operation
                                 .inrefs
                                 .first()
@@ -260,7 +260,7 @@ fn varnode_values(fd: &Funcdata, ids: &SnapshotIds) -> Vec<Value> {
             // Ordinary Iop annotations may still resolve through the op-id
             // map, but a stale key is represented explicitly instead of
             // panicking.
-            let iop_reference = (address_space == rugra::space::AddressSpace::Iop
+            let iop_reference = (address_space == rudra::space::AddressSpace::Iop
                 && !has_call_spec_binding
                 && call_target.is_none())
             .then(|| ids.op_ids.get(&(raw_offset as usize)).copied())
@@ -277,7 +277,7 @@ fn varnode_values(fd: &Funcdata, ids: &SnapshotIds) -> Vec<Value> {
                 Some("iop")
             } else if has_call_spec_binding || call_target.is_some() {
                 Some("fspec_unresolved")
-            } else if address_space == rugra::space::AddressSpace::Iop {
+            } else if address_space == rudra::space::AddressSpace::Iop {
                 Some("iop_unresolved")
             } else {
                 None
@@ -354,12 +354,12 @@ fn block_values(fd: &Funcdata, ids: &SnapshotIds) -> Vec<Value> {
             let block = block.read().expect("basic block read lock");
             let (start, stop) = block
                 .as_any()
-                .downcast_ref::<rugra::block::BlockBasic>()
+                .downcast_ref::<rudra::block::BlockBasic>()
                 .map_or((Value::Null, Value::Null), |basic| {
                     (
-                        address_value(rugra::space::AddressSpace::Ram, basic.start_addr.as_u64()),
+                        address_value(rudra::space::AddressSpace::Ram, basic.start_addr.as_u64()),
                         address_value(
-                            rugra::space::AddressSpace::Ram,
+                            rudra::space::AddressSpace::Ram,
                             basic.get_stop_addr().as_u64(),
                         ),
                     )
@@ -447,7 +447,7 @@ fn snapshot(
         "stage": stage,
         "function": {
             "name": fd.name,
-            "entry": address_value(rugra::space::AddressSpace::Ram, fd.baseaddr.as_u64()),
+            "entry": address_value(rudra::space::AddressSpace::Ram, fd.baseaddr.as_u64()),
             "size": fd.size,
         },
         "ops": if include_ops { op_values(&ids, stage == "03_action_ir") } else { Vec::new() },
@@ -489,11 +489,11 @@ const SPEC_SPACES: [(&str, u64); 9] = [
 const SPEC_UNIQUE_INJECT_BASE: u64 = 0x364_400;
 
 struct WorkerSpecHost {
-    registers: HashMap<String, rugra::fspec::VarnodeData>,
+    registers: HashMap<String, rudra::fspec::VarnodeData>,
 }
 
-fn spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> {
-    use rugra::space::AddressSpace;
+fn spec_space_by_name(name: &str) -> Option<rudra::space::AddressSpace> {
+    use rudra::space::AddressSpace;
     match name {
         "ram" => Some(AddressSpace::Ram),
         "stack" => Some(AddressSpace::Stack),
@@ -505,24 +505,24 @@ fn spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> {
     }
 }
 
-impl rugra::arch::SpecQuery for WorkerSpecHost {
-    fn get_register(&self, name: &str) -> Option<rugra::fspec::VarnodeData> {
+impl rudra::arch::SpecQuery for WorkerSpecHost {
+    fn get_register(&self, name: &str) -> Option<rudra::fspec::VarnodeData> {
         self.registers.get(name).copied()
     }
-    fn space_by_name(&self, name: &str) -> Option<rugra::space::AddressSpace> {
+    fn space_by_name(&self, name: &str) -> Option<rudra::space::AddressSpace> {
         spec_space_by_name(name)
     }
-    fn space_highest(&self, spc: rugra::space::AddressSpace) -> u64 {
+    fn space_highest(&self, spc: rudra::space::AddressSpace) -> u64 {
         let name = match spc {
-            rugra::space::AddressSpace::Const => "const",
-            rugra::space::AddressSpace::Other(_) => "OTHER",
-            rugra::space::AddressSpace::Unique => "unique",
-            rugra::space::AddressSpace::Ram => "ram",
-            rugra::space::AddressSpace::Register => "register",
-            rugra::space::AddressSpace::Stack => "stack",
-            rugra::space::AddressSpace::Iop => "iop",
-            rugra::space::AddressSpace::Join => "join",
-            rugra::space::AddressSpace::Overlay => "OTHER",
+            rudra::space::AddressSpace::Const => "const",
+            rudra::space::AddressSpace::Other(_) => "OTHER",
+            rudra::space::AddressSpace::Unique => "unique",
+            rudra::space::AddressSpace::Ram => "ram",
+            rudra::space::AddressSpace::Register => "register",
+            rudra::space::AddressSpace::Stack => "stack",
+            rudra::space::AddressSpace::Iop => "iop",
+            rudra::space::AddressSpace::Join => "join",
+            rudra::space::AddressSpace::Overlay => "OTHER",
         };
         SPEC_SPACES
             .iter()
@@ -535,13 +535,13 @@ impl rugra::arch::SpecQuery for WorkerSpecHost {
     }
 }
 
-impl rugra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
-    fn find_symbol(&self, name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
+impl rudra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
+    fn find_symbol(&self, name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
         self.registers
             .get(name)
-            .map(|vd| rugra::pcodeparse::SleighSymbol {
+            .map(|vd| rudra::pcodeparse::SleighSymbol {
             name: name.to_string(),
-            kind: rugra::pcodeparse::SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: rudra::pcodeparse::SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: vd.space,
                 offset: vd.offset,
                 size: vd.size.max(0) as usize,
@@ -550,14 +550,14 @@ impl rugra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
     }
 }
 
-fn worker_architecture() -> Result<Arc<rugra::arch::Architecture>, String> {
-    static CACHE: std::sync::OnceLock<Result<Arc<rugra::arch::Architecture>, String>> =
+fn worker_architecture() -> Result<Arc<rudra::arch::Architecture>, String> {
+    static CACHE: std::sync::OnceLock<Result<Arc<rudra::arch::Architecture>, String>> =
         std::sync::OnceLock::new();
     CACHE
         .get_or_init(|| {
             let cspec_bytes = fs::read("sleigh_specs/x86-64-gcc.cspec")
                 .map_err(|error| format!("unable to read compiler spec: {error}"))?;
-            let sleigh = rugra::sleigh_ffi::SleighCtx::new()
+            let sleigh = rudra::sleigh_ffi::SleighCtx::new()
                 .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
             let mut registers = HashMap::new();
             for index in 0..sleigh.num_registers() {
@@ -569,15 +569,15 @@ fn worker_architecture() -> Result<Arc<rugra::arch::Architecture>, String> {
                 };
                 registers.insert(
                     name.to_string(),
-                    rugra::fspec::VarnodeData {
-                        space: rugra::space::AddressSpace::from_id(space_id),
+                    rudra::fspec::VarnodeData {
+                        space: rudra::space::AddressSpace::from_id(space_id),
                         offset,
                         size,
                     },
                 );
             }
             let host = Arc::new(WorkerSpecHost { registers });
-            let mut store = rugra::marshal::DocumentStorage::new();
+            let mut store = rudra::marshal::DocumentStorage::new();
             let doc = store
                 .parse_document(&cspec_bytes)
                 .map_err(|error| format!("compiler spec parse failed: {error}"))?;
@@ -594,24 +594,24 @@ fn worker_architecture() -> Result<Arc<rugra::arch::Architecture>, String> {
                 return Err("compiler spec root is not compiler_spec".to_string());
             }
             store.register_tag(&root);
-            let mut arch = rugra::arch::Architecture::new();
+            let mut arch = rudra::arch::Architecture::new();
             arch.archid = "x86:LE:64:default".to_string();
             // The bilateral oracle is BfdArchitecture, which inherits
             // SleighArchitecture.  Its locked cspec has no <coretypes>, so
             // buildCoreTypes must run the standalone fallback after compiler
             // data-organization parsing, not the Java-client DataOrg table.
             arch.set_types(Arc::new(std::sync::RwLock::new(
-                rugra::type_system::typefactory::TypeFactory::raw(),
+                rudra::type_system::typefactory::TypeFactory::raw(),
             )));
             arch.set_commentdb(std::sync::Arc::new(std::sync::RwLock::new(
-                rugra::comment::CommentDatabaseInternal::new(),
+                rudra::comment::CommentDatabaseInternal::new(),
             )));
             let mut inject_lib =
-                rugra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
+                rudra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
             inject_lib.set_sleigh_lookup(host.clone());
             arch.pcodeinjectlib = Some(Arc::new(std::sync::RwLock::new(inject_lib)));
             arch.userops = Some(Arc::new(std::sync::RwLock::new(
-                rugra::userop::UserOpManage::new(),
+                rudra::userop::UserOpManage::new(),
             )));
             // ARCH-CONTEXT-TRACKED-0001 mirror of examples/curl_decompile.rs:
             // Architecture::restoreFromSpec runs parseProcessorConfig BEFORE
@@ -647,7 +647,7 @@ fn worker_architecture() -> Result<Arc<rugra::arch::Architecture>, String> {
                 .children
                 .clone();
             let pspec_registry =
-                Arc::new(std::sync::RwLock::new(rugra::marshal::IdRegistry::new()));
+                Arc::new(std::sync::RwLock::new(rudra::marshal::IdRegistry::new()));
             for child in pspec_children {
                 let child_name = child
                     .read()
@@ -658,7 +658,7 @@ fn worker_architecture() -> Result<Arc<rugra::arch::Architecture>, String> {
                     continue;
                 }
                 let mut decoder =
-                    rugra::marshal::TreeDecoder::new(child, pspec_registry.clone());
+                    rudra::marshal::TreeDecoder::new(child, pspec_registry.clone());
                 arch.decode_context_data(&mut decoder, host.as_ref())
                     .map_err(|error| {
                         format!("processor spec context_data decode failed: {error}")
@@ -672,7 +672,7 @@ fn worker_architecture() -> Result<Arc<rugra::arch::Architecture>, String> {
                 .write()
                 .map_err(|_| "type factory lock poisoned".to_string())?
                 .build_core_types_flavor(
-                    rugra::type_system::typefactory::CoreTypeFlavor::Standalone,
+                    rudra::type_system::typefactory::CoreTypeFlavor::Standalone,
                 );
             if arch.defaultfp.is_none() {
                 return Err("No default prototype specified".to_string());
@@ -699,7 +699,7 @@ fn build_funcdata(input: &FunctionInput) -> Result<Funcdata, Box<dyn Error>> {
     // GetStr has no known no-return callees (no canary/exit paths), so the
     // callee table is intentionally empty; this keeps the call site on the
     // FLOW-NORETURN-DATA-0001 entry without pulling the curl_decompile mirror.
-    rugra::flow::follow_flow_with_callee_protos(
+    rudra::flow::follow_flow_with_callee_protos(
         &mut fd,
         &mut lifter,
         Address::new(input.address),
@@ -787,20 +787,20 @@ fn report_production_call_guards(fd: &Funcdata) {
         let block_read = block.read().expect("guard block read lock");
         let Some(basic) = block_read
             .as_any()
-            .downcast_ref::<rugra::block::BlockBasic>()
+            .downcast_ref::<rudra::block::BlockBasic>()
         else {
             continue;
         };
         for (position, op_ref) in basic.ops.iter().enumerate() {
             let op = op_ref.0.read().expect("guard op read lock");
-            if op.opcode != rugra::opcodes::OpCode::CPUI_INDIRECT {
+            if op.opcode != rudra::opcodes::OpCode::CPUI_INDIRECT {
                 continue;
             }
             let Some(in1) = op.get_in(1) else {
                 continue;
             };
             if in1.read().expect("guard iop read lock").address_space
-                != rugra::space::AddressSpace::Iop
+                != rudra::space::AddressSpace::Iop
             {
                 continue;
             }
@@ -829,10 +829,10 @@ fn report_production_call_guards(fd: &Funcdata) {
                 if v.is_active_heritage() {
                     flags.push('h');
                 }
-                if (v.flags & rugra::varnode::varnode_flags::INDIRECT_CREATION) != 0 {
+                if (v.flags & rudra::varnode::varnode_flags::INDIRECT_CREATION) != 0 {
                     flags.push('c');
                 }
-                if (v.flags & rugra::varnode::varnode_flags::RETURN_ADDRESS) != 0 {
+                if (v.flags & rudra::varnode::varnode_flags::RETURN_ADDRESS) != 0 {
                     flags.push('r');
                 }
                 if v.is_constant() {
@@ -916,27 +916,27 @@ fn run(binary: &Path, output_directory: &Path) -> Result<(), Box<dyn Error>> {
         let mut fd = production_fd
             .write()
             .expect("Funcdata production-prefix write lock");
-        let mut prefix: Vec<Box<dyn rugra::action::Action>> = vec![
-            Box::new(rugra::coreaction::ActionStart::new()),
-            Box::new(rugra::coreaction::ActionConstbase::new()),
-            Box::new(rugra::coreaction::ActionDefaultParams::new()),
-            Box::new(rugra::coreaction::ActionExtraPopSetup::new()),
-            Box::new(rugra::coreaction::ActionPrototypeTypes::new()),
-            Box::new(rugra::coreaction::ActionFuncLink::new()),
-            Box::new(rugra::coreaction::ActionFuncLinkOutOnly::new()),
-            Box::new(rugra::coreaction::ActionSegmentize::new()),
-            Box::new(rugra::coreaction::ActionInternalStorage::new()),
-            Box::new(rugra::coreaction::ActionMultiCse::new()),
-            Box::new(rugra::coreaction::ActionShadowVar::new()),
-            Box::new(rugra::coreaction::ActionDeindirect::new()),
-            Box::new(rugra::coreaction::ActionVarnodeProps::new()),
+        let mut prefix: Vec<Box<dyn rudra::action::Action>> = vec![
+            Box::new(rudra::coreaction::ActionStart::new()),
+            Box::new(rudra::coreaction::ActionConstbase::new()),
+            Box::new(rudra::coreaction::ActionDefaultParams::new()),
+            Box::new(rudra::coreaction::ActionExtraPopSetup::new()),
+            Box::new(rudra::coreaction::ActionPrototypeTypes::new()),
+            Box::new(rudra::coreaction::ActionFuncLink::new()),
+            Box::new(rudra::coreaction::ActionFuncLinkOutOnly::new()),
+            Box::new(rudra::coreaction::ActionSegmentize::new()),
+            Box::new(rudra::coreaction::ActionInternalStorage::new()),
+            Box::new(rudra::coreaction::ActionMultiCse::new()),
+            Box::new(rudra::coreaction::ActionShadowVar::new()),
+            Box::new(rudra::coreaction::ActionDeindirect::new()),
+            Box::new(rudra::coreaction::ActionVarnodeProps::new()),
         ];
         for action in prefix.iter_mut() {
             action
                 .apply(&mut fd)
                 .map_err(|e| format!("production prefix action failed: {e}"))?;
         }
-        rugra::coreaction::ActionHeritage::new()
+        rudra::coreaction::ActionHeritage::new()
             .apply(&mut fd)
             .map_err(|e| format!("production ActionHeritage failed: {e}"))?;
     }

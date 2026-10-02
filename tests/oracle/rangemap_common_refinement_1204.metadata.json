@@ -21,7 +21,7 @@
   "path": "Ghidra/Features/Decompiler/src/decompile/cpp/rangemap.hh"
  },
  "analysis_options": {
-  "api": "Direct public ghidra::rangemap<TestRecord> and rugra::rangemap::RangeMap<TestRecord> calls; no Architecture, Funcdata, Action, Rule, P-code, SSA, or printer pipeline is constructed",
+  "api": "Direct public ghidra::rangemap<TestRecord> and rudra::rangemap::RangeMap<TestRecord> calls; no Architecture, Funcdata, Action, Rule, P-code, SSA, or printer pipeline is constructed",
   "record_type": "Inclusive uint64 ranges; TestRecord name is the observable identity; integer Subsort orders by value and uses false/minimum=0 and true/maximum=1000000 on both sides",
   "oracle_build": "g++ -std=c++11 -O2 -Wall -Wextra -pedantic against rangemap.hh archived from the locked oracle commit",
   "rugra_build": "cargo build --offline --locked --lib from repository commit 8012627083360e0111506dc70d891552383a8c65 with only src/rangemap.rs overlaid, followed by direct rustc compilation of the Rust fixture",

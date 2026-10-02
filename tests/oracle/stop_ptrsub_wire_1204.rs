@@ -4,17 +4,17 @@
  */
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::coreaction::ActionInferTypes;
-use rugra::funcdata::Funcdata;
-use rugra::op::op_addl_flags;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct};
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::coreaction::ActionInferTypes;
+use rudra::funcdata::Funcdata;
+use rudra::op::op_addl_flags;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct};
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
@@ -130,7 +130,7 @@ fn main() {
 
     let make_ptrsub = |fd: &mut Funcdata,
                        seq: &mut u64,
-                       block: &Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+                       block: &Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
                        in0: &VarnodeRef,
                        off: u64,
                        stop: bool|
@@ -152,7 +152,7 @@ fn main() {
     };
     let make_load = |fd: &mut Funcdata,
                      seq: &mut u64,
-                     block: &Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+                     block: &Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
                      space: &VarnodeRef,
                      addr: &VarnodeRef|
      -> VarnodeRef {
@@ -171,7 +171,7 @@ fn main() {
     };
     let make_equal = |fd: &mut Funcdata,
                       seq: &mut u64,
-                      block: &Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+                      block: &Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
                       in0: &VarnodeRef,
                       in1: &VarnodeRef|
      -> VarnodeRef {

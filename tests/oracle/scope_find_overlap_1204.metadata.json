@@ -17,7 +17,7 @@
   "path": "sleigh_specs/x86-64-gcc.cspec"
  },
  "analysis_options": {
-  "api": "Direct ScopeLocal::findOverlap / rugra::funcdata::scope_local_find_overlap invocation with explicit (space, offset, size) queries over a hand-installed symbol table; no ActionGroup or other Action runs",
+  "api": "Direct ScopeLocal::findOverlap / rudra::funcdata::scope_local_find_overlap invocation with explicit (space, offset, size) queries over a hand-installed symbol table; no ActionGroup or other Action runs",
   "debug_macros": "OPACTION_DEBUG and CPUI_DEBUG are absent",
   "error_injection": "none",
   "ghidra_funcdata": "Locked BfdArchitecture over the pinned examples/curl input supplies the Ghidra Funcdata, address spaces, TypeFactory, and the persistent ScopeLocal (function GetStr at 0x36d0); symbols are installed through public production paths (Scope::addSymbol with invalid usepoint -> empty uselimit -> Symbol flag addrtied, database.cc:1149-1150; Scope::addSymbol with a code usepoint -> single-address uselimit; Scope::addDynamicSymbol -> dynamicentry, database.cc:1690-1701)",

@@ -1,8 +1,8 @@
 // BLOCK-BUILDCOPY-STATE-0001 Rust comparand for locked Ghidra 12.0.4.
-use rugra::address::{Address, SeqNum};
-use rugra::block::{block_flags, BlockBasic, BlockEdge, BlockGraph, BlockType, FlowBlock};
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
+use rudra::address::{Address, SeqNum};
+use rudra::block::{block_flags, BlockBasic, BlockEdge, BlockGraph, BlockType, FlowBlock};
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
 use std::sync::{Arc, RwLock, Weak};
 
 type FlowArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;

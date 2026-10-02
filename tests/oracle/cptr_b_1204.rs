@@ -28,18 +28,18 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::{Address, Range};
-use rugra::arch::Architecture;
-use rugra::coreaction::ActionConstantPtr;
-use rugra::database::{symbol_flags, Database};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{
+use rudra::action::Action;
+use rudra::address::{Address, Range};
+use rudra::arch::Architecture;
+use rudra::coreaction::ActionConstantPtr;
+use rudra::database::{symbol_flags, Database};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{
     Datatype, TypeArray, TypeBase, TypeMetatype,
 };
-use rugra::varnode::{addl_flags, varnode_flags, Varnode};
+use rudra::varnode::{addl_flags, varnode_flags, Varnode};
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
@@ -74,7 +74,7 @@ fn undefined_type(name: &str, size: usize) -> Arc<Datatype> {
 
 fn char_type() -> Arc<Datatype> {
     let mut base = TypeBase::new("char".to_string(), 1, TypeMetatype::Int);
-    base.flags |= rugra::type_system::datatype::type_flags::CHARTYPE;
+    base.flags |= rudra::type_system::datatype::type_flags::CHARTYPE;
     Arc::new(Datatype::Base(base))
 }
 
@@ -96,7 +96,7 @@ fn array_type(array_of: Arc<Datatype>, num_elements: usize, size: usize) -> Arc<
 
 fn char_pointer_type() -> Arc<Datatype> {
     // The locked callspec parameter type: char* (pointer size 8, wordsize 1).
-    let ptr = rugra::type_system::datatype::TypePointer {
+    let ptr = rudra::type_system::datatype::TypePointer {
         base: TypeBase::new("char *".to_string(), 8, TypeMetatype::Pointer),
         ptr_to: char_type(),
         wordsize: 1,
@@ -150,8 +150,8 @@ impl Fixture {
         opcode: OpCode,
         inputs: usize,
         output_size: usize,
-        block: &Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
-    ) -> rugra::op::PcodeOpRef {
+        block: &Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
+    ) -> rudra::op::PcodeOpRef {
         let op = self.fd.new_op(inputs, Address::new(0x4c20));
         self.fd.op_set_opcode(&op, opcode);
         if output_size != 0 {
@@ -162,7 +162,7 @@ impl Fixture {
         op
     }
 
-    fn set_input(&mut self, op: &rugra::op::PcodeOpRef, vn: VarnodeRef, slot: usize) {
+    fn set_input(&mut self, op: &rudra::op::PcodeOpRef, vn: VarnodeRef, slot: usize) {
         self.fd.op_set_input(op, vn, slot);
     }
 
@@ -171,7 +171,7 @@ impl Fixture {
     }
 
     /// One observed op after apply — byte-identical to the C++ dumpOp.
-    fn dump_op(&self, case_name: &str, op: &rugra::op::PcodeOpRef) {
+    fn dump_op(&self, case_name: &str, op: &rudra::op::PcodeOpRef) {
         let op_r = op.0.read().unwrap();
         // Numeric opcode (shared enum-value contract with the C++ side;
         // the archive's generated name table is stale).
@@ -396,29 +396,29 @@ fn main() {
         let charptr = char_pointer_type();
         let void_type = Arc::new(Datatype::Base(TypeBase::new(
             "void".to_string(), 0, TypeMetatype::Void)));
-        let mut proto = rugra::fspec::FuncProto::new(String::new(), void_type.clone());
-        let mut param = rugra::fspec::ProtoParameter::new(
+        let mut proto = rudra::fspec::FuncProto::new(String::new(), void_type.clone());
+        let mut param = rudra::fspec::ProtoParameter::new(
             "s".to_string(),
             charptr,
             Address::new(0),
         );
-        param.flags |= rugra::fspec::protoparam_flags::TYPE_LOCKED;
+        param.flags |= rudra::fspec::protoparam_flags::TYPE_LOCKED;
         proto.parameters.push(param);
-        let fc = rugra::fspec::FuncCallSpecs::new_for_op(&op_callptr, proto);
+        let fc = rudra::fspec::FuncCallSpecs::new_for_op(&op_callptr, proto);
         fx.fd.add_call_specs_owner(Arc::new(RwLock::new(fc)));
     }
     {
         let void_type2 = Arc::new(Datatype::Base(TypeBase::new(
             "void".to_string(), 0, TypeMetatype::Void)));
-        let mut proto = rugra::fspec::FuncProto::new(String::new(), void_type2);
-        let mut param = rugra::fspec::ProtoParameter::new(
+        let mut proto = rudra::fspec::FuncProto::new(String::new(), void_type2);
+        let mut param = rudra::fspec::ProtoParameter::new(
             "n".to_string(),
             int4_type(),
             Address::new(0),
         );
-        param.flags |= rugra::fspec::protoparam_flags::TYPE_LOCKED;
+        param.flags |= rudra::fspec::protoparam_flags::TYPE_LOCKED;
         proto.parameters.push(param);
-        let fc = rugra::fspec::FuncCallSpecs::new_for_op(&op_callint, proto);
+        let fc = rudra::fspec::FuncCallSpecs::new_for_op(&op_callint, proto);
         fx.fd.add_call_specs_owner(Arc::new(RwLock::new(fc)));
     }
     let _ = types;

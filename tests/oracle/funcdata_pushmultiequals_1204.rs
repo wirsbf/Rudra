@@ -6,13 +6,13 @@
 //! the same canonicalized projection (ops of [m, o, d], first-appearance
 //! varnode table, origvn descend list, bank counts).
 
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::varnode::varnode_flags;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::varnode::varnode_flags;
+use rudra::varnode::Varnode;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::sync::{Arc, RwLock};

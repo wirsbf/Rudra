@@ -11,11 +11,11 @@
   "ghidra::ProtoModelMerged::selectModel(ParamActive *) const fspec.cc:2877",
   "ghidra::ProtoModelMerged::numModels(void) const fspec.hh:1084",
   "ghidra::ParamListStandard::populateResolver(void) fspec.cc:1191",
-  "rugra::fspec::ScoreProtoModel::do_score src/fspec.rs (fspec.cc:2738-2775)",
-  "rugra::fspec::ParamListMerged::fold_in src/fspec.rs (fspec.cc:1794-1833)",
-  "rugra::fspec::ProtoModelMerged::fold_in src/fspec.rs (fspec.cc:2834-2870)",
-  "rugra::fspec::ProtoModelMerged::select_model src/fspec.rs (fspec.cc:2877-2902)",
-  "rugra::fspec::ParamListStandard::populate_resolver src/fspec.rs (fspec.cc:1191-1216)"
+  "rudra::fspec::ScoreProtoModel::do_score src/fspec.rs (fspec.cc:2738-2775)",
+  "rudra::fspec::ParamListMerged::fold_in src/fspec.rs (fspec.cc:1794-1833)",
+  "rudra::fspec::ProtoModelMerged::fold_in src/fspec.rs (fspec.cc:2834-2870)",
+  "rudra::fspec::ProtoModelMerged::select_model src/fspec.rs (fspec.cc:2877-2902)",
+  "rudra::fspec::ParamListStandard::populate_resolver src/fspec.rs (fspec.cc:1191-1216)"
  ],
  "overall_status": "UNTESTED",
  "status_detail": "The five-case covered projection byte-matches Ghidra 12.0.4: the ScoreProtoModel penalty walk (exact 0 / slot-0 hole 16 / duplication 20 / mixed 56 / 25-mismatch 500 / output 0), ParamListMerged::foldIn (empty-union adoption, subsume-with-matching-minsize replacement, fully-subsumed no-op, different-stacks refusal, finalize resolver characterization + slot pass-back), ProtoModelMerged::foldIn (first-fold adoption of extrapop/effects/trash, extrapop demotion to extrapop_unknown, inject-id refusal, effect identity + trash intersection, numModels staying 0 across folds — modellist is decode's append), and selectModel (strict-< first-best over the staged constituents, no-active-trials default, score-500 'No model matches : missing default'). Overall remains UNTESTED because the join-piece resolver windows, real cspec-loaded models, the ProtoStoreSymbol/ParameterSymbol store family, and the FuncCallSpecs call-site family are not exercised by this fixture.",

@@ -1,10 +1,10 @@
-use rugra::address::{Address, SeqNum};
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::{Address, SeqNum};
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 use std::sync::{Arc, RwLock};
 
 fn make_op(opcode: OpCode, index: u32) -> PcodeOpRef {

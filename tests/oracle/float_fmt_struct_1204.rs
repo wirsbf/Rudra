@@ -8,7 +8,7 @@
 // pub in float_emulate.rs (create_float/extract_exp_sig/
 // round_to_nearest_even/set_*), so both sides drive the same functions.
 
-use rugra::float_emulate::{FloatClass, FloatFormat};
+use rudra::float_emulate::{FloatClass, FloatFormat};
 
 fn fields(name: &str, fmt: &FloatFormat) {
     println!(

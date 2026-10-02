@@ -21,13 +21,13 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, RangeList};
-use rugra::arch::Architecture;
-use rugra::database::{Symbol, SymbolEntry};
-use rugra::funcdata::Funcdata;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varnode::{varnode_flags, Varnode};
-use rugra::variable::high_internal_flags;
+use rudra::address::{Address, RangeList};
+use rudra::arch::Architecture;
+use rudra::database::{Symbol, SymbolEntry};
+use rudra::funcdata::Funcdata;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varnode::{varnode_flags, Varnode};
+use rudra::variable::high_internal_flags;
 
 fn meta_token(meta: TypeMetatype) -> &'static str {
     match meta {
@@ -38,7 +38,7 @@ fn meta_token(meta: TypeMetatype) -> &'static str {
     }
 }
 
-fn dirty_bit(high: &Arc<RwLock<rugra::variable::HighVariable>>) -> u8 {
+fn dirty_bit(high: &Arc<RwLock<rudra::variable::HighVariable>>) -> u8 {
     u8::from((high.read().unwrap().highflags & high_internal_flags::TYPEDIRTY) != 0)
 }
 

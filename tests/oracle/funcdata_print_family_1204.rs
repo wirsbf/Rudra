@@ -6,11 +6,11 @@
 // (empty + installed window), print_varnode_tree (def-order projection).
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::varmap::ScopeLocal;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::varmap::ScopeLocal;
 
 fn main() {
     let mut fd = Funcdata::new("print_family", Address::new(0x5000), 0x20);
@@ -24,7 +24,7 @@ fn main() {
     fd.op_set_opcode(&copy, OpCode::CPUI_COPY);
     fd.op_insert_end(&copy, &b0_dyn);
     fd.op_mark_start_instruction(&copy);
-    fd.new_varnode_out_full(8, rugra::space::AddressSpace::Ram, Address::new(0x1000), &copy);
+    fd.new_varnode_out_full(8, rudra::space::AddressSpace::Ram, Address::new(0x1000), &copy);
     let src = fd.new_varnode(8, Address::new(0x2000));
     fd.op_set_input(&copy, src, 0);
     let add = fd.new_op(2, Address::new(0x5020));
@@ -40,7 +40,7 @@ fn main() {
         fd3.op_mark_start_instruction(&copy3);
         fd3.new_varnode_out_full(
             8,
-            rugra::space::AddressSpace::Ram,
+            rudra::space::AddressSpace::Ram,
             Address::new(0x1100),
             &copy3,
         );
@@ -68,7 +68,7 @@ fn main() {
     // -0001) then the same explicit stack window.
     {
         let mut scope = ScopeLocal::new();
-        scope.space = rugra::space::AddressSpace::Stack;
+        scope.space = rudra::space::AddressSpace::Stack;
         scope.local_range = vec![
             (0, 511),
             (0xFFFFFFFFFFFFFFFF - 999999, 0xFFFFFFFFFFFFFFFF),

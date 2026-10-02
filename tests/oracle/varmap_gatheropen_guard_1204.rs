@@ -12,22 +12,22 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::fspec::ProtoModelFull;
-use rugra::funcdata::Funcdata;
-use rugra::heritage::LoadGuard;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypePointer};
-use rugra::type_system::typefactory::TypeFactory;
-use rugra::type_system::TypeMetatype;
-use rugra::varmap::{AliasChecker, LocalSymbol, ScopeLocal, symbol_category};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::fspec::ProtoModelFull;
+use rudra::funcdata::Funcdata;
+use rudra::heritage::LoadGuard;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypePointer};
+use rudra::type_system::typefactory::TypeFactory;
+use rudra::type_system::TypeMetatype;
+use rudra::varmap::{AliasChecker, LocalSymbol, ScopeLocal, symbol_category};
 
 struct GatherOpenScope {
     fd: Funcdata,
     scope: ScopeLocal,
-    bb: std::sync::Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+    bb: std::sync::Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
 }
 
 impl GatherOpenScope {
@@ -55,7 +55,7 @@ impl GatherOpenScope {
     /// PcodeOpBank::create starts ops DEAD (op.cc:947); guard validity
     /// (`LoadGuard::isValid`, heritage.hh:169), get_first_return_op and
     /// new_op_before all require live, inserted ops.
-    fn insert_op(&mut self, op: &rugra::op::PcodeOpRef) {
+    fn insert_op(&mut self, op: &rudra::op::PcodeOpRef) {
         let bb = self.bb.clone();
         self.fd.op_insert(op, &bb, None);
     }
@@ -79,7 +79,7 @@ impl GatherOpenScope {
 
     /// A written stack Varnode at `off` holding `ct`, defined by COPY of a
     /// constant — the shape heritage leaves for every stack slot.
-    fn stack_copy(&mut self, off: u64, ct: Arc<Datatype>, pc: u64) -> std::sync::Arc<RwLock<rugra::varnode::Varnode>> {
+    fn stack_copy(&mut self, off: u64, ct: Arc<Datatype>, pc: u64) -> std::sync::Arc<RwLock<rudra::varnode::Varnode>> {
         let op = self.fd.new_op(1, Address::new(pc));
         self.fd.op_set_opcode(&op, OpCode::CPUI_COPY);
         let cnst = self.fd.new_constant(ct.get_size(), 0x1234);
@@ -96,7 +96,7 @@ impl GatherOpenScope {
 
     /// The input stack-pointer Varnode (Rugra's RSP is the Register-space
     /// input at offset 0x20).
-    fn spacebase_input(&mut self) -> std::sync::Arc<RwLock<rugra::varnode::Varnode>> {
+    fn spacebase_input(&mut self) -> std::sync::Arc<RwLock<rudra::varnode::Varnode>> {
         let sp = self
             .fd
             .vbank
@@ -127,7 +127,7 @@ impl GatherOpenScope {
 
     /// A raw non-additive read of the stack pointer itself (zero-offset
     /// reference) — the annotate_raw_stack_ptr trigger (alias[0] == 0).
-    fn raw_stack_ptr_use(&mut self, pc: u64) -> rugra::op::PcodeOpRef {
+    fn raw_stack_ptr_use(&mut self, pc: u64) -> rudra::op::PcodeOpRef {
         let sp = self.spacebase_input();
         let eq = self.fd.new_op(2, Address::new(pc));
         self.fd.op_set_opcode(&eq, OpCode::CPUI_INT_EQUAL);
@@ -139,7 +139,7 @@ impl GatherOpenScope {
     }
 
     /// A guarded LOAD whose address input is typed as a pointer to `pt`.
-    fn guarded_load(&mut self, pt: Arc<Datatype>, outsize: usize, pc: u64) -> rugra::op::PcodeOpRef {
+    fn guarded_load(&mut self, pt: Arc<Datatype>, outsize: usize, pc: u64) -> rudra::op::PcodeOpRef {
         let op = self.fd.new_op(2, Address::new(pc));
         self.fd.op_set_opcode(&op, OpCode::CPUI_LOAD);
         let spaceid = self.fd.new_constant(8, 0);
@@ -154,7 +154,7 @@ impl GatherOpenScope {
     }
 
     /// A guarded STORE whose address input is typed as a pointer to `pt`.
-    fn guarded_store(&mut self, pt: Arc<Datatype>, valsize: usize, pc: u64) -> rugra::op::PcodeOpRef {
+    fn guarded_store(&mut self, pt: Arc<Datatype>, valsize: usize, pc: u64) -> rudra::op::PcodeOpRef {
         let op = self.fd.new_op(3, Address::new(pc));
         self.fd.op_set_opcode(&op, OpCode::CPUI_STORE);
         let spaceid = self.fd.new_constant(8, 0);
@@ -174,7 +174,7 @@ impl GatherOpenScope {
     /// the input shape that drives add_guard's None-ct branch: the factory
     /// unknown base of the address varnode's width stands in for the oracle
     /// value of getIn(1)->getTypeReadFacing (varmap.cc:1009).
-    fn untyped_load(&mut self, outsize: usize, pc: u64) -> rugra::op::PcodeOpRef {
+    fn untyped_load(&mut self, outsize: usize, pc: u64) -> rudra::op::PcodeOpRef {
         let op = self.fd.new_op(2, Address::new(pc));
         self.fd.op_set_opcode(&op, OpCode::CPUI_LOAD);
         let spaceid = self.fd.new_constant(8, 0);
@@ -188,7 +188,7 @@ impl GatherOpenScope {
     }
 
     /// A guarded STORE whose address input is deliberately UNTYPED.
-    fn untyped_store(&mut self, valsize: usize, pc: u64) -> rugra::op::PcodeOpRef {
+    fn untyped_store(&mut self, valsize: usize, pc: u64) -> rudra::op::PcodeOpRef {
         let op = self.fd.new_op(3, Address::new(pc));
         self.fd.op_set_opcode(&op, OpCode::CPUI_STORE);
         let spaceid = self.fd.new_constant(8, 0);
@@ -205,7 +205,7 @@ impl GatherOpenScope {
     /// leave behind, heritage.hh:159-161 `set`).
     fn add_guard_record(
         &mut self,
-        op: &rugra::op::PcodeOpRef,
+        op: &rudra::op::PcodeOpRef,
         step: i32,
         minimum: u64,
         maximum: u64,
@@ -246,7 +246,7 @@ impl GatherOpenScope {
     }
 
     /// A RETURN op passing `vn` back as the return value (RETURN in(1)).
-    fn return_op(&mut self, vn: &std::sync::Arc<RwLock<rugra::varnode::Varnode>>, pc: u64) {
+    fn return_op(&mut self, vn: &std::sync::Arc<RwLock<rudra::varnode::Varnode>>, pc: u64) {
         let op = self.fd.new_op(2, Address::new(pc));
         self.fd.op_set_opcode(&op, OpCode::CPUI_RETURN);
         let ind = self.fd.new_constant(8, 0);

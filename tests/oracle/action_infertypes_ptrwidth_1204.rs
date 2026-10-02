@@ -2,18 +2,18 @@ use std::io::{self, Write};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::FlowBlock;
-use rugra::coreaction::ActionInferTypes;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct};
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::FlowBlock;
+use rudra::coreaction::ActionInferTypes;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct};
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 

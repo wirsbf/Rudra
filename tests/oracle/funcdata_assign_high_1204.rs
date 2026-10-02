@@ -19,13 +19,13 @@
 //     so the copysymbol_dirty case runs copy_symbol + the call-site leg.
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::funcdata::funcdata_flags;
-use rugra::funcdata::Funcdata;
-use rugra::varnode::varnode_flags;
-use rugra::variable::high_internal_flags;
+use rudra::address::Address;
+use rudra::funcdata::funcdata_flags;
+use rudra::funcdata::Funcdata;
+use rudra::varnode::varnode_flags;
+use rudra::variable::high_internal_flags;
 
-type Vn = Arc<RwLock<rugra::varnode::Varnode>>;
+type Vn = Arc<RwLock<rudra::varnode::Varnode>>;
 
 fn high_is_some(vn: &Vn) -> bool {
     vn.read().unwrap().high.is_some()
@@ -124,7 +124,7 @@ fn main() {
     let on_iop = fd.new_varnode_iop(&iop_op);
     println!("on_iop:{}", high_is_some(&on_iop) as u8);
 
-    let on_space = fd.new_varnode_space(rugra::space::AddressSpace::Ram);
+    let on_space = fd.new_varnode_space(rudra::space::AddressSpace::Ram);
     println!("on_space:{}", high_is_some(&on_space) as u8);
 
     let on_coderef = fd.new_code_ref(Address::new(0x2000));

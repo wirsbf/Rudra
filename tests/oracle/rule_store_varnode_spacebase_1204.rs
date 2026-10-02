@@ -12,14 +12,14 @@
 use std::sync::Arc;
 use std::sync::RwLock;
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::{RuleLoadVarnode, RuleStoreVarnode};
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::{RuleLoadVarnode, RuleStoreVarnode};
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 fn space_name(spc: AddressSpace) -> &'static str {
     match spc {
@@ -65,11 +65,11 @@ fn vn_state(vn: Option<&Arc<RwLock<Varnode>>>) -> String {
     format!("{}:{:x}:{}", space_name(spc), v.get_offset(), v.get_size())
 }
 
-fn op_state(op: &Arc<RwLock<rugra::op::PcodeOp>>) -> String {
+fn op_state(op: &Arc<RwLock<rudra::op::PcodeOp>>) -> String {
     let o = op.read().unwrap();
     let out_obs = match o.get_out() {
         Some(out) => format!("{},ss={}", vn_state(Some(&out)),
-            if out.read().unwrap().addlflags & rugra::varnode::addl_flags::STACK_STORE != 0 { 1 } else { 0 }),
+            if out.read().unwrap().addlflags & rudra::varnode::addl_flags::STACK_STORE != 0 { 1 } else { 0 }),
         None => "-,ss=0".to_string(),
     };
     format!("{},ins={},a0={},a1={},out={}",
@@ -77,7 +77,7 @@ fn op_state(op: &Arc<RwLock<rugra::op::PcodeOp>>) -> String {
         vn_state(o.get_in(0)), vn_state(o.get_in(1)), out_obs)
 }
 
-fn dump(case_name: &str, result: i32, op: &Arc<RwLock<rugra::op::PcodeOp>>) {
+fn dump(case_name: &str, result: i32, op: &Arc<RwLock<rudra::op::PcodeOp>>) {
     println!("case={}|result={}|op={}", case_name, result, op_state(op));
 }
 
@@ -93,7 +93,7 @@ impl<'a> Fixture<'a> {
     }
 
     fn make_op(&mut self, opcode: OpCode, inputs: usize, output_size: usize)
-        -> (rugra::op::PcodeOpRef, Option<Arc<RwLock<Varnode>>>) {
+        -> (rudra::op::PcodeOpRef, Option<Arc<RwLock<Varnode>>>) {
         let op = self.fd.new_op(inputs, Address::new(0x1000));
         self.fd.op_set_opcode(&op, opcode);
         let out = if output_size > 0 {
@@ -105,7 +105,7 @@ impl<'a> Fixture<'a> {
         (op, out)
     }
 
-    fn set_input(&mut self, op: &rugra::op::PcodeOpRef, vn: &Arc<RwLock<Varnode>>, slot: usize) {
+    fn set_input(&mut self, op: &rudra::op::PcodeOpRef, vn: &Arc<RwLock<Varnode>>, slot: usize) {
         self.fd.op_set_input(op, vn.clone(), slot);
     }
 }

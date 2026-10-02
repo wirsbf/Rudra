@@ -26,14 +26,14 @@
 
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::merge::Merge;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::merge::Merge;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<std::sync::RwLock<Varnode>>;
@@ -466,19 +466,19 @@ fn run_float_trunc_cast() {
 fn run_char_gate(case_name: &str, base: u64, register_char_core: bool) {
     let mut g = Graph::new(case_name, base);
     if register_char_core {
-        let mut arch = rugra::arch::Architecture::new();
-        let mut custom_factory = rugra::type_system::typefactory::TypeFactory::new(8);
+        let mut arch = rudra::arch::Architecture::new();
+        let mut custom_factory = rudra::type_system::typefactory::TypeFactory::new(8);
         custom_factory.clear();
         custom_factory.set_core_type(
             "signed_byte_custom",
             1,
-            rugra::type_system::TypeMetatype::Int,
+            rudra::type_system::TypeMetatype::Int,
             false,
         );
         custom_factory.set_core_type(
             "ascii_glyph_custom",
             1,
-            rugra::type_system::TypeMetatype::Int,
+            rudra::type_system::TypeMetatype::Int,
             true,
         );
         custom_factory.cache_core_types();

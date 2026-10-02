@@ -10,21 +10,21 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::coreaction::ActionSetCasts;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
-use rugra::type_system::cast::base_type_for;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::typeop::{TypeOp, TypeOpIntAdd, TypeOpIntMult, TypeOpLoad, TypeOpPtradd, TypeOpPtrsub};
-use rugra::variable::high_internal_flags;
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::coreaction::ActionSetCasts;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
+use rudra::type_system::cast::base_type_for;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::typeop::{TypeOp, TypeOpIntAdd, TypeOpIntMult, TypeOpLoad, TypeOpPtradd, TypeOpPtrsub};
+use rudra::variable::high_internal_flags;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<RwLock<Varnode>>;
@@ -190,7 +190,7 @@ fn input_cell(vn: &VnRef) -> String {
 /// CAST ops never reach cast_output (apply skips them), which maps to the
 /// same base-unknown token the virtual call yields.
 fn apply_side_token(
-    op: &rugra::op::PcodeOp,
+    op: &rudra::op::PcodeOp,
     factory: &Arc<RwLock<TypeFactory>>,
 ) -> Option<Arc<Datatype>> {
     match op.opcode {
@@ -234,7 +234,7 @@ fn apply_side_token(
             }
         }
         OpCode::CPUI_INT_ADD | OpCode::CPUI_INT_MULT => {
-            rugra::type_system::cast::arithmetic_output_standard(op, factory)
+            rudra::type_system::cast::arithmetic_output_standard(op, factory)
         }
         OpCode::CPUI_INT_SEXT => {
             let size = op.get_out()?.read().unwrap().get_size();
@@ -799,7 +799,7 @@ fn run_cast_arm_fork(ctx: &CaseCtx) {
     // rejection, mirroring the .cc fixture's PcodeOp::setOutput +
     // Varnode::setDef (setDef sets the written flag the same way).
     const_c.write().unwrap().def = Some(Arc::downgrade(&cast_op.0));
-    const_c.write().unwrap().flags |= rugra::varnode::varnode_flags::WRITTEN;
+    const_c.write().unwrap().flags |= rudra::varnode::varnode_flags::WRITTEN;
     cast_op.0.write().unwrap().output = Some(const_c.clone());
     let mult = make_op(&mut fd, &block, OpCode::CPUI_INT_MULT, 2, 0x5801, 8);
     fd.op_set_input(&mult, const_c.clone(), 0);

@@ -14,16 +14,16 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::{RuleShift2Mult, RuleShiftBitops, RuleSignForm, RuleSignNearMult,
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::{RuleShift2Mult, RuleShiftBitops, RuleSignForm, RuleSignNearMult,
                         RuleZextEliminate};
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type Vn = Arc<RwLock<Varnode>>;
 
@@ -55,7 +55,7 @@ fn make_op(
     opcode: OpCode,
     inputs: &[Vn],
     output_size: usize,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let op = fd.new_op(inputs.len(), Address::new(next_addr()));
     fd.op_set_opcode(&op, opcode);
     for (slot, vn) in inputs.iter().enumerate() {
@@ -68,7 +68,7 @@ fn make_op(
 
 /// ActionPool-equivalent dispatch (action.cc:748-750 perop buckets): only
 /// ops whose opcode is in the rule's get_opcodes() reach apply_op.
-fn dispatch_apply(rule: &dyn Rule, op: &rugra::op::PcodeOpRef, fd: &mut Funcdata) -> i32 {
+fn dispatch_apply(rule: &dyn Rule, op: &rudra::op::PcodeOpRef, fd: &mut Funcdata) -> i32 {
     let code = op.0.read().unwrap().opcode;
     if rule.get_opcodes().contains(&code) {
         rule.apply_op(&op.0, fd).expect("apply_op")
@@ -96,7 +96,7 @@ fn vn_token(vn: Option<&Vn>) -> String {
 fn observe(
     name: &str,
     rule: &dyn Rule,
-    op: &rugra::op::PcodeOpRef,
+    op: &rudra::op::PcodeOpRef,
     fd: &mut Funcdata,
 ) {
     let apply = dispatch_apply(rule, op, fd);
@@ -156,7 +156,7 @@ fn make_zext_cmp(
     small_size: usize,
     cmp_const: u64,
     zext_on_slot1: bool,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let v = input_varnode(fd, small_size, 0x10);
     let zext_op = make_op(fd, block, OpCode::CPUI_INT_ZEXT, &[v], 4);
     let zext_out = zext_op.0.read().unwrap().output.clone().unwrap();
@@ -178,7 +178,7 @@ fn make_sign_form(
     ext_out_size: usize,
     out_size: usize,
     trunc_offset: u64,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let v = input_varnode(fd, small_size, 0x10);
     let ext_op = make_op(fd, block, ext_opcode, &[v], ext_out_size);
     let ext_out = ext_op.0.read().unwrap().output.clone().unwrap();
@@ -195,7 +195,7 @@ fn make_near_mult(
     k: u64,
     mask: u64,
     shift_on_slot0: bool,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let x = input_varnode(fd, size, 0x10);
     let c_ssh = constant_input(fd, (8 * size - 1) as u64, 4);
     let ssh_op = make_op(fd, block, OpCode::CPUI_INT_SRIGHT, &[x.clone(), c_ssh], size);
@@ -224,7 +224,7 @@ fn make_bitop_shift(
     shift_const: u64,
     size: usize,
     out_size: usize,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let v = input_varnode(fd, size, 0x10);
     let c_bit = constant_input(fd, bit_const, 4);
     let bit_op = make_op(fd, block, bit_opcode, &[v, c_bit], size);
@@ -240,7 +240,7 @@ fn make_shift_feed(
     shift_opcode: OpCode,
     shift_const: u64,
     consumer_opcode: OpCode,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let v = input_varnode(fd, 4, 0x10);
     let c = constant_input(fd, shift_const, 4);
     let shift_op = make_op(fd, block, shift_opcode, &[v, c], 4);

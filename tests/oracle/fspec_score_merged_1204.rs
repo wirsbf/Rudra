@@ -11,13 +11,13 @@
 //    mirroring fspec.cc:2918) and selectModel's strict-< first-best walk
 //    plus the "No model matches : missing default" refusal at score 500.
 
-use rugra::address::Address;
-use rugra::fspec::{
+use rudra::address::Address;
+use rudra::fspec::{
     containment, param_entry_flags, EffectRecord, EffectType, ParamActive, ParamEntry,
     ParamListMerged, ParamListStandard, ProtoModelFull, ProtoModelMerged, ScoreProtoModel,
     TypeClass, VarnodeData, EXTRA_POP_UNKNOWN,
 };
-use rugra::space::AddressSpace;
+use rudra::space::AddressSpace;
 
 fn make_entry(grp: i32, base: u64, size: i32, min_size: i32, alignment: i32) -> ParamEntry {
     let mut e = ParamEntry::new(grp);
@@ -62,12 +62,12 @@ fn make_model(
     // Output list mirrors the C++ staging (populateResolver included, the
     // fspec.cc:1504 configured state).
     let mut out_effects = Vec::new();
-    let mut out = rugra::fspec::ParamListStandardOut::new();
+    let mut out = rudra::fspec::ParamListStandardOut::new();
     out.base
         .parse_pentry(0, true, false, false, &mut out_effects, make_entry(0, 0x300, 8, 1, 0))
         .unwrap();
     stage_list(&mut out.base);
-    model.output = rugra::fspec::ParamListOutput::standard_with_base(out);
+    model.output = rudra::fspec::ParamListOutput::standard_with_base(out);
     model.inject_upon_entry = inject_entry;
     model.inject_upon_return = inject_return;
 

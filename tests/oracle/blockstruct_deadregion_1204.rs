@@ -12,8 +12,8 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::block::{
     edge_flags as ef, block_flags as bf, BlockBasic, BlockGraph, BlockType, FlowBlock,
 };
 
@@ -94,7 +94,7 @@ impl Graph {
         }
         print!("{}", type_name(r.get_type()));
         if r.get_type() == BlockType::If {
-            if let Some(bif) = r.as_any().downcast_ref::<rugra::block::BlockIf>() {
+            if let Some(bif) = r.as_any().downcast_ref::<rudra::block::BlockIf>() {
                 if bif.goto_target.is_some() {
                     // The C++ side prints the resolved target name; Rugra's
                     // BlockIf keeps the Arc, resolve via index scan.
@@ -112,12 +112,12 @@ impl Graph {
         let children: Vec<BlockRef> = match r.get_type() {
             BlockType::List => r
                 .as_any()
-                .downcast_ref::<rugra::block::BlockList>()
+                .downcast_ref::<rudra::block::BlockList>()
                 .map(|b| b.children.clone())
                 .unwrap_or_default(),
             BlockType::If => {
                 let mut v = Vec::new();
-                if let Some(bi) = r.as_any().downcast_ref::<rugra::block::BlockIf>() {
+                if let Some(bi) = r.as_any().downcast_ref::<rudra::block::BlockIf>() {
                     v.push(bi.condition.clone());
                     v.push(bi.if_body.clone());
                     if let Some(ref eb) = bi.else_body {
@@ -128,22 +128,22 @@ impl Graph {
             }
             BlockType::WhileDo => r
                 .as_any()
-                .downcast_ref::<rugra::block::BlockWhileDo>()
+                .downcast_ref::<rudra::block::BlockWhileDo>()
                 .map(|b| vec![b.condition.clone(), b.body.clone()])
                 .unwrap_or_default(),
             BlockType::DoWhile => r
                 .as_any()
-                .downcast_ref::<rugra::block::BlockDoWhile>()
+                .downcast_ref::<rudra::block::BlockDoWhile>()
                 .map(|b| vec![b.condition.clone()])
                 .unwrap_or_default(),
             BlockType::Condition => r
                 .as_any()
-                .downcast_ref::<rugra::block::BlockCondition>()
+                .downcast_ref::<rudra::block::BlockCondition>()
                 .map(|b| vec![b.first.clone(), b.second.clone()])
                 .unwrap_or_default(),
             BlockType::InfLoop => r
                 .as_any()
-                .downcast_ref::<rugra::block::BlockInfLoop>()
+                .downcast_ref::<rudra::block::BlockInfLoop>()
                 .map(|b| vec![b.body.clone()])
                 .unwrap_or_default(),
             _ => Vec::new(),
@@ -159,7 +159,7 @@ impl Graph {
         // entry state (structure_loops labels) is established inside
         // order_loop_bodies exactly as the oracle's run() does via
         // structureLoops.
-        let mut collapse = rugra::blockaction::CollapseStructure::new(
+        let mut collapse = rudra::blockaction::CollapseStructure::new(
             &mut self.graph,
             case_name,
         );

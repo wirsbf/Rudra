@@ -11,8 +11,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, BlockGraph, FlowBlock};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, BlockGraph, FlowBlock};
 
 type BlockArc = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 

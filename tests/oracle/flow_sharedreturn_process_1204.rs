@@ -7,13 +7,13 @@
 //! `Funcdata::override_flow`. A fresh `FlowInfo` then observes the production
 //! query/lift/rewrite/xref path through block generation.
 
-use rugra::address::Address;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::flow::{flow_flags, FlowInfo};
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::override_rs::FlowOverride;
+use rudra::address::Address;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::flow::{flow_flags, FlowInfo};
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::override_rs::FlowOverride;
 use std::env;
 use std::error::Error;
 use std::fs;

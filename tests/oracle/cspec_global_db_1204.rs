@@ -13,11 +13,11 @@
 //!   - QPROP: `Database::query_properties_spaced` folds at the same
 //!     (space, offset, size) probe grid (database.cc:1263-1281).
 
-use rugra::arch::{Architecture, SpecQuery};
-use rugra::fspec::VarnodeData;
-use rugra::marshal::DocumentStorage;
-use rugra::sleigh_ffi::{set_sla_path, SleighCtx};
-use rugra::space::AddressSpace;
+use rudra::arch::{Architecture, SpecQuery};
+use rudra::fspec::VarnodeData;
+use rudra::marshal::DocumentStorage;
+use rudra::sleigh_ffi::{set_sla_path, SleighCtx};
+use rudra::space::AddressSpace;
 
 use std::collections::BTreeMap;
 use std::env;
@@ -59,11 +59,11 @@ struct Host {
     registers: BTreeMap<String, VarnodeData>,
 }
 
-impl rugra::pcodeparse::SleighSymbolLookup for Host {
-    fn find_symbol(&self, name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
-        self.registers.get(name).map(|vd| rugra::pcodeparse::SleighSymbol {
+impl rudra::pcodeparse::SleighSymbolLookup for Host {
+    fn find_symbol(&self, name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
+        self.registers.get(name).map(|vd| rudra::pcodeparse::SleighSymbol {
             name: name.to_string(),
-            kind: rugra::pcodeparse::SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: rudra::pcodeparse::SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: vd.space,
                 offset: vd.offset,
                 size: vd.size.max(0) as usize,
@@ -149,11 +149,11 @@ fn run() -> Result<(), String> {
     // snippets compile through it during parse.
     let mut arch = Architecture::new();
     arch.archid = "x86:LE:64:default".to_string();
-    let mut inject_lib = rugra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
+    let mut inject_lib = rudra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
     inject_lib.set_sleigh_lookup(host.clone());
     arch.pcodeinjectlib = Some(Arc::new(RwLock::new(inject_lib)));
-    let mut userops = rugra::userop::UserOpManage::new();
-    userops.register_op("segment".to_string(), rugra::userop::UserOpType::Unspecialized);
+    let mut userops = rudra::userop::UserOpManage::new();
+    userops.register_op("segment".to_string(), rudra::userop::UserOpType::Unspecialized);
     arch.userops = Some(Arc::new(RwLock::new(userops)));
     arch.parse_compiler_config(&mut store, host.as_ref(), 8)
         .map_err(|e| format!("parse_compiler_config failed: {}", e))?;
@@ -205,7 +205,7 @@ fn run() -> Result<(), String> {
             spc,
             offset,
             size,
-            rugra::address::Address::new(0), // the invalid-usepoint form
+            rudra::address::Address::new(0), // the invalid-usepoint form
         );
         out.push_str(&format!(
             "QPROP|{}|0x{:x}|{}|0x{:x}|{}\n",

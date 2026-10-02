@@ -5,7 +5,7 @@
 // Mirrors tests/oracle/funcdata_scopelocal_wrap_1204.cc record-for-record:
 // the same address-tied symbol table (top8 = [0xfffffffffffffff8,
 // 0xffffffffffffffff], low8 = [0x100, 0x107]) queried through
-// rugra::funcdata::scope_local_find_overlap — the LocalSymbol-granular
+// rudra::funcdata::scope_local_find_overlap — the LocalSymbol-granular
 // projection ScopeInternal::findOverlap (database.cc:2392) that
 // Funcdata::syncVarnodesWithSymbols (funcdata_varnode.cc:951) drives.
 // The point of the fixture is the uint8 modular domain of
@@ -14,9 +14,9 @@
 // queries and missed the top-of-space record with its `p < first+size`
 // containment form when first+size wrapped to 0.
 
-use rugra::funcdata::scope_local_find_overlap;
-use rugra::space::AddressSpace;
-use rugra::varmap::{symbol_category, LocalSymbol, ScopeLocal};
+use rudra::funcdata::scope_local_find_overlap;
+use rudra::space::AddressSpace;
+use rudra::varmap::{symbol_category, LocalSymbol, ScopeLocal};
 
 fn add_addrtied_symbol(scope: &mut ScopeLocal, name: &str, start: u64, size: i32) {
     // Scope::addSymbol with an invalid usepoint: address-tied storage,

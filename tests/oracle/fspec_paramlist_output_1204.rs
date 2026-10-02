@@ -2,14 +2,14 @@
 //! It ingests the production x86-64-gcc.cspec and x86-64.sla, then drives
 //! `ProtoModelFull::derive_output_map` over the same trial states.
 
-use rugra::address::Address;
-use rugra::arch::{Architecture, SpecQuery};
-use rugra::fspec::{ParamActive, ProtoModelFull, VarnodeData};
-use rugra::marshal::DocumentStorage;
-use rugra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
-use rugra::sleigh_ffi::{set_sla_path, SleighCtx};
-use rugra::space::AddressSpace;
-use rugra::userop::{UserOpManage, UserOpType};
+use rudra::address::Address;
+use rudra::arch::{Architecture, SpecQuery};
+use rudra::fspec::{ParamActive, ProtoModelFull, VarnodeData};
+use rudra::marshal::DocumentStorage;
+use rudra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
+use rudra::sleigh_ffi::{set_sla_path, SleighCtx};
+use rudra::space::AddressSpace;
+use rudra::userop::{UserOpManage, UserOpType};
 
 use std::collections::BTreeMap;
 use std::env;
@@ -85,7 +85,7 @@ impl SleighSymbolLookup for Host {
     fn find_symbol(&self, name: &str) -> Option<SleighSymbol> {
         self.registers.get(name).map(|storage| SleighSymbol {
             name: name.to_string(),
-            kind: SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: storage.space,
                 offset: storage.offset,
                 size: storage.size.max(0) as usize,
@@ -212,7 +212,7 @@ fn run() -> Result<(), String> {
 
     let mut arch = Architecture::new();
     arch.archid = "x86:LE:64:default".to_string();
-    let mut inject = rugra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
+    let mut inject = rudra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
     inject.set_sleigh_lookup(host.clone());
     arch.pcodeinjectlib = Some(Arc::new(RwLock::new(inject)));
     let mut userops = UserOpManage::new();

@@ -9,14 +9,14 @@
 
 use std::sync::Arc;
 
-use rugra::address::{Address, RangeList};
-use rugra::database::{Symbol as DbSymbol, SymbolEntry};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
-use rugra::varmap::ScopeLocal;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::{Address, RangeList};
+use rudra::database::{Symbol as DbSymbol, SymbolEntry};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype, TypePointer};
+use rudra::varmap::ScopeLocal;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type VarnodeRef = Arc<std::sync::RwLock<Varnode>>;
 

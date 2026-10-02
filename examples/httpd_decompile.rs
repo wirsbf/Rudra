@@ -29,16 +29,16 @@ unsafe impl GlobalAlloc for GuardAlloc {
 #[global_allocator]
 static ALLOC: GuardAlloc = GuardAlloc;
 
-use rugra::action::{Action, ActionDatabase, ActionState, break_flags};
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::funcdata::Funcdata;
-use rugra::printc::PrintC;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printlanguage::PrintLanguage;
-use rugra::address::Address;
+use rudra::action::{Action, ActionDatabase, ActionState, break_flags};
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::funcdata::Funcdata;
+use rudra::printc::PrintC;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printlanguage::PrintLanguage;
+use rudra::address::Address;
 // DRIVER-RIPREL-CONSTFOLD-0001: AddressSpace for the fold pass's register/
 // const space tests (re-uses the enum's Copy+PartialEq).
-use rugra::space::AddressSpace;
+use rudra::space::AddressSpace;
 
 // ACTION-SYMDB-DATASYM-0001: the canon analyzeHeadless image base (the
 // golden addresses = this driver's base-0 raw addresses + this base);
@@ -166,7 +166,7 @@ fn mirror_flow_enabled() -> bool {
 // shared TypeFactory is process-global). See the main() install call for the
 // channel contract; same-family shape as the curl driver's TypedefSeedState.
 struct TypedefSeedState {
-    installed: Vec<(String, std::sync::Arc<rugra::type_system::datatype::Datatype>)>,
+    installed: Vec<(String, std::sync::Arc<rudra::type_system::datatype::Datatype>)>,
     deferred: usize,
     dropped: usize,
 }
@@ -221,11 +221,11 @@ fn install_typedef_seed_channel() -> Option<TypedefSeedState> {
         .and_then(|value| value.as_array())
         .map(|array| array.len())
         .unwrap_or(0);
-    let factory = rugra::type_system::typefactory::TypeFactory::shared_default();
+    let factory = rudra::type_system::typefactory::TypeFactory::shared_default();
     let mut guard = factory
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let mut installed: Vec<(String, std::sync::Arc<rugra::type_system::datatype::Datatype>)> =
+    let mut installed: Vec<(String, std::sync::Arc<rudra::type_system::datatype::Datatype>)> =
         Vec::new();
     let mut skipped = 0usize;
     for entry in entries {
@@ -243,8 +243,8 @@ fn install_typedef_seed_channel() -> Option<TypedefSeedState> {
         let target_arc = if kind == "base" {
             let size = target.get("size").and_then(|value| value.as_u64()).unwrap_or(0) as usize;
             let metatype = match target.get("metatype").and_then(|value| value.as_str()) {
-                Some("int") => rugra::type_system::datatype::TypeMetatype::Int,
-                Some("uint") => rugra::type_system::datatype::TypeMetatype::Uint,
+                Some("int") => rudra::type_system::datatype::TypeMetatype::Int,
+                Some("uint") => rudra::type_system::datatype::TypeMetatype::Uint,
                 _ => {
                     eprintln!("[TYPEDEFSEED] entry {name}: unservable metatype, skipped");
                     skipped += 1;
@@ -444,7 +444,7 @@ pub fn mark_known_no_return_function(fd: &mut Funcdata, symbol_name: &str) -> bo
 /// that some decompilation never queries).
 pub fn known_no_return_callee_protos(
     symbol_table: &HashMap<u64, String>,
-) -> std::collections::BTreeMap<u64, rugra::fspec::FuncProto> {
+) -> std::collections::BTreeMap<u64, rudra::fspec::FuncProto> {
     symbol_table
         .iter()
         .filter(|(_, name)| is_known_no_return(name))
@@ -452,13 +452,13 @@ pub fn known_no_return_callee_protos(
             // The same default-proto construction Funcdata::new gives the
             // decompiled function itself (funcdata.rs:525-531) — Ghidra's
             // FuncCallSpecs ctor "clones a default" for fresh specs.
-            let mut proto = rugra::fspec::FuncProto::new(
+            let mut proto = rudra::fspec::FuncProto::new(
                 name.clone(),
-                std::sync::Arc::new(rugra::type_system::datatype::Datatype::Void(
-                    rugra::type_system::datatype::TypeBase::new(
+                std::sync::Arc::new(rudra::type_system::datatype::Datatype::Void(
+                    rudra::type_system::datatype::TypeBase::new(
                         "void".to_string(),
                         0,
-                        rugra::type_system::datatype::TypeMetatype::Void,
+                        rudra::type_system::datatype::TypeMetatype::Void,
                     ),
                 )),
             );
@@ -488,10 +488,10 @@ pub fn known_no_return_callee_protos(
 /// post-inject flag pass (the raw layer carries no op flags; the
 /// PcodeOp::noreturn marking happens on the injected op).
 fn splice_known_no_return_halts(
-    raw_ops: Vec<rugra::pcoderaw::PcodeOpRaw>,
-    callee_protos: &std::collections::BTreeMap<u64, rugra::fspec::FuncProto>,
+    raw_ops: Vec<rudra::pcoderaw::PcodeOpRaw>,
+    callee_protos: &std::collections::BTreeMap<u64, rudra::fspec::FuncProto>,
     halt_addrs: &mut std::collections::HashSet<u64>,
-) -> Vec<rugra::pcoderaw::PcodeOpRaw> {
+) -> Vec<rudra::pcoderaw::PcodeOpRaw> {
     if callee_protos.is_empty() {
         return raw_ops;
     }
@@ -499,14 +499,14 @@ fn splice_known_no_return_halts(
     let mut count = 0usize;
     for raw in raw_ops {
         let is_noreturn_call = {
-            let is_call = rugra::opcodes::OpCode::from_i32(raw.get_opcode())
-                == Some(rugra::opcodes::OpCode::CPUI_CALL);
+            let is_call = rudra::opcodes::OpCode::from_i32(raw.get_opcode())
+                == Some(rudra::opcodes::OpCode::CPUI_CALL);
             is_call
                 && raw
                     .inputs()
                     .first()
                     .is_some_and(|tgt| {
-                        tgt.space == rugra::space::AddressSpace::Ram
+                        tgt.space == rudra::space::AddressSpace::Ram
                             && callee_protos.contains_key(&tgt.offset)
                     })
         };
@@ -518,11 +518,11 @@ fn splice_known_no_return_halts(
         let Some(seq) = seq else { continue };
         // flow.cc:592-601 artificialHalt: RETURN + newConstant(4,1), at the
         // CALL op's own address (checkForFlowModification's op->getAddr()).
-        let mut halt = rugra::pcoderaw::PcodeOpRaw::new(
-            rugra::opcodes::OpCode::CPUI_RETURN as i32,
+        let mut halt = rudra::pcoderaw::PcodeOpRaw::new(
+            rudra::opcodes::OpCode::CPUI_RETURN as i32,
         );
-        halt.add_input(rugra::pcoderaw::VarnodeRaw::new(
-            rugra::space::AddressSpace::Const,
+        halt.add_input(rudra::pcoderaw::VarnodeRaw::new(
+            rudra::space::AddressSpace::Const,
             1,
             4,
         ));
@@ -551,7 +551,7 @@ fn splice_known_no_return_halts(
 /// function entry OUTSIDE [vaddr, vaddr+func_size): the TailCallAnalyzer
 /// CALL_RETURN transport sites (see decompile_one_function).
 fn collect_tailcall_override_addrs(
-    raw_ops: &[rugra::pcoderaw::PcodeOpRaw],
+    raw_ops: &[rudra::pcoderaw::PcodeOpRaw],
     entry_set: &std::collections::HashSet<u64>,
     plt_ranges: &[(u64, u64, u64)],
     vaddr: u64,
@@ -559,13 +559,13 @@ fn collect_tailcall_override_addrs(
 ) -> Vec<u64> {
     let mut addrs = Vec::new();
     for raw in raw_ops {
-        if rugra::opcodes::OpCode::from_i32(raw.get_opcode())
-            != Some(rugra::opcodes::OpCode::CPUI_BRANCH)
+        if rudra::opcodes::OpCode::from_i32(raw.get_opcode())
+            != Some(rudra::opcodes::OpCode::CPUI_BRANCH)
         {
             continue;
         }
         let Some(tgt) = raw.inputs().first() else { continue };
-        if tgt.space != rugra::space::AddressSpace::Ram { continue; }
+        if tgt.space != rudra::space::AddressSpace::Ram { continue; }
         let known_entry = entry_set.contains(&tgt.offset)
             || plt_ranges.iter().any(|&(s, e, es)| {
                 tgt.offset >= s && tgt.offset < e && (tgt.offset - s) % es == 0
@@ -621,14 +621,14 @@ fn collect_tailcall_override_addrs(
 // the walk either (out-of-range/unprocessed addresses become
 // fillinBranchStubs halts only after all walking, flow.cc:889-894).
 fn flow_visit_uniq_map(
-    raw_ops: &[rugra::pcoderaw::PcodeOpRaw],
+    raw_ops: &[rudra::pcoderaw::PcodeOpRaw],
     vaddr: u64,
     lift_range: u64,
     sym_table: &HashMap<u64, String>,
-    noreturn_callees: &std::collections::BTreeMap<u64, rugra::fspec::FuncProto>,
+    noreturn_callees: &std::collections::BTreeMap<u64, rudra::fspec::FuncProto>,
     tailcall_addrs: &[u64],
     thunk_override_addrs: &[u64],
-    arch: &rugra::arch::Architecture,
+    arch: &rudra::arch::Architecture,
     image: &[u8],
     name: &str,
 ) -> Result<std::collections::HashMap<u64, u32>, String> {
@@ -648,24 +648,24 @@ fn flow_visit_uniq_map(
     // transport's flag_known_no_return_halts emissions).
     let mut sarch = arch.clone();
     sarch.commentdb = Some(std::sync::Arc::new(std::sync::RwLock::new(
-        rugra::comment::CommentDatabaseInternal::new(),
+        rudra::comment::CommentDatabaseInternal::new(),
     )));
-    let mut sfd = Funcdata::new(name, rugra::address::Address::new(vaddr), lift_range as i32);
+    let mut sfd = Funcdata::new(name, rudra::address::Address::new(vaddr), lift_range as i32);
     sfd.set_arch(std::sync::Arc::new(sarch));
     for (&addr, sym_name) in sym_table {
         sfd.add_symbol(addr, sym_name.clone());
     }
     for addr in tailcall_addrs.iter().chain(thunk_override_addrs.iter()) {
         sfd.localoverride.insert_flow_override(
-            rugra::address::Address::new(*addr),
-            rugra::override_rs::FlowOverride::CallReturn,
+            rudra::address::Address::new(*addr),
+            rudra::override_rs::FlowOverride::CallReturn,
         );
     }
     let mut sleigh = SleighLifter::new();
     sleigh
         .configure_x86_64(image, NATIVE_IMAGE_BASE)
         .map_err(|error| format!("scratch SLEIGH setup failed: {:?}", error))?;
-    rugra::flow::follow_flow_range(
+    rudra::flow::follow_flow_range(
         &mut sfd,
         &mut sleigh,
         vaddr,
@@ -741,12 +741,12 @@ fn flag_known_no_return_halts(fd: &mut Funcdata, halt_addrs: &std::collections::
         return;
     }
     let mut flagged = 0usize;
-    let ops: Vec<rugra::op::PcodeOpRef> = fd.obank.iter_alive().cloned().collect::<Vec<_>>();
+    let ops: Vec<rudra::op::PcodeOpRef> = fd.obank.iter_alive().cloned().collect::<Vec<_>>();
     for op_ref in ops {
         let (is_spliced, addr) = {
             let op = op_ref.0.read().unwrap();
             (
-                op.opcode == rugra::opcodes::OpCode::CPUI_RETURN
+                op.opcode == rudra::opcodes::OpCode::CPUI_RETURN
                     && halt_addrs.contains(&op.get_addr().as_u64()),
                 op.get_addr(),
             )
@@ -756,7 +756,7 @@ fn flag_known_no_return_halts(fd: &mut Funcdata, halt_addrs: &std::collections::
         }
         // funcdata_op.cc:47 op->setFlag(flag) via opMarkHalt — the
         // PcodeOp::noreturn bit artificialHalt's caller passes.
-        fd.op_mark_halt(&op_ref, rugra::op::pcodeop_flags::NORETURN);
+        fd.op_mark_halt(&op_ref, rudra::op::pcodeop_flags::NORETURN);
         // flow.cc:646: data.warning("Subroutine does not return",
         // op->getAddr()) — only when the call site is not inline (no
         // inline calls exist on this corpus).
@@ -780,9 +780,9 @@ fn flag_known_no_return_halts(fd: &mut Funcdata, halt_addrs: &std::collections::
 // SLEIGH-lifted ops the pattern never occurs and this pass is a
 // self-verifying no-op. Kept for one lane cycle as an A/B tripwire: a
 // nonzero count would mean an unfolded form reached the injection path.
-fn fold_rip_relative_eas(raw_ops: &mut Vec<rugra::pcoderaw::PcodeOpRaw>) -> usize {
-    use rugra::opcodes::OpCode;
-    use rugra::pcoderaw::VarnodeRaw;
+fn fold_rip_relative_eas(raw_ops: &mut Vec<rudra::pcoderaw::PcodeOpRaw>) -> usize {
+    use rudra::opcodes::OpCode;
+    use rudra::pcoderaw::VarnodeRaw;
     // Register-space RIP: x86_lift.rs get_register "rip"|"eip" => 0x288, the
     // 8-byte form every 64-bit memory arm builds (get_register(b, 8)).
     let is_rip =
@@ -879,24 +879,24 @@ fn harvest_data_references(
             match sleigh.lift_instruction(addr) {
                 Ok((step, ops)) => {
                     for op in &ops {
-                        let code = rugra::opcodes::OpCode::from_i32(op.get_opcode());
+                        let code = rudra::opcodes::OpCode::from_i32(op.get_opcode());
                         let is_control_flow = matches!(
                             code,
-                            Some(rugra::opcodes::OpCode::CPUI_BRANCH)
-                                | Some(rugra::opcodes::OpCode::CPUI_CBRANCH)
-                                | Some(rugra::opcodes::OpCode::CPUI_CALL)
-                                | Some(rugra::opcodes::OpCode::CPUI_CALLIND)
-                                | Some(rugra::opcodes::OpCode::CPUI_BRANCHIND)
-                                | Some(rugra::opcodes::OpCode::CPUI_RETURN)
+                            Some(rudra::opcodes::OpCode::CPUI_BRANCH)
+                                | Some(rudra::opcodes::OpCode::CPUI_CBRANCH)
+                                | Some(rudra::opcodes::OpCode::CPUI_CALL)
+                                | Some(rudra::opcodes::OpCode::CPUI_CALLIND)
+                                | Some(rudra::opcodes::OpCode::CPUI_BRANCHIND)
+                                | Some(rudra::opcodes::OpCode::CPUI_RETURN)
                         );
                         if !is_control_flow {
                             if let Some(out_vn) = op.output() {
-                                if out_vn.space == rugra::space::AddressSpace::Ram {
+                                if out_vn.space == rudra::space::AddressSpace::Ram {
                                     refs.insert(out_vn.offset);
                                 }
                             }
                             for inv in op.inputs() {
-                                if inv.space == rugra::space::AddressSpace::Ram {
+                                if inv.space == rudra::space::AddressSpace::Ram {
                                     refs.insert(inv.offset);
                                 }
                             }
@@ -905,9 +905,9 @@ fn harvest_data_references(
                         // lifts as COPY reg <- const:X (the iced harvest's
                         // lea arm); the DB's mapped-range check sorts the
                         // mov-immediate false positives out downstream.
-                        if code == Some(rugra::opcodes::OpCode::CPUI_COPY) {
+                        if code == Some(rudra::opcodes::OpCode::CPUI_COPY) {
                             for inv in op.inputs() {
-                                if inv.space == rugra::space::AddressSpace::Const {
+                                if inv.space == rudra::space::AddressSpace::Const {
                                     refs.insert(inv.offset);
                                 }
                             }
@@ -996,13 +996,13 @@ fn build_action_data_symbol_db(
     symbol_table: &HashMap<u64, String>,
     image_base: u64, // F2B: shift applied to raw ELF-derived addresses (canon)
     sleigh: &mut SleighLifter,
-) -> rugra::database::Database {
-    use rugra::database::symbol_flags;
-    use rugra::type_system::datatype::{Datatype, TypeArray, TypeBase, TypeMetatype};
-    use rugra::type_system::typefactory::TypeFactory;
+) -> rudra::database::Database {
+    use rudra::database::symbol_flags;
+    use rudra::type_system::datatype::{Datatype, TypeArray, TypeBase, TypeMetatype};
+    use rudra::type_system::typefactory::TypeFactory;
     use std::sync::Arc;
 
-    let mut db = rugra::database::Database::new(false);
+    let mut db = rudra::database::Database::new(false);
     let global_scope_id = db.global_scope_id;    // Data-symbol ranges [start,end) already labeled — DAT_ creation skips
     // these (the front-end never stacks a default label on a named symbol).
     let mut covered: Vec<(u64, u64)> = Vec::new();
@@ -1032,7 +1032,7 @@ fn build_action_data_symbol_db(
         }
         let first = Address::new(ph.p_vaddr + image_base);
         let last = Address::new(ph.p_vaddr + image_base + ph.p_memsz - 1);
-        if let Some(range) = rugra::address::Range::new(first, last) {
+        if let Some(range) = rudra::address::Range::new(first, last) {
             db.add_range(global_scope_id, range);
         }
     }
@@ -1086,7 +1086,7 @@ fn build_action_data_symbol_db(
     // The transport's per-symbol readonly attribute (block-permission
     // driven): applied to every mapped data symbol landing in an R-only
     // segment.
-    let mark_readonly = |db: &mut rugra::database::Database, sym_id: u64, addr: u64| {
+    let mark_readonly = |db: &mut rudra::database::Database, sym_id: u64, addr: u64| {
         if ronly_ranges.iter().any(|&(a, b)| addr >= a && addr < b) {
             db.set_symbol_flag(global_scope_id, sym_id, symbol_flags::READONLY, true);
         }
@@ -1322,12 +1322,12 @@ fn build_action_data_symbol_db(
     // Datatype* equality) can group string-slot highs with sibling char*
     // highs; a fresh `new_char` clone here fragmented the grouping and
     // minted extra local declarations (LANE DECLFAM 2026-09-28).
-    let char_t = rugra::type_system::typefactory::TypeFactory::shared_default()
+    let char_t = rudra::type_system::typefactory::TypeFactory::shared_default()
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .find_by_name("char")
         .or_else(|| {
-            rugra::type_system::typefactory::TypeFactory::shared_default()
+            rudra::type_system::typefactory::TypeFactory::shared_default()
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .get_type_char_named("char")
@@ -1509,7 +1509,7 @@ fn build_action_data_symbol_db(
             db.set_symbol_flag(
                 global_scope_id,
                 sym_id,
-                rugra::database::symbol_flags::TYPELOCK,
+                rudra::database::symbol_flags::TYPELOCK,
                 true,
             );
             mark_readonly(&mut db, sym_id, raw);
@@ -1527,9 +1527,9 @@ fn build_action_data_symbol_db(
         }
         let first = Address::new(ph.p_vaddr + image_base);
         let last = Address::new(ph.p_vaddr + image_base + ph.p_filesz - 1);
-        if let Some(range) = rugra::address::Range::new(first, last) {
+        if let Some(range) = rudra::address::Range::new(first, last) {
             db.set_property_range(
-                rugra::varnode::varnode_flags::READONLY,
+                rudra::varnode::varnode_flags::READONLY,
                 range,
             );
         }
@@ -1648,7 +1648,7 @@ fn overlay_bfd_nonalloc_sections(
 const SPEC_UNIQUE_INJECT_BASE: u64 = 0x364_400;
 
 struct TrackedSpecHost {
-    registers: HashMap<String, rugra::fspec::VarnodeData>,
+    registers: HashMap<String, rudra::fspec::VarnodeData>,
 }
 
 const TRACKED_SPEC_SPACES: [(&str, u64); 9] = [
@@ -1663,8 +1663,8 @@ const TRACKED_SPEC_SPACES: [(&str, u64); 9] = [
     ("stack", u64::MAX),
 ];
 
-fn tracked_spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> {
-    use rugra::space::AddressSpace;
+fn tracked_spec_space_by_name(name: &str) -> Option<rudra::space::AddressSpace> {
+    use rudra::space::AddressSpace;
     match name {
         "ram" => Some(AddressSpace::Ram),
         "stack" => Some(AddressSpace::Stack),
@@ -1679,13 +1679,13 @@ fn tracked_spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> 
 // Callfixup snippet parsing needs the symbol lookup (both sides of the
 // cm3 merge carry this identical impl: chain RC2 HTTPD-CSPEC-ARCH-0001 and
 // master DBG-BSB probe — deduplicated).
-impl rugra::pcodeparse::SleighSymbolLookup for TrackedSpecHost {
-    fn find_symbol(&self, name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
+impl rudra::pcodeparse::SleighSymbolLookup for TrackedSpecHost {
+    fn find_symbol(&self, name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
         self.registers
             .get(name)
-            .map(|vd| rugra::pcodeparse::SleighSymbol {
+            .map(|vd| rudra::pcodeparse::SleighSymbol {
                 name: name.to_string(),
-                kind: rugra::pcodeparse::SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+                kind: rudra::pcodeparse::SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                     space: vd.space,
                     offset: vd.offset,
                     size: vd.size.max(0) as usize,
@@ -1694,24 +1694,24 @@ impl rugra::pcodeparse::SleighSymbolLookup for TrackedSpecHost {
     }
 }
 
-impl rugra::arch::SpecQuery for TrackedSpecHost {
-    fn get_register(&self, name: &str) -> Option<rugra::fspec::VarnodeData> {
+impl rudra::arch::SpecQuery for TrackedSpecHost {
+    fn get_register(&self, name: &str) -> Option<rudra::fspec::VarnodeData> {
         self.registers.get(name).copied()
     }
-    fn space_by_name(&self, name: &str) -> Option<rugra::space::AddressSpace> {
+    fn space_by_name(&self, name: &str) -> Option<rudra::space::AddressSpace> {
         tracked_spec_space_by_name(name)
     }
-    fn space_highest(&self, spc: rugra::space::AddressSpace) -> u64 {
+    fn space_highest(&self, spc: rudra::space::AddressSpace) -> u64 {
         let name = match spc {
-            rugra::space::AddressSpace::Const => "const",
-            rugra::space::AddressSpace::Other(_) => "OTHER",
-            rugra::space::AddressSpace::Unique => "unique",
-            rugra::space::AddressSpace::Ram => "ram",
-            rugra::space::AddressSpace::Register => "register",
-            rugra::space::AddressSpace::Stack => "stack",
-            rugra::space::AddressSpace::Iop => "iop",
-            rugra::space::AddressSpace::Join => "join",
-            rugra::space::AddressSpace::Overlay => "OTHER",
+            rudra::space::AddressSpace::Const => "const",
+            rudra::space::AddressSpace::Other(_) => "OTHER",
+            rudra::space::AddressSpace::Unique => "unique",
+            rudra::space::AddressSpace::Ram => "ram",
+            rudra::space::AddressSpace::Register => "register",
+            rudra::space::AddressSpace::Stack => "stack",
+            rudra::space::AddressSpace::Iop => "iop",
+            rudra::space::AddressSpace::Join => "join",
+            rudra::space::AddressSpace::Overlay => "OTHER",
         };
         TRACKED_SPEC_SPACES
             .iter()
@@ -1741,10 +1741,10 @@ impl rugra::arch::SpecQuery for TrackedSpecHost {
 // curl_decompile.rs); the httpd driver must too, or its faithfully ported
 // ActionConstbase observes an empty tracked set and inserts nothing.
 fn tracked_context_architecture(
-) -> Result<(rugra::arch::Architecture, Vec<rugra::fspec::EffectRecord>), String> {
-    let mut arch = rugra::arch::Architecture::new();
+) -> Result<(rudra::arch::Architecture, Vec<rudra::fspec::EffectRecord>), String> {
+    let mut arch = rudra::arch::Architecture::new();
     // SLEIGH register catalog (no image needed for the spec query legs).
-    let sleigh = rugra::sleigh_ffi::SleighCtx::new()
+    let sleigh = rudra::sleigh_ffi::SleighCtx::new()
         .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
     let mut registers = HashMap::new();
     // HTTPD-CSPEC-ARCH-0001: same enumeration as the curl worker
@@ -1763,8 +1763,8 @@ fn tracked_context_architecture(
         register_xref.push((space, offset, size, name.to_string()));
         registers.insert(
             name.to_string(),
-            rugra::fspec::VarnodeData {
-                space: rugra::space::AddressSpace::from_id(space_id),
+            rudra::fspec::VarnodeData {
+                space: rudra::space::AddressSpace::from_id(space_id),
                 offset,
                 size,
             },
@@ -1775,7 +1775,7 @@ fn tracked_context_architecture(
     // mapped decode (same DOM extraction model as the curl worker).
     let pspec_bytes = fs::read("sleigh_specs/x86-64.pspec")
         .map_err(|error| format!("unable to read processor spec: {error}"))?;
-    let mut store = rugra::marshal::DocumentStorage::new();
+    let mut store = rudra::marshal::DocumentStorage::new();
     let pspec_doc = store
         .parse_document(&pspec_bytes)
         .map_err(|error| format!("processor spec parse failed: {error}"))?;
@@ -1796,7 +1796,7 @@ fn tracked_context_architecture(
         .map_err(|_| "processor spec element lock poisoned".to_string())?
         .children
         .clone();
-    let pspec_registry = std::sync::Arc::new(std::sync::RwLock::new(rugra::marshal::IdRegistry::new()));
+    let pspec_registry = std::sync::Arc::new(std::sync::RwLock::new(rudra::marshal::IdRegistry::new()));
     for child in pspec_children {
         let child_name = child
             .read()
@@ -1806,7 +1806,7 @@ fn tracked_context_architecture(
         match child_name.as_str() {
             "context_data" => {
                 let mut decoder =
-                    rugra::marshal::TreeDecoder::new(child, pspec_registry.clone());
+                    rudra::marshal::TreeDecoder::new(child, pspec_registry.clone());
                 arch.decode_context_data(&mut decoder, host.as_ref())
                     .map_err(|error| format!("processor spec context_data decode failed: {error}"))?;
             }
@@ -1815,7 +1815,7 @@ fn tracked_context_architecture(
             // ActionLaneDivide (curl driver comment has the full note).
             "register_data" => {
                 let mut decoder =
-                    rugra::marshal::TreeDecoder::new(child, pspec_registry.clone());
+                    rudra::marshal::TreeDecoder::new(child, pspec_registry.clone());
                 arch.decode_register_data(&mut decoder, host.as_ref())
                     .map_err(|error| format!("processor spec register_data decode failed: {error}"))?;
             }
@@ -1875,7 +1875,7 @@ fn tracked_context_architecture(
     arch.archid = "x86:LE:64:default".to_string();
     arch.set_register_xref(register_xref);
     arch.set_commentdb(std::sync::Arc::new(std::sync::RwLock::new(
-        rugra::comment::CommentDatabaseInternal::new(),
+        rudra::comment::CommentDatabaseInternal::new(),
     )));
     {
         // DECLFAM-DEADSLOT-0001 (httpd half): decode the cspec's
@@ -1894,7 +1894,7 @@ fn tracked_context_architecture(
         // failed to group sibling highs and minted extra local symbol
         // declarations the oracle never emits (ap_update_vhost_from_headers
         // `byte *pbVar4` — LANE DECLFAM 2026-09-28).
-        let types = rugra::type_system::typefactory::TypeFactory::shared_default();
+        let types = rudra::type_system::typefactory::TypeFactory::shared_default();
         let data_org = cspec_root
             .read()
             .map_err(|_| "compiler spec element lock poisoned".to_string())?
@@ -1909,9 +1909,9 @@ fn tracked_context_architecture(
             .cloned()
             .ok_or_else(|| "compiler spec has no data_organization".to_string())?;
         let registry = std::sync::Arc::new(std::sync::RwLock::new(
-            rugra::marshal::IdRegistry::new(),
+            rudra::marshal::IdRegistry::new(),
         ));
-        let mut decoder = rugra::marshal::TreeDecoder::new(data_org, registry);
+        let mut decoder = rudra::marshal::TreeDecoder::new(data_org, registry);
         types
             .write()
             .map_err(|_| "compiler spec factory lock poisoned".to_string())?
@@ -1919,7 +1919,7 @@ fn tracked_context_architecture(
         types
             .write()
             .map_err(|_| "compiler spec factory lock poisoned".to_string())?
-            .setup_sizes(&rugra::type_system::typefactory::SizeArchInputs {
+            .setup_sizes(&rudra::type_system::typefactory::SizeArchInputs {
             stack_spacebase_size: Some(8),
             default_data_space_addr_size: 8,
             default_size: 8,
@@ -1947,11 +1947,11 @@ fn tracked_context_architecture(
         // spacebase input high is never named and printc never emits a
         // `BADSPACEBASE *…` declaration. FuncProto::hasEffect/effectBegin
         // read this exact record list first (fspec.cc:4234-4240/4243-4257).
-        let mut inject_lib = rugra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
+        let mut inject_lib = rudra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
         inject_lib.set_sleigh_lookup(host.clone());
         arch.pcodeinjectlib = Some(std::sync::Arc::new(std::sync::RwLock::new(inject_lib)));
         arch.userops = Some(std::sync::Arc::new(std::sync::RwLock::new(
-            rugra::userop::UserOpManage::new(),
+            rudra::userop::UserOpManage::new(),
         )));
         arch.parse_compiler_config(&mut store, host.as_ref(), 8)
             .map_err(|error| format!("compiler spec parse failed: {error}"))?;
@@ -1995,10 +1995,10 @@ fn install_v3sig_callee_protos(
     fd: &mut Funcdata,
     table: &HashMap<u64, V3CalleeProto>,
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
 ) -> usize {
-    use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+    use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
     // Manifest spelling -> canonical factory type. findByName first (the
     // same resolution FuncProto::decode performs through glb->types,
@@ -2094,13 +2094,13 @@ fn install_v3sig_callee_protos(
         // void stand-in only serves the unlocked-output input-lock case.
         let void_type = types.read().unwrap().get_type_void();
         let out_type = return_type.clone().unwrap_or_else(|| void_type.clone());
-        let mut proto = rugra::fspec::FuncProto::from_model_carrier(
+        let mut proto = rudra::fspec::FuncProto::from_model_carrier(
             &model_carrier,
             entry_proto.name.clone(),
             out_type,
         );
         proto.name = entry_proto.name.clone();
-        let pieces = rugra::grammar::PrototypePieces {
+        let pieces = rudra::grammar::PrototypePieces {
             model: None,
             name: entry_proto.name.clone(),
             out_type: return_type.clone().or(Some(void_type)),
@@ -2280,7 +2280,7 @@ struct ImportSignatureContext {
 /// for the remaining 47 canon-locked imports.
 fn build_import_signature_ledger() -> ImportSignatureLedger {
     let mut entries = HashMap::new();
-    let library = rugra::debugproto::LibcSignatureTable::default();
+    let library = rudra::debugproto::LibcSignatureTable::default();
     // The httpd import surface intersected with the library's curl-oriented
     // ledger (the table offers lookup-by-name only — no iterator — so the
     // probe list is the statically known 12-name intersection).
@@ -2353,10 +2353,10 @@ fn split_import_declaration(declaration: &str) -> Option<(&str, &str)> {
 fn resolve_import_type(
     type_text: &str,
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
-) -> Option<std::sync::Arc<rugra::type_system::datatype::Datatype>> {
-    use rugra::type_system::datatype::TypeMetatype;
+) -> Option<std::sync::Arc<rudra::type_system::datatype::Datatype>> {
+    use rudra::type_system::datatype::TypeMetatype;
     let trimmed = type_text.trim();
     // Pointer depth: strip trailing stars (with interleaved spaces).
     let bytes = trimmed.as_bytes();
@@ -2520,9 +2520,9 @@ const CANON_GLIBC_TYPEDEFS: &[(&'static str, &'static str)] = &[
 fn resolve_canon_member_type(
     spelling: &str,
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
-) -> Option<std::sync::Arc<rugra::type_system::datatype::Datatype>> {
+) -> Option<std::sync::Arc<rudra::type_system::datatype::Datatype>> {
     if spelling == "code *" {
         return Some(types.write().unwrap().get_type_code());
     }
@@ -2535,14 +2535,14 @@ fn resolve_canon_member_type(
 fn canon_member_fields(
     members: &[CanonStructMember],
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
-) -> Vec<rugra::type_system::datatype::TypeField> {
+) -> Vec<rudra::type_system::datatype::TypeField> {
     members
         .iter()
         .filter_map(|&(offset, spelling, field_name)| {
             match resolve_canon_member_type(spelling, types) {
-                Some(type_ptr) => Some(rugra::type_system::datatype::TypeField {
+                Some(type_ptr) => Some(rudra::type_system::datatype::TypeField {
                     name: field_name.to_string(),
                     offset,
                     type_ptr,
@@ -2565,7 +2565,7 @@ fn canon_member_fields(
 /// log line. A name another channel already committed is left untouched.
 fn intern_canon_glibc_struct_bases(
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
 ) -> (usize, usize) {
     let mut interned = 0usize;
@@ -2628,11 +2628,11 @@ fn intern_canon_glibc_struct_bases(
 fn build_locked_import_proto(
     name: &str,
     ledger: &ImportSignatureLedger,
-    types: &std::sync::Arc<std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>>,
-    model_carrier: &rugra::fspec::FuncProto,
+    types: &std::sync::Arc<std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>>,
+    model_carrier: &rudra::fspec::FuncProto,
     log_prefix: &str,
-) -> Option<rugra::fspec::FuncProto> {
-    use rugra::fspec::protoparam_flags;
+) -> Option<rudra::fspec::FuncProto> {
+    use rudra::fspec::protoparam_flags;
     let Some(&(return_spelling, parameter_spelling)) = ledger.entries.get(name) else {
         return None; // canon-unlocked import (the _chk family): active recovery
     };
@@ -2673,13 +2673,13 @@ fn build_locked_import_proto(
         );
         return None;
     };
-    let mut proto = rugra::fspec::FuncProto::from_model_carrier(
+    let mut proto = rudra::fspec::FuncProto::from_model_carrier(
         model_carrier,
         name.to_string(),
         return_type.clone(),
     );
     proto.name = name.to_string();
-    let pieces = rugra::grammar::PrototypePieces {
+    let pieces = rudra::grammar::PrototypePieces {
         model: None,
         name: name.to_string(),
         out_type: Some(return_type),
@@ -2868,10 +2868,10 @@ struct SharedDecompileCtx {
     mirror_img: Option<std::sync::Arc<Vec<u8>>>,
     loader_img: Option<std::sync::Arc<Vec<u8>>>,
     mirror_syms: Vec<(u64, String)>,
-    print_db: std::sync::Arc<std::sync::RwLock<rugra::database::Database>>,
-    action_db: Option<rugra::database::Database>,
+    print_db: std::sync::Arc<std::sync::RwLock<rudra::database::Database>>,
+    action_db: Option<rudra::database::Database>,
     typeseed_locals: Option<
-        std::sync::Arc<std::collections::HashMap<String, Vec<rugra::funcdata::CommittedLocal>>>,
+        std::sync::Arc<std::collections::HashMap<String, Vec<rudra::funcdata::CommittedLocal>>>,
     >,
     v3sig_protos: Option<std::sync::Arc<HashMap<u64, V3CalleeProto>>>,
     // IMPORTSIG-DRIVER-0001: the import-signature channel's per-thread
@@ -2887,8 +2887,8 @@ struct SharedDecompileCtx {
     sticky_conflicts: bool,
     demote_narrow_int_ptr: bool,
     admit_plt_slots: bool,
-    thread_arch: rugra::arch::Architecture,
-    default_effects: Vec<rugra::fspec::EffectRecord>,
+    thread_arch: rudra::arch::Architecture,
+    default_effects: Vec<rudra::fspec::EffectRecord>,
     sym_table: HashMap<u64, String>,
     str_table: HashMap<u64, String>,
     proto_db: HashMap<u64, usize>,
@@ -2903,7 +2903,7 @@ struct FunctionTask {
     name: String,
     vaddr: u64,
     size: usize,
-    raw_ops: Vec<rugra::pcoderaw::PcodeOpRaw>,
+    raw_ops: Vec<rudra::pcoderaw::PcodeOpRaw>,
     branch_ref_addrs: std::collections::HashSet<u64>,
     stage_binary: Option<Vec<u8>>,
     stage_proj: bool,
@@ -3057,7 +3057,7 @@ fn known_evidence_base(base: &str) -> bool {
 // residual, not a policy delta, is the root; the demotion keeps
 // evidence to oracle-attested form classes).
 fn evidence_spelling(
-    dt: &std::sync::Arc<rugra::type_system::datatype::Datatype>,
+    dt: &std::sync::Arc<rudra::type_system::datatype::Datatype>,
     loose: bool,
     demote_narrow_int_ptr: bool,
 ) -> Option<String> {
@@ -3304,7 +3304,7 @@ fn lift_function_ops(
     vaddr: u64,
     range_len: usize,
     name: &str,
-) -> Option<(Vec<rugra::pcoderaw::PcodeOpRaw>, std::collections::HashSet<u64>)> {
+) -> Option<(Vec<rudra::pcoderaw::PcodeOpRaw>, std::collections::HashSet<u64>)> {
     let mut raw_ops = Vec::new();
     // PRINTC-LABSPELL-LABSYMS-0001: the front-end reference set — every
     // direct-branch (jmp/jcc) target of the disassembly, i.e. exactly the
@@ -3326,11 +3326,11 @@ fn lift_function_ops(
         match sleigh.lift_instruction_skip_nops(addr) {
             Ok((step, ops)) => {
                 for op in &ops {
-                    match rugra::opcodes::OpCode::from_i32(op.get_opcode()) {
-                        Some(rugra::opcodes::OpCode::CPUI_BRANCH)
-                        | Some(rugra::opcodes::OpCode::CPUI_CBRANCH) => {
+                    match rudra::opcodes::OpCode::from_i32(op.get_opcode()) {
+                        Some(rudra::opcodes::OpCode::CPUI_BRANCH)
+                        | Some(rudra::opcodes::OpCode::CPUI_CBRANCH) => {
                             if let Some(target_vn) = op.inputs().first() {
-                                if target_vn.space == rugra::space::AddressSpace::Ram {
+                                if target_vn.space == rudra::space::AddressSpace::Ram {
                                     branch_ref_addrs.insert(target_vn.offset);
                                 }
                             }
@@ -3470,7 +3470,7 @@ fn run_paramid_iteration(
             .get(&target)
             .cloned()
             .unwrap_or_else(|| {
-                rugra::debugproto::analyze_headless_function_symbol_name(
+                rudra::debugproto::analyze_headless_function_symbol_name(
                     target,
                     0, // F2B: target is already canon-space
                 )
@@ -3858,7 +3858,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                 // branch re-attaches at base 0 below (oracle contract).
                 let load_base = if mirror_fn { 0 } else { NATIVE_IMAGE_BASE };
                 thread_arch.loader = Some(std::sync::Arc::new(
-                    rugra::loadimage::RawLoadImage::from_bytes("httpd", load_base, image),
+                    rudra::loadimage::RawLoadImage::from_bytes("httpd", load_base, image),
                 ));
                 thread_arch.build_string_manager();
             }
@@ -3868,7 +3868,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                 .as_deref()
                 .expect("mirror image captured behind the gate");
             thread_arch.loader = Some(std::sync::Arc::new(
-                rugra::loadimage::RawLoadImage::from_bytes("httpd", 0, image.to_vec()),
+                rudra::loadimage::RawLoadImage::from_bytes("httpd", 0, image.to_vec()),
             ));
         }
         // ACTION-SYMDB-DATASYM-0001 (canon only): attach the action-side
@@ -3930,7 +3930,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         // overrides the handle again for the print face.
         if mirror_fn {
             let ranges: Vec<_> = thread_arch.global_scope_ranges.clone();
-            let mut fresh = rugra::database::Database::new(true);
+            let mut fresh = rudra::database::Database::new(true);
             for (spc, first, last) in ranges {
                 fresh.add_range_spaced(fresh.global_scope_id, spc, first, last);
             }
@@ -4005,14 +4005,14 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                     return None;
                 }
             };
-            let mut sleigh = rugra::disasm::sleigh_lift::SleighLifter::new();
+            let mut sleigh = rudra::disasm::sleigh_lift::SleighLifter::new();
             if let Err(error) = sleigh.configure_x86_64(image, 0) {
                 eprintln!("[THREAD] {} flow mirror SLEIGH setup failed: {:?}", func_name, error);
                 return None;
             }
             eprintln!("[THREAD] {} flow mirror: follow_flow_range(0, u64::MAX)", func_name);
             let callee_protos = std::collections::BTreeMap::new();
-            if let Err(error) = rugra::flow::follow_flow_range(
+            if let Err(error) = rudra::flow::follow_flow_range(
                 &mut fd,
                 &mut sleigh,
                 0,
@@ -4071,8 +4071,8 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
             collect_tailcall_override_addrs(&raw_ops, &entry_set, &plt_ranges, vaddr, func_size as u64);
         for jmp_addr in &tailcall_addrs {
             fd.localoverride.insert_flow_override(
-                rugra::address::Address::new(*jmp_addr),
-                rugra::override_rs::FlowOverride::CallReturn,
+                rudra::address::Address::new(*jmp_addr),
+                rudra::override_rs::FlowOverride::CallReturn,
             );
         }
 
@@ -4086,8 +4086,8 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         // overrideFlow occupies (flow.cc:474-475).
         for jmp_addr in &thunk_override_addrs {
             fd.localoverride.insert_flow_override(
-                rugra::address::Address::new(*jmp_addr),
-                rugra::override_rs::FlowOverride::CallReturn,
+                rudra::address::Address::new(*jmp_addr),
+                rudra::override_rs::FlowOverride::CallReturn,
             );
         }
 
@@ -4154,7 +4154,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         // wiring here, at the same position relative to the linear
         // sweep (A/B evidence: RUGRA_MIRROR=1 through follow_flow_range
         // = 0 warnings + real case bodies on the same binary).
-        let recovered = rugra::flow::recover_jump_tables_injected(&mut fd);
+        let recovered = rudra::flow::recover_jump_tables_injected(&mut fd);
         match recovered {
             Ok(count) if count > 0 => {
                 eprintln!("[THREAD] {} jumptable recovery: {} tables", func_name, count)
@@ -4396,7 +4396,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                 eprintln!("[DUMP] === structure tree for {} ===", func_name);
                 let mut tree_out = String::new();
                 for blk in &fd_read.sblocks.blocks {
-                    rugra::block::print_tree_dbg(blk, 0, &mut tree_out);
+                    rudra::block::print_tree_dbg(blk, 0, &mut tree_out);
                 }
                 eprintln!("{}", tree_out);
                 // MAINTYPE lane diagnostic (MCENSUS3-TYPEPROP-XUNKNOWN-INT-
@@ -4411,7 +4411,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                     if v.is_annotation() {
                         continue;
                     }
-                    let type_desc = |t: &Option<std::sync::Arc<rugra::Datatype>>| -> String {
+                    let type_desc = |t: &Option<std::sync::Arc<rudra::Datatype>>| -> String {
                         match t {
                             Some(dt) => format!(
                                 "{:?}:{}",
@@ -4468,7 +4468,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         // never seed) is a separate gate and keeps its semantics.
         let pretty_emit = action_db_attached || mirror_fn;
         let mut printer = if pretty_emit {
-            PrintC::new(Box::new(rugra::prettyprint::EmitPrettyPrint::new()))
+            PrintC::new(Box::new(rudra::prettyprint::EmitPrettyPrint::new()))
         } else {
             PrintC::new(Box::new(EmitNoMarkup::new()))
         };
@@ -4523,7 +4523,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
                 let dispatch = jt_rg.opaddress.as_u64();
                 for (i, dest) in jt_rg.addresstable.iter().enumerate() {
                     let case_value = jt_rg.label.get(i).copied();
-                    if case_value != Some(rugra::jumptable::NO_LABEL) && case_value.is_some() {
+                    if case_value != Some(rudra::jumptable::NO_LABEL) && case_value.is_some() {
                         switchd_labels.entry(dest.as_u64()).or_insert_with(|| {
                             format!("switchD_{:08x}_caseD_{:x}", dispatch, case_value.unwrap())
                         });
@@ -4566,7 +4566,7 @@ fn decompile_one_function(task: FunctionTask, shared: SharedDecompileCtx) -> Opt
         let text = if pretty_emit {
             let text = output
                 .into_any()
-                .downcast::<rugra::prettyprint::EmitPrettyPrint>()
+                .downcast::<rudra::prettyprint::EmitPrettyPrint>()
                 .unwrap();
             text.get_output()
         } else {
@@ -4640,7 +4640,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // parsed once up front (it re-parses the image independently of the
     // goblin object below) so both the symbol_table seeding inside the ELF
     // block and the call-target default-name pass below share it.
-    let plt_imports = rugra::debugproto::ElfPltImports::parse_elf(&buffer);
+    let plt_imports = rudra::debugproto::ElfPltImports::parse_elf(&buffer);
 
     let mut functions: Vec<(u64, usize, u64, String)> = Vec::new();
     let mut symbol_table: HashMap<u64, String> = HashMap::new();
@@ -4828,7 +4828,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("RUGRA_TYPESEED").ok().as_deref() != Some("0")
     };
     let typeseed_manifest: Option<
-        std::sync::Arc<std::collections::HashMap<String, Vec<rugra::funcdata::CommittedLocal>>>,
+        std::sync::Arc<std::collections::HashMap<String, Vec<rudra::funcdata::CommittedLocal>>>,
     > = if typeseed_active {
         let path = std::env::var("RUGRA_TYPESEED_MANIFEST")
             .unwrap_or_else(|_| "tests/golden/manifests/local_seed_httpd_1204.json".to_string());
@@ -4870,7 +4870,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     Some(serde_json::Value::Bool(value)) => *value,
                                     _ => true,
                                 };
-                                seeds.push(rugra::funcdata::CommittedLocal {
+                                seeds.push(rudra::funcdata::CommittedLocal {
                                     offset,
                                     name: name.clone(),
                                     type_expr: type_expr.clone(),
@@ -5143,11 +5143,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 Ok((step, ops)) => {
                     for op in &ops {
-                        if rugra::opcodes::OpCode::from_i32(op.get_opcode())
-                            == Some(rugra::opcodes::OpCode::CPUI_CALL)
+                        if rudra::opcodes::OpCode::from_i32(op.get_opcode())
+                            == Some(rudra::opcodes::OpCode::CPUI_CALL)
                         {
                             if let Some(target_vn) = op.inputs().first() {
-                                if target_vn.space == rugra::space::AddressSpace::Ram {
+                                if target_vn.space == rudra::space::AddressSpace::Ram {
                                     call_targets.insert(target_vn.offset);
                                 }
                             }
@@ -5167,7 +5167,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // and entry-validity gates run post-prepass.
         for op in &raw_ops {
             for inv in op.inputs() {
-                if inv.space == rugra::space::AddressSpace::Const {
+                if inv.space == rudra::space::AddressSpace::Const {
                     const_code_refs.push(inv.offset);
                 }
             }
@@ -5175,7 +5175,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut fd = Funcdata::new(name, Address::new(vaddr), size as i32);
         fd.inject_raw_ops(&raw_ops);
         fd.run_heritage_direct();
-        let mut infer = rugra::coreaction::ActionInferParams::new();
+        let mut infer = rudra::coreaction::ActionInferParams::new();
         let _ = infer.apply(&mut fd);
         prototype_db.insert(vaddr, fd.funcp.num_params());
     }
@@ -5207,7 +5207,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut fd = Funcdata::new(&name, Address::new(target), 512);
         fd.inject_raw_ops(&raw_ops);
         fd.run_heritage_direct();
-        let mut infer = rugra::coreaction::ActionInferParams::new();
+        let mut infer = rudra::coreaction::ActionInferParams::new();
         let _ = infer.apply(&mut fd);
         prototype_db.insert(target, fd.funcp.num_params());
     }
@@ -5285,7 +5285,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         symbol_table
             .entry(target)
             .or_insert_with(|| {
-                rugra::debugproto::analyze_headless_function_symbol_name(
+                rudra::debugproto::analyze_headless_function_symbol_name(
                     target,
                     0, // F2B: target is already canon-space
                 )
@@ -5525,8 +5525,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // wholesale naming behavior when a symboltab exists; the decompile
     // pipeline must keep running channel-absent, exactly as the canon
     // baseline was established.
-    let print_symbol_db: std::sync::Arc<std::sync::RwLock<rugra::database::Database>> = {
-        let mut symbol_db = rugra::database::Database::new(false);
+    let print_symbol_db: std::sync::Arc<std::sync::RwLock<rudra::database::Database>> = {
+        let mut symbol_db = rudra::database::Database::new(false);
         let mut code_entries: std::collections::HashSet<u64> = std::collections::HashSet::new();
         {
             let db_scope = symbol_db.get_global_scope_mut().expect("global scope");
@@ -5609,9 +5609,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     let first = Address::new(header.sh_addr + ro_base);
                     let last = Address::new(header.sh_addr + ro_base + header.sh_size - 1);
-                    if let Some(range) = rugra::address::Range::new(first, last) {
+                    if let Some(range) = rudra::address::Range::new(first, last) {
                         symbol_db.set_property_range(
-                            rugra::varnode::varnode_flags::READONLY,
+                            rudra::varnode::varnode_flags::READONLY,
                             range,
                         );
                         ro_ranges += 1;
@@ -5653,7 +5653,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // (MIRROREMIT-HTTPD, see the print-site comment), matching the
     // mode-blind PrintLanguage constructor (printlanguage.cc:69).
     let symdb_opt_out = std::env::var("RUGRA_SYMDB").ok().as_deref() == Some("0");
-    let action_db_template: Option<rugra::database::Database> = if mirror || symdb_opt_out {
+    let action_db_template: Option<rudra::database::Database> = if mirror || symdb_opt_out {
         None
     } else {
         Some(build_action_data_symbol_db(
@@ -6052,13 +6052,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // the analysis-discovered callee named through the same
                 // FUN_ channel as the HTTPD-URAM-SYMBOLIZE-0001 defaults.
                 for raw in &raw_ops {
-                    if rugra::opcodes::OpCode::from_i32(raw.get_opcode())
-                        != Some(rugra::opcodes::OpCode::CPUI_BRANCH)
+                    if rudra::opcodes::OpCode::from_i32(raw.get_opcode())
+                        != Some(rudra::opcodes::OpCode::CPUI_BRANCH)
                     {
                         continue;
                     }
                     let Some(tgt) = raw.inputs().first() else { continue };
-                    if tgt.space != rugra::space::AddressSpace::Ram {
+                    if tgt.space != rudra::space::AddressSpace::Ram {
                         continue;
                     }
                     if (thunk_addr..thunk_addr + thunk_size as u64).contains(&tgt.offset) {
@@ -6066,7 +6066,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     fd.add_symbol(
                         tgt.offset,
-                        rugra::debugproto::analyze_headless_function_symbol_name(
+                        rudra::debugproto::analyze_headless_function_symbol_name(
                             tgt.offset,
                             0, // F2B: tgt is canon-space
                         ),
@@ -6074,7 +6074,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if let Some(seq) = raw.seq_num() {
                         fd.localoverride.insert_flow_override(
                             seq.get_addr(),
-                            rugra::override_rs::FlowOverride::CallReturn,
+                            rudra::override_rs::FlowOverride::CallReturn,
                         );
                     }
                 }
@@ -6235,9 +6235,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Ok((step, ops)) => {
                             let terminal = ops.iter().any(|op| {
                                 matches!(
-                                    rugra::opcodes::OpCode::from_i32(op.get_opcode()),
-                                    Some(rugra::opcodes::OpCode::CPUI_BRANCH)
-                                        | Some(rugra::opcodes::OpCode::CPUI_BRANCHIND)
+                                    rudra::opcodes::OpCode::from_i32(op.get_opcode()),
+                                    Some(rudra::opcodes::OpCode::CPUI_BRANCH)
+                                        | Some(rudra::opcodes::OpCode::CPUI_BRANCHIND)
                                 )
                             });
                             extent += step as usize;
@@ -6296,8 +6296,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 raw_ops
                     .iter()
                     .filter(|raw| {
-                        rugra::opcodes::OpCode::from_i32(raw.get_opcode())
-                            == Some(rugra::opcodes::OpCode::CPUI_BRANCHIND)
+                        rudra::opcodes::OpCode::from_i32(raw.get_opcode())
+                            == Some(rudra::opcodes::OpCode::CPUI_BRANCHIND)
                     })
                     .filter_map(|raw| raw.seq_num().map(|seq| seq.get_addr().as_u64()))
                     .collect()
@@ -6475,42 +6475,42 @@ fn sleigh_scan_range(sleigh: &mut SleighLifter, start: u64, end: u64) -> Vec<Sca
                 let mut lea_const = None;
                 let mut cmp_bound = None;
                 for op in &ops {
-                    let code = rugra::opcodes::OpCode::from_i32(op.get_opcode());
+                    let code = rudra::opcodes::OpCode::from_i32(op.get_opcode());
                     match code {
-                        Some(rugra::opcodes::OpCode::CPUI_BRANCH) => {
+                        Some(rudra::opcodes::OpCode::CPUI_BRANCH) => {
                             flow = ScanFlow::Branch;
                             if let Some(t) = op.inputs().first() {
-                                if t.space == rugra::space::AddressSpace::Ram {
+                                if t.space == rudra::space::AddressSpace::Ram {
                                     target = Some(t.offset);
                                 }
                             }
                         }
-                        Some(rugra::opcodes::OpCode::CPUI_CBRANCH) => {
+                        Some(rudra::opcodes::OpCode::CPUI_CBRANCH) => {
                             flow = ScanFlow::Cbranch;
                             if let Some(t) = op.inputs().first() {
-                                if t.space == rugra::space::AddressSpace::Ram {
+                                if t.space == rudra::space::AddressSpace::Ram {
                                     target = Some(t.offset);
                                 }
                             }
                         }
-                        Some(rugra::opcodes::OpCode::CPUI_BRANCHIND) => {
+                        Some(rudra::opcodes::OpCode::CPUI_BRANCHIND) => {
                             flow = ScanFlow::Branchind;
                         }
-                        Some(rugra::opcodes::OpCode::CPUI_CALL) => {
+                        Some(rudra::opcodes::OpCode::CPUI_CALL) => {
                             flow = ScanFlow::Call;
                             if let Some(t) = op.inputs().first() {
-                                if t.space == rugra::space::AddressSpace::Ram {
+                                if t.space == rudra::space::AddressSpace::Ram {
                                     target = Some(t.offset);
                                 }
                             }
                         }
-                        Some(rugra::opcodes::OpCode::CPUI_CALLIND) => {
+                        Some(rudra::opcodes::OpCode::CPUI_CALLIND) => {
                             flow = ScanFlow::Callind;
                         }
-                        Some(rugra::opcodes::OpCode::CPUI_RETURN) => {
+                        Some(rudra::opcodes::OpCode::CPUI_RETURN) => {
                             flow = ScanFlow::Return;
                         }
-                        Some(rugra::opcodes::OpCode::CPUI_COPY) => {
+                        Some(rudra::opcodes::OpCode::CPUI_COPY) => {
                             // `lea reg,[rip+X]` exports const:X (the iced
                             // sweep's rip-relative lea arm). The width gate
                             // (8-byte const into an 8-byte register — the
@@ -6522,16 +6522,16 @@ fn sleigh_scan_range(sleigh: &mut SleighLifter, start: u64, end: u64) -> Vec<Sca
                             // table-extent validation.
                             if let (Some(out_vn), Some(inv)) = (op.output(), op.inputs().first())
                             {
-                                if inv.space == rugra::space::AddressSpace::Const
+                                if inv.space == rudra::space::AddressSpace::Const
                                     && inv.size == 8
-                                    && out_vn.space == rugra::space::AddressSpace::Register
+                                    && out_vn.space == rudra::space::AddressSpace::Register
                                     && out_vn.size == 8
                                 {
                                     lea_const = Some(inv.offset);
                                 }
                             }
                         }
-                        Some(rugra::opcodes::OpCode::CPUI_INT_SUB) => {
+                        Some(rudra::opcodes::OpCode::CPUI_INT_SUB) => {
                             // `cmp $imm` chain: INT_SUB with a unique-space
                             // (temp) output and a const input carries the
                             // bound (any width — the guard cmps on this
@@ -6541,13 +6541,13 @@ fn sleigh_scan_range(sleigh: &mut SleighLifter, start: u64, end: u64) -> Vec<Sca
                             if let (Some(out_vn), Some(c0), Some(c1)) =
                                 (op.output(), op.inputs().first(), op.inputs().get(1))
                             {
-                                if out_vn.space == rugra::space::AddressSpace::Unique {
+                                if out_vn.space == rudra::space::AddressSpace::Unique {
                                     let bound = if c0.space
-                                        == rugra::space::AddressSpace::Const
+                                        == rudra::space::AddressSpace::Const
                                     {
                                         Some(c0.offset as i64)
                                     } else if c1.space
-                                        == rugra::space::AddressSpace::Const
+                                        == rudra::space::AddressSpace::Const
                                     {
                                         Some(c1.offset as i64)
                                     } else {
@@ -7069,15 +7069,15 @@ fn stage_producer() -> String {
 // the harness width gate; ids outside the registered-space set fall back
 // to the plain `c:` rendering like the harness's table miss.
 fn stage_spaceid_name(offset: u64) -> Option<&'static str> {
-    if offset > rugra::space::SPACEID_IOP as u64 {
+    if offset > rudra::space::SPACEID_IOP as u64 {
         return None;
     }
-    match rugra::space::AddressSpace::from_id(offset as rugra::space::SpaceId) {
+    match rudra::space::AddressSpace::from_id(offset as rudra::space::SpaceId) {
         // Registered-space mirror of the harness table: ids beyond the
         // architecture's space list never join g_spaceIdNames. from_id
         // cannot yield Other(id>SPACEID_IOP) under the bound above, but the
         // guard keeps the invariant explicit.
-        rugra::space::AddressSpace::Other(id) if id != rugra::space::SPACEID_OTHER => None,
+        rudra::space::AddressSpace::Other(id) if id != rudra::space::SPACEID_OTHER => None,
         space => Some(space.name()),
     }
 }
@@ -7093,7 +7093,7 @@ fn stage_spaceid_name(offset: u64) -> Option<&'static str> {
 // a reference whose target op left the tree renders `o:-` (both sides
 // rebuild the table per snapshot, harness writeSnapshot L193-200).
 fn stage_vn(
-    vn: &std::sync::Arc<std::sync::RwLock<rugra::varnode::Varnode>>,
+    vn: &std::sync::Arc<std::sync::RwLock<rudra::varnode::Varnode>>,
     host_addr: u64,
     host_time: u32,
     spaceid_slot: bool,
@@ -7101,7 +7101,7 @@ fn stage_vn(
 ) -> String {
     // Ghidra NULL input slot renders as '-' (writeVarnodeDescriptor null
     // arm; see curl_decompile.rs stage_vn). (SB-ORD159-NULLSLOT-0001)
-    if std::sync::Arc::ptr_eq(vn, &rugra::op::null_slot_sentinel()) {
+    if std::sync::Arc::ptr_eq(vn, &rudra::op::null_slot_sentinel()) {
         return "-".to_string();
     }
     let vn = vn.read().unwrap();
@@ -7115,10 +7115,10 @@ fn stage_vn(
         }
         return format!("c:{offset:x}:{size}");
     }
-    if vn.get_space() == rugra::space::AddressSpace::Unique {
+    if vn.get_space() == rudra::space::AddressSpace::Unique {
         return format!("u:{offset:x}:{size}");
     }
-    if vn.get_space() == rugra::space::AddressSpace::Iop {
+    if vn.get_space() == rudra::space::AddressSpace::Iop {
         // Rugra shares the Iop enum space for both annotation kinds
         // (TYPEOP-FSPEC-SPACE-0001); Funcdata::get_op_from_const
         // discriminates fspec vs iop by the typed callspec binding, expired
@@ -7181,7 +7181,7 @@ const STAGE_OPCODE_TABLE_DIVERGENCE: [(&str, &str); 0] = [];
 // slot, mirroring get_opname(opcodes.cc:60-64). Real ops are always inside
 // the table; an out-of-table value is an emitter bug worth a panic, not a
 // silent wrong name.
-fn stage_opname(code: rugra::opcodes::OpCode) -> &'static str {
+fn stage_opname(code: rudra::opcodes::OpCode) -> &'static str {
     let index = code as i32 as usize;
     STAGE_OPCODE_NAME
         .get(index)
@@ -7194,7 +7194,7 @@ fn stage_opname(code: rugra::opcodes::OpCode) -> &'static str {
 // locked-table slot, and every difference must be one of the pinned
 // STAGE_OPCODE_TABLE_DIVERGENCE entries. Run once per projection.
 fn stage_opcode_parity() -> Result<(), String> {
-    use rugra::opcodes::OpCode;
+    use rudra::opcodes::OpCode;
     let mut divergences: Vec<(&str, &str)> = Vec::new();
     for index in 1..STAGE_OPCODE_NAME.len() {
         // Slot 0 (BLANK) has no Rust variant; CPUI_UNUSED1 (45) is
@@ -7251,7 +7251,7 @@ fn stage_snapshot(
         // side (see stage_spaceid_name); every other slot stays value-only.
         let spaceid_slot = matches!(
             op.get_opcode(),
-            rugra::opcodes::OpCode::CPUI_LOAD | rugra::opcodes::OpCode::CPUI_STORE
+            rudra::opcodes::OpCode::CPUI_LOAD | rudra::opcodes::OpCode::CPUI_STORE
         );
         let out = op
             .get_out()
@@ -7424,7 +7424,7 @@ fn stage_next_runnable(
         let state = group
             .child_state(nodes[*child].index_in_parent)
             .expect("stage child state present");
-        if state.status != rugra::action::status_flags::STATUS_END {
+        if state.status != rudra::action::status_flags::STATUS_END {
             return Some(*child);
         }
     }
@@ -7480,7 +7480,7 @@ fn stage_frontier(
             break;
         }
         let parent_state = stage_state_of(root, root_state, nodes, parent);
-        if parent_state.flags & rugra::action::action_flags::RULE_REPEATAPPLY != 0 {
+        if parent_state.flags & rudra::action::action_flags::RULE_REPEATAPPLY != 0 {
             if let Some(child) = stage_next_runnable(root, nodes, parent, 0) {
                 push(child, &mut candidates);
             }
@@ -7828,7 +7828,7 @@ fn emit_stage_projection(
             .copied()
             .find(|candidate| {
                 stage_state_of(&*root, &root_state, &nodes, *candidate).status
-                    == rugra::action::status_flags::STATUS_BREAKSTARTHIT
+                    == rudra::action::status_flags::STATUS_BREAKSTARTHIT
             })
             .ok_or_else(|| {
                 format!(
@@ -7943,7 +7943,7 @@ fn emit_stage_drill(
         .arch
         .clone()
         .ok_or_else(|| "drill requires a bound Architecture".to_string())?;
-    rugra::drillobserve::start(fd_arch);
+    rudra::drillobserve::start(fd_arch);
 
     let mut blocks: u64 = 0;
     let mut records: u64 = 0;
@@ -8029,7 +8029,7 @@ fn emit_stage_drill(
             .perform(fd, &mut root_state)
             .map_err(|error| format!("drill perform failed at {}: {error}", nodes[current].path))?;
         perform_calls += 1;
-        let drained = rugra::drillobserve::drain();
+        let drained = rudra::drillobserve::drain();
         let recs = emit_blocks(&*root, &nodes, &mut output, current, drained, &mut blocks)?;
         records += recs;
         if ret >= 0 {
@@ -8040,7 +8040,7 @@ fn emit_stage_drill(
             .copied()
             .find(|candidate| {
                 stage_state_of(&*root, &root_state, &nodes, *candidate).status
-                    == rugra::action::status_flags::STATUS_BREAKSTARTHIT
+                    == rudra::action::status_flags::STATUS_BREAKSTARTHIT
             })
             .ok_or_else(|| {
                 format!(
@@ -8058,7 +8058,7 @@ fn emit_stage_drill(
     writeln!(
         output,
         "@DONE applications={blocks} records={records} opactdbg_final={} perform_calls={perform_calls} nodes={}",
-        rugra::drillobserve::count(),
+        rudra::drillobserve::count(),
         nodes.len()
     )
     .map_err(|error| format!("unable to write drill done line: {error}"))?;
@@ -8252,20 +8252,20 @@ mod noreturn_tests {
     /// an empty table leaves the stream byte-identical.
     #[test]
     fn splice_inserts_halt_after_noreturn_call_only() {
-        use rugra::pcoderaw::{PcodeOpRaw, VarnodeRaw};
-        use rugra::space::AddressSpace;
+        use rudra::pcoderaw::{PcodeOpRaw, VarnodeRaw};
+        use rudra::space::AddressSpace;
         let mut symbols: HashMap<u64, String> = HashMap::new();
         symbols.insert(0x2b530, "exit".to_string());
         let table = known_no_return_callee_protos(&symbols);
-        let seq = rugra::address::SeqNum::new(rugra::address::Address::new(0x2b8b8), 0);
+        let seq = rudra::address::SeqNum::new(rudra::address::Address::new(0x2b8b8), 0);
         let mk_call = |target: u64| {
-            let mut op = PcodeOpRaw::new(rugra::opcodes::OpCode::CPUI_CALL as i32);
+            let mut op = PcodeOpRaw::new(rudra::opcodes::OpCode::CPUI_CALL as i32);
             op.add_input(VarnodeRaw::new(AddressSpace::Ram, target, 8));
             op.set_seq_num(seq);
             op
         };
         let mk_store = || {
-            let mut op = PcodeOpRaw::new(rugra::opcodes::OpCode::CPUI_STORE as i32);
+            let mut op = PcodeOpRaw::new(rudra::opcodes::OpCode::CPUI_STORE as i32);
             op.set_seq_num(seq);
             op
         };
@@ -8274,8 +8274,8 @@ mod noreturn_tests {
         let out = splice_known_no_return_halts(raw, &table, &mut halts);
         assert_eq!(out.len(), 4);
         assert_eq!(
-            rugra::opcodes::OpCode::from_i32(out[2].get_opcode()),
-            Some(rugra::opcodes::OpCode::CPUI_RETURN)
+            rudra::opcodes::OpCode::from_i32(out[2].get_opcode()),
+            Some(rudra::opcodes::OpCode::CPUI_RETURN)
         );
         assert_eq!(halts, [0x2b8b8u64].into_iter().collect());
         // The halt carries the const-1 input and the CALL's own seq.
@@ -8287,12 +8287,12 @@ mod noreturn_tests {
         assert_eq!(out[2].seq_num().map(|s| s.get_addr().as_u64()), Some(0x2b8b8));
         // Ordinary call untouched, store untouched.
         assert_eq!(
-            rugra::opcodes::OpCode::from_i32(out[3].get_opcode()),
-            Some(rugra::opcodes::OpCode::CPUI_CALL)
+            rudra::opcodes::OpCode::from_i32(out[3].get_opcode()),
+            Some(rudra::opcodes::OpCode::CPUI_CALL)
         );
         assert_eq!(
-            rugra::opcodes::OpCode::from_i32(out[0].get_opcode()),
-            Some(rugra::opcodes::OpCode::CPUI_STORE)
+            rudra::opcodes::OpCode::from_i32(out[0].get_opcode()),
+            Some(rudra::opcodes::OpCode::CPUI_STORE)
         );
         // Empty table: passthrough, no halt addresses.
         let raw2 = vec![mk_store(), mk_call(0x2b530)];

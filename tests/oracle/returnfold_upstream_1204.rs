@@ -27,17 +27,17 @@ use std::io::{self, Write};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::block::BlockGraph;
-use rugra::coreaction::{ActionMarkExplicit, ActionMarkImplied};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::block::BlockGraph;
+use rudra::coreaction::{ActionMarkExplicit, ActionMarkImplied};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::varnode::Varnode;
 
-type BlockRef = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type BlockRef = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
 struct Fixture {

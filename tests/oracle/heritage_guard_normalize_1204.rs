@@ -10,17 +10,17 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
-use rugra::address::Range;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::database::Database;
-use rugra::funcdata::Funcdata;
-use rugra::fspec::{FuncCallSpecs, ParamEntry, ProtoModelFull};
-use rugra::op::{pcodeop_flags, PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varmap::ScopeLocal;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::Range;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::database::Database;
+use rudra::funcdata::Funcdata;
+use rudra::fspec::{FuncCallSpecs, ParamEntry, ProtoModelFull};
+use rudra::op::{pcodeop_flags, PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varmap::ScopeLocal;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type OpRef = Arc<RwLock<PcodeOp>>;
@@ -56,8 +56,8 @@ fn make_ret8_model() -> Arc<ProtoModelFull> {
     model.name = "guardnorm_ret8".to_string();
     model.extrapop = 0;
     let output_base = match &mut model.output {
-        rugra::fspec::ParamListOutput::Standard(list) => &mut list.base,
-        rugra::fspec::ParamListOutput::Register(list) => &mut list.base.base,
+        rudra::fspec::ParamListOutput::Standard(list) => &mut list.base,
+        rudra::fspec::ParamListOutput::Register(list) => &mut list.base.base,
     };
     output_base.entry_mut().push(ParamEntry::from_storage(
         AddressSpace::Register,
@@ -74,8 +74,8 @@ fn make_ret4hi_model() -> Arc<ProtoModelFull> {
     model.name = "guardnorm_ret4hi".to_string();
     model.extrapop = 0;
     let output_base = match &mut model.output {
-        rugra::fspec::ParamListOutput::Standard(list) => &mut list.base,
-        rugra::fspec::ParamListOutput::Register(list) => &mut list.base.base,
+        rudra::fspec::ParamListOutput::Standard(list) => &mut list.base,
+        rudra::fspec::ParamListOutput::Register(list) => &mut list.base.base,
     };
     output_base.entry_mut().push(ParamEntry::from_storage(
         AddressSpace::Register,
@@ -122,7 +122,7 @@ struct Graph {
 
 impl Graph {
     fn new(name: &str, base: u64) -> Self {
-        let mut fd = Funcdata::new(name, rugra::address::Address::new(base), 0x20);
+        let mut fd = Funcdata::new(name, rudra::address::Address::new(base), 0x20);
         install_default_local_scope(&mut fd);
         Graph {
             fd,
@@ -138,7 +138,7 @@ impl Graph {
     fn make_block(&mut self, index: i32) -> BlockRef {
         let block: BlockRef = Arc::new(RwLock::new(BlockBasic::new(
             index,
-            rugra::address::Address::new(self.base),
+            rudra::address::Address::new(self.base),
         )));
         self.fd.bblocks.add_block(block.clone());
         self.blocks.push(block.clone());
@@ -150,7 +150,7 @@ impl Graph {
     }
 
     fn make_op(&mut self, name: &'static str, opcode: OpCode, inputs: usize) -> OpRef {
-        let pc = rugra::address::Address::new(self.base + self.next_offset);
+        let pc = rudra::address::Address::new(self.base + self.next_offset);
         self.next_offset += 1;
         let op = self.fd.new_op(inputs, pc);
         self.fd.op_set_opcode(&op, opcode);
@@ -384,7 +384,7 @@ impl Graph {
         self.fd
             .heritage
             .globaldisjoint
-            .find_pass(space, rugra::address::Address::new(offset))
+            .find_pass(space, rudra::address::Address::new(offset))
     }
 
     // The op immediately preceding `op` inside its block (PcodeOp::previousOp).
@@ -507,8 +507,8 @@ fn main() {
         db.set_property_range(
             varnode_flags::PERSIST,
             Range::new(
-                rugra::address::Address::new(0x1000),
-                rugra::address::Address::new(0x2000),
+                rudra::address::Address::new(0x1000),
+                rudra::address::Address::new(0x2000),
             )
             .expect("persist range"),
         );

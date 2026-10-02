@@ -9,11 +9,11 @@
   "ghidra::Address::justifiedContain(int4,const Address &,int4,bool) const address.cc:131",
   "ghidra::ParamTrial::setEntry(const ParamEntry *,int4) fspec.hh:230",
   "ghidra::ParamTrial::operator<(const ParamTrial &) const fspec.cc:1893",
-  "rugra::fspec::ParamListStandard::unjustified_container src/fspec.rs (fspec.cc:1411-1424, query space threaded explicitly)",
-  "rugra::fspec::ParamListStandardOut::fillin_map_fallback src/fspec.rs (fspec.cc:1638-1719 with both trial queries through justified_contain_in_space)",
-  "rugra::fspec::ParamEntry::justified_contain_in_space src/fspec.rs (fspec.cc:248-283 with the address.cc:133/cc:269 space guards)",
-  "rugra::fspec::ParamEntry::get_container src/fspec.rs (fspec.cc:295-319 join piece selection)",
-  "rugra::fspec::ParamTrial::set_entry src/fspec.rs (fspec.hh:230, Option<index> representation)"
+  "rudra::fspec::ParamListStandard::unjustified_container src/fspec.rs (fspec.cc:1411-1424, query space threaded explicitly)",
+  "rudra::fspec::ParamListStandardOut::fillin_map_fallback src/fspec.rs (fspec.cc:1638-1719 with both trial queries through justified_contain_in_space)",
+  "rudra::fspec::ParamEntry::justified_contain_in_space src/fspec.rs (fspec.cc:248-283 with the address.cc:133/cc:269 space guards)",
+  "rudra::fspec::ParamEntry::get_container src/fspec.rs (fspec.cc:295-319 join piece selection)",
+  "rudra::fspec::ParamTrial::set_entry src/fspec.rs (fspec.hh:230, Option<index> representation)"
  ],
  "overall_status": "UNTESTED: (B2 canonicalization)",
  "status_detail": "The seven-case covered projection byte-matches Ghidra 12.0.4: unjustifiedContainer iterates all entries with the minSize gate before justifiedContain, rejects foreign-space queries inside the walk (address.cc:133 / fspec.cc:269 / per-piece for joins), reaches join entries with the containing PIECE as container, and returns false early on just==0; fillinMapFallback's two trial queries (cc:1656 evaluate and cc:1702 best re-evaluate) are space-aware, so join output entries match register/ram trials per piece (the caller-level getSpace() guard had made them unreachable -> bestentry null -> all trials markNoUse), the best loop overwrites per-entry state, the offmatch contiguity walk, minSize coverage gate, type/cover preference and the firstOnly skip behave per cc:1638-1719. Overall remains UNTESTED because big-endian space rows are unreachable (the transitional enum AddressSpace is little-endian only, ADDRESS-0001) and the fspec.rs-level functions are exercised directly rather than through the full ParamActive recovery pipeline (ActionCopy/FuncCallSpecs closure not part of this fixture).",

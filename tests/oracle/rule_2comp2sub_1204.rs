@@ -8,16 +8,16 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::Rule2Comp2Sub;
-use rugra::space::AddressSpace;
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::Rule2Comp2Sub;
+use rudra::space::AddressSpace;
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;

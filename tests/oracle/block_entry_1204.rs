@@ -1,8 +1,8 @@
-use rugra::address::Address;
-use rugra::block::{block_flags, FlowBlock};
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::flow::follow_flow;
-use rugra::funcdata::Funcdata;
+use rudra::address::Address;
+use rudra::block::{block_flags, FlowBlock};
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::flow::follow_flow;
+use rudra::funcdata::Funcdata;
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -90,7 +90,7 @@ fn observe(image: &[u8], image_base: u64, probe: Probe) -> Result<(), Box<dyn Er
                 block.get_start_addr().as_u64() - probe.address,
                 block
                     .as_any()
-                    .downcast_ref::<rugra::block::BlockBasic>()
+                    .downcast_ref::<rudra::block::BlockBasic>()
                     .map(|basic| basic.get_stop_addr().as_u64() - probe.address)
                     .unwrap_or(0),
             )

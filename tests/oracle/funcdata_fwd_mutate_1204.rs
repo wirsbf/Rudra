@@ -7,10 +7,10 @@
 // op_dead_and_gone, init_active_output/clear_active_output, clear_dead_ops.
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
 
 fn opcode_name(opcode: OpCode) -> &'static str {
     match opcode {
@@ -36,19 +36,19 @@ fn main() {
         fd.op_set_opcode(&copy, OpCode::CPUI_COPY);
         fd.op_insert_end(&copy, &b0_dyn);
         let b0 = { copy.0.read().unwrap().flags }
-            & rugra::op::pcodeop_flags::RETURN_COPY
+            & rudra::op::pcodeop_flags::RETURN_COPY
             != 0;
         fd.mark_return_copy(&copy);
         let b1 = { copy.0.read().unwrap().flags }
-            & rugra::op::pcodeop_flags::RETURN_COPY
+            & rudra::op::pcodeop_flags::RETURN_COPY
             != 0;
         fd.op_mark_start_basic(&copy);
         let b2 = { copy.0.read().unwrap().flags }
-            & rugra::op::pcodeop_flags::STARTBASIC
+            & rudra::op::pcodeop_flags::STARTBASIC
             != 0;
         fd.op_mark_start_instruction(&copy);
         let b3 = { copy.0.read().unwrap().flags }
-            & rugra::op::pcodeop_flags::STARTMARK
+            & rudra::op::pcodeop_flags::STARTMARK
             != 0;
         println!(
             "case=mark_flags|ret_copy0={}|ret_copy1={}|block_start={}|instr_start={}",

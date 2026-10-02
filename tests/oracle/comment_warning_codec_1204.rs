@@ -4,10 +4,10 @@
 use std::error::Error;
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::comment::{comment_type, Comment, CommentDatabaseInternal};
-use rugra::marshal::{AttributeId, ElementId, Encoder, IdRegistry, TreeDecoder, TreeEncoder};
-use rugra::space::{space_flags, AddrSpace, SpaceType};
+use rudra::address::Address;
+use rudra::comment::{comment_type, Comment, CommentDatabaseInternal};
+use rudra::marshal::{AttributeId, ElementId, Encoder, IdRegistry, TreeDecoder, TreeEncoder};
+use rudra::space::{space_flags, AddrSpace, SpaceType};
 
 fn ram_space() -> AddrSpace {
     AddrSpace::new_space(
@@ -55,7 +55,7 @@ fn render_function(db: &CommentDatabaseInternal, fad: Address) {
     print!("]");
 }
 
-fn encoded_schema_ok(root: &Arc<RwLock<rugra::marshal::Element>>) -> bool {
+fn encoded_schema_ok(root: &Arc<RwLock<rudra::marshal::Element>>) -> bool {
     let root = root.read().unwrap();
     let mut saw_1000 = false;
     let mut saw_2000 = false;

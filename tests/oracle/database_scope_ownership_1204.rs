@@ -9,10 +9,10 @@
  * chain.
  */
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::database::{Database, Scope};
-use rugra::funcdata::Funcdata;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::database::{Database, Scope};
+use rudra::funcdata::Funcdata;
 
 /// Compile-time category binding for the concrete production types consumed
 /// below. A return/container value-type change fails to compile until the

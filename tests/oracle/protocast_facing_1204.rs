@@ -15,18 +15,18 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::coreaction::ActionSetCasts;
-use rugra::funcdata::Funcdata;
-use rugra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::coreaction::ActionSetCasts;
+use rudra::funcdata::Funcdata;
+use rudra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::varnode::Varnode;
 
-fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<rugra::marshal::Element>> {
-    let mut element = rugra::marshal::Element::new();
+fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<rudra::marshal::Element>> {
+    let mut element = rudra::marshal::Element::new();
     element.set_name(name);
     for (key, value) in attributes {
         element.add_attribute(key, value);
@@ -48,8 +48,8 @@ fn configure_factory() -> TypeFactory {
     }
     let organization = element("data_organization", &[]);
     organization.write().unwrap().add_child(alignment_map);
-    let registry = Arc::new(RwLock::new(rugra::marshal::IdRegistry::new()));
-    let mut organization_decoder = rugra::marshal::TreeDecoder::new(organization, registry.clone());
+    let registry = Arc::new(RwLock::new(rudra::marshal::IdRegistry::new()));
+    let mut organization_decoder = rudra::marshal::TreeDecoder::new(organization, registry.clone());
     factory.decode_data_organization(&mut organization_decoder);
 
     let core_types: &[(&str, usize, TypeMetatype, bool)] = &[
@@ -115,7 +115,7 @@ fn type_label(datatype: &Datatype) -> String {
 /// :400-416 via getTypeRepresentative).
 fn attach_own_high(vn: &Arc<RwLock<Varnode>>) {
     let mut guard = vn.write().unwrap();
-    let high = Arc::new(RwLock::new(rugra::variable::HighVariable::new(
+    let high = Arc::new(RwLock::new(rudra::variable::HighVariable::new(
         guard.get_type().expect("own-high varnode must carry a type"),
     )));
     guard.high = Some(high);
@@ -153,7 +153,7 @@ fn build_call_site(
     proto: FuncProto,
     pc: u64,
     arg: &Arc<RwLock<Varnode>>,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let op = fd.new_op(2, Address::new(pc));
     fd.op_set_opcode(&op, OpCode::CPUI_CALL);
     let owner = Arc::new(RwLock::new(FuncCallSpecs::new(Address::new(pc), proto)));
@@ -171,7 +171,7 @@ fn main() {
     let mut fd = Funcdata::new("protocast_facing", Address::new(0x500000), 0x100);
     fd.vbank.set_type_factory(factory.clone());
 
-    let strategy = rugra::type_system::cast::CastStrategyC::new(4);
+    let strategy = rudra::type_system::cast::CastStrategyC::new(4);
 
     let base = |size: usize, meta: TypeMetatype| -> Arc<Datatype> {
         factory
@@ -223,7 +223,7 @@ fn main() {
     // Part A — RETURN arm (typeop.cc:901-922 via base getInputCast).
     // ------------------------------------------------------------------
     fd.funcp.return_type = char_ptr.clone();
-    let mut ret_distinct_op: Option<rugra::op::PcodeOpRef> = None;
+    let mut ret_distinct_op: Option<rudra::op::PcodeOpRef> = None;
     let mut ret_distinct_mark: Option<Arc<RwLock<Varnode>>> = None;
     let high_type_of = |vn: &Arc<RwLock<Varnode>>| -> Arc<Datatype> {
         vn.read()

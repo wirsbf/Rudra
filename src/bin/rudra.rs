@@ -3,13 +3,13 @@ use std::fs;
 use std::collections::HashMap;
 use std::path::Path;
 
-use rugra::action::{Action, ActionDatabase};
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::funcdata::Funcdata;
-use rugra::printc::PrintC;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printlanguage::PrintLanguage;
-use rugra::address::Address;
+use rudra::action::{Action, ActionDatabase};
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::funcdata::Funcdata;
+use rudra::printc::PrintC;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printlanguage::PrintLanguage;
+use rudra::address::Address;
 
 // RUGRA-GLUE: main (no Ghidra counterpart found)
 fn main() {
@@ -186,11 +186,11 @@ fn main() {
             match prepass_sleigh.lift_instruction(addr) {
                 Ok((step, ops)) => {
                     for op in &ops {
-                        if rugra::opcodes::OpCode::from_i32(op.get_opcode())
-                            == Some(rugra::opcodes::OpCode::CPUI_CALL)
+                        if rudra::opcodes::OpCode::from_i32(op.get_opcode())
+                            == Some(rudra::opcodes::OpCode::CPUI_CALL)
                         {
                             if let Some(target_vn) = op.inputs().first() {
-                                if target_vn.space == rugra::space::AddressSpace::Ram {
+                                if target_vn.space == rudra::space::AddressSpace::Ram {
                                     call_targets.insert(target_vn.offset);
                                 }
                             }
@@ -205,7 +205,7 @@ fn main() {
         let mut fd = Funcdata::new(name, Address::new(vaddr), size as i32);
         fd.inject_raw_ops(&raw_ops);
         fd.run_heritage_direct();
-        let mut infer = rugra::coreaction::ActionInferParams::new();
+        let mut infer = rudra::coreaction::ActionInferParams::new();
         let _ = infer.apply(&mut fd);
         prototype_db.insert(vaddr, fd.funcp.num_params());
     }
@@ -231,7 +231,7 @@ fn main() {
         let mut fd = Funcdata::new(&name, Address::new(target), 512);
         fd.inject_raw_ops(&raw_ops);
         fd.run_heritage_direct();
-        let mut infer = rugra::coreaction::ActionInferParams::new();
+        let mut infer = rudra::coreaction::ActionInferParams::new();
         let _ = infer.apply(&mut fd);
         prototype_db.insert(target, fd.funcp.num_params());
     }
@@ -272,7 +272,7 @@ fn main() {
         fd.external_prototypes = prototype_db.clone();
         for (&addr, n) in &symbol_table { fd.add_symbol(addr, n.clone()); }
         for (&addr, s) in &string_table { fd.add_string(addr, s.clone()); }
-        rugra::flow::follow_flow(
+        rudra::flow::follow_flow(
             &mut fd,
             &mut lifter,
             Address::new(vaddr),

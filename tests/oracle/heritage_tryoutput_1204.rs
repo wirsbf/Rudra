@@ -24,7 +24,7 @@
 //    locked branch (fspec.cc:4339-4353). No staged tuples remain.
 //  - cc1420_constant: the exact cc:1420 call shape
 //    retAddr.justifiedContain(retSize, addr, size, false) through
-//    rugra::fspec::justified_contain_range on the caller-perspective
+//    rudra::fspec::justified_contain_range on the caller-perspective
 //    return storage in both endian routings — LE rows take the stack
 //    space's endianness exactly as src/heritage.rs does, BE rows pass true
 //    (helper-level big-endian pinning; the transitional enum space cannot
@@ -52,19 +52,19 @@
 
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::coreaction::ActionFuncLink;
-use rugra::fspec::containment;
-use rugra::fspec::{FuncCallSpecs, FuncProto, ParameterPieces};
-use rugra::funcdata::Funcdata;
-use rugra::heritage::Heritage;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::coreaction::ActionFuncLink;
+use rudra::fspec::containment;
+use rudra::fspec::{FuncCallSpecs, FuncProto, ParameterPieces};
+use rudra::funcdata::Funcdata;
+use rudra::heritage::Heritage;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
 type BlockRef = Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
-type VnRef = Arc<std::sync::RwLock<rugra::varnode::Varnode>>;
+type VnRef = Arc<std::sync::RwLock<rudra::varnode::Varnode>>;
 
 fn void_type() -> Arc<Datatype> {
     Arc::new(Datatype::Void(TypeBase::new(
@@ -144,7 +144,7 @@ const TO: [ToGeom; 6] = [
 // fspec.cc:3385). Returns the call spec index.
 fn install_locked_output(
     fd: &mut Funcdata,
-    call: &rugra::op::PcodeOpRef,
+    call: &rudra::op::PcodeOpRef,
     retsz: usize,
     storage_space: AddressSpace,
     storage_off: u64,
@@ -377,7 +377,7 @@ fn main() {
         // LE rows take the stack space's endianness exactly as the fixed
         // src/heritage.rs does, BE rows pass true.
         let amt = |be: bool| {
-            rugra::fspec::justified_contain_range(retc, g.retsz, g.addr, g.size, false, be)
+            rudra::fspec::justified_contain_range(retc, g.retsz, g.addr, g.size, false, be)
         };
         println!(
             "  sp geom={index} le={} be={}",

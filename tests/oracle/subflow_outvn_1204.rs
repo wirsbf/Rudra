@@ -15,17 +15,17 @@
 
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::subflow::SubvariableFlow;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::subflow::SubvariableFlow;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<std::sync::RwLock<Varnode>>;
-type OpRef = rugra::op::PcodeOpRef;
+type OpRef = rudra::op::PcodeOpRef;
 
 struct Graph {
     fd: Funcdata,
@@ -179,7 +179,7 @@ impl Graph {
                 desc.push(',');
             }
             first = false;
-            let op_ref = rugra::op::PcodeOpRef(op);
+            let op_ref = rudra::op::PcodeOpRef(op);
             match self.label_of(&op_ref) {
                 Some(name) => desc.push_str(name),
                 None => desc.push_str("new"),

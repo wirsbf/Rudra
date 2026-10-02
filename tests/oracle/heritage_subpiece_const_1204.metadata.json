@@ -6,10 +6,10 @@
   "ghidra::Address::justifiedContain(int4, const Address&, int4, bool) const address.cc:131",
   "ghidra::Funcdata::opSetOutput(PcodeOp*, Varnode*) funcdata_op.cc:70",
   "ghidra::Funcdata::newIndirectOp(PcodeOp*, const Address&, int4, uint4) funcdata_op.cc:681",
-  "rugra::heritage::Heritage::guard_output_overlap_stack src/heritage.rs (heritage.cc:1322-1375)",
-  "rugra::fspec::justified_contain_range src/fspec.rs (RUGRA-GLUE mirror of address.cc:131-141)",
-  "rugra::funcdata::Funcdata::op_set_output src/funcdata.rs (funcdata_op.cc:70-83)",
-  "rugra::funcdata::Funcdata::new_indirect_op src/funcdata.rs (funcdata_op.cc:681-700)"
+  "rudra::heritage::Heritage::guard_output_overlap_stack src/heritage.rs (heritage.cc:1322-1375)",
+  "rudra::fspec::justified_contain_range src/fspec.rs (RUGRA-GLUE mirror of address.cc:131-141)",
+  "rudra::funcdata::Funcdata::op_set_output src/funcdata.rs (funcdata_op.cc:70-83)",
+  "rudra::funcdata::Funcdata::new_indirect_op src/funcdata.rs (funcdata_op.cc:681-700)"
  ],
  "overall_status": "UNTESTED: (B2 canonicalization)",
  "status_detail": "The two-case covered projection byte-matches Ghidra 12.0.4: the real guardOutputOverlapStack over all five trigger geometries (front+back incl. the cc:1329 pre-existing-output branch, back-only, front-only) projecting op order, both SUBPIECE truncate constants, PIECE slots and the write entry, plus the cc:1336/cc:1358 call shapes in both endian routings. Overall remains UNTESTED because the BE-space guard routing cannot be staged through the transitional enum AddressSpace model (helper-level BE arithmetic is pinned in case 2), the guardCalls->tryOutputStackGuard production entry is not driven (the cc:1407-1430 output-contains branch is a declared conservative-false residual), and negative sizeFront/sizeBack geometries are unreachable from getBiggestContainedOutput containment.",

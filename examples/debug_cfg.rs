@@ -1,10 +1,10 @@
 use goblin::Object;
 use std::fs;
 
-use rugra::action::ActionDatabase;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::funcdata::Funcdata;
-use rugra::block::BlockGraph;
+use rudra::action::ActionDatabase;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::funcdata::Funcdata;
+use rudra::block::BlockGraph;
 
 fn dump_blocks(prefix: &str, graph: &BlockGraph) {
     println!("{} Graph: {} blocks", prefix, graph.get_size());
@@ -85,12 +85,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("-------------------");
 
-    let mut fd = Funcdata::new("main", rugra::address::Address::new(main_vaddr), main_size as i32);
+    let mut fd = Funcdata::new("main", rudra::address::Address::new(main_vaddr), main_size as i32);
     
     // Quick debug: how many branches?
     let mut num_branches = 0;
     for op in &raw_ops {
-        if op.get_opcode() == rugra::opcodes::OpCode::CPUI_CBRANCH as i32 || op.get_opcode() == rugra::opcodes::OpCode::CPUI_BRANCH as i32 {
+        if op.get_opcode() == rudra::opcodes::OpCode::CPUI_CBRANCH as i32 || op.get_opcode() == rudra::opcodes::OpCode::CPUI_BRANCH as i32 {
             num_branches += 1;
             println!("Found branch op at {:?}", op.seq_num().unwrap().get_addr());
         }

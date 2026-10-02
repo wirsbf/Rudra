@@ -1,6 +1,6 @@
-# Cargo workspace: the root `rugra` package plus the vendored SLEIGH Rust
+# Cargo workspace: the root `rudra` package plus the vendored SLEIGH Rust
 # compiler crates under crates/ (borrowed from kuna, Apache-2.0; see NOTICE).
-# The vendored crates are standalone members -- nothing in the rugra build
+# The vendored crates are standalone members -- nothing in the rudra build
 # graph depends on them; they are built on demand (for example by
 # tools/build_locked_x86_64_sla.sh via `cargo build -p kuna-slacomp`).
 [workspace]
@@ -27,19 +27,19 @@ kuna-slacomp = { path = "crates/kuna-slacomp" }
 
 # Vendored-crate clippy discipline (kuna ADR 0002: deterministic iteration
 # order -- BTreeMap/BTreeSet only). Only crates that opt in via
-# `[lints] workspace = true` are affected; the root rugra package does not
+# `[lints] workspace = true` are affected; the root rudra package does not
 # opt in. The disallow list lives in ./clippy.toml.
 [workspace.lints.clippy]
 disallowed_types = "deny"
 
 [package]
-name = "rugra"
+name = "rudra"
 version = "0.1.0"
 edition = "2021"
-authors = ["Rugra Contributors"]
+authors = ["Rudra Contributors"]
 description = "A Rust-based decompiler inspired by Ghidra for C/C++ binaries"
 license = "Apache-2.0"
-repository = "https://github.com/yourusername/rugra"
+repository = "https://github.com/wirsbf/Rudra"
 readme = "README.md"
 keywords = ["decompiler", "reverse-engineering", "binary-analysis", "disassembler"]
 categories = ["development-tools", "parser-implementations"]
@@ -106,7 +106,7 @@ ffi-test = []
 crate-type = ["rlib"]
 
 [[bin]]
-name = "rugra"
+name = "rudra"
 required-features = ["cli"]
 
 [[example]]

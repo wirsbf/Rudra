@@ -7,23 +7,23 @@
 // attempt-counting loadimage, with the rendered text and read counts
 // observed per record.
 
-use rugra::address::{Address, SeqNum};
-use rugra::database::{Database, Symbol};
-use rugra::funcdata::Funcdata;
-use rugra::loadimage::LoadImage;
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::printlanguage::PrintLanguage;
-use rugra::space::AddressSpace;
-use rugra::stringmanage::StringManager;
-use rugra::translate::{AddressResolver, AddrSpaceManager};
-use rugra::type_system::datatype::{
+use rudra::address::{Address, SeqNum};
+use rudra::database::{Database, Symbol};
+use rudra::funcdata::Funcdata;
+use rudra::loadimage::LoadImage;
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::printlanguage::PrintLanguage;
+use rudra::space::AddressSpace;
+use rudra::stringmanage::StringManager;
+use rudra::translate::{AddressResolver, AddrSpaceManager};
+use rudra::type_system::datatype::{
     Datatype, TypeBase, TypeMetatype, TypePointer, TypeSpacebase,
 };
-use rugra::variable::HighVariable;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::variable::HighVariable;
+use rudra::varnode::{varnode_flags, Varnode};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -77,7 +77,7 @@ impl LoadImage for FixtureLoader {
         &self,
         size: usize,
         addr: Address,
-    ) -> Result<Vec<u8>, rugra::loadimage::DataUnavailError> {
+    ) -> Result<Vec<u8>, rudra::loadimage::DataUnavailError> {
         *self
             .attempts
             .lock()
@@ -92,7 +92,7 @@ impl LoadImage for FixtureLoader {
                 return Ok(region.bytes[off..off + size].to_vec());
             }
         }
-        Err(rugra::loadimage::DataUnavailError(format!(
+        Err(rudra::loadimage::DataUnavailError(format!(
             "Unable to load {size} bytes at {addr:#x}"
         )))
     }
@@ -232,14 +232,14 @@ fn main() {
 
     // The Architecture-owned shared manager (fd.arch.string_manager) and the
     // symboltab readonly property map, as in the C++ fixture.
-    let mut arch = rugra::arch::Architecture::new();
+    let mut arch = rudra::arch::Architecture::new();
     arch.set_string_manager(Arc::new(RwLock::new(StringManager::new_ghidra_contract(
         loader.clone(),
         2048,
     ))));
     let mut db = Database::new(false);
     for (first, last) in [(0x2000u64, 0x21ffu64), (0x2300, 0x23ff), (0x2400, 0x2fff)] {
-        if let Some(range) = rugra::address::Range::new(Address::new(first), Address::new(last)) {
+        if let Some(range) = rudra::address::Range::new(Address::new(first), Address::new(last)) {
             db.set_property_range(varnode_flags::READONLY, range);
         }
     }

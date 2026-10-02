@@ -30,21 +30,21 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::subflow::{RuleSplitLoad, RuleSplitStore, SplitDatatype};
-use rugra::type_system::datatype::{Datatype, TypeField, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::subflow::{RuleSplitLoad, RuleSplitStore, SplitDatatype};
+use rudra::type_system::datatype::{Datatype, TypeField, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
 
 type Dt = Arc<Datatype>;
-type Vn = Arc<RwLock<rugra::varnode::Varnode>>;
-type OpArc = Arc<RwLock<rugra::op::PcodeOp>>;
-type Block = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type Vn = Arc<RwLock<rudra::varnode::Varnode>>;
+type OpArc = Arc<RwLock<rudra::op::PcodeOp>>;
+type Block = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 
 fn elem_node(name: &str, attrs: &[(&str, &str)]) -> Arc<RwLock<Element>> {
     let mut el = Element::new();
@@ -340,9 +340,9 @@ fn main() {
     let factory_arc = Arc::new(RwLock::new(factory));
     let mut arch = Architecture::new();
     arch.types = Some(factory_arc.clone());
-    arch.split_datatype_config = rugra::arch::split_datatype::OPTION_STRUCT
-        | rugra::arch::split_datatype::OPTION_ARRAY
-        | rugra::arch::split_datatype::OPTION_POINTER;
+    arch.split_datatype_config = rudra::arch::split_datatype::OPTION_STRUCT
+        | rudra::arch::split_datatype::OPTION_ARRAY
+        | rudra::arch::split_datatype::OPTION_POINTER;
     let arch_arc = Arc::new(arch);
 
     // Scratch Funcdata for the read-only get_value_datatype stubs: stub LOADs
@@ -463,7 +463,7 @@ fn main() {
                       ptr: &Vn,
                       value: &Vn,
                       block: &Block|
-     -> rugra::op::PcodeOpRef {
+     -> rudra::op::PcodeOpRef {
         let store = fd.new_op(3, Address::new(0x4000 + 0x10 * *unique_counter));
         fd.op_set_opcode(&store, OpCode::CPUI_STORE);
         let space_vn = fd.new_varnode_space(AddressSpace::Ram);
@@ -934,7 +934,7 @@ fn main() {
     // duplicateToTemp COPIes it into a unique temp before buildPointers,
     // subflow.cc:2874-2875; the projection resolves through that COPY)
     {
-        use rugra::varnode::varnode_flags;
+        use rudra::varnode::varnode_flags;
         let g = fd.vbank.create_with_space(8, AddressSpace::Ram, 0x7100);
         // addr-tied mapped global; the input flag mirrors the
         // heritage-provided read (free varnodes reject multiple

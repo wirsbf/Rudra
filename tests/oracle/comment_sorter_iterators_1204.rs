@@ -10,12 +10,12 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, BlockGraph, FlowBlock};
-use rugra::comment::{
+use rudra::address::Address;
+use rudra::block::{BlockBasic, BlockGraph, FlowBlock};
+use rudra::comment::{
     comment_type, header_type, CommentDatabaseInternal, CommentSorter,
 };
-use rugra::space::{space_flags, AddrSpace, SpaceType};
+use rudra::space::{space_flags, AddrSpace, SpaceType};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -53,7 +53,7 @@ fn main() {
     let ram = ram_space();
     let addr = |off: u64| Address::with_space(&ram, off);
     let fad = addr(0x1000);
-    let mut fd = rugra::funcdata::Funcdata::new("sorter", fad, 0x20);
+    let mut fd = rudra::funcdata::Funcdata::new("sorter", fad, 0x20);
 
     let mut graph = BlockGraph::new();
     let mk_block = |graph: &mut BlockGraph, start: u64| -> BlockRef {
@@ -96,7 +96,7 @@ fn main() {
     let idx = |bb: &BlockRef| bb.read().unwrap().get_index();
 
     let mut new_insert =
-        |fd: &mut rugra::funcdata::Funcdata, off: u64, bb: &BlockRef| -> rugra::op::PcodeOpRef {
+        |fd: &mut rudra::funcdata::Funcdata, off: u64, bb: &BlockRef| -> rudra::op::PcodeOpRef {
             let op = fd.new_op(0, addr(off));
             fd.op_insert_end(&op, bb);
             op
@@ -182,7 +182,7 @@ fn main() {
 
     // Dead op: created (in the optree) but never inserted into a block.
     {
-        let mut fd2 = rugra::funcdata::Funcdata::new("dead", addr(0x4000), 0x10);
+        let mut fd2 = rudra::funcdata::Funcdata::new("dead", addr(0x4000), 0x10);
         let _dead = fd2.new_op(0, addr(0x6000));
         let mut db2 = CommentDatabaseInternal::new();
         db2.add_comment(comment_type::WARNING, addr(0x4000), addr(0x6000), "doomed");
@@ -198,7 +198,7 @@ fn main() {
     // Op-less function: every placeable comment lands at block 0 order 0.
     {
         let fd_addr3 = addr(0x5000);
-        let mut fd3 = rugra::funcdata::Funcdata::new("noops", fd_addr3, 0x10);
+        let mut fd3 = rudra::funcdata::Funcdata::new("noops", fd_addr3, 0x10);
         let mut graph3 = BlockGraph::new();
         let bb_f: BlockRef = Arc::new(RwLock::new(BlockBasic::new(0, addr(0x5000))));
         graph3.add_block(bb_f.clone());

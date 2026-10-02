@@ -9,17 +9,17 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::SpaceType;
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::typeop::{TypeOp, TypeOpCall};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::SpaceType;
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::typeop::{TypeOp, TypeOpCall};
 
 fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<Element>> {
     let mut element = Element::new();

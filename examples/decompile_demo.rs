@@ -6,7 +6,7 @@
 //! 3. Run the ActionDatabase analysis pipeline
 //! 4. Print C output via PrintC
 
-use rugra::{
+use rudra::{
     Address,
     Funcdata,
     action::ActionDatabase,

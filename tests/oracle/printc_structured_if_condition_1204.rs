@@ -10,20 +10,20 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{
     goto_type, BlockBasic, BlockCondition, BlockGraph, BlockIf, BlockList,
     BlockType, BoolOp, FlowBlock,
 };
-use rugra::comment::CommentDatabaseInternal;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::printlanguage::PrintLanguage;
-use rugra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
+use rudra::comment::CommentDatabaseInternal;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::printlanguage::PrintLanguage;
+use rudra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 

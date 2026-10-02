@@ -6,7 +6,7 @@
 // order; each line prints `case=<name>|res=0x<16 uppercase hex>` and must
 // byte-match the C++ side.
 
-use rugra::float_emulate::FloatFormat;
+use rudra::float_emulate::FloatFormat;
 
 fn i2f(name: &str, fmt: &FloatFormat, a: u64, size_in: usize) {
     println!("case={name}|res=0x{:016X}", fmt.op_int2float(a, size_in));

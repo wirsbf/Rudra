@@ -19,12 +19,12 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varmap::{symbol_category, ScopeLocal};
-use rugra::varnode::varnode_flags;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varmap::{symbol_category, ScopeLocal};
+use rudra::varnode::varnode_flags;
 
 const BASE: u64 = 0x9000;
 
@@ -91,7 +91,7 @@ impl CaseFunc {
         offset: u64,
         size: usize,
         flags: u32,
-    ) -> Arc<std::sync::RwLock<rugra::varnode::Varnode>> {
+    ) -> Arc<std::sync::RwLock<rudra::varnode::Varnode>> {
         let vn = self
             .fd
             .vbank
@@ -108,7 +108,7 @@ impl CaseFunc {
     /// Drive the ActionNameVars local-entry judgment (coreaction.cc:2961-
     /// 2963) plus the naming loop (cc:2988-2997), then dump the scope in
     /// the shared canonical format.
-    fn run_entry(&mut self, case_name: &str, vn: &Arc<std::sync::RwLock<rugra::varnode::Varnode>>) {
+    fn run_entry(&mut self, case_name: &str, vn: &Arc<std::sync::RwLock<rudra::varnode::Varnode>>) {
         let high_arc = vn.read().unwrap().high.clone().expect("high assigned");
         let hasname = {
             let mut h = high_arc.write().unwrap();

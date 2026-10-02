@@ -9,16 +9,16 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{Action, ActionPool, ActionState, Rule};
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::{pcodeop_flags, PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleEarlyRemoval;
-use rugra::space::{AddressSpace, SPACEID_OTHER};
-use rugra::varnode::Varnode;
+use rudra::action::{Action, ActionPool, ActionState, Rule};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::{pcodeop_flags, PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleEarlyRemoval;
+use rudra::space::{AddressSpace, SPACEID_OTHER};
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type OpRef = Arc<RwLock<PcodeOp>>;

@@ -13,7 +13,7 @@
 // = 4, join = sizeof(uintm) = 4, x86-64-shaped ram/register/stack = 8,
 // overlay copies its base.
 
-use rugra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
+use rudra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
 
 fn print_raw_line(spc: &AddrSpace, off: u64) {
     println!("  {} off=0x{:x} -> {}", spc.get_name(), off, spc.print_raw(off));

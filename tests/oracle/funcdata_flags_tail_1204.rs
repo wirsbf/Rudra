@@ -14,16 +14,16 @@
 // panics (Ghidra LowlevelError) inside addDescend.
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
-use rugra::address::{Address, Range};
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::database::Database;
-use rugra::funcdata::Funcdata;
-use rugra::op::{pcodeop_flags, PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varmap::ScopeLocal;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::{Address, Range};
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::database::Database;
+use rudra::funcdata::Funcdata;
+use rudra::op::{pcodeop_flags, PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varmap::ScopeLocal;
+use rudra::varnode::{varnode_flags, Varnode};
 
 fn read_op(op: &PcodeOpRef) -> RwLockReadGuard<'_, PcodeOp> {
     op.0.read().unwrap_or_else(|poisoned| poisoned.into_inner())

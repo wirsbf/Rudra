@@ -11,13 +11,13 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{
+use rudra::address::Address;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{
     metatype2typeclass, string2typeclass, Datatype, TypeClass, TypeField, TypeMetatype,
 };
-use rugra::type_system::typefactory::TypeFactory;
+use rudra::type_system::typefactory::TypeFactory;
 
 fn field(name: &str, offset: usize, dt: Arc<Datatype>) -> TypeField {
     TypeField {
@@ -35,7 +35,7 @@ fn decode_type_xml(factory: &mut TypeFactory, xml: &str) -> Result<Arc<Datatype>
 
 // --- minimal XML parser (the typefactory_needsres_1204.rs helper) ---
 
-use rugra::marshal::IdRegistry as Registry;
+use rudra::marshal::IdRegistry as Registry;
 
 struct ParsedXml {
     root: Arc<RwLock<Element>>,
@@ -444,14 +444,14 @@ fn main() {
     // --- flags: the setFields flags mask (type.cc:3487-3488/3508-3509) ---
     {
         factory.create_struct("fixture_recp_mask_s");
-        let mask = rugra::type_system::datatype::type_flags::OPAQUE_STRUCT
-            | rugra::type_system::datatype::type_flags::VARLENGTH;
+        let mask = rudra::type_system::datatype::type_flags::OPAQUE_STRUCT
+            | rudra::type_system::datatype::type_flags::VARLENGTH;
         let st = factory
             .set_fields_flags("fixture_recp_mask_s", vec![field("x", 0, int8.clone())], 8, 8, mask)
             .expect("masked struct completes");
         println!(
             "flags.struct.opaque={}",
-            ((st.get_flags() & rugra::type_system::datatype::type_flags::OPAQUE_STRUCT) != 0)
+            ((st.get_flags() & rudra::type_system::datatype::type_flags::OPAQUE_STRUCT) != 0)
                 as u8
         );
         println!("flags.struct.varlen={}", st.is_variable_length() as u8);
@@ -467,7 +467,7 @@ fn main() {
             .expect("masked union completes");
         println!(
             "flags.union.opaque={}",
-            ((ut.get_flags() & rugra::type_system::datatype::type_flags::OPAQUE_STRUCT) != 0)
+            ((ut.get_flags() & rudra::type_system::datatype::type_flags::OPAQUE_STRUCT) != 0)
                 as u8
         );
         println!("flags.union.varlen={}", ut.is_variable_length() as u8);

@@ -21,16 +21,16 @@ use std::io::{self, Write};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{Action, Rule};
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::coreaction::ActionConditionalConst;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RulePropagateCopy;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::{Action, Rule};
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::coreaction::ActionConditionalConst;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RulePropagateCopy;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;
@@ -176,7 +176,7 @@ impl Fixture {
     }
 
     fn is_return_copy(op: &PcodeOpRef) -> bool {
-        (op.0.read().unwrap().flags & rugra::op::pcodeop_flags::RETURN_COPY) != 0
+        (op.0.read().unwrap().flags & rudra::op::pcodeop_flags::RETURN_COPY) != 0
     }
 
     /// Per-RETURN projection: slot-1 descriptor, the feeding COPY's
@@ -209,7 +209,7 @@ impl Fixture {
                     .map(|o| vname(o))
                     .unwrap_or_else(|| "-".into());
                 let copy_retflag =
-                    u8::from((d_r.flags & rugra::op::pcodeop_flags::RETURN_COPY) != 0);
+                    u8::from((d_r.flags & rudra::op::pcodeop_flags::RETURN_COPY) != 0);
                 drop(d_r);
                 line.push_str(&format!(
                     "|copy_pc=0x{copy_pc:x}|copy_retflag={copy_retflag}|copy_in0={copy_in0}|copy_out={copy_out}"

@@ -1,8 +1,8 @@
-use rugra::arch::Architecture;
-use rugra::fspec::{EffectRecord, ParamListStandard, VarnodeData};
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::sleigh_ffi::{set_sla_path, SleighCtx};
-use rugra::space::AddressSpace;
+use rudra::arch::Architecture;
+use rudra::fspec::{EffectRecord, ParamListStandard, VarnodeData};
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::sleigh_ffi::{set_sla_path, SleighCtx};
+use rudra::space::AddressSpace;
 
 use std::collections::BTreeMap;
 use std::env;
@@ -282,7 +282,7 @@ fn space_name(space: AddressSpace) -> &'static str {
     }
 }
 
-fn write_ranges(output: &mut String, ranges: &rugra::address::RangeList, space: AddressSpace) {
+fn write_ranges(output: &mut String, ranges: &rudra::address::RangeList, space: AddressSpace) {
     output.push('[');
     for (index, range) in ranges.ranges().iter().enumerate() {
         if index != 0 {
@@ -409,7 +409,7 @@ fn run() -> Result<String, String> {
         true,
         &resolver,
     )?;
-    let mut default_stack_ranges = rugra::address::RangeList::new();
+    let mut default_stack_ranges = rudra::address::RangeList::new();
     default_params.get_range_list(AddressSpace::Stack, &mut default_stack_ranges);
 
     let msabi_params = decode_params(
@@ -418,7 +418,7 @@ fn run() -> Result<String, String> {
         true,
         &resolver,
     )?;
-    let mut msabi_stack_ranges = rugra::address::RangeList::new();
+    let mut msabi_stack_ranges = rudra::address::RangeList::new();
     msabi_params.get_range_list(AddressSpace::Stack, &mut msabi_stack_ranges);
 
     let flipped_xml =
@@ -431,7 +431,7 @@ fn run() -> Result<String, String> {
         false,
         &resolver,
     )?;
-    let mut flipped_ranges = rugra::address::RangeList::new();
+    let mut flipped_ranges = rudra::address::RangeList::new();
     flipped_params.get_range_list(AddressSpace::Stack, &mut flipped_ranges);
 
     let wrapper_children = default_wrapper

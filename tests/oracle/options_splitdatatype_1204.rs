@@ -28,9 +28,9 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::arch::Architecture;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::options::{split_action_toggles, ArchOption, OptionDatabase, OptionSplitDatatypes};
+use rudra::arch::Architecture;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::options::{split_action_toggles, ArchOption, OptionDatabase, OptionSplitDatatypes};
 
 /// Group-membership state of the current root Action, mirroring what
 /// Ghidra's allacts holds for the "decompile" group list.
@@ -50,7 +50,7 @@ fn emit_groups(groups: GroupState, prefix: &str) {
 }
 
 fn emit_bit(token: &str) {
-    match rugra::options::get_option_bit(token) {
+    match rudra::options::get_option_bit(token) {
         Ok(bit) => println!("bit.{token}.value={bit}"),
         Err(msg) => println!("bit.{token}.error=LowlevelError: {msg}"),
     }

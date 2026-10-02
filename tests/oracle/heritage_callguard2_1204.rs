@@ -18,18 +18,18 @@
 
 use std::sync::Arc;
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::coreaction::ActionHeritage;
-use rugra::fspec::{
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::coreaction::ActionHeritage;
+use rudra::fspec::{
     EffectRecord, EffectType, FuncCallSpecs, ParamEntry, ParamListOutput, ProtoModelFull,
 };
-use rugra::funcdata::Funcdata;
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::funcdata::Funcdata;
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<std::sync::RwLock<Varnode>>;
@@ -228,9 +228,9 @@ impl Graph {
         let op = self.make_op(name, OpCode::CPUI_CALL, 1);
         let target = self.fd.new_constant(8, 0x4000);
         self.fd
-            .op_set_input(&rugra::op::PcodeOpRef(op.clone()), target, 0);
+            .op_set_input(&rudra::op::PcodeOpRef(op.clone()), target, 0);
         self.fd
-            .op_insert_end(&rugra::op::PcodeOpRef(op.clone()), block);
+            .op_insert_end(&rudra::op::PcodeOpRef(op.clone()), block);
         op
     }
 
@@ -249,12 +249,12 @@ impl Graph {
 
     fn set_input(&mut self, op: &OpRef, vn: &VnRef, slot: usize) {
         self.fd
-            .op_set_input(&rugra::op::PcodeOpRef(op.clone()), vn.clone(), slot);
+            .op_set_input(&rudra::op::PcodeOpRef(op.clone()), vn.clone(), slot);
     }
 
     fn insert_end(&mut self, op: &OpRef, block: &BlockRef) {
         self.fd
-            .op_insert_end(&rugra::op::PcodeOpRef(op.clone()), block);
+            .op_insert_end(&rudra::op::PcodeOpRef(op.clone()), block);
     }
 
     fn seed_register_range(&mut self, offset: u64, size: i32, block: &BlockRef) {
@@ -267,7 +267,7 @@ impl Graph {
                 .vbank
                 .create_with_space(size as usize, AddressSpace::Register, offset);
             self.fd
-                .op_set_output(&rugra::op::PcodeOpRef(def.clone()), vn);
+                .op_set_output(&rudra::op::PcodeOpRef(def.clone()), vn);
             self.insert_end(&def, block);
         } else {
             let freevn =
@@ -292,7 +292,7 @@ impl Graph {
                 .vbank
                 .create_with_space(size as usize, AddressSpace::Stack, offset);
             self.fd
-                .op_set_output(&rugra::op::PcodeOpRef(def.clone()), vn);
+                .op_set_output(&rudra::op::PcodeOpRef(def.clone()), vn);
             self.insert_end(&def, block);
         } else {
             let freevn =
@@ -314,7 +314,7 @@ impl Graph {
         self.fd.heritage.build_info_list();
     }
 
-    fn op_alias_name(&self, op: &Option<rugra::op::PcodeOpRef>) -> &str {
+    fn op_alias_name(&self, op: &Option<rudra::op::PcodeOpRef>) -> &str {
         match op {
             None => "none",
             Some(target) => {

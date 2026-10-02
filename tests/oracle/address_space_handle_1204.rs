@@ -5,8 +5,8 @@
 // over the architecture-owned SpaceRegistry; every observation is printed
 // in the shared line format and must match the C++ output byte for byte.
 
-use rugra::address::{RangeProperties, SpaceAddress, SpaceRange, SpaceRangeList};
-use rugra::space::{space_flags, AddrSpace, SpaceRegistry, SpaceType};
+use rudra::address::{RangeProperties, SpaceAddress, SpaceRange, SpaceRangeList};
+use rudra::space::{space_flags, AddrSpace, SpaceRegistry, SpaceType};
 
 fn hex_u64(v: u64) -> String {
     format!("0x{:x}", v)

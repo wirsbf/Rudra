@@ -1,14 +1,14 @@
 //! TRANSFORM-MULTIEQUAL-INSERT-0001 Rugra comparand.
 
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::pcodeop_flags;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::transform::TransformManager;
-use rugra::varnode::varnode_flags;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::pcodeop_flags;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::transform::TransformManager;
+use rudra::varnode::varnode_flags;
+use rudra::varnode::Varnode;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::{Arc, RwLock};

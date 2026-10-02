@@ -25,8 +25,8 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::block::{
     set_default_switch_mirrored, BlockBasic, BlockCopy, BlockGraph, BlockList, BlockMultiGoto,
     BlockSwitch, BlockWhileDo, BlockGoto, BlockType, FlowBlock, block_flags, edge_flags,
 };
@@ -170,7 +170,7 @@ impl Graph {
 
         {
             let mut collapse =
-                rugra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
+                rudra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
             collapse.collapse_all();
         }
         self.graph.scope_break(-1, -1);
@@ -229,7 +229,7 @@ impl Graph {
         self.graph.structure_loops(&mut rootlist);
 
         let mut collapse =
-            rugra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
+            rudra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
         collapse.collapse_all();
 
         // ActionFinalStructure tail (blockaction.cc:2193).
@@ -275,7 +275,7 @@ impl Graph {
         // Peel 1 (fresh wrap, cc:1733-1751): non-default edge s->t1 (slot 1).
         {
             let mut collapse =
-                rugra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
+                rudra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
             collapse.new_block_multigoto(s_slot, 1);
         }
         let mg = self.graph.get_block(s_slot).expect("multigoto installed at slot");
@@ -308,7 +308,7 @@ impl Graph {
         let dslot = dslot.expect("default edge still present");
         {
             let mut collapse =
-                rugra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
+                rudra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
             collapse.new_block_multigoto(s_slot, dslot);
         }
         let mg2 = self.graph.get_block(s_slot).unwrap();
@@ -365,7 +365,7 @@ impl Graph {
         let s_slot = 1usize;
         {
             let mut collapse =
-                rugra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
+                rudra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
             collapse.new_block_multigoto(s_slot, 1);
         }
         let mg = self.graph.get_block(s_slot).expect("multigoto installed at slot").clone();
@@ -379,7 +379,7 @@ impl Graph {
             goto_target: None,
             target_dyn: Some(e.clone()),
             wrapped: Some(t.clone()),
-            goto_type: rugra::block::goto_type::GOTO_GOTO,
+            goto_type: rudra::block::goto_type::GOTO_GOTO,
             prints_precomputed: false,
             incoming: Vec::new(),
             outgoing: Vec::new(),
@@ -512,7 +512,7 @@ impl Graph {
         // Production peel over the head copy, outedge 2 (→c[3]).
         {
             let mut collapse =
-                rugra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
+                rudra::blockaction::CollapseStructure::new(&mut self.graph, case_name);
             collapse.new_block_multigoto(0, 2);
         }
         let mg = self.graph.get_block(0).expect("multigoto installed at slot").clone();
@@ -525,7 +525,7 @@ impl Graph {
             control: mg.clone(),
             cases: vec![c[1].clone(), c[2].clone(), c[3].clone()],
             default_case: None,
-            case_gototypes: vec![0, 0, rugra::block::goto_type::GOTO_GOTO],
+            case_gototypes: vec![0, 0, rudra::block::goto_type::GOTO_GOTO],
             default_gototype: 0,
             // Pre-label bystander defaults (same as printc_switch_emit_1204
             // and the goto_prints fixture): the oracle fixture's hollow
@@ -601,7 +601,7 @@ fn collect_switches(bl: &BlockRef, out: &mut Vec<BlockRef>, depth: usize) {
     if bl.read().unwrap().get_type() == BlockType::Switch {
         out.push(bl.clone());
     }
-    for child in rugra::block::BlockGraph::component_list_dyn(bl) {
+    for child in rudra::block::BlockGraph::component_list_dyn(bl) {
         collect_switches(&child, out, depth + 1);
     }
 }
@@ -619,7 +619,7 @@ fn collect_multigotos(bl: &BlockRef, out: &mut Vec<BlockRef>, depth: usize) {
     if bl.read().unwrap().get_type() == BlockType::MultiGoto {
         out.push(bl.clone());
     }
-    for child in rugra::block::BlockGraph::component_list_dyn(bl) {
+    for child in rudra::block::BlockGraph::component_list_dyn(bl) {
         collect_multigotos(&child, out, depth + 1);
     }
 }
@@ -630,7 +630,7 @@ fn collect_gotos(bl: &BlockRef, out: &mut Vec<BlockRef>) {
     if bl.read().unwrap().get_type() == BlockType::Goto {
         out.push(bl.clone());
     }
-    for child in rugra::block::BlockGraph::component_list_dyn(bl) {
+    for child in rudra::block::BlockGraph::component_list_dyn(bl) {
         collect_gotos(&child, out);
     }
 }

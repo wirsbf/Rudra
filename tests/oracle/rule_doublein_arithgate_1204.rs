@@ -11,22 +11,22 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::double_precis::RuleDoubleIn;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::double_precis::RuleDoubleIn;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
 struct CaseIr {
-    whole_def: rugra::op::PcodeOpRef,
+    whole_def: rudra::op::PcodeOpRef,
     whole: VarnodeRef,
-    hi_sub: rugra::op::PcodeOpRef,
+    hi_sub: rudra::op::PcodeOpRef,
     hi: VarnodeRef,
-    lo_sub: rugra::op::PcodeOpRef,
+    lo_sub: rudra::op::PcodeOpRef,
     lo: VarnodeRef,
 }
 
@@ -36,16 +36,16 @@ struct CaseIr {
 fn build_case(fd: &mut Funcdata, shape: &str) -> CaseIr {
     let block = fd.create_new_block();
 
-    let a = fd.vbank.create_with_space(2, rugra::space::AddressSpace::Register, 0x40);
+    let a = fd.vbank.create_with_space(2, rudra::space::AddressSpace::Register, 0x40);
     let a = fd.set_input_varnode(a);
-    let b = fd.vbank.create_with_space(2, rugra::space::AddressSpace::Register, 0x50);
+    let b = fd.vbank.create_with_space(2, rudra::space::AddressSpace::Register, 0x50);
     let b = fd.set_input_varnode(b);
 
     let whole_def = match shape {
         "int_zext_whole" => {
             // ZEXT reads a 1-byte input; give the case its own 1-byte input.
             let a1 =
-                fd.vbank.create_with_space(1, rugra::space::AddressSpace::Register, 0x60);
+                fd.vbank.create_with_space(1, rudra::space::AddressSpace::Register, 0x60);
             let a1 = fd.set_input_varnode(a1);
             let op = fd.new_op(1, Address::new(0x2000));
             fd.op_set_opcode(&op, OpCode::CPUI_INT_ZEXT);
@@ -124,7 +124,7 @@ fn run_case(type_factory: &Arc<RwLock<TypeFactory>>, case_name: &str, shape: &st
     // The rule target is the hi SUBPIECE (offset==vn size) except the
     // offset_mismatch case, which aims the rule at the lo SUBPIECE.
     let aim_lo = case_name == "offset_mismatch";
-    let target: &rugra::op::PcodeOpRef = if aim_lo { &ir.lo_sub } else { &ir.hi_sub };
+    let target: &rudra::op::PcodeOpRef = if aim_lo { &ir.lo_sub } else { &ir.hi_sub };
     let target_out: &VarnodeRef = if aim_lo { &ir.lo } else { &ir.hi };
     let sibling_out: &VarnodeRef = if aim_lo { &ir.hi } else { &ir.lo };
     let result = RuleDoubleIn::new()

@@ -4,14 +4,14 @@
 //! Only the synthetic Rule supplies its own virtual clone, exactly like a
 //! concrete Ghidra Rule; no hand-written expected output is embedded.
 
-use rugra::action::{
+use rudra::action::{
     action_flags, status_flags, Action, ActionDatabase, ActionGroupList, ActionPool, ActionState,
     Rule,
 };
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::Result;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::Result;
 use std::sync::{Arc, RwLock};
 
 struct ScriptRule {

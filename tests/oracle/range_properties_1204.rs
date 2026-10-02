@@ -1,5 +1,5 @@
-use rugra::address::RangeProperties;
-use rugra::marshal::{AttributeId, Decoder, Element, ElementId, IdRegistry, TreeDecoder};
+use rudra::address::RangeProperties;
+use rudra::marshal::{AttributeId, Decoder, Element, ElementId, IdRegistry, TreeDecoder};
 use std::sync::{Arc, RwLock};
 
 const ELEM_RANGE: u32 = 12;

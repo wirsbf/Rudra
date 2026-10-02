@@ -3,14 +3,14 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{Action, ActionPool, Rule};
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
+use rudra::action::{Action, ActionPool, Rule};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
 
 #[derive(Default)]
 struct ProbeState {
@@ -53,7 +53,7 @@ impl Rule for ScriptRule {
         &self,
         op: &Arc<RwLock<PcodeOp>>,
         fd: &mut Funcdata,
-    ) -> rugra::Result<i32> {
+    ) -> rudra::Result<i32> {
         {
             let mut state = self.state.borrow_mut();
             state.trace.push(self.name.clone());

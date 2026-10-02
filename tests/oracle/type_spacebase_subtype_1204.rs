@@ -5,13 +5,13 @@
 //! end boundary) and the `TypePointer::isPtrsubMatching` SPACEBASE gate
 //! (`pointer_is_ptrsub_matching`, type.cc:1123-1137).
 
-use rugra::address::RangeList;
-use rugra::database::{symbol_flags, Scope, Symbol, SymbolEntry};
-use rugra::type_system::datatype::{
+use rudra::address::RangeList;
+use rudra::database::{symbol_flags, Scope, Symbol, SymbolEntry};
+use rudra::type_system::datatype::{
     pointer_is_ptrsub_matching, Datatype, TypeBase, TypeField, TypeMetatype, TypePointer,
     TypeSpacebase, TypeStruct,
 };
-use rugra::{Address, AddressSpace};
+use rudra::{Address, AddressSpace};
 use std::sync::{Arc, RwLock};
 
 fn describe_sub_type(sub_type: Option<&Arc<Datatype>>, newoff: i64) -> String {

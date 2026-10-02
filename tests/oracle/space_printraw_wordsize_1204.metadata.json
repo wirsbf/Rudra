@@ -13,7 +13,7 @@
  "architecture": "locked synthetic LE 64-bit fixture architecture: const=0, OTHER=1, unique=2, ram=3, register=4, stack=5, join=6, iop=7 (x86-64-shaped ram/register/stack sizes); printRaw wordsize cases use synthetic IPTR_PROCESSOR spaces with addrsize 2/4/8 and wordsize 1/2/4",
  "compiler_spec": "none: AddrSpace::printRaw / getAddrSize are pure space methods; no Funcdata, P-code, or cspec input",
  "analysis_options": {
-  "api": "Direct AddrSpace::printRaw / rugra::space::AddrSpace::print_raw and getAddrSize / get_addr_size + flat-enum addr_size/word_size invocation; no ActionGroup or other Action runs",
+  "api": "Direct AddrSpace::printRaw / rudra::space::AddrSpace::print_raw and getAddrSize / get_addr_size + flat-enum addr_size/word_size invocation; no ActionGroup or other Action runs",
   "debug_macros": "OPACTION_DEBUG and CPUI_DEBUG are absent",
   "error_injection": "none",
   "normalization": "No Ghidra/Rugra behavior difference is normalized or removed. Both sides print the raw byte offset unpadded lowercase hex; the printRaw result string is embedded verbatim (including setw zero-fill and the +cut suffix).",

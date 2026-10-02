@@ -12,19 +12,19 @@
 //! user-defined p-code ops), then the real `generate_ops`/`generate_blocks`
 //! and the identical stdout projections.
 
-use rugra::address::Address;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::flow::FlowInfo;
-use rugra::funcdata::Funcdata;
-use rugra::op::pcodeop_flags;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
+use rudra::address::Address;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::flow::FlowInfo;
+use rudra::funcdata::Funcdata;
+use rudra::op::pcodeop_flags;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
 use std::env;
 use std::error::Error;
 use std::fs;
 use std::sync::{Arc, RwLock};
 
-type DynBlock = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type DynBlock = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 
 /// `inject_cpuid` runs the REAL production path: the x86-64 SLEIGH engine
 /// emits CALLOTHER(44) for the `cpuid` instruction, so the fixup registered
@@ -102,7 +102,7 @@ fn space_name(space: AddressSpace) -> &'static str {
 }
 
 fn varnode_token(
-    vn: Option<&std::sync::Arc<RwLock<rugra::varnode::Varnode>>>,
+    vn: Option<&std::sync::Arc<RwLock<rudra::varnode::Varnode>>>,
     space_ref: bool,
 ) -> String {
     match vn {
@@ -124,15 +124,15 @@ fn varnode_token(
     }
 }
 
-fn language_ready_injectlib() -> Arc<RwLock<rugra::pcodeinject::PcodeInjectLibrary>> {
-    use rugra::pcodeparse::{PredefinedJumpSymbols, SleighSymbolLookup};
+fn language_ready_injectlib() -> Arc<RwLock<rudra::pcodeinject::PcodeInjectLibrary>> {
+    use rudra::pcodeparse::{PredefinedJumpSymbols, SleighSymbolLookup};
     struct EmptyHost;
     impl SleighSymbolLookup for EmptyHost {
-        fn find_symbol(&self, _name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
+        fn find_symbol(&self, _name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
             None
         }
     }
-    let mut lib = rugra::pcodeinject::PcodeInjectLibrary::new(0x200);
+    let mut lib = rudra::pcodeinject::PcodeInjectLibrary::new(0x200);
     lib.set_sleigh_lookup(Arc::new(PredefinedJumpSymbols::new(EmptyHost)));
     Arc::new(RwLock::new(lib))
 }
@@ -144,7 +144,7 @@ fn construct_callother(
     fd: &mut Funcdata,
     address: u64,
     userop_index: i32,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let callother = fd.obank.create(OpCode::CPUI_CALLOTHER, 2, Address::new(address));
     let index_vn = fd.vbank.create_constant(4, userop_index as u64);
     fd.op_set_input(&callother, index_vn, 0);
@@ -177,10 +177,10 @@ fn observe(
         &["in0".to_string()],
         snippet,
     )?;
-    let mut userops = rugra::userop::UserOpManage::new();
-    let descriptor = rugra::userop::UserPcodeOp::new(
+    let mut userops = rudra::userop::UserOpManage::new();
+    let descriptor = rudra::userop::UserPcodeOp::new(
         opname.to_string(),
-        rugra::userop::UserOpType::Injected,
+        rudra::userop::UserOpType::Injected,
         userop_index,
     );
     userops.register_user_op(descriptor).expect("index free");
@@ -188,7 +188,7 @@ fn observe(
         .get_op_mut(userop_index)
         .expect("just registered")
         .inject_id = injectid;
-    let mut arch = rugra::arch::Architecture::new();
+    let mut arch = rudra::arch::Architecture::new();
     arch.userops = Some(Arc::new(RwLock::new(userops)));
     arch.pcodeinjectlib = Some(inject_lib);
 
@@ -201,7 +201,7 @@ fn observe(
         // Production path: no seeding; follow_flow lifts the `cpuid`
         // instruction (whose p-code contains CALLOTHER(44)) and the
         // CALLOTHER arm queues + expands the fixup on its own.
-        rugra::flow::follow_flow(&mut fd, &mut lifter, Address::new(address), u64::MAX);
+        rudra::flow::follow_flow(&mut fd, &mut lifter, Address::new(address), u64::MAX);
         None
     } else {
         Some(construct_callother(&mut fd, address, userop_index))
@@ -244,7 +244,7 @@ fn observe(
                 block.get_start_addr().as_u64(),
                 block
                     .as_any()
-                    .downcast_ref::<rugra::block::BlockBasic>()
+                    .downcast_ref::<rudra::block::BlockBasic>()
                     .map(|basic| basic.get_stop_addr().as_u64())
                     .unwrap_or(0),
             )
@@ -261,7 +261,7 @@ fn observe(
     }
 
     let base = address;
-    let operations: Vec<&rugra::op::PcodeOpRef> = fd.obank.optree.iter().collect();
+    let operations: Vec<&rudra::op::PcodeOpRef> = fd.obank.optree.iter().collect();
     println!("ops={}", operations.len());
     for (index, op_ref) in operations.iter().enumerate() {
         let op = op_ref.0.read().expect("op read lock");

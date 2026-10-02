@@ -17,11 +17,11 @@
 //    contiguity walk, minSize coverage gate, type/cover preference,
 //    and the firstOnly skip (cc:1649-1652) are exercised.
 
-use rugra::address::Address;
-use rugra::fspec::param_entry_flags;
-use rugra::fspec::{ParamActive, ParamEntry, ParamListStandard,
+use rudra::address::Address;
+use rudra::fspec::param_entry_flags;
+use rudra::fspec::{ParamActive, ParamEntry, ParamListStandard,
                    ParamListStandardOut, TypeClass, VarnodeData};
-use rugra::space::AddressSpace;
+use rudra::space::AddressSpace;
 
 // staged-loader entry builder (the pub equivalent of the C++ fixture's
 // direct field writes; same pattern as the fspec_possibleparam_1204

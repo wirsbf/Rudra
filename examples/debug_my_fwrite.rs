@@ -5,16 +5,16 @@ use goblin::Object;
 use std::collections::HashMap;
 use std::fs;
 
-use rugra::action::{Action, ActionDatabase};
-use rugra::address::Address;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::printc::PrintC;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printlanguage::PrintLanguage;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::{Action, ActionDatabase};
+use rudra::address::Address;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::printc::PrintC;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printlanguage::PrintLanguage;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 const TARGET_ADDR: u64 = 0x3460; // my_fwrite
 

@@ -12,20 +12,20 @@
 //! and register table come from the same locked x86-64-gcc `.cspec`/`.sla`
 //! bytes; the DWARF cases use the locked curl fixture binary.
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::{Architecture, SpecQuery};
-use rugra::comment::CommentDatabaseInternal;
-use rugra::coreaction::ActionPrototypeWarnings;
-use rugra::debugproto::{DebugPrototypeDatabase, LibcSignatureTable};
-use rugra::fspec::{FuncProto, VarnodeData};
-use rugra::funcdata::Funcdata;
-use rugra::marshal::DocumentStorage;
-use rugra::pcodeinject::PcodeInjectLibrary;
-use rugra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
-use rugra::sleigh_ffi::{set_sla_path, SleighCtx};
-use rugra::space::AddressSpace;
-use rugra::userop::{UserOpManage, UserOpType};
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::{Architecture, SpecQuery};
+use rudra::comment::CommentDatabaseInternal;
+use rudra::coreaction::ActionPrototypeWarnings;
+use rudra::debugproto::{DebugPrototypeDatabase, LibcSignatureTable};
+use rudra::fspec::{FuncProto, VarnodeData};
+use rudra::funcdata::Funcdata;
+use rudra::marshal::DocumentStorage;
+use rudra::pcodeinject::PcodeInjectLibrary;
+use rudra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
+use rudra::sleigh_ffi::{set_sla_path, SleighCtx};
+use rudra::space::AddressSpace;
+use rudra::userop::{UserOpManage, UserOpType};
 
 use std::collections::BTreeMap;
 use std::env;
@@ -73,7 +73,7 @@ impl SleighSymbolLookup for Host {
     fn find_symbol(&self, name: &str) -> Option<SleighSymbol> {
         self.registers.get(name).map(|data| SleighSymbol {
             name: name.to_string(),
-            kind: SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: data.space,
                 offset: data.offset,
                 size: data.size.max(0) as usize,

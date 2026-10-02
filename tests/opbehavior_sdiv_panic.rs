@@ -61,8 +61,8 @@
 #[test]
 #[should_panic(expected = "attempt to divide with overflow")]
 fn sdiv_int64_min_over_minus_one_panics() {
-    let _ = rugra::opbehavior::evaluate_binary(
-        rugra::opcodes::OpCode::CPUI_INT_SDIV,
+    let _ = rudra::opbehavior::evaluate_binary(
+        rudra::opcodes::OpCode::CPUI_INT_SDIV,
         8,
         8,
         0x8000_0000_0000_0000,
@@ -76,8 +76,8 @@ fn sdiv_int64_min_over_minus_one_panics() {
 #[test]
 #[should_panic(expected = "attempt to calculate the remainder with overflow")]
 fn srem_int64_min_rem_minus_one_panics() {
-    let _ = rugra::opbehavior::evaluate_binary(
-        rugra::opcodes::OpCode::CPUI_INT_SREM,
+    let _ = rudra::opbehavior::evaluate_binary(
+        rudra::opcodes::OpCode::CPUI_INT_SREM,
         8,
         8,
         0x8000_0000_0000_0000,

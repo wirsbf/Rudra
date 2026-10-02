@@ -54,16 +54,16 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{
     BlockBasic, BlockCopy, BlockGraph, BlockSwitch, BlockType, BlockWhileDo, FlowBlock,
 };
-use rugra::blockaction::CollapseStructure;
-use rugra::funcdata::Funcdata;
-use rugra::jumptable::JumpTable;
-use rugra::op::pcodeop_flags;
-use rugra::opcodes::OpCode;
+use rudra::blockaction::CollapseStructure;
+use rudra::funcdata::Funcdata;
+use rudra::jumptable::JumpTable;
+use rudra::op::pcodeop_flags;
+use rudra::opcodes::OpCode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -95,7 +95,7 @@ fn op_name(opc: OpCode) -> &'static str {
     }
 }
 
-fn op_not_printed(op: &rugra::op::PcodeOpRef) -> u32 {
+fn op_not_printed(op: &rudra::op::PcodeOpRef) -> u32 {
     let o = op.0.read().unwrap();
     let mask = pcodeop_flags::MARKER | pcodeop_flags::NONPRINTING
         | pcodeop_flags::NORETURN;
@@ -140,7 +140,7 @@ fn collect_tree_lines(bl: &BlockRef, lines: &mut Vec<String>) {
     match ty {
         BlockType::WhileDo => {
             let wd = any.downcast_ref::<BlockWhileDo>().unwrap();
-            let fmt = |o: &Option<rugra::op::PcodeOpRef>| -> String {
+            let fmt = |o: &Option<rudra::op::PcodeOpRef>| -> String {
                 o.as_ref()
                     .map(|x| op_name(x.0.read().unwrap().opcode).to_string())
                     .unwrap_or_else(|| "-".to_string())
@@ -362,10 +362,10 @@ fn main() {
     }
 
     // ActionStructureTransform (blockaction.cc:2109-2115).
-    rugra::block::for_loop_final_transform(&mut fd);
+    rudra::block::for_loop_final_transform(&mut fd);
     // ActionFinalStructure head (blockaction.cc:2185-2192).
     fd.sblocks.order_blocks();
-    rugra::block::BlockGraph::finalize_printing_graph(&mut fd);
+    rudra::block::BlockGraph::finalize_printing_graph(&mut fd);
 
     // ---- Observation (identical format to the .cc) ----
     let mut lines: Vec<String> = Vec::new();

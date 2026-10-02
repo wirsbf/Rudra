@@ -6,13 +6,13 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::condexe::{ConditionalExecution, RuleOrPredicate};
-use rugra::funcdata::Funcdata;
-use rugra::op::pcodeop_flags::BOOLEAN_FLIP;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::condexe::{ConditionalExecution, RuleOrPredicate};
+use rudra::funcdata::Funcdata;
+use rudra::op::pcodeop_flags::BOOLEAN_FLIP;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
@@ -40,7 +40,7 @@ impl Fixture {
         &mut self,
         fd: &mut Funcdata,
         blk: &BlockRef,
-        boolvn: &Arc<RwLock<rugra::varnode::Varnode>>,
+        boolvn: &Arc<RwLock<rudra::varnode::Varnode>>,
         flip: bool,
     ) -> PcodeOpRef {
         let op = fd.new_op(2, Address::new(self.next_pc));
@@ -68,7 +68,7 @@ impl Fixture {
         &self,
         fd: &mut Funcdata,
         offset: u64,
-    ) -> Arc<RwLock<rugra::varnode::Varnode>> {
+    ) -> Arc<RwLock<rudra::varnode::Varnode>> {
         fd.new_varnode(1, Address::new(offset))
     }
 

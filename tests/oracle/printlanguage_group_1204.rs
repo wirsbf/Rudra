@@ -1,5 +1,5 @@
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printlanguage::{
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printlanguage::{
     rpn_push_atom, rpn_push_op, Atom, NodePending, OpToken, ReversePolish,
     SyntaxHighlight, TagType,
 };

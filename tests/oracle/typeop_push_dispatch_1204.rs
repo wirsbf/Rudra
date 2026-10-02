@@ -20,15 +20,15 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, SeqNum};
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::printc::PrintC;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varnode::{varnode_flags, Varnode};
-use rugra::variable::HighVariable;
+use rudra::address::{Address, SeqNum};
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::printc::PrintC;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varnode::{varnode_flags, Varnode};
+use rudra::variable::HighVariable;
 
 type VnRef = Arc<RwLock<Varnode>>;
 type OpRef = Arc<RwLock<PcodeOp>>;

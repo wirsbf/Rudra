@@ -7,9 +7,9 @@
 // with the negative-cache occupancy, byteData content, truncation flags and
 // read counts observed per case.
 
-use rugra::address::Address;
-use rugra::loadimage::{DataUnavailError, LoadImage};
-use rugra::stringmanage::StringManager;
+use rudra::address::Address;
+use rudra::loadimage::{DataUnavailError, LoadImage};
+use rudra::stringmanage::StringManager;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 

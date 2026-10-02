@@ -21,17 +21,17 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleConditionalMove;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleConditionalMove;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
-fn vn_class(vn: Option<&Arc<RwLock<rugra::varnode::Varnode>>>) -> char {
+fn vn_class(vn: Option<&Arc<RwLock<rudra::varnode::Varnode>>>) -> char {
     match vn {
         None => '_',
         Some(v) => {
@@ -47,11 +47,11 @@ fn vn_class(vn: Option<&Arc<RwLock<rugra::varnode::Varnode>>>) -> char {
     }
 }
 
-fn print_op_line(op: &rugra::op::PcodeOpRef) {
+fn print_op_line(op: &rudra::op::PcodeOpRef) {
     let g = op.0.read().unwrap();
     let addr = g.get_addr().to_space_address().get_offset();
     let mut line = format!("  op={}@0x{:x}|nin={}", g.opcode as i32, addr, g.num_input());
-    let sentinel = rugra::op::null_slot_sentinel();
+    let sentinel = rudra::op::null_slot_sentinel();
     for i in 0..2 {
         let vn = g.get_in(i).filter(|v| !Arc::ptr_eq(*v, &sentinel));
         match vn {
@@ -100,7 +100,7 @@ fn build_bool_op(
     opc: OpCode,
     cv0: u64,
     cv1: u64,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let op = fd.new_op(2, addr);
     fd.op_set_opcode(&op, opc);
     let out = fd.new_unique_out(1, &op);

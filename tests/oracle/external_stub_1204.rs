@@ -7,8 +7,8 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::space::{AddrSpace, SpaceType, SpaceRegistry};
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::space::{AddrSpace, SpaceType, SpaceRegistry};
 
 fn hex_u64(v: u64) -> String {
     format!("{:#x}", v)

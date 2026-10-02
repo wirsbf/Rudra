@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RulePtrArith;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypePointer, TypeStruct};
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RulePtrArith;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypePointer, TypeStruct};
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
@@ -57,7 +57,7 @@ fn pointer_to(base_type: Arc<Datatype>) -> Arc<Datatype> {
 
 struct Fixture {
     fd: Funcdata,
-    block: Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+    block: Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
     ops: Vec<PcodeOpRef>,
     op_names: HashMap<usize, String>,
     varnodes: Vec<VarnodeRef>,

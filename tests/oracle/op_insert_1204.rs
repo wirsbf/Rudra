@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
 
 struct Fixture {
     fd: Funcdata,
-    block: Arc<std::sync::RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+    block: Arc<std::sync::RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
     ops: Vec<PcodeOpRef>,
     names: HashMap<usize, &'static str>,
     tracked: Option<PcodeOpRef>,
-    tracked_input: Option<Arc<std::sync::RwLock<rugra::varnode::Varnode>>>,
-    tracked_output: Option<Arc<std::sync::RwLock<rugra::varnode::Varnode>>>,
+    tracked_input: Option<Arc<std::sync::RwLock<rudra::varnode::Varnode>>>,
+    tracked_output: Option<Arc<std::sync::RwLock<rudra::varnode::Varnode>>>,
 }
 
 impl Fixture {
@@ -67,7 +67,7 @@ impl Fixture {
     }
 
     fn op_state(&self) -> String {
-        use rugra::op::pcodeop_flags;
+        use rudra::op::pcodeop_flags;
 
         self.ops
             .iter()

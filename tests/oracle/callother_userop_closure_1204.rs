@@ -12,14 +12,14 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::userop::{UserOpManage, UserOpType, BUILTIN_MEMCPY};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::userop::{UserOpManage, UserOpType, BUILTIN_MEMCPY};
 
 fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<Element>> {
     let mut element = Element::new();
@@ -278,7 +278,7 @@ fn main() {
     {
         let ct = {
             let op = memcpy_op.0.read().unwrap();
-            rugra::varnode::op_output_type_local(&op, &type_factory, userops_thread)
+            rudra::varnode::op_output_type_local(&op, &type_factory, userops_thread)
         };
         emit_case("memcpy_out_direct", &ct, false);
         emit_bool(
@@ -292,7 +292,7 @@ fn main() {
     {
         let ct = {
             let op = memcpy_op.0.read().unwrap();
-            rugra::varnode::op_input_type_local(&op, 0, &type_factory, userops_thread)
+            rudra::varnode::op_input_type_local(&op, 0, &type_factory, userops_thread)
         };
         emit_case("memcpy_in0", &ct, false);
         emit_bool("case.memcpy_in0.unknown4_identity", identity(&ct, &unknown4));
@@ -301,7 +301,7 @@ fn main() {
     {
         let ct = {
             let op = memcpy_op.0.read().unwrap();
-            rugra::varnode::op_input_type_local(&op, 1, &type_factory, userops_thread)
+            rudra::varnode::op_input_type_local(&op, 1, &type_factory, userops_thread)
         };
         emit_case("memcpy_in1", &ct, false);
         emit_bool("case.memcpy_in1.voidptr_identity", identity(&ct, &void_pointer));
@@ -309,7 +309,7 @@ fn main() {
     {
         let ct = {
             let op = memcpy_op.0.read().unwrap();
-            rugra::varnode::op_input_type_local(&op, 2, &type_factory, userops_thread)
+            rudra::varnode::op_input_type_local(&op, 2, &type_factory, userops_thread)
         };
         emit_case("memcpy_in2", &ct, false);
         emit_bool("case.memcpy_in2.voidptr_identity", identity(&ct, &void_pointer));
@@ -317,7 +317,7 @@ fn main() {
     {
         let ct = {
             let op = memcpy_op.0.read().unwrap();
-            rugra::varnode::op_input_type_local(&op, 3, &type_factory, userops_thread)
+            rudra::varnode::op_input_type_local(&op, 3, &type_factory, userops_thread)
         };
         emit_case("memcpy_in3", &ct, false);
         emit_bool("case.memcpy_in3.int4_identity", identity(&ct, &int4_type));
@@ -327,7 +327,7 @@ fn main() {
     {
         let ct = {
             let op = memcpy_op.0.read().unwrap();
-            rugra::varnode::op_input_type_local(&op, 4, &type_factory, userops_thread)
+            rudra::varnode::op_input_type_local(&op, 4, &type_factory, userops_thread)
         };
         emit_case("memcpy_in4", &ct, false);
         emit_bool("case.memcpy_in4.unknown1_identity", identity(&ct, &unknown1));
@@ -379,7 +379,7 @@ fn main() {
     {
         let ct = {
             let op = plain_op.0.read().unwrap();
-            rugra::varnode::op_output_type_local(&op, &type_factory, userops_thread)
+            rudra::varnode::op_output_type_local(&op, &type_factory, userops_thread)
         };
         emit_case("metadataless_out_direct", &ct, false);
         emit_bool(
@@ -390,7 +390,7 @@ fn main() {
     {
         let ct = {
             let op = plain_op.0.read().unwrap();
-            rugra::varnode::op_input_type_local(&op, 0, &type_factory, userops_thread)
+            rudra::varnode::op_input_type_local(&op, 0, &type_factory, userops_thread)
         };
         emit_case("metadataless_in0", &ct, false);
         emit_bool(
@@ -401,7 +401,7 @@ fn main() {
     {
         let ct = {
             let op = plain_op.0.read().unwrap();
-            rugra::varnode::op_input_type_local(&op, 1, &type_factory, userops_thread)
+            rudra::varnode::op_input_type_local(&op, 1, &type_factory, userops_thread)
         };
         emit_case("metadataless_in1", &ct, false);
         emit_bool(

@@ -25,23 +25,23 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{
     test_for_array_slack, nearest_arrayed_component_backward,
     nearest_arrayed_component_forward, Datatype, TypeField, TypeMetatype,
     UnionResolveMap,
 };
-use rugra::type_system::typefactory::TypeFactory;
-use rugra::unionresolve::{find_resolve, resolve_in_flow};
-use rugra::varnode::Varnode;
+use rudra::type_system::typefactory::TypeFactory;
+use rudra::unionresolve::{find_resolve, resolve_in_flow};
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<RwLock<Varnode>>;
@@ -188,7 +188,7 @@ impl FixtureTypes {
     }
 }
 
-fn emit_walk(label: &str, comp: &rugra::type_system::datatype::ArrayedComponent) {
+fn emit_walk(label: &str, comp: &rudra::type_system::datatype::ArrayedComponent) {
     match &comp.dtype {
         Some(t) => println!(
             "{}=[{}] newoff={} elSize={}",

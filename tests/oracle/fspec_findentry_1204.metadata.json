@@ -7,10 +7,10 @@
   "ghidra::ParamListStandard::characterizeAsParam(const Address &,int4) const fspec.cc:682",
   "ghidra::ParamListStandard::populateResolver() fspec.cc:1191",
   "ghidra::ParamListStandard::addResolverRange(...) fspec.cc:1174",
-  "rugra::fspec::ParamListStandard::find_entry src/fspec.rs (fspec.cc:661-680)",
-  "rugra::fspec::ParamEntry::justified_contain_in_space src/fspec.rs (fspec.cc:248-283 with the address.cc:133/cc:269 space guards)",
-  "rugra::fspec::ParamEntry::justified_contain src/fspec.rs (spaceless transitional form, fspec.cc:248-283)",
-  "rugra::fspec::ParamListStandard::characterize_as_param src/fspec.rs (fspec.cc:682-719)"
+  "rudra::fspec::ParamListStandard::find_entry src/fspec.rs (fspec.cc:661-680)",
+  "rudra::fspec::ParamEntry::justified_contain_in_space src/fspec.rs (fspec.cc:248-283 with the address.cc:133/cc:269 space guards)",
+  "rudra::fspec::ParamEntry::justified_contain src/fspec.rs (spaceless transitional form, fspec.cc:248-283)",
+  "rudra::fspec::ParamListStandard::characterize_as_param src/fspec.rs (fspec.cc:682-719)"
  ],
  "overall_status": "UNTESTED: (B2 canonicalization)",
  "status_detail": "The four-case covered projection byte-matches Ghidra 12.0.4: the findEntry resolver-window gating (extent-out queries return NULL even with just=false; minSize runs inside the window), join entries reached through per-piece registration (both just forms, piece-vs-entry position order), the cross-space per-piece space guard of the join walk (address.cc:133), and the find/characterize shared-window contrast. Overall remains UNTESTED because big-endian space rows, the alignment!=0 foreign-space guard through non-resolver callers, and offset wrap-around geometries are not exercised (ADDRESS-0001 transitional enum spaces are little-endian only).",

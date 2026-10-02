@@ -12,17 +12,17 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::FlowBlock;
-use rugra::coreaction::ActionDirectWrite;
-use rugra::funcdata::Funcdata;
-use rugra::fspec::VarnodeData;
-use rugra::op::{pcodeop_flags, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::FlowBlock;
+use rudra::coreaction::ActionDirectWrite;
+use rudra::funcdata::Funcdata;
+use rudra::fspec::VarnodeData;
+use rudra::op::{pcodeop_flags, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;
@@ -58,7 +58,7 @@ struct WorkerSpecHost {
     registers: HashMap<String, VarnodeData>,
 }
 
-impl rugra::arch::SpecQuery for WorkerSpecHost {
+impl rudra::arch::SpecQuery for WorkerSpecHost {
     fn get_register(&self, name: &str) -> Option<VarnodeData> {
         self.registers.get(name).copied()
     }
@@ -88,11 +88,11 @@ impl rugra::arch::SpecQuery for WorkerSpecHost {
     }
 }
 
-impl rugra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
-    fn find_symbol(&self, name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
-        self.registers.get(name).map(|vd| rugra::pcodeparse::SleighSymbol {
+impl rudra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
+    fn find_symbol(&self, name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
+        self.registers.get(name).map(|vd| rudra::pcodeparse::SleighSymbol {
             name: name.to_string(),
-            kind: rugra::pcodeparse::SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: rudra::pcodeparse::SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: vd.space,
                 offset: vd.offset,
                 size: vd.size.max(0) as usize,
@@ -104,7 +104,7 @@ impl rugra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
 fn fixture_architecture() -> Result<Arc<Architecture>, String> {
     let cspec_bytes = fs::read("sleigh_specs/x86-64-gcc.cspec")
         .map_err(|error| format!("unable to read compiler spec: {error}"))?;
-    let sleigh = rugra::sleigh_ffi::SleighCtx::new()
+    let sleigh = rudra::sleigh_ffi::SleighCtx::new()
         .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
     let mut registers = HashMap::new();
     for index in 0..sleigh.num_registers() {
@@ -124,7 +124,7 @@ fn fixture_architecture() -> Result<Arc<Architecture>, String> {
         );
     }
     let host = Arc::new(WorkerSpecHost { registers });
-    let mut store = rugra::marshal::DocumentStorage::new();
+    let mut store = rudra::marshal::DocumentStorage::new();
     let doc = store
         .parse_document(&cspec_bytes)
         .map_err(|error| format!("compiler spec parse failed: {error}"))?;
@@ -143,11 +143,11 @@ fn fixture_architecture() -> Result<Arc<Architecture>, String> {
     store.register_tag(&root);
     let mut arch = Architecture::new();
     arch.archid = "x86:LE:64:default".to_string();
-    arch.set_commentdb(Arc::new(RwLock::new(rugra::comment::CommentDatabaseInternal::new())));
-    let mut inject_lib = rugra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
+    arch.set_commentdb(Arc::new(RwLock::new(rudra::comment::CommentDatabaseInternal::new())));
+    let mut inject_lib = rudra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
     inject_lib.set_sleigh_lookup(host.clone());
     arch.pcodeinjectlib = Some(Arc::new(RwLock::new(inject_lib)));
-    arch.userops = Some(Arc::new(RwLock::new(rugra::userop::UserOpManage::new())));
+    arch.userops = Some(Arc::new(RwLock::new(rudra::userop::UserOpManage::new())));
     let pspec_bytes = fs::read("sleigh_specs/x86-64.pspec")
         .map_err(|error| format!("unable to read processor spec: {error}"))?;
     let pspec_doc = store
@@ -170,7 +170,7 @@ fn fixture_architecture() -> Result<Arc<Architecture>, String> {
         .map_err(|_| "processor spec element lock poisoned".to_string())?
         .children
         .clone();
-    let pspec_registry = Arc::new(RwLock::new(rugra::marshal::IdRegistry::new()));
+    let pspec_registry = Arc::new(RwLock::new(rudra::marshal::IdRegistry::new()));
     for child in pspec_children {
         let child_name = child
             .read()
@@ -180,7 +180,7 @@ fn fixture_architecture() -> Result<Arc<Architecture>, String> {
         if child_name != "context_data" {
             continue;
         }
-        let mut decoder = rugra::marshal::TreeDecoder::new(child, pspec_registry.clone());
+        let mut decoder = rudra::marshal::TreeDecoder::new(child, pspec_registry.clone());
         arch.decode_context_data(&mut decoder, host.as_ref())
             .map_err(|error| format!("processor spec context_data decode failed: {error}"))?;
     }
@@ -219,7 +219,7 @@ impl Fixture {
         Arc::as_ptr(block) as *const () as usize
     }
 
-    fn op_arc_key(op: &Arc<RwLock<rugra::op::PcodeOp>>) -> usize {
+    fn op_arc_key(op: &Arc<RwLock<rudra::op::PcodeOp>>) -> usize {
         Arc::as_ptr(op) as usize
     }
 
@@ -231,7 +231,7 @@ impl Fixture {
         Arc::as_ptr(vn) as usize
     }
 
-    fn op_arc_name(&self, op: &Arc<RwLock<rugra::op::PcodeOp>>) -> &str {
+    fn op_arc_name(&self, op: &Arc<RwLock<rudra::op::PcodeOp>>) -> &str {
         self.op_names
             .get(&Self::op_arc_key(op))
             .expect("registered operation")

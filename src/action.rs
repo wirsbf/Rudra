@@ -1112,7 +1112,7 @@ impl Action for ActionGroup {
 /// `Architecture::clearAnalysis`, and the second pass's `ActionStart` re-enters
 /// `Funcdata::startProcessing` → `followFlow` (funcdata.cc:157), regenerating
 /// the raw p-code through the Architecture-owned loader/lifter. Rugra's flow
-/// generation lives at the driver boundary (`rugra::flow::follow_flow*`,
+/// generation lives at the driver boundary (`rudra::flow::follow_flow*`,
 /// because the followFlow port inside `Funcdata::start_processing` is a
 /// registered gap), so the driver installs this callback — the Rust
 /// equivalent of the Architecture-owned followFlow — on the derived root it

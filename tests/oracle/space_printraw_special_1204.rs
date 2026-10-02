@@ -17,7 +17,7 @@
 // space handle, so the pc/block-start printRaw cannot be derived; blocked
 // by ADDRESS-0001).
 
-use rugra::space::{space_flags, AddrSpace, SpaceRegistry, SpaceType};
+use rudra::space::{space_flags, AddrSpace, SpaceRegistry, SpaceType};
 
 fn print_join_raw(join: &AddrSpace, off: u64) {
     println!("  join off=0x{:x} -> {}", off, join.print_raw(off));
@@ -79,7 +79,7 @@ fn main() {
     // ---- case 1: JoinSpace::printRaw pieces forms --------------------------
     println!("case=join_printraw");
     {
-        use rugra::space::SpaceVarnodeData as Vd;
+        use rudra::space::SpaceVarnodeData as Vd;
         // A: 2-piece register pair (MS to LS).
         let pieces_a = [
             Vd { space: reg.clone(), offset: 0x18, size: 4 },
@@ -124,7 +124,7 @@ fn main() {
         // 0x20, 0x30 in case 1; a fresh 5th record allocates 0x40 (each
         // allocation rounds the counter up to a multiple of 16,
         // translate.cc:706-710).
-        use rugra::space::SpaceVarnodeData as Vd;
+        use rudra::space::SpaceVarnodeData as Vd;
         let pieces_e = [
             Vd { space: ram.clone(), offset: 0x2000, size: 1 },
             Vd { space: reg.clone(), offset: 0x40, size: 1 },

@@ -11,16 +11,16 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{Action, ActionPool, ActionState, Rule};
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleIdentityEl;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::{Action, ActionPool, ActionState, Rule};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleIdentityEl;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
@@ -46,9 +46,9 @@ struct CountingIdentityEl {
 impl Rule for CountingIdentityEl {
     fn apply_op(
         &self,
-        op: &Arc<RwLock<rugra::op::PcodeOp>>,
+        op: &Arc<RwLock<rudra::op::PcodeOp>>,
         fd: &mut Funcdata,
-    ) -> rugra::Result<i32> {
+    ) -> rudra::Result<i32> {
         self.counters.tests.fetch_add(1, Ordering::SeqCst);
         let result = self.inner.apply_op(op, fd)?;
         if result > 0 {
@@ -100,7 +100,7 @@ fn make_case(
     }
 }
 
-fn case_name(op: &Arc<RwLock<rugra::op::PcodeOp>>, cases: &[CaseRecord]) -> &'static str {
+fn case_name(op: &Arc<RwLock<rudra::op::PcodeOp>>, cases: &[CaseRecord]) -> &'static str {
     cases
         .iter()
         .find(|record| Arc::ptr_eq(&record.op.0, op))
@@ -127,7 +127,7 @@ fn block_order(block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, cases: &[CaseRe
         .join(",")
 }
 
-fn slot_identity(op: &rugra::op::PcodeOp, slot: usize, record: &CaseRecord) -> &'static str {
+fn slot_identity(op: &rudra::op::PcodeOp, slot: usize, record: &CaseRecord) -> &'static str {
     let Some(vn) = op.get_in(slot) else {
         return "-";
     };
@@ -343,7 +343,7 @@ fn run() {
     println!("desc=b1|stage=before|ops={}", descend_order(&b1, &cases));
     println!("block|stage=before|ops={}", block_order(&block, &cases));
 
-    let mut state = ActionState::new(rugra::action::action_flags::RULE_REPEATAPPLY);
+    let mut state = ActionState::new(rudra::action::action_flags::RULE_REPEATAPPLY);
     let result = pool
         .perform(&mut fd, &mut state)
         .expect("ActionPool perform");

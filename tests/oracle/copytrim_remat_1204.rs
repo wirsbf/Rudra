@@ -42,18 +42,18 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{action_status, Action, ActionState};
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::coreaction::{ActionDynamicMapping, ActionDynamicSymbols};
-use rugra::dynamic::DynamicHash;
-use rugra::funcdata::Funcdata;
-use rugra::merge::Merge;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varmap::ScopeLocal;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::action::{action_status, Action, ActionState};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::coreaction::{ActionDynamicMapping, ActionDynamicSymbols};
+use rudra::dynamic::DynamicHash;
+use rudra::funcdata::Funcdata;
+use rudra::merge::Merge;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varmap::ScopeLocal;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
@@ -121,7 +121,7 @@ impl Fixture {
         name: &str,
         size: usize,
         offset: u64,
-        op: &rugra::op::PcodeOpRef,
+        op: &rudra::op::PcodeOpRef,
     ) -> VarnodeRef {
         let vn = fd.new_varnode_out_full(
             size,

@@ -9,16 +9,16 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::typeop::{TypeOp, TypeOpManager};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::fspec::{protoparam_flags, FuncCallSpecs, FuncProto, ProtoParameter};
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::typeop::{TypeOp, TypeOpManager};
 
 fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<Element>> {
     let mut element = Element::new();
@@ -308,27 +308,27 @@ fn main() {
     println!("flags.call.decimal={}", call_flags);
     emit_bool(
         "flags.call.special",
-        call_flags & rugra::op::pcodeop_flags::SPECIAL != 0,
+        call_flags & rudra::op::pcodeop_flags::SPECIAL != 0,
     );
     emit_bool(
         "flags.call.call_bit",
-        call_flags & rugra::op::pcodeop_flags::CALL != 0,
+        call_flags & rudra::op::pcodeop_flags::CALL != 0,
     );
     emit_bool(
         "flags.call.has_callspec",
-        call_flags & rugra::op::pcodeop_flags::HAS_CALLSPEC != 0,
+        call_flags & rudra::op::pcodeop_flags::HAS_CALLSPEC != 0,
     );
     emit_bool(
         "flags.call.coderef",
-        call_flags & rugra::op::pcodeop_flags::CODEREF != 0,
+        call_flags & rudra::op::pcodeop_flags::CODEREF != 0,
     );
     emit_bool(
         "flags.call.nocollapse",
-        call_flags & rugra::op::pcodeop_flags::NOCOLLAPSE != 0,
+        call_flags & rudra::op::pcodeop_flags::NOCOLLAPSE != 0,
     );
     emit_bool(
         "flags.call.commutative_clear",
-        call_flags & rugra::op::pcodeop_flags::COMMUTATIVE == 0,
+        call_flags & rudra::op::pcodeop_flags::COMMUTATIVE == 0,
     );
 
     // ---- BRANCH: base defaults on the coderef input ----

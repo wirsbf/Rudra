@@ -19,13 +19,13 @@
 //   fold_discovery_clear(+uselimit) global-discovery persist + uselimit
 //                                  clear feeding the fold.
 
-use rugra::address::{Address, Range};
-use rugra::rangemap::RangeRecord;
-use rugra::database::{symbol_flags, Database, Scope};
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::space::AddressSpace;
-use rugra::varmap::{ghidra_space_index, LocalSymbol, ScopeLocal, symbol_category};
-use rugra::varnode::varnode_flags;
+use rudra::address::{Address, Range};
+use rudra::rangemap::RangeRecord;
+use rudra::database::{symbol_flags, Database, Scope};
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::space::AddressSpace;
+use rudra::varmap::{ghidra_space_index, LocalSymbol, ScopeLocal, symbol_category};
+use rudra::varnode::varnode_flags;
 use std::sync::{Arc, RwLock};
 
 fn ram_range(first: u64, last: u64) -> Range {
@@ -39,11 +39,11 @@ fn sym(name: &str, space: AddressSpace, start: u64, size: i32, usepoint: Option<
     s
 }
 
-fn scope_tag(final_scope: rugra::varmap::QueryFinalScope) -> &'static str {
+fn scope_tag(final_scope: rudra::varmap::QueryFinalScope) -> &'static str {
     match final_scope {
-        rugra::varmap::QueryFinalScope::None => "none",
-        rugra::varmap::QueryFinalScope::This => "this",
-        rugra::varmap::QueryFinalScope::Parent => "parent",
+        rudra::varmap::QueryFinalScope::None => "none",
+        rudra::varmap::QueryFinalScope::This => "this",
+        rudra::varmap::QueryFinalScope::Parent => "parent",
     }
 }
 
@@ -72,7 +72,7 @@ fn dump_qp(
         ),
         Some(e) => {
             let name = match out.final_scope {
-                rugra::varmap::QueryFinalScope::Parent => &parent.unwrap().symbols[e.sym].name,
+                rudra::varmap::QueryFinalScope::Parent => &parent.unwrap().symbols[e.sym].name,
                 _ => &scope.symbols[e.sym].name,
             };
             format!(
@@ -253,7 +253,7 @@ fn main() {
     // <property_changepoint> split points; decoding assigns each split
     // point its exact value (database.cc:3334), preserving boundaries.
     {
-        use rugra::marshal::TreeEncoder;
+        use rudra::marshal::TreeEncoder;
         let mut db1 = Database::new(false);
         db1.set_property_range(symbol_flags::READONLY, ram_range(0x7e110000, 0x7e1100ff));
         db1.set_property_range(symbol_flags::VOLATIL, ram_range(0x7e110080, 0x7e11017f));

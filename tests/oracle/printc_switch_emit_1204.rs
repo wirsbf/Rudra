@@ -11,17 +11,17 @@
 // shape. The switch variable is a const-space varnode (value 3, int type)
 // so both sides render the header expression through their constant paths.
 
-use rugra::address::{Address, SeqNum};
-use rugra::block::{BlockBasic, BlockGraph, BlockSwitch};
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::{Address, SeqNum};
+use rudra::block::{BlockBasic, BlockGraph, BlockSwitch};
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 use std::sync::{Arc, RwLock};
 
-type BlockArc = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type BlockArc = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 
 fn const_varnode(value: u64) -> Arc<RwLock<Varnode>> {
     Arc::new(RwLock::new(Varnode::new_with_space(4, AddressSpace::Const, value)))

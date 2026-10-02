@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
-use rugra::type_system::datatype::{Datatype, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::userop::{
+use rudra::type_system::datatype::{Datatype, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::userop::{
     DatatypeUserOp, UserOpManage, UserOpType, UserPcodeOp, BUILTIN_MEMCPY, BUILTIN_STRNCPY,
     BUILTIN_WCSNCPY,
 };

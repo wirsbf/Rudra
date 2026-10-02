@@ -7,10 +7,10 @@
   "ghidra::ParamListStandard::characterizeAsParam(const Address &, int4) const fspec.cc:682",
   "ghidra::ParamListStandard::populateResolver() fspec.cc:1191",
   "ghidra::Heritage::guardCallOverlappingInput(...) truncate call heritage.cc:1221",
-  "rugra::fspec::justified_contain_range src/fspec.rs (RUGRA-GLUE mirror of address.cc:131-141)",
-  "rugra::fspec::ParamEntry::justified_contain src/fspec.rs (fspec.cc:248-283)",
-  "rugra::fspec::ParamListStandard::characterize_as_param src/fspec.rs (fspec.cc:682-719)",
-  "rugra::heritage::guard_call_overlapping_input truncate_amount src/heritage.rs (heritage.cc:1210-1235)"
+  "rudra::fspec::justified_contain_range src/fspec.rs (RUGRA-GLUE mirror of address.cc:131-141)",
+  "rudra::fspec::ParamEntry::justified_contain src/fspec.rs (fspec.cc:248-283)",
+  "rudra::fspec::ParamListStandard::characterize_as_param src/fspec.rs (fspec.cc:682-719)",
+  "rudra::heritage::guard_call_overlapping_input truncate_amount src/heritage.rs (heritage.cc:1210-1235)"
  ],
  "overall_status": "UNTESTED: (B2 canonicalization)",
  "status_detail": "The four-case covered projection byte-matches Ghidra 12.0.4: the LE/BE x forceleft branch matrix (address.cc:138 branch key = space endianness, not forceleft), the unflagged LE ParamEntry ==0 wrapper route, the heritage.cc:1221 truncate SUBPIECE constant, and the characterizeAsParam resolver gating for extent-out queries. Overall remains UNTESTED because the BE-space ParamEntry wrapper, join-piece resolver windows, the space-mismatch base branch and find_entry's ungated scan are not exercised.",

@@ -35,22 +35,22 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::coreaction::{ActionNameVars, ActionRestructureVarnode};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::space::AddressSpace;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::coreaction::{ActionNameVars, ActionRestructureVarnode};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::space::AddressSpace;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
 const ORACLE_COMMIT: &str = "e40ed13014025f82488b1f8f7bca566894ac376b";
 
-fn int4() -> Arc<rugra::type_system::datatype::Datatype> {
-    use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+fn int4() -> Arc<rudra::type_system::datatype::Datatype> {
+    use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
     Arc::new(Datatype::Base(TypeBase::new(
         "int4".to_string(),
         4,
@@ -58,8 +58,8 @@ fn int4() -> Arc<rugra::type_system::datatype::Datatype> {
     )))
 }
 
-fn int8() -> Arc<rugra::type_system::datatype::Datatype> {
-    use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+fn int8() -> Arc<rudra::type_system::datatype::Datatype> {
+    use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
     Arc::new(Datatype::Base(TypeBase::new(
         "int8".to_string(),
         8,
@@ -186,7 +186,7 @@ impl Fixture {
         h.has_name() as i32
     }
 
-    fn set_type(&self, vn: &VarnodeRef, ct: Arc<rugra::type_system::datatype::Datatype>) {
+    fn set_type(&self, vn: &VarnodeRef, ct: Arc<rudra::type_system::datatype::Datatype>) {
         vn.write().unwrap().v_type = Some(ct);
     }
 

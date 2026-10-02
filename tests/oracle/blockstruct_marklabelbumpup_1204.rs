@@ -21,11 +21,11 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::block::{
     BlockBasic, BlockGraph, BlockType, FlowBlock, block_flags,
 };
-use rugra::blockaction::CollapseStructure;
+use rudra::blockaction::CollapseStructure;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 

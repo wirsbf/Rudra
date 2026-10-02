@@ -9,12 +9,12 @@
 // iterator family, and end_lane_access.
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, SeqNum};
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::{varnode_flags, Varnode, VarnodeDefRef, VarnodeLocRef};
+use rudra::address::{Address, SeqNum};
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::{varnode_flags, Varnode, VarnodeDefRef, VarnodeLocRef};
 
 fn opcode_name(opcode: OpCode) -> &'static str {
     match opcode {

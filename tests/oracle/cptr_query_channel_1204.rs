@@ -35,11 +35,11 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, Range};
-use rugra::arch::Architecture;
-use rugra::database::{symbol_flags, Database};
-use rugra::funcdata::Funcdata;
-use rugra::type_system::datatype::{
+use rudra::address::{Address, Range};
+use rudra::arch::Architecture;
+use rudra::database::{symbol_flags, Database};
+use rudra::funcdata::Funcdata;
+use rudra::type_system::datatype::{
     Datatype, TypeArray, TypeBase, TypeMetatype,
 };
 
@@ -82,7 +82,7 @@ fn undefined16_type() -> Arc<Datatype> {
 
 fn char_type() -> Arc<Datatype> {
     let mut base = TypeBase::new("char".to_string(), 1, TypeMetatype::Int);
-    base.flags |= rugra::type_system::datatype::type_flags::CHARTYPE;
+    base.flags |= rudra::type_system::datatype::type_flags::CHARTYPE;
     Arc::new(Datatype::Base(base))
 }
 

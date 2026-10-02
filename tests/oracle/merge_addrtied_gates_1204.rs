@@ -8,15 +8,15 @@ use std::collections::BTreeMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::merge::Merge;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::{AddressSpace, SpaceType, SPACEID_OTHER};
-use rugra::variable::HighVariable;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::merge::Merge;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::{AddressSpace, SpaceType, SPACEID_OTHER};
+use rudra::variable::HighVariable;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<RwLock<Varnode>>;

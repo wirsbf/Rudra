@@ -9,31 +9,31 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, SeqNum};
-use rugra::block::{
+use rudra::address::{Address, SeqNum};
+use rudra::block::{
     BlockBasic, BlockGoto, BlockGraph, BlockMultiGoto, FlowBlock,
 };
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 
 // FlowBlock::typeToName (block.cc:671-703).
-fn type_name(bt: rugra::block::BlockType) -> &'static str {
+fn type_name(bt: rudra::block::BlockType) -> &'static str {
     match bt {
-        rugra::block::BlockType::Plain => "plain",
-        rugra::block::BlockType::Basic => "basic",
-        rugra::block::BlockType::Graph => "graph",
-        rugra::block::BlockType::Copy => "copy",
-        rugra::block::BlockType::Goto => "goto",
-        rugra::block::BlockType::MultiGoto => "multigoto",
-        rugra::block::BlockType::List => "list",
-        rugra::block::BlockType::Condition => "condition",
-        rugra::block::BlockType::If => "properif",
-        rugra::block::BlockType::WhileDo => "whiledo",
-        rugra::block::BlockType::DoWhile => "dowhile",
-        rugra::block::BlockType::Switch => "switch",
-        rugra::block::BlockType::InfLoop => "infloop",
+        rudra::block::BlockType::Plain => "plain",
+        rudra::block::BlockType::Basic => "basic",
+        rudra::block::BlockType::Graph => "graph",
+        rudra::block::BlockType::Copy => "copy",
+        rudra::block::BlockType::Goto => "goto",
+        rudra::block::BlockType::MultiGoto => "multigoto",
+        rudra::block::BlockType::List => "list",
+        rudra::block::BlockType::Condition => "condition",
+        rudra::block::BlockType::If => "properif",
+        rudra::block::BlockType::WhileDo => "whiledo",
+        rudra::block::BlockType::DoWhile => "dowhile",
+        rudra::block::BlockType::Switch => "switch",
+        rudra::block::BlockType::InfLoop => "infloop",
     }
 }
 

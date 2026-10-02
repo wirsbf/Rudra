@@ -69,9 +69,9 @@
   "ghidra::FuncProto::setPieces fspec.cc:3843",
   "ghidra::FuncProto::decode fspec.cc:4675",
   "ghidra::Architecture::createUnknownModel architecture.cc:1159",
-  "rugra::coreaction:ActionPrototypeWarnings apply (RG-F-7d3212010e608ec3957e)",
-  "rugra::debugproto:LibcSignatureTable locked_proto (RG-F-2a34c9f6095ee64fb93b)",
-  "rugra::debugproto:DebugPrototypeDatabase apply (RG-F-1ce28154f6b860b85d1e)"
+  "rudra::coreaction:ActionPrototypeWarnings apply (RG-F-7d3212010e608ec3957e)",
+  "rudra::debugproto:LibcSignatureTable locked_proto (RG-F-2a34c9f6095ee64fb93b)",
+  "rudra::debugproto:DebugPrototypeDatabase apply (RG-F-1ce28154f6b860b85d1e)"
  ],
  "stable_function_id": "GH12-F-c0ef8ecfe0a8786b6b11"
 }

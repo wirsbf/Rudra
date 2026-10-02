@@ -12,15 +12,15 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
-use rugra::action::{break_flags, Action, ActionDatabase, ActionState};
-use rugra::address::Address;
-use rugra::debugproto::{DebugGlobalDatabase, DebugPrototypeDatabase};
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::funcdata::{CommittedLocal, Funcdata};
-use rugra::override_rs::{FlowOverride, FlowOverrideRecord};
-use rugra::prettyprint::EmitPrettyPrint;
-use rugra::printc::PrintC;
-use rugra::printlanguage::PrintLanguage;
+use rudra::action::{break_flags, Action, ActionDatabase, ActionState};
+use rudra::address::Address;
+use rudra::debugproto::{DebugGlobalDatabase, DebugPrototypeDatabase};
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::funcdata::{CommittedLocal, Funcdata};
+use rudra::override_rs::{FlowOverride, FlowOverrideRecord};
+use rudra::prettyprint::EmitPrettyPrint;
+use rudra::printc::PrintC;
+use rudra::printlanguage::PrintLanguage;
 
 // MIRROR-ENVS-CANONICAL-0001: the canonical mirror-state environment
 // bundle. The oracle single-function harness is a raw BFD load
@@ -462,7 +462,7 @@ fn field_retype_ledger() -> Option<&'static FieldRetypeLedger> {
 // retypeable (the corpus ledger's shape; nested targets join with their
 // own witnesses).
 fn install_field_retype_channel() {
-    use rugra::type_system::datatype::{Datatype, TypeMetatype};
+    use rudra::type_system::datatype::{Datatype, TypeMetatype};
     let Some(ledger) = field_retype_ledger() else {
         return; // gate off: zero corpus IO, zero factory mutation
     };
@@ -482,7 +482,7 @@ fn install_field_retype_channel() {
         eprintln!("[FIELDRETYPE] DWARF parse for the retype install failed: {err} (seeding disabled)");
         return;
     }
-    let factory = rugra::type_system::typefactory::TypeFactory::shared_default();
+    let factory = rudra::type_system::typefactory::TypeFactory::shared_default();
     let mut guard = factory
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -595,7 +595,7 @@ static TYPEDEFSEED_STATE: std::sync::OnceLock<Option<TypedefSeedState>> =
 // counts. Same-family shape as the seed tables above; per-process because
 // the shared TypeFactory is.
 struct TypedefSeedState {
-    installed: Vec<(String, std::sync::Arc<rugra::type_system::datatype::Datatype>)>,
+    installed: Vec<(String, std::sync::Arc<rudra::type_system::datatype::Datatype>)>,
     deferred: usize,
     dropped: usize,
 }
@@ -652,11 +652,11 @@ fn install_typedef_seed_channel() -> Option<TypedefSeedState> {
         .and_then(|value| value.as_array())
         .map(|array| array.len())
         .unwrap_or(0);
-    let factory = rugra::type_system::typefactory::TypeFactory::shared_default();
+    let factory = rudra::type_system::typefactory::TypeFactory::shared_default();
     let mut guard = factory
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let mut installed: Vec<(String, std::sync::Arc<rugra::type_system::datatype::Datatype>)> =
+    let mut installed: Vec<(String, std::sync::Arc<rudra::type_system::datatype::Datatype>)> =
         Vec::new();
     let mut skipped = 0usize;
     for entry in entries {
@@ -674,8 +674,8 @@ fn install_typedef_seed_channel() -> Option<TypedefSeedState> {
         let target_arc = if kind == "base" {
             let size = target.get("size").and_then(|value| value.as_u64()).unwrap_or(0) as usize;
             let metatype = match target.get("metatype").and_then(|value| value.as_str()) {
-                Some("int") => rugra::type_system::datatype::TypeMetatype::Int,
-                Some("uint") => rugra::type_system::datatype::TypeMetatype::Uint,
+                Some("int") => rudra::type_system::datatype::TypeMetatype::Int,
+                Some("uint") => rudra::type_system::datatype::TypeMetatype::Uint,
                 _ => {
                     eprintln!("[TYPEDEFSEED] entry {name}: unservable metatype, skipped");
                     skipped += 1;
@@ -1156,10 +1156,10 @@ fn fidsig_table() -> Option<&'static HashMap<u64, FidsigEntry>> {
 fn resolve_fidsig_type(
     spelling: &str,
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
-) -> Option<std::sync::Arc<rugra::type_system::datatype::Datatype>> {
-    use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+) -> Option<std::sync::Arc<rudra::type_system::datatype::Datatype>> {
+    use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
     let find_or_intern = |base: &str, size: usize, metatype: TypeMetatype| {
         let existing = {
@@ -1220,10 +1220,10 @@ fn resolve_fidsig_type(
 // cannot assign storage (the caller reports and keeps the recovered
 // face).
 fn install_fidsig_own_proto(
-    fd: &mut rugra::funcdata::Funcdata,
+    fd: &mut rudra::funcdata::Funcdata,
     entry: &FidsigEntry,
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
 ) -> bool {
     let model_carrier = fd.funcp.clone();
@@ -1239,7 +1239,7 @@ fn install_fidsig_own_proto(
         in_types.push(resolved);
         in_names.push(param.name.clone().unwrap_or_default());
     }
-    let pieces = rugra::grammar::PrototypePieces {
+    let pieces = rudra::grammar::PrototypePieces {
         model: None,
         name: entry.name.clone(),
         out_type: Some(return_type),
@@ -1249,7 +1249,7 @@ fn install_fidsig_own_proto(
     };
     let out_type = pieces.out_type.clone().expect("FIDSIG entry always has return");
     let mut proto =
-        rugra::fspec::FuncProto::from_model_carrier(&model_carrier, entry.name.clone(), out_type);
+        rudra::fspec::FuncProto::from_model_carrier(&model_carrier, entry.name.clone(), out_type);
     proto.name = entry.name.clone();
     proto.set_pieces(&pieces);
     if proto.has_input_errors() {
@@ -1259,7 +1259,7 @@ fn install_fidsig_own_proto(
     // (the setPieces transport carries typelock for everything).
     for (param, spec) in proto.parameters.iter_mut().zip(entry.params.iter()) {
         if spec.name_locked && spec.name.is_some() {
-            param.flags |= rugra::fspec::protoparam_flags::NAME_LOCKED;
+            param.flags |= rudra::fspec::protoparam_flags::NAME_LOCKED;
         }
     }
     fd.funcp = proto;
@@ -1273,10 +1273,10 @@ fn install_fidsig_own_proto(
 // V3SIG/paramid install so the oracle DB truth wins the has_model()
 // gap-fill race (the recovery channel skips already-modelled sites).
 fn install_fidsig_callsite_protos(
-    fd: &mut rugra::funcdata::Funcdata,
+    fd: &mut rudra::funcdata::Funcdata,
     table: &HashMap<u64, FidsigEntry>,
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
 ) -> usize {
     let model_carrier = fd.funcp.clone();
@@ -1319,13 +1319,13 @@ fn install_fidsig_callsite_protos(
         let Some(return_type) = resolve_fidsig_type(&entry.ret, types) else {
             continue;
         };
-        let mut proto = rugra::fspec::FuncProto::from_model_carrier(
+        let mut proto = rudra::fspec::FuncProto::from_model_carrier(
             &model_carrier,
             entry.name.clone(),
             return_type.clone(),
         );
         proto.name = entry.name.clone();
-        let pieces = rugra::grammar::PrototypePieces {
+        let pieces = rudra::grammar::PrototypePieces {
             model: None,
             name: entry.name.clone(),
             out_type: Some(return_type),
@@ -1480,7 +1480,7 @@ fn known_evidence_base(base: &str) -> bool {
 // among its committed evidence — Rugra's typeprop types those wide-scalar
 // chains as narrow-int pointers where the oracle recovers long).
 fn evidence_spelling(
-    dt: &std::sync::Arc<rugra::type_system::datatype::Datatype>,
+    dt: &std::sync::Arc<rudra::type_system::datatype::Datatype>,
     loose: bool,
     demote_narrow_int_ptr: bool,
 ) -> Option<String> {
@@ -1513,7 +1513,7 @@ fn evidence_spelling(
 // rederivation agrees); this keeps the iteration monotone instead of
 // oscillating.
 fn extract_callsite_evidence(
-    fd: &rugra::funcdata::Funcdata,
+    fd: &rudra::funcdata::Funcdata,
     loose: bool,
     demote_narrow_int_ptr: bool,
 ) -> Vec<CallSiteEvidenceWire> {
@@ -1808,13 +1808,13 @@ fn callee_siglock_table() -> Option<&'static HashMap<u64, CalleeSiglockProto>> {
 // active arity recovery keeps running and only the return locks.
 // Returns the number of call sites that received a locked prototype.
 fn install_callee_siglock_protos(
-    fd: &mut rugra::funcdata::Funcdata,
+    fd: &mut rudra::funcdata::Funcdata,
     table: &HashMap<u64, CalleeSiglockProto>,
     types: &std::sync::Arc<
-        std::sync::RwLock<rugra::type_system::typefactory::TypeFactory>,
+        std::sync::RwLock<rudra::type_system::typefactory::TypeFactory>,
     >,
 ) -> usize {
-    use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+    use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
     // Manifest spelling -> canonical factory type (httpd resolve form).
     let resolve = |spelling: &str| -> Option<std::sync::Arc<Datatype>> {
@@ -1914,13 +1914,13 @@ fn install_callee_siglock_protos(
         // case.
         let void_type = types.read().unwrap().get_type_void();
         let out_type = return_type.clone().unwrap_or_else(|| void_type.clone());
-        let mut proto = rugra::fspec::FuncProto::from_model_carrier(
+        let mut proto = rudra::fspec::FuncProto::from_model_carrier(
             &model_carrier,
             entry_proto.name.clone(),
             out_type,
         );
         proto.name = entry_proto.name.clone();
-        let pieces = rugra::grammar::PrototypePieces {
+        let pieces = rudra::grammar::PrototypePieces {
             model: None,
             name: entry_proto.name.clone(),
             out_type: return_type.clone().or(Some(void_type)),
@@ -2309,15 +2309,15 @@ fn collect_known_entry_shared_return_overrides(
                 }
             };
             for op in &ops {
-                if rugra::opcodes::OpCode::from_i32(op.get_opcode())
-                    != Some(rugra::opcodes::OpCode::CPUI_BRANCH)
+                if rudra::opcodes::OpCode::from_i32(op.get_opcode())
+                    != Some(rudra::opcodes::OpCode::CPUI_BRANCH)
                 {
                     continue;
                 }
                 let Some(target_vn) = op.inputs().first() else {
                     continue;
                 };
-                if target_vn.space != rugra::space::AddressSpace::Ram {
+                if target_vn.space != rudra::space::AddressSpace::Ram {
                     continue;
                 }
                 let target = target_vn.offset;
@@ -2720,10 +2720,10 @@ struct ExternalImport {
 }
 
 // RUGRA-GLUE: documented libc prototypes for imported symbols — delegates to
-// the single source of truth in rugra::debugproto::LibcSignatureTable (see
+// the single source of truth in rudra::debugproto::LibcSignatureTable (see
 // there for the Ghidra generic_clib boundary this mirrors).
 fn libc_import_signature(name: &str) -> Option<(&'static str, &'static str)> {
-    let signature = rugra::debugproto::LibcSignatureTable::default();
+    let signature = rudra::debugproto::LibcSignatureTable::default();
     signature
         .lookup(name)
         .map(|sig| (sig.return_type, sig.parameters))
@@ -2845,7 +2845,7 @@ pub fn mark_known_no_return_function(fd: &mut Funcdata, symbol_name: &str) -> bo
 // FlowInfo::queryCall queryFunction boundary (flow.cc:660) in one
 // driver-owned table; Rugra's Funcdata owns no per-callee Funcdata at flow
 // time, so the driver hands the callee `funcp` slices to
-// rugra::flow::follow_flow_with_callee_protos.
+// rudra::flow::follow_flow_with_callee_protos.
 /// Flow-visible callee table (FLOW-NORETURN-DATA-0001 segment (c)):
 /// iterate the driver-seeded symbol table and, for every symbol matching
 /// the Known no-return list, build the minimal callee FuncProto — the
@@ -2859,7 +2859,7 @@ pub fn mark_known_no_return_function(fd: &mut Funcdata, symbol_name: &str) -> bo
 /// that some decompilation never queries).
 pub fn known_no_return_callee_protos(
     symbol_table: &HashMap<u64, String>,
-) -> BTreeMap<u64, rugra::fspec::FuncProto> {
+) -> BTreeMap<u64, rudra::fspec::FuncProto> {
     symbol_table
         .iter()
         .filter(|(_, name)| is_known_no_return(name))
@@ -2867,13 +2867,13 @@ pub fn known_no_return_callee_protos(
             // The same default-proto construction Funcdata::new gives the
             // decompiled function itself (funcdata.rs:525-531) — Ghidra's
             // FuncCallSpecs ctor "clones a default" for fresh specs.
-            let mut proto = rugra::fspec::FuncProto::new(
+            let mut proto = rudra::fspec::FuncProto::new(
                 name.clone(),
-                std::sync::Arc::new(rugra::type_system::datatype::Datatype::Void(
-                    rugra::type_system::datatype::TypeBase::new(
+                std::sync::Arc::new(rudra::type_system::datatype::Datatype::Void(
+                    rudra::type_system::datatype::TypeBase::new(
                         "void".to_string(),
                         0,
-                        rugra::type_system::datatype::TypeMetatype::Void,
+                        rudra::type_system::datatype::TypeMetatype::Void,
                     ),
                 )),
             );
@@ -2893,12 +2893,12 @@ pub fn known_no_return_callee_protos(
 // (unknown). Returns (named, locked libc signatures, locked DWARF
 // signatures, relinked call ops, known no-return callees marked).
 fn link_call_specs(
-    fd: &mut rugra::funcdata::Funcdata,
-    libc_signatures: &rugra::debugproto::LibcSignatureTable,
-    debug_db: &rugra::debugproto::DebugPrototypeDatabase,
+    fd: &mut rudra::funcdata::Funcdata,
+    libc_signatures: &rudra::debugproto::LibcSignatureTable,
+    debug_db: &rudra::debugproto::DebugPrototypeDatabase,
     fn_name: &str,
     type_names: &std::collections::HashMap<
-        String, std::sync::Arc<rugra::type_system::datatype::Datatype>,
+        String, std::sync::Arc<rudra::type_system::datatype::Datatype>,
     >,
 ) -> (usize, usize, usize, usize, usize) {
     // Keep the stable owner with each direct target. Multiple CALLs may share
@@ -2930,7 +2930,7 @@ fn link_call_specs(
         owner
             .write()
             .unwrap()
-            .set_funcdata(&name, rugra::address::Address::new(entry));
+            .set_funcdata(&name, rudra::address::Address::new(entry));
         named += 1;
         // coreaction.cc:2327: fc->copy(otherfunc->getFuncProto()) — the
         // platform side's locked callee signature for the resolved target.
@@ -3053,9 +3053,9 @@ fn link_call_specs(
 // callspec owner. The driver temporarily retains the entry-address offset for
 // its legacy PrintC bridge, but identity is exclusively the typed Weak handle;
 // a raw constant with the same bits cannot resolve a callspec.
-fn relink_call_spec_targets(fd: &mut rugra::funcdata::Funcdata) -> usize {
-    use rugra::space::AddressSpace;
-    use rugra::varnode::varnode_flags;
+fn relink_call_spec_targets(fd: &mut rudra::funcdata::Funcdata) -> usize {
+    use rudra::space::AddressSpace;
+    use rudra::varnode::varnode_flags;
     let specs: Vec<_> = fd
         .callspecs
         .iter()
@@ -3085,7 +3085,7 @@ fn relink_call_spec_targets(fd: &mut rugra::funcdata::Funcdata) -> usize {
             annotation.bind_call_spec(&owner);
         }
         let _ = fd.assign_high(&vn);
-        let op_ref = rugra::op::PcodeOpRef(op_arc);
+        let op_ref = rudra::op::PcodeOpRef(op_arc);
         fd.op_set_input(&op_ref, vn, 0);
         relinked += 1;
     }
@@ -3241,8 +3241,8 @@ fn worker_memory_image_bytes(elf: &goblin::elf::Elf, buffer: &[u8]) -> Vec<u8> {
 
 fn worker_memory_load_image(
     elf: &goblin::elf::Elf, buffer: &[u8],
-) -> rugra::loadimage::RawLoadImage {
-    rugra::loadimage::RawLoadImage::from_bytes(
+) -> rudra::loadimage::RawLoadImage {
+    rudra::loadimage::RawLoadImage::from_bytes(
         "curl",
         curl_image_base(), // F2B: native analyzeHeadless base (0 under any mirror gate)
         worker_memory_image_bytes(elf, buffer),
@@ -3371,9 +3371,9 @@ fn plt_slot_extent(sleigh: &mut SleighLifter, vaddr: u64) -> Option<u64> {
             Ok((step, ops)) => {
                 let terminal = ops.iter().any(|op| {
                     matches!(
-                        rugra::opcodes::OpCode::from_i32(op.get_opcode()),
-                        Some(rugra::opcodes::OpCode::CPUI_BRANCH)
-                            | Some(rugra::opcodes::OpCode::CPUI_BRANCHIND)
+                        rudra::opcodes::OpCode::from_i32(op.get_opcode()),
+                        Some(rudra::opcodes::OpCode::CPUI_BRANCH)
+                            | Some(rudra::opcodes::OpCode::CPUI_BRANCHIND)
                     )
                 });
                 if terminal {
@@ -3562,15 +3562,15 @@ fn discover_function_corpus(
                 match sleigh.lift_instruction(scan_addr) {
                     Ok((step, ops)) => {
                         for op in &ops {
-                            if rugra::opcodes::OpCode::from_i32(op.get_opcode())
-                                != Some(rugra::opcodes::OpCode::CPUI_CALL)
+                            if rudra::opcodes::OpCode::from_i32(op.get_opcode())
+                                != Some(rudra::opcodes::OpCode::CPUI_CALL)
                             {
                                 continue;
                             }
                             let Some(target_vn) = op.inputs().first() else {
                                 continue;
                             };
-                            if target_vn.space != rugra::space::AddressSpace::Ram {
+                            if target_vn.space != rudra::space::AddressSpace::Ram {
                                 continue;
                             }
                             let target = target_vn.offset;
@@ -4133,15 +4133,15 @@ fn scan_rodata_reference_widths(
                 // route to createData; flow references (direct
                 // BRANCH/CALL targets — ram-space constant varnodes in the
                 // raw pcode) take the disassembly arm and never size Data.
-                let opcode = rugra::opcodes::OpCode::from_i32(op.get_opcode());
+                let opcode = rudra::opcodes::OpCode::from_i32(op.get_opcode());
                 let is_flow_op = matches!(
                     opcode,
                     Some(
-                        rugra::opcodes::OpCode::CPUI_BRANCH
-                            | rugra::opcodes::OpCode::CPUI_BRANCHIND
-                            | rugra::opcodes::OpCode::CPUI_CALL
-                            | rugra::opcodes::OpCode::CPUI_CALLIND
-                            | rugra::opcodes::OpCode::CPUI_RETURN,
+                        rudra::opcodes::OpCode::CPUI_BRANCH
+                            | rudra::opcodes::OpCode::CPUI_BRANCHIND
+                            | rudra::opcodes::OpCode::CPUI_CALL
+                            | rudra::opcodes::OpCode::CPUI_CALLIND
+                            | rudra::opcodes::OpCode::CPUI_RETURN,
                     )
                 );
                 if is_flow_op {
@@ -4152,7 +4152,7 @@ fn scan_rodata_reference_widths(
                 // address with the access size — the SLEIGH-resolved form
                 // the Java evaluator reads off the instruction operands.
                 for vn in op.inputs().iter().chain(op.output()) {
-                    if vn.space != rugra::space::AddressSpace::Ram {
+                    if vn.space != rudra::space::AddressSpace::Ram {
                         continue;
                     }
                     if vn.offset < rodata_lo || vn.offset >= rodata_hi {
@@ -4209,10 +4209,10 @@ impl CurlStringDataRegistry {
     }
 }
 
-impl rugra::stringmanage::StringDataClient for CurlStringDataRegistry {
+impl rudra::stringmanage::StringDataClient for CurlStringDataRegistry {
     fn get_string_data(
         &self,
-        addr: rugra::address::Address,
+        addr: rudra::address::Address,
         _charsize: i32,
         max_bytes: i32,
     ) -> Option<(Vec<u8>, bool)> {
@@ -4636,11 +4636,11 @@ const SPEC_UNIQUE_INJECT_BASE: u64 = 0x364_400;
 // FUNCPROTO-MODEL-BIND-0001: language host for the worker-side compiler-spec
 // parse — registers from the real .sla, spaces from the locked table.
 struct WorkerSpecHost {
-    registers: HashMap<String, rugra::fspec::VarnodeData>,
+    registers: HashMap<String, rudra::fspec::VarnodeData>,
 }
 
-fn spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> {
-    use rugra::space::AddressSpace;
+fn spec_space_by_name(name: &str) -> Option<rudra::space::AddressSpace> {
+    use rudra::space::AddressSpace;
     match name {
         "ram" => Some(AddressSpace::Ram),
         "stack" => Some(AddressSpace::Stack),
@@ -4652,24 +4652,24 @@ fn spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> {
     }
 }
 
-impl rugra::arch::SpecQuery for WorkerSpecHost {
-    fn get_register(&self, name: &str) -> Option<rugra::fspec::VarnodeData> {
+impl rudra::arch::SpecQuery for WorkerSpecHost {
+    fn get_register(&self, name: &str) -> Option<rudra::fspec::VarnodeData> {
         self.registers.get(name).copied()
     }
-    fn space_by_name(&self, name: &str) -> Option<rugra::space::AddressSpace> {
+    fn space_by_name(&self, name: &str) -> Option<rudra::space::AddressSpace> {
         spec_space_by_name(name)
     }
-    fn space_highest(&self, spc: rugra::space::AddressSpace) -> u64 {
+    fn space_highest(&self, spc: rudra::space::AddressSpace) -> u64 {
         let name = match spc {
-            rugra::space::AddressSpace::Const => "const",
-            rugra::space::AddressSpace::Other(_) => "OTHER",
-            rugra::space::AddressSpace::Unique => "unique",
-            rugra::space::AddressSpace::Ram => "ram",
-            rugra::space::AddressSpace::Register => "register",
-            rugra::space::AddressSpace::Stack => "stack",
-            rugra::space::AddressSpace::Iop => "iop",
-            rugra::space::AddressSpace::Join => "join",
-            rugra::space::AddressSpace::Overlay => "OTHER",
+            rudra::space::AddressSpace::Const => "const",
+            rudra::space::AddressSpace::Other(_) => "OTHER",
+            rudra::space::AddressSpace::Unique => "unique",
+            rudra::space::AddressSpace::Ram => "ram",
+            rudra::space::AddressSpace::Register => "register",
+            rudra::space::AddressSpace::Stack => "stack",
+            rudra::space::AddressSpace::Iop => "iop",
+            rudra::space::AddressSpace::Join => "join",
+            rudra::space::AddressSpace::Overlay => "OTHER",
         };
         SPEC_SPACES
             .iter()
@@ -4682,13 +4682,13 @@ impl rugra::arch::SpecQuery for WorkerSpecHost {
     }
 }
 
-impl rugra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
-    fn find_symbol(&self, name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
+impl rudra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
+    fn find_symbol(&self, name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
         self.registers
             .get(name)
-            .map(|vd| rugra::pcodeparse::SleighSymbol {
+            .map(|vd| rudra::pcodeparse::SleighSymbol {
             name: name.to_string(),
-            kind: rugra::pcodeparse::SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: rudra::pcodeparse::SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: vd.space,
                 offset: vd.offset,
                 size: vd.size.max(0) as usize,
@@ -4711,7 +4711,7 @@ impl rugra::pcodeparse::SleighSymbolLookup for WorkerSpecHost {
 // process cwd (`sleigh_specs/x86-64-gcc.cspec`, same convention as the
 // default SLEIGH asset path) instead of being carried and
 // fingerprint-verified inside the worker request.
-fn worker_architecture() -> Result<std::sync::Arc<rugra::arch::Architecture>, String> {
+fn worker_architecture() -> Result<std::sync::Arc<rudra::arch::Architecture>, String> {
     worker_architecture_with_program_db(None, None)
 }
 
@@ -4731,11 +4731,11 @@ fn worker_architecture() -> Result<std::sync::Arc<rugra::arch::Architecture>, St
 // job per worker process means exactly one adopter; the in-process
 // CompareFunctions mode falls back to a fresh engine for later jobs.
 fn worker_architecture_with_program_db(
-    symboltab: Option<std::sync::Arc<std::sync::RwLock<rugra::database::Database>>>,
-    loader: Option<std::sync::Arc<dyn rugra::loadimage::LoadImage>>,
-) -> Result<std::sync::Arc<rugra::arch::Architecture>, String> {
+    symboltab: Option<std::sync::Arc<std::sync::RwLock<rudra::database::Database>>>,
+    loader: Option<std::sync::Arc<dyn rudra::loadimage::LoadImage>>,
+) -> Result<std::sync::Arc<rudra::arch::Architecture>, String> {
     static CACHE: std::sync::OnceLock<
-        Result<std::sync::Arc<rugra::arch::Architecture>, String>> = std::sync::OnceLock::new();
+        Result<std::sync::Arc<rudra::arch::Architecture>, String>> = std::sync::OnceLock::new();
     if let Some(cached) = CACHE.get() {
         return cached.clone();
     }
@@ -4758,7 +4758,7 @@ fn worker_architecture_with_program_db(
 // RUGRA-GLUE: PERF-DUAL-SLEIGH-INIT-0001 take-once engine pool beside the
 // first-init Architecture cache above (same single-threaded worker
 // lifecycle; parking order == build order, single writer by construction).
-static WORKER_SLEIGH_ENGINE: std::sync::Mutex<Option<rugra::sleigh_ffi::SleighCtx>> =
+static WORKER_SLEIGH_ENGINE: std::sync::Mutex<Option<rudra::sleigh_ffi::SleighCtx>> =
     std::sync::Mutex::new(None);
 
 // RUGRA-GLUE: adopt the parked register-catalog engine (first caller) or
@@ -4774,19 +4774,19 @@ fn take_worker_sleigh_lifter() -> SleighLifter {
 }
 
 fn build_worker_architecture(
-    symboltab: Option<std::sync::Arc<std::sync::RwLock<rugra::database::Database>>>,
-    loader: Option<std::sync::Arc<dyn rugra::loadimage::LoadImage>>,
+    symboltab: Option<std::sync::Arc<std::sync::RwLock<rudra::database::Database>>>,
+    loader: Option<std::sync::Arc<dyn rudra::loadimage::LoadImage>>,
 ) -> Result<
     (
-        std::sync::Arc<rugra::arch::Architecture>,
-        rugra::sleigh_ffi::SleighCtx,
+        std::sync::Arc<rudra::arch::Architecture>,
+        rudra::sleigh_ffi::SleighCtx,
     ),
     String,
 > {
     (|| {
         let cspec_bytes = fs::read("sleigh_specs/x86-64-gcc.cspec")
             .map_err(|error| format!("unable to read compiler spec: {error}"))?;
-        let sleigh = rugra::sleigh_ffi::SleighCtx::new()
+        let sleigh = rudra::sleigh_ffi::SleighCtx::new()
             .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
         let mut registers = HashMap::new();
         let mut register_xref: Vec<(i32, u64, i32, String)> = Vec::new();
@@ -4805,15 +4805,15 @@ fn build_worker_architecture(
             register_xref.push((space, offset, size, name.to_string()));
             registers.insert(
                 name.to_string(),
-                rugra::fspec::VarnodeData {
-                    space: rugra::space::AddressSpace::from_id(space_id),
+                rudra::fspec::VarnodeData {
+                    space: rudra::space::AddressSpace::from_id(space_id),
                     offset,
                     size,
                 },
             );
         }
         let host = Arc::new(WorkerSpecHost { registers });
-        let mut store = rugra::marshal::DocumentStorage::new();
+        let mut store = rudra::marshal::DocumentStorage::new();
         let doc = store
             .parse_document(&cspec_bytes)
             .map_err(|error| format!("compiler spec parse failed: {error}"))?;
@@ -4830,7 +4830,7 @@ fn build_worker_architecture(
             return Err("compiler spec root is not compiler_spec".to_string());
         }
         store.register_tag(&root);
-        let mut arch = rugra::arch::Architecture::new();
+        let mut arch = rudra::arch::Architecture::new();
         arch.archid = "x86:LE:64:default".to_string();
         // B3-VARMAP-REGNAME-0001: install the SLEIGH register
         // cross-reference (SleighBase::buildXrefs → varnode_xref,
@@ -4853,7 +4853,7 @@ fn build_worker_architecture(
         // "Unknown calling convention" comments (coreaction.cc:4908) — then
         // stores into this database instead of falling back to stderr.
         arch.set_commentdb(std::sync::Arc::new(std::sync::RwLock::new(
-            rugra::comment::CommentDatabaseInternal::new(),
+            rudra::comment::CommentDatabaseInternal::new(),
         )));
         // Ghidra: architecture.cc:1391-1414 Architecture::init builds the
         // TypeFactory unconditionally (buildTypegrp at :1398, before
@@ -4883,7 +4883,7 @@ fn build_worker_architecture(
             // (LibcSignatureTable::locked_proto) and the DWARF import paths
             // (parse_type_names / DebugPrototypeDatabase / DebugGlobalDatabase)
             // share one identity domain, the way the oracle does.
-            let types = rugra::type_system::typefactory::TypeFactory::shared_default();
+            let types = rudra::type_system::typefactory::TypeFactory::shared_default();
             let data_org = root
                 .read()
                 .map_err(|_| "compiler spec element lock poisoned".to_string())?
@@ -4898,9 +4898,9 @@ fn build_worker_architecture(
                 .cloned()
                 .ok_or_else(|| "compiler spec has no data_organization".to_string())?;
             let registry = Arc::new(std::sync::RwLock::new(
-                rugra::marshal::IdRegistry::new()));
+                rudra::marshal::IdRegistry::new()));
             let mut decoder =
-                rugra::marshal::TreeDecoder::new(data_org, registry);
+                rudra::marshal::TreeDecoder::new(data_org, registry);
             types
                 .write()
                 .map_err(|_| "compiler spec factory lock poisoned".to_string())?
@@ -4908,7 +4908,7 @@ fn build_worker_architecture(
             types
                 .write()
                 .map_err(|_| "compiler spec factory lock poisoned".to_string())?
-                .setup_sizes(&rugra::type_system::typefactory::SizeArchInputs {
+                .setup_sizes(&rudra::type_system::typefactory::SizeArchInputs {
                     stack_spacebase_size: Some(8),
                     default_data_space_addr_size: 8,
                     default_size: 8,
@@ -4917,11 +4917,11 @@ fn build_worker_architecture(
             arch.set_types(types);
         }
         let mut inject_lib =
-            rugra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
+            rudra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
         inject_lib.set_sleigh_lookup(host.clone());
         arch.pcodeinjectlib = Some(Arc::new(std::sync::RwLock::new(inject_lib)));
         arch.userops = Some(Arc::new(std::sync::RwLock::new(
-            rugra::userop::UserOpManage::new(),
+            rudra::userop::UserOpManage::new(),
         )));
         // ARCH-CONTEXT-TRACKED-0001: Architecture::restoreFromSpec runs
         // parseProcessorConfig BEFORE parseCompilerConfig
@@ -4956,7 +4956,7 @@ fn build_worker_architecture(
             .map_err(|_| "processor spec element lock poisoned".to_string())?
             .children
             .clone();
-        let pspec_registry = Arc::new(std::sync::RwLock::new(rugra::marshal::IdRegistry::new()));
+        let pspec_registry = Arc::new(std::sync::RwLock::new(rudra::marshal::IdRegistry::new()));
         for child in pspec_children {
             let child_name = child
                 .read()
@@ -4966,7 +4966,7 @@ fn build_worker_architecture(
             match child_name.as_str() {
                 "context_data" => {
                     let mut decoder =
-                        rugra::marshal::TreeDecoder::new(child, pspec_registry.clone());
+                        rudra::marshal::TreeDecoder::new(child, pspec_registry.clone());
                     arch.decode_context_data(&mut decoder, host.as_ref())
                         .map_err(|error| format!("processor spec context_data decode failed: {error}"))?;
                 }
@@ -4978,7 +4978,7 @@ fn build_worker_architecture(
                 // miss of the skipped element.
                 "register_data" => {
                     let mut decoder =
-                        rugra::marshal::TreeDecoder::new(child, pspec_registry.clone());
+                        rudra::marshal::TreeDecoder::new(child, pspec_registry.clone());
                     arch.decode_register_data(&mut decoder, host.as_ref())
                         .map_err(|error| format!("processor spec register_data decode failed: {error}"))?;
                 }
@@ -5036,7 +5036,7 @@ fn build_worker_architecture(
             {
             if arch.symboltab.is_none() {
                 arch.symboltab = Some(Arc::new(std::sync::RwLock::new(
-                    rugra::database::Database::new(false),
+                    rudra::database::Database::new(false),
                 )));
             }
             if let Ok(image) = fs::read("examples/curl") {
@@ -5083,17 +5083,17 @@ fn build_worker_architecture(
                     // propagation contest (see the worker-side twin + the
                     // `extern_reloc` field doc in debugproto.rs).
                     let seeded_dtype = if global.extern_reloc {
-                        rugra::type_system::typefactory::TypeFactory::shared_default()
+                        rudra::type_system::typefactory::TypeFactory::shared_default()
                             .write()
                             .unwrap()
-                            .get_base(8, rugra::type_system::datatype::TypeMetatype::Unknown)
+                            .get_base(8, rudra::type_system::datatype::TypeMetatype::Unknown)
                             .unwrap_or_else(|| {
                                 std::sync::Arc::new(
-                                    rugra::type_system::datatype::Datatype::Base(
-                                        rugra::type_system::datatype::TypeBase::new(
+                                    rudra::type_system::datatype::Datatype::Base(
+                                        rudra::type_system::datatype::TypeBase::new(
                                             "undefined8".to_string(),
                                             8,
-                                            rugra::type_system::datatype::TypeMetatype::Unknown,
+                                            rudra::type_system::datatype::TypeMetatype::Unknown,
                                         ),
                                     ),
                                 )
@@ -5164,22 +5164,22 @@ fn build_worker_architecture(
                     // -> undefined[size]; <=10 keeps the named scalar.
                     let undefined1 = || {
                         std::sync::Arc::new(
-                            rugra::type_system::datatype::Datatype::Base(
-                                rugra::type_system::datatype::TypeBase::new(
+                            rudra::type_system::datatype::Datatype::Base(
+                                rudra::type_system::datatype::TypeBase::new(
                                     "undefined".to_string(),
                                     1,
-                                    rugra::type_system::datatype::TypeMetatype::Unknown,
+                                    rudra::type_system::datatype::TypeMetatype::Unknown,
                                 ),
                             ),
                         )
                     };
                     let undefined8 = || {
                         std::sync::Arc::new(
-                            rugra::type_system::datatype::Datatype::Base(
-                                rugra::type_system::datatype::TypeBase::new(
+                            rudra::type_system::datatype::Datatype::Base(
+                                rudra::type_system::datatype::TypeBase::new(
                                     "undefined8".to_string(),
                                     8,
-                                    rugra::type_system::datatype::TypeMetatype::Unknown,
+                                    rudra::type_system::datatype::TypeMetatype::Unknown,
                                 ),
                             ),
                         )
@@ -5224,7 +5224,7 @@ fn build_worker_architecture(
                                 .all(|i| slot_is_pointer(raw_address + (i as u64) * 8));
                             if all_pointer_slots {
                                 (
-                                    rugra::type_system::typefactory::TypeFactory::shared_default()
+                                    rudra::type_system::typefactory::TypeFactory::shared_default()
                                         .write()
                                         .unwrap()
                                         .get_type_pointer_default(undefined1()),
@@ -5236,17 +5236,17 @@ fn build_worker_architecture(
                         } else {
                             (undefined1(), size_usize)
                         };
-                        rugra::type_system::typefactory::TypeFactory::shared_default()
+                        rudra::type_system::typefactory::TypeFactory::shared_default()
                             .write()
                             .unwrap()
                             .get_array(element, count)
                     } else {
                         std::sync::Arc::new(
-                            rugra::type_system::datatype::Datatype::Base(
-                                rugra::type_system::datatype::TypeBase::new(
+                            rudra::type_system::datatype::Datatype::Base(
+                                rudra::type_system::datatype::TypeBase::new(
                                     format!("undefined{size}"),
                                     size_usize,
-                                    rugra::type_system::datatype::TypeMetatype::Unknown,
+                                    rudra::type_system::datatype::TypeMetatype::Unknown,
                                 ),
                             ),
                         )
@@ -5356,8 +5356,8 @@ fn infer_prototype_request(request: &PrototypeRequest) -> Result<usize, String> 
     fd.set_arch(worker_architecture()?);
     fd.inject_raw_ops(&raw_ops);
     fd.run_heritage_direct();
-    use rugra::action::Action;
-    let mut infer = rugra::coreaction::ActionInferParams::new();
+    use rudra::action::Action;
+    let mut infer = rudra::coreaction::ActionInferParams::new();
     let _ = infer.apply(&mut fd);
     Ok(fd.funcp.num_params())
 }
@@ -5423,15 +5423,15 @@ fn stage_producer() -> String {
 // the harness width gate; ids outside the registered-space set fall back
 // to the plain `c:` rendering like the harness's table miss.
 fn stage_spaceid_name(offset: u64) -> Option<&'static str> {
-    if offset > rugra::space::SPACEID_IOP as u64 {
+    if offset > rudra::space::SPACEID_IOP as u64 {
         return None;
     }
-    match rugra::space::AddressSpace::from_id(offset as rugra::space::SpaceId) {
+    match rudra::space::AddressSpace::from_id(offset as rudra::space::SpaceId) {
         // Registered-space mirror of the harness table: ids beyond the
         // architecture's space list never join g_spaceIdNames. from_id
         // cannot yield Other(id>SPACEID_IOP) under the bound above, but the
         // guard keeps the invariant explicit.
-        rugra::space::AddressSpace::Other(id) if id != rugra::space::SPACEID_OTHER => None,
+        rudra::space::AddressSpace::Other(id) if id != rudra::space::SPACEID_OTHER => None,
         space => Some(space.name()),
     }
 }
@@ -5447,7 +5447,7 @@ fn stage_spaceid_name(offset: u64) -> Option<&'static str> {
 // a reference whose target op left the tree renders `o:-` (both sides
 // rebuild the table per snapshot, harness writeSnapshot L193-200).
 fn stage_vn(
-    vn: &std::sync::Arc<std::sync::RwLock<rugra::varnode::Varnode>>,
+    vn: &std::sync::Arc<std::sync::RwLock<rudra::varnode::Varnode>>,
     host_addr: u64,
     host_time: u32,
     spaceid_slot: bool,
@@ -5458,7 +5458,7 @@ fn stage_vn(
     // writeOp renders one descriptor per numInput() slot). The shared
     // null_slot_sentinel (crate::op) stands in for that NULL on the Rugra
     // side, so it must render identically (SB-ORD159-NULLSLOT-0001).
-    if std::sync::Arc::ptr_eq(vn, &rugra::op::null_slot_sentinel()) {
+    if std::sync::Arc::ptr_eq(vn, &rudra::op::null_slot_sentinel()) {
         return "-".to_string();
     }
     let vn = vn.read().unwrap();
@@ -5472,10 +5472,10 @@ fn stage_vn(
         }
         return format!("c:{offset:x}:{size}");
     }
-    if vn.get_space() == rugra::space::AddressSpace::Unique {
+    if vn.get_space() == rudra::space::AddressSpace::Unique {
         return format!("u:{offset:x}:{size}");
     }
-    if vn.get_space() == rugra::space::AddressSpace::Iop {
+    if vn.get_space() == rudra::space::AddressSpace::Iop {
         // Rugra shares the Iop enum space for both annotation kinds
         // (TYPEOP-FSPEC-SPACE-0001); Funcdata::get_op_from_const
         // discriminates fspec vs iop by the typed callspec binding, expired
@@ -5538,7 +5538,7 @@ const STAGE_OPCODE_TABLE_DIVERGENCE: [(&str, &str); 0] = [];
 // slot, mirroring get_opname(opcodes.cc:60-64). Real ops are always inside
 // the table; an out-of-table value is an emitter bug worth a panic, not a
 // silent wrong name.
-fn stage_opname(code: rugra::opcodes::OpCode) -> &'static str {
+fn stage_opname(code: rudra::opcodes::OpCode) -> &'static str {
     let index = code as i32 as usize;
     STAGE_OPCODE_NAME
         .get(index)
@@ -5551,7 +5551,7 @@ fn stage_opname(code: rugra::opcodes::OpCode) -> &'static str {
 // locked-table slot, and every difference must be one of the pinned
 // STAGE_OPCODE_TABLE_DIVERGENCE entries. Run once per projection.
 fn stage_opcode_parity() -> Result<(), String> {
-    use rugra::opcodes::OpCode;
+    use rudra::opcodes::OpCode;
     let mut divergences: Vec<(&str, &str)> = Vec::new();
     for index in 1..STAGE_OPCODE_NAME.len() {
         // Slot 0 (BLANK) has no Rust variant; CPUI_UNUSED1 (45) is
@@ -5608,7 +5608,7 @@ fn stage_snapshot(
         // side (see stage_spaceid_name); every other slot stays value-only.
         let spaceid_slot = matches!(
             op.get_opcode(),
-            rugra::opcodes::OpCode::CPUI_LOAD | rugra::opcodes::OpCode::CPUI_STORE
+            rudra::opcodes::OpCode::CPUI_LOAD | rudra::opcodes::OpCode::CPUI_STORE
         );
         let out = op
             .get_out()
@@ -5781,7 +5781,7 @@ fn stage_next_runnable(
         let state = group
             .child_state(nodes[*child].index_in_parent)
             .expect("stage child state present");
-        if state.status != rugra::action::status_flags::STATUS_END {
+        if state.status != rudra::action::status_flags::STATUS_END {
             return Some(*child);
         }
     }
@@ -5837,7 +5837,7 @@ fn stage_frontier(
             break;
         }
         let parent_state = stage_state_of(root, root_state, nodes, parent);
-        if parent_state.flags & rugra::action::action_flags::RULE_REPEATAPPLY != 0 {
+        if parent_state.flags & rudra::action::action_flags::RULE_REPEATAPPLY != 0 {
             if let Some(child) = stage_next_runnable(root, nodes, parent, 0) {
                 push(child, &mut candidates);
             }
@@ -6042,7 +6042,7 @@ fn emit_stage_projection(
             .copied()
             .find(|candidate| {
                 stage_state_of(&*root, &root_state, &nodes, *candidate).status
-                    == rugra::action::status_flags::STATUS_BREAKSTARTHIT
+                    == rudra::action::status_flags::STATUS_BREAKSTARTHIT
             })
             .ok_or_else(|| {
                 format!(
@@ -6155,7 +6155,7 @@ fn emit_stage_drill(
         .arch
         .clone()
         .ok_or_else(|| "drill requires a bound Architecture".to_string())?;
-    rugra::drillobserve::start(fd_arch);
+    rudra::drillobserve::start(fd_arch);
 
     let mut blocks: u64 = 0;
     let mut records: u64 = 0;
@@ -6241,7 +6241,7 @@ fn emit_stage_drill(
             .perform(fd, &mut root_state)
             .map_err(|error| format!("drill perform failed at {}: {error}", nodes[current].path))?;
         perform_calls += 1;
-        let drained = rugra::drillobserve::drain();
+        let drained = rudra::drillobserve::drain();
         let recs = emit_blocks(&*root, &nodes, &mut output, current, drained, &mut blocks)?;
         records += recs;
         if ret >= 0 {
@@ -6252,7 +6252,7 @@ fn emit_stage_drill(
             .copied()
             .find(|candidate| {
                 stage_state_of(&*root, &root_state, &nodes, *candidate).status
-                    == rugra::action::status_flags::STATUS_BREAKSTARTHIT
+                    == rudra::action::status_flags::STATUS_BREAKSTARTHIT
             })
             .ok_or_else(|| {
                 format!(
@@ -6270,7 +6270,7 @@ fn emit_stage_drill(
     writeln!(
         output,
         "@DONE applications={blocks} records={records} opactdbg_final={} perform_calls={perform_calls} nodes={}",
-        rugra::drillobserve::count(),
+        rudra::drillobserve::count(),
         nodes.len()
     )
     .map_err(|error| format!("unable to write drill done line: {error}"))?;
@@ -6413,7 +6413,7 @@ fn decompile_request(
         && !mirror_bundle_enabled()
         && !mirror_flow_enabled()
         && !mirror_bare_load_enabled();
-    let program_db: Option<std::sync::Arc<std::sync::RwLock<rugra::database::Database>>> =
+    let program_db: Option<std::sync::Arc<std::sync::RwLock<rudra::database::Database>>> =
         if mirror_bare_load_enabled() {
             // ORD185-CONSTANTPTR-BAREDB (RUGRA-FLOW-MIRROR-0001 / bare-load
             // data environment): the oracle single-function harness is a raw
@@ -6444,25 +6444,25 @@ fn decompile_request(
                 target.name
             );
             let db_arc = std::sync::Arc::new(std::sync::RwLock::new(
-                rugra::database::Database::new(false),
+                rudra::database::Database::new(false),
             ));
             {
                 let mut db = db_arc.write().unwrap();
                 let global = db.global_scope_id;
                 // cspec <global>: the global scope owns the whole ram space.
-                if let Some(rng) = rugra::address::Range::new(
+                if let Some(rng) = rudra::address::Range::new(
                     Address::new(0),
                     Address::new(u64::MAX)) {
                     db.add_range(global, rng);
                 }
                 // fillinReadOnlyFromLoader mirror (SEC_READONLY sections).
                 if let Some((base, size)) = request.rodata_span {
-                    if let Some(rng) = rugra::address::Range::new(
+                    if let Some(rng) = rudra::address::Range::new(
                         Address::new(base),
                         Address::new(base + size - 1),
                     ) {
                         db.set_property_range(
-                            rugra::database::symbol_flags::READONLY,
+                            rudra::database::symbol_flags::READONLY,
                             rng);
                     }
                 }
@@ -6472,7 +6472,7 @@ fn decompile_request(
             None
         } else {
             let db_arc = std::sync::Arc::new(std::sync::RwLock::new(
-                rugra::database::Database::new(false),
+                rudra::database::Database::new(false),
             ));
             // STRLIT-ENVDAT-0001: the analysis-period string Data set. The
             // locked canon golden (ghidra_curl_1204.c) proves the
@@ -6527,7 +6527,7 @@ fn decompile_request(
             // the ELF importer layer at the same address.
             let dwarf_display_names: HashMap<
                 u64, (
-                    String, std::sync::Arc<rugra::type_system::datatype::Datatype>, i32, bool,
+                    String, std::sync::Arc<rudra::type_system::datatype::Datatype>, i32, bool,
                 ),
             > = debug_globals
                 .iter()
@@ -6553,7 +6553,7 @@ fn decompile_request(
                 // The global scope owns the whole ram space (cspec <global>;
                 // stack locals live in function-local scopes Ghidra attaches
                 // later, none exist in this projection).
-                if let Some(rng) = rugra::address::Range::new(
+                if let Some(rng) = rudra::address::Range::new(
                     Address::new(0),
                     Address::new(u64::MAX)) {
                     db.add_range(global, rng);
@@ -6599,10 +6599,10 @@ fn decompile_request(
                 // below is unchanged (the pointer-slot-width
                 // mapGlobals/overlap concern is about the span, not the
                 // type).
-                let undefined1 = rugra::type_system::typefactory::TypeFactory::shared_default()
+                let undefined1 = rudra::type_system::typefactory::TypeFactory::shared_default()
                     .write()
                     .unwrap()
-                    .get_base(1, rugra::type_system::datatype::TypeMetatype::Unknown);
+                    .get_base(1, rudra::type_system::datatype::TypeMetatype::Unknown);
                 // STRCONST-SPANNONOVERLAP: the oracle's Program DB Data layout
                 // is strictly non-overlapping (Ghidra cannot create Data over
                 // bytes another Data covers), and the strings-analyzer
@@ -6659,12 +6659,12 @@ fn decompile_request(
                         // here fragmented the grouping and minted extra
                         // local declarations (glob_range `pcVar11`,
                         // glob_set `pcVar8` — LANE DECLFAM 2026-09-28).
-                        let char_base = rugra::type_system::typefactory::TypeFactory::shared_default()
+                        let char_base = rudra::type_system::typefactory::TypeFactory::shared_default()
                             .read()
                             .unwrap_or_else(|poisoned| poisoned.into_inner())
                             .find_by_name("char")
                             .or_else(|| {
-                                rugra::type_system::typefactory::TypeFactory::shared_default()
+                                rudra::type_system::typefactory::TypeFactory::shared_default()
                                     .write()
                                     .unwrap_or_else(|poisoned| poisoned.into_inner())
                                     .get_type_char_named("char")
@@ -6672,21 +6672,21 @@ fn decompile_request(
                             })
                             .unwrap_or_else(|| {
                                 std::sync::Arc::new(
-                                    rugra::type_system::datatype::Datatype::Base(
-                                        rugra::type_system::datatype::TypeBase::new_char(
+                                    rudra::type_system::datatype::Datatype::Base(
+                                        rudra::type_system::datatype::TypeBase::new_char(
                                             "char".to_string(),
-                                            rugra::type_system::datatype::TypeMetatype::Int,
+                                            rudra::type_system::datatype::TypeMetatype::Int,
                                         ),
                                     ),
                                 )
                             });
                         let len = value.len() + 1;
-                        std::sync::Arc::new(rugra::type_system::datatype::Datatype::Array(
-                            rugra::type_system::datatype::TypeArray {
-                                base: rugra::type_system::datatype::TypeBase::new(
+                        std::sync::Arc::new(rudra::type_system::datatype::Datatype::Array(
+                            rudra::type_system::datatype::TypeArray {
+                                base: rudra::type_system::datatype::TypeBase::new(
                                     String::new(),
                                     len,
-                                    rugra::type_system::datatype::TypeMetatype::Array,
+                                    rudra::type_system::datatype::TypeMetatype::Array,
                                 ),
                                 array_of: char_base,
                                 num_elements: len,
@@ -6726,10 +6726,10 @@ fn decompile_request(
                     };
                     let dtype = dtype.or_else(|| match ref_width {
                         Some(width) => {
-                            rugra::type_system::typefactory::TypeFactory::shared_default()
+                            rudra::type_system::typefactory::TypeFactory::shared_default()
                                 .write()
                                 .unwrap_or_else(|poisoned| poisoned.into_inner())
-                                .get_base(width as usize, rugra::type_system::datatype::TypeMetatype::Unknown)
+                                .get_base(width as usize, rudra::type_system::datatype::TypeMetatype::Unknown)
                         }
                         None => undefined1.clone(),
                     });
@@ -6812,7 +6812,7 @@ fn decompile_request(
                             db.set_symbol_flag(
                                 global,
                                 symbol_id,
-                                rugra::database::symbol_flags::TYPELOCK,
+                                rudra::database::symbol_flags::TYPELOCK,
                                 true,
                             );
                         }
@@ -6833,7 +6833,7 @@ fn decompile_request(
                         db.set_symbol_flag(
                             global,
                             symbol_id,
-                            rugra::database::symbol_flags::READONLY,
+                            rudra::database::symbol_flags::READONLY,
                             true,
                         );
                     }
@@ -6850,14 +6850,14 @@ fn decompile_request(
                 // Ghidra's PTR_ labels are pointers by construction).
                 let undefined_star = {
                     let base = std::sync::Arc::new(
-                        rugra::type_system::datatype::Datatype::Base(
-                            rugra::type_system::datatype::TypeBase::new(
+                        rudra::type_system::datatype::Datatype::Base(
+                            rudra::type_system::datatype::TypeBase::new(
                                 "undefined".to_string(),
                                 1,
-                                rugra::type_system::datatype::TypeMetatype::Unknown,
+                                rudra::type_system::datatype::TypeMetatype::Unknown,
                             ),
                         ));
-                    rugra::type_system::typefactory::TypeFactory::shared_default()
+                    rudra::type_system::typefactory::TypeFactory::shared_default()
                         .write()
                         .unwrap()
                         .get_type_pointer_default(base)
@@ -6865,10 +6865,10 @@ fn decompile_request(
                 // ELF OBJECT symbols take their size-derived undefined width
                 // (8 for this corpus's slots) — distinct from the .rodata
                 // DAT label type above (CURLWIRE: 1-byte undefined).
-                let undefined8 = rugra::type_system::typefactory::TypeFactory::shared_default()
+                let undefined8 = rudra::type_system::typefactory::TypeFactory::shared_default()
                     .write()
                     .unwrap()
-                    .get_base(8, rugra::type_system::datatype::TypeMetatype::Unknown);
+                    .get_base(8, rudra::type_system::datatype::TypeMetatype::Unknown);
                 for &(address, ref name, size, pointer_slot) in &request.db_symbol_entries {
                     if dwarf_display_names.contains_key(&address) {
                         continue;
@@ -6924,7 +6924,7 @@ fn decompile_request(
                                 db.set_symbol_flag(
                                     global,
                                     symbol_id,
-                                    rugra::database::symbol_flags::READONLY,
+                                    rudra::database::symbol_flags::READONLY,
                                     true,
                                 );
                             }
@@ -6956,7 +6956,7 @@ fn decompile_request(
                                     db.set_symbol_flag(
                                         global,
                                         symbol_id,
-                                        rugra::database::symbol_flags::READONLY,
+                                        rudra::database::symbol_flags::READONLY,
                                         true,
                                     );
                                 }
@@ -6981,11 +6981,11 @@ fn decompile_request(
                 // db_symbol_entries loop above).
                 {
                     let undefined_base = std::sync::Arc::new(
-                        rugra::type_system::datatype::Datatype::Base(
-                            rugra::type_system::datatype::TypeBase::new(
+                        rudra::type_system::datatype::Datatype::Base(
+                            rudra::type_system::datatype::TypeBase::new(
                                 "undefined".to_string(),
                                 1,
-                                rugra::type_system::datatype::TypeMetatype::Unknown,
+                                rudra::type_system::datatype::TypeMetatype::Unknown,
                             ),
                         ),
                     );
@@ -7000,13 +7000,13 @@ fn decompile_request(
                             db.set_symbol_flag(
                                 global,
                                 symbol_id,
-                                rugra::database::symbol_flags::TYPELOCK,
+                                rudra::database::symbol_flags::TYPELOCK,
                                 true,
                             );
                             db.set_symbol_flag(
                                 global,
                                 symbol_id,
-                                rugra::database::symbol_flags::READONLY,
+                                rudra::database::symbol_flags::READONLY,
                                 true,
                             );
                         }
@@ -7058,12 +7058,12 @@ fn decompile_request(
                     }
                 }
                 if let Some((base, size)) = request.rodata_span {
-                    if let Some(rng) = rugra::address::Range::new(
+                    if let Some(rng) = rudra::address::Range::new(
                         Address::new(base),
                         Address::new(base + size - 1),
                     ) {
                         db.set_property_range(
-                            rugra::database::symbol_flags::READONLY,
+                            rudra::database::symbol_flags::READONLY,
                             rng);
                     }
                 }
@@ -7074,12 +7074,12 @@ fn decompile_request(
                 // bare oracle loads no RELRO flags for .got and the
                 // projection bank's PLT-free functions never touch it).
                 if let Some((base, size)) = request.got_span {
-                    if let Some(rng) = rugra::address::Range::new(
+                    if let Some(rng) = rudra::address::Range::new(
                         Address::new(base),
                         Address::new(base + size - 1),
                     ) {
                         db.set_property_range(
-                            rugra::database::symbol_flags::READONLY,
+                            rudra::database::symbol_flags::READONLY,
                             rng);
                     }
                 }
@@ -7101,12 +7101,12 @@ fn decompile_request(
                 if symdb_default_on {
                     for &(lo, hi) in &symdb_ronly {
                         if hi > lo {
-                            if let Some(rng) = rugra::address::Range::new(
+                            if let Some(rng) = rudra::address::Range::new(
                                 Address::new(lo),
                                 Address::new(hi - 1),
                             ) {
                                 db.set_property_range(
-                                    rugra::database::symbol_flags::READONLY,
+                                    rudra::database::symbol_flags::READONLY,
                                     rng,
                                 );
                             }
@@ -7141,7 +7141,7 @@ fn decompile_request(
     // The loader-backed string manager source: the contiguous memory image
     // of the PT_LOAD segments (Ghidra's loader reads vaddr-keyed; .bss is
     // zero-filled NOBITS).
-    let program_loader: Option<std::sync::Arc<dyn rugra::loadimage::LoadImage>> =
+    let program_loader: Option<std::sync::Arc<dyn rudra::loadimage::LoadImage>> =
         Some(
         std::sync::Arc::new(worker_memory_load_image(elf, &request.binary_image)),
     );
@@ -7301,7 +7301,7 @@ fn decompile_request(
                     continue;
                 }
                 db_write.add_comment(
-                    rugra::comment::comment_type::WARNING,
+                    rudra::comment::comment_type::WARNING,
                     Address::new(target.vaddr),
                     Address::new(*anchor),
                     text,
@@ -7485,15 +7485,15 @@ fn decompile_request(
             "[PREPASS] {} bare-load: libc signature ledger disabled",
             target.name
         );
-        rugra::debugproto::LibcSignatureTable::empty()
+        rudra::debugproto::LibcSignatureTable::empty()
     } else {
-        rugra::debugproto::LibcSignatureTable::default()
+        rudra::debugproto::LibcSignatureTable::default()
     };
     // DWARF named-type index (Ghidra's program type-manager name resolution):
     // signature base spellings like `FILE` resolve to the binary's real type
     // graph so a locked libc `FILE *` return keeps SUB_PTR_STRUCT specificity
     // against inferred `char *` (parse_type_names, debugproto).
-    let dwarf_type_names = rugra::debugproto::parse_type_names(&request.binary_image)
+    let dwarf_type_names = rudra::debugproto::parse_type_names(&request.binary_image)
         .unwrap_or_default();
     // TYPEDEFSEED seeded-state occupation observation (the trigger-surface
     // count, HEADLESS-BRIDGE-V4-COMPOSITE-0005 task ③): how many entries of
@@ -7804,9 +7804,9 @@ fn decompile_request(
             "[PREPASS] {} flow mirror: follow_flow_range(0, u64::MAX)",
             target.name
         );
-        rugra::flow::follow_flow_range(&mut fd, &mut sleigh, 0, u64::MAX, &callee_protos)
+        rudra::flow::follow_flow_range(&mut fd, &mut sleigh, 0, u64::MAX, &callee_protos)
     } else {
-        rugra::flow::follow_flow_with_callee_protos(
+        rudra::flow::follow_flow_with_callee_protos(
             &mut fd,
             &mut sleigh,
             Address::new(target.vaddr),
@@ -7949,10 +7949,10 @@ fn decompile_request(
         "decompile",
         Arc::new(move |restart_fd| {
             let mut lifter = restart_lifter.lock().map_err(|_| {
-                rugra::Error::from("restart SLEIGH lifter lock poisoned".to_string())
+                rudra::Error::from("restart SLEIGH lifter lock poisoned".to_string())
             })?;
             if restart_mirror {
-                rugra::flow::follow_flow_range(
+                rudra::flow::follow_flow_range(
                     restart_fd,
                     &mut lifter,
                     0,
@@ -7960,7 +7960,7 @@ fn decompile_request(
                     &restart_callee_protos,
                 )
             } else {
-                rugra::flow::follow_flow_with_callee_protos(
+                rudra::flow::follow_flow_with_callee_protos(
                     restart_fd,
                     &mut lifter,
                     restart_entry,
@@ -8078,7 +8078,7 @@ fn decompile_request(
     if !symdb_default_on || program_db.is_none() {
         let mut print_symbol_db = match &program_db {
             Some(db_arc) => db_arc.read().unwrap().clone(),
-            None => rugra::database::Database::new(false),
+            None => rudra::database::Database::new(false),
         };
         let mut code_entries: std::collections::HashSet<u64> = std::collections::HashSet::new();
         {
@@ -8139,9 +8139,9 @@ fn decompile_request(
                 eprintln!(
                     "[DUMP] bb{} in={:?} out={:?}", blk_rg.get_index(), ins, outs
                 );
-                if let Some(bb) = blk_rg.as_any().downcast_ref::<rugra::block::BlockBasic>() {
+                if let Some(bb) = blk_rg.as_any().downcast_ref::<rudra::block::BlockBasic>() {
                     let type_str = |v: &std::sync::Arc<
-                        std::sync::RwLock<rugra::varnode::Varnode>,
+                        std::sync::RwLock<rudra::varnode::Varnode>,
                     >| -> String {
                         let vr = v.read().unwrap();
                         let own = vr
@@ -8161,7 +8161,7 @@ fn decompile_request(
                             .unwrap_or_else(|| "-".into());
                         format!("t={} h={}", own, hi)
                     };
-                    for op in <rugra::block::BlockBasic as rugra::block::FlowBlock>::get_ops(bb) {
+                    for op in <rudra::block::BlockBasic as rudra::block::FlowBlock>::get_ops(bb) {
                         let op_rg = op.0.read().unwrap();
                         let out_s = op_rg
                             .get_out()
@@ -8190,7 +8190,7 @@ fn decompile_request(
                         })
                             .collect();
                         let flag_s = format!(
-                            "mk={} np={} nr={} outimpl={}", op_rg.is_marker(), (op_rg.flags & rugra::op::pcodeop_flags::NONPRINTING) != 0, (op_rg.flags & rugra::op::pcodeop_flags::NORETURN) != 0, op_rg
+                            "mk={} np={} nr={} outimpl={}", op_rg.is_marker(), (op_rg.flags & rudra::op::pcodeop_flags::NONPRINTING) != 0, (op_rg.flags & rudra::op::pcodeop_flags::NORETURN) != 0, op_rg
                                 .get_out()
                                 .map(|o| o.read().unwrap().is_implied())
                                 .unwrap_or(false)
@@ -8209,7 +8209,7 @@ fn decompile_request(
             eprintln!("[DUMP] === structure tree for {} ===", target.name);
             let mut tree_out = String::new();
             for blk in &fd_read.sblocks.blocks {
-                rugra::block::print_tree_dbg(blk, 0, &mut tree_out);
+                rudra::block::print_tree_dbg(blk, 0, &mut tree_out);
             }
             eprintln!("{}", tree_out);
         }
@@ -8275,9 +8275,9 @@ fn decompile_request(
                         Ok((step, ops)) => {
                             for op in &ops {
                                 let is_branch = matches!(
-                                    rugra::opcodes::OpCode::from_i32(op.get_opcode()),
-                                    Some(rugra::opcodes::OpCode::CPUI_BRANCH)
-                                        | Some(rugra::opcodes::OpCode::CPUI_CBRANCH)
+                                    rudra::opcodes::OpCode::from_i32(op.get_opcode()),
+                                    Some(rudra::opcodes::OpCode::CPUI_BRANCH)
+                                        | Some(rudra::opcodes::OpCode::CPUI_CBRANCH)
                                 );
                                 if !is_branch {
                                     continue;
@@ -8285,7 +8285,7 @@ fn decompile_request(
                                 let Some(dest_vn) = op.inputs().first() else {
                                     continue;
                                 };
-                                if dest_vn.space != rugra::space::AddressSpace::Ram {
+                                if dest_vn.space != rudra::space::AddressSpace::Ram {
                                     continue;
                                 }
                                 let dest = dest_vn.offset;
@@ -8339,7 +8339,7 @@ fn decompile_request(
                 let dispatch = jt_rg.opaddress.as_u64();
                 for (i, dest) in jt_rg.addresstable.iter().enumerate() {
                     let case_value = jt_rg.label.get(i).copied();
-                    if case_value != Some(rugra::jumptable::NO_LABEL) && case_value.is_some() {
+                    if case_value != Some(rudra::jumptable::NO_LABEL) && case_value.is_some() {
                         switchd_labels.entry(dest.as_u64()).or_insert_with(|| {
                             format!("switchD_{:08x}_caseD_{:x}", dispatch, case_value.unwrap())
                         });
@@ -9696,7 +9696,7 @@ fn run_main(mode: DriverMode) -> Result<(), Box<dyn std::error::Error>> {
                 // address (canon witness FUN_00102020 = the PLT0 slot). The
                 // same name registers in the symbol table so call-site
                 // naming resolves these entries like any other function.
-                let fun_name = rugra::debugproto::analyze_headless_function_symbol_name(
+                let fun_name = rudra::debugproto::analyze_headless_function_symbol_name(
                     ledger_vaddr,
                     ANALYZE_HEADLESS_IMAGE_BASE,
                 );

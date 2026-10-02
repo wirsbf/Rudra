@@ -11,17 +11,17 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::fspec::ProtoModelFull;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypePointer};
-use rugra::type_system::typefactory::TypeFactory;
-use rugra::type_system::TypeMetatype;
-use rugra::varmap::ScopeLocal;
-use rugra::varnode::varnode_flags;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::fspec::ProtoModelFull;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypePointer};
+use rudra::type_system::typefactory::TypeFactory;
+use rudra::type_system::TypeMetatype;
+use rudra::varmap::ScopeLocal;
+use rudra::varnode::varnode_flags;
 
 struct LocalWindowScope {
     fd: Funcdata,

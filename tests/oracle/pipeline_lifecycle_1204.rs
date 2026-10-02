@@ -1,8 +1,8 @@
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::coreaction::{ActionStart, ActionStop};
-use rugra::funcdata::Funcdata;
-use rugra::space::AddressSpace;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::coreaction::{ActionStart, ActionStop};
+use rudra::funcdata::Funcdata;
+use rudra::space::AddressSpace;
 
 fn dump_state(label: &str, fd: &Funcdata, heritage_info_built: bool) {
     let register_passes = heritage_info_built

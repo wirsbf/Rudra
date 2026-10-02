@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use rugra::fspec::{EffectRecord, EffectType, FuncProto, ProtoModelFull};
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::fspec::{EffectRecord, EffectType, FuncProto, ProtoModelFull};
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
 #[derive(Clone, Copy)]
 struct Probe {

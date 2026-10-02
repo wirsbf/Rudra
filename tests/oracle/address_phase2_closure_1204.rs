@@ -4,14 +4,14 @@
 //! particular it does not recreate FlowInfo::newAddress outside FlowInfo;
 //! the combined cross-space visited state remains explicitly UNTESTED.
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::flow::FlowInfo;
-use rugra::funcdata::Funcdata;
-use rugra::op::{pcodeop_flags, PcodeOpBank, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::{space_flags, AddrSpace, SpaceType};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::flow::FlowInfo;
+use rudra::funcdata::Funcdata;
+use rudra::op::{pcodeop_flags, PcodeOpBank, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::{space_flags, AddrSpace, SpaceType};
 use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};

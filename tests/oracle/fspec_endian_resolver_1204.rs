@@ -3,7 +3,7 @@
 // FSPEC-CHARACTERIZE-RESOLVER-GATE-0003). Mirrors
 // tests/oracle/fspec_endian_resolver_1204.cc case for case:
 //  - le_forceleft_routing: the spaceless helper
-//    rugra::fspec::justified_contain_range over the full LE/BE x
+//    rudra::fspec::justified_contain_range over the full LE/BE x
 //    forceleft matrix; the branch key is
 //    `space_is_big_endian && !force_left` (address.cc:138), so LE rows
 //    print the start distance for BOTH forceleft values and only the
@@ -20,9 +20,9 @@
 //    resolver gating (phase-1 extent window, phase-2 start window, gate
 //    closed when no registered extent starts above the query start).
 
-use rugra::address::Address;
-use rugra::fspec::{justified_contain_range, ParamEntry, ParamListStandard, TypeClass};
-use rugra::space::AddressSpace;
+use rudra::address::Address;
+use rudra::fspec::{justified_contain_range, ParamEntry, ParamListStandard, TypeClass};
+use rudra::space::AddressSpace;
 
 // staged-loader entry builder (the pub equivalent of the C++ fixture's
 // direct field writes; same pattern as the justified_contain_1204

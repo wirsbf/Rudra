@@ -31,14 +31,14 @@
  *   so the fixture assembles the same insertion-ordered list.
  */
 
-use rugra::address::{Address, Range, RangeList};
-use rugra::database::{
+use rudra::address::{Address, Range, RangeList};
+use rudra::database::{
     symbol_flags, DuplicateFunctionError, EntrySubsort, FunctionSymbol, LabSymbol, Scope,
     Symbol, SymbolCompareName, SymbolEntry,
 };
-use rugra::space::{space_flags, AddrSpace, SpaceType};
-use rugra::type_system::datatype::TypeMetatype;
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::space::{space_flags, AddrSpace, SpaceType};
+use rudra::type_system::datatype::TypeMetatype;
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
 
 fn hexoff(v: u64) -> String {
     format!("{:x}", v)
@@ -105,7 +105,7 @@ fn main() {
 
     // ---- ExternRefSymbol (database.cc:768/789; hh:351) ----
     {
-        let x = rugra::database::ExternRefSymbol::new(global_id, "", Address::with_space(&ram, 0x6000));
+        let x = rudra::database::ExternRefSymbol::new(global_id, "", Address::with_space(&ram, 0x6000));
         println!(
             "case=exref_autoname|name={}|externref={}|typelock={}|ptr_size={}|ptr_meta=ptr",
             x.symbol.name,
@@ -113,7 +113,7 @@ fn main() {
             (x.symbol.flags & symbol_flags::TYPELOCK != 0) as u8,
             x.symbol.dtype.as_ref().unwrap().get_size()
         );
-        let y = rugra::database::ExternRefSymbol::new(global_id, "printf", Address::with_space(&ram, 0x6010));
+        let y = rudra::database::ExternRefSymbol::new(global_id, "printf", Address::with_space(&ram, 0x6010));
         println!("case=exref_named|name={}", y.symbol.name);
         println!("case=exref_ref_addr|{}", hexoff(x.get_ref_addr().as_u64()));
     }
@@ -121,14 +121,14 @@ fn main() {
     // ---- UnionFacetSymbol (database.cc:691; hh:323/324) ----
     {
         let udt = types.get_type_union("fixture_union");
-        let u = rugra::database::UnionFacetSymbol::new(global_id, "f", Some(udt), 2);
+        let u = rudra::database::UnionFacetSymbol::new(global_id, "f", Some(udt), 2);
         println!(
             "case=ufacet_ctor|field={}|category={}|typename={}",
             u.get_field_number(),
             u.symbol.category as i32,
             u.symbol.dtype.as_ref().unwrap().get_name()
         );
-        let ud = rugra::database::UnionFacetSymbol::new_decode(global_id);
+        let ud = rudra::database::UnionFacetSymbol::new_decode(global_id);
         println!(
             "case=ufacet_decode|field={}|category={}",
             ud.get_field_number(),

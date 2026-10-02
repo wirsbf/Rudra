@@ -6,7 +6,7 @@
 // only — `BlockGraph::scope_break(-1,-1)` (the ActionFinalStructure tail,
 // blockaction.cc:2193), `BlockGraph::compute_goto_prints()` (the
 // tree-wide gotoPrints evaluation), and the promoted dispatch
-// `rugra::block::next_flow_after_successors` / `graph_sibling_successors`
+// `rudra::block::next_flow_after_successors` / `graph_sibling_successors`
 // (the exact code ActionFinalStructure's walk runs) — never a
 // fixture-local reimplementation of the dispatch.
 //
@@ -23,8 +23,8 @@
 // tree-resident BlockGoto: target + gototype + prints_precomputed (the
 // value compute_goto_prints stored). Lines sorted before printing.
 
-use rugra::address::Address;
-use rugra::block::{
+use rudra::address::Address;
+use rudra::block::{
     BlockBasic, BlockDoWhile, BlockGoto, BlockGraph, BlockIf, BlockInfLoop, BlockList,
     BlockMultiGoto, BlockSwitch, BlockType, BlockWhileDo, FlowBlock, graph_sibling_successors,
     next_flow_after_successors,
@@ -291,7 +291,7 @@ fn goto_block(idx: i32, wrapped: BlockArc, target: BlockArc) -> BlockArc {
         goto_target: None,
         target_dyn: Some(target),
         wrapped: Some(wrapped),
-        goto_type: rugra::block::goto_type::GOTO_GOTO,
+        goto_type: rudra::block::goto_type::GOTO_GOTO,
         prints_precomputed: false,
         incoming: Vec::new(),
         outgoing: Vec::new(),
@@ -444,7 +444,7 @@ fn main() {
             if_body: tc.clone(),
             else_body: Some(b3.clone()),
             goto_target: None,
-            goto_type: rugra::block::goto_type::GOTO_GOTO,
+            goto_type: rudra::block::goto_type::GOTO_GOTO,
             parent: None,
             flags: 0,
             incoming: Vec::new(),
@@ -527,7 +527,7 @@ fn main() {
         // mg wraps head, gotoedges=[c3], the head→c3 out edge is removed
         // bilaterally.
         {
-            let mut collapse = rugra::blockaction::CollapseStructure::new(
+            let mut collapse = rudra::blockaction::CollapseStructure::new(
                 &mut graph,
                 "switch_multigoto_gotoedge",
             );
@@ -547,7 +547,7 @@ fn main() {
             control: mg.clone(),
             cases: vec![c_a.clone(), g0.clone(), c3.clone()],
             default_case: None,
-            case_gototypes: vec![0, 0, rugra::block::goto_type::GOTO_GOTO],
+            case_gototypes: vec![0, 0, rudra::block::goto_type::GOTO_GOTO],
             default_gototype: 0,
             // Pre-label bystander defaults (see switch_fallthru_goto above):
             // the multigoto append arm's observation is the case ORDER +

@@ -1,7 +1,7 @@
 // Locked Ghidra 12.0.4 rangemap<> oracle for
 // RANGEMAP-COMMON-REFINEMENT-0001 (Rust comparand).
 
-use rugra::rangemap::{RangeMap, RangeMapIter, RangeRecord, RangeSubsort};
+use rudra::rangemap::{RangeMap, RangeMapIter, RangeRecord, RangeSubsort};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Subsort(i32);
@@ -87,7 +87,7 @@ fn dump_overlap(label: &str, map: &RangeMap<TestRecord>, point: u64, end: u64) {
     println!("case={label}|overlap={point}:{end}|record={record}");
 }
 
-fn dump_cursor(label: &str, map: &RangeMap<TestRecord>, cursor: rugra::rangemap::RangeMapCursor) {
+fn dump_cursor(label: &str, map: &RangeMap<TestRecord>, cursor: rudra::rangemap::RangeMapCursor) {
     let record = map
         .record_at_cursor(cursor)
         .map_or("end", |record| record.name);

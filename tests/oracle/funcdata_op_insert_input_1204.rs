@@ -9,11 +9,11 @@
 // silenced hook so stderr stays empty) and coverdirty bookkeeping.
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::varnode::Varnode;
 
 fn catch_insert_input_error(
     fd: &mut Funcdata,

@@ -17,12 +17,12 @@
 //! needs the Translate register table (SPACE-0001), the latter is
 //! UB-adjacent C++ that Rust's non-optional space handle rejects.
 
-use rugra::address::elem_addr;
-use rugra::marshal::{
+use rudra::address::elem_addr;
+use rudra::marshal::{
     xml_tree, Decoder, Encoder, IdRegistry, PackedDecode, PackedEncode,
     TreeDecoder, TreeEncoder,
 };
-use rugra::space::{
+use rudra::space::{
     attrib_space, AddrSpace, SpaceRegistry, SpaceVarnodeData, SpaceType,
     space_flags,
 };

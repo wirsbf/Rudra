@@ -45,8 +45,8 @@
 //! Cross-check evidence: docs/alignment_audit/KUNA_UB_CROSSCHECK_2026-09-26.md
 //! (K5) and /dev/shm/rugra-reports/LANE_KUNAUB2_2026-09-26.md.
 
-use rugra::memstate::MemoryBank;
-use rugra::space::AddressSpace;
+use rudra::memstate::MemoryBank;
+use rudra::space::AddressSpace;
 
 /// get_chunk with `skip % wordsize != 0` (ws=8, chunk at page offset +1):
 /// the dead head-trim mirror over-copies past the requested size and the

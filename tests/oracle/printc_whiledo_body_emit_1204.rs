@@ -13,17 +13,17 @@
 //   2. forloop_structured_body  — for (; 3; 5) { <same body> }
 //   3. overflow_structured_body — while( true ) { if (3) break; <same body> }
 
-use rugra::address::{Address, SeqNum};
-use rugra::block::{BlockBasic, BlockGraph, BlockIf, BlockList, BlockWhileDo};
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::{Address, SeqNum};
+use rudra::block::{BlockBasic, BlockGraph, BlockIf, BlockList, BlockWhileDo};
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 use std::sync::{Arc, RwLock};
 
-type BlockArc = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type BlockArc = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 
 // Const-space varnode of the given byte size (the oracle fixture uses
 // 1-byte bool constants for CBRANCH conditions and 4-byte int constants

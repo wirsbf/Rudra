@@ -21,15 +21,15 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::{RuleCollapseConstants, RulePropagateCopy, RuleSubCancel, RuleSubCommute};
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::{RuleCollapseConstants, RulePropagateCopy, RuleSubCancel, RuleSubCommute};
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type VnRef = Arc<RwLock<Varnode>>;
 
@@ -44,14 +44,14 @@ fn register_input(fd: &mut Funcdata, off: u64, size: usize) -> VnRef {
     fd.vbank.set_input(vn).expect("set_input")
 }
 
-fn print_op_line(op: &rugra::op::PcodeOpRef) {
+fn print_op_line(op: &rudra::op::PcodeOpRef) {
     let g = op.0.read().unwrap();
     let addr = g.get_addr().to_space_address().get_offset();
     let mut line = format!("  op={}@0x{:x}|nin={}", g.opcode as i32, addr, g.num_input());
     // Ghidra's destroyed/mislinked slots read as null (op.cc:98 clearInput);
     // Rugra's shared null_slot_sentinel is the same observable — render as `_`.
     let in0 = g.get_in(0).filter(|v| {
-        !std::sync::Arc::ptr_eq(*v, &rugra::op::null_slot_sentinel())
+        !std::sync::Arc::ptr_eq(*v, &rudra::op::null_slot_sentinel())
     });
     if let Some(in0) = in0 {
         let i = in0.read().unwrap();
@@ -87,7 +87,7 @@ fn dump_case_window(fd: &Funcdata, lo: u64, hi: u64) {
 
 // One application of RuleSubCommute, then the bounded propagate+subcancel+
 // collapse fixpoint in sequence order. Mirrors runChain in the .cc.
-fn run_chain(fd: &mut Funcdata, name: &str, sub_op: &rugra::op::PcodeOpRef) {
+fn run_chain(fd: &mut Funcdata, name: &str, sub_op: &rudra::op::PcodeOpRef) {
     let sub_commute = RuleSubCommute::new();
     let apply = sub_commute.apply_op(&sub_op.0, fd).expect("subcommute apply");
     let propagate = RulePropagateCopy::new();
@@ -96,7 +96,7 @@ fn run_chain(fd: &mut Funcdata, name: &str, sub_op: &rugra::op::PcodeOpRef) {
     let mut passes = 0;
     for _pass in 0..8 {
         let mut changed = false;
-        let snapshot: Vec<rugra::op::PcodeOpRef> =
+        let snapshot: Vec<rudra::op::PcodeOpRef> =
             fd.begin_op_all().map(|o| o.clone()).collect();
         for op in snapshot {
             if op.0.read().unwrap().is_dead() {
@@ -145,7 +145,7 @@ fn both_sext_case(
     offset: u64,
     constant_inputs: bool,
     reg_off: u64,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let ext_ins: Vec<VnRef> = (0..2)
         .map(|slot| {
             let val = if slot == 0 { in0_val } else { in1_val };
@@ -204,7 +204,7 @@ fn const_divisor_case(
     const_size: usize,
     long_size: usize,
     out_size: usize,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let ext_op = fd.new_op(1, Address::new(base + 0x10));
     fd.op_set_opcode(&ext_op, OpCode::CPUI_INT_SEXT);
     fd.new_unique_out(long_size, &ext_op);
@@ -243,7 +243,7 @@ fn zext_in0_case(
     base: u64,
     in0_val: u64,
     in1_val: u64,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let zext0 = fd.new_op(1, Address::new(base + 0x10));
     fd.op_set_opcode(&zext0, OpCode::CPUI_INT_ZEXT);
     fd.new_unique_out(16, &zext0);
@@ -291,7 +291,7 @@ fn copy_in1_case(
     base: u64,
     in0_val: u64,
     in1_val: u64,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let sext0 = fd.new_op(1, Address::new(base + 0x10));
     fd.op_set_opcode(&sext0, OpCode::CPUI_INT_SEXT);
     fd.new_unique_out(16, &sext0);
@@ -339,7 +339,7 @@ fn reg_in1_case(
     base: u64,
     in0_val: u64,
     reg_off: u64,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let sext0 = fd.new_op(1, Address::new(base + 0x10));
     fd.op_set_opcode(&sext0, OpCode::CPUI_INT_SEXT);
     fd.new_unique_out(16, &sext0);
@@ -377,7 +377,7 @@ fn unequal_partial_case(
     opc: OpCode,
     base: u64,
     reg_off: u64,
-) -> rugra::op::PcodeOpRef {
+) -> rudra::op::PcodeOpRef {
     let ext0 = fd.new_op(1, Address::new(base + 0x10));
     fd.op_set_opcode(&ext0, OpCode::CPUI_INT_SEXT);
     fd.new_unique_out(16, &ext0);

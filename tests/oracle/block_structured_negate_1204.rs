@@ -8,11 +8,11 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::block::{
+use rudra::block::{
     block_flags as bf, edge_flags as ef, set_out_edge_flag_mirrored, BlockCondition, BlockEdge,
     BlockGraph, BlockList, BlockType, BoolOp, FlowBlock,
 };
-use rugra::blockaction::CollapseStructure;
+use rudra::blockaction::CollapseStructure;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 

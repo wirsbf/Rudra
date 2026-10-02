@@ -19,10 +19,10 @@
 //    justified find hit to cls=contains_justified and out-of-window
 //    starts to None / no_containment.
 
-use rugra::address::Address;
-use rugra::fspec::{param_entry_flags, ParamEntry, ParamListStandard, TypeClass,
+use rudra::address::Address;
+use rudra::fspec::{param_entry_flags, ParamEntry, ParamListStandard, TypeClass,
                    VarnodeData};
-use rugra::space::AddressSpace;
+use rudra::space::AddressSpace;
 
 // staged-loader entry builder (the pub equivalent of the C++ fixture's
 // direct field writes; same pattern as the fspec_endian_resolver_1204

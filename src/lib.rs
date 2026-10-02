@@ -24,11 +24,11 @@
 //! ## Quick Start
 //!
 //! ```rust,ignore
-//! use rugra::Funcdata;
-//! use rugra::action::ActionDatabase;
+//! use rudra::Funcdata;
+//! use rudra::action::ActionDatabase;
 //!
 //! // Create a Funcdata for the target function
-//! let mut fd = Funcdata::new("main", rugra::Address::new(0x401000));
+//! let mut fd = Funcdata::new("main", rudra::Address::new(0x401000));
 //!
 //! // Inject raw P-code operations (from a lifter)
 //! // fd.inject_raw_ops(&raw_ops);
@@ -154,7 +154,7 @@ pub use types::Architecture;
 /// # Example
 ///
 /// ```rust,no_run
-/// use rugra::{Decompiler, Architecture};
+/// use rudra::{Decompiler, Architecture};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let mut dec = Decompiler::new(Architecture::X86_64)?;

@@ -12,15 +12,15 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, Range, RangeList};
-use rugra::arch::Architecture;
-use rugra::comment::CommentDatabaseInternal;
-use rugra::fspec::ProtoModelFull;
-use rugra::funcdata::Funcdata;
-use rugra::space::AddressSpace;
-use rugra::type_system::typefactory::TypeFactory;
-use rugra::varmap::{symbol_category, ScopeLocal};
-use rugra::varnode::varnode_flags;
+use rudra::address::{Address, Range, RangeList};
+use rudra::arch::Architecture;
+use rudra::comment::CommentDatabaseInternal;
+use rudra::fspec::ProtoModelFull;
+use rudra::funcdata::Funcdata;
+use rudra::space::AddressSpace;
+use rudra::type_system::typefactory::TypeFactory;
+use rudra::varmap::{symbol_category, ScopeLocal};
+use rudra::varnode::varnode_flags;
 
 struct FakeInputScope {
     arch: Arc<Architecture>,
@@ -81,7 +81,7 @@ impl FakeInputScope {
             .types
             .read()
             .unwrap()
-            .get_base(size, rugra::type_system::TypeMetatype::Int)
+            .get_base(size, rudra::type_system::TypeMetatype::Int)
             .expect("fixture int base type");
         let idx = self.scope.add_symbol(AddressSpace::Stack, "", Some(ct), offset, None);
         self.scope.set_category(idx, symbol_category::FUNCTION_PARAMETER, 0);

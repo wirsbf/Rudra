@@ -18,9 +18,9 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::type_system::datatype::{Datatype, TypeField, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::type_system::datatype::{Datatype, TypeField, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
 
 fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<Element>> {
     let mut element = Element::new();

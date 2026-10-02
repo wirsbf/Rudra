@@ -1346,7 +1346,7 @@ convention` **51** / gcc 审计 16 FAIL 持平；glob_url 单声明块（无重�
 clearAnalysis → 逐子 reset → status_start → 重跑）在 Rugra 侧不可执行：
 oracle 的重启环依赖 `Funcdata::startProcessing → followFlow`
 （funcdata.cc:157）在清空的 Funcdata 上重新生成原始 p-code，而 Rugra 的
-流生成在驱动侧（`rugra::flow::follow_flow*` 于管线前调用），
+流生成在驱动侧（`rudra::flow::follow_flow*` 于管线前调用），
 `Funcdata::start_processing` 无法重入。旧代码在未清空状态上
 `group.reset + STATUS_START` 重跑整个子树——这正是
 MAIN-POSTSTRUCT-SPIN-0001 观察到的 post-blockstruct 动作环不收敛形态

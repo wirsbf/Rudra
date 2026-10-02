@@ -9,23 +9,23 @@
 //    (LE sizeFront + retSize), plus the cc:1327 insertPoint chain and the
 //    write-list entry.
 //  - front_back_constant: the exact cc:1336/cc:1358 call shapes through
-//    rugra::fspec::justified_contain_range in both endian routings — LE
+//    rudra::fspec::justified_contain_range in both endian routings — LE
 //    rows take AddressSpace::Stack.is_big_endian() exactly as the fixed
 //    src/heritage.rs does, BE rows pass true (helper-level big-endian
 //    pinning; the transitional enum space cannot stage a BE stack).
 
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::fspec::justified_contain_range;
-use rugra::funcdata::Funcdata;
-use rugra::heritage::Heritage;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::fspec::justified_contain_range;
+use rudra::funcdata::Funcdata;
+use rudra::heritage::Heritage;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
 
 type BlockRef = Arc<std::sync::RwLock<dyn FlowBlock + Send + Sync>>;
-type VnRef = Arc<std::sync::RwLock<rugra::varnode::Varnode>>;
+type VnRef = Arc<std::sync::RwLock<rudra::varnode::Varnode>>;
 
 // Varnode descriptor shared with the C++ oracle:
 //   constant -> c<size>(<value>); iop -> IOP;

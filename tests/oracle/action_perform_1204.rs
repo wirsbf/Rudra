@@ -4,10 +4,10 @@
 //! state machine under test is Rugra's public `Action::perform` and
 //! `ActionGroup` API.
 
-use rugra::action::{action_flags, status_flags, Action, ActionGroup, ActionState};
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::Result;
+use rudra::action::{action_flags, status_flags, Action, ActionGroup, ActionState};
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::Result;
 use std::cell::RefCell;
 use std::rc::Rc;
 

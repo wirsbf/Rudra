@@ -67,13 +67,13 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 
-use rugra::action::ActionDatabase;
-use rugra::address::Address;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::funcdata::Funcdata;
-use rugra::printc::PrintC;
-use rugra::printlanguage::PrintLanguage;
-use rugra::prettyprint::EmitPrettyPrint;
+use rudra::action::ActionDatabase;
+use rudra::address::Address;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::funcdata::Funcdata;
+use rudra::printc::PrintC;
+use rudra::printlanguage::PrintLanguage;
+use rudra::prettyprint::EmitPrettyPrint;
 
 const R_X86_64_GLOB_DAT: u32 = 1;
 const R_X86_64_JUMP_SLOT: u32 = 7;
@@ -254,8 +254,8 @@ const SPEC_SPACES: [(&str, u64); 9] = [
     ("stack", u64::MAX),
 ];
 
-fn spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> {
-    use rugra::space::AddressSpace;
+fn spec_space_by_name(name: &str) -> Option<rudra::space::AddressSpace> {
+    use rudra::space::AddressSpace;
     match name {
         "ram" => Some(AddressSpace::Ram),
         "stack" => Some(AddressSpace::Stack),
@@ -268,27 +268,27 @@ fn spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> {
 }
 
 struct SweepSpecHost {
-    registers: HashMap<String, rugra::fspec::VarnodeData>,
+    registers: HashMap<String, rudra::fspec::VarnodeData>,
 }
 
-impl rugra::arch::SpecQuery for SweepSpecHost {
-    fn get_register(&self, name: &str) -> Option<rugra::fspec::VarnodeData> {
+impl rudra::arch::SpecQuery for SweepSpecHost {
+    fn get_register(&self, name: &str) -> Option<rudra::fspec::VarnodeData> {
         self.registers.get(name).copied()
     }
-    fn space_by_name(&self, name: &str) -> Option<rugra::space::AddressSpace> {
+    fn space_by_name(&self, name: &str) -> Option<rudra::space::AddressSpace> {
         spec_space_by_name(name)
     }
-    fn space_highest(&self, spc: rugra::space::AddressSpace) -> u64 {
+    fn space_highest(&self, spc: rudra::space::AddressSpace) -> u64 {
         let name = match spc {
-            rugra::space::AddressSpace::Const => "const",
-            rugra::space::AddressSpace::Other(_) => "OTHER",
-            rugra::space::AddressSpace::Unique => "unique",
-            rugra::space::AddressSpace::Ram => "ram",
-            rugra::space::AddressSpace::Register => "register",
-            rugra::space::AddressSpace::Stack => "stack",
-            rugra::space::AddressSpace::Iop => "iop",
-            rugra::space::AddressSpace::Join => "join",
-            rugra::space::AddressSpace::Overlay => "OTHER",
+            rudra::space::AddressSpace::Const => "const",
+            rudra::space::AddressSpace::Other(_) => "OTHER",
+            rudra::space::AddressSpace::Unique => "unique",
+            rudra::space::AddressSpace::Ram => "ram",
+            rudra::space::AddressSpace::Register => "register",
+            rudra::space::AddressSpace::Stack => "stack",
+            rudra::space::AddressSpace::Iop => "iop",
+            rudra::space::AddressSpace::Join => "join",
+            rudra::space::AddressSpace::Overlay => "OTHER",
         };
         SPEC_SPACES
             .iter()
@@ -301,13 +301,13 @@ impl rugra::arch::SpecQuery for SweepSpecHost {
     }
 }
 
-impl rugra::pcodeparse::SleighSymbolLookup for SweepSpecHost {
-    fn find_symbol(&self, name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
+impl rudra::pcodeparse::SleighSymbolLookup for SweepSpecHost {
+    fn find_symbol(&self, name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
         self.registers
             .get(name)
-            .map(|vd| rugra::pcodeparse::SleighSymbol {
+            .map(|vd| rudra::pcodeparse::SleighSymbol {
                 name: name.to_string(),
-                kind: rugra::pcodeparse::SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+                kind: rudra::pcodeparse::SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                     space: vd.space,
                     offset: vd.offset,
                     size: vd.size.max(0) as usize,
@@ -326,14 +326,14 @@ impl rugra::pcodeparse::SleighSymbolLookup for SweepSpecHost {
 // ===========================================================================
 
 fn build_architecture(
-    loader: Option<std::sync::Arc<dyn rugra::loadimage::LoadImage>>,
-) -> Result<std::sync::Arc<rugra::arch::Architecture>, String> {
+    loader: Option<std::sync::Arc<dyn rudra::loadimage::LoadImage>>,
+) -> Result<std::sync::Arc<rudra::arch::Architecture>, String> {
     use std::sync::Arc;
     let cspec_bytes = fs::read("sleigh_specs/x86-64-gcc.cspec")
         .map_err(|error| format!("unable to read compiler spec: {error}"))?;
-    let sleigh = rugra::sleigh_ffi::SleighCtx::new()
+    let sleigh = rudra::sleigh_ffi::SleighCtx::new()
         .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
-    let mut registers: HashMap<String, rugra::fspec::VarnodeData> = HashMap::new();
+    let mut registers: HashMap<String, rudra::fspec::VarnodeData> = HashMap::new();
     let mut register_xref: Vec<(i32, u64, i32, String)> = Vec::new();
     for index in 0..sleigh.num_registers() {
         let Some((name, space, offset, size)) = sleigh.register_info(index) else {
@@ -345,15 +345,15 @@ fn build_architecture(
         register_xref.push((space, offset, size, name.to_string()));
         registers.insert(
             name.to_string(),
-            rugra::fspec::VarnodeData {
-                space: rugra::space::AddressSpace::from_id(space_id),
+            rudra::fspec::VarnodeData {
+                space: rudra::space::AddressSpace::from_id(space_id),
                 offset,
                 size,
             },
         );
     }
     let host = Arc::new(SweepSpecHost { registers });
-    let mut store = rugra::marshal::DocumentStorage::new();
+    let mut store = rudra::marshal::DocumentStorage::new();
     let doc = store
         .parse_document(&cspec_bytes)
         .map_err(|error| format!("compiler spec parse failed: {error}"))?;
@@ -370,13 +370,13 @@ fn build_architecture(
         return Err("compiler spec root is not compiler_spec".to_string());
     }
     store.register_tag(&root);
-    let mut arch = rugra::arch::Architecture::new();
+    let mut arch = rudra::arch::Architecture::new();
     arch.archid = "x86:LE:64:default".to_string();
     arch.set_register_xref(register_xref);
     arch.set_commentdb(Arc::new(std::sync::RwLock::new(
-        rugra::comment::CommentDatabaseInternal::new(),
+        rudra::comment::CommentDatabaseInternal::new(),
     )));
-    let types = rugra::type_system::typefactory::TypeFactory::shared_default();
+    let types = rudra::type_system::typefactory::TypeFactory::shared_default();
     let data_org = root
         .read()
         .map_err(|_| "cspec element lock poisoned".to_string())?
@@ -390,8 +390,8 @@ fn build_architecture(
         })
         .cloned()
         .ok_or_else(|| "compiler spec has no data_organization".to_string())?;
-    let registry = Arc::new(std::sync::RwLock::new(rugra::marshal::IdRegistry::new()));
-    let mut decoder = rugra::marshal::TreeDecoder::new(data_org, registry);
+    let registry = Arc::new(std::sync::RwLock::new(rudra::marshal::IdRegistry::new()));
+    let mut decoder = rudra::marshal::TreeDecoder::new(data_org, registry);
     types
         .write()
         .map_err(|_| "cspec factory lock poisoned".to_string())?
@@ -399,18 +399,18 @@ fn build_architecture(
     types
         .write()
         .map_err(|_| "cspec factory lock poisoned".to_string())?
-        .setup_sizes(&rugra::type_system::typefactory::SizeArchInputs {
+        .setup_sizes(&rudra::type_system::typefactory::SizeArchInputs {
             stack_spacebase_size: Some(8),
             default_data_space_addr_size: 8,
             default_size: 8,
             far_pointer: None,
         });
     arch.set_types(Arc::clone(&types));
-    let mut inject_lib = rugra::pcodeinject::PcodeInjectLibrary::new(0x364_400);
+    let mut inject_lib = rudra::pcodeinject::PcodeInjectLibrary::new(0x364_400);
     inject_lib.set_sleigh_lookup(host.clone());
     arch.pcodeinjectlib = Some(Arc::new(std::sync::RwLock::new(inject_lib)));
     arch.userops = Some(Arc::new(std::sync::RwLock::new(
-        rugra::userop::UserOpManage::new(),
+        rudra::userop::UserOpManage::new(),
     )));
     let pspec_bytes = fs::read("sleigh_specs/x86-64.pspec")
         .map_err(|error| format!("unable to read processor spec: {error}"))?;
@@ -445,15 +445,15 @@ fn build_architecture(
             match name.as_str() {
                 "context_data" => {
                     let pspec_registry =
-                        Arc::new(std::sync::RwLock::new(rugra::marshal::IdRegistry::new()));
-                    let mut decoder = rugra::marshal::TreeDecoder::new(child, pspec_registry);
+                        Arc::new(std::sync::RwLock::new(rudra::marshal::IdRegistry::new()));
+                    let mut decoder = rudra::marshal::TreeDecoder::new(child, pspec_registry);
                     arch.decode_context_data(&mut decoder, host.as_ref())
                         .map_err(|error| format!("processor spec context_data decode failed: {error}"))?;
                 }
                 "register_data" => {
                     let pspec_registry =
-                        Arc::new(std::sync::RwLock::new(rugra::marshal::IdRegistry::new()));
-                    let mut decoder = rugra::marshal::TreeDecoder::new(child, pspec_registry);
+                        Arc::new(std::sync::RwLock::new(rudra::marshal::IdRegistry::new()));
+                    let mut decoder = rudra::marshal::TreeDecoder::new(child, pspec_registry);
                     arch.decode_register_data(&mut decoder, host.as_ref())
                         .map_err(|error| format!("processor spec register_data decode failed: {error}"))?;
                 }
@@ -548,8 +548,8 @@ fn decompile_one(
     LAST_PANIC_LOC.with(|slot| *slot.borrow_mut() = None);
     let started = Instant::now();
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        let loader: std::sync::Arc<dyn rugra::loadimage::LoadImage> =
-            std::sync::Arc::new(rugra::loadimage::RawLoadImage::from_bytes(
+        let loader: std::sync::Arc<dyn rudra::loadimage::LoadImage> =
+            std::sync::Arc::new(rudra::loadimage::RawLoadImage::from_bytes(
                 image_name,
                 0,
                 image.to_vec(),
@@ -591,7 +591,7 @@ fn decompile_one(
         // Oracle flow contract: followFlow(code:0, code:highest) — the
         // direct-runner range every production driver uses
         // (BINSWEEP-JTDEST-UNLINKED-0001).
-        if let Err(error) = rugra::flow::follow_flow_range(&mut fd, &mut sleigh, 0, u64::MAX, &empty_protos)
+        if let Err(error) = rudra::flow::follow_flow_range(&mut fd, &mut sleigh, 0, u64::MAX, &empty_protos)
         {
             return Outcome::Err {
                 stage: "flow".to_string(),

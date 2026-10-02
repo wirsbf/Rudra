@@ -7,10 +7,10 @@
   "ghidra::ParamEntry::assumedExtension(const Address &,int4,VarnodeData &) const fspec.cc:366",
   "ghidra::ParamEntry::justifiedContain(const Address &,int4) const fspec.cc:248",
   "ghidra::Address::justifiedContain(int4,const Address &,int4,bool) const address.cc:131",
-  "rugra::fspec::ParamListStandardOut::possible_param src/fspec.rs (fspec.cc:1765-1774, space threaded explicitly)",
-  "rugra::fspec::ParamListStandard::assumed_extension src/fspec.rs (fspec.cc:1426-1437, space threaded explicitly)",
-  "rugra::fspec::ParamEntry::assumed_extension src/fspec.rs (fspec.cc:366-394 with the space-aware cc:377 gate)",
-  "rugra::fspec::ParamEntry::justified_contain_in_space src/fspec.rs (fspec.cc:248-283 with the address.cc:133/cc:269 space guards)"
+  "rudra::fspec::ParamListStandardOut::possible_param src/fspec.rs (fspec.cc:1765-1774, space threaded explicitly)",
+  "rudra::fspec::ParamListStandard::assumed_extension src/fspec.rs (fspec.cc:1426-1437, space threaded explicitly)",
+  "rudra::fspec::ParamEntry::assumed_extension src/fspec.rs (fspec.cc:366-394 with the space-aware cc:377 gate)",
+  "rudra::fspec::ParamEntry::justified_contain_in_space src/fspec.rs (fspec.cc:248-283 with the address.cc:133/cc:269 space guards)"
  ],
  "overall_status": "UNTESTED: (B2 canonicalization)",
  "status_detail": "The four-case covered projection byte-matches Ghidra 12.0.4: possibleParam's raw entry-list iteration (>= 0 acceptance, no minSize gate, join entries reachable through the per-piece join walk, cross-space ram query offset 4 accepted) and assumedExtension's space-aware cc:377 gate (foreign-space numerically-justified query -> CPUI_COPY), cc:376 join guard, sz gates, list minSize skip, both container shapes and the cc:389-393 flag precedence. Overall remains UNTESTED because big-endian space rows are unreachable (the transitional enum AddressSpace is little-endian only, ADDRESS-0001) and the remaining spaceless justified_contain callers (unjustified_container cc:1411, ParamListStandard::fillin_map cc:1382-1410) are outside this fixture's closure.",

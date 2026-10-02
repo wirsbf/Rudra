@@ -2,7 +2,7 @@
 // minimalmask bilateral fixture. Mirrors minimalmask_ladder_1204.cc case for
 // case, driving the production code only:
 //
-//   - `rugra::address::minimalmask` (address.hh:525-534 whole-byte ladder);
+//   - `rudra::address::minimalmask` (address.hh:525-534 whole-byte ladder);
 //   - `ActionDeadCode::mark_consumed_parameters` (coreaction.cc:3840, the
 //     cc:3856 ladder read + autolive bypass + locked full-consume return +
 //     inputBytesConsumed AND-gate);
@@ -23,13 +23,13 @@
 
 use std::sync::Arc;
 
-use rugra::address::{calc_mask, minimalmask, Address};
-use rugra::coreaction::ActionDeadCode;
-use rugra::funcdata::Funcdata;
-use rugra::fspec::{FuncCallSpecs, FuncProto};
-use rugra::jumptable::{JumpBasic, JumpTable};
-use rugra::opcodes::OpCode;
-use rugra::varnode::Varnode;
+use rudra::address::{calc_mask, minimalmask, Address};
+use rudra::coreaction::ActionDeadCode;
+use rudra::funcdata::Funcdata;
+use rudra::fspec::{FuncCallSpecs, FuncProto};
+use rudra::jumptable::{JumpBasic, JumpTable};
+use rudra::opcodes::OpCode;
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<std::sync::RwLock<Varnode>>;
 
@@ -480,7 +480,7 @@ fn main() {
 // :4926) — an unlocked, parameter-less prototype. new_for_op ignores its
 // caller_funcp argument, so this mirrors the oracle construction.
 fn default_proto() -> FuncProto {
-    use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+    use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
     FuncProto::new(
         String::new(),
         Arc::new(Datatype::Void(TypeBase::new(

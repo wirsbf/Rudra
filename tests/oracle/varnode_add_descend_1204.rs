@@ -7,14 +7,14 @@
 // caught here via catch_unwind so both sides print the same observation line.
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, SeqNum};
-use rugra::op::PcodeOp;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
-use rugra::varnode::{varnode_flags, VarnodeBank};
+use rudra::address::{Address, SeqNum};
+use rudra::op::PcodeOp;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::varnode::{varnode_flags, VarnodeBank};
 
-fn catch_add_descend_error(vn: &Arc<RwLock<rugra::varnode::Varnode>>, op: &Arc<RwLock<PcodeOp>>) -> String {
+fn catch_add_descend_error(vn: &Arc<RwLock<rudra::varnode::Varnode>>, op: &Arc<RwLock<PcodeOp>>) -> String {
     // The C++ side catches LowlevelError; Rugra's counterpart channel is a
     // panic with the identical message text. Silence the default hook so the
     // runner's empty-stderr contract holds, then extract the payload.
@@ -39,7 +39,7 @@ fn catch_add_descend_error(vn: &Arc<RwLock<rugra::varnode::Varnode>>, op: &Arc<R
 /// unwinding-lock artifact with no Ghidra counterpart (C++ has no locks);
 /// the underlying Varnode state is exactly what the oracle observes after
 /// its caught LowlevelError.
-fn read_vn(vn: &Arc<RwLock<rugra::varnode::Varnode>>) -> std::sync::RwLockReadGuard<'_, rugra::varnode::Varnode> {
+fn read_vn(vn: &Arc<RwLock<rudra::varnode::Varnode>>) -> std::sync::RwLockReadGuard<'_, rudra::varnode::Varnode> {
     vn.read().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 

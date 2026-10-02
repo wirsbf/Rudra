@@ -5,23 +5,23 @@
 //! assigned by `ProtoModelFull::assign_parameter_storage`; no parameter
 //! register or stack offset is hand-written in this fixture.
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::{Architecture, SpecQuery};
-use rugra::coreaction::ActionFuncLink;
-use rugra::fspec::{FuncCallSpecs, FuncProto, ParamActive, ProtoModelFull, VarnodeData};
-use rugra::funcdata::Funcdata;
-use rugra::grammar::PrototypePieces;
-use rugra::marshal::DocumentStorage;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::pcodeinject::PcodeInjectLibrary;
-use rugra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
-use rugra::sleigh_ffi::{set_sla_path, SleighCtx};
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::userop::{UserOpManage, UserOpType};
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::{Architecture, SpecQuery};
+use rudra::coreaction::ActionFuncLink;
+use rudra::fspec::{FuncCallSpecs, FuncProto, ParamActive, ProtoModelFull, VarnodeData};
+use rudra::funcdata::Funcdata;
+use rudra::grammar::PrototypePieces;
+use rudra::marshal::DocumentStorage;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::pcodeinject::PcodeInjectLibrary;
+use rudra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
+use rudra::sleigh_ffi::{set_sla_path, SleighCtx};
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::userop::{UserOpManage, UserOpType};
+use rudra::varnode::Varnode;
 
 use std::collections::BTreeMap;
 use std::env;
@@ -69,7 +69,7 @@ impl SleighSymbolLookup for Host {
     fn find_symbol(&self, name: &str) -> Option<SleighSymbol> {
         self.registers.get(name).map(|data| SleighSymbol {
             name: name.to_string(),
-            kind: SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: data.space,
                 offset: data.offset,
                 size: data.size.max(0) as usize,
@@ -223,7 +223,7 @@ fn make_case(
     })
 }
 
-fn trial_index(active: &ParamActive, needle: *const rugra::fspec::ParamTrial) -> i32 {
+fn trial_index(active: &ParamActive, needle: *const rudra::fspec::ParamTrial) -> i32 {
     (0..active.get_num_trials())
         .find(|&index| std::ptr::eq(active.get_trial(index), needle))
         .map_or(-1, |index| index as i32)

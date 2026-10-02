@@ -8,10 +8,10 @@
 
 use std::sync::Arc;
 
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::{space_flags, AddrSpace, SpaceRegistry, SpaceType};
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::{space_flags, AddrSpace, SpaceRegistry, SpaceType};
 
 fn space_name(addr: &Address) -> String {
     match addr.get_space() {
@@ -66,7 +66,7 @@ fn main() {
     );
 
     // input_param: a function input varnode.
-    let inputvn = fd.vbank.create_with_space(4, rugra::space::AddressSpace::Register, 0x40);
+    let inputvn = fd.vbank.create_with_space(4, rudra::space::AddressSpace::Register, 0x40);
     let inputvn = fd.set_input_varnode(inputvn);
     emit_use_point(
         "input_param",
@@ -75,12 +75,12 @@ fn main() {
     );
 
     // free_vn: constructed but never written nor marked input.
-    let freevn = fd.vbank.create_with_space(4, rugra::space::AddressSpace::Register, 0x50);
+    let freevn = fd.vbank.create_with_space(4, rudra::space::AddressSpace::Register, 0x50);
     emit_use_point("free_vn", "free", &freevn.read().unwrap().get_use_point(&fd));
 
     // zero_base: underflow wrap through the ram space.
     let mut fd2 = Funcdata::new("fz", Address::with_space(&ram, 0), 0x20);
-    let freevn2 = fd2.vbank.create_with_space(4, rugra::space::AddressSpace::Register, 0x60);
+    let freevn2 = fd2.vbank.create_with_space(4, rudra::space::AddressSpace::Register, 0x60);
     emit_use_point("zero_base", "free", &freevn2.read().unwrap().get_use_point(&fd2));
 
     // Keep the ram handle alive alongside fd/fd2 (both borrow its tag).

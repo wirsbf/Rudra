@@ -14,15 +14,15 @@
 //! `Funcdata::set_arch`, which is the moment the Architecture reference
 //! (`glb`) becomes available.
 
-use rugra::address::Address;
-use rugra::arch::{Architecture, SpecQuery};
-use rugra::fspec::{EffectType, FuncCallSpecs, FuncProto, VarnodeData};
-use rugra::funcdata::Funcdata;
-use rugra::marshal::DocumentStorage;
-use rugra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
-use rugra::sleigh_ffi::{set_sla_path, SleighCtx};
-use rugra::space::AddressSpace;
-use rugra::userop::{UserOpManage, UserOpType};
+use rudra::address::Address;
+use rudra::arch::{Architecture, SpecQuery};
+use rudra::fspec::{EffectType, FuncCallSpecs, FuncProto, VarnodeData};
+use rudra::funcdata::Funcdata;
+use rudra::marshal::DocumentStorage;
+use rudra::pcodeparse::{SleighSymbol, SleighSymbolLookup, SleightSymbolKind};
+use rudra::sleigh_ffi::{set_sla_path, SleighCtx};
+use rudra::space::AddressSpace;
+use rudra::userop::{UserOpManage, UserOpType};
 
 use std::collections::BTreeMap;
 use std::env;
@@ -102,7 +102,7 @@ impl SleighSymbolLookup for Host {
     fn find_symbol(&self, name: &str) -> Option<SleighSymbol> {
         self.registers.get(name).map(|vd| SleighSymbol {
             name: name.to_string(),
-            kind: SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+            kind: SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                 space: vd.space,
                 offset: vd.offset,
                 size: vd.size.max(0) as usize,
@@ -162,7 +162,7 @@ fn run() -> Result<(), String> {
 
     let mut arch = Architecture::new();
     arch.archid = "x86:LE:64:default".to_string();
-    let mut inject_lib = rugra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
+    let mut inject_lib = rudra::pcodeinject::PcodeInjectLibrary::new(UNIQUE_INJECT_BASE);
     inject_lib.set_sleigh_lookup(host.clone());
     arch.pcodeinjectlib = Some(Arc::new(RwLock::new(inject_lib)));
     let mut userops = UserOpManage::new();
@@ -357,12 +357,12 @@ fn run() -> Result<(), String> {
 
 // RUGRA-GLUE: fixture-local canonical void type, the same construction
 // Funcdata::new uses for its default FuncProto return type (funcdata.rs).
-fn void_type() -> std::sync::Arc<rugra::type_system::datatype::Datatype> {
-    std::sync::Arc::new(rugra::type_system::datatype::Datatype::Void(
-        rugra::type_system::datatype::TypeBase::new(
+fn void_type() -> std::sync::Arc<rudra::type_system::datatype::Datatype> {
+    std::sync::Arc::new(rudra::type_system::datatype::Datatype::Void(
+        rudra::type_system::datatype::TypeBase::new(
             "void".to_string(),
             0,
-            rugra::type_system::datatype::TypeMetatype::Void,
+            rudra::type_system::datatype::TypeMetatype::Void,
         ),
     ))
 }

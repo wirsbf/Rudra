@@ -3,8 +3,8 @@
 //! The IDs below are fixture creation-order identities corresponding to the
 //! native-pointer normalization performed by the locked C++ oracle.
 
-use rugra::prettyprint::Emit;
-use rugra::printlanguage::{
+use rudra::prettyprint::Emit;
+use rudra::printlanguage::{
     rpn_push_atom, rpn_push_op, Atom, NodePending, OpToken, ReversePolish, SyntaxHighlight,
     TagType, TokenType,
 };

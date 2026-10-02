@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RulePropagateCopy;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RulePropagateCopy;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
@@ -17,7 +17,7 @@ type VarnodeRef = Arc<RwLock<Varnode>>;
 /// record grammar so the runner can diff the two stdouts byte for byte.
 struct Fixture {
     fd: Funcdata,
-    block: Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>,
+    block: Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>,
     ops: Vec<PcodeOpRef>,
     op_names: HashMap<usize, String>,
     varnodes: Vec<VarnodeRef>,
@@ -570,7 +570,7 @@ fn run_self_defined_throw() {
     fixture.dump("self_defined_throw", "before", "na");
     let result = match RulePropagateCopy::new().apply_op(&copyop.0, &mut fixture.fd) {
         Ok(_) => "no_throw".to_string(),
-        Err(rugra::Error::Lowlevel(message)) => format!("throw:{message}"),
+        Err(rudra::Error::Lowlevel(message)) => format!("throw:{message}"),
         Err(other) => format!("throw_unexpected:{other}"),
     };
     fixture.dump("self_defined_throw", "after", &result);

@@ -32,12 +32,12 @@
 //!   placed labels (ConstructTpl::addOp counting LABELBUILD ops,
 //!   semantics.cc:748-749, encoded at semantics.cc:875-876).
 
-use rugra::opcodes::OpCode;
-use rugra::pcodeparse::{
+use rudra::opcodes::OpCode;
+use rudra::pcodeparse::{
     ConstTpl, ConstructTpl, HandleSelect, PcodeSnippet, PredefinedJumpSymbols,
     SleighSymbol, SleighSymbolLookup, SleightSymbolKind, VarnodeTpl,
 };
-use rugra::space::AddressSpace;
+use rudra::space::AddressSpace;
 
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -74,7 +74,7 @@ impl SleighSymbolLookup for FaceLanguage {
         if let Some((_, off, size)) = REGISTERS.iter().find(|(n, _, _)| *n == name) {
             return Some(SleighSymbol {
                 name: name.to_string(),
-                kind: SleightSymbolKind::Varnode(rugra::varnode::VarnodeData {
+                kind: SleightSymbolKind::Varnode(rudra::varnode::VarnodeData {
                     space: AddressSpace::Register,
                     offset: *off,
                     size: *size,
@@ -99,11 +99,11 @@ fn symbol_type_ordinal(sym: &SleighSymbol) -> Option<i32> {
         SleightSymbolKind::Varnode(_) => Some(6),
         SleightSymbolKind::Operand(_, _) => Some(8),
         SleightSymbolKind::JumpTarget(kind) => match kind {
-            rugra::pcodeparse::JumpTargetKind::InstStart => Some(9),
-            rugra::pcodeparse::JumpTargetKind::InstNext => Some(10),
-            rugra::pcodeparse::JumpTargetKind::InstNext2 => Some(11),
-            rugra::pcodeparse::JumpTargetKind::InstDest => Some(19),
-            rugra::pcodeparse::JumpTargetKind::InstRef => Some(20),
+            rudra::pcodeparse::JumpTargetKind::InstStart => Some(9),
+            rudra::pcodeparse::JumpTargetKind::InstNext => Some(10),
+            rudra::pcodeparse::JumpTargetKind::InstNext2 => Some(11),
+            rudra::pcodeparse::JumpTargetKind::InstDest => Some(19),
+            rudra::pcodeparse::JumpTargetKind::InstRef => Some(20),
         },
         SleightSymbolKind::Label(_, _) => Some(18),
     }

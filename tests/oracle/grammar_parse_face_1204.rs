@@ -14,12 +14,12 @@
 // parse-tree fact (RUGRA-GLUE documented on the twin), so code-type names
 // starting with "funcptr" normalise to the oracle anonymous form here.
 
-use rugra::grammar::{parse_protopieces, parse_type_full, DocType};
-use rugra::type_system::datatype::Datatype;
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::grammar::{parse_protopieces, parse_type_full, DocType};
+use rudra::type_system::datatype::Datatype;
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
 
-fn element(name: &str, attributes: &[(&str, &str)]) -> std::sync::Arc<std::sync::RwLock<rugra::marshal::Element>> {
-    let mut node = rugra::marshal::Element::new();
+fn element(name: &str, attributes: &[(&str, &str)]) -> std::sync::Arc<std::sync::RwLock<rudra::marshal::Element>> {
+    let mut node = rudra::marshal::Element::new();
     node.set_name(name);
     for (key, value) in attributes {
         node.add_attribute(key, value);
@@ -35,8 +35,8 @@ fn element(name: &str, attributes: &[(&str, &str)]) -> std::sync::Arc<std::sync:
 /// `<size_alignment_map>` and `setupSizes` defaults, with the default
 /// data-space address size (and thus `ptr_size`) set to 8.
 fn configure_factory() -> TypeFactory {
-    use rugra::marshal::{IdRegistry, TreeDecoder};
-    use rugra::type_system::typefactory::CoreTypeFlavor;
+    use rudra::marshal::{IdRegistry, TreeDecoder};
+    use rudra::type_system::typefactory::CoreTypeFlavor;
 
     let mut factory = TypeFactory::new_flavor(8, CoreTypeFlavor::Standalone);
 
@@ -63,7 +63,7 @@ fn configure_factory() -> TypeFactory {
 }
 
 fn ghidra_metatype(datatype: &Datatype) -> i32 {
-    use rugra::type_system::datatype::TypeMetatype;
+    use rudra::type_system::datatype::TypeMetatype;
     match datatype.get_metatype() {
         TypeMetatype::PartialUnion => 0,
         TypeMetatype::PartialStruct => 1,

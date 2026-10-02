@@ -20,19 +20,19 @@
 //      prints_precomputed = false (parent-null arm, block.cc:2889) so no
 //      formal goto statement prints on either side.
 
-use rugra::address::{Address, SeqNum};
-use rugra::block::{
+use rudra::address::{Address, SeqNum};
+use rudra::block::{
     BlockBasic, BlockDoWhile, BlockGoto, BlockGraph, BlockIf, BlockList,
 };
-use rugra::op::{PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::op::{PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 use std::sync::{Arc, RwLock};
 
-type BlockArc = Arc<RwLock<dyn rugra::block::FlowBlock + Send + Sync>>;
+type BlockArc = Arc<RwLock<dyn rudra::block::FlowBlock + Send + Sync>>;
 
 // Const-space varnode of the given byte size (the oracle fixture uses
 // 1-byte bool constants for CBRANCH conditions and 4-byte int constants
@@ -175,7 +175,7 @@ fn main() {
             goto_target: Some(tail),
             target_dyn: Some(tail_dyn),
             wrapped: Some(dw),
-            goto_type: rugra::block::goto_type::GOTO_GOTO,
+            goto_type: rudra::block::goto_type::GOTO_GOTO,
             prints_precomputed: false,
             incoming: Vec::new(),
             outgoing: Vec::new(),

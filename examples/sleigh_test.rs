@@ -1,7 +1,7 @@
 //! Minimal smoke test for Rugra's direct Ghidra SLEIGH FFI.
 
 use anyhow::{ensure, Context, Result};
-use rugra::sleigh_ffi::SleighCtx;
+use rudra::sleigh_ffi::SleighCtx;
 
 fn main() -> Result<()> {
     let mut ctx = SleighCtx::new().context("failed to load sleigh_specs/x86-64.sla")?;

@@ -13,9 +13,9 @@
 // arms run through the pushMismatchSymbol text form; pushTypePointerRel
 // observes the same incomplete "(ADJ" token pair the oracle's pushOp/
 // pushAtom machinery leaves after flush.
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::{display_format, PrintC};
-use rugra::printlanguage::PrintLanguage as _;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::{display_format, PrintC};
+use rudra::printlanguage::PrintLanguage as _;
 
 fn fresh() -> PrintC {
     PrintC::new(Box::new(EmitNoMarkup::new()))
@@ -40,7 +40,7 @@ fn push_float(val: u64, sz: i32) -> String {
 fn push_float_scinote(val: u64, sz: i32) -> String {
     let mut printer = fresh();
     printer.push_mod();
-    printer.set_mod(rugra::printlanguage::modifiers::FORCE_SCINOTE);
+    printer.set_mod(rudra::printlanguage::modifiers::FORCE_SCINOTE);
     let text = printer.push_float_text(val, sz);
     printer.pop_mod();
     text
@@ -148,9 +148,9 @@ fn main() {
         let printer = fresh();
         // The off!=0 arm: pushUnnamedLocation of the Varnode's own
         // address (ram0x10 in the oracle fixture's data-space varnode).
-        let vn = rugra::varnode::Varnode::new(
+        let vn = rudra::varnode::Varnode::new(
             1,
-            rugra::address::Address::new(0x10),
+            rudra::address::Address::new(0x10),
         );
         println!(
             "case=mismatch.offpos|out={}",
@@ -164,7 +164,7 @@ fn main() {
         printer.rpn_push_type_pointer_rel();
         // The completing operand atoms (base + index), mirroring the
         // oracle fixture's pushAtom/push_integer tail.
-        use rugra::printlanguage::{Atom, SyntaxHighlight, TagType};
+        use rudra::printlanguage::{Atom, SyntaxHighlight, TagType};
         printer.rpn_push_atom(&Atom::with_type(
             "base",
             TagType::VarToken,

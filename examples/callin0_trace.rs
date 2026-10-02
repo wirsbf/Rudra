@@ -3,9 +3,9 @@
 //! With RUGRA_CALLIN0_TRACE set, funcdata::op_set_input backtraces CALL slot-0
 //! rewrites (temp diagnostic).
 
-use rugra::action::ActionDatabase;
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
+use rudra::action::ActionDatabase;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
 
 fn build_fd() -> anyhow::Result<(std::sync::Arc<std::sync::RwLock<Funcdata>>, Vec<u8>)> {
     let buffer = std::fs::read("examples/httpd")?;
@@ -26,7 +26,7 @@ fn build_fd() -> anyhow::Result<(std::sync::Arc<std::sync::RwLock<Funcdata>>, Ve
 
     // SLEIGH-RUSTIFY-PHASE3-0001: canon-contract linear walk (padding NOP
     // filter) over the 50-byte ap_pregfree window.
-    let raw_ops = rugra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(&code, target);
+    let raw_ops = rudra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(&code, target);
 
     let mut fd = Funcdata::new("ap_pregfree", Address::new(target), 50);
     fd.add_symbol(0x31070, "ap_regfree".into());
@@ -46,7 +46,7 @@ fn main() -> anyhow::Result<()> {
         .map(|a| a.parse().expect("prefix len"))
         .collect();
     let prefixes = if prefixes.is_empty() { vec![19] } else { prefixes };
-    let groups = rugra::action::default_groups::DECOMPILE;
+    let groups = rudra::action::default_groups::DECOMPILE;
     for prefix_len in prefixes {
         let (fd_arc, _code) = build_fd()?;
         let mut db = ActionDatabase::new();
@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
         for op_ref in fd_read.obank.iter_alive() {
             let op = op_ref.0.read().unwrap();
             match op.opcode {
-                rugra::opcodes::OpCode::CPUI_CALL => {
+                rudra::opcodes::OpCode::CPUI_CALL => {
                     let d = op
                         .inrefs
                         .first()
@@ -75,7 +75,7 @@ fn main() -> anyhow::Result<()> {
                         .unwrap_or_else(|| "none".into());
                     call_desc.push(format!("CALL in0=({d})"));
                 }
-                rugra::opcodes::OpCode::CPUI_STORE => store_count += 1,
+                rudra::opcodes::OpCode::CPUI_STORE => store_count += 1,
                 _ => {}
             }
         }

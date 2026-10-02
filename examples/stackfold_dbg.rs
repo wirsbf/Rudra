@@ -5,10 +5,10 @@
 
 use std::collections::HashMap;
 
-use rugra::action::ActionDatabase;
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
+use rudra::action::ActionDatabase;
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
 
 // STACKFOLD-FIXTURE-F6DC-BREAK-0001: language host + canonical cspec-bearing
 // Architecture factory, mirroring the canon httpd driver
@@ -21,7 +21,7 @@ use rugra::opcodes::OpCode;
 const SPEC_UNIQUE_INJECT_BASE: u64 = 0x364_400;
 
 struct TrackedSpecHost {
-    registers: HashMap<String, rugra::fspec::VarnodeData>,
+    registers: HashMap<String, rudra::fspec::VarnodeData>,
 }
 
 const TRACKED_SPEC_SPACES: [(&str, u64); 9] = [
@@ -36,8 +36,8 @@ const TRACKED_SPEC_SPACES: [(&str, u64); 9] = [
     ("stack", u64::MAX),
 ];
 
-fn tracked_spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> {
-    use rugra::space::AddressSpace;
+fn tracked_spec_space_by_name(name: &str) -> Option<rudra::space::AddressSpace> {
+    use rudra::space::AddressSpace;
     match name {
         "ram" => Some(AddressSpace::Ram),
         "stack" => Some(AddressSpace::Stack),
@@ -51,13 +51,13 @@ fn tracked_spec_space_by_name(name: &str) -> Option<rugra::space::AddressSpace> 
 
 // Callfixup snippet parsing needs the symbol lookup (canon httpd driver
 // parity, HTTPD-CSPEC-ARCH-0001).
-impl rugra::pcodeparse::SleighSymbolLookup for TrackedSpecHost {
-    fn find_symbol(&self, name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
+impl rudra::pcodeparse::SleighSymbolLookup for TrackedSpecHost {
+    fn find_symbol(&self, name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
         self.registers.get(name).map(|vd| {
-            rugra::pcodeparse::SleighSymbol {
+            rudra::pcodeparse::SleighSymbol {
                 name: name.to_string(),
-                kind: rugra::pcodeparse::SleightSymbolKind::Varnode(
-                    rugra::varnode::VarnodeData {
+                kind: rudra::pcodeparse::SleightSymbolKind::Varnode(
+                    rudra::varnode::VarnodeData {
                         space: vd.space,
                         offset: vd.offset,
                         size: vd.size.max(0) as usize,
@@ -68,24 +68,24 @@ impl rugra::pcodeparse::SleighSymbolLookup for TrackedSpecHost {
     }
 }
 
-impl rugra::arch::SpecQuery for TrackedSpecHost {
-    fn get_register(&self, name: &str) -> Option<rugra::fspec::VarnodeData> {
+impl rudra::arch::SpecQuery for TrackedSpecHost {
+    fn get_register(&self, name: &str) -> Option<rudra::fspec::VarnodeData> {
         self.registers.get(name).copied()
     }
-    fn space_by_name(&self, name: &str) -> Option<rugra::space::AddressSpace> {
+    fn space_by_name(&self, name: &str) -> Option<rudra::space::AddressSpace> {
         tracked_spec_space_by_name(name)
     }
-    fn space_highest(&self, spc: rugra::space::AddressSpace) -> u64 {
+    fn space_highest(&self, spc: rudra::space::AddressSpace) -> u64 {
         let name = match spc {
-            rugra::space::AddressSpace::Const => "const",
-            rugra::space::AddressSpace::Other(_) => "OTHER",
-            rugra::space::AddressSpace::Unique => "unique",
-            rugra::space::AddressSpace::Ram => "ram",
-            rugra::space::AddressSpace::Register => "register",
-            rugra::space::AddressSpace::Stack => "stack",
-            rugra::space::AddressSpace::Iop => "iop",
-            rugra::space::AddressSpace::Join => "join",
-            rugra::space::AddressSpace::Overlay => "OTHER",
+            rudra::space::AddressSpace::Const => "const",
+            rudra::space::AddressSpace::Other(_) => "OTHER",
+            rudra::space::AddressSpace::Unique => "unique",
+            rudra::space::AddressSpace::Ram => "ram",
+            rudra::space::AddressSpace::Register => "register",
+            rudra::space::AddressSpace::Stack => "stack",
+            rudra::space::AddressSpace::Iop => "iop",
+            rudra::space::AddressSpace::Join => "join",
+            rudra::space::AddressSpace::Overlay => "OTHER",
         };
         TRACKED_SPEC_SPACES
             .iter()
@@ -113,10 +113,10 @@ impl rugra::arch::SpecQuery for TrackedSpecHost {
 // into funcp. funcp.effects stays empty: ap_parse_vhost_addrs was an
 // analysis-time prototype in the oracle (no local effect records), so loop-2
 // walks the model-fallback list — the same surface f6dcbed0 fixed.
-fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
-    let mut arch = rugra::arch::Architecture::new();
+fn model_bearing_architecture() -> Result<rudra::arch::Architecture, String> {
+    let mut arch = rudra::arch::Architecture::new();
     // SLEIGH register catalog (no image needed for the spec query legs).
-    let sleigh = rugra::sleigh_ffi::SleighCtx::new()
+    let sleigh = rudra::sleigh_ffi::SleighCtx::new()
         .ok_or_else(|| "unable to initialize SLEIGH register catalog".to_string())?;
     let mut registers = HashMap::new();
     // Same enumeration as the canon httpd driver: the SLEIGH register
@@ -134,8 +134,8 @@ fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
         register_xref.push((space, offset, size, name.to_string()));
         registers.insert(
             name.to_string(),
-            rugra::fspec::VarnodeData {
-                space: rugra::space::AddressSpace::from_id(space_id),
+            rudra::fspec::VarnodeData {
+                space: rudra::space::AddressSpace::from_id(space_id),
                 offset,
                 size,
             },
@@ -147,7 +147,7 @@ fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
     // httpd driver).
     let pspec_bytes = std::fs::read("sleigh_specs/x86-64.pspec")
         .map_err(|error| format!("unable to read processor spec: {error}"))?;
-    let mut store = rugra::marshal::DocumentStorage::new();
+    let mut store = rudra::marshal::DocumentStorage::new();
     let pspec_doc = store
         .parse_document(&pspec_bytes)
         .map_err(|error| format!("processor spec parse failed: {error}"))?;
@@ -169,7 +169,7 @@ fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
         .children
         .clone();
     let pspec_registry =
-        std::sync::Arc::new(std::sync::RwLock::new(rugra::marshal::IdRegistry::new()));
+        std::sync::Arc::new(std::sync::RwLock::new(rudra::marshal::IdRegistry::new()));
     for child in pspec_children {
         let child_name = child
             .read()
@@ -179,13 +179,13 @@ fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
         match child_name.as_str() {
             "context_data" => {
                 let mut decoder =
-                    rugra::marshal::TreeDecoder::new(child, pspec_registry.clone());
+                    rudra::marshal::TreeDecoder::new(child, pspec_registry.clone());
                 arch.decode_context_data(&mut decoder, host.as_ref())
                     .map_err(|error| format!("processor spec context_data decode failed: {error}"))?;
             }
             "register_data" => {
                 let mut decoder =
-                    rugra::marshal::TreeDecoder::new(child, pspec_registry.clone());
+                    rudra::marshal::TreeDecoder::new(child, pspec_registry.clone());
                 arch.decode_register_data(&mut decoder, host.as_ref())
                     .map_err(|error| format!("processor spec register_data decode failed: {error}"))?;
             }
@@ -222,10 +222,10 @@ fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
     arch.archid = "x86:LE:64:default".to_string();
     arch.set_register_xref(register_xref);
     arch.set_commentdb(std::sync::Arc::new(std::sync::RwLock::new(
-        rugra::comment::CommentDatabaseInternal::new(),
+        rudra::comment::CommentDatabaseInternal::new(),
     )));
     {
-        let mut types = rugra::type_system::typefactory::TypeFactory::new(8);
+        let mut types = rudra::type_system::typefactory::TypeFactory::new(8);
         let data_org = cspec_root
             .read()
             .map_err(|_| "compiler spec element lock poisoned".to_string())?
@@ -240,10 +240,10 @@ fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
             .cloned()
             .ok_or_else(|| "compiler spec has no data_organization".to_string())?;
         let registry =
-            std::sync::Arc::new(std::sync::RwLock::new(rugra::marshal::IdRegistry::new()));
-        let mut decoder = rugra::marshal::TreeDecoder::new(data_org, registry);
+            std::sync::Arc::new(std::sync::RwLock::new(rudra::marshal::IdRegistry::new()));
+        let mut decoder = rudra::marshal::TreeDecoder::new(data_org, registry);
         types.decode_data_organization(&mut decoder);
-        types.setup_sizes(&rugra::type_system::typefactory::SizeArchInputs {
+        types.setup_sizes(&rudra::type_system::typefactory::SizeArchInputs {
             stack_spacebase_size: Some(8),
             default_data_space_addr_size: 8,
             default_size: 8,
@@ -252,11 +252,11 @@ fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
         arch.set_types(std::sync::Arc::new(std::sync::RwLock::new(types)));
     }
     let mut inject_lib =
-        rugra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
+        rudra::pcodeinject::PcodeInjectLibrary::new(SPEC_UNIQUE_INJECT_BASE);
     inject_lib.set_sleigh_lookup(host.clone());
     arch.pcodeinjectlib = Some(std::sync::Arc::new(std::sync::RwLock::new(inject_lib)));
     arch.userops = Some(std::sync::Arc::new(std::sync::RwLock::new(
-        rugra::userop::UserOpManage::new(),
+        rudra::userop::UserOpManage::new(),
     )));
     arch.parse_compiler_config(&mut store, host.as_ref(), 8)
         .map_err(|error| format!("compiler spec parse failed: {error}"))?;
@@ -266,7 +266,7 @@ fn model_bearing_architecture() -> Result<rugra::arch::Architecture, String> {
     Ok(arch)
 }
 
-fn vn_desc(vn: &std::sync::Arc<std::sync::RwLock<rugra::varnode::Varnode>>, depth: usize) -> String {
+fn vn_desc(vn: &std::sync::Arc<std::sync::RwLock<rudra::varnode::Varnode>>, depth: usize) -> String {
     let v = vn.read().unwrap();
     let mut s = format!(
         "[{}:0x{:x}:{} const={} input={} written={} spacebase={:?}]",
@@ -298,10 +298,10 @@ fn vn_desc(vn: &std::sync::Arc<std::sync::RwLock<rugra::varnode::Varnode>>, dept
 }
 
 /// Walk the def chain of vn looking for Register:offset. Depth-limited.
-fn chain_has_reg(vn: &std::sync::Arc<std::sync::RwLock<rugra::varnode::Varnode>>, reg_off: u64, depth: usize) -> bool {
+fn chain_has_reg(vn: &std::sync::Arc<std::sync::RwLock<rudra::varnode::Varnode>>, reg_off: u64, depth: usize) -> bool {
     if depth > 8 { return false; }
     let v = vn.read().unwrap();
-    if v.get_space() == rugra::space::AddressSpace::Register && v.get_offset() == reg_off {
+    if v.get_space() == rudra::space::AddressSpace::Register && v.get_offset() == reg_off {
         return true;
     }
     if let Some(def_w) = v.def.as_ref().and_then(|w| w.upgrade()) {
@@ -336,7 +336,7 @@ fn main() -> anyhow::Result<()> {
     // driver's lift_instruction_skip_nops padding filter) — the 203-byte
     // symbol window ends in a 7-byte `0f 1f 80` alignment NOP whose engine
     // operand pcode the canon path never injects.
-    let raw_ops = rugra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code, target);
+    let raw_ops = rudra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code, target);
 
     eprintln!("== raw lifted STORE/LOAD ops:");
     for op in raw_ops.iter() {
@@ -437,7 +437,7 @@ fn main() -> anyhow::Result<()> {
     // Does an input RSP exist and is it spacebase-marked?
     for entry in fdg.vbank.loc_tree.iter() {
         let v = entry.0.read().unwrap();
-        if v.get_space() == rugra::space::AddressSpace::Register
+        if v.get_space() == rudra::space::AddressSpace::Register
             && v.get_offset() == 0x20
             && v.get_size() == 8
         {

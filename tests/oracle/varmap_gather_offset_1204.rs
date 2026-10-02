@@ -1,12 +1,12 @@
 use std::sync::{Arc, RwLock};
 
-use rugra::address::{Address, SeqNum};
-use rugra::op::{pcodeop_flags, PcodeOp};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varmap::gather_offset;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::{Address, SeqNum};
+use rudra::op::{pcodeop_flags, PcodeOp};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varmap::gather_offset;
+use rudra::varnode::{varnode_flags, Varnode};
 
 fn count_descendants(vn: &Arc<RwLock<Varnode>>) -> usize {
     vn.read()

@@ -3,11 +3,11 @@
 //! returns 0 hints. Run: cargo run --release --example diag_stack
 
 use goblin::Object;
-use rugra::funcdata::Funcdata;
-use rugra::address::Address;
-use rugra::opcodes::OpCode;
+use rudra::funcdata::Funcdata;
+use rudra::address::Address;
+use rudra::opcodes::OpCode;
 
-fn dump_def_chain(vn: &std::sync::Arc<std::sync::RwLock<rugra::varnode::Varnode>>, depth: usize) {
+fn dump_def_chain(vn: &std::sync::Arc<std::sync::RwLock<rudra::varnode::Varnode>>, depth: usize) {
     let v = vn.read().unwrap();
     let indent = "  ".repeat(depth);
     let sp = v.get_space();
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // SLEIGH-RUSTIFY-PHASE3-0001: canon-contract linear walk (padding
         // NOP filter) over each function window.
-        let raw = rugra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code, vaddr);
+        let raw = rudra::disasm::sleigh_lift::sleigh_raw_ops_skip_nops(code, vaddr);
 
         let mut fd = Funcdata::new(name, Address::new(vaddr), size as i32);
         fd.inject_raw_ops(&raw);
@@ -85,7 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("\n[{}] total LOAD/STORE ops: {}", name, count);
 
         // Now actually run restructure_varnode and report scope symbol count.
-        let mut scope = rugra::varmap::ScopeLocal::new();
+        let mut scope = rudra::varmap::ScopeLocal::new();
         // Diag harness stands in for a post-first-pass inspection, so pass
         // aliasyes=true (ActionRestructureVarnode cc:2279 numpass!=0 form).
         scope.restructure_varnode(&mut fd, true);
@@ -98,10 +98,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Walk the def chain of vn looking for Register:offset. Depth-limited.
-fn chain_has_reg(vn: &std::sync::Arc<std::sync::RwLock<rugra::varnode::Varnode>>, reg_off: u64, depth: usize) -> bool {
+fn chain_has_reg(vn: &std::sync::Arc<std::sync::RwLock<rudra::varnode::Varnode>>, reg_off: u64, depth: usize) -> bool {
     if depth > 8 { return false; }
     let v = vn.read().unwrap();
-    if v.get_space() == rugra::space::AddressSpace::Register && v.get_offset() == reg_off {
+    if v.get_space() == rudra::space::AddressSpace::Register && v.get_offset() == reg_off {
         return true;
     }
     if let Some(def_w) = v.def.as_ref().and_then(|w| w.upgrade()) {

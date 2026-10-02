@@ -25,12 +25,12 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::dynamic::DynamicHash;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::Address;
+use rudra::dynamic::DynamicHash;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::{varnode_flags, Varnode};
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 
@@ -64,7 +64,7 @@ impl Fixture {
         name: &str,
         size: usize,
         offset: u64,
-        op: &rugra::op::PcodeOpRef,
+        op: &rudra::op::PcodeOpRef,
     ) -> VarnodeRef {
         let vn = fd.new_varnode_out_full(
             size,

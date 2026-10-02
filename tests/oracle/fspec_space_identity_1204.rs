@@ -12,9 +12,9 @@
 //! fixed offsets through the registry's fspec-entry table — nothing offset
 //! raw is printed, so both projections are byte-identical.
 
-use rugra::address::SpaceAddress;
-use rugra::marshal::{xml_tree, IdRegistry, TreeDecoder, TreeEncoder};
-use rugra::space::{
+use rudra::address::SpaceAddress;
+use rudra::marshal::{xml_tree, IdRegistry, TreeDecoder, TreeEncoder};
+use rudra::space::{
     attrib_offset, AddrSpace, FspecEntryTable, FSPEC_SPACE_NAME, SpaceRegistry, SpaceType,
     space_flags,
 };
@@ -88,21 +88,21 @@ fn catch_quiet<F: FnOnce()>(f: F) -> Box<dyn std::any::Any + Send> {
     result.unwrap_err()
 }
 
-fn encode_document(addr: &SpaceAddress) -> rugra::marshal::Document {
+fn encode_document(addr: &SpaceAddress) -> rudra::marshal::Document {
     let registry = Arc::new(RwLock::new(IdRegistry::new()));
     let mut enc = TreeEncoder::new(registry);
     addr.encode(&mut enc);
     enc.into_document()
 }
 
-fn attr_names(doc: &rugra::marshal::Document) -> String {
+fn attr_names(doc: &rudra::marshal::Document) -> String {
     let root = doc.root.as_ref().unwrap();
     let root = root.read().unwrap();
     root.attr_names.join(",")
 }
 
 fn decode_document(
-    doc: &rugra::marshal::Document,
+    doc: &rudra::marshal::Document,
     registry: &SpaceRegistry,
 ) -> Result<SpaceAddress, String> {
     let ids = Arc::new(RwLock::new(IdRegistry::new()));
@@ -412,7 +412,7 @@ fn main() {
     {
         let f = SpaceAddress::new(fspec.clone(), 0x1000);
         let ram_point = SpaceAddress::new(ram.clone(), 0x1000);
-        let ram_range = rugra::address::SpaceRange::new(ram.clone(), 0x1000, 0x2000);
+        let ram_range = rudra::address::SpaceRange::new(ram.clone(), 0x1000, 0x2000);
         let mut out = String::from("case=cross_space_exceptions");
         out.push_str(&format!(
             "|range_contains_fspec={}",

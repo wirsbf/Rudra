@@ -4,16 +4,16 @@
 //! Construction, list reordering, callspec binding, jump-table state, and
 //! exception injection mirror `truncated_flow_1204.cc` one-for-one.
 
-use rugra::address::Address;
-use rugra::block::BlockBasic;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::flow::FlowInfo;
-use rugra::fspec::FuncCallSpecs;
-use rugra::funcdata::Funcdata;
-use rugra::jumptable::{JumpModel, JumpModelTrivial, JumpTable, NormMax};
-use rugra::op::{pcodeop_flags, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
+use rudra::address::Address;
+use rudra::block::BlockBasic;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::flow::FlowInfo;
+use rudra::fspec::FuncCallSpecs;
+use rudra::funcdata::Funcdata;
+use rudra::jumptable::{JumpModel, JumpModelTrivial, JumpTable, NormMax};
+use rudra::op::{pcodeop_flags, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
 use std::env;
 use std::error::Error;
 use std::sync::{Arc, RwLock};
@@ -30,7 +30,7 @@ fn list_times(ops: &[PcodeOpRef]) -> String {
     format!("[{}]", values.join(","))
 }
 
-fn varnode_token(vn: Option<&Arc<RwLock<rugra::varnode::Varnode>>>) -> String {
+fn varnode_token(vn: Option<&Arc<RwLock<rudra::varnode::Varnode>>>) -> String {
     let Some(vn) = vn else {
         return "none".to_string();
     };
@@ -79,14 +79,14 @@ fn configure_table(table: &Arc<RwLock<JumpTable>>, indirect: Option<&PcodeOpRef>
     jt.origmodel = Some(original);
 }
 
-fn flow_state(fd: &mut Funcdata, max_instructions: Option<u64>) -> rugra::flow::TruncatedFlowState {
+fn flow_state(fd: &mut Funcdata, max_instructions: Option<u64>) -> rudra::flow::TruncatedFlowState {
     let mut lifter = SleighLifter::new();
     let mut flow = FlowInfo::new(fd, &mut lifter, 0, u64::MAX);
     if let Some(maximum) = max_instructions {
         flow.set_max_instructions(maximum);
         flow.set_flags(
-            rugra::flow::flow_flags::POSSIBLE_UNREACHABLE
-                | rugra::flow::flow_flags::ERROR_UNIMPLEMENTED,
+            rudra::flow::flow_flags::POSSIBLE_UNREACHABLE
+                | rudra::flow::flow_flags::ERROR_UNIMPLEMENTED,
         );
     }
     flow.truncated_state()
@@ -499,11 +499,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         entry_target.jump_tables.len(),
         entry_target.bblocks.blocks.len(),
         usize::from(
-            (entry_target.flags & rugra::funcdata::funcdata_flags::BLOCKS_GENERATED) != 0
+            (entry_target.flags & rudra::funcdata::funcdata_flags::BLOCKS_GENERATED) != 0
         ),
     );
     let entry_error = match entry_target.truncated_flow(&entry_source, &entry_state) {
-        Err(rugra::Error::Lowlevel(message)) => message,
+        Err(rudra::Error::Lowlevel(message)) => message,
         Err(other) => return Err(format!("unexpected missing-entry error: {other}").into()),
         Ok(()) => return Err("missing entry marker must fail".into()),
     };
@@ -542,7 +542,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         entry_target.jump_tables.len(),
         entry_target.bblocks.blocks.len(),
         usize::from(
-            (entry_target.flags & rugra::funcdata::funcdata_flags::BLOCKS_GENERATED) != 0
+            (entry_target.flags & rudra::funcdata::funcdata_flags::BLOCKS_GENERATED) != 0
         ),
         first_time,
         first_order,

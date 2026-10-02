@@ -22,19 +22,19 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::{build_default_pipeline, ActionRestartGroup};
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varnode::varnode_flags;
+use rudra::action::{build_default_pipeline, ActionRestartGroup};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varnode::varnode_flags;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
-type VnRef = Arc<RwLock<rugra::varnode::Varnode>>;
-type OpRef = Arc<RwLock<rugra::op::PcodeOp>>;
+type VnRef = Arc<RwLock<rudra::varnode::Varnode>>;
+type OpRef = Arc<RwLock<rudra::op::PcodeOp>>;
 
 struct Graph {
     fd: Funcdata,

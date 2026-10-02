@@ -8,8 +8,8 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{edge_flags as ef, BlockBasic, BlockGraph, FlowBlock};
+use rudra::address::Address;
+use rudra::block::{edge_flags as ef, BlockBasic, BlockGraph, FlowBlock};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 

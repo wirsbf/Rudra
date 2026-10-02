@@ -9,20 +9,20 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::{Datatype, TypeField, TypeMetatype};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::typeop::TypeOp;
-use rugra::typeop::{
+use rudra::address::Address;
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::{Datatype, TypeField, TypeMetatype};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::typeop::TypeOp;
+use rudra::typeop::{
     TypeOpCallother, TypeOpCbranch, TypeOpFloatInt2Float, TypeOpIndirect, TypeOpIntCarry,
     TypeOpIntLessEqual, TypeOpIntLeft, TypeOpIntRem, TypeOpIntRight, TypeOpIntScarry,
     TypeOpIntSdiv, TypeOpIntSborrow, TypeOpIntSless, TypeOpIntSright, TypeOpIntSext,
     TypeOpIntZext, TypeOpPiece, TypeOpPtradd, TypeOpSegment, TypeOpSubpiece,
 };
-use rugra::varnode::Varnode;
+use rudra::varnode::Varnode;
 
 fn element(name: &str, attributes: &[(&str, &str)]) -> Arc<RwLock<Element>> {
     let mut element = Element::new();
@@ -153,8 +153,8 @@ fn emit_case(name: &str, ct: Option<Arc<Datatype>>) {
 
 /// A HighVariable whose derived type is `dt` (the fixture equivalent of the
 /// oracle's `new HighVariable(vn)` / foreign-carrier attachments).
-fn high_of(dt: Arc<Datatype>) -> Arc<RwLock<rugra::variable::HighVariable>> {
-    Arc::new(RwLock::new(rugra::variable::HighVariable::new(dt)))
+fn high_of(dt: Arc<Datatype>) -> Arc<RwLock<rudra::variable::HighVariable>> {
+    Arc::new(RwLock::new(rudra::variable::HighVariable::new(dt)))
 }
 
 fn set_vtype(vn: &Arc<RwLock<Varnode>>, dt: Option<Arc<Datatype>>) {

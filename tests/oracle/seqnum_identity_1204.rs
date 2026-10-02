@@ -1,12 +1,12 @@
-use rugra::address::{Address, SeqNum};
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::graph::dump_dataflow_graph_string;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::{Datatype, TypeBase, TypeMetatype};
-use rugra::unionresolve::ResolveEdge;
-use rugra::variable::HighVariable;
+use rudra::address::{Address, SeqNum};
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::graph::dump_dataflow_graph_string;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::{Datatype, TypeBase, TypeMetatype};
+use rudra::unionresolve::ResolveEdge;
+use rudra::variable::HighVariable;
 use std::sync::{Arc, RwLock};
 
 fn main() {

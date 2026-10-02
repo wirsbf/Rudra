@@ -17,10 +17,10 @@
 //    with the space-aware cc:377 gate, the cc:376 join guard, the sz
 //    gates, the list minSize skip, and both container shapes.
 
-use rugra::address::Address;
-use rugra::fspec::{param_entry_flags, ParamEntry, ParamListStandard,
+use rudra::address::Address;
+use rudra::fspec::{param_entry_flags, ParamEntry, ParamListStandard,
                    ParamListStandardOut, TypeClass, VarnodeData};
-use rugra::space::AddressSpace;
+use rudra::space::AddressSpace;
 
 // staged-loader entry builder (the pub equivalent of the C++ fixture's
 // direct field writes; same pattern as the fspec_findentry_1204
@@ -76,7 +76,7 @@ fn print_ae(model: &ParamListStandard, spcname: &str, space: AddressSpace,
     let ext = model.assumed_extension(space, Address::new(off), sz, &mut res);
     let mut line = format!("  ae spc={} off=0x{:x} sz={} -> {}", spcname, off,
                            sz, ext.name());
-    if ext != rugra::opcodes::OpCode::CPUI_COPY {
+    if ext != rudra::opcodes::OpCode::CPUI_COPY {
         line.push_str(&format!(" res={}:0x{:x}/{}", res.space.name(),
                                res.offset, res.size));
     }

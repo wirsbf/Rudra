@@ -3,12 +3,12 @@
 //! Ghidra 12.0.4 oracle. Mirrors tests/oracle/funcdata_calcnzm_1204.cc
 //! scenario-for-scenario; every printed value must byte-match the oracle.
 
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 use std::sync::{Arc, RwLock};
 
 type Block = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
@@ -26,7 +26,7 @@ fn new_output_op(
     inputs: usize,
     output_size: usize,
     at_begin: bool,
-) -> (rugra::op::PcodeOpRef, Vn) {
+) -> (rudra::op::PcodeOpRef, Vn) {
     let op = fd.new_op(inputs, Address::new(pc));
     fd.op_set_opcode(&op, opcode);
     let output = fd.new_unique_out(output_size, &op);
@@ -172,10 +172,10 @@ fn run_loop_or() {
     let b2 = fd.create_new_block();
     fd.bblocks.add_edge(b1.clone(), b2.clone());
     fd.bblocks.add_edge(b2.clone(), b2.clone());
-    rugra::block::set_out_edge_flag_mirrored(
+    rudra::block::set_out_edge_flag_mirrored(
         &b2,
         0,
-        rugra::block::edge_flags::F_LOOP_EDGE,
+        rudra::block::edge_flags::F_LOOP_EDGE,
     );
     // Creation order (== alive order): shift, then phi.
     let (shift, shift_out) = new_output_op(&mut fd, &b2, OpCode::CPUI_INT_LEFT, 0x5050, 2, 4, false);
@@ -206,10 +206,10 @@ fn build_loop_and_graph(fd: &mut Funcdata, with_loop_edge: bool) -> (Vn, Vn) {
     fd.bblocks.add_edge(b1.clone(), b2.clone());
     fd.bblocks.add_edge(b2.clone(), b2.clone());
     if with_loop_edge {
-        rugra::block::set_out_edge_flag_mirrored(
+        rudra::block::set_out_edge_flag_mirrored(
             &b2,
             0,
-            rugra::block::edge_flags::F_LOOP_EDGE,
+            rudra::block::edge_flags::F_LOOP_EDGE,
         );
     }
     // Creation order: and, then phi.

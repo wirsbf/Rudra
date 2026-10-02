@@ -21,24 +21,24 @@
 use std::sync::Arc;
 use std::sync::RwLock;
 
-use rugra::action::{action_status, Rule};
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::constseq::RuleStringCopy;
-use rugra::funcdata::Funcdata;
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::stringmanage::StringManager;
-use rugra::type_system::datatype::Datatype;
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::type_system::TypeMetatype;
-use rugra::userop::{BUILTIN_STRINGDATA, UserOpManage};
-use rugra::varmap::ScopeLocal;
-use rugra::varnode::varnode_flags;
-use rugra::varnode::Varnode;
+use rudra::action::{action_status, Rule};
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::constseq::RuleStringCopy;
+use rudra::funcdata::Funcdata;
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::stringmanage::StringManager;
+use rudra::type_system::datatype::Datatype;
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::type_system::TypeMetatype;
+use rudra::userop::{BUILTIN_STRINGDATA, UserOpManage};
+use rudra::varmap::ScopeLocal;
+use rudra::varnode::varnode_flags;
+use rudra::varnode::Varnode;
 
 fn space_name(spc: AddressSpace) -> &'static str {
     match spc {
@@ -395,12 +395,12 @@ fn main() {
             .set_fields_sized(
                 "holder_t",
                 vec![
-                    rugra::type_system::datatype::TypeField {
+                    rudra::type_system::datatype::TypeField {
                         name: "buf".to_string(),
                         offset: 0,
                         type_ptr: buf_arr.clone(),
                     },
-                    rugra::type_system::datatype::TypeField {
+                    rudra::type_system::datatype::TypeField {
                         name: "len".to_string(),
                         offset: 16,
                         type_ptr: int4.clone(),

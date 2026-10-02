@@ -17,11 +17,11 @@
 // Slot observations are deltas (Ghidra slots are 1-based, fspec.cc:4062;
 // Rugra's coupled consumers are 0-based — outside the covered projection).
 
-use rugra::address::Address;
-use rugra::fspec::param_entry_flags;
-use rugra::fspec::{ParamActive, ParamEntry, ParamListStandard, TypeClass};
-use rugra::fspec::VarnodeData;
-use rugra::space::{AddrSpace, AddressSpace, SpaceRegistry, SpaceType};
+use rudra::address::Address;
+use rudra::fspec::param_entry_flags;
+use rudra::fspec::{ParamActive, ParamEntry, ParamListStandard, TypeClass};
+use rudra::fspec::VarnodeData;
+use rudra::space::{AddrSpace, AddressSpace, SpaceRegistry, SpaceType};
 
 fn proc_space(name: &str, big_end: bool, size: u32, ws: u32, ind: i32, fl: u32) -> AddrSpace {
     AddrSpace::new_space(SpaceType::Processor, name, big_end, size, ws, ind, fl, 0, 0)
@@ -158,7 +158,7 @@ fn main() {
     for &(spc, off, sz) in ae.iter() {
         let mut res = VarnodeData { space: AddressSpace::Ram, offset: 0, size: 0 };
         let op = model.assumed_extension(spc, Address::new(off), sz, &mut res);
-        if op != rugra::opcodes::OpCode::CPUI_COPY {
+        if op != rudra::opcodes::OpCode::CPUI_COPY {
             println!("  ae {}:{}/{} op={} res={}", spc.name(), hex(off), sz, op.name(), vd(&res));
         } else {
             println!("  ae {}:{}/{} op=COPY", spc.name(), hex(off), sz);

@@ -15,15 +15,15 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::condexe::ActionConditionalExe;
-use rugra::Error;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::condexe::ActionConditionalExe;
+use rudra::Error;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;
@@ -65,7 +65,7 @@ impl Fixture {
         size: usize,
         space: AddressSpace,
         offset: u64,
-        op: &rugra::op::PcodeOpRef,
+        op: &rudra::op::PcodeOpRef,
     ) -> VarnodeRef {
         let vn = fd.vbank.create_def_with_space(size, space, offset, &op.0);
         op.0.write().unwrap().output = Some(vn.clone());

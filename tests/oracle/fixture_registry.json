@@ -8197,10 +8197,10 @@
           "tools/run_minimalmask_ladder_oracle.sh"
         ],
         "rust_function_ids": [
-          "rugra::address::minimalmask",
-          "rugra::coreaction::ActionDeadCode::mark_consumed_parameters",
-          "rugra::coreaction::ActionDeadCode::gather_consumed_return",
-          "rugra::jumptable::JumpTable::fold_in_normalization"
+          "rudra::address::minimalmask",
+          "rudra::coreaction::ActionDeadCode::mark_consumed_parameters",
+          "rudra::coreaction::ActionDeadCode::gather_consumed_return",
+          "rudra::jumptable::JumpTable::fold_in_normalization"
         ],
         "ghidra_function_ids": [
           "ghidra::minimalmask",

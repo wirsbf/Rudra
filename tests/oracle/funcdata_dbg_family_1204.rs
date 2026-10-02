@@ -7,11 +7,11 @@
 // build; debug_print_range returns the message (the sink is the caller's).
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::{space_flags, AddrSpace, SpaceType};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::{space_flags, AddrSpace, SpaceType};
 
 fn jtcb(_orig: &mut Funcdata, _fd: &mut Funcdata) {}
 
@@ -98,17 +98,17 @@ fn main() {
         // steps (set the flag, record the before-string).
         {
             let mut o = op1.0.write().unwrap();
-            o.addlflags |= rugra::op::op_addl_flags::MODIFIED;
+            o.addlflags |= rudra::op::op_addl_flags::MODIFIED;
         }
         fd.modify_list.push(op1.clone());
         fd.modify_before.push(String::new());
         let marked = {
-            op1.0.read().unwrap().addlflags & rugra::op::op_addl_flags::MODIFIED != 0
+            op1.0.read().unwrap().addlflags & rudra::op::op_addl_flags::MODIFIED != 0
         };
         let list_len = fd.modify_list.len();
         fd.debug_mod_clear();
         let marked_after = {
-            op1.0.read().unwrap().addlflags & rugra::op::op_addl_flags::MODIFIED != 0
+            op1.0.read().unwrap().addlflags & rudra::op::op_addl_flags::MODIFIED != 0
         };
         let list_len_after = fd.modify_list.len();
         let active_after = fd.opactdbg_active;

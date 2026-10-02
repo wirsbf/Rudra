@@ -1,21 +1,21 @@
 //! SUBFLOAT-TRANSFORM-RESIDUAL-0001 Rugra comparand.
 //!
-//! Drives the real `RuleSubfloatConvert::applyOp` (rugra::subflow) — the
+//! Drives the real `RuleSubfloatConvert::applyOp` (rudra::subflow) — the
 //! full SubfloatFlow trace + TransformManager::apply — mirroring the
 //! locked-oracle C++ fixture observation for observation: non-constant
 //! widen/narrow rewrites, constant-narrow/constant-widen-without-terminator
 //! rejections, maxPrecision/exceedsPrecision blocking and pass-through,
 //! comparison preexistingGuard, and the repeated-input getRepeatSlot path.
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::subflow::RuleSubfloatConvert;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::subflow::RuleSubfloatConvert;
+use rudra::varnode::Varnode;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::{Arc, RwLock};
@@ -76,7 +76,7 @@ impl GraphProjection {
             .map_or_else(|| "x".to_string(), |index| format!("v{index}"))
     }
 
-    fn op_name(&self, op: Option<&Arc<RwLock<rugra::op::PcodeOp>>>) -> String {
+    fn op_name(&self, op: Option<&Arc<RwLock<rudra::op::PcodeOp>>>) -> String {
         let Some(op) = op else {
             return "_".to_string();
         };

@@ -32,11 +32,11 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::marshal::{Element, IdRegistry, TreeDecoder};
-use rugra::type_system::datatype::{
+use rudra::marshal::{Element, IdRegistry, TreeDecoder};
+use rudra::type_system::datatype::{
     Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct,
 };
-use rugra::type_system::typefactory::TypeFactory;
+use rudra::type_system::typefactory::TypeFactory;
 
 type Node = Arc<RwLock<Element>>;
 

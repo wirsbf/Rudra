@@ -5,7 +5,7 @@
 // installs the same symbol/entry table on a hand-built ScopeLocal — the
 // entry log (LocalMapEntry) stands in for ScopeInternal::maptable — and
 // issues the same findOverlap / findAddr / queryProperties queries through
-// rugra::varmap::ScopeLocal. Record formats are byte-identical to the C++
+// rudra::varmap::ScopeLocal. Record formats are byte-identical to the C++
 // fixture (std::hex sticky fields mirrored with explicit hex formatting).
 //
 // Case semantics (see the .cc header for the full rationale):
@@ -25,13 +25,13 @@
 //                       (global scope) walk + constant short-circuit.
 //   marknotmapped_window  symbol removal + ownership-window split.
 
-use rugra::rangemap::{RangeRecord, RangeSubsort};
-use rugra::space::AddressSpace;
-use rugra::varmap::{
+use rudra::rangemap::{RangeRecord, RangeSubsort};
+use rudra::space::AddressSpace;
+use rudra::varmap::{
     ghidra_space_index, symbol_category, EntrySubsort, LocalMapEntry,
     LocalSymbol, QueryFinalScope, ScopeLocal,
 };
-use rugra::varnode::varnode_flags;
+use rudra::varnode::varnode_flags;
 
 fn sym(name: &str, space: AddressSpace, start: u64, size: i32, usepoint: Option<u64>) -> LocalSymbol {
     let mut s = LocalSymbol::new(name, start, size, None, symbol_category::NO_CATEGORY);

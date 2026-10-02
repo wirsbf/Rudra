@@ -9,7 +9,7 @@
 //! (group/pool/leaf), exact name, basegroup and rule flags.  Duplicate
 //! names at distinct slots are kept verbatim; no sorting or deduplication.
 
-use rugra::action::{Action, ActionDatabase};
+use rudra::action::{Action, ActionDatabase};
 
 fn dfs(node: &dyn Action, basegroup: &str, path: &str, ordinal: &mut usize) {
     let kind = if node.as_action_group().is_some() {

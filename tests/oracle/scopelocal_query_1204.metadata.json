@@ -76,7 +76,7 @@
   "path": "sleigh_specs/x86-64-gcc.cspec"
  },
  "analysis_options": {
-  "api": "Direct ScopeLocal::findOverlap / findAddr / Scope::queryProperties and rugra::varmap::ScopeLocal::{find_overlap_entry, find_addr_entry, query_properties_ex} invocations with explicit (space, offset, size, usepoint) queries over hand-installed symbol/entry tables; no ActionGroup or other Action runs",
+  "api": "Direct ScopeLocal::findOverlap / findAddr / Scope::queryProperties and rudra::varmap::ScopeLocal::{find_overlap_entry, find_addr_entry, query_properties_ex} invocations with explicit (space, offset, size, usepoint) queries over hand-installed symbol/entry tables; no ActionGroup or other Action runs",
   "debug_macros": "OPACTION_DEBUG and CPUI_DEBUG are absent",
   "error_injection": "none",
   "ghidra_funcdata": "Locked BfdArchitecture over the pinned examples/curl input supplies the Ghidra Funcdata, address spaces, TypeFactory, Database flagbase and the persistent ScopeLocal (function GetStr at 0x36d0); symbols are installed through public production paths (Scope::addSymbol, Scope::addMapPoint, SymbolEntry::setUseLimit, Architecture::findAddJoin, Database::setPropertyRange, SymbolTable::addRange, ScopeLocal::markNotMapped, Scope::removeSymbol); every qp observable comes from the REAL Scope::queryProperties return (entry identity + flags), the answering scope is derived from that return (entry owner scope / persist bit / mapped|addrtied bits / property-only)",

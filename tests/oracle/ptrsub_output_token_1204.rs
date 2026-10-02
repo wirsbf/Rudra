@@ -4,19 +4,19 @@
 // architecture state are explicitly outside this fixture's observation set.
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::coreaction::{ActionInferTypes, ActionSetCasts};
-use rugra::funcdata::Funcdata;
-use rugra::op::{op_addl_flags, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct};
-use rugra::type_system::typefactory::{SizeArchInputs, TypeFactory};
-use rugra::typeop::{TypeOp, TypeOpPtrsub};
-use rugra::varnode::{op_output_type_local, varnode_flags, Varnode};
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::coreaction::{ActionInferTypes, ActionSetCasts};
+use rudra::funcdata::Funcdata;
+use rudra::op::{op_addl_flags, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::{space_flags, AddrSpace, AddressSpace, SpaceType};
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeField, TypeMetatype, TypeStruct};
+use rudra::type_system::typefactory::{SizeArchInputs, TypeFactory};
+use rudra::typeop::{TypeOp, TypeOpPtrsub};
+use rudra::varnode::{op_output_type_local, varnode_flags, Varnode};
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<RwLock<Varnode>>;

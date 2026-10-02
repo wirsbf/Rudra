@@ -8,14 +8,14 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::action::Action;
-use rugra::coreaction::ActionNodeJoin;
-use rugra::funcdata::Funcdata;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::action::Action;
+use rudra::coreaction::ActionNodeJoin;
+use rudra::funcdata::Funcdata;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VnRef = Arc<RwLock<Varnode>>;
@@ -82,7 +82,7 @@ impl Fixture {
         self.fd.op_set_input(&cb, target, 0);
         self.fd.op_set_input(&cb, cond, 1);
         if flip {
-            cb.0.write().unwrap().flags |= rugra::op::pcodeop_flags::BOOLEAN_FLIP;
+            cb.0.write().unwrap().flags |= rudra::op::pcodeop_flags::BOOLEAN_FLIP;
         }
         self.fd.op_insert_end(&cb, blk);
     }
@@ -347,7 +347,7 @@ fn run_case(name: &str) {
             cond1
                 .write()
                 .unwrap()
-                .set_flags(rugra::varnode::varnode_flags::SPACEBASE);
+                .set_flags(rudra::varnode::varnode_flags::SPACEBASE);
             let cond2 = fx.mk_written("cond2", OpCode::CPUI_INT_LESS, vec![k1, k2], &b2v, 0x2100);
             fx.diamond(nodef(), Some(cond1), false, nodef(), Some(cond2), false, nodef(), nodef());
         }

@@ -20,16 +20,16 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::coreaction::ActionNameVars;
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::varmap::{symbol_category, ScopeLocal};
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::coreaction::ActionNameVars;
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::varmap::{symbol_category, ScopeLocal};
+use rudra::varnode::{varnode_flags, Varnode};
 
 type VarnodeRef = Arc<RwLock<Varnode>>;
 

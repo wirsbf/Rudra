@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use rugra::fspec::FuncProto;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::fspec::FuncProto;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 
 fn void_type() -> Arc<Datatype> {
     Arc::new(Datatype::Void(TypeBase::new(

@@ -20,11 +20,11 @@
  * the only override is ScopeLocal (varmap.cc:479), a varmap.rs lease.
  */
 
-use rugra::address::{Address, RangeList};
-use rugra::database::Scope;
-use rugra::space::{space_flags, AddrSpace, SpaceType};
-use rugra::type_system::datatype::TypeMetatype;
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::address::{Address, RangeList};
+use rudra::database::Scope;
+use rudra::space::{space_flags, AddrSpace, SpaceType};
+use rudra::type_system::datatype::TypeMetatype;
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
 
 fn hexoff(v: u64) -> String {
     format!("{:x}", v)
@@ -191,7 +191,7 @@ fn main() {
     {
         // Production registration path mirror: Database::attachScope →
         // parent attach_child upsert on the id-keyed child list.
-        let mut db = rugra::database::Database::new(false);
+        let mut db = rudra::database::Database::new(false);
         db.scopes.remove(&0);
         db.scopes.insert(200, Scope::new(200, "", 0));
         db.global_scope_id = 200;

@@ -17,14 +17,14 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleStructOffset0;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleStructOffset0;
+use rudra::varnode::Varnode;
 
 type VnRef = Arc<RwLock<Varnode>>;
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
@@ -45,11 +45,11 @@ fn vn_class(vn: Option<&VnRef>) -> char {
     }
 }
 
-fn print_op_line(op: &rugra::op::PcodeOpRef) {
+fn print_op_line(op: &rudra::op::PcodeOpRef) {
     let g = op.0.read().unwrap();
     let addr = g.get_addr().to_space_address().get_offset();
     let mut line = format!("  op={}@0x{:x}|nin={}", g.opcode as i32, addr, g.num_input());
-    let sentinel = rugra::op::null_slot_sentinel();
+    let sentinel = rudra::op::null_slot_sentinel();
     for i in 0..3 {
         let vn = g.get_in(i).filter(|v| !Arc::ptr_eq(*v, &sentinel));
         match vn {
@@ -107,7 +107,7 @@ fn run() {
     // Shared canvas types: parent struct {a@0 int, b@4 int} (size 8) and the
     // int base — mirrors TypeFactory getBase/getTypeStruct+setFields on the
     // C++ side.
-    use rugra::type_system::datatype::{
+    use rudra::type_system::datatype::{
         type_flags, Datatype, PointerRelState, TypeBase, TypeField, TypeMetatype, TypePointer,
         TypeStruct,
     };

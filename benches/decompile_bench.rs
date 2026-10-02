@@ -3,8 +3,8 @@
 //! Run with: cargo bench
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use rugra::varnode::Varnode;
-use rugra::{Address, Architecture, OpCode};
+use rudra::varnode::Varnode;
+use rudra::{Address, Architecture, OpCode};
 
 fn benchmark_architecture_queries(c: &mut Criterion) {
     c.bench_function("query_architecture", |b| {

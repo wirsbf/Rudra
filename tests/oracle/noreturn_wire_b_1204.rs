@@ -17,21 +17,21 @@
 //! `truncate_indirect_jump` and the `copy_flow_effects` lifecycle are
 //! driven directly, like the C++ side's hand-constructed FlowInfo.
 
-use rugra::address::Address;
-use rugra::comment::comment_type;
-use rugra::comment::CommentDatabaseInternal;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::flow::follow_flow_with_callee_protos;
-use rugra::flow::FlowInfo;
-use rugra::fspec::FuncCallSpecs;
-use rugra::fspec::FuncProto;
-use rugra::funcdata::Funcdata;
-use rugra::jumptable::RecoveryMode;
-use rugra::op::pcodeop_flags;
-use rugra::op::PcodeOp;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::address::Address;
+use rudra::comment::comment_type;
+use rudra::comment::CommentDatabaseInternal;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::flow::follow_flow_with_callee_protos;
+use rudra::flow::FlowInfo;
+use rudra::fspec::FuncCallSpecs;
+use rudra::fspec::FuncProto;
+use rudra::funcdata::Funcdata;
+use rudra::jumptable::RecoveryMode;
+use rudra::op::pcodeop_flags;
+use rudra::op::PcodeOp;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
 use std::collections::BTreeMap;
 use std::env;
 use std::error::Error;
@@ -68,17 +68,17 @@ fn make_op(fd: &mut Funcdata, addr: u64, opcode: OpCode) -> PcodeOpRef {
     op
 }
 
-fn space_name(space: rugra::space::AddressSpace) -> String {
+fn space_name(space: rudra::space::AddressSpace) -> String {
     match space {
-        rugra::space::AddressSpace::Ram => "ram",
-        rugra::space::AddressSpace::Register => "register",
-        rugra::space::AddressSpace::Unique => "unique",
-        rugra::space::AddressSpace::Const => "const",
-        rugra::space::AddressSpace::Stack => "stack",
-        rugra::space::AddressSpace::Join => "join",
-        rugra::space::AddressSpace::Iop => "iop",
-        rugra::space::AddressSpace::Overlay => "overlay",
-        rugra::space::AddressSpace::Other(_) => "other",
+        rudra::space::AddressSpace::Ram => "ram",
+        rudra::space::AddressSpace::Register => "register",
+        rudra::space::AddressSpace::Unique => "unique",
+        rudra::space::AddressSpace::Const => "const",
+        rudra::space::AddressSpace::Stack => "stack",
+        rudra::space::AddressSpace::Join => "join",
+        rudra::space::AddressSpace::Iop => "iop",
+        rudra::space::AddressSpace::Overlay => "overlay",
+        rudra::space::AddressSpace::Other(_) => "other",
     }
     .to_string()
 }
@@ -89,19 +89,19 @@ fn input0_token(op: &PcodeOp, base: u64) -> String {
     };
     let varnode = input.read().expect("varnode read lock");
     match varnode.get_space() {
-        rugra::space::AddressSpace::Iop => "callspec".to_string(),
-        rugra::space::AddressSpace::Const => {
+        rudra::space::AddressSpace::Iop => "callspec".to_string(),
+        rudra::space::AddressSpace::Const => {
             if op.opcode == OpCode::CPUI_LOAD || op.opcode == OpCode::CPUI_STORE {
                 // Space reference encoded as a constant: Ghidra's value is a
                 // per-run heap pointer, Rugra's a stable SPACEID_* index;
                 // project the referenced space name instead (same
                 // normalization as flow_tailcall_overtrace_1204).
-                let space = rugra::space::AddressSpace::from_id(varnode.get_offset() as u8);
+                let space = rudra::space::AddressSpace::from_id(varnode.get_offset() as u8);
                 return format!("spc:{}", space_name(space));
             }
             format!("const:{}", varnode.get_offset())
         }
-        rugra::space::AddressSpace::Ram => {
+        rudra::space::AddressSpace::Ram => {
             format!("ram:{}", delta_string(varnode.get_offset(), base))
         }
         other => format!("{}:{}", space_name(other), varnode.get_offset()),
@@ -152,7 +152,7 @@ fn spec_line(index: usize, fc: &FuncCallSpecs, base: u64, with_name: bool, with_
 
 fn print_warnings(db: &Arc<RwLock<CommentDatabaseInternal>>, base: u64) {
     let db_ref = db.read().expect("commentdb read lock");
-    let comments: Vec<&rugra::comment::Comment> =
+    let comments: Vec<&rudra::comment::Comment> =
         db_ref.comments_for_function(Address::new(base)).collect();
     for (index, comment) in comments.iter().enumerate() {
         let ty = comment.get_type();
@@ -201,7 +201,7 @@ fn observe(
     let mut lifter = SleighLifter::new();
     lifter.configure_x86_64(image, image_base)?;
     let mut fd = Funcdata::new(name, Address::new(address), size as i32);
-    let mut arch = rugra::arch::Architecture::new();
+    let mut arch = rudra::arch::Architecture::new();
     let db = Arc::new(RwLock::new(CommentDatabaseInternal::new()));
     arch.set_commentdb(db.clone());
     fd.set_arch(Arc::new(arch));
@@ -234,7 +234,7 @@ fn observe(
 fn observe_truncate(address: u64) -> Result<(), Box<dyn Error>> {
     let mut lifter = SleighLifter::new();
     let mut fd = Funcdata::new("wireb_trunc_target", Address::new(address), 16);
-    let mut arch = rugra::arch::Architecture::new();
+    let mut arch = rudra::arch::Architecture::new();
     let db = Arc::new(RwLock::new(CommentDatabaseInternal::new()));
     arch.set_commentdb(db.clone());
     fd.set_arch(Arc::new(arch));

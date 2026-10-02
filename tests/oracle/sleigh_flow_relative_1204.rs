@@ -1,12 +1,12 @@
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::disasm::sleigh_lift::{set_sla_path, SleighLifter};
-use rugra::flow::{FlowInfo, FlowInfoSnapshot};
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::TypeMetatype;
-use rugra::varnode::Varnode;
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::disasm::sleigh_lift::{set_sla_path, SleighLifter};
+use rudra::flow::{FlowInfo, FlowInfoSnapshot};
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::TypeMetatype;
+use rudra::varnode::Varnode;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error;
@@ -153,7 +153,7 @@ fn push_type(output: &mut String, varnode: &Varnode) {
 
 fn collect_identities(
     snapshot: &FlowInfoSnapshot,
-    function: &rugra::funcdata::Funcdata,
+    function: &rudra::funcdata::Funcdata,
 ) -> (
     Vec<PcodeOpRef>,
     HashMap<usize, usize>,
@@ -533,7 +533,7 @@ fn write_blocks(
 fn write_summary(
     output: &mut String,
     snapshot: &FlowInfoSnapshot,
-    function: &rugra::funcdata::Funcdata,
+    function: &rudra::funcdata::Funcdata,
     blocks: &[DynBlock],
     varnode_count: usize,
 ) {
@@ -615,7 +615,7 @@ fn run(sla: &str, image_path: &str) -> Result<String, Box<dyn Error>> {
     set_sla_path(sla);
     let mut lifter = SleighLifter::new();
     lifter.configure_x86_64(&image, 0)?;
-    let mut function = rugra::funcdata::Funcdata::new(FUNCTION_NAME, Address::new(0), 0);
+    let mut function = rudra::funcdata::Funcdata::new(FUNCTION_NAME, Address::new(0), 0);
     let snapshot = {
         let mut flow = FlowInfo::new(&mut function, &mut lifter, 0, image.len() as u64);
         flow.set_flags(FLOW_FLAGS);

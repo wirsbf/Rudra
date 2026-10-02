@@ -5,10 +5,10 @@
 // insert_dyn_space / add_dyn_spacebase_pointer into the architecture-owned
 // SpaceRegistry) and every observation is printed in the shared line format.
 
-use rugra::space::{
+use rudra::space::{
     space_flags, AddrSpace, SpaceRegistry, SpaceType, SpaceVarnodeData,
 };
-use rugra::translate::AddrSpaceManager;
+use rudra::translate::AddrSpaceManager;
 
 fn hex_u64(v: u64) -> String {
     format!("0x{:x}", v)

@@ -4,14 +4,14 @@
 //! Action interface.  Executor state is Rugra's public ActionState companion;
 //! the actions under test are the production coreaction implementations.
 
-use rugra::action::{action_flags, status_flags, Action, ActionGroup, ActionState};
-use rugra::address::Address;
-use rugra::coreaction::{
+use rudra::action::{action_flags, status_flags, Action, ActionGroup, ActionState};
+use rudra::address::Address;
+use rudra::coreaction::{
     ActionDefaultParams, ActionExtraPopSetup, ActionFuncLink, ActionFuncLinkOutOnly,
     ActionInternalStorage, ActionPrototypeTypes, ActionStartTypes,
 };
-use rugra::funcdata::Funcdata;
-use rugra::Result;
+use rudra::funcdata::Funcdata;
+use rudra::Result;
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::rc::Rc;

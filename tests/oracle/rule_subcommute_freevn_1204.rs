@@ -24,14 +24,14 @@
 
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleSubCommute;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleSubCommute;
+use rudra::varnode::Varnode;
 
 type VnRef = Arc<RwLock<Varnode>>;
 
@@ -39,14 +39,14 @@ fn constant_input(fd: &mut Funcdata, value: u64, size: usize) -> VnRef {
     fd.new_constant(size, value)
 }
 
-fn print_op_line(op: &rugra::op::PcodeOpRef) {
+fn print_op_line(op: &rudra::op::PcodeOpRef) {
     let g = op.0.read().unwrap();
     let addr = g.get_addr().to_space_address().get_offset();
     let mut line = format!("  op={}@0x{:x}|nin={}", g.opcode as i32, addr, g.num_input());
     // Ghidra's destroyed/mislinked slots read as null (op.cc:98 clearInput);
     // Rugra's shared null_slot_sentinel is the same observable — render as `_`.
     let in0 = g.get_in(0).filter(|v| {
-        !std::sync::Arc::ptr_eq(*v, &rugra::op::null_slot_sentinel())
+        !std::sync::Arc::ptr_eq(*v, &rudra::op::null_slot_sentinel())
     });
     if let Some(in0) = in0 {
         let i = in0.read().unwrap();
@@ -117,7 +117,7 @@ fn dump_keep_lines(
 // (dup-reuse leg). extra_kind: 0=none, 1=ZEXT overlap reader on outvn
 // (cc:4623-4628 reject), 2=second SUBPIECE reader on base (cc:4621 reject).
 struct CaseBuilt {
-    sub_op: rugra::op::PcodeOpRef,
+    sub_op: rudra::op::PcodeOpRef,
     keeps: Vec<VnRef>,
     tags: Vec<String>,
 }
@@ -137,7 +137,7 @@ fn tail_commute_case(
 ) -> CaseBuilt {
     let nin = if opc == OpCode::CPUI_INT_NEGATE { 1 } else { 2 };
     let mut ins: Vec<Option<VnRef>> = vec![None, None];
-    let mut writers: Vec<Option<rugra::op::PcodeOpRef>> = vec![None, None];
+    let mut writers: Vec<Option<rudra::op::PcodeOpRef>> = vec![None, None];
     for slot in 0..nin {
         if slot_kind[slot] == 3 || slot_kind[slot] == 5 {
             ins[slot] = ins[0].clone();

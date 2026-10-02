@@ -24,17 +24,17 @@
 use std::sync::Arc;
 use std::sync::RwLock;
 
-use rugra::action::Action;
-use rugra::address::Address;
-use rugra::arch::Architecture;
-use rugra::coreaction::ActionConstantPtr;
-use rugra::database::Database;
-use rugra::funcdata::Funcdata;
-use rugra::marshal::DocumentStorage;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeArray, TypeBase, TypeMetatype};
-use rugra::varnode::Varnode;
+use rudra::action::Action;
+use rudra::address::Address;
+use rudra::arch::Architecture;
+use rudra::coreaction::ActionConstantPtr;
+use rudra::database::Database;
+use rudra::funcdata::Funcdata;
+use rudra::marshal::DocumentStorage;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeArray, TypeBase, TypeMetatype};
+use rudra::varnode::Varnode;
 
 const SYMBOL_ADDR: u64 = 0x4e000;
 const MISS_ADDR: u64 = 0x4f001;
@@ -113,7 +113,7 @@ fn type_state(vn: Option<&Arc<RwLock<Varnode>>>) -> String {
     out
 }
 
-fn op_state(op: &rugra::op::PcodeOpRef) -> String {
+fn op_state(op: &rudra::op::PcodeOpRef) -> String {
     let o = op.0.read().unwrap();
     let mut out = format!(
         "{}|ins={}|in0={}",
@@ -140,9 +140,9 @@ fn op_state(op: &rugra::op::PcodeOpRef) -> String {
 /// printed).
 struct FixtureHost;
 
-impl rugra::arch::SpecQuery for FixtureHost {
-    fn get_register(&self, _name: &str) -> Option<rugra::fspec::VarnodeData> {
-        Some(rugra::fspec::VarnodeData {
+impl rudra::arch::SpecQuery for FixtureHost {
+    fn get_register(&self, _name: &str) -> Option<rudra::fspec::VarnodeData> {
+        Some(rudra::fspec::VarnodeData {
             space: AddressSpace::Register,
             offset: 0x1c0,
             size: 4,
@@ -167,8 +167,8 @@ impl rugra::arch::SpecQuery for FixtureHost {
     }
 }
 
-impl rugra::pcodeparse::SleighSymbolLookup for FixtureHost {
-    fn find_symbol(&self, name: &str) -> Option<rugra::pcodeparse::SleighSymbol> {
+impl rudra::pcodeparse::SleighSymbolLookup for FixtureHost {
+    fn find_symbol(&self, name: &str) -> Option<rudra::pcodeparse::SleighSymbol> {
         // The cspec's pcode snippets reference the GPR set (RIP/RSP/RBP/…)
         // with their real SLEIGH sizes; every symbol resolves to a register
         // varnode of the correct size (the injected bodies are never
@@ -194,10 +194,10 @@ impl rugra::pcodeparse::SleighSymbolLookup for FixtureHost {
             "MXCSR" => (0x1c0, 4),
             _ => return None,
         };
-        Some(rugra::pcodeparse::SleighSymbol {
+        Some(rudra::pcodeparse::SleighSymbol {
             name: name.to_string(),
-            kind: rugra::pcodeparse::SleightSymbolKind::Varnode(
-                rugra::varnode::VarnodeData { space: AddressSpace::Register, offset, size },
+            kind: rudra::pcodeparse::SleightSymbolKind::Varnode(
+                rudra::varnode::VarnodeData { space: AddressSpace::Register, offset, size },
             ),
         })
     }
@@ -259,11 +259,11 @@ fn main() {
     // pcode-inject library (with the symbol lookup the snippet compiler
     // needs) and the userop manager.
     let host = Arc::new(FixtureHost);
-    let mut inject_lib = rugra::pcodeinject::PcodeInjectLibrary::new(0x364_400);
+    let mut inject_lib = rudra::pcodeinject::PcodeInjectLibrary::new(0x364_400);
     inject_lib.set_sleigh_lookup(host.clone());
     arch.pcodeinjectlib = Some(Arc::new(std::sync::RwLock::new(inject_lib)));
     arch.userops = Some(Arc::new(std::sync::RwLock::new(
-        rugra::userop::UserOpManage::new(),
+        rudra::userop::UserOpManage::new(),
     )));
     arch.parse_compiler_config(&mut store, host.as_ref(), 8)
         .expect("compiler config ingestion failed");

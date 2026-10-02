@@ -1,16 +1,16 @@
 //! MERGE-DATATYPE-SCALE-0001 Rugra comparand for full-loc MergeType.
 
-use rugra::address::Address;
-use rugra::block::{BlockBasic, FlowBlock};
-use rugra::cover::Cover;
-use rugra::funcdata::Funcdata;
-use rugra::merge::Merge;
-use rugra::op::PcodeOpRef;
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
-use rugra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
-use rugra::variable::HighVariable;
-use rugra::varnode::{varnode_flags, Varnode};
+use rudra::address::Address;
+use rudra::block::{BlockBasic, FlowBlock};
+use rudra::cover::Cover;
+use rudra::funcdata::Funcdata;
+use rudra::merge::Merge;
+use rudra::op::PcodeOpRef;
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
+use rudra::type_system::datatype::{Datatype, TypeBase, TypeMetatype};
+use rudra::variable::HighVariable;
+use rudra::varnode::{varnode_flags, Varnode};
 use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
 

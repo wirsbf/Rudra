@@ -35,9 +35,9 @@
  * resolves the same xunknownN core types on both sides.
  */
 
-use rugra::address::{Address, Range, RangeList};
-use rugra::database::{symbol_flags, Database, Scope, Symbol};
-use rugra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
+use rudra::address::{Address, Range, RangeList};
+use rudra::database::{symbol_flags, Database, Scope, Symbol};
+use rudra::type_system::typefactory::{CoreTypeFlavor, TypeFactory};
 
 fn hex64(v: u64) -> String {
     format!("{:016x}", v)
@@ -325,9 +325,9 @@ fn emit_resolution_depth_cases() {
 
 fn emit_size_lock_cases() {
     let types = TypeFactory::new_flavor(8, CoreTypeFlavor::Standalone);
-    let unknown4 = types.get_base(4, rugra::type_system::datatype::TypeMetatype::Unknown).unwrap();
-    let int4 = types.get_base(4, rugra::type_system::datatype::TypeMetatype::Int).unwrap();
-    let int8 = types.get_base(8, rugra::type_system::datatype::TypeMetatype::Int).unwrap();
+    let unknown4 = types.get_base(4, rudra::type_system::datatype::TypeMetatype::Unknown).unwrap();
+    let int4 = types.get_base(4, rudra::type_system::datatype::TypeMetatype::Int).unwrap();
+    let int8 = types.get_base(8, rudra::type_system::datatype::TypeMetatype::Int).unwrap();
     let mut db = new_database_with_global(false, 100);
     let global = db.global_scope_id;
 

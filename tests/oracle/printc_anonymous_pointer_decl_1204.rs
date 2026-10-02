@@ -17,18 +17,18 @@
 
 use std::sync::Arc;
 
-use rugra::action::Action;
-use rugra::coreaction::{ActionNameVars, ActionRestructureVarnode};
-use rugra::funcdata::Funcdata;
-use rugra::opcodes::OpCode;
-use rugra::prettyprint::EmitNoMarkup;
-use rugra::printc::PrintC;
-use rugra::address::Address;
-use rugra::type_system::datatype::{
+use rudra::action::Action;
+use rudra::coreaction::{ActionNameVars, ActionRestructureVarnode};
+use rudra::funcdata::Funcdata;
+use rudra::opcodes::OpCode;
+use rudra::prettyprint::EmitNoMarkup;
+use rudra::printc::PrintC;
+use rudra::address::Address;
+use rudra::type_system::datatype::{
     Datatype, TypeArray, TypeBase, TypeCode, TypeField, TypeMetatype, TypePointer, TypeStruct,
 };
-use rugra::fspec::{FuncProto, ProtoParameter};
-use rugra::varnode::Varnode;
+use rudra::fspec::{FuncProto, ProtoParameter};
+use rudra::varnode::Varnode;
 
 type VarnodeRef = Arc<std::sync::RwLock<Varnode>>;
 

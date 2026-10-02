@@ -6,15 +6,15 @@
 //! projection observes identities and owner membership without printing
 //! allocation addresses.
 
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::disasm::sleigh_lift::SleighLifter;
-use rugra::flow::FlowInfo;
-use rugra::fspec::FuncCallSpecs;
-use rugra::funcdata::Funcdata;
-use rugra::op::{pcodeop_flags, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::space::AddressSpace;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::disasm::sleigh_lift::SleighLifter;
+use rudra::flow::FlowInfo;
+use rudra::fspec::FuncCallSpecs;
+use rudra::funcdata::Funcdata;
+use rudra::op::{pcodeop_flags, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::space::AddressSpace;
 use std::env;
 use std::error::Error;
 use std::sync::{Arc, RwLock, Weak};
@@ -84,7 +84,7 @@ fn annotation_weak(op: &PcodeOpRef) -> Option<Weak<RwLock<FuncCallSpecs>>> {
     weak
 }
 
-fn flow_state(fd: &mut Funcdata) -> rugra::flow::TruncatedFlowState {
+fn flow_state(fd: &mut Funcdata) -> rudra::flow::TruncatedFlowState {
     let mut lifter = SleighLifter::new();
     let flow = FlowInfo::new(fd, &mut lifter, 0, u64::MAX);
     flow.truncated_state()

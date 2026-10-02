@@ -1,4 +1,4 @@
-use rugra::compression::Decompress;
+use rudra::compression::Decompress;
 use std::ffi::CStr;
 
 const HELLO_ZLIB: [u8; 13] = [

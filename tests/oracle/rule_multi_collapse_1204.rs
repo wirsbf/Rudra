@@ -1,15 +1,15 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
-use rugra::action::Rule;
-use rugra::address::Address;
-use rugra::block::FlowBlock;
-use rugra::funcdata::Funcdata;
-use rugra::op::{op_addl_flags, pcodeop_flags, PcodeOp, PcodeOpRef};
-use rugra::opcodes::OpCode;
-use rugra::ruleaction::RuleMultiCollapse;
-use rugra::space::AddressSpace;
-use rugra::varnode::Varnode;
+use rudra::action::Rule;
+use rudra::address::Address;
+use rudra::block::FlowBlock;
+use rudra::funcdata::Funcdata;
+use rudra::op::{op_addl_flags, pcodeop_flags, PcodeOp, PcodeOpRef};
+use rudra::opcodes::OpCode;
+use rudra::ruleaction::RuleMultiCollapse;
+use rudra::space::AddressSpace;
+use rudra::varnode::Varnode;
 
 type BlockRef = Arc<RwLock<dyn FlowBlock + Send + Sync>>;
 type VarnodeRef = Arc<RwLock<Varnode>>;
