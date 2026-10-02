@@ -13819,7 +13819,7 @@ impl Rule for RuleAddUnsigned {
 
 /// Cleanup: Convert truncation to cast: `sub(V,c) ⇒ sub(V>>c*8,0)`.
 ///
-/// Faithful to `RuleSubRight` (ruleaction.cc:7269-7339). If the lone descendant
+/// Faithful to `RuleSubRight` (ruleaction.cc:7251-7311). If the lone descendant
 /// of the SUBPIECE is an INT_RIGHT/INT_SRIGHT by a constant, the shift and the
 /// SUBPIECE are lumped together. The SUBPIECE is then rewritten to extract the
 /// least-significant bytes of the shifted value.
@@ -13844,7 +13844,7 @@ impl Rule for RuleSubRight {
     fn apply_op(
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
-        // Faithful to RuleSubRight::applyOp (ruleaction.cc:7269-7339).
+        // Faithful to RuleSubRight::applyOp (ruleaction.cc:7251-7311).
         // Ghidra: if (op->doesSpecialPrinting()) return 0 (7272-7273).
         if op_arc.read().unwrap().does_special_printing() {
             return Ok(action_status::NO_CHANGE);
@@ -13883,10 +13883,10 @@ impl Rule for RuleSubRight {
         };
         if c == 0 { return Ok(action_status::NO_CHANGE); } // SUBPIECE is not least sig
         // Ghidra: if (outvn->isAddrTied() && a->isAddrTied())
-        //   { if (outvn->overlap(*a) == c) return 0; } (7283-7286) — the
+        //   { if (outvn->overlap(*a) == c) return 0; } (7265-7268) — the
         // overlap test is Varnode::overlap (varnode.cc:177-189).
         if outvn.read().unwrap().is_addr_tied() && a.read().unwrap().is_addr_tied() {
-            // cc:7283-7286: only the exact-piece form (outvn's LSB sits at
+            // cc:7265-7268: only the exact-piece form (outvn's LSB sits at
             // byte c of a's storage, Varnode::overlap varnode.cc:177-189)
             // is left for ActionCopyMarker; other addr-tied pairs proceed.
             // overlap_addr is the faithful LE/BE twin of the underlying
@@ -27767,7 +27767,7 @@ mod tests {
         assert_eq!(result, action_status::NO_CHANGE);
     }
 
-    /// RuleSubRight addr-tied guard (ruleaction.cc:7283-7286): the early
+    /// RuleSubRight addr-tied guard (ruleaction.cc:7265-7268): the early
     /// return fires ONLY for the exact-piece form — outvn's LSB sits at byte
     /// c of a's storage (`outvn->overlap(*a) == c`, Varnode::overlap
     /// varnode.cc:177-189). A disjoint addr-tied pair (outvn elsewhere in
@@ -27826,7 +27826,7 @@ mod tests {
 
     /// RuleSubRight addr-tied guard, exact-piece arm: outvn sits exactly at
     /// byte c of a's storage → overlap == c → leave for ActionCopyMarker
-    /// (ruleaction.cc:7285-7286), op unchanged.
+    /// (ruleaction.cc:7266-7267), op unchanged.
     #[test]
     fn test_rule_subright_addrtied_exact_piece_held() {
         let mut fd = Funcdata::new("test_subright_exact", Address::new(0x1000), 0x10);

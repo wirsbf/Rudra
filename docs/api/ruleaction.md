@@ -2514,7 +2514,7 @@ oracle 的 push_multi 拒绝合并;Rugra 侧两常量同为 4 字节 → 判 1 �
 捕获 `trunc_const_sz`（so.inrefs[1] 尺寸,变异前读,与 oracle cc:5058 的
 constvn 读取点等序）并传入 `new_constant`。
 
-### ② `RuleSubRight::apply_op` addr-tied 守卫（ruleaction.cc:7283-7286）
+### ② `RuleSubRight::apply_op` addr-tied 守卫（ruleaction.cc:7265-7268）
 
 oracle 仅在 `outvn->overlap(*a) == c`（Varnode::overlap,varnode.cc:177-189:
 outvn 的 LSB 落在 a 存储范围第 c 字节——精确件形,留给 ActionCopyMarker 转
