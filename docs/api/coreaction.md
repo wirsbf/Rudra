@@ -4693,3 +4693,37 @@ Var + `return Var` 形。
 sqlite mirror 141→128 / sq 41→35,其余 1384/810 函数字节恒等（corpus 双面
 70 hunks 全落 SelectDup）;canon curl f903372a/httpd 3617ecc3 +
 VdbeExec mirror b3f5b487/canon 606dd8c0 四钉字节恒等;tests 2045P。
+
+### 2026-10-02：build_return_output 两分片 join 槽位收敛修复（F5SQ-RETJOIN-0001）
+
+**缺陷**（Lane F5SQ, sq multiply_overflow 4 行 bool 临时物化残差的根因;
+MISC24-F5-SUBVFLOW-RETSHAPE-0001 根钉翻案——真域不在 ruleaction/subflow 三步舞,
+而在本函数）: `build_return_output` 的 `newparam.len()==3` 两分片臂把 oracle
+coreaction.cc:1863-1864 的 `newparam.pop_back(); newparam.back() = newwhole;`
+移植成了 `pop(); push(join_vn)` —— pop 掉 hivn 后**追加**而非**替换最后元素**,
+return 输入列表变成 `[indirect, lovn, join]`（3 项）而非 oracle 的
+`[indirect, join]`（2 项）,lovn（如 RAX）残留在槽 1。
+
+**下游级联**（双侧 OPACTION_DEBUG stage drill 亲证,RUDRA_STAGE_DRILL 对拍）:
+残留槽迫使 SubvariableFlow 为 return 的两个输入槽各建截断链 → INT_SLESS 输出
+在 markexplicit 时有 2 个存活 COPY 消费者（oracle 恰 1 个）→ desc_count=2>1
+进 multlist → process_multiplier 3 终端 > max_term_duplication=2 → set_explicit
+→ printc 物化 `bool bVar1; bVar1 = expr; return bVar1;`（oracle: implied →
+return 内联 `return expr;`）。
+
+**oracle 决定链**（锁定 e40ed130; returnrecovery DEBUG 3 → subvar_zext rec 77 →
+propagatecopy rec 79 → earlyremoval rec 78/80-83 → markexplicit empty）:
+`return RAX(1c),RDX(e)` → `return j{0x10,0x0}:10(34)` 单 join 输入;subvar_zext
+建 `AL(37)=u25a00; AL(38)=AL(37)` 对（38 在 return 地址）,return 槽改读 AL:38;
+earlyremoval 收割 join CONCAT/RDX/RAX:2c/AL:37;markexplicit 时恰 1 消费者。
+
+**修复**: `pop()` 后 `last_mut()` 替换为 join（cc:1863-1864 逐字形）;3 项臂
+前置条件保证 last_mut 恒 Some。修复后 drill 记录流与 oracle 结构级一致
+（DEBUG 3 槽位合并、77 号 2-op/1-input、78-83 尾链恒等;残余差异=return-copy
+输出 varnode 在 join 空间 vs oracle 寄存器空间,输出无影响,登记
+F5SQ-RETCOPY-JOINSPACE-0001）。
+
+**验证**: multiply_overflow 双语素 0 diff（golden 逐字节恒等）;sq 镜面
+35→31（恰本函数 4 行,其余 3 差函数值恒等零回归）;sqlite 31→31 ✗ 表逐字节
+恒等零位移;canon curl f903372a/httpd 3617ecc3 + VdbeExec b3f5b487/606dd8c0
+钉组恒等;tests 2049P。

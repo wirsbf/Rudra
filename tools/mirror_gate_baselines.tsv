@@ -372,6 +372,16 @@ vsh	0	71	MB39-RATCHET-REPIN-0001	128e4934	2026-09-29
 #    stay). Canon faces: curl 0/0/0·124 + httpd 0/0/0·34 held byte-identical
 #    (byte self-pins b7773087/54f9b02c exact — zero-state preserved, no
 #    re-pin needed). tests 2029P/0F/5I (=2028 + readinode2 1 new).
+sq	31	810	F5SQ-RETJOIN-REPIN-0001	f5sq	2026-10-02
+# F5SQ re-pin (F5SQ-RETJOIN-REPIN-0001, 2026-10-02, wt/f5sq): joint measured
+# sq 35-4=31 — ActionReturnRecovery::buildReturnOutput 两分片 join 槽位收敛修复
+# (coreaction.cc:1863-1864 pop_back+back()=newwhole 移植缺陷: pop 后 push 而非
+# 替换最后元素 → return 保留 [indirect, lovn, join] 3 输入,lovn 残留槽 1 →
+# markexplicit 时 INT_SLESS 2 存活 COPY 消费者 → set_explicit 物化 bVar1)。
+# 恰 multiply_overflow 4 行收口（双语素 golden 逐字节恒等）;其余 3 差函数
+# （read_super 1/GetLongestMatch 1/GetOptimumFast 29）值恒等零回归;sqlite 面
+# 31→31 ✗ 表逐字节恒等零位移;canon f903372a/3617ecc3+VdbeExec b3f5b487/606dd8c0
+# +corpus 62f74d43/df204662 钉组全恒等;tests 2049P。floor 810 保持（matched 满额）。
 sq	35	810	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # MB75 joint re-pin (SELECTDUP-MB75-JOINT-REPIN-0001, 2026-10-02,
 # merge of wt/selectdup 0d3ef0a9 [single commit, base 95c7d720/MB71]
