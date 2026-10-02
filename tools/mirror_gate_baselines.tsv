@@ -402,7 +402,47 @@ sq	35	810	SELECTDUP-MB75-JOINT-REPIN-0001	mb75-joint	2026-10-02
 # (115->109 at lane base scale) superseded by this joint row; note
 # block kept verbatim below. curl 11/httpd 0/vsh 0/sq 35 rows stay;
 # canon byte pins f903372a/3617ecc3 exact.
+sqlite	37	1385	UNAFFCALL-MB80-JOINT-REPIN-0001	mb80-joint	2026-10-02
 sqlite	45	1385	CONDMERGE-MB79-JOINT-REPIN-0001	mb79-joint	2026-10-02
+# MB80 joint re-pin (UNAFFCALL-MB80-JOINT-REPIN-0001, 2026-10-02, merge
+# of wt/unaffcall 76a20fc9 [single commit, base ecd88374/MB77 — pre-MB78/
+# MB79, merge-base witnessed] onto master 61f8d49c [MB79, sqlite 45 =
+# CONDMERGE-MB79-JOINT-REPIN-0001]): joint measured sqlite 45-8=37 — the
+# unaffcall two-function family (block above: sqlite3WalCheckpoint 4->0 +
+# sqlite3WalFrames 5->1, remaining 1 = pre-existing TC-F4 goto-keep) is
+# disjoint from the F1 goto-guard trio burned by MB79 and every earlier
+# family (declb1/declb3/selectdup/vdbeprint/declbform/declb12); additive
+# composition measured on the joint tree (pre-commit cold run, --no-cache:
+# skeleton=37 defects=0 numbering=0 matched 1385/1385 health ok under the
+# 45 ceiling; post-pin cold re-run 37/37 exact, read_baseline first-row
+# hit UNAFFCALL-MB80-JOINT-REPIN-0001). The lane-context 64 row
+# (branch-base 72-8 scale) is superseded by this joint row; its note block
+# kept verbatim above. curl 0/httpd 0/vsh 0/sq 35 rows stay; canon byte
+# pins f903372a/3617ecc3 exact. Stale-guard digest 0fb4b41343e43987
+# files=155 (joint tree).
+# UNAFFCALL lane re-pin (UNAFFCALL-TRC-REPIN-0001, 2026-10-02, lane
+# wt/unaffcall base ecd88374/MB77): sqlite 72-8=64 — the TC-F6
+# unaff-at-call family main root closed by Funcdata::total_replace_constant
+# multi-slot descend-entry semantics (snapshot-frozen (op,slot) pairs left
+# the second MULTIEQUAL arm unreplaced, minting a second constant COPY temp
+# per varnodeprops round; oracle resolves getSlot LIVE per visit so both
+# arms land on one shared copyop, funcdata_varnode.cc:1496-1534). Per-function
+# attribution (in-gate cold round, commit-final binary, compare --func):
+# sqlite3WalCheckpoint 4->0 (function now fully == golden), sqlite3WalFrames
+# 5->1 (F6 arms burned; remaining 1 = pre-existing TC-F4 goto-keep line,
+# different family), sqlite3Fts3DeferredTokenList 3->3 (count unchanged —
+# residual re-attributed to Merge::buildDominantCopy cover-abort, see
+# UNAFFCALL-FTS3-DOMCOPY-0001); all other 19 diff functions byte-stable,
+# zero new sites, defects=numbering=0, matched 1385/1385. curl 11/httpd 0/
+# vsh 0/sq 35 rows stay; canon byte pins f903372a/3617ecc3 exact;
+# VdbeExec mirror b3f5b487/canon 606dd8c0 exact (--one 1055 dual-mode).
+# Corpus pin group shift (byte-attributed, --jobs 12 both faces, base binary
+# rebuilt cold from ecd88374 in a disposable worktree): mirror
+# 1466ee4b·5,284,929B -> 35f366bc·5,284,783B (-146B) and canon
+# ced48470·5,279,302B -> 213502f2·5,279,158B (-144B) — exactly 2 functions
+# changed on EACH face (sqlite3WalFrames + sqlite3WalCheckpoint, hunks=4
+# +1/-3 per function per face), 1383 functions byte-identical, function
+# set diff empty; VdbeExec byte-identical both faces.
 sqlite	72	1385	DECLB1-MB77-JOINT-REPIN-0001	mb77-joint	2026-10-02
 sqlite	78	1385	DECLB3-MB76-JOINT-REPIN-0001	mb76-joint	2026-10-02
 # DECLB3 lane re-pin (DECLB3-RATCHET-REPIN-0001, 2026-10-02,

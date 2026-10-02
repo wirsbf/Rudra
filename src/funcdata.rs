@@ -10593,33 +10593,53 @@ impl Funcdata {
     /// inserted (after vn's def, or at block 0 start if vn is unwritten) and
     /// the marker input is set to the COPY's output; otherwise each read site
     /// gets its own fresh constant Varnode.
+    ///
+    /// Descend-entry semantics (UNAFFCALL-TRC-0001): the oracle walks
+    /// `vn->beginDescend()..endDescend()` and re-reads `op->getSlot(vn)` LIVE
+    /// per visit (cc:1508). The descend list holds ONE ENTRY PER INPUT SLOT,
+    /// so a marker reading `vn` at two arms is visited twice; the first visit
+    /// replaces the first matching slot, and the second visit's `getSlot`
+    /// then resolves to the OTHER arm — both arms end on the SAME single
+    /// `copyop` output. Snapshotting `(op, slot)` pairs up front instead
+    /// would freeze both entries on `position()`'s first match, leaving the
+    /// second arm un-replaced and forcing a later pass to mint a SECOND
+    /// constant COPY (the 1→3 `unaff_R14 = (uint4 *)0x0` re-materialization
+    /// family). Here only the op handles are snapshotted (borrow safety);
+    /// the slot is re-resolved live inside the loop, exactly like `getSlot`.
     pub fn total_replace_constant(
         &mut self,
         vn: &std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
         val: u64,
     ) {
         let vn_size = vn.read().unwrap().get_size();
-        // Snapshot (op, slot) descendants before mutation.
-        let sites: Vec<(crate::op::PcodeOpRef, usize)> = {
+        // Snapshot one op handle per descend entry — duplicates preserved
+        // (cc:1505-1506 `iter = vn->beginDescend()` walks entries, not ops).
+        let sites: Vec<crate::op::PcodeOpRef> = {
             let vn_rg = vn.read().unwrap();
             vn_rg
                 .descend
                 .iter()
                 .filter_map(|w| w.upgrade())
-                .filter_map(|op_arc| {
-                    let op_rg = op_arc.read().unwrap();
-                    let slot = op_rg
-                        .inrefs
-                        .iter()
-                        .position(|v| std::sync::Arc::ptr_eq(v, vn))?;
-                    drop(op_rg);
-                    Some((crate::op::PcodeOpRef(op_arc), slot))
-                })
+                .map(crate::op::PcodeOpRef)
                 .collect()
         };
         // Lazily-built COPY for marker ops (cc:1510-1529).
         let mut copy_op: Option<crate::op::PcodeOpRef> = None;
-        for (op, slot) in sites {
+        for op in sites {
+            // cc:1508 `i = op->getSlot(vn)` — LIVE first-slot lookup: after
+            // an earlier visit replaced one arm, this resolves to the next
+            // arm still holding vn.
+            let slot = {
+                let op_rg = op.0.read().unwrap();
+                op_rg
+                    .inrefs
+                    .iter()
+                    .position(|v| std::sync::Arc::ptr_eq(v, vn))
+            };
+            let slot = match slot {
+                Some(s) => s,
+                None => continue, // entry's slot already rerouted; nothing to do
+            };
             let is_marker = op.0.read().unwrap().is_marker();
             let new_rep = if is_marker {
                 if copy_op.is_none() {
@@ -18685,6 +18705,77 @@ mod tests {
             &reader.0.read().unwrap().inrefs[0],
             &newvn
         ));
+    }
+
+    // UNAFFCALL-TRC-0001: a marker op (MULTIEQUAL) reading vn at TWO slots
+    // has TWO descend entries (one per slot). totalReplaceConstant must
+    // visit both entries and — mirroring the oracle's per-visit live
+    // `getSlot(vn)` (funcdata_varnode.cc:1508) — the second visit resolves
+    // to the second arm, so BOTH arms end on the ONE shared marker copyop
+    // output. The pre-fix (op, slot) snapshot froze both entries on
+    // `position()`'s first match, leaving arm 1 unreplaced (a later
+    // varnodeprops pass then minted a SECOND constant temp — the
+    // sqlite3WalCheckpoint `unaff_R14 = (uint4 *)0x0` 1→3 re-materialization
+    // family).
+    #[test]
+    fn test_total_replace_constant_multi_slot_marker_both_arms() {
+        use crate::space::AddressSpace;
+
+        let mut fd = Funcdata::new("trc_multislot", Address::new(0x1000), 0x10);
+        // Written vn: def COPY from an input so the marker copyop can be
+        // inserted after vn's def (cc:1511-1517).
+        let src = fd
+            .vbank
+            .create_with_space(4, AddressSpace::Register, 0x300);
+        let src = fd.vbank.set_input(src).expect("fresh input");
+        let def_op = fd.new_op(1, Address::new(0x1004));
+        fd.op_set_opcode(&def_op, OpCode::CPUI_COPY);
+        fd.new_unique_out(4, &def_op);
+        fd.op_set_input(&def_op, src, 0);
+        let vn = def_op.0.read().unwrap().get_out().expect("vn").clone();
+
+        // MULTIEQUAL reading vn at BOTH slots (two descend entries).
+        let marker = fd.new_op(2, Address::new(0x1008));
+        fd.op_set_opcode(&marker, OpCode::CPUI_MULTIEQUAL);
+        fd.new_unique_out(4, &marker);
+        fd.op_set_input(&marker, vn.clone(), 0);
+        fd.op_set_input(&marker, vn.clone(), 1);
+        assert_eq!(
+            vn.read().unwrap().descend.len(),
+            2,
+            "one descend entry per input slot (varnode.cc addDescend per opSetInput)"
+        );
+
+        fd.total_replace_constant(&vn, 0);
+
+        let in0 = marker.0.read().unwrap().inrefs[0].clone();
+        let in1 = marker.0.read().unwrap().inrefs[1].clone();
+        assert!(
+            std::sync::Arc::ptr_eq(&in0, &in1),
+            "both marker arms must read the SAME single copyop output (cc:1510-1528)"
+        );
+        let (def_space, def_val) = {
+            let v = in0.read().unwrap();
+            let d = v.get_def();
+            match d {
+                Some(d) => {
+                    let r = d.read().unwrap();
+                    (
+                        r.opcode == OpCode::CPUI_COPY,
+                        r.get_in(0).map(|c| c.read().unwrap().is_constant()),
+                    )
+                }
+                None => (false, None),
+            }
+        };
+        assert!(
+            def_space && def_val == Some(true),
+            "shared marker replacement must be the COPY-of-constant temp"
+        );
+        assert!(
+            vn.read().unwrap().descend.is_empty(),
+            "every live descend entry of vn must be consumed"
+        );
     }
 
     // Regression for the erase_descend WARN storm (UPSTREAM-OUTVN-DEADWIRE
