@@ -11454,9 +11454,14 @@ impl ActionMultiCse {
         let mut pair_idx: Option<usize> = None;
 
         // Walk ops until we leave the MULTIEQUAL group or find a shadow.
+        // Ghidra cc:828-863: the op scan holds one read guard per iteration;
+        // inputs are snapshotted so the marked-input arm can release the
+        // guard before find_match takes its own guards on block_ops.
         'outer: for (idx, op) in block_ops.iter().enumerate() {
-            let op_rg = op.0.read().unwrap();
-            let opc = op_rg.opcode;
+            let (opc, inputs): (OpCode, Vec<Arc<std::sync::RwLock<crate::varnode::Varnode>>>) = {
+                let op_rg = op.0.read().unwrap();
+                (op_rg.opcode, op_rg.inrefs.clone())
+            };
             if opc == OpCode::CPUI_COPY {
                 continue;
             }
@@ -11464,21 +11469,26 @@ impl ActionMultiCse {
                 break;
             }
             let vnpos = vnlist.len();
-            let num_input = op_rg.inrefs.len();
+            let num_input = inputs.len();
             for i in 0..num_input {
-                let vn = Self::resolve_copy(&op_rg.inrefs[i]);
+                let vn = Self::resolve_copy(&inputs[i]);
                 vnlist.push(vn.clone());
                 if vn.read().unwrap().is_mark() {
                     // Seen this varnode before — try findMatch.
-                    drop(op_rg);
+                    // cc:846-850: a FAILED findMatch does NOT stop the scan —
+                    // Ghidra falls through to the remaining inputs of this op
+                    // and continues with later ops (only the successful
+                    // match breaks out with targetop set). The previous
+                    // unconditional break here aborted the whole block scan
+                    // on the first non-equivalent duplicate input, missing
+                    // later redundant MULTIEQUAL pairs entirely.
                     if let Some(pi) = Self::find_match(block_ops, idx, &vn) {
                         target_idx = Some(idx);
                         pair_idx = Some(pi);
+                        break 'outer;
                     }
-                    break 'outer;
                 }
             }
-            drop(op_rg);
             // Mark all newly seen varnodes.
             for i in vnpos..vnlist.len() {
                 vnlist[i].write().unwrap().set_mark();

@@ -4661,3 +4661,35 @@ get_local_type 7%/canonicalize+find_add 7%）后落地四件行为恒等优化:
 （base×3+opt×3）字节恒等;canon curl b7773087/httpd 54f9b02c 钉值命中。
 性能: VdbeExec 单极配对中位 −1.95s（干净对 −0.99~−3.14）,语料干净对
 user −11.9s。探针交付前撤净（grep ITPROF/itprof 零命中亲证）。
+
+## 2026-10-02（SELECTDUP）：ActionMultiCse::process_block 扫描失败臂修复
+
+**缺陷**（Lane SELECTDUP, sqlite3SelectDup 13 行 liveness-copy 残差的根因）:
+`process_block` 的 marked-input 臂在 `find_match` 返回 `None` 时无条件
+`break 'outer` 退出整个块扫描——oracle coreaction.cc:846-850 的语义是
+**失败继续**（Ghidra 只在 `findMatch` 找到功能等价 pair op 时置 targetop 并
+break,失败时继续扫当前 op 的剩余 input 与后续 op）。该移植缺陷使 Rudra 的
+multicse 在块内首个「重复但不等价」input 上提前放弃,后续真正的冗余
+MULTIEQUAL 对永不消冗。
+
+**oracle 决定链**（锁定 e40ed130,OPACTION_DEBUG 双侧 stage drill 亲证）:
+sqlite3SelectDup@0x41330 中 shadow-ME@0x41520（`s0x..80 =
+phi(shadow@0x4151b:1356, shadow-store@0x41352:2d)`）与 RAX-phi@0x41520
+（`RAX = phi(shadow@0x4151b:1356, RAX=xor#0@0x4153f)`）共享 input
+shadow@0x4151b:1356;COPY 解析后 slot-1 两臂同归 `#0`（RuleStoreVarnode 的
+入口 0-store 与 xor eax,eax 均解析到常量 0）,`functionalEqualityLevel(#0,#0)=0`
+→ 冗余成立;preferredOutput 选 RAX（descend 到 RETURN）→ totalReplace
+shadow-ME→RAX + shadow-ME 死亡。此后 mergerequired 的 mergeOp(RAX-phi) 在
+oracle 免 trim（shadow high 无 block-11 实例,内部 cover block-11=[0,0] 点与
+phi 的 [0,~0] 只交边界=1<2）→ return 直读符号
+`return (char *****)ppppcStack_80;`。Rudra 缺此消冗→shadow-ME 存活到
+mergerequired（[0,~0]×[0,~0] 区间交=2）→ P2 cover-restrict 四槽全 trim→
+3× 中间 copy `pppppcVar6 = (char *****)ppppcStack_80` + branch-init 绑定
+Var + `return Var` 形。
+
+**修复**: marked-input 臂改为仅 `find_match` 成功时 break,失败继续扫描
+（cc:846-850 逐字形）;input 快照化后每迭代单读锁（find_match 自持锁）。
+验证: SelectDup 双语素 0 diff;sq read_xattrs_from_disk 6→0 同根因;
+sqlite mirror 141→128 / sq 41→35,其余 1384/810 函数字节恒等（corpus 双面
+70 hunks 全落 SelectDup）;canon curl f903372a/httpd 3617ecc3 +
+VdbeExec mirror b3f5b487/canon 606dd8c0 四钉字节恒等;tests 2045P。
