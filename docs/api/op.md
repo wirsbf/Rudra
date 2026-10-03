@@ -1334,6 +1334,20 @@ ruleaction.cc:272 oracle 原形，该 opcode 对派生 flag 集相同且互非 c
   `OpChainIter` 的 id 产出伴生（同一存储链游走，产出 Copy 的 `OpId`，
   零句柄克隆零锁）；Action/Rule 工作集的采集形态。
 
+## 2026-10-03：`iter_store_ids()`（ARCPILOT 试点配套——store 链 id 产出）
+
+`iter_store_ids()`——STORE 链（op.hh:295 storelist 的 CodeLink id 链）的
+`OpChainIdIter` 产出形态，与 `iter_load_ids()/iter_return_ids()` 同族。
+首消费者 = `ActionMarkImplied::check_implied_cover` 的 store-crossing 扫描
+（coreaction.cc:3382-3384 `beginOp(CPUI_STORE)` 对位）：原形扫全 alivelist
+逐 op 取 RwLock 读守卫再按 opcode 过滤（DEEPPROF §4 MarkImplied = 原子
+Ir #3 站点 105M + D1 miss #1 函数），新形沿锁自由 cell 链推进 + `is_dead_of`
+槽影子判 cc:3386 的 isDead skip + 仅对活 STORE 取守卫。访问集等价：
+{storelist}−{dead} == {alivelist ∧ opcode==STORE}（链维护 choke 点 =
+insert/createSeq/change_opcode/destroy，op.cc:881-924/1005-1012；
+markDead 只动 insert 链，死 STORE 留链 = oracle storelist 语义）；
+循环结果与序无关（每 store 谓词纯，唯一早退 = 存在性 refusal）。
+
 **读模式收益**：ActionPool 派发的 per-try `opc != op->code()` 复读
 （action.cc:846/853-857，VdbeExec 极 27.7M 次锁读）与游标推进的
 SeqNum 守卫+Arc 克隆（5.6M 次）改走槽读；Action 工作集 filter

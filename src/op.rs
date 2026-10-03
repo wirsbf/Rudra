@@ -2926,6 +2926,17 @@ impl PcodeOpBank {
         )
     }
 
+    // RUDRA-GLUE: id-yielding STORE-chain walk (workset collect form;
+    //   ARCPILOT pilot consumer: ActionMarkImplied::checkImpliedCover's
+    //   store-crossing scan, coreaction.cc:3382-3384 beginOp(CPUI_STORE)).
+    /// Iterate the STORE chain as plain [`OpId`]s in chain order.
+    pub fn iter_store_ids(&self) -> OpChainIdIter<'_> {
+        OpChainIdIter::code(
+            self.optree.arena(),
+            self.storelist.head().unwrap_or(OpId::SENTINEL),
+        )
+    }
+
     // RUDRA-GLUE: id-yielding LOAD-chain walk (workset collect form).
     /// Iterate the LOAD chain as plain [`OpId`]s in chain order.
     pub fn iter_load_ids(&self) -> OpChainIdIter<'_> {

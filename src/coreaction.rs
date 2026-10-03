@@ -5277,11 +5277,41 @@ impl ActionMarkImplied {
             let vn_cover = vn_arc.read().unwrap().cover.as_ref().map(|c| c.clone());
             let load_spacebase_off = def_op.get_in(0).map(|v| v.read().unwrap().get_offset());
             if let Some(cover) = vn_cover {
-                for store_op_ref in fd.obank.iter_alive() {
-                    let store_op = store_op_ref.0.read().unwrap();
-                    if store_op.is_dead() || store_op.opcode != OpCode::CPUI_STORE {
-                        continue;
+                // cc:3382-3384: the oracle iterates `beginOp(CPUI_STORE)`
+                // to `endOp(CPUI_STORE)` — the STORE opcode chain
+                // (op.hh:295 storelist; PcodeOpBank::begin op.cc:1158-1163
+                // walks the code list), skipping dead members by flag
+                // (cc:3386). The former form scanned the FULL alivelist
+                // under a per-op read guard and re-derived the STORE
+                // filter from the guarded opcode — 2 atomics plus a cold
+                // op-allocation touch per alive op per checkImpliedCover
+                // call (MarkImplied was DEEPPROF §4's #3 atomic site,
+                // 105M atomic Ir + the #1 D1-miss function). The chain
+                // walk advances over lock-free cell links and answers the
+                // isDead skip from the denormalized cell shadow
+                // (PERF-DISPATCH-0001 form); a read guard is taken only
+                // for live stores (containment + pointer checks).
+                //
+                // Visit-set equivalence: {storelist} − {dead} ==
+                // {alivelist ∧ opcode==STORE} — chain membership is
+                // maintained at exactly the oracle choke points
+                // (insert/createSeq tail-push, change_opcode
+                // remove+re-add, destroy unlink, op.cc:881-924/1005-1012;
+                // markDead moves only the insert chain so dead stores stay
+                // chained, matching oracle storelist semantics). Chain
+                // (registration) order replaces alivelist order; the loop
+                // result is order-independent (per-store predicates
+                // contain/getOffset/isPossibleAlias are pure and the only
+                // early exit is the refusal `return false`, an existential
+                // over the visit set).
+                for store_id in fd.obank.iter_store_ids() {
+                    if fd.obank.is_dead_of(store_id).unwrap_or(true) {
+                        continue; // cc:3386 `if (storeop->isDead()) continue;`
                     }
+                    let Some(store_op_ref) = fd.obank.op_by_id(store_id) else {
+                        continue;
+                    };
+                    let store_op = store_op_ref.0.read().unwrap();
                     let Some(store_blk) = store_op.parent.as_ref().and_then(|w| w.upgrade()) else { continue ;
                     };
                     let store_bi = store_blk.read().unwrap().get_index();
@@ -5345,12 +5375,33 @@ impl ActionMarkImplied {
         ) {
             let vn_cover = vn_arc.read().unwrap().cover.as_ref().map(|c| c.clone());
             if let Some(cover) = vn_cover {
-                for call_op_ref in fd.obank.iter_alive() {
-                    let call_op = call_op_ref.0.read().unwrap();
-                    if call_op.is_dead() { continue; }
-                    if !matches!(call_op.opcode, OpCode::CPUI_CALL | OpCode::CPUI_CALLIND) {
+                // cc:3401-3406: the oracle iterates the CALL-SPEC list —
+                // `for(i=0;i<data.numCalls();++i) { callop =
+                // data.getCallSpecs(i)->getOp(); if (vn->getCover()->
+                // contain(callop,2)) return false; }` (qlst, funcdata.hh
+                // :273-274) — NOT the alivelist. The former form scanned
+                // every alive op under a per-op read guard and filtered
+                // CALL/CALLIND back out (DEEPPROF §4 atomic bomb, 2
+                // atomics per op per checkImpliedCover call); the qlst
+                // walk matches the oracle visit set exactly: specs are
+                // registered per CALL/CALLIND at flow time (flow.cc:686/
+                // 709 push_back) and removed when the call op is
+                // destroyed (funcdata.cc:528-535 deleteCallSpecs; Rudra
+                // mirrors in Funcdata::delete_call_specs). A dropped spec
+                // op (upgrade fails) cannot occur in the oracle (raw
+                // pointer) — the graceful skip below is the Rust memory
+                // safety valve for that unreachable state. Unlike the
+                // store loop there is no isDead skip: the oracle tests
+                // contain() on spec'd dead calls too (markDead does not
+                // clear qlst membership in either implementation).
+                for i in 0..fd.num_calls() {
+                    let Some(fc_arc) = fd.callspecs.get(i) else { continue };
+                    let Some(call_op_arc) =
+                        fc_arc.read().unwrap().op.upgrade()
+                    else {
                         continue;
-                    }
+                    };
+                    let call_op = call_op_arc.read().unwrap();
                     if let (Some(call_blk), Some(def_blk)) = (
                         call_op.parent.as_ref().and_then(|w| w.upgrade()),
                         def_op.parent.as_ref().and_then(|w| w.upgrade()),
@@ -5359,6 +5410,11 @@ impl ActionMarkImplied {
                         let def_bi = def_blk.read().unwrap().get_index();
                         let call_order = call_op.start.get_order();
                         // Skip the defining op itself (same block + order).
+                        // Equivalent to the oracle's interior-only contain
+                        // (cover.cc:421 boundary!=0 excludes the defining
+                        // point); kept as an explicit skip so the block
+                        // index/order reads above stay the only op data
+                        // this test needs.
                         if call_bi == def_bi && call_order == def_op.start.get_order() {
                             continue;
                         }
