@@ -1,8 +1,176 @@
-**日期**: 2026-10-03（STATUSREFRESH2 大刷新——MB71~MB87 十七合并批 + 镜面四完美面 + 总残差 6 + 速度九道 −10.4%；2026-10-02 及更早为历史快照族）
+**日期**: 2026-10-03（STATUSREFRESH3 终刷新——MB88~MB94 终程 + **第五完美面 0/0/0/0/0 总零** + session 镜面之旅 567→0 终章 + 速度终态 F1 口径；STATUSREFRESH2 及更早为历史快照族）
 **版本**: 0.1.0
-**状态**: 🟡 **核心库持续开发中（项目名 **Rudra**）；canon 双语料零残差态保持（RENAME 后形态 md5 双钉）+ 镜面五面残差 6（四完美面 + sqlite 6，第五完美面冲刺中）+ VdbeExec 单极 −10.4%（九速度道；ALLOCFLOOR 在飞）；锁定 oracle 逐函数差分流水线运转中；全局完成度未证明**
+**状态**: 🟡 **核心库持续开发中（项目名 **Rudra**）；canon 双语素零残差 + 镜面五面零残差（**第五完美面 0/0/0/0/0**——session 累计 −567 终章）+ VdbeExec 单极 −10.4%（九速度道+PERF 两会话真增量 F1 口径）保持；锁定 oracle 逐函数差分流水线运转中；全局完成度未证明（9494 分母默认 UNTESTED）**
 
-## 2026-10-03 STATUSREFRESH2 大刷新（当前事实源；master `529a7c6d` = origin，MB87 收官态）
+## 2026-10-03 STATUSREFRESH3 终态刷新（当前事实源；master `63c1cbbd` = origin，MB94 收官态——第五完美面 0/0/0/0/0 总零）
+
+> 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB88~MB94 终程 +
+> 车道/CR 全序列——**本节数字唯一事实源**）+ 各批终报（`/dev/shm/rudra-reports/
+> LANE_MERGEBATCH{88,89,90,91,93,94}_*` + LANE_{VNPRINTDRILL,VNPRINTFIX,MISC3,ALLOCFLOOR,
+> SETTLE2,ALLOCFLOOR2,WCS}_*）+ CR 判决链（CR_{MISC3,ALLOCFLOOR,SETTLE2,ALLOCFLOOR2,WCS2}_
+> 2026-10-03，本窗 5 份全 APPROVE——其中 CR-WCS2 判决由 root 自报告 §8 合成，见 CR 节
+> 如实披露）。本节为 docs-only 汇编，数字与在案证据一致，**未跑新门禁**（纪律同
+> STATUSREFRESH2）。本节=STATUSREFRESH2 节的续章/更新：全部里程碑推进到 session 终态；
+> 速度残量构成按 ALLOCFLOOR 战略发现重定界（用户「速度残量公开推进」指令公开面续）。
+
+### 里程碑① 第五完美面达成：镜面五面 0/0/0/0/0（session 镜面之旅 567→0 终章）
+
+**curl 0/74 · httpd 0/29 · vsh 0/71 · sq 0/810 · sqlite 0/1385**（matched 全额，
+defects=numbering=0 五面）——五完美面全齐：vsh 71/71（MB39 时代）、httpd 29/29（MB64）、
+curl 74/74（MB78）、sq 810/810（MB85）、sqlite 1385/1385（MB94）。session 累计
+**567→0 = −567**（MB56 终态 567 起）；连同 MB55 前夜基线 616 的全窗口径 −616 并列。
+
+MB88~MB94 终程逐批对账（每行=MB 收官联合树实测，恰钉值验证全 PASS）：
+
+| 批次 | 镜面五面（curl/httpd/vsh/sq/sqlite） | 总残差 | 本步（车道+归因） |
+|---|---|---|---|
+| MB87（前节终态） | 0/0/0/0/6 | 6 | —（STATUSREFRESH2 节口径） |
+| MB88（vnprintfix） | 0/0/0/0/6 | 6 | 零位移批：VNPRINTFIX（VNPRINT-JOINIOP 潜伏票收口——`print_raw_offset_arch` 注册表感知孪生[Join 臂 space.cc:590-609/Iop 臂 op.cc:41-59]+11 单测；oracle stage_drill 同输入同输出逐字节恒等） |
+| MB89（misc3） | 0/0/0/0/6 | 6 | 零位移批：MISC3（write_back canonicalize settle 不变量防御层；CR 三臂 A/B 归因证伪——449 churn 属 producer 侧 choke point；MISC3-SELECT-BOOLCOND 等三票登记移交） |
+| MB90（allocfloor） | 0/0/0/0/6 | 6 | 零位移批：ALLOCFLOOR（PERF 会话 1——malloc 事件 −9.6%；分配器地板假说推翻注记嵌入 merge message） |
+| MB91（settle2） | 0/0/0/0/**5** | 5 | **−1**：SETTLE2（replace_lessequal copySymbol 类型继承[funcdata_op.cc:1059-1061 对位]——sqlite3AddCheckConstraint R-only 警告行**终局消除**，TYPEPROP 轨迹精确==oracle 形） |
+| MB92（号位保留） | — | — | CR-WCS 三次 session 死亡占位——wcs 终局顺延 MB94（如实记，见 CR 节） |
+| MB93（allocfloor2） | 0/0/0/0/5 | 5 | 零位移批：ALLOCFLOOR2（PERF 会话 2 三簇：inrefs 疫潮收官+rulebody 暂存收敛+rangemap 查询零物化；F1 真增量口径更正+F2 RANGEMAP-SEWING-0001 票登记随 docs commit 落账） |
+| MB94（wcs） | 0/0/0/0/**0** | **0** | **−5**：WCS（RuleSubCommute 入口发明性 `outvn_size>8` 早退闸摘除[542c8f9f 静默引入——根因翻案第十六例；oracle ruleaction.cc:4514-4653 无输出尺寸上限]；WindowCodeStep 5 行出列 golden 全等——**第五完美面达成**） |
+
+> 对账注记：本终程窗燃烧 −1−5=−6（6→0 精确闭合），其余四批为行为恒等零位移批（速度/
+> 潜伏票/防御层——镜面值逐批复验恰钉值恒等）。**残差为零后的口径**：镜面五面与 canon
+> 双语素同为全零态——后续任何 src 行为变更仍须五面+canon+corpus 四元钉组全保持验证
+> （单向棘轮语义不变，**零是钉值不是免检**）。
+
+### 里程碑② canon 双语素零残差全程保持（RENAME 后形态双钉——终态复验）
+
+curl/httpd canon 面 skeleton/defects/numbering = **0/0/0·124F/34F** 全程保持（vs
+`tests/golden/ghidra_{curl,httpd}_1204.c`，全函数 diff=0）。输出形态钉：curl
+**`f903372a`**·96,626B / httpd **`3617ecc3`**·62,697B——MB71~MB94 二十三批（MB92 空号
+除外）复验字节恒等零漂移。终程窗 corpus 位移（MB91 settle2 双面 delta 恰 1 行=警告行；
+MB94 wcs +72B/+71B 全落 WindowCodeStep 零外溢）全部逐字节归因，canon 函数级 0/0/0 门禁
+全程不受影响。
+
+### 里程碑③ 速度终态（VdbeExec ~28-29s；分配器地板假说推翻；残量重定界）
+
+| 口径 | session 起 | 终态 | 变化 | vs oracle |
+|---|---|---|---|---|
+| VdbeExec mirror user 中位（--one 1055） | 31.82s（MB55 钉@load19-23） | **~28-29s**（终程窗读数带 27.4-29.2s：MB90 27.38/28.01·MB91 27.79/28.89·MB93 28.01/28.28·MB94 29.23/28.22） | **−10.4%**（九速度道）+ PERF sessions 1-2 真增量（F1 口径） | **3.3-4.2×**（oracle 6.74-8.80s 双口径） |
+| corpus wall（--jobs 32） | 34.09s（MB55） | **~31s** | −9% 级 | **1.8-2.4×**（oracle 13.0-17.77s 双口径） |
+
+**战略发现（ALLOCFLOOR 会话 1 直接测量钉死——速度残量构成重定界）**：
+**分配器地板假说被推翻**——oracle 自身在 VdbeExec 支付同等基本分配税（**19.96M 事件/
+3.6-4.3G cycles=其自身 13-23% 时间**；Rudra 31.2M/4.3G=6-7%）；完美分配器上限 **−2.2s**；
+jemalloc 换血实测 **−2s/−6.5% 输出字节恒等**——「地板突破→11-12s=1.3-1.7×」推演不
+成立。**Rudra 真超额=事件 1.56×+字节 4.8×：Vec 增长 churn 占事件 54.5% + C++ SSO vs
+Rust String（TypeFactory 系统性差）+ 均 event 252B vs oracle 82B**（Arc 创建仅 2.1% 非
+主体）。PERF-ALLOCFLOOR-0001 两会话已落地真增量（**F1 口径——CR-ALLOCFLOOR2 复核更正**）：
+malloc −1.74%/realloc −24.2%/free −1.76%（总事件 ≈−3.7%）；VdbeExec 单极 wash 如实
+（真 base 配对中位 −0.3%，噪底内——收益分散在 corpus 级符号查询面）。**速度残量=
+blockstructure 残量 + Vec churn 主簇**（dominates/apply_rules_to_block 两大簇归
+PERF-BLOCKSTORAGE-FLIP-0001+PERF-ACTIONPOOL-ITER-0001 既有票；sessions 3+ 路线见
+PERF-ALLOCFLOOR-0001 票行）。诚实口径：争用窗读数（MB94 canon 29.23s@宽窗）如实记录；
+速度结论以同窗配对为准。
+
+### 里程碑④ 合并批与门禁总账（MB56~MB94 三十九批号全推；master=origin=63c1cbbd）
+
+- **三十九个批号位**（MB56~MB94；其中 MB92 号位因 CR-WCS 三连死保留空号——**实际
+  合并三十八批**，如实记）：master=origin=**`63c1cbbd`**（MB94 账本 commit；merge
+  `691735b7`）。MB56~MB70 十五批谱系见 2026-10-02 节；MB71~MB87 十七批见
+  STATUSREFRESH2 节；本终程窗六批（见里程碑①表）。
+- **tests 2028→2061P**（STATUSREFRESH2 口径 2050 + MB88 vnprintfix +11；MB89~94 恒等
+  保持——MB93 曾录 CR 侧 2053P 读数异常，字节恒等树上 2061P 全绿为准，如实记）；
+  **bank 391/391 MATCH**（改名 git mv 后恒等保持）。
+- **corpus 终态钉组（字节级）**：VdbeExec mirror **`b3f5b487`**/canon 谱 **`606dd8c0`**
+  （MB71 定，MB94 复验 ×8 恰 2 md5）；corpus canon **`cf541df3`**·5,279,715B/mirror
+  **`53bd3884`**·5,285,342B（MB94 联合新钉——vs MB91 钉 c103e81a/aade5615 恰
+  +72B/+71B 算术闭合；108+108 hunks 全落 WindowCodeStep 零外溢）。
+- 三门禁+gate health+.sla+环棘轮+tsv self-test 全绿（MB94 收官亲跑；oracle=e40ed130
+  锁定）。
+
+### 里程碑⑤ 项目改名 Rugra→Rudra 落地（身份收口；唯一悬挂项保持）
+
+RENAME 7-commit 谱系与行为零变红线全守细节见 2026-10-02 节里程碑⓪（终态
+`bc58664c`）。本终程窗复验：RUDRA_* env 契约与镜面门（RUDRA_MIRROR/RUDRA_GEN_MIRROR）
+真实生效、canon 新形态双钉全程、/dev/shm rudra-* 路径约定运转。**唯一悬挂项保持：
+GitHub 侧用户尚未改名（ls-remote Rudra.git = not found）→ 用户改名后需 `git remote
+set-url origin git@github.com:wirsbf/Rudra.git`**（push 经旧 URL 重定向正常——终程窗
+MB88~94 全部 push 到位）。
+
+### CR 体系与根因翻案谱系（十七连；CR-WCS2 流程韧性如实披露）
+
+- **本 session 累计 ~50 项机制 C 独立复核 APPROVE、零 REJECT**（MB56~70 窗 19 份判决
+  文件 + STATUSREFRESH2 窗 15 份 + 终程窗 5 份：CR-MISC3[带 N1 合并前置——10519175 兑现]/
+  CR-ALLOCFLOOR[带 corpus 复钉移交——平静窗归位]/CR-SETTLE2[四问全 VERIFIED]/
+  CR-ALLOCFLOOR2[带 F1 真增量更正+F2 票登记两项 root 行动项——均随 MB93 docs commit
+  落账]/CR-WCS2[见下] + 条件式/delta 跟进复核）。
+- **CR-WCS2 如实披露（流程韧性记录）**：CR-WCS 初次 session 中程死亡（ora-45——中间
+  消息后无终判，报告/工件未落）→ 重派 CR-WCS2 又三次 session 死亡（最终消息均未送达）
+  → **判决由 root 自 CR agent 独立完成的报告 §8 逐字合成**（判据①-⑤ 全过+N1/N2/N3
+  备注；证据链——oracle 亲读 ruleaction.cc:4514-4653 全函数+4396-4441/1640-1694+独立
+  快照 cr-wcs2 冷复跑+归因反向重建——**全部来自 CR agent 独立工作**，root 合成仅组文，
+  合成注记随 MB94 merge message 在案）。CR agent 三连死=会话层基础设施故障非判决质量
+  问题；理想形态=终消息直送，如实入档供流程改进。
+- **根因翻案谱系十七连**：STATUSREFRESH2 节十四连 + **MISC3（第十五例——census 预判
+  「F8 ruleaction 域」被双侧 IR 同形证伪，真域三修 heritage piece 组装/printc legacy
+  map/类型 settle）+ WCS（第十六例——heritage 双侧逐 op 同形证伪，真域=ruleaction
+  入口发明性闸摘除）+ SETTLE2（第十七例——票面 heritage 增量性假被双侧亲读证伪，真修=
+  funcdata copySymbol 类型继承）**。**每道先钻双侧再定域**纪律全程保持。
+
+### 公开残票（如实——镜面零残差≠零票）
+
+- **RULESUBCOMMUTE-PRECIS-GATE-0001**（P3|OPEN——CR-WCS2 N1+N2 并票：Rudra 缺 oracle
+  cc:4521 precis 输出闸+先存注释不实+RuleAndPiece L4731 同型保守 bail；dormant 零触发；
+  **补齐前 RuleSubCommute 不得升 L3/MATCH——CR 硬门槛**）。
+- **RANGEMAP-SEWING-0001**（P2|OPEN——rangemap 预存缝合缺陷：erase→insert 落旧边界→
+  erase 邻接=遗留悬挂 part→查询 panic；两个 6-op 最小复现已归档；基线/头行为逐字节
+  相同非 MB93 diff 引入；锚 rangemap.hh:281-318）。
+- **PERF-ALLOCFLOOR-0001**（P2——sessions 3+ 残路线：BTreeMap 节点族+subflow 溯源+
+  churn 次生带 ≈10-15% 上限；**dominates/apply_rules_to_block 主簇归 FLIP/ITER 既有票**）。
+- **F5SQ-RETCOPY-JOINSPACE-0001**（OPEN 低优——join 空间 return-copy IR 残差，五面+
+  corpus 零可观察影响）。
+- **F11 write_back 振荡链**（MISC3-SETTLE-VARCHURN-0001 域——匿名指针 Arc 绕过
+  canonicalize+typelock 折缺失；**警告可观察面已被 settle2 终局收口**，残余=首次定型
+  churn[oracle 共享基线——刻意不动]+匿名类型 Arc churn[heritage-incrementality 真修域]）。
+- **VNPRINT 残注**：DRILLFMT-JOINRAW-ROUTING-0001（P4——drillfmt join 形一行路由票，
+  drill 对拍面当前无门禁消费，oracle 捕获件已存备验）。
+- **PIPE-RESTART-0001**（P0 LANDED-SEAM——真实重启环休眠待触发，e 半边回调流补全残余）。
+- **funcdata.cc:34 注解漂移**（CR-SETTLE2 非阻塞①——基线先行漂移，后续一行修正票）。
+
+### 现值总表（@ master `63c1cbbd` = origin；MB94 收官态——session 终态，全部溯源终报）
+
+| 门禁 | 数字 | 说明 |
+|---|---|---|
+| canon curl | **0/0/0**·124/124 全函数 diff=0 | md5 `f903372a`·96,626B（RENAME 后形态钉，二十三批复验恒等） |
+| canon httpd | **0/0/0**·34/34 全函数 diff=0 | md5 `3617ecc3`·62,697B（同上） |
+| 镜面五面 | curl **0**/74 · httpd **0**/29 · vsh **0**/71 · sq **0**/810 · sqlite **0**/1385，全 PASS | **第五完美面——defects=numbering=0 五面；session −567（567→0）终章** |
+| corpus 钉组（四钉，字节级） | VdbeExec mirror **`b3f5b487`**/canon 谱 **`606dd8c0`**；corpus canon **`cf541df3`**·5,279,715B/mirror **`53bd3884`**·5,285,342B | MB71 定双钉+MB94 联合新钉（逐字节归因+算术闭合） |
+| cargo test --lib | **2061P / 0F** | 2028[MB55]→2061（STATUSREFRESH2 2050+MB88 +11；MB93 CR 读数异常注记在案） |
+| 投影银行（B2 钉板） | **391/391 MATCH** | rudra.projection 形态恒等保持 |
+| 速度 | VdbeExec mirror user 中位 ~28-29s；corpus wall ~31s | 见里程碑③（F1 真增量口径+残量重定界；争用窗如实记） |
+| 三门禁+gate health+.sla+环棘轮+tsv self-test | 全绿 | MB94 收官亲跑（oracle=e40ed130 锁定） |
+| CI（alignment-gates） | 两 job 形态见 2026-10-01 节 | 本刷新 docs-only 未跑（纪律：不跑门禁） |
+
+### 可靠性评估（诚实计量）
+
+1. **证据强度分层**：canon 零态=函数体字节级恒等；镜面五面零态=单向棘轮+恰钉值逐批
+   验证+每批联合树实测重钉（tsv 冲突按实测解）；corpus=四钉字节级+位移逐字节归因+
+   算术闭合；速度=同窗配对 A/B+ACTIONSTATS 计数恒等伴随+**F1 口径更正**（CR 复核纠正
+   车道 base 误记——真增量以更正后数字为准，被否决的 −10.2%/−12.2% 系混入 MB90/91
+   已入账收益不得重复记账）。四者均为语料级差分证据。
+2. **CR 体系**：终程窗 5 份判决全 APPROVE 零 REJECT，全部带 root 行动项且逐项落账闭环
+   （CR-MISC3 N1/CR-ALLOCFLOOR 复钉/CR-ALLOCFLOOR2 F1+F2）；CR-WCS2 三连死+root §8
+   合成判决如实披露——证据链来自 CR agent 独立工作，合成仅组文；**流程韧性记录在案**
+   （理想形态=终消息直送）。
+3. **覆盖边界**：镜面+canon 全零覆盖五面 2369 函数（1385/810/71/74/29）+canon 158
+   函数；**全局完成度仍未证明**——权威判定=9494 分母逐函数 oracle 行为门禁
+   （FUNCTION_MAP 账本，默认 UNTESTED，仅锁定 fixture 同输入/同输出可升 MATCH；本窗
+   RULESUBCOMMUTE-PRECIS-GATE-0001 即一例 CR 门槛挂起）。镜面零残差/速度增益/改名行为
+   零变**不构成模块或项目 L3 声明**。
+4. **口径纪律**：MB92 号位空号如实记（三十九号位三十八合并批）；速度真增量以 F1 更正
+   口径为准；session 残差账以 567（MB56 终态）为起点=−567（含 MB55 前夜基线 616 的
+   全窗口径 −616 并列）；vs oracle 双口径（原锚/配对）并列不可混。
+5. **已知未清项**：速度残量（blockstructure+Vec churn 主簇——FLIP/ITER 票+PERF
+   sessions 3+）；GitHub remote URL 待用户改名后 set-url（唯一改名悬挂项）；公开残票
+   清单见上节（P0×1[LANDED-SEAM]/P2×2/P3×1[带 L3 门槛]/P4×1+低优 IR 残差若干）。
+
+## 2026-10-03 STATUSREFRESH2 大刷新（历史——MB87 收官态快照；数字被 STATUSREFRESH3 终态节取代）
 
 > 数据源全部在案：波次账本 `.slim/deepwork/stage-bisect-e2e.md`（MB71~MB87 十七合并批 +
 > 车道/CR 全序列——**本节数字唯一事实源**）+ 各批终报（`/dev/shm/rudra-reports/
