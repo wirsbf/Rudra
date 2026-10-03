@@ -3067,6 +3067,57 @@ impl<'a> CollapseStructure<'a> {
         }
     }
 
+    // RUDRA-GLUE: (IDENTIFY) view form of the second-tier guard reads
+    /// Bank-view twin of `out_edge_is_goto` — the oracle's `isGotoOut(i)`
+    /// (block.hh:347, a non-virtual `outofthis[i].label & (f_irreducible|
+    /// f_goto_edge)` load) served without the block RwLock/vtable: the edge
+    /// label comes from the wave-3 edge shadow (`expect_out_edge`) and the
+    /// GOTO_EDGE_0/1 slot mirrors from the (g) flags shadow. Channel
+    /// completeness (CR-BLOCKSTRUCT2 §2-B): every `is_goto_out` impl in the
+    /// tree reads exactly these two channels — the trait default reads the
+    /// edge label only, BlockBasic additionally reads the GOTO_EDGE_0/1
+    /// mirror bits in the same flags word the shadow serves — so the view
+    /// form returns identical values for every block type.
+    #[inline]
+    fn view_out_edge_is_goto(
+        bank: &crate::block::BlockBankView,
+        id: crate::arena::BlockId,
+        slot: usize,
+    ) -> bool {
+        if let Some(e) = bank.expect_out_edge(id, slot) {
+            if e.flags
+                & (crate::block::edge_flags::F_GOTO_EDGE
+                    | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
+                != 0
+            {
+                return true;
+            }
+        }
+        let f = bank.expect_flags(id);
+        if slot == 0 && (f & crate::block::block_flags::GOTO_EDGE_0) != 0 {
+            return true;
+        }
+        if slot == 1 && (f & crate::block::block_flags::GOTO_EDGE_1) != 0 {
+            return true;
+        }
+        false
+    }
+
+    // RUDRA-GLUE: (IDENTIFY) view form of the second-tier guard reads
+    /// Bank-view twin of `out_edge_is_decision`'s label test (block.hh:336
+    /// `isDecisionOut`: the edge is neither irreducible, back, nor goto) —
+    /// applied to an already-fetched edge-label word, so a caller that read
+    /// the edge twin once (point + flags together) pays no second shadow
+    /// read. `false` for a missing edge is the caller's None arm.
+    #[inline]
+    fn edge_label_is_decision(flags: u32) -> bool {
+        flags
+            & (crate::block::edge_flags::F_IRREDUCIBLE_EDGE
+                | crate::block::edge_flags::F_BACK_EDGE
+                | crate::block::edge_flags::F_GOTO_EDGE)
+            == 0
+    }
+
     // Ghidra: block.cc:880 BlockGraph::forceOutputNum
     /// While the block has fewer than `target` out-edges, append a SELF edge
     /// labeled f_loop_edge|f_back_edge on both halves
@@ -4209,6 +4260,17 @@ impl<'a> CollapseStructure<'a> {
         // new_block — deduped once at the end, mirroring the external half of
         // Ghidra selfIdentify's final dedup() (block.cc:930).
         let mut touched: Vec<Arc<RwLock<dyn FlowBlock + Send + Sync>>> = Vec::new();
+        // (IDENTIFY) oracle-form peer retarget sets for the install block's
+        // external boundary — selfIdentify (block.cc:902-929) walks each
+        // component's intothis/outofthis and replace*Edge's exactly the
+        // adjacent peers; the reciprocal halves of these edges are the ONLY
+        // graph members whose edge lists can point at install_idx (edges are
+        // paired), which is precisely the set the former 0..size sweep
+        // matched. Sources of install's external IN edges (their OUT halves
+        // get replaceOutEdge'd onto the composite) and targets of install's
+        // external OUT edges (their IN halves get replaceInEdge'd).
+        let mut install_ext_sources: Vec<crate::arena::BlockId> = Vec::new();
+        let mut install_ext_targets: Vec<crate::arena::BlockId> = Vec::new();
 
         // Capture external in-edges of the install_idx block (cond/head).
         // These are in-edges whose source is NOT in consumed_set AND NOT the
@@ -4241,6 +4303,16 @@ impl<'a> CollapseStructure<'a> {
                                 flags: e.flags,
                                 reverse_index: -1,
                             });
+                            // (IDENTIFY) oracle-form peer retarget set: Ghidra's
+                            // selfIdentify walks the component's intothis and
+                            // replaceOutEdge's exactly these external sources
+                            // (block.cc:905-915) — it never scans the whole
+                            // graph. Recorded here so the install swap below
+                            // rewrites the same peer set without the O(size)
+                            // sweep (the sweep was the Rudra slot-model's
+                            // blanket compensation, ~1200 slots x 2 write
+                            // locks per fire on the giant function).
+                            install_ext_sources.push(e.point);
                         }
                     }
                 }
@@ -4270,6 +4342,11 @@ impl<'a> CollapseStructure<'a> {
                                 reverse_index: -1,
                             });
                             install_ext_out = true;
+                            // (IDENTIFY) oracle-form peer retarget set: the
+                            // external targets of the install block's out
+                            // edges, replaceInEdge'd by selfIdentify
+                            // (block.cc:916-927) — see the in-half note above.
+                            install_ext_targets.push(e.point);
                         }
                     }
                 }
@@ -4522,30 +4599,40 @@ impl<'a> CollapseStructure<'a> {
             old_install = Some(self.graph.blocks[install_idx].clone());
             self.graph.blocks[install_idx] = new_block.clone();
             self.graph.bank.adopt(&new_block);
-            for gi in 0..size {
-                if gi == install_idx {
+            // (IDENTIFY) oracle-form install-peer retarget: rewrite exactly
+            // the install block's external boundary peers (selfIdentify
+            // block.cc:902-929 walks each component's edge lists and
+            // replace*Edge's the adjacent peers — never a graph sweep).
+            // Coverage equivalence with the former `for gi in 0..size`
+            // sweep: Rudra edges are paired halves, so {blocks whose out-edge
+            // resolves to install_idx} == {sources of install's in-edges} and
+            // {blocks whose in-edge resolves from install_idx} == {targets
+            // of install's out-edges}; the capture filters
+            // (!is_consumed_idx && != install_idx) are the sweep's skip
+            // predicates verbatim; nothing between capture and here mutates
+            // an install_idx-targeting edge (the consumed-loop rewrites
+            // match c_idx != install_idx only). Component-to-component
+            // edges are excluded on both forms (block.cc:905-928 never
+            // rewrites an internal edge).
+            for src_id in &install_ext_sources {
+                let s_any = bank.expect_arc(*src_id);
+                // Avoid self-loop: don't rewrite new_block's own edge
+                // (new_block holds no install_idx-pointing edges at capture
+                // time; the guard keeps the old sweep's exact predicate).
+                if std::sync::Arc::ptr_eq(&s_any, new_block) {
                     continue;
                 }
-                // Ghidra selfIdentify (block.cc:905-928) never rewrites a
-                // component-to-component edge: the in/out loops skip peers
-                // with `otherbl->parent == this` — only EXTERNAL blocks'
-                // halves are replace*Edge'd onto the composite. A consumed
-                // component's edge to the install block (B <- A in a
-                // cat/newBlockList) is internal and must keep pointing at
-                // the component; rewriting it here stranded the reciprocal
-                // half (consistent_A/B=0 in the identify fixture) and
-                // corrupted sub-block edge walks.
-                if is_consumed_idx(gi as i32) {
+                if rewrite_out_edges_to_idx(&bank, &s_any, install_idx as i32, new_point_id) {
+                    touched.push(s_any);
+                }
+            }
+            for dst_id in &install_ext_targets {
+                let d_any = bank.expect_arc(*dst_id);
+                if std::sync::Arc::ptr_eq(&d_any, new_block) {
                     continue;
                 }
-                let gb = match self.graph.get_block(gi) {
-                    Some(b) => b,
-                    None => continue,
-                };
-                let ch1 = rewrite_out_edges_to_idx(&bank, &gb, install_idx as i32, new_point_id);
-                let ch2 = rewrite_in_edges_to_idx(&bank, &gb, install_idx as i32, new_point_id);
-                if ch1 || ch2 {
-                    touched.push(gb);
+                if rewrite_in_edges_to_idx(&bank, &d_any, install_idx as i32, new_point_id) {
+                    touched.push(d_any);
                 }
             }
         }
@@ -4920,8 +5007,7 @@ impl<'a> CollapseStructure<'a> {
         // (BLOCKSTRUCT2) entry pair through the view — no guard opened on
         // the common exit paths (cc:1289-1290).
         {
-            let (size_out, switch_out) =
-                Self::entry_size_out_switch_out(block, self_id, bank_view);
+            let (size_out, switch_out) = Self::entry_size_out_switch_out(block, self_id, bank_view);
             if size_out != 1 {
                 return false;
             }
@@ -4933,7 +5019,42 @@ impl<'a> CollapseStructure<'a> {
         // bl must be the START of a chain: (sizeIn==1 && getIn(0)->sizeOut==1) → false
         // i.e. bl is a chain start if it has multiple in-edges, OR its sole
         // predecessor has multiple out-edges (bl is a branch target).
-        {
+        // (IDENTIFY) second-tier guards through the view: cc:1291-1295 are
+        // inline field loads in the oracle (sizeIn/getOut/isDecisionOut,
+        // block.hh:312-313/301/336). The registered form reads them from the
+        // bank shadows (in-edge twin + size cells + edge label) with no
+        // block RwLock and no vtable; SENTINEL (bare fixtures) keeps the
+        // guard-read form, byte-identical.
+        let first_next_point;
+        if self_id != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL {
+            let block_idx = bank_view.expect_index(self_id);
+            if bank_view.expect_size_in(self_id) == 1 {
+                if let Some(in_edge) = bank_view.expect_in_edge(self_id, 0) {
+                    // (g) guard-shadow: pure sizeOut guard on the peer —
+                    // served from the bank cell (no Arc clone/peer lock).
+                    let pred_out = bank_view.expect_size_out(in_edge.point);
+                    if pred_out == 1 {
+                        return false;
+                    } // not start of chain
+                }
+            }
+            // bl->getOut(0) == bl → no looping; cc:1295 decision test on
+            // the same edge half.
+            let out_edge = match bank_view.expect_out_edge(self_id, 0) {
+                Some(e) => e,
+                None => return false,
+            };
+            if bank_view.expect_index(out_edge.point) == block_idx {
+                return false;
+            }
+            // cc:1295: `if (!bl->isDecisionOut(0)) return false;` — the
+            // chain entry edge must be a plain forward edge (not goto, not
+            // a loop bottom back-edge); block.hh:336 label test.
+            if !Self::edge_label_is_decision(out_edge.flags) {
+                return false;
+            }
+            first_next_point = out_edge.point;
+        } else {
             let b = block.read().unwrap();
             let block_idx = b.get_index();
             if b.size_in() == 1 {
@@ -4947,10 +5068,12 @@ impl<'a> CollapseStructure<'a> {
                 }
             }
             // bl->getOut(0) == bl → no looping
-            if let Some(out_edge) = b.get_out_ref(0) {
-                if bank_view.expect_index(out_edge.point) == block_idx {
-                    return false;
-                }
+            let out_edge = match b.get_out_ref(0) {
+                Some(e) => e,
+                None => return false,
+            };
+            if bank_view.expect_index(out_edge.point) == block_idx {
+                return false;
             }
             // cc:1295: `if (!bl->isDecisionOut(0)) return false;` — the
             // chain entry edge must be a plain forward edge (not goto, not
@@ -4958,6 +5081,7 @@ impl<'a> CollapseStructure<'a> {
             if !Self::out_edge_is_decision(&*b, 0) {
                 return false;
             }
+            first_next_point = out_edge.point;
         }
 
         // Build the cat chain, cc:1298-1310 structure: nodes = [bl,
@@ -4979,14 +5103,8 @@ impl<'a> CollapseStructure<'a> {
         // on the walk is a bank shadow read (sizeIn/sizeOut/flags/out-edge
         // label), and the handles materialize at fire below — the miss
         // path (chain break) resolves nothing.
-        let first_next_point = {
-            let b = block.read().unwrap();
-            b.get_out_ref(0).map(|e| e.point)
-        };
-        let first_next_point = match first_next_point {
-            Some(p) => p,
-            None => return false,
-        };
+        // (IDENTIFY) first_next_point was captured inside the guard block
+        // above (out_edge.point) — no second read lock.
         // cc:1294/1296: nothing else may hit the first link; a switch
         // dispatch block must be resolved first.
         if bank_view.expect_size_in(first_next_point) != 1 {
@@ -5003,16 +5121,25 @@ impl<'a> CollapseStructure<'a> {
         // served from the bank cells (the chain head's index is
         // loop-invariant under the read-phase discipline: no publish
         // happens inside this loop, cc:1302-1310 only reads).
-        let head_idx = nodes[0].read().unwrap().get_index();
+        // (IDENTIFY) head_idx through the view (block.hh:160 shadow) —
+        // same value as the block guard read, without the second RwLock.
+        let head_idx = if self_id
+            != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL
+        {
+            bank_view.expect_index(self_id)
+        } else {
+            nodes[0].read().unwrap().get_index()
+        };
         let mut cur_point = first_next_point;
         loop {
             if bank_view.expect_size_out(cur_point) != 1 {
                 break;
             }
-            let next_point = match bank_view.expect_out_edge(cur_point, 0) {
-                Some(e) => e.point,
+            let cur_edge = match bank_view.expect_out_edge(cur_point, 0) {
+                Some(e) => e,
                 None => break,
             };
+            let next_point = cur_edge.point;
             let next_idx = bank_view.expect_index(next_point);
             // cc:1304: outbl2 == bl → no looping (compare against the chain head).
             if next_idx == head_idx {
@@ -5026,18 +5153,9 @@ impl<'a> CollapseStructure<'a> {
             }
             // cc:1306: `if (!outblock->isDecisionOut(0)) break;` — the
             // CURRENT tail's out-edge must be a plain forward edge. (W3)
-            // decision label via the edge shadow (block.hh:336 inline).
-            let cur_decision = bank_view
-                .expect_out_edge(cur_point, 0)
-                .map(|e| {
-                    e.flags
-                        & (crate::block::edge_flags::F_IRREDUCIBLE_EDGE
-                            | crate::block::edge_flags::F_BACK_EDGE
-                            | crate::block::edge_flags::F_GOTO_EDGE)
-                        == 0
-                })
-                .unwrap_or(false);
-            if !cur_decision {
+            // decision label via the edge shadow (block.hh:336 inline);
+            // (IDENTIFY) same edge half as next_point — one shadow read.
+            if !Self::edge_label_is_decision(cur_edge.flags) {
                 break;
             }
             // cc:1307: outbl2->isSwitchOut() → break
@@ -5294,66 +5412,92 @@ impl<'a> CollapseStructure<'a> {
                 return false;
             }
         }
-        let b = block.read().unwrap();
-
-        // cc:1386-1389: `if (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl)
-        // return false; if (bl->isGotoOut(0)) return false; if (bl->isGotoOut(1))
-        // return false;` — no self loops, neither branch unstructured.
-        // (The old `let ops = b.get_ops()` probe here cloned the whole op
-        // list of the underlying BlockBasic per try with the result unused —
-        // deleted; Ghidra's rule is purely topological, cc:1378-1408.)
-        let cond_idx = b.get_index();
-        // RUDRA-GLUE: bank-view guard reads — the self-loop checks and the
-        // two target indices resolve through the edge twins' shadows (one
-        // bank read guard for all four reads; no peer RwLock, no vtable).
-        // Unresolved twins (bare fixtures) fall back to the guard read,
-        // byte-identical. Scoped so the view drops before &self method
-        // calls below.
-        let (self_loop, true_idx, false_idx, true_point, false_point) = {
-            let read_idx = |b: &dyn FlowBlock, slot: usize| -> Option<i32> {
-                b.get_out_ref(slot).and_then(|e| match bank.index(e.point) {
-                    Some(i) => Some(i),
-                    // Stale/unresolved ids cannot occur while the single-bank
-                    // invariant holds; resolve-or-panic mirrors the view read.
-                    None => Some(bank.expect_index(e.point)),
-                })
+        // (IDENTIFY) second-tier guards through the view: after the entry
+        // pair passes, the oracle's remaining reads (cc:1386-1398) are all
+        // non-virtual inline loads — getOut/getIndex label+index fields and
+        // the isGotoOut/isDecisionOut label tests (block.hh:299-347). The
+        // registered form serves every one from the bank shadows (edge
+        // twins + index/flags cells) with no block RwLock and no vtable;
+        // SENTINEL (bare fixtures, never adopted) keeps the guard-read form,
+        // byte-identical values either way.
+        let (_cond_idx, true_point, false_point, true_idx, false_idx, decision_out) =
+            if self_id != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL {
+                let cond_idx = bank.expect_index(self_id);
+                let te = match bank.expect_out_edge(self_id, 0) {
+                    Some(e) => e,
+                    None => return false,
+                };
+                let fe = match bank.expect_out_edge(self_id, 1) {
+                    Some(e) => e,
+                    None => return false,
+                };
+                let true_idx = bank.expect_index(te.point);
+                let false_idx = bank.expect_index(fe.point);
+                // cc:1386-1387: `if (bl->getOut(0)==bl) ... getOut(1)==bl`
+                // — no self loops.
+                if true_idx == cond_idx || false_idx == cond_idx {
+                    return false;
+                }
+                // cc:1388-1389: isGotoOut(0)/isGotoOut(1) — view form
+                // (label + GOTO_EDGE_0/1 mirrors; see view_out_edge_is_goto).
+                if Self::view_out_edge_is_goto(bank, self_id, 0) {
+                    return false;
+                }
+                if Self::view_out_edge_is_goto(bank, self_id, 1) {
+                    return false;
+                }
+                // cc:1395 pre-capture: isDecisionOut per out edge
+                // (block.hh:336 label test on the fetched halves).
+                let d0 = Self::edge_label_is_decision(te.flags);
+                let d1 = Self::edge_label_is_decision(fe.flags);
+                (cond_idx, te.point, fe.point, true_idx, false_idx, [d0, d1])
+            } else {
+                let b = block.read().unwrap();
+                let cond_idx = b.get_index();
+                let read_idx = |b: &dyn FlowBlock, slot: usize| -> Option<i32> {
+                    b.get_out_ref(slot).and_then(|e| match bank.index(e.point) {
+                        Some(i) => Some(i),
+                        // Stale/unresolved ids cannot occur while the single-bank
+                        // invariant holds; resolve-or-panic mirrors the view read.
+                        None => Some(bank.expect_index(e.point)),
+                    })
+                };
+                let out0_idx = read_idx(&*b, 0);
+                let out1_idx = read_idx(&*b, 1);
+                let self_loop = out0_idx == Some(cond_idx) || out1_idx == Some(cond_idx);
+                // Reference reads of out[0]/out[1] (oracle getOut, block.hh:301)
+                // — the miss path carries only the edge POINTS (ids); handles
+                // materialize at fire (W3: millions of miss reads per fire).
+                let (true_point, false_point) = match (b.get_out_ref(0), b.get_out_ref(1)) {
+                    (Some(te), Some(fe)) => (te.point, fe.point),
+                    _ => return false,
+                };
+                let true_idx = match bank.index(b.get_out_ref(0).unwrap().point) {
+                    Some(i) => i,
+                    None => bank.expect_index(true_point),
+                };
+                let false_idx = match bank.index(b.get_out_ref(1).unwrap().point) {
+                    Some(i) => i,
+                    None => bank.expect_index(false_point),
+                };
+                if self_loop {
+                    return false;
+                }
+                if Self::out_edge_is_goto(&*b, 0) {
+                    return false;
+                }
+                if Self::out_edge_is_goto(&*b, 1) {
+                    return false;
+                }
+                // cc:1395 pre-capture: isDecisionOut per out edge (the read guard on
+                // `b` is dropped below but the decision flags are edge labels).
+                let decision_out = [
+                    Self::out_edge_is_decision(&*b, 0),
+                    Self::out_edge_is_decision(&*b, 1),
+                ];
+                drop(b);
+                (cond_idx, true_point, false_point, true_idx, false_idx, decision_out)
             };
-            let out0_idx = read_idx(&*b, 0);
-            let out1_idx = read_idx(&*b, 1);
-            let self_loop = out0_idx == Some(cond_idx) || out1_idx == Some(cond_idx);
-            // Reference reads of out[0]/out[1] (oracle getOut, block.hh:301)
-            // — the miss path carries only the edge POINTS (ids); handles
-            // materialize at fire (W3: millions of miss reads per fire).
-            let (true_point, false_point) = match (b.get_out_ref(0), b.get_out_ref(1)) {
-                (Some(te), Some(fe)) => (te.point, fe.point),
-                _ => return false,
-            };
-            let true_idx = match bank.index(b.get_out_ref(0).unwrap().point) {
-                Some(i) => i,
-                None => bank.expect_index(true_point),
-            };
-            let false_idx = match bank.index(b.get_out_ref(1).unwrap().point) {
-                Some(i) => i,
-                None => bank.expect_index(false_point),
-            };
-            (self_loop, true_idx, false_idx, true_point, false_point)
-        };
-        if self_loop {
-            return false;
-        }
-        if Self::out_edge_is_goto(&*b, 0) {
-            return false;
-        }
-        if Self::out_edge_is_goto(&*b, 1) {
-            return false;
-        }
-        // cc:1395 pre-capture: isDecisionOut per out edge (the read guard on
-        // `b` is dropped below but the decision flags are edge labels).
-        let decision_out = [
-            Self::out_edge_is_decision(&*b, 0),
-            Self::out_edge_is_decision(&*b, 1),
-        ];
-        drop(b);
 
         // NOTE: no switch_case_indices/CASE_BODY pre-guard here — Ghidra's
         // ruleBlockProperIf has no such check (the clause guard is
@@ -5366,15 +5510,14 @@ impl<'a> CollapseStructure<'a> {
             let clause_point = if dir == 0 { true_point } else { false_point };
             let merge_idx = if dir == 0 { false_idx } else { true_idx };
 
-            // Count non-structural in-edges: ignore edges from switch dispatch blocks.
-            // Switch dispatch edges come from BlockSwitch control blocks or CBRANCH
-            // cascade members. We check if any in-edge source is a BlockSwitch or
-            // a block we know is a switch dispatch (marked CASE_BODY or is a cascade
-            // member whose taken edge targets this clause).
-            let non_structural_in = self.count_non_structural_in_edges(bank, clause_point);
-            if non_structural_in != 1 {
-                continue;
-            }
+            // (IDENTIFY) guard order: the oracle checks the cheap inline
+            // field loads first and its plain `clauseblock->sizeIn() != 1`
+            // (cc:1392) last-ish; Rudra's sizeIn equivalent —
+            // count_non_structural_in_edges, the consumed-component/switch
+            // compensation — is the one expensive guard here (edge-shadow
+            // walk + per-edge membership), so it runs LAST. Every guard in
+            // this loop is a pure read and the fire condition is their
+            // conjunction, so the order cannot change which dirs fire.
             if bank.expect_size_out(clause_point) != 1 {
                 continue;
             }
@@ -5408,6 +5551,15 @@ impl<'a> CollapseStructure<'a> {
                 None => continue,
             };
             if target_idx != merge_idx {
+                continue;
+            }
+            // Count non-structural in-edges: ignore edges from switch dispatch blocks.
+            // Switch dispatch edges come from BlockSwitch control blocks or CBRANCH
+            // cascade members. We check if any in-edge source is a BlockSwitch or
+            // a block we know is a switch dispatch (marked CASE_BODY or is a cascade
+            // member whose taken edge targets this clause).
+            let non_structural_in = self.count_non_structural_in_edges(bank, clause_point);
+            if non_structural_in != 1 {
                 continue;
             }
 
