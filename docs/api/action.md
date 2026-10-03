@@ -388,6 +388,15 @@ Rudra 当前的 `action` 层明显受 Ghidra 反编译器中 `Action` / `Rule` �
 - 当前局部优化已足以达到成熟反编译器质量
 - 规则执行结果已全部通过行为级对拍
 
+### `fn as_propagate_copy(&self) -> Option<&crate::ruleaction::RulePropagateCopy>`
+
+MATCHAPPLY（2026-10-03）concrete-type seam，默认 `None`，仅
+`RulePropagateCopy` 覆写返回 `Some(self)`。用途：调用方按名解析试点拆分规则
+（`RulePropagateCopy::match_op` / `apply_hit`）后经此 seam 取具体类型调用两个
+半件。无 oracle 对应物——oracle 的 `Rule::applyOp`（ruleaction.hh:94）是单一
+match+transform 一体虚函数，从不需要 downcast；seam 形态与既有
+`clone_for_groups` 虚 seam 同族（RUDRA-GLUE）。
+
 ---
 
 ## `pub struct ActionGroup`
