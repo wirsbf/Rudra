@@ -1096,6 +1096,11 @@ impl Ord for VnDefKey {
     // Ghidra: varnode.cc:60 VarnodeCompareDefLoc::operator() — transcribed
     // field-for-field: (f1!=f2 → (f-1) ranking) / (written → seq, equal seq
     // falls through) / addr / size / (free → create_index).
+    // PERF-BTREE-0001 note: a 3×3 variant-pair dispatch was tried and
+    // REVERTED — callgrind measured it at 747-765M Ir vs this ladder's
+    // 677.9M on the VdbeExec pole (jump-table dispatch + arm setup cost
+    // more than the two rank() loads; deterministic re-measure, artifacts
+    // /dev/shm/rudra-tests/btreemap/). Keep the ladder.
     fn cmp(&self, other: &Self) -> Ordering {
         let r1 = self.state.rank();
         let r2 = other.state.rank();

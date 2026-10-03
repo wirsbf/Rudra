@@ -796,6 +796,32 @@ oracle 的 `++op_state` 是 std::map 节点迭代器 O(1) 均摊后继且跨插�
 稳定；Rust BTreeMap 迭代器不能跨 Rule 突变持有，故用严格后继 range 重建
 同一访问序列。键化后该重建的下降成本与 oracle 键比较同阶（无锁）。
 
+**2026-10-03 树序后继链接（PERF-BTREE-0001）**: 上述 range 重建每次 advance
+自根下降（callgrind 亲证 `navigate::find_leaf_edges_spanning_range` 单站点
+3.13G Ir / 5.83M 次 × ~537 Ir = 容器域第一大项）。本更新把 oracle 的存储
+迭代器 `++`（libstdc++ `_Rb_tree_increment` 的一跳父/子行走）还原为 id 形态:
+
+- `OpCell` 增 `tree_prev`/`tree_next`/`in_tree` 三字段——map 节点的中序
+  前驱/后继链接 + 成员位；`PcodeOpTree` 增 `head`/`tail` 两锚。
+- 维护位点 = `inner` 的全部突变点: `insert` Vacant 臂 `link_into_order`
+  （一次严格键 range 求后继 + O(1) 读后继的 prev 得前驱 + 三点拼接）、
+  `remove` 两成功路径 `unlink_from_order`（读自身链接 O(1) 交叉拼接邻居，
+  自身链接**冻结**在移除时值）、`clear` 重置锚、`slot_only` 出厂 SENTINEL。
+- 不变式（测试 `optree_order_links_match_map_successor_under_fuzz` 4000 轮
+  混合插入/删除逐轮全量核对）: 活单元的 `tree_next` 恒为中序严格后继
+  （== 严格键 range 首 元素）; `first_id`/链走序 == map 迭代序; 已移除
+  单元冻结链接不再被信任。
+- `next_id_after(cur)`: `in_tree` → 直接返回 `tree_next`（O(1) 存储迭代器
+  一跳 = oracle `op_state++` 同操作）; 已移除（oracle-UB 情形: rule 摧毁
+  停靠 op）→ 回退**原 range 搜索语义**（存储键严格后继, 与本更新前逐字节
+  同结果）。`first_id` 改读 `head` 锚。
+- 其余面（`iter`/`range`/`target_lower_bound`/`find_op`）保持 BTreeMap
+  实现——真实范围扫描仍走树; version 计数位点不变（PERF-DISPATCH-0001
+  memo 守卫语义不动）。
+- 行为恒等: 后继关系 == BTreeMap 严格键序（不变式 + fuzz 钉固），迭代序
+  /输出/ACTIONSTATS 全零变化（车道门禁: canon/mirror 双 md5 + 五值恒等
+  + 镜面五面 0/0/0/0/0 + corpus 双面 == master 钉组）。
+
 ---
 
 ### `pub struct PcodeOpBank`
@@ -1330,6 +1356,10 @@ ruleaction.cc:272 oracle 原形，该 opcode 对派生 flag 集相同且互非 c
   `seq_key`（锁自由），map 严格后继 = std::map `++` 语义（规则中途 erase
   不受影响，ACTIONLOOP-RESTART-0001 同论证）；`opcode_by_id(OpId)`——
   槽影子读。`PcodeOpBank::opcode_of` 为 bank 级转发。
+  **2026-10-03 PERF-BTREE-0001 形态更新**：`next_id_after` 活单元改读
+  `tree_next` 树序链接（O(1) 一跳 = oracle `_Rb_tree_increment`），仅
+  已移除单元回退严格键 range 搜索; `first_id` 读 `head` 锚——详见上文
+  PcodeOpTree 节 2026-10-03 段。
 - `OpChainIdIter` + `iter_alive_ids()/iter_load_ids()/iter_return_ids()`——
   `OpChainIter` 的 id 产出伴生（同一存储链游走，产出 Copy 的 `OpId`，
   零句柄克隆零锁）；Action/Rule 工作集的采集形态。

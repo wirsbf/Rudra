@@ -1669,6 +1669,12 @@ pub struct PcodeOpTree {
     /// op.cc:984-999 — and are reclaimed only by `clear`).
     arena: Arena<OpCell, OpId>,
     inner: BTreeMap<SeqNumKey, OpId>,
+    /// First/last in-tree cells in SeqNum order (op.hh:280 map begin/end
+    /// in id space) — the O(1) anchor for `first_id` and the link
+    /// maintenance's tail case.
+    // RUDRA-GLUE: id-space begin/end shadows (PERF-BTREE-0001).
+    head: OpId,
+    tail: OpId,
     /// RUDRA-GLUE: monotonic mutation counter over `inner` (bumped by
     /// insert/remove/clear) — the id-space memoization guard for
     /// ActionPool's early strict-successor computation
@@ -1720,6 +1726,34 @@ pub struct OpCell {
     ins_next: OpId,
     code_prev: OpId,
     code_next: OpId,
+    // ---- op.hh:280 PcodeOpTree (map<SeqNum,PcodeOp*>) node neighbors →
+    // id-space tree-order links. The oracle's map node carries
+    // parent/left/right; the ONLY navigation the oracle performs on the
+    // node graph is the retained-iterator `++` (action.cc:830/:871
+    // `op_state++`), which libstdc++ resolves as _Rb_tree_increment: a
+    // one-hop parent/child walk to the in-order successor. These two
+    // fields are exactly that successor/predecessor relation, maintained
+    // at the map's insert/erase sites, so `next_id_after` is the O(1)
+    // stored-iterator walk the oracle has (PERF-BTREE-0001).
+    //
+    // Invariants (machine-checkable, see the tests below):
+    //  - for every cell with `in_tree`, `tree_next` is SENTINEL or the id
+    //    of an in-tree cell holding the least SeqNum key greater than
+    //    this cell's key (and `tree_prev` symmetric);
+    //  - `head`/`tail` track the first/last in-tree cells;
+    //  - erase unlinks the neighbors but LEAVES the erased cell's own
+    //    links frozen at their removal-time values (the id-space form of
+    //    the oracle's dangling-iterator tolerance: a cursor parked on the
+    //    cell before its erase still finds the removal-time successor;
+    //    next_id_after only trusts the links while the cell is IN tree —
+    //    an out-of-tree cursor falls back to a fresh map search, see its
+    //    doc).
+    tree_prev: OpId,
+    tree_next: OpId,
+    /// Map-membership bit: this cell's SeqNum key is present in `inner`.
+    /// Mirrors "node is in the std::map" — no oracle field.
+    // RUDRA-GLUE: id-space membership shadow for the tree-order links.
+    in_tree: bool,
 }
 
 // RUDRA-GLUE: link-field projection for the insert chain (the single
@@ -1782,7 +1816,79 @@ impl PcodeOpTree {
         Self {
             arena: Arena::new(),
             inner: BTreeMap::new(),
+            head: OpId::SENTINEL,
+            tail: OpId::SENTINEL,
             version: 0,
+        }
+    }
+
+    // RUDRA-GLUE: tree-order link splice at the map's insert site — the
+    //   id-space form of the std::map node gaining its in-order
+    //   neighbors. Called ONLY from the Vacant arm of `insert`, after the
+    //   map entry exists; `succ` is the strict-key successor entry (one
+    //   range descent, the same navigation the former per-advance
+    //   successor search paid 5.83M times on the VdbeExec pole), and the
+    //   predecessor is then read O(1) off the successor's link — the
+    //   splice is exactly inserting one node between its neighbors.
+    fn link_into_order(&mut self, id: OpId, seq_key: SeqNumKey) {
+        use std::ops::Bound::{Excluded, Unbounded};
+        let succ = self
+            .inner
+            .range((Excluded(seq_key), Unbounded))
+            .next()
+            .map(|(_, &rid)| rid);
+        let pred = match succ {
+            Some(s) => self
+                .arena
+                .get(s)
+                .map(|cell| cell.tree_prev)
+                .unwrap_or(OpId::SENTINEL),
+            None => self.tail,
+        };
+        if let Some(cell) = self.arena.get_mut(id) {
+            cell.tree_prev = pred;
+            cell.tree_next = succ.unwrap_or(OpId::SENTINEL);
+            cell.in_tree = true;
+        }
+        if pred.is_sentinel() {
+            self.head = id;
+        } else if let Some(cell) = self.arena.get_mut(pred) {
+            cell.tree_next = id;
+        }
+        match succ {
+            Some(s) => {
+                if let Some(cell) = self.arena.get_mut(s) {
+                    cell.tree_prev = id;
+                }
+            }
+            None => self.tail = id,
+        }
+    }
+
+    // RUDRA-GLUE: tree-order link splice at the map's erase site — the
+    //   id-space form of the std::map node being unlinked from its
+    //   parent/children. Neighbors are read off the (still-live) cell's
+    //   own links, the neighbors are cross-spliced, and the erased cell's
+    //   own links are left FROZEN at their removal-time values: a cursor
+    //   parked on the cell still reads the removal-time successor, the
+    //   stored-iterator equivalent of the oracle tolerating a parked
+    //   `op_state` across `destroy` (op.cc:993 optree.erase). Only the
+    //   membership bit flips.
+    fn unlink_from_order(&mut self, rid: OpId) {
+        let Some(cell) = self.arena.get(rid) else { return };
+        let (pred, next) = (cell.tree_prev, cell.tree_next);
+        if let Some(cell) = self.arena.get_mut(rid) {
+            cell.in_tree = false;
+        }
+        if pred.is_sentinel() {
+            self.head = next;
+        } else if let Some(cell) = self.arena.get_mut(pred) {
+            cell.tree_next = next;
+        }
+        if next.is_sentinel() {
+            self.tail = pred;
+        } else if let Some(cell) = self.arena.get_mut(next) {
+            cell.tree_prev = pred;
         }
     }
 
@@ -1869,6 +1975,9 @@ impl PcodeOpTree {
                 ins_next: OpId::SENTINEL,
                 code_prev: OpId::SENTINEL,
                 code_next: OpId::SENTINEL,
+                tree_prev: OpId::SENTINEL,
+                tree_next: OpId::SENTINEL,
+                in_tree: false,
             });
             op.0.write().unwrap().op_id = Some(id);
             id
@@ -1877,6 +1986,7 @@ impl PcodeOpTree {
             std::collections::btree_map::Entry::Occupied(_) => false,
             std::collections::btree_map::Entry::Vacant(slot) => {
                 slot.insert(id);
+                self.link_into_order(id, seq_key);
                 self.version = self.version.wrapping_add(1);
                 true
             }
@@ -1894,6 +2004,7 @@ impl PcodeOpTree {
             if let Some(cell) = self.arena.get(id) {
                 let stored_key = cell.seq_key;
                 if let Some(rid) = self.inner.remove(&stored_key) {
+                    self.unlink_from_order(rid);
                     self.version = self.version.wrapping_add(1);
                     if rid == id {
                         return true;
@@ -1902,14 +2013,16 @@ impl PcodeOpTree {
                     // restore before the live-key path so only `op`'s
                     // entry can be removed.
                     self.inner.insert(stored_key, rid);
+                    self.link_into_order(rid, stored_key);
                 }
             }
         }
-        let removed = self.inner.remove(&Self::key_of(op)).is_some();
-        if removed {
+        let removed = self.inner.remove(&Self::key_of(op));
+        if let Some(rid) = removed {
+            self.unlink_from_order(rid);
             self.version = self.version.wrapping_add(1);
         }
-        removed
+        removed.is_some()
     }
 
     // RUDRA-GLUE: BTreeSet<PcodeOpRef>::contains surface. Ord-equality
@@ -1923,6 +2036,8 @@ impl PcodeOpTree {
     pub fn clear(&mut self) {
         self.inner.clear();
         self.arena.clear();
+        self.head = OpId::SENTINEL;
+        self.tail = OpId::SENTINEL;
         self.version = self.version.wrapping_add(1);
     }
 
@@ -2018,7 +2133,11 @@ impl PcodeOpTree {
     //   VdbeExec pole) and cloned the successor's Arc.
     /// First map entry's id (beginOpAll), or `None` when the tree is empty.
     pub fn first_id(&self) -> Option<OpId> {
-        self.inner.values().next().copied()
+        if self.head.is_sentinel() {
+            None
+        } else {
+            Some(self.head)
+        }
     }
 
     // RUDRA-GLUE: strict-successor reconstruction (same RUDRA-GLUE family
@@ -2027,9 +2146,30 @@ impl PcodeOpTree {
     /// oracle's retained map iterator); `None` at endOpAll.
     pub fn next_id_after(&self, cur: OpId) -> Option<OpId> {
         use std::ops::Bound::Excluded;
-        let key = self.arena.get(cur)?.seq_key;
+        let cell = self.arena.get(cur)?;
+        if cell.in_tree {
+            // Stored-iterator fast path: the cell's `tree_next` IS the
+            // in-order successor link (maintained at the map's
+            // insert/erase sites) — the one-hop walk the oracle's
+            // `op_state++` performs on the live map node
+            // (_Rb_tree_increment), replacing the per-advance root
+            // descent the former `range` search paid (PERF-BTREE-0001:
+            // 5.83M descents × ~537 Ir on the VdbeExec pole).
+            return if cell.tree_next.is_sentinel() {
+                None
+            } else {
+                Some(cell.tree_next)
+            };
+        }
+        // The cell was erased since the cursor parked on it: its frozen
+        // links are the removal-time neighbors, which may be stale
+        // against later map traffic. Fall back to the exact former
+        // semantics — a fresh strict-successor range search on the stored
+        // key (identical result to the pre-PERF-BTREE-0001 form, and the
+        // only defined behavior for the oracle-UB case of a rule
+        // destroying the parked op).
         self.inner
-            .range((Excluded(key), std::ops::Bound::Unbounded))
+            .range((Excluded(cell.seq_key), std::ops::Bound::Unbounded))
             .next()
             .map(|(_, &id)| id)
     }
@@ -2085,6 +2225,9 @@ impl PcodeOpTree {
             ins_next: OpId::SENTINEL,
             code_prev: OpId::SENTINEL,
             code_next: OpId::SENTINEL,
+            tree_prev: OpId::SENTINEL,
+            tree_next: OpId::SENTINEL,
+            in_tree: false,
         });
         op.0.write().unwrap().op_id = Some(id);
         id
@@ -3389,6 +3532,121 @@ mod tests {
         let a_g = a.0.read().unwrap();
         let b_g = b.0.read().unwrap();
         assert!(!a_g.is_moveable(&b_g, &fx.bank));
+    }
+
+    /// Deterministic LCG for the tree-link invariant fuzz (same shape as
+    /// the arena.rs order-semantics fuzzes).
+    struct TreeLinkLcg(u64);
+    impl TreeLinkLcg {
+        fn next(&mut self) -> u64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            self.0 >> 33
+        }
+    }
+
+    /// PERF-BTREE-0001 acceptance: the tree-order links must reproduce the
+    /// BTreeMap's strict-successor relation under arbitrary mixed
+    /// insert/remove traffic, for in-tree cursors AND for cursors parked
+    /// on cells that were later removed (the frozen-link fallback must
+    /// equal a fresh map range search on the stored key). This is the
+    /// executable form of the OpCell::tree_next invariant block.
+    #[test]
+    fn optree_order_links_match_map_successor_under_fuzz() {
+        use std::ops::Bound::Excluded;
+        let mut lcg = TreeLinkLcg(0xC0FFEE);
+        let mut tree = PcodeOpTree::new();
+        let mut live: Vec<(SeqNumKey, PcodeOpRef)> = Vec::new();
+        let mut retired: Vec<(SeqNumKey, PcodeOpRef)> = Vec::new();
+        for round in 0..4000u32 {
+            let roll = lcg.next() % 4;
+            if live.is_empty() || roll != 0 {
+                // insert: random (offset, uniq) key from a collision-prone
+                // space (keep-first dedup gets exercised); occasionally
+                // re-insert a retired op (cell reuse over frozen links).
+                let op_ref = if !retired.is_empty() && roll == 1 {
+                    let idx = (lcg.next() as usize) % retired.len();
+                    retired.swap_remove(idx).1
+                } else {
+                    let offset = (lcg.next() % 64) as u64 * 8;
+                    let uniq = (lcg.next() % 4096) as u32;
+                    let seq = SeqNum::new(Address::new(offset), uniq);
+                    let mut op = PcodeOp::new(seq, OpCode::CPUI_INT_ADD);
+                    op.set_opcode_flags(OpCode::CPUI_INT_ADD);
+                    PcodeOpRef(Arc::new(RwLock::new(op)))
+                };
+                let seq_key = {
+                    let o = op_ref.0.read().unwrap();
+                    let seq = &o.start;
+                    SeqNumKey::new(
+                        crate::varnode::space_off_of_address(&seq.get_addr()),
+                        seq.get_time() as u64,
+                    )
+                };
+                let inserted = tree.insert(op_ref.clone());
+                let was_new = !live.iter().any(|(k, _)| *k == seq_key);
+                assert_eq!(
+                    inserted, was_new,
+                    "insert return must equal map-key novelty"
+                );
+                if was_new {
+                    live.push((seq_key, op_ref));
+                }
+            } else {
+                // remove a random live entry (bank destroy path)
+                let idx = (lcg.next() as usize) % live.len();
+                let (key, op_ref) = live.swap_remove(idx);
+                assert!(tree.remove(&op_ref), "stored-key remove must hit");
+                retired.push((key, op_ref));
+            }
+            // --- invariant check: links == map order, every round ---
+            let map_ids: Vec<OpId> = tree.inner.values().copied().collect();
+            // map iteration IS key order; clone the ids as the
+            // expected order directly (BTreeMap iterates in key order).
+            let by_key: Vec<OpId> = tree.inner.values().copied().collect();
+            // head anchor + full chain walk == map order
+            let mut chain = Vec::new();
+            let mut cur = tree.first_id();
+            while let Some(id) = cur {
+                chain.push(id);
+                cur = tree.next_id_after(id);
+            }
+            assert_eq!(chain, map_ids, "link walk from head == map order");
+            // per-cell: in_tree ⇔ present in map; next == strict successor
+            for (k, &id) in tree.inner.iter() {
+                let cell = tree.arena.get(id).unwrap();
+                assert!(cell.in_tree, "map member must be in_tree");
+                let expect = tree
+                    .inner
+                    .range((Excluded(*k), std::ops::Bound::Unbounded))
+                    .next()
+                    .map(|(_, &rid)| rid);
+                assert_eq!(
+                    tree.next_id_after(id),
+                    expect,
+                    "link successor == strict-key successor for live cell"
+                );
+            }
+            // retired cursors: frozen fallback == fresh search on stored key
+            for (key, op_ref) in &retired {
+                let id = op_ref.0.read().unwrap().op_id.unwrap();
+                let cell = tree.arena.get(id).unwrap();
+                assert!(!cell.in_tree, "retired cell must be out of tree");
+                let expect = tree
+                    .inner
+                    .range((Excluded(*key), std::ops::Bound::Unbounded))
+                    .next()
+                    .map(|(_, &rid)| rid);
+                assert_eq!(
+                    tree.next_id_after(id),
+                    expect,
+                    "frozen-cursor fallback == fresh strict-key successor"
+                );
+            }
+        }
+        // final len surface
+        assert_eq!(tree.len(), live.len());
+        tree.clear();
+        assert!(tree.first_id().is_none());
     }
 }
 
