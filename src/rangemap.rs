@@ -103,35 +103,147 @@ pub struct RangeMapCursor {
 }
 
 /// Iterator over records attached to refined sub-ranges.
-pub struct RangeMapIter<'a, R> {
-    inner: std::vec::IntoIter<&'a R>,
+///
+/// PERF-ALLOCFLOOR-0001: oracle form (rangemap.hh:330-346 find) returns a
+/// lazy `std::multiset` iterator pair — zero allocation per query. The prior
+/// Rudra form materialized a `Vec<&SubRange>` (all buckets) plus a `Vec<&R>`
+/// (window records) per query. This iterator walks the BTreeMap buckets
+/// lazily in both directions, skipping to the flattened window bounds, and
+/// resolves records through the O(1) id index — same multiset order, no
+/// per-query allocation.
+pub struct RangeMapIter<'a, R: RangeRecord> {
+    map: &'a RangeMap<R>,
+    fwd: std::collections::btree_map::Iter<'a, RangeKey<R::Subsort>, Vec<SubRange<R::Subsort>>>,
+    rev: std::collections::btree_map::Iter<'a, RangeKey<R::Subsort>, Vec<SubRange<R::Subsort>>>,
+    /// Current front bucket and offset into it (fwd not yet started when None).
+    fwd_cur: Option<(&'a Vec<SubRange<R::Subsort>>, usize)>,
+    /// Current back bucket and exclusive end offset (rev not yet started when None).
+    rev_cur: Option<(&'a Vec<SubRange<R::Subsort>>, usize)>,
+    /// Flattened elements to skip before the window's first part.
+    fwd_skip: usize,
+    /// Flattened elements after the window's last part.
+    rev_skip: usize,
+    /// Total parts remaining in the window.
+    remaining: usize,
 }
 
-impl<'a, R> Iterator for RangeMapIter<'a, R> {
+impl<'a, R: RangeRecord> RangeMapIter<'a, R> {
+    // RUDRA-GLUE: lazy flattened window [start, end) over the bucket multiset.
+    fn window(map: &'a RangeMap<R>, start: usize, end: usize) -> Self {
+        let total = map.tree.total_parts();
+        let start = start.min(end).min(total);
+        let end = end.min(total);
+        Self {
+            map,
+            fwd: map.tree.buckets.iter(),
+            rev: map.tree.buckets.iter(),
+            fwd_cur: None,
+            rev_cur: None,
+            fwd_skip: start,
+            rev_skip: total - end,
+            remaining: end - start,
+        }
+    }
+}
+
+impl<'a, R: RangeRecord> Iterator for RangeMapIter<'a, R> {
     type Item = &'a R;
 
     // Ghidra: rangemap.hh:107 PartIterator &operator++(void)
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        if self.remaining == 0 {
+            return None;
+        }
+        loop {
+            if self.fwd_cur.is_none() {
+                self.fwd_cur = self.fwd.next().map(|(_key, bucket)| (bucket, 0usize));
+                if self.fwd_cur.is_none() {
+                    return None; // bucket multiset exhausted (window exhausted)
+                }
+            }
+            let (bucket, idx) = *self.fwd_cur.as_ref().unwrap();
+            if self.fwd_skip > 0 {
+                // Bucket-wise skip — never walks skipped elements one by one.
+                let take = self.fwd_skip.min(bucket.len() - idx);
+                self.fwd_skip -= take;
+                let next_idx = idx + take;
+                self.fwd_cur = if next_idx == bucket.len() {
+                    None
+                } else {
+                    Some((bucket, next_idx))
+                };
+                continue;
+            }
+            if idx >= bucket.len() {
+                self.fwd_cur = None;
+                continue;
+            }
+            self.fwd_cur = if idx + 1 == bucket.len() {
+                None
+            } else {
+                Some((bucket, idx + 1))
+            };
+            self.remaining -= 1;
+            let map: &'a RangeMap<R> = self.map;
+            return Some(map.record_by_id(bucket[idx].record_id));
+        }
     }
 
-    // RUDRA-GLUE: size_hint forwards the owned reference-vector iterator metadata.
+    // RUDRA-GLUE: forwards the remaining-window count.
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
+        (self.remaining, Some(self.remaining))
     }
 }
 
-impl<R> DoubleEndedIterator for RangeMapIter<'_, R> {
+impl<R: RangeRecord> DoubleEndedIterator for RangeMapIter<'_, R> {
     // Ghidra: rangemap.hh:110 PartIterator &operator--(void)
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner.next_back()
+        if self.remaining == 0 {
+            return None;
+        }
+        loop {
+            if self.rev_cur.is_none() {
+                self.rev_cur = self
+                    .rev
+                    .next_back()
+                    .map(|(_key, bucket)| (bucket, bucket.len()));
+                if self.rev_cur.is_none() {
+                    return None; // bucket multiset exhausted (window exhausted)
+                }
+            }
+            let (bucket, end_idx) = *self.rev_cur.as_ref().unwrap();
+            if self.rev_skip > 0 {
+                // Bucket-wise skip from the back.
+                let take = self.rev_skip.min(end_idx);
+                self.rev_skip -= take;
+                let next_end = end_idx - take;
+                self.rev_cur = if next_end == 0 {
+                    None
+                } else {
+                    Some((bucket, next_end))
+                };
+                continue;
+            }
+            if end_idx == 0 {
+                self.rev_cur = None;
+                continue;
+            }
+            self.rev_cur = if end_idx - 1 == 0 {
+                None
+            } else {
+                Some((bucket, end_idx - 1))
+            };
+            self.remaining -= 1;
+            let map: &RangeMap<R> = self.map;
+            return Some(map.record_by_id(bucket[end_idx - 1].record_id));
+        }
     }
 }
 
-impl<R> ExactSizeIterator for RangeMapIter<'_, R> {
-    // RUDRA-GLUE: ExactSizeIterator exposure for the materialized iterator domain.
+impl<R: RangeRecord> ExactSizeIterator for RangeMapIter<'_, R> {
+    // RUDRA-GLUE: ExactSizeIterator exposure for the lazy window domain.
     fn len(&self) -> usize {
-        self.inner.len()
+        self.remaining
     }
 }
 
@@ -198,11 +310,56 @@ impl<S: RangeSubsort> RangeTree<S> {
     }
 
     // RUDRA-GLUE: exposes immutable flattened multiset positions to Rust cursors.
-    fn ordered_part_refs(&self) -> Vec<&SubRange<S>> {
-        self.buckets
-            .values()
-            .flat_map(|bucket| bucket.iter())
-            .collect()
+    // PERF-ALLOCFLOOR-0001: the query paths no longer materialize the flattened
+    // Vec; these bucket-walk helpers implement the same flattened position
+    // domain with zero allocation (oracle walks its multiset in place).
+    fn total_parts(&self) -> usize {
+        self.buckets.values().map(|bucket| bucket.len()).sum()
+    }
+
+    // RUDRA-GLUE: partition_point over the flattened multiset for a strict key
+    // bound — the predicate is uniform within a bucket (it depends only on the
+    // bucket key), so the count is the sum of strictly-below bucket lengths.
+    fn count_parts_below(&self, key: &RangeKey<S>) -> usize {
+        self.buckets.range(..key).map(|(_k, b)| b.len()).sum()
+    }
+
+    // RUDRA-GLUE: partition_point over the flattened multiset for an inclusive
+    // key bound (subsort-maximum semantics), summing bucket lengths.
+    fn count_parts_at_most(&self, key: &RangeKey<S>) -> usize {
+        self.buckets.range(..=key).map(|(_k, b)| b.len()).sum()
+    }
+
+    // RUDRA-GLUE: first bucket whose key is at or after `key` (lower_bound).
+    fn first_bucket_at_or_after(
+        &self,
+        key: &RangeKey<S>,
+    ) -> Option<(&RangeKey<S>, &Vec<SubRange<S>>)> {
+        self.buckets.range(key..).next()
+    }
+
+    // RUDRA-GLUE: part at a flattened multiset position, bucket-wise walk.
+    fn part_at_flattened(&self, position: usize) -> Option<&SubRange<S>> {
+        let mut position = position;
+        for bucket in self.buckets.values() {
+            if position < bucket.len() {
+                return Some(&bucket[position]);
+            }
+            position -= bucket.len();
+        }
+        None
+    }
+
+    // RUDRA-GLUE: flattened multiset position of a part serial, bucket-wise walk.
+    fn position_of_serial(&self, serial: u64) -> Option<usize> {
+        let mut base = 0usize;
+        for bucket in self.buckets.values() {
+            if let Some(offset) = bucket.iter().position(|part| part.serial == serial) {
+                return Some(base + offset);
+            }
+            base += bucket.len();
+        }
+        None
     }
 }
 
@@ -214,6 +371,13 @@ impl<S: RangeSubsort> RangeTree<S> {
 pub struct RangeMap<R: RangeRecord> {
     tree: RangeTree<R::Subsort>,
     records: Vec<StoredRecord<R>>,
+    /// O(1) record id -> `records` position. PERF-ALLOCFLOOR-0001: the oracle
+    /// stores the record list iterator directly in each AddrRange
+    /// (rangemap.hh:60-62 `value`), so record access is a pointer deref; the
+    /// prior Rust linear scan over `records` per resolved part had no oracle
+    /// counterpart. Ids stay unique across erase (monotonic counter), so this
+    /// side index is exact for every live record.
+    record_index: std::collections::HashMap<RangeMapId, usize>,
     owner_generation: u64,
     next_record_id: u64,
     next_part_serial: u64,
@@ -233,6 +397,7 @@ impl<R: RangeRecord> RangeMap<R> {
         Self {
             tree: RangeTree::default(),
             records: Vec::new(),
+            record_index: std::collections::HashMap::new(),
             owner_generation: NEXT_RANGE_MAP_GENERATION.fetch_add(1, AtomicOrdering::Relaxed),
             next_record_id: 0,
             next_part_serial: 0,
@@ -250,6 +415,7 @@ impl<R: RangeRecord> RangeMap<R> {
     pub fn clear(&mut self) {
         self.tree.buckets.clear();
         self.records.clear();
+        self.record_index.clear();
     }
 
     // RUDRA-GLUE: len (no Ghidra counterpart found)
@@ -418,14 +584,18 @@ impl<R: RangeRecord> RangeMap<R> {
         let spot = Self::lower_bound(&parts, &spot_key);
         let record_position = parts
             .get(spot)
-            .and_then(|part| {
-                self.records
-                    .iter()
-                    .position(|stored| stored.id == part.record_id)
-            })
+            .and_then(|part| self.record_index.get(&part.record_id).copied())
             .unwrap_or(self.records.len());
         self.records
             .insert(record_position, StoredRecord { id, value: record });
+        // PERF-ALLOCFLOOR-0001: maintain the id side index alongside the
+        // record list insertion (positions at or after the insert shift).
+        for position in self.record_index.values_mut() {
+            if *position >= record_position {
+                *position += 1;
+            }
+        }
+        self.record_index.insert(id, record_position);
 
         let mut first = a;
         while low < parts.len() && parts[low].first <= b {
@@ -473,9 +643,9 @@ impl<R: RangeRecord> RangeMap<R> {
     /// Erase one record and sew partition boundaries no longer required by
     /// any remaining record.
     pub fn erase(&mut self, id: RangeMapId) -> Option<R> {
-        let record_index = self.records.iter().position(|stored| stored.id == id)?;
-        let a = self.records[record_index].value.first();
-        let b = self.records[record_index].value.last();
+        let record_position = self.record_index.get(&id).copied()?;
+        let a = self.records[record_position].value.first();
+        let b = self.records[record_position].value.last();
         let mut parts = self.tree.ordered_parts();
         let low_key = RangeKey {
             last: a,
@@ -538,7 +708,16 @@ impl<R: RangeRecord> RangeMap<R> {
             Self::zip(&mut parts, b, iter);
         }
         self.tree.replace_ordered_parts(parts);
-        Some(self.records.remove(record_index).value)
+        let value = self.records.remove(record_position).value;
+        // PERF-ALLOCFLOOR-0001: maintain the id side index alongside the
+        // record list removal (positions after the removal shift down).
+        self.record_index.remove(&id);
+        for position in self.record_index.values_mut() {
+            if *position > record_position {
+                *position -= 1;
+            }
+        }
+        Some(value)
     }
 
     // Ghidra: rangemap.hh:168 void erase(const_iterator iter)
@@ -547,8 +726,7 @@ impl<R: RangeRecord> RangeMap<R> {
         let position = self.resolve_cursor(cursor)?;
         let id = self
             .tree
-            .ordered_part_refs()
-            .get(position)
+            .part_at_flattened(position)
             .map(|part| part.record_id)?;
         self.erase(id)
     }
@@ -558,22 +736,17 @@ impl<R: RangeRecord> RangeMap<R> {
         if cursor.owner_generation != self.owner_generation {
             return None;
         }
-        let parts = self.tree.ordered_part_refs();
         match cursor.part_serial {
-            Some(serial) => parts.iter().position(|part| part.serial == serial),
-            None => Some(parts.len()),
+            Some(serial) => self.tree.position_of_serial(serial),
+            None => Some(self.tree.total_parts()),
         }
     }
 
     // RUDRA-GLUE: constructs a stable Rust cursor from a current multiset ordinal.
-    fn cursor_for_position(
-        &self,
-        parts: &[&SubRange<R::Subsort>],
-        position: usize,
-    ) -> RangeMapCursor {
+    fn cursor_at_flattened(&self, position: usize) -> RangeMapCursor {
         RangeMapCursor {
             owner_generation: self.owner_generation,
-            part_serial: parts.get(position).map(|part| part.serial),
+            part_serial: self.tree.part_at_flattened(position).map(|part| part.serial),
         }
     }
 
@@ -587,7 +760,7 @@ impl<R: RangeRecord> RangeMap<R> {
     /// Return the record referenced by a live non-end cursor.
     pub fn record_at_cursor(&self, cursor: RangeMapCursor) -> Option<&R> {
         let position = self.resolve_cursor(cursor)?;
-        let part = self.tree.ordered_part_refs().get(position).copied()?;
+        let part = self.tree.part_at_flattened(position)?;
         Some(self.record_by_id(part.record_id))
     }
 
@@ -595,11 +768,10 @@ impl<R: RangeRecord> RangeMap<R> {
     /// Advance a live non-end cursor to the following part (possibly end).
     pub fn next_cursor(&self, cursor: RangeMapCursor) -> Option<RangeMapCursor> {
         let position = self.resolve_cursor(cursor)?;
-        let parts = self.tree.ordered_part_refs();
-        if position == parts.len() {
-            return None;
+        if self.tree.part_at_flattened(position).is_none() {
+            return None; // position denotes this map's end
         }
-        Some(self.cursor_for_position(&parts, position + 1))
+        Some(self.cursor_at_flattened(position + 1))
     }
 
     // Ghidra: rangemap.hh:110 PartIterator &operator--(void)
@@ -609,58 +781,53 @@ impl<R: RangeRecord> RangeMap<R> {
         if position == 0 {
             return None;
         }
-        let parts = self.tree.ordered_part_refs();
-        Some(self.cursor_for_position(&parts, position - 1))
+        Some(self.cursor_at_flattened(position - 1))
     }
 
     // RUDRA-GLUE: resolves stable record identity to a Rust reference.
+    // PERF-ALLOCFLOOR-0001: O(1) via the id side index — the oracle's AddrRange
+    // carries the record list iterator directly (rangemap.hh:60-62), so the
+    // prior linear scan over all records per resolved part was pure Rust-side
+    // overhead.
     fn record_by_id(&self, id: RangeMapId) -> &R {
-        &self
-            .records
-            .iter()
-            .find(|stored| stored.id == id)
-            .expect("rangemap partition must reference a live record")
-            .value
+        let position = *self
+            .record_index
+            .get(&id)
+            .expect("rangemap partition must reference a live record");
+        &self.records[position].value
     }
 
     // RUDRA-GLUE: materializes a Rust iterator from the opaque PartIterator index domain.
+    // PERF-ALLOCFLOOR-0001: lazy bucket walk over the flattened window — no
+    // per-query Vec (oracle returns a lazy multiset iterator pair,
+    // rangemap.hh:330-346).
     fn iterator_for_bounds(&self, start: usize, end: usize) -> RangeMapIter<'_, R> {
-        let parts = self.tree.ordered_part_refs();
-        let end = end.min(parts.len());
-        let start = start.min(end);
-        let records = parts[start..end]
-            .iter()
-            .map(|part| self.record_by_id(part.record_id))
-            .collect::<Vec<_>>();
-        RangeMapIter {
-            inner: records.into_iter(),
-        }
+        RangeMapIter::window(self, start, end)
     }
 
     // Ghidra: rangemap.hh:332 rangemap<_recordtype>::find(linetype point) const
     /// Iterate over every sub-range intersecting `point` in ascending sub-sort
     /// and comparator-equivalent multiset order.
     pub fn find(&self, point: u64) -> RangeMapIter<'_, R> {
-        let parts = self.tree.ordered_part_refs();
-        let key = RangeKey {
+        let start_key = RangeKey {
             last: point,
             subsort: R::Subsort::minimum(),
         };
-        let start = parts.partition_point(|part| {
-            part.last < key.last || (part.last == key.last && part.subsort < key.subsort)
-        });
-        if start == parts.len() || point < parts[start].first {
+        let start = self.tree.count_parts_below(&start_key);
+        // The part at flattened position `start` is the first element of the
+        // first bucket at or after `start_key` (same check as the oracle's
+        // `iter1 == tree.end() || point < (*iter1).first`, rangemap.hh:340).
+        let Some((bucket_key, bucket)) = self.tree.first_bucket_at_or_after(&start_key) else {
+            return self.iterator_for_bounds(start, start);
+        };
+        if point < bucket[0].first {
             return self.iterator_for_bounds(start, start);
         }
-        let last = parts[start].last;
         let end_key = RangeKey {
-            last,
+            last: bucket_key.last,
             subsort: R::Subsort::maximum(),
         };
-        let end = parts.partition_point(|part| {
-            part.last < end_key.last
-                || (part.last == end_key.last && part.subsort <= end_key.subsort)
-        });
+        let end = self.tree.count_parts_at_most(&end_key);
         self.iterator_for_bounds(start, end)
     }
 
@@ -673,26 +840,22 @@ impl<R: RangeRecord> RangeMap<R> {
         subsort1: &R::Subsort,
         subsort2: &R::Subsort,
     ) -> RangeMapIter<'_, R> {
-        let parts = self.tree.ordered_part_refs();
         let start_key = RangeKey {
             last: point,
             subsort: subsort1.clone(),
         };
-        let start = parts.partition_point(|part| {
-            part.last < start_key.last
-                || (part.last == start_key.last && part.subsort < start_key.subsort)
-        });
-        if start == parts.len() || point < parts[start].first {
+        let start = self.tree.count_parts_below(&start_key);
+        let Some((bucket_key, bucket)) = self.tree.first_bucket_at_or_after(&start_key) else {
+            return self.iterator_for_bounds(start, start);
+        };
+        if point < bucket[0].first {
             return self.iterator_for_bounds(start, start);
         }
         let end_key = RangeKey {
-            last: parts[start].last,
+            last: bucket_key.last,
             subsort: subsort2.clone(),
         };
-        let end = parts.partition_point(|part| {
-            part.last < end_key.last
-                || (part.last == end_key.last && part.subsort <= end_key.subsort)
-        });
+        let end = self.tree.count_parts_at_most(&end_key);
         self.iterator_for_bounds(start, end)
     }
 
@@ -700,23 +863,38 @@ impl<R: RangeRecord> RangeMap<R> {
     /// Return the first multiset position whose ending boundary is at or after
     /// `point`.
     pub fn find_begin(&self, point: u64) -> RangeMapCursor {
-        let parts = self.tree.ordered_part_refs();
-        let position = parts.partition_point(|part| part.last < point);
-        self.cursor_for_position(&parts, position)
+        let key = RangeKey {
+            last: point,
+            subsort: R::Subsort::minimum(),
+        };
+        let position = self.tree.count_parts_below(&key);
+        self.cursor_at_flattened(position)
     }
 
     // Ghidra: rangemap.hh:389 typename rangemap<_recordtype>::const_iterator rangemap<_recordtype>::find_end(linetype point) const
     /// Return the first position after the partition containing `point`, or
     /// the first position beyond `point` if it lies in a gap.
     pub fn find_end(&self, point: u64) -> RangeMapCursor {
-        let parts = self.tree.ordered_part_refs();
-        let mut iter = parts.partition_point(|part| part.last <= point);
-        if iter == parts.len() || point < parts[iter].first {
-            return self.cursor_for_position(&parts, iter);
+        let bound = RangeKey {
+            last: point,
+            subsort: R::Subsort::maximum(),
+        };
+        let position = self.tree.count_parts_at_most(&bound);
+        let Some(part) = self.tree.part_at_flattened(position) else {
+            return self.cursor_at_flattened(position);
+        };
+        if point < part.first {
+            return self.cursor_at_flattened(position);
         }
-        let containing_last = parts[iter].last;
-        iter = parts.partition_point(|part| part.last <= containing_last);
-        self.cursor_for_position(&parts, iter)
+        // `point` is contained in the sub-range at `position`; the oracle
+        // returns the first position after that whole containing partition
+        // (rangemap.hh:402-403).
+        let containing_bound = RangeKey {
+            last: part.last,
+            subsort: R::Subsort::maximum(),
+        };
+        let end = self.tree.count_parts_at_most(&containing_bound);
+        self.cursor_at_flattened(end)
     }
 
     // RUDRA-GLUE: Rust range adapter for two Ghidra PartIterator cursors.
@@ -736,9 +914,12 @@ impl<R: RangeRecord> RangeMap<R> {
     /// This is the first sub-range in `(last, subsort)` multiset order, which
     /// can begin after `point` when the query starts in a gap.
     pub fn find_overlap(&self, point: u64, end: u64) -> Option<&R> {
-        let parts = self.tree.ordered_part_refs();
-        let iter = parts.partition_point(|part| part.last < point);
-        let part = parts.get(iter)?;
+        let key = RangeKey {
+            last: point,
+            subsort: R::Subsort::minimum(),
+        };
+        let position = self.tree.count_parts_below(&key);
+        let part = self.tree.part_at_flattened(position)?;
         if part.first <= end {
             return Some(self.record_by_id(part.record_id));
         }
@@ -780,7 +961,7 @@ impl<R: RangeRecord> RangeMap<R> {
     /// Iterate over the complete refined sub-range multiset.  Records appear
     /// once per stored sub-range and may therefore repeat.
     pub fn iter(&self) -> RangeMapIter<'_, R> {
-        let len = self.tree.ordered_part_refs().len();
+        let len = self.tree.total_parts();
         self.iterator_for_bounds(0, len)
     }
 }

@@ -4813,3 +4813,15 @@ F5SQ-RETCOPY-JOINSPACE-0001）。
 恒等零位移;canon curl f903372a/httpd 3617ecc3 + VdbeExec b3f5b487/606dd8c0
 钉组恒等;tests 2049P。
 - 2026-10-03: 测试内残留 F5PROBE eprintln 清除（f5sq/MB83 遗留探针标签;仅测试 stderr 行,断言不动,零行为影响——root 卫生清理）
+
+## 2026-10-03：inrefs 直读形态（PERF-ALLOCFLOOR-0001 session 2 簇①）
+
+- `ActionDeadCode::mark_consumed_parameters`（coreaction.cc:3840-3862）——单次
+  call op 读守卫横跨全函数体就地迭代（oracle cc:3844-3860 单一 const op 视图直
+  读 getIn(i)；体只读 varnode/fc 状态，pushConsumed 不写 call op）。
+- `ActionMultiCse::process_block`（coreaction.cc:822-877）——逐槽短守卫 + 单句柄
+  克隆（cc:840 每槽 `op->getIn(i)`），marked-input 臂在 find_match 自取
+  block_ops 守卫前无存活 op 守卫（保持既有锁序审计）。
+- `ActionLikelyTrash::count_marks`（coreaction.cc:2007-2030）——逐槽短守卫
+  （cc:2011-2012）；INDIRECT 链可回环至 op 本身（cc:2020），内层走查不跨 op
+  守卫。

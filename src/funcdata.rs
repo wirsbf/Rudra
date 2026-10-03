@@ -2890,8 +2890,12 @@ impl Funcdata {
             pos += 1;
             // Collect input varnodes and check if their defining ops should be
             // recursively destroyed.
-            let inrefs = cur.0.read().unwrap().inrefs.clone();
-            for in_vn in &inrefs {
+            // PERF-ALLOCFLOOR-0001: funcdata_op.cc:237-238 reads
+            // `op->getIn(i)` fresh per slot — per-slot short guard and single
+            // handle clone instead of cloning the whole input Vec.
+            let num_input = cur.0.read().unwrap().inrefs.len();
+            for slot in 0..num_input {
+                let in_vn = cur.0.read().unwrap().inrefs[slot].clone();
                 let (is_written, lone_descend_none, def) = {
                     let vn_rg = in_vn.read().unwrap();
                     let lone = vn_rg.lone_descend();
@@ -3611,15 +3615,18 @@ impl Funcdata {
                     });
                     if splice_phi == Some(true) {
                         let deadop = deadop.unwrap();
-                        let phi_ins: Vec<Arc<RwLock<crate::varnode::Varnode>>> = {
-                            let d_rg = deadop.read().unwrap();
-                            d_rg.inrefs.clone()
-                        };
                         // cc:284-286: append deadop->getIn(j), one per bb
                         // in-edge (the phi in bb has one input per in-edge).
-                        for j in 0..bb_in_count.min(phi_ins.len()) {
+                        // PERF-ALLOCFLOOR-0001: oracle reads
+                        // `deadop->getIn(j)` fresh per iteration while `op`
+                        // grows — per-slot short guard on deadop (a different
+                        // op, in bb) and single handle clone instead of
+                        // cloning the whole input Vec.
+                        let phi_len = deadop.read().unwrap().inrefs.len();
+                        for j in 0..bb_in_count.min(phi_len) {
+                            let phi_in = deadop.read().unwrap().inrefs[j].clone();
                             let slot = op.0.read().unwrap().inrefs.len();
-                            self.op_insert_input(&op, phi_ins[j].clone(), slot);
+                            self.op_insert_input(&op, phi_in, slot);
                         }
                     } else {
                         for _ in 0..bb_in_count {
@@ -6515,9 +6522,13 @@ impl Funcdata {
     /// membership and additionally frees the input/output Varnodes.
     pub fn op_destroy_raw(&mut self, op: &crate::op::PcodeOpRef) {
         // cc:256-257: destroy each input varnode.
-        let inputs = op.0.read().unwrap().inrefs.clone();
-        for vn in &inputs {
-            self.destroy_varnode(vn);
+        // PERF-ALLOCFLOOR-0001: oracle reads `op->getIn(i)` fresh per slot —
+        // per-slot short guard and single handle clone instead of cloning the
+        // whole input Vec.
+        let num_input = op.0.read().unwrap().inrefs.len();
+        for slot in 0..num_input {
+            let vn = op.0.read().unwrap().inrefs[slot].clone();
+            self.destroy_varnode(&vn);
         }
         // cc:258-259: destroy the output varnode if present.
         let out = op.0.read().unwrap().output.clone();
@@ -8227,9 +8238,12 @@ impl Funcdata {
         let num_inputs = def_arc.read().unwrap().inrefs.len();
         let def_addr = def_arc.read().unwrap().get_addr();
         let def_opcode = def_arc.read().unwrap().opcode;
-        // Snapshot inputs before mutation (avoid holding lock across new_op).
-        let inputs: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
-            def_arc.read().unwrap().inrefs.clone();
+        // Snapshot note (PERF-ALLOCFLOOR-0001): the per-descendant copy loop
+        // below re-reads `def_arc` inputs per slot — the oracle form
+        // (funcdata_varnode.cc:1559-1560 `opSetInput(newop,op->getIn(i),i)`,
+        // fresh pointer read per slot) — so no whole-Vec clone survives
+        // between iterations and no def-op guard is held across
+        // opInsertBefore/opSetInput which take their own op locks.
         let vn_size = vn.read().unwrap().get_size();
         let vn_addr = vn.read().unwrap().loc.clone();
         let vn_space = vn.read().unwrap().address_space;
@@ -8275,8 +8289,9 @@ impl Funcdata {
             // opSetOpcode(newop, op->code())
             self.op_set_opcode(&newop, def_opcode);
             // for each input: opSetInput(newop, op->getIn(i), i)
-            for (idx, inp) in inputs.iter().enumerate() {
-                self.op_set_input(&newop, inp.clone(), idx);
+            for idx in 0..num_inputs {
+                let inp = def_arc.read().unwrap().inrefs[idx].clone();
+                self.op_set_input(&newop, inp, idx);
             }
             // opSetInput(useop, newvn, slot)
             self.op_set_input(&useop, newvn, slot as usize);
@@ -8342,7 +8357,10 @@ impl Funcdata {
                 op2.clone()
             } else {
                 // cc:1372-1386: build the replacement at the common block.
-                let (num_inputs, opcode, out_size, out_space, out_addr, inrefs) = {
+                // PERF-ALLOCFLOOR-0001: oracle cc:1378-1382 reads
+                // `op1->getIn(i)` fresh per slot — per-slot short guard and
+                // single handle clone instead of cloning the whole input Vec.
+                let (num_inputs, opcode, out_size, out_space, out_addr) = {
                     let o1 = op1.0.read().unwrap();
                     let out = o1.get_out().expect("cseElimination: op1 has output");
                     let out_rg = out.read().unwrap();
@@ -8352,7 +8370,6 @@ impl Funcdata {
                         out_rg.get_size(),
                         out_rg.get_space(),
                         *out_rg.get_addr(),
-                        o1.inrefs.clone(),
                     )
                 };
                 let stop_addr = {
@@ -8366,7 +8383,8 @@ impl Funcdata {
                 let replace = self.new_op(num_inputs, stop_addr);
                 self.op_set_opcode(&replace, opcode);
                 self.new_varnode_out_full(out_size, out_space, out_addr, &replace);
-                for (i, vn) in inrefs.iter().enumerate() {
+                for i in 0..num_inputs {
+                    let vn = op1.0.read().unwrap().inrefs[i].clone();
                     let (is_const, size, offset) = {
                         let rg = vn.read().unwrap();
                         (rg.is_constant(), rg.get_size(), rg.get_offset())
@@ -8375,7 +8393,7 @@ impl Funcdata {
                         let cv = self.new_constant(size, offset);
                         self.op_set_input(&replace, cv, i);
                     } else {
-                        self.op_set_input(&replace, vn.clone(), i);
+                        self.op_set_input(&replace, vn, i);
                     }
                 }
                 self.op_insert_end(&replace, &common);

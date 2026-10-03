@@ -1306,3 +1306,13 @@ tests 2018P（细节见车道终报与 commit 7f1d71b4.. 的 Alignment Evidence�
 逐闭包 clear）。恒等面随主件: VdbeExec stdout md5 `15b47cf7`/全语料 assembled
 cmp 恒等/canon 双 md5 钉值/镜面五面恰钉值（详见 docs/api/cover.md COVERREBUILD
 节与车道终报）。
+
+## 2026-10-03：inrefs 直读形态（PERF-ALLOCFLOOR-0001 session 2 簇①）
+
+- `gather_partial_pieces`（op.cc:865-876 PieceNode::gatherPieces）——逐槽短守卫
+  + 单句柄克隆（oracle cc:869 每槽 `op->getIn(i)`，跨槽
+  `getIn(1-i)->getSize()` 同为活读）；递归对 nested op 自取守卫。
+- `merge_adjacent`（merge.cc:983-1013）——内层合并循环逐槽新鲜读
+  `op->getIn(i)`（cc:1000-1002 oracle 即为活读，merge 之间不触 op 输入表），
+  相邻对收集只携带 (op, out)，输入 Vec 快照移除（顺带消除旧快照形与 oracle
+  活读形的潜在陈旧差）。

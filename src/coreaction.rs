@@ -449,7 +449,13 @@ impl ActionDeadCode {
     ) {
         let Some(call_op) = fc.find_call_op(fd) else { return ;
         };
-        let inputs = call_op.0.read().unwrap().inrefs.clone();
+        // PERF-ALLOCFLOOR-0001: coreaction.cc:3844-3860 reads
+        // `callOp->getIn(i)` directly under one const op view — hold the read
+        // guard and iterate by reference instead of cloning the whole input
+        // Vec. The body only reads varnode/fc state (push_consumed reads vn,
+        // never writes the call op).
+        let call_rg = call_op.0.read().unwrap();
+        let inputs = &call_rg.inrefs;
         if let Some(target) = inputs.first() {
             Self::push_consumed(u64::MAX, target, worklist);
         }
@@ -11500,12 +11506,14 @@ impl ActionMultiCse {
 
         // Walk ops until we leave the MULTIEQUAL group or find a shadow.
         // Ghidra cc:828-863: the op scan holds one read guard per iteration;
-        // inputs are snapshotted so the marked-input arm can release the
-        // guard before find_match takes its own guards on block_ops.
+        // PERF-ALLOCFLOOR-0001: cc:840 reads `op->getIn(i)` fresh per slot —
+        // a per-slot short guard plus single handle clone replaces the whole
+        // input-Vec clone, keeping the marked-input arm guard-free before
+        // find_match takes its own guards on block_ops.
         'outer: for (idx, op) in block_ops.iter().enumerate() {
-            let (opc, inputs): (OpCode, Vec<Arc<std::sync::RwLock<crate::varnode::Varnode>>>) = {
+            let (opc, num_input) = {
                 let op_rg = op.0.read().unwrap();
-                (op_rg.opcode, op_rg.inrefs.clone())
+                (op_rg.opcode, op_rg.inrefs.len())
             };
             if opc == OpCode::CPUI_COPY {
                 continue;
@@ -11514,9 +11522,9 @@ impl ActionMultiCse {
                 break;
             }
             let vnpos = vnlist.len();
-            let num_input = inputs.len();
             for i in 0..num_input {
-                let vn = Self::resolve_copy(&inputs[i]);
+                let input = op.0.read().unwrap().inrefs[i].clone();
+                let vn = Self::resolve_copy(&input);
                 vnlist.push(vn.clone());
                 if vn.read().unwrap().is_mark() {
                     // Seen this varnode before — try findMatch.
@@ -13371,12 +13379,14 @@ impl ActionLikelyTrash {
     /// breaks.
     fn count_marks(op: &crate::op::PcodeOpRef) -> u32 {
         let mut res: u32 = 0;
-        let inputs: Vec<_> = {
-            let o = op.0.read().unwrap();
-            o.inrefs.clone()
-        };
-        for input in inputs {
-            let mut vn = input;
+        // PERF-ALLOCFLOOR-0001: cc:2011-2012 reads `op->getIn(i)` fresh per
+        // slot (pointer copy) — per-slot short guard and single handle clone
+        // instead of cloning the whole input Vec. The INDIRECT chain below
+        // can loop back to `op` itself (cc:2020), so no op guard is held
+        // across the inner walk.
+        let num_input = op.0.read().unwrap().inrefs.len();
+        for slot in 0..num_input {
+            let mut vn = op.0.read().unwrap().inrefs[slot].clone();
             loop {
                 // cc:2014-2017: marked input counts, stop.
                 if vn.read().unwrap().is_mark() {

@@ -2595,3 +2595,18 @@ op 变 INT_DIV,除数常量恰 0x18）。
 **验收**: sqlite 镜面 180→154（RowSetInit/str_vappendf/Int64ToText/
 ValueFromExpr 四函数归零,函数体==golden）;canon f903372a/3617ecc3 字节恒等;
 见车道终报 LANE_DECLBFORM_2026-10-02.md。
+
+## 2026-10-03：暂存 Vec 收敛 + inrefs 直读（PERF-ALLOCFLOOR-0001 session 2 簇①②）
+
+- `RuleMultiCollapse::apply_op`（cc:3234-3343）——① skiplist/expanded 预留容量
+  （reserv 放 heritage 预检之后，早退路径零分配；oracle cc:3237 栈上裸指针
+  vector 空起 push_back，预留只消 Rust 增长 realloc 阶梯，元素序/终态不变）；
+  ② func_eq 臂 earliestUse 走查流式化（cc:3306 / block.cc:2778-2795 无中间容
+  器）；③ 首个非常量输入单句柄克隆（cc:3316-3323 就地扫描），parms Vec 只在
+  else 臂物化（oracle cc:3325-3327 `vector<Varnode*> parms` 恰在该臂从活 op 建
+  立，CSE 搜索只读不改变输入）。
+- `RuleSubCommute::apply_op` SUBPIECE 下推循环（cc:4633-4649）——逐槽短守卫 +
+  单句柄克隆（cc:4634 每槽 `longform->getIn(i)` 新鲜读；循环体 opSetInput 写
+  同 op 槽位，不可持守卫跨写）。
+- `RuleConditionalMove::gather_expression`（cc:9287-9316）——工作列表扫描逐槽
+  短守卫 + 单句柄克隆（cc:9308 每槽 `op->getIn(i)`），整 Vec 快照移除。
