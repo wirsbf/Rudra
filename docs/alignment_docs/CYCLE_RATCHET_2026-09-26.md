@@ -248,6 +248,23 @@ block→block 证据键 16→15（+1 已定性/−2 移位吸收）。增补后
 `verify_cycle_ratchet.sh` 三断言全 PASS。CR-BLOCKFLIPW1 §5 已核
 消费层零改动+BANKSTATS 十计数器恒等——本增补是其 SCC 面的机械后果。
 
+### 5.3 白名单增补记录 — 2026-10-03（MB95 perf3 合入后）
+
+触发: wt/perf3（PERF-ALLOCFLOOR-0001 session 3,merge 0038b515）合入 master
+后,断言 (b) 对 2 个新证据键 FAIL。逐边定性（协议步骤 2,亲核双侧行）:
+
+| 证据键 | Rust 侧 | Ghidra 侧 | 分类 | 处置 |
+|---|---|---|---|---|
+| `field\|struct RebuildScratch\|descendants`（新增,cover→op） | cover.rs:554 `RebuildScratch.descendants: Vec<Arc<RwLock<PcodeOp>>>`——PERF3 件② 跨调用保留的 per-level descendants 缓冲（rebuild_worklist 每入口 clear,仅容量跨调用存活;RUDRA-GLUE 注释锚在结构体 doc 注释） | cover.cc:477-496 rebuild——oracle 每级后代经 `beginDescend()` 迭代器在**调用栈**上走查,PcodeOp 引用仅作局部 `const PcodeOp *ref`（cc:565 addRefPoint 参数域）,Cover 结构无任何字段存储 | a（字段持 op 句柄,SCC-BASE 同族;存储位=GLUE 跨调用保留域） | 入白名单 |
+| `field\|struct RebuildScratch\|path`（新增,cover→varnode） | cover.rs:552 `RebuildScratch.path: Vec<Arc<RwLock<Varnode>>>`——implied-output path 缓冲,同上保留语义 | cover.cc:480 `vector<const Varnode*> path(1,vn)`——oracle 把 path 保持为 rebuild 的**单栈向量局部**;Rudra 迭代 DFS 将同元素序列提升入保留 scratch（每调用内容==全新 Vec,容量跨调用） | a（字段持 varnode 句柄,SCC-BASE 同族;存储位=GLUE 跨调用保留域） | 入白名单 |
+
+无消失键。`--emit-freeze --accept-new` 增补 diff 人工核对: FROZEN_SCC
+24==24 恒等（cover/op/varnode 均为冻结成员,断言 (a) PASS 亲证无成员变化）;
+FROZEN_SOLO 58==58 恒等;cover→op/cover→varnode 证据键各 +1（纯新增,无
+表示层移位）。增补后 `verify_cycle_ratchet.sh` 三断言全 PASS。缓冲保留
+语义（跨调用等值性/五缓冲独立性/线程局部重入/早退路径）已经 CR-PERF3
+决定性问题 B 逐缓冲独立裁定（/dev/shm/rudra-reports/CR_PERF3_2026-10-03.md）
+——本增补是其 types 图投影面的机械后果。
 
 ## 6. CI 接入（Phase A/A2 执行时启用;当前入库+文档化,不强制）
 

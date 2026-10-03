@@ -229,9 +229,11 @@ FROZEN_EDGES = {
         'dyn-hold|struct PcodeOpSet|PcodeOpSetImpl',
     ],
     "cover->op": [
+        'field|struct RebuildScratch|descendants',
         'held-trait-sig|via dyn PcodeOpSetImpl sig|PcodeOpSetImpl',
     ],
     "cover->varnode": [
+        'field|struct RebuildScratch|path',
         'held-trait-sig|via dyn PcodeOpSetImpl sig|PcodeOpSetImpl',
     ],
     "cpool->type_system": [
@@ -571,8 +573,8 @@ PAIR_TAGS: dict[str, tuple[str, str, str]] = {
     "varnode->type_system": ("SCC-BASE", "a", "Varnode.v_type/VarnodeBank.type_factory"),
     # --- 被持有 trait 签名族（E13/E14/E15 同款机制,E 表未逐条列出的家族） ---
     "cover->cover":     ("TRAIT-SIG", "c", "PcodeOpSet 持 dyn PcodeOpSetImpl（族内）"),
-    "cover->op":        ("TRAIT-SIG", "c", "PcodeOpSetImpl 签名 op: &PcodeOp"),
-    "cover->varnode":   ("TRAIT-SIG", "c", "PcodeOpSetImpl 签名 vn: &Varnode"),
+    "cover->op":        ("SCC-BASE+TRAIT-SIG", "a,c", "PcodeOpSetImpl 签名 op: &PcodeOp + RebuildScratch.descendants 跨调用保留缓冲（MB95 §5.3,GLUE 存储位;oracle 调用栈局部）"),
+    "cover->varnode":   ("SCC-BASE+TRAIT-SIG", "a,c", "PcodeOpSetImpl 签名 vn: &Varnode + RebuildScratch.path 跨调用保留缓冲（MB95 §5.3,oracle cc:480 单栈向量局部提升）"),
     "pcodeinject->pcodeparse": ("TRAIT-SIG", "c", "持 dyn SleighSymbolLookup + InjectPayload.tpl: ConstructTpl"),
     "pcodeparse->pcodeparse": ("TRAIT-SIG", "c", "PcodeSnippet 持 dyn SleighSymbolLookup（族内）"),
     # --- E12 (a+GLUE) drill 双件 + Action 默认体 GLUE 阻断 ---
