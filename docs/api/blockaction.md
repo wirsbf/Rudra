@@ -1,5 +1,42 @@
 # `blockaction.rs` API Reference
 
+## 2026-10-03：identify fire 路径 peer 重定位 + 二段守卫 view 读（Lane IDENTIFY，速度道）
+- **残量画像（[IDPROF] env 探针 RUGRA_IDPROF=1，交付前撤净）**：VdbeExec --one 1055
+  identify fire 路径 1.39s 中 **install 重定位 O(size) 全图扫 0.96s**（14.76M slot 访问
+  ×每 slot 2 把写锁——Rudra slot 模型的补偿层，oracle 无此形态）；二段守卫
+  proper_if 1.18s（其中 `count_non_structural_in_edges` 0.73s）+ cat 0.68s。
+- **① install peer 重定位（identify_internal）**：oracle `selfIdentify`
+  （block.cc:895-931，亲读）遍历各 component 的 intothis/outofthis，只对相邻
+  peer `replaceOutEdge/replaceInEdge`（block.cc:910-924）——**从不全图扫描**。
+  Rudra 旧形态 install 换槽后 `for gi in 0..size` 全图扫找指向 install_idx 的边
+  （每 slot get_block + 双 rewrite 各一把写锁）。收敛：install 捕获相位记录外部
+  boundary peers（入边源/出边靶，`!is_consumed_idx && != install_idx` == 旧扫跳过
+  谓词），换槽后**只重写这些 peer**。覆盖等价：Rudra 边为配对半——指向
+  install_idx 的 out 半集合 == install 入边源集合（in 半同理）；捕获到重写之间
+  无变异可影响 install_idx 指向边（consumed 环 rewrite 只匹配 c_idx）。扫描量
+  14.76M slot → 24.9K peer。
+- **② 二段守卫 view 形（try_rule_proper_if / try_rule_cat）**：入口对之后的守卫
+  （cc:1386-1398 / cc:1291-1295——oracle 全部为非虚 inline 字段读 block.hh:
+  299-347）改为 bank 影读（边孪生 expect_out_edge/expect_in_edge + index/flags
+  cells）：proper_if 的自环/goto/decision/目标解析与 cat 的链头判定全部去
+  block RwLock 与 vtable；**SENTINEL（裸 fixture）回退 guard 读**，逐值相同。
+  cat 链行走 next_point 与 cur_decision 合并同一次边影读（旧两次读同值）;
+  head_idx 影读提升（原 `nodes[0].read().unwrap().get_index()` 第二把锁）。
+  新增 `view_out_edge_is_goto`/`view_out_edge_is_decision` helper（三通道完备性
+  同 CR-BLOCKSTRUCT2 §2-B 裁定：trait 默认=边标签, BlockBasic=+GOTO_EDGE_0/1
+  镜像位——影子两通道覆盖全语义）。
+- **③ proper_if dir 循环守卫序**：`count_non_structural_in_edges`（Rudra 对
+  oracle `clauseblock->sizeIn() != 1` 的 consumed/switch 补偿层——唯一贵读）
+  后置到纯读合取链末位；守卫全为纯读、fire 条件为合取，求值序重排不改变
+  fire 决策（ACTIONSTATS rule_hits 恒等亲证）。
+- **行为恒等链（全==master 钉值）**：VdbeExec canon `606dd8c0`/mirror
+  `b3f5b487`；ACTIONSTATS 917/302/5,825,780/28,722,406/63,713；corpus canon
+  `cf541df3`·5,279,715B/mirror `53bd3884`·5,285,342B（ok=1385/1385）；canon
+  curl `f903372a` 124/124 + httpd `3617ecc3` 34/34；镜面五面 0/0/0/0/0
+  （74/29/71/810/1385）；探针撤净（grep 零命中+重链复验）。探针分段口径：
+  identify total 1.39→0.43s，scan 0.96→0.007s，pif2 1.18→0.37s，pifc
+  0.73→0.003s，cat2 0.68→0.37s（12,288 fires 时点）。
+
 ## 2026-10-02：update_switch_case_reference 原地换引（Lane TRACEDAG，CMPDIR-TRACEDAG-GOTOEMIT-0001 承接）
 - `update_switch_case_reference`（case 体被再包裹时保持外层 BlockSwitch 的
   case/default 引用存活）由"整结构重建 + `graph.blocks[i] = new_sw` 换槽"改为
