@@ -205,10 +205,136 @@ impl Rule for RuleTrivialBool {
 /// Corresponds to Ghidra's `RulePropagateCopy`
 pub struct RulePropagateCopy;
 
+/// Hit descriptor for the `RulePropagateCopy` match/apply split
+/// (MATCHAPPLY pilot).
+///
+/// Carries everything the transform suffix (`Funcdata::opSetInput`,
+/// ruleaction.cc:3953-3954) needs: the winning input slot and the COPY's
+/// input varnode handle. `Send` is trivially satisfied (an `Arc` handle).
+/// A consumer of a descriptor must guarantee it is applied against the
+/// exact `Funcdata` state its match ran under (the MATCHAPPLY pilot's
+/// pass-level speculative window enforced this with a fire-abort
+/// invariant; measured 2026-10-03, archived under
+/// /dev/shm/rudra-tests/matchapply/pilot-patch/ — see
+/// LANE_MATCHAPPLY_2026-10-03 for why the window form is not shipped).
+// RUDRA-GLUE: Rudra parallelization infrastructure — the oracle's
+// Rule::applyOp (ruleaction.hh:94) is an integrated match+transform
+// virtual; the split exists so the read-only pattern probe can run
+// ahead of the serial mutation loop. Serial semantics are preserved by
+// composition: apply_op() == match_op() then apply_hit().
+pub struct PropagateCopyHit {
+    pub slot: usize,
+    pub invn: std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>,
+}
+
 impl RulePropagateCopy {
     // Ghidra: ruleaction.hh:725 RulePropagateCopy::RulePropagateCopy
     pub fn new() -> Self {
         Self
+    }
+
+    // RUDRA-GLUE: MATCHAPPLY speculative-match half of
+    // ruleaction.cc:3926 RulePropagateCopy::applyOp (cc:3929-3952 guard
+    // prefix, verbatim). Pure read: acquires only shared RwLock read
+    // guards on op/varnode cells and never touches `Funcdata` (the match
+    // walks op.inrefs -> def COPY -> in(0) entirely through Arc cell
+    // handles), so it is safe to run concurrently with other probes of
+    // the same frozen state. Returns the winning (slot, invn) pair, or
+    // the cc:3944-3945 LowlevelError for a self-defined varnode.
+    pub fn match_op(
+        &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>,
+    ) -> Result<Option<PropagateCopyHit>> {
+        use std::sync::Arc;
+        let op = op_arc.read().unwrap();
+        // cc:3933: if (op->isReturnCopy()) return 0;
+        // RETURN_COPY is set on CPUI_RETURN via TypeOpReturn (typeop.cc:879,
+        // applied by PcodeOp::setOpcode op.cc:284) and on heritage
+        // guardReturns COPYs via Funcdata::markReturnCopy (funcdata.hh:452).
+        if (op.flags & crate::op::pcodeop_flags::RETURN_COPY) != 0 {
+            return Ok(None);
+        }
+        // cc:3934-3955: for(i=0;i<op->numInput();++i) — ascending slot
+        // order, first eligible slot wins, single replacement.
+        for (i, vn_arc) in op.inrefs.iter().enumerate() {
+            // cc:3936: if (!vn->isWritten()) continue;
+            let vn = vn_arc.read().unwrap();
+            if !vn.is_written() {
+                continue;
+            }
+            // cc:3938: copyop = vn->getDef();
+            let copyop_arc = match vn.get_def() {
+                Some(a) => a,
+                None => continue,
+            };
+            // cc:3939-3940: if (copyop->code()!=CPUI_COPY) continue;
+            let invn_arc = {
+                let copyop = copyop_arc.read().unwrap();
+                if copyop.opcode != OpCode::CPUI_COPY {
+                    continue;
+                }
+                // cc:3942: invn = copyop->getIn(0);
+                match copyop.inrefs.get(0) {
+                    Some(v) => v.clone(),
+                    None => continue,
+                }
+            };
+            // cc:3943: if (!invn->isHeritageKnown()) continue;
+            // Don't propagate free's away from their first use.
+            if !invn_arc.read().unwrap().is_heritage_known() {
+                continue;
+            }
+            // cc:3944-3945: if (invn == vn) throw LowlevelError
+            if Arc::ptr_eq(&invn_arc, vn_arc) {
+                return Err(crate::error::Error::Lowlevel(
+                    "Self-defined varnode".to_string(),
+                ));
+            }
+            // cc:3946-3952: marker sub-guards.
+            if op.is_marker() {
+                let invn = invn_arc.read().unwrap();
+                // cc:3947: Don't propagate constants into markers.
+                if invn.is_constant() {
+                    continue;
+                }
+                // cc:3948: Don't propagate if we are keeping the COPY anyway.
+                if vn.is_addr_force() {
+                    continue;
+                }
+                // cc:3949-3951: We must not allow merging of different
+                // addrtieds.
+                if invn.is_addr_tied() {
+                    if let Some(out_arc) = &op.output {
+                        let out_vn = out_arc.read().unwrap();
+                        if out_vn.is_addr_tied() && *out_vn.get_addr() != *invn.get_addr() {
+                            continue;
+                        }
+                    }
+                }
+            }
+            return Ok(Some(PropagateCopyHit {
+                slot: i,
+                invn: invn_arc,
+            }));
+        }
+        Ok(None)
+    }
+
+    // RUDRA-GLUE: MATCHAPPLY apply half of ruleaction.cc:3926
+    // RulePropagateCopy::applyOp (cc:3953-3954 transform suffix,
+    // verbatim). Runs on the serial mutation path only, in the original
+    // visit order; the op read-guard is dropped before op_set_input
+    // takes its own write lock on the same op (RULE-SUBCANCEL-RWLOCK-0001
+    // discipline — match_op has returned by the time this runs).
+    pub fn apply_hit(
+        &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>,
+        hit: PropagateCopyHit, fd: &mut Funcdata,
+    ) -> Result<i32> {
+        fd.op_set_input(
+            &crate::op::PcodeOpRef(op_arc.clone()),
+            hit.invn,
+            hit.slot,
+        );
+        Ok(action_status::CHANGE)
     }
 }
 
@@ -237,94 +363,28 @@ impl Rule for RulePropagateCopy {
     fn apply_op(
         &self, op_arc: &std::sync::Arc<std::sync::RwLock<PcodeOp>>, fd: &mut Funcdata,
     ) -> Result<i32> {
-        use std::sync::Arc;
-        // cc:3929-3931: locals i/copyop/vn/invn — expressed as a single
-        // guarded scan; the op read-guard is dropped before op_set_input
-        // takes its own write lock on the same op.
-        let mut candidate: Option<(usize, Arc<std::sync::RwLock<crate::varnode::Varnode>>)> = None;
-        {
-            let op = op_arc.read().unwrap();
-            // cc:3933: if (op->isReturnCopy()) return 0;
-            // RETURN_COPY is set on CPUI_RETURN via TypeOpReturn (typeop.cc:879,
-            // applied by PcodeOp::setOpcode op.cc:284) and on heritage
-            // guardReturns COPYs via Funcdata::markReturnCopy (funcdata.hh:452).
-            if (op.flags & crate::op::pcodeop_flags::RETURN_COPY) != 0 {
-                return Ok(action_status::NO_CHANGE);
-            }
-            // cc:3934-3955: for(i=0;i<op->numInput();++i) — ascending slot
-            // order, first eligible slot wins, single replacement.
-            for (i, vn_arc) in op.inrefs.iter().enumerate() {
-                // cc:3936: if (!vn->isWritten()) continue;
-                let vn = vn_arc.read().unwrap();
-                if !vn.is_written() {
-                    continue;
-                }
-                // cc:3938: copyop = vn->getDef();
-                let copyop_arc = match vn.get_def() {
-                    Some(a) => a,
-                    None => continue,
-                };
-                // cc:3939-3940: if (copyop->code()!=CPUI_COPY) continue;
-                let invn_arc = {
-                    let copyop = copyop_arc.read().unwrap();
-                    if copyop.opcode != OpCode::CPUI_COPY {
-                        continue;
-                    }
-                    // cc:3942: invn = copyop->getIn(0);
-                    match copyop.inrefs.get(0) {
-                        Some(v) => v.clone(),
-                        None => continue,
-                    }
-                };
-                // cc:3943: if (!invn->isHeritageKnown()) continue;
-                // Don't propagate free's away from their first use.
-                if !invn_arc.read().unwrap().is_heritage_known() {
-                    continue;
-                }
-                // cc:3944-3945: if (invn == vn) throw LowlevelError
-                if Arc::ptr_eq(&invn_arc, vn_arc) {
-                    return Err(crate::error::Error::Lowlevel(
-                        "Self-defined varnode".to_string(),
-                    ));
-                }
-                // cc:3946-3952: marker sub-guards.
-                if op.is_marker() {
-                    let invn = invn_arc.read().unwrap();
-                    // cc:3947: Don't propagate constants into markers.
-                    if invn.is_constant() {
-                        continue;
-                    }
-                    // cc:3948: Don't propagate if we are keeping the COPY anyway.
-                    if vn.is_addr_force() {
-                        continue;
-                    }
-                    // cc:3949-3951: We must not allow merging of different
-                    // addrtieds.
-                    if invn.is_addr_tied() {
-                        if let Some(out_arc) = &op.output {
-                            let out_vn = out_arc.read().unwrap();
-                            if out_vn.is_addr_tied() && *out_vn.get_addr() != *invn.get_addr() {
-                                continue;
-                            }
-                        }
-                    }
-                }
-                candidate = Some((i, invn_arc));
-                break;
-            }
+        // MATCHAPPLY: exact composition of the split halves — `match_op`
+        // (cc:3929-3952 guards under the op read-guard, guard dropped at
+        // return) then `apply_hit` (cc:3953-3954 opSetInput + return 1).
+        // Byte-identical to the previous monolithic form; the split exists
+        // so a future speculative consumer can run the pure-read match
+        // ahead of the serial mutation loop (see the MATCHAPPLY lane
+        // report, 2026-10-03, for the measured pilot and its verdict).
+        match self.match_op(op_arc)? {
+            Some(hit) => self.apply_hit(op_arc, hit, fd),
+            None => Ok(action_status::NO_CHANGE),
         }
-        // cc:3953-3954: data.opSetInput(op,invn,i); return 1;
-        if let Some((slot, invn_arc)) = candidate {
-            fd.op_set_input(&crate::op::PcodeOpRef(op_arc.clone()), invn_arc, slot);
-            return Ok(action_status::CHANGE);
-        }
-        // cc:3956: return 0;
-        Ok(action_status::NO_CHANGE)
     }
 
     // Ghidra: ruleaction.hh:725 RulePropagateCopy::RulePropagateCopy (name literal "propagatecopy")
     fn get_name(&self) -> &str {
         "propagatecopy"
+    }
+
+    // RUDRA-GLUE: MATCHAPPLY concrete-type seam for the pool's
+    // speculative window (see Rule::as_propagate_copy).
+    fn as_propagate_copy(&self) -> Option<&RulePropagateCopy> {
+        Some(self)
     }
 
     // Ghidra: action.cc:706 Rule::getOpList

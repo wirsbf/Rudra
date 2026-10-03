@@ -470,6 +470,11 @@ Convergence to "all readers" is the pool's repeat-apply loop. The former drift
 (COPY-op dispatch, redirect-all-readers with raw `inrefs[i]` writes + raw
 `descend.push`, no guards, stale descend on the COPY's output) is superseded.
 
+MATCHAPPLY (2026-10-03): the body is the exact composition of the split halves —
+`match_op` (cc:3929-3952 guard prefix, pure read) then `apply_hit` (cc:3953-3954
+transform suffix); byte-identical to the previous monolithic form (canon VdbeExec
+md5 + ACTIONSTATS five values exact, see PERF-MATCHAPPLY-0001).
+
 Oracle evidence (RULE-PROPCOPY-BOOKKEEP-0001): `tests/oracle/rule_propcopy_1204.{cc,rs}`
 + `tools/run_rule_propcopy_oracle.sh` — 19 records / 9 cases against the locked
 12.0.4 oracle (reader-trigger hit, slot-scan unwritten/non-COPY-def skips,
@@ -478,6 +483,37 @@ guard, two-reader descend erase+add bookkeeping, opSetInput constant-dedup fresh
 constant, `Self-defined varnode` throw path). Overall PARTIAL_MATCH (OPBANK-0001 /
 ARCH-0001 / TYPE-UNKNOWN-0001); the nine target projections are
 TARGET_STRUCTURAL_MATCH byte-identical.
+
+### `pub struct PropagateCopyHit`
+
+MATCHAPPLY hit descriptor: the winning input slot and the COPY's input varnode
+handle. Carries everything `apply_hit` needs (`op_set_input` cc:3953-3954).
+Rudra parallelization infrastructure — no oracle counterpart (the oracle's
+`Rule::applyOp`, ruleaction.hh:94, is an integrated match+transform virtual).
+A consumer must apply the descriptor against the exact `Funcdata` state its
+match ran under; the pilot's pass-level speculative window (fire-abort
+invariant) is archived in /dev/shm/rudra-tests/matchapply/pilot-patch/ — see
+LANE_MATCHAPPLY_2026-10-03 for the measured verdict (window form not shipped).
+
+### `pub fn match_op(&self, op_arc) -> Result<Option<PropagateCopyHit>>`
+
+MATCHAPPLY speculative-match half: the cc:3929-3952 guard prefix, verbatim. Pure
+read — acquires only shared RwLock read guards on op/varnode cells and never
+touches `Funcdata` (the match walks `op.inrefs` → def COPY → `in(0)` entirely
+through Arc cell handles). Returns the winning `(slot, invn)` pair, `None` on
+miss, or the cc:3944-3945 `LowlevelError` for a self-defined varnode.
+
+### `pub fn apply_hit(&self, op_arc, hit, fd) -> Result<i32>`
+
+MATCHAPPLY apply half: the cc:3953-3954 transform suffix, verbatim —
+`op_set_input(op, invn, slot)` then return 1. Runs on the serial mutation path
+only; the op read-guard is dropped before `op_set_input` takes its own write
+lock on the same op (RULE-SUBCANCEL-RWLOCK-0001).
+
+#### `fn as_propagate_copy(&self) -> Option<&RulePropagateCopy>`
+
+Concrete-type seam override returning `Some(self)` (see `Rule::as_propagate_copy`
+in docs/api/action.md).
 
 #### `fn get_name(&self) -> &str`
 

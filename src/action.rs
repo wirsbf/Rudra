@@ -611,6 +611,15 @@ pub trait Rule: Send + Sync {
     // Ghidra: action.cc:658 Rule::resetStats
     /// Reset statistics owned by a derived Rule.
     fn reset_stats(&mut self) {}
+
+    // RUDRA-GLUE: MATCHAPPLY concrete-type seam (no Ghidra counterpart —
+    // the oracle dispatches through a single virtual, ruleaction.hh:94,
+    // and never needs a downcast). Exposes the pilot's split rule
+    // (RulePropagateCopy::match_op/apply_hit) to callers that want the
+    // halves separately; every other Rule keeps the default None.
+    fn as_propagate_copy(&self) -> Option<&crate::ruleaction::RulePropagateCopy> {
+        None
+    }
 }
 
 /// Per-Rule execution state, mirroring `Rule` fields in action.hh:203-210.
