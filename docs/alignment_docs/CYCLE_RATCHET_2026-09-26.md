@@ -266,6 +266,31 @@ FROZEN_SOLO 58==58 恒等;cover→op/cover→varnode 证据键各 +1（纯新增
 决定性问题 B 逐缓冲独立裁定（/dev/shm/rudra-reports/CR_PERF3_2026-10-03.md）
 ——本增补是其 types 图投影面的机械后果。
 
+### 5.4 成员准入重冻结记录 — 2026-10-04（MB101 matchapply 合入后;首次 solo→SCC 成员准入）
+
+触发: wt/matchapply（merge MB101,单 commit `10a4154a`,CR-MATCHAPPLY3 终判 APPROVE）
+合入后三断言全 FAIL: 断言 (a)/(c) `ruleaction`（冻结 solo 模块）入环,断言 (b) 12 个
+白名单外证据键。**环闭合者恰一条新边**: `action→ruleaction`（held-trait-sig,
+MATCHAPPLY seam 签名）;其余 11 键为成员资格浮出的**既有** solo→SCC 字段边
+（此前方向合法不入白名单,入环后需入账）。逐边定性（协议步骤 2,亲核双侧行;
+Rust 侧行号为合并树实测,Ghidra 侧亲读）:
+
+| 证据键 | Rust 侧 | Ghidra 侧 | 分类 | 处置 |
+|---|---|---|---|---|
+| `held-trait-sig\|via dyn Rule sig\|Rule`（新增,action→ruleaction,环闭合者） | action.rs:620 `Rule::as_propagate_copy(&self) -> Option<&crate::ruleaction::RulePropagateCopy>`——MATCHAPPLY 混凝土类型 seam（被持有 dyn Rule trait 的默认方法签名引用 ruleaction 具体类型=types 层边;默认 None,RulePropagateCopy 覆写 Some(self);当前零生产调用方——试点窗机器不交付,seam 为复活条件基础设施） | **无对应物**——action.hh:246 单一虚函数 `virtual int4 applyOp(PcodeOp*,Funcdata&) { return 0; }`,基类默认 return 0,oracle 从不对 Rule 做 concrete 下转型（CR-MATCHAPPLY3 问题 A 亲读核实） | glue（RUDRA-GLUE 偏离: Rudra 并行化基础设施） | 准入+入白名单。替代处置「重构 seam 签名保 ruleaction solo」（extension trait 移 ruleaction.rs 或调用点 fn-local 下转型,per R1 不落 types 层）**本批拒绝**: CR-MATCHAPPLY3 APPROVE 覆盖 10a4154a 字节精确,root 集成不改车道 src（机制 C: 实现变更后旧批准自动失效）——seam 复活（per-op 纪元+无锁读+草稿重定位）落地时**必须**把具体类型引用移出被持有 trait 签名,ruleaction 可再出环（A2 types-sink 方向,改善方向允许） |
+| `field\|struct AddTreeState\|data` 等 10 键（既有,ruleaction→{funcdata,op,type_system,varnode},成员浮出） | ruleaction.rs:19535-19564 `AddTreeState{data:&'a mut Funcdata, base_op, ptr, ct, base_type, p_rel, multiple, nonmult, distribute_op}` + ruleaction.rs:14916 `PieceNode.op`——全部先于本批存在（MB101 前为 solo→SCC 合法方向边） | ruleaction.hh:44-63 `class AddTreeState{Funcdata &data; PcodeOp *baseOp; Varnode *ptr; const TypePointer *ct; const Datatype *baseType; const TypePointerRel *pRelType; ... vector<Varnode*> multiple; vector<Varnode*> nonmult; PcodeOp *distributeOp;}` + ruleaction.cc PieceNode——字段级同构（.hh include 面: ruleaction.hh:28 `#include "action.hh"` 承载） | a（oracle 本体字段边,SCC-BASE 族;表示层=Arc/RwLock 句柄物化） | 入白名单（成员资格机械后果） |
+| `field\|struct PropagateCopyHit\|invn`（新增,ruleaction→varnode） | ruleaction.rs:227 `PropagateCopyHit.invvn: Arc<RwLock<Varnode>>`——MB101 把旧单体 fn-local `candidate: Option<(usize, Arc<RwLock<Varnode>>)>` 载荷命名物化为 pub struct（R1: fn-local 类型不落 types 层,命名后物化该边;载荷逐 token 等价——CR-MATCHAPPLY3 问题 A 机械对照亲证） | 无对应物（oracle 无该命名结构——cc:3929-3952 匹配段的局部候选即载荷本体） | glue（载荷命名物化,零行为） | 入白名单 |
+
+`--emit-freeze --accept-new` 重冻结 diff 人工核对（结构性 diff,非文本亲核）:
+FROZEN_SCC 24→**25**（+ruleaction,唯成员变化——**首次 solo→SCC 准入**）;
+FROZEN_SOLO 58→**57**（−ruleaction）;FROZEN_EDGES 键 85→90（+5 键/12 证据值,
+零删除零漂移: action→ruleaction×1+ruleaction→funcdata×1+ruleaction→op×3+
+ruleaction→type_system×3+ruleaction→varnode×4）;PAIR_TAGS 增 5 行账本注记。
+重冻结后 `verify_cycle_ratchet.sh` 三断言全 PASS。**披露**: 本准入使核心 SCC
+自冻结以来首次扩大（24→25,glue 边驱动,非 oracle 同构新增）;退出路径已在
+上表第一行登记（seam 复活时移签名引用出被持有 trait/extension trait 下沉,
+或 A2 types-sink 整体推进）——A2 执行者应把 ruleaction 出环列为候选改善项。
+
 ## 6. CI 接入（Phase A/A2 执行时启用;当前入库+文档化,不强制）
 
 ```bash

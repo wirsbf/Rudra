@@ -73,6 +73,7 @@ FROZEN_SCC = [
     "pcodeinject",
     "pcodeparse",
     "prefersplit",
+    "ruleaction",
     "transform",
     "type_system",
     "unionresolve",
@@ -127,7 +128,6 @@ FROZEN_SOLO = [
     "printlanguage",
     "rangemap",
     "rangeutil",
-    "ruleaction",
     "sailr",
     "signature",
     "sleigh_ffi",
@@ -156,6 +156,9 @@ FROZEN_EDGES = {
         'held-trait-sig|via dyn Rule sig|Rule',
     ],
     "action->op": [
+        'held-trait-sig|via dyn Rule sig|Rule',
+    ],
+    "action->ruleaction": [
         'held-trait-sig|via dyn Rule sig|Rule',
     ],
     "arch->action": [
@@ -401,6 +404,25 @@ FROZEN_EDGES = {
         'field|struct SplitInstance|lo',
         'field|struct SplitInstance|vn',
     ],
+    "ruleaction->funcdata": [
+        'field|struct AddTreeState|data',
+    ],
+    "ruleaction->op": [
+        'field|struct AddTreeState|base_op',
+        'field|struct AddTreeState|distribute_op',
+        'field|struct PieceNode|op',
+    ],
+    "ruleaction->type_system": [
+        'field|struct AddTreeState|base_type',
+        'field|struct AddTreeState|ct',
+        'field|struct AddTreeState|p_rel',
+    ],
+    "ruleaction->varnode": [
+        'field|struct AddTreeState|multiple',
+        'field|struct AddTreeState|nonmult',
+        'field|struct AddTreeState|ptr',
+        'field|struct PropagateCopyHit|invn',
+    ],
     "transform->op": [
         'field|struct TransformOp|op',
         'field|struct TransformOp|replacement',
@@ -506,6 +528,12 @@ FROZEN_EDGES = {
 # 机器判定只看 FROZEN_EDGES 键成员资格）。
 # 形态类: a=可解(下沉/浮动) b=伪影 c=真互持/锁死 glue=RUDRA-GLUE 偏离
 PAIR_TAGS: dict[str, tuple[str, str, str]] = {
+    # --- MB101 matchapply admission (2026-10-04): ruleaction solo->SCC, see doc 5.4 ---
+    "action->ruleaction": ("GLUE-MB101", "glue", "Rule::as_propagate_copy seam sig returns concrete RulePropagateCopy (MATCHAPPLY; no oracle counterpart, action.hh:246 single virtual)"),
+    "ruleaction->funcdata": ("SCC-BASE-MB101", "a", "AddTreeState.data (ruleaction.hh:45 isomorphic; surfaced by membership)"),
+    "ruleaction->op": ("SCC-BASE-MB101", "a", "AddTreeState.base_op/distribute_op + PieceNode.op (ruleaction.hh:46/:63 isomorphic; surfaced)"),
+    "ruleaction->type_system": ("SCC-BASE-MB101", "a", "AddTreeState.ct/base_type/p_rel (ruleaction.hh:48-50 isomorphic; surfaced)"),
+    "ruleaction->varnode": ("SCC-BASE-MB101", "a", "AddTreeState.ptr/multiple/nonmult (ruleaction.hh:47/:61/:62) + PropagateCopyHit.invn (MB101 materialized fn-local candidate payload; glue value, same key)"),
     # --- E7 (c) op↔varnode↔variable↔block 互持字段组（.hh 前置声明隐形边） ---
     "op->varnode":       ("E7",    "c", "PcodeOp.output/inrefs ↔ Varnode.def/descend 互持"),
     "varnode->op":       ("E7",    "c", "Varnode.def/descend: Weak<PcodeOp>"),
