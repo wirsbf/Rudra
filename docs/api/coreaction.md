@@ -4825,3 +4825,32 @@ F5SQ-RETCOPY-JOINSPACE-0001）。
 - `ActionLikelyTrash::count_marks`（coreaction.cc:2007-2030）——逐槽短守卫
   （cc:2011-2012）；INDIRECT 链可回环至 op 本身（cc:2020），内层走查不跨 op
   守卫。
+
+## 2026-10-03（续）：ActionMarkImplied::checkImpliedCover 双循环 oracle 形对位（ARCPILOT 试点）
+
+coreaction.cc:3382-3384/3401-3406 的两个 O(N) 扫描从「全 alivelist 逐 op RwLock
+读守卫 + opcode 过滤」翻转到 oracle 的存储迭代器形态（DEEPPROF §4 归因:
+MarkImplied = 全库原子 Ir #3 站点 105M[rlock 52.5M+xadd 51.3M] + D1 miss #1
+函数 172.2M[15.9%]——两循环每 checkImpliedCover 调用触及每个活 op 分配）:
+
+- **store-crossing**（cc:3379-3395）: `beginOp(CPUI_STORE)` 对位 = 新
+  `PcodeOpBank::iter_store_ids()` 链游走（锁自由 cell 推进）+ `is_dead_of`
+  槽影子判 cc:3386 isDead skip + 仅对活 STORE 取读守卫（containment/
+  offset/isPossibleAlias 检查体不变）。访问集等价 {storelist}−{dead} ==
+  {alivelist ∧ opcode==STORE}（链维护 choke 点=insert/createSeq/
+  change_opcode/destroy;markDead 只动 insert 链,死 STORE 留链=oracle
+  storelist 语义）;循环结果与序无关（每 store 谓词纯,唯一早退=存在性
+  refusal `return false`）。
+- **call-crossing**（cc:3401-3406）: oracle 走 call-spec 表
+  `numCalls()/getCallSpecs(i)->getOp()`（qlst,funcdata.hh:273-274）——新形
+  `fd.callspecs` 走查 + spec.op Weak 升级;原全 alivelist 扫描的 CALL/CALLIND
+  过滤删除。访问集=qlst 恰等（specs 于 flow.cc:686/709 注册、op destroy 时
+  funcdata.cc:528-535 deleteCallSpecs 移除,Rudra 对位 Funcdata::
+  delete_call_specs）;与旧形差异面（spec-less CALL / qlst 中 dead call 的
+  contain 测试）以 oracle 形为准——oracle 对 spec'd dead call 照测 contain
+  （markDead 不摘 qlst）,spec-less call 不可见。def-op 跳过保留（等价于
+  oracle interior-only contain 对定义点的天然排除,cover.cc:421）。
+
+**行为恒等链**（2026-10-03,arcpilot 树）: VdbeExec canon 606dd8c0+mirror
+b3f5b487 恰钉;canon curl f903372a/httpd 3617ecc3 恰钉;ACTIONSTATS 五值
+917/302/5,825,780/28,722,406/63,713 恒等;镜面五面 0/0/0/0/0;tests 2061P。
