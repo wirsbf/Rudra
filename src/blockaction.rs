@@ -1588,6 +1588,23 @@ pub fn clear_marks(body: &[i32], graph: &BlockGraph) {
 /// Detects if-then, if-then-else, sequence, and while-do patterns
 /// from a flat CFG and replaces them with structured `BlockIf`,
 /// `BlockWhileDo`, and `BlockList` nodes.
+// RUDRA-GLUE: visit outcome for the view-hoisted scan (GUARDSTRIP) —
+// `Fired` = a rule matched and may have published (its identify_internal
+// adopt inserted into the bank): callers that hold a spanning pass-level
+// view re-hold it before the next visit. The per-call-hold form could not
+// distinguish fire from idle (both returned `false`), so each visit paid
+// a fresh view hold; the oracle holds plain pointers that no rule read
+// invalidates.
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum ApplyVisit {
+    /// cc:1792-1795 isolated/consumed — counts into isolated_count.
+    Isolated,
+    /// No rule matched; nothing published; a spanning view stays valid.
+    Idle,
+    /// A rule fired (returned true) — treat any spanning view as stale.
+    Fired,
+}
+
 pub struct CollapseStructure<'a> {
     graph: &'a mut BlockGraph,
     /// RUDRA-GLUE: internal fixpoint progress; Ghidra rules return bool instead
@@ -1788,6 +1805,14 @@ impl<'a> CollapseStructure<'a> {
                 // list neighbors shifts survivors left past the incremented
                 // index, deferring them to the next fixpoint pass.
                 let mut idx: usize = 0;
+                // (GUARDSTRIP) loop-level guard hoisting: ONE view spans the
+                // whole fixpoint pass (the per-visit hold + drop — a state
+                // read lock, three Arc clones and three drops, ~22M times on
+                // VdbeExec — collapses to one per pass); a fire returns
+                // `Fired` and the pass re-holds before the next visit, so no
+                // read ever follows a publish (the same read-phase discipline
+                // the per-call form enforced by construction).
+                let mut pass_view = self.graph.bank.hold();
                 while idx < self.virtual_list.len() {
                     // (BLOCKSTRUCT2) deadline granularity = per fixpoint
                     // pass (the pass-head check above); the oracle has no
@@ -1853,7 +1878,7 @@ impl<'a> CollapseStructure<'a> {
                     };
                     // cc:1792-1795: completely collapsed block → isolated.
                     // (BLOCKSTRUCT2) the isolated checks + rule dispatch are
-                    // one pass inside apply_rules_to_block (single fetch,
+                    // one pass inside apply_rules_held (single fetch,
                     // single view — the former visit-loop copy was the
                     // oracle's ONE getBlock + sizeIn/sizeOut read done
                     // twice).
@@ -1864,8 +1889,13 @@ impl<'a> CollapseStructure<'a> {
                     // BlockList). The previous Basic/Copy-only gate left
                     // structured remainders split into multiple top-level
                     // components where the oracle produces one.
-                    if self.apply_rules_to_block(slot, &block) {
-                        isolated_count += 1;
+                    match self.apply_rules_held(slot, &block, &pass_view) {
+                        ApplyVisit::Isolated => isolated_count += 1,
+                        // A rule fired: its adopt may have published — the
+                        // spanning pass view is stale, re-hold (a fire also
+                        // ends this visit exactly as the oracle's `continue`).
+                        ApplyVisit::Fired => pass_view = self.graph.bank.hold(),
+                        ApplyVisit::Idle => {}
                     }
                 }
                 // VDBEXEC-REFRESH-TAIL-0001: refresh_switch_cases removed from
@@ -2467,7 +2497,10 @@ impl<'a> CollapseStructure<'a> {
     /// cc:1652-1653 switch) — resolved through the bank view shadows
     /// (block.hh:312-313/165 mirrored by the sync_bank_shadows choke). The
     /// SENTINEL form (bare fixtures, never adopted) falls back to the block
-    /// guard reads — byte-identical values either way.
+    /// guard reads — byte-identical values either way. (GUARDSTRIP) the two
+    /// fields come from ONE guard pass (guard_snapshot: one slot check +
+    /// one epoch check for the pair — the oracle reads them as two inline
+    /// loads on an already-resolved pointer, block.hh:312/326).
     #[inline]
     fn entry_size_out_switch_out(
         block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
@@ -2475,9 +2508,10 @@ impl<'a> CollapseStructure<'a> {
         bank: &crate::block::BlockBankView,
     ) -> (usize, bool) {
         if self_id != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL {
+            let snap = bank.expect_guard_snapshot(self_id);
             (
-                bank.expect_size_out(self_id),
-                bank.expect_flags(self_id) & crate::block::block_flags::SWITCH_OUT != 0,
+                snap.size_out as usize,
+                snap.flags & crate::block::block_flags::SWITCH_OUT != 0,
             )
         } else {
             let b = block.read().unwrap();
@@ -2489,8 +2523,30 @@ impl<'a> CollapseStructure<'a> {
     /// Apply interleaved rules to a single block at graph index i.
     /// Returns `true` when the block counts as isolated (cc:1792-1795:
     /// completely collapsed or no edges at all) — the caller's
-    /// isolated_count accounting.
+    /// isolated_count accounting. Self-holding wrapper (one view per
+    /// call): the collapse_internal scan passes its own span-level view
+    /// to `apply_rules_held` instead (GUARDSTRIP loop-guard hoisting).
     fn apply_rules_to_block(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
+        let bank = self.graph.bank.hold();
+        self.apply_rules_held(i, block, &bank) == ApplyVisit::Isolated
+    }
+
+    /// `apply_rules_to_block` core over a caller-held view (the read-phase
+    /// discipline is unchanged: a rule that fires returns IMMEDIATELY, so
+    /// no view read follows a publish inside one call; the caller learns
+    /// about the fire via the `Fired` outcome and re-holds its spanning
+    /// view before the next visit).
+    // RUDRA-GLUE: applyRulesToBlock core split for the pass-level view
+    // (GUARDSTRIP) — the rule dispatch itself is the annotated
+    // apply_rules_to_block's body; this form just receives the bank view
+    // the collapse_internal scan holds across visits instead of holding
+    // its own per call
+    fn apply_rules_held(
+        &mut self,
+        i: usize,
+        block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+        bank: &crate::block::BlockBankView,
+    ) -> ApplyVisit {
         // Skip blocks consumed by an earlier identify_internal (Ghidra: they
         // are no longer in the graph list, block.cc:953-960). These blocks
         // keep only their component-to-component edges, so they can't match
@@ -2499,34 +2555,30 @@ impl<'a> CollapseStructure<'a> {
         // PERF-ARENA-FLIP-0001 (f) step 2b: ONE snapshot view spans the whole
         // dispatch. Read-phase discipline: a rule that fires (its
         // identify_internal adopts = the only publish on this path) returns
-        // true IMMEDIATELY (bs_try!), so no view read ever follows a
+        // Fired IMMEDIATELY, so no view read ever follows a
         // publish; rules that return false never published.
-        let bank = self.graph.bank.hold();
-        // (BLOCKSTRUCT2) entry checks through the view shadows (registered
-        // form — the graph members are always adopted: build_copy adopts
-        // the copies, identify_internal adopts each composite at install);
-        // SENTINEL (bare fixtures) falls back to the block guard reads,
-        // byte-identical. This deduplicates the visit loop's former second
-        // fetch+guard pass — the oracle reads getBlock + the two size
-        // fields once per visit (blockaction.cc:1779-1795).
+        // (GUARDSTRIP) the entry reads (index/sizeIn/sizeOut — the oracle's
+        // ONE getBlock + two inline size loads, cc:1792-1795) come from ONE
+        // guard pass (guard_snapshot) instead of three expect_* calls.
         let self_id = self.graph.bank.registered_id_of(block);
         if self_id != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL {
-            if self.is_consumed(bank.expect_index(self_id)) {
-                return true;
+            let snap = bank.expect_guard_snapshot(self_id);
+            if self.is_consumed(snap.index) {
+                return ApplyVisit::Isolated;
             }
-            if bank.expect_size_in(self_id) == 0 && bank.expect_size_out(self_id) == 0 {
+            if snap.size_in == 0 && snap.size_out == 0 {
                 // Orphaned block (no edges at all). Ghidra's collapseInternal
                 // also skips rules on completely isolated blocks
                 // (blockaction.cc:1792-1795).
-                return true;
+                return ApplyVisit::Isolated;
             }
         } else {
             let r = block.read().unwrap();
             if self.is_consumed(r.get_index()) {
-                return true;
+                return ApplyVisit::Isolated;
             }
             if r.size_in() == 0 && r.size_out() == 0 {
-                return true;
+                return ApplyVisit::Isolated;
             }
         }
         // Ghidra collapseInternal order (blockaction.cc:1797-1828): goto FIRST,
@@ -2542,11 +2594,11 @@ impl<'a> CollapseStructure<'a> {
         let rule2 = *RULE2.get_or_init(|| std::env::var("RUDRA_RULE2").is_ok());
         macro_rules! bs_try {
             ($f:ident) => {
-                if self.$f(i, block, self_id, &bank) {
+                if self.$f(i, block, self_id, bank) {
                     if rule2 {
                         eprintln!("[RRULE2] FIRE {} blk{}", stringify!($f), i);
                     }
-                    return false;
+                    return ApplyVisit::Fired;
                 }
             };
         }
@@ -2561,7 +2613,7 @@ impl<'a> CollapseStructure<'a> {
         bs_try!(try_rule_inf_loop);
         // Ghidra cc:1825: ruleBlockSwitch (last in collapseInternal)
         bs_try!(try_rule_switch);
-        false
+        ApplyVisit::Idle
     }
 
     // Ghidra: blockaction.hh:46 LoopBody::applyRulesToChildren
@@ -3078,13 +3130,17 @@ impl<'a> CollapseStructure<'a> {
     /// edge label only, BlockBasic additionally reads the GOTO_EDGE_0/1
     /// mirror bits in the same flags word the shadow serves — so the view
     /// form returns identical values for every block type.
+    /// (GUARDSTRIP) the label + flags word come from ONE guard pass
+    /// (`expect_out_edge_flags`: one slot check + one edge-table lock +
+    /// one epoch check) instead of two full expect_* passes.
     #[inline]
     fn view_out_edge_is_goto(
         bank: &crate::block::BlockBankView,
         id: crate::arena::BlockId,
         slot: usize,
     ) -> bool {
-        if let Some(e) = bank.expect_out_edge(id, slot) {
+        let (edge, flags) = bank.expect_out_edge_flags(id, slot);
+        if let Some(e) = edge {
             if e.flags
                 & (crate::block::edge_flags::F_GOTO_EDGE
                     | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
@@ -3093,11 +3149,10 @@ impl<'a> CollapseStructure<'a> {
                 return true;
             }
         }
-        let f = bank.expect_flags(id);
-        if slot == 0 && (f & crate::block::block_flags::GOTO_EDGE_0) != 0 {
+        if slot == 0 && (flags & crate::block::block_flags::GOTO_EDGE_0) != 0 {
             return true;
         }
-        if slot == 1 && (f & crate::block::block_flags::GOTO_EDGE_1) != 0 {
+        if slot == 1 && (flags & crate::block::block_flags::GOTO_EDGE_1) != 0 {
             return true;
         }
         false
@@ -5027,8 +5082,11 @@ impl<'a> CollapseStructure<'a> {
         // guard-read form, byte-identical.
         let first_next_point;
         if self_id != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL {
-            let block_idx = bank_view.expect_index(self_id);
-            if bank_view.expect_size_in(self_id) == 1 {
+            // (GUARDSTRIP) index + sizeIn in ONE guard pass (guard_snapshot)
+            // — the oracle's cc:1291 reads are inline field loads.
+            let self_snap = bank_view.expect_guard_snapshot(self_id);
+            let block_idx = self_snap.index;
+            if self_snap.size_in == 1 {
                 if let Some(in_edge) = bank_view.expect_in_edge(self_id, 0) {
                     // (g) guard-shadow: pure sizeOut guard on the peer —
                     // served from the bank cell (no Arc clone/peer lock).
@@ -5107,10 +5165,12 @@ impl<'a> CollapseStructure<'a> {
         // above (out_edge.point) — no second read lock.
         // cc:1294/1296: nothing else may hit the first link; a switch
         // dispatch block must be resolved first.
-        if bank_view.expect_size_in(first_next_point) != 1 {
+        // (GUARDSTRIP) sizeIn + flags of the first link in ONE guard pass.
+        let first_snap = bank_view.expect_guard_snapshot(first_next_point);
+        if first_snap.size_in != 1 {
             return false;
         }
-        if bank_view.expect_flags(first_next_point) & crate::block::block_flags::SWITCH_OUT != 0 {
+        if first_snap.flags & crate::block::block_flags::SWITCH_OUT != 0 {
             return false;
         }
         let mut chain_points: Vec<crate::arena::BlockId> = Vec::new();
@@ -5132,23 +5192,28 @@ impl<'a> CollapseStructure<'a> {
         };
         let mut cur_point = first_next_point;
         loop {
-            if bank_view.expect_size_out(cur_point) != 1 {
+            // (GUARDSTRIP) per link the oracle reads sizeOut +
+            // outofthis[0] on the current block then sizeIn/flags/index on
+            // the next — two blocks, two inline load groups; the batch form
+            // is ONE combined pass per block (snapshot + out edge under one
+            // edge-table lock) instead of five separate expect_* passes.
+            let (cur_snap, cur_edge) = bank_view.expect_snapshot_out_edge(cur_point, 0);
+            if cur_snap.size_out != 1 {
                 break;
             }
-            let cur_edge = match bank_view.expect_out_edge(cur_point, 0) {
+            let cur_edge = match cur_edge {
                 Some(e) => e,
                 None => break,
             };
             let next_point = cur_edge.point;
-            let next_idx = bank_view.expect_index(next_point);
+            let next_snap = bank_view.expect_guard_snapshot(next_point);
+            let next_idx = next_snap.index;
             // cc:1304: outbl2 == bl → no looping (compare against the chain head).
             if next_idx == head_idx {
                 break;
             }
-            let n_in = bank_view.expect_size_in(next_point);
-            let n_flags = bank_view.expect_flags(next_point);
             // cc:1305: outbl2->sizeIn() != 1 → break (nothing else may hit it)
-            if n_in != 1 {
+            if next_snap.size_in != 1 {
                 break;
             }
             // cc:1306: `if (!outblock->isDecisionOut(0)) break;` — the
@@ -5159,7 +5224,7 @@ impl<'a> CollapseStructure<'a> {
                 break;
             }
             // cc:1307: outbl2->isSwitchOut() → break
-            if n_flags & crate::block::block_flags::SWITCH_OUT != 0 {
+            if next_snap.flags & crate::block::block_flags::SWITCH_OUT != 0 {
                 break;
             }
             // cc:1308-1309: extend the chain.
@@ -5422,12 +5487,23 @@ impl<'a> CollapseStructure<'a> {
         // byte-identical values either way.
         let (_cond_idx, true_point, false_point, true_idx, false_idx, decision_out) =
             if self_id != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL {
-                let cond_idx = bank.expect_index(self_id);
-                let te = match bank.expect_out_edge(self_id, 0) {
+                // (GUARDSTRIP) index + flags (GOTO_EDGE_0/1 mirror bits) in
+                // ONE guard pass; both out-edge halves under ONE edge-table
+                // lock — the per-half expect_out_edge + view_out_edge_is_goto
+                // form re-fetched the same halves twice.
+                let self_snap = bank.expect_guard_snapshot(self_id);
+                let cond_idx = self_snap.index;
+                let (te, fe) = match bank.with_out_edges(self_id, |edges| {
+                    (edges.first().copied(), edges.get(1).copied())
+                }) {
+                    Some((te, fe)) => (te, fe),
+                    None => return false,
+                };
+                let te = match te {
                     Some(e) => e,
                     None => return false,
                 };
-                let fe = match bank.expect_out_edge(self_id, 1) {
+                let fe = match fe {
                     Some(e) => e,
                     None => return false,
                 };
@@ -5439,11 +5515,28 @@ impl<'a> CollapseStructure<'a> {
                     return false;
                 }
                 // cc:1388-1389: isGotoOut(0)/isGotoOut(1) — view form
-                // (label + GOTO_EDGE_0/1 mirrors; see view_out_edge_is_goto).
-                if Self::view_out_edge_is_goto(bank, self_id, 0) {
-                    return false;
-                }
-                if Self::view_out_edge_is_goto(bank, self_id, 1) {
+                // (label + GOTO_EDGE_0/1 mirrors; see view_out_edge_is_goto)
+                // applied to the already-fetched halves: the label test on
+                // te/fe.flags plus the mirror bits in the snapshot's flags
+                // word — the same two channels, no second fetch.
+                let goto_label =
+                    |e: &crate::block::BlockEdge, slot: usize, flags: u32| -> bool {
+                        if e.flags
+                            & (crate::block::edge_flags::F_GOTO_EDGE
+                                | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
+                            != 0
+                        {
+                            return true;
+                        }
+                        if slot == 0 && (flags & crate::block::block_flags::GOTO_EDGE_0) != 0 {
+                            return true;
+                        }
+                        if slot == 1 && (flags & crate::block::block_flags::GOTO_EDGE_1) != 0 {
+                            return true;
+                        }
+                        false
+                    };
+                if goto_label(&te, 0, self_snap.flags) || goto_label(&fe, 1, self_snap.flags) {
                     return false;
                 }
                 // cc:1395 pre-capture: isDecisionOut per out edge
@@ -5518,12 +5611,16 @@ impl<'a> CollapseStructure<'a> {
             // walk + per-edge membership), so it runs LAST. Every guard in
             // this loop is a pure read and the fire condition is their
             // conjunction, so the order cannot change which dirs fire.
-            if bank.expect_size_out(clause_point) != 1 {
+            // (GUARDSTRIP) clause sizeOut+flags in ONE pass; the goto test
+            // and the target read share ONE out-edge fetch (the singles
+            // fetched the same edge twice).
+            let clause_snap = bank.expect_guard_snapshot(clause_point);
+            if clause_snap.size_out != 1 {
                 continue;
             }
             // cc:1394: `if (clauseblock->isSwitchOut()) continue;` — don't
             // use a switch (possibly with goto edges) as the if clause.
-            if bank.expect_flags(clause_point) & crate::block::block_flags::SWITCH_OUT != 0 {
+            if clause_snap.flags & crate::block::block_flags::SWITCH_OUT != 0 {
                 continue;
             }
             // cc:1395: `if (!bl->isDecisionOut(i)) continue;` — don't use a
@@ -5535,10 +5632,14 @@ impl<'a> CollapseStructure<'a> {
             // cc:1396: `if (clauseblock->isGotoOut(0)) continue;` — no
             // unstructured jumps out of the clause. (W3) goto label via the
             // edge shadow (block.hh:347 inline label read).
-            if bank
-                .expect_out_edge(clause_point, 0)
-                .map(|e| e.flags & (crate::block::edge_flags::F_GOTO_EDGE | crate::block::edge_flags::F_IRREDUCIBLE_EDGE) != 0)
-                .unwrap_or(false)
+            let clause_edge = match bank.expect_out_edge(clause_point, 0) {
+                Some(e) => e,
+                None => continue,
+            };
+            if clause_edge.flags
+                & (crate::block::edge_flags::F_GOTO_EDGE
+                    | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
+                != 0
             {
                 continue;
             }
@@ -5546,10 +5647,7 @@ impl<'a> CollapseStructure<'a> {
             // and orphan case label removal handle case label integrity at emit time.
             // Removing this guard allows CBRANCH blocks inside case bodies to be
             // structured into BlockIf, which is what we need for control-flow recovery.
-            let target_idx = match bank.expect_out_edge(clause_point, 0) {
-                Some(e) => bank.expect_index(e.point),
-                None => continue,
-            };
+            let target_idx = bank.expect_index(clause_edge.point);
             if target_idx != merge_idx {
                 continue;
             }
@@ -5664,15 +5762,18 @@ impl<'a> CollapseStructure<'a> {
             // the handle materializes at fire. (The old `c_idx` capture was
             // a dead read — the fire path installs at `i`, wave-2's
             // try_rule_if_goto dead-read deletion precedent.)
+            // (GUARDSTRIP) sizeIn/sizeOut/flags of the clause in ONE guard
+            // pass (guard_snapshot) — three separate expect_* passes before.
             let clause_point = if dir == 0 { true_point } else { false_point };
-            if bank.expect_size_in(clause_point) != 1 {
+            let clause_snap = bank.expect_guard_snapshot(clause_point);
+            if clause_snap.size_in != 1 {
                 continue;
             }
-            if bank.expect_size_out(clause_point) != 0 {
+            if clause_snap.size_out != 0 {
                 continue;
             } // Must have no out-edge (RETURN/exit)
               // cc:1500: `if (clauseblock->isSwitchOut()) continue;`
-            if bank.expect_flags(clause_point) & crate::block::block_flags::SWITCH_OUT != 0 {
+            if clause_snap.flags & crate::block::block_flags::SWITCH_OUT != 0 {
                 continue;
             }
             // cc:1501: `if (!bl->isDecisionOut(i)) continue;`
@@ -5748,60 +5849,66 @@ impl<'a> CollapseStructure<'a> {
 
         // cc:1428-1429: nothing else must hit either clause.
         // cc:1431-1432: only one exit from each clause.
+        // (GUARDSTRIP) sizeIn/sizeOut/flags for BOTH clauses in ONE guard
+        // pass each (guard_snapshot), and the cc:1439-1440 goto test runs
+        // on the SAME fetched edge as the cc:1433-1435 merge checks — the
+        // singles fetched each clause's out(0) twice.
+        let tc_snap = bank.expect_guard_snapshot(tc_point);
+        let fc_snap = bank.expect_guard_snapshot(fc_point);
+        if tc_snap.size_in != 1 || fc_snap.size_in != 1 {
+            return false;
+        }
+        if tc_snap.size_out != 1 || fc_snap.size_out != 1 {
+            return false;
+        }
+        // cc:1437-1438: `if (tc->isSwitchOut()) return false; if
+        // (fc->isSwitchOut()) return false;` — don't use a switch
+        // (possibly with goto edges) as a clause.
+        if tc_snap.flags & crate::block::block_flags::SWITCH_OUT != 0 {
+            return false;
+        }
+        if fc_snap.flags & crate::block::block_flags::SWITCH_OUT != 0 {
+            return false;
+        }
+        let t_edge = match bank.expect_out_edge(tc_point, 0) {
+            Some(e) => e,
+            None => return false,
+        };
+        // cc:1433-1434: `outblock = tc->getOut(0); if (outblock == bl)
+        // return false;` — no loops (the common merge must not be the
+        // condition block itself).
+        let t_out0 = bank.expect_index(t_edge.point);
+        if t_out0 == cond_idx {
+            return false;
+        }
+        let f_edge = match bank.expect_out_edge(fc_point, 0) {
+            Some(e) => e,
+            None => return false,
+        };
+        // cc:1435: `if (outblock != fc->getOut(0)) return false;` —
+        // clauses must exit to the same place.
+        let f_out0 = bank.expect_index(f_edge.point);
+        if t_out0 != f_out0 {
+            return false;
+        }
+        // cc:1439-1440: `if (tc->isGotoOut(0)) return false; if
+        // (fc->isGotoOut(0)) return false;` — no unstructured jumps
+        // out of either clause (label-based, works on structured
+        // components too). (W3) goto label via the edge shadow
+        // (block.hh:347 inline label read) on the fetched halves.
+        if t_edge.flags
+            & (crate::block::edge_flags::F_GOTO_EDGE
+                | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
+            != 0
         {
-            if bank.expect_size_in(tc_point) != 1 || bank.expect_size_in(fc_point) != 1 {
-                return false;
-            }
-            if bank.expect_size_out(tc_point) != 1 || bank.expect_size_out(fc_point) != 1 {
-                return false;
-            }
-            // cc:1433-1434: `outblock = tc->getOut(0); if (outblock == bl)
-            // return false;` — no loops (the common merge must not be the
-            // condition block itself).
-            let t_out0 = match bank.expect_out_edge(tc_point, 0) {
-                Some(e) => bank.expect_index(e.point),
-                None => return false,
-            };
-            if t_out0 == cond_idx {
-                return false;
-            }
-            // cc:1435: `if (outblock != fc->getOut(0)) return false;` —
-            // clauses must exit to the same place.
-            let f_out0 = match bank.expect_out_edge(fc_point, 0) {
-                Some(e) => bank.expect_index(e.point),
-                None => return false,
-            };
-            if t_out0 != f_out0 {
-                return false;
-            }
-            // cc:1437-1438: `if (tc->isSwitchOut()) return false; if
-            // (fc->isSwitchOut()) return false;` — don't use a switch
-            // (possibly with goto edges) as a clause.
-            if bank.expect_flags(tc_point) & crate::block::block_flags::SWITCH_OUT != 0 {
-                return false;
-            }
-            if bank.expect_flags(fc_point) & crate::block::block_flags::SWITCH_OUT != 0 {
-                return false;
-            }
-            // cc:1439-1440: `if (tc->isGotoOut(0)) return false; if
-            // (fc->isGotoOut(0)) return false;` — no unstructured jumps
-            // out of either clause (label-based, works on structured
-            // components too). (W3) goto label via the edge shadow
-            // (block.hh:347 inline label read).
-            if bank
-                .expect_out_edge(tc_point, 0)
-                .map(|e| e.flags & (crate::block::edge_flags::F_GOTO_EDGE | crate::block::edge_flags::F_IRREDUCIBLE_EDGE) != 0)
-                .unwrap_or(false)
-            {
-                return false;
-            }
-            if bank
-                .expect_out_edge(fc_point, 0)
-                .map(|e| e.flags & (crate::block::edge_flags::F_GOTO_EDGE | crate::block::edge_flags::F_IRREDUCIBLE_EDGE) != 0)
-                .unwrap_or(false)
-            {
-                return false;
-            }
+            return false;
+        }
+        if f_edge.flags
+            & (crate::block::edge_flags::F_GOTO_EDGE
+                | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
+            != 0
+        {
+            return false;
         }
 
         // (W3) fire path: clause handles materialize once.
@@ -6141,28 +6248,37 @@ impl<'a> CollapseStructure<'a> {
         let (idx, size_out, goto_edge, switch_out) = if self_id
             != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL
         {
-            let size_out = bank.expect_size_out(self_id);
-            let flags = bank.expect_flags(self_id);
-            let mut goto_edge: Option<usize> = None;
-            for j in 0..size_out {
-                let edge_goto = bank.out_edge(self_id, j).is_some_and(|e| {
-                    e.flags
-                        & (crate::block::edge_flags::F_GOTO_EDGE
-                            | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
-                        != 0
-                });
-                let mirror = (j == 0 && flags & crate::block::block_flags::GOTO_EDGE_0 != 0)
-                    || (j == 1 && flags & crate::block::block_flags::GOTO_EDGE_1 != 0);
-                if edge_goto || mirror {
-                    goto_edge = Some(j);
-                    break;
-                }
-            }
+            // (GUARDSTRIP) sizeOut/flags/index in ONE guard pass
+            // (guard_snapshot) + the edge-label scan under ONE edge-table
+            // lock (with_out_edges — the per-slot out_edge form took the
+            // lock once per edge); identical first-match-lowest-slot
+            // semantics (slot Ok results are plain slice reads).
+            let snap = bank.expect_guard_snapshot(self_id);
+            let flags = snap.flags;
+            let size_out = snap.size_out as usize;
+            let goto_edge: Option<usize> = bank
+                .with_out_edges(self_id, |edges| {
+                    for (j, e) in edges.iter().take(size_out).enumerate() {
+                        let edge_goto = e.flags
+                            & (crate::block::edge_flags::F_GOTO_EDGE
+                                | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
+                            != 0;
+                        let mirror = (j == 0
+                            && flags & crate::block::block_flags::GOTO_EDGE_0 != 0)
+                            || (j == 1
+                                && flags & crate::block::block_flags::GOTO_EDGE_1 != 0);
+                        if edge_goto || mirror {
+                            return Some(j);
+                        }
+                    }
+                    None
+                })
+                .flatten();
             if goto_edge.is_none() {
                 return false;
             }
             (
-                bank.expect_index(self_id),
+                snap.index,
                 size_out,
                 goto_edge,
                 flags & crate::block::block_flags::SWITCH_OUT != 0,
@@ -6354,15 +6470,19 @@ impl<'a> CollapseStructure<'a> {
             // faithful (min-index install + boundary-edge strip), stale
             // component edges no longer leak into live blocks and the plain
             // count is both correct and aligned.
-            let clause_in = bank.expect_size_in(clause_point);
-            if clause_in != 1 {
+            // (GUARDSTRIP) sizeIn/sizeOut/flags/index of the clause in ONE
+            // guard pass (guard_snapshot) — four separate expect_* passes
+            // before (clause_idx was re-read at the loop tail; the value is
+            // read-phase stable, so the batch reads it up front).
+            let clause_snap = bank.expect_guard_snapshot(clause_point);
+            if clause_snap.size_in != 1 {
                 continue;
             }
-            if bank.expect_size_out(clause_point) != 1 {
+            if clause_snap.size_out != 1 {
                 continue;
             }
             // cc:1534: `if (clauseblock->isSwitchOut()) continue;`
-            if bank.expect_flags(clause_point) & crate::block::block_flags::SWITCH_OUT != 0 {
+            if clause_snap.flags & crate::block::block_flags::SWITCH_OUT != 0 {
                 continue;
             }
             // Clause must loop back to the condition block
@@ -6374,7 +6494,7 @@ impl<'a> CollapseStructure<'a> {
                 continue;
             }
             // Found while-do: cond block + clause (body) that loops back
-            let clause_idx = bank.expect_index(clause_point);
+            let clause_idx = clause_snap.index;
             // cc:1538-1542: `bool overflow = bl->isComplex(); if ((i==0)!=overflow)
             // { if (bl->negateCondition(true)) dataflow_changecount += 1; }` —
             // the clause must be the TRUE out of bl unless overflow syntax is

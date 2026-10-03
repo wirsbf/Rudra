@@ -1,5 +1,51 @@
 # `blockaction.rs` API Reference
 
+## 2026-10-03：守卫层成本收敛——批量影读 + pass 级 view 提升（Lane GUARDSTRIP，速度道）
+
+- **热点归因（DEEPPROF §4 callgrind 弧归因亲证）**: view 守卫调用 194M 次
+  的 top 调用位 = `entry_size_out_switch_out` 71.7M（每规则入口对
+  size_out+flags 两次完整通道）+ `apply_rules_to_block` 66.4M（入口三读
+  index/size_in/size_out + 内联规则体）+ while_do 8.4M/expect_out_edge
+  7.5M/view_out_edge_is_goto 6.9M/if_no_exit 2.4M/inf_loop 2.2M——每读
+  ~45 Ir vs oracle block.hh:312-313/326 inline 字段读 ~4 Ir。
+- **入口对批量**: `entry_size_out_switch_out` 注册分支改
+  `expect_guard_snapshot`（一次通道取 size_out+flags;SENTINEL 回退不变）
+  ——九个 try_rule_* 入口全部自动受益。
+- **`ApplyVisit` 枚举 + `apply_rules_held(i, block, bank)`**: apply 规则
+  核心改为吃调用方持有的 view;`apply_rules_to_block` 成为自持 wrapper
+  （一次 hold,返回 bool 语义不变——apply_rules_to_children/target 分支/
+  loops_first 循环沿用）。**collapse_internal 访问循环 view 提升**: 一条
+  pass_view 跨整个 fixpoint 扫描（原每 visit 一次 hold+drop——状态读锁+
+  三 Arc clone+三 drop ×22M visits）;fire 返回 `Fired` → **立即 re-hold**
+  再进下一 visit（read-phase 纪律保持:单次调用内 fire 即返,跨 visit 的
+  publish 由 Fired 信号显式感知）。
+- **规则体批量读**（全部注册分支;SENTINEL 分支字节不动）:
+  - `try_rule_cat`: 链走每链 5 通道→2（`expect_snapshot_out_edge` 取
+    cur sizeOut+out(0);`guard_snapshot` 取 next index/size_in/flags）;
+    入口 index+sizeIn 一次快照。
+  - `try_rule_goto` miss 扫: 快照（size_out+flags+index）+ `with_out_edges`
+    一把边表锁扫全槽（原每槽一次锁）;first-match-lowest-slot 语义不变。
+  - `try_rule_proper_if`: 自身快照（index+GOTO 镜像位）+ `with_out_edges`
+    一把锁取 te/fe 双半（原 4 次边表锁:expect_out_edge×2+
+    view_out_edge_is_goto×2 重取同边）;dir 循环 clause 快照 + 单次边取
+    （goto 测与 target 测共用同一边）。
+  - `try_rule_if_no_exit` / `try_rule_while_do` clause 循环: size_in/
+    size_out/flags（+while_do 的 clause index）一次快照。
+  - `try_rule_if_else`: tc/fc 双快照 + 每边单次取（原每 clause 边取两
+    次:merge 测+goto 测）。
+- **`view_out_edge_is_goto`**: 改 `expect_out_edge_flags` 单通道形（原
+  expect_out_edge + expect_flags 两通道）。
+- **读序重排恒等论证**: 被重排的全是纯读合取链上的守卫（read-phase 无
+  publish,值稳定;break/continue 测试次序保持原判序;panic 面 =
+  stale-id 检查提前到批量头,失败消息与单读相同——同一 id 早一次晚一次
+  panic 均为不可达不变量违反）。
+- **行为恒等链（全==master 钉值）**: VdbeExec canon `606dd8c0`/mirror
+  `b3f5b487`;ACTIONSTATS 917/302/5,825,780/28,722,406/63,713;corpus canon
+  `cf541df3`/mirror `53bd3884`;canon curl `f903372a` 124/124 + httpd
+  `3617ecc3` 34/34 全零;镜面五面 0/0/0/0/0;tests 2061P（见车道终报
+  /dev/shm/rudra-reports/LANE_GUARDSTRIP_2026-10-03.md 的 callgrind Ir
+  前后对照与配对 A/B 性能数字）。
+
 ## 2026-10-03：identify fire 路径 peer 重定位 + 二段守卫 view 读（Lane IDENTIFY，速度道）
 - **残量画像（[IDPROF] env 探针 RUGRA_IDPROF=1，交付前撤净）**：VdbeExec --one 1055
   identify fire 路径 1.39s 中 **install 重定位 O(size) 全图扫 0.96s**（14.76M slot 访问

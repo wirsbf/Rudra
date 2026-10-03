@@ -2,6 +2,40 @@
 
 **源代码路径**: `src/block.rs`
 
+## 2026-10-03：BlockBankView 批量守卫读 + 全 reader 内联（Lane GUARDSTRIP，速度道）
+
+- **动机（callgrind d15e60ca 亲证）**: `BlockBankView` 守卫族
+  （expect_size_out 1.86G + expect_flags 1.77G + expect_index 1.77G +
+  out_edge 1.38G + expect_size_in 0.61G + …）合计 **8.14G Ir**（VdbeExec
+  80.38G 总量的 10.1%）vs oracle 同读 ~0.04G（block.hh:312-313/326 非虚
+  inline 字段读≈每读 4 Ir）——194M 次 view 守卫读、每次一条完整守卫通道
+  （真实函数调用 + slot_ok 边界/代际检查 + cells.get 二次边界 + 原子
+  load + check_epoch Acquire）。
+- **`BlockGuardSnapshot`（pub POD）**: index/size_in/size_out/flags 四影
+  字段（block.hh:160/165/312-313）的成束形。
+- **`BlockBankView::guard_snapshot` / `expect_guard_snapshot`（#[inline]）**:
+  一次守卫通道（一次 slot_ok + 四次 Relaxed load + **一次** check_epoch）
+  取回四字段——多字段守卫位（collapse 规则入口对、cat 链走、clause 守卫
+  簇）从 2-4 次通道收敛为一次。值与四个单读逐字节同源同值（同一 cells、
+  同序 Relaxed load）；panic 形的 stale-id 消息与 expect_* 单读相同。
+  `RUDRA_BANKSTATS=1` 下每次批量算一次 `view_index` bump（一次 view 读
+  API 命中；诊断口径变化，非行为面）。
+- **`BlockBankView::expect_snapshot_out_edge(id, slot)（#[inline]）**: 快照
+  + 一条出边在同一通道（一次 slot_ok + 一次边表读锁 + 一次 check_epoch）
+  ——cat 链走每链 oracle 形（sizeOut + outofthis[0] 两次 inline load 于同
+  一已解析块）。stale id panic；活槽越界边索引返回 None == getOut None。
+- **`BlockBankView::expect_out_edge_flags(id, slot)（#[inline]）**: 出边 +
+  flags 字同通道（isGotoOut 守卫形——block.hh:347 标签测 + GOTO_EDGE_0/1
+  镜像位 block.hh:165;两个单读原先各自一条完整通道）。
+- **全 reader `#[inline]`**: index/btype/arc/expect_arc/expect_index/
+  size_in/size_out/flags/expect_size_*/expect_flags/out_edge/
+  expect_out_edge/in_edge/expect_in_edge/with_out_edges/with_in_edges/
+  check_epoch/slot_ok——热位单读从真实调用（call/ret/栈帧）收敛为内联
+  序列；debug 影子==真值探针（cfg(debug_assertions)）保持。
+- **行为恒等**: 读相位纪律不变（同一快照内无 publish;批量仍带 post-read
+  epoch 检查）;tests 2061P/0F/5I;VdbeExec canon/mirror 与 corpus/镜面门禁
+  见车道终报（/dev/shm/rudra-reports/LANE_GUARDSTRIP_2026-10-03.md）。
+
 ## 2026-10-01：BlockKind 枚举槽位存储（Lane BLOCKFLIPW1——PERF-BLOCKSTORAGE-FLIP-0001 wave 1）
 
 - **`BlockKind` 枚举**（block.hh:77-80 `FlowBlock::block_type` 13 值闭集的

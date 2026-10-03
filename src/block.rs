@@ -4379,11 +4379,27 @@ pub struct BlockBankView {
     epoch0: u64,
 }
 
+// RUDRA-GLUE: guard-shadow POD bundle (GUARDSTRIP — see
+// BlockBankView::guard_snapshot; the four fields the collapse rule
+// guards read per block id, block.hh:160/165/312-313)
+#[derive(Clone, Copy, Debug)]
+pub struct BlockGuardSnapshot {
+    /// `FlowBlock::index` shadow (block.hh:160).
+    pub index: i32,
+    /// `FlowBlock::sizeIn` shadow (block.hh:313).
+    pub size_in: u32,
+    /// `FlowBlock::sizeOut` shadow (block.hh:312).
+    pub size_out: u32,
+    /// `FlowBlock::getFlags` shadow (block.hh:165).
+    pub flags: u32,
+}
+
 impl BlockBankView {
     // RUDRA-GLUE: post-read epoch validation — a publish since this
     // snapshot's hold means the read may have raced a mutation; fail
     // loudly instead of returning pre-mutation state (the guard-view
     // form deadlocked on the same violation).
+    #[inline]
     fn check_epoch(&self) {
         if self.sh.epoch.load(std::sync::atomic::Ordering::Acquire) != self.epoch0 {
             panic!(
@@ -4394,6 +4410,7 @@ impl BlockBankView {
 
     // RUDRA-GLUE: generation-checked slot index (arena.rs Arena::get
     // parity: idx 0 reserved, bounds, gen compare)
+    #[inline]
     fn slot_ok(&self, id: BlockId) -> Option<usize> {
         let i = id.idx() as usize;
         if i == 0 || i >= self.table.kinds.len() || self.table.gens[i] != id.gen() {
@@ -4402,8 +4419,127 @@ impl BlockBankView {
         Some(i)
     }
 
+    // RUDRA-GLUE: guard-shadow batch (GUARDSTRIP) — the four POD shadows
+    // one rule guard reads on one block id, fetched in ONE guard pass
+    // (one slot_ok + four plain loads + ONE epoch check). The oracle's
+    // collapse guards read these as separate NON-VIRTUAL inline field
+    // loads on an already-resolved pointer (block.hh:160/165/312-313/326
+    // — `outofthis.size()`, `intothis.size()`, `flags & f_...`); the
+    // batch amortizes the snapshot's generation/epoch guard over the
+    // four loads so a multi-field guard site pays the pass once, not
+    // per expect_* call (callgrind d15e60ca: the per-call form cost
+    // 8.14G Ir / 194M view reads on VdbeExec vs ~4 Ir per oracle load).
+    // Values are byte-identical to the four single readers (same cells,
+    // same Relaxed loads); RUDRA_BANKSTATS counts one view_index bump
+    // per batch (a single view read API hit), not four.
+    #[inline]
+    pub fn guard_snapshot(&self, id: BlockId) -> Option<BlockGuardSnapshot> {
+        bank_stats::bump(&bank_stats::STATS.view_index);
+        let i = self.slot_ok(id)?;
+        let v = self.cells.get(i).map(|c| BlockGuardSnapshot {
+            index: c.index.load(std::sync::atomic::Ordering::Relaxed),
+            size_in: c.size_in.load(std::sync::atomic::Ordering::Relaxed),
+            size_out: c.size_out.load(std::sync::atomic::Ordering::Relaxed),
+            flags: c.flags.load(std::sync::atomic::Ordering::Relaxed),
+        });
+        self.check_epoch();
+        v
+    }
+
+    // RUDRA-GLUE: guard-shadow batch, panicking form (same stale-id
+    // panic as the expect_* singles). #[inline(always)]: callgrind
+    // d15e60ca→GUARDSTRIP showed LLVM keeping an outlined copy for the
+    // 61.77M call face (47 Ir/call vs ~20 of work — the #[inline] hint
+    // alone did not take across the panic-format cold path).
+    #[inline(always)]
+    pub fn expect_guard_snapshot(&self, id: BlockId) -> BlockGuardSnapshot {
+        match self.guard_snapshot(id) {
+            Some(s) => s,
+            None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
+        }
+    }
+
+    // RUDRA-GLUE: guard-shadow batch + one out-edge fetch in a single
+    // pass (GUARDSTRIP) — the cat-chain walk form: per link the oracle
+    // reads sizeOut + outofthis[0] (block.hh:312/301) as two inline
+    // loads on the same resolved block; the combined reader serves the
+    // snapshot cell loads AND the edge shadow under ONE edge-table
+    // read lock with ONE epoch check. Panics on a stale id (the
+    // snapshot leg); a live slot with an out-of-range edge index
+    // returns None — getOut's None, exactly as the singles compose.
+    #[inline]
+    pub fn expect_snapshot_out_edge(
+        &self,
+        id: BlockId,
+        slot: usize,
+    ) -> (BlockGuardSnapshot, Option<BlockEdge>) {
+        let i = match self.slot_ok(id) {
+            Some(i) => i,
+            None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
+        };
+        let snap = match self.cells.get(i) {
+            Some(c) => BlockGuardSnapshot {
+                index: c.index.load(std::sync::atomic::Ordering::Relaxed),
+                size_in: c.size_in.load(std::sync::atomic::Ordering::Relaxed),
+                size_out: c.size_out.load(std::sync::atomic::Ordering::Relaxed),
+                flags: c.flags.load(std::sync::atomic::Ordering::Relaxed),
+            },
+            None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
+        };
+        let edge = {
+            let tab = self.sh.edges.read().unwrap();
+            tab.get(i).and_then(|c| c.out.get(slot).copied())
+        };
+        self.check_epoch();
+        #[cfg(debug_assertions)]
+        if let Some(arc) = self.table.kinds[i].as_ref().map(|k| k.arc_ref()) {
+            let r = arc.read().unwrap();
+            debug_assert_eq!(
+                snap.size_out as usize,
+                r.size_out(),
+                "size_out shadow diverged for {:?}",
+                id
+            );
+            debug_assert_eq!(edge, r.get_out_ref(slot).copied(), "out-edge shadow diverged for {:?} slot {}", id, slot);
+        }
+        (snap, edge)
+    }
+
+    // RUDRA-GLUE: out-edge label + flags word in one pass (GUARDSTRIP)
+    // — the isGotoOut guard form (block.hh:347 label test + the
+    // GOTO_EDGE_0/1 mirror bits in the flags word, block.hh:165): the
+    // two singles took two guard passes (slot_ok×2 + edge lock + epoch×2);
+    // the combined form takes one of each. Panics on a stale id; a live
+    // slot with an out-of-range edge index returns (None, flags) —
+    // getOut's None arm, exactly as the singles compose.
+    #[inline]
+    pub fn expect_out_edge_flags(&self, id: BlockId, slot: usize) -> (Option<BlockEdge>, u32) {
+        let i = match self.slot_ok(id) {
+            Some(i) => i,
+            None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
+        };
+        let (edge, flags) = {
+            let tab = self.sh.edges.read().unwrap();
+            let e = tab.get(i).and_then(|c| c.out.get(slot).copied());
+            let f = match self.cells.get(i) {
+                Some(c) => c.flags.load(std::sync::atomic::Ordering::Relaxed),
+                None => panic!("BlockBankView: stale or foreign BlockId {:?}", id),
+            };
+            (e, f)
+        };
+        self.check_epoch();
+        #[cfg(debug_assertions)]
+        if let Some(arc) = self.table.kinds[i].as_ref().map(|k| k.arc_ref()) {
+            let r = arc.read().unwrap();
+            debug_assert_eq!(edge, r.get_out_ref(slot).copied(), "out-edge shadow diverged for {:?} slot {}", id, slot);
+            debug_assert_eq!(flags, r.get_flags(), "flags shadow diverged for {:?}", id);
+        }
+        (edge, flags)
+    }
+
     /// `FlowBlock::index` shadow (block.hh:160).
     // RUDRA-GLUE: shadow read
+    #[inline]
     pub fn index(&self, id: BlockId) -> Option<i32> {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = self.slot_ok(id).and_then(|i| {
@@ -4417,6 +4553,7 @@ impl BlockBankView {
 
     /// `FlowBlock::getType` shadow (block.hh:184).
     // RUDRA-GLUE: shadow read
+    #[inline]
     pub fn btype(&self, id: BlockId) -> Option<BlockType> {
         bank_stats::bump(&bank_stats::STATS.view_btype);
         let v = self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(BlockKind::btype));
@@ -4426,6 +4563,7 @@ impl BlockBankView {
 
     /// Resolve to the block handle (Arc clone).
     // RUDRA-GLUE: id→handle
+    #[inline]
     pub fn arc(&self, id: BlockId) -> Option<Arc<RwLock<dyn FlowBlock + Send + Sync>>> {
         bank_stats::bump(&bank_stats::STATS.view_arc);
         let v = self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc()));
@@ -4436,6 +4574,7 @@ impl BlockBankView {
     /// Resolve to the block handle, panicking on stale/foreign ids (see
     /// `BlockBank::expect_arc`).
     // RUDRA-GLUE: id→handle, panicking form
+    #[inline]
     pub fn expect_arc(&self, id: BlockId) -> Arc<RwLock<dyn FlowBlock + Send + Sync>> {
         bank_stats::bump(&bank_stats::STATS.view_arc);
         let v = match self.slot_ok(id).and_then(|i| self.table.kinds[i].as_ref().map(|k| k.arc())) {
@@ -4448,6 +4587,7 @@ impl BlockBankView {
 
     /// `FlowBlock::index` shadow, panicking form.
     // RUDRA-GLUE: shadow read, panicking form
+    #[inline]
     pub fn expect_index(&self, id: BlockId) -> i32 {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = match self.slot_ok(id).and_then(|i| {
@@ -4472,6 +4612,7 @@ impl BlockBankView {
 
     /// `FlowBlock::sizeIn` shadow (block.hh:313), Option form.
     // RUDRA-GLUE: guard-shadow read
+    #[inline]
     pub fn size_in(&self, id: BlockId) -> Option<usize> {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = self.slot_ok(id).and_then(|i| {
@@ -4491,6 +4632,7 @@ impl BlockBankView {
 
     /// `FlowBlock::sizeOut` shadow (block.hh:312), Option form.
     // RUDRA-GLUE: guard-shadow read
+    #[inline]
     pub fn size_out(&self, id: BlockId) -> Option<usize> {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = self.slot_ok(id).and_then(|i| {
@@ -4510,6 +4652,7 @@ impl BlockBankView {
 
     /// `FlowBlock::getFlags` shadow (block.hh:165), Option form.
     // RUDRA-GLUE: guard-shadow read
+    #[inline]
     pub fn flags(&self, id: BlockId) -> Option<u32> {
         bank_stats::bump(&bank_stats::STATS.view_index);
         let v = self.slot_ok(id).and_then(|i| {
@@ -4529,6 +4672,7 @@ impl BlockBankView {
 
     /// `FlowBlock::sizeIn` shadow, panicking form (see `expect_arc`).
     // RUDRA-GLUE: guard-shadow read, panicking form
+    #[inline]
     pub fn expect_size_in(&self, id: BlockId) -> usize {
         match self.size_in(id) {
             Some(v) => v,
@@ -4538,6 +4682,7 @@ impl BlockBankView {
 
     /// `FlowBlock::sizeOut` shadow, panicking form.
     // RUDRA-GLUE: guard-shadow read, panicking form
+    #[inline]
     pub fn expect_size_out(&self, id: BlockId) -> usize {
         match self.size_out(id) {
             Some(v) => v,
@@ -4547,6 +4692,7 @@ impl BlockBankView {
 
     /// `FlowBlock::getFlags` shadow, panicking form.
     // RUDRA-GLUE: guard-shadow read, panicking form
+    #[inline]
     pub fn expect_flags(&self, id: BlockId) -> u32 {
         match self.flags(id) {
             Some(v) => v,
@@ -4559,6 +4705,7 @@ impl BlockBankView {
     /// bank without the peer RwLock or vtable). Same None-for-out-of-range
     /// shape as `FlowBlock::get_out`; debug builds probe shadow == truth.
     // RUDRA-GLUE: edge-shadow read (wave 3; block.hh:301 direct form)
+    #[inline]
     pub fn out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         let i = self.slot_ok(id)?;
         let v = {
@@ -4576,6 +4723,7 @@ impl BlockBankView {
 
     /// `FlowBlock::getOut` edge-shadow read, panicking-id form.
     // RUDRA-GLUE: edge-shadow read, panicking-id form (wave 3)
+    #[inline]
     pub fn expect_out_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         match self.out_edge(id, slot) {
             Some(v) => Some(v),
@@ -4589,6 +4737,7 @@ impl BlockBankView {
     /// `FlowBlock::getIn` edge-shadow read (block.hh:304 — inline
     /// `intothis[i]`); see `out_edge`.
     // RUDRA-GLUE: edge-shadow read (wave 3; block.hh:304 direct form)
+    #[inline]
     pub fn in_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         let i = self.slot_ok(id)?;
         let v = {
@@ -4606,6 +4755,7 @@ impl BlockBankView {
 
     /// `FlowBlock::getIn` edge-shadow read, panicking-id form.
     // RUDRA-GLUE: edge-shadow read, panicking-id form (wave 3)
+    #[inline]
     pub fn expect_in_edge(&self, id: BlockId, slot: usize) -> Option<BlockEdge> {
         match self.in_edge(id, slot) {
             Some(v) => Some(v),
@@ -4619,6 +4769,7 @@ impl BlockBankView {
     /// Whole out-vector read under one edge-table lock (multi-read
     /// clusters; the guard is released before returning).
     // RUDRA-GLUE: edge-shadow bulk read (wave 3)
+    #[inline]
     pub fn with_out_edges<R>(
         &self,
         id: BlockId,
@@ -4636,6 +4787,7 @@ impl BlockBankView {
     /// Whole in-vector read under one edge-table lock (see
     /// `with_out_edges`).
     // RUDRA-GLUE: edge-shadow bulk read (wave 3)
+    #[inline]
     pub fn with_in_edges<R>(
         &self,
         id: BlockId,
