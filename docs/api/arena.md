@@ -204,6 +204,10 @@ pub struct VnLocKey { pub addr: SpaceOff, pub size: i32, pub state: VnDefState }
 pub struct VnDefKey { pub state: VnDefState, pub addr: SpaceOff, pub size: i32 }
 // Ord(手写) ≡ VarnodeCompareDefLoc (varnode.cc:60-79): 旗标→written:defSeq(相等
 //   则**落到 addr**)→addr→size→free:createIndex(在 addr/size **之后**)
+// 2026-10-03 PERF-BTREE-0001: 曾试 3×3 变体配对 match 重写并**回退**——callgrind
+//   亲测 747-765M Ir vs 本 rank 阶梯形 677.9M（VdbeExec 极点 34.6M 次,确定性
+//   复测）: 跳表派发+臂建立成本高于两次 rank() 载入。**保持阶梯形**,仅留
+//   注释记录负结果（工件 /dev/shm/rudra-tests/btreemap/）。
 
 pub type KeyedTree<K, Id> = BTreeMap<K, Id>;              // op.hh:280 形态
 ```
