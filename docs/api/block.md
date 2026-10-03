@@ -2386,3 +2386,10 @@ stamp 全量真值（adopt 路带既有边）。
 `BlockEdge` 增 `PartialEq/Eq` derive（仅 debug 探针与测试用，值语义逐字段）。
 测试：`edge_shadow_tracks_every_mutation_choke`（choke 全走查 + clear 后
 read-phase panic 纪律 + fresh/view 双形值恒等）。
+
+## BLOCKSTRUCT2（2026-10-03）bank 测试 fixture 适配（速度道配套,基 408f6827）
+
+- `block.rs` 生产代码零变更;唯一改动=库内集成测试对 `try_rule_switch` 新
+  4 参签名（`i, block, self_id, bank`——BLOCKSTRUCT2 入口守卫 view 化的
+  签名延伸,见 docs/api/blockaction.md BLOCKSTRUCT2 节）的机械适配:测试
+  helper 补 `registered_id_of(&head_blk)` 传参,断言与覆盖面零变化。

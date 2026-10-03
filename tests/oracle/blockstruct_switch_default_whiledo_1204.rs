@@ -337,7 +337,10 @@ fn main() {
     {
         let mut collapse =
             CollapseStructure::new(&mut fd.sblocks, "f").with_jump_tables(fd.jump_tables.clone());
-        if !collapse.try_rule_switch(head_idx) {
+        let head_blk = fd.sblocks.get_block(head_idx).expect("head handle");
+        let bank = fd.sblocks.bank.hold();
+        let hid = fd.sblocks.bank.registered_id_of(&head_blk);
+        if !collapse.try_rule_switch(head_idx, &head_blk, hid, &bank) {
             eprintln!("try_rule_switch failed to install the switch");
             std::process::exit(3);
         }

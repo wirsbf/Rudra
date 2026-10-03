@@ -11672,10 +11672,11 @@ mod finalize_visited_tests {
             // Dispatch-level snapshot view (see apply_rules_to_block);
             // taken before the &mut sblocks borrow.
             let bank = fd.sblocks.bank.hold();
+            let hid = fd.sblocks.bank.registered_id_of(&head_blk);
             let mut collapse = CollapseStructure::new(&mut fd.sblocks, "test")
                 .with_jump_tables(fd.jump_tables.clone());
             assert!(
-                collapse.try_rule_switch(head_idx, &head_blk, &bank),
+                collapse.try_rule_switch(head_idx, &head_blk, hid, &bank),
                 "production switch rule must install the switch"
             );
         }
