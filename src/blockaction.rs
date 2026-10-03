@@ -1647,6 +1647,19 @@ pub struct CollapseStructure<'a> {
     /// Rudra passes the Arc list in because CollapseStructure has no
     /// Funcdata back-pointer).
     jump_tables: Vec<Arc<RwLock<crate::jumptable::JumpTable>>>,
+    /// (BLOCKSTRUCT2) candidate slots for update_switch_case_reference —
+    /// every top-level BlockSwitch ever installed (seeded once at
+    /// construction, pushed at each ruleBlockSwitch fire). The oracle pays
+    /// nothing here (its caseblocks hold stable FlowBlock pointers,
+    /// block.cc:3495 `curcase.block = bl`; Rudra re-points case Arcs when a
+    /// case body's slot is re-wrapped, and the previous full-graph O(n)
+    /// scan per fire — 13.9K fires × ~2.6K blocks on the giant function —
+    /// reduced to this O(#switches) superset. Stale slots (later installs
+    /// overwrote them) are filtered by the authoritative type check in the
+    /// scan, so the registry is only ever a superset of the live switches
+    /// the old scan found; first-match-in-slot-order semantics preserved by
+    /// taking the minimum holding slot).
+    switch_slots: Vec<usize>,
 }
 
 impl<'a> CollapseStructure<'a> {
@@ -1661,6 +1674,16 @@ impl<'a> CollapseStructure<'a> {
         // The initial Ghidra list order = the copy graph's block order
         // (slots 0..n); identify_internal mutates it thereafter.
         let n = graph.get_size() as i32;
+        // (BLOCKSTRUCT2) seed the switch registry with any hand-installed
+        // top-level switches (bare fixtures install composites directly;
+        // production graphs here are fresh build_copy copies with none).
+        let switch_slots: Vec<usize> = graph
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| b.read().unwrap().get_type() == crate::block::BlockType::Switch)
+            .map(|(i, _)| i)
+            .collect();
         Self {
             graph,
             structure_change_count: 0,
@@ -1677,6 +1700,7 @@ impl<'a> CollapseStructure<'a> {
             loopbodyiter: -1,
             virtual_list: (0..n).collect(),
             jump_tables: Vec::new(),
+            switch_slots,
         }
     }
 
@@ -1765,15 +1789,23 @@ impl<'a> CollapseStructure<'a> {
                 // index, deferring them to the next fixpoint pass.
                 let mut idx: usize = 0;
                 while idx < self.virtual_list.len() {
-                    if std::time::Instant::now() > deadline {
-                        break;
-                    }
+                    // (BLOCKSTRUCT2) deadline granularity = per fixpoint
+                    // pass (the pass-head check above); the oracle has no
+                    // deadline at all (blockaction.cc:1771-1833 — the list
+                    // walk is unclocked), and the per-visit clock read ran
+                    // ~4M times on the giant function for a guard the
+                    // corpus never trips. A pass is itself bounded (list
+                    // length × 9 rules), so pass-head checking preserves
+                    // the safety bound while restoring the oracle's
+                    // unclocked inner walk.
                     // cc:1786-1791: targetbl mode — visit the target ONCE and
                     // end the sweep (Ghidra `index = graph.getSize()` AFTER
                     // the rule, so the re-read len ends the pass); the forced
                     // change re-runs the inner loop over the whole graph.
                     if let Some(t) = target_idx.take() {
-                        self.apply_rules_to_block(t as usize);
+                        if let Some(tb) = self.graph.get_block(t as usize) {
+                            self.apply_rules_to_block(t as usize, &tb);
+                        }
                         idx = self.virtual_list.len();
                         continue;
                     }
@@ -1820,19 +1852,11 @@ impl<'a> CollapseStructure<'a> {
                         None => continue,
                     };
                     // cc:1792-1795: completely collapsed block → isolated.
-                    // (virtual_list never contains consumed components —
-                    // the absorbed_into guard is a defensive no-op.)
-                    {
-                        let r = block.read().unwrap();
-                        if self.is_consumed(r.get_index()) {
-                            isolated_count += 1;
-                            continue;
-                        }
-                        if r.size_in() == 0 && r.size_out() == 0 {
-                            isolated_count += 1;
-                            continue;
-                        }
-                    }
+                    // (BLOCKSTRUCT2) the isolated checks + rule dispatch are
+                    // one pass inside apply_rules_to_block (single fetch,
+                    // single view — the former visit-loop copy was the
+                    // oracle's ONE getBlock + sizeIn/sizeOut read done
+                    // twice).
                     // Ghidra collapseInternal (cc:1781-1833) applies the
                     // rules to EVERY graph member — collapsed components are
                     // first-class subjects of ruleBlockCat/Goto/... (e.g. a
@@ -1840,7 +1864,9 @@ impl<'a> CollapseStructure<'a> {
                     // BlockList). The previous Basic/Copy-only gate left
                     // structured remainders split into multiple top-level
                     // components where the oracle produces one.
-                    self.apply_rules_to_block(slot);
+                    if self.apply_rules_to_block(slot, &block) {
+                        isolated_count += 1;
+                    }
                 }
                 // VDBEXEC-REFRESH-TAIL-0001: refresh_switch_cases removed from
                 // this per-fixpoint-round position (LANE VDBEXEC 2026-09-28):
@@ -1885,13 +1911,27 @@ impl<'a> CollapseStructure<'a> {
             if std::time::Instant::now() <= deadline {
                 // cc:1838-1848: position-order scan over Ghidra's list,
                 // first match breaks (the outer fullchange loop re-runs).
-                let vlist = self.virtual_list.clone();
-                for &slot in &vlist {
-                    if self.try_rule_if_no_exit(slot as usize) {
+                // (BLOCKSTRUCT2) index walk over the LIVE list — the oracle
+                // reads `graph.getBlock(index)` with a re-evaluated bound;
+                // the clone was borrow-workaround only (a fire breaks the
+                // scan immediately, so no mutation is ever observed
+                // mid-scan; index+bound reread is the oracle's exact form).
+                // One pass-level view spans the scan (fires break before
+                // any further view read; misses publish nothing).
+                let bank = self.graph.bank.hold();
+                let mut sp_idx: usize = 0;
+                while sp_idx < self.virtual_list.len() {
+                    let slot = self.virtual_list[sp_idx] as usize;
+                    sp_idx += 1;
+                    let Some(block) = self.graph.get_block(slot) else {
+                        continue;
+                    };
+                    let self_id = self.graph.bank.registered_id_of(&block);
+                    if self.try_rule_if_no_exit(slot, &block, self_id, &bank) {
                         fullchange = true;
                         break;
                     }
-                    if self.try_rule_case_fallthru(slot as usize) {
+                    if self.try_rule_case_fallthru(slot, &block, self_id, &bank) {
                         fullchange = true;
                         break;
                     }
@@ -2075,7 +2115,8 @@ impl<'a> CollapseStructure<'a> {
                     // Fresh dispatch-level snapshot (a fire in an earlier
                     // iteration published; this dispatch's reads must see it).
                     let bank = self.graph.bank.hold();
-                    self.try_rule_while_do(wi, &wblk, &bank);
+                    let wid = self.graph.bank.registered_id_of(&wblk);
+                    self.try_rule_while_do(wi, &wblk, wid, &bank);
                 }
             }
             if std::time::Instant::now() > deadline {
@@ -2093,7 +2134,11 @@ impl<'a> CollapseStructure<'a> {
                 if std::time::Instant::now() > deadline {
                     break;
                 }
-                self.try_rule_or(ri);
+                if let Some(rblk) = self.graph.get_block(ri) {
+                    let bank = self.graph.bank.hold();
+                    let rid = self.graph.bank.registered_id_of(&rblk);
+                    self.try_rule_or(ri, &rblk, rid, &bank);
+                }
             }
             for ri in 0..rule_size {
                 if std::time::Instant::now() > deadline {
@@ -2102,7 +2147,8 @@ impl<'a> CollapseStructure<'a> {
                 if let Some(rblk) = self.graph.get_block(ri) {
                     // Fresh dispatch-level snapshot (see the while_do loop above).
                     let bank = self.graph.bank.hold();
-                    self.try_rule_inf_loop(ri, &rblk, &bank);
+                    let rid = self.graph.bank.registered_id_of(&rblk);
+                    self.try_rule_inf_loop(ri, &rblk, rid, &bank);
                 }
             }
             // Switch detection LAST (after loops/conditions/sequences), matching
@@ -2226,7 +2272,7 @@ impl<'a> CollapseStructure<'a> {
 
                     // For Basic/Copy blocks: apply rules directly
                     if bt == crate::block::BlockType::Basic || bt == crate::block::BlockType::Copy {
-                        self.apply_rules_to_block(i);
+                        self.apply_rules_to_block(i, &block);
                         continue;
                     }
 
@@ -2279,11 +2325,19 @@ impl<'a> CollapseStructure<'a> {
                 // unsafe mid-structuring (Rudra-specific guard, see has_switch).
                 if !has_switch {
                     let s2 = self.graph.get_size();
-                    for j in 0..s2 {
-                        if self.try_rule_if_no_exit(j) {
+                    let mut j: usize = 0;
+                    while j < s2 {
+                        let Some(jblk) = self.graph.get_block(j) else {
+                            j += 1;
+                            continue;
+                        };
+                        let bank = self.graph.bank.hold();
+                        let jid = self.graph.bank.registered_id_of(&jblk);
+                        if self.try_rule_if_no_exit(j, &jblk, jid, &bank) {
                             fullchange = true;
                             break;
                         }
+                        j += 1;
                     }
                 }
                 // ruleCaseFallthru (cc:1844): Rudra's collapse_case_fallthru is
@@ -2405,41 +2459,74 @@ impl<'a> CollapseStructure<'a> {
         self.graph.absorbed_into.contains_key(&idx)
     }
 
+    // RUDRA-GLUE: (BLOCKSTRUCT2) entry-guard pair through the dispatch view
+    /// The cc entry-guard reads every rule starts with — `bl->sizeOut()`
+    /// and `bl->isSwitchOut()` (e.g. cc:1289-1290 cat, cc:1384-1385
+    /// properIf, cc:1421-1422 ifElse, cc:1427-1429 ifGoto, cc:1453+ goto,
+    /// cc:1519-1520 whileDo, cc:1556-1557 doWhile, cc:1590 infLoop,
+    /// cc:1652-1653 switch) — resolved through the bank view shadows
+    /// (block.hh:312-313/165 mirrored by the sync_bank_shadows choke). The
+    /// SENTINEL form (bare fixtures, never adopted) falls back to the block
+    /// guard reads — byte-identical values either way.
+    #[inline]
+    fn entry_size_out_switch_out(
+        block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+        self_id: crate::arena::BlockId,
+        bank: &crate::block::BlockBankView,
+    ) -> (usize, bool) {
+        if self_id != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL {
+            (
+                bank.expect_size_out(self_id),
+                bank.expect_flags(self_id) & crate::block::block_flags::SWITCH_OUT != 0,
+            )
+        } else {
+            let b = block.read().unwrap();
+            (b.size_out(), b.is_switch_out())
+        }
+    }
+
     // Ghidra: blockaction.hh:46 LoopBody::applyRulesToBlock
     /// Apply interleaved rules to a single block at graph index i.
-    fn apply_rules_to_block(&mut self, i: usize) {
+    /// Returns `true` when the block counts as isolated (cc:1792-1795:
+    /// completely collapsed or no edges at all) — the caller's
+    /// isolated_count accounting.
+    fn apply_rules_to_block(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>) -> bool {
         // Skip blocks consumed by an earlier identify_internal (Ghidra: they
         // are no longer in the graph list, block.cc:953-960). These blocks
         // keep only their component-to-component edges, so they can't match
         // any rule — and matching them would corrupt the graph (e.g. a loop
         // head absorbed into a composite mid-structuring).
-        // Hoisted per-dispatch fetch (the 9 rules below all operate on graph
-        // member i; one clone per dispatch replaces one per rule try — the
-        // (d)-segment miss-floor attribution's per-try get_block Arc clone,
-        // ARENA_DESIGN §1.4 bank-view snapshot form).
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return,
-        };
         // PERF-ARENA-FLIP-0001 (f) step 2b: ONE snapshot view spans the whole
         // dispatch. Read-phase discipline: a rule that fires (its
         // identify_internal adopts = the only publish on this path) returns
         // true IMMEDIATELY (bs_try!), so no view read ever follows a
-        // publish; rules that return false never published. Per-rule views
-        // (step 2) collapsed the per-read locks but minted ~10^8 views per
-        // giant function — the shared view removes that mintage too.
+        // publish; rules that return false never published.
         let bank = self.graph.bank.hold();
-        {
-            let r = block.read().unwrap();
-            if self.is_consumed(r.get_index()) {
-                return;
+        // (BLOCKSTRUCT2) entry checks through the view shadows (registered
+        // form — the graph members are always adopted: build_copy adopts
+        // the copies, identify_internal adopts each composite at install);
+        // SENTINEL (bare fixtures) falls back to the block guard reads,
+        // byte-identical. This deduplicates the visit loop's former second
+        // fetch+guard pass — the oracle reads getBlock + the two size
+        // fields once per visit (blockaction.cc:1779-1795).
+        let self_id = self.graph.bank.registered_id_of(block);
+        if self_id != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL {
+            if self.is_consumed(bank.expect_index(self_id)) {
+                return true;
             }
-            if r.size_in() == 0 && r.size_out() == 0 {
+            if bank.expect_size_in(self_id) == 0 && bank.expect_size_out(self_id) == 0 {
                 // Orphaned block (no edges at all). Ghidra's collapseInternal
                 // also skips rules on completely isolated blocks
-                // (blockaction.cc:1792-1795). Skip to avoid corrupting the
-                // graph via spurious matches.
-                return;
+                // (blockaction.cc:1792-1795).
+                return true;
+            }
+        } else {
+            let r = block.read().unwrap();
+            if self.is_consumed(r.get_index()) {
+                return true;
+            }
+            if r.size_in() == 0 && r.size_out() == 0 {
+                return true;
             }
         }
         // Ghidra collapseInternal order (blockaction.cc:1797-1828): goto FIRST,
@@ -2455,11 +2542,11 @@ impl<'a> CollapseStructure<'a> {
         let rule2 = *RULE2.get_or_init(|| std::env::var("RUDRA_RULE2").is_ok());
         macro_rules! bs_try {
             ($f:ident) => {
-                if self.$f(i, &block, &bank) {
+                if self.$f(i, block, self_id, &bank) {
                     if rule2 {
                         eprintln!("[RRULE2] FIRE {} blk{}", stringify!($f), i);
                     }
-                    return;
+                    return false;
                 }
             };
         }
@@ -2474,6 +2561,7 @@ impl<'a> CollapseStructure<'a> {
         bs_try!(try_rule_inf_loop);
         // Ghidra cc:1825: ruleBlockSwitch (last in collapseInternal)
         bs_try!(try_rule_switch);
+        false
     }
 
     // Ghidra: blockaction.hh:46 LoopBody::applyRulesToChildren
@@ -2487,7 +2575,7 @@ impl<'a> CollapseStructure<'a> {
                 crate::block::BlockType::Basic | crate::block::BlockType::Copy => {
                     let child_idx = child.read().unwrap().get_index() as usize;
                     if child_idx < self.graph.get_size() {
-                        self.apply_rules_to_block(child_idx);
+                        self.apply_rules_to_block(child_idx, child);
                     }
                 }
                 crate::block::BlockType::List => {
@@ -4086,8 +4174,13 @@ impl<'a> CollapseStructure<'a> {
         install_idx: usize,
     ) {
         let size = self.graph.get_size();
-        let consumed_set: std::collections::HashSet<i32> =
-            consumed_indices.iter().copied().collect();
+        // (BLOCKSTRUCT2) membership probe = linear scan of the consumed
+        // slice (oracle form: setMark on the nodes themselves, block.cc:
+        // 944-952 — zero allocation; the consumed sets are small (2-6
+        // entries typical) and the previous std HashSet cost a RandomState
+        // build + allocation + SipHash per fire, ~14K fires on the giant
+        // function).
+        let is_consumed_idx = |idx: i32| consumed_indices.contains(&idx);
         // Register the composite FIRST: every id minted below (boundary
         // pushes, external rewrites) must resolve through the graph bank in
         // the SAME pass — deferring registration to the pass-boundary adopt
@@ -4139,7 +4232,7 @@ impl<'a> CollapseStructure<'a> {
                         let src_idx = bank.expect_index(e.point);
                         // Exclude: consumed blocks, install_idx itself (self-loop),
                         // and the new_block (not yet installed, but guard anyway).
-                        if !consumed_set.contains(&src_idx) && src_idx != install_idx as i32 {
+                        if !is_consumed_idx(src_idx) && src_idx != install_idx as i32 {
                             // cc:924 replaceInEdge keeps the peer's edge label:
                             // BlockEdge(this, outofthis[num].label, num). The
                             // inherited in-edge carries the same half's flags.
@@ -4167,7 +4260,7 @@ impl<'a> CollapseStructure<'a> {
                     if let Some(e) = c.get_out(slot) {
                         // (W2) shadow read: dst_idx via the bank index shadow.
                         let dst_idx = bank.expect_index(e.point);
-                        if !consumed_set.contains(&dst_idx) && dst_idx != install_idx as i32 {
+                        if !is_consumed_idx(dst_idx) && dst_idx != install_idx as i32 {
                             // cc:910 replaceOutEdge keeps the peer's edge label
                             // (block.cc:188 BlockEdge(this, outofthis[num].label,
                             // num) on the in-half) — flags carry over.
@@ -4247,7 +4340,7 @@ impl<'a> CollapseStructure<'a> {
                         // the consumed node set (identifyInternal's -nodes-),
                         // so edges between it and other consumed blocks are
                         // INTERNAL to the new component.
-                        if !consumed_set.contains(&src_idx) && src_idx != install_idx as i32 {
+                        if !is_consumed_idx(src_idx) && src_idx != install_idx as i32 {
                             ib.push((bank.expect_arc(e.point), e.flags));
                         }
                     }
@@ -4256,7 +4349,7 @@ impl<'a> CollapseStructure<'a> {
                     if let Some(e) = c.get_out(slot) {
                         // (W2) shadow read: dst_idx via the bank index shadow.
                         let dst_idx = bank.expect_index(e.point);
-                        if !consumed_set.contains(&dst_idx) && dst_idx != install_idx as i32 {
+                        if !is_consumed_idx(dst_idx) && dst_idx != install_idx as i32 {
                             ob.push((bank.expect_arc(e.point), e.flags));
                         }
                     }
@@ -4442,7 +4535,7 @@ impl<'a> CollapseStructure<'a> {
                 // the component; rewriting it here stranded the reciprocal
                 // half (consistent_A/B=0 in the identify fixture) and
                 // corrupted sub-block edge walks.
-                if consumed_set.contains(&(gi as i32)) {
+                if is_consumed_idx(gi as i32) {
                     continue;
                 }
                 let gb = match self.graph.get_block(gi) {
@@ -4495,7 +4588,7 @@ impl<'a> CollapseStructure<'a> {
         // which is_consumed/finalize_structure use in place of Ghidra's
         // incremental list compaction (block.cc:953-960).
         {
-            let is_component = |idx: i32| consumed_set.contains(&idx) || idx == install_idx as i32;
+            let is_component = |idx: i32| is_consumed_idx(idx) || idx == install_idx as i32;
             // (W2) shadow reads: component membership via the bank index
             // shadow — the peer lock/vtable round-trip is gone and the
             // self-loop arm keeps its edge exactly as before.
@@ -4599,7 +4692,7 @@ impl<'a> CollapseStructure<'a> {
         // push the install slot (now the composite) at the end, so every
         // position-order scan walks the oracle's exact list layout.
         self.virtual_list
-            .retain(|&s| !consumed_set.contains(&s) && s != install_idx as i32 && s != new_idx as i32);
+            .retain(|&s| !is_consumed_idx(s) && s != install_idx as i32 && s != new_idx as i32);
         self.virtual_list.push(new_idx as i32);
     }
 
@@ -4816,7 +4909,7 @@ impl<'a> CollapseStructure<'a> {
     /// bl must have 1 out-edge to outblock, outblock has 1 in-edge, and bl must
     /// be the START of a chain (its in-edge source has >1 out OR bl has >1 in).
     /// Then extend the chain while each link has 1 out, 1 in, no switch, no goto.
-    fn try_rule_cat(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank_view: &crate::block::BlockBankView) -> bool {
+    fn try_rule_cat(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank_view: &crate::block::BlockBankView) -> bool {
         let size = self.graph.get_size();
         // One bank-view guard spans this rule's read phases (the per-try
         // peer reads below run millions of times per giant function; NLL
@@ -4824,13 +4917,16 @@ impl<'a> CollapseStructure<'a> {
         // bl->sizeOut() != 1 — NO type gate: Ghidra's ruleBlockCat
         // (cc:1284-1314) runs on any graph member; structured components
         // (BlockIf, BlockCondition, ...) cat-merge like basic blocks.
+        // (BLOCKSTRUCT2) entry pair through the view — no guard opened on
+        // the common exit paths (cc:1289-1290).
         {
-            let b = block.read().unwrap();
-            if b.size_out() != 1 {
+            let (size_out, switch_out) =
+                Self::entry_size_out_switch_out(block, self_id, bank_view);
+            if size_out != 1 {
                 return false;
             }
             // cc:1290: bl->isSwitchOut() — the f_switch_out dispatch flag.
-            if b.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
+            if switch_out {
                 return false;
             }
         }
@@ -5032,24 +5128,27 @@ impl<'a> CollapseStructure<'a> {
         old_idx: i32,
         new_block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
     ) {
-        let size = self.graph.get_size();
-        for i in 0..size {
-            let block = match self.graph.get_block(i) {
-                Some(b) => b,
-                None => continue,
-            };
-            let bt = {
-                let b = block.read().unwrap();
-                b.get_type()
-            };
-            if bt != crate::block::BlockType::Switch {
+        // (BLOCKSTRUCT2) O(#switches) candidate scan over the registry (a
+        // superset of the live top-level switches — seeded at construction,
+        // pushed at each switch fire; stale slots filtered by the type
+        // check). The previous form cloned every graph member's Arc and
+        // opened a read guard per block per fire (13.9K fires × ~2.6K
+        // blocks on the giant function ≈ 0.5s). Semantics preserved
+        // exactly: the first switch in SLOT order that holds the case
+        // (minimum holding slot — the old scan's break-at-first) is the one
+        // re-pointed.
+        let mut target_slot: Option<usize> = None;
+        for &slot in &self.switch_slots {
+            let Some(block) = self.graph.blocks.get(slot) else {
                 continue;
-            }
+            };
             let holds_case = {
                 let b = block.read().unwrap();
-                let sw = match b.as_any().downcast_ref::<BlockSwitch>() {
-                    Some(s) => s,
-                    None => continue,
+                if b.get_type() != crate::block::BlockType::Switch {
+                    continue;
+                }
+                let Some(sw) = b.as_any().downcast_ref::<BlockSwitch>() else {
+                    continue;
                 };
                 let in_cases = sw
                     .cases
@@ -5064,45 +5163,51 @@ impl<'a> CollapseStructure<'a> {
             if !holds_case {
                 continue;
             }
-            // Swap the case reference IN PLACE. The oracle never rebuilds a
-            // composite when a case body is re-wrapped: its caseblocks hold
-            // FlowBlock pointers that stay valid across identifyInternal
-            // (block.cc:940-963 never touches sibling composites), and the
-            // enclosing BlockSwitch keeps its own boundary edges, flags and
-            // metadata untouched. The previous whole-struct rebuild here
-            // re-created the switch with `incoming: Vec::new()` /
-            // `outgoing: Vec::new()` / `flags: 0`, destroying the
-            // composite's boundary out-edges - FloatingEdge::get_current_edge
-            // (blockaction.cc:27-38) then failed to re-resolve a still-live
-            // (switch->exit) record against the graph (selectGoto silently
-            // skipped the entry: oracle record #43 (21->39) on
-            // sqlite3ExprIsConstant), and the slot swap also discarded the
-            // graph.blocks[i] Arc identity that peers' edge halves point at.
-            // In-place mutation keeps the Arc, its bank id, its boundary
-            // edges and its flags: only the case/default pointer moves.
-            {
-                let mut w = block.write().unwrap();
-                if let Some(sw) = w.as_any_mut().downcast_mut::<BlockSwitch>() {
-                    for c in sw.cases.iter_mut() {
-                        if c.read().unwrap().get_index() == old_idx {
-                            *c = new_block.clone();
-                        }
-                    }
-                    if let Some(d) = sw.default_case.as_mut() {
-                        if d.read().unwrap().get_index() == old_idx {
-                            *d = new_block.clone();
-                        }
+            if target_slot.is_none_or(|t| slot < t) {
+                target_slot = Some(slot);
+            }
+        }
+        let Some(target_slot) = target_slot else {
+            return;
+        };
+        let block = self.graph.blocks[target_slot].clone();
+        // Swap the case reference IN PLACE. The oracle never rebuilds a
+        // composite when a case body is re-wrapped: its caseblocks hold
+        // FlowBlock pointers that stay valid across identifyInternal
+        // (block.cc:940-963 never touches sibling composites), and the
+        // enclosing BlockSwitch keeps its own boundary edges, flags and
+        // metadata untouched. The previous whole-struct rebuild here
+        // re-created the switch with `incoming: Vec::new()` /
+        // `outgoing: Vec::new()` / `flags: 0`, destroying the
+        // composite's boundary out-edges - FloatingEdge::get_current_edge
+        // (blockaction.cc:27-38) then failed to re-resolve a still-live
+        // (switch->exit) record against the graph (selectGoto silently
+        // skipped the entry: oracle record #43 (21->39) on
+        // sqlite3ExprIsConstant), and the slot swap also discarded the
+        // graph.blocks[i] Arc identity that peers' edge halves point at.
+        // In-place mutation keeps the Arc, its bank id, its boundary
+        // edges and its flags: only the case/default pointer moves.
+        {
+            let mut w = block.write().unwrap();
+            if let Some(sw) = w.as_any_mut().downcast_mut::<BlockSwitch>() {
+                for c in sw.cases.iter_mut() {
+                    if c.read().unwrap().get_index() == old_idx {
+                        *c = new_block.clone();
                     }
                 }
-                // Case-reference swap only - no edge-length or index change,
-                // so the bank/edge shadow invariants are unaffected.
+                if let Some(d) = sw.default_case.as_mut() {
+                    if d.read().unwrap().get_index() == old_idx {
+                        *d = new_block.clone();
+                    }
+                }
             }
-            eprintln!(
-                "[COLLAPSE] {} updated BlockSwitch case {} → BlockIf",
-                self.name, old_idx
-            );
-            break;
+            // Case-reference swap only - no edge-length or index change,
+            // so the bank/edge shadow invariants are unaffected.
         }
+        eprintln!(
+            "[COLLAPSE] {} updated BlockSwitch case {} → BlockIf",
+            self.name, old_idx
+        );
     }
 
     // Ghidra: blockaction.hh:46 LoopBody::countNonStructuralInEdges
@@ -5175,24 +5280,21 @@ impl<'a> CollapseStructure<'a> {
     /// ruleBlockProperIf: detect if-then pattern (generalized Triangle).
     /// A CBRANCH block with 2 out-edges, where one out-edge block (clause)
     /// has 1 in and 1 out, and its out-edge points to the other branch.
-    fn try_rule_proper_if(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
+    fn try_rule_proper_if(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank: &crate::block::BlockBankView) -> bool {
         // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view (the
         // fire path at the tail takes no view reads).
+        // (BLOCKSTRUCT2) cc:1384-1385 entry pair through the view — the
+        // branch-block miss path (sizeOut!=2) never opens a guard.
+        {
+            let (size_out, switch_out) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if size_out != 2 {
+                return false;
+            }
+            if switch_out {
+                return false;
+            }
+        }
         let b = block.read().unwrap();
-        if b.size_out() != 2 {
-            return false;
-        }
-        // cc:1383: `if (bl->isSwitchOut()) return false;` — the dispatch
-        // block of a switch must be structured by ruleBlockSwitch, never as
-        // a proper if. f_switch_out is set for BRANCHIND blocks by build_copy
-        // (block.cc:2286 invariant) — NOT the invented switch_case_indices /
-        // CASE_BODY cascade marks, which have no oracle counterpart and
-        // blocked legitimate CBRANCH-chain structuring (Ghidra structures
-        // if-chains as nested ifs; see GETSTR-ZERODIFF-A precedent for
-        // deleting the same guard family from try_rule_if_no_exit).
-        if b.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-            return false;
-        }
 
         // cc:1386-1389: `if (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl)
         // return false; if (bl->isGotoOut(0)) return false; if (bl->isGotoOut(1))
@@ -5330,34 +5432,41 @@ impl<'a> CollapseStructure<'a> {
     /// (ends with RETURN/exit). The clause doesn't merge back — it exits.
     /// Mirrors Ghidra's ruleBlockIfNoExit (blockaction.cc:1481).
     /// Protected against switch case extraction via switch_case_indices.
-    fn try_rule_if_no_exit(&mut self, i: usize) -> bool {
+    fn try_rule_if_no_exit(
+        &mut self,
+        i: usize,
+        block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+        self_id: crate::arena::BlockId,
+        bank: &crate::block::BlockBankView,
+    ) -> bool {
         // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view (the
         // fire path at the tail takes no view reads).
-        let bank = self.graph.bank.hold();
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
-        let b = block.read().unwrap();
-        if b.size_out() != 2 {
-            return false;
-        }
-
+        // (BLOCKSTRUCT2) cc:1481-1490 entry guards through the caller's
+        // pass-level view — re-held after every fire (the only publishes on
+        // this path are the fire's identify adopts, and the scan breaks at
+        // the first fire).
         // Ghidra's rule is purely topological (no CBRANCH-op gate): the
         // polarity of a real CBRANCH lives in the data flip, and structured
         // condition components (BlockCondition) legitimately match here.
         // (The old `let ops = b.get_ops()` probe here cloned the whole op
         // list of the underlying BlockBasic per try with the result unused —
         // deleted.)
+        {
+            let (size_out, switch_out) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if size_out != 2 {
+                return false;
+            }
 
-        // cc:1487-1490: `if (bl->isSwitchOut()) return false; if
-        // (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl) return
-        // false; if (bl->isGotoOut(0)) return false; if (bl->isGotoOut(1))
-        // return false;` — no switch dispatch, no self loops, no
-        // unstructured branches out of the condition.
-        if b.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-            return false;
+            // cc:1487-1490: `if (bl->isSwitchOut()) return false; if
+            // (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl)
+            // return false; if (bl->isGotoOut(0)) return false; if
+            // (bl->isGotoOut(1)) return false;` — no switch dispatch, no
+            // self loops, no unstructured branches out of the condition.
+            if switch_out {
+                return false;
+            }
         }
+        let b = block.read().unwrap();
         let cond_idx = b.get_index();
         // RUDRA-GLUE: bank-view self-loop checks (edge twins' index
         // shadows; unresolved twins fall back to the guard read).
@@ -5442,15 +5551,18 @@ impl<'a> CollapseStructure<'a> {
     /// same block which is not the condition itself (cc:1433-1435), and
     /// neither clause is a switch dispatch nor has an unstructured jump out
     /// (cc:1437-1440).
-    fn try_rule_if_else(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
-        let b = block.read().unwrap();
-        if b.size_out() != 2 {
-            return false;
-        } // cc:1421 Must be binary condition
-          // cc:1422: `if (bl->isSwitchOut()) return false;`
-        if b.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-            return false;
+    fn try_rule_if_else(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank: &crate::block::BlockBankView) -> bool {
+        // (BLOCKSTRUCT2) cc:1421-1422 entry pair through the view.
+        {
+            let (size_out, switch_out) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if size_out != 2 {
+                return false;
+            } // cc:1421 Must be binary condition
+            if switch_out {
+                return false;
+            } // cc:1422: `if (bl->isSwitchOut()) return false;`
         }
+        let b = block.read().unwrap();
         // cc:1423-1424: `if (!bl->isDecisionOut(0)) return false; if
         // (!bl->isDecisionOut(1)) return false;` — refuse structuring
         // across unstructured/loopback edges (block.hh:336: decision =
@@ -5563,11 +5675,15 @@ impl<'a> CollapseStructure<'a> {
     /// The sizeout==1 newBlockGoto case lives in try_rule_goto; the
     /// isSwitchOut → newBlockMultiGoto case (cc:1456-1458) is routed here and
     /// in try_rule_goto ahead of the sizeout dispatch (see new_block_multigoto).
-    fn try_rule_if_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
-        let b = block.read().unwrap();
-        if b.size_out() != 2 {
-            return false;
+    fn try_rule_if_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank: &crate::block::BlockBankView) -> bool {
+        // (BLOCKSTRUCT2) cc:1427-1429 entry pair through the view.
+        {
+            let (size_out, _) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if size_out != 2 {
+                return false;
+            }
         }
+        let b = block.read().unwrap();
         // First goto-marked out edge (cc:1454-1455, isGotoOut on the edge
         // label — works for structured blocks like BlockCondition too).
         let goto_slot = if Self::out_edge_is_goto(&*b, 1) {
@@ -5858,13 +5974,48 @@ impl<'a> CollapseStructure<'a> {
     /// gate left such marks unconsumed, so selectGoto re-marked the same
     /// edge forever (the my_get_line/glob_word non-convergence,
     /// BLOCKSTRUCT-NORETURN-DEADREGION-0001).
-    fn try_rule_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
+    fn try_rule_goto(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank: &crate::block::BlockBankView) -> bool {
         // cc:1453-1455: `sizeout` captured before the scan; the loop finds the
         // FIRST goto-marked out edge (lowest slot wins). isGotoOut works on
         // every block type (edge label or the block-level GOTO_EDGE_0/1
         // mirrors) and on every slot >= 0 — a peeled switch can still have
         // dozens of live out edges with a goto mark on any of them.
-        let (idx, size_out, goto_edge) = {
+        // (BLOCKSTRUCT2) the whole miss scan runs through the view: edge
+        // labels via the edge-shadow table, the slot mirrors via the flags
+        // shadow — the same two channels out_edge_is_goto reads through the
+        // guard (its trailing trait call adds nothing beyond them: the
+        // BlockBasic impl reads these same GOTO_EDGE_0/1 flag bits).
+        // SENTINEL (bare fixture) keeps the guard form, byte-identical.
+        let (idx, size_out, goto_edge, switch_out) = if self_id
+            != <crate::arena::BlockId as crate::arena::ArenaId>::SENTINEL
+        {
+            let size_out = bank.expect_size_out(self_id);
+            let flags = bank.expect_flags(self_id);
+            let mut goto_edge: Option<usize> = None;
+            for j in 0..size_out {
+                let edge_goto = bank.out_edge(self_id, j).is_some_and(|e| {
+                    e.flags
+                        & (crate::block::edge_flags::F_GOTO_EDGE
+                            | crate::block::edge_flags::F_IRREDUCIBLE_EDGE)
+                        != 0
+                });
+                let mirror = (j == 0 && flags & crate::block::block_flags::GOTO_EDGE_0 != 0)
+                    || (j == 1 && flags & crate::block::block_flags::GOTO_EDGE_1 != 0);
+                if edge_goto || mirror {
+                    goto_edge = Some(j);
+                    break;
+                }
+            }
+            if goto_edge.is_none() {
+                return false;
+            }
+            (
+                bank.expect_index(self_id),
+                size_out,
+                goto_edge,
+                flags & crate::block::block_flags::SWITCH_OUT != 0,
+            )
+        } else {
             let b = block.read().unwrap();
             let size_out = b.size_out();
             let mut goto_edge: Option<usize> = None;
@@ -5877,14 +6028,16 @@ impl<'a> CollapseStructure<'a> {
             if goto_edge.is_none() {
                 return false;
             }
-            (b.get_index(), size_out, goto_edge)
+            let switch_out =
+                b.get_flags() & crate::block::block_flags::SWITCH_OUT != 0;
+            (b.get_index(), size_out, goto_edge, switch_out)
         };
         // cc:1456-1458: `if (bl->isSwitchOut()) { graph.newBlockMultiGoto(bl,i);
         // return true; }` — the isSwitchOut arm runs FIRST, ahead of the
         // sizeout==2/1 dispatch, so a switch block's goto edge is peeled into
         // a BlockMultiGoto no matter how many out edges remain
         // (BLOCKSTRUCT-MULTIGOTO-0001).
-        if block.read().unwrap().get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
+        if switch_out {
             let peeled_target_addr = block
                 .read()
                 .unwrap()
@@ -5987,19 +6140,23 @@ impl<'a> CollapseStructure<'a> {
     /// A CBRANCH block with 2 out-edges, where one out-edge (clause) has
     /// size_in==1, size_out==1, and its single out-edge loops back to the
     /// CBRANCH block. Mirrors Ghidra's ruleBlockWhileDo (blockaction.cc:1518).
-    fn try_rule_while_do(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
+    fn try_rule_while_do(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank: &crate::block::BlockBankView) -> bool {
         // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view (the
         // fire path at the tail takes no view reads).
+        // (BLOCKSTRUCT2) cc:1519-1520 entry pair through the view.
+        {
+            let (size_out, switch_out) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if size_out != 2 {
+                return false;
+            }
+            // cc:1525: `if (bl->isSwitchOut()) return false;` — f_switch_out
+            // (BRANCHIND dispatch, set by build_copy per block.cc:2286), not the
+            // invented CASE_BODY cascade marks.
+            if switch_out {
+                return false;
+            }
+        }
         let b = block.read().unwrap();
-        if b.size_out() != 2 {
-            return false;
-        }
-        // cc:1525: `if (bl->isSwitchOut()) return false;` — f_switch_out
-        // (BRANCHIND dispatch, set by build_copy per block.cc:2286), not the
-        // invented CASE_BODY cascade marks.
-        if b.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-            return false;
-        }
         // cc:1526-1528: `if (bl->getOut(0)==bl) return false; if (bl->getOut(1)==bl)
         // return false; if (bl->isInteriorGotoTarget()) return false;`
         let cond_idx_pre = b.get_index();
@@ -6119,17 +6276,21 @@ impl<'a> CollapseStructure<'a> {
     /// ruleBlockDoWhile: detect do { body } while(cond) pattern.
     /// A CBRANCH block where one out-edge loops back to itself.
     /// Mirrors Ghidra's ruleBlockDoWhile (blockaction.cc:1555).
-    fn try_rule_do_while(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
+    fn try_rule_do_while(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank: &crate::block::BlockBankView) -> bool {
+        // (BLOCKSTRUCT2) cc:1556-1557 entry pair through the view.
+        {
+            let (size_out, switch_out) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if size_out != 2 {
+                return false;
+            }
+            // cc:1561: `if (bl->isSwitchOut()) return false;` — f_switch_out
+            // (BRANCHIND dispatch, set by build_copy per block.cc:2286), not the
+            // invented CASE_BODY cascade marks.
+            if switch_out {
+                return false;
+            }
+        }
         let b = block.read().unwrap();
-        if b.size_out() != 2 {
-            return false;
-        }
-        // cc:1561: `if (bl->isSwitchOut()) return false;` — f_switch_out
-        // (BRANCHIND dispatch, set by build_copy per block.cc:2286), not the
-        // invented CASE_BODY cascade marks.
-        if b.get_flags() & crate::block::block_flags::SWITCH_OUT != 0 {
-            return false;
-        }
         // cc:1562-1563: `if (bl->isGotoOut(0)) return false; if
         // (bl->isGotoOut(1)) return false;` — a do/while whose back-edge or
         // exit edge is already marked unstructured must stay a goto (the
@@ -6227,18 +6388,23 @@ impl<'a> CollapseStructure<'a> {
     /// Try to fold an AND/OR short-circuit condition. Faithful to
     /// `ruleBlockOr` (blockaction.cc:1321-1371): detects two CBRANCH
     /// blocks sharing a clause exit, creates BlockCondition.
-    pub fn try_rule_or(&mut self, i: usize) -> bool {
+    pub fn try_rule_or(
+        &mut self,
+        i: usize,
+        block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+        self_id: crate::arena::BlockId,
+        bank: &crate::block::BlockBankView,
+    ) -> bool {
         // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view — hot
-        let bank = self.graph.bank.hold();
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
-        // cc:1327-1330: guards
-        let b = block.read().unwrap();
-        if b.size_out() != 2 {
-            return false;
+        // (BLOCKSTRUCT2) cc:1327-1330 entry guards through the caller's
+        // pass-level view (re-held after every fire in the fixpoint loop).
+        {
+            let (size_out, _) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if size_out != 2 {
+                return false;
+            }
         }
+        let b = block.read().unwrap();
         if b.is_goto_out(0) {
             return false;
         }
@@ -6251,7 +6417,9 @@ impl<'a> CollapseStructure<'a> {
         // (W3) the block's own bank id, hoisted before the guard — the
         // self/peer comparisons below are pure id equality (oracle pointer
         // equality, one identity lookup per rule invocation).
-        let block_point = self.graph_bank().registered_id_of(&block);
+        // (BLOCKSTRUCT2) the dispatch's own registered_id_of result is the
+        // same value — no re-lookup.
+        let block_point = self_id;
 
         for ii in 0..2 {
             // (W3) orblock handle resolves once (the is_complex guard below
@@ -6366,11 +6534,13 @@ impl<'a> CollapseStructure<'a> {
     ///   - !isGotoOut(0) (not a goto)
     ///   - getOut(0) == bl (falls into itself)
     ///   - newBlockInfLoop(bl)
-    pub fn try_rule_inf_loop(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
-        let sizeout = block.read().unwrap().size_out();
-        // cc:1582: must only be one way out
-        if sizeout != 1 {
-            return false;
+    pub fn try_rule_inf_loop(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank: &crate::block::BlockBankView) -> bool {
+        // (BLOCKSTRUCT2) cc:1582 entry sizeOut through the view.
+        {
+            let (sizeout, _) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if sizeout != 1 {
+                return false;
+            }
         }
         // cc:1589: not a goto
         if block.read().unwrap().is_goto_out(0) {
@@ -6525,16 +6695,22 @@ impl<'a> CollapseStructure<'a> {
     /// pre-formation graph it never fired; selectGoto then peeled the
     /// switch's case edge and the tail region landed outside the loop
     /// (glob_set: `goto LAB_00104c20` + `code_r0x00104c7c` back-edge family).
-    fn try_rule_case_fallthru(&mut self, i: usize) -> bool {
-        // PERF-ARENA-FLIP-0001 (f) step 2: guard-phase snapshot view — hot
-        let bank = self.graph.bank.hold();
-        let block = match self.graph.get_block(i) {
-            Some(b) => b,
-            None => return false,
-        };
+    fn try_rule_case_fallthru(
+        &mut self,
+        i: usize,
+        block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>,
+        self_id: crate::arena::BlockId,
+        bank: &crate::block::BlockBankView,
+    ) -> bool {
         // cc:1732: if (!bl->isSwitchOut()) return false;
-        if !block.read().unwrap().is_switch_out() {
-            return false;
+        // (BLOCKSTRUCT2) entry isSwitchOut through the caller's pass-level
+        // view — the non-switch miss opens no guard (this rule runs once per
+        // block per fullchange round).
+        {
+            let (_, switch_out) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if !switch_out {
+                return false;
+            }
         }
         let sizeout = block.read().unwrap().size_out();
         let mut nonfallthru = 0usize;
@@ -6610,7 +6786,7 @@ impl<'a> CollapseStructure<'a> {
     // Ghidra: blockaction.cc:1649 CollapseStructure::ruleBlockSwitch
     /// Try to find a switch structure: find the exitblock, validate all
     /// cases converge, run checkSwitchSkips, then build the BlockSwitch.
-    pub fn try_rule_switch(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, bank: &crate::block::BlockBankView) -> bool {
+    pub fn try_rule_switch(&mut self, i: usize, block: &Arc<RwLock<dyn FlowBlock + Send + Sync>>, self_id: crate::arena::BlockId, bank: &crate::block::BlockBankView) -> bool {
         // (RUDRA_IRRED_DBG read once per process: this rule runs ~4M times
         // on giant functions and the per-try std::env::var (env lock +
         // alloc) was pure Rust bookkeeping; env is immutable at runtime,
@@ -6619,8 +6795,13 @@ impl<'a> CollapseStructure<'a> {
         let irred_sw = *IRRED_SW
             .get_or_init(|| std::env::var("RUDRA_IRRED_DBG").map(|v| v == "1").unwrap_or(false));
         // Ghidra cc:1652: if (!bl->isSwitchOut()) return false;
-        if !block.read().unwrap().is_switch_out() {
-            return false;
+        // (BLOCKSTRUCT2) entry isSwitchOut through the view — the non-switch
+        // miss (99%+ of tries) opens no guard.
+        {
+            let (_, switch_out) = Self::entry_size_out_switch_out(block, self_id, bank);
+            if !switch_out {
+                return false;
+            }
         }
         let sizeout = block.read().unwrap().size_out();
         if irred_sw {
@@ -7066,6 +7247,17 @@ impl<'a> CollapseStructure<'a> {
         };
         self.identify_internal(&switch_block, &case_consumed, i);
         self.update_switch_case_reference(ctrl_idx, &switch_block);
+        // (BLOCKSTRUCT2) registry push: the installed switch's graph slot
+        // (identify installs at the min consumed slot — resolve by pointer
+        // identity, the authoritative slot).
+        if let Some(sw_slot) = self
+            .graph
+            .blocks
+            .iter()
+            .position(|b| Arc::ptr_eq(b, &switch_block))
+        {
+            self.switch_slots.push(sw_slot);
+        }
         // Ghidra newBlockSwitch cc:1912: grabCaseBasic runs "before the
         // identifyInternal" but only RECORDS FlowBlock pointers — the oracle's
         // caseblocks hold components and gotoedge targets alike, and
@@ -8088,12 +8280,22 @@ impl<'a> CollapseStructure<'a> {
             // composites are appended at the end and their components
             // removed). Walk virtual_list; the retained/pushed entries track
             // the oracle's list exactly.
+            // (BLOCKSTRUCT2) pass-level view, re-held after every fire (the
+            // fire's identify adopt publishes; the oracle's fixpoint keeps
+            // scanning and so does this loop — the re-hold keeps every
+            // subsequent read on a fresh epoch).
             let mut i: usize = 0;
+            let mut bank = self.graph.bank.hold();
             while i < self.virtual_list.len() {
                 let slot = self.virtual_list[i] as usize;
                 i += 1;
-                if self.try_rule_or(slot) {
+                let Some(block) = self.graph.get_block(slot) else {
+                    continue;
+                };
+                let self_id = self.graph.bank.registered_id_of(&block);
+                if self.try_rule_or(slot, &block, self_id, &bank) {
                     change = true;
+                    bank = self.graph.bank.hold();
                 }
             }
             if !change {

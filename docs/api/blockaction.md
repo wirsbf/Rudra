@@ -2146,3 +2146,57 @@ view_arc 2,416,961→**154,023**（−2,262,938=残量面的 −93.6%;残量=尾
 O 中位 28.16 vs B 28.28=Δ−0.12s（8/10 对负向,与 ~0.25s 预测/噪声自洽）;
 corpus --jobs 32 绑核配对=±1% 噪声带内平手,assembled 7ea4795a·5,285,935B
 base==opt 字节恒等。blockaction=机制 C 白名单→CR REQUIRED。
+
+## BLOCKSTRUCT2（2026-10-03）collapse 热路径 oracle 形态收敛（速度道——blockstructure 残量收割,基 408f6827）
+
+**画像先行**（[SP2PROF] 复活探针,VdbeExec --one 1055,stderr-only,交付前撤净）:
+逐 Action 分布 blockstructure **6.22s**=单极 #2（oppool1 6.67 之后）;桶内
+collapse_internal_all 6.06s=95%;规则级 9 规则 × **4.03M 访问**（proper_if
+1.16/cat 0.44/while_do 0.37/inf_loop 0.35/goto 0.31/do_while 0.29/if_else
+0.29/if_goto 0.28/switch 0.27,self 口径探针值）;fire 路径 identify_internal
+13,900 次 1.82s;update_switch_case_reference 13.9K 次 0.53s（O(n) 全图扫/次）;
+second-pass 5,097 轮 0.39s。oracle 侧（亲读 blockaction.cc:1771-1833/
+1284-1721 + block.cc:940-963/3495）: 访问循环无时钟、每 try 入口守卫=裸指针
+inline 字段读（block.hh:312-313/326）、identifyInternal 零分配（setMark）、
+case 指针稳定零再指向。
+
+**四件收敛（全部行为恒等——输出零变 + ACTIONSTATS 恒等）**:
+
+- **visit 循环还原 oracle 形**: ①per-visit deadline 时钟读删除（pass 头
+  检查保留——oracle 的列表行走本身无钟,blockaction.cc:1771-1833;pass 有界
+  性=列表长 × 9 规则,安全界保持）;②second-pass 的 `virtual_list.clone()`
+  （每轮一次堆分配+拷贝）改为活列表下标行走（oracle 精确形态 `index <
+  graph.getSize()` 边界重评——fire 即 break,扫描中永不变异观测,借用解耦
+  的 clone 是纯 Rust 借用规避）。
+- **dispatch 去重**（apply_rules_to_block 签名 `(i, block) -> bool`
+  isolated）: visit 循环原来的第二次 fetch+read guard+is_consumed+size 检查
+  与 dispatch 内部检查合并为一处——oracle 每次 visit 只做一次 getBlock +
+  两个 size 字段读（cc:1779-1795）;is_consumed/孤立性检查走 view 影子
+  （registered 形,SENTINEL=裸 fixture 回退 guard 读,逐值相同）。
+- **入口守卫对 view 影子化**: 9 条 dispatch 规则 + ruleBlockOr/
+  IfNoExit/CaseFallthru 的入口守卫对（sizeOut + isSwitchOut;goto 规则=
+  全标签行走）改读 (g) 段守卫影子/W3 边影子（`entry_size_out_switch_out`
+  helper;每 try 免一次 block RwLock+vtable 往返——36.3M tries）; SENTINEL
+  回退 guard 形,逐值相同。second-pass 与 collapseConditions 的 view 提升为
+  pass 级（fire 后 re-hold——collapseConditions 的 fire 不 break,oracle 的
+  fixpoint 继续,与 re-hold 语义一致;second-pass fire 即 break 无需 re-hold）。
+- **update_switch_case_reference 候选注册表**: 构造期种子扫（裸 fixture
+  直装 switch 兜底）+ try_rule_switch fire 时 ptr 定位 push 的
+  `switch_slots: Vec<usize>` 超集,替代每 fire 的 O(n) 全图扫（13.9K fires ×
+  ~2.6K 块 ≈ 0.5s）;陈旧槽由权威类型检查过滤,首命中-槽序语义以取最小持
+  有槽保持;identify_internal 的 per-fire `std::HashSet`（SipHash+分配）改
+  consumed 切片线性 contains（oracle setMark 形,零分配;consumed 集 2-6 元
+  典型）。
+
+**行为恒等证明链（全部 == master 408f6827 钉值,逐字节）**: VdbeExec --one
+1055 双面 canon **606dd8c0**/mirror **b3f5b487**;ACTIONSTATS 五值 perform=917/
+pool_passes=302/ops=5,825,780/rule_tries=28,722,406/rule_hits=63,713;corpus
+全量双面 canon **cf541df3**·5,279,715B/mirror **53bd3884**·5,285,342B;canon
+curl **f903372a** 124/124+httpd **3617ecc3** 34/34 defects=numbering=0;
+镜面五面恰钉值 **0/0/0/0/0**（matched 74/29/71/810/1385）;tests **2061P**;
+annotations/refs 双绿;stale-guard digest 内容级 OK。
+
+**机制 C**: blockaction.rs=白名单 → CR REQUIRED（root 预约 reviewer;复核面=
+本节四件的 oracle 行号区段 + entry fallback 逐值等价 + 注册表超集论证 +
+恒等链独立复跑）。blockaction.rs 同时在机制 B 白名单 → canon 差分门禁已过
+全零。
