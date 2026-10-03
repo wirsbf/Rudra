@@ -9681,6 +9681,26 @@ impl Rule for RuleThreeWayCompare {
 /// expanding their inputs into the match list.
 pub struct RuleMultiCollapse;
 
+// PERF3 (Vec churn main cluster): cross-call capacity retention for
+// RuleMultiCollapse's two cc:3237 stack vectors (skiplist/matchlist
+// expansion). The oracle re-allocates both vectors per call with
+// push_back growth (malloc/free ladder); Rudra keeps the same element
+// sequence but retains capacity across all applyOp calls of the thread —
+// per-call contents are identical (both buffers cleared on take), and
+// applyOp never re-enters itself (the epilogue's totalReplace/opDestroy/
+// cseFind mutate Funcdata but never dispatch rules), so the RefCell
+// borrow cannot nest.
+// RUDRA-GLUE: thread-local scratch retention (no Ghidra counterpart — the
+// oracle's per-call stack vectors are the allocation form being relieved).
+thread_local! {
+    static MULTICOLLAPSE_SCRATCH: std::cell::RefCell<
+        (
+            Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>>,
+            Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>>,
+        ),
+    > = std::cell::RefCell::new((Vec::new(), Vec::new()));
+}
+
 impl RuleMultiCollapse {
     // Ghidra: ruleaction.hh:614 RuleMultiCollapse::RuleMultiCollapse
     pub fn new() -> Self { Self }
@@ -9710,10 +9730,6 @@ impl Rule for RuleMultiCollapse {
         let mut nofunc = false;
         let mut defcopyr: Option<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
             None;
-        let mut skiplist: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
-            Vec::new();
-        let mut expanded: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>> =
-            Vec::new();
 
         let op_guard = op_arc.read().unwrap();
         // cc:3243-3244: everything must be heritaged before collapse; the
@@ -9751,16 +9767,23 @@ impl Rule for RuleMultiCollapse {
             Some(o) => o.clone(),
             None => return Ok(action_status::NO_CHANGE),
         };
-        // PERF-ALLOCFLOOR-0001: capacity reservation placed after the
-        // heritage-known precheck so early returns stay allocation-free.
-        // The oracle's stack vectors (cc:3237) grow by push_back from empty;
-        // the reservation removes the Rust growth-realloc ladder while the
-        // element order and final contents are unchanged (skiplist holds the
-        // output plus one entry per expanded MULTIEQUAL; expanded holds the
-        // appended inputs — both bounded by the matchlist size in practice).
+        // PERF3 (Vec churn main cluster): skiplist/expanded taken from the
+        // thread-local scratch AFTER the heritage precheck and output check
+        // (the dominant early exits stay allocation-free and never touch
+        // the scratch — retention survives them). Both buffers are cleared
+        // here, so this call's contents are exactly the fresh-Vec form;
+        // the oracle's cc:3237 stack vectors grow by push_back per call,
+        // the retained capacity only removes the Rust growth-realloc
+        // ladder. An error-path `?` return below drops the locals (an
+        // empty pair lands back in the thread-local — retention lost for
+        // one call, nothing observable).
+        let (mut skiplist, mut expanded) =
+            MULTICOLLAPSE_SCRATCH.with(|cell| std::mem::take(&mut *cell.borrow_mut()));
+        skiplist.clear();
+        expanded.clear();
+        // The initial matchlist region size (cc:3250-3251 push of every
+        // op->getIn(i)) — the in-place inrefs prefix length of the walk.
         let base_len = op_guard.inrefs.len();
-        skiplist.reserve(1 + base_len);
-        expanded.reserve(base_len.max(1));
         out_vn.write().unwrap().set_mark();
         skiplist.push(out_vn);
 
@@ -9997,12 +10020,22 @@ impl Rule for RuleMultiCollapse {
                     fd.op_destroy(&def_ref);
                 }
             }
+            // PERF3: scratch pair back to the thread-local with capacity
+            // retained for the next call (contents already dropped by the
+            // clears above; Arc handles released here at the latest).
+            MULTICOLLAPSE_SCRATCH.with(|cell| {
+                *cell.borrow_mut() = (skiplist, expanded);
+            });
             return Ok(action_status::CHANGE);
         }
         // Clear marks on failure.
         for vn in &skiplist {
             vn.write().unwrap().clear_mark();
         }
+        // PERF3: failure-path scratch return (same retention semantics).
+        MULTICOLLAPSE_SCRATCH.with(|cell| {
+            *cell.borrow_mut() = (skiplist, expanded);
+        });
         Ok(action_status::NO_CHANGE)
     }
 

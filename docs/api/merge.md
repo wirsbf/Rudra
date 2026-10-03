@@ -1316,3 +1316,16 @@ cmp 恒等/canon 双 md5 钉值/镜面五面恰钉值（详见 docs/api/cover.md
   `op->getIn(i)`（cc:1000-1002 oracle 即为活读，merge 之间不触 op 输入表），
   相邻对收集只携带 (op, out)，输入 Vec 快照移除（顺带消除旧快照形与 oracle
   活读形的潜在陈旧差）。
+
+## PERF3（2026-10-03）Vec 增长主簇——两处 addRefPoint DFS scratch 对提升循环外复用
+
+**PERF-ALLOCFLOOR-0001 session 3**: `eliminate_intersect`（merge.cc:489-572）
+与 `mark_redundant_copies` removable 检查（merge.cc:1198-1211）的
+`add_ref_point_full` DFS scratch 对（roots/stack）原在每次迭代全新建
+（`expand_roots_tbl` DFS 栈逐迭代增长阶梯=画像主簇成分）。提升到循环外一次
+创建、迭代间复用——`add_ref_point_full`/`expand_roots_tbl` 入口自 clear 两
+缓冲,每次迭代内容与全新 Vec 形相同,仅容量跨迭代存活。oracle 的
+per-descendant `Cover single/aCover`（cc:502/1203）无堆 scratch（addRefRecurse
+走 C++ 调用栈）,map 本体生命周期不变（每迭代 `Cover::new()` 保持）。第三处
+单发调用点（group_partial 域 ~4981 行,单次调用无循环）不动。
+行为恒等: VdbeExec 双面 md5 恰钉值 + 镜面五面 0/0/0/0/0 恰预值。

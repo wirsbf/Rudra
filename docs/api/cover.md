@@ -328,3 +328,34 @@ operator[] 默认插入语义逐键保留）。要点:
   markimplied 动作 2.81→1.88s;VdbeExec 单极 user 配对中位 −0.37~−0.39s
   （taskset 定核 3/5、5/6 对胜,负载 35-58 窗）;corpus wall 三交错对
   **−0.84~−0.95s**（37.42/34.64/34.75 → 36.57/33.69/33.91）。
+
+## PERF3（2026-10-03）Vec 增长主簇——重建/走查暂存跨调用保留 + MULTIEQUAL 槽位容器移除
+
+**PERF-ALLOCFLOOR-0001 session 3**: 画像（rbt execinfo 回溯,VdbeExec --one 1055）
+钉死 Vec 增长主簇=realloc grow 的 **42.4%** 落在 `Cover::add_ref_point_tbl` 家族
+（`expand_roots_tbl` 的 DFS 栈增长——每次入口全新 scratch Vec 的增长阶梯）。
+oracle（cover.cc:477-496 rebuild / cc:565-612 addRefPoint / cc:524-558
+addRefRecurse）在这些路径**零堆分配**（`path` 单栈向量 + C++ 调用栈递归）。
+三处收敛:
+
+- **`add_ref_point_tbl` 槽位快照容器移除**: 原 MULTIEQUAL `matching_slots`
+  `filter_map collect`（增长阶梯,且在早退判定前无条件支付）→ cc:604-607
+  原位形态——入口只快照 `num_input`,槽位测试平移到底部递归臂的逐槽短守卫
+  循环（`op.get_in(slot)==root` → `rg.get_in_ref(slot)`,同升槽序,块守卫单次）。
+  早退路径现在与 oracle 同零槽位扫描成本。
+- **`RebuildScratch` 跨调用缓冲保留**: roots/stack/path/visited/descendants
+  五缓冲并入既有线程局部 scratch（entry `mem::take` + 全出口 put-back,
+  容量跨整个反编译存活）;`rebuild_worklist` 的每级 `root_descendants.clone()`
+  与 `descend_iter().collect()` 改为 clear+extend 复用缓冲（cc:488 原位
+  descend 走查的等值形——同内容同序）。每调用内容=全新 Vec 形（各缓冲调用
+  内首用前 clear）,仅消除 Rust 增长 realloc 阶梯。
+- **行为恒等**: VdbeExec --one 1055 双面 md5 恰钉值（canon **606dd8c0**/
+  mirror **b3f5b487**,base==opt 逐字节 cmp 亲验）;双臂等价回归
+  `test_cover_write_table_arm_equivalence` 保持绿（scratch 复用轮次零残留
+  断言覆盖新缓冲域之外的表本体,新缓冲由字节恒等证明链覆盖）。
+- **效果**（fast-release 同 profile A/B,base=git-archive 408f6827
+  stale-guard digest be6cb02e 内容级验证）: realloc grow 2,354,170→
+  843,433（cover+multicollapse 两簇出清后残量主剩 only_op_use
+  [cc:1809 oracle 同为 reserve(64)+增长阶梯,形态相等]与 subflow 家族
+  [cc:184-197 oracle 同为 emplace_back/push_back 阶梯,形态相等]——均
+  oracle-form-equal,非偏离,不动）。

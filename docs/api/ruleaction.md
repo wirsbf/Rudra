@@ -2646,3 +2646,22 @@ ValueFromExpr 四函数归零,函数体==golden）;canon f903372a/3617ecc3 字�
   同 op 槽位，不可持守卫跨写）。
 - `RuleConditionalMove::gather_expression`（cc:9287-9316）——工作列表扫描逐槽
   短守卫 + 单句柄克隆（cc:9308 每槽 `op->getIn(i)`），整 Vec 快照移除。
+
+## PERF3（2026-10-03）Vec 增长主簇——RuleMultiCollapse 暂存跨调用保留
+
+**PERF-ALLOCFLOOR-0001 session 3**: realloc grow 的 **21.1%** 落在
+`RuleMultiCollapse::apply_op`——`expanded` 越过 s2 预留（`reserve(base_len)`）
+后的增长阶梯（嵌套 MULTIEQUAL 展开追加远超初始输入数,jump-table 级大表
+阶梯到数百元素）+ 每调用 skiplist/expanded 预留 malloc 对。
+
+- **形态**: s2 的入口预留对 → 线程局部 `MULTICOLLAPSE_SCRATCH`（skiplist/
+  expanded 二元组）跨调用容量保留——`mem::take` 于 heritage 预检与 output
+  检查之后（主导早退路径零触 scratch,保留能力存活）,clear 后使用,成功/
+  失败双出口 put-back;`?` 错误路径原地 drop（保留能力一次性损失,无可观测
+  值——线程局部落回空对）。oracle cc:3237 每调用栈向量 push_back 阶梯——
+  保留只消 Rust realloc 阶梯,元素序/终态/守卫序逐条不变（`base_len`
+  in-place 前缀区语义原样,walk 循环不变）。
+- **重入安全**: applyOp 尾段 totalReplace/opDestroy/cseFind 只改 Funcdata
+  不派发规则,ActionPool 串行驱动——RefCell borrow 不可嵌套。
+- **行为恒等**: VdbeExec --one 1055 双面 md5 恰钉值 + canon curl 124/124
+  diff=0（机制 B ruleaction 触发面）。
