@@ -535,6 +535,23 @@ struct RebuildScratch {
     /// panicked midway leaves the flag false and the next `clear_table`
     /// still walks (fail-safe).
     slots_clean: bool,
+    /// PERF3 (Vec churn main cluster): retained transient buffers for
+    /// `Cover::rebuild`'s worklist walk — predecessor-id roots, the
+    /// iterative addRefRecurse expansion stack, the implied-output `path`,
+    /// the cycle-bound `visited` set, and the per-level descendants buffer.
+    /// The oracle (cover.cc:477-496) keeps `path` as one stack vector and
+    /// recurses on the C++ call stack (zero heap); Rudra's iterative DFS
+    /// needs these Vecs, but their capacity now survives across every
+    /// rebuild of the decompile instead of being re-grown per call.
+    /// Contents are cleared at each `rebuild_worklist` entry (nothing
+    /// survives a call), so per-call observations are unchanged.
+    // RUDRA-GLUE: cross-call buffer retention (no Ghidra counterpart — the
+    // oracle's rebuild allocates nothing beyond map nodes).
+    roots: Vec<crate::arena::BlockId>,
+    stack: Vec<(crate::arena::BlockId, i32)>,
+    path: Vec<std::sync::Arc<std::sync::RwLock<crate::varnode::Varnode>>>,
+    visited: rustc_hash::FxHashSet<usize>,
+    descendants: Vec<std::sync::Arc<std::sync::RwLock<crate::op::PcodeOp>>>,
 }
 
 impl RebuildScratch {
@@ -545,6 +562,11 @@ impl RebuildScratch {
             slots: Vec::new(),
             neg: BTreeMap::new(),
             slots_clean: true,
+            roots: Vec::new(),
+            stack: Vec::new(),
+            path: Vec::new(),
+            visited: rustc_hash::FxHashSet::default(),
+            descendants: Vec::new(),
         }
     }
 
@@ -998,25 +1020,28 @@ impl Cover {
         scratch_stack: &mut Vec<(crate::arena::BlockId, i32)>,
         tbl: &mut T,
     ) {
-        let (order, endpoint, opcode, op_parent, matching_slots) = {
+        // PERF3 (Vec churn main cluster): the MULTIEQUAL slot snapshot was a
+        // fresh Vec per call (filter_map collect = growth-realloc ladder);
+        // the oracle has no container here at all — cc:604-607 scans
+        // `ref->getIn(j)==vn` inline at the recursion step only. Snapshot
+        // just the input count under the same guard; the slot test moves to
+        // the bottom recursion arm (per-slot short guards, the cc:605 loop
+        // shape). The early returns above this point now pay zero slot-scan
+        // cost, exactly like the oracle.
+        let (order, endpoint, opcode, op_parent, op_num_input) = {
             let op = op_arc.read().unwrap();
             let opcode = op.get_opcode();
-            let matching_slots = if opcode == crate::opcodes::OpCode::CPUI_MULTIEQUAL {
-                op.inrefs
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(slot, input)| std::sync::Arc::ptr_eq(input, root).then_some(slot))
-                    .collect::<Vec<_>>()
-            } else {
-                Vec::new()
-            };
+            // cc:605 `ref->numInput()` — read once at the loop head; nothing
+            // in addRefPoint mutates the op's input table, so the snapshot
+            // equals every per-iteration read the oracle makes.
+            let num_input = op.num_input();
             let endpoint = CoverEndpoint::from_op(&op);
             (
                 endpoint.u_index(),
                 endpoint,
                 opcode,
                 op.parent.as_ref().and_then(|parent| parent.upgrade()),
-                matching_slots,
+                num_input,
             )
         };
         let Some(bl_arc) = op_parent else { return };
@@ -1109,12 +1134,19 @@ impl Cover {
         let mut roots = std::mem::take(scratch_roots);
         roots.clear();
         if opcode == crate::opcodes::OpCode::CPUI_MULTIEQUAL {
-            // Snapshot every exact-identity slot's predecessor id in ascending
-            // order while the block is locked, then expand without carrying
-            // the block guard into the recursion.
-            {
-                let rg = bl_arc.read().unwrap();
-                for slot in matching_slots {
+            // cc:604-607: `for(j=0;j<ref->numInput();++j)
+            //   if (ref->getIn(j)==vn) addRefRecurse(bl->getIn(j));`
+            // Per-slot short op guards give the oracle's live reads without
+            // any slot container; the predecessor id push happens under the
+            // same single block guard the oracle's bl->getIn(j) walks under.
+            let rg = bl_arc.read().unwrap();
+            for slot in 0..op_num_input {
+                let is_root = {
+                    let op = op_arc.read().unwrap();
+                    op.get_in(slot)
+                        .is_some_and(|input| std::sync::Arc::ptr_eq(input, root))
+                };
+                if is_root {
                     if let Some(edge) = rg.get_in_ref(slot) {
                         roots.push(edge.point);
                     }
@@ -1161,7 +1193,25 @@ impl Cover {
         root_is_implied: bool,
         scratch: &mut RebuildScratch,
     ) {
-        let mut path = Vec::new();
+        // PERF3 (Vec churn main cluster): every transient below is taken
+        // from the thread-local RebuildScratch and put back at the single
+        // exit — capacity is retained across all rebuilds of the
+        // decompile. Per-call contents are identical to the fresh-Vec form
+        // (each buffer is cleared before first use this call): the oracle's
+        // `vector path(1,vn)` (cover.cc:480) is one stack vector and its
+        // addRefRecurse recursion runs on the C++ call stack, so retained
+        // capacity only removes Rust growth-realloc ladders — never a
+        // value, a visit, or an order.
+        let mut path = std::mem::take(&mut scratch.path);
+        let mut visited = std::mem::take(&mut scratch.visited);
+        let mut descendants = std::mem::take(&mut scratch.descendants);
+        let mut scratch_roots: Vec<crate::arena::BlockId> = std::mem::take(&mut scratch.roots);
+        let mut scratch_stack: Vec<(crate::arena::BlockId, i32)> =
+            std::mem::take(&mut scratch.stack);
+        path.clear();
+        visited.clear();
+        descendants.clear();
+        descendants.extend(root_descendants.iter().cloned());
         let mut pos = 0usize;
         // Termination guard mirroring Ghidra's cover-based recursion bound:
         // Cover::addRefPoint/addRefRecurse (cover.cc:549-612) only extend
@@ -1171,18 +1221,11 @@ impl Cover {
         // signal, so an explicit visited set on the implied outputs is the
         // equivalent cycle bound (without it, mutually-reading implied
         // varnodes X->Y->X loop forever).
-        let mut visited: rustc_hash::FxHashSet<usize> = rustc_hash::FxHashSet::default();
-        let mut descendants = root_descendants.clone();
-        // Scratch buffers reused across every addRefPoint of this rebuild:
-        // predecessor-id roots and the expansion stack. Cleared (capacity
-        // kept) per closure; contents never survive a call.
-        let mut scratch_roots: Vec<crate::arena::BlockId> = Vec::new();
-        let mut scratch_stack: Vec<(crate::arena::BlockId, i32)> = Vec::new();
         loop {
-            for op_arc in descendants {
+            for op_arc in descendants.iter() {
                 // The original root, not `current`, is the addRefPoint identity.
                 Self::add_ref_point_tbl(
-                    &op_arc,
+                    op_arc,
                     root,
                     &mut scratch_roots,
                     &mut scratch_stack,
@@ -1208,13 +1251,24 @@ impl Cover {
             }
             let current = path[pos].clone();
             pos += 1;
-            descendants = if std::sync::Arc::ptr_eq(&current, root) {
-                root_descendants.clone()
+            descendants.clear();
+            if std::sync::Arc::ptr_eq(&current, root) {
+                // cc:488 re-walks the root's descendants; the buffer refills
+                // from the entry snapshot in the same slot order the fresh
+                // clone produced.
+                descendants.extend(root_descendants.iter().cloned());
             } else {
-                let current_value = current.read().unwrap();
-                current_value.descend_iter().collect::<Vec<_>>()
-            };
+                // cc:488: curVn->beginDescend() iterated in place by the
+                // oracle; the upgraded-handle snapshot lands in the reused
+                // buffer (same content, same order as the fresh collect).
+                descendants.extend(current.read().unwrap().descend_iter());
+            }
         }
+        scratch.path = path;
+        scratch.visited = visited;
+        scratch.descendants = descendants;
+        scratch.roots = scratch_roots;
+        scratch.stack = scratch_stack;
     }
 
     // Ghidra: cover.cc:477 Cover::rebuild

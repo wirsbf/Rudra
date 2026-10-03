@@ -3225,6 +3225,15 @@ impl Merge {
                 v.descend.iter().filter_map(|w| w.upgrade()).map(|a| crate::op::PcodeOpRef(a)).collect()
             };
             let mut marked = Vec::new();
+            // PERF3 (Vec churn main cluster): the addRefPoint DFS scratch
+            // pair is created once for the whole descendant loop and reused
+            // per iteration — add_ref_point_full/expand_roots_tbl clear
+            // both buffers at entry, so per-iteration contents match the
+            // fresh-Vec form while the capacity survives the loop (the
+            // oracle's per-descendant Cover single (merge.cc:502) has no
+            // heap scratch at all; its addRefRecurse runs on the C++ stack).
+            let mut scratch_roots = Vec::new();
+            let mut scratch_stack = Vec::new();
             for op_ref in &descend {
                 let mut insertop = false;
                 // Build a single-read cover: addDefPoint(vn) + addRefPoint(op,vn)
@@ -3248,8 +3257,6 @@ impl Merge {
                     (v.def.as_ref().and_then(|w| w.upgrade()), v.is_input())
                 };
                 single.add_def_point_full(vn_def.as_ref(), vn_is_input);
-                let mut scratch_roots = Vec::new();
-                let mut scratch_stack = Vec::new();
                 single.add_ref_point_full(&op_ref.0, vn, &mut scratch_roots, &mut scratch_stack);
                 // Iterate over each block in the single-read cover.
                 for (&blocknum, _cb) in &single.blocks {
@@ -4125,6 +4132,13 @@ impl Merge {
         // Mark un-removable ones (Ghidra uses op->setMark).
         let mut marked: Vec<bool> = vec![false; size];
         let mut count = size as i32;
+        // PERF3 (Vec churn main cluster): the addRefPoint DFS scratch pair
+        // is created once for the whole removable-check loop and reused per
+        // iteration (add_ref_point_full clears both buffers at entry —
+        // per-iteration contents match the fresh-Vec form, capacity
+        // survives; the oracle has no heap scratch here, merge.cc:1202-1207).
+        let mut scratch_roots = Vec::new();
+        let mut scratch_stack = Vec::new();
         for i in 0..size {
             let is_dom = match &new_dom_copy {
                 Some(nd) => Arc::ptr_eq(&nd.0, &copy[pos + i].0),
@@ -4151,8 +4165,6 @@ impl Merge {
             // every block between each reader and the def point — the
             // order-domain entries silently dropped both.
             let mut a_cover = Cover::new();
-            let mut scratch_roots = Vec::new();
-            let mut scratch_stack = Vec::new();
             {
                 let dv = dom_vn.read().unwrap();
                 let def = dv.def.as_ref().and_then(|w| w.upgrade());
